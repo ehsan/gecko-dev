@@ -91,8 +91,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
 
     mGeckoAppShellClass = (jclass) jEnv->NewGlobalRef(jGeckoAppShellClass);
 
-    jNotifyIME = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyIME", "(II)V");
-    jNotifyIMEChange = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyIMEChange", "(Ljava/lang/String;III)V");
+    jShowIME = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "showIME", "(I)V");
     jEnableAccelerometer = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableAccelerometer", "(Z)V");
     jEnableLocation = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableLocation", "(Z)V");
     jReturnIMEQueryResult = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "returnIMEQueryResult", "(Ljava/lang/String;II)V");
@@ -184,24 +183,9 @@ AndroidBridge::EnsureJNIThread()
 }
 
 void
-AndroidBridge::NotifyIME(int aType, int aState)
+AndroidBridge::ShowIME(int aState)
 {
-    mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass,
-                                  jNotifyIME, aType, aState);
-}
-
-void
-AndroidBridge::NotifyIMEChange(const PRUnichar *aText, PRUint32 aTextLen,
-                               int aStart, int aEnd, int aNewEnd)
-{
-    jvalue args[4];
-    AutoLocalJNIFrame jniFrame(1);
-    args[0].l = mJNIEnv->NewString(aText, aTextLen);
-    args[1].i = aStart;
-    args[2].i = aEnd;
-    args[3].i = aNewEnd;
-    mJNIEnv->CallStaticVoidMethodA(mGeckoAppShellClass,
-                                   jNotifyIMEChange, args);
+    mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jShowIME, aState);
 }
 
 void
@@ -217,16 +201,13 @@ AndroidBridge::EnableLocation(bool aEnable)
 }
 
 void
-AndroidBridge::ReturnIMEQueryResult(const PRUnichar *aResult, PRUint32 aLen,
-                                    int aSelStart, int aSelLen)
+AndroidBridge::ReturnIMEQueryResult(const PRUnichar *result, PRUint32 len, int selectionStart, int selectionEnd)
 {
     jvalue args[3];
-    AutoLocalJNIFrame jniFrame(1);
-    args[0].l = mJNIEnv->NewString(aResult, aLen);
-    args[1].i = aSelStart;
-    args[2].i = aSelLen;
-    mJNIEnv->CallStaticVoidMethodA(mGeckoAppShellClass,
-                                   jReturnIMEQueryResult, args);
+    args[0].l = mJNIEnv->NewString(result, len);
+    args[1].i = selectionStart;
+    args[2].i = selectionEnd;
+    mJNIEnv->CallStaticVoidMethodA(mGeckoAppShellClass, jReturnIMEQueryResult, args);
 }
 
 void
