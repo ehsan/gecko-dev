@@ -794,10 +794,6 @@ let CustomizableUIInternal = {
     }
 
     gBuildAreas.get(aArea).add(aNode);
-
-    // Give a class to all customize targets to be used for styling in Customize Mode
-    let customizableNode = this.getCustomizeTargetForArea(aArea, window);
-    customizableNode.classList.add("customization-target");
   },
 
   registerBuildWindow: function(aWindow) {

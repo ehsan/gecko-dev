@@ -596,7 +596,7 @@ BasicCompositor::BeginFrame(const nsIntRegion& aInvalidRegion,
   transform.Translate(-invalidRect.x, -invalidRect.y);
   mRenderTarget->mDrawTarget->SetTransform(transform);
 
-  gfxUtils::ClipToRegion(mRenderTarget->mDrawTarget, invalidRegionSafe);
+  gfxUtils::ClipToRegion(mRenderTarget->mDrawTarget, aInvalidRegion);
 
   if (aRenderBoundsOut) {
     *aRenderBoundsOut = rect;

@@ -4,8 +4,6 @@
 
 this.EXPORTED_SYMBOLS = ["TelemetryTimestamps"];
 
-const Cu = Components.utils;
-
 /**
  * This module's purpose is to collect timestamps for important
  * application-specific events.
@@ -48,7 +46,7 @@ this.TelemetryTimestamps = {
    * to attach to the telemetry submission.
    */
   get: function TT_get() {
-    // Return a copy of the object.
-    return Cu.cloneInto(timeStamps, {});
+    // Return a copy of the object by passing it through JSON.
+    return JSON.parse(JSON.stringify(timeStamps));
   }
 };
