@@ -249,15 +249,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         GLES20.glUseProgram(0);
     }
 
-    void restoreState(boolean enableScissor, int scissorX, int scissorY, int scissorW, int scissorH) {
-        GLES20.glScissor(scissorX, scissorY, scissorW, scissorH);
-        if (enableScissor) {
-            GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
-        } else {
-            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-        }
-    }
-
     public int getMaxTextureSize() {
         return mMaxTextureSize;
     }
@@ -567,7 +558,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         @JNITarget
         public void drawBackground() {
             // Any GL state which is changed here must be restored in
-            // restoreState(...)
+            // CompositorOGL::RestoreState
 
             GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
 
@@ -586,7 +577,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         @JNITarget
         public void drawForeground() {
             // Any GL state which is changed here must be restored in
-            // restoreState(...)
+            // CompositorOGL::RestoreState
 
             /* Draw any extra layers that were added (likely plugins) */
             if (mExtraLayers.size() > 0) {

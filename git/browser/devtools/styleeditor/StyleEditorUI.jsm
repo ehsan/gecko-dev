@@ -33,7 +33,6 @@ const console = require("resource://gre/modules/devtools/Console.jsm").console;
 
 const LOAD_ERROR = "error-load";
 const STYLE_EDITOR_TEMPLATE = "stylesheet";
-const SELECTOR_HIGHLIGHTER_TYPE = "SelectorHighlighter";
 const PREF_MEDIA_SIDEBAR = "devtools.styleeditor.showMediaSidebar";
 const PREF_SIDEBAR_WIDTH = "devtools.styleeditor.mediaSidebarWidth";
 const PREF_NAV_WIDTH = "devtools.styleeditor.navSidebarWidth";
@@ -112,24 +111,18 @@ StyleEditorUI.prototype = {
   },
 
   /**
-   * Initiates the style editor ui creation, the inspector front to get
-   * reference to the walker and the selector highlighter if available
+   * Initiates the style editor ui creation and the inspector front to get
+   * reference to the walker.
    */
   initialize: function() {
-    return Task.spawn(function*() {
-      let toolbox = gDevTools.getToolbox(this._target);
-      yield toolbox.initInspector();
+    let toolbox = gDevTools.getToolbox(this._target);
+    return toolbox.initInspector().then(() => {
       this._walker = toolbox.walker;
-
-      let hUtils = toolbox.highlighterUtils;
-      if (hUtils.hasCustomHighlighter(SELECTOR_HIGHLIGHTER_TYPE)) {
-        this._highlighter =
-          yield hUtils.getHighlighterByType(SELECTOR_HIGHLIGHTER_TYPE);
-      }
-    }.bind(this)).then(() => {
+    }).then(() => {
       this.createUI();
       this._debuggee.getStyleSheets().then((styleSheets) => {
-        this._resetStyleSheetList(styleSheets); 
+        this._resetStyleSheetList(styleSheets);
+
         this._target.on("will-navigate", this._clear);
         this._target.on("navigate", this._onNewDocument);
       });
@@ -299,8 +292,8 @@ StyleEditorUI.prototype = {
       file = savedFile;
     }
 
-    let editor = new StyleSheetEditor(styleSheet, this._window, file, isNew,
-                                      this._walker, this._highlighter);
+    let editor =
+      new StyleSheetEditor(styleSheet, this._window, file, isNew, this._walker);
 
     editor.on("property-change", this._summaryChange.bind(this, editor));
     editor.on("media-rules-changed", this._updateMediaList.bind(this, editor));
@@ -827,11 +820,6 @@ StyleEditorUI.prototype = {
   },
 
   destroy: function() {
-    if (this._highlighter) {
-      this._highlighter.finalize();
-      this._highlighter = null;
-    }
-
     this._clearStyleSheetEditors();
 
     let sidebar = this._panelDoc.querySelector(".splitview-controller");

@@ -9,21 +9,6 @@ var FullScreen = {
     delete this._fullScrToggler;
     return this._fullScrToggler = document.getElementById("fullscr-toggler");
   },
-
-  init: function() {
-    // called when we go into full screen, even if initiated by a web page script
-    window.addEventListener("fullscreen", this, true);
-    window.messageManager.addMessageListener("MozEnteredDomFullscreen", this);
-
-    if (window.fullScreen)
-      this.toggle();
-  },
-
-  uninit: function() {
-    window.messageManager.removeMessageListener("MozEnteredDomFullscreen", this);
-    this.cleanup();
-  },
-
   toggle: function (event) {
     var enterFS = window.fullScreen;
 
@@ -110,11 +95,8 @@ var FullScreen = {
     switch (event.type) {
       case "activate":
         if (document.mozFullScreen) {
-          this.showWarning(this.fullscreenOrigin);
+          this.showWarning(this.fullscreenDoc);
         }
-        break;
-      case "fullscreen":
-        this.toggle(event);
         break;
       case "transitionend":
         if (event.propertyName == "opacity")
@@ -123,33 +105,18 @@ var FullScreen = {
     }
   },
 
-  receiveMessage: function(aMessage) {
-    if (aMessage.name == "MozEnteredDomFullscreen") {
-      // If we're a multiprocess browser, then the request to enter fullscreen
-      // did not bubble up to the root browser document - it stopped at the root
-      // of the content document. That means we have to kick off the switch to
-      // fullscreen here at the operating system level in the parent process
-      // ourselves.
-      let data = aMessage.data;
-      let browser = aMessage.target;
-      if (gMultiProcessBrowser && browser.getAttribute("remote") == "true") {
-        let windowUtils = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                                .getInterface(Ci.nsIDOMWindowUtils);
-        windowUtils.remoteFrameFullscreenChanged(browser, data.origin);
-      }
-      this.enterDomFullscreen(browser, data.origin);
-    }
-  },
-
-  enterDomFullscreen : function(aBrowser, aOrigin) {
+  enterDomFullscreen : function(event) {
     if (!document.mozFullScreen)
       return;
 
-    // If we've received a fullscreen notification, we have to ensure that the
-    // element that's requesting fullscreen belongs to the browser that's currently
-    // active. If not, we exit fullscreen since the "full-screen document" isn't
-    // actually visible now.
-    if (gBrowser.selectedBrowser != aBrowser) {
+    // However, if we receive a "MozEnteredDomFullScreen" event for a document
+    // which is not a subdocument of a currently active (ie. visible) browser
+    // or iframe, we know that we've switched to a different frame since the
+    // request to enter full-screen was made, so we should exit full-screen
+    // since the "full-screen document" isn't acutally visible.
+    if (!event.target.defaultView.QueryInterface(Ci.nsIInterfaceRequestor)
+                                 .getInterface(Ci.nsIWebNavigation)
+                                 .QueryInterface(Ci.nsIDocShell).isActive) {
       document.mozCancelFullScreen();
       return;
     }
@@ -169,7 +136,7 @@ var FullScreen = {
     if (gFindBarInitialized)
       gFindBar.close();
 
-    this.showWarning(aOrigin);
+    this.showWarning(event.target);
 
     // Exit DOM full-screen mode upon open, close, or change tab.
     gBrowser.tabContainer.addEventListener("TabOpen", this.exitDomFullScreen);
@@ -211,9 +178,7 @@ var FullScreen = {
       gBrowser.tabContainer.removeEventListener("TabSelect", this.exitDomFullScreen);
       if (!this.useLionFullScreen)
         window.removeEventListener("activate", this);
-
-      window.messageManager
-            .broadcastAsyncMessage("DOMFullscreen:Cleanup");
+      this.fullscreenDoc = null;
     }
   },
 
@@ -372,7 +337,7 @@ var FullScreen = {
     // the permission manager can't handle (documents with URIs without a host).
     // We simply require those to be approved every time instead.
     let rememberCheckbox = document.getElementById("full-screen-remember-decision");
-    let uri = BrowserUtils.makeURI(this.fullscreenOrigin);
+    let uri = this.fullscreenDoc.nodePrincipal.URI;
     if (!rememberCheckbox.hidden) {
       if (rememberCheckbox.checked)
         Services.perms.add(uri,
@@ -405,29 +370,27 @@ var FullScreen = {
     // If the document has been granted fullscreen, notify Gecko so it can resume
     // any pending pointer lock requests, otherwise exit fullscreen; the user denied
     // the fullscreen request.
-    if (isApproved) {
-      gBrowser.selectedBrowser
-              .messageManager
-              .sendAsyncMessage("DOMFullscreen:Approved");
-    } else {
+    if (isApproved)
+      Services.obs.notifyObservers(this.fullscreenDoc, "fullscreen-approved", "");
+    else
       document.mozCancelFullScreen();
-    }
   },
 
   warningBox: null,
   warningFadeOutTimeout: null,
+  fullscreenDoc: null,
 
   // Shows the fullscreen approval UI, or if the domain has already been approved
   // for fullscreen, shows a warning that the site has entered fullscreen for a short
   // duration.
-  showWarning: function(aOrigin) {
+  showWarning: function(targetDoc) {
     if (!document.mozFullScreen ||
         !gPrefService.getBoolPref("full-screen-api.approval-required"))
       return;
 
     // Set the strings on the fullscreen approval UI.
-    this.fullscreenOrigin = aOrigin;
-    let uri = BrowserUtils.makeURI(aOrigin);
+    this.fullscreenDoc = targetDoc;
+    let uri = this.fullscreenDoc.nodePrincipal.URI;
     let host = null;
     try {
       host = uri.host;
