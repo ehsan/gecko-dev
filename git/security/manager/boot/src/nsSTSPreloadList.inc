@@ -8,7 +8,7 @@
 /*****************************************************************************/
 
 #include <stdint.h>
-const PRTime gPreloadListExpirationTime = INT64_C(1415970699881000);
+const PRTime gPreloadListExpirationTime = INT64_C(1415206745808000);
 
 class nsSTSPreload
 {
@@ -117,7 +117,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "history.google.com", true },
   { "hostedtalkgadget.google.com", true },
   { "howrandom.org", true },
-  { "id.atlassian.com", true },
   { "id.mayfirst.org", false },
   { "imouto.my", false },
   { "inertianetworks.com", true },
@@ -179,16 +178,17 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "passport.yandex.ru", false },
   { "passport.yandex.ua", false },
   { "passwd.io", true },
+  { "passwordbox.com", false },
   { "paste.linode.com", false },
   { "pastebin.linode.com", false },
   { "pay.gigahost.dk", true },
   { "paymill.com", true },
   { "paymill.de", false },
+  { "piratenlogin.de", true },
   { "pixi.me", true },
   { "play.google.com", false },
   { "plus.google.com", false },
   { "plus.sandbox.google.com", false },
-  { "portal.tirol.gv.at", true },
   { "profiles.google.com", true },
   { "publications.qld.gov.au", false },
   { "pult.co", true },
@@ -205,6 +205,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "securityheaders.com", true },
   { "seifried.org", true },
   { "shodan.io", true },
+  { "silentcircle.com", false },
   { "simbolo.co.uk", false },
   { "simple.com", false },
   { "sites.google.com", true },
@@ -252,7 +253,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "wf-training-master.appspot.com", true },
   { "wf-trial-hrd.appspot.com", true },
   { "wiki.python.org", true },
-  { "wildbee.org", true },
   { "wiz.biz", true },
   { "writeapp.me", false },
   { "www.aclu.org", false },
@@ -291,6 +291,5 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "www.wepay.com", false },
   { "www.zenpayroll.com", false },
   { "xbrlsuccess.appspot.com", true },
-  { "z.ai", true },
   { "zenpayroll.com", false },
 };

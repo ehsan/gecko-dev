@@ -10,7 +10,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const PREF_FXA_ENABLED = "identity.fxaccounts.enabled";
-const FXA_PERMISSION = "firefox-accounts";
 
 // This is the parent process corresponding to nsDOMIdentity.
 this.EXPORTED_SYMBOLS = ["DOMIdentity"];
@@ -38,10 +37,6 @@ XPCOMUtils.defineLazyModuleGetter(this,
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
                                    "nsIMessageListenerManager");
-
-XPCOMUtils.defineLazyServiceGetter(this, "permissionManager",
-                                   "@mozilla.org/permissionmanager;1",
-                                   "nsIPermissionManager");
 
 function log(...aMessageArgs) {
   Logger.log.apply(Logger, ["DOMIdentity"].concat(aMessageArgs));
@@ -103,15 +98,13 @@ IDPAuthenticationContext.prototype = {
   }
 };
 
-function RPWatchContext(aOptions, aTargetMM, aPrincipal) {
+function RPWatchContext(aOptions, aTargetMM) {
   objectCopy(aOptions, this);
 
   // id and origin are required
   if (! (this.id && this.origin)) {
     throw new Error("id and origin are required for RP watch context");
   }
-
-  this.principal = aPrincipal;
 
   // default for no loggedInUser is undefined, not null
   this.loggedInUser = aOptions.loggedInUser;
@@ -189,8 +182,8 @@ this.DOMIdentity = {
   /*
    * Create a new RPWatchContext, and update the context maps.
    */
-  newContext: function(message, targetMM, principal) {
-    let context = new RPWatchContext(message, targetMM, principal);
+  newContext: function(message, targetMM) {
+    let context = new RPWatchContext(message, targetMM);
     this._serviceContexts.set(message.id, context);
     this._mmContexts.set(targetMM, message.id);
     return context;
@@ -241,28 +234,6 @@ this.DOMIdentity = {
     this._mmContexts.delete(targetMM);
   },
 
-  hasPermission: function(aMessage) {
-    // We only check that the firefox accounts permission is present in the
-    // manifest.
-    if (aMessage.json && aMessage.json.wantIssuer == "firefox-accounts") {
-      if (!aMessage.principal) {
-        return false;
-      }
-      let secMan = Cc["@mozilla.org/scriptsecuritymanager;1"]
-                     .getService(Ci.nsIScriptSecurityManager);
-      let uri = Services.io.newURI(aMessage.principal.origin, null, null);
-      let principal = secMan.getAppCodebasePrincipal(uri,
-        aMessage.principal.appId, aMessage.principal.isInBrowserElement);
-
-      let permission =
-        permissionManager.testPermissionFromPrincipal(principal,
-                                                      FXA_PERMISSION);
-      return permission != Ci.nsIPermissionManager.UNKNOWN_ACTION &&
-             permission != Ci.nsIPermissionManager.DENY_ACTION;
-    }
-    return true;
-  },
-
   // nsIMessageListener
   receiveMessage: function DOMIdentity_receiveMessage(aMessage) {
     let msg = aMessage.json;
@@ -271,23 +242,19 @@ this.DOMIdentity = {
     // used to send replies back to the proper window.
     let targetMM = aMessage.target;
 
-    if (!this.hasPermission(aMessage)) {
-      throw new Error("PERMISSION_DENIED");
-    }
-
     switch (aMessage.name) {
       // RP
       case "Identity:RP:Watch":
-        this._watch(msg, targetMM, aMessage.principal);
+        this._watch(msg, targetMM);
         break;
       case "Identity:RP:Unwatch":
         this._unwatch(msg, targetMM);
         break;
       case "Identity:RP:Request":
-        this._request(msg);
+        this._request(msg, targetMM);
         break;
       case "Identity:RP:Logout":
-        this._logout(msg);
+        this._logout(msg, targetMM);
         break;
       // IDP
       case "Identity:IDP:BeginProvisioning":
@@ -361,9 +328,9 @@ this.DOMIdentity = {
     ppmm = null;
   },
 
-  _watch: function DOMIdentity__watch(message, targetMM, principal) {
-    log("DOMIdentity__watch: " + message.id + " - " + principal);
-    let context = this.newContext(message, targetMM, principal);
+  _watch: function DOMIdentity__watch(message, targetMM) {
+    log("DOMIdentity__watch: " + message.id);
+    let context = this.newContext(message, targetMM);
     this.getService(message).RP.watch(context);
   },
 

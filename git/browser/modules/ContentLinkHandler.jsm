@@ -21,14 +21,11 @@ XPCOMUtils.defineLazyModuleGetter(this, "BrowserUtils",
 this.ContentLinkHandler = {
   init: function(chromeGlobal) {
     chromeGlobal.addEventListener("DOMLinkAdded", (event) => {
-      this.onLinkEvent(event, chromeGlobal);
-    }, false);
-    chromeGlobal.addEventListener("DOMLinkChanged", (event) => {
-      this.onLinkEvent(event, chromeGlobal);
+      this.onLinkAdded(event, chromeGlobal);
     }, false);
   },
 
-  onLinkEvent: function(event, chromeGlobal) {
+  onLinkAdded: function(event, chromeGlobal) {
     var link = event.originalTarget;
     var rel = link.rel && link.rel.toLowerCase();
     if (!link || !link.ownerDocument || !rel || !link.href)
@@ -50,7 +47,7 @@ this.ContentLinkHandler = {
       switch (relVal) {
         case "feed":
         case "alternate":
-          if (!feedAdded && event.type == "DOMLinkAdded") {
+          if (!feedAdded) {
             if (!rels.feed && rels.alternate && rels.stylesheet)
               break;
 
@@ -72,11 +69,11 @@ this.ContentLinkHandler = {
             if (!uri)
               break;
 
-            [iconAdded] = chromeGlobal.sendSyncMessage("Link:SetIcon", {url: uri.spec});
+            [iconAdded] = chromeGlobal.sendSyncMessage("Link:AddIcon", {url: uri.spec});
           }
           break;
         case "search":
-          if (!searchAdded && event.type == "DOMLinkAdded") {
+          if (!searchAdded) {
             var type = link.type && link.type.toLowerCase();
             type = type.replace(/^\s+|\s*(?:;.*)?$/g, "");
 

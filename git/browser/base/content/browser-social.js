@@ -600,7 +600,7 @@ SocialShare = {
     sizeSocialPanelToContent(this.panel, iframe);
   },
 
-  sharePage: function(providerOrigin, graphData, target) {
+  sharePage: function(providerOrigin, graphData) {
     // if providerOrigin is undefined, we use the last-used provider, or the
     // current/default provider.  The provider selection in the share panel
     // will call sharePage with an origin for us to switch to.
@@ -619,8 +619,7 @@ SocialShare = {
     // in mozSocial API, or via nsContentMenu calls. If it is present, it MUST
     // define at least url. If it is undefined, we're sharing the current url in
     // the browser tab.
-    let pageData = graphData ? graphData : this.currentShare;
-    let sharedURI = pageData ? Services.io.newURI(pageData.url, null, null) :
+    let sharedURI = graphData ? Services.io.newURI(graphData.url, null, null) :
                                 gBrowser.currentURI;
     if (!this.canSharePage(sharedURI))
       return;
@@ -629,6 +628,7 @@ SocialShare = {
     // endpoints (e.g. oexchange) that do not support additional
     // socialapi functionality.  One tweak is that we shoot an event
     // containing the open graph data.
+    let pageData = graphData ? graphData : this.currentShare;
     if (!pageData || sharedURI == gBrowser.currentURI) {
       pageData = OpenGraphBuilder.getData(gBrowser);
       if (graphData) {
@@ -637,10 +637,6 @@ SocialShare = {
           pageData[p] = graphData[p];
         }
       }
-    }
-    // if this is a share of a selected item, get any microdata
-    if (!pageData.microdata && target) {
-      pageData.microdata = OpenGraphBuilder.getMicrodata(gBrowser, target);
     }
     this.currentShare = pageData;
 
@@ -1357,10 +1353,10 @@ SocialMarks = {
     return this._toolbarHelper;
   },
 
-  markLink: function(aOrigin, aUrl, aTarget) {
+  markLink: function(aOrigin, aUrl) {
     // find the button for this provider, and open it
     let id = this._toolbarHelper.idFromOrigin(aOrigin);
-    document.getElementById(id).markLink(aUrl, aTarget);
+    document.getElementById(id).markLink(aUrl);
   }
 };
 

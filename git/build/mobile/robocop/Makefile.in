@@ -30,7 +30,6 @@ _JAVA_HARNESS := \
   RobocopShare2.java \
   RobocopUtils.java \
   PaintedSurface.java \
-  StructuredLogger.java \
   $(NULL)
 
 java-harness := $(addprefix $(srcdir)/,$(_JAVA_HARNESS))

@@ -1913,7 +1913,6 @@ function loadURI(uri, referrer, postData, allowThirdPartyFixup) {
 }
 
 function getShortcutOrURIAndPostData(aURL, aCallback) {
-  let mayInheritPrincipal = false;
   let postData = null;
   let shortcutURL = null;
   let keyword = aURL;
@@ -1929,8 +1928,7 @@ function getShortcutOrURIAndPostData(aURL, aCallback) {
   if (engine) {
     let submission = engine.getSubmission(param);
     postData = submission.postData;
-    aCallback({ postData: submission.postData, url: submission.uri.spec,
-                mayInheritPrincipal: mayInheritPrincipal });
+    aCallback({ postData: submission.postData, url: submission.uri.spec });
     return;
   }
 
@@ -1938,8 +1936,7 @@ function getShortcutOrURIAndPostData(aURL, aCallback) {
     PlacesUtils.getURLAndPostDataForKeyword(keyword);
 
   if (!shortcutURL) {
-    aCallback({ postData: postData, url: aURL,
-                mayInheritPrincipal: mayInheritPrincipal });
+    aCallback({ postData: postData, url: aURL });
     return;
   }
 
@@ -1971,12 +1968,7 @@ function getShortcutOrURIAndPostData(aURL, aCallback) {
         postData = getPostDataStream(escapedPostData, param, encodedParam,
                                                "application/x-www-form-urlencoded");
 
-      // This URL came from a bookmark, so it's safe to let it inherit the current
-      // document's principal.
-      mayInheritPrincipal = true;
-
-      aCallback({ postData: postData, url: shortcutURL,
-                  mayInheritPrincipal: mayInheritPrincipal });
+      aCallback({ postData: postData, url: shortcutURL });
     }
 
     if (matches) {
@@ -1999,15 +1991,9 @@ function getShortcutOrURIAndPostData(aURL, aCallback) {
     // the original URL.
     postData = null;
 
-    aCallback({ postData: postData, url: aURL,
-                mayInheritPrincipal: mayInheritPrincipal });
+    aCallback({ postData: postData, url: aURL });
   } else {
-    // This URL came from a bookmark, so it's safe to let it inherit the current
-    // document's principal.
-    mayInheritPrincipal = true;
-
-    aCallback({ postData: postData, url: shortcutURL,
-                mayInheritPrincipal: mayInheritPrincipal });
+    aCallback({ postData: postData, url: shortcutURL });
   }
 }
 
@@ -2856,7 +2842,7 @@ const DOMLinkHandler = {
   init: function() {
     let mm = window.messageManager;
     mm.addMessageListener("Link:AddFeed", this);
-    mm.addMessageListener("Link:SetIcon", this);
+    mm.addMessageListener("Link:AddIcon", this);
     mm.addMessageListener("Link:AddSearch", this);
   },
 
@@ -2867,8 +2853,8 @@ const DOMLinkHandler = {
         FeedHandler.addFeed(link, aMsg.target);
         break;
 
-      case "Link:SetIcon":
-        return this.setIcon(aMsg.target, aMsg.data.url);
+      case "Link:AddIcon":
+        return this.addIcon(aMsg.target, aMsg.data.url);
         break;
 
       case "Link:AddSearch":
@@ -2877,7 +2863,7 @@ const DOMLinkHandler = {
     }
   },
 
-  setIcon: function(aBrowser, aURL) {
+  addIcon: function(aBrowser, aURL) {
     if (gBrowser.isFailedIcon(aURL))
       return false;
 
@@ -5195,8 +5181,7 @@ function middleMousePaste(event) {
     if (where != "current" ||
         lastLocationChange == gBrowser.selectedBrowser.lastLocationChange) {
       openUILink(data.url, event,
-                 { ignoreButton: true,
-                   disallowInheritPrincipal: !data.mayInheritPrincipal });
+                 { ignoreButton: true });
     }
   });
 
@@ -5204,9 +5189,26 @@ function middleMousePaste(event) {
 }
 
 function stripUnsafeProtocolOnPaste(pasteData) {
-  // Don't allow pasting javascript URIs since we don't support
-  // LOAD_FLAGS_DISALLOW_INHERIT_OWNER for those.
-  return pasteData.replace(/^(?:\s*javascript:)+/i, "");
+  // Don't allow pasting in full URIs which inherit the security context.
+  const URI_INHERITS_SECURITY_CONTEXT = Ci.nsIProtocolHandler.URI_INHERITS_SECURITY_CONTEXT;
+
+  let pastedURI;
+  try {
+    pastedURI = makeURI(pasteData.trim());
+  } catch (ex) {
+    return pasteData;
+  }
+
+  while (Services.netutil.URIChainHasFlags(pastedURI, URI_INHERITS_SECURITY_CONTEXT)) {
+    pasteData = pastedURI.path.trim();
+    try {
+      pastedURI = makeURI(pasteData);
+    } catch (ex) {
+      break;
+    }
+  }
+
+  return pasteData;
 }
 
 function handleDroppedLink(event, url, name)

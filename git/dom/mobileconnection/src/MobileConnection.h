@@ -156,9 +156,6 @@ public:
   IMPL_EVENT_HANDLER(clirmodechange)
 
 private:
-  ~MobileConnection();
-
-private:
   uint32_t mClientId;
   nsCOMPtr<nsIMobileConnectionProvider> mProvider;
   nsRefPtr<Listener> mListener;
