@@ -7,6 +7,11 @@
 MOZ_GLUE_LDFLAGS =
 MOZ_GLUE_PROGRAM_LDFLAGS =
 
+LOCAL_INCLUDES += \
+  -I$(srcdir)/../common \
+  -I$(topsrcdir)/xpcom/glue \
+  $(NULL)
+
 ifeq ($(OS_ARCH),WINNT)
 LIBS += $(call EXPAND_LIBNAME_PATH,updatecommon-standalone,../common-standalone)
 else
@@ -75,6 +80,11 @@ libs::
 	$(NSINSTALL) -D $(DIST)/bin/updater.app/Contents/MacOS
 	$(NSINSTALL) $(DIST)/bin/updater $(DIST)/bin/updater.app/Contents/MacOS
 	rm -f $(DIST)/bin/updater
+endif
+
+ifeq (,$(filter-out WINNT,$(OS_ARCH)))
+# Pick up nsWindowsRestart.cpp
+LOCAL_INCLUDES += -I$(topsrcdir)/toolkit/xre
 endif
 
 ifeq ($(OS_ARCH),WINNT)

@@ -338,19 +338,22 @@ nsStyleContext::ApplyStyleFixups(bool aSkipFlexItemStyleFixup)
   // here if needed, by changing the style data, so that other code
   // doesn't get confused by looking at the style data.
   if (!mParent) {
-    uint8_t displayVal = disp->mDisplay;
-    nsRuleNode::EnsureBlockDisplay(displayVal, true);
-    if (displayVal != disp->mDisplay) {
-      nsStyleDisplay *mutable_display =
-        static_cast<nsStyleDisplay*>(GetUniqueStyleData(eStyleStruct_Display));
-
+    if (disp->mDisplay != NS_STYLE_DISPLAY_NONE &&
+        disp->mDisplay != NS_STYLE_DISPLAY_BLOCK &&
+        disp->mDisplay != NS_STYLE_DISPLAY_TABLE) {
+      nsStyleDisplay *mutable_display = static_cast<nsStyleDisplay*>
+                                                   (GetUniqueStyleData(eStyleStruct_Display));
       // If we're in this code, then mOriginalDisplay doesn't matter
       // for purposes of the cascade (because this nsStyleDisplay
       // isn't living in the ruletree anyway), and for determining
       // hypothetical boxes it's better to have mOriginalDisplay
       // matching mDisplay here.
-      mutable_display->mOriginalDisplay = mutable_display->mDisplay =
-        displayVal;
+      if (mutable_display->mDisplay == NS_STYLE_DISPLAY_INLINE_TABLE)
+        mutable_display->mOriginalDisplay = mutable_display->mDisplay =
+          NS_STYLE_DISPLAY_TABLE;
+      else
+        mutable_display->mOriginalDisplay = mutable_display->mDisplay =
+          NS_STYLE_DISPLAY_BLOCK;
     }
   }
 
