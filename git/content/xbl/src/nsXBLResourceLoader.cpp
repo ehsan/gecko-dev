@@ -59,7 +59,6 @@
 #include "nsCSSRuleProcessor.h"
 #include "nsContentUtils.h"
 #include "nsStyleSet.h"
-#include "nsIScriptSecurityManager.h"
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLResourceLoader)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLResourceLoader)
@@ -149,18 +148,13 @@ nsXBLResourceLoader::LoadResources(PRBool* aResult)
       nsresult rv;
       if (NS_SUCCEEDED(url->SchemeIs("chrome", &chrome)) && chrome)
       {
-        rv = nsContentUtils::GetSecurityManager()->
-          CheckLoadURIWithPrincipal(docPrincipal, url,
-                                    nsIScriptSecurityManager::ALLOW_CHROME);
-        if (NS_SUCCEEDED(rv)) {
-          nsCOMPtr<nsICSSStyleSheet> sheet;
-          rv = cssLoader->LoadSheetSync(url, getter_AddRefs(sheet));
-          NS_ASSERTION(NS_SUCCEEDED(rv), "Load failed!!!");
-          if (NS_SUCCEEDED(rv))
-          {
-            rv = StyleSheetLoaded(sheet, PR_FALSE, NS_OK);
-            NS_ASSERTION(NS_SUCCEEDED(rv), "Processing the style sheet failed!!!");
-          }
+        nsCOMPtr<nsICSSStyleSheet> sheet;
+        rv = cssLoader->LoadSheetSync(url, getter_AddRefs(sheet));
+        NS_ASSERTION(NS_SUCCEEDED(rv), "Load failed!!!");
+        if (NS_SUCCEEDED(rv))
+        {
+          rv = StyleSheetLoaded(sheet, PR_FALSE, NS_OK);
+          NS_ASSERTION(NS_SUCCEEDED(rv), "Processing the style sheet failed!!!");
         }
       }
       else
