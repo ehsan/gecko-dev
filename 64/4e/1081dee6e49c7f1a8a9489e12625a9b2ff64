@@ -1,0 +1,3 @@
+changeset 5e460d0174672dae08850616183ee9bf977db51a
+manifest f2cb3b77a1d13b5d2cb5cc3c1c78a1206fd91809
+files browser/devtools/netmonitor/test/browser_net_details-no-duplicated-content.js

@@ -1,0 +1,3 @@
+changeset c3c5bafe647a0938eefc259734c8a32dcf62fdce
+manifest 5c624baa9ed9b76346396e0cca8571096032f387
+files browser/components/sessionstore/src/TabStateCache.jsm

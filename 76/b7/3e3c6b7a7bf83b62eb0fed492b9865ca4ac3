@@ -1,0 +1,4 @@
+changeset fef3ceebcfbcbe5f9ae19b68316f82c35586e87e
+manifest 86d2f36147012bd97ca46e9a33b0ec0ee74b53b2
+extra amend_source:c526a09a210f5fbe4f6925cb34fd7666182577a5
+files mobile/android/base/AppConstants.java.in

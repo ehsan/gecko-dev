@@ -1,0 +1,4 @@
+changeset 5d7b893f5868e8501a4f317df51fb33ee6c3f9a0
+manifest ad52a7c11bbe3ab4271792ef6b160ba1e4bd7002
+extra rebase_source:2891eda9d2d8502eac67b57154ea9dac24fe2020
+files mobile/android/base/GeckoApp.java

@@ -1,0 +1,4 @@
+changeset 82c4cd6c3b932c5479fb9268060850627ef279fa
+manifest 7b80cf6434765f4fbe90c444c80b96dcc8fa40eb
+extra rebase_source:191bcfe75a062d33ee9e5b740d57601f3f21198b
+files browser/base/content/browser-plugins.js

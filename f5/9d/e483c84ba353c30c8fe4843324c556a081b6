@@ -1,0 +1,3 @@
+changeset 7eedf2ff7ff688a5ce5d909cfecfdad1d74b090a
+manifest 71413bd2e5178f037154729454df1f95fe285e04
+files security/manager/boot/src/RootCertificateTelemetryUtils.cpp

@@ -1,0 +1,3 @@
+changeset b7cc170fe11eac719b36700e8fdb7f7d672f678a
+manifest 2cbf25565ab0a617ca4e6b759f8df9a34f12cc48
+files browser/components/shell/src/nsWindowsShellService.cpp

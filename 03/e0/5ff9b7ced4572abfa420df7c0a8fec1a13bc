@@ -1,0 +1,3 @@
+changeset 09036d362f916bed26b04bbcbcc25af8bda38845
+manifest ed30387dea18c7d54615b92c33bdc7e4650e00bc
+files browser/devtools/debugger/test/browser_dbg_breakpoint-new-script.js

@@ -1,0 +1,3 @@
+changeset c75ee035344d94a70e6077c35ac1271dea60067d
+manifest 8286c56b840bcec255f801f51ff7fa38e578927f
+files toolkit/devtools/server/tests/browser/browser_storage_dynamic_windows.js

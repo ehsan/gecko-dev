@@ -1,0 +1,4 @@
+changeset 475acf44e323e090647c485c5dfeb17deebdbd34
+manifest 7343b03937b55f73450c96b5a06157f6ef00d8d5
+author ffxbld
+files security/manager/boot/src/StaticHPKPins.h

@@ -1,0 +1,3 @@
+changeset f246d54db37f5124642d062adbb460989f34bd61
+manifest 1c70acd6ea36e9af97b5dd12ec058b74f695e8a7
+files dom/interfaces/geolocation/nsIDOMGeoGeolocation.idl

@@ -1,0 +1,4 @@
+changeset ceedaa2e278c587d885ac957c63416c5386b8124
+manifest eab55d6a7711d1eb23b4594d2c40469a33b2d0b1
+extra rebase_source:7cc0b61b31dd68e99e36585c3c06e7f6eef9d19d
+files mobile/android/search/java/org/mozilla/search/providers/SearchEngineManager.java

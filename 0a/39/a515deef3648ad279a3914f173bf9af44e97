@@ -1,0 +1,3 @@
+changeset 64c5cc9bad2e84a9b1d6392b095ad06a75b94a4e
+manifest a5b65bf3fe9642aa913816966f028c866ba96f17
+files media/webrtc/trunk/webrtc/modules/audio_device/linux/audio_device_pulse_linux.h

@@ -1,0 +1,3 @@
+changeset d1b94a06a364471d2626d029473b81f4c7e81403
+manifest ae19a5738f2eb23c7e9611d132a4a3f88da137dd
+files testing/mozbase/mozrunner/mozrunner/devices/emulator.py

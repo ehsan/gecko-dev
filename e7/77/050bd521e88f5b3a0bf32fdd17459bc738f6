@@ -1,0 +1,4 @@
+changeset 3a5de06a61d895c4756ae6fb60c7a72572a7d2ff
+manifest a046985f556836b91c96b3d1f38dfd7fcaa4a21a
+extra rebase_source:fa988e6b58460c0524f2ed1062e20c1cb16f09df
+files dom/system/gonk/NetworkUtils.cpp

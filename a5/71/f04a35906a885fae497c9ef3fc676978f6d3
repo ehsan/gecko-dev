@@ -1,0 +1,3 @@
+changeset 636f7b80515b88042ddc5165f46185aee9d4689c
+manifest 3ff9bfd829d05cf42f18892c0574c476c637ffd4
+files browser/devtools/webconsole/test/browser_webconsole_bug_597103_deactivateHUDForContext_unfocused_window.js

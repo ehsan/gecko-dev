@@ -1,0 +1,4 @@
+changeset ffcc0f0992dd96cbfe8988c5f66debb49cdfbe4b
+manifest dec29f435abc33f916587f889b4a6e05d942fc47
+extra rebase_source:6b41129fbcc09491040110497b0cc06a81b276f5
+files media/libspeex_resampler/src/resample.c

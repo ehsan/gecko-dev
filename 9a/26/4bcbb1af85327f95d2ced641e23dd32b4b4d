@@ -1,0 +1,3 @@
+changeset f93b0e5dc32770e35be5e304e7bef547e12b9655
+manifest 8920f8df6495c9edf142182080f000b252fe3a2b
+files browser/devtools/webconsole/test/browser_console_addonsdk_loader_exception.js

@@ -1,0 +1,4 @@
+changeset a1366e157fb151e892f6fd365f8a74017f7033c9
+manifest da869c07d2b1b6818f708b64399874d081dff5f6
+extra rebase_source:428ea264032a4c54a500de8cc56c86ea1d4fe974
+files toolkit/mozapps/update/tests/chrome/utils.js

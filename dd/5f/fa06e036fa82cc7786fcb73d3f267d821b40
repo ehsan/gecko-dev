@@ -1,0 +1,3 @@
+changeset ff5a32f762d107037371a3a29842f332744d2d1c
+manifest c12a8308e4670cca8b6684fdf76f4ae42a6e0f4e
+files dom/sms/interfaces/nsIDOMSmsMessage.idl

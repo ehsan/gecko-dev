@@ -1,0 +1,4 @@
+changeset 2b2a0d087da7c91e62aac798c98de0460c2edf4a
+manifest 42a5e6de7db51bacb8b0075119dbb9d4abeef29c
+extra rebase_source:827e4881ef6baa8b86fddcc60c4b666a6f5be715
+files testing/marionette/client/MANIFEST.in

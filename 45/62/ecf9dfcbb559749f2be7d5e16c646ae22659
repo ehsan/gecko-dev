@@ -1,0 +1,4 @@
+changeset ff1a5478b8049c0625e05755afa885dbb84c0bca
+manifest fce26f9958b09fe8e16ba3ef54b603aeed300bfb
+extra rebase_source:3697eaf80b618a9b6e85cb3dc86939b75aeaa9a1
+files widget/tests/test_platform_colors.xul

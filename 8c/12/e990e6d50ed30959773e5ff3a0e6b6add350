@@ -1,0 +1,4 @@
+changeset 55cd17a0f25b8ff4f6b76d9c71fb3cd7b1e581c0
+manifest a48d112362cc14013a44366e9ec6576cd78a00e9
+extra rebase_source:bd864b1e04d7f32b833fdeb616dba2f671ac539f
+files mobile/android/base/resources/xml/search_widget_info.xml

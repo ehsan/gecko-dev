@@ -1,0 +1,3 @@
+changeset cc12ac5d04394863acebbe09603f1ff4117feda6
+manifest 9b42277f09f70c19e4b272de5d2063a1e544e2f9
+files js/src/jit-test/tests/basic/testOOMInAutoEnterCompartment.js

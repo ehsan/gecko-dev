@@ -1,0 +1,3 @@
+changeset 6be4fd69a8f27594d4eb8c4911b324ad5248fb94
+manifest 797f50b7467d65f3c11196f12488b28a07f3bb7d
+files toolkit/mozapps/update/test/unit/test_0200_app_launch_apply_update.js

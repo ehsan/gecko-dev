@@ -1,0 +1,3 @@
+changeset 016db9a29ac4b5b3216ecf7f912b9fc7e28b66bf
+manifest e557bd14dda83a6612f6036322a295e7fe0de1f7
+files js/src/jit/shared/Assembler-x86-shared.cpp

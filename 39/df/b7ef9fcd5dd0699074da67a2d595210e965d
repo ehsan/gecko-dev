@@ -1,0 +1,4 @@
+changeset 9cfb3a0c64d55058c1a1d60920400ae7d9752dbd
+manifest f1826a0941f8c4ab7406cb0f1388834ff82f7245
+extra rebase_source:53e4483283224c9456938491d3396256da9c3d43
+files browser/base/content/test/newtab/browser_newtab_focus.js

@@ -1,0 +1,4 @@
+changeset 1260bf2d4bdd65a26ada0520dd9f31da69fb4105
+manifest 8109940548063a23b12f9f8434d603635aec4bd9
+extra rebase_source:7f6431b13e6080f590547f8433d5efa96b846c5c
+files embedding/tests/winEmbed/winEmbed.cpp

@@ -1,0 +1,4 @@
+changeset 0b62d54f320f8b42ad1c1832a10e886dfb9cd348
+manifest e12d016ad5b330d36e42d0e02500c95303327aef
+extra rebase_source:4a933f3a9f2900bcf10c0b69bea656ef0553517a
+files b2g/installer/Makefile.in

@@ -1,0 +1,3 @@
+changeset 94ecdce1683145026c73ec586b15e04235cfce0f
+manifest bc70949d2390839b9446e6182c6bc917b511ef17
+files toolkit/crashreporter/nsExceptionHandler.cpp

@@ -1,0 +1,3 @@
+changeset 0ce69d7707783219b3a2efccb6aa3d5be1a598b6
+manifest 9aaee27569970338f60f1980594cdea19cf5a441
+files media/webrtc/trunk/webrtc/modules/audio_device/audio_device_opensles.cc

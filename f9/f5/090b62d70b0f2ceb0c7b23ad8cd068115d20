@@ -1,0 +1,3 @@
+changeset e8d7c8241df21cb1f1a70a0469ee9798a908be0b
+manifest 518fe2414130fd72be9c860da7146f183a2d63f6
+files dom/interfaces/events/nsIDOMTouchEvent.idl

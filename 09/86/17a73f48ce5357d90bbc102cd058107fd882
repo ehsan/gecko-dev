@@ -1,0 +1,3 @@
+changeset f75a527a8c4a16eb43e11e895c623b8548fb192b
+manifest 65febe606cbe6b98232f29c36e80e08b0eea134d
+files toolkit/components/telemetry/tests/unit/test_nsITelemetry.js

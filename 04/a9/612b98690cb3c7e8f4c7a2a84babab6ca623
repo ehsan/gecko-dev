@@ -1,0 +1,4 @@
+changeset 1c97386827967be5fece65fc3551d0581b3a6351
+manifest 28596035bb9723e7ccc5078d7860ab462e3f6cbe
+extra rebase_source:5d66549396ecf36ee7e69b70cdfc2816a3a9482a
+files browser/app/macbuild/Contents/_CodeSignature/CodeResources

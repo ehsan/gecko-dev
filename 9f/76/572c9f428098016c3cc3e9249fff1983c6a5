@@ -1,0 +1,4 @@
+changeset 8dda3e9072e18eb857b0adb6732f5d5ae842dac5
+manifest c4e1807e8341cc663a4e1598bd4b38f9c040e5a1
+extra rebase_source:0e6a74426e6ea90c792250bb03b961f5b01333ef
+files netwerk/dns/nsHostResolver.cpp

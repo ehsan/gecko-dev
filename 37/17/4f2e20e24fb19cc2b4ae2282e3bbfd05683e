@@ -1,0 +1,4 @@
+changeset 071e2690ff7acf1eb0d8979d96c39008c893f13d
+manifest bd1c7e91e186bc4b2564cfaf36580c05d972783d
+extra rebase_source:639bc1d09781d95ce655d91b13cd568549376c2c
+files browser/modules/KeywordURLResetPrompter.jsm

@@ -1,0 +1,4 @@
+changeset c9102769c7417bebfe40b71f145a352ddd9e0a86
+manifest 1d46f7f821c5ab9e4106b8dcc85d66326dcc128d
+author stefanh@inbox.com
+files widget/cocoa/nsNativeThemeCocoa.mm

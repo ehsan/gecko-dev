@@ -1,0 +1,3 @@
+changeset 62fc7d5a3085ae21711cc27a391e902d9a4bd3b6
+manifest 7ba5bdd601b796afe1b684a8a9b4317c50b91ed9
+files mozglue/android/SQLiteBridge.cpp

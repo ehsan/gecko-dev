@@ -1,0 +1,3 @@
+changeset 2e6e504f74073873709fa8f74dcf1ec50e46c484
+manifest 4bf979975e50becb239daa135fc6b7bc41271d8a
+files xpcom/io/nsScriptableInputStream.cpp

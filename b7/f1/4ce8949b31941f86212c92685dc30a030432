@@ -1,0 +1,3 @@
+changeset 2dca8b96f7333e6346eb6ab6bd9158b4622ca5b6
+manifest 66ac08e3cf6b0d747d2b2f8faee053bbf33c8ae8
+files mozglue/build/WindowsDllBlocklist.cpp

@@ -1,0 +1,3 @@
+changeset 40abc58af0c1acfe889e57b804ed8e4f0c760eae
+manifest b445d671c451a87ed6494e861cf717a60b2b1471
+files netwerk/base/public/nsIBrowserSearchService.idl

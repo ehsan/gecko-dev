@@ -1,0 +1,4 @@
+changeset 8a23501c1cf04ed83209506cdbf969fde9ccf5f9
+manifest 53f4ac61842bb5ea74f7ce38982794fdc8ca5817
+extra rebase_source:b608a48ab1e7e598001b11e0cda6e4257ca2b7db
+files gfx/layers/ImageContainer.cpp

@@ -1,0 +1,3 @@
+changeset b5c326a2f65fecb82530d85eaead230821d10e60
+manifest 06c19362a9475bf52c4d598a29d22cc417254a58
+files xpcom/glue/standalone/nsXPCOMGlue.cpp

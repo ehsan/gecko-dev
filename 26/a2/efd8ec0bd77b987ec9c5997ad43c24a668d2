@@ -1,0 +1,3 @@
+changeset 9c59eb7fb40c6ffc5feddc3e0b4eeaef6fe20f1b
+manifest 5af0c6d0e9046af7b9ff14d8e7c840d0c5aea6ce
+files browser/devtools/webconsole/test/browser_webconsole_bug_601352_scroll.js

@@ -1,0 +1,4 @@
+changeset 0fd81b763e5093357ee21ae4460c7ff81fff501d
+manifest 341600e01d462de8c9cf8e4740368c4657ebfdfd
+extra rebase_source:bf19b95659641f46fb6e44f4fb624bdaa4c51396
+files toolkit/components/social/test/browser/browser_frameworker.js

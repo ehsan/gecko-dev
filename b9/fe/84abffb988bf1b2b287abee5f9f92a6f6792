@@ -1,0 +1,3 @@
+changeset 219f5af98c17a44516538ac40df7428dada177c2
+manifest f63bd94734c955b1a24cb0e0d69427b721cc1c6f
+files browser/devtools/debugger/test/browser_dbg_pause-exceptions-01.js

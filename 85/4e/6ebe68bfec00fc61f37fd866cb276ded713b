@@ -1,0 +1,3 @@
+changeset a74478caa593511cb886f56adacfc07aeafac705
+manifest fcf9001b7a0386a8a5cd2b880cc1bcb428f88a7f
+files js/src/jsapi-tests/testJitMoveEmitterCycles.cpp

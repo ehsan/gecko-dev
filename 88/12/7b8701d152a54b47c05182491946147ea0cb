@@ -1,0 +1,4 @@
+changeset faa63e3c6033b631a9a57a3fef8287d75439ccb6
+manifest 70de253555fb2b55ccf27049c342ef81ff398406
+extra rebase_source:f4712b236df5753a4acd10bc2853237f257cf506
+files toolkit/components/social/FrameWorker.jsm

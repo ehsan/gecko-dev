@@ -1,0 +1,3 @@
+changeset 4c30346e553b505471ea075625b03e2b4f364283
+manifest c0923331e1ca4bde23adbd1d76b29ccb1cb865bc
+files testing/marionette/client/marionette/runner/mixins/endurance.py

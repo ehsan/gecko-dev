@@ -1,0 +1,3 @@
+changeset 896c0e9a2b35de3d896a3078c880c2d49fd99743
+manifest 88b1fde997ab58895062be0eb3dc46b564b7dc09
+files mozglue/linker/SeekableZStream.cpp

@@ -1,0 +1,4 @@
+changeset 48a77e1433c3266d47f960b5b14f72e4cbfc4c01
+manifest 506b5773a46459224d51f88d50133ff59fdd4dd4
+extra rebase_source:05c294a49375b6f8a52097c17074b161d8092f17
+files b2g/config/flame-kk/releng-flame-kk.tt

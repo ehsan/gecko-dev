@@ -1,0 +1,3 @@
+changeset b850b908263719091ef764c13d536c9ecba6d5d7
+manifest 42c48b5b9180975713566b8256f0182264c6270c
+files modules/libmar/tests/unit/test_sign_verify.js

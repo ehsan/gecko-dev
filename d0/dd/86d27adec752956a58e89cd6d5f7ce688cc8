@@ -1,0 +1,4 @@
+changeset 4005d68e2d8334c498cd41197d8703decfb266c3
+manifest 172b286728d7c4b55b3bc3e0ed4ff8c097f5812f
+extra source:2e2ef6b0d6469b331f41145b573d0cb5a2ff7160
+files security/manager/ssl/src/ScopedNSSTypes.h

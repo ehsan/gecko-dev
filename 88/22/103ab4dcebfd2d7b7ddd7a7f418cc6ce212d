@@ -1,0 +1,3 @@
+changeset 381b423ec65b7f775b0f62d854f6765823c9794c
+manifest a0713a292823f7653c9a6b2a8b116ebc1d1e7346
+files extensions/spellcheck/hunspell/src/hunspell_fopen_hooks.h

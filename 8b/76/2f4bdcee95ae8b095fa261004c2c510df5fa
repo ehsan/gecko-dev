@@ -1,0 +1,3 @@
+changeset 8ee3dc82cd3addf3867a29f574215606f85bc9c5
+manifest 1bd8a90ffc13d467f2bf2211ccac8b936b15ac8b
+files browser/components/privatebrowsing/test/browser/browser_privatebrowsing_localStorage.js

@@ -1,0 +1,3 @@
+changeset ca488c45ecb2a783af566494ed989ac3108fe05c
+manifest 76e418f4e5fbbc2b7eeb17e65877be85b8daa798
+files js/src/jit-test/tests/jaeger/bug832670.js

@@ -1,0 +1,3 @@
+changeset 36c772e0fb03f48f21c30c684e6d0e1caa0d9439
+manifest e223c023d8755c0e1d3fa6ac74bfddde6746aa91
+files netwerk/base/public/nsIEncodedChannel.idl

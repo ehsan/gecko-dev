@@ -1,0 +1,3 @@
+changeset 5b6e1cf75e870c3b6191eec2a00a8ed2b644b306
+manifest ca319f127a419c0faf40788f5f278d532f4d06ee
+files js/src/vm/NativeObject.cpp

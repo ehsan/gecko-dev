@@ -1,0 +1,3 @@
+changeset dba7b5fdea5c6e825251eea656731df86bc03eed
+manifest 32508fd897a3d4acdc92cac0cd963dbe7517251e
+files js/src/jit-test/tests/debug/Debugger-debuggees-28.js

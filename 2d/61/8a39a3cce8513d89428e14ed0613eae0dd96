@@ -1,0 +1,3 @@
+changeset e5c0de9492d1240ee31e21d584604e262fe0993b
+manifest 3f75884dc95436fa87875e0a9a91c5c5f52443be
+files js/src/tests/ecma_6/Object/propertyIsEnumerable-proxy.js

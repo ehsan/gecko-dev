@@ -1,0 +1,3 @@
+changeset 21c3f268d27fe0be884d3e08eebec25057fb93b0
+manifest 6b73e69f9419c6e9d760b96f2291b0abea147193
+files toolkit/mozapps/update/updater/automounter_gonk.cpp

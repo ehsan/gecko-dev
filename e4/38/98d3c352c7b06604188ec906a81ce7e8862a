@@ -1,0 +1,3 @@
+changeset 9feb51769e20c50392cd6c950901e8deb1489fe4
+manifest 8e050ca122e44da11790676075077fdd18f5d9d3
+files browser/components/sessionstore/test/browser_sessionStorage.js

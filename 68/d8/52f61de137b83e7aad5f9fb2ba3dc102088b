@@ -1,0 +1,4 @@
+changeset e8f505668b0c4aab26c08e23ae2abc249b7a2caa
+manifest f36b27f0825873670ce87982f5b2092ce0157b4b
+extra rebase_source:fb45612f68ecb4322863d5d9b91dd7ae3b6e858f
+files content/events/src/nsEventStateManager.cpp

@@ -1,0 +1,3 @@
+changeset b124044cd60bf6715577992c8b04ae2b8327208e
+manifest bf7e8d6825d93f12ce116ddeeba7d914af515731
+files browser/devtools/webconsole/test/browser_webconsole_bug_642108_pruneTest.js

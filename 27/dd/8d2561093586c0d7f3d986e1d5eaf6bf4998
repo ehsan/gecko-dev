@@ -1,0 +1,3 @@
+changeset 114b010b6bf1a0efee03f003e54ed6fa00909972
+manifest 7b05c43ed0bbfc3da7d5ca808832da34494858e9
+files netwerk/protocol/http/nsIHttpChannelInternal.idl

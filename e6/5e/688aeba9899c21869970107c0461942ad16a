@@ -1,0 +1,4 @@
+changeset a02bb6f1101447e59fbab43976c432111ae38d3e
+manifest 68f88359de16c6850326253a7ee7d6c8aa4ec68c
+extra rebase_source:0d85ca2b65866b5d7b44eb663e6e5daa8ddb28f6
+files mobile/android/base/WebAppAllocator.java

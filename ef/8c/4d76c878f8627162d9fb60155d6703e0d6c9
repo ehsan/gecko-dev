@@ -1,0 +1,4 @@
+changeset 60c78f0a347427aa3bce8ebad6d25dfec9628a7c
+manifest e2b1ce9ba546c2c3f2564c3d427edea87c5d9d54
+extra rebase_source:989a8bb0010096ba0950ccaa96d7e642dd1d2883
+files widget/android/AndroidBridge.cpp

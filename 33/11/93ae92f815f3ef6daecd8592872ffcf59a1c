@@ -1,0 +1,4 @@
+changeset 2946946fa0a9c03266745423531ae7b46b4d9c36
+manifest 62d9d7bb376f35eb35b067199d8eed9f533143dd
+extra rebase_source:ab25cec39efd9c9655a42617a198dd39171ebcaa
+files toolkit/xre/nsEmbedFunctions.cpp

@@ -1,0 +1,4 @@
+changeset e7b0279a3f5dd327e319c8822c92822da470cc7d
+manifest 54784947dd669904f623b8d8890626fe52253f2d
+extra rebase_source:9afdb221d32d1b321cf1d8f7d14f6f09fcabfd70
+files browser/base/content/test/browser_social_shareButton.js

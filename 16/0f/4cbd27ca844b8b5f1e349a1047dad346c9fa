@@ -1,0 +1,4 @@
+changeset 93da569af52db3a791a9ded3a4492fcbcaad4e6e
+manifest 0fe635ea2c0fa6b85d564b9bfe43686e255f13c5
+extra rebase_source:978b7114f18f8465141e5b40e62016d389d19137
+files xpcom/base/nsRefPtr.h

@@ -1,0 +1,4 @@
+changeset 0b5de274b868584a0d4c651caecdf4629f1ad067
+manifest 06c0042bad3024b86456ebef257383adfbf324a0
+extra rebase_source:0d8a126307477b20238adf66e1ee1813a0db7e1c
+files toolkit/components/social/test/browser/browser_notifications.js

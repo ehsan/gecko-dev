@@ -1,0 +1,4 @@
+changeset 7b60deda620e5726b7d6af0ac9b69f40b28795f0
+manifest e0cd0dd8c38ab9eaab97878d709fdf5d399aa52c
+extra rebase_source:74b98cc5bd0024f1178d3b929aefa9534370b79d
+files testing/specialpowers/content/specialpowers.js

@@ -1,0 +1,3 @@
+changeset 9988311c6dae009d00aaa5c73f7a98378b9584a5
+manifest a201665d731b3589b033b0561cf995b645811374
+files browser/devtools/webconsole/test/browser_bug_869003_inspect_cross_domain_object.js

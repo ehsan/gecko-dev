@@ -1,0 +1,4 @@
+changeset 330b68ae15832f0b1b2f97802404f68f32ffd95b
+manifest 96b1cf7dcab0a930876abe835257d4bc3cbb1ff5
+extra rebase_source:0f30457480b7c7e9b50caffaa3e4c02761710a1d
+files browser/components/test/browser_bug538331.js

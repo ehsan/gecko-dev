@@ -1,0 +1,3 @@
+changeset bb3fcf304252c6c523531b4de413543f98a4f07b
+manifest 3eae5af265e6d8afbeb9304bf2f7748918e2b488
+files testing/mozbase/mozlog/tests/test_structured.py

@@ -1,0 +1,4 @@
+changeset f978315a6f2e69f01a3a77ee5db99b0102824abd
+manifest 1d1cbc51df3cdeef3b4bb1966bd671e19bad604a
+extra rebase_source:5f140135c65eff06f6ec644b3ab95fba33e1f219
+files dom/tests/mochitest/geolocation/mochitest.ini

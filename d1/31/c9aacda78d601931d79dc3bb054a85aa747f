@@ -1,0 +1,3 @@
+changeset 375b868fadf9a68f2ae68707bc2eb2341e96acf6
+manifest ba985d86ad0c2ec5353ccd14488b07ec01a118d0
+files image/decoders/nsPNGDecoder.cpp

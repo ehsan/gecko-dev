@@ -1,0 +1,3 @@
+changeset beb045b96bc91db371c9f8df2086cbca2bf74f62
+manifest e954e3f24ab857d42a9ceb75a4c5facb98c24d78
+files python/mozbuild/mozbuild/action/generate_browsersearch.py

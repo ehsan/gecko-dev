@@ -1,0 +1,3 @@
+changeset 59a419eca6359683a2eb031f3de01946d162594c
+manifest f13dad54e3825f70c6270c42a2bd2107afe952e8
+files services/metrics/tests/xpcshell/test_metrics_provider.js

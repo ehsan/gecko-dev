@@ -1,0 +1,3 @@
+changeset 0adc3bb27f5ba7eab0a562dddc0731965c7bfef1
+manifest 6f38c880e38ea8b2e66a8a44f8e3e49def690036
+files dom/system/gonk/tests/test_ril_worker_sms.js

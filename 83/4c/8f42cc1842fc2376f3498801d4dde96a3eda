@@ -1,0 +1,3 @@
+changeset 51c3820c230142beed8231a4b0aa4fe9e9355dbb
+manifest e21640695137aa46cdcf1390847fe1d0c068312c
+files browser/components/loop/test/mochitest/browser_fxa_login.js
