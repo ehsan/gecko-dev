@@ -432,7 +432,7 @@ nsHTMLTextFieldAccessible::ApplyARIAState(PRUint64* aState)
 {
   nsHyperTextAccessibleWrap::ApplyARIAState(aState);
 
-  aria::MapToState(aria::eARIAAutoComplete, mContent->AsElement(), aState);
+  nsStateMapEntry::MapToStates(mContent, aState, eARIAAutoComplete);
 }
 
 PRUint64

@@ -569,7 +569,7 @@ gfxUserFontSet::LoadNext(gfxProxyFontEntry *aProxyEntry)
                 } else {
                     // otherwise load font async
                     rv = StartLoad(aProxyEntry, &currSrc);
-                    bool loadOK = NS_SUCCEEDED(rv);
+                    PRBool loadOK = NS_SUCCEEDED(rv);
 
                     if (loadOK) {
 #ifdef PR_LOGGING

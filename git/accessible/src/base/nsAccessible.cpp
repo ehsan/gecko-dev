@@ -821,7 +821,7 @@ nsAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
     // point. Skip offscreen or invisible accessibles. This takes care of cases
     // where layout won't walk into things for us, such as image map areas and
     // sub documents (XXX: subdocuments should be handled by methods of
-    // OuterDocAccessibles).
+    // nsOuterDocAccessibles).
     PRInt32 childCount = GetChildCount();
     for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
       nsAccessible *child = GetChildAt(childIdx);
@@ -1609,13 +1609,8 @@ nsAccessible::State()
 void
 nsAccessible::ApplyARIAState(PRUint64* aState)
 {
-  if (!mContent->IsElement())
-    return;
-
-  dom::Element* element = mContent->AsElement();
-
   // Test for universal states first
-  *aState |= nsARIAMap::UniversalStatesFor(element);
+  *aState |= nsARIAMap::UniversalStatesFor(mContent);
 
   if (mRoleMapEntry) {
 
@@ -1655,11 +1650,16 @@ nsAccessible::ApplyARIAState(PRUint64* aState)
     return;
 
   *aState |= mRoleMapEntry->state;
-
-  if (aria::MapToState(mRoleMapEntry->attributeMap1, element, aState) &&
-      aria::MapToState(mRoleMapEntry->attributeMap2, element, aState))
-    aria::MapToState(mRoleMapEntry->attributeMap3, element, aState);
+  if (nsStateMapEntry::MapToStates(mContent, aState,
+                                   mRoleMapEntry->attributeMap1) &&
+      nsStateMapEntry::MapToStates(mContent, aState,
+                                   mRoleMapEntry->attributeMap2)) {
+    nsStateMapEntry::MapToStates(mContent, aState,
+                                 mRoleMapEntry->attributeMap3);
+  }
 }
+
+// Not implemented by this class
 
 /* DOMString getValue (); */
 NS_IMETHODIMP
@@ -2825,9 +2825,9 @@ nsAccessible::IsSelect()
   // accessible so that we can follow COM identity rules.
 
   return mRoleMapEntry &&
-    (mRoleMapEntry->attributeMap1 == aria::eARIAMultiSelectable ||
-     mRoleMapEntry->attributeMap2 == aria::eARIAMultiSelectable ||
-     mRoleMapEntry->attributeMap3 == aria::eARIAMultiSelectable);
+    (mRoleMapEntry->attributeMap1 == eARIAMultiSelectable ||
+     mRoleMapEntry->attributeMap2 == eARIAMultiSelectable ||
+     mRoleMapEntry->attributeMap3 == eARIAMultiSelectable);
 }
 
 already_AddRefed<nsIArray>

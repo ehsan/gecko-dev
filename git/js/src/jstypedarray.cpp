@@ -2495,7 +2495,6 @@ JS_FRIEND_API(JSBool)
 js_IsArrayBuffer(JSObject *obj)
 {
     JS_ASSERT(obj);
-    obj = UnwrapObject(obj);
     return obj->isArrayBuffer();
 }
 
@@ -2514,34 +2513,17 @@ IsFastTypedArrayClass(const Class *clasp)
            clasp < &TypedArray::fastClasses[TypedArray::TYPE_MAX];
 }
 
-bool
-IsSlowTypedArrayClass(const Class *clasp)
-{
-    return &TypedArray::slowClasses[0] <= clasp &&
-           clasp < &TypedArray::slowClasses[TypedArray::TYPE_MAX];
-}
-
-bool IsFastOrSlowTypedArray(JSObject *obj)
-{
-    Class *clasp = obj->getClass();
-    return IsFastTypedArrayClass(clasp) || IsSlowTypedArrayClass(clasp);
-}
-
 } // namespace js
 
 uint32_t
 JS_GetArrayBufferByteLength(JSObject *obj)
 {
-    obj = UnwrapObject(obj);
-    JS_ASSERT(obj->isArrayBuffer());
     return obj->arrayBufferByteLength();
 }
 
 uint8_t *
 JS_GetArrayBufferData(JSObject *obj)
 {
-    obj = UnwrapObject(obj);
-    JS_ASSERT(obj->isArrayBuffer());
     return obj->arrayBufferDataOffset();
 }
 
@@ -2549,7 +2531,6 @@ JS_FRIEND_API(JSBool)
 js_IsTypedArray(JSObject *obj)
 {
     JS_ASSERT(obj);
-    obj = UnwrapObject(obj);
     Class *clasp = obj->getClass();
     return IsFastTypedArrayClass(clasp);
 }
@@ -2651,39 +2632,35 @@ js_CreateTypedArrayWithBuffer(JSContext *cx, int atype, JSObject *bufArg,
 uint32_t
 JS_GetTypedArrayLength(JSObject *obj)
 {
-    obj = UnwrapObject(obj);
-    JS_ASSERT(obj->isTypedArray());
     return obj->getSlot(TypedArray::FIELD_LENGTH).toInt32();
 }
 
 uint32_t
 JS_GetTypedArrayByteOffset(JSObject *obj)
 {
-    obj = UnwrapObject(obj);
-    JS_ASSERT(obj->isTypedArray());
     return obj->getSlot(TypedArray::FIELD_BYTEOFFSET).toInt32();
 }
 
 uint32_t
 JS_GetTypedArrayByteLength(JSObject *obj)
 {
-    obj = UnwrapObject(obj);
-    JS_ASSERT(obj->isTypedArray());
     return obj->getSlot(TypedArray::FIELD_BYTELENGTH).toInt32();
 }
 
 uint32_t
 JS_GetTypedArrayType(JSObject *obj)
 {
-    obj = UnwrapObject(obj);
-    JS_ASSERT(obj->isTypedArray());
     return obj->getSlot(TypedArray::FIELD_TYPE).toInt32();
+}
+
+JSObject *
+JS_GetTypedArrayBuffer(JSObject *obj)
+{
+    return (JSObject *) obj->getSlot(TypedArray::FIELD_BUFFER).toPrivate();
 }
 
 void *
 JS_GetTypedArrayData(JSObject *obj)
 {
-    obj = UnwrapObject(obj);
-    JS_ASSERT(obj->isTypedArray());
     return TypedArray::getDataOffset(obj);
 }

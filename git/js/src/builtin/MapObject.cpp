@@ -196,11 +196,11 @@ MapObject::mark(JSTracer *trc, JSObject *obj)
 }
 
 void
-MapObject::finalize(FreeOp *fop, JSObject *obj)
+MapObject::finalize(JSContext *cx, JSObject *obj)
 {
     MapObject *mapobj = static_cast<MapObject *>(obj);
     if (ValueMap *map = mapobj->getData())
-        fop->delete_(map);
+        cx->delete_(map);
 }
 
 class AddToMap {
@@ -286,7 +286,7 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
 JSBool
 MapObject::size(JSContext *cx, unsigned argc, Value *vp)
 {
-    THIS_MAP(size, cx, argc, vp, args, map);
+    THIS_MAP(get, cx, argc, vp, args, map);
     JS_STATIC_ASSERT(sizeof map.count() <= sizeof(uint32_t));
     args.rval().setNumber(map.count());
     return true;
@@ -397,11 +397,11 @@ SetObject::mark(JSTracer *trc, JSObject *obj)
 }
 
 void
-SetObject::finalize(FreeOp *fop, JSObject *obj)
+SetObject::finalize(JSContext *cx, JSObject *obj)
 {
     SetObject *setobj = static_cast<SetObject *>(obj);
     if (ValueSet *set = setobj->getData())
-        fop->delete_(set);
+        cx->delete_(set);
 }
 
 class AddToSet {
@@ -455,7 +455,7 @@ SetObject::construct(JSContext *cx, unsigned argc, Value *vp)
 JSBool
 SetObject::size(JSContext *cx, unsigned argc, Value *vp)
 {
-    THIS_SET(size, cx, argc, vp, args, set);
+    THIS_SET(has, cx, argc, vp, args, set);
     JS_STATIC_ASSERT(sizeof set.count() <= sizeof(uint32_t));
     args.rval().setNumber(set.count());
     return true;

@@ -39,7 +39,7 @@ DOMBindingBase::_Trace(JSTracer* aTrc)
 }
 
 void
-DOMBindingBase::_Finalize(JSFreeOp* aFop)
+DOMBindingBase::_Finalize(JSContext* aCx)
 {
   ClearWrapper();
   NS_RELEASE_THIS();

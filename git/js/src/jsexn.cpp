@@ -86,7 +86,7 @@ static void
 exn_trace(JSTracer *trc, JSObject *obj);
 
 static void
-exn_finalize(FreeOp *fop, JSObject *obj);
+exn_finalize(JSContext *cx, JSObject *obj);
 
 static JSBool
 exn_resolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
@@ -488,16 +488,16 @@ SetExnPrivate(JSContext *cx, JSObject *exnObject, JSExnPrivate *priv)
 }
 
 static void
-exn_finalize(FreeOp *fop, JSObject *obj)
+exn_finalize(JSContext *cx, JSObject *obj)
 {
     if (JSExnPrivate *priv = GetExnPrivate(obj)) {
         if (JSErrorReport *report = priv->errorReport) {
             /* HOLD called by SetExnPrivate. */
             if (JSPrincipals *prin = report->originPrincipals)
-                JS_DropPrincipals(fop->runtime(), prin);
-            fop->free_(report);
+                JS_DropPrincipals(cx->runtime, prin);
+            cx->free_(report);
         }
-        fop->free_(priv);
+        cx->free_(priv);
     }
 }
 

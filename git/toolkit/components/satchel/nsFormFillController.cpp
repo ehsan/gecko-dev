@@ -844,7 +844,7 @@ nsFormFillController::Focus(nsIDOMEvent* aEvent)
 
   nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(input);
   if (isPwmgrInput || (formControl &&
-                       formControl->IsSingleLineTextControl(true) &&
+                       formControl->IsSingleLineTextControl(PR_TRUE) &&
                        (hasList || autocomplete) && !isReadOnly)) {
     StartControllingInput(input);
   }

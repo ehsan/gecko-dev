@@ -38,7 +38,7 @@ wrap(JSContext *cx, JSObject *toWrap, JSObject *target)
 static JSObject *
 PreWrap(JSContext *cx, JSObject *scope, JSObject *obj, unsigned flags)
 {
-    JS_GC(JS_GetRuntime(cx));
+    JS_GC(cx);
     return obj;
 }
 

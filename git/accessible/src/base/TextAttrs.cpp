@@ -760,14 +760,5 @@ TextAttrsMgr::TextPosTextAttr::
     }
   }
 
-  const nsIContent* content = aFrame->GetContent();
-  if (content && content->IsHTML()) {
-    const nsIAtom* tagName = content->Tag();
-    if (tagName == nsGkAtoms::sup) 
-      return eTextPosSuper;
-    if (tagName == nsGkAtoms::sub) 
-      return eTextPosSub;
-  }
-
   return eTextPosNone;
 }

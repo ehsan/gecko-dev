@@ -1470,10 +1470,10 @@ XMLHttpRequest::_Trace(JSTracer* aTrc)
 }
 
 void
-XMLHttpRequest::_Finalize(JSFreeOp* aFop)
+XMLHttpRequest::_Finalize(JSContext* aCx)
 {
   ReleaseProxy(XHRIsGoingAway);
-  XMLHttpRequestEventTarget::_Finalize(aFop);
+  XMLHttpRequestEventTarget::_Finalize(aCx);
 }
 
 // static
@@ -1548,7 +1548,9 @@ XMLHttpRequest::MaybePin(nsresult& aRv)
   }
 
   if (!mWorkerPrivate->AddFeature(cx, this)) {
-    JS_RemoveObjectRoot(cx, &mJSObject);
+    if (!JS_RemoveObjectRoot(cx, &mJSObject)) {
+      NS_ERROR("JS_RemoveObjectRoot failed!");
+    }
     aRv = NS_ERROR_FAILURE;
     return;
   }
@@ -1662,7 +1664,9 @@ XMLHttpRequest::Unpin()
 
   JSContext* cx = GetJSContext();
 
-  JS_RemoveObjectRoot(cx, &mJSObject);
+  if (!JS_RemoveObjectRoot(cx, &mJSObject)) {
+    NS_ERROR("JS_RemoveObjectRoot failed!");
+  }
 
   mWorkerPrivate->RemoveFeature(cx, this);
 

@@ -195,13 +195,13 @@ Recompiler::patchFrame(JSCompartment *compartment, VMFrame *f, JSScript *script)
             f->stubRejoin = 0;
         }
     } else {
-        if (script->jitHandleCtor.isValid()) {
-            JITChunk *chunk = script->jitHandleCtor.getValid()->findCodeChunk(*addr);
+        if (script->jitCtor) {
+            JITChunk *chunk = script->jitCtor->findCodeChunk(*addr);
             if (chunk)
                 patchCall(chunk, fp, addr);
         }
-        if (script->jitHandleNormal.isValid()) {
-            JITChunk *chunk = script->jitHandleNormal.getValid()->findCodeChunk(*addr);
+        if (script->jitNormal) {
+            JITChunk *chunk = script->jitNormal->findCodeChunk(*addr);
             if (chunk)
                 patchCall(chunk, fp, addr);
         }
@@ -401,15 +401,14 @@ ClearAllFrames(JSCompartment *compartment)
  *   redirect that entryncode to the interpoline.
  */
 void
-Recompiler::clearStackReferences(FreeOp *fop, JSScript *script)
+Recompiler::clearStackReferences(JSContext *cx, JSScript *script)
 {
     JS_ASSERT(script->hasJITCode());
 
     JaegerSpew(JSpew_Recompile, "recompiling script (file \"%s\") (line \"%d\") (length \"%d\")\n",
                script->filename, script->lineno, script->length);
 
-    JSCompartment *comp = script->compartment();
-    types::AutoEnterTypeInference enter(fop, comp);
+    types::AutoEnterTypeInference enter(cx, true);
 
     /*
      * The strategy for this goes as follows:
@@ -423,7 +422,7 @@ Recompiler::clearStackReferences(FreeOp *fop, JSScript *script)
 
     // Find all JIT'd stack frames to account for return addresses that will
     // need to be patched after recompilation.
-    for (VMFrame *f = comp->jaegerCompartment()->activeFrame();
+    for (VMFrame *f = script->compartment()->jaegerCompartment()->activeFrame();
          f != NULL;
          f = f->previous) {
 
@@ -451,18 +450,18 @@ Recompiler::clearStackReferences(FreeOp *fop, JSScript *script)
             next = fp;
         }
 
-        patchFrame(comp, f, script);
+        patchFrame(cx->compartment, f, script);
     }
 
-    comp->types.recompilations++;
+    cx->compartment->types.recompilations++;
 }
 
 void
-Recompiler::clearStackReferencesAndChunk(FreeOp *fop, JSScript *script,
+Recompiler::clearStackReferencesAndChunk(JSContext *cx, JSScript *script,
                                          JITScript *jit, size_t chunkIndex,
                                          bool resetUses)
 {
-    Recompiler::clearStackReferences(fop, script);
+    Recompiler::clearStackReferences(cx, script);
 
     bool releaseChunk = true;
     if (jit->nchunks > 1) {
@@ -470,7 +469,7 @@ Recompiler::clearStackReferencesAndChunk(FreeOp *fop, JSScript *script,
         // we need to make sure all JIT code for the script is purged, as
         // otherwise we will have orphaned the native stub but pointers to it
         // still exist in the containing chunk.
-        for (VMFrame *f = script->compartment()->jaegerCompartment()->activeFrame();
+        for (VMFrame *f = cx->compartment->jaegerCompartment()->activeFrame();
              f != NULL;
              f = f->previous) {
             if (f->fp()->script() == script) {
@@ -478,7 +477,7 @@ Recompiler::clearStackReferencesAndChunk(FreeOp *fop, JSScript *script,
                           f->stubRejoin != REJOIN_NATIVE_LOWERED &&
                           f->stubRejoin != REJOIN_NATIVE_GETTER);
                 if (f->stubRejoin == REJOIN_NATIVE_PATCHED) {
-                    mjit::ReleaseScriptCode(fop, script);
+                    mjit::ReleaseScriptCode(cx, script);
                     releaseChunk = false;
                     break;
                 }
@@ -487,7 +486,7 @@ Recompiler::clearStackReferencesAndChunk(FreeOp *fop, JSScript *script,
     }
 
     if (releaseChunk)
-        jit->destroyChunk(fop, chunkIndex, resetUses);
+        jit->destroyChunk(cx, chunkIndex, resetUses);
 }
 
 } /* namespace mjit */

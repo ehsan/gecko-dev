@@ -114,7 +114,7 @@ nsDOMCSSAttributeDeclaration::SetCSSDeclaration(css::Declaration* aDecl)
 
   return
     mIsSMILOverride ? mElement->SetSMILOverrideStyleRule(newRule, true) :
-    mElement->SetInlineStyleRule(newRule, nsnull, true);
+    mElement->SetInlineStyleRule(newRule, true);
 }
 
 nsIDocument*
@@ -164,7 +164,7 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(bool aAllocate)
   if (mIsSMILOverride)
     rv = mElement->SetSMILOverrideStyleRule(newRule, false);
   else
-    rv = mElement->SetInlineStyleRule(newRule, nsnull, false);
+    rv = mElement->SetInlineStyleRule(newRule, false);
 
   if (NS_FAILED(rv)) {
     return nsnull; // the decl will be destroyed along with the style rule

@@ -84,11 +84,11 @@ struct ListenerData : PRCList
 };
 
 inline void
-DestroyList(JSFreeOp* aFop, PRCList* aListHead)
+DestroyList(JSContext* aCx, PRCList* aListHead)
 {
   for (PRCList* elem = PR_NEXT_LINK(aListHead); elem != aListHead; ) {
     PRCList* nextElem = PR_NEXT_LINK(elem);
-    JS_freeop(aFop, elem);
+    JS_free(aCx, elem);
     elem = nextElem;
   }
 }
@@ -174,17 +174,17 @@ EventListenerManager::TraceInternal(JSTracer* aTrc) const
 }
 
 void
-EventListenerManager::FinalizeInternal(JSFreeOp* aFop)
+EventListenerManager::FinalizeInternal(JSContext* aCx)
 {
   MOZ_ASSERT(!PR_CLIST_IS_EMPTY(&mCollectionHead));
 
   for (PRCList* elem = PR_NEXT_LINK(&mCollectionHead);
        elem != &mCollectionHead;
        elem = PR_NEXT_LINK(elem)) {
-    DestroyList(aFop, &static_cast<ListenerCollection*>(elem)->mListenerHead);
+    DestroyList(aCx, &static_cast<ListenerCollection*>(elem)->mListenerHead);
   }
 
-  DestroyList(aFop, &mCollectionHead);
+  DestroyList(aCx, &mCollectionHead);
 
 #ifdef DEBUG
   PR_INIT_CLIST(&mCollectionHead);

@@ -1088,7 +1088,7 @@ nsLocalFile::Clone(nsIFile **file)
 }
 
 NS_IMETHODIMP
-nsLocalFile::InitWithFile(nsIFile *aFile)
+nsLocalFile::InitWithFile(nsILocalFile *aFile)
 {
     NS_ENSURE_ARG(aFile);
     

@@ -314,16 +314,16 @@ struct JSCompartment
 
     /* Set of all unowned base shapes in the compartment. */
     js::BaseShapeSet             baseShapes;
-    void sweepBaseShapeTable();
+    void sweepBaseShapeTable(JSContext *cx);
 
     /* Set of initial shapes in the compartment. */
     js::InitialShapeSet          initialShapes;
-    void sweepInitialShapeTable();
+    void sweepInitialShapeTable(JSContext *cx);
 
     /* Set of default 'new' or lazy types in the compartment. */
     js::types::TypeObjectSet     newTypeObjects;
     js::types::TypeObjectSet     lazyTypeObjects;
-    void sweepNewTypeObjectTable(js::types::TypeObjectSet &table);
+    void sweepNewTypeObjectTable(JSContext *cx, js::types::TypeObjectSet &table);
 
     js::types::TypeObject        *emptyTypeObject;
 
@@ -383,8 +383,8 @@ struct JSCompartment
     bool wrap(JSContext *cx, js::AutoIdVector &props);
 
     void markTypes(JSTracer *trc);
-    void discardJitCode(js::FreeOp *fop);
-    void sweep(js::FreeOp *fop, bool releaseTypes);
+    void discardJitCode(JSContext *cx);
+    void sweep(JSContext *cx, bool releaseTypes);
     void purge();
 
     void setGCLastBytes(size_t lastBytes, size_t lastMallocBytes, js::JSGCInvocationKind gckind);
@@ -446,20 +446,20 @@ struct JSCompartment
 
   private:
     /* This is called only when debugMode() has just toggled. */
-    void updateForDebugMode(js::FreeOp *fop);
+    void updateForDebugMode(JSContext *cx);
 
   public:
     js::GlobalObjectSet &getDebuggees() { return debuggees; }
     bool addDebuggee(JSContext *cx, js::GlobalObject *global);
-    void removeDebuggee(js::FreeOp *fop, js::GlobalObject *global,
+    void removeDebuggee(JSContext *cx, js::GlobalObject *global,
                         js::GlobalObjectSet::Enum *debuggeesEnum = NULL);
     bool setDebugModeFromC(JSContext *cx, bool b);
 
-    void clearBreakpointsIn(js::FreeOp *fop, js::Debugger *dbg, JSObject *handler);
-    void clearTraps(js::FreeOp *fop);
+    void clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSObject *handler);
+    void clearTraps(JSContext *cx);
 
   private:
-    void sweepBreakpoints(js::FreeOp *fop);
+    void sweepBreakpoints(JSContext *cx);
 
   public:
     js::WatchpointMap *watchpointMap;

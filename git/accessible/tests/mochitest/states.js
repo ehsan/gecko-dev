@@ -3,7 +3,6 @@
 //
 // requires:
 //   common.js
-//   role.js
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +71,7 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
                     aAbsentExtraState, aTestName)
 {
   var [state, extraState] = getStates(aAccOrElmOrID);
-  var role = getRole(aAccOrElmOrID);
+
   var id = prettyName(aAccOrElmOrID) + (aTestName ? " [" + aTestName + "]": "");
 
   // Primary test.
@@ -136,7 +135,7 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
   }
 
   // checked/mixed/checkable
-  if (state & STATE_CHECKED || state & STATE_MIXED && role != ROLE_PROGRESSBAR)
+  if (state & STATE_CHECKED || state & STATE_MIXED)
     isState(state & STATE_CHECKABLE, STATE_CHECKABLE, false,
             "Checked or mixed element must be checkable!");
 

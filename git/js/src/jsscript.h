@@ -272,13 +272,9 @@ namespace JSC {
     class ExecutablePool;
 }
 
-namespace js {
-namespace mjit {
-    struct JITScript;
-    class CallCompiler;
-}
-}
+#define JS_UNJITTABLE_SCRIPT (reinterpret_cast<void*>(1))
 
+namespace js { namespace mjit { struct JITScript; } }
 #endif
 
 namespace js {
@@ -301,7 +297,7 @@ class ScriptCounts
     ScriptCounts() : pcCountsVector(NULL) {
     }
 
-    inline void destroy(FreeOp *fop);
+    inline void destroy(JSContext *cx);
 
     void steal(ScriptCounts &other) {
         *this = other;
@@ -347,61 +343,18 @@ struct JSScript : public js::gc::Cell
     static const uint32_t stepFlagMask = 0x80000000U;
     static const uint32_t stepCountMask = 0x7fffffffU;
 
-  public:
-    // This type wraps JITScript.  It has three possible states.
-    // - "Empty": no compilation has been attempted and there is no JITScript.
-    // - "Unjittable": compilation failed and there is no JITScript.
-    // - "Valid": compilation succeeded and there is a JITScript.
-    class JITScriptHandle
-    {
-        // CallCompiler must be a friend because it generates code that uses
-        // UNJITTABLE.
-        friend class js::mjit::CallCompiler;
+  /*
+   * We order fields according to their size in order to avoid wasting space
+   * for alignment.
+   */
 
-        // The exact representation:
-        // - NULL means "empty".
-        // - UNJITTABLE means "unjittable".
-        // - Any other value means "valid".
-        // UNJITTABLE = 1 so that we can check that a JITScript is valid
-        // with a single |> 1| test.  It's defined outside the class because
-        // non-integral static const fields can't be defined in the class.
-        static const js::mjit::JITScript *UNJITTABLE;   // = (JITScript *)1;
-        js::mjit::JITScript *value;
-
-      public:
-        JITScriptHandle()       { value = NULL; }
-
-        bool isEmpty()          { return value == NULL; }
-        bool isUnjittable()     { return value == UNJITTABLE; }
-        bool isValid()          { return value  > UNJITTABLE; }
-
-        js::mjit::JITScript *getValid() {
-            JS_ASSERT(isValid());
-            return value;
-        }
-
-        void setEmpty()         { value = NULL; }
-        void setUnjittable()    { value = const_cast<js::mjit::JITScript *>(UNJITTABLE); }
-        void setValid(js::mjit::JITScript *jit) {
-            value = jit;
-            JS_ASSERT(isValid());
-        }
-
-        static void staticAsserts();
-    };
-
-    //
-    // We order fields according to their size in order to avoid wasting space
-    // for alignment.
-    //
-
-    // Larger-than-word-sized fields.
+  /* Larger-than-word-sized fields. */
 
   public:
     js::Bindings    bindings;   /* names of top-level variables in this script
                                    (and arguments if this is a function script) */
 
-    // Word-sized fields.
+  /* Word-sized fields. */
 
   public:
     jsbytecode      *code;      /* bytecodes and their immediate operands */
@@ -409,7 +362,7 @@ struct JSScript : public js::gc::Cell
                                    comment above NewScript() for details) */
 
     const char      *filename;  /* source filename or null */
-    js::HeapPtrAtom *atoms;     /* maps immediate index to literal struct */
+    JSAtom          **atoms;    /* maps immediate index to literal struct */
 
     JSPrincipals    *principals;/* principals for this script */
     JSPrincipals    *originPrincipals; /* see jsapi.h 'originPrincipals' comment */
@@ -435,10 +388,16 @@ struct JSScript : public js::gc::Cell
     /* Persistent type information retained across GCs. */
     js::types::TypeScript *types;
 
-  public:
 #ifdef JS_METHODJIT
-    JITScriptHandle jitHandleNormal; // extra JIT info for normal scripts
-    JITScriptHandle jitHandleCtor;   // extra JIT info for constructors
+    // Fast-cached pointers to make calls faster. These are also used to
+    // quickly test whether there is JIT code; a NULL value means no
+    // compilation has been attempted. A JS_UNJITTABLE_SCRIPT value means
+    // compilation failed. Any value is the arity-check entry point.
+    void *jitArityCheckNormal;
+    void *jitArityCheckCtor;
+
+    js::mjit::JITScript *jitNormal;   /* Extra JIT info for normal scripts */
+    js::mjit::JITScript *jitCtor;     /* Extra JIT info for constructors */
 #endif
 
   private:
@@ -452,7 +411,7 @@ struct JSScript : public js::gc::Cell
     void *padding_;
 #endif
 
-    // 32-bit fields.
+    /* 32-bit fields. */
 
   public:
     uint32_t        length;     /* length of code vector */
@@ -465,15 +424,17 @@ struct JSScript : public js::gc::Cell
     uint32_t        natoms;     /* length of atoms array */
 
 #ifdef DEBUG
-    // Unique identifier within the compartment for this script, used for
-    // printing analysis information.
+    /*
+     * Unique identifier within the compartment for this script, used for
+     * printing analysis information.
+     */
     uint32_t        id_;
   private:
     uint32_t        idpad;
   public:
 #endif
 
-    // 16-bit fields.
+    /* 16-bit fields. */
 
   private:
     uint16_t        version;    /* JS version under which script was compiled */
@@ -488,11 +449,13 @@ struct JSScript : public js::gc::Cell
     uint16_t        nslots;     /* vars plus maximum stack depth */
     uint16_t        staticLevel;/* static level for display maintenance */
 
-    // 8-bit fields.
+    /* 8-bit fields. */
 
+    /*
+     * Offsets to various array structures from the end of this script, or
+     * JSScript::INVALID_OFFSET if the array has length 0.
+     */
   public:
-    // Offsets to various array structures from the end of this script, or
-    // JSScript::INVALID_OFFSET if the array has length 0.
     uint8_t         constsOffset;   /* offset to the array of constants */
     uint8_t         objectsOffset;  /* offset to the array of nested function,
                                        block, scope, xml and one-time regexps
@@ -504,7 +467,7 @@ struct JSScript : public js::gc::Cell
     uint8_t         closedArgsOffset; /* offset to the array of closed args */
     uint8_t         closedVarsOffset; /* offset to the array of closed vars */
 
-    // 1-bit fields.
+    /* 1-bit fields. */
 
   public:
     bool            noScriptRval:1; /* no need for result value of last
@@ -551,9 +514,7 @@ struct JSScript : public js::gc::Cell
     bool            analyzedArgsUsage_:1;
     bool            needsArgsObj_:1;
 
-    //
-    // End of fields.  Start methods.
-    //
+    /* End of fields.  Start methods. */
 
     /*
      * Two successively less primitive ways to make a new JSScript.  The first
@@ -640,35 +601,20 @@ struct JSScript : public js::gc::Cell
   private:
     bool makeTypes(JSContext *cx);
     bool makeAnalysis(JSContext *cx);
+  public:
 
 #ifdef JS_METHODJIT
-  private:
-    // CallCompiler must be a friend because it generates code that directly
-    // accesses jitHandleNormal/jitHandleCtor, via jitHandleOffset().
-    friend class js::mjit::CallCompiler;
-
-    static size_t jitHandleOffset(bool constructing) {
-        return constructing ? offsetof(JSScript, jitHandleCtor)
-                            : offsetof(JSScript, jitHandleNormal);
+    bool hasJITCode() {
+        return jitNormal || jitCtor;
     }
-
-  public:
-    bool hasJITCode()   { return jitHandleNormal.isValid() || jitHandleCtor.isValid(); }
-
-    JITScriptHandle *jitHandle(bool constructing) {
-        return constructing ? &jitHandleCtor : &jitHandleNormal;
-    }
-
-    js::mjit::JITScript *getJIT(bool constructing) {
-        JITScriptHandle *jith = jitHandle(constructing);
-        return jith->isValid() ? jith->getValid() : NULL;
-    }
-
-    static void ReleaseCode(js::FreeOp *fop, JITScriptHandle *jith);
 
     // These methods are implemented in MethodJIT.h.
     inline void **nativeMap(bool constructing);
     inline void *nativeCodeForPC(bool constructing, jsbytecode *pc);
+
+    js::mjit::JITScript *getJIT(bool constructing) {
+        return constructing ? jitCtor : jitNormal;
+    }
 
     size_t getUseCount() const  { return useCount; }
     size_t incUseCount() { return ++useCount; }
@@ -683,14 +629,13 @@ struct JSScript : public js::gc::Cell
     size_t sizeOfJitScripts(JSMallocSizeOfFun mallocSizeOf);
 #endif
 
-  public:
     js::PCCounts getPCCounts(jsbytecode *pc) {
         JS_ASSERT(size_t(pc - code) < length);
         return scriptCounts.pcCountsVector[pc - code];
     }
 
     bool initScriptCounts(JSContext *cx);
-    void destroyScriptCounts(js::FreeOp *fop);
+    void destroyScriptCounts(JSContext *cx);
 
     jsbytecode *main() {
         return code + mainOffset;
@@ -755,7 +700,7 @@ struct JSScript : public js::gc::Cell
         return isValidOffset(closedVarsOffset) ? closedVars()->length : 0;
     }
 
-    js::HeapPtrAtom &getAtom(size_t index) const {
+    JSAtom *getAtom(size_t index) {
         JS_ASSERT(index < natoms);
         return atoms[index];
     }
@@ -806,10 +751,10 @@ struct JSScript : public js::gc::Cell
 
   private:
     /*
-     * Recompile with or without single-stepping support, as directed
+     * Attempt to recompile with or without single-stepping support, as directed
      * by stepModeEnabled().
      */
-    void recompileForStepMode(js::FreeOp *fop);
+    bool recompileForStepMode(JSContext *cx);
 
     /* Attempt to change this->stepMode to |newValue|. */
     bool tryNewStepMode(JSContext *cx, uint32_t newValue);
@@ -829,10 +774,10 @@ struct JSScript : public js::gc::Cell
     js::BreakpointSite *getOrCreateBreakpointSite(JSContext *cx, jsbytecode *pc,
                                                   js::GlobalObject *scriptGlobal);
 
-    void destroyBreakpointSite(js::FreeOp *fop, jsbytecode *pc);
+    void destroyBreakpointSite(JSRuntime *rt, jsbytecode *pc);
 
-    void clearBreakpointsIn(js::FreeOp *fop, js::Debugger *dbg, JSObject *handler);
-    void clearTraps(js::FreeOp *fop);
+    void clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSObject *handler);
+    void clearTraps(JSContext *cx);
 
     void markTrapClosures(JSTracer *trc);
 
@@ -858,7 +803,7 @@ struct JSScript : public js::gc::Cell
     uint32_t stepModeCount() { return debug ? (debug->stepMode & stepCountMask) : 0; }
 #endif
 
-    void finalize(js::FreeOp *fop);
+    void finalize(JSContext *cx, bool background);
 
     static inline void writeBarrierPre(JSScript *script);
     static inline void writeBarrierPost(JSScript *script, void *addr);
@@ -891,10 +836,10 @@ StackDepth(JSScript *script)
 extern JS_FRIEND_API(void)
 js_CallNewScriptHook(JSContext *cx, JSScript *script, JSFunction *fun);
 
-namespace js {
-
 extern void
-CallDestroyScriptHook(FreeOp *fop, JSScript *script);
+js_CallDestroyScriptHook(JSContext *cx, JSScript *script);
+
+namespace js {
 
 extern const char *
 SaveScriptFilename(JSContext *cx, const char *filename);

@@ -730,13 +730,6 @@ public class AboutHomeContent extends ScrollView
         public int getCount() {
             return Math.min(super.getCount(), getNumberOfTopSites());
         }
-
-        @Override
-        protected void onContentChanged () {
-            // Don't do anything. We don't want to regenerate every time
-            // our history database is updated.
-            return;
-        }
     }
 
     class TopSitesViewBinder implements SimpleCursorAdapter.ViewBinder {

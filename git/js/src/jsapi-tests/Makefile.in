@@ -93,7 +93,6 @@ CPPSRCS = \
   testValueABI.cpp \
   testVersion.cpp \
   testXDR.cpp \
-  testBindCallable.cpp \
   $(NULL)
 
 CSRCS = \

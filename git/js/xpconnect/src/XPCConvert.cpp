@@ -51,6 +51,7 @@
 #include "XPCWrapper.h"
 #include "nsJSPrincipals.h"
 #include "nsWrapperCache.h"
+#include "WrapperFactory.h"
 #include "AccessCheck.h"
 #include "nsJSUtils.h"
 
@@ -1082,21 +1083,42 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
         return false;
 
     // If the object was not wrapped, we are same compartment and don't need
-    // to do any cross-compartment wrapping. However, there are still a few
-    // special cases we need to take care of.
+    // to enforce any cross origin policies, except in case of the location
+    // object, which always needs a wrapper in between.
     if (original == flat) {
+        if (xpc::WrapperFactory::IsLocationObject(flat)) {
+            JSObject *locationWrapper = wrapper->GetWrapper();
+            if (!locationWrapper) {
+                locationWrapper = xpc::WrapperFactory::WrapLocationObject(cx, flat);
+                if (!locationWrapper)
+                    return false;
 
-        // Everything here should be same-compartment.
-        MOZ_ASSERT(js::IsObjectInContextCompartment(flat, cx));
+                // Cache the location wrapper to ensure that we maintain
+                // the identity of window/document.location.
+                wrapper->SetWrapper(locationWrapper);
+            }
 
-        // Apply any same-compartment security wrappers.
-        flat = wrapper->GetSameCompartmentSecurityWrapper(cx);
-        if (!flat)
-            return false;
+            flat = locationWrapper;
+        } else if (wrapper->NeedsSOW() &&
+                   !xpc::AccessCheck::isChrome(js::GetContextCompartment(cx))) {
+            JSObject *sowWrapper = wrapper->GetWrapper();
+            if (!sowWrapper) {
+                sowWrapper = xpc::WrapperFactory::WrapSOWObject(cx, flat);
+                if (!sowWrapper)
+                    return false;
 
-        // Outerize any inner windows.
-        flat = JS_ObjectToOuterObject(cx, flat);
-        MOZ_ASSERT(flat, "bad outer object hook!");
+                // Cache the sow wrapper to ensure that we maintain
+                // the identity of this node.
+                wrapper->SetWrapper(sowWrapper);
+            }
+
+            flat = sowWrapper;
+        } else {
+            flat = JS_ObjectToOuterObject(cx, flat);
+            NS_ASSERTION(flat, "bad outer object hook!");
+            NS_ASSERTION(js::IsObjectInContextCompartment(flat, cx),
+                         "bad compartment");
+        }
     }
 
     *d = OBJECT_TO_JSVAL(flat);

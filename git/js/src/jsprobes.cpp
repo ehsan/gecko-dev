@@ -231,10 +231,10 @@ Probes::registerMJITCode(JSContext *cx, js::mjit::JITScript *jscr,
 }
 
 void
-Probes::discardMJITCode(FreeOp *fop, mjit::JITScript *jscr, JSScript *script, void* address)
+Probes::discardMJITCode(JSContext *cx, mjit::JITScript *jscr, JSScript *script, void* address)
 {
     for (JITWatcher **p = jitWatchers.begin(); p != jitWatchers.end(); ++p)
-        (*p)->discardMJITCode(fop, jscr, script, address);
+        (*p)->discardMJITCode(cx, jscr, script, address);
 }
 
 void

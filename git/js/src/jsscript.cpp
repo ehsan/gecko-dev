@@ -674,16 +674,8 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
     }
 
     for (i = 0; i != natoms; ++i) {
-        if (mode == XDR_DECODE) {
-            JSAtom *tmp = NULL;
-            if (!XDRAtom(xdr, &tmp))
-                return false;
-            script->atoms[i].init(tmp);
-        } else {
-            JSAtom *tmp = script->atoms[i];
-            if (!XDRAtom(xdr, &tmp))
-                return false;
-        }
+        if (!XDRAtom(xdr, &script->atoms[i]))
+            return false;
     }
 
     /*
@@ -826,10 +818,10 @@ JSScript::initScriptCounts(JSContext *cx)
 }
 
 void
-JSScript::destroyScriptCounts(FreeOp *fop)
+JSScript::destroyScriptCounts(JSContext *cx)
 {
     if (scriptCounts) {
-        fop->free_(scriptCounts.pcCountsVector);
+        cx->free_(scriptCounts.pcCountsVector);
         scriptCounts.pcCountsVector = NULL;
     }
 }
@@ -1114,7 +1106,7 @@ JSScript::NewScript(JSContext *cx, uint32_t length, uint32_t nsrcnotes, uint32_t
 
     if (natoms != 0) {
         script->natoms = natoms;
-        script->atoms = reinterpret_cast<HeapPtrAtom *>(cursor);
+        script->atoms = reinterpret_cast<JSAtom **>(cursor);
         cursor += natoms * sizeof(script->atoms[0]);
     }
 
@@ -1213,7 +1205,7 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
     nfixed = bce->inFunction() ? bce->bindings.countVars() : 0;
     JS_ASSERT(nfixed < SLOTNO_LIMIT);
     script->nfixed = uint16_t(nfixed);
-    InitAtomMap(cx, bce->atomIndices.getMap(), script->atoms);
+    js_InitAtomMap(cx, bce->atomIndices.getMap(), script->atoms);
 
     filename = bce->parser->tokenStream.getFilename();
     if (filename) {
@@ -1388,39 +1380,39 @@ js_CallNewScriptHook(JSContext *cx, JSScript *script, JSFunction *fun)
 }
 
 void
-js::CallDestroyScriptHook(FreeOp *fop, JSScript *script)
+js_CallDestroyScriptHook(JSContext *cx, JSScript *script)
 {
     if (!script->callDestroyHook)
         return;
 
-    if (JSDestroyScriptHook hook = fop->runtime()->debugHooks.destroyScriptHook)
-        hook(fop, script, fop->runtime()->debugHooks.destroyScriptHookData);
+    if (JSDestroyScriptHook hook = cx->runtime->debugHooks.destroyScriptHook)
+        hook(cx, script, cx->runtime->debugHooks.destroyScriptHookData);
     script->callDestroyHook = false;
-    script->clearTraps(fop);
+    JS_ClearScriptTraps(cx, script);
 }
 
 void
-JSScript::finalize(FreeOp *fop)
+JSScript::finalize(JSContext *cx, bool background)
 {
-    CallDestroyScriptHook(fop, this);
+    js_CallDestroyScriptHook(cx, this);
 
     JS_ASSERT_IF(principals, originPrincipals);
     if (principals)
-        JS_DropPrincipals(fop->runtime(), principals);
+        JS_DropPrincipals(cx->runtime, principals);
     if (originPrincipals)
-        JS_DropPrincipals(fop->runtime(), originPrincipals);
+        JS_DropPrincipals(cx->runtime, originPrincipals);
 
     if (types)
         types->destroy();
 
 #ifdef JS_METHODJIT
-    mjit::ReleaseScriptCode(fop, this);
+    mjit::ReleaseScriptCode(cx, this);
 #endif
 
-    destroyScriptCounts(fop);
+    destroyScriptCounts(cx);
 
     if (sourceMap)
-        fop->free_(sourceMap);
+        cx->free_(sourceMap);
 
     if (debug) {
         jsbytecode *end = code + length;
@@ -1428,15 +1420,15 @@ JSScript::finalize(FreeOp *fop)
             if (BreakpointSite *site = getBreakpointSite(pc)) {
                 /* Breakpoints are swept before finalization. */
                 JS_ASSERT(site->firstBreakpoint() == NULL);
-                site->clearTrap(fop, NULL, NULL);
+                site->clearTrap(cx, NULL, NULL);
                 JS_ASSERT(getBreakpointSite(pc) == NULL);
             }
         }
-        fop->free_(debug);
+        cx->free_(debug);
     }
 
     JS_POISON(data, 0xdb, computedSizeOfData());
-    fop->free_(data);
+    cx->free_(data);
 }
 
 namespace js {
@@ -1693,15 +1685,16 @@ JSScript::ensureHasDebug(JSContext *cx)
     return true;
 }
 
-void
-JSScript::recompileForStepMode(FreeOp *fop)
+bool
+JSScript::recompileForStepMode(JSContext *cx)
 {
 #ifdef JS_METHODJIT
-    if (hasJITCode()) {
-        mjit::Recompiler::clearStackReferences(fop, this);
-        mjit::ReleaseScriptCode(fop, this);
+    if (jitNormal || jitCtor) {
+        mjit::Recompiler::clearStackReferences(cx, this);
+        mjit::ReleaseScriptCode(cx, this);
     }
 #endif
+    return true;
 }
 
 bool
@@ -1714,7 +1707,10 @@ JSScript::tryNewStepMode(JSContext *cx, uint32_t newValue)
 
     if (!prior != !newValue) {
         /* Step mode has been enabled or disabled. Alert the methodjit. */
-        recompileForStepMode(cx->runtime->defaultFreeOp());
+        if (!recompileForStepMode(cx)) {
+            debug->stepMode = prior;
+            return false;
+        }
 
         if (!stepModeEnabled() && !debug->numSites) {
             cx->free_(debug);
@@ -1779,24 +1775,24 @@ JSScript::getOrCreateBreakpointSite(JSContext *cx, jsbytecode *pc,
 }
 
 void
-JSScript::destroyBreakpointSite(FreeOp *fop, jsbytecode *pc)
+JSScript::destroyBreakpointSite(JSRuntime *rt, jsbytecode *pc)
 {
     JS_ASSERT(unsigned(pc - code) < length);
 
     BreakpointSite *&site = debug->breakpoints[pc - code];
     JS_ASSERT(site);
 
-    fop->delete_(site);
+    rt->delete_(site);
     site = NULL;
 
     if (--debug->numSites == 0 && !stepModeEnabled()) {
-        fop->free_(debug);
+        rt->free_(debug);
         debug = NULL;
     }
 }
 
 void
-JSScript::clearBreakpointsIn(FreeOp *fop, js::Debugger *dbg, JSObject *handler)
+JSScript::clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSObject *handler)
 {
     if (!hasAnyBreakpointsOrStepMode())
         return;
@@ -1809,14 +1805,14 @@ JSScript::clearBreakpointsIn(FreeOp *fop, js::Debugger *dbg, JSObject *handler)
             for (Breakpoint *bp = site->firstBreakpoint(); bp; bp = nextbp) {
                 nextbp = bp->nextInSite();
                 if ((!dbg || bp->debugger == dbg) && (!handler || bp->getHandler() == handler))
-                    bp->destroy(fop);
+                    bp->destroy(cx);
             }
         }
     }
 }
 
 void
-JSScript::clearTraps(FreeOp *fop)
+JSScript::clearTraps(JSContext *cx)
 {
     if (!hasAnyBreakpointsOrStepMode())
         return;
@@ -1825,7 +1821,7 @@ JSScript::clearTraps(FreeOp *fop)
     for (jsbytecode *pc = code; pc < end; pc++) {
         BreakpointSite *site = getBreakpointSite(pc);
         if (site)
-            site->clearTrap(fop);
+            site->clearTrap(cx);
     }
 }
 
@@ -1836,7 +1832,7 @@ JSScript::markChildren(JSTracer *trc)
 
     for (uint32_t i = 0; i < natoms; ++i) {
         if (atoms[i])
-            MarkString(trc, &atoms[i], "atom");
+            MarkStringUnbarriered(trc, &atoms[i], "atom");
     }
 
     if (JSScript::isValidOffset(objectsOffset)) {
@@ -1921,8 +1917,8 @@ JSScript::applySpeculationFailed(JSContext *cx)
 
 #ifdef JS_METHODJIT
     if (hasJITCode()) {
-        mjit::Recompiler::clearStackReferences(cx->runtime->defaultFreeOp(), this);
-        mjit::ReleaseScriptCode(cx->runtime->defaultFreeOp(), this);
+        mjit::Recompiler::clearStackReferences(cx, this);
+        mjit::ReleaseScriptCode(cx, this);
     }
 #endif
 

@@ -1231,7 +1231,7 @@ ListBase<LC>::obj_toString(JSContext *cx, JSObject *proxy)
 
 template<class LC>
 void
-ListBase<LC>::finalize(JSFreeOp *fop, JSObject *proxy)
+ListBase<LC>::finalize(JSContext *cx, JSObject *proxy)
 {
     ListType *list = getListObject(proxy);
     nsWrapperCache *cache;

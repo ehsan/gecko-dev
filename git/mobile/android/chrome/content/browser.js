@@ -1470,7 +1470,6 @@ function Tab(aURL, aParams) {
   this.showProgress = true;
   this.create(aURL, aParams);
   this._zoom = 1.0;
-  this._drawZoom = 1.0;
   this.userScrollPos = { x: 0, y: 0 };
   this.contentDocumentIsDisplayed = true;
   this.clickToPlayPluginDoorhangerShown = false;
@@ -1638,14 +1637,10 @@ Tab.prototype = {
     // visible zoom. for foreground tabs, however, if we are drawing at some other
     // resolution, we need to set the resolution as specified.
     let cwu = window.top.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-    if (BrowserApp.selectedTab == this) {
-      if (resolution != this._drawZoom) {
-        this._drawZoom = resolution;
-        cwu.setResolution(resolution, resolution);
-      }
-    } else if (resolution != zoom) {
+    if (BrowserApp.selectedTab == this)
+      cwu.setResolution(resolution, resolution);
+    else if (resolution != zoom)
       dump("Warning: setDisplayPort resolution did not match zoom for background tab!");
-    }
 
     // finally, we set the display port, taking care to convert everything into the CSS-pixel
     // coordinate space, because that is what the function accepts.
@@ -1676,7 +1671,6 @@ Tab.prototype = {
       this._zoom = aZoom;
       if (BrowserApp.selectedTab == this) {
         let cwu = window.top.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-        this._drawZoom = aZoom;
         cwu.setResolution(aZoom, aZoom);
       }
     }
@@ -1942,11 +1936,11 @@ Tab.prototype = {
         // is a hidden plugin object
         let overlay = plugin.ownerDocument.getAnonymousElementByAttribute(plugin, "class", "mainBox");
         if (!overlay || PluginHelper.isTooSmall(plugin, overlay)) {
+          if (overlay)
+            overlay.style.visibility = "hidden";
           if (this.loadEventProcessed && !this.clickToPlayPluginDoorhangerShown)
             PluginHelper.showDoorHanger(this);
-
-          if (!overlay)
-            return;
+          return;
         }
 
         // Add click to play listener to the overlay
@@ -1971,14 +1965,8 @@ Tab.prototype = {
     if (contentWin != contentWin.top)
         return;
 
-    // Filter optimization: Only really send NETWORK state changes to Java listener
     if (aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK) {
-      if ((aStateFlags & Ci.nsIWebProgressListener.STATE_STOP) && aWebProgress.isLoadingDocument) {
-        // We may receive a document stop event while a document is still loading
-        // (such as when doing URI fixup). Don't notify Java UI in these cases.
-        return;
-      }
-
+      // Filter optimization: Only really send NETWORK state changes to Java listener
       let browser = BrowserApp.getBrowserForWindow(aWebProgress.DOMWindow);
       let uri = "";
       if (browser)
@@ -3518,11 +3506,7 @@ var PopupBlockerObserver = {
           },
           {
             label: strings.GetStringFromName("popupButtonAlwaysAllow2"),
-            callback: function() {
-              // Set permission before opening popup windows
-              PopupBlockerObserver.allowPopupsForSite(true);
-              PopupBlockerObserver.showPopupsForSite();
-            }
+            callback: function() { PopupBlockerObserver.allowPopupsForSite(true); }
           },
           {
             label: strings.GetStringFromName("popupButtonNeverWarn2"),

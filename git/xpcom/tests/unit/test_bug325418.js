@@ -6,16 +6,17 @@ const start_time = (new Date()).getTime();
 const expected_time = 1;
 
 var observer = {
-  observe: function observeTC(subject, topic, data) {
+  observe: function(subject, topic, data) {
     if (topic == "timer-callback") {
-      timer.cancel();
-      timer = null;
-
+      var stop_time = (new Date()).getTime();
       // expected time may not be exact so convert to seconds and round down.
-      var result = Math.floor(((new Date()).getTime() - start_time) / 1000);
-      do_check_eq(result, expected_time);
+      var result = Math.round((stop_time - start_time) / 1000);
+      do_check_true(result, expected_time);
 
       do_test_finished();
+
+      timer.cancel();
+      timer = null;
     }
   }
 };

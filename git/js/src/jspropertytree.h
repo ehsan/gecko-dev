@@ -119,7 +119,7 @@ class PropertyTree
     js::Shape *getChild(JSContext *cx, Shape *parent, uint32_t nfixed, const StackShape &child);
 
 #ifdef DEBUG
-    static void dumpShapes(JSRuntime *rt);
+    static void dumpShapes(JSContext *cx);
     static void meter(JSBasicStats *bs, js::Shape *node);
 #endif
 };

@@ -763,10 +763,7 @@ struct nsStyleBorder {
 #ifdef DEBUG
   static nsChangeHint MaxDifference();
 #endif
-  // ForceCompare is true, because a change to our border-style might
-  // change border-width on descendants (requiring reflow of those)
-  // but not our own border-width (thus not requiring us to reflow).
-  static bool ForceCompare() { return true; }
+  static bool ForceCompare() { return false; }
 
   void EnsureBorderColors() {
     if (!mBorderColors) {

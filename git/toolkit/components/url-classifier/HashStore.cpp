@@ -95,7 +95,7 @@ extern PRLogModuleInfo *gUrlClassifierDbServiceLog;
 #define LOG_ENABLED() PR_LOG_TEST(gUrlClassifierDbServiceLog, 4)
 #else
 #define LOG(args)
-#define LOG_ENABLED() (false)
+#define LOG_ENABLED() (PR_FALSE)
 #endif
 
 namespace mozilla {
@@ -162,7 +162,7 @@ HashStore::Reset()
   rv = storeFile->AppendNative(mTableName + NS_LITERAL_CSTRING(".sbstore"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = storeFile->Remove(false);
+  rv = storeFile->Remove(PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   Clear();
@@ -384,7 +384,7 @@ HashStore::CalculateChecksum(nsCAutoString& aChecksum, bool aChecksumPresent)
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = hash->Finish(false, aChecksum);
+  rv = hash->Finish(PR_FALSE, aChecksum);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

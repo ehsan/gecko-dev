@@ -45,13 +45,14 @@ XPCOMUtils.defineLazyServiceGetter(Services, 'fm', function() {
 // XXX never grant 'content-camera' to non-gaia apps
 function addPermissions(urls) {
   let permissions = [
-    'indexedDB', 'indexedDB-unlimited', 'webapps-manage', 'offline-app', 'pin-app',
+    'indexedDB', 'indexedDB-unlimited', 'webapps-manage', 'offline-app',
     'websettings-read', 'websettings-readwrite',
     'content-camera', 'webcontacts-manage', 'wifi-manage', 'desktop-notification',
     'geolocation'
   ];
   urls.forEach(function(url) {
     url = url.trim();
+    dump("XxXxX adding permissions for " + url);
     let uri = Services.io.newURI(url, null, null);
     let allow = Ci.nsIPermissionManager.ALLOW_ACTION;
 
@@ -93,7 +94,6 @@ var shell = {
 
     window.addEventListener('MozApplicationManifest', this);
     window.addEventListener('mozfullscreenchange', this);
-    window.addEventListener('sizemodechange', this);
     this.contentBrowser.addEventListener('load', this, true);
 
     // Until the volume can be set from the content side, set it to a
@@ -131,7 +131,6 @@ var shell = {
   stop: function shell_stop() {
     window.removeEventListener('MozApplicationManifest', this);
     window.removeEventListener('mozfullscreenchange', this);
-    window.removeEventListener('sizemodechange', this);
   },
 
   toggleDebug: function shell_toggleDebug() {
@@ -227,13 +226,6 @@ var shell = {
         // mode
         if (document.mozFullScreen)
           Services.fm.focusedWindow = window;
-        break;
-      case 'sizemodechange':
-        if (window.windowState == window.STATE_MINIMIZED) {
-          this.contentBrowser.docShell.isActive = false;
-        } else {
-          this.contentBrowser.docShell.isActive = true;
-        }
         break;
       case 'load':
         this.contentBrowser.removeEventListener('load', this, true);

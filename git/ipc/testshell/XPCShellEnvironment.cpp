@@ -409,9 +409,9 @@ GC(JSContext *cx,
    unsigned argc,
    jsval *vp)
 {
-    JSRuntime *rt = JS_GetRuntime(cx);
-    JS_GC(rt);
+    JS_GC(cx);
 #ifdef JS_GCMETER
+    JSRuntime *rt = JS_GetRuntime(cx);
     js_DumpGCStats(rt, stdout);
 #endif
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -430,7 +430,7 @@ GCZeal(JSContext *cx,
   if (!JS_ValueToECMAUint32(cx, argv[0], &zeal))
     return JS_FALSE;
 
-  JS_SetGCZeal(cx, PRUint8(zeal), JS_DEFAULT_ZEAL_FREQ);
+  JS_SetGCZeal(cx, PRUint8(zeal), JS_DEFAULT_ZEAL_FREQ, JS_FALSE);
   return JS_TRUE;
 }
 #endif
@@ -1054,14 +1054,15 @@ XPCShellEnvironment::~XPCShellEnvironment()
         }
         mGlobalHolder.Release();
 
-        JSRuntime *rt = JS_GetRuntime(mCx);
-        JS_GC(rt);
+        JS_GC(mCx);
 
         mCxStack = nsnull;
 
         if (mJSPrincipals) {
-            JS_DropPrincipals(rt, mJSPrincipals);
+            JS_DropPrincipals(JS_GetRuntime(mCx), mJSPrincipals);
         }
+
+        JSRuntime* rt = gOldContextCallback ? JS_GetRuntime(mCx) : NULL;
 
         JS_EndRequest(mCx);
         JS_DestroyContext(mCx);

@@ -73,7 +73,9 @@ add_test(function test_annotation_uploaded() {
   _("Create a smart bookmark in the toolbar.");
   let parent = PlacesUtils.toolbarFolderId;
   let uri =
-    Utils.makeURI("place:sort=" +
+    Utils.makeURI("place:redirectsMode=" +
+                  Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET +
+                  "&sort=" +
                   Ci.nsINavHistoryQueryOptions.SORT_BY_VISITCOUNT_DESCENDING +
                   "&maxResults=10");
   let title = "Most Visited";
@@ -178,7 +180,9 @@ add_test(function test_smart_bookmarks_duped() {
 
   let parent = PlacesUtils.toolbarFolderId;
   let uri =
-    Utils.makeURI("place:sort=" +
+    Utils.makeURI("place:redirectsMode=" +
+                  Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET +
+                  "&sort=" +
                   Ci.nsINavHistoryQueryOptions.SORT_BY_VISITCOUNT_DESCENDING +
                   "&maxResults=10");
   let title = "Most Visited";

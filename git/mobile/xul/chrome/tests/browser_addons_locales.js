@@ -1,9 +1,9 @@
 var localeList = serverRoot + "locales_list.sjs";
 var PREF_LOCALE_LIST = "extensions.getLocales.get.url";
 
-let tmp = {};
-Components.utils.import("resource://gre/modules/LocaleRepository.jsm", tmp);
-let LocaleRepository = tmp.LocaleRepository;
+Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/LocaleRepository.jsm");
+Components.utils.import("resource://gre/modules/AddonManager.jsm");
 
 function test() {
   waitForExplicitFinish();

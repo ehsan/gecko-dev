@@ -54,10 +54,10 @@ using namespace js;
  */
 
 static void
-resc_finalize(FreeOp *fop, JSObject *obj)
+resc_finalize(JSContext *cx, JSObject *obj)
 {
     RegExpStatics *res = static_cast<RegExpStatics *>(obj->getPrivate());
-    fop->delete_(res);
+    cx->delete_(res);
 }
 
 static void

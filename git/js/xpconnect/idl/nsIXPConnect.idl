@@ -67,7 +67,6 @@ class nsWrapperCache;
 
 [ptr] native JSContextPtr(JSContext);
 [ptr] native JSClassPtr(JSClass);
-[ptr] native JSFreeOpPtr(JSFreeOp);
 [ptr] native JSObjectPtr(JSObject);
 [ptr] native JSValPtr(jsval);
 [ptr] native JSValConstPtr(const jsval);

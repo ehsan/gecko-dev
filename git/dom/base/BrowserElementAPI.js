@@ -132,27 +132,14 @@ BrowserElementAPI.prototype = {
     // properties will be visible only to chrome!
     var unwrappedWin = XPCNativeWrapper.unwrap(win);
 
-    // This property should exist only on the x-ray wrapped object, not on the
-    // unwrapped object, so we define it on |win|, not |unwrappedWin|.
-    Object.defineProperty(win, 'browserFrameTop', {
+    Object.defineProperty(unwrappedWin, 'top', {
       get: function() {
         if (isTopLevel) {
           return win;
         }
-
-        if ('browserFrameTop' in win.parent) {
-          return win.parent.browserFrameTop;
-        }
-
-        // This shouldn't happen, but let's at least throw a semi-meaningful
-        // error message if it does.
-        throw new Error('Internal error in window.browserFrameTop.');
-      }
-    });
-
-    Object.defineProperty(unwrappedWin, 'top', {
-      get: function() {
-        return win.browserFrameTop;
+        // Call the mozbrowser-aware |top| method we presumably defined on our
+        // parent.
+        return XPCNativeWrapper.unwrap(win.parent).top;
       }
     });
 

@@ -40,7 +40,7 @@ protected:
   _Trace(JSTracer* aTrc);
 
   virtual void
-  _Finalize(JSFreeOp* aFop);
+  _Finalize(JSContext* aCx);
 
   JSContext*
   GetJSContextFromContextStack() const;

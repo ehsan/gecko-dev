@@ -55,7 +55,7 @@ extern PRLogModuleInfo *gUrlClassifierDbServiceLog;
 #define LOG_ENABLED() PR_LOG_TEST(gUrlClassifierDbServiceLog, 4)
 #else
 #define LOG(args)
-#define LOG_ENABLED() (false)
+#define LOG_ENABLED() (PR_FALSE)
 #endif
 
 namespace mozilla {
@@ -186,7 +186,7 @@ ProtocolParser::FinishHMAC()
   }
 
   nsCAutoString clientMAC;
-  mHMAC->Finish(true, clientMAC);
+  mHMAC->Finish(PR_TRUE, clientMAC);
 
   if (clientMAC != mServerMAC) {
     NS_WARNING("Invalid update MAC!");

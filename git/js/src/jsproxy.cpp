@@ -183,8 +183,17 @@ ProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, b
     /* The control-flow here differs from ::get() because of the fall-through case below. */
     if (desc.obj) {
         // Check for read-only properties.
-        if (desc.attrs & JSPROP_READONLY)
-            return strict ? Throw(cx, id, JSMSG_CANT_REDEFINE_PROP) : true;
+        if (desc.attrs & JSPROP_READONLY) {
+            if (strict) {
+                JSAutoByteString bytes(cx, JSID_TO_STRING(id));
+                if (!bytes)
+                    return false;
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                                     JSMSG_CANT_REDEFINE_PROP, bytes.ptr());
+                return false;
+            }
+            return true;
+        }
         if (!desc.setter) {
             // Be wary of the odd explicit undefined setter case possible through
             // Object.defineProperty.
@@ -210,8 +219,17 @@ ProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, b
         return false;
     if (desc.obj) {
         // Check for read-only properties.
-        if (desc.attrs & JSPROP_READONLY)
-            return strict ? Throw(cx, id, JSMSG_CANT_REDEFINE_PROP) : true;
+        if (desc.attrs & JSPROP_READONLY) {
+            if (strict) {
+                JSAutoByteString bytes(cx, JSID_TO_STRING(id));
+                if (!bytes)
+                    return false;
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                                     JSMSG_CANT_REDEFINE_PROP, bytes.ptr());
+                return false;
+            }
+            return true;
+        }
         if (!desc.setter) {
             // Be wary of the odd explicit undefined setter case possible through
             // Object.defineProperty.
@@ -382,7 +400,7 @@ ProxyHandler::objectClassIs(JSObject *proxy, ESClassValue classValue, JSContext 
 }
 
 void
-ProxyHandler::finalize(JSFreeOp *fop, JSObject *proxy)
+ProxyHandler::finalize(JSContext *cx, JSObject *proxy)
 {
 }
 
@@ -1284,11 +1302,11 @@ proxy_Fix(JSContext *cx, JSObject *obj, bool *fixed, AutoIdVector *props)
 }
 
 static void
-proxy_Finalize(FreeOp *fop, JSObject *obj)
+proxy_Finalize(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(obj->isProxy());
     if (!obj->getSlot(JSSLOT_PROXY_HANDLER).isUndefined())
-        GetProxyHandler(obj)->finalize(fop, obj);
+        GetProxyHandler(obj)->finalize(cx, obj);
 }
 
 static JSBool

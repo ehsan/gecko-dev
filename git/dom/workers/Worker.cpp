@@ -246,12 +246,12 @@ private:
   }
 
   static void
-  Finalize(JSFreeOp* aFop, JSObject* aObj)
+  Finalize(JSContext* aCx, JSObject* aObj)
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
     WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj, Class());
     if (worker) {
-      worker->_Finalize(aFop);
+      worker->_Finalize(aCx);
     }
   }
 
@@ -404,12 +404,12 @@ private:
   }
 
   static void
-  Finalize(JSFreeOp* aFop, JSObject* aObj)
+  Finalize(JSContext* aCx, JSObject* aObj)
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
     WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj, Class());
     if (worker) {
-      worker->_Finalize(aFop);
+      worker->_Finalize(aCx);
     }
   }
 

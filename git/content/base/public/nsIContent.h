@@ -800,14 +800,9 @@ public:
 
   /**
    * Set the inline style rule for this node.  This will send an
-   * appropriate AttributeChanged notification if aNotify is true.  If
-   * a serialized form of aStyleRule is available, a pointer to it
-   * should be passed in aSerialized.  Otherwise, aSerialized should
-   * be null.
+   * appropriate AttributeChanged notification if aNotify is true.
    */
-  NS_IMETHOD SetInlineStyleRule(mozilla::css::StyleRule* aStyleRule,
-                                const nsAString* aSerialized,
-                                bool aNotify) = 0;
+  NS_IMETHOD SetInlineStyleRule(mozilla::css::StyleRule* aStyleRule, bool aNotify) = 0;
 
   /**
    * Is the attribute named stored in the mapped attributes?

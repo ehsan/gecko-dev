@@ -172,7 +172,7 @@ nsXBLDocGlobalObject_checkAccess(JSContext *cx, JSObject *obj, jsid id,
 }
 
 static void
-nsXBLDocGlobalObject_finalize(JSFreeOp *fop, JSObject *obj)
+nsXBLDocGlobalObject_finalize(JSContext *cx, JSObject *obj)
 {
   nsISupports *nativeThis = (nsISupports*)JS_GetPrivate(obj);
 

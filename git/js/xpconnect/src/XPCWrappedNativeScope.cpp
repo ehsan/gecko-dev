@@ -396,7 +396,7 @@ XPCWrappedNativeScope::SuspectAllWrappers(XPCJSRuntime* rt,
 
 // static
 void
-XPCWrappedNativeScope::StartFinalizationPhaseOfGC(JSFreeOp *fop, XPCJSRuntime* rt)
+XPCWrappedNativeScope::FinishedMarkPhaseOfGC(JSContext* cx, XPCJSRuntime* rt)
 {
     // FIXME The lock may not be necessary since we are inside JSGC_MARK_END
     // callback and GX serializes access to JS runtime. See bug 380139.
@@ -416,7 +416,7 @@ XPCWrappedNativeScope::StartFinalizationPhaseOfGC(JSFreeOp *fop, XPCJSRuntime* r
 
         if (cur->mGlobalJSObject &&
             JS_IsAboutToBeFinalized(cur->mGlobalJSObject)) {
-            cur->mGlobalJSObject.finalize(fop->runtime());
+            cur->mGlobalJSObject.finalize(cx);
             cur->mScriptObjectPrincipal = nsnull;
             if (cur->GetCachedDOMPrototypes().IsInitialized())
                  cur->GetCachedDOMPrototypes().Clear();
@@ -431,7 +431,7 @@ XPCWrappedNativeScope::StartFinalizationPhaseOfGC(JSFreeOp *fop, XPCJSRuntime* r
         } else {
             if (cur->mPrototypeJSObject &&
                 JS_IsAboutToBeFinalized(cur->mPrototypeJSObject)) {
-                cur->mPrototypeJSObject.finalize(fop->runtime());
+                cur->mPrototypeJSObject.finalize(cx);
             }
             if (cur->mPrototypeNoHelper &&
                 JS_IsAboutToBeFinalized(cur->mPrototypeNoHelper)) {
@@ -446,7 +446,7 @@ XPCWrappedNativeScope::StartFinalizationPhaseOfGC(JSFreeOp *fop, XPCJSRuntime* r
 
 // static
 void
-XPCWrappedNativeScope::FinishedFinalizationPhaseOfGC()
+XPCWrappedNativeScope::FinishedFinalizationPhaseOfGC(JSContext* cx)
 {
     XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
 

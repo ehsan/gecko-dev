@@ -166,7 +166,7 @@ static JSBool
 NPObjWrapper_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp);
 
 static void
-NPObjWrapper_Finalize(JSFreeOp *fop, JSObject *obj);
+NPObjWrapper_Finalize(JSContext *cx, JSObject *obj);
 
 static JSBool
 NPObjWrapper_Call(JSContext *cx, unsigned argc, jsval *vp);
@@ -201,7 +201,7 @@ static JSBool
 NPObjectMember_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp);
 
 static void
-NPObjectMember_Finalize(JSFreeOp *fop, JSObject *obj);
+NPObjectMember_Finalize(JSContext *cx, JSObject *obj);
 
 static JSBool
 NPObjectMember_Call(JSContext *cx, unsigned argc, jsval *vp);
@@ -1712,7 +1712,7 @@ NPObjWrapper_Convert(JSContext *cx, JSObject *obj, JSType hint, jsval *vp)
 }
 
 static void
-NPObjWrapper_Finalize(JSFreeOp *fop, JSObject *obj)
+NPObjWrapper_Finalize(JSContext *cx, JSObject *obj)
 {
   NPObject *npobj = (NPObject *)::JS_GetPrivate(obj);
   if (npobj) {
@@ -2214,7 +2214,7 @@ NPObjectMember_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
 }
 
 static void
-NPObjectMember_Finalize(JSFreeOp *fop, JSObject *obj)
+NPObjectMember_Finalize(JSContext *cx, JSObject *obj)
 {
   NPObjectMemberPrivate *memberPrivate;
 

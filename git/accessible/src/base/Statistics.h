@@ -48,7 +48,7 @@ namespace a11y {
 namespace statistics {
 
   inline void A11yInitialized()
-    { Telemetry::Accumulate(Telemetry::A11Y_INSTANTIATED_FLAG, true); }
+    { Telemetry::Accumulate(Telemetry::A11Y_INSTANTIATED, 1); }
 
   inline void A11yConsumers(PRUint32 aConsumer)
     { Telemetry::Accumulate(Telemetry::A11Y_CONSUMERS, aConsumer); }
@@ -57,19 +57,25 @@ namespace statistics {
    * Report that ISimpleDOM* has been used.
    */
   inline void ISimpleDOMUsed()
-    { Telemetry::Accumulate(Telemetry::A11Y_ISIMPLEDOM_USAGE_FLAG, true); }
+  {
+    static bool firstTime = true;
+    if (firstTime) {
+      Telemetry::Accumulate(Telemetry::A11Y_ISIMPLEDOM_USAGE, 1);
+      firstTime = false;
+    }
+  }
 
   /**
    * Report that IAccessibleTable has been used.
    */
   inline void IAccessibleTableUsed()
-    { Telemetry::Accumulate(Telemetry::A11Y_IATABLE_USAGE_FLAG, true); }
+    { Telemetry::Accumulate(Telemetry::A11Y_IATABLE_USAGE, 1); }
 
   /**
    * Report that XForms accessibility has been instantiated.
    */
   inline void XFormsAccessibleUsed()
-    { Telemetry::Accumulate(Telemetry::A11Y_XFORMS_USAGE_FLAG, true); }
+    { Telemetry::Accumulate(Telemetry::A11Y_XFORMS_USAGE, 1); }
 
 } // namespace statistics
 } // namespace a11y

@@ -120,10 +120,9 @@ class Debugger {
     ObjectWeakMap environments;
 
     class FrameRange;
-    class ScriptQuery;
 
     bool addDebuggeeGlobal(JSContext *cx, GlobalObject *obj);
-    void removeDebuggeeGlobal(FreeOp *fop, GlobalObject *global,
+    void removeDebuggeeGlobal(JSContext *cx, GlobalObject *global,
                               GlobalObjectSet::Enum *compartmentEnum,
                               GlobalObjectSet::Enum *debugEnum);
 
@@ -175,7 +174,7 @@ class Debugger {
 
     static void traceObject(JSTracer *trc, JSObject *obj);
     void trace(JSTracer *trc);
-    static void finalize(FreeOp *fop, JSObject *obj);
+    static void finalize(JSContext *cx, JSObject *obj);
     void markKeysInCompartment(JSTracer *tracer);
 
     static Class jsclass;
@@ -264,8 +263,8 @@ class Debugger {
      */
     static void markCrossCompartmentDebuggerObjectReferents(JSTracer *tracer);
     static bool markAllIteratively(GCMarker *trc);
-    static void sweepAll(FreeOp *fop);
-    static void detachAllDebuggersFromGlobal(FreeOp *fop, GlobalObject *global,
+    static void sweepAll(JSContext *cx);
+    static void detachAllDebuggersFromGlobal(JSContext *cx, GlobalObject *global,
                                              GlobalObjectSet::Enum *compartmentEnum);
 
     static inline JSTrapStatus onEnterFrame(JSContext *cx, Value *vp);
@@ -400,7 +399,7 @@ class BreakpointSite {
     JSTrapHandler trapHandler;  /* jsdbgapi trap state */
     HeapValue trapClosure;
 
-    void recompile(FreeOp *fop);
+    bool recompile(JSContext *cx, bool forTrap);
 
   public:
     BreakpointSite(JSScript *script, jsbytecode *pc);
@@ -409,11 +408,11 @@ class BreakpointSite {
     bool hasTrap() const { return !!trapHandler; }
     GlobalObject *getScriptGlobal() const { return scriptGlobal; }
 
-    void inc(FreeOp *fop);
-    void dec(FreeOp *fop);
-    void setTrap(FreeOp *fop, JSTrapHandler handler, const Value &closure);
-    void clearTrap(FreeOp *fop, JSTrapHandler *handlerp = NULL, Value *closurep = NULL);
-    void destroyIfEmpty(FreeOp *fop);
+    bool inc(JSContext *cx);
+    void dec(JSContext *cx);
+    bool setTrap(JSContext *cx, JSTrapHandler handler, const Value &closure);
+    void clearTrap(JSContext *cx, JSTrapHandler *handlerp = NULL, Value *closurep = NULL);
+    void destroyIfEmpty(JSRuntime *rt);
 };
 
 /*
@@ -450,7 +449,7 @@ class Breakpoint {
     static Breakpoint *fromDebuggerLinks(JSCList *links);
     static Breakpoint *fromSiteLinks(JSCList *links);
     Breakpoint(Debugger *debugger, BreakpointSite *site, JSObject *handler);
-    void destroy(FreeOp *fop);
+    void destroy(JSContext *cx);
     Breakpoint *nextInDebugger();
     Breakpoint *nextInSite();
     const HeapPtrObject &getHandler() const { return handler; }

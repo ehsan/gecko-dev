@@ -143,7 +143,7 @@ private:
   }
 
   static void
-  Finalize(JSFreeOp* aFop, JSObject* aObj)
+  Finalize(JSContext* aCx, JSObject* aObj)
   {
     JS_ASSERT(JS_GetClass(aObj) == &sClass);
     delete static_cast<Navigator*>(JS_GetPrivate(aObj));

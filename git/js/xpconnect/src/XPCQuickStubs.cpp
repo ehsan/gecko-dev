@@ -165,7 +165,7 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static void
-PointerFinalize(JSFreeOp *fop, JSObject *obj)
+PointerFinalize(JSContext *cx, JSObject *obj)
 {
     JSPropertyOp *popp = static_cast<JSPropertyOp *>(JS_GetPrivate(obj));
     delete popp;

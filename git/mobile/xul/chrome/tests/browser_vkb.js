@@ -43,7 +43,7 @@ let VKBObserver = {
   observe: function(aTopic, aSubject, aData) {
     if (this._enabled != parseInt(aData)) {
       this._enabled = parseInt(aData);
-      VKBStateHasChanged = true;
+      VKBstateHasChanged = true;
     }
   }
 };

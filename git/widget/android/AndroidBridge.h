@@ -49,7 +49,7 @@
 #include "nsIObserver.h"
 #include "nsThreadUtils.h"
 
-#include "AndroidLayerViewWrapper.h"
+#include "AndroidFlexViewWrapper.h"
 #include "AndroidJavaWrappers.h"
 
 #include "nsIMutableArray.h"
@@ -110,15 +110,6 @@ typedef struct AndroidSystemColors {
     nscolor panelColorForeground;
     nscolor panelColorBackground;
 } AndroidSystemColors;
-
-class nsFilePickerCallback : nsISupports {
-public:
-    NS_DECL_ISUPPORTS
-    virtual void handleResult(nsAString& filePath) = 0;
-    nsFilePickerCallback() {}
-protected:
-    virtual ~nsFilePickerCallback() {}
-};
 
 class AndroidBridge
 {
@@ -251,7 +242,6 @@ public:
 
     void ShowFilePickerForExtensions(nsAString& aFilePath, const nsAString& aExtensions);
     void ShowFilePickerForMimeType(nsAString& aFilePath, const nsAString& aMimeType);
-    void ShowFilePickerAsync(const nsAString& aMimeType, nsFilePickerCallback* callback);
 
     void PerformHapticFeedback(bool aIsLongPress);
 
@@ -262,7 +252,7 @@ public:
 
     void ShowInputMethodPicker();
 
-    void NotifyDefaultPrevented(bool aDefaultPrevented);
+    void SetPreventPanning(bool aPreventPanning);
 
     void HideProgressDialogOnce();
 
@@ -492,13 +482,12 @@ protected:
     jmethodID jShowAlertNotification;
     jmethodID jShowFilePickerForExtensions;
     jmethodID jShowFilePickerForMimeType;
-    jmethodID jShowFilePickerAsync;
     jmethodID jAlertsProgressListener_OnProgress;
     jmethodID jAlertsProgressListener_OnCancel;
     jmethodID jGetDpi;
     jmethodID jSetFullScreen;
     jmethodID jShowInputMethodPicker;
-    jmethodID jNotifyDefaultPrevented;
+    jmethodID jSetPreventPanning;
     jmethodID jHideProgressDialog;
     jmethodID jPerformHapticFeedback;
     jmethodID jVibrate1;
@@ -554,7 +543,7 @@ protected:
     jclass jEGLContextClass;
     jclass jEGL10Class;
 
-    jclass jLayerView;
+    jclass jFlexSurfaceView;
     jmethodID jRegisterCompositorMethod;
 
     // some convinient types to have around

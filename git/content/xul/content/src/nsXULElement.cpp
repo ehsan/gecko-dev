@@ -414,6 +414,8 @@ nsXULElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
     nsRefPtr<nsXULElement> element;
     if (mPrototype) {
         element = nsXULElement::Create(mPrototype, aNodeInfo, true);
+        NS_ASSERTION(nsIProgrammingLanguage::JAVASCRIPT == mPrototype->mScriptTypeID,
+                     "Didn't get the default language from proto?");
     }
     else {
         nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
@@ -1091,12 +1093,19 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         // the attribute isn't set yet.
         MaybeAddPopupListener(aName);
         if (nsContentUtils::IsEventAttributeName(aName, EventNameType_XUL) && aValue) {
+            // If mPrototype->mScriptTypeID != nsIProgrammingLanguage::JAVASCRIPT, it means
+            // we are resolving an overlay with a different default script
+            // language.  We can't defer compilation of those handlers as
+            // we will have lost the script language (storing it on each
+            // nsXULPrototypeAttribute is expensive!)
+            bool defer = mPrototype == nsnull ||
+                           mPrototype->mScriptTypeID == nsIProgrammingLanguage::JAVASCRIPT;
             if (aValue->Type() == nsAttrValue::eString) {
-                AddScriptEventListener(aName, aValue->GetStringValue(), true);
+                AddScriptEventListener(aName, aValue->GetStringValue(), defer);
             } else {
                 nsAutoString body;
                 aValue->ToString(body);
-                AddScriptEventListener(aName, body, true);
+                AddScriptEventListener(aName, body, defer);
             }
         }
 
@@ -2497,6 +2506,11 @@ nsXULElement::RecompileScriptEventListeners()
     }
 
     if (mPrototype) {
+        // If we have a prototype, the node we are binding to should
+        // have the same script-type - otherwise we will compile the
+        // event handlers incorrectly.
+        NS_ASSERTION(mPrototype->mScriptTypeID == nsIProgrammingLanguage::JAVASCRIPT,
+                     "Prototype and node confused about default language?");
 
         count = mPrototype->mNumAttributes;
         for (i = 0; i < count; ++i) {
@@ -2565,7 +2579,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_NATIVE_BEGIN(nsXULPrototypeNode)
             PRUint32 i;
             for (i = 0; i < elem->mNumAttributes; ++i) {
                 JSObject* handler = elem->mAttributes[i].mEventHandler;
-                NS_IMPL_CYCLE_COLLECTION_TRACE_CALLBACK(nsIProgrammingLanguage::JAVASCRIPT,
+                NS_IMPL_CYCLE_COLLECTION_TRACE_CALLBACK(elem->mScriptTypeID,
                                                         handler,
                                                         "mAttributes[i].mEventHandler")
             }
@@ -2607,6 +2621,9 @@ nsXULPrototypeElement::Serialize(nsIObjectOutputStream* aStream,
 
     // Write basic prototype data
     rv = aStream->Write32(mType);
+
+    // Write script language
+    rv |= aStream->Write32(mScriptTypeID);
 
     // Write Node Info
     PRInt32 index = aNodeInfos->IndexOf(mNodeInfo);
@@ -2687,6 +2704,11 @@ nsXULPrototypeElement::Deserialize(nsIObjectInputStream* aStream,
 {
     NS_PRECONDITION(aNodeInfos, "missing nodeinfo array");
     nsresult rv;
+
+    // Read script language
+    PRUint32 scriptId = 0;
+    rv = aStream->Read32(&scriptId);
+    mScriptTypeID = scriptId;
 
     // Read Node Info
     PRUint32 number;

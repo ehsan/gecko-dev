@@ -72,7 +72,7 @@ public class JPakeClient {
   public int                 jpakePollInterval;
   public int                 jpakeMaxTries;
   public String              channel;
-  public volatile String     channelUrl;
+  public String              channelUrl;
 
   // J-PAKE session data.
   public KeyBundle           myKeyBundle;
@@ -219,33 +219,28 @@ public class JPakeClient {
       Logger.debug(LOG_TAG, "All stages complete.");
       return;
     }
-    JPakeStage currentStage = null;
+    JPakeStage nextStage = null; 
     try{
-      currentStage = stages.remove();
-      Logger.debug(LOG_TAG, "starting stage " + currentStage.toString());
-      currentStage.execute(this);
+      nextStage = stages.remove();
+      Logger.debug(LOG_TAG, "starting stage " + nextStage.toString());
+      nextStage.execute(this);
     } catch (Exception e) {
-      Logger.error(LOG_TAG, "Exception in stage " + currentStage, e);
+      Logger.error(LOG_TAG, "Exception in stage " + nextStage, e);
       abort("Stage exception.");
     }
   }
 
   /**
-   * Abort J-PAKE. This can propagate an error from the stages, or result from
-   * UI abort (onPause, user abort)
+   * Abort J-PAKE.
    *
    * @param reason
    *          Reason for abort.
    */
   public void abort(String reason) {
     finished = true;
-    // We do not need to clean up the channel in the following cases:
     if (Constants.JPAKE_ERROR_CHANNEL.equals(reason) ||
         Constants.JPAKE_ERROR_NETWORK.equals(reason) ||
-        Constants.JPAKE_ERROR_NODATA.equals(reason) ||
-        channelUrl == null) {
-      // We may leak a channel if the activity aborts sync while requesting the channel.
-      // The server, however, will delete the channel anyways after a certain time has passed.
+        Constants.JPAKE_ERROR_NODATA.equals(reason)) {
       displayAbort(reason);
     } else {
       // Delete channel, then call controller's displayAbort in callback.

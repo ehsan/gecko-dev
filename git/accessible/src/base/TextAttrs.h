@@ -116,10 +116,12 @@ protected:
                 PRInt32* aStartHTOffset, PRInt32* aEndHTOffset);
 
 private:
-  nsAccessible* mOffsetAcc;
   nsHyperTextAccessible* mHyperTextAcc;
-  PRInt32 mOffsetAccIdx;
+
   bool mIncludeDefAttrs;
+
+  nsAccessible* mOffsetAcc;
+  PRInt32 mOffsetAccIdx;
 
 protected:
 

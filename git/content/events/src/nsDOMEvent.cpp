@@ -896,8 +896,7 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
     }
     case NS_TOUCH_EVENT:
     {
-      nsTouchEvent *oldTouchEvent = static_cast<nsTouchEvent*>(mEvent);
-      newEvent = new nsTouchEvent(false, oldTouchEvent);
+      newEvent = new nsTouchEvent(false, msg, nsnull);
       NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       isInputEvent = true;
       break;

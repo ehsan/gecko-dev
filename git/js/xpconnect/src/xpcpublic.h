@@ -223,8 +223,6 @@ bool Base64Decode(JSContext *cx, JS::Value val, JS::Value *out);
 bool StringToJsval(JSContext *cx, nsAString &str, JS::Value *rval);
 bool NonVoidStringToJsval(JSContext *cx, nsAString &str, JS::Value *rval);
 
-nsIPrincipal *GetCompartmentPrincipal(JSCompartment *compartment);
-
 #ifdef DEBUG
 void DumpJSHeap(FILE* file);
 #endif

@@ -367,7 +367,6 @@ public class PanZoomController
 
     private boolean onTouchCancel(MotionEvent event) {
         mState = PanZoomState.NOTHING;
-        cancelTouch();
         // ensure we snap back if we're overscrolled
         bounce();
         return false;
@@ -902,7 +901,7 @@ public class PanZoomController
         return true;
     }
 
-    private void cancelTouch() {
+    public void cancelTouch() {
         GeckoEvent e = GeckoEvent.createBroadcastEvent("Gesture:CancelTouch", "");
         GeckoAppShell.sendEventToGecko(e);
     }

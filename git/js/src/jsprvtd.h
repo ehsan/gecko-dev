@@ -324,8 +324,6 @@ enum XDRMode {
 template <XDRMode mode>
 class XDRState;
 
-class FreeOp;
-
 } /* namespace js */
 
 namespace JSC {
@@ -388,7 +386,7 @@ typedef void
 
 /* called just before script destruction */
 typedef void
-(* JSDestroyScriptHook)(JSFreeOp *fop,
+(* JSDestroyScriptHook)(JSContext *cx,
                         JSScript  *script,
                         void      *callerdata);
 

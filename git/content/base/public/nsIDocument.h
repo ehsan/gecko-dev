@@ -1642,7 +1642,7 @@ public:
   // declaration of nsINode::SizeOfIncludingThis.
   virtual void DocSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const;
 
-  bool MayHaveDOMMutationObservers()
+  PRBool MayHaveDOMMutationObservers()
   {
     return mMayHaveDOMMutationObservers;
   }

@@ -895,22 +895,6 @@ fun_bind(JSContext *cx, unsigned argc, Value *vp)
         argslen = args.length() - 1;
     }
 
-    /* Steps 7-9. */
-    Value thisArg = args.length() >= 1 ? args[0] : UndefinedValue();
-
-    JSObject *boundFunction = js_fun_bind(cx, target, thisArg, boundArgs, argslen);
-    if (!boundFunction)
-        return false;
-
-    /* Step 22. */
-    args.rval().setObject(*boundFunction);
-    return true;
-}
-
-JSObject*
-js_fun_bind(JSContext *cx, HandleObject target, Value thisArg,
-            Value *boundArgs, unsigned argslen)
-{
     /* Steps 15-16. */
     unsigned length = 0;
     if (target->isFunction()) {
@@ -926,18 +910,23 @@ js_fun_bind(JSContext *cx, HandleObject target, Value thisArg,
         js_NewFunction(cx, NULL, CallOrConstructBoundFunction, length,
                        JSFUN_CONSTRUCTOR, target, name);
     if (!funobj)
-        return NULL;
+        return false;
 
     /* NB: Bound functions abuse |parent| to store their target. */
     if (!funobj->setParent(cx, target))
-        return NULL;
+        return false;
 
+    /* Steps 7-9. */
+    Value thisArg = args.length() >= 1 ? args[0] : UndefinedValue();
     if (!funobj->toFunction()->initBoundFunction(cx, thisArg, boundArgs, argslen))
-        return NULL;
+        return false;
 
     /* Steps 17, 19-21 are handled by fun_resolve. */
     /* Step 18 is the default for new functions. */
-    return funobj;
+
+    /* Step 22. */
+    args.rval().setObject(*funobj);
+    return true;
 }
 
 /*

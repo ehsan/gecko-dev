@@ -366,7 +366,7 @@ class TypeSet
 
     void print(JSContext *cx);
 
-    inline void sweep(JSCompartment *compartment);
+    inline void sweep(JSContext *cx, JSCompartment *compartment);
     inline size_t computedSizeOfExcludingThis();
 
     /* Whether this set contains a specific type. */
@@ -864,7 +864,7 @@ struct TypeObject : gc::Cell
     void print(JSContext *cx);
 
     inline void clearProperties();
-    inline void sweep(FreeOp *fop);
+    inline void sweep(JSContext *cx);
 
     inline size_t computedSizeOfExcludingThis();
 
@@ -875,7 +875,7 @@ struct TypeObject : gc::Cell
      * object pending deletion is released when weak references are sweeped
      * from all the compartment's type objects.
      */
-    void finalize(FreeOp *fop) {}
+    void finalize(JSContext *cx, bool background) {}
 
     static inline void writeBarrierPre(TypeObject *type);
     static inline void writeBarrierPost(TypeObject *type, void *addr);
@@ -1121,7 +1121,7 @@ class TypeScript
     static inline void SetArgument(JSContext *cx, JSScript *script, unsigned arg, Type type);
     static inline void SetArgument(JSContext *cx, JSScript *script, unsigned arg, const js::Value &value);
 
-    static void Sweep(FreeOp *fop, JSScript *script);
+    static void Sweep(JSContext *cx, JSScript *script);
     inline void trace(JSTracer *trc);
     void destroy();
 };
@@ -1244,12 +1244,11 @@ struct TypeCompartment
     /* Make an object for an allocation site. */
     TypeObject *newAllocationSiteTypeObject(JSContext *cx, const AllocationSiteKey &key);
 
-    void nukeTypes(FreeOp *fop);
-    void processPendingRecompiles(FreeOp *fop);
+    void nukeTypes(JSContext *cx);
+    void processPendingRecompiles(JSContext *cx);
 
     /* Mark all types as needing destruction once inference has 'finished'. */
     void setPendingNukeTypes(JSContext *cx);
-    void setPendingNukeTypesNoReport();
 
     /* Mark a script as needing recompilation once inference has finished. */
     void addPendingRecompile(JSContext *cx, const RecompileInfo &info);
@@ -1262,7 +1261,7 @@ struct TypeCompartment
     /* Mark any type set containing obj as having a generic object type. */
     void markSetsUnknown(JSContext *cx, TypeObject *obj);
 
-    void sweep(FreeOp *fop);
+    void sweep(JSContext *cx);
     void finalizeObjects();
 };
 

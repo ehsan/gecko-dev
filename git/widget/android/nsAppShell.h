@@ -100,8 +100,9 @@ protected:
     Mutex mQueueLock;
     Mutex mCondLock;
     CondVar mQueueCond;
-    mozilla::AndroidGeckoEvent *mQueuedDrawEvent;
-    mozilla::AndroidGeckoEvent *mQueuedViewportEvent;
+    int mNumDraws;
+    int mNumViewports;
+    mozilla::AndroidGeckoEvent *mLastDrawEvent;
     nsTArray<mozilla::AndroidGeckoEvent *> mEventQueue;
     nsInterfaceHashtable<nsStringHashKey, nsIObserver> mObserversHash;
 
@@ -109,6 +110,7 @@ protected:
     mozilla::AndroidGeckoEvent *PeekNextEvent();
 
     nsCOMPtr<nsIAndroidBrowserApp> mBrowserApp;
+    bool mPendingSensorEvents;
 };
 
 #endif // nsAppShell_h__

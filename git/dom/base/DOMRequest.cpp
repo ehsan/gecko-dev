@@ -131,7 +131,7 @@ DOMRequest::FireEvent(const nsAString& aType)
     return;
   }
 
-  rv = event->SetTrusted(true);
+  rv = event->SetTrusted(PR_TRUE);
   if (NS_FAILED(rv)) {
     return;
   }

@@ -1313,23 +1313,23 @@ JITChunk::~JITChunk()
 }
 
 void
-JITScript::destroy(FreeOp *fop)
+JITScript::destroy(JSContext *cx)
 {
     for (unsigned i = 0; i < nchunks; i++)
-        destroyChunk(fop, i);
+        destroyChunk(cx, i);
 
     if (shimPool)
         shimPool->release();
 }
 
 void
-JITScript::destroyChunk(FreeOp *fop, unsigned chunkIndex, bool resetUses)
+JITScript::destroyChunk(JSContext *cx, unsigned chunkIndex, bool resetUses)
 {
     ChunkDescriptor &desc = chunkDescriptor(chunkIndex);
 
     if (desc.chunk) {
-        Probes::discardMJITCode(fop, this, script, desc.chunk->code.m_code.executableAddress());
-        fop->delete_(desc.chunk);
+        Probes::discardMJITCode(cx, this, script, desc.chunk->code.m_code.executableAddress());
+        cx->delete_(desc.chunk);
         desc.chunk = NULL;
 
         CrossChunkEdge *edges = this->edges();
@@ -1341,7 +1341,7 @@ JITScript::destroyChunk(FreeOp *fop, unsigned chunkIndex, bool resetUses)
                 edge.sourceTrampoline = NULL;
 #endif
                 if (edge.jumpTableEntries) {
-                    fop->delete_(edge.jumpTableEntries);
+                    cx->delete_(edge.jumpTableEntries);
                     edge.jumpTableEntries = NULL;
                 }
             } else if (edge.target >= desc.begin && edge.target < desc.end) {
@@ -1362,8 +1362,13 @@ JITScript::destroyChunk(FreeOp *fop, unsigned chunkIndex, bool resetUses)
 
         invokeEntry = NULL;
         fastEntry = NULL;
-        argsCheckEntry = NULL;
         arityCheckEntry = NULL;
+        argsCheckEntry = NULL;
+
+        if (script->jitNormal == this)
+            script->jitArityCheckNormal = NULL;
+        else
+            script->jitArityCheckCtor = NULL;
 
         // Fixup any ICs still referring to this chunk.
         while (!JS_CLIST_IS_EMPTY(&callers)) {
@@ -1380,27 +1385,14 @@ JITScript::destroyChunk(FreeOp *fop, unsigned chunkIndex, bool resetUses)
     }
 }
 
-const js::mjit::JITScript *JSScript::JITScriptHandle::UNJITTABLE =
-    reinterpret_cast<js::mjit::JITScript *>(1);
-
-void
-JSScript::JITScriptHandle::staticAsserts()
-{
-    // JITScriptHandle's memory layout must match that of JITScript *.
-    JS_STATIC_ASSERT(sizeof(JSScript::JITScriptHandle) == sizeof(js::mjit::JITScript *));
-    JS_STATIC_ASSERT(JS_ALIGNMENT_OF(JSScript::JITScriptHandle) ==
-                     JS_ALIGNMENT_OF(js::mjit::JITScript *));
-    JS_STATIC_ASSERT(offsetof(JSScript::JITScriptHandle, value) == 0);
-}
-
 size_t
 JSScript::sizeOfJitScripts(JSMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
-    if (jitHandleNormal.isValid())
-        n += jitHandleNormal.getValid()->sizeOfIncludingThis(mallocSizeOf); 
-    if (jitHandleCtor.isValid())
-        n += jitHandleCtor.getValid()->sizeOfIncludingThis(mallocSizeOf); 
+    if (jitNormal)
+        n += jitNormal->sizeOfIncludingThis(mallocSizeOf); 
+    if (jitCtor)
+        n += jitCtor->sizeOfIncludingThis(mallocSizeOf); 
     return n;
 }
 
@@ -1446,16 +1438,21 @@ mjit::JITChunk::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf)
 }
 
 void
-JSScript::ReleaseCode(FreeOp *fop, JITScriptHandle *jith)
+mjit::ReleaseScriptCode(JSContext *cx, JSScript *script, bool construct)
 {
     // NB: The recompiler may call ReleaseScriptCode, in which case it
     // will get called again when the script is destroyed, so we
     // must protect against calling ReleaseScriptCode twice.
 
-    JITScript *jit = jith->getValid();
-    jit->destroy(fop);
-    fop->free_(jit);
-    jith->setEmpty();
+    JITScript **pjit = construct ? &script->jitCtor : &script->jitNormal;
+    void **parity = construct ? &script->jitArityCheckCtor : &script->jitArityCheckNormal;
+
+    if (*pjit) {
+        (*pjit)->destroy(cx);
+        cx->free_(*pjit);
+        *pjit = NULL;
+        *parity = NULL;
+    }
 }
 
 #ifdef JS_METHODJIT_PROFILE_STUBS

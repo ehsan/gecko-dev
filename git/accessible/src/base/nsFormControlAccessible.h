@@ -63,7 +63,6 @@ public:
 
   // nsAccessible
   virtual mozilla::a11y::role NativeRole();
-  virtual PRUint64 NativeState();
 
   // Widgets
   virtual bool IsWidget() const;

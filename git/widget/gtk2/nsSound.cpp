@@ -106,7 +106,7 @@ struct ScopedCanberraFile {
 
     ~ScopedCanberraFile() {
         if (mFile) {
-            mFile->Remove(false);
+            mFile->Remove(PR_FALSE);
         }
     }
 
@@ -188,7 +188,7 @@ ca_finish_cb(ca_context *c,
 {
     nsILocalFile *file = reinterpret_cast<nsILocalFile *>(userdata);
     if (file) {
-        file->Remove(false);
+        file->Remove(PR_FALSE);
         NS_RELEASE(file);
     }
 }

@@ -98,7 +98,7 @@ class AutoNamespaceArray : protected AutoGCRooter {
     }
 
     ~AutoNamespaceArray() {
-        array.finish(context->runtime->defaultFreeOp());
+        array.finish(context);
     }
 
     uint32_t length() const { return array.length; }
@@ -390,7 +390,7 @@ CallSetter(JSContext *cx, JSObject *obj, jsid id, StrictPropertyOp op, unsigned 
     return CallJSPropertyOpSetter(cx, op, obj, id, strict, vp);
 }
 
-static inline HeapPtrAtom *
+static inline JSAtom **
 FrameAtomBase(JSContext *cx, js::StackFrame *fp)
 {
     return fp->script()->atoms;

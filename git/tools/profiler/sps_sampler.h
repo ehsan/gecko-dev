@@ -212,8 +212,7 @@ public:
     if (mQueueClearMarker) {
       clearMarkers();
     }
-    if (aMarkerId < 0 ||
-	static_cast<mozilla::sig_safe_t>(aMarkerId) >= mMarkerPointer) {
+    if (aMarkerId >= mMarkerPointer) {
       return NULL;
     }
     return mMarkers[aMarkerId];

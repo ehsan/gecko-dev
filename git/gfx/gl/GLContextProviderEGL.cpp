@@ -851,16 +851,20 @@ public:
         mUpdateFormat = gfxASurface::FormatFromContent(GetContentType());
 
         if (gUseBackingSurface) {
-            if (mUpdateFormat != gfxASurface::ImageFormatARGB32) {
+            if (mUpdateFormat == gfxASurface::ImageFormatRGB24) {
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+                mUpdateFormat = gfxASurface::ImageFormatRGB16_565;
                 mShaderType = RGBXLayerProgramType;
+#else
+                mUpdateFormat = gfxASurface::ImageFormatARGB32;
+                mShaderType = RGBALayerProgramType;
+#endif
             } else {
                 mShaderType = RGBALayerProgramType;
             }
             Resize(aSize);
         } else {
-            if (mUpdateFormat == gfxASurface::ImageFormatRGB16_565) {
-                mShaderType = RGBXLayerProgramType;
-            } else if (mUpdateFormat == gfxASurface::ImageFormatRGB24) {
+            if (mUpdateFormat == gfxASurface::ImageFormatRGB24) {
                 // RGB24 means really RGBX for Thebes, which means we have to
                 // use the right shader and ignore the uninitialized alpha
                 // value.
@@ -1393,7 +1397,7 @@ GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
         // Create dummy GLContextEGL class
         nsRefPtr<GLContextEGL> glContext =
             new GLContextEGL(ContextFormat(DepthToGLFormat(context->device()->depth())),
-                             gGlobalContext,
+                             NULL,
                              NULL,
                              sEGLLibrary.fGetCurrentSurface(LOCAL_EGL_DRAW), // just use same surface for read and draw
                              sEGLLibrary.fGetCurrentContext(),
@@ -1405,9 +1409,7 @@ GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
         glContext->SetIsDoubleBuffered(context->format().doubleBuffer());
 
         glContext->SetPlatformContext(context);
-        if (!gGlobalContext) {
-            gGlobalContext = glContext;
-        }
+        gGlobalContext = glContext;
 
         return glContext.forget();
     }

@@ -470,7 +470,7 @@ class CGClassFinalizeHook(CGAbstractClassHook):
     A hook for finalize, used to release our native object.
     """
     def __init__(self, descriptor):
-        args = [Argument('JSFreeOp*', 'fop'), Argument('JSObject*', 'obj')]
+        args = [Argument('JSContext*', 'cx'), Argument('JSObject*', 'obj')]
         CGAbstractClassHook.__init__(self, descriptor, FINALIZE_HOOK_NAME,
                                      'void', args)
 
@@ -1494,12 +1494,12 @@ def getWrapTemplateForTypeImpl(type, result, descriptorProvider,
         # nullable and always have [TreatNonCallableAsNull] for now.
         return """
   ${jsvalRef} = JS::ObjectOrNullValue(%s);
-  return JS_WrapValue(cx, ${jsvalPtr});""" % result
+  return true;""" % result
 
     if type.tag() == IDLType.Tags.any:
         return """
   ${jsvalRef} = %s;\n
-  return JS_WrapValue(cx, ${jsvalPtr});""" % result
+  return true;""" % result
 
     if not type.isPrimitive():
         raise TypeError("Need to learn to wrap %s" % type)

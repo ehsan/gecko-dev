@@ -129,7 +129,7 @@ abstract public class GeckoApp
     public static int mOrientation;
 
     private GeckoConnectivityReceiver mConnectivityReceiver;
-    private GeckoBatteryManager mBatteryReceiver;
+    private BroadcastReceiver mBatteryReceiver;
 
     public static BrowserToolbar mBrowserToolbar;
     public static DoorHangerPopup mDoorHangerPopup;
@@ -165,11 +165,10 @@ abstract public class GeckoApp
                              Launched, GeckoRunning, GeckoExiting};
     private static LaunchState sLaunchState = LaunchState.Launching;
 
-    private ActivityResultHandlerMap mActivityResultHandlerMap = new ActivityResultHandlerMap();
-    private FilePickerResultHandlerSync mFilePickerResultHandlerSync = new FilePickerResultHandlerSync();
-    private AwesomebarResultHandler mAwesomebarResultHandler = new AwesomebarResultHandler();
-    private CameraImageResultHandler mCameraImageResultHandler = new CameraImageResultHandler();
-    private CameraVideoResultHandler mCameraVideoResultHandler = new CameraVideoResultHandler();
+    private static final int FILE_PICKER_REQUEST = 1;
+    private static final int AWESOMEBAR_REQUEST = 2;
+    private static final int CAMERA_IMAGE_CAPTURE_REQUEST = 3;
+    private static final int CAMERA_VIDEO_CAPTURE_REQUEST = 4;
 
     public static boolean checkLaunchState(LaunchState checkState) {
         synchronized(sLaunchState) {
@@ -518,7 +517,8 @@ abstract public class GeckoApp
                 loadUrlInTab("about:addons");
                 return true;
             case R.id.downloads:
-                loadUrlInTab("about:downloads");
+                intent = new Intent(DownloadManager.ACTION_VIEW_DOWNLOADS);
+                startActivity(intent);
                 return true;
             case R.id.char_encoding:
                 GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("CharEncoding:Get", null));
@@ -724,7 +724,7 @@ abstract public class GeckoApp
         });
     }
 
-    void updateAboutHomeTopSites() {
+    void handleClearHistory() {
         if (mAboutHomeContent == null)
             return;
 
@@ -734,10 +734,6 @@ abstract public class GeckoApp
                         EnumSet.of(AboutHomeContent.UpdateFlags.TOP_SITES));
             }
         });
-    }
-
-    void handleClearHistory() {
-        updateAboutHomeTopSites();
     }
 
     public StartupMode getStartupMode() {
@@ -991,7 +987,7 @@ abstract public class GeckoApp
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     mMainHandler.post(new Runnable() {
                         public void run() {
-                            mLayerController.getView().getTouchEventHandler().setWaitForTouchListeners(true);
+                            mLayerController.setWaitForTouchListeners(true);
                         }
                     });
                 }
@@ -1590,6 +1586,8 @@ abstract public class GeckoApp
         mGeckoLayout = (RelativeLayout) findViewById(R.id.gecko_layout);
         mMainLayout = (LinearLayout) findViewById(R.id.main_layout);
 
+        mConnectivityReceiver = new GeckoConnectivityReceiver();
+
         ((GeckoApplication) getApplication()).addApplicationLifecycleCallbacks(this);
     }
 
@@ -1732,20 +1730,16 @@ abstract public class GeckoApp
         GeckoAppShell.registerGeckoEventListener("Session:StatePurged", GeckoApp.mAppContext);
         GeckoAppShell.registerGeckoEventListener("Bookmark:Insert", GeckoApp.mAppContext);
 
+        IntentFilter batteryFilter = new IntentFilter();
+        batteryFilter.addAction(Intent.ACTION_BATTERY_CHANGED);
+        mBatteryReceiver = new GeckoBatteryManager();
+        registerReceiver(mBatteryReceiver, batteryFilter);
+
         if (SmsManager.getInstance() != null) {
           SmsManager.getInstance().start();
         }
 
-        mBatteryReceiver = new GeckoBatteryManager();
-        mBatteryReceiver.registerFor(mAppContext);
-
-        mConnectivityReceiver = new GeckoConnectivityReceiver();
-        mConnectivityReceiver.registerFor(mAppContext);
-
         GeckoNetworkManager.getInstance().init();
-        GeckoNetworkManager.getInstance().start();
-
-        GeckoScreenOrientationListener.getInstance().start();
 
         final GeckoApp self = this;
 
@@ -1978,6 +1972,26 @@ abstract public class GeckoApp
     }
 
     @Override
+    public void onPause()
+    {
+        Log.i(LOGTAG, "pause");
+
+        // The user is navigating away from this activity, but nothing
+        // has come to the foreground yet; for Gecko, we may want to
+        // stop repainting, for example.
+
+        // Whatever we do here should be fast, because we're blocking
+        // the next activity from showing up until we finish.
+
+        // onPause will be followed by either onResume or onStop.
+        super.onPause();
+
+        mConnectivityReceiver.unregisterFor(mAppContext);
+        GeckoNetworkManager.getInstance().stop();
+        GeckoScreenOrientationListener.getInstance().stop();
+    }
+
+    @Override
     public void onResume()
     {
         Log.i(LOGTAG, "resume");
@@ -2003,6 +2017,14 @@ abstract public class GeckoApp
             mOrientation = newOrientation;
             refreshActionBar();
         }
+
+        mMainHandler.post(new Runnable() {
+            public void run() {
+                mConnectivityReceiver.registerFor(mAppContext);
+                GeckoNetworkManager.getInstance().start();
+                GeckoScreenOrientationListener.getInstance().start();
+            }
+        });
     }
 
     @Override
@@ -2087,7 +2109,7 @@ abstract public class GeckoApp
 
         super.onDestroy();
 
-        mBatteryReceiver.unregisterFor(mAppContext);
+        unregisterReceiver(mBatteryReceiver);
 
         if (mAboutHomeContent != null) {
             mAboutHomeContent.onDestroy();
@@ -2131,10 +2153,6 @@ abstract public class GeckoApp
     public void onApplicationPause() {
         Log.i(LOGTAG, "application paused");
         GeckoAppShell.sendEventToGecko(GeckoEvent.createPauseEvent(true));
-
-        mConnectivityReceiver.unregisterFor(mAppContext);
-        GeckoNetworkManager.getInstance().stop();
-        GeckoScreenOrientationListener.getInstance().stop();
     }
 
     @Override
@@ -2142,10 +2160,6 @@ abstract public class GeckoApp
         Log.i(LOGTAG, "application resumed");
         if (checkLaunchState(LaunchState.GeckoRunning))
             GeckoAppShell.sendEventToGecko(GeckoEvent.createResumeEvent(true));
-
-        mConnectivityReceiver.registerFor(mAppContext);
-        GeckoNetworkManager.getInstance().start();
-        GeckoScreenOrientationListener.getInstance().start();
     }
 
     abstract public String getPackageName();
@@ -2269,21 +2283,13 @@ abstract public class GeckoApp
         if (profileDir != null) {
             Log.i(LOGTAG, "checking profile migration in: " + profileDir.getAbsolutePath());
             final GeckoApp app = GeckoApp.mAppContext;
+            final SetupScreen setupScreen = new SetupScreen(app);
+            // don't show unless we take a while
+            setupScreen.showDelayed(mMainHandler);
             ProfileMigrator profileMigrator =
                 new ProfileMigrator(app.getContentResolver(), profileDir);
-
-            // Do a migration run on the first start after an upgrade.
-            if (!profileMigrator.hasMigrationRun()) {
-                final SetupScreen setupScreen = new SetupScreen(app);
-
-                // don't show unless this take a while
-                setupScreen.showDelayed(mMainHandler);
-                profileMigrator.launch();
-                setupScreen.dismiss();
-
-                // Update about:home with the new information.
-                updateAboutHomeTopSites();
-            }
+            profileMigrator.launch();
+            setupScreen.dismiss();
         }
         long timeDiff = SystemClock.uptimeMillis() - currentTime;
         Log.i(LOGTAG, "Profile migration took " + timeDiff + " ms");
@@ -2441,16 +2447,6 @@ abstract public class GeckoApp
     private String mImageFilePath = "";
     private SynchronousQueue<String> mFilePickerResult = new SynchronousQueue<String>();
 
-    public boolean showFilePicker(String aMimeType, ActivityResultHandler handler) {
-        Intent intent = getFilePickerIntent(aMimeType);
-
-        if (intent == null) {
-            return false;
-        }
-        startActivityForResult(intent, mActivityResultHandlerMap.put(handler));
-        return true;
-    }
-
     public String showFilePicker(String aMimeType) {
         Intent intent = getFilePickerIntent(aMimeType);
 
@@ -2459,11 +2455,11 @@ abstract public class GeckoApp
         }
 
         if (intent.getAction().equals(android.provider.MediaStore.ACTION_IMAGE_CAPTURE)) {
-            startActivityForResult(intent, mActivityResultHandlerMap.put(mCameraImageResultHandler));
+            startActivityForResult(intent, CAMERA_IMAGE_CAPTURE_REQUEST);
         } else if (intent.getAction().equals(android.provider.MediaStore.ACTION_VIDEO_CAPTURE)) {
-            startActivityForResult(intent, mActivityResultHandlerMap.put(mCameraVideoResultHandler));
+            startActivityForResult(intent, CAMERA_VIDEO_CAPTURE_REQUEST);
         } else if (intent.getAction().equals(Intent.ACTION_GET_CONTENT)) {
-            startActivityForResult(intent, mActivityResultHandlerMap.put(mFilePickerResultHandlerSync));
+            startActivityForResult(intent, FILE_PICKER_REQUEST);
         } else {
             Log.e(LOGTAG, "We should not get an intent with another action!");
             return "";
@@ -2502,7 +2498,7 @@ abstract public class GeckoApp
                 }
             }
         }
-        startActivityForResult(intent, mActivityResultHandlerMap.put(mAwesomebarResultHandler));
+        startActivityForResult(intent, AWESOMEBAR_REQUEST);
         return true;
     }
 
@@ -2574,96 +2570,66 @@ abstract public class GeckoApp
 
     static int kCaptureIndex = 0;
 
-    public interface ActivityResultHandler {
-        public void onActivityResult(int resultCode, Intent data);
-    }
-
-    class ActivityResultHandlerMap {
-        private Map<Integer, ActivityResultHandler> mMap = new HashMap<Integer, ActivityResultHandler>();
-        private int mCounter = 0;
-
-        synchronized int put(ActivityResultHandler handler) {
-            mMap.put(mCounter, handler);
-            return mCounter++;
-        }
-
-        synchronized ActivityResultHandler getAndRemove(int i) {
-            return mMap.remove(i);
-        }
-    }
-
     @Override
     protected void onActivityResult(int requestCode, int resultCode,
                                     Intent data) {
-        ActivityResultHandler handler = mActivityResultHandlerMap.getAndRemove(requestCode);
-        if (handler != null)
-            handler.onActivityResult(resultCode, data);
-        else
-            super.onActivityResult(requestCode, resultCode, data);
-    }
-
-    static abstract class FilePickerResultHandler implements ActivityResultHandler {
-        String handleActivityResult(int resultCode, Intent data) {
-            if (data == null && resultCode != RESULT_OK)
-                return null;
-            Uri uri = data.getData();
-            if ("file".equals(uri.getScheme()))
-                return uri.getPath();
-            try {
-                ContentResolver cr = GeckoApp.mAppContext.getContentResolver();
-                Cursor cursor = cr.query(uri, new String[] { OpenableColumns.DISPLAY_NAME },
-                                         null, null, null);
-                String name = null;
-                if (cursor != null) {
-                    try {
-                        if (cursor.moveToNext()) {
-                            name = cursor.getString(0);
+        super.onActivityResult(requestCode, resultCode, data);
+        switch (requestCode) {
+        case FILE_PICKER_REQUEST:
+            String filePickerResult = "";
+            if (data != null && resultCode == RESULT_OK) {
+                try {
+                    ContentResolver cr = getContentResolver();
+                    Uri uri = data.getData();
+                    Cursor cursor = GeckoApp.mAppContext.getContentResolver().query(
+                        uri, 
+                        new String[] { OpenableColumns.DISPLAY_NAME },
+                        null, 
+                        null, 
+                        null);
+                    String name = null;
+                    if (cursor != null) {
+                        try {
+                            if (cursor.moveToNext()) {
+                                name = cursor.getString(0);
+                            }
+                        } finally {
+                            cursor.close();
                         }
-                    } finally {
-                        cursor.close();
                     }
-                }
-                String fileName = "tmp_";
-                String fileExt = null;
-                int period;
-                if (name == null || (period = name.lastIndexOf('.')) == -1) {
-                    String mimeType = cr.getType(uri);
-                    fileExt = "." + GeckoAppShell.getExtensionFromMimeType(mimeType);
-                } else {
-                    fileExt = name.substring(period);
-                    fileName = name.substring(0, period);
-                }
-                File file = File.createTempFile(fileName, fileExt, GeckoAppShell.getGREDir(GeckoApp.mAppContext));
-                FileOutputStream fos = new FileOutputStream(file);
-                InputStream is = cr.openInputStream(uri);
-                byte[] buf = new byte[4096];
-                int len = is.read(buf);
-                while (len != -1) {
-                    fos.write(buf, 0, len);
-                    len = is.read(buf);
-                }
-                fos.close();
-                return file.getAbsolutePath();
-            } catch (Exception e) {
-                Log.e(LOGTAG, "showing file picker", e);
-            }
-            return null;
-        }
-    }
+                    String fileName = "tmp_";
+                    String fileExt = null;
+                    int period;
+                    if (name == null || (period = name.lastIndexOf('.')) == -1) {
+                        String mimeType = cr.getType(uri);
+                        fileExt = "." + GeckoAppShell.getExtensionFromMimeType(mimeType);
+                    } else {
+                        fileExt = name.substring(period);
+                        fileName = name.substring(0, period);
+                    }
+                    File file = File.createTempFile(fileName, fileExt, GeckoAppShell.getGREDir(GeckoApp.mAppContext));
 
-    class FilePickerResultHandlerSync extends FilePickerResultHandler {
-        public void onActivityResult(int resultCode, Intent data) {
+                    FileOutputStream fos = new FileOutputStream(file);
+                    InputStream is = cr.openInputStream(uri);
+                    byte[] buf = new byte[4096];
+                    int len = is.read(buf);
+                    while (len != -1) {
+                        fos.write(buf, 0, len);
+                        len = is.read(buf);
+                    }
+                    fos.close();
+                    filePickerResult =  file.getAbsolutePath();
+                }catch (Exception e) {
+                    Log.e(LOGTAG, "showing file picker", e);
+                }
+            }
             try {
-                mFilePickerResult.put(handleActivityResult(resultCode, data));
+                mFilePickerResult.put(filePickerResult);
             } catch (InterruptedException e) {
                 Log.i(LOGTAG, "error returning file picker result", e);
             }
-
-        }
-    }
-
-    class AwesomebarResultHandler implements ActivityResultHandler {
-        public void onActivityResult(int resultCode, Intent data) {
+            break;
+        case AWESOMEBAR_REQUEST:
             if (data != null) {
                 String url = data.getStringExtra(AwesomeBar.URL_KEY);
                 AwesomeBar.Type type = AwesomeBar.Type.valueOf(data.getStringExtra(AwesomeBar.TYPE_KEY));
@@ -2672,15 +2638,12 @@ abstract public class GeckoApp
                 if (url != null && url.length() > 0)
                     loadRequest(url, type, searchEngine, userEntered);
             }
-        }
-    }
-
-    class CameraImageResultHandler implements ActivityResultHandler {
-        public void onActivityResult(int resultCode, Intent data) {            
+            break;
+        case CAMERA_IMAGE_CAPTURE_REQUEST:
             try {
                 if (resultCode != Activity.RESULT_OK) {
                     mFilePickerResult.put("");
-                    return;
+                    break;
                 }
 
                 File file = new File(Environment.getExternalStorageDirectory(), mImageFilePath);
@@ -2689,15 +2652,13 @@ abstract public class GeckoApp
             } catch (InterruptedException e) {
                 Log.i(LOGTAG, "error returning file picker result", e);
             }
-        }
-    }
 
-    class CameraVideoResultHandler implements ActivityResultHandler {
-        public void onActivityResult(int resultCode, Intent data) {
+            break;
+        case CAMERA_VIDEO_CAPTURE_REQUEST:
             try {
                 if (data == null || resultCode != Activity.RESULT_OK) {
                     mFilePickerResult.put("");
-                    return;
+                    break;
                 }
 
                 Cursor cursor = managedQuery(data.getData(),
@@ -2711,7 +2672,8 @@ abstract public class GeckoApp
                 Log.i(LOGTAG, "error returning file picker result", e);
             }
 
-        }
+            break;
+       }
     }
 
     // If searchEngine is provided, url will be used as the search query.
@@ -2804,15 +2766,6 @@ abstract public class GeckoApp
     private void connectGeckoLayerClient() {
         LayerController layerController = getLayerController();
         layerController.setLayerClient(mLayerClient);
-
-        layerController.getView().getTouchEventHandler().setOnTouchListener(new View.OnTouchListener() {
-            public boolean onTouch(View view, MotionEvent event) {
-                if (event == null)
-                    return true;
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createMotionEvent(event));
-                return true;
-            }
-        });
     }
 
     public class GeckoAppHandler extends Handler {

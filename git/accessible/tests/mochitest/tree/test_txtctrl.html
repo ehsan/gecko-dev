@@ -76,19 +76,6 @@
       };
 
       testAccessibleTree("txc5", accTree);
-      
-      // input@type="tel", value
-      accTree = {
-        role: ROLE_ENTRY,
-        children: [
-          { // text child
-            role: ROLE_TEXT_LEAF,
-            children: []
-          }
-        ]
-      };
-
-      testAccessibleTree("txc6", accTree);
 
       SimpleTest.finish();
     }
@@ -130,7 +117,6 @@
     hello2
   </textarea>
   <input id="txc5" type="password" value="hello">
-  <input id="txc6" type="tel" value="4167771234">
 
 </body>
 </html>

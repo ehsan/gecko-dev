@@ -28,7 +28,8 @@
           android:title="@string/addons"/>
 
     <item android:id="@+id/downloads"
-          android:title="@string/downloads"/>
+          android:title="@string/downloads"
+          android:visible="false"/>
 
     <item android:id="@+id/char_encoding"
           android:visible="false"

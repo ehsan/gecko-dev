@@ -72,7 +72,7 @@ struct JSXMLArray
         cursors = NULL;
     }
 
-    void finish(js::FreeOp *fop);
+    void finish(JSContext *cx);
 
     bool setCapacity(JSContext *cx, uint32_t capacity);
     void trim();
@@ -203,7 +203,7 @@ struct JSXML : js::gc::Cell {
     void *pad;
 #endif
 
-    void finalize(js::FreeOp *fop);
+    void finalize(JSContext *cx, bool background);
 
     static void writeBarrierPre(JSXML *xml);
     static void writeBarrierPost(JSXML *xml, void *addr);

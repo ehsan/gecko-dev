@@ -14,7 +14,7 @@ XMLHttpRequestEventTarget::_Trace(JSTracer* aTrc)
 }
 
 void
-XMLHttpRequestEventTarget::_Finalize(JSFreeOp* aFop)
+XMLHttpRequestEventTarget::_Finalize(JSContext* aCx)
 {
-  EventTarget::_Finalize(aFop);
+  EventTarget::_Finalize(aCx);
 }

@@ -51,7 +51,6 @@ then
   cd marionette_venv
   . bin/activate
 else
-  echo "Creating marionette_venv folder in `pwd`"
   curl https://raw.github.com/pypa/virtualenv/develop/virtualenv.py | ${PYTHON} - marionette_venv 
   cd marionette_venv
   . bin/activate

@@ -981,7 +981,7 @@ nsresult
 nsFtpState::S_cwd() {
     // Don't cache the connection if PWD command failed
     if (mPwd.IsEmpty())
-        mCacheConnection = false;
+        mCacheConnection = PR_FALSE;
 
     nsCAutoString cwdStr;
     if (mAction != PUT)
