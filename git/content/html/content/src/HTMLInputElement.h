@@ -20,7 +20,6 @@
 #include "nsIFile.h"
 #include "nsIFilePicker.h"
 #include "nsIContentPrefService2.h"
-#include "mozilla/Decimal.h"
 
 class nsDOMFileList;
 class nsIFilePicker;
@@ -155,7 +154,7 @@ public:
   void StartRangeThumbDrag(nsGUIEvent* aEvent);
   void FinishRangeThumbDrag(nsGUIEvent* aEvent = nullptr);
   void CancelRangeThumbDrag(bool aIsForUserEvent = true);
-  void SetValueOfRangeForUserEvent(Decimal aValue);
+  void SetValueOfRangeForUserEvent(double aValue);
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -235,6 +234,8 @@ public:
   static void DestroyUploadLastDir();
 
   void MaybeLoadImage();
+
+  virtual nsXPCClassInfo* GetClassInfo();
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
@@ -316,12 +317,12 @@ public:
   void FireChangeEventIfNeeded();
 
   /**
-   * Returns the input element's value as a Decimal.
+   * Returns the input element's value as a double-precision float.
    * Returns NaN if the current element's value is not a floating point number.
    *
-   * @return the input element's value as a Decimal.
+   * @return the input element's value as a double-precision float.
    */
-  Decimal GetValueAsDecimal() const;
+  double GetValueAsDouble() const;
 
   /**
    * Returns the input's "minimum" (as defined by the HTML5 spec) as a double.
@@ -331,7 +332,7 @@ public:
    *
    * NOTE: Only call this if you know DoesMinMaxApply() returns true.
    */
-  Decimal GetMinimum() const;
+  double GetMinimum() const;
 
   /**
    * Returns the input's "maximum" (as defined by the HTML5 spec) as a double.
@@ -341,7 +342,7 @@ public:
    *
    * NOTE:Only call this if you know DoesMinMaxApply() returns true.
    */
-  Decimal GetMaximum() const;
+  double GetMaximum() const;
 
   // WebIDL
 
@@ -441,7 +442,7 @@ public:
 
   void SetHeight(uint32_t aValue, ErrorResult& aRv)
   {
-    SetUnsignedIntAttr(nsGkAtoms::height, aValue, aRv);
+    aRv = nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::height, aValue);
   }
 
   bool Indeterminate() const
@@ -533,9 +534,11 @@ public:
     SetHTMLBoolAttr(nsGkAtoms::required, aValue, aRv);
   }
 
-  uint32_t Size() const
+  uint32_t Size()
   {
-    return GetUnsignedIntAttr(nsGkAtoms::size, DEFAULT_COLS);
+    uint32_t value;
+    GetUnsignedIntAttr(nsGkAtoms::size, DEFAULT_COLS, &value);
+    return value;
   }
 
   void SetSize(uint32_t aValue, ErrorResult& aRv)
@@ -545,7 +548,7 @@ public:
       return;
     }
 
-    SetUnsignedIntAttr(nsGkAtoms::size, aValue, aRv);
+    SetHTMLUnsignedIntAttr(nsGkAtoms::size, aValue, aRv);
   }
 
   // XPCOM GetSrc() is OK
@@ -575,14 +578,14 @@ public:
   // XPCOM GetValue() is OK
   void SetValue(const nsAString& aValue, ErrorResult& aRv);
 
-  Nullable<Date> GetValueAsDate(ErrorResult& aRv);
+  JS::Value GetValueAsDate(JSContext* aCx, ErrorResult& aRv);
 
-  void SetValueAsDate(Nullable<Date>, ErrorResult& aRv);
+  void SetValueAsDate(JSContext* aCx, JS::Value aValue, ErrorResult& aRv);
 
   double ValueAsNumber() const
   {
-    return DoesValueAsNumberApply() ? GetValueAsDecimal().toDouble()
-                                    : UnspecifiedNaN();
+    return DoesValueAsNumberApply() ? GetValueAsDouble()
+                                    : MOZ_DOUBLE_NaN();
   }
 
   void SetValueAsNumber(double aValue, ErrorResult& aRv);
@@ -591,26 +594,18 @@ public:
 
   void SetWidth(uint32_t aValue, ErrorResult& aRv)
   {
-    SetUnsignedIntAttr(nsGkAtoms::width, aValue, aRv);
+    aRv = nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::width, aValue);
   }
 
-  void StepUp(int32_t aN, ErrorResult& aRv)
+  void StepUp(const Optional< int32_t >& n, ErrorResult& aRv)
   {
-    aRv = ApplyStep(aN);
+    aRv = ApplyStep(n.WasPassed() ? n.Value() : 1);
   }
 
-  void StepDown(int32_t aN, ErrorResult& aRv)
+  void StepDown(const Optional< int32_t >& n, ErrorResult& aRv)
   {
-    aRv = ApplyStep(-aN);
+    aRv = ApplyStep(n.WasPassed() ? -n.Value() : -1);
   }
-
-  /**
-   * Returns the current step value.
-   * Returns kStepAny if the current step is "any" string.
-   *
-   * @return the current step value.
-   */
-  Decimal GetStep() const;
 
   void GetValidationMessage(nsAString& aValidationMessage, ErrorResult& aRv);
 
@@ -660,8 +655,7 @@ public:
   // XPCOM GetPhonetic() is OK
 
 protected:
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   // Pull IsSingleLineTextControl into our scope, otherwise it'd be hidden
   // by the nsITextControlElement version.
@@ -949,28 +943,28 @@ protected:
   nsIRadioGroupContainer* GetRadioGroupContainer() const;
 
   /**
-   * Convert a string to a Decimal number in a type specific way,
+   * Convert a string to a number in a type specific way,
    * http://www.whatwg.org/specs/web-apps/current-work/multipage/the-input-element.html#concept-input-value-string-number
    * ie parse a date string to a timestamp if type=date,
    * or parse a number string to its value if type=number.
    * @param aValue the string to be parsed.
-   * @param aResultValue the number as a Decimal.
+   * @param aResultValue the timestamp as a double.
    * @result whether the parsing was successful.
    */
-  bool ConvertStringToNumber(nsAString& aValue, Decimal& aResultValue) const;
+  bool ConvertStringToNumber(nsAString& aValue, double& aResultValue) const;
 
   /**
-   * Convert a Decimal to a string in a type specific way, ie convert a timestamp
+   * Convert a double to a string in a type specific way, ie convert a timestamp
    * to a date string if type=date or append the number string representing the
    * value if type=number.
    *
-   * @param aValue the Decimal to be converted
-   * @param aResultString [out] the string representing the Decimal
+   * @param aValue the double to be converted
+   * @param aResultString [out] the string representing the double
    * @return whether the function succeded, it will fail if the current input's
    *         type is not supported or the number can't be converted to a string
    *         as expected by the type.
    */
-  bool ConvertNumberToString(Decimal aValue, nsAString& aResultString) const;
+  bool ConvertNumberToString(double aValue, nsAString& aResultString) const;
 
   /**
    * Parse a date string of the form yyyy-mm-dd
@@ -1019,11 +1013,11 @@ protected:
   static bool ParseTime(const nsAString& aValue, uint32_t* aResult);
 
   /**
-   * Sets the value of the element to the string representation of the Decimal.
+   * Sets the value of the element to the string representation of the double.
    *
-   * @param aValue The Decimal that will be used to set the value.
+   * @param aValue The double that will be used to set the value.
    */
-  void SetValue(Decimal aValue);
+  void SetValue(double aValue);
 
   /**
    * Update the HAS_RANGE bit field value.
@@ -1035,7 +1029,15 @@ protected:
     * See:
     * http://www.whatwg.org/specs/web-apps/current-work/multipage/common-input-element-attributes.html#concept-input-step-scale
     */
-  Decimal GetStepScaleFactor() const;
+  double GetStepScaleFactor() const;
+
+  /**
+   * Returns the current step value.
+   * Returns kStepAny if the current step is "any" string.
+   *
+   * @return the current step value.
+   */
+  double GetStep() const;
 
   /**
    * Return the base used to compute if a value matches step.
@@ -1043,13 +1045,13 @@ protected:
    *
    * @return The step base.
    */
-  Decimal GetStepBase() const;
+  double GetStepBase() const;
 
   /**
    * Returns the default step for the current type.
    * @return the default step for the current type.
    */
-  Decimal GetDefaultStep() const;
+  double GetDefaultStep() const;
 
   /**
    * Apply a step change from stepUp or stepDown by multiplying aStep by the
@@ -1073,7 +1075,7 @@ protected:
    * This is used in situations where the anonymous subtree should already have
    * sent a DOMActivate and prevents firing more than once.
    */
-  bool ShouldPreventDOMActivateDispatch(EventTarget* aOriginalTarget);
+  bool ShouldPreventDOMActivateDispatch(nsIDOMEventTarget* aOriginalTarget);
 
   nsCOMPtr<nsIControllers> mControllers;
 
@@ -1125,22 +1127,22 @@ protected:
    * the drag started. Used to reset the input to its old value if the drag is
    * canceled.
    */
-  Decimal mRangeThumbDragStartValue;
+  double mRangeThumbDragStartValue;
 
   // Step scale factor values, for input types that have one.
-  static const Decimal kStepScaleFactorDate;
-  static const Decimal kStepScaleFactorNumberRange;
-  static const Decimal kStepScaleFactorTime;
+  static const double kStepScaleFactorDate;
+  static const double kStepScaleFactorNumberRange;
+  static const double kStepScaleFactorTime;
 
   // Default step base value when a type do not have specific one.
-  static const Decimal kDefaultStepBase;
+  static const double kDefaultStepBase;
 
   // Default step used when there is no specified step.
-  static const Decimal kDefaultStep;
-  static const Decimal kDefaultStepTime;
+  static const double kDefaultStep;
+  static const double kDefaultStepTime;
 
   // Float value returned by GetStep() when the step attribute is set to 'any'.
-  static const Decimal kStepAny;
+  static const double kStepAny;
 
   /**
    * The type of this input (<input type=...>) as an integer.

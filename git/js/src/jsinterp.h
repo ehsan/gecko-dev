@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -116,11 +117,25 @@ ValueToCallable(JSContext *cx, const Value &vp, int numToSkip = -1,
                 MaybeConstruct construct = NO_CONSTRUCT);
 
 /*
- * Invoke assumes that the given args have been pushed on the top of the
- * VM stack.
+ * InvokeKernel assumes that the given args have been pushed on the top of the
+ * VM stack. Additionally, if 'args' is contained in a CallArgsList, that they
+ * have already been marked 'active'.
  */
 extern bool
-Invoke(JSContext *cx, CallArgs args, MaybeConstruct construct = NO_CONSTRUCT);
+InvokeKernel(JSContext *cx, CallArgs args, MaybeConstruct construct = NO_CONSTRUCT);
+
+/*
+ * Invoke assumes that 'args' has been pushed (via ContextStack::pushInvokeArgs)
+ * and is currently at the top of the VM stack.
+ */
+inline bool
+Invoke(JSContext *cx, InvokeArgsGuard &args, MaybeConstruct construct = NO_CONSTRUCT)
+{
+    args.setActive();
+    bool ok = InvokeKernel(cx, args, construct);
+    args.setInactive();
+    return ok;
+}
 
 /*
  * This Invoke overload places the least requirements on the caller: it may be
@@ -140,11 +155,21 @@ InvokeGetterOrSetter(JSContext *cx, JSObject *obj, const Value &fval, unsigned a
                      Value *rval);
 
 /*
- * InvokeConstructor implement a function call from a constructor context
+ * InvokeConstructor* implement a function call from a constructor context
  * (e.g. 'new') handling the the creation of the new 'this' object.
  */
 extern bool
-InvokeConstructor(JSContext *cx, CallArgs args);
+InvokeConstructorKernel(JSContext *cx, CallArgs args);
+
+/* See the InvokeArgsGuard overload of Invoke. */
+inline bool
+InvokeConstructor(JSContext *cx, InvokeArgsGuard &args)
+{
+    args.setActive();
+    bool ok = InvokeConstructorKernel(cx, ImplicitCast<CallArgs>(args));
+    args.setInactive();
+    return ok;
+}
 
 /* See the fval overload of Invoke. */
 extern bool
@@ -186,8 +211,7 @@ enum InterpretStatus
  * pointed to by cx->fp until completion or error.
  */
 extern JS_NEVER_INLINE InterpretStatus
-Interpret(JSContext *cx, StackFrame *stopFp, InterpMode mode = JSINTERP_NORMAL,
-          bool useNewType = false);
+Interpret(JSContext *cx, StackFrame *stopFp, InterpMode mode = JSINTERP_NORMAL);
 
 extern bool
 RunScript(JSContext *cx, StackFrame *fp);
@@ -349,10 +373,6 @@ SetObjectElement(JSContext *cx, HandleObject obj, HandleValue index, HandleValue
                  JSBool strict, HandleScript script, jsbytecode *pc);
 
 bool
-InitElementArray(JSContext *cx, jsbytecode *pc,
-                 HandleObject obj, uint32_t index, HandleValue value);
-
-bool
 AddValues(JSContext *cx, HandleScript script, jsbytecode *pc,
           MutableHandleValue lhs, MutableHandleValue rhs,
           Value *res);
@@ -390,29 +410,11 @@ template <bool strict>
 bool
 DeleteProperty(JSContext *ctx, HandleValue val, HandlePropertyName name, JSBool *bv);
 
-template <bool strict>
-bool
-DeleteElement(JSContext *cx, HandleValue val, HandleValue index, JSBool *bv);
-
 bool
 DefFunOperation(JSContext *cx, HandleScript script, HandleObject scopeChain, HandleFunction funArg);
 
 bool
 GetAndClearException(JSContext *cx, MutableHandleValue res);
-
-bool
-DeleteNameOperation(JSContext *cx, HandlePropertyName name, HandleObject scopeObj,
-                    MutableHandleValue res);
-
-bool
-ImplicitThisOperation(JSContext *cx, HandleObject scopeObj, HandlePropertyName name,
-                      MutableHandleValue res);
-
-bool
-IteratorMore(JSContext *cx, JSObject *iterobj, bool *cond, MutableHandleValue rval);
-
-bool
-IteratorNext(JSContext *cx, HandleObject iterobj, MutableHandleValue rval);
 
 }  /* namespace js */
 

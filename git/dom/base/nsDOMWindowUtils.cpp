@@ -17,7 +17,6 @@
 #include "nsFrameManager.h"
 #include "nsRefreshDriver.h"
 #include "nsDOMTouchEvent.h"
-#include "mozilla/dom/Touch.h"
 #include "nsIDOMTouchEvent.h"
 #include "nsObjectLoadingContent.h"
 #include "nsFrame.h"
@@ -62,6 +61,7 @@
 #include "nsIIOService.h"
 
 #include "mozilla/dom/Element.h"
+#include "mozilla/dom/indexedDB/FileInfo.h"
 #include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 #include "mozilla/dom/quota/QuotaManager.h"
 #include "GeckoProfiler.h"
@@ -70,7 +70,6 @@
 #include "nsPrintfCString.h"
 #include "nsViewportInfo.h"
 #include "nsIFormControl.h"
-#include "nsIScriptError.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -188,14 +187,14 @@ nsDOMWindowUtils::GetDocumentMetadata(const nsAString& aName,
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   if (window) {
-    nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+    nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
     if (doc) {
       nsCOMPtr<nsIAtom> name = do_GetAtom(aName);
       doc->GetHeaderData(name, aValue);
       return NS_OK;
     }
   }
-
+  
   aValue.Truncate();
   return NS_OK;
 }
@@ -266,7 +265,7 @@ nsDOMWindowUtils::GetViewportInfo(uint32_t aDisplayWidth,
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_STATE(window);
 
-  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
   NS_ENSURE_STATE(doc);
 
   nsViewportInfo info = nsContentUtils::GetViewportInfo(doc, aDisplayWidth, aDisplayHeight);
@@ -850,11 +849,11 @@ nsDOMWindowUtils::SendTouchEvent(const nsAString& aType,
   event.touches.SetCapacity(aCount);
   for (uint32_t i = 0; i < aCount; ++i) {
     nsIntPoint pt = ToWidgetPoint(aXs[i], aYs[i], offset, presContext);
-    nsCOMPtr<nsIDOMTouch> t(new Touch(aIdentifiers[i],
-                                      pt,
-                                      nsIntPoint(aRxs[i], aRys[i]),
-                                      aRotationAngles[i],
-                                      aForces[i]));
+    nsCOMPtr<nsIDOMTouch> t(new nsDOMTouch(aIdentifiers[i],
+                                           pt,
+                                           nsIntPoint(aRxs[i], aRys[i]),
+                                           aRotationAngles[i],
+                                           aForces[i]));
     event.touches.AppendElement(t);
   }
 
@@ -1190,13 +1189,7 @@ nsDOMWindowUtils::SendSimpleGestureEvent(const nsAString& aType,
     return NS_ERROR_FAILURE;
 
   int32_t msg;
-  if (aType.EqualsLiteral("MozSwipeGestureStart"))
-    msg = NS_SIMPLE_GESTURE_SWIPE_START;
-  else if (aType.EqualsLiteral("MozSwipeGestureUpdate"))
-    msg = NS_SIMPLE_GESTURE_SWIPE_UPDATE;
-  else if (aType.EqualsLiteral("MozSwipeGestureEnd"))
-    msg = NS_SIMPLE_GESTURE_SWIPE_END;
-  else if (aType.EqualsLiteral("MozSwipeGesture"))
+  if (aType.EqualsLiteral("MozSwipeGesture"))
     msg = NS_SIMPLE_GESTURE_SWIPE;
   else if (aType.EqualsLiteral("MozMagnifyGestureStart"))
     msg = NS_SIMPLE_GESTURE_MAGNIFY_START;
@@ -1247,7 +1240,7 @@ nsDOMWindowUtils::ElementFromPoint(float aX, float aY,
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_STATE(window);
 
-  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
   NS_ENSURE_STATE(doc);
 
   Element* el =
@@ -1272,7 +1265,7 @@ nsDOMWindowUtils::NodesFromRect(float aX, float aY,
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_STATE(window);
 
-  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
   NS_ENSURE_STATE(doc);
 
   return doc->NodesFromRectHelper(aX, aY, aTopSize, aRightSize, aBottomSize, aLeftSize, 
@@ -1293,7 +1286,7 @@ CanvasToImageSurface(nsIDOMHTMLCanvasElement* aCanvas)
   nsLayoutUtils::SurfaceFromElementResult result =
     nsLayoutUtils::SurfaceFromElement(node->AsElement(),
                                       nsLayoutUtils::SFE_WANT_IMAGE_SURFACE);
-  return result.mSurface.forget().downcast<gfxImageSurface>();
+  return static_cast<gfxImageSurface*>(result.mSurface.forget().get());
 }
 
 NS_IMETHODIMP
@@ -1424,7 +1417,7 @@ nsDOMWindowUtils::SuppressEventHandling(bool aSuppress)
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_STATE(window);
 
-  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
   NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
   if (aSuppress) {
@@ -1446,7 +1439,7 @@ nsDOMWindowUtils::GetScrollXY(bool aFlushLayout, int32_t* aScrollX, int32_t* aSc
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_STATE(window);
 
-  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
   NS_ENSURE_STATE(doc);
 
   if (aFlushLayout) {
@@ -1615,7 +1608,7 @@ nsDOMWindowUtils::FindElementWithViewId(nsViewID aID,
     }
 
     nsIDocument* document = presContext->Document();
-    Element* rootElement = document->GetRootElement();
+    mozilla::dom::Element* rootElement = document->GetRootElement();
     if (!rootElement) {
       return NS_ERROR_NOT_AVAILABLE;
     }
@@ -2208,25 +2201,6 @@ nsDOMWindowUtils::GetLayerManagerType(nsAString& aType)
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::GetLayerManagerRemote(bool* retval)
-{
-  if (!nsContentUtils::IsCallerChrome()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
-    return NS_ERROR_FAILURE;
-
-  LayerManager *mgr = widget->GetLayerManager();
-  if (!mgr)
-    return NS_ERROR_FAILURE;
-
-  *retval = !!mgr->AsShadowForwarder();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMWindowUtils::StartFrameTimeRecording(uint32_t *startIndex)
 {
   if (!nsContentUtils::IsCallerChrome()) {
@@ -2460,15 +2434,15 @@ nsDOMWindowUtils::GetCursorType(int16_t *aCursor)
   NS_ENSURE_ARG_POINTER(aCursor);
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);  
 
   bool isSameDoc = false;
-  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
 
   NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
   do {
-    if (nsEventStateManager::sMouseOverDocument == doc) {
+    if (nsEventStateManager::sMouseOverDocument == doc.get()) {
       isSameDoc = true;
       break;
     }
@@ -2513,13 +2487,6 @@ nsDOMWindowUtils::GetOuterWindowWithId(uint64_t aWindowID,
   if (!nsContentUtils::IsCallerChrome()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
-
-  // XXX This method is deprecated.  See bug 865664.
-  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  "DOM",
-                                  nsContentUtils::GetDocumentFromCaller(),
-                                  nsContentUtils::eDOM_PROPERTIES,
-                                  "GetWindowWithOuterIdWarning");
 
   *aWindow = nsGlobalWindow::GetOuterWindowWithId(aWindowID);
   NS_IF_ADDREF(*aWindow);
@@ -2673,8 +2640,8 @@ GetXPConnectNative(JSContext* aCx, JSObject* aObj) {
 }
 
 static nsresult
-GetFileOrBlob(const nsAString& aName, const JS::Value& aBlobParts,
-              const JS::Value& aParameters, JSContext* aCx,
+GetFileOrBlob(const nsAString& aName, const jsval& aBlobParts,
+              const jsval& aParameters, JSContext* aCx,
               uint8_t aOptionalArgCount, nsISupports** aResult)
 {
   if (!nsContentUtils::IsCallerChrome()) {
@@ -2696,7 +2663,7 @@ GetFileOrBlob(const nsAString& aName, const JS::Value& aBlobParts,
   nsDOMMultipartFile* domFile =
     static_cast<nsDOMMultipartFile*>(static_cast<nsIDOMFile*>(file.get()));
 
-  JS::Value args[2] = { aBlobParts, aParameters };
+  jsval args[2] = { aBlobParts, aParameters };
 
   rv = domFile->InitBlob(aCx, aOptionalArgCount, args, GetXPConnectNative);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2706,8 +2673,8 @@ GetFileOrBlob(const nsAString& aName, const JS::Value& aBlobParts,
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::GetFile(const nsAString& aName, const JS::Value& aBlobParts,
-                          const JS::Value& aParameters, JSContext* aCx,
+nsDOMWindowUtils::GetFile(const nsAString& aName, const jsval& aBlobParts,
+                          const jsval& aParameters, JSContext* aCx,
                           uint8_t aOptionalArgCount, nsIDOMFile** aResult)
 {
   if (!nsContentUtils::IsCallerChrome()) {
@@ -2726,9 +2693,9 @@ nsDOMWindowUtils::GetFile(const nsAString& aName, const JS::Value& aBlobParts,
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::GetBlob(const JS::Value& aBlobParts,
-                          const JS::Value& aParameters, JSContext* aCx,
-                          uint8_t aOptionalArgCount, nsIDOMBlob** aResult)
+nsDOMWindowUtils::GetBlob(const jsval& aBlobParts, const jsval& aParameters,
+                          JSContext* aCx, uint8_t aOptionalArgCount,
+                          nsIDOMBlob** aResult)
 {
   if (!nsContentUtils::IsCallerChrome()) {
     return NS_ERROR_DOM_SECURITY_ERR;
@@ -2746,7 +2713,7 @@ nsDOMWindowUtils::GetBlob(const JS::Value& aBlobParts,
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::GetFileId(const JS::Value& aFile, JSContext* aCx,
+nsDOMWindowUtils::GetFileId(const jsval& aFile, JSContext* aCx,
                             int64_t* aResult)
 {
   if (!nsContentUtils::IsCallerChrome()) {
@@ -2797,15 +2764,28 @@ nsDOMWindowUtils::GetFileReferences(const nsAString& aDatabaseName,
     indexedDB::IndexedDatabaseManager::Get();
 
   if (mgr) {
-    rv = mgr->BlockAndGetFileReferences(origin, aDatabaseName, aId, aRefCnt,
-                                        aDBRefCnt, aSliceRefCnt, aResult);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-  else {
-    *aRefCnt = *aDBRefCnt = *aSliceRefCnt = -1;
-    *aResult = false;
+    nsRefPtr<indexedDB::FileManager> fileManager =
+      mgr->GetFileManager(origin, aDatabaseName);
+
+    if (fileManager) {
+      nsRefPtr<indexedDB::FileInfo> fileInfo = fileManager->GetFileInfo(aId);
+
+      if (fileInfo) {
+        fileInfo->GetReferences(aRefCnt, aDBRefCnt, aSliceRefCnt);
+
+        if (*aRefCnt != -1) {
+          // We added an extra temp ref, so account for that accordingly.
+          (*aRefCnt)--;
+        }
+
+        *aResult = true;
+        return NS_OK;
+      }
+    }
   }
 
+  *aRefCnt = *aDBRefCnt = *aSliceRefCnt = -1;
+  *aResult = false;
   return NS_OK;
 }
 
@@ -2922,7 +2902,7 @@ nsDOMWindowUtils::GetPaintingSuppressed(bool *aPaintingSuppressed)
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::GetPlugins(JSContext* cx, JS::Value* aPlugins)
+nsDOMWindowUtils::GetPlugins(JSContext* cx, jsval* aPlugins)
 {
   if (!nsContentUtils::IsCallerChrome()) {
     return NS_ERROR_DOM_SECURITY_ERR;
@@ -2931,13 +2911,17 @@ nsDOMWindowUtils::GetPlugins(JSContext* cx, JS::Value* aPlugins)
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_STATE(window);
 
-  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+  nsIDOMDocument* ddoc = window->GetExtantDocument();
+
+  nsresult rv;
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(ddoc, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsTArray<nsIObjectLoadingContent*> plugins;
   doc->GetPlugins(plugins);
 
-  JS::Rooted<JSObject*> jsPlugins(cx);
-  nsresult rv = nsTArrayToJSArray(cx, plugins, jsPlugins.address());
+  JSObject* jsPlugins = nullptr;
+  rv = nsTArrayToJSArray(cx, plugins, &jsPlugins);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aPlugins = OBJECT_TO_JSVAL(jsPlugins);
@@ -3004,7 +2988,7 @@ nsDOMWindowUtils::RemoteFrameFullscreenChanged(nsIDOMElement* aFrameElement,
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_STATE(window);
 
-  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
   NS_ENSURE_STATE(doc);
 
   doc->RemoteFrameFullscreenChanged(aFrameElement, aNewOrigin);
@@ -3021,7 +3005,7 @@ nsDOMWindowUtils::RemoteFrameFullscreenReverted()
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_STATE(window);
 
-  nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
   NS_ENSURE_STATE(doc);
 
   doc->RemoteFrameFullscreenReverted();

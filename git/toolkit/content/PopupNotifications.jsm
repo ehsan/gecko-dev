@@ -255,7 +255,7 @@ PopupNotifications.prototype = {
     let fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
     if (browser == this.tabbrowser.selectedBrowser && fm.activeWindow == this.window) {
       // show panel now
-      this._update(notification.anchorElement, true);
+      this._update(notification.anchorElement);
     } else {
       // Otherwise, update() will display the notification the next time the
       // relevant tab/window is selected.
@@ -553,14 +553,8 @@ PopupNotifications.prototype = {
   /**
    * Updates the notification state in response to window activation or tab
    * selection changes.
-   *
-   * @param anchor is a XUL element reprensenting the anchor whose notifications
-   *               should be shown.
-   * @param dismissShowing if true, dismiss any currently visible notifications
-   *                       if there are no notifications to show. Otherwise,
-   *                       currently displayed notifications will be left alone.
    */
-  _update: function PopupNotifications_update(anchor, dismissShowing = false) {
+  _update: function PopupNotifications_update(anchor) {
     if (this.iconBox) {
       // hide icons of the previous tab.
       this._hideIcons();
@@ -593,12 +587,9 @@ PopupNotifications.prototype = {
       // Notify observers that we're not showing the popup (useful for testing)
       this._notify("updateNotShowing");
 
-      // Close the panel if there are no notifications to show.
-      // When called from PopupNotifications.show() we should never close the
-      // panel, however. It may just be adding a dismissed notification, in
-      // which case we want to continue showing any existing notifications.
-      if (!dismissShowing)
-        this._dismiss();
+      // Dismiss the panel if needed. _onPopupHidden will ensure we never call
+      // a dismissal handler on a notification that's been removed.
+      this._dismiss();
 
       // Only hide the iconBox if we actually have no notifications (as opposed
       // to not having any showable notifications)

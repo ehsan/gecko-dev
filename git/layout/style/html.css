@@ -509,6 +509,10 @@ s, strike, del {
   text-decoration: line-through;
 }
 
+blink {
+  text-decoration: blink;
+}
+
 big {
   font-size: larger;
 }
@@ -655,7 +659,7 @@ frameset {
 }
 
 frame {
-  border-radius: 0 ! important;
+  border: none ! important;
 }
 
 iframe {
@@ -720,19 +724,6 @@ audio:not([controls]) {
   display: block !important;
   /* we want to be an absolute and fixed container */
   -moz-transform: translate(0) !important;
-}
-
-video > .caption-box {
-  text-align: center;
-  font-weight: bold;
-  font-size: 24px;
-  pointer-events: none;
-}
-
-video > div .caption-text {
-  color: gold;
-  background-color: rgba(105,105,105,0.4);
-  pointer-events: auto;
 }
 
 /* emulation of non-standard HTML <marquee> tag */

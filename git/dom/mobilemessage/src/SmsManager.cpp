@@ -13,15 +13,13 @@
 #include "Constants.h"
 #include "nsIDOMMozSmsEvent.h"
 #include "nsIDOMMozSmsMessage.h"
+#include "SmsRequest.h"
 #include "nsJSUtils.h"
 #include "nsContentUtils.h"
 #include "nsIMobileMessageDatabaseService.h"
 #include "nsIXPConnect.h"
 #include "nsIPermissionManager.h"
 #include "GeneratedEvents.h"
-#include "MobileMessageCallback.h"
-#include "MobileMessageCursorCallback.h"
-#include "DOMCursor.h"
 
 #define RECEIVED_EVENT_NAME         NS_LITERAL_STRING("received")
 #define SENDING_EVENT_NAME          NS_LITERAL_STRING("sending")
@@ -141,26 +139,25 @@ SmsManager::GetSegmentInfoForText(const nsAString& aText,
 }
 
 nsresult
-SmsManager::Send(JSContext* aCx, JS::Handle<JSObject*> aGlobal, JS::Handle<JSString*> aNumber,
-                 const nsAString& aMessage, JS::Value* aRequest)
+SmsManager::Send(JSContext* aCx, JSObject* aGlobal, JSString* aNumber,
+                 const nsAString& aMessage, jsval* aRequest)
 {
   nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(smsService, NS_ERROR_FAILURE);
+  if (!smsService) {
+    NS_ERROR("No SMS Service!");
+    return NS_ERROR_FAILURE;
+  }
 
+  nsCOMPtr<nsIDOMMozSmsRequest> request = SmsRequest::Create(this);
   nsDependentJSString number;
   number.init(aCx, aNumber);
 
-  nsRefPtr<DOMRequest> request = new DOMRequest(GetOwner());
-  nsCOMPtr<nsIMobileMessageCallback> msgCallback =
-    new MobileMessageCallback(request);
+  nsCOMPtr<nsIMobileMessageCallback> forwarder =
+    new SmsRequestForwarder(static_cast<SmsRequest*>(request.get()));
 
-  nsresult rv = smsService->Send(number, aMessage, msgCallback);
-  NS_ENSURE_SUCCESS(rv, rv);
+  smsService->Send(number, aMessage, forwarder);
 
-  JS::Rooted<JSObject*> global(aCx, aGlobal);
-  rv = nsContentUtils::WrapNative(aCx, global,
-                                  static_cast<nsIDOMDOMRequest*>(request.get()),
-                                  aRequest);
+  nsresult rv = nsContentUtils::WrapNative(aCx, aGlobal, request, aRequest);
   if (NS_FAILED(rv)) {
     NS_ERROR("Failed to create the js value!");
     return rv;
@@ -170,7 +167,7 @@ SmsManager::Send(JSContext* aCx, JS::Handle<JSObject*> aGlobal, JS::Handle<JSStr
 }
 
 NS_IMETHODIMP
-SmsManager::Send(const JS::Value& aNumber, const nsAString& aMessage, JS::Value* aReturn)
+SmsManager::Send(const jsval& aNumber, const nsAString& aMessage, jsval* aReturn)
 {
   nsresult rv;
   nsIScriptContext* sc = GetContextForEventHandlers(&rv);
@@ -183,15 +180,14 @@ SmsManager::Send(const JS::Value& aNumber, const nsAString& aMessage, JS::Value*
     return NS_ERROR_INVALID_ARG;
   }
 
-  JS::Rooted<JSObject*> global(cx, sc->GetNativeGlobal());
+  JSObject* global = sc->GetNativeGlobal();
   NS_ASSERTION(global, "Failed to get global object!");
 
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, global);
 
   if (aNumber.isString()) {
-    JS::Rooted<JSString*> number(cx, aNumber.toString());
-    return Send(cx, global, number, aMessage, aReturn);
+    return Send(cx, global, aNumber.toString(), aMessage, aReturn);
   }
 
   // Must be an object then.
@@ -199,9 +195,9 @@ SmsManager::Send(const JS::Value& aNumber, const nsAString& aMessage, JS::Value*
     return NS_ERROR_FAILURE;
   }
 
-  JS::Rooted<JSObject*> numbers(cx, &aNumber.toObject());
+  JSObject& numbers = aNumber.toObject();
   uint32_t size;
-  if (!JS_GetArrayLength(cx, numbers, &size)) {
+  if (!JS_GetArrayLength(cx, &numbers, &size)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -210,10 +206,10 @@ SmsManager::Send(const JS::Value& aNumber, const nsAString& aMessage, JS::Value*
     return NS_ERROR_FAILURE;
   }
 
-  JS::RootedString str(cx);
+  JSString *str;
   for (uint32_t i = 0; i < size; ++i) {
-    JS::Rooted<JS::Value> number(cx);
-    if (!JS_GetElement(cx, numbers, i, number.address())) {
+    jsval number;
+    if (!JS_GetElement(cx, &numbers, i, &number)) {
       return NS_ERROR_INVALID_ARG;
     }
 
@@ -236,39 +232,42 @@ SmsManager::Send(const JS::Value& aNumber, const nsAString& aMessage, JS::Value*
 }
 
 NS_IMETHODIMP
-SmsManager::GetMessageMoz(int32_t aId, nsIDOMDOMRequest** aRequest)
+SmsManager::GetMessageMoz(int32_t aId, nsIDOMMozSmsRequest** aRequest)
 {
-  nsCOMPtr<nsIMobileMessageDatabaseService> dbService =
+  nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
+  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
     do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(dbService, NS_ERROR_FAILURE);
-
-  nsRefPtr<DOMRequest> request = new DOMRequest(GetOwner());
-  nsCOMPtr<nsIMobileMessageCallback> msgCallback =
-    new MobileMessageCallback(request);
-
-  nsresult rv = dbService->GetMessageMoz(aId, msgCallback);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  request.forget(aRequest);
+  NS_ENSURE_TRUE(mobileMessageDBService, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIMobileMessageCallback> forwarder =
+    new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
+  mobileMessageDBService->GetMessageMoz(aId, forwarder);
+  req.forget(aRequest);
   return NS_OK;
 }
 
 nsresult
-SmsManager::GetSmsMessageId(AutoPushJSContext &aCx,
-                            const JS::Value &aSmsMessage, int32_t &aId)
+SmsManager::Delete(int32_t aId, nsIDOMMozSmsRequest** aRequest)
 {
-  nsCOMPtr<nsIDOMMozSmsMessage> message =
-    do_QueryInterface(nsContentUtils::XPConnect()->GetNativeOfWrapper(aCx, &aSmsMessage.toObject()));
-  NS_ENSURE_TRUE(message, NS_ERROR_INVALID_ARG);
+  nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
+  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
+    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(mobileMessageDBService, NS_ERROR_FAILURE);
 
-  return message->GetId(&aId);
+  nsCOMPtr<nsIMobileMessageCallback> forwarder =
+    new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
+  mobileMessageDBService->DeleteMessage(aId, forwarder);
+  req.forget(aRequest);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
-SmsManager::Delete(const JS::Value& aParam, nsIDOMDOMRequest** aRequest)
+SmsManager::Delete(const jsval& aParam, nsIDOMMozSmsRequest** aRequest)
 {
-  // We expect Int32, SmsMessage, Int32[], SmsMessage[]
-  if (!aParam.isObject() && !aParam.isInt32()) {
+  if (aParam.isInt32()) {
+    return Delete(aParam.toInt32(), aRequest);
+  }
+
+  if (!aParam.isObject()) {
     return NS_ERROR_INVALID_ARG;
   }
 
@@ -276,129 +275,63 @@ SmsManager::Delete(const JS::Value& aParam, nsIDOMDOMRequest** aRequest)
   nsIScriptContext* sc = GetContextForEventHandlers(&rv);
   AutoPushJSContext cx(sc->GetNativeContext());
   NS_ENSURE_STATE(sc);
+  nsCOMPtr<nsIDOMMozSmsMessage> message =
+    do_QueryInterface(nsContentUtils::XPConnect()->GetNativeOfWrapper(cx, &aParam.toObject()));
+  NS_ENSURE_TRUE(message, NS_ERROR_INVALID_ARG);
 
-  int32_t id, *idArray;
-  uint32_t size;
+  int32_t id;
+  message->GetId(&id);
 
-  if (aParam.isInt32()) {
-    // Single Integer Message ID
-    id = aParam.toInt32();
-
-    size = 1;
-    idArray = &id;
-  } else if (!JS_IsArrayObject(cx, &aParam.toObject())) {
-    // Single SmsMessage object
-    rv = GetSmsMessageId(cx, aParam, id);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    size = 1;
-    idArray = &id;
-  } else {
-    // Int32[] or SmsMessage[]
-    JSObject& ids = aParam.toObject();
-
-    JS_ALWAYS_TRUE(JS_GetArrayLength(cx, &ids, &size));
-    nsAutoArrayPtr<int32_t> idAutoArray(new int32_t[size]);
-
-    JS::Value idJsValue;
-    for (uint32_t i = 0; i < size; i++) {
-      if (!JS_GetElement(cx, &ids, i, &idJsValue)) {
-        return NS_ERROR_INVALID_ARG;
-      }
-
-      if (idJsValue.isInt32()) {
-        idAutoArray[i] = idJsValue.toInt32();
-      } else if (idJsValue.isObject()) {
-        rv = GetSmsMessageId(cx, idJsValue, id);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        idAutoArray[i] = id;
-      }
-    }
-
-    idArray = idAutoArray.forget();
-  }
-
-  nsCOMPtr<nsIMobileMessageDatabaseService> dbService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(dbService, NS_ERROR_FAILURE);
-
-  nsRefPtr<DOMRequest> request = new DOMRequest(GetOwner());
-  nsCOMPtr<nsIMobileMessageCallback> msgCallback =
-    new MobileMessageCallback(request);
-
-  rv = dbService->DeleteMessage(idArray, size, msgCallback);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  request.forget(aRequest);
-  return NS_OK;
+  return Delete(id, aRequest);
 }
 
 NS_IMETHODIMP
-SmsManager::GetMessages(nsIDOMMozSmsFilter* aFilter,
-                        bool aReverse,
-                        nsIDOMDOMCursor** aCursor)
+SmsManager::GetMessages(nsIDOMMozSmsFilter* aFilter, bool aReverse,
+                        nsIDOMMozSmsRequest** aRequest)
 {
-  nsCOMPtr<nsIMobileMessageDatabaseService> dbService =
-    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(dbService, NS_ERROR_FAILURE);
-
   nsCOMPtr<nsIDOMMozSmsFilter> filter = aFilter;
+  
   if (!filter) {
     filter = new SmsFilter();
   }
 
-  nsRefPtr<MobileMessageCursorCallback> cursorCallback =
-    new MobileMessageCursorCallback();
-
-  nsCOMPtr<nsICursorContinueCallback> continueCallback;
-  nsresult rv = dbService->CreateMessageCursor(filter, aReverse, cursorCallback,
-                                               getter_AddRefs(continueCallback));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  cursorCallback->mDOMCursor = new DOMCursor(GetOwner(), continueCallback);
-  NS_ADDREF(*aCursor = cursorCallback->mDOMCursor);
-
+  nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
+  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
+    do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(mobileMessageDBService, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIMobileMessageCallback> forwarder =
+    new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
+  mobileMessageDBService->CreateMessageList(filter, aReverse, forwarder);
+  req.forget(aRequest);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 SmsManager::MarkMessageRead(int32_t aId, bool aValue,
-                            nsIDOMDOMRequest** aRequest)
+                            nsIDOMMozSmsRequest** aRequest)
 {
-  nsCOMPtr<nsIMobileMessageDatabaseService> dbService =
+  nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
+  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
     do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(dbService, NS_ERROR_FAILURE);
-
-  nsRefPtr<DOMRequest> request = new DOMRequest(GetOwner());
-  nsCOMPtr<nsIMobileMessageCallback> msgCallback =
-    new MobileMessageCallback(request);
-
-  nsresult rv = dbService->MarkMessageRead(aId, aValue, msgCallback);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  request.forget(aRequest);
+  NS_ENSURE_TRUE(mobileMessageDBService, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIMobileMessageCallback> forwarder =
+    new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
+  mobileMessageDBService->MarkMessageRead(aId, aValue, forwarder);
+  req.forget(aRequest);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-SmsManager::GetThreads(nsIDOMDOMCursor** aCursor)
+SmsManager::GetThreadList(nsIDOMMozSmsRequest** aRequest)
 {
-  nsCOMPtr<nsIMobileMessageDatabaseService> dbService =
+  nsCOMPtr<nsIDOMMozSmsRequest> req = SmsRequest::Create(this);
+  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService =
     do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(dbService, NS_ERROR_FAILURE);
-
-  nsRefPtr<MobileMessageCursorCallback> cursorCallback =
-    new MobileMessageCursorCallback();
-
-  nsCOMPtr<nsICursorContinueCallback> continueCallback;
-  nsresult rv = dbService->CreateThreadCursor(cursorCallback,
-                                              getter_AddRefs(continueCallback));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  cursorCallback->mDOMCursor = new DOMCursor(GetOwner(), continueCallback);
-  NS_ADDREF(*aCursor = cursorCallback->mDOMCursor);
-
+  NS_ENSURE_TRUE(mobileMessageDBService, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIMobileMessageCallback> forwarder =
+    new SmsRequestForwarder(static_cast<SmsRequest*>(req.get()));
+  mobileMessageDBService->GetThreadList(forwarder);
+  req.forget(aRequest);
   return NS_OK;
 }
 

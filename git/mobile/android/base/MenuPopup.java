@@ -55,7 +55,6 @@ public class MenuPopup extends PopupWindow {
         mArrowBottom = (ImageView) layout.findViewById(R.id.menu_arrow_bottom);
         mPanel = (RelativeLayout) layout.findViewById(R.id.menu_panel);
         mShowArrow = true;
-        setAnimationStyle(R.style.PopupAnimation);
     }
 
     /**

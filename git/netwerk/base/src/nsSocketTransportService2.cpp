@@ -101,8 +101,9 @@ already_AddRefed<nsIThread>
 nsSocketTransportService::GetThreadSafely()
 {
     MutexAutoLock lock(mLock);
-    nsCOMPtr<nsIThread> result = mThread;
-    return result.forget();
+    nsIThread* result = mThread;
+    NS_IF_ADDREF(result);
+    return result;
 }
 
 NS_IMETHODIMP
@@ -685,30 +686,24 @@ nsSocketTransportService::Run()
 }
 
 void
-nsSocketTransportService::DetachSocketWithGuard(bool aGuardLocals,
-                                                SocketContext *socketList,
-                                                int32_t index)
-{
-    bool isGuarded = false;
-    if (aGuardLocals) {
-        socketList[index].mHandler->IsLocal(&isGuarded);
-        if (!isGuarded)
-            socketList[index].mHandler->KeepWhenOffline(&isGuarded);
-    }
-    if (!isGuarded)
-        DetachSocket(socketList, &socketList[index]);
-}
-
-void
 nsSocketTransportService::Reset(bool aGuardLocals)
 {
     // detach any sockets
     int32_t i;
+    bool isGuarded;
     for (i = mActiveCount - 1; i >= 0; --i) {
-        DetachSocketWithGuard(aGuardLocals, mActiveList, i);
+        isGuarded = false;
+        if (aGuardLocals)
+            mActiveList[i].mHandler->IsLocal(&isGuarded);
+        if (!isGuarded)
+            DetachSocket(mActiveList, &mActiveList[i]);
     }
     for (i = mIdleCount - 1; i >= 0; --i) {
-        DetachSocketWithGuard(aGuardLocals, mIdleList, i);
+        isGuarded = false;
+        if (aGuardLocals)
+            mIdleList[i].mHandler->IsLocal(&isGuarded);
+        if (!isGuarded)
+            DetachSocket(mIdleList, &mIdleList[i]);
     }
 }
 
@@ -946,6 +941,8 @@ nsSocketTransportService::ProbeMaxCount()
     if (mProbedMaxCount)
         return;
     mProbedMaxCount = true;
+
+    int32_t startedMaxCount = gMaxCount;
 
     // Allocate and test a PR_Poll up to the gMaxCount number of unconnected
     // sockets. See bug 692260 - windows should be able to handle 1000 sockets

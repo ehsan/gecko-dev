@@ -224,50 +224,36 @@ NS_IMETHODIMP
 nsDOMUIEvent::GetPageX(int32_t* aPageX)
 {
   NS_ENSURE_ARG_POINTER(aPageX);
-  *aPageX = PageX();
-  return NS_OK;
-}
-
-int32_t
-nsDOMUIEvent::PageX() const
-{
   if (mPrivateDataDuplicated) {
-    return mPagePoint.x;
+    *aPageX = mPagePoint.x;
+  } else {
+    *aPageX = nsDOMEvent::GetPageCoords(mPresContext,
+                                        mEvent,
+                                        mEvent->refPoint,
+                                        mClientPoint).x;
   }
-
-  return nsDOMEvent::GetPageCoords(mPresContext,
-                                   mEvent,
-                                   mEvent->refPoint,
-                                   mClientPoint).x;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMUIEvent::GetPageY(int32_t* aPageY)
 {
   NS_ENSURE_ARG_POINTER(aPageY);
-  *aPageY = PageY();
-  return NS_OK;
-}
-
-int32_t
-nsDOMUIEvent::PageY() const
-{
   if (mPrivateDataDuplicated) {
-    return mPagePoint.y;
+    *aPageY = mPagePoint.y;
+  } else {
+    *aPageY = nsDOMEvent::GetPageCoords(mPresContext,
+                                        mEvent,
+                                        mEvent->refPoint,
+                                        mClientPoint).y;
   }
-
-  return nsDOMEvent::GetPageCoords(mPresContext,
-                                   mEvent,
-                                   mEvent->refPoint,
-                                   mClientPoint).y;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMUIEvent::GetWhich(uint32_t* aWhich)
 {
-  NS_ENSURE_ARG_POINTER(aWhich);
-  *aWhich = Which();
-  return NS_OK;
+  return Which(aWhich);
 }
 
 already_AddRefed<nsINode>
@@ -288,7 +274,7 @@ nsDOMUIEvent::GetRangeParent()
           !nsContentUtils::CanAccessNativeAnon()) {
         return nullptr;
       }
-      return parent.forget();
+      return parent.forget().get();
     }
   }
 
@@ -311,25 +297,20 @@ NS_IMETHODIMP
 nsDOMUIEvent::GetRangeOffset(int32_t* aRangeOffset)
 {
   NS_ENSURE_ARG_POINTER(aRangeOffset);
-  *aRangeOffset = RangeOffset();
+  nsIFrame* targetFrame = nullptr;
+
+  if (mPresContext) {
+    targetFrame = mPresContext->EventStateManager()->GetEventTarget();
+  }
+
+  if (targetFrame) {
+    nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(mEvent,
+                                                              targetFrame);
+    *aRangeOffset = targetFrame->GetContentOffsetsFromPoint(pt).offset;
+    return NS_OK;
+  }
+  *aRangeOffset = 0;
   return NS_OK;
-}
-
-int32_t
-nsDOMUIEvent::RangeOffset() const
-{
-  if (!mPresContext) {
-    return 0;
-  }
-
-  nsIFrame* targetFrame = mPresContext->EventStateManager()->GetEventTarget();
-  if (!targetFrame) {
-    return 0;
-  }
-
-  nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(mEvent,
-                                                            targetFrame);
-  return targetFrame->GetContentOffsetsFromPoint(pt).offset;
 }
 
 NS_IMETHODIMP
@@ -348,7 +329,7 @@ nsDOMUIEvent::SetCancelBubble(bool aCancelBubble)
 }
 
 nsIntPoint
-nsDOMUIEvent::GetLayerPoint() const
+nsDOMUIEvent::GetLayerPoint()
 {
   if (!mEvent ||
       (mEvent->eventStructType != NS_MOUSE_EVENT &&
@@ -390,23 +371,18 @@ nsDOMUIEvent::GetLayerY(int32_t* aLayerY)
 NS_IMETHODIMP
 nsDOMUIEvent::GetIsChar(bool* aIsChar)
 {
-  *aIsChar = IsChar();
-  return NS_OK;
-}
-
-bool
-nsDOMUIEvent::IsChar() const
-{
-  switch (mEvent->eventStructType)
+  switch(mEvent->eventStructType)
   {
     case NS_KEY_EVENT:
-      return static_cast<nsKeyEvent*>(mEvent)->isChar;
+      *aIsChar = ((nsKeyEvent*)mEvent)->isChar;
+      return NS_OK;
     case NS_TEXT_EVENT:
-      return static_cast<nsKeyEvent*>(mEvent)->isChar;
+      *aIsChar = ((nsTextEvent*)mEvent)->isChar;
+      return NS_OK;
     default:
-      return false;
+      *aIsChar = false;
+      return NS_OK;
   }
-  MOZ_NOT_REACHED("Switch handles all cases.");
 }
 
 NS_IMETHODIMP

@@ -10,8 +10,11 @@
 #include "AccessibleImage_i.c"
 
 #include "ImageAccessibleWrap.h"
-#include "IUnknownImpl.h"
+
+#include "nsIAccessible.h"
+#include "nsIAccessibleImage.h"
 #include "nsIAccessibleTypes.h"
+#include "nsAccessNodeWrap.h"
 
 #include "nsString.h"
 
@@ -23,7 +26,7 @@ using namespace mozilla::a11y;
 STDMETHODIMP
 ia2AccessibleImage::QueryInterface(REFIID iid, void** ppv)
 {
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IID_IAccessibleImage == iid) {
     *ppv = static_cast<IAccessibleImage*>(this);
@@ -41,7 +44,7 @@ ia2AccessibleImage::get_description(BSTR* aDescription)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *aDescription = nullptr;
+  *aDescription = NULL;
 
   ImageAccessibleWrap* acc = static_cast<ImageAccessibleWrap*>(this);
   if (acc->IsDefunct())

@@ -214,7 +214,7 @@ nsXPCWrappedJS::TraceJS(JSTracer* trc)
 {
     NS_ASSERTION(mRefCnt >= 2 && IsValid(), "must be strongly referenced");
     JS_SET_TRACING_DETAILS(trc, GetTraceName, this, 0);
-    JS_CallObjectTracer(trc, &mJSObj, "nsXPCWrappedJS::mJSObj");
+    JS_CallObjectTracer(trc, GetJSObjectPreserveColor(), "nsXPCWrappedJS::mJSObj");
 }
 
 // static
@@ -277,8 +277,8 @@ nsXPCWrappedJS::GetNewOrUsed(JSContext* cx,
                              nsISupports* aOuter,
                              nsXPCWrappedJS** wrapperResult)
 {
-    JS::RootedObject jsObj(cx, aJSObj);
     JSObject2WrappedJSMap* map;
+    JSObject* rootJSObj;
     nsXPCWrappedJS* root = nullptr;
     nsXPCWrappedJS* wrapper = nullptr;
     nsXPCWrappedJSClass* clazz = nullptr;
@@ -297,7 +297,7 @@ nsXPCWrappedJS::GetNewOrUsed(JSContext* cx,
     // from here on we need to return through 'return_wrapper'
 
     // always find the root JSObject
-    JS::RootedObject rootJSObj(cx, clazz->GetRootJSObject(cx, jsObj));
+    rootJSObj = clazz->GetRootJSObject(cx, aJSObj);
     if (!rootJSObj)
         goto return_wrapper;
 
@@ -318,9 +318,9 @@ nsXPCWrappedJS::GetNewOrUsed(JSContext* cx,
 
     if (!root) {
         // build the root wrapper
-        if (rootJSObj == jsObj) {
+        if (rootJSObj == aJSObj) {
             // the root will do double duty as the interface wrapper
-            wrapper = root = new nsXPCWrappedJS(cx, jsObj, clazz, nullptr,
+            wrapper = root = new nsXPCWrappedJS(cx, aJSObj, clazz, nullptr,
                                                 aOuter);
             if (!root)
                 goto return_wrapper;
@@ -328,7 +328,7 @@ nsXPCWrappedJS::GetNewOrUsed(JSContext* cx,
             {   // scoped lock
 #if DEBUG_xpc_leaks
                 printf("Created nsXPCWrappedJS %p, JSObject is %p\n",
-                       (void*)wrapper, (void*)jsObj);
+                       (void*)wrapper, (void*)aJSObj);
 #endif
                 XPCAutoLock lock(rt->GetMapLock());
                 map->Add(root);
@@ -381,12 +381,12 @@ nsXPCWrappedJS::GetNewOrUsed(JSContext* cx,
     NS_ASSERTION(clazz,"bad clazz");
 
     if (!wrapper) {
-        wrapper = new nsXPCWrappedJS(cx, jsObj, clazz, root, aOuter);
+        wrapper = new nsXPCWrappedJS(cx, aJSObj, clazz, root, aOuter);
         if (!wrapper)
             goto return_wrapper;
 #if DEBUG_xpc_leaks
         printf("Created nsXPCWrappedJS %p, JSObject is %p\n",
-               (void*)wrapper, (void*)jsObj);
+               (void*)wrapper, (void*)aJSObj);
 #endif
     }
 

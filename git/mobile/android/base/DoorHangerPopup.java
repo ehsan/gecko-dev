@@ -6,7 +6,6 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.HardwareUtils;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -54,8 +53,6 @@ public class DoorHangerPopup extends PopupWindow
         registerEventListener("Doorhanger:Add");
         registerEventListener("Doorhanger:Remove");
         Tabs.registerOnTabsChangedListener(this);
-
-        setAnimationStyle(R.style.PopupAnimation);
     }
 
     void destroy() {
@@ -143,7 +140,7 @@ public class DoorHangerPopup extends PopupWindow
     private void init() {
         setBackgroundDrawable(new BitmapDrawable());
         setOutsideTouchable(true);
-        setWindowLayoutMode(HardwareUtils.isTablet() ? ViewGroup.LayoutParams.WRAP_CONTENT : ViewGroup.LayoutParams.FILL_PARENT,
+        setWindowLayoutMode(mActivity.isTablet() ? ViewGroup.LayoutParams.WRAP_CONTENT : ViewGroup.LayoutParams.FILL_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT);
 
         LayoutInflater inflater = LayoutInflater.from(mActivity);
@@ -268,13 +265,8 @@ public class DoorHangerPopup extends PopupWindow
             return;
         }
 
-        int[] anchorLocation = new int[2];
-        if (mAnchor != null)
-            mAnchor.getLocationInWindow(anchorLocation);
-
-        // If there's no anchor or the anchor is out of the window bounds,
-        // just show the popup at the top of the gecko app view.
-        if (mAnchor == null || anchorLocation[1] < 0) {
+        // If there's no anchor, just show the popup at the top of the gecko app view.
+        if (mAnchor == null) {
             showAtLocation(mActivity.getView(), Gravity.TOP, 0, 0);
             return;
         }
@@ -282,7 +274,7 @@ public class DoorHangerPopup extends PopupWindow
         // On tablets, we need to position the popup so that the center of the arrow points to the
         // center of the anchor view. On phones the popup stretches across the entire screen, so the
         // arrow position is determined by its left margin.
-        int offset = HardwareUtils.isTablet() ? mAnchor.getWidth()/2 - mArrowWidth/2 -
+        int offset = mActivity.isTablet() ? mAnchor.getWidth()/2 - mArrowWidth/2 -
                      ((RelativeLayout.LayoutParams) mArrow.getLayoutParams()).leftMargin : 0;
         showAsDropDown(mAnchor, offset, -mYOffset);
         // Make the popup focusable for keyboard accessibility.

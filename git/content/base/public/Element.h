@@ -17,6 +17,8 @@
 #include "nsChangeHint.h"                  // for enum
 #include "nsEventStates.h"                 // for member
 #include "mozilla/dom/DirectionalityUtils.h"
+#include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMDocumentFragment.h"
 #include "nsILinkHandler.h"
@@ -24,15 +26,22 @@
 #include "nsAttrAndChildArray.h"
 #include "mozFlushType.h"
 #include "nsDOMAttributeMap.h"
+#include "nsIWeakReference.h"
+#include "nsCycleCollectionParticipant.h"
+#include "nsIDocument.h"
+#include "nsIDOMNodeSelector.h"
 #include "nsIDOMXPathNSResolver.h"
 #include "nsPresContext.h"
 #include "nsDOMClassInfoID.h" // DOMCI_DATA
+#include "nsIDOMTouchEvent.h"
 #include "nsIInlineEventHandlers.h"
 #include "mozilla/CORSMode.h"
 #include "mozilla/Attributes.h"
 #include "nsContentUtils.h"
+#include "nsINodeList.h"
+#include "mozilla/ErrorResult.h"
 #include "nsIScrollableFrame.h"
-#include "mozilla/dom/Attr.h"
+#include "nsIDOMAttr.h"
 #include "nsISMILAttr.h"
 #include "nsClientRect.h"
 #include "nsEvent.h"
@@ -503,7 +512,7 @@ private:
 
 protected:
   inline bool GetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                      DOMString& aResult) const
+                      mozilla::dom::DOMString& aResult) const
   {
     NS_ASSERTION(nullptr != aName, "must have attribute name");
     NS_ASSERTION(aNameSpaceID != kNameSpaceID_Unknown,
@@ -513,26 +522,12 @@ protected:
     const nsAttrValue* val = mAttrsAndChildren.GetAttr(aName, aNameSpaceID);
     if (val) {
       val->ToString(aResult);
-      return true;
     }
     // else DOMString comes pre-emptied.
-    return false;
+    return val != nullptr;
   }
 
 public:
-  inline bool GetAttr(const nsAString& aName, DOMString& aResult) const
-  {
-    MOZ_ASSERT(aResult.HasStringBuffer() && aResult.StringBufferLength() == 0,
-               "Should have empty string coming in");
-    const nsAttrValue* val = mAttrsAndChildren.GetAttr(aName);
-    if (val) {
-      val->ToString(aResult);
-      return true;
-    }
-    // else DOMString comes pre-emptied.
-    return false;
-  }
-
   void GetTagName(nsAString& aTagName) const
   {
     aTagName = NodeName();
@@ -541,7 +536,7 @@ public:
   {
     GetAttr(kNameSpaceID_None, nsGkAtoms::id, aId);
   }
-  void GetId(DOMString& aId) const
+  void GetId(mozilla::dom::DOMString& aId) const
   {
     GetAttr(kNameSpaceID_None, nsGkAtoms::id, aId);
   }
@@ -562,12 +557,12 @@ public:
   }
   void GetAttribute(const nsAString& aName, nsString& aReturn)
   {
-    DOMString str;
+    mozilla::dom::DOMString str;
     GetAttribute(aName, str);
     str.ToString(aReturn);
   }
 
-  void GetAttribute(const nsAString& aName, DOMString& aReturn);
+  void GetAttribute(const nsAString& aName, mozilla::dom::DOMString& aReturn);
   void GetAttributeNS(const nsAString& aNamespaceURI,
                       const nsAString& aLocalName,
                       nsAString& aReturn);
@@ -649,15 +644,16 @@ public:
   {
     OwnerDoc()->RequestPointerLock(this);
   }
-  Attr* GetAttributeNode(const nsAString& aName);
-  already_AddRefed<Attr> SetAttributeNode(Attr& aNewAttr,
-                                          ErrorResult& aError);
-  already_AddRefed<Attr> RemoveAttributeNode(Attr& aOldAttr,
-                                             ErrorResult& aError);
-  Attr* GetAttributeNodeNS(const nsAString& aNamespaceURI,
-                           const nsAString& aLocalName);
-  already_AddRefed<Attr> SetAttributeNodeNS(Attr& aNewAttr,
-                                            ErrorResult& aError);
+  nsIDOMAttr* GetAttributeNode(const nsAString& aName);
+  already_AddRefed<nsIDOMAttr> SetAttributeNode(nsIDOMAttr* aNewAttr,
+                                                ErrorResult& aError);
+  already_AddRefed<nsIDOMAttr> RemoveAttributeNode(nsIDOMAttr* aOldAttr,
+                                                   ErrorResult& aError);
+  nsIDOMAttr* GetAttributeNodeNS(const nsAString& aNamespaceURI,
+                                 const nsAString& aLocalName,
+                                 ErrorResult& aError);
+  already_AddRefed<nsIDOMAttr> SetAttributeNodeNS(nsIDOMAttr* aNewAttr,
+                                                  ErrorResult& aError);
 
   already_AddRefed<nsClientRectList> GetClientRects();
   already_AddRefed<nsClientRect> GetBoundingClientRect();
@@ -721,7 +717,7 @@ public:
            0;
   }
 
-  virtual already_AddRefed<UndoManager> GetUndoManager()
+  virtual already_AddRefed<mozilla::dom::UndoManager> GetUndoManager()
   {
     return nullptr;
   }
@@ -731,16 +727,18 @@ public:
     return false;
   }
 
-  virtual void SetUndoScope(bool aUndoScope, ErrorResult& aError)
+  virtual void SetUndoScope(bool aUndoScope, mozilla::ErrorResult& aError)
   {
   }
 
-  virtual void GetInnerHTML(nsAString& aInnerHTML, ErrorResult& aError);
-  virtual void SetInnerHTML(const nsAString& aInnerHTML, ErrorResult& aError);
-  void GetOuterHTML(nsAString& aOuterHTML, ErrorResult& aError);
-  void SetOuterHTML(const nsAString& aOuterHTML, ErrorResult& aError);
+  virtual void GetInnerHTML(nsAString& aInnerHTML,
+                            mozilla::ErrorResult& aError);
+  virtual void SetInnerHTML(const nsAString& aInnerHTML,
+                            mozilla::ErrorResult& aError);
+  void GetOuterHTML(nsAString& aOuterHTML, mozilla::ErrorResult& aError);
+  void SetOuterHTML(const nsAString& aOuterHTML, mozilla::ErrorResult& aError);
   void InsertAdjacentHTML(const nsAString& aPosition, const nsAString& aText,
-                          ErrorResult& aError);
+                          mozilla::ErrorResult& aError);
 
   //----------------------------------------
 
@@ -776,7 +774,7 @@ public:
                                      nsInputEvent* aSourceEvent,
                                      nsIContent* aTarget,
                                      bool aFullDispatch,
-                                     const widget::EventFlags* aFlags,
+                                     const mozilla::widget::EventFlags* aFlags,
                                      nsEventStatus* aStatus);
 
   /**
@@ -888,7 +886,7 @@ public:
   void GetClassList(nsISupports** aClassList);
 
   virtual JSObject* WrapObject(JSContext *aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_FINAL MOZ_OVERRIDE;
+                               JSObject *aScope) MOZ_FINAL MOZ_OVERRIDE;
 
   /**
    * Locate an nsIEditor rooted at this content node, if there is one.
@@ -1066,8 +1064,9 @@ protected:
     return this;
   }
 
-  Attr* GetAttributeNodeNSInternal(const nsAString& aNamespaceURI,
-                                   const nsAString& aLocalName);
+  nsIDOMAttr* GetAttributeNodeNSInternal(const nsAString& aNamespaceURI,
+                                         const nsAString& aLocalName,
+                                         ErrorResult& aError);
 
   void RegisterFreezableElement() {
     OwnerDoc()->RegisterFreezableElement(this);
@@ -1395,8 +1394,7 @@ NS_IMETHOD SetAttributeNode(nsIDOMAttr* newAttr,                              \
     return NS_ERROR_INVALID_POINTER;                                          \
   }                                                                           \
   mozilla::ErrorResult rv;                                                    \
-  mozilla::dom::Attr* attr = static_cast<mozilla::dom::Attr*>(newAttr);       \
-  *_retval = Element::SetAttributeNode(*attr, rv).get();                      \
+  *_retval = Element::SetAttributeNode(newAttr, rv).get();                    \
   return rv.ErrorCode();                                                      \
 }                                                                             \
 NS_IMETHOD RemoveAttributeNode(nsIDOMAttr* oldAttr,                           \
@@ -1406,24 +1404,24 @@ NS_IMETHOD RemoveAttributeNode(nsIDOMAttr* oldAttr,                           \
     return NS_ERROR_INVALID_POINTER;                                          \
   }                                                                           \
   mozilla::ErrorResult rv;                                                    \
-  mozilla::dom::Attr* attr = static_cast<mozilla::dom::Attr*>(oldAttr);       \
-  *_retval = Element::RemoveAttributeNode(*attr, rv).get();                   \
+  *_retval = Element::RemoveAttributeNode(oldAttr, rv).get();                 \
   return rv.ErrorCode();                                                      \
 }                                                                             \
 NS_IMETHOD GetAttributeNodeNS(const nsAString& namespaceURI,                  \
                               const nsAString& localName,                     \
                               nsIDOMAttr** _retval) MOZ_FINAL                 \
 {                                                                             \
+  mozilla::ErrorResult rv;                                                    \
   NS_IF_ADDREF(*_retval = Element::GetAttributeNodeNS(namespaceURI,           \
-                                                      localName));            \
-  return NS_OK;                                                               \
+                                                      localName,              \
+                                                      rv));                   \
+  return rv.ErrorCode();                                                      \
 }                                                                             \
 NS_IMETHOD SetAttributeNodeNS(nsIDOMAttr* newAttr,                            \
                               nsIDOMAttr** _retval) MOZ_FINAL                 \
 {                                                                             \
   mozilla::ErrorResult rv;                                                    \
-  mozilla::dom::Attr* attr = static_cast<mozilla::dom::Attr*>(newAttr);       \
-  *_retval = Element::SetAttributeNodeNS(*attr, rv).get();                    \
+  *_retval = Element::SetAttributeNodeNS(newAttr, rv).get();                  \
   return rv.ErrorCode();                                                      \
 }                                                                             \
 NS_IMETHOD GetElementsByTagName(const nsAString& name,                        \
@@ -1490,11 +1488,6 @@ NS_IMETHOD GetNextElementSibling(nsIDOMElement** aNextElementSibling)         \
 NS_IMETHOD GetChildElementCount(uint32_t* aChildElementCount) MOZ_FINAL       \
 {                                                                             \
   *aChildElementCount = Element::ChildElementCount();                         \
-  return NS_OK;                                                               \
-}                                                                             \
-NS_IMETHOD MozRemove() MOZ_FINAL                                              \
-{                                                                             \
-  nsINode::Remove();                                                          \
   return NS_OK;                                                               \
 }                                                                             \
 NS_IMETHOD GetOnmouseenter(JSContext* cx, JS::Value* aOnmouseenter) MOZ_FINAL \

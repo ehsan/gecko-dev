@@ -2873,9 +2873,8 @@ nsNavHistory::GetDatabaseConnection(mozIStorageConnection** _DBConnection)
 NS_IMETHODIMP
 nsNavHistory::GetExpectedDatabasePageSize(int32_t* _expectedPageSize)
 {
-  NS_ENSURE_STATE(mDB);
-  NS_ENSURE_STATE(mDB->MainConn());
-  return mDB->MainConn()->GetDefaultPageSize(_expectedPageSize);
+  *_expectedPageSize = mozIStorageConnection::DEFAULT_PAGE_SIZE;
+  return NS_OK;
 }
 
 

@@ -435,9 +435,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
 
   DrainOverflowColumns();
 
-  const bool colHeightChanged = mLastBalanceHeight != aConfig.mColMaxHeight;
-
-  if (colHeightChanged) {
+  if (mLastBalanceHeight != aConfig.mColMaxHeight) {
     mLastBalanceHeight = aConfig.mColMaxHeight;
     // XXX Seems like this could fire if incremental reflow pushed the column set
     // down so we reflow incrementally with a different available height.
@@ -538,10 +536,6 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
       kidReflowState.mFlags.mIsTopOfPage = true;
       kidReflowState.mFlags.mTableIsSplittable = false;
       kidReflowState.mFlags.mIsColumnBalancing = aConfig.mBalanceColCount < INT32_MAX;
-
-      // We need to reflow any float placeholders, even if our column height
-      // hasn't changed.
-      kidReflowState.mFlags.mMustReflowPlaceholders = !colHeightChanged;
 
 #ifdef DEBUG_roc
       printf("*** Reflowing child #%d %p: availHeight=%d\n",

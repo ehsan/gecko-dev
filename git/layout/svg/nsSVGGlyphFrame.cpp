@@ -290,7 +290,7 @@ nsSVGGlyphFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
     // nsSVGUtils::InvalidateAndScheduleBoundsUpdate properly is when all our
     // text is gone, since it skips empty frames. So we have to invalidate
     // ourself.
-    nsSVGEffects::InvalidateRenderingObservers(this);
+    nsSVGUtils::InvalidateBounds(this);
   }
 
   return NS_OK;
@@ -306,8 +306,7 @@ nsSVGGlyphFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
   nsSVGGlyphFrameBase::DidSetStyleContext(aOldStyleContext);
 
-  if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW) ||
-      (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
+  if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
     ClearTextRun();
     NotifyGlyphMetricsChange();
   }
@@ -1286,8 +1285,9 @@ nsSVGGlyphFrame::GetExtentOfChar(uint32_t charnum, dom::SVGIRect **_retval)
                             metrics.mAscent + metrics.mDescent));
   tmpCtx->IdentityMatrix();
 
-  nsRefPtr<dom::SVGRect> rect =
-    NS_NewSVGRect(mContent, tmpCtx->GetUserPathExtent());
+  nsRefPtr<dom::SVGRect> rect;
+  nsresult rv = NS_NewSVGRect(getter_AddRefs(rect), tmpCtx->GetUserPathExtent());
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rect.forget(_retval);
   return NS_OK;

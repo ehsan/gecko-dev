@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -191,7 +192,7 @@ class SetPropCompiler : public PICStubCompiler
         repatcher.relink(pic.slowPathCall, target);
     }
 
-    LookupStatus patchInline(Shape *shape)
+    LookupStatus patchInline(RawShape shape)
     {
         JS_ASSERT(!pic.inlinePathPatched);
         JaegerSpew(JSpew_PICs, "patch setprop inline at %p\n", pic.fastPathStart.executableAddress());
@@ -677,15 +678,17 @@ struct GetPropHelper {
     LookupStatus lookup() {
         RootedObject aobj(cx, obj);
         if (IsCacheableListBase(obj)) {
-            RootedId aid(cx, NameToId(name));
-            ListBaseShadowsResult shadows =
-                GetListBaseShadowsCheck()(cx, obj, aid);
-            if (shadows == ShadowCheckFailed)
-                return ic.error(cx);
-            // Either the property is shadowed or we need an additional check in
-            // the stub, which we haven't implemented.
-            if (shadows == Shadows || shadows == DoesntShadowUnique)
+            Value expandoValue = obj->getFixedSlot(GetListBaseExpandoSlot());
+
+            // Expando objects just hold any extra properties the object has been given by a
+            // script, and have no prototype or anything else that will complicate property
+            // lookups on them.
+            JS_ASSERT_IF(expandoValue.isObject(),
+                         expandoValue.toObject().isNative() && !expandoValue.toObject().getProto());
+
+            if (expandoValue.isObject() && expandoValue.toObject().nativeContains(cx, name))
                 return Lookup_Uncacheable;
+
             aobj = obj->getTaggedProto().toObjectOrNull();
         }
 
@@ -775,6 +778,17 @@ struct GetPropHelper {
 
 namespace js {
 namespace mjit {
+
+inline void
+MarkNotIdempotent(RawScript script, jsbytecode *pc)
+{
+    if (!script->hasAnalysis())
+        return;
+    analyze::Bytecode *code = script->analysis()->maybeCode(pc);
+    if (!code)
+        return;
+    code->notIdempotent = true;
+}
 
 class GetPropCompiler : public PICStubCompiler
 {
@@ -1008,7 +1022,7 @@ class GetPropCompiler : public PICStubCompiler
         return Lookup_Cacheable;
     }
 
-    LookupStatus patchInline(JSObject *holder, Shape *shape)
+    LookupStatus patchInline(JSObject *holder, RawShape shape)
     {
         spew("patch", "inline");
         Repatcher repatcher(f.chunk());
@@ -1043,7 +1057,7 @@ class GetPropCompiler : public PICStubCompiler
     }
 
     /* For JSPropertyOp getters. */
-    void generateGetterStub(Assembler &masm, Shape *shape, jsid userid,
+    void generateGetterStub(Assembler &masm, RawShape shape, jsid userid,
                             Label start, Vector<Jump, 8> &shapeMismatches)
     {
         /*
@@ -1153,7 +1167,7 @@ class GetPropCompiler : public PICStubCompiler
     }
 
     /* For getters backed by a JSNative. */
-    void generateNativeGetterStub(Assembler &masm, Shape *shape,
+    void generateNativeGetterStub(Assembler &masm, RawShape shape,
                                   Label start, Vector<Jump, 8> &shapeMismatches)
     {
        /*
@@ -1357,6 +1371,8 @@ class GetPropCompiler : public PICStubCompiler
         }
 
         if (shape && !shape->hasDefaultGetter()) {
+            MarkNotIdempotent(f.script(), f.pc());
+
             if (shape->hasGetterValue()) {
                 generateNativeGetterStub(masm, shape, start, shapeMismatches);
             } else {
@@ -1456,8 +1472,19 @@ class GetPropCompiler : public PICStubCompiler
             /* Don't touch the IC if it may have been destroyed. */
             if (!monitor.recompiled())
                 pic.hadUncacheable = true;
+            MarkNotIdempotent(f.script(), f.pc());
             return status;
         }
+
+        // Mark as not idempotent to avoid recompilation in Ion Monkey
+        // GetPropertyCache.
+        if (!obj->hasIdempotentProtoChain())
+            MarkNotIdempotent(f.script(), f.pc());
+
+        // The property is missing, Mark as not idempotent to avoid
+        // recompilation in Ion Monkey GetPropertyCache.
+        if (!getprop.holder)
+            MarkNotIdempotent(f.script(), f.pc());
 
         if (hadGC())
             return Lookup_Uncacheable;
@@ -1655,7 +1682,7 @@ class ScopeNameCompiler : public PICStubCompiler
         JS_ASSERT(obj == getprop.holder);
         JS_ASSERT(getprop.holder != &scopeChain->global());
 
-        Shape *shape = getprop.shape;
+        RawShape shape = getprop.shape;
         if (!shape->hasDefaultGetter())
             return disable("unhandled callobj sprop getter");
 
@@ -2168,7 +2195,7 @@ frameCountersOffset(VMFrame &f)
     }
 
     jsbytecode *pc;
-    JSScript *script = cx->stack.currentScript(&pc);
+    RawScript script = cx->stack.currentScript(&pc);
     offset += pc - script->code;
 
     return offset;
@@ -2612,9 +2639,13 @@ ic::GetElement(VMFrame &f, ic::GetElementIC *ic)
     if (!obj)
         THROW();
 
-    RootedId id(cx);
-    if (!ValueToId<CanGC>(cx, idval, &id))
+    Rooted<jsid> id(cx);
+    if (idval.isInt32() && INT_FITS_IN_JSID(idval.toInt32())) {
+        id = INT_TO_JSID(idval.toInt32());
+    } else {
+        if (!InternNonIntElementId<CanGC>(cx, obj, idval, &id))
             THROW();
+    }
 
     MutableHandleValue res = MutableHandleValue::fromMarkedLocation(&f.regs.sp[-2]);
 

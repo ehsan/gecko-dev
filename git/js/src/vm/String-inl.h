@@ -1,13 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=79 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef String_inl_h__
 #define String_inl_h__
-
-#include "mozilla/PodOperations.h"
 
 #include "jscntxt.h"
 #include "jsprobes.h"
@@ -28,7 +27,7 @@ NewShortString(JSContext *cx, JS::Latin1Chars chars)
 {
     size_t len = chars.length();
     JS_ASSERT(JSShortString::lengthFits(len));
-    JSInlineString *str = JSInlineString::lengthFits(len)
+    RawInlineString str = JSInlineString::lengthFits(len)
                           ? JSInlineString::new_<allowGC>(cx)
                           : JSShortString::new_<allowGC>(cx);
     if (!str)
@@ -59,7 +58,7 @@ NewShortString(JSContext *cx, JS::StableTwoByteChars chars)
         return NULL;
 
     jschar *storage = str->init(len);
-    mozilla::PodCopy(storage, chars.start().get(), len);
+    PodCopy(storage, chars.start().get(), len);
     storage[len] = 0;
     return str;
 }
@@ -82,12 +81,12 @@ NewShortString(JSContext *cx, JS::TwoByteChars chars)
         if (!allowGC)
             return NULL;
         jschar tmp[JSShortString::MAX_SHORT_LENGTH];
-        mozilla::PodCopy(tmp, chars.start().get(), len);
+        PodCopy(tmp, chars.start().get(), len);
         return NewShortString<CanGC>(cx, JS::StableTwoByteChars(tmp, len));
     }
 
     jschar *storage = str->init(len);
-    mozilla::PodCopy(storage, chars.start().get(), len);
+    PodCopy(storage, chars.start().get(), len);
     storage[len] = 0;
     return str;
 }
@@ -108,7 +107,7 @@ inline void
 JSString::writeBarrierPre(JSString *str)
 {
 #ifdef JSGC_INCREMENTAL
-    if (!str || !str->runtime()->needsBarrier())
+    if (!str)
         return;
 
     JS::Zone *zone = str->zone();

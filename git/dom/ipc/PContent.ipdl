@@ -17,7 +17,6 @@ include protocol PIndexedDB;
 include protocol PMemoryReportRequest;
 include protocol PNecko;
 include protocol PSms;
-include protocol PSpeechSynthesis;
 include protocol PStorage;
 include protocol PTestShell;
 include DOMTypes;
@@ -27,7 +26,6 @@ include URIParams;
 include "mozilla/chrome/RegistryMessageUtils.h";
 include "mozilla/dom/PermissionMessageUtils.h";
 include "mozilla/dom/TabMessageUtils.h";
-include "mozilla/HalTypes.h";
 include "mozilla/layout/RenderFrameUtils.h";
 include "mozilla/net/NeckoMessageUtils.h";
 include "nsGeoPositionIPCSerialiser.h";
@@ -45,12 +43,28 @@ using mozilla::null_t;
 using mozilla::void_t;
 using mozilla::dom::AudioChannelType;
 using mozilla::dom::NativeThreadId;
-using mozilla::hal::ProcessPriority;
 using mozilla::layout::ScrollingBehavior;
 using gfxIntSize;
 
 namespace mozilla {
 namespace dom {
+
+// Data required to clone an existing DOMStorageImpl in the parent
+struct StorageClone
+{
+    // Existing cross-process storage actor to clone
+    PStorage actor;
+    // Result of calling IsCallerSecure() in the child
+    bool callerSecure;
+};
+
+// When creating a new PStorage protocol, an existing one can be
+// cloned (see nsDOMStorage2::Clone)
+union StorageConstructData
+{
+    null_t;
+    StorageClone;
+};
 
 struct FontListEntry {
     nsString  familyName;
@@ -65,49 +79,45 @@ struct FontListEntry {
 struct DeviceStorageFreeSpaceParams
 {
   nsString type;
-  nsString storageName;
+  nsString fullpath;
 };
 
 struct DeviceStorageUsedSpaceParams
 {
   nsString type;
-  nsString storageName;
+  nsString fullpath;
 };
 
 struct DeviceStorageAvailableParams
 {
   nsString type;
-  nsString storageName;
 };
 
 struct DeviceStorageAddParams
 {
   nsString type;
-  nsString storageName;
-  nsString relpath;
   PBlob blob;
+  nsString name;
+  nsString fullpath;
 };
 
 struct DeviceStorageGetParams
 {
   nsString type;
-  nsString storageName;
-  nsString rootDir;
-  nsString relpath;
+  nsString name;
+  nsString fullpath;
 };
 
 struct DeviceStorageDeleteParams
 {
   nsString type;
-  nsString storageName;
-  nsString relpath;
+  nsString fullpath;
 };
 
 struct DeviceStorageEnumerationParams
 {
   nsString type;
-  nsString storageName;
-  nsString rootdir;
+  nsString fullpath;
   uint64_t since;
 };
 
@@ -249,7 +259,6 @@ rpc protocol PContent
     manages PMemoryReportRequest;
     manages PNecko;
     manages PSms;
-    manages PSpeechSynthesis;
     manages PStorage;
     manages PTestShell;
 
@@ -297,12 +306,12 @@ child:
     async AudioChannelNotify();
 
     /**
-     * Do a memory info dump to a file in our temp directory.
+     * Dump the contents of about:memory to a file in our temp directory.
      *
      * For documentation on the args, see
-     * MemoryInfoDumper::dumpMemoryInfoToTempDir.
+     * MemoryInfoDumper::dumpMemoryReportsToFile.
      */
-    async DumpMemoryInfoToTempDir(nsString identifier,
+    async DumpMemoryReportsToFile(nsString identifier,
                                   bool minimizeMemoryUsage,
                                   bool dumpChildProcesses);
 
@@ -350,15 +359,10 @@ child:
     // Notify child that last-pb-context-exited notification was observed
     LastPrivateDocShellDestroyed();
 
-    FilePathUpdate(nsString storageType, nsString storageName, nsString filepath,
-                   nsCString reasons);
+    FilePathUpdate(nsString type, nsString filepath, nsCString reasons);
 
     FileSystemUpdate(nsString fsName, nsString mountPoint, int32_t fsState,
                      int32_t mountGeneration);
-
-    NotifyProcessPriorityChanged(ProcessPriority priority);
-    MinimizeMemoryUsage();
-    CancelMinimizeMemoryUsage();
 
 parent:
     /**
@@ -391,10 +395,8 @@ parent:
     PNecko();
 
     PSms();
-
-    PSpeechSynthesis();
-
-    PStorage();
+    
+    PStorage(StorageConstructData data);
 
     PBluetooth();
 
@@ -499,7 +501,6 @@ parent:
     async AudioChannelChangedNotification();
 
     async FilePathUpdateNotify(nsString aType,
-                               nsString aStorageName,
                                nsString aFilepath,
                                nsCString aReason);
     // get nsIVolumeService to broadcast volume information

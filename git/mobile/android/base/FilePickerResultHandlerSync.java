@@ -7,17 +7,21 @@ package org.mozilla.gecko;
 import android.content.Intent;
 import android.util.Log;
 
-import java.util.Queue;
+import java.util.concurrent.SynchronousQueue;
 
 class FilePickerResultHandlerSync extends FilePickerResultHandler {
     private static final String LOGTAG = "GeckoFilePickerResultHandlerSync";
 
-    FilePickerResultHandlerSync(Queue<String> resultQueue) {
+    FilePickerResultHandlerSync(SynchronousQueue<String> resultQueue) {
         super(resultQueue);
     }
 
     @Override
     public void onActivityResult(int resultCode, Intent data) {
-        mFilePickerResult.offer(handleActivityResult(resultCode, data));
+        try {
+            mFilePickerResult.put(handleActivityResult(resultCode, data));
+        } catch (InterruptedException e) {
+            Log.i(LOGTAG, "error returning file picker result", e);
+        }
     }
 }

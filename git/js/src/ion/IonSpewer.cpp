@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -14,8 +15,6 @@
 #ifndef ION_SPEW_DIR
 # if defined(_WIN32)
 #  define ION_SPEW_DIR ""
-# elif defined(__ANDROID__)
-#  define ION_SPEW_DIR "/data/local/tmp/"
 # else
 #  define ION_SPEW_DIR "/tmp/"
 # endif
@@ -39,7 +38,7 @@ static const char *ChannelNames[] =
 };
 
 static bool
-FilterContainsLocation(HandleScript function)
+FilterContainsLocation(const char *filename, const size_t line = size_t(-1))
 {
     static const char *filter = getenv("IONFILTER");
 
@@ -47,12 +46,6 @@ FilterContainsLocation(HandleScript function)
     if (!filter || !filter[0])
         return true;
 
-    // Disable asm.js output when filter is set.
-    if (!function)
-        return false;
-
-    const char *filename = function->filename();
-    const size_t line = function->lineno;
     static size_t filelen = strlen(filename);
     const char *index = strstr(filter, filename);
     while (index) {
@@ -141,7 +134,7 @@ IonSpewer::beginFunction(MIRGraph *graph, HandleScript function)
     if (!inited_)
         return;
 
-    if (!FilterContainsLocation(function)) {
+    if (!FilterContainsLocation(function->filename(), function->lineno)) {
         JS_ASSERT(!this->graph);
         // filter out logs during the compilation.
         filteredOutCompilations++;
@@ -248,15 +241,6 @@ ion::CheckLogging()
             "  trace      Generate calls to js::ion::Trace() for effectful instructions\n"
             "  all        Everything\n"
             "\n"
-            "  bl-aborts  Baseline compiler abort messages\n"
-            "  bl-scripts Baseline script-compilation\n"
-            "  bl-op      Baseline compiler detailed op-specific messages\n"
-            "  bl-ic      Baseline inline-cache messages\n"
-            "  bl-ic-fb   Baseline IC fallback stub messages\n"
-            "  bl-osr     Baseline IC OSR messages\n"
-            "  bl-bails   Baseline bailouts\n"
-            "  bl-all     All baseline spew\n"
-            "\n"
         );
         exit(0);
         /*NOTREACHED*/
@@ -301,30 +285,6 @@ ion::CheckLogging()
         EnableChannel(IonSpew_Trace);
     if (ContainsFlag(env, "all"))
         LoggingBits = uint32_t(-1);
-
-    if (ContainsFlag(env, "bl-aborts"))
-        EnableChannel(IonSpew_BaselineAbort);
-    if (ContainsFlag(env, "bl-scripts"))
-        EnableChannel(IonSpew_BaselineScripts);
-    if (ContainsFlag(env, "bl-op"))
-        EnableChannel(IonSpew_BaselineOp);
-    if (ContainsFlag(env, "bl-ic"))
-        EnableChannel(IonSpew_BaselineIC);
-    if (ContainsFlag(env, "bl-ic-fb"))
-        EnableChannel(IonSpew_BaselineICFallback);
-    if (ContainsFlag(env, "bl-osr"))
-        EnableChannel(IonSpew_BaselineOSR);
-    if (ContainsFlag(env, "bl-bails"))
-        EnableChannel(IonSpew_BaselineBailouts);
-    if (ContainsFlag(env, "bl-all")) {
-        EnableChannel(IonSpew_BaselineAbort);
-        EnableChannel(IonSpew_BaselineScripts);
-        EnableChannel(IonSpew_BaselineOp);
-        EnableChannel(IonSpew_BaselineIC);
-        EnableChannel(IonSpew_BaselineICFallback);
-        EnableChannel(IonSpew_BaselineOSR);
-        EnableChannel(IonSpew_BaselineBailouts);
-    }
 
     if (LoggingBits != 0)
         EnableIonDebugLogging();

@@ -7,11 +7,11 @@
 #include "mozilla/FloatingPoint.h"
 
 #include "Key.h"
+#include "nsIStreamBufferAccess.h"
 #include "jsfriendapi.h"
 #include "nsAlgorithm.h"
 #include "nsJSUtils.h"
 #include "xpcpublic.h"
-#include "mozilla/Endian.h"
 #include <algorithm>
 
 USING_INDEXEDDB_NAMESPACE
@@ -125,7 +125,7 @@ Key::EncodeJSValInternal(JSContext* aCx, const jsval aVal,
 
   if (JSVAL_IS_DOUBLE(aVal)) {
     double d = JSVAL_TO_DOUBLE(aVal);
-    if (mozilla::IsNaN(d)) {
+    if (MOZ_DOUBLE_IS_NaN(d)) {
       return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
     }
     EncodeNumber(d, eFloat + aTypeOffset);
@@ -133,7 +133,7 @@ Key::EncodeJSValInternal(JSContext* aCx, const jsval aVal,
   }
 
   if (!JSVAL_IS_PRIMITIVE(aVal)) {
-    JS::Rooted<JSObject*> obj(aCx, JSVAL_TO_OBJECT(aVal));
+    JSObject* obj = JSVAL_TO_OBJECT(aVal);
     if (JS_IsArrayObject(aCx, obj)) {
       aTypeOffset += eMaxType;
 
@@ -151,8 +151,8 @@ Key::EncodeJSValInternal(JSContext* aCx, const jsval aVal,
       }
 
       for (uint32_t index = 0; index < length; index++) {
-        JS::Rooted<JS::Value> val(aCx);
-        if (!JS_GetElement(aCx, obj, index, val.address())) {
+        jsval val;
+        if (!JS_GetElement(aCx, obj, index, &val)) {
           return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
         }
 
@@ -191,7 +191,7 @@ Key::DecodeJSValInternal(const unsigned char*& aPos, const unsigned char* aEnd,
   NS_ENSURE_TRUE(aRecursionDepth < MaxRecursionDepth, NS_ERROR_DOM_INDEXEDDB_DATA_ERR);
 
   if (*aPos - aTypeOffset >= eArray) {
-    JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, 0, nullptr));
+    JSObject* array = JS_NewArrayObject(aCx, 0, nullptr);
     if (!array) {
       NS_WARNING("Failed to make array!");
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
@@ -206,14 +206,14 @@ Key::DecodeJSValInternal(const unsigned char*& aPos, const unsigned char* aEnd,
 
     uint32_t index = 0;
     while (aPos < aEnd && *aPos - aTypeOffset != eTerminator) {
-      JS::Rooted<JS::Value> val(aCx);
+      jsval val;
       nsresult rv = DecodeJSValInternal(aPos, aEnd, aCx, aTypeOffset,
-                                        val.address(), aRecursionDepth + 1);
+                                        &val, aRecursionDepth + 1);
       NS_ENSURE_SUCCESS(rv, rv);
 
       aTypeOffset = 0;
 
-      if (!JS_SetElement(aCx, array, index++, val.address())) {
+      if (!JS_SetElement(aCx, array, index++, &val)) {
         NS_WARNING("Failed to set array element!");
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
@@ -392,13 +392,12 @@ Key::EncodeNumber(double aFloat, uint8_t aType)
 
   Float64Union pun;
   pun.d = aFloat;
-  // Note: The subtraction from 0 below is necessary to fix
-  // MSVC build warning C4146 (negating an unsigned value).
   uint64_t number = pun.u & PR_UINT64(0x8000000000000000) ?
-                    (0 - pun.u) :
+                    -pun.u :
                     (pun.u | PR_UINT64(0x8000000000000000));
 
-  mozilla::BigEndian::writeUint64(buffer, number);
+  number = NS_SWAP64(number);
+  memcpy(buffer, &number, sizeof(number));
 }
 
 // static
@@ -412,16 +411,14 @@ Key::DecodeNumber(const unsigned char*& aPos, const unsigned char* aEnd)
 
   uint64_t number = 0;
   memcpy(&number, aPos, std::min<size_t>(sizeof(number), aEnd - aPos));
-  number = mozilla::NativeEndian::swapFromBigEndian(number);
+  number = NS_SWAP64(number);
 
   aPos += sizeof(number);
 
   Float64Union pun;
-  // Note: The subtraction from 0 below is necessary to fix
-  // MSVC build warning C4146 (negating an unsigned value).
   pun.u = number & PR_UINT64(0x8000000000000000) ?
           (number & ~PR_UINT64(0x8000000000000000)) :
-          (0 - number);
+          -number;
 
   return pun.d;
 }

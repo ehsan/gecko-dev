@@ -234,12 +234,3 @@ const DataURL = Class({
 });
 
 exports.DataURL = DataURL;
-
-let isValidURI = exports.isValidURI = function (uri) {
-  try {
-    newURI(uri);
-  } catch(e) {
-    return false;
-  }
-  return true;
-}

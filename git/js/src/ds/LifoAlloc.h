@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -12,7 +13,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/GuardObjects.h"
 #include "mozilla/MemoryChecking.h"
-#include "mozilla/PodOperations.h"
 #include "mozilla/TypeTraits.h"
 
 // This data structure supports stacky LIFO allocation (mark/release and
@@ -221,7 +221,7 @@ class LifoAlloc
         // Copy everything from |other| to |this| except for |peakSize_|, which
         // requires some care.
         size_t oldPeakSize = peakSize_;
-        mozilla::PodAssign(this, other);
+        PodCopy((char *) this, (char *) other, sizeof(*this));
         peakSize_ = Max(oldPeakSize, curSize_);
 
         other->reset(defaultChunkSize_);
@@ -307,30 +307,31 @@ class LifoAlloc
         return static_cast<T *>(alloc(sizeof(T) * count));
     }
 
-    class Mark {
-        BumpChunk *chunk;
-        void *markInChunk;
-        friend class LifoAlloc;
-        Mark(BumpChunk *chunk, void *markInChunk) : chunk(chunk), markInChunk(markInChunk) {}
-      public:
-        Mark() : chunk(NULL), markInChunk(NULL) {}
-    };
-
-    Mark mark() {
+    void *mark() {
         markCount++;
-        return latest ? Mark(latest, latest->mark()) : Mark();
+
+        return latest ? latest->mark() : NULL;
     }
 
-    void release(Mark mark) {
+    void release(void *mark) {
         markCount--;
-        if (!mark.chunk) {
+
+        if (!mark) {
             latest = first;
             if (latest)
                 latest->resetBump();
-        } else {
-            latest = mark.chunk;
-            latest->release(mark.markInChunk);
+            return;
         }
+
+        // Find the chunk that contains |mark|, and make sure we don't pass
+        // |latest| along the way -- we should be making the chain of active
+        // chunks shorter, not longer!
+        BumpChunk *container;
+        for (container = first; !container->contains(mark); container = container->next())
+            JS_ASSERT(container != latest);
+
+        latest = container;
+        latest->release(mark);
     }
 
     void releaseAll() {
@@ -380,19 +381,18 @@ class LifoAlloc
 
 class LifoAllocScope
 {
-    LifoAlloc       *lifoAlloc;
-    LifoAlloc::Mark mark;
-    bool            shouldRelease;
+    LifoAlloc   *lifoAlloc;
+    void        *mark;
+    bool        shouldRelease;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
   public:
     explicit LifoAllocScope(LifoAlloc *lifoAlloc
                             MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : lifoAlloc(lifoAlloc),
-        mark(lifoAlloc->mark()),
-        shouldRelease(true)
+      : lifoAlloc(lifoAlloc), shouldRelease(true)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        mark = lifoAlloc->mark();
     }
 
     ~LifoAllocScope() {

@@ -43,7 +43,6 @@
 #include "nsWindow.h"
 #include "nsIWidgetListener.h"
 #include "cutils/properties.h"
-#include "ClientLayerManager.h"
 #include "BasicLayers.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
@@ -182,10 +181,7 @@ nsWindow::nsWindow()
         // This has to happen after other init has finished.
         gfxPlatform::GetPlatform();
         sUsingOMTC = ShouldUseOffMainThreadCompositing();
-
-        property_get("ro.display.colorfill", propValue, "0");
-        sUsingHwc = Preferences::GetBool("layers.composer2d.enabled",
-                                         atoi(propValue) == 1);
+        sUsingHwc = Preferences::GetBool("layers.composer2d.enabled", false);
 
         if (sUsingOMTC) {
           sOMTCSurface = new gfxImageSurface(gfxIntSize(1, 1),
@@ -229,8 +225,6 @@ nsWindow::DoDraw(void)
         if (listener) {
             listener->PaintWindow(gWindowToRedraw, region, 0);
         }
-    } else if (mozilla::layers::LAYERS_CLIENT == lm->GetBackendType()) {
-      // No need to do anything, the compositor will handle drawing
     } else if (mozilla::layers::LAYERS_BASIC == lm->GetBackendType()) {
         MOZ_ASSERT(sFramebufferOpen || sUsingOMTC);
         nsRefPtr<gfxASurface> targetSurface;
@@ -544,19 +538,8 @@ nsWindow::GetDPI()
     return NativeWindow()->xdpi;
 }
 
-double
-nsWindow::GetDefaultScaleInternal()
-{
-    double rawscale = GetDPI() / 192.0;
-    if (rawscale < 1.25)
-        return 1;
-    else if (rawscale < 1.75)
-        return 1.5;
-    return 2;
-}
-
 LayerManager *
-nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
+nsWindow::GetLayerManager(PLayersChild* aShadowManager,
                           LayersBackend aBackendHint,
                           LayerManagerPersistence aPersistence,
                           bool* aAllowRetaining)
@@ -569,12 +552,7 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
         if (mLayerManager->GetBackendType() == LAYERS_BASIC) {
             BasicLayerManager* manager =
                 static_cast<BasicLayerManager*>(mLayerManager.get());
-            manager->SetDefaultTargetConfiguration(mozilla::layers::BUFFER_NONE,
-                                                   ScreenRotation(EffectiveScreenRotation()));
-        } else if (mLayerManager->GetBackendType() == LAYERS_CLIENT) {
-            ClientLayerManager* manager =
-                static_cast<ClientLayerManager*>(mLayerManager.get());
-            manager->SetDefaultTargetConfiguration(mozilla::layers::BUFFER_NONE,
+            manager->SetDefaultTargetConfiguration(mozilla::layers::BUFFER_NONE, 
                                                    ScreenRotation(EffectiveScreenRotation()));
         }
         return mLayerManager;
@@ -628,7 +606,7 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
         NS_RUNTIMEABORT("Can't open GL context and can't fall back on /dev/graphics/fb0 ...");
     }
 
-    mLayerManager = new ClientLayerManager(this);
+    mLayerManager = new BasicShadowLayerManager(this);
     mUseLayersAcceleration = false;
 
     return mLayerManager;
@@ -788,8 +766,8 @@ nsScreenGonk::SetRotation(uint32_t aRotation)
 
     sScreenRotation = aRotation;
     sRotationMatrix =
-        ComputeTransformForRotation(gScreenBounds,
-                                    ScreenRotation(EffectiveScreenRotation()));
+        ComputeGLTransformForRotation(gScreenBounds,
+                                      ScreenRotation(EffectiveScreenRotation()));
     uint32_t rotation = EffectiveScreenRotation();
     if (rotation == nsIScreen::ROTATION_90_DEG ||
         rotation == nsIScreen::ROTATION_270_DEG) {

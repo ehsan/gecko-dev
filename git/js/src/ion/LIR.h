@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -15,6 +16,7 @@
 #include "InlineList.h"
 #include "FixedArityList.h"
 #include "LOpcodes.h"
+#include "TypeOracle.h"
 #include "Registers.h"
 #include "MIR.h"
 #include "MIRGraph.h"
@@ -607,12 +609,6 @@ class LInstruction
           default:
             return "Invalid";
         }
-    }
-
-    // Hook for opcodes to add extra high level detail about what code will be
-    // emitted for the op.
-    virtual const char *extraName() const {
-        return NULL;
     }
 
   public:
@@ -1256,7 +1252,7 @@ public:
 class LIRGraph
 {
     Vector<LBlock *, 16, IonAllocPolicy> blocks_;
-    Vector<Value, 0, IonAllocPolicy> constantPool_;
+    Vector<HeapValue, 0, IonAllocPolicy> constantPool_;
     Vector<LInstruction *, 0, IonAllocPolicy> safepoints_;
     Vector<LInstruction *, 0, IonAllocPolicy> nonCallSafepoints_;
     uint32_t numVirtualRegisters_;
@@ -1327,10 +1323,10 @@ class LIRGraph
     size_t numConstants() const {
         return constantPool_.length();
     }
-    Value *constantPool() {
+    HeapValue *constantPool() {
         return &constantPool_[0];
     }
-    const Value &getConstant(size_t index) const {
+    const HeapValue &getConstant(size_t index) const {
         return constantPool_[index];
     }
     void setEntrySnapshot(LSnapshot *snapshot) {

@@ -21,8 +21,7 @@ public:
     SetIsDOMBinding();
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::BeforeUnloadEventBinding::Wrap(aCx, aScope, this);
   }

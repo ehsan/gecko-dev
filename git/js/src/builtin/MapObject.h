@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -31,7 +32,7 @@ class HashableValue {
     struct Hasher {
         typedef HashableValue Lookup;
         static HashNumber hash(const Lookup &v) { return v.hash(); }
-        static bool match(const HashableValue &k, const Lookup &l) { return k == l; }
+        static bool match(const HashableValue &k, const Lookup &l) { return k.equals(l); }
         static bool isEmpty(const HashableValue &v) { return v.value.isMagic(JS_HASH_KEY_EMPTY); }
         static void makeEmpty(HashableValue *vp) { vp->value = MagicValue(JS_HASH_KEY_EMPTY); }
     };
@@ -40,35 +41,28 @@ class HashableValue {
 
     bool setValue(JSContext *cx, const Value &v);
     HashNumber hash() const;
-    bool operator==(const HashableValue &other) const;
+    bool equals(const HashableValue &other) const;
     HashableValue mark(JSTracer *trc) const;
     Value get() const { return value.get(); }
-};
 
-class AutoHashableValueRooter : private AutoGCRooter
-{
-  public:
-    explicit AutoHashableValueRooter(JSContext *cx
-                                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoGCRooter(cx, HASHABLEVALUE)
+    class AutoRooter : private AutoGCRooter
+    {
+      public:
+        explicit AutoRooter(JSContext *cx, HashableValue *v_
+                            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+          : AutoGCRooter(cx, HASHABLEVALUE), v(v_), skip(cx, v_)
         {
             MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         }
 
-    bool setValue(JSContext *cx, const Value &v) {
-        return value.setValue(cx, v);
-    }
+        friend void AutoGCRooter::trace(JSTracer *trc);
+        void trace(JSTracer *trc);
 
-    operator const HashableValue & () {
-        return value;
-    }
-
-    friend void AutoGCRooter::trace(JSTracer *trc);
-    void trace(JSTracer *trc);
-
-  private:
-    HashableValue value;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+      private:
+        HashableValue *v;
+        SkipRoot skip;
+        MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    };
 };
 
 template <class Key, class Value, class OrderedHashPolicy, class AllocPolicy>
@@ -93,12 +87,12 @@ class MapObject : public JSObject {
     static JSObject *initClass(JSContext *cx, JSObject *obj);
     static Class class_;
   private:
-    static const JSPropertySpec properties[];
-    static const JSFunctionSpec methods[];
+    static JSPropertySpec properties[];
+    static JSFunctionSpec methods[];
     ValueMap *getData() { return static_cast<ValueMap *>(getPrivate()); }
     static ValueMap & extract(CallReceiver call);
-    static void mark(JSTracer *trc, JSObject *obj);
-    static void finalize(FreeOp *fop, JSObject *obj);
+    static void mark(JSTracer *trc, RawObject obj);
+    static void finalize(FreeOp *fop, RawObject obj);
     static JSBool construct(JSContext *cx, unsigned argc, Value *vp);
 
     static bool is(const Value &v);
@@ -130,12 +124,12 @@ class SetObject : public JSObject {
     static JSObject *initClass(JSContext *cx, JSObject *obj);
     static Class class_;
   private:
-    static const JSPropertySpec properties[];
-    static const JSFunctionSpec methods[];
+    static JSPropertySpec properties[];
+    static JSFunctionSpec methods[];
     ValueSet *getData() { return static_cast<ValueSet *>(getPrivate()); }
     static ValueSet & extract(CallReceiver call);
-    static void mark(JSTracer *trc, JSObject *obj);
-    static void finalize(FreeOp *fop, JSObject *obj);
+    static void mark(JSTracer *trc, RawObject obj);
+    static void finalize(FreeOp *fop, RawObject obj);
     static JSBool construct(JSContext *cx, unsigned argc, Value *vp);
 
     static bool is(const Value &v);

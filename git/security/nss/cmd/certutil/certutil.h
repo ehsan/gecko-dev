@@ -13,9 +13,6 @@ CERTUTIL_GeneratePrivateKey(KeyType keytype,
                             char *noise,
                             SECKEYPublicKey **pubkeyp,
                             char *pqgFile,
-                            PK11AttrFlags attrFlags,
-                            CK_FLAGS opFlagsOn,
-                            CK_FLAGS opFlagsOff,
                             secuPWData *pwdata);
 
 extern char *progName;
@@ -34,7 +31,6 @@ enum certutilExtns {
     ext_policyConstr,
     ext_inhibitAnyPolicy,
     ext_subjectKeyID,
-    ext_nameConstraints,
     ext_End
 };
 

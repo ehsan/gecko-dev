@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -23,13 +24,6 @@ enum FrameType
     // functon activation. OptimizedJS frames are used by the optimizing compiler.
     IonFrame_OptimizedJS,
 
-    // JS frame used by the baseline JIT.
-    IonFrame_BaselineJS,
-
-    // Frame pushed for baseline JIT stubs that make non-tail calls, so that the
-    // return address -> ICEntry mapping works.
-    IonFrame_BaselineStub,
-
     // The entry frame is the initial prologue block transitioning from the VM
     // into the Ion world.
     IonFrame_Entry,
@@ -42,9 +36,6 @@ enum FrameType
     // turned into an exit frame (see EnsureExitFrame). Used by Ion bailouts and
     // Baseline exception unwinding.
     IonFrame_Unwound_OptimizedJS,
-
-    // Like Unwound_OptimizedJS, but the caller is a baseline stub frame.
-    IonFrame_Unwound_BaselineStub,
 
     // An unwound rectifier frame is a rectifier frame signalling that its callee
     // frame has been turned into an exit frame (see EnsureExitFrame).
@@ -68,8 +59,6 @@ class IonExitFrameLayout;
 class IonActivation;
 class IonActivationIterator;
 
-class BaselineFrame;
-
 class IonFrameIterator
 {
   protected:
@@ -81,8 +70,6 @@ class IonFrameIterator
   private:
     mutable const SafepointIndex *cachedSafepointIndex_;
     const IonActivation *activation_;
-
-    void dumpBaseline() const;
 
   public:
     IonFrameIterator(uint8_t *top)
@@ -109,14 +96,14 @@ class IonFrameIterator
     inline uint8_t *returnAddress() const;
 
     IonJSFrameLayout *jsFrame() const {
-        JS_ASSERT(isScripted());
+        JS_ASSERT(type() == IonFrame_OptimizedJS);
         return (IonJSFrameLayout *) fp();
     }
 
-    // Returns true iff this exit frame was created using EnsureExitFrame.
-    inline bool isFakeExitFrame() const;
-
-    inline IonExitFrameLayout *exitFrame() const;
+    IonExitFrameLayout *exitFrame() const {
+        JS_ASSERT(type() == IonFrame_Exit);
+        return (IonExitFrameLayout *) fp();
+    }
 
     // Returns whether the JS frame has been invalidated and, if so,
     // places the invalidated Ion script in |ionScript|.
@@ -124,16 +111,7 @@ class IonFrameIterator
     bool checkInvalidation() const;
 
     bool isScripted() const {
-        return type_ == IonFrame_BaselineJS || type_ == IonFrame_OptimizedJS;
-    }
-    bool isBaselineJS() const {
-        return type_ == IonFrame_BaselineJS;
-    }
-    bool isOptimizedJS() const {
         return type_ == IonFrame_OptimizedJS;
-    }
-    bool isBaselineStub() const {
-        return type_ == IonFrame_BaselineStub;
     }
     bool isNative() const;
     bool isOOLNativeGetter() const;
@@ -143,7 +121,6 @@ class IonFrameIterator
         return type_ == IonFrame_Entry;
     }
     bool isFunctionFrame() const;
-    bool isParallelFunctionFrame() const;
 
     bool isConstructing() const;
 
@@ -153,8 +130,7 @@ class IonFrameIterator
     JSFunction *callee() const;
     JSFunction *maybeCallee() const;
     unsigned numActualArgs() const;
-    JSScript *script() const;
-    void baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) const;
+    RawScript script() const;
     Value *nativeVp() const;
     Value *actualArgs() const;
 
@@ -194,12 +170,7 @@ class IonFrameIterator
     uintptr_t *spillBase() const;
     MachineState machineState() const;
 
-    template <class Op>
-    inline void forEachCanonicalActualArg(Op op, unsigned start, unsigned count) const;
-
     void dump() const;
-
-    inline BaselineFrame *baselineFrame() const;
 };
 
 class IonActivationIterator
@@ -269,8 +240,7 @@ class SnapshotIterator : public SnapshotReader
 
     template <class Op>
     inline void readFrameArgs(Op &op, const Value *argv, Value *scopeChain, Value *thisv,
-                              unsigned start, unsigned formalEnd, unsigned iterEnd,
-                              JSScript *script);
+                              unsigned start, unsigned formalEnd, unsigned iterEnd);
 
     Value maybeReadSlotByIndex(size_t index) {
         while (index--) {
@@ -324,7 +294,7 @@ class InlineFrameIteratorMaybeGC
     template <class Op>
     inline void forEachCanonicalActualArg(JSContext *cx, Op op, unsigned start, unsigned count) const;
 
-    JSScript *script() const {
+    RawScript script() const {
         return script_;
     }
     jsbytecode *pc() const {

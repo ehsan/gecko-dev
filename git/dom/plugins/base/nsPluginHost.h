@@ -301,7 +301,7 @@ private:
   static nsPluginHost* sInst;
 };
 
-class MOZ_STACK_CLASS PluginDestructionGuard : protected PRCList
+class NS_STACK_CLASS PluginDestructionGuard : protected PRCList
 {
 public:
   PluginDestructionGuard(nsNPAPIPluginInstance *aInstance)

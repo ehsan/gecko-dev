@@ -10,7 +10,6 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLOptionElement.h"
 #include "mozilla/dom/HTMLOptionsCollectionBinding.h"
-#include "mozilla/dom/HTMLSelectElement.h"
 #include "mozilla/Util.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsError.h"
@@ -19,8 +18,10 @@
 #include "nsFormSubmission.h"
 #include "nsGkAtoms.h"
 #include "nsGUIEvent.h"
+#include "nsHTMLSelectElement.h"
 #include "nsIComboboxControlFrame.h"
 #include "nsIDocument.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIFormControlFrame.h"
 #include "nsIForm.h"
@@ -38,7 +39,7 @@ DOMCI_DATA(HTMLOptionsCollection, mozilla::dom::HTMLOptionsCollection)
 namespace mozilla {
 namespace dom {
 
-HTMLOptionsCollection::HTMLOptionsCollection(HTMLSelectElement* aSelect)
+HTMLOptionsCollection::HTMLOptionsCollection(nsHTMLSelectElement* aSelect)
 {
   SetIsDOMBinding();
 
@@ -94,7 +95,23 @@ HTMLOptionsCollection::GetOptionIndex(Element* aOption,
 }
 
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(HTMLOptionsCollection, mElements)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(HTMLOptionsCollection)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mElements)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(HTMLOptionsCollection)
+  {
+    uint32_t i;
+    for (i = 0; i < tmp->mElements.Length(); ++i) {
+      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mElements[i]");
+      cb.NoteXPCOMChild(static_cast<Element*>(tmp->mElements[i]));
+    }
+  }
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(HTMLOptionsCollection)
+  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 // nsISupports
 
@@ -114,7 +131,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(HTMLOptionsCollection)
 
 
 JSObject*
-HTMLOptionsCollection::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLOptionsCollection::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return HTMLOptionsCollectionBinding::Wrap(aCx, aScope, this);
 }
@@ -247,12 +264,13 @@ HTMLOptionsCollection::GetElementAt(uint32_t aIndex)
   return ItemAsOption(aIndex);
 }
 
-HTMLOptionElement*
-HTMLOptionsCollection::GetNamedItem(const nsAString& aName) const
+static HTMLOptionElement*
+GetNamedItemHelper(nsTArray<nsRefPtr<HTMLOptionElement> > &aElements,
+                   const nsAString& aName)
 {
-  uint32_t count = mElements.Length();
+  uint32_t count = aElements.Length();
   for (uint32_t i = 0; i < count; i++) {
-    HTMLOptionElement* content = mElements.ElementAt(i);
+    HTMLOptionElement* content = aElements.ElementAt(i);
     if (content &&
         (content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name, aName,
                               eCaseMatters) ||
@@ -275,7 +293,7 @@ NS_IMETHODIMP
 HTMLOptionsCollection::NamedItem(const nsAString& aName,
                                  nsIDOMNode** aReturn)
 {
-  NS_IF_ADDREF(*aReturn = GetNamedItem(aName));
+  NS_IF_ADDREF(*aReturn = GetNamedItemHelper(mElements, aName));
 
   return NS_OK;
 }
@@ -284,15 +302,14 @@ JSObject*
 HTMLOptionsCollection::NamedItem(JSContext* cx, const nsAString& name,
                                  ErrorResult& error)
 {
-  nsINode* item = GetNamedItem(name);
+  nsINode* item = GetNamedItemHelper(mElements, name);
   if (!item) {
     return nullptr;
   }
-  JS::Rooted<JSObject*> wrapper(cx, nsWrapperCache::GetWrapper());
+  JSObject* wrapper = nsWrapperCache::GetWrapper();
   JSAutoCompartment ac(cx, wrapper);
-  JS::Rooted<JS::Value> v(cx);
-  if (!mozilla::dom::WrapObject(cx, wrapper, item, item, nullptr,
-                                v.address())) {
+  JS::Value v;
+  if (!mozilla::dom::WrapObject(cx, wrapper, item, item, nullptr, &v)) {
     error.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
@@ -357,7 +374,18 @@ HTMLOptionsCollection::Add(const HTMLOptionOrOptGroupElement& aElement,
                            const Nullable<HTMLElementOrLong>& aBefore,
                            ErrorResult& aError)
 {
-  mSelect->Add(aElement, aBefore, aError);
+  nsGenericHTMLElement& element =
+    aElement.IsHTMLOptionElement() ?
+    static_cast<nsGenericHTMLElement&>(aElement.GetAsHTMLOptionElement()) :
+    static_cast<nsGenericHTMLElement&>(aElement.GetAsHTMLOptGroupElement());
+
+  if (aBefore.IsNull()) {
+    mSelect->Add(element, (nsGenericHTMLElement*)nullptr, aError);
+  } else if (aBefore.Value().IsHTMLElement()) {
+    mSelect->Add(element, &aBefore.Value().GetAsHTMLElement(), aError);
+  } else {
+    mSelect->Add(element, aBefore.Value().GetAsLong(), aError);
+  }
 }
 
 void

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,6 +10,8 @@
 
 #include "assembler/wtf/Platform.h"
 #include "prmjtime.h"
+
+#if defined(JS_METHODJIT) || ENABLE_YARR_JIT
 
 namespace js {
 
@@ -33,26 +36,13 @@ enum JaegerSpewChannel {
     JSpew_Terminator
 };
 
-#ifdef JS_METHODJIT_SPEW
-
-void JMCheckLogging();
-bool IsJaegerSpewChannelActive(JaegerSpewChannel channel);
-
-#ifdef __GNUC__
-void JaegerSpew(JaegerSpewChannel channel, const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
-#else
-void JaegerSpew(JaegerSpewChannel channel, const char *fmt, ...);
+#if defined(DEBUG) && !defined(JS_METHODJIT_SPEW)
+# define JS_METHODJIT_SPEW
 #endif
 
-#else
-
-static inline void JMCheckLogging() {}
-static inline bool IsJaegerSpewChannelActive(JaegerSpewChannel channel) { return false; }
-static inline void JaegerSpew(JaegerSpewChannel channel, const char *fmt, ...) {}
-
-#endif // JS_METHODJIT_SPEW
-
 #if defined(JS_METHODJIT_SPEW)
+
+void JMCheckLogging();
 
 struct ConditionalLog {
     uint32_t oldBits;
@@ -60,6 +50,13 @@ struct ConditionalLog {
     ConditionalLog(bool logging);
     ~ConditionalLog();
 };
+
+bool IsJaegerSpewChannelActive(JaegerSpewChannel channel);
+#ifdef __GNUC__
+void JaegerSpew(JaegerSpewChannel channel, const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
+#else
+void JaegerSpew(JaegerSpewChannel channel, const char *fmt, ...);
+#endif
 
 struct Profiler {
     int64_t t_start;
@@ -86,8 +83,22 @@ struct Profiler {
     }
 };
 
-#endif // JS_METHODJIT_SPEW
+#else
 
-} // namespace js
+static inline bool IsJaegerSpewChannelActive(JaegerSpewChannel channel)
+{
+    return false;
+}
+
+static inline void JaegerSpew(JaegerSpewChannel channel, const char *fmt, ...)
+{
+}
 
 #endif
+
+}
+
+#endif
+
+#endif
+

@@ -11,15 +11,11 @@
 #include "nsIDOMEventListener.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/Nullable.h"
-#include "nsIAtom.h"
-
+#include "nsIDOMEvent.h"
 class nsDOMEvent;
 
 namespace mozilla {
 namespace dom {
-
-class EventListener;
-class EventHandlerNonNull;
 
 // IID for the dom::EventTarget interface
 #define NS_EVENTTARGET_IID \
@@ -36,34 +32,22 @@ public:
   using nsIDOMEventTarget::AddEventListener;
   using nsIDOMEventTarget::RemoveEventListener;
   using nsIDOMEventTarget::DispatchEvent;
-  virtual void AddEventListener(const nsAString& aType,
-                                nsIDOMEventListener* aCallback,
-                                bool aCapture,
-                                const Nullable<bool>& aWantsUntrusted,
-                                ErrorResult& aRv) = 0;
-  virtual void RemoveEventListener(const nsAString& aType,
-                                   nsIDOMEventListener* aCallback,
-                                   bool aCapture,
-                                   ErrorResult& aRv);
+  void AddEventListener(const nsAString& aType,
+                        nsIDOMEventListener* aCallback, // XXX nullable
+                        bool aCapture, const Nullable<bool>& aWantsUntrusted,
+                        mozilla::ErrorResult& aRv)
+  {
+    aRv = AddEventListener(aType, aCallback, aCapture,
+                           !aWantsUntrusted.IsNull() && aWantsUntrusted.Value(),
+                           aWantsUntrusted.IsNull() ? 1 : 2);
+  }
+  void RemoveEventListener(const nsAString& aType,
+                           nsIDOMEventListener* aCallback,
+                           bool aCapture, mozilla::ErrorResult& aRv)
+  {
+    aRv = RemoveEventListener(aType, aCallback, aCapture);
+  }
   bool DispatchEvent(nsDOMEvent& aEvent, ErrorResult& aRv);
-
-  EventHandlerNonNull* GetEventHandler(const nsAString& aType)
-  {
-    nsCOMPtr<nsIAtom> type = do_GetAtom(aType);
-    return GetEventHandler(type);
-  }
-
-  void SetEventHandler(const nsAString& aType, EventHandlerNonNull* aHandler,
-                       ErrorResult& rv)
-  {
-    nsCOMPtr<nsIAtom> type = do_GetAtom(aType);
-    return SetEventHandler(type, aHandler, rv);
-  }
-
-protected:
-  EventHandlerNonNull* GetEventHandler(nsIAtom* aType);
-  void SetEventHandler(nsIAtom* aType, EventHandlerNonNull* aHandler,
-                       ErrorResult& rv);
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(EventTarget, NS_EVENTTARGET_IID)

@@ -1,12 +1,11 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* JS reflection package. */
-
-#include "jsreflect.h"
 
 #include <stdlib.h>
 
@@ -14,9 +13,16 @@
 #include "mozilla/Util.h"
 
 #include "jspubtd.h"
-#include "jsarray.h"
 #include "jsatom.h"
 #include "jsobj.h"
+#include "jsreflect.h"
+#include "jsprf.h"
+#include "jsiter.h"
+#include "jsbool.h"
+#include "jsinferinlines.h"
+#include "jsobjinlines.h"
+#include "jsarray.h"
+#include "jsnum.h"
 
 #include "frontend/Parser.h"
 #include "frontend/ParseNode-inl.h"
@@ -24,7 +30,7 @@
 #include "js/CharacterEncoding.h"
 #include "vm/RegExpObject.h"
 
-#include "jsobjinlines.h"
+#include "jsscriptinlines.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -1482,7 +1488,7 @@ class ASTSerializer
     NodeBuilder         builder;
     DebugOnly<uint32_t> lineno;
 
-    Value unrootedAtomContents(JSAtom *atom) {
+    RawValue unrootedAtomContents(RawAtom atom) {
         return StringValue(atom ? atom : cx->names().empty);
     }
 
@@ -3089,7 +3095,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
     return JS_TRUE;
 }
 
-static const JSFunctionSpec static_methods[] = {
+static JSFunctionSpec static_methods[] = {
     JS_FN("parse", reflect_parse, 1, 0),
     JS_FS_END
 };

@@ -74,10 +74,10 @@ public:
   const PRUnichar* GetName() { return mName; }
 
   virtual nsresult InstallMember(JSContext* aCx,
-                                 JS::Handle<JSObject*> aTargetClassObject) = 0;
+                                 JSObject* aTargetClassObject) = 0;
   virtual nsresult CompileMember(nsIScriptContext* aContext,
                                  const nsCString& aClassStr,
-                                 JS::Handle<JSObject*> aClassObject) = 0;
+                                 JSObject* aClassObject) = 0;
 
   virtual void Trace(TraceCallback aCallback, void *aClosure) const = 0;
 

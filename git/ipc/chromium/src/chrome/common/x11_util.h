@@ -19,6 +19,11 @@ typedef struct _XDisplay Display;
 namespace base {
 class Thread;
 }
+
+namespace gfx {
+class Size;
+}
+
 namespace x11_util {
 
 // These functions use the GDK default display and this /must/ be called from

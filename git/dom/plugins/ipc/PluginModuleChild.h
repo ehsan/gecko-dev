@@ -160,9 +160,6 @@ protected:
     virtual bool
     RecvProcessNativeEventsInRPCCall() MOZ_OVERRIDE;
 
-    virtual bool
-    AnswerGeckoGetProfile(nsCString* aProfile);
-
 public:
     PluginModuleChild();
     virtual ~PluginModuleChild();

@@ -5,11 +5,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/layers/PLayerTransaction.h"
+#include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
-#include "mozilla/layers/LayerManagerComposite.h"
-#include "mozilla/layers/CompositorTypes.h"
-
+ 
 #include "gfxPlatform.h"
 
 #include "gfxSharedQuartzSurface.h"
@@ -20,10 +18,10 @@ namespace mozilla {
 namespace layers {
 
 bool
-ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
-                                                  gfxASurface::gfxContentType aContent,
-                                                  uint32_t aCaps,
-                                                  SurfaceDescriptor* aBuffer)
+ShadowLayerForwarder::PlatformAllocBuffer(const gfxIntSize& aSize,
+                                          gfxASurface::gfxContentType aContent,
+                                          uint32_t aCaps,
+                                          SurfaceDescriptor* aBuffer)
 {
   return false;
 }
@@ -74,30 +72,23 @@ ShadowLayerForwarder::PlatformSyncBeforeUpdate()
 }
 
 /*static*/ void
-LayerManagerComposite::PlatformSyncBeforeReplyUpdate()
+ShadowLayerManager::PlatformSyncBeforeReplyUpdate()
 {
 }
 
 bool
-ISurfaceAllocator::PlatformDestroySharedSurface(SurfaceDescriptor*)
+ShadowLayerManager::PlatformDestroySharedSurface(SurfaceDescriptor*)
 {
   return false;
 }
 
 /*static*/ already_AddRefed<TextureImage>
-LayerManagerComposite::OpenDescriptorForDirectTexturing(GLContext*,
-                                                        const SurfaceDescriptor&,
-                                                        GLenum)
+ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext*,
+                                                     const SurfaceDescriptor&,
+                                                     GLenum)
 {
   return nullptr;
 }
-
-/*static*/ bool
-LayerManagerComposite::SupportsDirectTexturing()
-{
-  return false;
-}
-
 
 } // namespace layers
 } // namespace mozilla

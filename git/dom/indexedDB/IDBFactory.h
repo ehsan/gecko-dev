@@ -64,7 +64,7 @@ public:
   // Called when using IndexedDB from a JS component or a JSM in the current
   // process.
   static nsresult Create(JSContext* aCx,
-                         JS::Handle<JSObject*> aOwningObject,
+                         JSObject* aOwningObject,
                          ContentParent* aContentParent,
                          IDBFactory** aFactory);
 
@@ -79,9 +79,6 @@ public:
   static already_AddRefed<mozIStorageConnection>
   GetConnection(const nsAString& aDatabaseFilePath,
                 const nsACString& aOrigin);
-
-  static nsresult
-  SetDefaultPragmas(mozIStorageConnection* aConnection);
 
   static nsresult
   LoadDatabaseInformation(mozIStorageConnection* aConnection,
@@ -139,8 +136,8 @@ public:
     return mWindow;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject*
+  WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   // WebIDL
   already_AddRefed<nsIIDBOpenDBRequest>
@@ -158,8 +155,7 @@ public:
   }
 
   int16_t
-  Cmp(JSContext* aCx, JS::Handle<JS::Value> aFirst,
-      JS::Handle<JS::Value> aSecond, ErrorResult& aRv);
+  Cmp(JSContext* aCx, JS::Value aFirst, JS::Value aSecond, ErrorResult& aRv);
 
   already_AddRefed<nsIIDBOpenDBRequest>
   OpenForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,

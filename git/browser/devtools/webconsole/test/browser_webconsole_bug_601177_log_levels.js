@@ -35,7 +35,7 @@ function performTest()
   findEntry(HUD, "hud-jswarn", "foobarBug601177strictError",
             "found strict error");
 
-  executeSoon(finishTest);
+  finishTest();
 }
 
 function findEntry(aHUD, aClass, aString, aMessage)

@@ -1,8 +1,8 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef StringBuffer_h___
 #define StringBuffer_h___
@@ -13,6 +13,9 @@
 #include "jscntxt.h"
 
 #include "js/Vector.h"
+
+ForwardDeclareJS(Atom);
+ForwardDeclareJS(FlatString);
 
 namespace js {
 
@@ -86,10 +89,10 @@ class StringBuffer
      * Creates a string from the characters in this buffer, then (regardless
      * whether string creation succeeded or failed) empties the buffer.
      */
-    JSFlatString *finishString();
+    js::RawFlatString finishString();
 
     /* Identical to finishString() except that an atom is created. */
-    JSAtom *finishAtom();
+    js::RawAtom finishAtom();
 
     /*
      * Creates a raw string from the characters in this buffer.  The string is

@@ -455,9 +455,3 @@ nsDOMCameraControl::Shutdown()
   DOM_CAMERA_LOGI("%s:%d\n", __func__, __LINE__);
   mCameraControl->Shutdown();
 }
-
-nsRefPtr<ICameraControl>
-nsDOMCameraControl::GetNativeCameraControl()
-{
-  return mCameraControl;
-}

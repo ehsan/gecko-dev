@@ -19,14 +19,12 @@
 #include "nsIDOMElement.h"
 #include "nsCOMArray.h"
 #include "nsThreadUtils.h"
-#include "nsIGlobalObject.h"
-#include "nsWeakReference.h"
 
 class nsInProcessTabChildGlobal : public nsDOMEventTargetHelper,
                                   public nsFrameScriptExecutor,
                                   public nsIInProcessContentFrameMessageManager,
-                                  public nsIGlobalObject,
-                                  public nsSupportsWeakReference,
+                                  public nsIScriptObjectPrincipal,
+                                  public nsIScriptContextPrincipal,
                                   public mozilla::dom::ipc::MessageManagerCallback
 {
 public:
@@ -90,8 +88,8 @@ public:
                                                     aWantsUntrusted,
                                                     optional_argc);
   }
-  using nsDOMEventTargetHelper::AddEventListener;
 
+  virtual nsIScriptObjectPrincipal* GetObjectPrincipal() { return this; }
   virtual JSContext* GetJSContextForEventHandlers() { return mCx; }
   virtual nsIPrincipal* GetPrincipal() { return mPrincipal; }
   void LoadFrameScript(const nsAString& aURL);
@@ -115,17 +113,6 @@ public:
   }
 
   void DelayedDisconnect();
-
-  virtual JSObject* GetGlobalJSObject() {
-    if (!mGlobal) {
-      return nullptr;
-    }
-
-    JSObject* global;
-    mGlobal->GetJSObject(&global);
-
-    return global;
-  }
 protected:
   nsresult Init();
   nsresult InitTabChildGlobal();

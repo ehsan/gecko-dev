@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -76,30 +77,6 @@ BlockMightReach(MBasicBlock *src, MBasicBlock *dest)
     return false;
 }
 
-static void
-IonSpewDependency(MDefinition *load, MDefinition *store, const char *verb, const char *reason)
-{
-    if (!IonSpewEnabled(IonSpew_Alias))
-        return;
-
-    fprintf(IonSpewFile, "Load ");
-    load->printName(IonSpewFile);
-    fprintf(IonSpewFile, " %s on store ", verb);
-    store->printName(IonSpewFile);
-    fprintf(IonSpewFile, " (%s)\n", reason);
-}
-
-static void
-IonSpewAliasInfo(const char *pre, MDefinition *ins, const char *post)
-{
-    if (!IonSpewEnabled(IonSpew_Alias))
-        return;
-
-    fprintf(IonSpewFile, "%s ", pre);
-    ins->printName(IonSpewFile);
-    fprintf(IonSpewFile, " %s\n", post);
-}
-
 // This pass annotates every load instruction with the last store instruction
 // on which it depends. The algorithm is optimistic in that it ignores explicit
 // dependencies and only considers loads and stores.
@@ -153,11 +130,7 @@ AliasAnalysis::analyze()
                         return false;
                 }
 
-                if (IonSpewEnabled(IonSpew_Alias)) {
-                    fprintf(IonSpewFile, "Processing store ");
-                    def->printName(IonSpewFile);
-                    fprintf(IonSpewFile, " (flags %x)\n", set.flags());
-                }
+                IonSpew(IonSpew_Alias, "Processing store %d (flags %x)", def->id(), set.flags());
             } else {
                 // Find the most recent store on which this instruction depends.
                 MDefinition *lastStore = firstIns;
@@ -175,7 +148,7 @@ AliasAnalysis::analyze()
                 }
 
                 def->setDependency(lastStore);
-                IonSpewDependency(*def, lastStore, "depends", "");
+                IonSpew(IonSpew_Alias, "Load %d depends on store %d", def->id(), lastStore->id());
 
                 // If the last store was before the current loop, we assume this load
                 // is loop invariant. If a later instruction writes to the same location,
@@ -210,7 +183,6 @@ AliasAnalysis::analyze()
                             break;
                         if (ins->mightAlias(store)) {
                             hasAlias = true;
-                            IonSpewDependency(ins, store, "aliases", "store in loop body");
                             break;
                         }
                     }
@@ -223,13 +195,15 @@ AliasAnalysis::analyze()
                     // dependency on the last instruction of the loop header. The last instruction is a
                     // control instruction and these are never hoisted.
                     MControlInstruction *controlIns = loop_->loopHeader()->lastIns();
-                    IonSpewDependency(ins, controlIns, "depends", "due to stores in loop body");
+                    IonSpew(IonSpew_Alias, "Load %d depends on %d (due to stores in loop body)",
+                            ins->id(), controlIns->id());
                     ins->setDependency(controlIns);
                 } else {
-                    IonSpewAliasInfo("Load", ins, "does not depend on any stores in this loop");
+                    IonSpew(IonSpew_Alias, "Load %d does not depend on any stores in this loop",
+                            ins->id());
 
                     if (outerLoop && ins->dependency()->id() < outerLoop->firstInstruction()->id()) {
-                        IonSpewAliasInfo("Load", ins, "may be invariant in outer loop");
+                        IonSpew(IonSpew_Alias, "Load %d may be invariant in outer loop", ins->id());
                         if (!outerLoop->addInvariantLoad(ins))
                             return false;
                     }

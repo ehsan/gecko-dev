@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -107,7 +108,6 @@ static const uint32_t BAILOUT_RETURN_BOUNDS_CHECK = 5;
 static const uint32_t BAILOUT_RETURN_SHAPE_GUARD = 6;
 static const uint32_t BAILOUT_RETURN_OVERRECURSED = 7;
 static const uint32_t BAILOUT_RETURN_CACHED_SHAPE_GUARD = 8;
-static const uint32_t BAILOUT_RETURN_BASELINE = 9;
 
 // Attached to the compartment for easy passing through from ::Bailout to
 // ::ThunkToInterpreter.
@@ -203,16 +203,13 @@ class IonBailoutIterator : public IonFrameIterator
     void dump() const;
 };
 
-bool EnsureHasScopeObjects(JSContext *cx, AbstractFramePtr fp);
-
-struct BaselineBailoutInfo;
+bool EnsureHasScopeObjects(JSContext *cx, StackFrame *fp);
 
 // Called from a bailout thunk. Returns a BAILOUT_* error code.
-uint32_t Bailout(BailoutStack *sp, BaselineBailoutInfo **info);
+uint32_t Bailout(BailoutStack *sp);
 
 // Called from the invalidation thunk. Returns a BAILOUT_* error code.
-uint32_t InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut,
-                             BaselineBailoutInfo **info);
+uint32_t InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut);
 
 // Called from a bailout thunk. Interprets the frame(s) that have been bailed
 // out.
@@ -225,10 +222,6 @@ uint32_t BoundsCheckFailure();
 uint32_t ShapeGuardFailure();
 
 uint32_t CachedShapeGuardFailure();
-
-uint32_t FinishBailoutToBaseline(BaselineBailoutInfo *bailoutInfo);
-
-bool CheckFrequentBailouts(JSContext *cx, JSScript *script);
 
 } // namespace ion
 } // namespace js

@@ -19,7 +19,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/ExternalHelperAppChild.h"
 #include "mozilla/dom/PCrashReporterChild.h"
-#include "mozilla/dom/DOMStorageIPC.h"
+#include "mozilla/dom/StorageChild.h"
 #include "mozilla/Hal.h"
 #include "mozilla/hal_sandbox/PHalChild.h"
 #include "mozilla/ipc/GeckoChildProcessHost.h"
@@ -48,7 +48,6 @@
 #include "nsJSEnvironment.h"
 #include "SandboxHal.h"
 #include "nsDebugImpl.h"
-#include "nsHashPropertyBag.h"
 #include "nsLayoutStylesheetCache.h"
 
 #include "IHistory.h"
@@ -93,10 +92,6 @@
 #include "mozilla/dom/devicestorage/DeviceStorageRequestChild.h"
 #include "mozilla/dom/bluetooth/PBluetoothChild.h"
 #include "mozilla/ipc/InputStreamUtils.h"
-
-#ifdef MOZ_WEBSPEECH
-#include "mozilla/dom/PSpeechSynthesisChild.h"
-#endif
 
 #include "nsDOMFile.h"
 #include "nsIRemoteBlob.h"
@@ -495,14 +490,14 @@ ContentChild::DeallocPMemoryReportRequest(PMemoryReportRequestChild* actor)
 }
 
 bool
-ContentChild::RecvDumpMemoryInfoToTempDir(const nsString& aIdentifier,
+ContentChild::RecvDumpMemoryReportsToFile(const nsString& aIdentifier,
                                           const bool& aMinimizeMemoryUsage,
                                           const bool& aDumpChildProcesses)
 {
     nsCOMPtr<nsIMemoryInfoDumper> dumper = do_GetService("@mozilla.org/memory-info-dumper;1");
 
-    dumper->DumpMemoryInfoToTempDir(aIdentifier, aMinimizeMemoryUsage,
-                                    aDumpChildProcesses);
+    dumper->DumpMemoryReportsToFile(
+        aIdentifier, aMinimizeMemoryUsage, aDumpChildProcesses);
     return true;
 }
 
@@ -572,6 +567,12 @@ ContentChild::RecvPBrowserConstructor(PBrowserChild* actor,
 {
     // This runs after AllocPBrowser() returns and the IPC machinery for this
     // PBrowserChild has been set up.
+    //
+    // We have to NotifyObservers("tab-child-created") before we
+    // TemporarilyLockProcessPriority because the NotifyObservers call may cause
+    // us to initialize the ProcessPriorityManager, and
+    // TemporarilyLockProcessPriority only works after the
+    // ProcessPriorityManager has been initialized.
 
     nsCOMPtr<nsIObserverService> os = services::GetObserverService();
     if (os) {
@@ -587,6 +588,13 @@ ContentChild::RecvPBrowserConstructor(PBrowserChild* actor,
         MOZ_ASSERT(!sFirstIdleTask);
         sFirstIdleTask = NewRunnableFunction(FirstIdle);
         MessageLoop::current()->PostIdleTask(FROM_HERE, sFirstIdleTask);
+
+        // We are either a brand-new process loading its first PBrowser, or we
+        // are the preallocated process transforming into a particular
+        // app/browser.  Either way, our parent has already set our process
+        // priority, and we want to leave it there for a few seconds while we
+        // start up.
+        TemporarilyLockProcessPriority();
     }
 
     return true;
@@ -827,7 +835,7 @@ ContentChild::DeallocPSms(PSmsChild* aSms)
 }
 
 PStorageChild*
-ContentChild::AllocPStorage()
+ContentChild::AllocPStorage(const StorageConstructData& aData)
 {
     NS_NOTREACHED("We should never be manually allocating PStorageChild actors");
     return nullptr;
@@ -836,7 +844,7 @@ ContentChild::AllocPStorage()
 bool
 ContentChild::DeallocPStorage(PStorageChild* aActor)
 {
-    DOMStorageDBChild* child = static_cast<DOMStorageDBChild*>(aActor);
+    StorageChild* child = static_cast<StorageChild*>(aActor);
     child->ReleaseIPDLReference();
     return true;
 }
@@ -861,28 +869,6 @@ ContentChild::DeallocPBluetooth(PBluetoothChild* aActor)
     return true;
 #else
     MOZ_NOT_REACHED("No support for bluetooth on this platform!");
-    return false;
-#endif
-}
-
-PSpeechSynthesisChild*
-ContentChild::AllocPSpeechSynthesis()
-{
-#ifdef MOZ_WEBSPEECH
-    MOZ_NOT_REACHED("No one should be allocating PSpeechSynthesisChild actors");
-    return nullptr;
-#else
-    return nullptr;
-#endif
-}
-
-bool
-ContentChild::DeallocPSpeechSynthesis(PSpeechSynthesisChild* aActor)
-{
-#ifdef MOZ_WEBSPEECH
-    delete aActor;
-    return true;
-#else
     return false;
 #endif
 }
@@ -1162,12 +1148,12 @@ ContentChild::RecvLastPrivateDocShellDestroyed()
 }
 
 bool
-ContentChild::RecvFilePathUpdate(const nsString& aStorageType,
-                                 const nsString& aStorageName,
-                                 const nsString& aPath,
-                                 const nsCString& aReason)
+ContentChild::RecvFilePathUpdate(const nsString& type, const nsString& path, const nsCString& aReason)
 {
-    nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(aStorageType, aStorageName, aPath);
+    nsCOMPtr<nsIFile> file;
+    NS_NewLocalFile(path, false, getter_AddRefs(file));
+
+    nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(type, file);
 
     nsString reason;
     CopyASCIItoUTF16(aReason, reason);
@@ -1178,12 +1164,12 @@ ContentChild::RecvFilePathUpdate(const nsString& aStorageType,
 
 bool
 ContentChild::RecvFileSystemUpdate(const nsString& aFsName,
-                                   const nsString& aVolumeName,
+                                   const nsString& aName,
                                    const int32_t& aState,
                                    const int32_t& aMountGeneration)
 {
 #ifdef MOZ_WIDGET_GONK
-    nsRefPtr<nsVolume> volume = new nsVolume(aFsName, aVolumeName, aState,
+    nsRefPtr<nsVolume> volume = new nsVolume(aFsName, aName, aState,
                                              aMountGeneration);
 
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -1192,62 +1178,10 @@ ContentChild::RecvFileSystemUpdate(const nsString& aFsName,
 #else
     // Remove warnings about unused arguments
     unused << aFsName;
-    unused << aVolumeName;
+    unused << aName;
     unused << aState;
     unused << aMountGeneration;
 #endif
-    return true;
-}
-
-bool
-ContentChild::RecvNotifyProcessPriorityChanged(
-    const hal::ProcessPriority& aPriority)
-{
-    nsCOMPtr<nsIObserverService> os = services::GetObserverService();
-    NS_ENSURE_TRUE(os, true);
-
-    nsRefPtr<nsHashPropertyBag> props = new nsHashPropertyBag();
-    props->Init();
-    props->SetPropertyAsInt32(NS_LITERAL_STRING("priority"),
-                              static_cast<int32_t>(aPriority));
-
-    os->NotifyObservers(static_cast<nsIPropertyBag2*>(props),
-                        "ipc:process-priority-changed",  nullptr);
-    return true;
-}
-
-bool
-ContentChild::RecvMinimizeMemoryUsage()
-{
-    nsCOMPtr<nsIMemoryReporterManager> mgr =
-        do_GetService("@mozilla.org/memory-reporter-manager;1");
-    NS_ENSURE_TRUE(mgr, true);
-
-    nsCOMPtr<nsICancelableRunnable> runnable =
-        do_QueryReferent(mMemoryMinimizerRunnable);
-
-    // Cancel the previous task if it's still pending.
-    if (runnable) {
-        runnable->Cancel();
-        runnable = nullptr;
-    }
-
-    mgr->MinimizeMemoryUsage(/* callback = */ nullptr,
-                             getter_AddRefs(runnable));
-    mMemoryMinimizerRunnable = do_GetWeakReference(runnable);
-    return true;
-}
-
-bool
-ContentChild::RecvCancelMinimizeMemoryUsage()
-{
-    nsCOMPtr<nsICancelableRunnable> runnable =
-        do_QueryReferent(mMemoryMinimizerRunnable);
-    if (runnable) {
-        runnable->Cancel();
-        mMemoryMinimizerRunnable = nullptr;
-    }
-
     return true;
 }
 

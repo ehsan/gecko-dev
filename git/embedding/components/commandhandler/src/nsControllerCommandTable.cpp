@@ -70,7 +70,7 @@ nsControllerCommandTable::FindCommandHandler(const char * aCommandName, nsIContr
 {
   NS_ENSURE_ARG_POINTER(outCommand);
   
-  *outCommand = nullptr;
+  *outCommand = NULL;
   
   nsCStringKey commandKey(aCommandName);
   nsISupports* foundCommand = mCommandsTable.Get(&commandKey);
@@ -163,7 +163,8 @@ nsControllerCommandTable::DoCommandParams(const char *aCommandName, nsICommandPa
 {
   // find the command  
   nsCOMPtr<nsIControllerCommand> commandHandler;
-  FindCommandHandler(aCommandName, getter_AddRefs(commandHandler));
+  nsresult rv;
+  rv = FindCommandHandler(aCommandName, getter_AddRefs(commandHandler));
   if (!commandHandler)
   {
 #if DEBUG
@@ -180,7 +181,8 @@ nsControllerCommandTable::GetCommandState(const char *aCommandName, nsICommandPa
 {
   // find the command  
   nsCOMPtr<nsIControllerCommand> commandHandler;
-  FindCommandHandler(aCommandName, getter_AddRefs(commandHandler));
+  nsresult rv;
+  rv = FindCommandHandler(aCommandName, getter_AddRefs(commandHandler));
   if (!commandHandler)
   {
 #if DEBUG

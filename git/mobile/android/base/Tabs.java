@@ -20,7 +20,6 @@ import android.database.ContentObserver;
 import android.graphics.Color;
 import android.net.Uri;
 import android.util.Log;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -85,8 +84,7 @@ public class Tabs implements GeckoEventListener {
         registerEventListener("Content:PageShow");
         registerEventListener("DOMContentLoaded");
         registerEventListener("DOMTitleChanged");
-        registerEventListener("Link:Favicon");
-        registerEventListener("Link:Feed");
+        registerEventListener("DOMLinkAdded");
         registerEventListener("DesktopMode:Changed");
     }
 
@@ -153,15 +151,6 @@ public class Tabs implements GeckoEventListener {
             }
         }
         return count;
-    }
-
-    public synchronized int isOpen(String url) {
-        for (Tab tab : mOrder) {
-            if (tab.getURL().equals(url)) {
-                return tab.getId();
-            }
-        }
-        return -1;
     }
 
     // Must be synchronized to avoid racing on mContentObserver.
@@ -452,12 +441,9 @@ public class Tabs implements GeckoEventListener {
                 notifyListeners(tab, Tabs.TabEvents.LOADED);
             } else if (event.equals("DOMTitleChanged")) {
                 tab.updateTitle(message.getString("title"));
-            } else if (event.equals("Link:Favicon")) {
+            } else if (event.equals("DOMLinkAdded")) {
                 tab.updateFaviconURL(message.getString("href"), message.getInt("size"));
-                notifyListeners(tab, TabEvents.LINK_FAVICON);
-            } else if (event.equals("Link:Feed")) {
-                tab.setFeedsEnabled(true);
-                notifyListeners(tab, TabEvents.LINK_FEED);
+                notifyListeners(tab, TabEvents.LINK_ADDED);
             } else if (event.equals("DesktopMode:Changed")) {
                 tab.setDesktopMode(message.getBoolean("desktopMode"));
                 notifyListeners(tab, TabEvents.DESKTOP_MODE_CHANGE);
@@ -510,8 +496,7 @@ public class Tabs implements GeckoEventListener {
         LOCATION_CHANGE,
         MENU_UPDATED,
         PAGE_SHOW,
-        LINK_FAVICON,
-        LINK_FEED,
+        LINK_ADDED,
         SECURITY_CHANGE,
         READER_ENABLED,
         DESKTOP_MODE_CHANGE

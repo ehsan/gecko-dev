@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -200,7 +201,7 @@ EscapeNakedForwardSlashes(JSContext *cx, HandleAtom unescaped)
             return NULL;
     }
 
-    return sb.empty() ? (JSAtom *)unescaped : sb.finishAtom();
+    return sb.empty() ? RawAtom(unescaped) : sb.finishAtom();
 }
 
 /*
@@ -366,7 +367,7 @@ regexp_toString_impl(JSContext *cx, CallArgs args)
 {
     JS_ASSERT(IsRegExp(args.thisv()));
 
-    JSString *str = args.thisv().toObject().asRegExp().toString(cx);
+    RawString str = args.thisv().toObject().asRegExp().toString(cx);
     if (!str)
         return false;
 
@@ -381,7 +382,7 @@ regexp_toString(JSContext *cx, unsigned argc, Value *vp)
     return CallNonGenericMethod<IsRegExp, regexp_toString_impl>(cx, args);
 }
 
-static const JSFunctionSpec regexp_methods[] = {
+static JSFunctionSpec regexp_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,  regexp_toString,    0,0),
 #endif
@@ -455,7 +456,7 @@ const uint8_t RO_REGEXP_STATIC_PROP_ATTRS = REGEXP_STATIC_PROP_ATTRS | JSPROP_RE
 const uint8_t HIDDEN_PROP_ATTRS = JSPROP_PERMANENT | JSPROP_SHARED;
 const uint8_t RO_HIDDEN_PROP_ATTRS = HIDDEN_PROP_ATTRS | JSPROP_READONLY;
 
-static const JSPropertySpec regexp_static_props[] = {
+static JSPropertySpec regexp_static_props[] = {
     {"input",        0, REGEXP_STATIC_PROP_ATTRS,    JSOP_WRAPPER(static_input_getter),
                                                      JSOP_WRAPPER(static_input_setter)},
     {"multiline",    0, REGEXP_STATIC_PROP_ATTRS,    JSOP_WRAPPER(static_multiline_getter),

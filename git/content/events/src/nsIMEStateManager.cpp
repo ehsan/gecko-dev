@@ -484,12 +484,8 @@ nsIMEStateManager::SetIMEState(const IMEState &aState,
   if (aContent && aContent->GetNameSpaceID() == kNameSpaceID_XHTML &&
       (aContent->Tag() == nsGkAtoms::input ||
        aContent->Tag() == nsGkAtoms::textarea)) {
-    if (aContent->Tag() != nsGkAtoms::textarea) {
-      aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type,
-                        context.mHTMLInputType);
-    } else {
-      context.mHTMLInputType.Assign(nsGkAtoms::textarea->GetUTF16String());
-    }
+    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type,
+                      context.mHTMLInputType);
 
     if (Preferences::GetBool("dom.forms.inputmode", false)) {
       aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::inputmode,

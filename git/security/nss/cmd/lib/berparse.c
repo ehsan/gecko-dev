@@ -18,8 +18,8 @@ typedef struct {
 } ParseStackElem;
 
 struct BERParseStr {
-    PLArenaPool *his;
-    PLArenaPool *mine;
+    PRArenaPool *his;
+    PRArenaPool *mine;
     ParseProc proc;
     int stackDepth;
     ParseStackElem *stackPtr;
@@ -299,10 +299,10 @@ SECStatus BER_ParseSome(BERParse *h, unsigned char *buf, int len)
     }
     return PR_FALSE;
 }
-BERParse *BER_ParseInit(PLArenaPool *arena, PRBool derOnly)
+BERParse *BER_ParseInit(PRArenaPool *arena, PRBool derOnly)
 {
     BERParse *h;
-    PLArenaPool *temp = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+    PRArenaPool *temp = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
     if (temp == NULL) {
 	PORT_SetError(SEC_ERROR_NO_MEMORY);
 	return NULL;
@@ -332,7 +332,7 @@ BERParse *BER_ParseInit(PLArenaPool *arena, PRBool derOnly)
 
 SECArb *BER_ParseFini(BERParse *h)
 {
-    PLArenaPool *myArena = h->mine;
+    PRArenaPool *myArena = h->mine;
     SECArb *arb;
 
     if (h->state != parseComplete) {

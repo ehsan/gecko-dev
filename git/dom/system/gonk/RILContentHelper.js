@@ -17,10 +17,9 @@
 
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
-Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
-Cu.import("resource://gre/modules/ObjectWrapper.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
 
 var RIL = {};
 Cu.import("resource://gre/modules/ril_consts.js", RIL);
@@ -78,14 +77,11 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:DataError",
   "RIL:SetCallForwardingOption",
   "RIL:GetCallForwardingOption",
-  "RIL:SetCallWaitingOption",
-  "RIL:GetCallWaitingOption",
   "RIL:CellBroadcastReceived",
   "RIL:CfStateChanged",
   "RIL:IccOpenChannel",
   "RIL:IccCloseChannel",
   "RIL:IccExchangeAPDU",
-  "RIL:ReadIccContacts",
   "RIL:UpdateIccContact"
 ];
 
@@ -314,7 +310,6 @@ CellBroadcastEtwsInfo.prototype = {
 function RILContentHelper() {
   this.rilContext = {
     cardState:            RIL.GECKO_CARDSTATE_UNKNOWN,
-    retryCount:           0,
     networkSelectionMode: RIL.GECKO_NETWORK_SELECTION_UNKNOWN,
     iccInfo:              new MobileICCInfo(),
     voiceConnectionInfo:  new MobileConnectionInfo(),
@@ -324,7 +319,6 @@ function RILContentHelper() {
 
   this.initRequests();
   this.initMessageListener(RIL_IPC_MSG_NAMES);
-  this._windowsMap = [],
   Services.obs.addObserver(this, "xpcom-shutdown", false);
 }
 
@@ -387,8 +381,6 @@ RILContentHelper.prototype = {
     this.updateInfo(srcNetwork, network);
  },
 
-  _windowsMap: null,
-
   // nsIRILContentHelper
 
   rilContext: null,
@@ -407,7 +399,6 @@ RILContentHelper.prototype = {
       return;
     }
     this.rilContext.cardState = rilContext.cardState;
-    this.rilContext.retryCount = rilContext.retryCount;
     this.rilContext.networkSelectionMode = rilContext.networkSelectionMode;
     this.updateInfo(rilContext.iccInfo, this.rilContext.iccInfo);
     this.updateConnectionInfo(rilContext.voice, this.rilContext.voiceConnectionInfo);
@@ -417,33 +408,23 @@ RILContentHelper.prototype = {
   },
 
   get iccInfo() {
-    let context = this.getRilContext();
-    return context && context.iccInfo;
+    return this.getRilContext().iccInfo;
   },
 
   get voiceConnectionInfo() {
-    let context = this.getRilContext();
-    return context && context.voiceConnectionInfo;
+    return this.getRilContext().voiceConnectionInfo;
   },
 
   get dataConnectionInfo() {
-    let context = this.getRilContext();
-    return context && context.dataConnectionInfo;
+    return this.getRilContext().dataConnectionInfo;
   },
 
   get cardState() {
-    let context = this.getRilContext();
-    return context && context.cardState;
-  },
-
-  get retryCount() {
-    let context = this.getRilContext();
-    return context && context.retryCount;
+    return this.getRilContext().cardState;
   },
 
   get networkSelectionMode() {
-    let context = this.getRilContext();
-    return context && context.networkSelectionMode;
+    return this.getRilContext().networkSelectionMode;
   },
 
   /**
@@ -679,21 +660,6 @@ RILContentHelper.prototype = {
     return request;
   },
 
-  readContacts: function readContacts(window, contactType) {
-    if (window == null) {
-      throw Components.Exception("Can't get window object",
-                                  Cr.NS_ERROR_UNEXPECTED);
-    }
-
-    let request = Services.DOMRequest.createRequest(window);
-    let requestId = this.getRequestId(request);
-    this._windowsMap[requestId] = window;
-
-    cpmm.sendAsyncMessage("RIL:ReadIccContacts", {requestId: requestId,
-                                                  contactType: contactType});
-    return request;
-  },
-
   updateContact: function updateContact(window, contactType, contact, pin2) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
@@ -712,14 +678,6 @@ RILContentHelper.prototype = {
 
     if (contact.tel) {
       iccContact.number = contact.tel[0].value;
-    }
-
-    if (contact.email) {
-      iccContact.email = contact.email[0].value;
-    }
-
-    if (contact.tel.length > 1) {
-      iccContact.anr = contact.tel.slice(1);
     }
 
     cpmm.sendAsyncMessage("RIL:UpdateIccContact", {requestId: requestId,
@@ -773,37 +731,6 @@ RILContentHelper.prototype = {
       reason: cfInfo.reason,
       number: cfInfo.number,
       timeSeconds: cfInfo.timeSeconds
-    });
-
-    return request;
-  },
-
-  getCallWaitingOption: function getCallWaitingOption(window) {
-    if (window == null) {
-      throw Components.Exception("Can't get window object",
-                                  Cr.NS_ERROR_UNEXPECTED);
-    }
-    let request = Services.DOMRequest.createRequest(window);
-    let requestId = this.getRequestId(request);
-
-    cpmm.sendAsyncMessage("RIL:GetCallWaitingOption", {
-      requestId: requestId
-    });
-
-    return request;
-  },
-
-  setCallWaitingOption: function setCallWaitingOption(window, enabled) {
-    if (window == null) {
-      throw Components.Exception("Can't get window object",
-                                  Cr.NS_ERROR_UNEXPECTED);
-    }
-    let request = Services.DOMRequest.createRequest(window);
-    let requestId = this.getRequestId(request);
-
-    cpmm.sendAsyncMessage("RIL:SetCallWaitingOption", {
-      requestId: requestId,
-      enabled: enabled
     });
 
     return request;
@@ -1057,7 +984,6 @@ RILContentHelper.prototype = {
     debug("Received message '" + msg.name + "': " + JSON.stringify(msg.json));
     switch (msg.name) {
       case "RIL:CardStateChanged":
-        this.rilContext.retryCount = msg.json.retryCount;
         if (this.rilContext.cardState != msg.json.cardState) {
           this.rilContext.cardState = msg.json.cardState;
           this._deliverEvent("_mobileConnectionListeners",
@@ -1103,8 +1029,7 @@ RILContentHelper.prototype = {
         this._deliverEvent("_telephonyListeners",
                            "callStateChanged",
                            [msg.json.callIndex, msg.json.state,
-                            msg.json.number, msg.json.isActive,
-                            msg.json.isOutgoing]);
+                            msg.json.number, msg.json.isActive]);
         break;
       case "RIL:CallError":
         this._deliverEvent("_telephonyListeners",
@@ -1165,9 +1090,6 @@ RILContentHelper.prototype = {
       case "RIL:IccExchangeAPDU":
         this.handleIccExchangeAPDU(msg.json);
         break;
-      case "RIL:ReadIccContacts":
-        this.handleReadIccContacts(msg.json);
-        break;
       case "RIL:UpdateIccContact":
         this.handleUpdateIccContact(msg.json);
         break;
@@ -1181,12 +1103,6 @@ RILContentHelper.prototype = {
         break;
       case "RIL:SetCallForwardingOption":
         this.handleSetCallForwardingOption(msg.json);
-        break;
-      case "RIL:GetCallWaitingOption":
-        this.handleGetCallWaitingOption(msg.json);
-        break;
-      case "RIL:SetCallWaitingOption":
-        this.handleSetCallWaitingOption(msg.json);
         break;
       case "RIL:CfStateChanged":
         this._deliverEvent("_mobileConnectionListeners",
@@ -1213,7 +1129,7 @@ RILContentHelper.prototype = {
       try {
         keepGoing =
           callback.enumerateCallState(call.callIndex, call.state, call.number,
-                                      call.isActive, call.isOutgoing);
+                                      call.isActive);
       } catch (e) {
         debug("callback handler for 'enumerateCallState' threw an " +
               " exception: " + e);
@@ -1288,38 +1204,6 @@ RILContentHelper.prototype = {
     }
   },
 
-  handleReadIccContacts: function handleReadIccContacts(message) {
-    if (message.errorMsg) {
-      this.fireRequestError(message.requestId, message.errorMsg);
-      return;
-    }
-
-    let window = this._windowsMap[message.requestId];
-    delete this._windowsMap[message.requestId];
-    let contacts = message.contacts;
-    let result = contacts.map(function(c) {
-      let contact = Cc["@mozilla.org/contact;1"].createInstance(Ci.nsIDOMContact);
-      let prop = {name: [c.alphaId], tel: [{value: c.number}]};
-
-      if (c.email) {
-        prop.email = [{value: c.email}];
-      }
-
-      // ANR - Additional Number
-      let anrLen = c.anr ? c.anr.length : 0;
-      for (let i = 0; i < anrLen; i++) {
-        prop.tel.push({value: c.anr[i]});
-      }
-
-      contact.init(prop);
-      return contact;
-    });
-
-    let request = this.getRequest(message.requestId);
-    this.fireRequestSuccess(message.requestId,
-                            ObjectWrapper.wrap(result, window));
-  },
-
   handleUpdateIccContact: function handleUpdateIccContact(message) {
     if (message.errorMsg) {
       this.fireRequestError(message.requestId, message.errorMsg);
@@ -1342,9 +1226,6 @@ RILContentHelper.prototype = {
     if (this.voicemailStatus.messageCount != message.msgCount) {
       changed = true;
       this.voicemailStatus.messageCount = message.msgCount;
-    } else if (message.msgCount == -1) {
-      // For MWI using DCS the message count is not available
-      changed = true;
     }
 
     if (this.voicemailStatus.returnNumber != message.returnNumber) {
@@ -1390,34 +1271,6 @@ RILContentHelper.prototype = {
   },
 
   handleSetCallForwardingOption: function handleSetCallForwardingOption(message) {
-    let requestId = message.requestId;
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      return;
-    }
-
-    if (!message.success) {
-      Services.DOMRequest.fireError(request, message.errorMsg);
-      return;
-    }
-    Services.DOMRequest.fireSuccess(request, null);
-  },
-
-  handleGetCallWaitingOption: function handleGetCallWaitingOption(message) {
-    let requestId = message.requestId;
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      return;
-    }
-
-    if (!message.success) {
-      Services.DOMRequest.fireError(request, message.errorMsg);
-      return;
-    }
-    Services.DOMRequest.fireSuccess(request, message.enabled);
-  },
-
-  handleSetCallWaitingOption: function handleSetCallWaitingOption(message) {
     let requestId = message.requestId;
     let request = this.takeRequest(requestId);
     if (!request) {

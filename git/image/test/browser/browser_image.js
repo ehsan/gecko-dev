@@ -58,8 +58,7 @@ function testBFCache() {
       gTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
       gTimer.initWithCallback(function() {
         // Might have a few stray frames, until other page totally loads
-        var additionalFrames = gImage.framesNotified  - gFrames;
-        is(additionalFrames == 0, true, "Must have not animated in bfcache! Got " + additionalFrames + " additional frames");
+        is(gImage.framesNotified == gFrames, true, "Must have not animated in bfcache!");
         goer.next();
       }, 4000, Ci.nsITimer.TYPE_ONE_SHOT); // 4 seconds - expect 40 frames
     }, 0, Ci.nsITimer.TYPE_ONE_SHOT); // delay of 0 - wait for next event loop
@@ -92,8 +91,7 @@ function testBFCache() {
     div.innerHTML += '<img src="animated2.gif" id="img3">';
     actOnMozImage(doc, "img3", function(image) {
       is(Math.abs(image.framesNotified - gImage.framesNotified)/gImage.framesNotified < 0.5, true,
-         "Must have also animated the background image, and essentially the same # of frames. " +
-         "Regular image got " + gImage.framesNotified + " frames but background image got " + image.framesNotified);
+         "Must have also animated the background image, and essentially the same # of frames");
     });
 
     gBrowser.removeCurrentTab();

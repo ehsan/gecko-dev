@@ -10,6 +10,7 @@
 #include "nsViewManager.h"
 #include "nsGfxCIID.h"
 #include "nsView.h"
+#include "nsISupportsArray.h"
 #include "nsCOMPtr.h"
 #include "nsGUIEvent.h"
 #include "nsRegion.h"
@@ -1034,6 +1035,13 @@ nsViewManager::SetViewZIndex(nsView *aView, bool aAutoZIndex, int32_t aZIndex, b
       oldIsAuto != aAutoZIndex) {
     InvalidateView(aView);
   }
+}
+
+void
+nsViewManager::GetDeviceContext(nsDeviceContext *&aContext)
+{
+  aContext = mContext;
+  NS_IF_ADDREF(aContext);
 }
 
 nsViewManager*

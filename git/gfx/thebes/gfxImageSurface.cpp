@@ -304,7 +304,7 @@ gfxImageSurface::GetSubimage(const gfxRect& aRect)
         new gfxSubimageSurface(this, subData,
                                gfxIntSize((int)r.Width(), (int)r.Height()));
 
-    return image.forget();
+    return image.forget().get();
 }
 
 gfxSubimageSurface::gfxSubimageSurface(gfxImageSurface* aParent,

@@ -92,17 +92,22 @@ public:
   nsEventStatus ReceiveInputEvent(const InputData& aEvent);
 
   /**
-   * Special handler for nsInputEvents. Also sets |aOutEvent| (which is assumed
-   * to be an already-existing instance of an nsInputEvent which may be an
-   * nsTouchEvent) to have its touch points in DOM space. This is so that the
-   * touches can be passed through the DOM and content can handle them.
+   * Special handler for nsInputEvents. |aEvent| is in screen relative
+   * co-ordinates.
    *
-   * NOTE: Be careful of invoking the nsInputEvent variant. This can only be
-   * called on the main thread. See widget/InputData.h for more information on
-   * why we have InputData and nsInputEvent separated.
+   * NOTE: This can only be called on the main thread. See widget/InputData.h
+   * for more information on why we have InputData and nsInputEvent separated.
    */
-  nsEventStatus ReceiveInputEvent(const nsInputEvent& aEvent,
-                                  nsInputEvent* aOutEvent);
+  nsEventStatus ReceiveMainThreadInputEvent(const nsInputEvent& aEvent);
+
+  /**
+   * Transform from frame relative co-ordinates to DOM relative co-ordinates.
+   * This method updates |aEvent| (which is assumed to be an already-existing
+   * instance of an nsInputEvent which may be an nsTouchEvent) to have its touch
+   * points in DOM space. This is so that the touches can be passed through the
+   * DOM and content can handle them.
+   */
+  void ApplyZoomCompensationToEvent(nsInputEvent* aEvent);
 
   /**
    * Updates the composition bounds, i.e. the dimensions of the final size of
@@ -177,8 +182,7 @@ public:
    */
   bool SampleContentTransformForFrame(const TimeStamp& aSampleTime,
                                       ContainerLayer* aLayer,
-                                      ViewTransform* aNewTransform,
-                                      gfx::Point& aScrollOffset);
+                                      ViewTransform* aTransform);
 
   /**
    * A shadow layer update has arrived. |aViewportFrame| is the new FrameMetrics
@@ -544,7 +548,7 @@ private:
   // frame.
   TimeStamp mLastSampleTime;
   // The last time a touch event came through on the UI thread.
-  uint32_t mLastEventTime;
+  int32_t mLastEventTime;
 
   // Start time of an animation. This is used for a zoom to animation to mark
   // the beginning.

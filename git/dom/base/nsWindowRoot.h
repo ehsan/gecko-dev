@@ -27,12 +27,6 @@ public:
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMEVENTTARGET
-  using mozilla::dom::EventTarget::RemoveEventListener;
-  virtual void AddEventListener(const nsAString& aType,
-                                nsIDOMEventListener* aListener,
-                                bool aUseCapture,
-                                const mozilla::dom::Nullable<bool>& aWantsUntrusted,
-                                mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
 
   // nsPIWindowRoot
 
@@ -45,11 +39,11 @@ public:
   virtual nsIDOMNode* GetPopupNode();
   virtual void SetPopupNode(nsIDOMNode* aNode);
 
-  virtual void SetParentTarget(mozilla::dom::EventTarget* aTarget)
+  virtual void SetParentTarget(nsIDOMEventTarget* aTarget)
   {
     mParent = aTarget;
   }
-  virtual mozilla::dom::EventTarget* GetParentTarget() { return mParent; }
+  virtual nsIDOMEventTarget* GetParentTarget() { return mParent; }
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsWindowRoot,
                                                          nsIDOMEventTarget)
@@ -62,10 +56,11 @@ protected:
 
   nsCOMPtr<nsIDOMNode> mPopupNode; // [OWNER]
 
-  nsCOMPtr<mozilla::dom::EventTarget> mParent;
+  nsCOMPtr<nsIDOMEventTarget> mParent;
 };
 
-extern already_AddRefed<mozilla::dom::EventTarget>
-NS_NewWindowRoot(nsPIDOMWindow* aWindow);
+extern nsresult
+NS_NewWindowRoot(nsPIDOMWindow* aWindow,
+                 nsIDOMEventTarget** aResult);
 
 #endif

@@ -40,8 +40,7 @@ Crypto::~Crypto()
 }
 
 NS_IMETHODIMP
-Crypto::GetRandomValues(const JS::Value& aData, JSContext *cx,
-                        JS::Value* _retval)
+Crypto::GetRandomValues(const jsval& aData, JSContext *cx, jsval* _retval)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Called on the wrong thread");
 
@@ -50,7 +49,7 @@ Crypto::GetRandomValues(const JS::Value& aData, JSContext *cx,
     return NS_ERROR_DOM_NOT_OBJECT_ERR;
   }
 
-  JS::Rooted<JSObject*> view(cx, &aData.toObject());
+  JSObject* view = &aData.toObject();
 
   // Make sure this object is an ArrayBufferView
   if (!JS_IsTypedArrayObject(view)) {

@@ -46,7 +46,7 @@ using namespace mozilla;
 /***************************************************************************
  * stack based helper class for restoring selection after table edit
  */
-class MOZ_STACK_CLASS nsSetSelectionAfterTableEdit
+class NS_STACK_CLASS nsSetSelectionAfterTableEdit
 {
   private:
     nsCOMPtr<nsITableEditor> mEd;
@@ -76,7 +76,7 @@ class MOZ_STACK_CLASS nsSetSelectionAfterTableEdit
 };
 
 // Stack-class to turn on/off selection batching for table selection
-class MOZ_STACK_CLASS nsSelectionBatcherForTable
+class NS_STACK_CLASS nsSelectionBatcherForTable
 {
 private:
   nsCOMPtr<nsISelectionPrivate> mSelection;

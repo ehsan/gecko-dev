@@ -46,14 +46,13 @@ interface nsIFileCallback : nsISupports {
   void receive(in nsIDOMBlob file);
 };
 
-[scriptable, uuid(11feba7e-73d5-49fc-a368-c3ef16ef4fc1)]
+[scriptable, uuid(1cfacc53-ab73-4ceb-9f5f-22387dcd1aae)]
 interface nsIDOMHTMLCanvasElement : nsIDOMHTMLElement
 {
   attribute unsigned long width;
   attribute unsigned long height;
   attribute boolean mozOpaque;
 
-  [implicit_jscontext]
   nsISupports getContext(in DOMString contextId,
                          [optional] in jsval contextOptions);
 
@@ -62,17 +61,18 @@ interface nsIDOMHTMLCanvasElement : nsIDOMHTMLElement
   //  toDataURL();              -- defaults to image/png
   //  toDataURL(type);          -- uses given type
   //  toDataURL(type, params);  -- uses given type, and any valid parameters
-  [implicit_jscontext]
-  DOMString toDataURL([optional] in DOMString type,
-                      [optional] in jsval params);
+  [optional_argc] DOMString toDataURL([optional] in DOMString type,
+                                      [optional] in nsIVariant params);
 
   // Valid calls are
   // mozGetAsFile(name);              -- defaults to image/png
   // mozGetAsFile(name, type);        -- uses given type
-  nsIDOMFile mozGetAsFile(in DOMString name, [optional] in DOMString type);
+  [optional_argc] nsIDOMFile mozGetAsFile(in DOMString name,
+                                          [optional] in DOMString type);
 
-  void toBlob(in nsIFileCallback callback,
-              [optional] in DOMString type);
+  [optional_argc] void toBlob(in nsIFileCallback callback,
+                              [optional] in DOMString type,
+                              [optional] in nsIVariant params);
 
   // A Mozilla-only extension to get a canvas context backed by double-buffered
   // shared memory. Only privileged callers can call this.

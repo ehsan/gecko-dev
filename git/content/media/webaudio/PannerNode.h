@@ -15,13 +15,11 @@
 #include "ThreeDPoint.h"
 #include "mozilla/WeakPtr.h"
 #include "WebAudioUtils.h"
-#include <set>
 
 namespace mozilla {
 namespace dom {
 
 class AudioContext;
-class AudioBufferSourceNode;
 
 class PannerNode : public AudioNode,
                    public SupportsWeakPtr<PannerNode>
@@ -30,11 +28,12 @@ public:
   explicit PannerNode(AudioContext* aContext);
   virtual ~PannerNode();
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope);
 
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(PannerNode, AudioNode)
+  virtual bool SupportsMediaStreams() const MOZ_OVERRIDE
+  {
+    return true;
+  }
 
   PanningModelType PanningModel() const
   {
@@ -93,7 +92,6 @@ public:
     mVelocity.y = aY;
     mVelocity.z = aZ;
     SendThreeDPointParameterToStream(VELOCITY, mVelocity);
-    SendDopplerToSourcesIfNeeded();
   }
 
   double RefDistance() const
@@ -174,11 +172,6 @@ public:
     SendDoubleParameterToStream(CONE_OUTER_GAIN, mConeOuterGain);
   }
 
-  float ComputeDopplerShift();
-  void SendDopplerToSourcesIfNeeded();
-  void FindConnectedSources();
-  void FindConnectedSources(AudioNode* aNode, nsTArray<AudioBufferSourceNode*>& aSources, std::set<AudioNode*>& aSeenNodes);
-
 private:
   friend class AudioListener;
   friend class PannerNodeEngine;
@@ -214,10 +207,6 @@ private:
   double mConeInnerAngle;
   double mConeOuterAngle;
   double mConeOuterGain;
-
-  // An array of all the AudioBufferSourceNode connected directly or indirectly
-  // to this AudioPannerNode.
-  nsTArray<AudioBufferSourceNode*> mSources;
 };
 
 }

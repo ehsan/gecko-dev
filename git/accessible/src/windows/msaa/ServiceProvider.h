@@ -10,7 +10,6 @@
 #include <servprov.h>
 
 #include "AccessibleWrap.h"
-#include "IUnknownImpl.h"
 
 namespace mozilla {
 namespace a11y {
@@ -18,7 +17,7 @@ namespace a11y {
 class ServiceProvider MOZ_FINAL : public IServiceProvider
 {
 public:
-  ServiceProvider(AccessibleWrap* aAcc) : mAccessible(aAcc) {}
+  ServiceProvider(AccessibleWrap* aAcc) : mRefCnt(0), mAccessible(aAcc) {}
   ~ServiceProvider() {}
 
   DECL_IUNKNOWN

@@ -23,7 +23,7 @@ void
 XMLHttpRequestUpload::_trace(JSTracer* aTrc)
 {
   if (mXHR) {
-    mXHR->TraceJSObject(aTrc, "mXHR");
+    JS_CallObjectTracer(aTrc, mXHR->GetJSObject(), "mXHR");
   }
   XMLHttpRequestEventTarget::_trace(aTrc);
 }

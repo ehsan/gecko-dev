@@ -13,7 +13,6 @@
 #include "jsapi.h"
 #include "xpcpublic.h"
 #include "nsServiceManagerUtils.h"
-#include "nsTArrayHelpers.h"
 
 namespace mozilla {
 namespace dom {
@@ -38,10 +37,10 @@ MobileMessageCallback::~MobileMessageCallback()
 
 
 nsresult
-MobileMessageCallback::NotifySuccess(const JS::Value& aResult)
+MobileMessageCallback::NotifySuccess(const jsval& aResult)
 {
-  mDOMRequest->FireSuccess(aResult);
-  return NS_OK;
+  nsCOMPtr<nsIDOMRequestService> rs = do_GetService(DOMREQUEST_SERVICE_CONTRACTID);
+  return rs ? rs->FireSuccess(mDOMRequest, aResult) : NS_ERROR_FAILURE;
 }
 
 nsresult
@@ -55,15 +54,11 @@ MobileMessageCallback::NotifySuccess(nsISupports *aMessage)
   AutoPushJSContext cx(scriptContext->GetNativeContext());
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
-  JS::Rooted<JSObject*> global(cx, scriptContext->GetNativeGlobal());
-  NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
-
-  JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, global);
-
-  JS::Rooted<JS::Value> wrappedMessage(cx);
-  rv = nsContentUtils::WrapNative(cx, global, aMessage,
-                                  wrappedMessage.address());
+  jsval wrappedMessage;
+  rv = nsContentUtils::WrapNative(cx,
+                                  JS_GetGlobalObject(cx),
+                                  aMessage,
+                                  &wrappedMessage);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NotifySuccess(wrappedMessage);
@@ -72,22 +67,20 @@ MobileMessageCallback::NotifySuccess(nsISupports *aMessage)
 nsresult
 MobileMessageCallback::NotifyError(int32_t aError)
 {
+  nsCOMPtr<nsIDOMRequestService> rs = do_GetService(DOMREQUEST_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(rs, NS_ERROR_FAILURE);
+
   switch (aError) {
     case nsIMobileMessageCallback::NO_SIGNAL_ERROR:
-      mDOMRequest->FireError(NS_LITERAL_STRING("NoSignalError"));
-      break;
+      return rs->FireError(mDOMRequest, NS_LITERAL_STRING("NoSignalError"));
     case nsIMobileMessageCallback::NOT_FOUND_ERROR:
-      mDOMRequest->FireError(NS_LITERAL_STRING("NotFoundError"));
-      break;
+      return rs->FireError(mDOMRequest, NS_LITERAL_STRING("NotFoundError"));
     case nsIMobileMessageCallback::UNKNOWN_ERROR:
-      mDOMRequest->FireError(NS_LITERAL_STRING("UnknownError"));
-      break;
+      return rs->FireError(mDOMRequest, NS_LITERAL_STRING("UnknownError"));
     case nsIMobileMessageCallback::INTERNAL_ERROR:
-      mDOMRequest->FireError(NS_LITERAL_STRING("InternalError"));
-      break;
+      return rs->FireError(mDOMRequest, NS_LITERAL_STRING("InternalError"));
     default: // SUCCESS_NO_ERROR is handled above.
-      MOZ_NOT_REACHED("Should never get here!");
-      return NS_ERROR_FAILURE;
+      MOZ_ASSERT(false, "Unknown error value.");
   }
 
   return NS_OK;
@@ -118,35 +111,40 @@ MobileMessageCallback::NotifyGetMessageFailed(int32_t aError)
 }
 
 NS_IMETHODIMP
-MobileMessageCallback::NotifyMessageDeleted(bool *aDeleted, uint32_t aSize)
+MobileMessageCallback::NotifyMessageDeleted(bool aDeleted)
 {
-  if (aSize == 1) {
-    return NotifySuccess(aDeleted[0] ? JSVAL_TRUE : JSVAL_FALSE);
-  }
-
-  nsresult rv;
-  nsIScriptContext* sc = mDOMRequest->GetContextForEventHandlers(&rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(sc, NS_ERROR_FAILURE);
-
-  AutoPushJSContext cx(sc->GetNativeContext());
-  NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
-
-  JSObject *deleteArrayObj = JS_NewArrayObject(cx, aSize, NULL);
-  JS::Value jsValTrue = BOOLEAN_TO_JSVAL(1);
-  JS::Value jsValFalse = BOOLEAN_TO_JSVAL(0);
-  for (uint32_t i = 0; i < aSize; i++) {
-    JS_SetElement(cx, deleteArrayObj, i,
-                  aDeleted[i] ? &jsValTrue : &jsValFalse);
-  }
-
-  return NotifySuccess(OBJECT_TO_JSVAL(deleteArrayObj));
+  return NotifySuccess(aDeleted ? JSVAL_TRUE : JSVAL_FALSE);
 }
 
 NS_IMETHODIMP
 MobileMessageCallback::NotifyDeleteMessageFailed(int32_t aError)
 {
   return NotifyError(aError);
+}
+
+NS_IMETHODIMP
+MobileMessageCallback::NotifyMessageListCreated(int32_t aListId,
+                                                nsISupports *aMessage)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+MobileMessageCallback::NotifyReadMessageListFailed(int32_t aError)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+MobileMessageCallback::NotifyNextMessageInListGot(nsISupports *aMessage)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+MobileMessageCallback::NotifyNoMessageInList()
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -159,6 +157,18 @@ NS_IMETHODIMP
 MobileMessageCallback::NotifyMarkMessageReadFailed(int32_t aError)
 {
   return NotifyError(aError);
+}
+
+NS_IMETHODIMP
+MobileMessageCallback::NotifyThreadList(const jsval& aThreadList, JSContext* aCx)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+MobileMessageCallback::NotifyThreadListFailed(int32_t aError)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 } // namesapce mobilemessage

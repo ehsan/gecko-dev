@@ -16,8 +16,13 @@ function test() {
 tests.gatTest = function(options) {
   let deferred = Promise.defer();
 
+  // hack to reduce stack size as a result of bug 842347
+  let onGatReadyInterjection = function() {
+    executeSoon(onGatReady);
+  };
+
   let onGatReady = function() {
-    Services.obs.removeObserver(onGatReady, "gcli_addon_commands_ready");
+    Services.obs.removeObserver(onGatReadyInterjection, "gcli_addon_commands_ready", false);
     info("gcli_addon_commands_ready notification received, running tests");
 
     let auditDone = helpers.audit(options, [
@@ -116,7 +121,7 @@ tests.gatTest = function(options) {
     });
   };
 
-  Services.obs.addObserver(onGatReady, "gcli_addon_commands_ready", false);
+  Services.obs.addObserver(onGatReadyInterjection, "gcli_addon_commands_ready", false);
 
   if (CmdAddonFlags.addonsLoaded) {
     info("The call to AddonManager.getAllAddons in BuiltinCommands.jsm is done.");

@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil -*- */
+/* vim: set ts=4 sw=4 et tw=99: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -9,7 +9,6 @@
 #ifndef jsanalyze_h___
 #define jsanalyze_h___
 
-#include "mozilla/PodOperations.h"
 #include "mozilla/TypeTraits.h"
 
 #include "jsautooplen.h"
@@ -17,7 +16,6 @@
 #include "jscntxt.h"
 #include "jsinfer.h"
 #include "jsscript.h"
-#include "jsopcodeinlines.h"
 
 #include "ds/LifoAlloc.h"
 #include "js/TemplateLib.h"
@@ -65,7 +63,7 @@ class Bytecode
     friend class ScriptAnalysis;
 
   public:
-    Bytecode() { mozilla::PodZero(this); }
+    Bytecode() { PodZero(this); }
 
     /* --------- Bytecode analysis --------- */
 
@@ -116,14 +114,20 @@ class Bytecode
     bool getStringElement:1;    /* GETELEM which has accessed string properties. */
     bool nonNativeGetElement:1; /* GETELEM on a non-native, non-array object. */
     bool accessGetter: 1;       /* Property read on a shape with a getter hook. */
+    bool notIdempotent: 1;      /* Don't use an idempotent cache for this property read. */
 
     /* Stack depth before this opcode. */
     uint32_t stackDepth;
 
   private:
 
-    /* If this is a JSOP_LOOPHEAD or JSOP_LOOPENTRY, information about the loop. */
-    LoopAnalysis *loop;
+    union {
+        /* If this is a JOF_TYPESET opcode, index into the observed types for the op. */
+        types::StackTypeSet *observedTypes;
+
+        /* If this is a JSOP_LOOPHEAD or JSOP_LOOPENTRY, information about the loop. */
+        LoopAnalysis *loop;
+    };
 
     /* --------- Lifetime analysis --------- */
 
@@ -167,6 +171,46 @@ class Bytecode
     types::TypeBarrier *typeBarriers;
 };
 
+static inline unsigned
+GetDefCount(RawScript script, unsigned offset)
+{
+    JS_ASSERT(offset < script->length);
+    jsbytecode *pc = script->code + offset;
+
+    /*
+     * Add an extra pushed value for OR/AND opcodes, so that they are included
+     * in the pushed array of stack values for type inference.
+     */
+    switch (JSOp(*pc)) {
+      case JSOP_OR:
+      case JSOP_AND:
+        return 1;
+      case JSOP_PICK:
+        /*
+         * Pick pops and pushes how deep it looks in the stack + 1
+         * items. i.e. if the stack were |a b[2] c[1] d[0]|, pick 2
+         * would pop b, c, and d to rearrange the stack to |a c[0]
+         * d[1] b[2]|.
+         */
+        return (pc[1] + 1);
+      default:
+        return StackDefs(script, pc);
+    }
+}
+
+static inline unsigned
+GetUseCount(RawScript script, unsigned offset)
+{
+    JS_ASSERT(offset < script->length);
+    jsbytecode *pc = script->code + offset;
+
+    if (JSOp(*pc) == JSOP_PICK)
+        return (pc[1] + 1);
+    if (js_CodeSpec[*pc].nuses == -1)
+        return StackUses(script, pc);
+    return js_CodeSpec[*pc].nuses;
+}
+
 /*
  * For opcodes which assign to a local variable or argument, track an extra def
  * during SSA analysis for the value's use chain and assigned type.
@@ -186,6 +230,27 @@ ExtendedDef(jsbytecode *pc)
       case JSOP_LOCALINC:
       case JSOP_LOCALDEC:
         return true;
+      default:
+        return false;
+    }
+}
+
+/* Return whether op bytecodes do not fallthrough (they may do a jump). */
+static inline bool
+BytecodeNoFallThrough(JSOp op)
+{
+    switch (op) {
+      case JSOP_GOTO:
+      case JSOP_DEFAULT:
+      case JSOP_RETURN:
+      case JSOP_STOP:
+      case JSOP_RETRVAL:
+      case JSOP_THROW:
+      case JSOP_TABLESWITCH:
+        return true;
+      case JSOP_GOSUB:
+        /* These fall through indirectly, after executing a 'finally'. */
+        return false;
       default:
         return false;
     }
@@ -261,7 +326,7 @@ NegateCompareOp(JSOp op)
 }
 
 static inline unsigned
-FollowBranch(JSContext *cx, JSScript *script, unsigned offset)
+FollowBranch(JSContext *cx, RawScript script, unsigned offset)
 {
     /*
      * Get the target offset of a branch. For GOTO opcodes implementing
@@ -289,18 +354,18 @@ static inline uint32_t ThisSlot() {
 static inline uint32_t ArgSlot(uint32_t arg) {
     return 2 + arg;
 }
-static inline uint32_t LocalSlot(JSScript *script, uint32_t local) {
+static inline uint32_t LocalSlot(RawScript script, uint32_t local) {
     return 2 + (script->function() ? script->function()->nargs : 0) + local;
 }
-static inline uint32_t TotalSlots(JSScript *script) {
+static inline uint32_t TotalSlots(RawScript script) {
     return LocalSlot(script, 0) + script->nfixed;
 }
 
-static inline uint32_t StackSlot(JSScript *script, uint32_t index) {
+static inline uint32_t StackSlot(RawScript script, uint32_t index) {
     return TotalSlots(script) + index;
 }
 
-static inline uint32_t GetBytecodeSlot(JSScript *script, jsbytecode *pc)
+static inline uint32_t GetBytecodeSlot(RawScript script, jsbytecode *pc)
 {
     switch (JSOp(*pc)) {
 
@@ -476,7 +541,7 @@ struct LifetimeVariable
     }
 
     /* Return true if the variable cannot decrease during the body of a loop. */
-    bool nonDecreasing(JSScript *script, LoopAnalysis *loop) const {
+    bool nonDecreasing(RawScript script, LoopAnalysis *loop) const {
         Lifetime *segment = lifetime ? lifetime : saved;
         while (segment && segment->start <= loop->backedge) {
             if (segment->start >= loop->head && segment->write) {
@@ -603,7 +668,7 @@ class SSAValue
 #endif
 
     void clear() {
-        mozilla::PodZero(this);
+        PodZero(this);
         JS_ASSERT(kind() == EMPTY);
     }
 
@@ -688,7 +753,7 @@ struct SSAPhiNode
     uint32_t length;
     SSAValue *options;
     SSAUseChain *uses;
-    SSAPhiNode() { mozilla::PodZero(this); }
+    SSAPhiNode() { PodZero(this); }
 };
 
 inline uint32_t
@@ -730,7 +795,7 @@ class SSAUseChain
     } u;
     SSAUseChain *next;
 
-    SSAUseChain() { mozilla::PodZero(this); }
+    SSAUseChain() { PodZero(this); }
 };
 
 class SlotValue
@@ -793,8 +858,8 @@ class ScriptAnalysis
 
   public:
 
-    ScriptAnalysis(JSScript *script) {
-        mozilla::PodZero(this);
+    ScriptAnalysis(RawScript script) {
+        PodZero(this);
         this->script_ = script;
 #ifdef DEBUG
         this->originalDebugMode_ = script_->compartment()->debugMode();
@@ -879,6 +944,11 @@ class ScriptAnalysis
     bool incrementInitialValueObserved(jsbytecode *pc) {
         const JSCodeSpec *cs = &js_CodeSpec[*pc];
         return (cs->format & JOF_POST) && !popGuaranteed(pc);
+    }
+
+    types::StackTypeSet *bytecodeTypes(const jsbytecode *pc) {
+        JS_ASSERT(js_CodeSpec[*pc].format & JOF_TYPESET);
+        return getCode(pc).observedTypes;
     }
 
     const SSAValue &poppedValue(uint32_t offset, uint32_t which) {
@@ -1161,7 +1231,7 @@ class CrossScriptSSA
         uint32_t parent;
         jsbytecode *parentpc;
 
-        Frame(uint32_t index, JSScript *script, uint32_t depth, uint32_t parent,
+        Frame(uint32_t index, RawScript script, uint32_t depth, uint32_t parent,
               jsbytecode *parentpc)
           : index(index), script(script), depth(depth), parent(parent), parentpc(parentpc)
         {}
@@ -1180,7 +1250,7 @@ class CrossScriptSSA
         return inlineFrames[i - 1];
     }
 
-    JSScript *outerScript() { return outerFrame.script; }
+    RawScript outerScript() { return outerFrame.script; }
 
     /* Total length of scripts preceding a frame. */
     size_t frameLength(uint32_t index) {
@@ -1196,14 +1266,14 @@ class CrossScriptSSA
         return getFrame(cv.frame).script->analysis()->getValueTypes(cv.v);
     }
 
-    bool addInlineFrame(JSScript *script, uint32_t depth, uint32_t parent,
+    bool addInlineFrame(RawScript script, uint32_t depth, uint32_t parent,
                         jsbytecode *parentpc)
     {
         uint32_t index = inlineFrames.length();
         return inlineFrames.append(Frame(index, script, depth, parent, parentpc));
     }
 
-    CrossScriptSSA(JSContext *cx, JSScript *outer)
+    CrossScriptSSA(JSContext *cx, RawScript outer)
         : outerFrame(OUTER_FRAME, outer, 0, INVALID_FRAME, NULL), inlineFrames(cx)
     {}
 

@@ -8,7 +8,6 @@
 #include "nsISupports.h"
 #include "nsCoord.h"
 #include "mozilla/gfx/Types.h"
-#include "mozilla/StandardInteger.h"
 
 class nsTableCellFrame;
 class nsCellMap;
@@ -136,10 +135,11 @@ protected:
   // not start on an odd bit boundary. If mSpan is 0 then mOrigCell is in effect
   // and the data does not represent a span. If mSpan is 1, then mBits is in
   // effect and the data represents a span.
-  // mBits must match the size of mOrigCell on both 32- and 64-bit platforms.
+  // mBits must be an unsigned long because it must match the size of
+  // mOrigCell on both 32- and 64-bit platforms.
   union {
     nsTableCellFrame* mOrigCell;
-    uintptr_t         mBits;
+    unsigned long     mBits;
   };
 };
 

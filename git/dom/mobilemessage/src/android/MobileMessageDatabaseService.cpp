@@ -26,33 +26,52 @@ MobileMessageDatabaseService::GetMessageMoz(int32_t aMessageId,
 }
 
 NS_IMETHODIMP
-MobileMessageDatabaseService::DeleteMessage(int32_t *aMessageIds,
-                                            uint32_t aLength,
+MobileMessageDatabaseService::DeleteMessage(int32_t aMessageId,
                                             nsIMobileMessageCallback* aRequest)
 {
   if (!AndroidBridge::Bridge()) {
     return NS_OK;
   }
 
-  if (!aMessageIds) {
-    return NS_OK;
-  }
-
-  if (aLength != 1) {
-    return NS_ERROR_FAILURE;
-  }
-
-  AndroidBridge::Bridge()->DeleteMessage(aMessageIds[0], aRequest);
+  AndroidBridge::Bridge()->DeleteMessage(aMessageId, aRequest);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-MobileMessageDatabaseService::CreateMessageCursor(nsIDOMMozSmsFilter* aFilter,
-                                                  bool aReverse,
-                                                  nsIMobileMessageCursorCallback* aCallback,
-                                                  nsICursorContinueCallback** aResult)
+MobileMessageDatabaseService::CreateMessageList(nsIDOMMozSmsFilter* aFilter,
+                                                bool aReverse,
+                                                nsIMobileMessageCallback* aRequest)
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
+  if (!AndroidBridge::Bridge()) {
+    return NS_OK;
+  }
+
+  AndroidBridge::Bridge()->CreateMessageList(
+    static_cast<SmsFilter*>(aFilter)->GetData(), aReverse, aRequest);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+MobileMessageDatabaseService::GetNextMessageInList(int32_t aListId,
+                                                   nsIMobileMessageCallback* aRequest)
+{
+  if (!AndroidBridge::Bridge()) {
+    return NS_OK;
+  }
+
+  AndroidBridge::Bridge()->GetNextMessageInList(aListId, aRequest);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+MobileMessageDatabaseService::ClearMessageList(int32_t aListId)
+{
+  if (!AndroidBridge::Bridge()) {
+    return NS_OK;
+  }
+
+  AndroidBridge::Bridge()->ClearMessageList(aListId);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -65,8 +84,7 @@ MobileMessageDatabaseService::MarkMessageRead(int32_t aMessageId,
 }
 
 NS_IMETHODIMP
-MobileMessageDatabaseService::CreateThreadCursor(nsIMobileMessageCursorCallback* aCallback,
-                                                 nsICursorContinueCallback** aResult)
+MobileMessageDatabaseService::GetThreadList(nsIMobileMessageCallback* aRequest)
 {
   NS_NOTYETIMPLEMENTED("Implement me!");
   return NS_ERROR_NOT_IMPLEMENTED;

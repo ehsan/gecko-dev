@@ -52,6 +52,7 @@ class nsIDocumentObserver;
 class nsIDOMDocument;
 class nsIDOMDocumentFragment;
 class nsIDOMEvent;
+class nsIDOMEventTarget;
 class nsIDOMHTMLFormElement;
 class nsIDOMHTMLInputElement;
 class nsIDOMKeyEvent;
@@ -64,6 +65,7 @@ class nsIFragmentContentSink;
 class nsIImageLoadingContent;
 class nsIInterfaceRequestor;
 class nsIIOService;
+class nsIJSContextStack;
 class nsIJSRuntimeService;
 class nsILineBreaker;
 class nsIMIMEHeaderParam;
@@ -81,6 +83,7 @@ class nsIScriptSecurityManager;
 class nsIStringBundle;
 class nsIStringBundleService;
 class nsISupportsHashKey;
+class nsIThreadJSContextStack;
 class nsIURI;
 class nsIWidget;
 class nsIWordBreaker;
@@ -94,7 +97,6 @@ class nsScriptObjectTracer;
 class nsStringHashKey;
 class nsTextFragment;
 class nsViewportInfo;
-class nsIFrame;
 
 struct JSContext;
 struct JSPropertyDescriptor;
@@ -118,7 +120,6 @@ class Selection;
 namespace dom {
 class DocumentFragment;
 class Element;
-class EventTarget;
 } // namespace dom
 
 namespace layers {
@@ -184,6 +185,8 @@ public:
 
   static bool LookupBindingMember(JSContext* aCx, nsIContent *aContent,
                                   JS::HandleId aId, JSPropertyDescriptor* aDesc);
+  static bool IsBindingField(JSContext* aCx, nsIContent* aContent,
+                             JS::HandleId aId);
 
   /**
    * Returns the parent node of aChild crossing document boundaries.
@@ -421,7 +424,7 @@ public:
    *
    * @return The document or null if no JS Context.
    */
-  static nsIDocument* GetDocumentFromCaller();
+  static nsIDOMDocument *GetDocumentFromCaller();
 
   /**
    * Get the document through the JS context that's currently on the stack.
@@ -430,7 +433,7 @@ public:
    *
    * @return The document or null if no JS context
    */
-  static nsIDocument* GetDocumentFromContext();
+  static nsIDOMDocument *GetDocumentFromContext();
 
   // Check if a node is in the document prolog, i.e. before the document
   // element.
@@ -791,7 +794,6 @@ public:
     eBRAND_PROPERTIES,
     eCOMMON_DIALOG_PROPERTIES,
     eMATHML_PROPERTIES,
-    eSECURITY_PROPERTIES,
     PropertiesFile_COUNT
   };
   static nsresult ReportToConsole(uint32_t aErrorFlags,
@@ -950,7 +952,7 @@ public:
                                        bool aCanBubble,
                                        bool aCancelable,
                                        bool *aDefaultAction = nullptr);
-
+                                       
   /**
    * This method creates and dispatches a untrusted event.
    * Works only with events which can be created by calling
@@ -1354,11 +1356,6 @@ public:
   static bool IsSystemPrincipal(nsIPrincipal* aPrincipal);
 
   /**
-   * Gets the system principal from the security manager.
-   */
-  static nsIPrincipal* GetSystemPrincipal();
-
-  /**
    * *aResourcePrincipal is a principal describing who may access the contents
    * of a resource. The resource can only be consumed by a principal that
    * subsumes *aResourcePrincipal. MAKE SURE THAT NOTHING EVER ACTS WITH THE
@@ -1623,7 +1620,12 @@ public:
   static nsresult CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel);
   static nsIInterfaceRequestor* GetSameOriginChecker();
 
-  // Trace the safe JS context.
+  static nsIThreadJSContextStack* ThreadJSContextStack()
+  {
+    return sThreadJSContextStack;
+  }
+
+  // Trace the safe JS context of the ThreadJSContextStack.
   static void TraceSafeJSContext(JSTracer* aTrc);
 
 
@@ -1681,7 +1683,7 @@ public:
    */
   static bool CanAccessNativeAnon();
 
-  static nsresult WrapNative(JSContext *cx, JS::Handle<JSObject*> scope,
+  static nsresult WrapNative(JSContext *cx, JSObject *scope,
                              nsISupports *native, const nsIID* aIID,
                              JS::Value *vp,
                              // If non-null aHolder will keep the Value alive
@@ -1694,7 +1696,7 @@ public:
   }
 
   // Same as the WrapNative above, but use this one if aIID is nsISupports' IID.
-  static nsresult WrapNative(JSContext *cx, JS::Handle<JSObject*> scope,
+  static nsresult WrapNative(JSContext *cx, JSObject *scope,
                              nsISupports *native, JS::Value *vp,
                              // If non-null aHolder will keep the Value alive
                              // while there's a ref to it
@@ -1704,7 +1706,7 @@ public:
     return WrapNative(cx, scope, native, nullptr, nullptr, vp, aHolder,
                       aAllowWrapping);
   }
-  static nsresult WrapNative(JSContext *cx, JS::Handle<JSObject*> scope,
+  static nsresult WrapNative(JSContext *cx, JSObject *scope,
                              nsISupports *native, nsWrapperCache *cache,
                              JS::Value *vp,
                              // If non-null aHolder will keep the Value alive
@@ -1724,7 +1726,7 @@ public:
 
   static nsresult CreateBlobBuffer(JSContext* aCx,
                                    const nsACString& aData,
-                                   JS::MutableHandle<JS::Value> aBlob);
+                                   JS::Value& aBlob);
 
   static void StripNullChars(const nsAString& aInStr, nsAString& aOutStr);
 
@@ -1864,14 +1866,6 @@ public:
    * Returns true if the idle observers API is enabled.
    */
   static bool IsIdleObserverAPIEnabled() { return sIsIdleObserverAPIEnabled; }
-
-  /*
-   * Returns true if the performance timing APIs are enabled.
-   */
-  static bool IsPerformanceTimingEnabled()
-  {
-    return sIsPerformanceTimingEnabled;
-  }
   
   /**
    * Returns true if the doc tree branch which contains aDoc contains any
@@ -2115,21 +2109,6 @@ public:
                                         int32_t& aOutStartOffset,
                                         int32_t& aOutEndOffset);
 
-  /**
-   * Takes a frame for anonymous content within a text control (<input> or
-   * <textarea>), and returns an offset in the text content, adjusted for a
-   * trailing <br> frame.
-   *
-   * @param aOffsetFrame      Frame for the text content in which the offset
-   *                          lies
-   * @param aOffset           Offset as calculated by GetContentOffsetsFromPoint
-   * @param aOutOffset        Output adjusted offset
-   *
-   * @see GetSelectionInTextControl for the original basis of this function.
-   */
-  static int32_t GetAdjustedOffsetInTextControl(nsIFrame* aOffsetFrame,
-                                                int32_t aOffset);
-
   static nsIEditor* GetHTMLEditor(nsPresContext* aPresContext);
 
   /**
@@ -2152,12 +2131,12 @@ private:
   static bool CanCallerAccess(nsIPrincipal* aSubjectPrincipal,
                                 nsIPrincipal* aPrincipal);
 
-  static nsresult WrapNative(JSContext *cx, JS::Handle<JSObject*> scope,
+  static nsresult WrapNative(JSContext *cx, JSObject *scope,
                              nsISupports *native, nsWrapperCache *cache,
                              const nsIID* aIID, JS::Value *vp,
                              nsIXPConnectJSObjectHolder** aHolder,
                              bool aAllowWrapping);
-
+                            
   static nsresult DispatchEvent(nsIDocument* aDoc,
                                 nsISupports* aTarget,
                                 const nsAString& aEventName,
@@ -2181,6 +2160,8 @@ private:
   static nsIXPConnect *sXPConnect;
 
   static nsIScriptSecurityManager *sSecurityManager;
+
+  static nsIThreadJSContextStack *sThreadJSContextStack;
 
   static nsIParserService *sParserService;
 
@@ -2236,7 +2217,6 @@ private:
   static bool sFullscreenApiIsContentOnly;
   static uint32_t sHandlingInputTimeout;
   static bool sIsIdleObserverAPIEnabled;
-  static bool sIsPerformanceTimingEnabled;
 
   static nsHtml5StringParser* sHTMLFragmentParser;
   static nsIParser* sXMLFragmentParser;
@@ -2266,17 +2246,17 @@ typedef nsCharSeparatedTokenizerTemplate<nsContentUtils::IsHTMLWhitespace>
   nsContentUtils::DropJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz))
 
 
-class MOZ_STACK_CLASS nsCxPusher
+class NS_STACK_CLASS nsCxPusher
 {
 public:
   nsCxPusher();
   ~nsCxPusher(); // Calls Pop();
 
   // Returns false if something erroneous happened.
-  bool Push(mozilla::dom::EventTarget *aCurrentTarget);
+  bool Push(nsIDOMEventTarget *aCurrentTarget);
   // If nothing has been pushed to stack, this works like Push.
   // Otherwise if context will change, Pop and Push will be called.
-  bool RePush(mozilla::dom::EventTarget *aCurrentTarget);
+  bool RePush(nsIDOMEventTarget *aCurrentTarget);
   // If a null JSContext is passed to Push(), that will cause no
   // push to happen and false to be returned.
   void Push(JSContext *cx);
@@ -2300,7 +2280,7 @@ private:
 #endif
 };
 
-class MOZ_STACK_CLASS nsAutoScriptBlocker {
+class NS_STACK_CLASS nsAutoScriptBlocker {
 public:
   nsAutoScriptBlocker(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -2313,7 +2293,7 @@ private:
   MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class MOZ_STACK_CLASS nsAutoScriptBlockerSuppressNodeRemoved :
+class NS_STACK_CLASS nsAutoScriptBlockerSuppressNodeRemoved :
                           public nsAutoScriptBlocker {
 public:
   nsAutoScriptBlockerSuppressNodeRemoved() {
@@ -2328,7 +2308,7 @@ public:
   }
 };
 
-class MOZ_STACK_CLASS nsAutoMicroTask
+class NS_STACK_CLASS nsAutoMicroTask
 {
 public:
   nsAutoMicroTask()
@@ -2348,7 +2328,7 @@ namespace mozilla {
  * passed as a parameter. AutoJSContext will take care of finding the most
  * appropriate JS context and release it when leaving the stack.
  */
-class MOZ_STACK_CLASS AutoJSContext {
+class NS_STACK_CLASS AutoJSContext {
 public:
   AutoJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM);
   operator JSContext*();
@@ -2368,12 +2348,12 @@ private:
 };
 
 /**
- * AutoSafeJSContext is similar to AutoJSContext but will only return the safe
+ * SafeAutoJSContext is similar to AutoJSContext but will only return the safe
  * JS context. That means it will never call ::GetCurrentJSContext().
  */
-class MOZ_STACK_CLASS AutoSafeJSContext : public AutoJSContext {
+class NS_STACK_CLASS SafeAutoJSContext : public AutoJSContext {
 public:
-  AutoSafeJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM);
+  SafeAutoJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM);
 };
 
 /**
@@ -2390,7 +2370,7 @@ public:
  * NB: This will not push a null cx even if aCx is null. Make sure you know what
  * you're doing.
  */
-class MOZ_STACK_CLASS AutoPushJSContext {
+class NS_STACK_CLASS AutoPushJSContext {
   nsCxPusher mPusher;
   JSContext* mCx;
 

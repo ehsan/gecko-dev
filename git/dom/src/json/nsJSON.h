@@ -20,7 +20,7 @@
 
 class nsIURI;
 
-class MOZ_STACK_CLASS nsJSONWriter
+class NS_STACK_CLASS nsJSONWriter
 {
 public:
   nsJSONWriter();
@@ -72,7 +72,7 @@ NS_NewJSON(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 class nsJSONListener : public nsIStreamListener
 {
 public:
-  nsJSONListener(JSContext *cx, JS::Value *rootVal, bool needsConverter,
+  nsJSONListener(JSContext *cx, jsval *rootVal, bool needsConverter,
                  DecodingMode mode);
   virtual ~nsJSONListener();
 
@@ -83,7 +83,7 @@ public:
 protected:
   bool mNeedsConverter;
   JSContext *mCx;
-  JS::Value *mRootVal;
+  jsval *mRootVal;
   nsCOMPtr<nsIUnicodeDecoder> mDecoder;
   nsCString mSniffBuffer;
   nsTArray<PRUnichar> mBufferedChars;

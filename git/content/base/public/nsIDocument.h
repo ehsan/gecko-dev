@@ -23,6 +23,7 @@
 #include "nsPIDOMWindow.h"               // for use in inline functions
 #include "nsPropertyTable.h"             // for member
 #include "nsTHashtable.h"                // for member
+#include "mozilla/dom/DirectionalityUtils.h"
 #include "mozilla/dom/DocumentBinding.h"
 
 class imgIRequest;
@@ -47,7 +48,9 @@ class nsIDOMDocument;
 class nsIDOMDocumentFragment;
 class nsIDOMDocumentType;
 class nsIDOMElement;
+class nsIDOMEventTarget;
 class nsIDOMNodeList;
+class nsIDOMTouch;
 class nsIDOMTouchList;
 class nsIDOMXPathExpression;
 class nsIDOMXPathNSResolver;
@@ -74,7 +77,6 @@ class nsSmallVoidArray;
 class nsDOMCaretPosition;
 class nsViewportInfo;
 class nsDOMEvent;
-class nsIGlobalObject;
 
 namespace mozilla {
 class ErrorResult;
@@ -85,7 +87,6 @@ class ImageLoader;
 } // namespace css
 
 namespace dom {
-class Attr;
 class CDATASection;
 class Comment;
 class DocumentFragment;
@@ -93,18 +94,14 @@ class DocumentType;
 class DOMImplementation;
 class Element;
 struct ElementRegistrationOptions;
-class EventTarget;
-class FrameRequestCallback;
 class GlobalObject;
 class HTMLBodyElement;
 class Link;
 class NodeFilter;
 class NodeIterator;
 class ProcessingInstruction;
-class Touch;
 class TreeWalker;
 class UndoManager;
-template<typename> class OwningNonNull;
 template<typename> class Sequence;
 
 template<typename, typename> class CallbackObjectHolder;
@@ -113,8 +110,8 @@ typedef CallbackObjectHolder<NodeFilter, nsIDOMNodeFilter> NodeFilterHolder;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0x308f8444, 0x7679, 0x445a, \
- { 0xa6, 0xcc, 0xb9, 0x5c, 0x61, 0xff, 0xe2, 0x66 } }
+{ 0x699e0649, 0x55f2, 0x47f1, \
+ { 0x93, 0x38, 0xcd, 0x67, 0xf3, 0x2b, 0x04, 0xe9 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -247,8 +244,11 @@ public:
    */
   already_AddRefed<nsILoadGroup> GetDocumentLoadGroup() const
   {
-    nsCOMPtr<nsILoadGroup> group = do_QueryReferent(mDocumentLoadGroup);
-    return group.forget();
+    nsILoadGroup *group = nullptr;
+    if (mDocumentLoadGroup)
+      CallQueryReferent(mDocumentLoadGroup.get(), &group);
+
+    return group;
   }
 
   /**
@@ -520,6 +520,10 @@ public:
     mSandboxFlags = sandboxFlags;
   }
 
+  inline mozilla::Directionality GetDocumentDirectionality() {
+    return mDirectionality;
+  }
+  
   /**
    * Access HTTP header data (this may also get set from other
    * sources, like HTML META tags).
@@ -534,9 +538,10 @@ public:
    * method is responsible for calling BeginObservingDocument() on the
    * presshell if the presshell should observe document mutations.
    */
-  virtual already_AddRefed<nsIPresShell> CreateShell(nsPresContext* aContext,
-                                                     nsViewManager* aViewManager,
-                                                     nsStyleSet* aStyleSet) = 0;
+  virtual nsresult CreateShell(nsPresContext* aContext,
+                               nsViewManager* aViewManager,
+                               nsStyleSet* aStyleSet,
+                               nsIPresShell** aInstancePtrResult) = 0;
   virtual void DeleteShell() = 0;
 
   nsIPresShell* GetShell() const
@@ -633,7 +638,7 @@ protected:
 public:
   // Get the root <html> element, or return null if there isn't one (e.g.
   // if the root isn't <html>)
-  Element* GetHtmlElement() const;
+  Element* GetHtmlElement();
   // Returns the first child of GetHtmlContent which has the given tag,
   // or nullptr if that doesn't exist.
   Element* GetHtmlChildElement(nsIAtom* aTag);
@@ -801,8 +806,7 @@ public:
    * document is truly gone. Use this object when you're trying to find a
    * content wrapper in XPConnect.
    */
-  virtual nsIGlobalObject* GetScopeObject() const = 0;
-  virtual void SetScopeObject(nsIGlobalObject* aGlobal) = 0;
+  virtual nsIScriptGlobalObject* GetScopeObject() const = 0;
 
   /**
    * Return the window containing the document (the outer window).
@@ -825,7 +829,7 @@ public:
    */
   nsPIDOMWindow* GetInnerWindow()
   {
-    return mRemovedFromDocShell ? nullptr : mWindow;
+    return mRemovedFromDocShell ? GetInnerWindowInternal() : mWindow;
   }
 
   /**
@@ -1076,8 +1080,11 @@ public:
    */
   already_AddRefed<nsISupports> GetContainer() const
   {
-    nsCOMPtr<nsISupports> container = do_QueryReferent(mDocumentContainer);
-    return container.forget();
+    nsISupports* container = nullptr;
+    if (mDocumentContainer)
+      CallQueryReferent(mDocumentContainer.get(), &container);
+
+    return container;
   }
 
   /**
@@ -1174,7 +1181,7 @@ public:
    * Sanitize the document by resetting all input elements and forms that have
    * autocomplete=off to their default values.
    */
-  virtual void Sanitize() = 0;
+  virtual nsresult Sanitize() = 0;
 
   /**
    * Enumerate all subdocuments.
@@ -1255,7 +1262,7 @@ public:
    * document won't be altered.
    */
   virtual void OnPageShow(bool aPersisted,
-                          mozilla::dom::EventTarget* aDispatchStartTarget) = 0;
+                          nsIDOMEventTarget* aDispatchStartTarget) = 0;
 
   /**
    * Notification that the page has been hidden, for documents which are loaded
@@ -1270,8 +1277,8 @@ public:
    * document won't be altered.
    */
   virtual void OnPageHide(bool aPersisted,
-                          mozilla::dom::EventTarget* aDispatchStartTarget) = 0;
-
+                          nsIDOMEventTarget* aDispatchStartTarget) = 0;
+  
   /*
    * We record the set of links in the document that are relevant to
    * style.
@@ -1766,14 +1773,11 @@ public:
 
   virtual already_AddRefed<mozilla::dom::UndoManager> GetUndoManager() = 0;
 
-  typedef mozilla::dom::CallbackObjectHolder<
-    mozilla::dom::FrameRequestCallback,
-    nsIFrameRequestCallback> FrameRequestCallbackHolder;
-  nsresult ScheduleFrameRequestCallback(const FrameRequestCallbackHolder& aCallback,
+  nsresult ScheduleFrameRequestCallback(nsIFrameRequestCallback* aCallback,
                                         int32_t *aHandle);
   void CancelFrameRequestCallback(int32_t aHandle);
 
-  typedef nsTArray<FrameRequestCallbackHolder> FrameRequestCallbackList;
+  typedef nsTArray< nsCOMPtr<nsIFrameRequestCallback> > FrameRequestCallbackList;
   /**
    * Put this document's frame request callbacks into the provided
    * list, and forget about them.
@@ -1839,11 +1843,13 @@ public:
   void FlushPendingLinkUpdates();
 
 #define DEPRECATED_OPERATION(_op) e##_op,
+#define DEPRECATED_OPERATION_WITH_HARDCODED_STRING(_op, _str) e##_op,
   enum DeprecatedOperations {
 #include "nsDeprecatedOperationList.h"
     eDeprecatedOperationCount
   };
 #undef DEPRECATED_OPERATION
+#undef DEPRECATED_OPERATION_WITH_HARDCODED_STRING
   void WarnOnceAbout(DeprecatedOperations aOperation, bool asError = false);
 
   virtual void PostVisibilityUpdateEvent() = 0;
@@ -1904,7 +1910,7 @@ public:
   }
 
   // WebIDL API
-  nsIGlobalObject* GetParentObject() const
+  nsIScriptGlobalObject* GetParentObject() const
   {
     return GetScopeObject();
   }
@@ -1944,10 +1950,11 @@ public:
                                             const nsAString& aQualifiedName,
                                             mozilla::ErrorResult& rv);
   already_AddRefed<mozilla::dom::DocumentFragment>
-    CreateDocumentFragment() const;
-  already_AddRefed<nsTextNode> CreateTextNode(const nsAString& aData) const;
+    CreateDocumentFragment(mozilla::ErrorResult& rv) const;
+  already_AddRefed<nsTextNode> CreateTextNode(const nsAString& aData,
+                                              mozilla::ErrorResult& rv) const;
   already_AddRefed<mozilla::dom::Comment>
-    CreateComment(const nsAString& aData) const;
+    CreateComment(const nsAString& aData, mozilla::ErrorResult& rv) const;
   already_AddRefed<mozilla::dom::ProcessingInstruction>
     CreateProcessingInstruction(const nsAString& target, const nsAString& data,
                                 mozilla::ErrorResult& rv) const;
@@ -1976,9 +1983,9 @@ public:
   // Deprecated WebIDL bits
   already_AddRefed<mozilla::dom::CDATASection>
     CreateCDATASection(const nsAString& aData, mozilla::ErrorResult& rv);
-  already_AddRefed<mozilla::dom::Attr>
+  already_AddRefed<nsIDOMAttr>
     CreateAttribute(const nsAString& aName, mozilla::ErrorResult& rv);
-  already_AddRefed<mozilla::dom::Attr>
+  already_AddRefed<nsIDOMAttr>
     CreateAttributeNS(const nsAString& aNamespaceURI,
                       const nsAString& aQualifiedName,
                       mozilla::ErrorResult& rv);
@@ -1993,7 +2000,7 @@ public:
   virtual void GetTitle(nsString& aTitle) = 0;
   virtual void SetTitle(const nsAString& aTitle, mozilla::ErrorResult& rv) = 0;
   void GetDir(nsAString& aDirection) const;
-  void SetDir(const nsAString& aDirection);
+  void SetDir(const nsAString& aDirection, mozilla::ErrorResult& rv);
   nsIDOMWindow* GetDefaultView() const
   {
     return GetWindow();
@@ -2028,7 +2035,7 @@ public:
   }
   bool Hidden() const
   {
-    return mVisibilityState != mozilla::dom::VisibilityState::Visible;
+    return mVisibilityState != mozilla::dom::VisibilityStateValues::Visible;
   }
   bool MozHidden() // Not const because of WarnOnceAbout
   {
@@ -2083,23 +2090,20 @@ public:
              nsIDOMXPathNSResolver* aResolver, uint16_t aType,
              nsISupports* aResult, mozilla::ErrorResult& rv);
   // Touch event handlers already on nsINode
-  already_AddRefed<mozilla::dom::Touch>
-    CreateTouch(nsIDOMWindow* aView, mozilla::dom::EventTarget* aTarget,
+  already_AddRefed<nsIDOMTouch>
+    CreateTouch(nsIDOMWindow* aView, nsISupports* aTarget,
                 int32_t aIdentifier, int32_t aPageX, int32_t aPageY,
                 int32_t aScreenX, int32_t aScreenY, int32_t aClientX,
                 int32_t aClientY, int32_t aRadiusX, int32_t aRadiusY,
                 float aRotationAngle, float aForce);
   already_AddRefed<nsIDOMTouchList> CreateTouchList();
   already_AddRefed<nsIDOMTouchList>
-    CreateTouchList(mozilla::dom::Touch& aTouch,
-                    const mozilla::dom::Sequence<mozilla::dom::OwningNonNull<mozilla::dom::Touch> >& aTouches);
+    CreateTouchList(nsIDOMTouch* aTouch,
+                    const mozilla::dom::Sequence<nsRefPtr<nsIDOMTouch> >& aTouches);
   already_AddRefed<nsIDOMTouchList>
-    CreateTouchList(const mozilla::dom::Sequence<mozilla::dom::OwningNonNull<mozilla::dom::Touch> >& aTouches);
+    CreateTouchList(const mozilla::dom::Sequence<nsRefPtr<nsIDOMTouch> >& aTouches);
 
-  virtual nsHTMLDocument* AsHTMLDocument() { return nullptr; }
-
-  virtual JSObject* WrapObject(JSContext *aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  nsHTMLDocument* AsHTMLDocument();
 
 private:
   uint64_t mWarnedAbout;
@@ -2110,6 +2114,9 @@ protected:
 
   // Never ever call this. Only call GetWindow!
   virtual nsPIDOMWindow *GetWindowInternal() const = 0;
+
+  // Never ever call this. Only call GetInnerWindow!
+  virtual nsPIDOMWindow *GetInnerWindowInternal() = 0;
 
   // Never ever call this. Only call GetScriptHandlingObject!
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const = 0;
@@ -2141,6 +2148,16 @@ protected:
   {
     return mContentType;
   }
+
+  inline void
+  SetDocumentDirectionality(mozilla::Directionality aDir)
+  {
+    mDirectionality = aDir;
+  }
+
+  // All document WrapNode implementations MUST call this method.  A
+  // false return value means an exception was thrown.
+  bool PostCreateWrapper(JSContext* aCx, JSObject *aNewObject);
 
   nsCString mReferrer;
   nsString mLastModified;
@@ -2297,8 +2314,6 @@ protected:
   // document was created entirely in memory
   bool mHaveInputEncoding;
 
-  bool mHasHadDefaultView;
-
   // The document's script global object, the object from which the
   // document can get its script context and scope. This is the
   // *inner* window object.
@@ -2316,6 +2331,9 @@ protected:
   // associated IFRAME or CSP-protectable content, if existent. These are set at load time and
   // are immutable - see nsSandboxFlags.h for the possible flags.
   uint32_t mSandboxFlags;
+
+  // The root directionality of this document.
+  mozilla::Directionality mDirectionality;
 
   nsCString mContentLanguage;
 private:
@@ -2362,7 +2380,29 @@ protected:
 
   nsCOMPtr<nsIDocumentEncoder> mCachedEncoder;
 
-  struct FrameRequest;
+  struct FrameRequest {
+    FrameRequest(nsIFrameRequestCallback* aCallback,
+                 int32_t aHandle) :
+      mCallback(aCallback),
+      mHandle(aHandle)
+    {}
+
+    // Conversion operator so that we can append these to a
+    // FrameRequestCallbackList
+    operator nsIFrameRequestCallback* const () const { return mCallback; }
+
+    // Comparator operators to allow RemoveElementSorted with an
+    // integer argument on arrays of FrameRequest
+    bool operator==(int32_t aHandle) const {
+      return mHandle == aHandle;
+    }
+    bool operator<(int32_t aHandle) const {
+      return mHandle < aHandle;
+    }
+    
+    nsCOMPtr<nsIFrameRequestCallback> mCallback;
+    int32_t mHandle;
+  };
 
   nsTArray<FrameRequest> mFrameRequestCallbacks;
 
@@ -2388,7 +2428,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)
  * event is dispatched, if necessary, when the outermost mozAutoSubtreeModified
  * object is deleted.
  */
-class MOZ_STACK_CLASS mozAutoSubtreeModified
+class NS_STACK_CLASS mozAutoSubtreeModified
 {
 public:
   /**
@@ -2425,7 +2465,7 @@ private:
   nsCOMPtr<nsIDocument> mSubtreeOwner;
 };
 
-class MOZ_STACK_CLASS nsAutoSyncOperation
+class NS_STACK_CLASS nsAutoSyncOperation
 {
 public:
   nsAutoSyncOperation(nsIDocument* aDocument);
@@ -2448,8 +2488,18 @@ NS_NewSVGDocument(nsIDocument** aInstancePtrResult);
 nsresult
 NS_NewImageDocument(nsIDocument** aInstancePtrResult);
 
+#ifdef MOZ_MEDIA
 nsresult
 NS_NewVideoDocument(nsIDocument** aInstancePtrResult);
+#endif
+
+already_AddRefed<mozilla::dom::DocumentFragment>
+NS_NewDocumentFragment(nsNodeInfoManager* aNodeInfoManager,
+                       mozilla::ErrorResult& aRv);
+
+nsresult
+NS_NewDocumentFragment(nsIDOMDocumentFragment** aInstancePtrResult,
+                       nsNodeInfoManager *aNodeInfoManager);
 
 // Note: it's the caller's responsibility to create or get aPrincipal as needed
 // -- this method will not attempt to get a principal based on aDocumentURI.
@@ -2463,7 +2513,7 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
                   nsIURI* aBaseURI,
                   nsIPrincipal* aPrincipal,
                   bool aLoadedAsData,
-                  nsIGlobalObject* aEventObject,
+                  nsIScriptGlobalObject* aEventObject,
                   DocumentFlavor aFlavor);
 
 // This is used only for xbl documents created from the startup cache.

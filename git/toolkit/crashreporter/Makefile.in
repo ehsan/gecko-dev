@@ -42,6 +42,10 @@ endif
 LOCAL_INCLUDES += -I$(srcdir)/google-breakpad/src
 DEFINES += -DUNICODE -D_UNICODE
 
+EXPORTS = \
+	nsExceptionHandler.h \
+	$(NULL)
+
 CPPSRCS = \
 	nsExceptionHandler.cpp \
 	$(NULL)

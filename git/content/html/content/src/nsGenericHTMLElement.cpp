@@ -848,9 +848,14 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName,
     // override BindToTree for those classes and munge event listeners there?
     nsIDocument *document = OwnerDoc();
 
+    // FIXME (https://bugzilla.mozilla.org/show_bug.cgi?id=431767)
+    // nsDocument::GetInnerWindow can return an outer window in some cases,
+    // we don't want to stick an event listener on an outer window, so
+    // bail if it does.  See similar code in HTMLBodyElement and
+    // HTMLFramesetElement
     *aDefer = false;
-    if ((win = document->GetInnerWindow())) {
-      nsCOMPtr<EventTarget> piTarget(do_QueryInterface(win));
+    if ((win = document->GetInnerWindow()) && win->IsInnerWindow()) {
+      nsCOMPtr<nsIDOMEventTarget> piTarget(do_QueryInterface(win));
 
       return piTarget->GetListenerManager(true);
     }
@@ -862,6 +867,11 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName,
                                                                   aDefer);
 }
 
+// FIXME (https://bugzilla.mozilla.org/show_bug.cgi?id=431767)
+// nsDocument::GetInnerWindow can return an outer window in some
+// cases.  We don't want to stick an event listener on an outer
+// window, so bail if it does.  See also similar code in
+// nsGenericHTMLElement::GetEventListenerManagerForAttr.
 #define EVENT(name_, id_, type_, struct_) /* nothing; handled by nsINode */
 #define FORWARDED_EVENT(name_, id_, type_, struct_)                           \
 EventHandlerNonNull*                                                          \
@@ -870,7 +880,7 @@ nsGenericHTMLElement::GetOn##name_()                                          \
   if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     /* XXXbz note to self: add tests for this! */                             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
-    if (win) {                                                                \
+    if (win && win->IsInnerWindow()) {                                        \
       nsCOMPtr<nsISupports> supports = do_QueryInterface(win);                \
       nsGlobalWindow* globalWin = nsGlobalWindow::FromSupports(supports);     \
       return globalWin->GetOn##name_();                                       \
@@ -886,7 +896,7 @@ nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler,              \
 {                                                                             \
   if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
-    if (!win) {                                                               \
+    if (!win || !win->IsInnerWindow()) {                                      \
       return;                                                                 \
     }                                                                         \
                                                                               \
@@ -904,7 +914,7 @@ nsGenericHTMLElement::GetOn##name_()                                          \
   if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     /* XXXbz note to self: add tests for this! */                             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
-    if (win) {                                                                \
+    if (win && win->IsInnerWindow()) {                                        \
       nsCOMPtr<nsISupports> supports = do_QueryInterface(win);                \
       nsGlobalWindow* globalWin = nsGlobalWindow::FromSupports(supports);     \
       OnErrorEventHandlerNonNull* errorHandler = globalWin->GetOn##name_();   \
@@ -926,7 +936,7 @@ nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler,              \
 {                                                                             \
   if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
-    if (!win) {                                                               \
+    if (!win || !win->IsInnerWindow()) {                                      \
       return;                                                                 \
     }                                                                         \
                                                                               \
@@ -1046,6 +1056,16 @@ nsGenericHTMLElement::GetBaseTarget(nsAString& aBaseTarget) const
 }
 
 //----------------------------------------------------------------------
+
+static bool
+CanHaveName(nsIAtom* aTag)
+{
+  return aTag == nsGkAtoms::img ||
+         aTag == nsGkAtoms::form ||
+         aTag == nsGkAtoms::applet ||
+         aTag == nsGkAtoms::embed ||
+         aTag == nsGkAtoms::object;
+}
 
 bool
 nsGenericHTMLElement::ParseAttribute(int32_t aNamespaceID,
@@ -1843,16 +1863,27 @@ nsGenericHTMLElement::SetIntAttr(nsIAtom* aAttr, int32_t aValue)
   return SetAttr(kNameSpaceID_None, aAttr, value, true);
 }
 
-uint32_t
-nsGenericHTMLElement::GetUnsignedIntAttr(nsIAtom* aAttr,
-                                         uint32_t aDefault) const
+nsresult
+nsGenericHTMLElement::GetUnsignedIntAttr(nsIAtom* aAttr, uint32_t aDefault,
+                                         uint32_t* aResult)
 {
   const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(aAttr);
-  if (!attrVal || attrVal->Type() != nsAttrValue::eInteger) {
-    return aDefault;
+  if (attrVal && attrVal->Type() == nsAttrValue::eInteger) {
+    *aResult = attrVal->GetIntegerValue();
   }
+  else {
+    *aResult = aDefault;
+  }
+  return NS_OK;
+}
 
-  return attrVal->GetIntegerValue();
+nsresult
+nsGenericHTMLElement::SetUnsignedIntAttr(nsIAtom* aAttr, uint32_t aValue)
+{
+  nsAutoString value;
+  value.AppendInt(aValue);
+
+  return SetAttr(kNameSpaceID_None, aAttr, value, true);
 }
 
 nsresult
@@ -3116,14 +3147,13 @@ JS::Value
 nsGenericHTMLElement::GetItemValue(JSContext* aCx, JSObject* aScope,
                                    ErrorResult& aError)
 {
-  JS::Rooted<JSObject*> scope(aCx, aScope);
   if (!HasAttr(kNameSpaceID_None, nsGkAtoms::itemprop)) {
     return JS::NullValue();
   }
 
   if (ItemScope()) {
     JS::Value v;
-    if (!mozilla::dom::WrapObject(aCx, scope, this, &v)) {
+    if (!mozilla::dom::WrapObject(aCx, aScope, this, &v)) {
       aError.Throw(NS_ERROR_FAILURE);
       return JS::UndefinedValue();
     }
@@ -3221,7 +3251,7 @@ nsDOMSettableTokenListPropertyDestructor(void *aObject, nsIAtom *aProperty,
 nsDOMSettableTokenList*
 nsGenericHTMLElement::GetTokenList(nsIAtom* aAtom)
 {
-  nsDOMSettableTokenList* list = nullptr;
+  nsDOMSettableTokenList* list = NULL;
   if (HasProperties()) {
     list = static_cast<nsDOMSettableTokenList*>(GetProperty(aAtom));
   }

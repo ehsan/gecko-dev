@@ -140,52 +140,50 @@ const char* gPropertyArgs[] = { "val" };
 
 nsresult
 nsXBLProtoImplProperty::InstallMember(JSContext *aCx,
-                                      JS::Handle<JSObject*> aTargetClassObject)
+                                      JSObject* aTargetClassObject)
 {
   NS_PRECONDITION(mIsCompiled,
                   "Should not be installing an uncompiled property");
   MOZ_ASSERT(js::IsObjectInContextCompartment(aTargetClassObject, aCx));
-  JS::Rooted<JSObject*> globalObject(aCx, JS_GetGlobalForObject(aCx, aTargetClassObject));
-  JS::Rooted<JSObject*> scopeObject(aCx, xpc::GetXBLScope(aCx, globalObject));
+  JSObject * globalObject = JS_GetGlobalForObject(aCx, aTargetClassObject);
+  JSObject * scopeObject = xpc::GetXBLScope(aCx, globalObject);
   NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
 
   // now we want to reevaluate our property using aContext and the script object for this window...
   if (mJSGetterObject || mJSSetterObject) {
+    JSObject * getter = nullptr;
+
     // First, enter the compartment of the scope object and clone the functions.
     JSAutoCompartment ac(aCx, scopeObject);
-
-    JS::Rooted<JSObject*> getter(aCx, nullptr);
-    if (mJSGetterObject) {
+    if (mJSGetterObject)
       if (!(getter = ::JS_CloneFunctionObject(aCx, mJSGetterObject, scopeObject)))
         return NS_ERROR_OUT_OF_MEMORY;
-    }
 
-    JS::Rooted<JSObject*> setter(aCx, nullptr);
-    if (mJSSetterObject) {
+    JSObject * setter = nullptr;
+    if (mJSSetterObject)
       if (!(setter = ::JS_CloneFunctionObject(aCx, mJSSetterObject, scopeObject)))
         return NS_ERROR_OUT_OF_MEMORY;
-    }
 
     // Now, enter the content compartment, wrap the getter/setter, and define
     // them on the class object.
     JSAutoCompartment ac2(aCx, aTargetClassObject);
     nsDependentString name(mName);
-    if (!JS_WrapObject(aCx, getter.address()) ||
-        !JS_WrapObject(aCx, setter.address()) ||
+    if (!JS_WrapObject(aCx, &getter) ||
+        !JS_WrapObject(aCx, &setter) ||
         !::JS_DefineUCProperty(aCx, aTargetClassObject,
                                static_cast<const jschar*>(mName),
                                name.Length(), JSVAL_VOID,
-                               JS_DATA_TO_FUNC_PTR(JSPropertyOp, getter.get()),
-                               JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, setter.get()),
+                               JS_DATA_TO_FUNC_PTR(JSPropertyOp, getter),
+                               JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, setter),
                                mJSAttributes))
       return NS_ERROR_OUT_OF_MEMORY;
   }
   return NS_OK;
 }
 
-nsresult
+nsresult 
 nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCString& aClassStr,
-                                      JS::Handle<JSObject*> aClassObject)
+                                      JSObject* aClassObject)
 {
   NS_PRECONDITION(!mIsCompiled,
                   "Trying to compile an already-compiled property");
@@ -211,6 +209,8 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
   if (mGetterText && mGetterText->GetText()) {
     nsDependentString getter(mGetterText->GetText());
     if (!getter.IsEmpty()) {
+      // Compile into a temp object so we don't wipe out mGetterText
+      JSObject* getterObject = nullptr;
       AutoPushJSContext cx(aContext->GetNativeContext());
       JSAutoRequest ar(cx);
       JSAutoCompartment ac(cx, aClassObject);
@@ -220,9 +220,8 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
              .setUserBit(true); // Flag us as XBL
       nsCString name = NS_LITERAL_CSTRING("get_") + NS_ConvertUTF16toUTF8(mName);
       JS::RootedObject rootedNull(cx, nullptr); // See bug 781070.
-      JS::RootedObject getterObject(cx);
       rv = nsJSUtils::CompileFunction(cx, rootedNull, options, name, 0, nullptr,
-                                      getter, getterObject.address());
+                                      getter, &getterObject);
 
       // Make sure we free mGetterText here before setting mJSGetterObject, since
       // that'll overwrite mGetterText
@@ -260,6 +259,8 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
   if (mSetterText && mSetterText->GetText()) {
     nsDependentString setter(mSetterText->GetText());
     if (!setter.IsEmpty()) {
+      // Compile into a temp object so we don't wipe out mSetterText
+      JSObject* setterObject = nullptr;
       AutoPushJSContext cx(aContext->GetNativeContext());
       JSAutoRequest ar(cx);
       JSAutoCompartment ac(cx, aClassObject);
@@ -269,9 +270,8 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
              .setUserBit(true); // Flag us as XBL
       nsCString name = NS_LITERAL_CSTRING("set_") + NS_ConvertUTF16toUTF8(mName);
       JS::RootedObject rootedNull(cx, nullptr); // See bug 781070.
-      JS::RootedObject setterObject(cx);
       rv = nsJSUtils::CompileFunction(cx, rootedNull, options, name, 1,
-                                      gPropertyArgs, setter, setterObject.address());
+                                      gPropertyArgs, setter, &setterObject);
 
       // Make sure we free mSetterText here before setting mJSGetterObject, since
       // that'll overwrite mSetterText
@@ -319,11 +319,9 @@ nsXBLProtoImplProperty::Read(nsIScriptContext* aContext,
                              nsIObjectInputStream* aStream,
                              XBLBindingSerializeDetails aType)
 {
-  JSContext *cx = aContext->GetNativeContext();
-
   if (aType == XBLBinding_Serialize_GetterProperty ||
       aType == XBLBinding_Serialize_GetterSetterProperty) {
-    JS::Rooted<JSObject*> getterObject(cx);
+    JSObject* getterObject;
     nsresult rv = XBL_DeserializeFunction(aContext, aStream, &getterObject);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -333,7 +331,7 @@ nsXBLProtoImplProperty::Read(nsIScriptContext* aContext,
 
   if (aType == XBLBinding_Serialize_SetterProperty ||
       aType == XBLBinding_Serialize_GetterSetterProperty) {
-    JS::Rooted<JSObject*> setterObject(cx);
+    JSObject* setterObject;
     nsresult rv = XBL_DeserializeFunction(aContext, aStream, &setterObject);
     NS_ENSURE_SUCCESS(rv, rv);
 

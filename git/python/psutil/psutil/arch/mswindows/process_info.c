@@ -1,4 +1,6 @@
 /*
+ * $Id: process_info.c 1463 2012-07-18 13:06:49Z g.rodola $
+ *
  * Copyright (c) 2009, Jay Loden, Giampaolo Rodola'. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -16,6 +18,29 @@
 #include "process_info.h"
 #include "ntextapi.h"
 
+/*
+ * NtQueryInformationProcess code taken from
+ * http://wj32.wordpress.com/2009/01/24/howto-get-the-command-line-of-processes/
+ * typedefs needed to compile against ntdll functions not exposted in the API
+ */
+typedef LONG NTSTATUS;
+
+typedef NTSTATUS (NTAPI *_NtQueryInformationProcess)(
+    HANDLE ProcessHandle,
+    DWORD ProcessInformationClass,
+    PVOID ProcessInformation,
+    DWORD ProcessInformationLength,
+    PDWORD ReturnLength
+    );
+
+typedef struct _PROCESS_BASIC_INFORMATION
+{
+    PVOID Reserved1;
+    PVOID PebBaseAddress;
+    PVOID Reserved2[2];
+    ULONG_PTR UniqueProcessId;
+    PVOID Reserved3;
+} PROCESS_BASIC_INFORMATION, *PPROCESS_BASIC_INFORMATION;
 
 
 /*
@@ -26,7 +51,7 @@
  * Return a process handle or NULL.
  */
 HANDLE
-psutil_handle_from_pid_waccess(DWORD pid, DWORD dwDesiredAccess)
+handle_from_pid_waccess(DWORD pid, DWORD dwDesiredAccess)
 {
     HANDLE hProcess;
     DWORD  processExitCode = 0;
@@ -59,20 +84,20 @@ psutil_handle_from_pid_waccess(DWORD pid, DWORD dwDesiredAccess)
 
 
 /*
- * Same as psutil_handle_from_pid_waccess but implicitly uses
+ * Same as handle_from_pid_waccess but implicitly uses
  * PROCESS_QUERY_INFORMATION | PROCESS_VM_READ as dwDesiredAccess
  * parameter for OpenProcess.
  */
 HANDLE
-psutil_handle_from_pid(DWORD pid) {
+handle_from_pid(DWORD pid) {
     DWORD dwDesiredAccess = PROCESS_QUERY_INFORMATION | PROCESS_VM_READ;
-    return psutil_handle_from_pid_waccess(pid, dwDesiredAccess);
+    return handle_from_pid_waccess(pid, dwDesiredAccess);
 }
 
 
 // fetch the PEB base address from NtQueryInformationProcess()
 PVOID
-psutil_get_peb_address(HANDLE ProcessHandle)
+GetPebAddress(HANDLE ProcessHandle)
 {
     _NtQueryInformationProcess NtQueryInformationProcess =
         (_NtQueryInformationProcess)GetProcAddress(
@@ -85,7 +110,7 @@ psutil_get_peb_address(HANDLE ProcessHandle)
 
 
 DWORD*
-psutil_get_pids(DWORD *numberOfReturnedPIDs) {
+get_pids(DWORD *numberOfReturnedPIDs) {
     /* Win32 SDK says the only way to know if our process array
      * wasn't large enough is to check the returned size and make
      * sure that it doesn't match the size of the array.
@@ -104,10 +129,7 @@ psutil_get_pids(DWORD *numberOfReturnedPIDs) {
         free(procArray);
         procArrayByteSz = procArraySz * sizeof(DWORD);
         procArray = malloc(procArrayByteSz);
-        if (procArray == NULL) {
-            PyErr_NoMemory();
-            return NULL;
-        }
+
         if (! EnumProcesses(procArray, procArrayByteSz, &enumReturnSz)) {
             free(procArray);
             PyErr_SetFromWindowsErr(0);
@@ -123,7 +145,7 @@ psutil_get_pids(DWORD *numberOfReturnedPIDs) {
 
 
 int
-psutil_pid_is_running(DWORD pid)
+pid_is_running(DWORD pid)
 {
     HANDLE hProcess;
     DWORD exitCode;
@@ -175,13 +197,13 @@ psutil_pid_is_running(DWORD pid)
 
 
 int
-psutil_pid_in_proclist(DWORD pid)
+pid_in_proclist(DWORD pid)
 {
     DWORD *proclist = NULL;
     DWORD numberOfReturnedPIDs;
     DWORD i;
 
-    proclist = psutil_get_pids(&numberOfReturnedPIDs);
+    proclist = get_pids(&numberOfReturnedPIDs);
     if (NULL == proclist) {
         return -1;
     }
@@ -199,27 +221,25 @@ psutil_pid_in_proclist(DWORD pid)
 
 
 // Check exit code from a process handle. Return FALSE on an error also
-// XXX - not used anymore
-int
-handlep_is_running(HANDLE hProcess)
+BOOL is_running(HANDLE hProcess)
 {
     DWORD dwCode;
+
     if (NULL == hProcess) {
-        return 0;
+        return FALSE;
     }
+
     if (GetExitCodeProcess(hProcess, &dwCode)) {
-        if (dwCode == STILL_ACTIVE) {
-            return 1;
-        }
+        return (dwCode == STILL_ACTIVE);
     }
-    return 0;
+    return FALSE;
 }
 
 
 // Return None to represent NoSuchProcess, else return NULL for
 // other exception or the name as a Python string
 PyObject*
-psutil_get_name(long pid)
+get_name(long pid)
 {
     HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     PROCESSENTRY32 pe = { 0 };
@@ -246,7 +266,7 @@ psutil_get_name(long pid)
 
 /* returns parent pid (as a Python int) for given pid or None on failure */
 PyObject*
-psutil_get_ppid(long pid)
+get_ppid(long pid)
 {
     HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     PROCESSENTRY32 pe = { 0 };
@@ -276,7 +296,7 @@ psutil_get_ppid(long pid)
  * with given pid or NULL on error.
  */
 PyObject*
-psutil_get_arg_list(long pid)
+get_arg_list(long pid)
 {
     int nArgs, i;
     LPWSTR *szArglist = NULL;
@@ -289,12 +309,12 @@ psutil_get_arg_list(long pid)
     PyObject *arg_from_wchar = NULL;
     PyObject *argList = NULL;
 
-    hProcess = psutil_handle_from_pid(pid);
+    hProcess = handle_from_pid(pid);
     if(hProcess == NULL) {
         return NULL;
     }
 
-    pebAddress = psutil_get_peb_address(hProcess);
+    pebAddress = GetPebAddress(hProcess);
 
     /* get the address of ProcessParameters */
 #ifdef _WIN64
@@ -327,10 +347,6 @@ psutil_get_arg_list(long pid)
 
     /* allocate memory to hold the command line */
     commandLineContents = (WCHAR *)malloc(commandLine.Length+1);
-    if (commandLineContents == NULL) {
-        PyErr_NoMemory();
-        goto error;
-    }
 
     /* read the command line */
     if (!ReadProcessMemory(hProcess, commandLine.Buffer,
@@ -370,7 +386,7 @@ psutil_get_arg_list(long pid)
         // arglist parsed as array of UNICODE_STRING, so convert each to Python
         // string object and add to arg list
         argList = Py_BuildValue("[]");
-        if (argList == NULL)
+        if (!argList)
             goto error;
         for(i=0; i<nArgs; i++) {
             arg_from_wchar = NULL;
@@ -452,10 +468,6 @@ get_process_info(DWORD pid, PSYSTEM_PROCESS_INFORMATION *retProcess, PVOID *retB
 
     bufferSize = initialBufferSize;
     buffer = malloc(bufferSize);
-    if (buffer == NULL) {
-        PyErr_NoMemory();
-        goto error;
-    }
 
     while (TRUE) {
         status = NtQuerySystemInformation(SystemProcessInformation, buffer,
@@ -465,10 +477,6 @@ get_process_info(DWORD pid, PSYSTEM_PROCESS_INFORMATION *retProcess, PVOID *retB
         {
             free(buffer);
             buffer = malloc(bufferSize);
-            if (buffer == NULL) {
-                PyErr_NoMemory();
-                goto error;
-            }
         }
         else {
             break;
@@ -477,7 +485,9 @@ get_process_info(DWORD pid, PSYSTEM_PROCESS_INFORMATION *retProcess, PVOID *retB
 
     if (status != 0) {
         PyErr_Format(PyExc_RuntimeError, "NtQuerySystemInformation() failed");
-        goto error;
+        FreeLibrary(hNtDll);
+        free(buffer);
+        return 0;
     }
 
     if (bufferSize <= 0x20000) {
@@ -494,11 +504,7 @@ get_process_info(DWORD pid, PSYSTEM_PROCESS_INFORMATION *retProcess, PVOID *retB
     } while ( (process = PH_NEXT_PROCESS(process)) );
 
     NoSuchProcess();
-    goto error;
-
-error:
     FreeLibrary(hNtDll);
-    if (buffer != NULL)
-        free(buffer);
+    free(buffer);
     return 0;
 }

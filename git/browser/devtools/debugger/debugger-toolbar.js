@@ -5,10 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-// A time interval sufficient for the options popup panel to finish hiding
-// itself.
-const POPUP_HIDDEN_DELAY = 100; // ms
-
 /**
  * Functions handling the toolbar view: close button, expand/collapse button,
  * pause/resume and stepping buttons etc.
@@ -31,7 +27,6 @@ ToolbarView.prototype = {
     dumpn("Initializing the ToolbarView");
 
     this._instrumentsPaneToggleButton = document.getElementById("instruments-pane-toggle");
-    this._resumeOrderPanel = document.getElementById("resumption-order-panel");
     this._resumeButton = document.getElementById("resume");
     this._stepOverButton = document.getElementById("step-over");
     this._stepInButton = document.getElementById("step-in");
@@ -42,11 +37,11 @@ ToolbarView.prototype = {
     let stepOverKey = LayoutHelpers.prettyKey(document.getElementById("stepOverKey"), true);
     let stepInKey = LayoutHelpers.prettyKey(document.getElementById("stepInKey"), true);
     let stepOutKey = LayoutHelpers.prettyKey(document.getElementById("stepOutKey"), true);
-    this._resumeTooltip = L10N.getFormatStr("resumeButtonTooltip", resumeKey);
-    this._pauseTooltip = L10N.getFormatStr("pauseButtonTooltip", resumeKey);
-    this._stepOverTooltip = L10N.getFormatStr("stepOverTooltip", stepOverKey);
-    this._stepInTooltip = L10N.getFormatStr("stepInTooltip", stepInKey);
-    this._stepOutTooltip = L10N.getFormatStr("stepOutTooltip", stepOutKey);
+    this._resumeTooltip = L10N.getFormatStr("resumeButtonTooltip", [resumeKey]);
+    this._pauseTooltip = L10N.getFormatStr("pauseButtonTooltip", [resumeKey]);
+    this._stepOverTooltip = L10N.getFormatStr("stepOverTooltip", [stepOverKey]);
+    this._stepInTooltip = L10N.getFormatStr("stepInTooltip", [stepInKey]);
+    this._stepOutTooltip = L10N.getFormatStr("stepOutTooltip", [stepOutKey]);
 
     this._instrumentsPaneToggleButton.addEventListener("mousedown", this._onTogglePanesPressed, false);
     this._resumeButton.addEventListener("mousedown", this._onResumePressed, false);
@@ -95,19 +90,6 @@ ToolbarView.prototype = {
   },
 
   /**
-   * Display a warning when trying to resume a debuggee while another is paused.
-   * Debuggees must be unpaused in a Last-In-First-Out order.
-   *
-   * @param string aPausedUrl
-   *        The URL of the last paused debuggee.
-   */
-  showResumeWarning: function DVT_showResumeWarning(aPausedUrl) {
-    let label = L10N.getFormatStr("resumptionOrderPanelTitle", [aPausedUrl]);
-    document.getElementById("resumption-panel-desc").textContent = label;
-    this._resumeOrderPanel.openPopup(this._resumeButton);
-  },
-
-  /**
    * Sets the chrome globals container hidden or visible. It's hidden by default.
    *
    * @param boolean aVisibleFlag
@@ -133,8 +115,7 @@ ToolbarView.prototype = {
    */
   _onResumePressed: function DVT__onResumePressed() {
     if (DebuggerController.activeThread.paused) {
-      let warn = DebuggerController._ensureResumptionOrder;
-      DebuggerController.activeThread.resume(warn);
+      DebuggerController.activeThread.resume();
     } else {
       DebuggerController.activeThread.interrupt();
     }
@@ -168,7 +149,6 @@ ToolbarView.prototype = {
   },
 
   _instrumentsPaneToggleButton: null,
-  _resumeOrderPanel: null,
   _resumeButton: null,
   _stepOverButton: null,
   _stepInButton: null,
@@ -191,7 +171,6 @@ function OptionsView() {
   this._toggleShowPanesOnStartup = this._toggleShowPanesOnStartup.bind(this);
   this._toggleShowVariablesOnlyEnum = this._toggleShowVariablesOnlyEnum.bind(this);
   this._toggleShowVariablesFilterBox = this._toggleShowVariablesFilterBox.bind(this);
-  this._toggleShowOriginalSource = this._toggleShowOriginalSource.bind(this);
 }
 
 OptionsView.prototype = {
@@ -206,13 +185,11 @@ OptionsView.prototype = {
     this._showPanesOnStartupItem = document.getElementById("show-panes-on-startup");
     this._showVariablesOnlyEnumItem = document.getElementById("show-vars-only-enum");
     this._showVariablesFilterBoxItem = document.getElementById("show-vars-filter-box");
-    this._showOriginalSourceItem = document.getElementById("show-original-source");
 
     this._pauseOnExceptionsItem.setAttribute("checked", Prefs.pauseOnExceptions);
     this._showPanesOnStartupItem.setAttribute("checked", Prefs.panesVisibleOnStartup);
     this._showVariablesOnlyEnumItem.setAttribute("checked", Prefs.variablesOnlyEnumVisible);
     this._showVariablesFilterBoxItem.setAttribute("checked", Prefs.variablesSearchboxVisible);
-    this._showOriginalSourceItem.setAttribute("checked", Prefs.sourceMapsEnabled);
   },
 
   /**
@@ -235,13 +212,6 @@ OptionsView.prototype = {
    */
   _onPopupHiding: function DVO__onPopupHiding() {
     this._button.removeAttribute("open");
-  },
-
-  /**
-   * Listener handling the 'gear menu' popup hidden event.
-   */
-  _onPopupHidden: function DVO__onPopupHidden() {
-    window.dispatchEvent(document, "Debugger:OptionsPopupHidden");
   },
 
   /**
@@ -276,30 +246,10 @@ OptionsView.prototype = {
       this._showVariablesFilterBoxItem.getAttribute("checked") == "true";
   },
 
-  /**
-   * Listener handling the 'show original source' menuitem command.
-   */
-  _toggleShowOriginalSource: function DVO__toggleShowOriginalSource() {
-    function reconfigure() {
-      window.removeEventListener("Debugger:OptionsPopupHidden", reconfigure, false);
-      // The popup panel needs more time to hide after triggering onpopuphidden.
-      window.setTimeout(function() {
-        DebuggerController.reconfigureThread(pref);
-      }, POPUP_HIDDEN_DELAY);
-    }
-
-    let pref = Prefs.sourceMapsEnabled =
-      this._showOriginalSourceItem.getAttribute("checked") == "true";
-
-    // Don't block the UI while reconfiguring the server.
-    window.addEventListener("Debugger:OptionsPopupHidden", reconfigure, false);
-  },
-
   _button: null,
   _pauseOnExceptionsItem: null,
   _showPanesOnStartupItem: null,
   _showVariablesOnlyEnumItem: null,
-  _showOriginalSourceItem: null,
   _showVariablesFilterBoxItem: null
 };
 
@@ -426,6 +376,7 @@ create({ constructor: StackFramesView, proto: MenuContainer.prototype }, {
     // Append a stack frame item to this container.
     let stackframeItem = this.push(frameView, {
       index: 0, /* specifies on which position should the item be appended */
+      relaxed: true, /* this container should allow dupes & degenerates */
       attachment: {
         popup: menuEntry,
         depth: aDepth
@@ -694,7 +645,7 @@ let StackFrameUtils = {
       name = aEnv.type.charAt(0).toUpperCase() + aEnv.type.slice(1);
     }
 
-    let label = L10N.getFormatStr("scopeLabel", name);
+    let label = L10N.getFormatStr("scopeLabel", [name]);
     switch (aEnv.type) {
       case "with":
       case "object":
@@ -763,15 +714,15 @@ FilterView.prototype = {
     this._variableOperatorButton.setAttribute("label", SEARCH_VARIABLE_FLAG);
 
     this._globalOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelGlobal", this._globalSearchKey));
+      L10N.getFormatStr("searchPanelGlobal", [this._globalSearchKey]));
     this._functionOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelFunction", this._filteredFunctionsKey));
+      L10N.getFormatStr("searchPanelFunction", [this._filteredFunctionsKey]));
     this._tokenOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelToken", this._tokenSearchKey));
+      L10N.getFormatStr("searchPanelToken", [this._tokenSearchKey]));
     this._lineOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelLine", this._lineSearchKey));
+      L10N.getFormatStr("searchPanelLine", [this._lineSearchKey]));
     this._variableOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelVariable", this._variableSearchKey));
+      L10N.getFormatStr("searchPanelVariable", [this._variableSearchKey]));
 
     // TODO: bug 806775
     // if (window._isChromeDebugger) {
@@ -802,10 +753,10 @@ FilterView.prototype = {
     let placeholder = "";
     switch (aView) {
       case DebuggerView.ChromeGlobals:
-        placeholder = L10N.getFormatStr("emptyChromeGlobalsFilterText", this._fileSearchKey);
+        placeholder = L10N.getFormatStr("emptyChromeGlobalsFilterText", [this._fileSearchKey]);
         break;
       case DebuggerView.Sources:
-        placeholder = L10N.getFormatStr("emptyFilterText", this._fileSearchKey);
+        placeholder = L10N.getFormatStr("emptyFilterText", [this._fileSearchKey]);
         break;
     }
     this._searchbox.setAttribute("placeholder", placeholder);
@@ -965,7 +916,7 @@ FilterView.prototype = {
     view.node.hideEmptyGroups();
 
     // Ensure the currently selected item is visible.
-    view.node.ensureSelectionIsVisible({ withGroup: true });
+    view.node.ensureSelectionIsVisible(true);
 
     // Remember the previously searched file to avoid redundant filtering.
     this._prevSearchedFile = aFile;

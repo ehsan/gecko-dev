@@ -1070,6 +1070,9 @@ HyperTextAccessible::GetTextAtOffset(int32_t aOffset,
   if (offset < 0)
     return NS_ERROR_INVALID_ARG;
 
+  EWordMovementType wordMovementType = eDefaultBehavior;
+  bool moveForwardThenBack = true;
+
   switch (aBoundaryType) {
     case BOUNDARY_CHAR:
       return GetCharAt(aOffset, eGetAt, aText, aStartOffset, aEndOffset) ?
@@ -1816,10 +1819,8 @@ void
 HyperTextAccessible::GetSelectionDOMRanges(int16_t aType,
                                            nsTArray<nsRange*>* aRanges)
 {
-  // Ignore selection if it is not visible.
   nsRefPtr<nsFrameSelection> frameSelection = FrameSelection();
-  if (!frameSelection ||
-      frameSelection->GetDisplaySelection() <= nsISelectionController::SELECTION_HIDDEN)
+  if (!frameSelection)
     return;
 
   Selection* domSel = frameSelection->GetSelection(aType);
@@ -2135,12 +2136,6 @@ HyperTextAccessible::ContentToRenderedOffset(nsIFrame* aFrame, int32_t aContentO
     *aRenderedOffset = 0;
     return NS_OK;
   }
-
-  if (IsTextField()) {
-    *aRenderedOffset = aContentOffset;
-    return NS_OK;
-  }
-
   NS_ASSERTION(aFrame->GetType() == nsGkAtoms::textFrame,
                "Need text frame for offset conversion");
   NS_ASSERTION(aFrame->GetPrevContinuation() == nullptr,
@@ -2165,11 +2160,6 @@ nsresult
 HyperTextAccessible::RenderedToContentOffset(nsIFrame* aFrame, uint32_t aRenderedOffset,
                                              int32_t* aContentOffset)
 {
-  if (IsTextField()) {
-    *aContentOffset = aRenderedOffset;
-    return NS_OK;
-  }
-
   *aContentOffset = 0;
   NS_ENSURE_TRUE(aFrame, NS_ERROR_FAILURE);
 

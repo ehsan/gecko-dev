@@ -26,9 +26,6 @@
 #include "nsIDOMXULElement.h"
 #endif
 
-using namespace mozilla;
-using namespace mozilla::dom;
-
 static NS_DEFINE_CID(kEventListenerManagerCID,    NS_EVENTLISTENERMANAGER_CID);
 
 nsWindowRoot::nsWindowRoot(nsPIDOMWindow* aWindow)
@@ -78,7 +75,7 @@ nsWindowRoot::DispatchEvent(nsIDOMEvent* aEvt, bool *aRetVal)
 {
   nsEventStatus status = nsEventStatus_eIgnore;
   nsresult rv =  nsEventDispatcher::DispatchDOMEvent(
-    static_cast<EventTarget*>(this), nullptr, aEvt, nullptr, &status);
+    static_cast<nsIDOMEventTarget*>(this), nullptr, aEvt, nullptr, &status);
   *aRetVal = (status != nsEventStatus_eConsumeNoDefault);
   return rv;
 }
@@ -89,7 +86,7 @@ nsWindowRoot::DispatchDOMEvent(nsEvent* aEvent,
                                nsPresContext* aPresContext,
                                nsEventStatus* aEventStatus)
 {
-  return nsEventDispatcher::DispatchDOMEvent(static_cast<EventTarget*>(this),
+  return nsEventDispatcher::DispatchDOMEvent(static_cast<nsIDOMEventTarget*>(this),
                                              aEvent, aDOMEvent,
                                              aPresContext, aEventStatus);
 }
@@ -110,23 +107,6 @@ nsWindowRoot::AddEventListener(const nsAString& aType,
   elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
   return NS_OK;
 }
-
-void
-nsWindowRoot::AddEventListener(const nsAString& aType,
-                                nsIDOMEventListener* aListener,
-                                bool aUseCapture,
-                                const Nullable<bool>& aWantsUntrusted,
-                                ErrorResult& aRv)
-{
-  bool wantsUntrusted = !aWantsUntrusted.IsNull() && aWantsUntrusted.Value();
-  nsEventListenerManager* elm = GetListenerManager(true);
-  if (!elm) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return;
-  }
-  elm->AddEventListener(aType, aListener, aUseCapture, wantsUntrusted);
-}
-
 
 NS_IMETHODIMP
 nsWindowRoot::AddSystemEventListener(const nsAString& aType,
@@ -149,7 +129,7 @@ nsWindowRoot::GetListenerManager(bool aCreateIfNotFound)
 {
   if (!mListenerManager && aCreateIfNotFound) {
     mListenerManager =
-      new nsEventListenerManager(static_cast<EventTarget*>(this));
+      new nsEventListenerManager(static_cast<nsIDOMEventTarget*>(this));
   }
 
   return mListenerManager;
@@ -283,9 +263,10 @@ nsWindowRoot::SetPopupNode(nsIDOMNode* aNode)
 
 ///////////////////////////////////////////////////////////////////////////////////
 
-already_AddRefed<EventTarget>
-NS_NewWindowRoot(nsPIDOMWindow* aWindow)
+nsresult
+NS_NewWindowRoot(nsPIDOMWindow* aWindow, nsIDOMEventTarget** aResult)
 {
-  nsCOMPtr<EventTarget> result = new nsWindowRoot(aWindow);
-  return result.forget();
+  *aResult = new nsWindowRoot(aWindow);
+  NS_ADDREF(*aResult);
+  return NS_OK;
 }

@@ -5,8 +5,6 @@
 
 /* Implementation of xptiInterfaceInfoManager. */
 
-#include "mozilla/XPTInterfaceInfoManager.h"
-
 #include "xptiprivate.h"
 #include "nsDependentString.h"
 #include "nsString.h"
@@ -18,10 +16,11 @@
 
 using namespace mozilla;
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(XPTInterfaceInfoManager, 
-                              nsIInterfaceInfoManager)
+NS_IMPL_THREADSAFE_ISUPPORTS2(xptiInterfaceInfoManager, 
+                              nsIInterfaceInfoManager,
+                              nsIInterfaceInfoSuperManager)
 
-static XPTInterfaceInfoManager* gInterfaceInfoManager = nullptr;
+static xptiInterfaceInfoManager* gInterfaceInfoManager = nullptr;
 #ifdef DEBUG
 static int gCallCount = 0;
 #endif
@@ -30,7 +29,7 @@ static int gCallCount = 0;
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(XPTMallocSizeOf)
 
 size_t
-XPTInterfaceInfoManager::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
+xptiInterfaceInfoManager::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     size_t n = aMallocSizeOf(this);
     ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);
@@ -43,7 +42,7 @@ XPTInterfaceInfoManager::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 
 // static
 int64_t
-XPTInterfaceInfoManager::GetXPTIWorkingSetSize()
+xptiInterfaceInfoManager::GetXPTIWorkingSetSize()
 {
     size_t n = XPT_SizeOfArena(gXPTIStructArena, XPTMallocSizeOf);
 
@@ -54,38 +53,40 @@ XPTInterfaceInfoManager::GetXPTIWorkingSetSize()
     return n;
 }
 
-NS_MEMORY_REPORTER_IMPLEMENT(XPTInterfaceInfoManager,
+NS_MEMORY_REPORTER_IMPLEMENT(xptiWorkingSet,
                              "explicit/xpti-working-set",
                              KIND_HEAP,
                              UNITS_BYTES,
-                             XPTInterfaceInfoManager::GetXPTIWorkingSetSize,
+                             xptiInterfaceInfoManager::GetXPTIWorkingSetSize,
                              "Memory used by the XPCOM typelib system.")
 
 // static
-XPTInterfaceInfoManager*
-XPTInterfaceInfoManager::GetSingleton()
+xptiInterfaceInfoManager*
+xptiInterfaceInfoManager::GetSingleton()
 {
     if (!gInterfaceInfoManager) {
-        gInterfaceInfoManager = new XPTInterfaceInfoManager();
+        gInterfaceInfoManager = new xptiInterfaceInfoManager();
         NS_ADDREF(gInterfaceInfoManager);
     }
     return gInterfaceInfoManager;
 }
 
 void
-XPTInterfaceInfoManager::FreeInterfaceInfoManager()
+xptiInterfaceInfoManager::FreeInterfaceInfoManager()
 {
     NS_IF_RELEASE(gInterfaceInfoManager);
 }
 
-XPTInterfaceInfoManager::XPTInterfaceInfoManager()
+xptiInterfaceInfoManager::xptiInterfaceInfoManager()
     :   mWorkingSet(),
-        mResolveLock("XPTInterfaceInfoManager.mResolveLock")
+        mResolveLock("xptiInterfaceInfoManager.mResolveLock"),
+        mAdditionalManagersLock(
+            "xptiInterfaceInfoManager.mAdditionalManagersLock")
 {
-    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPTInterfaceInfoManager));
+    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(xptiWorkingSet));
 }
 
-XPTInterfaceInfoManager::~XPTInterfaceInfoManager()
+xptiInterfaceInfoManager::~xptiInterfaceInfoManager()
 {
     // We only do this on shutdown of the service.
     mWorkingSet.InvalidateInterfaceInfos();
@@ -97,7 +98,7 @@ XPTInterfaceInfoManager::~XPTInterfaceInfoManager()
 }
 
 void
-XPTInterfaceInfoManager::RegisterBuffer(char *buf, uint32_t length)
+xptiInterfaceInfoManager::RegisterBuffer(char *buf, uint32_t length)
 {
     XPTState *state = XPT_NewXDRState(XPT_DECODE, buf, length);
     if (!state)
@@ -118,7 +119,7 @@ XPTInterfaceInfoManager::RegisterBuffer(char *buf, uint32_t length)
 }
 
 void
-XPTInterfaceInfoManager::RegisterXPTHeader(XPTHeader* aHeader)
+xptiInterfaceInfoManager::RegisterXPTHeader(XPTHeader* aHeader)
 {
     if (aHeader->major_version >= XPT_MAJOR_INCOMPATIBLE_VERSION) {
         NS_ASSERTION(!aHeader->num_interfaces,"bad libxpt");
@@ -133,9 +134,9 @@ XPTInterfaceInfoManager::RegisterXPTHeader(XPTHeader* aHeader)
 }
 
 void
-XPTInterfaceInfoManager::VerifyAndAddEntryIfNew(XPTInterfaceDirectoryEntry* iface,
-                                                uint16_t idx,
-                                                xptiTypelibGuts* typelib)
+xptiInterfaceInfoManager::VerifyAndAddEntryIfNew(XPTInterfaceDirectoryEntry* iface,
+                                                 uint16_t idx,
+                                                 xptiTypelibGuts* typelib)
 {
     if (!iface->interface_descriptor)
         return;
@@ -201,15 +202,14 @@ EntryToInfo(xptiInterfaceEntry* entry, nsIInterfaceInfo **_retval)
 }
 
 xptiInterfaceEntry*
-XPTInterfaceInfoManager::GetInterfaceEntryForIID(const nsIID *iid)
+xptiInterfaceInfoManager::GetInterfaceEntryForIID(const nsIID *iid)
 {
     ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);
     return mWorkingSet.mIIDTable.Get(*iid);
 }
 
 /* nsIInterfaceInfo getInfoForIID (in nsIIDPtr iid); */
-NS_IMETHODIMP
-XPTInterfaceInfoManager::GetInfoForIID(const nsIID * iid, nsIInterfaceInfo **_retval)
+NS_IMETHODIMP xptiInterfaceInfoManager::GetInfoForIID(const nsIID * iid, nsIInterfaceInfo **_retval)
 {
     NS_ASSERTION(iid, "bad param");
     NS_ASSERTION(_retval, "bad param");
@@ -220,8 +220,7 @@ XPTInterfaceInfoManager::GetInfoForIID(const nsIID * iid, nsIInterfaceInfo **_re
 }
 
 /* nsIInterfaceInfo getInfoForName (in string name); */
-NS_IMETHODIMP
-XPTInterfaceInfoManager::GetInfoForName(const char *name, nsIInterfaceInfo **_retval)
+NS_IMETHODIMP xptiInterfaceInfoManager::GetInfoForName(const char *name, nsIInterfaceInfo **_retval)
 {
     NS_ASSERTION(name, "bad param");
     NS_ASSERTION(_retval, "bad param");
@@ -232,8 +231,7 @@ XPTInterfaceInfoManager::GetInfoForName(const char *name, nsIInterfaceInfo **_re
 }
 
 /* nsIIDPtr getIIDForName (in string name); */
-NS_IMETHODIMP
-XPTInterfaceInfoManager::GetIIDForName(const char *name, nsIID * *_retval)
+NS_IMETHODIMP xptiInterfaceInfoManager::GetIIDForName(const char *name, nsIID * *_retval)
 {
     NS_ASSERTION(name, "bad param");
     NS_ASSERTION(_retval, "bad param");
@@ -249,8 +247,7 @@ XPTInterfaceInfoManager::GetIIDForName(const char *name, nsIID * *_retval)
 }
 
 /* string getNameForIID (in nsIIDPtr iid); */
-NS_IMETHODIMP
-XPTInterfaceInfoManager::GetNameForIID(const nsIID * iid, char **_retval)
+NS_IMETHODIMP xptiInterfaceInfoManager::GetNameForIID(const nsIID * iid, char **_retval)
 {
     NS_ASSERTION(iid, "bad param");
     NS_ASSERTION(_retval, "bad param");
@@ -277,8 +274,7 @@ xpti_ArrayAppender(const char* name, xptiInterfaceEntry* entry, void* arg)
 }
 
 /* nsIEnumerator enumerateInterfaces (); */
-NS_IMETHODIMP
-XPTInterfaceInfoManager::EnumerateInterfaces(nsIEnumerator **_retval)
+NS_IMETHODIMP xptiInterfaceInfoManager::EnumerateInterfaces(nsIEnumerator **_retval)
 {
     // I didn't want to incur the size overhead of using nsHashtable just to
     // make building an enumerator easier. So, this code makes a snapshot of 
@@ -319,8 +315,7 @@ xpti_ArrayPrefixAppender(const char* keyname, xptiInterfaceEntry* entry, void* a
 }
 
 /* nsIEnumerator enumerateInterfacesWhoseNamesStartWith (in string prefix); */
-NS_IMETHODIMP
-XPTInterfaceInfoManager::EnumerateInterfacesWhoseNamesStartWith(const char *prefix, nsIEnumerator **_retval)
+NS_IMETHODIMP xptiInterfaceInfoManager::EnumerateInterfacesWhoseNamesStartWith(const char *prefix, nsIEnumerator **_retval)
 {
     nsCOMPtr<nsISupportsArray> array;
     NS_NewISupportsArray(getter_AddRefs(array));
@@ -328,15 +323,85 @@ XPTInterfaceInfoManager::EnumerateInterfacesWhoseNamesStartWith(const char *pref
         return NS_ERROR_UNEXPECTED;
 
     ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);
-    ArrayAndPrefix args = {array, prefix, static_cast<uint32_t>(strlen(prefix))};
+    ArrayAndPrefix args = {array, prefix, PL_strlen(prefix)};
     mWorkingSet.mNameTable.EnumerateRead(xpti_ArrayPrefixAppender, &args);
 
     return array->Enumerate(_retval);
 }
 
 /* void autoRegisterInterfaces (); */
-NS_IMETHODIMP
-XPTInterfaceInfoManager::AutoRegisterInterfaces()
+NS_IMETHODIMP xptiInterfaceInfoManager::AutoRegisterInterfaces()
 {
     return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+/***************************************************************************/
+
+/* void addAdditionalManager (in nsIInterfaceInfoManager manager); */
+NS_IMETHODIMP xptiInterfaceInfoManager::AddAdditionalManager(nsIInterfaceInfoManager *manager)
+{
+    nsCOMPtr<nsIWeakReference> weakRef = do_GetWeakReference(manager);
+    nsISupports* ptrToAdd = weakRef ? 
+                    static_cast<nsISupports*>(weakRef) :
+                    static_cast<nsISupports*>(manager);
+    { // scoped lock...
+        MutexAutoLock lock(mAdditionalManagersLock);
+        if (mAdditionalManagers.IndexOf(ptrToAdd) != -1)
+            return NS_ERROR_FAILURE;
+        if (!mAdditionalManagers.AppendObject(ptrToAdd))
+            return NS_ERROR_OUT_OF_MEMORY;
+    }
+    return NS_OK;
+}
+
+/* void removeAdditionalManager (in nsIInterfaceInfoManager manager); */
+NS_IMETHODIMP xptiInterfaceInfoManager::RemoveAdditionalManager(nsIInterfaceInfoManager *manager)
+{
+    nsCOMPtr<nsIWeakReference> weakRef = do_GetWeakReference(manager);
+    nsISupports* ptrToRemove = weakRef ? 
+                    static_cast<nsISupports*>(weakRef) :
+                    static_cast<nsISupports*>(manager);
+    { // scoped lock...
+        MutexAutoLock lock(mAdditionalManagersLock);
+        if (!mAdditionalManagers.RemoveObject(ptrToRemove))
+            return NS_ERROR_FAILURE;
+    }
+    return NS_OK;
+}
+
+/* bool hasAdditionalManagers (); */
+NS_IMETHODIMP xptiInterfaceInfoManager::HasAdditionalManagers(bool *_retval)
+{
+    *_retval = mAdditionalManagers.Count() > 0;
+    return NS_OK;
+}
+
+/* nsISimpleEnumerator enumerateAdditionalManagers (); */
+NS_IMETHODIMP xptiInterfaceInfoManager::EnumerateAdditionalManagers(nsISimpleEnumerator **_retval)
+{
+    MutexAutoLock lock(mAdditionalManagersLock);
+
+    nsCOMArray<nsISupports> managerArray(mAdditionalManagers);
+    /* Resolve all the weak references in the array. */
+    for(int32_t i = managerArray.Count(); i--; ) {
+        nsISupports *raw = managerArray.ObjectAt(i);
+        if (!raw)
+            return NS_ERROR_FAILURE;
+        nsCOMPtr<nsIWeakReference> weakRef = do_QueryInterface(raw);
+        if (weakRef) {
+            nsCOMPtr<nsIInterfaceInfoManager> manager = 
+                do_QueryReferent(weakRef);
+            if (manager) {
+                if (!managerArray.ReplaceObjectAt(manager, i))
+                    return NS_ERROR_FAILURE;
+            }
+            else {
+                // The manager is no more. Remove the element.
+                mAdditionalManagers.RemoveObjectAt(i);
+                managerArray.RemoveObjectAt(i);
+            }
+        }
+    }
+    
+    return NS_NewArrayEnumerator(_retval, managerArray);
 }

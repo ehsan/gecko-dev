@@ -20,7 +20,6 @@
 #include "nsICacheVisitor.h"
 #include "nsDiskCacheDevice.h"
 #include "nsDiskCacheDeviceSQL.h"
-#include "nsCacheUtils.h"
 
 #include "nsIObserverService.h"
 #include "nsIPrefService.h"
@@ -37,7 +36,6 @@
 #include <math.h>  // for log()
 #include "mozilla/Services.h"
 #include "nsITimer.h"
-#include "mozIStorageService.h"
 
 #include "mozilla/net/NeckoCommon.h"
 #include "mozilla/VisualEventTracer.h"
@@ -1135,15 +1133,10 @@ nsCacheService::Init()
 
     CACHE_LOG_INIT();
 
-    nsresult rv;
-
-    mStorageService = do_GetService("@mozilla.org/storage/service;1", &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
     MOZ_EVENT_TRACER_NAME_OBJECT(nsCacheService::gService, "nsCacheService");
 
-    rv = NS_NewNamedThread("Cache I/O",
-                           getter_AddRefs(mCacheIOThread));
+    nsresult rv = NS_NewNamedThread("Cache I/O",
+                                    getter_AddRefs(mCacheIOThread));
     if (NS_FAILED(rv)) {
         NS_RUNTIMEABORT("Can't create cache IO thread");
     }
@@ -1255,7 +1248,7 @@ nsCacheService::Shutdown()
     }
 
     if (cacheIOThread)
-        nsShutdownThread::BlockingShutdown(cacheIOThread);
+        cacheIOThread->Shutdown();
 
     if (shouldSanitize) {
         nsresult rv = parentDir->AppendNative(NS_LITERAL_CSTRING("Cache"));
@@ -1610,9 +1603,7 @@ public:
             return rv;
         }
 
-        // It is safe to call SetDiskSmartSize_Locked() without holding the lock
-        // when we are on main thread and nsCacheService is initialized.
-        nsCacheService::gService->SetDiskSmartSize_Locked();
+        nsCacheService::SetDiskSmartSize();
 
         if (nsCacheService::gService->mObserver->PermittedToSmartSize(branch, false)) {
             rv = branch->SetIntPref(DISK_CACHE_CAPACITY_PREF, MAX_CACHE_SIZE);
@@ -1718,9 +1709,9 @@ nsCacheService::CreateCustomOfflineDevice(nsIFile *aProfileDir,
     (*aDevice)->SetCacheParentDirectory(aProfileDir);
     (*aDevice)->SetCapacity(aQuota);
 
-    nsresult rv = (*aDevice)->InitWithSqlite(mStorageService);
+    nsresult rv = (*aDevice)->Init();
     if (NS_FAILED(rv)) {
-        CACHE_LOG_DEBUG(("OfflineDevice->InitWithSqlite() failed (0x%.8x)\n", rv));
+        CACHE_LOG_DEBUG(("OfflineDevice->Init() failed (0x%.8x)\n", rv));
         CACHE_LOG_DEBUG(("    - disabling offline cache for this session.\n"));
 
         NS_RELEASE(*aDevice);
@@ -2404,7 +2395,7 @@ nsCacheService::OnProfileChanged()
         gService->mOfflineDevice->SetCapacity(gService->mObserver->OfflineCacheCapacity());
 
         // XXX initialization of mOfflineDevice could be made lazily, if mEnableOfflineDevice is false
-        nsresult rv = gService->mOfflineDevice->InitWithSqlite(gService->mStorageService);
+        nsresult rv = gService->mOfflineDevice->Init();
         if (NS_FAILED(rv)) {
             NS_ERROR("nsCacheService::OnProfileChanged: Re-initializing offline device failed");
             gService->mEnableOfflineDevice = false;

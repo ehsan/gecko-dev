@@ -1218,15 +1218,11 @@ static void PaintDebugImageMap(nsIFrame* aFrame, nsRenderingContext* aCtx,
 void
 nsDisplayImage::Paint(nsDisplayListBuilder* aBuilder,
                       nsRenderingContext* aCtx) {
-  uint32_t flags = imgIContainer::FLAG_NONE;
-  if (aBuilder->ShouldSyncDecodeImages()) {
-    flags |= imgIContainer::FLAG_SYNC_DECODE;
-  }
-  if (aBuilder->IsPaintingToWindow()) {
-    flags |= imgIContainer::FLAG_HIGH_QUALITY_SCALING;
-  }
   static_cast<nsImageFrame*>(mFrame)->
-    PaintImage(*aCtx, ToReferenceFrame(), mVisibleRect, mImage, flags);
+    PaintImage(*aCtx, ToReferenceFrame(), mVisibleRect, mImage,
+               aBuilder->ShouldSyncDecodeImages()
+                 ? (uint32_t) imgIContainer::FLAG_SYNC_DECODE
+                 : (uint32_t) imgIContainer::FLAG_NONE);
 }
 
 already_AddRefed<ImageContainer>
@@ -1353,12 +1349,9 @@ nsImageFrame::PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
   nsImageMap* map = GetImageMap();
   if (nullptr != map) {
     aRenderingContext.PushState();
-    aRenderingContext.Translate(inner.TopLeft());
-    aRenderingContext.SetColor(NS_RGB(255, 255, 255));
-    aRenderingContext.SetLineStyle(nsLineStyle_kSolid);
-    map->Draw(this, aRenderingContext);
     aRenderingContext.SetColor(NS_RGB(0, 0, 0));
     aRenderingContext.SetLineStyle(nsLineStyle_kDotted);
+    aRenderingContext.Translate(inner.TopLeft());
     map->Draw(this, aRenderingContext);
     aRenderingContext.PopState();
   }
@@ -1372,11 +1365,16 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleForPainting(aBuilder))
     return;
 
+  // REVIEW: We don't need any special logic here for deciding which layer
+  // to put the background in ... it goes in aLists.BorderBackground() and
+  // then if we have a block parent, it will put our background in the right
+  // place.
   DisplayBorderBackgroundOutline(aBuilder, aLists);
+  // REVIEW: Checking mRect.IsEmpty() makes no sense to me, so I removed it.
+  // It can't have been protecting us against bad situations with zero-size
+  // images since adding a border would make the rect non-empty.
 
-  DisplayListClipState::AutoClipContainingBlockDescendantsToContentBox
-    clip(aBuilder, this, DisplayListClipState::ASSUME_DRAWING_RESTRICTED_TO_CONTENT_RECT);
-
+  nsDisplayList replacedContent;
   if (mComputedSize.width != 0 && mComputedSize.height != 0) {
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
     NS_ASSERTION(imageLoader, "Not an image loading content?");
@@ -1409,11 +1407,11 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     if (!imageOK || !haveSize) {
       // No image yet, or image load failed. Draw the alt-text and an icon
       // indicating the status
-      aLists.Content()->AppendNewToTop(new (aBuilder)
+      replacedContent.AppendNewToTop(new (aBuilder)
         nsDisplayAltFeedback(aBuilder, this));
     }
     else {
-      aLists.Content()->AppendNewToTop(new (aBuilder)
+      replacedContent.AppendNewToTop(new (aBuilder)
         nsDisplayImage(aBuilder, this, imgCon));
 
       // If we were previously displaying an icon, we're not anymore
@@ -1422,6 +1420,7 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
         mDisplayingIcon = false;
       }
 
+        
 #ifdef DEBUG
       if (GetShowFrameBorders() && GetImageMap()) {
         aLists.Outlines()->AppendNewToTop(new (aBuilder)
@@ -1433,9 +1432,11 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   if (ShouldDisplaySelection()) {
-    DisplaySelectionOverlay(aBuilder, aLists.Content(),
+    DisplaySelectionOverlay(aBuilder, &replacedContent,
                             nsISelectionDisplay::DISPLAY_IMAGES);
   }
+
+  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
 }
 
 bool
@@ -1734,10 +1735,23 @@ nsImageFrame::GetFrameName(nsAString& aResult) const
   return MakeFrameName(NS_LITERAL_STRING("ImageFrame"), aResult);
 }
 
-void
+NS_IMETHODIMP
 nsImageFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
 {
-  ListGeneric(out, aIndent, aFlags);
+  IndentBy(out, aIndent);
+  ListTag(out);
+#ifdef DEBUG_waterson
+  fprintf(out, " [parent=%p]", mParent);
+#endif
+  if (HasView()) {
+    fprintf(out, " [view=%p]", (void*)GetView());
+  }
+  fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
+  if (0 != mState) {
+    fprintf(out, " [state=%016llx]", (unsigned long long)mState);
+  }
+  fprintf(out, " [content=%p]", (void*)mContent);
+  fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
 
   // output the img src url
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
@@ -1754,6 +1768,7 @@ nsImageFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
     }
   }
   fputs("\n", out);
+  return NS_OK;
 }
 #endif
 

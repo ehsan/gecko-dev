@@ -64,7 +64,7 @@ static const int32_t kIEnumVariantDisconnected = -1;
 // AccessibleWrap
 ////////////////////////////////////////////////////////////////////////////////
 
-ITypeInfo* AccessibleWrap::gTypeInfo = nullptr;
+ITypeInfo* AccessibleWrap::gTypeInfo = NULL;
 
 NS_IMPL_ISUPPORTS_INHERITED0(AccessibleWrap, Accessible)
 
@@ -78,7 +78,7 @@ AccessibleWrap::QueryInterface(REFIID iid, void** ppv)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IID_IUnknown == iid || IID_IDispatch == iid || IID_IAccessible == iid)
     *ppv = static_cast<IAccessible*>(this);
@@ -96,28 +96,28 @@ AccessibleWrap::QueryInterface(REFIID iid, void** ppv)
     if (IsDefunct() || (!HasOwnContent() && !IsDoc()))
       return E_NOINTERFACE;
 
-    *ppv = static_cast<ISimpleDOMNode*>(new sdnAccessible(GetNode()));
+    *ppv = new sdnAccessible(GetNode());
   }
 
-  if (nullptr == *ppv) {
+  if (NULL == *ppv) {
     HRESULT hr = ia2AccessibleComponent::QueryInterface(iid, ppv);
     if (SUCCEEDED(hr))
       return hr;
   }
 
-  if (nullptr == *ppv) {
+  if (NULL == *ppv) {
     HRESULT hr = ia2AccessibleHyperlink::QueryInterface(iid, ppv);
     if (SUCCEEDED(hr))
       return hr;
   }
 
-  if (nullptr == *ppv) {
+  if (NULL == *ppv) {
     HRESULT hr = ia2AccessibleValue::QueryInterface(iid, ppv);
     if (SUCCEEDED(hr))
       return hr;
   }
 
-  if (nullptr == *ppv)
+  if (NULL == *ppv)
     return E_NOINTERFACE;
 
   (reinterpret_cast<IUnknown*>(*ppv))->AddRef();
@@ -135,7 +135,7 @@ AccessibleWrap::get_accParent( IDispatch __RPC_FAR *__RPC_FAR *ppdispParent)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *ppdispParent = nullptr;
+  *ppdispParent = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -195,7 +195,7 @@ AccessibleWrap::get_accChild(
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *ppdispChild = nullptr;
+  *ppdispChild = NULL;
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
@@ -224,7 +224,7 @@ AccessibleWrap::get_accName(
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *pszName = nullptr;
+  *pszName = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -261,7 +261,7 @@ AccessibleWrap::get_accValue(
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *pszValue = nullptr;
+  *pszValue = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -299,7 +299,7 @@ AccessibleWrap::get_accDescription(VARIANT varChild,
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *pszDescription = nullptr;
+  *pszDescription = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -461,7 +461,7 @@ AccessibleWrap::get_accHelp(
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *pszHelp = nullptr;
+  *pszHelp = NULL;
   return S_FALSE;
 
   A11Y_TRYBLOCK_END
@@ -475,7 +475,7 @@ AccessibleWrap::get_accHelpTopic(
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *pszHelpFile = nullptr;
+  *pszHelpFile = NULL;
   *pidTopic = 0;
   return S_FALSE;
 
@@ -491,7 +491,7 @@ AccessibleWrap::get_accKeyboardShortcut(
 
   if (!pszKeyboardShortcut)
     return E_INVALIDARG;
-  *pszKeyboardShortcut = nullptr;
+  *pszKeyboardShortcut = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -564,7 +564,9 @@ public:
   ~AccessibleEnumerator() { }
 
   // IUnknown
-  DECL_IUNKNOWN
+  STDMETHODIMP QueryInterface(REFIID iid, void ** ppvObject);
+  STDMETHODIMP_(ULONG) AddRef(void);
+  STDMETHODIMP_(ULONG) Release(void);
 
   // IEnumVARIANT
   STDMETHODIMP Next(unsigned long celt, VARIANT FAR* rgvar, unsigned long FAR* pceltFetched);
@@ -579,9 +581,10 @@ public:
 private:
   nsCOMPtr<nsIArray> mArray;
   uint32_t mCurIndex;
+  nsAutoRefCnt mRefCnt;
 };
 
-STDMETHODIMP
+HRESULT
 AccessibleEnumerator::QueryInterface(REFIID iid, void ** ppvObject)
 {
   A11Y_TRYBLOCK_BEGIN
@@ -597,10 +600,25 @@ AccessibleEnumerator::QueryInterface(REFIID iid, void ** ppvObject)
     return S_OK;
   }
 
-  *ppvObject = nullptr;
+  *ppvObject = NULL;
   return E_NOINTERFACE;
 
   A11Y_TRYBLOCK_END
+}
+
+STDMETHODIMP_(ULONG)
+AccessibleEnumerator::AddRef(void)
+{
+  return ++mRefCnt;
+}
+
+STDMETHODIMP_(ULONG)
+AccessibleEnumerator::Release(void)
+{
+  ULONG r = --mRefCnt;
+  if (r == 0)
+    delete this;
+  return r;
 }
 
 STDMETHODIMP
@@ -724,7 +742,7 @@ AccessibleWrap::get_accDefaultAction(
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *pszDefaultAction = nullptr;
+  *pszDefaultAction = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -1048,7 +1066,7 @@ AccessibleWrap::get_relation(long aRelationIndex,
   if (!aRelation)
     return E_INVALIDARG;
 
-  *aRelation = nullptr;
+  *aRelation = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -1262,7 +1280,7 @@ AccessibleWrap::get_extendedRole(BSTR *aExtendedRole)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *aExtendedRole = nullptr;
+  *aExtendedRole = NULL;
   return E_NOTIMPL;
 
   A11Y_TRYBLOCK_END
@@ -1273,7 +1291,7 @@ AccessibleWrap::get_localizedExtendedRole(BSTR *aLocalizedExtendedRole)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *aLocalizedExtendedRole = nullptr;
+  *aLocalizedExtendedRole = NULL;
   return E_NOTIMPL;
 
   A11Y_TRYBLOCK_END
@@ -1297,7 +1315,7 @@ AccessibleWrap::get_extendedStates(long aMaxExtendedStates,
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *aExtendedStates = nullptr;
+  *aExtendedStates = NULL;
   *aNExtendedStates = 0;
   return E_NOTIMPL;
 
@@ -1311,7 +1329,7 @@ AccessibleWrap::get_localizedExtendedStates(long aMaxLocalizedExtendedStates,
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *aLocalizedExtendedStates = nullptr;
+  *aLocalizedExtendedStates = NULL;
   *aNLocalizedExtendedStates = 0;
   return E_NOTIMPL;
 
@@ -1420,7 +1438,7 @@ AccessibleWrap::get_attributes(BSTR *aAttributes)
 
   // The format is name:value;name:value; with \ for escaping these
   // characters ":;=,\".
-  *aAttributes = nullptr;
+  *aAttributes = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -1444,7 +1462,7 @@ AccessibleWrap::GetTypeInfoCount(UINT *pctinfo)
 STDMETHODIMP
 AccessibleWrap::GetTypeInfo(UINT iTInfo, LCID lcid, ITypeInfo **ppTInfo)
 {
-  *ppTInfo = nullptr;
+  *ppTInfo = NULL;
 
   if (iTInfo != 0)
     return DISP_E_BADINDEX;
@@ -1514,13 +1532,6 @@ AccessibleWrap::HandleAccEvent(AccEvent* aEvent)
 nsresult
 AccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
 {
-  // Don't fire native MSAA events or mess with the system caret
-  // when running in metro mode. This confuses input focus tracking
-  // in metro's UIA implementation.
-  if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-    return NS_OK;
-  }
-
   uint32_t eventType = aEvent->GetEventType();
 
   MOZ_STATIC_ASSERT(sizeof(gWinEventMap)/sizeof(gWinEventMap[0]) == nsIAccessibleEvent::EVENT_LAST_ENTRY,
@@ -1636,7 +1647,7 @@ HRESULT
 AccessibleWrap::ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
                                        BSTR *aIA2Attributes)
 {
-  *aIA2Attributes = nullptr;
+  *aIA2Attributes = NULL;
 
   // The format is name:value;name:value; with \ for escaping these
   // characters ":;=,\".
@@ -1700,7 +1711,7 @@ AccessibleWrap::NativeAccessible(nsIAccessible* aAccessible)
 {
   if (!aAccessible) {
    NS_WARNING("Not passing in an aAccessible");
-   return nullptr;
+   return NULL;
   }
 
   IAccessible* msaaAccessible = nullptr;
@@ -1778,7 +1789,7 @@ AccessibleWrap::UpdateSystemCaret()
 
   // Create invisible bitmap for caret, otherwise its appearance interferes
   // with Gecko caret
-  HBITMAP caretBitMap = CreateBitmap(1, caretRect.height, 1, 1, nullptr);
+  HBITMAP caretBitMap = CreateBitmap(1, caretRect.height, 1, 1, NULL);
   if (::CreateCaret(caretWnd, caretBitMap, 1, caretRect.height)) {  // Also destroys the last caret
     ::ShowCaret(caretWnd);
     RECT windowRect;
@@ -1794,16 +1805,16 @@ AccessibleWrap::GetTI(LCID lcid)
   if (gTypeInfo)
     return gTypeInfo;
 
-  ITypeLib *typeLib = nullptr;
+  ITypeLib *typeLib = NULL;
   HRESULT hr = LoadRegTypeLib(LIBID_Accessibility, 1, 0, lcid, &typeLib);
   if (FAILED(hr))
-    return nullptr;
+    return NULL;
 
   hr = typeLib->GetTypeInfoOfGuid(IID_IAccessible, &gTypeInfo);
   typeLib->Release();
 
   if (FAILED(hr))
-    return nullptr;
+    return NULL;
 
   return gTypeInfo;
 }

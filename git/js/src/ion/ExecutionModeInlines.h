@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10,8 +11,7 @@
 namespace js {
 namespace ion {
 
-static inline bool
-HasIonScript(JSScript *script, ExecutionMode cmode)
+static inline bool HasIonScript(RawScript script, ExecutionMode cmode)
 {
     switch (cmode) {
       case SequentialExecution: return script->hasIonScript();
@@ -21,39 +21,35 @@ HasIonScript(JSScript *script, ExecutionMode cmode)
     return false;
 }
 
-static inline IonScript *
-GetIonScript(JSScript *script, ExecutionMode cmode)
+static inline IonScript *GetIonScript(RawScript script, ExecutionMode cmode)
 {
     switch (cmode) {
-      case SequentialExecution: return script->maybeIonScript();
-      case ParallelExecution: return script->maybeParallelIonScript();
+      case SequentialExecution: return script->ion;
+      case ParallelExecution: return script->parallelIon;
     }
     JS_NOT_REACHED("No such execution mode");
     return NULL;
 }
 
-static inline void
-SetIonScript(JSScript *script, ExecutionMode cmode, IonScript *ionScript)
+static inline void SetIonScript(RawScript script, ExecutionMode cmode, IonScript *ionScript)
 {
     switch (cmode) {
-      case SequentialExecution: script->setIonScript(ionScript); return;
-      case ParallelExecution: script->setParallelIonScript(ionScript); return;
+      case SequentialExecution: script->ion = ionScript; return;
+      case ParallelExecution: script->parallelIon = ionScript; return;
     }
     JS_NOT_REACHED("No such execution mode");
 }
 
-static inline size_t
-OffsetOfIonInJSScript(ExecutionMode cmode)
+static inline size_t OffsetOfIonInJSScript(ExecutionMode cmode)
 {
     switch (cmode) {
-      case SequentialExecution: return JSScript::offsetOfIonScript();
-      case ParallelExecution: return JSScript::offsetOfParallelIonScript();
+      case SequentialExecution: return offsetof(JSScript, ion);
+      case ParallelExecution: return offsetof(JSScript, parallelIon);
     }
     JS_NOT_REACHED("No such execution mode");
 }
 
-static inline bool
-CanIonCompile(JSScript *script, ExecutionMode cmode)
+static inline bool CanIonCompile(RawScript script, ExecutionMode cmode)
 {
     switch (cmode) {
       case SequentialExecution: return script->canIonCompile();
@@ -63,14 +59,12 @@ CanIonCompile(JSScript *script, ExecutionMode cmode)
     return false;
 }
 
-static inline bool
-CanIonCompile(JSFunction *fun, ExecutionMode cmode)
+static inline bool CanIonCompile(RawFunction fun, ExecutionMode cmode)
 {
     return fun->isInterpreted() && CanIonCompile(fun->nonLazyScript(), cmode);
 }
 
-static inline bool
-CompilingOffThread(JSScript *script, ExecutionMode cmode)
+static inline bool CompilingOffThread(RawScript script, ExecutionMode cmode)
 {
     switch (cmode) {
       case SequentialExecution: return script->isIonCompilingOffThread();
@@ -80,8 +74,7 @@ CompilingOffThread(JSScript *script, ExecutionMode cmode)
     return false;
 }
 
-static inline bool
-CompilingOffThread(HandleScript script, ExecutionMode cmode)
+static inline bool CompilingOffThread(HandleScript script, ExecutionMode cmode)
 {
     switch (cmode) {
       case SequentialExecution: return script->isIonCompilingOffThread();
@@ -91,8 +84,16 @@ CompilingOffThread(HandleScript script, ExecutionMode cmode)
     return false;
 }
 
-static inline types::CompilerOutput::Kind
-CompilerOutputKind(ExecutionMode cmode)
+static inline bool Disabled(RawScript script, ExecutionMode cmode) {
+    switch (cmode) {
+      case SequentialExecution: return script->isIonCompilingOffThread();
+      case ParallelExecution: return script->isParallelIonCompilingOffThread();
+    }
+    JS_NOT_REACHED("No such execution mode");
+    return false;
+}
+
+static inline types::CompilerOutput::Kind CompilerOutputKind(ExecutionMode cmode)
 {
     switch (cmode) {
       case SequentialExecution: return types::CompilerOutput::Ion;

@@ -6,7 +6,6 @@
 
 const { Loader, resolveURI, Require,
         unload, override, descriptor  } = require('../loader/cuddlefish');
-const { ensure } = require('../system/unload');
 const addonWindow = require('../addon/window');
 const { PlainTextConsole } = require("sdk/console/plain-text");
 
@@ -20,7 +19,7 @@ function CustomLoader(module, globals, packaging) {
   });
 
   let loader = Loader(options);
-  let wrapper = Object.create(loader, descriptor({
+  return Object.create(loader, descriptor({
     require: Require(loader, module),
     sandbox: function(id) {
       let requirement = loader.resolve(id, module.id);
@@ -31,8 +30,6 @@ function CustomLoader(module, globals, packaging) {
       unload(loader, reason);
     }
   }));
-  ensure(wrapper);
-  return wrapper;
 };
 exports.Loader = CustomLoader;
 

@@ -26,8 +26,9 @@
 #include "nsContentList.h"
 #include "nsContentUtils.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsCycleCollector.h"
 #include "nsDocument.h"
-#include "mozilla/dom/Attr.h"
+#include "nsDOMAttribute.h"
 #include "nsDOMAttributeMap.h"
 #include "nsDOMCID.h"
 #include "nsDOMCSSAttrDeclaration.h"
@@ -61,6 +62,7 @@
 #include "nsIEditor.h"
 #include "nsIEditorIMESupport.h"
 #include "nsIFrame.h"
+#include "nsIJSContextStack.h"
 #include "nsILinkHandler.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
@@ -95,6 +97,7 @@
 #include "nsXBLInsertionPoint.h"
 #include "nsXBLPrototypeBinding.h"
 #include "prprf.h"
+#include "xpcprivate.h" // XBLScopesEnabled
 #include "xpcpublic.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsCSSParser.h"
@@ -697,10 +700,10 @@ nsINode::SetUserData(JSContext* aCx, const nsAString& aKey, JS::Value aData,
     return JS::NullValue();
   }
 
-  JS::Rooted<JS::Value> result(aCx);
+  JS::Value result;
   JSAutoCompartment ac(aCx, GetWrapper());
   aError = nsContentUtils::XPConnect()->VariantToJS(aCx, GetWrapper(), oldData,
-                                                    result.address());
+                                                    &result);
   return result;
 }
 
@@ -712,20 +715,21 @@ nsINode::GetUserData(JSContext* aCx, const nsAString& aKey, ErrorResult& aError)
     return JS::NullValue();
   }
 
-  JS::Rooted<JS::Value> result(aCx);
+  JS::Value result;
   JSAutoCompartment ac(aCx, GetWrapper());
   aError = nsContentUtils::XPConnect()->VariantToJS(aCx, GetWrapper(), data,
-                                                    result.address());
+                                                    &result);
   return result;
 }
 
 //static
 bool
-nsINode::IsChromeOrXBL(JSContext* aCx, JSObject* /* unused */)
+nsINode::ShouldExposeUserData(JSContext* aCx, JSObject* /* unused */)
 {
   JSCompartment* compartment = js::GetContextCompartment(aCx);
   return xpc::AccessCheck::isChrome(compartment) ||
-         xpc::IsXBLScope(compartment);
+         xpc::IsXBLScope(compartment) ||
+         !XPCJSRuntime::Get()->XBLScopesEnabled();
 }
 
 uint16_t
@@ -1038,29 +1042,6 @@ nsINode::AddEventListener(const nsAString& aType,
   listener_manager->AddEventListener(aType, aListener, aUseCapture,
                                      aWantsUntrusted);
   return NS_OK;
-}
-
-void
-nsINode::AddEventListener(const nsAString& aType,
-                          nsIDOMEventListener* aListener,
-                          bool aUseCapture,
-                          const Nullable<bool>& aWantsUntrusted,
-                          ErrorResult& aRv)
-{
-  bool wantsUntrusted;
-  if (aWantsUntrusted.IsNull()) {
-    wantsUntrusted = !nsContentUtils::IsChromeDoc(OwnerDoc());
-  } else {
-    wantsUntrusted = aWantsUntrusted.Value();
-  }
-
-  nsEventListenerManager* listener_manager = GetListenerManager(true);
-  if (!listener_manager) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return;
-  }
-  listener_manager->AddEventListener(aType, aListener, aUseCapture,
-                                     wantsUntrusted);
 }
 
 NS_IMETHODIMP
@@ -1387,21 +1368,6 @@ nsINode::doInsertChildAt(nsIContent* aKid, uint32_t aIndex,
   }
 
   return NS_OK;
-}
-
-void
-nsINode::Remove()
-{
-  nsCOMPtr<nsINode> parent = GetParentNode();
-  if (!parent) {
-    return;
-  }
-  int32_t index = parent->IndexOf(this);
-  if (index < 0) {
-    NS_WARNING("Ignoring call to nsINode::Remove on anonymous child.");
-    return;
-  }
-  parent->RemoveChildAt(uint32_t(index), true);
 }
 
 void
@@ -2098,11 +2064,20 @@ nsINode::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
     return NS_OK;                                                            \
   }                                                                          \
   NS_IMETHODIMP nsINode::SetOn##name_(JSContext *cx, const JS::Value &v) {   \
+    JSObject *obj = GetWrapper();                                            \
+    if (!obj) {                                                              \
+      /* Just silently do nothing */                                         \
+      return NS_OK;                                                          \
+    }                                                                        \
     nsRefPtr<EventHandlerNonNull> handler;                                   \
     JSObject *callable;                                                      \
     if (v.isObject() &&                                                      \
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                 \
-      handler = new EventHandlerNonNull(callable);                           \
+      bool ok;                                                               \
+      handler = new EventHandlerNonNull(cx, obj, callable, &ok);             \
+      if (!ok) {                                                             \
+        return NS_ERROR_OUT_OF_MEMORY;                                       \
+      }                                                                      \
     }                                                                        \
     ErrorResult rv;                                                          \
     SetOn##name_(handler, rv);                                               \
@@ -2373,7 +2348,7 @@ nsINode::QuerySelectorAll(const nsAString& aSelector, ErrorResult& aResult)
 }
 
 JSObject*
-nsINode::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
+nsINode::WrapObject(JSContext *aCx, JSObject *aScope)
 {
   MOZ_ASSERT(IsDOMBinding());
 
@@ -2394,10 +2369,9 @@ nsINode::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
     return nullptr;
   }
 
-  JS::Rooted<JSObject*> obj(aCx, WrapNode(aCx, aScope));
+  JSObject* obj = WrapNode(aCx, aScope);
   if (obj && ChromeOnlyAccess() &&
-      !nsContentUtils::IsSystemPrincipal(NodePrincipal()) &&
-      xpc::AllowXBLScope(js::GetContextCompartment(aCx)))
+      !nsContentUtils::IsSystemPrincipal(NodePrincipal()))
   {
     // Create a new wrapper and cache it.
     JSAutoCompartment ac(aCx, obj);

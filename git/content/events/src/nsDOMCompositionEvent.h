@@ -24,8 +24,7 @@ public:
   NS_FORWARD_TO_NSDOMUIEVENT
   NS_DECL_NSIDOMCOMPOSITIONEVENT
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::CompositionEventBinding::Wrap(aCx, aScope, this);
   }

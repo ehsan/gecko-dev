@@ -75,8 +75,7 @@ struct leaky {
   int    stacks;
 
   int sfd;
-  Symbol** externalSymbols;
-  Symbol** lastSymbol;
+  Symbol* externalSymbols;
   int     usefulSymbols;
   int     numExternalSymbols;
   StrSet exclusions;
@@ -105,14 +104,13 @@ struct leaky {
 
   void displayStackTrace(FILE* out, malloc_log_entry* lep);
 
-  Symbol ** ExtendSymbols(int num);
   void ReadSymbols(const char* fileName, u_long aBaseAddress);
   void ReadSharedLibrarySymbols();
   void setupSymbols(const char* fileName);
   Symbol* findSymbol(u_long address);
   bool excluded(malloc_log_entry* lep);
   bool included(malloc_log_entry* lep);
-  const char* indexToName(int idx) {return externalSymbols[idx]->name;}
+  const char* indexToName(int idx) {return externalSymbols[idx].name;}
 
   private:
   void generateReportHTML(FILE *fp, int *countArray, int count, int thread);

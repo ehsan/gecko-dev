@@ -1,19 +1,25 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=80:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsprobes.h"
-
+#include "jsapi.h"
+#include "jsutil.h"
+#include "jsatom.h"
 #include "jscntxt.h"
+#include "jsdbgapi.h"
+#include "jsfun.h"
+#include "jsinterp.h"
+#include "jsobj.h"
+#include "jsprobes.h"
 #include "jsscript.h"
+#include "jsstr.h"
 
-#ifdef INCLUDE_MOZILLA_DTRACE
-#include "jsscriptinlines.h" 
-#endif
+#include "methodjit/Compiler.h"
 
-#include "vm/Stack-inl.h"
+#include "jsobjinlines.h"
 
 #define TYPEOF(cx,v)    (JSVAL_IS_NULL(v) ? JSTYPE_NULL : JS_TypeOfValue(cx,v))
 
@@ -57,7 +63,7 @@ Probes::discardMJITCode(FreeOp *fop, mjit::JITScript *jscr, mjit::JITChunk *chun
 
 bool
 Probes::registerICCode(JSContext *cx,
-                       mjit::JITChunk *chunk, JSScript *script, jsbytecode* pc,
+                       mjit::JITChunk *chunk, RawScript script, jsbytecode* pc,
                        void *start, size_t size)
 {
     if (cx->runtime->spsProfiler.enabled() &&
@@ -81,7 +87,7 @@ Probes::discardExecutableRegion(void *start, size_t size)
 
 #ifdef INCLUDE_MOZILLA_DTRACE
 static const char *
-ScriptFilename(const JSScript *script)
+ScriptFilename(const RawScript script)
 {
     if (!script)
         return Probes::nullName;
@@ -91,7 +97,7 @@ ScriptFilename(const JSScript *script)
 }
 
 static const char *
-FunctionName(JSContext *cx, JSFunction *fun, JSAutoByteString* bytes)
+FunctionName(JSContext *cx, RawFunction fun, JSAutoByteString* bytes)
 {
     if (!fun)
         return Probes::nullName;
@@ -108,7 +114,7 @@ FunctionName(JSContext *cx, JSFunction *fun, JSAutoByteString* bytes)
  * a number of usually unused lines of code would cause.
  */
 void
-Probes::DTraceEnterJSFun(JSContext *cx, JSFunction *fun, JSScript *script)
+Probes::DTraceEnterJSFun(JSContext *cx, RawFunction fun, RawScript script)
 {
     JSAutoByteString funNameBytes;
     JAVASCRIPT_FUNCTION_ENTRY(ScriptFilename(script), Probes::nullName,
@@ -116,7 +122,7 @@ Probes::DTraceEnterJSFun(JSContext *cx, JSFunction *fun, JSScript *script)
 }
 
 void
-Probes::DTraceExitJSFun(JSContext *cx, JSFunction *fun, JSScript *script)
+Probes::DTraceExitJSFun(JSContext *cx, RawFunction fun, RawScript script)
 {
     JSAutoByteString funNameBytes;
     JAVASCRIPT_FUNCTION_RETURN(ScriptFilename(script), Probes::nullName,

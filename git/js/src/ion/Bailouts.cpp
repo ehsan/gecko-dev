@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -16,7 +17,6 @@
 #include "jsanalyze.h"
 #include "jsinferinlines.h"
 #include "IonFrames-inl.h"
-#include "BaselineJIT.h"
 
 using namespace js;
 using namespace js::ion;
@@ -62,7 +62,7 @@ IonBailoutIterator::dump() const
     }
 }
 
-static JSScript *
+static RawScript
 GetBailedJSScript(JSContext *cx)
 {
     // Just after the frame conversion, we can safely interpret the ionTop as JS
@@ -95,32 +95,18 @@ StackFrame::initFromBailout(JSContext *cx, SnapshotIterator &iter)
     if (iter.bailoutKind() == Bailout_ArgumentCheck) {
         // Temporary hack -- skip the (unused) scopeChain, because it could be
         // bogus (we can fail before the scope chain slot is set). Strip the
-        // hasScopeChain flag.  If a call object is needed, it will get handled later
-        // by |ThunkToInterpreter| which call |EnsureHasScopeObjects|.
+        // hasScopeChain flag and we'll check this later to run prologue().
         iter.skip();
         flags_ &= ~StackFrame::HAS_SCOPECHAIN;
-
-        // If the script binds arguments, then skip the snapshot slot reserved to hold
-        // its value.
-        if (script()->argumentsHasVarBinding())
-            iter.skip();
-        flags_ &= ~StackFrame::HAS_ARGS_OBJ;
     } else {
-        Value scopeChain = iter.read();
-        JS_ASSERT(scopeChain.isObject() || scopeChain.isUndefined());
-        if (scopeChain.isObject()) {
-            scopeChain_ = &scopeChain.toObject();
+        Value v = iter.read();
+        if (v.isObject()) {
+            scopeChain_ = &v.toObject();
             flags_ |= StackFrame::HAS_SCOPECHAIN;
             if (isFunctionFrame() && fun()->isHeavyweight())
                 flags_ |= StackFrame::HAS_CALL_OBJ;
-        }
-
-        // The second slot will be an arguments object if the script needs one.
-        if (script()->argumentsHasVarBinding()) {
-            Value argsObj = iter.read();
-            JS_ASSERT(argsObj.isObject() || argsObj.isUndefined());
-            if (argsObj.isObject())
-                initArgsObj(argsObj.toObject().asArguments());
+        } else {
+            JS_ASSERT(v.isUndefined());
         }
     }
 
@@ -139,7 +125,7 @@ StackFrame::initFromBailout(JSContext *cx, SnapshotIterator &iter)
         if (isConstructing())
             JS_ASSERT(!thisv.isPrimitive());
 
-        JS_ASSERT(iter.slots() >= CountArgSlots(script(), fun()));
+        JS_ASSERT(iter.slots() >= CountArgSlots(fun()));
         IonSpew(IonSpew_Bailouts, " frame slots %u, nargs %u, nfixed %u",
                 iter.slots(), fun()->nargs, script()->nfixed);
 
@@ -148,7 +134,7 @@ StackFrame::initFromBailout(JSContext *cx, SnapshotIterator &iter)
             formals()[i] = arg;
         }
     }
-    exprStackSlots -= CountArgSlots(script(), maybeFun());
+    exprStackSlots -= CountArgSlots(maybeFun());
 
     for (uint32_t i = 0; i < script()->nfixed; i++) {
         Value slot = iter.read();
@@ -236,7 +222,7 @@ ConvertFrames(JSContext *cx, IonActivation *activation, IonBailoutIterator &it)
     // determine if we have a critical sequence of bailout.
     //
     // Note: frame conversion only occurs in sequential mode
-    if (it.script()->maybeIonScript() == it.ionScript()) {
+    if (it.script()->ion == it.ionScript()) {
         IonSpew(IonSpew_Bailouts, " Current script use count is %u",
                 it.script()->getUseCount());
     }
@@ -244,8 +230,7 @@ ConvertFrames(JSContext *cx, IonActivation *activation, IonBailoutIterator &it)
 
     // Set a flag to avoid bailing out on every iteration or function call. Ion can
     // compile and run the script again after an invalidation.
-    it.ionScript()->incNumBailouts();
-    it.script()->updateBaselineOrIonRaw();
+    it.ionScript()->setBailoutExpected();
 
     // We use OffTheBooks instead of cx because at this time we cannot iterate
     // on the stack safely and the reported error attempts to walk the IonMonkey
@@ -261,7 +246,7 @@ ConvertFrames(JSContext *cx, IonActivation *activation, IonBailoutIterator &it)
         // Avoid creating duplicate interpreter frames. This is necessary to
         // avoid blowing out the interpreter stack, and must be used in
         // conjunction with inline-OSR from within bailouts (since each Ion
-        // activation must be tied to a unique StackFrame for ScriptFrameIter to
+        // activation must be tied to a unique JSStackFrame for StackIter to
         // work).
         //
         // Note: If the entry frame is a placeholder (a stub frame pushed for
@@ -339,9 +324,8 @@ ConvertFrames(JSContext *cx, IonActivation *activation, IonBailoutIterator &it)
 }
 
 uint32_t
-ion::Bailout(BailoutStack *sp, BaselineBailoutInfo **bailoutInfo)
+ion::Bailout(BailoutStack *sp)
 {
-    JS_ASSERT(bailoutInfo);
     JSContext *cx = GetIonContext()->cx;
     // We don't have an exit frame.
     cx->mainThread().ionTop = NULL;
@@ -355,27 +339,14 @@ ion::Bailout(BailoutStack *sp, BaselineBailoutInfo **bailoutInfo)
 
     IonSpew(IonSpew_Bailouts, "Took bailout! Snapshot offset: %d", iter.snapshotOffset());
 
-    uint32_t retval;
-    if (IsBaselineEnabled(cx)) {
-        *bailoutInfo = NULL;
-        retval = BailoutIonToBaseline(cx, activation, iter, false, bailoutInfo);
-        JS_ASSERT(retval == BAILOUT_RETURN_BASELINE ||
-                  retval == BAILOUT_RETURN_FATAL_ERROR ||
-                  retval == BAILOUT_RETURN_OVERRECURSED);
-        JS_ASSERT_IF(retval == BAILOUT_RETURN_BASELINE, *bailoutInfo != NULL);
-    } else {
-        retval = ConvertFrames(cx, activation, iter);
-    }
+    uint32_t retval = ConvertFrames(cx, activation, iter);
 
-    if (retval != BAILOUT_RETURN_BASELINE)
-        EnsureExitFrame(iter.jsFrame());
-
+    EnsureExitFrame(iter.jsFrame());
     return retval;
 }
 
 uint32_t
-ion::InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut,
-                         BaselineBailoutInfo **bailoutInfo)
+ion::InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut)
 {
     sp->checkInvariants();
 
@@ -392,36 +363,9 @@ ion::InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut,
     // Note: the frame size must be computed before we return from this function.
     *frameSizeOut = iter.topFrameSize();
 
-    uint32_t retval;
-    if (IsBaselineEnabled(cx)) {
-        *bailoutInfo = NULL;
-        retval = BailoutIonToBaseline(cx, activation, iter, true, bailoutInfo);
-        JS_ASSERT(retval == BAILOUT_RETURN_BASELINE ||
-                  retval == BAILOUT_RETURN_FATAL_ERROR ||
-                  retval == BAILOUT_RETURN_OVERRECURSED);
-        JS_ASSERT_IF(retval == BAILOUT_RETURN_BASELINE, *bailoutInfo != NULL);
+    uint32_t retval = ConvertFrames(cx, activation, iter);
 
-        if (retval != BAILOUT_RETURN_BASELINE) {
-            IonJSFrameLayout *frame = iter.jsFrame();
-            IonSpew(IonSpew_Invalidate, "converting to exit frame");
-            IonSpew(IonSpew_Invalidate, "   orig calleeToken %p", (void *) frame->calleeToken());
-            IonSpew(IonSpew_Invalidate, "   orig frameSize %u", unsigned(frame->prevFrameLocalSize()));
-            IonSpew(IonSpew_Invalidate, "   orig ra %p", (void *) frame->returnAddress());
-
-            frame->replaceCalleeToken(NULL);
-            EnsureExitFrame(frame);
-
-            IonSpew(IonSpew_Invalidate, "   new  calleeToken %p", (void *) frame->calleeToken());
-            IonSpew(IonSpew_Invalidate, "   new  frameSize %u", unsigned(frame->prevFrameLocalSize()));
-            IonSpew(IonSpew_Invalidate, "   new  ra %p", (void *) frame->returnAddress());
-        }
-
-        iter.ionScript()->decref(cx->runtime->defaultFreeOp());
-
-        return retval;
-    } else {
-        retval = ConvertFrames(cx, activation, iter);
-
+    {
         IonJSFrameLayout *frame = iter.jsFrame();
         IonSpew(IonSpew_Invalidate, "converting to exit frame");
         IonSpew(IonSpew_Invalidate, "   orig calleeToken %p", (void *) frame->calleeToken());
@@ -434,33 +378,32 @@ ion::InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut,
         IonSpew(IonSpew_Invalidate, "   new  calleeToken %p", (void *) frame->calleeToken());
         IonSpew(IonSpew_Invalidate, "   new  frameSize %u", unsigned(frame->prevFrameLocalSize()));
         IonSpew(IonSpew_Invalidate, "   new  ra %p", (void *) frame->returnAddress());
+    }
 
-        iter.ionScript()->decref(cx->runtime->defaultFreeOp());
+    iter.ionScript()->decref(cx->runtime->defaultFreeOp());
 
-        // Only need to take ion return override if resuming to interpreter.
-        if (cx->runtime->hasIonReturnOverride())
-            cx->regs().sp[-1] = cx->runtime->takeIonReturnOverride();
+    if (cx->runtime->hasIonReturnOverride())
+        cx->regs().sp[-1] = cx->runtime->takeIonReturnOverride();
 
-        if (retval != BAILOUT_RETURN_FATAL_ERROR) {
-            // If invalidation was triggered inside a stub call, we may still have to
-            // monitor the result, since the bailout happens before the MMonitorTypes
-            // instruction is executed.
-            jsbytecode *pc = activation->bailout()->bailoutPc();
+    if (retval != BAILOUT_RETURN_FATAL_ERROR) {
+        // If invalidation was triggered inside a stub call, we may still have to
+        // monitor the result, since the bailout happens before the MMonitorTypes
+        // instruction is executed.
+        jsbytecode *pc = activation->bailout()->bailoutPc();
 
-            // If this is not a ResumeAfter bailout, there's nothing to monitor,
-            // we will redo the op in the interpreter.
-            bool isResumeAfter = GetNextPc(pc) == cx->regs().pc;
+        // If this is not a ResumeAfter bailout, there's nothing to monitor,
+        // we will redo the op in the interpreter.
+        bool isResumeAfter = GetNextPc(pc) == cx->regs().pc;
 
-            if ((js_CodeSpec[*pc].format & JOF_TYPESET) && isResumeAfter) {
-                JS_ASSERT(retval == BAILOUT_RETURN_OK);
-                return BAILOUT_RETURN_MONITOR;
-            }
-
-            return retval;
+        if ((js_CodeSpec[*pc].format & JOF_TYPESET) && isResumeAfter) {
+            JS_ASSERT(retval == BAILOUT_RETURN_OK);
+            return BAILOUT_RETURN_MONITOR;
         }
 
-        return BAILOUT_RETURN_FATAL_ERROR;
+        return retval;
     }
+
+    return BAILOUT_RETURN_FATAL_ERROR;
 }
 
 static void
@@ -513,15 +456,15 @@ ion::ReflowTypeInfo(uint32_t bailoutResult)
     return true;
 }
 
-// Initialize the decl env Object, call object, and any arguments obj of the current frame.
+// Initialize the decl env Object and the call object of the current frame.
 bool
-ion::EnsureHasScopeObjects(JSContext *cx, AbstractFramePtr fp)
+ion::EnsureHasScopeObjects(JSContext *cx, StackFrame *fp)
 {
-    if (fp.isFunctionFrame() &&
-        fp.fun()->isHeavyweight() &&
-        !fp.hasCallObj())
+    if (fp->isFunctionFrame() &&
+        fp->fun()->isHeavyweight() &&
+        !fp->hasCallObj())
     {
-        return fp.initFunctionScopeObjects(cx);
+        return fp->initFunctionScopeObjects(cx);
     }
     return true;
 }
@@ -530,7 +473,7 @@ uint32_t
 ion::BoundsCheckFailure()
 {
     JSContext *cx = GetIonContext()->cx;
-    JSScript *script = GetBailedJSScript(cx);
+    RawScript script = GetBailedJSScript(cx);
 
     IonSpew(IonSpew_Bailouts, "Bounds check failure %s:%d", script->filename(),
             script->lineno);
@@ -551,9 +494,10 @@ uint32_t
 ion::ShapeGuardFailure()
 {
     JSContext *cx = GetIonContext()->cx;
-    JSScript *script = GetBailedJSScript(cx);
+    RawScript script = GetBailedJSScript(cx);
 
-    JS_ASSERT(!script->ionScript()->invalidated());
+    JS_ASSERT(script->hasIonScript());
+    JS_ASSERT(!script->ion->invalidated());
 
     script->failedShapeGuard = true;
 
@@ -566,16 +510,17 @@ uint32_t
 ion::CachedShapeGuardFailure()
 {
     JSContext *cx = GetIonContext()->cx;
-    JSScript *script = GetBailedJSScript(cx);
+    RawScript script = GetBailedJSScript(cx);
 
-    JS_ASSERT(!script->ionScript()->invalidated());
+    JS_ASSERT(script->hasIonScript());
+    JS_ASSERT(!script->ion->invalidated());
 
     script->failedShapeGuard = true;
 
     // Purge JM caches in the script and all inlined script, to avoid baking in
     // the same shape guard next time.
-    for (size_t i = 0; i < script->ionScript()->scriptEntries(); i++)
-        mjit::PurgeCaches(script->ionScript()->getScript(i));
+    for (size_t i = 0; i < script->ion->scriptEntries(); i++)
+        mjit::PurgeCaches(script->ion->getScript(i));
 
     IonSpew(IonSpew_Invalidate, "Invalidating due to shape guard failure");
 
@@ -618,22 +563,20 @@ ion::ThunkToInterpreter(Value *vp)
             fp = iter.interpFrame();
             script = iter.script();
             if (script->needsArgsObj()) {
-                ArgumentsObject *argsObj;
-                if (fp->hasArgsObj()) {
-                    argsObj = &fp->argsObj();
-                } else {
-                    argsObj = ArgumentsObject::createExpected(cx, fp);
-                    if (!argsObj) {
-                        resumeMode = JSINTERP_RETHROW;
-                        break;
-                    }
+                // Currently IonMonkey does not compile if the script needs an
+                // arguments object, so the frame should not have any argument
+                // object yet.
+                JS_ASSERT(!fp->hasArgsObj());
+                ArgumentsObject *argsobj = ArgumentsObject::createExpected(cx, fp);
+                if (!argsobj) {
+                    resumeMode = JSINTERP_RETHROW;
+                    break;
                 }
-
                 // The arguments is a local binding and needsArgsObj does not
                 // check if it is clobbered. Ensure that the local binding
                 // restored during bailout before storing the arguments object
                 // to the slot.
-                SetFrameArgumentsObject(cx, fp, script, argsObj);
+                SetFrameArgumentsObject(cx, fp, script, argsobj);
             }
             ++iter;
         } while (fp != br->entryfp());
@@ -667,7 +610,7 @@ ion::ThunkToInterpreter(Value *vp)
         // completing the OSR inline.
         //
         // Note that we set runningInIon so that if we re-enter C++ from within
-        // the inlined OSR, ScriptFrameIter will know to traverse these frames.
+        // the inlined OSR, StackIter will know to traverse these frames.
         StackFrame *fp = cx->fp();
 
         fp->setRunningInIon();
@@ -686,22 +629,3 @@ ion::ThunkToInterpreter(Value *vp)
     return status;
 }
 
-bool
-ion::CheckFrequentBailouts(JSContext *cx, JSScript *script)
-{
-    // Invalidate if this script keeps bailing out without invalidation. Next time
-    // we compile this script LICM will be disabled.
-
-    if (script->hasIonScript() &&
-        script->ionScript()->numBailouts() >= js_IonOptions.frequentBailoutThreshold)
-    {
-        script->hadFrequentBailouts = true;
-
-        IonSpew(IonSpew_Invalidate, "Invalidating due to too many bailouts");
-
-        if (!Invalidate(cx, script))
-            return false;
-    }
-
-    return true;
-}

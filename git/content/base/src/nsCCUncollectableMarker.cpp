@@ -135,7 +135,7 @@ MarkMessageManagers()
         static_cast<nsFrameMessageManager*>(tabMM)->GetCallback();
       if (cb) {
         nsFrameLoader* fl = static_cast<nsFrameLoader*>(cb);
-        EventTarget* et = fl->GetTabChildGlobalAsEventTarget();
+        nsIDOMEventTarget* et = fl->GetTabChildGlobalAsEventTarget();
         if (!et) {
           continue;
         }
@@ -188,7 +188,7 @@ MarkContentViewer(nsIContentViewer* aViewer, bool aCleanupJS,
       if (elm) {
         elm->MarkForCC();
       }
-      nsCOMPtr<EventTarget> win = do_QueryInterface(doc->GetInnerWindow());
+      nsCOMPtr<nsIDOMEventTarget> win = do_QueryInterface(doc->GetInnerWindow());
       if (win) {
         elm = win->GetListenerManager(false);
         if (elm) {
@@ -419,7 +419,9 @@ TraceActiveWindowGlobal(const uint64_t& aId, nsGlobalWindow*& aWindow, void* aCl
 {
   if (aWindow->GetDocShell() && aWindow->IsOuterWindow()) {
     TraceClosure* closure = static_cast<TraceClosure*>(aClosure);
-    aWindow->TraceGlobalJSObject(closure->mTrc);
+    if (JSObject* global = aWindow->FastGetGlobalJSObject()) {
+      JS_CallObjectTracer(closure->mTrc, global, "active window global");
+    }
 #ifdef MOZ_XUL
     nsIDocument* doc = aWindow->GetExtantDoc();
     if (doc && doc->IsXUL()) {

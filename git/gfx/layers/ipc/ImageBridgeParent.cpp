@@ -7,10 +7,9 @@
 
 #include "mozilla/layers/CompositorParent.h"
 #include "mozilla/layers/ImageBridgeParent.h"
-#include "CompositableHost.h"
+#include "mozilla/layers/ImageContainerParent.h"
 #include "nsTArray.h"
 #include "nsXULAppAPI.h"
-#include "mozilla/layers/LayerManagerComposite.h"
 
 using namespace base;
 using namespace mozilla::ipc;
@@ -23,9 +22,7 @@ ImageBridgeParent::ImageBridgeParent(MessageLoop* aLoop, Transport* aTransport)
   : mMessageLoop(aLoop)
   , mTransport(aTransport)
 {
-  // creates the map only if it has not been created already, so it is safe
-  // with several bridges
-  CompositableMap::Create();
+  ImageContainerParent::CreateSharedImageMap();
 }
 
 ImageBridgeParent::~ImageBridgeParent()
@@ -43,37 +40,6 @@ ImageBridgeParent::ActorDestroy(ActorDestroyReason aWhy)
     FROM_HERE,
     NewRunnableMethod(this, &ImageBridgeParent::DeferredDestroy));
 }
-
-bool
-ImageBridgeParent::RecvUpdate(const EditArray& aEdits, EditReplyArray* aReply)
-{
-  EditReplyVector replyv;
-  for (EditArray::index_type i = 0; i < aEdits.Length(); ++i) {
-    ReceiveCompositableUpdate(aEdits[i], replyv);
-  }
-
-  aReply->SetCapacity(replyv.size());
-  if (replyv.size() > 0) {
-    aReply->AppendElements(&replyv.front(), replyv.size());
-  }
-
-  // Ensure that any pending operations involving back and front
-  // buffers have completed, so that neither process stomps on the
-  // other's buffer contents.
-  LayerManagerComposite::PlatformSyncBeforeReplyUpdate();
-
-  return true;
-}
-
-bool
-ImageBridgeParent::RecvUpdateNoSwap(const EditArray& aEdits)
-{
-  InfallibleTArray<EditReply> noReplies;
-  bool success = RecvUpdate(aEdits, &noReplies);
-  NS_ABORT_IF_FALSE(noReplies.Length() == 0, "RecvUpdateNoSwap requires a sync Update to carry Edits");
-  return success;
-}
-
 
 static void
 ConnectImageBridgeInParentProcess(ImageBridgeParent* aBridge,
@@ -103,16 +69,22 @@ ImageBridgeParent::Create(Transport* aTransport, ProcessId aOtherProcess)
 
 bool ImageBridgeParent::RecvStop()
 {
+  unsigned int numChildren = ManagedPImageContainerParent().Length();
+  for (unsigned int i = 0; i < numChildren; ++i) {
+    static_cast<ImageContainerParent*>(
+      ManagedPImageContainerParent()[i]
+    )->DoStop();
+  }
   return true;
 }
 
 static  uint64_t GenImageContainerID() {
   static uint64_t sNextImageID = 1;
-
+  
   ++sNextImageID;
   return sNextImageID;
 }
-
+  
 PGrallocBufferParent*
 ImageBridgeParent::AllocPGrallocBuffer(const gfxIntSize& aSize,
                                        const uint32_t& aFormat,
@@ -139,21 +111,18 @@ ImageBridgeParent::DeallocPGrallocBuffer(PGrallocBufferParent* actor)
 #endif
 }
 
-PCompositableParent*
-ImageBridgeParent::AllocPCompositable(const TextureInfo& aInfo,
-                                      uint64_t* aID)
+PImageContainerParent* ImageBridgeParent::AllocPImageContainer(uint64_t* aID)
 {
   uint64_t id = GenImageContainerID();
   *aID = id;
-  return new CompositableParent(this, aInfo, id);
+  return new ImageContainerParent(id);
 }
 
-bool ImageBridgeParent::DeallocPCompositable(PCompositableParent* aActor)
+bool ImageBridgeParent::DeallocPImageContainer(PImageContainerParent* toDealloc)
 {
-  delete aActor;
+  delete toDealloc;
   return true;
 }
-
 
 
 MessageLoop * ImageBridgeParent::GetMessageLoop() {
@@ -169,3 +138,4 @@ ImageBridgeParent::DeferredDestroy()
 
 } // layers
 } // mozilla
+

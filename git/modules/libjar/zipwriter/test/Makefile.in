@@ -10,7 +10,7 @@ relativesrcdir = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DISABLED_XPCSHELL_TESTS = \
+XPCSHELL_TESTS = \
   unit \
   $(NULL)
 

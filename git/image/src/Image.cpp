@@ -99,6 +99,7 @@ void
 ImageResource::IncrementAnimationConsumers()
 {
   mAnimationConsumers++;
+  EvaluateAnimation();
 }
 
 void
@@ -106,6 +107,7 @@ ImageResource::DecrementAnimationConsumers()
 {
   NS_ABORT_IF_FALSE(mAnimationConsumers >= 1, "Invalid no. of animation consumers!");
   mAnimationConsumers--;
+  EvaluateAnimation();
 }
 
 nsresult
@@ -132,6 +134,8 @@ ImageResource::SetAnimationModeInternal(uint16_t aAnimationMode)
                "Wrong Animation Mode is being set!");
 
   mAnimationMode = aAnimationMode;
+
+  EvaluateAnimation();
 
   return NS_OK;
 }

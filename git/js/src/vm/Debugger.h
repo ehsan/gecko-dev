@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -287,9 +288,9 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
 
     GlobalObject *unwrapDebuggeeArgument(JSContext *cx, const Value &v);
 
-    static void traceObject(JSTracer *trc, JSObject *obj);
+    static void traceObject(JSTracer *trc, RawObject obj);
     void trace(JSTracer *trc);
-    static void finalize(FreeOp *fop, JSObject *obj);
+    static void finalize(FreeOp *fop, RawObject obj);
     void markKeysInCompartment(JSTracer *tracer);
 
     static Class jsclass;
@@ -323,8 +324,8 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static JSBool findAllGlobals(JSContext *cx, unsigned argc, Value *vp);
     static JSBool wrap(JSContext *cx, unsigned argc, Value *vp);
     static JSBool construct(JSContext *cx, unsigned argc, Value *vp);
-    static const JSPropertySpec properties[];
-    static const JSFunctionSpec methods[];
+    static JSPropertySpec properties[];
+    static JSFunctionSpec methods[];
 
     JSObject *getHook(Hook hook) const;
     bool hasAnyLiveHooks() const;
@@ -387,11 +388,10 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
      */
     static void markCrossCompartmentDebuggerObjectReferents(JSTracer *tracer);
     static bool markAllIteratively(GCMarker *trc);
-    static void markAll(JSTracer *trc);
     static void sweepAll(FreeOp *fop);
     static void detachAllDebuggersFromGlobal(FreeOp *fop, GlobalObject *global,
                                              GlobalObjectSet::Enum *compartmentEnum);
-    static bool isDebugWrapper(JSObject *o);
+    static bool isDebugWrapper(RawObject o);
     static void findCompartmentEdges(JS::Zone *v, gc::ComponentFinder<JS::Zone> &finder);
 
     static inline JSTrapStatus onEnterFrame(JSContext *cx, AbstractFramePtr frame,
@@ -404,7 +404,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static inline bool onNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global);
     static JSTrapStatus onTrap(JSContext *cx, MutableHandleValue vp);
     static JSTrapStatus onSingleStep(JSContext *cx, MutableHandleValue vp);
-    static bool handleBaselineOsr(JSContext *cx, StackFrame *from, ion::BaselineFrame *to);
 
     /************************************* Functions for use by Debugger.cpp. */
 
@@ -567,8 +566,7 @@ class Breakpoint {
     Debugger * const debugger;
     BreakpointSite * const site;
   private:
-    /* |handler| is marked unconditionally during minor GC. */
-    js::EncapsulatedPtrObject handler;
+    js::HeapPtrObject handler;
     JSCList debuggerLinks;
     JSCList siteLinks;
 
@@ -579,8 +577,8 @@ class Breakpoint {
     void destroy(FreeOp *fop);
     Breakpoint *nextInDebugger();
     Breakpoint *nextInSite();
-    const EncapsulatedPtrObject &getHandler() const { return handler; }
-    EncapsulatedPtrObject &getHandlerRef() { return handler; }
+    const HeapPtrObject &getHandler() const { return handler; }
+    HeapPtrObject &getHandlerRef() { return handler; }
 };
 
 Breakpoint *

@@ -60,7 +60,7 @@ static gboolean isValidCB(AtkHyperlink *aLink);
 static gint getAnchorCountCB(AtkHyperlink *aLink);
 G_END_DECLS
 
-static gpointer parent_class = nullptr;
+static gpointer parent_class = NULL;
 static Accessible*
 get_accessible_hyperlink(AtkHyperlink *aHyperlink);
 
@@ -72,15 +72,15 @@ mai_atk_hyperlink_get_type(void)
     if (!type) {
         static const GTypeInfo tinfo = {
             sizeof(MaiAtkHyperlinkClass),
-            (GBaseInitFunc)nullptr,
-            (GBaseFinalizeFunc)nullptr,
+            (GBaseInitFunc)NULL,
+            (GBaseFinalizeFunc)NULL,
             (GClassInitFunc)classInitCB,
-            (GClassFinalizeFunc)nullptr,
-            nullptr, /* class data */
+            (GClassFinalizeFunc)NULL,
+            NULL, /* class data */
             sizeof(MaiAtkHyperlink), /* instance size */
             0, /* nb preallocs */
-            (GInstanceInitFunc)nullptr,
-            nullptr /* value table */
+            (GInstanceInitFunc)NULL,
+            NULL /* value table */
         };
 
         type = g_type_register_static(ATK_TYPE_HYPERLINK,
@@ -117,7 +117,7 @@ MaiHyperlink::GetAtkHyperlink(void)
 
     mMaiAtkHyperlink =
         reinterpret_cast<AtkHyperlink *>
-                        (g_object_new(mai_atk_hyperlink_get_type(), nullptr));
+                        (g_object_new(mai_atk_hyperlink_get_type(), NULL));
     NS_ASSERTION(mMaiAtkHyperlink, "OUT OF MEMORY");
     NS_ENSURE_TRUE(mMaiAtkHyperlink, nullptr);
 

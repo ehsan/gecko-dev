@@ -37,7 +37,7 @@ public:
   NS_DECL_NSIDOMMOZMOBILECONNECTION
   NS_DECL_NSIMOBILECONNECTIONLISTENER
 
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
   MobileConnection();
 
@@ -51,9 +51,13 @@ private:
   nsCOMPtr<nsIMobileConnectionProvider> mProvider;
   nsRefPtr<Listener> mListener;
   nsRefPtr<icc::IccManager> mIccManager;
-  nsWeakPtr mWindow;
 
-  bool CheckPermission(const char* type);
+  nsIDOMEventTarget*
+  ToIDOMEventTarget() const
+  {
+    return static_cast<nsDOMEventTargetHelper*>(
+           const_cast<MobileConnection*>(this));
+  }
 };
 
 } // namespace network

@@ -38,7 +38,6 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.WifiLock;
 import android.os.BatteryManager;
-import android.os.Build;
 import android.os.Build.VERSION;
 import android.os.Bundle;
 import android.os.Handler;
@@ -75,7 +74,6 @@ public class SUTAgentAndroid extends Activity
     private static String RegSvrIPPort = "";
     private static String HardwareID = "";
     private static String Pool = "";
-    private static String Abi = "";
     private static String sRegString = "";
     private static boolean LogCommands = false;
 
@@ -174,7 +172,6 @@ public class SUTAgentAndroid extends Activity
         SUTAgentAndroid.RegSvrIPPort = dc.GetIniData("Registration Server", "PORT", sIniFile);
         SUTAgentAndroid.HardwareID = dc.GetIniData("Registration Server", "HARDWARE", sIniFile);
         SUTAgentAndroid.Pool = dc.GetIniData("Registration Server", "POOL", sIniFile);
-        SUTAgentAndroid.Abi = android.os.Build.CPU_ABI;
         log(dc, "onCreate");
 
         tv = (TextView) this.findViewById(R.id.Textview01);
@@ -280,7 +277,6 @@ public class SUTAgentAndroid extends Activity
 
         String sConfig = "Unique ID: " + sUniqueID + lineSep;
         sConfig += "HWID: " + hwid + lineSep;
-        sConfig += "ABI: " + Abi + lineSep;
         sConfig += "OS Info" + lineSep;
         sConfig += "\t" + dc.GetOSInfo() + lineSep;
         sConfig += "Screen Info" + lineSep;
@@ -306,7 +302,6 @@ public class SUTAgentAndroid extends Activity
         sRegString += "&MEMORY=" + dc.GetMemoryConfig();
         sRegString += "&HARDWARE=" + HardwareID;
         sRegString += "&POOL=" + Pool;
-        sRegString += "&ABI=" + Abi;
 
         String sTemp = Uri.encode(sRegString,"=&");
         sRegString = "register " + sTemp;

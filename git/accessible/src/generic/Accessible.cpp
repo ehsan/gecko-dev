@@ -143,11 +143,11 @@ Accessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
     return NS_ERROR_NO_INTERFACE;
   }
 
-  return nsAccessNode::QueryInterface(aIID, aInstancePtr);
+  return nsAccessNodeWrap::QueryInterface(aIID, aInstancePtr);
 }
 
 Accessible::Accessible(nsIContent* aContent, DocAccessible* aDoc) :
-  nsAccessNode(aContent, aDoc),
+  nsAccessNodeWrap(aContent, aDoc),
   mParent(nullptr), mIndexInParent(-1), mChildrenFlags(eChildrenUninitialized),
   mStateFlags(0), mType(0), mGenericTypes(0), mIndexOfEmbeddedChild(-1),
   mRoleMapEntry(nullptr)
@@ -843,7 +843,7 @@ Accessible::ChildAtPoint(int32_t aX, int32_t aY,
   DocAccessible* contentDocAcc = GetAccService()->
     GetDocAccessible(content->OwnerDoc());
 
-  // contentDocAcc in some circumstances can be nullptr. See bug 729861
+  // contentDocAcc in some circumstances can be NULL. See bug 729861
   NS_ASSERTION(contentDocAcc, "could not get the document accessible");
   if (!contentDocAcc)
     return fallbackAnswer;
@@ -1508,9 +1508,9 @@ Accessible::State()
   const uint32_t kExpandCollapseStates = states::COLLAPSED | states::EXPANDED;
   if ((state & kExpandCollapseStates) == kExpandCollapseStates) {
     // Cannot be both expanded and collapsed -- this happens in ARIA expanded
-    // combobox because of limitation of ARIAMap.
+    // combobox because of limitation of nsARIAMap.
     // XXX: Perhaps we will be able to make this less hacky if we support
-    // extended states in ARIAMap, e.g. derive COLLAPSED from
+    // extended states in nsARIAMap, e.g. derive COLLAPSED from
     // EXPANDABLE && !EXPANDED.
     state &= ~states::COLLAPSED;
   }
@@ -2550,7 +2550,7 @@ Accessible::Shutdown()
   if (mParent)
     mParent->RemoveChild(this);
 
-  nsAccessNode::Shutdown();
+  nsAccessNodeWrap::Shutdown();
 }
 
 // Accessible protected
@@ -2847,7 +2847,9 @@ Accessible::SelectedItems()
   while ((selected = iter.Next()))
     selectedItems->AppendElement(selected, false);
 
-  return selectedItems.forget();
+  nsIMutableArray* items = nullptr;
+  selectedItems.forget(&items);
+  return items;
 }
 
 uint32_t

@@ -27,6 +27,14 @@ WebGLMemoryMultiReporter::GetName(nsACString &aName)
 }
 
 NS_IMETHODIMP
+WebGLMemoryMultiReporter::GetExplicitNonHeap(int64_t *aAmount)
+{
+    // WebGLMemoryMultiReporterWrapper has no KIND_NONHEAP measurements.
+    *aAmount = 0;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
 WebGLMemoryMultiReporter::CollectReports(nsIMemoryMultiReporterCallback* aCb, 
                                          nsISupports* aClosure)
 {

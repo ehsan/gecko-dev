@@ -10,26 +10,25 @@ Components.utils.import("resource://services-sync/main.js");
  * Wraps a list/grid control implementing nsIDOMXULSelectControlElement and
  * fills it with the user's synced tabs.
  *
- * Note, the Sync module takes care of initializing the sync service. We should
- * not make calls that start sync or sync tabs since this module loads really
- * early during startup.
- *
  * @param    aSet         Control implementing nsIDOMXULSelectControlElement.
  * @param    aSetUIAccess The UI element that should be hidden when Sync is
  *                          disabled. Must sanely support 'hidden' attribute.
  *                          You may only have one UI access point at this time.
  */
-function RemoteTabsView(aSet, aSetUIAccessList) {
+function RemoteTabsView(aSet, aSetUIAccess) {
   this._set = aSet;
   this._set.controller = this;
-  this._uiAccessElements = aSetUIAccessList;
+  this._uiAccessElement = aSetUIAccess;
 
   // Sync uses special voodoo observers.
   // If you want to change this code, talk to the fx-si team
+  Weave.Svc.Obs.add("weave:service:setup-complete", this);
   Weave.Svc.Obs.add("weave:service:sync:finish", this);
   Weave.Svc.Obs.add("weave:service:start-over", this);
   if (this.isSyncEnabled() ) {
+    this.populateTabs();
     this.populateGrid();
+    this.setUIAccessVisible(true);
   }
   else {
     this.setUIAccessVisible(false);
@@ -38,7 +37,7 @@ function RemoteTabsView(aSet, aSetUIAccessList) {
 
 RemoteTabsView.prototype = {
   _set: null,
-  _uiAccessElements: [],
+  _uiAccessElement: null,
 
   handleItemClick: function tabview_handleItemClick(aItem) {
     let url = aItem.getAttribute("value");
@@ -47,6 +46,10 @@ RemoteTabsView.prototype = {
 
   observe: function(subject, topic, data) {
     switch (topic) {
+      case "weave:service:setup-complete":
+        this.populateTabs();
+        this.setUIAccessVisible(true);
+        break;
       case "weave:service:sync:finish":
         this.populateGrid();
         break;
@@ -57,9 +60,7 @@ RemoteTabsView.prototype = {
   },
 
   setUIAccessVisible: function setUIAccessVisible(aVisible) {
-    for (let elem of this._uiAccessElements) {
-      elem.hidden = !aVisible;
-    }
+    this._uiAccessElement.hidden = !aVisible;
   },
 
   populateGrid: function populateGrid() {
@@ -68,10 +69,6 @@ RemoteTabsView.prototype = {
     let list = this._set;
     let seenURLs = new Set();
 
-    // Clear grid, We don't know what has happened to tabs since last sync
-    // Also can result in duplicate tabs(bug 864614)
-    this._set.clearAll();
-    let show = false;
     for (let [guid, client] in Iterator(tabsEngine.getAllClients())) {
       client.tabs.forEach(function({title, urlHistory, icon}) {
         let url = urlHistory[0];
@@ -79,7 +76,6 @@ RemoteTabsView.prototype = {
           return;
         }
         seenURLs.add(url);
-        show = true;
 
         // If we wish to group tabs by client, we should be looking for records
         //  of {type:client, clientName, class:{mobile, desktop}} and will
@@ -90,10 +86,14 @@ RemoteTabsView.prototype = {
 
       }, this);
     }
-    this.setUIAccessVisible(show);
+  },
+
+  populateTabs: function populateTabs() {
+    Weave.Service.scheduler.scheduleNextSync(0);
   },
 
   destruct: function destruct() {
+    Weave.Svc.Obs.remove("weave:service:setup-complete", this);
     Weave.Svc.Obs.remove("weave:engine:sync:finish", this);
     Weave.Svc.Obs.remove("weave:service:logout:start-over", this);
   },
@@ -110,8 +110,7 @@ let RemoteTabsStartView = {
 
   init: function init() {
     let vbox = document.getElementById("start-remotetabs");
-    let uiList = [vbox];
-    this._view = new RemoteTabsView(this._grid, uiList);
+    this._view = new RemoteTabsView(this._grid, vbox);
   },
 
   uninit: function uninit() {
@@ -130,11 +129,9 @@ let RemoteTabsPanelView = {
   get visible() { return PanelUI.isPaneVisible("remotetabs-container"); },
 
   init: function init() {
-    //decks are fragile, don't hide the tab panel(bad things happen), hide link in menu.
+    //decks are fragile, don't hide the tab panel(bad things happen), hide link.
     let menuEntry = document.getElementById("menuitem-remotetabs");
-    let snappedEntry = document.getElementById("snappedRemoteTabsLabel");
-    let uiList = [menuEntry, snappedEntry];
-    this._view = new RemoteTabsView(this._grid, uiList);
+    this._view = new RemoteTabsView(this._grid, menuEntry);
   },
 
   show: function show() {

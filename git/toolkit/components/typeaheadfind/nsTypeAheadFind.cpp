@@ -1219,13 +1219,14 @@ nsTypeAheadFind::GetPresShell()
   if (!mPresShell)
     return nullptr;
 
-  nsCOMPtr<nsIPresShell> shell = do_QueryReferent(mPresShell);
+  nsIPresShell *shell = nullptr;
+  CallQueryReferent(mPresShell.get(), &shell);
   if (shell) {
     nsPresContext *pc = shell->GetPresContext();
     if (!pc || !nsCOMPtr<nsISupports>(pc->GetContainer())) {
-      return nullptr;
+      NS_RELEASE(shell);
     }
   }
 
-  return shell.forget();
+  return shell;
 }

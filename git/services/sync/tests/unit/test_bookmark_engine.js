@@ -2,7 +2,6 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 Cu.import("resource://gre/modules/PlacesUtils.jsm");
-Cu.import("resource://gre/modules/BookmarkJSONUtils.jsm");
 Cu.import("resource://services-common/async.js");
 Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/engines.js");
@@ -10,7 +9,6 @@ Cu.import("resource://services-sync/engines/bookmarks.js");
 Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://testing-common/services/sync/utils.js");
-Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 
 Service.engineManager.register(BookmarksEngine);
 var syncTesting = new SyncTestingInfrastructure();
@@ -164,7 +162,7 @@ add_test(function test_processIncoming_error_orderChildren() {
   }
 });
 
-add_task(function test_restorePromptsReupload() {
+add_test(function test_restorePromptsReupload() {
   _("Ensure that restoring from a backup will reupload all records.");
   new SyncTestingInfrastructure();
 
@@ -203,7 +201,7 @@ add_task(function test_restorePromptsReupload() {
 
     _("Backing up to file " + backupFile.path);
     backupFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, 0600);
-    yield BookmarkJSONUtils.exportToFile(backupFile);
+    PlacesUtils.backupBookmarksToFile(backupFile);
 
     _("Create a different record and sync.");
     let bmk2_id = PlacesUtils.bookmarks.insertBookmark(
@@ -231,7 +229,7 @@ add_task(function test_restorePromptsReupload() {
     do_check_eq(wbos[0], bmk2_guid);
 
     _("Now restore from a backup.");
-    yield BookmarkJSONUtils.importFromFile(backupFile, true);
+    PlacesUtils.restoreBookmarksFromJSONFile(backupFile);
 
     _("Ensure we have the bookmarks we expect locally.");
     let guids = store.getAllIDs();
@@ -291,9 +289,7 @@ add_task(function test_restorePromptsReupload() {
     store.wipe();
     Svc.Prefs.resetBranch("");
     Service.recordManager.clearCache();
-    let deferred = Promise.defer();
-    server.stop(deferred.resolve);
-    yield deferred.promise;
+    server.stop(run_next_test);
   }
 });
 

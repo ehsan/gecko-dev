@@ -25,7 +25,7 @@ function run_test()
     };
   }(gClient.request));
   gClient.connect(function () {
-    attachTestTabAndResume(gClient, "test-stack", function (aResponse, aTabClient, aThreadClient) {
+    attachTestGlobalClientAndResume(gClient, "test-stack", function (aResponse, aThreadClient) {
       gThreadClient = aThreadClient;
       test_simple_listsources();
     });

@@ -241,19 +241,20 @@ private:
   bool mDispatched;
 };
 
-class MOZ_STACK_CLASS StackBasedEventTarget : public nsIEventTarget
+NS_STACK_CLASS
+class StackBasedEventTarget : public nsIEventTarget
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
 };
 
-class MOZ_STACK_CLASS ImmediateRunEventTarget : public StackBasedEventTarget
+class ImmediateRunEventTarget : public StackBasedEventTarget
 {
 public:
   NS_DECL_NSIEVENTTARGET
 };
 
-class MOZ_STACK_CLASS NoDispatchEventTarget : public StackBasedEventTarget
+class NoDispatchEventTarget : public StackBasedEventTarget
 {
 public:
   NS_DECL_NSIEVENTTARGET

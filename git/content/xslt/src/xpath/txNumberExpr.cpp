@@ -39,16 +39,16 @@ txNumberExpr::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             if (rightDbl == 0) {
 #if defined(XP_WIN)
                 /* XXX MSVC miscompiles such that (NaN == 0) */
-                if (mozilla::IsNaN(rightDbl))
-                    result = mozilla::UnspecifiedNaN();
+                if (MOZ_DOUBLE_IS_NaN(rightDbl))
+                    result = MOZ_DOUBLE_NaN();
                 else
 #endif
-                if (leftDbl == 0 || mozilla::IsNaN(leftDbl))
-                    result = mozilla::UnspecifiedNaN();
-                else if (mozilla::IsNegative(leftDbl) != mozilla::IsNegative(rightDbl))
-                    result = mozilla::NegativeInfinity();
+                if (leftDbl == 0 || MOZ_DOUBLE_IS_NaN(leftDbl))
+                    result = MOZ_DOUBLE_NaN();
+                else if (MOZ_DOUBLE_IS_NEGATIVE(leftDbl) ^ MOZ_DOUBLE_IS_NEGATIVE(rightDbl))
+                    result = MOZ_DOUBLE_NEGATIVE_INFINITY();
                 else
-                    result = mozilla::PositiveInfinity();
+                    result = MOZ_DOUBLE_POSITIVE_INFINITY();
             }
             else
                 result = leftDbl / rightDbl;
@@ -56,12 +56,12 @@ txNumberExpr::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
 
         case MODULUS:
             if (rightDbl == 0) {
-                result = mozilla::UnspecifiedNaN();
+                result = MOZ_DOUBLE_NaN();
             }
             else {
 #if defined(XP_WIN)
                 /* Workaround MS fmod bug where 42 % (1/0) => NaN, not 42. */
-                if (!mozilla::IsInfinite(leftDbl) && mozilla::IsInfinite(rightDbl))
+                if (!MOZ_DOUBLE_IS_INFINITE(leftDbl) && MOZ_DOUBLE_IS_INFINITE(rightDbl))
                     result = leftDbl;
                 else
 #endif

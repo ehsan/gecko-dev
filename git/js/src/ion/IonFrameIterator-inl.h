@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,7 +8,6 @@
 #ifndef jsion_frame_iterator_inl_h__
 #define jsion_frame_iterator_inl_h__
 
-#include "ion/BaselineFrame.h"
 #include "ion/IonFrameIterator.h"
 #include "ion/Bailouts.h"
 #include "ion/Ion.h"
@@ -18,16 +18,11 @@ namespace ion {
 template <class Op>
 inline void
 SnapshotIterator::readFrameArgs(Op &op, const Value *argv, Value *scopeChain, Value *thisv,
-                                unsigned start, unsigned formalEnd, unsigned iterEnd,
-                                JSScript *script)
+                                unsigned start, unsigned formalEnd, unsigned iterEnd)
 {
     if (scopeChain)
         *scopeChain = read();
     else
-        skip();
-
-    // Skip slot for arguments object.
-    if (script->argumentsHasVarBinding())
         skip();
 
     if (thisv)
@@ -108,28 +103,26 @@ InlineFrameIteratorMaybeGC<allowGC>::forEachCanonicalActualArg(
         // Get the non overflown arguments
         unsigned formal_end = (end < nformal) ? end : nformal;
         SnapshotIterator s(si_);
-        s.readFrameArgs(op, NULL, NULL, NULL, start, nformal, formal_end, script());
+        s.readFrameArgs(op, NULL, NULL, NULL, start, nformal, formal_end);
 
         // The overflown arguments are not available in current frame.
         // They are the last pushed arguments in the parent frame of this inlined frame.
         InlineFrameIteratorMaybeGC it(cx, this);
-        ++it;
-        unsigned argsObjAdj = it.script()->argumentsHasVarBinding() ? 1 : 0;
-        SnapshotIterator parent_s(it.snapshotIterator());
+        SnapshotIterator parent_s((++it).snapshotIterator());
 
         // Skip over all slots untill we get to the last slots (= arguments slots of callee)
-        // the +2 is for [this] and [scopechain], and maybe +1 for [argsObj]
-        JS_ASSERT(parent_s.slots() >= nactual + 2 + argsObjAdj);
-        unsigned skip = parent_s.slots() - nactual - 2 - argsObjAdj;
+        // the +2 is for [this] and [scopechain]
+        JS_ASSERT(parent_s.slots() >= nactual + 2);
+        unsigned skip = parent_s.slots() - nactual - 2;
         for (unsigned j = 0; j < skip; j++)
             parent_s.skip();
 
         // Get the overflown arguments
-        parent_s.readFrameArgs(op, NULL, NULL, NULL, nformal, nactual, end, it.script());
+        parent_s.readFrameArgs(op, NULL, NULL, NULL, nformal, nactual, end);
     } else {
         SnapshotIterator s(si_);
         Value *argv = frame_->actualArgs();
-        s.readFrameArgs(op, argv, NULL, NULL, start, nformal, end, script());
+        s.readFrameArgs(op, argv, NULL, NULL, start, nformal, end);
     }
 }
  
@@ -158,10 +151,6 @@ InlineFrameIteratorMaybeGC<allowGC>::thisObject() const
 
     // scopeChain
     s.skip();
-
-    // Arguments object.
-    if (script()->argumentsHasVarBinding())
-        s.skip();
 
     // In strict modes, |this| may not be an object and thus may not be
     // readable which can either segv in read or trigger the assertion.
@@ -206,31 +195,6 @@ InlineFrameIteratorMaybeGC<allowGC>::operator++()
 {
     findNextFrame();
     return *this;
-}
-
-template <class Op>
-inline void
-IonFrameIterator::forEachCanonicalActualArg(Op op, unsigned start, unsigned count) const
-{
-    JS_ASSERT(isBaselineJS());
-
-    unsigned nactual = numActualArgs();
-    if (count == unsigned(-1))
-        count = nactual - start;
-
-    unsigned end = start + count;
-    JS_ASSERT(start <= end && end <= nactual);
-
-    Value *argv = actualArgs();
-    for (unsigned i = start; i < end; i++)
-        op(argv[i]);
-}
-
-inline BaselineFrame *
-IonFrameIterator::baselineFrame() const
-{
-    JS_ASSERT(isBaselineJS());
-    return (BaselineFrame *)(fp() - BaselineFrame::FramePointerOffset - BaselineFrame::Size());
 }
 
 } // namespace ion

@@ -100,11 +100,6 @@ public:
                        nsITreeView* aView);
 
   /**
-   * Notify of input@type="element" value change.
-   */
-  void RangeValueChanged(nsIPresShell* aPresShell, nsIContent* aContent);
-
-  /**
    * Update list bullet accessible.
    */
   virtual void UpdateListBullet(nsIPresShell* aPresShell,

@@ -232,11 +232,9 @@ public:
 
   /**
    * Get the device context associated with this manager
+   * @result device context
    */
-  nsDeviceContext* GetDeviceContext() const
-  {
-    return mContext;
-  }
+  void GetDeviceContext(nsDeviceContext *&aContext);
 
   /**
    * A stack class for disallowing changes that would enter painting. For
@@ -250,7 +248,7 @@ public:
    * since popup widget geometry is observable from script and expected to
    * update synchronously.
    */
-  class MOZ_STACK_CLASS AutoDisableRefresh {
+  class NS_STACK_CLASS AutoDisableRefresh {
   public:
     AutoDisableRefresh(nsViewManager* aVM) {
       if (aVM) {

@@ -16,6 +16,7 @@
 #include "nsHashtable.h"
 #include "nsCOMPtr.h"
 #include "nsIChannelEventSink.h"
+#include "nsIJSContextStack.h"
 #include "nsIObserver.h"
 #include "pldhash.h"
 #include "plstr.h"
@@ -144,7 +145,7 @@ static void
 ClearPropertyPolicyEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
     PropertyPolicy* pp = (PropertyPolicy*)entry;
-    pp->key = nullptr;
+    pp->key = NULL;
 }
 
 // Class Policy
@@ -442,7 +443,7 @@ private:
     // of obj (the last object on its parent chain). Callers MUST pass in a
     // non-null rv here.
     static nsIPrincipal*
-    GetFunctionObjectPrincipal(JSContext* cx, JS::Handle<JSObject*> obj, nsresult* rv);
+    GetFunctionObjectPrincipal(JSContext* cx, JSObject* obj, nsresult* rv);
 
     /**
      * Check capability levels for an |aObj| that implements
@@ -522,6 +523,7 @@ private:
 
     static nsIIOService    *sIOService;
     static nsIXPConnect    *sXPConnect;
+    static nsIThreadJSContextStack* sJSContextStack;
     static nsIStringBundle *sStrBundle;
     static JSRuntime       *sRuntime;
 };

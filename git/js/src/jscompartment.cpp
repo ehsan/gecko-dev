@@ -1,14 +1,15 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jscompartment.h"
-
 #include "mozilla/DebugOnly.h"
 
 #include "jscntxt.h"
+#include "jsdate.h"
+#include "jscompartment.h"
 #include "jsgc.h"
 #include "jsiter.h"
 #include "jsmath.h"
@@ -16,15 +17,29 @@
 #include "jswatchpoint.h"
 #include "jswrapper.h"
 
+#if ENABLE_YARR_JIT
+#include "assembler/jit/ExecutableAllocator.h"
+#endif
+#include "assembler/wtf/Platform.h"
 #include "gc/Marking.h"
 #ifdef JS_ION
 #include "ion/IonCompartment.h"
+#include "ion/Ion.h"
 #endif
+#include "js/MemoryMetrics.h"
 #include "js/RootingAPI.h"
+#include "methodjit/MethodJIT.h"
+#include "methodjit/PolyIC.h"
+#include "methodjit/MonoIC.h"
+#include "methodjit/Retcon.h"
 #include "vm/Debugger.h"
+#include "vm/ForkJoin.h"
+#include "yarr/BumpPointerAllocator.h"
 
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
+
+#include "vm/Shape-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -206,7 +221,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
         return true;
 
     if (vp.isString()) {
-        JSString *str = vp.toString();
+        RawString str = vp.toString();
 
         /* If the string is already in this compartment, we are done. */
         if (str->zone() == zone())
@@ -240,7 +255,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
             return js_FindClassObject(cx, JSProto_StopIteration, vp);
 
         /* Unwrap the object, but don't unwrap outer windows. */
-        obj = UncheckedUnwrap(obj, /* stopAtOuter = */ true, &flags);
+        obj = UnwrapObject(obj, /* stopAtOuter = */ true, &flags);
 
         if (obj->compartment() == this)
             return WrapForSameCompartment(cx, obj, vp);
@@ -269,7 +284,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
     if (WrapperMap::Ptr p = crossCompartmentWrappers.lookup(key)) {
         vp.set(p->value);
         if (vp.isObject()) {
-            DebugOnly<JSObject *> obj = &vp.toObject();
+            DebugOnly<RawObject> obj = &vp.toObject();
             JS_ASSERT(obj->isCrossCompartmentWrapper());
             JS_ASSERT(obj->getParent() == global);
         }
@@ -281,7 +296,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
         if (!str)
             return false;
 
-        JSString *wrapped = js_NewStringCopyN<CanGC>(cx, str->chars(), str->length());
+        RawString wrapped = js_NewStringCopyN<CanGC>(cx, str->chars(), str->length());
         if (!wrapped)
             return false;
 
@@ -463,26 +478,6 @@ JSCompartment::markCrossCompartmentWrappers(JSTracer *trc)
             MarkValueRoot(trc, &referent, "cross-compartment wrapper");
             JS_ASSERT(referent == GetProxyPrivate(wrapper));
         }
-    }
-}
-
-/*
- * This method marks and keeps live all pointers in the cross compartment
- * wrapper map. It should be called only for minor GCs, since minor GCs cannot,
- * by their nature, apply the weak constraint to safely remove items from the
- * wrapper map.
- */
-void
-JSCompartment::markAllCrossCompartmentWrappers(JSTracer *trc)
-{
-    for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
-        CrossCompartmentKey key = e.front().key;
-        MarkGCThingRoot(trc, (void **)&key.wrapped, "CrossCompartmentKey::wrapped");
-        if (key.debugger)
-            MarkObjectRoot(trc, &key.debugger, "CrossCompartmentKey::debugger");
-        MarkValueRoot(trc, e.front().value.unsafeGet(), "CrossCompartmentWrapper");
-        if (key.wrapped != e.front().key.wrapped || key.debugger != e.front().key.debugger)
-            e.rekeyFront(key);
     }
 }
 
@@ -758,7 +753,6 @@ JSCompartment::clearBreakpointsIn(FreeOp *fop, js::Debugger *dbg, JSObject *hand
 void
 JSCompartment::clearTraps(FreeOp *fop)
 {
-    MinorGC(rt, JS::gcreason::EVICT_NURSERY);
     for (gc::CellIter i(zone(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
         if (script->compartment() == this && script->hasAnyBreakpointsOrStepMode())
@@ -800,7 +794,7 @@ void
 JSCompartment::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *compartmentObject,
                                    JS::TypeInferenceSizes *tiSizes, size_t *shapesCompartmentTables,
                                    size_t *crossCompartmentWrappersArg, size_t *regexpCompartment,
-                                   size_t *debuggeesSet, size_t *baselineStubsOptimized)
+                                   size_t *debuggeesSet)
 {
     *compartmentObject = mallocSizeOf(this);
     sizeOfTypeInferenceData(tiSizes, mallocSizeOf);
@@ -811,13 +805,6 @@ JSCompartment::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *compa
     *crossCompartmentWrappersArg = crossCompartmentWrappers.sizeOfExcludingThis(mallocSizeOf);
     *regexpCompartment = regExps.sizeOfExcludingThis(mallocSizeOf);
     *debuggeesSet = debuggees.sizeOfExcludingThis(mallocSizeOf);
-#ifdef JS_ION
-    *baselineStubsOptimized = ionCompartment()
-        ? ionCompartment()->optimizedStubSpace()->sizeOfExcludingThis(mallocSizeOf)
-        : 0;
-#else
-    *baselineStubsOptimized = 0;
-#endif
 }
 
 void

@@ -1,10 +1,9 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "jswrapper.h"
 
 #include "jsapi.h"
 #include "jscntxt.h"
@@ -12,10 +11,20 @@
 #include "jsexn.h"
 #include "jsgc.h"
 #include "jsiter.h"
+#include "jsnum.h"
+#include "jswrapper.h"
+
+#ifdef JS_METHODJIT
+# include "assembler/jit/ExecutableAllocator.h"
+#endif
+#include "gc/Marking.h"
+#include "methodjit/PolyIC.h"
+#include "methodjit/MonoIC.h"
 
 #include "jsobjinlines.h"
 
 #include "builtin/Iterator-inl.h"
+#include "vm/RegExpObject-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -48,21 +57,21 @@ Wrapper::Renew(JSContext *cx, JSObject *existing, JSObject *obj, Wrapper *handle
 }
 
 Wrapper *
-Wrapper::wrapperHandler(JSObject *wrapper)
+Wrapper::wrapperHandler(RawObject wrapper)
 {
     JS_ASSERT(wrapper->isWrapper());
     return static_cast<Wrapper*>(GetProxyHandler(wrapper));
 }
 
 JSObject *
-Wrapper::wrappedObject(JSObject *wrapper)
+Wrapper::wrappedObject(RawObject wrapper)
 {
     JS_ASSERT(wrapper->isWrapper());
     return GetProxyTargetObject(wrapper);
 }
 
 JS_FRIEND_API(JSObject *)
-js::UncheckedUnwrap(JSObject *wrapped, bool stopAtOuter, unsigned *flagsp)
+js::UnwrapObject(JSObject *wrapped, bool stopAtOuter, unsigned *flagsp)
 {
     unsigned flags = 0;
     while (wrapped->isWrapper() &&
@@ -76,7 +85,7 @@ js::UncheckedUnwrap(JSObject *wrapped, bool stopAtOuter, unsigned *flagsp)
 }
 
 JS_FRIEND_API(JSObject *)
-js::CheckedUnwrap(JSObject *obj, bool stopAtOuter)
+js::UnwrapObjectChecked(RawObject obj, bool stopAtOuter)
 {
     while (true) {
         JSObject *wrapper = obj;
@@ -87,7 +96,7 @@ js::CheckedUnwrap(JSObject *obj, bool stopAtOuter)
 }
 
 JS_FRIEND_API(JSObject *)
-js::UnwrapOneChecked(JSObject *obj, bool stopAtOuter)
+js::UnwrapOneChecked(RawObject obj, bool stopAtOuter)
 {
     if (!obj->isWrapper() ||
         JS_UNLIKELY(!!obj->getClass()->ext.innerObject && stopAtOuter))
@@ -100,7 +109,7 @@ js::UnwrapOneChecked(JSObject *obj, bool stopAtOuter)
 }
 
 bool
-js::IsCrossCompartmentWrapper(JSObject *wrapper)
+js::IsCrossCompartmentWrapper(RawObject wrapper)
 {
     return wrapper->isWrapper() &&
            !!(Wrapper::wrapperHandler(wrapper)->flags() & Wrapper::CROSS_COMPARTMENT);
@@ -117,16 +126,48 @@ Wrapper::~Wrapper()
 {
 }
 
+/*
+ * Ordinarily, the convert trap would require unwrapping. However, the default
+ * implementation of convert, JS_ConvertStub, obtains a default value by calling
+ * the toString/valueOf method on the wrapper, if any. Throwing if we can't unwrap
+ * in this case would be overly conservative. To make matters worse, XPConnect sometimes
+ * installs a custom convert trap that obtains a default value by calling the
+ * toString method on the wrapper. Doing a puncture in this case would be overly
+ * conservative as well. We deal with these anomalies by falling back to the DefaultValue
+ * algorithm whenever unwrapping is forbidden.
+ */
+bool
+Wrapper::defaultValue(JSContext *cx, HandleObject wrapper, JSType hint, MutableHandleValue vp)
+{
+    if (!wrapperHandler(wrapper)->isSafeToUnwrap())
+        return DefaultValue(cx, wrapper, hint, vp);
+
+    /*
+     * We enter the compartment of the wrappee here, even if we're not a cross
+     * compartment wrapper. Moreover, cross compartment wrappers do not enter
+     * the compartment of the wrappee before calling this function. This is
+     * necessary because the DefaultValue algorithm above operates on the
+     * wrapper, not the wrappee, so we want to delay the decision to switch
+     * compartments until this point.
+     */
+    AutoCompartment call(cx, wrappedObject(wrapper));
+    return DirectProxyHandler::defaultValue(cx, wrapper, hint, vp);
+}
+
 Wrapper Wrapper::singleton((unsigned)0);
 Wrapper Wrapper::singletonWithPrototype((unsigned)0, true);
 
 /* Compartments. */
 
 extern JSObject *
-js::TransparentObjectWrapper(JSContext *cx, HandleObject existing, HandleObject obj,
-                             HandleObject wrappedProto, HandleObject parent,
+js::TransparentObjectWrapper(JSContext *cx, JSObject *existing, JSObject *objArg,
+                             JSObject *wrappedProtoArg, JSObject *parentArg,
                              unsigned flags)
 {
+    RootedObject obj(cx, objArg);
+    RootedObject wrappedProto(cx, wrappedProtoArg);
+    RootedObject parent(cx, parentArg);
+
     // Allow wrapping outer window proxies.
     JS_ASSERT(!obj->isWrapper() || obj->getClass()->ext.innerObject);
     return Wrapper::New(cx, obj, wrappedProto, parent, &CrossCompartmentWrapper::singleton);
@@ -426,10 +467,11 @@ CrossCompartmentWrapper::iterate(JSContext *cx, HandleObject wrapper, unsigned f
 }
 
 bool
-CrossCompartmentWrapper::call(JSContext *cx, HandleObject wrapper, const CallArgs &args)
+CrossCompartmentWrapper::call(JSContext *cx, HandleObject wrapper, unsigned argc, Value *vp)
 {
     RootedObject wrapped(cx, wrappedObject(wrapper));
 
+    CallArgs args = CallArgsFromVp(argc, vp);
     {
         AutoCompartment call(cx, wrapped);
 
@@ -442,7 +484,7 @@ CrossCompartmentWrapper::call(JSContext *cx, HandleObject wrapper, const CallArg
                 return false;
         }
 
-        if (!Wrapper::call(cx, wrapper, args))
+        if (!Wrapper::call(cx, wrapper, argc, vp))
             return false;
     }
 
@@ -450,20 +492,23 @@ CrossCompartmentWrapper::call(JSContext *cx, HandleObject wrapper, const CallArg
 }
 
 bool
-CrossCompartmentWrapper::construct(JSContext *cx, HandleObject wrapper, const CallArgs &args)
+CrossCompartmentWrapper::construct(JSContext *cx, HandleObject wrapper, unsigned argc, Value *argv,
+                                   MutableHandleValue rval)
 {
     RootedObject wrapped(cx, wrappedObject(wrapper));
     {
         AutoCompartment call(cx, wrapped);
 
-        for (size_t n = 0; n < args.length(); ++n) {
-            if (!cx->compartment->wrap(cx, args.handleAt(n)))
+        for (size_t n = 0; n < argc; ++n) {
+            RootedValue arg(cx, argv[n]);
+            if (!cx->compartment->wrap(cx, &arg))
                 return false;
+            argv[n] = arg;
         }
-        if (!Wrapper::construct(cx, wrapper, args))
+        if (!Wrapper::construct(cx, wrapper, argc, argv, rval))
             return false;
     }
-    return cx->compartment->wrap(cx, args.rval());
+    return cx->compartment->wrap(cx, rval);
 }
 
 bool
@@ -472,7 +517,7 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, IsAcceptableThis test, Native
 {
     RootedObject wrapper(cx, &srcArgs.thisv().toObject());
     JS_ASSERT(srcArgs.thisv().isMagic(JS_IS_CONSTRUCTING) ||
-              !UncheckedUnwrap(wrapper)->isCrossCompartmentWrapper());
+              !UnwrapObject(wrapper)->isCrossCompartmentWrapper());
 
     RootedObject wrapped(cx, wrappedObject(wrapper));
     {
@@ -497,7 +542,7 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, IsAcceptableThis test, Native
             // will stymie this whole process. If that happens, unwrap the wrapper.
             // This logic can go away when same-compartment security wrappers go away.
             if ((src == srcArgs.base() + 1) && dst->isObject()) {
-                RootedObject thisObj(cx, &dst->toObject());
+                JSObject *thisObj = &dst->toObject();
                 if (thisObj->isWrapper() &&
                     !Wrapper::wrapperHandler(thisObj)->isSafeToUnwrap())
                 {
@@ -526,11 +571,19 @@ CrossCompartmentWrapper::hasInstance(JSContext *cx, HandleObject wrapper, Mutabl
     return Wrapper::hasInstance(cx, wrapper, v, bp);
 }
 
-const char *
-CrossCompartmentWrapper::className(JSContext *cx, HandleObject wrapper)
+JSString *
+CrossCompartmentWrapper::obj_toString(JSContext *cx, HandleObject wrapper)
 {
-    AutoCompartment call(cx, wrappedObject(wrapper));
-    return Wrapper::className(cx, wrapper);
+    RootedString str(cx);
+    {
+        AutoCompartment call(cx, wrappedObject(wrapper));
+        str = Wrapper::obj_toString(cx, wrapper);
+        if (!str)
+            return NULL;
+    }
+    if (!cx->compartment->wrap(cx, str.address()))
+        return NULL;
+    return str;
 }
 
 JSString *
@@ -559,10 +612,9 @@ bool
 CrossCompartmentWrapper::defaultValue(JSContext *cx, HandleObject wrapper, JSType hint,
                                       MutableHandleValue vp)
 {
-    PIERCE(cx, wrapper,
-           NOTHING,
-           Wrapper::defaultValue(cx, wrapper, hint, vp),
-           cx->compartment->wrap(cx, vp));
+    if (!Wrapper::defaultValue(cx, wrapper, hint, vp))
+        return false;
+    return cx->compartment->wrap(cx, vp);
 }
 
 bool
@@ -634,17 +686,6 @@ SecurityWrapper<Base>::nativeCall(JSContext *cx, IsAcceptableThis test, NativeIm
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNWRAP_DENIED);
     return false;
-}
-
-// For security wrappers, we run the DefaultValue algorithm on the wrapper
-// itself, which means that the existing security policy on operations like
-// toString() will take effect and do the right thing here.
-template <class Base>
-bool
-SecurityWrapper<Base>::defaultValue(JSContext *cx, HandleObject wrapper,
-                                    JSType hint, MutableHandleValue vp)
-{
-    return DefaultValue(cx, wrapper, hint, vp);
 }
 
 template <class Base>
@@ -747,14 +788,15 @@ DeadObjectProxy::enumerate(JSContext *cx, HandleObject wrapper, AutoIdVector &pr
 }
 
 bool
-DeadObjectProxy::call(JSContext *cx, HandleObject wrapper, const CallArgs &args)
+DeadObjectProxy::call(JSContext *cx, HandleObject wrapper, unsigned argc, Value *vp)
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_DEAD_OBJECT);
     return false;
 }
 
 bool
-DeadObjectProxy::construct(JSContext *cx, HandleObject wrapper, const CallArgs &args)
+DeadObjectProxy::construct(JSContext *cx, HandleObject wrapper, unsigned argc,
+                           Value *vp, MutableHandleValue rval)
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_DEAD_OBJECT);
     return false;
@@ -781,10 +823,10 @@ DeadObjectProxy::objectClassIs(HandleObject obj, ESClassValue classValue, JSCont
     return false;
 }
 
-const char *
-DeadObjectProxy::className(JSContext *cx, HandleObject wrapper)
+JSString *
+DeadObjectProxy::obj_toString(JSContext *cx, HandleObject wrapper)
 {
-    return "DeadObject";
+    return JS_NewStringCopyZ(cx, "[object DeadObject]");
 }
 
 JSString *
@@ -833,7 +875,7 @@ js::NewDeadProxyObject(JSContext *cx, JSObject *parent)
 }
 
 bool
-js::IsDeadProxyObject(JSObject *obj)
+js::IsDeadProxyObject(RawObject obj)
 {
     return IsProxy(obj) && GetProxyHandler(obj) == &DeadObjectProxy::singleton;
 }
@@ -905,7 +947,7 @@ js::NukeCrossCompartmentWrappers(JSContext* cx,
                 continue;
 
             AutoWrapperRooter wobj(cx, WrapperValue(e));
-            JSObject *wrapped = UncheckedUnwrap(wobj);
+            JSObject *wrapped = UnwrapObject(wobj);
 
             if (nukeReferencesToWindow == DontNukeWindowReferences &&
                 wrapped->getClass()->ext.innerObject)

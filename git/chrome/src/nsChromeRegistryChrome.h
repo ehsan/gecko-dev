@@ -50,8 +50,6 @@ class nsChromeRegistryChrome : public nsChromeRegistry
                                          PLDHashEntryHdr *entry,
                                          uint32_t number, void *arg);
 
-  nsresult OverrideLocalePackage(const nsACString& aPackage,
-                                 nsACString& aOverride);
   nsresult SelectLocaleFromPref(nsIPrefBranch* prefs);
   nsresult UpdateSelectedLocale() MOZ_OVERRIDE;
   nsIURI* GetBaseURIFromPackage(const nsCString& aPackage,

@@ -89,15 +89,17 @@ AssertMainProcess()
 }
 
 bool
-WindowIsActive(nsIDOMWindow* aWindow)
+WindowIsActive(nsIDOMWindow *window)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
   NS_ENSURE_TRUE(window, false);
 
-  nsIDocument* document = window->GetDoc();
-  NS_ENSURE_TRUE(document, false);
+  nsCOMPtr<nsIDOMDocument> doc;
+  window->GetDocument(getter_AddRefs(doc));
+  NS_ENSURE_TRUE(doc, false);
 
-  return !document->Hidden();
+  bool hidden = true;
+  doc->GetHidden(&hidden);
+  return !hidden;
 }
 
 StaticAutoPtr<WindowIdentifier::IDArrayType> gLastIDToVibrate;
@@ -846,13 +848,9 @@ SetAlarm(int32_t aSeconds, int32_t aNanoseconds)
 }
 
 void
-SetProcessPriority(int aPid,
-                   ProcessPriority aPriority,
-                   ProcessCPUPriority aCPUPriority)
+SetProcessPriority(int aPid, ProcessPriority aPriority)
 {
-  // n.b. The sandboxed implementation crashes; SetProcessPriority works only
-  // from the main process.
-  PROXY_IF_SANDBOXED(SetProcessPriority(aPid, aPriority, aCPUPriority));
+  PROXY_IF_SANDBOXED(SetProcessPriority(aPid, aPriority));
 }
 
 // From HalTypes.h.
@@ -878,75 +876,6 @@ ProcessPriorityToString(ProcessPriority aPriority)
     MOZ_ASSERT(false);
     return "???";
   }
-}
-
-// From HalTypes.h.
-const char*
-ProcessPriorityToString(ProcessPriority aPriority,
-                        ProcessCPUPriority aCPUPriority)
-{
-  // Sorry this is ugly.  At least it's all in one place.
-  //
-  // We intentionally fall through if aCPUPriority is invalid; we won't hit any
-  // of the if statements further down, so it's OK.
-
-  switch (aPriority) {
-  case PROCESS_PRIORITY_MASTER:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "MASTER:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "MASTER:CPU_LOW";
-    }
-  case PROCESS_PRIORITY_FOREGROUND_HIGH:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "FOREGROUND_HIGH:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "FOREGROUND_HIGH:CPU_LOW";
-    }
-  case PROCESS_PRIORITY_FOREGROUND:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "FOREGROUND:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "FOREGROUND:CPU_LOW";
-    }
-  case PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "BACKGROUND_PERCEIVABLE:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "BACKGROUND_PERCEIVABLE:CPU_LOW";
-    }
-  case PROCESS_PRIORITY_BACKGROUND_HOMESCREEN:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "BACKGROUND_HOMESCREEN:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "BACKGROUND_HOMESCREEN:CPU_LOW";
-    }
-  case PROCESS_PRIORITY_BACKGROUND:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "BACKGROUND:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "BACKGROUND:CPU_LOW";
-    }
-  case PROCESS_PRIORITY_UNKNOWN:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "UNKNOWN:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "UNKNOWN:CPU_LOW";
-    }
-  default:
-    // Fall through.  (|default| is here to silence warnings.)
-    break;
-  }
-
-  MOZ_ASSERT(false);
-  return "???";
 }
 
 static StaticAutoPtr<ObserverList<FMRadioOperationInformation> > sFMRadioObservers;
@@ -1156,22 +1085,6 @@ void FactoryReset()
 {
   AssertMainThread();
   PROXY_IF_SANDBOXED(FactoryReset());
-}
-
-void
-StartDiskSpaceWatcher()
-{
-  AssertMainProcess();
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(StartDiskSpaceWatcher());
-}
-
-void
-StopDiskSpaceWatcher()
-{
-  AssertMainProcess();
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(StopDiskSpaceWatcher());
 }
 
 } // namespace hal

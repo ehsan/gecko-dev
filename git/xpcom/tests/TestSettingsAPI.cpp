@@ -3,7 +3,7 @@
 #include "nsISettingsService.h"
 
 #include "nsCOMPtr.h"
-#include "nsIXPConnect.h"
+#include "nsIJSContextStack.h"
 #include "nsIObserver.h"
 #include "nsIThread.h"
 #include "nsComponentManagerUtils.h"
@@ -153,8 +153,13 @@ TestSettingsObserver::Observe(nsISupports *aSubject,
   }
 
   // Get the safe JS context.
-  nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
-  JSContext *cx = xpc->GetSafeJSContext();
+  nsCOMPtr<nsIThreadJSContextStack> stack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+  if (!stack) {
+    CHECK_MSG(false, "Failed to get JSContextStack");
+    return NS_OK;
+  }
+  JSContext *cx = stack->GetSafeJSContext();
   if (!cx) {
     CHECK_MSG(false, "Failed to GetSafeJSContext");
     return NS_OK;

@@ -17,12 +17,11 @@
 #include "nsGenericHTMLElement.h"
 #include "nsTArray.h"
 
+class nsHTMLSelectElement;
 class nsIDOMHTMLOptionElement;
 
 namespace mozilla {
 namespace dom {
-
-class HTMLSelectElement;
 
 /**
  * The collection of options in the select (what you get back when you do
@@ -34,15 +33,12 @@ class HTMLOptionsCollection : public nsIHTMLCollection
 {
   typedef HTMLOptionElementOrHTMLOptGroupElement HTMLOptionOrOptGroupElement;
 public:
-  HTMLOptionsCollection(HTMLSelectElement* aSelect);
+  HTMLOptionsCollection(nsHTMLSelectElement* aSelect);
   virtual ~HTMLOptionsCollection();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  // nsWrapperCache
-  using nsWrapperCache::GetWrapperPreserveColor;
-  virtual JSObject* WrapObject(JSContext* cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* cx, JSObject* scope) MOZ_OVERRIDE;
 
   // nsIDOMHTMLOptionsCollection interface
   NS_DECL_NSIDOMHTMLOPTIONSCOLLECTION
@@ -56,7 +52,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(HTMLOptionsCollection,
                                                          nsIHTMLCollection)
 
-  // Helpers for HTMLSelectElement
+  // Helpers for nsHTMLSelectElement
   /**
    * Insert an option
    * @param aOption the option to insert
@@ -121,7 +117,6 @@ public:
                           int32_t aStartIndex, bool aForward,
                           int32_t* aIndex);
 
-  HTMLOptionElement* GetNamedItem(const nsAString& aName) const;
   virtual JSObject* NamedItem(JSContext* aCx, const nsAString& aName,
                               ErrorResult& error);
 
@@ -143,7 +138,7 @@ private:
    * various members such as InsertOptionAt are also infallible. */
   nsTArray<nsRefPtr<mozilla::dom::HTMLOptionElement> > mElements;
   /** The select element that contains this array */
-  HTMLSelectElement* mSelect;
+  nsHTMLSelectElement* mSelect;
 };
 
 } // namespace dom

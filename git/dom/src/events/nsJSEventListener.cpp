@@ -17,6 +17,8 @@
 #include "nsVariant.h"
 #include "nsIDOMBeforeUnloadEvent.h"
 #include "nsGkAtoms.h"
+#include "nsIDOMEventTarget.h"
+#include "nsIJSContextStack.h"
 #include "xpcpublic.h"
 #include "nsJSEnvironment.h"
 #include "nsDOMJSUtils.h"
@@ -66,7 +68,7 @@ nsJSEventListener::~nsJSEventListener()
 
 /* virtual */
 void
-nsJSEventListener::UpdateScopeObject(JS::Handle<JSObject*> aScopeObject)
+nsJSEventListener::UpdateScopeObject(JSObject* aScopeObject)
 {
   if (mScopeObject && !aScopeObject) {
     mScopeObject = nullptr;
@@ -162,7 +164,7 @@ nsJSEventListener::IsBlackForCC()
 nsresult
 nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
 {
-  nsCOMPtr<EventTarget> target = do_QueryInterface(mTarget);
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mTarget);
   if (!target || !mHandler.HasEventHandler())
     return NS_ERROR_FAILURE;
 

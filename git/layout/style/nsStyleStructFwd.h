@@ -27,9 +27,9 @@ nsStyleStructID_Inherited_Start = 0,
 // a dummy value so the value after it is the same as ..._Inherited_Start
 nsStyleStructID_DUMMY1 = nsStyleStructID_Inherited_Start - 1,
 
-#define STYLE_STRUCT_INHERITED(name, checkdata_cb) \
+#define STYLE_STRUCT_INHERITED(name, checkdata_cb, ctor_args) \
   eStyleStruct_##name,
-#define STYLE_STRUCT_RESET(name, checkdata_cb)
+#define STYLE_STRUCT_RESET(name, checkdata_cb, ctor_args)
 #include "nsStyleStructList.h"
 #undef STYLE_STRUCT_INHERITED
 #undef STYLE_STRUCT_RESET
@@ -38,9 +38,9 @@ nsStyleStructID_Reset_Start,
 // a dummy value so the value after it is the same as ..._Reset_Start
 nsStyleStructID_DUMMY2 = nsStyleStructID_Reset_Start - 1,
 
-#define STYLE_STRUCT_RESET(name, checkdata_cb) \
+#define STYLE_STRUCT_RESET(name, checkdata_cb, ctor_args) \
   eStyleStruct_##name,
-#define STYLE_STRUCT_INHERITED(name, checkdata_cb)
+#define STYLE_STRUCT_INHERITED(name, checkdata_cb, ctor_args)
 #include "nsStyleStructList.h"
 #undef STYLE_STRUCT_INHERITED
 #undef STYLE_STRUCT_RESET

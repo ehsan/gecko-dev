@@ -7,6 +7,7 @@
 #include "sdnAccessible-inl.h"
 #include "ISimpleDOMNode_i.c"
 
+#include "nsAccessNodeWrap.h"
 #include "DocAccessibleWrap.h"
 
 #include "nsAttrName.h"
@@ -30,10 +31,10 @@ sdnAccessible::QueryInterface(REFIID aREFIID, void** aInstancePtr)
 
   if (!aInstancePtr)
     return E_FAIL;
-  *aInstancePtr = nullptr;
+  *aInstancePtr = NULL;
 
   if (aREFIID == IID_ISimpleDOMNode) {
-    *aInstancePtr = static_cast<ISimpleDOMNode*>(this);
+    *aInstancePtr = this;
     AddRef();
     return S_OK;
   }
@@ -45,7 +46,7 @@ sdnAccessible::QueryInterface(REFIID aREFIID, void** aInstancePtr)
   // IUnknown* is the canonical one if and only if this accessible doesn't have
   // an accessible.
   if (aREFIID == IID_IUnknown) {
-    *aInstancePtr = static_cast<ISimpleDOMNode*>(this);
+    *aInstancePtr = this;
     AddRef();
     return S_OK;
   }
@@ -69,9 +70,9 @@ sdnAccessible::get_nodeInfo(BSTR __RPC_FAR* aNodeName,
       !aUniqueID || !aNodeType)
     return E_INVALIDARG;
 
-  *aNodeName = nullptr;
+  *aNodeName = NULL;
   *aNameSpaceID = 0;
-  *aNodeValue = nullptr;
+  *aNodeValue = NULL;
   *aNumChildren = 0;
   *aUniqueID = 0;
   *aNodeType = 0;
@@ -142,7 +143,7 @@ sdnAccessible::get_attributes(unsigned  short aMaxAttribs,
 
   for (uint32_t index = 0; index < numAttribs; index++) {
     aNameSpaceIDs[index] = 0;
-    aAttribValues[index] = aAttribNames[index] = nullptr;
+    aAttribValues[index] = aAttribNames[index] = NULL;
     nsAutoString attributeValue;
 
     const nsAttrName* name = elm->GetAttrNameAt(index);
@@ -180,7 +181,7 @@ sdnAccessible::get_attributesForNames(unsigned short aMaxAttribs,
 
   int32_t index = 0;
   for (index = 0; index < aMaxAttribs; index++) {
-    aAttribValues[index] = nullptr;
+    aAttribValues[index] = NULL;
     if (aAttribNames[index]) {
       nsAutoString attributeValue, nameSpaceURI;
       nsAutoString attributeName(nsDependentString(
@@ -320,14 +321,14 @@ sdnAccessible::get_parentNode(ISimpleDOMNode __RPC_FAR *__RPC_FAR* aNode)
 
   if (!aNode)
     return E_INVALIDARG;
-  *aNode = nullptr;
+  *aNode = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
   nsINode* resultNode = mNode->GetParentNode();
   if (resultNode) {
-    *aNode = static_cast<ISimpleDOMNode*>(new sdnAccessible(resultNode));
+    *aNode = new sdnAccessible(resultNode);
     (*aNode)->AddRef();
   }
 
@@ -343,14 +344,14 @@ sdnAccessible::get_firstChild(ISimpleDOMNode __RPC_FAR *__RPC_FAR* aNode)
 
   if (!aNode)
     return E_INVALIDARG;
-  *aNode = nullptr;
+  *aNode = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
   nsINode* resultNode = mNode->GetFirstChild();
   if (resultNode) {
-    *aNode = static_cast<ISimpleDOMNode*>(new sdnAccessible(resultNode));
+    *aNode = new sdnAccessible(resultNode);
     (*aNode)->AddRef();
   }
 
@@ -366,14 +367,14 @@ sdnAccessible::get_lastChild(ISimpleDOMNode __RPC_FAR *__RPC_FAR* aNode)
 
   if (!aNode)
     return E_INVALIDARG;
-  *aNode = nullptr;
+  *aNode = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
   nsINode* resultNode = mNode->GetLastChild();
   if (resultNode) {
-    *aNode = static_cast<ISimpleDOMNode*>(new sdnAccessible(resultNode));
+    *aNode = new sdnAccessible(resultNode);
     (*aNode)->AddRef();
   }
 
@@ -389,14 +390,14 @@ sdnAccessible::get_previousSibling(ISimpleDOMNode __RPC_FAR *__RPC_FAR* aNode)
 
   if (!aNode)
     return E_INVALIDARG;
-  *aNode = nullptr;
+  *aNode = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
   nsINode* resultNode = mNode->GetPreviousSibling();
   if (resultNode) {
-    *aNode = static_cast<ISimpleDOMNode*>(new sdnAccessible(resultNode));
+    *aNode = new sdnAccessible(resultNode);
     (*aNode)->AddRef();
   }
 
@@ -412,14 +413,14 @@ sdnAccessible::get_nextSibling(ISimpleDOMNode __RPC_FAR *__RPC_FAR* aNode)
 
   if (!aNode)
     return E_INVALIDARG;
-  *aNode = nullptr;
+  *aNode = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
   nsINode* resultNode = mNode->GetNextSibling();
   if (resultNode) {
-    *aNode = static_cast<ISimpleDOMNode*>(new sdnAccessible(resultNode));
+    *aNode = new sdnAccessible(resultNode);
     (*aNode)->AddRef();
   }
 
@@ -436,14 +437,14 @@ sdnAccessible::get_childAt(unsigned aChildIndex,
 
   if (!aNode)
     return E_INVALIDARG;
-  *aNode = nullptr;
+  *aNode = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
   nsINode* resultNode = mNode->GetChildAt(aChildIndex);
   if (resultNode) {
-    *aNode = static_cast<ISimpleDOMNode*>(new sdnAccessible(resultNode));
+    *aNode = new sdnAccessible(resultNode);
     (*aNode)->AddRef();
   }
 
@@ -460,7 +461,7 @@ sdnAccessible::get_innerHTML(BSTR __RPC_FAR* aInnerHTML)
 
   if (!aInnerHTML)
     return E_INVALIDARG;
-  *aInnerHTML = nullptr;
+  *aInnerHTML = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -490,7 +491,7 @@ sdnAccessible::get_localInterface(void __RPC_FAR *__RPC_FAR* aLocalInterface)
 
   if (!aLocalInterface)
     return E_INVALIDARG;
-  *aLocalInterface = nullptr;
+  *aLocalInterface = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -510,7 +511,7 @@ sdnAccessible::get_language(BSTR __RPC_FAR* aLanguage)
 
   if (!aLanguage)
     return E_INVALIDARG;
-  *aLanguage = nullptr;
+  *aLanguage = NULL;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;

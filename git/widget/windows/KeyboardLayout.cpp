@@ -384,8 +384,7 @@ VirtualKey::FillKbdState(PBYTE aKbdState,
 NativeKey::NativeKey(const KeyboardLayout& aKeyboardLayout,
                      nsWindow* aWindow,
                      const MSG& aKeyOrCharMessage) :
-  mDOMKeyCode(0), mMessage(aKeyOrCharMessage.message),
-  mVirtualKeyCode(0), mOriginalVirtualKeyCode(0)
+  mDOMKeyCode(0), mVirtualKeyCode(0), mOriginalVirtualKeyCode(0)
 {
   mScanCode = WinUtils::GetScanCode(aKeyOrCharMessage.lParam);
   mIsExtended = WinUtils::IsExtendedScanCode(aKeyOrCharMessage.lParam);
@@ -393,7 +392,7 @@ NativeKey::NativeKey(const KeyboardLayout& aKeyboardLayout,
   // extended keys due to the API limitation.
   bool canComputeVirtualKeyCodeFromScanCode =
     (!mIsExtended || WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION);
-  switch (mMessage) {
+  switch (aKeyOrCharMessage.message) {
     case WM_KEYDOWN:
     case WM_KEYUP:
     case WM_SYSKEYDOWN:
@@ -541,8 +540,6 @@ NativeKey::NativeKey(const KeyboardLayout& aKeyboardLayout,
 
   mDOMKeyCode =
     aKeyboardLayout.ConvertNativeKeyCodeToDOMKeyCode(mOriginalVirtualKeyCode);
-  mKeyNameIndex =
-    aKeyboardLayout.ConvertNativeKeyCodeToKeyNameIndex(mOriginalVirtualKeyCode);
 }
 
 UINT
@@ -662,66 +659,48 @@ KeyboardLayout::IsDeadKey(uint8_t aVirtualKey,
            VirtualKey::ModifiersToShiftState(aModKeyState.GetModifiers()));
 }
 
-void
-KeyboardLayout::InitNativeKey(NativeKey& aNativeKey,
-                              const ModifierKeyState& aModKeyState)
+UniCharsAndModifiers
+KeyboardLayout::OnKeyDown(uint8_t aVirtualKey,
+                          const ModifierKeyState& aModKeyState)
 {
   if (mPendingKeyboardLayout) {
     LoadLayout(mPendingKeyboardLayout);
   }
 
-  uint8_t virtualKey = aNativeKey.GetOriginalVirtualKeyCode();
-  int32_t virtualKeyIndex = GetKeyIndex(virtualKey);
+  int32_t virtualKeyIndex = GetKeyIndex(aVirtualKey);
 
   if (virtualKeyIndex < 0) {
     // Does not produce any printable characters, but still preserves the
     // dead-key state.
-    return;
+    return UniCharsAndModifiers();
   }
 
-  bool isKeyDown = aNativeKey.IsKeyDownMessage();
   uint8_t shiftState =
     VirtualKey::ModifiersToShiftState(aModKeyState.GetModifiers());
 
   if (mVirtualKeys[virtualKeyIndex].IsDeadKey(shiftState)) {
-    if ((isKeyDown && mActiveDeadKey < 0) ||
-        (!isKeyDown && mActiveDeadKey == virtualKey)) {
-      //  First dead key event doesn't generate characters.
-      if (isKeyDown) {
-        // Dead-key state activated at keydown.
-        mActiveDeadKey = virtualKey;
-        mDeadKeyShiftState = shiftState;
-      }
-      UniCharsAndModifiers deadChars =
-        mVirtualKeys[virtualKeyIndex].GetNativeUniChars(shiftState);
-      NS_ASSERTION(deadChars.mLength == 1,
-                   "dead key must generate only one character");
-      aNativeKey.mKeyNameIndex =
-        WidgetUtils::GetDeadKeyNameIndex(deadChars.mChars[0]);
-      return;
+    if (mActiveDeadKey < 0) {
+      // Dead-key state activated. No characters generated.
+      mActiveDeadKey = aVirtualKey;
+      mDeadKeyShiftState = shiftState;
+      return UniCharsAndModifiers();
     }
 
     // Dead-key followed by another dead-key. Reset dead-key state and
     // return both dead-key characters.
     int32_t activeDeadKeyIndex = GetKeyIndex(mActiveDeadKey);
-    UniCharsAndModifiers prevDeadChars =
+    UniCharsAndModifiers result =
       mVirtualKeys[activeDeadKeyIndex].GetUniChars(mDeadKeyShiftState);
-    UniCharsAndModifiers newChars =
-      mVirtualKeys[virtualKeyIndex].GetUniChars(shiftState);
-    // But keypress events should be fired for each committed character.
-    aNativeKey.mCommittedCharsAndModifiers = prevDeadChars + newChars;
-    if (isKeyDown) {
-      DeactivateDeadKeyState();
-    }
-    return;
+    result += mVirtualKeys[virtualKeyIndex].GetUniChars(shiftState);
+    DeactivateDeadKeyState();
+    return result;
   }
 
   UniCharsAndModifiers baseChars =
     mVirtualKeys[virtualKeyIndex].GetUniChars(shiftState);
   if (mActiveDeadKey < 0) {
     // No dead-keys are active. Just return the produced characters.
-    aNativeKey.mCommittedCharsAndModifiers = baseChars;
-    return;
+    return baseChars;
   }
 
   // Dead-key was active. See if pressed base character does produce
@@ -733,25 +712,20 @@ KeyboardLayout::InitNativeKey(NativeKey& aNativeKey,
   if (compositeChar) {
     // Active dead-key and base character does produce exactly one
     // composite character.
-    aNativeKey.mCommittedCharsAndModifiers.Append(compositeChar,
-                                                  baseChars.mModifiers[0]);
-    if (isKeyDown) {
-      DeactivateDeadKeyState();
-    }
-    return;
+    UniCharsAndModifiers result;
+    result.Append(compositeChar, baseChars.mModifiers[0]);
+    DeactivateDeadKeyState();
+    return result;
   }
 
   // There is no valid dead-key and base character combination.
   // Return dead-key character followed by base character.
-  UniCharsAndModifiers deadChars =
+  UniCharsAndModifiers result =
     mVirtualKeys[activeDeadKeyIndex].GetUniChars(mDeadKeyShiftState);
-  // But keypress events should be fired for each committed character.
-  aNativeKey.mCommittedCharsAndModifiers = deadChars + baseChars;
-  if (isKeyDown) {
-    DeactivateDeadKeyState();
-  }
+  result += baseChars;
+  DeactivateDeadKeyState();
 
-  return;
+  return result;
 }
 
 UniCharsAndModifiers
@@ -1278,24 +1252,6 @@ KeyboardLayout::ConvertNativeKeyCodeToDOMKeyCode(UINT aNativeKeyCode) const
   NS_WARNING("Unknown key code comes, please check latest MSDN document,"
              " there may be some new keycodes we have not known.");
   return 0;
-}
-
-KeyNameIndex
-KeyboardLayout::ConvertNativeKeyCodeToKeyNameIndex(uint8_t aVirtualKey) const
-{
-  switch (aVirtualKey) {
-
-#define NS_NATIVE_KEY_TO_DOM_KEY_NAME_INDEX(aNativeKey, aKeyNameIndex) \
-    case aNativeKey: return aKeyNameIndex;
-
-#include "NativeKeyToDOMKeyName.h"
-
-#undef NS_NATIVE_KEY_TO_DOM_KEY_NAME_INDEX
-
-    default:
-      return IsPrintableCharKey(aVirtualKey) ? KEY_NAME_INDEX_PrintableKey :
-                                               KEY_NAME_INDEX_Unidentified;
-  }
 }
 
 /*****************************************************************************

@@ -80,11 +80,11 @@ function AutocompletePopup(aDocument, aOptions = {})
     this._panel.appendChild(this._list);
 
     // Open and hide the panel, so we initialize the API of the richlistbox.
-    this._panel.openPopup(null, this.position, 0, 0);
+    this._panel.openPopup(null, this.popup, 0, 0);
     this._panel.hidePopup();
   }
 
-  this._list.setAttribute("flex", "1");
+  this._list.flex = 1;
   this._list.setAttribute("seltype", "single");
 
   if (aOptions.listBoxId) {
@@ -251,22 +251,23 @@ AutocompletePopup.prototype = {
    */
   _updateSize: function AP__updateSize()
   {
-    // We need the dispatch to allow the content to reflow. Attempting to
+    // We need the timeout to allow the content to reflow. Attempting to
     // update the richlistbox size too early does not work.
-    Services.tm.currentThread.dispatch({ run: () => {
+    this._document.defaultView.setTimeout(function() {
       if (!this._panel) {
         return;
       }
-      this._list.width = this._panel.clientWidth + this._scrollbarWidth;
+      this._list.width = this._panel.clientWidth +
+                         this._scrollbarWidth;
       // Height change is required, otherwise the panel is drawn at an offset
       // the first time.
-      this._list.height = this._list.clientHeight;
+      this._list.height = this._panel.clientHeight;
       // This brings the panel back at right position.
       this._list.top = 0;
       // Changing panel height might make the selected item out of view, so
       // bring it back to view.
       this._list.ensureIndexIsVisible(this._list.selectedIndex);
-    }}, 0);
+    }.bind(this), 5);
   },
 
   /**

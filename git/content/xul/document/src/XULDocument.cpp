@@ -87,10 +87,8 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsURILoader.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/ProcessingInstruction.h"
 #include "mozilla/dom/XULDocumentBinding.h"
 #include "mozilla/Preferences.h"
-#include "nsTextNode.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -193,6 +191,8 @@ nsRefMapEntry::RemoveElement(Element* aElement)
 //
 // ctors & dtors
 //
+
+DOMCI_NODE_DATA(XULDocument, XULDocument)
 
 namespace mozilla {
 namespace dom {
@@ -364,6 +364,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(XULDocument)
       NS_INTERFACE_TABLE_ENTRY(XULDocument, nsICSSLoaderObserver)
     NS_OFFSET_AND_INTERFACE_TABLE_END
     NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XULDocument)
 NS_INTERFACE_MAP_END_INHERITING(XMLDocument)
 
 
@@ -433,7 +434,8 @@ XULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
         NS_GetFinalChannelURI(aChannel, getter_AddRefs(mDocumentURI));
     NS_ENSURE_SUCCESS(rv, rv);
     
-    ResetStylesheetsToURI(mDocumentURI);
+    rv = ResetStylesheetsToURI(mDocumentURI);
+    if (NS_FAILED(rv)) return rv;
 
     RetrieveRelevantHeaders(aChannel);
 
@@ -1248,7 +1250,7 @@ XULDocument::GetElementsByAttribute(const nsAString& aAttribute,
 {
     nsCOMPtr<nsIAtom> attrAtom(do_GetAtom(aAttribute));
     void* attrValue = new nsString(aValue);
-    nsRefPtr<nsContentList> list = new nsContentList(this,
+    nsContentList *list = new nsContentList(this,
                                             MatchAttribute,
                                             nsContentUtils::DestroyMatchString,
                                             attrValue,
@@ -1256,7 +1258,8 @@ XULDocument::GetElementsByAttribute(const nsAString& aAttribute,
                                             attrAtom,
                                             kNameSpaceID_Unknown);
     
-    return list.forget();
+    NS_ADDREF(list);
+    return list;
 }
 
 NS_IMETHODIMP
@@ -1291,14 +1294,15 @@ XULDocument::GetElementsByAttributeNS(const nsAString& aNamespaceURI,
       }
     }
 
-    nsRefPtr<nsContentList> list = new nsContentList(this,
+    nsContentList *list = new nsContentList(this,
                                             MatchAttribute,
                                             nsContentUtils::DestroyMatchString,
                                             attrValue,
                                             true,
                                             attrAtom,
                                             nameSpaceId);
-    return list.forget();
+    NS_ADDREF(list);
+    return list;
 }
 
 NS_IMETHODIMP
@@ -1514,29 +1518,6 @@ XULDocument::GetHeight(ErrorResult& aRv)
     return height;
 }
 
-JSObject*
-GetScopeObjectOfNode(nsIDOMNode* node)
-{
-    MOZ_ASSERT(node, "Must not be called with null.");
-
-    // Window root occasionally keeps alive a node of a document whose
-    // window is already dead. If in this brief period someone calls
-    // GetPopupNode and we return that node, nsNodeSH::PreCreate will throw,
-    // because it will not know which scope this node belongs to. Returning
-    // an orphan node like that to JS would be a bug anyway, so to avoid
-    // this, let's do the same check as nsNodeSH::PreCreate does to
-    // determine the scope and if it fails let's just return null in
-    // XULDocument::GetPopupNode.
-    nsCOMPtr<nsINode> inode = do_QueryInterface(node);
-    MOZ_ASSERT(inode, "How can this happen?");
-
-    nsIDocument* doc = inode->OwnerDoc();
-    MOZ_ASSERT(inode, "This should never happen.");
-
-    nsIGlobalObject* global = doc->GetScopeObject();
-    return global ? global->GetGlobalJSObject() : nullptr;
-}
-
 //----------------------------------------------------------------------
 //
 // nsIDOMXULDocument interface
@@ -1559,10 +1540,8 @@ XULDocument::GetPopupNode(nsIDOMNode** aNode)
         }
     }
 
-    if (node && nsContentUtils::CanCallerAccess(node)
-        && GetScopeObjectOfNode(node)) {
-        node.swap(*aNode);
-    }
+    if (node && nsContentUtils::CanCallerAccess(node))
+      node.swap(*aNode);
 
     return NS_OK;
 }
@@ -2528,11 +2507,15 @@ XULDocument::CreateAndInsertPI(const nsXULPrototypePI* aProtoPI,
     NS_PRECONDITION(aProtoPI, "null ptr");
     NS_PRECONDITION(aParent, "null ptr");
 
-    nsRefPtr<ProcessingInstruction> node =
-        NS_NewXMLProcessingInstruction(mNodeInfoManager, aProtoPI->mTarget,
-                                       aProtoPI->mData);
-
     nsresult rv;
+    nsCOMPtr<nsIContent> node;
+
+    rv = NS_NewXMLProcessingInstruction(getter_AddRefs(node),
+                                        mNodeInfoManager,
+                                        aProtoPI->mTarget,
+                                        aProtoPI->mData);
+    if (NS_FAILED(rv)) return rv;
+
     if (aProtoPI->mTarget.EqualsLiteral("xml-stylesheet")) {
         rv = InsertXMLStylesheetPI(aProtoPI, aParent, aIndex, node);
     } else if (aProtoPI->mTarget.EqualsLiteral("xul-overlay")) {
@@ -3066,8 +3049,10 @@ XULDocument::ResumeWalk()
                     // This does mean that text nodes that are direct children
                     // of <overlay> get ignored.
 
-                    nsRefPtr<nsTextNode> text =
-                        new nsTextNode(mNodeInfoManager);
+                    nsCOMPtr<nsIContent> text;
+                    rv = NS_NewTextNode(getter_AddRefs(text),
+                                        mNodeInfoManager);
+                    NS_ENSURE_SUCCESS(rv, rv);
 
                     nsXULPrototypeText* textproto =
                         static_cast<nsXULPrototypeText*>(childproto);
@@ -4759,9 +4744,13 @@ XULDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
 }
 
 JSObject*
-XULDocument::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+XULDocument::WrapNode(JSContext *aCx, JSObject *aScope)
 {
-  return XULDocumentBinding::Wrap(aCx, aScope, this);
+  JSObject* obj = XULDocumentBinding::Wrap(aCx, aScope, this);
+  if (obj && !PostCreateWrapper(aCx, obj)) {
+    return nullptr;
+  }
+  return obj;
 }
 
 } // namespace dom

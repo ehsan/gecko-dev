@@ -7,27 +7,22 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-import android.app.ActivityManager;
-import android.app.ActivityManager.RunningServiceInfo;
-import android.content.Context;
-import android.graphics.Rect;
+import android.view.accessibility.*;
+import android.view.View;
+import android.util.Log;
 import android.os.Build;
 import android.os.Bundle;
-import android.util.Log;
-import android.view.View;
-import android.view.accessibility.AccessibilityEvent;
-import android.view.accessibility.AccessibilityManager;
-import android.view.accessibility.AccessibilityNodeInfo;
-import android.view.accessibility.AccessibilityNodeProvider;
+import android.content.Context;
+import android.graphics.Rect;
+import android.app.ActivityManager;
+import android.app.ActivityManager.RunningServiceInfo;
 
-import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Arrays;
 import java.util.List;
+
+import org.json.*;
 
 public class GeckoAccessibility {
     private static final String LOGTAG = "GeckoAccessibility";
@@ -48,17 +43,17 @@ public class GeckoAccessibility {
                     "es.codefactory.android.app.ma.MAAccessibilityService" // Codefactory Mobile Accessibility screen reader
                 }));
 
-    public static void updateAccessibilitySettings (final GeckoApp app) {
-        new UiAsyncTask<Void, Void, Void>(ThreadUtils.getBackgroundHandler()) {
+    public static void updateAccessibilitySettings () {
+        ThreadUtils.postToBackgroundThread(new Runnable() {
                 @Override
-                public Void doInBackground(Void... args) {
+                public void run() {
                     JSONObject ret = new JSONObject();
                     sEnabled = false;
                     AccessibilityManager accessibilityManager =
-                        (AccessibilityManager) app.getSystemService(Context.ACCESSIBILITY_SERVICE);
+                        (AccessibilityManager) GeckoApp.mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
                     if (accessibilityManager.isEnabled()) {
                         ActivityManager activityManager =
-                            (ActivityManager) app.getSystemService(Context.ACTIVITY_SERVICE);
+                            (ActivityManager) GeckoApp.mAppContext.getSystemService(Context.ACTIVITY_SERVICE);
                         List<RunningServiceInfo> runningServices = activityManager.getRunningServices(Integer.MAX_VALUE);
 
                         for (RunningServiceInfo runningServiceInfo : runningServices) {
@@ -68,6 +63,10 @@ public class GeckoAccessibility {
                         }
                     }
 
+                    // Disable the dynamic toolbar when enabling accessibility.
+                    // These features tend not to interact well.
+                    GeckoApp.mAppContext.setAccessibilityEnabled(sEnabled);
+
                     try {
                         ret.put("enabled", sEnabled);
                     } catch (Exception ex) {
@@ -76,16 +75,8 @@ public class GeckoAccessibility {
 
                     GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:Settings",
                                                                                    ret.toString()));
-                    return null;
                 }
-
-                @Override
-                public void onPostExecute(Void args) {
-                    // Disable the dynamic toolbar when enabling accessibility.
-                    // These features tend not to interact well.
-                    app.setAccessibilityEnabled(sEnabled);
-                }
-            }.execute();
+            });
     }
 
     private static void populateEventFromJSON (AccessibilityEvent event, JSONObject message) {

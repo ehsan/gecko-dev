@@ -6,7 +6,6 @@
 
 #include "mozilla/dom/HTMLAreaElement.h"
 #include "mozilla/dom/HTMLAreaElementBinding.h"
-#include "base/compiler_specific.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Area)
 
@@ -15,7 +14,7 @@ namespace dom {
 
 HTMLAreaElement::HTMLAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
-    ALLOW_THIS_IN_INITIALIZER_LIST(Link(this))
+    Link(this)
 {
   SetIsDOMBinding();
 }
@@ -245,7 +244,7 @@ HTMLAreaElement::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 }
 
 JSObject*
-HTMLAreaElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLAreaElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLAreaElementBinding::Wrap(aCx, aScope, this);
 }

@@ -12,7 +12,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEPointLightElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGFEPointLightElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGFEPointLightElementBinding::Wrap(aCx, aScope, this);
 }

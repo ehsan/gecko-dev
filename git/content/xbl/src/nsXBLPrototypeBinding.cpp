@@ -11,6 +11,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsIURI.h"
 #include "nsIURL.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIChannel.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
@@ -34,15 +35,12 @@
 #include "nsCRT.h"
 #include "nsContentUtils.h"
 #include "nsTextFragment.h"
-#include "nsTextNode.h"
 
 #include "nsIScriptContext.h"
 #include "nsIScriptError.h"
 
 #include "nsIStyleRuleProcessor.h"
 #include "nsXBLResourceLoader.h"
-#include "mozilla/dom/CDATASection.h"
-#include "mozilla/dom/Comment.h"
 #include "mozilla/dom/Element.h"
 
 #ifdef MOZ_XUL
@@ -317,8 +315,9 @@ nsXBLPrototypeBinding::SetBasePrototype(nsXBLPrototypeBinding* aBinding)
 already_AddRefed<nsIContent>
 nsXBLPrototypeBinding::GetBindingElement()
 {
-  nsCOMPtr<nsIContent> result = mBinding;
-  return result.forget();
+  nsIContent* result = mBinding;
+  NS_IF_ADDREF(result);
+  return result;
 }
 
 void
@@ -515,8 +514,12 @@ nsXBLPrototypeBinding::AttributeChanged(nsIAtom* aAttribute,
           nsAutoString value;
           aChangedElement->GetAttr(aNameSpaceID, aAttribute, value);
           if (!value.IsEmpty()) {
-            nsRefPtr<nsTextNode> textContent =
-              new nsTextNode(realElement->NodeInfo()->NodeInfoManager());
+            nsCOMPtr<nsIContent> textContent;
+            NS_NewTextNode(getter_AddRefs(textContent),
+                           realElement->NodeInfo()->NodeInfoManager());
+            if (!textContent) {
+              continue;
+            }
 
             textContent->SetText(value, true);
             realElement->AppendChildTo(textContent, true);
@@ -723,12 +726,15 @@ nsXBLPrototypeBinding::GetImmediateChild(nsIAtom* aTag)
  
 nsresult
 nsXBLPrototypeBinding::InitClass(const nsCString& aClassName,
-                                 JSContext * aContext,
-                                 JS::Handle<JSObject*> aGlobal,
-                                 JS::Handle<JSObject*> aScriptObject,
-                                 JS::MutableHandle<JSObject*> aClassObject,
+                                 JSContext * aContext, JSObject * aGlobal,
+                                 JSObject * aScriptObject,
+                                 JSObject** aClassObject,
                                  bool* aNew)
 {
+  NS_ENSURE_ARG_POINTER(aClassObject); 
+
+  *aClassObject = nullptr;
+
   return nsXBLBinding::DoInitJSClass(aContext, aGlobal, aScriptObject,
                                      aClassName, this, aClassObject, aNew);
 }
@@ -887,8 +893,12 @@ bool SetAttrs(nsHashKey* aKey, void* aData, void* aClosure)
                                              kNameSpaceID_XUL) &&
              dst == nsGkAtoms::value && !value.IsEmpty())) {
 
-          nsRefPtr<nsTextNode> textContent =
-            new nsTextNode(realElement->NodeInfo()->NodeInfoManager());
+          nsCOMPtr<nsIContent> textContent;
+          NS_NewTextNode(getter_AddRefs(textContent),
+                         realElement->NodeInfo()->NodeInfoManager());
+          if (!textContent) {
+            continue;
+          }
 
           textContent->SetText(value, false);
           realElement->AppendChildTo(textContent, false);
@@ -1018,7 +1028,7 @@ nsXBLPrototypeBinding::ConstructAttributeTable(nsIContent* aElement)
       // so that we don't have to convert from Unicode to ASCII and then back
 
       char* token = nsCRT::strtok( str, ", ", &newStr );
-      while( token != nullptr ) {
+      while( token != NULL ) {
         // Build an atom out of this attribute.
         nsCOMPtr<nsIAtom> atom;
         int32_t atomNsID = kNameSpaceID_None;
@@ -1127,7 +1137,7 @@ nsXBLPrototypeBinding::ConstructInsertionTable(nsIContent* aContent)
       // so that we don't have to convert from Unicode to ASCII and then back
 
       char* token = nsCRT::strtok( str, "| ", &newStr );
-      while( token != nullptr ) {
+      while( token != NULL ) {
         nsAutoString tok;
         tok.AssignWithConversion(token);
 
@@ -1208,7 +1218,7 @@ nsXBLPrototypeBinding::ConstructInterfaceTable(const nsAString& aImpls)
     // so that we don't have to convert from Unicode to ASCII and then back
 
     char* token = nsCRT::strtok( str, ", ", &newStr );
-    while( token != nullptr ) {
+    while( token != NULL ) {
       // get the InterfaceInfo for the name
       nsCOMPtr<nsIInterfaceInfo> iinfo;
       infoManager->GetInfoForName(token, getter_AddRefs(iinfo));
@@ -1682,17 +1692,18 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
       namespaceID == XBLBinding_Serialize_CommentNode) {
     switch (namespaceID) {
       case XBLBinding_Serialize_TextNode:
-        content = new nsTextNode(aNim);
+        rv = NS_NewTextNode(getter_AddRefs(content), aNim);
         break;
       case XBLBinding_Serialize_CDATANode:
-        content = new CDATASection(aNim);
+        rv = NS_NewXMLCDATASection(getter_AddRefs(content), aNim);
         break;
       case XBLBinding_Serialize_CommentNode:
-        content = new Comment(aNim);
+        rv = NS_NewCommentNode(getter_AddRefs(content), aNim);
         break;
       default:
         break;
     }
+    NS_ENSURE_SUCCESS(rv, rv);
 
     nsAutoString text;
     rv = aStream->ReadString(text);

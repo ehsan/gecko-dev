@@ -71,7 +71,7 @@ FileReaderSync::Constructor(const WorkerGlobalObject& aGlobal, ErrorResult& aRv)
 }
 
 JSObject*
-FileReaderSync::ReadAsArrayBuffer(JSContext* aCx, JS::Handle<JSObject*> aBlob,
+FileReaderSync::ReadAsArrayBuffer(JSContext* aCx, JSObject* aBlob,
                                   ErrorResult& aRv)
 {
   nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
@@ -87,7 +87,7 @@ FileReaderSync::ReadAsArrayBuffer(JSContext* aCx, JS::Handle<JSObject*> aBlob,
     return nullptr;
   }
 
-  JS::Rooted<JSObject*> jsArrayBuffer(aCx, JS_NewArrayBuffer(aCx, blobSize));
+  JSObject* jsArrayBuffer = JS_NewArrayBuffer(aCx, blobSize);
   if (!jsArrayBuffer) {
     // XXXkhuey we need a way to indicate to the bindings that the call failed
     // but there's already a pending exception that we should not clobber.
@@ -117,8 +117,7 @@ FileReaderSync::ReadAsArrayBuffer(JSContext* aCx, JS::Handle<JSObject*> aBlob,
 }
 
 void
-FileReaderSync::ReadAsBinaryString(JS::Handle<JSObject*> aBlob,
-                                   nsAString& aResult,
+FileReaderSync::ReadAsBinaryString(JSObject* aBlob, nsAString& aResult,
                                    ErrorResult& aRv)
 {
   nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
@@ -153,7 +152,7 @@ FileReaderSync::ReadAsBinaryString(JS::Handle<JSObject*> aBlob,
 }
 
 void
-FileReaderSync::ReadAsText(JS::Handle<JSObject*> aBlob,
+FileReaderSync::ReadAsText(JSObject* aBlob,
                            const Optional<nsAString>& aEncoding,
                            nsAString& aResult,
                            ErrorResult& aRv)
@@ -209,7 +208,7 @@ FileReaderSync::ReadAsText(JS::Handle<JSObject*> aBlob,
 }
 
 void
-FileReaderSync::ReadAsDataURL(JS::Handle<JSObject*> aBlob, nsAString& aResult,
+FileReaderSync::ReadAsDataURL(JSObject* aBlob, nsAString& aResult,
                               ErrorResult& aRv)
 {
   nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);

@@ -10,7 +10,6 @@
 #include "AccessibleHyperlink_i.c"
 
 #include "AccessibleWrap.h"
-#include "IUnknownImpl.h"
 
 using namespace mozilla::a11y;
 
@@ -19,7 +18,7 @@ using namespace mozilla::a11y;
 STDMETHODIMP
 ia2AccessibleHyperlink::QueryInterface(REFIID iid, void** ppv)
 {
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IID_IAccessibleHyperlink == iid) {
     if (!static_cast<AccessibleWrap*>(this)->IsLink())
@@ -57,7 +56,7 @@ ia2AccessibleHyperlink::get_anchor(long aIndex, VARIANT* aAnchor)
   if (!anchor)
     return S_FALSE;
 
-  void* instancePtr = nullptr;
+  void* instancePtr = NULL;
   HRESULT result = anchor->QueryInterface(IID_IUnknown, &instancePtr);
   if (FAILED(result))
     return result;

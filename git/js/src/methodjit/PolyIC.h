@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -487,12 +488,12 @@ struct PICInfo : public BasePolyIC {
   public:
     void purge(Repatcher &repatcher);
 
-    void setInlinePathShape(Shape *shape) {
+    void setInlinePathShape(RawShape shape) {
         JS_ASSERT(!inlinePathShape_);
         inlinePathShape_ = shape;
     }
 
-    Shape *getSingleShape() {
+    RawShape getSingleShape() {
         if (disabled || hadUncacheable || stubsGenerated > 0)
             return NULL;
         return inlinePathShape_;

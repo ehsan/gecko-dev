@@ -1,4 +1,3 @@
-# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
 # vim: set filetype=python:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,9 +8,4 @@ if CONFIG['MOZ_ANGLE_RENDERER']:
     DIRS += ['src/libGLESv2', 'src/libEGL']
 
 MODULE = 'angle'
-
-EXPORTS.angle += [
-    'include/GLSLANG/ShaderLang.h',
-    'include/KHR/khrplatform.h',
-]
 

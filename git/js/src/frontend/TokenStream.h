@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -12,7 +12,6 @@
  */
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/PodOperations.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -372,7 +371,7 @@ struct CompileError {
     CompileError(JSContext *cx)
       : cx(cx), message(NULL), argumentsType(ArgumentsAreUnicode)
     {
-        mozilla::PodZero(&report);
+        PodZero(&report);
     }
     ~CompileError();
     void throwError();
@@ -453,8 +452,7 @@ class TokenStream
     typedef Vector<jschar, 32> CharBuffer;
 
     TokenStream(JSContext *cx, const CompileOptions &options,
-                const jschar *base, size_t length, StrictModeGetter *smg,
-                AutoKeepAtoms& keepAtoms);
+                const jschar *base, size_t length, StrictModeGetter *smg);
 
     ~TokenStream();
 
@@ -635,20 +633,7 @@ class TokenStream
         JS_ALWAYS_TRUE(matchToken(tt));
     }
 
-    class MOZ_STACK_CLASS Position {
-      public:
-        /*
-         * The Token fields may contain pointers to atoms, so for correct
-         * rooting we must ensure collection of atoms is disabled while objects
-         * of this class are live.  Do this by requiring a dummy AutoKeepAtoms
-         * reference in the constructor.
-         *
-         * This class is explicity ignored by the analysis, so don't add any
-         * more pointers to GC things here!
-         */
-        Position(AutoKeepAtoms&) { }
-      private:
-        Position(const Position&) MOZ_DELETE;
+    class Position {
         friend class TokenStream;
         const jschar *buf;
         unsigned flags;

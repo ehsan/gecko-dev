@@ -16,6 +16,14 @@ FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
 EXPORT_LIBRARY = 1
 
+EXPORTS_NAMESPACES = mozilla/ipc
+
+EXPORTS_mozilla/ipc = \
+  TestShellChild.h \
+  TestShellParent.h \
+  XPCShellEnvironment.h \
+  $(NULL)
+
 CPPSRCS += \
   TestShellChild.cpp \
   TestShellParent.cpp \
@@ -30,7 +38,7 @@ LOCAL_INCLUDES += \
 
 # FIXME/bug 575918: out-of-process xpcshell is broken on OS X
 ifneq ($(OS_ARCH),Darwin)
-DISABLED_XPCSHELL_TESTS = tests
+XPCSHELL_TESTS = tests
 endif
 
 include $(topsrcdir)/config/config.mk

@@ -34,9 +34,7 @@ class ReftestRunner(MozbuildObject):
         """Returns the manifest file used for a given test suite."""
         files = {
           'reftest': 'reftest.list',
-          'reftest-ipc': 'reftest.list',
-          'crashtest': 'crashtests.list',
-          'crashtest-ipc': 'crashtests.list',
+          'crashtest': 'crashtests.list'
         }
         assert suite in files
         return files[suite]
@@ -75,7 +73,7 @@ class ReftestRunner(MozbuildObject):
         debugger to run.
         """
 
-        if suite not in ('reftest', 'reftest-ipc', 'crashtest', 'crashtest-ipc'):
+        if suite not in ('reftest', 'crashtest'):
             raise Exception('None or unrecognized reftest suite type.')
 
         env = {}
@@ -105,50 +103,28 @@ class ReftestRunner(MozbuildObject):
             pass_thru=pass_thru, ensure_exit_code=False)
 
 
-def ReftestCommand(func):
-    """Decorator that adds shared command arguments to reftest commands."""
-
-    debugger = CommandArgument('--debugger', metavar='DEBUGGER',
-        help=DEBUGGER_HELP)
-    func = debugger(func)
-
-    flter = CommandArgument('--filter', metavar='REGEX',
-        help='A JS regular expression to match test URLs against, to select '
-             'a subset of tests to run.')
-    func = flter(func)
-
-    path = CommandArgument('test_file', nargs='?', metavar='MANIFEST',
-        help='Reftest manifest file, or a directory in which to select '
-             'reftest.list. If omitted, the entire test suite is executed.')
-    func = path(func)
-
-    return func
-
-
 @CommandProvider
 class MachCommands(MachCommandBase):
-    @Command('reftest', category='testing', description='Run reftests.')
-    @ReftestCommand
-    def run_reftest(self, test_file, **kwargs):
-        return self._run_reftest(test_file, suite='reftest', **kwargs)
+    @Command('reftest', help='Run a reftest.')
+    @CommandArgument('test_file', default=None, nargs='?', metavar='MANIFEST',
+        help='Reftest manifest file, or a directory in which to select '
+             'reftest.list. If omitted, the entire test suite is executed.')
+    @CommandArgument('--filter', default=None, metavar='REGEX',
+        help='A JS regular expression to match test URLs against, to select '
+             'a subset of tests to run.')
+    @CommandArgument('--debugger', metavar='DEBUGGER', help=DEBUGGER_HELP)
+    def run_reftest(self, test_file, filter, debugger=None):
+        return self._run_reftest(test_file, filter=filter, suite='reftest',
+            debugger=debugger)
 
-    @Command('reftest-ipc', category='testing',
-        description='Run IPC reftests.')
-    @ReftestCommand
-    def run_ipc(self, test_file, **kwargs):
-        return self._run_reftest(test_file, suite='reftest-ipc', **kwargs)
-
-    @Command('crashtest', category='testing',
-        description='Run crashtests.')
-    @ReftestCommand
-    def run_crashtest(self, test_file, **kwargs):
-        return self._run_reftest(test_file, suite='crashtest', **kwargs)
-
-    @Command('crashtest-ipc', category='testing',
-        description='Run IPC crashtests.')
-    @ReftestCommand
-    def run_crashtest_ipc(self, test_file, **kwargs):
-        return self._run_reftest(test_file, suite='crashtest-ipc', **kwargs)
+    @Command('crashtest', help='Run a crashtest.')
+    @CommandArgument('test_file', default=None, nargs='?', metavar='MANIFEST',
+        help='Crashtest manifest file, or a direction in which to select '
+             'crashtests.list.')
+    @CommandArgument('--debugger', metavar='DEBUGGER', help=DEBUGGER_HELP)
+    def run_crashtest(self, test_file, debugger=None):
+        return self._run_reftest(test_file, suite='crashtest',
+            debugger=debugger)
 
     def _run_reftest(self, test_file=None, filter=None, suite=None,
             debugger=None):

@@ -34,27 +34,11 @@ function runTest() {
   iframe = document.createElement('iframe');
   SpecialPowers.wrap(iframe).mozbrowser = true;
   iframe.src = browserElementTestHelpers.focusPage;
-
-  var gotFocus = false;
-  var gotLoadend = false;
-
-  function maybeTest2() {
-    if (gotFocus && gotLoadend) {
-      SimpleTest.executeSoon(test2);
-    }
-  }
-
-  iframe.addEventListener('mozbrowserloadend', function() {
-    gotLoadend = true;
-    maybeTest2();
-  });
-
   document.body.appendChild(iframe);
 
   SimpleTest.waitForFocus(function() {
     iframe.focus();
-    gotFocus = true;
-    maybeTest2();
+    SimpleTest.executeSoon(test2);
   });
 }
 
@@ -72,7 +56,7 @@ function eventHandler(e) {
      "e.type was " + e.type + ", expected keydown, keypress, or keyup");
   ok(!e.defaultPrevented, "expected !e.defaultPrevented");
   ok(whitelistedKeyCodes.indexOf(e.keyCode) != -1,
-     "Expected a whitelited keycode, but got " + e.keyCode + " instead.");
+     "Expected a whitelited keycode, but got " + e.keyCode + "instead.");
 
   nbEvents--;
 

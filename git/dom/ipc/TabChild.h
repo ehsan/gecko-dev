@@ -21,6 +21,7 @@
 #include "nsIWebBrowserChromeFocus.h"
 #include "nsIWidget.h"
 #include "nsIDOMEventListener.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIWindowProvider.h"
 #include "nsIXPCScriptable.h"
@@ -60,10 +61,6 @@ namespace layout {
 class RenderFrameChild;
 }
 
-namespace layers {
-struct TextureFactoryIdentifier;
-}
-
 namespace dom {
 
 class TabChild;
@@ -72,7 +69,8 @@ class ClonedMessageData;
 
 class TabChildGlobal : public nsDOMEventTargetHelper,
                        public nsIContentFrameMessageManager,
-                       public nsIScriptObjectPrincipal
+                       public nsIScriptObjectPrincipal,
+                       public nsIScriptContextPrincipal
 {
 public:
   TabChildGlobal(TabChild* aTabChild);
@@ -82,10 +80,10 @@ public:
   NS_FORWARD_SAFE_NSIMESSAGELISTENERMANAGER(mMessageManager)
   NS_FORWARD_SAFE_NSIMESSAGESENDER(mMessageManager)
   NS_IMETHOD SendSyncMessage(const nsAString& aMessageName,
-                             const JS::Value& aObject,
+                             const jsval& aObject,
                              JSContext* aCx,
                              uint8_t aArgc,
-                             JS::Value* aRetval)
+                             jsval* aRetval)
   {
     return mMessageManager
       ? mMessageManager->SendSyncMessage(aMessageName, aObject, aCx, aArgc, aRetval)
@@ -111,7 +109,6 @@ public:
     return nsDOMEventTargetHelper::AddEventListener(aType, aListener,
                                                     aUseCapture, false, 2);
   }
-  using nsDOMEventTargetHelper::AddEventListener;
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
                               bool aUseCapture, bool aWantsUntrusted,
@@ -123,6 +120,7 @@ public:
                                                     optional_argc);
   }
 
+  virtual nsIScriptObjectPrincipal* GetObjectPrincipal() { return this; }
   virtual JSContext* GetJSContextForEventHandlers();
   virtual nsIPrincipal* GetPrincipal();
 
@@ -294,7 +292,6 @@ public:
 
     /** Return the DPI of the widget this TabChild draws to. */
     void GetDPI(float* aDPI);
-    void GetDefaultScale(double *aScale);
 
     gfxSize GetZoom() { return mLastMetrics.mZoom; }
 
@@ -314,6 +311,16 @@ public:
     void MakeVisible();
     void MakeHidden();
 
+    virtual bool RecvSetAppType(const nsString& aAppType);
+
+    /**
+     * Get this object's app type.
+     *
+     * A TabChild's app type corresponds to the value of its frame element's
+     * "mozapptype" attribute.
+     */
+    void GetAppType(nsAString& aAppType) const { aAppType = mAppType; }
+
     // Returns true if the file descriptor was found in the cache, false
     // otherwise.
     bool GetCachedFileDescriptor(const nsAString& aPath,
@@ -325,7 +332,8 @@ public:
 
 protected:
     virtual PRenderFrameChild* AllocPRenderFrame(ScrollingBehavior* aScrolling,
-                                                 TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                                                 LayersBackend* aBackend,
+                                                 int32_t* aMaxTextureSize,
                                                  uint64_t* aLayersId) MOZ_OVERRIDE;
     virtual bool DeallocPRenderFrame(PRenderFrameChild* aFrame) MOZ_OVERRIDE;
     virtual bool RecvDestroy() MOZ_OVERRIDE;
@@ -420,7 +428,6 @@ private:
     class CachedFileDescriptorInfo;
     class CachedFileDescriptorCallbackRunnable;
 
-    TextureFactoryIdentifier mTextureFactoryIdentifier;
     nsCOMPtr<nsIWebNavigation> mWebNav;
     nsCOMPtr<nsIWidget> mWidget;
     nsCOMPtr<nsIURI> mLastURI;
@@ -449,6 +456,7 @@ private:
     bool mNotified;
     bool mContentDocumentIsDisplayed;
     bool mTriedBrowserInit;
+    nsString mAppType;
     ScreenOrientation mOrientation;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);

@@ -18,6 +18,8 @@ LIBXUL_LIBRARY	= 1
 
 CPPSRCS		= nsJSProtocolHandler.cpp
 
+EXPORTS		= $(srcdir)/nsJSProtocolHandler.h
+
 LOCAL_INCLUDES += \
 		-I$(srcdir) \
 		-I$(topsrcdir)/dom/base \

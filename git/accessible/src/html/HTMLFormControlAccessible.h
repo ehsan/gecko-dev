@@ -145,31 +145,6 @@ public:
   virtual nsresult HandleAccEvent(AccEvent* aAccEvent);
 };
 
-
-/**
-  * Used for input@type="range" element.
-  */
-class HTMLRangeAccessible : public LeafAccessible
-{
-public:
-  HTMLRangeAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    LeafAccessible(aContent, aDoc)
-  {
-    mStateFlags |= eHasNumericValue;
-  }
-
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_NSIACCESSIBLEVALUE
-
-  // Accessible
-  virtual void Value(nsString& aValue);
-  virtual mozilla::a11y::role NativeRole();
-
-  // Widgets
-  virtual bool IsWidget() const;
-};
-
-
 /**
  * Accessible for HTML fieldset element.
  */

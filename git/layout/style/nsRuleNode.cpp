@@ -38,7 +38,6 @@
 #include "nsContentUtils.h"
 #include "CSSCalc.h"
 #include "nsPrintfCString.h"
-#include "nsRenderingContext.h"
 
 #include "mozilla/LookAndFeel.h"
 
@@ -230,51 +229,6 @@ GetMetricsFor(nsPresContext* aPresContext,
   return fm.forget();
 }
 
-
-static nsSize CalcViewportUnitsScale(nsPresContext* aPresContext)
-{
-  // The caller is making use of viewport units, so notify the pres context
-  // that it will need to rebuild the rule tree if the size of the viewport
-  // changes.
-  aPresContext->SetUsesViewportUnits(true);
-
-  // The default (when we have 'overflow: auto' on the root element, or
-  // trivially for 'overflow: hidden' since we never have scrollbars in that
-  // case) is to define the scale of the viewport units without considering
-  // scrollbars.
-  nsSize viewportSize(aPresContext->GetVisibleArea().Size());
-
-  // Check for 'overflow: scroll' styles on the root scroll frame. If we find
-  // any, the standard requires us to take scrollbars into account.
-  nsIScrollableFrame* scrollFrame =
-    aPresContext->PresShell()->GetRootScrollFrameAsScrollable();
-  if (scrollFrame) {
-    nsPresContext::ScrollbarStyles styles(scrollFrame->GetScrollbarStyles());
-
-    if (styles.mHorizontal == NS_STYLE_OVERFLOW_SCROLL ||
-        styles.mVertical == NS_STYLE_OVERFLOW_SCROLL) {
-      // Gather scrollbar size information.
-      nsRefPtr<nsRenderingContext> context =
-        aPresContext->PresShell()->GetReferenceRenderingContext();
-      nsMargin sizes(scrollFrame->GetDesiredScrollbarSizes(aPresContext, context));
-
-      if (styles.mHorizontal == NS_STYLE_OVERFLOW_SCROLL) {
-        // 'overflow-x: scroll' means we must consider the horizontal scrollbar,
-        // which affects the scale of viewport height units.
-        viewportSize.height -= sizes.TopBottom();
-      }
-
-      if (styles.mVertical == NS_STYLE_OVERFLOW_SCROLL) {
-        // 'overflow-y: scroll' means we must consider the vertical scrollbar,
-        // which affects the scale of viewport width units.
-        viewportSize.width -= sizes.LeftRight();
-      }
-    }
-  }
-
-  return viewportSize;
-}
-
 static nscoord CalcLengthWith(const nsCSSValue& aValue,
                               nscoord aFontSize,
                               const nsStyleFont* aStyleFont,
@@ -332,18 +286,22 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
     // for an increased cost to dynamic changes to the viewport size
     // when viewport units are in use.
     case eCSSUnit_ViewportWidth: {
-      return ScaleCoord(aValue, 0.01f * CalcViewportUnitsScale(aPresContext).width);
+      aPresContext->SetUsesViewportUnits(true);
+      return ScaleCoord(aValue, 0.01f * aPresContext->GetVisibleArea().width);
     }
     case eCSSUnit_ViewportHeight: {
-      return ScaleCoord(aValue, 0.01f * CalcViewportUnitsScale(aPresContext).height);
+      aPresContext->SetUsesViewportUnits(true);
+      return ScaleCoord(aValue, 0.01f * aPresContext->GetVisibleArea().height);
     }
     case eCSSUnit_ViewportMin: {
-      nsSize vuScale(CalcViewportUnitsScale(aPresContext));
-      return ScaleCoord(aValue, 0.01f * min(vuScale.width, vuScale.height));
+      aPresContext->SetUsesViewportUnits(true);
+      nsSize viewportSize = aPresContext->GetVisibleArea().Size();
+      return ScaleCoord(aValue, 0.01f * min(viewportSize.width, viewportSize.height));
     }
     case eCSSUnit_ViewportMax: {
-      nsSize vuScale(CalcViewportUnitsScale(aPresContext));
-      return ScaleCoord(aValue, 0.01f * max(vuScale.width, vuScale.height));
+      aPresContext->SetUsesViewportUnits(true);
+      nsSize viewportSize = aPresContext->GetVisibleArea().Size();
+      return ScaleCoord(aValue, 0.01f * max(viewportSize.width, viewportSize.height));
     }
     // While we could deal with 'rem' units correctly by simply not
     // caching any data that uses them in the rule tree, it's valuable
@@ -1768,7 +1726,7 @@ static const uint32_t gColumnFlags[] = {
 
 static const uint32_t* gFlagsByStruct[] = {
 
-#define STYLE_STRUCT(name, checkdata_cb) \
+#define STYLE_STRUCT(name, checkdata_cb, ctor_args) \
   g##name##Flags,
 #include "nsStyleStructList.h"
 #undef STYLE_STRUCT
@@ -1777,7 +1735,7 @@ static const uint32_t* gFlagsByStruct[] = {
 
 static const CheckCallbackFn gCheckCallbacks[] = {
 
-#define STYLE_STRUCT(name, checkdata_cb) \
+#define STYLE_STRUCT(name, checkdata_cb, ctor_args) \
   checkdata_cb,
 #include "nsStyleStructList.h"
 #undef STYLE_STRUCT
@@ -2113,7 +2071,7 @@ nsRuleNode::WalkRuleTree(const nsStyleStructID aSID,
   // We need to compute the data from the information that the rules specified.
   const void* res;
 #define STYLE_STRUCT_TEST aSID
-#define STYLE_STRUCT(name, checkdata_cb)                                      \
+#define STYLE_STRUCT(name, checkdata_cb, ctor_args)                           \
   res = Compute##name##Data(startStruct, &ruleData, aContext,                 \
                             highestNode, detail, ruleData.mCanStoreInRuleTree);
 #include "nsStyleStructList.h"
@@ -3616,8 +3574,7 @@ nsRuleNode::GetShadowData(const nsCSSValueList* aList,
 
   NS_ABORT_IF_FALSE(arrayLength > 0,
                     "Non-null text-shadow list, yet we counted 0 items.");
-  nsRefPtr<nsCSSShadowArray> shadowList =
-    new(arrayLength) nsCSSShadowArray(arrayLength);
+  nsCSSShadowArray* shadowList = new(arrayLength) nsCSSShadowArray(arrayLength);
 
   if (!shadowList)
     return nullptr;
@@ -3683,7 +3640,8 @@ nsRuleNode::GetShadowData(const nsCSSValueList* aList,
     }
   }
 
-  return shadowList.forget();
+  NS_ADDREF(shadowList);
+  return shadowList;
 }
 
 const void*
@@ -5488,7 +5446,10 @@ SetBackgroundList(nsStyleContext* aStyleContext,
   case eCSSUnit_Inherit:
     aRebuild = true;
     aCanStoreInRuleTree = false;
-    aLayers.EnsureLengthAtLeast(aParentItemCount);
+    if (!aLayers.EnsureLengthAtLeast(aParentItemCount)) {
+      NS_WARNING("out of memory");
+      aParentItemCount = aLayers.Length();
+    }
     aItemCount = aParentItemCount;
     for (uint32_t i = 0; i < aParentItemCount; ++i) {
       aLayers[i].*aResultLocation = aParentLayers[i].*aResultLocation;
@@ -5512,7 +5473,11 @@ SetBackgroundList(nsStyleContext* aStyleContext,
                    item->mValue.GetUnit() != eCSSUnit_Initial,
                    "unexpected unit");
       ++aItemCount;
-      aLayers.EnsureLengthAtLeast(aItemCount);
+      if (!aLayers.EnsureLengthAtLeast(aItemCount)) {
+        NS_WARNING("out of memory");
+        --aItemCount;
+        break;
+      }
       BackgroundItemComputer<nsCSSValueList, ComputedValueItem>
         ::ComputeValue(aStyleContext, item,
                        aLayers[aItemCount-1].*aResultLocation,
@@ -5555,7 +5520,10 @@ SetBackgroundPairList(nsStyleContext* aStyleContext,
   case eCSSUnit_Inherit:
     aRebuild = true;
     aCanStoreInRuleTree = false;
-    aLayers.EnsureLengthAtLeast(aParentItemCount);
+    if (!aLayers.EnsureLengthAtLeast(aParentItemCount)) {
+      NS_WARNING("out of memory");
+      aParentItemCount = aLayers.Length();
+    }
     aItemCount = aParentItemCount;
     for (uint32_t i = 0; i < aParentItemCount; ++i) {
       aLayers[i].*aResultLocation = aParentLayers[i].*aResultLocation;
@@ -5580,7 +5548,11 @@ SetBackgroundPairList(nsStyleContext* aStyleContext,
                    item->mYValue.GetUnit() != eCSSUnit_Initial,
                    "unexpected unit");
       ++aItemCount;
-      aLayers.EnsureLengthAtLeast(aItemCount);
+      if (!aLayers.EnsureLengthAtLeast(aItemCount)) {
+        NS_WARNING("out of memory");
+        --aItemCount;
+        break;
+      }
       BackgroundItemComputer<nsCSSValuePairList, ComputedValueItem>
         ::ComputeValue(aStyleContext, item,
                        aLayers[aItemCount-1].*aResultLocation,
@@ -7709,9 +7681,9 @@ nsRuleNode::GetStyleData(nsStyleStructID aSID,
 
 // See comments above in GetStyleData for an explanation of what the
 // code below does.
-#define STYLE_STRUCT(name_, checkdata_cb_)                                    \
+#define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)                        \
 const nsStyle##name_*                                                         \
-nsRuleNode::GetStyle##name_(nsStyleContext* aContext, bool aComputeData)      \
+nsRuleNode::GetStyle##name_(nsStyleContext* aContext, bool aComputeData)    \
 {                                                                             \
   NS_ASSERTION(IsUsedDirectly(),                                              \
                "if we ever call this on rule nodes that aren't used "         \

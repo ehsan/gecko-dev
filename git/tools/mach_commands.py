@@ -13,8 +13,7 @@ from mach.decorators import (
 
 @CommandProvider
 class SearchProvider(object):
-    @Command('mxr', category='misc',
-        description='Search for something in MXR.')
+    @Command('mxr', help='Search for something in MXR.')
     @CommandArgument('term', nargs='+', help='Term(s) to search for.')
     def mxr(self, term):
         import webbrowser
@@ -22,8 +21,7 @@ class SearchProvider(object):
         uri = 'https://mxr.mozilla.org/mozilla-central/search?string=%s' % term
         webbrowser.open_new_tab(uri)
 
-    @Command('dxr', category='misc',
-        description='Search for something in DXR.')
+    @Command('dxr', help='Search for something in DXR.')
     @CommandArgument('term', nargs='+', help='Term(s) to search for.')
     def dxr(self, term):
         import webbrowser
@@ -31,8 +29,7 @@ class SearchProvider(object):
         uri = 'http://dxr.mozilla.org/search?tree=mozilla-central&q=%s' % term
         webbrowser.open_new_tab(uri)
 
-    @Command('mdn', category='misc',
-        description='Search for something on MDN.')
+    @Command('mdn', help='Search for something on MDN.')
     @CommandArgument('term', nargs='+', help='Term(s) to search for.')
     def mdn(self, term):
         import webbrowser
@@ -40,8 +37,7 @@ class SearchProvider(object):
         uri = 'https://developer.mozilla.org/search?q=%s' % term
         webbrowser.open_new_tab(uri)
 
-    @Command('google', category='misc',
-        description='Search for something on Google.')
+    @Command('google', help='Search for something on Google.')
     @CommandArgument('term', nargs='+', help='Term(s) to search for.')
     def google(self, term):
         import webbrowser
@@ -49,8 +45,7 @@ class SearchProvider(object):
         uri = 'https://www.google.com/search?q=%s' % term
         webbrowser.open_new_tab(uri)
 
-    @Command('search', category='misc',
-        description='Search for something on the Internets. '
+    @Command('search', help='Search for something on the Internets. '
         'This will open 3 new browser tabs and search for the term on Google, '
         'MDN, and MXR.')
     @CommandArgument('term', nargs='+', help='Term(s) to search for.')

@@ -14,6 +14,7 @@
 #endif
 
 #include "prlink.h"
+#include "nsWindow.h"
 #include "nsGTKToolkit.h"
 #include "nsIRollupListener.h"
 #include "nsIDOMNode.h"
@@ -68,7 +69,7 @@
 #include "nsIStringBundle.h"
 #include "nsGfxCIID.h"
 #include "nsIObserverService.h"
-#include "mozilla/layers/LayersTypes.h"
+#include "LayersTypes.h"
 #include "nsIIdleServiceInternal.h"
 #include "nsIPropertyBag2.h"
 
@@ -95,7 +96,6 @@ using namespace mozilla::widget;
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsAutoPtr.h"
 #include "BasicLayers.h"
-#include "ClientLayerManager.h"
 
 extern "C" {
 #define PIXMAN_DONT_DEFINE_STDINT
@@ -113,16 +113,13 @@ extern "C" {
 #include "gfxXlibSurface.h"
 #include "cairo-xlib.h"
 #endif
-  
+
 #include "nsShmImage.h"
 
 #include "nsIDOMWheelEvent.h"
 
-#include "nsWindow.h"
-
 using namespace mozilla;
 using namespace mozilla::widget;
-using namespace mozilla::layers;
 using mozilla::gl::GLContext;
 using mozilla::layers::LayerManagerOGL;
 
@@ -2124,8 +2121,16 @@ nsWindow::OnExposeEvent(cairo_t *cr)
         return TRUE;
     }
     // If this widget uses OMTC...
-    if (GetLayerManager()->AsShadowForwarder() && GetLayerManager()->AsShadowForwarder()->HasShadowManager() &&
-        Compositor::GetBackend() != LAYERS_BASIC) {
+    if (GetLayerManager()->AsShadowForwarder() && GetLayerManager()->AsShadowForwarder()->HasShadowManager()) {
+#if defined(MOZ_WIDGET_GTK2)
+        nsRefPtr<gfxContext> ctx = new gfxContext(GetThebesSurface());
+#else
+        nsRefPtr<gfxContext> ctx = new gfxContext(GetThebesSurface(cr));
+#endif
+        nsBaseWidget::AutoLayerManagerSetup
+          setupLayerManager(this, ctx, mozilla::layers::BUFFER_NONE);
+
+        listener->PaintWindow(this, region, 0);
         listener->DidPaintWindow();
 
         g_free(rects);
@@ -2197,14 +2202,8 @@ nsWindow::OnExposeEvent(cairo_t *cr)
 
     bool painted = false;
     {
-      if (GetLayerManager()->GetBackendType() == LAYERS_BASIC) {
-        AutoLayerManagerSetup setupLayerManager(this, ctx, layerBuffering);
-        painted = listener->PaintWindow(this, region, 0);
-      } else if (GetLayerManager()->GetBackendType() == LAYERS_CLIENT) {
-        ClientLayerManager *manager = static_cast<ClientLayerManager*>(GetLayerManager());
-        manager->SetShadowTarget(ctx);
-        painted = listener->PaintWindow(this, region, 0);
-      }
+      AutoLayerManagerSetup setupLayerManager(this, ctx, layerBuffering);
+      painted = listener->PaintWindow(this, region, 0);
     }
 
 #ifdef MOZ_X11
@@ -5940,7 +5939,7 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
     Display* xDisplay = DisplayOfScreen(xScreen);
     Drawable xDrawable = gdk_x11_drawable_get_xid(aDrawable);
 
-    nsRefPtr<gfxASurface> result;
+    gfxASurface* result = nullptr;
 
     if (visual) {
         Visual* xVisual = gdk_x11_visual_get_xvisual(visual);
@@ -5967,7 +5966,8 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
                                     gfxIntSize(aSize.width, aSize.height));
     }
 
-    return result.forget();
+    NS_IF_ADDREF(result);
+    return result;
 }
 #endif
 
@@ -6163,7 +6163,7 @@ nsWindow::BeginResizeDrag(nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVert
 }
 
 nsIWidget::LayerManager*
-nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
+nsWindow::GetLayerManager(PLayersChild* aShadowManager,
                           LayersBackend aBackendHint,
                           LayerManagerPersistence aPersistence,
                           bool* aAllowRetaining)

@@ -35,11 +35,8 @@
 #include "nsAutoPtr.h"
 #include "nsTreeSanitizer.h"
 #include "nsHtml5Module.h"
-#include "mozilla/dom/DocumentFragment.h"
 
 #define XHTML_DIV_TAG "div xmlns=\"http://www.w3.org/1999/xhtml\""
-
-using namespace mozilla::dom;
 
 NS_IMPL_ISUPPORTS2(nsParserUtils,
                    nsIScriptableUnescapeHTML,
@@ -195,7 +192,8 @@ nsParserUtils::ParseFragment(const nsAString& aFragment,
                                           aReturn);
     fragment = do_QueryInterface(*aReturn);
   } else {
-    NS_ADDREF(*aReturn = new DocumentFragment(document->NodeInfoManager()));
+    NS_NewDocumentFragment(aReturn,
+                           document->NodeInfoManager());
     fragment = do_QueryInterface(*aReturn);
     rv = nsContentUtils::ParseFragmentHTML(aFragment,
                                            fragment,

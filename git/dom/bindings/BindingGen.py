@@ -19,9 +19,7 @@ def generate_binding_header(config, outputprefix, srcprefix, webidlfile):
     with open(filename, 'wb') as f:
         f.write(root.declare())
     with open(depsname, 'wb') as f:
-        # Sort so that our output is stable
-        f.write("\n".join(filename + ": " + os.path.join(srcprefix, x) for
-                          x in sorted(root.deps())))
+        f.write("\n".join(filename + ": " + os.path.join(srcprefix, x) for x in root.deps()))
 
 def generate_binding_cpp(config, outputprefix, srcprefix, webidlfile):
     """
@@ -35,8 +33,7 @@ def generate_binding_cpp(config, outputprefix, srcprefix, webidlfile):
     with open(filename, 'wb') as f:
         f.write(root.define())
     with open(depsname, 'wb') as f:
-        f.write("\n".join(filename + ": " + os.path.join(srcprefix, x) for
-                          x in sorted(root.deps())))
+        f.write("\n".join(filename + ": " + os.path.join(srcprefix, x) for x in root.deps()))
 
 def main():
 

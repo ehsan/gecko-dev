@@ -118,8 +118,7 @@ function BrowserElementParent(frameLoader, hasRemoteFrame) {
     "fullscreen-origin-change": this._remoteFullscreenOriginChange,
     "rollback-fullscreen": this._remoteFrameFullscreenReverted,
     "exit-fullscreen": this._exitFullscreen,
-    "got-visible": this._gotDOMRequestResult,
-    "visibility-change": this._childVisibilityChange,
+    "got-visible": this._gotDOMRequestResult
   }
 
   this._mm.addMessageListener('browser-element-api:call', function(aMsg) {
@@ -448,7 +447,6 @@ BrowserElementParent.prototype = {
 
   _setVisible: function(visible) {
     this._sendAsyncMsg('set-visible', {visible: visible});
-    this._frameLoader.visible = visible;
   },
 
   _sendMouseEvent: function(type, x, y, button, clickCount, modifiers) {
@@ -562,19 +560,6 @@ BrowserElementParent.prototype = {
   _ownerVisibilityChange: function() {
     this._sendAsyncMsg('owner-visibility-change',
                        {visible: !this._window.document.hidden});
-  },
-
-  /*
-   * Called when the child notices that its visibility has changed.
-   *
-   * This is sometimes redundant; for example, the child's visibility may
-   * change in response to a setVisible request that we made here!  But it's
-   * not always redundant; for example, the child's visibility may change in
-   * response to its parent docshell being hidden.
-   */
-  _childVisibilityChange: function(data) {
-    debug("_childVisibilityChange(" + data.json.visible + ")");
-    this._frameLoader.visible = data.json.visible;
   },
 
   _exitFullscreen: function() {

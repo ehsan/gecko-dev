@@ -23,7 +23,6 @@
 
 class nsIURI;
 class nsOfflineCacheDevice;
-class mozIStorageService;
 
 class nsApplicationCacheNamespace MOZ_FINAL : public nsIApplicationCacheNamespace
 {
@@ -70,7 +69,6 @@ public:
    */
 
   virtual nsresult        Init();
-  nsresult                InitWithSqlite(mozIStorageService * ss);
   virtual nsresult        Shutdown();
 
   virtual const char *    GetDeviceID(void);

@@ -15,7 +15,7 @@ class nsIContent;
  * See the documentation of nsIParserUtils::sanitize for documentation
  * about the default behavior and the configuration options of this sanitizer.
  */
-class MOZ_STACK_CLASS nsTreeSanitizer {
+class NS_STACK_CLASS nsTreeSanitizer {
 
   public:
 

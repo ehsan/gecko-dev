@@ -87,11 +87,14 @@ this.NetworkHelper =
    */
   convertToUnicode: function NH_convertToUnicode(aText, aCharset)
   {
+    if (!aCharset) {
+      return aText;
+    }
+
     let conv = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
                createInstance(Ci.nsIScriptableUnicodeConverter);
-    if (aCharset) {
-      conv.charset = aCharset;
-    }
+    conv.charset = aCharset;
+
     try {
       return conv.ConvertToUnicode(aText);
     }

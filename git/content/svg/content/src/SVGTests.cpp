@@ -28,31 +28,31 @@ SVGTests::SVGTests()
   mStringListAttributes[LANGUAGE].SetIsCommaSeparated(true);
 }
 
-already_AddRefed<DOMSVGStringList>
+already_AddRefed<nsIDOMSVGStringList>
 SVGTests::RequiredFeatures()
 {
   nsCOMPtr<nsIDOMSVGElement> elem = do_QueryInterface(this);
   nsSVGElement* element = static_cast<nsSVGElement*>(elem.get());
   return DOMSVGStringList::GetDOMWrapper(
-           &mStringListAttributes[FEATURES], element, true, FEATURES);
+           &mStringListAttributes[FEATURES], element, true, FEATURES).get();
 }
 
-already_AddRefed<DOMSVGStringList>
+already_AddRefed<nsIDOMSVGStringList>
 SVGTests::RequiredExtensions()
 {
   nsCOMPtr<nsIDOMSVGElement> elem = do_QueryInterface(this);
   nsSVGElement* element = static_cast<nsSVGElement*>(elem.get());
   return DOMSVGStringList::GetDOMWrapper(
-           &mStringListAttributes[EXTENSIONS], element, true, EXTENSIONS);
+           &mStringListAttributes[EXTENSIONS], element, true, EXTENSIONS).get();
 }
 
-already_AddRefed<DOMSVGStringList>
+already_AddRefed<nsIDOMSVGStringList>
 SVGTests::SystemLanguage()
 {
   nsCOMPtr<nsIDOMSVGElement> elem = do_QueryInterface(this);
   nsSVGElement* element = static_cast<nsSVGElement*>(elem.get());
   return DOMSVGStringList::GetDOMWrapper(
-           &mStringListAttributes[LANGUAGE], element, true, LANGUAGE);
+           &mStringListAttributes[LANGUAGE], element, true, LANGUAGE).get();
 }
 
 bool

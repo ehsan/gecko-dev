@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=80:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -62,7 +63,7 @@ private:
     CPOW_AddProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp);
 
     static JSBool
-    CPOW_DelProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool *succeeded);
+    CPOW_DelProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp);
 
     static JSBool
     CPOW_GetProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp);
@@ -79,7 +80,7 @@ private:
 
     static JSBool
     CPOW_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
-                    JS::MutableHandleObject objp);
+                    JSMutableHandleObject objp);
 
     static JSBool
     CPOW_Convert(JSContext *cx, JSHandleObject obj, JSType type, JSMutableHandleValue vp);
@@ -99,14 +100,12 @@ private:
     static bool jsval_to_JSVariant(JSContext* cx, jsval from, JSVariant* to);
     static bool jsval_from_JSVariant(JSContext* cx, const JSVariant& from,
                                      jsval* to);
-    static bool boolean_from_JSVariant(JSContext* cx, const JSVariant& from,
-                                       JSBool* to);
     static bool
     JSObject_to_PObjectWrapperParent(JSContext* cx, JSObject* from, PObjectWrapperParent** to);
     static bool
     JSObject_from_PObjectWrapperParent(JSContext* cx,
                                        const PObjectWrapperParent* from,
-                                       JS::MutableHandleObject to);
+                                       JSMutableHandleObject to);
     static bool
     jsval_from_PObjectWrapperParent(JSContext* cx,
                                     const PObjectWrapperParent* from,

@@ -51,9 +51,8 @@
 
 /* These will be set to something sensible before we take the first
    sample. */
-UnwMode sUnwindMode      = UnwINVALID;
-int     sUnwindInterval  = 0;
-int     sUnwindStackScan = 0;
+UnwMode sUnwindMode     = UnwINVALID;
+int     sUnwindInterval = 0;
 
 using std::string;
 using namespace mozilla;
@@ -156,15 +155,8 @@ void genPseudoBacktraceEntries(/*MODIFIED*/UnwinderThreadBuffer* utb,
 }
 
 // RUNS IN SIGHANDLER CONTEXT
-void TableTicker::UnwinderTick(TickSample* sample)
+void BreakpadSampler::Tick(TickSample* sample)
 {
-  if (!sample->threadProfile) {
-    // Platform doesn't support multithread, so use the main thread profile we created
-    sample->threadProfile = GetPrimaryThreadProfile();
-  }
-
-  ThreadProfile& currThreadProfile = *sample->threadProfile;
-
   /* Get hold of an empty inter-thread buffer into which to park
      the ProfileEntries for this sample. */
   UnwinderThreadBuffer* utb = uwt__acquire_empty_buffer();
@@ -179,7 +171,7 @@ void TableTicker::UnwinderTick(TickSample* sample)
      thread, and park them in |utb|. */
 
   // Marker(s) come before the sample
-  PseudoStack* stack = currThreadProfile.GetPseudoStack();
+  PseudoStack* stack = mPrimaryThreadProfile.GetPseudoStack();
   for (int i = 0; stack->getMarker(i) != NULL; i++) {
     utb__addEntry( utb, ProfileEntry('m', stack->getMarker(i)) );
   }
@@ -193,7 +185,7 @@ void TableTicker::UnwinderTick(TickSample* sample)
       // XXX: we also probably want to add an entry to the profile to help
       // distinguish which samples are part of the same event. That, or record
       // the event generation in each sample
-      currThreadProfile.erase();
+      mPrimaryThreadProfile.erase();
     }
     sLastSampledEventGeneration = sCurrentEventGeneration;
 
@@ -245,7 +237,7 @@ void TableTicker::UnwinderTick(TickSample* sample)
   }
 
   if (sample) {
-    TimeDuration delta = sample->timestamp - sStartTime;
+    TimeDuration delta = sample->timestamp - mStartTime;
     utb__addEntry( utb, ProfileEntry('t', delta.ToMilliseconds()) );
   }
 
@@ -300,9 +292,9 @@ void TableTicker::UnwinderTick(TickSample* sample)
 #   else
 #     error "Unsupported platform"
 #   endif
-    uwt__release_full_buffer(&currThreadProfile, utb, ucV);
+    uwt__release_full_buffer(&mPrimaryThreadProfile, utb, ucV);
   } else {
-    uwt__release_full_buffer(&currThreadProfile, utb, NULL);
+    uwt__release_full_buffer(&mPrimaryThreadProfile, utb, NULL);
   }
 }
 

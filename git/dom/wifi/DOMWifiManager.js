@@ -69,10 +69,6 @@ DOMWifiManager.prototype = {
     // Only pages with perm set can use the wifi manager.
     this._hasPrivileges = perm == Ci.nsIPermissionManager.ALLOW_ACTION;
 
-    if (!this._hasPrivileges) {
-      return null;
-    }
-
     // Maintain this state for synchronous APIs.
     this._currentNetwork = null;
     this._connectionStatus = "disconnected";

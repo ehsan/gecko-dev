@@ -55,6 +55,10 @@ CPPSRCS	+= \
 		mozqglwidgetwrapper.cpp \
 		$(NULL)
 
+EXPORTS		= \
+		nsQtKeyUtils.h \
+		$(NULL)
+
 ifdef MOZ_ENABLE_QTMOBILITY
 MOCSRCS += moc_mozqorientationsensorfilter.cpp
 CPPSRCS += mozqorientationsensorfilter.cpp
@@ -94,7 +98,6 @@ endif
 endif
 
 LOCAL_INCLUDES	+= \
-		   -I$(topsrcdir)/widget/shared \
 		   -I$(topsrcdir)/widget/xpwidgets \
 		   -I$(topsrcdir)/widget/qt/faststartupqt \
 		   -I$(srcdir) \

@@ -51,7 +51,7 @@ log_msg (int phrase_index, ...)
     vsprintf(status_msg, phrase_buf, ap);
     va_end(ap);
 
-    CSFLogError("common", "%%%s", status_msg);
+    err_msg("%%%s\n", status_msg);
 
     /*
      * For now, do not send the Registration messages over to the Java Status

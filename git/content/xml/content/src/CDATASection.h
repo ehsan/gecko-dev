@@ -15,29 +15,14 @@ namespace dom {
 class CDATASection : public Text,
                      public nsIDOMCDATASection
 {
-private:
-  void Init()
+public:
+  CDATASection(already_AddRefed<nsINodeInfo> aNodeInfo)
+    : Text(aNodeInfo)
   {
     NS_ABORT_IF_FALSE(mNodeInfo->NodeType() == nsIDOMNode::CDATA_SECTION_NODE,
                       "Bad NodeType in aNodeInfo");
     SetIsDOMBinding();
   }
-
-public:
-  CDATASection(already_AddRefed<nsINodeInfo> aNodeInfo)
-    : Text(aNodeInfo)
-  {
-    Init();
-  }
-
-  CDATASection(nsNodeInfoManager* aNodeInfoManager)
-    : Text(aNodeInfoManager->GetNodeInfo(nsGkAtoms::cdataTagName,
-                                         nullptr, kNameSpaceID_None,
-                                         nsIDOMNode::CDATA_SECTION_NODE))
-  {
-    Init();
-  }
-
   virtual ~CDATASection();
 
   // nsISupports
@@ -68,8 +53,7 @@ public:
 #endif
 
 protected:
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 };
 
 } // namespace dom

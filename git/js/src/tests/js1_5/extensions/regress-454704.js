@@ -46,6 +46,7 @@ function boom()
   }
   catch(ex)
   {
+    print(ex + '');
   }
   gDelayTestDriverEnd = false;
   jsTestDriverEnd();

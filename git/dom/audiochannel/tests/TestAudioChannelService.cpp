@@ -9,11 +9,6 @@
 
 #include "TestHarness.h"
 
-// Work around the fact that the nsWeakPtr, used by AudioChannelService.h, is
-// not exposed to consumers outside the internal API.
-#include "nsIWeakReference.h"
-typedef nsCOMPtr<nsIWeakReference> nsWeakPtr;
-
 #include "AudioChannelService.h"
 #include "AudioChannelAgent.h"
 

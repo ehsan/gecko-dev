@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=79:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -40,8 +41,8 @@ js_fmod(double d, double d2)
      * Workaround MS fmod bug where 42 % (1/0) => NaN, not 42.
      * Workaround MS fmod bug where -0 % -N => 0, not -0.
      */
-    if ((mozilla::IsFinite(d) && mozilla::IsInfinite(d2)) ||
-        (d == 0 && mozilla::IsFinite(d2))) {
+    if ((MOZ_DOUBLE_IS_FINITE(d) && MOZ_DOUBLE_IS_INFINITE(d2)) ||
+        (d == 0 && MOZ_DOUBLE_IS_FINITE(d2))) {
         return d;
     }
 #endif
@@ -54,14 +55,14 @@ inline double
 NumberDiv(double a, double b)
 {
     if (b == 0) {
-        if (a == 0 || mozilla::IsNaN(a)
+        if (a == 0 || MOZ_DOUBLE_IS_NaN(a)
 #ifdef XP_WIN
-            || mozilla::IsNaN(b) /* XXX MSVC miscompiles such that (NaN == 0) */
+            || MOZ_DOUBLE_IS_NaN(b) /* XXX MSVC miscompiles such that (NaN == 0) */
 #endif
         )
             return js_NaN;
 
-        if (mozilla::IsNegative(a) != mozilla::IsNegative(b))
+        if (MOZ_DOUBLE_IS_NEGATIVE(a) != MOZ_DOUBLE_IS_NEGATIVE(b))
             return js_NegativeInfinity;
         return js_PositiveInfinity;
     }

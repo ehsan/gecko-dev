@@ -447,6 +447,17 @@ nsDOMMouseEvent::GetModifierState(const nsAString& aKey,
   return NS_OK;
 }
 
+/* virtual */
+nsresult
+nsDOMMouseEvent::Which(uint32_t* aWhich)
+{
+  NS_ENSURE_ARG_POINTER(aWhich);
+  uint16_t button;
+  (void) GetButton(&button);
+  *aWhich = button + 1;
+  return NS_OK;
+}
+
 NS_IMETHODIMP
 nsDOMMouseEvent::GetMozPressure(float* aPressure)
 {

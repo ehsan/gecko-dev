@@ -426,8 +426,7 @@ public:
 
   NS_DECL_NSIDOMFILELIST
 
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
   nsISupports* GetParentObject()
   {
@@ -480,7 +479,7 @@ private:
   nsISupports *mParent;
 };
 
-class MOZ_STACK_CLASS nsDOMFileInternalUrlHolder {
+class NS_STACK_CLASS nsDOMFileInternalUrlHolder {
 public:
   nsDOMFileInternalUrlHolder(nsIDOMBlob* aFile, nsIPrincipal* aPrincipal
                              MOZ_GUARD_OBJECT_NOTIFIER_PARAM);

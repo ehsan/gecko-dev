@@ -67,11 +67,12 @@ struct nsGlobalNameStruct
   };
 
   // For new style DOM bindings.
-  union {
-    mozilla::dom::DefineInterface mDefineDOMInterface; // for window
-    mozilla::dom::ConstructNavigatorProperty mConstructNavigatorProperty; // for navigator
-  };
+  mozilla::dom::DefineInterface mDefineDOMInterface;
   mozilla::dom::PrefEnabled mPrefEnabled; // May be null if not pref controlled
+
+private:
+
+  // copy constructor
 };
 
 
@@ -140,10 +141,6 @@ public:
 
   void RegisterDefineDOMInterface(const nsAFlatString& aName,
     mozilla::dom::DefineInterface aDefineDOMInterface,
-    mozilla::dom::PrefEnabled aPrefEnabled);
-
-  void RegisterNavigatorDOMConstructor(const nsAFlatString& aName,
-    mozilla::dom::ConstructNavigatorProperty aNavConstructor,
     mozilla::dom::PrefEnabled aPrefEnabled);
 
   typedef PLDHashOperator

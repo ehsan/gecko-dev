@@ -36,18 +36,17 @@ function performTest(hud)
 
       let clickable = hud.outputNode.querySelector(".hud-clickable");
       ok(clickable, "the console.log() object .hud-clickable was found");
-      isnot(clickable.textContent.indexOf("Object"), -1,
+      isnot(clickable.textContent.indexOf("omgBug676722"), -1,
             "clickable node content is correct");
 
-      hud.jsterm.once("variablesview-fetched",
-        (aEvent, aVar) => {
-          ok(aVar, "object inspector opened on click");
+      document.addEventListener("popupshown", function _onPopupShown(aEvent) {
+        document.removeEventListener("popupshown", _onPopupShown);
 
-          findVariableViewProperties(aVar, [{
-            name: "abba",
-            value: "omgBug676722",
-          }], { webconsole: hud }).then(finishTest);
-        });
+        isnot(aEvent.target.label.indexOf("omgBug676722"), -1,
+           "object inspector opened on click");
+
+        executeSoon(finishTest);
+      });
 
       executeSoon(function() {
         EventUtils.synthesizeMouse(clickable, 2, 2, {}, hud.iframeWindow);

@@ -83,8 +83,8 @@ static bool EnsureGLContext()
 {
   if (!sPluginContext) {
     gfxIntSize dummySize(16, 16);
-    sPluginContext = GLContextProvider::CreateOffscreen(dummySize,
-                                                        GLContext::SurfaceCaps::Any());
+    GLContext::SurfaceCaps dummyCaps;
+    sPluginContext = GLContextProvider::CreateOffscreen(dummySize, dummyCaps);
   }
 
   return sPluginContext != nullptr;
@@ -255,7 +255,7 @@ nsresult nsNPAPIPluginInstance::Initialize(nsNPAPIPlugin *aPlugin, nsPluginInsta
   mOwner = aOwner;
 
   if (aMIMEType) {
-    mMIMEType = (char*)PR_Malloc(strlen(aMIMEType) + 1);
+    mMIMEType = (char*)PR_Malloc(PL_strlen(aMIMEType) + 1);
     if (mMIMEType) {
       PL_strcpy(mMIMEType, aMIMEType);
     }
@@ -354,9 +354,10 @@ nsNPAPIPluginInstance::GetDOMWindow()
   if (!doc)
     return nullptr;
 
-  nsRefPtr<nsPIDOMWindow> window = doc->GetWindow();
+  nsPIDOMWindow *window = doc->GetWindow();
+  NS_IF_ADDREF(window);
 
-  return window.forget();
+  return window;
 }
 
 nsresult
@@ -1170,7 +1171,7 @@ nsNPAPIPluginInstance::IsWindowless(bool* isWindowless)
   return NS_OK;
 }
 
-class MOZ_STACK_CLASS AutoPluginLibraryCall
+class NS_STACK_CLASS AutoPluginLibraryCall
 {
 public:
   AutoPluginLibraryCall(nsNPAPIPluginInstance* aThis)
@@ -1810,7 +1811,7 @@ nsNPAPIPluginInstance::CheckJavaC2PJSObjectQuirk(uint16_t paramCount,
   for (uint16_t i = 0; i < paramCount; ++i) {
     if (PL_strcasecmp(paramNames[i], "code") == 0) {
       haveCodeParam = true;
-      if (strlen(paramValues[i]) > 0) {
+      if (PL_strlen(paramValues[i]) > 0) {
         isCodeParamEmpty = false;
       }
       break;

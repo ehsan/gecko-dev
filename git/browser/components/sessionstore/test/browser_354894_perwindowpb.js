@@ -167,7 +167,7 @@ function test() {
   function cleanupTestsuite(callback) {
     // Finally remove observers again
     for (let o in observing)
-      Services.obs.removeObserver(observer, o);
+      Services.obs.removeObserver(observer, o, false);
 
     // Reset the prefs we touched
     [

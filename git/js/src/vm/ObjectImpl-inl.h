@@ -1,8 +1,9 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef ObjectImpl_inl_h___
 #define ObjectImpl_inl_h___
@@ -52,13 +53,13 @@ js::ObjectImpl::getTaggedProto() const
     return TaggedProto(getProto());
 }
 
-inline js::Shape *
+inline js::RawShape
 js::ObjectImpl::nativeLookup(JSContext *cx, PropertyId pid)
 {
     return nativeLookup(cx, pid.asId());
 }
 
-inline js::Shape *
+inline js::RawShape
 js::ObjectImpl::nativeLookup(JSContext *cx, PropertyName *name)
 {
     return nativeLookup(cx, NameToId(name));
@@ -82,36 +83,6 @@ js::ObjectImpl::nativeContains(JSContext *cx, Shape *shape)
     return nativeLookup(cx, shape->propid()) == shape;
 }
 
-inline js::Shape *
-js::ObjectImpl::nativeLookupPure(PropertyId pid)
-{
-    return nativeLookupPure(pid.asId());
-}
-
-inline js::Shape *
-js::ObjectImpl::nativeLookupPure(PropertyName *name)
-{
-    return nativeLookupPure(NameToId(name));
-}
-
-inline bool
-js::ObjectImpl::nativeContainsPure(jsid id)
-{
-    return nativeLookupPure(id) != NULL;
-}
-
-inline bool
-js::ObjectImpl::nativeContainsPure(PropertyName *name)
-{
-    return nativeContainsPure(NameToId(name));
-}
-
-inline bool
-js::ObjectImpl::nativeContainsPure(Shape *shape)
-{
-    return nativeLookupPure(shape->propid()) == shape;
-}
-
 inline bool
 js::ObjectImpl::isExtensible() const
 {
@@ -127,13 +98,6 @@ js::ObjectImpl::getDenseInitializedLength()
 {
     MOZ_ASSERT(isNative());
     return getElementsHeader()->initializedLength;
-}
-
-inline uint32_t
-js::ObjectImpl::getDenseCapacity()
-{
-    MOZ_ASSERT(isNative());
-    return getElementsHeader()->capacity;
 }
 
 inline js::HeapSlotArray
@@ -427,7 +391,7 @@ js::ObjectImpl::writeBarrierPre(ObjectImpl *obj)
      * This would normally be a null test, but TypeScript::global uses 0x1 as a
      * special value.
      */
-    if (IsNullTaggedPointer(obj) || !obj->runtime()->needsBarrier())
+    if (IsNullTaggedPointer(obj))
         return;
 
     Zone *zone = obj->zone();

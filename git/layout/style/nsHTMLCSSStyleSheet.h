@@ -20,14 +20,14 @@
 struct MiscContainer;
 
 class nsHTMLCSSStyleSheet MOZ_FINAL : public nsIStyleSheet,
-                                      public nsIStyleRuleProcessor
-{
+                                      public nsIStyleRuleProcessor {
 public:
-  nsHTMLCSSStyleSheet(nsIURI* aURL, nsIDocument* aDocument);
+  nsHTMLCSSStyleSheet();
   ~nsHTMLCSSStyleSheet();
 
   NS_DECL_ISUPPORTS
 
+  nsresult Init(nsIURI* aURL, nsIDocument* aDocument);
   void Reset(nsIURI* aURL);
 
   // nsIStyleSheet

@@ -51,8 +51,7 @@ public:
     return GetOwner();
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 protected:
   nsresult ShowInternal();
   nsresult CloseInternal();
@@ -63,9 +62,9 @@ protected:
   static const nsString DirectionToString(NotificationDirection aDirection)
   {
     switch (aDirection) {
-    case NotificationDirection::Ltr:
+    case NotificationDirectionValues::Ltr:
       return NS_LITERAL_STRING("ltr");
-    case NotificationDirection::Rtl:
+    case NotificationDirectionValues::Rtl:
       return NS_LITERAL_STRING("rtl");
     default:
       return NS_LITERAL_STRING("auto");

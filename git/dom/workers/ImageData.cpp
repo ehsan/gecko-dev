@@ -18,7 +18,7 @@ namespace {
 class ImageData
 {
   static JSClass sClass;
-  static const JSPropertySpec sProperties[];
+  static JSPropertySpec sProperties[];
 
   enum SLOT {
     SLOT_width = 0,
@@ -37,8 +37,7 @@ public:
   }
 
   static JSObject*
-  Create(JSContext* aCx, uint32_t aWidth,
-         uint32_t aHeight, JS::Handle<JSObject*> aData)
+  Create(JSContext* aCx, uint32_t aWidth, uint32_t aHeight, JSObject *aData)
   {
     MOZ_ASSERT(aData);
     MOZ_ASSERT(JS_IsTypedArrayObject(aData));
@@ -136,11 +135,11 @@ private:
 JSClass ImageData::sClass = {
   "ImageData",
   JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(SLOT_COUNT),
-  JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize
 };
 
-const JSPropertySpec ImageData::sProperties[] = {
+JSPropertySpec ImageData::sProperties[] = {
   // These properties are read-only per spec, which means that sets must throw
   // in strict mode and silently fail otherwise. This is a problem for workers
   // in general (because js_GetterOnlyPropertyStub throws unconditionally). The
@@ -168,8 +167,7 @@ InitClass(JSContext* aCx, JSObject* aGlobal)
 }
 
 JSObject*
-Create(JSContext* aCx, uint32_t aWidth,
-       uint32_t aHeight, JS::Handle<JSObject*> aData)
+Create(JSContext* aCx, uint32_t aWidth, uint32_t aHeight, JSObject* aData)
 {
   return ImageData::Create(aCx, aWidth, aHeight, aData);
 }

@@ -19,7 +19,7 @@ var prefs1 = [
   { name: "browser.urlbar.maxRichResults",
     value: 20
   },
-  { name: "security.OCSP.require",
+  { name: "browser.tabs.autoHide",
     value: true
   }
 ];
@@ -31,7 +31,7 @@ var prefs2 = [
   { name: "browser.urlbar.maxRichResults",
     value: 18
   },
-  { name: "security.OCSP.require",
+  { name: "browser.tabs.autoHide",
     value: false
   }
 ];

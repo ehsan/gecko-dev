@@ -29,9 +29,9 @@ namespace {
 class DOMException : public PrivatizableBase
 {
   static JSClass sClass;
-  static const JSPropertySpec sProperties[];
-  static const JSFunctionSpec sFunctions[];
-  static const JSPropertySpec sStaticProperties[];
+  static JSPropertySpec sProperties[];
+  static JSFunctionSpec sFunctions[];
+  static JSPropertySpec sStaticProperties[];
 
   enum SLOT {
     SLOT_code = 0,
@@ -45,9 +45,9 @@ public:
   static JSObject*
   InitClass(JSContext* aCx, JSObject* aObj)
   {
-    JS::Rooted<JSObject*> proto(aCx, JS_InitClass(aCx, aObj, nullptr, &sClass, Construct, 0,
-                                                  sProperties, sFunctions, sStaticProperties,
-                                                  nullptr));
+    JSObject* proto = JS_InitClass(aCx, aObj, NULL, &sClass, Construct, 0,
+                                   sProperties, sFunctions, sStaticProperties,
+                                   NULL);
     if (proto && !JS_DefineProperties(aCx, proto, sStaticProperties)) {
       return NULL;
     }
@@ -87,7 +87,7 @@ private:
   static JSBool
   ToString(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
-    JS::Rooted<JSObject*> obj(aCx, JS_THIS_OBJECT(aCx, aVp));
+    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
     if (!obj) {
       return false;
     }
@@ -100,7 +100,7 @@ private:
       return false;
     }
 
-    JS::Rooted<JS::Value> name(aCx, JS_GetReservedSlot(obj, SLOT_name));
+    jsval name = JS_GetReservedSlot(obj, SLOT_name);
     JS_ASSERT(name.isString());
 
     JSString *colon = JS_NewStringCopyN(aCx, ": ", 2);
@@ -157,11 +157,11 @@ private:
 JSClass DOMException::sClass = {
   "DOMException",
   JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(SLOT_COUNT),
-  JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize
 };
 
-const JSPropertySpec DOMException::sProperties[] = {
+JSPropertySpec DOMException::sProperties[] = {
   { "code", SLOT_code, PROPERTY_FLAGS, JSOP_WRAPPER(GetProperty),
     JSOP_WRAPPER(js_GetterOnlyPropertyStub) },
   { "name", SLOT_name, PROPERTY_FLAGS, JSOP_WRAPPER(GetProperty),
@@ -171,12 +171,12 @@ const JSPropertySpec DOMException::sProperties[] = {
   { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
 };
 
-const JSFunctionSpec DOMException::sFunctions[] = {
+JSFunctionSpec DOMException::sFunctions[] = {
   JS_FN("toString", ToString, 0, 0),
   JS_FS_END
 };
 
-const JSPropertySpec DOMException::sStaticProperties[] = {
+JSPropertySpec DOMException::sStaticProperties[] = {
 
 #define EXCEPTION_ENTRY(_name) \
   { #_name, _name, CONSTANT_FLAGS, JSOP_WRAPPER(GetConstant), JSOP_NULLWRAPPER },
@@ -216,7 +216,7 @@ const JSPropertySpec DOMException::sStaticProperties[] = {
 JSObject*
 DOMException::Create(JSContext* aCx, nsresult aNSResult)
 {
-  JS::Rooted<JSObject*> obj(aCx, JS_NewObject(aCx, &sClass, NULL, NULL));
+  JSObject* obj = JS_NewObject(aCx, &sClass, NULL, NULL);
   if (!obj) {
     return NULL;
   }
@@ -230,12 +230,12 @@ DOMException::Create(JSContext* aCx, nsresult aNSResult)
     return NULL;
   }
 
-  JS::Rooted<JSString*> jsname(aCx, JS_NewStringCopyZ(aCx, name));
+  JSString* jsname = JS_NewStringCopyZ(aCx, name);
   if (!jsname) {
     return NULL;
   }
 
-  JS::Rooted<JSString*> jsmessage(aCx, JS_NewStringCopyZ(aCx, message));
+  JSString* jsmessage = JS_NewStringCopyZ(aCx, message);
   if (!jsmessage) {
     return NULL;
   }

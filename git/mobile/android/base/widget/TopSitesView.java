@@ -61,7 +61,8 @@ public class TopSitesView extends GridView {
     private static int mNumberOfCols;
 
     public static enum UnpinFlags {
-        REMOVE_PIN
+        REMOVE_PIN,
+        REMOVE_HISTORY
     }
 
     private Context mContext;
@@ -130,6 +131,7 @@ public class TopSitesView extends GridView {
                     menu.findItem(R.id.abouthome_open_private_tab).setVisible(false);
                     menu.findItem(R.id.abouthome_topsites_pin).setVisible(false);
                     menu.findItem(R.id.abouthome_topsites_unpin).setVisible(false);
+                    menu.findItem(R.id.abouthome_topsites_remove).setVisible(false);
                 } else if (holder.isPinned()) {
                     menu.findItem(R.id.abouthome_topsites_pin).setVisible(false);
                 } else {
@@ -143,16 +145,9 @@ public class TopSitesView extends GridView {
 
     public void onDestroy() {
         if (mTopSitesAdapter != null) {
-            setAdapter(null);
-            final Cursor cursor = mTopSitesAdapter.getCursor();
-
-            ThreadUtils.postToBackgroundThread(new Runnable() {
-                @Override
-                public void run() {
-                if (cursor != null && !cursor.isClosed())
-                    cursor.close();
-                }
-            });
+            Cursor cursor = mTopSitesAdapter.getCursor();
+            if (cursor != null && !cursor.isClosed())
+                cursor.close();
         }
     }
 
@@ -198,9 +193,12 @@ public class TopSitesView extends GridView {
             @Override
             public void run() {
                 final ContentResolver resolver = mContext.getContentResolver();
-
+        Cursor old = null;
+        if (mTopSitesAdapter != null) {
+            old = mTopSitesAdapter.getCursor();
+        }
                 // Swap in the new cursor.
-                final Cursor oldCursor = (mTopSitesAdapter != null) ? mTopSitesAdapter.getCursor() : null;
+                final Cursor oldCursor = old;
                 final Cursor newCursor = BrowserDB.getTopSites(resolver, mNumberOfTopSites);
 
                 post(new Runnable() {
@@ -368,6 +366,13 @@ public class TopSitesView extends GridView {
         mLoadCompleteListener = listener;
     }
 
+    public void refresh() {
+        if (mTopSitesAdapter != null)
+            mTopSitesAdapter.notifyDataSetChanged();
+
+        setAdapter(mTopSitesAdapter);
+    }
+
     private class TopSitesViewHolder {
         public TextView titleView = null;
         public ImageView thumbnailView = null;
@@ -383,7 +388,6 @@ public class TopSitesView extends GridView {
         }
 
         public void setTitle(String title) {
-            Log.i(LOGTAG, "setTitle " + title + " from " + mTitle);
             if (mTitle != null && mTitle.equals(title))
                 return;
             mTitle = title;
@@ -395,10 +399,8 @@ public class TopSitesView extends GridView {
         }
 
         public void setUrl(String url) {
-            Log.i(LOGTAG, "setUrl " + url + " from " + mUrl);
-            if (mUrl != null && mUrl.equals(url)) {
+            if (mUrl != null && mUrl.equals(url))
                 return;
-            }
             mUrl = url;
             updateTitleView();
         }
@@ -415,7 +417,6 @@ public class TopSitesView extends GridView {
             } else {
                 titleView.setVisibility(View.INVISIBLE);
             }
-            titleView.invalidate();
         }
 
         private Drawable getPinDrawable() {
@@ -475,7 +476,6 @@ public class TopSitesView extends GridView {
                 viewHolder = (TopSitesViewHolder) convertView.getTag();
             }
 
-            Log.i(LOGTAG, "Build");
             viewHolder.setTitle(title);
             viewHolder.setUrl(url);
             viewHolder.setPinned(pinned);
@@ -557,6 +557,9 @@ public class TopSitesView extends GridView {
             public Void doInBackground(Void... params) {
                 final ContentResolver resolver = mContext.getContentResolver();
                 BrowserDB.unpinSite(resolver, position);
+                if (flags == UnpinFlags.REMOVE_HISTORY) {
+                    BrowserDB.removeHistoryEntry(resolver, url);
+                }
                 return null;
             }
         }).execute();
@@ -624,11 +627,6 @@ public class TopSitesView extends GridView {
                 String title = data.getStringExtra(AwesomeBar.TITLE_KEY);
                 String url = data.getStringExtra(AwesomeBar.URL_KEY);
 
-                // Bail if the user entered an empty string.
-                if (TextUtils.isEmpty(url)) {
-                    return;
-                }
-
                 // If the user manually entered a search term or URL, wrap the value in
                 // a special URI until we can get a valid URL for this bookmark.
                 if (data.getBooleanExtra(AwesomeBar.USER_ENTERED_KEY, false)) {
@@ -638,7 +636,6 @@ public class TopSitesView extends GridView {
                 }
 
                 clearThumbnailsWithUrl(url);
-                Log.i(LOGTAG, "Edit done: " + url + " " + title);
 
                 holder.setUrl(url);
                 holder.setTitle(title);

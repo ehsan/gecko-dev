@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -26,7 +27,7 @@ using namespace js;
 
 FixedHeapPtr<PropertyName> ParallelArrayObject::ctorNames[NumCtors];
 
-const JSFunctionSpec ParallelArrayObject::methods[] = {
+JSFunctionSpec ParallelArrayObject::methods[] = {
     { "map",       JSOP_NULLWRAPPER, 2, 0, "ParallelArrayMap"       },
     { "reduce",    JSOP_NULLWRAPPER, 2, 0, "ParallelArrayReduce"    },
     { "scan",      JSOP_NULLWRAPPER, 2, 0, "ParallelArrayScan"      },
@@ -52,7 +53,7 @@ Class ParallelArrayObject::protoClass = {
     "ParallelArray",
     JSCLASS_HAS_CACHED_PROTO(JSProto_ParallelArray),
     JS_PropertyStub,         // addProperty
-    JS_DeletePropertyStub,   // delProperty
+    JS_PropertyStub,         // delProperty
     JS_PropertyStub,         // getProperty
     JS_StrictPropertyStub,   // setProperty
     JS_EnumerateStub,
@@ -64,7 +65,7 @@ Class ParallelArrayObject::class_ = {
     "ParallelArray",
     JSCLASS_HAS_CACHED_PROTO(JSProto_ParallelArray),
     JS_PropertyStub,         // addProperty
-    JS_DeletePropertyStub,   // delProperty
+    JS_PropertyStub,         // delProperty
     JS_PropertyStub,         // getProperty
     JS_StrictPropertyStub,   // setProperty
     JS_EnumerateStub,
@@ -113,10 +114,10 @@ ParallelArrayObject::getConstructor(JSContext *cx, unsigned argc)
 }
 
 /*static*/ JSObject *
-ParallelArrayObject::newInstance(JSContext *cx, NewObjectKind newKind /* = GenericObject */)
+ParallelArrayObject::newInstance(JSContext *cx)
 {
     gc::AllocKind kind = gc::GetGCObjectKind(NumFixedSlots);
-    RootedObject result(cx, NewBuiltinClassInstance(cx, &class_, kind, newKind));
+    RootedObject result(cx, NewBuiltinClassInstance(cx, &class_, kind));
     if (!result)
         return NULL;
 
@@ -130,7 +131,7 @@ ParallelArrayObject::newInstance(JSContext *cx, NewObjectKind newKind /* = Gener
 /*static*/ JSBool
 ParallelArrayObject::constructHelper(JSContext *cx, MutableHandleFunction ctor, CallArgs &args0)
 {
-    RootedObject result(cx, newInstance(cx, TenuredObject));
+    RootedObject result(cx, newInstance(cx));
     if (!result)
         return false;
 

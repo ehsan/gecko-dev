@@ -5,6 +5,10 @@
 #ifndef NSSDEVT_H
 #define NSSDEVT_H
 
+#ifdef DEBUG
+static const char NSSDEVT_CVS_ID[] = "@(#) $RCSfile: nssdevt.h,v $ $Revision: 1.6 $ $Date: 2012/04/25 14:49:42 $";
+#endif /* DEBUG */
+
 /*
  * nssdevt.h
  *

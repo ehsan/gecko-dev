@@ -23,6 +23,8 @@ CPPSRCS		= \
 		nsUnicodeToHKSCS.cpp \
 		$(NULL)
 
+EXPORTS		= nsUCvTWCID.h
+
 LOCAL_INCLUDES = -I$(srcdir)/../util
 
 include $(topsrcdir)/config/rules.mk

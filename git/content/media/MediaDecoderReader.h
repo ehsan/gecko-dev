@@ -416,10 +416,8 @@ public:
   // or an un-recoverable read error has occured.
   virtual bool DecodeAudioData() = 0;
 
-#ifdef MOZ_DASH
   // Steps to carry out at the start of the |DecodeLoop|.
   virtual void PrepareToDecode() { }
-#endif
 
   // Reads and decodes one video frame. Packets with a timestamp less
   // than aTimeThreshold will be decoded (unless they're not keyframes

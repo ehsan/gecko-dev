@@ -98,9 +98,6 @@ class ExpandArgsMore(ExpandArgs):
         if conf.EXPAND_LIBS_LIST_STYLE == "linkerscript":
             content = ['INPUT("%s")\n' % obj for obj in objs]
             ref = tmp
-        elif conf.EXPAND_LIBS_LIST_STYLE == "filelist":
-            content = ["%s\n" % obj for obj in objs]
-            ref = "-Wl,-filelist," + tmp
         elif conf.EXPAND_LIBS_LIST_STYLE == "list":
             content = ["%s\n" % obj for obj in objs]
             ref = "@" + tmp
@@ -332,9 +329,6 @@ def main():
     with open(options.depend, 'w') as depfile:
         depfile.write("%s : %s\n" % (options.target, ' '.join(dep for dep in deps if os.path.isfile(dep) and dep != options.target)))
 
-        for dep in deps:
-            if os.path.isfile(dep) and dep != options.target:
-                depfile.write("%s :\n" % dep)
 
 if __name__ == '__main__':
     main()

@@ -375,11 +375,10 @@ exports.testRelatedTabNoRequireTab = function(test) {
     include: url,
     onAttach: function(worker) {
       test.assertEqual(worker.tab.url, url, "Worker.tab.url is valid");
-      worker.tab.close(function() {
-        pageMod.destroy();
-        loader.unload();
-        test.done();
-      });
+      worker.tab.close();
+      pageMod.destroy();
+      loader.unload();
+      test.done();
     }
   });
 
@@ -427,7 +426,8 @@ exports.testWorksWithExistingTabs = function(test) {
           timer.setTimeout(function() {
             pageModOnExisting.destroy();
             pageModOffExisting.destroy();
-            tab.close(test.done.bind(test));
+            tab.close();
+            test.done();
           }, 0);
         }
       });
@@ -471,13 +471,11 @@ exports.testTabWorkerOnMessage = function(test) {
             }
             else if (this.tab.url === url2) {
               mod.destroy();
-              worker1.tab.close(function() {
-                worker1.destroy();
-                worker.tab.close(function() {
-                  worker.destroy();
-                  test.done();
-                });
-              });
+              worker1.tab.close();
+              worker1.destroy();
+              worker.tab.close();
+              worker.destroy();
+              test.done();
             }
           }
         });
@@ -509,9 +507,11 @@ exports.testAutomaticDestroy = function(test) {
     url: "about:",
     onReady: function onReady(tab) {
       test.pass("check automatic destroy");
-      tab.close(test.done.bind(test));
+      tab.close();
+      test.done();
     }
   });
+
 }
 
 exports.testAttachToTabsOnly = function(test) {
@@ -556,7 +556,7 @@ exports.testAttachToTabsOnly = function(test) {
             openToplevelWindow();
           }
           else {
-            openBrowserIframe();
+            openBrowserIframe(); 
           }
         }, false);
         element.setAttribute('src', 'data:text/html;charset=utf-8,foo');
@@ -751,7 +751,7 @@ exports.testPageModCssList = function(test) {
         "data:text/css;charset=utf-8,div { border: 1px solid black; }",
         "data:text/css;charset=utf-8,div { border: 10px solid black; }",
         // Highlight evaluation order between contentStylesheet & contentStylesheetFile
-        "data:text/css;charset=utf-8s,div { height: 1000px; }",
+        "data:text/cs;charset=utf-8s,div { height: 1000px; }",
         // Highlight precedence between the author and user style sheet
         "data:text/css;charset=utf-8,div { width: 200px; max-width: 640px!important}",
       ],
@@ -779,13 +779,13 @@ exports.testPageModCssList = function(test) {
       test.assertEqual(
         style.width,
         "320px",
-        "PageMod add-on author/page author style sheet precedence works"
+        "PageMod author/user style sheet precedence works"
       );
 
       test.assertEqual(
         style.maxWidth,
-        "480px",
-        "PageMod add-on author/page author style sheet precedence with !important works"
+        "640px",
+        "PageMod author/user style sheet precedence with !important works"
       );
 
       done();
@@ -856,7 +856,8 @@ exports.testPageModCssAutomaticDestroy = function(test) {
         "PageMod contentStyle is removed after loader's unload"
       );
 
-      tab.close(test.done.bind(test));
+      tab.close();
+      test.done();
     }
   });
 };
@@ -881,11 +882,10 @@ exports.testPageModTimeout = function(test) {
         test.pass("timer was scheduled")
         worker.port.on("fired", function(data) {
           test.assertEqual(id, data, "timer was fired")
-          tab.close(function() {
-            worker.destroy()
-            loader.unload()
-            test.done()
-          });
+          tab.close()
+          worker.destroy()
+          loader.unload()
+          test.done()
         })
       })
     }
@@ -921,12 +921,11 @@ exports.testPageModcancelTimeout = function(test) {
       })
       worker.port.on("timeout", function(id) {
         test.pass("timer was scheduled")
-        tab.close(function() {
-          worker.destroy();
-          mod.destroy();
-          loader.unload();
-          test.done();
-        });
+        tab.close();
+        worker.destroy();
+        mod.destroy();
+        loader.unload();
+        test.done();
       })
     }
   });
@@ -1059,8 +1058,6 @@ exports.testEvents = function(test) {
 
 exports["test page-mod on private tab"] = function (test) {
   test.waitUntilDone();
-  let fail = test.fail.bind(test);
-
   let privateUri = "data:text/html;charset=utf-8," +
                    "<iframe src=\"data:text/html;charset=utf-8,frame\" />";
   let nonPrivateUri = "data:text/html;charset=utf-8,non-private";
@@ -1075,24 +1072,17 @@ exports["test page-mod on private tab"] = function (test) {
                          nonPrivateUri,
                          "page-mod should only attach to the non-private tab");
       }
-
       test.assert(!isPrivate(worker),
                   "The worker is really non-private");
       test.assert(!isPrivate(worker.tab),
                   "The document is really non-private");
       pageMod.destroy();
-
-      page1.close().
-        then(page2.close).
-        then(test.done.bind(test), fail);
+      page1.close().then(page2.close).then(test.done.bind(test));
     }
   });
 
-  let page1, page2;
-  page1 = openWebpage(privateUri, true);
-  page1.ready.then(function() {
-    page2 = openWebpage(nonPrivateUri, false);
-  }, fail);
+  let page1 = openWebpage(privateUri, true);
+  let page2 = openWebpage(nonPrivateUri, false);
 }
 
 exports["test page-mod on private tab in global pb"] = function (test) {

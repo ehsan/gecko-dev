@@ -8,7 +8,6 @@ from ply import lex, yacc
 import re
 import os
 import traceback
-import math
 
 # Machinery
 
@@ -482,9 +481,6 @@ class IDLExternalInterface(IDLObjectWithIdentifier):
     def isJSImplemented(self):
         return False
 
-    def getNavigatorProperty(self):
-        return None
-
     def _getDependentObjects(self):
         return set()
 
@@ -510,7 +506,6 @@ class IDLInterface(IDLObjectWithScope):
         # self.interfacesImplementingSelf is the set of interfaces that directly
         # have self as a consequential interface
         self.interfacesImplementingSelf = set()
-        self._hasChildInterfaces = False
 
         IDLObjectWithScope.__init__(self, location, parentScope, name)
 
@@ -571,8 +566,6 @@ class IDLInterface(IDLObjectWithScope):
 
         if self.parent:
             self.parent.finish(scope)
-
-            self.parent._hasChildInterfaces = True
 
             # Callbacks must not inherit from non-callbacks or inherit from
             # anything that has consequential interfaces.
@@ -842,7 +835,7 @@ class IDLInterface(IDLObjectWithScope):
 
                 self._noInterfaceObject = True
             elif identifier == "Constructor" or identifier == "NamedConstructor":
-                if identifier == "Constructor" and not self.hasInterfaceObject():
+                if not self.hasInterfaceObject():
                     raise WebIDLError(str(identifier) + " and NoInterfaceObject are incompatible",
                                       [self.location])
 
@@ -898,18 +891,6 @@ class IDLInterface(IDLObjectWithScope):
                     elif not newMethod in self.namedConstructors:
                         raise WebIDLError("NamedConstructor conflicts with a NamedConstructor of a different interface",
                                           [method.location, newMethod.location])
-            elif (identifier == "PrefControlled" or
-                  identifier == "Pref" or
-                  identifier == "NeedNewResolve" or
-                  identifier == "JSImplementation" or
-                  identifier == "HeaderFile" or
-                  identifier == "NavigatorProperty" or
-                  identifier == "OverrideBuiltins"):
-                # Known attributes that we don't need to do anything with here
-                pass
-            else:
-                raise WebIDLError("Unknown extended attribute %s on interface" % identifier,
-                                  [attr.location])
 
             attrlist = attr.listValue()
             self._extendedAttrDict[identifier] = attrlist if len(attrlist) else True
@@ -995,18 +976,6 @@ class IDLInterface(IDLObjectWithScope):
 
     def isJSImplemented(self):
         return bool(self.getJSImplementation())
-
-    def getNavigatorProperty(self):
-        naviProp = self.getExtendedAttribute("NavigatorProperty")
-        if not naviProp:
-            return None
-        assert len(naviProp) == 1
-        assert isinstance(naviProp, list)
-        assert len(naviProp[0]) != 0
-        return naviProp[0]
-
-    def hasChildInterfaces(self):
-        return self._hasChildInterfaces
 
     def _getDependentObjects(self):
         deps = set(self.members)
@@ -1212,9 +1181,7 @@ class IDLType(IDLObject):
         'dictionary',
         'enum',
         'callback',
-        'union',
-        'sequence',
-        'array'
+        'union'
         )
 
     def __init__(self, location, name):
@@ -1289,7 +1256,7 @@ class IDLType(IDLObject):
         return False
 
     def isAny(self):
-        return self.tag() == IDLType.Tags.any
+        return self.tag() == IDLType.Tags.any and not self.isSequence()
 
     def isDate(self):
         return self.tag() == IDLType.Tags.date
@@ -1522,7 +1489,8 @@ class IDLSequenceType(IDLType):
         return self.inner.includesRestrictedFloat()
 
     def tag(self):
-        return IDLType.Tags.sequence
+        # XXXkhuey this is probably wrong.
+        return self.inner.tag()
 
     def resolveType(self, parentScope):
         assert isinstance(parentScope, IDLScope)
@@ -1705,7 +1673,8 @@ class IDLArrayType(IDLType):
         return False
 
     def tag(self):
-        return IDLType.Tags.array
+        # XXXkhuey this is probably wrong.
+        return self.inner.tag()
 
     def resolveType(self, parentScope):
         assert isinstance(parentScope, IDLScope)
@@ -2241,11 +2210,8 @@ class IDLValue(IDLObject):
         if type == self.type:
             return self # Nothing to do
 
-        # If the type allows null, rerun this matching on the inner type, except
-        # nullable enums.  We handle those specially, because we want our
-        # default string values to stay strings even when assigned to a nullable
-        # enum.
-        if type.nullable() and not type.isEnum():
+        # If the type allows null, rerun this matching on the inner type
+        if type.nullable():
             innerValue = self.coerceToType(type.inner, location)
             return IDLValue(self.location, type, innerValue.value)
 
@@ -2270,18 +2236,10 @@ class IDLValue(IDLObject):
                                   (self.value, type), [location])
         elif self.type.isString() and type.isEnum():
             # Just keep our string, but make sure it's a valid value for this enum
-            enum = type.unroll().inner
-            if self.value not in enum.values():
+            if self.value not in type.inner.values():
                 raise WebIDLError("'%s' is not a valid default value for enum %s"
-                                  % (self.value, enum.identifier.name),
-                                  [location, enum.location])
-            return self
-        elif self.type.isFloat() and type.isFloat():
-            if (not type.isUnrestricted() and
-                (self.value == float("inf") or self.value == float("-inf") or
-                 math.isnan(self.value))):
-                raise WebIDLError("Trying to convert unrestricted value %s to non-unrestricted"
-                                  % self.value, [location]);
+                                  % (self.value, type.inner.identifier.name),
+                                  [location, type.inner.location])
             return self
         else:
             raise WebIDLError("Cannot coerce type %s to type %s." %
@@ -2522,20 +2480,6 @@ class IDLAttribute(IDLInterfaceMember):
                 raise WebIDLError("[LenientFloat] used on an attribute with a "
                                   "non-restricted-float type",
                                   [attr.location, self.location])
-        elif (identifier == "Pref" or
-              identifier == "SetterThrows" or
-              identifier == "Pure" or
-              identifier == "Throws" or
-              identifier == "GetterThrows" or
-              identifier == "ChromeOnly" or
-              identifier == "Constant" or
-              identifier == "Func" or
-              identifier == "Creator"):
-            # Known attributes that we don't need to do anything with here
-            pass
-        else:
-            raise WebIDLError("Unknown extended attribute %s on attribute" % identifier,
-                              [attr.location])
         IDLInterfaceMember.handleExtendedAttribute(self, attr)
 
     def resolve(self, parentScope):
@@ -3069,17 +3013,6 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
                 raise WebIDLError("[LenientFloat] used on an operation with no "
                                   "restricted float type arguments",
                                   [attr.location, self.location])
-        elif (identifier == "Throws" or
-              identifier == "Creator" or
-              identifier == "ChromeOnly" or
-              identifier == "Pref" or
-              identifier == "Func" or
-              identifier == "WebGLHandlesContextLoss"):
-            # Known attributes that we don't need to do anything with here
-            pass
-        else:
-            raise WebIDLError("Unknown extended attribute %s on method" % identifier,
-                              [attr.location])
         IDLInterfaceMember.handleExtendedAttribute(self, attr)
 
     def _getDependentObjects(self):
@@ -3174,11 +3107,6 @@ class Tokenizer(object):
         "OTHER"
         ]
 
-    def t_FLOATLITERAL(self, t):
-        r'(-?(([0-9]+\.[0-9]*|[0-9]*\.[0-9]+)([Ee][+-]?[0-9]+)?|[0-9]+[Ee][+-]?[0-9]+|Infinity))|NaN'
-        t.value = float(t.value)
-        return t
-
     def t_INTEGER(self, t):
         r'-?(0([0-7]+|[Xx][0-9A-Fa-f]+)?|[1-9][0-9]*)'
         try:
@@ -3190,6 +3118,11 @@ class Tokenizer(object):
                                         lineno=self.lexer.lineno,
                                         lexpos=self.lexer.lexpos,
                                         filename=self._filename)])
+        return t
+
+    def t_FLOATLITERAL(self, t):
+        r'-?(([0-9]+\.[0-9]*|[0-9]*\.[0-9]+)([Ee][+-]?[0-9]+)?|[0-9]+[Ee][+-]?[0-9]+)'
+        assert False
         return t
 
     def t_IDENTIFIER(self, t):
@@ -3396,15 +3329,8 @@ class Parser(Tokenizer):
         try:
             if self.globalScope()._lookupIdentifier(identifier):
                 p[0] = self.globalScope()._lookupIdentifier(identifier)
-                if not isinstance(p[0], IDLExternalInterface):
-                    raise WebIDLError("Name collision between external "
-                                      "interface declaration for identifier "
-                                      "%s and %s" % (identifier.name, p[0]),
-                                      [location, p[0].location])
                 return
-        except Exception, ex:
-            if isinstance(ex, WebIDLError):
-                raise ex
+        except:
             pass
 
         p[0] = IDLExternalInterface(location, self.globalScope(), identifier)
@@ -3627,8 +3553,8 @@ class Parser(Tokenizer):
         """
             ConstValue : FLOATLITERAL
         """
-        location = self.getLocation(p, 1)
-        p[0] = IDLValue(location, BuiltinTypes[IDLBuiltinType.Types.unrestricted_float], p[1])
+        assert False
+        pass
 
     def p_ConstValueString(self, p):
         """
@@ -4272,8 +4198,8 @@ class Parser(Tokenizer):
         """
             NonAnyType : DATE TypeSuffix
         """
-        p[0] = self.handleModifiers(BuiltinTypes[IDLBuiltinType.Types.date],
-                                    p[2])
+        assert False
+        pass
 
     def p_ConstType(self, p):
         """

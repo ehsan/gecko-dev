@@ -23,7 +23,14 @@ CPPSRCS = \
   nsCookieService.cpp \
   $(NULL)
 
-DISABLED_XPCSHELL_TESTS += test/unit
+XPCSHELL_TESTS += test/unit
+
+EXPORTS_NAMESPACES = mozilla/net
+
+EXPORTS_mozilla/net = \
+		CookieServiceParent.h \
+		CookieServiceChild.h  \
+		$(NULL)
 
 CPPSRCS += \
 		CookieServiceParent.cpp \
@@ -36,7 +43,7 @@ LOCAL_INCLUDES	= \
 
 # FIXME/bug 575918: out-of-process xpcshell is broken on OS X
 ifneq ($(OS_ARCH),Darwin)
-DISABLED_XPCSHELL_TESTS += test/unit_ipc
+XPCSHELL_TESTS += test/unit_ipc
 endif
 endif
 

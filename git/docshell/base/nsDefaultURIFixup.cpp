@@ -113,8 +113,7 @@ nsDefaultURIFixup::CreateExposableURI(nsIURI *aURI, nsIURI **aReturn)
 
 /* nsIURI createFixupURI (in nsAUTF8String aURIText, in unsigned long aFixupFlags); */
 NS_IMETHODIMP
-nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupFlags,
-                                  nsIInputStream **aPostData, nsIURI **aURI)
+nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupFlags, nsIURI **aURI)
 {
     NS_ENSURE_ARG(!aStringURI.IsEmpty());
     NS_ENSURE_ARG_POINTER(aURI);
@@ -148,7 +147,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
                                        sizeof("view-source:") - 1,
                                        uriString.Length() -
                                          (sizeof("view-source:") - 1)),
-                             newFixupFlags, aPostData, getter_AddRefs(uri));
+                             newFixupFlags, getter_AddRefs(uri));
         if (NS_FAILED(rv))
             return NS_ERROR_FAILURE;
         nsAutoCString spec;
@@ -244,7 +243,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
         NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
         if (fixupKeywords)
         {
-            KeywordURIFixup(uriString, aPostData, aURI);
+            KeywordURIFixup(uriString, aURI);
             if(*aURI)
                 return NS_OK;
         }
@@ -310,7 +309,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
     // keyword match.  This catches search strings with '.' or ':' in them.
     if (!*aURI && fixupKeywords)
     {
-        KeywordToURI(aStringURI, aPostData, aURI);
+        KeywordToURI(aStringURI, aURI);
         if(*aURI)
             return NS_OK;
     }
@@ -319,13 +318,9 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
 }
 
 NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
-                                              nsIInputStream **aPostData,
                                               nsIURI **aURI)
 {
     *aURI = nullptr;
-    if (aPostData) {
-        *aPostData = nullptr;
-    }
     NS_ENSURE_STATE(Preferences::GetRootBranch());
 
     // Strip leading "?" and leading/trailing spaces from aKeyword
@@ -335,40 +330,57 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
     }
     keyword.Trim(" ");
 
+    nsAdoptingCString url = Preferences::GetLocalizedCString("keyword.URL");
+    if (!url) {
+        // Fall back to a non-localized pref, for backwards compat
+        url = Preferences::GetCString("keyword.URL");
+    }
+
+    // If the pref is set and non-empty, use it.
+    if (!url.IsEmpty()) {
+        // Escape keyword, then prepend URL
+        nsAutoCString spec;
+        if (!NS_Escape(keyword, spec, url_XPAlphas)) {
+            return NS_ERROR_OUT_OF_MEMORY;
+        }
+
+        spec.Insert(url, 0);
+
+        nsresult rv = NS_NewURI(aURI, spec);
+        if (NS_FAILED(rv))
+            return rv;
+
+        nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
+        if (obsSvc) {
+            obsSvc->NotifyObservers(*aURI,
+                                    "defaultURIFixup-using-keyword-pref",
+                                    nullptr);
+        }
+        return NS_OK;
+    }
+
 #ifdef MOZ_TOOLKIT_SEARCH
     // Try falling back to the search service's default search engine
     nsCOMPtr<nsIBrowserSearchService> searchSvc = do_GetService("@mozilla.org/browser/search-service;1");
     if (searchSvc) {
         nsCOMPtr<nsISearchEngine> defaultEngine;
-        searchSvc->GetDefaultEngine(getter_AddRefs(defaultEngine));
+        searchSvc->GetOriginalDefaultEngine(getter_AddRefs(defaultEngine));
         if (defaultEngine) {
             nsCOMPtr<nsISearchSubmission> submission;
             // We allow default search plugins to specify alternate
             // parameters that are specific to keyword searches.
-            NS_NAMED_LITERAL_STRING(mozKeywordSearch, "application/x-moz-keywordsearch");
-            bool supportsResponseType = false;
-            defaultEngine->SupportsResponseType(mozKeywordSearch, &supportsResponseType);
-            if (supportsResponseType)
-              defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
-                                           mozKeywordSearch,
-                                           NS_LITERAL_STRING("keyword"),
-                                           getter_AddRefs(submission));
-            else
-              defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
-                                           EmptyString(),
-                                           NS_LITERAL_STRING("keyword"),
-                                           getter_AddRefs(submission));
+            defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
+                                         EmptyString(),
+                                         NS_LITERAL_STRING("keyword"),
+                                         getter_AddRefs(submission));
             if (submission) {
+                // The submission depends on POST data (i.e. the search engine's
+                // "method" is POST), we can't use this engine for keyword
+                // searches
                 nsCOMPtr<nsIInputStream> postData;
                 submission->GetPostData(getter_AddRefs(postData));
-                if (aPostData) {
-                  postData.forget(aPostData);
-                } else if (postData) {
-                  // The submission specifies POST data (i.e. the search
-                  // engine's "method" is POST), but our caller didn't allow
-                  // passing post data back. No point passing back a URL that
-                  // won't load properly.
-                  return NS_ERROR_FAILURE;
+                if (postData) {
+                    return NS_ERROR_NOT_AVAILABLE;
                 }
 
                 // This notification is meant for Firefox Health Report so it
@@ -380,7 +392,9 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
                 // the search engine's name through various function calls.
                 nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
                 if (obsSvc) {
-                    obsSvc->NotifyObservers(defaultEngine, "keyword-search", NS_ConvertUTF8toUTF16(keyword).get());
+                  nsAutoString name;
+                  defaultEngine->GetName(name);
+                  obsSvc->NotifyObservers(nullptr, "keyword-search", name.get());
                 }
 
                 return submission->GetUri(aURI);
@@ -770,9 +784,8 @@ const char * nsDefaultURIFixup::GetCharsetForUrlBar()
   return charset;
 }
 
-void nsDefaultURIFixup::KeywordURIFixup(const nsACString & aURIString,
-                                        nsIInputStream **aPostData,
-                                        nsIURI** aURI)
+nsresult nsDefaultURIFixup::KeywordURIFixup(const nsACString & aURIString, 
+                                            nsIURI** aURI)
 {
     // These are keyword formatted strings
     // "what is mozilla"
@@ -811,8 +824,13 @@ void nsDefaultURIFixup::KeywordURIFixup(const nsACString & aURIString,
          (spaceLoc < qMarkLoc || quoteLoc < qMarkLoc)) ||
         qMarkLoc == 0)
     {
-        KeywordToURI(aURIString, aPostData, aURI);
+        KeywordToURI(aURIString, aURI);
     }
+
+    if(*aURI)
+        return NS_OK;
+
+    return NS_ERROR_FAILURE;
 }
 
 

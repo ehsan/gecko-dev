@@ -650,15 +650,14 @@ public:
         }
     }
 
-    void Reparent(JSContext *aCx, JSObject *aNewInnerArg) {
-        JS::RootedObject aNewInner(aCx, aNewInnerArg);
+    void Reparent(JSContext *aCx, JSObject *aNewInner) {
         for (Map::Enum e(mTable); !e.empty(); e.popFront()) {
             /*
              * We reparent wrappers that have as their parent an inner window
              * whose outer has the new inner window as its current inner.
              */
-            JS::RootedObject parent(aCx, JS_GetParent(e.front().value));
-            JS::RootedObject outer(aCx, JS_ObjectToOuterObject(aCx, parent));
+            JSObject *parent = JS_GetParent(e.front().value);
+            JSObject *outer = JS_ObjectToOuterObject(aCx, parent);
             if (outer) {
                 JSObject *inner = JS_ObjectToInnerObject(aCx, outer);
                 if (inner == aNewInner && inner != parent)

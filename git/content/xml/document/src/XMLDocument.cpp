@@ -31,7 +31,7 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
 #include "nsLayoutCID.h"
-#include "mozilla/dom/Attr.h"
+#include "nsDOMAttribute.h"
 #include "nsGUIEvent.h"
 #include "nsCExternalHandlerService.h"
 #include "nsMimeTypes.h"
@@ -42,6 +42,7 @@
 #include "nsCRT.h"
 #include "nsIAuthPrompt.h"
 #include "nsIScriptGlobalObjectOwner.h"
+#include "nsIJSContextStack.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIDOMUserDataHandler.h"
@@ -70,7 +71,7 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
                   nsIURI* aBaseURI,
                   nsIPrincipal* aPrincipal,
                   bool aLoadedAsData,
-                  nsIGlobalObject* aEventObject,
+                  nsIScriptGlobalObject* aEventObject,
                   DocumentFlavor aFlavor)
 {
   // Note: can't require that aDocumentURI/aBaseURI/aPrincipal be non-null,
@@ -126,12 +127,8 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
     return rv;
   }
 
-  if (nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aEventObject)) {
-    d->SetScriptHandlingObject(sgo);
-  } else if (aEventObject){
-    d->SetScopeObject(aEventObject);
-  }
-
+  d->SetScriptHandlingObject(aEventObject);
+  
   if (isHTML) {
     nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(d);
     NS_ASSERTION(htmlDoc, "HTML Document doesn't implement nsIHTMLDocument?");
@@ -214,6 +211,8 @@ NS_NewXBLDocument(nsIDOMDocument** aInstancePtrResult,
   return NS_OK;
 }
 
+DOMCI_NODE_DATA(XMLDocument, XMLDocument)
+
 namespace mozilla {
 namespace dom {
 
@@ -239,6 +238,7 @@ NS_INTERFACE_TABLE_HEAD(XMLDocument)
     NS_INTERFACE_TABLE_ENTRY(XMLDocument, nsIDOMXMLDocument)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XMLDocument)
 NS_INTERFACE_MAP_END_INHERITING(nsDocument)
 
 
@@ -319,7 +319,8 @@ XMLDocument::Load(const nsAString& aUrl, ErrorResult& aRv)
 
   ReportUseOfDeprecatedMethod(this, "UseOfDOM3LoadMethodWarning");
 
-  nsCOMPtr<nsIDocument> callingDoc = nsContentUtils::GetDocumentFromContext();
+  nsCOMPtr<nsIDocument> callingDoc =
+    do_QueryInterface(nsContentUtils::GetDocumentFromContext());
 
   nsIURI *baseURI = mDocumentURI;
   nsAutoCString charset;
@@ -627,9 +628,13 @@ XMLDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 }
 
 JSObject*
-XMLDocument::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+XMLDocument::WrapNode(JSContext *aCx, JSObject *aScope)
 {
-  return XMLDocumentBinding::Wrap(aCx, aScope, this);
+  JSObject* obj = XMLDocumentBinding::Wrap(aCx, aScope, this);
+  if (obj && !PostCreateWrapper(aCx, obj)) {
+    return nullptr;
+  }
+  return obj;
 }
 
 } // namespace dom

@@ -410,12 +410,28 @@ PeerConnectionImpl::CreateRemoteSourceStreamInfo(nsRefPtr<RemoteSourceStreamInfo
   return NS_OK;
 }
 
+#ifdef MOZILLA_INTERNAL_API
+static void
+Warn(JSContext* aCx, const nsCString& aMsg) {
+  CSFLogError(logTag, "Warning: %s", aMsg.get());
+  nsIScriptContext* sc = GetScriptContextFromJSContext(aCx);
+  if (sc) {
+    nsCOMPtr<nsIDocument> doc;
+    doc = nsContentUtils::GetDocumentFromScriptContext(sc);
+    if (doc) {
+      // Passing in line-# 1 hides peerconnection.js (shows document instead)
+      nsContentUtils::ReportToConsoleNonLocalized(NS_ConvertUTF8toUTF16 (aMsg),
+          nsIScriptError::warningFlag, logTag, doc, nullptr, EmptyString(), 1);
+    }
+  }
+}
+#endif
+
 /**
  * In JS, an RTCConfiguration looks like this:
  *
  * { "iceServers": [ { url:"stun:23.21.150.121" },
- *                   { url:"turn:turn.example.org?transport=udp",
- *                     username: "jib", credential:"mypass"} ] }
+ *                   { url:"turn:user@turn.example.org", credential:"mypass"} ] }
  *
  * This function converts an already-validated jsval that looks like the above
  * into an IceConfiguration object.
@@ -431,8 +447,7 @@ PeerConnectionImpl::ConvertRTCConfiguration(const JS::Value& aSrc,
   }
   JSAutoCompartment ac(aCx, &aSrc.toObject());
   RTCConfiguration config;
-  JS::Rooted<JS::Value> src(aCx, aSrc);
-  if (!(config.Init(aCx, src) && config.mIceServers.WasPassed())) {
+  if (!(config.Init(aCx, nullptr, aSrc) && config.mIceServers.WasPassed())) {
     return NS_ERROR_FAILURE;
   }
   for (uint32_t i = 0; i < config.mIceServers.Value().Length(); i++) {
@@ -456,8 +471,17 @@ PeerConnectionImpl::ConvertRTCConfiguration(const JS::Value& aSrc,
     nsAutoCString spec;
     rv = url->GetSpec(spec);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    // TODO(jib@mozilla.com): Revisit once nsURI has STUN host+port (Bug 833509)
+    if (!server.mCredential.IsEmpty()) {
+      // TODO(jib@mozilla.com): Support username, credentials & TURN servers
+      Warn(aCx, nsPrintfCString(ICE_PARSING
+          ": Credentials not yet implemented. Omitting \"%s\"", spec.get()));
+      continue;
+    }
+    if (isTurn || isTurns) {
+      Warn(aCx, nsPrintfCString(ICE_PARSING
+          ": TURN servers not yet supported. Treating as STUN: \"%s\"", spec.get()));
+    }
+    // TODO(jib@mozilla.com): Revisit once nsURI supports host and port on STUN
     int32_t port;
     nsAutoCString host;
     {
@@ -466,13 +490,6 @@ PeerConnectionImpl::ConvertRTCConfiguration(const JS::Value& aSrc,
       nsAutoCString path;
       rv = url->GetPath(path);
       NS_ENSURE_SUCCESS(rv, rv);
-
-      // Tolerate '?transport=udp' by stripping it.
-      int32_t questionmark = path.FindChar('?');
-      if (questionmark >= 0) {
-        path.SetLength(questionmark);
-      }
-
       rv = net_GetAuthURLParser()->ParseAuthority(path.get(), path.Length(),
                                                   nullptr,  nullptr,
                                                   nullptr,  nullptr,
@@ -481,26 +498,13 @@ PeerConnectionImpl::ConvertRTCConfiguration(const JS::Value& aSrc,
       if (!hostLen) {
         return NS_ERROR_FAILURE;
       }
-      if (hostPos > 1)  /* The username was removed */
-        return NS_ERROR_FAILURE;
       path.Mid(host, hostPos, hostLen);
     }
     if (port == -1)
       port = (isStuns || isTurns)? 5349 : 3478;
-
-    if (isTurn || isTurns) {
-      NS_ConvertUTF16toUTF8 credential(server.mCredential);
-      NS_ConvertUTF16toUTF8 username(server.mUsername);
-
-      if (!aDst->addTurnServer(host.get(), port,
-                               username.get(),
-                               credential.get())) {
-        return NS_ERROR_FAILURE;
-      }
-    } else {
-      if (!aDst->addStunServer(host.get(), port)) {
-        return NS_ERROR_FAILURE;
-      }
+    if (!aDst->addServer(host.get(), port)) {
+      Warn(aCx, nsPrintfCString(ICE_PARSING
+          ": FQDN not yet implemented (only IP-#s). Omitting \"%s\"", spec.get()));
     }
   }
 #endif
@@ -576,10 +580,9 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* aObserver,
     IceConfiguration ic;
     res = ConvertRTCConfiguration(*aRTCConfiguration, &ic, aCx);
     NS_ENSURE_SUCCESS(res, res);
-    res = mMedia->Init(ic.getStunServers(), ic.getTurnServers());
+    res = mMedia->Init(ic.getServers());
   } else {
-    res = mMedia->Init(aConfiguration->getStunServers(),
-                       aConfiguration->getTurnServers());
+    res = mMedia->Init(aConfiguration->getServers());
   }
   if (NS_FAILED(res)) {
     CSFLogError(logTag, "%s: Couldn't initialize media object", __FUNCTION__);
@@ -797,7 +800,7 @@ PeerConnectionImpl::NotifyConnection()
 {
   PC_AUTO_ENTER_API_CALL_NO_CHECK();
 
-  CSFLogDebug(logTag, "%s", __FUNCTION__);
+  CSFLogDebug(logTag, __FUNCTION__);
 
 #ifdef MOZILLA_INTERNAL_API
   nsCOMPtr<IPeerConnectionObserver> pco = do_QueryReferent(mPCObserver);
@@ -816,7 +819,7 @@ PeerConnectionImpl::NotifyClosedConnection()
 {
   PC_AUTO_ENTER_API_CALL_NO_CHECK();
 
-  CSFLogDebug(logTag, "%s", __FUNCTION__);
+  CSFLogDebug(logTag, __FUNCTION__);
 
 #ifdef MOZILLA_INTERNAL_API
   nsCOMPtr<IPeerConnectionObserver> pco = do_QueryReferent(mPCObserver);
@@ -884,11 +887,11 @@ nsresult
 PeerConnectionImpl::ConvertConstraints(
   const JS::Value& aConstraints, MediaConstraints* aObj, JSContext* aCx)
 {
-  JS::Rooted<JS::Value> mandatory(aCx), optional(aCx);
-  JS::Rooted<JSObject*> constraints(aCx, &aConstraints.toObject());
+  JS::Value mandatory, optional;
+  JSObject& constraints = aConstraints.toObject();
 
   // Mandatory constraints.  Note that we only care if the constraint array exists
-  if (!JS_GetProperty(aCx, constraints, "mandatory", mandatory.address())) {
+  if (!JS_GetProperty(aCx, &constraints, "mandatory", &mandatory)) {
     return NS_ERROR_FAILURE;
   }
   if (!mandatory.isNullOrUndefined()) {
@@ -896,14 +899,14 @@ PeerConnectionImpl::ConvertConstraints(
       return NS_ERROR_FAILURE;
     }
 
-    JS::Rooted<JSObject*> opts(aCx, &mandatory.toObject());
+    JSObject* opts = &mandatory.toObject();
     JS::AutoIdArray mandatoryOpts(aCx, JS_Enumerate(aCx, opts));
 
     // Iterate over each property.
     for (size_t i = 0; i < mandatoryOpts.length(); i++) {
-      JS::Rooted<JS::Value> option(aCx), optionName(aCx);
-      if (!JS_GetPropertyById(aCx, opts, mandatoryOpts[i], option.address()) ||
-          !JS_IdToValue(aCx, mandatoryOpts[i], optionName.address()) ||
+      JS::Value option, optionName;
+      if (!JS_GetPropertyById(aCx, opts, mandatoryOpts[i], &option) ||
+          !JS_IdToValue(aCx, mandatoryOpts[i], &optionName) ||
           // We only support boolean constraints for now.
           !option.isBoolean()) {
         return NS_ERROR_FAILURE;
@@ -918,7 +921,7 @@ PeerConnectionImpl::ConvertConstraints(
   }
 
   // Optional constraints.
-  if (!JS_GetProperty(aCx, constraints, "optional", optional.address())) {
+  if (!JS_GetProperty(aCx, &constraints, "optional", &optional)) {
     return NS_ERROR_FAILURE;
   }
   if (!optional.isNullOrUndefined()) {
@@ -926,26 +929,26 @@ PeerConnectionImpl::ConvertConstraints(
       return NS_ERROR_FAILURE;
     }
 
-    JS::Rooted<JSObject*> array(aCx, &optional.toObject());
+    JSObject* array = &optional.toObject();
     uint32_t length;
     if (!JS_GetArrayLength(aCx, array, &length)) {
       return NS_ERROR_FAILURE;
     }
     for (uint32_t i = 0; i < length; i++) {
-      JS::Rooted<JS::Value> element(aCx);
-      if (!JS_GetElement(aCx, array, i, element.address()) ||
+      JS::Value element;
+      if (!JS_GetElement(aCx, array, i, &element) ||
           !element.isObject()) {
         return NS_ERROR_FAILURE;
       }
-      JS::Rooted<JSObject*> opts(aCx, &element.toObject());
+      JSObject* opts = &element.toObject();
       JS::AutoIdArray optionalOpts(aCx, JS_Enumerate(aCx, opts));
       // Expect one property per entry.
       if (optionalOpts.length() != 1) {
         return NS_ERROR_FAILURE;
       }
-      JS::Rooted<JS::Value> option(aCx), optionName(aCx);
-      if (!JS_GetPropertyById(aCx, opts, optionalOpts[0], option.address()) ||
-          !JS_IdToValue(aCx, optionalOpts[0], optionName.address())) {
+      JS::Value option, optionName;
+      if (!JS_GetPropertyById(aCx, opts, optionalOpts[0], &option) ||
+          !JS_IdToValue(aCx, optionalOpts[0], &optionName)) {
         return NS_ERROR_FAILURE;
       }
       // Ignore constraints other than boolean, as that's all we support.
@@ -1457,7 +1460,7 @@ PeerConnectionImpl::IceStateChange_m(IceState aState)
 {
   PC_AUTO_ENTER_API_CALL(false);
 
-  CSFLogDebug(logTag, "%s", __FUNCTION__);
+  CSFLogDebug(logTag, __FUNCTION__);
 
   mIceState = aState;
 

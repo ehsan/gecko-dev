@@ -73,7 +73,6 @@ FileInfo::UpdateReferences(nsAutoRefCnt& aRefCount, int32_t aDelta,
     return;
   }
 
-  bool needsCleanup;
   {
     MutexAutoLock lock(IndexedDatabaseManager::FileMutex());
 
@@ -84,13 +83,9 @@ FileInfo::UpdateReferences(nsAutoRefCnt& aRefCount, int32_t aDelta,
     }
 
     mFileManager->mFileInfos.Remove(Id());
-
-    needsCleanup = !mFileManager->Invalidated();
   }
 
-  if (needsCleanup) {
-    Cleanup();
-  }
+  Cleanup();
 
   delete this;
 }
@@ -98,9 +93,8 @@ FileInfo::UpdateReferences(nsAutoRefCnt& aRefCount, int32_t aDelta,
 void
 FileInfo::Cleanup()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  if (quota::QuotaManager::IsShuttingDown()) {
+  if (quota::QuotaManager::IsShuttingDown() ||
+      mFileManager->Invalidated()) {
     return;
   }
 

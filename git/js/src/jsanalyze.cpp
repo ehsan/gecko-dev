@@ -1,26 +1,23 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil -*- */
+/* vim: set ts=4 sw=4 et tw=99: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsanalyze.h"
-
 #include "mozilla/DebugOnly.h"
-#include "mozilla/PodOperations.h"
 
+#include "jsanalyze.h"
 #include "jsautooplen.h"
 #include "jscompartment.h"
 #include "jscntxt.h"
 
 #include "jsinferinlines.h"
+#include "jsobjinlines.h"
 
 using namespace js;
 using namespace js::analyze;
 
 using mozilla::DebugOnly;
-using mozilla::PodCopy;
-using mozilla::PodZero;
 
 /////////////////////////////////////////////////////////////////////
 // Bytecode
@@ -38,6 +35,18 @@ analyze::PrintBytecode(JSContext *cx, HandleScript script, jsbytecode *pc)
     fprintf(stdout, "%s", sprinter.string());
 }
 #endif
+
+static inline bool
+IsJumpOpcode(JSOp op)
+{
+    uint32_t type = JOF_TYPE(js_CodeSpec[op].format);
+
+    /*
+     * LABEL opcodes have type JOF_JUMP but are no-ops, don't treat them as
+     * jumps to avoid degrading precision.
+     */
+    return type == JOF_JUMP && op != JSOP_LABEL;
+}
 
 /////////////////////////////////////////////////////////////////////
 // Bytecode Analysis
@@ -65,7 +74,7 @@ ScriptAnalysis::addJump(JSContext *cx, unsigned offset,
 
     if (offset < *currentOffset) {
         /* Scripts containing loops are never inlined. */
-        isJaegerInlineable = false;
+        isJaegerInlineable = isIonInlineable = false;
         hasLoops_ = true;
 
         if (code->analyzed) {
@@ -191,6 +200,10 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
     startcode->stackDepth = 0;
     codeArray[0] = startcode;
 
+    /* Number of JOF_TYPESET opcodes we have encountered. */
+    unsigned nTypeSets = 0;
+    types::TypeSet *typeArray = script_->types->typeArray();
+
     unsigned offset, nextOffset = 0;
     while (nextOffset < length) {
         offset = nextOffset;
@@ -265,6 +278,22 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             JS_ASSERT(stackDepth >= nuses);
             stackDepth -= nuses;
             stackDepth += ndefs;
+        }
+
+        /*
+         * Assign an observed type set to each reachable JOF_TYPESET opcode.
+         * This may be less than the number of type sets in the script if some
+         * are unreachable, and may be greater in case the number of type sets
+         * overflows a uint16_t. In the latter case a single type set will be
+         * used for the observed types of all ops after the overflow.
+         */
+        if ((js_CodeSpec[op].format & JOF_TYPESET) && cx->typeInferenceEnabled()) {
+            if (nTypeSets < script_->nTypeSets) {
+                code->observedTypes = typeArray[nTypeSets++].toStackTypeSet();
+            } else {
+                JS_ASSERT(nTypeSets == UINT16_MAX);
+                code->observedTypes = typeArray[nTypeSets - 1].toStackTypeSet();
+            }
         }
 
         switch (op) {
@@ -373,7 +402,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
                     if (catchOffset > forwardCatch)
                         forwardCatch = catchOffset;
 
-                    if (tn->kind != JSTRY_ITER && tn->kind != JSTRY_LOOP) {
+                    if (tn->kind != JSTRY_ITER) {
                         if (!addJump(cx, catchOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
                             return;
                         getCode(catchOffset).exceptionEntry = true;
@@ -558,7 +587,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
         }
 
         /* Handle any fallthrough from this opcode. */
-        if (BytecodeFallsThrough(op)) {
+        if (!BytecodeNoFallThrough(op)) {
             JS_ASSERT(successorOffset < script_->length);
 
             Bytecode *&nextcode = codeArray[successorOffset];
@@ -1475,7 +1504,7 @@ ScriptAnalysis::analyzeSSA(JSContext *cx)
                 if (startOffset == offset + 1) {
                     unsigned catchOffset = startOffset + tn->length;
 
-                    if (tn->kind != JSTRY_ITER && tn->kind != JSTRY_LOOP) {
+                    if (tn->kind != JSTRY_ITER) {
                         checkBranchTarget(cx, catchOffset, branchTargets, values, stackDepth);
                         checkExceptionTarget(cx, catchOffset, exceptionTargets);
                     }
@@ -1926,7 +1955,7 @@ CrossScriptSSA::foldValue(const CrossSSAValue &cv)
     const Frame &frame = getFrame(cv.frame);
     const SSAValue &v = cv.v;
 
-    JSScript *parentScript = NULL;
+    RawScript parentScript = NULL;
     ScriptAnalysis *parentAnalysis = NULL;
     if (frame.parent != INVALID_FRAME) {
         parentScript = getFrame(frame.parent).script;
@@ -1959,7 +1988,7 @@ CrossScriptSSA::foldValue(const CrossSSAValue &cv)
              * If there is a single inline callee with a single return site,
              * propagate back to that.
              */
-            JSScript *callee = NULL;
+            RawScript callee = NULL;
             uint32_t calleeFrame = INVALID_FRAME;
             for (unsigned i = 0; i < numFrames(); i++) {
                 if (iterFrame(i).parent == cv.frame && iterFrame(i).parentpc == pc) {

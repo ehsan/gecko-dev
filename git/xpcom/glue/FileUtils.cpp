@@ -117,7 +117,16 @@ mozilla::fallocate(PRFileDesc *aFD, int64_t aLength)
   return false;
 }
 
-#ifdef ReadSysFile_PRESENT
+#ifdef MOZ_WIDGET_GONK
+
+#undef TEMP_FAILURE_RETRY
+#define TEMP_FAILURE_RETRY(exp) (__extension__({ \
+  typeof (exp) _rc; \
+  do { \
+    _rc = (exp); \
+  } while (_rc == -1 && errno == EINTR); \
+  _rc; \
+}))
 
 bool
 mozilla::ReadSysFile(
@@ -125,7 +134,7 @@ mozilla::ReadSysFile(
   char* aBuf,
   size_t aBufSize)
 {
-  int fd = MOZ_TEMP_FAILURE_RETRY(open(aFilename, O_RDONLY));
+  int fd = TEMP_FAILURE_RETRY(open(aFilename, O_RDONLY));
   if (fd < 0) {
     return false;
   }
@@ -136,8 +145,7 @@ mozilla::ReadSysFile(
   ssize_t bytesRead;
   size_t offset = 0;
   do {
-    bytesRead = MOZ_TEMP_FAILURE_RETRY(
-      read(fd, aBuf + offset, aBufSize - offset));
+    bytesRead = TEMP_FAILURE_RETRY(read(fd, aBuf + offset, aBufSize - offset));
     if (bytesRead == -1) {
       return false;
     }
@@ -180,7 +188,7 @@ mozilla::ReadSysFile(
   return true;
 }
 
-#endif /* ReadSysFile_PRESENT */
+#endif /* MOZ_WIDGET_GONK */
 
 void
 mozilla::ReadAheadLib(nsIFile* aFile)
@@ -473,36 +481,23 @@ void
 mozilla::ReadAheadFile(mozilla::pathstr_t aFilePath, const size_t aOffset,
                        const size_t aCount, mozilla::filedesc_t* aOutFd)
 {
-#if defined(XP_WIN)
   if (!aFilePath) {
-    if (aOutFd) {
-      *aOutFd = INVALID_HANDLE_VALUE;
-    }
     return;
   }
+#if defined(XP_WIN)
   HANDLE fd = CreateFileW(aFilePath, GENERIC_READ, FILE_SHARE_READ,
                           NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
-  if (aOutFd) {
-    *aOutFd = fd;
-  }
   if (fd == INVALID_HANDLE_VALUE) {
     return;
   }
   ReadAhead(fd, aOffset, aCount);
-  if (!aOutFd) {
+  if (aOutFd) {
+    *aOutFd = fd;
+  } else {
     CloseHandle(fd);
   }
 #elif defined(LINUX) && !defined(ANDROID) || defined(XP_MACOSX)
-  if (!aFilePath) {
-    if (aOutFd) {
-      *aOutFd = -1;
-    }
-    return;
-  }
   int fd = open(aFilePath, O_RDONLY);
-  if (aOutFd) {
-    *aOutFd = fd;
-  }
   if (fd < 0) {
     return;
   }
@@ -510,9 +505,6 @@ mozilla::ReadAheadFile(mozilla::pathstr_t aFilePath, const size_t aOffset,
   if (aCount == SIZE_MAX) {
     struct stat st;
     if (fstat(fd, &st) < 0) {
-      if (!aOutFd) {
-        close(fd);
-      }
       return;
     }
     count = st.st_size;
@@ -520,7 +512,9 @@ mozilla::ReadAheadFile(mozilla::pathstr_t aFilePath, const size_t aOffset,
     count = aCount;
   }
   ReadAhead(fd, aOffset, count);
-  if (!aOutFd) {
+  if (aOutFd) {
+    *aOutFd = fd;
+  } else {
     close(fd);
   }
 #endif

@@ -24,14 +24,6 @@ using namespace mozilla::a11y;
 // tab windows.
 const PRUnichar* kPropNameTabContent = L"AccessibleTabWindow";
 
-/**
- * WindowProc to process WM_GETOBJECT messages, used in windows emulation mode.
- */
-static LRESULT CALLBACK WindowProc(HWND hWnd, UINT msg,
-                                   WPARAM wParam, LPARAM lParam);
-
-nsRefPtrHashtable<nsPtrHashKey<void>, DocAccessible> nsWinUtils::sHWNDCache;
-
 already_AddRefed<nsIDOMCSSStyleDeclaration>
 nsWinUtils::GetComputedStyleDeclaration(nsIContent* aContent)
 {
@@ -60,7 +52,7 @@ nsWinUtils::MaybeStartWindowEmulation()
       Compatibility::IsDolphin() ||
       Preferences::GetBool("browser.tabs.remote")) {
     RegisterNativeWindow(kClassNameTabContent);
-    sHWNDCache.Init(4);
+    nsAccessNodeWrap::sHWNDCache.Init(4);
     return true;
   }
 
@@ -73,13 +65,13 @@ nsWinUtils::ShutdownWindowEmulation()
   // Unregister window call that's used for document accessibles associated
   // with tabs.
   if (IsWindowEmulationStarted())
-    ::UnregisterClassW(kClassNameTabContent, GetModuleHandle(nullptr));
+    ::UnregisterClassW(kClassNameTabContent, GetModuleHandle(NULL));
 }
 
 bool
 nsWinUtils::IsWindowEmulationStarted()
 {
-  return sHWNDCache.IsInitialized();
+  return nsAccessNodeWrap::sHWNDCache.IsInitialized();
 }
 
 void
@@ -87,14 +79,14 @@ nsWinUtils::RegisterNativeWindow(LPCWSTR aWindowClass)
 {
   WNDCLASSW wc;
   wc.style = CS_GLOBALCLASS;
-  wc.lpfnWndProc = WindowProc;
+  wc.lpfnWndProc = nsAccessNodeWrap::WindowProc;
   wc.cbClsExtra = 0;
   wc.cbWndExtra = 0;
-  wc.hInstance = GetModuleHandle(nullptr);
-  wc.hIcon = nullptr;
-  wc.hCursor = nullptr;
-  wc.hbrBackground = nullptr;
-  wc.lpszMenuName = nullptr;
+  wc.hInstance = GetModuleHandle(NULL);
+  wc.hIcon = NULL;
+  wc.hCursor = NULL;
+  wc.hbrBackground = NULL;
+  wc.lpszMenuName = NULL;
   wc.lpszClassName = aWindowClass;
   ::RegisterClassW(&wc);
 }
@@ -109,9 +101,9 @@ nsWinUtils::CreateNativeWindow(LPCWSTR aWindowClass, HWND aParentWnd,
                                 WS_CHILD | (aIsActive ? WS_VISIBLE : 0),
                                 aX, aY, aWidth, aHeight,
                                 aParentWnd,
-                                nullptr,
-                                GetModuleHandle(nullptr),
-                                nullptr);
+                                NULL,
+                                GetModuleHandle(NULL),
+                                NULL);
   if (hwnd) {
     // Mark this window so that ipc related code can identify it.
     ::SetPropW(hwnd, kPropNameTabContent, (HANDLE)1);
@@ -128,45 +120,7 @@ nsWinUtils::ShowNativeWindow(HWND aWnd)
 void
 nsWinUtils::HideNativeWindow(HWND aWnd)
 {
-  ::SetWindowPos(aWnd, nullptr, 0, 0, 0, 0,
+  ::SetWindowPos(aWnd, NULL, 0, 0, 0, 0,
                  SWP_HIDEWINDOW | SWP_NOSIZE | SWP_NOMOVE |
                  SWP_NOZORDER | SWP_NOACTIVATE);
-}
-
-LRESULT CALLBACK
-WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-  // Note, this window's message handling should not invoke any call that
-  // may result in a cross-process ipc call. Doing so may violate RPC
-  // message semantics.
-
-  switch (msg) {
-    case WM_GETOBJECT:
-    {
-      if (lParam == OBJID_CLIENT) {
-        DocAccessible* document =
-          nsWinUtils::sHWNDCache.GetWeak(static_cast<void*>(hWnd));
-        if (document) {
-          IAccessible* msaaAccessible = nullptr;
-          document->GetNativeInterface((void**)&msaaAccessible); // does an addref
-          if (msaaAccessible) {
-            LRESULT result = ::LresultFromObject(IID_IAccessible, wParam,
-                                                 msaaAccessible); // does an addref
-            msaaAccessible->Release(); // release extra addref
-            return result;
-          }
-        }
-      }
-      return 0;
-    }
-    case WM_NCHITTEST:
-    {
-      LRESULT lRet = ::DefWindowProc(hWnd, msg, wParam, lParam);
-      if (HTCLIENT == lRet)
-        lRet = HTTRANSPARENT;
-      return lRet;
-    }
-  }
-
-  return ::DefWindowProcW(hWnd, msg, wParam, lParam);
 }

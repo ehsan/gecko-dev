@@ -67,7 +67,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXHREventTarget,
                                            nsDOMEventTargetHelper)
   NS_DECL_NSIXMLHTTPREQUESTEVENTTARGET
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
   IMPL_EVENT_HANDLER(loadstart)
   IMPL_EVENT_HANDLER(progress)
@@ -91,11 +91,10 @@ public:
   }                                         
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_NSIXMLHTTPREQUESTEVENTTARGET(nsXHREventTarget::)
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget::)
   NS_DECL_NSIXMLHTTPREQUESTUPLOAD
 
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE
   {
     return mozilla::dom::XMLHttpRequestUploadBinding::Wrap(cx, scope, this);
   }
@@ -132,8 +131,7 @@ public:
   nsXMLHttpRequest();
   virtual ~nsXMLHttpRequest();
 
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE
   {
     return mozilla::dom::XMLHttpRequestBinding::Wrap(cx, scope, this);
   }
@@ -149,16 +147,16 @@ public:
               const mozilla::dom::MozXMLHttpRequestParameters& aParams,
               ErrorResult& aRv)
   {
-    nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aGlobal.Get());
+    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.Get());
     nsCOMPtr<nsIScriptObjectPrincipal> principal =
       do_QueryInterface(aGlobal.Get());
-    if (!global || ! principal) {
+    if (!window || ! principal) {
       aRv.Throw(NS_ERROR_FAILURE);
-      return nullptr;
+      return NULL;
     }
 
     nsRefPtr<nsXMLHttpRequest> req = new nsXMLHttpRequest();
-    req->Construct(principal->GetPrincipal(), global);
+    req->Construct(principal->GetPrincipal(), window);
     req->InitParameters(aParams.mMozAnon, aParams.mMozSystem);
     return req.forget();
   }
@@ -171,7 +169,7 @@ public:
   {
     // Pretend like someone passed null, so we can pick up the default values
     mozilla::dom::MozXMLHttpRequestParameters params;
-    if (!params.Init(aCx, JS::NullHandleValue)) {
+    if (!params.Init(aCx, nullptr, JS::NullValue())) {
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
@@ -180,14 +178,13 @@ public:
   }
 
   void Construct(nsIPrincipal* aPrincipal,
-                 nsIGlobalObject* aGlobalObject,
-                 nsIURI* aBaseURI = nullptr)
+                 nsPIDOMWindow* aOwnerWindow,
+                 nsIURI* aBaseURI = NULL)
   {
     MOZ_ASSERT(aPrincipal);
-    MOZ_ASSERT_IF(nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(
-      aGlobalObject), win->IsInnerWindow());
+    MOZ_ASSERT_IF(aOwnerWindow, aOwnerWindow->IsInnerWindow());
     mPrincipal = aPrincipal;
-    BindToOwner(aGlobalObject);
+    BindToOwner(aOwnerWindow);
     mBaseURI = aBaseURI;
   }
 
@@ -228,7 +225,7 @@ public:
   virtual size_t
     SizeOfEventTargetIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget::)
 
 #ifdef DEBUG
   void StaticAssertions();
@@ -460,11 +457,6 @@ public:
 
   // This is called by the factory constructor.
   nsresult Init();
-
-  nsresult init(nsIPrincipal* principal,
-                nsIScriptContext* scriptContext,
-                nsPIDOMWindow* globalObject,
-                nsIURI* baseURI);
 
   void SetRequestObserver(nsIRequestObserver* aObserver);
 

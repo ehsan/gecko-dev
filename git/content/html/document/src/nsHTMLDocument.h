@@ -54,9 +54,10 @@ public:
   virtual void ResetToURI(nsIURI* aURI, nsILoadGroup* aLoadGroup,
                           nsIPrincipal* aPrincipal);
 
-  virtual already_AddRefed<nsIPresShell> CreateShell(nsPresContext* aContext,
-                                                     nsViewManager* aViewManager,
-                                                     nsStyleSet* aStyleSet) MOZ_OVERRIDE;
+  virtual nsresult CreateShell(nsPresContext* aContext,
+                               nsViewManager* aViewManager,
+                               nsStyleSet* aStyleSet,
+                               nsIPresShell** aInstancePtrResult);
 
   virtual nsresult StartDocumentLoad(const char* aCommand,
                                      nsIChannel* aChannel,
@@ -180,8 +181,6 @@ public:
   virtual bool WillIgnoreCharsetOverride();
 
   // WebIDL API
-  virtual JSObject* WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
-    MOZ_OVERRIDE;
   void GetDomain(nsAString& aDomain, mozilla::ErrorResult& rv);
   void SetDomain(const nsAString& aDomain, mozilla::ErrorResult& rv);
   void GetCookie(nsAString& aCookie, mozilla::ErrorResult& rv);
@@ -255,8 +254,6 @@ public:
   already_AddRefed<nsIDOMLocation> GetLocation() const {
     return nsIDocument::GetLocation();
   }
-
-  virtual nsHTMLDocument* AsHTMLDocument() { return this; }
 
 protected:
   nsresult GetBodySize(int32_t* aWidth,

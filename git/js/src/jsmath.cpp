@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,8 +8,6 @@
 /*
  * JS math package.
  */
-
-#include "jsmath.h"
 
 #include "mozilla/Constants.h"
 #include "mozilla/FloatingPoint.h"
@@ -21,24 +20,18 @@
 #include "jsatom.h"
 #include "jscntxt.h"
 #include "jsversion.h"
+#include "jslock.h"
+#include "jsmath.h"
+#include "jsnum.h"
 #include "jslibmath.h"
 #include "jscompartment.h"
 
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
 
 using mozilla::Abs;
-using mozilla::DoubleIsInt32;
-using mozilla::ExponentComponent;
-using mozilla::IsFinite;
-using mozilla::IsInfinite;
-using mozilla::IsNaN;
-using mozilla::IsNegative;
-using mozilla::IsNegativeZero;
-using mozilla::PositiveInfinity;
-using mozilla::NegativeInfinity;
-using mozilla::SpecificNaN;
 
 #ifndef M_E
 #define M_E             2.7182818284590452354
@@ -78,8 +71,8 @@ MathCache::MathCache() {
     memset(table, 0, sizeof(table));
 
     /* See comments in lookup(). */
-    JS_ASSERT(IsNegativeZero(-0.0));
-    JS_ASSERT(!IsNegativeZero(+0.0));
+    JS_ASSERT(MOZ_DOUBLE_IS_NEGATIVE_ZERO(-0.0));
+    JS_ASSERT(!MOZ_DOUBLE_IS_NEGATIVE_ZERO(+0.0));
     JS_ASSERT(hash(-0.0) != hash(+0.0));
 }
 
@@ -93,7 +86,7 @@ Class js::MathClass = {
     js_Math_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_Math),
     JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
+    JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -211,7 +204,7 @@ js::ecmaAtan2(double x, double y)
      * - The sign of x determines the sign of the result.
      * - The sign of y determines the multiplicator, 1 or 3.
      */
-    if (IsInfinite(x) && IsInfinite(y)) {
+    if (MOZ_DOUBLE_IS_INFINITE(x) && MOZ_DOUBLE_IS_INFINITE(y)) {
         double z = js_copysign(M_PI / 4, x);
         if (y < 0)
             z *= 3;
@@ -301,7 +294,7 @@ double
 js::math_exp_impl(MathCache *cache, double x)
 {
 #ifdef _WIN32
-    if (!IsNaN(x)) {
+    if (!MOZ_DOUBLE_IS_NaN(x)) {
         if (x == js_PositiveInfinity)
             return js_PositiveInfinity;
         if (x == js_NegativeInfinity)
@@ -405,12 +398,12 @@ js_math_max(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     double x;
-    double maxval = NegativeInfinity();
+    double maxval = MOZ_DOUBLE_NEGATIVE_INFINITY();
     for (unsigned i = 0; i < args.length(); i++) {
         if (!ToNumber(cx, args[i], &x))
             return false;
         // Math.max(num, NaN) => NaN, Math.max(-0, +0) => +0
-        if (x > maxval || IsNaN(x) || (x == maxval && IsNegative(maxval)))
+        if (x > maxval || MOZ_DOUBLE_IS_NaN(x) || (x == maxval && MOZ_DOUBLE_IS_NEGATIVE(maxval)))
             maxval = x;
     }
     args.rval().setNumber(maxval);
@@ -423,12 +416,12 @@ js_math_min(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     double x;
-    double minval = PositiveInfinity();
+    double minval = MOZ_DOUBLE_POSITIVE_INFINITY();
     for (unsigned i = 0; i < args.length(); i++) {
         if (!ToNumber(cx, args[i], &x))
             return false;
         // Math.min(num, NaN) => NaN, Math.min(-0, +0) => -0
-        if (x < minval || IsNaN(x) || (x == minval && IsNegativeZero(x)))
+        if (x < minval || MOZ_DOUBLE_IS_NaN(x) || (x == minval && MOZ_DOUBLE_IS_NEGATIVE_ZERO(x)))
             minval = x;
     }
     args.rval().setNumber(minval);
@@ -456,7 +449,7 @@ js::powi(double x, int y)
                 // given us a finite p. This happens very rarely.
 
                 double result = 1.0 / p;
-                return (result == 0 && IsInfinite(p))
+                return (result == 0 && MOZ_DOUBLE_IS_INFINITE(p))
                        ? pow(x, static_cast<double>(y))  // Avoid pow(double, int).
                        : result;
             }
@@ -478,17 +471,10 @@ double
 js::ecmaPow(double x, double y)
 {
     /*
-     * Use powi if the exponent is an integer-valued double. We don't have to
-     * check for NaN since a comparison with NaN is always false.
-     */
-    if (int32_t(y) == y)
-        return powi(x, int32_t(y));
-
-    /*
      * Because C99 and ECMA specify different behavior for pow(),
      * we need to wrap the libm call to make it ECMA compliant.
      */
-    if (!IsFinite(y) && (x == 1.0 || x == -1.0))
+    if (!MOZ_DOUBLE_IS_FINITE(y) && (x == 1.0 || x == -1.0))
         return js_NaN;
     /* pow(x, +-0) is always 1, even for x = NaN (MSVC gets this wrong). */
     if (y == 0)
@@ -506,7 +492,7 @@ js::ecmaPow(double x, double y)
 JSBool
 js_math_pow(JSContext *cx, unsigned argc, Value *vp)
 {
-    double x, y;
+    double x, y, z;
 
     if (argc <= 1) {
         vp->setDouble(js_NaN);
@@ -518,7 +504,7 @@ js_math_pow(JSContext *cx, unsigned argc, Value *vp)
      * Special case for square roots. Note that pow(x, 0.5) != sqrt(x)
      * when x = -0.0, so we have to guard for this.
      */
-    if (IsFinite(x) && x != 0.0) {
+    if (MOZ_DOUBLE_IS_FINITE(x) && x != 0.0) {
         if (y == 0.5) {
             vp->setNumber(sqrt(x));
             return JS_TRUE;
@@ -534,7 +520,15 @@ js_math_pow(JSContext *cx, unsigned argc, Value *vp)
         return JS_TRUE;
     }
 
-    double z = ecmaPow(x, y);
+    /*
+     * Use powi if the exponent is an integer or an integer-valued double.
+     * We don't have to check for NaN since a comparison with NaN is always
+     * false.
+     */
+    if (int32_t(y) == y)
+        z = powi(x, int32_t(y));
+    else
+        z = ecmaPow(x, y);
 
     vp->setNumber(z);
     return JS_TRUE;
@@ -617,13 +611,13 @@ js_math_round(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     int32_t i;
-    if (DoubleIsInt32(x, &i)) {
+    if (MOZ_DOUBLE_IS_INT32(x, &i)) {
         args.rval().setInt32(i);
         return true;
     }
 
-    /* Some numbers are so big that adding 0.5 would give the wrong number. */
-    if (ExponentComponent(x) >= 52) {
+    /* Some numbers are so big that adding 0.5 would give the wrong number */
+    if (MOZ_DOUBLE_EXPONENT(x) >= 52) {
         args.rval().setNumber(x);
         return true;
     }
@@ -710,7 +704,7 @@ math_toSource(JSContext *cx, unsigned argc, Value *vp)
 }
 #endif
 
-static const JSFunctionSpec math_static_methods[] = {
+static JSFunctionSpec math_static_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,  math_toSource,        0, 0),
 #endif

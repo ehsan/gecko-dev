@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -47,20 +48,18 @@ ParseMapPool::allocate()
     return map;
 }
 
-template <typename ParseHandler>
-inline typename ParseHandler::DefinitionNode
-AtomDecls<ParseHandler>::lookupFirst(JSAtom *atom) const
+inline Definition *
+AtomDecls::lookupFirst(JSAtom *atom) const
 {
     JS_ASSERT(map);
     AtomDefnListPtr p = map->lookup(atom);
     if (!p)
-        return ParseHandler::nullDefinition();
-    return p.value().front<ParseHandler>();
+        return NULL;
+    return p.value().front();
 }
 
-template <typename ParseHandler>
 inline DefinitionList::Range
-AtomDecls<ParseHandler>::lookupMulti(JSAtom *atom) const
+AtomDecls::lookupMulti(JSAtom *atom) const
 {
     JS_ASSERT(map);
     if (AtomDefnListPtr p = map->lookup(atom))
@@ -68,16 +67,15 @@ AtomDecls<ParseHandler>::lookupMulti(JSAtom *atom) const
     return DefinitionList::Range();
 }
 
-template <typename ParseHandler>
 inline bool
-AtomDecls<ParseHandler>::addUnique(JSAtom *atom, DefinitionNode defn)
+AtomDecls::addUnique(JSAtom *atom, Definition *defn)
 {
     JS_ASSERT(map);
     AtomDefnListAddPtr p = map->lookupForAdd(atom);
     if (!p)
-        return map->add(p, atom, DefinitionList(ParseHandler::definitionToBits(defn)));
+        return map->add(p, atom, DefinitionList(defn));
     JS_ASSERT(!p.value().isMultiple());
-    p.value() = DefinitionList(ParseHandler::definitionToBits(defn));
+    p.value() = DefinitionList(defn);
     return true;
 }
 
@@ -101,17 +99,15 @@ AtomThingMapPtr<Map>::releaseMap(JSContext *cx)
     map_ = NULL;
 }
 
-template <typename ParseHandler>
 inline bool
-AtomDecls<ParseHandler>::init()
+AtomDecls::init()
 {
     map = cx->parseMapPool().acquire<AtomDefnListMap>();
     return map;
 }
 
-template <typename ParseHandler>
 inline
-AtomDecls<ParseHandler>::~AtomDecls()
+AtomDecls::~AtomDecls()
 {
     if (map)
         cx->parseMapPool().release(map);

@@ -5,12 +5,17 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.gfx.Layer;
-import org.mozilla.gecko.util.ThreadUtils;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.mozilla.gecko.db.BrowserDB;
+import org.mozilla.gecko.gfx.Layer;
+import org.mozilla.gecko.util.ThreadUtils;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -23,12 +28,6 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 public class Tab {
     private static final String LOGTAG = "GeckoTab";
 
@@ -36,13 +35,10 @@ public class Tab {
     private final int mId;
     private long mLastUsed;
     private String mUrl;
-    private String mBaseDomain;
-    private String mUserSearch;
     private String mTitle;
     private Bitmap mFavicon;
     private String mFaviconUrl;
     private int mFaviconSize;
-    private boolean mFeedsEnabled;
     private JSONObject mIdentityData;
     private boolean mReaderEnabled;
     private BitmapDrawable mThumbnail;
@@ -57,7 +53,6 @@ public class Tab {
     private String mContentType;
     private boolean mHasTouchListeners;
     private ZoomConstraints mZoomConstraints;
-    private boolean mIsRTL;
     private ArrayList<View> mPluginViews;
     private HashMap<Object, Layer> mPluginLayers;
     private int mBackgroundColor;
@@ -78,15 +73,12 @@ public class Tab {
         mId = id;
         mLastUsed = 0;
         mUrl = url;
-        mBaseDomain = "";
-        mUserSearch = "";
         mExternal = external;
         mParentId = parentId;
         mTitle = title == null ? "" : title;
         mFavicon = null;
         mFaviconUrl = null;
         mFaviconSize = 0;
-        mFeedsEnabled = false;
         mIdentityData = null;
         mReaderEnabled = false;
         mEnteringReaderMode = false;
@@ -138,11 +130,6 @@ public class Tab {
         return mUrl;
     }
 
-    // mUserSearch should never be null, but it may be an empty string
-    public synchronized String getUserSearch() {
-        return mUserSearch;
-    }
-
     // mTitle should never be null, but it may be an empty string
     public synchronized String getTitle() {
         return mTitle;
@@ -154,10 +141,6 @@ public class Tab {
         }
 
         return mUrl;
-    }
-
-    public String getBaseDomain() {
-        return mBaseDomain;
     }
 
     public Bitmap getFavicon() {
@@ -214,10 +197,6 @@ public class Tab {
         return mFaviconUrl;
     }
 
-    public boolean getFeedsEnabled() {
-        return mFeedsEnabled;
-    }
-
     public String getSecurityMode() {
         try {
             return mIdentityData.getString("mode");
@@ -252,10 +231,6 @@ public class Tab {
             mUrl = url;
             updateBookmark();
         }
-    }
-
-    private synchronized void updateUserSearch(String userSearch) {
-        mUserSearch = userSearch;
     }
 
     public void setDocumentURI(String documentURI) {
@@ -302,14 +277,6 @@ public class Tab {
         return mZoomConstraints;
     }
 
-    public void setIsRTL(boolean aIsRTL) {
-        mIsRTL = aIsRTL;
-    }
-
-    public boolean getIsRTL() {
-        return mIsRTL;
-    }
-
     public void setHasTouchListeners(boolean aValue) {
         mHasTouchListeners = aValue;
     }
@@ -351,10 +318,6 @@ public class Tab {
         mFavicon = null;
         mFaviconUrl = null;
         mFaviconSize = 0;
-    }
-
-    public void setFeedsEnabled(boolean feedsEnabled) {
-        mFeedsEnabled = feedsEnabled;
     }
 
     public void updateIdentityData(JSONObject identityData) {
@@ -414,15 +377,7 @@ public class Tab {
         if (!mReaderEnabled)
             return;
 
-        JSONObject json = new JSONObject();
-        try {
-            json.put("tabID", String.valueOf(getId()));
-        } catch (JSONException e) {
-            Log.e(LOGTAG, "JSON error - failing to add to reading list", e);
-            return;
-        }
-
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Reader:Add", json.toString());
+        GeckoEvent e = GeckoEvent.createBroadcastEvent("Reader:Add", String.valueOf(getId()));
         GeckoAppShell.sendEventToGecko(e);
     }
 
@@ -569,20 +524,15 @@ public class Tab {
         final String uri = message.getString("uri");
         mEnteringReaderMode = ReaderModeUtils.isEnteringReaderMode(mUrl, uri);
         updateURL(uri);
-        updateUserSearch(message.getString("userSearch"));
 
         setDocumentURI(message.getString("documentURI"));
-        mBaseDomain = message.optString("baseDomain");
         if (message.getBoolean("sameDocument")) {
             // We can get a location change event for the same document with an anchor tag
-            // Notify listeners so that buttons like back or forward will update themselves
-            Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.LOCATION_CHANGE, uri);
             return;
         }
 
         setContentType(message.getString("contentType"));
         clearFavicon();
-        setFeedsEnabled(false);
         updateTitle(null);
         updateIdentityData(null);
         setReaderEnabled(false);

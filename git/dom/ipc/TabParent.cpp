@@ -34,6 +34,7 @@
 #include "nsIDOMApplicationRegistry.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMHTMLFrameElement.h"
 #include "nsIDOMWindow.h"
 #include "nsIDialogCreator.h"
@@ -200,7 +201,6 @@ TabParent::TabParent(const TabContext& aContext)
   , mDimensions(0, 0)
   , mOrientation(0)
   , mDPI(0)
-  , mDefaultScale(0)
   , mShown(false)
   , mUpdatedDimensions(false)
   , mMarkedDestroying(false)
@@ -217,32 +217,7 @@ void
 TabParent::SetOwnerElement(nsIDOMElement* aElement)
 {
   mFrameElement = aElement;
-  TryCacheDPIAndScale();
-}
-
-void
-TabParent::GetAppType(nsAString& aOut)
-{
-  aOut.Truncate();
-  nsCOMPtr<Element> elem = do_QueryInterface(mFrameElement);
-  if (!elem) {
-    return;
-  }
-
-  elem->GetAttr(kNameSpaceID_None, nsGkAtoms::mozapptype, aOut);
-}
-
-bool
-TabParent::IsVisible()
-{
-  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  if (!frameLoader) {
-    return false;
-  }
-
-  bool visible = false;
-  frameLoader->GetVisible(&visible);
-  return visible;
+  TryCacheDPI();
 }
 
 void
@@ -291,19 +266,17 @@ TabParent::ActorDestroy(ActorDestroyReason why)
     mIMETabParent = nullptr;
   }
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  nsCOMPtr<nsIObserverService> os = services::GetObserverService();
   if (frameLoader) {
     ReceiveMessage(CHILD_PROCESS_SHUTDOWN_MESSAGE, false, nullptr, nullptr);
     frameLoader->DestroyChild();
 
-    if (why == AbnormalShutdown && os) {
-      os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, frameLoader),
-                          "oop-frameloader-crashed", nullptr);
+    if (why == AbnormalShutdown) {
+      nsCOMPtr<nsIObserverService> os = services::GetObserverService();
+      if (os) {
+        os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, frameLoader),
+                            "oop-frameloader-crashed", nullptr);
+      }
     }
-  }
-
-  if (os) {
-    os->NotifyObservers(NS_ISUPPORTS_CAST(nsITabParent*, this), "ipc:browser-destroyed", nullptr);
   }
 }
 
@@ -673,6 +646,10 @@ TabParent::TryCapture(const nsGUIEvent& aEvent)
 {
   MOZ_ASSERT(sEventCapturer == this && mEventCaptureDepth > 0);
 
+  if (mIsDestroyed) {
+    return false;
+  }
+
   if (aEvent.eventStructType != NS_TOUCH_EVENT) {
     // Only capture of touch events is implemented, for now.
     return false;
@@ -693,19 +670,29 @@ TabParent::TryCapture(const nsGUIEvent& aEvent)
     return false;
   }
 
-  // Adjust the widget coordinates to be relative to our frame.
-  nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
+  if (RenderFrameParent* rfp = GetRenderFrame()) {
+    // We need to process screen relative events co-ordinates for gestures to
+    // avoid phantom movement when the frame moves.
+    rfp->NotifyInputEvent(event);
 
-  if (!frameLoader) {
-    // No frame anymore?
-    sEventCapturer = nullptr;
-    return false;
+    // Adjust the widget coordinates to be relative to our frame.
+    nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
+
+    if (!frameLoader) {
+      // No frame anymore?
+      sEventCapturer = nullptr;
+      return false;
+    }
+
+    // Remove the frame offset and compensate for zoom.
+    nsEventStateManager::MapEventCoordinatesForChildProcess(frameLoader,
+                                                            &event);
+    rfp->ApplyZoomCompensationToEvent(&event);
   }
 
-  nsEventStateManager::MapEventCoordinatesForChildProcess(frameLoader, &event);
-
-  SendRealTouchEvent(event);
-  return true;
+  return (event.message == NS_TOUCH_MOVE) ?
+    PBrowserParent::SendRealTouchMoveEvent(event) :
+    PBrowserParent::SendRealTouchEvent(event);
 }
 
 bool
@@ -1044,22 +1031,11 @@ TabParent::RecvSetInputContext(const int32_t& aIMEEnabled,
 bool
 TabParent::RecvGetDPI(float* aValue)
 {
-  TryCacheDPIAndScale();
+  TryCacheDPI();
 
   NS_ABORT_IF_FALSE(mDPI > 0,
                     "Must not ask for DPI before OwnerElement is received!");
   *aValue = mDPI;
-  return true;
-}
-
-bool
-TabParent::RecvGetDefaultScale(double* aValue)
-{
-  TryCacheDPIAndScale();
-
-  NS_ABORT_IF_FALSE(mDefaultScale > 0,
-                    "Must not ask for scale before OwnerElement is received!");
-  *aValue = mDefaultScale;
   return true;
 }
 
@@ -1169,14 +1145,6 @@ TabParent::RecvPIndexedDBConstructor(PIndexedDBParent* aActor,
 
   nsCOMPtr<nsPIDOMWindow> window = doc->GetInnerWindow();
   NS_ENSURE_TRUE(window, false);
-
-  // Let's do a current inner check to see if the inner is active or is in
-  // bf cache, and bail out if it's not active.
-  nsCOMPtr<nsPIDOMWindow> outer = doc->GetWindow();
-  if (!outer || outer->GetCurrentInnerWindow() != window) {
-    *aAllowed = false;
-    return true;
-  }
 
   ContentParent* contentParent = static_cast<ContentParent*>(Manager());
   NS_ASSERTION(contentParent, "Null manager?!");
@@ -1299,7 +1267,8 @@ TabParent::HandleDelayedDialogs()
 
 PRenderFrameParent*
 TabParent::AllocPRenderFrame(ScrollingBehavior* aScrolling,
-                             TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                             LayersBackend* aBackend,
+                             int32_t* aMaxTextureSize,
                              uint64_t* aLayersId)
 {
   MOZ_ASSERT(ManagedPRenderFrameParent().IsEmpty());
@@ -1313,7 +1282,7 @@ TabParent::AllocPRenderFrame(ScrollingBehavior* aScrolling,
   *aScrolling = UseAsyncPanZoom() ? ASYNC_PAN_ZOOM : DEFAULT_SCROLLING;
   return new RenderFrameParent(frameLoader,
                                *aScrolling,
-                               aTextureFactoryIdentifier, aLayersId);
+                               aBackend, aMaxTextureSize, aLayersId);
 }
 
 bool
@@ -1382,7 +1351,7 @@ TabParent::GetFrameLoader() const
 }
 
 void
-TabParent::TryCacheDPIAndScale()
+TabParent::TryCacheDPI()
 {
   if (mDPI > 0) {
     return;
@@ -1402,7 +1371,6 @@ TabParent::TryCacheDPIAndScale()
 
   if (widget) {
     mDPI = widget->GetDPI();
-    mDefaultScale = widget->GetDefaultScale();
   }
 }
 
@@ -1436,7 +1404,8 @@ TabParent::MaybeForwardEventToRenderFrame(const nsInputEvent& aEvent,
                                           nsInputEvent* aOutEvent)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->NotifyInputEvent(aEvent, aOutEvent);
+    rfp->NotifyInputEvent(aEvent);
+    rfp->ApplyZoomCompensationToEvent(aOutEvent);
   }
 }
 
@@ -1456,7 +1425,8 @@ TabParent::RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
 bool
 TabParent::RecvPRenderFrameConstructor(PRenderFrameParent* actor,
                                        ScrollingBehavior* scrolling,
-                                       TextureFactoryIdentifier* factoryIdentifier,
+                                       LayersBackend* backend,
+                                       int32_t* maxTextureSize,
                                        uint64_t* layersId)
 {
   RenderFrameParent* rfp = GetRenderFrame();

@@ -26,6 +26,8 @@ CPPSRCS		= \
 		nsGBKConvUtil.cpp \
 		$(NULL)
 
+EXPORTS		= nsUCvCnCID.h
+
 LOCAL_INCLUDES = -I$(srcdir)/../util
 
 include $(topsrcdir)/config/rules.mk

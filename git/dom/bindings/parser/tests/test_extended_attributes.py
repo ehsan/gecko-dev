@@ -2,9 +2,9 @@ import WebIDL
 
 def WebIDLTest(parser, harness):
     parser.parse("""
-        [NoInterfaceObject]
+        [Flippety]
         interface TestExtendedAttr {
-          [Unforgeable] readonly attribute byte b;
+          [Foopy] attribute byte b;
         };
     """)
 
@@ -12,9 +12,9 @@ def WebIDLTest(parser, harness):
 
     parser = parser.reset()
     parser.parse("""
-        [Pref="foo.bar",Pref=flop]
+        [Flippety="foo.bar",Floppety=flop]
         interface TestExtendedAttr {
-          [Pref="foo.bar"] attribute byte b;
+          [Foopy="foo.bar"] attribute byte b;
         };
     """)
 

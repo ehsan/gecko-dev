@@ -138,7 +138,7 @@ nsStyleSet::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
   return n;
 }
 
-void
+nsresult
 nsStyleSet::Init(nsPresContext *aPresContext)
 {
   mFirstLineRule = new nsEmptyStyleRule;
@@ -149,6 +149,8 @@ nsStyleSet::Init(nsPresContext *aPresContext)
 
   GatherRuleProcessors(eAnimationSheet);
   GatherRuleProcessors(eTransitionSheet);
+
+  return NS_OK;
 }
 
 nsresult
@@ -1321,15 +1323,13 @@ nsStyleSet::ResolvePseudoElementStyle(Element* aParentElement,
 
   // For pseudos, |data.IsLink()| being true means that
   // our parent node is a link.
-  uint32_t flags = eNoFlags;
+  // Also: Flex containers shouldn't have pseudo-elements, so given that we're
+  // looking up pseudo-element style, make sure we're not treating our node as
+  // a flex item.
+  uint32_t flags = eSkipFlexItemStyleFixup;
   if (aType == nsCSSPseudoElements::ePseudo_before ||
       aType == nsCSSPseudoElements::ePseudo_after) {
     flags |= eDoAnimation;
-  } else {
-    // Flex containers don't expect to have any pseudo-element children aside
-    // from ::before and ::after.  So if we have such a child, we're not
-    // actually in a flex container, and we should skip flex-item style fixup.
-    flags |= eSkipFlexItemStyleFixup;
   }
 
   return GetContext(aParentContext, ruleNode, visitedRuleNode,
@@ -1389,15 +1389,13 @@ nsStyleSet::ProbePseudoElementStyle(Element* aParentElement,
 
   // For pseudos, |data.IsLink()| being true means that
   // our parent node is a link.
-  uint32_t flags = eNoFlags;
+  // Also: Flex containers shouldn't have pseudo-elements, so given that we're
+  // looking up pseudo-element style, make sure we're not treating our node as
+  // a flex item.
+  uint32_t flags = eSkipFlexItemStyleFixup;
   if (aType == nsCSSPseudoElements::ePseudo_before ||
       aType == nsCSSPseudoElements::ePseudo_after) {
     flags |= eDoAnimation;
-  } else {
-    // Flex containers don't expect to have any pseudo-element children aside
-    // from ::before and ::after.  So if we have such a child, we're not
-    // actually in a flex container, and we should skip flex-item style fixup.
-    flags |= eSkipFlexItemStyleFixup;
   }
 
   nsRefPtr<nsStyleContext> result =
@@ -1668,8 +1666,8 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
   // This short-circuit is OK because we don't call TryStartingTransition
   // during style reresolution if the style context pointer hasn't changed.
   if (aStyleContext->GetParent() == aNewParentContext) {
-    nsRefPtr<nsStyleContext> ret = aStyleContext;
-    return ret.forget();
+    aStyleContext->AddRef();
+    return aStyleContext;
   }
 
   nsIAtom* pseudoTag = aStyleContext->GetPseudo();
@@ -1730,20 +1728,12 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
     flags |= eDoAnimation;
   }
 
-  if (aElement && aElement->IsRootOfAnonymousSubtree()) {
-    // For anonymous subtree roots, don't tweak "display" value based on
-    // whether or not the parent is styled as a flex container. (If the parent
-    // has anonymous-subtree kids, then we know it's not actually going to get
-    // a flex container frame, anyway.)
-    flags |= eSkipFlexItemStyleFixup;
-  }
-
   return GetContext(aNewParentContext, ruleNode, visitedRuleNode,
                     pseudoTag, pseudoType,
                     aElement, flags);
 }
 
-struct MOZ_STACK_CLASS StatefulData : public StateRuleProcessorData {
+struct StatefulData : public StateRuleProcessorData {
   StatefulData(nsPresContext* aPresContext, Element* aElement,
                nsEventStates aStateMask, TreeMatchContext& aTreeMatchContext)
     : StateRuleProcessorData(aPresContext, aElement, aStateMask,
@@ -1803,7 +1793,7 @@ nsStyleSet::HasStateDependentStyle(nsPresContext*       aPresContext,
   return data.mHint;
 }
 
-struct MOZ_STACK_CLASS AttributeData : public AttributeRuleProcessorData {
+struct AttributeData : public AttributeRuleProcessorData {
   AttributeData(nsPresContext* aPresContext,
                 Element* aElement, nsIAtom* aAttribute, int32_t aModType,
                 bool aAttrHasChanged, TreeMatchContext& aTreeMatchContext)

@@ -5,7 +5,7 @@
 const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 this.EXPORTED_SYMBOLS = [];
 
-Cu.import("resource://gre/modules/devtools/gcli.jsm");
+Cu.import("resource:///modules/devtools/gcli.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/devtools/Require.jsm");
 
@@ -80,11 +80,11 @@ gcli.addCommand({
       }
 
       if (profile.isFinished) {
-        throw gcli.lookup("profilerAlreadyFinished");
+        throw gcli.lookup("profilerAlradyFinished");
       }
 
       panel.switchToProfile(profile, function () profile.start());
-      return gcli.lookup("profilerStarting2");
+      return gcli.lookup("profilerStarting");
     }
 
     return gDevTools.showToolbox(context.environment.target, "jsprofiler")
@@ -121,11 +121,11 @@ gcli.addCommand({
       }
 
       if (!profile.isStarted) {
-        throw gcli.lookup("profilerNotStarted2");
+        throw gcli.lookup("profilerNotStarted");
       }
 
       panel.switchToProfile(profile, function () profile.stop());
-      return gcli.lookup("profilerStopping2");
+      return gcli.lookup("profilerStopping");
     }
 
     return gDevTools.showToolbox(context.environment.target, "jsprofiler")

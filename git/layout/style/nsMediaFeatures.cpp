@@ -509,13 +509,6 @@ nsMediaFeatures::features[] = {
         GetSystemMetric
     },
     {
-        &nsGkAtoms::_moz_overlay_scrollbars,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { &nsGkAtoms::overlay_scrollbars },
-        GetSystemMetric
-    },
-    {
         &nsGkAtoms::_moz_windows_default_theme,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
@@ -584,14 +577,6 @@ nsMediaFeatures::features[] = {
         nsMediaFeature::eIdent,
         { nullptr },
         GetWindowsTheme
-    },
-
-    {
-        &nsGkAtoms::_moz_swipe_animation_enabled,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { &nsGkAtoms::swipe_animation_enabled },
-        GetSystemMetric
     },
 
     // Internal -moz-is-glyph media feature: applies only inside SVG glyphs.

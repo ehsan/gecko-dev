@@ -35,8 +35,8 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsCategoryManager.h"
 #include "nsCategoryManagerUtils.h"
+#include "nsIEnumerator.h"
 #include "xptiprivate.h"
-#include "mozilla/XPTInterfaceInfoManager.h"
 #include "nsIConsoleService.h"
 #include "nsIMemoryReporter.h"
 #include "nsIObserverService.h"
@@ -200,7 +200,7 @@ ArenaStrdup(const char *s, PLArenaPool *arena)
 
 namespace {
 
-class MOZ_STACK_CLASS MutexLock
+class NS_STACK_CLASS MutexLock
 {
 public:
     MutexLock(SafeMutex& aMutex)
@@ -614,7 +614,8 @@ nsComponentManagerImpl::ManifestXPT(ManifestProcessingContext& cx, int lineno, c
         rv = data.Copy(buf, len);
     }
     if (NS_SUCCEEDED(rv)) {
-        XPTInterfaceInfoManager::GetSingleton()->RegisterBuffer(buf, len);
+        xptiInterfaceInfoManager::GetSingleton()
+            ->RegisterBuffer(buf, len);
     } else {
         nsCString uri;
         f.GetURIString(uri);
@@ -1797,8 +1798,9 @@ nsFactoryEntry::GetFactory()
             factory.swap(mFactory);
         }
     }
-    nsCOMPtr<nsIFactory> factory = mFactory;
-    return factory.forget();
+    nsIFactory* factory = mFactory;
+    factory->AddRef();
+    return factory;
 }
 
 size_t

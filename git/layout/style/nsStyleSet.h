@@ -62,7 +62,10 @@ class nsStyleSet
 
   size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
-  void Init(nsPresContext *aPresContext);
+  // Initialize the object.  You must check the return code and not use
+  // the nsStyleSet if Init() fails.
+
+  nsresult Init(nsPresContext *aPresContext);
 
   nsRuleNode* GetRuleTree() { return mRuleTree; }
 

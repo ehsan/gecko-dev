@@ -15,7 +15,7 @@
 
 #include "mozilla/dom/FragmentOrElement.h"
 
-#include "mozilla/dom/Attr.h"
+#include "nsDOMAttribute.h"
 #include "nsDOMAttributeMap.h"
 #include "nsIAtom.h"
 #include "nsINodeInfo.h"
@@ -72,6 +72,7 @@
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
+#include "nsIJSContextStack.h"
 
 #include "nsIDOMEventListener.h"
 #include "nsIWebNavigation.h"
@@ -214,7 +215,7 @@ nsIContent::HasIndependentSelection()
 dom::Element*
 nsIContent::GetEditingHost()
 {
-  // If this isn't editable, return nullptr.
+  // If this isn't editable, return NULL.
   NS_ENSURE_TRUE(IsEditableInternal(), nullptr);
 
   nsIDocument* doc = GetCurrentDoc();
@@ -339,7 +340,7 @@ nsIContent::GetBaseURI() const
 static inline JSObject*
 GetJSObjectChild(nsWrapperCache* aCache)
 {
-  return aCache->PreservingWrapper() ? aCache->GetWrapperPreserveColor() : nullptr;
+  return aCache->PreservingWrapper() ? aCache->GetWrapperPreserveColor() : NULL;
 }
 
 static bool
@@ -380,7 +381,7 @@ NS_INTERFACE_TABLE_HEAD(nsChildContentList)
 NS_INTERFACE_MAP_END
 
 JSObject*
-nsChildContentList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+nsChildContentList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return NodeListBinding::Wrap(cx, scope, this);
 }
@@ -690,7 +691,9 @@ FragmentOrElement::GetChildren(uint32_t aFilter)
     }
   }
 
-  return list.forget();
+  nsINodeList* returnList = nullptr;
+  list.forget(&returnList);
+  return returnList;
 }
 
 static nsIContent*

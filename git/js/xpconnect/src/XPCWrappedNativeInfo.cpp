@@ -8,8 +8,6 @@
 
 #include "xpcprivate.h"
 
-using namespace JS;
-
 /***************************************************************************/
 
 // XPCNativeMember
@@ -20,7 +18,7 @@ XPCNativeMember::GetCallInfo(JSObject* funobj,
                              XPCNativeInterface** pInterface,
                              XPCNativeMember**    pMember)
 {
-    funobj = js::UncheckedUnwrap(funobj);
+    funobj = js::UnwrapObject(funobj);
     jsval ifaceVal = js::GetFunctionNativeReserved(funobj, 0);
     jsval memberVal = js::GetFunctionNativeReserved(funobj, 1);
 
@@ -32,7 +30,7 @@ XPCNativeMember::GetCallInfo(JSObject* funobj,
 
 JSBool
 XPCNativeMember::NewFunctionObject(XPCCallContext& ccx,
-                                   XPCNativeInterface* iface, HandleObject parent,
+                                   XPCNativeInterface* iface, JSObject *parent,
                                    jsval* pval)
 {
     NS_ASSERTION(!IsConstant(),
@@ -43,7 +41,7 @@ XPCNativeMember::NewFunctionObject(XPCCallContext& ccx,
 
 JSBool
 XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface,
-                         HandleObject parent, jsval *vp)
+                         JSObject *parent, jsval *vp)
 {
     if (IsConstant()) {
         const nsXPTConstant* constant;
@@ -58,9 +56,9 @@ XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface,
         v.type = constant->GetType();
         memcpy(&v.val, &mv.val, sizeof(mv.val));
 
-        RootedValue resultVal(ccx);
+        jsval resultVal;
 
-        if (!XPCConvert::NativeData2JS(ccx, resultVal.address(), &v.val, v.type,
+        if (!XPCConvert::NativeData2JS(ccx, &resultVal, &v.val, v.type,
                                        nullptr, nullptr))
             return false;
 
@@ -232,8 +230,9 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
     uint16_t totalCount;
     uint16_t realTotalCount = 0;
     XPCNativeMember* cur;
-    RootedString str(ccx);
-    RootedId interfaceName(ccx);
+    JSString* str = NULL;
+    jsid name;
+    jsid interfaceName;
 
     // XXX Investigate lazy init? This is a problem given the
     // 'placement new' scheme - we need to at least know how big to make
@@ -291,7 +290,7 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
             failed = true;
             break;
         }
-        jsid name = INTERNED_STRING_TO_JSID(ccx, str);
+        name = INTERNED_STRING_TO_JSID(ccx, str);
 
         if (info->IsSetter()) {
             NS_ASSERTION(realTotalCount,"bad setter");
@@ -328,7 +327,7 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
                 failed = true;
                 break;
             }
-            jsid name = INTERNED_STRING_TO_JSID(ccx, str);
+            name = INTERNED_STRING_TO_JSID(ccx, str);
 
             // XXX need better way to find dups
             //NS_ASSERTION(!LookupMemberByID(name),"duplicate method/constant name");

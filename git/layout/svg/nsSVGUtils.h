@@ -141,7 +141,7 @@ private:
 // GRRR WINDOWS HATE HATE HATE
 #undef CLIP_MASK
 
-class MOZ_STACK_CLASS SVGAutoRenderState
+class NS_STACK_CLASS SVGAutoRenderState
 {
 public:
   enum RenderMode {

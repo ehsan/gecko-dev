@@ -43,7 +43,7 @@ public:
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    bool* aSnap) {
     *aSnap = false;
-    nsIFrame* f = Frame();
+    nsIFrame* f = GetUnderlyingFrame();
     HTMLCanvasElement *canvas =
       HTMLCanvasElement::FromContent(f->GetContent());
     nsRegion result;
@@ -55,7 +55,7 @@ public:
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) {
     *aSnap = true;
-    nsHTMLCanvasFrame* f = static_cast<nsHTMLCanvasFrame*>(Frame());
+    nsHTMLCanvasFrame* f = static_cast<nsHTMLCanvasFrame*>(GetUnderlyingFrame());
     return f->GetInnerArea() + ToReferenceFrame();
   }
 
@@ -87,10 +87,6 @@ NS_NewHTMLCanvasFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsHTMLCanvasFrame(aContext);
 }
-
-NS_QUERYFRAME_HEAD(nsHTMLCanvasFrame)
-  NS_QUERYFRAME_ENTRY(nsHTMLCanvasFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsHTMLCanvasFrame)
 
@@ -290,14 +286,15 @@ nsHTMLCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   DisplayBorderBackgroundOutline(aBuilder, aLists);
 
-  DisplayListClipState::AutoClipContainingBlockDescendantsToContentBox
-    clip(aBuilder, this, DisplayListClipState::ASSUME_DRAWING_RESTRICTED_TO_CONTENT_RECT);
+  nsDisplayList replacedContent;
 
-  aLists.Content()->AppendNewToTop(
+  replacedContent.AppendNewToTop(
     new (aBuilder) nsDisplayCanvas(aBuilder, this));
 
-  DisplaySelectionOverlay(aBuilder, aLists.Content(),
+  DisplaySelectionOverlay(aBuilder, &replacedContent,
                           nsISelectionDisplay::DISPLAY_IMAGES);
+
+  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
 }
 
 nsIAtom*

@@ -42,10 +42,6 @@ public:
   // initialized.
   nsThread *GetCurrentThread();
 
-  // Returns the maximal number of threads that have been in existence
-  // simultaneously during the execution of the thread manager.
-  uint32_t GetHighestNumberOfThreads();
-
   // This needs to be public in order to support static instantiation of this
   // class with older compilers (e.g., egcs-2.91.66).
   ~nsThreadManager() {}
@@ -55,11 +51,9 @@ private:
     : mCurThreadIndex(0)
     , mMainPRThread(nullptr)
     , mLock(nullptr)
-    , mInitialized(false)
-    , mCurrentNumberOfThreads(1)
-    , mHighestNumberOfThreads(1) {
+    , mInitialized(false) {
   }
-
+  
   static nsThreadManager sInstance;
 
   nsRefPtrHashtable<nsPtrHashKey<PRThread>, nsThread> mThreadsByPRThread;
@@ -70,11 +64,6 @@ private:
   // the static context in debug builds.
   nsAutoPtr<mozilla::Mutex> mLock;  // protects tables
   bool                mInitialized;
-
-   // The current number of threads
-   uint32_t           mCurrentNumberOfThreads;
-   // The highest number of threads encountered so far during the session
-   uint32_t           mHighestNumberOfThreads;
 };
 
 #define NS_THREADMANAGER_CID                       \

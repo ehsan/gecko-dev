@@ -1,4 +1,3 @@
-# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
 # vim: set filetype=python:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -46,6 +45,9 @@ elif CONFIG['OS_ARCH'] == 'SunOS':
         'google-breakpad/src/tools/solaris/dump_syms',
     ]
 
+if CONFIG['OS_TARGET'] == 'Android':
+    DIRS += ['fileid']
+
 DIRS += ['client']
 
 if CONFIG['MOZ_CRASHREPORTER_INJECTOR']:
@@ -54,8 +56,4 @@ if CONFIG['MOZ_CRASHREPORTER_INJECTOR']:
 TEST_TOOL_DIRS += ['test']
 
 MODULE = 'crashreporter'
-
-EXPORTS += [
-    'nsExceptionHandler.h',
-]
 

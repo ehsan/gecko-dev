@@ -1,13 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #if !defined jsjaeger_loopstate_h__ && defined JS_METHODJIT
 #define jsjaeger_loopstate_h__
-
-#include "mozilla/PodOperations.h"
 
 #include "jsanalyze.h"
 #include "methodjit/Compiler.h"
@@ -178,7 +177,7 @@ class LoopState : public MacroAssemblerTypedefs
                 jsid id;
             } property;
         } u;
-        InvariantEntry() { mozilla::PodZero(this); }
+        InvariantEntry() { PodZero(this); }
         bool isBoundsCheck() const {
             return kind == DENSE_ARRAY_BOUNDS_CHECK || kind == TYPED_ARRAY_BOUNDS_CHECK;
         }
@@ -270,7 +269,7 @@ class LoopState : public MacroAssemblerTypedefs
     FrameEntry *invariantArguments();
 
     FrameEntry *invariantLength(const analyze::CrossSSAValue &obj);
-    FrameEntry *invariantProperty(const analyze::CrossSSAValue &obj, jsid id);
+    FrameEntry *invariantProperty(const analyze::CrossSSAValue &obj, RawId id);
 
     /* Whether a binary or inc/dec op's result cannot overflow. */
     bool cannotIntegerOverflow(const analyze::CrossSSAValue &pushed);

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -148,7 +149,7 @@ struct RuntimeSizes
 struct ZoneStats
 {
     ZoneStats()
-      : extra(NULL),
+      : extra1(0),
         gcHeapArenaAdmin(0),
         gcHeapUnusedGcThings(0),
         gcHeapStringsNormal(0),
@@ -162,7 +163,7 @@ struct ZoneStats
     {}
 
     ZoneStats(const ZoneStats &other)
-      : extra(other.extra),
+      : extra1(other.extra1),
         gcHeapArenaAdmin(other.gcHeapArenaAdmin),
         gcHeapUnusedGcThings(other.gcHeapUnusedGcThings),
         gcHeapStringsNormal(other.gcHeapStringsNormal),
@@ -199,7 +200,7 @@ struct ZoneStats
     }
 
     // This field can be used by embedders.
-    void   *extra;
+    void   *extra1;
 
     size_t gcHeapArenaAdmin;
     size_t gcHeapUnusedGcThings;
@@ -224,7 +225,8 @@ struct ZoneStats
 struct CompartmentStats
 {
     CompartmentStats()
-      : extra(NULL),
+      : extra1(0),
+        extra2(0),
         gcHeapObjectsOrdinary(0),
         gcHeapObjectsFunction(0),
         gcHeapObjectsDenseArray(0),
@@ -242,9 +244,6 @@ struct CompartmentStats
         shapesCompartmentTables(0),
         scriptData(0),
         jaegerData(0),
-        baselineData(0),
-        baselineStubsFallback(0),
-        baselineStubsOptimized(0),
         ionData(0),
         compartmentObject(0),
         crossCompartmentWrappersTable(0),
@@ -254,7 +253,8 @@ struct CompartmentStats
     {}
 
     CompartmentStats(const CompartmentStats &other)
-      : extra(other.extra),
+      : extra1(other.extra1),
+        extra2(other.extra2),
         gcHeapObjectsOrdinary(other.gcHeapObjectsOrdinary),
         gcHeapObjectsFunction(other.gcHeapObjectsFunction),
         gcHeapObjectsDenseArray(other.gcHeapObjectsDenseArray),
@@ -272,9 +272,6 @@ struct CompartmentStats
         shapesCompartmentTables(other.shapesCompartmentTables),
         scriptData(other.scriptData),
         jaegerData(other.jaegerData),
-        baselineData(other.baselineData),
-        baselineStubsFallback(other.baselineStubsFallback),
-        baselineStubsOptimized(other.baselineStubsOptimized),
         ionData(other.ionData),
         compartmentObject(other.compartmentObject),
         crossCompartmentWrappersTable(other.crossCompartmentWrappersTable),
@@ -284,8 +281,9 @@ struct CompartmentStats
     {
     }
 
-    // This field can be used by embedders.
-    void   *extra;
+    // These fields can be used by embedders.
+    void   *extra1;
+    void   *extra2;
 
     // If you add a new number, remember to update the constructors, add(), and
     // maybe gcHeapThingsSize()!
@@ -307,9 +305,6 @@ struct CompartmentStats
     size_t shapesCompartmentTables;
     size_t scriptData;
     size_t jaegerData;
-    size_t baselineData;
-    size_t baselineStubsFallback;
-    size_t baselineStubsOptimized;
     size_t ionData;
     size_t compartmentObject;
     size_t crossCompartmentWrappersTable;
@@ -340,9 +335,6 @@ struct CompartmentStats
         ADD(shapesCompartmentTables);
         ADD(scriptData);
         ADD(jaegerData);
-        ADD(baselineData);
-        ADD(baselineStubsFallback);
-        ADD(baselineStubsOptimized);
         ADD(ionData);
         ADD(compartmentObject);
         ADD(crossCompartmentWrappersTable);
@@ -442,6 +434,9 @@ class ObjectPrivateVisitor
 
 extern JS_PUBLIC_API(bool)
 CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats, ObjectPrivateVisitor *opv);
+
+extern JS_PUBLIC_API(int64_t)
+GetExplicitNonHeapForRuntime(JSRuntime *rt, JSMallocSizeOfFun mallocSizeOf);
 
 extern JS_PUBLIC_API(size_t)
 SystemCompartmentCount(JSRuntime *rt);

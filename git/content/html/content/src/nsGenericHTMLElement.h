@@ -718,20 +718,6 @@ public:
   static bool TouchEventsEnabled(JSContext* /* unused */, JSObject* /* unused */);
 
   static inline bool
-  CanHaveName(nsIAtom* aTag)
-  {
-    return aTag == nsGkAtoms::img ||
-           aTag == nsGkAtoms::form ||
-           aTag == nsGkAtoms::applet ||
-           aTag == nsGkAtoms::embed ||
-           aTag == nsGkAtoms::object;
-  }
-  static inline bool
-  ShouldExposeNameAsHTMLDocumentProperty(Element* aElement)
-  {
-    return aElement->IsHTML() && CanHaveName(aElement->Tag());
-  }
-  static inline bool
   ShouldExposeIdAsHTMLDocumentProperty(Element* aElement)
   {
     if (!aElement->IsHTML()) {
@@ -811,6 +797,12 @@ protected:
   {
     GetURIAttr(aName, nullptr, aResult);
   }
+  uint32_t GetHTMLUnsignedIntAttr(nsIAtom* aName, uint32_t aDefault)
+  {
+    uint32_t result;
+    GetUnsignedIntAttr(aName, aDefault, &result);
+    return result;
+  }
 
   void SetHTMLAttr(nsIAtom* aName, const nsAString& aValue)
   {
@@ -833,6 +825,13 @@ protected:
     }
   }
   void SetHTMLIntAttr(nsIAtom* aName, int32_t aValue, mozilla::ErrorResult& aError)
+  {
+    nsAutoString value;
+    value.AppendInt(aValue);
+
+    SetHTMLAttr(aName, value, aError);
+  }
+  void SetHTMLUnsignedIntAttr(nsIAtom* aName, uint32_t aValue, mozilla::ErrorResult& aError)
   {
     nsAutoString value;
     value.AppendInt(aValue);
@@ -880,8 +879,10 @@ protected:
    *
    * @param aAttr    name of attribute.
    * @param aDefault default-value to return if attribute isn't set.
+   * @param aResult  result value [out]
    */
-  uint32_t GetUnsignedIntAttr(nsIAtom* aAttr, uint32_t aDefault) const;
+  NS_HIDDEN_(nsresult) GetUnsignedIntAttr(nsIAtom* aAttr, uint32_t aDefault,
+                                          uint32_t* aValue);
 
   /**
    * Helper method for NS_IMPL_UINT_ATTR macro.
@@ -891,14 +892,7 @@ protected:
    * @param aAttr    name of attribute.
    * @param aValue   Integer value of attribute.
    */
-  void SetUnsignedIntAttr(nsIAtom* aName, uint32_t aValue,
-                          mozilla::ErrorResult& aError)
-  {
-    nsAutoString value;
-    value.AppendInt(aValue);
-
-    SetHTMLAttr(aName, value, aError);
-  }
+  NS_HIDDEN_(nsresult) SetUnsignedIntAttr(nsIAtom* aAttr, uint32_t aValue);
 
   /**
    * Sets value of attribute to specified double. Only works for attributes
@@ -1273,15 +1267,12 @@ protected:
   NS_IMETHODIMP                                                           \
   _class::Get##_method(uint32_t* aValue)                                  \
   {                                                                       \
-    *aValue = GetUnsignedIntAttr(nsGkAtoms::_atom, _default);             \
-    return NS_OK;                                                         \
+    return GetUnsignedIntAttr(nsGkAtoms::_atom, _default, aValue);        \
   }                                                                       \
   NS_IMETHODIMP                                                           \
   _class::Set##_method(uint32_t aValue)                                   \
   {                                                                       \
-    mozilla::ErrorResult rv;                                              \
-    SetUnsignedIntAttr(nsGkAtoms::_atom, aValue, rv);                     \
-    return rv.ErrorCode();                                                \
+    return SetUnsignedIntAttr(nsGkAtoms::_atom, aValue);                  \
   }
 
 /**
@@ -1297,8 +1288,7 @@ protected:
   NS_IMETHODIMP                                                           \
   _class::Get##_method(uint32_t* aValue)                                  \
   {                                                                       \
-    *aValue = GetUnsignedIntAttr(nsGkAtoms::_atom, _default);             \
-    return NS_OK;                                                         \
+    return GetUnsignedIntAttr(nsGkAtoms::_atom, _default, aValue);        \
   }                                                                       \
   NS_IMETHODIMP                                                           \
   _class::Set##_method(uint32_t aValue)                                   \
@@ -1306,9 +1296,7 @@ protected:
     if (aValue == 0) {                                                    \
       return NS_ERROR_DOM_INDEX_SIZE_ERR;                                 \
     }                                                                     \
-    mozilla::ErrorResult rv;                                              \
-    SetUnsignedIntAttr(nsGkAtoms::_atom, aValue, rv);                     \
-    return rv.ErrorCode();                                                \
+    return SetUnsignedIntAttr(nsGkAtoms::_atom, aValue);                  \
   }
 
 /**
@@ -1926,7 +1914,9 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedObject)
 
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Anchor)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Area)
+#if defined(MOZ_MEDIA)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Audio)
+#endif
 NS_DECLARE_NS_NEW_HTML_ELEMENT(BR)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Body)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Button)
@@ -1965,7 +1955,9 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Pre)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Progress)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Script)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Select)
+#if defined(MOZ_MEDIA)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Source)
+#endif
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Span)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Style)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(TableCaption)
@@ -1982,7 +1974,9 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Thead)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Time)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Title)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Unknown)
+#if defined(MOZ_MEDIA)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Video)
+#endif
 
 inline nsISupports*
 ToSupports(nsGenericHTMLElement* aHTMLElement)

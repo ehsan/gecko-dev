@@ -77,7 +77,6 @@ var BrowserUI = {
   get _back() { return document.getElementById("cmd_back"); },
   get _forward() { return document.getElementById("cmd_forward"); },
 
-  lastKnownGoodURL: "", //used when the user wants to escape unfinished url entry
   init: function() {
     // listen content messages
     messageManager.addMessageListener("DOMTitleChanged", this);
@@ -146,9 +145,10 @@ var BrowserUI = {
         DialogUI.init();
         FormHelperUI.init();
         FindHelperUI.init();
+        FullScreenVideo.init();
         PdfJs.init();
 #ifdef MOZ_SERVICES_SYNC
-        Sync.init();
+        WeaveGlue.init();
 #endif
       } catch(ex) {
         Util.dumpLn("Exception in delay load module:", ex.message);
@@ -386,37 +386,13 @@ var BrowserUI = {
     this.newTab(aURI, aOwner);
   },
 
-  setOnTabAnimationEnd: function setOnTabAnimationEnd(aCallback) {
-    Elements.tabs.addEventListener("animationend", function onAnimationEnd() {
-      Elements.tabs.removeEventListener("animationend", onAnimationEnd);
-      aCallback();
-    });
-  },
-
   closeTab: function closeTab(aTab) {
+    // If we only have one tab, open a new one
+    if (Browser.tabs.length == 1)
+      Browser.addTab(Browser.getHomePage());
+
     // If no tab is passed in, assume the current tab
-    let tab = aTab || Browser.selectedTab;
-    Browser.closeTab(tab);
-  },
-
-  animateClosingTab: function animateClosingTab(tabToClose) {
-    if (this.isTabsOnly) {
-      Browser.closeTab(tabToClose, { forceClose: true } );
-    } else {
-      // Trigger closing animation
-      tabToClose.chromeTab.setAttribute("closing", "true");
-
-      let wasCollapsed = !ContextUI.isExpanded;
-      if (wasCollapsed) {
-        ContextUI.displayTabs();
-      }
-
-      this.setOnTabAnimationEnd(function() {
-	Browser.closeTab(tabToClose, { forceClose: true } );
-        if (wasCollapsed)
-          ContextUI.dismissWithDelay(kNewTabAnimationDelayMsec);
-      });
-    }
+    Browser.closeTab(aTab || Browser.selectedTab);
   },
 
   /**
@@ -556,17 +532,8 @@ var BrowserUI = {
         break;
       case "metro_viewstate_changed":
         this._adjustDOMforViewState();
-        let autocomplete = document.getElementById("start-autocomplete");
-        if (aData == "snapped") {
+        if (aData == "snapped")
           FlyoutPanelsUI.hide();
-          // Order matters (need grids to get dimensions, etc), now
-          // let snapped grid know to refresh/redraw
-          Services.obs.notifyObservers(null, "metro_viewstate_dom_snapped", null);
-          autocomplete.setAttribute("orient", "vertical");
-        }
-        else {
-          autocomplete.setAttribute("orient", "horizontal");
-        }
         break;
     }
   },
@@ -609,7 +576,7 @@ var BrowserUI = {
     } else if (!Util.isURLEmpty(url)) {
       tabCaption = url;
     } else {
-      tabCaption = Util.getEmptyURLTabTitle();
+      tabCaption = Strings.browser.GetStringFromName("tabs.emptyTabTitle");
     }
 
     let tab = Browser.getTabForBrowser(aBrowser);
@@ -643,23 +610,21 @@ var BrowserUI = {
 
   _setURI: function _setURI(aURL) {
     this._edit.value = aURL;
-    this.lastKnownGoodURL = aURL;
   },
 
   _urlbarClicked: function _urlbarClicked() {
     // If the urlbar is not already focused, focus it and select the contents.
     if (Elements.urlbarState.getAttribute("mode") != "edit")
-      this._editURI(true);
+      this._editURI();
   },
 
-  _editURI: function _editURI(aShouldDismiss) {
+  _editURI: function _editURI() {
     this._edit.focus();
     this._edit.select();
 
     Elements.urlbarState.setAttribute("mode", "edit");
     StartUI.show();
-    if (aShouldDismiss)
-      ContextUI.dismissTabs();
+    ContextUI.dismissTabs();
   },
 
   _urlbarBlurred: function _urlbarBlurred() {
@@ -729,7 +694,6 @@ var BrowserUI = {
     aEvent.preventDefault();
 
     if (this._edit.popupOpen) {
-      this._edit.value = this.lastKnownGoodURL;
       this._edit.closePopup();
       StartUI.hide();
       ContextUI.dismiss();
@@ -750,9 +714,8 @@ var BrowserUI = {
     }
 
     // Check open modal elements
-    if (DialogUI.modals.length > 0) {
+    if (DialogUI.modals.length > 0)
       return;
-    }
 
     // Check open panel
     if (PanelUI.isVisible) {
@@ -879,13 +842,6 @@ var BrowserUI = {
       return false;
     }
 
-    // Don't capture pages in snapped mode, this produces 2/3 black
-    // thumbs or stretched out ones
-    //   Ci.nsIWinMetroUtils.snapped is inaccessible on
-    //   desktop/nonwindows systems
-    if(Elements.windowState.getAttribute("viewstate") == "snapped") {
-      return false;
-    }
     // There's no point in taking screenshot of loading pages.
     if (aBrowser.docShell.busyFlags != Ci.nsIDocShell.BUSY_FLAGS_NONE) {
       return false;
@@ -1031,7 +987,7 @@ var BrowserUI = {
         break;
       case "cmd_openLocation":
         ContextUI.displayNavbar();
-        this._editURI(true);
+        this._editURI();
         break;
       case "cmd_addBookmark":
         Elements.appbar.show();
@@ -1045,7 +1001,7 @@ var BrowserUI = {
         break;
       case "cmd_remoteTabs":
         if (Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED) {
-          Sync.open();
+          WeaveGlue.open();
         } else {
           PanelUI.show("remotetabs-container");
         }
@@ -1059,7 +1015,7 @@ var BrowserUI = {
         break;
       case "cmd_newTab":
         this.newTab();
-        this._editURI(false);
+        this._editURI();
         break;
       case "cmd_closeTab":
         this.closeTab();
@@ -1199,17 +1155,14 @@ var ContextUI = {
 
   /** Briefly show the tab bar and then hide it */
   peekTabs: function peekTabs() {
-    if (this.isExpanded) {
-      setTimeout(function () {
-        ContextUI.dismissWithDelay(kNewTabAnimationDelayMsec);
-      }, 0);
-    } else {
-      BrowserUI.setOnTabAnimationEnd(function () {
-        ContextUI.dismissWithDelay(kNewTabAnimationDelayMsec);
-      });
+    if (this.isExpanded)
+      return;
 
-      this.displayTabs();
-    }
+    Elements.tabs.addEventListener("animationend", function onAnimationEnd() {
+      Elements.tabs.removeEventListener("animationend", onAnimationEnd);
+      ContextUI.dismissWithDelay(kNewTabAnimationDelayMsec);
+    });
+    this.displayTabs();
   },
 
   // Dismiss all context UI.
@@ -1368,7 +1321,6 @@ var StartUI = {
 
   sections: [
     "TopSitesStartView",
-    "TopSitesSnappedView",
     "BookmarksStartView",
     "HistoryStartView",
     "RemoteTabsStartView"
@@ -1482,7 +1434,7 @@ var SyncPanelUI = {
     Elements.syncFlyout.addEventListener("PopupChanged", function onShow(aEvent) {
       if (aEvent.detail && aEvent.target === Elements.syncFlyout) {
         Elements.syncFlyout.removeEventListener("PopupChanged", onShow, false);
-        Sync.init();
+        WeaveGlue.init();
       }
     }, false);
   }

@@ -401,12 +401,9 @@ AlphaBoxBlur::AlphaBoxBlur(const Rect& aRect,
     mStride(aStride),
     mSurfaceAllocationSize(-1)
 {
-  IntRect intRect;
-  if (aRect.ToIntRect(&intRect)) {
-    CheckedInt<int32_t> minDataSize = CheckedInt<int32_t>(intRect.width)*intRect.height;
-    if (minDataSize.isValid()) {
-      mSurfaceAllocationSize = minDataSize.value();
-    }
+  CheckedInt<int32_t> minDataSize = CheckedInt<int32_t>(aRect.width)*aRect.height;
+  if (minDataSize.isValid()) {
+    mSurfaceAllocationSize = minDataSize.value();
   }
 }
 

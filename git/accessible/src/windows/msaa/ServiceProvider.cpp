@@ -23,8 +23,9 @@ namespace a11y {
 
 IMPL_IUNKNOWN_QUERY_HEAD(ServiceProvider)
   IMPL_IUNKNOWN_QUERY_IFACE(IServiceProvider)
-IMPL_IUNKNOWN_QUERY_TAIL_AGGREGATED(mAccessible)
-
+  return mAccessible->QueryInterface(aIID, aInstancePtr);
+A11Y_TRYBLOCK_END
+  }
 
 ////////////////////////////////////////////////////////////////////////////////
 // IServiceProvider
@@ -36,7 +37,7 @@ ServiceProvider::QueryService(REFGUID aGuidService, REFIID aIID,
   if (!aInstancePtr)
     return E_INVALIDARG;
 
-  *aInstancePtr = nullptr;
+  *aInstancePtr = NULL;
 
   // UIA IAccessibleEx
   if (aGuidService == IID_IAccessibleEx &&

@@ -7,10 +7,6 @@
 const DEFAULT_INDEX = PlacesUtils.bookmarks.DEFAULT_INDEX;
 
 function run_test() {
-  run_next_test();
-}
-
-add_task(function test_force_copy() {
   /*
   - create folder A
   - add a bookmark to it
@@ -90,8 +86,7 @@ add_task(function test_force_copy() {
   PlacesUtils.bookmarks.removeItem(queryId);
 
   // import
-  Cu.import("resource://gre/modules/BookmarkJSONUtils.jsm");
-  yield BookmarkJSONUtils.importJSONNode(stream._str, PlacesUtils.toolbarFolderId, -1);
+  PlacesUtils.importJSONNode(stream._str, PlacesUtils.toolbarFolderId, -1);
 
   // query for node
   var query = PlacesUtils.history.getNewQuery();
@@ -119,4 +114,4 @@ add_task(function test_force_copy() {
   queryNode.containerOpen = false;
 
   root.containerOpen = false;
-});
+}

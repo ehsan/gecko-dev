@@ -17,6 +17,8 @@ var errorCodes = {
 
 netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 Components.utils.import("resource://gre/modules/Services.jsm");
+SpecialPowers.setBoolPref("media.webspeech.recognition.enable", true);
+SpecialPowers.setBoolPref("media.webspeech.test.enable", true);
 
 function EventManager(sr) {
   var self = this;
@@ -43,8 +45,6 @@ function EventManager(sr) {
     "audioend": "audiostart"
   };
 
-  var isDone = false;
-
   // AUDIO_DATA events are asynchronous,
   // so we queue events requested while they are being
   // issued to make them seem synchronous
@@ -55,16 +55,8 @@ function EventManager(sr) {
   for (var i = 0; i < allEvents.length; i++) {
     (function (eventName) {
       sr["on" + eventName] = function (evt) {
-        var message = "unexpected event: " + eventName;
-        if (eventName == "error") {
-          message += " -- " + evt.message;
-        }
-
-        ok(false, message);
-        if (self.doneFunc && !isDone) {
-          isDone = true;
-          self.doneFunc();
-        }
+        ok(false, "unexpected event: " + eventName);
+        if (self.done) self.done();
       };
     })(allEvents[i]);
   }
@@ -83,10 +75,8 @@ function EventManager(sr) {
       }
 
       cb && cb(evt, sr);
-      if (self.doneFunc && !isDone &&
-          nEventsExpected === self.eventsReceived.length) {
-        isDone = true;
-        self.doneFunc();
+      if (self.done && nEventsExpected === self.eventsReceived.length) {
+        self.done();
       }
     }
   }
@@ -128,6 +118,11 @@ function EventManager(sr) {
   }
 }
 
+function resetPrefs() {
+  SpecialPowers.setBoolPref("media.webspeech.test.fake_fsm_events", false);
+  SpecialPowers.setBoolPref("media.webspeech.test.fake_recognition_service", false);
+}
+
 function buildResultCallback(transcript) {
   return (function(evt) {
     is(evt.results[0][0].transcript, transcript, "expect correct transcript");
@@ -140,37 +135,28 @@ function buildErrorCallback(errcode) {
   });
 }
 
-function performTest(options) {
-  var prefs = options.prefs;
+function performTest(eventsToRequest, expectedEvents, doneFunc, audioSampleFile) {
+  var sr = new SpeechRecognition();
+  var em = new EventManager(sr);
 
-  prefs.unshift(
-    ["media.webspeech.recognition.enable", true],
-    ["media.webspeech.test.enable", true]
-  );
+  for (var eventName in expectedEvents) {
+    var cb = expectedEvents[eventName];
+    em.expect(eventName, cb);
+  }
 
-  SpecialPowers.pushPrefEnv({set: prefs}, function() {
-    var sr = new SpeechRecognition();
-    var em = new EventManager(sr);
+  em.done = function() {
+    em.requestTestEnd();
+    resetPrefs();
+    doneFunc();
+  }
 
-    for (var eventName in options.expectedEvents) {
-      var cb = options.expectedEvents[eventName];
-      em.expect(eventName, cb);
-    }
+  if (!audioSampleFile) {
+    audioSampleFile = DEFAULT_AUDIO_SAMPLE_FILE;
+  }
 
-    em.doneFunc = function() {
-      em.requestTestEnd();
-      if (options.doneFunc) {
-        options.doneFunc();
-      }
-    }
+  em.audioSampleFile = audioSampleFile;
 
-    em.audioSampleFile = DEFAULT_AUDIO_SAMPLE_FILE;
-    if (options.audioSampleFile) {
-      em.audioSampleFile = options.audioSampleFile;
-    }
-
-    for (var i = 0; i < options.eventsToRequest.length; i++) {
-      em.requestFSMEvent(options.eventsToRequest[i]);
-    }
-  });
+  for (var i = 0; i < eventsToRequest.length; i++) {
+    em.requestFSMEvent(eventsToRequest[i]);
+  }
 }

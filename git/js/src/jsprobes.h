@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=80:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -12,16 +13,20 @@
 #endif
 #include "jspubtd.h"
 #include "jsprvtd.h"
-#include "jscntxt.h"
-#include "jsobj.h"
 #include "jsscript.h"
+#include "jsobj.h"
+
+#ifdef JS_METHODJIT
+#include "methodjit/MethodJIT.h"
+#endif
+
+#include "vm/ObjectImpl-inl.h"
 
 namespace js {
 
 namespace mjit {
 struct NativeAddressInfo;
 struct JSActiveFrame;
-struct JITChunk;
 }
 
 namespace Probes {
@@ -75,17 +80,16 @@ bool callTrackingActive(JSContext *);
 bool wantNativeAddressInfo(JSContext *);
 
 /* Entering a JS function */
-bool enterScript(JSContext *, JSScript *, JSFunction *, StackFrame *);
+bool enterScript(JSContext *, RawScript, RawFunction , StackFrame *);
 
 /* About to leave a JS function */
-bool exitScript(JSContext *, JSScript *, JSFunction *, AbstractFramePtr);
-bool exitScript(JSContext *, JSScript *, JSFunction *, StackFrame *);
+bool exitScript(JSContext *, RawScript, RawFunction , StackFrame *);
 
 /* Executing a script */
-bool startExecution(JSScript *script);
+bool startExecution(RawScript script);
 
 /* Script has completed execution */
-bool stopExecution(JSScript *script);
+bool stopExecution(RawScript script);
 
 /*
  * Object has been created. |obj| must exist (its class and size are read)
@@ -133,7 +137,7 @@ discardMJITCode(FreeOp *fop, mjit::JITScript *jscr, mjit::JITChunk *chunk, void*
  */
 bool
 registerICCode(JSContext *cx,
-               mjit::JITChunk *chunk, JSScript *script, jsbytecode* pc,
+               mjit::JITChunk *chunk, RawScript script, jsbytecode* pc,
                void *start, size_t size);
 #endif /* JS_METHODJIT */
 
@@ -150,8 +154,8 @@ discardExecutableRegion(void *start, size_t size);
  * marshalling required for these probe points is expensive enough that it
  * shouldn't really matter.
  */
-void DTraceEnterJSFun(JSContext *cx, JSFunction *fun, JSScript *script);
-void DTraceExitJSFun(JSContext *cx, JSFunction *fun, JSScript *script);
+void DTraceEnterJSFun(JSContext *cx, RawFunction fun, RawScript script);
+void DTraceExitJSFun(JSContext *cx, RawFunction fun, RawScript script);
 
 } /* namespace Probes */
 
@@ -182,7 +186,7 @@ Probes::wantNativeAddressInfo(JSContext *cx)
 }
 
 inline bool
-Probes::enterScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
+Probes::enterScript(JSContext *cx, RawScript script, RawFunction maybeFun,
                     StackFrame *fp)
 {
     bool ok = true;
@@ -205,8 +209,8 @@ Probes::enterScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
 }
 
 inline bool
-Probes::exitScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
-                   AbstractFramePtr fp)
+Probes::exitScript(JSContext *cx, RawScript script, RawFunction maybeFun,
+                   StackFrame *fp)
 {
     bool ok = true;
 
@@ -224,16 +228,12 @@ Probes::exitScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
      * IonMonkey will only call exitScript() when absolutely necessary, so it is
      * guaranteed that fp->hasPushedSPSFrame() would have been true
      */
-    if ((!fp && rt->spsProfiler.enabled()) || (fp && fp.hasPushedSPSFrame()))
+    if ((fp == NULL && rt->spsProfiler.enabled()) ||
+        (fp != NULL && fp->hasPushedSPSFrame()))
+    {
         rt->spsProfiler.exit(cx, script, maybeFun);
+    }
     return ok;
-}
-
-inline bool
-Probes::exitScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
-                   StackFrame *fp)
-{
-    return Probes::exitScript(cx, script, maybeFun, fp ? AbstractFramePtr(fp) : AbstractFramePtr());
 }
 
 #ifdef INCLUDE_MOZILLA_DTRACE
@@ -280,7 +280,7 @@ Probes::finalizeObject(JSObject *obj)
     return ok;
 }
 inline bool
-Probes::startExecution(JSScript *script)
+Probes::startExecution(RawScript script)
 {
     bool ok = true;
 
@@ -294,7 +294,7 @@ Probes::startExecution(JSScript *script)
 }
 
 inline bool
-Probes::stopExecution(JSScript *script)
+Probes::stopExecution(RawScript script)
 {
     bool ok = true;
 

@@ -15,8 +15,8 @@
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource:///modules/MigrationUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PlacesBackups",
-                                  "resource://gre/modules/PlacesBackups.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
+                                  "resource://gre/modules/PlacesUtils.jsm");
 
 function FirefoxProfileMigrator() { }
 
@@ -76,11 +76,10 @@ FirefoxProfileMigrator.prototype.getResources = function() {
                                   ["signons.sqlite", "key3.db"]);
   let formData = getFileResource(types.FORMDATA, ["formhistory.sqlite"]);
   let bookmarksBackups = getFileResource(types.OTHERDATA,
-    [PlacesBackups.profileRelativeFolderPath]);
-  let dictionary = getFileResource(types.OTHERDATA, ["persdict.dat"]);
+    [PlacesUtils.backups.profileRelativeFolderPath]);
 
   return [r for each (r in [places, cookies, passwords, formData,
-                            dictionary, bookmarksBackups]) if (r)];
+                            bookmarksBackups]) if (r)];
 }
 
 Object.defineProperty(FirefoxProfileMigrator.prototype, "startupOnlyMigrator", {

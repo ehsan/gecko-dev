@@ -49,13 +49,8 @@
         'include_dirs': [
           '<(DEPTH)/testing/include',
           '<(DEPTH)/testing/gtest/include',
-        ],
-        # Visual C++ implements variadic templates strangely, and
-        # VC++2012 broke Google Test by lowering this value. See
-        # http://stackoverflow.com/questions/12558327/google-test-in-visual-studio-2012
-        'defines': ['_VARIADIC_MAX=10'],
+        ]
       },
-      'defines': ['_VARIADIC_MAX=10'],
     },
     {
       'target_name': 'gmock',
@@ -74,10 +69,8 @@
         'include_dirs': [
           '<(DEPTH)/testing/include',
           '<(DEPTH)/testing/gtest/include',
-        ],
-        'defines': ['_VARIADIC_MAX=10'],
+        ]
       },
-      'defines': ['_VARIADIC_MAX=10'],
     },
 
   ],

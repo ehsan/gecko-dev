@@ -7,17 +7,12 @@
 #include "xpcprivate.h"
 
 #include "mozilla/dom/workers/Workers.h"
-#include "nsIScriptSecurityManager.h"
-#include "nsContentUtils.h"
-
 using mozilla::dom::workers::ResolveWorkerClasses;
 
 NS_INTERFACE_MAP_BEGIN(BackstagePass)
-  NS_INTERFACE_MAP_ENTRY(nsIGlobalObject)
   NS_INTERFACE_MAP_ENTRY(nsIXPCScriptable)
   NS_INTERFACE_MAP_ENTRY(nsIClassInfo)
   NS_INTERFACE_MAP_ENTRY(nsIScriptObjectPrincipal)
-  NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXPCScriptable)
 NS_INTERFACE_MAP_END_THREADSAFE
 
@@ -28,9 +23,6 @@ NS_IMPL_THREADSAFE_RELEASE(BackstagePass)
 #define XPC_MAP_CLASSNAME           BackstagePass
 #define XPC_MAP_QUOTED_CLASSNAME   "BackstagePass"
 #define                             XPC_MAP_WANT_NEWRESOLVE
-#define                             XPC_MAP_WANT_FINALIZE
-#define                             XPC_MAP_WANT_PRECREATE
-
 #define XPC_MAP_FLAGS       nsIXPCScriptable::USE_JSSTUB_FOR_ADDPROPERTY   |  \
                             nsIXPCScriptable::USE_JSSTUB_FOR_DELPROPERTY   |  \
                             nsIXPCScriptable::USE_JSSTUB_FOR_SETPROPERTY   |  \
@@ -43,29 +35,29 @@ NS_IMPL_THREADSAFE_RELEASE(BackstagePass)
 /* bool newResolve (in nsIXPConnectWrappedNative wrapper, in JSContextPtr cx, in JSObjectPtr obj, in jsval id, in uint32_t flags, out JSObjectPtr objp); */
 NS_IMETHODIMP
 BackstagePass::NewResolve(nsIXPConnectWrappedNative *wrapper,
-                          JSContext * cx, JSObject * objArg,
-                          jsid idArg, uint32_t flags,
-                          JSObject * *objpArg, bool *_retval)
+                          JSContext * cx, JSObject * obj_,
+                          jsid id_, uint32_t flags,
+                          JSObject * *objp_, bool *_retval)
 {
-    JS::RootedObject obj(cx, objArg);
-    JS::RootedId id(cx, idArg);
+    JS::RootedObject obj(cx, obj_);
+    JS::RootedId id(cx, id_);
 
     JSBool resolved;
 
     *_retval = !!JS_ResolveStandardClass(cx, obj, id, &resolved);
     if (!*_retval) {
-        *objpArg = nullptr;
+        *objp_ = nullptr;
         return NS_OK;
     }
 
     if (resolved) {
-        *objpArg = obj;
+        *objp_ = obj;
         return NS_OK;
     }
 
-    JS::RootedObject objp(cx, *objpArg);
+    JS::RootedObject objp(cx, *objp_);
     *_retval = !!ResolveWorkerClasses(cx, obj, id, flags, &objp);
-    *objpArg = objp;
+    *objp_ = objp;
     return NS_OK;
 }
 
@@ -109,9 +101,7 @@ NS_IMETHODIMP
 BackstagePass::GetHelperForLanguage(uint32_t language,
                                     nsISupports **retval)
 {
-    nsCOMPtr<nsISupports> supports =
-        do_QueryInterface(static_cast<nsIGlobalObject *>(this));
-    supports.forget(retval);
+    *retval = nullptr;
     return NS_OK;
 }
 
@@ -161,38 +151,4 @@ NS_IMETHODIMP
 BackstagePass::GetClassIDNoAlloc(nsCID *aClassIDNoAlloc)
 {
     return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-BackstagePass::Finalize(nsIXPConnectWrappedNative *wrapper, JSFreeOp * fop, JSObject * obj)
-{
-    nsCOMPtr<nsIGlobalObject> bsp(do_QueryWrappedNative(wrapper));
-    MOZ_ASSERT(bsp);
-    static_cast<BackstagePass*>(bsp.get())->ForgetGlobalObject();
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-BackstagePass::PreCreate(nsISupports *nativeObj, JSContext *cx,
-                         JSObject *globalObj, JSObject **parentObj)
-{
-    // We do the same trick here as for WindowSH. Return the js global
-    // as parent, so XPConenct can find the right scope and the wrapper
-    // that already exists.
-    nsCOMPtr<nsIGlobalObject> global(do_QueryInterface(nativeObj));
-    MOZ_ASSERT(global, "nativeObj not a global object!");
-
-    JSObject *jsglobal = global->GetGlobalJSObject();
-    if (jsglobal)
-        *parentObj = jsglobal;
-    return NS_OK;
-}
-
-nsresult
-NS_NewBackstagePass(BackstagePass** ret)
-{
-    nsRefPtr<BackstagePass> bsp = new BackstagePass(
-        nsContentUtils::GetSystemPrincipal());
-    bsp.forget(ret);
-    return NS_OK;
 }

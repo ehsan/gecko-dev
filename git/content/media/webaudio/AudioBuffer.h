@@ -53,8 +53,7 @@ public:
     return mContext;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   float SampleRate() const
   {
@@ -90,28 +89,21 @@ public:
   }
 
   /**
-   * Returns a ThreadSharedFloatArrayBufferList containing the sample data.
+   * Returns a ThreadSharedFloatArrayBufferList containing the sample data
+   * at aRate. Sets *aLength to the number of samples per channel.
    */
-  ThreadSharedFloatArrayBufferList* GetThreadSharedChannelsForRate(JSContext* aContext);
+  ThreadSharedFloatArrayBufferList* GetThreadSharedChannelsForRate(JSContext* aContext,
+                                                                   uint32_t aRate,
+                                                                   uint32_t* aLength);
 
   // aContents should either come from JS_AllocateArrayBufferContents or
   // JS_StealArrayBufferContents.
-  bool SetChannelDataFromArrayBufferContents(JSContext* aJSContext,
+  void SetChannelDataFromArrayBufferContents(JSContext* aJSContext,
                                              uint32_t aChannel,
                                              void* aContents);
 
-  // This replaces the contents of the JS array for the given channel.
-  // This function needs to be called on an AudioBuffer which has not been
-  // handed off to the content yet, and right after the object has been
-  // initialized.
-  void SetRawChannelContents(JSContext* aJSContext,
-                             uint32_t aChannel,
-                             float* aContents);
-
-  void MixToMono(JSContext* aJSContext);
-
 protected:
-  bool RestoreJSChannelData(JSContext* aJSContext);
+  void RestoreJSChannelData(JSContext* aJSContext);
   void ClearJSChannels();
 
   nsRefPtr<AudioContext> mContext;
@@ -121,6 +113,12 @@ protected:
   // mSharedChannels aggregates the data from mJSChannels. This is non-null
   // if and only if the mJSChannels are neutered.
   nsRefPtr<ThreadSharedFloatArrayBufferList> mSharedChannels;
+
+  // One-element cache of resampled data. Can be non-null only if mSharedChannels
+  // is non-null.
+  nsRefPtr<ThreadSharedFloatArrayBufferList> mResampledChannels;
+  uint32_t mResampledChannelsRate;
+  uint32_t mResampledChannelsLength;
 
   uint32_t mLength;
   float mSampleRate;

@@ -7,7 +7,7 @@
 
 #include "base/basictypes.h"
 
-#include "ClientLayerManager.h"
+#include "BasicLayers.h"
 #include "gfxPlatform.h"
 #if defined(MOZ_ENABLE_D3D10_LAYER)
 # include "LayerManagerD3D10.h"
@@ -15,7 +15,7 @@
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/Hal.h"
 #include "mozilla/layers/CompositorChild.h"
-#include "mozilla/layers/PLayerTransactionChild.h"
+#include "mozilla/layers/PLayersChild.h"
 #include "PuppetWidget.h"
 #include "nsIWidgetListener.h"
 
@@ -36,7 +36,7 @@ InvalidateRegion(nsIWidget* aWidget, const nsIntRegion& aRegion)
 /*static*/ already_AddRefed<nsIWidget>
 nsIWidget::CreatePuppetWidget(TabChild* aTabChild)
 {
-  NS_ABORT_IF_FALSE(!aTabChild || nsIWidget::UsePuppetWidgets(),
+  NS_ABORT_IF_FALSE(nsIWidget::UsePuppetWidgets(),
                     "PuppetWidgets not allowed in this configuration");
 
   nsCOMPtr<nsIWidget> widget = new PuppetWidget(aTabChild);
@@ -74,7 +74,6 @@ NS_IMPL_ISUPPORTS_INHERITED1(PuppetWidget, nsBaseWidget,
 PuppetWidget::PuppetWidget(TabChild* aTabChild)
   : mTabChild(aTabChild)
   , mDPI(-1)
-  , mDefaultScale(-1)
 {
   MOZ_COUNT_CTOR(PuppetWidget);
 }
@@ -123,9 +122,7 @@ PuppetWidget::InitIMEState()
 {
   if (mNeedIMEStateInit) {
     uint32_t chromeSeqno;
-    if (mTabChild) {
-      mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
-    }
+    mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
     mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
     mNeedIMEStateInit = false;
   }
@@ -305,7 +302,7 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 }
 
 LayerManager*
-PuppetWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
+PuppetWidget::GetLayerManager(PLayersChild* aShadowManager,
                               LayersBackend aBackendHint,
                               LayerManagerPersistence aPersistence,
                               bool* aAllowRetaining)
@@ -323,7 +320,7 @@ PuppetWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
     }
 #endif
     if (!mLayerManager) {
-      mLayerManager = new ClientLayerManager(this);
+      mLayerManager = new BasicShadowLayerManager(this);
       mLayerManager->AsShadowForwarder()->SetShadowManager(aShadowManager);
     }
   }
@@ -538,7 +535,8 @@ PuppetWidget::SetCursor(nsCursor aCursor)
     return NS_OK;
   }
 
-  if (mTabChild && !mTabChild->SendSetCursor(aCursor)) {
+  if (!mTabChild ||
+      !mTabChild->SendSetCursor(aCursor)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -571,11 +569,6 @@ PuppetWidget::Paint()
 
     if (mozilla::layers::LAYERS_D3D10 == mLayerManager->GetBackendType()) {
       mAttachedWidgetListener->PaintWindow(this, region, 0);
-    } else if (mozilla::layers::LAYERS_CLIENT == mLayerManager->GetBackendType()) {
-      // Do nothing, the compositor will handle drawing
-      if (mTabChild) {
-        mTabChild->NotifyPainted();
-      }
     } else {
       nsRefPtr<gfxContext> ctx = new gfxContext(mSurface);
       ctx->Rectangle(gfxRect(0,0,0,0));
@@ -583,9 +576,7 @@ PuppetWidget::Paint()
       AutoLayerManagerSetup setupLayerManager(this, ctx,
                                               BUFFER_NONE);
       mAttachedWidgetListener->PaintWindow(this, region, 0);
-      if (mTabChild) {
-        mTabChild->NotifyPainted();
-      }
+      mTabChild->NotifyPainted();
     }
   }
 
@@ -625,28 +616,11 @@ float
 PuppetWidget::GetDPI()
 {
   if (mDPI < 0) {
-    if (mTabChild) {
-      mTabChild->GetDPI(&mDPI);
-    } else {
-      mDPI = 96.0;
-    }
+    NS_ABORT_IF_FALSE(mTabChild, "Need TabChild to get the DPI from!");
+    mTabChild->GetDPI(&mDPI);
   }
 
   return mDPI;
-}
-
-double
-PuppetWidget::GetDefaultScaleInternal()
-{
-  if (mDefaultScale < 0) {
-    if (mTabChild) {
-      mTabChild->GetDefaultScale(&mDefaultScale);
-    } else {
-      mDefaultScale = 1;
-    }
-  }
-
-  return mDefaultScale;
 }
 
 void*
@@ -656,9 +630,7 @@ PuppetWidget::GetNativeData(uint32_t aDataType)
   case NS_NATIVE_SHAREABLE_WINDOW: {
     NS_ABORT_IF_FALSE(mTabChild, "Need TabChild to get the nativeWindow from!");
     mozilla::WindowsHandle nativeData = 0;
-    if (mTabChild) {
-      mTabChild->SendGetWidgetNativeData(&nativeData);
-    }
+    mTabChild->SendGetWidgetNativeData(&nativeData);
     return (void*)nativeData;
   }
   case NS_NATIVE_WINDOW:

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -35,6 +36,7 @@ CodeGeneratorShared::ensureMasm(MacroAssembler *masmArg)
 
 CodeGeneratorShared::CodeGeneratorShared(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masmArg)
   : oolIns(NULL),
+    oolParallelAbort_(NULL),
     maybeMasm_(),
     masm(ensureMasm(masmArg)),
     gen(gen),
@@ -47,7 +49,6 @@ CodeGeneratorShared::CodeGeneratorShared(MIRGenerator *gen, LIRGraph *graph, Mac
     lastOsiPointOffset_(0),
     sps_(&gen->compartment->rt->spsProfiler, &lastPC_),
     osrEntryOffset_(0),
-    skipArgCheckEntryOffset_(0),
     frameDepth_(graph->localSlotCount() * sizeof(STACK_SLOT_SIZE) +
                 graph->argumentSlotCount() * sizeof(Value))
 {
@@ -64,13 +65,8 @@ CodeGeneratorShared::CodeGeneratorShared(MIRGenerator *gen, LIRGraph *graph, Mac
         // An MAsmJSCall does not align the stack pointer at calls sites but instead
         // relies on the a priori stack adjustment (in the prologue) on platforms
         // (like x64) which require the stack to be aligned.
-#ifdef JS_CPU_ARM
-        bool forceAlign = true;
-#else
-        bool forceAlign = false;
-#endif
-        if (gen->performsAsmJSCall() || forceAlign) {
-            unsigned alignmentAtCall = AlignmentMidPrologue + frameDepth_;
+        if (gen->performsAsmJSCall()) {
+            unsigned alignmentAtCall = AlignmentAtPrologue + frameDepth_;
             if (unsigned rem = alignmentAtCall % StackAlignment)
                 frameDepth_ += StackAlignment - rem;
         }
@@ -448,6 +444,7 @@ CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Regi
 
     // Pop arguments from framePushed.
     masm.implicitPop(fun.explicitStackSlots() * sizeof(void *) + framePop);
+
     // Stack is:
     //    ... frame ...
     return true;
@@ -540,40 +537,17 @@ CodeGeneratorShared::markArgumentSlots(LSafepoint *safepoint)
     return true;
 }
 
-OutOfLineParallelAbort *
-CodeGeneratorShared::oolParallelAbort(ParallelBailoutCause cause,
-                                      MBasicBlock *basicBlock,
-                                      jsbytecode *bytecode)
+bool
+CodeGeneratorShared::ensureOutOfLineParallelAbort(Label **result)
 {
-    OutOfLineParallelAbort *ool = new OutOfLineParallelAbort(cause, basicBlock, bytecode);
-    if (!ool || !addOutOfLineCode(ool))
-        return NULL;
-    return ool;
-}
-
-OutOfLineParallelAbort *
-CodeGeneratorShared::oolParallelAbort(ParallelBailoutCause cause,
-                                      LInstruction *lir)
-{
-    MDefinition *mir = lir->mirRaw();
-    MBasicBlock *block = mir->block();
-    jsbytecode *pc = mir->trackedPc();
-    if (!pc) {
-        if (lir->snapshot())
-            pc = lir->snapshot()->mir()->pc();
-        else
-            pc = block->pc();
+    if (!oolParallelAbort_) {
+        oolParallelAbort_ = new OutOfLineParallelAbort();
+        if (!addOutOfLineCode(oolParallelAbort_))
+            return false;
     }
-    return oolParallelAbort(cause, block, pc);
-}
 
-OutOfLinePropagateParallelAbort *
-CodeGeneratorShared::oolPropagateParallelAbort(LInstruction *lir)
-{
-    OutOfLinePropagateParallelAbort *ool = new OutOfLinePropagateParallelAbort(lir);
-    if (!ool || !addOutOfLineCode(ool))
-        return NULL;
-    return ool;
+    *result = oolParallelAbort_->entry();
+    return true;
 }
 
 bool
@@ -581,13 +555,6 @@ OutOfLineParallelAbort::generate(CodeGeneratorShared *codegen)
 {
     codegen->callTraceLIR(0xDEADBEEF, NULL, "ParallelBailout");
     return codegen->visitOutOfLineParallelAbort(this);
-}
-
-bool
-OutOfLinePropagateParallelAbort::generate(CodeGeneratorShared *codegen)
-{
-    codegen->callTraceLIR(0xDEADBEEF, NULL, "ParallelBailout");
-    return codegen->visitOutOfLinePropagateParallelAbort(this);
 }
 
 bool

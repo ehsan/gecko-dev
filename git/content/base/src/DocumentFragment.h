@@ -37,41 +37,12 @@ public:
   // interface nsIDOMDocumentFragment
   // NS_DECL_NSIDOCUMENTFRAGMENT  Empty
 
-private:
-  void Init()
-  {
-    NS_ABORT_IF_FALSE(mNodeInfo->NodeType() ==
-                      nsIDOMNode::DOCUMENT_FRAGMENT_NODE &&
-                      mNodeInfo->Equals(nsGkAtoms::documentFragmentNodeName,
-                                        kNameSpaceID_None),
-                      "Bad NodeType in aNodeInfo");
-
-    SetIsDOMBinding();
-  }
-
-public:
-  DocumentFragment(already_AddRefed<nsINodeInfo> aNodeInfo)
-    : FragmentOrElement(aNodeInfo), mHost(nullptr)
-  {
-    Init();
-  }
-
-  DocumentFragment(nsNodeInfoManager* aNodeInfoManager)
-    : FragmentOrElement(aNodeInfoManager->GetNodeInfo(
-                                            nsGkAtoms::documentFragmentNodeName,
-                                            nullptr, kNameSpaceID_None,
-                                            nsIDOMNode::DOCUMENT_FRAGMENT_NODE)),
-      mHost(nullptr)
-  {
-    Init();
-  }
-
+  DocumentFragment(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~DocumentFragment()
   {
   }
 
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 
   // nsIContent
   virtual already_AddRefed<nsINodeInfo>

@@ -11,5 +11,7 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 
+EXPORTS		= ImageLogging.h
+
 include $(topsrcdir)/config/rules.mk
 

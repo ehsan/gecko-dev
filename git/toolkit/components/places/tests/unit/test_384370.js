@@ -62,14 +62,14 @@ function run_test() {
       // Test exporting a Places canonical json file.
       // 1. export to bookmarks.exported.json
       try {
-        yield BookmarkJSONUtils.exportToFile(jsonFile);
+        PlacesUtils.backups.saveBookmarksToJSONFile(jsonFile);
       } catch(ex) { do_throw("couldn't export to file: " + ex); }
       LOG("exported json");
 
       // 2. empty bookmarks db
       // 3. import bookmarks.exported.json
       try {
-        yield BookmarkJSONUtils.importFromFile(jsonFile, true);
+        PlacesUtils.restoreBookmarksFromJSONFile(jsonFile);
       } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
       LOG("imported json");
 

@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=79:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -34,7 +35,7 @@ AssertInnerizedScopeChain(JSContext *cx, JSObject &scopeobj)
 }
 
 static bool
-IsEvalCacheCandidate(JSScript *script)
+IsEvalCacheCandidate(RawScript script)
 {
     // Make sure there are no inner objects which might use the wrong parent
     // and/or call scope by reusing the previous eval's script. Skip the
@@ -123,7 +124,7 @@ class EvalScriptGuard
         }
     }
 
-    void setNewScript(JSScript *script) {
+    void setNewScript(RawScript script) {
         // JSScript::initFromEmitter has already called js_CallNewScriptHook.
         JS_ASSERT(!script_ && script);
         script_ = script;
@@ -265,7 +266,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
 
     JSPrincipals *principals = PrincipalsForCompiledCode(args, cx);
 
-    RootedScript callerScript(cx, caller ? caller.script() : NULL);
+    JSScript *callerScript = caller ? caller.script() : NULL;
     EvalJSONResult ejr = TryEvalJSON(cx, callerScript, chars, length, args.rval());
     if (ejr != EvalJSON_NotJSON)
         return ejr == EvalJSON_Success;
@@ -286,11 +287,11 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
         CompileOptions options(cx);
         options.setFileAndLine(filename, lineno)
                .setCompileAndGo(true)
-               .setForEval(true)
                .setNoScriptRval(false)
                .setPrincipals(principals)
                .setOriginPrincipals(originPrincipals);
-        JSScript *compiled = frontend::CompileScript(cx, scopeobj, callerScript, options,
+        RootedScript callerScript(cx, caller ? caller.script() : NULL);
+        RawScript compiled = frontend::CompileScript(cx, scopeobj, callerScript, options,
                                                      chars.get(), length, stableStr, staticLevel);
         if (!compiled)
             return false;
@@ -348,11 +349,10 @@ js::DirectEvalFromIon(JSContext *cx,
         CompileOptions options(cx);
         options.setFileAndLine(filename, lineno)
                .setCompileAndGo(true)
-               .setForEval(true)
                .setNoScriptRval(false)
                .setPrincipals(principals)
                .setOriginPrincipals(originPrincipals);
-        JSScript *compiled = frontend::CompileScript(cx, scopeobj, callerScript, options,
+        RawScript compiled = frontend::CompileScript(cx, scopeobj, callerScript, options,
                                                      chars.get(), length, stableStr, staticLevel);
         if (!compiled)
             return false;
@@ -413,7 +413,7 @@ js::DirectEval(JSContext *cx, const CallArgs &args)
     JS_ASSERT(IsBuiltinEvalForScope(caller.scopeChain(), args.calleev()));
     JS_ASSERT(JSOp(*iter.pc()) == JSOP_EVAL);
     JS_ASSERT_IF(caller.isFunctionFrame(),
-                 caller.compartment() == caller.callee()->compartment());
+                 caller.compartment() == caller.callee().compartment());
 
     if (!WarnOnTooManyArgs(cx, args))
         return false;

@@ -25,11 +25,10 @@ import java.util.GregorianCalendar;
 public class testHistoryTab extends PixelTest {
     private static final String ABOUT_HOME_URL = "about:home";
     private static ListView listview = null;
-    private String[] mBookmarks = new String[] {
-        "Browser Blank Page 01",
-        "Firefox: Customize with add-ons"
+    private String[] bookmarks = new String[] {
+        "http://mochi.test:8888/tests/robocop/robocop_blank_01.html"
     };
-    private View mChild;
+    private View mFirstChild;
     private boolean mNearMidnight;
 
     @Override
@@ -87,7 +86,7 @@ public class testHistoryTab extends PixelTest {
 
         testList(url);
         testContextMenu(url);
-        testClick(getAbsoluteUrl("/robocop/robocop_big_link.html"));
+        testClick(url);
     }
 
     private void testList(String url) {
@@ -108,8 +107,6 @@ public class testHistoryTab extends PixelTest {
             int expectedImages = 1;
             for (int j = 0; j < views.size(); j++) {
                 View v = views.get(j);
-
-                // First row is going to be a header row
                 if (i == 0) {
                     ArrayList<TextView> views2 = mSolo.getCurrentTextViews(v);
                     TextView t = views2.get(0);
@@ -121,7 +118,6 @@ public class testHistoryTab extends PixelTest {
                     mAsserter.ok(headerTextOK, "First row has Today header", string);
                     expectedImages = 0;
                 } else if (v instanceof TextView) {
-                    // if this is a textview, its either the title or the url. In either case, both should be filled in
                     TextView t = (TextView)v;
                     String string = t.getText().toString();
                     mAsserter.ok(!TextUtils.isEmpty(string), "TextView is filled in", string);
@@ -129,8 +125,8 @@ public class testHistoryTab extends PixelTest {
                         loadUrl = string;
                     }
 
-                    // if this was a url, check if its a bookmark and should have more than one image view present
-                    if (isBookmark(mBookmarks, string)) {
+                    int index = Arrays.binarySearch(bookmarks, string);
+                    if (index > -1) {
                         expectedImages = 2;
                     }
                 } else if (v instanceof ImageView) {
@@ -155,16 +151,16 @@ public class testHistoryTab extends PixelTest {
         waitForText(url);
 
         // wait for the history list to be populated
-        mChild = null;
+        mFirstChild = null;
         boolean success = waitForTest(new BooleanTest() {
             @Override
             public boolean test() {
-                mChild = listview.getChildAt(1);
-                if (mChild == null) {
+                mFirstChild = listview.getChildAt(1);
+                if (mFirstChild == null) {
                     return false;
                 }
-                if (mChild instanceof android.view.ViewGroup) {
-                    ViewGroup group = (ViewGroup)mChild;
+                if (mFirstChild instanceof android.view.ViewGroup) {
+                    ViewGroup group = (ViewGroup)mFirstChild;
                     if (group.getChildCount() < 1) {
                         return false;
                     }
@@ -175,18 +171,17 @@ public class testHistoryTab extends PixelTest {
                         }
                     }
                 } else {
-                    mAsserter.dumpLog("first child not a ViewGroup: "+mChild);
+                    mAsserter.dumpLog("first child not a ViewGroup: "+mFirstChild);
                     return false;
                 }
                 return true;
             }
         }, MAX_WAIT_MS);
-        if (success == true && mChild != null) {
-            mAsserter.dumpLog("clickLongOnView: "+mChild);
-            mSolo.clickLongOnView(mChild);
+        if (success == true && mFirstChild != null) {
+            mAsserter.dumpLog("clickLongOnView: "+mFirstChild);
+            mSolo.clickLongOnView(mFirstChild);
 
             // TODO: Test clicking these does the right thing
-            mAsserter.ok(mSolo.waitForText("Open in New Tab"), "Context menu has Open in New Tab option", "Open in New Tab");
             mAsserter.ok(mSolo.waitForText("Share"), "Context menu has Share option", "Share");
             mAsserter.ok(mSolo.searchText("Remove", true), "Context menu has Remove option", "Remove");
             mAsserter.ok(mSolo.searchText("Add to Home Screen", true), "Context menu has Add to Home Screen option", "Add to Home Screen");
@@ -213,26 +208,21 @@ public class testHistoryTab extends PixelTest {
         mSolo.clickOnView(child);
         // nothing should happen
 
-        mChild = null;
+        Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+        mFirstChild = null;
         boolean success = waitForTest(new BooleanTest() {
             @Override
             public boolean test() {
-                // Avoid clicking on the first entry, which is already open and will just switch to the tab
-                mChild = listview.getChildAt(2);
-                if (mChild == null) {
+                mFirstChild = listview.getChildAt(1);
+                if (mFirstChild == null) {
                     return false;
                 }
                 return true;
             }
         }, MAX_WAIT_MS);
-        if (success == true && mChild != null) {
-            Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
-            mSolo.clickOnView(mChild);
+        if (success == true && mFirstChild != null) {
+            mSolo.clickOnView(mFirstChild);
             contentEventExpecter.blockForEvent();
-            contentEventExpecter.unregisterListener();
-            // TODO: Find a better way to wait for update before checking
-            // awesome bar; lesser waits result in intermittent failures
-            mSolo.sleep(2000);
             verifyUrl(url);
         } else {
             mAsserter.ok(false, "waiting for history item", "history item available");

@@ -88,7 +88,7 @@ public class BagheeraClient {
     }
 
     final BaseResource resource = makeResource(namespace, id);
-    resource.delegate = new BagheeraResourceDelegate(resource, namespace, id, delegate);
+    resource.delegate = new BagheeraResourceDelegate(resource, delegate);
     resource.delete();
   }
 
@@ -126,7 +126,7 @@ public class BagheeraClient {
     final BaseResource resource = makeResource(namespace, id);
     final HttpEntity deflatedBody = DeflateHelper.deflateBody(payload);
 
-    resource.delegate = new BagheeraUploadResourceDelegate(resource, namespace, id, oldID, delegate);
+    resource.delegate = new BagheeraUploadResourceDelegate(resource, oldID, delegate);
     resource.post(deflatedBody);
   }
 
@@ -150,17 +150,15 @@ public class BagheeraClient {
 
   public class BagheeraResourceDelegate extends BaseResourceDelegate {
     private static final int DEFAULT_SOCKET_TIMEOUT_MSEC = 5 * 60 * 1000;       // Five minutes.
-    protected final BagheeraRequestDelegate delegate;
-    protected final String namespace;
-    protected final String id;
+    protected BagheeraRequestDelegate delegate;
+
+    public BagheeraResourceDelegate(Resource resource) {
+      super(resource);
+    }
 
     public BagheeraResourceDelegate(final Resource resource,
-                                    final String namespace,
-                                    final String id,
                                     final BagheeraRequestDelegate delegate) {
-      super(resource);
-      this.namespace = namespace;
-      this.id = id;
+      this(resource);
       this.delegate = delegate;
     }
 
@@ -195,7 +193,7 @@ public class BagheeraClient {
       executor.execute(new Runnable() {
         @Override
         public void run() {
-          delegate.handleFailure(status, namespace, response);
+          delegate.handleFailure(status, response);
         }
       });
     }
@@ -204,7 +202,7 @@ public class BagheeraClient {
       executor.execute(new Runnable() {
         @Override
         public void run() {
-          delegate.handleSuccess(status, namespace, id, response);
+          delegate.handleSuccess(status, response);
         }
       });
     }
@@ -231,11 +229,9 @@ public class BagheeraClient {
     protected String obsoleteDocumentID;
 
     public BagheeraUploadResourceDelegate(Resource resource,
-        String namespace,
-        String id,
-        String obsoleteDocumentID,
-        BagheeraRequestDelegate delegate) {
-      super(resource, namespace, id, delegate);
+                                          String obsoleteDocumentID,
+                                          BagheeraRequestDelegate delegate) {
+      super(resource, delegate);
       this.obsoleteDocumentID = obsoleteDocumentID;
     }
 

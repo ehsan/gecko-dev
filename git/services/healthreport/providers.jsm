@@ -36,10 +36,10 @@ Cu.import("resource://gre/modules/Metrics.jsm");
 
 Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/osfile.jsm");
-Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://services-common/preferences.js");
 Cu.import("resource://services-common/utils.js");
 
 XPCOMUtils.defineLazyModuleGetter(this, "AddonManager",
@@ -190,11 +190,11 @@ AppInfoProvider.prototype = Object.freeze({
     xpcomabi: "XPCOMABI",
   },
 
-  postInit: function () {
-    return Task.spawn(this._postInit.bind(this));
+  onInit: function () {
+    return Task.spawn(this._onInit.bind(this));
   },
 
-  _postInit: function () {
+  _onInit: function () {
     let recordEmptyAppInfo = function () {
       this._setCurrentAppVersion("");
       this._setCurrentPlatformVersion("");
@@ -611,7 +611,7 @@ SessionsProvider.prototype = Object.freeze({
     this._log.debug("The last recorded session was #" + lastRecordedSession);
 
     for (let [index, session] in Iterator(sessions)) {
-      if (index <= lastRecordedSession) {
+      if (index < lastRecordedSession) {
         this._log.warn("Already recorded session " + index + ". Did the last " +
                        "session crash or have an issue saving the prefs file?");
         continue;
@@ -754,7 +754,7 @@ AddonsProvider.prototype = Object.freeze({
     AddonCountsMeasurement,
   ],
 
-  postInit: function () {
+  onInit: function () {
     let listener = {};
 
     for (let method of this.ADDON_LISTENER_CALLBACKS) {
@@ -927,12 +927,6 @@ CrashesProvider.prototype = Object.freeze({
 
     let m = this.getMeasurement("crashes", 1);
 
-    // Aggregate counts locally to avoid excessive storage interaction.
-    let counts = {
-      pending: new Metrics.DailyValues(),
-      submitted: new Metrics.DailyValues(),
-    };
-
     // FUTURE detect mtimes in the future and react more intelligently.
     for (let filename in pending) {
       let modified = pending[filename].modified;
@@ -941,7 +935,7 @@ CrashesProvider.prototype = Object.freeze({
         continue;
       }
 
-      counts.pending.appendValue(modified, 1);
+      yield m.incrementDailyCounter("pending", modified);
     }
 
     for (let filename in submitted) {
@@ -951,15 +945,7 @@ CrashesProvider.prototype = Object.freeze({
         continue;
       }
 
-      counts.submitted.appendValue(modified, 1);
-    }
-
-    for (let [date, values] in counts.pending) {
-      yield m.incrementDailyCounter("pending", date, values.length);
-    }
-
-    for (let [date, values] in counts.submitted) {
-      yield m.incrementDailyCounter("submitted", date, values.length);
+      yield m.incrementDailyCounter("submitted", modified);
     }
 
     yield this.setState("lastCheck", "" + now.getTime());
@@ -1237,7 +1223,7 @@ SearchCountMeasurement2.prototype = Object.freeze({
    * data.
    */
   shouldIncludeField: function (name) {
-    return name.contains(".");
+    return name.indexOf(".") != -1;
   },
 
   /**
@@ -1368,18 +1354,6 @@ this.SearchesProvider.prototype = Object.freeze({
     SearchCountMeasurement1,
     SearchCountMeasurement2,
   ],
-
-  /**
-   * Initialize the search service before our measurements are touched.
-   */
-  preInit: function (storage) {
-    // Initialize search service.
-    let deferred = Promise.defer();
-    Services.search.init(function onInitComplete () {
-      deferred.resolve();
-    });
-    return deferred.promise;
-  },
 
   /**
    * Record that a search occurred.

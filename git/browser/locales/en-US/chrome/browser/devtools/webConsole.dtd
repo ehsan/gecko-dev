@@ -9,7 +9,6 @@
   - documentation on web development on the web. -->
 
 <!ENTITY window.title "Web Console">
-<!ENTITY browserConsole.title "Browser Console">
 
 <!ENTITY networkPanel.requestURLColon             "Request URL:">
 <!ENTITY networkPanel.requestMethodColon          "Request Method:">
@@ -49,8 +48,6 @@
 <!ENTITY btnPageCSS.tooltip "Log CSS parsing errors">
 <!ENTITY btnPageJS.label    "JS">
 <!ENTITY btnPageJS.tooltip  "Log JavaScript exceptions">
-<!ENTITY btnPageSecurity.label "Security">
-<!ENTITY btnPageSecurity.tooltip "Log security errors and warnings">
 
 <!-- LOCALIZATION NOTE (btnPageLogging): This is used as the text of the
   -  the toolbar. It shows or hides messages that the web developer inserted on
@@ -63,7 +60,7 @@
 <!ENTITY btnConsoleWarnings     "Warnings">
 <!ENTITY btnConsoleLog          "Log">
 
-<!ENTITY filterOutput.placeholder "Filter output">
+<!ENTITY filterBox.placeholder "Filter">
 <!ENTITY btnClear.label        "Clear">
 <!ENTITY btnClear.tooltip      "Clear the Web Console output">
 
@@ -79,5 +76,3 @@
 
 <!ENTITY copyURLCmd.label     "Copy Link Location">
 <!ENTITY copyURLCmd.accesskey "a">
-
-<!ENTITY closeCmd.key  "W">

@@ -48,6 +48,7 @@
 #include "nsBoxLayoutState.h"
 #include <algorithm>
 //for keylistener for "return" check
+#include "nsIDOMEventTarget.h"
 #include "nsIDocument.h" //observe documents to send onchangenotifications
 #include "nsIStyleSheet.h"//observe documents to send onchangenotifications
 #include "nsIStyleRule.h"//observe documents to send onchangenotifications
@@ -65,6 +66,7 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsINativeKeyBindings.h"
+#include "nsIJSContextStack.h"
 #include "nsFocusManager.h"
 #include "nsTextEditRules.h"
 #include "nsPresState.h"
@@ -72,7 +74,6 @@
 #include "nsAttrValueInlines.h"
 #include "mozilla/Selection.h"
 #include "nsContentUtils.h"
-#include "nsTextNode.h"
 
 #define DEFAULT_COLUMN_WIDTH 20
 
@@ -1323,8 +1324,10 @@ nsTextControlFrame::UpdateValueDisplay(bool aNotify,
   nsIContent *textContent = rootNode->GetChildAt(0);
   if (!textContent) {
     // Set up a textnode with our value
-    nsRefPtr<nsTextNode> textNode =
-      new nsTextNode(mContent->NodeInfo()->NodeInfoManager());
+    nsCOMPtr<nsIContent> textNode;
+    nsresult rv = NS_NewTextNode(getter_AddRefs(textNode),
+                                 mContent->NodeInfo()->NodeInfoManager());
+    NS_ENSURE_SUCCESS(rv, rv);
 
     NS_ASSERTION(textNode, "Must have textcontent!\n");
 

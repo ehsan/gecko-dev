@@ -733,7 +733,12 @@ nsMediaList::Append(const nsAString& aNewMedium)
 
   nsresult rv = NS_OK;
   nsTArray<nsAutoPtr<nsMediaQuery> > buf;
-  mArray.SwapElements(buf);
+#ifdef DEBUG
+  bool ok = 
+#endif
+    mArray.SwapElements(buf);
+  NS_ASSERTION(ok, "SwapElements should never fail when neither array "
+                   "is an auto array");
   SetText(aNewMedium);
   if (mArray.Length() == 1) {
     nsMediaQuery *query = mArray[0].forget();
@@ -742,8 +747,12 @@ nsMediaList::Append(const nsAString& aNewMedium)
       rv = NS_ERROR_OUT_OF_MEMORY;
     }
   }
-
-  mArray.SwapElements(buf);
+#ifdef DEBUG
+  ok = 
+#endif
+    mArray.SwapElements(buf);
+  NS_ASSERTION(ok, "SwapElements should never fail when neither array "
+                   "is an auto array");
   return rv;
 }
 
@@ -1573,12 +1582,13 @@ nsCSSStyleSheet::Clone(nsCSSStyleSheet* aCloneParent,
                        nsIDocument* aCloneDocument,
                        nsINode* aCloneOwningNode) const
 {
-  nsRefPtr<nsCSSStyleSheet> clone = new nsCSSStyleSheet(*this,
-                                                        aCloneParent,
-                                                        aCloneOwnerRule,
-                                                        aCloneDocument,
-                                                        aCloneOwningNode);
-  return clone.forget();
+  nsCSSStyleSheet* clone = new nsCSSStyleSheet(*this,
+                                               aCloneParent,
+                                               aCloneOwnerRule,
+                                               aCloneDocument,
+                                               aCloneOwningNode);
+  NS_IF_ADDREF(clone);
+  return clone;
 }
 
 #ifdef DEBUG
@@ -2259,7 +2269,7 @@ nsCSSStyleSheet::GetOriginalURI() const
 
 /* virtual */
 JSObject*
-nsCSSStyleSheet::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+nsCSSStyleSheet::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return CSSStyleSheetBinding::Wrap(aCx, aScope, this);
 }

@@ -31,9 +31,6 @@ public interface Actions {
 
         /** Polls to see if the event has been received. Once this returns true, subsequent calls will also return true. */
         public boolean eventReceived();
-
-        /** Stop listening for events. */
-        public void unregisterListener();
     }
 
     public interface RepeatedEventExpecter extends EventExpecter {
@@ -78,7 +75,6 @@ public interface Actions {
      * @param key The special key to send
      */
     void sendSpecialKey(SpecialKey key);
-    void sendKeyCode(int keyCode);
 
     void drag(int startingX, int endingX, int startingY, int endingY);
 

@@ -5,11 +5,12 @@
  * The Marionette object, passed to the script context.
  */
 
-function Marionette(scope, window, context, logObj, timeout, testName) {
+function Marionette(scope, window, context, logObj, perfData, timeout, testName) {
   this.scope = scope;
   this.window = window;
   this.tests = [];
   this.logObj = logObj;
+  this.perfData = perfData;
   this.context = context;
   this.timeout = timeout;
   this.testName = testName;
@@ -20,8 +21,8 @@ function Marionette(scope, window, context, logObj, timeout, testName) {
 
 Marionette.prototype = {
   exports: ['ok', 'is', 'isnot', 'log', 'getLogs', 'generate_results', 'waitFor',
-            'runEmulatorCmd', 'TEST_PASS', 'TEST_KNOWN_FAIL',
-            'TEST_UNEXPECTED_FAIL'],
+            'runEmulatorCmd', 'addPerfData', 'getPerfData', 'TEST_PASS',
+            'TEST_KNOWN_FAIL', 'TEST_UNEXPECTED_FAIL'],
 
   ok: function Marionette__ok(condition, name, passString, failString, diag) {
     if (typeof(diag) == "undefined") {
@@ -46,6 +47,14 @@ Marionette.prototype = {
     let diag = pass ? this.repr(a) + " should not equal " + this.repr(b)
                     : "didn't expect " + this.repr(a) + ", but got it";
     this.ok(pass, name, passString, failString, diag);
+  },
+
+  addPerfData: function Marionette__addPerfData(testSuite, testName, data) {
+    this.perfData.addPerfData(testSuite, testName, data);
+  },
+
+  getPerfData: function Marionette__getPerfData() {
+    return this.perfData.perfData;
   },
 
   log: function Marionette__log(msg, level) {

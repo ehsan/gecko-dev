@@ -18,7 +18,6 @@ namespace mozilla {
 namespace dom {
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CallbackObject)
-  NS_INTERFACE_MAP_ENTRY(mozilla::dom::CallbackObject)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -35,7 +34,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(CallbackObject)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mCallback)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
-CallbackObject::CallSetup::CallSetup(JS::Handle<JSObject*> aCallback,
+CallbackObject::CallSetup::CallSetup(JSObject* const aCallback,
                                      ErrorResult& aRv,
                                      ExceptionHandling aExceptionHandling)
   : mCx(nullptr)
@@ -51,7 +50,7 @@ CallbackObject::CallSetup::CallSetup(JS::Handle<JSObject*> aCallback,
   // callable.
 
   // First, find the real underlying callback.
-  JSObject* realCallback = js::UncheckedUnwrap(aCallback);
+  JSObject* realCallback = js::UnwrapObject(aCallback);
 
   // Now get the nsIScriptGlobalObject for this callback.
   JSContext* cx = nullptr;
@@ -98,7 +97,7 @@ CallbackObject::CallSetup::CallSetup(JS::Handle<JSObject*> aCallback,
   // After this point we guarantee calling ScriptEvaluated() if we
   // have an nsIScriptContext.
   // XXXbz Why, if, say CheckFunctionAccess fails?  I know that's how
-  // nsJSContext::CallEventHandler used to work, but is it required?
+  // nsJSContext::CallEventHandler works, but is it required?
   // FIXME: Bug 807369.
   mCtx = ctx;
 
@@ -107,7 +106,7 @@ CallbackObject::CallSetup::CallSetup(JS::Handle<JSObject*> aCallback,
   // Make sure to unwrap aCallback before passing it in, because
   // getting principals from wrappers is silly.
   nsresult rv = nsContentUtils::GetSecurityManager()->
-    CheckFunctionAccess(cx, js::UncheckedUnwrap(aCallback), nullptr);
+    CheckFunctionAccess(cx, js::UnwrapObject(aCallback), nullptr);
 
   // Construct a termination func holder even if we're not planning to
   // run any script.  We need this because we're going to call
@@ -146,8 +145,8 @@ CallbackObject::CallSetup::~CallSetup()
       JS_SetOptions(mCx, mSavedJSContextOptions);
       mErrorResult.MightThrowJSException();
       if (JS_IsExceptionPending(mCx)) {
-        JS::Rooted<JS::Value> exn(mCx);
-        if (JS_GetPendingException(mCx, exn.address())) {
+        JS::Value exn;
+        if (JS_GetPendingException(mCx, &exn)) {
           mErrorResult.ThrowJSException(mCx, exn);
           JS_ClearPendingException(mCx);
           dealtWithPendingException = true;
@@ -185,16 +184,15 @@ CallbackObject::CallSetup::~CallSetup()
 
 already_AddRefed<nsISupports>
 CallbackObjectHolderBase::ToXPCOMCallback(CallbackObject* aCallback,
-                                          const nsIID& aIID) const
+                                          const nsIID& aIID)
 {
   if (!aCallback) {
     return nullptr;
   }
 
-  AutoSafeJSContext cx;
+  JSObject* callback = aCallback->Callback();
 
-  JS::Rooted<JSObject*> callback(cx, aCallback->Callback());
-
+  SafeAutoJSContext cx;
   JSAutoCompartment ac(cx, callback);
   XPCCallContext ccx(NATIVE_CALLER, cx);
   if (!ccx.IsValid()) {

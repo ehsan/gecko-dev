@@ -26,7 +26,6 @@
 #include "nsThemeConstants.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayListInvalidation.h"
-#include "DisplayListClipState.h"
 
 #include "mozilla/StandardInteger.h"
 
@@ -112,8 +111,6 @@ class nsDisplayListBuilder {
 public:
   typedef mozilla::FramePropertyDescriptor FramePropertyDescriptor;
   typedef mozilla::FrameLayerBuilder FrameLayerBuilder;
-  typedef mozilla::DisplayItemClip DisplayItemClip;
-  typedef mozilla::DisplayListClipState DisplayListClipState;
   typedef nsIWidget::ThemeGeometry ThemeGeometry;
 
   /**
@@ -335,14 +332,6 @@ public:
    */
   void EnterPresShell(nsIFrame* aReferenceFrame, const nsRect& aDirtyRect);
   /**
-   * For print-preview documents, we sometimes need to build display items for
-   * the same frames multiple times in the same presentation, with different
-   * clipping. Between each such batch of items, call
-   * ResetMarkedFramesForDisplayList to make sure that the results of
-   * MarkFramesForDisplayList do not carry over between batches.
-   */
-  void ResetMarkedFramesForDisplayList();
-  /**
    * Notify the display list builder that we're leaving a presshell.
    */
   void LeavePresShell(nsIFrame* aReferenceFrame, const nsRect& aDirtyRect);
@@ -486,18 +475,11 @@ public:
    * destructors are called as soon as the item is no longer used.
    */
   void* Allocate(size_t aSize);
-
-  /**
-   * Allocate a new DisplayListClip in the arena. Will be cleaned up
-   * automatically when the arena goes away.
-   */
-  const DisplayItemClip* AllocateDisplayItemClip(const DisplayItemClip& aOriginal);
-
+  
   /**
    * A helper class to temporarily set the value of
    * mIsAtRootOfPseudoStackingContext and mIsInFixedPosition, and temporarily
    * update mCachedOffsetFrame/mCachedOffset from a frame to its child.
-   * Also saves and restores mClipState.
    */
   class AutoBuildingDisplayList;
   friend class AutoBuildingDisplayList;
@@ -573,24 +555,7 @@ public:
   nsDisplayTableItem* GetCurrentTableItem() { return mCurrentTableItem; }
   void SetCurrentTableItem(nsDisplayTableItem* aTableItem) { mCurrentTableItem = aTableItem; }
 
-  struct OutOfFlowDisplayData {
-    OutOfFlowDisplayData(const DisplayItemClip& aContainingBlockClip,
-                         const nsRect &aDirtyRect)
-      : mContainingBlockClip(aContainingBlockClip)
-      , mDirtyRect(aDirtyRect)
-    {}
-    OutOfFlowDisplayData(const nsRect &aDirtyRect)
-      : mDirtyRect(aDirtyRect)
-    {}
-    DisplayItemClip mContainingBlockClip;
-    nsRect mDirtyRect;
-  };
-  static void DestroyOutOfFlowDisplayData(void* aPropertyValue)
-  {
-    delete static_cast<OutOfFlowDisplayData*>(aPropertyValue);
-  }
-
-  NS_DECLARE_FRAME_PROPERTY(OutOfFlowDisplayDataProperty, DestroyOutOfFlowDisplayData)
+  NS_DECLARE_FRAME_PROPERTY(OutOfFlowDirtyRectProperty, nsIFrame::DestroyRect)
   NS_DECLARE_FRAME_PROPERTY(Preserve3DDirtyRectProperty, nsIFrame::DestroyRect)
 
   nsPresContext* CurrentPresContext() {
@@ -626,8 +591,6 @@ public:
   void SetContainsPluginItem() { mContainsPluginItem = true; }
   bool ContainsPluginItem() { return mContainsPluginItem; }
 
-  DisplayListClipState& ClipState() { return mClipState; }
-
 private:
   void MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame, nsIFrame* aFrame,
                                     const nsRect& aDirtyRect);
@@ -652,7 +615,6 @@ private:
   nsAutoTArray<nsIFrame*,100>    mFramesMarkedForDisplay;
   nsAutoTArray<ThemeGeometry,2>  mThemeGeometries;
   nsDisplayTableItem*            mCurrentTableItem;
-  DisplayListClipState           mClipState;
   const nsRegion*                mFinalTransparentRegion;
   // When mCachedOffsetFrame is non-null, mCachedOffset is the offset from
   // mCachedOffsetFrame to mReferenceFrame.
@@ -663,7 +625,6 @@ private:
   nsRegion                       mExcludedGlassRegion;
   // The display item for the Windows window glass background, if any
   nsDisplayItem*                 mGlassDisplayItem;
-  nsTArray<DisplayItemClip*>     mDisplayItemClipsToDestroy;
   Mode                           mMode;
   bool                           mBuildCaret;
   bool                           mIgnoreSuppression;
@@ -721,7 +682,6 @@ protected:
 class nsDisplayItem : public nsDisplayItemLink {
 public:
   typedef mozilla::FrameLayerBuilder::ContainerParameters ContainerParameters;
-  typedef mozilla::DisplayItemClip DisplayItemClip;
   typedef mozilla::layers::FrameMetrics::ViewID ViewID;
   typedef mozilla::layers::Layer Layer;
   typedef mozilla::layers::LayerManager LayerManager;
@@ -731,34 +691,23 @@ public:
   // need to count constructors and destructors.
   nsDisplayItem(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
     : mFrame(aFrame)
-    , mClip(aBuilder->ClipState().GetCurrentCombinedClip(aBuilder))
 #ifdef MOZ_DUMP_PAINTING
     , mPainted(false)
 #endif
   {
-    mReferenceFrame = aBuilder->FindReferenceFrameFor(aFrame);
-    mToReferenceFrame = aBuilder->ToReferenceFrame(aFrame);
+    if (aFrame) {
+      mReferenceFrame = aBuilder->FindReferenceFrameFor(aFrame);
+      mToReferenceFrame = aBuilder->ToReferenceFrame(aFrame);
+    } else {
+      mReferenceFrame = nullptr;
+    }
   }
   nsDisplayItem(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
                 const nsIFrame* aReferenceFrame,
                 const nsPoint& aToReferenceFrame)
     : mFrame(aFrame)
-    , mClip(aBuilder->ClipState().GetCurrentCombinedClip(aBuilder))
     , mReferenceFrame(aReferenceFrame)
     , mToReferenceFrame(aToReferenceFrame)
-#ifdef MOZ_DUMP_PAINTING
-    , mPainted(false)
-#endif
-  {
-  }
-  /**
-   * This constructor is only used in rare cases when we need to construct
-   * temporary items.
-   */
-  nsDisplayItem(nsIFrame* aFrame)
-    : mFrame(aFrame)
-    , mClip(nullptr)
-    , mReferenceFrame(nullptr)
 #ifdef MOZ_DUMP_PAINTING
     , mPainted(false)
 #endif
@@ -801,15 +750,19 @@ public:
    */
   virtual Type GetType() = 0;
   /**
-   * Pairing this with the GetUnderlyingFrame() pointer gives a key that
-   * uniquely identifies this display item in the display item tree.
-   * XXX check ScrollLayerWrapper/nsOptionEventGrabberWrapper/nsXULEventRedirectorWrapper
+   * If this returns a non-zero value, then pairing this with the
+   * GetUnderlyingFrame() pointer gives a key that uniquely identifies
+   * this display item in the display item tree.
+   * This will only return a zero value for items which wrap display lists
+   * and do not create a CSS stacking context, therefore requiring
+   * display items to be individually wrapped --- currently nsDisplayClip
+   * and nsDisplayClipRoundedRect only.
    */
   virtual uint32_t GetPerFrameKey() { return uint32_t(GetType()); }
   /**
    * This is called after we've constructed a display list for event handling.
    * When this is called, we've already ensured that aRect intersects the
-   * item's bounds and that clipping has been taking into account.
+   * item's bounds.
    *
    * @param aRect the point or rect being tested, relative to the reference
    * frame. If the width and height are both 1 app unit, it indicates we're
@@ -823,10 +776,11 @@ public:
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {}
   /**
    * @return the frame that this display item is based on. This is used to sort
-   * items by z-index and content order and for some other uses. Never
-   * returns null.
+   * items by z-index and content order and for some other uses. For some items
+   * that wrap item lists, this could return nullptr because there is no single
+   * underlying frame; for leaf items it will never return nullptr.
    */
-  inline nsIFrame* Frame() const { return mFrame; }
+  inline nsIFrame* GetUnderlyingFrame() const { return mFrame; }
   /**
    * The default bounds is the frame border rect.
    * @param aSnap *aSnap is set to true if the returned rect will be
@@ -834,29 +788,22 @@ public:
    * It might be set to false and snap anyway, so code computing the set of
    * pixels affected by this display item needs to round outwards to pixel
    * boundaries when *aSnap is set to false.
-   * This does not take the item's clipping into account.
    * @return a rectangle relative to aBuilder->ReferenceFrame() that
    * contains the area drawn by this display item
    */
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
   {
     *aSnap = false;
-    return nsRect(ToReferenceFrame(), Frame()->GetSize());
+    return nsRect(ToReferenceFrame(), GetUnderlyingFrame()->GetSize());
   }
-  /**
-   * Returns the result of GetBounds intersected with the item's clip.
-   * The intersection is approximate since rounded corners are not taking into
-   * account.
-   */
-  nsRect GetClippedBounds(nsDisplayListBuilder* aBuilder);
   nsRect GetBorderRect() {
-    return nsRect(ToReferenceFrame(), Frame()->GetSize());
+    return nsRect(ToReferenceFrame(), GetUnderlyingFrame()->GetSize());
   }
   nsRect GetPaddingRect() {
-    return Frame()->GetPaddingRectRelativeToSelf() + ToReferenceFrame();
+    return GetUnderlyingFrame()->GetPaddingRectRelativeToSelf() + ToReferenceFrame();
   }
   nsRect GetContentRect() {
-    return Frame()->GetContentRectRelativeToSelf() + ToReferenceFrame();
+    return GetUnderlyingFrame()->GetContentRectRelativeToSelf() + ToReferenceFrame();
   }
 
   /**
@@ -929,7 +876,7 @@ public:
     if (!aGeometry->mBounds.IsEqualInterior(bounds)) {
       nscoord radii[8];
       if (aGeometry->mHasRoundedCorners ||
-          Frame()->GetBorderRadii(radii)) {
+          GetUnderlyingFrame()->GetBorderRadii(radii)) {
         aInvalidRegion->Or(aGeometry->mBounds, bounds);
       } else {
         aInvalidRegion->Xor(aGeometry->mBounds, bounds);
@@ -955,7 +902,6 @@ public:
    * color. This is useful for determining when one piece
    * of content completely obscures another so that we can do occlusion
    * culling.
-   * This does not take clipping into account.
    */
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    bool* aSnap)
@@ -1125,7 +1071,6 @@ public:
    * return the list.
    */
   virtual nsDisplayList* GetSameCoordinateSystemChildren() { return nullptr; }
-  virtual void UpdateBounds(nsDisplayListBuilder* aBuilder) {}
 
   /**
    * If this has a child list, return it, even if the children are in
@@ -1200,26 +1145,14 @@ public:
   
   virtual bool SupportsOptimizingToImage() { return false; }
 
-  const DisplayItemClip& GetClip()
-  {
-    return mClip ? *mClip : DisplayItemClip::NoClip();
-  }
-  void SetClip(nsDisplayListBuilder* aBuilder, const DisplayItemClip& aClip)
-  {
-    if (!aClip.HasClip()) {
-      mClip = nullptr;
-      return;
-    }
-    mClip = aBuilder->AllocateDisplayItemClip(aClip);
-  }
-
 protected:
   friend class nsDisplayList;
 
-  nsDisplayItem() { mAbove = nullptr; }
+  nsDisplayItem() {
+    mAbove = nullptr;
+  }
 
   nsIFrame* mFrame;
-  const DisplayItemClip* mClip;
   // Result of FindReferenceFrameFor(mFrame), if mFrame is non-null
   const nsIFrame* mReferenceFrame;
   // Result of ToReferenceFrame(mFrame), if mFrame is non-null
@@ -1428,6 +1361,7 @@ public:
    * @return true if any item in the list is visible.
    */
   bool ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
+                                   nsDisplayItem* aForItem,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aListVisibleBounds,
                                    const nsRect& aAllowVisibleRegionExpansion);
@@ -1523,6 +1457,9 @@ private:
   
   // Utility function used to massage the list during ComputeVisibility.
   void FlattenTo(nsTArray<nsDisplayItem*>* aElements);
+  // Utility function used to massage the list during sorting, to rewrite
+  // any wrapper items with null GetUnderlyingFrame
+  void ExplodeAnonymousChildLists(nsDisplayListBuilder* aBuilder);
   
   nsDisplayItemLink  mSentinel;
   nsDisplayItemLink* mTop;
@@ -2066,7 +2003,7 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE
   {
     *aSnap = true;
-    return nsRect(ToReferenceFrame(), Frame()->GetSize());
+    return nsRect(ToReferenceFrame(), GetUnderlyingFrame()->GetSize());
   }
 
   virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE
@@ -2262,7 +2199,7 @@ public:
   /**
    * Call this if the wrapped list is changed.
    */
-  virtual void UpdateBounds(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE
+  void UpdateBounds(nsDisplayListBuilder* aBuilder)
   {
     mBounds = mList.GetBounds(aBuilder);
   }
@@ -2611,6 +2548,87 @@ public:
 };
 
 /**
+ * nsDisplayClip can clip a list of items, but we take a single item
+ * initially and then later merge other items into it when we merge
+ * adjacent matching nsDisplayClips
+ */
+class nsDisplayClip : public nsDisplayWrapList {
+public:
+  /**
+   * @param aFrame the frame that should be considered the underlying
+   * frame for this content, e.g. the frame whose z-index we have.  This
+   * is *not* the frame that is inducing the clipping.
+   */
+  nsDisplayClip(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
+                nsDisplayItem* aItem, const nsRect& aRect);
+  nsDisplayClip(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
+                nsDisplayList* aList, const nsRect& aRect);
+#ifdef NS_BUILD_REFCNT_LOGGING
+  virtual ~nsDisplayClip();
+#endif
+  
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE;
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx) MOZ_OVERRIDE;
+  virtual bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
+                                   nsRegion* aVisibleRegion,
+                                   const nsRect& aAllowVisibleRegionExpansion) MOZ_OVERRIDE;
+  virtual bool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem) MOZ_OVERRIDE;
+  NS_DISPLAY_DECL_NAME("Clip", TYPE_CLIP)
+  virtual uint32_t GetPerFrameKey() { return 0; }
+  
+  const nsRect& GetClipRect() { return mClip; }
+  void SetClipRect(const nsRect& aRect) { mClip = aRect; }
+
+  virtual nsDisplayWrapList* WrapWithClone(nsDisplayListBuilder* aBuilder,
+                                           nsDisplayItem* aItem) MOZ_OVERRIDE;
+
+protected:
+  nsRect    mClip;
+};
+
+/**
+ * A display item to clip a list of items to the border-radius of a
+ * frame.
+ */
+class nsDisplayClipRoundedRect : public nsDisplayClip {
+public:
+  /**
+   * @param aFrame the frame that should be considered the underlying
+   * frame for this content, e.g. the frame whose z-index we have.  This
+   * is *not* the frame that is inducing the clipping.
+   */
+  nsDisplayClipRoundedRect(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
+                           nsDisplayItem* aItem,
+                           const nsRect& aRect, nscoord aRadii[8]);
+  nsDisplayClipRoundedRect(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
+                           nsDisplayList* aList,
+                           const nsRect& aRect, nscoord aRadii[8]);
+#ifdef NS_BUILD_REFCNT_LOGGING
+  virtual ~nsDisplayClipRoundedRect();
+#endif
+
+  virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
+                                   bool* aSnap) MOZ_OVERRIDE;
+  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE;
+  virtual bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
+                                   nsRegion* aVisibleRegion,
+                                   const nsRect& aAllowVisibleRegionExpansion) MOZ_OVERRIDE;
+  virtual bool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem) MOZ_OVERRIDE;
+  NS_DISPLAY_DECL_NAME("ClipRoundedRect", TYPE_CLIP_ROUNDED_RECT)
+
+  virtual nsDisplayWrapList* WrapWithClone(nsDisplayListBuilder* aBuilder,
+                                           nsDisplayItem* aItem);
+
+  void GetRadii(nscoord aRadii[8]) {
+    memcpy(aRadii, mRadii, sizeof(mRadii));
+  }
+
+private:
+  nscoord mRadii[8];
+};
+
+/**
  * nsDisplayZoom is used for subdocuments that have a different full zoom than
  * their parent documents. This item creates a container layer.
  */
@@ -2744,6 +2762,8 @@ public:
                      nsDisplayList *aList, uint32_t aIndex = 0);
   nsDisplayTransform(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame,
                      nsDisplayList *aList, ComputeTransformFunction aTransformGetter, uint32_t aIndex = 0);
+  nsDisplayTransform(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame,
+                     nsDisplayItem *aItem, uint32_t aIndex = 0);
 
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplayTransform()
@@ -2959,12 +2979,12 @@ public:
     : nsDisplayItem(aBuilder, aFrame), mLeftEdge(0), mRightEdge(0) {}
 
   nsCharClipDisplayItem(nsIFrame* aFrame)
-    : nsDisplayItem(aFrame) {}
+    : nsDisplayItem(nullptr, aFrame, nullptr, nsPoint()) {}
 
   struct ClipEdges {
     ClipEdges(const nsDisplayItem& aItem,
               nscoord aLeftEdge, nscoord aRightEdge) {
-      nsRect r = aItem.Frame()->GetScrollableOverflowRect() +
+      nsRect r = aItem.GetUnderlyingFrame()->GetScrollableOverflowRect() +
                  aItem.ToReferenceFrame();
       mX = aLeftEdge > 0 ? r.x + aLeftEdge : nscoord_MIN;
       mXMost = aRightEdge > 0 ? std::max(r.XMost() - aRightEdge, mX) : nscoord_MAX;

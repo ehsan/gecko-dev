@@ -10,17 +10,11 @@
 #endif
 
 #include "certt.h"
-#include "nsString.h"
 
 uint32_t
 getCertType(CERTCertificate *cert);
 
 CERTCertNicknames *
 getNSSCertNicknamesFromCertList(CERTCertList *certList);
-
-nsresult
-GetCertFingerprintByOidTag(CERTCertificate* nsscert,
-                           SECOidTag aOidTag, 
-                           nsCString &fp);
 
 #endif

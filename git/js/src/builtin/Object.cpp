@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -183,7 +184,7 @@ obj_toSource(JSContext *cx, unsigned argc, Value *vp)
         }
 
         /* Convert id to a linear string. */
-        JSString *s = ToString<CanGC>(cx, IdToValue(id));
+        RawString s = ToString<CanGC>(cx, IdToValue(id));
         if (!s)
             return false;
         Rooted<JSLinearString*> idstr(cx, s->ensureLinear(cx));
@@ -278,7 +279,7 @@ obj_toSource(JSContext *cx, unsigned argc, Value *vp)
     if (outermost && !buf.append(')'))
         return false;
 
-    JSString *str = buf.finishString();
+    RawString str = buf.finishString();
     if (!str)
         return false;
     args.rval().setString(str);
@@ -287,11 +288,13 @@ obj_toSource(JSContext *cx, unsigned argc, Value *vp)
 #endif /* JS_HAS_TOSOURCE */
 
 JSString *
-JS_BasicObjectToString(JSContext *cx, HandleObject obj)
+js::obj_toStringHelper(JSContext *cx, HandleObject obj)
 {
-    const char *className = JSObject::className(cx, obj);
+    if (obj->isProxy())
+        return Proxy::obj_toString(cx, obj);
 
     StringBuffer sb(cx);
+    const char *className = obj->getClass()->name;
     if (!sb.append("[object ") || !sb.appendInflated(className, strlen(className)) ||
         !sb.append("]"))
     {
@@ -324,7 +327,7 @@ obj_toString(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     /* Steps 4-5. */
-    JSString *str = JS_BasicObjectToString(cx, obj);
+    RawString str = js::obj_toStringHelper(cx, obj);
     if (!str)
         return false;
     args.rval().setString(str);
@@ -743,7 +746,7 @@ obj_getOwnPropertyDescriptor(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject obj(cx);
-    if (!GetFirstArgumentAsObject(cx, args, "Object.getOwnPropertyDescriptor", &obj))
+    if (!GetFirstArgumentAsObject(cx, argc, vp, "Object.getOwnPropertyDescriptor", &obj))
         return JS_FALSE;
     RootedId id(cx);
     if (!ValueToId<CanGC>(cx, args.get(1), &id))
@@ -754,9 +757,8 @@ obj_getOwnPropertyDescriptor(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 obj_keys(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject obj(cx);
-    if (!GetFirstArgumentAsObject(cx, args, "Object.keys", &obj))
+    if (!GetFirstArgumentAsObject(cx, argc, vp, "Object.keys", &obj))
         return false;
 
     AutoIdVector props(cx);
@@ -784,8 +786,8 @@ obj_keys(JSContext *cx, unsigned argc, Value *vp)
     JSObject *aobj = NewDenseCopiedArray(cx, uint32_t(vals.length()), vals.begin());
     if (!aobj)
         return false;
+    vp->setObject(*aobj);
 
-    args.rval().setObject(*aobj);
     return true;
 }
 
@@ -806,9 +808,8 @@ obj_is(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 obj_getOwnPropertyNames(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject obj(cx);
-    if (!GetFirstArgumentAsObject(cx, args, "Object.getOwnPropertyNames", &obj))
+    if (!GetFirstArgumentAsObject(cx, argc, vp, "Object.getOwnPropertyNames", &obj))
         return false;
 
     AutoIdVector keys(cx);
@@ -837,7 +838,7 @@ obj_getOwnPropertyNames(JSContext *cx, unsigned argc, Value *vp)
     if (!aobj)
         return false;
 
-    args.rval().setObject(*aobj);
+    vp->setObject(*aobj);
     return true;
 }
 
@@ -847,7 +848,7 @@ obj_defineProperty(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject obj(cx);
-    if (!GetFirstArgumentAsObject(cx, args, "Object.defineProperty", &obj))
+    if (!GetFirstArgumentAsObject(cx, argc, vp, "Object.defineProperty", &obj))
         return false;
 
     RootedId id(cx);
@@ -860,7 +861,7 @@ obj_defineProperty(JSContext *cx, unsigned argc, Value *vp)
     if (!js_DefineOwnProperty(cx, obj, id, descval, &junk))
         return false;
 
-    args.rval().setObject(*obj);
+    vp->setObject(*obj);
     return true;
 }
 
@@ -872,7 +873,7 @@ obj_defineProperties(JSContext *cx, unsigned argc, Value *vp)
 
     /* Steps 1 and 7. */
     RootedObject obj(cx);
-    if (!GetFirstArgumentAsObject(cx, args, "Object.defineProperties", &obj))
+    if (!GetFirstArgumentAsObject(cx, args.length(), vp, "Object.defineProperties", &obj))
         return false;
     args.rval().setObject(*obj);
 
@@ -894,24 +895,22 @@ obj_defineProperties(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 obj_isExtensible(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject obj(cx);
-    if (!GetFirstArgumentAsObject(cx, args, "Object.isExtensible", &obj))
+    if (!GetFirstArgumentAsObject(cx, argc, vp, "Object.isExtensible", &obj))
         return false;
 
-    args.rval().setBoolean(obj->isExtensible());
+    vp->setBoolean(obj->isExtensible());
     return true;
 }
 
 static JSBool
 obj_preventExtensions(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject obj(cx);
-    if (!GetFirstArgumentAsObject(cx, args, "Object.preventExtensions", &obj))
+    if (!GetFirstArgumentAsObject(cx, argc, vp, "Object.preventExtensions", &obj))
         return false;
 
-    args.rval().setObject(*obj);
+    vp->setObject(*obj);
     if (!obj->isExtensible())
         return true;
 
@@ -921,12 +920,11 @@ obj_preventExtensions(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 obj_freeze(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject obj(cx);
-    if (!GetFirstArgumentAsObject(cx, args, "Object.freeze", &obj))
+    if (!GetFirstArgumentAsObject(cx, argc, vp, "Object.freeze", &obj))
         return false;
 
-    args.rval().setObject(*obj);
+    vp->setObject(*obj);
 
     return JSObject::freeze(cx, obj);
 }
@@ -934,27 +932,25 @@ obj_freeze(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 obj_isFrozen(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject obj(cx);
-    if (!GetFirstArgumentAsObject(cx, args, "Object.preventExtensions", &obj))
+    if (!GetFirstArgumentAsObject(cx, argc, vp, "Object.preventExtensions", &obj))
         return false;
 
     bool frozen;
     if (!JSObject::isFrozen(cx, obj, &frozen))
         return false;
-    args.rval().setBoolean(frozen);
+    vp->setBoolean(frozen);
     return true;
 }
 
 static JSBool
 obj_seal(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject obj(cx);
-    if (!GetFirstArgumentAsObject(cx, args, "Object.seal", &obj))
+    if (!GetFirstArgumentAsObject(cx, argc, vp, "Object.seal", &obj))
         return false;
 
-    args.rval().setObject(*obj);
+    vp->setObject(*obj);
 
     return JSObject::seal(cx, obj);
 }
@@ -962,19 +958,18 @@ obj_seal(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 obj_isSealed(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject obj(cx);
-    if (!GetFirstArgumentAsObject(cx, args, "Object.isSealed", &obj))
+    if (!GetFirstArgumentAsObject(cx, argc, vp, "Object.isSealed", &obj))
         return false;
 
     bool sealed;
     if (!JSObject::isSealed(cx, obj, &sealed))
         return false;
-    args.rval().setBoolean(sealed);
+    vp->setBoolean(sealed);
     return true;
 }
 
-const JSFunctionSpec js::object_methods[] = {
+JSFunctionSpec js::object_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,             obj_toSource,                0,0),
 #endif
@@ -997,7 +992,7 @@ const JSFunctionSpec js::object_methods[] = {
     JS_FS_END
 };
 
-const JSFunctionSpec js::object_static_methods[] = {
+JSFunctionSpec js::object_static_methods[] = {
     JS_FN("getPrototypeOf",            obj_getPrototypeOf,          1,0),
     JS_FN("getOwnPropertyDescriptor",  obj_getOwnPropertyDescriptor,2,0),
     JS_FN("keys",                      obj_keys,                    1,0),

@@ -736,9 +736,9 @@ OpenDir(const nsAFlatString &name, nsDir * *dir)
      //If 'name' ends in a slash or backslash, do not append
      //another backslash.
     if (filename.Last() == L'/' || filename.Last() == L'\\')
-        filename.Append('*');
+        filename.AppendASCII("*");
     else 
-        filename.AppendLiteral("\\*");
+        filename.AppendASCII("\\*");
 
     filename.ReplaceChar(L'/', L'\\');
 
@@ -1041,7 +1041,7 @@ nsLocalFile::ResolveAndStat()
     // slutty hack designed to work around bug 134796 until it is fixed
     nsAutoString nsprPath(mWorkingPath.get());
     if (mWorkingPath.Length() == 2 && mWorkingPath.CharAt(1) == L':') 
-        nsprPath.Append('\\');
+        nsprPath.AppendASCII("\\");
 
     // first we will see if the working path exists. If it doesn't then
     // there is nothing more that can be done
@@ -1787,7 +1787,7 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
     nsAutoString destPath;
     destParent->GetTarget(destPath);
 
-    destPath.Append('\\');
+    destPath.AppendASCII("\\");
 
     if (newName.IsEmpty())
     {
@@ -3427,7 +3427,7 @@ nsresult nsDriveEnumerator::Init()
      * the length required for the string. */
     DWORD length = GetLogicalDriveStringsW(0, 0);
     /* The string is null terminated */
-    if (!mDrives.SetLength(length+1, fallible_t()))
+    if (!EnsureStringLength(mDrives, length+1))
         return NS_ERROR_OUT_OF_MEMORY;
     if (!GetLogicalDriveStringsW(length, mDrives.BeginWriting()))
         return NS_ERROR_FAILURE;

@@ -88,13 +88,10 @@ WebSocketChannelParent::RecvAsyncOpen(const URIParams& aURI,
 
   // only use ping values from child if they were overridden by client code.
   if (aClientSetPingInterval) {
-    // IDL allows setting in seconds, so must be multiple of 1000 ms
-    MOZ_ASSERT(aPingInterval >= 1000 && !(aPingInterval % 1000));
-    mChannel->SetPingInterval(aPingInterval / 1000);
+    mChannel->SetPingInterval(aPingInterval);
   }
   if (aClientSetPingTimeout) {
-    MOZ_ASSERT(aPingTimeout >= 1000 && !(aPingTimeout % 1000));
-    mChannel->SetPingTimeout(aPingTimeout / 1000);
+    mChannel->SetPingTimeout(aPingTimeout);
   }
 
   rv = mChannel->AsyncOpen(uri, aOrigin, this, nullptr);

@@ -6,7 +6,6 @@
 #include "mozilla/dom/HTMLLinkElement.h"
 
 #include "mozilla/dom/HTMLLinkElementBinding.h"
-#include "base/compiler_specific.h"
 #include "nsGenericHTMLElement.h"
 #include "nsILink.h"
 #include "nsGkAtoms.h"
@@ -20,6 +19,7 @@
 #include "nsNetUtil.h"
 #include "nsIDocument.h"
 #include "nsIDOMEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsContentUtils.h"
 #include "nsPIDOMWindow.h"
 #include "nsAsyncDOMEvent.h"
@@ -31,7 +31,7 @@ namespace dom {
 
 HTMLLinkElement::HTMLLinkElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
-    ALLOW_THIS_IN_INITIALIZER_LIST(Link(this))
+    Link(this)
 {
   SetIsDOMBinding();
 }
@@ -417,7 +417,7 @@ HTMLLinkElement::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 }
 
 JSObject*
-HTMLLinkElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLLinkElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLLinkElementBinding::Wrap(aCx, aScope, this);
 }

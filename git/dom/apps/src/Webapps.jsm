@@ -21,23 +21,8 @@ Cu.import("resource://gre/modules/OfflineCacheInstaller.jsm");
 Cu.import("resource://gre/modules/SystemMessagePermissionsChecker.jsm");
 Cu.import("resource://gre/modules/AppDownloadManager.jsm");
 
-#ifdef MOZ_WIDGET_GONK
-XPCOMUtils.defineLazyGetter(this, "libcutils", function() {
-  Cu.import("resource://gre/modules/systemlibs.js");
-  return libcutils;
-});
-#endif
-
 function debug(aMsg) {
   //dump("-*-*- Webapps.jsm : " + aMsg + "\n");
-}
-
-let cachedSysMsgPref = null;
-function supportSystemMessages() {
-  if (cachedSysMsgPref === null) {
-    cachedSysMsgPref = Services.prefs.getBoolPref("dom.sysmsg.enabled");
-  }
-  return cachedSysMsgPref;
 }
 
 // Minimum delay between two progress events while downloading, in ms.
@@ -164,14 +149,6 @@ this.DOMApplicationRegistry = {
               app.installState = "installed";
             }
 
-            // Default storeId to "" and storeVersion to 0
-            if (this.webapps[id].storeId === undefined) {
-              this.webapps[id].storeId = "";
-            }
-            if (this.webapps[id].storeVersion === undefined) {
-              this.webapps[id].storeVersion = 0;
-            }
-
             // At startup we can't be downloading, and the $TMP directory
             // will be empty so we can't just apply a staged update.
             app.downloading = false;
@@ -203,21 +180,21 @@ this.DOMApplicationRegistry = {
     for (let id in this.webapps) {
       ids.push({ id: id });
     }
-    if (supportSystemMessages()) {
-      this._processManifestForIds(ids, aRunUpdate);
-    } else {
-      // Read the CSPs. If MOZ_SYS_MSG is defined this is done on
-      // _processManifestForIds so as to not reading the manifests
-      // twice
-      this._readManifests(ids, (function readCSPs(aResults) {
-        aResults.forEach(function registerManifest(aResult) {
-          this.webapps[aResult.id].csp = aResult.manifest.csp || "";
-        }, this);
-      }).bind(this));
+#ifdef MOZ_SYS_MSG
+    this._processManifestForIds(ids, aRunUpdate);
+#else
+    // Read the CSPs. If MOZ_SYS_MSG is defined this is done on
+    // _processManifestForIds so as to not reading the manifests
+    // twice
+    this._readManifests(ids, (function readCSPs(aResults) {
+      aResults.forEach(function registerManifest(aResult) {
+        this.webapps[aResult.id].csp = aResult.manifest.csp || "";
+      }, this);
+    }).bind(this));
 
-      // Nothing else to do but notifying we're ready.
-      this.notifyAppsRegistryReady();
-    }
+    // Nothing else to do but notifying we're ready.
+    this.notifyAppsRegistryReady();
+#endif
   },
 
   updatePermissionsForApp: function updatePermissionsForApp(aId) {
@@ -462,6 +439,7 @@ this.DOMApplicationRegistry = {
     }).bind(this));
   },
 
+#ifdef MOZ_SYS_MSG
   // |aEntryPoint| is either the entry_point name or the null in which case we
   // use the root of the manifest.
   _registerSystemMessagesForEntryPoint: function(aManifest, aApp, aEntryPoint) {
@@ -679,6 +657,7 @@ this.DOMApplicationRegistry = {
       this._registerActivitiesForApps(appsToRegister, aRunUpdate);
     }).bind(this));
   },
+#endif
 
   observe: function(aSubject, aTopic, aData) {
     if (aTopic == "xpcom-shutdown") {
@@ -827,10 +806,10 @@ this.DOMApplicationRegistry = {
         this.getSelf(msg, mm);
         break;
       case "Webapps:Uninstall":
-        this.doUninstall(msg, mm);
+        this.uninstall(msg, mm);
         break;
       case "Webapps:Launch":
-        this.doLaunch(msg, mm);
+        this.launchApp(msg, mm);
         break;
       case "Webapps:CheckInstalled":
         this.checkInstalled(msg, mm);
@@ -842,7 +821,7 @@ this.DOMApplicationRegistry = {
         this.getNotInstalled(msg, mm);
         break;
       case "Webapps:GetAll":
-        this.doGetAll(msg, mm);
+        this.getAll(msg, mm);
         break;
       case "Webapps:InstallPackage":
         this.doInstallPackage(msg, mm);
@@ -924,48 +903,21 @@ this.DOMApplicationRegistry = {
     });
   },
 
-  doLaunch: function (aData, aMm) {
-    this.launch(
-      aData.manifestURL,
-      aData.startPoint,
-      function onsuccess() {
-        aMm.sendAsyncMessage("Webapps:Launch:Return:OK", aData);
-      },
-      function onfailure(reason) {
-        aMm.sendAsyncMessage("Webapps:Launch:Return:KO", aData);
-      }
-    );
-  },
-
-  launch: function launch(aManifestURL, aStartPoint, aOnSuccess, aOnFailure) {
-    let app = this.getAppByManifestURL(aManifestURL);
+  launchApp: function launchApp(aData, aMm) {
+    let app = this.getAppByManifestURL(aData.manifestURL);
     if (!app) {
-      aOnFailure("NO_SUCH_APP");
+      aMm.sendAsyncMessage("Webapps:Launch:Return:KO", aData);
       return;
     }
 
     // Fire an error when trying to launch an app that is not
     // yet fully installed.
     if (app.installState == "pending") {
-      aOnFailure("PENDING_APP_NOT_LAUNCHABLE");
+      aMm.sendAsyncMessage("Webapps:Launch:Return:KO", aData);
       return;
     }
 
-    // We have to clone the app object as nsIDOMApplication objects are
-    // stringified as an empty object. (see bug 830376)
-    let appClone = AppsUtils.cloneAppObject(app);
-    appClone.startPoint = aStartPoint;
-    Services.obs.notifyObservers(null, "webapps-launch", JSON.stringify(appClone));
-    aOnSuccess();
-  },
-
-  close: function close(aApp) {
-    debug("close");
-
-    // We have to clone the app object as nsIDOMApplication objects are
-    // stringified as an empty object. (see bug 830376)
-    let appClone = AppsUtils.cloneAppObject(aApp);
-    Services.obs.notifyObservers(null, "webapps-close", JSON.stringify(appClone));
+    Services.obs.notifyObservers(aMm, "webapps-launch", JSON.stringify(aData));
   },
 
   cancelDownload: function cancelDownload(aManifestURL, aError) {
@@ -1332,17 +1284,16 @@ this.DOMApplicationRegistry = {
   updateAppHandlers: function(aOldManifest, aNewManifest, aApp) {
     debug("updateAppHandlers: old=" + aOldManifest + " new=" + aNewManifest);
     this.notifyAppsRegistryStart();
-
-    if (supportSystemMessages()) {
-      if (aOldManifest) {
-        this._unregisterActivities(aOldManifest, aApp);
-      }
-      this._registerSystemMessages(aNewManifest, aApp);
-      this._registerActivities(aNewManifest, aApp, true);
-    } else {
-      // Nothing else to do but notifying we're ready.
-      this.notifyAppsRegistryReady();
+#ifdef MOZ_SYS_MSG
+    if (aOldManifest) {
+      this._unregisterActivities(aOldManifest, aApp);
     }
+    this._registerSystemMessages(aNewManifest, aApp);
+    this._registerActivities(aNewManifest, aApp, true);
+#else
+    // Nothing else to do but notifying we're ready.
+    this.notifyAppsRegistryReady();
+#endif
   },
 
   checkForUpdate: function(aData, aMm) {
@@ -1619,16 +1570,11 @@ this.DOMApplicationRegistry = {
     }
 
     // Try to download a new manifest.
-    function doRequest(oldManifest, headers) {
-      headers = headers || [];
+    function doRequest(oldManifest) {
       let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
                   .createInstance(Ci.nsIXMLHttpRequest);
       xhr.open("GET", aData.manifestURL, true);
       xhr.channel.loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
-      headers.forEach(function(aHeader) {
-        debug("Adding header: " + aHeader.name + ": " + aHeader.value);
-        xhr.setRequestHeader(aHeader.name, aHeader.value);
-      });
       xhr.responseType = "json";
       if (app.etag) {
         debug("adding manifest etag:" + app.etag);
@@ -1648,21 +1594,7 @@ this.DOMApplicationRegistry = {
 
     // Read the current app manifest file
     this._readManifests([{ id: id }], (function(aResult) {
-      let extraHeaders = [];
-#ifdef MOZ_WIDGET_GONK
-      let pingManifestURL;
-      try {
-        pingManifestURL = Services.prefs.getCharPref("ping.manifestURL");
-      } catch(e) { }
-
-      if (pingManifestURL && pingManifestURL == aData.manifestURL) {
-        // Get the device info.
-        let device = libcutils.property_get("ro.product.model");
-        extraHeaders.push({ name: "X-MOZ-B2G-DEVICE",
-                            value: device || "unknown" });
-      }
-#endif
-      doRequest.call(this, aResult[0].manifest, extraHeaders);
+      doRequest.call(this, aResult[0].manifest);
     }).bind(this));
   },
 
@@ -1869,7 +1801,7 @@ this.DOMApplicationRegistry = {
 
   confirmInstall: function(aData, aFromSync, aProfileDir,
                            aOfflineCacheObserver,
-                           aInstallSuccessCallback) {
+                           aZipDownloadSuccessCallback) {
     let isReinstall = false;
     let app = aData.app;
     app.removable = true;
@@ -1978,23 +1910,15 @@ this.DOMApplicationRegistry = {
       offlineCacheObserver: aOfflineCacheObserver
     }
 
-    let postFirstInstallTask = (function () {
-      // Only executed on install not involving sync.
-      this.broadcastMessage("Webapps:AddApp", { id: id, app: appObject });
-      this.broadcastMessage("Webapps:Install:Return:OK", aData);
-      Services.obs.notifyObservers(this, "webapps-sync-install", appNote);
-    }).bind(this);
+    if (!aFromSync)
+      this._saveApps((function() {
+        this.broadcastMessage("Webapps:AddApp", { id: id, app: appObject });
+        this.broadcastMessage("Webapps:Install:Return:OK", aData);
+        Services.obs.notifyObservers(this, "webapps-sync-install", appNote);
+      }).bind(this));
 
     if (!aData.isPackage) {
-      if (!aFromSync) {
-        this._saveApps((function() {
-          postFirstInstallTask();
-        }).bind(this));
-      }
       this.updateAppHandlers(null, app.manifest, app);
-      if (aInstallSuccessCallback) {
-        aInstallSuccessCallback(manifest);
-      }
     }
 
     if (manifest.package_path) {
@@ -2034,11 +1958,8 @@ this.DOMApplicationRegistry = {
                                   manifestURL: appObject.manifestURL,
                                   app: app,
                                   manifest: aManifest });
-          if (!aFromSync) {
-            postFirstInstallTask();
-          }
-          if (aInstallSuccessCallback) {
-            aInstallSuccessCallback(aManifest);
+          if (aZipDownloadSuccessCallback) {
+            aZipDownloadSuccessCallback(aManifest);
           }
         }).bind(this));
       }).bind(this));
@@ -2048,7 +1969,6 @@ this.DOMApplicationRegistry = {
   _nextLocalId: function() {
     let id = Services.prefs.getIntPref("dom.mozApps.maxLocalId") + 1;
     Services.prefs.setIntPref("dom.mozApps.maxLocalId", id);
-    Services.prefs.savePrefFile(null);
     return id;
   },
 
@@ -2188,39 +2108,6 @@ this.DOMApplicationRegistry = {
                               app: app });
     }
 
-    // aStoreId must be a string of the form
-    //   <installOrigin>#<storeId from ids.json>
-    // aStoreVersion must be a positive integer.
-    function checkForStoreIdMatch(aStoreId, aStoreVersion) {
-      // Things to check:
-      // 1. if it's a update:
-      //   a. We should already have this storeId
-      //   b. The manifestURL for the stored app should be the same one we're
-      //      updating
-      //   c. And finally the version of the update should be higher than the one
-      //      on the already installed package
-      // 2. else
-      //   a. We should not have this storeId on the list
-      // We're currently launching WRONG_APP_STORE_ID for all the mismatch kind of
-      // errors, and APP_STORE_VERSION_ROLLBACK for the version error.
-
-      // Does an app with this storeID exist already?
-      let appId = self.getAppLocalIdByStoreId(aStoreId);
-      let isInstalled = appId != Ci.nsIScriptSecurityManager.NO_APP_ID;
-      if (aIsUpdate) {
-        if (!isInstalled || (app.localId !== appId)) {
-          // If we don't have the storeId on track already, this
-          // cannot be an update
-          throw "WRONG_APP_STORE_ID";
-        }
-        if (app.storeVersion >= aStoreVersion) {
-          throw "APP_STORE_VERSION_ROLLBACK";
-        }
-      } else if (isInstalled) {
-        throw "WRONG_APP_STORE_ID";
-      }
-    }
-
     function download() {
       debug("About to download " + aManifest.fullPackagePath());
 
@@ -2344,10 +2231,6 @@ this.DOMApplicationRegistry = {
               app.installState = "installed";
               app.readyToApplyDownload = false;
               self.broadcastMessage("Webapps:PackageEvent", {
-                                      type: "downloaded",
-                                      manifestURL: aApp.manifestURL,
-                                      app: app })
-              self.broadcastMessage("Webapps:PackageEvent", {
                                       type: "applied",
                                       manifestURL: aApp.manifestURL,
                                       app: app });
@@ -2461,31 +2344,6 @@ this.DOMApplicationRegistry = {
                   throw "INSTALL_FROM_DENIED";
                 }
 
-                // Get ids.json if the file is signed
-                if (isSigned) {
-                  let idsStream;
-                  try {
-                    idsStream = zipReader.getInputStream("META-INF/ids.json");
-                  } catch (e) {
-                    throw zipReader.hasEntry("META-INF/ids.json")
-                          ? e
-                          : "MISSING_IDS_JSON";
-                  }
-                  let ids =
-                    JSON.parse(
-                      converter.ConvertToUnicode(
-                        NetUtil.readInputStreamToString(
-                          idsStream, idsStream.available()) || ""));
-                  if ((!ids.id) || !Number.isInteger(ids.version) ||
-                      (ids.version <= 0)) {
-                     throw "INVALID_IDS_JSON";
-                  }
-                  let storeId = aApp.installOrigin + "#" + ids.id;
-                  checkForStoreIdMatch(storeId, ids.version);
-                  app.storeId = storeId;
-                  app.storeVersion = ids.version;
-                }
-
                 let maxStatus = isSigned ? Ci.nsIPrincipal.APP_STATUS_PRIVILEGED
                                          : Ci.nsIPrincipal.APP_STATUS_INSTALLED;
 
@@ -2523,7 +2381,7 @@ this.DOMApplicationRegistry = {
                 // Apps with installState 'pending' does not produce any
                 // notification, so we are safe with its current
                 // downladAvailable state.
-                if (app.installState !== "pending") {
+                if (app.installState === "installed") {
                   app.downloadAvailable = false;
                 }
                 if (typeof e == 'object') {
@@ -2590,79 +2448,67 @@ this.DOMApplicationRegistry = {
     }
   },
 
-  doUninstall: function(aData, aMm) {
-    this.uninstall(aData.manifestURL,
-      function onsuccess() {
-        aMm.sendAsyncMessage("Webapps:Uninstall:Return:OK", aData);
-      },
-      function onfailure() {
-        // Fall-through, fails to uninstall the desired app because:
-        //   - we cannot find the app to be uninstalled.
-        //   - the app to be uninstalled is not removable.
-        aMm.sendAsyncMessage("Webapps:Uninstall:Return:KO", aData);
+  uninstall: function(aData, aMm) {
+    debug("uninstall " + aData.origin);
+    for (let id in this.webapps) {
+      let app = this.webapps[id];
+      if (app.origin != aData.origin) {
+        continue;
       }
-    );
-  },
 
-  uninstall: function(aManifestURL, aOnSuccess, aOnFailure) {
-    debug("uninstall " + aManifestURL);
+      dump("-- webapps.js uninstall " + app.manifestURL + "\n");
 
-    let app = this.getAppByManifestURL(aManifestURL);
-    if (!app) {
-      aOnFailure("NO_SUCH_APP");
-      return;
-    }
-    let id = app.id;
+      if (!app.removable) {
+        debug("Error: cannot unintall a non-removable app.");
+        break;
+      }
 
-    if (!app.removable) {
-      debug("Error: cannot uninstall a non-removable app.");
-      aOnFailure("NON_REMOVABLE_APP");
-      return;
-    }
+      // Check if we are downloading something for this app, and cancel the
+      // download if needed.
+      this.cancelDownload(app.manifestURL);
 
-    // Check if we are downloading something for this app, and cancel the
-    // download if needed.
-    this.cancelDownload(app.manifestURL);
+      // Clean up the deprecated manifest cache if needed.
+      if (id in this._manifestCache) {
+        delete this._manifestCache[id];
+      }
 
-    // Clean up the deprecated manifest cache if needed.
-    if (id in this._manifestCache) {
-      delete this._manifestCache[id];
-    }
+      // Clear private data first.
+      this._clearPrivateData(app.localId, false);
 
-    // Clear private data first.
-    this._clearPrivateData(app.localId, false);
+      // Then notify observers.
+      Services.obs.notifyObservers(aMm, "webapps-uninstall", JSON.stringify(aData));
 
-    // Then notify observers.
-    // We have to clone the app object as nsIDOMApplication objects are
-    // stringified as an empty object. (see bug 830376)
-    let appClone = AppsUtils.cloneAppObject(app);
-    Services.obs.notifyObservers(null, "webapps-uninstall", JSON.stringify(appClone));
+      let appNote = JSON.stringify(AppsUtils.cloneAppObject(app));
+      appNote.id = id;
 
-    if (supportSystemMessages()) {
+#ifdef MOZ_SYS_MSG
       this._readManifests([{ id: id }], (function unregisterManifest(aResult) {
         this._unregisterActivities(aResult[0].manifest, app);
       }).bind(this));
+#endif
+
+      let dir = this._getAppDir(id);
+      try {
+        dir.remove(true);
+      } catch (e) {}
+
+      delete this.webapps[id];
+
+      this._saveApps((function() {
+        aData.manifestURL = app.manifestURL;
+        this.broadcastMessage("Webapps:Uninstall:Broadcast:Return:OK", aData);
+        aMm.sendAsyncMessage("Webapps:Uninstall:Return:OK", aData);
+        Services.obs.notifyObservers(this, "webapps-sync-uninstall", appNote);
+        this.broadcastMessage("Webapps:RemoveApp", { id: id });
+      }).bind(this));
+
+      return;
     }
 
-    let dir = this._getAppDir(id);
-    try {
-      dir.remove(true);
-    } catch (e) {}
-
-    delete this.webapps[id];
-
-    this._saveApps((function() {
-      this.broadcastMessage("Webapps:Uninstall:Broadcast:Return:OK", appClone);
-      // Catch exception on callback call to ensure notifying observers after
-      try {
-        aOnSuccess();
-      } catch(e) {
-        Cu.reportError("DOMApplicationRegistry: Exception on app uninstall: " +
-                       ex + "\n" + ex.stack);
-      }
-      Services.obs.notifyObservers(this, "webapps-sync-uninstall", JSON.stringify(appClone));
-      this.broadcastMessage("Webapps:RemoveApp", { id: id });
-    }).bind(this));
+    // Fall-through, fails to uninstall the desired app because:
+    //   - we cannot find the app to be uninstalled.
+    //   - the app to be uninstalled is not removable.
+    aMm.sendAsyncMessage("Webapps:Uninstall:Return:KO", aData);
   },
 
   getSelf: function(aData, aMm) {
@@ -2757,16 +2603,8 @@ this.DOMApplicationRegistry = {
     }).bind(this));
   },
 
-  doGetAll: function(aData, aMm) {
-    this.getAll(function (apps) {
-      aData.apps = apps;
-      aMm.sendAsyncMessage("Webapps:GetAll:Return:OK", aData);
-    });
-  },
-
-  getAll: function(aCallback) {
-    debug("getAll");
-    let apps = [];
+  getAll: function(aData, aMm) {
+    aData.apps = [];
     let tmp = [];
 
     for (let id in this.webapps) {
@@ -2774,14 +2612,14 @@ this.DOMApplicationRegistry = {
       if (!this._isLaunchable(app.origin))
         continue;
 
-      apps.push(app);
+      aData.apps.push(app);
       tmp.push({ id: id });
     }
 
     this._readManifests(tmp, (function(aResult) {
       for (let i = 0; i < aResult.length; i++)
-        apps[i].manifest = aResult[i].manifest;
-      aCallback(apps);
+        aData.apps[i].manifest = aResult[i].manifest;
+      aMm.sendAsyncMessage("Webapps:GetAll:Return:OK", aData);
     }).bind(this));
   },
 
@@ -2821,11 +2659,6 @@ this.DOMApplicationRegistry = {
   getCSPByLocalId: function(aLocalId) {
     debug("getCSPByLocalId:" + aLocalId);
     return AppsUtils.getCSPByLocalId(this.webapps, aLocalId);
-  },
-
-  getAppLocalIdByStoreId: function(aStoreId) {
-    debug("getAppLocalIdByStoreId:" + aStoreId);
-    return AppsUtils.getAppLocalIdByStoreId(this.webapps, aStoreId);
   },
 
   getAppByLocalId: function(aLocalId) {

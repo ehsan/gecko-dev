@@ -1,8 +1,9 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
@@ -196,8 +197,8 @@ js::ObjectImpl::checkShapeConsistency()
 
     MOZ_ASSERT(isNative());
 
-    Shape *shape = lastProperty();
-    Shape *prev = NULL;
+    RawShape shape = lastProperty();
+    RawShape prev = NULL;
 
     if (inDictionaryMode()) {
         MOZ_ASSERT(shape->hasTable());
@@ -294,7 +295,7 @@ js::ObjectImpl::slotInRange(uint32_t slot, SentinelAllowed sentinel) const
  */
 MOZ_NEVER_INLINE
 #endif
-Shape *
+RawShape
 js::ObjectImpl::nativeLookup(JSContext *cx, jsid id)
 {
     MOZ_ASSERT(isNative());
@@ -305,13 +306,6 @@ js::ObjectImpl::nativeLookup(JSContext *cx, jsid id)
 #if defined(_MSC_VER)
 # pragma optimize("", on)
 #endif
-
-Shape *
-js::ObjectImpl::nativeLookupPure(jsid id)
-{
-    MOZ_ASSERT(isNative());
-    return Shape::searchNoHashify(lastProperty(), id);
-}
 
 void
 js::ObjectImpl::markChildren(JSTracer *trc)
@@ -643,8 +637,9 @@ js::GetProperty(JSContext *cx, Handle<ObjectImpl*> obj, Handle<ObjectImpl*> rece
             return false;
         }
 
-        AutoPropDescRooter desc(cx);
-        if (!GetOwnProperty(cx, current, pid, resolveFlags, &desc.getPropDesc()))
+        PropDesc desc;
+        PropDesc::AutoRooter rootDesc(cx, &desc);
+        if (!GetOwnProperty(cx, current, pid, resolveFlags, &desc))
             return false;
 
         /* No property?  Recur or bottom out. */

@@ -59,12 +59,12 @@
 #  define SPS_ARCH_x86 1
 #  define SPS_OS_darwin 1
 
-#elif (defined(_MSC_VER) || defined(__MINGW32__)) && (defined(_M_IX86) || defined(__i386__))
+#elif defined(_MSC_VER) && defined(_M_IX86)
 #  define SPS_PLAT_x86_windows 1
 #  define SPS_ARCH_x86 1
 #  define SPS_OS_windows 1
 
-#elif (defined(_MSC_VER) || defined(__MINGW32__)) && (defined(_M_X64) || defined(__x86_64__))
+#elif defined(_MSC_VER) && defined(_M_X64)
 #  define SPS_PLAT_amd64_windows 1
 #  define SPS_ARCH_amd64 1
 #  define SPS_OS_windows 1

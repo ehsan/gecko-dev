@@ -9,11 +9,8 @@ import os
 from .data import (
     ConfigFileSubstitution,
     DirectoryTraversal,
-    Exports,
-    Program,
-    ReaderSummary,
     VariablePassthru,
-    XpcshellManifests,
+    ReaderSummary,
 )
 
 from .reader import MozbuildSandbox
@@ -89,17 +86,6 @@ class TreeMetadataEmitter(object):
         if passthru.variables:
             yield passthru
 
-        exports = sandbox.get('EXPORTS')
-        if exports:
-            yield Exports(sandbox, exports)
-
-        program = sandbox.get('PROGRAM')
-        if program:
-            yield Program(sandbox, program, sandbox['CONFIG']['BIN_SUFFIX'])
-
-        for manifest in sandbox.get('XPCSHELL_TESTS_MANIFESTS', []):
-            yield XpcshellManifests(sandbox, manifest)
-
     def _emit_directory_traversal_from_sandbox(self, sandbox):
         o = DirectoryTraversal(sandbox)
         o.dirs = sandbox.get('DIRS', [])
@@ -116,3 +102,4 @@ class TreeMetadataEmitter(object):
                 o.tier_static_dirs[tier] = sandbox['TIERS'][tier]['static']
 
         yield o
+

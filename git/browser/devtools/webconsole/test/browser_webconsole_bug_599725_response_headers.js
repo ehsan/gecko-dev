@@ -10,14 +10,9 @@
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-bug-599725-response-headers.sjs";
 
-let loads = 0;
-function performTest(aRequest, aConsole)
+function performTest(lastFinishedRequest, aConsole)
 {
-  loads++;
-  ok(aRequest, "page load was logged");
-  if (loads != 2) {
-    return;
-  }
+  ok(lastFinishedRequest, "page load was logged");
 
   let headers = null;
 
@@ -31,25 +26,12 @@ function performTest(aRequest, aConsole)
     return null;
   }
 
-  aConsole.webConsoleClient.getResponseHeaders(aRequest.actor,
+  aConsole.webConsoleClient.getResponseHeaders(lastFinishedRequest.actor,
     function (aResponse) {
       headers = aResponse.headers;
-      ok(headers, "we have the response headers for reload");
-
-      let contentType = readHeader("Content-Type");
-      let contentLength = readHeader("Content-Length");
-
-      ok(!contentType, "we do not have the Content-Type header");
-      isnot(contentLength, 60, "Content-Length != 60");
-
-      if (contentType || contentLength == 60) {
-        console.debug("lastFinishedRequest", lastFinishedRequest,
-                      "request", lastFinishedRequest.request,
-                      "response", lastFinishedRequest.response,
-                      "updates", lastFinishedRequest.updates,
-                      "response headers", headers);
-      }
-
+      ok(headers, "we have the response headers");
+      ok(!readHeader("Content-Type"), "we do not have the Content-Type header");
+      isnot(readHeader("Content-Length"), 60, "Content-Length != 60");
       executeSoon(finishTest);
     });
 
@@ -58,19 +40,13 @@ function performTest(aRequest, aConsole)
 
 function test()
 {
-  addTab("data:text/plain;charset=utf8,hello world");
+  addTab(TEST_URI);
 
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
-    openConsole(null, () => {
+    openConsole(null, function() {
       HUDService.lastFinishedRequestCallback = performTest;
-
-      browser.addEventListener("load", function onReload() {
-        browser.removeEventListener("load", onReload, true);
-        executeSoon(() => content.location.reload());
-      }, true);
-
-      executeSoon(() => content.location = TEST_URI);
+      content.location.reload();
     });
   }, true);
 }

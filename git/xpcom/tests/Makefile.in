@@ -56,6 +56,7 @@ CPP_UNIT_TESTS = \
                  TestObserverService.cpp \
                  TestPipe.cpp \
                  TestRefPtr.cpp \
+                 TestSettingsAPI.cpp \
                  TestTextFormatter.cpp \
                  TestTArray.cpp \
                  $(NULL)
@@ -112,7 +113,7 @@ ifeq ($(OS_ARCH)$(OS_RELEASE),FreeBSD2)
 LIBS		+= -lpcap
 endif
 
-DISABLED_XPCSHELL_TESTS = unit
+XPCSHELL_TESTS = unit
 
 # Make sure we have symbols in case we need to debug these.
 MOZ_DEBUG_SYMBOLS = 1

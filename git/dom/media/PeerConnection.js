@@ -280,17 +280,10 @@ PeerConnection.prototype = {
 
     // Nothing starts until ICE gathering completes.
     this._queueOrRun({
-      func: this._getPC().initialize,
+      func: this._pc.initialize,
       args: [this._observer, win, rtcConfig, Services.tm.currentThread],
       wait: true
     });
-  },
-
-  _getPC: function() {
-    if (!this._pc) {
-      throw new Components.Exception("PeerConnection is gone (did you turn on Offline mode?)");
-    }
-    return this._pc;
   },
 
   /**
@@ -475,7 +468,7 @@ PeerConnection.prototype = {
     this._onCreateOfferFailure = onError;
 
     this._queueOrRun({
-      func: this._getPC().createOffer,
+      func: this._pc.createOffer,
       args: [constraints],
       wait: true
     });
@@ -501,7 +494,7 @@ PeerConnection.prototype = {
 
     // TODO: Implement provisional answer.
 
-    this._getPC().createAnswer(constraints);
+    this._pc.createAnswer(constraints);
   },
 
   createAnswer: function(onSuccess, onError, constraints, provisional) {
@@ -544,7 +537,7 @@ PeerConnection.prototype = {
     }
 
     this._queueOrRun({
-      func: this._getPC().setLocalDescription,
+      func: this._pc.setLocalDescription,
       args: [type, desc.sdp],
       wait: true,
       type: desc.type
@@ -573,7 +566,7 @@ PeerConnection.prototype = {
     }
 
     this._queueOrRun({
-      func: this._getPC().setRemoteDescription,
+      func: this._pc.setRemoteDescription,
       args: [type, desc.sdp],
       wait: true,
       type: desc.type
@@ -597,7 +590,7 @@ PeerConnection.prototype = {
     this._onAddIceCandidateError = onError;
 
     this._queueOrRun({
-      func: this._getPC().addIceCandidate,
+      func: this._pc.addIceCandidate,
       args: [cand.candidate, cand.sdpMid || "", cand.sdpMLineIndex],
       wait: true
     });
@@ -606,7 +599,7 @@ PeerConnection.prototype = {
   addStream: function(stream, constraints) {
     // TODO: Implement constraints.
     this._queueOrRun({
-      func: this._getPC().addStream,
+      func: this._pc.addStream,
       args: [stream],
       wait: false
     });
@@ -619,7 +612,7 @@ PeerConnection.prototype = {
 
   close: function() {
     this._queueOrRun({
-      func: this._getPC().close,
+      func: this._pc.close,
       args: [false],
       wait: false
     });
@@ -628,17 +621,17 @@ PeerConnection.prototype = {
 
   get localStreams() {
     this._checkClosed();
-    return this._getPC().localStreams;
+    return this._pc.localStreams;
   },
 
   get remoteStreams() {
     this._checkClosed();
-    return this._getPC().remoteStreams;
+    return this._pc.remoteStreams;
   },
 
   get localDescription() {
     this._checkClosed();
-    let sdp = this._getPC().localDescription;
+    let sdp = this._pc.localDescription;
     if (sdp.length == 0) {
       return null;
     }
@@ -650,7 +643,7 @@ PeerConnection.prototype = {
 
   get remoteDescription() {
     this._checkClosed();
-    let sdp = this._getPC().remoteDescription;
+    let sdp = this._pc.remoteDescription;
     if (sdp.length == 0) {
       return null;
     }
@@ -668,7 +661,7 @@ PeerConnection.prototype = {
     }
 
     var state="undefined";
-    switch (this._getPC().readyState) {
+    switch (this._pc.readyState) {
       case Ci.IPeerConnection.kNew:
         state = "new";
         break;
@@ -729,7 +722,7 @@ PeerConnection.prototype = {
     }
 
     // Synchronous since it doesn't block.
-    let channel = this._getPC().createDataChannel(
+    let channel = this._pc.createDataChannel(
       label, protocol, type, dict.outOfOrderAllowed, dict.maxRetransmitTime,
       dict.maxRetransmitNum, dict.preset ? true : false,
       dict.stream != undefined ? dict.stream : 0xFFFF
@@ -742,7 +735,7 @@ PeerConnection.prototype = {
       numstreams = 16;
     }
     this._queueOrRun({
-      func: this._getPC().connectDataConnection,
+      func: this._pc.connectDataConnection,
       args: [localport, remoteport, numstreams],
       wait: false
     });

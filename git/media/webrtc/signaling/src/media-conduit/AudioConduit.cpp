@@ -15,9 +15,6 @@
 
 #include "voice_engine/include/voe_errors.h"
 
-#ifdef MOZ_WIDGET_ANDROID
-#include "AndroidJNIWrapper.h"
-#endif
 
 namespace mozilla {
 
@@ -139,27 +136,6 @@ MediaConduitErrorCode WebrtcAudioConduit::Init(WebrtcAudioConduit *other)
     MOZ_ASSERT(other->mVoiceEngine);
     mVoiceEngine = other->mVoiceEngine;
   } else {
-#ifdef MOZ_WIDGET_ANDROID
-      jobject context = jsjni_GetGlobalContextRef();
-
-      // get the JVM
-      JavaVM *jvm = jsjni_GetVM();
-
-      JNIEnv* env;
-      if (jvm->GetEnv((void**)&env, JNI_VERSION_1_4) != JNI_OK) {
-        CSFLogError(logTag,  "%s: could not get Java environment", __FUNCTION__);
-        return kMediaConduitSessionNotInited;
-      }
-      jvm->AttachCurrentThread(&env, NULL);
-
-      if (webrtc::VoiceEngine::SetAndroidObjects(jvm, (void*)context) != 0) {
-        CSFLogError(logTag, "%s Unable to set Android objects", __FUNCTION__);
-        return kMediaConduitSessionNotInited;
-      }
-
-      env->DeleteGlobalRef(context);
-#endif
-
     //Per WebRTC APIs below function calls return NULL on failure
     if(!(mVoiceEngine = webrtc::VoiceEngine::Create()))
     {
@@ -664,7 +640,7 @@ int WebrtcAudioConduit::SendPacket(int channel, const void* data, int len)
     {
       return mOtherDirection->SendPacket(channel, data, len);
     }
-    CSFLogDebug(logTag,  "%s : Asked to send RTP without an RTP sender on channel %d",
+    CSFLogDebug(logTag,  "%s : Asked to send RTP without an RTP sender",
                 __FUNCTION__, channel);
     return -1;
   } else {
@@ -689,7 +665,7 @@ int WebrtcAudioConduit::SendRTCPPacket(int channel, const void* data, int len)
     {
       return mOtherDirection->SendRTCPPacket(channel, data, len);
     }
-    CSFLogDebug(logTag,  "%s : Asked to send RTCP without an RTP receiver on channel %d",
+    CSFLogDebug(logTag,  "%s : Asked to send RTCP without an RTP receiver",
                 __FUNCTION__, channel);
     return -1;
   } else {

@@ -33,21 +33,15 @@ this.EXPORTED_SYMBOLS = ["SideMenuWidget"];
  *
  * @param nsIDOMNode aNode
  *        The element associated with the widget.
- * @param boolean aShowArrows
- *        Specifies if items in this container should display horizontal arrows.
  */
-this.SideMenuWidget = function SideMenuWidget(aNode, aShowArrows = true) {
-  this.document = aNode.ownerDocument;
-  this.window = this.document.defaultView;
+this.SideMenuWidget = function SideMenuWidget(aNode) {
   this._parent = aNode;
-  this._showArrows = aShowArrows;
 
   // Create an internal scrollbox container.
   this._list = this.document.createElement("scrollbox");
   this._list.className = "side-menu-widget-container";
   this._list.setAttribute("flex", "1");
   this._list.setAttribute("orient", "vertical");
-  this._list.setAttribute("with-arrow", aShowArrows);
   this._parent.appendChild(this._list);
   this._boxObject = this._list.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
 
@@ -62,24 +56,13 @@ this.SideMenuWidget = function SideMenuWidget(aNode, aShowArrows = true) {
 };
 
 SideMenuWidget.prototype = {
+  get document() this._parent.ownerDocument,
+  get window() this.document.defaultView,
+
   /**
    * Specifies if groups in this container should be sorted alphabetically.
    */
   sortedGroups: true,
-
-  /**
-   * Specifies if this container should try to keep the selected item visible.
-   * (For example, when new items are added the selection is brought into view).
-   */
-  maintainSelectionVisible: true,
-
-  /**
-   * Specifies that the container viewport should be "stuck" to the
-   * bottom. That is, the container is automatically scrolled down to
-   * keep appended items visible, but only when the scroll position is
-   * already at the bottom.
-   */
-  autoscrollWithAppendedItems: false,
 
   /**
    * Inserts an item in this container at the specified index, optionally
@@ -97,26 +80,9 @@ SideMenuWidget.prototype = {
    *         The element associated with the displayed item.
    */
   insertItemAt: function SMW_insertItemAt(aIndex, aContents, aTooltip = "", aGroup = "") {
-    // Invalidate any notices set on this widget.
-    this.removeAttribute("notice");
-
-    let maintainScrollAtBottom =
-      this.autoscrollWithAppendedItems &&
-      (aIndex < 0 || aIndex >= this._orderedMenuElementsArray.length) &&
-      (this._list.scrollTop + this._list.clientHeight >= this._list.scrollHeight);
-
+    this.ensureSelectionIsVisible(true, true); // Don't worry, it's delayed.
     let group = this._getGroupForName(aGroup);
-    let item = this._getItemForGroup(group, aContents, aTooltip);
-    let element = item.insertSelfAt(aIndex);
-
-    if (this.maintainSelectionVisible) {
-      this.ensureSelectionIsVisible({ withGroup: true, delayed: true });
-    }
-    if (maintainScrollAtBottom) {
-      this._list.scrollTop = this._list.scrollHeight;
-    }
-
-    return element;
+    return group.insertItemAt(aIndex, aContents, aTooltip);
   },
 
   /**
@@ -138,14 +104,7 @@ SideMenuWidget.prototype = {
    *        The element associated with the displayed item.
    */
   removeChild: function SMW_removeChild(aChild) {
-    if (aChild.className == "side-menu-widget-item-contents") {
-      // Remove the item itself, not the contents.
-      aChild.parentNode.remove();
-    } else {
-      // Groups with no title don't have any special internal structure.
-      aChild.remove();
-    }
-
+    aChild.parentNode.removeChild(aChild);
     this._orderedMenuElementsArray.splice(
       this._orderedMenuElementsArray.indexOf(aChild), 1);
 
@@ -160,14 +119,14 @@ SideMenuWidget.prototype = {
   removeAllItems: function SMW_removeAllItems() {
     let parent = this._parent;
     let list = this._list;
+    let firstChild;
 
-    while (list.hasChildNodes()) {
-      list.firstChild.remove();
+    while (firstChild = list.firstChild) {
+      list.removeChild(firstChild);
     }
-
     this._selectedItem = null;
 
-    this._groupsByName.clear();
+    this._groupsByName = new Map();
     this._orderedGroupElementsArray.length = 0;
     this._orderedMenuElementsArray.length = 0;
   },
@@ -183,33 +142,31 @@ SideMenuWidget.prototype = {
    * @param nsIDOMNode aChild
    */
   set selectedItem(aChild) {
-    let menuArray = this._orderedMenuElementsArray;
+    let menuElementsArray = this._orderedMenuElementsArray;
 
     if (!aChild) {
       this._selectedItem = null;
     }
-    for (let node of menuArray) {
+    for (let node of menuElementsArray) {
       if (node == aChild) {
-        node.classList.add("selected");
         node.parentNode.classList.add("selected");
         this._selectedItem = node;
       } else {
-        node.classList.remove("selected");
         node.parentNode.classList.remove("selected");
       }
     }
-
     // Repeated calls to ensureElementIsVisible would interfere with each other
     // and may sometimes result in incorrect scroll positions.
-    this.ensureSelectionIsVisible({ delayed: true });
+    this.ensureSelectionIsVisible(false, true);
   },
 
   /**
    * Ensures the selected element is visible.
    * @see SideMenuWidget.prototype.ensureElementIsVisible.
    */
-  ensureSelectionIsVisible: function SMW_ensureSelectionIsVisible(aFlags) {
-    this.ensureElementIsVisible(this.selectedItem, aFlags);
+  ensureSelectionIsVisible:
+  function SMW_ensureSelectionIsVisible(aGroupFlag, aDelayedFlag) {
+    this.ensureElementIsVisible(this.selectedItem, aGroupFlag, aDelayedFlag);
   },
 
   /**
@@ -217,31 +174,28 @@ SideMenuWidget.prototype = {
    *
    * @param nsIDOMNode aElement
    *        The element to make visible.
-   * @param object aFlags [optional]
-   *        An object containing some of the following flags:
-   *        - withGroup: true if the group header should also be made visible, if possible
-   *        - delayed: wait a few cycles before ensuring the selection is visible
+   * @param boolean aGroupFlag
+   *        True if the group header should also be made visible, if possible.
+   * @param boolean aDelayedFlag
+   *        True to wait a few cycles before ensuring the selection is visible.
    */
-  ensureElementIsVisible: function SMW_ensureElementIsVisible(aElement, aFlags = {}) {
+  ensureElementIsVisible:
+  function SMW_ensureElementIsVisible(aElement, aGroupFlag, aDelayedFlag) {
     if (!aElement) {
       return;
     }
-
-    if (aFlags.delayed) {
-      delete aFlags.delayed;
+    if (aDelayedFlag) {
       this.window.clearTimeout(this._ensureVisibleTimeout);
-      this._ensureVisibleTimeout = this.window.setTimeout(() => {
-        this.ensureElementIsVisible(aElement, aFlags);
-      }, ENSURE_SELECTION_VISIBLE_DELAY);
+      this._ensureVisibleTimeout = this.window.setTimeout(function() {
+        this.ensureElementIsVisible(aElement, aGroupFlag, false);
+      }.bind(this), ENSURE_SELECTION_VISIBLE_DELAY);
       return;
     }
-
-    if (aFlags.withGroup) {
+    if (aGroupFlag) {
       let groupList = aElement.parentNode;
       let groupContainer = groupList.parentNode;
       groupContainer.scrollIntoView(true); // Align with the top.
     }
-
     this._boxObject.ensureElementIsVisible(aElement);
   },
 
@@ -378,24 +332,6 @@ SideMenuWidget.prototype = {
     return group;
   },
 
-  /**
-   * Gets a menu item to be displayed inside a group.
-   * @see SideMenuWidget.prototype._getGroupForName
-   *
-   * @param SideMenuGroup aGroup
-   *        The group to contain the menu item.
-   * @param string | nsIDOMNode aContents
-   *        The string or node displayed in the container.
-   * @param string aTooltip [optional]
-   *        A tooltip attribute for the displayed item.
-   */
-  _getItemForGroup: function SMW__getItemForGroup(aGroup, aContents, aTooltip) {
-    return new SideMenuItem(aGroup, aContents, aTooltip, this._showArrows);
-  },
-
-  window: null,
-  document: null,
-  _showArrows: false,
   _parent: null,
   _list: null,
   _boxObject: null,
@@ -419,44 +355,64 @@ SideMenuWidget.prototype = {
  *        The string displayed in the container.
  */
 function SideMenuGroup(aWidget, aName) {
-  this.document = aWidget.document;
-  this.window = aWidget.window;
   this.ownerView = aWidget;
   this.identifier = aName;
 
-  // Create an internal title and list container.
-  if (aName) {
-    let target = this._target = this.document.createElement("vbox");
-    target.className = "side-menu-widget-group";
-    target.setAttribute("name", aName);
-    target.setAttribute("tooltiptext", aName);
+  let document = this.document;
+  let title = this._title = document.createElement("hbox");
+  title.className = "side-menu-widget-group-title";
 
-    let list = this._list = this.document.createElement("vbox");
-    list.className = "side-menu-widget-group-list";
+  let name = this._name = document.createElement("label");
+  name.className = "plain name";
+  name.setAttribute("value", aName);
+  name.setAttribute("crop", "end");
+  name.setAttribute("flex", "1");
 
-    let title = this._title = this.document.createElement("hbox");
-    title.className = "side-menu-widget-group-title";
+  let list = this._list = document.createElement("vbox");
+  list.className = "side-menu-widget-group-list";
 
-    let name = this._name = this.document.createElement("label");
-    name.className = "plain name";
-    name.setAttribute("value", aName);
-    name.setAttribute("crop", "end");
-    name.setAttribute("flex", "1");
+  let target = this._target = document.createElement("vbox");
+  target.className = "side-menu-widget-group side-menu-widget-item-or-group";
+  target.setAttribute("name", aName);
+  target.setAttribute("tooltiptext", aName);
 
-    title.appendChild(name);
-    target.appendChild(title);
-    target.appendChild(list);
-  }
-  // Skip a few redundant nodes when no title is shown.
-  else {
-    let target = this._target = this._list = this.document.createElement("vbox");
-    target.className = "side-menu-widget-group side-menu-widget-group-list";
-  }
+  title.appendChild(name);
+  target.appendChild(title);
+  target.appendChild(list);
 }
 
 SideMenuGroup.prototype = {
-  get _orderedGroupElementsArray() this.ownerView._orderedGroupElementsArray,
-  get _orderedMenuElementsArray() this.ownerView._orderedMenuElementsArray,
+  get document() this.ownerView.document,
+  get window() this.document.defaultView,
+  get _groupElementsArray() this.ownerView._orderedGroupElementsArray,
+  get _menuElementsArray() this.ownerView._orderedMenuElementsArray,
+
+  /**
+   * Inserts an item in this group at the specified index.
+   *
+   * @param number aIndex
+   *        The position in the container intended for this item.
+   * @param string | nsIDOMNode aContents
+   *        The string or node displayed in the container.
+   * @param string aTooltip [optional]
+   *        A tooltip attribute for the displayed item.
+   * @return nsIDOMNode
+   *         The element associated with the displayed item.
+   */
+  insertItemAt: function SMG_insertItemAt(aIndex, aContents, aTooltip) {
+    let list = this._list;
+    let menuArray = this._menuElementsArray;
+    let item = new SideMenuItem(this, aContents, aTooltip);
+
+    if (aIndex >= 0) {
+      list.insertBefore(item._container, list.childNodes[aIndex]);
+      menuArray.splice(aIndex, 0, item._target);
+    } else {
+      list.appendChild(item._container);
+      menuArray.push(item._target);
+    }
+    return item._target;
+  },
 
   /**
    * Inserts this group in the parent container at the specified index.
@@ -466,7 +422,7 @@ SideMenuGroup.prototype = {
    */
   insertSelfAt: function SMG_insertSelfAt(aIndex) {
     let ownerList = this.ownerView._list;
-    let groupsArray = this._orderedGroupElementsArray;
+    let groupsArray = this._groupElementsArray;
 
     if (aIndex >= 0) {
       ownerList.insertBefore(this._target, groupsArray[aIndex]);
@@ -485,7 +441,7 @@ SideMenuGroup.prototype = {
    */
   findExpectedIndexForSelf: function SMG_findExpectedIndexForSelf() {
     let identifier = this.identifier;
-    let groupsArray = this._orderedGroupElementsArray;
+    let groupsArray = this._groupElementsArray;
 
     for (let group of groupsArray) {
       let name = group.getAttribute("name");
@@ -497,8 +453,6 @@ SideMenuGroup.prototype = {
     return -1;
   },
 
-  window: null,
-  document: null,
   ownerView: null,
   identifier: "",
   _target: null,
@@ -516,65 +470,29 @@ SideMenuGroup.prototype = {
  *        A tooltip attribute for the displayed item.
  * @param string | nsIDOMNode aContents
  *        The string or node displayed in the container.
- * @param boolean aArrowFlag
- *        True if a horizontal arrow should be shown.
  */
-function SideMenuItem(aGroup, aContents, aTooltip, aArrowFlag) {
-  this.document = aGroup.document;
-  this.window = aGroup.window;
+function SideMenuItem(aGroup, aContents, aTooltip = "") {
   this.ownerView = aGroup;
 
-  // Show a horizontal arrow towards the content.
-  if (aArrowFlag) {
-    let container = this._container = this.document.createElement("hbox");
-    container.className = "side-menu-widget-item";
-    container.setAttribute("tooltiptext", aTooltip);
-
-    let target = this._target = this.document.createElement("vbox");
-    target.className = "side-menu-widget-item-contents";
-
-    let arrow = this._arrow = this.document.createElement("hbox");
-    arrow.className = "side-menu-widget-item-arrow";
-
-    container.appendChild(target);
-    container.appendChild(arrow);
-  }
-  // Skip a few redundant nodes when no horizontal arrow is shown.
-  else {
-    let target = this._target = this._container = this.document.createElement("hbox");
-    target.className = "side-menu-widget-item side-menu-widget-item-contents";
-  }
-
-  this._target.setAttribute("flex", "1");
+  let document = this.document;
+  let target = this._target = document.createElement("vbox");
+  target.className = "side-menu-widget-item-contents";
+  target.setAttribute("flex", "1");
   this.contents = aContents;
+
+  let arrow = this._arrow = document.createElement("hbox");
+  arrow.className = "side-menu-widget-item-arrow";
+
+  let container = this._container = document.createElement("hbox");
+  container.className = "side-menu-widget-item side-menu-widget-item-or-group";
+  container.setAttribute("tooltiptext", aTooltip);
+  container.appendChild(target);
+  container.appendChild(arrow);
 }
 
 SideMenuItem.prototype = {
-  get _orderedGroupElementsArray() this.ownerView._orderedGroupElementsArray,
-  get _orderedMenuElementsArray() this.ownerView._orderedMenuElementsArray,
-
-  /**
-   * Inserts this item in the parent group at the specified index.
-   *
-   * @param number aIndex
-   *        The position in the container intended for this item.
-   * @return nsIDOMNode
-   *         The element associated with the displayed item.
-   */
-  insertSelfAt: function SMI_insertSelfAt(aIndex) {
-    let ownerList = this.ownerView._list;
-    let menuArray = this._orderedMenuElementsArray;
-
-    if (aIndex >= 0) {
-      ownerList.insertBefore(this._container, ownerList.childNodes[aIndex]);
-      menuArray.splice(aIndex, 0, this._target);
-    } else {
-      ownerList.appendChild(this._container);
-      menuArray.push(this._target);
-    }
-
-    return this._target;
-  },
+  get document() this.ownerView.document,
+  get window() this.document.defaultView,
 
   /**
    * Sets the contents displayed in this item's view.
@@ -603,8 +521,6 @@ SideMenuItem.prototype = {
     this._target.appendChild(aContents);
   },
 
-  window: null,
-  document: null,
   ownerView: null,
   _target: null,
   _container: null,

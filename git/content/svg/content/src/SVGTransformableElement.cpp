@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/SVGAnimatedTransformList.h"
 #include "mozilla/dom/SVGTransformableElement.h"
 #include "mozilla/dom/SVGMatrix.h"
 #include "mozilla/dom/SVGSVGElement.h"
+#include "DOMSVGAnimatedTransformList.h"
 #include "nsContentUtils.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsIFrame.h"
@@ -18,13 +18,13 @@
 namespace mozilla {
 namespace dom {
 
-already_AddRefed<SVGAnimatedTransformList>
+already_AddRefed<DOMSVGAnimatedTransformList>
 SVGTransformableElement::Transform()
 {
   // We're creating a DOM wrapper, so we must tell GetAnimatedTransformList
   // to allocate the SVGAnimatedTransformList if it hasn't already done so:
-  return SVGAnimatedTransformList::GetDOMWrapper(
-           GetAnimatedTransformList(DO_ALLOCATE), this);
+  return DOMSVGAnimatedTransformList::GetDOMWrapper(
+           GetAnimatedTransformList(DO_ALLOCATE), this).get();
 
 }
 
@@ -136,11 +136,11 @@ SVGTransformableElement::SetAnimateMotionTransform(const gfxMatrix* aMatrix)
   DidAnimateTransformList();
 }
 
-nsSVGAnimatedTransformList*
+SVGAnimatedTransformList*
 SVGTransformableElement::GetAnimatedTransformList(uint32_t aFlags)
 {
   if (!mTransforms && (aFlags & DO_ALLOCATE)) {
-    mTransforms = new nsSVGAnimatedTransformList();
+    mTransforms = new SVGAnimatedTransformList();
   }
   return mTransforms;
 }
@@ -173,7 +173,9 @@ SVGTransformableElement::GetBBox(ErrorResult& rv)
     return nullptr;
   }
 
-  return NS_NewSVGRect(this, nsSVGUtils::GetBBox(frame));
+  nsRefPtr<SVGRect> rect;
+  rv = NS_NewSVGRect(getter_AddRefs(rect), nsSVGUtils::GetBBox(frame));
+  return rect.forget();
 }
 
 already_AddRefed<SVGMatrix>

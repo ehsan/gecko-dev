@@ -16,7 +16,6 @@
 #include "shared-libraries.h"
 #include "mozilla/StackWalk.h"
 #include "TableTicker.h"
-#include "nsXULAppAPI.h"
 
 // JSON
 #include "JSObjectBuilder.h"
@@ -34,10 +33,6 @@
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
 #include "PlatformMacros.h"
-
-#if defined(SPS_OS_android) && !defined(MOZ_WIDGET_GONK)
-  #include "AndroidBridge.h"
-#endif
 
 // JS
 #include "jsdbgapi.h"
@@ -165,68 +160,6 @@ JSObject* TableTicker::ToJSObject(JSContext *aCx)
   return jsProfile;
 }
 
-struct SubprocessClosure {
-  JSAObjectBuilder* mBuilder;
-  JSCustomArray* mThreads;
-};
-
-void SubProcessCallback(const char* aProfile, void* aClosure)
-{
-  // Called by the observer to get their profile data included
-  // as a sub profile
-  SubprocessClosure* closure = (SubprocessClosure*)aClosure;
-
-  closure->mBuilder->ArrayPush(closure->mThreads, aProfile);
-}
-
-#if defined(SPS_OS_android) && !defined(MOZ_WIDGET_GONK)
-static
-JSCustomObject* BuildJavaThreadJSObject(JSAObjectBuilder& b)
-{
-  JSCustomObject* javaThread = b.CreateObject();
-  b.DefineProperty(javaThread, "name", "Java Main Thread");
-
-  JSCustomArray *samples = b.CreateArray();
-  b.DefineProperty(javaThread, "samples", samples);
-
-  int sampleId = 0;
-  while (true) {
-    int frameId = 0;
-    JSCustomObject *sample = nullptr;
-    JSCustomArray *frames = nullptr;
-    while (true) {
-      nsCString result;
-      bool hasFrame = AndroidBridge::Bridge()->GetFrameNameJavaProfiling(0, sampleId, frameId, result);
-      if (!hasFrame) {
-        if (frames) {
-          b.DefineProperty(sample, "frames", frames);
-        }
-        break;
-      }
-      if (!sample) {
-        sample = b.CreateObject();
-        frames = b.CreateArray();
-        b.DefineProperty(sample, "frames", frames);
-        b.ArrayPush(samples, sample);
-
-        double sampleTime = AndroidBridge::Bridge()->GetSampleTimeJavaProfiling(0, sampleId);
-        b.DefineProperty(sample, "time", sampleTime);
-      }
-      JSCustomObject *frame = b.CreateObject();
-      b.DefineProperty(frame, "location", result.BeginReading());
-      b.ArrayPush(frames, frame);
-      frameId++;
-    }
-    if (frameId == 0) {
-      break;
-    }
-    sampleId++;
-  }
-
-  return javaThread;
-}
-#endif
-
 void TableTicker::BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile)
 {
   // Put shared library info
@@ -240,47 +173,15 @@ void TableTicker::BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile)
   JSCustomArray *threads = b.CreateArray();
   b.DefineProperty(profile, "threads", threads);
 
+  // For now we only have one thread
   SetPaused(true);
-
-  {
-    mozilla::MutexAutoLock lock(*sRegisteredThreadsMutex);
-
-    for (size_t i = 0; i < sRegisteredThreads->size(); i++) {
-      // Thread not being profiled, skip it
-      if (!sRegisteredThreads->at(i)->Profile())
-        continue;
-
-      MutexAutoLock lock(*sRegisteredThreads->at(i)->Profile()->GetMutex());
-
-      JSCustomObject* threadSamples = b.CreateObject();
-      sRegisteredThreads->at(i)->Profile()->BuildJSObject(b, threadSamples);
-      b.ArrayPush(threads, threadSamples);
-    }
-  }
-
-#if defined(SPS_OS_android) && !defined(MOZ_WIDGET_GONK)
-  if (ProfileJava()) {
-    AndroidBridge::Bridge()->PauseJavaProfiling();
-
-    JSCustomObject* javaThread = BuildJavaThreadJSObject(b);
-    b.ArrayPush(threads, javaThread);
-
-    AndroidBridge::Bridge()->UnpauseJavaProfiling();
-  }
-#endif
-
+  ThreadProfile* prof = GetPrimaryThreadProfile();
+  prof->GetMutex()->Lock();
+  JSCustomObject* threadSamples = b.CreateObject();
+  prof->BuildJSObject(b, threadSamples);
+  b.ArrayPush(threads, threadSamples);
+  prof->GetMutex()->Unlock();
   SetPaused(false);
-
-  // Send a event asking any subprocesses (plugins) to
-  // give us their information
-  SubprocessClosure closure;
-  closure.mBuilder = &b;
-  closure.mThreads = threads;
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  if (os) {
-    nsRefPtr<ProfileSaveEvent> pse = new ProfileSaveEvent(SubProcessCallback, &closure);
-    os->NotifyObservers(pse, "profiler-subprocess", nullptr);
-  }
 }
 
 // END SaveProfileTask et al
@@ -384,7 +285,7 @@ void StackWalkCallback(void* aPC, void* aSP, void* aClosure)
 void TableTicker::doNativeBacktrace(ThreadProfile &aProfile, TickSample* aSample)
 {
 #ifndef XP_MACOSX
-  uintptr_t thread = GetThreadHandle(aSample->threadProfile->GetPlatformData());
+  uintptr_t thread = GetThreadHandle(platform_data());
   MOZ_ASSERT(thread);
 #endif
   void* pc_array[1000];
@@ -401,7 +302,7 @@ void TableTicker::doNativeBacktrace(ThreadProfile &aProfile, TickSample* aSample
 
   uint32_t maxFrames = uint32_t(array.size - array.count);
 #ifdef XP_MACOSX
-  pthread_t pt = GetProfiledThread(aSample->threadProfile->GetPlatformData());
+  pthread_t pt = GetProfiledThread(platform_data());
   void *stackEnd = reinterpret_cast<void*>(-1);
   if (pt)
     stackEnd = static_cast<char*>(pthread_get_stackaddr_np(pt));
@@ -482,21 +383,10 @@ void doSampleStackTrace(PseudoStack *aStack, ThreadProfile &aProfile, TickSample
 
 void TableTicker::Tick(TickSample* sample)
 {
-  if (HasUnwinderThread()) {
-    UnwinderTick(sample);
-  } else {
-    InplaceTick(sample);
-  }
-}
-
-void TableTicker::InplaceTick(TickSample* sample)
-{
-  ThreadProfile& currThreadProfile = *sample->threadProfile;
-
   // Marker(s) come before the sample
-  PseudoStack* stack = currThreadProfile.GetPseudoStack();
+  PseudoStack* stack = mPrimaryThreadProfile.GetPseudoStack();
   for (int i = 0; stack->getMarker(i) != NULL; i++) {
-    addDynamicTag(currThreadProfile, 'm', stack->getMarker(i));
+    addDynamicTag(mPrimaryThreadProfile, 'm', stack->getMarker(i));
   }
   stack->mQueueClearMarker = true;
 
@@ -508,7 +398,7 @@ void TableTicker::InplaceTick(TickSample* sample)
       // XXX: we also probably want to add an entry to the profile to help
       // distinguish which samples are part of the same event. That, or record
       // the event generation in each sample
-      currThreadProfile.erase();
+      mPrimaryThreadProfile.erase();
     }
     sLastSampledEventGeneration = sCurrentEventGeneration;
 
@@ -524,29 +414,29 @@ void TableTicker::InplaceTick(TickSample* sample)
 
 #if defined(USE_BACKTRACE) || defined(USE_NS_STACKWALK)
   if (mUseStackWalk) {
-    doNativeBacktrace(currThreadProfile, sample);
+    doNativeBacktrace(mPrimaryThreadProfile, sample);
   } else {
-    doSampleStackTrace(stack, currThreadProfile, mAddLeafAddresses ? sample : nullptr);
+    doSampleStackTrace(stack, mPrimaryThreadProfile, mAddLeafAddresses ? sample : nullptr);
   }
 #else
-  doSampleStackTrace(stack, currThreadProfile, mAddLeafAddresses ? sample : nullptr);
+  doSampleStackTrace(stack, mPrimaryThreadProfile, mAddLeafAddresses ? sample : nullptr);
 #endif
 
   if (recordSample)
-    currThreadProfile.flush();
+    mPrimaryThreadProfile.flush();
 
-  if (!sLastTracerEvent.IsNull() && sample && currThreadProfile.IsMainThread()) {
+  if (!sLastTracerEvent.IsNull() && sample) {
     TimeDuration delta = sample->timestamp - sLastTracerEvent;
-    currThreadProfile.addTag(ProfileEntry('r', delta.ToMilliseconds()));
+    mPrimaryThreadProfile.addTag(ProfileEntry('r', delta.ToMilliseconds()));
   }
 
   if (sample) {
-    TimeDuration delta = sample->timestamp - sStartTime;
-    currThreadProfile.addTag(ProfileEntry('t', delta.ToMilliseconds()));
+    TimeDuration delta = sample->timestamp - mStartTime;
+    mPrimaryThreadProfile.addTag(ProfileEntry('t', delta.ToMilliseconds()));
   }
 
   if (sLastFrameNumber != sFrameNumber) {
-    currThreadProfile.addTag(ProfileEntry('f', sFrameNumber));
+    mPrimaryThreadProfile.addTag(ProfileEntry('f', sFrameNumber));
     sLastFrameNumber = sFrameNumber;
   }
 }
@@ -570,8 +460,7 @@ void mozilla_sampler_print_location1()
     return;
   }
 
-  ThreadProfile threadProfile("Temp", PROFILE_DEFAULT_ENTRY, stack,
-                              0, Sampler::AllocPlatformData(0), false);
+  ThreadProfile threadProfile(1000, stack);
   doSampleStackTrace(stack, threadProfile, NULL);
 
   threadProfile.flush();

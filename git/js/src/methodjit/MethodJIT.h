@@ -1,13 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #if !defined jsjaeger_h__ && defined JS_METHODJIT
 #define jsjaeger_h__
-
-#include "mozilla/PodOperations.h"
 
 #ifdef JSGC_INCREMENTAL
 #define JSGC_INCREMENTAL_MJ
@@ -749,7 +748,7 @@ struct ChunkDescriptor
     /* Optional compiled code for the chunk. */
     JITChunk *chunk;
 
-    ChunkDescriptor() { mozilla::PodZero(this); }
+    ChunkDescriptor() { PodZero(this); }
 };
 
 /* Jump or fallthrough edge in the bytecode which crosses a chunk boundary. */
@@ -785,7 +784,7 @@ struct CrossChunkEdge
      */
     void *shimLabel;
 
-    CrossChunkEdge() { mozilla::PodZero(this); }
+    CrossChunkEdge() { PodZero(this); }
 };
 
 struct JITScript
@@ -1036,7 +1035,7 @@ IsLowerableFunCallOrApply(jsbytecode *pc)
 #endif
 }
 
-Shape *
+RawShape
 GetPICSingleShape(JSContext *cx, JSScript *script, jsbytecode *pc, bool constructing);
 
 static inline void

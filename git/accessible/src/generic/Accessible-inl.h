@@ -8,7 +8,7 @@
 #define mozilla_a11y_Accessible_inl_h_
 
 #include "Accessible.h"
-#include "ARIAMap.h"
+#include "nsARIAMap.h"
 
 namespace mozilla {
 namespace a11y {

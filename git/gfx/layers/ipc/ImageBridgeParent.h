@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/layers/PImageBridgeParent.h"
-#include "CompositableTransactionParent.h"
 
 class MessageLoop;
 
@@ -17,15 +16,11 @@ class CompositorParent;
  * It's purpose is mainly to setup the IPDL connection. Most of the
  * interesting stuff is in ImageContainerParent.
  */
-class ImageBridgeParent : public PImageBridgeParent,
-                          public CompositableParentManager
+class ImageBridgeParent : public PImageBridgeParent
 {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(ImageBridgeParent)
 
 public:
-  typedef InfallibleTArray<CompositableOperation> EditArray;
-  typedef InfallibleTArray<EditReply> EditReplyArray;
-
   ImageBridgeParent(MessageLoop* aLoop, Transport* aTransport);
   ~ImageBridgeParent();
 
@@ -41,39 +36,14 @@ public:
   virtual bool
   DeallocPGrallocBuffer(PGrallocBufferParent* actor) MOZ_OVERRIDE;
 
-  // PImageBridge
-  virtual bool RecvUpdate(const EditArray& aEdits, EditReplyArray* aReply);
-  virtual bool RecvUpdateNoSwap(const EditArray& aEdits);
-
-  PCompositableParent* AllocPCompositable(const TextureInfo& aInfo,
-                                          uint64_t*) MOZ_OVERRIDE;
-  bool DeallocPCompositable(PCompositableParent* aActor) MOZ_OVERRIDE;
-
+  // Overriden from PImageBridgeParent.
+  PImageContainerParent* AllocPImageContainer(uint64_t* aID) MOZ_OVERRIDE;
+  // Overriden from PImageBridgeParent.
+  bool DeallocPImageContainer(PImageContainerParent* toDealloc) MOZ_OVERRIDE;
+  // Overriden from PImageBridgeParent.
   bool RecvStop() MOZ_OVERRIDE;
 
   MessageLoop * GetMessageLoop();
-
-
-  // ISurfaceAllocator
-
-  bool AllocShmem(size_t aSize,
-                  ipc::SharedMemory::SharedMemoryType aType,
-                  ipc::Shmem* aShmem) MOZ_OVERRIDE
-  {
-    return AllocShmem(aSize, aType, aShmem);
-  }
-
-  bool AllocUnsafeShmem(size_t aSize,
-                        ipc::SharedMemory::SharedMemoryType aType,
-                        ipc::Shmem* aShmem) MOZ_OVERRIDE
-  {
-    return AllocUnsafeShmem(aSize, aType, aShmem);
-  }
-
-  void DeallocShmem(ipc::Shmem& aShmem) MOZ_OVERRIDE
-  {
-    PImageBridgeParent::DeallocShmem(aShmem);
-  }
 
 private:
   void DeferredDestroy();

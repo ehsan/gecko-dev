@@ -175,7 +175,7 @@ public: //for methods who access nsTextControlFrame directly
   nsresult MaybeBeginSecureKeyboardInput();
   void MaybeEndSecureKeyboardInput();
 
-  class MOZ_STACK_CLASS ValueSetter {
+  NS_STACK_CLASS class ValueSetter {
   public:
     ValueSetter(nsIEditor* aEditor)
       : mEditor(aEditor)

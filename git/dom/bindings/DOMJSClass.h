@@ -42,13 +42,8 @@ class nsCycleCollectionParticipant;
 #define DOM_PROTO_INSTANCE_CLASS_SLOT 0
 
 // Interface objects store a number of reserved slots equal to
-// DOM_INTERFACE_SLOTS_BASE + number of named constructors.
+// DOM_INTERFACE_BASE_SLOTS + number of named constructors.
 #define DOM_INTERFACE_SLOTS_BASE (DOM_XRAY_EXPANDO_SLOT + 1)
-
-// Interface prototype objects store a number of reserved slots equal to
-// DOM_INTERFACE_PROTO_SLOTS_BASE or DOM_INTERFACE_PROTO_SLOTS_BASE + 1 if a
-// slot for the unforgeable holder is needed.
-#define DOM_INTERFACE_PROTO_SLOTS_BASE (DOM_XRAY_EXPANDO_SLOT + 1)
 
 MOZ_STATIC_ASSERT(DOM_PROTO_INSTANCE_CLASS_SLOT != DOM_XRAY_EXPANDO_SLOT,
                   "Interface prototype object use both of these, so they must "
@@ -58,13 +53,11 @@ namespace mozilla {
 namespace dom {
 
 typedef bool
-(* ResolveOwnProperty)(JSContext* cx, JS::Handle<JSObject*> wrapper,
-                       JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
+(* ResolveOwnProperty)(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
                        JSPropertyDescriptor* desc, unsigned flags);
 
 typedef bool
-(* EnumerateOwnProperties)(JSContext* cx, JS::Handle<JSObject*> wrapper,
-                           JS::Handle<JSObject*> obj,
+(* EnumerateOwnProperties)(JSContext* cx, JSObject* wrapper, JSObject* obj,
                            JS::AutoIdVector& props);
 
 struct ConstantSpec
@@ -77,7 +70,7 @@ typedef bool (*PropertyEnabled)(JSContext* cx, JSObject* global);
 
 template<typename T>
 struct Prefable {
-  inline bool isEnabled(JSContext* cx, JSObject* obj) const {
+  inline bool isEnabled(JSContext* cx, JSObject* obj) {
     return enabled &&
       (!enabledFunc ||
        enabledFunc(cx, js::GetGlobalForObjectCrossCompartment(obj)));
@@ -92,29 +85,29 @@ struct Prefable {
   // Array of specs, terminated in whatever way is customary for T.
   // Null to indicate a end-of-array for Prefable, when such an
   // indicator is needed.
-  const T* specs;
+  T* specs;
 };
 
 struct NativeProperties
 {
-  const Prefable<const JSFunctionSpec>* staticMethods;
+  Prefable<JSFunctionSpec>* staticMethods;
   jsid* staticMethodIds;
-  const JSFunctionSpec* staticMethodsSpecs;
-  const Prefable<const JSPropertySpec>* staticAttributes;
+  JSFunctionSpec* staticMethodsSpecs;
+  Prefable<JSPropertySpec>* staticAttributes;
   jsid* staticAttributeIds;
-  const JSPropertySpec* staticAttributeSpecs;
-  const Prefable<const JSFunctionSpec>* methods;
+  JSPropertySpec* staticAttributeSpecs;
+  Prefable<JSFunctionSpec>* methods;
   jsid* methodIds;
-  const JSFunctionSpec* methodsSpecs;
-  const Prefable<const JSPropertySpec>* attributes;
+  JSFunctionSpec* methodsSpecs;
+  Prefable<JSPropertySpec>* attributes;
   jsid* attributeIds;
-  const JSPropertySpec* attributeSpecs;
-  const Prefable<const JSPropertySpec>* unforgeableAttributes;
+  JSPropertySpec* attributeSpecs;
+  Prefable<JSPropertySpec>* unforgeableAttributes;
   jsid* unforgeableAttributeIds;
-  const JSPropertySpec* unforgeableAttributeSpecs;
-  const Prefable<const ConstantSpec>* constants;
+  JSPropertySpec* unforgeableAttributeSpecs;
+  Prefable<ConstantSpec>* constants;
   jsid* constantIds;
-  const ConstantSpec* constantSpecs;
+  ConstantSpec* constantSpecs;
 };
 
 struct NativePropertiesHolder
@@ -158,15 +151,8 @@ enum DOMObjectType {
   eInterfacePrototype
 };
 
-typedef JSObject* (*ParentGetter)(JSContext* aCx, JS::Handle<JSObject*> aObj);
-/**
- * Returns a handle to the relevent WebIDL prototype object for the given global
- * (which may be a handle to null on out of memory).  Once allocated, the
- * prototype object is guaranteed to exist as long as the global does, since the
- * global traces its array of WebIDL prototypes and constructors.
- */
-typedef JS::Handle<JSObject*> (*ProtoGetter)(JSContext* aCx,
-                                             JS::Handle<JSObject*> aGlobal);
+typedef JSObject* (*ParentGetter)(JSContext* aCx, JSObject* aObj);
+typedef JSObject* (*ProtoGetter)(JSContext* aCx, JSObject* aGlobal);
 
 struct DOMClass
 {

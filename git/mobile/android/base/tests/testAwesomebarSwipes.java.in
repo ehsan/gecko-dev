@@ -9,8 +9,8 @@ import android.support.v4.view.ViewPager;
 
 import @ANDROID_PACKAGE_NAME@.*;
 
-/* Tests swiping between tabs on the awesome bar and other basic
-   awesome bar tab selections.
+/* Tests opening the all pages tab, that items look correct, clicking on an item
+   and long tapping on an item
 */
 
 public class testAwesomebarSwipes extends BaseTest {
@@ -20,7 +20,7 @@ public class testAwesomebarSwipes extends BaseTest {
     }
 
     public void testAwesomebarSwipes() {
-        blockForGeckoReady();
+        mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
 
         ListView list = getAllPagesList("about:firefox");
 

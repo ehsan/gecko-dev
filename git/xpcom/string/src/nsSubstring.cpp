@@ -21,7 +21,6 @@
 #include "pratom.h"
 #include "prprf.h"
 #include "nsStaticAtom.h"
-#include "nsCOMPtr.h"
 
 // ---------------------------------------------------------------------------
 
@@ -166,7 +165,7 @@ nsStringBuffer::Release()
   /**
    * Alloc returns a pointer to a new string header with set capacity.
    */
-already_AddRefed<nsStringBuffer>
+nsStringBuffer*
 nsStringBuffer::Alloc(size_t size)
   {
     NS_ASSERTION(size != 0, "zero capacity allocation not allowed");
@@ -184,7 +183,7 @@ nsStringBuffer::Alloc(size_t size)
         hdr->mStorageSize = size;
         NS_LOG_ADDREF(hdr, 1, "nsStringBuffer", sizeof(*hdr));
       }
-    return dont_AddRef(hdr);
+    return hdr;
   }
 
 nsStringBuffer*

@@ -24,7 +24,9 @@
 #endif
 #include "nsBindingManager.h"
 #include "nsGenericHTMLElement.h"
+#ifdef MOZ_MEDIA
 #include "mozilla/dom/HTMLMediaElement.h"
+#endif // MOZ_MEDIA
 #include "nsWrapperCacheInlines.h"
 #include "nsObjectLoadingContent.h"
 #include "nsDOMMutationObserver.h"
@@ -32,7 +34,6 @@
 #include "mozilla/dom/HTMLTemplateElement.h"
 
 using namespace mozilla::dom;
-using mozilla::AutoJSContext;
 
 // This macro expects the ownerDocument of content_ to be in scope as
 // |nsIDocument* doc|
@@ -258,7 +259,7 @@ nsNodeUtils::LastRelease(nsINode* aNode)
   delete aNode;
 }
 
-struct MOZ_STACK_CLASS nsHandlerData
+struct NS_STACK_CLASS nsHandlerData
 {
   uint16_t mOperation;
   nsCOMPtr<nsIDOMNode> mSource;
@@ -382,13 +383,14 @@ nsNodeUtils::CloneNodeImpl(nsINode *aNode, bool aDeep,
 nsresult
 nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
                            nsNodeInfoManager *aNewNodeInfoManager,
-                           JS::Handle<JSObject*> aReparentScope,
+                           JSContext *aCx, JSObject *aNewScope,
                            nsCOMArray<nsINode> &aNodesWithProperties,
                            nsINode *aParent, nsINode **aResult)
 {
-  NS_PRECONDITION((!aClone && aNewNodeInfoManager) || !aReparentScope,
+  NS_PRECONDITION((!aClone && aNewNodeInfoManager) || !aCx,
                   "If cloning or not getting a new nodeinfo we shouldn't "
                   "rewrap");
+  NS_PRECONDITION(!aCx || aNewScope, "Must have new scope");
   NS_PRECONDITION(!aParent || aNode->IsNodeOfType(nsINode::eCONTENT),
                   "Can't insert document or attribute nodes into a parent");
 
@@ -398,13 +400,12 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
   // if aDeep is true, deal with aNode's children (and recurse into their
   // attributes and children).
 
-  AutoJSContext cx;
   nsresult rv;
-  JS::RootedObject wrapper(cx);
+  JSObject *wrapper;
   bool isDOMBinding;
-  if (aReparentScope && (wrapper = aNode->GetWrapper()) &&
+  if (aCx && (wrapper = aNode->GetWrapper()) &&
       !(isDOMBinding = IsDOMObject(wrapper))) {
-      rv = xpc_MorphSlimWrapper(cx, aNode);
+      rv = xpc_MorphSlimWrapper(aCx, aNode);
       NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -433,6 +434,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
                                                nodeInfo->NamespaceID(),
                                                nodeInfo->NodeType(),
                                                nodeInfo->GetExtraName());
+    NS_ENSURE_TRUE(newNodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
     nodeInfo = newNodeInfo;
   }
@@ -488,9 +490,11 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
           if (elm->MayHavePaintEventListener()) {
             window->SetHasPaintEventListeners();
           }
+#ifdef MOZ_MEDIA
           if (elm->MayHaveAudioAvailableEventListener()) {
             window->SetHasAudioAvailableEventListeners();
           }
+#endif
           if (elm->MayHaveTouchEventListener()) {
             window->SetHasTouchEventListeners();
           }
@@ -502,18 +506,20 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
     }
 
     if (wasRegistered && oldDoc != newDoc) {
+#ifdef MOZ_MEDIA
       nsCOMPtr<nsIDOMHTMLMediaElement> domMediaElem(do_QueryInterface(aNode));
       if (domMediaElem) {
         HTMLMediaElement* mediaElem = static_cast<HTMLMediaElement*>(aNode);
         mediaElem->NotifyOwnerDocumentActivityChanged();
       }
+#endif
       nsCOMPtr<nsIObjectLoadingContent> objectLoadingContent(do_QueryInterface(aNode));
       if (objectLoadingContent) {
         nsObjectLoadingContent* olc = static_cast<nsObjectLoadingContent*>(objectLoadingContent.get());
         olc->NotifyOwnerDocumentActivityChanged();
       }
     }
-
+ 
     if (oldDoc != newDoc && oldDoc->MayHaveDOMMutationObservers()) {
       newDoc->SetMayHaveDOMMutationObservers();
     }
@@ -522,13 +528,13 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
       elem->RecompileScriptEventListeners();
     }
 
-    if (aReparentScope && wrapper) {
+    if (aCx && wrapper) {
       if (isDOMBinding) {
-        rv = ReparentWrapper(cx, wrapper);
+        rv = ReparentWrapper(aCx, wrapper);
       } else {
         nsIXPConnect *xpc = nsContentUtils::XPConnect();
         if (xpc) {
-          rv = xpc->ReparentWrappedNativeIfFound(cx, wrapper, aReparentScope, aNode);
+          rv = xpc->ReparentWrappedNativeIfFound(aCx, wrapper, aNewScope, aNode);
         }
       }
       if (NS_FAILED(rv)) {
@@ -551,7 +557,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
          cloneChild = cloneChild->GetNextSibling()) {
       nsCOMPtr<nsINode> child;
       rv = CloneAndAdopt(cloneChild, aClone, true, nodeInfoManager,
-                         aReparentScope, aNodesWithProperties, clone,
+                         aCx, aNewScope, aNodesWithProperties, clone,
                          getter_AddRefs(child));
       NS_ENSURE_SUCCESS(rv, rv);
     }
@@ -574,7 +580,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
          cloneChild = cloneChild->GetNextSibling()) {
       nsCOMPtr<nsINode> child;
       rv = CloneAndAdopt(cloneChild, aClone, aDeep, ownerNodeInfoManager,
-                         aReparentScope, aNodesWithProperties, cloneContent,
+                         aCx, aNewScope, aNodesWithProperties, cloneContent,
                          getter_AddRefs(child));
       NS_ENSURE_SUCCESS(rv, rv);
     }

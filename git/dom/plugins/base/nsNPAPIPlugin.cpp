@@ -5,7 +5,7 @@
 
 #include "base/basictypes.h"
 
-/* This must occur *after* layers/PLayerTransaction.h to avoid typedefs conflicts. */
+/* This must occur *after* layers/PLayers.h to avoid typedefs conflicts. */
 #include "mozilla/Util.h"
 
 #include "prmem.h"
@@ -26,6 +26,8 @@
 
 #include "nsPluginsDir.h"
 #include "nsPluginLogging.h"
+
+#include "nsIJSContextStack.h"
 
 #include "nsIDOMElement.h"
 #include "nsPIDOMWindow.h"
@@ -1244,8 +1246,8 @@ _getpluginelement(NPP npp)
                   getter_AddRefs(holder));
   NS_ENSURE_TRUE(holder, nullptr);
 
-  JS::Rooted<JSObject*> obj(cx);
-  holder->GetJSObject(obj.address());
+  JSObject* obj = nullptr;
+  holder->GetJSObject(&obj);
   NS_ENSURE_TRUE(obj, nullptr);
 
   return nsJSObjWrapper::GetNewOrUsed(npp, cx, obj);
@@ -1262,7 +1264,16 @@ _getstringidentifier(const NPUTF8* name)
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_getstringidentifier called from the wrong thread\n"));
   }
 
-  AutoSafeJSContext cx;
+  nsCOMPtr<nsIThreadJSContextStack> stack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+  if (!stack)
+    return NULL;
+
+  JSContext* cx = stack->GetSafeJSContext();
+  if (!cx) {
+    return NULL;
+  }
+
   JSAutoRequest ar(cx);
   return doGetIdentifier(cx, name);
 }
@@ -1274,8 +1285,16 @@ _getstringidentifiers(const NPUTF8** names, int32_t nameCount,
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_getstringidentifiers called from the wrong thread\n"));
   }
+  nsCOMPtr<nsIThreadJSContextStack> stack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+  if (!stack)
+    return;
 
-  AutoSafeJSContext cx;
+  JSContext* cx = stack->GetSafeJSContext();
+  if (!cx) {
+    return;
+  }
+
   JSAutoRequest ar(cx);
 
   for (int32_t i = 0; i < nameCount; ++i) {
@@ -1494,7 +1513,8 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
 
   JSAutoRequest req(cx);
 
-  JS::Rooted<JSObject*> obj(cx, nsNPObjWrapper::GetNewOrUsed(npp, cx, npobj));
+  JSObject *obj =
+    nsNPObjWrapper::GetNewOrUsed(npp, cx, npobj);
 
   if (!obj) {
     return false;
@@ -1505,9 +1525,9 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
     "JS_ObjectToInnerObject should never return null with non-null input.");
 
   // Root obj and the rval (below).
-  JS::Value vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };
+  jsval vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };
   JS::AutoArrayRooter tvr(cx, ArrayLength(vec), vec);
-  JS::Value *rval = &vec[1];
+  jsval *rval = &vec[1];
 
   if (result) {
     // Initialize the out param to void
@@ -1561,7 +1581,7 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   JS::CompileOptions options(cx);
   options.setFileAndLine(spec, 0)
          .setVersion(JSVERSION_DEFAULT);
-  nsresult rv = scx->EvaluateString(utf16script, obj, options,
+  nsresult rv = scx->EvaluateString(utf16script, *obj, options,
                                     /* aCoerceToString = */ false,
                                     rval);
 
@@ -2400,9 +2420,24 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
       return inst->SetTransparent(bTransparent);
     }
 
-    case NPPVjavascriptPushCallerBool: {
-      return NPERR_NO_ERROR;
-    }
+    case NPPVjavascriptPushCallerBool:
+      {
+        nsresult rv;
+        nsCOMPtr<nsIJSContextStack> contextStack =
+          do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
+        if (NS_SUCCEEDED(rv)) {
+          NPBool bPushCaller = (result != nullptr);
+          if (bPushCaller) {
+            JSContext *cx;
+            rv = inst->GetJSContext(&cx);
+            if (NS_SUCCEEDED(rv))
+              rv = contextStack->Push(cx);
+          } else {
+            rv = contextStack->Pop(nullptr);
+          }
+        }
+        return NS_SUCCEEDED(rv) ? NPERR_NO_ERROR : NPERR_GENERIC_ERROR;
+      }
 
     case NPPVpluginKeepLibraryInMemory: {
       NPBool bCached = (result != nullptr);
@@ -2610,7 +2645,7 @@ _getvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
       nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
       nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
       if (pluginHost && NS_SUCCEEDED(pluginHost->FindProxyForURL(url, value))) {
-        *len = *value ? strlen(*value) : 0;
+        *len = *value ? PL_strlen(*value) : 0;
         return NPERR_NO_ERROR;
       }
       break;
@@ -2636,7 +2671,7 @@ _getvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
         return NPERR_GENERIC_ERROR;
       }
 
-      *len = strlen(*value);
+      *len = PL_strlen(*value);
       return NPERR_NO_ERROR;
     }
 

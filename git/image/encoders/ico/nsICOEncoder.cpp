@@ -137,7 +137,7 @@ nsICOEncoder::AddImageFrame(const uint8_t* aData,
     nsresult rv;
 
     nsAutoString params;
-    params.AppendLiteral("bpp=");
+    params.AppendASCII("bpp=");
     params.AppendInt(mICODirEntry.mBitCount);
 
     rv = mContainedEncoder->InitFromData(aData, aLength, aWidth, aHeight,
@@ -430,7 +430,9 @@ nsICOEncoder::NotifyListener()
        mFinished)) {
     nsCOMPtr<nsIInputStreamCallback> callback;
     if (mCallbackTarget) {
-      callback = NS_NewInputStreamReadyEvent(mCallback, mCallbackTarget);
+      NS_NewInputStreamReadyEvent(getter_AddRefs(callback),
+                                  mCallback,
+                                  mCallbackTarget);
     } else {
       callback = mCallback;
     }

@@ -172,10 +172,9 @@ public:
 
       mXHR = new nsXMLHttpRequest();
 
-      nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(ownerWindow);
       if (NS_FAILED(mXHR->Init(mWorkerPrivate->GetPrincipal(),
                                mWorkerPrivate->GetScriptContext(),
-                               global, mWorkerPrivate->GetBaseURI()))) {
+                               ownerWindow, mWorkerPrivate->GetBaseURI()))) {
         mXHR = nullptr;
         return false;
       }
@@ -263,7 +262,7 @@ ConvertStringToResponseType(const nsAString& aString)
   }
 
   MOZ_NOT_REACHED("Don't know anything about this response type!");
-  return XMLHttpRequestResponseType::_empty;
+  return _empty;
 }
 
 enum
@@ -572,8 +571,8 @@ public:
       }
     }
     else {
-      JS::Rooted<JS::Value> response(aCx);
-      mResponseResult = xhr->GetResponse(aCx, response.address());
+      jsval response;
+      mResponseResult = xhr->GetResponse(aCx, &response);
       if (NS_SUCCEEDED(mResponseResult)) {
         if (JSVAL_IS_UNIVERSAL(response)) {
           mResponse = response;
@@ -692,8 +691,8 @@ public:
           nsTArray<nsCOMPtr<nsISupports> > clonedObjects;
           clonedObjects.SwapElements(mClonedObjects);
 
-          JS::Rooted<JS::Value> response(aCx);
-          if (!responseBuffer.read(aCx, response.address(), callbacks, &clonedObjects)) {
+          jsval response;
+          if (!responseBuffer.read(aCx, &response, callbacks, &clonedObjects)) {
             return false;
           }
 
@@ -719,23 +718,23 @@ public:
       return true;
     }
 
-    JS::Rooted<JSString*> type(aCx, JS_NewUCStringCopyN(aCx, mType.get(), mType.Length()));
+    JSString* type = JS_NewUCStringCopyN(aCx, mType.get(), mType.Length());
     if (!type) {
       return false;
     }
 
-    JS::Rooted<JSObject*> event(aCx, mProgressEvent ?
+    JSObject* event = mProgressEvent ?
                       events::CreateProgressEvent(aCx, type, mLengthComputable,
                                                   mLoaded, mTotal) :
                       events::CreateGenericEvent(aCx, type, false, false,
-                                                 false));
+                                                 false);
     if (!event) {
       return false;
     }
 
-    JS::Rooted<JSObject*> target(aCx, mUploadEvent ?
+    JSObject* target = mUploadEvent ?
                        xhr->GetUploadObjectNoCreate()->GetJSObject() :
-                       xhr->GetJSObject());
+                       xhr->GetJSObject();
     MOZ_ASSERT(target);
 
     bool dummy;
@@ -1119,8 +1118,7 @@ public:
     nsCOMPtr<nsIVariant> variant;
 
     if (mBody.data()) {
-      AutoSafeJSContext cx;
-      JSAutoRequest ar(cx);
+      RuntimeService::AutoSafeJSContext cx;
       nsIXPConnect* xpc = nsContentUtils::XPConnect();
       NS_ASSERTION(xpc, "This should never be null!");
 
@@ -1131,9 +1129,9 @@ public:
         ChromeWorkerStructuredCloneCallbacks(true) :
         WorkerStructuredCloneCallbacks(true);
 
-      JS::Rooted<JS::Value> body(cx);
-      if (mBody.read(cx, body.address(), callbacks, &mClonedObjects)) {
-        if (NS_FAILED(xpc->JSValToVariant(cx, body.address(),
+      jsval body;
+      if (mBody.read(cx, &body, callbacks, &mClonedObjects)) {
+        if (NS_FAILED(xpc->JSValToVariant(cx, &body,
                                           getter_AddRefs(variant)))) {
           rv = NS_ERROR_DOM_INVALID_STATE_ERR;
         }
@@ -1376,8 +1374,7 @@ Proxy::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   {
-    AutoSafeJSContext cx;
-    JSAutoRequest ar(cx);
+    RuntimeService::AutoSafeJSContext cx;
     runnable->Dispatch(cx);
   }
 
@@ -1404,7 +1401,7 @@ Proxy::HandleEvent(nsIDOMEvent* aEvent)
 XMLHttpRequest::XMLHttpRequest(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
 : XMLHttpRequestEventTarget(aCx), mJSObject(NULL), mUpload(NULL),
   mWorkerPrivate(aWorkerPrivate),
-  mResponseType(XMLHttpRequestResponseType::Text), mTimeout(0),
+  mResponseType(XMLHttpRequestResponseTypeValues::Text), mTimeout(0),
   mJSObjectRooted(false), mBackgroundRequest(false),
   mWithCredentials(false), mCanceled(false), mMozAnon(false), mMozSystem(false)
 {
@@ -1421,9 +1418,9 @@ void
 XMLHttpRequest::_trace(JSTracer* aTrc)
 {
   if (mUpload) {
-    mUpload->TraceJSObject(aTrc, "mUpload");
+    JS_CallObjectTracer(aTrc, mUpload->GetJSObject(), "mUpload");
   }
-  JS_CallValueTracer(aTrc, &mStateData.mResponse, "mResponse");
+  JS_CallValueTracer(aTrc, mStateData.mResponse, "mResponse");
   XMLHttpRequestEventTarget::_trace(aTrc);
 }
 
@@ -1533,7 +1530,7 @@ XMLHttpRequest::MaybeDispatchPrematureAbortEvents(ErrorResult& aRv)
   if (mProxy->mSeenUploadLoadStart) {
     MOZ_ASSERT(mUpload);
 
-    JS::Rooted<JSObject*> target(GetJSContext(), mUpload->GetJSObject());
+    JSObject* target = mUpload->GetJSObject();
     MOZ_ASSERT(target);
 
     DispatchPrematureAbortEvent(target, STRING_abort, true, aRv);
@@ -1550,7 +1547,7 @@ XMLHttpRequest::MaybeDispatchPrematureAbortEvents(ErrorResult& aRv)
   }
 
   if (mProxy->mSeenLoadStart) {
-    JS::Rooted<JSObject*> target(GetJSContext(), GetJSObject());
+    JSObject* target = GetJSObject();
     MOZ_ASSERT(target);
 
     DispatchPrematureAbortEvent(target, STRING_readystatechange, false, aRv);
@@ -1573,7 +1570,7 @@ XMLHttpRequest::MaybeDispatchPrematureAbortEvents(ErrorResult& aRv)
 }
 
 void
-XMLHttpRequest::DispatchPrematureAbortEvent(JS::Handle<JSObject*> aTarget,
+XMLHttpRequest::DispatchPrematureAbortEvent(JSObject* aTarget,
                                             uint8_t aEventType,
                                             bool aUploadTarget,
                                             ErrorResult& aRv)
@@ -1589,13 +1586,13 @@ XMLHttpRequest::DispatchPrematureAbortEvent(JS::Handle<JSObject*> aTarget,
 
   JSContext* cx = GetJSContext();
 
-  JS::Rooted<JSString*> type(cx, JS_NewStringCopyZ(cx, sEventStrings[aEventType]));
+  JSString* type = JS_NewStringCopyZ(cx, sEventStrings[aEventType]);
   if (!type) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
   }
 
-  JS::Rooted<JSObject*> event(cx);
+  JSObject* event;
   if (aEventType == STRING_readystatechange) {
     event = events::CreateGenericEvent(cx, type, false, false, false);
   }
@@ -1673,7 +1670,6 @@ XMLHttpRequest::SendInternal(const nsAString& aStringBody,
     new SendRunnable(mWorkerPrivate, mProxy, aStringBody, aBody,
                      aClonedObjects, syncQueueKey, hasUploadListeners);
   if (!runnable->Dispatch(cx)) {
-    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 
@@ -2109,7 +2105,7 @@ XMLHttpRequest::SetResponseType(XMLHttpRequestResponseType aResponseType,
 
   // "document" is fine for the main thread but not for a worker. Short-circuit
   // that here.
-  if (aResponseType == XMLHttpRequestResponseType::Document) {
+  if (aResponseType == XMLHttpRequestResponseTypeValues::Document) {
     return;
   }
 

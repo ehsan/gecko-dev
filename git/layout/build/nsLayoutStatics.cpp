@@ -21,7 +21,7 @@
 #include "nsCSSPseudoClasses.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSRendering.h"
-#include "mozilla/dom/Attr.h"
+#include "nsDOMAttribute.h"
 #include "nsDOMClassInfo.h"
 #include "nsEventListenerManager.h"
 #include "nsFrame.h"
@@ -41,6 +41,7 @@
 #include "nsXBLWindowKeyHandler.h"
 #include "nsXBLService.h"
 #include "txMozillaXSLTProcessor.h"
+#include "nsDOMStorage.h"
 #include "nsTreeSanitizer.h"
 #include "nsCellMap.h"
 #include "nsTextFrameTextRunCache.h"
@@ -58,8 +59,7 @@
 #include "nsMathMLAtoms.h"
 #include "nsMathMLOperators.h"
 #include "Navigator.h"
-#include "DOMStorageObserver.h"
-#include "DisplayItemClip.h"
+#include "nsDOMStorageBaseDB.h"
 
 #include "AudioChannelService.h"
 
@@ -74,10 +74,6 @@
 
 #include "nsHTMLEditor.h"
 #include "nsTextServicesDocument.h"
-
-#ifdef MOZ_WEBSPEECH
-#include "nsSynthVoiceRegistry.h"
-#endif
 
 #ifdef MOZ_MEDIA_PLUGINS
 #include "MediaPluginHost.h"
@@ -100,6 +96,7 @@ using namespace mozilla::system;
 
 #include "nsError.h"
 
+#include "nsCycleCollector.h"
 #include "nsJSEnvironment.h"
 #include "nsContentSink.h"
 #include "nsFrameMessageManager.h"
@@ -109,7 +106,7 @@ using namespace mozilla::system;
 #include "nsEditorSpellCheck.h"
 #include "nsWindowMemoryReporter.h"
 #include "mozilla/dom/ContentParent.h"
-#include "mozilla/ProcessPriorityManager.h"
+#include "mozilla/dom/ipc/ProcessPriorityManager.h"
 #include "nsPermissionManager.h"
 #include "nsCookieService.h"
 #include "nsApplicationCacheService.h"
@@ -207,7 +204,7 @@ nsLayoutStatics::Initialize()
 #ifdef DEBUG
   nsFrame::DisplayReflowStartup();
 #endif
-  Attr::Initialize();
+  nsDOMAttribute::Initialize();
 
   rv = txMozillaXSLTProcessor::Startup();
   if (NS_FAILED(rv)) {
@@ -215,9 +212,9 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  rv = DOMStorageObserver::Init();
+  rv = nsDOMStorageManager::Initialize();
   if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize DOMStorageObserver");
+    NS_ERROR("Could not initialize nsDOMStorageManager");
     return rv;
   }
 
@@ -264,11 +261,13 @@ nsLayoutStatics::Initialize()
   SVGElementFactory::Init();
   nsSVGUtils::Init();
 
-  ProcessPriorityManager::Init();
+  InitProcessPriorityManager();
 
   nsPermissionManager::AppClearDataObserverInit();
   nsCookieService::AppClearDataObserverInit();
   nsApplicationCacheService::AppClearDataObserverInit();
+
+  nsDOMStorageBaseDB::Init();
 
   InitializeDateCacheCleaner();
 
@@ -286,9 +285,9 @@ nsLayoutStatics::Shutdown()
 #ifdef MOZ_XUL
   nsXULPopupManager::Shutdown();
 #endif
-  DOMStorageObserver::Shutdown();
+  nsDOMStorageManager::Shutdown();
   txMozillaXSLTProcessor::Shutdown();
-  Attr::Shutdown();
+  nsDOMAttribute::Shutdown();
   nsEventListenerManager::Shutdown();
   nsIMEStateManager::Shutdown();
   nsComputedDOMStyle::Shutdown();
@@ -359,10 +358,6 @@ nsLayoutStatics::Shutdown()
   nsVolumeService::Shutdown();
 #endif
 
-#ifdef MOZ_WEBSPEECH
-  nsSynthVoiceRegistry::Shutdown();
-#endif
-
   nsCORSListenerProxy::Shutdown();
 
   nsIPresShell::ReleaseStatics();
@@ -388,8 +383,6 @@ nsLayoutStatics::Shutdown()
   ContentParent::ShutDown();
 
   nsRefreshDriver::Shutdown();
-
-  DisplayItemClip::Shutdown();
 
   nsDocument::XPCOMShutdown();
 }

@@ -66,7 +66,7 @@ Sanitizer.prototype = {
     syncAccount: {
       clear: function ()
       {
-        Sync.disconnect();
+        WeaveGlue.disconnect();
       },
 
       get canClear()

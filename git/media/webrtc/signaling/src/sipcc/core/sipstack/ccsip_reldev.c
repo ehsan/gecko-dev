@@ -134,12 +134,12 @@ sipRelDevCoupledMessageStore (sipMessage_t *pCoupledMessage,
                                  gSIPRRList[i].coupled_message.message_buf,
                                  &nbytes);
                 if (sippmh_write_status == STATUS_FAILURE) {
-                    CCSIP_DEBUG_ERROR(SIP_F_PREFIX"sippmh_write() failed.", fname);
+                    CCSIP_DEBUG_ERROR(SIP_F_PREFIX"sippmh_write() failed.\n", fname);
                     return (RELDEV_NO_STORED_MSG);
                 }
                 if ((gSIPRRList[i].coupled_message.message_buf[0] == '\0') ||
                     (nbytes == 0)) {
-                    CCSIP_DEBUG_ERROR(SIP_F_PREFIX"sippmh_write() returned empty buffer string.",
+                    CCSIP_DEBUG_ERROR(SIP_F_PREFIX"sippmh_write() returned empty buffer string.\n",
                                       fname);
                     return (RELDEV_NO_STORED_MSG);
                 }
@@ -215,7 +215,7 @@ sipRelDevCoupledMessageSend (int idx)
     char dest_ipaddr_str[MAX_IPADDR_STR_LEN];
 
     if ((idx < 0) || (idx >= SIP_RRLIST_LENGTH)) {
-        CCSIP_DEBUG_ERROR(SIP_F_PREFIX"Argument Check: idx (=%d) out of bounds.",
+        CCSIP_DEBUG_ERROR(SIP_F_PREFIX"Argument Check: idx (=%d) out of bounds.\n",
                           fname, idx);
         return SIP_ERROR;
     }

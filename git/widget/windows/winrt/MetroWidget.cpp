@@ -21,12 +21,8 @@
 #include "FrameworkView.h"
 #include "nsTextStore.h"
 #include "Layers.h"
-#include "ClientLayerManager.h"
 #include "BasicLayers.h"
 #include "Windows.Graphics.Display.h"
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#endif
 
 using namespace Microsoft::WRL;
 using namespace Microsoft::WRL::Wrappers;
@@ -98,20 +94,20 @@ namespace {
     for (uint32_t i = 0; i < aExtraInputsLen; i++) {
       inputs[keySequence.Length()+i] = aExtraInputs[i];
     }
-    Log("  Sending inputs");
+    Log(L"  Sending inputs");
     for (uint32_t i = 0; i < len; i++) {
       if (inputs[i].type == INPUT_KEYBOARD) {
-        Log("    Key press: 0x%x %s",
+        Log(L"    Key press: 0x%x %s",
             inputs[i].ki.wVk,
             inputs[i].ki.dwFlags & KEYEVENTF_KEYUP
-            ? "UP"
-            : "DOWN");
+            ? L"UP"
+            : L"DOWN");
       } else if(inputs[i].type == INPUT_MOUSE) {
-        Log("    Mouse input: 0x%x 0x%x",
+        Log(L"    Mouse input: 0x%x 0x%x",
             inputs[i].mi.dwFlags,
             inputs[i].mi.mouseData);
       } else {
-        Log("    Unknown input type!");
+        Log(L"    Unknown input type!");
       }
     }
     ::SendInput(len, inputs, sizeof(INPUT));
@@ -121,7 +117,7 @@ namespace {
     // waiting to be processed by our event loop.  Now we manually pump
     // those messages so that, upon our return, all the inputs have been
     // processed.
-    Log("  Inputs sent. Waiting for input messages to clear");
+    Log(L"  Inputs sent. Waiting for input messages to clear");
     MSG msg;
     while (WinUtils::PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
       if (nsTextStore::ProcessRawKeyMessage(msg)) {
@@ -129,9 +125,9 @@ namespace {
       }
       ::TranslateMessage(&msg);
       ::DispatchMessage(&msg);
-      Log("    Dispatched 0x%x 0x%x 0x%x", msg.message, msg.wParam, msg.lParam);
+      Log(L"    Dispatched 0x%x 0x%x 0x%x", msg.message, msg.wParam, msg.lParam);
     }
-    Log("  No more input messages");
+    Log(L"  No more input messages");
   }
 }
 
@@ -188,20 +184,20 @@ MetroWidget::Create(nsIWidget *aParent,
   if (mWindowType != eWindowType_toplevel) {
     switch(mWindowType) {
       case eWindowType_dialog:
-      Log("eWindowType_dialog window requested, returning failure.");
+      Log(L"eWindowType_dialog window requested, returning failure.");
       break;
       case eWindowType_child:
-      Log("eWindowType_child window requested, returning failure.");
+      Log(L"eWindowType_child window requested, returning failure.");
       break;
       case eWindowType_popup:
-      Log("eWindowType_popup window requested, returning failure.");
+      Log(L"eWindowType_popup window requested, returning failure.");
       break;
       case eWindowType_plugin:
-      Log("eWindowType_plugin window requested, returning failure.");
+      Log(L"eWindowType_plugin window requested, returning failure.");
       break;
       // we should support toolkit's eWindowType_invisible at some point.
       case eWindowType_invisible:
-      Log("eWindowType_invisible window requested, this doesn't actually exist!");
+      Log(L"eWindowType_invisible window requested, this doesn't actually exist!");
       return NS_OK;
     }
     NS_WARNING("Invalid window type requested.");
@@ -241,7 +237,7 @@ MetroWidget::Destroy()
 {
   if (mOnDestroyCalled)
     return NS_OK;
-  Log("[%X] %s mWnd=%X type=%d", this, __FUNCTION__, mWnd, mWindowType);
+  Log(L"[%X] %s mWnd=%X type=%d", this, __WFUNCTION__, mWnd, mWindowType);
   mOnDestroyCalled = true;
   RemoveSubclass();
   mView = nullptr;
@@ -450,7 +446,7 @@ MetroWidget::SynthesizeNativeKeyEvent(int32_t aNativeKeyboardLayout,
                                       const nsAString& aCharacters,
                                       const nsAString& aUnmodifiedCharacters)
 {
-  Log("ENTERED SynthesizeNativeKeyEvent");
+  Log(L"ENTERED SynthesizeNativeKeyEvent");
 
   // According to MSDN, valid virtual-key codes are in the range 1 to 254.
   // http://msdn.microsoft.com/en-us/library/windows/desktop/ms646271%28v=vs.85%29.aspx
@@ -466,14 +462,14 @@ MetroWidget::SynthesizeNativeKeyEvent(int32_t aNativeKeyboardLayout,
 
   // Store the current keyboard layout
   HKL const oldKeyboardLayout = ::GetKeyboardLayout(0);
-  Log("  Current keyboard layout: %08x", oldKeyboardLayout);
-  Log("  Loading keyboard layout: %08x", aNativeKeyboardLayout);
+  Log(L"  Current keyboard layout: %08x", oldKeyboardLayout);
+  Log(L"  Loading keyboard layout: %08x", aNativeKeyboardLayout);
 
   // Load the requested keyboard layout
   nsPrintfCString layoutName("%08x", aNativeKeyboardLayout);
   HKL const newKeyboardLayout = ::LoadKeyboardLayoutA(layoutName.get(),
                                                       KLF_REPLACELANG);
-  Log("  ::LoadKeyboardLayoutA returned %08x", newKeyboardLayout);
+  Log(L"  ::LoadKeyboardLayoutA returned %08x", newKeyboardLayout);
 
   // We have a list of all keyboard layouts that were loaded before we called
   // ::LoadKeyboardLayout.  Now, we loop through that list to determine which
@@ -490,7 +486,7 @@ MetroWidget::SynthesizeNativeKeyEvent(int32_t aNativeKeyboardLayout,
     haveReplaced = true;
     for (int32_t i = 0; i < numKeyboardLayouts; i++) {
       if (keyboardLayoutList[i] == newKeyboardLayout) {
-        Log("  %08x found in list of loaded keyboard layouts", newKeyboardLayout);
+        Log(L"  %08x found in list of loaded keyboard layouts", newKeyboardLayout);
         haveLoaded = false;
         haveReplaced = false;
         break;
@@ -501,11 +497,11 @@ MetroWidget::SynthesizeNativeKeyEvent(int32_t aNativeKeyboardLayout,
   // If the requested keyboard layout was already active when this function
   // was called, then we don't need to activate our keyboard layout
   if (oldKeyboardLayout != newKeyboardLayout) {
-    Log("  %08x != %08x", oldKeyboardLayout, newKeyboardLayout);
+    Log(L"  %08x != %08x", oldKeyboardLayout, newKeyboardLayout);
     haveActivated = true;
-    Log("  Activating keyboard layout: %08x", newKeyboardLayout);
+    Log(L"  Activating keyboard layout: %08x", newKeyboardLayout);
     HKL ret = ::ActivateKeyboardLayout(newKeyboardLayout, KLF_SETFORPROCESS);
-    Log("  ::ActivateKeyboardLayout returned %08x", ret);
+    Log(L"  ::ActivateKeyboardLayout returned %08x", ret);
   }
 
   INPUT inputs[2];
@@ -523,30 +519,30 @@ MetroWidget::SynthesizeNativeKeyEvent(int32_t aNativeKeyboardLayout,
     // If we replaced a keyboard in the layout list, let's be safe and reload
     // all the keyboards that were in the original list.
     if (haveReplaced) {
-      Log("  Loading all previous layouts");
+      Log(L"  Loading all previous layouts");
       for (int32_t i = 0; i < numKeyboardLayouts; i++) {
         nsPrintfCString layoutName("%08x", keyboardLayoutList[i]);
         HKL ret = ::LoadKeyboardLayoutA(layoutName.get(), KLF_REPLACELANG);
-        Log("    ::LoadKeyboardLayoutA returned %08x", ret);
+        Log(L"    ::LoadKeyboardLayoutA returned %08x", ret);
       }
     }
     // Any keyboards that were in the keyboard layout list when we entered
     // this function should be loaded, so let's go ahead and activate the
     // keyboard layout that was active when we entered.
-    Log("  Activating previous layout %08x", oldKeyboardLayout);
+    Log(L"  Activating previous layout %08x", oldKeyboardLayout);
     HKL ret = ::ActivateKeyboardLayout(oldKeyboardLayout, KLF_SETFORPROCESS);
-    Log("  ::ActivateKeyboardLayout returned %08x", ret);
+    Log(L"  ::ActivateKeyboardLayout returned %08x", ret);
     // If we loaded a keyboard that was not already loaded, and that didn't
     // replace another keyboard in the keyboard layout list, let's unload it.
     if (haveLoaded && !haveReplaced) {
-      Log("  Unloading keyboard layout %08x", newKeyboardLayout);
+      Log(L"  Unloading keyboard layout %08x", newKeyboardLayout);
       ::UnloadKeyboardLayout(newKeyboardLayout);
     }
   }
 
   delete[] keyboardLayoutList;
 
-  Log("EXITING SynthesizeNativeKeyEvent");
+  Log(L"EXITING SynthesizeNativeKeyEvent");
   return NS_OK;
 }
 
@@ -555,7 +551,7 @@ MetroWidget::SynthesizeNativeMouseEvent(nsIntPoint aPoint,
                                         uint32_t aNativeMessage,
                                         uint32_t aModifierFlags)
 {
-  Log("ENTERED SynthesizeNativeMouseEvent");
+  Log(L"ENTERED SynthesizeNativeMouseEvent");
 
   INPUT inputs[2];
   memset(inputs, 0, 2*sizeof(INPUT));
@@ -570,7 +566,7 @@ MetroWidget::SynthesizeNativeMouseEvent(nsIntPoint aPoint,
   inputs[1].mi.dwFlags = aNativeMessage;
   SendInputs(aModifierFlags, inputs, 2);
 
-  Log("Exiting SynthesizeNativeMouseEvent");
+  Log(L"Exiting SynthesizeNativeMouseEvent");
   return NS_OK;
 }
 
@@ -583,17 +579,17 @@ MetroWidget::SynthesizeNativeMouseScrollEvent(nsIntPoint aPoint,
                                            uint32_t aModifierFlags,
                                            uint32_t aAdditionalFlags)
 {
-  Log("ENTERED SynthesizeNativeMouseScrollEvent");
+  Log(L"ENTERED SynthesizeNativeMouseScrollEvent");
 
   int32_t mouseData = 0;
   if (aNativeMessage == MOUSEEVENTF_WHEEL) {
     mouseData = static_cast<int32_t>(aDeltaY);
-    Log("  Vertical scroll, delta %d", mouseData);
+    Log(L"  Vertical scroll, delta %d", mouseData);
   } else if (aNativeMessage == MOUSEEVENTF_HWHEEL) {
     mouseData = static_cast<int32_t>(aDeltaX);
-    Log("  Horizontal scroll, delta %d", mouseData);
+    Log(L"  Horizontal scroll, delta %d", mouseData);
   } else {
-    Log("ERROR Unrecognized scroll event");
+    Log(L"ERROR Unrecognized scroll event");
     return NS_ERROR_INVALID_ARG;
   }
 
@@ -611,14 +607,14 @@ MetroWidget::SynthesizeNativeMouseScrollEvent(nsIntPoint aPoint,
   inputs[1].mi.mouseData = mouseData;
   SendInputs(aModifierFlags, inputs, 2);
 
-  Log("EXITING SynthesizeNativeMouseScrollEvent");
+  Log(L"EXITING SynthesizeNativeMouseScrollEvent");
   return NS_OK;
 }
 
 static void
 CloseGesture()
 {
-  Log("shuting down due to close gesture.\n");
+  Log(L"shuting down due to close gesture.\n");
   nsCOMPtr<nsIAppStartup> appStartup =
     do_GetService(NS_APPSTARTUP_CONTRACTID);
   if (appStartup) {
@@ -794,7 +790,7 @@ MetroWidget::ShouldUseBasicManager()
 }
 
 LayerManager*
-MetroWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
+MetroWidget::GetLayerManager(PLayersChild* aShadowManager,
                              LayersBackend aBackendHint,
                              LayerManagerPersistence aPersistence,
                              bool* aAllowRetaining)
@@ -826,8 +822,6 @@ MetroWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
     }
   }
 
-  HRESULT hr = S_OK;
-
   // Create a layer manager: try to use an async compositor first, if enabled.
   // Otherwise fall back on the main thread d3d manager.
   if (!mLayerManager) {
@@ -837,30 +831,21 @@ MetroWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
     } else if (ShouldUseMainThreadD3D10Manager()) {
       nsRefPtr<mozilla::layers::LayerManagerD3D10> layerManager =
         new mozilla::layers::LayerManagerD3D10(this);
-      if (layerManager->Initialize(true, &hr)) {
+      if (layerManager->Initialize(true)) {
         mLayerManager = layerManager;
       }
     } else if (ShouldUseBasicManager()) {
       mLayerManager = CreateBasicLayerManager();
     }
+
     // Either we're not ready to initialize yet due to a missing view pointer,
     // or something has gone wrong.
     if (!mLayerManager) {
       if (!mView) {
         NS_WARNING("Using temporary basic layer manager.");
-        mLayerManager = new BasicLayerManager(this);
+        mLayerManager = new BasicShadowLayerManager(this);
         mTempBasicLayerInUse = true;
       } else {
-#ifdef MOZ_CRASHREPORTER
-        if (FAILED(hr)) {
-          char errorBuf[10];
-          errorBuf[0] = '\0';
-          _snprintf_s(errorBuf, sizeof(errorBuf), _TRUNCATE, "%X", hr);
-          CrashReporter::
-            AnnotateCrashReport(NS_LITERAL_CSTRING("HRESULT"),
-                                nsDependentCString(errorBuf));
-        }
-#endif
         NS_RUNTIMEABORT("Couldn't create layer manager");
       }
     }

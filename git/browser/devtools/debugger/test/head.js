@@ -12,14 +12,14 @@ Cu.import("resource://gre/modules/devtools/dbg-server.jsm", tempScope);
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm", tempScope);
 Cu.import("resource:///modules/source-editor.jsm", tempScope);
 Cu.import("resource:///modules/devtools/gDevTools.jsm", tempScope);
+Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
 let Services = tempScope.Services;
 let SourceEditor = tempScope.SourceEditor;
 let DebuggerServer = tempScope.DebuggerServer;
 let DebuggerTransport = tempScope.DebuggerTransport;
 let DebuggerClient = tempScope.DebuggerClient;
 let gDevTools = tempScope.gDevTools;
-let devtools = tempScope.devtools;
-let TargetFactory = devtools.TargetFactory;
+let TargetFactory = tempScope.TargetFactory;
 
 // Import the GCLI test helper
 let testDir = gTestPath.substr(0, gTestPath.lastIndexOf("/"));
@@ -183,7 +183,6 @@ function debug_tab_pane(aURL, aOnDebugging, aBeforeTabAdded) {
         info("Debugger has started");
         dbg._view.Variables.lazyEmpty = false;
         dbg._view.Variables.lazyAppend = false;
-        dbg._view.Variables.lazyExpand = false;
         aOnDebugging(tab, debuggee, dbg);
       });
     });
@@ -207,7 +206,6 @@ function debug_remote(aURL, aOnDebugging, aBeforeTabAdded) {
       info("Remote Debugger has started");
       win._dbgwin.DebuggerView.Variables.lazyEmpty = false;
       win._dbgwin.DebuggerView.Variables.lazyAppend = false;
-      win._dbgwin.DebuggerView.Variables.lazyExpand = false;
       aOnDebugging(tab, debuggee, win);
     });
   });

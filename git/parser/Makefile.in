@@ -9,4 +9,8 @@ VPATH           = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+EXPORTS = \
+  nsCharsetSource.h \
+  $(NULL)
+
 include $(topsrcdir)/config/rules.mk

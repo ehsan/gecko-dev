@@ -44,8 +44,7 @@ public:
     return mOwner;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE
   {
     return mozilla::dom::MutationRecordBinding::Wrap(aCx, aScope, this);
   }
@@ -358,8 +357,7 @@ public:
               mozilla::dom::MutationCallback& aCb,
               mozilla::ErrorResult& aRv);
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE
   {
     return mozilla::dom::MutationObserverBinding::Wrap(aCx, aScope, this);
   }
@@ -410,7 +408,7 @@ protected:
   bool Suppressed()
   {
     if (mOwner) {
-      nsCOMPtr<nsIDocument> d = mOwner->GetExtantDoc();
+      nsCOMPtr<nsIDocument> d = do_QueryInterface(mOwner->GetExtantDocument());
       return d && d->IsInSyncOperation();
     }
     return false;

@@ -14,7 +14,7 @@
 #include "nsContentUtils.h"
 #include "nsIDOMSVGAnimatedNumber.h"
 #include "nsSVGEffects.h"
-#include "nsSVGAnimatedTransformList.h"
+#include "SVGAnimatedTransformList.h"
 
 // XXX Tight coupling with content classes ahead!
 
@@ -157,10 +157,10 @@ nsSVGGradientFrame::GetSpreadMethod()
   return GetEnumValue(dom::SVGGradientElement::SPREADMETHOD);
 }
 
-const nsSVGAnimatedTransformList*
+const SVGAnimatedTransformList*
 nsSVGGradientFrame::GetGradientTransformList(nsIContent* aDefault)
 {
-  nsSVGAnimatedTransformList *thisTransformList =
+  SVGAnimatedTransformList *thisTransformList =
     static_cast<dom::SVGGradientElement*>(mContent)->GetAnimatedTransformList();
 
   if (thisTransformList && thisTransformList->IsExplicitlySet())
@@ -201,7 +201,7 @@ nsSVGGradientFrame::GetGradientTransform(nsIFrame *aSource,
       gfxMatrix(bbox.Width(), 0, 0, bbox.Height(), bbox.X(), bbox.Y());
   }
 
-  const nsSVGAnimatedTransformList* animTransformList =
+  const SVGAnimatedTransformList* animTransformList =
     GetGradientTransformList(mContent);
   if (!animTransformList)
     return bboxMatrix;
@@ -523,8 +523,9 @@ nsSVGLinearGradientFrame::CreateGradient()
   x2 = GetLengthValue(dom::SVGLinearGradientElement::ATTR_X2);
   y2 = GetLengthValue(dom::SVGLinearGradientElement::ATTR_Y2);
 
-  nsRefPtr<gfxPattern> pattern = new gfxPattern(x1, y1, x2, y2);
-  return pattern.forget();
+  gfxPattern *pattern = new gfxPattern(x1, y1, x2, y2);
+  NS_IF_ADDREF(pattern);
+  return pattern;
 }
 
 // -------------------------------------------------------------------------
@@ -671,8 +672,9 @@ nsSVGRadialGradientFrame::CreateGradient()
     }
   }
 
-  nsRefPtr<gfxPattern> pattern = new gfxPattern(fx, fy, 0, cx, cy, r);
-  return pattern.forget();
+  gfxPattern *pattern = new gfxPattern(fx, fy, 0, cx, cy, r);
+  NS_IF_ADDREF(pattern);
+  return pattern;
 }
 
 // -------------------------------------------------------------------------

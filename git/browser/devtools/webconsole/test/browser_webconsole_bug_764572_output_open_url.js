@@ -125,11 +125,10 @@ function testOnNetActivity_command() {
 // check TabOpen event
 function onTabOpen(aTab) {
   waitForSuccess({
-    timeout: 10000,
     name: "complete to initialize the opening tab",
     validatorFn: function()
     {
-      // wait to complete initialization for the new tab.
+      // wait to complete initializing the opend tab.
       let url = aTab.linkedBrowser.currentURI.spec;
       return url === TEST_URI;
     },
@@ -138,11 +137,7 @@ function onTabOpen(aTab) {
       gBrowser.removeTab(aTab);
       executeSoon(testOnNetActivity_contextmenu);
     },
-    failureFn: function()
-    {
-      info("new tab currentURI " + aTab.linkedBrowser.currentURI.spec);
-      testOnNetActivity_contextmenu();
-    },
+    failureFn: testOnNetActivity_contextmenu,
   });
 }
 

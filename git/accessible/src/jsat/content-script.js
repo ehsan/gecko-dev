@@ -121,17 +121,10 @@ function activateCurrent(aMessage) {
       let x = Math.round((objX.value - docX.value) + objW.value / 2);
       let y = Math.round((objY.value - docY.value) + objH.value / 2);
 
-      let node = aAccessible.DOMNode || aAccessible.parent.DOMNode;
-
-      function dispatchMouseEvent(aEventType) {
-        let evt = content.document.createEvent("MouseEvents");
-        evt.initMouseEvent(aEventType, true, true, content,
-                           x, y, 0, 0, 0, false, false, false, false, 0, null);
-        node.dispatchEvent(evt);
-      }
-
-      dispatchMouseEvent("mousedown");
-      dispatchMouseEvent("mouseup");
+      let cwu = content.QueryInterface(Ci.nsIInterfaceRequestor).
+        getInterface(Ci.nsIDOMWindowUtils);
+      cwu.sendMouseEventToWindow('mousedown', x, y, 0, 1, 0, false);
+      cwu.sendMouseEventToWindow('mouseup', x, y, 0, 1, 0, false);
     }
   }
 
@@ -223,16 +216,15 @@ function scroll(aMessage) {
   }
 }
 
+addMessageListener('AccessFu:VirtualCursor', virtualCursorControl);
+addMessageListener('AccessFu:Activate', activateCurrent);
+addMessageListener('AccessFu:Scroll', scroll);
+
 addMessageListener(
   'AccessFu:Start',
   function(m) {
-    Logger.debug('AccessFu:Start');
     if (m.json.buildApp)
       Utils.MozBuildApp = m.json.buildApp;
-
-    addMessageListener('AccessFu:VirtualCursor', virtualCursorControl);
-    addMessageListener('AccessFu:Activate', activateCurrent);
-    addMessageListener('AccessFu:Scroll', scroll);
 
     EventManager.start(
       function sendMessage(aName, aDetails) {
@@ -254,10 +246,6 @@ addMessageListener(
   'AccessFu:Stop',
   function(m) {
     Logger.debug('AccessFu:Stop');
-
-    removeMessageListener('AccessFu:VirtualCursor', virtualCursorControl);
-    removeMessageListener('AccessFu:Activate', activateCurrent);
-    removeMessageListener('AccessFu:Scroll', scroll);
 
     EventManager.stop();
 

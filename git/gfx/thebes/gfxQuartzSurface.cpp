@@ -34,9 +34,6 @@ gfxQuartzSurface::gfxQuartzSurface(const gfxSize& desiredSize, gfxImageFormat fo
     CGContextRetain(mCGContext);
 
     Init(surf);
-    if (mSurfaceValid) {
-      RecordMemoryUsed(mSize.height * 4 + sizeof(gfxQuartzSurface));
-    }
 }
 
 gfxQuartzSurface::gfxQuartzSurface(CGContextRef context,
@@ -59,9 +56,6 @@ gfxQuartzSurface::gfxQuartzSurface(CGContextRef context,
     CGContextRetain(mCGContext);
 
     Init(surf);
-    if (mSurfaceValid) {
-      RecordMemoryUsed(mSize.height * 4 + sizeof(gfxQuartzSurface));
-    }
 }
 
 gfxQuartzSurface::gfxQuartzSurface(CGContextRef context,
@@ -82,9 +76,6 @@ gfxQuartzSurface::gfxQuartzSurface(CGContextRef context,
     CGContextRetain(mCGContext);
 
     Init(surf);
-    if (mSurfaceValid) {
-      RecordMemoryUsed(mSize.height * 4 + sizeof(gfxQuartzSurface));
-    }
 }
 
 gfxQuartzSurface::gfxQuartzSurface(cairo_surface_t *csurf,
@@ -120,9 +111,6 @@ gfxQuartzSurface::gfxQuartzSurface(unsigned char *data,
     CGContextRetain(mCGContext);
 
     Init(surf);
-    if (mSurfaceValid) {
-      RecordMemoryUsed(mSize.height * stride + sizeof(gfxQuartzSurface));
-    }
 }
 
 already_AddRefed<gfxASurface>

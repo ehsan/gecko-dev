@@ -58,31 +58,14 @@ value  = 'abc';
 expect = 6;
 try
 {
-  Array.prototype.push.call(value, 'd', 'e', 'f');
-  throw new Error("didn't throw");
+  actual = Array.prototype.push.call(value, 'd', 'e', 'f');
 }
 catch(e)
 {
-  reportCompare(true, e instanceof TypeError,
-                "push on a string primitive should throw TypeError");
+  actual = e + '';
 }
-reportCompare('abc', value, summary + ': push string primitive');
-
-value  = new String("abc");
-expect = 6;
-try
-{
-  Array.prototype.push.call(value, 'd', 'e', 'f');
-  throw new Error("didn't throw");
-}
-catch(e)
-{
-  reportCompare(true, e instanceof TypeError,
-                "push on a String object should throw TypeError");
-}
-reportCompare("d", value[3], summary + ': push String object index 3');
-reportCompare("e", value[4], summary + ': push String object index 4');
-reportCompare("f", value[5], summary + ': push String object index 5');
+reportCompare(expect, actual, summary + ': push');
+reportCompare('abc', value, summary + ': push');
 
 // pop
 value  = 'abc';

@@ -6,6 +6,7 @@
 
 #include "IDBRequest.h"
 
+#include "nsIJSContextStack.h"
 #include "nsIScriptContext.h"
 
 #include "nsComponentManagerUtils.h"
@@ -25,25 +26,14 @@
 #include "IDBTransaction.h"
 #include "DOMError.h"
 
-namespace {
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-uint64_t gNextSerialNumber = 1;
-#endif
-
-} // anonymous namespace
-
 USING_INDEXEDDB_NAMESPACE
 
 IDBRequest::IDBRequest()
 : mResultVal(JSVAL_VOID),
   mActorParent(nullptr),
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  mSerialNumber(gNextSerialNumber++),
-#endif
   mErrorCode(NS_OK),
-  mLineNo(0),
-  mHaveResultOrErrorCode(false)
+  mHaveResultOrErrorCode(false),
+  mLineNo(0)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
@@ -114,7 +104,7 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
     return rv;
   }
 
-  JS::Rooted<JSObject*> global(cx, GetParentObject());
+  JSObject* global = GetParentObject();
   NS_ASSERTION(global, "This should never be null!");
 
   JSAutoRequest ar(cx);
@@ -188,7 +178,13 @@ IDBRequest::GetJSContext()
   JSContext* cx;
 
   if (GetScriptOwner()) {
-    return nsContentUtils::GetSafeJSContext();
+    nsIThreadJSContextStack* cxStack = nsContentUtils::ThreadJSContextStack();
+    NS_ASSERTION(cxStack, "Failed to get thread context stack!");
+
+    cx = cxStack->GetSafeJSContext();
+    NS_ENSURE_TRUE(cx, nullptr);
+
+    return cx;
   }
 
   nsresult rv;
@@ -342,7 +338,7 @@ IDBOpenDBRequest::~IDBOpenDBRequest()
 already_AddRefed<IDBOpenDBRequest>
 IDBOpenDBRequest::Create(IDBFactory* aFactory,
                          nsPIDOMWindow* aOwner,
-                         JS::Handle<JSObject*> aScriptOwner,
+                         JSObject* aScriptOwner,
                          JSContext* aCallingCx)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");

@@ -94,6 +94,12 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(HTMLSharedObjectElement,
                                                      nsGenericHTMLElement)
 
+  virtual nsXPCClassInfo* GetClassInfo()
+  {
+    return static_cast<nsXPCClassInfo*>(GetClassInfoInternal());
+  }
+  nsIClassInfo* GetClassInfoInternal();
+
   virtual nsIDOMNode* AsDOMNode()
   {
     return static_cast<nsIDOMHTMLAppletElement*>(this);
@@ -147,11 +153,11 @@ public:
   }
   uint32_t Hspace()
   {
-    return GetUnsignedIntAttr(nsGkAtoms::hspace, 0);
+    return GetHTMLUnsignedIntAttr(nsGkAtoms::hspace, 0);
   }
   void SetHspace(uint32_t aValue, ErrorResult& aRv)
   {
-    SetUnsignedIntAttr(nsGkAtoms::hspace, aValue, aRv);
+    SetHTMLUnsignedIntAttr(nsGkAtoms::hspace, aValue, aRv);
   }
   void GetName(DOMString& aValue)
   {
@@ -166,13 +172,13 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::object, aValue, aRv);
   }
-  uint32_t Vspace()
+    uint32_t Vspace()
   {
-    return GetUnsignedIntAttr(nsGkAtoms::vspace, 0);
+    return GetHTMLUnsignedIntAttr(nsGkAtoms::vspace, 0);
   }
   void SetVspace(uint32_t aValue, ErrorResult& aRv)
   {
-    SetUnsignedIntAttr(nsGkAtoms::vspace, aValue, aRv);
+    SetHTMLUnsignedIntAttr(nsGkAtoms::vspace, aValue, aRv);
   }
   void GetWidth(DOMString& aValue)
   {
@@ -239,8 +245,9 @@ private:
   virtual void GetItemValueText(nsAString& text);
   virtual void SetItemValueText(const nsAString& text);
 
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
+  virtual JSObject* GetCanonicalPrototype(JSContext* aCx,
+                                          JSObject* aGlobal) MOZ_OVERRIDE;
 };
 
 } // namespace dom

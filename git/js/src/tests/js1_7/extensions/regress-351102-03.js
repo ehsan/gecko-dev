@@ -32,6 +32,7 @@ function test()
       }
       catch(y)
       {
+        print(y);
       }
     };
 

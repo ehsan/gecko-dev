@@ -251,13 +251,10 @@ ChromeActions.prototype = {
       var channel = Cc['@mozilla.org/network/input-stream-channel;1'].
                        createInstance(Ci.nsIInputStreamChannel);
       channel.QueryInterface(Ci.nsIChannel);
-      try {
-        // contentDisposition/contentDispositionFilename is readonly before FF18
-        channel.contentDisposition = Ci.nsIChannel.DISPOSITION_ATTACHMENT;
-        if (self.contentDispositionFilename) {
-           channel.contentDispositionFilename = self.contentDispositionFilename;
-        }
-      } catch (e) {}
+      channel.contentDisposition = Ci.nsIChannel.DISPOSITION_ATTACHMENT;
+      if (self.contentDispositionFilename) {
+        channel.contentDispositionFilename = self.contentDispositionFilename;
+      }
       channel.setURI(originalUri);
       channel.contentStream = aInputStream;
       if ('nsIPrivateBrowsingChannel' in Ci &&
@@ -365,9 +362,6 @@ ChromeActions.prototype = {
     var prefBrowser = getIntPref('browser.display.use_document_fonts', 1);
     var prefGfx = getBoolPref('gfx.downloadable_fonts.enabled', true);
     return (!!prefBrowser && prefGfx);
-  },
-  supportsDocumentColors: function() {
-    return getBoolPref('browser.display.use_document_colors', true);
   },
   fallback: function(url, sendResponse) {
     var self = this;

@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -23,7 +24,7 @@
  * location. The GC must therefore know about all live pointers to a thing,
  * not just one of them, in order to behave correctly.
  *
- * The |Rooted| and |Handle| classes below are used to root stack locations
+ * The |Root| and |Handle| classes below are used to root stack locations
  * whose value may be held live across a call that can trigger GC. For a
  * code fragment such as:
  *
@@ -48,7 +49,7 @@
  * dangerous-looking actions cannot trigger a GC: js_malloc, cx->malloc_,
  * rt->malloc_, and friends and JS_ReportOutOfMemory.
  *
- * The following family of three classes will exactly root a stack location.
+ * The following family of four classes will exactly root a stack location.
  * Incorrect usage of these classes will result in a compile error in almost
  * all cases. Therefore, it is very hard to be incorrectly rooted if you use
  * these classes exclusively. These classes are all templated on the type T of
@@ -57,7 +58,7 @@
  * - Rooted<T> declares a variable of type T, whose value is always rooted.
  *   Rooted<T> may be automatically coerced to a Handle<T>, below. Rooted<T>
  *   should be used whenever a local variable's value may be held live across a
- *   call which can trigger a GC.
+ *   call which can trigger a GC. This is generally true of
  *
  * - Handle<T> is a const reference to a Rooted<T>. Functions which take GC
  *   things or values as arguments and need to root those arguments should
@@ -73,9 +74,8 @@
  *   updating the value of the referenced Rooted<T>. A MutableHandle<T> can be
  *   created from a Rooted<T> by using |Rooted<T>::operator&()|.
  *
- * In some cases the small performance overhead of exact rooting (measured to
- * be a few nanoseconds on desktop) is too much. In these cases, try the
- * following:
+ * In some cases the small performance overhead of exact rooting is too much.
+ * In these cases, try the following:
  *
  * - Move all Rooted<T> above inner loops: this allows you to re-use the root
  *   on each iteration of the loop.
@@ -83,17 +83,23 @@
  * - Pass Handle<T> through your hot call stack to avoid re-rooting costs at
  *   every invocation.
  *
+ * There also exists a set of RawT typedefs for modules without rooting
+ * concerns, such as the GC. Do not use these as they provide no rooting
+ * protection whatsoever.
+ *
  * The following diagram explains the list of supported, implicit type
  * conversions between classes of this family:
  *
- *  Rooted<T> ----> Handle<T>
- *     |               ^
- *     |               |
- *     |               |
- *     +---> MutableHandle<T>
- *     (via &)
+ *  RawT -----> Rooted<T> ----> Handle<T>
+ *                 |               ^
+ *                 |               |
+ *                 |               |
+ *                 +---> MutableHandle<T>
+ *                 (via &)
  *
- * All of these types have an implicit conversion to raw pointers.
+ * Currently all of these types implicit conversion to RawT. These are present
+ * only for the purpose of bootstrapping exact rooting and will be removed in
+ * the future (Bug 817164).
  */
 
 namespace js {
@@ -170,7 +176,7 @@ struct JS_PUBLIC_API(NullPtr)
  * specialization, define a HandleBase<T> specialization containing them.
  */
 template <typename T>
-class MOZ_STACK_CLASS Handle : public js::HandleBase<T>
+class Handle : public js::HandleBase<T>
 {
     friend class MutableHandle<T>;
 
@@ -220,7 +226,7 @@ class MOZ_STACK_CLASS Handle : public js::HandleBase<T>
      */
     template <typename S>
     inline
-    Handle(const Rooted<S> &root,
+    Handle(Rooted<S> &root,
            typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
 
     /* Construct a read only handle from a mutable handle. */
@@ -264,7 +270,7 @@ typedef Handle<Value>        HandleValue;
  * them.
  */
 template <typename T>
-class MOZ_STACK_CLASS MutableHandle : public js::MutableHandleBase<T>
+class MutableHandle : public js::MutableHandleBase<T>
 {
   public:
     inline MutableHandle(Rooted<T> *root);
@@ -312,6 +318,15 @@ typedef MutableHandle<Value>       MutableHandleValue;
 } /* namespace JS */
 
 namespace js {
+
+/*
+ * Raw pointer used as documentation that a parameter does not need to be
+ * rooted.
+ */
+typedef JSObject *                  RawObject;
+typedef JSString *                  RawString;
+typedef jsid                        RawId;
+typedef JS::Value                   RawValue;
 
 /*
  * InternalHandle is a handle to an internal pointer into a gcthing. Use
@@ -372,6 +387,20 @@ class InternalHandle<T*>
 };
 
 /*
+ * This macro simplifies forward declaration of a class and its matching raw-pointer.
+ */
+# define ForwardDeclare(type)              \
+    class type;                            \
+    typedef type * Raw##type
+
+# define ForwardDeclareJS(type)            \
+    class JS##type;                        \
+    namespace js {                         \
+        typedef JS##type * Raw##type;      \
+    }                                      \
+    class JS##type
+
+/*
  * By default, pointers should use the inheritance hierarchy to find their
  * ThingRootKind. Some pointer types are explicitly set in jspubtd.h so that
  * Rooted<T> may be used without the class definition being available.
@@ -403,7 +432,7 @@ namespace JS {
  * specialization, define a RootedBase<T> specialization containing them.
  */
 template <typename T>
-class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
+class Rooted : public js::RootedBase<T>
 {
     void init(JSContext *cxArg) {
 #if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
@@ -743,7 +772,7 @@ namespace JS {
 
 template <typename T> template <typename S>
 inline
-Handle<T>::Handle(const Rooted<S> &root,
+Handle<T>::Handle(Rooted<S> &root,
                   typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy)
 {
     ptr = reinterpret_cast<const T *>(root.address());
@@ -800,5 +829,9 @@ class CompilerRootNode
 };
 
 }  /* namespace js */
+
+ForwardDeclareJS(Script);
+ForwardDeclareJS(Function);
+ForwardDeclareJS(Object);
 
 #endif  /* jsgc_root_h___ */

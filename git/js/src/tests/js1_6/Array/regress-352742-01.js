@@ -30,6 +30,7 @@ function test()
   catch(e)
   {
     actual = 3;
+    print(e);
   }
   actual = 4;
 

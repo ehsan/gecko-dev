@@ -20,8 +20,6 @@
 */
 
 #include "mozilla/Attributes.h"
-#include "mozilla/TypeTraits.h"
-#include "mozilla/Assertions.h"
 
   // Wrapping includes can speed up compiles (see "Large Scale C++ Software Design")
 #ifndef nsDebug_h___
@@ -173,33 +171,7 @@ struct already_AddRefed
     {
       U* tmp = mRawPtr;
       mRawPtr = NULL;
-      return already_AddRefed<U>(tmp);
-    }
-
-    /**
-     * This helper provides a static_cast replacement for already_AddRefed, so
-     * if you have
-     *
-     *   already_AddRefed<Parent> F();
-     *
-     * you can write
-     *
-     *   already_AddRefed<Child>
-     *   G()
-     *   {
-     *     return F().downcast<Child>();
-     *   }
-     *
-     * instead of
-     *
-     *     return dont_AddRef(static_cast<Child*>(F().get()));
-     */
-    template<class U>
-    already_AddRefed<U> downcast()
-    {
-      U* tmp = static_cast<U*>(mRawPtr);
-      mRawPtr = nullptr;
-      return already_AddRefed<U>(tmp);
+      return tmp;
     }
 
     T* mRawPtr;
@@ -273,7 +245,7 @@ class nsCOMPtr_helper
 
 class
   NS_COM_GLUE
-  MOZ_STACK_CLASS
+  NS_STACK_CLASS
 nsQueryInterface MOZ_FINAL
   {
     public:
@@ -576,18 +548,6 @@ class nsCOMPtr MOZ_FINAL
           NSCAP_ASSERT_NO_QUERY_NEEDED();
         }
 
-      template<typename U>
-      nsCOMPtr( const already_AddRefed<U>& aSmartPtr )
-            : NSCAP_CTOR_BASE(static_cast<T*>(aSmartPtr.mRawPtr))
-          // construct from |dont_AddRef(expr)|
-        {
-          // But make sure that U actually inherits from T
-          MOZ_STATIC_ASSERT((mozilla::IsBaseOf<T, U>::value),
-                            "U is not a subclass of T");
-          NSCAP_LOG_ASSIGNMENT(this, static_cast<T*>(aSmartPtr.mRawPtr));
-          NSCAP_ASSERT_NO_QUERY_NEEDED();
-        }
-
       nsCOMPtr( const nsQueryInterface qi )
             : NSCAP_CTOR_BASE(0)
           // construct from |do_QueryInterface(expr)|
@@ -666,15 +626,11 @@ class nsCOMPtr MOZ_FINAL
           return *this;
         }
 
-      template<typename U>
       nsCOMPtr<T>&
-      operator=( const already_AddRefed<U>& rhs )
+      operator=( const already_AddRefed<T>& rhs )
           // assign from |dont_AddRef(expr)|
         {
-          // Make sure that U actually inherits from T
-          MOZ_STATIC_ASSERT((mozilla::IsBaseOf<T, U>::value),
-                            "U is not a subclass of T");
-          assign_assuming_AddRef(static_cast<T*>(rhs.mRawPtr));
+          assign_assuming_AddRef(rhs.mRawPtr);
           NSCAP_ASSERT_NO_QUERY_NEEDED();
           return *this;
         }
@@ -781,7 +737,7 @@ class nsCOMPtr MOZ_FINAL
         {
           T* temp = 0;
           swap(temp);
-          return already_AddRefed<T>(temp);
+          return temp;
         }
 
       template <typename I>
@@ -1088,7 +1044,7 @@ class nsCOMPtr<nsISupports>
         {
           nsISupports* temp = 0;
           swap(temp);
-          return already_AddRefed<nsISupports>(temp);
+          return temp;
         }
 
       void

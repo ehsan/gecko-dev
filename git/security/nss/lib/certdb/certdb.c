@@ -4,6 +4,8 @@
 
 /*
  * Certificate handling code
+ *
+ * $Id: certdb.c,v 1.124 2013/01/07 04:11:50 ryan.sleevi%gmail.com Exp $
  */
 
 #include "nssilock.h"
@@ -209,7 +211,7 @@ SEC_ASN1_CHOOSER_IMPLEMENT(SEC_SignedCertificateTemplate)
 SEC_ASN1_CHOOSER_IMPLEMENT(CERT_SequenceOfCertExtensionTemplate)
 
 SECStatus
-CERT_KeyFromIssuerAndSN(PLArenaPool *arena, SECItem *issuer, SECItem *sn,
+CERT_KeyFromIssuerAndSN(PRArenaPool *arena, SECItem *issuer, SECItem *sn,
 			SECItem *key)
 {
     key->len = sn->len + issuer->len;
@@ -243,7 +245,7 @@ SECStatus
 CERT_NameFromDERCert(SECItem *derCert, SECItem *derName)
 {
     int rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTSignedData sd;
     void *tmpptr;
     
@@ -287,7 +289,7 @@ SECStatus
 CERT_IssuerNameFromDERCert(SECItem *derCert, SECItem *derName)
 {
     int rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTSignedData sd;
     void *tmpptr;
     
@@ -331,7 +333,7 @@ SECStatus
 CERT_SerialNumberFromDERCert(SECItem *derCert, SECItem *derName)
 {
     int rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTSignedData sd;
     void *tmpptr;
     
@@ -376,7 +378,7 @@ loser:
  * DER certificate.
  */
 SECStatus
-CERT_KeyFromDERCert(PLArenaPool *reqArena, SECItem *derCert, SECItem *key)
+CERT_KeyFromDERCert(PRArenaPool *reqArena, SECItem *derCert, SECItem *key)
 {
     int rv;
     CERTSignedData sd;
@@ -744,7 +746,7 @@ CERT_DecodeDERCertificate(SECItem *derSignedCert, PRBool copyDER,
 			 char *nickname)
 {
     CERTCertificate *cert;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     void *data;
     int rv;
     int len;
@@ -874,11 +876,11 @@ __CERT_DecodeDERCertificate(SECItem *derSignedCert, PRBool copyDER,
 
 
 CERTValidity *
-CERT_CreateValidity(PRTime notBefore, PRTime notAfter)
+CERT_CreateValidity(int64 notBefore, int64 notAfter)
 {
     CERTValidity *v;
     int rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
 
     if (notBefore > notAfter) {
        PORT_SetError(SEC_ERROR_INVALID_ARGS);
@@ -906,7 +908,7 @@ CERT_CreateValidity(PRTime notBefore, PRTime notAfter)
 }
 
 SECStatus
-CERT_CopyValidity(PLArenaPool *arena, CERTValidity *to, CERTValidity *from)
+CERT_CopyValidity(PRArenaPool *arena, CERTValidity *to, CERTValidity *from)
 {
     SECStatus rv;
 
@@ -953,7 +955,7 @@ CERT_SetSlopTime(PRInt32 slop)		/* seconds */
 }
 
 SECStatus
-CERT_GetCertTimes(const CERTCertificate *c, PRTime *notBefore, PRTime *notAfter)
+CERT_GetCertTimes(CERTCertificate *c, PRTime *notBefore, PRTime *notAfter)
 {
     SECStatus rv;
 
@@ -981,8 +983,7 @@ CERT_GetCertTimes(const CERTCertificate *c, PRTime *notBefore, PRTime *notAfter)
  * Check the validity times of a certificate
  */
 SECCertTimeValidity
-CERT_CheckCertValidTimes(const CERTCertificate *c, PRTime t,
-                         PRBool allowOverride)
+CERT_CheckCertValidTimes(CERTCertificate *c, PRTime t, PRBool allowOverride)
 {
     PRTime notBefore, notAfter, llPendingSlop, tmp1;
     SECStatus rv;
@@ -1415,9 +1416,9 @@ cert_TestHostName(char * cn, const char * hn)
 
 
 SECStatus
-cert_VerifySubjectAltName(const CERTCertificate *cert, const char *hn)
+cert_VerifySubjectAltName(CERTCertificate *cert, const char *hn)
 {
-    PLArenaPool *     arena          = NULL;
+    PRArenaPool *     arena          = NULL;
     CERTGeneralName * nameList       = NULL;
     CERTGeneralName * current;
     char *            cn;
@@ -1552,7 +1553,7 @@ finish:
  *   - return value is NULL
  */
 CERTGeneralName *
-cert_GetSubjectAltNameList(const CERTCertificate *cert, PLArenaPool *arena)
+cert_GetSubjectAltNameList(CERTCertificate *cert, PRArenaPool *arena)
 {
     CERTGeneralName * nameList       = NULL;
     SECStatus         rv             = SECFailure;
@@ -1691,7 +1692,7 @@ CERT_GetValidDNSPatternsFromCert(CERTCertificate *cert)
 {
     CERTGeneralName *generalNames;
     CERTCertNicknames *nickNames;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     char *singleName;
     
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -1759,7 +1760,7 @@ CERT_GetValidDNSPatternsFromCert(CERTCertificate *cert)
  * that they are using.
  */
 SECStatus
-CERT_VerifyCertName(const CERTCertificate *cert, const char *hn)
+CERT_VerifyCertName(CERTCertificate *cert, const char *hn)
 {
     char *    cn;
     SECStatus rv;
@@ -1804,7 +1805,7 @@ CERT_VerifyCertName(const CERTCertificate *cert, const char *hn)
 }
 
 PRBool
-CERT_CompareCerts(const CERTCertificate *c1, const CERTCertificate *c2)
+CERT_CompareCerts(CERTCertificate *c1, CERTCertificate *c2)
 {
     SECComparison comp;
     
@@ -1916,7 +1917,7 @@ CERT_CompareCertsForRedirection(CERTCertificate *c1, CERTCertificate *c2)
 
 
 CERTIssuerAndSN *
-CERT_GetCertIssuerAndSN(PLArenaPool *arena, CERTCertificate *cert)
+CERT_GetCertIssuerAndSN(PRArenaPool *arena, CERTCertificate *cert)
 {
     CERTIssuerAndSN *result;
     SECStatus rv;
@@ -2512,7 +2513,7 @@ CERT_ImportCerts(CERTCertDBHandle *certdb, SECCertUsage usage,
 CERTCertList *
 CERT_NewCertList(void)
 {
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     CERTCertList *ret = NULL;
     
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -2904,7 +2905,7 @@ static PZLock *certTrustLock = NULL;
  * that turns out to be necessary.
  */
 void
-CERT_LockCertTrust(const CERTCertificate *cert)
+CERT_LockCertTrust(CERTCertificate *cert)
 {
     PORT_Assert(certTrustLock != NULL);
     PZ_Lock(certTrustLock);
@@ -2962,7 +2963,7 @@ cert_DestroyLocks(void)
  * Free the cert trust lock
  */
 void
-CERT_UnlockCertTrust(const CERTCertificate *cert)
+CERT_UnlockCertTrust(CERTCertificate *cert)
 {
     PRStatus prstat;
 

@@ -289,7 +289,7 @@ mozSpellChecker::GetDictionaryList(nsTArray<nsString> *aDictionaryList)
     nsCOMPtr<mozISpellCheckingEngine> engine = spellCheckingEngines[i];
 
     uint32_t count = 0;
-    PRUnichar **words = nullptr;
+    PRUnichar **words = NULL;
     engine->GetDictionaryList(&words, &count);
     for (uint32_t k = 0; k < count; k++) {
       nsAutoString dictName;
@@ -298,10 +298,10 @@ mozSpellChecker::GetDictionaryList(nsTArray<nsString> *aDictionaryList)
 
       // Skip duplicate dictionaries. Only take the first one
       // for each name.
-      if (dictionaries.Get(dictName, nullptr))
+      if (dictionaries.Get(dictName, NULL))
         continue;
 
-      dictionaries.Put(dictName, nullptr);
+      dictionaries.Put(dictName, NULL);
 
       if (!aDictionaryList->AppendElement(dictName)) {
         NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(count, words);
@@ -365,7 +365,7 @@ mozSpellChecker::SetCurrentDictionary(const nsAString &aDictionary)
     }
   }
 
-  mSpellCheckingEngine = nullptr;
+  mSpellCheckingEngine = NULL;
   
   // We could not find any engine with the requested dictionary
   return NS_ERROR_NOT_AVAILABLE;

@@ -46,9 +46,9 @@ public:
                       bool aCapture, ErrorResult& aRv);
 
   bool
-  DispatchEvent(JS::Handle<JSObject*> aEvent, ErrorResult& aRv) const
+  DispatchEvent(JSObject& aEvent, ErrorResult& aRv) const
   {
-    return mListenerManager.DispatchEvent(GetJSContext(), *this, aEvent, aRv);
+    return mListenerManager.DispatchEvent(GetJSContext(), *this, &aEvent, aRv);
   }
 
   JSObject*
@@ -62,17 +62,6 @@ public:
   HasListeners() const
   {
     return mListenerManager.HasListeners();
-  }
-
-  void SetEventHandler(JSContext*, const nsAString& aType, JSObject* aHandler,
-                       ErrorResult& rv)
-  {
-    rv.Throw(NS_ERROR_NOT_IMPLEMENTED);
-  }
-
-  JSObject* GetEventHandler(JSContext*, const nsAString& aType)
-  {
-    return nullptr;
   }
 };
 

@@ -96,9 +96,6 @@ exports.validateOptions = function validateOptions(options, requirements) {
         optsVal = req.map(optsVal);
       }
       catch (err) {
-        if (err instanceof RequirementError)
-          throw err;
-
         mapThrew = true;
       }
     }
@@ -111,12 +108,12 @@ exports.validateOptions = function validateOptions(options, requirements) {
         }
       });
       if (req.is.indexOf(getTypeOf(optsVal)) < 0)
-        throw new RequirementError(key, req);
+        throw requirementError(key, req);
     }
     if (req.ok && !req.ok(optsVal))
-      throw new RequirementError(key, req);
+      throw requirementError(key, req);
 
-    if (keyInOpts || (req.map && !mapThrew && optsVal !== undefined))
+    if (keyInOpts || (req.map && !mapThrew))
       validatedOptions[key] = optsVal;
   }
 
@@ -148,11 +145,8 @@ let getTypeOf = exports.getTypeOf = function getTypeOf(val) {
   return typ;
 }
 
-function RequirementError(key, requirement) {
-  Error.call(this);
-
-  this.name = "RequirementError";
-
+// Returns a new Error with a nice message.
+function requirementError(key, requirement) {
   let msg = requirement.msg;
   if (!msg) {
     msg = 'The option "' + key + '" ';
@@ -160,7 +154,5 @@ function RequirementError(key, requirement) {
            "must be one of the following types: " + requirement.is.join(", ") :
            "is invalid.";
   }
-
-  this.message = msg;
+  return new Error(msg);
 }
-RequirementError.prototype = Object.create(Error.prototype);

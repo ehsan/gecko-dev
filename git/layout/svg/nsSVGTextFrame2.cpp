@@ -993,13 +993,10 @@ TextRenderedRun::GetCharNumAtPosition(nsPresContext* aContext,
     return -1;
   }
 
-  float cssPxPerDevPx = aContext->
-    AppUnitsToFloatCSSPixels(aContext->AppUnitsPerDevPixel());
-
   // Convert the point from user space into run user space, and take
   // into account any mFontSizeScaleFactor.
   gfxMatrix m = GetTransformFromRunUserSpaceToUserSpace(aContext).Invert();
-  gfxPoint p = m.Transform(aPoint) / cssPxPerDevPx * mFontSizeScaleFactor;
+  gfxPoint p = m.Transform(aPoint) * mFontSizeScaleFactor;
 
   // First check that the point lies vertically between the top and bottom
   // edges of the text.
@@ -2621,20 +2618,9 @@ private:
   bool SetFillColor();
 
   /**
-   * Fills and strokes a piece of text geometry, using group opacity
-   * if the selection style requires it.
+   * Fills and strokes a piece of text geometry.
    */
-  void FillAndStrokeGeometry();
-
-  /**
-   * Fills a piece of text geometry.
-   */
-  void FillGeometry();
-
-  /**
-   * Strokes a piece of text geometry.
-   */
-  void StrokeGeometry();
+  void FillAndStroke();
 
   gfxContext* gfx;
   uint16_t mRenderMode;
@@ -2745,7 +2731,7 @@ SVGTextDrawPathCallbacks::NotifySelectionDecorationLinePathEmitted()
     return;
   }
 
-  FillAndStrokeGeometry();
+  FillAndStroke();
   gfx->Restore();
 }
 
@@ -2792,7 +2778,7 @@ SVGTextDrawPathCallbacks::HandleTextGeometry()
     gfxContextMatrixAutoSaveRestore saveMatrix(gfx);
     gfx->SetMatrix(mCanvasTM);
 
-    FillAndStrokeGeometry();
+    FillAndStroke();
   }
 }
 
@@ -2813,7 +2799,7 @@ SVGTextDrawPathCallbacks::SetFillColor()
 }
 
 void
-SVGTextDrawPathCallbacks::FillAndStrokeGeometry()
+SVGTextDrawPathCallbacks::FillAndStroke()
 {
   bool pushedGroup = false;
   if (mColor == NS_40PERCENT_FOREGROUND_COLOR) {
@@ -2821,49 +2807,21 @@ SVGTextDrawPathCallbacks::FillAndStrokeGeometry()
     gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
   }
 
-  uint32_t paintOrder = mFrame->StyleSVG()->mPaintOrder;
-  if (paintOrder == NS_STYLE_PAINT_ORDER_NORMAL) {
-    FillGeometry();
-    StrokeGeometry();
-  } else {
-    while (paintOrder) {
-      uint32_t component =
-        paintOrder & ((1 << NS_STYLE_PAINT_ORDER_BITWIDTH) - 1);
-      switch (component) {
-        case NS_STYLE_PAINT_ORDER_FILL:
-          FillGeometry();
-          break;
-        case NS_STYLE_PAINT_ORDER_STROKE:
-          StrokeGeometry();
-          break;
-      }
-      paintOrder >>= NS_STYLE_PAINT_ORDER_BITWIDTH;
-    }
-  }
-
-  if (pushedGroup) {
-    gfx->PopGroupToSource();
-    gfx->Paint(0.4);
-  }
-}
-
-void
-SVGTextDrawPathCallbacks::FillGeometry()
-{
   if (SetFillColor()) {
     gfx->Fill();
   }
-}
 
-void
-SVGTextDrawPathCallbacks::StrokeGeometry()
-{
   if (mColor == NS_SAME_AS_FOREGROUND_COLOR ||
       mColor == NS_40PERCENT_FOREGROUND_COLOR) {
     // Don't paint the stroke when we are filling with a selection color.
     if (nsSVGUtils::SetupCairoStroke(mFrame, gfx)) {
       gfx->Stroke();
     }
+  }
+
+  if (pushedGroup) {
+    gfx->PopGroupToSource();
+    gfx->Paint(0.4);
   }
 }
 
@@ -2883,7 +2841,7 @@ void
 GlyphMetricsUpdater::Run(nsSVGTextFrame2* aFrame)
 {
   aFrame->mPositioningDirty = true;
-  nsSVGEffects::InvalidateRenderingObservers(aFrame);
+  nsSVGUtils::InvalidateBounds(aFrame, false);
   nsSVGUtils::ScheduleReflowSVG(aFrame);
   aFrame->mGlyphMetricsUpdater = nullptr;
 }
@@ -3041,7 +2999,7 @@ nsSVGTextFrame2::MutationObserver::ContentAppended(nsIDocument* aDocument,
                                                    nsIContent* aFirstNewContent,
                                                    int32_t aNewIndexInContainer)
 {
-  mFrame->NotifyGlyphMetricsChange(ePositioningDirtyDueToMutation);
+  mFrame->NotifyGlyphMetricsChange();
 }
 
 void
@@ -3051,7 +3009,7 @@ nsSVGTextFrame2::MutationObserver::ContentInserted(
                                         nsIContent* aChild,
                                         int32_t aIndexInContainer)
 {
-  mFrame->NotifyGlyphMetricsChange(ePositioningDirtyDueToMutation);
+  mFrame->NotifyGlyphMetricsChange();
 }
 
 void
@@ -3062,7 +3020,7 @@ nsSVGTextFrame2::MutationObserver::ContentRemoved(
                                        int32_t aIndexInContainer,
                                        nsIContent* aPreviousSibling)
 {
-  mFrame->NotifyGlyphMetricsChange(ePositioningDirtyDueToMutation);
+  mFrame->NotifyGlyphMetricsChange();
 }
 
 void
@@ -3635,27 +3593,18 @@ nsSVGTextFrame2::ConvertTextElementCharIndexToAddressableIndex(
                                                            int32_t aIndex,
                                                            nsIContent* aContent)
 {
-  CharIterator it(this, CharIterator::eOriginal, aContent);
+  CharIterator it(this, CharIterator::eAddressable, aContent);
   if (!it.AdvanceToSubtree()) {
     return -1;
   }
-  int32_t result = 0;
-  int32_t textElementCharIndex;
+  uint32_t result = 0;
   while (!it.AtEnd() &&
-         it.IsWithinSubtree()) {
-    bool addressable = !it.IsOriginalCharUnaddressable();
-    textElementCharIndex = it.TextElementCharIndex();
+         it.IsWithinSubtree() &&
+         it.TextElementCharIndex() < static_cast<uint32_t>(aIndex)) {
+    result++;
     it.Next();
-    uint32_t delta = it.TextElementCharIndex() - textElementCharIndex;
-    aIndex -= delta;
-    if (addressable) {
-      if (aIndex < 0) {
-        return result;
-      }
-      result += delta;
-    }
   }
-  return -1;
+  return result;
 }
 
 /**
@@ -3828,7 +3777,7 @@ nsSVGTextFrame2::GetCharNumAtPosition(nsIContent* aContent,
     // Hit test this rendered run.  Later runs will override earlier ones.
     int32_t index = run.GetCharNumAtPosition(context, p);
     if (index != -1) {
-      result = index + run.mTextElementCharIndex;
+      result = index + run.mTextElementCharIndex - run.mTextFrameContentOffset;
     }
   }
 
@@ -3947,7 +3896,7 @@ nsSVGTextFrame2::GetExtentOfChar(nsIContent* aContent,
   // Transform the glyph's rect into user space.
   gfxRect r = m.TransformBounds(glyphRect);
 
-  NS_ADDREF(*aResult = new dom::SVGRect(aContent, r.x, r.y, r.width, r.height));
+  NS_ADDREF(*aResult = new dom::SVGRect(r.x, r.y, r.width, r.height));
   return NS_OK;
 }
 
@@ -4205,6 +4154,9 @@ nsSVGTextFrame2::DetermineCharPositions(nsTArray<nsPoint>& aPositions)
 
   nsPoint position, lastPosition;
 
+  float cssPxPerDevPx = PresContext()->
+    AppUnitsToFloatCSSPixels(PresContext()->AppUnitsPerDevPixel());
+
   TextFrameIterator frit(this);
   for (nsTextFrame* frame = frit.Current(); frame; frame = frit.Next()) {
     gfxSkipCharsIterator it = frame->EnsureTextRun(nsTextFrame::eInflated);
@@ -4216,6 +4168,8 @@ nsSVGTextFrame2::DetermineCharPositions(nsTArray<nsPoint>& aPositions)
       position.x += frame->GetRect().width;
     }
     position.y += GetBaselinePosition(frame, textRun, frit.DominantBaseline());
+    position = nsPoint(nscoord(position.x * cssPxPerDevPx),
+                       nscoord(position.y * cssPxPerDevPx));
 
     // Any characters not in a frame, e.g. when display:none.
     for (uint32_t i = 0; i < frit.UndisplayedCharacters(); i++) {
@@ -4236,8 +4190,9 @@ nsSVGTextFrame2::DetermineCharPositions(nsTArray<nsPoint>& aPositions)
            !it.IsOriginalCharSkipped() &&
            (!textRun->IsLigatureGroupStart(it.GetSkippedOffset()) ||
             !textRun->IsClusterStart(it.GetSkippedOffset()))) {
-      nscoord advance = textRun->GetAdvanceWidth(it.GetSkippedOffset(), 1,
-                                                 nullptr);
+      gfxFloat advance =
+        textRun->GetAdvanceWidth(it.GetSkippedOffset(), 1,
+                                 nullptr) * cssPxPerDevPx;
       position.x += textRun->IsRightToLeft() ? -advance : advance;
       aPositions.AppendElement(lastPosition);
       it.AdvanceOriginal(1);
@@ -4251,8 +4206,9 @@ nsSVGTextFrame2::DetermineCharPositions(nsTArray<nsPoint>& aPositions)
           textRun->IsClusterStart(it.GetSkippedOffset())) {
         // A real visible character.
         uint32_t length = ClusterLength(textRun, it);
-        nscoord advance = textRun->GetAdvanceWidth(it.GetSkippedOffset(),
-                                                   length, nullptr);
+        gfxFloat advance =
+          textRun->GetAdvanceWidth(it.GetSkippedOffset(), length,
+                                   nullptr) * cssPxPerDevPx;
         position.x += textRun->IsRightToLeft() ? -advance : advance;
         lastPosition = position;
       }
@@ -4642,30 +4598,25 @@ nsSVGTextFrame2::DoGlyphPositioning()
     mPositions[0].mAngle = 0.0;
   }
 
-  float cssPxPerDevPx = PresContext()->
-    AppUnitsToFloatCSSPixels(PresContext()->AppUnitsPerDevPixel());
-
   // Fill in any unspecified character positions based on the positions recorded
   // in charPositions, and also add in the dx/dy values.
   if (!deltas.IsEmpty()) {
     mPositions[0].mPosition += deltas[0];
   }
-
-  double factor = cssPxPerDevPx / mFontSizeScaleFactor;
   for (uint32_t i = 1; i < mPositions.Length(); i++) {
     // Fill in unspecified x position.
     if (!mPositions[i].IsXSpecified()) {
       nscoord d = charPositions[i].x - charPositions[i - 1].x;
       mPositions[i].mPosition.x =
         mPositions[i - 1].mPosition.x +
-        presContext->AppUnitsToGfxUnits(d) * factor;
+        presContext->AppUnitsToGfxUnits(d) / mFontSizeScaleFactor;
     }
     // Fill in unspecified y position.
     if (!mPositions[i].IsYSpecified()) {
       nscoord d = charPositions[i].y - charPositions[i - 1].y;
       mPositions[i].mPosition.y =
         mPositions[i - 1].mPosition.y +
-        presContext->AppUnitsToGfxUnits(d) * factor;
+        presContext->AppUnitsToGfxUnits(d) / mFontSizeScaleFactor;
     }
     // Add in dx/dy.
     if (i < deltas.Length()) {
@@ -4673,7 +4624,11 @@ nsSVGTextFrame2::DoGlyphPositioning()
     }
     // Fill in unspecified rotation values.
     if (!mPositions[i].IsAngleSpecified()) {
-      mPositions[i].mAngle = 0.0f;
+      mPositions[i].mAngle = mPositions[i - 1].mAngle;
+      if (mPositions[i].mAngle != 0.0f) {
+        // Any non-zero rotation must begin a run boundary.
+        mPositions[i].mRunBoundary = true;
+      }
     }
   }
 
@@ -4687,9 +4642,9 @@ nsSVGTextFrame2::DoGlyphPositioning()
     nscoord dy = charPositions[i].y - charPositions[i - 1].y;
 
     gfxPoint pt(mPositions[i - 1].mPosition.x +
-                  presContext->AppUnitsToGfxUnits(dx) * cssPxPerDevPx,
+                  presContext->AppUnitsToGfxUnits(dx),
                 mPositions[i - 1].mPosition.y +
-                  presContext->AppUnitsToGfxUnits(dy) * cssPxPerDevPx);
+                  presContext->AppUnitsToGfxUnits(dy));
 
     mPositions.AppendElement(CharPosition(pt / mFontSizeScaleFactor,
                                           mPositions[i - 1].mAngle));
@@ -4904,14 +4859,6 @@ nsSVGTextFrame2::UpdateFontSizeScaleFactor(bool aForceGlobalTransform)
   // (which is sqrt(2)).
   gfxPoint p = m.Transform(gfxPoint(1, 1)) - m.Transform(gfxPoint(0, 0));
   double contextScale = SVGContentUtils::ComputeNormalizedHypotenuse(p.x, p.y);
-
-  // But we want to ignore any scaling required due to HiDPI displays, since
-  // regular CSS text frames will still create text runs using the font size
-  // in CSS pixels, and we want SVG text to have the same rendering as HTML
-  // text for regular font sizes.
-  float cssPxPerDevPx =
-    presContext->AppUnitsToFloatCSSPixels(presContext->AppUnitsPerDevPixel());
-  contextScale *= cssPxPerDevPx;
 
   double minTextRunSize = minSize * contextScale;
   double maxTextRunSize = maxSize * contextScale;

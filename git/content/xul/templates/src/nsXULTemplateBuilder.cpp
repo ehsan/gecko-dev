@@ -41,6 +41,7 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIServiceManager.h"
 #include "nsISimpleEnumerator.h"
+#include "nsISupportsArray.h"
 #include "nsIMutableArray.h"
 #include "nsIURL.h"
 #include "nsIXPConnect.h"
@@ -1074,7 +1075,8 @@ nsXULTemplateBuilder::Observe(nsISupports* aSubject,
     if (!strcmp(aTopic, DOM_WINDOW_DESTROYED_TOPIC)) {
         nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aSubject);
         if (window) {
-            nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+            nsCOMPtr<nsIDocument> doc =
+                do_QueryInterface(window->GetExtantDocument());
             if (doc && doc == mObservedDocument)
                 NodeWillBeDestroyed(doc);
         }
@@ -1374,6 +1376,8 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
     if (! global)
         return NS_ERROR_UNEXPECTED;
 
+    JSObject *scope = global->GetGlobalJSObject();
+
     nsIScriptContext *context = global->GetContext();
     if (! context)
         return NS_ERROR_UNEXPECTED;
@@ -1383,17 +1387,15 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
     if (! jscontext)
         return NS_ERROR_UNEXPECTED;
 
-    JS::Rooted<JSObject*> scope(jscontext, global->GetGlobalJSObject());
-
     JSAutoRequest ar(jscontext);
 
-    JS::Rooted<JS::Value> v(jscontext);
+    JS::Value v;
     nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-    rv = nsContentUtils::WrapNative(jscontext, scope, mRoot, mRoot, v.address(),
+    rv = nsContentUtils::WrapNative(jscontext, scope, mRoot, mRoot, &v,
                                     getter_AddRefs(wrapper));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    JS::Rooted<JSObject*> jselement(jscontext, JSVAL_TO_OBJECT(v));
+    JSObject* jselement = JSVAL_TO_OBJECT(v);
 
     if (mDB) {
         // database
@@ -1543,7 +1545,7 @@ nsXULTemplateBuilder::ParseAttribute(const nsAString& aAttributeValue,
 }
 
 
-struct MOZ_STACK_CLASS SubstituteTextClosure {
+struct NS_STACK_CLASS SubstituteTextClosure {
     SubstituteTextClosure(nsIXULTemplateResult* aResult, nsAString& aString)
         : result(aResult), str(aString) {}
 
@@ -2138,7 +2140,7 @@ nsXULTemplateBuilder::DetermineRDFQueryRef(nsIContent* aQueryElement, nsIAtom** 
         content->GetAttr(kNameSpaceID_None, nsGkAtoms::tag, tag);
 
         if (!tag.IsEmpty())
-            *aTag = NS_NewAtom(tag).get();
+            *aTag = NS_NewAtom(tag);
     }
 }
 

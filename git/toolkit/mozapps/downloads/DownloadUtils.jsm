@@ -39,13 +39,13 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-this.__defineGetter__("PluralForm", function() {
+__defineGetter__("PluralForm", function() {
   delete this.PluralForm;
   Cu.import("resource://gre/modules/PluralForm.jsm");
   return PluralForm;
 });
 
-this.__defineGetter__("gDecimalSymbol", function() {
+__defineGetter__("gDecimalSymbol", function() {
   delete this.gDecimalSymbol;
   return this.gDecimalSymbol = Number(5.4).toLocaleString().match(/\D/);
 });
@@ -74,7 +74,7 @@ let gStr = {
 };
 
 // This lazily initializes the string bundle upon first use.
-this.__defineGetter__("gBundle", function() {
+__defineGetter__("gBundle", function() {
   delete gBundle;
   return this.gBundle = Cc["@mozilla.org/intl/stringbundle;1"].
                         getService(Ci.nsIStringBundleService).

@@ -11,15 +11,15 @@ relativesrcdir = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DISABLED_XPCSHELL_TESTS = \
+XPCSHELL_TESTS = \
                  unit \
                  $(NULL)
 
 ifeq ($(OS_ARCH),WINNT)
-DISABLED_XPCSHELL_TESTS += unit_win
+XPCSHELL_TESTS += unit_win
 else
 ifneq (,$(filter-out OS2 Darwin,$(OS_ARCH)))
-DISABLED_XPCSHELL_TESTS += unit_unix
+XPCSHELL_TESTS += unit_unix
 endif
 endif
 

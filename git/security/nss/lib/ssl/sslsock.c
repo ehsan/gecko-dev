@@ -6,6 +6,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* $Id: sslsock.c,v 1.99 2012/12/20 20:29:36 bsmith%mozilla.com Exp $ */
 #include "seccomon.h"
 #include "cert.h"
 #include "keyhi.h"
@@ -152,8 +153,7 @@ static sslOptions ssl_defaults = {
     2,          /* enableRenegotiation (default: requires extension) */
     PR_FALSE,   /* requireSafeNegotiation */
     PR_FALSE,   /* enableFalseStart   */
-    PR_TRUE,    /* cbcRandomIV        */
-    PR_FALSE    /* enableOCSPStapling */
+    PR_TRUE     /* cbcRandomIV        */
 };
 
 /*
@@ -321,8 +321,6 @@ ssl_DupSocket(sslSocket *os)
 		if (oc->serverKeyPair && !sc->serverKeyPair)
 		    goto loser;
 	        sc->serverKeyBits = oc->serverKeyBits;
-		ss->certStatusArray[i] = !os->certStatusArray[i] ? NULL :
-				SECITEM_DupArray(NULL, os->certStatusArray[i]);
 	    }
 	    ss->stepDownKeyPair = !os->stepDownKeyPair ? NULL :
 		                  ssl3_GetKeyPairRef(os->stepDownKeyPair);
@@ -430,10 +428,6 @@ ssl_DestroySocketContents(sslSocket *ss)
 	    CERT_DestroyCertificateList(sc->serverCertChain);
 	if (sc->serverKeyPair != NULL)
 	    ssl3_FreeKeyPair(sc->serverKeyPair);
-	if (ss->certStatusArray[i] != NULL) {
-	    SECITEM_FreeArray(ss->certStatusArray[i], PR_TRUE);
-	    ss->certStatusArray[i] = NULL;
-	}
     }
     if (ss->stepDownKeyPair) {
 	ssl3_FreeKeyPair(ss->stepDownKeyPair);
@@ -833,10 +827,6 @@ SSL_OptionSet(PRFileDesc *fd, PRInt32 which, PRBool on)
 	ss->opt.cbcRandomIV = on;
 	break;
 
-      case SSL_ENABLE_OCSP_STAPLING:
-       ss->opt.enableOCSPStapling = on;
-       break;
-
       default:
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	rv = SECFailure;
@@ -906,7 +896,6 @@ SSL_OptionGet(PRFileDesc *fd, PRInt32 which, PRBool *pOn)
                                   on = ss->opt.requireSafeNegotiation; break;
     case SSL_ENABLE_FALSE_START:  on = ss->opt.enableFalseStart;   break;
     case SSL_CBC_RANDOM_IV:       on = ss->opt.cbcRandomIV;        break;
-    case SSL_ENABLE_OCSP_STAPLING: on = ss->opt.enableOCSPStapling; break;
 
     default:
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
@@ -965,9 +954,6 @@ SSL_OptionGetDefault(PRInt32 which, PRBool *pOn)
 				  break;
     case SSL_ENABLE_FALSE_START:  on = ssl_defaults.enableFalseStart;   break;
     case SSL_CBC_RANDOM_IV:       on = ssl_defaults.cbcRandomIV;        break;
-    case SSL_ENABLE_OCSP_STAPLING:
-       on = ssl_defaults.enableOCSPStapling;
-       break;
 
     default:
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
@@ -1130,10 +1116,6 @@ SSL_OptionSetDefault(PRInt32 which, PRBool on)
       case SSL_CBC_RANDOM_IV:
 	ssl_defaults.cbcRandomIV = on;
 	break;
-
-      case SSL_ENABLE_OCSP_STAPLING:
-       ssl_defaults.enableOCSPStapling = on;
-       break;
 
       default:
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
@@ -1389,6 +1371,9 @@ ssl_ImportFD(PRFileDesc *model, PRFileDesc *fd, SSLProtocolVariant variant)
 	SET_ERROR_CODE
 	return NULL;
     }
+#ifdef _WIN32
+    PR_Sleep(PR_INTERVAL_NO_WAIT);     /* workaround NT winsock connect bug. */
+#endif
     ns = ssl_FindSocket(fd);
     PORT_Assert(ns);
     if (ns)
@@ -1668,15 +1653,6 @@ SSL_ReconfigFD(PRFileDesc *model, PRFileDesc *fd)
             sc->serverCertChain = CERT_DupCertList(mc->serverCertChain);
             if (!sc->serverCertChain)
                 goto loser;
-	    if (sm->certStatusArray[i]) {
-		if (ss->certStatusArray[i]) {
-		    SECITEM_FreeArray(ss->certStatusArray[i], PR_TRUE);
-		    ss->certStatusArray[i] = NULL;
-		}
-		ss->certStatusArray[i] = SECITEM_DupArray(NULL, sm->certStatusArray[i]);
-		if (!ss->certStatusArray[i])
-		    goto loser;
-	    }
         }
         if (mc->serverKeyPair) {
             if (sc->serverKeyPair) {
@@ -1877,25 +1853,6 @@ SSL_VersionRangeSet(PRFileDesc *fd, const SSLVersionRange *vrange)
     return SECSuccess;
 }
 
-const SECItemArray *
-SSL_PeerStapledOCSPResponses(PRFileDesc *fd)
-{
-    sslSocket *ss = ssl_FindSocket(fd);
-
-    if (!ss) {
-       SSL_DBG(("%d: SSL[%d]: bad socket in SSL_PeerStapledOCSPResponses",
-                SSL_GETPID(), fd));
-       return NULL;
-    }
-
-    if (!ss->sec.ci.sid) {
-       PORT_SetError(SEC_ERROR_NOT_INITIALIZED);
-       return NULL;
-    }
-    
-    return &ss->sec.ci.sid->peerCertStatus;
-}
-
 /************************************************************************/
 /* The following functions are the TOP LEVEL SSL functions.
 ** They all get called through the NSPRIOMethods table below.
@@ -1990,6 +1947,9 @@ ssl_Connect(PRFileDesc *fd, const PRNetAddr *sockaddr, PRIntervalTime timeout)
 
     ss->cTimeout = timeout;
     rv = (PRStatus)(*ss->ops->connect)(ss, sockaddr);
+#ifdef _WIN32
+    PR_Sleep(PR_INTERVAL_NO_WAIT);     /* workaround NT winsock connect bug. */
+#endif
 
     SSL_UNLOCK_WRITER(ss);
     SSL_UNLOCK_READER(ss);
@@ -2231,42 +2191,13 @@ ssl_GetSockName(PRFileDesc *fd, PRNetAddr *name)
 }
 
 SECStatus
-SSL_SetStapledOCSPResponses(PRFileDesc *fd, const SECItemArray *responses,
-			    SSLKEAType kea)
-{
-    sslSocket *ss;
-
-    ss = ssl_FindSocket(fd);
-    if (!ss) {
-	SSL_DBG(("%d: SSL[%d]: bad socket in SSL_SetStapledOCSPResponses",
-		 SSL_GETPID(), fd));
-	return SECFailure;
-    }
-
-    if ( kea <= 0 || kea >= kt_kea_size) {
-	SSL_DBG(("%d: SSL[%d]: invalid key in SSL_SetStapledOCSPResponses",
-		 SSL_GETPID(), fd));
-	return SECFailure;
-    }
-
-    if (ss->certStatusArray[kea]) {
-        SECITEM_FreeArray(ss->certStatusArray[kea], PR_TRUE);
-        ss->certStatusArray[kea] = NULL;
-    }
-    if (responses) {
-	ss->certStatusArray[kea] = SECITEM_DupArray(NULL, responses);
-    }
-    return (ss->certStatusArray[kea] || !responses) ? SECSuccess : SECFailure;
-}
-
-SECStatus
 SSL_SetSockPeerID(PRFileDesc *fd, const char *peerID)
 {
     sslSocket *ss;
 
     ss = ssl_FindSocket(fd);
     if (!ss) {
-	SSL_DBG(("%d: SSL[%d]: bad socket in SSL_SetSockPeerID",
+	SSL_DBG(("%d: SSL[%d]: bad socket in SSL_SetCacheIndex",
 		 SSL_GETPID(), fd));
 	return SECFailure;
     }
@@ -2956,7 +2887,6 @@ ssl_NewSocket(PRBool makeLocks, SSLProtocolVariant protocolVariant)
 	    sc->serverCertChain = NULL;
 	    sc->serverKeyPair   = NULL;
 	    sc->serverKeyBits   = 0;
-	    ss->certStatusArray[i] = NULL;
 	}
 	ss->stepDownKeyPair    = NULL;
 	ss->dbHandle           = CERT_GetDefaultCertDB();
@@ -2970,7 +2900,6 @@ ssl_NewSocket(PRBool makeLocks, SSLProtocolVariant protocolVariant)
 	ss->handleBadCert      = NULL;
 	ss->badCertArg         = NULL;
 	ss->pkcs11PinArg       = NULL;
-	ss->ephemeralECDHKeyPair = NULL;
 
 	ssl_ChooseOps(ss);
 	ssl2_InitSocketPolicy(ss);

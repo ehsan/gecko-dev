@@ -58,8 +58,6 @@ class MozbuildObject(ProcessExecutionMixin):
     def topobjdir(self):
         if self._topobjdir is None:
             topobj = self.mozconfig['topobjdir'] or 'obj-@CONFIG_GUESS@'
-            if not os.path.isabs(topobj):
-                topobj = os.path.abspath(os.path.join(self.topsrcdir, topobj))
             self._topobjdir = topobj.replace("@CONFIG_GUESS@",
                                              self._config_guess)
         return self._topobjdir
@@ -202,7 +200,7 @@ class MozbuildObject(ProcessExecutionMixin):
             srcdir=False, allow_parallel=True, line_handler=None,
             append_env=None, explicit_env=None, ignore_errors=False,
             ensure_exit_code=0, silent=True, print_directory=True,
-            pass_thru=False, num_jobs=0):
+            pass_thru=False):
         """Invoke make.
 
         directory -- Relative directory to look for Makefile in.
@@ -226,10 +224,7 @@ class MozbuildObject(ProcessExecutionMixin):
             args.extend(['-f', filename])
 
         if allow_parallel:
-            if num_jobs > 0:
-                args.append('-j%d' % num_jobs)
-            else:
-                args.append('-j%d' % multiprocessing.cpu_count())
+            args.append('-j%d' % multiprocessing.cpu_count())
 
         if ignore_errors:
             args.append('-k')

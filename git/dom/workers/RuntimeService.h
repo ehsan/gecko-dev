@@ -221,6 +221,23 @@ public:
   void
   GarbageCollectAllWorkers(bool aShrinking);
 
+  class AutoSafeJSContext
+  {
+    JSContext* mContext;
+
+  public:
+    AutoSafeJSContext(JSContext* aCx = nullptr);
+    ~AutoSafeJSContext();
+
+    operator JSContext*() const
+    {
+      return mContext;
+    }
+
+    static JSContext*
+    GetSafeContext();
+  };
+
 private:
   RuntimeService();
   ~RuntimeService();

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stddef.h>                     // for nullptr
+#include <stddef.h>                     // for NULL
 
 #include "mozilla/Module.h"             // for Module, Module::CIDEntry, etc
 #include "mozilla/ModuleUtils.h"
@@ -57,13 +57,13 @@ static nsresult
 nsComposeTxtSrvFilterConstructor(nsISupports *aOuter, REFNSIID aIID,
                                  void **aResult, bool aIsForMail)
 {
-    *aResult = nullptr;
-    if (nullptr != aOuter) 
+    *aResult = NULL;
+    if (NULL != aOuter) 
     {
         return NS_ERROR_NO_AGGREGATION;
     }
     nsComposeTxtSrvFilter * inst = new nsComposeTxtSrvFilter();
-    if (nullptr == inst) 
+    if (NULL == inst) 
     {
         return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -198,15 +198,15 @@ NS_DEFINE_NAMED_CID(NS_COMPOSERTXTSRVFILTERMAIL_CID);
 
 
 static const mozilla::Module::CIDEntry kComposerCIDs[] = {
-  { &kNS_HTMLEDITORCONTROLLER_CID, false, nullptr, nsHTMLEditorControllerConstructor },
-  { &kNS_EDITORDOCSTATECONTROLLER_CID, false, nullptr, nsHTMLEditorDocStateControllerConstructor },
-  { &kNS_HTMLEDITOR_COMMANDTABLE_CID, false, nullptr, nsHTMLEditorCommandTableConstructor },
-  { &kNS_HTMLEDITOR_DOCSTATE_COMMANDTABLE_CID, false, nullptr, nsHTMLEditorDocStateCommandTableConstructor },
-  { &kNS_EDITINGSESSION_CID, false, nullptr, nsEditingSessionConstructor },
-  { &kNS_EDITORSPELLCHECK_CID, false, nullptr, nsEditorSpellCheckConstructor },
-  { &kNS_COMPOSERTXTSRVFILTER_CID, false, nullptr, nsComposeTxtSrvFilterConstructorForComposer },
-  { &kNS_COMPOSERTXTSRVFILTERMAIL_CID, false, nullptr, nsComposeTxtSrvFilterConstructorForMail },
-  { nullptr }
+  { &kNS_HTMLEDITORCONTROLLER_CID, false, NULL, nsHTMLEditorControllerConstructor },
+  { &kNS_EDITORDOCSTATECONTROLLER_CID, false, NULL, nsHTMLEditorDocStateControllerConstructor },
+  { &kNS_HTMLEDITOR_COMMANDTABLE_CID, false, NULL, nsHTMLEditorCommandTableConstructor },
+  { &kNS_HTMLEDITOR_DOCSTATE_COMMANDTABLE_CID, false, NULL, nsHTMLEditorDocStateCommandTableConstructor },
+  { &kNS_EDITINGSESSION_CID, false, NULL, nsEditingSessionConstructor },
+  { &kNS_EDITORSPELLCHECK_CID, false, NULL, nsEditorSpellCheckConstructor },
+  { &kNS_COMPOSERTXTSRVFILTER_CID, false, NULL, nsComposeTxtSrvFilterConstructorForComposer },
+  { &kNS_COMPOSERTXTSRVFILTERMAIL_CID, false, NULL, nsComposeTxtSrvFilterConstructorForMail },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kComposerContracts[] = {
@@ -216,7 +216,7 @@ static const mozilla::Module::ContractIDEntry kComposerContracts[] = {
   { "@mozilla.org/editor/editorspellchecker;1", &kNS_EDITORSPELLCHECK_CID },
   { COMPOSER_TXTSRVFILTER_CONTRACTID, &kNS_COMPOSERTXTSRVFILTER_CID },
   { COMPOSER_TXTSRVFILTERMAIL_CONTRACTID, &kNS_COMPOSERTXTSRVFILTERMAIL_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kComposerModule = {

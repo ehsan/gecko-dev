@@ -336,8 +336,8 @@ nsPluginHost::GetInst()
     NS_ADDREF(sInst);
   }
 
-  nsRefPtr<nsPluginHost> inst = sInst;
-  return inst.forget();
+  NS_ADDREF(sInst);
+  return sInst;
 }
 
 bool nsPluginHost::IsRunningPlugin(nsPluginTag * aPluginTag)
@@ -1078,7 +1078,7 @@ nsPluginHost::IsPluginClickToPlayForType(const nsACString &aMimeType, bool *aRes
   nsresult rv = GetBlocklistStateForType(aMimeType.Data(), &blocklistState);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if ((mPluginsClickToPlay && plugin->IsClicktoplay()) ||
+  if (mPluginsClickToPlay ||
       blocklistState == nsIBlocklistService::STATE_VULNERABLE_NO_UPDATE ||
       blocklistState == nsIBlocklistService::STATE_VULNERABLE_UPDATE_AVAILABLE) {
     *aResult = true;
@@ -1926,12 +1926,7 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
       PRLibrary *library = nullptr;
       nsPluginInfo info;
       memset(&info, 0, sizeof(info));
-      nsresult res;
-      // Opening a block for the telemetry AutoTimer
-      {
-        Telemetry::AutoTimer<Telemetry::PLUGIN_LOAD_METADATA> telemetry;
-        res = pluginFile.GetPluginInfo(info, &library);
-      }
+      nsresult res = pluginFile.GetPluginInfo(info, &library);
       // if we don't have mime type don't proceed, this is not a plugin
       if (NS_FAILED(res) || !info.fMimeTypeArray) {
         nsRefPtr<nsInvalidPluginTag> invalidTag = new nsInvalidPluginTag(filePath.get(),
@@ -1978,7 +1973,7 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
              pluginTag->SetBlocklisted(true);
           }
           if (state == nsIBlocklistService::STATE_SOFTBLOCKED && !seenBefore) {
-             pluginTag->SetEnabledState(nsIPluginTag::STATE_DISABLED);
+             pluginTag->SetDisabled(true);
           }
           if (state == nsIBlocklistService::STATE_OUTDATED && !seenBefore) {
              warnOutdated = true;

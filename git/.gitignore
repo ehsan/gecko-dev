@@ -51,7 +51,3 @@ parser/html/java/javaparser/
 python/psutil/*.so
 python/psutil/*.pyd
 python/psutil/build/
-
-# Ignore chrome.manifest files from the devtools loader
-browser/devtools/chrome.manifest
-toolkit/devtools/chrome.manifest

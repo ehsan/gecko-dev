@@ -24,7 +24,6 @@
 #include <algorithm>
 
 USING_INDEXEDDB_NAMESPACE
-using mozilla::dom::quota::AssertIsOnIOThread;
 
 namespace {
 
@@ -63,7 +62,7 @@ nsresult
 FileManager::Init(nsIFile* aDirectory,
                   mozIStorageConnection* aConnection)
 {
-  AssertIsOnIOThread();
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aDirectory, "Null directory!");
   NS_ASSERTION(aConnection, "Null connection!");
 
@@ -270,7 +269,7 @@ FileManager::InitDirectory(nsIFile* aDirectory,
                            nsIFile* aDatabaseFile,
                            const nsACString& aOrigin)
 {
-  AssertIsOnIOThread();
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aDirectory, "Null directory!");
   NS_ASSERTION(aDatabaseFile, "Null database file!");
 
@@ -386,8 +385,6 @@ FileManager::InitDirectory(nsIFile* aDirectory,
 nsresult
 FileManager::GetUsage(nsIFile* aDirectory, uint64_t* aUsage)
 {
-  AssertIsOnIOThread();
-
   uint64_t usage = 0;
 
   nsCOMPtr<nsISimpleEnumerator> entries;

@@ -4,7 +4,6 @@
 
 package org.mozilla.gecko.background.announcements;
 
-import org.mozilla.gecko.background.BackgroundService;
 import org.mozilla.gecko.background.common.log.Logger;
 
 import android.content.BroadcastReceiver;
@@ -25,6 +24,7 @@ public class AnnouncementsStartReceiver extends BroadcastReceiver {
     }
 
     Logger.debug(LOG_TAG, "AnnouncementsStartReceiver.onReceive().");
-    BackgroundService.runIntentInService(context, intent, AnnouncementsService.class);
+    Intent service = new Intent(context, AnnouncementsService.class);
+    context.startService(service);
   }
 }

@@ -20,17 +20,4 @@
 #define USING_QUOTA_NAMESPACE \
   using namespace mozilla::dom::quota;
 
-BEGIN_QUOTA_NAMESPACE
-
-#ifdef DEBUG
-void
-AssertIsOnIOThread();
-#else
-inline void
-AssertIsOnIOThread()
-{ }
-#endif
-
-END_QUOTA_NAMESPACE
-
 #endif // mozilla_dom_quota_quotacommon_h__

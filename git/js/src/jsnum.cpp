@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,10 +8,7 @@
  * JS number type and wrapper class.
  */
 
-#include "jsnum.h"
-
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/PodOperations.h"
 #include "mozilla/RangedPtr.h"
 
 #include "double-conversion.h"
@@ -26,6 +23,7 @@
 #include <locale.h>
 #include <limits.h>
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "jstypes.h"
@@ -35,14 +33,22 @@
 #include "jscntxt.h"
 #include "jsversion.h"
 #include "jsdtoa.h"
+#include "jsgc.h"
+#include "jsinterp.h"
+#include "jsnum.h"
 #include "jsobj.h"
+#include "jsopcode.h"
+#include "jsprf.h"
 #include "jsstr.h"
+#include "jslibmath.h"
 
 #include "vm/GlobalObject.h"
 #include "vm/NumericConversions.h"
+#include "vm/Shape.h"
 #include "vm/StringBuffer.h"
 
 #include "jsatominlines.h"
+#include "jsinferinlines.h"
 #include "jsnuminlines.h"
 #include "jsobjinlines.h"
 
@@ -52,7 +58,6 @@
 using namespace js;
 using namespace js::types;
 
-using mozilla::PodCopy;
 using mozilla::RangedPtr;
 
 /*
@@ -230,7 +235,7 @@ num_isNaN(JSContext *cx, unsigned argc, Value *vp)
     double x;
     if (!ToNumber(cx, vp[2], &x))
         return false;
-    vp->setBoolean(mozilla::IsNaN(x));
+    vp->setBoolean(MOZ_DOUBLE_IS_NaN(x));
     return JS_TRUE;
 }
 
@@ -244,7 +249,7 @@ num_isFinite(JSContext *cx, unsigned argc, Value *vp)
     double x;
     if (!ToNumber(cx, vp[2], &x))
         return JS_FALSE;
-    vp->setBoolean(mozilla::IsFinite(x));
+    vp->setBoolean(MOZ_DOUBLE_IS_FINITE(x));
     return JS_TRUE;
 }
 
@@ -390,7 +395,7 @@ js::num_parseInt(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static const JSFunctionSpec number_functions[] = {
+static JSFunctionSpec number_functions[] = {
     JS_FN(js_isNaN_str,         num_isNaN,           1,0),
     JS_FN(js_isFinite_str,      num_isFinite,        1,0),
     JS_FN(js_parseFloat_str,    num_parseFloat,      1,0),
@@ -402,7 +407,7 @@ Class js::NumberClass = {
     js_Number_str,
     JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Number),
     JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
+    JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -718,7 +723,7 @@ num_toLocaleString_impl(JSContext *cx, CallArgs args)
 
     if (cx->runtime->localeCallbacks && cx->runtime->localeCallbacks->localeToUnicode) {
         Rooted<Value> v(cx, StringValue(str));
-        bool ok = !!cx->runtime->localeCallbacks->localeToUnicode(cx, buf, &v);
+        bool ok = !!cx->runtime->localeCallbacks->localeToUnicode(cx, buf, v.address());
         if (ok)
             args.rval().set(v);
         js_free(buf);
@@ -884,7 +889,7 @@ num_toPrecision(JSContext *cx, unsigned argc, Value *vp)
     return CallNonGenericMethod<IsNumber, num_toPrecision_impl>(cx, args);
 }
 
-static const JSFunctionSpec number_methods[] = {
+static JSFunctionSpec number_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,       num_toSource,          0, 0),
 #endif
@@ -911,7 +916,7 @@ Number_isNaN(JSContext *cx, unsigned argc, Value *vp)
         args.rval().setBoolean(false);
         return true;
     }
-    args.rval().setBoolean(mozilla::IsNaN(args[0].toDouble()));
+    args.rval().setBoolean(MOZ_DOUBLE_IS_NaN(args[0].toDouble()));
     return true;
 }
 
@@ -925,7 +930,7 @@ Number_isFinite(JSContext *cx, unsigned argc, Value *vp)
         return true;
     }
     args.rval().setBoolean(args[0].isInt32() ||
-                           mozilla::IsFinite(args[0].toDouble()));
+                           MOZ_DOUBLE_IS_FINITE(args[0].toDouble()));
     return true;
 }
 
@@ -940,7 +945,7 @@ Number_isInteger(JSContext *cx, unsigned argc, Value *vp)
     }
     Value val = args[0];
     args.rval().setBoolean(val.isInt32() ||
-                           (mozilla::IsFinite(val.toDouble()) &&
+                           (MOZ_DOUBLE_IS_FINITE(val.toDouble()) &&
                             ToInteger(val.toDouble()) == val.toDouble()));
     return true;
 }
@@ -962,7 +967,7 @@ Number_toInteger(JSContext *cx, unsigned argc, Value *vp)
 }
 
 
-static const JSFunctionSpec number_static_methods[] = {
+static JSFunctionSpec number_static_methods[] = {
     JS_FN("isFinite", Number_isFinite, 1, 0),
     JS_FN("isInteger", Number_isInteger, 1, 0),
     JS_FN("isNaN", Number_isNaN, 1, 0),
@@ -1031,19 +1036,19 @@ js::InitRuntimeNumberState(JSRuntime *rt)
      * Our NaN must be one particular canonical value, because we rely on NaN
      * encoding for our value representation.  See Value.h.
      */
-    d = mozilla::SpecificNaN(0, 0x8000000000000ULL);
+    d = MOZ_DOUBLE_SPECIFIC_NaN(0, 0x8000000000000ULL);
     number_constants[NC_NaN].dval = js_NaN = d;
     rt->NaNValue.setDouble(d);
 
-    d = mozilla::PositiveInfinity();
+    d = MOZ_DOUBLE_POSITIVE_INFINITY();
     number_constants[NC_POSITIVE_INFINITY].dval = js_PositiveInfinity = d;
     rt->positiveInfinityValue.setDouble(d);
 
-    d = mozilla::NegativeInfinity();
+    d = MOZ_DOUBLE_NEGATIVE_INFINITY();
     number_constants[NC_NEGATIVE_INFINITY].dval = js_NegativeInfinity = d;
     rt->negativeInfinityValue.setDouble(d);
 
-    number_constants[NC_MIN_VALUE].dval = mozilla::MinDoubleValue();
+    number_constants[NC_MIN_VALUE].dval = MOZ_DOUBLE_MIN_VALUE();
 
     // XXX If ENABLE_INTL_API becomes true all the time at some point,
     //     js::InitRuntimeNumberState is no longer fallible, and we should
@@ -1171,7 +1176,7 @@ FracNumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base = 10)
 #ifdef DEBUG
     {
         int32_t _;
-        JS_ASSERT(!mozilla::DoubleIsInt32(d, &_));
+        JS_ASSERT(!MOZ_DOUBLE_IS_INT32(d, &_));
     }
 #endif
 
@@ -1199,7 +1204,7 @@ char *
 js::NumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base/* = 10*/)
 {
     int32_t i;
-    return mozilla::DoubleIsInt32(d, &i)
+    return MOZ_DOUBLE_IS_INT32(d, &i)
            ? IntToCString(cbuf, i, base)
            : FracNumberToCString(cx, cbuf, d, base);
 }
@@ -1222,7 +1227,7 @@ js_NumberToStringWithBase(JSContext *cx, double d, int base)
     JSCompartment *c = cx->compartment;
 
     int32_t i;
-    if (mozilla::DoubleIsInt32(d, &i)) {
+    if (MOZ_DOUBLE_IS_INT32(d, &i)) {
         if (base == 10 && StaticStrings::hasInt(i))
             return cx->runtime->staticStrings.getInt(i);
         if (unsigned(i) < unsigned(base)) {
@@ -1476,7 +1481,7 @@ js::ToUint16Slow(JSContext *cx, const Value &v, uint16_t *out)
         return false;
     }
 
-    if (d == 0 || !mozilla::IsFinite(d)) {
+    if (d == 0 || !MOZ_DOUBLE_IS_FINITE(d)) {
         *out = 0;
         return true;
     }

@@ -161,7 +161,7 @@ function waitForSaveState(aSaveStateCallback) {
   function removeObserver() {
     if (!observing)
       return;
-    Services.obs.removeObserver(observer, topic);
+    Services.obs.removeObserver(observer, topic, false);
     observing = false;
   }
 
@@ -187,14 +187,14 @@ function waitForSaveState(aSaveStateCallback) {
   Services.obs.addObserver(observer, topic, false);
 };
 
-function whenBrowserLoaded(aBrowser, aCallback = next) {
+function whenBrowserLoaded(aBrowser, aCallback) {
   aBrowser.addEventListener("load", function onLoad() {
     aBrowser.removeEventListener("load", onLoad, true);
     executeSoon(aCallback);
   }, true);
 }
 
-function whenWindowLoaded(aWindow, aCallback = next) {
+function whenWindowLoaded(aWindow, aCallback) {
   aWindow.addEventListener("load", function windowLoadListener() {
     aWindow.removeEventListener("load", windowLoadListener, false);
     executeSoon(function executeWhenWindowLoaded() {

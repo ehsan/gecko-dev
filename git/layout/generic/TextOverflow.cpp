@@ -101,26 +101,31 @@ IsHorizontalOverflowVisible(nsIFrame* aFrame)
   return !f || f->StyleDisplay()->mOverflowX == NS_STYLE_OVERFLOW_VISIBLE;
 }
 
-static void
-ClipMarker(const nsRect&                          aContentArea,
-           const nsRect&                          aMarkerRect,
-           DisplayListClipState::AutoSaveRestore& aClipState)
+static nsDisplayItem*
+ClipMarker(nsDisplayListBuilder* aBuilder,
+           nsIFrame*             aFrame,
+           nsDisplayItem*        aMarker,
+           const nsRect&         aContentArea,
+           nsRect*               aMarkerRect)
 {
-  nscoord rightOverflow = aMarkerRect.XMost() - aContentArea.XMost();
-  nsRect markerRect = aMarkerRect;
+  nsDisplayItem* item = aMarker;
+  nscoord rightOverflow = aMarkerRect->XMost() - aContentArea.XMost();
   if (rightOverflow > 0) {
     // Marker overflows on the right side (content width < marker width).
-    markerRect.width -= rightOverflow;
-    aClipState.ClipContentDescendants(markerRect);
+    aMarkerRect->width -= rightOverflow;
+    item = new (aBuilder)
+      nsDisplayClip(aBuilder, aFrame, aMarker, *aMarkerRect);
   } else {
-    nscoord leftOverflow = aContentArea.x - aMarkerRect.x;
+    nscoord leftOverflow = aContentArea.x - aMarkerRect->x;
     if (leftOverflow > 0) {
       // Marker overflows on the left side
-      markerRect.width -= leftOverflow;
-      markerRect.x += leftOverflow;
-      aClipState.ClipContentDescendants(markerRect);
+      aMarkerRect->width -= leftOverflow;
+      aMarkerRect->x += leftOverflow;
+      item = new (aBuilder)
+        nsDisplayClip(aBuilder, aFrame, aMarker, *aMarkerRect);
     }
   }
+  return item;
 }
 
 static void
@@ -626,8 +631,8 @@ TextOverflow::PruneDisplayListContents(nsDisplayList*        aList,
   nsDisplayList saved;
   nsDisplayItem* item;
   while ((item = aList->RemoveBottom())) {
-    nsIFrame* itemFrame = item->Frame();
-    if (IsFrameDescendantOfAny(itemFrame, aFramesToHide, mBlock)) {
+    nsIFrame* itemFrame = item->GetUnderlyingFrame();
+    if (itemFrame && IsFrameDescendantOfAny(itemFrame, aFramesToHide, mBlock)) {
       item->~nsDisplayItem();
       continue;
     }
@@ -706,32 +711,34 @@ TextOverflow::CreateMarkers(const nsLineBox* aLine,
                             const nsRect&    aInsideMarkersArea)
 {
   if (aCreateLeft) {
-    DisplayListClipState::AutoSaveRestore clipState(mBuilder);
-
     nsRect markerRect = nsRect(aInsideMarkersArea.x - mLeft.mIntrinsicWidth,
                                aLine->mBounds.y,
                                mLeft.mIntrinsicWidth, aLine->mBounds.height);
     markerRect += mBuilder->ToReferenceFrame(mBlock);
-    ClipMarker(mContentArea + mBuilder->ToReferenceFrame(mBlock),
-               markerRect, clipState);
     nsDisplayItem* marker = new (mBuilder)
       nsDisplayTextOverflowMarker(mBuilder, mBlock, markerRect,
                                   aLine->GetAscent(), mLeft.mStyle, 0);
+    if (marker) {
+      marker = ClipMarker(mBuilder, mBlock, marker,
+                          mContentArea + mBuilder->ToReferenceFrame(mBlock),
+                          &markerRect);
+    }
     mMarkerList.AppendNewToTop(marker);
   }
 
   if (aCreateRight) {
-    DisplayListClipState::AutoSaveRestore clipState(mBuilder);
-
     nsRect markerRect = nsRect(aInsideMarkersArea.XMost(),
                                aLine->mBounds.y,
                                mRight.mIntrinsicWidth, aLine->mBounds.height);
     markerRect += mBuilder->ToReferenceFrame(mBlock);
-    ClipMarker(mContentArea + mBuilder->ToReferenceFrame(mBlock),
-               markerRect, clipState);
     nsDisplayItem* marker = new (mBuilder)
       nsDisplayTextOverflowMarker(mBuilder, mBlock, markerRect,
                                   aLine->GetAscent(), mRight.mStyle, 1);
+    if (marker) {
+      marker = ClipMarker(mBuilder, mBlock, marker,
+                          mContentArea + mBuilder->ToReferenceFrame(mBlock),
+                          &markerRect);
+    }
     mMarkerList.AppendNewToTop(marker);
   }
 }

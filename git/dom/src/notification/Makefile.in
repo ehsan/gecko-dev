@@ -18,7 +18,15 @@ FAIL_ON_WARNINGS := 1
 
 CPPSRCS = \
   Notification.cpp \
-  DesktopNotification.cpp \
+  nsDesktopNotification.cpp \
+  $(NULL)
+
+EXPORTS_NAMESPACES = \
+  mozilla/dom \
+  $(NULL)
+
+EXPORTS_mozilla/dom = \
+  Notification.h \
   $(NULL)
 
 LOCAL_INCLUDES = \

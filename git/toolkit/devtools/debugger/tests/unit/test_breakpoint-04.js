@@ -15,7 +15,9 @@ function run_test()
   gDebuggee = addTestGlobal("test-stack");
   gClient = new DebuggerClient(DebuggerServer.connectPipe());
   gClient.connect(function () {
-    attachTestTabAndResume(gClient, "test-stack", function (aResponse, aTabClient, aThreadClient) {
+    attachTestGlobalClientAndResume(gClient,
+                                    "test-stack",
+                                    function (aResponse, aThreadClient) {
       gThreadClient = aThreadClient;
       test_child_breakpoint();
     });
@@ -59,8 +61,8 @@ function test_child_breakpoint()
 
   gDebuggee.eval("var line0 = Error().lineNumber;\n" +
                  "function foo() {\n" + // line0 + 1
-                 "  this.a = 1;\n" +    // line0 + 2
-                 "  this.b = 2;\n" +    // line0 + 3
+                 "  this.a = 1;\n" +     // line0 + 2
+                 "  this.b = 2;\n" +     // line0 + 3
                  "}\n" +                // line0 + 4
                  "debugger;\n" +        // line0 + 5
                  "foo();\n");           // line0 + 6

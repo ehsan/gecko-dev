@@ -8,9 +8,7 @@
 
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Assertions.h"
-#include "js/RootingAPI.h"
 
-struct JSTracer;
 class JSObject;
 struct JSContext;
 class XPCWrappedNativeScope;
@@ -151,7 +149,7 @@ public:
    * Wrap the object corresponding to this wrapper cache. If non-null is
    * returned, the object has already been stored in the wrapper cache.
    */
-  virtual JSObject* WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope)
   {
     MOZ_ASSERT(!IsDOMBinding(), "Someone forgot to override WrapObject");
     return nullptr;
@@ -189,8 +187,6 @@ private:
     mWrapperPtrBits = reinterpret_cast<uintptr_t>(aWrapper) |
                       (mWrapperPtrBits & WRAPPER_IS_DOM_BINDING);
   }
-
-  void TraceJSObjectFromBits(JSTracer *aTrc, const char *aName);
 
   /**
    * If this bit is set then we're preserving the wrapper, which in effect ties

@@ -32,8 +32,7 @@
  static webvtt_node empty_node = {
   { 1 }, /* init ref count */
   0, /* parent */
-  WEBVTT_EMPTY_NODE, /* node kind */
-  { { 0 } } /* value */
+  WEBVTT_EMPTY_NODE /* node kind */
 };
 
 WEBVTT_EXPORT void

@@ -300,7 +300,7 @@ nsTArray_base<Alloc>::IsAutoArrayRestorer::~IsAutoArrayRestorer() {
 
 template<class Alloc>
 template<class Allocator>
-typename Alloc::ResultTypeProxy
+bool
 nsTArray_base<Alloc>::SwapArrayElements(nsTArray_base<Allocator>& other,
                                         size_type elemSize,
                                         size_t elemAlign) {
@@ -321,14 +321,14 @@ nsTArray_base<Alloc>::SwapArrayElements(nsTArray_base<Allocator>& other,
 
     if (!EnsureNotUsingAutoArrayBuffer(elemSize) ||
         !other.EnsureNotUsingAutoArrayBuffer(elemSize)) {
-      return Alloc::FailureResult();
+      return false;
     }
 
     Header *temp = mHdr;
     mHdr = other.mHdr;
     other.mHdr = temp;
 
-    return Alloc::SuccessResult();
+    return true;
   }
 
   // Swap the two arrays using memcpy, since at least one is using an auto
@@ -344,7 +344,7 @@ nsTArray_base<Alloc>::SwapArrayElements(nsTArray_base<Allocator>& other,
 
   if (!Alloc::Successful(EnsureCapacity(other.Length(), elemSize)) ||
       !Allocator::Successful(other.EnsureCapacity(Length(), elemSize))) {
-    return Alloc::FailureResult();
+    return false;
   }
 
   // The EnsureCapacity calls above shouldn't have caused *both* arrays to
@@ -372,7 +372,7 @@ nsTArray_base<Alloc>::SwapArrayElements(nsTArray_base<Allocator>& other,
   // could, in theory, allocate a huge AutoTArray on the heap.)
   nsAutoArrayBase<nsTArray_Impl<uint8_t, Alloc>, 64> temp;
   if (!Alloc::Successful(temp.EnsureCapacity(smallerLength, elemSize))) {
-    return Alloc::FailureResult();
+    return false;
   }
 
   memcpy(temp.Elements(), smallerElements, smallerLength * elemSize);
@@ -387,7 +387,7 @@ nsTArray_base<Alloc>::SwapArrayElements(nsTArray_base<Allocator>& other,
   mHdr->mLength = other.Length();
   other.mHdr->mLength = tempLength;
 
-  return Alloc::SuccessResult();
+  return true;
 }
 
 template<class Alloc>

@@ -91,8 +91,8 @@ nsMacDockSupport::GetBadgeText(nsAString& aBadgeText)
 
 NS_IMETHODIMP
 nsMacDockSupport::SetProgressState(nsTaskbarProgressState aState,
-                                   uint64_t aCurrentValue,
-                                   uint64_t aMaxValue)
+                                   PRUint64 aCurrentValue,
+                                   PRUint64 aMaxValue)
 {
   NS_ENSURE_ARG_RANGE(aState, 0, STATE_PAUSED);
   if (aState == STATE_NO_PROGRESS || aState == STATE_INDETERMINATE) {

@@ -286,7 +286,7 @@ Telephony::SetSpeakerEnabled(bool aSpeakerEnabled)
 }
 
 NS_IMETHODIMP
-Telephony::GetActive(JS::Value* aActive)
+Telephony::GetActive(jsval* aActive)
 {
   if (!mActiveCall) {
     aActive->setNull();
@@ -296,18 +296,18 @@ Telephony::GetActive(JS::Value* aActive)
   nsresult rv;
   nsIScriptContext* sc = GetContextForEventHandlers(&rv);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (!sc) {
-    return NS_OK;
+  AutoPushJSContext cx(sc ? sc->GetNativeContext() : nullptr);
+  if (sc) {
+    rv =
+      nsContentUtils::WrapNative(cx, sc->GetNativeGlobal(),
+                                 mActiveCall->ToISupports(), aActive);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
-
-  AutoPushJSContext cx(sc->GetNativeContext());
-  JS::Rooted<JSObject*> global(cx, sc->GetNativeGlobal());
-  return nsContentUtils::WrapNative(cx, global, mActiveCall->ToISupports(),
-                                    aActive);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
-Telephony::GetCalls(JS::Value* aCalls)
+Telephony::GetCalls(jsval* aCalls)
 {
   JSObject* calls = mCallsArray;
   if (!calls) {
@@ -366,8 +366,7 @@ NS_IMPL_EVENT_HANDLER(Telephony, callschanged)
 
 NS_IMETHODIMP
 Telephony::CallStateChanged(uint32_t aCallIndex, uint16_t aCallState,
-                            const nsAString& aNumber, bool aIsActive,
-                            bool aIsOutgoing)
+                            const nsAString& aNumber, bool aIsActive)
 {
   NS_ASSERTION(aCallIndex != kOutgoingPlaceholderCallIndex,
                "This should never happen!");
@@ -442,7 +441,7 @@ Telephony::CallStateChanged(uint32_t aCallIndex, uint16_t aCallState,
 NS_IMETHODIMP
 Telephony::EnumerateCallState(uint32_t aCallIndex, uint16_t aCallState,
                               const nsAString& aNumber, bool aIsActive,
-                              bool aIsOutgoing, bool* aContinue)
+                              bool* aContinue)
 {
   // Make sure we don't somehow add duplicates.
   for (uint32_t index = 0; index < mCalls.Length(); index++) {

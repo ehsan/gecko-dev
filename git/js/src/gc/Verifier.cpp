@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -29,23 +30,14 @@ using namespace mozilla;
 
 #if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
 
-template <typename T>
-bool
-CheckNonAddressThing(uintptr_t *w, T *t)
-{
-    return w >= (uintptr_t*)t && w < (uintptr_t*)(t + 1);
-}
-
 JS_ALWAYS_INLINE bool
 CheckStackRootThing(uintptr_t *w, void *address, ThingRootKind kind)
 {
-    if (kind == THING_ROOT_BINDINGS)
-        return CheckNonAddressThing(w, static_cast<Bindings*>(address));
+    if (kind != THING_ROOT_BINDINGS)
+        return address == static_cast<void*>(w);
 
-    if (kind == THING_ROOT_PROPERTY_DESCRIPTOR)
-        return CheckNonAddressThing(w, static_cast<PropertyDescriptor*>(address));
-
-    return address == static_cast<void*>(w);
+    Bindings *bp = static_cast<Bindings*>(address);
+    return w >= (uintptr_t*)bp && w < (uintptr_t*)(bp + 1);
 }
 
 struct Rooter {
@@ -326,11 +318,6 @@ DisableGGCForVerification(JSRuntime *rt)
     if (rt->gcVerifyPreData || rt->gcVerifyPostData)
         return;
 
-    if (rt->gcNursery.isEnabled()) {
-        MinorGC(rt, JS::gcreason::API);
-        rt->gcNursery.disable();
-    }
-
     if (rt->gcStoreBuffer.isEnabled())
         rt->gcStoreBuffer.disable();
 #endif
@@ -343,10 +330,8 @@ EnableGGCAfterVerification(JSRuntime *rt)
     if (rt->gcVerifyPreData || rt->gcVerifyPostData)
         return;
 
-    if (rt->gcGenerationalEnabled) {
-        rt->gcNursery.enable();
+    if (rt->gcGenerationalEnabled)
         rt->gcStoreBuffer.enable();
-    }
 #endif
 }
 
@@ -509,13 +494,12 @@ gc::StartVerifyPreBarriers(JSRuntime *rt)
 
     const size_t size = 64 * 1024 * 1024;
     trc->root = (VerifyNode *)js_malloc(size);
-    if (!trc->root)
-        goto oom;
+    JS_ASSERT(trc->root);
     trc->edgeptr = (char *)trc->root;
     trc->term = trc->edgeptr + size;
 
     if (!trc->nodemap.init())
-        goto oom;
+        return;
 
     /* Create the root node. */
     trc->curnode = MakeNode(trc, NULL, JSGCTraceKind(0));
@@ -526,8 +510,7 @@ gc::StartVerifyPreBarriers(JSRuntime *rt)
     /* Make all the roots be edges emanating from the root node. */
     MarkRuntime(trc);
 
-    VerifyNode *node;
-    node = trc->curnode;
+    VerifyNode *node = trc->curnode;
     if (trc->edgeptr == trc->term)
         goto oom;
 
@@ -551,7 +534,6 @@ gc::StartVerifyPreBarriers(JSRuntime *rt)
     rt->gcIncrementalState = MARK;
     rt->gcMarker.start();
 
-    rt->setNeedsBarrier(true);
     for (ZonesIter zone(rt); !zone.done(); zone.next()) {
         PurgeJITCaches(zone);
         zone->setNeedsBarrier(true, Zone::UpdateIon);
@@ -635,7 +617,6 @@ gc::EndVerifyPreBarriers(JSRuntime *rt)
         zone->setNeedsBarrier(false, Zone::UpdateIon);
         PurgeJITCaches(zone);
     }
-    rt->setNeedsBarrier(false);
 
     /*
      * We need to bump gcNumber so that the methodjit knows that jitcode has
@@ -773,6 +754,10 @@ js::gc::EndVerifyPostBarriers(JSRuntime *rt)
         goto oom;
 
     /* Walk the heap. */
+    for (CompartmentsIter comp(rt); !comp.done(); comp.next()) {
+        if (comp->watchpointMap)
+            comp->watchpointMap->markAll(trc);
+    }
     for (GCZoneGroupIter zone(rt); !zone.done(); zone.next()) {
         for (size_t kind = 0; kind < FINALIZE_LIMIT; ++kind) {
             for (CellIterUnderGC cells(zone, AllocKind(kind)); !cells.done(); cells.next()) {
