@@ -805,7 +805,6 @@ struct JSObject : js::gc::Cell {
     inline void setArgsCallee(const js::Value &callee);
 
     inline const js::Value &getArgsElement(uint32 i) const;
-    inline js::Value *getArgsElements() const;
     inline js::Value *addressOfArgsElement(uint32 i);
     inline void setArgsElement(uint32 i, const js::Value &v);
 

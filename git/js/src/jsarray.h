@@ -156,17 +156,6 @@ js_HasLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp);
 extern JSBool JS_FASTCALL
 js_IndexToId(JSContext *cx, jsuint index, jsid *idp);
 
-namespace js {
-
-/*
- * This function assumes 'length' is effectively the result of calling
- * js_GetLengthProperty on aobj.
- */
-extern bool
-GetElements(JSContext *cx, JSObject *aobj, jsuint length, js::Value *vp);
-
-}
-
 /*
  * JS-specific merge sort function.
  */

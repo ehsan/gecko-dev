@@ -346,7 +346,8 @@ IndexToId(JSContext* cx, JSObject* obj, jsdouble index, JSBool* hole, jsid* idp,
  * properly rooted and can be used as GC-protected storage for temporaries.
  */
 static JSBool
-GetElement(JSContext *cx, JSObject *obj, jsdouble index, JSBool *hole, Value *vp)
+GetArrayElement(JSContext *cx, JSObject *obj, jsdouble index, JSBool *hole,
+                Value *vp)
 {
     JS_ASSERT(index >= 0);
     if (obj->isDenseArray() && index < obj->getDenseArrayCapacity() &&
@@ -389,44 +390,6 @@ GetElement(JSContext *cx, JSObject *obj, jsdouble index, JSBool *hole, Value *vp
         *hole = JS_FALSE;
     }
     return JS_TRUE;
-}
-
-namespace js {
-
-bool
-GetElements(JSContext *cx, JSObject *aobj, jsuint length, Value *vp)
-{
-    if (aobj->isDenseArray() && length <= aobj->getDenseArrayCapacity()) {
-        Value *srcbeg = aobj->getDenseArrayElements();
-        Value *srcend = srcbeg + length;
-        for (Value *dst = vp, *src = srcbeg; src < srcend; ++dst, ++src)
-            *dst = src->isMagic(JS_ARRAY_HOLE) ? UndefinedValue() : *src;
-    } else if (aobj->isArguments() && !aobj->isArgsLengthOverridden()) {
-        /*
-         * Two cases, two loops: note how in the case of an active stack frame
-         * backing aobj, even though we copy from fp->argv, we still must check
-         * aobj->getArgsElement(i) for a hole, to handle a delete on the
-         * corresponding arguments element. See args_delProperty.
-         */
-        if (JSStackFrame *fp = (JSStackFrame *) aobj->getPrivate()) {
-            JS_ASSERT(fp->numActualArgs() <= JS_ARGS_LENGTH_MAX);
-            fp->forEachCanonicalActualArg(CopyNonHoleArgsTo(aobj, vp));
-        } else {
-            Value *srcbeg = aobj->getArgsElements();
-            Value *srcend = srcbeg + length;
-            for (Value *dst = vp, *src = srcbeg; src < srcend; ++dst, ++src)
-                *dst = src->isMagic(JS_ARGS_HOLE) ? UndefinedValue() : *src;
-        }
-    } else {
-        for (uintN i = 0; i < length; i++) {
-            if (!aobj->getProperty(cx, INT_TO_JSID(jsint(i)), &vp[i]))
-                return JS_FALSE;
-        }
-    }
-
-    return true;
-}
-
 }
 
 /*
@@ -1161,7 +1124,7 @@ array_toSource(JSContext *cx, uintN argc, Value *vp)
         /* Use vp to locally root each element value. */
         JSBool hole;
         if (!JS_CHECK_OPERATION_LIMIT(cx) ||
-            !GetElement(cx, obj, index, &hole, vp)) {
+            !GetArrayElement(cx, obj, index, &hole, vp)) {
             goto out;
         }
 
@@ -1265,7 +1228,7 @@ array_toString_sub(JSContext *cx, JSObject *obj, JSBool locale,
         /* Use rval to locally root each element value. */
         JSBool hole;
         if (!JS_CHECK_OPERATION_LIMIT(cx) ||
-            !GetElement(cx, obj, index, &hole, rval)) {
+            !GetArrayElement(cx, obj, index, &hole, rval)) {
             goto out;
         }
 
@@ -1493,8 +1456,8 @@ array_reverse(JSContext *cx, uintN argc, Value *vp)
     for (jsuint i = 0, half = len / 2; i < half; i++) {
         JSBool hole, hole2;
         if (!JS_CHECK_OPERATION_LIMIT(cx) ||
-            !GetElement(cx, obj, i, &hole, tvr.addr()) ||
-            !GetElement(cx, obj, len - i - 1, &hole2, vp) ||
+            !GetArrayElement(cx, obj, i, &hole, tvr.addr()) ||
+            !GetArrayElement(cx, obj, len - i - 1, &hole2, vp) ||
             !SetOrDeleteArrayElement(cx, obj, len - i - 1, hole, tvr.value()) ||
             !SetOrDeleteArrayElement(cx, obj, i, hole2, *vp)) {
             return false;
@@ -1814,7 +1777,7 @@ js::array_sort(JSContext *cx, uintN argc, Value *vp)
             JSBool hole;
             vec[newlen].setNull();
             tvr.changeLength(newlen + 1);
-            if (!GetElement(cx, obj, i, &hole, &vec[newlen]))
+            if (!GetArrayElement(cx, obj, i, &hole, &vec[newlen]))
                 return false;
 
             if (hole)
@@ -2038,15 +2001,10 @@ js_ArrayCompPush(JSContext *cx, JSObject *obj, const Value &vp)
 JSBool JS_FASTCALL
 js_ArrayCompPush_tn(JSContext *cx, JSObject *obj, ValueArgType v)
 {
-    if (!ArrayCompPushImpl(cx, obj, ValueArgToConstRef(v))) {
-        SetBuiltinError(cx);
-        return JS_FALSE;
-    }
-
-    return cx->tracerState->builtinStatus == 0;
+    return ArrayCompPushImpl(cx, obj, ValueArgToConstRef(v));
 }
-JS_DEFINE_CALLINFO_3(extern, BOOL_FAIL, js_ArrayCompPush_tn, CONTEXT, OBJECT,
-                     VALUE, 0, nanojit::ACCSET_STORE_ANY)
+JS_DEFINE_CALLINFO_3(extern, BOOL, js_ArrayCompPush_tn, CONTEXT, OBJECT, VALUE,
+                     0, nanojit::ACCSET_STORE_ANY)
 
 static JSBool
 array_push(JSContext *cx, uintN argc, Value *vp)
@@ -2075,7 +2033,7 @@ array_pop_slowly(JSContext *cx, JSObject* obj, Value *vp)
         index--;
 
         /* Get the to-be-deleted property's value into vp. */
-        if (!GetElement(cx, obj, index, &hole, vp))
+        if (!GetArrayElement(cx, obj, index, &hole, vp))
             return JS_FALSE;
         if (!hole && !DeleteArrayElement(cx, obj, index, true))
             return JS_FALSE;
@@ -2095,7 +2053,7 @@ array_pop_dense(JSContext *cx, JSObject* obj, Value *vp)
         return JS_TRUE;
     }
     index--;
-    if (!GetElement(cx, obj, index, &hole, vp))
+    if (!GetArrayElement(cx, obj, index, &hole, vp))
         return JS_FALSE;
     if (!hole && !DeleteArrayElement(cx, obj, index, true))
         return JS_FALSE;
@@ -2142,14 +2100,14 @@ array_shift(JSContext *cx, uintN argc, Value *vp)
         }
 
         /* Get the to-be-deleted property's value into vp ASAP. */
-        if (!GetElement(cx, obj, 0, &hole, vp))
+        if (!GetArrayElement(cx, obj, 0, &hole, vp))
             return JS_FALSE;
 
         /* Slide down the array above the first element. */
         AutoValueRooter tvr(cx);
         for (i = 0; i != length; i++) {
             if (!JS_CHECK_OPERATION_LIMIT(cx) ||
-                !GetElement(cx, obj, i + 1, &hole, tvr.addr()) ||
+                !GetArrayElement(cx, obj, i + 1, &hole, tvr.addr()) ||
                 !SetOrDeleteArrayElement(cx, obj, i, hole, tvr.value())) {
                 return JS_FALSE;
             }
@@ -2194,7 +2152,7 @@ array_unshift(JSContext *cx, uintN argc, Value *vp)
                 do {
                     --last, --upperIndex;
                     if (!JS_CHECK_OPERATION_LIMIT(cx) ||
-                        !GetElement(cx, obj, last, &hole, tvr.addr()) ||
+                        !GetArrayElement(cx, obj, last, &hole, tvr.addr()) ||
                         !SetOrDeleteArrayElement(cx, obj, upperIndex, hole, tvr.value())) {
                         return JS_FALSE;
                     }
@@ -2289,7 +2247,7 @@ array_splice(JSContext *cx, uintN argc, Value *vp)
         } else {
             for (last = begin; last < end; last++) {
                 if (!JS_CHECK_OPERATION_LIMIT(cx) ||
-                    !GetElement(cx, obj, last, &hole, tvr.addr())) {
+                    !GetArrayElement(cx, obj, last, &hole, tvr.addr())) {
                     return JS_FALSE;
                 }
 
@@ -2325,7 +2283,7 @@ array_splice(JSContext *cx, uintN argc, Value *vp)
             /* (uint) end could be 0, so we can't use a vanilla >= test. */
             while (last-- > end) {
                 if (!JS_CHECK_OPERATION_LIMIT(cx) ||
-                    !GetElement(cx, obj, last, &hole, tvr.addr()) ||
+                    !GetArrayElement(cx, obj, last, &hole, tvr.addr()) ||
                     !SetOrDeleteArrayElement(cx, obj, last + delta, hole, tvr.value())) {
                     return JS_FALSE;
                 }
@@ -2346,7 +2304,7 @@ array_splice(JSContext *cx, uintN argc, Value *vp)
         } else {
             for (last = end; last < length; last++) {
                 if (!JS_CHECK_OPERATION_LIMIT(cx) ||
-                    !GetElement(cx, obj, last, &hole, tvr.addr()) ||
+                    !GetArrayElement(cx, obj, last, &hole, tvr.addr()) ||
                     !SetOrDeleteArrayElement(cx, obj, last - delta, hole, tvr.value())) {
                     return JS_FALSE;
                 }
@@ -2425,7 +2383,7 @@ array_concat(JSContext *cx, uintN argc, Value *vp)
                 for (jsuint slot = 0; slot < alength; slot++) {
                     JSBool hole;
                     if (!JS_CHECK_OPERATION_LIMIT(cx) ||
-                        !GetElement(cx, aobj, slot, &hole, tvr.addr())) {
+                        !GetArrayElement(cx, aobj, slot, &hole, tvr.addr())) {
                         return false;
                     }
 
@@ -2517,7 +2475,7 @@ array_slice(JSContext *cx, uintN argc, Value *vp)
     AutoValueRooter tvr(cx);
     for (slot = begin; slot < end; slot++) {
         if (!JS_CHECK_OPERATION_LIMIT(cx) ||
-            !GetElement(cx, obj, slot, &hole, tvr.addr())) {
+            !GetArrayElement(cx, obj, slot, &hole, tvr.addr())) {
             return JS_FALSE;
         }
         if (!hole && !SetArrayElement(cx, nobj, slot - begin, tvr.value()))
@@ -2581,7 +2539,7 @@ array_indexOfHelper(JSContext *cx, JSBool isLast, uintN argc, Value *vp)
 
     for (;;) {
         if (!JS_CHECK_OPERATION_LIMIT(cx) ||
-            !GetElement(cx, obj, (jsuint)i, &hole, vp)) {
+            !GetArrayElement(cx, obj, (jsuint)i, &hole, vp)) {
             return JS_FALSE;
         }
         if (!hole && StrictlyEqual(cx, *vp, tosearch)) {
@@ -2671,7 +2629,7 @@ array_extra(JSContext *cx, ArrayExtraMode mode, uintN argc, Value *vp)
         } else {
             JSBool hole;
             do {
-                if (!GetElement(cx, obj, start, &hole, vp))
+                if (!GetArrayElement(cx, obj, start, &hole, vp))
                     return JS_FALSE;
                 start += step;
             } while (hole && start != end);
@@ -2726,7 +2684,7 @@ array_extra(JSContext *cx, ArrayExtraMode mode, uintN argc, Value *vp)
     for (jsint i = start; i != end; i += step) {
         JSBool hole;
         ok = JS_CHECK_OPERATION_LIMIT(cx) &&
-             GetElement(cx, obj, i, &hole, tvr.addr());
+             GetArrayElement(cx, obj, i, &hole, tvr.addr());
         if (!ok)
             goto out;
         if (hole)

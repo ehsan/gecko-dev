@@ -227,7 +227,7 @@ js_GetVariableStackUses(JSOp op, jsbytecode *pc)
         /* stack: fun, this, [argc arguments] */
         JS_ASSERT(op == JSOP_NEW || op == JSOP_CALL ||
                   op == JSOP_EVAL || op == JSOP_SETCALL ||
-                  op == JSOP_FUNCALL || op == JSOP_FUNAPPLY);
+                  op == JSOP_APPLY);
         return 2 + GET_ARGC(pc);
     }
 }
@@ -1948,8 +1948,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
     JS_BEGIN_MACRO                                                            \
         if (ss->opcodes[ss->top - 1] == JSOP_CALL ||                          \
             ss->opcodes[ss->top - 1] == JSOP_EVAL ||                          \
-            ss->opcodes[ss->top - 1] == JSOP_FUNCALL ||                       \
-            ss->opcodes[ss->top - 1] == JSOP_FUNAPPLY) {                      \
+            ss->opcodes[ss->top - 1] == JSOP_APPLY) {                         \
             saveop = JSOP_CALL;                                               \
         }                                                                     \
     JS_END_MACRO
@@ -3587,8 +3586,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
               case JSOP_NEW:
               case JSOP_CALL:
               case JSOP_EVAL:
-              case JSOP_FUNCALL:
-              case JSOP_FUNAPPLY:
+              case JSOP_APPLY:
               case JSOP_SETCALL:
                 argc = GET_ARGC(pc);
                 argv = (char **)
@@ -3615,8 +3613,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                               (saveop == JSOP_NEW &&
                                (op == JSOP_CALL ||
                                 op == JSOP_EVAL ||
-                                op == JSOP_FUNCALL ||
-                                op == JSOP_FUNAPPLY ||
+                                op == JSOP_APPLY ||
                                 (js_CodeSpec[op].format & JOF_CALLOP)))
                               ? JSOP_NAME
                               : saveop);

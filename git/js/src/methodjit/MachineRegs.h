@@ -55,7 +55,7 @@ struct Registers {
 #if defined(JS_CPU_X64)
     static const RegisterID TypeMaskReg = JSC::X86Registers::r13;
     static const RegisterID PayloadMaskReg = JSC::X86Registers::r14;
-    static const RegisterID ValueReg = JSC::X86Registers::r10;
+    static const RegisterID ValueReg = JSC::X86Registers::r15;
 #endif
 
     // Register that homes the current JSStackFrame.
@@ -107,6 +107,7 @@ struct Registers {
 # if defined(JS_CPU_X64)
         | (1 << JSC::X86Registers::r8)
         | (1 << JSC::X86Registers::r9)
+        | (1 << JSC::X86Registers::r10)
 #  if !defined(_MSC_VER)
         | (1 << JSC::X86Registers::esi)
         | (1 << JSC::X86Registers::edi)
@@ -120,7 +121,7 @@ struct Registers {
           (1 << JSC::X86Registers::r12)
     // r13 is TypeMaskReg.
     // r14 is PayloadMaskReg.
-        | (1 << JSC::X86Registers::r15)
+    // r15 is ValueReg.
 #  if defined(_MSC_VER)
         | (1 << JSC::X86Registers::esi)
         | (1 << JSC::X86Registers::edi)
@@ -165,12 +166,6 @@ struct Registers {
 #endif
 
     static const uint32 AvailRegs = SavedRegs | TempRegs;
-
-    static bool isSaved(RegisterID reg) {
-        uint32 mask = maskReg(reg);
-        JS_ASSERT(mask & AvailRegs);
-        return bool(mask & SavedRegs);
-    }
 
     Registers()
       : freeMask(AvailRegs)

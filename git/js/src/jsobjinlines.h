@@ -403,13 +403,6 @@ JSObject::getArgsElement(uint32 i) const
 }
 
 inline js::Value *
-JSObject::getArgsElements() const
-{
-    JS_ASSERT(isArguments());
-    return getArgsData()->slots;
-}
-
-inline js::Value *
 JSObject::addressOfArgsElement(uint32 i)
 {
     JS_ASSERT(isArguments());
