@@ -3654,12 +3654,7 @@ void __stdcall glLinkProgram(GLuint program)
             }
         }
 
-        gl::Error error = context->linkProgram(program);
-        if (error.isError())
-        {
-            context->recordError(error);
-            return;
-        }
+        context->linkProgram(program);
     }
 }
 
@@ -8407,10 +8402,9 @@ void __stdcall glGetProgramBinaryOES(GLuint program, GLsizei bufSize, GLsizei *l
             return;
         }
 
-        gl::Error error = programBinary->save(binaryFormat, binary, bufSize, length);
-        if (error.isError())
+        if (!programBinary->save(binaryFormat, binary, bufSize, length))
         {
-            context->recordError(error);
+            context->recordError(gl::Error(GL_INVALID_OPERATION));
             return;
         }
     }
@@ -8439,12 +8433,7 @@ void __stdcall glProgramBinaryOES(GLuint program, GLenum binaryFormat,
             return;
         }
 
-        gl::Error error = context->setProgramBinary(program, binaryFormat, binary, length);
-        if (error.isError())
-        {
-            context->recordError(error);
-            return;
-        }
+        context->setProgramBinary(program, binaryFormat, binary, length);
     }
 }
 

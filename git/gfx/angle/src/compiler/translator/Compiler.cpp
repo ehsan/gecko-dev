@@ -360,8 +360,7 @@ void TCompiler::setResourceString()
               << ":MaxVertexOutputVectors:" << compileResources.MaxVertexOutputVectors
               << ":MaxFragmentInputVectors:" << compileResources.MaxFragmentInputVectors
               << ":MinProgramTexelOffset:" << compileResources.MinProgramTexelOffset
-              << ":MaxProgramTexelOffset:" << compileResources.MaxProgramTexelOffset
-              << ":NV_draw_buffers:" << compileResources.NV_draw_buffers;
+              << ":MaxProgramTexelOffset:" << compileResources.MaxProgramTexelOffset;
 
     builtInResourcesString = strstream.str();
 }

@@ -303,9 +303,7 @@ class LifoAlloc
 
     template <typename T>
     T *newArray(size_t count) {
-        static_assert(mozilla::IsPod<T>::value,
-                      "T must be POD so that constructors (and destructors, "
-                      "when the LifoAlloc is freed) need not be called");
+        JS_STATIC_ASSERT(mozilla::IsPod<T>::value);
         return newArrayUninitialized<T>(count);
     }
 

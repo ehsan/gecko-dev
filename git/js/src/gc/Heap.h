@@ -7,7 +7,6 @@
 #ifndef gc_Heap_h
 #define gc_Heap_h
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/PodOperations.h"
@@ -130,9 +129,7 @@ MapAllocToTraceKind(AllocKind kind)
         JSTRACE_SYMBOL,     /* FINALIZE_SYMBOL */
         JSTRACE_JITCODE,    /* FINALIZE_JITCODE */
     };
-
-    static_assert(MOZ_ARRAY_LENGTH(map) == FINALIZE_LIMIT,
-                  "AllocKind-to-TraceKind mapping must be in sync");
+    JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
     return map[kind];
 }
 
