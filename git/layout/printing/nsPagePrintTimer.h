@@ -25,20 +25,14 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  nsPagePrintTimer(nsPrintEngine* aPrintEngine,
-                   nsIDocumentViewerPrint* aDocViewerPrint,
-                   uint32_t aDelay)
-    : mPrintEngine(aPrintEngine)
-    , mDocViewerPrint(aDocViewerPrint)
-    , mDelay(aDelay)
-    , mFiringCount(0)
-    , mPrintObj(nullptr)
-  {
-    mDocViewerPrint->IncrementDestroyRefCount();
-  }
+  nsPagePrintTimer();
   ~nsPagePrintTimer();
 
   NS_DECL_NSITIMERCALLBACK
+
+  void Init(nsPrintEngine*          aPrintEngine,
+            nsIDocumentViewerPrint* aDocViewerPrint,
+            uint32_t                aDelay);
 
   nsresult Start(nsPrintObject* aPO);
 

@@ -64,7 +64,7 @@ NS_IMETHODIMP
 nsSyncStreamListener::OnDataAvailable(nsIRequest     *request,
                                       nsISupports    *context,
                                       nsIInputStream *stream,
-                                      uint64_t        offset,
+                                      uint32_t        offset,
                                       uint32_t        count)
 {
     uint32_t bytesWritten;

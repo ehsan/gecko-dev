@@ -10,6 +10,14 @@
 
 NS_IMPL_ISUPPORTS1(nsPagePrintTimer, nsITimerCallback)
 
+nsPagePrintTimer::nsPagePrintTimer() :
+  mPrintEngine(nullptr),
+  mDelay(0),
+  mFiringCount(0),
+  mPrintObj(nullptr)
+{
+}
+
 nsPagePrintTimer::~nsPagePrintTimer()
 {
   // "Destroy" the document viewer; this normally doesn't actually
@@ -94,6 +102,18 @@ nsPagePrintTimer::Notify(nsITimer *timer)
   return NS_OK;
 }
 
+void 
+nsPagePrintTimer::Init(nsPrintEngine*          aPrintEngine,
+                       nsIDocumentViewerPrint* aDocViewerPrint,
+                       uint32_t                aDelay)
+{
+  mPrintEngine     = aPrintEngine;
+  mDocViewerPrint  = aDocViewerPrint;
+  mDelay           = aDelay;
+
+  mDocViewerPrint->IncrementDestroyRefCount();
+}
+
 nsresult 
 nsPagePrintTimer::Start(nsPrintObject* aPO)
 {
@@ -110,3 +130,22 @@ nsPagePrintTimer::Stop()
     mTimer = nullptr;
   }
 }
+
+nsresult NS_NewPagePrintTimer(nsPagePrintTimer **aResult)
+{
+
+  NS_PRECONDITION(aResult, "null param");
+
+  nsPagePrintTimer* result = new nsPagePrintTimer;
+
+  if (!result) {
+    *aResult = nullptr;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  NS_ADDREF(result);
+  *aResult = result;
+
+  return NS_OK;
+}
+

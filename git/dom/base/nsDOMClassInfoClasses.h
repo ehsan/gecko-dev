@@ -430,6 +430,8 @@ DOMCI_CLASS(TimeRanges)
 DOMCI_CLASS(MediaStream)
 #endif
 
+DOMCI_CLASS(ProgressEvent)
+
 DOMCI_CLASS(XMLHttpRequestUpload)
 
 // DOM Traversal NodeIterator class

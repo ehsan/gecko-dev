@@ -77,7 +77,7 @@ NS_IMETHODIMP
 MediaDocumentStreamListener::OnDataAvailable(nsIRequest* request,
                                              nsISupports *ctxt,
                                              nsIInputStream *inStr,
-                                             uint64_t sourceOffset,
+                                             uint32_t sourceOffset,
                                              uint32_t count)
 {
   if (mNextStream) {

@@ -439,7 +439,7 @@ nsPingListener::OnStartRequest(nsIRequest *request, nsISupports *context)
 
 NS_IMETHODIMP
 nsPingListener::OnDataAvailable(nsIRequest *request, nsISupports *context,
-                                nsIInputStream *stream, uint64_t offset,
+                                nsIInputStream *stream, uint32_t offset,
                                 uint32_t count)
 {
   uint32_t result;
@@ -6944,8 +6944,9 @@ nsDocShell::CaptureState()
     if (!privWin)
         return NS_ERROR_FAILURE;
 
-    nsCOMPtr<nsISupports> windowState = privWin->SaveWindowState();
-    NS_ENSURE_TRUE(windowState, NS_ERROR_FAILURE);
+    nsCOMPtr<nsISupports> windowState;
+    nsresult rv = privWin->SaveWindowState(getter_AddRefs(windowState));
+    NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef DEBUG_PAGE_CACHE
     nsCOMPtr<nsIURI> uri;
@@ -6957,7 +6958,7 @@ nsDocShell::CaptureState()
     printf("  SH URI: %s\n", spec.get());
 #endif
 
-    nsresult rv = mOSHE->SetWindowState(windowState);
+    rv = mOSHE->SetWindowState(windowState);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Suspend refresh URIs and save off the timer queue
