@@ -32,10 +32,7 @@
 #include "hb-ot.h"
 
 #ifdef HAVE_GLIB
-# include <glib.h>
-# if !GLIB_CHECK_VERSION (2, 22, 0)
-#  define g_mapped_file_unref g_mapped_file_free
-# endif
+#include <glib.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>

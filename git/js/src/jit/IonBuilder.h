@@ -626,12 +626,10 @@ class IonBuilder : public MIRGenerator
     MDefinition *patchInlinedReturn(CallInfo &callInfo, MBasicBlock *exit, MBasicBlock *bottom);
     MDefinition *patchInlinedReturns(CallInfo &callInfo, MIRGraphExits &exits, MBasicBlock *bottom);
 
-    bool objectsHaveCommonPrototype(types::TemporaryTypeSet *types, PropertyName *name,
-                                    bool isGetter, JSObject *foundProto);
-    void freezePropertiesForCommonPrototype(types::TemporaryTypeSet *types, PropertyName *name,
-                                            JSObject *foundProto);
-    MDefinition *testCommonGetterSetter(types::TemporaryTypeSet *types, PropertyName *name,
-                                        bool isGetter, JSObject *foundProto, Shape *lastProperty);
+    inline bool testCommonPropFunc(JSContext *cx, types::TemporaryTypeSet *types,
+                                   PropertyName *name, JSFunction **funcp,
+                                   bool isGetter, bool *isDOM,
+                                   MDefinition **guardOut);
     bool testShouldDOMCall(types::TypeSet *inTypes,
                            JSFunction *func, JSJitInfo::OpType opType);
 

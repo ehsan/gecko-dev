@@ -11,11 +11,9 @@
 #include <math.h>
 
 #include "DrawMode.h"
-#include "gfx2DGlue.h"
 #include "gfxMatrix.h"
 #include "gfxPoint.h"
 #include "gfxRect.h"
-#include "mozilla/gfx/Rect.h"
 #include "nsAlgorithm.h"
 #include "nsChangeHint.h"
 #include "nsColor.h"
@@ -143,20 +141,21 @@ bool NS_SVGTextCSSFramesEnabled();
  * that contains an element that has no size e.g. a point at the origin.
  */
 class SVGBBox {
-  typedef mozilla::gfx::Rect Rect;
-
 public:
   SVGBBox() 
     : mIsEmpty(true) {}
 
-  SVGBBox(const Rect& aRect)
+  SVGBBox(const gfxRect& aRect) 
     : mBBox(aRect), mIsEmpty(false) {}
 
-  SVGBBox(const gfxRect& aRect)
-    : mBBox(ToRect(aRect)), mIsEmpty(false) {}
+  SVGBBox& operator=(const gfxRect& aRect) {
+    mBBox = aRect;
+    mIsEmpty = false;
+    return *this;
+  }
 
-  gfxRect ToThebesRect() const {
-    return ThebesRect(mBBox);
+  operator const gfxRect& () const {
+    return mBBox;
   }
 
   bool IsEmpty() const {
@@ -172,8 +171,8 @@ public:
   }
 
 private:
-  Rect mBBox;
-  bool mIsEmpty;
+  gfxRect mBBox;
+  bool    mIsEmpty;
 };
 
 // GRRR WINDOWS HATE HATE HATE

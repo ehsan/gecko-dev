@@ -1241,7 +1241,7 @@ nsSVGUtils::GetBBox(nsIFrame *aFrame, uint32_t aFlags)
       matrix = element->PrependLocalTransformsTo(matrix,
                           nsSVGElement::eChildToUserSpace);
     }
-    return svg->GetBBoxContribution(matrix, aFlags).ToThebesRect();
+    return svg->GetBBoxContribution(matrix, aFlags);
   }
   return nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(aFrame);
 }
@@ -1857,7 +1857,7 @@ nsSVGUtils::GetSVGGlyphExtents(Element* aElement,
   *aResult = svgFrame->GetBBoxContribution(transform,
     nsSVGUtils::eBBoxIncludeFill | nsSVGUtils::eBBoxIncludeFillGeometry |
     nsSVGUtils::eBBoxIncludeStroke | nsSVGUtils::eBBoxIncludeStrokeGeometry |
-    nsSVGUtils::eBBoxIncludeMarkers).ToThebesRect();
+    nsSVGUtils::eBBoxIncludeMarkers);
   return true;
 }
 

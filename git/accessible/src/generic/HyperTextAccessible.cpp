@@ -881,11 +881,10 @@ HyperTextAccessible::GetTextBeforeOffset(int32_t aOffset,
     return NS_OK;
   }
 
-  int32_t convertedOffset = ConvertMagicOffset(aOffset);
-  if (convertedOffset < 0)
+  int32_t adjustedOffset = ConvertMagicOffset(aOffset);
+  if (adjustedOffset < 0)
     return NS_ERROR_INVALID_ARG;
 
-  int32_t adjustedOffset = convertedOffset;
   if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET)
     adjustedOffset = AdjustCaretOffset(adjustedOffset);
 
@@ -914,7 +913,7 @@ HyperTextAccessible::GetTextBeforeOffset(int32_t aOffset,
 
     case BOUNDARY_WORD_END: {
       // Move word backward twice to find start and end offsets.
-      *aEndOffset = FindWordBoundary(convertedOffset, eDirPrevious, eEndWord);
+      *aEndOffset = FindWordBoundary(adjustedOffset, eDirPrevious, eEndWord);
       *aStartOffset = FindWordBoundary(*aEndOffset, eDirPrevious, eEndWord);
       return GetText(*aStartOffset, *aEndOffset, aText);
     }
@@ -1010,11 +1009,10 @@ HyperTextAccessible::GetTextAfterOffset(int32_t aOffset,
     return NS_OK;
   }
 
-  int32_t convertedOffset = ConvertMagicOffset(aOffset);
-  if (convertedOffset < 0)
+  int32_t adjustedOffset = ConvertMagicOffset(aOffset);
+  if (adjustedOffset < 0)
     return NS_ERROR_INVALID_ARG;
 
-  int32_t adjustedOffset = convertedOffset;
   if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET)
     adjustedOffset = AdjustCaretOffset(adjustedOffset);
 
@@ -1033,13 +1031,13 @@ HyperTextAccessible::GetTextAfterOffset(int32_t aOffset,
       // If the offset is a word end (except 0 offset) then move forward to find
       // end offset (start offset is the given offset). Otherwise move forward
       // twice to find both start and end offsets.
-      if (convertedOffset == 0) {
-        *aStartOffset = FindWordBoundary(convertedOffset, eDirNext, eEndWord);
+      if (adjustedOffset == 0) {
+        *aStartOffset = FindWordBoundary(adjustedOffset, eDirNext, eEndWord);
         *aEndOffset = FindWordBoundary(*aStartOffset, eDirNext, eEndWord);
       } else {
-        *aEndOffset = FindWordBoundary(convertedOffset, eDirNext, eEndWord);
+        *aEndOffset = FindWordBoundary(adjustedOffset, eDirNext, eEndWord);
         *aStartOffset = FindWordBoundary(*aEndOffset, eDirPrevious, eEndWord);
-        if (*aStartOffset != convertedOffset) {
+        if (*aStartOffset != adjustedOffset) {
           *aStartOffset = *aEndOffset;
           *aEndOffset = FindWordBoundary(*aStartOffset, eDirNext, eEndWord);
         }

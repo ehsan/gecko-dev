@@ -60,10 +60,6 @@ SOURCES += [
     'IPDLUnitTestSubprocess.cpp',
 ]
 
-GENERATED_SOURCES += [
-    'IPDLUnitTests.cpp',
-]
-
 IPDL_SOURCES += [
     'PTestActorPunning.ipdl',
     'PTestActorPunningPunned.ipdl',

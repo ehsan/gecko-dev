@@ -7,8 +7,7 @@
     Binding Attached
   </content>
   <implementation>
-    <property name="xblBoundProperty" onget="return 1;"
-              exposeToUntrustedContent="true"/>
+    <property name="xblBoundProperty" onget="return 1;"/>
   </implementation>
 </binding>
 </bindings>

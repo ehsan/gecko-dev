@@ -568,10 +568,8 @@ endif
 
 ifeq (_WINNT,$(GNU_CC)_$(OS_ARCH))
 OUTOPTION = -Fo# eol
-PREPROCESS_OPTION = -P -Fi# eol
 else
 OUTOPTION = -o # eol
-PREPROCESS_OPTION = -E -o #eol
 endif # WINNT && !GNU_CC
 
 ifneq (,$(filter ml%,$(AS)))
@@ -1071,19 +1069,19 @@ $(filter %.s,$(CSRCS:%.c=%.s)): %.s: %.c $(call mkdir_deps,$(MDDEPDIR))
 
 $(filter %.i,$(CPPSRCS:%.cpp=%.i)): %.i: %.cpp $(call mkdir_deps,$(MDDEPDIR))
 	$(REPORT_BUILD)
-	$(CCC) -C $(PREPROCESS_OPTION)$@ $(COMPILE_CXXFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
+	$(CCC) -C -E $(COMPILE_CXXFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS) > $*.i
 
 $(filter %.i,$(CPPSRCS:%.cc=%.i)): %.i: %.cc $(call mkdir_deps,$(MDDEPDIR))
 	$(REPORT_BUILD)
-	$(CCC) -C $(PREPROCESS_OPTION)$@ $(COMPILE_CXXFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
+	$(CCC) -C -E $(COMPILE_CXXFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS) > $*.i
 
 $(filter %.i,$(CSRCS:%.c=%.i)): %.i: %.c $(call mkdir_deps,$(MDDEPDIR))
 	$(REPORT_BUILD)
-	$(CC) -C $(PREPROCESS_OPTION)$@ $(COMPILE_CFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
+	$(CC) -C -E $(COMPILE_CFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS) > $*.i
 
 $(filter %.i,$(CMMSRCS:%.mm=%.i)): %.i: %.mm $(call mkdir_deps,$(MDDEPDIR))
 	$(REPORT_BUILD)
-	$(CCC) -C $(PREPROCESS_OPTION)$@ $(COMPILE_CXXFLAGS) $(COMPILE_CMMFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
+	$(CCC) -C -E $(COMPILE_CXXFLAGS) $(COMPILE_CMMFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS) > $*.i
 
 $(RESFILE): %.res: %.rc
 	$(REPORT_BUILD)

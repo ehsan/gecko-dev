@@ -162,7 +162,6 @@ public:
 protected:
 
   bool mMarkedForDeath;
-  bool mUsingXBLScope;
 
   nsXBLPrototypeBinding* mPrototypeBinding; // Weak, but we're holding a ref to the docinfo
   nsCOMPtr<nsIContent> mContent; // Strong. Our anonymous content stays around with us.

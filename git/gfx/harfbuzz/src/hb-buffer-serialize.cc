@@ -146,9 +146,9 @@ _hb_buffer_serialize_glyphs_json (hb_buffer_t *buffer,
 
     *p++ = '}';
 
-    unsigned int l = p - b;
-    if (buf_size > l)
+    if (buf_size > (p - b))
     {
+      unsigned int l = p - b;
       memcpy (buf, b, l);
       buf += l;
       buf_size -= l;
@@ -208,9 +208,9 @@ _hb_buffer_serialize_glyphs_text (hb_buffer_t *buffer,
 	p += MAX (0, snprintf (p, ARRAY_LENGTH (b) - (p - b), ",%d", pos[i].y_advance));
     }
 
-    unsigned int l = p - b;
-    if (buf_size > l)
+    if (buf_size > (p - b))
     {
+      unsigned int l = p - b;
       memcpy (buf, b, l);
       buf += l;
       buf_size -= l;

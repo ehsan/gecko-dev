@@ -128,28 +128,6 @@ DrawTargetSkia::SetGlobalCacheLimits(int aCount, int aSizeInBytes)
 
   DrawTargetSkia::RebalanceCacheLimits();
 }
-
-void
-DrawTargetSkia::PurgeCache()
-{
-  if (mGrContext) {
-    mGrContext->purgeCache();
-  }
-}
-
-/* static */ void
-DrawTargetSkia::PurgeTextureCaches()
-{
-  std::vector<DrawTargetSkia*>& targets = GLDrawTargets();
-  uint32_t targetCount = targets.size();
-  if (targetCount == 0)
-    return;
-
-  for (uint32_t i = 0; i < targetCount; i++) {
-    targets[i]->PurgeCache();
-  }
-}
-
 #endif
 
 DrawTargetSkia::DrawTargetSkia()
@@ -624,9 +602,9 @@ DrawTargetSkia::Mask(const Pattern &aSource,
 
 TemporaryRef<SourceSurface>
 DrawTargetSkia::CreateSourceSurfaceFromData(unsigned char *aData,
-                                            const IntSize &aSize,
-                                            int32_t aStride,
-                                            SurfaceFormat aFormat) const
+                                             const IntSize &aSize,
+                                             int32_t aStride,
+                                             SurfaceFormat aFormat) const
 {
   RefPtr<SourceSurfaceSkia> newSurf = new SourceSurfaceSkia();
 
@@ -651,20 +629,7 @@ DrawTargetSkia::CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aFor
 TemporaryRef<SourceSurface>
 DrawTargetSkia::OptimizeSourceSurface(SourceSurface *aSurface) const
 {
-  if (aSurface->GetType() == SURFACE_SKIA) {
-    return aSurface;
-  }
-
-  if (aSurface->GetType() != SURFACE_DATA) {
-    return nullptr;
-  }
-
-  RefPtr<DataSourceSurface> data = aSurface->GetDataSurface();
-  RefPtr<SourceSurface> surface = CreateSourceSurfaceFromData(data->GetData(),
-                                                              data->GetSize(),
-                                                              data->Stride(),
-                                                              data->GetFormat());
-  return data.forget();
+  return nullptr;
 }
 
 TemporaryRef<SourceSurface>
@@ -679,13 +644,13 @@ DrawTargetSkia::CopySurface(SourceSurface *aSurface,
                             const IntPoint &aDestination)
 {
   //TODO: We could just use writePixels() here if the sourceRect is the entire source
-
+  
   if (aSurface->GetType() != SURFACE_SKIA) {
     return;
   }
 
   MarkChanged();
-
+  
   const SkBitmap& bitmap = static_cast<SourceSurfaceSkia*>(aSurface)->GetBitmap();
 
   mCanvas->save();
@@ -780,14 +745,19 @@ DrawTargetSkia::Init(unsigned char* aData, const IntSize &aSize, int32_t aStride
     ConvertBGRXToBGRA(aData, aSize, aStride);
     isOpaque = true;
   }
+  
+  SkAutoTUnref<SkDevice> device(new SkDevice(GfxFormatToSkiaConfig(aFormat), aSize.width, aSize.height, isOpaque));
 
-  SkBitmap bitmap;
-  bitmap.setConfig(GfxFormatToSkiaConfig(aFormat), aSize.width, aSize.height, aStride);
+  SkBitmap bitmap = (SkBitmap)device->accessBitmap(true);
+  bitmap.lockPixels();
   bitmap.setPixels(aData);
-  bitmap.setIsOpaque(isOpaque);
-  SkAutoTUnref<SkCanvas> canvas(new SkCanvas(new SkDevice(bitmap)));
+  bitmap.setConfig(GfxFormatToSkiaConfig(aFormat), aSize.width, aSize.height, aStride);
+  bitmap.unlockPixels();
+  bitmap.notifyPixelsChanged();
 
+  SkAutoTUnref<SkCanvas> canvas(new SkCanvas(device.get()));
   mSize = aSize;
+
   mCanvas = canvas.get();
   mFormat = aFormat;
 }

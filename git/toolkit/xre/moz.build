@@ -39,10 +39,8 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
     EXPORTS += ['nsQAppInstance.h']
-    GENERATED_SOURCES += [
-        'moc_nsNativeAppSupportQt.cpp',
-    ]
     SOURCES += [
+        'moc_nsNativeAppSupportQt.cpp',
         'nsNativeAppSupportQt.cpp',
         'nsQAppInstance.cpp',
     ]

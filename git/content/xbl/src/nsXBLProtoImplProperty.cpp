@@ -129,24 +129,32 @@ nsXBLProtoImplProperty::InstallMember(JSContext *aCx,
   MOZ_ASSERT(mGetter.IsCompiled() && mSetter.IsCompiled());
   MOZ_ASSERT(js::IsObjectInContextCompartment(aTargetClassObject, aCx));
   JS::Rooted<JSObject*> globalObject(aCx, JS_GetGlobalForObject(aCx, aTargetClassObject));
-  MOZ_ASSERT(xpc::IsInXBLScope(globalObject) ||
-             globalObject == xpc::GetXBLScope(aCx, globalObject));
+  JS::Rooted<JSObject*> scopeObject(aCx, xpc::GetXBLScope(aCx, globalObject));
+  NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
 
   if (mGetter.GetJSFunction() || mSetter.GetJSFunction()) {
+    // First, enter the compartment of the scope object and clone the functions.
+    JSAutoCompartment ac(aCx, scopeObject);
+
     JS::Rooted<JSObject*> getter(aCx, nullptr);
     if (mGetter.GetJSFunction()) {
-      if (!(getter = ::JS_CloneFunctionObject(aCx, mGetter.GetJSFunction(), globalObject)))
+      if (!(getter = ::JS_CloneFunctionObject(aCx, mGetter.GetJSFunction(), scopeObject)))
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
     JS::Rooted<JSObject*> setter(aCx, nullptr);
     if (mSetter.GetJSFunction()) {
-      if (!(setter = ::JS_CloneFunctionObject(aCx, mSetter.GetJSFunction(), globalObject)))
+      if (!(setter = ::JS_CloneFunctionObject(aCx, mSetter.GetJSFunction(), scopeObject)))
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
+    // Now, enter the content compartment, wrap the getter/setter, and define
+    // them on the class object.
+    JSAutoCompartment ac2(aCx, aTargetClassObject);
     nsDependentString name(mName);
-    if (!::JS_DefineUCProperty(aCx, aTargetClassObject,
+    if (!JS_WrapObject(aCx, &getter) ||
+        !JS_WrapObject(aCx, &setter) ||
+        !::JS_DefineUCProperty(aCx, aTargetClassObject,
                                static_cast<const jschar*>(mName),
                                name.Length(), JSVAL_VOID,
                                JS_DATA_TO_FUNC_PTR(JSPropertyOp, getter.get()),

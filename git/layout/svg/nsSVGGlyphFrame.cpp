@@ -520,7 +520,7 @@ nsSVGGlyphFrame::ReflowSVG()
   if ((hitTestFlags & SVG_HIT_TEST_STROKE)) {
    flags |= nsSVGUtils::eBBoxIncludeStrokeGeometry;
   }
-  gfxRect extent = GetBBoxContribution(gfxMatrix(), flags).ToThebesRect();
+  gfxRect extent = GetBBoxContribution(gfxMatrix(), flags);
 
   if (!extent.IsEmpty()) {
     mRect = nsLayoutUtils::RoundGfxRectToAppRect(extent, 
