@@ -481,9 +481,6 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(ContentChild);
 };
 
-uint64_t
-NextWindowID();
-
 } // namespace dom
 } // namespace mozilla
 

@@ -820,12 +820,6 @@ class GCRuntime
     void releaseHeldRelocatedArenas();
 
   private:
-    enum IncrementalProgress
-    {
-        NotFinished = 0,
-        Finished
-    };
-
     void minorGCImpl(JS::gcreason::Reason reason, Nursery::TypeObjectList *pretenureTypes);
 
     // For ArenaLists::allocateFromArena()
@@ -866,7 +860,7 @@ class GCRuntime
     bool shouldPreserveJITCode(JSCompartment *comp, int64_t currentTime,
                                JS::gcreason::Reason reason);
     void bufferGrayRoots();
-    IncrementalProgress drainMarkStack(SliceBudget &sliceBudget, gcstats::Phase phase);
+    bool drainMarkStack(SliceBudget &sliceBudget, gcstats::Phase phase);
     template <class CompartmentIterT> void markWeakReferences(gcstats::Phase phase);
     void markWeakReferencesInCurrentGroup(gcstats::Phase phase);
     template <class ZoneIterT, class CompartmentIterT> void markGrayReferences(gcstats::Phase phase);
@@ -882,7 +876,7 @@ class GCRuntime
     void beginSweepingZoneGroup();
     bool shouldReleaseObservedTypes();
     void endSweepingZoneGroup();
-    IncrementalProgress sweepPhase(SliceBudget &sliceBudget);
+    bool sweepPhase(SliceBudget &sliceBudget);
     void endSweepPhase(bool lastGC);
     void sweepZones(FreeOp *fop, bool lastGC);
     void decommitAllWithoutUnlocking(const AutoLockGC &lock);
@@ -892,7 +886,7 @@ class GCRuntime
     void sweepBackgroundThings(ZoneList &zones, LifoAlloc &freeBlocks, ThreadType threadType);
     void assertBackgroundSweepingFinished();
     bool shouldCompact();
-    IncrementalProgress compactPhase(bool lastGC);
+    bool compactPhase(bool lastGC);
     void sweepTypesAfterCompacting(Zone *zone);
     void sweepZoneAfterCompacting(Zone *zone);
     ArenaHeader *relocateArenas();
@@ -910,6 +904,8 @@ class GCRuntime
     void computeNonIncrementalMarkingForValidation();
     void validateIncrementalMarking();
     void finishMarkingValidation();
+
+    void markConservativeStackRoots(JSTracer *trc, bool useSavedRoots);
 
 #ifdef DEBUG
     void checkForCompartmentMismatches();

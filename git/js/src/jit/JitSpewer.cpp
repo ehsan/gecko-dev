@@ -255,7 +255,6 @@ jit::CheckLogging()
             "  unroll     Loop unrolling\n"
             "  logs       C1 and JSON visualization logging\n"
             "  profiling  Profiling-related information\n"
-            "  trackopts  Optimization tracking information\n"
             "  all        Everything\n"
             "\n"
             "  bl-aborts  Baseline compiler abort messages\n"
@@ -316,8 +315,6 @@ jit::CheckLogging()
         EnableIonDebugLogging();
     if (ContainsFlag(env, "profiling"))
         EnableChannel(JitSpew_Profiling);
-    if (ContainsFlag(env, "trackopts"))
-        EnableChannel(JitSpew_OptimizationTracking);
     if (ContainsFlag(env, "all"))
         LoggingBits = uint32_t(-1);
 

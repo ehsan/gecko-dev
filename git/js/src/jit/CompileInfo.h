@@ -16,8 +16,6 @@
 namespace js {
 namespace jit {
 
-class TrackedOptimizations;
-
 inline unsigned
 StartArgSlot(JSScript *script)
 {
@@ -132,16 +130,13 @@ class BytecodeSite : public TempObject
     // Bytecode address within innermost active function.
     jsbytecode *pc_;
 
-    // Optimization information at the pc.
-    TrackedOptimizations *optimizations_;
-
   public:
     BytecodeSite()
-      : tree_(nullptr), pc_(nullptr), optimizations_(nullptr)
+      : tree_(nullptr), pc_(nullptr)
     {}
 
     BytecodeSite(InlineScriptTree *tree, jsbytecode *pc)
-      : tree_(tree), pc_(pc), optimizations_(nullptr)
+      : tree_(tree), pc_(pc)
     {
         MOZ_ASSERT(tree_ != nullptr);
         MOZ_ASSERT(pc_ != nullptr);
@@ -157,19 +152,6 @@ class BytecodeSite : public TempObject
 
     JSScript *script() const {
         return tree_ ? tree_->script() : nullptr;
-    }
-
-    bool hasOptimizations() const {
-        return !!optimizations_;
-    }
-
-    TrackedOptimizations *optimizations() const {
-        MOZ_ASSERT(hasOptimizations());
-        return optimizations_;
-    }
-
-    void setOptimizations(TrackedOptimizations *optimizations) {
-        optimizations_ = optimizations;
     }
 };
 

@@ -1717,30 +1717,6 @@ TrackPropertiesForSingletonScopes(JSContext *cx, JSScript *script, BaselineFrame
     }
 }
 
-static void
-TrackIonAbort(JSContext *cx, JSScript *script, jsbytecode *pc, const char *message)
-{
-    if (!cx->runtime()->jitRuntime()->isOptimizationTrackingEnabled(cx->runtime()))
-        return;
-
-    // Only bother tracking aborts of functions we're attempting to
-    // Ion-compile after successfully running in Baseline.
-    if (!script->hasBaselineScript())
-        return;
-
-    JitcodeGlobalTable *table = cx->runtime()->jitRuntime()->getJitcodeGlobalTable();
-    JitcodeGlobalEntry entry;
-    table->lookupInfallible(script->baselineScript()->method()->raw(), &entry, cx->runtime());
-    entry.baselineEntry().trackIonAbort(pc, message);
-}
-
-static void
-TrackAndSpewIonAbort(JSContext *cx, JSScript *script, const char *message)
-{
-    JitSpew(JitSpew_IonAbort, message);
-    TrackIonAbort(cx, script, script->code(), message);
-}
-
 static AbortReason
 IonCompile(JSContext *cx, JSScript *script,
            BaselineFrame *baselineFrame, jsbytecode *osrPc, bool constructing,
@@ -1846,15 +1822,6 @@ IonCompile(JSContext *cx, JSScript *script,
                     return AbortReason_Alloc;
             }
         }
-
-        if (builder->hadActionableAbort()) {
-            JSScript *abortScript;
-            jsbytecode *abortPc;
-            const char *abortMessage;
-            builder->actionableAbortLocationAndMessage(&abortScript, &abortPc, &abortMessage);
-            TrackIonAbort(cx, abortScript, abortPc, abortMessage);
-        }
-
         return reason;
     }
 
@@ -1894,7 +1861,7 @@ IonCompile(JSContext *cx, JSScript *script,
 }
 
 static bool
-CheckFrame(JSContext *cx, BaselineFrame *frame)
+CheckFrame(BaselineFrame *frame)
 {
     MOZ_ASSERT(!frame->script()->isGenerator());
     MOZ_ASSERT(!frame->isDebuggerEvalFrame());
@@ -1902,12 +1869,12 @@ CheckFrame(JSContext *cx, BaselineFrame *frame)
     // This check is to not overrun the stack.
     if (frame->isFunctionFrame()) {
         if (TooManyActualArguments(frame->numActualArgs())) {
-            TrackAndSpewIonAbort(cx, frame->script(), "too many actual arguments");
+            JitSpew(JitSpew_IonAbort, "too many actual args");
             return false;
         }
 
         if (TooManyFormalArguments(frame->numFormalArgs())) {
-            TrackAndSpewIonAbort(cx, frame->script(), "too many arguments");
+            JitSpew(JitSpew_IonAbort, "too many args");
             return false;
         }
     }
@@ -1922,12 +1889,12 @@ CheckScript(JSContext *cx, JSScript *script, bool osr)
         // Eval frames are not yet supported. Supporting this will require new
         // logic in pushBailoutFrame to deal with linking prev.
         // Additionally, JSOP_DEFVAR support will require baking in isEvalFrame().
-        TrackAndSpewIonAbort(cx, script, "eval script");
+        JitSpew(JitSpew_IonAbort, "eval script");
         return false;
     }
 
     if (script->isGenerator()) {
-        TrackAndSpewIonAbort(cx, script, "generator script");
+        JitSpew(JitSpew_IonAbort, "generator script");
         return false;
     }
 
@@ -1935,7 +1902,7 @@ CheckScript(JSContext *cx, JSScript *script, bool osr)
         // Support non-CNG functions but not other scripts. For global scripts,
         // IonBuilder currently uses the global object as scope chain, this is
         // not valid for non-CNG code.
-        TrackAndSpewIonAbort(cx, script, "not compile-and-go");
+        JitSpew(JitSpew_IonAbort, "not compile-and-go");
         return false;
     }
 
@@ -1956,7 +1923,6 @@ CheckScriptSize(JSContext *cx, JSScript* script)
         if (!OffThreadCompilationAvailable(cx)) {
             JitSpew(JitSpew_IonAbort, "Script too large (%u bytes) (%u locals/args)",
                     script->length(), numLocalsAndArgs);
-            TrackIonAbort(cx, script, script->code(), "too large");
             return Method_CantCompile;
         }
     }
@@ -1991,7 +1957,7 @@ Compile(JSContext *cx, HandleScript script, BaselineFrame *osrFrame, jsbytecode 
         return Method_Skipped;
 
     if (script->isDebuggee() || (osrFrame && osrFrame->isDebuggee())) {
-        TrackAndSpewIonAbort(cx, script, "debugging");
+        JitSpew(JitSpew_IonAbort, "debugging");
         return Method_Skipped;
     }
 
@@ -2079,7 +2045,7 @@ jit::CanEnterAtBranch(JSContext *cx, JSScript *script, BaselineFrame *osrFrame, 
         return Method_Skipped;
 
     // Mark as forbidden if frame can't be handled.
-    if (!CheckFrame(cx, osrFrame)) {
+    if (!CheckFrame(osrFrame)) {
         ForbidCompilation(cx, script);
         return Method_CantCompile;
     }
@@ -2146,13 +2112,13 @@ jit::CanEnter(JSContext *cx, RunState &state)
         InvokeState &invoke = *state.asInvoke();
 
         if (TooManyActualArguments(invoke.args().length())) {
-            TrackAndSpewIonAbort(cx, script, "too many actual args");
+            JitSpew(JitSpew_IonAbort, "too many actual args");
             ForbidCompilation(cx, script);
             return Method_CantCompile;
         }
 
         if (TooManyFormalArguments(invoke.args().callee().as<JSFunction>().nargs())) {
-            TrackAndSpewIonAbort(cx, script, "too many args");
+            JitSpew(JitSpew_IonAbort, "too many args");
             ForbidCompilation(cx, script);
             return Method_CantCompile;
         }
@@ -2191,7 +2157,7 @@ jit::CompileFunctionForBaseline(JSContext *cx, HandleScript script, BaselineFram
     MOZ_ASSERT(frame->isFunctionFrame());
 
     // Mark as forbidden if frame can't be handled.
-    if (!CheckFrame(cx, frame)) {
+    if (!CheckFrame(frame)) {
         ForbidCompilation(cx, script);
         return Method_CantCompile;
     }

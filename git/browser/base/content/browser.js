@@ -3760,14 +3760,13 @@ function FillHistoryMenu(aParent) {
     let item = document.createElement("menuitem");
     let entry = sessionHistory.getEntryAtIndex(j, false);
     let uri = entry.URI.spec;
-    let uriCopy = BrowserUtils.makeURI(uri);
 
     item.setAttribute("uri", uri);
     item.setAttribute("label", entry.title || uri);
     item.setAttribute("index", j);
 
     if (j != index) {
-      PlacesUtils.favicons.getFaviconURLForPage(uriCopy, function (aURI) {
+      PlacesUtils.favicons.getFaviconURLForPage(entry.URI, function (aURI) {
         if (aURI) {
           let iconURL = PlacesUtils.favicons.getFaviconLinkForIcon(aURI).spec;
           iconURL = PlacesUtils.getImageURLForResolution(window, iconURL);
@@ -3873,10 +3872,7 @@ function OpenBrowserWindow(options)
   }
 
   if (options && options.remote) {
-    // If we're using remote tabs by default, then OMTC will be force-enabled,
-    // despite the preference returning as false.
-    let omtcEnabled = gPrefService.getBoolPref("layers.offmainthreadcomposition.enabled")
-                      || Services.appinfo.browserTabsRemoteAutostart;
+    let omtcEnabled = gPrefService.getBoolPref("layers.offmainthreadcomposition.enabled");
     if (!omtcEnabled) {
       alert("To use out-of-process tabs, you must set the layers.offmainthreadcomposition.enabled preference and restart. Opening a normal window instead.");
     } else {
