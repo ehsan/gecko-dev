@@ -270,6 +270,10 @@ public class AndroidFxAccount {
     return accountManager.getUserData(account, ACCOUNT_KEY_IDP_SERVER);
   }
 
+  public String getAudience() {
+    return accountManager.getUserData(account, ACCOUNT_KEY_AUDIENCE);
+  }
+
   public String getTokenServerURI() {
     return accountManager.getUserData(account, ACCOUNT_KEY_TOKEN_SERVER);
   }
@@ -398,6 +402,7 @@ public class AndroidFxAccount {
     userdata.putString(ACCOUNT_KEY_ACCOUNT_VERSION, "" + CURRENT_ACCOUNT_VERSION);
     userdata.putString(ACCOUNT_KEY_IDP_SERVER, idpServerURI);
     userdata.putString(ACCOUNT_KEY_TOKEN_SERVER, tokenServerURI);
+    userdata.putString(ACCOUNT_KEY_AUDIENCE, FxAccountUtils.getAudienceForURL(tokenServerURI));
     userdata.putString(ACCOUNT_KEY_PROFILE, profile);
 
     if (bundle == null) {

@@ -211,11 +211,8 @@ TraceLoggerThread::enable()
 bool
 TraceLoggerThread::enable(JSContext *cx)
 {
-    if (!enable()) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_TRACELOGGER_ENABLE_FAIL,
-                             "internal error");
+    if (!enable())
         return false;
-    }
 
     if (enabled == 1) {
         // Get the top Activation to log the top script/pc (No inlined frames).
@@ -223,8 +220,6 @@ TraceLoggerThread::enable(JSContext *cx)
         Activation *act = iter.activation();
 
         if (!act) {
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_TRACELOGGER_ENABLE_FAIL,
-                                 "internal error");
             failed = true;
             enabled = 0;
             return false;
@@ -244,10 +239,6 @@ TraceLoggerThread::enable(JSContext *cx)
 
             script = it.script();
             engine = it.isIonJS() ? TraceLogger_IonMonkey : TraceLogger_Baseline;
-        } else if (act->isAsmJS()) {
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_TRACELOGGER_ENABLE_FAIL,
-                                 "not yet supported in asmjs code");
-            return false;
         } else {
             MOZ_ASSERT(act->isInterpreter());
             InterpreterFrame *fp = act->asInterpreter()->current();
@@ -256,8 +247,6 @@ TraceLoggerThread::enable(JSContext *cx)
             script = fp->script();
             engine = TraceLogger_Interpreter;
             if (script->compartment() != cx->compartment()) {
-                JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_TRACELOGGER_ENABLE_FAIL,
-                                     "compartment mismatch");
                 failed = true;
                 enabled = 0;
                 return false;

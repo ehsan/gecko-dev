@@ -796,7 +796,7 @@ TabParent::LoadURL(nsIURI* aURI)
 }
 
 void
-TabParent::Show(const ScreenIntSize& size, bool aParentIsActive)
+TabParent::Show(const nsIntSize& size, bool aParentIsActive)
 {
     // sigh
     mShown = true;
@@ -882,7 +882,7 @@ TabParent::RecvSetDimensions(const uint32_t& aFlags,
 }
 
 void
-TabParent::UpdateDimensions(const nsIntRect& rect, const ScreenIntSize& size,
+TabParent::UpdateDimensions(const nsIntRect& rect, const nsIntSize& size,
                             const nsIntPoint& aChromeDisp)
 {
   if (mIsDestroyed) {

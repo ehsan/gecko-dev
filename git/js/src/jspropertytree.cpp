@@ -14,6 +14,8 @@
 
 #include "vm/Shape.h"
 
+#include "jsgcinlines.h"
+
 #include "vm/Shape-inl.h"
 
 using namespace js;

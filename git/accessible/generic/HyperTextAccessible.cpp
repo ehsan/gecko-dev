@@ -59,9 +59,35 @@ NS_IMPL_ISUPPORTS_INHERITED0(HyperTextAccessible, Accessible)
 role
 HyperTextAccessible::NativeRole()
 {
-  a11y::role r = GetAccService()->MarkupRole(mContent);
-  if (r != roles::NOTHING)
-    return r;
+  if (mContent->IsHTMLElement(nsGkAtoms::dd))
+    return roles::DEFINITION;
+
+  if (mContent->IsHTMLElement(nsGkAtoms::form))
+    return roles::FORM;
+
+  if (mContent->IsAnyOfHTMLElements(nsGkAtoms::blockquote,
+                                    nsGkAtoms::div,
+                                    nsGkAtoms::section,
+                                    nsGkAtoms::nav))
+    return roles::SECTION;
+
+  if (mContent->IsAnyOfHTMLElements(nsGkAtoms::h1, nsGkAtoms::h2,
+                                    nsGkAtoms::h3, nsGkAtoms::h4,
+                                    nsGkAtoms::h5, nsGkAtoms::h6))
+    return roles::HEADING;
+
+  if (mContent->IsHTMLElement(nsGkAtoms::article))
+    return roles::DOCUMENT;
+
+  // Deal with html landmark elements
+  if (mContent->IsHTMLElement(nsGkAtoms::header))
+    return roles::HEADER;
+
+  if (mContent->IsHTMLElement(nsGkAtoms::footer))
+    return roles::FOOTER;
+
+  if (mContent->IsHTMLElement(nsGkAtoms::aside))
+    return roles::NOTE;
 
   // Treat block frames as paragraphs
   nsIFrame *frame = GetFrame();

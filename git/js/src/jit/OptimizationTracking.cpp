@@ -8,8 +8,6 @@
 
 #include "mozilla/SizePrintfMacros.h"
 
-#include "jsprf.h"
-
 #include "ds/Sort.h"
 #include "jit/IonBuilder.h"
 #include "jit/JitcodeMap.h"

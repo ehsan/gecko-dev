@@ -329,8 +329,7 @@ _shexp_match(const T* aStr, const T* aExpr, bool aCaseInsensitive,
       case '[': {
         T start, end = 0;
         int i;
-        ++y;
-        neg = (aExpr[y] == '^' && aExpr[y + 1] != ']');
+        neg = (aExpr[++y] == '^' && aExpr[y + 1] != ']');
         if (neg) {
           ++y;
         }

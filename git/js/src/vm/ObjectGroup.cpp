@@ -14,6 +14,7 @@
 #include "vm/ArrayObject.h"
 #include "vm/UnboxedObject.h"
 
+#include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
@@ -1322,7 +1323,7 @@ ObjectGroupCompartment::makeGroup(ExclusiveContext *cx, const Class *clasp,
 {
     MOZ_ASSERT_IF(proto.isObject(), cx->isInsideCurrentCompartment(proto.toObject()));
 
-    ObjectGroup *group = Allocate<ObjectGroup>(cx);
+    ObjectGroup *group = NewObjectGroup(cx);
     if (!group)
         return nullptr;
     new(group) ObjectGroup(clasp, proto, cx->compartment(), initialFlags);

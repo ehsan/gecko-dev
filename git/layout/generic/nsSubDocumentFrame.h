@@ -10,7 +10,6 @@
 #include "nsLeafFrame.h"
 #include "nsIReflowCallback.h"
 #include "nsFrameLoader.h"
-#include "Units.h"
 
 /******************************************************************************
  * nsSubDocumentFrame
@@ -104,7 +103,7 @@ public:
     IGNORE_PAINT_SUPPRESSION = 0x1
   };
   nsIPresShell* GetSubdocumentPresShellForPainting(uint32_t aFlags);
-  mozilla::ScreenIntSize GetSubdocumentSize();
+  nsIntSize GetSubdocumentSize();
 
   // nsIReflowCallback
   virtual bool ReflowFinished() MOZ_OVERRIDE;
