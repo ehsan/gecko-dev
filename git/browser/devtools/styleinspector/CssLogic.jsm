@@ -745,24 +745,6 @@ CssLogic.isContentStylesheet = function CssLogic_isContentStylesheet(aSheet)
 };
 
 /**
- * Get a source for a stylesheet, taking into account embedded stylesheets
- * for which we need to use document.defaultView.location.href rather than
- * sheet.href
- *
- * @param {CSSStyleSheet} aSheet the DOM object for the style sheet.
- * @return {string} the address of the stylesheet.
- */
-CssLogic.href = function CssLogic_href(aSheet)
-{
-  let href = aSheet.href;
-  if (!href) {
-    href = aSheet.ownerNode.ownerDocument.location;
-  }
-
-  return href;
-};
-
-/**
  * Return a shortened version of a style sheet's source.
  *
  * @param {CSSStyleSheet} aSheet the DOM object for the style sheet.
@@ -945,17 +927,21 @@ CssSheet.prototype = {
   },
 
   /**
-   * Get a source for a stylesheet, using CssLogic.href
+   * Get a source for a stylesheet, taking into account embedded stylesheets
+   * for which we need to use document.defaultView.location.href rather than
+   * sheet.href
    *
    * @return {string} the address of the stylesheet.
    */
   get href()
   {
-    if (this._href) {
-      return this._href;
+    if (!this._href) {
+      this._href = this.domSheet.href;
+      if (!this._href) {
+        this._href = this.domSheet.ownerNode.ownerDocument.location;
+      }
     }
 
-    this._href = CssLogic.href(this.domSheet);
     return this._href;
   },
 
