@@ -1,0 +1,15 @@
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+}
+
+#remote-report {
+  width: 100%;
+  min-height: 99%;
+  border: 0;
+  display: flex;
+}
