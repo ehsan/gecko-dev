@@ -191,6 +191,7 @@ FILE *gErrFile = NULL;
 FILE *gOutFile = NULL;
 #ifdef JS_THREADSAFE
 JSObject *gWorkers = NULL;
+js::workers::ThreadPool *gWorkerThreadPool = NULL;
 #endif
 
 static JSBool reportWarnings = JS_TRUE;
@@ -559,7 +560,7 @@ static int
 usage(void)
 {
     fprintf(gErrFile, "%s\n", JS_GetImplementationVersion());
-    fprintf(gErrFile, "usage: js [-zKPswWxCijmd] [-t timeoutSeconds] [-c stackchunksize] [-o option] [-v version] [-f scriptfile] [-e script] [-S maxstacksize] "
+    fprintf(gErrFile, "usage: js [-zKPswWxCijmd] [-t timeoutSeconds] [-c stackchunksize] [-o option] [-v version] [-f scriptfile] [-e script] [-S maxstacksize] [-g sleep-seconds-on-startup]"
 #ifdef JS_GC_ZEAL
 "[-Z gczeal] "
 #endif
@@ -660,6 +661,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
 #ifdef MOZ_TRACEVIS
           case 'T':
 #endif
+          case 'g':
             ++i;
             break;
           default:;
@@ -859,6 +861,15 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             StartTraceVis(argv[i]);
             break;
 #endif
+#ifdef JS_THREADSAFE
+        case 'g':
+            if (++i == argc)
+                return usage();
+
+            PR_Sleep(PR_SecondsToInterval(atoi(argv[i])));
+            break;
+#endif
+
         default:
             return usage();
         }
@@ -1132,8 +1143,8 @@ Quit(JSContext *cx, uintN argc, jsval *vp)
 
     gQuitting = JS_TRUE;
 #ifdef JS_THREADSAFE
-    if (gWorkers)
-        js::workers::terminateAll(cx, gWorkers);
+    if (gWorkerThreadPool)
+        js::workers::terminateAll(JS_GetRuntime(cx), gWorkerThreadPool);
 #endif
     return JS_FALSE;
 }
@@ -1186,7 +1197,7 @@ AssertJit(JSContext *cx, uintN argc, jsval *vp)
 {
 #ifdef JS_METHODJIT
     if (JS_GetOptions(cx) & JSOPTION_METHODJIT) {
-        if (cx->fp()->script()->nmap == NULL) {
+        if (!cx->fp()->script()->getJIT(cx->fp()->isConstructing())) {
             JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_ASSERT_JIT_FAILED);
             return JS_FALSE;
         }
@@ -1929,9 +1940,7 @@ DisassembleValue(JSContext *cx, jsval v, bool lines, bool recursive)
 
             SHOW_FLAG(LAMBDA);
             SHOW_FLAG(HEAVYWEIGHT);
-            SHOW_FLAG(THISP_STRING);
-            SHOW_FLAG(THISP_NUMBER);
-            SHOW_FLAG(THISP_BOOLEAN);
+            SHOW_FLAG(PRIMITIVE_THIS);
             SHOW_FLAG(EXPR_CLOSURE);
             SHOW_FLAG(TRCINFO);
 
@@ -3799,13 +3808,8 @@ CancelExecution(JSRuntime *rt)
     if (gExitCode == 0)
         gExitCode = EXITCODE_TIMEOUT;
 #ifdef JS_THREADSAFE
-    if (gWorkers) {
-        JSContext *cx = JS_NewContext(rt, 8192);
-        if (cx) {
-            js::workers::terminateAll(cx, gWorkers);
-            JS_DestroyContextNoGC(cx);
-        }
-    }
+    if (gWorkerThreadPool)
+        js::workers::terminateAll(rt, gWorkerThreadPool);
 #endif
     JS_TriggerAllOperationCallbacks(rt);
 
@@ -4068,38 +4072,6 @@ Snarf(JSContext *cx, uintN argc, jsval *vp)
     return JS_TRUE;
 }
 
-static JSBool
-Snarl(JSContext *cx, uintN argc, jsval *vp)
-{
-    if (argc < 1) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
-                             "compile", "0", "s");
-    }
-
-    JSObject *thisobj = JS_THIS_OBJECT(cx, vp);
-    if (!thisobj)
-        return JS_FALSE;
-
-    jsval arg0 = JS_ARGV(cx, vp)[0];
-    if (!JSVAL_IS_STRING(arg0)) {
-        const char *typeName = JS_GetTypeName(cx, JS_TypeOfValue(cx, arg0));
-        JS_ReportError(cx, "expected string to compile, got %s", typeName);
-        return JS_FALSE;
-    }
-
-    JSString *scriptContents = JSVAL_TO_STRING(arg0);
-    JSScript *script = JS_CompileUCScript(cx, NULL, JS_GetStringCharsZ(cx, scriptContents),
-                                          JS_GetStringLength(scriptContents), "<string>", 0);
-    if (!script)
-        return JS_FALSE;
-
-    JS_ExecuteScript(cx, thisobj, script, NULL);
-    JS_DestroyScript(cx, script);
-
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return JS_TRUE;
-}
-
 JSBool
 Wrap(JSContext *cx, uintN argc, jsval *vp)
 {
@@ -4250,7 +4222,6 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("scatter",        Scatter,        1,0),
 #endif
     JS_FN("snarf",          Snarf,          0,0),
-    JS_FN("snarl",          Snarl,          0,0),
     JS_FN("read",           Snarf,          0,0),
     JS_FN("compile",        Compile,        1,0),
     JS_FN("parse",          Parse,          1,0),
@@ -4376,7 +4347,6 @@ static const char *const shell_help_messages[] = {
 "scatter(fns)             Call functions concurrently (ignoring errors)",
 #endif
 "snarf(filename)          Read filename into returned string",
-"snarl(codestring)        Eval code, without being eval.",
 "read(filename)           Synonym for snarf",
 "compile(code)            Compiles a string to bytecode, potentially throwing",
 "parse(code)              Parses a string, potentially throwing",
@@ -5242,7 +5212,7 @@ NewGlobalObject(JSContext *cx)
 }
 
 int
-shell(JSContext *cx, int argc, char **argv, char **envp)
+Shell(JSContext *cx, int argc, char **argv, char **envp)
 {
     JSAutoRequest ar(cx);
 
@@ -5295,7 +5265,7 @@ shell(JSContext *cx, int argc, char **argv, char **envp)
     };
     ShellWorkerHooks hooks;
     if (!JS_AddNamedObjectRoot(cx, &gWorkers, "Workers") ||
-        !js::workers::init(cx, &hooks, glob, &gWorkers)) {
+        (gWorkerThreadPool = js::workers::init(cx, &hooks, glob, &gWorkers)) == NULL) {
         return 1;
     }
 #endif
@@ -5303,7 +5273,7 @@ shell(JSContext *cx, int argc, char **argv, char **envp)
     int result = ProcessArgs(cx, glob, argv, argc);
 
 #ifdef JS_THREADSAFE
-    js::workers::finish(cx, gWorkers);
+    js::workers::finish(cx, gWorkerThreadPool);
     JS_RemoveObjectRoot(cx, &gWorkers);
     if (result == 0)
         result = gExitCode;
@@ -5320,6 +5290,17 @@ shell(JSContext *cx, int argc, char **argv, char **envp)
 #endif  /* JSDEBUGGER */
 
     return result;
+}
+
+static void
+MaybeOverrideOutFileFromEnv(const char* const envVar,
+                            FILE* defaultOut,
+                            FILE** outFile)
+{
+    const char* outPath = getenv(envVar);
+    if (!outPath || !*outPath || !(*outFile = fopen(outPath, "w"))) {
+        *outFile = defaultOut;
+    }
 }
 
 int
@@ -5370,8 +5351,8 @@ main(int argc, char **argv, char **envp)
     setbuf(stderr,0);
 #endif
 
-    gErrFile = stderr;
-    gOutFile = stdout;
+    MaybeOverrideOutFileFromEnv("JS_STDERR", stderr, &gErrFile);
+    MaybeOverrideOutFileFromEnv("JS_STDOUT", stdout, &gOutFile);
 
     argc--;
     argv++;
@@ -5383,7 +5364,7 @@ main(int argc, char **argv, char **envp)
     CALIBRATION_DELAY_COUNT = 0;
 #endif
 
-    rt = JS_NewRuntime(128L * 1024L * 1024L);
+    rt = JS_NewRuntime(160L * 1024L * 1024L);
     if (!rt)
         return 1;
 
@@ -5394,9 +5375,10 @@ main(int argc, char **argv, char **envp)
     if (!cx)
         return 1;
 
+    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_ANONFUNFIX);
     JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 16 * 1024 * 1024);
 
-    result = shell(cx, argc, argv, envp);
+    result = Shell(cx, argc, argv, envp);
 
     DestroyContext(cx, true);
 

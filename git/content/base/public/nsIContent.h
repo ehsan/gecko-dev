@@ -71,8 +71,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0xdd254504, 0xe273, 0x4923, \
-  { 0x9e, 0xc1, 0xd8, 0x42, 0x1a, 0x66, 0x35, 0xf1 } }
+{ 0x64ef8589, 0xbd19, 0x40f4, \
+  { 0xa9, 0x61, 0x47, 0x89, 0xe0, 0x8d, 0xb0, 0x49 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -175,12 +175,18 @@ public:
      *   3. native anonymous nodes
      *   4. :after generated node
      */
-    eAllButXBL = 1
+    eAllButXBL = 1,
+
+    /**
+     * Skip native anonymous content created for placeholder of HTML input,
+     * used in conjunction with eAllChildren or eAllButXBL.
+     */
+    eSkipPlaceholderContent = 2
   };
 
   /**
    * Return either the XBL explicit children of the node or the XBL flattened
-   * tree children of the node, depending on the child type, as well as any
+   * tree children of the node, depending on the filter, as well as
    * native anonymous children.
    *
    * @note calling this method with eAllButXBL will return children that are
@@ -188,7 +194,7 @@ public:
    *  of this node in the tree, but those other nodes cannot be reached from the
    *  eAllButXBL child list.
    */
-  virtual already_AddRefed<nsINodeList> GetChildren(PRInt32 aChildType) = 0;
+  virtual already_AddRefed<nsINodeList> GetChildren(PRUint32 aFilter) = 0;
 
   /**
    * Get whether this content is C++-generated anonymous content
@@ -895,7 +901,7 @@ public:
    *
    * The CALLER OWNS the result and is responsible for deleting it.
    */
-  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* aName) = 0;
+  virtual nsISMILAttr* GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName) = 0;
 
    /**
     * Get the SMIL override style for this content node.  This is a style
