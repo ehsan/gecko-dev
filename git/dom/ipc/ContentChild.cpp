@@ -868,7 +868,8 @@ ContentChild::AllocPExternalHelperAppChild(const OptionalURIParams& uri,
                                            const nsCString& aContentDisposition,
                                            const bool& aForceSave,
                                            const int64_t& aContentLength,
-                                           const OptionalURIParams& aReferrer)
+                                           const OptionalURIParams& aReferrer,
+                                           PBrowserChild* aBrowser)
 {
     ExternalHelperAppChild *child = new ExternalHelperAppChild();
     child->AddRef();
@@ -1367,6 +1368,16 @@ ContentChild::RecvCancelMinimizeMemoryUsage()
     }
 
     return true;
+}
+
+bool
+ContentChild::RecvNotifyPhoneStateChange(const nsString& aState)
+{
+  nsCOMPtr<nsIObserverService> os = services::GetObserverService();
+  if (os) {
+    os->NotifyObservers(nullptr, "phone-state-changed", aState.get());
+  }
+  return true;
 }
 
 bool

@@ -36,36 +36,6 @@ function promiseStartDownload(aSourceUrl) {
 }
 
 /**
- * Waits for a download to reach half of its progress, in case it has not
- * reached the expected progress already.
- *
- * @param aDownload
- *        The Download object to wait upon.
- *
- * @return {Promise}
- * @resolves When the download has reached half of its progress.
- * @rejects Never.
- */
-function promiseDownloadMidway(aDownload) {
-  let deferred = Promise.defer();
-
-  // Wait for the download to reach half of its progress.
-  let onchange = function () {
-    if (!aDownload.stopped && !aDownload.canceled && aDownload.progress == 50) {
-      aDownload.onchange = null;
-      deferred.resolve();
-    }
-  };
-
-  // Register for the notification, but also call the function directly in
-  // case the download already reached the expected progress.
-  aDownload.onchange = onchange;
-  onchange();
-
-  return deferred.promise;
-}
-
-/**
  * Waits for a download to finish, in case it has not finished already.
  *
  * @param aDownload
@@ -1622,6 +1592,25 @@ add_task(function test_contentType() {
   yield promiseDownloadStopped(download);
 
   do_check_eq("text/plain", download.contentType);
+});
+
+/**
+ * Tests that the serialization/deserialization of the startTime Date
+ * object works correctly.
+ */
+add_task(function test_toSerializable_startTime()
+{
+  let download1 = yield promiseStartDownload(httpUrl("source.txt"));
+  yield promiseDownloadStopped(download1);
+
+  let serializable = download1.toSerializable();
+  let reserialized = JSON.parse(JSON.stringify(serializable));
+
+  let download2 = yield Downloads.createDownload(reserialized);
+
+  do_check_eq(download1.startTime.constructor.name, "Date");
+  do_check_eq(download2.startTime.constructor.name, "Date");
+  do_check_eq(download1.startTime.toJSON(), download2.startTime.toJSON());
 });
 
 /**

@@ -323,7 +323,6 @@ public:
 
   virtual void AddInvalidateHiddenPresShellObserver(nsRefreshDriver *aDriver) MOZ_OVERRIDE;
 
-
   // This data is stored as a content property (nsGkAtoms::scrolling) on
   // mContentToScrollTo when we have a pending ScrollIntoView.
   struct ScrollIntoViewData {
@@ -337,6 +336,10 @@ public:
   virtual void RebuildImageVisibility(const nsDisplayList& aList) MOZ_OVERRIDE;
 
   virtual void EnsureImageInVisibleList(nsIImageLoadingContent* aImage) MOZ_OVERRIDE;
+
+  virtual void RemoveImageFromVisibleList(nsIImageLoadingContent* aImage) MOZ_OVERRIDE;
+
+  virtual bool AssumeAllImagesVisible() MOZ_OVERRIDE;
 
 protected:
   virtual ~PresShell();
@@ -713,7 +716,7 @@ protected:
   static void MarkImagesInListVisible(const nsDisplayList& aList);
 
   // A list of images that are visible or almost visible.
-  nsTArray< nsCOMPtr<nsIImageLoadingContent > > mVisibleImages;
+  nsTHashtable< nsRefPtrHashKey<nsIImageLoadingContent> > mVisibleImages;
 
 #ifdef DEBUG
   // The reflow root under which we're currently reflowing.  Null when

@@ -319,6 +319,7 @@ child:
     async LoadAndRegisterSheet(URIParams uri, uint32_t type);
     async UnregisterSheet(URIParams uri, uint32_t type);
 
+    NotifyPhoneStateChange(nsString newState);
 parent:
     /**
      * Tell the content process some attributes of itself.  This is
@@ -396,7 +397,8 @@ parent:
 
     PExternalHelperApp(OptionalURIParams uri, nsCString aMimeContentType,
                        nsCString aContentDisposition, bool aForceSave,
-                       int64_t aContentLength, OptionalURIParams aReferrer);
+                       int64_t aContentLength, OptionalURIParams aReferrer,
+                       nullable PBrowser aBrowser);
 
     AddGeolocationListener(Principal principal, bool highAccuracy);
     RemoveGeolocationListener();

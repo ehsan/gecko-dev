@@ -84,10 +84,16 @@ CodeGeneratorX64::visitBox(LBox *box)
     const LAllocation *in = box->getOperand(0);
     const LDefinition *result = box->getDef(0);
 
-    if (box->type() != MIRType_Double)
+    if (IsFloatingPointType(box->type())) {
+        FloatRegister reg = ToFloatRegister(in);
+        if (box->type() == MIRType_Float32) {
+            masm.convertFloatToDouble(reg, ScratchFloatReg);
+            reg = ScratchFloatReg;
+        }
+        masm.movq(reg, ToRegister(result));
+    } else {
         masm.boxValue(ValueTypeFromMIRType(box->type()), ToRegister(in), ToRegister(result));
-    else
-        masm.movq(ToFloatRegister(in), ToRegister(result));
+    }
     return true;
 }
 
@@ -241,7 +247,7 @@ CodeGeneratorX64::visitLoadElementT(LLoadElementT *load)
 
     if (load->mir()->loadDoubles()) {
         FloatRegister fpreg = ToFloatRegister(load->output());
-        if (source.kind() == Operand::REG_DISP)
+        if (source.kind() == Operand::MEM_REG_DISP)
             masm.loadDouble(source.toAddress(), fpreg);
         else
             masm.loadDouble(source.toBaseIndex(), fpreg);

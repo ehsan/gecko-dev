@@ -668,6 +668,7 @@ ContentParent::Init()
         obs->AddObserver(this, "file-watcher-update", false);
 #ifdef MOZ_WIDGET_GONK
         obs->AddObserver(this, NS_VOLUME_STATE_CHANGED, false);
+        obs->AddObserver(this, "phone-state-changed", false);
 #endif
 #ifdef ACCESSIBILITY
         obs->AddObserver(this, "a11y-init-or-shutdown", false);
@@ -1762,6 +1763,9 @@ ContentParent::Observe(nsISupports* aSubject,
         unused << SendFileSystemUpdate(volName, mountPoint, state,
                                        mountGeneration, isMediaPresent,
                                        isSharing);
+    } else if (!strcmp(aTopic, "phone-state-changed")) {
+        nsString state(aData);
+        unused << SendNotifyPhoneStateChange(state);
     }
 #endif
 #ifdef ACCESSIBILITY
@@ -2231,11 +2235,12 @@ ContentParent::AllocPExternalHelperAppParent(const OptionalURIParams& uri,
                                              const nsCString& aContentDisposition,
                                              const bool& aForceSave,
                                              const int64_t& aContentLength,
-                                             const OptionalURIParams& aReferrer)
+                                             const OptionalURIParams& aReferrer,
+                                             PBrowserParent* aBrowser)
 {
     ExternalHelperAppParent *parent = new ExternalHelperAppParent(uri, aContentLength);
     parent->AddRef();
-    parent->Init(this, aMimeContentType, aContentDisposition, aForceSave, aReferrer);
+    parent->Init(this, aMimeContentType, aContentDisposition, aForceSave, aReferrer, aBrowser);
     return parent;
 }
 
