@@ -35,17 +35,13 @@ public:
   virtual eMathMLFrameType GetMathMLFrameType();
 
   NS_IMETHOD
+  Init(nsIContent*      aContent,
+       nsIFrame*        aParent,
+       nsIFrame*        aPrevInFlow);
+
+  NS_IMETHOD
   SetInitialChildList(ChildListID     aListID,
                       nsFrameList&    aChildList);
-
-  NS_IMETHOD
-  AppendFrames(ChildListID            aListID,
-               nsFrameList&           aChildList);
-
-  NS_IMETHOD
-  InsertFrames(ChildListID            aListID,
-               nsIFrame*              aPrevFrame,
-               nsFrameList&           aChildList);
 
   NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
@@ -87,8 +83,6 @@ protected:
 
   // helper to set the quotes of <ms>
   void SetQuotes(bool aNotify);
-
-  void ForceTrimChildTextFrames();
 };
 
 #endif /* nsMathMLTokentFrame_h___ */
