@@ -1477,9 +1477,7 @@ var gBrowserInit = {
 #ifdef MENUBAR_CAN_AUTOHIDE
       document.getElementById("appmenu_styleeditor").hidden = false;
 #endif
-      // We don't show the Style Editor button in the developer toolbar for now.
-      // See bug 771203
-      // document.getElementById("developer-toolbar-styleeditor").hidden = false;
+      document.getElementById("developer-toolbar-styleeditor").hidden = false;
     }
 
 #ifdef MENUBAR_CAN_AUTOHIDE
