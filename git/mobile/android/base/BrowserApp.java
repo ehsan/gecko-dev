@@ -152,15 +152,6 @@ abstract public class BrowserApp extends GeckoApp
 
     private BrowserHealthReporter mBrowserHealthReporter;
 
-    private SiteIdentityPopup mSiteIdentityPopup;
-
-    public SiteIdentityPopup getSiteIdentityPopup() {
-        if (mSiteIdentityPopup == null)
-            mSiteIdentityPopup = new SiteIdentityPopup(this);
-
-        return mSiteIdentityPopup;
-    }
-
     @Override
     public void onTabChanged(Tab tab, Tabs.TabEvents msg, Object data) {
         switch(msg) {
@@ -182,8 +173,8 @@ abstract public class BrowserApp extends GeckoApp
                         hideAboutHome();
                     }
 
-                    if (mSiteIdentityPopup != null)
-                        mSiteIdentityPopup.dismiss();
+                    // Dismiss any SiteIdentity Popup
+                    SiteIdentityPopup.getInstance().dismiss();
 
                     final TabsPanel.Panel panel = tab.isPrivate()
                                                 ? TabsPanel.Panel.PRIVATE_TABS
@@ -908,19 +899,6 @@ abstract public class BrowserApp extends GeckoApp
         invalidateOptionsMenu();
         updateSideBarState();
         mTabsPanel.refresh();
-        if (mSiteIdentityPopup != null) {
-            mSiteIdentityPopup.dismiss();
-        }
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (mSiteIdentityPopup != null && mSiteIdentityPopup.isShowing()) {
-            mSiteIdentityPopup.dismiss();
-            return;
-        }
-
-        super.onBackPressed();
     }
 
     @Override

@@ -28,8 +28,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_ARMAssembler_h
-#define assembler_assembler_ARMAssembler_h
+#ifndef ARMAssembler_h
+#define ARMAssembler_h
 
 #include "assembler/wtf/Platform.h"
 
@@ -1705,4 +1705,4 @@ namespace JSC {
 
 #endif // ENABLE(ASSEMBLER) && CPU(ARM_TRADITIONAL)
 
-#endif /* assembler_assembler_ARMAssembler_h */
+#endif // ARMAssembler_h

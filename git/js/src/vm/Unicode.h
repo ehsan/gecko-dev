@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_Unicode_h
-#define vm_Unicode_h
+#ifndef Unicode_h__
+#define Unicode_h__
 
 #include "jspubtd.h"
 
@@ -224,4 +224,4 @@ ToLowerCase(jschar ch)
 } /* namespace unicode */
 } /* namespace js */
 
-#endif /* vm_Unicode_h */
+#endif /* Unicode_h__ */

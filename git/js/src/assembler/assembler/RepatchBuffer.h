@@ -27,8 +27,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_RepatchBuffer_h
-#define assembler_assembler_RepatchBuffer_h
+#ifndef RepatchBuffer_h
+#define RepatchBuffer_h
 
 #include "assembler/wtf/Platform.h"
 
@@ -160,4 +160,4 @@ protected:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_RepatchBuffer_h */
+#endif // RepatchBuffer_h

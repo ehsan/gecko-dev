@@ -654,8 +654,7 @@ nsGenericHTMLElement::UnbindFromTree(bool aDeep, bool aNullParent)
 HTMLFormElement*
 nsGenericHTMLElement::FindAncestorForm(HTMLFormElement* aCurrentForm)
 {
-  NS_ASSERTION(!HasAttr(kNameSpaceID_None, nsGkAtoms::form) ||
-               IsHTML(nsGkAtoms::img),
+  NS_ASSERTION(!HasAttr(kNameSpaceID_None, nsGkAtoms::form),
                "FindAncestorForm should not be called if @form is set!");
 
   // Make sure we don't end up finding a form that's anonymous from

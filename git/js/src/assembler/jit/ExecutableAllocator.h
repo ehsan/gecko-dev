@@ -23,8 +23,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef assembler_jit_ExecutableAllocator_h
-#define assembler_jit_ExecutableAllocator_h
+#ifndef ExecutableAllocator_h
+#define ExecutableAllocator_h
 
 #include <stddef.h> // for ptrdiff_t
 #include <limits>
@@ -505,4 +505,5 @@ private:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_jit_ExecutableAllocator_h */
+#endif // !defined(ExecutableAllocator)
+

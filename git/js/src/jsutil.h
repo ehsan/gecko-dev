@@ -8,8 +8,8 @@
  * PR assertion checker.
  */
 
-#ifndef jsutil_h
-#define jsutil_h
+#ifndef jsutil_h___
+#define jsutil_h___
 
 #include "mozilla/Attributes.h"
 #include "mozilla/Compiler.h"
@@ -391,4 +391,4 @@ typedef size_t jsbitmap;
     JS_END_MACRO
 #endif
 
-#endif /* jsutil_h */
+#endif /* jsutil_h___ */

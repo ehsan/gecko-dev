@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_arm_CodeGenerator_arm_h
-#define ion_arm_CodeGenerator_arm_h
+#ifndef jsion_codegen_arm_h__
+#define jsion_codegen_arm_h__
 
 #include "Assembler-arm.h"
 #include "ion/shared/CodeGenerator-shared.h"
@@ -195,4 +195,5 @@ class OutOfLineBailout : public OutOfLineCodeBase<CodeGeneratorARM>
 } // namespace ion
 } // namespace js
 
-#endif /* ion_arm_CodeGenerator_arm_h */
+#endif // jsion_codegen_arm_h__
+

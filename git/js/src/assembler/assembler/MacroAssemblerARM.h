@@ -29,8 +29,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_MacroAssemblerARM_h
-#define assembler_assembler_MacroAssemblerARM_h
+#ifndef MacroAssemblerARM_h
+#define MacroAssemblerARM_h
 
 #include "assembler/wtf/Platform.h"
 
@@ -1542,4 +1542,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER) && CPU(ARM_TRADITIONAL)
 
-#endif /* assembler_assembler_MacroAssemblerARM_h */
+#endif // MacroAssemblerARM_h

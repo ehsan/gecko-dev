@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsboolinlines_h
-#define jsboolinlines_h
+#ifndef jsboolinlines_h___
+#define jsboolinlines_h___
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Likely.h"
@@ -39,4 +39,4 @@ EmulatesUndefined(JSObject *obj)
 
 } /* namespace js */
 
-#endif /* jsboolinlines_h */
+#endif /* jsboolinlines_h___ */

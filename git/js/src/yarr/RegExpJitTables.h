@@ -1,6 +1,3 @@
-#ifndef yarr_RegExpJitTables_h
-#define yarr_RegExpJitTables_h
-
 static const char _spacesData[65536] = {
 0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -2720,4 +2717,4 @@ CharacterClass* wordcharCreate()
     return characterClass;
 }
 
-#endif /* yarr_RegExpJitTables_h */
+

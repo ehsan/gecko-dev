@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef TraceLogging_h
-#define TraceLogging_h
+#if !defined(TraceLogging_h__)
+#define TraceLogging_h__
 
 #include "jsscript.h"
 
@@ -113,4 +113,5 @@ class AutoTraceLog {
 
 }  /* namespace js */
 
-#endif /* TraceLogging_h */
+#endif // TraceLogging_h__
+

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef assembler_assembler_SparcAssembler_h
-#define assembler_assembler_SparcAssembler_h
+#ifndef SparcAssembler_h
+#define SparcAssembler_h
 
 #include <assembler/wtf/Platform.h>
 
@@ -1215,4 +1215,4 @@ namespace JSC {
 
 #endif // ENABLE(ASSEMBLER) && CPU(SPARC)
 
-#endif /* assembler_assembler_SparcAssembler_h */
+#endif // SparcAssembler_h

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_IonFrameIterator_inl_h
-#define ion_IonFrameIterator_inl_h
+#ifndef jsion_frame_iterator_inl_h__
+#define jsion_frame_iterator_inl_h__
 
 #ifdef JS_ION
 
@@ -240,4 +240,4 @@ IonFrameIterator::baselineFrame() const
 
 #endif // JS_ION
 
-#endif /* ion_IonFrameIterator_inl_h */
+#endif // jsion_frame_iterator_inl_h__

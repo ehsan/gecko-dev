@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_Registers_h
-#define ion_Registers_h
+#ifndef jsion_cpu_registers_h__
+#define jsion_cpu_registers_h__
 
 #include "jsutil.h"
 #include "IonTypes.h"
@@ -121,4 +121,5 @@ class MachineState
 } // namespace ion
 } // namespace js
 
-#endif /* ion_Registers_h */
+#endif // jsion_cpu_registers_h__
+

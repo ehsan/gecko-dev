@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef frontend_SyntaxParseHandler_h
-#define frontend_SyntaxParseHandler_h
+#ifndef SyntaxParseHandler_h__
+#define SyntaxParseHandler_h__
 
 namespace js {
 namespace frontend {
@@ -216,4 +216,4 @@ class SyntaxParseHandler
 } // namespace frontend
 } // namespace js
 
-#endif /* frontend_SyntaxParseHandler_h */
+#endif /* SyntaxParseHandler_h__ */

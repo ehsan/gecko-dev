@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_MIRGenerator_h
-#define ion_MIRGenerator_h
+#ifndef jsion_mirgen_h__
+#define jsion_mirgen_h__
 
 // This file declares the data structures used to build a control-flow graph
 // containing MIR.
@@ -157,4 +157,5 @@ class MIRGenerator
 } // namespace ion
 } // namespace js
 
-#endif /* ion_MIRGenerator_h */
+#endif // jsion_mirgen_h__
+

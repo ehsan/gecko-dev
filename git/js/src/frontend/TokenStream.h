@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef frontend_TokenStream_h
-#define frontend_TokenStream_h
+#ifndef TokenStream_h__
+#define TokenStream_h__
 
 /*
  * JS lexical scanner interface.
@@ -956,4 +956,4 @@ extern const char *
 TokenKindToString(js::frontend::TokenKind tt);
 #endif
 
-#endif /* frontend_TokenStream_h */
+#endif /* TokenStream_h__ */

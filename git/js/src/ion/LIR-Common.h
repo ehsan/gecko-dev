@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_LIR_Common_h
-#define ion_LIR_Common_h
+#ifndef jsion_lir_common_h__
+#define jsion_lir_common_h__
 
 #include "ion/shared/Assembler-shared.h"
 
@@ -4770,4 +4770,5 @@ class LAsmJSCheckOverRecursed : public LInstructionHelper<0, 0, 0>
 } // namespace ion
 } // namespace js
 
-#endif /* ion_LIR_Common_h */
+#endif // jsion_lir_common_h__
+

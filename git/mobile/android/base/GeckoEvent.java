@@ -64,9 +64,8 @@ public class GeckoEvent {
         NATIVE_GESTURE_EVENT(31),
         IME_KEY_EVENT(32),
         CALL_OBSERVER(33),
-        REMOVE_OBSERVER(34),
-        LOW_MEMORY(35),
-        NETWORK_LINK_CHANGE(36);
+        LOW_MEMORY(34),
+        NETWORK_LINK_CHANGE(35);
 
         public final int value;
 
@@ -667,12 +666,6 @@ public class GeckoEvent {
         event.mCharacters = observerKey;
         event.mCharactersExtra = topic;
         event.mData = data;
-        return event;
-    }
-
-    public static GeckoEvent createRemoveObserverEvent(String observerKey) {
-        GeckoEvent event = new GeckoEvent(NativeGeckoEvent.REMOVE_OBSERVER);
-        event.mCharacters = observerKey;
         return event;
     }
 

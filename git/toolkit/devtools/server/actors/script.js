@@ -218,8 +218,6 @@ ThreadActor.prototype = {
       }
       packet.why = { type: "attached" };
 
-      this._restoreBreakpoints();
-
       // Send the response to the attach request now (rather than
       // returning it), because we're going to start a nested event loop
       // here.
@@ -742,23 +740,36 @@ ThreadActor.prototype = {
 
   /**
    * Get the script and source lists from the debugger.
-   *
-   * TODO bug 637572: we should be dealing with sources directly, not inferring
-   * them through scripts.
    */
-  _discoverSources: function TA__discoverSources() {
-    // Only get one script per url.
-    let scriptsByUrl = {};
-    for (let s of this.dbg.findScripts()) {
-      scriptsByUrl[s.url] = s;
+  _discoverScriptsAndSources: function TA__discoverScriptsAndSources() {
+    let promises = [];
+    let foundSourceMaps = false;
+    let scripts = this.dbg.findScripts();
+    for (let s of scripts) {
+      if (s.sourceMapURL && !foundSourceMaps) {
+        foundSourceMaps = true;
+        break;
+      }
     }
-
-    return all([this.sources.sourcesForScript(scriptsByUrl[s])
-                for (s of Object.keys(scriptsByUrl))]);
+    if (this._options.useSourceMaps && foundSourceMaps) {
+      for (let s of scripts) {
+        promises.push(this._addScript(s));
+      }
+      return all(promises);
+    }
+    // When source maps are not enabled or not used in the page _addScript is
+    // synchronous, since it doesn't need to wait for fetching source maps, so
+    // resolves immediately. This eliminates a huge slowdown in script-heavy
+    // pages like G+ or chrome debugging, where the GC takes a long time to
+    // clean up after Promise.all.
+    for (let s of scripts) {
+      this._addScriptSync(s);
+    }
+    return resolve(null);
   },
 
   onSources: function TA_onSources(aRequest) {
-    return this._discoverSources().then(() => {
+    return this._discoverScriptsAndSources().then(() => {
       return {
         sources: [s.form() for (s of this.sources.iter())]
       };
@@ -1258,7 +1269,6 @@ ThreadActor.prototype = {
    */
   onNewScript: function TA_onNewScript(aScript, aGlobal) {
     this._addScript(aScript);
-    this.sources.sourcesForScript(aScript);
   },
 
   onNewSource: function TA_onNewSource(aSource) {
@@ -1293,38 +1303,32 @@ ThreadActor.prototype = {
   },
 
   /**
-   * Restore any pre-existing breakpoints to the scripts that we have access to.
-   */
-  _restoreBreakpoints: function TA__restoreBreakpoints() {
-    for (let s of this.dbg.findScripts()) {
-      this._addScript(s);
-    }
-  },
-
-  /**
-   * Add the provided script to the server cache.
+   * Add the provided script to the server cache synchronously, without checking
+   * for any declared source maps.
    *
    * @param aScript Debugger.Script
    *        The source script that will be stored.
    * @returns true, if the script was added; false otherwise.
    */
-  _addScript: function TA__addScript(aScript) {
+  _addScriptSync: function TA__addScriptSync(aScript) {
     if (!this._allowSource(aScript.url)) {
       return false;
     }
 
+    this.sources.source(aScript.url);
     // Set any stored breakpoints.
     let existing = this._breakpointStore[aScript.url];
     if (existing) {
       let endLine = aScript.startLine + aScript.lineCount - 1;
       // Iterate over the lines backwards, so that sliding breakpoints don't
       // affect the loop.
-      for (let line = existing.length - 1; line >= aScript.startLine; line--) {
+      for (let line = existing.length - 1; line >= 0; line--) {
         let bp = existing[line];
         // Only consider breakpoints that are not already associated with
         // scripts, and limit search to the line numbers contained in the new
         // script.
-        if (bp && !bp.actor.scripts.length && line <= endLine) {
+        if (bp && !bp.actor.scripts.length &&
+            line >= aScript.startLine && line <= endLine) {
           this._setBreakpoint(bp);
         }
       }
@@ -1332,6 +1336,43 @@ ThreadActor.prototype = {
     return true;
   },
 
+  /**
+   * Add the provided script to the server cache.
+   *
+   * @param aScript Debugger.Script
+   *        The source script that will be stored.
+   * @returns a promise of true, if the script was added; of false otherwise.
+   */
+  _addScript: function TA__addScript(aScript) {
+    if (!this._allowSource(aScript.url)) {
+      return resolve(false);
+    }
+
+    // TODO bug 637572: we should be dealing with sources directly, not
+    // inferring them through scripts.
+    return this.sources.sourcesForScript(aScript).then(() => {
+
+      // Set any stored breakpoints.
+      let existing = this._breakpointStore[aScript.url];
+      if (existing) {
+        let endLine = aScript.startLine + aScript.lineCount - 1;
+        // Iterate over the lines backwards, so that sliding breakpoints don't
+        // affect the loop.
+        for (let line = existing.length - 1; line >= 0; line--) {
+          let bp = existing[line];
+          // Only consider breakpoints that are not already associated with
+          // scripts, and limit search to the line numbers contained in the new
+          // script.
+          if (bp && !bp.actor.scripts.length &&
+              line >= aScript.startLine && line <= endLine) {
+            this._setBreakpoint(bp);
+          }
+        }
+      }
+
+      return true;
+    });
+  },
 };
 
 ThreadActor.prototype.requestTypes = {
@@ -2597,8 +2638,7 @@ ThreadSources.prototype = {
         return [
           this.source(s, aSourceMap) for (s of aSourceMap.sources)
         ];
-      })
-      .then(null, (e) => {
+      }, (e) => {
         reportError(e);
         delete this._sourceMaps[this._normalize(aScript.sourceMapURL, aScript.url)];
         delete this._sourceMapsByGeneratedSource[aScript.url];
@@ -2642,7 +2682,7 @@ ThreadSources.prototype = {
       return this._sourceMaps[aAbsSourceMapURL];
     } else {
       let promise = fetch(aAbsSourceMapURL).then((rawSourceMap) => {
-        let map = new SourceMapConsumer(rawSourceMap);
+        let map =  new SourceMapConsumer(rawSourceMap);
         let base = aAbsSourceMapURL.replace(/\/[^\/]+$/, '/');
         if (base.indexOf("data:") !== 0) {
           map.sourceRoot = map.sourceRoot

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_BaselineIC_h
-#define ion_BaselineIC_h
+#ifndef jsion_baseline_ic_h__
+#define jsion_baseline_ic_h__
 
 #ifdef JS_ION
 
@@ -5552,4 +5552,4 @@ class ICRest_Fallback : public ICFallbackStub
 
 #endif // JS_ION
 
-#endif /* ion_BaselineIC_h */
+#endif // jsion_baseline_ic_h__

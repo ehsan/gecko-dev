@@ -1671,10 +1671,15 @@ nsContentUtils::GetWindowFromCaller()
 nsIDocument*
 nsContentUtils::GetDocumentFromCaller()
 {
-  AutoJSContext cx;
+  JSContext *cx = nullptr;
+  JS::Rooted<JSObject*> obj(cx);
+  sXPConnect->GetCaller(&cx, obj.address());
+  NS_ASSERTION(cx && obj, "Caller ensures something is running");
+
+  JSAutoCompartment ac(cx, obj);
 
   nsCOMPtr<nsPIDOMWindow> win =
-    do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(JS_GetGlobalForScopeChain(cx)));
+    do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(obj));
   if (!win) {
     return nullptr;
   }

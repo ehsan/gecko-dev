@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_FindSCCs_h
-#define gc_FindSCCs_h
+#ifndef gc_findsccs_h___
+#define gc_findsccs_h___
 
 #include "jsutil.h"
 
@@ -99,4 +99,4 @@ class ComponentFinder
 } /* namespace gc */
 } /* namespace js */
 
-#endif /* gc_FindSCCs_h */
+#endif /* gc_findsccs_h___ */

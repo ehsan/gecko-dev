@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_Bailouts_h
-#define ion_Bailouts_h
+#ifndef jsion_bailouts_h__
+#define jsion_bailouts_h__
 
 #include "jstypes.h"
 #include "vm/Stack.h"
@@ -163,4 +163,5 @@ bool CheckFrequentBailouts(JSContext *cx, JSScript *script);
 } // namespace ion
 } // namespace js
 
-#endif /* ion_Bailouts_h */
+#endif // jsion_bailouts_h__
+

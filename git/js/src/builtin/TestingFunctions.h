@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef builtin_TestingFunctions_h
-#define builtin_TestingFunctions_h
+#ifndef TestingFunctions_h__
+#define TestingFunctions_h__
 
 #include "jsapi.h"
 
@@ -19,4 +19,4 @@ testingFunc_inParallelSection(JSContext *cx, unsigned argc, jsval *vp);
 
 } /* namespace js */
 
-#endif /* builtin_TestingFunctions_h */
+#endif /* TestingFunctions_h__ */

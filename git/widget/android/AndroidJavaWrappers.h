@@ -707,9 +707,8 @@ public:
         NATIVE_GESTURE_EVENT = 31,
         IME_KEY_EVENT = 32,
         CALL_OBSERVER = 33,
-        REMOVE_OBSERVER = 34,
-        LOW_MEMORY = 35,
-        NETWORK_LINK_CHANGE = 36,
+        LOW_MEMORY = 34,
+        NETWORK_LINK_CHANGE = 35,
         dummy_java_enum_list_end
     };
 

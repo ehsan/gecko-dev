@@ -27,8 +27,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_LinkBuffer_h
-#define assembler_assembler_LinkBuffer_h
+#ifndef LinkBuffer_h
+#define LinkBuffer_h
 
 #include "assembler/wtf/Platform.h"
 
@@ -230,4 +230,4 @@ protected:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_LinkBuffer_h */
+#endif // LinkBuffer_h

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_StoreBuffer_h
-#define gc_StoreBuffer_h
+#ifndef jsgc_storebuffer_h___
+#define jsgc_storebuffer_h___
 
 #ifdef JSGC_GENERATIONAL
 
@@ -443,4 +443,4 @@ class StoreBuffer
 
 #endif /* JSGC_GENERATIONAL */
 
-#endif /* gc_StoreBuffer_h */
+#endif /* jsgc_storebuffer_h___ */

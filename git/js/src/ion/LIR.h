@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_LIR_h
-#define ion_LIR_h
+#ifndef jsion_lir_h__
+#define jsion_lir_h__
 
 // This file declares the core data structures for LIR: storage allocations for
 // inputs and outputs, as well as the interface instructions must conform to.
@@ -1446,4 +1446,5 @@ LAllocation::toRegister() const
 
 #include "LIR-inl.h"
 
-#endif /* ion_LIR_h */
+#endif // jsion_lir_h__
+

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_StringObject_inl_h
-#define vm_StringObject_inl_h
+#ifndef StringObject_inl_h___
+#define StringObject_inl_h___
 
 #include "StringObject.h"
 
@@ -54,4 +54,4 @@ StringObject::create(JSContext *cx, HandleString str, NewObjectKind newKind)
 
 } // namespace js
 
-#endif /* vm_StringObject_inl_h */
+#endif /* StringObject_inl_h__ */

@@ -28,8 +28,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_ARMv7Assembler_h
-#define assembler_assembler_ARMv7Assembler_h
+#ifndef ARMAssembler_h
+#define ARMAssembler_h
 
 #include "assembler/wtf/Platform.h"
 
@@ -1929,4 +1929,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER) && CPU(ARM_THUMB2)
 
-#endif /* assembler_assembler_ARMv7Assembler_h */
+#endif // ARMAssembler_h

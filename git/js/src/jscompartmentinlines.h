@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jscompartmentinlines_h
-#define jscompartmentinlines_h
+#ifndef jscompartment_inlines_h___
+#define jscompartment_inlines_h___
 
 #include "jscompartment.h"
 
@@ -80,4 +80,4 @@ class AutoEnterAtomsCompartment
 
 } /* namespace js */
 
-#endif /* jscompartmentinlines_h */
+#endif /* jscompartment_inlines_h___ */

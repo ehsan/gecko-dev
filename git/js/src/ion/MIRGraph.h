@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_MIRGraph_h
-#define ion_MIRGraph_h
+#ifndef jsion_mirgraph_h__
+#define jsion_mirgraph_h__
 
 // This file declares the data structures used to build a control-flow graph
 // containing MIR.
@@ -586,7 +586,10 @@ class MIRGraph
         return blocks_.end();
     }
     void removeBlocksAfter(MBasicBlock *block);
-    void removeBlock(MBasicBlock *block);
+    void removeBlock(MBasicBlock *block) {
+        blocks_.remove(block);
+        numBlocks_--;
+    }
     void moveBlockToEnd(MBasicBlock *block) {
         JS_ASSERT(block->id());
         blocks_.remove(block);
@@ -716,4 +719,5 @@ class MDefinitionIterator
 } // namespace ion
 } // namespace js
 
-#endif /* ion_MIRGraph_h */
+#endif // jsion_mirgraph_h__
+

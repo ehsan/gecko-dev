@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_x86_CodeGenerator_x86_h
-#define ion_x86_CodeGenerator_x86_h
+#ifndef jsion_codegen_x86_h__
+#define jsion_codegen_x86_h__
 
 #include "Assembler-x86.h"
 #include "ion/shared/CodeGenerator-x86-shared.h"
@@ -76,4 +76,5 @@ typedef CodeGeneratorX86 CodeGeneratorSpecific;
 } // namespace ion
 } // namespace js
 
-#endif /* ion_x86_CodeGenerator_x86_h */
+#endif // jsion_codegen_x86_h__
+

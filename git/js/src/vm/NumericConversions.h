@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_NumericConversions_h
-#define vm_NumericConversions_h
+#ifndef NumericConversions_h___
+#define NumericConversions_h___
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Casting.h"
@@ -299,4 +299,4 @@ ToInteger(double d)
 
 } /* namespace js */
 
-#endif /* vm_NumericConversions_h */
+#endif /* NumericConversions_h__ */

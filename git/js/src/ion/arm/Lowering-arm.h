@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_arm_Lowering_arm_h
-#define ion_arm_Lowering_arm_h
+#ifndef jsion_ion_lowering_arm_h__
+#define jsion_ion_lowering_arm_h__
 
 #include "ion/shared/Lowering-shared.h"
 
@@ -84,4 +84,4 @@ typedef LIRGeneratorARM LIRGeneratorSpecific;
 } // namespace ion
 } // namespace js
 
-#endif /* ion_arm_Lowering_arm_h */
+#endif // jsion_ion_lowering_arm_h__

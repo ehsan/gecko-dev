@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsbool_h
-#define jsbool_h
+#ifndef jsbool_h___
+#define jsbool_h___
 /*
  * JS boolean interface.
  */
@@ -25,4 +25,4 @@ BooleanGetPrimitiveValue(HandleObject obj, JSContext *cx);
 
 } /* namespace js */
 
-#endif /* jsbool_h */
+#endif /* jsbool_h___ */

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef builtin_RegExp_h
-#define builtin_RegExp_h
+#ifndef RegExp_h___
+#define RegExp_h___
 
 #include "jsprvtd.h"
 
@@ -58,4 +58,4 @@ regexp_test(JSContext *cx, unsigned argc, Value *vp);
 
 } /* namespace js */
 
-#endif /* builtin_RegExp_h */
+#endif /* RegExp_h__ */

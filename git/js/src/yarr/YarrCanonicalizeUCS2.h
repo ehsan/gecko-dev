@@ -25,8 +25,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef yarr_YarrCanonicalizeUCS2_h
-#define yarr_YarrCanonicalizeUCS2_h
+#ifndef YarrCanonicalizeUCS2_H
+#define YarrCanonicalizeUCS2_H
 
 #include "mozilla/StandardInteger.h"
 
@@ -138,4 +138,4 @@ inline bool areCanonicallyEquivalent(UChar a, UChar b)
 
 } } // JSC::Yarr
 
-#endif /* yarr_YarrCanonicalizeUCS2_h */
+#endif

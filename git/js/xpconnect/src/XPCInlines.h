@@ -268,12 +268,18 @@ XPCCallContext::SetMethodIndex(uint16_t index)
     mMethodIndex = index;
 }
 
-inline void
-XPCCallContext::SetDestroyJSContextInDestructor()
+inline JSBool
+XPCCallContext::GetDestroyJSContextInDestructor() const
 {
     CHECK_STATE(HAVE_CONTEXT);
-    MOZ_ASSERT(mJSContext);
-    mCxDestroyer.construct(mJSContext);
+    return mDestroyJSContextInDestructor;
+}
+
+inline void
+XPCCallContext::SetDestroyJSContextInDestructor(JSBool b)
+{
+    CHECK_STATE(HAVE_CONTEXT);
+    mDestroyJSContextInDestructor = b;
 }
 
 /***************************************************************************/

@@ -24,6 +24,7 @@ nsDOMNotifyPaintEvent::nsDOMNotifyPaintEvent(mozilla::dom::EventTarget* aOwner,
   if (aInvalidateRequests) {
     mInvalidateRequests.MoveElementsFrom(aInvalidateRequests->mRequests);
   }
+  SetIsDOMBinding();
 }
 
 NS_INTERFACE_MAP_BEGIN(nsDOMNotifyPaintEvent)

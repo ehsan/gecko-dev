@@ -170,7 +170,6 @@ ShadowLayerForwarder::ShadowLayerForwarder()
  : mShadowManager(NULL)
  , mIsFirstPaint(false)
  , mDrawColoredBorders(false)
- , mWindowOverlayChanged(false)
 {
   mTxn = new Transaction();
 }
@@ -392,7 +391,7 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
 
   AutoTxnEnd _(mTxn);
 
-  if (mTxn->Empty() && !mTxn->RotationChanged() && !mWindowOverlayChanged) {
+  if (mTxn->Empty() && !mTxn->RotationChanged()) {
     MOZ_LAYERS_LOG(("[LayersForwarder] 0-length cset (?) and no rotation event, skipping Update()"));
     return true;
   }
@@ -447,7 +446,7 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
 
   AutoInfallibleTArray<Edit, 10> cset;
   size_t nCsets = mTxn->mCset.size() + mTxn->mPaints.size();
-  NS_ABORT_IF_FALSE(nCsets > 0 || mWindowOverlayChanged, "should have bailed by now");
+  NS_ABORT_IF_FALSE(nCsets > 0, "should have bailed by now");
 
   cset.SetCapacity(nCsets);
   if (!mTxn->mCset.empty()) {
@@ -458,8 +457,6 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
   if (!mTxn->mPaints.empty()) {
     cset.AppendElements(&mTxn->mPaints.front(), mTxn->mPaints.size());
   }
-
-  mWindowOverlayChanged = false;
 
   TargetConfig targetConfig(mTxn->mTargetBounds, mTxn->mTargetRotation, mTxn->mClientBounds, mTxn->mTargetOrientation);
 

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_ScopeObject_h
-#define vm_ScopeObject_h
+#ifndef ScopeObject_h___
+#define ScopeObject_h___
 
 #include "jscntxt.h"
 #include "jsobj.h"
@@ -648,4 +648,4 @@ JSObject::is<js::DebugScopeObject>() const
     return getClass() == &js::ObjectProxyClass && js_IsDebugScopeSlow(const_cast<JSObject*>(this));
 }
 
-#endif /* vm_ScopeObject_h */
+#endif /* ScopeObject_h___ */

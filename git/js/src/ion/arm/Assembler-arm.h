@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_arm_Assembler_arm_h
-#define ion_arm_Assembler_arm_h
+#ifndef jsion_cpu_arm_assembler_h__
+#define jsion_cpu_arm_assembler_h__
 
 #include "mozilla/Attributes.h"
 #include "mozilla/MathAlgorithms.h"
@@ -2249,4 +2249,4 @@ class AutoForbidPools {
 } // namespace ion
 } // namespace js
 
-#endif /* ion_arm_Assembler_arm_h */
+#endif // jsion_cpu_arm_assembler_h__

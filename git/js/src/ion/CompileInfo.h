@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_CompileInfo_h
-#define ion_CompileInfo_h
+#ifndef jsion_compileinfo_h__
+#define jsion_compileinfo_h__
 
 #include "Registers.h"
 
@@ -200,4 +200,4 @@ class CompileInfo
 } // namespace ion
 } // namespace js
 
-#endif /* ion_CompileInfo_h */
+#endif

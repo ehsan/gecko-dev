@@ -28,8 +28,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_MacroAssemblerARMv7_h
-#define assembler_assembler_MacroAssemblerARMv7_h
+#ifndef MacroAssemblerARMv7_h
+#define MacroAssemblerARMv7_h
 
 #include "assembler/wtf/Platform.h"
 
@@ -1220,4 +1220,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_MacroAssemblerARMv7_h */
+#endif // MacroAssemblerARMv7_h

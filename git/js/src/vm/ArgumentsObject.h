@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_ArgumentsObject_h
-#define vm_ArgumentsObject_h
+#ifndef ArgumentsObject_h___
+#define ArgumentsObject_h___
 
 #include "jsfun.h"
 
@@ -253,4 +253,4 @@ JSObject::is<js::ArgumentsObject>() const
     return is<js::NormalArgumentsObject>() || is<js::StrictArgumentsObject>();
 }
 
-#endif /* vm_ArgumentsObject_h */
+#endif /* ArgumentsObject_h___ */

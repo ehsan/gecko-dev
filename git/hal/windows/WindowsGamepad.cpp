@@ -203,7 +203,6 @@ public:
     nsRefPtr<GamepadService> gamepadsvc(GamepadService::GetService());
     if (mType == Added) {
       mGamepad.id = gamepadsvc->AddGamepad(mGamepad.idstring,
-                                           mozilla::dom::NoMapping,
                                            mGamepad.numButtons,
                                            mGamepad.numAxes +
                                            mGamepad.numHats*2);

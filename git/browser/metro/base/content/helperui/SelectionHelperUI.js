@@ -991,6 +991,7 @@ var SelectionHelperUI = {
         if (aEvent.touches.length != 1)
           break;
         let touch = aEvent.touches[0];
+        this._movement.x = this._movement.y = 0;
         this._movement.x = touch.clientX;
         this._movement.y = touch.clientY;
         this._movement.active = true;
@@ -1006,10 +1007,10 @@ var SelectionHelperUI = {
         if (aEvent.touches.length != 1)
           break;
         let touch = aEvent.touches[0];
-        // Clear selection when the user pans the page
+        // Clear our selection overlay when the user starts to pan the page
         if (!this._checkForActiveDrag() && this._movement.active) {
-          if (Math.abs(touch.clientX - this._movement.x) > kDisableOnScrollDistance ||
-              Math.abs(touch.clientY - this._movement.y) > kDisableOnScrollDistance) {
+          let distanceY = touch.clientY - this._movement.y;
+          if (Math.abs(distanceY) > kDisableOnScrollDistance) {
             this.closeEditSession(true);
           }
         }

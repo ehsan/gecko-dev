@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_IonFrameIterator_h
-#define ion_IonFrameIterator_h
+#ifndef jsion_frame_iterator_h__
+#define jsion_frame_iterator_h__
 
 #ifdef JS_ION
 
@@ -335,4 +335,5 @@ typedef InlineFrameIteratorMaybeGC<NoGC> InlineFrameIteratorNoGC;
 
 #endif // JS_ION
 
-#endif /* ion_IonFrameIterator_h */
+#endif // jsion_frames_iterator_h__
+

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_Xdr_h
-#define vm_Xdr_h
+#ifndef Xdr_h___
+#define Xdr_h___
 
 #include "mozilla/Endian.h"
 
@@ -244,4 +244,4 @@ class XDRDecoder : public XDRState<XDR_DECODE> {
 
 } /* namespace js */
 
-#endif /* vm_Xdr_h */
+#endif /* Xdr_h___ */

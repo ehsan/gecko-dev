@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef builtin_ParallelArray_h
-#define builtin_ParallelArray_h
+#ifndef ParallelArray_h__
+#define ParallelArray_h__
 
 #include "jsapi.h"
 #include "jscntxt.h"
@@ -57,4 +57,4 @@ class ParallelArrayObject : public JSObject
 extern JSObject *
 js_InitParallelArrayClass(JSContext *cx, js::HandleObject obj);
 
-#endif /* builtin_ParallelArray_h */
+#endif // ParallelArray_h__

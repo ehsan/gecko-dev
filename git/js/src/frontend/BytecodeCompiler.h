@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef frontend_BytecodeCompiler_h
-#define frontend_BytecodeCompiler_h
+#ifndef BytecodeCompiler_h__
+#define BytecodeCompiler_h__
 
 #include "jsapi.h"
 
@@ -57,4 +57,4 @@ MarkParser(JSTracer *trc, AutoGCRooter *parser);
 } /* namespace frontend */
 } /* namespace js */
 
-#endif /* frontend_BytecodeCompiler_h */
+#endif /* BytecodeCompiler_h__ */

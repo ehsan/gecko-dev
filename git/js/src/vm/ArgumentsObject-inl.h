@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_ArgumentsObject_inl_h
-#define vm_ArgumentsObject_inl_h
+#ifndef ArgumentsObject_inl_h___
+#define ArgumentsObject_inl_h___
 
 #include "vm/ArgumentsObject.h"
 
@@ -161,4 +161,4 @@ NormalArgumentsObject::clearCallee()
 
 } /* namespace js */
 
-#endif /* vm_ArgumentsObject_inl_h */
+#endif /* ArgumentsObject_inl_h___ */

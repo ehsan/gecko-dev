@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_shared_IonFrames_x86_shared_h
-#define ion_shared_IonFrames_x86_shared_h
+#ifndef js_ion_frame_layouts_x86_h__
+#define js_ion_frame_layouts_x86_h__
 
 #include "ion/shared/IonFrames-shared.h"
 
@@ -535,4 +535,5 @@ class InvalidationBailoutStack
 }
 }
 
-#endif /* ion_shared_IonFrames_x86_shared_h */
+#endif // js_ion_frame_layouts_x86_h__
+

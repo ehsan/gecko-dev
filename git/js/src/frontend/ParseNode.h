@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef frontend_ParseNode_h
-#define frontend_ParseNode_h
+#ifndef ParseNode_h__
+#define ParseNode_h__
 
 #include "mozilla/Attributes.h"
 
@@ -1427,4 +1427,4 @@ enum FunctionSyntaxKind { Expression, Statement, Arrow };
 } /* namespace frontend */
 } /* namespace js */
 
-#endif /* frontend_ParseNode_h */
+#endif /* ParseNode_h__ */

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ds_Sort_h
-#define ds_Sort_h
+#ifndef Sort_h__
+#define Sort_h__
 
 #include "jstypes.h"
 
@@ -134,4 +134,4 @@ MergeSort(T *array, size_t nelems, T *scratch, Comparator c)
 
 } /* namespace js */
 
-#endif /* ds_Sort_h */
+#endif

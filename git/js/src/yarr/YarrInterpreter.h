@@ -25,8 +25,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef yarr_YarrInterpreter_h
-#define yarr_YarrInterpreter_h
+#ifndef YarrInterpreter_h
+#define YarrInterpreter_h
 
 #include "jscntxt.h"
 
@@ -394,4 +394,4 @@ unsigned interpret(JSContext *cx, BytecodePattern*, const UChar* input, unsigned
 
 } } // namespace JSC::Yarr
 
-#endif /* yarr_YarrInterpreter_h */
+#endif // YarrInterpreter_h

@@ -7,8 +7,8 @@
 /*
  * JS reflection package.
  */
-#ifndef jsreflect_h
-#define jsreflect_h
+#ifndef jsreflect_h___
+#define jsreflect_h___
 
 #include <stdlib.h>
 #include "jspubtd.h"
@@ -95,4 +95,4 @@ extern char const * const nodeTypeNames[];
 
 } /* namespace js */
 
-#endif /* jsreflect_h */
+#endif /* jsreflect_h___ */

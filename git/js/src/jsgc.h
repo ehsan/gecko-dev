@@ -6,8 +6,8 @@
 
 /* JS Garbage Collector. */
 
-#ifndef jsgc_h
-#define jsgc_h
+#ifndef jsgc_h___
+#define jsgc_h___
 
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Util.h"
@@ -1326,4 +1326,4 @@ PurgeJITCaches(JS::Zone *zone);
 
 } /* namespace js */
 
-#endif /* jsgc_h */
+#endif /* jsgc_h___ */

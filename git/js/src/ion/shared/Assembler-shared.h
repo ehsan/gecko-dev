@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_shared_Assembler_shared_h
-#define ion_shared_Assembler_shared_h
+#ifndef jsion_assembler_shared_h__
+#define jsion_assembler_shared_h__
 
 #include <limits.h>
 
@@ -565,4 +565,5 @@ class CodeLocationLabel
 } // namespace ion
 } // namespace js
 
-#endif /* ion_shared_Assembler_shared_h */
+#endif // jsion_assembler_shared_h__
+

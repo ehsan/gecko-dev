@@ -20,8 +20,8 @@
  *         It is safest to use only the JSAPI <stdint.h>-style types,
  *         customizing those types using MOZ_CUSTOM_STDINT_H if necessary.
  */
-#ifndef js_LegacyIntTypes_h
-#define js_LegacyIntTypes_h
+#ifndef PROTYPES_H
+#define PROTYPES_H
 
 #include "mozilla/StandardInteger.h"
 
@@ -57,4 +57,4 @@ typedef int16_t JSInt16;
 typedef int32_t JSInt32;
 typedef int64_t JSInt64;
 
-#endif /* js_LegacyIntTypes_h */
+#endif /* !defined(PROTYPES_H) */

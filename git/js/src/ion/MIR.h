@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_MIR_h
-#define ion_MIR_h
+#ifndef jsion_mir_h__
+#define jsion_mir_h__
 
 // This file declares everything needed to build actual MIR instructions: the
 // actual opcodes and instructions themselves, the instruction interface, and
@@ -6189,7 +6189,6 @@ class MFunctionEnvironment
         : MUnaryInstruction(function)
     {
         setResultType(MIRType_Object);
-        setMovable();
     }
 
     INSTRUCTION_HEADER(FunctionEnvironment)
@@ -6204,11 +6203,6 @@ class MFunctionEnvironment
 
     TypePolicy *typePolicy() {
         return this;
-    }
-
-    // A function's environment is fixed.
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
     }
 };
 
@@ -8296,4 +8290,5 @@ bool PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinit
 } // namespace ion
 } // namespace js
 
-#endif /* ion_MIR_h */
+#endif // jsion_mir_h__
+

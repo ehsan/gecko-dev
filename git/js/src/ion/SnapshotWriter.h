@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_SnapshotWriter_h
-#define ion_SnapshotWriter_h
+#ifndef jsion_snapshot_writer_h__
+#define jsion_snapshot_writer_h__
 
 #include "Ion.h"
 #include "IonCode.h"
@@ -73,4 +73,5 @@ class SnapshotWriter
 }
 }
 
-#endif /* ion_SnapshotWriter_h */
+#endif // jsion_snapshot_writer_h__
+

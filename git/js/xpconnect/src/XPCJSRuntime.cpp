@@ -86,18 +86,18 @@ struct CX_AND_XPCRT_Data
 static void * const UNMARK_ONLY = nullptr;
 static void * const UNMARK_AND_SWEEP = (void *)1;
 
-static PLDHashOperator
-NativeInterfaceSweeper(PLDHashTable *table, PLDHashEntryHdr *hdr,
+static JSDHashOperator
+NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
                        uint32_t number, void *arg)
 {
     XPCNativeInterface* iface = ((IID2NativeInterfaceMap::Entry*)hdr)->value;
     if (iface->IsMarked()) {
         iface->Unmark();
-        return PL_DHASH_NEXT;
+        return JS_DHASH_NEXT;
     }
 
     if (arg == UNMARK_ONLY)
-        return PL_DHASH_NEXT;
+        return JS_DHASH_NEXT;
 
 #ifdef XPC_REPORT_NATIVE_INTERFACE_AND_SET_FLUSHING
     fputs("- Destroying XPCNativeInterface for ", stdout);
@@ -106,7 +106,7 @@ NativeInterfaceSweeper(PLDHashTable *table, PLDHashEntryHdr *hdr,
 #endif
 
     XPCNativeInterface::DestroyInstance(iface);
-    return PL_DHASH_REMOVE;
+    return JS_DHASH_REMOVE;
 }
 
 // *Some* NativeSets are referenced from mClassInfo2NativeSetMap.
@@ -114,28 +114,28 @@ NativeInterfaceSweeper(PLDHashTable *table, PLDHashEntryHdr *hdr,
 // So, in mClassInfo2NativeSetMap we just clear references to the unmarked.
 // In mNativeSetMap we clear the references to the unmarked *and* delete them.
 
-static PLDHashOperator
-NativeUnMarkedSetRemover(PLDHashTable *table, PLDHashEntryHdr *hdr,
+static JSDHashOperator
+NativeUnMarkedSetRemover(JSDHashTable *table, JSDHashEntryHdr *hdr,
                          uint32_t number, void *arg)
 {
     XPCNativeSet* set = ((ClassInfo2NativeSetMap::Entry*)hdr)->value;
     if (set->IsMarked())
-        return PL_DHASH_NEXT;
-    return PL_DHASH_REMOVE;
+        return JS_DHASH_NEXT;
+    return JS_DHASH_REMOVE;
 }
 
-static PLDHashOperator
-NativeSetSweeper(PLDHashTable *table, PLDHashEntryHdr *hdr,
+static JSDHashOperator
+NativeSetSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
                  uint32_t number, void *arg)
 {
     XPCNativeSet* set = ((NativeSetMap::Entry*)hdr)->key_value;
     if (set->IsMarked()) {
         set->Unmark();
-        return PL_DHASH_NEXT;
+        return JS_DHASH_NEXT;
     }
 
     if (arg == UNMARK_ONLY)
-        return PL_DHASH_NEXT;
+        return JS_DHASH_NEXT;
 
 #ifdef XPC_REPORT_NATIVE_INTERFACE_AND_SET_FLUSHING
     printf("- Destroying XPCNativeSet for:\n");
@@ -149,11 +149,11 @@ NativeSetSweeper(PLDHashTable *table, PLDHashEntryHdr *hdr,
 #endif
 
     XPCNativeSet::DestroyInstance(set);
-    return PL_DHASH_REMOVE;
+    return JS_DHASH_REMOVE;
 }
 
-static PLDHashOperator
-JSClassSweeper(PLDHashTable *table, PLDHashEntryHdr *hdr,
+static JSDHashOperator
+JSClassSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
                uint32_t number, void *arg)
 {
     XPCNativeScriptableShared* shared =
@@ -165,11 +165,11 @@ JSClassSweeper(PLDHashTable *table, PLDHashEntryHdr *hdr,
                shared->GetJSClass());
 #endif
         shared->Unmark();
-        return PL_DHASH_NEXT;
+        return JS_DHASH_NEXT;
     }
 
     if (arg == UNMARK_ONLY)
-        return PL_DHASH_NEXT;
+        return JS_DHASH_NEXT;
 
 #ifdef XPC_REPORT_JSCLASS_FLUSHING
     printf("- Destroying XPCNativeScriptableShared for: %s @ %x\n",
@@ -178,28 +178,28 @@ JSClassSweeper(PLDHashTable *table, PLDHashEntryHdr *hdr,
 #endif
 
     delete shared;
-    return PL_DHASH_REMOVE;
+    return JS_DHASH_REMOVE;
 }
 
-static PLDHashOperator
-DyingProtoKiller(PLDHashTable *table, PLDHashEntryHdr *hdr,
+static JSDHashOperator
+DyingProtoKiller(JSDHashTable *table, JSDHashEntryHdr *hdr,
                  uint32_t number, void *arg)
 {
     XPCWrappedNativeProto* proto =
-        (XPCWrappedNativeProto*)((PLDHashEntryStub*)hdr)->key;
+        (XPCWrappedNativeProto*)((JSDHashEntryStub*)hdr)->key;
     delete proto;
-    return PL_DHASH_REMOVE;
+    return JS_DHASH_REMOVE;
 }
 
-static PLDHashOperator
-DetachedWrappedNativeProtoMarker(PLDHashTable *table, PLDHashEntryHdr *hdr,
+static JSDHashOperator
+DetachedWrappedNativeProtoMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
                                  uint32_t number, void *arg)
 {
     XPCWrappedNativeProto* proto =
-        (XPCWrappedNativeProto*)((PLDHashEntryStub*)hdr)->key;
+        (XPCWrappedNativeProto*)((JSDHashEntryStub*)hdr)->key;
 
     proto->Mark();
-    return PL_DHASH_NEXT;
+    return JS_DHASH_NEXT;
 }
 
 // GCCallback calls are chained
@@ -1178,26 +1178,26 @@ XPCJSRuntime::DeleteString(nsAString *string)
 /***************************************************************************/
 
 #ifdef XPC_CHECK_WRAPPERS_AT_SHUTDOWN
-static PLDHashOperator
-DEBUG_WrapperChecker(PLDHashTable *table, PLDHashEntryHdr *hdr,
+static JSDHashOperator
+DEBUG_WrapperChecker(JSDHashTable *table, JSDHashEntryHdr *hdr,
                      uint32_t number, void *arg)
 {
-    XPCWrappedNative* wrapper = (XPCWrappedNative*)((PLDHashEntryStub*)hdr)->key;
+    XPCWrappedNative* wrapper = (XPCWrappedNative*)((JSDHashEntryStub*)hdr)->key;
     NS_ASSERTION(!wrapper->IsValid(), "found a 'valid' wrapper!");
     ++ *((int*)arg);
-    return PL_DHASH_NEXT;
+    return JS_DHASH_NEXT;
 }
 #endif
 
-static PLDHashOperator
-DetachedWrappedNativeProtoShutdownMarker(PLDHashTable *table, PLDHashEntryHdr *hdr,
+static JSDHashOperator
+DetachedWrappedNativeProtoShutdownMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
                                          uint32_t number, void *arg)
 {
     XPCWrappedNativeProto* proto =
-        (XPCWrappedNativeProto*)((PLDHashEntryStub*)hdr)->key;
+        (XPCWrappedNativeProto*)((JSDHashEntryStub*)hdr)->key;
 
     proto->SystemIsBeingShutDown();
-    return PL_DHASH_NEXT;
+    return JS_DHASH_NEXT;
 }
 
 void XPCJSRuntime::DestroyJSContextStack()
@@ -1318,11 +1318,11 @@ XPCJSRuntime::~XPCJSRuntime()
 #ifdef XPC_CHECK_WRAPPERS_AT_SHUTDOWN
     if (DEBUG_WrappedNativeHashtable) {
         int LiveWrapperCount = 0;
-        PL_DHashTableEnumerate(DEBUG_WrappedNativeHashtable,
+        JS_DHashTableEnumerate(DEBUG_WrappedNativeHashtable,
                                DEBUG_WrapperChecker, &LiveWrapperCount);
         if (LiveWrapperCount)
             printf("deleting XPCJSRuntime with %d live XPCWrappedNative (found in wrapper check)\n", (int)LiveWrapperCount);
-        PL_DHashTableDestroy(DEBUG_WrappedNativeHashtable);
+        JS_DHashTableDestroy(DEBUG_WrappedNativeHashtable);
     }
 #endif
 
@@ -2677,8 +2677,8 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
 {
 #ifdef XPC_CHECK_WRAPPERS_AT_SHUTDOWN
     DEBUG_WrappedNativeHashtable =
-        PL_NewDHashTable(PL_DHashGetStubOps(), nullptr,
-                         sizeof(PLDHashEntryStub), 128);
+        JS_NewDHashTable(JS_DHashGetStubOps(), nullptr,
+                         sizeof(JSDHashEntryStub), 128);
 #endif
 
     DOM_InitInterfaces();
@@ -2912,19 +2912,19 @@ XPCJSRuntime::DeferredRelease(nsISupports *obj)
 /***************************************************************************/
 
 #ifdef DEBUG
-static PLDHashOperator
-WrappedJSClassMapDumpEnumerator(PLDHashTable *table, PLDHashEntryHdr *hdr,
+static JSDHashOperator
+WrappedJSClassMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                                 uint32_t number, void *arg)
 {
     ((IID2WrappedJSClassMap::Entry*)hdr)->value->DebugDump(*(int16_t*)arg);
-    return PL_DHASH_NEXT;
+    return JS_DHASH_NEXT;
 }
-static PLDHashOperator
-NativeSetDumpEnumerator(PLDHashTable *table, PLDHashEntryHdr *hdr,
+static JSDHashOperator
+NativeSetDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                         uint32_t number, void *arg)
 {
     ((NativeSetMap::Entry*)hdr)->key_value->DebugDump(*(int16_t*)arg);
-    return PL_DHASH_NEXT;
+    return JS_DHASH_NEXT;
 }
 #endif
 

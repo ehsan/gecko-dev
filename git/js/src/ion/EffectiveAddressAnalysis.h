@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_EffectiveAddressAnalysis_h
-#define ion_EffectiveAddressAnalysis_h
+#ifndef jsion_effective_address_analysis_h__
+#define jsion_effective_address_analysis_h__
 
 #include "MIR.h"
 #include "MIRGraph.h"
@@ -28,4 +28,4 @@ class EffectiveAddressAnalysis
 } /* namespace ion */
 } /* namespace js */
 
-#endif /* ion_EffectiveAddressAnalysis_h */
+#endif

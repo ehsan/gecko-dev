@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_BaselineInspector_h
-#define ion_BaselineInspector_h
+#ifndef jsion_baseline_inspector_h__
+#define jsion_baseline_inspector_h__
 
 #ifdef JS_ION
 
@@ -116,4 +116,5 @@ class BaselineInspector
 
 #endif // JS_ION
 
-#endif /* ion_BaselineInspector_h */
+#endif // jsion_baseline_inspector_h__
+

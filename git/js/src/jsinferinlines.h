@@ -29,8 +29,8 @@
 #include "gc/Barrier-inl.h"
 #include "vm/Stack-inl.h"
 
-#ifndef jsinferinlines_h
-#define jsinferinlines_h
+#ifndef jsinferinlines_h___
+#define jsinferinlines_h___
 
 inline bool
 js::TaggedProto::isObject() const
@@ -1835,4 +1835,4 @@ namespace JS {
 template<> class AnchorPermitted<js::types::TypeObject *> { };
 }  // namespace JS
 
-#endif /* jsinferinlines_h */
+#endif // jsinferinlines_h___

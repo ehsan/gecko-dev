@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_VMFunctions_h
-#define ion_VMFunctions_h
+#ifndef jsion_vm_functions_h__
+#define jsion_vm_functions_h__
 
 #include "jspubtd.h"
 
@@ -620,4 +620,5 @@ bool InitBaselineFrameForOsr(BaselineFrame *frame, StackFrame *interpFrame,
 } // namespace ion
 } // namespace js
 
-#endif /* ion_VMFunctions_h */
+#endif // jsion_vm_functions_h_
+

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_IonAnalysis_h
-#define ion_IonAnalysis_h
+#ifndef jsion_ion_analysis_h__
+#define jsion_ion_analysis_h__
 
 // This file declares various analysis passes that operate on MIR.
 
@@ -128,4 +128,5 @@ class LinearSum
 } // namespace ion
 } // namespace js
 
-#endif /* ion_IonAnalysis_h */
+#endif // jsion_ion_analysis_h__
+

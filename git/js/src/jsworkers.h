@@ -10,8 +10,8 @@
  * web workers.
  */
 
-#ifndef jsworkers_h
-#define jsworkers_h
+#ifndef jsworkers_h___
+#define jsworkers_h___
 
 #include "mozilla/GuardObjects.h"
 #include "mozilla/PodOperations.h"
@@ -257,4 +257,4 @@ class AutoUnlockWorkerThreadState
 
 } /* namespace js */
 
-#endif /* jsworkers_h */
+#endif // jsworkers_h___

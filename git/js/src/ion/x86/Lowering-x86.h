@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ion_x86_Lowering_x86_h
-#define ion_x86_Lowering_x86_h
+#ifndef jsion_ion_lowering_x86_h__
+#define jsion_ion_lowering_x86_h__
 
 #include "ion/shared/Lowering-x86-shared.h"
 
@@ -61,4 +61,4 @@ typedef LIRGeneratorX86 LIRGeneratorSpecific;
 } // namespace js
 } // namespace ion
 
-#endif /* ion_x86_Lowering_x86_h */
+#endif // jsion_ion_lowering_x86_h__
