@@ -1769,8 +1769,7 @@ TabChild::UpdateTapState(const WidgetTouchEvent& aEvent, nsEventStatus aStatus)
       return;
     }
     if (aStatus == nsEventStatus_eConsumeNoDefault ||
-        nsIPresShell::gPreventMouseEvents ||
-        aEvent.mFlags.mMultipleActionsPrevented) {
+        nsIPresShell::gPreventMouseEvents) {
       return;
     }
 
@@ -1873,11 +1872,10 @@ TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
     nsCOMPtr<nsPIDOMWindow> innerWindow = outerWindow->GetCurrentInnerWindow();
 
     if (innerWindow && innerWindow->HasTouchEventListeners()) {
-      SendContentReceivedTouch(aGuid, nsIPresShell::gPreventMouseEvents ||
-                               localEvent.mFlags.mMultipleActionsPrevented);
+      SendContentReceivedTouch(aGuid, nsIPresShell::gPreventMouseEvents);
     }
   } else {
-    UpdateTapState(localEvent, status);
+    UpdateTapState(aEvent, status);
   }
 
   return true;

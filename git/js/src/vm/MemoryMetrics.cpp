@@ -375,9 +375,9 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         break;
       }
 
-      case JSTRACE_JITCODE: {
+      case JSTRACE_IONCODE: {
 #ifdef JS_ION
-        zStats->jitCodesGCHeap += thingSize;
+        zStats->ionCodesGCHeap += thingSize;
         // The code for a script is counted in ExecutableAllocator::sizeOfCode().
 #endif
         break;

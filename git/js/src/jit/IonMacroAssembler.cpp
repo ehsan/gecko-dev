@@ -875,7 +875,8 @@ MacroAssembler::checkInterruptFlagsPar(const Register &tempReg,
                                             Label *fail)
 {
     movePtr(ImmPtr(GetIonContext()->runtime->addressOfInterrupt()), tempReg);
-    branch32(Assembler::NonZero, Address(tempReg, 0), Imm32(0), fail);
+    load32(Address(tempReg, 0), tempReg);
+    branchTest32(Assembler::NonZero, tempReg, tempReg, fail);
 }
 
 static void
@@ -1045,7 +1046,7 @@ MacroAssembler::loadBaselineOrIonRaw(Register script, Register dest, ExecutionMo
         if (failure)
             branchPtr(Assembler::BelowOrEqual, dest, ImmPtr(ION_COMPILING_SCRIPT), failure);
         loadPtr(Address(dest, IonScript::offsetOfMethod()), dest);
-        loadPtr(Address(dest, JitCode::offsetOfCode()), dest);
+        loadPtr(Address(dest, IonCode::offsetOfCode()), dest);
     }
 }
 
@@ -1074,7 +1075,7 @@ MacroAssembler::loadBaselineOrIonNoArgCheck(Register script, Register dest, Exec
         load32(Address(script, IonScript::offsetOfSkipArgCheckEntryOffset()), offset);
 
         loadPtr(Address(dest, IonScript::offsetOfMethod()), dest);
-        loadPtr(Address(dest, JitCode::offsetOfCode()), dest);
+        loadPtr(Address(dest, IonCode::offsetOfCode()), dest);
         addPtr(offset, dest);
 
         Pop(offset);
@@ -1133,7 +1134,7 @@ MacroAssembler::enterParallelExitFrameAndLoadSlice(const VMFunction *f, Register
 
 void
 MacroAssembler::enterFakeParallelExitFrame(Register slice, Register scratch,
-                                           JitCode *codeVal)
+                                           IonCode *codeVal)
 {
     // Load the PerThreadData from from the slice.
     loadPtr(Address(slice, offsetof(ForkJoinSlice, perThreadData)), scratch);
@@ -1163,7 +1164,7 @@ MacroAssembler::enterExitFrameAndLoadContext(const VMFunction *f, Register cxReg
 void
 MacroAssembler::enterFakeExitFrame(Register cxReg, Register scratch,
                                    ExecutionMode executionMode,
-                                   JitCode *codeVal)
+                                   IonCode *codeVal)
 {
     switch (executionMode) {
       case SequentialExecution:

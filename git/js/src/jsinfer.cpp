@@ -884,10 +884,8 @@ HeapTypeSetKey::instantiate(JSContext *cx)
 {
     if (maybeTypes())
         return true;
-    if (object()->isSingleObject() && !object()->asSingleObject()->getType(cx)) {
-        cx->clearPendingException();
+    if (object()->isSingleObject() && !object()->asSingleObject()->getType(cx))
         return false;
-    }
     maybeTypes_ = object()->maybeType()->getProperty(cx, id());
     return maybeTypes_ != nullptr;
 }
@@ -2369,7 +2367,7 @@ TypeCompartment::setTypeToHomogenousArray(ExclusiveContext *cx,
             objType->addPropertyType(cx, JSID_VOID, elementType);
 
         key.proto = objProto;
-        if (!p.add(cx, *arrayTypeTable, key, objType)) {
+        if (!p.add(*arrayTypeTable, key, objType)) {
             cx->compartment()->types.setPendingNukeTypes(cx);
             return;
         }

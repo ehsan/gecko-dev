@@ -2972,7 +2972,6 @@ nsCycleCollector::ShutdownCollect()
             break;
         }
     }
-    NS_ASSERTION(i < NORMAL_SHUTDOWN_COLLECTIONS, "Extra shutdown CC");
 }
 
 static void

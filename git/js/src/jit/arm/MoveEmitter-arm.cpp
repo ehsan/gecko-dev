@@ -274,16 +274,14 @@ MoveEmitterARM::emit(const MoveOp &move)
     const MoveOperand &from = move.from();
     const MoveOperand &to = move.to();
 
-    if (move.isCycleEnd()) {
-        JS_ASSERT(inCycle_);
-        completeCycle(from, to, move.type());
-        inCycle_ = false;
-        return;
-    }
+    if (move.inCycle()) {
+        if (inCycle_) {
+            completeCycle(from, to, move.type());
+            inCycle_ = false;
+            return;
+        }
 
-    if (move.isCycleBegin()) {
-        JS_ASSERT(!inCycle_);
-        breakCycle(from, to, move.endCycleType());
+        breakCycle(from, to, move.type());
         inCycle_ = true;
     }
 

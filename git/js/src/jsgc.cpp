@@ -276,7 +276,7 @@ const uint32_t Arena::ThingSizes[] = {
     sizeof(JSShortString),      /* FINALIZE_SHORT_STRING        */
     sizeof(JSString),           /* FINALIZE_STRING              */
     sizeof(JSExternalString),   /* FINALIZE_EXTERNAL_STRING     */
-    sizeof(jit::JitCode),       /* FINALIZE_JITCODE             */
+    sizeof(jit::IonCode),       /* FINALIZE_IONCODE             */
 };
 
 #define OFFSET(type) uint32_t(sizeof(ArenaHeader) + (ArenaSize - sizeof(ArenaHeader)) % sizeof(type))
@@ -302,7 +302,7 @@ const uint32_t Arena::FirstThingOffsets[] = {
     OFFSET(JSShortString),      /* FINALIZE_SHORT_STRING        */
     OFFSET(JSString),           /* FINALIZE_STRING              */
     OFFSET(JSExternalString),   /* FINALIZE_EXTERNAL_STRING     */
-    OFFSET(jit::JitCode),       /* FINALIZE_JITCODE             */
+    OFFSET(jit::IonCode),       /* FINALIZE_IONCODE             */
 };
 
 #undef OFFSET
@@ -320,27 +320,27 @@ static const AllocKind FinalizePhaseScripts[] = {
     FINALIZE_LAZY_SCRIPT
 };
 
-static const AllocKind FinalizePhaseJitCode[] = {
-    FINALIZE_JITCODE
+static const AllocKind FinalizePhaseIonCode[] = {
+    FINALIZE_IONCODE
 };
 
 static const AllocKind * const FinalizePhases[] = {
     FinalizePhaseStrings,
     FinalizePhaseScripts,
-    FinalizePhaseJitCode
+    FinalizePhaseIonCode
 };
 static const int FinalizePhaseCount = sizeof(FinalizePhases) / sizeof(AllocKind*);
 
 static const int FinalizePhaseLength[] = {
     sizeof(FinalizePhaseStrings) / sizeof(AllocKind),
     sizeof(FinalizePhaseScripts) / sizeof(AllocKind),
-    sizeof(FinalizePhaseJitCode) / sizeof(AllocKind)
+    sizeof(FinalizePhaseIonCode) / sizeof(AllocKind)
 };
 
 static const gcstats::Phase FinalizePhaseStatsPhase[] = {
     gcstats::PHASE_SWEEP_STRING,
     gcstats::PHASE_SWEEP_SCRIPT,
-    gcstats::PHASE_SWEEP_JITCODE
+    gcstats::PHASE_SWEEP_IONCODE
 };
 
 /*
@@ -591,13 +591,13 @@ FinalizeArenas(FreeOp *fop,
         return FinalizeTypedArenas<JSShortString>(fop, src, dest, thingKind, budget);
       case FINALIZE_EXTERNAL_STRING:
         return FinalizeTypedArenas<JSExternalString>(fop, src, dest, thingKind, budget);
-      case FINALIZE_JITCODE:
+      case FINALIZE_IONCODE:
 #ifdef JS_ION
       {
-        // JitCode finalization may release references on an executable
+        // IonCode finalization may release references on an executable
         // allocator that is accessed when triggering interrupts.
         JSRuntime::AutoLockForOperationCallback lock(fop->runtime());
-        return FinalizeTypedArenas<jit::JitCode>(fop, src, dest, thingKind, budget);
+        return FinalizeTypedArenas<jit::IonCode>(fop, src, dest, thingKind, budget);
       }
 #endif
       default:
@@ -1614,10 +1614,10 @@ ArenaLists::queueScriptsForSweep(FreeOp *fop)
 }
 
 void
-ArenaLists::queueJitCodeForSweep(FreeOp *fop)
+ArenaLists::queueIonCodeForSweep(FreeOp *fop)
 {
-    gcstats::AutoPhase ap(fop->runtime()->gcStats, gcstats::PHASE_SWEEP_JITCODE);
-    queueForForegroundSweep(fop, FINALIZE_JITCODE);
+    gcstats::AutoPhase ap(fop->runtime()->gcStats, gcstats::PHASE_SWEEP_IONCODE);
+    queueForForegroundSweep(fop, FINALIZE_IONCODE);
 }
 
 void
@@ -3970,7 +3970,7 @@ BeginSweepingZoneGroup(JSRuntime *rt)
 #ifdef JS_ION
     for (GCZoneGroupIter zone(rt); !zone.done(); zone.next()) {
         gcstats::AutoSCC scc(rt->gcStats, rt->gcZoneGroupIndex);
-        zone->allocator.arenas.queueJitCodeForSweep(&fop);
+        zone->allocator.arenas.queueIonCodeForSweep(&fop);
     }
 #endif
     for (GCZoneGroupIter zone(rt); !zone.done(); zone.next()) {

@@ -1,4 +1,8 @@
-gczeal(2,10);
+
+if (getBuildConfiguration()['generational-gc'])
+    quit();
+
+gczeal(2);
 var g = newGlobal();
 var dbg = new Debugger(g);
 dbg.onNewScript = function(script) {

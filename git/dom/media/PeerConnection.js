@@ -684,21 +684,15 @@ RTCPeerConnection.prototype = {
   },
 
   addStream: function(stream, constraints) {
-    if (!constraints) {
-      constraints = {};
-    }
-    this._mustValidateConstraints(constraints,
-                                  "addStream passed invalid constraints");
     if (stream.currentTime === undefined) {
       throw new this._win.DOMError("", "Invalid stream passed to addStream!");
     }
-    this._queueOrRun({ func: this._addStream,
-                       args: [stream, constraints],
-                       wait: false });
+    // TODO: Implement constraints.
+    this._queueOrRun({ func: this._addStream, args: [stream], wait: false });
   },
 
-  _addStream: function(stream, constraints) {
-    this._getPC().addStream(stream, constraints);
+  _addStream: function(stream) {
+    this._getPC().addStream(stream);
   },
 
   removeStream: function(stream) {

@@ -3099,9 +3099,7 @@ for (uint32_t i = 0; i < length; ++i) {
 
         unionArgumentObj = "${declName}" if isMember else "${holderName}"
         if nullable:
-            # If we're a member, we're a Nullable, which hasn't been told it has
-            # a value.  Otherwise we're an already-constructed Maybe.
-            unionArgumentObj += ".SetValue()" if isMember else ".ref()"
+            unionArgumentObj += ".ref()"
 
         memberTypes = type.flatMemberTypes
         names = []
@@ -3291,12 +3289,7 @@ for (uint32_t i = 0; i < length; ++i) {
                                       extraConditionForNull=extraConditionForNull)
 
         declType = CGGeneric(typeName)
-        if isMember:
-            holderType = None
-        else:
-            holderType = CGGeneric(argumentTypeName)
-            if nullable:
-                holderType = CGTemplatedType("Maybe", holderType)
+        holderType = CGGeneric(argumentTypeName) if not isMember else None
 
         # If we're isOptional and not nullable the normal optional handling will
         # handle lazy construction of our holder.  If we're nullable we do it
@@ -3312,10 +3305,8 @@ for (uint32_t i = 0; i < length; ++i) {
                 declLoc = "${declName}.Value()"
             else:
                 holderArgs = "${declName}.SetValue()"
-            if holderType is not None:
-                constructHolder = CGGeneric("${holderName}.construct(%s);" % holderArgs)
-            else:
-                constructHolder = None
+            holderType = CGTemplatedType("Maybe", holderType)
+            constructHolder = CGGeneric("${holderName}.construct(%s);" % holderArgs)
             # Don't need to pass those args when the holder is being constructed
             holderArgs = None
         else:
@@ -4942,9 +4933,6 @@ def wrapTypeIntoCurrentCompartment(type, value, isMember=True):
 
     if type.isUnion():
         memberWraps = []
-        if type.nullable():
-            type = type.inner
-            value = "%s.Value()" % value
         for member in type.flatMemberTypes:
             memberName = getUnionMemberName(member)
             memberWrap = wrapTypeIntoCurrentCompartment(

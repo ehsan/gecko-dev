@@ -164,7 +164,6 @@ public:
   // We only care about track additions, we'll fire the notification even if
   // some of the tracks have been removed.
   // Takes ownership of aCallback.
-  // If GetExpectedTracks() returns 0, the callback will be fired as soon as there are any tracks.
   void OnTracksAvailable(OnTracksAvailableCallback* aCallback);
 
   /**
@@ -183,7 +182,6 @@ protected:
   void InitSourceStream(nsIDOMWindow* aWindow, TrackTypeHints aHintContents);
   void InitTrackUnionStream(nsIDOMWindow* aWindow, TrackTypeHints aHintContents);
   void InitStreamCommon(MediaStream* aStream);
-
   void CheckTracksAvailable();
 
   class StreamListener;
