@@ -7,6 +7,7 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.home.HomePager;
+import org.mozilla.gecko.ReaderModeUtils;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -16,6 +17,7 @@ import org.json.JSONObject;
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.accounts.OnAccountsUpdateListener;
+import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.ContentObserver;
@@ -268,11 +270,6 @@ public class Tabs implements GeckoEventListener {
 
     public boolean isSelectedTab(Tab tab) {
         return tab != null && tab == mSelectedTab;
-    }
-
-    public boolean isSelectedTabId(int tabId) {
-        final Tab selected = mSelectedTab;
-        return selected != null && selected.getId() == tabId;
     }
 
     public synchronized Tab getTab(int id) {
@@ -608,15 +605,6 @@ public class Tabs implements GeckoEventListener {
         }
 
         return -1;
-    }
-
-    public int getTabIdForUrl(String url) {
-        return getTabIdForUrl(url, Tabs.getInstance().getSelectedTab().isPrivate());
-    }
-
-    public synchronized Tab getTabForUrl(String url) {
-        int tabId = getTabIdForUrl(url);
-        return getTab(tabId);
     }
 
     /**

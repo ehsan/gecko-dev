@@ -1192,11 +1192,7 @@ abstract public class GeckoApp
         ThreadUtils.setUiThread(Thread.currentThread(), new Handler());
 
         Tabs.getInstance().attachToContext(this);
-        try {
-            Favicons.attachToContext(this);
-        } catch (Exception e) {
-            Log.e(LOGTAG, "Exception starting favicon cache. Corrupt resources?", e);
-        }
+        Favicons.attachToContext(this);
 
         // When we detect a locale change, we need to restart Gecko, which
         // actually means restarting the entire application. This logic should
