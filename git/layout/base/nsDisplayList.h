@@ -838,7 +838,11 @@ public:
 #include "nsDisplayItemTypes.h"
 
   struct HitTestState {
-    explicit HitTestState() {}
+    typedef nsTArray<ViewID> ShadowArray;
+
+    explicit HitTestState(ShadowArray* aShadows = nullptr)
+      : mShadows(aShadows) {
+    }
 
     ~HitTestState() {
       NS_ASSERTION(mItemBuffer.Length() == 0,
@@ -846,6 +850,11 @@ public:
     }
 
     nsAutoTArray<nsDisplayItem*, 100> mItemBuffer;
+
+    // It is sometimes useful to hit test for frames that are not in this
+    // process. Display items may append IDs into this array if it is
+    // non-null.
+    ShadowArray* mShadows;
   };
 
   /**
@@ -2336,7 +2345,7 @@ public:
 /**
  * The standard display item to paint the outer CSS box-shadows of a frame.
  */
-class nsDisplayBoxShadowOuter MOZ_FINAL : public nsDisplayItem {
+class nsDisplayBoxShadowOuter : public nsDisplayItem {
 public:
   nsDisplayBoxShadowOuter(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
     : nsDisplayItem(aBuilder, aFrame)

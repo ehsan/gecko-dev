@@ -38,7 +38,7 @@ class PLayerChild;
 class TextureClientPool;
 class SimpleTextureClientPool;
 
-class ClientLayerManager MOZ_FINAL : public LayerManager
+class ClientLayerManager : public LayerManager
 {
   typedef nsTArray<nsRefPtr<Layer> > LayerRefArray;
 

@@ -264,6 +264,7 @@ public:
    * into (x',y',0,w') and returns the latter.
    */
   gfxPointH3D ProjectPoint(const gfxPoint& aPoint) const;
+  gfxRect ProjectRectBounds(const gfxRect& aRect) const;
 
   /**
    * Inverts this matrix, if possible. Otherwise, the matrix is left

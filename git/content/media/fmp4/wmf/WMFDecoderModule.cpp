@@ -92,11 +92,4 @@ WMFDecoderModule::CreateAudioDecoder(const mp4_demuxer::AudioDecoderConfig& aCon
   return decoder.forget();
 }
 
-bool
-WMFDecoderModule::SupportsAudioMimeType(const char* aMimeType)
-{
-  return !strcmp(aMimeType, "audio/mp4a-latm") ||
-         !strcmp(aMimeType, "audio/mpeg");
-}
-
 } // namespace mozilla

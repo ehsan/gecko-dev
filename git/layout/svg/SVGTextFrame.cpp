@@ -5349,8 +5349,8 @@ SVGTextFrame::GetFontSizeScaleFactor() const
  * it to the appropriate frame user space of aChildFrame according to
  * which rendered run the point hits.
  */
-Point
-SVGTextFrame::TransformFramePointToTextChild(const Point& aPoint,
+gfxPoint
+SVGTextFrame::TransformFramePointToTextChild(const gfxPoint& aPoint,
                                              nsIFrame* aChildFrame)
 {
   NS_ASSERTION(aChildFrame &&
@@ -5368,9 +5368,9 @@ SVGTextFrame::TransformFramePointToTextChild(const Point& aPoint,
   float cssPxPerDevPx = presContext->
     AppUnitsToFloatCSSPixels(presContext->AppUnitsPerDevPixel());
   float factor = presContext->AppUnitsPerCSSPixel();
-  Point framePosition(NSAppUnitsToFloatPixels(mRect.x, factor),
-                      NSAppUnitsToFloatPixels(mRect.y, factor));
-  Point pointInUserSpace = aPoint * cssPxPerDevPx + framePosition;
+  gfxPoint framePosition(NSAppUnitsToFloatPixels(mRect.x, factor),
+                         NSAppUnitsToFloatPixels(mRect.y, factor));
+  gfxPoint pointInUserSpace = aPoint * cssPxPerDevPx + framePosition;
 
   // Find the closest rendered run for the text frames beneath aChildFrame.
   TextRenderedRunIterator it(this, TextRenderedRunIterator::eAllFrames,
@@ -5389,7 +5389,7 @@ SVGTextFrame::TransformFramePointToTextChild(const Point& aPoint,
     if (!m.Invert()) {
       return aPoint;
     }
-    gfxPoint pointInRunUserSpace = m.Transform(ThebesPoint(pointInUserSpace));
+    gfxPoint pointInRunUserSpace = m.Transform(pointInUserSpace);
 
     if (Inside(runRect, pointInRunUserSpace)) {
       // The point was inside the rendered run's rect, so we choose it.
@@ -5418,7 +5418,7 @@ SVGTextFrame::TransformFramePointToTextChild(const Point& aPoint,
   // but taking into account mFontSizeScaleFactor.
   gfxMatrix m = hit.GetTransformFromRunUserSpaceToFrameUserSpace(presContext);
   m.Scale(mFontSizeScaleFactor, mFontSizeScaleFactor);
-  return ToPoint(m.Transform(pointInRun) / cssPxPerDevPx);
+  return m.Transform(pointInRun) / cssPxPerDevPx;
 }
 
 /**

@@ -103,7 +103,8 @@ nsJSUtils::ReportPendingException(JSContext *aContext)
       // otherwise default global) of aContext, so use that here.
       nsIScriptContext* scx = GetScriptContextFromJSContext(aContext);
       JS::Rooted<JSObject*> scope(aContext);
-      scope = scx ? scx->GetWindowProxy() : nullptr;
+      scope = scx ? scx->GetWindowProxy()
+                  : js::DefaultObjectForContextOrNull(aContext);
       if (!scope) {
         // The SafeJSContext has no default object associated with it.
         MOZ_ASSERT(NS_IsMainThread());
@@ -318,5 +319,8 @@ JSObject* GetDefaultScopeFromJSContext(JSContext *cx)
   // the cx, so in those cases we need to fetch it via the scx
   // instead.
   nsIScriptContext *scx = GetScriptContextFromJSContext(cx);
-  return  scx ? scx->GetWindowProxy() : nullptr;
+  if (scx) {
+    return scx->GetWindowProxy();
+  }
+  return js::DefaultObjectForContextOrNull(cx);
 }

@@ -71,7 +71,7 @@ private:
  * Collect embedded objects. Provide quick access to accessible by index and
  * vice versa.
  */
-class EmbeddedObjCollector MOZ_FINAL : public AccCollector
+class EmbeddedObjCollector : public AccCollector
 {
 public:
   virtual ~EmbeddedObjCollector() { }

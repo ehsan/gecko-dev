@@ -56,9 +56,6 @@ this.SystemMessagePermissionsTable = {
   "bluetooth-opp-transfer-start": {
     "bluetooth": []
   },
-  "cellbroadcast-received": {
-    "cellbroadcast": []
-  },
   "connection": { },
   "captive-portal": {
     "wifi-manage": []

@@ -76,17 +76,9 @@ WMFAudioMFTManager::WMFAudioMFTManager(
   , mMustRecaptureAudioPosition(true)
 {
   MOZ_COUNT_CTOR(WMFAudioMFTManager);
-
-  if (!strcmp(aConfig.mime_type, "audio/mpeg")) {
-    mStreamType = MP3;
-  } else if (!strcmp(aConfig.mime_type, "audio/mp4a-latm")) {
-    mStreamType = AAC;
-    AACAudioSpecificConfigToUserData(&aConfig.audio_specific_config[0],
-                                     aConfig.audio_specific_config.length(),
-                                     mUserData);
-  } else {
-    mStreamType = Unknown;
-  }
+  AACAudioSpecificConfigToUserData(&aConfig.audio_specific_config[0],
+                                   aConfig.audio_specific_config.length(),
+                                   mUserData);
 }
 
 WMFAudioMFTManager::~WMFAudioMFTManager()
@@ -94,36 +86,12 @@ WMFAudioMFTManager::~WMFAudioMFTManager()
   MOZ_COUNT_DTOR(WMFAudioMFTManager);
 }
 
-const GUID&
-WMFAudioMFTManager::GetMFTGUID()
-{
-  MOZ_ASSERT(mStreamType != Unknown);
-  switch (mStreamType) {
-    case AAC: return CLSID_CMSAACDecMFT;
-    case MP3: return CLSID_CMP3DecMediaObject;
-    default: return GUID_NULL;
-  };
-}
-
-const GUID&
-WMFAudioMFTManager::GetMediaSubtypeGUID()
-{
-  MOZ_ASSERT(mStreamType != Unknown);
-  switch (mStreamType) {
-    case AAC: return MFAudioFormat_AAC;
-    case MP3: return MFAudioFormat_MP3;
-    default: return GUID_NULL;
-  };
-}
-
 TemporaryRef<MFTDecoder>
 WMFAudioMFTManager::Init()
 {
-  NS_ENSURE_TRUE(mStreamType != Unknown, nullptr);
-
   RefPtr<MFTDecoder> decoder(new MFTDecoder());
 
-  HRESULT hr = decoder->Create(GetMFTGUID());
+  HRESULT hr = decoder->Create(CLSID_CMSAACDecMFT);
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
   // Setup input/output media types
@@ -135,7 +103,7 @@ WMFAudioMFTManager::Init()
   hr = type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
-  hr = type->SetGUID(MF_MT_SUBTYPE, GetMediaSubtypeGUID());
+  hr = type->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_AAC);
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
   hr = type->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, mAudioRate);
@@ -144,15 +112,13 @@ WMFAudioMFTManager::Init()
   hr = type->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, mAudioChannels);
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
-  if (mStreamType == AAC) {
-    hr = type->SetUINT32(MF_MT_AAC_PAYLOAD_TYPE, 0x1); // ADTS
-    NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+  hr = type->SetUINT32(MF_MT_AAC_PAYLOAD_TYPE, 0x1); // ADTS
+  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
-    hr = type->SetBlob(MF_MT_USER_DATA,
-                       mUserData.Elements(),
-                       mUserData.Length());
-    NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
-  }
+  hr = type->SetBlob(MF_MT_USER_DATA,
+                     mUserData.Elements(),
+                     mUserData.Length());
+  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
   hr = decoder->SetMediaTypes(type, MFAudioFormat_PCM);
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);

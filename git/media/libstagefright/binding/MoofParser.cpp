@@ -27,13 +27,6 @@ MoofParser::RebuildFragmentedIndex(const nsTArray<MediaByteRange>& aByteRanges)
   }
 }
 
-bool
-MoofParser::ReachedEnd()
-{
-  int64_t length;
-  return mSource->Length(&length) && mOffset == length;
-}
-
 void
 MoofParser::ParseMoov(Box& aBox)
 {

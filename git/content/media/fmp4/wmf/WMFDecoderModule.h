@@ -34,8 +34,6 @@ public:
                      MediaTaskQueue* aAudioTaskQueue,
                      MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE;
 
-  bool SupportsAudioMimeType(const char* aMimeType) MOZ_OVERRIDE;
-
   // Called on main thread.
   static void Init();
 private:

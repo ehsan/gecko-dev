@@ -122,7 +122,6 @@ class nsLayoutUtils
   typedef mozilla::gfx::SourceSurface SourceSurface;
   typedef mozilla::gfx::DrawTarget DrawTarget;
   typedef mozilla::gfx::Rect Rect;
-  typedef mozilla::gfx::Matrix4x4 Matrix4x4;
 
 public:
   typedef mozilla::layers::FrameMetrics FrameMetrics;
@@ -664,6 +663,23 @@ public:
                                        nsIWidget* aWidget, nsIntPoint aPt,
                                        nsView* aView);
 
+  /**
+   * Find IDs corresponding to a scrollable content element in the child process.
+   * In correspondence with the shadow layer tree, you can use this to perform a
+   * hit test that corresponds to a specific shadow layer that you can then perform
+   * transformations on to do parent-side scrolling.
+   *
+   * @param aFrame The root frame of a stack context
+   * @param aTarget The rect to hit test relative to the frame origin
+   * @param aOutIDs All found IDs are added here
+   * @param aIgnoreRootScrollFrame a boolean to control if the display list
+   *        builder should ignore the root scroll frame
+   */
+  static nsresult GetRemoteContentIds(nsIFrame* aFrame,
+                                     const nsRect& aTarget,
+                                     nsTArray<ViewID> &aOutIDs,
+                                     bool aIgnoreRootScrollFrame);
+
   enum FrameForPointFlags {
     /**
      * When set, paint suppression is ignored, so we'll return non-root page
@@ -719,7 +735,7 @@ public:
    * Gets the transform for aFrame relative to aAncestor. Pass null for aAncestor
    * to go up to the root frame.
    */
-  static Matrix4x4 GetTransformToAncestor(nsIFrame *aFrame, const nsIFrame *aAncestor);
+  static gfx3DMatrix GetTransformToAncestor(nsIFrame *aFrame, const nsIFrame *aAncestor);
 
   /**
    * Transforms a list of CSSPoints from aFromFrame to aToFrame, taking into
@@ -761,7 +777,7 @@ public:
    * transaction were opened at the time this helper is called.
    */
   static bool GetLayerTransformForFrame(nsIFrame* aFrame,
-                                        Matrix4x4* aTransform);
+                                        gfx3DMatrix* aTransform);
 
   /**
    * Given a point in the global coordinate space, returns that point expressed

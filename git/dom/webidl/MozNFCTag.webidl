@@ -23,7 +23,7 @@ enum NFCTechType {
   "UNKNOWN_TECH"
 };
 
-[JSImplementation="@mozilla.org/nfc/NFCTag;1", AvailableIn="CertifiedApps"]
+[JSImplementation="@mozilla.org/nfc/NFCTag;1"]
 interface MozNFCTag {
   DOMRequest getDetailsNDEF();
   DOMRequest readNDEF();

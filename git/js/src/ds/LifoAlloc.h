@@ -391,7 +391,7 @@ class LifoAlloc
     // Doesn't perform construction; useful for lazily-initialized POD types.
     template <typename T>
     MOZ_ALWAYS_INLINE
-    T *pod_malloc() {
+    T *newPod() {
         return static_cast<T *>(alloc(sizeof(T)));
     }
 

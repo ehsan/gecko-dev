@@ -164,7 +164,7 @@ protected:
  *
  * The nsSVGFilterProperty class manages a list of nsSVGFilterReferences.
  */
-class nsSVGFilterReference MOZ_FINAL :
+class nsSVGFilterReference :
   public nsSVGIDRenderingObserver, public nsISVGFilterReference {
 public:
   nsSVGFilterReference(nsIURI *aURI, nsIFrame *aFilteredFrame)

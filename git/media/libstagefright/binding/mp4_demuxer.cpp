@@ -215,30 +215,15 @@ MP4Demuxer::ConvertByteRangesToTime(
     return;
   }
 
-  Microseconds lastComposition = 0;
-  nsTArray<Microseconds> endCompositions;
-  for (int i = 0; i < mPrivate->mIndexes.Length(); i++) {
-    Microseconds endComposition =
-      mPrivate->mIndexes[i]->GetEndCompositionIfBuffered(aByteRanges);
-    endCompositions.AppendElement(endComposition);
-    lastComposition = std::max(lastComposition, endComposition);
-  }
+  mPrivate->mIndexes[0]->ConvertByteRangesToTimeRanges(aByteRanges, aIntervals);
 
-  for (int i = 0; i < mPrivate->mIndexes.Length(); i++) {
+  for (int i = 1; i < mPrivate->mIndexes.Length(); i++) {
     nsTArray<Interval<Microseconds>> ranges;
     mPrivate->mIndexes[i]->ConvertByteRangesToTimeRanges(aByteRanges, &ranges);
-    if (lastComposition && endCompositions[i]) {
-      Interval<Microseconds>::SemiNormalAppend(
-        ranges, Interval<Microseconds>(endCompositions[i], lastComposition));
-    }
 
-    if (i) {
-      nsTArray<Interval<Microseconds>> intersection;
-      Interval<Microseconds>::Intersection(*aIntervals, ranges, &intersection);
-      *aIntervals = intersection;
-    } else {
-      *aIntervals = ranges;
-    }
+    nsTArray<Interval<Microseconds>> intersection;
+    Interval<Microseconds>::Intersection(*aIntervals, ranges, &intersection);
+    *aIntervals = intersection;
   }
 }
 

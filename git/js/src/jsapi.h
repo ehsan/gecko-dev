@@ -1530,7 +1530,8 @@ class JS_PUBLIC_API(ContextOptions) {
   public:
     ContextOptions()
       : privateIsNSISupports_(false),
-        dontReportUncaught_(false)
+        dontReportUncaught_(false),
+        noDefaultCompartmentObject_(false)
     {
     }
 
@@ -1554,9 +1555,20 @@ class JS_PUBLIC_API(ContextOptions) {
         return *this;
     }
 
+    bool noDefaultCompartmentObject() const { return noDefaultCompartmentObject_; }
+    ContextOptions &setNoDefaultCompartmentObject(bool flag) {
+        noDefaultCompartmentObject_ = flag;
+        return *this;
+    }
+    ContextOptions &toggleNoDefaultCompartmentObject() {
+        noDefaultCompartmentObject_ = !noDefaultCompartmentObject_;
+        return *this;
+    }
+
   private:
     bool privateIsNSISupports_ : 1;
     bool dontReportUncaught_ : 1;
+    bool noDefaultCompartmentObject_ : 1;
 };
 
 JS_PUBLIC_API(ContextOptions &)

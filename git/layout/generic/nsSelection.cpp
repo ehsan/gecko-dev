@@ -161,7 +161,7 @@ public:
   }
 };
 
-class nsAutoScrollTimer MOZ_FINAL : public nsITimerCallback
+class nsAutoScrollTimer : public nsITimerCallback
 {
 public:
 

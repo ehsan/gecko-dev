@@ -114,7 +114,6 @@ public:
   }
   void RebuildFragmentedIndex(
     const nsTArray<mozilla::MediaByteRange>& aByteRanges);
-  bool ReachedEnd();
   void ParseMoov(Box& aBox);
   void ParseTrak(Box& aBox);
   void ParseMdia(Box& aBox, Tkhd& aTkhd);

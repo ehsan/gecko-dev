@@ -9,7 +9,7 @@
 #include "nsContainerFrame.h"
 #include "nsIFrameInlines.h" // for methods used by IS_TRUE_OVERFLOW_CONTAINER
 
-class nsColumnSetFrame MOZ_FINAL : public nsContainerFrame {
+class nsColumnSetFrame : public nsContainerFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 

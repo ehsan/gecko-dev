@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "MediaSourceDecoder.h"
 
-#include "prlog.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/TimeRanges.h"
 #include "MediaDecoderStateMachine.h"
@@ -29,7 +28,7 @@ extern PRLogModuleInfo* GetMediaSourceAPILog();
 
 namespace mozilla {
 
-class SourceBufferDecoder;
+class SubBufferDecoder;
 
 MediaSourceDecoder::MediaSourceDecoder(dom::HTMLMediaElement* aElement)
   : mMediaSource(nullptr)
@@ -106,7 +105,7 @@ MediaSourceDecoder::DetachMediaSource()
   mMediaSource = nullptr;
 }
 
-already_AddRefed<SourceBufferDecoder>
+already_AddRefed<SubBufferDecoder>
 MediaSourceDecoder::CreateSubDecoder(const nsACString& aType)
 {
   MOZ_ASSERT(mReader);

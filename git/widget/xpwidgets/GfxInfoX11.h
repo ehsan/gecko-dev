@@ -13,7 +13,7 @@
 namespace mozilla {
 namespace widget {
 
-class GfxInfo MOZ_FINAL : public GfxInfoBase
+class GfxInfo : public GfxInfoBase
 {
 public:
 

@@ -95,6 +95,12 @@ public:
   virtual nsresult ReadMetadata(MediaInfo* aInfo,
                                 MetadataTags** aTags) = 0;
 
+  // TODO: DEPRECATED. This uses synchronous decoding.
+  // Stores the presentation time of the first frame we'd be able to play if
+  // we started playback at the current position. Returns the first video
+  // frame, if we have video.
+  virtual VideoData* FindStartTime(int64_t& aOutStartTime);
+
   // Moves the decode head to aTime microseconds. aStartTime and aEndTime
   // denote the start and end times of the media in usecs, and aCurrentTime
   // is the current playback position in microseconds.
@@ -163,7 +169,7 @@ public:
     return mDecoder;
   }
 
-  // TODO: DEPRECATED.  This uses synchronous decoding.
+  AudioData* DecodeToFirstAudioData();
   VideoData* DecodeToFirstVideoData();
 
   MediaInfo GetMediaInfo() { return mInfo; }

@@ -21,7 +21,6 @@ BluetoothReplyRunnable::BluetoothReplyRunnable(nsIDOMDOMRequest* aReq,
                                                const nsAString& aName)
   : mDOMRequest(aReq)
   , mPromise(aPromise)
-  , mErrorStatus(STATUS_FAIL)
   , mName(aName)
 {
   if (aPromise) {
@@ -84,9 +83,13 @@ BluetoothReplyRunnable::FireErrorString()
   if (mPromise) {
     BT_API2_LOGR("<%s>", NS_ConvertUTF16toUTF8(mName).get());
 
-    nsresult rv =
-      NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_DOM_BLUETOOTH, mErrorStatus);
-    mPromise->MaybeReject(rv);
+    /**
+     * Always reject with NS_ERROR_DOM_OPERATION_ERR.
+     *
+     * TODO: Return actual error result once bluetooth backend wraps
+     *       nsresult instead of error string.
+     */
+    mPromise->MaybeReject(NS_ERROR_DOM_OPERATION_ERR);
   }
 
   return NS_OK;
@@ -103,8 +106,7 @@ BluetoothReplyRunnable::Run()
 
   nsresult rv;
   if (mReply->type() != BluetoothReply::TBluetoothReplySuccess) {
-    SetError(mReply->get_BluetoothReplyError().errorString(),
-             mReply->get_BluetoothReplyError().errorStatus());
+    SetError(mReply->get_BluetoothReplyError().error());
     rv = FireErrorString();
   } else if (!ParseSuccessfulReply(&v)) {
     rv = FireErrorString();

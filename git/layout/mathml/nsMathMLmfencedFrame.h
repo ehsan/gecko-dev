@@ -13,7 +13,7 @@
 // <mfenced> -- surround content with a pair of fences
 //
 
-class nsMathMLmfencedFrame MOZ_FINAL : public nsMathMLContainerFrame {
+class nsMathMLmfencedFrame : public nsMathMLContainerFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
