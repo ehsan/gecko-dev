@@ -4,52 +4,20 @@
 MARIONETTE_TIMEOUT = 30000;
 MARIONETTE_HEAD_JS = 'head.js';
 
-let nfc = window.navigator.mozNfc;
 function testEnableNFC() {
   log('Running \'testEnableNFC\'');
-  let req = nfc.startPoll();
-  req.onsuccess = function () {
-    ok(true);
-    runNextTest();
-  };
-  req.onerror = function () {
-    ok(false, "startPoll failed");
-    runNextTest();
-  };
+  toggleNFC(true, runNextTest);
 }
 
 function testDisableNFC() {
   log('Running \'testDisableNFC\'');
-  let req = nfc.powerOff();
-  req.onsuccess = function () {
-    ok(true);
-    runNextTest();
-  };
-  req.onerror = function () {
-    ok(false, "powerOff failed");
-    runNextTest();
-  };
-}
-
-function testStopPollNFC() {
-  log('Running \'testStopPollNFC\'');
-  let req = nfc.stopPoll();
-  req.onsuccess = function () {
-    ok(true);
-    runNextTest();
-  };
-  req.onerror = function () {
-    ok(false, "stopPoll failed");
-    runNextTest();
-  };
+  toggleNFC(false, runNextTest);
 }
 
 let tests = [
   testEnableNFC,
-  testStopPollNFC,
   testDisableNFC
 ];
 
 SpecialPowers.pushPermissions(
-  [{'type': 'nfc-manager', 'allow': true, 'context': document}],
-  runTests);
+  [{'type': 'settings', 'allow': true, 'context': document}], runTests);

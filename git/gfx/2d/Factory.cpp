@@ -618,14 +618,14 @@ Factory::CreateCairoGlyphRenderingOptions(FontHinting aHinting, bool aAutoHintin
 #endif
 
 TemporaryRef<DrawTarget>
-Factory::CreateDrawTargetForCairoSurface(cairo_surface_t* aSurface, const IntSize& aSize, SurfaceFormat* aFormat)
+Factory::CreateDrawTargetForCairoSurface(cairo_surface_t* aSurface, const IntSize& aSize)
 {
   RefPtr<DrawTarget> retVal;
 
 #ifdef USE_CAIRO
   RefPtr<DrawTargetCairo> newTarget = new DrawTargetCairo();
 
-  if (newTarget->Init(aSurface, aSize, aFormat)) {
+  if (newTarget->Init(aSurface, aSize)) {
     retVal = newTarget;
   }
 

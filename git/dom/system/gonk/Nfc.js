@@ -66,10 +66,7 @@ const NFC_IPC_WRITE_PERM_MSG_NAMES = [
 const NFC_IPC_MANAGER_PERM_MSG_NAMES = [
   "NFC:CheckP2PRegistration",
   "NFC:NotifyUserAcceptedP2P",
-  "NFC:NotifySendFileStatus",
-  "NFC:StartPoll",
-  "NFC:StopPoll",
-  "NFC:PowerOff"
+  "NFC:NotifySendFileStatus"
 ];
 
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
@@ -423,7 +420,6 @@ function Nfc() {
   lock.get(NFC.SETTING_NFC_ENABLED, this);
   // Maps sessionId (that are generated from nfcd) with a unique guid : 'SessionToken'
   this.sessionTokenMap = {};
-  this.targetsByRequestId = {};
 
   gSystemWorkerManager.registerNfcWorker(this.worker);
 }
@@ -520,14 +516,7 @@ Nfc.prototype = {
         this.currentPeerAppId = null;
         break;
      case "ConfigResponse":
-        let target = this.targetsByRequestId[message.requestId];
-        if (!target) {
-          debug("No target for requestId: " + message.requestId);
-          return;
-        }
-        delete this.targetsByRequestId[message.requestId];
-
-        target.sendAsyncMessage("NFC:ConfigResponse", message);
+        gSystemMessenger.broadcastMessage("nfc-powerlevel-change", message);
         break;
       case "ConnectResponse": // Fall through.
       case "CloseResponse":
@@ -550,31 +539,11 @@ Nfc.prototype = {
 
   sessionTokenMap: null,
 
-  targetsByRequestId: null,
-
   /**
    * Process a message from the content process.
    */
   receiveMessage: function receiveMessage(message) {
     debug("Received '" + JSON.stringify(message) + "' message from content process");
-
-    // Handle messages without sessionToken.
-    if (message.name == "NFC:StartPoll") {
-      this.targetsByRequestId[message.json.requestId] = message.target;
-      this.setConfig({powerLevel: NFC.NFC_POWER_LEVEL_ENABLED,
-                      requestId: message.json.requestId});
-      return null;
-    } else if (message.name == "NFC:StopPoll") {
-      this.targetsByRequestId[message.json.requestId] = message.target;
-      this.setConfig({powerLevel: NFC.NFC_POWER_LEVEL_LOW,
-                      requestId: message.json.requestId});
-      return null;
-    } else if (message.name == "NFC:PowerOff") {
-      this.targetsByRequestId[message.json.requestId] = message.target;
-      this.setConfig({powerLevel: NFC.NFC_POWER_LEVEL_DISABLED,
-                      requestId: message.json.requestId});
-      return null;
-    }
 
     if (!this._enabled) {
       debug("NFC is not enabled.");

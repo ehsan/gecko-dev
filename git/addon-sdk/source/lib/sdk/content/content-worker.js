@@ -107,9 +107,7 @@ const ContentWorker = Object.freeze({
       error: pipe.emit.bind(null, "console", "error"),
       debug: pipe.emit.bind(null, "console", "debug"),
       exception: pipe.emit.bind(null, "console", "exception"),
-      trace: pipe.emit.bind(null, "console", "trace"),
-      time: pipe.emit.bind(null, "console", "time"),
-      timeEnd: pipe.emit.bind(null, "console", "timeEnd")
+      trace: pipe.emit.bind(null, "console", "trace")
     });
   },
 

@@ -81,10 +81,6 @@
          Components.classes["@mozilla.org/autocomplete/search;1?name=history"]
                    .getService(Components.interfaces.mozIPlacesAutoComplete);
       </field>
-      <field name="_unifiedComplete" readonly="true">
-         Components.classes["@mozilla.org/autocomplete/search;1?name=unifiedcomplete"]
-                   .getService(Components.interfaces.mozIPlacesAutoComplete);
-      </field>
       <field name="mTabBox" readonly="true">
         document.getAnonymousElementByAttribute(this, "anonid", "tabbox");
       </field>
@@ -748,10 +744,8 @@
                 }
 
                 let autocomplete = this.mTabBrowser._placesAutocomplete;
-                let unifiedComplete = this.mTabBrowser._unifiedComplete;
                 if (this.mBrowser.registeredOpenURI) {
                   autocomplete.unregisterOpenPage(this.mBrowser.registeredOpenURI);
-                  unifiedComplete.unregisterOpenPage(this.mBrowser.registeredOpenURI);
                   delete this.mBrowser.registeredOpenURI;
                 }
                 // Tabs in private windows aren't registered as "Open" so
@@ -760,7 +754,6 @@
                     (!PrivateBrowsingUtils.isWindowPrivate(window) ||
                     PrivateBrowsingUtils.permanentPrivateBrowsing)) {
                   autocomplete.registerOpenPage(aLocation);
-                  unifiedComplete.registerOpenPage(aLocation);
                   this.mBrowser.registeredOpenURI = aLocation;
                 }
               }
@@ -1679,6 +1672,12 @@
 
                 // kick the animation off
                 t.setAttribute("fadein", "true");
+
+                // This call to adjustTabstrip is redundant but needed so that
+                // when opening a second tab, the first tab's close buttons
+                // appears immediately rather than when the transition ends.
+                if (this.tabs.length - this._removingTabs.length == 2)
+                  this.tabContainer.adjustTabstrip();
               }.bind(this));
             }
 
@@ -1864,6 +1863,13 @@
             aTab.style.maxWidth = ""; // ensure that fade-out transition happens
             aTab.removeAttribute("fadein");
 
+            if (this.tabs.length - this._removingTabs.length == 1) {
+              // The second tab just got closed and we will end up with a single
+              // one. Remove the first tab's close button immediately (if needed)
+              // rather than after the tabclose animation ends.
+              this.tabContainer.adjustTabstrip();
+            }
+
             setTimeout(function (tab, tabbrowser) {
               if (tab.parentNode &&
                   window.getComputedStyle(tab).maxWidth == "0.1px") {
@@ -1963,7 +1969,6 @@
 
             if (browser.registeredOpenURI && !aTabWillBeMoved) {
               this._placesAutocomplete.unregisterOpenPage(browser.registeredOpenURI);
-              this._unifiedComplete.unregisterOpenPage(browser.registeredOpenURI);
               delete browser.registeredOpenURI;
             }
 
@@ -2290,7 +2295,6 @@
             // If the current URI is registered as open remove it from the list.
             if (aOurBrowser.registeredOpenURI) {
               this._placesAutocomplete.unregisterOpenPage(aOurBrowser.registeredOpenURI);
-              this._unifiedComplete.unregisterOpenPage(aOurBrowser.registeredOpenURI);
               delete aOurBrowser.registeredOpenURI;
             }
 
@@ -3100,7 +3104,6 @@
             let browser = this.getBrowserAtIndex(i);
             if (browser.registeredOpenURI) {
               this._placesAutocomplete.unregisterOpenPage(browser.registeredOpenURI);
-              this._unifiedComplete.unregisterOpenPage(browser.registeredOpenURI);
               delete browser.registeredOpenURI;
             }
             browser.webProgress.removeProgressListener(this.mTabFilters[i]);

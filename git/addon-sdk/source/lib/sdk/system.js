@@ -109,21 +109,17 @@ exports.pathFor = function pathFor(id) {
  */
 exports.platform = runtime.OS.toLowerCase();
 
-const [, architecture, compiler] = runtime.XPCOMABI ? 
-                                   runtime.XPCOMABI.match(/^([^-]*)-(.*)$/) :
-                                   [, null, null];
-
 /**
  * What processor architecture you're running on:
  * `'arm', 'ia32', or 'x64'`.
  */
-exports.architecture = architecture;
+exports.architecture = runtime.XPCOMABI.split('_')[0];
 
 /**
  * What compiler used for build:
  * `'msvc', 'n32', 'gcc2', 'gcc3', 'sunc', 'ibmc'...`
  */
-exports.compiler = compiler;
+exports.compiler = runtime.XPCOMABI.split('_')[1];
 
 /**
  * The application's build ID/date, for example "2004051604".

@@ -33,4 +33,5 @@ let tests = [
   testConstructNDEF
 ];
 
-runTests();
+SpecialPowers.pushPermissions(
+  [{'type': 'settings', 'allow': true, 'context': document}], runTests);

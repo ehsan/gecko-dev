@@ -5,10 +5,6 @@
 
 let runAppObj;
 window.addEventListener('load', function() {
-  if (!window.arguments) {
-    return;
-  }
-
   // Get the command line arguments that were passed to the b2g client
   let args = window.arguments[0].QueryInterface(Ci.nsICommandLine);
   let appname;
