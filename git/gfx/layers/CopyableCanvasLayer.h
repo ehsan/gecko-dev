@@ -40,8 +40,7 @@ public:
   virtual ~CopyableCanvasLayer();
 
   virtual void Initialize(const Data& aData);
-
-  virtual bool IsDataValid(const Data& aData);
+  
 
 protected:
   void PaintWithOpacity(gfxContext* aContext,

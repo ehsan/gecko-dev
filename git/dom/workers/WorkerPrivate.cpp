@@ -2019,7 +2019,8 @@ class WorkerPrivate::MemoryReporter MOZ_FINAL : public MemoryMultiReporter
 
 public:
   MemoryReporter(WorkerPrivate* aWorkerPrivate)
-  : mMutex(aWorkerPrivate->mMutex), mWorkerPrivate(aWorkerPrivate),
+  : MemoryMultiReporter("workers"),
+    mMutex(aWorkerPrivate->mMutex), mWorkerPrivate(aWorkerPrivate),
     mAlreadyMappedToAddon(false)
   {
     aWorkerPrivate->AssertIsOnWorkerThread();

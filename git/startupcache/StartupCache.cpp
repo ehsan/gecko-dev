@@ -126,7 +126,8 @@ enum StartupCache::TelemetrifyAge StartupCache::gPostFlushAgeAction = StartupCac
 NS_IMPL_ISUPPORTS_INHERITED0(StartupCache, MemoryMultiReporter)
 
 StartupCache::StartupCache()
-  : mArchive(nullptr), mStartupWriteInitiated(false), mWriteThread(nullptr)
+  : MemoryMultiReporter("startup-cache"),
+    mArchive(nullptr), mStartupWriteInitiated(false), mWriteThread(nullptr)
 { }
 
 StartupCache::~StartupCache()

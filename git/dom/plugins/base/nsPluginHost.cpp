@@ -2321,14 +2321,7 @@ nsPluginHost::WritePluginInfo()
     invalidPlugins = invalidPlugins->mNext;
   }
 
-  PRStatus prrc;
-  prrc = PR_Close(fd);
-  if (prrc != PR_SUCCESS) {
-    // we should obtain a refined value based on prrc;
-    rv = NS_ERROR_FAILURE;
-    MOZ_ASSERT(false, "PR_Close() failed.");
-    return rv;
-  }
+  PR_Close(fd);
   nsCOMPtr<nsIFile> parent;
   rv = pluginReg->GetParent(getter_AddRefs(parent));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2405,15 +2398,7 @@ nsPluginHost::ReadPluginInfo()
   rv = NS_ERROR_FAILURE;
 
   int32_t bread = PR_Read(fd, registry, flen);
-
-  PRStatus prrc;
-  prrc = PR_Close(fd);
-  if (prrc != PR_SUCCESS) {
-    // Strange error: this is one of those "Should not happen" error.
-    // we may want to report something more refined than  NS_ERROR_FAILURE.
-    MOZ_ASSERT(false, "PR_Close() failed.");
-    return rv;
-  }
+  PR_Close(fd);
 
   if (flen > bread)
     return rv;

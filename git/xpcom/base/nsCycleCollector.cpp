@@ -2565,6 +2565,7 @@ nsCycleCollector::CollectReports(nsIHandleReportCallback* aHandleReport,
 ////////////////////////////////////////////////////////////////////////
 
 nsCycleCollector::nsCycleCollector() :
+    MemoryMultiReporter("cycle-collector"),
     mActivelyCollecting(false),
     mScanInProgress(false),
     mJSRuntime(nullptr),

@@ -1864,8 +1864,8 @@ ReportZoneStats(const JS::ZoneStats &zStats,
         // bucket.
 #       define STRING_LENGTH "string(length="
         if (FindInReadable(NS_LITERAL_CSTRING(STRING_LENGTH), notableString)) {
-            stringsNotableAboutMemoryGCHeap += info.gcHeap;
-            stringsNotableAboutMemoryMallocHeap += info.mallocHeap;
+            stringsNotableAboutMemoryGCHeap += info.totalGCHeapSizeOf();
+            stringsNotableAboutMemoryMallocHeap += info.normalMallocHeap;
             continue;
         }
 
@@ -1884,7 +1884,7 @@ ReportZoneStats(const JS::ZoneStats &zStats,
 
         REPORT_BYTES2(path + NS_LITERAL_CSTRING("gc-heap"),
             KIND_NONHEAP,
-            info.gcHeap,
+            info.totalGCHeapSizeOf(),
             nsPrintfCString("Memory allocated to hold headers for copies of "
             "the given notable string.  A string is notable if all of its copies "
             "together use more than %d bytes total of JS GC heap and malloc heap "
@@ -1893,12 +1893,12 @@ ReportZoneStats(const JS::ZoneStats &zStats,
             "is short enough.  If so, the string won't have any memory reported "
             "under 'string-chars'.",
             JS::NotableStringInfo::notableSize()));
-        gcTotal += info.gcHeap;
+        gcTotal += info.totalGCHeapSizeOf();
 
-        if (info.mallocHeap > 0) {
+        if (info.normalMallocHeap > 0) {
             REPORT_BYTES2(path + NS_LITERAL_CSTRING("malloc-heap"),
                 KIND_HEAP,
-                info.mallocHeap,
+                info.normalMallocHeap,
                 nsPrintfCString("Memory allocated on the malloc heap to hold "
                 "string data for copies of the given notable string.  A string is "
                 "notable if all of its copies together use more than %d bytes "
@@ -2397,7 +2397,9 @@ ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
 class JSMainRuntimeCompartmentsReporter MOZ_FINAL : public MemoryMultiReporter
 {
   public:
-    JSMainRuntimeCompartmentsReporter() {}
+    JSMainRuntimeCompartmentsReporter()
+      : MemoryMultiReporter("js-main-runtime-compartments")
+    {}
 
     typedef js::Vector<nsCString, 0, js::SystemAllocPolicy> Paths;
 

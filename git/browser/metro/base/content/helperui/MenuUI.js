@@ -50,6 +50,7 @@ var AutofillMenuUI = {
 
   show: function show(aAnchorRect, aSuggestionsList) {
     this.commands.addEventListener("select", this, true);
+    window.addEventListener("keypress", this, true);
 
     this._anchorRect = aAnchorRect;
     this._emptyCommands();
@@ -71,6 +72,7 @@ var AutofillMenuUI = {
   },
 
   hide: function hide () {
+    window.removeEventListener("keypress", this, true);
     this.commands.removeEventListener("select", this, true);
 
     this._menuPopup.hide();
@@ -78,6 +80,30 @@ var AutofillMenuUI = {
 
   handleEvent: function (aEvent) {
     switch (aEvent.type) {
+      case "keypress":
+        switch (aEvent.keyCode) {
+          case aEvent.DOM_VK_ESCAPE:
+            this.hide();
+            break;
+
+          case aEvent.DOM_VK_DOWN:
+            this.commands.moveByOffset(1, true, false);
+            break;
+
+          case aEvent.DOM_VK_UP:
+            this.commands.moveByOffset(-1, true, false);
+            break;
+
+          case aEvent.DOM_VK_PAGE_DOWN:
+            this.commands.moveByOffset(this.commands.scrollOnePage(1), true, false);
+            break;
+
+          case aEvent.DOM_VK_PAGE_UP:
+            this.commands.moveByOffset(this.commands.scrollOnePage(-1), true, false);
+            break;
+        }
+        break;
+
       case "select":
         FormHelperUI.doAutoComplete(this.commands.value);
         break;
@@ -501,47 +527,12 @@ MenuPopup.prototype = {
   handleEvent: function handleEvent(aEvent) {
     switch (aEvent.type) {
       case "keypress":
-        // this.commands is not holding focus and not processing key events.
-        // Proxying events so that they're handled properly.
-
-        // Avoid recursion
-        if (aEvent.mine)
-          break;
-
-        let ev = document.createEvent("KeyboardEvent");
-        ev.initKeyEvent(
-          "keypress",        //  in DOMString typeArg,
-          false,             //  in boolean canBubbleArg,
-          true,              //  in boolean cancelableArg,
-          null,              //  in nsIDOMAbstractView viewArg,  Specifies UIEvent.view. This value may be null.
-          aEvent.ctrlKey,    //  in boolean ctrlKeyArg,
-          aEvent.altKey,     //  in boolean altKeyArg,
-          aEvent.shiftKey,   //  in boolean shiftKeyArg,
-          aEvent.metaKey,    //  in boolean metaKeyArg,
-          aEvent.keyCode,    //  in unsigned long keyCodeArg,
-          aEvent.charCode);  //  in unsigned long charCodeArg);
-
-        ev.mine = true;
-        this.commands.dispatchEvent(ev);
-
-        switch (aEvent.keyCode) {
-          case aEvent.DOM_VK_ESCAPE:
-            this.hide();
-            break;
-
-          case aEvent.DOM_VK_RETURN:
-            this.commands.currentItem.click();
-            break;
-        }
-
-        if (Util.isNavigationKey(aEvent.keyCode)) {
-          aEvent.stopPropagation();
-          aEvent.preventDefault();
-        } else if (!this._wantTypeBehind) {
+        if (!this._wantTypeBehind) {
           // Hide the context menu so you can't type behind it.
           aEvent.stopPropagation();
           aEvent.preventDefault();
-          this.hide();
+          if (aEvent.keyCode != aEvent.DOM_VK_ESCAPE)
+            this.hide();
         }
         break;
       case "blur":

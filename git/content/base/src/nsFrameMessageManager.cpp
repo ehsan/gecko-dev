@@ -805,8 +805,8 @@ nsFrameMessageManager::AssertAppHasPermission(const nsAString& aPermission,
 }
 
 NS_IMETHODIMP
-nsFrameMessageManager::AssertAppHasStatus(unsigned short aStatus,
-                                          bool* aHasStatus)
+nsFrameMessageManager::CheckAppHasStatus(unsigned short aStatus,
+                                         bool* aHasStatus)
 {
   *aHasStatus = false;
 
@@ -1133,7 +1133,9 @@ namespace dom {
 class MessageManagerReporter MOZ_FINAL : public MemoryMultiReporter
 {
 public:
-  MessageManagerReporter() {}
+  MessageManagerReporter()
+    : MemoryMultiReporter("message-manager")
+  {}
 
   NS_IMETHOD CollectReports(nsIMemoryReporterCallback* aCallback,
                             nsISupports* aData);
@@ -1588,12 +1590,6 @@ public:
   }
 
   bool CheckAppHasPermission(const nsAString& aPermission)
-  {
-    // In a single-process scenario, the child always has all capabilities.
-    return true;
-  }
-
-  virtual bool CheckAppHasStatus(unsigned short aStatus)
   {
     // In a single-process scenario, the child always has all capabilities.
     return true;

@@ -72,15 +72,17 @@ MaybeAlignAndClampDisplayPort(mozilla::layers::FrameMetrics& aFrameMetrics,
   // Expand the display port to the next tile boundaries, if tiled thebes layers
   // are enabled.
   if (Preferences::GetBool("layers.force-tiles")) {
+    // aFrameMetrics.mZoom is the zoom amount reported by the APZC,
+    // scale by ScreenToLayerScale to get the gecko zoom amount
     displayPort =
       ExpandDisplayPortToTileBoundaries(displayPort + aActualScrollOffset,
-                                        aFrameMetrics.LayersPixelsPerCSSPixel())
+                                        aFrameMetrics.mZoom * ScreenToLayerScale(1))
       - aActualScrollOffset;
   }
 
   // Finally, clamp the display port to the scrollable rect.
   CSSRect scrollableRect = aFrameMetrics.mScrollableRect;
-  displayPort = scrollableRect.Intersect(displayPort + aActualScrollOffset)
+  displayPort = scrollableRect.ClampRect(displayPort + aActualScrollOffset)
     - aActualScrollOffset;
 }
 
@@ -151,7 +153,7 @@ APZCCallbackHelper::UpdateRootFrame(nsIDOMWindowUtils* aUtils,
 
 void
 APZCCallbackHelper::UpdateSubFrame(nsIContent* aContent,
-                                   FrameMetrics& aMetrics)
+                                   const FrameMetrics& aMetrics)
 {
     // Precondition checks
     MOZ_ASSERT(aContent);
@@ -167,24 +169,19 @@ APZCCallbackHelper::UpdateSubFrame(nsIContent* aContent,
     // We currently do not support zooming arbitrary subframes. They can only
     // be scrolled, so here we only have to set the scroll position and displayport.
 
-    CSSPoint actualScrollOffset;
     nsIScrollableFrame* sf = nsLayoutUtils::FindScrollableFrameFor(aMetrics.mScrollId);
     if (sf) {
         sf->ScrollToCSSPixelsApproximate(aMetrics.mScrollOffset);
-        actualScrollOffset = CSSPoint::FromAppUnits(sf->GetScrollPosition());
     }
 
     nsCOMPtr<nsIDOMElement> element = do_QueryInterface(aContent);
     if (element) {
-        MaybeAlignAndClampDisplayPort(aMetrics, actualScrollOffset);
         utils->SetDisplayPortForElement(aMetrics.mDisplayPort.x,
                                         aMetrics.mDisplayPort.y,
                                         aMetrics.mDisplayPort.width,
                                         aMetrics.mDisplayPort.height,
                                         element);
     }
-
-    aMetrics.mScrollOffset = actualScrollOffset;
 }
 
 already_AddRefed<nsIDOMWindowUtils>

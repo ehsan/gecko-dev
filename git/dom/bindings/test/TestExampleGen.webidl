@@ -193,8 +193,6 @@ interface TestExampleInterface {
   // Sequence types
   [Cached, Pure]
   readonly attribute sequence<long> readonlySequence;
-  [Cached, Pure]
-  readonly attribute sequence<Dict> readonlySequenceOfDictionaries;
   sequence<long> receiveSequence();
   sequence<long>? receiveNullableSequence();
   sequence<long?> receiveSequenceOfNullableInts();
@@ -429,8 +427,9 @@ interface TestExampleInterface {
   attribute byte attributeRenamedFrom;
 
   void passDictionary(optional Dict x);
-  Dict receiveDictionary();
-  Dict? receiveNullableDictionary();
+  // FIXME: Bug 863949 no dictionary return values in callbacks
+  // Dict receiveDictionary();
+  // Dict? receiveNullableDictionary();
   void passOtherDictionary(optional GrandparentDict x);
   void passSequenceOfDictionaries(sequence<Dict> x);
   // No support for nullable dictionaries inside a sequence (nor should there be)
@@ -440,7 +439,7 @@ interface TestExampleInterface {
 
   void passDictContainingDict(optional DictContainingDict arg);
   void passDictContainingSequence(optional DictContainingSequence arg);
-  DictContainingSequence receiveDictContainingSequence();
+  //UNSUPPORTED DictContainingSequence receiveDictContainingSequence();
 
   // EnforceRange/Clamp tests
   void dontEnforceRangeOrClamp(byte arg);

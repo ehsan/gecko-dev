@@ -661,7 +661,7 @@ MCall::New(TempAllocator &alloc, JSFunction *target, size_t maxArgc, size_t numA
 {
     JS_ASSERT(maxArgc >= numActualArgs);
     MCall *ins = new(alloc) MCall(target, numActualArgs, construct);
-    if (!ins->init(alloc, maxArgc + NumNonArgumentOperands))
+    if (!ins->init(maxArgc + NumNonArgumentOperands))
         return nullptr;
     return ins;
 }
@@ -2092,7 +2092,7 @@ MResumePoint::New(TempAllocator &alloc, MBasicBlock *block, jsbytecode *pc, MRes
                   Mode mode)
 {
     MResumePoint *resume = new(alloc) MResumePoint(block, pc, parent, mode);
-    if (!resume->init(alloc))
+    if (!resume->init())
         return nullptr;
     resume->inherit(block);
     return resume;
@@ -3164,7 +3164,8 @@ TryAddTypeBarrierForWrite(TempAllocator &alloc, types::CompilerConstraintList *c
     if ((*pvalue)->type() != MIRType_Value)
         return false;
 
-    types::TemporaryTypeSet *types = aggregateProperty.ref().maybeTypes()->clone(alloc.lifoAlloc());
+    types::TemporaryTypeSet *types =
+        aggregateProperty.ref().maybeTypes()->clone(GetIonContext()->temp->lifoAlloc());
     if (!types)
         return false;
 
