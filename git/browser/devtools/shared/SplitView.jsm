@@ -10,7 +10,8 @@ this.EXPORTED_SYMBOLS = ["SplitView"];
 /* this must be kept in sync with CSS (ie. splitview.css) */
 const LANDSCAPE_MEDIA_QUERY = "(min-width: 551px)";
 
-let bindings = new WeakMap();
+const BINDING_USERDATA = "splitview-binding";
+
 
 /**
  * SplitView constructor
@@ -114,7 +115,7 @@ SplitView.prototype = {
     }
 
     if (this._activeSummary) {
-      let binding = bindings.get(this._activeSummary);
+      let binding = this._activeSummary.getUserData(BINDING_USERDATA);
 
       if (binding.onHide) {
         binding.onHide(this._activeSummary, binding._details, binding.data);
@@ -128,7 +129,7 @@ SplitView.prototype = {
       return;
     }
 
-    let binding = bindings.get(aSummary);
+    let binding = aSummary.getUserData(BINDING_USERDATA);
     aSummary.classList.add("splitview-active");
     binding._details.classList.add("splitview-active");
 
@@ -146,7 +147,7 @@ SplitView.prototype = {
   get activeDetails()
   {
     let summary = this.activeSummary;
-    return summary ? bindings.get(summary)._details : null;
+    return summary ? summary.getUserData(BINDING_USERDATA)._details : null;
   },
 
   /**
@@ -192,7 +193,7 @@ SplitView.prototype = {
 
     binding._summary = aSummary;
     binding._details = aDetails;
-    bindings.set(aSummary, binding);
+    aSummary.setUserData(BINDING_USERDATA, binding, null);
 
     this._nav.appendChild(aSummary);
 
@@ -257,7 +258,7 @@ SplitView.prototype = {
       this.activeSummary = null;
     }
 
-    let binding = bindings.get(aSummary);
+    let binding = aSummary.getUserData(BINDING_USERDATA);
     aSummary.parentNode.removeChild(aSummary);
     binding._details.parentNode.removeChild(binding._details);
 
@@ -288,7 +289,7 @@ SplitView.prototype = {
    */
   setItemClassName: function ASV_setItemClassName(aSummary, aClassName)
   {
-    let binding = bindings.get(aSummary);
+    let binding = aSummary.getUserData(BINDING_USERDATA);
     let viewSpecific;
 
     viewSpecific = aSummary.className.match(/(splitview\-[\w-]+)/g);

@@ -2057,7 +2057,6 @@ nsChildView::UpdateTitlebarImageBuffer()
   ClearRegion(mTitlebarImageBuffer, dirtyTitlebarRegion);
 
   CGContextRef ctx = mTitlebarImageBuffer->GetCGContext();
-  CGContextSaveGState(ctx);
 
   double scale = BackingScaleFactor();
   CGContextScaleCTM(ctx, scale, scale);
@@ -2114,7 +2113,6 @@ nsChildView::UpdateTitlebarImageBuffer()
                         DevPixelsToCocoaPoints(1));
 
   [NSGraphicsContext setCurrentContext:oldContext];
-  CGContextRestoreGState(ctx);
 
   mUpdatedTitlebarRegion.Or(mUpdatedTitlebarRegion, dirtyTitlebarRegion);
 }
