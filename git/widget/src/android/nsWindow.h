@@ -177,6 +177,8 @@ public:
     static bool sAccessibilityEnabled;
 #endif
 
+    bool DrawToFile(const nsAString &path);
+
 protected:
     void BringToFront();
     nsWindow *FindTopLevel();

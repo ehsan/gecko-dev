@@ -145,6 +145,8 @@ public:
 
     void ReturnIMEQueryResult(const PRUnichar *aResult, PRUint32 aLen, int aSelStart, int aSelLen);
 
+    void NotifyAppShellReady();
+
     void NotifyXreExit();
 
     void ScheduleRestart();

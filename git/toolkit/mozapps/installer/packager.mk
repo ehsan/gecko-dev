@@ -290,7 +290,6 @@ DIST_FILES = \
   libsoftokn3.so \
   extensions \
   application.ini \
-  package-name.txt \
   platform.ini \
   greprefs.js \
   browserconfig.properties \
@@ -298,7 +297,6 @@ DIST_FILES = \
   chrome.manifest \
   update.locale \
   removed-files \
-  recommended-addons.json \
   $(NULL)
 
 NON_DIST_FILES = \
@@ -322,9 +320,9 @@ endif
 endif
 
 ifeq ($(MOZ_BUILD_APP),mobile/xul)
-GECKO_APP_AP_PATH = $(call core_abspath,$(DEPTH)/embedding/android)
+GECKO_APP_AP_PATH = ../embedding/android
 else
-GECKO_APP_AP_PATH = $(call core_abspath,$(DEPTH)/mobile/android/base)
+GECKO_APP_AP_PATH = ../mobile/android/base
 endif
 
 PKG_SUFFIX      = .apk
@@ -351,9 +349,8 @@ INNER_UNMAKE_PACKAGE	= \
   mkdir $(MOZ_PKG_DIR) && \
   cd $(MOZ_PKG_DIR) && \
   $(UNZIP) $(UNPACKAGE) && \
-  mv lib/$(ABI_DIR)/libmozutils.so . && \
-  mv lib/$(ABI_DIR)/*plugin-container* $(MOZ_CHILD_PROCESS_NAME) && \
-  rm -rf lib/$(ABI_DIR)
+  mv lib/$(ABI_DIR)/*.so . && \
+  rm -rf lib
 endif
 ifeq ($(MOZ_PKG_FORMAT),DMG)
 ifndef _APPNAME

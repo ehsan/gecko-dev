@@ -125,6 +125,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jEnableLocation = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableLocation", "(Z)V");
     jReturnIMEQueryResult = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "returnIMEQueryResult", "(Ljava/lang/String;II)V");
     jScheduleRestart = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "scheduleRestart", "()V");
+    jNotifyAppShellReady = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "onAppShellReady", "()V");
     jNotifyXreExit = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "onXreExit", "()V");
     jGetHandlersForMimeType = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getHandlersForMimeType", "(Ljava/lang/String;Ljava/lang/String;)[Ljava/lang/String;");
     jGetHandlersForURL = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getHandlersForURL", "(Ljava/lang/String;Ljava/lang/String;)[Ljava/lang/String;");
@@ -365,6 +366,15 @@ AndroidBridge::ReturnIMEQueryResult(const PRUnichar *aResult, PRUint32 aLen,
 }
 
 void
+AndroidBridge::NotifyAppShellReady()
+{
+    ALOG_BRIDGE("AndroidBridge::NotifyAppShellReady");
+    mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jNotifyAppShellReady);
+
+    mURIFixup = do_GetService(NS_URIFIXUP_CONTRACTID);
+}
+
+void
 AndroidBridge::ScheduleRestart()
 {
     ALOG_BRIDGE("scheduling reboot");
@@ -583,10 +593,8 @@ AndroidBridge::CanCreateFixupURI(const nsACString& aURIText)
 {
     ALOG_BRIDGE("AndroidBridge::CanCreateFixupURI");
 
-    if (!mURIFixup) {
-        mURIFixup = do_GetService(NS_URIFIXUP_CONTRACTID);
-        if (!mURIFixup) return false;
-    }
+    if (!mURIFixup)
+        return false;
 
     nsCOMPtr<nsIURI> targetURI;
 
