@@ -44,7 +44,8 @@ include $(DEPTH)/config/autoconf.mk
 
 LIBRARY_NAME	= npSDKbasic
 
-REQUIRES        = idl \
+REQUIRES        = java \
+                  idl \
                   xpcom \
                   nspr \
                   $(NULL)

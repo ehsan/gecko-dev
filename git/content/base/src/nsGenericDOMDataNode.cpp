@@ -800,12 +800,6 @@ nsGenericDOMDataNode::GetChildAt(PRUint32 aIndex) const
   return nsnull;
 }
 
-nsIContent * const *
-nsGenericDOMDataNode::GetChildArray() const
-{
-  return nsnull;
-}
-
 PRInt32
 nsGenericDOMDataNode::IndexOf(nsINode* aPossibleChild) const
 {

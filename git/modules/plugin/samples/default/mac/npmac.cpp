@@ -266,6 +266,18 @@ void NPN_ReloadPlugins(NPBool reloadPages)
 	CallNPN_ReloadPluginsProc(gNetscapeFuncs.reloadplugins, reloadPages);
 }
 
+#ifdef OJI
+JRIEnv* NPN_GetJavaEnv(void)
+{
+	return CallNPN_GetJavaEnvProc( gNetscapeFuncs.getJavaEnv );
+}
+
+jobject  NPN_GetJavaPeer(NPP instance)
+{
+	return CallNPN_GetJavaPeerProc( gNetscapeFuncs.getJavaPeer, instance );
+}
+#endif
+
 NPError NPN_GetValue(NPP instance, NPNVariable variable, void *value)
 {
 	return CallNPN_GetValueProc( gNetscapeFuncs.getvalue, instance, variable, value);
@@ -326,6 +338,7 @@ void		Private_StreamAsFile(NPP instance, NPStream* stream, const char* fname);
 void		Private_Print(NPP instance, NPPrint* platformPrint);
 int16 		Private_HandleEvent(NPP instance, void* event);
 void        Private_URLNotify(NPP instance, const char* url, NPReason reason, void* notifyData);
+jobject		Private_GetJavaClass(void);
 
 
 NPError Private_Initialize(void)
@@ -408,6 +421,21 @@ void Private_URLNotify(NPP instance, const char* url, NPReason reason, void* not
 	NPP_URLNotify(instance, url, reason, notifyData);
 }
 
+#ifdef OJI
+jobject Private_GetJavaClass(void)
+{
+	PLUGINDEBUGSTR("\pGetJavaClass;g;");
+
+    jobject clazz = NPP_GetJavaClass();
+    if (clazz)
+    {
+		JRIEnv* env = NPN_GetJavaEnv();
+		return (jobject)JRI_NewGlobalRef(env, clazz);
+    }
+    return NULL;
+}
+#endif
+
 void SetUpQD(void);
 void SetUpQD(void)
 {
@@ -475,8 +503,8 @@ DEFINE_API_C(int) main(NPNetscapeFuncs* nsTable, NPPluginFuncs* pluginFuncs, NPP
 		gNetscapeFuncs.reloadplugins    = (NPN_ReloadPluginsUPP)HOST_TO_PLUGIN_GLUE(reloadplugins, nsTable->reloadplugins);
 		if( navMinorVers >= NPVERS_HAS_LIVECONNECT )
 		{
-			gNetscapeFuncs.getJavaEnv     = NULL;
-			gNetscapeFuncs.getJavaPeer    = NULL;
+			gNetscapeFuncs.getJavaEnv   = (NPN_GetJavaEnvUPP)HOST_TO_PLUGIN_GLUE(getJavaEnv, nsTable->getJavaEnv);
+			gNetscapeFuncs.getJavaPeer  = (NPN_GetJavaPeerUPP)HOST_TO_PLUGIN_GLUE(getJavaPeer, nsTable->getJavaPeer);
 		}
 		if( navMinorVers >= NPVERS_HAS_NOTIFICATION )
 		{	
@@ -512,10 +540,14 @@ DEFINE_API_C(int) main(NPNetscapeFuncs* nsTable, NPPluginFuncs* pluginFuncs, NPP
 		{	
 			pluginFuncs->urlnotify = NewNPP_URLNotifyProc(PLUGIN_TO_HOST_GLUE(urlnotify, Private_URLNotify));			
 		}
+#ifdef OJI
 		if( navMinorVers >= NPVERS_HAS_LIVECONNECT )
 		{
-			pluginFuncs->javaClass	= NULL;
+			pluginFuncs->javaClass	= (JRIGlobalRef) Private_GetJavaClass();
 		}
+#else
+                pluginFuncs->javaClass = NULL;
+#endif
 		*unloadUpp = NewNPP_ShutdownProc(PLUGIN_TO_HOST_GLUE(shutdown, Private_Shutdown));
 
 		SetUpQD();

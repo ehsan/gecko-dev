@@ -327,3 +327,10 @@ void NP_LOADDS NPP_URLNotify(NPP pInstance, const char* url, NPReason reason, vo
 
   pPlugin->URLNotify(url);
 }
+
+#ifdef OJI
+jref NP_LOADDS NPP_GetJavaClass(void)
+{
+  return NULL;
+}
+#endif
