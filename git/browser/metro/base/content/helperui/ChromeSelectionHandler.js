@@ -272,14 +272,6 @@ var ChromeSelectionHandler = {
     this.sendAsync("Content:HandlerShutdown", {});
   },
 
-  get hasSelection() {
-    if (!this._targetElement) {
-      return false;
-    }
-    let selection = this._getSelection();
-    return (selection && !selection.isCollapsed);
-  },
-
   /*************************************************
    * Events
    */

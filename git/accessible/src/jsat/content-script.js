@@ -97,8 +97,10 @@ function moveToPoint(aMessage) {
   let rule = TraversalRules[details.rule];
 
   try {
-    let dpr = content.devicePixelRatio;
-    vc.moveToPoint(rule, details.x * dpr, details.y * dpr, true);
+    if (!this._ppcp) {
+      this._ppcp = Utils.getPixelsPerCSSPixel(content);
+    }
+    vc.moveToPoint(rule, details.x * this._ppcp, details.y * this._ppcp, true);
     forwardToChild(aMessage, moveToPoint, vc.position);
   } catch (x) {
     Logger.logException(x, 'Failed move to point');
@@ -216,13 +218,15 @@ function activateCurrent(aMessage) {
 
 function activateContextMenu(aMessage) {
   function sendContextMenuCoordinates(aAccessible) {
-    let bounds = Utils.getBounds(aAccessible);
-    sendAsyncMessage('AccessFu:ActivateContextMenu', {bounds: bounds});
+    let objX = {}, objY = {}, objW = {}, objH = {};
+    aAccessible.getBounds(objX, objY, objW, objH);
+    let x = objX.value + objW.value / 2;
+    let y = objY.value + objH.value / 2;
+    sendAsyncMessage('AccessFu:ActivateContextMenu', {x: x, y: y});
   }
 
-  let position = Utils.getVirtualCursor(content.document).position;
-  if (!forwardToChild(aMessage, activateContextMenu, position)) {
-    sendContextMenuCoordinates(position);
+  if (!forwardToChild(aMessage, activateContextMenu, vc.position)) {
+    sendContextMenuCoordinates(vc.position);
   }
 }
 

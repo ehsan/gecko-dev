@@ -166,7 +166,6 @@ function run_test() {
 
     restartManager();
     AddonManager.getAddonByID(ADDONS[1].id, function(addon) {
-      do_check_true(!(!addon));
       addon.userDisabled = true;
       restartManager();
 

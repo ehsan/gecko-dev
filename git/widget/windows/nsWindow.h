@@ -58,7 +58,6 @@ namespace mozilla {
 namespace widget {
 class NativeKey;
 class ModifierKeyState;
-struct MSGResult;
 } // namespace widget
 } // namespacw mozilla;
 
@@ -73,7 +72,6 @@ class nsWindow : public nsWindowBase
   typedef mozilla::widget::WindowHook WindowHook;
   typedef mozilla::widget::TaskbarWindowPreview TaskbarWindowPreview;
   typedef mozilla::widget::NativeKey NativeKey;
-  typedef mozilla::widget::MSGResult MSGResult;
 public:
   nsWindow();
   virtual ~nsWindow();
@@ -330,11 +328,8 @@ protected:
   void                    RelayMouseEvent(UINT aMsg, WPARAM wParam, LPARAM lParam);
   virtual bool            ProcessMessage(UINT msg, WPARAM &wParam,
                                          LPARAM &lParam, LRESULT *aRetValue);
-  bool                    ExternalHandlerProcessMessage(
-                                         UINT aMessage, WPARAM& aWParam,
-                                         LPARAM& aLParam, MSGResult& aResult);
   bool                    ProcessMessageForPlugin(const MSG &aMsg,
-                                                  MSGResult& aResult);
+                                                  LRESULT *aRetValue, bool &aCallDefWndProc);
   LRESULT                 ProcessCharMessage(const MSG &aMsg,
                                              bool *aEventDispatched);
   LRESULT                 ProcessKeyUpMessage(const MSG &aMsg,

@@ -43,8 +43,7 @@ CopyableCanvasLayer::Initialize(const Data& aData)
     // `GLScreenBuffer::Morph`ing is only needed in BasicShadowableCanvasLayer.
   } else if (aData.mDrawTarget) {
     mDrawTarget = aData.mDrawTarget;
-    mSurface =
-      gfxPlatform::GetPlatform()->CreateThebesSurfaceAliasForDrawTarget_hack(mDrawTarget);
+    mSurface = gfxPlatform::GetPlatform()->CreateThebesSurfaceAliasForDrawTarget_hack(mDrawTarget);
     mNeedsYFlip = false;
   } else {
     NS_ERROR("CanvasLayer created without mSurface, mDrawTarget or mGLContext?");
@@ -62,8 +61,7 @@ CopyableCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
 
   if (mDrawTarget) {
     mDrawTarget->Flush();
-    mSurface =
-      gfxPlatform::GetPlatform()->CreateThebesSurfaceAliasForDrawTarget_hack(mDrawTarget);
+    mSurface = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mDrawTarget);
   }
 
   if (!mGLContext && aDestSurface) {

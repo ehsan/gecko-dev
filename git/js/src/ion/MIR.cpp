@@ -2293,7 +2293,8 @@ InlinePropertyTable::trimTo(AutoObjectVector &targets, Vector<bool> &choiceSet)
 }
 
 void
-InlinePropertyTable::trimToTargets(AutoObjectVector &targets)
+InlinePropertyTable::trimToAndMaybePatchTargets(AutoObjectVector &targets,
+                                                AutoObjectVector &originals)
 {
     IonSpew(IonSpew_Inlining, "Got inlineable property cache with %d cases",
             (int)numEntries());
@@ -2301,8 +2302,12 @@ InlinePropertyTable::trimToTargets(AutoObjectVector &targets)
     size_t i = 0;
     while (i < numEntries()) {
         bool foundFunc = false;
-        for (size_t j = 0; j < targets.length(); j++) {
-            if (entries_[i]->func == targets[j]) {
+        // Compare using originals, but if we find a matching function,
+        // patch it to the target, which might be a clone.
+        for (size_t j = 0; j < originals.length(); j++) {
+            if (entries_[i]->func == originals[j]) {
+                if (entries_[i]->func != targets[j])
+                    entries_[i] = new Entry(entries_[i]->typeObj, &targets[j]->as<JSFunction>());
                 foundFunc = true;
                 break;
             }

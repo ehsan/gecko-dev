@@ -193,8 +193,7 @@ IonRuntime::~IonRuntime()
 bool
 IonRuntime::initialize(JSContext *cx)
 {
-    AutoLockForExclusiveAccess lock(cx);
-    AutoCompartment ac(cx, cx->atomsCompartment());
+    AutoEnterAtomsCompartment ac(cx);
 
     IonContext ictx(cx, NULL);
     AutoFlushCache afc("IonRuntime::initialize");
@@ -278,8 +277,7 @@ IonRuntime::debugTrapHandler(JSContext *cx)
     if (!debugTrapHandler_) {
         // IonRuntime code stubs are shared across compartments and have to
         // be allocated in the atoms compartment.
-        AutoLockForExclusiveAccess lock(cx);
-        AutoCompartment ac(cx, cx->runtime()->atomsCompartment);
+        AutoEnterAtomsCompartment ac(cx);
         debugTrapHandler_ = generateDebugTrapHandler(cx);
     }
     return debugTrapHandler_;
@@ -1927,7 +1925,19 @@ ion::Cannon(JSContext *cx, RunState &state)
     if (!SetEnterJitData(cx, data, state, vals))
         return IonExec_Error;
 
+#if JS_TRACE_LOGGING
+    TraceLog(TraceLogging::defaultLogger(),
+             TraceLogging::ION_CANNON_START,
+             script);
+#endif
+
     IonExecStatus status = EnterIon(cx, data);
+
+#if JS_TRACE_LOGGING
+    TraceLog(TraceLogging::defaultLogger(),
+             TraceLogging::ION_CANNON_STOP,
+             script);
+#endif
 
     if (status == IonExec_Ok)
         state.setReturnValue(data.result);

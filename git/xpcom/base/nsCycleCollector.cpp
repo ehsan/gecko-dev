@@ -201,11 +201,13 @@ struct nsCycleCollectorParams
     bool mLogAll;
     bool mLogShutdown;
     bool mAllTracesAtShutdown;
+    bool mDoNothing;
 
     nsCycleCollectorParams() :
         mLogAll      (PR_GetEnv("XPCOM_CC_LOG_ALL") != NULL),
         mLogShutdown (PR_GetEnv("XPCOM_CC_LOG_SHUTDOWN") != NULL),
-        mAllTracesAtShutdown (PR_GetEnv("XPCOM_CC_ALL_TRACES_AT_SHUTDOWN") != NULL)
+        mAllTracesAtShutdown (PR_GetEnv("XPCOM_CC_ALL_TRACES_AT_SHUTDOWN") != NULL),
+        mDoNothing   (false)
     {
     }
 };
@@ -867,10 +869,10 @@ struct SelectPointersVisitor
     void
     Visit(nsPurpleBuffer &aBuffer, nsPurpleBufferEntry *aEntry)
     {
-        MOZ_ASSERT(aEntry->mObject, "Null object in purple buffer");
-        MOZ_ASSERT(aEntry->mRefCnt->get() != 0,
+        MOZ_ASSERT(!(aEntry->mObject && !aEntry->mRefCnt->get()),
                    "SelectPointersVisitor: snow-white object in the purple buffer");
-        if (!aEntry->mRefCnt->IsPurple() ||
+        if (!aEntry->mObject ||
+            !aEntry->mRefCnt->IsPurple() ||
             AddPurpleRoot(mBuilder, aEntry->mObject, aEntry->mParticipant)) {
             aBuffer.Remove(aEntry);
         }
@@ -980,6 +982,7 @@ class nsCycleCollector
 
     bool mCollectionInProgress;
     bool mScanInProgress;
+    bool mFollowupCollection;
     nsCycleCollectorResults *mResults;
     TimeStamp mCollectionStart;
 
@@ -1464,8 +1467,6 @@ public:
         mOutFile->OpenANSIFileDesc("w", &mStream);
         NS_ENSURE_STATE(mStream);
         MozillaRegisterDebugFILE(mStream);
-
-        fprintf(mStream, "# WantAllTraces=%s\n", mWantAllTraces ? "true" : "false");
 
         return NS_OK;
     }
@@ -2160,15 +2161,7 @@ class SnowWhiteKiller
 public:
     SnowWhiteKiller(uint32_t aMaxCount)
     {
-        while (true) {
-            if (mObjects.SetCapacity(aMaxCount)) {
-                break;
-            }
-            if (aMaxCount == 1) {
-                NS_RUNTIMEABORT("Not enough memory to even delete objects!");
-            }
-            aMaxCount /= 2;
-        }
+        mObjects.SetCapacity(aMaxCount);
     }
 
     ~SnowWhiteKiller()
@@ -2185,15 +2178,13 @@ public:
     void
     Visit(nsPurpleBuffer& aBuffer, nsPurpleBufferEntry* aEntry)
     {
-        MOZ_ASSERT(aEntry->mObject, "Null object in purple buffer");
-        if (!aEntry->mRefCnt->get()) {
+        if (aEntry->mObject && !aEntry->mRefCnt->get()) {
             void *o = aEntry->mObject;
             nsCycleCollectionParticipant *cp = aEntry->mParticipant;
             CanonicalizeParticipant(&o, &cp);
             SnowWhiteObject swo = { o, cp, aEntry->mRefCnt };
-            if (mObjects.AppendElement(swo)) {
-                aBuffer.Remove(aEntry);
-            }
+            mObjects.AppendElement(swo);
+            aBuffer.Remove(aEntry);
         }
     }
 
@@ -2202,7 +2193,7 @@ public:
       return mObjects.Length() > 0;
     }
 private:
-    FallibleTArray<SnowWhiteObject> mObjects;
+    nsTArray<SnowWhiteObject> mObjects;
 };
 
 class RemoveSkippableVisitor : public SnowWhiteKiller
@@ -2227,17 +2218,18 @@ public:
     void
     Visit(nsPurpleBuffer &aBuffer, nsPurpleBufferEntry *aEntry)
     {
-        MOZ_ASSERT(aEntry->mObject, "null mObject in purple buffer");
-        if (!aEntry->mRefCnt->get()) {
-            SnowWhiteKiller::Visit(aBuffer, aEntry);
-            return;
-        }
-        void *o = aEntry->mObject;
-        nsCycleCollectionParticipant *cp = aEntry->mParticipant;
-        CanonicalizeParticipant(&o, &cp);
-        if (aEntry->mRefCnt->IsPurple() && !cp->CanSkip(o, false) &&
-            (!mRemoveChildlessNodes || MayHaveChild(o, cp))) {
-            return;
+        if (aEntry->mObject) {
+            if (!aEntry->mRefCnt->get()) {
+              SnowWhiteKiller::Visit(aBuffer, aEntry);
+              return;
+            }
+            void *o = aEntry->mObject;
+            nsCycleCollectionParticipant *cp = aEntry->mParticipant;
+            CanonicalizeParticipant(&o, &cp);
+            if (aEntry->mRefCnt->IsPurple() && !cp->CanSkip(o, false) &&
+                (!mRemoveChildlessNodes || MayHaveChild(o, cp))) {
+                return;
+            }
         }
         aBuffer.Remove(aEntry);
     }
@@ -2676,6 +2668,9 @@ nsCycleCollector::ShutdownThreads()
 void
 nsCycleCollector::RegisterJSRuntime(CycleCollectedJSRuntime *aJSRuntime)
 {
+    if (mParams.mDoNothing)
+        return;
+
     if (mJSRuntime)
         Fault("multiple registrations of cycle collector JS runtime", aJSRuntime);
 
@@ -2694,6 +2689,9 @@ nsCycleCollector::RegisterJSRuntime(CycleCollectedJSRuntime *aJSRuntime)
 void
 nsCycleCollector::ForgetJSRuntime()
 {
+    if (mParams.mDoNothing)
+        return;
+
     if (!mJSRuntime)
         Fault("forgetting non-registered cycle collector JS runtime");
 
@@ -2733,6 +2731,9 @@ nsCycleCollector::Suspect(void *n, nsCycleCollectionParticipant *cp,
     MOZ_ASSERT(nsCycleCollector_isScanSafe(n, cp),
                "suspected a non-scansafe pointer");
 
+    if (mParams.mDoNothing)
+        return;
+
     mPurpleBuf.Put(n, cp, aRefCnt);
 }
 
@@ -2755,6 +2756,9 @@ nsCycleCollector::FixGrayBits(bool aForceGC)
 {
     MOZ_ASSERT(NS_IsMainThread(),
                "nsCycleCollector::FixGrayBits() must be called on the main thread.");
+
+    if (mParams.mDoNothing)
+        return;
 
     if (!mJSRuntime)
         return;
@@ -2799,6 +2803,8 @@ nsCycleCollector::PrepareForCollection(nsCycleCollectorResults *aResults,
     if (mJSRuntime) {
         mJSRuntime->PrepareForCollection();
     }
+
+    mFollowupCollection = false;
 
     mResults = aResults;
     mWhiteNodes = aWhiteNodes;
@@ -2919,6 +2925,9 @@ nsCycleCollector::BeginCollection(ccType aCCType,
     // aListener should be Begin()'d before this
     TimeLog timeLog;
 
+    if (mParams.mDoNothing)
+        return false;
+
     bool mergeZones = ShouldMergeZones(aCCType);
     if (mResults) {
         mResults->mMergedZones = mergeZones;
@@ -2981,9 +2990,13 @@ nsCycleCollector::FinishCollection(nsICycleCollectorListener *aListener)
     bool collected = CollectWhite(aListener);
     timeLog.Checkpoint("CollectWhite()");
 
+    mFollowupCollection = true;
+
     mWhiteNodes->Clear();
     ClearGraph();
     timeLog.Checkpoint("ClearGraph()");
+
+    mParams.mDoNothing = false;
 
     return collected;
 }
@@ -3013,6 +3026,8 @@ nsCycleCollector::Shutdown()
         }
         ShutdownCollect(listener);
     }
+
+    mParams.mDoNothing = true;
 }
 
 void

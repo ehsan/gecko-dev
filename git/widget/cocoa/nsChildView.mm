@@ -327,8 +327,8 @@ public:
   virtual GLContext* gl() const MOZ_OVERRIDE { return mGLContext; }
   virtual ShaderProgramOGL* GetProgram(ShaderProgramType aType) MOZ_OVERRIDE
   {
-    MOZ_ASSERT(aType == RGBARectLayerProgramType, "unexpected program type");
-    return mRGBARectProgram;
+    MOZ_ASSERT(aType == BGRARectLayerProgramType, "unexpected program type");
+    return mBGRARectProgram;
   }
   virtual void BindAndDrawQuad(ShaderProgramOGL *aProg) MOZ_OVERRIDE;
 
@@ -343,7 +343,7 @@ public:
 
 protected:
   nsRefPtr<mozilla::gl::GLContext> mGLContext;
-  nsAutoPtr<mozilla::layers::ShaderProgramOGL> mRGBARectProgram;
+  nsAutoPtr<mozilla::layers::ShaderProgramOGL> mBGRARectProgram;
   GLuint mQuadVBO;
 };
 
@@ -1950,8 +1950,8 @@ nsChildView::CreateCompositor()
       compositor::GetLayerManager(mCompositorParent);
     Compositor *compositor = manager->GetCompositor();
 
-    ClientLayerManager *clientManager = static_cast<ClientLayerManager*>(GetLayerManager());
-    if (clientManager->GetCompositorBackendType() == LAYERS_OPENGL) {
+    LayersBackend backend = compositor->GetBackend();
+    if (backend == LAYERS_OPENGL) {
       CompositorOGL *compositorOGL = static_cast<CompositorOGL*>(compositor);
 
       NSOpenGLContext *glContext = (NSOpenGLContext *)compositorOGL->gl()->GetNativeData(GLContext::NativeGLContext);
@@ -2586,7 +2586,6 @@ RectTextureImage::Draw(GLManager* aManager,
   program->Activate();
   program->SetLayerQuadRect(nsIntRect(nsIntPoint(0, 0), mUsedSize));
   program->SetLayerTransform(aTransform * gfx3DMatrix::Translation(aLocation.x, aLocation.y, 0));
-  program->SetTextureTransform(gfx3DMatrix());
   program->SetLayerOpacity(1.0);
   program->SetRenderOffset(nsIntPoint(0, 0));
   program->SetTexCoordMultiplier(mUsedSize.width, mUsedSize.height);
@@ -2604,8 +2603,8 @@ GLPresenter::GLPresenter(GLContext* aContext)
 {
   mGLContext->SetFlipped(true);
   mGLContext->MakeCurrent();
-  mRGBARectProgram = new ShaderProgramOGL(mGLContext,
-    ProgramProfileOGL::GetProfileFor(RGBARectLayerProgramType, MaskNone));
+  mBGRARectProgram = new ShaderProgramOGL(mGLContext,
+    ProgramProfileOGL::GetProfileFor(BGRARectLayerProgramType, MaskNone));
 
   // Create mQuadVBO.
   mGLContext->fGenBuffers(1, &mQuadVBO);
@@ -2669,7 +2668,7 @@ GLPresenter::BeginFrame(nsIntSize aRenderSize)
   gfx3DMatrix matrix3d = gfx3DMatrix::From2D(viewMatrix);
   matrix3d._33 = 0.0f;
 
-  mRGBARectProgram->CheckAndSetProjectionMatrix(matrix3d);
+  mBGRARectProgram->CheckAndSetProjectionMatrix(matrix3d);
 
   // Default blend function implements "OVER"
   mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
@@ -5208,18 +5207,10 @@ static int32_t RoundUp(double aDouble)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
 #if !defined(RELEASE_BUILD) || defined(DEBUG)
-  if (mGeckoChild && mTextInputHandler && mTextInputHandler->IsFocused()) {
-    if (mIsPluginView) {
-      if (TextInputHandler::IsSecureEventInputEnabled()) {
-        MOZ_CRASH("While a plugin has focus, we must not be in secure mode");
-      }
-    } else if (mGeckoChild->GetInputContext().IsPasswordEditor() &&
-               !TextInputHandler::IsSecureEventInputEnabled()) {
-      MOZ_CRASH("A password editor has focus, but not in secure input mode");
-    } else if (!mGeckoChild->GetInputContext().IsPasswordEditor() &&
-               TextInputHandler::IsSecureEventInputEnabled()) {
-      MOZ_CRASH("A non-password editor has focus, but in secure input mode");
-    }
+  if (mGeckoChild &&
+      mGeckoChild->GetInputContext().IsPasswordEditor() !=
+        TextInputHandler::IsSecureEventInputEnabled()) {
+    MOZ_CRASH("in wrong secure input mode");
   }
 #endif // #if !defined(RELEASE_BUILD) || defined(DEBUG)
 

@@ -84,7 +84,6 @@ BaselineCompiler::compile()
     if (status != Method_Compiled)
         return status;
 
-
     if (!emitEpilogue())
         return Method_Error;
 
@@ -225,11 +224,6 @@ BaselineCompiler::emitPrologue()
             masm.pushValue(R0);
     }
 
-#if JS_TRACE_LOGGING
-    masm.tracelogStart(script.get());
-    masm.tracelogLog(TraceLogging::INFO_ENGINE_BASELINE);
-#endif
-
     // Record the offset of the prologue, because Ion can bailout before
     // the scope chain is initialized.
     prologueOffset_ = masm.currentOffset();
@@ -261,10 +255,6 @@ bool
 BaselineCompiler::emitEpilogue()
 {
     masm.bind(&return_);
-
-#if JS_TRACE_LOGGING
-    masm.tracelogStop();
-#endif
 
     // Pop SPS frame if necessary
     emitSPSPop();

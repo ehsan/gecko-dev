@@ -1107,17 +1107,17 @@ namespace JSC {
         }
 
         // Floating point operators
-        static bool supportsFloatingPoint()
+        bool supportsFloatingPoint() const
         {
             return true;
         }
 
-        static bool supportsFloatingPointTruncate()
+        bool supportsFloatingPointTruncate() const
         {
             return true;
         }
 
-        static bool supportsFloatingPointSqrt()
+        bool supportsFloatingPointSqrt() const
         {
             return true;
         }

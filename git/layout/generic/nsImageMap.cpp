@@ -828,7 +828,6 @@ nsImageMap::AddArea(nsIContent* aArea)
     area = new PolyArea(aArea);
     break;
   default:
-    area = nullptr;
     NS_NOTREACHED("FindAttrValueIn returned an unexpected value.");
     break;
   }

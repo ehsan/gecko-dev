@@ -523,7 +523,7 @@ public:
   class OnPacketReceivedRunnable : public nsRunnable
   {
   public:
-    OnPacketReceivedRunnable(const nsMainThreadPtrHandle<nsIUDPServerSocketListener>& aListener,
+    OnPacketReceivedRunnable(nsMainThreadPtrHolder<nsIUDPServerSocketListener>* aListener,
                      nsIUDPServerSocket* aServ,
                      nsIUDPMessage* aMessage)
       : mListener(aListener)
@@ -542,7 +542,7 @@ public:
   class OnStopListeningRunnable : public nsRunnable
   {
   public:
-    OnStopListeningRunnable(const nsMainThreadPtrHandle<nsIUDPServerSocketListener>& aListener,
+    OnStopListeningRunnable(nsMainThreadPtrHolder<nsIUDPServerSocketListener>* aListener,
                             nsIUDPServerSocket* aServ,
                             nsresult aStatus)
       : mListener(aListener)

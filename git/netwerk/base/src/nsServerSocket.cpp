@@ -370,7 +370,7 @@ public:
   class OnSocketAcceptedRunnable : public nsRunnable
   {
   public:
-    OnSocketAcceptedRunnable(const nsMainThreadPtrHandle<nsIServerSocketListener>& aListener,
+    OnSocketAcceptedRunnable(nsMainThreadPtrHolder<nsIServerSocketListener>* aListener,
                              nsIServerSocket* aServ,
                              nsISocketTransport* aTransport)
       : mListener(aListener)
@@ -389,7 +389,7 @@ public:
   class OnStopListeningRunnable : public nsRunnable
   {
   public:
-    OnStopListeningRunnable(const nsMainThreadPtrHandle<nsIServerSocketListener>& aListener,
+    OnStopListeningRunnable(nsMainThreadPtrHolder<nsIServerSocketListener>* aListener,
                             nsIServerSocket* aServ,
                             nsresult aStatus)
       : mListener(aListener)

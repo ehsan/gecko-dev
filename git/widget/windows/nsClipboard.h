@@ -20,18 +20,12 @@ struct IDataObject;
  * Native Win32 Clipboard wrapper
  */
 
-class nsClipboard : public nsBaseClipboard,
-                    public nsIObserver
+class nsClipboard : public nsBaseClipboard
 {
 
 public:
   nsClipboard();
   virtual ~nsClipboard();
-
-  NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIObserver
-  NS_DECL_NSIOBSERVER
 
   // nsIClipboard
   NS_IMETHOD HasDataMatchingFlavors(const char** aFlavorList, uint32_t aLength,

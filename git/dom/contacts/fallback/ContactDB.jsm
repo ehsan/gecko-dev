@@ -18,25 +18,12 @@ Cu.import("resource://gre/modules/IndexedDBHelper.jsm");
 Cu.import("resource://gre/modules/PhoneNumberUtils.jsm");
 
 const DB_NAME = "contacts";
-const DB_VERSION = 13;
+const DB_VERSION = 12;
 const STORE_NAME = "contacts";
 const SAVED_GETALL_STORE_NAME = "getallcache";
 const CHUNK_SIZE = 20;
 const REVISION_STORE = "revision";
 const REVISION_KEY = "revision";
-
-function exportContact(aRecord) {
-  let contact = {};
-  contact.properties = aRecord.properties;
-
-  for (let field in aRecord.properties)
-    contact.properties[field] = aRecord.properties[field];
-
-  contact.updated = aRecord.updated;
-  contact.published = aRecord.published;
-  contact.id = aRecord.id;
-  return contact;
-}
 
 function ContactDispatcher(aContacts, aFullContacts, aCallback, aNewTxn, aClearDispatcher, aFailureCb) {
   let nextIndex = 0;
@@ -67,7 +54,7 @@ function ContactDispatcher(aContacts, aFullContacts, aCallback, aNewTxn, aClearD
         aNewTxn("readonly", STORE_NAME, function(txn, store) {
           for (let i = start; i < Math.min(start+CHUNK_SIZE, aContacts.length); ++i) {
             store.get(aContacts[i]).onsuccess = function(e) {
-              chunk.push(exportContact(e.target.result));
+              chunk.push(e.target.result);
               count++;
               if (count === aContacts.length) {
                 aCallback(chunk);
@@ -456,42 +443,6 @@ ContactDB.prototype = {
             next();
           }
         };
-      },
-      function upgrade12to13() {
-        if (DEBUG) debug("Add phone substring to the search index if appropriate for country");
-        if (this.substringMatching) {
-          if (!objectStore) {
-            objectStore = aTransaction.objectStore(STORE_NAME);
-          }
-          objectStore.openCursor().onsuccess = function(event) {
-            let cursor = event.target.result;
-            if (cursor) {
-              if (cursor.value.properties.tel) {
-                cursor.value.search.parsedTel = cursor.value.search.parsedTel || [];
-                cursor.value.properties.tel.forEach(
-                  function(tel) {
-                    let normalized = PhoneNumberUtils.normalize(tel.value.toString());
-                    if (normalized) {
-                      if (this.substringMatching && normalized.length > this.substringMatching) {
-                        let sub = normalized.slice(-this.substringMatching);
-                        if (cursor.value.search.parsedTel.indexOf(sub) === -1) {
-                          if (DEBUG) debug("Adding substring index: " + tel + ", " + sub);
-                          cursor.value.search.parsedTel.push(sub);
-                        }
-                      }
-                    }
-                  }.bind(this)
-                );
-                cursor.update(cursor.value);
-              }
-              cursor.continue();
-            } else {
-              next();
-            }
-          }.bind(this);
-        } else {
-          next();
-        }
       }
     ];
 
@@ -508,7 +459,7 @@ ContactDB.prototype = {
       try {
         var i = index++;
         if (DEBUG) debug("Upgrade step: " + i + "\n");
-        steps[i].call(outer);
+        steps[i]();
       } catch(ex) {
         dump("Caught exception" + ex);
         aTransaction.abort();
@@ -636,6 +587,19 @@ ContactDB.prototype = {
     contact.published = aContact.published;
     contact.id = aContact.id;
 
+    return contact;
+  },
+
+  makeExport: function makeExport(aRecord) {
+    let contact = {};
+    contact.properties = aRecord.properties;
+
+    for (let field in aRecord.properties)
+      contact.properties[field] = aRecord.properties[field];
+
+    contact.updated = aRecord.updated;
+    contact.published = aRecord.published;
+    contact.id = aRecord.id;
     return contact;
   },
 
@@ -1015,7 +979,7 @@ ContactDB.prototype = {
         if (DEBUG) debug("Request successful. Record count: " + event.target.result.length);
         this.sortResults(event.target.result, options);
         for (let i in event.target.result)
-          txn.result[event.target.result[i].id] = exportContact(event.target.result[i]);
+          txn.result[event.target.result[i].id] = this.makeExport(event.target.result[i]);
       }.bind(this);
     }
   },
@@ -1030,20 +994,14 @@ ContactDB.prototype = {
       if (DEBUG) debug("Request successful. Record count:" + event.target.result.length);
       this.sortResults(event.target.result, options);
       for (let i in event.target.result) {
-        txn.result[event.target.result[i].id] = exportContact(event.target.result[i]);
+        txn.result[event.target.result[i].id] = this.makeExport(event.target.result[i]);
       }
     }.bind(this);
   },
 
   // Enable special phone number substring matching. Does not update existing DB entries.
   enableSubstringMatching: function enableSubstringMatching(aDigits) {
-    if (DEBUG) debug("MCC enabling substring matching " + aDigits);
     this.substringMatching = aDigits;
-  },
-
-  disableSubstringMatching: function disableSubstringMatching() {
-    if (DEBUG) debug("MCC disabling substring matching");
-    delete this.substringMatching;
   },
 
   init: function init(aGlobal) {

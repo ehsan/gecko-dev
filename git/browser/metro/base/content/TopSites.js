@@ -212,36 +212,13 @@ TopSitesView.prototype = {
           // we need new context buttons to show (the tile node will go away though)
         }
         this._lastSelectedSites = (this._lastSelectedSites || []).concat(sites);
-        // stop the appbar from dismissing
-        aEvent.preventDefault();
         nextContextActions.add('restore');
         TopSites.hideSites(sites);
         break;
       case "restore":
-        // usually restore is an undo action, so we have to recreate the tiles and grid selection
+        // usually restore is an undo action, so there's no tiles/selection to act on
         if (this._lastSelectedSites) {
-          let selectedUrls = this._lastSelectedSites.map((site) => site.url);
-          // re-select the tiles once the tileGroup is done populating and arranging
-          tileGroup.addEventListener("arranged", function _onArranged(aEvent){
-            for (let url of selectedUrls) {
-              let tileNode = tileGroup.querySelector("richgriditem[value='"+url+"']");
-              if (tileNode) {
-                tileNode.setAttribute("selected", true);
-              }
-            }
-            tileGroup.removeEventListener("arranged", _onArranged, false);
-            // <sfoster> we can't just call selectItem n times on tileGroup as selecting means trigger the default action
-            // for seltype="single" grids.
-            // so we toggle the attributes and raise the selectionchange "manually"
-            let event = tileGroup.ownerDocument.createEvent("Events");
-            event.initEvent("selectionchange", true, true);
-            tileGroup.dispatchEvent(event);
-          }, false);
-
           TopSites.restoreSites(this._lastSelectedSites);
-          // stop the appbar from dismissing,
-          // the selectionchange event will trigger re-population of the context appbar
-          aEvent.preventDefault();
         }
         break;
       case "pin":
@@ -263,19 +240,18 @@ TopSitesView.prototype = {
       // default: no action
     }
     if (nextContextActions.size) {
+      // stop the appbar from dismissing
+      aEvent.preventDefault();
       // at next tick, re-populate the context appbar
       setTimeout(function(){
         // fire a MozContextActionsChange event to update the context appbar
         let event = document.createEvent("Events");
         event.actions = [...nextContextActions];
-        event.noun = tileGroup.contextNoun;
-        event.qty = selectedTiles.length;
         event.initEvent("MozContextActionsChange", true, false);
         tileGroup.dispatchEvent(event);
       },0);
     }
   },
-
   handleEvent: function(aEvent) {
     switch (aEvent.type){
       case "MozAppbarDismissing":
@@ -300,8 +276,11 @@ TopSitesView.prototype = {
     } else {
         // flush, recreate all
       this.isUpdating = true;
-      // destroy and recreate all item nodes, skip calling arrangeItems
-      grid.clearAll(true);
+      // destroy and recreate all item nodes
+      let item;
+      while ((item = grid.firstChild)){
+        grid.removeChild(item);
+      }
       this.populateGrid();
     }
   },
@@ -326,15 +305,7 @@ TopSitesView.prototype = {
     });
 
     if (this._useThumbs) {
-      Task.spawn(function() {
-        let filepath = PageThumbsStorage.getFilePathForURL(aSite.url);
-        if (yield OS.File.exists(filepath)) {
-          aSite.backgroundImage = 'url("'+PageThumbs.getThumbnailURL(aSite.url)+'")';
-          if ("isBound" in aTileNode && aTileNode.isBound) {
-            aTileNode.backgroundImage = aSite.backgroundImage;
-          }
-        }
-      });
+      aSite.backgroundImage = 'url("'+PageThumbs.getThumbnailURL(aSite.url)+'")';
     } else {
       delete aSite.backgroundImage;
     }

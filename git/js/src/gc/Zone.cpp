@@ -32,7 +32,6 @@ JS::Zone::Zone(JSRuntime *rt)
     gcTriggerBytes(0),
     gcHeapGrowthFactor(3.0),
     isSystem(false),
-    usedByExclusiveThread(false),
     scheduledForDestruction(false),
     maybeAlive(true),
     gcMallocBytes(0),

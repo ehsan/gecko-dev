@@ -305,7 +305,7 @@ struct ContextFriendFields
     explicit ContextFriendFields(JSRuntime *rt)
       : runtime_(rt), compartment_(NULL), zone_(NULL), autoGCRooters(NULL)
     {
-#ifdef JSGC_TRACK_EXACT_ROOTS
+#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
         mozilla::PodArrayZero(thingGCRooters);
 #endif
 #if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)

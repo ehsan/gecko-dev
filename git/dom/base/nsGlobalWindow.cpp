@@ -2080,9 +2080,8 @@ nsGlobalWindow::CreateOuterObject(nsGlobalWindow* aNewInner)
 nsresult
 nsGlobalWindow::SetOuterObject(JSContext* aCx, JS::Handle<JSObject*> aOuterObject)
 {
-  JSAutoCompartment ac(aCx, aOuterObject);
-
-  // Indicate the default compartment object associated with this cx.
+  // Force our context's global object to be the outer.
+  // NB: JS_SetGlobalObject sets aCx->compartment.
   JS_SetGlobalObject(aCx, aOuterObject);
 
   // Set up the prototype for the outer object.
@@ -3285,7 +3284,7 @@ nsPIDOMWindow::AddAudioContext(AudioContext* aAudioContext)
   mAudioContexts.AppendElement(aAudioContext);
 
   nsIDocShell* docShell = GetDocShell();
-  if (docShell && !docShell->GetAllowMedia() && !aAudioContext->IsOffline()) {
+  if (docShell && !docShell->GetAllowMedia()) {
     aAudioContext->Mute();
   }
 }
@@ -3294,9 +3293,7 @@ void
 nsPIDOMWindow::MuteAudioContexts()
 {
   for (uint32_t i = 0; i < mAudioContexts.Length(); ++i) {
-    if (!mAudioContexts[i]->IsOffline()) {
-      mAudioContexts[i]->Mute();
-    }
+    mAudioContexts[i]->Mute();
   }
 }
 
@@ -3304,9 +3301,7 @@ void
 nsPIDOMWindow::UnmuteAudioContexts()
 {
   for (uint32_t i = 0; i < mAudioContexts.Length(); ++i) {
-    if (!mAudioContexts[i]->IsOffline()) {
-      mAudioContexts[i]->Unmute();
-    }
+    mAudioContexts[i]->Unmute();
   }
 }
 
@@ -3623,28 +3618,6 @@ nsGlobalWindow::GetContent(nsIDOMWindow** aContent)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsGlobalWindow::GetScriptableContent(JSContext* aCx, JS::Value* aVal)
-{
-  nsCOMPtr<nsIDOMWindow> content;
-  nsresult rv = GetContent(getter_AddRefs(content));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (content || !nsContentUtils::IsCallerChrome() || !IsChromeWindow()) {
-    JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
-    if (content && global) {
-      nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-      return nsContentUtils::WrapNative(aCx, global, content, aVal,
-                                        getter_AddRefs(wrapper));
-    }
-    return NS_ERROR_FAILURE;
-  }
-
-  // Something tries to get .content on a ChromeWindow, try to fetch the CPOW.
-  nsCOMPtr<nsIDocShellTreeOwner> treeOwner = GetTreeOwner();
-  NS_ENSURE_TRUE(treeOwner, NS_ERROR_FAILURE);
-  return treeOwner->GetContentWindow(aCx, aVal);
-}
 
 NS_IMETHODIMP
 nsGlobalWindow::GetPrompter(nsIPrompt** aPrompt)
@@ -10890,14 +10863,12 @@ nsGlobalWindow::BuildURIfromBase(const char *aURL, nsIURI **aBuiltURI,
 nsresult
 nsGlobalWindow::SecurityCheckURL(const char *aURL)
 {
-  JSContext       *cxUsed;
+  JSContext       *cx;
   bool             freePass;
   nsCOMPtr<nsIURI> uri;
 
-  if (NS_FAILED(BuildURIfromBase(aURL, getter_AddRefs(uri), &freePass, &cxUsed)))
+  if (NS_FAILED(BuildURIfromBase(aURL, getter_AddRefs(uri), &freePass, &cx)))
     return NS_ERROR_FAILURE;
-
-  AutoPushJSContext cx(cxUsed);
 
   if (!freePass && NS_FAILED(nsContentUtils::GetSecurityManager()->
         CheckLoadURIFromScript(cx, uri)))

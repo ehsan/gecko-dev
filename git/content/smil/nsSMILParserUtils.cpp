@@ -15,6 +15,7 @@
 #include "prdtoa.h"
 #include "nsCRT.h"
 #include "nsCOMPtr.h"
+#include "prlong.h"
 #include "nsCharSeparatedTokenizer.h"
 
 using namespace mozilla::dom;

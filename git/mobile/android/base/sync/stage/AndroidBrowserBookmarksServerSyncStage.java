@@ -6,11 +6,13 @@ package org.mozilla.gecko.sync.stage;
 
 import java.net.URISyntaxException;
 
+import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.JSONRecordFetcher;
 import org.mozilla.gecko.sync.MetaGlobalException;
 import org.mozilla.gecko.sync.repositories.RecordFactory;
 import org.mozilla.gecko.sync.repositories.Repository;
 import org.mozilla.gecko.sync.repositories.android.AndroidBrowserBookmarksRepository;
+import org.mozilla.gecko.sync.repositories.android.FennecControlHelper;
 import org.mozilla.gecko.sync.repositories.domain.BookmarkRecordFactory;
 import org.mozilla.gecko.sync.repositories.domain.VersionConstants;
 
@@ -63,9 +65,13 @@ public class AndroidBrowserBookmarksServerSyncStage extends ServerSyncStage {
 
   @Override
   protected boolean isEnabled() throws MetaGlobalException {
-    if (session == null || session.getContext() == null) {
+    if (session.getContext() == null) {
       return false;
     }
-    return super.isEnabled();
+    boolean migrated = FennecControlHelper.areBookmarksMigrated(session.getContext());
+    if (!migrated) {
+      Logger.warn(LOG_TAG, "Not enabling bookmarks engine since Fennec bookmarks are not migrated.");
+    }
+    return super.isEnabled() && migrated;
   }
 }

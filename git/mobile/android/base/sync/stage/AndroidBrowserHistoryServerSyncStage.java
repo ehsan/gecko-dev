@@ -6,11 +6,13 @@ package org.mozilla.gecko.sync.stage;
 
 import java.net.URISyntaxException;
 
+import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.MetaGlobalException;
 import org.mozilla.gecko.sync.repositories.ConstrainedServer11Repository;
 import org.mozilla.gecko.sync.repositories.RecordFactory;
 import org.mozilla.gecko.sync.repositories.Repository;
 import org.mozilla.gecko.sync.repositories.android.AndroidBrowserHistoryRepository;
+import org.mozilla.gecko.sync.repositories.android.FennecControlHelper;
 import org.mozilla.gecko.sync.repositories.domain.HistoryRecordFactory;
 import org.mozilla.gecko.sync.repositories.domain.VersionConstants;
 
@@ -62,6 +64,10 @@ public class AndroidBrowserHistoryServerSyncStage extends ServerSyncStage {
     if (session == null || session.getContext() == null) {
       return false;
     }
-    return super.isEnabled();
+    boolean migrated = FennecControlHelper.isHistoryMigrated(session.getContext());
+    if (!migrated) {
+      Logger.warn(LOG_TAG, "Not enabling history engine since Fennec history is not migrated.");
+    }
+    return super.isEnabled() && migrated;
   }
 }

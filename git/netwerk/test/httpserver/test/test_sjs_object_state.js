@@ -8,10 +8,9 @@
  * Tests that the object-state-preservation mechanism works correctly.
  */
 
+const PORT = 4444;
 
-XPCOMUtils.defineLazyGetter(this, "PATH", function() {
-  return "http://localhost:" + srv.identity.primaryPort + "/object-state.sjs";
-});
+const PATH = "http://localhost:" + PORT + "/object-state.sjs";
 
 var srv;
 
@@ -21,7 +20,7 @@ function run_test()
   var sjsDir = do_get_file("data/sjs/");
   srv.registerDirectory("/", sjsDir);
   srv.registerContentType("sjs", "sjs");
-  srv.start(-1);
+  srv.start(PORT);
 
   do_test_pending();
 

@@ -89,8 +89,7 @@ function run_test() {
   pluginFile.copyTo(null, "npblah235" + suffix);
   let pluginCopy = pluginDir.clone();
   pluginCopy.append("npblah235" + suffix);
-  let tempDir = do_get_tempdir();
-  pluginFile.moveTo(tempDir, null);
+  pluginFile.moveTo(pluginDir.parent, null);
   test_expected_permission_string("plugin:npblah");
 
   pluginCopy.moveTo(null, "npasdf-3.2.2" + suffix);

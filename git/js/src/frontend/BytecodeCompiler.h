@@ -15,14 +15,12 @@ namespace js {
 
 class AutoNameVector;
 class LazyScript;
-class LifoAlloc;
 struct SourceCompressionToken;
 
 namespace frontend {
 
 JSScript *
-CompileScript(ExclusiveContext *cx, LifoAlloc *alloc,
-              HandleObject scopeChain, HandleScript evalCaller,
+CompileScript(JSContext *cx, HandleObject scopeChain, HandleScript evalCaller,
               const CompileOptions &options, const jschar *chars, size_t length,
               JSString *source_ = NULL, unsigned staticLevel = 0,
               SourceCompressionToken *extraSct = NULL);
@@ -32,15 +30,8 @@ CompileLazyFunction(JSContext *cx, LazyScript *lazy, const jschar *chars, size_t
 
 bool
 CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, CompileOptions options,
-                    const AutoNameVector &formals, const jschar *chars, size_t length);
-
-/*
- * This should be called while still on the main thread if compilation will
- * occur on a worker thread.
- */
-void
-MaybeCallSourceHandler(JSContext *cx, const CompileOptions &options,
-                       const jschar *chars, size_t length);
+                    const AutoNameVector &formals, const jschar *chars, size_t length,
+                    bool isAsmJSRecompile = false);
 
 /*
  * True if str consists of an IdentifierStart character, followed by one or

@@ -226,7 +226,9 @@ function check_test_2() {
       do_check_eq(a1.releaseNotesURI.spec, "http://example.com/updateInfo.xhtml");
 
       a1.uninstall();
-      do_execute_soon(run_test_3);
+      restartManager();
+
+      run_test_3();
     });
   });
 }
@@ -234,8 +236,6 @@ function check_test_2() {
 
 // Check that an update check finds compatibility updates and applies them
 function run_test_3() {
-  restartManager();
-
   AddonManager.getAddonByID("addon2@tests.mozilla.org", function(a2) {
     do_check_neq(a2, null);
     do_check_false(a2.isActive);
@@ -256,14 +256,14 @@ function run_test_3() {
 
       onNoUpdateAvailable: function(addon) {
         do_check_eq(addon, a2);
-        do_execute_soon(check_test_3);
+        restartManager();
+        check_test_3();
       }
     }, AddonManager.UPDATE_WHEN_USER_REQUESTED);
   });
 }
 
 function check_test_3() {
-  restartManager();
   AddonManager.getAddonByID("addon2@tests.mozilla.org", function(a2) {
     do_check_neq(a2, null);
     do_check_true(a2.isActive);
@@ -337,14 +337,14 @@ function run_test_5() {
 
       onNoUpdateAvailable: function(addon) {
         do_check_true(this.sawUpdate);
-        do_execute_soon(check_test_5);
+        restartManager();
+        check_test_5();
       }
     }, AddonManager.UPDATE_WHEN_USER_REQUESTED, "3.0");
   });
 }
 
 function check_test_5() {
-  restartManager();
   AddonManager.getAddonByID("addon3@tests.mozilla.org", function(a3) {
     do_check_neq(a3, null);
     do_check_false(a3.isActive);
@@ -352,14 +352,14 @@ function check_test_5() {
     do_check_true(a3.appDisabled);
 
     a3.uninstall();
-    do_execute_soon(run_test_6);
+    restartManager();
+
+    run_test_6();
   });
 }
 
 // Test that background update checks work
 function run_test_6() {
-  restartManager();
-
   writeInstallRDFForExtension({
     id: "addon1@tests.mozilla.org",
     version: "1.0",
@@ -407,14 +407,14 @@ function check_test_6(install) {
     do_check_eq(a1.version, "2.0");
     do_check_eq(a1.releaseNotesURI.spec, "http://example.com/updateInfo.xhtml");
     a1.uninstall();
-    do_execute_soon(run_test_7);
+    restartManager();
+
+    run_test_7();
   });
 }
 
 // Test that background update checks work for lightweight themes
 function run_test_7() {
-  restartManager();
-
   LightweightThemeManager.currentTheme = {
     id: "1",
     version: "1",
@@ -674,7 +674,7 @@ function run_test_8() {
       let compatListener = {
         onUpdateFinished: function(addon, error) {
           if (--count == 0)
-            do_execute_soon(run_next_test);
+            run_next_test();
         }
       };
 
@@ -685,7 +685,7 @@ function run_test_8() {
 
         onUpdateFinished: function(addon, error) {
           if (--count == 0)
-            do_execute_soon(run_next_test);
+            run_next_test();
         }
       };
 
@@ -761,7 +761,9 @@ function run_test_12() {
     do_check_false(a4.isCompatible);
 
     a4.uninstall();
-    do_execute_soon(run_test_13);
+    restartManager();
+
+    run_test_13();
   });
 }
 
@@ -769,8 +771,6 @@ function run_test_12() {
 // compatibility info for the current version of the app but not for the
 // version of the app that the caller requested an update check for.
 function run_test_13() {
-  restartManager();
-
   // Not initially compatible but the update check will make it compatible
   writeInstallRDFForExtension({
     id: "addon7@tests.mozilla.org",
@@ -804,14 +804,14 @@ function run_test_13() {
 
       onUpdateFinished: function(addon) {
         do_check_true(addon.isCompatible);
-        do_execute_soon(check_test_13);
+        restartManager();
+        check_test_13();
       }
     }, AddonManager.UPDATE_WHEN_NEW_APP_DETECTED, "3.0");
   });
 }
 
 function check_test_13() {
-  restartManager();
   AddonManager.getAddonByID("addon7@tests.mozilla.org", function(a7) {
     do_check_neq(a7, null);
     do_check_true(a7.isActive);
@@ -819,15 +819,15 @@ function check_test_13() {
     do_check_false(a7.appDisabled);
 
     a7.uninstall();
-    do_execute_soon(run_test_14);
+    restartManager();
+
+    run_test_14();
   });
 }
 
 // Test that background update checks doesn't update an add-on that isn't
 // allowed to update automatically.
 function run_test_14() {
-  restartManager();
-
   // Have an add-on there that will be updated so we see some events from it
   writeInstallRDFForExtension({
     id: "addon1@tests.mozilla.org",
@@ -888,8 +888,7 @@ function run_test_14() {
 
       onInstallEnded: function(aInstall) {
         do_check_eq(aInstall.existingAddon.id, "addon1@tests.mozilla.org");
-        do_check_eq(aInstall.existingAddon.pendingUpgrade.install, aInstall);
-        do_execute_soon(check_test_14);
+        check_test_14(aInstall);
       },
 
       onInstallFailed: function(aInstall) {
@@ -906,7 +905,9 @@ function run_test_14() {
   });
 }
 
-function check_test_14() {
+function check_test_14(install) {
+  do_check_eq(install.existingAddon.pendingUpgrade.install, install);
+
   restartManager();
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon8@tests.mozilla.org"], function([a1, a8]) {
@@ -918,15 +919,15 @@ function check_test_14() {
     do_check_eq(a8.version, "1.0");
     a8.uninstall();
 
-    do_execute_soon(run_test_15);
+    restartManager();
+
+    run_test_15();
   });
 }
 
 // Test that background update checks doesn't update an add-on that is
 // pending uninstall
 function run_test_15() {
-  restartManager();
-
   // Have an add-on there that will be updated so we see some events from it
   writeInstallRDFForExtension({
     id: "addon1@tests.mozilla.org",
@@ -988,7 +989,7 @@ function run_test_15() {
 
       onInstallEnded: function(aInstall) {
         do_check_eq(aInstall.existingAddon.id, "addon1@tests.mozilla.org");
-        do_execute_soon(check_test_15);
+        check_test_15(aInstall);
       },
 
       onInstallFailed: function(aInstall) {
@@ -1005,7 +1006,7 @@ function run_test_15() {
   });
 }
 
-function check_test_15() {
+function check_test_15(aInstall) {
   restartManager();
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon8@tests.mozilla.org"], function([a1, a8]) {
@@ -1015,15 +1016,15 @@ function check_test_15() {
 
     do_check_eq(a8, null);
 
-    do_execute_soon(run_test_16);
+    restartManager();
+
+    run_test_16();
   });
 }
 
 // Test that the update check correctly observes the
 // extensions.strictCompatibility pref and compatibility overrides.
 function run_test_16() {
-  restartManager();
-
   writeInstallRDFForExtension({
     id: "addon9@tests.mozilla.org",
     version: "1.0",

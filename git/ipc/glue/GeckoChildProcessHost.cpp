@@ -20,6 +20,9 @@
 #include "prprf.h"
 #include "prenv.h"
 
+#if defined(OS_LINUX)
+#  define XP_LINUX 1
+#endif
 #include "nsExceptionHandler.h"
 
 #include "nsDirectoryServiceDefs.h"

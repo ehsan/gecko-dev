@@ -12,7 +12,6 @@
 #include "nsPluginArray.h"
 #include "nsIMIMEService.h"
 #include "nsIMIMEInfo.h"
-#include "Navigator.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -197,12 +196,12 @@ nsMimeTypeArray::EnsureMimeTypes()
     return;
   }
 
-  ErrorResult rv;
+  nsCOMPtr<nsISupports> pluginsSupports;
+  navigator->GetPlugins(getter_AddRefs(pluginsSupports));
+  nsCOMPtr<nsIObserver> pluginsObserver(do_QueryInterface(pluginsSupports));
+
   nsPluginArray *pluginArray =
-    static_cast<Navigator*>(navigator.get())->GetPlugins(rv);
-  if (!pluginArray) {
-    return;
-  }
+    static_cast<nsPluginArray*>(pluginsObserver.get());
 
   nsTArray<nsRefPtr<nsPluginElement> > plugins;
   pluginArray->GetPlugins(plugins);

@@ -525,7 +525,6 @@ var SelectionHelperUI = {
     Elements.browsers.addEventListener("ZoomChanged", this, true);
 
     Elements.navbar.addEventListener("transitionend", this, true);
-    Elements.navbar.addEventListener("MozAppbarDismissing", this, true);
 
     this.overlay.enabled = true;
   },
@@ -552,7 +551,6 @@ var SelectionHelperUI = {
     Elements.browsers.removeEventListener("ZoomChanged", this, true);
 
     Elements.navbar.removeEventListener("transitionend", this, true);
-    Elements.navbar.removeEventListener("MozAppbarDismissing", this, true);
 
     this._shutdownAllMarkers();
 
@@ -846,7 +844,10 @@ var SelectionHelperUI = {
 
     if (this._hitTestSelection(aEvent) && this._targetIsEditable) {
       // Attach to the newly placed caret position
-      this.attachToCaret(this._msgTarget, aEvent.clientX, aEvent.clientY);
+      this._sendAsyncMessage("Browser:CaretAttach", {
+        xPos: aEvent.clientX,
+        yPos: aEvent.clientY
+      });
       return;
     }
 
@@ -899,23 +900,9 @@ var SelectionHelperUI = {
     if (this.layerMode == kContentLayer) {
       return;
     }
-
     if (aEvent.propertyName == "bottom" && Elements.navbar.isShowing) {
       this._sendAsyncMessage("Browser:SelectionUpdate", {});
-      return;
     }
-    
-    if (aEvent.propertyName == "transform" && Elements.navbar.isShowing) {
-      this._sendAsyncMessage("Browser:SelectionUpdate", {});
-      this._showMonocles(ChromeSelectionHandler.hasSelection);
-    }
-  },
-
-  _onNavBarDismissEvent: function _onNavBarDismissEvent() {
-    if (!this.isActive || this.layerMode == kContentLayer) {
-      return;
-    }
-    this._hideMonocles();
   },
 
   /*
@@ -1066,10 +1053,6 @@ var SelectionHelperUI = {
 
       case "transitionend":
         this._onNavBarTransitionEvent(aEvent);
-        break;
-
-      case "MozAppbarDismissing":
-        this._onNavBarDismissEvent();
         break;
     }
   },

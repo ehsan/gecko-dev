@@ -166,7 +166,9 @@ function run_test() {
       onUpdateFinished: function() {
         a4.findUpdates({
           onUpdateFinished: function() {
-            do_execute_soon(run_test_1);
+            restartManager();
+
+            run_test_1();
           }
         }, AddonManager.UPDATE_WHEN_PERIODIC_UPDATE);
       }
@@ -179,8 +181,6 @@ function end_test() {
 }
 
 function run_test_1() {
-  restartManager();
-
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",
                                "addon3@tests.mozilla.org",
@@ -246,12 +246,6 @@ function run_test_1() {
     do_check_false(t2.appDisabled);
     do_check_eq(t2.pendingOperations, AddonManager.PENDING_NONE);
 
-    do_execute_soon(run_test_1_modified_db);
-  });
-}
-
-
-function run_test_1_modified_db() {
     // After restarting the database won't be open and so can be replaced with
     // a bad file
     restartManager();
@@ -328,11 +322,6 @@ function run_test_1_modified_db() {
       do_check_false(t2.appDisabled);
       do_check_eq(t2.pendingOperations, AddonManager.PENDING_NONE);
 
-      do_execute_soon(run_test_1_after_rebuild);
-    });
-}
-
-function run_test_1_after_rebuild() {
       restartManager();
 
       AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
@@ -402,4 +391,6 @@ function run_test_1_after_rebuild() {
 
         end_test();
       });
+    });
+  });
 }

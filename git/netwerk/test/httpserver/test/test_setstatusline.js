@@ -7,10 +7,6 @@
 // exercise nsIHttpResponse.setStatusLine, ensure its atomicity, and ensure the
 // specified behavior occurs if it's not called
 
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + srv.identity.primaryPort;
-});
-
 var srv;
 
 function run_test()
@@ -26,7 +22,7 @@ function run_test()
   srv.registerPathHandler("/crazyCode", crazyCode);
   srv.registerPathHandler("/nullVersion", nullVersion);
 
-  srv.start(-1);
+  srv.start(4444);
 
   runHttpTests(tests, testComplete(srv));
 }
@@ -52,24 +48,16 @@ function checkStatusLine(channel, httpMaxVer, httpMinVer, httpCode, statusText)
  * TESTS *
  *********/
 
-XPCOMUtils.defineLazyGetter(this, "tests", function() {
-  return [
-    new Test(URL + "/no/setstatusline", null, startNoSetStatusLine, stop),
-    new Test(URL + "/http1_0", null, startHttp1_0, stop),
-    new Test(URL + "/http1_1", null, startHttp1_1, stop),
-    new Test(URL + "/invalidVersion", null, startPassedTrue, stop),
-    new Test(URL + "/invalidStatus", null, startPassedTrue, stop),
-    new Test(URL + "/invalidDescription", null, startPassedTrue, stop),
-    new Test(URL + "/crazyCode", null, startCrazy, stop),
-    new Test(URL + "/nullVersion", null, startNullVersion, stop)
-  ];
-});
-
+var tests = [];
+var test;
 
 // /no/setstatusline
 function noSetstatusline(metadata, response)
 {
 }
+test = new Test("http://localhost:4444/no/setstatusline",
+                null, startNoSetStatusLine, stop);
+tests.push(test);
 function startNoSetStatusLine(ch, cx)
 {
   checkStatusLine(ch, 1, 1, 200, "OK");
@@ -85,6 +73,9 @@ function http1_0(metadata, response)
 {
   response.setStatusLine("1.0", 200, "OK");
 }
+test = new Test("http://localhost:4444/http1_0",
+                null, startHttp1_0, stop);
+tests.push(test);
 function startHttp1_0(ch, cx)
 {
   checkStatusLine(ch, 1, 0, 200, "OK");
@@ -96,6 +87,9 @@ function http1_1(metadata, response)
 {
   response.setStatusLine("1.1", 200, "OK");
 }
+test = new Test("http://localhost:4444/http1_1",
+                null, startHttp1_1, stop);
+tests.push(test);
 function startHttp1_1(ch, cx)
 {
   checkStatusLine(ch, 1, 1, 200, "OK");
@@ -114,6 +108,9 @@ function invalidVersion(metadata, response)
     response.setHeader("Passed", "true", false);
   }
 }
+test = new Test("http://localhost:4444/invalidVersion",
+                null, startPassedTrue, stop);
+tests.push(test);
 function startPassedTrue(ch, cx)
 {
   checkStatusLine(ch, 1, 1, 200, "OK");
@@ -133,6 +130,9 @@ function invalidStatus(metadata, response)
     response.setHeader("Passed", "true", false);
   }
 }
+test = new Test("http://localhost:4444/invalidStatus",
+                null, startPassedTrue, stop);
+tests.push(test);
 
 
 // /invalidDescription
@@ -147,6 +147,9 @@ function invalidDescription(metadata, response)
     response.setHeader("Passed", "true", false);
   }
 }
+test = new Test("http://localhost:4444/invalidDescription",
+                null, startPassedTrue, stop);
+tests.push(test);
 
 
 // /crazyCode
@@ -154,6 +157,9 @@ function crazyCode(metadata, response)
 {
   response.setStatusLine("1.1", 617, "Crazy");
 }
+test = new Test("http://localhost:4444/crazyCode",
+                null, startCrazy, stop);
+tests.push(test);
 function startCrazy(ch, cx)
 {
   checkStatusLine(ch, 1, 1, 617, "Crazy");
@@ -165,6 +171,9 @@ function nullVersion(metadata, response)
 {
   response.setStatusLine(null, 255, "NULL");
 }
+test = new Test("http://localhost:4444/nullVersion",
+                null, startNullVersion, stop);
+tests.push(test);
 function startNullVersion(ch, cx)
 {
   // currently, this server implementation defaults to 1.1

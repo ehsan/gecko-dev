@@ -654,7 +654,7 @@ static bool
 JitSupportsFloatingPoint()
 {
 #if defined(JS_ION)
-    if (!JSC::MacroAssembler::supportsFloatingPoint())
+    if (!JSC::MacroAssembler().supportsFloatingPoint())
         return false;
 
 #if defined(JS_ION) && WTF_ARM_ARCH_VERSION == 6
@@ -686,9 +686,6 @@ PerThreadData::~PerThreadData()
 {
     if (dtoaState)
         js_DestroyDtoaState(dtoaState);
-
-    if (isInList())
-        removeFromThreadList();
 }
 
 bool
@@ -701,22 +698,6 @@ PerThreadData::init()
     return true;
 }
 
-void
-PerThreadData::addToThreadList()
-{
-    // PerThreadData which are created/destroyed off the main thread do not
-    // show up in the runtime's thread list.
-    runtime_->assertValidThread();
-    runtime_->threadList.insertBack(this);
-}
-
-void
-PerThreadData::removeFromThreadList()
-{
-    runtime_->assertValidThread();
-    removeFrom(runtime_->threadList);
-}
-
 JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
   : mainThread(this),
     interrupt(0),
@@ -725,10 +706,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
 #ifdef DEBUG
     operationCallbackOwner(NULL),
 #endif
-    exclusiveAccessLock(NULL),
-    exclusiveAccessOwner(NULL),
-    mainThreadHasExclusiveAccess(false),
-    numExclusiveThreads(0),
 #endif
     atomsCompartment(NULL),
     systemZone(NULL),
@@ -914,17 +891,12 @@ JSRuntime::init(uint32_t maxbytes)
     operationCallbackLock = PR_NewLock();
     if (!operationCallbackLock)
         return false;
-
-    exclusiveAccessLock = PR_NewLock();
-    if (!exclusiveAccessLock)
-        return false;
 #endif
 
     if (!mainThread.init())
         return false;
 
     js::TlsPerThreadData.set(&mainThread);
-    mainThread.addToThreadList();
 
     if (!js_InitGC(this, maxbytes))
         return false;
@@ -985,24 +957,12 @@ JSRuntime::init(uint32_t maxbytes)
 
 JSRuntime::~JSRuntime()
 {
-    mainThread.removeFromThreadList();
-
 #ifdef JS_THREADSAFE
-# ifdef JS_ION
-    if (workerThreadState)
-        js_delete(workerThreadState);
-# endif
-    sourceCompressorThread.finish();
-
     clearOwnerThread();
 
     JS_ASSERT(!operationCallbackOwner);
     if (operationCallbackLock)
         PR_DestroyLock(operationCallbackLock);
-
-    JS_ASSERT(!exclusiveAccessOwner);
-    if (exclusiveAccessLock)
-        PR_DestroyLock(exclusiveAccessLock);
 #endif
 
     /*
@@ -1010,6 +970,14 @@ JSRuntime::~JSRuntime()
      * some filenames around because of gcKeepAtoms.
      */
     FreeScriptData(this);
+
+#ifdef JS_THREADSAFE
+# ifdef JS_ION
+    if (workerThreadState)
+        js_delete(workerThreadState);
+# endif
+    sourceCompressorThread.finish();
+#endif
 
 #ifdef DEBUG
     /* Don't hurt everyone in leaky ol' Mozilla with a fatal JS_ASSERT! */
@@ -1277,14 +1245,12 @@ JS_NewContext(JSRuntime *rt, size_t stackChunkSize)
 JS_PUBLIC_API(void)
 JS_DestroyContext(JSContext *cx)
 {
-    JS_ASSERT(!cx->compartment());
     DestroyContext(cx, DCM_FORCE_GC);
 }
 
 JS_PUBLIC_API(void)
 JS_DestroyContextNoGC(JSContext *cx)
 {
-    JS_ASSERT(!cx->compartment());
     DestroyContext(cx, DCM_NO_GC);
 }
 
@@ -2121,8 +2087,6 @@ JS_GetGlobalForScopeChain(JSContext *cx)
 {
     AssertHeapIsIdleOrIterating(cx);
     CHECK_REQUEST(cx);
-    if (!cx->compartment())
-        return NULL;
     return cx->global();
 }
 
@@ -3352,12 +3316,10 @@ JS_NewGlobalObject(JSContext *cx, JSClass *clasp, JSPrincipals *principals,
 
     AutoHoldZone hold(compartment->zone());
 
-    Rooted<GlobalObject *> global(cx);
-    {
-        AutoCompartment ac(cx, compartment);
-        global = GlobalObject::create(cx, Valueify(clasp));
-    }
-
+    JSCompartment *saved = cx->compartment();
+    cx->setCompartment(compartment);
+    Rooted<GlobalObject *> global(cx, GlobalObject::create(cx, Valueify(clasp)));
+    cx->setCompartment(saved);
     if (!global)
         return NULL;
 
@@ -5236,7 +5198,7 @@ JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options,
     JS_ASSERT_IF(options.principals, cx->compartment()->principals == options.principals);
     AutoLastFrameCheck lfc(cx);
 
-    return frontend::CompileScript(cx, &cx->tempLifoAlloc(), obj, NullPtr(), options, chars, length);
+    return frontend::CompileScript(cx, obj, NullPtr(), options, chars, length);
 }
 
 JSScript *
@@ -5577,8 +5539,7 @@ JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
     options.setCompileAndGo(true);
     options.setNoScriptRval(!rval);
     SourceCompressionToken sct(cx);
-    RootedScript script(cx, frontend::CompileScript(cx, &cx->tempLifoAlloc(),
-                                                    obj, NullPtr(), options,
+    RootedScript script(cx, frontend::CompileScript(cx, obj, NullPtr(), options,
                                                     chars, length, NULL, 0, &sct));
     if (!script)
         return false;
@@ -7245,11 +7206,12 @@ JS_GetScriptedGlobal(JSContext *cx)
 JS_PUBLIC_API(JSBool)
 JS_PreventExtensions(JSContext *cx, JS::HandleObject obj)
 {
-    bool extensible;
-    if (!JSObject::isExtensible(cx, obj, &extensible))
-        return false;
-    if (!extensible)
-        return true;
+    JSBool extensible;
+    if (!JS_IsExtensible(cx, obj, &extensible))
+        return JS_TRUE;
+    if (extensible)
+        return JS_TRUE;
+
     return JSObject::preventExtensions(cx, obj);
 }
 

@@ -563,7 +563,7 @@ function run_test() {
   testserver.registerDirectory("/addons/", do_get_file("addons"));
   testserver.start(4444);
 
-  do_test_pending("test_blocklistchange main");
+  do_test_pending();
 
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1");
   writeInstallRDFForExtension(default_theme, profileDir);
@@ -576,20 +576,24 @@ function run_test() {
   writeInstallRDFForExtension(regexpblock_1, profileDir);
   startupManager();
 
-  AddonManager.getAddonsByIDs(ADDON_IDS, do_exception_wrap(function([s1, s2, s3, s4, s5, h, r]) {
+  AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
     s4.userDisabled = true;
     s5.userDisabled = false;
+    restartManager();
 
-    run_next_test();
-  }));
+    run_app_update_test();
+  });
+}
+
+function end_test() {
+  testserver.stop(do_test_finished);
 }
 
 // Starts with add-ons unblocked and then switches application versions to
 // change add-ons to blocked and back
-add_test(function run_app_update_test() {
-  do_print("Test: " + arguments.callee.name);
-  restartManager();
-  load_blocklist("app_update.xml", function app_update_step_1() {
+function run_app_update_test() {
+  dump(arguments.callee.name + "\n");
+  load_blocklist("app_update.xml", function() {
     restartManager();
 
     AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -603,81 +607,68 @@ add_test(function run_app_update_test() {
       check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
       do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "test/1.0");
 
-      do_execute_soon(app_update_step_2);
-    })
+      restartManager("2");
+
+      AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
+
+        check_addon(s1, "1.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(s2, "1.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(s3, "1.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
+        check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
+        do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
+
+        s2.userDisabled = false;
+        s2.userDisabled = true;
+        check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        s3.userDisabled = false;
+        check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        restartManager();
+
+        restartManager("2.5");
+
+        AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
+
+          check_addon(s1, "1.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
+          check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
+          do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
+
+          restartManager("1");
+
+          AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
+
+            check_addon(s1, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
+
+            s1.userDisabled = false;
+            s2.userDisabled = false;
+            s5.userDisabled = false;
+            run_app_update_schema_test();
+          });
+        });
+      });
+    });
   });
-
-  function app_update_step_2() {
-    restartManager("2");
-
-    AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
-
-      check_addon(s1, "1.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s2, "1.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s3, "1.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
-      check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
-      do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
-
-      s2.userDisabled = false;
-      s2.userDisabled = true;
-      check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      s3.userDisabled = false;
-      check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-
-      do_execute_soon(app_update_step_3);
-    });
-  }
-
-  function app_update_step_3() {
-    restartManager();
-
-    restartManager("2.5");
-
-    AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
-
-      check_addon(s1, "1.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
-      check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
-      do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
-
-      do_execute_soon(app_update_step_4);
-    });
-  }
-
-  function app_update_step_4() {
-    restartManager("1");
-
-    AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
-
-      check_addon(s1, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
-
-      s1.userDisabled = false;
-      s2.userDisabled = false;
-      s5.userDisabled = false;
-      run_next_test();
-    });
-  }
-});
+}
 
 // Starts with add-ons unblocked and then switches application versions to
 // change add-ons to blocked and back. A DB schema change is faked to force a
 // rebuild when the application version changes
-add_test(function run_app_update_schema_test() {
-  do_print("Test: " + arguments.callee.name);
+function run_app_update_schema_test() {
+  dump(arguments.callee.name + "\n");
   restartManager();
 
   AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -691,12 +682,7 @@ add_test(function run_app_update_schema_test() {
     check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
     do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "test/1.0");
 
-    do_execute_soon(update_schema_2);
-  });
-
-  function update_schema_2() {
     shutdownManager();
-
     var dbfile = gProfD.clone();
     dbfile.append("extensions.sqlite");
     var db = Services.storage.openDatabase(dbfile);
@@ -721,97 +707,83 @@ add_test(function run_app_update_schema_test() {
       check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
       s3.userDisabled = false;
       check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      do_execute_soon(update_schema_3);
+      restartManager();
+
+      shutdownManager();
+      var dbfile = gProfD.clone();
+      dbfile.append("extensions.sqlite");
+      var db = Services.storage.openDatabase(dbfile);
+      db.schemaVersion = 100;
+      db.close();
+      gAppInfo.version = "2.5";
+      startupManager(true);
+
+      AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
+
+        check_addon(s1, "1.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
+        check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
+        do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
+
+        shutdownManager();
+        var dbfile = gProfD.clone();
+        dbfile.append("extensions.sqlite");
+        var db = Services.storage.openDatabase(dbfile);
+        db.schemaVersion = 100;
+        db.close();
+        startupManager(false);
+
+        AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
+
+          check_addon(s1, "1.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
+          check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
+          do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
+
+          shutdownManager();
+          var dbfile = gProfD.clone();
+          dbfile.append("extensions.sqlite");
+          var db = Services.storage.openDatabase(dbfile);
+          db.schemaVersion = 100;
+          db.close();
+          gAppInfo.version = "1";
+          startupManager(true);
+
+          AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
+
+            check_addon(s1, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
+
+            s1.userDisabled = false;
+            s2.userDisabled = false;
+            s5.userDisabled = false;
+            run_blocklist_update_test();
+          });
+        });
+      });
     });
-  }
-
-  function update_schema_3() {
-    restartManager();
-
-    shutdownManager();
-    var dbfile = gProfD.clone();
-    dbfile.append("extensions.sqlite");
-    var db = Services.storage.openDatabase(dbfile);
-    db.schemaVersion = 100;
-    db.close();
-    gAppInfo.version = "2.5";
-    startupManager(true);
-
-    AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
-
-      check_addon(s1, "1.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
-      check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
-      do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
-
-      do_execute_soon(update_schema_4);
-    });
-  }
-
-  function update_schema_4() {
-    shutdownManager();
-
-    var dbfile = gProfD.clone();
-    dbfile.append("extensions.sqlite");
-    var db = Services.storage.openDatabase(dbfile);
-    db.schemaVersion = 100;
-    db.close();
-    startupManager(false);
-
-    AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
-
-      check_addon(s1, "1.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
-      check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
-      do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
-
-      do_execute_soon(update_schema_5);
-    });
-  }
-
-  function update_schema_5() {
-    shutdownManager();
-
-    var dbfile = gProfD.clone();
-    dbfile.append("extensions.sqlite");
-    var db = Services.storage.openDatabase(dbfile);
-    db.schemaVersion = 100;
-    db.close();
-    gAppInfo.version = "1";
-    startupManager(true);
-
-    AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
-
-      check_addon(s1, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
-
-      s1.userDisabled = false;
-      s2.userDisabled = false;
-      s5.userDisabled = false;
-      run_next_test();
-    });
-  }
-});
+  });
+}
 
 // Starts with add-ons unblocked and then loads new blocklists to change add-ons
 // to blocked and back again.
-add_test(function run_blocklist_update_test() {
-  do_print("Test: " + arguments.callee.name + "\n");
-  load_blocklist("blocklist_update1.xml", function run_blocklist_update_1() {
+function run_blocklist_update_test() {
+  dump(arguments.callee.name + "\n");
+  load_blocklist("blocklist_update1.xml", function() {
     restartManager();
 
     AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -825,7 +797,7 @@ add_test(function run_blocklist_update_test() {
       check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
       do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "test/1.0");
 
-      load_blocklist("blocklist_update2.xml", function run_blocklist_update_2() {
+      load_blocklist("blocklist_update2.xml", function() {
         restartManager();
 
         AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -844,11 +816,9 @@ add_test(function run_blocklist_update_test() {
           check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
           s3.userDisabled = false;
           check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          restartManager();
 
-          do_execute_soon(function restart_and_reload() {
-           restartManager();
-
-           load_blocklist("blocklist_update2.xml", function run_blocklist_update_3() {
+          load_blocklist("blocklist_update2.xml", function() {
             restartManager();
 
             AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -862,7 +832,7 @@ add_test(function run_blocklist_update_test() {
               check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
               do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
 
-              load_blocklist("blocklist_update1.xml", function run_blocklist_update_4() {
+              load_blocklist("blocklist_update1.xml", function() {
                 restartManager();
 
                 AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -879,23 +849,22 @@ add_test(function run_blocklist_update_test() {
                   s1.userDisabled = false;
                   s2.userDisabled = false;
                   s5.userDisabled = false;
-                  run_next_test();
+                  run_addon_change_test();
                 });
               });
             });
-           });
           });
         });
       });
     });
   });
-});
+}
 
 // Starts with add-ons unblocked and then new versions are installed outside of
 // the app to change them to blocked and back again.
-add_test(function run_addon_change_test() {
-  do_print("Test: " + arguments.callee.name + "\n");
-  load_blocklist("addon_change.xml", function run_addon_change_1() {
+function run_addon_change_test() {
+  dump(arguments.callee.name + "\n");
+  load_blocklist("addon_change.xml", function() {
     restartManager();
 
     AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -909,130 +878,118 @@ add_test(function run_addon_change_test() {
       check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
       do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "test/1.0");
 
-      do_execute_soon(run_addon_change_2);
+      shutdownManager();
+
+      writeInstallRDFForExtension(softblock1_2, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, softblock1_2.id), Date.now() + 10000);
+      writeInstallRDFForExtension(softblock2_2, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, softblock2_2.id), Date.now() + 10000);
+      writeInstallRDFForExtension(softblock3_2, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, softblock3_2.id), Date.now() + 10000);
+      writeInstallRDFForExtension(softblock4_2, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, softblock4_2.id), Date.now() + 10000);
+      writeInstallRDFForExtension(softblock5_2, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, softblock5_2.id), Date.now() + 10000);
+      writeInstallRDFForExtension(hardblock_2, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, hardblock_2.id), Date.now() + 10000);
+      writeInstallRDFForExtension(regexpblock_2, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, regexpblock_2.id), Date.now() + 10000);
+
+      startupManager(false);
+
+      AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
+
+        check_addon(s1, "2.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(s2, "2.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(s3, "2.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(s4, "2.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(s5, "2.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        check_addon(h, "2.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
+        check_addon(r, "2.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
+        do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
+
+        s2.userDisabled = false;
+        s2.userDisabled = true;
+        check_addon(s2, "2.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        s3.userDisabled = false;
+        check_addon(s3, "2.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+        restartManager();
+
+        shutdownManager();
+
+        writeInstallRDFForExtension(softblock1_3, profileDir);
+        setExtensionModifiedTime(getFileForAddon(profileDir, softblock1_3.id), Date.now() + 20000);
+        writeInstallRDFForExtension(softblock2_3, profileDir);
+        setExtensionModifiedTime(getFileForAddon(profileDir, softblock2_3.id), Date.now() + 20000);
+        writeInstallRDFForExtension(softblock3_3, profileDir);
+        setExtensionModifiedTime(getFileForAddon(profileDir, softblock3_3.id), Date.now() + 20000);
+        writeInstallRDFForExtension(softblock4_3, profileDir);
+        setExtensionModifiedTime(getFileForAddon(profileDir, softblock4_3.id), Date.now() + 20000);
+        writeInstallRDFForExtension(softblock5_3, profileDir);
+        setExtensionModifiedTime(getFileForAddon(profileDir, softblock5_3.id), Date.now() + 20000);
+        writeInstallRDFForExtension(hardblock_3, profileDir);
+        setExtensionModifiedTime(getFileForAddon(profileDir, hardblock_3.id), Date.now() + 20000);
+        writeInstallRDFForExtension(regexpblock_3, profileDir);
+        setExtensionModifiedTime(getFileForAddon(profileDir, regexpblock_3.id), Date.now() + 20000);
+
+        startupManager(false);
+
+        AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
+
+          check_addon(s1, "3.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(s2, "3.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(s3, "3.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(s4, "3.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(s5, "3.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+          check_addon(h, "3.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
+          check_addon(r, "3.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
+          do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
+
+          shutdownManager();
+
+          writeInstallRDFForExtension(softblock1_1, profileDir);
+          setExtensionModifiedTime(getFileForAddon(profileDir, softblock1_1.id), Date.now() + 30000);
+          writeInstallRDFForExtension(softblock2_1, profileDir);
+          setExtensionModifiedTime(getFileForAddon(profileDir, softblock2_1.id), Date.now() + 30000);
+          writeInstallRDFForExtension(softblock3_1, profileDir);
+          setExtensionModifiedTime(getFileForAddon(profileDir, softblock3_1.id), Date.now() + 30000);
+          writeInstallRDFForExtension(softblock4_1, profileDir);
+          setExtensionModifiedTime(getFileForAddon(profileDir, softblock4_1.id), Date.now() + 30000);
+          writeInstallRDFForExtension(softblock5_1, profileDir);
+          setExtensionModifiedTime(getFileForAddon(profileDir, softblock5_1.id), Date.now() + 30000);
+          writeInstallRDFForExtension(hardblock_1, profileDir);
+          setExtensionModifiedTime(getFileForAddon(profileDir, hardblock_1.id), Date.now() + 30000);
+          writeInstallRDFForExtension(regexpblock_1, profileDir);
+          setExtensionModifiedTime(getFileForAddon(profileDir, regexpblock_1.id), Date.now() + 30000);
+
+          startupManager(false);
+
+          AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
+
+            check_addon(s1, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+            do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
+
+            s1.userDisabled = false;
+            s2.userDisabled = false;
+            s5.userDisabled = false;
+            run_addon_change_2_test();
+          });
+        });
+      });
     });
   });
-
-  function run_addon_change_2() {
-    shutdownManager();
-
-    writeInstallRDFForExtension(softblock1_2, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock1_2.id), Date.now() + 10000);
-    writeInstallRDFForExtension(softblock2_2, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock2_2.id), Date.now() + 10000);
-    writeInstallRDFForExtension(softblock3_2, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock3_2.id), Date.now() + 10000);
-    writeInstallRDFForExtension(softblock4_2, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock4_2.id), Date.now() + 10000);
-    writeInstallRDFForExtension(softblock5_2, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock5_2.id), Date.now() + 10000);
-    writeInstallRDFForExtension(hardblock_2, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, hardblock_2.id), Date.now() + 10000);
-    writeInstallRDFForExtension(regexpblock_2, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, regexpblock_2.id), Date.now() + 10000);
-
-    startupManager(false);
-
-    AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
-
-      check_addon(s1, "2.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s2, "2.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s3, "2.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s4, "2.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s5, "2.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(h, "2.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
-      check_addon(r, "2.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
-      do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
-
-      s2.userDisabled = false;
-      s2.userDisabled = true;
-      check_addon(s2, "2.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      s3.userDisabled = false;
-      check_addon(s3, "2.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      do_execute_soon(run_addon_change_3);
-    });
-  }
-
-  function run_addon_change_3() {
-    restartManager();
-
-    shutdownManager();
-
-    writeInstallRDFForExtension(softblock1_3, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock1_3.id), Date.now() + 20000);
-    writeInstallRDFForExtension(softblock2_3, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock2_3.id), Date.now() + 20000);
-    writeInstallRDFForExtension(softblock3_3, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock3_3.id), Date.now() + 20000);
-    writeInstallRDFForExtension(softblock4_3, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock4_3.id), Date.now() + 20000);
-    writeInstallRDFForExtension(softblock5_3, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock5_3.id), Date.now() + 20000);
-    writeInstallRDFForExtension(hardblock_3, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, hardblock_3.id), Date.now() + 20000);
-    writeInstallRDFForExtension(regexpblock_3, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, regexpblock_3.id), Date.now() + 20000);
-
-    startupManager(false);
-
-    AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
-
-      check_addon(s1, "3.0", true, true, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s2, "3.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s3, "3.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s4, "3.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(s5, "3.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-      check_addon(h, "3.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
-      check_addon(r, "3.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
-      do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
-
-      do_execute_soon(run_addon_change_4);
-    });
-  }
-
-  function run_addon_change_4() {
-    shutdownManager();
-
-    writeInstallRDFForExtension(softblock1_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock1_1.id), Date.now() + 30000);
-    writeInstallRDFForExtension(softblock2_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock2_1.id), Date.now() + 30000);
-    writeInstallRDFForExtension(softblock3_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock3_1.id), Date.now() + 30000);
-    writeInstallRDFForExtension(softblock4_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock4_1.id), Date.now() + 30000);
-    writeInstallRDFForExtension(softblock5_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock5_1.id), Date.now() + 30000);
-    writeInstallRDFForExtension(hardblock_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, hardblock_1.id), Date.now() + 30000);
-    writeInstallRDFForExtension(regexpblock_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, regexpblock_1.id), Date.now() + 30000);
-
-    startupManager(false);
-
-    AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
-
-      check_addon(s1, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s4, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s5, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      do_check_eq(Services.prefs.getCharPref("general.skins.selectedSkin"), "classic/1.0");
-
-      s1.userDisabled = false;
-      s2.userDisabled = false;
-      s5.userDisabled = false;
-      run_next_test();
-    });
-  }
-});
+}
 
 // Starts with add-ons blocked and then new versions are installed outside of
 // the app to change them to unblocked.
-add_test(function run_addon_change_2_test() {
-  do_print("Test: " + arguments.callee.name + "\n");
+function run_addon_change_2_test() {
+  dump(arguments.callee.name + "\n");
   shutdownManager();
 
   getFileForAddon(profileDir, softblock1_1.id).remove(true);
@@ -1069,10 +1026,6 @@ add_test(function run_addon_change_2_test() {
     check_addon(s2, "2.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
     s3.userDisabled = false;
     check_addon(s3, "2.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
-    do_execute_soon(addon_change_2_test_2);
-  });
-
-  function addon_change_2_test_2() {
     restartManager();
 
     shutdownManager();
@@ -1102,51 +1055,47 @@ add_test(function run_addon_change_2_test() {
       check_addon(h, "3.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
       check_addon(r, "3.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
 
-      do_execute_soon(addon_change_2_test_3);
+      shutdownManager();
+
+      writeInstallRDFForExtension(softblock1_1, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, softblock1_1.id), Date.now() + 20000);
+      writeInstallRDFForExtension(softblock2_1, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, softblock2_1.id), Date.now() + 20000);
+      writeInstallRDFForExtension(softblock3_1, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, softblock3_1.id), Date.now() + 20000);
+      writeInstallRDFForExtension(softblock4_1, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, softblock4_1.id), Date.now() + 20000);
+      writeInstallRDFForExtension(softblock5_1, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, softblock5_1.id), Date.now() + 20000);
+      writeInstallRDFForExtension(hardblock_1, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, hardblock_1.id), Date.now() + 20000);
+      writeInstallRDFForExtension(regexpblock_1, profileDir);
+      setExtensionModifiedTime(getFileForAddon(profileDir, regexpblock_1.id), Date.now() + 20000);
+
+      startupManager(false);
+
+      AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
+
+        check_addon(s1, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+        check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+        check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+        check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+        check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
+
+        s1.userDisabled = false;
+        s2.userDisabled = false;
+        s4.userDisabled = true;
+        s5.userDisabled = false;
+        run_background_update_test();
+      });
     });
-  }
-
-  function addon_change_2_test_3() {
-    shutdownManager();
-
-    writeInstallRDFForExtension(softblock1_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock1_1.id), Date.now() + 20000);
-    writeInstallRDFForExtension(softblock2_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock2_1.id), Date.now() + 20000);
-    writeInstallRDFForExtension(softblock3_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock3_1.id), Date.now() + 20000);
-    writeInstallRDFForExtension(softblock4_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock4_1.id), Date.now() + 20000);
-    writeInstallRDFForExtension(softblock5_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, softblock5_1.id), Date.now() + 20000);
-    writeInstallRDFForExtension(hardblock_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, hardblock_1.id), Date.now() + 20000);
-    writeInstallRDFForExtension(regexpblock_1, profileDir);
-    setExtensionModifiedTime(getFileForAddon(profileDir, regexpblock_1.id), Date.now() + 20000);
-
-    startupManager(false);
-
-    AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
-
-      check_addon(s1, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-      check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
-
-      s1.userDisabled = false;
-      s2.userDisabled = false;
-      s4.userDisabled = true;
-      s5.userDisabled = false;
-      run_next_test();
-    });
-  }
-});
+  });
+}
 
 // Add-ons are initially unblocked then attempts to upgrade to blocked versions
 // in the background which should fail
-add_test(function run_background_update_test() {
-  do_print("Test: " + arguments.callee.name + "\n");
+function run_background_update_test() {
+  dump(arguments.callee.name + "\n");
   restartManager();
 
   AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -1159,7 +1108,7 @@ add_test(function run_background_update_test() {
     check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
     check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
 
-    background_update(function background_update_1() {
+    background_update(function() {
       restartManager();
 
       AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -1172,16 +1121,16 @@ add_test(function run_background_update_test() {
         check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
         check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
 
-        run_next_test();
+        run_background_update_2_test();
       });
     });
   });
-});
+}
 
 // Starts with add-ons blocked and then new versions are detected and installed
 // automatically for unblocked versions.
-add_test(function run_background_update_2_test() {
-  do_print("Test: " + arguments.callee.name + "\n");
+function run_background_update_2_test() {
+  dump(arguments.callee.name + "\n");
   shutdownManager();
 
   getFileForAddon(profileDir, softblock1_1.id).remove(true);
@@ -1218,12 +1167,9 @@ add_test(function run_background_update_2_test() {
     check_addon(s2, "3.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
     s3.userDisabled = false;
     check_addon(s3, "3.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+    restartManager();
 
-    // make sure we're not in a handler when we restart
-    do_execute_soon(function restart_and_update() {
-     restartManager();
-
-     background_update(function background_update_2_1() {
+    background_update(function() {
       restartManager();
 
       AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -1238,19 +1184,18 @@ add_test(function run_background_update_2_test() {
         s2.userDisabled = false;
         s4.userDisabled = true;
         s5.userDisabled = true;
-        run_next_test();
+        run_manual_update_test();
       });
-     });
     });
   });
-});
+}
 
 // Starts with add-ons blocked and then simulates the user upgrading them to
 // unblocked versions.
-add_test(function run_manual_update_test() {
-  do_print("Test: " + arguments.callee.name + "\n");
+function run_manual_update_test() {
+  dump(arguments.callee.name + "\n");
   restartManager();
-  load_blocklist("manual_update.xml", function manual_update_1() {
+  load_blocklist("manual_update.xml", function() {
     restartManager();
 
     AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -1268,11 +1213,9 @@ add_test(function run_manual_update_test() {
       check_addon(s2, "1.0", true, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
       s3.userDisabled = false;
       check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
+      restartManager();
 
-      do_execute_soon(function restart_manual_update() {
-       restartManager();
-
-       manual_update("2", function manual_update_2() {
+      manual_update("2", function() {
         restartManager();
 
         AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -1286,7 +1229,7 @@ add_test(function run_manual_update_test() {
           check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
           check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
 
-          manual_update("3", function manual_update_3() {
+          manual_update("3", function() {
             restartManager();
 
             AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -1299,20 +1242,19 @@ add_test(function run_manual_update_test() {
               check_addon(h, "3.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
               check_addon(r, "3.0", false, false, Ci.nsIBlocklistService.STATE_NOT_BLOCKED);
 
-              run_next_test();
+              run_manual_update_2_test();
             });
           });
         });
-       });
       });
     });
   });
-});
+}
 
 // Starts with add-ons blocked and then new versions are installed outside of
 // the app to change them to unblocked.
-add_test(function run_manual_update_2_test() {
-  do_print("Test: " + arguments.callee.name + "\n");
+function run_manual_update_2_test() {
+  dump(arguments.callee.name + "\n");
   shutdownManager();
 
   getFileForAddon(profileDir, softblock1_1.id).remove(true);
@@ -1351,7 +1293,7 @@ add_test(function run_manual_update_2_test() {
     check_addon(s3, "1.0", false, false, Ci.nsIBlocklistService.STATE_SOFTBLOCKED);
     restartManager();
 
-    manual_update("2", function manual_update_2_2() {
+    manual_update("2", function() {
       restartManager();
 
       AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -1365,7 +1307,7 @@ add_test(function run_manual_update_2_test() {
 
         restartManager();
 
-        manual_update("3", function manual_update_2_3() {
+        manual_update("3", function() {
           restartManager();
 
           AddonManager.getAddonsByIDs(ADDON_IDS, function([s1, s2, s3, s4, s5, h, r]) {
@@ -1379,17 +1321,17 @@ add_test(function run_manual_update_2_test() {
             s1.userDisabled = false;
             s2.userDisabled = false;
             s4.userDisabled = true;
-            run_next_test();
+            run_local_install_test();
           });
         });
       });
     });
   });
-});
+}
 
 // Uses the API to install blocked add-ons from the local filesystem
-add_test(function run_local_install_test() {
-  do_print("Test: " + arguments.callee.name + "\n");
+function run_local_install_test() {
+  dump(arguments.callee.name + "\n");
   shutdownManager();
 
   getFileForAddon(profileDir, softblock1_1.id).remove(true);
@@ -1410,7 +1352,7 @@ add_test(function run_local_install_test() {
     do_get_file("addons/blocklist_soft5_1.xpi"),
     do_get_file("addons/blocklist_hard1_1.xpi"),
     do_get_file("addons/blocklist_regexp1_1.xpi")
-  ], function local_install_1() {
+  ], function() {
     AddonManager.getAllInstalls(function(aInstalls) {
       // Should have finished all installs without needing to restart
       do_check_eq(aInstalls.length, 0);
@@ -1423,17 +1365,8 @@ add_test(function run_local_install_test() {
         check_addon(h, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
         check_addon(r, "1.0", false, false, Ci.nsIBlocklistService.STATE_BLOCKED);
 
-        run_next_test();
+        end_test();
       });
     });
   });
-});
-
-add_test(function shutdown_httpserver() {
-  testserver.stop(function() {
-    do_test_finished("test_blocklistchange main");
-    // this really means "async test step done"; needs to be called
-    // even when there isn't a next test
-    run_next_test();
-  });
-});
+}

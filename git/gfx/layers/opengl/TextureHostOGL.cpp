@@ -13,9 +13,6 @@
 #include "SharedSurface.h"
 #include "SharedSurfaceGL.h"
 #include "SharedSurfaceEGL.h"
-#ifdef XP_MACOSX
-#include "SharedSurfaceIO.h"
-#endif
 #include "mozilla/layers/CompositorOGL.h"
 
 using namespace mozilla::gl;
@@ -354,22 +351,6 @@ SurfaceStreamHostOGL::SwapTexturesImpl(const SurfaceDescriptor& aImage,
 {
   MOZ_ASSERT(aImage.type() == SurfaceDescriptor::TSurfaceStreamDescriptor,
              "Invalid descriptor");
-
-  mStreamGL = nullptr;
-
-  if (aImage.type() == SurfaceDescriptor::TSurfaceStreamDescriptor) {
-    // Bug 894405
-    //
-    // The SurfaceStream's GLContext was refed before being passed up to us, so
-    // we need to ensure it gets unrefed when we are finished.
-    const SurfaceStreamDescriptor& streamDesc =
-        aImage.get_SurfaceStreamDescriptor();
-
-    SurfaceStream* surfStream = SurfaceStream::FromHandle(streamDesc.handle());
-    if (surfStream) {
-      mStreamGL = dont_AddRef(surfStream->GLContext());
-    }
-  } 
 }
 
 void
@@ -407,7 +388,6 @@ SurfaceStreamHostOGL::Lock()
       SharedSurface_GLTexture* glTexSurf = SharedSurface_GLTexture::Cast(sharedSurf);
       glTexSurf->SetConsumerGL(mGL);
       mTextureHandle = glTexSurf->Texture();
-      mTextureTarget = glTexSurf->TextureTarget();
       MOZ_ASSERT(mTextureHandle);
       mFormat = sharedSurf->HasAlpha() ? FORMAT_R8G8B8A8
                                        : FORMAT_R8G8B8X8;
@@ -418,7 +398,6 @@ SurfaceStreamHostOGL::Lock()
           SharedSurface_EGLImage::Cast(sharedSurf);
 
       mTextureHandle = eglImageSurf->AcquireConsumerTexture(mGL);
-      mTextureTarget = eglImageSurf->TextureTarget();
       if (!mTextureHandle) {
         toUpload = eglImageSurf->GetPixels();
         MOZ_ASSERT(toUpload);
@@ -428,17 +407,6 @@ SurfaceStreamHostOGL::Lock()
       }
       break;
     }
-#ifdef XP_MACOSX
-    case SharedSurfaceType::IOSurface: {
-      SharedSurface_IOSurface* glTexSurf = SharedSurface_IOSurface::Cast(sharedSurf);
-      mTextureHandle = glTexSurf->Texture();
-      mTextureTarget = glTexSurf->TextureTarget();
-      MOZ_ASSERT(mTextureHandle);
-      mFormat = sharedSurf->HasAlpha() ? FORMAT_R8G8B8A8
-                                       : FORMAT_R8G8B8X8;
-      break;
-    }
-#endif
     case SharedSurfaceType::Basic: {
       toUpload = SharedSurface_Basic::Cast(sharedSurf)->GetData();
       MOZ_ASSERT(toUpload);
@@ -458,15 +426,14 @@ SurfaceStreamHostOGL::Lock()
                                           mUploadTexture,
                                           true);
     mTextureHandle = mUploadTexture;
-    mTextureTarget = LOCAL_GL_TEXTURE_2D;
   }
 
   MOZ_ASSERT(mTextureHandle);
-  mGL->fBindTexture(mTextureTarget, mTextureHandle);
-  mGL->fTexParameteri(mTextureTarget,
+  mGL->fBindTexture(LOCAL_GL_TEXTURE_2D, mTextureHandle);
+  mGL->fTexParameteri(LOCAL_GL_TEXTURE_2D,
                       LOCAL_GL_TEXTURE_WRAP_S,
                       LOCAL_GL_CLAMP_TO_EDGE);
-  mGL->fTexParameteri(mTextureTarget,
+  mGL->fTexParameteri(LOCAL_GL_TEXTURE_2D,
                       LOCAL_GL_TEXTURE_WRAP_T,
                       LOCAL_GL_CLAMP_TO_EDGE);
   return true;
