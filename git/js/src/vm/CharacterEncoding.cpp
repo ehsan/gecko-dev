@@ -37,7 +37,6 @@ GetDeflatedUTF8StringLength(const CharT *chars, size_t nchars)
         jschar c = *chars;
         if (c < 0x80)
             continue;
-        uint32_t v;
         if (0xD800 <= c && c <= 0xDFFF) {
             /* nbytes sets 1 length since this is surrogate pair. */
             if (c >= 0xDC00 || (chars + 1) == end) {
@@ -49,16 +48,14 @@ GetDeflatedUTF8StringLength(const CharT *chars, size_t nchars)
                 nbytes += 2; /* Bad Surrogate */
                 continue;
             }
-            v = ((c - 0xD800) << 10) + (c2 - 0xDC00) + 0x10000;
+            c = ((c - 0xD800) << 10) + (c2 - 0xDC00) + 0x10000;
             nbytes--;
             chars++;
-        } else {
-            v = c;
         }
-        v >>= 11;
+        c >>= 11;
         nbytes++;
-        while (v) {
-            v >>= 5;
+        while (c) {
+            c >>= 5;
             nbytes++;
         }
     }
@@ -160,7 +157,7 @@ JS::CharsToNewUTF8CharsZ(js::ThreadSafeContext *cx, const mozilla::Range<const C
         return UTF8CharsZ();
 
     /* Encode to UTF8. */
-    JS_ALWAYS_TRUE(DeflateStringToUTF8Buffer(cx, str, chars.length(), utf8, &len));
+    DeflateStringToUTF8Buffer(cx, str, chars.length(), utf8, &len);
     utf8[len] = '\0';
 
     return UTF8CharsZ(utf8, len);
