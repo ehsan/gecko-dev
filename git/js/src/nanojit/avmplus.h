@@ -39,7 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if defined(AVMPLUS_UNIX)
+#if defined(AVMPLUS_LINUX) || defined(DARWIN) || defined(__FreeBSD__)
 #include <unistd.h>
 #include <sys/mman.h>
 #endif
@@ -99,8 +99,7 @@ typedef JSInt64  int64_t;
 #include <stdint.h>
 #endif
 
-#if defined(AVMPLUS_IA32)
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && defined(AVMPLUS_IA32)
 __declspec(naked) static inline __int64 rdtsc()
 {
     __asm
@@ -109,22 +108,16 @@ __declspec(naked) static inline __int64 rdtsc()
         ret;
     }
 }
-#elif defined(SOLARIS)
-static inline unsigned long long rdtsc(void)
-{
-    unsigned long long int x;
-    asm volatile (".byte 0x0f, 0x31" : "=A" (x));
-    return x;
-}
-#elif defined(__i386__)
+#endif
+
+#if defined(__i386__)
+
 static __inline__ unsigned long long rdtsc(void)
 {
   unsigned long long int x;
      __asm__ volatile (".byte 0x0f, 0x31" : "=A" (x));
      return x;
 }
-#endif /* compilers */
-
 #elif defined(__x86_64__)
 
 static __inline__ uint64_t rdtsc(void)
@@ -158,7 +151,7 @@ static __inline__ unsigned long long rdtsc(void)
   return(result);
 }
 
-#endif /* architecture */
+#endif
 
 struct JSContext;
 
@@ -258,7 +251,7 @@ public:
                             pages * kNativePageSize,
                             MEM_COMMIT | MEM_RESERVE, 
                             PAGE_EXECUTE_READWRITE);
-#elif defined AVMPLUS_UNIX
+#elif defined AVMPLUS_LINUX || defined DARWIN
         /**
          * Don't use normal heap with mprotect+PROT_EXEC for executable code.
          * SELinux and friends don't allow this.
@@ -279,12 +272,8 @@ public:
     {
 #ifdef XP_WIN
         VirtualFree(p, 0, MEM_RELEASE);
-#elif defined AVMPLUS_UNIX
-        #if defined SOLARIS
-        munmap((char*)p, pages * kNativePageSize); 
-        #else
+#elif defined AVMPLUS_LINUX || defined DARWIN
         munmap(p, pages * kNativePageSize); 
-        #endif
 #else
         free(p);
 #endif
@@ -474,10 +463,6 @@ namespace avmplus
 
         static inline String* newString(const char* cstr) {
             return (String*)strdup(cstr);
-        }
-
-        static inline void freeString(String* str) {
-            return free((char*)str);
         }
     };
 
