@@ -30,8 +30,3 @@ FAIL_ON_WARNINGS = True
 IS_COMPONENT = True
 
 FORCE_SHARED_LIB = True
-
-LOCAL_INCLUDES += [
-    '/toolkit/components/build/',
-]
-

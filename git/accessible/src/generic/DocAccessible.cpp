@@ -1783,7 +1783,7 @@ DocAccessible::UpdateTree(Accessible* aContainer, nsIContent* aChildNode,
     updateFlags |= UpdateTreeInternal(child, aIsInsert, reorderEvent);
   } else {
     if (aIsInsert) {
-      TreeWalker walker(aContainer, aChildNode, TreeWalker::eWalkCache);
+      TreeWalker walker(aContainer, aChildNode, true);
 
       while ((child = walker.NextChild()))
         updateFlags |= UpdateTreeInternal(child, aIsInsert, reorderEvent);

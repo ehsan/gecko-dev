@@ -52,8 +52,3 @@ if not CONFIG['MOZ_SUITE']:
 FAIL_ON_WARNINGS = True
 
 FINAL_LIBRARY = 'toolkitcomps'
-
-LOCAL_INCLUDES += [
-    '../protobuf',
-]
-
