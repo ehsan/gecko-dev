@@ -759,7 +759,7 @@ SyncEngine.prototype = {
     }
   },
 
-  canDecrypt: function canDecrypt() {
+  _testDecrypt: function _testDecrypt() {
     // Report failure even if there's nothing to decrypt
     let canDecrypt = false;
 
@@ -768,9 +768,8 @@ SyncEngine.prototype = {
     test.limit = 1;
     test.sort = "newest";
     test.full = true;
-    let self = this;
     test.recordHandler = function(record) {
-      record.decrypt(ID.get("WeaveCryptoID"), self.cryptoMetaURL);
+      record.decrypt(ID.get("WeaveCryptoID"), this.cryptoMetaURL);
       canDecrypt = true;
     };
 
