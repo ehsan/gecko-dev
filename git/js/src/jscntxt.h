@@ -30,6 +30,7 @@
 #include "js/HashTable.h"
 #include "js/Vector.h"
 #include "vm/Stack.h"
+#include "vm/SPSProfiler.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -578,7 +579,16 @@ struct JSRuntime : js::RuntimeFriendFields
 #endif
 
     bool                gcPoke;
-    bool                gcRunning;
+
+    enum HeapState {
+        Idle,       // doing nothing with the GC heap
+        Tracing,    // tracing the GC heap without collecting, e.g. IterateCompartments()
+        Collecting  // doing a GC of the heap
+    };
+
+    HeapState           heapState;
+
+    bool isHeapBusy() { return heapState != Idle; }
 
     /*
      * These options control the zealousness of the GC. The fundamental values
@@ -680,6 +690,9 @@ struct JSRuntime : js::RuntimeFriendFields
 
     /* If true, new compartments are initially in debug mode. */
     bool                debugMode;
+
+    /* SPS profiling metadata */
+    js::SPSProfiler     spsProfiler;
 
     /* If true, new scripts must be created with PC counter information. */
     bool                profilingScripts;

@@ -51,7 +51,6 @@
 #include "prmjtime.h"
 
 #include "jsoptparse.h"
-#include "jsworkers.h"
 #include "jsheaptools.h"
 
 #include "jsinferinlines.h"
@@ -157,10 +156,6 @@ bool gQuitting = false;
 bool gGotError = false;
 FILE *gErrFile = NULL;
 FILE *gOutFile = NULL;
-#ifdef JS_THREADSAFE
-JSObject *gWorkers = NULL;
-js::workers::ThreadPool *gWorkerThreadPool = NULL;
-#endif
 
 static bool reportWarnings = true;
 static bool compileOnly = false;
@@ -1207,10 +1202,6 @@ Quit(JSContext *cx, unsigned argc, jsval *vp)
     JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp), "/ i", &gExitCode);
 
     gQuitting = true;
-#ifdef JS_THREADSAFE
-    if (gWorkerThreadPool)
-        js::workers::terminateAll(gWorkerThreadPool);
-#endif
     return false;
 }
 
@@ -3035,10 +3026,6 @@ CancelExecution(JSRuntime *rt)
     gCanceled = true;
     if (gExitCode == 0)
         gExitCode = EXITCODE_TIMEOUT;
-#ifdef JS_THREADSAFE
-    if (gWorkerThreadPool)
-        js::workers::terminateAll(gWorkerThreadPool);
-#endif
     JS_TriggerOperationCallback(rt);
 
     static const char msg[] = "Script runs for too long, terminating.\n";
@@ -3424,6 +3411,29 @@ EnableStackWalkingAssertion(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
+EnableSPSProfilingAssertions(JSContext *cx, unsigned argc, jsval *vp)
+{
+    jsval arg = JS_ARGV(cx, vp)[0];
+    if (argc == 0 || !JSVAL_IS_BOOLEAN(arg)) {
+        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS,
+                             "enableSPSProfilingAssertions");
+        return false;
+    }
+
+    static ProfileEntry stack[1000];
+    static uint32_t stack_size = 0;
+
+    if (JSVAL_TO_BOOLEAN(arg))
+        SetRuntimeProfilingStack(cx->runtime, stack, &stack_size, 1000);
+    else
+        SetRuntimeProfilingStack(cx->runtime, NULL, NULL, 0);
+    cx->runtime->spsProfiler.enableSlowAssertions(JSVAL_TO_BOOLEAN(arg));
+
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
+    return true;
+}
+
+static JSBool
 GetMaxArgs(JSContext *cx, unsigned arg, jsval *vp)
 {
     JS_SET_RVAL(cx, vp, INT_TO_JSVAL(StackSpace::ARGS_LENGTH_MAX));
@@ -3722,6 +3732,11 @@ static JSFunctionSpecWithHelp shell_functions[] = {
     JS_FN_HELP("getMaxArgs", GetMaxArgs, 0, 0,
 "getMaxArgs()",
 "  Return the maximum number of supported args for a call."),
+
+    JS_FN_HELP("enableSPSProfilingAssertions", EnableSPSProfilingAssertions, 1, 0,
+"enableProfilingAssertions(enabled)",
+"  Enables or disables the assertions related to SPS profiling. This is fairly\n"
+"  expensive, so it shouldn't be enabled normally."),
 
     JS_FS_END
 };
@@ -4700,28 +4715,7 @@ Shell(JSContext *cx, OptionParser *op, char **envp)
         return 1;
     JS_SetPrivate(envobj, envp);
 
-#ifdef JS_THREADSAFE
-    class ShellWorkerHooks : public js::workers::WorkerHooks {
-    public:
-        JSObject *newGlobalObject(JSContext *cx) {
-            return NewGlobalObject(cx);
-        }
-    };
-    ShellWorkerHooks hooks;
-    if (!JS_AddNamedObjectRoot(cx, &gWorkers, "Workers") ||
-        (gWorkerThreadPool = js::workers::init(cx, &hooks, glob, &gWorkers)) == NULL) {
-        return 1;
-    }
-#endif
-
     int result = ProcessArgs(cx, glob, op);
-
-#ifdef JS_THREADSAFE
-    js::workers::finish(cx, gWorkerThreadPool);
-    JS_RemoveObjectRoot(cx, &gWorkers);
-    if (result == 0)
-        result = gExitCode;
-#endif
 
     if (enableDisassemblyDumps)
         JS_DumpCompartmentPCCounts(cx);
