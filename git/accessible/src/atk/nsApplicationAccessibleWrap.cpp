@@ -532,7 +532,7 @@ nsApplicationAccessibleWrap::~nsApplicationAccessibleWrap()
     nsAccessibleWrap::ShutdownAtkObject();
 }
 
-PRBool
+nsresult
 nsApplicationAccessibleWrap::Init()
 {
     // XXX following code is copied from widget/src/gtk2/nsWindow.cpp

@@ -133,9 +133,6 @@ SRGBOverrideObserver::Observe(nsISupports *aSubject,
 
 #define GFX_DOWNLOADABLE_FONTS_ENABLED "gfx.downloadable_fonts.enabled"
 
-#define GFX_PREF_HARFBUZZ_LEVEL "gfx.font_rendering.harfbuzz.level"
-#define HARFBUZZ_LEVEL_DEFAULT  0
-
 class FontPrefsObserver : public nsIObserver
 {
 public:
@@ -203,7 +200,6 @@ static const char *gPrefLangNames[] = {
 
 gfxPlatform::gfxPlatform()
 {
-    mUseHarfBuzzLevel = UNINITIALIZED_VALUE;
     mAllowDownloadableFonts = UNINITIALIZED_VALUE;
 }
 
@@ -395,24 +391,6 @@ gfxPlatform::DownloadableFontsEnabled()
     }
 
     return mAllowDownloadableFonts;
-}
-
-PRInt8
-gfxPlatform::UseHarfBuzzLevel()
-{
-    if (mUseHarfBuzzLevel == UNINITIALIZED_VALUE) {
-        mUseHarfBuzzLevel = HARFBUZZ_LEVEL_DEFAULT;
-        nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-        if (prefs) {
-            PRInt32 level;
-            nsresult rv = prefs->GetIntPref(GFX_PREF_HARFBUZZ_LEVEL, &level);
-            if (NS_SUCCEEDED(rv)) {
-                mUseHarfBuzzLevel = level;
-            }
-        }
-    }
-
-    return mUseHarfBuzzLevel;
 }
 
 gfxFontEntry*
@@ -1124,12 +1102,11 @@ gfxPlatform::SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aStri
 void
 gfxPlatform::FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref)
 {
-    NS_ASSERTION(aPref != nsnull, "null preference");
+    NS_ASSERTION(aPref != nsnull, "null pref branch");
     if (!strcmp(GFX_DOWNLOADABLE_FONTS_ENABLED, aPref)) {
         mAllowDownloadableFonts = UNINITIALIZED_VALUE;
-    } else if (!strcmp(GFX_PREF_HARFBUZZ_LEVEL, aPref)) {
-        mUseHarfBuzzLevel = UNINITIALIZED_VALUE;
-        gfxTextRunWordCache::Flush();
-        gfxFontCache::GetCache()->AgeAllGenerations();
     }
 }
+
+
+

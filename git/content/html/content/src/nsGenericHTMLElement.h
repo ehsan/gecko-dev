@@ -264,8 +264,8 @@ public:
    * @param aResult the resulting HTMLValue
    * @return whether the value was parsed
    */
-  static PRBool ParseTableHAlignValue(const nsAString& aString,
-                                      nsAttrValue& aResult);
+  PRBool ParseTableHAlignValue(const nsAString& aString,
+                               nsAttrValue& aResult) const;
 
   /**
    * Convert a table cell halign string to value

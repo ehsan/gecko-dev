@@ -324,6 +324,9 @@ __try {
   if (!*pszName)
     return E_OUTOFMEMORY;
 
+#ifdef DEBUG_A11Y
+  NS_ASSERTION(mIsInitialized, "Access node was not initialized");
+#endif
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
@@ -1663,7 +1666,8 @@ nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
   // Means we're not active.
   NS_ENSURE_TRUE(mWeakShell, NS_ERROR_FAILURE);
 
-  nsAccessible *accessible = aEvent->GetAccessible();
+  nsCOMPtr<nsIAccessible> accessible;
+  aEvent->GetAccessible(getter_AddRefs(accessible));
   if (!accessible)
     return NS_OK;
 
@@ -1677,11 +1681,11 @@ nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
     return NS_OK; // Can't fire an event without a child ID
 
   // See if we're in a scrollable area with its own window
-  nsAccessible *newAccessible = nsnull;
+  nsCOMPtr<nsIAccessible> newAccessible;
   if (eventType == nsIAccessibleEvent::EVENT_HIDE) {
     // Don't use frame from current accessible when we're hiding that
     // accessible.
-    newAccessible = accessible->GetParent();
+    accessible->GetParent(getter_AddRefs(newAccessible));
   } else {
     newAccessible = accessible;
   }
@@ -1727,13 +1731,14 @@ PRInt32 nsAccessibleWrap::GetChildIDFor(nsIAccessible* aAccessible)
 }
 
 HWND
-nsAccessibleWrap::GetHWNDFor(nsAccessible *aAccessible)
+nsAccessibleWrap::GetHWNDFor(nsIAccessible *aAccessible)
 {
-  HWND hWnd = 0;
-  if (!aAccessible)
-    return hWnd;
+  nsRefPtr<nsAccessNode> accessNode = do_QueryObject(aAccessible);
+  if (!accessNode)
+    return 0;
 
-  nsIFrame *frame = aAccessible->GetFrame();
+  HWND hWnd = 0;
+  nsIFrame *frame = accessNode->GetFrame();
   if (frame) {
     nsIWidget *window = frame->GetWindow();
     PRBool isVisible;
@@ -1759,7 +1764,7 @@ nsAccessibleWrap::GetHWNDFor(nsAccessible *aAccessible)
 
   if (!hWnd) {
     void* handle = nsnull;
-    nsDocAccessible *accessibleDoc = aAccessible->GetDocAccessible();
+    nsDocAccessible *accessibleDoc = accessNode->GetDocAccessible();
     if (!accessibleDoc)
       return 0;
 

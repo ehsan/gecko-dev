@@ -69,7 +69,7 @@ public:
   nsXULColorPickerAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessNode
-  virtual PRBool Init();
+  virtual nsresult Init();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);

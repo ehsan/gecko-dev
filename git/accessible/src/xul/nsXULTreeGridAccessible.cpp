@@ -624,11 +624,11 @@ NS_IMPL_RELEASE_INHERITED(nsXULTreeGridRowAccessible,
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridRowAccessible: nsAccessNode implementation
 
-void
+nsresult
 nsXULTreeGridRowAccessible::Shutdown()
 {
   ClearCache(mAccessibleCache);
-  nsXULTreeItemAccessibleBase::Shutdown();
+  return nsXULTreeItemAccessibleBase::Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -727,7 +727,8 @@ nsXULTreeGridRowAccessible::GetCellAccessible(nsITreeColumn* aColumn)
     if (!accessible)
       return nsnull;
 
-    if (!accessible->Init()) {
+    nsresult rv = accessible->Init();
+    if (NS_FAILED(rv)) {
       accessible->Shutdown();
       return nsnull;
     }
@@ -1097,11 +1098,11 @@ nsXULTreeGridCellAccessible::IsDefunct()
     !mColumn;
 }
 
-PRBool
+nsresult
 nsXULTreeGridCellAccessible::Init()
 {
-  if (!nsLeafAccessible::Init())
-    return PR_FALSE;
+  nsresult rv = nsLeafAccessible::Init();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   PRInt16 type;
   mColumn->GetType(&type);
@@ -1110,7 +1111,7 @@ nsXULTreeGridCellAccessible::Init()
   else
     mTreeView->GetCellText(mRow, mColumn, mCachedTextEquiv);
 
-  return PR_TRUE;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -120,14 +120,14 @@ nsXULColorPickerAccessible::
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULColorPickerAccessible: nsAccessNode
 
-PRBool
+nsresult
 nsXULColorPickerAccessible::Init()
 {
-  if (!nsXULColorPickerTileAccessible::Init())
-    return PR_FALSE;
+  nsresult rv = nsXULColorPickerTileAccessible::Init();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCoreUtils::GeneratePopupTree(mContent, PR_TRUE);
-  return PR_TRUE;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

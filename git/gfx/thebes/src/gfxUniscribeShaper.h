@@ -68,8 +68,7 @@ public:
                                gfxTextRun *aTextRun,
                                const PRUnichar *aString,
                                PRUint32 aRunStart,
-                               PRUint32 aRunLength,
-                               PRInt32 aRunScript);
+                               PRUint32 aRunLength);
 
     SCRIPT_CACHE *ScriptCache() { return &mScriptCache; }
 

@@ -925,7 +925,7 @@ nsHTMLComboboxAccessible::CacheChildren()
   mListAccessible->SetParent(this);
 }
 
-void
+nsresult
 nsHTMLComboboxAccessible::Shutdown()
 {
   nsAccessibleWrap::Shutdown();
@@ -934,6 +934,7 @@ nsHTMLComboboxAccessible::Shutdown()
     mListAccessible->Shutdown();
     mListAccessible = nsnull;
   }
+  return NS_OK;
 }
 
 /**

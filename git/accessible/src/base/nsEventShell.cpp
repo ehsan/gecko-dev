@@ -52,8 +52,8 @@ nsEventShell::FireEvent(nsAccEvent *aEvent)
   if (!aEvent)
     return;
 
-  nsAccessible *accessible = aEvent->GetAccessible();
-  NS_ENSURE_TRUE(accessible,);
+  nsRefPtr<nsAccessible> acc = do_QueryObject(aEvent->GetAccessible());
+  NS_ENSURE_TRUE(acc,);
 
   nsINode* node = aEvent->GetNode();
   if (node) {
@@ -61,13 +61,13 @@ nsEventShell::FireEvent(nsAccEvent *aEvent)
     sEventFromUserInput = aEvent->IsFromUserInput();
   }
 
-  accessible->HandleAccEvent(aEvent);
+  acc->HandleAccEvent(aEvent);
 
   sEventTargetNode = nsnull;
 }
 
 void
-nsEventShell::FireEvent(PRUint32 aEventType, nsAccessible *aAccessible,
+nsEventShell::FireEvent(PRUint32 aEventType, nsIAccessible *aAccessible,
                         PRBool aIsAsynch, EIsFromUserInput aIsFromUserInput)
 {
   NS_ENSURE_TRUE(aAccessible,);

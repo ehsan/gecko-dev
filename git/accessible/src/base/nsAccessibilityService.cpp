@@ -181,8 +181,7 @@ nsresult
 nsAccessibilityService::FireAccessibleEvent(PRUint32 aEvent,
                                             nsIAccessible *aTarget)
 {
-  nsRefPtr<nsAccessible> accessible(do_QueryObject(aTarget));
-  nsEventShell::FireEvent(aEvent, accessible);
+  nsEventShell::FireEvent(aEvent, aTarget);
   return NS_OK;
 }
 
@@ -780,14 +779,14 @@ nsAccessibilityService::CreateHTMLCaptionAccessible(nsIFrame *aFrame,
   return NS_OK;
 }
 
-// nsAccessibilityService protected
-nsAccessible *
-nsAccessibilityService::GetCachedAccessible(nsINode *aNode,
+// nsAccessibilityService public
+nsAccessNode*
+nsAccessibilityService::GetCachedAccessNode(nsINode *aNode,
                                             nsIWeakReference *aWeakShell)
 {
-  nsDocAccessible *docAccessible = GetDocAccessible(aNode->GetOwnerDoc());
+  nsDocAccessible *docAccessible = nsAccUtils::GetDocAccessibleFor(aWeakShell);
   return docAccessible ?
-    docAccessible->GetCachedAccessible(static_cast<void*>(aNode)) : nsnull;
+    docAccessible->GetCachedAccessNode(static_cast<void*>(aNode)) : nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1072,7 +1071,10 @@ nsAccessibilityService::GetContainerAccessible(nsINode *aNode,
 
     } else {
       // Only return cached accessible, don't create anything.
-      accessible = GetCachedAccessible(currNode, weakShell);
+      nsRefPtr<nsAccessible> cachedAcc =
+        do_QueryObject(GetCachedAccessNode(currNode, weakShell));
+
+      accessible = cachedAcc;
     }
   }
 
@@ -1096,8 +1098,8 @@ nsAccessibilityService::InitAccessible(nsAccessible *aAccessible,
   if (!aAccessible)
     return PR_FALSE;
 
-  // Add to cache an accessible, etc.
-  if (!aAccessible->Init()) {
+  nsresult rv = aAccessible->Init(); // Add to cache, etc.
+  if (NS_FAILED(rv)) {
     NS_ERROR("Failed to initialize an accessible!");
 
     aAccessible->Shutdown();
@@ -1145,17 +1147,24 @@ nsAccessibilityService::GetAccessible(nsINode *aNode,
                                       nsIWeakReference *aWeakShell,
                                       PRBool *aIsHidden)
 {
-  if (!aPresShell || !aWeakShell || !aNode || gIsShutdown)
+  if (!aPresShell || !aWeakShell || gIsShutdown)
     return nsnull;
+
+  NS_ASSERTION(aNode, "GetAccessible() called with no node.");
 
   if (aIsHidden)
     *aIsHidden = PR_FALSE;
 
   // Check to see if we already have an accessible for this node in the cache.
-  nsAccessible *cachedAccessible = GetCachedAccessible(aNode, aWeakShell);
-  if (cachedAccessible) {
-    NS_ADDREF(cachedAccessible);
-    return cachedAccessible;
+  nsAccessNode* cachedAccessNode = GetCachedAccessNode(aNode, aWeakShell);
+  if (cachedAccessNode) {
+    // XXX: the cache might contain the access node for the DOM node that is not
+    // accessible because of wrong cache update. In this case try to create new
+    // accessible.
+    nsRefPtr<nsAccessible> cachedAccessible = do_QueryObject(cachedAccessNode);
+
+    if (cachedAccessible)
+      return cachedAccessible.forget();
   }
 
   // No cache entry, so we must create the accessible.
@@ -1601,8 +1610,13 @@ nsAccessibilityService::GetAreaAccessible(nsIFrame *aImageFrame,
 
   // Try to get image map accessible from the global cache or create it
   // if failed.
-  nsRefPtr<nsAccessible> imageAcc =
-    GetCachedAccessible(aImageFrame->GetContent(), aWeakShell);
+  nsRefPtr<nsAccessible> imageAcc;
+
+  nsAccessNode *cachedImgAcc = GetCachedAccessNode(aImageFrame->GetContent(),
+                                                   aWeakShell);
+  if (cachedImgAcc)
+    imageAcc = do_QueryObject(cachedImgAcc);
+
   if (!imageAcc) {
     nsCOMPtr<nsIAccessible> imageAccessible;
     CreateHTMLImageAccessible(aImageFrame,
@@ -1617,9 +1631,12 @@ nsAccessibilityService::GetAreaAccessible(nsIFrame *aImageFrame,
   // that they should be available in global cache.
   imageAcc->EnsureChildren();
 
-  nsAccessible *cachedAreaAcc = GetCachedAccessible(aAreaNode, aWeakShell);
-  NS_IF_ADDREF(cachedAreaAcc);
-  return cachedAreaAcc;
+  nsAccessNode *cachedAreaAcc = GetCachedAccessNode(aAreaNode, aWeakShell);
+  if (!cachedAreaAcc)
+    return nsnull;
+
+  nsRefPtr<nsAccessible> areaAcc = do_QueryObject(cachedAreaAcc);
+  return areaAcc.forget();
 }
 
 already_AddRefed<nsAccessible>

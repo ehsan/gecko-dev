@@ -43,8 +43,15 @@
 
 #include "nsIAccessibleEvent.h"
 
-#include "nsAccessible.h"
+#include "nsCOMPtr.h"
+#include "nsCOMArray.h"
+#include "nsString.h"
+#include "nsCycleCollectionParticipant.h"
 
+#include "nsINode.h"
+#include "nsIDOMNode.h"
+
+class nsAccessible;
 class nsDocAccessible;
 
 // Constants used to point whether the event is from user input.
@@ -97,7 +104,7 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ACCEVENT_IMPL_CID)
 
   // Initialize with an nsIAccessible
-  nsAccEvent(PRUint32 aEventType, nsAccessible *aAccessible,
+  nsAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible,
              PRBool aIsAsynch = PR_FALSE,
              EIsFromUserInput aIsFromUserInput = eAutoDetect,
              EEventRule aEventRule = eRemoveDupes);
@@ -117,8 +124,8 @@ public:
   EEventRule GetEventRule() const { return mEventRule; }
   PRBool IsAsync() const { return mIsAsync; }
   PRBool IsFromUserInput() const { return mIsFromUserInput; }
+  nsIAccessible* GetAccessible() const { return mAccessible; }
 
-  nsAccessible *GetAccessible();
   nsINode* GetNode();
   nsDocAccessible* GetDocAccessible();
 
@@ -139,7 +146,7 @@ protected:
   PRUint32 mEventType;
   EEventRule mEventRule;
   PRPackedBool mIsAsync;
-  nsRefPtr<nsAccessible> mAccessible;
+  nsCOMPtr<nsIAccessible> mAccessible;
   nsCOMPtr<nsINode> mNode;
 
   friend class nsAccEventQueue;
@@ -160,7 +167,7 @@ class nsAccReorderEvent : public nsAccEvent
 {
 public:
 
-  nsAccReorderEvent(nsAccessible *aAccTarget, PRBool aIsAsynch,
+  nsAccReorderEvent(nsIAccessible *aAccTarget, PRBool aIsAsynch,
                     PRBool aIsUnconditional, nsINode *aReasonNode);
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ACCREORDEREVENT_IMPL_CID)
@@ -189,7 +196,7 @@ class nsAccStateChangeEvent: public nsAccEvent,
                              public nsIAccessibleStateChangeEvent
 {
 public:
-  nsAccStateChangeEvent(nsAccessible *aAccessible,
+  nsAccStateChangeEvent(nsIAccessible *aAccessible,
                         PRUint32 aState, PRBool aIsExtraState,
                         PRBool aIsEnabled, PRBool aIsAsynch = PR_FALSE,
                         EIsFromUserInput aIsFromUserInput = eAutoDetect);
@@ -212,7 +219,7 @@ class nsAccTextChangeEvent: public nsAccEvent,
                             public nsIAccessibleTextChangeEvent
 {
 public:
-  nsAccTextChangeEvent(nsAccessible *aAccessible, PRInt32 aStart,
+  nsAccTextChangeEvent(nsIAccessible *aAccessible, PRInt32 aStart,
                        PRUint32 aLength, nsAString& aModifiedText,
                        PRBool aIsInserted, PRBool aIsAsynch = PR_FALSE,
                        EIsFromUserInput aIsFromUserInput = eAutoDetect);
@@ -231,7 +238,7 @@ class nsAccCaretMoveEvent: public nsAccEvent,
                            public nsIAccessibleCaretMoveEvent
 {
 public:
-  nsAccCaretMoveEvent(nsAccessible *aAccessible, PRInt32 aCaretOffset);
+  nsAccCaretMoveEvent(nsIAccessible *aAccessible, PRInt32 aCaretOffset);
   nsAccCaretMoveEvent(nsINode *aNode);
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -244,7 +251,7 @@ private:
 class nsAccTableChangeEvent : public nsAccEvent,
                               public nsIAccessibleTableChangeEvent {
 public:
-  nsAccTableChangeEvent(nsAccessible *aAccessible, PRUint32 aEventType,
+  nsAccTableChangeEvent(nsIAccessible *aAccessible, PRUint32 aEventType,
                         PRInt32 aRowOrColIndex, PRInt32 aNumRowsOrCols,
                         PRBool aIsAsynch);
 

@@ -66,6 +66,9 @@ class nsPresContext;
 class nsIFrame;
 class nsIDocShellTreeItem;
 
+typedef nsRefPtrHashtable<nsVoidPtrHashKey, nsAccessNode>
+  nsAccessNodeHashtable;
+
 #define ACCESSIBLE_BUNDLE_URL "chrome://global-platform/locale/accessible.properties"
 #define PLATFORM_KEYS_BUNDLE_URL "chrome://global-platform/locale/platformKeys.properties"
 
@@ -99,9 +102,9 @@ public:
   static nsApplicationAccessible* GetApplicationAccessible();
 
   /**
-   * Return the document accessible for this access node.
+   * Return the document accessible for this accesnode.
    */
-  nsDocAccessible *GetDocAccessible() const;
+  nsDocAccessible* GetDocAccessible() const;
 
   /**
    * Return the root document accessible for this accessnode.
@@ -126,15 +129,15 @@ public:
      */
     virtual PRBool IsDefunct();
 
-  /**
-   * Initialize the access node object, add it to the cache.
-   */
-  virtual PRBool Init();
+    /**
+     * Initialize the access node object, add it to the cache.
+     */
+    virtual nsresult Init();
 
-  /**
-   * Shutdown the access node object.
-   */
-  virtual void Shutdown();
+    /**
+     * Shutdown the access node object.
+     */
+    virtual nsresult Shutdown();
 
     /**
      * Return frame for the given access node object.
@@ -181,13 +184,29 @@ public:
    */
   PRBool HasWeakShell() const { return !!mWeakShell; }
 
+#ifdef DEBUG
+  /**
+   * Return true if the access node is cached.
+   */
+  PRBool IsInCache();
+#endif
+
 protected:
+  /**
+   * Return the access node for the given DOM node.
+   */
+  nsAccessNode *MakeAccessNode(nsINode *aNode);
+
     nsPresContext* GetPresContext();
 
     void LastRelease();
 
   nsCOMPtr<nsIContent> mContent;
   nsCOMPtr<nsIWeakReference> mWeakShell;
+
+#ifdef DEBUG_A11Y
+    PRBool mIsInitialized;
+#endif
 
     /**
      * Notify global nsIObserver's that a11y is getting init'd or shutdown

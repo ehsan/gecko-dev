@@ -220,7 +220,7 @@ nsHTMLLIAccessible::
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLLIAccessible, nsHyperTextAccessible)
 
-void
+nsresult
 nsHTMLLIAccessible::Shutdown()
 {
   if (mBulletAccessible) {
@@ -228,8 +228,9 @@ nsHTMLLIAccessible::Shutdown()
     mBulletAccessible->Shutdown();
   }
 
-  nsHyperTextAccessibleWrap::Shutdown();
+  nsresult rv = nsHyperTextAccessibleWrap::Shutdown();
   mBulletAccessible = nsnull;
+  return rv;
 }
 
 nsresult
@@ -302,11 +303,11 @@ nsHTMLListBulletAccessible::GetUniqueID(void **aUniqueID)
   return NS_OK;
 }
 
-void
+nsresult
 nsHTMLListBulletAccessible::Shutdown()
 {
   mBulletText.Truncate();
-  nsLeafAccessible::Shutdown();
+  return nsLeafAccessible::Shutdown();
 }
 
 NS_IMETHODIMP

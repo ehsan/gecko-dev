@@ -297,7 +297,6 @@ gfxDWriteFontEntry::ReadCMAP()
     }
 
     mCmapInitialized = PR_TRUE;
-    mHasCmapTable = NS_SUCCEEDED(rv);
     return rv;
 }
 

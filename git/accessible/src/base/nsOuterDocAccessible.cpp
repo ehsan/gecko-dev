@@ -156,7 +156,7 @@ nsOuterDocAccessible::DoAction(PRUint8 aIndex)
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode public
 
-void
+nsresult
 nsOuterDocAccessible::Shutdown()
 {
   // Shutdown child document if any.
@@ -170,7 +170,7 @@ nsOuterDocAccessible::Shutdown()
 
   nsAccessible::InvalidateChildren();
 
-  nsAccessibleWrap::Shutdown();
+  return nsAccessibleWrap::Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

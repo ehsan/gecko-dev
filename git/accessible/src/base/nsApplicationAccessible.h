@@ -106,8 +106,8 @@ public:
 
   // nsAccessNode
   virtual PRBool IsDefunct();
-  virtual PRBool Init();
-  virtual void Shutdown();
+  virtual nsresult Init();
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetARIAState(PRUint32 *aState, PRUint32 *aExtraState);

@@ -110,16 +110,16 @@ nsXULButtonAccessible::DoAction(PRUint8 aIndex)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULButtonAccessible: nsAccessNode
 
-PRBool
+nsresult
 nsXULButtonAccessible::Init()
 {
-  if (!nsAccessibleWrap::Init())
-    return PR_FALSE;
+  nsresult rv = nsAccessibleWrap::Init();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (ContainsMenu())
     nsCoreUtils::GeneratePopupTree(mContent);
 
-  return PR_TRUE;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -58,7 +58,7 @@ public:
   virtual ~nsHTMLWin32ObjectOwnerAccessible() {}
 
   // nsAccessNode
-  virtual void Shutdown();
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);

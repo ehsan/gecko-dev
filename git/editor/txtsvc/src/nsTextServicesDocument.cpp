@@ -4028,9 +4028,8 @@ nsTextServicesDocument::FindWordBounds(nsTArray<OffsetEntry*> *aOffsetTable,
     // character covered by this entry, we will use the next
     // entry if there is one.
 
-    if (PRUint32(entry->mStrOffset) <= res.mBegin &&
-        (res.mBegin < PRUint32(strEndOffset) ||
-        (res.mBegin == PRUint32(strEndOffset) && i == lastIndex)))
+    if (entry->mStrOffset <= res.mBegin &&
+       (res.mBegin < strEndOffset || (res.mBegin == strEndOffset && i == lastIndex)))
     {
       if (aWordStartNode)
       {
@@ -4053,9 +4052,9 @@ nsTextServicesDocument::FindWordBounds(nsTArray<OffsetEntry*> *aOffsetTable,
     // Check to see if res.mEnd is within the range covered
     // by this entry.
 
-    if (PRUint32(entry->mStrOffset) <= res.mEnd && res.mEnd <= PRUint32(strEndOffset))
+    if (entry->mStrOffset <= res.mEnd && res.mEnd <= strEndOffset)
     {
-      if (res.mBegin == res.mEnd && res.mEnd == PRUint32(strEndOffset) && i != lastIndex)
+      if (res.mBegin == res.mEnd && res.mEnd == strEndOffset && i != lastIndex)
       {
         // Wait for the next round so that we use the same entry
         // we did for aWordStartNode.

@@ -107,8 +107,7 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // nsAccessNode
 
-  virtual PRBool Init();
-  virtual void Shutdown();
+  virtual nsresult Shutdown();
 
   //////////////////////////////////////////////////////////////////////////////
   // Public methods
@@ -270,13 +269,6 @@ public:
    * Return first child accessible only if cached.
    */
   nsAccessible* GetCachedFirstChild();
-
-#ifdef DEBUG
-  /**
-   * Return true if the access node is cached.
-   */
-  PRBool IsInCache();
-#endif
 
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous methods

@@ -80,7 +80,7 @@ public:
 
   // nsAccessNode
   virtual PRBool IsDefunct();
-  virtual void Shutdown();
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
@@ -195,7 +195,7 @@ public:
 
   // nsAccessNode
   virtual PRBool IsDefunct();
-  virtual void Shutdown();
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
@@ -259,8 +259,8 @@ public:
 
   // nsAccessNode
   virtual PRBool IsDefunct();
-  virtual PRBool Init();
-  virtual void Shutdown();
+  virtual nsresult Init();
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);

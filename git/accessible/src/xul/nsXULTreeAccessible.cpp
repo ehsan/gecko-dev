@@ -163,7 +163,7 @@ nsXULTreeAccessible::IsDefunct()
   return nsXULSelectableAccessible::IsDefunct() || !mTree || !mTreeView;
 }
 
-void
+nsresult
 nsXULTreeAccessible::Shutdown()
 {
   // XXX: we don't remove accessible from document cache if shutdown wasn't
@@ -176,6 +176,7 @@ nsXULTreeAccessible::Shutdown()
   mTreeView = nsnull;
 
   nsXULSelectableAccessible::Shutdown();
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -508,7 +509,8 @@ nsXULTreeAccessible::GetTreeItemAccessible(PRInt32 aRow)
     if (!accessible)
       return nsnull;
 
-    if (!accessible->Init()) {
+    nsresult rv = accessible->Init();
+    if (NS_FAILED(rv)) {
       accessible->Shutdown();
       return nsnull;
     }
@@ -544,9 +546,11 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
       accessible->Shutdown();
 
       // Remove accessible from document cache and tree cache.
-      nsDocAccessible *docAccessible = GetDocAccessible();
-      if (docAccessible)
-        docAccessible->RemoveAccessNodeFromCache(accessible);
+      nsCOMPtr<nsIAccessibleDocument> docAccessible = GetDocAccessible();
+      if (docAccessible) { 
+        nsRefPtr<nsDocAccessible> docAcc = do_QueryObject(docAccessible);
+        docAcc->RemoveAccessNodeFromCache(accessible);
+      }
 
       mAccessibleCache.Remove(key);
     }
@@ -571,9 +575,11 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
       accessible->Shutdown();
 
       // Remove accessible from document cache and tree cache.
-      nsDocAccessible *docAccessible = GetDocAccessible();
-      if (docAccessible)
-        docAccessible->RemoveAccessNodeFromCache(accessible);
+      nsCOMPtr<nsIAccessibleDocument> docAccessible = GetDocAccessible();
+      if (docAccessible) {
+        nsRefPtr<nsDocAccessible> docAcc = do_QueryObject(docAccessible);
+        docAcc->RemoveAccessNodeFromCache(accessible);
+      }
 
       mAccessibleCache.Remove(key);
     }
@@ -907,14 +913,14 @@ nsXULTreeItemAccessibleBase::IsDefunct()
   return NS_FAILED(rv) || mRow >= rowCount;
 }
 
-void
+nsresult
 nsXULTreeItemAccessibleBase::Shutdown()
 {
   mTree = nsnull;
   mTreeView = nsnull;
   mRow = -1;
 
-  nsAccessibleWrap::Shutdown();
+  return nsAccessibleWrap::Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1180,21 +1186,20 @@ nsXULTreeItemAccessible::IsDefunct()
   return nsXULTreeItemAccessibleBase::IsDefunct() || !mColumn;
 }
 
-PRBool
+nsresult
 nsXULTreeItemAccessible::Init()
 {
-  if (!nsXULTreeItemAccessibleBase::Init())
-    return PR_FALSE;
+  nsresult rv = nsXULTreeItemAccessibleBase::Init();
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  GetName(mCachedName);
-  return PR_TRUE;
+  return GetName(mCachedName);
 }
 
-void
+nsresult
 nsXULTreeItemAccessible::Shutdown()
 {
   mColumn = nsnull;
-  nsXULTreeItemAccessibleBase::Shutdown();
+  return nsXULTreeItemAccessibleBase::Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

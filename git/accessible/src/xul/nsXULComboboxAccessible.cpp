@@ -56,14 +56,12 @@ nsXULComboboxAccessible::
 {
 }
 
-PRBool
+nsresult
 nsXULComboboxAccessible::Init()
 {
-  if (!nsAccessibleWrap::Init())
-    return PR_FALSE;
-
+  nsresult rv = nsAccessibleWrap::Init();
   nsCoreUtils::GeneratePopupTree(mContent);
-  return PR_TRUE;
+  return rv;
 }
 
 nsresult

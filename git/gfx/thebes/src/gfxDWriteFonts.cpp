@@ -37,14 +37,11 @@
 
 #include "gfxDWriteFonts.h"
 #include "gfxDWriteShaper.h"
-#include "gfxHarfBuzzShaper.h"
 #include "gfxDWriteFontList.h"
 #include "gfxContext.h"
 #include <dwrite.h>
 
 #include "gfxDWriteTextAnalysis.h"
-
-#include "harfbuzz/hb-blob.h"
 
 // Chosen this as to resemble DWrite's own oblique face style.
 #define OBLIQUE_SKEW_FACTOR 0.3
@@ -75,6 +72,7 @@ gfxDWriteFont::gfxDWriteFont(gfxFontEntry *aFontEntry,
                              PRBool aNeedsBold,
                              AntialiasOption anAAOption)
     : gfxFont(aFontEntry, aFontStyle, anAAOption)
+    , mAdjustedSize(0.0f)
     , mCairoFontFace(nsnull)
     , mCairoScaledFont(nsnull)
     , mNeedsOblique(PR_FALSE)
@@ -105,9 +103,7 @@ gfxDWriteFont::gfxDWriteFont(gfxFontEntry *aFontEntry,
 
     ComputeMetrics();
 
-    if (FontCanSupportHarfBuzz()) {
-        mHarfBuzzShaper = new gfxHarfBuzzShaper(this);
-    }
+    mShaper = new gfxDWriteShaper(this);
 }
 
 gfxDWriteFont::~gfxDWriteFont()
@@ -125,12 +121,6 @@ gfxDWriteFont::CopyWithAntialiasOption(AntialiasOption anAAOption)
 {
     return new gfxDWriteFont(static_cast<gfxDWriteFontEntry*>(mFontEntry.get()),
                              &mStyle, mNeedsBold, anAAOption);
-}
-
-void
-gfxDWriteFont::CreatePlatformShaper()
-{
-    mPlatformShaper = new gfxDWriteShaper(this);
 }
 
 nsString
@@ -228,8 +218,6 @@ gfxDWriteFont::ComputeMetrics()
                    fontMetrics.designUnitsPerEm) * mAdjustedSize;
     mMetrics.superscriptOffset = 0;
     mMetrics.subscriptOffset = 0;
-
-    mFUnitsConvFactor = GetAdjustedSize() / fontMetrics.designUnitsPerEm;
 
     SanitizeMetrics(&mMetrics, PR_FALSE);
 
@@ -329,49 +317,4 @@ gfxDWriteFont::CairoScaledFont()
                  "Failed to make scaled font");
 
     return mCairoScaledFont;
-}
-
-// Access to font tables packaged in hb_blob_t form
-
-// object attached to the Harfbuzz blob, used to release
-// the table when the blob is destroyed
-class FontTableRec {
-public:
-    FontTableRec(IDWriteFontFace *aFontFace, void *aContext)
-        : mFontFace(aFontFace), mContext(aContext)
-    { }
-
-    ~FontTableRec() {
-        mFontFace->ReleaseFontTable(mContext);
-    }
-
-private:
-    IDWriteFontFace *mFontFace;
-    void            *mContext;
-};
-
-/*static*/ void
-gfxDWriteFont::DestroyBlobFunc(void* aUserData)
-{
-    FontTableRec *ftr = static_cast<FontTableRec*>(aUserData);
-    delete ftr;
-}
-
-hb_blob_t *
-gfxDWriteFont::GetFontTable(PRUint32 aTag)
-{
-    const void *data;
-    UINT32      size;
-    void       *context;
-    BOOL        exists;
-    HRESULT hr = mFontFace->TryGetFontTable(NS_SWAP32(aTag),
-                                            &data, &size, &context, &exists);
-    if (SUCCEEDED(hr) && exists) {
-        FontTableRec *ftr = new FontTableRec(mFontFace, context);
-        return hb_blob_create(static_cast<const char*>(data), size,
-                              HB_MEMORY_MODE_READONLY,
-                              DestroyBlobFunc, ftr);
-    }
-
-    return hb_blob_create_empty();
 }

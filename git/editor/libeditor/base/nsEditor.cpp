@@ -2778,9 +2778,9 @@ nsEditor::SplitNodeImpl(nsIDOMNode * aExistingRightNode,
     // remember some selection points
     nsCOMPtr<nsIDOMNode> selStartNode, selEndNode;
     PRInt32 selStartOffset, selEndOffset;
-    result = GetStartNodeAndOffset(selection, getter_AddRefs(selStartNode), &selStartOffset);
+    result = GetStartNodeAndOffset(selection, address_of(selStartNode), &selStartOffset);
     if (NS_FAILED(result)) selStartNode = nsnull;  // if selection is cleared, remember that
-    result = GetEndNodeAndOffset(selection, getter_AddRefs(selEndNode), &selEndOffset);
+    result = GetEndNodeAndOffset(selection, address_of(selEndNode), &selEndOffset);
     if (NS_FAILED(result)) selStartNode = nsnull;  // if selection is cleared, remember that
 
     nsCOMPtr<nsIDOMNode> resultNode;
@@ -2899,9 +2899,9 @@ nsEditor::JoinNodesImpl(nsIDOMNode * aNodeToKeep,
     // remember some selection points
     nsCOMPtr<nsIDOMNode> selStartNode, selEndNode;
     PRInt32 selStartOffset, selEndOffset, joinOffset, keepOffset;
-    result = GetStartNodeAndOffset(selection, getter_AddRefs(selStartNode), &selStartOffset);
+    result = GetStartNodeAndOffset(selection, address_of(selStartNode), &selStartOffset);
     if (NS_FAILED(result)) selStartNode = nsnull;
-    result = GetEndNodeAndOffset(selection, getter_AddRefs(selEndNode), &selEndOffset);
+    result = GetEndNodeAndOffset(selection, address_of(selEndNode), &selEndOffset);
     // Joe or Kin should comment here on why the following line is not a copy/paste error
     if (NS_FAILED(result)) selStartNode = nsnull;
 
@@ -3886,13 +3886,11 @@ nsEditor::GetChildAt(nsIDOMNode *aParent, PRInt32 aOffset)
 //                        the first range in the selection.
 nsresult 
 nsEditor::GetStartNodeAndOffset(nsISelection *aSelection,
-                                       nsIDOMNode **outStartNode,
+                                       nsCOMPtr<nsIDOMNode> *outStartNode,
                                        PRInt32 *outStartOffset)
 {
   if (!outStartNode || !outStartOffset || !aSelection) 
     return NS_ERROR_NULL_POINTER;
-
-  *outStartNode = nsnull;
 
   // brade:  set outStartNode to null or ?
 
@@ -3911,7 +3909,7 @@ nsEditor::GetStartNodeAndOffset(nsISelection *aSelection,
   if (!range)
     return NS_ERROR_FAILURE;
     
-  if (NS_FAILED(range->GetStartContainer(outStartNode)))
+  if (NS_FAILED(range->GetStartContainer(getter_AddRefs(*outStartNode))))
     return NS_ERROR_FAILURE;
     
   if (NS_FAILED(range->GetStartOffset(outStartOffset)))
@@ -3926,13 +3924,11 @@ nsEditor::GetStartNodeAndOffset(nsISelection *aSelection,
 //                        the first range in the selection.
 nsresult 
 nsEditor::GetEndNodeAndOffset(nsISelection *aSelection,
-                                       nsIDOMNode **outEndNode,
+                                       nsCOMPtr<nsIDOMNode> *outEndNode,
                                        PRInt32 *outEndOffset)
 {
   if (!outEndNode || !outEndOffset) 
     return NS_ERROR_NULL_POINTER;
-
-  *outEndNode = nsnull;
     
   nsCOMPtr<nsISelectionPrivate>selPrivate(do_QueryInterface(aSelection));
   nsCOMPtr<nsIEnumerator> enumerator;
@@ -3949,7 +3945,7 @@ nsEditor::GetEndNodeAndOffset(nsISelection *aSelection,
   if (!range)
     return NS_ERROR_FAILURE;
     
-  if (NS_FAILED(range->GetEndContainer(outEndNode)))
+  if (NS_FAILED(range->GetEndContainer(getter_AddRefs(*outEndNode))))
     return NS_ERROR_FAILURE;
     
   if (NS_FAILED(range->GetEndOffset(outEndOffset)))

@@ -742,7 +742,7 @@ PRInt32
 nsHyperTextAccessible::GetRelativeOffset(nsIPresShell *aPresShell,
                                          nsIFrame *aFromFrame,
                                          PRInt32 aFromOffset,
-                                         nsAccessible *aFromAccessible,
+                                         nsIAccessible *aFromAccessible,
                                          nsSelectionAmount aAmount,
                                          nsDirection aDirection,
                                          PRBool aNeedsStart)
@@ -763,7 +763,9 @@ nsHyperTextAccessible::GetRelativeOffset(nsIPresShell *aPresShell,
   nsresult rv;
   PRInt32 contentOffset = aFromOffset;
   if (nsAccUtils::IsText(aFromAccessible)) {
-    nsIFrame *frame = aFromAccessible->GetFrame();
+    nsRefPtr<nsAccessNode> accessNode = do_QueryObject(aFromAccessible);
+
+    nsIFrame *frame = accessNode->GetFrame();
     NS_ENSURE_TRUE(frame, -1);
 
     if (frame->GetType() == nsAccessibilityAtoms::textFrame) {
@@ -952,8 +954,10 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
     GetCharacterCount(&textLength);
     if (aBoundaryType == BOUNDARY_LINE_START && aOffset > 0 && aOffset == textLength) {
       // Asking for start of line, while on last character
-      if (startAcc)
-        startFrame = startAcc->GetFrame();
+      if (startAcc) {
+        nsRefPtr<nsAccessNode> startAccessNode = do_QueryObject(startAcc);
+        startFrame = startAccessNode->GetFrame();
+      }
     }
     if (!startFrame) {
       return aOffset > textLength ? NS_ERROR_FAILURE : NS_OK;

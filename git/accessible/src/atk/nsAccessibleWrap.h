@@ -90,7 +90,7 @@ public:
     void ShutdownAtkObject();
 
     // nsAccessNode
-    virtual void Shutdown();
+    virtual nsresult Shutdown();
 
 #ifdef MAI_LOGGING
     virtual void DumpnsAccessibleWrapInfo(int aDepth) {}

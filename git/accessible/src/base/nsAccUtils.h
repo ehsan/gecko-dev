@@ -59,7 +59,6 @@
 
 class nsAccessNode;
 class nsAccessible;
-class nsHyperTextAccessible;
 class nsHTMLTableAccessible;
 class nsDocAccessible;
 #ifdef MOZ_XUL
@@ -107,7 +106,7 @@ public:
    * Return ARIA level value or the default one if ARIA is missed for the
    * given accessible.
    */
-  static PRInt32 GetARIAOrDefaultLevel(nsAccessible *aAccessible);
+  static PRInt32 GetARIAOrDefaultLevel(nsIAccessible *aAcc);
 
   /**
    * Compute position in group (posinset) and group size (setsize) for
@@ -229,7 +228,7 @@ public:
    * Return true if the DOM node of given accessible has aria-selected="true"
    * attribute.
    */
-  static PRBool IsARIASelected(nsAccessible *aAccessible);
+  static PRBool IsARIASelected(nsIAccessible *aAccessible);
 
   /**
    * Return text accessible containing focus point of the given selection.
@@ -239,7 +238,7 @@ public:
    * @param aNode       [out, optional] the DOM node of text accessible
    * @return            text accessible
    */
-  static already_AddRefed<nsHyperTextAccessible>
+  static already_AddRefed<nsIAccessibleText>
     GetTextAccessibleFromSelection(nsISelection *aSelection,
                                    nsINode **aNode = nsnull);
 

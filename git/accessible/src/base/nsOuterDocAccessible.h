@@ -64,7 +64,7 @@ public:
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // nsAccessNode
-  virtual void Shutdown();
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);

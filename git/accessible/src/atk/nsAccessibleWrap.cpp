@@ -306,11 +306,11 @@ void nsAccessibleWrap::ShutdownAtkObject()
     }
 }
 
-void
+nsresult
 nsAccessibleWrap::Shutdown()
 {
     ShutdownAtkObject();
-    nsAccessible::Shutdown();
+    return nsAccessible::Shutdown();
 }
 
 MaiHyperlink* nsAccessibleWrap::GetMaiHyperlink(PRBool aCreate /* = PR_TRUE */)
@@ -1108,7 +1108,8 @@ nsAccessibleWrap::HandleAccEvent(nsAccEvent *aEvent)
 nsresult
 nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
 {
-    nsAccessible *accessible = aEvent->GetAccessible();
+    nsCOMPtr<nsIAccessible> accessible;
+    aEvent->GetAccessible(getter_AddRefs(accessible));
     NS_ENSURE_TRUE(accessible, NS_ERROR_FAILURE);
 
     PRUint32 type = aEvent->GetEventType();
@@ -1155,7 +1156,7 @@ nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
     case nsIAccessibleEvent::EVENT_VALUE_CHANGE:
       {
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_VALUE_CHANGE\n"));
-        nsCOMPtr<nsIAccessibleValue> value(do_QueryObject(accessible));
+        nsCOMPtr<nsIAccessibleValue> value(do_QueryInterface(accessible));
         if (value) {    // Make sure this is a numeric value
             // Don't fire for MSAA string value changes (e.g. text editing)
             // ATK values are always numeric
@@ -1317,7 +1318,7 @@ nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
       {
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_WINDOW_ACTIVATED\n"));
         nsRootAccessible *rootAcc =
-          static_cast<nsRootAccessible *>(accessible);
+          static_cast<nsRootAccessible *>(accessible.get());
         rootAcc->mActivated = PR_TRUE;
         guint id = g_signal_lookup ("activate", MAI_TYPE_ATK_OBJECT);
         g_signal_emit(atkObj, id, 0);
@@ -1330,7 +1331,7 @@ nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
       {
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_WINDOW_DEACTIVATED\n"));
         nsRootAccessible *rootAcc =
-          static_cast<nsRootAccessible *>(accessible);
+          static_cast<nsRootAccessible *>(accessible.get());
         rootAcc->mActivated = PR_FALSE;
         guint id = g_signal_lookup ("deactivate", MAI_TYPE_ATK_OBJECT);
         g_signal_emit(atkObj, id, 0);

@@ -121,19 +121,23 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
   PRUint32 length = 0;
   children->GetLength(&length);
 
+  nsCOMPtr<nsIAccessible> accessible;
+  nsRefPtr<nsAccessible> acc;
+
   for (PRUint32 index = 0; index < length; index++) {
-    nsCOMPtr<nsIDOMNode> DOMChild;
-    children->Item(index, getter_AddRefs(DOMChild));
-    if (!DOMChild)
+    nsCOMPtr<nsIDOMNode> child;
+    children->Item(index, getter_AddRefs(child));
+    if (!child)
       continue;
 
-    nsCOMPtr<nsIContent> child(do_QueryInterface(DOMChild));
-    nsAccessible *accessible = GetAccService()->GetAttachedAccessibleFor(child);
+    GetAccService()->GetAttachedAccessibleFor(child,
+                                              getter_AddRefs(accessible));
     if (!accessible)
       continue;
 
-    mChildren.AppendElement(accessible);
-    accessible->SetParent(this);
+    acc = do_QueryObject(accessible);
+    mChildren.AppendElement(acc);
+    acc->SetParent(this);
   }
 }
 

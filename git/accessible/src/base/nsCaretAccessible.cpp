@@ -246,7 +246,7 @@ nsCaretAccessible::NormalSelectionChanged(nsIDOMDocument *aDoc,
   }
 
   nsCOMPtr<nsINode> textNode;
-  nsRefPtr<nsHyperTextAccessible> textAcc =
+  nsCOMPtr<nsIAccessibleText> textAcc =
     nsAccUtils::GetTextAccessibleFromSelection(aSel, getter_AddRefs(textNode));
   NS_ENSURE_STATE(textAcc);
 
@@ -262,7 +262,7 @@ nsCaretAccessible::NormalSelectionChanged(nsIDOMDocument *aDoc,
     }
   }
   mLastCaretOffset = caretOffset;
-  mLastTextAccessible.swap(textAcc);
+  mLastTextAccessible = textAcc;
 
   nsRefPtr<nsAccEvent> event =
     new nsAccCaretMoveEvent(textNode);
@@ -281,13 +281,15 @@ nsCaretAccessible::SpellcheckSelectionChanged(nsIDOMDocument *aDoc,
   // misspelled word). If spellchecking is disabled (for example,
   // @spellcheck="false" on html:body) then we won't fire any event.
 
-  nsRefPtr<nsHyperTextAccessible> textAcc =
+  nsCOMPtr<nsIAccessibleText> textAcc =
     nsAccUtils::GetTextAccessibleFromSelection(aSel);
   NS_ENSURE_STATE(textAcc);
 
+  nsCOMPtr<nsIAccessible> acc(do_QueryInterface(textAcc));
+
   nsRefPtr<nsAccEvent> event =
     new nsAccEvent(nsIAccessibleEvent::EVENT_TEXT_ATTRIBUTE_CHANGED,
-                   textAcc, nsnull);
+                   acc, nsnull);
 
   nsEventShell::FireEvent(event);
   return NS_OK;
@@ -305,7 +307,10 @@ nsCaretAccessible::GetCaretRect(nsIWidget **aOutWidget)
     return caretRect;    // Return empty rect
   }
 
-  nsINode *lastNodeWithCaret = mLastTextAccessible->GetNode();
+  nsRefPtr<nsAccessible> lastTextAccessible =
+    do_QueryObject(mLastTextAccessible);
+
+  nsINode *lastNodeWithCaret = lastTextAccessible->GetNode();
   NS_ENSURE_TRUE(lastNodeWithCaret, caretRect);
 
   nsIPresShell *presShell = nsCoreUtils::GetPresShellFor(lastNodeWithCaret);

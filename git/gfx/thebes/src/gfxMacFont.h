@@ -55,7 +55,10 @@ public:
     virtual ~gfxMacFont();
 
     ATSFontRef GetATSFontRef() const { return mATSFont; }
-    CGFontRef GetCGFontRef() const { return mCGFont; }
+
+    // TODO: probably should move this up to gfxFont
+    // and ensure it is handled uniformly across all platforms
+    float GetAdjustedSize() const { return mAdjustedSize; }
 
     /* overrides for the pure virtual methods in gfxFont */
     virtual const gfxFont::Metrics& GetMetrics() {
@@ -68,28 +71,21 @@ public:
 
     virtual PRBool SetupCairoFont(gfxContext *aContext);
 
-    // override gfxFont table access function to bypass gfxFontEntry cache,
-    // use CGFontRef API to get direct access to system font data
-    virtual hb_blob_t *GetFontTable(PRUint32 aTag);
-
 protected:
-    virtual void CreatePlatformShaper();
-
     void InitMetrics();
 
-    gfxFloat GetCharWidth(CFDataRef aCmap, PRUint32 aUpem, gfxFloat aSize,
-                          PRUnichar aUniChar, PRUint32 *aGlyphID);
-
-    static void DestroyBlobFunc(void* aUserData);
+    float GetCharWidth(CTFontRef aCTFont, PRUnichar aUniChar,
+                       PRUint32 *aGlyphID);
+    float GetCharHeight(CTFontRef aCTFont, PRUnichar aUniChar);
 
     ATSFontRef            mATSFont;
-    CGFontRef             mCGFont;
 
     cairo_font_face_t    *mFontFace;
     cairo_scaled_font_t  *mScaledFont;
 
     Metrics               mMetrics;
     PRUint32              mSpaceGlyph;
+    float                 mAdjustedSize;
 };
 
 #endif /* GFX_MACFONT_H */

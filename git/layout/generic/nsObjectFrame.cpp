@@ -1790,7 +1790,7 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
             NPEvent pluginEvent;
             pluginEvent.event = WM_WINDOWPOSCHANGED;
             pluginEvent.wParam = 0;
-            pluginEvent.lParam = (LPARAM)&winpos;
+            pluginEvent.lParam = (uint32)&winpos;
             inst->HandleEvent(&pluginEvent, nsnull);
           }
 

@@ -60,20 +60,19 @@ nsAccessibleWrap::~nsAccessibleWrap()
   }
 }
 
-PRBool
+nsresult
 nsAccessibleWrap::Init () 
 {
-  if (!nsAccessible::Init())
-    return PR_FALSE;
-
+  // need to pass the call up, so we're cached (which nsAccessNode::Init() takes care of).
+  nsresult rv = nsAccessible::Init();
+  NS_ENSURE_SUCCESS(rv, rv);
+  
   if (!mNativeWrapper && !AncestorIsFlat()) {
     // Create our native object using the class type specified in GetNativeType().
     mNativeWrapper = new AccessibleWrapper (this, GetNativeType());
-    if (!mNativeWrapper)
-      return PR_FALSE;
   }
 
-  return PR_TRUE;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -149,7 +148,7 @@ nsAccessibleWrap::GetNativeType ()
 // this method is very important. it is fired when an accessible object "dies". after this point
 // the object might still be around (because some 3rd party still has a ref to it), but it is
 // in fact 'dead'.
-void
+nsresult
 nsAccessibleWrap::Shutdown ()
 {
   if (mNativeWrapper) {
@@ -157,7 +156,7 @@ nsAccessibleWrap::Shutdown ()
     mNativeWrapper = nsnull;
   }
   
-  nsAccessible::Shutdown();
+  return nsAccessible::Shutdown();
 }
 
 nsresult
@@ -185,7 +184,8 @@ nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
       eventType != nsIAccessibleEvent::EVENT_VALUE_CHANGE)
     return NS_OK;
 
-  nsAccessible *accessible = aEvent->GetAccessible();
+  nsCOMPtr<nsIAccessible> accessible;
+  aEvent->GetAccessible(getter_AddRefs(accessible));
   NS_ENSURE_STATE(accessible);
 
   mozAccessible *nativeAcc = nil;
