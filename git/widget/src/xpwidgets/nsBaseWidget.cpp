@@ -544,13 +544,11 @@ NS_IMETHODIMP nsBaseWidget::SetWindowType(nsWindowType aWindowType)
 //
 //-------------------------------------------------------------------------
 
-NS_IMETHODIMP nsBaseWidget::SetHasTransparentBackground(PRBool aTransparent) {
-  return NS_ERROR_NOT_IMPLEMENTED;
+void nsBaseWidget::SetTransparencyMode(nsTransparencyMode aMode) {
 }
 
-NS_IMETHODIMP nsBaseWidget::GetHasTransparentBackground(PRBool& aTransparent) {
-  aTransparent = PR_FALSE;
-  return NS_OK;
+nsTransparencyMode nsBaseWidget::GetTransparencyMode() {
+  return eTransparencyOpaque;
 }
 
 //-------------------------------------------------------------------------
@@ -860,6 +858,12 @@ NS_IMETHODIMP
 nsBaseWidget::SetWindowTitlebarColor(nscolor aColor, PRBool aActive)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+PRBool
+nsBaseWidget::ShowsResizeIndicator(nsIntRect* aResizerRect)
+{
+  return PR_FALSE;
 }
 
 

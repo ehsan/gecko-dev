@@ -104,8 +104,8 @@ public:
                                     PRUint32 aHotspotX, PRUint32 aHotspotY);
   NS_IMETHOD              GetWindowType(nsWindowType& aWindowType);
   NS_IMETHOD              SetWindowType(nsWindowType aWindowType);
-  NS_IMETHOD              SetHasTransparentBackground(PRBool aTransparent);
-  NS_IMETHOD              GetHasTransparentBackground(PRBool& aTransparent);
+  virtual void            SetTransparencyMode(nsTransparencyMode aMode);
+  virtual nsTransparencyMode GetTransparencyMode();
   NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
   NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
   virtual nsIRenderingContext* GetRenderingContext();
@@ -133,6 +133,7 @@ public:
   NS_IMETHOD              BeginSecureKeyboardInput();
   NS_IMETHOD              EndSecureKeyboardInput();
   NS_IMETHOD              SetWindowTitlebarColor(nscolor aColor, PRBool aActive);
+  virtual PRBool          ShowsResizeIndicator(nsIntRect* aResizerRect);
   virtual void            ConvertToDeviceCoordinates(nscoord  &aX,nscoord &aY) {}
   virtual void            FreeNativeData(void * data, PRUint32 aDataType) {}
   NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);

@@ -152,6 +152,8 @@
 #include "prprf.h"
 #include "prmem.h"
 
+#include "nsUXThemeData.h"
+
 #ifdef PR_LOGGING
 PRLogModuleInfo* sWindowsLog = nsnull;
 #endif
@@ -292,10 +294,8 @@ PRUint32*  nsWindow::sIMECompClauseArray       = NULL;
 PRInt32    nsWindow::sIMECompClauseArrayLength = 0;
 PRInt32    nsWindow::sIMECompClauseArraySize   = 0;
 long       nsWindow::sIMECursorPosition        = 0;
-PRUnichar* nsWindow::sIMEReconvertUnicode      = NULL;
 
 RECT*      nsWindow::sIMECompCharPos           = nsnull;
-PRInt32    nsWindow::sIMECaretHeight           = 0;
 
 PRBool nsWindow::sIsInEndSession = PR_FALSE;
 
@@ -648,7 +648,7 @@ nsWindow::nsWindow() : nsBaseWidget()
   mIsVisible          = PR_FALSE;
   mHas3DBorder        = PR_FALSE;
 #ifdef MOZ_XUL
-  mIsTransparent      = PR_FALSE;
+  mTransparencyMode   = eTransparencyOpaque;
   mTransparentSurface = nsnull;
   mMemoryDC           = NULL;
 #endif
@@ -746,8 +746,6 @@ nsWindow::~nsWindow()
       delete [] sIMEAttributeArray;
     if (sIMECompClauseArray) 
       delete [] sIMECompClauseArray;
-    if (sIMEReconvertUnicode)
-      nsMemory::Free(sIMEReconvertUnicode);
 
     NS_IF_RELEASE(gCursorImgContainer);
 
@@ -1454,9 +1452,9 @@ NS_METHOD nsWindow::Destroy()
       ::DestroyIcon(icon);
 
 #ifdef MOZ_XUL
-    if (mIsTransparent)
+    if (eTransparencyTransparent == mTransparencyMode)
     {
-      SetupTranslucentWindowMemoryBitmap(PR_FALSE);
+      SetupTranslucentWindowMemoryBitmap(eTransparencyOpaque);
 
     }
 #endif
@@ -1989,7 +1987,7 @@ NS_METHOD nsWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
   NS_ASSERTION((aHeight >=0 ), "Negative height passed to nsWindow::Resize");
 
 #ifdef MOZ_XUL
-  if (mIsTransparent)
+  if (eTransparencyTransparent == mTransparencyMode)
     ResizeTranslucentWindow(aWidth, aHeight);
 #endif
 
@@ -2039,7 +2037,7 @@ NS_METHOD nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeig
   NS_ASSERTION((aHeight >=0 ), "Negative height passed to nsWindow::Resize");
 
 #ifdef MOZ_XUL
-  if (mIsTransparent)
+  if (eTransparencyTransparent == mTransparencyMode)
     ResizeTranslucentWindow(aWidth, aHeight);
 #endif
 
@@ -2769,7 +2767,7 @@ void* nsWindow::GetNativeData(PRUint32 aDataType)
     case NS_NATIVE_GRAPHIC:
       // XXX:  This is sleezy!!  Remember to Release the DC after using it!
 #ifdef MOZ_XUL
-      return (void*)(mIsTransparent) ?
+      return (void*)(eTransparencyTransparent == mTransparencyMode) ?
         mMemoryDC : ::GetDC(mWnd);
 #else
       return (void*)::GetDC(mWnd);
@@ -2789,7 +2787,7 @@ void nsWindow::FreeNativeData(void * data, PRUint32 aDataType)
   {
     case NS_NATIVE_GRAPHIC:
 #ifdef MOZ_XUL
-      if (!mIsTransparent)
+      if (eTransparencyTransparent != mTransparencyMode)
         ::ReleaseDC(mWnd, (HDC)data);
 #else
       ::ReleaseDC(mWnd, (HDC)data);
@@ -4813,7 +4811,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
 
 
 #ifdef MOZ_XUL
-        if (mIsTransparent)
+        if (eTransparencyTransparent == mTransparencyMode)
           ResizeTranslucentWindow(newWidth, newHeight);
 #endif
 
@@ -5272,6 +5270,14 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
 
     }
     break;
+  case WM_DWMCOMPOSITIONCHANGED:
+    if (nsUXThemeData::CheckForCompositor() && mTransparencyMode == eTransparencyGlass) {
+      MARGINS margins = { -1, -1, -1, -1 };
+      nsUXThemeData::dwmExtendFrameIntoClientAreaPtr(mWnd, &margins);
+    }
+    BroadcastMsg(mWnd, WM_DWMCOMPOSITIONCHANGED);
+    DispatchStandardEvent(NS_THEMECHANGED);
+    break;
   }
 
   //*aRetValue = result;
@@ -5703,7 +5709,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
   nsEventStatus eventStatus = nsEventStatus_eIgnore;
 
 #ifdef MOZ_XUL
-  if (!aDC && mIsTransparent)
+  if (!aDC && (eTransparencyTransparent == mTransparencyMode))
   {
     // For layered translucent windows all drawing should go to memory DC and no
     // WM_PAINT messages are normally generated. To support asynchronous painting
@@ -5737,7 +5743,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
   HRGN paintRgn = NULL;
 
 #ifdef MOZ_XUL
-  if (aDC || mIsTransparent) {
+  if (aDC || (eTransparencyTransparent == mTransparencyMode)) {
 #else
   if (aDC) {
 #endif
@@ -5787,7 +5793,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
 
 #ifdef MOZ_XUL
       nsRefPtr<gfxASurface> targetSurface;
-      if (mIsTransparent) {
+      if (eTransparencyTransparent == mTransparencyMode) {
         targetSurface = mTransparentSurface;
       } else {
         targetSurface = new gfxWindowsSurface(hDC);
@@ -5799,7 +5805,9 @@ PRBool nsWindow::OnPaint(HDC aDC)
       nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
 
 #ifdef MOZ_XUL
-      if (mIsTransparent) {
+      if (eTransparencyGlass == mTransparencyMode && nsUXThemeData::sHaveCompositor) {
+        thebesContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
+      } else if (eTransparencyTransparent == mTransparencyMode) {
         // If we're rendering with translucency, we're going to be
         // rendering the whole window; make sure we clear it first
         thebesContext->SetOperator(gfxContext::OPERATOR_CLEAR);
@@ -5829,7 +5837,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
       event.renderingContext = nsnull;
 
 #ifdef MOZ_XUL
-      if (mIsTransparent) {
+      if (eTransparencyTransparent == mTransparencyMode) {
         // Data from offscreen drawing surface was copied to memory bitmap of transparent
         // bitmap. Now it can be read from memory bitmap to apply alpha channel and after
         // that displayed on the screen.
@@ -6439,7 +6447,9 @@ nsWindow::HandleTextEvent(HIMC hIMEContext,PRBool aCheckAttr)
   if (event.theReply.mCursorPosition.width || event.theReply.mCursorPosition.height)
   {
     nsRect cursorPosition;
-    ResolveIMECaretPos(this, event.theReply.mCursorPosition, cursorPosition);
+    ResolveIMECaretPos(event.theReply.mReferenceWidget,
+                       event.theReply.mCursorPosition,
+                       this, cursorPosition);
     CANDIDATEFORM candForm;
     candForm.dwIndex = 0;
     candForm.dwStyle = CFS_EXCLUDE;
@@ -6483,7 +6493,6 @@ nsWindow::HandleTextEvent(HIMC hIMEContext,PRBool aCheckAttr)
       sIMECompCharPos[sIMECursorPosition].top = cursorPosition.y;
       sIMECompCharPos[sIMECursorPosition].bottom = cursorPosition.YMost();
     }
-    sIMECaretHeight = cursorPosition.height;
   } else {
     // for some reason we don't know yet, theReply may contain invalid result
     // need more debugging in nsCaret to find out the reason
@@ -6502,11 +6511,6 @@ nsWindow::HandleStartComposition(HIMC hIMEContext)
   if (sIMEIsComposing)
     return PR_TRUE;
 
-  if (sIMEReconvertUnicode) {
-    nsMemory::Free(sIMEReconvertUnicode);
-    sIMEReconvertUnicode = NULL;
-  }
-
   nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_START, this);
   nsPoint point(0, 0);
   CANDIDATEFORM candForm;
@@ -6520,7 +6524,9 @@ nsWindow::HandleStartComposition(HIMC hIMEContext)
   if (event.theReply.mCursorPosition.width || event.theReply.mCursorPosition.height)
   {
     nsRect cursorPosition;
-    ResolveIMECaretPos(this, event.theReply.mCursorPosition, cursorPosition);
+    ResolveIMECaretPos(event.theReply.mReferenceWidget,
+                       event.theReply.mCursorPosition,
+                       this, cursorPosition);
     candForm.dwIndex = 0;
     candForm.dwStyle = CFS_CANDIDATEPOS;
     candForm.ptCurrentPos.x = cursorPosition.x + IME_X_OFFSET;
@@ -6549,7 +6555,6 @@ nsWindow::HandleStartComposition(HIMC hIMEContext)
       sIMECompCharPos[0].top = cursorPosition.y;
       sIMECompCharPos[0].bottom = cursorPosition.YMost();
     }
-    sIMECaretHeight = cursorPosition.height;
   } else {
     // for some reason we don't know yet, theReply may contain invalid result
     // need more debugging in nsCaret to find out the reason
@@ -6582,7 +6587,6 @@ nsWindow::HandleEndComposition(void)
   DispatchWindowEvent(&event);
   PR_FREEIF(sIMECompCharPos);
   sIMECompCharPos = nsnull;
-  sIMECaretHeight = 0;
   sIMEIsComposing = PR_FALSE;
 }
 
@@ -7042,70 +7046,48 @@ PRBool nsWindow::OnIMEReconvert(LPARAM aData, LRESULT *oResult)
   printf("OnIMEReconvert\n");
 #endif
 
-  PRBool           result  = PR_FALSE;
+  *oResult = 0;
   RECONVERTSTRING* pReconv = (RECONVERTSTRING*) aData;
-  int              len = 0;
+
+  nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT, this);
+  nsPoint point(0, 0);
+  InitEvent(selection, &point);
+  DispatchWindowEvent(&selection);
+  if (!selection.mSucceeded)
+    return PR_FALSE;
 
   if (!pReconv) {
-
-    //
-    // When reconvert, it must return need size to reconvert.
-    //
-    if (sIMEReconvertUnicode) {
-      nsMemory::Free(sIMEReconvertUnicode);
-      sIMEReconvertUnicode = NULL;
-    }
-
-    // Get reconversion string
-    nsReconversionEvent event(PR_TRUE, NS_RECONVERSION_QUERY, this);
-    nsPoint point(0, 0);
-
-    InitEvent(event, &point);
-    event.theReply.mReconversionString = NULL;
-    DispatchWindowEvent(&event);
-
-    sIMEReconvertUnicode = event.theReply.mReconversionString;
-
-    // Return need size
-
-    if (sIMEReconvertUnicode) {
-      len = nsCRT::strlen(sIMEReconvertUnicode);
-      *oResult = sizeof(RECONVERTSTRING) + len * sizeof(WCHAR);
-
-      result = PR_TRUE;
-    }
-  } else {
-
-    //
-    // Fill reconvert struct
-    //
-
-    len = nsCRT::strlen(sIMEReconvertUnicode);
-    *oResult = sizeof(RECONVERTSTRING) + len * sizeof(WCHAR);
-
-    if (pReconv->dwSize < *oResult) {
-      *oResult = 0;
+    // Return need size to reconvert.
+    if (selection.mReply.mString.IsEmpty())
       return PR_FALSE;
-    }
-
-    DWORD tmpSize = pReconv->dwSize;
-    ::ZeroMemory(pReconv, tmpSize);
-    pReconv->dwSize            = tmpSize;
-    pReconv->dwVersion         = 0;
-    pReconv->dwStrLen          = len;
-    pReconv->dwStrOffset       = sizeof(RECONVERTSTRING);
-    pReconv->dwCompStrLen      = len;
-    pReconv->dwCompStrOffset   = 0;
-    pReconv->dwTargetStrLen    = len;
-    pReconv->dwTargetStrOffset = 0;
-
-    ::CopyMemory((LPVOID) (aData + sizeof(RECONVERTSTRING)),
-                 sIMEReconvertUnicode, len * sizeof(WCHAR));
-
-    result = PR_TRUE;
+    PRUint32 len = selection.mReply.mString.Length();
+    *oResult = sizeof(RECONVERTSTRING) + len * sizeof(WCHAR);
+    return PR_TRUE;
   }
 
-  return result;
+  // Fill reconvert struct
+  PRUint32 len = selection.mReply.mString.Length();
+  PRUint32 needSize = sizeof(RECONVERTSTRING) + len * sizeof(WCHAR);
+
+  if (pReconv->dwSize < needSize)
+    return PR_FALSE;
+
+  *oResult = needSize;
+
+  DWORD tmpSize = pReconv->dwSize;
+  ::ZeroMemory(pReconv, tmpSize);
+  pReconv->dwSize            = tmpSize;
+  pReconv->dwVersion         = 0;
+  pReconv->dwStrLen          = len;
+  pReconv->dwStrOffset       = sizeof(RECONVERTSTRING);
+  pReconv->dwCompStrLen      = len;
+  pReconv->dwCompStrOffset   = 0;
+  pReconv->dwTargetStrLen    = len;
+  pReconv->dwTargetStrOffset = 0;
+
+  ::CopyMemory((LPVOID) (aData + sizeof(RECONVERTSTRING)),
+               selection.mReply.mString.get(), len * sizeof(WCHAR));
+  return PR_TRUE;
 }
 
 //==========================================================================
@@ -7114,72 +7096,57 @@ PRBool nsWindow::OnIMEQueryCharPosition(LPARAM aData, LRESULT *oResult)
 #ifdef DEBUG_IME
   printf("OnIMEQueryCharPosition\n");
 #endif
+
+  PRUint32 len = sIMEIsComposing ? sIMECompUnicode->Length() : 0;
+  *oResult = FALSE;
   IMECHARPOSITION* pCharPosition = (IMECHARPOSITION*)aData;
   if (!pCharPosition ||
       pCharPosition->dwSize < sizeof(IMECHARPOSITION) ||
-      ::GetFocus() != mWnd) {
-    *oResult = FALSE;
+      ::GetFocus() != mWnd ||
+      pCharPosition->dwCharPos > len)
     return PR_FALSE;
+
+  nsPoint point(0, 0);
+
+  nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT, this);
+  InitEvent(selection, &point);
+  DispatchWindowEvent(&selection);
+  if (!selection.mSucceeded)
+    return PR_FALSE;
+
+  PRUint32 offset = selection.mReply.mOffset + pCharPosition->dwCharPos;
+  PRBool useCaretRect = selection.mReply.mString.IsEmpty();
+
+  nsRect r;
+  if (!useCaretRect) {
+    nsQueryContentEvent charRect(PR_TRUE, NS_QUERY_CHARACTER_RECT, this);
+    charRect.InitForQueryCharacterRect(offset);
+    InitEvent(charRect, &point);
+    DispatchWindowEvent(&charRect);
+    if (charRect.mSucceeded)
+      r = charRect.mReply.mRect;
+    else
+      useCaretRect = PR_TRUE;
   }
 
-  if (!sIMEIsComposing) {  // Including |!sIMECompUnicode| and |!sIMECompUnicode->IsEmpty|.
-    if (pCharPosition->dwCharPos != 0) {
-      *oResult = FALSE;
+  if (useCaretRect) {
+    nsQueryContentEvent caretRect(PR_TRUE, NS_QUERY_CARET_RECT, this);
+    caretRect.InitForQueryCaretRect(offset);
+    InitEvent(caretRect, &point);
+    DispatchWindowEvent(&caretRect);
+    if (!caretRect.mSucceeded)
       return PR_FALSE;
-    }
-    nsPoint point(0, 0);
-    nsQueryCaretRectEvent event(PR_TRUE, NS_QUERYCARETRECT, this);
-    InitEvent(event, &point);
-    DispatchWindowEvent(&event);
-    // The active widget doesn't support this event.
-    if (!event.theReply.mRectIsValid) {
-      *oResult = FALSE;
-      return PR_FALSE;
-    }
-
-    nsRect screenRect;
-    ResolveIMECaretPos(nsnull, event.theReply.mCaretRect, screenRect);
-    pCharPosition->pt.x = screenRect.x;
-    pCharPosition->pt.y = screenRect.y;
-
-    pCharPosition->cLineHeight = event.theReply.mCaretRect.height;
-
-    ::GetWindowRect(mWnd, &pCharPosition->rcDocument);
-
-    *oResult = TRUE;
-    return PR_TRUE;
+    r = caretRect.mReply.mRect;
   }
 
-  // If the char positions are not cached, we should not return the values by LPARAM.
-  // Because in this case, the active widget is not editor.
-  if (!sIMECompCharPos) {
-    *oResult = FALSE;
-    return PR_FALSE;
-  }
+  nsRect screenRect;
+  ResolveIMECaretPos(GetTopLevelWindow(), r, nsnull, screenRect);
+  pCharPosition->pt.x = screenRect.x;
+  pCharPosition->pt.y = screenRect.y;
 
-  long charPosition;
-  if (pCharPosition->dwCharPos > sIMECompUnicode->Length()) {
-    *oResult = FALSE;
-    return PR_FALSE;
-  }
-  charPosition = pCharPosition->dwCharPos;
+  pCharPosition->cLineHeight = r.height;
 
-  // We only support insertion at the cursor position or at the leftmost position.
-  // Because sIMECompCharPos may be broken by user converting the string.
-  // But leftmost position and cursor position is always correctly.
-  if ((charPosition != 0 && charPosition != sIMECursorPosition) ||
-      charPosition > IME_MAX_CHAR_POS) {
-    *oResult = FALSE;
-    return PR_FALSE;
-  }
-  POINT pt;
-  pt.x = sIMECompCharPos[charPosition].left;
-  pt.y = sIMECompCharPos[charPosition].top;
-  ::ClientToScreen(mWnd, &pt);
-  pCharPosition->pt = pt;
-
-  pCharPosition->cLineHeight = sIMECaretHeight;
-
+  // XXX Should we create "query focused content rect event"?
   ::GetWindowRect(mWnd, &pCharPosition->rcDocument);
 
   *oResult = TRUE;
@@ -7188,17 +7155,21 @@ PRBool nsWindow::OnIMEQueryCharPosition(LPARAM aData, LRESULT *oResult)
 
 //==========================================================================
 void
-nsWindow::ResolveIMECaretPos(nsWindow* aClient,
-                             nsRect&   aEventResult,
-                             nsRect&   aResult)
+nsWindow::ResolveIMECaretPos(nsIWidget* aReferenceWidget,
+                             nsRect&    aCursorRect,
+                             nsIWidget* aNewOriginWidget,
+                             nsRect&    aOutRect)
 {
-  // RootView coordinates -> Screen coordinates
-  GetTopLevelWindow()->WidgetToScreen(aEventResult, aResult);
-  // if aClient is nsnull, returns screen coordinates
-  if (!aClient)
+  aOutRect = aCursorRect;
+
+  if (aReferenceWidget == aNewOriginWidget)
     return;
-  // screen coordinates -> client coordinates
-  aClient->ScreenToWidget(aResult, aResult);
+
+  if (aReferenceWidget)
+    aReferenceWidget->WidgetToScreen(aOutRect, aOutRect);
+
+  if (aNewOriginWidget)
+    aNewOriginWidget->ScreenToWidget(aOutRect, aOutRect);
 }
 
 //==========================================================================
@@ -8028,67 +7999,64 @@ void nsWindow::ResizeTranslucentWindow(PRInt32 aNewWidth, PRInt32 aNewHeight, PR
   mMemoryDC = mTransparentSurface->GetDC();
 }
 
-NS_IMETHODIMP nsWindow::GetHasTransparentBackground(PRBool& aTransparent)
+nsTransparencyMode nsWindow::GetTransparencyMode()
 {
-  aTransparent = GetTopLevelWindow()->GetWindowTranslucencyInner();
-
-  return NS_OK;
+  return GetTopLevelWindow()->GetWindowTranslucencyInner();
 }
 
-NS_IMETHODIMP nsWindow::SetHasTransparentBackground(PRBool aTransparent)
+void nsWindow::SetTransparencyMode(nsTransparencyMode aMode)
 {
-  nsresult rv = GetTopLevelWindow()->SetWindowTranslucencyInner(aTransparent);
-
-  return rv;
+  GetTopLevelWindow()->SetWindowTranslucencyInner(aMode);
 }
 
-nsresult nsWindow::SetWindowTranslucencyInner(PRBool aTransparent)
+void nsWindow::SetWindowTranslucencyInner(nsTransparencyMode aMode)
 {
-  if (aTransparent == mIsTransparent)
-    return NS_OK;
-  
+  if (aMode == mTransparencyMode)
+    return;
+
   HWND hWnd = GetTopLevelHWND(mWnd, PR_TRUE);
   nsWindow* topWindow = GetNSWindowPtr(hWnd);
 
   if (!topWindow)
   {
     NS_WARNING("Trying to use transparent chrome in an embedded context");
-    return NS_ERROR_FAILURE;
+    return;
   }
 
   LONG style, exStyle;
 
-  if (aTransparent)
-  {
-    style = ::GetWindowLongW(hWnd, GWL_STYLE) &
-            ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
-    exStyle = ::GetWindowLongW(hWnd, GWL_EXSTYLE) &
-              ~(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
+  style = topWindow->WindowStyle();
+  exStyle = topWindow->WindowExStyle();
 
-    exStyle |= WS_EX_LAYERED;
-  } else
-  {
-    style = topWindow->WindowStyle();
-    exStyle = topWindow->WindowExStyle();
+  switch(aMode) {
+    case eTransparencyTransparent:
+      exStyle |= WS_EX_LAYERED;
+    case eTransparencyOpaque:
+    case eTransparencyGlass:
+      topWindow->mTransparencyMode = aMode;
+      break;
   }
   ::SetWindowLongW(hWnd, GWL_STYLE, style);
   ::SetWindowLongW(hWnd, GWL_EXSTYLE, exStyle);
 
-  mIsTransparent = aTransparent;
+  mTransparencyMode = aMode;
 
-  return SetupTranslucentWindowMemoryBitmap(aTransparent);
+  SetupTranslucentWindowMemoryBitmap(aMode);
+  MARGINS margins = { 0, 0, 0, 0 };
+  if(eTransparencyGlass == aMode)
+    margins.cxLeftWidth = -1;
+  if(nsUXThemeData::sHaveCompositor)
+    nsUXThemeData::dwmExtendFrameIntoClientAreaPtr(hWnd, &margins);
 }
 
-nsresult nsWindow::SetupTranslucentWindowMemoryBitmap(PRBool aTransparent)
+void nsWindow::SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode)
 {
-  if (aTransparent) {
+  if (eTransparencyTransparent == aMode) {
     ResizeTranslucentWindow(mBounds.width, mBounds.height, PR_TRUE);
   } else {
     mTransparentSurface = nsnull;
     mMemoryDC = NULL;
   }
-
-  return NS_OK;
 }
 
 nsresult nsWindow::UpdateTranslucentWindow()
