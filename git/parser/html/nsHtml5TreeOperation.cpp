@@ -435,9 +435,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         // local name is never null
         nsCOMPtr<nsIAtom> localName =
           Reget(attributes->getLocalNameNoBoundsCheck(i));
-        nsCOMPtr<nsIAtom> prefix = attributes->getPrefixNoBoundsCheck(i);
-        int32_t nsuri = attributes->getURINoBoundsCheck(i);
-
         if (ns == kNameSpaceID_XHTML &&
             nsHtml5Atoms::a == name &&
             nsHtml5Atoms::name == localName) {
@@ -445,30 +442,17 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
           // Remove when fixing bug 582361
           NS_ConvertUTF16toUTF8 cname(*(attributes->getValueNoBoundsCheck(i)));
           NS_ConvertUTF8toUTF16 uv(nsUnescape(cname.BeginWriting()));
-          newContent->SetAttr(nsuri,
+          newContent->SetAttr(attributes->getURINoBoundsCheck(i),
                               localName,
-                              prefix,
+                              attributes->getPrefixNoBoundsCheck(i),
                               uv,
                               false);
         } else {
-          nsString& value = *(attributes->getValueNoBoundsCheck(i));
-
-          newContent->SetAttr(nsuri,
+          newContent->SetAttr(attributes->getURINoBoundsCheck(i),
                               localName,
-                              prefix,
-                              value,
+                              attributes->getPrefixNoBoundsCheck(i),
+                              *(attributes->getValueNoBoundsCheck(i)),
                               false);
-
-          // Custom element prototype swizzling may be needed if there is an
-          // "is" attribute.
-          if (kNameSpaceID_None == nsuri && !prefix && nsGkAtoms::is == localName) {
-            ErrorResult errorResult;
-            newContent->OwnerDoc()->SwizzleCustomElement(newContent,
-                                                         value,
-                                                         newContent->GetNameSpaceID(),
-                                                         errorResult);
-
-          }
         }
       }
 
