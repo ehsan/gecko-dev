@@ -14,12 +14,11 @@
 
 #include "nsTArray.h"
 
-#include "mozilla/Attributes.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/TimeStamp.h"
 
-class TimerThread MOZ_FINAL : public nsIRunnable,
-                              public nsIObserver
+class TimerThread : public nsIRunnable,
+                    public nsIObserver
 {
 public:
   typedef mozilla::Monitor Monitor;

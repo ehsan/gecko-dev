@@ -19,7 +19,7 @@ const RILCONTENTHELPER_CID =
   Components.ID("{472816e1-1fd6-4405-996c-806f9ea68174}");
 const MOBILECONNECTIONINFO_CID =
   Components.ID("{a35cfd39-2d93-4489-ac7d-396475dacb27}");
-const MOBILENETWORKINFO_CID =
+const MOBILEOPERATORINFO_CID =
   Components.ID("{a6c8416c-09b4-46d1-bf29-6520d677d085}");
 
 const RIL_IPC_MSG_NAMES = [
@@ -68,24 +68,24 @@ MobileConnectionInfo.prototype = {
   connected: false,
   emergencyCallsOnly: false,
   roaming: false,
-  network: null,
+  operator: null,
   type: null,
   signalStrength: null,
   relSignalStrength: null
 };
 
-function MobileNetworkInfo() {}
-MobileNetworkInfo.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozMobileNetworkInfo]),
-  classID:        MOBILENETWORKINFO_CID,
+function MobileOperatorInfo() {}
+MobileOperatorInfo.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozMobileOperatorInfo]),
+  classID:        MOBILEOPERATORINFO_CID,
   classInfo:      XPCOMUtils.generateCI({
-    classID:          MOBILENETWORKINFO_CID,
-    classDescription: "MobileNetworkInfo",
+    classID:          MOBILEOPERATORINFO_CID,
+    classDescription: "MobileOperatorInfo",
     flags:            Ci.nsIClassInfo.DOM_OBJECT,
-    interfaces:       [Ci.nsIDOMMozMobileNetworkInfo]
+    interfaces:       [Ci.nsIDOMMozMobileOperatorInfo]
   }),
 
-  // nsIDOMMozMobileNetworkInfo
+  // nsIDOMMozMobileOperatorInfo
 
   shortName: null,
   longName: null,
@@ -105,16 +105,18 @@ function RILContentHelper() {
   // Request initial state.
   let radioState = cpmm.QueryInterface(Ci.nsISyncMessageSender)
                        .sendSyncMessage("RIL:GetRadioState")[0];
-
   if (!radioState) {
     debug("Received null radioState from chrome process.");
     return;
   }
   this.cardState = radioState.cardState;
-  this.updateConnectionInfo(radioState.voice, this.voiceConnectionInfo);
-  this.updateConnectionInfo(radioState.data, this.dataConnectionInfo);
+  for (let key in radioState.voice) {
+    this.voiceConnectionInfo[key] = radioState.voice[key];
+  }
+  for (let key in radioState.data) {
+    this.dataConnectionInfo[key] = radioState.data[key];
+  }
 }
-
 RILContentHelper.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
 
@@ -126,30 +128,6 @@ RILContentHelper.prototype = {
                                     classDescription: "RILContentHelper",
                                     interfaces: [Ci.nsIMobileConnectionProvider,
                                                  Ci.nsIRILContentHelper]}),
-
-  updateConnectionInfo: function updateConnectionInfo(srcInfo, destInfo) {
-    for (let key in srcInfo) {
-      if (key != "network") {
-        destInfo[key] = srcInfo[key];
-      }
-    }
-
-    let srcNetwork = srcInfo.network;
-    if (!srcNetwork) {
-      destInfo.network= null;
-      return;
-    }
-
-    let network = destInfo.network;
-    if (!network) {
-      network = destInfo.network = new MobileNetworkInfo();
-    }
-
-    network.longName = srcNetwork.longName;
-    network.shortName = srcNetwork.shortName;
-    network.mnc = srcNetwork.mnc;
-    network.mcc = srcNetwork.mcc;
-  },
 
   // nsIRILContentHelper
 
@@ -326,36 +304,6 @@ RILContentHelper.prototype = {
 
   // nsIFrameMessageListener
 
-  fireRequestSuccess: function fireRequestSuccess(requestId, result) {
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      if (DEBUG) {
-        debug("not firing success for id: " + requestId + ", result: " + JSON.stringify(result));
-      }
-      return;
-    }
-
-    if (DEBUG) {
-      debug("fire request success, id: " + requestId + ", result: " + JSON.stringify(result));
-    }
-    Services.DOMRequest.fireSuccess(request, result);
-  },
-
-  fireRequestError: function fireRequestError(requestId, error) {
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      if (DEBUG) {
-        debug("not firing error for id: " + requestId + ", error: " + JSON.stringify(error));
-      }
-      return;
-    }
-
-    if (DEBUG) {
-      debug("fire request error, id: " + requestId + ", result: " + JSON.stringify(error));
-    }
-    Services.DOMRequest.fireError(request, error);
-  },
-
   receiveMessage: function receiveMessage(msg) {
     let request;
     debug("Received message '" + msg.name + "': " + JSON.stringify(msg.json));
@@ -367,11 +315,15 @@ RILContentHelper.prototype = {
         }
         break;
       case "RIL:VoiceInfoChanged":
-        this.updateConnectionInfo(msg.json, this.voiceConnectionInfo);
+        for (let key in msg.json) {
+          this.voiceConnectionInfo[key] = msg.json[key];
+        }
         Services.obs.notifyObservers(null, kVoiceChangedTopic, null);
         break;
       case "RIL:DataInfoChanged":
-        this.updateConnectionInfo(msg.json, this.dataConnectionInfo);
+        for (let key in msg.json) {
+          this.dataConnectionInfo[key] = msg.json[key];
+        }
         Services.obs.notifyObservers(null, kDataChangedTopic, null);
         break;
       case "RIL:EnumerateCalls":
@@ -393,12 +345,18 @@ RILContentHelper.prototype = {
       case "RIL:GetCardLock:Return:OK":
       case "RIL:SetCardLock:Return:OK":
       case "RIL:UnlockCardLock:Return:OK":
-        this.fireRequestSuccess(msg.json.requestId, msg.json);
+        request = this.takeRequest(msg.json.requestId);
+        if (request) {
+          Services.DOMRequest.fireSuccess(request, msg.json);
+        }
         break;
       case "RIL:GetCardLock:Return:KO":
       case "RIL:SetCardLock:Return:KO":
       case "RIL:UnlockCardLock:Return:KO":
-        this.fireRequestError(msg.json.requestId, msg.json.errorMsg);
+        request = this.takeRequest(msg.json.requestId);
+        if (request) {
+          Services.DOMRequest.fireError(request, msg.json.errorMsg);
+        }
         break;
       case "RIL:UssdReceived":
         Services.obs.notifyObservers(null, kUssdReceivedTopic,
@@ -461,7 +419,7 @@ RILContentHelper.prototype = {
     let networks = message.networks;
     for (let i = 0; i < networks.length; i++) {
       let network = networks[i];
-      let info = new MobileNetworkInfo();
+      let info = new MobileOperatorInfo();
 
       for (let key in network) {
         info[key] = network[key];

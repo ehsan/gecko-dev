@@ -10,12 +10,11 @@
 #include "nsCRT.h"
 #include "nsInterfaceHashtable.h"
 #include "nsIAtom.h"
-#include "mozilla/Attributes.h"
 
 #define NS_LANGUAGEATOMSERVICE_CID \
   {0xB7C65853, 0x2996, 0x435E, {0x96, 0x54, 0xDC, 0xC1, 0x78, 0xAA, 0xB4, 0x8C}}
 
-class nsLanguageAtomService MOZ_FINAL : public nsILanguageAtomService
+class nsLanguageAtomService : public nsILanguageAtomService
 {
 public:
   NS_DECL_ISUPPORTS

@@ -361,17 +361,16 @@ nsHTMLEditor::FindSelectionRoot(nsINode *aNode)
                   aNode->IsNodeOfType(nsINode::eCONTENT),
                   "aNode must be content or document node");
 
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
   nsCOMPtr<nsIDocument> doc = aNode->GetCurrentDoc();
   if (!doc) {
     return nsnull;
   }
 
-  nsCOMPtr<nsIContent> content;
-  if (doc->HasFlag(NODE_IS_EDITABLE) || !aNode->IsContent()) {
+  if (doc->HasFlag(NODE_IS_EDITABLE) || !content) {
     content = doc->GetRootElement();
     return content.forget();
   }
-  content = aNode->AsContent();
 
   // XXX If we have readonly flag, shouldn't return the element which has
   // contenteditable="true"?  However, such case isn't there without chrome
@@ -3397,8 +3396,8 @@ nsHTMLEditor::DeleteSelectionImpl(EDirection aAction,
   NS_ENSURE_STATE(selection->GetAnchorFocusRange());
   NS_ENSURE_STATE(selection->GetAnchorFocusRange()->Collapsed());
 
-  NS_ENSURE_STATE(selection->GetAnchorNode()->IsContent());
-  nsCOMPtr<nsIContent> content = selection->GetAnchorNode()->AsContent();
+  nsCOMPtr<nsIContent> content = do_QueryInterface(selection->GetAnchorNode());
+  NS_ENSURE_STATE(content);
 
   // Don't strip wrappers if this is the only wrapper in the block.  Then we'll
   // add a <br> later, so it won't be an empty wrapper in the end.

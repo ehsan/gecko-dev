@@ -11,7 +11,11 @@ import org.mozilla.gecko.sync.InfoCollections;
 import org.mozilla.gecko.sync.delegates.InfoCollectionsDelegate;
 import org.mozilla.gecko.sync.net.SyncStorageResponse;
 
+import android.util.Log;
+
 public class FetchInfoCollectionsStage extends AbstractNonRepositorySyncStage {
+  private static final String LOG_TAG = "FetchInfoCollStage";
+
   public FetchInfoCollectionsStage(GlobalSession session) {
     super(session);
   }
@@ -20,6 +24,9 @@ public class FetchInfoCollectionsStage extends AbstractNonRepositorySyncStage {
 
     @Override
     public void handleSuccess(InfoCollections global) {
+      Log.i(LOG_TAG, "Got timestamps: ");
+
+      // TODO: decide whether more work needs to be done?
       session.advance();
     }
 

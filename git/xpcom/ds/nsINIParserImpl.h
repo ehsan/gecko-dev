@@ -7,7 +7,6 @@
 
 #include "nsIINIParser.h"
 #include "nsIFactory.h"
-#include "mozilla/Attributes.h"
 
 #define NS_INIPARSERFACTORY_CID \
 { 0xdfac10a9, 0xdd24, 0x43cf, \
@@ -16,7 +15,7 @@
 #define NS_INIPARSERFACTORY_CONTRACTID \
   "@mozilla.org/xpcom/ini-parser-factory;1"
 
-class nsINIParserFactory MOZ_FINAL :
+class nsINIParserFactory :
   public nsIINIParserFactory,
   public nsIFactory
 {

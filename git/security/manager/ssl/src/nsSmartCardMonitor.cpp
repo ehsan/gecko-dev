@@ -325,8 +325,6 @@ const SECMODModule * SmartCardMonitoringThread::GetModule()
 // C-like calling sequence to glue into PR_CreateThread.
 void SmartCardMonitoringThread::LaunchExecute(void *arg)
 {
-  PR_SetCurrentThreadName("SmartCard");
-
   ((SmartCardMonitoringThread*)arg)->Execute();
 }
 

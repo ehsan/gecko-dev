@@ -16,7 +16,6 @@
 
 #include "prlog.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Attributes.h"
 
 #if defined(PR_LOGGING)
 static PRLogModuleInfo *gTimerLog = PR_NewLogModule("nsTimerImpl");
@@ -41,7 +40,7 @@ enum {
   CALLBACK_TYPE_OBSERVER  = 3
 };
 
-class nsTimerImpl MOZ_FINAL : public nsITimer
+class nsTimerImpl : public nsITimer
 {
 public:
   typedef mozilla::TimeStamp TimeStamp;

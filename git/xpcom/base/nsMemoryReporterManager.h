@@ -6,12 +6,11 @@
 #include "nsIMemoryReporter.h"
 #include "nsCOMArray.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/Attributes.h"
 #include "nsString.h"
 
 using mozilla::Mutex;
 
-class nsMemoryReporter MOZ_FINAL : public nsIMemoryReporter
+class nsMemoryReporter : public nsIMemoryReporter
 {
 public:
   NS_DECL_ISUPPORTS

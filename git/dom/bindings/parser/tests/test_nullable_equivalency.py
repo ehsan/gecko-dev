@@ -12,7 +12,15 @@ def WebIDLTest(parser, harness):
           attribute ArrayBuffer? b;
         };
 
-        /* Can't have dictionary-valued attributes, so can't test that here */
+        /* Not implemented */
+        /*dictionary TestNullableEquivalency3Dict {
+          long foo = 42;
+        };
+
+        interface TestNullableEquivalency3 {
+          attribute Test3Dict  a;
+          attribute Test3Dict? b;
+        };*/
 
         enum TestNullableEquivalency4Enum {
           "Foo",

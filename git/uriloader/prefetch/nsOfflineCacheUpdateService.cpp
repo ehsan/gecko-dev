@@ -40,7 +40,6 @@
 #include "prlog.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 
@@ -79,8 +78,8 @@ private:
 // nsOfflineCachePendingUpdate
 //-----------------------------------------------------------------------------
 
-class nsOfflineCachePendingUpdate MOZ_FINAL : public nsIWebProgressListener
-                                            , public nsSupportsWeakReference
+class nsOfflineCachePendingUpdate : public nsIWebProgressListener
+                                  , public nsSupportsWeakReference
 {
 public:
     NS_DECL_ISUPPORTS

@@ -2382,12 +2382,10 @@ nsHTMLEditRules::WillDeleteSelection(Selection* aSelection,
             // If something visible is deleted, no need to join.
             // Visible means all nodes except non-visible textnodes and breaks.
             if (join && origCollapsed) {
-              if (!somenode->IsContent()) {
+              nsCOMPtr<nsIContent> content = do_QueryInterface(somenode);
+              if (!content) {
                 join = false;
-                continue;
-              }
-              nsCOMPtr<nsIContent> content = somenode->AsContent();
-              if (content->NodeType() == nsIDOMNode::TEXT_NODE) {
+              } else if (content->NodeType() == nsIDOMNode::TEXT_NODE) {
                 mHTMLEditor->IsVisTextNode(content, &join, true);
               } else {
                 join = content->IsHTML(nsGkAtoms::br) &&

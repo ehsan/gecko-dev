@@ -34,7 +34,6 @@
 #include "nsTArray.h"
 
 #include "mozilla/Omnijar.h"
-#include "mozilla/Attributes.h"
 
 struct nsFactoryEntry;
 class nsIServiceManager;
@@ -69,7 +68,7 @@ struct nsLoaderdata {
     nsCString                 type;
 };
 
-class nsComponentManagerImpl MOZ_FINAL
+class nsComponentManagerImpl
     : public nsIComponentManager
     , public nsIServiceManager
     , public nsSupportsWeakReference

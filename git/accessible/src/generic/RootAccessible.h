@@ -15,6 +15,8 @@
 #include "nsIDocument.h"
 #include "nsIDOMEventListener.h"
 
+class Relation;
+
 namespace mozilla {
 namespace a11y {
 

@@ -227,9 +227,7 @@ WebGLContext::DestroyResourcesAndContext()
     // We just got rid of everything, so the context had better
     // have been going away.
 #ifdef DEBUG
-    if (gl->DebugMode()) {
-        printf_stderr("--- WebGL context destroyed: %p\n", gl.get());
-    }
+    printf_stderr("--- WebGL context destroyed: %p\n", gl.get());
 #endif
 
     gl = nsnull;
@@ -521,9 +519,7 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     }
 
 #ifdef DEBUG
-    if (gl->DebugMode()) {
-        printf_stderr("--- WebGL context created: %p\n", gl.get());
-    }
+    printf_stderr ("--- WebGL context created: %p\n", gl.get());
 #endif
 
     mWidth = width;

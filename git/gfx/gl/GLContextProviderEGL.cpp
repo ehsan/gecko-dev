@@ -436,17 +436,16 @@ public:
 #else
     virtual bool
     RenewSurface() {
-        sEGLLibrary.fMakeCurrent(EGL_DISPLAY(), EGL_NO_SURFACE, EGL_NO_SURFACE,
-                                 EGL_NO_CONTEXT);
-        if (!mSurface) {
+        ReleaseSurface();
+        EGLConfig config;
+
 #ifdef MOZ_JAVA_COMPOSITOR
-            mSurface = mozilla::AndroidBridge::Bridge()->ProvideEGLSurface();
+        mSurface = mozilla::AndroidBridge::Bridge()->ProvideEGLSurface();
 #else
-            EGLConfig config;
-            CreateConfig(&config);
-            mSurface = CreateSurfaceForWindow(NULL, config);
+        CreateConfig(&config);
+        mSurface = CreateSurfaceForWindow(NULL, config);
 #endif
-        }
+
         return sEGLLibrary.fMakeCurrent(EGL_DISPLAY(),
                                         mSurface, mSurface,
                                         mContext);
@@ -776,7 +775,7 @@ public:
         , mSurface(nsnull)
         , mConfig(nsnull)
         , mTexture(aTexture)
-        , mEGLImage(nsnull)
+        , mImageKHR(nsnull)
         , mTextureState(Created)
         , mBound(false)
         , mIsLocked(false)
@@ -1104,7 +1103,7 @@ public:
             LOCAL_EGL_NONE
         };
 
-        sEGLLibrary.fLockSurface(EGL_DISPLAY(), mSurface, lock_attribs);
+        sEGLLibrary.fLockSurfaceKHR(EGL_DISPLAY(), mSurface, lock_attribs);
 
         mIsLocked = true;
 
@@ -1132,7 +1131,7 @@ public:
             return;
         }
 
-        sEGLLibrary.fUnlockSurface(EGL_DISPLAY(), mSurface);
+        sEGLLibrary.fUnlockSurfaceKHR(EGL_DISPLAY(), mSurface);
         mIsLocked = false;
     }
 
@@ -1202,21 +1201,21 @@ public:
         mConfig = nsnull;
 
         if (sEGLLibrary.HasKHRImagePixmap() && sEGLLibrary.HasKHRImageTexture2D()) {
-            mEGLImage =
-                sEGLLibrary.fCreateImage(EGL_DISPLAY(),
-                                         EGL_NO_CONTEXT,
-                                         LOCAL_EGL_NATIVE_PIXMAP_KHR,
-                                         (EGLClientBuffer)xsurface->XDrawable(),
-                                         nsnull);
+            mImageKHR =
+                sEGLLibrary.fCreateImageKHR(EGL_DISPLAY(),
+                                            EGL_NO_CONTEXT,
+                                            LOCAL_EGL_NATIVE_PIXMAP_KHR,
+                                            (EGLClientBuffer)xsurface->XDrawable(),
+                                            NULL);
 
-            if (!mEGLImage) {
+            if (!mImageKHR) {
                 printf_stderr("couldn't create EGL image: ERROR (0x%04x)\n", sEGLLibrary.fGetError());
                 return false;
             }
             mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
-            mGLContext->fImageTargetTexture2D(LOCAL_GL_TEXTURE_2D, mEGLImage);
-            sEGLLibrary.fDestroyImage(EGL_DISPLAY(), mEGLImage);
-            mEGLImage = nsnull;
+            sEGLLibrary.fImageTargetTexture2DOES(LOCAL_GL_TEXTURE_2D, mImageKHR);
+            sEGLLibrary.fDestroyImageKHR(EGL_DISPLAY(), mImageKHR);
+            mImageKHR = NULL;
         } else {
             if (!CreateEGLSurface(xsurface)) {
                 printf_stderr("ProviderEGL Failed create EGL surface: ERROR (0x%04x)\n", sEGLLibrary.fGetError());
@@ -1247,7 +1246,7 @@ protected:
     EGLSurface mSurface;
     EGLConfig mConfig;
     GLuint mTexture;
-    EGLImage mEGLImage;
+    EGLImageKHR mImageKHR;
     TextureState mTextureState;
 
     bool mBound;

@@ -13,11 +13,8 @@
 #include "nsEventQueue.h"
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
-#include "nsThreadUtils.h"
-#include "mozilla/Attributes.h"
 
-class nsThreadPool MOZ_FINAL : public nsIThreadPool,
-                               public nsIRunnable
+class nsThreadPool : public nsIThreadPool, public nsIRunnable
 {
 public:
   NS_DECL_ISUPPORTS
@@ -41,8 +38,6 @@ private:
   PRUint32              mIdleCount;
   nsCOMPtr<nsIThreadPoolListener> mListener;
   bool                  mShutdown;
-  nsCString             mName;
-  nsThreadPoolNaming    mThreadNaming;
 };
 
 #define NS_THREADPOOL_CLASSNAME "nsThreadPool"

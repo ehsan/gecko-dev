@@ -447,17 +447,23 @@ XULTreeGridAccessible::IsCellSelected(PRInt32 aRowIndex, PRInt32 aColumnIndex,
   return IsRowSelected(aRowIndex, aIsSelected);
 }
 
-void
-XULTreeGridAccessible::SelectRow(PRUint32 aRowIdx)
+NS_IMETHODIMP
+XULTreeGridAccessible::SelectRow(PRInt32 aRowIndex)
 {
   if (!mTreeView)
-    return;
+    return NS_ERROR_INVALID_ARG;
 
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
-  NS_ASSERTION(selection, "GetSelection() Shouldn't fail!");
+  NS_ENSURE_STATE(selection);
 
-  selection->Select(aRowIdx);
+  return selection->Select(aRowIndex);
+}
+
+NS_IMETHODIMP
+XULTreeGridAccessible::SelectColumn(PRInt32 aColumnIndex)
+{
+  return NS_OK;
 }
 
 void

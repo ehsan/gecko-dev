@@ -7,6 +7,8 @@ package org.mozilla.gecko.sync.synchronizer;
 import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.repositories.domain.Record;
 
+import android.util.Log;
+
 /**
  * Consume records from a queue inside a RecordsChannel, as fast as we can.
  * TODO: rewrite this in terms of an ExecutorService and a CompletionService.
@@ -104,7 +106,7 @@ class ConcurrentRecordConsumer extends RecordConsumer {
           delegate.store(record);
         } catch (Exception e) {
           // TODO: Bug 709371: track records that failed to apply.
-          Logger.error(LOG_TAG, "Caught error in store.", e);
+          Log.e(LOG_TAG, "Caught error in store.", e);
         }
         trace("Done with record.");
       }

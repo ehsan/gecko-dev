@@ -25,7 +25,6 @@ public:
     : nsGenericHTMLElement(aNodeInfo)
     , mNetworkCreated(aFromParser == mozilla::dom::FROM_PARSER_NETWORK)
     , mBrowserFrameListenersRegistered(false)
-    , mFrameLoaderCreationDisallowed(false)
   {
   }
 
@@ -100,5 +99,4 @@ protected:
   bool                    mNetworkCreated;
 
   bool                    mBrowserFrameListenersRegistered;
-  bool                    mFrameLoaderCreationDisallowed;
 };

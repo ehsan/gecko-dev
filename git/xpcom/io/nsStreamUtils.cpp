@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Mutex.h"
-#include "mozilla/Attributes.h"
 #include "nsStreamUtils.h"
 #include "nsCOMPtr.h"
 #include "nsIPipe.h"
@@ -17,8 +16,8 @@ using namespace mozilla;
 
 //-----------------------------------------------------------------------------
 
-class nsInputStreamReadyEvent MOZ_FINAL : public nsIRunnable
-                                        , public nsIInputStreamCallback
+class nsInputStreamReadyEvent : public nsIRunnable
+                              , public nsIInputStreamCallback
 {
 public:
     NS_DECL_ISUPPORTS
@@ -96,8 +95,8 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsInputStreamReadyEvent, nsIRunnable,
 
 //-----------------------------------------------------------------------------
 
-class nsOutputStreamReadyEvent MOZ_FINAL : public nsIRunnable
-                                         , public nsIOutputStreamCallback
+class nsOutputStreamReadyEvent : public nsIRunnable
+                               , public nsIOutputStreamCallback
 {
 public:
     NS_DECL_ISUPPORTS
@@ -464,7 +463,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(nsAStreamCopier,
                               nsIOutputStreamCallback,
                               nsIRunnable)
 
-class nsStreamCopierIB MOZ_FINAL : public nsAStreamCopier
+class nsStreamCopierIB : public nsAStreamCopier
 {
 public:
     nsStreamCopierIB() : nsAStreamCopier() {}
@@ -507,7 +506,7 @@ public:
     }
 };
 
-class nsStreamCopierOB MOZ_FINAL : public nsAStreamCopier
+class nsStreamCopierOB : public nsAStreamCopier
 {
 public:
     nsStreamCopierOB() : nsAStreamCopier() {}

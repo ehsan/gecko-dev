@@ -34,7 +34,6 @@ public:
   virtual PRUint32 ColCount();
   virtual PRUint32 RowCount();
   virtual Accessible* CellAt(PRUint32 aRowIndex, PRUint32 aColumnIndex);
-  virtual void SelectRow(PRUint32 aRowIdx);
   virtual void UnselectRow(PRUint32 aRowIdx);
 
   // nsAccessNode

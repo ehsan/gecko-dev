@@ -163,7 +163,6 @@ public:
   static void MaybePokeCC();
   static void KillCCTimer();
   static void KillFullGCTimer();
-  static void KillInterSliceGCTimer();
 
   virtual void GC(js::gcreason::Reason aReason);
 

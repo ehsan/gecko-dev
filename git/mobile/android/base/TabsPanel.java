@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import android.content.Context;
 import android.util.AttributeSet;
-import android.util.DisplayMetrics;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.view.LayoutInflater;
@@ -30,6 +29,7 @@ public class TabsPanel extends LinearLayout {
 
     public static interface PanelView {
         public ViewGroup getLayout();
+        public void setHeightRestriction(boolean isRestricted);
         public void show();
         public void hide();
     }
@@ -40,7 +40,6 @@ public class TabsPanel extends LinearLayout {
 
     private Context mContext;
     private PanelView mPanel;
-    private LinearLayout mListContainer;
     private TabsLayoutChangeListener mLayoutChangeListener;
 
     private static ImageButton mRemoteTabs;
@@ -48,6 +47,7 @@ public class TabsPanel extends LinearLayout {
 
     private Panel mCurrentPanel;
     private boolean mVisible;
+    private boolean mHeightRestricted;
 
     private static final int REMOTE_TABS_HIDDEN = 1;
     private static final int REMOTE_TABS_SHOWN = 2;
@@ -61,6 +61,7 @@ public class TabsPanel extends LinearLayout {
 
         mCurrentPanel = Panel.LOCAL_TABS;
         mVisible = false;
+        mHeightRestricted = GeckoApp.mAppContext.isTablet() ? false : true;
 
         mTitle = (TextView) findViewById(R.id.title);
         ImageButton addTab = (ImageButton) findViewById(R.id.add_tab);
@@ -80,36 +81,14 @@ public class TabsPanel extends LinearLayout {
                     GeckoApp.mAppContext.showRemoteTabs();
             }
         });
-
-        mListContainer = (LinearLayout) findViewById(R.id.list_container);
-    }
-
-    // Tabs List Container holds the ListView
-    public static class TabsListContainer extends LinearLayout {
-        public TabsListContainer(Context context, AttributeSet attrs) {
-            super(context, attrs);
-        }
-
-        @Override
-        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            if (!GeckoApp.mAppContext.isTablet()) {
-                DisplayMetrics metrics = new DisplayMetrics();
-                GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
-
-                int height = (int) (0.5 * metrics.heightPixels);
-                int heightSpec = MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY);
-                super.onMeasure(widthMeasureSpec, heightSpec);
-            } else {
-                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-            }
-        }
     }
 
     public void show(Panel panel) {
         if (mPanel != null) {
             // Remove the old panel.
             mPanel.hide();
-            mListContainer.removeAllViews();
+            if (getChildCount() == 2)
+                removeViewAt(1);
         }
 
         mVisible = true;
@@ -126,16 +105,13 @@ public class TabsPanel extends LinearLayout {
             mRemoteTabs.setImageLevel(REMOTE_TABS_SHOWN);
         }
 
+        mPanel.setHeightRestriction(mHeightRestricted);
         mPanel.show();
-        mListContainer.addView(mPanel.getLayout());
+        addView(mPanel.getLayout(), 1);
 
-        if (GeckoApp.mAppContext.isTablet()) {
-            dispatchLayoutChange(getWidth(), getHeight());
-        } else {
-            int actionBarHeight = (int) (mContext.getResources().getDimension(R.dimen.browser_toolbar_height));
-            int height = actionBarHeight + mListContainer.getHeight(); 
-            dispatchLayoutChange(getWidth(), height);
-        }
+        // Tablet has fixed sized panel, hence we need to inform when we show.
+        // Phones can be informed too. But the list wouldn't have been inflated by now.
+        dispatchLayoutChange(getWidth(), getHeight());
 
         // If Sync is set up, query the database for remote clients.
         final Context context = mContext;
@@ -157,17 +133,21 @@ public class TabsPanel extends LinearLayout {
     }
 
     public void hide() {
-        if (mVisible) {
-            mVisible = false;
-            dispatchLayoutChange(0, 0);
-        }
+        mVisible = false;
+        dispatchLayoutChange(0, 0);
+    }
+
+    @Override
+    public void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
+        // This is used only for sliding action on phones.
+        // Tablets have a fixed size pane, hence this should be done while showing.
+        if (mVisible)
+            dispatchLayoutChange(width, height);
     }
 
     public void refresh() {
-        if (mVisible) {
-            mListContainer.requestLayout();
+        if (mVisible)
             show(mCurrentPanel);
-        }
     }
 
     @Override

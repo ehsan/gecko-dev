@@ -12,7 +12,6 @@
 #include "nsAutoPtr.h"
 #include "nsCRT.h"
 #include "nsUTF8Utils.h"
-#include "mozilla/Attributes.h"
 #include <fcntl.h>
 #if defined(XP_WIN)
 #include <io.h>
@@ -22,7 +21,7 @@
 
 #define STRING_BUFFER_SIZE 8192
 
-class StringUnicharInputStream MOZ_FINAL : public nsIUnicharInputStream {
+class StringUnicharInputStream : public nsIUnicharInputStream {
 public:
   StringUnicharInputStream(const nsAString& aString) :
     mString(aString), mPos(0), mLen(aString.Length()) { }
@@ -121,7 +120,7 @@ NS_IMPL_ISUPPORTS1(StringUnicharInputStream, nsIUnicharInputStream)
 
 //----------------------------------------------------------------------
 
-class UTF8InputStream MOZ_FINAL : public nsIUnicharInputStream {
+class UTF8InputStream : public nsIUnicharInputStream {
 public:
   UTF8InputStream();
   nsresult Init(nsIInputStream* aStream);

@@ -165,7 +165,7 @@ NS_NewSingletonEnumerator(nsISimpleEnumerator* *result,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsUnionEnumerator MOZ_FINAL : public nsISimpleEnumerator
+class nsUnionEnumerator : public nsISimpleEnumerator
 {
 public:
     NS_DECL_ISUPPORTS

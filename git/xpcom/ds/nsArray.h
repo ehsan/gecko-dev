@@ -10,7 +10,6 @@
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
-#include "mozilla/Attributes.h"
 
 #define NS_ARRAY_CLASSNAME \
   "nsIArray implementation"
@@ -37,12 +36,12 @@ public:
     NS_DECL_NSIMUTABLEARRAY
 
 protected:
-    virtual ~nsArray(); // nsArrayCC inherits from this
+    ~nsArray();
 
     nsCOMArray_base mArray;
 };
 
-class nsArrayCC MOZ_FINAL : public nsArray
+class nsArrayCC : public nsArray
 {
 public:
     nsArrayCC() : nsArray() { }

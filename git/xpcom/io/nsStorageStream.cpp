@@ -21,7 +21,6 @@
 #include "nsIInputStream.h"
 #include "nsISeekableStream.h"
 #include "prlog.h"
-#include "mozilla/Attributes.h"
 
 #if defined(PR_LOGGING)
 //
@@ -299,8 +298,8 @@ nsStorageStream::Seek(PRInt32 aPosition)
 ////////////////////////////////////////////////////////////////////////////////
 
 // There can be many nsStorageInputStreams for a single nsStorageStream
-class nsStorageInputStream MOZ_FINAL : public nsIInputStream
-                                     , public nsISeekableStream
+class nsStorageInputStream : public nsIInputStream
+                           , public nsISeekableStream
 {
 public:
     nsStorageInputStream(nsStorageStream *aStorageStream, PRUint32 aSegmentSize)

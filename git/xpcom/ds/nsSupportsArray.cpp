@@ -648,7 +648,7 @@ NS_NewISupportsArray(nsISupportsArray** aInstancePtrResult)
   return rv;
 }
 
-class nsArrayEnumerator MOZ_FINAL : public nsISimpleEnumerator
+class nsArrayEnumerator : public nsISimpleEnumerator
 {
 public:
     // nsISupports interface

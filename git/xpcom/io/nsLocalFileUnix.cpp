@@ -8,7 +8,6 @@
  */
 
 #include "mozilla/Util.h"
-#include "mozilla/Attributes.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -98,8 +97,8 @@ using namespace mozilla;
 
 /* directory enumerator */
 class
-nsDirEnumeratorUnix MOZ_FINAL : public nsISimpleEnumerator,
-                                public nsIDirectoryEnumerator
+nsDirEnumeratorUnix : public nsISimpleEnumerator,
+                      public nsIDirectoryEnumerator
 {
     public:
     nsDirEnumeratorUnix();

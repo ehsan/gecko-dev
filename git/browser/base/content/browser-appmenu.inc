@@ -162,7 +162,7 @@
                     key="key_inspect"/>
           <menuitem id="appmenu_responsiveUI"
                     hidden="true"
-                    label="&responsiveDesignTool.label;"
+                    label="&responsiveUI.label;"
                     type="checkbox"
                     command="Tools:ResponsiveUI"
                     key="key_responsiveUI"/>

@@ -5,7 +5,6 @@
 
 #include "nsIDirectoryService.h"
 #include "nsIFile.h"
-#include "mozilla/Attributes.h"
 
 class nsIFile;
 
@@ -13,7 +12,7 @@ class nsIFile;
 // class nsAppFileLocationProvider
 //*****************************************************************************   
 
-class nsAppFileLocationProvider MOZ_FINAL : public nsIDirectoryServiceProvider2
+class nsAppFileLocationProvider : public nsIDirectoryServiceProvider2
 {
 public:
                         nsAppFileLocationProvider();

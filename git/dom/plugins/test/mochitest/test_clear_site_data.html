@@ -21,7 +21,6 @@
     p.setSitesWithDataCapabilities(true);
 
     ok(PluginUtils.withTestPlugin(runTest), "Test plugin found");
-    SimpleTest.finish();
 
     function stored(needles) {
       var something = pluginHost.siteHasData(this.pluginTag, null);
@@ -192,6 +191,8 @@
       ok(!stored(["b\u00FCcher.nz"]), "Data cleared for UTF-8 representation");
       ok(!stored(["xn--bcher-kva.nz"]), "Data cleared for ACE representation");
       ok(!stored(null), "All data cleared");
+
+      SimpleTest.finish();
     }
   </script>
 </body>

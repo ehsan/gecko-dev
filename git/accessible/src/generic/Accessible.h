@@ -28,6 +28,7 @@ class KeyBinding;
 class Accessible;
 class HyperTextAccessible;
 struct nsRoleMapEntry;
+class Relation;
 
 namespace mozilla {
 namespace a11y {
@@ -35,7 +36,6 @@ namespace a11y {
 class HTMLImageMapAccessible;
 class HTMLLIAccessible;
 class ImageAccessible;
-class Relation;
 class TableAccessible;
 class TextLeafAccessible;
 class XULTreeAccessible;
@@ -306,7 +306,7 @@ public:
   /**
    * Get the relation of the given type.
    */
-  virtual mozilla::a11y::Relation RelationByType(PRUint32 aType);
+  virtual Relation RelationByType(PRUint32 aType);
 
   //////////////////////////////////////////////////////////////////////////////
   // Initializing methods
@@ -689,11 +689,6 @@ public:
    */
   bool IsDefunct() const { return mFlags & eIsDefunct; }
 
-  /**
-   * Return true if the accessible is no longer in the document.
-   */
-  bool IsInDocument() const { return !(mFlags & eIsNotInDocument); }
-
 protected:
 
   //////////////////////////////////////////////////////////////////////////////
@@ -742,8 +737,7 @@ protected:
    * @note keep these flags in sync with ChildrenFlags
    */
   enum StateFlags {
-    eIsDefunct = 1 << 2, // accessible is defunct
-    eIsNotInDocument = 1 << 3 // accessible is not in document
+    eIsDefunct = 1 << 2 // accessible is defunct
   };
 
   /**
@@ -751,22 +745,22 @@ protected:
    * @note keep these flags in sync with ChildrenFlags and StateFlags
    */
   enum AccessibleTypes {
-    eApplicationAccessible = 1 << 4,
-    eAutoCompleteAccessible = 1 << 5,
-    eAutoCompletePopupAccessible = 1 << 6,
-    eComboboxAccessible = 1 << 7,
-    eDocAccessible = 1 << 8,
-    eHyperTextAccessible = 1 << 9,
-    eHTMLFileInputAccessible = 1 << 10,
-    eHTMLListItemAccessible = 1 << 11,
-    eImageAccessible = 1 << 12,
-    eImageMapAccessible = 1 << 13,
-    eListControlAccessible = 1 << 14,
-    eMenuButtonAccessible = 1 << 15,
-    eMenuPopupAccessible = 1 << 16,
-    eRootAccessible = 1 << 17,
-    eTextLeafAccessible = 1 << 18,
-    eXULTreeAccessible = 1 << 19
+    eApplicationAccessible = 1 << 3,
+    eAutoCompleteAccessible = 1 << 4,
+    eAutoCompletePopupAccessible = 1 << 5,
+    eComboboxAccessible = 1 << 6,
+    eDocAccessible = 1 << 7,
+    eHyperTextAccessible = 1 << 8,
+    eHTMLFileInputAccessible = 1 << 9,
+    eHTMLListItemAccessible = 1 << 10,
+    eImageAccessible = 1 << 11,
+    eImageMapAccessible = 1 << 12,
+    eListControlAccessible = 1 << 13,
+    eMenuButtonAccessible = 1 << 14,
+    eMenuPopupAccessible = 1 << 15,
+    eRootAccessible = 1 << 16,
+    eTextLeafAccessible = 1 << 17,
+    eXULTreeAccessible = 1 << 18
   };
 
   //////////////////////////////////////////////////////////////////////////////
@@ -877,7 +871,6 @@ protected:
     eChildrenUninitialized | eMixedChildren | eEmbeddedChildren;
 
   PRUint32 mFlags;
-  friend class DocAccessible;
 
   nsAutoPtr<EmbeddedObjCollector> mEmbeddedObjCollector;
   PRInt32 mIndexOfEmbeddedChild;

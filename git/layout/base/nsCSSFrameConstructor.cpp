@@ -3151,8 +3151,6 @@ nsCSSFrameConstructor::ConstructFieldSetFrame(nsFrameConstructorState& aState,
   // Set the outer frame's initial child list
   newFrame->SetInitialChildList(kPrincipalList, fieldsetKids);
 
-  newFrame->AddStateBits(NS_FRAME_MAY_HAVE_GENERATED_CONTENT);
-
   // our new frame returned is the top frame which is the list frame. 
   *aNewFrame = newFrame; 
 

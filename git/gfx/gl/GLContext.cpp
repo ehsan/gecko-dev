@@ -41,7 +41,7 @@ const ContextFormat ContextFormat::BasicRGBA32Format(ContextFormat::BasicRGBA32)
 #define MAX_SYMBOL_LENGTH 128
 #define MAX_SYMBOL_NAMES 5
 
-// should match the order of GLExtensions, and be null-terminated.
+// should match the order of GLExtensions
 static const char *sExtensionNames[] = {
     "GL_EXT_framebuffer_object",
     "GL_ARB_framebuffer_object",
@@ -74,9 +74,7 @@ static const char *sExtensionNames[] = {
     "GL_ARB_robustness",
     "GL_EXT_robustness",
     "GL_ARB_sync",
-    "GL_OES_EGL_image",
-    "GL_OES_EGL_sync",
-    nsnull
+    NULL
 };
 
 /*
@@ -313,24 +311,10 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         }
     }
 
-#ifdef DEBUG
-    if (PR_GetEnv("MOZ_GL_DEBUG"))
-        sDebugMode |= DebugEnabled;
-
-    // enables extra verbose output, informing of the start and finish of every GL call.
-    // useful e.g. to record information to investigate graphics system crashes/lockups
-    if (PR_GetEnv("MOZ_GL_DEBUG_VERBOSE"))
-        sDebugMode |= DebugTrace;
-
-    // aborts on GL error. Can be useful to debug quicker code that is known not to generate any GL error in principle.
-    if (PR_GetEnv("MOZ_GL_DEBUG_ABORT_ON_ERROR"))
-        sDebugMode |= DebugAbortOnError;
-#endif
-
     if (mInitialized) {
 #ifdef DEBUG
         static bool once = false;
-        if (DebugMode() && !once) {
+        if (!once) {
             const char *vendors[VendorOther] = {
                 "Intel",
                 "NVIDIA",
@@ -463,20 +447,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 mSymbols.fGetSynciv = nsnull;
             }
         }
-
-        if (IsExtensionSupported(OES_EGL_image)) {
-            SymLoadStruct imageSymbols[] = {
-                { (PRFuncPtr*) &mSymbols.fImageTargetTexture2D, { "glEGLImageTargetTexture2DOES", nsnull } },
-                { nsnull, { nsnull } },
-            };
-
-            if (!LoadSymbols(&imageSymbols[0], trygl, prefix)) {
-                NS_ERROR("GL supports ARB_sync without supplying its functions.");
-
-                MarkExtensionUnsupported(OES_EGL_image);
-                mSymbols.fImageTargetTexture2D = nsnull;
-            }
-        }
        
         // Load developer symbols, don't fail if we can't find them.
         SymLoadStruct auxSymbols[] = {
@@ -516,6 +486,20 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         UpdateActualFormat();
     }
 
+#ifdef DEBUG
+    if (PR_GetEnv("MOZ_GL_DEBUG"))
+        sDebugMode |= DebugEnabled;
+
+    // enables extra verbose output, informing of the start and finish of every GL call.
+    // useful e.g. to record information to investigate graphics system crashes/lockups
+    if (PR_GetEnv("MOZ_GL_DEBUG_VERBOSE"))
+        sDebugMode |= DebugTrace;
+
+    // aborts on GL error. Can be useful to debug quicker code that is known not to generate any GL error in principle.
+    if (PR_GetEnv("MOZ_GL_DEBUG_ABORT_ON_ERROR"))
+        sDebugMode |= DebugAbortOnError;
+#endif
+
     if (mInitialized)
         reporter.SetSuccessful();
     else {
@@ -531,25 +515,50 @@ void
 GLContext::InitExtensions()
 {
     MakeCurrent();
-    const char* extensions = (const char*)fGetString(LOCAL_GL_EXTENSIONS);
+    const GLubyte *extensions = fGetString(LOCAL_GL_EXTENSIONS);
     if (!extensions)
         return;
 
+    char *exts = strdup((char *)extensions);
+
 #ifdef DEBUG
-    // If DEBUG, then be verbose the first time we're run.
-    static bool firstVerboseRun = true;
+    static bool once = false;
 #else
-    // Non-DEBUG, so never spew.
-    const bool firstVerboseRun = false;
+    const bool once = true;
 #endif
 
-    mAvailableExtensions.Load(extensions, sExtensionNames, firstVerboseRun);
+    if (!once) {
+        printf_stderr("GL extensions: %s\n", exts);
+    }
+
+    char *s = exts;
+    bool done = false;
+    while (!done) {
+        char *space = strchr(s, ' ');
+        if (space) {
+            *space = '\0';
+        } else {
+            done = true;
+        }
+
+        for (int i = 0; sExtensionNames[i]; ++i) {
+            if (strcmp(s, sExtensionNames[i]) == 0) {
+                if (!once) {
+                    printf_stderr("Found extension %s\n", s);
+                }
+                mAvailableExtensions[i] = 1;
+            }
+        }
+
+        s = space+1;
+    }
+
+    free(exts);
 
 #ifdef DEBUG
-    firstVerboseRun = false;
+    once = true;
 #endif
 }
-
 
 // Take texture data in a given buffer and copy it into a larger buffer,
 // padding out the edge pixels for filtering if necessary
@@ -1496,9 +1505,7 @@ GLContext::AssembleOffscreenFBOs(const GLuint colorMSRB,
     if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
         NS_WARNING("DrawFBO: Incomplete");
   #ifdef DEBUG
-        if (DebugMode()) {
-            printf_stderr("Framebuffer status: %X\n", status);
-        }
+        printf_stderr("Framebuffer status: %X\n", status);
   #endif
         isComplete = false;
     }
@@ -1508,9 +1515,7 @@ GLContext::AssembleOffscreenFBOs(const GLuint colorMSRB,
     if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
         NS_WARNING("ReadFBO: Incomplete");
   #ifdef DEBUG
-        if (DebugMode()) {
-            printf_stderr("Framebuffer status: %X\n", status);
-        }
+        printf_stderr("Framebuffer status: %X\n", status);
   #endif
         isComplete = false;
     }
@@ -3033,21 +3038,19 @@ ReportArrayContents(const nsTArray<GLContext::NamedResource>& aArray)
 void
 GLContext::ReportOutstandingNames()
 {
-    if (DebugMode()) {
-        printf_stderr("== GLContext %p ==\n", this);
-        printf_stderr("Outstanding Textures:\n");
-        ReportArrayContents(mTrackedTextures);
-        printf_stderr("Outstanding Buffers:\n");
-        ReportArrayContents(mTrackedBuffers);
-        printf_stderr("Outstanding Programs:\n");
-        ReportArrayContents(mTrackedPrograms);
-        printf_stderr("Outstanding Shaders:\n");
-        ReportArrayContents(mTrackedShaders);
-        printf_stderr("Outstanding Framebuffers:\n");
-        ReportArrayContents(mTrackedFramebuffers);
-        printf_stderr("Outstanding Renderbuffers:\n");
-        ReportArrayContents(mTrackedRenderbuffers);
-    }
+    printf_stderr("== GLContext %p ==\n", this);
+    printf_stderr("Outstanding Textures:\n");
+    ReportArrayContents(mTrackedTextures);
+    printf_stderr("Outstanding Buffers:\n");
+    ReportArrayContents(mTrackedBuffers);
+    printf_stderr("Outstanding Programs:\n");
+    ReportArrayContents(mTrackedPrograms);
+    printf_stderr("Outstanding Shaders:\n");
+    ReportArrayContents(mTrackedShaders);
+    printf_stderr("Outstanding Framebuffers:\n");
+    ReportArrayContents(mTrackedFramebuffers);
+    printf_stderr("Outstanding Renderbuffers:\n");
+    ReportArrayContents(mTrackedRenderbuffers);
 }
 
 #endif /* DEBUG */

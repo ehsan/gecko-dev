@@ -42,7 +42,6 @@ class Configuration:
             descriptor.uniqueImplementation = len(otherDescriptors) == 1
 
         self.enums = [e for e in parseData if e.isEnum()]
-        self.dictionaries = [d for d in parseData if d.isDictionary()]
 
         # Keep the descriptor list sorted for determinism.
         self.descriptors.sort(lambda x,y: cmp(x.name, y.name))
@@ -73,8 +72,6 @@ class Configuration:
         return curr
     def getEnums(self, webIDLFile):
         return filter(lambda e: e.filename() == webIDLFile, self.enums)
-    def getDictionaries(self, webIDLFile):
-        return filter(lambda d: d.filename() == webIDLFile, self.dictionaries)
 
 class Descriptor:
     """

@@ -11,7 +11,6 @@
 #include "nsIVariant.h"
 #include "nsIProperty.h"
 #include "nsVariant.h"
-#include "mozilla/Attributes.h"
 
 nsresult
 NS_NewHashPropertyBag(nsIWritablePropertyBag* *_retval)
@@ -111,7 +110,7 @@ nsHashPropertyBag::DeleteProperty(const nsAString& name)
 // nsSimpleProperty class and impl; used for GetEnumerator
 //
 
-class nsSimpleProperty MOZ_FINAL : public nsIProperty {
+class nsSimpleProperty : public nsIProperty {
 public:
     nsSimpleProperty(const nsAString& aName, nsIVariant* aValue)
         : mName(aName), mValue(aValue)

@@ -313,8 +313,7 @@ class CGHeaders(CGWrapper):
     """
     Generates the appropriate include statements.
     """
-    def __init__(self, descriptors, dictionaries, declareIncludes,
-                 defineIncludes, child):
+    def __init__(self, descriptors, declareIncludes, defineIncludes, child):
         """
         Builds a set of includes to cover |descriptors|.
 
@@ -330,7 +329,7 @@ class CGHeaders(CGWrapper):
                 ancestors.append(iface.parent)
                 iface = iface.parent
         interfaceDeps.extend(ancestors)
-        bindingIncludes = set(self.getDeclarationFilename(d) for d in interfaceDeps)
+        bindingIncludes = set(self.getInterfaceFilename(d) for d in interfaceDeps)
 
         # Grab all the implementation declaration files we need.
         implementationIncludes = set(d.headerFile for d in descriptors)
@@ -360,30 +359,22 @@ class CGHeaders(CGWrapper):
                         typeDesc = d.getDescriptor(t.unroll().inner.identifier.name)
                         if typeDesc is not None:
                             implementationIncludes.add(typeDesc.headerFile)
-                            bindingHeaders.add(self.getDeclarationFilename(typeDesc.interface))
-                elif t.unroll().isDictionary():
-                    bindingHeaders.add(self.getDeclarationFilename(t.unroll().inner))
-
-        declareIncludes = set(declareIncludes)
-        for d in dictionaries:
-            if d.parent:
-                declareIncludes.add(self.getDeclarationFilename(d.parent))
-            bindingHeaders.add(self.getDeclarationFilename(d))
+                            bindingHeaders.add(self.getInterfaceFilename(typeDesc.interface))
 
         # Let the machinery do its thing.
         def _includeString(includes):
             return ''.join(['#include "%s"\n' % i for i in includes]) + '\n'
         CGWrapper.__init__(self, child,
-                           declarePre=_includeString(sorted(declareIncludes)),
+                           declarePre=_includeString(declareIncludes),
                            definePre=_includeString(sorted(set(defineIncludes) |
                                                            bindingIncludes |
                                                            bindingHeaders |
                                                            implementationIncludes)))
     @staticmethod
-    def getDeclarationFilename(decl):
+    def getInterfaceFilename(interface):
         # Use our local version of the header, not the exported one, so that
         # test bindings, which don't export, will work correctly.
-        basename = os.path.basename(decl.filename())
+        basename = os.path.basename(interface.filename())
         return basename.replace('.webidl', 'Binding.h')
 
 class Argument():
@@ -1309,7 +1300,7 @@ ${target} = tmp.forget();""").substitute(self.substitution)
 
 def getJSToNativeConversionTemplate(type, descriptorProvider, failureCode=None,
                                     isDefinitelyObject=False,
-                                    isMember=False,
+                                    isSequenceMember=False,
                                     isOptional=False):
     """
     Get a template for converting a JS value to a native object based on the
@@ -1324,9 +1315,7 @@ def getJSToNativeConversionTemplate(type, descriptorProvider, failureCode=None,
     If isDefinitelyObject is True, that means we know the value
     isObject() and we have no need to recheck that.
 
-    if isMember is True, we're being converted from a property of some
-    JS object, not from an actual method argument, so we can't rely on
-    our jsval being rooted or outliving us in any way.
+    if isSequenceMember is True, we're being converted as part of a sequence.
 
     If isOptional is true, then we are doing conversion of an optional
     argument with no default value.
@@ -1391,14 +1380,8 @@ def getJSToNativeConversionTemplate(type, descriptorProvider, failureCode=None,
         raise TypeError("Can't handle array arguments yet")
 
     if type.isSequence():
-        if isMember:
-            # XXXbz we probably _could_ handle this; we just have to be careful
-            # with reallocation behavior for arrays.  In particular, if we have
-            # a return value that's a sequence of dictionaries of sequences,
-            # that will cause us to have an nsTArray containing objects with
-            # nsAutoTArray members, which is a recipe for badness as the
-            # outermost array is resized.
-            raise TypeError("Can't handle unrooted sequences")
+        if isSequenceMember:
+            raise TypeError("Can't handle sequences of sequences")
         if failureCode is not None:
             raise TypeError("Can't handle sequences when failureCode is not None")
         nullable = type.nullable();
@@ -1411,7 +1394,7 @@ def getJSToNativeConversionTemplate(type, descriptorProvider, failureCode=None,
         # we wrap, so don't pass through isDefinitelyObject
         (elementTemplate, elementDeclType,
          elementHolderType, dealWithOptional) = getJSToNativeConversionTemplate(
-            elementType, descriptorProvider, isMember=True)
+            elementType, descriptorProvider, isSequenceMember=True)
         if dealWithOptional:
             raise TypeError("Shouldn't have optional things in sequences")
         if elementHolderType is not None:
@@ -1456,7 +1439,6 @@ for (uint32_t i = 0; i < length; ++i) {
                 string.Template(elementTemplate).substitute(
                     {
                         "val" : "temp",
-                        "valPtr": "&temp",
                         "declName" : "(*arr.AppendElement())"
                         }
                     ))).define()
@@ -1480,7 +1462,7 @@ for (uint32_t i = 0; i < length; ++i) {
         # Sequences and non-worker callbacks have to hold a strong ref to the
         # thing being passed down.
         forceOwningType = (descriptor.interface.isCallback() and
-                           not descriptor.workers) or isMember
+                           not descriptor.workers) or isSequenceMember
 
         typeName = descriptor.nativeType
         typePtr = typeName + "*"
@@ -1569,8 +1551,8 @@ for (uint32_t i = 0; i < length; ++i) {
         return (templateBody, declType, holderType, isOptional)
 
     if type.isSpiderMonkeyInterface():
-        if isMember:
-            raise TypeError("Can't handle member arraybuffers or "
+        if isSequenceMember:
+            raise TypeError("Can't handle sequences of arraybuffers or "
                             "arraybuffer views because making sure all the "
                             "objects are properly rooted is hard")
         name = type.name
@@ -1630,6 +1612,8 @@ for (uint32_t i = 0; i < length; ++i) {
         return (template, CGGeneric(declType), holderType, False)
 
     if type.isString():
+        if isSequenceMember:
+            raise TypeError("Can't handle sequences of strings")
         # XXXbz Need to figure out string behavior based on extended args?  Also, how to
         # detect them?
 
@@ -1641,22 +1625,6 @@ for (uint32_t i = 0; i < length; ++i) {
         else:
             nullBehavior = "eStringify"
             undefinedBehavior = "eStringify"
-
-        if isMember:
-            # We have to make a copy, because our jsval may well not
-            # live as long as our string needs to.
-            declType = CGGeneric("nsString")
-            return (
-                "{\n"
-                "  nsDependentString str;\n"
-                "  if (!ConvertJSValueToString(cx, ${val}, ${valPtr}, %s, %s, str)) {\n"
-                "    return false;\n"
-                "  }\n"
-                "  ${declName} = str;\n"
-                "}\n" %
-                (nullBehavior, undefinedBehavior),
-            declType, None,
-            isOptional)
 
         if isOptional:
             declType = "Optional<nsAString>"
@@ -1689,9 +1657,8 @@ for (uint32_t i = 0; i < length; ++i) {
             CGGeneric(enum), None, isOptional)
 
     if type.isCallback():
-        if isMember:
-            raise TypeError("Can't handle member callbacks; need to sort out "
-                            "rooting issues")
+        if isSequenceMember:
+            raise TypeError("Can't handle sequences of callbacks")
         # XXXbz we're going to assume that callback types are always
         # nullable and always have [TreatNonCallableAsNull] for now.
         return (
@@ -1702,15 +1669,13 @@ for (uint32_t i = 0; i < length; ++i) {
             "}", CGGeneric("JSObject*"), None, isOptional)
 
     if type.isAny():
-        if isMember:
-            raise TypeError("Can't handle member 'any'; need to sort out "
-                            "rooting issues")
+        if isSequenceMember:
+            raise TypeError("Can't handle sequences of 'any'")
         return ("${declName} = ${val};", CGGeneric("JS::Value"), None, isOptional)
 
     if type.isObject():
-        if isMember:
-            raise TypeError("Can't handle member 'object'; need to sort out "
-                            "rooting issues")
+        if isSequenceMember:
+            raise TypeError("Can't handle sequences of 'object'")
         template = wrapObjectTemplate("${declName} = &${val}.toObject();",
                                       isDefinitelyObject, type,
                                       "${declName} = NULL",
@@ -1719,35 +1684,6 @@ for (uint32_t i = 0; i < length; ++i) {
             declType = CGGeneric("JSObject*")
         else:
             declType = CGGeneric("NonNull<JSObject>")
-        return (template, declType, None, isOptional)
-
-    if type.isDictionary():
-        if failureCode is not None:
-            raise TypeError("Can't handle dictionaries when failureCode is not None")
-
-        if type.nullable():
-            typeName = type.inner.inner.identifier.name
-            declType = CGGeneric("Nullable<%s>" % typeName)
-            selfRef = "${declName}.Value()"
-        else:
-            typeName = type.inner.identifier.name
-            declType = CGGeneric(typeName)
-            selfRef = "${declName}"
-        # If we're optional or a member of something else, the const
-        # will come from the Optional or our container.
-        mutableTypeName = declType
-        if not isOptional and not isMember:
-            declType = CGWrapper(declType, pre="const ")
-            selfRef = "const_cast<%s&>(%s)" % (typeName, selfRef)
-
-        template = wrapObjectTemplate("if (!%s.Init(cx, &${val}.toObject())) {\n"
-                                      "  return false;\n"
-                                      "}" % selfRef,
-                                      isDefinitelyObject, type,
-                                      ("const_cast<%s&>(${declName}).SetNull()" %
-                                       mutableTypeName.define()),
-                                      descriptorProvider.workers, None)
-
         return (template, declType, None, isOptional)
 
     if not type.isPrimitive():
@@ -3431,179 +3367,6 @@ class CGNamespacedEnum(CGThing):
     def define(self):
         assert False # Only for headers.
 
-class CGDictionary(CGThing):
-    def __init__(self, dictionary, workers):
-        self.dictionary = dictionary;
-        self.workers = workers
-        # Fake a descriptorProvider
-        # XXXbz this will fail for interface types!
-        for member in dictionary.members:
-            if member.type.unroll().isInterface():
-                raise TypeError("No support for interface members of dictionaries: %s.%s" %
-                                (dictionary.identifier.name, member.identifier.name))
-        self.memberInfo = [
-            (member,
-             getJSToNativeConversionTemplate(member.type,
-                                             { "workers": workers },
-                                             isMember=True,
-                                             isOptional=(not member.defaultValue)))
-            for member in dictionary.members ]
-
-    def declare(self):
-        d = self.dictionary
-        if d.parent:
-            inheritance = ": public %s " % self.makeClassName(d.parent)
-        else:
-            inheritance = ""
-        memberDecls = ["  %s %s;" %
-                       (self.getMemberType(m), m[0].identifier.name)
-                       for m in self.memberInfo]
-
-        return (string.Template(
-                "struct ${selfName} ${inheritance}{\n"
-                "  ${selfName}() {}\n"
-                "  bool Init(JSContext* cx, JSObject* obj);\n"
-                "\n" +
-                "\n".join(memberDecls) + "\n"
-                "private:\n"
-                "  // Disallow copy-construction\n"
-                "  ${selfName}(const ${selfName}&) MOZ_DELETE;\n"
-                "  static bool InitIds(JSContext* cx);\n"
-                "  static bool initedIds;\n" +
-                "\n".join("  static jsid " +
-                          self.makeIdName(m.identifier.name) + ";" for
-                          m in d.members) + "\n"
-                "};").substitute( { "selfName": self.makeClassName(d),
-                                    "inheritance": inheritance }))
-
-    def define(self):
-        d = self.dictionary
-        if d.parent:
-            initParent = ("// Per spec, we init the parent's members first\n"
-                          "if (!%s::Init(cx, obj)) {\n"
-                          "  return false;\n"
-                          "}\n" % self.makeClassName(d.parent))
-        else:
-            initParent = ""
-
-        memberInits = [CGIndenter(self.getMemberConversion(m)).define()
-                       for m in self.memberInfo]
-        idinit = [CGGeneric('!InternJSString(cx, %s, "%s")' %
-                            (m.identifier.name + "_id", m.identifier.name))
-                  for m in d.members]
-        idinit = CGList(idinit, " ||\n")
-        idinit = CGWrapper(idinit, pre="if (",
-                           post=(") {\n"
-                                 "  return false;\n"
-                                 "}"),
-                           reindent=True)
-
-        return string.Template(
-            "bool ${selfName}::initedIds = false;\n" +
-            "\n".join("jsid ${selfName}::%s = JSID_VOID;" %
-                      self.makeIdName(m.identifier.name)
-                      for m in d.members) + "\n"
-            "\n"
-            "bool\n"
-            "${selfName}::InitIds(JSContext* cx)\n"
-            "{\n"
-            "  MOZ_ASSERT(!initedIds);\n"
-            "${idInit}\n"
-            "  initedIds = true;\n"
-            "  return true;\n"
-            "}\n"
-            "\n"
-            "bool\n"
-            "${selfName}::Init(JSContext* cx, JSObject* obj)\n"
-            "{\n"
-            "  if (!initedIds && !InitIds(cx)) {\n"
-            "    return false;\n"
-            "  }\n"
-            "${initParent}"
-            "  JSBool found;\n"
-            "  JS::Value temp;\n"
-            "\n"
-            "${initMembers}\n"
-            "  return true;\n"
-            "}").substitute({
-                "selfName": self.makeClassName(d),
-                "initParent": CGIndenter(CGGeneric(initParent)).define(),
-                "initMembers": "\n\n".join(memberInits),
-                "idInit": CGIndenter(idinit).define()
-                })
-
-    def makeClassName(self, dictionary):
-        suffix = "Workers" if self.workers else ""
-        return dictionary.identifier.name + suffix
-
-    def getMemberType(self, memberInfo):
-        (member, (templateBody, declType,
-                  holderType, dealWithOptional)) = memberInfo
-        # We can't handle having a holderType here
-        assert holderType is None
-        if dealWithOptional:
-            declType = CGWrapper(declType, pre="Optional< ", post=" >")
-        return declType.define()
-
-    def getMemberConversion(self, memberInfo):
-        # Fake a descriptorProvider
-        (member, (templateBody, declType,
-                  holderType, dealWithOptional)) = memberInfo
-        replacements = { "val": "temp",
-                         "valPtr": "&temp",
-                         # Use this->%s to refer to members, because we don't
-                         # control the member names and want to make sure we're
-                         # talking about the member, not some local that
-                         # shadows the member.  Another option would be to move
-                         # the guts of init to a static method which is passed
-                         # an explicit reference to our dictionary object, so
-                         # we couldn't screw this up even if we wanted to....
-                         "declName": ("(this->%s)" % member.identifier.name) }
-        # We can't handle having a holderType here
-        assert holderType is None
-        if dealWithOptional:
-            replacements["declName"] = "(" + replacements["declName"] + ".Value())"
-
-        conversionReplacements = {
-            "propId" : self.makeIdName(member.identifier.name),
-            "prop": "(this->%s)" % member.identifier.name,
-            "convert": string.Template(templateBody).substitute(replacements)
-            }
-        conversion = ("if (!JS_HasPropertyById(cx, obj, ${propId}, &found)) {\n"
-                      "  return false;\n"
-                      "}\n")
-        if member.defaultValue:
-            conversion += (
-                "if (found) {\n"
-                "  if (!JS_GetPropertyById(cx, obj, ${propId}, &temp)) {\n"
-                "    return false;\n"
-                "  }\n"
-                "} else {\n"
-                "  temp = ${defaultVal};\n"
-                "}\n"
-                "${convert}")
-            conversionReplacements["defaultVal"] = (
-                convertIDLDefaultValueToJSVal(member.defaultValue))
-        else:
-            conversion += (
-                "if (found) {\n"
-                "  ${prop}.Construct();\n"
-                "  if (!JS_GetPropertyById(cx, obj, ${propId}, &temp)) {\n"
-                "    return false;\n"
-                "  }\n"
-                "${convert}\n"
-                "}")
-            conversionReplacements["convert"] = CGIndenter(
-                CGGeneric(conversionReplacements["convert"])).define()
-        
-        return CGGeneric(
-            string.Template(conversion).substitute(conversionReplacements)
-            )
-
-    @staticmethod
-    def makeIdName(name):
-        return name + "_id"
-
 class CGRegisterProtos(CGAbstractMethod):
     def __init__(self, config):
         CGAbstractMethod.__init__(self, None, 'Register', 'void',
@@ -3634,7 +3397,6 @@ class CGBindingRoot(CGThing):
     def __init__(self, config, prefix, webIDLFile):
         descriptors = config.getDescriptors(webIDLFile=webIDLFile,
                                             hasInterfaceOrInterfacePrototypeObject=True)
-        dictionaries = config.getDictionaries(webIDLFile)
 
         forwardDeclares = [CGClassForwardDeclare('XPCWrappedNativeScope')]
 
@@ -3672,7 +3434,7 @@ class CGBindingRoot(CGThing):
         else:
             traitsClasses = None
 
-        # Do codegen for all the enums
+        # Do codegen for all the descriptors and enums.
         def makeEnum(e):
             return CGNamespace.build([e.identifier.name + "Values"],
                                      CGEnum(e))
@@ -3681,30 +3443,8 @@ class CGBindingRoot(CGThing):
                                       (e.identifier.name, e.identifier.name)))
         cgthings = [ fun(e) for e in config.getEnums(webIDLFile)
                      for fun in [makeEnum, makeEnumTypedef] ]
-
-        # Do codegen for all the dictionaries.  We have to be a bit careful
-        # here, because we have to generate these in order from least derived to
-        # most derived so that class inheritance works out.
-        #
-        # XXXbz this will fail if we have two webidl files A and B such that A
-        # declares a dictionary which inherits from a dictionary in B and B
-        # declares a dictionary (possibly a different one!) that inherits from a
-        # dictionary in A.  The good news is that I expect this to never happen.
-        reSortedDictionaries = []
-        while len(dictionaries) != 0:
-            toMove = [d for d in dictionaries if d.parent not in dictionaries]
-            dictionaries = [d for d in dictionaries if d.parent in dictionaries]
-            reSortedDictionaries.extend(toMove)
-
-        dictionaries = reSortedDictionaries
-        cgthings.extend([CGDictionary(d, workers=True) for d in dictionaries])
-        cgthings.extend([CGDictionary(d, workers=False) for d in dictionaries])
-
-        # Do codegen for all the descriptors
         cgthings.extend([CGDescriptor(x) for x in descriptors])
-
-        # And make sure we have the right number of newlines at the end
-        curr = CGWrapper(CGList(cgthings, "\n\n"), post="\n\n")
+        curr = CGList(cgthings, "\n")
 
         # Wrap all of that in our namespaces.
         curr = CGNamespace.build(['mozilla', 'dom'],
@@ -3718,11 +3458,10 @@ class CGBindingRoot(CGThing):
 
         # Add header includes.
         curr = CGHeaders(descriptors,
-                         dictionaries,
                          ['mozilla/dom/BindingUtils.h',
                           'mozilla/dom/DOMJSClass.h'],
                          ['mozilla/dom/Nullable.h',
-                          'PrimitiveConversions.h',
+                          'mozilla/dom/PrimitiveConversions.h',
                           'XPCQuickStubs.h',
                           'nsDOMQS.h',
                           'AccessCheck.h',
@@ -3821,12 +3560,12 @@ struct PrototypeIDMap;
         curr = CGWrapper(curr, post='\n')
 
         # Add the includes
-        defineIncludes = [CGHeaders.getDeclarationFilename(desc.interface)
+        defineIncludes = [CGHeaders.getInterfaceFilename(desc.interface)
                           for desc in config.getDescriptors(hasInterfaceObject=True,
                                                             workers=False,
                                                             register=True)]
         defineIncludes.append('nsScriptNameSpaceManager.h')
-        curr = CGHeaders([], [], [], defineIncludes, curr)
+        curr = CGHeaders([], [], defineIncludes, curr)
 
         # Add include guards.
         curr = CGIncludeGuard('RegisterBindings', curr)

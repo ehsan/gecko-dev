@@ -37,7 +37,6 @@
 #include "prlog.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Attributes.h"
 
 #include "nsXULAppAPI.h"
 
@@ -89,9 +88,9 @@ DropReferenceFromURL(nsIURI * aURI)
 // nsManifestCheck
 //-----------------------------------------------------------------------------
 
-class nsManifestCheck MOZ_FINAL : public nsIStreamListener
-                                , public nsIChannelEventSink
-                                , public nsIInterfaceRequestor
+class nsManifestCheck : public nsIStreamListener
+                      , public nsIChannelEventSink
+                      , public nsIInterfaceRequestor
 {
 public:
     nsManifestCheck(nsOfflineCacheUpdate *aUpdate,

@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko.sync.setup.auth;
 
@@ -9,8 +9,10 @@ import java.util.Queue;
 
 import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.ThreadPool;
-import org.mozilla.gecko.sync.Utils;
+import org.mozilla.gecko.sync.crypto.KeyBundle;
 import org.mozilla.gecko.sync.setup.activities.AccountActivity;
+
+import android.util.Log;
 
 public class AccountAuthenticator {
   private final String LOG_TAG = "AccountAuthenticator";
@@ -50,14 +52,14 @@ public class AccountAuthenticator {
 
     // Calculate and save username hash.
     try {
-      username = Utils.usernameFromAccount(account);
+      username = KeyBundle.usernameFromAccount(account);
     } catch (Exception e) {
       abort(AuthenticationResult.FAILURE_OTHER, e);
       return;
     }
     Logger.debug(LOG_TAG, "username:" + username);
 
-    Logger.debug(LOG_TAG, "running first stage.");
+    Log.d(LOG_TAG, "running first stage.");
     // Start first stage of authentication.
     runNextStage();
   }

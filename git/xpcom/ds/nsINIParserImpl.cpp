@@ -9,9 +9,8 @@
 #include "nsINIParser.h"
 #include "nsStringEnumerator.h"
 #include "nsTArray.h"
-#include "mozilla/Attributes.h"
 
-class nsINIParserImpl MOZ_FINAL :
+class nsINIParserImpl :
   public nsIINIParser
 {
 public:

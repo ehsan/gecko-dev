@@ -18,7 +18,6 @@
 #include "nsWeakReference.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Attributes.h"
 
 class nsPrefetchService;
 class nsPrefetchListener;
@@ -28,10 +27,10 @@ class nsPrefetchNode;
 // nsPrefetchService
 //-----------------------------------------------------------------------------
 
-class nsPrefetchService MOZ_FINAL : public nsIPrefetchService
-                                  , public nsIWebProgressListener
-                                  , public nsIObserver
-                                  , public nsSupportsWeakReference
+class nsPrefetchService : public nsIPrefetchService
+                        , public nsIWebProgressListener
+                        , public nsIObserver
+                        , public nsSupportsWeakReference
 {
 public:
     NS_DECL_ISUPPORTS
@@ -82,10 +81,10 @@ private:
 // nsPrefetchNode
 //-----------------------------------------------------------------------------
 
-class nsPrefetchNode MOZ_FINAL : public nsIDOMLoadStatus
-                               , public nsIStreamListener
-                               , public nsIInterfaceRequestor
-                               , public nsIChannelEventSink
+class nsPrefetchNode : public nsIDOMLoadStatus
+                     , public nsIStreamListener
+                     , public nsIInterfaceRequestor
+                     , public nsIChannelEventSink
 {
 public:
     NS_DECL_ISUPPORTS

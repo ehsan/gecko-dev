@@ -30,7 +30,6 @@
 
 #include "mozilla/ReentrantMonitor.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/Attributes.h"
 
 #include "nsCRT.h"
 #include "nsMemory.h"
@@ -328,7 +327,7 @@ private:
     char                    mName[1];     // Always last. Sized to fit.
 };
 
-class xptiInterfaceInfo MOZ_FINAL : public nsIInterfaceInfo
+class xptiInterfaceInfo : public nsIInterfaceInfo
 {
 public:
     NS_DECL_ISUPPORTS
@@ -396,7 +395,7 @@ private:
 
 /***************************************************************************/
 
-class xptiInterfaceInfoManager MOZ_FINAL
+class xptiInterfaceInfoManager 
     : public nsIInterfaceInfoSuperManager
 {
     NS_DECL_ISUPPORTS

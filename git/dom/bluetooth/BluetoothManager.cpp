@@ -210,7 +210,7 @@ BluetoothManager::SetEnabled(bool aEnabled, nsIDOMDOMRequest** aDomRequest)
   NS_ENSURE_SUCCESS(rv, rv);
   
   if (!mToggleBtThread) {
-    mToggleBtThread = new LazyIdleThread(15000, NS_LITERAL_CSTRING("Bluetooth"));
+    mToggleBtThread = new LazyIdleThread(15000);
   }
 
   nsCOMPtr<nsIRunnable> r = new ToggleBtTask(aEnabled, request, this);

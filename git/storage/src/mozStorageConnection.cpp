@@ -561,9 +561,6 @@ Connection::getAsyncExecutionTarget()
       NS_WARNING("Failed to create async thread.");
       return nsnull;
     }
-    static nsThreadPoolNaming naming;
-    naming.SetThreadPoolName(NS_LITERAL_CSTRING("mozStorage"),
-                             mAsyncExecutionThread);
   }
 
   return mAsyncExecutionThread;

@@ -7928,10 +7928,10 @@ nsDocShell::CheckLoadingPermissions()
         }
 
         // Compare origins
-        bool subsumes;
-        sameOrigin = subjPrincipal->Subsumes(p, &subsumes);
+        bool equal;
+        sameOrigin = subjPrincipal->Equals(p, &equal);
         if (NS_SUCCEEDED(sameOrigin)) {
-            if (subsumes) {
+            if (equal) {
                 // Same origin, permit load
 
                 return sameOrigin;
@@ -11991,7 +11991,7 @@ nsDocShell::SetIsBrowserFrame(bool aValue)
   // docshell-marked-as-browser-frame would have to distinguish between
   // newly-created browser frames and frames which went from true to false back
   // to true.)
-  NS_ENSURE_STATE(!mIsBrowserFrame || aValue);
+  NS_ENSURE_STATE(!mIsBrowserFrame);
 
   bool wasBrowserFrame = mIsBrowserFrame;
   mIsBrowserFrame = aValue;

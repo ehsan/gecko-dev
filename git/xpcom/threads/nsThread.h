@@ -14,11 +14,9 @@
 #include "nsThreadUtils.h"
 #include "nsString.h"
 #include "nsTObserverArray.h"
-#include "mozilla/Attributes.h"
 
 // A native thread
-class nsThread MOZ_FINAL : public nsIThreadInternal,
-                           public nsISupportsPriority
+class nsThread : public nsIThreadInternal, public nsISupportsPriority
 {
 public:
   NS_DECL_ISUPPORTS

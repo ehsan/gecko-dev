@@ -144,8 +144,6 @@ NS_IMETHODIMP nsWifiMonitor::Run()
 {
   LOG(("@@@@@ wifi monitor run called\n"));
 
-  PR_SetCurrentThreadName("Wifi Monitor");
-
   nsresult rv = DoScan();
 
   if (mKeepGoing && NS_FAILED(rv)) {

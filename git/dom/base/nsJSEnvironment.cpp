@@ -131,7 +131,6 @@ static nsITimer *sGCTimer;
 static nsITimer *sShrinkGCBuffersTimer;
 static nsITimer *sCCTimer;
 static nsITimer *sFullGCTimer;
-static nsITimer *sInterSliceGCTimer;
 
 static PRTime sLastCCEndTime;
 
@@ -3097,15 +3096,11 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
 void
 GCTimerFired(nsITimer *aTimer, void *aClosure)
 {
-  if (aTimer == sGCTimer) {
-    NS_RELEASE(sGCTimer);
-  } else {
-    NS_RELEASE(sInterSliceGCTimer);
-  }
+  NS_RELEASE(sGCTimer);
 
   uintptr_t reason = reinterpret_cast<uintptr_t>(aClosure);
   nsJSContext::GarbageCollectNow(static_cast<js::gcreason::Reason>(reason),
-                                 nsGCIncremental, false);
+                                 nsGCNormal, false);
 }
 
 void
@@ -3323,15 +3318,6 @@ nsJSContext::KillFullGCTimer()
   }
 }
 
-void
-nsJSContext::KillInterSliceGCTimer()
-{
-  if (sInterSliceGCTimer) {
-    sInterSliceGCTimer->Cancel();
-    NS_RELEASE(sInterSliceGCTimer);
-  }
-}
-
 //static
 void
 nsJSContext::KillShrinkGCBuffersTimer()
@@ -3431,18 +3417,13 @@ DOMGCSliceCallback(JSRuntime *aRt, js::GCProgress aProgress, const js::GCDescrip
 
   // The GC has more work to do, so schedule another GC slice.
   if (aProgress == js::GC_SLICE_END) {
-    nsJSContext::KillInterSliceGCTimer();
-    CallCreateInstance("@mozilla.org/timer;1", &sInterSliceGCTimer);
-    js::gcreason::Reason reason = js::gcreason::INTER_SLICE_GC;
-    sInterSliceGCTimer->InitWithFuncCallback(GCTimerFired,
-                                             reinterpret_cast<void *>(reason),
-                                             NS_INTERSLICE_GC_DELAY,
-                                             nsITimer::TYPE_ONE_SHOT);
+    nsJSContext::KillGCTimer();
+    nsJSContext::PokeGC(js::gcreason::INTER_SLICE_GC, NS_INTERSLICE_GC_DELAY);
   }
 
   if (aProgress == js::GC_CYCLE_END) {
     // May need to kill the inter-slice GC timer
-    nsJSContext::KillInterSliceGCTimer();
+    nsJSContext::KillGCTimer();
 
     sCCollectedWaitingForGC = 0;
     sCleanupsSinceLastGC = 0;
@@ -3863,7 +3844,6 @@ nsJSRuntime::Shutdown()
   nsJSContext::KillShrinkGCBuffersTimer();
   nsJSContext::KillCCTimer();
   nsJSContext::KillFullGCTimer();
-  nsJSContext::KillInterSliceGCTimer();
 
   NS_IF_RELEASE(gNameSpaceManager);
 

@@ -78,7 +78,6 @@ class nsARefreshObserver;
 class nsAccessibilityService;
 #endif
 class nsIWidget;
-class nsArenaMemoryStats;
 
 typedef short SelectionType;
 typedef PRUint64 nsFrameState;
@@ -1232,11 +1231,10 @@ public:
   virtual void DispatchSynthMouseMove(nsGUIEvent *aEvent, bool aFlushOnHoverChange) = 0;
 
   virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                   nsArenaMemoryStats *aArenaObjectsSize,
-                                   size_t *aPresShellSize,
+                                   size_t *aArenasSize,
                                    size_t *aStyleSetsSize,
                                    size_t *aTextRunsSize,
-                                   size_t *aPresContextSize) = 0;
+                                   size_t *aPresContextSize) const = 0;
 
   /**
    * Methods that retrieve the cached font inflation preferences.

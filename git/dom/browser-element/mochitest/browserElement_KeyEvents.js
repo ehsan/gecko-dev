@@ -9,7 +9,6 @@ let Ci = Components.interfaces;
 
 let whitelistedEvents = [
   Ci.nsIDOMKeyEvent.DOM_VK_ESCAPE,   // Back button.
-  Ci.nsIDOMKeyEvent.DOM_VK_SLEEP,    // Power button
   Ci.nsIDOMKeyEvent.DOM_VK_CONTEXT_MENU,
   Ci.nsIDOMKeyEvent.DOM_VK_F5,       // Search button.
   Ci.nsIDOMKeyEvent.DOM_VK_PAGE_UP,  // Volume up.
@@ -28,7 +27,7 @@ iframe.src = browserElementTestHelpers.focusPage;
 document.body.appendChild(iframe);
 
 // Number of expected events at which point we will consider the test as done.
-var nbEvents = whitelistedEvents.length * 3;
+var nbEvents = 15;
 
 function eventHandler(e) {
   ok(((e.type == 'keydown' || e.type == 'keypress' || e.type == 'keyup') &&
@@ -71,7 +70,6 @@ function runTest() {
   synthesizeKey("VK_PAGE_UP", {});   // keypress is ignored because .preventDefault() will be called.
   synthesizeKey("VK_PAGE_DOWN", {}); // keypress is ignored because .preventDefault() will be called.
   synthesizeKey("VK_CONTEXT_MENU", {});
-  synthesizeKey("VK_SLEEP", {});
 }
 
 SimpleTest.waitForFocus(function() {

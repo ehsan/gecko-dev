@@ -885,8 +885,6 @@ class AutoLockWatchdog {
 void
 XPCJSRuntime::WatchdogMain(void *arg)
 {
-    PR_SetCurrentThreadName("JS Watchdog");
-
     XPCJSRuntime* self = static_cast<XPCJSRuntime*>(arg);
 
     // Lock lasts until we return
@@ -1220,7 +1218,7 @@ GetJSUserCompartmentCount()
 // easily report them via telemetry, so we live with the small risk of
 // inconsistencies.
 NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSSystemCompartmentCount,
-    "js-compartments/system",
+    "js-compartments-system",
     KIND_OTHER,
     nsIMemoryReporter::UNITS_COUNT,
     GetJSSystemCompartmentCount,
@@ -1230,7 +1228,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSSystemCompartmentCount,
     "but such cases should be rare.")
 
 NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSUserCompartmentCount,
-    "js-compartments/user",
+    "js-compartments-user",
     KIND_OTHER,
     nsIMemoryReporter::UNITS_COUNT,
     GetJSUserCompartmentCount,
@@ -1663,7 +1661,7 @@ class JSCompartmentsMultiReporter : public nsIMemoryMultiReporter
         for (size_t i = 0; i < paths.length(); i++)
             // These ones don't need a description, hence the "".
             REPORT(nsCString(paths[i]),
-                   nsIMemoryReporter::KIND_OTHER,
+                   nsIMemoryReporter::KIND_SUMMARY,
                    nsIMemoryReporter::UNITS_COUNT,
                    1, "");
 

@@ -11,7 +11,6 @@
 #include "nsBindingManager.h"
 
 using namespace mozilla;
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // AccIterator

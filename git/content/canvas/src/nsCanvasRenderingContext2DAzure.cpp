@@ -1535,12 +1535,8 @@ nsCanvasRenderingContext2DAzure::Restore()
 NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::Scale(float x, float y)
 {
-  if (!mTarget) {
-    return NS_ERROR_FAILURE;
-  }
-  if (!FloatValidate(x,y)) {
+  if (!FloatValidate(x,y))
     return NS_OK;
-  }
 
   TransformWillUpdate();
 
@@ -1552,12 +1548,8 @@ nsCanvasRenderingContext2DAzure::Scale(float x, float y)
 NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::Rotate(float angle)
 {
-  if (!mTarget) {
-    return NS_ERROR_FAILURE;
-  }
-  if (!FloatValidate(angle)) {
+  if (!FloatValidate(angle))
     return NS_OK;
-  }
 
   TransformWillUpdate();
 
@@ -1569,9 +1561,6 @@ nsCanvasRenderingContext2DAzure::Rotate(float angle)
 NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::Translate(float x, float y)
 {
-  if (!mTarget) {
-    return NS_ERROR_FAILURE;
-  }
   if (!FloatValidate(x,y)) {
     return NS_OK;
   }
@@ -1586,9 +1575,6 @@ nsCanvasRenderingContext2DAzure::Translate(float x, float y)
 NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::Transform(float m11, float m12, float m21, float m22, float dx, float dy)
 {
-  if (!mTarget) {
-    return NS_ERROR_FAILURE;
-  }
   if (!FloatValidate(m11,m12,m21,m22,dx,dy)) {
     return NS_OK;
   }
@@ -1603,9 +1589,6 @@ nsCanvasRenderingContext2DAzure::Transform(float m11, float m12, float m21, floa
 NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::SetTransform(float m11, float m12, float m21, float m22, float dx, float dy)
 {
-  if (!mTarget) {
-    return NS_ERROR_FAILURE;
-  }
   if (!FloatValidate(m11,m12,m21,m22,dx,dy)) {
     return NS_OK;
   }
@@ -1622,10 +1605,6 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::SetMozCurrentTransform(JSContext* cx,
                                                         const jsval& matrix)
 {
-  if (!mTarget) {
-    return NS_ERROR_FAILURE;
-  }
-
   nsresult rv;
   Matrix newCTM;
 
@@ -1642,10 +1621,6 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::GetMozCurrentTransform(JSContext* cx,
                                                         jsval* matrix)
 {
-  if (!mTarget) {
-    return NS_ERROR_FAILURE;
-  }
-
   return MatrixToJSVal(mTarget->GetTransform(), cx, matrix);
 }
 
@@ -1653,10 +1628,6 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::SetMozCurrentTransformInverse(JSContext* cx,
                                                                const jsval& matrix)
 {
-  if (!mTarget) {
-    return NS_ERROR_FAILURE;
-  }
-
   nsresult rv;
   Matrix newCTMInverse;
 
@@ -1676,10 +1647,6 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::GetMozCurrentTransformInverse(JSContext* cx,
                                                                jsval* matrix)
 {
-  if (!mTarget) {
-    return NS_ERROR_FAILURE;
-  }
-
   Matrix ctm = mTarget->GetTransform();
 
   if (!ctm.Invert()) {
@@ -3188,9 +3155,9 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+  nsIPresShell* presShell = GetPresShell();
   if (!presShell)
-    return NS_ERROR_FAILURE;
+      return NS_ERROR_FAILURE;
 
   nsIDocument* document = presShell->GetDocument();
 
@@ -3246,15 +3213,15 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
   // bounding boxes before rendering anything
   nsBidi bidiEngine;
   rv = nsBidiPresUtils::ProcessText(textToDraw.get(),
-                                    textToDraw.Length(),
-                                    isRTL ? NSBIDI_RTL : NSBIDI_LTR,
-                                    presShell->GetPresContext(),
-                                    processor,
-                                    nsBidiPresUtils::MODE_MEASURE,
-                                    nsnull,
-                                    0,
-                                    &totalWidthCoord,
-                                    &bidiEngine);
+                                textToDraw.Length(),
+                                isRTL ? NSBIDI_RTL : NSBIDI_LTR,
+                                presShell->GetPresContext(),
+                                processor,
+                                nsBidiPresUtils::MODE_MEASURE,
+                                nsnull,
+                                0,
+                                &totalWidthCoord,
+                                &bidiEngine);
   if (NS_FAILED(rv)) {
     return rv;
   }

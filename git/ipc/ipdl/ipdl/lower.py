@@ -447,44 +447,37 @@ class _DestroyReason:
 ## Intermediate representation (IR) nodes used during lowering
 
 class _ConvertToCxxType(TypeVisitor):
-    def __init__(self, side, fq):
-        self.side = side
-        self.fq = fq
-
-    def typename(self, thing):
-        if self.fq:
-            return thing.fullname()
-        return thing.name()
+    def __init__(self, side):  self.side = side
 
     def visitBuiltinCxxType(self, t):
-        return Type(self.typename(t))
+        return Type(t.name())
 
     def visitImportedCxxType(self, t):
-        return Type(self.typename(t))
+        return Type(t.name())
 
     def visitActorType(self, a):
-        return Type(_actorName(self.typename(a.protocol), self.side), ptr=1)
+        return Type(_actorName(a.protocol.name(), self.side), ptr=1)
 
     def visitStructType(self, s):
-        return Type(self.typename(s))
+        return Type(s.name())
 
     def visitUnionType(self, u):
-        return Type(self.typename(u))
+        return Type(u.name())
 
     def visitArrayType(self, a):
         basecxxtype = a.basetype.accept(self)
         return _cxxArrayType(basecxxtype)
 
     def visitShmemType(self, s):
-        return Type(self.typename(s))
+        return Type(s.name())
 
     def visitProtocolType(self, p): assert 0
     def visitMessageType(self, m): assert 0
     def visitVoidType(self, v): assert 0
     def visitStateType(self, st): assert 0
 
-def _cxxBareType(ipdltype, side, fq=0):
-    return ipdltype.accept(_ConvertToCxxType(side, fq))
+def _cxxBareType(ipdltype, side):
+    return ipdltype.accept(_ConvertToCxxType(side))
 
 def _cxxRefType(ipdltype, side):
     t = _cxxBareType(ipdltype, side)
@@ -1538,13 +1531,11 @@ class _GenerateProtocolCode(ipdl.ast.Visitor):
     def genBridgeFunc(self, bridge):
         p = self.protocol
         parentHandleType = _cxxBareType(ActorType(bridge.parent.ptype),
-                                        _otherSide(bridge.parent.side),
-                                        fq=1)
+                                        _otherSide(bridge.parent.side))
         parentvar = ExprVar('parentHandle')
 
         childHandleType = _cxxBareType(ActorType(bridge.child.ptype),
-                                       _otherSide(bridge.child.side),
-                                       fq=1)
+                                       _otherSide(bridge.child.side))
         childvar = ExprVar('childHandle')
 
         bridgefunc = MethodDefn(MethodDecl(
@@ -1565,8 +1556,7 @@ class _GenerateProtocolCode(ipdl.ast.Visitor):
     def genOpenFunc(self, o):
         p = self.protocol
         localside = o.opener.side
-        openertype = _cxxBareType(ActorType(o.opener.ptype), o.opener.side,
-                                  fq=1)
+        openertype = _cxxBareType(ActorType(o.opener.ptype), o.opener.side)
         openervar = ExprVar('opener')
         openfunc = MethodDefn(MethodDecl(
             'Open',
