@@ -274,7 +274,9 @@ this.AccessFu = {
       case 'Accessibility:Focus':
         this._focused = JSON.parse(aData);
         if (this._focused) {
-          this.showCurrent(true);
+          let mm = Utils.getMessageManager(Utils.CurrentBrowser);
+          mm.sendAsyncMessage('AccessFu:VirtualCursor',
+                              {action: 'whereIsIt', move: true});
         }
         break;
       case 'Accessibility:MoveCaret':
@@ -325,22 +327,18 @@ this.AccessFu = {
       case 'TabSelect':
       {
         if (this._focused) {
+          let mm = Utils.getMessageManager(Utils.CurrentBrowser);
           // We delay this for half a second so the awesomebar could close,
           // and we could use the current coordinates for the content item.
           // XXX TODO figure out how to avoid magic wait here.
           Utils.win.setTimeout(
             function () {
-              this.showCurrent(false);
-            }.bind(this), 500);
+              mm.sendAsyncMessage('AccessFu:VirtualCursor', {action: 'whereIsIt'});
+            }, 500);
         }
         break;
       }
     }
-  },
-
-  showCurrent: function showCurrent(aMove) {
-    let mm = Utils.getMessageManager(Utils.CurrentBrowser);
-    mm.sendAsyncMessage('AccessFu:ShowCurrent', { move: aMove });
   },
 
   announce: function announce(aAnnouncement) {
@@ -634,7 +632,8 @@ var Input = {
     switch (gestureName) {
       case 'dwell1':
       case 'explore1':
-        this.moveToPoint('SimpleTouch', aGesture.x, aGesture.y);
+        this.moveCursor('moveToPoint', 'SimpleTouch', 'gesture',
+                        aGesture.x, aGesture.y);
         break;
       case 'doubletap1':
         this.activateCurrent();
@@ -755,18 +754,12 @@ var Input = {
     aEvent.stopPropagation();
   },
 
-  moveToPoint: function moveToPoint(aRule, aX, aY) {
+  moveCursor: function moveCursor(aAction, aRule, aInputType, aX, aY) {
     let mm = Utils.getMessageManager(Utils.CurrentBrowser);
-    mm.sendAsyncMessage('AccessFu:MoveToPoint', {rule: aRule,
-                                                 x: aX, y: aY,
-                                                 origin: 'top'});
-  },
-
-  moveCursor: function moveCursor(aAction, aRule, aInputType) {
-    let mm = Utils.getMessageManager(Utils.CurrentBrowser);
-    mm.sendAsyncMessage('AccessFu:MoveCursor',
+    mm.sendAsyncMessage('AccessFu:VirtualCursor',
                         {action: aAction, rule: aRule,
-                         origin: 'top', inputType: aInputType});
+                         x: aX, y: aY, origin: 'top',
+                         inputType: aInputType});
   },
 
   moveCaret: function moveCaret(aDetails) {

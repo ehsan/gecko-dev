@@ -148,9 +148,8 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     void TeardownProtoChain();
 
     // Helper for WebIDL newResolve
-    bool DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
-                      JS::Handle<jsid> aId,
-                      JS::MutableHandle<JS::Value> aValue);
+    bool DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject, JS::Handle<jsid> aId,
+                      unsigned aFlags, JS::MutableHandle<JSObject*> aObjp);
 
     // WebIDL API
     nsIDocument* GetContentDocument();

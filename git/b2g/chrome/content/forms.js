@@ -235,13 +235,7 @@ let FormAssistant = {
 
     this._documentEncoder = null;
     if (this._editor) {
-      // When the nsIFrame of the input element is reconstructed by
-      // CSS restyling, the editor observers are removed. Catch
-      // [nsIEditor.removeEditorObserver] failure exception if that
-      // happens.
-      try {
-        this._editor.removeEditorObserver(this);
-      } catch (e) {}
+      this._editor.removeEditorObserver(this);
       this._editor = null;
     }
 

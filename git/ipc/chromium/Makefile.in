@@ -38,18 +38,19 @@ vpath %.mm \
   $(NULL)
 
 include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
-ifneq ($(OS_ARCH),WINNT) # (if OS_POSIX) {
+ifdef OS_POSIX # {
 ifeq ($(OS_TARGET),Android)
 DEFINES += -DANDROID -D_POSIX_MONOTONIC_CLOCK=0
 endif # Android
-endif # } Not WINNT (OS_POSIX)
+endif # } OS_POSIX
 
 # libevent
 
 ifndef MOZ_NATIVE_LIBEVENT # {
 
-ifneq ($(OS_ARCH),WINNT) # (if OS_POSIX) {
+ifdef OS_POSIX # {
 
 LOCAL_INCLUDES += -I$(srcdir)/src/third_party/libevent
 LOCAL_INCLUDES += -I$(srcdir)/src/third_party/libevent/include
@@ -78,13 +79,12 @@ CSRCS += \
   strlcpy.c \
   $(NULL)
 
-ifeq ($(OS_ARCH),Darwin) # (OS_MACOSX) {
+ifdef OS_MACOSX # {
 LOCAL_INCLUDES += -I$(srcdir)/src/third_party/libevent/mac
 CSRCS += kqueue.c
+endif # }
 
-else # } else {
-
-ifneq (,$(filter-out DragonFly FreeBSD NetBSD OpenBSD,$(OS_ARCH))) # (OS_LINUX) {
+ifdef OS_LINUX # {
 ifeq ($(OS_TARGET),Android) # {
 LOCAL_INCLUDES += -I$(srcdir)/src/third_party/libevent/android
 else # } else {
@@ -94,17 +94,14 @@ CSRCS += \
   epoll.c \
   epoll_sub.c \
   $(NULL)
+endif # }
 
-else # } else (OS_BSD)  {
-
-ifneq (,$(filter DragonFly FreeBSD,$(OS_ARCH))) # (not OS_DRAGONFLY and not OS_FREEBSD) {
+ifdef OS_BSD # {
+ifneq (,$(OS_DRAGONFLY)$(OS_FREEBSD)) # {
 DEFINES += -D_EVENT_HAVE_SENDFILE
 endif # }
 LOCAL_INCLUDES += -I$(srcdir)/src/third_party/libevent/bsd
 CSRCS += kqueue.c
-
-endif # }
-
 endif # }
 
 endif # }
@@ -114,7 +111,6 @@ endif # }
 OS_CXXFLAGS += $(TK_CFLAGS)
 
 include $(topsrcdir)/config/rules.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 ifdef MOZ_NATIVE_LIBEVENT # {
 

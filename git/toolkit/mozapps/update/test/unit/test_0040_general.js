@@ -3,11 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-/* General URL Construction Tests */
-
 Components.utils.import("resource://gre/modules/ctypes.jsm")
 
-const TEST_ID = "0040";
+/* General URL Construction Tests */
 
 const URL_PREFIX = URL_HOST + URL_PATH + "/";
 
@@ -16,9 +14,6 @@ var gAppInfo;
 function run_test() {
   do_test_pending();
   do_register_cleanup(end_test);
-
-  adjustGeneralPaths();
-
   removeUpdateDirsAndFiles();
   // The mock XMLHttpRequest is MUCH faster
   overrideXHR(callHandleEvent);

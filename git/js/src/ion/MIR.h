@@ -4,24 +4,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/*
- * Everything needed to build actual MIR instructions: the actual opcodes and
- * instructions, the instruction interface, and use chains.
- */
-
 #ifndef ion_MIR_h
 #define ion_MIR_h
 
-#include "mozilla/Array.h"
-
+// This file declares everything needed to build actual MIR instructions: the
+// actual opcodes and instructions themselves, the instruction interface, and
+// use chains.
 #include "jscntxt.h"
-#include "jsinfer.h"
 #include "jslibmath.h"
-
+#include "jsinfer.h"
 #include "ion/TypePolicy.h"
 #include "ion/IonAllocPolicy.h"
 #include "ion/InlineList.h"
 #include "ion/MOpcodes.h"
+#include "ion/FixedArityList.h"
 #include "ion/IonMacroAssembler.h"
 #include "ion/Bailouts.h"
 #include "ion/FixedList.h"
@@ -630,7 +626,7 @@ template <size_t Arity>
 class MAryInstruction : public MInstruction
 {
   protected:
-    mozilla::Array<MUse, Arity> operands_;
+    FixedArityList<MUse, Arity> operands_;
 
     void setOperand(size_t index, MDefinition *operand) MOZ_FINAL MOZ_OVERRIDE {
         operands_[index].set(operand, this, index);
@@ -947,8 +943,8 @@ class MTableSwitch MOZ_FINAL
 template <size_t Arity, size_t Successors>
 class MAryControlInstruction : public MControlInstruction
 {
-    mozilla::Array<MUse, Arity> operands_;
-    mozilla::Array<MBasicBlock *, Successors> successors_;
+    FixedArityList<MUse, Arity> operands_;
+    FixedArityList<MBasicBlock *, Successors> successors_;
 
   protected:
     void setOperand(size_t index, MDefinition *operand) MOZ_FINAL MOZ_OVERRIDE {
