@@ -24,8 +24,7 @@ function run_test() {
   if ( alice._connectionStatus != alice.FAILED ) {
     alice.disconnect();
   };
-  // A flaw here: once alice disconnects, she can't connect again?
-  // Make an explicit test out of that.
+  //A flaw here: once alice disconnects, she can't connect again?
   */
 
   
