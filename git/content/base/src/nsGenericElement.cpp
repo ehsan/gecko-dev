@@ -109,7 +109,6 @@
 #include "nsIDOMEventListener.h"
 #include "nsIWebNavigation.h"
 #include "nsIBaseWindow.h"
-#include "nsIWidget.h"
 
 #include "jsapi.h"
 
@@ -1098,28 +1097,6 @@ nsINode::AddEventListener(const nsAString& aType,
 }
 
 NS_IMETHODIMP
-nsINode::AddSystemEventListener(const nsAString& aType,
-                                nsIDOMEventListener *aListener,
-                                bool aUseCapture,
-                                bool aWantsUntrusted,
-                                PRUint8 aOptionalArgc)
-{
-  NS_ASSERTION(!aWantsUntrusted || aOptionalArgc > 1,
-               "Won't check if this is chrome, you want to set "
-               "aWantsUntrusted to false or make the aWantsUntrusted "
-               "explicit by making aOptionalArgc non-zero.");
-
-  if (!aWantsUntrusted &&
-      (aOptionalArgc < 2 &&
-       !nsContentUtils::IsChromeDoc(OwnerDoc()))) {
-    aWantsUntrusted = true;
-  }
-
-  return NS_AddSystemEventListener(this, aType, aListener, aUseCapture,
-                                   aWantsUntrusted);
-}
-
-NS_IMETHODIMP
 nsINode::RemoveEventListener(const nsAString& aType,
                              nsIDOMEventListener* aListener,
                              bool aUseCapture)
@@ -1130,8 +1107,6 @@ nsINode::RemoveEventListener(const nsAString& aType,
   }
   return NS_OK;
 }
-
-NS_IMPL_REMOVE_SYSTEM_EVENT_LISTENER(nsINode)
 
 nsresult
 nsINode::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
@@ -1364,11 +1339,11 @@ nsIContent::GetFlattenedTreeParent() const
   return parent;
 }
 
-nsIContent::IMEState
+PRUint32
 nsIContent::GetDesiredIMEState()
 {
   if (!IsEditableInternal()) {
-    return IMEState(IMEState::DISABLED);
+    return IME_STATUS_DISABLE;
   }
   // NOTE: The content for independent editors (e.g., input[type=text],
   // textarea) must override this method, so, we don't need to worry about
@@ -1381,23 +1356,26 @@ nsIContent::GetDesiredIMEState()
   }
   nsIDocument* doc = GetCurrentDoc();
   if (!doc) {
-    return IMEState(IMEState::DISABLED);
+    return IME_STATUS_DISABLE;
   }
   nsIPresShell* ps = doc->GetShell();
   if (!ps) {
-    return IMEState(IMEState::DISABLED);
+    return IME_STATUS_DISABLE;
   }
   nsPresContext* pc = ps->GetPresContext();
   if (!pc) {
-    return IMEState(IMEState::DISABLED);
+    return IME_STATUS_DISABLE;
   }
   nsIEditor* editor = GetHTMLEditor(pc);
   nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(editor);
   if (!imeEditor) {
-    return IMEState(IMEState::DISABLED);
+    return IME_STATUS_DISABLE;
   }
-  IMEState state;
-  imeEditor->GetPreferredIMEState(&state);
+  // Use "enable" for the default value because IME is disabled unexpectedly,
+  // it makes serious a11y problem.
+  PRUint32 state = IME_STATUS_ENABLE;
+  nsresult rv = imeEditor->GetPreferredIMEState(&state);
+  NS_ENSURE_SUCCESS(rv, IME_STATUS_ENABLE);
   return state;
 }
 
@@ -3089,12 +3067,6 @@ nsGenericElement::UnbindFromTree(bool aDeep, bool aNullParent)
     if (IsFullScreenAncestor(this)) {
       // The element being removed is an ancestor of the full-screen element,
       // exit full-screen state.
-      nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
-                                      "RemovedFullScreenElement",
-                                      nsnull, 0, nsnull,
-                                      EmptyString(), 0, 0,
-                                      nsIScriptError::warningFlag,
-                                      "DOM", OwnerDoc());      
       OwnerDoc()->CancelFullScreen();
     }
     if (GetParent()) {
@@ -4371,7 +4343,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_INTERFACE_MAP_BEGIN(nsGenericElement)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsGenericElement)
-  NS_INTERFACE_MAP_ENTRY(Element)
   NS_INTERFACE_MAP_ENTRY(nsIContent)
   NS_INTERFACE_MAP_ENTRY(nsINode)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)

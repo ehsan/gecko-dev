@@ -320,9 +320,8 @@ public:
                                             bool *aIsCancelled);
 
     NS_IMETHOD ResetInputState();
-    NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
-                                      const InputContextAction& aAction);
-    NS_IMETHOD_(InputContext) GetInputContext();
+    NS_IMETHOD SetInputMode(const IMEContext& aContext);
+    NS_IMETHOD GetInputMode(IMEContext& aContext);
     NS_IMETHOD CancelIMEComposition();
     NS_IMETHOD OnIMEFocusChange(bool aFocus);
     NS_IMETHOD GetToggledKeyState(PRUint32 aKeyCode, bool* aLEDState);

@@ -37,8 +37,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include <pthread.h>
-#include "base/atomicops.h"
 #include "nscore.h"
+#include "base/atomicops.h"
 
 // TODO Merge into Sampler.h
 

@@ -38,12 +38,10 @@
 #ifndef __nsconsolemessage_h__
 #define __nsconsolemessage_h__
 
-#include "mozilla/Attributes.h"
-
 #include "nsIConsoleMessage.h"
 #include "nsString.h"
 
-class nsConsoleMessage MOZ_FINAL : public nsIConsoleMessage {
+class nsConsoleMessage : public nsIConsoleMessage {
 public:
     nsConsoleMessage();
     nsConsoleMessage(const PRUnichar *message);

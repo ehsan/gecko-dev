@@ -68,6 +68,8 @@
 #include "nsIDOMXULControlElement.h"
 #include "nsINameSpaceManager.h"
 #include "nsIBaseWindow.h"
+#include "nsIView.h"
+#include "nsIViewManager.h"
 #include "nsISelection.h"
 #include "nsFrameSelection.h"
 #include "nsIPrivateDOMEvent.h"
@@ -1028,7 +1030,8 @@ nsresult
 nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
                                     nsEvent *aEvent,
                                     nsIFrame* aTargetFrame,
-                                    nsEventStatus* aStatus)
+                                    nsEventStatus* aStatus,
+                                    nsIView* aView)
 {
   NS_ENSURE_ARG_POINTER(aStatus);
   NS_ENSURE_ARG(aPresContext);
@@ -2544,8 +2547,7 @@ GetScrollableLineHeight(nsIFrame* aTargetFrame)
 
   // Fall back to the font height of the target frame.
   nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(aTargetFrame, getter_AddRefs(fm),
-    nsLayoutUtils::FontSizeInflationFor(aTargetFrame));
+  nsLayoutUtils::GetFontMetricsForFrame(aTargetFrame, getter_AddRefs(fm));
   NS_ASSERTION(fm, "FontMetrics is null!");
   if (fm)
     return fm->MaxHeight();
@@ -3027,7 +3029,8 @@ nsresult
 nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
                                      nsEvent *aEvent,
                                      nsIFrame* aTargetFrame,
-                                     nsEventStatus* aStatus)
+                                     nsEventStatus* aStatus,
+                                     nsIView* aView)
 {
   NS_ENSURE_ARG(aPresContext);
   NS_ENSURE_ARG_POINTER(aStatus);

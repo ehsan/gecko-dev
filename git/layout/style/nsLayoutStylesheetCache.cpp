@@ -155,16 +155,6 @@ nsLayoutStylesheetCache::QuirkSheet()
   return gStyleCache->mQuirkSheet;
 }
 
-nsCSSStyleSheet*
-nsLayoutStylesheetCache::FullScreenOverrideSheet()
-{
-  EnsureGlobal();
-  if (!gStyleCache)
-    return nsnull;
-
-  return gStyleCache->mFullScreenOverrideSheet;
-}
-
 void
 nsLayoutStylesheetCache::Shutdown()
 {
@@ -201,13 +191,6 @@ nsLayoutStylesheetCache::nsLayoutStylesheetCache()
     LoadSheet(uri, mQuirkSheet, true);
   }
   NS_ASSERTION(mQuirkSheet, "Could not load quirk.css");
-
-  NS_NewURI(getter_AddRefs(uri), "resource://gre-resources/full-screen-override.css");
-  if (uri) {
-    LoadSheet(uri, mFullScreenOverrideSheet, true);
-  }
-  NS_ASSERTION(mFullScreenOverrideSheet, "Could not load full-screen-override.css");
-
 }
 
 void

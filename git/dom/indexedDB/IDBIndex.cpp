@@ -1160,12 +1160,12 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
                               queryStart);
         mRangeKey = mKeyRange->Upper();
       }
-      mContinueQuery = queryStart + NS_LITERAL_CSTRING(" AND value >= :") +
-                       currentKey + NS_LITERAL_CSTRING(" AND ( value > :") +
-                       currentKey + NS_LITERAL_CSTRING(" OR ") + keyColumn +
+      mContinueQuery = queryStart + NS_LITERAL_CSTRING(" AND ( ( value = :") +
+                       currentKey + NS_LITERAL_CSTRING(" AND ") + keyColumn +
                        NS_LITERAL_CSTRING(" > :") + objectKey +
-                       NS_LITERAL_CSTRING(" )") + directionClause +
-                       NS_LITERAL_CSTRING(" LIMIT ");
+                       NS_LITERAL_CSTRING(" ) OR ( value > :") + currentKey +
+                       NS_LITERAL_CSTRING(" ) )") + directionClause +
+                       NS_LITERAL_CSTRING(" LIMIT 1");
       mContinueToQuery = queryStart + NS_LITERAL_CSTRING(" AND value >= :") +
                          currentKey + NS_LITERAL_CSTRING(" LIMIT ");
       break;
@@ -1178,7 +1178,7 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
       }
       mContinueQuery = queryStart + NS_LITERAL_CSTRING(" AND value > :") +
                        currentKey + directionClause +
-                       NS_LITERAL_CSTRING(" LIMIT ");
+                       NS_LITERAL_CSTRING(" LIMIT 1");
       mContinueToQuery = queryStart + NS_LITERAL_CSTRING(" AND value >= :") +
                          currentKey + directionClause +
                          NS_LITERAL_CSTRING(" LIMIT ");
@@ -1190,13 +1190,12 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
                               queryStart);
         mRangeKey = mKeyRange->Lower();
       }
-
-      mContinueQuery = queryStart + NS_LITERAL_CSTRING(" AND value <= :") +
-                       currentKey + NS_LITERAL_CSTRING(" AND ( value < :") +
-                       currentKey + NS_LITERAL_CSTRING(" OR ") + keyColumn +
+      mContinueQuery = queryStart + NS_LITERAL_CSTRING(" AND ( ( value = :") +
+                       currentKey + NS_LITERAL_CSTRING(" AND ") + keyColumn +
                        NS_LITERAL_CSTRING(" < :") + objectKey +
-                       NS_LITERAL_CSTRING(" ) ") + directionClause +
-                       NS_LITERAL_CSTRING(" LIMIT ");
+                       NS_LITERAL_CSTRING(" ) OR ( value < :") + currentKey +
+                       NS_LITERAL_CSTRING(" ) )") + directionClause +
+                       NS_LITERAL_CSTRING(" LIMIT 1");
       mContinueToQuery = queryStart + NS_LITERAL_CSTRING(" AND value <= :") +
                          currentKey + NS_LITERAL_CSTRING(" LIMIT ");
       break;
@@ -1209,7 +1208,7 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
       }
       mContinueQuery = queryStart + NS_LITERAL_CSTRING(" AND value < :") +
                        currentKey + directionClause +
-                       NS_LITERAL_CSTRING(" LIMIT ");
+                       NS_LITERAL_CSTRING(" LIMIT 1");
       mContinueToQuery = queryStart + NS_LITERAL_CSTRING(" AND value <= :") +
                          currentKey + directionClause +
                          NS_LITERAL_CSTRING(" LIMIT ");
@@ -1252,7 +1251,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   if (mIndex->IsAutoIncrement()) {
     objectTable.AssignLiteral("ai_object_data");
     objectDataIdColumn.AssignLiteral("ai_object_data_id");
-    keyValueColumn.AssignLiteral("ai_object_data_id");
+    keyValueColumn.AssignLiteral("id");
     if (mIndex->IsUnique()) {
       indexTable.AssignLiteral("ai_unique_index_data");
     }
@@ -1263,7 +1262,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   else {
     objectTable.AssignLiteral("object_data");
     objectDataIdColumn.AssignLiteral("object_data_id");
-    keyValueColumn.AssignLiteral("object_data_key");
+    keyValueColumn.AssignLiteral("key_value");
     if (mIndex->IsUnique()) {
       indexTable.AssignLiteral("unique_index_data");
     }
@@ -1272,8 +1271,11 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     }
   }
 
+  NS_NAMED_LITERAL_CSTRING(id, "id");
+
   nsCString value = indexTable + NS_LITERAL_CSTRING(".value");
-  nsCString keyValue = indexTable + NS_LITERAL_CSTRING(".") + keyValueColumn;
+  nsCString data = objectTable + NS_LITERAL_CSTRING(".data");
+  nsCString keyValue = objectTable + NS_LITERAL_CSTRING(".") + keyValueColumn;
 
   nsCString keyRangeClause;
   if (mKeyRange) {
@@ -1302,21 +1304,16 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
       NS_NOTREACHED("Unknown direction!");
   }
 
-  NS_NAMED_LITERAL_CSTRING(id, "id");
-  NS_NAMED_LITERAL_CSTRING(dot, ".");
-  NS_NAMED_LITERAL_CSTRING(commaspace, ", ");
-
-  nsCString data = objectTable + NS_LITERAL_CSTRING(".data");
-
-  nsCString firstQuery = NS_LITERAL_CSTRING("SELECT ") + value + commaspace +
-                         keyValue + commaspace + data +
-                         NS_LITERAL_CSTRING(" FROM ") + indexTable +
-                         NS_LITERAL_CSTRING(" INNER JOIN ") + objectTable +
-                         NS_LITERAL_CSTRING(" ON ") + indexTable + dot +
-                         objectDataIdColumn + NS_LITERAL_CSTRING(" = ") +
-                         objectTable + dot + id +
-                         NS_LITERAL_CSTRING(" WHERE ") + indexTable +
-                         NS_LITERAL_CSTRING(".index_id = :") + id +
+  nsCString firstQuery = NS_LITERAL_CSTRING("SELECT ") + value +
+                         NS_LITERAL_CSTRING(", ") + keyValue +
+                         NS_LITERAL_CSTRING(", ") + data +
+                         NS_LITERAL_CSTRING(" FROM ") + objectTable +
+                         NS_LITERAL_CSTRING(" INNER JOIN ") + indexTable +
+                         NS_LITERAL_CSTRING(" ON ") + indexTable +
+                         NS_LITERAL_CSTRING(".") + objectDataIdColumn +
+                         NS_LITERAL_CSTRING(" = ") + objectTable +
+                         NS_LITERAL_CSTRING(".id WHERE ") + indexTable +
+                         NS_LITERAL_CSTRING(".index_id = :id") +
                          keyRangeClause + directionClause +
                          NS_LITERAL_CSTRING(" LIMIT 1");
 
@@ -1355,28 +1352,19 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   // Now we need to make the query to get the next match.
   nsCAutoString queryStart = NS_LITERAL_CSTRING("SELECT ") + value +
-                             commaspace + keyValue + commaspace + data +
-                             NS_LITERAL_CSTRING(" FROM ") + indexTable +
-                             NS_LITERAL_CSTRING(" INNER JOIN ") + objectTable +
-                             NS_LITERAL_CSTRING(" ON ") + indexTable + dot +
-                             objectDataIdColumn + NS_LITERAL_CSTRING(" = ") +
-                             objectTable + dot + id +
-                             NS_LITERAL_CSTRING(" WHERE ") + indexTable +
-                             NS_LITERAL_CSTRING(".index_id = :") + id;
+                             NS_LITERAL_CSTRING(", ") + keyValue +
+                             NS_LITERAL_CSTRING(", ") + data +
+                             NS_LITERAL_CSTRING(" FROM ") + objectTable +
+                             NS_LITERAL_CSTRING(" INNER JOIN ") + indexTable +
+                             NS_LITERAL_CSTRING(" ON ") + indexTable +
+                             NS_LITERAL_CSTRING(".") + objectDataIdColumn +
+                             NS_LITERAL_CSTRING(" = ") + objectTable +
+                             NS_LITERAL_CSTRING(".id WHERE ") + indexTable +
+                             NS_LITERAL_CSTRING(".index_id = :id");
 
   NS_NAMED_LITERAL_CSTRING(currentKey, "current_key");
   NS_NAMED_LITERAL_CSTRING(rangeKey, "range_key");
   NS_NAMED_LITERAL_CSTRING(objectKey, "object_key");
-
-  NS_NAMED_LITERAL_CSTRING(andStr, " AND ");
-  NS_NAMED_LITERAL_CSTRING(orStr, " OR ");
-  NS_NAMED_LITERAL_CSTRING(ge, " >= :");
-  NS_NAMED_LITERAL_CSTRING(gt, " > :");
-  NS_NAMED_LITERAL_CSTRING(le, " <= :");
-  NS_NAMED_LITERAL_CSTRING(lt, " < :");
-  NS_NAMED_LITERAL_CSTRING(openparen, " ( ");
-  NS_NAMED_LITERAL_CSTRING(closeparen, " ) ");
-  NS_NAMED_LITERAL_CSTRING(limit, " LIMIT ");
 
   switch (mDirection) {
     case nsIIDBCursor::NEXT:
@@ -1385,11 +1373,18 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
                               queryStart);
         mRangeKey = mKeyRange->Upper();
       }
-      mContinueQuery = queryStart + andStr + value + ge + currentKey + andStr +
-                       openparen + value + gt + currentKey + orStr + keyValue +
-                       gt + objectKey + closeparen + directionClause + limit;
-      mContinueToQuery = queryStart + andStr + value + ge + currentKey +
-                         directionClause + limit;
+      mContinueQuery = queryStart + NS_LITERAL_CSTRING(" AND ( ( ") +
+                       value + NS_LITERAL_CSTRING(" = :") + currentKey +
+                       NS_LITERAL_CSTRING(" AND ") + keyValue +
+                       NS_LITERAL_CSTRING(" > :") + objectKey +
+                       NS_LITERAL_CSTRING(" ) OR ( ") + value +
+                       NS_LITERAL_CSTRING(" > :") + currentKey +
+                       NS_LITERAL_CSTRING(" ) )") + directionClause +
+                       NS_LITERAL_CSTRING(" LIMIT 1");
+      mContinueToQuery = queryStart + NS_LITERAL_CSTRING(" AND ") + value +
+                         NS_LITERAL_CSTRING(" >= :") +
+                         currentKey + directionClause +
+                         NS_LITERAL_CSTRING(" LIMIT 1");
       break;
 
     case nsIIDBCursor::NEXT_NO_DUPLICATE:
@@ -1398,10 +1393,12 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
                               queryStart);
         mRangeKey = mKeyRange->Upper();
       }
-      mContinueQuery = queryStart + andStr + value + gt + currentKey +
-                       directionClause + limit;
-      mContinueToQuery = queryStart + andStr + value + ge + currentKey +
-                         directionClause + limit;
+      mContinueQuery = queryStart + NS_LITERAL_CSTRING(" AND ") + value +
+                       NS_LITERAL_CSTRING(" > :") + currentKey +
+                       directionClause + NS_LITERAL_CSTRING(" LIMIT 1");
+      mContinueToQuery = queryStart + NS_LITERAL_CSTRING(" AND ") + value +
+                         NS_LITERAL_CSTRING(" >= :") + currentKey +
+                         directionClause + NS_LITERAL_CSTRING(" LIMIT 1");
       break;
 
     case nsIIDBCursor::PREV:
@@ -1410,11 +1407,18 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
                               queryStart);
         mRangeKey = mKeyRange->Lower();
       }
-      mContinueQuery = queryStart + andStr + value + le + currentKey + andStr +
-                       openparen + value + lt + currentKey + orStr + keyValue +
-                       lt + objectKey + closeparen + directionClause + limit;
-      mContinueToQuery = queryStart + andStr + value + le + currentKey +
-                         directionClause + limit;
+      mContinueQuery = queryStart + NS_LITERAL_CSTRING(" AND ( ( ") +
+                       value + NS_LITERAL_CSTRING(" = :") + currentKey +
+                       NS_LITERAL_CSTRING(" AND ") + keyValue +
+                       NS_LITERAL_CSTRING(" < :") + objectKey +
+                       NS_LITERAL_CSTRING(" ) OR ( ") + value +
+                       NS_LITERAL_CSTRING(" < :") + currentKey +
+                       NS_LITERAL_CSTRING(" ) )") + directionClause +
+                       NS_LITERAL_CSTRING(" LIMIT 1");
+      mContinueToQuery = queryStart + NS_LITERAL_CSTRING(" AND ") + value +
+                         NS_LITERAL_CSTRING(" <= :") +
+                         currentKey + directionClause +
+                         NS_LITERAL_CSTRING(" LIMIT 1");
       break;
 
     case nsIIDBCursor::PREV_NO_DUPLICATE:
@@ -1423,10 +1427,12 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
                               queryStart);
         mRangeKey = mKeyRange->Lower();
       }
-      mContinueQuery = queryStart + andStr + value + lt + currentKey +
-                       directionClause +limit;
-      mContinueToQuery = queryStart + andStr + value + le + currentKey +
-                         directionClause + limit;
+      mContinueQuery = queryStart + NS_LITERAL_CSTRING(" AND ") + value +
+                       NS_LITERAL_CSTRING(" < :") + currentKey +
+                       directionClause + NS_LITERAL_CSTRING(" LIMIT 1");
+      mContinueToQuery = queryStart + NS_LITERAL_CSTRING(" AND ") + value +
+                         NS_LITERAL_CSTRING(" <= :") + currentKey +
+                         directionClause + NS_LITERAL_CSTRING(" LIMIT 1");
       break;
 
     default:

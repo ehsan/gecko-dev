@@ -104,6 +104,7 @@ protected:
                                                         PRInt32& aEntry,
                                                         void* aUserData);
   bool IsEventTrusted(nsIDOMEvent *aEvent);
+  bool IsInputAutoCompleteOff();
   // members //////////////////////////////////////////
 
   nsCOMPtr<nsIAutoCompleteController> mController;

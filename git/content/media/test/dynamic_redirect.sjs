@@ -1,23 +1,9 @@
-function parseQuery(request, key) {
-  var params = request.queryString.split('&');
-  for (var j = 0; j < params.length; ++j) {
-    var p = params[j];
-	if (p == key)
-	  return true;
-    if (p.indexOf(key + "=") == 0)
-	  return p.substring(key.length + 1);
-	if (p.indexOf("=") < 0 && key == "")
-	  return p;
-  }
-  return false;
-}
-
 // Return seek.ogv file content for the first request with a given key.
 // All subsequent requests return a redirect to a different-origin resource.
 function handleRequest(request, response)
 {
-  var key = parseQuery(request, "key");
-  var resource = parseQuery(request, "res");
+  var key = (request.queryString.match(/^key=(.*)&/))[1];
+  var resource = (request.queryString.match(/res=(.*)$/))[1];
 
   if (getState(key) == "redirect") {
     var origin = request.host == "mochi.test" ? "example.org" : "mochi.test:8888";

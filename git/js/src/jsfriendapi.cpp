@@ -41,7 +41,6 @@
 #include "jscompartment.h"
 #include "jsfriendapi.h"
 #include "jswrapper.h"
-#include "jsweakmap.h"
 
 #include "jsobjinlines.h"
 
@@ -131,12 +130,6 @@ JS_ObjectCountDynamicSlots(JSObject *obj)
     if (obj->hasSlotsArray())
         return obj->numDynamicSlots(obj->numSlots());
     return 0;
-}
-    
-JS_PUBLIC_API(void)
-JS_ShrinkingGC(JSContext *cx)
-{
-    js_GC(cx, NULL, GC_SHRINK, gcstats::PUBLIC_API);
 }
 
 JS_FRIEND_API(JSPrincipals *)
@@ -228,12 +221,6 @@ JS_FRIEND_API(size_t)
 JS_GetCustomIteratorCount(JSContext *cx)
 {
     return sCustomIteratorCount;
-}
-
-void
-js::TraceWeakMaps(WeakMapTracer *trc)
-{
-    WeakMapBase::traceAllMappings(trc);
 }
 
 JS_FRIEND_API(void)

@@ -27,14 +27,15 @@ function onContentLoaded()
 
   executeSoon(
     function (){
+      HUDService.setFilterState(hudId, "cssparser", false);
+
       let msg = "the unknown CSS property warning is not displayed, " +
                 "after filtering";
       testLogEntry(outputNode, "foobarCssParser", msg, true, true);
-
-      HUDService.setFilterState(hudId, "cssparser", true);
-      finishTest();
     }
   );
+
+  finishTest();
 }
 
 /**

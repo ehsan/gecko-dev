@@ -449,30 +449,17 @@ public:
     // Sets up the GL_ARB_robustness timer if it isn't already, so that if the
     // driver gets restarted, the context may get reset with it.
     void SetupRobustnessTimer() {
-        if (mContextLost || !mHasRobustness)
+        if (mContextLost)
             return;
 
-        // If the timer was already running, don't restart it here. Instead,
-        // wait until the previous call is done, then fire it one more time.
-        // This is an optimization to prevent unnecessary cross-communication
-        // between threads.
-        if (mRobustnessTimerRunning) {
-            mDrawSinceRobustnessTimerSet = true;
-            return;
-        }
+        if (!mContextRestorer)
+            mContextRestorer = do_CreateInstance("@mozilla.org/timer;1");
         
+        // As long as there's still activity, we reset the timer each time that
+        // this function gets called.
         mContextRestorer->InitWithCallback(static_cast<nsITimerCallback*>(this),
                                            PR_MillisecondsToInterval(1000),
                                            nsITimer::TYPE_ONE_SHOT);
-        mRobustnessTimerRunning = true;
-        mDrawSinceRobustnessTimerSet = false;
-    }
-
-    void TerminateRobustnessTimer() {
-        if (mRobustnessTimerRunning) {
-            mContextRestorer->Cancel();
-            mRobustnessTimerRunning = false;
-        }
     }
 
 protected:
@@ -517,7 +504,6 @@ protected:
     bool mOptionsFrozen;
     bool mMinCapability;
     bool mDisableExtensions;
-    bool mHasRobustness;
 
     WebGLuint mActiveTexture;
     WebGLenum mWebGLError;
@@ -737,8 +723,6 @@ protected:
     nsCOMPtr<nsITimer> mContextRestorer;
     bool mContextLost;
     bool mAllowRestore;
-    bool mRobustnessTimerRunning;
-    bool mDrawSinceRobustnessTimerSet;
 
 public:
     // console logging helpers
@@ -1087,10 +1071,9 @@ public:
     }
 
     bool HasImageInfoAt(size_t level, size_t face) const {
-        CheckedUint32 checked_index = CheckedUint32(level) * mFacesCount + face;
-        return checked_index.valid() &&
-               checked_index.value() < mImageInfos.Length() &&
-               ImageInfoAt(level, face).mIsDefined;
+        return level <= mMaxLevelWithCustomImages &&
+               face < mFacesCount &&
+               ImageInfoAt(level, 0).mIsDefined;
     }
 
     static size_t FaceForTarget(WebGLenum target) {

@@ -641,6 +641,7 @@ MAKEFILES_xulapp="
   toolkit/mozapps/readstrings/Makefile
   toolkit/mozapps/update/Makefile
   toolkit/mozapps/update/updater/Makefile
+  toolkit/mozapps/xpinstall/Makefile
   toolkit/profile/Makefile
   toolkit/system/dbus/Makefile
   toolkit/system/gnome/Makefile
@@ -891,7 +892,6 @@ if [ "$ENABLE_TESTS" ]; then
     testing/xpcshell/example/Makefile
     testing/firebug/Makefile
     testing/peptest/Makefile
-    testing/mozbase/Makefile
     toolkit/components/alerts/test/Makefile
     toolkit/components/autocomplete/tests/Makefile
     toolkit/components/commandlines/test/Makefile

@@ -20,8 +20,7 @@ void NotifyEvent();
 namespace base {
 
 MessagePumpForUI::MessagePumpForUI()
-  : state_(NULL)
-  , pump(*this)
+  : pump(*this)
 {
 }
 

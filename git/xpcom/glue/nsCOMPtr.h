@@ -53,7 +53,6 @@
                        -- scc
 */
 
-#include "mozilla/Attributes.h"
 
   // Wrapping includes can speed up compiles (see "Large Scale C++ Software Design")
 #ifndef nsDebug_h___
@@ -278,7 +277,8 @@ class nsCOMPtr_helper
 class
   NS_COM_GLUE
   NS_STACK_CLASS
-nsQueryInterface MOZ_FINAL
+  NS_FINAL_CLASS
+nsQueryInterface
   {
     public:
       explicit
@@ -513,7 +513,9 @@ nsCOMPtr_base
 // template <class T> class nsGetterAddRefs;
 
 template <class T>
-class nsCOMPtr MOZ_FINAL
+class
+  NS_FINAL_CLASS
+nsCOMPtr
 #ifdef NSCAP_FEATURE_USE_BASE
     : private nsCOMPtr_base
 #endif

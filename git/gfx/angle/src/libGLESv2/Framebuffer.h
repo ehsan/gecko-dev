@@ -46,9 +46,9 @@ class Framebuffer
     unsigned int getDepthbufferSerial();
     unsigned int getStencilbufferSerial();
 
-    Renderbuffer *getColorbuffer();
-    Renderbuffer *getDepthbuffer();
-    Renderbuffer *getStencilbuffer();
+    Colorbuffer *getColorbuffer();
+    DepthStencilbuffer *getDepthbuffer();
+    DepthStencilbuffer *getStencilbuffer();
 
     GLenum getColorbufferType();
     GLenum getDepthbufferType();
@@ -82,7 +82,7 @@ class Framebuffer
 class DefaultFramebuffer : public Framebuffer
 {
   public:
-    DefaultFramebuffer(Colorbuffer *colorbuffer, DepthStencilbuffer *depthStencil);
+    DefaultFramebuffer(Colorbuffer *color, DepthStencilbuffer *depthStencil);
 
     virtual GLenum completeness();
 

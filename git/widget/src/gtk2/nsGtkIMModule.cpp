@@ -58,7 +58,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::widget;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gGtkIMLog = nsnull;
@@ -86,13 +85,13 @@ static const char*
 GetEnabledStateName(PRUint32 aState)
 {
     switch (aState) {
-        case IMEState::DISABLED:
+        case nsIWidget::IME_STATUS_DISABLED:
             return "DISABLED";
-        case IMEState::ENABLED:
+        case nsIWidget::IME_STATUS_ENABLED:
             return "ENABLED";
-        case IMEState::PASSWORD:
+        case nsIWidget::IME_STATUS_PASSWORD:
             return "PASSWORD";
-        case IMEState::PLUGIN:
+        case nsIWidget::IME_STATUS_PLUGIN:
             return "PLUG_IN";
         default:
             return "UNKNOWN ENABLED STATUS!!";
@@ -122,6 +121,7 @@ nsGtkIMModule::nsGtkIMModule(nsWindow* aOwnerWindow) :
         gGtkIMLog = PR_NewLogModule("nsGtkIMModuleWidgets");
     }
 #endif
+    mIMEContext.mStatus = nsIWidget::IME_STATUS_ENABLED;
     Init();
 }
 
@@ -257,7 +257,7 @@ nsGtkIMModule::OnDestroyWindow(nsWindow* aWindow)
 
     mOwnerWindow = nsnull;
     mLastFocusedWindow = nsnull;
-    mInputContext.mIMEState.mEnabled = IMEState::DISABLED;
+    mIMEContext.mStatus = nsIWidget::IME_STATUS_DISABLED;
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("    SUCCEEDED, Completely destroyed"));
@@ -541,72 +541,68 @@ nsGtkIMModule::CancelIMEComposition(nsWindow* aCaller)
     return NS_OK;
 }
 
-void
-nsGtkIMModule::SetInputContext(nsWindow* aCaller,
-                               const InputContext* aContext,
-                               const InputContextAction* aAction)
+nsresult
+nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
 {
-    if (NS_UNLIKELY(IsDestroyed())) {
-        return;
+    if (aContext->mStatus == mIMEContext.mStatus || NS_UNLIKELY(IsDestroyed())) {
+        return NS_OK;
     }
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("GtkIMModule(%p): SetInputContext, aCaller=%p, aState=%s mHTMLInputType=%s",
-         this, aCaller, GetEnabledStateName(aContext->mIMEState.mEnabled),
+        ("GtkIMModule(%p): SetInputMode, aCaller=%p, aState=%s mHTMLInputType=%s",
+         this, aCaller, GetEnabledStateName(aContext->mStatus),
          NS_ConvertUTF16toUTF8(aContext->mHTMLInputType).get()));
 
     if (aCaller != mLastFocusedWindow) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    FAILED, the caller isn't focused window, mLastFocusedWindow=%p",
              mLastFocusedWindow));
-        return;
+        return NS_OK;
     }
 
     if (!mContext) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    FAILED, there are no context"));
-        return;
+        return NS_ERROR_NOT_AVAILABLE;
     }
 
 
     if (sLastFocusedModule != this) {
-        mInputContext = *aContext;
+        mIMEContext = *aContext;
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    SUCCEEDED, but we're not active"));
-        return;
+        return NS_OK;
     }
 
-    bool changingEnabledState =
-        aContext->mIMEState.mEnabled != mInputContext.mIMEState.mEnabled;
-
     // Release current IME focus if IME is enabled.
-    if (changingEnabledState && IsEditable()) {
+    if (IsEditable()) {
         ResetInputState(mLastFocusedWindow);
         Blur();
     }
 
-    mInputContext = *aContext;
+    mIMEContext = *aContext;
 
     // Even when aState is not enabled state, we need to set IME focus.
     // Because some IMs are updating the status bar of them at this time.
     // Be aware, don't use aWindow here because this method shouldn't move
     // focus actually.
-    if (changingEnabledState) {
-        Focus();
-    }
+    Focus();
 
 #if (MOZ_PLATFORM_MAEMO == 5)
     GtkIMContext *im = GetContext();
     if (im) {
         if (IsEnabled()) {
             // Ensure that opening the virtual keyboard is allowed for this specific
-            // InputContext depending on the content.ime.strict.policy pref
-            if (mInputContext.mIMEState.mEnabled != IMEState::DISABLED && 
-                mInputContext.mIMEState.mEnabled != IMEState::PLUGIN &&
-                Preferences::GetBool("content.ime.strict_policy", false) &&
-                !aAction->ContentGotFocusByTrustedCause() &&
-                !aAction->UserMightRequestOpenVKB()) {
-                return;
+            // IMEContext depending on the content.ime.strict.policy pref
+            if (mIMEContext.mStatus != nsIWidget::IME_STATUS_DISABLED && 
+                mIMEContext.mStatus != nsIWidget::IME_STATUS_PLUGIN) {
+
+                bool useStrictPolicy =
+                    Preferences::GetBool("content.ime.strict_policy", false);
+                if (useStrictPolicy && !mIMEContext.FocusMovedByUser() && 
+                    mIMEContext.FocusMovedInContentProcess()) {
+                    return NS_OK;
+                }
             }
 
             // It is not desired that the hildon's autocomplete mechanism displays
@@ -615,10 +611,10 @@ nsGtkIMModule::SetInputContext(nsWindow* aCaller,
             int mode;
             g_object_get(im, "hildon-input-mode", &mode, NULL);
 
-            if (mInputContext.mIMEState.mEnabled == IMEState::ENABLED ||
-                mInputContext.mIMEState.mEnabled == IMEState::PLUGIN) {
+            if (mIMEContext.mStatus == nsIWidget::IME_STATUS_ENABLED ||
+                mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN) {
                 mode &= ~HILDON_GTK_INPUT_MODE_INVISIBLE;
-            } else if (mInputContext.mIMEState.mEnabled == IMEState::PASSWORD) {
+            } else if (mIMEContext.mStatus == nsIWidget::IME_STATUS_PASSWORD) {
                mode |= HILDON_GTK_INPUT_MODE_INVISIBLE;
             }
 
@@ -658,13 +654,16 @@ nsGtkIMModule::SetInputContext(nsWindow* aCaller,
                                          rectBuf.get());
     }
 #endif
+
+    return NS_OK;
 }
 
-InputContext
-nsGtkIMModule::GetInputContext()
+nsresult
+nsGtkIMModule::GetInputMode(IMEContext* aContext)
 {
-    mInputContext.mIMEState.mOpen = IMEState::OPEN_STATE_NOT_SUPPORTED;
-    return mInputContext;
+    NS_ENSURE_ARG_POINTER(aContext);
+    *aContext = mIMEContext;
+    return NS_OK;
 }
 
 /* static */
@@ -686,7 +685,7 @@ nsGtkIMModule::GetContext()
     }
 
 #ifndef NS_IME_ENABLED_ON_PASSWORD_FIELD
-    if (mInputContext.mIMEState.mEnabled == IMEState::PASSWORD) {
+    if (mIMEContext.mStatus == nsIWidget::IME_STATUS_PASSWORD) {
         return mSimpleContext;
     }
 #endif // NS_IME_ENABLED_ON_PASSWORD_FIELD
@@ -697,19 +696,19 @@ nsGtkIMModule::GetContext()
 bool
 nsGtkIMModule::IsEnabled()
 {
-    return mInputContext.mIMEState.mEnabled == IMEState::ENABLED ||
+    return mIMEContext.mStatus == nsIWidget::IME_STATUS_ENABLED ||
 #ifdef NS_IME_ENABLED_ON_PASSWORD_FIELD
-           mInputContext.mIMEState.mEnabled == IMEState::PASSWORD ||
+           mIMEContext.mStatus == nsIWidget::IME_STATUS_PASSWORD ||
 #endif // NS_IME_ENABLED_ON_PASSWORD_FIELD
-           mInputContext.mIMEState.mEnabled == IMEState::PLUGIN;
+           mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN;
 }
 
 bool
 nsGtkIMModule::IsEditable()
 {
-    return mInputContext.mIMEState.mEnabled == IMEState::ENABLED ||
-           mInputContext.mIMEState.mEnabled == IMEState::PLUGIN ||
-           mInputContext.mIMEState.mEnabled == IMEState::PASSWORD;
+    return mIMEContext.mStatus == nsIWidget::IME_STATUS_ENABLED ||
+           mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN ||
+           mIMEContext.mStatus == nsIWidget::IME_STATUS_PASSWORD;
 }
 
 void

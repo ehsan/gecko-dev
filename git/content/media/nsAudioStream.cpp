@@ -66,12 +66,6 @@ using namespace mozilla;
 #define SA_PER_STREAM_VOLUME 1
 #endif
 
-// Android's audio backend is not available in content processes, so audio must
-// be remoted to the parent chrome process.
-#if defined(ANDROID)
-#define REMOTE_AUDIO 1
-#endif
-
 using mozilla::TimeStamp;
 
 #ifdef PR_LOGGING
@@ -121,7 +115,6 @@ class nsNativeAudioStream : public nsAudioStream
 
 };
 
-#if defined(REMOTE_AUDIO)
 class nsRemotedAudioStream : public nsAudioStream
 {
  public:
@@ -314,7 +307,6 @@ class AudioShutdownEvent : public nsRunnable
 
   nsRefPtr<AudioChild> mAudioChild;
 };
-#endif
 
 static mozilla::Mutex* gVolumeScaleLock = nsnull;
 
@@ -616,7 +608,6 @@ PRInt32 nsNativeAudioStream::GetMinWriteSize()
   return static_cast<PRInt32>(size / mChannels / sizeof(short));
 }
 
-#if defined(REMOTE_AUDIO)
 nsRemotedAudioStream::nsRemotedAudioStream()
  : mAudioChild(nsnull),
    mFormat(FORMAT_S16_LE),
@@ -768,5 +759,3 @@ nsRemotedAudioStream::IsPaused()
 {
   return mPaused;
 }
-#endif
-

@@ -175,18 +175,18 @@ DOMSVGPointList::InternalListWillChangeTo(const SVGPointList& aNewValue)
 bool
 DOMSVGPointList::AttrIsAnimating() const
 {
-  return InternalAList().IsAnimating();
+  return const_cast<DOMSVGPointList*>(this)->InternalAList().IsAnimating();
 }
 
 SVGPointList&
-DOMSVGPointList::InternalList() const
+DOMSVGPointList::InternalList()
 {
   SVGAnimatedPointList *alist = mElement->GetAnimatedPointList();
   return mIsAnimValList && alist->IsAnimating() ? *alist->mAnimVal : alist->mBaseVal;
 }
 
 SVGAnimatedPointList&
-DOMSVGPointList::InternalAList() const
+DOMSVGPointList::InternalAList()
 {
   NS_ABORT_IF_FALSE(mElement->GetAnimatedPointList(), "Internal error");
   return *mElement->GetAnimatedPointList();

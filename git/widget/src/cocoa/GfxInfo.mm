@@ -333,25 +333,16 @@ void
 GfxInfo::AddCrashReportAnnotations()
 {
 #if defined(MOZ_CRASHREPORTER)
-  nsCAutoString deviceIDString, vendorIDString;
-  PRUint32 deviceID, vendorID;
+  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterRendererIDs"),
+                                     NS_LossyConvertUTF16toASCII(mRendererIDsString));
 
-  GetAdapterDeviceID(&deviceID);
-  GetAdapterVendorID(&vendorID);
-
-  deviceIDString.AppendPrintf("%04x", deviceID);
-  vendorIDString.AppendPrintf("%04x", vendorID);
-
-  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterVendorID"),
-      vendorIDString);
-  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterDeviceID"),
-      deviceIDString);
   /* Add an App Note for now so that we get the data immediately. These
    * can go away after we store the above in the socorro db */
   nsCAutoString note;
   /* AppendPrintf only supports 32 character strings, mrghh. */
-  note.AppendPrintf("AdapterVendorID: %04x, ", vendorID);
-  note.AppendPrintf("AdapterDeviceID: %04x", deviceID);
+  note.AppendLiteral("Renderers: ");
+  note.Append(NS_LossyConvertUTF16toASCII(mRendererIDsString));
+
   CrashReporter::AppendAppNotesToCrashReport(note);
 #endif
 }

@@ -344,6 +344,7 @@ PreprocessValue(JSContext *cx, JSObject *holder, KeyType key, Value *vp, Stringi
                 return false;
         }
 
+        LeaveTrace(cx);
         InvokeArgsGuard args;
         if (!cx->stack.pushInvokeArgs(cx, 2, &args))
             return false;
@@ -860,6 +861,7 @@ Walk(JSContext *cx, JSObject *holder, jsid name, const Value &reviver, Value *vp
     if (!key)
         return false;
 
+    LeaveTrace(cx);
     InvokeArgsGuard args;
     if (!cx->stack.pushInvokeArgs(cx, 2, &args))
         return false;

@@ -40,8 +40,6 @@
 #ifndef mozilla_css_ImportRule_h__
 #define mozilla_css_ImportRule_h__
 
-#include "mozilla/Attributes.h"
-
 #include "mozilla/css/Rule.h"
 #include "nsIDOMCSSImportRule.h"
 #include "nsCSSRules.h"
@@ -52,8 +50,8 @@ class nsString;
 namespace mozilla {
 namespace css {
 
-class ImportRule MOZ_FINAL : public Rule,
-                             public nsIDOMCSSImportRule
+class NS_FINAL_CLASS ImportRule : public Rule,
+                                  public nsIDOMCSSImportRule
 {
 public:
   ImportRule(nsMediaList* aMedia, const nsString& aURLSpec);

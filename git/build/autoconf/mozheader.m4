@@ -36,14 +36,13 @@ dnl the terms of any one of the MPL, the GPL or the LGPL.
 dnl
 dnl ***** END LICENSE BLOCK *****
 
-dnl MOZ_CHECK_HEADER(HEADER-FILE, [ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND [, INCLUDES]]])
+dnl MOZ_CHECK_HEADER(HEADER-FILE, [ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND]])
 AC_DEFUN([MOZ_CHECK_HEADER],
 [ dnl Do the transliteration at runtime so arg 1 can be a shell variable.
   ac_safe=`echo "$1" | sed 'y%./+-%__p_%'`
   AC_MSG_CHECKING([for $1])
   AC_CACHE_VAL(ac_cv_header_$ac_safe,
- [ AC_TRY_COMPILE([$4
-#include <$1>], ,
+ [ AC_TRY_COMPILE([#include <$1>], ,
                   eval "ac_cv_header_$ac_safe=yes",
                   eval "ac_cv_header_$ac_safe=no") ])
   if eval "test \"`echo '$ac_cv_header_'$ac_safe`\" = yes"; then
@@ -55,12 +54,12 @@ AC_DEFUN([MOZ_CHECK_HEADER],
   fi
 ])
 
-dnl MOZ_CHECK_HEADERS(HEADER-FILE... [, ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND [, INCLUDES]]])
+dnl MOZ_CHECK_HEADERS(HEADER-FILE... [, ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND]])
 AC_DEFUN([MOZ_CHECK_HEADERS],
 [ for ac_hdr in $1
   do
     MOZ_CHECK_HEADER($ac_hdr,
                      [ ac_tr_hdr=HAVE_`echo $ac_hdr | sed 'y%abcdefghijklmnopqrstuvwxyz./-%ABCDEFGHIJKLMNOPQRSTUVWXYZ___%'`
-                       AC_DEFINE_UNQUOTED($ac_tr_hdr) $2], $3, [$4])
+                       AC_DEFINE_UNQUOTED($ac_tr_hdr) $2], $3)
   done
 ])

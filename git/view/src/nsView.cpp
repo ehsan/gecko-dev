@@ -213,9 +213,10 @@ nsView::nsView(nsViewManager* aViewManager, nsViewVisibility aVisibility)
 
 void nsView::DropMouseGrabbing()
 {
-  nsIPresShell* presShell = mViewManager->GetPresShell();
-  if (presShell)
-    presShell->ClearMouseCaptureOnView(this);
+  nsCOMPtr<nsIViewObserver> viewObserver = mViewManager->GetViewObserver();
+  if (viewObserver) {
+    viewObserver->ClearMouseCapture(this);
+  }
 }
 
 nsView::~nsView()
@@ -982,8 +983,8 @@ void nsIView::List(FILE* out, PRInt32 aIndent) const
   nsRect brect = GetBounds();
   fprintf(out, "{%d,%d,%d,%d}",
           brect.x, brect.y, brect.width, brect.height);
-  fprintf(out, " z=%d vis=%d frame=%p <\n",
-          mZIndex, mVis, mFrame);
+  fprintf(out, " z=%d vis=%d clientData=%p <\n",
+          mZIndex, mVis, mClientData);
   for (nsView* kid = mFirstChild; kid; kid = kid->GetNextSibling()) {
     NS_ASSERTION(kid->GetParent() == this, "incorrect parent");
     kid->List(out, aIndent + 1);

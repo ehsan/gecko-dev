@@ -90,6 +90,7 @@ typedef struct JSCodeSpec           JSCodeSpec;
 typedef struct JSPrinter            JSPrinter;
 typedef struct JSStackHeader        JSStackHeader;
 typedef struct JSSubString          JSSubString;
+typedef struct JSNativeTraceInfo    JSNativeTraceInfo;
 typedef struct JSSpecializedNative  JSSpecializedNative;
 typedef struct JSXML                JSXML;
 
@@ -130,7 +131,6 @@ namespace detail {
 
 class RegExpPrivate;
 class RegExpPrivateCode;
-class RegExpPrivateCacheValue;
 
 } /* namespace detail */
 
@@ -156,6 +156,8 @@ class ExecuteArgsGuard;
 class InvokeFrameGuard;
 class InvokeArgsGuard;
 class StringBuffer;
+class TraceRecorder;
+struct TraceMonitor;
 
 class FrameRegs;
 class StackFrame;
@@ -237,10 +239,7 @@ typedef HashMap<jsbytecode *, BreakpointSite *, DefaultHasher<jsbytecode *>, Run
 class Debugger;
 class WatchpointMap;
 
-typedef HashMap<JSAtom *,
-                detail::RegExpPrivateCacheValue,
-                DefaultHasher<JSAtom *>,
-                RuntimeAllocPolicy>
+typedef HashMap<JSAtom *, detail::RegExpPrivate *, DefaultHasher<JSAtom *>, RuntimeAllocPolicy>
     RegExpPrivateCache;
 
 typedef JSNative             Native;

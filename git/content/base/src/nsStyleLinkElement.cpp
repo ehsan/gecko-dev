@@ -153,40 +153,24 @@ nsStyleLinkElement::SetLineNumber(PRUint32 aLineNumber)
   mLineNumber = aLineNumber;
 }
 
-PRUint32 ToLinkMask(const nsAString& aLink)
-{ 
-  if (aLink.EqualsLiteral("prefetch"))
-     return PREFETCH;
-  else if (aLink.EqualsLiteral("dns-prefetch"))
-     return DNS_PREFETCH;
-  else if (aLink.EqualsLiteral("stylesheet"))
-    return STYLESHEET;
-  else if (aLink.EqualsLiteral("next"))
-    return NEXT;
-  else if (aLink.EqualsLiteral("alternate"))
-    return ALTERNATE;
-  else 
-    return 0;
-}
-
-PRUint32 nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes)
+void nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes,
+                                        nsTArray<nsString>& aResult)
 {
-  PRUint32 linkMask = 0;
   nsAString::const_iterator start, done;
   aTypes.BeginReading(start);
   aTypes.EndReading(done);
   if (start == done)
-    return linkMask;
+    return;
 
   nsAString::const_iterator current(start);
   bool inString = !nsCRT::IsAsciiSpace(*current);
   nsAutoString subString;
-  
+
   while (current != done) {
     if (nsCRT::IsAsciiSpace(*current)) {
       if (inString) {
         ToLowerCase(Substring(start, current), subString);
-        linkMask |= ToLinkMask(subString);
+        aResult.AppendElement(subString);
         inString = false;
       }
     }
@@ -200,9 +184,8 @@ PRUint32 nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes)
   }
   if (inString) {
     ToLowerCase(Substring(start, current), subString);
-     linkMask |= ToLinkMask(subString);
+    aResult.AppendElement(subString);
   }
-  return linkMask;
 }
 
 NS_IMETHODIMP

@@ -3481,6 +3481,7 @@ const BrowserSearch = {
     openLinkIn(submission.uri.spec,
                useNewTab ? "tab" : "current",
                { postData: submission.postData,
+                 inBackground: false,
                  relatedToCurrent: true });
   },
 
@@ -3930,13 +3931,14 @@ var FullScreen = {
     // full-screen. Only add listeners and show warning etc when the event we
     // receive is targeted at the chrome document, i.e. only once every time
     // we enter DOM full-screen mode.
-    if (event.target != document) {
+    let targetDoc = event.target.ownerDocument ? event.target.ownerDocument : event.target;
+    if (targetDoc != document) {
       // However, if we receive a "mozfullscreenchange" event for a document
       // which is not a subdocument of the currently selected tab, we know that
       // we've switched tabs since the request to enter full-screen was made,
       // so we should exit full-screen since the "full-screen document" isn't
       // acutally visible.
-      if (event.target.defaultView.top != gBrowser.contentWindow) {
+      if (targetDoc.defaultView.top != gBrowser.contentWindow) {
         document.mozCancelFullScreen();
       }
       return;
@@ -3949,9 +3951,6 @@ var FullScreen = {
       document.mozCancelFullScreen();
       return;
     }
-
-    if (gFindBarInitialized)
-      gFindBar.close();
 
     this.showWarning(true);
 

@@ -40,8 +40,6 @@
 
 #ifdef JS_THREADSAFE
 
-#include "mozilla/Attributes.h"
-
 #include <string.h>
 #include "prthread.h"
 #include "prlock.h"
@@ -353,7 +351,7 @@ class Event
 
 typedef ThreadSafeQueue<Event *> EventQueue;
 
-class MainQueue MOZ_FINAL : public EventQueue, public WorkerParent
+class MainQueue : public EventQueue, public WorkerParent
 {
   private:
     ThreadPool *threadPool;
@@ -432,7 +430,7 @@ class MainQueue MOZ_FINAL : public EventQueue, public WorkerParent
  * We keep a queue of workers with pending events, rather than a queue of
  * events, so that two threads won't try to run a Worker at the same time.
  */
-class WorkerQueue MOZ_FINAL : public ThreadSafeQueue<Worker *>
+class WorkerQueue : public ThreadSafeQueue<Worker *>
 {
   private:
     MainQueue *main;
@@ -590,7 +588,7 @@ class ThreadPool
  * Separately, there is a terminateFlag that other threads can set
  * asynchronously to tell the Worker to terminate.
  */
-class Worker MOZ_FINAL : public WorkerParent
+class Worker : public WorkerParent
 {
   private:
     ThreadPool *threadPool;

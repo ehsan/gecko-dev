@@ -394,13 +394,28 @@ IDBTransaction::AddStatement(bool aCreate,
 }
 
 already_AddRefed<mozIStorageStatement>
-IDBTransaction::IndexDataInsertStatement(bool aAutoIncrement,
-                                         bool aUnique)
+IDBTransaction::IndexUpdateStatement(bool aAutoIncrement,
+                                     bool aUnique,
+                                     bool aOverwrite)
 {
   if (aAutoIncrement) {
     if (aUnique) {
+      if (aOverwrite) {
+        return GetCachedStatement(
+          "INSERT OR REPLACE INTO ai_unique_index_data "
+            "(index_id, ai_object_data_id, value) "
+          "VALUES (:index_id, :object_data_id, :value)"
+        );
+      }
       return GetCachedStatement(
         "INSERT INTO ai_unique_index_data "
+          "(index_id, aI_object_data_id, value) "
+        "VALUES (:index_id, :object_data_id, :value)"
+      );
+    }
+    if (aOverwrite) {
+      return GetCachedStatement(
+        "INSERT OR REPLACE INTO ai_index_data "
           "(index_id, ai_object_data_id, value) "
         "VALUES (:index_id, :object_data_id, :value)"
       );
@@ -412,9 +427,23 @@ IDBTransaction::IndexDataInsertStatement(bool aAutoIncrement,
     );
   }
   if (aUnique) {
+    if (aOverwrite) {
+      return GetCachedStatement(
+        "INSERT OR REPLACE INTO unique_index_data "
+          "(index_id, object_data_id, object_data_key, value) "
+        "VALUES (:index_id, :object_data_id, :object_data_key, :value)"
+      );
+    }
     return GetCachedStatement(
       "INSERT INTO unique_index_data "
         "(index_id, object_data_id, object_data_key, value) "
+      "VALUES (:index_id, :object_data_id, :object_data_key, :value)"
+    );
+  }
+  if (aOverwrite) {
+    return GetCachedStatement(
+      "INSERT INTO index_data ("
+        "index_id, object_data_id, object_data_key, value) "
       "VALUES (:index_id, :object_data_id, :object_data_key, :value)"
     );
   }
@@ -422,34 +451,6 @@ IDBTransaction::IndexDataInsertStatement(bool aAutoIncrement,
     "INSERT INTO index_data ("
       "index_id, object_data_id, object_data_key, value) "
     "VALUES (:index_id, :object_data_id, :object_data_key, :value)"
-  );
-}
-
-already_AddRefed<mozIStorageStatement>
-IDBTransaction::IndexDataDeleteStatement(bool aAutoIncrement,
-                                         bool aUnique)
-{
-  if (aAutoIncrement) {
-    if (aUnique) {
-      return GetCachedStatement(
-        "DELETE FROM ai_unique_index_data "
-        "WHERE ai_object_data_id = :object_data_id"
-      );
-    }
-    return GetCachedStatement(
-      "DELETE FROM ai_index_data "
-      "WHERE ai_object_data_id = :object_data_id"
-    );
-  }
-  if (aUnique) {
-    return GetCachedStatement(
-      "DELETE FROM unique_index_data "
-      "WHERE object_data_id = :object_data_id"
-    );
-  }
-  return GetCachedStatement(
-    "DELETE FROM index_data "
-    "WHERE object_data_id = :object_data_id"
   );
 }
 
@@ -853,12 +854,10 @@ CommitHelper::Run()
         }
       }
 
-      event = CreateGenericEvent(NS_LITERAL_STRING(ABORT_EVT_STR),
-                                 eDoesBubble, eNotCancelable);
+      event = CreateGenericEvent(NS_LITERAL_STRING(ABORT_EVT_STR));
     }
     else {
-      event = CreateGenericEvent(NS_LITERAL_STRING(COMPLETE_EVT_STR),
-                                 eDoesNotBubble, eNotCancelable);
+      event = CreateGenericEvent(NS_LITERAL_STRING(COMPLETE_EVT_STR));
     }
     NS_ENSURE_TRUE(event, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 

@@ -377,7 +377,7 @@ double nsBuiltinDecoder::GetCurrentTime()
   return mCurrentTime;
 }
 
-nsMediaStream* nsBuiltinDecoder::GetStream()
+nsMediaStream* nsBuiltinDecoder::GetCurrentStream()
 {
   return mStream;
 }
@@ -397,9 +397,14 @@ void nsBuiltinDecoder::AudioAvailable(float* aFrameBuffer,
   // to HTMLMediaElement::NotifyAudioAvailable().
   nsAutoArrayPtr<float> frameBuffer(aFrameBuffer);
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  if (mShuttingDown || !mElement) {
+  if (mShuttingDown) {
     return;
   }
+
+  if (!mElement || !mElement->MayHaveAudioAvailableEventListener()) {
+    return;
+  }
+
   mElement->NotifyAudioAvailable(frameBuffer.forget(), aFrameBufferLength, aTime);
 }
 
@@ -1000,16 +1005,6 @@ void nsBuiltinDecoder::UpdatePlaybackOffset(PRInt64 aOffset)
   mPlaybackPosition = NS_MAX(aOffset, mPlaybackPosition);
 }
 
-bool nsBuiltinDecoder::OnStateMachineThread() const
-{
+bool nsBuiltinDecoder::OnStateMachineThread() const {
   return IsCurrentThread(nsBuiltinDecoderStateMachine::GetStateMachineThread());
-}
-
-void nsBuiltinDecoder::NotifyAudioAvailableListener()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  if (mDecoderStateMachine) {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    mDecoderStateMachine->NotifyAudioAvailableListener();
-  }
 }

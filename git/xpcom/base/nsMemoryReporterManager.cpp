@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Vladimir Vukicevic <vladimir@pobox.com> (original author)
- *   Nicholas Nethercote <nnethercote@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -65,7 +64,7 @@ extern void jemalloc_stats(jemalloc_stats_t* stats)
 #  endif  // XP_LINUX
 #endif  // MOZ_MEMORY
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX)
 
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -121,52 +120,6 @@ static PRInt64 GetVsize()
 static PRInt64 GetResident()
 {
     return GetProcSelfStatmField(1);
-}
-
-#elif defined(SOLARIS)
-
-#include <procfs.h>
-#include <fcntl.h>
-#include <unistd.h>
-
-static void XMappingIter(PRInt64& Vsize, PRInt64& Resident)
-{
-    int mapfd = open("/proc/self/xmap", O_RDONLY);
-    struct stat st;
-    prxmap_t *prmapp;
-    if (mapfd >= 0) {
-        if (!fstat(mapfd, &st)) {
-            int nmap = st.st_size / sizeof(prxmap_t);
-            prmapp = (prxmap_t*)malloc((nmap + 1) * sizeof(prxmap_t));
-            int n = read(mapfd, prmapp, (nmap + 1) * sizeof(prxmap_t));
-            if (n > 0) {
-                Vsize = 0;
-                Resident = 0;
-                for (int i = 0; i < n / sizeof(prxmap_t); i++) {
-                    Vsize += prmapp[i].pr_size;
-                    Resident += prmapp[i].pr_rss * prmapp[i].pr_pagesize;
-                }
-            }
-            free(prmapp);
-        }
-        close(mapfd);
-    }
-}
-
-static PRInt64 GetVsize()
-{
-    PRInt64 Vsize = -1;
-    PRInt64 Resident = -1;
-    XMappingIter(Vsize, Resident);
-    return Vsize;
-}
-
-static PRInt64 GetResident()
-{
-    PRInt64 Vsize = -1;
-    PRInt64 Resident = -1;
-    XMappingIter(Vsize, Resident);
-    return Resident;
 }
 
 #elif defined(XP_MACOSX)
@@ -271,7 +224,7 @@ static PRInt64 GetResident()
 
 #endif
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN)
 NS_MEMORY_REPORTER_IMPLEMENT(Vsize,
     "vsize",
     KIND_OTHER,
@@ -286,7 +239,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(Vsize,
     "measure of the memory resources used by the process.")
 #endif
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX)
 NS_MEMORY_REPORTER_IMPLEMENT(PageFaultsSoft,
     "page-faults-soft",
     KIND_OTHER,
@@ -504,11 +457,11 @@ nsMemoryReporterManager::Init()
     REGISTER(HeapUnallocated);
     REGISTER(Resident);
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN)
     REGISTER(Vsize);
 #endif
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX)
     REGISTER(PageFaultsSoft);
     REGISTER(PageFaultsHard);
 #endif
@@ -857,11 +810,3 @@ NS_UnregisterMemoryMultiReporter (nsIMemoryMultiReporter *reporter)
     return mgr->UnregisterMultiReporter(reporter);
 }
 
-namespace mozilla {
-
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(MemoryReporterMallocSizeOf, "default")
-
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(MemoryReporterMallocSizeOfForCounterInc, "default")
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(MemoryReporterMallocSizeOfForCounterDec, "default")
-
-}

@@ -126,9 +126,9 @@ Mark(JSTracer *trc, T *thing)
 
     JSRuntime *rt = trc->runtime;
 
-    JS_ASSERT_IF(rt->gcCheckCompartment,
-                 thing->compartment() == rt->gcCheckCompartment ||
-                 thing->compartment() == rt->atomsCompartment);
+    JS_OPT_ASSERT_IF(rt->gcCheckCompartment,
+                     thing->compartment() == rt->gcCheckCompartment ||
+                     thing->compartment() == rt->atomsCompartment);
 
     /*
      * Don't mark things outside a compartment if we are in a per-compartment
@@ -277,19 +277,11 @@ MarkXML(JSTracer *trc, const MarkablePtr<JSXML> &xml, const char *name)
 }
 #endif
 
-#define JS_COMPARTMENT_ASSERT(rt, thing)                                \
-    JS_ASSERT_IF((rt)->gcCurrentCompartment,                            \
-                 (thing)->compartment() == (rt)->gcCurrentCompartment);
-
-#define JS_COMPARTMENT_ASSERT_STR(rt, thing)                            \
-    JS_ASSERT_IF((rt)->gcCurrentCompartment,                            \
-                 (thing)->compartment() == (rt)->gcCurrentCompartment || \
-                 (thing)->compartment() == (rt)->atomsCompartment);
-
 void
 PushMarkStack(GCMarker *gcmarker, JSXML *thing)
 {
-    JS_COMPARTMENT_ASSERT(gcmarker->runtime, thing);
+    JS_OPT_ASSERT_IF(gcmarker->runtime->gcCurrentCompartment,
+                     thing->compartment() == gcmarker->runtime->gcCurrentCompartment);
 
     if (thing->markIfUnmarked(gcmarker->getMarkColor()))
         gcmarker->pushXML(thing);
@@ -298,7 +290,8 @@ PushMarkStack(GCMarker *gcmarker, JSXML *thing)
 void
 PushMarkStack(GCMarker *gcmarker, JSObject *thing)
 {
-    JS_COMPARTMENT_ASSERT(gcmarker->runtime, thing);
+    JS_OPT_ASSERT_IF(gcmarker->runtime->gcCurrentCompartment,
+                     thing->compartment() == gcmarker->runtime->gcCurrentCompartment);
 
     if (thing->markIfUnmarked(gcmarker->getMarkColor()))
         gcmarker->pushObject(thing);
@@ -307,7 +300,8 @@ PushMarkStack(GCMarker *gcmarker, JSObject *thing)
 void
 PushMarkStack(GCMarker *gcmarker, JSFunction *thing)
 {
-    JS_COMPARTMENT_ASSERT(gcmarker->runtime, thing);
+    JS_OPT_ASSERT_IF(gcmarker->runtime->gcCurrentCompartment,
+                     thing->compartment() == gcmarker->runtime->gcCurrentCompartment);
 
     if (thing->markIfUnmarked(gcmarker->getMarkColor()))
         gcmarker->pushObject(thing);
@@ -316,7 +310,8 @@ PushMarkStack(GCMarker *gcmarker, JSFunction *thing)
 void
 PushMarkStack(GCMarker *gcmarker, types::TypeObject *thing)
 {
-    JS_COMPARTMENT_ASSERT(gcmarker->runtime, thing);
+    JS_ASSERT_IF(gcmarker->runtime->gcCurrentCompartment,
+                 thing->compartment() == gcmarker->runtime->gcCurrentCompartment);
 
     if (thing->markIfUnmarked(gcmarker->getMarkColor()))
         gcmarker->pushType(thing);
@@ -325,7 +320,8 @@ PushMarkStack(GCMarker *gcmarker, types::TypeObject *thing)
 void
 PushMarkStack(GCMarker *gcmarker, JSScript *thing)
 {
-    JS_COMPARTMENT_ASSERT(gcmarker->runtime, thing);
+    JS_ASSERT_IF(gcmarker->runtime->gcCurrentCompartment,
+                 thing->compartment() == gcmarker->runtime->gcCurrentCompartment);
 
     /*
      * We mark scripts directly rather than pushing on the stack as they can
@@ -342,7 +338,8 @@ ScanShape(GCMarker *gcmarker, const Shape *shape);
 void
 PushMarkStack(GCMarker *gcmarker, const Shape *thing)
 {
-    JS_COMPARTMENT_ASSERT(gcmarker->runtime, thing);
+    JS_OPT_ASSERT_IF(gcmarker->runtime->gcCurrentCompartment,
+                     thing->compartment() == gcmarker->runtime->gcCurrentCompartment);
 
     /* We mark shapes directly rather than pushing on the stack. */
     if (thing->markIfUnmarked(gcmarker->getMarkColor()))
@@ -720,7 +717,9 @@ restart:
 static inline void
 ScanRope(GCMarker *gcmarker, JSRope *rope)
 {
-    JS_COMPARTMENT_ASSERT_STR(gcmarker->runtime, rope);
+    JS_OPT_ASSERT_IF(gcmarker->runtime->gcCurrentCompartment,
+                     rope->compartment() == gcmarker->runtime->gcCurrentCompartment
+                     || rope->compartment() == gcmarker->runtime->atomsCompartment);
     JS_ASSERT(rope->isMarked());
 
     JSString *leftChild = NULL;
@@ -746,7 +745,9 @@ ScanRope(GCMarker *gcmarker, JSRope *rope)
 static inline void
 PushMarkStack(GCMarker *gcmarker, JSString *str)
 {
-    JS_COMPARTMENT_ASSERT_STR(gcmarker->runtime, str);
+    JS_OPT_ASSERT_IF(gcmarker->runtime->gcCurrentCompartment,
+                     str->compartment() == gcmarker->runtime->gcCurrentCompartment
+                     || str->compartment() == gcmarker->runtime->atomsCompartment);
 
     if (str->isLinear()) {
         str->asLinear().mark(gcmarker);
@@ -901,8 +902,10 @@ MarkChildren(JSTracer *trc, JSScript *script)
 {
     CheckScript(script, NULL);
 
-    JS_ASSERT_IF(trc->runtime->gcCheckCompartment,
-                 script->compartment() == trc->runtime->gcCheckCompartment);
+#ifdef JS_CRASH_DIAGNOSTICS
+    JSRuntime *rt = trc->runtime;
+    JS_OPT_ASSERT_IF(rt->gcCheckCompartment, script->compartment() == rt->gcCheckCompartment);
+#endif
 
     MarkAtomRange(trc, script->natoms, script->atoms, "atoms");
 

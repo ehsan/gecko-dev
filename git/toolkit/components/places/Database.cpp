@@ -297,12 +297,6 @@ Database::~Database()
 nsresult
 Database::Init()
 {
-#ifdef MOZ_ANDROID_HISTORY
-  // Currently places has deeply weaved it way throughout the gecko codebase.
-  // Here we disable all database creation and loading of places.
-  return NS_ERROR_NOT_IMPLEMENTED;
-#endif
-
   MOZ_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<mozIStorageService> storage =
@@ -597,12 +591,6 @@ Database::InitSchema(bool* aDatabaseMigrated)
     if (currentSchemaVersion < DATABASE_SCHEMA_VERSION) {
       *aDatabaseMigrated = true;
 
-      if (currentSchemaVersion < 6) {
-        // These are early Firefox 3.0 alpha versions that are not supported
-        // anymore.  In this case it's safer to just replace the database.
-        return NS_ERROR_FILE_CORRUPTED;
-      }
-
       // Firefox 3.0 uses schema version 6.
 
       if (currentSchemaVersion < 7) {
@@ -637,12 +625,6 @@ Database::InitSchema(bool* aDatabaseMigrated)
       // Firefox 4 uses schema version 11.
 
       // Firefox 8 uses schema version 12.
-
-      if (currentSchemaVersion < 13) {
-        rv = MigrateV13Up();
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-      // Firefox 11 uses schema version 13.
 
       // Schema Upgrades must add migration code here.
     }
@@ -935,24 +917,12 @@ nsresult
 Database::MigrateV7Up() 
 {
   MOZ_ASSERT(NS_IsMainThread());
-
-  // Some old v6 databases come from alpha versions that missed indices.
-  // Just bail out and replace the database in such a case.
-  bool URLUniqueIndexExists = false;
-  nsresult rv = mMainConn->IndexExists(NS_LITERAL_CSTRING(
-    "moz_places_url_uniqueindex"
-  ), &URLUniqueIndexExists);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!URLUniqueIndexExists) {
-    return NS_ERROR_FILE_CORRUPTED;
-  }
-
   mozStorageTransaction transaction(mMainConn, false);
 
   // We need an index on lastModified to catch quickly last modified bookmark
   // title for tag container's children. This will be useful for sync too.
   bool lastModIndexExists = false;
-  rv = mMainConn->IndexExists(
+  nsresult rv = mMainConn->IndexExists(
     NS_LITERAL_CSTRING("moz_bookmarks_itemlastmodifiedindex"),
     &lastModIndexExists);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1000,18 +970,10 @@ Database::MigrateV7Up()
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Invalidate all frecencies, since they need recalculation.
-    nsCOMPtr<mozIStorageAsyncStatement> stmt = GetAsyncStatement(
-      "UPDATE moz_places SET frecency = ( "
-        "CASE "
-        "WHEN url BETWEEN 'place:' AND 'place;' "
-        "THEN 0 "
-        "ELSE -1 "
-        "END "
-      ") "
-    );
-    NS_ENSURE_STATE(stmt);
-    nsCOMPtr<mozIStoragePendingStatement> ps;
-    (void)stmt->ExecuteAsync(nsnull, getter_AddRefs(ps));
+    nsNavHistory* history = nsNavHistory::GetHistoryService();
+    NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
+    rv = history->invalidateFrecencies(EmptyCString());
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // Temporary migration code for bug 396300
@@ -1121,16 +1083,6 @@ Database::MigrateV7Up()
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  // Add the moz_inputhistory table, if missing.
-  bool tableExists = false;
-  rv = mMainConn->TableExists(NS_LITERAL_CSTRING("moz_inputhistory"),
-                              &tableExists);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!tableExists) {
-    rv = mMainConn->ExecuteSimpleSQL(CREATE_MOZ_INPUTHISTORY);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   return transaction.Commit();
 }
 
@@ -1157,9 +1109,7 @@ Database::MigrateV8Up()
   rv = mMainConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
       "DROP INDEX IF EXISTS moz_annos_item_idindex"));
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = mMainConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "DROP INDEX IF EXISTS moz_annos_place_idindex"));
-  NS_ENSURE_SUCCESS(rv, rv);
+
 
   // Do a one-time re-creation of the moz_annos indexes (bug 415201)
   bool oldIndexExists = false;
@@ -1296,30 +1246,6 @@ Database::MigrateV11Up()
 
   // We need to update our guids before we do any real database work.
   rv = CheckAndUpdateGUIDs();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-nsresult
-Database::MigrateV13Up()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  // Dynamic containers are no more supported.
-
-  // For existing profiles, we may not have a moz_bookmarks.guid column
-  nsCOMPtr<mozIStorageAsyncStatement> deleteDynContainersStmt;
-  nsresult rv = mMainConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
-      "DELETE FROM moz_bookmarks WHERE type = :item_type"),
-    getter_AddRefs(deleteDynContainersStmt));
-  rv = deleteDynContainersStmt->BindInt32ByName(
-    NS_LITERAL_CSTRING("item_type"),
-    nsINavBookmarksService::TYPE_DYNAMIC_CONTAINER
-  );
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<mozIStoragePendingStatement> ps;
-  rv = deleteDynContainersStmt->ExecuteAsync(nsnull, getter_AddRefs(ps));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

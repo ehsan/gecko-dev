@@ -49,6 +49,7 @@
 
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsNetUtil.h"
+#include "nsIDynamicContainer.h"
 #include "nsUnicharUtils.h"
 #include "nsPrintfCString.h"
 #include "nsIUUIDGenerator.h"
@@ -76,7 +77,8 @@ using namespace mozilla;
 const PRInt32 nsNavBookmarks::kGetChildrenIndex_Position = 14;
 const PRInt32 nsNavBookmarks::kGetChildrenIndex_Type = 15;
 const PRInt32 nsNavBookmarks::kGetChildrenIndex_PlaceID = 16;
-const PRInt32 nsNavBookmarks::kGetChildrenIndex_Guid = 17;
+const PRInt32 nsNavBookmarks::kGetChildrenIndex_ServiceContractId = 17;
+const PRInt32 nsNavBookmarks::kGetChildrenIndex_Guid = 18;
 
 using namespace mozilla::places;
 
@@ -523,6 +525,7 @@ nsNavBookmarks::InsertBookmarkInDB(PRInt64 aPlaceId,
                                    const nsACString& aTitle,
                                    PRTime aDateAdded,
                                    PRTime aLastModified,
+                                   const nsAString& aServiceContractId,
                                    PRInt64* _itemId,
                                    nsACString& _guid)
 {
@@ -533,10 +536,10 @@ nsNavBookmarks::InsertBookmarkInDB(PRInt64 aPlaceId,
 
   nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
     "INSERT INTO moz_bookmarks "
-      "(id, fk, type, parent, position, title, "
+      "(id, fk, type, parent, position, title, folder_type, "
        "dateAdded, lastModified, guid) "
     "VALUES (:item_id, :page_id, :item_type, :parent, :item_index, "
-            ":item_title, :date_added, :last_modified, "
+            ":item_title, :folder_type, :date_added, :last_modified, "
             "GENERATE_GUID())"
   );
   NS_ENSURE_STATE(stmt);
@@ -567,6 +570,15 @@ nsNavBookmarks::InsertBookmarkInDB(PRInt64 aPlaceId,
     rv = stmt->BindNullByName(NS_LITERAL_CSTRING("item_title"));
   else
     rv = stmt->BindUTF8StringByName(NS_LITERAL_CSTRING("item_title"), aTitle);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aServiceContractId.IsEmpty()) {
+    rv = stmt->BindNullByName(NS_LITERAL_CSTRING("folder_type"));
+  }
+  else {
+    rv = stmt->BindStringByName(NS_LITERAL_CSTRING("folder_type"),
+                                aServiceContractId);
+  }
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("date_added"), aDateAdded);
@@ -660,8 +672,9 @@ nsNavBookmarks::InsertBookmark(PRInt64 aFolder,
   nsCString title;
   TruncateTitle(aTitle, title);
 
-  rv = InsertBookmarkInDB(placeId, BOOKMARK, aFolder, index, title, dateAdded,
-                          nsnull, aNewBookmarkId, guid);
+  rv = InsertBookmarkInDB(placeId, BOOKMARK, aFolder, index,
+                          title, dateAdded, nsnull, EmptyString(),
+                          aNewBookmarkId, guid);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Recalculate frecency for this entry, since it changed.
@@ -737,6 +750,15 @@ nsNavBookmarks::RemoveItem(PRInt64 aItemId)
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (bookmark.type == TYPE_FOLDER) {
+    // If this is a dynamic container, try to notify its service.
+    if (!bookmark.serviceCID.IsEmpty()) {
+      nsCOMPtr<nsIDynamicContainer> svc =
+        do_GetService(bookmark.serviceCID.get());
+      if (svc) {
+        (void)svc->OnContainerRemoving(bookmark.id);
+      }
+    }
+
     // Remove all of the folder's children.
     rv = RemoveFolderChildren(bookmark.id);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -840,11 +862,28 @@ nsNavBookmarks::CreateFolder(PRInt64 aParent, const nsACString& aName,
   // be changed, we'll use a local variable to hold it.  The true argument
   // will cause notifications to be sent to bookmark observers.
   PRInt32 localIndex = aIndex;
-  nsresult rv = CreateContainerWithID(-1, aParent, aName, true, &localIndex,
-                                      aNewFolder);
+  nsresult rv = CreateContainerWithID(-1, aParent, aName, EmptyString(),
+                                      true, &localIndex, aNewFolder);
   NS_ENSURE_SUCCESS(rv, rv);
   return NS_OK;
 }
+
+
+NS_IMETHODIMP
+nsNavBookmarks::CreateDynamicContainer(PRInt64 aParent,
+                                       const nsACString& aName,
+                                       const nsAString& aContractId,
+                                       PRInt32 aIndex,
+                                       PRInt64* aNewFolder)
+{
+  NS_ENSURE_FALSE(aContractId.IsEmpty(), NS_ERROR_INVALID_ARG);
+
+  nsresult rv = CreateContainerWithID(-1, aParent, aName, aContractId,
+                                      false, &aIndex, aNewFolder);
+  NS_ENSURE_SUCCESS(rv, rv);
+  return NS_OK;
+}
+
 
 NS_IMETHODIMP
 nsNavBookmarks::GetFolderReadonly(PRInt64 aFolder, bool* aResult)
@@ -890,6 +929,7 @@ nsresult
 nsNavBookmarks::CreateContainerWithID(PRInt64 aItemId,
                                       PRInt64 aParent,
                                       const nsACString& aTitle,
+                                      const nsAString& aContractId,
                                       bool aIsBookmarkFolder,
                                       PRInt32* aIndex,
                                       PRInt64* aNewFolder)
@@ -918,11 +958,13 @@ nsNavBookmarks::CreateContainerWithID(PRInt64 aItemId,
   *aNewFolder = aItemId;
   PRTime dateAdded = PR_Now();
   nsCAutoString guid;
+  ItemType containerType = aIsBookmarkFolder ? FOLDER
+                                             : DYNAMIC_CONTAINER;
   nsCString title;
   TruncateTitle(aTitle, title);
 
-  rv = InsertBookmarkInDB(-1, FOLDER, aParent, index,
-                          title, dateAdded, nsnull, aNewFolder,
+  rv = InsertBookmarkInDB(-1, containerType, aParent, index,
+                          title, dateAdded, nsnull, aContractId, aNewFolder,
                           guid);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -935,7 +977,7 @@ nsNavBookmarks::CreateContainerWithID(PRInt64 aItemId,
 
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                    nsINavBookmarkObserver,
-                   OnItemAdded(*aNewFolder, aParent, index, FOLDER,
+                   OnItemAdded(*aNewFolder, aParent, index, containerType,
                                nsnull, title, dateAdded, guid, folderGuid));
 
   *aIndex = index;
@@ -979,7 +1021,7 @@ nsNavBookmarks::InsertSeparator(PRInt64 aParent,
   nsCAutoString guid;
   PRTime dateAdded = PR_Now();
   rv = InsertBookmarkInDB(-1, SEPARATOR, aParent, index, voidString, dateAdded,
-                          nsnull, aNewItemId, guid);
+                          nsnull, EmptyString(), aNewItemId, guid);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = transaction.Commit();
@@ -1101,7 +1143,8 @@ nsNavBookmarks::GetDescendantChildren(PRInt64 aFolderId,
     nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
       "SELECT h.id, h.url, IFNULL(b.title, h.title), h.rev_host, h.visit_count, "
              "h.last_visit_date, f.url, null, b.id, b.dateAdded, b.lastModified, "
-             "b.parent, null, h.frecency, b.position, b.type, b.fk, b.guid "
+             "b.parent, null, h.frecency, b.position, b.type, b.fk, "
+             "b.folder_type, b.guid "
       "FROM moz_bookmarks b "
       "LEFT JOIN moz_places h ON b.fk = h.id "
       "LEFT JOIN moz_favicons f ON h.favicon_id = f.id "
@@ -1135,7 +1178,16 @@ nsNavBookmarks::GetDescendantChildren(PRInt64 aFolderId,
         rv = stmt->GetUTF8String(nsNavHistory::kGetInfoIndex_URL, child.url);
         NS_ENSURE_SUCCESS(rv, rv);
       }
-
+      else if (child.type == TYPE_FOLDER) {
+        bool isNull;
+        rv = stmt->GetIsNull(kGetChildrenIndex_ServiceContractId, &isNull);
+        NS_ENSURE_SUCCESS(rv, rv);
+        if (!isNull) {
+          rv = stmt->GetUTF8String(kGetChildrenIndex_ServiceContractId,
+                                   child.serviceCID);
+          NS_ENSURE_SUCCESS(rv, rv);
+        }
+      }
       // Append item to children's array.
       aFolderChildrenArray.AppendElement(child);
     }
@@ -1196,6 +1248,17 @@ nsNavBookmarks::RemoveFolderChildren(PRInt64 aFolderId)
     if (child.type == TYPE_FOLDER) {
       foldersToRemove.AppendLiteral(",");
       foldersToRemove.AppendInt(child.id);
+
+      // If this is a dynamic container, try to notify its service that we
+      // are going to remove it.
+      // XXX (bug 484094) this should use a bookmark observer!
+      if (!child.serviceCID.IsEmpty()) {
+        nsCOMPtr<nsIDynamicContainer> svc =
+          do_GetService(child.serviceCID.get());
+        if (svc) {
+          (void)svc->OnContainerRemoving(child.id);
+        }
+      }
     }
 
     BEGIN_CRITICAL_BOOKMARK_CACHE_SECTION(child.id);
@@ -1438,6 +1501,15 @@ nsNavBookmarks::MoveItem(PRInt64 aItemId, PRInt64 aNewParent, PRInt32 aIndex)
                                bookmark.guid,
                                bookmark.parentGuid,
                                newParentGuid));
+
+  // notify dynamic container provider if there is one
+  if (!bookmark.serviceCID.IsEmpty()) {
+    nsCOMPtr<nsIDynamicContainer> svc =
+      do_GetService(bookmark.serviceCID.get());
+    if (svc) {
+      (void)svc->OnContainerMoved(bookmark.id, aNewParent, newIndex);
+    }
+  }
   return NS_OK;
 }
 
@@ -1456,7 +1528,8 @@ nsNavBookmarks::FetchItemInfo(PRInt64 aItemId,
   // LEFT JOIN since not all bookmarks have an associated place.
   nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
     "SELECT b.id, h.url, b.title, b.position, b.fk, b.parent, b.type, "
-           "b.dateAdded, b.lastModified, b.guid, t.guid, t.parent "
+           "b.folder_type, b.dateAdded, b.lastModified, b.guid, "
+           "t.guid, t.parent "
     "FROM moz_bookmarks b "
     "LEFT JOIN moz_bookmarks t ON t.id = b.parent "
     "LEFT JOIN moz_places h ON h.id = b.fk "
@@ -1471,9 +1544,7 @@ nsNavBookmarks::FetchItemInfo(PRInt64 aItemId,
   bool hasResult;
   rv = stmt->ExecuteStep(&hasResult);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (!hasResult) {
-    return NS_ERROR_INVALID_ARG;
-  }
+  NS_ENSURE_TRUE(hasResult, NS_ERROR_INVALID_ARG);
 
   _bookmark.id = aItemId;
   rv = stmt->GetUTF8String(1, _bookmark.url);
@@ -1496,19 +1567,28 @@ nsNavBookmarks::FetchItemInfo(PRInt64 aItemId,
   NS_ENSURE_SUCCESS(rv, rv);
   rv = stmt->GetInt32(6, &_bookmark.type);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = stmt->GetInt64(7, &_bookmark.dateAdded);
+  rv = stmt->GetIsNull(7, &isNull);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = stmt->GetInt64(8, &_bookmark.lastModified);
+  if (isNull) {
+    _bookmark.serviceCID.SetIsVoid(true);
+  }
+  else {
+    rv = stmt->GetUTF8String(7, _bookmark.serviceCID);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+  rv = stmt->GetInt64(8, &_bookmark.dateAdded);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = stmt->GetUTF8String(9, _bookmark.guid);
+  rv = stmt->GetInt64(9, &_bookmark.lastModified);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stmt->GetUTF8String(10, _bookmark.guid);
   NS_ENSURE_SUCCESS(rv, rv);
   // Getting properties of the root would show no parent.
-  rv = stmt->GetIsNull(10, &isNull);
+  rv = stmt->GetIsNull(11, &isNull);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!isNull) {
-    rv = stmt->GetUTF8String(10, _bookmark.parentGuid);
+    rv = stmt->GetUTF8String(11, _bookmark.parentGuid);
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = stmt->GetInt64(11, &_bookmark.grandParentId);
+    rv = stmt->GetInt64(12, &_bookmark.grandParentId);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   else {
@@ -1861,6 +1941,21 @@ nsNavBookmarks::GetItemType(PRInt64 aItemId, PRUint16* _type)
 
 
 nsresult
+nsNavBookmarks::GetFolderType(PRInt64 aItemId,
+                              nsACString& _type)
+{
+  NS_ENSURE_ARG_MIN(aItemId, 1);
+
+  BookmarkData bookmark;
+  nsresult rv = FetchItemInfo(aItemId, bookmark);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  _type = bookmark.serviceCID;
+  return NS_OK;
+}
+
+
+nsresult
 nsNavBookmarks::ResultNodeForContainer(PRInt64 aItemId,
                                        nsNavHistoryQueryOptions* aOptions,
                                        nsNavHistoryResultNode** aNode)
@@ -1869,10 +1964,21 @@ nsNavBookmarks::ResultNodeForContainer(PRInt64 aItemId,
   nsresult rv = FetchItemInfo(aItemId, bookmark);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (bookmark.type == TYPE_FOLDER) { // TYPE_FOLDER
+  if (bookmark.type == TYPE_DYNAMIC_CONTAINER) {
+    *aNode = new nsNavHistoryContainerResultNode(EmptyCString(),
+                                                 bookmark.title,
+                                                 EmptyCString(),
+                                                 nsINavHistoryResultNode::RESULT_TYPE_DYNAMIC_CONTAINER,
+                                                 true,
+                                                 bookmark.serviceCID,
+                                                 aOptions);
+    (*aNode)->mItemId = bookmark.id;
+  }
+  else if (bookmark.type == TYPE_FOLDER) { // TYPE_FOLDER
     *aNode = new nsNavHistoryFolderResultNode(bookmark.title,
                                               aOptions,
-                                              bookmark.id);
+                                              bookmark.id,
+                                              EmptyCString());
   }
   else {
     return NS_ERROR_INVALID_ARG;
@@ -1904,7 +2010,7 @@ nsNavBookmarks::QueryFolderChildren(
     "SELECT h.id, h.url, IFNULL(b.title, h.title), h.rev_host, h.visit_count, "
            "h.last_visit_date, f.url, null, b.id, b.dateAdded, b.lastModified, "
            "b.parent, null, h.frecency, b.position, b.type, b.fk, "
-           "b.guid "
+           "b.folder_type, b.guid "
     "FROM moz_bookmarks b "
     "LEFT JOIN moz_places h ON b.fk = h.id "
     "LEFT JOIN moz_favicons f ON h.favicon_id = f.id "
@@ -1970,11 +2076,17 @@ nsNavBookmarks::ProcessFolderNodeRow(
       return NS_OK;
     }
   }
-  else if (itemType == TYPE_FOLDER) {
+  else if (itemType == TYPE_FOLDER || itemType == TYPE_DYNAMIC_CONTAINER) {
     if (aOptions->ExcludeReadOnlyFolders()) {
       // If the folder is read-only, skip it.
-      bool readOnly = false;
-      GetFolderReadonly(id, &readOnly);
+      bool readOnly;
+      if (itemType == TYPE_DYNAMIC_CONTAINER) {
+        readOnly = true;
+      }
+      else {
+        readOnly = false;
+        GetFolderReadonly(id, &readOnly);
+      }
       if (readOnly)
         return NS_OK;
     }
@@ -2027,7 +2139,7 @@ nsNavBookmarks::QueryFolderChildrenAsync(
     "SELECT h.id, h.url, IFNULL(b.title, h.title), h.rev_host, h.visit_count, "
            "h.last_visit_date, f.url, null, b.id, b.dateAdded, b.lastModified, "
            "b.parent, null, h.frecency, b.position, b.type, b.fk, "
-           "b.guid "
+           "b.folder_type, b.guid "
     "FROM moz_bookmarks b "
     "LEFT JOIN moz_places h ON b.fk = h.id "
     "LEFT JOIN moz_favicons f ON h.favicon_id = f.id "

@@ -100,7 +100,7 @@ nsRefreshDriver::GetRefreshTimerType() const
   if (mThrottled) {
     return nsITimer::TYPE_ONE_SHOT;
   }
-  if (HaveFrameRequestCallbacks() || sPrecisePref) {
+  if (HaveAnimationFrameListeners() || sPrecisePref) {
     return nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP;
   }
   return nsITimer::TYPE_REPEATING_SLACK;
@@ -269,7 +269,8 @@ nsRefreshDriver::ObserverCount() const
   // style changes, etc.
   sum += mStyleFlushObservers.Length();
   sum += mLayoutFlushObservers.Length();
-  sum += mFrameRequestCallbackDocs.Length();
+  sum += mBeforePaintTargets.Length();
+  sum += mAnimationFrameListenerDocs.Length();
   return sum;
 }
 
@@ -364,19 +365,34 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
     }
 
     if (i == 0) {
-      // Grab all of our frame request callbacks up front.
-      nsIDocument::FrameRequestCallbackList frameRequestCallbacks;
-      for (PRUint32 i = 0; i < mFrameRequestCallbackDocs.Length(); ++i) {
-        mFrameRequestCallbackDocs[i]->
-          TakeFrameRequestCallbacks(frameRequestCallbacks);
+      // Don't just loop while we have things in mBeforePaintTargets,
+      // the whole point is that event handlers should readd the
+      // target as needed.
+      nsTArray< nsCOMPtr<nsIDocument> > targets;
+      targets.SwapElements(mBeforePaintTargets);
+      for (PRUint32 i = 0; i < targets.Length(); ++i) {
+        targets[i]->BeforePaintEventFiring();
       }
-      // OK, now reset mFrameRequestCallbackDocs so they can be
+
+      // Also grab all of our animation frame listeners up front.
+      nsIDocument::AnimationListenerList animationListeners;
+      for (PRUint32 i = 0; i < mAnimationFrameListenerDocs.Length(); ++i) {
+        mAnimationFrameListenerDocs[i]->
+          TakeAnimationFrameListeners(animationListeners);
+      }
+      // OK, now reset mAnimationFrameListenerDocs so they can be
       // readded as needed.
-      mFrameRequestCallbackDocs.Clear();
+      mAnimationFrameListenerDocs.Clear();
 
       PRInt64 eventTime = mMostRecentRefreshEpochTime / PR_USEC_PER_MSEC;
-      for (PRUint32 i = 0; i < frameRequestCallbacks.Length(); ++i) {
-        frameRequestCallbacks[i]->Sample(eventTime);
+      for (PRUint32 i = 0; i < targets.Length(); ++i) {
+        nsEvent ev(true, NS_BEFOREPAINT);
+        ev.time = eventTime;
+        nsEventDispatcher::Dispatch(targets[i], nsnull, &ev);
+      }
+
+      for (PRUint32 i = 0; i < animationListeners.Length(); ++i) {
+        animationListeners[i]->OnBeforePaint(eventTime);
       }
 
       // This is the Flush_Style case.
@@ -525,22 +541,39 @@ nsRefreshDriver::IsRefreshObserver(nsARefreshObserver *aObserver,
 }
 #endif
 
-void
-nsRefreshDriver::ScheduleFrameRequestCallbacks(nsIDocument* aDocument)
+bool
+nsRefreshDriver::ScheduleBeforePaintEvent(nsIDocument* aDocument)
 {
-  NS_ASSERTION(mFrameRequestCallbackDocs.IndexOf(aDocument) ==
-               mFrameRequestCallbackDocs.NoIndex,
+  NS_ASSERTION(mBeforePaintTargets.IndexOf(aDocument) ==
+               mBeforePaintTargets.NoIndex,
+               "Shouldn't have a paint event posted for this document");
+  bool appended = mBeforePaintTargets.AppendElement(aDocument) != nsnull;
+  EnsureTimerStarted(false);
+  return appended;
+}
+
+void
+nsRefreshDriver::ScheduleAnimationFrameListeners(nsIDocument* aDocument)
+{
+  NS_ASSERTION(mAnimationFrameListenerDocs.IndexOf(aDocument) ==
+               mAnimationFrameListenerDocs.NoIndex,
                "Don't schedule the same document multiple times");
-  mFrameRequestCallbackDocs.AppendElement(aDocument);
+  mAnimationFrameListenerDocs.AppendElement(aDocument);
   // No need to worry about restarting our timer in precise mode if it's
   // already running; that will happen automatically when it fires.
   EnsureTimerStarted(false);
 }
 
 void
-nsRefreshDriver::RevokeFrameRequestCallbacks(nsIDocument* aDocument)
+nsRefreshDriver::RevokeBeforePaintEvent(nsIDocument* aDocument)
 {
-  mFrameRequestCallbackDocs.RemoveElement(aDocument);
+  mBeforePaintTargets.RemoveElement(aDocument);
+}
+
+void
+nsRefreshDriver::RevokeAnimationFrameListeners(nsIDocument* aDocument)
+{
+  mAnimationFrameListenerDocs.RemoveElement(aDocument);
   // No need to worry about restarting our timer in slack mode if it's already
   // running; that will happen automatically when it fires.
 }

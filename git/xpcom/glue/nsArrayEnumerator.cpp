@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Attributes.h"
-
 #include "nsArrayEnumerator.h"
 
 #include "nsIArray.h"
@@ -46,7 +44,7 @@
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
 
-class nsSimpleArrayEnumerator MOZ_FINAL : public nsISimpleEnumerator
+class nsSimpleArrayEnumerator : public nsISimpleEnumerator
 {
 public:
     // nsISupports interface
@@ -128,7 +126,7 @@ NS_NewArrayEnumerator(nsISimpleEnumerator* *result,
 // creates a snapshot of the array in question
 // you MUST use NS_NewArrayEnumerator to create this, so that
 // allocation is done correctly
-class nsCOMArrayEnumerator MOZ_FINAL : public nsISimpleEnumerator
+class nsCOMArrayEnumerator : public nsISimpleEnumerator
 {
 public:
     // nsISupports interface

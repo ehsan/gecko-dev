@@ -61,7 +61,8 @@
 
 /*
   Pure Qt is lacking a clear API to get the current state of the VKB (opened
-  or closed).
+  or closed). So this global is used to track that state for 
+  nsWindow::GetIMEEnabled().
 */
 static bool gKeyboardOpen = false;
 

@@ -89,7 +89,7 @@ DebugCheckWrapperClass(JSObject* obj)
 {
     NS_ASSERTION(IS_WRAPPER_CLASS(js::GetObjectClass(obj)),
                  "Forgot to check if this is a wrapper?");
-    return true;
+    return JS_TRUE;
 }
 
 // If IS_WRAPPER_CLASS for the JSClass of an object is true, the object can be
@@ -182,11 +182,6 @@ xpc_UnmarkGrayObject(JSObject *obj)
         xpc_UnmarkGrayObjectRecursive(obj);
 }
 
-// No JS can be on the stack when this is called. Probably only useful from
-// xpcshell.
-NS_EXPORT_(void)
-xpc_ActivateDebugMode();
-
 class nsIMemoryMultiReporterCallback;
 
 namespace mozilla {
@@ -223,6 +218,12 @@ struct CompartmentStats
     PRInt64 mjitCodeRegexp;
     PRInt64 mjitCodeUnused;
     PRInt64 mjitData;
+#endif
+#ifdef JS_TRACER
+    PRInt64 tjitCode;
+    PRInt64 tjitDataAllocatorsMain;
+    PRInt64 tjitDataAllocatorsReserve;
+    PRInt64 tjitDataNonAllocators;
 #endif
     TypeInferenceMemoryStats typeInferenceMemory;
 };

@@ -80,8 +80,8 @@ class nsIArray;
 class nsPIWindowRoot;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x29e6cc54, 0x10da, 0x4a68, \
-  { 0xb7, 0x68, 0xfe, 0xa7, 0x71, 0x17, 0x93, 0x81 } }
+{ 0x8ce567b5, 0xcc8d, 0x410b, \
+  { 0xa2, 0x7b, 0x07, 0xaf, 0x31, 0xc0, 0x33, 0xb8 } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -458,10 +458,22 @@ public:
   }
 
   /**
-   * Call this to indicate that some node (this window, its document,
-   * or content in that document) has a "MozAudioAvailable" event listener.
+   * Call this to check whether some node (this window, its document,
+   * or content in that document) has a MozAudioAvailable event listener.
    */
-  virtual void SetHasAudioAvailableEventListeners() = 0;
+  bool HasAudioAvailableEventListeners()
+  {
+    return mMayHaveAudioAvailableEventListener;
+  }
+
+  /**
+   * Call this to indicate that some node (this window, its document,
+   * or content in that document) has a MozAudioAvailable event listener.
+   */
+  void SetHasAudioAvailableEventListeners()
+  {
+    mMayHaveAudioAvailableEventListener = true;
+  }
 
   /**
    * Call this to check whether some node (this window, its document,
@@ -486,7 +498,7 @@ public:
    */
   virtual void InitJavaProperties() = 0;
 
-  virtual JSObject* GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey) = 0;
+  virtual void* GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey) = 0;
   virtual void CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
                                         nsScriptObjectHolder& aHandler) = 0;
 
@@ -645,6 +657,7 @@ protected:
   bool                   mIsInnerWindow;
   bool                   mMayHavePaintEventListener;
   bool                   mMayHaveTouchEventListener;
+  bool                   mMayHaveAudioAvailableEventListener;
   bool                   mMayHaveMouseEnterLeaveEventListener;
 
   // This variable is used on both inner and outer windows (and they

@@ -137,25 +137,32 @@ nsFileControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
   ENSURE_TRUE(mContent);
 
   // Remove the drag events
-  if (mContent) {
-    mContent->RemoveSystemEventListener(NS_LITERAL_STRING("drop"),
-                                        mMouseListener, false);
-    mContent->RemoveSystemEventListener(NS_LITERAL_STRING("dragover"),
-                                        mMouseListener, false);
+  nsCOMPtr<nsIDOMEventTarget> dragTarget = do_QueryInterface(mContent);
+  if (dragTarget) {
+    dragTarget->RemoveEventListener(NS_LITERAL_STRING("drop"),
+                                    mMouseListener, false);
+    dragTarget->RemoveEventListener(NS_LITERAL_STRING("dragover"),
+                                    mMouseListener, false);
   }
 
   // remove mMouseListener as a mouse event listener (bug 40533, bug 355931)
+  NS_NAMED_LITERAL_STRING(click, "click");
+
   nsContentUtils::DestroyAnonymousContent(&mCapture);
 
-  if (mBrowse) {
-    mBrowse->RemoveSystemEventListener(NS_LITERAL_STRING("click"),
-                                       mMouseListener, false);
+  nsEventListenerManager* elm = mBrowse->GetListenerManager(false);
+  if (elm) {
+    elm->RemoveEventListenerByType(mMouseListener, click,
+                                   NS_EVENT_FLAG_BUBBLE |
+                                   NS_EVENT_FLAG_SYSTEM_EVENT);
   }
   nsContentUtils::DestroyAnonymousContent(&mBrowse);
 
-  if (mTextContent) {
-    mTextContent->RemoveSystemEventListener(NS_LITERAL_STRING("click"),
-                                            mMouseListener, false);
+  elm = mTextContent->GetListenerManager(false);
+  if (elm) {
+    elm->RemoveEventListenerByType(mMouseListener, click,
+                                   NS_EVENT_FLAG_BUBBLE |
+                                   NS_EVENT_FLAG_SYSTEM_EVENT);
   }
   nsContentUtils::DestroyAnonymousContent(&mTextContent);
 
@@ -258,15 +265,21 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     return NS_ERROR_OUT_OF_MEMORY;
 
   // Register the whole frame as an event listener of drag events
-  mContent->AddSystemEventListener(NS_LITERAL_STRING("drop"),
-                                   mMouseListener, false);
-  mContent->AddSystemEventListener(NS_LITERAL_STRING("dragover"),
-                                   mMouseListener, false);
+  nsCOMPtr<nsIDOMEventTarget> dragTarget = do_QueryInterface(mContent);
+  NS_ENSURE_STATE(dragTarget);
+  dragTarget->AddEventListener(NS_LITERAL_STRING("drop"),
+                               mMouseListener, false);
+  dragTarget->AddEventListener(NS_LITERAL_STRING("dragover"),
+                               mMouseListener, false);
 
+  NS_NAMED_LITERAL_STRING(click, "click");
+  nsEventListenerManager* manager = mTextContent->GetListenerManager(true);
+  NS_ENSURE_STATE(manager);
   // Register as an event listener of the textbox
   // to open file dialog on mouse click
-  mTextContent->AddSystemEventListener(NS_LITERAL_STRING("click"),
-                                       mMouseListener, false);
+  manager->AddEventListenerByType(mMouseListener, click,
+                                  NS_EVENT_FLAG_BUBBLE |
+                                  NS_EVENT_FLAG_SYSTEM_EVENT);
 
   // Create the browse button
   nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::input, nsnull,
@@ -313,8 +326,9 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
       mCapture->SetAttr(kNameSpaceID_None, nsGkAtoms::value,
                         NS_LITERAL_STRING("capture"), false);
 
-      mCapture->AddSystemEventListener(NS_LITERAL_STRING("click"),
-                                       mCaptureMouseListener, false);
+      nsCOMPtr<nsIDOMEventTarget> captureEventTarget =
+        do_QueryInterface(mCapture);
+      captureEventTarget->AddEventListener(click, mCaptureMouseListener, false);
     }
   }
   nsCOMPtr<nsIDOMHTMLInputElement> fileContent = do_QueryInterface(mContent);
@@ -335,10 +349,15 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   if (mCapture && !aElements.AppendElement(mCapture))
     return NS_ERROR_OUT_OF_MEMORY;
 
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mBrowse);
+  NS_ENSURE_STATE(target);
+  manager = target->GetListenerManager(true);
+  NS_ENSURE_STATE(manager);
   // Register as an event listener of the button
   // to open file dialog on mouse click
-  mBrowse->AddSystemEventListener(NS_LITERAL_STRING("click"),
-                                  mMouseListener, false);
+  manager->AddEventListenerByType(mMouseListener, click,
+                                  NS_EVENT_FLAG_BUBBLE |
+                                  NS_EVENT_FLAG_SYSTEM_EVENT);
 
   SyncAttr(kNameSpaceID_None, nsGkAtoms::size,     SYNC_TEXT);
   SyncDisabledState();

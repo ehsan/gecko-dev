@@ -26,7 +26,6 @@
  *   Julian Viereck <jviereck@mozilla.com>
  *   Paul Rouget <paul@mozilla.com>
  *   Kyle Simpson <ksimpson@mozilla.com>
- *   Johan Charlez <johan.charlez@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -147,15 +146,8 @@ Highlighter.prototype = {
 
     this.buildInfobar(controlsBox);
 
-    if (!this.IUI.store.getValue(this.winID, "inspecting")) {
-      this.veilContainer.setAttribute("locked", true);
-      this.nodeInfo.container.setAttribute("locked", true);
-    }
-
     this.browser.addEventListener("resize", this, true);
     this.browser.addEventListener("scroll", this, true);
-
-    this.transitionDisabler = null;
 
     this.handleResize();
   },
@@ -494,7 +486,7 @@ Highlighter.prototype = {
     this.nodeInfo.tagNameLabel.textContent = this.node.tagName;
 
     // ID
-    this.nodeInfo.idLabel.textContent = this.node.id ? "#" + this.node.id : "";
+    this.nodeInfo.idLabel.textContent = this.node.id;
 
     // Classes
     let classes = this.nodeInfo.classesBox;
@@ -507,7 +499,7 @@ Highlighter.prototype = {
       for (let i = 0; i < this.node.classList.length; i++) {
         let classLabel = this.chromeDoc.createElement("label");
         classLabel.className = "highlighter-nodeinfobar-class plain";
-        classLabel.textContent = "." + this.node.classList[i];
+        classLabel.textContent = this.node.classList[i];
         fragment.appendChild(classLabel);
       }
       classes.appendChild(fragment);
@@ -672,7 +664,6 @@ Highlighter.prototype = {
         this.handleMouseMove(aEvent);
         break;
       case "resize":
-        this.brieflyDisableTransitions();
         this.handleResize(aEvent);
         break;
       case "dblclick":
@@ -682,30 +673,9 @@ Highlighter.prototype = {
         aEvent.preventDefault();
         break;
       case "scroll":
-        this.brieflyDisableTransitions();
         this.highlight();
         break;
     }
-  },
-
-  /**
-   * Disable the CSS transitions for a short time to avoid laggy animations
-   * during scrolling or resizing.
-   */
-  brieflyDisableTransitions: function Highlighter_brieflyDisableTransitions()
-  {
-   if (this.transitionDisabler) {
-     this.IUI.win.clearTimeout(this.transitionDisabler);
-   } else {
-     this.veilContainer.setAttribute("disable-transitions", "true");
-     this.nodeInfo.container.setAttribute("disable-transitions", "true");
-   }
-   this.transitionDisabler =
-     this.IUI.win.setTimeout(function() {
-       this.veilContainer.removeAttribute("disable-transitions");
-       this.nodeInfo.container.removeAttribute("disable-transitions");
-       this.transitionDisabler = null;
-     }.bind(this), 500);
   },
 
   /**
@@ -992,8 +962,6 @@ InspectorUI.prototype = {
   initializeHighlighter: function IUI_initializeHighlighter()
   {
     this.highlighter = new Highlighter(this);
-    this.browser.addEventListener("keypress", this, true);
-    this.highlighter.highlighterContainer.addEventListener("keypress", this, true);
     this.highlighterReady();
   },
 
@@ -1117,6 +1085,10 @@ InspectorUI.prototype = {
       this.treePanel.closeEditor();
 
     this.inspectToolbutton.checked = true;
+    // Attach event listeners to content window and child windows to enable
+    // highlighting and click to stop inspection.
+    this.browser.addEventListener("keypress", this, true);
+    this.highlighter.highlighterContainer.addEventListener("keypress", this, true);
     this.highlighter.attachInspectListeners();
 
     this.inspecting = true;
@@ -1140,8 +1112,8 @@ InspectorUI.prototype = {
     this.inspectToolbutton.checked = false;
     // Detach event listeners from content window and child windows to disable
     // highlighting. We still want to be notified if the user presses "ESCAPE"
-    // to close the inspector, or "RETURN" to unlock the node, so we don't 
-    // remove the "keypress" event until the highlighter is removed.
+    // to unlock the node, so we don't remove the "keypress" event until
+    // the highlighter is removed.
     this.highlighter.detachInspectListeners();
 
     this.inspecting = false;
@@ -1214,8 +1186,7 @@ InspectorUI.prototype = {
     this.restoreToolState(this.winID);
 
     this.win.focus();
-    Services.obs.notifyObservers({wrappedJSObject: this},
-                                 INSPECTOR_NOTIFICATIONS.OPENED, null);
+    Services.obs.notifyObservers(null, INSPECTOR_NOTIFICATIONS.OPENED, null);
   },
 
   /**
@@ -1277,12 +1248,8 @@ InspectorUI.prototype = {
         break;
       case "keypress":
         switch (event.keyCode) {
-          case this.chromeWin.KeyEvent.DOM_VK_ESCAPE:
-            this.closeInspectorUI(false);
-            event.preventDefault();
-            event.stopPropagation();
-            break;
           case this.chromeWin.KeyEvent.DOM_VK_RETURN:
+          case this.chromeWin.KeyEvent.DOM_VK_ESCAPE:
             this.toggleInspection();
             event.preventDefault();
             event.stopPropagation();

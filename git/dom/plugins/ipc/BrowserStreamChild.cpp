@@ -249,9 +249,8 @@ BrowserStreamChild::Deliver()
   // asynchronously).  Doing this resolves bug 687610, bug 670036 and possibly
   // also other bugs.
   if (mStreamAsFilePending) {
-    if (mStreamStatus == kStreamOpen)
-      mInstance->mPluginIface->asfile(&mInstance->mData, &mStream,
-                                      mStreamAsFileName.get());
+    mInstance->mPluginIface->asfile(&mInstance->mData, &mStream,
+                                    mStreamAsFileName.get());
     mStreamAsFilePending = false;
   }
 

@@ -99,26 +99,26 @@ nsTransformedTextRun::SetPotentialLineBreaks(PRUint32 aStart, PRUint32 aLength,
   return changed;
 }
 
-size_t
-nsTransformedTextRun::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
+PRUint64
+nsTransformedTextRun::ComputeSize()
 {
-  size_t total = gfxTextRun::SizeOfExcludingThis(aMallocSizeOf);
+  PRUint32 total = gfxTextRun::ComputeSize();
+  if (moz_malloc_usable_size(this) == 0) {
+    total += sizeof(nsTransformedTextRun) - sizeof(gfxTextRun);
+  }
   total += mStyles.SizeOf();
   total += mCapitalize.SizeOf();
   if (mOwnsFactory) {
-    // It's not worth the effort to get all the sub-class cases right for a
-    // small size in the fallback case.  So we use a |computedSize| of 0, which
-    // disables any usable vs. computedSize checking done by aMallocSizeOf.
-    total += aMallocSizeOf(mFactory, 0);
+    PRUint32 factorySize = moz_malloc_usable_size(mFactory);
+    if (factorySize == 0) {
+      // this may not quite account for everything
+      // (e.g. nsCaseTransformTextRunFactory adds a couple of members)
+      // but I'm not sure it's worth the effort to track more precisely
+      factorySize = sizeof(nsTransformingTextRunFactory);
+    }
+    total += factorySize;
   }
   return total;
-}
-
-size_t
-nsTransformedTextRun::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-  return aMallocSizeOf(this, sizeof(nsTransformedTextRun)) +
-         SizeOfExcludingThis(aMallocSizeOf);
 }
 
 nsTransformedTextRun*

@@ -120,7 +120,6 @@
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/Element.h"
-#include "nsContentUtils.h"
 
 #define NS_ERROR_EDITOR_NO_SELECTION NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_EDITOR,1)
 #define NS_ERROR_EDITOR_NO_TEXTNODE  NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_EDITOR,2)
@@ -134,7 +133,6 @@ static bool gNoisy = false;
 #endif
 
 using namespace mozilla;
-using namespace mozilla::widget;
 
 // Defined in nsEditorRegistration.cpp
 extern nsIParserService *sParserService;
@@ -494,7 +492,9 @@ nsEditor::SetFlags(PRUint32 aFlags)
   // if we're focused and the flag change causes IME state change.
   nsCOMPtr<nsIContent> focusedContent = GetFocusedContent();
   if (focusedContent) {
-    IMEState newState;
+    // Use "enable" for the default value because if IME is disabled
+    // unexpectedly, it makes serious a11y problem.
+    PRUint32 newState = nsIContent::IME_STATUS_ENABLE;
     nsresult rv = GetPreferredIMEState(&newState);
     if (NS_SUCCEEDED(rv)) {
       // NOTE: When the enabled state isn't going to be modified, this method
@@ -2050,14 +2050,13 @@ nsEditor::ForceCompositionEnd()
 }
 
 NS_IMETHODIMP
-nsEditor::GetPreferredIMEState(IMEState *aState)
+nsEditor::GetPreferredIMEState(PRUint32 *aState)
 {
   NS_ENSURE_ARG_POINTER(aState);
-  aState->mEnabled = IMEState::ENABLED;
-  aState->mOpen = IMEState::DONT_CHANGE_OPEN_STATE;
+  *aState = nsIContent::IME_STATUS_ENABLE;
 
   if (IsReadonly() || IsDisabled()) {
-    aState->mEnabled = IMEState::DISABLED;
+    *aState = nsIContent::IME_STATUS_DISABLE;
     return NS_OK;
   }
 
@@ -2070,17 +2069,17 @@ nsEditor::GetPreferredIMEState(IMEState *aState)
   switch (frame->GetStyleUIReset()->mIMEMode) {
     case NS_STYLE_IME_MODE_AUTO:
       if (IsPasswordEditor())
-        aState->mEnabled = IMEState::PASSWORD;
+        *aState = nsIContent::IME_STATUS_PASSWORD;
       break;
     case NS_STYLE_IME_MODE_DISABLED:
       // we should use password state for |ime-mode: disabled;|.
-      aState->mEnabled = IMEState::PASSWORD;
+      *aState = nsIContent::IME_STATUS_PASSWORD;
       break;
     case NS_STYLE_IME_MODE_ACTIVE:
-      aState->mOpen = IMEState::OPEN;
+      *aState |= nsIContent::IME_STATUS_OPEN;
       break;
     case NS_STYLE_IME_MODE_INACTIVE:
-      aState->mOpen = IMEState::CLOSED;
+      *aState |= nsIContent::IME_STATUS_CLOSE;
       break;
   }
 
@@ -3150,8 +3149,7 @@ nsEditor::GetPriorNode(nsIDOMNode  *aParentNode,
                        PRInt32      aOffset, 
                        bool         aEditableNode, 
                        nsCOMPtr<nsIDOMNode> *aResultNode,
-                       bool         bNoBlockCrossing,
-                       nsIContent  *aActiveEditorRoot)
+                       bool         bNoBlockCrossing)
 {
   // just another version of GetPriorNode that takes a {parent, offset}
   // instead of a node
@@ -3166,15 +3164,13 @@ nsEditor::GetPriorNode(nsIDOMNode  *aParentNode,
       // if we aren't allowed to cross blocks, don't look before this block
       return NS_OK;
     }
-    return GetPriorNode(aParentNode, aEditableNode, aResultNode,
-                        bNoBlockCrossing, aActiveEditorRoot);
+    return GetPriorNode(aParentNode, aEditableNode, aResultNode, bNoBlockCrossing);
   }
 
   // else look before the child at 'aOffset'
   nsCOMPtr<nsIDOMNode> child = GetChildAt(aParentNode, aOffset);
   if (child)
-    return GetPriorNode(child, aEditableNode, aResultNode, bNoBlockCrossing,
-                        aActiveEditorRoot);
+    return GetPriorNode(child, aEditableNode, aResultNode, bNoBlockCrossing);
 
   // unless there isn't one, in which case we are at the end of the node
   // and want the deep-right child.
@@ -3183,19 +3179,17 @@ nsEditor::GetPriorNode(nsIDOMNode  *aParentNode,
     return NS_OK;
 
   // restart the search from the non-editable node we just found
-  nsCOMPtr<nsIDOMNode> notEditableNode = *aResultNode;
-  return GetPriorNode(notEditableNode, aEditableNode, aResultNode,
-                      bNoBlockCrossing, aActiveEditorRoot);
+  nsCOMPtr<nsIDOMNode> notEditableNode = do_QueryInterface(*aResultNode);
+  return GetPriorNode(notEditableNode, aEditableNode, aResultNode, bNoBlockCrossing);
 }
 
 
 nsresult 
 nsEditor::GetNextNode(nsIDOMNode   *aParentNode, 
-                      PRInt32      aOffset, 
-                      bool         aEditableNode, 
-                      nsCOMPtr<nsIDOMNode> *aResultNode,
-                      bool         bNoBlockCrossing,
-                      nsIContent  *aActiveEditorRoot)
+                       PRInt32      aOffset, 
+                       bool         aEditableNode, 
+                       nsCOMPtr<nsIDOMNode> *aResultNode,
+                       bool         bNoBlockCrossing)
 {
   // just another version of GetNextNode that takes a {parent, offset}
   // instead of a node
@@ -3237,8 +3231,7 @@ nsEditor::GetNextNode(nsIDOMNode   *aParentNode,
 
     // restart the search from the non-editable node we just found
     nsCOMPtr<nsIDOMNode> notEditableNode = do_QueryInterface(*aResultNode);
-    return GetNextNode(notEditableNode, aEditableNode, aResultNode,
-                       bNoBlockCrossing, aActiveEditorRoot);
+    return GetNextNode(notEditableNode, aEditableNode, aResultNode, bNoBlockCrossing);
   }
     
   // unless there isn't one, in which case we are at the end of the node
@@ -3248,8 +3241,7 @@ nsEditor::GetNextNode(nsIDOMNode   *aParentNode,
     // don't cross out of parent block
     return NS_OK;
   }
-  return GetNextNode(aParentNode, aEditableNode, aResultNode, bNoBlockCrossing,
-                     aActiveEditorRoot);
+  return GetNextNode(aParentNode, aEditableNode, aResultNode, bNoBlockCrossing);
 }
 
 
@@ -3257,138 +3249,226 @@ nsresult
 nsEditor::GetPriorNode(nsIDOMNode  *aCurrentNode, 
                        bool         aEditableNode, 
                        nsCOMPtr<nsIDOMNode> *aResultNode,
-                       bool         bNoBlockCrossing,
-                       nsIContent  *aActiveEditorRoot)
+                       bool         bNoBlockCrossing)
 {
+  nsresult result;
   if (!aCurrentNode || !aResultNode) { return NS_ERROR_NULL_POINTER; }
+  
+  *aResultNode = nsnull;  // init out-param
 
-  nsCOMPtr<nsINode> currentNode = do_QueryInterface(aCurrentNode);
+  if (IsRootNode(aCurrentNode))
+  {
+    // Don't allow traversal above the root node! This helps
+    // prevent us from accidentally editing browser content
+    // when the editor is in a text widget.
 
-  if (!IsDescendantOfBody(currentNode) ||
-      (aActiveEditorRoot &&
-       !nsContentUtils::ContentIsDescendantOf(currentNode,
-                                              aActiveEditorRoot))) {
-    *aResultNode = nsnull;
     return NS_OK;
   }
 
-  *aResultNode =
-    do_QueryInterface(FindNode(currentNode, false, aEditableNode,
-                               bNoBlockCrossing, aActiveEditorRoot));
-  return NS_OK;
+  nsCOMPtr<nsIDOMNode> candidate;
+  result = GetPriorNodeImpl(aCurrentNode, aEditableNode, address_of(candidate), bNoBlockCrossing);
+  NS_ENSURE_SUCCESS(result, result);
+  
+  if (!candidate)
+  {
+    // we could not find a prior node.  return null.
+    return NS_OK;
+  }
+  else if (!aEditableNode) *aResultNode = candidate;
+  else if (IsEditable(candidate)) *aResultNode = candidate;
+  else 
+  { // restart the search from the non-editable node we just found
+    nsCOMPtr<nsIDOMNode> notEditableNode = do_QueryInterface(candidate);
+    return GetPriorNode(notEditableNode, aEditableNode, aResultNode, bNoBlockCrossing);
+  }
+  return result;
 }
 
-nsIContent*
-nsEditor::FindNextLeafNode(nsINode  *aCurrentNode, 
-                           bool      aGoForward,
-                           bool      bNoBlockCrossing,
-                           nsIContent *aActiveEditorRoot)
+nsresult 
+nsEditor::GetPriorNodeImpl(nsIDOMNode  *aCurrentNode, 
+                           bool         aEditableNode, 
+                           nsCOMPtr<nsIDOMNode> *aResultNode,
+                           bool         bNoBlockCrossing)
 {
   // called only by GetPriorNode so we don't need to check params.
-  NS_PRECONDITION(IsDescendantOfBody(aCurrentNode) && !IsRootNode(aCurrentNode) &&
-                  (!aActiveEditorRoot ||
-                   nsContentUtils::ContentIsDescendantOf(aCurrentNode,
-                                                         aActiveEditorRoot)),
-                  "Bogus arguments");
 
-  nsINode* cur = aCurrentNode;
-  for (;;) {
-    // if aCurrentNode has a sibling in the right direction, return
-    // that sibling's closest child (or itself if it has no children)
-    nsIContent* sibling =
-      aGoForward ? cur->GetNextSibling() : cur->GetPreviousSibling();
-    if (sibling) {
-      if (bNoBlockCrossing && IsBlockNode(sibling)) {
-        // don't look inside prevsib, since it is a block
-        return sibling;
-      }
-      nsIContent *leaf =
-        aGoForward ? GetLeftmostChild(sibling, bNoBlockCrossing) :
-                     GetRightmostChild(sibling, bNoBlockCrossing);
-      if (!leaf) { 
-        return sibling;
-      }
-
-      return leaf;
+  // if aCurrentNode has a left sibling, return that sibling's rightmost child (or itself if it has no children)
+  nsCOMPtr<nsIDOMNode> prevSibling;
+  nsresult result = aCurrentNode->GetPreviousSibling(getter_AddRefs(prevSibling));
+  if ((NS_SUCCEEDED(result)) && prevSibling)
+  {
+    if (bNoBlockCrossing && IsBlockNode(prevSibling))
+    {
+      // don't look inside prevsib, since it is a block
+      *aResultNode = prevSibling;
+      return NS_OK;
     }
-
-    nsINode *parent = cur->GetNodeParent();
-    if (!parent) {
-      return nsnull;
+    *aResultNode = GetRightmostChild(prevSibling, bNoBlockCrossing);
+    if (!*aResultNode) 
+    { 
+      *aResultNode = prevSibling;
+      return NS_OK;
     }
-
-    NS_ASSERTION(IsDescendantOfBody(parent),
-                 "We started with a proper descendant of root, and should stop "
-                 "if we ever hit the root, so we better have a descendant of "
-                 "root now!");
-    if (IsRootNode(parent) ||
-        (bNoBlockCrossing && IsBlockNode(parent)) ||
-        parent == aActiveEditorRoot) {
-      return nsnull;
+    if (!IsDescendantOfBody(*aResultNode))
+    {
+      *aResultNode = nsnull;
+      return NS_OK;
     }
-
-    cur = parent;
   }
-
-  NS_NOTREACHED("What part of for(;;) do you not understand?");
-  return nsnull;
+  else
+  {
+    // otherwise, walk up the parent tree until there is a child that comes before 
+    // the ancestor of aCurrentNode.  Then return that node's rightmost child
+    nsCOMPtr<nsIDOMNode> parent = do_QueryInterface(aCurrentNode);
+    nsCOMPtr<nsIDOMNode> node, notEditableNode;
+    do {
+      node = parent;
+      result = node->GetParentNode(getter_AddRefs(parent));
+      if ((NS_SUCCEEDED(result)) && parent)
+      {
+        if (!IsDescendantOfBody(parent))
+        {
+          *aResultNode = nsnull;
+          return NS_OK;
+        }
+        if ((bNoBlockCrossing && IsBlockNode(parent)) || IsRootNode(parent))
+        {
+          // we are at front of block or root, do not step out
+          *aResultNode = nsnull;
+          return NS_OK;
+        }
+        result = parent->GetPreviousSibling(getter_AddRefs(node));
+        if ((NS_SUCCEEDED(result)) && node)
+        {
+          if (bNoBlockCrossing && IsBlockNode(node))
+          {
+            // prev sibling is a block, do not step into it
+            *aResultNode = node;
+            return NS_OK;
+          }
+          *aResultNode = GetRightmostChild(node, bNoBlockCrossing);
+          if (!*aResultNode)  *aResultNode = node;
+          return NS_OK;
+        }
+      }
+    } while ((NS_SUCCEEDED(result)) && parent && !*aResultNode);
+  }
+  return result;
 }
 
 nsresult 
 nsEditor::GetNextNode(nsIDOMNode  *aCurrentNode, 
                       bool         aEditableNode, 
                       nsCOMPtr<nsIDOMNode> *aResultNode,
-                      bool         bNoBlockCrossing,
-                      nsIContent  *aActiveEditorRoot)
+                      bool         bNoBlockCrossing)
 {
   if (!aCurrentNode || !aResultNode) { return NS_ERROR_NULL_POINTER; }
+  
+  *aResultNode = nsnull;  // init out-param
 
-  nsCOMPtr<nsINode> currentNode = do_QueryInterface(aCurrentNode);
-  if (!IsDescendantOfBody(currentNode) ||
-      (aActiveEditorRoot &&
-       !nsContentUtils::ContentIsDescendantOf(currentNode,
-                                              aActiveEditorRoot))) {
-    *aResultNode = nsnull;
-    return NS_OK;
-  }
-
-  *aResultNode =
-    do_QueryInterface(FindNode(currentNode, true, aEditableNode,
-                               bNoBlockCrossing, aActiveEditorRoot));
-  return NS_OK;
-}
-
-nsIContent*
-nsEditor::FindNode(nsINode *aCurrentNode,
-                   bool     aGoForward,
-                   bool     aEditableNode,
-                   bool     bNoBlockCrossing,
-                   nsIContent *aActiveEditorRoot)
-{
-  if (IsRootNode(aCurrentNode) || aCurrentNode == aActiveEditorRoot)
+  if (IsRootNode(aCurrentNode))
   {
     // Don't allow traversal above the root node! This helps
     // prevent us from accidentally editing browser content
     // when the editor is in a text widget.
 
-    return nsnull;
+    return NS_OK;
   }
 
-  nsIContent* candidate =
-    FindNextLeafNode(aCurrentNode, aGoForward, bNoBlockCrossing,
-                     aActiveEditorRoot);
+  nsCOMPtr<nsIDOMNode> candidate;
+  nsresult result = GetNextNodeImpl(aCurrentNode, aEditableNode,
+                                    address_of(candidate), bNoBlockCrossing);
+  NS_ENSURE_SUCCESS(result, result);
   
-  if (!candidate) {
-    return nsnull;
+  if (!candidate)
+  {
+    // we could not find a next node.  return null.
+    *aResultNode = nsnull;
+    return NS_OK;
   }
-
-  if (!aEditableNode || IsEditable(candidate)) {
-    return candidate;
+  else if (!aEditableNode) *aResultNode = candidate;
+  else if (IsEditable(candidate)) *aResultNode = candidate;
+  else 
+  { // restart the search from the non-editable node we just found
+    nsCOMPtr<nsIDOMNode> notEditableNode = do_QueryInterface(candidate);
+    return GetNextNode(notEditableNode, aEditableNode, aResultNode, bNoBlockCrossing);
   }
-
-  return FindNode(candidate, aGoForward, aEditableNode, bNoBlockCrossing,
-                  aActiveEditorRoot);
+  return result;
 }
+
+
+nsresult 
+nsEditor::GetNextNodeImpl(nsIDOMNode  *aCurrentNode, 
+                          bool         aEditableNode, 
+                          nsCOMPtr<nsIDOMNode> *aResultNode,
+                          bool         bNoBlockCrossing)
+{
+  // called only by GetNextNode so we don't need to check params.
+
+  // if aCurrentNode has a right sibling, return that sibling's leftmost child (or itself if it has no children)
+  nsCOMPtr<nsIDOMNode> nextSibling;
+  nsresult result = aCurrentNode->GetNextSibling(getter_AddRefs(nextSibling));
+  if ((NS_SUCCEEDED(result)) && nextSibling)
+  {
+    if (bNoBlockCrossing && IsBlockNode(nextSibling))
+    {
+      // next sibling is a block, do not step into it
+      *aResultNode = nextSibling;
+      return NS_OK;
+    }
+    *aResultNode = GetLeftmostChild(nextSibling, bNoBlockCrossing);
+    if (!*aResultNode)
+    { 
+      *aResultNode = nextSibling;
+      return NS_OK; 
+    }
+    if (!IsDescendantOfBody(*aResultNode))
+    {
+      *aResultNode = nsnull;
+      return NS_OK;
+    }
+  }
+  else
+  {
+    // otherwise, walk up the parent tree until there is a child that comes after 
+    // the ancestor of aCurrentNode.  Then return that node's leftmost child
+    nsCOMPtr<nsIDOMNode> parent(do_QueryInterface(aCurrentNode));
+    nsCOMPtr<nsIDOMNode> node, notEditableNode;
+    do {
+      node = parent;
+      result = node->GetParentNode(getter_AddRefs(parent));
+      if ((NS_SUCCEEDED(result)) && parent)
+      {
+        if (!IsDescendantOfBody(parent))
+        {
+          *aResultNode = nsnull;
+          return NS_OK;
+        }
+        if ((bNoBlockCrossing && IsBlockNode(parent)) || IsRootNode(parent))
+        {
+          // we are at end of block or root, do not step out
+          *aResultNode = nsnull;
+          return NS_OK;
+        }
+        result = parent->GetNextSibling(getter_AddRefs(node));
+        if ((NS_SUCCEEDED(result)) && node)
+        {
+          if (bNoBlockCrossing && IsBlockNode(node))
+          {
+            // next sibling is a block, do not step into it
+            *aResultNode = node;
+            return NS_OK;
+          }
+          *aResultNode = GetLeftmostChild(node, bNoBlockCrossing);
+          if (!*aResultNode) *aResultNode = node;
+          return NS_OK; 
+        }
+      }
+    } while ((NS_SUCCEEDED(result)) && parent);
+  }
+  return result;
+}
+
 
 already_AddRefed<nsIDOMNode>
 nsEditor::GetRightmostChild(nsIDOMNode *aCurrentNode, 
@@ -3412,54 +3492,6 @@ nsEditor::GetRightmostChild(nsIDOMNode *aCurrentNode,
   }
 
   return resultNode.forget();
-}
-
-nsIContent*
-nsEditor::GetRightmostChild(nsINode *aCurrentNode,
-                            bool     bNoBlockCrossing)
-{
-  NS_ENSURE_TRUE(aCurrentNode, nsnull);
-  nsIContent *cur = aCurrentNode->GetLastChild();
-  if (!cur) {
-    return nsnull;
-  }
-  for (;;) {
-    if (bNoBlockCrossing && IsBlockNode(cur)) {
-      return cur;
-    }
-    nsIContent* next = cur->GetLastChild();
-    if (!next) {
-      return cur;
-    }
-    cur = next;
-  }
-
-  NS_NOTREACHED("What part of for(;;) do you not understand?");
-  return nsnull;
-}
-
-nsIContent*
-nsEditor::GetLeftmostChild(nsINode *aCurrentNode,
-                           bool     bNoBlockCrossing)
-{
-  NS_ENSURE_TRUE(aCurrentNode, nsnull);
-  nsIContent *cur = aCurrentNode->GetFirstChild();
-  if (!cur) {
-    return nsnull;
-  }
-  for (;;) {
-    if (bNoBlockCrossing && IsBlockNode(cur)) {
-      return cur;
-    }
-    nsIContent *next = cur->GetFirstChild();
-    if (!next) {
-      return cur;
-    }
-    cur = next;
-  }
-
-  NS_NOTREACHED("What part of for(;;) do you not understand?");
-  return nsnull;
 }
 
 already_AddRefed<nsIDOMNode>
@@ -3497,16 +3529,6 @@ nsEditor::IsBlockNode(nsIDOMNode *aNode)
 }
 
 bool 
-nsEditor::IsBlockNode(nsINode *aNode)
-{
-  // stub to be overridden in nsHTMLEditor.
-  // screwing around with the class hierarchy here in order
-  // to not duplicate the code in GetNextNode/GetPrevNode
-  // across both nsEditor/nsHTMLEditor.
-  return false;
-}
-
-bool
 nsEditor::CanContainTag(nsIDOMNode* aParent, const nsAString &aChildTag)
 {
   nsCOMPtr<nsIDOMElement> parentElement = do_QueryInterface(aParent);
@@ -3541,41 +3563,38 @@ nsEditor::TagCanContainTag(const nsAString &aParentTag, const nsAString &aChildT
   return true;
 }
 
-bool
-nsEditor::IsRootNode(nsIDOMNode *inNode)
-{
-  NS_ENSURE_TRUE(inNode, false);
-
-  return inNode == GetRoot();
-}
-
 bool 
-nsEditor::IsRootNode(nsINode *inNode) 
+nsEditor::IsRootNode(nsIDOMNode *inNode) 
 {
   NS_ENSURE_TRUE(inNode, false);
 
   nsIDOMElement *rootElement = GetRoot();
 
-  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(inNode);
+  nsCOMPtr<nsIDOMNode> rootNode = do_QueryInterface(rootElement);
 
-  return node == rootElement;
+  return inNode == rootNode;
 }
 
 bool 
 nsEditor::IsDescendantOfBody(nsIDOMNode *inNode) 
 {
-  nsCOMPtr<nsINode> node = do_QueryInterface(inNode);
-  return IsDescendantOfBody(node);
-}
-
-bool
-nsEditor::IsDescendantOfBody(nsINode *inNode)
-{
   NS_ENSURE_TRUE(inNode, false);
-  nsCOMPtr<nsIContent> root = do_QueryInterface(GetRoot());
-  NS_ENSURE_TRUE(root, false);
+  nsIDOMElement *rootElement = GetRoot();
+  NS_ENSURE_TRUE(rootElement, false);
+  nsCOMPtr<nsIDOMNode> root = do_QueryInterface(rootElement);
 
-  return nsContentUtils::ContentIsDescendantOf(inNode, root);
+  if (inNode == root.get()) return true;
+  
+  nsCOMPtr<nsIDOMNode> parent, node = do_QueryInterface(inNode);
+  
+  do
+  {
+    node->GetParentNode(getter_AddRefs(parent));
+    if (parent == root) return true;
+    node = parent;
+  } while (parent);
+  
+  return false;
 }
 
 bool 
@@ -3585,7 +3604,7 @@ nsEditor::IsContainer(nsIDOMNode *aNode)
 }
 
 bool
-nsEditor::IsTextInDirtyFrameVisible(nsIContent *aNode)
+nsEditor::IsTextInDirtyFrameVisible(nsIDOMNode *aNode)
 {
   // virtual method
   //
@@ -3595,52 +3614,11 @@ nsEditor::IsTextInDirtyFrameVisible(nsIContent *aNode)
   return true;
 }
 
-static inline bool
-IsElementVisible(dom::Element* aElement)
-{
-  if (aElement->GetPrimaryFrame()) {
-    // It's visible, for our purposes
-    return true;
-  }
-
-  nsIContent *cur = aElement;
-  for (; ;) {
-    cur = cur->GetFlattenedTreeParent();
-    if (!cur) {
-      // None of our ancestors have lazy bits set, so we shouldn't have a frame
-      return false;
-    }
-
-    if (cur->GetPrimaryFrame()) {
-      // None of our ancestors up to the nearest ancestor with a frame have
-      // lazy bits; that means we won't get a frame
-      return false;
-    }
-
-    if (cur->HasFlag(NODE_NEEDS_FRAME)) {
-      // Double-check that the parent doesn't have a leaf frame
-      nsIContent *parent = cur->GetFlattenedTreeParent();
-      if (parent) {
-        NS_ASSERTION(parent->GetPrimaryFrame(),
-                     "Why does our parent not have a frame?");
-        if (parent->GetPrimaryFrame()->IsLeaf()) {
-          // No frame for us
-          return false;
-        }
-      }
-
-      // |cur| will get a frame sometime.  What does that mean for us?
-      // |We have to figure that out!
-      break;
-    }
-  }
-
-  // Now it might be that we have no frame because we're in a
-  // display:none subtree, or it might be that we're just dealing with
-  // lazy frame construction and it hasn't happened yet.  Check which
-  // one it is.
+static bool
+IsElementVisible(nsIContent* aContent) {
+  mozilla::dom::Element* element = aContent->AsElement();
   nsRefPtr<nsStyleContext> styleContext =
-    nsComputedDOMStyle::GetStyleContextForElementNoFlush(aElement,
+    nsComputedDOMStyle::GetStyleContextForElementNoFlush(element,
                                                          nsnull, nsnull);
   if (styleContext) {
     return styleContext->GetStyleDisplay()->mDisplay != NS_STYLE_DISPLAY_NONE;
@@ -3651,41 +3629,30 @@ IsElementVisible(dom::Element* aElement)
 bool 
 nsEditor::IsEditable(nsIDOMNode *aNode)
 {
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
-  return IsEditable(content);
-}
-
-bool
-nsEditor::IsEditable(nsIContent *aNode)
-{
   NS_ENSURE_TRUE(aNode, false);
 
   if (IsMozEditorBogusNode(aNode) || !IsModifiableNode(aNode)) return false;
 
   // see if it has a frame.  If so, we'll edit it.
   // special case for textnodes: frame must have width.
-  if (aNode->IsElement() && !IsElementVisible(aNode->AsElement())) {
-    // If the element has no frame, it's not editable.  Note that we
-    // need to check IsElement() here, because some of our tests
-    // rely on frameless textnodes being visible.
-    return false;
-  }
-  if (aNode->NodeType() != nsIDOMNode::TEXT_NODE)
-    return true;  // not a text node; not invisible
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
+  if (content)
+  {
+    if (content->IsElement() &&
+        !IsElementVisible(content)) // If the element is invisible, it's not editable
+      return false;
+    if (!content->IsNodeOfType(nsINode::eTEXT))
+      return true;  // not a text node; not invisible
 
-  return IsTextInDirtyFrameVisible(aNode);
+    return IsTextInDirtyFrameVisible(aNode);
+  }
+  return false;  // didn't pass any editability test
 }
 
 bool
 nsEditor::IsMozEditorBogusNode(nsIDOMNode *aNode)
 {
   nsCOMPtr<nsIContent> element = do_QueryInterface(aNode);
-  return IsMozEditorBogusNode(element);
-}
-
-bool
-nsEditor::IsMozEditorBogusNode(nsIContent *element)
-{
   return element &&
          element->AttrValueIs(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom,
                               kMOZEditorBogusNodeValue, eCaseMatters);
@@ -3768,7 +3735,7 @@ NS_IMETHODIMP nsEditor::ResetModificationCount()
 
 ///////////////////////////////////////////////////////////////////////////
 // GetTag: digs out the atom for the tag of this node
-//
+//                    
 nsIAtom *
 nsEditor::GetTag(nsIDOMNode *aNode)
 {
@@ -3859,11 +3826,6 @@ nsEditor::IsTextNode(nsIDOMNode *aNode)
   return (nodeType == nsIDOMNode::TEXT_NODE);
 }
 
-bool
-nsEditor::IsTextNode(nsINode *aNode)
-{
-  return aNode->NodeType() == nsIDOMNode::TEXT_NODE;
-}
 
 ///////////////////////////////////////////////////////////////////////////
 // GetIndexOf: returns the position index of the node in the parent
@@ -5193,7 +5155,6 @@ nsEditor::InitializeSelection(nsIDOMEventTarget* aFocusEventTarget)
 
   // Init selection
   selCon->SetDisplaySelection(nsISelectionController::SELECTION_ON);
-  selCon->SetSelectionFlags(nsISelectionDisplay::DISPLAY_ALL);
   selCon->RepaintSelection(nsISelectionController::SELECTION_NORMAL);
   // If the computed selection root isn't root content, we should set it
   // as selection ancestor limit.  However, if that is root element, it means
@@ -5372,12 +5333,6 @@ nsEditor::IsModifiableNode(nsIDOMNode *aNode)
   return true;
 }
 
-bool
-nsEditor::IsModifiableNode(nsINode *aNode)
-{
-  return true;
-}
-
 nsKeyEvent*
 nsEditor::GetNativeKeyEvent(nsIDOMKeyEvent* aDOMKeyEvent)
 {
@@ -5431,29 +5386,12 @@ nsEditor::IsAcceptableInputEvent(nsIDOMEvent* aEvent)
   nsCOMPtr<nsIDOMNSEvent> NSEvent = do_QueryInterface(aEvent);
   NS_ENSURE_TRUE(NSEvent, false);
 
-  // If this is mouse event but this editor doesn't have focus, we shouldn't
-  // handle it.
-  nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aEvent);
-  if (mouseEvent) {
-    nsCOMPtr<nsIContent> focusedContent = GetFocusedContent();
-    if (!focusedContent) {
-      return false;
-    }
-  }
-
   bool isTrusted;
   nsresult rv = NSEvent->GetIsTrusted(&isTrusted);
   NS_ENSURE_SUCCESS(rv, false);
   if (isTrusted) {
     return true;
   }
-
-  // Ignore untrusted mouse event.
-  // XXX Why are we handling other untrusted input events?
-  if (mouseEvent) {
-    return false;
-  }
-
   // Otherwise, we shouldn't handle any input events when we're not an active
   // element of the DOM window.
   return IsActiveInDOMWindow();

@@ -2644,16 +2644,18 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
       nsAutoString relVal;
       element->GetAttr(kNameSpaceID_None, nsGkAtoms::rel, relVal);
       if (!relVal.IsEmpty()) {
-        PRUint32 linkTypes = nsStyleLinkElement::ParseLinkTypes(relVal);
-        bool hasPrefetch = linkTypes & PREFETCH;
-        if (hasPrefetch || (linkTypes & NEXT)) {
+        // XXX seems overkill to generate this string array
+        nsAutoTArray<nsString, 4> linkTypes;
+        nsStyleLinkElement::ParseLinkTypes(relVal, linkTypes);
+        bool hasPrefetch = linkTypes.Contains(NS_LITERAL_STRING("prefetch"));
+        if (hasPrefetch || linkTypes.Contains(NS_LITERAL_STRING("next"))) {
           nsAutoString hrefVal;
           element->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
           if (!hrefVal.IsEmpty()) {
             PrefetchHref(hrefVal, element, hasPrefetch);
           }
         }
-        if (linkTypes & DNS_PREFETCH) {
+        if (linkTypes.Contains(NS_LITERAL_STRING("dns-prefetch"))) {
           nsAutoString hrefVal;
           element->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
           if (!hrefVal.IsEmpty()) {

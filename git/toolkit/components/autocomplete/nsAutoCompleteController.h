@@ -123,6 +123,7 @@ protected:
   bool mPopupClosedByCompositionStart;
   bool mIsIMEComposing;
   bool mIgnoreHandleText;
+  bool mIsOpen;
   PRUint16 mSearchStatus;
   PRUint32 mRowCount;
   PRUint32 mSearchesOngoing;

@@ -61,7 +61,7 @@ XPCNativeMember::GetCallInfo(XPCCallContext& ccx,
     *pInterface = (XPCNativeInterface*) JSVAL_TO_PRIVATE(ifaceVal);
     *pMember = (XPCNativeMember*) JSVAL_TO_PRIVATE(memberVal);
 
-    return true;
+    return JS_TRUE;
 }
 
 JSBool
@@ -82,7 +82,7 @@ XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface,
     if (IsConstant()) {
         const nsXPTConstant* constant;
         if (NS_FAILED(iface->GetInterfaceInfo()->GetConstant(mIndex, &constant)))
-            return false;
+            return JS_FALSE;
 
         const nsXPTCMiniVariant& mv = *constant->GetValue();
 
@@ -96,11 +96,11 @@ XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface,
 
         if (!XPCConvert::NativeData2JS(ccx, &resultVal, &v.val, v.type,
                                        nsnull, nsnull))
-            return false;
+            return JS_FALSE;
 
         *vp = resultVal;
 
-        return true;
+        return JS_TRUE;
     }
     // else...
 
@@ -112,7 +112,7 @@ XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface,
     if (IsMethod()) {
         const nsXPTMethodInfo* info;
         if (NS_FAILED(iface->GetInterfaceInfo()->GetMethodInfo(mIndex, &info)))
-            return false;
+            return JS_FALSE;
 
         // Note: ASSUMES that retval is last arg.
         argc = (intN) info->GetParamCount();
@@ -127,19 +127,19 @@ XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface,
 
     JSFunction *fun = JS_NewFunctionById(ccx, callback, argc, 0, parent, GetName());
     if (!fun)
-        return false;
+        return JS_FALSE;
 
     JSObject* funobj = JS_GetFunctionObject(fun);
     if (!funobj)
-        return false;
+        return JS_FALSE;
 
     if (!JS_SetReservedSlot(ccx, funobj, 0, PRIVATE_TO_JSVAL(iface))||
         !JS_SetReservedSlot(ccx, funobj, 1, PRIVATE_TO_JSVAL(this)))
-        return false;
+        return JS_FALSE;
 
     *vp = OBJECT_TO_JSVAL(funobj);
 
-    return true;
+    return JS_TRUE;
 }
 
 /***************************************************************************/
@@ -261,13 +261,13 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
     XPCNativeMember* members = nsnull;
 
     int i;
-    JSBool failed = false;
+    JSBool failed = JS_FALSE;
     PRUint16 constCount;
     PRUint16 methodCount;
     PRUint16 totalCount;
     PRUint16 realTotalCount = 0;
     XPCNativeMember* cur;
-    JSString* str = NULL;
+    JSString*  str;
     jsid name;
     jsid interfaceName;
 
@@ -310,7 +310,7 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
     for (i = 0; i < methodCount; i++) {
         const nsXPTMethodInfo* info;
         if (NS_FAILED(aInfo->GetMethodInfo(i, &info))) {
-            failed = true;
+            failed = JS_TRUE;
             break;
         }
 
@@ -324,7 +324,7 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
         str = JS_InternString(ccx, info->GetName());
         if (!str) {
             NS_ERROR("bad method name");
-            failed = true;
+            failed = JS_TRUE;
             break;
         }
         name = INTERNED_STRING_TO_JSID(ccx, str);
@@ -354,14 +354,14 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
         for (i = 0; i < constCount; i++) {
             const nsXPTConstant* constant;
             if (NS_FAILED(aInfo->GetConstant(i, &constant))) {
-                failed = true;
+                failed = JS_TRUE;
                 break;
             }
 
             str = JS_InternString(ccx, constant->GetName());
             if (!str) {
                 NS_ERROR("bad constant name");
-                failed = true;
+                failed = JS_TRUE;
                 break;
             }
             name = INTERNED_STRING_TO_JSID(ccx, str);
@@ -379,7 +379,7 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
         const char* bytes;
         if (NS_FAILED(aInfo->GetNameShared(&bytes)) || !bytes ||
             nsnull == (str = JS_InternString(ccx, bytes))) {
-            failed = true;
+            failed = JS_TRUE;
         }
         interfaceName = INTERNED_STRING_TO_JSID(ccx, str);
     }

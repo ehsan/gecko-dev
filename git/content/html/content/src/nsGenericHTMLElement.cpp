@@ -71,7 +71,6 @@
 #include "nsIScrollableFrame.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
-#include "nsIWidget.h"
 #include "nsRange.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
@@ -119,7 +118,6 @@
 #include "nsHTMLFieldSetElement.h"
 #include "nsHTMLMenuElement.h"
 #include "nsPLDOMEvent.h"
-#include "nsIScriptError.h"
 
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/FromParser.h"
@@ -2653,7 +2651,7 @@ nsGenericHTMLFormElement::GetForm(nsIDOMHTMLFormElement** aForm)
   return NS_OK;
 }
 
-nsIContent::IMEState
+PRUint32
 nsGenericHTMLFormElement::GetDesiredIMEState()
 {
   nsCOMPtr<nsIEditor> editor = nsnull;
@@ -2663,7 +2661,7 @@ nsGenericHTMLFormElement::GetDesiredIMEState()
   nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(editor);
   if (!imeEditor)
     return nsGenericHTMLElement::GetDesiredIMEState();
-  IMEState state;
+  PRUint32 state;
   rv = imeEditor->GetPreferredIMEState(&state);
   if (NS_FAILED(rv))
     return nsGenericHTMLElement::GetDesiredIMEState();
@@ -3470,12 +3468,6 @@ nsresult nsGenericHTMLElement::MozRequestFullScreen()
   // and it also makes it harder for bad guys' script to go full-screen and
   // spoof the browser chrome/window and phish logins etc.
   if (!nsContentUtils::IsRequestFullScreenAllowed()) {
-    nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
-                                    "FullScreenDeniedNotInputDriven",
-                                    nsnull, 0, nsnull,
-                                    EmptyString(), 0, 0,
-                                    nsIScriptError::warningFlag,
-                                    "DOM", OwnerDoc());
     nsRefPtr<nsPLDOMEvent> e =
       new nsPLDOMEvent(OwnerDoc(),
                        NS_LITERAL_STRING("mozfullscreenerror"),

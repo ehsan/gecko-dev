@@ -334,11 +334,6 @@ nsSMILTimeValueSpec::RegisterEventListener(Element* aTarget)
   if (!aTarget)
     return;
 
-  // Don't listen for accessKey events if script is disabled. (see bug 704482)
-  if (mParams.mType == nsSMILTimeValueSpecParams::ACCESSKEY &&
-      !aTarget->GetOwnerDocument()->IsScriptEnabled())
-    return;
-
   if (!mEventListener) {
     mEventListener = new EventListener(this);
   }

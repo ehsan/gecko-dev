@@ -329,8 +329,7 @@ GetJSObjectFromArray(JSContext* aCtx,
 class VisitedQuery : public AsyncStatementCallback
 {
 public:
-  static nsresult Start(nsIURI* aURI,
-                        mozIVisitedStatusCallback* aCallback=nsnull)
+  static nsresult Start(nsIURI* aURI)
   {
     NS_PRECONDITION(aURI, "Null URI");
 
@@ -347,7 +346,7 @@ public:
     nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
     NS_ENSURE_STATE(navHistory);
     if (navHistory->hasEmbedVisit(aURI)) {
-      nsRefPtr<VisitedQuery> callback = new VisitedQuery(aURI, aCallback, true);
+      nsRefPtr<VisitedQuery> callback = new VisitedQuery(aURI, true);
       NS_ENSURE_TRUE(callback, NS_ERROR_OUT_OF_MEMORY);
       // As per IHistory contract, we must notify asynchronously.
       nsCOMPtr<nsIRunnable> event =
@@ -366,7 +365,7 @@ public:
     nsresult rv = URIBinder::Bind(stmt, 0, aURI);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsRefPtr<VisitedQuery> callback = new VisitedQuery(aURI, aCallback);
+    nsRefPtr<VisitedQuery> callback = new VisitedQuery(aURI);
     NS_ENSURE_TRUE(callback, NS_ERROR_OUT_OF_MEMORY);
 
     nsCOMPtr<mozIStoragePendingStatement> handle;
@@ -401,12 +400,6 @@ public:
 
   nsresult NotifyVisitedStatus()
   {
-    // If an external handling callback is provided, just notify through it.
-    if (mCallback) {
-      mCallback->IsVisited(mURI, mIsVisited);
-      return NS_OK;
-    }
-
     if (mIsVisited) {
       History* history = History::GetService();
       NS_ENSURE_STATE(history);
@@ -432,17 +425,13 @@ public:
   }
 
 private:
-  VisitedQuery(nsIURI* aURI,
-               mozIVisitedStatusCallback *aCallback=nsnull,
-               bool aIsVisited=false)
+  VisitedQuery(nsIURI* aURI, bool aIsVisited=false)
   : mURI(aURI)
-  , mCallback(aCallback)
   , mIsVisited(aIsVisited)
   {
   }
 
   nsCOMPtr<nsIURI> mURI;
-  nsCOMPtr<mozIVisitedStatusCallback> mCallback;
   bool mIsVisited;
 };
 
@@ -1306,7 +1295,7 @@ PRInt64 GetHistoryObserversSize()
   History* history = History::GetService();
   if (!history)
     return 0;
-  return history->SizeOfIncludingThis(MemoryReporterMallocSizeOf);
+  return sizeof(*history) + history->SizeOf();
 }
 
 NS_MEMORY_REPORTER_IMPLEMENT(HistoryService,
@@ -1415,10 +1404,10 @@ History::GetIsVisitedStatement()
 
   // Now we can create our cached statement.
   nsresult rv = mReadOnlyDBConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
-    "SELECT 1 "
+    "SELECT h.id "
     "FROM moz_places h "
     "WHERE url = ?1 "
-      "AND last_visit_date NOTNULL "
+      "AND EXISTS(SELECT id FROM moz_historyvisits WHERE place_id = h.id LIMIT 1) "
   ),  getter_AddRefs(mIsVisitedStatement));
   NS_ENSURE_SUCCESS(rv, nsnull);
   return mIsVisitedStatement;
@@ -1596,10 +1585,9 @@ History::SizeOfEnumerator(KeyClass* aEntry, void* aArg)
 }
 
 PRInt64
-History::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOfThis)
+History::SizeOf()
 {
-  PRInt64 size = aMallocSizeOfThis(this, sizeof(History)) +
-                 mObservers.ShallowSizeOfExcludingThis(aMallocSizeOfThis);
+  PRInt64 size = mObservers.SizeOf();
   if (mObservers.IsInitialized()) {
     mObservers.EnumerateEntries(SizeOfEnumerator, &size);
   }
@@ -2067,20 +2055,6 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
     nsCOMPtr<nsIRunnable> event = new NotifyCompletion(aCallback);
     (void)backgroundThread->Dispatch(event, NS_DISPATCH_NORMAL);
   }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-History::IsURIVisited(nsIURI* aURI,
-                      mozIVisitedStatusCallback* aCallback)
-{
-  NS_ENSURE_STATE(NS_IsMainThread());
-  NS_ENSURE_ARG(aURI);
-  NS_ENSURE_ARG(aCallback);
-
-  nsresult rv = VisitedQuery::Start(aURI, aCallback);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }

@@ -111,8 +111,6 @@ nsWindowRoot::RemoveEventListener(const nsAString& aType, nsIDOMEventListener* a
   return NS_OK;
 }
 
-NS_IMPL_REMOVE_SYSTEM_EVENT_LISTENER(nsWindowRoot)
-
 NS_IMETHODIMP
 nsWindowRoot::DispatchEvent(nsIDOMEvent* aEvt, bool *aRetVal)
 {
@@ -149,22 +147,6 @@ nsWindowRoot::AddEventListener(const nsAString& aType,
   NS_ENSURE_STATE(elm);
   elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsWindowRoot::AddSystemEventListener(const nsAString& aType,
-                                     nsIDOMEventListener *aListener,
-                                     bool aUseCapture,
-                                     bool aWantsUntrusted,
-                                     PRUint8 aOptionalArgc)
-{
-  NS_ASSERTION(!aWantsUntrusted || aOptionalArgc > 1,
-               "Won't check if this is chrome, you want to set "
-               "aWantsUntrusted to false or make the aWantsUntrusted "
-               "explicit by making optional_argc non-zero.");
-
-  return NS_AddSystemEventListener(this, aType, aListener, aUseCapture,
-                                   aWantsUntrusted);
 }
 
 nsEventListenerManager*

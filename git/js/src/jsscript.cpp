@@ -62,6 +62,7 @@
 #include "jsopcode.h"
 #include "jsscope.h"
 #include "jsscript.h"
+#include "jstracer.h"
 #if JS_HAS_XDR
 #include "jsxdrapi.h"
 #endif
@@ -277,7 +278,13 @@ void
 Bindings::makeImmutable()
 {
     JS_ASSERT(lastBinding);
-    lastBinding->freezeIfDictionary();
+    Shape *shape = lastBinding;
+    if (shape->inDictionary()) {
+        do {
+            JS_ASSERT(!shape->frozen());
+            shape->setFrozen();
+        } while ((shape = shape->parent) != NULL);
+    }
 }
 
 void
@@ -1273,14 +1280,15 @@ JSScript::dataSize()
 }
 
 size_t
-JSScript::dataSize(JSMallocSizeOfFun mallocSizeOf)
+JSScript::dataSize(JSUsableSizeFun usf)
 {
 #if JS_SCRIPT_INLINE_DATA_LIMIT
     if (data == inlineData)
         return 0;
 #endif
 
-    return mallocSizeOf(data, dataSize());
+    size_t usable = usf(data);
+    return usable ? usable : dataSize();
 }
 
 /*
@@ -1330,6 +1338,11 @@ JSScript::finalize(JSContext *cx)
 
     if (principals)
         JSPRINCIPALS_DROP(cx, principals);
+
+#ifdef JS_TRACER
+    if (compartment()->hasTraceMonitor())
+        PurgeScriptFragments(compartment()->traceMonitor(), this);
+#endif
 
     if (types)
         types->destroy();
@@ -1425,7 +1438,7 @@ js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc)
 uintN
 js_FramePCToLineNumber(JSContext *cx, StackFrame *fp, jsbytecode *pc)
 {
-    return js_PCToLineNumber(cx, fp->script(), pc);
+    return js_PCToLineNumber(cx, fp->script(), fp->hasImacropc() ? fp->imacropc() : pc);
 }
 
 uintN
