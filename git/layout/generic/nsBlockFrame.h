@@ -70,7 +70,7 @@ class nsFirstLineFrame;
  * prepended to the overflow lines.
  */
 
-typedef nsContainerFrame nsBlockFrameSuper;
+#define nsBlockFrameSuper nsContainerFrame
 
 /*
  * Base class for block and inline frames.

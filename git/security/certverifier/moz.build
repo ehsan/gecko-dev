@@ -9,7 +9,6 @@ UNIFIED_SOURCES += [
     '../insanity/lib/pkixcheck.cpp',
     '../insanity/lib/pkixder.cpp',
     '../insanity/lib/pkixkey.cpp',
-    '../insanity/lib/pkixocsp.cpp',
     'CertVerifier.cpp',
     'NSSCertDBTrustDomain.cpp',
 ]
