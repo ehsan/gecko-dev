@@ -207,7 +207,7 @@ void TCompiler::collectAttribsUniforms(TIntermNode* root)
 
 void TCompiler::mapLongVariableNames(TIntermNode* root)
 {
-    MapLongVariableNames map(varyingLongNameMap);
+    MapLongVariableNames map;
     root->traverse(&map);
 }
 

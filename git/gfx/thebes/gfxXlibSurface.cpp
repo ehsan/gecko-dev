@@ -45,10 +45,9 @@
 
 #include "nsTArray.h"
 #include "nsAlgorithm.h"
-#include "mozilla/Preferences.h"
+#include "nsServiceManagerUtils.h"
+#include "nsIPrefService.h"
 #include "cairo-xlib-xrender.h"
-
-using namespace mozilla;
 
 // Although the dimension parameters in the xCreatePixmapReq wire protocol are
 // 16-bit unsigned integers, the server's CreatePixmap returns BadAlloc if
@@ -170,7 +169,14 @@ gfxXlibSurface::Create(Screen *screen, XRenderPictFormat *format,
 
 static PRBool GetForce24bppPref()
 {
-    return Preferences::GetBool("mozilla.widget.force-24bpp", PR_FALSE);
+    PRBool val = PR_FALSE; // default
+
+    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (!prefs)
+        return val;
+
+    prefs->GetBoolPref("mozilla.widget.force-24bpp", &val);
+    return val;
 }
 
 already_AddRefed<gfxASurface>

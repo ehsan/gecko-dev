@@ -57,6 +57,8 @@
 
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch2.h"
 
 #include "gfxCrashReporterUtils.h"
 

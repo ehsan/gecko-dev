@@ -78,7 +78,8 @@ typedef void *EGLNativeWindowType;
 
 #elif defined(XP_WIN)
 
-#include "mozilla/Preferences.h"
+#include "nsServiceManagerUtils.h"
+#include "nsIPrefBranch.h"
 #include "nsILocalFile.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -317,10 +318,14 @@ public:
         // Allow for explicitly specifying the location of libEGL.dll and
         // libGLESv2.dll.
         do {
+            nsCOMPtr<nsIPrefBranch> prefs = do_GetService("@mozilla.org/preferences-service;1");
             nsCOMPtr<nsILocalFile> eglFile, glesv2File;
-            nsresult rv = Preferences::GetComplex("gfx.angle.egl.path",
-                                                  NS_GET_IID(nsILocalFile),
-                                                  getter_AddRefs(eglFile));
+            if (!prefs)
+                break;
+
+            nsresult rv = prefs->GetComplexValue("gfx.angle.egl.path",
+                                                 NS_GET_IID(nsILocalFile),
+                                                 getter_AddRefs(eglFile));
             if (NS_FAILED(rv) || !eglFile)
                 break;
 

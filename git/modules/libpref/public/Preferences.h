@@ -86,7 +86,7 @@ public:
   /**
    * Returns the singleton instance which is addreffed.
    */
-  static Preferences* GetInstanceForService();
+  static Preferences* GetInstance();
 
   /**
    * Finallizes global members.
@@ -174,9 +174,6 @@ public:
   static nsresult GetLocalizedCString(const char* aPref, nsACString* aResult);
   static nsresult GetLocalizedString(const char* aPref, nsAString* aResult);
 
-  static nsresult GetComplex(const char* aPref, const nsIID &aType,
-                             void** aResult);
-
   /**
    * Sets various type pref values.
    */
@@ -190,9 +187,6 @@ public:
   static nsresult SetCString(const char* aPref, const nsACString &aValue);
   static nsresult SetString(const char* aPref, const PRUnichar* aValue);
   static nsresult SetString(const char* aPref, const nsAString &aValue);
-
-  static nsresult SetComplex(const char* aPref, const nsIID &aType,
-                             nsISupports* aValue);
 
   /**
    * Clears user set pref.
@@ -271,7 +265,7 @@ private:
   /**
    * Init static members.  TRUE if it succeeded.  Otherwise, FALSE.
    */
-  static PRBool InitStaticMembers(PRBool aForService = PR_FALSE);
+  static PRBool InitStaticMembers();
 };
 
 } // namespace mozilla
