@@ -141,6 +141,7 @@ function go() {
 }
 
 function finish() {
+  SpecialPowers.setBoolPref('dom.mozApps.auto_confirm_install', false);
   SimpleTest.finish();
 }
 

@@ -30,7 +30,6 @@
 #define DirectConvolver_h
 
 #include "nsTArray.h"
-#include "mozilla/MemoryReporting.h"
 
 namespace WebCore {
 
@@ -41,14 +40,6 @@ public:
     void process(const nsTArray<float>* convolutionKernel, const float* sourceP, float* destP, size_t framesToProcess);
 
     void reset();
-
-    size_t sizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-    {
-        size_t amount = aMallocSizeOf(this);
-        amount += m_buffer.SizeOfExcludingThis(aMallocSizeOf);
-        return amount;
-    }
-
 
 private:
     size_t m_inputBlockSize;

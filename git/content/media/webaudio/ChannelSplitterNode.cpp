@@ -45,11 +45,6 @@ public:
       }
     }
   }
-
-  virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE
-  {
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-  }
 };
 
 ChannelSplitterNode::ChannelSplitterNode(AudioContext* aContext,

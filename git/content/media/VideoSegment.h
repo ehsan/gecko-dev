@@ -76,13 +76,6 @@ struct VideoChunk {
   }
   void SetForceBlack(bool aForceBlack) { mFrame.SetForceBlack(aForceBlack); }
 
-  size_t SizeOfExcludingThisIfUnshared(MallocSizeOf aMallocSizeOf) const
-  {
-    // Future:
-    // - mFrame
-    return 0;
-  }
-
   TrackTicks mDuration;
   VideoFrame mFrame;
   mozilla::TimeStamp mTimeStamp;
@@ -128,11 +121,6 @@ public:
 
   // Segment-generic methods not in MediaSegmentBase
   static Type StaticType() { return VIDEO; }
-
-  virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE
-  {
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-  }
 };
 
 }

@@ -31,7 +31,6 @@
 
 #include "nsTArray.h"
 #include "mozilla/FFTBlock.h"
-#include "mozilla/MemoryReporting.h"
 
 namespace WebCore {
 
@@ -57,9 +56,6 @@ public:
     void reset();
 
     size_t fftSize() const { return m_frame.FFTSize(); }
-
-    size_t sizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-    size_t sizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
 private:
     FFTBlock m_frame;

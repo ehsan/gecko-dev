@@ -95,7 +95,8 @@ function updateApp(aExpectedReady, aPreviousVersion, aNextVersion) {
 var steps = [
   function() {
     // Set up
-    SpecialPowers.setAllAppsLaunchable(true);
+    PackagedTestHelper.launchableValue =
+      SpecialPowers.setAllAppsLaunchable(true);
     SpecialPowers.addPermission("webapps-manage", true, document);
     ok(true, "Set up");
     PackagedTestHelper.next();

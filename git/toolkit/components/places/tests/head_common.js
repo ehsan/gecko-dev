@@ -849,6 +849,8 @@ function NavHistoryResultObserver() {}
 
 NavHistoryResultObserver.prototype = {
   batching: function () {},
+  containerClosed: function () {},
+  containerOpened: function () {},
   containerStateChanged: function () {},
   invalidateContainer: function () {},
   nodeAnnotationChanged: function () {},

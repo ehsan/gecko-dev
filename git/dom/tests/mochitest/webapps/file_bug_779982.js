@@ -1,5 +1,5 @@
 SimpleTest.waitForExplicitFinish();
-SpecialPowers.setAllAppsLaunchable(true);
+var originalAllAppsLaunchable = SpecialPowers.setAllAppsLaunchable(true);
 
 var fileTestOnCurrentOrigin = 'http://example.org/tests/dom/tests/mochitest/webapps/file_bug_779982.html';
 
@@ -68,6 +68,7 @@ function runTest() {
 
         i++;
         if (i >= gData.length) {
+          SpecialPowers.setAllAppsLaunchable(originalAllAppsLaunchable);
           SimpleTest.finish();
         } else {
           gTestRunner.next();

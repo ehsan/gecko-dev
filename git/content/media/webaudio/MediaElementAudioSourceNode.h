@@ -19,16 +19,6 @@ public:
                               DOMMediaStream* aStream);
 
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-
-  virtual const char* NodeType() const
-  {
-    return "MediaElementAudioSourceNode";
-  }
-
-  virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE
-  {
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-  }
 };
 
 }

@@ -144,9 +144,6 @@ GetOCSPResponseForType(OCSPResponseType aORT, CERTCertificate *aCert,
     extension.next = nullptr;
     context.extensions = &extension;
   }
-  if (aORT == ORTEmptyExtensions) {
-    context.includeEmptyExtensions = true;
-  }
 
   if (!context.signerCert) {
     context.signerCert = CERT_DupCertificate(context.issuerCert.get());

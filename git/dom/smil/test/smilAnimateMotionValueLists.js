@@ -108,11 +108,8 @@ const gValidKeyPoints = [
   "0; 0.000001; 1",
 ];
 
-// Should have 3 values to be valid.
-// Same as number of keyTimes values
 const gInvalidKeyPoints = [
   "0; 1",
-  "0; 0.5; 0.75; 1",
   "0; 1;",
   "0",
   "1",

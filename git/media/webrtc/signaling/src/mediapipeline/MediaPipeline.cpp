@@ -987,9 +987,6 @@ void MediaPipelineTransmit::PipelineListener::ProcessAudioChunk(
           ConvertAudioSamplesWithScale(buf, samples, chunk.mDuration, chunk.mVolume);
         }
         break;
-      case AUDIO_FORMAT_SILENCE:
-        memset(samples, 0, chunk.mDuration * sizeof(samples[0]));
-        break;
       default:
         MOZ_ASSERT(PR_FALSE);
         return;
@@ -997,7 +994,9 @@ void MediaPipelineTransmit::PipelineListener::ProcessAudioChunk(
     }
   } else {
     // This means silence.
-    memset(samples, 0, chunk.mDuration * sizeof(samples[0]));
+    for (uint32_t i = 0; i < chunk.mDuration; ++i) {
+      samples[i] = 0;
+    }
   }
 
   MOZ_ASSERT(!(rate%100)); // rate should be a multiple of 100

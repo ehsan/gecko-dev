@@ -38,19 +38,7 @@ private:
       : mMutex(aName)
     {}
 
-    size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
-    {
-      mMutex.AssertCurrentThreadOwns();
-
-      size_t amount = 0;
-      for (size_t i = 0; i < mBufferList.size(); i++) {
-        amount += mBufferList[i].SizeOfExcludingThis(aMallocSizeOf, false);
-      }
-
-      return amount;
-    }
-
-    Mutex& Lock() const { return const_cast<OutputQueue*>(this)->mMutex; }
+    Mutex& Lock() { return mMutex; }
 
     size_t ReadyToConsume() const
     {
@@ -105,18 +93,6 @@ public:
     , mLatency(0.0)
     , mDroppingBuffers(false)
   {
-  }
-
-  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-  {
-    size_t amount = aMallocSizeOf(this);
-
-    {
-      MutexAutoLock lock(mOutputQueue.Lock());
-      amount += mOutputQueue.SizeOfExcludingThis(aMallocSizeOf);
-    }
-
-    return amount;
   }
 
   // main thread
@@ -317,26 +293,6 @@ public:
     }
   }
 
-  virtual size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE
-  {
-    // Not owned:
-    // - mSharedBuffers
-    // - mSource (probably)
-    // - mDestination (probably)
-    size_t amount = AudioNodeEngine::SizeOfExcludingThis(aMallocSizeOf);
-    amount += mInputChannels.SizeOfExcludingThis(aMallocSizeOf);
-    for (size_t i = 0; i < mInputChannels.Length(); i++) {
-      amount += mInputChannels[i].SizeOfExcludingThis(aMallocSizeOf);
-    }
-
-    return amount;
-  }
-
-  virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE
-  {
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-  }
-
 private:
   void AllocateInputBlock()
   {
@@ -492,20 +448,6 @@ ScriptProcessorNode::ScriptProcessorNode(AudioContext* aContext,
 
 ScriptProcessorNode::~ScriptProcessorNode()
 {
-}
-
-size_t
-ScriptProcessorNode::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  size_t amount = AudioNode::SizeOfExcludingThis(aMallocSizeOf);
-  amount += mSharedBuffers->SizeOfIncludingThis(aMallocSizeOf);
-  return amount;
-}
-
-size_t
-ScriptProcessorNode::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
 
 JSObject*

@@ -97,6 +97,7 @@ add_test(function check_history_query() {
   var root = result.root;
   root.containerOpen = true;
 
+  // nsINavHistoryResultObserver.containerOpened
   do_check_neq(resultObserver.openedContainer, null);
 
   // nsINavHistoryResultObserver.nodeInserted
@@ -147,6 +148,7 @@ add_test(function check_history_query() {
         }, null);
         do_check_false(resultObserver.inBatchMode);
 
+        // nsINavHistoryResultObserver.containerClosed
         root.containerOpen = false;
         do_check_eq(resultObserver.closedContainer, resultObserver.openedContainer);
         result.removeObserver(resultObserver);
@@ -166,6 +168,7 @@ add_test(function check_bookmarks_query() {
   var root = result.root;
   root.containerOpen = true;
 
+  // nsINavHistoryResultObserver.containerOpened
   do_check_neq(resultObserver.openedContainer, null);
 
   // nsINavHistoryResultObserver.nodeInserted
@@ -214,6 +217,7 @@ add_test(function check_bookmarks_query() {
   }, null);
   do_check_false(resultObserver.inBatchMode);
 
+  // nsINavHistoryResultObserver.containerClosed
   root.containerOpen = false;
   do_check_eq(resultObserver.closedContainer, resultObserver.openedContainer);
   result.removeObserver(resultObserver);
@@ -230,6 +234,7 @@ add_test(function check_mixed_query() {
   var root = result.root;
   root.containerOpen = true;
 
+  // nsINavHistoryResultObserver.containerOpened
   do_check_neq(resultObserver.openedContainer, null);
 
   // nsINavHistoryResultObserver.batching
@@ -247,6 +252,7 @@ add_test(function check_mixed_query() {
   }, null);
   do_check_false(resultObserver.inBatchMode);
 
+  // nsINavHistoryResultObserver.containerClosed
   root.containerOpen = false;
   do_check_eq(resultObserver.closedContainer, resultObserver.openedContainer);
   result.removeObserver(resultObserver);

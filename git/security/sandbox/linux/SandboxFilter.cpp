@@ -96,9 +96,6 @@ static struct sock_filter seccomp_filter[] = {
   ALLOW_SYSCALL(writev),
   ALLOW_SYSCALL(clone),
   ALLOW_SYSCALL(brk),
-#if SYSCALL_EXISTS(set_thread_area)
-  ALLOW_SYSCALL(set_thread_area),
-#endif
 
   ALLOW_SYSCALL(getpid),
   ALLOW_SYSCALL(gettid),

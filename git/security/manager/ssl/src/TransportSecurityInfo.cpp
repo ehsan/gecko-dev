@@ -792,7 +792,7 @@ AppendErrorTextMismatch(const nsString &host,
       certName = CERT_GetCommonName(&nssCert->subject);
     if (certName) {
       ++nameCount;
-      allNames.Assign(NS_ConvertUTF8toUTF16(certName));
+      allNames.AssignASCII(certName);
       PORT_Free(certName);
     }
   }

@@ -5,6 +5,7 @@
 var PackagedTestHelper = (function PackagedTestHelper() {
   "use strict";
 
+  var launchableValue;
   var steps;
   var index = -1;
   var gSJSPath = "tests/dom/apps/tests/file_packaged_app.sjs";
@@ -51,6 +52,7 @@ var PackagedTestHelper = (function PackagedTestHelper() {
     if (timeoutID) {
       clearTimeout(timeoutID);
     }
+    SpecialPowers.setAllAppsLaunchable(launchableValue);
     SpecialPowers.removePermission("webapps-manage", document);
     SimpleTest.finish();
   }
@@ -240,7 +242,8 @@ var PackagedTestHelper = (function PackagedTestHelper() {
     get gAppName() { return gAppName;},
     get gApp() { return gApp; },
     set gApp(aValue) { gApp = aValue; },
-    gInstallOrigin: gInstallOrigin
+    gInstallOrigin: gInstallOrigin,
+    launchableValue: launchableValue
   };
 
 })();

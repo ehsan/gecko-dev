@@ -1295,7 +1295,7 @@ class Mochitest(MochitestUtilsMixin):
                                              stdout=subprocess.PIPE)
         def fixFunc(line):
           stackFixerProcess.stdin.write(line + '\n')
-          return stackFixerProcess.stdout.readline().rstrip()
+          return stackFixerProcess.stdout.readline().strip()
 
         stackFixerFunction = fixFunc
 

@@ -245,14 +245,6 @@ public:
   void FindConnectedSources();
   void FindConnectedSources(AudioNode* aNode, nsTArray<AudioBufferSourceNode*>& aSources, std::set<AudioNode*>& aSeenNodes);
 
-  virtual const char* NodeType() const
-  {
-    return "PannerNode";
-  }
-
-  virtual size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
-  virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
-
 private:
   friend class AudioListener;
   friend class PannerNodeEngine;

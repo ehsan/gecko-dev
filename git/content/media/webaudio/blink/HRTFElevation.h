@@ -31,7 +31,6 @@
 
 #include "HRTFKernel.h"
 #include "nsAutoRef.h"
-#include "mozilla/MemoryReporting.h"
 
 struct SpeexResamplerState_;
 typedef struct SpeexResamplerState_ SpeexResamplerState;
@@ -63,8 +62,6 @@ public:
     static const unsigned NumberOfTotalAzimuths;
 
     static size_t fftSizeForSampleRate(float sampleRate);
-
-    size_t sizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
 private:
     HRTFElevation(const HRTFElevation& other) MOZ_DELETE;

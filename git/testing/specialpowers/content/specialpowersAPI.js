@@ -1031,18 +1031,11 @@ SpecialPowersAPI.prototype = {
   // Allow tests to disable the per platform app validity checks so we can
   // test higher level WebApp functionality without full platform support.
   setAllAppsLaunchable: function(launchable) {
-    this._sendSyncMessage("SPWebAppService", {
+    var message = {
       op: "set-launchable",
       launchable: launchable
-    });
-  },
-
-  // Restore the launchable property to its default value.
-  flushAllAppsLaunchable: function() {
-    this._sendSyncMessage("SPWebAppService", {
-      op: "set-launchable",
-      launchable: false
-    });
+    };
+    return this._sendSyncMessage("SPWebAppService", message);
   },
 
   _proxiedObservers: {

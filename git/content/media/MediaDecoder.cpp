@@ -1770,8 +1770,6 @@ MediaMemoryTracker::CollectReports(nsIHandleReportCallback* aHandleReport,
          "Memory used by media resources including streaming buffers, caches, "
          "etc.");
 
-#undef REPORT
-
   return NS_OK;
 }
 

@@ -13,8 +13,6 @@ LOCAL_INCLUDES = [
     '../..',
 ]
 
-FAIL_ON_WARNINGS = True
-
 LIBRARY_NAME = 'xpcom_glue_gtest'
 
 EXPORT_LIBRARY = True

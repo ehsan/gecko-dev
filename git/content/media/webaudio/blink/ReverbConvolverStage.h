@@ -34,7 +34,6 @@
 
 #include "nsTArray.h"
 #include "mozilla/FFTBlock.h"
-#include "mozilla/MemoryReporting.h"
 
 namespace WebCore {
 
@@ -60,8 +59,6 @@ public:
 
     // Useful for background processing
     int inputReadIndex() const { return m_inputReadIndex; }
-
-    size_t sizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
 private:
     nsAutoPtr<FFTBlock> m_fftKernel;

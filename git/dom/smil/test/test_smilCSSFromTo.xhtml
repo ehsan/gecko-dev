@@ -54,6 +54,12 @@ function checkForUntestedProperties(bundleList)
 
 function main()
 {
+  if (!SMILUtil.isSMILEnabled()) {
+    ok(false, "SMIL dosn't seem to be enabled");
+    SimpleTest.finish();
+    return;
+  }
+
   // Start out with document paused
   var svg = SMILUtil.getSVGRoot();
   ok(svg.animationsPaused(), "should be paused by <svg> load handler");

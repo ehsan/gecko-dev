@@ -20,12 +20,12 @@
   const gManifestURL = "http://www.example.com/chrome/dom/tests/mochitest/webapps/apps/basic.webapp";
 
   SimpleTest.waitForExplicitFinish();
-  var app;
+  var launchableValue, app;
 
   function setupTest() {
     // We have to install an app in order for the app URL to be valid
     // (otherwise we get a "DummyChannel" that throws NS_NOT_IMPLEMENTED)
-    SpecialPowers.setAllAppsLaunchable(true);
+    launchableValue = SpecialPowers.setAllAppsLaunchable(true);
     SpecialPowers.addPermission("webapps-manage", true, document);
     SpecialPowers.autoConfirmAppInstall(function () {
       let req = navigator.mozApps.install(gManifestURL);
@@ -54,6 +54,7 @@
   }
 
   function cleanup() {
+    SpecialPowers.setAllAppsLaunchable(launchableValue);
     let req = navigator.mozApps.mgmt.uninstall(app);
     req.onsuccess = function () {
       SimpleTest.finish();

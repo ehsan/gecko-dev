@@ -72,11 +72,6 @@ public:
       NS_DispatchToMainThread(transfer);
     }
   }
-
-  virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE
-  {
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-  }
 };
 
 AnalyserNode::AnalyserNode(AudioContext* aContext)
@@ -93,22 +88,6 @@ AnalyserNode::AnalyserNode(AudioContext* aContext)
   mStream = aContext->Graph()->CreateAudioNodeStream(new AnalyserNodeEngine(this),
                                                      MediaStreamGraph::INTERNAL_STREAM);
   AllocateBuffer();
-}
-
-size_t
-AnalyserNode::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  size_t amount = AudioNode::SizeOfExcludingThis(aMallocSizeOf);
-  amount += mAnalysisBlock.SizeOfExcludingThis(aMallocSizeOf);
-  amount += mBuffer.SizeOfExcludingThis(aMallocSizeOf);
-  amount += mOutputBuffer.SizeOfExcludingThis(aMallocSizeOf);
-  return amount;
-}
-
-size_t
-AnalyserNode::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
 
 JSObject*

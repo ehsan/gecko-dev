@@ -32,7 +32,6 @@
 #include "HRTFElevation.h"
 #include "nsAutoRef.h"
 #include "nsTArray.h"
-#include "mozilla/MemoryReporting.h"
 
 namespace WebCore {
 
@@ -55,8 +54,6 @@ public:
 
     // Number of elevations loaded from resource.
     static const unsigned NumberOfRawElevations;
-
-    size_t sizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
 private:
     HRTFDatabase(const HRTFDatabase& other) MOZ_DELETE;

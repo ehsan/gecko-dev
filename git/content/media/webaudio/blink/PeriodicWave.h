@@ -32,7 +32,6 @@
 #include "mozilla/dom/OscillatorNodeBinding.h"
 #include <nsAutoPtr.h>
 #include <nsTArray.h>
-#include "mozilla/MemoryReporting.h"
 
 namespace WebCore {
 
@@ -68,8 +67,6 @@ public:
 
     unsigned periodicWaveSize() const { return m_periodicWaveSize; }
     float sampleRate() const { return m_sampleRate; }
-
-    size_t sizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
 private:
     explicit PeriodicWave(float sampleRate);

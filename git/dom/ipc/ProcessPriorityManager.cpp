@@ -258,7 +258,7 @@ public:
 
   ProcessPriority CurrentPriority();
   ProcessPriority ComputePriority();
-  ProcessCPUPriority ComputeCPUPriority(ProcessPriority aPriority);
+  ProcessCPUPriority ComputeCPUPriority();
 
   void ScheduleResetPriority(const char* aTimeoutPref);
   void ResetPriority();
@@ -956,13 +956,13 @@ ParticularProcessPriorityManager::ComputePriority()
 }
 
 ProcessCPUPriority
-ParticularProcessPriorityManager::ComputeCPUPriority(ProcessPriority aPriority)
+ParticularProcessPriorityManager::ComputeCPUPriority()
 {
-  if (aPriority == PROCESS_PRIORITY_PREALLOC) {
+  if (mPriority == PROCESS_PRIORITY_PREALLOC) {
     return PROCESS_CPU_PRIORITY_LOW;
   }
 
-  if (aPriority >= PROCESS_PRIORITY_FOREGROUND_HIGH) {
+  if (mPriority >= PROCESS_PRIORITY_FOREGROUND_HIGH) {
     return PROCESS_CPU_PRIORITY_NORMAL;
   }
 
@@ -982,7 +982,7 @@ void
 ParticularProcessPriorityManager::SetPriorityNow(ProcessPriority aPriority,
                                                  uint32_t aBackgroundLRU)
 {
-  SetPriorityNow(aPriority, ComputeCPUPriority(aPriority), aBackgroundLRU);
+  SetPriorityNow(aPriority, ComputeCPUPriority(), aBackgroundLRU);
 }
 
 void
