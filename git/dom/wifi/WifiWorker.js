@@ -1113,7 +1113,7 @@ var WifiManager = (function() {
 
         function doStartWifiTethering() {
           cancelWaitForDriverReadyTimer();
-          WifiNetworkInterface.name = libcutils.property_get("wifi.tethering.interface", manager.ifname);
+          WifiNetworkInterface.name = manager.ifname;
           gNetworkManager.setWifiTethering(enabled, WifiNetworkInterface,
                                            configuration, function(result) {
             if (result) {

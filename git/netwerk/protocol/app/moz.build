@@ -14,6 +14,5 @@ FINAL_LIBRARY = 'xul'
 LOCAL_INCLUDES += [
     '../../../modules/libjar',
     '../../base/src',
-    '/caps',
 ]
 
