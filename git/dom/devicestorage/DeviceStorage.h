@@ -21,7 +21,6 @@
 #define DEVICESTORAGE_MUSIC      "music"
 #define DEVICESTORAGE_APPS       "apps"
 #define DEVICESTORAGE_SDCARD     "sdcard"
-#define DEVICESTORAGE_CRASHES    "crashes"
 
 namespace mozilla {
 namespace dom {
