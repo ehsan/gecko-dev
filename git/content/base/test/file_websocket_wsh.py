@@ -7,28 +7,24 @@ import sys
 
 def web_socket_do_extra_handshake(request):
   # must set request.ws_protocol to the selected version from ws_requested_protocols
-  for x in request.ws_requested_protocols:
-    if x != "test-does-not-exist":
-      request.ws_protocol = x
-      break
+  request.ws_protocol = request.ws_requested_protocols[0]
 
   if request.ws_protocol == "test-2.1":
-    time.sleep(3)
+    time.sleep(5)
     pass
   elif request.ws_protocol == "test-9":
-    time.sleep(3)
+    time.sleep(5)
     pass
   elif request.ws_protocol == "test-10":
-    time.sleep(3)
+    time.sleep(5)
     pass
   elif request.ws_protocol == "test-19":
     raise ValueError('Aborting (test-19)')
   elif request.ws_protocol == "test-20" or request.ws_protocol == "test-17":
-    time.sleep(3)
+    time.sleep(10)
     pass
   elif request.ws_protocol == "test-22":
-    # The timeout is 5 seconds
-    time.sleep(13)
+    time.sleep(60)
     pass
   else:
     pass
@@ -51,7 +47,18 @@ def web_socket_transfer_data(request):
     msgutil.send_message(request, resp.decode('utf-8'))
     msgutil.close_connection(request)
   elif request.ws_protocol == "test-7":
-    msgutil.send_message(request, "test-7 data")
+    try:
+      while not request.client_terminated:
+        msgutil.receive_message(request)
+    except msgutil.ConnectionTerminatedException, e:
+      pass
+    msgutil.send_message(request, "server data")
+    msgutil.send_message(request, "server data")
+    msgutil.send_message(request, "server data")
+    msgutil.send_message(request, "server data")
+    msgutil.send_message(request, "server data")
+    time.sleep(30)
+    msgutil.close_connection(request, True)
   elif request.ws_protocol == "test-10":
     msgutil.close_connection(request)
   elif request.ws_protocol == "test-11":
@@ -75,35 +82,16 @@ def web_socket_transfer_data(request):
     msgutil.close_connection(request, True)
     return
   elif request.ws_protocol == "test-17" or request.ws_protocol == "test-21":
-    time.sleep(2)
+    time.sleep(5)
     resp = "wrong message"
     if msgutil.receive_message(request) == "client data":
       resp = "server data"
     msgutil.send_message(request, resp.decode('utf-8'))
-    time.sleep(2)
+    time.sleep(5)
     msgutil.close_connection(request)
+    time.sleep(5)
   elif request.ws_protocol == "test-20":
     msgutil.send_message(request, "server data")
     msgutil.close_connection(request)
-  elif request.ws_protocol == "test-34":
-    request.ws_stream.close_connection(1001, "going away now")
-  elif request.ws_protocol == "test-35a":
-    while not request.client_terminated:
-      msgutil.receive_message(request)
-    global test35code
-    test35code = request.ws_close_code
-    global test35reason
-    test35reason = request.ws_close_reason
-  elif request.ws_protocol == "test-35b":
-    request.ws_stream.close_connection(test35code + 1, test35reason)
-  elif request.ws_protocol == "test-37b":
-    while not request.client_terminated:
-      msgutil.receive_message(request)
-    global test37code
-    test37code = request.ws_close_code
-    global test37reason
-    test37reason = request.ws_close_reason
-  elif request.ws_protocol == "test-37c":
-    request.ws_stream.close_connection(test37code, test37reason)
   while not request.client_terminated:
     msgutil.receive_message(request)

@@ -545,10 +545,13 @@ nsXFormsSelectableItemAccessible::GetValue(nsAString& aValue)
   return sXFormsService->GetValue(DOMNode, aValue);
 }
 
-PRUint8
-nsXFormsSelectableItemAccessible::ActionCount()
+NS_IMETHODIMP
+nsXFormsSelectableItemAccessible::GetNumActions(PRUint8 *aCount)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aCount);
+
+  *aCount = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -784,12 +784,19 @@ nsXULTreeItemAccessibleBase::GetRelationByType(PRUint32 aRelationType,
   return nsAccessible::GetRelationByType(aRelationType, aRelation);
 }
 
-PRUint8
-nsXULTreeItemAccessibleBase::ActionCount()
+NS_IMETHODIMP
+nsXULTreeItemAccessibleBase::GetNumActions(PRUint8 *aActionsCount)
 {
+  NS_ENSURE_ARG_POINTER(aActionsCount);
+  *aActionsCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   // "activate" action is available for all treeitems, "expand/collapse" action
   // is avaible for treeitem which is container.
-  return IsExpandable() ? 2 : 1;
+  *aActionsCount = IsExpandable() ? 2 : 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

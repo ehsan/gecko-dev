@@ -103,8 +103,10 @@ ValueNumberer::computeValueNumbers()
     // It might be productive to do this in the MDefinition constructor or
     // possibly in a previous pass, if it seems reasonable.
     if (pessimisticPass_) {
-        for (ReversePostorderIterator block(graph_.rpoBegin()); block != graph_.rpoEnd(); block++) {
-            for (MDefinitionIterator iter(*block); iter; iter++)
+        for (size_t i = 0; i < graph_.numBlocks(); i++) {
+            MBasicBlock *block = graph_.getBlock(i);
+
+            for (MDefinitionIterator iter(block); iter; iter++)
                 iter->setValueNumber(iter->id());
         }
     }
@@ -112,9 +114,10 @@ ValueNumberer::computeValueNumbers()
     bool changed = true;
     while (changed) {
         changed = false;
+        for (size_t i = 0; i < graph_.numBlocks(); i++) {
+            MBasicBlock *block = graph_.getBlock(i);
 
-        for (ReversePostorderIterator block(graph_.rpoBegin()); block != graph_.rpoEnd(); block++) {
-            for (MDefinitionIterator iter(*block); iter; iter++) {
+            for (MDefinitionIterator iter(block); iter; iter++) {
                 MDefinition *ins = *iter;
 
                 uint32 value = lookupValue(values, ins);
@@ -200,7 +203,7 @@ ValueNumberer::eliminateRedundancies()
 
     Vector<MBasicBlock *, 1, IonAllocPolicy> nodes;
 
-    MBasicBlock *start = *graph_.begin();
+    MBasicBlock *start = graph_.getBlock(0);
     if (!nodes.append(start))
         return false;
 
@@ -213,7 +216,7 @@ ValueNumberer::eliminateRedundancies()
             if (!nodes.append(block->getImmediatelyDominatedBlock(i)))
                 return false;
         }
-        MDefinitionIterator i(block);
+        MDefinitionIterator i = MDefinitionIterator(block);
         while (i) {
             MDefinition *ins = *i;
 

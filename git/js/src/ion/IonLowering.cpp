@@ -342,13 +342,13 @@ LIRGenerator::visitBlock(MBasicBlock *block)
 
     last_snapshot_ = block->entrySnapshot();
 
-    for (MPhiIterator phi(block->phisBegin()); phi != block->phisEnd(); phi++) {
+    for (size_t i = 0; i < block->numPhis(); i++) {
         if (!gen->ensureBallast())
             return false;
-        if (!preparePhi(*phi))
+        if (!preparePhi(block->getPhi(i)))
             return false;
 #ifdef DEBUG
-        phi->setInWorklist();
+        block->getPhi(i)->setInWorklist();
 #endif
     }
 
@@ -365,7 +365,8 @@ LIRGenerator::visitBlock(MBasicBlock *block)
     if (block->successorWithPhis()) {
         MBasicBlock *successor = block->successorWithPhis();
         uint32 position = block->positionInPhiSuccessor();
-        for (MPhiIterator phi(successor->phisBegin()); phi != successor->phisEnd(); phi++) {
+        for (size_t i = 0; i < successor->numPhis(); i++) {
+            MPhi *phi = successor->getPhi(i);
             MDefinition *opd = phi->getOperand(position);
             if (opd->isEmittedAtUses() && !opd->id()) {
                 if (!ensureDefined(opd))
@@ -387,16 +388,17 @@ LIRGenerator::visitBlock(MBasicBlock *block)
 bool
 LIRGenerator::generate()
 {
-    for (ReversePostorderIterator block(graph.rpoBegin()); block != graph.rpoEnd(); block++) {
-        if (!visitBlock(*block))
+    for (size_t i = 0; i < graph.numBlocks(); i++) {
+        if (!visitBlock(graph.getBlock(i)))
             return false;
     }
 
     // Emit phis now that all their inputs have definitions.
-    for (ReversePostorderIterator block(graph.rpoBegin()); block != graph.rpoEnd(); block++) {
+    for (size_t i = 0; i < graph.numBlocks(); i++) {
+        MBasicBlock *block = graph.getBlock(i);
         current = block->lir();
-        for (MPhiIterator phi(block->phisBegin()); phi != block->phisEnd(); phi++) {
-            if (!lowerPhi(*phi))
+        for (size_t j = 0; j < block->numPhis(); j++) {
+            if (!lowerPhi(block->getPhi(j)))
                 return false;
         }
     }

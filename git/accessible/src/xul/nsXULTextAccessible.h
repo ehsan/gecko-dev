@@ -87,6 +87,7 @@ public:
   // nsIAccessible
   NS_IMETHOD GetValue(nsAString& aValue);
 
+  NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
@@ -94,9 +95,6 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
-
-  // ActionAccessible
-  virtual PRUint8 ActionCount();
 
   // HyperLinkAccessible
   virtual bool IsLink();

@@ -919,20 +919,28 @@ nsXULTreeGridCellAccessible::GetBounds(PRInt32 *aX, PRInt32 *aY,
   return NS_OK;
 }
 
-PRUint8
-nsXULTreeGridCellAccessible::ActionCount()
+NS_IMETHODIMP
+nsXULTreeGridCellAccessible::GetNumActions(PRUint8 *aActionsCount)
 {
+  NS_ENSURE_ARG_POINTER(aActionsCount);
+  *aActionsCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   PRBool isCycler = PR_FALSE;
   mColumn->GetCycler(&isCycler);
-  if (isCycler)
-    return 1;
+  if (isCycler) {
+    *aActionsCount = 1;
+    return NS_OK;
+  }
 
   PRInt16 type;
   mColumn->GetType(&type);
   if (type == nsITreeColumn::TYPE_CHECKBOX && IsEditable())
-    return 1;
+    *aActionsCount = 1;
 
-  return 0;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

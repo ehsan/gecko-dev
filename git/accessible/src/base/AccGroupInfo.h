@@ -52,7 +52,7 @@ public:
 
   PRInt32 PosInSet() const { return mPosInSet; }
   PRUint32 SetSize() const { return mSetSize; }
-  nsAccessible* ConceptualParent() const { return mParent; }
+  nsAccessible* GetConceptualParent() const { return mParent; }
 
   /**
    * Create group info.
@@ -87,12 +87,6 @@ private:
       return nsIAccessibleRole::ROLE_MENUITEM;
     return aRole;
   }
-
-  /**
-   * Return true if the given parent role is conceptual parent of the given
-   * role.
-   */
-  static bool IsConceptualParent(PRUint32 aRole, PRUint32 aParentRole);
 
   PRUint32 mPosInSet;
   PRUint32 mSetSize;

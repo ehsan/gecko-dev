@@ -72,7 +72,6 @@ class BaseWebSocketChannel : public nsIWebSocketChannel,
   NS_IMETHOD SetNotificationCallbacks(nsIInterfaceRequestor *aNotificationCallbacks);
   NS_IMETHOD GetLoadGroup(nsILoadGroup **aLoadGroup);
   NS_IMETHOD SetLoadGroup(nsILoadGroup *aLoadGroup);
-  NS_IMETHOD GetExtensions(nsACString &aExtensions);
   NS_IMETHOD GetProtocol(nsACString &aProtocol);
   NS_IMETHOD SetProtocol(const nsACString &aProtocol);
 
@@ -88,7 +87,6 @@ class BaseWebSocketChannel : public nsIWebSocketChannel,
   nsCString                       mOrigin;
 
   PRBool                          mEncrypted;
-  nsCString                       mNegotiatedExtensions;
 };
 
 } // namespace net

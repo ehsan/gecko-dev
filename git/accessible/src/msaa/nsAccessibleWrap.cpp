@@ -234,16 +234,9 @@ __try {
 STDMETHODIMP nsAccessibleWrap::get_accChildCount( long __RPC_FAR *pcountChildren)
 {
 __try {
-  if (!pcountChildren)
-    return E_INVALIDARG;
-
   *pcountChildren = 0;
-
-  if (IsDefunct())
-    return E_FAIL;
-
   if (nsAccUtils::MustPrune(this))
-    return S_OK;
+    return NS_OK;
 
   *pcountChildren = GetChildCount();
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }

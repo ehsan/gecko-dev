@@ -238,10 +238,11 @@ JSONSpewer::spewMIR(MIRGraph *mir)
     beginObjectProperty("mir");
     beginListProperty("blocks");
 
-    for (MBasicBlockIterator block(mir->begin()); block != mir->end(); block++) {
+    for (size_t bno = 0; bno < mir->numBlocks(); bno++) {
+        MBasicBlock *block = mir->getBlock(bno);
         beginObject();
 
-        integerProperty("number", block->id());
+        integerProperty("number", bno);
 
         beginListProperty("attributes");
         if (block->isLoopBackedge())
@@ -263,9 +264,9 @@ JSONSpewer::spewMIR(MIRGraph *mir)
         endList();
 
         beginListProperty("instructions");
-        for (MPhiIterator phi(block->phisBegin()); phi != block->phisEnd(); phi++)
-            spewMDef(*phi);
-        for (MInstructionIterator i(block->begin()); i != block->end(); i++)
+        for (size_t i = 0; i < block->numPhis(); i++)
+            spewMDef(block->getPhi(i));
+        for (MInstructionIterator i = block->begin(); i != block->end(); i++)
             spewMDef(*i);
         endList();
 
@@ -285,13 +286,13 @@ JSONSpewer::spewLIR(MIRGraph *mir)
     beginObjectProperty("lir");
     beginListProperty("blocks");
 
-    for (MBasicBlockIterator i(mir->begin()); i != mir->end(); i++) {
-        LBlock *block = i->lir();
+    for (size_t bno = 0; bno < mir->numBlocks(); bno++) {
+        LBlock *block = mir->getBlock(bno)->lir();
         if (!block)
             continue;
 
         beginObject();
-        integerProperty("number", i->id());
+        integerProperty("number", bno);
 
         beginListProperty("instructions");
         for (LInstructionIterator ins(block->begin());

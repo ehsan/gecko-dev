@@ -4,15 +4,13 @@
 
 #include "tests.h"
 
-#include "jscntxt.h"
-#include "jscompartment.h"
 #include "jsnum.h"
 
-#include "vm/String-inl.h"
+#include "vm/String.h"
 
 BEGIN_TEST(testIndexToString)
 {
-    const struct TestPair {
+    struct TestPair {
         uint32 num;
         const char *expected;
     } tests[] = {
@@ -45,12 +43,8 @@ BEGIN_TEST(testIndexToString)
     };
 
     for (size_t i = 0, sz = JS_ARRAY_LENGTH(tests); i < sz; i++) {
-        uint32 u = tests[i].num;
-        JSString *str = js::IndexToString(cx, u);
+        JSString *str = js::IndexToString(cx, tests[i].num);
         CHECK(str);
-
-        if (!JSAtom::hasUintStatic(u))
-            CHECK(cx->compartment->dtoaCache.lookup(10, u) == str);
 
         JSBool match = JS_FALSE;
         CHECK(JS_StringEqualsAscii(cx, str, tests[i].expected, &match));

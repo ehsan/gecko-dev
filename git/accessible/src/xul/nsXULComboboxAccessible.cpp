@@ -151,11 +151,15 @@ nsXULComboboxAccessible::GetAllowsAnonChildAccessibles()
   // menuitems
   return PR_FALSE;
 }
-PRUint8
-nsXULComboboxAccessible::ActionCount()
+
+NS_IMETHODIMP
+nsXULComboboxAccessible::GetNumActions(PRUint8 *aNumActions)
 {
+  NS_ENSURE_ARG_POINTER(aNumActions);
+
   // Just one action (click).
-  return 1;
+  *aNumActions = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

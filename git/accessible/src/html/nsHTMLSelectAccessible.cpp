@@ -371,10 +371,10 @@ NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetActionName(PRUint8 aIndex, nsAStr
   return NS_ERROR_INVALID_ARG;
 }
 
-PRUint8
-nsHTMLSelectOptionAccessible::ActionCount()
+NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetNumActions(PRUint8 *_retval)
 {
-  return 1;
+  *_retval = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsHTMLSelectOptionAccessible::DoAction(PRUint8 index)
@@ -616,10 +616,9 @@ NS_IMETHODIMP nsHTMLSelectOptGroupAccessible::GetActionName(PRUint8 aIndex, nsAS
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-PRUint8
-nsHTMLSelectOptGroupAccessible::ActionCount()
+NS_IMETHODIMP nsHTMLSelectOptGroupAccessible::GetNumActions(PRUint8 *_retval)
 {
-  return 0;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -774,10 +773,11 @@ NS_IMETHODIMP nsHTMLComboboxAccessible::GetValue(nsAString& aValue)
   return option ? option->GetName(aValue) : NS_OK;
 }
 
-PRUint8
-nsHTMLComboboxAccessible::ActionCount()
+/** Just one action ( click ). */
+NS_IMETHODIMP nsHTMLComboboxAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return 1;
+  *aNumActions = 1;
+  return NS_OK;
 }
 
 /**

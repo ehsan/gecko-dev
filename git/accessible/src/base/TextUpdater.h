@@ -108,10 +108,11 @@ private:
   }
 
   /**
-   * The constant used to skip string difference calculation in case of long
-   * strings.
+   * Update the text and fire text change/value change events.
    */
-  const static PRUint32 kMaxStrLen = 1 << 6;
+  void UpdateTextNFireEvent(const nsAString& aNewText,
+                            const nsAString& aChangeText, PRUint32 aAddlOffset,
+                            PRBool aIsInserted);
 
 private:
   nsDocAccessible* mDocument;

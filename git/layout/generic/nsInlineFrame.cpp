@@ -474,8 +474,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   availableWidth -= leftEdge;
   availableWidth -= ltr ? aReflowState.mComputedBorderPadding.right
                         : aReflowState.mComputedBorderPadding.left;
-  lineLayout->BeginSpan(this, &aReflowState, leftEdge,
-                        leftEdge + availableWidth, &mBaseline);
+  lineLayout->BeginSpan(this, &aReflowState, leftEdge, leftEdge + availableWidth);
 
   // First reflow our current children
   nsIFrame* frame = mFrames.FirstChild();
@@ -914,7 +913,13 @@ nsInlineFrame::GetSkipSides() const
 nscoord
 nsInlineFrame::GetBaseline() const
 {
-  return mBaseline;
+  nscoord ascent = 0;
+  nsRefPtr<nsFontMetrics> fm;
+  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
+  if (fm) {
+    ascent = fm->MaxAscent();
+  }
+  return NS_MIN(mRect.height, ascent + GetUsedBorderAndPadding().top);
 }
 
 #ifdef ACCESSIBILITY

@@ -433,8 +433,7 @@ let UI = {
     Utils.assert(item, "item must be given");
 
     if (item.isATabItem) {
-      if (item.parent)
-        GroupItems.setActiveGroupItem(item.parent);
+      GroupItems.setActiveGroupItem(item.parent);
       this._setActiveTab(item);
     } else {
       GroupItems.setActiveGroupItem(item);
