@@ -323,7 +323,7 @@ namespace js {
             js::proxy_SetGenericAttributes,                                             \
             js::proxy_DeleteGeneric,                                                    \
             js::proxy_Watch, js::proxy_Unwatch,                                         \
-            js::proxy_GetElements,                                                      \
+            js::proxy_Slice,                                                            \
             nullptr,             /* enumerate       */                                  \
             nullptr,             /* thisObject      */                                  \
         }                                                                               \
@@ -411,8 +411,8 @@ proxy_Watch(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleObje
 extern JS_FRIEND_API(bool)
 proxy_Unwatch(JSContext *cx, JS::HandleObject obj, JS::HandleId id);
 extern JS_FRIEND_API(bool)
-proxy_GetElements(JSContext *cx, JS::HandleObject proxy, uint32_t begin, uint32_t end,
-                  ElementAdder *adder);
+proxy_Slice(JSContext *cx, JS::HandleObject proxy, uint32_t begin, uint32_t end,
+            JS::HandleObject result);
 
 /*
  * A class of objects that return source code on demand.
@@ -2578,9 +2578,12 @@ SetObjectMetadata(JSContext *cx, JS::HandleObject obj, JS::HandleObject metadata
 JS_FRIEND_API(JSObject *)
 GetObjectMetadata(JSObject *obj);
 
+JS_FRIEND_API(void)
+UnsafeDefineElement(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::HandleValue value);
+
 JS_FRIEND_API(bool)
-GetElementsWithAdder(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver,
-                     uint32_t begin, uint32_t end, js::ElementAdder *adder);
+SliceSlowly(JSContext* cx, JS::HandleObject obj, JS::HandleObject receiver,
+            uint32_t begin, uint32_t end, JS::HandleObject result);
 
 JS_FRIEND_API(bool)
 ForwardToNative(JSContext *cx, JSNative native, const JS::CallArgs &args);

@@ -50,8 +50,7 @@ gfxGraphiteShaper::GrGetAdvance(const void* appFontHandle, uint16_t glyphid)
 {
     const CallbackData *cb =
         static_cast<const CallbackData*>(appFontHandle);
-    return FixedToFloat(cb->mFont->GetGlyphWidth(*cb->mContext->GetDrawTarget(),
-                                                 glyphid));
+    return FixedToFloat(cb->mFont->GetGlyphWidth(cb->mContext, glyphid));
 }
 
 static inline uint32_t

@@ -2404,7 +2404,7 @@ LazyArrayBufferTable::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
             TypedObject::obj_setGenericAttributes,       \
             TypedObject::obj_deleteGeneric,              \
             nullptr, nullptr, /* watch/unwatch */        \
-            nullptr,   /* getElements */                 \
+            nullptr,   /* slice */                       \
             TypedObject::obj_enumerate,                  \
             nullptr, /* thisObject */                    \
         }                                                \

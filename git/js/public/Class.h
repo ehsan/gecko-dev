@@ -9,7 +9,6 @@
 #ifndef js_Class_h
 #define js_Class_h
 
-#include "mozilla/DebugOnly.h"
 #include "mozilla/NullPtr.h"
 
 #include "jstypes.h"
@@ -227,44 +226,9 @@ typedef bool
 typedef bool
 (* UnwatchOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id);
 
-class JS_FRIEND_API(ElementAdder)
-{
-  public:
-    enum GetBehavior {
-        // Check if the element exists before performing the Get and preserve
-        // holes.
-        CheckHasElemPreserveHoles,
-
-        // Perform a Get operation, like obj[index] in JS.
-        GetElement
-    };
-
-  private:
-    // Only one of these is used.
-    JS::RootedObject resObj_;
-    JS::Value *vp_;
-
-    uint32_t index_;
-    mozilla::DebugOnly<uint32_t> length_;
-    GetBehavior getBehavior_;
-
-  public:
-    ElementAdder(JSContext *cx, JSObject *obj, uint32_t length, GetBehavior behavior)
-      : resObj_(cx, obj), vp_(nullptr), index_(0), length_(length), getBehavior_(behavior)
-    {}
-    ElementAdder(JSContext *cx, JS::Value *vp, uint32_t length, GetBehavior behavior)
-      : resObj_(cx), vp_(vp), index_(0), length_(length), getBehavior_(behavior)
-    {}
-
-    GetBehavior getBehavior() const { return getBehavior_; }
-
-    void append(JSContext *cx, JS::HandleValue v);
-    void appendHole();
-};
-
 typedef bool
-(* GetElementsOp)(JSContext *cx, JS::HandleObject obj, uint32_t begin, uint32_t end,
-                  ElementAdder *adder);
+(* SliceOp)(JSContext *cx, JS::HandleObject obj, uint32_t begin, uint32_t end,
+            JS::HandleObject result); // result is actually preallocted.
 
 // A generic type for functions mapping an object to another object, or null
 // if an error or exception was thrown on cx.
@@ -400,7 +364,7 @@ struct ObjectOps
     DeleteGenericOp     deleteGeneric;
     WatchOp             watch;
     UnwatchOp           unwatch;
-    GetElementsOp       getElements;
+    SliceOp             slice; // Optimized slice, can be null.
     JSNewEnumerateOp    enumerate;
     ObjectOp            thisObject;
 };

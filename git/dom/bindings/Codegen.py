@@ -409,7 +409,7 @@ class CGDOMJSClass(CGThing):
                       nullptr, /* deleteGeneric */
                       nullptr, /* watch */
                       nullptr, /* unwatch */
-                      nullptr, /* getElements */
+                      nullptr, /* slice */
                       nullptr, /* enumerate */
                       JS_ObjectToOuterObject /* thisObject */
                     }
@@ -10716,7 +10716,7 @@ class CGDOMJSProxyHandler_finalize(ClassMethod):
                 finalizeHook(self.descriptor, FINALIZE_HOOK_NAME, self.args[0].name).define())
 
 
-class CGDOMJSProxyHandler_getElements(ClassMethod):
+class CGDOMJSProxyHandler_slice(ClassMethod):
     def __init__(self, descriptor):
         assert descriptor.supportsIndexedProperties()
 
@@ -10724,8 +10724,8 @@ class CGDOMJSProxyHandler_getElements(ClassMethod):
                 Argument('JS::Handle<JSObject*>', 'proxy'),
                 Argument('uint32_t', 'begin'),
                 Argument('uint32_t', 'end'),
-                Argument('js::ElementAdder*', 'adder')]
-        ClassMethod.__init__(self, "getElements", "bool", args, virtual=True, override=True, const=True)
+                Argument('JS::Handle<JSObject*>', 'array')]
+        ClassMethod.__init__(self, "slice", "bool", args, virtual=True, override=True, const=True)
         self.descriptor = descriptor
 
     def getBody(self):
@@ -10738,7 +10738,7 @@ class CGDOMJSProxyHandler_getElements(ClassMethod):
             'jsvalRef': 'temp',
             'jsvalHandle': '&temp',
             'obj': 'proxy',
-            'successCode': ("adder->append(cx, temp);\n"
+            'successCode': ("js::UnsafeDefineElement(cx, array, index - begin, temp);\n"
                             "continue;\n")
         }
         get = CGProxyIndexedGetter(self.descriptor, templateValues, False, False).define()
@@ -10763,7 +10763,7 @@ class CGDOMJSProxyHandler_getElements(ClassMethod):
               if (!js::GetObjectProto(cx, proxy, &proto)) {
                 return false;
               }
-              return js::GetElementsWithAdder(cx, proto, proxy, ourEnd, end, adder);
+              return js::SliceSlowly(cx, proto, proxy, ourEnd, end, array);
             }
 
             return true;
@@ -10836,7 +10836,7 @@ class CGDOMJSProxyHandler(CGClass):
 
 
         if descriptor.supportsIndexedProperties():
-            methods.append(CGDOMJSProxyHandler_getElements(descriptor))
+            methods.append(CGDOMJSProxyHandler_slice(descriptor))
         if (descriptor.operations['IndexedSetter'] is not None or
             (descriptor.operations['NamedSetter'] is not None and
              descriptor.interface.getExtendedAttribute('OverrideBuiltins'))):

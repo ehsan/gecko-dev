@@ -2482,9 +2482,8 @@ var NativeWindow = {
         return;
       }
 
-      // Use the highlighted element for the context menu target. When accessibility is
-      // enabled, elements may not be highlighted so use the event target instead.
-      this._target = BrowserEventHandler._highlightElement || event.target;
+      // Use the highlighted element for the context menu target.
+      this._target = BrowserEventHandler._highlightElement;
       if (!this._target) {
         return;
       }

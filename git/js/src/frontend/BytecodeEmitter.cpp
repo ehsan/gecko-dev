@@ -133,7 +133,6 @@ BytecodeEmitter::BytecodeEmitter(BytecodeEmitter *parent,
     firstLine(lineNum),
     localsToFrameSlots_(sc->context),
     stackDepth(0), maxStackDepth(0),
-    yieldIndex(0),
     arrayCompDepth(0),
     emitLevel(0),
     constList(sc->context),
@@ -3000,28 +2999,6 @@ BytecodeEmitter::isRunOnceLambda()
            !funbox->function()->name();
 }
 
-static bool
-EmitYieldOp(ExclusiveContext *cx, BytecodeEmitter *bce, JSOp op)
-{
-    if (op == JSOP_FINALYIELDRVAL)
-        return Emit1(cx, bce, JSOP_FINALYIELDRVAL) >= 0;
-
-    MOZ_ASSERT(op == JSOP_INITIALYIELD || op == JSOP_YIELD);
-
-    ptrdiff_t off = EmitN(cx, bce, op, 3);
-    if (off < 0)
-        return false;
-
-    if (bce->yieldIndex >= JS_BIT(24)) {
-        bce->reportError(nullptr, JSMSG_TOO_MANY_YIELDS);
-        return false;
-    }
-
-    SET_UINT24(bce->code(off), bce->yieldIndex);
-    bce->yieldIndex++;
-    return true;
-}
-
 bool
 frontend::EmitFunctionScript(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *body)
 {
@@ -3097,7 +3074,7 @@ frontend::EmitFunctionScript(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNo
             return false;
 
         // No need to check for finally blocks, etc as in EmitReturn.
-        if (!EmitYieldOp(cx, bce, JSOP_FINALYIELDRVAL))
+        if (Emit1(cx, bce, JSOP_FINALYIELDRVAL) < 0)
             return false;
     }
 
@@ -5582,7 +5559,7 @@ EmitReturn(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         MOZ_ALWAYS_TRUE(LookupAliasedNameSlot(bce, bce->script, cx->names().dotGenerator, &sc));
         if (!EmitAliasedVarOp(cx, JSOP_GETALIASEDVAR, sc, DontCheckLexical, bce))
             return false;
-        if (!EmitYieldOp(cx, bce, JSOP_FINALYIELDRVAL))
+        if (Emit1(cx, bce, JSOP_FINALYIELDRVAL) < 0)
             return false;
     } else if (top + static_cast<ptrdiff_t>(JSOP_RETURN_LENGTH) != bce->offset()) {
         bce->code()[top] = JSOP_SETRVAL;
@@ -5621,7 +5598,7 @@ EmitYield(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     if (!EmitTree(cx, bce, pn->pn_right))
         return false;
 
-    if (!EmitYieldOp(cx, bce, pn->getOp()))
+    if (Emit1(cx, bce, pn->getOp()) < 0)
         return false;
 
     if (pn->getOp() == JSOP_INITIALYIELD && Emit1(cx, bce, JSOP_POP) < 0)
@@ -5666,7 +5643,7 @@ EmitYieldStar(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *iter, Parse
         return false;
 
     // Yield RESULT as-is, without re-boxing.
-    if (!EmitYieldOp(cx, bce, JSOP_YIELD))                       // ITER RECEIVED
+    if (Emit1(cx, bce, JSOP_YIELD) < 0)                          // ITER RECEIVED
         return false;
 
     // Try epilogue.

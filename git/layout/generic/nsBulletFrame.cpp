@@ -12,7 +12,6 @@
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/PathHelpers.h"
 #include "mozilla/MathAlgorithms.h"
-#include "mozilla/Move.h"
 #include "nsCOMPtr.h"
 #include "nsFontMetrics.h"
 #include "nsGkAtoms.h"
@@ -52,14 +51,20 @@ NS_QUERYFRAME_TAIL_INHERITING(nsFrame)
 
 nsBulletFrame::~nsBulletFrame()
 {
-  NS_ASSERTION(!mBlockingOnload, "Still blocking onload in destructor?");
 }
 
 void
 nsBulletFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  // Stop image loading first.
-  DeregisterAndCancelImageRequest();
+  // Stop image loading first
+  if (mImageRequest) {
+    // Deregister our image request from the refresh driver
+    nsLayoutUtils::DeregisterImageRequest(PresContext(),
+                                          mImageRequest,
+                                          &mRequestRegistered);
+    mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+    mImageRequest = nullptr;
+  }
 
   if (mListener) {
     mListener->SetFrame(nullptr);
@@ -127,21 +132,35 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     }
 
     if (needNewRequest) {
-      nsRefPtr<imgRequestProxy> newRequestClone;
-      newRequest->Clone(mListener, getter_AddRefs(newRequestClone));
+      nsRefPtr<imgRequestProxy> oldRequest = mImageRequest;
+      newRequest->Clone(mListener, getter_AddRefs(mImageRequest));
 
       // Deregister the old request. We wait until after Clone is done in case
       // the old request and the new request are the same underlying image
       // accessed via different URLs.
-      DeregisterAndCancelImageRequest();
+      if (oldRequest) {
+        nsLayoutUtils::DeregisterImageRequest(PresContext(), oldRequest,
+                                              &mRequestRegistered);
+        oldRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+        oldRequest = nullptr;
+      }
 
       // Register the new request.
-      mImageRequest = Move(newRequestClone);
-      RegisterImageRequest(/* aKnownToBeAnimated = */ false);
+      if (mImageRequest) {
+        nsLayoutUtils::RegisterImageRequestIfAnimated(PresContext(),
+                                                      mImageRequest,
+                                                      &mRequestRegistered);
+      }
     }
   } else {
-    // No image request on the new style context.
-    DeregisterAndCancelImageRequest();
+    // No image request on the new style context
+    if (mImageRequest) {
+      nsLayoutUtils::DeregisterImageRequest(PresContext(), mImageRequest,
+                                            &mRequestRegistered);
+
+      mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+      mImageRequest = nullptr;
+    }
   }
 
 #ifdef ACCESSIBILITY
@@ -673,65 +692,12 @@ nsBulletFrame::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aDa
     // Register the image request with the refresh driver now that we know it's
     // animated.
     if (aRequest == mImageRequest) {
-      RegisterImageRequest(/* aKnownToBeAnimated = */ true);
+      nsLayoutUtils::RegisterImageRequest(PresContext(), mImageRequest,
+                                          &mRequestRegistered);
     }
   }
 
-  if (aType == imgINotificationObserver::LOAD_COMPLETE) {
-    // Unconditionally start decoding for now.
-    // XXX(seth): We eventually want to decide whether to do this based on
-    // visibility. We should get that for free from bug 1091236.
-    if (aRequest == mImageRequest) {
-      mImageRequest->RequestDecode();
-    }
-    InvalidateFrame();
-  }
-
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsBulletFrame::BlockOnload(imgIRequest* aRequest)
-{
-  if (aRequest != mImageRequest) {
-    return NS_OK;
-  }
-
-  NS_ASSERTION(!mBlockingOnload, "Double BlockOnload for an nsBulletFrame?");
-
-  nsIDocument* doc = GetOurCurrentDoc();
-  if (doc) {
-    mBlockingOnload = true;
-    doc->BlockOnload();
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsBulletFrame::UnblockOnload(imgIRequest* aRequest)
-{
-  if (aRequest != mImageRequest) {
-    return NS_OK;
-  }
-
-  NS_ASSERTION(!mBlockingOnload, "Double UnblockOnload for an nsBulletFrame?");
-
-  nsIDocument* doc = GetOurCurrentDoc();
-  if (doc) {
-    doc->UnblockOnload(false);
-  }
-  mBlockingOnload = false;
-
-  return NS_OK;
-}
-
-nsIDocument*
-nsBulletFrame::GetOurCurrentDoc() const
-{
-  nsIContent* parentContent = GetParent()->GetContent();
-  return parentContent ? parentContent->GetComposedDoc()
-                       : nullptr;
 }
 
 nsresult nsBulletFrame::OnStartContainer(imgIRequest *aRequest,
@@ -907,57 +873,7 @@ nsBulletFrame::GetSpokenText(nsAString& aText)
   }
 }
 
-void
-nsBulletFrame::RegisterImageRequest(bool aKnownToBeAnimated)
-{
-  if (mImageRequest) {
-    // mRequestRegistered is a bitfield; unpack it temporarily so we can take
-    // the address.
-    bool isRequestRegistered = mRequestRegistered;
 
-    if (aKnownToBeAnimated) {
-      nsLayoutUtils::RegisterImageRequest(PresContext(), mImageRequest,
-                                          &isRequestRegistered);
-    } else {
-      nsLayoutUtils::RegisterImageRequestIfAnimated(PresContext(),
-                                                    mImageRequest,
-                                                    &isRequestRegistered);
-    }
-
-    isRequestRegistered = mRequestRegistered;
-  }
-}
-
-
-void
-nsBulletFrame::DeregisterAndCancelImageRequest()
-{
-  if (mImageRequest) {
-    // mRequestRegistered is a bitfield; unpack it temporarily so we can take
-    // the address.
-    bool isRequestRegistered = mRequestRegistered;
-
-    // Deregister our image request from the refresh driver.
-    nsLayoutUtils::DeregisterImageRequest(PresContext(),
-                                          mImageRequest,
-                                          &isRequestRegistered);
-
-    isRequestRegistered = mRequestRegistered;
-
-    // Unblock onload if we blocked it.
-    if (mBlockingOnload) {
-      nsIDocument* doc = GetOurCurrentDoc();
-      if (doc) {
-        doc->UnblockOnload(false);
-      }
-      mBlockingOnload = false;
-    }
-
-    // Cancel the image request and forget about it.
-    mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
-    mImageRequest = nullptr;
-  }
-}
 
 
 
@@ -978,26 +894,7 @@ nsBulletListener::~nsBulletListener()
 NS_IMETHODIMP
 nsBulletListener::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData)
 {
-  if (!mFrame) {
+  if (!mFrame)
     return NS_ERROR_FAILURE;
-  }
   return mFrame->Notify(aRequest, aType, aData);
-}
-
-NS_IMETHODIMP
-nsBulletListener::BlockOnload(imgIRequest* aRequest)
-{
-  if (!mFrame) {
-    return NS_ERROR_FAILURE;
-  }
-  return mFrame->BlockOnload(aRequest);
-}
-
-NS_IMETHODIMP
-nsBulletListener::UnblockOnload(imgIRequest* aRequest)
-{
-  if (!mFrame) {
-    return NS_ERROR_FAILURE;
-  }
-  return mFrame->UnblockOnload(aRequest);
 }

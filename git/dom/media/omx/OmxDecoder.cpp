@@ -33,10 +33,6 @@
 #include "OMXCodecProxy.h"
 #include "OmxDecoder.h"
 
-#define LOG_TAG "OmxDecoder"
-#include <android/log.h>
-#define ALOG(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
-
 #ifdef PR_LOGGING
 PRLogModuleInfo *gOmxDecoderLog;
 #define LOG(type, msg...) PR_LOG(gOmxDecoderLog, type, (msg))
@@ -70,8 +66,7 @@ OmxDecoder::OmxDecoder(MediaResource *aResource,
   mIsVideoSeeking(false),
   mAudioMetadataRead(false),
   mAudioPaused(false),
-  mVideoPaused(false),
-  mVideoLastFrameTime(-1)
+  mVideoPaused(false)
 {
   mLooper = new ALooper;
   mLooper->setName("OmxDecoder");
@@ -561,43 +556,14 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aTimeUs,
       mIsVideoSeeking = true;
     }
     MediaSource::ReadOptions options;
-    MediaSource::ReadOptions::SeekMode seekMode;
-    // If the last timestamp of decoded frame is smaller than seekTime,
-    // seek to next key frame. Otherwise seek to the previos one.
-    if (mVideoLastFrameTime > aTimeUs || mVideoLastFrameTime == -1) {
-      seekMode = MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC;
-    } else {
-      seekMode = MediaSource::ReadOptions::SEEK_NEXT_SYNC;
+    options.setSeekTo(aTimeUs, MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
+    err = mVideoSource->read(&mVideoBuffer, &options);
+    {
+      Mutex::Autolock autoLock(mSeekLock);
+      mIsVideoSeeking = false;
+      PostReleaseVideoBuffer(nullptr, FenceHandle());
     }
 
-    bool findNextBuffer = true;
-    while (findNextBuffer) {
-      options.setSeekTo(aTimeUs, seekMode);
-      findNextBuffer = false;
-      err = mVideoSource->read(&mVideoBuffer, &options);
-      {
-        Mutex::Autolock autoLock(mSeekLock);
-        mIsVideoSeeking = false;
-        PostReleaseVideoBuffer(nullptr, FenceHandle());
-      }
-      // If there is no next Keyframe, jump to the previous key frame.
-      if (err == ERROR_END_OF_STREAM && seekMode == MediaSource::ReadOptions::SEEK_NEXT_SYNC) {
-         seekMode = MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC;
-	 findNextBuffer = true;
-	 {
-	   Mutex::Autolock autoLock(mSeekLock);
-	   mIsVideoSeeking = true;
-	 }
-	 continue;
-      } else if (err != OK) {
-	ALOG("Unexpected error when seeking to %lld", aTimeUs);
-        break;
-      }
-      if (mVideoBuffer->range_length() == 0) {
-        ReleaseVideoBuffer();
-	findNextBuffer = true;
-      }
-    }
     aDoSeek = false;
   } else {
     err = mVideoSource->read(&mVideoBuffer);
@@ -669,7 +635,6 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aTimeUs,
     if ((aKeyframeSkip && timeUs < aTimeUs) || length == 0) {
       aFrame->mShouldSkip = true;
     }
-    mVideoLastFrameTime = timeUs;
   }
   else if (err == INFO_FORMAT_CHANGED) {
     // If the format changed, update our cached info.

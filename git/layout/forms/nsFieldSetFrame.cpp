@@ -318,7 +318,7 @@ nsFieldSetFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                              const LogicalSize& aMargin,
                              const LogicalSize& aBorder,
                              const LogicalSize& aPadding,
-                             ComputeSizeFlags aFlags)
+                             uint32_t aFlags)
 {
   LogicalSize result =
     nsContainerFrame::ComputeSize(aRenderingContext, aWM,

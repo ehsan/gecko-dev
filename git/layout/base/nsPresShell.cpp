@@ -8832,7 +8832,7 @@ PresShell::IsVisible()
   // inner view of subdoc frame
   view = view->GetParent();
   if (!view)
-    return mIsActive;
+    return true;
 
   // subdoc view
   view = view->GetParent();

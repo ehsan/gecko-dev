@@ -12,22 +12,19 @@
 #include "nsFrame.h"
 
 #include "imgINotificationObserver.h"
-#include "imgIOnloadBlocker.h"
 
 class imgIContainer;
 class imgRequestProxy;
 
 class nsBulletFrame;
 
-class nsBulletListener MOZ_FINAL : public imgINotificationObserver,
-                                   public imgIOnloadBlocker
+class nsBulletListener MOZ_FINAL : public imgINotificationObserver
 {
 public:
   nsBulletListener();
 
   NS_DECL_ISUPPORTS
   NS_DECL_IMGINOTIFICATIONOBSERVER
-  NS_DECL_IMGIONLOADBLOCKER
 
   void SetFrame(nsBulletFrame *frame) { mFrame = frame; }
 
@@ -53,14 +50,11 @@ public:
     : nsFrame(aContext)
     , mPadding(GetWritingMode())
     , mIntrinsicSize(GetWritingMode())
-    , mRequestRegistered(false)
-    , mBlockingOnload(false)
-  { }
+  {
+  }
   virtual ~nsBulletFrame();
 
-  NS_IMETHOD Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aData);
-  NS_IMETHOD BlockOnload(imgIRequest* aRequest);
-  NS_IMETHOD UnblockOnload(imgIRequest* aRequest);
+  NS_IMETHOD Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData);
 
   // nsIFrame
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
@@ -117,7 +111,6 @@ protected:
                       float aFontSizeInflation);
 
   void GetLoadGroup(nsPresContext *aPresContext, nsILoadGroup **aLoadGroup);
-  nsIDocument* GetOurCurrentDoc() const;
 
   mozilla::LogicalMargin mPadding;
   nsRefPtr<imgRequestProxy> mImageRequest;
@@ -127,15 +120,10 @@ protected:
   int32_t mOrdinal;
 
 private:
-  void RegisterImageRequest(bool aKnownToBeAnimated);
-  void DeregisterAndCancelImageRequest();
 
   // This is a boolean flag indicating whether or not the current image request
   // has been registered with the refresh driver.
-  bool mRequestRegistered : 1;
-
-  // Whether we're currently blocking onload.
-  bool mBlockingOnload : 1;
+  bool mRequestRegistered;
 };
 
 #endif /* nsBulletFrame_h___ */
