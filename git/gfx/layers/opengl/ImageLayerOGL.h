@@ -19,7 +19,7 @@ namespace layers {
 
 class CairoImage;
 class PlanarYCbCrImage;
-class BlobYCbCrSurface;
+class ShmemYCbCrImage;
 
 /**
  * This class wraps a GL texture. It includes a GLContext reference

@@ -146,10 +146,6 @@ class TestRecursiveMakeBackend(BackendTester):
                 'CSRCS += bar.c',
                 'CSRCS += foo.c',
             ],
-            'DEFINES': [
-                'DEFINES += -Dbar',
-                'DEFINES += -Dfoo',
-            ],
             'SIMPLE_PROGRAMS': [
                 'SIMPLE_PROGRAMS += bar.x',
                 'SIMPLE_PROGRAMS += foo.x',

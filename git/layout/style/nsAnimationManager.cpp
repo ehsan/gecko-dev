@@ -202,6 +202,7 @@ ElementAnimations::EnsureStyleRuleFor(TimeStamp aRefreshTime,
   }
 
   if (aIsThrottled) {
+    mStyleRuleRefreshTime = aRefreshTime;
     return;
   }
 

@@ -176,7 +176,6 @@ let Sync = {
         Services.obs.addObserver(self._boundOnEngineSync, "weave:engine:sync:error", false);
         Services.obs.addObserver(self._boundOnServiceSync, "weave:service:sync:finish", false);
         Services.obs.addObserver(self._boundOnServiceSync, "weave:service:sync:error", false);
-        Services.obs.addObserver(self._boundOnServiceSync, "weave:service:login:error", false);
         self.setupData = aCredentials;
         self.connect();
       },
@@ -279,7 +278,6 @@ let Sync = {
       Services.obs.removeObserver(this._boundOnEngineSync, "weave:engine:sync:error");
       Services.obs.removeObserver(this._boundOnServiceSync, "weave:service:sync:finish");
       Services.obs.removeObserver(this._boundOnServiceSync, "weave:service:sync:error");
-      Services.obs.removeObserver(this._boundOnServiceSync, "weave:service:login:error");
     }
     catch(e) {
       // Observers weren't registered because we never got as far as onComplete.
@@ -569,7 +567,7 @@ let Sync = {
     let accountinfo = this._elements.accountinfo;
 
     // Show what went wrong with login if necessary
-    if (aTopic == "weave:ui:login:error" || aTopic == "weave:service:login:error") {
+    if (aTopic == "weave:ui:login:error") {
       this._loginError = true;
       errormsg.textContent = Weave.Utils.getErrorString(Weave.Status.login);
       errormsg.collapsed = false;

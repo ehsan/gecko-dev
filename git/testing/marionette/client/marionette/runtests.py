@@ -174,7 +174,7 @@ class MarionetteTestRunner(object):
                  es_server=None, rest_server=None, logger=None,
                  testgroup="marionette", noWindow=False, logcat_dir=None,
                  xml_output=None, repeat=0, gecko_path=None, testvars=None,
-                 tree=None, type=None, device=None, symbols_path=None, timeout=None,
+                 tree=None, type=None, device=None, symbols_path=None,
                  **kwargs):
         self.address = address
         self.emulator = emulator
@@ -205,7 +205,6 @@ class MarionetteTestRunner(object):
         self.type = type
         self.device = device
         self.symbols_path = symbols_path
-        self.timeout = timeout
 
         if testvars:
             if not os.path.exists(testvars):
@@ -266,8 +265,7 @@ class MarionetteTestRunner(object):
                                          app=self.app,
                                          bin=self.bin,
                                          profile=self.profile,
-                                         baseurl=self.baseurl,
-                                         timeout=self.timeout)
+                                         baseurl=self.baseurl)
         elif self.address:
             host, port = self.address.split(':')
             if self.emulator:
@@ -278,13 +276,11 @@ class MarionetteTestRunner(object):
                                              baseurl=self.baseurl,
                                              logcat_dir=self.logcat_dir,
                                              gecko_path=self.gecko_path,
-                                             symbols_path=self.symbols_path,
-                                             timeout=self.timeout)
+                                             symbols_path=self.symbols_path)
             else:
                 self.marionette = Marionette(host=host,
                                              port=int(port),
-                                             baseurl=self.baseurl,
-                                             timeout=self.timeout)
+                                             baseurl=self.baseurl)
         elif self.emulator:
             self.marionette = Marionette.getMarionetteOrExit(
                                          emulator=self.emulator,
@@ -296,8 +292,7 @@ class MarionetteTestRunner(object):
                                          noWindow=self.noWindow,
                                          logcat_dir=self.logcat_dir,
                                          gecko_path=self.gecko_path,
-                                         symbols_path=self.symbols_path,
-                                         timeout=self.timeout)
+                                         symbols_path=self.symbols_path)
         else:
             raise Exception("must specify binary, address or emulator")
 
@@ -641,10 +636,6 @@ class MarionetteTestOptions(OptionParser):
                         dest='symbols_path',
                         action='store',
                         help='absolute path to directory containing breakpad symbols, or the url of a zip file containing symbols')
-        self.add_option('--timeout',
-                        dest='timeout',
-                        type=int,
-                        help='if a --timeout value is given, it will set the default page load timeout, search timeout and script timeout to the given value. If not passed in, it will use the default values of 30000ms for page load, 0ms for search timeout and 10ms for script timeout')
 
     def verify_usage(self, options, tests):
         if not tests:

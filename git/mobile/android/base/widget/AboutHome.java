@@ -37,14 +37,15 @@ public class AboutHome extends Fragment {
     private LoadCompleteListener mLoadCompleteListener;
     private LightweightTheme mLightweightTheme;
     private ContentObserver mTabsContentObserver;
-    private int mTopPadding;
+    private int mPaddingLeft;
+    private int mPaddingRight;
+    private int mPaddingTop;
+    private int mPaddingBottom;
     private AboutHomeView mAboutHomeView;
     private AddonsSection mAddonsSection;
     private LastTabsSection mLastTabsSection;
     private RemoteTabsSection mRemoteTabsSection;
     private TopSitesView mTopSitesView;
-
-    private static final String STATE_TOP_PADDING = "top_padding";
 
     public interface UriLoadListener {
         public void onAboutHomeUriLoad(String uriSpec);
@@ -63,10 +64,6 @@ public class AboutHome extends Fragment {
         super.onCreate(savedInstanceState);
 
         mLightweightTheme = ((GeckoApplication) getActivity().getApplication()).getLightweightTheme();
-
-        if (savedInstanceState != null) {
-            mTopPadding = savedInstanceState.getInt(STATE_TOP_PADDING, 0);
-        }
     }
 
     @Override
@@ -116,7 +113,7 @@ public class AboutHome extends Fragment {
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        view.setPadding(0, mTopPadding, 0, 0);
+        view.setPadding(mPaddingLeft, mPaddingTop, mPaddingRight, mPaddingBottom);
         ((PromoBox) view.findViewById(R.id.promo_box)).showRandomPromo();
         update(AboutHome.UpdateFlags.ALL);
 
@@ -245,21 +242,18 @@ public class AboutHome extends Fragment {
         }
     }
 
-    public void setTopPadding(int topPadding) {
+    public void setPadding(int left, int top, int right, int bottom) {
         View view = getView();
         if (view != null) {
-            view.setPadding(0, topPadding, 0, 0);
+            view.setPadding(left, top, right, bottom);
         }
 
         // If the padding has changed but the view hasn't been created yet,
         // store the padding values here; they will be used later in
         // onViewCreated().
-        mTopPadding = topPadding;
-    }
-
-    @Override
-    public void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putInt(STATE_TOP_PADDING, mTopPadding);
+        mPaddingLeft = left;
+        mPaddingRight = right;
+        mPaddingTop = top;
+        mPaddingBottom = bottom;
     }
 }

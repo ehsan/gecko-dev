@@ -23,6 +23,9 @@ nsIConstraintValidation::nsIConstraintValidation()
 
 nsIConstraintValidation::~nsIConstraintValidation()
 {
+  if (mValidity) {
+    mValidity->Disconnect();
+  }
 }
 
 mozilla::dom::ValidityState*

@@ -3,9 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.menu;
-
-import org.mozilla.gecko.R;
+package org.mozilla.gecko;
 
 import android.content.Context;
 import android.os.Build;
@@ -33,7 +31,7 @@ public class MenuPanel extends LinearLayout {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
 
         // Restrict the height to 75% of the screen-height. heightPixels changes during rotation.
-        DisplayMetrics metrics = getContext().getResources().getDisplayMetrics();
+        DisplayMetrics metrics = GeckoApp.mAppContext.getResources().getDisplayMetrics();
         int restrictedHeightSpec = MeasureSpec.makeMeasureSpec((int) (0.75 * metrics.heightPixels), MeasureSpec.AT_MOST);
 
         super.onMeasure(widthMeasureSpec, restrictedHeightSpec);

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/layers/YCbCrImageDataSerializer.h"
+#include "ShmemYCbCrImage.h"
 
 #define MOZ_ALIGN_WORD(x) (((x) + 3) & ~3)
 
@@ -14,7 +14,11 @@ namespace layers {
 
 // The Data is layed out as follows:
 //
-//  +-----------------+   -++ --+ --+ <-- Beginning of the buffer
+//  +-----------------+   -+   <-- Beginning of the Shmem
+//  |                 |    |
+//  |      ...        |    | offset
+//  |                 |    |
+//  +-----------------+   -++ --+ --+
 //  | YCbCrBufferInfo |     |   |   |
 //  +-----------------+   --+   |   |
 //  |      data       |         |   | YCbCrBufferInfo->[mY/mCb/mCr]Offset
@@ -40,66 +44,67 @@ struct YCbCrBufferInfo
   uint32_t mCbCrHeight;
 };
 
-static YCbCrBufferInfo* GetYCbCrBufferInfo(uint8_t* aData)
+static YCbCrBufferInfo* GetYCbCrBufferInfo(Shmem& aShmem, size_t aOffset)
 {
-  return reinterpret_cast<YCbCrBufferInfo*>(aData);
+  return reinterpret_cast<YCbCrBufferInfo*>(aShmem.get<uint8_t>() + aOffset);
 }
 
-bool YCbCrImageDataDeserializerBase::IsValid()
-{
-  if (mData == nullptr) {
-    return false;
-  }
-  size_t bufferInfoSize = MOZ_ALIGN_WORD(sizeof(YCbCrBufferInfo));
-  return true;
-}
 
-uint8_t* YCbCrImageDataDeserializerBase::GetYData()
+uint8_t* ShmemYCbCrImage::GetYData()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mShmem, mOffset);
   return reinterpret_cast<uint8_t*>(info) + info->mYOffset;
 }
 
-uint8_t* YCbCrImageDataDeserializerBase::GetCbData()
+uint8_t* ShmemYCbCrImage::GetCbData()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mShmem, mOffset);
   return reinterpret_cast<uint8_t*>(info) + info->mCbOffset;
 }
 
-uint8_t* YCbCrImageDataDeserializerBase::GetCrData()
+uint8_t* ShmemYCbCrImage::GetCrData()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mShmem, mOffset);
   return reinterpret_cast<uint8_t*>(info) + info->mCrOffset;
 }
 
-uint8_t* YCbCrImageDataDeserializerBase::GetData()
+uint8_t* ShmemYCbCrImage::GetData()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mShmem, mOffset);
   return (reinterpret_cast<uint8_t*>(info)) + MOZ_ALIGN_WORD(sizeof(YCbCrBufferInfo));
 }
 
-uint32_t YCbCrImageDataDeserializerBase::GetYStride()
+uint32_t ShmemYCbCrImage::GetYStride()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mShmem, mOffset);
   return info->mYWidth;
 }
 
-uint32_t YCbCrImageDataDeserializerBase::GetCbCrStride()
+uint32_t ShmemYCbCrImage::GetCbCrStride()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mShmem, mOffset);
   return info->mCbCrWidth;
 }
 
-gfxIntSize YCbCrImageDataDeserializerBase::GetYSize()
+gfxIntSize ShmemYCbCrImage::GetYSize()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mShmem, mOffset);
   return gfxIntSize(info->mYWidth, info->mYHeight);
 }
 
-gfxIntSize YCbCrImageDataDeserializerBase::GetCbCrSize()
+gfxIntSize ShmemYCbCrImage::GetCbCrSize()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mShmem, mOffset);
   return gfxIntSize(info->mCbCrWidth, info->mCbCrHeight);
+}
+
+
+bool ShmemYCbCrImage::Open(Shmem& aShmem, size_t aOffset)
+{
+    mShmem = aShmem;
+    mOffset = aOffset;
+
+    return IsValid();
 }
 
 // Offset in bytes
@@ -109,9 +114,8 @@ static size_t ComputeOffset(uint32_t aHeight, uint32_t aStride)
 }
 
 // Minimum required shmem size in bytes
-size_t
-YCbCrImageDataSerializer::ComputeMinBufferSize(const gfx::IntSize& aYSize,
-                                               const gfx::IntSize& aCbCrSize)
+size_t ShmemYCbCrImage::ComputeMinBufferSize(const gfxIntSize& aYSize,
+                                              const gfxIntSize& aCbCrSize)
 {
   uint32_t yStride = aYSize.width;
   uint32_t CbCrStride = aCbCrSize.width;
@@ -121,13 +125,6 @@ YCbCrImageDataSerializer::ComputeMinBufferSize(const gfx::IntSize& aYSize,
          + MOZ_ALIGN_WORD(sizeof(YCbCrBufferInfo));
 }
 
-size_t
-YCbCrImageDataSerializer::ComputeMinBufferSize(const gfxIntSize& aYSize,
-                                               const gfxIntSize& aCbCrSize)
-{
-  return ComputeMinBufferSize(gfx::IntSize(aYSize.width, aYSize.height),
-                              gfx::IntSize(aCbCrSize.width, aCbCrSize.height));
-}
 // Offset in bytes
 static size_t ComputeOffset(uint32_t aSize)
 {
@@ -135,17 +132,17 @@ static size_t ComputeOffset(uint32_t aSize)
 }
 
 // Minimum required shmem size in bytes
-size_t
-YCbCrImageDataSerializer::ComputeMinBufferSize(uint32_t aSize)
+size_t ShmemYCbCrImage::ComputeMinBufferSize(uint32_t aSize)
 {
+
   return ComputeOffset(aSize) + MOZ_ALIGN_WORD(sizeof(YCbCrBufferInfo));
 }
 
-void
-YCbCrImageDataSerializer::InitializeBufferInfo(const gfx::IntSize& aYSize,
-                                               const gfx::IntSize& aCbCrSize)
+void ShmemYCbCrImage::InitializeBufferInfo(uint8_t* aBuffer,
+                                           const gfxIntSize& aYSize,
+                                           const gfxIntSize& aCbCrSize)
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
+  YCbCrBufferInfo* info = reinterpret_cast<YCbCrBufferInfo*>(aBuffer);
   info->mYOffset = MOZ_ALIGN_WORD(sizeof(YCbCrBufferInfo));
   info->mCbOffset = info->mYOffset
                   + MOZ_ALIGN_WORD(aYSize.width * aYSize.height);
@@ -158,12 +155,18 @@ YCbCrImageDataSerializer::InitializeBufferInfo(const gfx::IntSize& aYSize,
   info->mCbCrHeight = aCbCrSize.height;
 }
 
-void
-YCbCrImageDataSerializer::InitializeBufferInfo(const gfxIntSize& aYSize,
-                                               const gfxIntSize& aCbCrSize)
+bool ShmemYCbCrImage::IsValid()
 {
-  InitializeBufferInfo(gfx::IntSize(aYSize.width, aYSize.height),
-                       gfx::IntSize(aCbCrSize.width, aCbCrSize.height));
+  if (mShmem == Shmem()) {
+    return false;
+  }
+  size_t bufferInfoSize = MOZ_ALIGN_WORD(sizeof(YCbCrBufferInfo));
+  if (mShmem.Size<uint8_t>() < bufferInfoSize ||
+      GetYCbCrBufferInfo(mShmem, mOffset)->mYOffset != bufferInfoSize ||
+      mShmem.Size<uint8_t>() < mOffset + ComputeMinBufferSize(GetYSize(),GetCbCrSize())) {
+    return false;
+  }
+  return true;
 }
 
 static void CopyLineWithSkip(const uint8_t* src, uint8_t* dst, uint32_t len, uint32_t skip) {
@@ -174,12 +177,11 @@ static void CopyLineWithSkip(const uint8_t* src, uint8_t* dst, uint32_t len, uin
   }
 }
 
-bool
-YCbCrImageDataSerializer::CopyData(const uint8_t* aYData,
-                                   const uint8_t* aCbData, const uint8_t* aCrData,
-                                   gfxIntSize aYSize, uint32_t aYStride,
-                                   gfxIntSize aCbCrSize, uint32_t aCbCrStride,
-                                   uint32_t aYSkip, uint32_t aCbCrSkip)
+bool ShmemYCbCrImage::CopyData(const uint8_t* aYData,
+                               const uint8_t* aCbData, const uint8_t* aCrData,
+                               gfxIntSize aYSize, uint32_t aYStride,
+                               gfxIntSize aCbCrSize, uint32_t aCbCrStride,
+                               uint32_t aYSkip, uint32_t aCbCrSkip)
 {
   if (!IsValid() || GetYSize() != aYSize || GetCbCrSize() != aCbCrSize) {
     return false;

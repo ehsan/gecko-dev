@@ -217,19 +217,10 @@ AndroidPresenter.prototype = {
       androidEvents.push({eventType: this.ANDROID_VIEW_HOVER_EXIT, text: []});
     }
 
-    let state = Utils.getStates(aContext.accessible)[0];
-
     androidEvents.push({eventType: (isExploreByTouch) ?
                           this.ANDROID_VIEW_HOVER_ENTER : focusEventType,
                         text: UtteranceGenerator.genForContext(aContext),
-                        bounds: aContext.bounds,
-                        clickable: aContext.accessible.actionCount > 0,
-                        checkable: !!(state &
-                                      Ci.nsIAccessibleStates.STATE_CHECKABLE),
-                        checked: !!(state &
-                                    Ci.nsIAccessibleStates.STATE_CHECKED)});
-
-
+                        bounds: aContext.bounds});
     return {
       type: this.type,
       details: androidEvents
@@ -237,13 +228,11 @@ AndroidPresenter.prototype = {
   },
 
   actionInvoked: function AndroidPresenter_actionInvoked(aObject, aActionName) {
-    let state = Utils.getStates(aObject)[0];
     return {
       type: this.type,
       details: [{
         eventType: this.ANDROID_VIEW_CLICKED,
-        text: UtteranceGenerator.genForAction(aObject, aActionName),
-        checked: !!(state & Ci.nsIAccessibleStates.STATE_CHECKED)
+        text: UtteranceGenerator.genForAction(aObject, aActionName)
       }]
     };
   },
