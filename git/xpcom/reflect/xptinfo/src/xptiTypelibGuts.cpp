@@ -77,7 +77,6 @@ xptiTypelibGuts::GetEntryAt(PRUint16 i)
         r = set->mNameTable.Get(iface->name);
     else
         r = set->mIIDTable.Get(iface->iid);
-
     if (r)
         SetEntryAt(i, r);
 
