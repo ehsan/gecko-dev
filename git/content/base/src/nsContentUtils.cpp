@@ -1129,9 +1129,7 @@ nsContentUtils::CheckSameOrigin(nsINode *aTrustedNode,
   NS_PRECONDITION(aTrustedNode, "There must be a trusted node");
 
   PRBool isSystem = PR_FALSE;
-  nsresult rv = sSecurityManager->SubjectPrincipalIsSystem(&isSystem);
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  sSecurityManager->SubjectPrincipalIsSystem(&isSystem);
   if (isSystem) {
     // we're running as system, grant access to the node.
 
@@ -1197,8 +1195,7 @@ nsContentUtils::CanCallerAccess(nsIDOMNode *aNode)
   // with the system principal games?  But really, there should be a simpler
   // API here, dammit.
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
-  nsresult rv = sSecurityManager->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  sSecurityManager->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
 
   if (!subjectPrincipal) {
     // we're running as system, grant access to the node.
@@ -1220,8 +1217,7 @@ nsContentUtils::CanCallerAccess(nsPIDOMWindow* aWindow)
   // with the system principal games?  But really, there should be a simpler
   // API here, dammit.
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
-  nsresult rv = sSecurityManager->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  sSecurityManager->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
 
   if (!subjectPrincipal) {
     // we're running as system, grant access to the node.

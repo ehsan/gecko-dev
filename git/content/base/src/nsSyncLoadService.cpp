@@ -55,6 +55,7 @@
 #include "nsThreadUtils.h"
 #include "nsNetUtil.h"
 #include "nsAutoPtr.h"
+#include "nsLoadListenerProxy.h"
 #include "nsStreamUtils.h"
 #include "nsCrossSiteListenerProxy.h"
 

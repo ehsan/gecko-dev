@@ -430,10 +430,10 @@ HistoryTracker.prototype = {
   onTitleChanged: function HT_onTitleChanged() {},
 
   /* Every add or remove is worth 1 point.
-   * Clearing all history will trigger a sync for MULTI-DEVICE (see below)
+   * Clearing the whole history is worth 50 points (see below)
    */
   _upScore: function BMT__upScore() {
-    this.score += SCORE_INCREMENT_SMALL;
+    this.score += 1;
   },
 
   onVisit: function HT_onVisit(uri, vid, time, session, referrer, trans, guid) {
@@ -458,6 +458,6 @@ HistoryTracker.prototype = {
   },
   onClearHistory: function HT_onClearHistory() {
     this._log.trace("onClearHistory");
-    this.score += SCORE_INCREMENT_XLARGE;
+    this.score += 500;
   }
 };
