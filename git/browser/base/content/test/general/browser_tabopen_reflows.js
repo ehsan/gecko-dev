@@ -56,7 +56,6 @@ const EXPECTED_REFLOWS = [
 ];
 
 const PREF_PRELOAD = "browser.newtab.preload";
-const PREF_NEWTAB_DIRECTORYSOURCE = "browser.newtabpage.directorySource";
 
 /*
  * This test ensures that there are no unexpected
@@ -66,11 +65,7 @@ function test() {
   waitForExplicitFinish();
 
   Services.prefs.setBoolPref(PREF_PRELOAD, false);
-  Services.prefs.setCharPref(PREF_NEWTAB_DIRECTORYSOURCE, "data:application/json,{}");
-  registerCleanupFunction(() => {
-    Services.prefs.clearUserPref(PREF_PRELOAD);
-    Services.prefs.clearUserPref(PREF_NEWTAB_DIRECTORYSOURCE);
-  });
+  registerCleanupFunction(() => Services.prefs.clearUserPref(PREF_PRELOAD));
 
   // Add a reflow observer and open a new tab.
   docShell.addWeakReflowObserver(observer);

@@ -24,15 +24,6 @@
 
 namespace mozilla { namespace pkix { namespace test {
 
-class OCSPResponseExtension
-{
-public:
-  SECItem id;
-  bool critical;
-  SECItem value;
-  OCSPResponseExtension* next;
-};
-
 class OCSPResponseContext
 {
 public:
@@ -62,8 +53,6 @@ public:
     ByKeyHash = 2
   };
   ResponderIDType responderIDType;
-
-  OCSPResponseExtension* extensions;
 };
 
 // The return value, if non-null, is owned by the arena in the context

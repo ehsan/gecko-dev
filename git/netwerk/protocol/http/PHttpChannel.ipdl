@@ -80,8 +80,7 @@ parent:
   __delete__();
 
 child:
-  OnStartRequest(nsresult            channelStatus,
-                 nsHttpResponseHead  responseHead,
+  OnStartRequest(nsHttpResponseHead  responseHead,
                  bool                useResponseHead,
                  nsHttpHeaderArray   requestHeaders,
                  bool                isFromCache,
@@ -94,15 +93,14 @@ child:
 
   // Combines a single OnDataAvailable and its associated OnProgress &
   // OnStatus calls into one IPDL message
-  OnTransportAndData(nsresult  channelStatus,
-                     nsresult  transportStatus,
+  OnTransportAndData(nsresult  status,
                      uint64_t  progress,
                      uint64_t  progressMax,
                      nsCString data,
                      uint64_t  offset,
                      uint32_t  count);
 
-  OnStopRequest(nsresult channelStatus);
+  OnStopRequest(nsresult statusCode);
 
   OnProgress(uint64_t progress, uint64_t progressMax);
 
