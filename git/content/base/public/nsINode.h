@@ -1249,8 +1249,6 @@ private:
     NodeIsPurpleRoot,
     // Set if the node has an explicit base URI stored
     NodeHasExplicitBaseURI,
-    // Set if the element has some style states locked
-    ElementHasLockedStyleStates,
     // Guard value
     BooleanFlagCount
   };
@@ -1323,10 +1321,6 @@ protected:
     { SetBoolFlag(ElementMayHaveContentEditableAttr); }
   bool HasExplicitBaseURI() const { return GetBoolFlag(NodeHasExplicitBaseURI); }
   void SetHasExplicitBaseURI() { SetBoolFlag(NodeHasExplicitBaseURI); }
-  void SetHasLockedStyleStates() { SetBoolFlag(ElementHasLockedStyleStates); }
-  void ClearHasLockedStyleStates() { ClearBoolFlag(ElementHasLockedStyleStates); }
-  bool HasLockedStyleStates() const
-    { return GetBoolFlag(ElementHasLockedStyleStates); }
 
 public:
   // Optimized way to get classinfo.

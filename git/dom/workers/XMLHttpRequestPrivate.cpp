@@ -245,12 +245,9 @@ JS_STATIC_ASSERT(JS_ARRAY_LENGTH(sEventStrings) == STRING_COUNT);
 class MainThreadSyncRunnable : public WorkerSyncRunnable
 {
 public:
-  MainThreadSyncRunnable(WorkerPrivate* aWorkerPrivate,
-                         ClearingBehavior aClearingBehavior,
-                         PRUint32 aSyncQueueKey,
+  MainThreadSyncRunnable(WorkerPrivate* aWorkerPrivate, PRUint32 aSyncQueueKey,
                          bool aBypassSyncEventQueue)
-  : WorkerSyncRunnable(aWorkerPrivate, aSyncQueueKey, aBypassSyncEventQueue,
-                       aClearingBehavior)
+  : WorkerSyncRunnable(aWorkerPrivate, aSyncQueueKey, aBypassSyncEventQueue)
   {
     AssertIsOnMainThread();
   }
@@ -276,10 +273,8 @@ protected:
   nsRefPtr<Proxy> mProxy;
 
 public:
-  MainThreadProxyRunnable(WorkerPrivate* aWorkerPrivate,
-                          ClearingBehavior aClearingBehavior, Proxy* aProxy)
-  : MainThreadSyncRunnable(aWorkerPrivate, aClearingBehavior,
-                           aProxy->GetSyncQueueKey(),
+  MainThreadProxyRunnable(WorkerPrivate* aWorkerPrivate, Proxy* aProxy)
+  : MainThreadSyncRunnable(aWorkerPrivate, aProxy->GetSyncQueueKey(),
                            aProxy->EventsBypassSyncQueue()),
     mProxy(aProxy)
   { }
@@ -324,7 +319,7 @@ class LoadStartDetectionRunnable : public nsIRunnable,
   public:
     ProxyCompleteRunnable(WorkerPrivate* aWorkerPrivate, Proxy* aProxy,
                           XMLHttpRequestPrivate* aXHRPrivate)
-    : MainThreadProxyRunnable(aWorkerPrivate, RunWhenClearing, aProxy),
+    : MainThreadProxyRunnable(aWorkerPrivate, aProxy),
       mXMLHttpRequestPrivate(aXHRPrivate)
     { }
 
@@ -463,8 +458,8 @@ class EventRunnable : public MainThreadProxyRunnable
 public:
   EventRunnable(Proxy* aProxy, bool aUploadEvent, const nsString& aType,
                 bool aLengthComputable, PRUint64 aLoaded, PRUint64 aTotal)
-  : MainThreadProxyRunnable(aProxy->mWorkerPrivate, SkipWhenClearing, aProxy),
-    mType(aType), mResponse(JSVAL_VOID), mLoaded(aLoaded), mTotal(aTotal),
+  : MainThreadProxyRunnable(aProxy->mWorkerPrivate, aProxy), mType(aType),
+    mResponse(JSVAL_VOID), mLoaded(aLoaded), mTotal(aTotal),
     mChannelId(aProxy->mInnerChannelId), mStatus(0), mReadyState(0),
     mUploadEvent(aUploadEvent), mProgressEvent(true),
     mLengthComputable(aLengthComputable), mResponseTextException(false),
@@ -473,8 +468,8 @@ public:
   { }
 
   EventRunnable(Proxy* aProxy, bool aUploadEvent, const nsString& aType)
-  : MainThreadProxyRunnable(aProxy->mWorkerPrivate, SkipWhenClearing, aProxy),
-    mType(aType), mResponse(JSVAL_VOID), mLoaded(0), mTotal(0),
+  : MainThreadProxyRunnable(aProxy->mWorkerPrivate, aProxy), mType(aType),
+    mResponse(JSVAL_VOID), mLoaded(0), mTotal(0),
     mChannelId(aProxy->mInnerChannelId), mStatus(0), mReadyState(0),
     mUploadEvent(aUploadEvent), mProgressEvent(false), mLengthComputable(0),
     mResponseTextException(false), mStatusException(false),
@@ -730,7 +725,7 @@ private:
   public:
     ResponseRunnable(WorkerPrivate* aWorkerPrivate, Proxy* aProxy,
                      PRUint32 aSyncQueueKey, intN aErrorCode)
-    : MainThreadProxyRunnable(aWorkerPrivate, SkipWhenClearing, aProxy),
+    : MainThreadProxyRunnable(aWorkerPrivate, aProxy),
       mSyncQueueKey(aSyncQueueKey), mErrorCode(aErrorCode)
     {
       NS_ASSERTION(aProxy, "Don't hand me a null proxy!");
@@ -1699,7 +1694,7 @@ XMLHttpRequestPrivate::Send(JSContext* aCx, bool aHasBody, jsval aBody)
   bool hasUploadListeners = false;
   if (mUploadJSObject) {
     events::EventTarget* target =
-      events::EventTarget::FromJSObject(mUploadJSObject);
+      events::EventTarget::FromJSObject(aCx, mUploadJSObject);
     NS_ASSERTION(target, "This should never be null!");
     hasUploadListeners = target->HasListeners();
   }
@@ -1759,7 +1754,7 @@ XMLHttpRequestPrivate::SendAsBinary(JSContext* aCx, JSString* aBody)
   bool hasUploadListeners = false;
   if (mUploadJSObject) {
     events::EventTarget* target =
-      events::EventTarget::FromJSObject(mUploadJSObject);
+      events::EventTarget::FromJSObject(aCx, mUploadJSObject);
     NS_ASSERTION(target, "This should never be null!");
     hasUploadListeners = target->HasListeners();
   }

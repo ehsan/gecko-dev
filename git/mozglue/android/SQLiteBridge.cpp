@@ -35,7 +35,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include <stdlib.h>
-#include <stdio.h>
 #include <jni.h>
 #include <android/log.h>
 #include "dlfcn.h"
@@ -67,8 +66,6 @@ SQLITE_WRAPPER_INT(sqlite3_column_type)
 SQLITE_WRAPPER_INT(sqlite3_column_blob)
 SQLITE_WRAPPER_INT(sqlite3_column_bytes)
 SQLITE_WRAPPER_INT(sqlite3_column_text)
-SQLITE_WRAPPER_INT(sqlite3_changes)
-SQLITE_WRAPPER_INT(sqlite3_last_insert_rowid)
 
 void setup_sqlite_functions(void *sqlite_handle)
 {
@@ -87,8 +84,6 @@ void setup_sqlite_functions(void *sqlite_handle)
   GETFUNC(sqlite3_column_blob);
   GETFUNC(sqlite3_column_bytes);
   GETFUNC(sqlite3_column_text);
-  GETFUNC(sqlite3_changes);
-  GETFUNC(sqlite3_last_insert_rowid);
 #undef GETFUNC
 }
 
@@ -162,9 +157,6 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
 {
     JNI_Setup(jenv);
 
-    char* errorMsg;
-    jsize numPars = 0;
-
     const char* queryStr;
     queryStr = jenv->GetStringUTFChars(jQuery, NULL);
 
@@ -179,50 +171,46 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
     jenv->ReleaseStringUTFChars(jDb, dbPath);
 
     if (rc != SQLITE_OK) {
-        asprintf(&errorMsg, "Can't open database: %s\n", f_sqlite3_errmsg(db));
+        LOG("Can't open database: %s\n", f_sqlite3_errmsg(db));
         goto error_close;
     }
 
     rc = f_sqlite3_prepare_v2(db, queryStr, -1, &ppStmt, &pzTail);
     if (rc != SQLITE_OK || ppStmt == NULL) {
-        asprintf(&errorMsg, "Can't prepare statement: %s\n", f_sqlite3_errmsg(db));
+        LOG("Can't prepare statement: %s\n", f_sqlite3_errmsg(db));
         goto error_close;
     }
     jenv->ReleaseStringUTFChars(jQuery, queryStr);
 
     // Check if number of parameters matches
-    if (jParams != NULL) {
-        numPars = jenv->GetArrayLength(jParams);
-    }
+    jsize numPars;
+    numPars = jenv->GetArrayLength(jParams);
     int sqlNumPars;
     sqlNumPars = f_sqlite3_bind_parameter_count(ppStmt);
     if (numPars != sqlNumPars) {
-        asprintf(&errorMsg, "Passed parameter count (%d) doesn't match SQL parameter count (%d)\n",
+        LOG("Passed parameter count (%d) doesn't match SQL parameter count (%d)\n",
             numPars, sqlNumPars);
         goto error_close;
     }
-
-    if (jParams != NULL) {
-        // Bind parameters, if any
-        if (numPars > 0) {
-            for (int i = 0; i < numPars; i++) {
-                jobject jObjectParam = jenv->GetObjectArrayElement(jParams, i);
-                // IsInstanceOf or isAssignableFrom? String is final, so IsInstanceOf
-                // should be OK.
-                jboolean isString = jenv->IsInstanceOf(jObjectParam, stringClass);
-                if (isString != JNI_TRUE) {
-                    asprintf(&errorMsg, "Parameter is not of String type");
-                    goto error_close;
-                }
-                jstring jStringParam = (jstring)jObjectParam;
-                const char* paramStr = jenv->GetStringUTFChars(jStringParam, NULL);
-                // SQLite parameters index from 1.
-                rc = f_sqlite3_bind_text(ppStmt, i + 1, paramStr, -1, SQLITE_TRANSIENT);
-                jenv->ReleaseStringUTFChars(jStringParam, paramStr);
-                if (rc != SQLITE_OK) {
-                    asprintf(&errorMsg, "Error binding query parameter");
-                    goto error_close;
-                }
+    // Bind parameters, if any
+    if (numPars > 0) {
+        for (int i = 0; i < numPars; i++) {
+            jobject jObjectParam = jenv->GetObjectArrayElement(jParams, i);
+            // IsInstanceOf or isAssignableFrom? String is final, so IsInstanceOf
+            // should be OK.
+            jboolean isString = jenv->IsInstanceOf(jObjectParam, stringClass);
+            if (isString != JNI_TRUE) {
+                LOG("Parameter is not of String type");
+                goto error_close;
+            }
+            jstring jStringParam = (jstring)jObjectParam;
+            const char* paramStr = jenv->GetStringUTFChars(jStringParam, NULL);
+            // SQLite parameters index from 1.
+            rc = f_sqlite3_bind_text(ppStmt, i + 1, paramStr, -1, SQLITE_TRANSIENT);
+            jenv->ReleaseStringUTFChars(jStringParam, paramStr);
+            if (rc != SQLITE_OK) {
+                LOG("Error binding query parameter");
+                goto error_close;
             }
         }
     }
@@ -230,7 +218,7 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
     // Execute the query and step through the results
     rc = f_sqlite3_step(ppStmt);
     if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
-        asprintf(&errorMsg, "Can't step statement: (%d) %s\n", rc, f_sqlite3_errmsg(db));
+        LOG("Can't step statement: (%d) %s\n", rc, f_sqlite3_errmsg(db));
         goto error_close;
     }
 
@@ -244,31 +232,6 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
         jenv->DeleteLocalRef(jStr);
     }
 
-    // if the statement doesn't return any results, instead return the id and number of changed rows
-    if (rc == SQLITE_DONE) {
-        jclass integerClass = jenv->FindClass("java/lang/Integer");
-        jmethodID intConstructor = jenv->GetMethodID(integerClass, "<init>", "(I)V");
-        
-        jobjectArray jRow = jenv->NewObjectArray(2, objectClass, NULL);
-        if (jRow == NULL) {
-            asprintf(&errorMsg, "Can't allocate jRow Object[]\n");
-            goto error_close;
-        }
-
-        int id = f_sqlite3_last_insert_rowid(db);
-        jobject jId = jenv->NewObject(integerClass, intConstructor, id);
-        jenv->SetObjectArrayElement(jRow, 0, jId);
-        jenv->DeleteLocalRef(jId);
-
-        int changed = f_sqlite3_changes(db);
-        jobject jChanged = jenv->NewObject(integerClass, intConstructor, changed);
-        jenv->SetObjectArrayElement(jRow, 1, jChanged);
-        jenv->DeleteLocalRef(jChanged);
-
-        jenv->CallBooleanMethod(jArrayList, jArrayListAdd, jRow);
-        jenv->DeleteLocalRef(jRow);
-    }
-
     // For each row, add an Object[] to the passed ArrayList,
     // with that containing either String or ByteArray objects
     // containing the columns
@@ -279,7 +242,7 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
                                                  objectClass,
                                                  NULL);
         if (jRow == NULL) {
-            asprintf(&errorMsg, "Can't allocate jRow Object[]\n");
+            LOG("Can't allocate jRow Object[]\n");
             goto error_close;
         }
 
@@ -302,7 +265,7 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
                 // Get its backing array
                 void* bufferArray = jenv->GetDirectBufferAddress(jByteBuffer);
                 if (bufferArray == NULL) {
-                    asprintf(&errorMsg, "Failure calling GetDirectBufferAddress\n");
+                    LOG("Failure calling GetDirectBufferAddress\n");
                     goto error_close;
                 }
                 memcpy(bufferArray, blob, colLen);
@@ -331,14 +294,14 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
         rc = f_sqlite3_step(ppStmt);
         // Real error?
         if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
-            asprintf(&errorMsg, "Can't re-step statement:(%d) %s\n", rc, f_sqlite3_errmsg(db));
+            LOG("Can't re-step statement:(%d) %s\n", rc, f_sqlite3_errmsg(db));
             goto error_close;
         }
     }
 
     rc = f_sqlite3_finalize(ppStmt);
     if (rc != SQLITE_OK) {
-        asprintf(&errorMsg, "Can't finalize statement: %s\n", f_sqlite3_errmsg(db));
+        LOG("Can't finalize statement: %s\n", f_sqlite3_errmsg(db));
         goto error_close;
     }
 
@@ -347,8 +310,6 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
 
 error_close:
     f_sqlite3_close(db);
-    LOG("Error in SQLiteBridge: %s\n", errorMsg);
-    JNI_Throw(jenv, "org/mozilla/gecko/sqlite/SQLiteBridgeException", errorMsg);
-    free(errorMsg);
+    JNI_Throw(jenv, "org/mozilla/gecko/sqlite/SQLiteBridgeException", "SQLite error");
     return;
 }

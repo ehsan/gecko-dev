@@ -85,7 +85,7 @@ protected:
   Probe(const nsCID &aGUID,
         const nsACString &aName,
          ProbeManager *aManager);
-  friend class ProbeManager;
+  friend ProbeManager;
 
 protected:
 
@@ -222,15 +222,15 @@ protected:
    */
   bool mInitialized;
 
-  friend class Probe;//Needs to access |mSessionHandle|
+  friend Probe;//Needs to access |mSessionHandle|
   friend ULONG WINAPI ControlCallback(
-                                      WMIDPREQUESTCODE RequestCode,
-                                      PVOID Context,
-                                      ULONG *Reserved,
-                                      PVOID Buffer
+                                      __in  WMIDPREQUESTCODE RequestCode,
+                                      __in  PVOID Context,
+                                      __in  ULONG *Reserved,
+                                      __in  PVOID Buffer
                                       );//Sets |mSessionHandle|
 };
 }
-}
+};
 
 #endif //mozilla_perfprobe_h

@@ -119,6 +119,7 @@ CPPSRCS		= \
 		jsfun.cpp \
 		jsgc.cpp \
 		jsgcmark.cpp \
+		jsgcchunk.cpp \
 		jsgcstats.cpp \
 		jscrashreport.cpp \
 		jshash.cpp \
@@ -170,7 +171,6 @@ CPPSRCS		= \
 		RegExpObject.cpp \
 		RegExpStatics.cpp \
 		RegExp.cpp \
-		Memory.cpp \
 		Statistics.cpp \
 		Unicode.cpp \
 		$(NULL)
@@ -193,6 +193,7 @@ INSTALLED_HEADERS = \
 		jsfriendapi.h \
 		jsgc.h \
 		jscell.h \
+		jsgcchunk.h \
 		jsgcstats.h \
 		jshash.h \
 		jslock.h \

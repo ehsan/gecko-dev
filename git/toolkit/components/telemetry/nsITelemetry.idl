@@ -131,9 +131,4 @@ interface nsITelemetry : nsISupports
    * Set this to false to disable gathering of telemetry statistics.
    */
   attribute boolean canRecord;
-
-  /**
-   * A flag indicating whether Telemetry can submit official results.
-   */
-  readonly attribute boolean canSend;
 };

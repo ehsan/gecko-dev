@@ -68,8 +68,8 @@ class nsRootAccessible : public nsDocAccessibleWrap,
   NS_DECL_ISUPPORTS_INHERITED
 
 public:
-  nsRootAccessible(nsIDocument* aDocument, nsIContent* aRootContent,
-                   nsIPresShell* aPresShell);
+  nsRootAccessible(nsIDocument *aDocument, nsIContent *aRootContent,
+                   nsIWeakReference *aShell);
   virtual ~nsRootAccessible();
 
   // nsIAccessible

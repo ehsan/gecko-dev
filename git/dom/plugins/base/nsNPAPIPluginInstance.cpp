@@ -958,15 +958,15 @@ nsNPAPIPluginInstance::HandleGUIEvent(const nsGUIEvent& anEvent, bool* handled)
 #endif
 
 nsresult
-nsNPAPIPluginInstance::GetImageContainer(ImageContainer**aContainer)
+nsNPAPIPluginInstance::GetImage(ImageContainer* aContainer, Image** aImage)
 {
-  *aContainer = nsnull;
+  *aImage = nsnull;
 
   if (RUNNING != mRunning)
     return NS_OK;
 
   AutoPluginLibraryCall library(this);
-  return !library ? NS_ERROR_FAILURE : library->GetImageContainer(&mNPP, aContainer);
+  return !library ? NS_ERROR_FAILURE : library->GetImage(&mNPP, aContainer, aImage);
 }
 
 nsresult
@@ -1347,6 +1347,20 @@ nsNPAPIPluginInstance::InvalidateRegion(NPRegion invalidRegion)
     return NS_ERROR_FAILURE;
 
   return owner->InvalidateRegion(invalidRegion);
+}
+
+nsresult
+nsNPAPIPluginInstance::ForceRedraw()
+{
+  if (RUNNING != mRunning)
+    return NS_OK;
+
+  nsCOMPtr<nsIPluginInstanceOwner> owner;
+  GetOwner(getter_AddRefs(owner));
+  if (!owner)
+    return NS_ERROR_FAILURE;
+
+  return owner->ForceRedraw();
 }
 
 nsresult

@@ -3768,6 +3768,10 @@ nsComputedDOMStyle::GetFrameBoundsWidthForTransform(nscoord& aWidth)
 
   AssertFlushedPendingReflows();
 
+  // Check to see that we're transformed.
+  if (!mInnerFrame->GetStyleDisplay()->HasTransform())
+    return false;
+
   aWidth = nsDisplayTransform::GetFrameBoundsForTransform(mInnerFrame).width;
   return true;
 }
@@ -3781,6 +3785,10 @@ nsComputedDOMStyle::GetFrameBoundsHeightForTransform(nscoord& aHeight)
   }
 
   AssertFlushedPendingReflows();
+
+  // Check to see that we're transformed.
+  if (!mInnerFrame->GetStyleDisplay()->HasTransform())
+    return false;
 
   aHeight = nsDisplayTransform::GetFrameBoundsForTransform(mInnerFrame).height;
   return true;

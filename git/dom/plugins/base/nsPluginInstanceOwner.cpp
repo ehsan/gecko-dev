@@ -190,7 +190,7 @@ static void DrawPlugin(ImageContainer* aContainer, void* aPluginInstanceOwner)
 {
   nsObjectFrame* frame = static_cast<nsPluginInstanceOwner*>(aPluginInstanceOwner)->GetFrame();
   if (frame) {
-    frame->UpdateImageLayer(gfxRect(0,0,0,0));
+    frame->UpdateImageLayer(aContainer, gfxRect(0,0,0,0));
   }
 }
 
@@ -201,28 +201,29 @@ static void OnDestroyImage(void* aPluginInstanceOwner)
 }
 #endif // XP_MACOSX
 
-already_AddRefed<ImageContainer>
-nsPluginInstanceOwner::GetImageContainer()
+bool
+nsPluginInstanceOwner::SetCurrentImage(ImageContainer* aContainer)
 {
   if (mInstance) {
-    nsRefPtr<ImageContainer> container;
+    nsRefPtr<Image> image;
     // Every call to nsIPluginInstance::GetImage() creates
     // a new image.  See nsIPluginInstance.idl.
-    mInstance->GetImageContainer(getter_AddRefs(container));
-    if (container) {
+    mInstance->GetImage(aContainer, getter_AddRefs(image));
+    if (image) {
 #ifdef XP_MACOSX
-      nsRefPtr<Image> image = container->GetCurrentImage();
-      if (image && image->GetFormat() == Image::MAC_IO_SURFACE && mObjectFrame) {
+      if (image->GetFormat() == Image::MAC_IO_SURFACE && mObjectFrame) {
         MacIOSurfaceImage *oglImage = static_cast<MacIOSurfaceImage*>(image.get());
         NS_ADDREF_THIS();
         oglImage->SetUpdateCallback(&DrawPlugin, this);
         oglImage->SetDestroyCallback(&OnDestroyImage);
       }
 #endif
-      return container.forget();
+      aContainer->SetCurrentImage(image);
+      return true;
     }
   }
-  return nsnull;
+  aContainer->SetCurrentImage(nsnull);
+  return false;
 }
 
 void
@@ -634,9 +635,12 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(NPRect *invalidRect)
   // Each time an asynchronously-drawing plugin sends a new surface to display,
   // InvalidateRect is called. We notify reftests that painting is up to
   // date and update our ImageContainer with the new surface.
-  nsRefPtr<ImageContainer> container;
-  mInstance->GetImageContainer(getter_AddRefs(container));
+  nsRefPtr<ImageContainer> container = mObjectFrame->GetImageContainer();
   gfxIntSize oldSize(0, 0);
+  if (container) {
+    oldSize = container->GetCurrentSize();
+    SetCurrentImage(container);
+  }
 
 #ifndef XP_MACOSX
   // Windowed plugins should not be calling NPN_InvalidateRect, but
@@ -672,6 +676,11 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(NPRect *invalidRect)
 NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRegion(NPRegion invalidRegion)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsPluginInstanceOwner::ForceRedraw()
+{
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
@@ -1081,6 +1090,13 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetBorderHorizSpace(PRUint32 *result)
     *result = 0;
 
   return rv;
+}
+
+NS_IMETHODIMP nsPluginInstanceOwner::GetUniqueID(PRUint32 *result)
+{
+  NS_ENSURE_ARG_POINTER(result);
+  *result = NS_PTR_TO_INT32(mObjectFrame);
+  return NS_OK;
 }
 
 // Cache the attributes and/or parameters of our tag into a single set

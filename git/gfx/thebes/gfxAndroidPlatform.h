@@ -99,8 +99,6 @@ public:
                                           const gfxFontStyle *aStyle,
                                           gfxUserFontSet* aUserFontSet);
 
-    virtual bool FontHintingEnabled() MOZ_OVERRIDE;
-
     FT_Library GetFTLibrary();
 };
 

@@ -11,16 +11,15 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is templeton.
+# The Original Code is mozdevice.
 #
 # The Initial Developer of the Original Code is
-# the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+#  The Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2011
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Mark Cote <mcote@mozilla.com>
-#   William Lachance <wlachance@mozilla.com>
+#  Will Lachance <wlachance@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,17 +35,33 @@
 #
 # ***** END LICENSE BLOCK *****
 
+import os
+from setuptools import setup, find_packages
+
+version = '0.1'
+
+# take description from README
+here = os.path.dirname(os.path.abspath(__file__))
 try:
-    import json
-except ImportError:
-    import simplejson as json
+    description = file(os.path.join(here, 'README.md')).read()
+except (OSError, IOError):
+    description = ''
 
-def json_response(func):
-    """ Translates results of 'func' into a JSON response. """
-    def wrap(*a, **kw):
-        (code, data) = func(*a, **kw)
-        json_data = json.dumps(data)
-        return (code, { 'Content-type': 'application/json',
-                        'Content-Length': len(json_data) }, json_data)
-
-    return wrap
+setup(name='mozdevice',
+      version=version,
+      description="Mozilla-authored device management",
+      long_description=description,
+      classifiers=[], # Get strings from http://pypi.python.org/pypi?%3Aaction=list_classifiers
+      keywords='',
+      author='Mozilla Automation and Testing Team',
+      author_email='tools@lists.mozilla.com',
+      url='http://github.com/mozilla/mozbase',
+      license='MPL',
+      packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
+      include_package_data=True,
+      zip_safe=False,
+      install_requires=[],
+      entry_points="""
+      # -*- Entry points: -*-
+      """,
+      )

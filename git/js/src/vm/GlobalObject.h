@@ -45,7 +45,6 @@
 
 #include "jsarray.h"
 #include "jsbool.h"
-#include "jsexn.h"
 #include "jsfun.h"
 #include "jsiter.h"
 #include "jsnum.h"
@@ -187,9 +186,6 @@ class GlobalObject : public JSObject {
     bool arrayBufferClassInitialized() const {
         return classIsInitialized(JSProto_ArrayBuffer);
     }
-    bool errorClassesInitialized() const {
-        return classIsInitialized(JSProto_Error);
-    }
 
   public:
     static GlobalObject *create(JSContext *cx, Class *clasp);
@@ -296,17 +292,6 @@ class GlobalObject : public JSObject {
                 return NULL;
         }
         return &self->getPrototype(JSProto_ArrayBuffer).toObject();
-    }
-
-    JSObject *getOrCreateCustomErrorPrototype(JSContext *cx, intN exnType) {
-        GlobalObject *self = this;
-        JSProtoKey key = GetExceptionProtoKey(exnType);
-        if (!errorClassesInitialized()) {
-            Root<GlobalObject*> root(cx, &self);
-            if (!js_InitExceptionClasses(cx, this))
-                return NULL;
-        }
-        return &self->getPrototype(key).toObject();
     }
 
     JSObject *getOrCreateGeneratorPrototype(JSContext *cx) {

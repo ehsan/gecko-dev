@@ -51,6 +51,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.TextSwitcher;
 import android.app.Instrumentation;
+import android.util.Log;
 import com.jayway.android.robotium.solo.Solo;
 import java.util.concurrent.SynchronousQueue;
 
@@ -77,8 +78,7 @@ public class FennecNativeElement implements Element {
             View view = (View)mActivity.findViewById(id);
             if(view != null) {
               if (!view.performClick()) {
-                FennecNativeDriver.log(FennecNativeDriver.LogLevel.LOG_LEVEL_WARN,
-                  "Robocop called click on an element with no listener");
+                Log.w("Robocop", "Robocop called click on an element with no listener");
               }
             } else {
               throw new RoboCopException("click: unable to find view "+id); 

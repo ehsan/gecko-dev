@@ -512,8 +512,7 @@ class WorkerTaskRunnable : public WorkerRunnable
 {
 public:
   WorkerTaskRunnable(WorkerPrivate* aPrivate, WorkerTask* aTask)
-    : WorkerRunnable(aPrivate, WorkerThread, UnchangedBusyCount,
-                     SkipWhenClearing),
+    : WorkerRunnable(aPrivate, WorkerThread, UnchangedBusyCount),
       mTask(aTask)
   { }
 

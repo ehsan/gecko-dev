@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 6; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -65,12 +65,8 @@ using namespace js::types;
 CallObject *
 CallObject::create(JSContext *cx, JSScript *script, JSObject &enclosing, JSObject *callee)
 {
-    RootedVarShape shape(cx);
-    shape = script->bindings.callObjectShape(cx);
-    if (shape == NULL)
-        return NULL;
-
-    gc::AllocKind kind = gc::GetGCObjectKind(shape->numFixedSlots() + 1);
+    Bindings &bindings = script->bindings;
+    gc::AllocKind kind = gc::GetGCObjectKind(bindings.lastShape()->numFixedSlots() + 1);
 
     RootedVarTypeObject type(cx);
 
@@ -79,8 +75,11 @@ CallObject::create(JSContext *cx, JSScript *script, JSObject &enclosing, JSObjec
         return NULL;
 
     HeapValue *slots;
-    if (!PreallocateObjectDynamicSlots(cx, shape, &slots))
+    if (!PreallocateObjectDynamicSlots(cx, bindings.lastShape(), &slots))
         return NULL;
+
+    RootedVarShape shape(cx);
+    shape = bindings.lastShape();
 
     JSObject *obj = JSObject::create(cx, kind, shape, type, slots);
     if (!obj)

@@ -422,8 +422,13 @@ class StackFrame
     void initCallFrame(JSContext *cx, JSFunction &callee,
                        JSScript *script, uint32_t nactual, StackFrame::Flags flags);
 
-    /* Used for getFixupFrame (for FixupArity). */
-    void initFixupFrame(StackFrame *prev, StackFrame::Flags flags, void *ncode, uintN nactual);
+    /* Used for SessionInvoke. */
+    void resetCallFrame(JSScript *script);
+
+    /* Called by jit stubs and serve as a specification for jit-code. */
+    void initJitFrameCallerHalf(StackFrame *prev, StackFrame::Flags flags, void *ncode);
+    void initJitFrameEarlyPrologue(JSFunction *fun, uint32_t nactual);
+    bool initJitFrameLatePrologue(JSContext *cx, Value **limit);
 
     /* Used for eval. */
     void initExecuteFrame(JSScript *script, StackFrame *prev, FrameRegs *regs,
@@ -538,12 +543,6 @@ class StackFrame
     Value &varSlot(uintN i) {
         JS_ASSERT(i < script()->nfixed);
         JS_ASSERT_IF(maybeFun(), i < script()->bindings.countVars());
-        return slots()[i];
-    }
-
-    Value &localSlot(uintN i) {
-        /* Let variables can be above script->nfixed. */
-        JS_ASSERT(i < script()->nslots);
         return slots()[i];
     }
 
@@ -1573,7 +1572,7 @@ class ContextStack
 
     inline StackFrame *
     getCallFrame(JSContext *cx, MaybeReportError report, const CallArgs &args,
-                 JSFunction *fun, JSScript *script, StackFrame::Flags *pflags) const;
+                 JSFunction *fun, JSScript *script, /*StackFrame::Flags*/ uint32_t *pflags) const;
 
     /* Make pop* functions private since only called by guard classes. */
     void popSegment();
@@ -1686,7 +1685,10 @@ class ContextStack
     /*
      * Called by the methodjit for an arity mismatch. Arity mismatch can be
      * hot, so getFixupFrame avoids doing call setup performed by jit code when
-     * FixupArity returns.
+     * FixupArity returns. In terms of work done:
+     *
+     *   getFixupFrame = pushInlineFrame -
+     *                   (fp->initJitFrameLatePrologue + regs->prepareToRun)
      */
     StackFrame *getFixupFrame(JSContext *cx, MaybeReportError report,
                               const CallArgs &args, JSFunction *fun, JSScript *script,
