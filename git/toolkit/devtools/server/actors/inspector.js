@@ -596,8 +596,8 @@ var NodeListActor = exports.NodeListActor = protocol.ActorClass({
     }
   }, {
     request: {
-      start: Arg(0, "nullable:number"),
-      end: Arg(1, "nullable:number")
+      start: Arg(0, "number", { optional: true }),
+      end: Arg(1, "number", { optional: true })
     },
     response: RetVal("disconnectedNodeArray")
   }),
@@ -664,7 +664,7 @@ let traversalMethod = {
     whatToShow: Option(1)
   },
   response: {
-    node: RetVal("nullable:domnode")
+    node: RetVal("domnode", {optional: true})
   }
 }
 
@@ -839,7 +839,7 @@ var WalkerActor = protocol.ActorClass({
     let doc = node ? nodeDocument(node.rawNode) : this.rootDoc;
     return this._ref(doc);
   }, {
-    request: { node: Arg(0, "nullable:domnode") },
+    request: { node: Arg(0, "domnode", {optional: true}) },
     response: { node: RetVal("domnode") },
   }),
 
@@ -854,7 +854,7 @@ var WalkerActor = protocol.ActorClass({
     let elt = node ? nodeDocument(node.rawNode).documentElement : this.rootDoc.documentElement;
     return this._ref(elt);
   }, {
-    request: { node: Arg(0, "nullable:domnode") },
+    request: { node: Arg(0, "domnode", {optional: true}) },
     response: { node: RetVal("domnode") },
   }),
 
@@ -1357,7 +1357,7 @@ var WalkerActor = protocol.ActorClass({
     }
   }, {
     request: {
-      node: Arg(0, "nullable:domnode")
+      node: Arg(0, "domnode", { optional: true }),
     },
     response: {}
   }),
@@ -1412,7 +1412,7 @@ var WalkerActor = protocol.ActorClass({
       node: Arg(0, "domnode")
     },
     response: {
-      nextSibling: RetVal("nullable:domnode")
+      nextSibling: RetVal("domnode", { optional: true })
     }
   }),
 
@@ -1425,7 +1425,7 @@ var WalkerActor = protocol.ActorClass({
     request: {
       node: Arg(0, "domnode"),
       parent: Arg(1, "domnode"),
-      sibling: Arg(2, "nullable:domnode")
+      sibling: Arg(2, "domnode", { optional: true })
     },
     response: {}
   }),

@@ -67,8 +67,8 @@ this._SessionFile = {
   /**
    * Write the contents of the session file, asynchronously.
    */
-  write: function (aData, aOptions = {}) {
-    return SessionFileInternal.write(aData, aOptions);
+  write: function (aData) {
+    return SessionFileInternal.write(aData);
   },
   /**
    * Writes the initial state to disk again only to change the session's load
@@ -76,6 +76,12 @@ this._SessionFile = {
    */
   writeLoadStateOnceAfterStartup: function (aLoadState) {
     return SessionFileInternal.writeLoadStateOnceAfterStartup(aLoadState);
+  },
+  /**
+   * Create a backup copy, asynchronously.
+   */
+  moveToBackupPath: function () {
+    return SessionFileInternal.moveToBackupPath();
   },
   /**
    * Create a backup copy, asynchronously.
@@ -206,14 +212,14 @@ let SessionFileInternal = {
     return SessionWorker.post("read").then(msg => msg.ok);
   },
 
-  write: function (aData, aOptions) {
+  write: function (aData) {
     let refObj = {};
     return TaskUtils.spawn(function task() {
       TelemetryStopwatch.start("FX_SESSION_RESTORE_WRITE_FILE_MS", refObj);
       TelemetryStopwatch.start("FX_SESSION_RESTORE_WRITE_FILE_LONGEST_OP_MS", refObj);
 
       try {
-        let promise = SessionWorker.post("write", [aData, aOptions]);
+        let promise = SessionWorker.post("write", [aData]);
         // At this point, we measure how long we stop the main thread
         TelemetryStopwatch.finish("FX_SESSION_RESTORE_WRITE_FILE_LONGEST_OP_MS", refObj);
 
@@ -231,6 +237,10 @@ let SessionFileInternal = {
 
   writeLoadStateOnceAfterStartup: function (aLoadState) {
     return SessionWorker.post("writeLoadStateOnceAfterStartup", [aLoadState]);
+  },
+
+  moveToBackupPath: function () {
+    return SessionWorker.post("moveToBackupPath");
   },
 
   createBackupCopy: function (ext) {

@@ -1757,11 +1757,9 @@ function SourceClient(aClient, aForm) {
 
 SourceClient.prototype = {
   get _transport() this._client._transport,
-  get _activeThread() this._client.activeThread,
   get isBlackBoxed() this._isBlackBoxed,
   get actor() this._form.actor,
   get request() this._client.request,
-  get url() this._form.url,
 
   /**
    * Black box this SourceClient's source.
@@ -1776,9 +1774,6 @@ SourceClient.prototype = {
     after: function (aResponse) {
       if (!aResponse.error) {
         this._isBlackBoxed = true;
-        if (this._activeThread) {
-          this._activeThread.notify("blackboxchange", this);
-        }
       }
       return aResponse;
     }
@@ -1797,9 +1792,6 @@ SourceClient.prototype = {
     after: function (aResponse) {
       if (!aResponse.error) {
         this._isBlackBoxed = false;
-        if (this._activeThread) {
-          this._activeThread.notify("blackboxchange", this);
-        }
       }
       return aResponse;
     }
