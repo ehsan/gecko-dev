@@ -285,11 +285,7 @@ nsNestedAboutURI::Read(nsIObjectInputStream* aStream)
     if (NS_FAILED(rv)) return rv;
 
     if (haveBase) {
-        nsCOMPtr<nsISupports> supports;
-        rv = aStream->ReadObject(PR_TRUE, getter_AddRefs(supports));
-        if (NS_FAILED(rv)) return rv;
-
-        mBaseURI = do_QueryInterface(supports, &rv);
+        rv = aStream->ReadObject(PR_TRUE, getter_AddRefs(mBaseURI));
         if (NS_FAILED(rv)) return rv;
     }
 
@@ -306,16 +302,7 @@ nsNestedAboutURI::Write(nsIObjectOutputStream* aStream)
     if (NS_FAILED(rv)) return rv;
 
     if (mBaseURI) {
-        // A previous iteration of this code wrote out mBaseURI as nsISupports
-        // and then read it in as nsIURI, which is non-kosher when mBaseURI
-        // implements more than just a single line of interfaces and the
-        // canonical nsISupports* isn't the one a static_cast<> of mBaseURI
-        // would produce.  For backwards compatibility with existing
-        // serializations we continue to write mBaseURI as nsISupports but
-        // switch to reading it as nsISupports, with a post-read QI to get to
-        // nsIURI.
-        rv = aStream->WriteCompoundObject(mBaseURI, NS_GET_IID(nsISupports),
-                                          PR_TRUE);
+        rv = aStream->WriteObject(mBaseURI, PR_TRUE);
         if (NS_FAILED(rv)) return rv;
     }
 

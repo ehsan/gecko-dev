@@ -1353,8 +1353,8 @@ nsresult nsHTMLMediaElement::InitializeDecoderAsClone(nsMediaDecoder* aOriginal)
 
   float duration = aOriginal->GetDuration();
   if (duration >= 0) {
-    decoder->SetDuration(PRInt64(NS_round(duration * 1000)));
-    decoder->SetSeekable(aOriginal->GetSeekable());
+    mDecoder->SetDuration(PRInt64(NS_round(duration * 1000)));
+    mDecoder->SetSeekable(aOriginal->GetSeekable());
   }
 
   nsMediaStream* stream = originalStream->CloneData(decoder);
