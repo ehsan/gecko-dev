@@ -33,8 +33,4 @@ public class MockProfileInformationCache extends ProfileInformationCache {
   public JSONObject readJSON() throws FileNotFoundException, JSONException {
     return readFromFile();
   }
-
-  public void setInitialized(final boolean initialized) {
-    this.initialized = initialized;
-  }
 }

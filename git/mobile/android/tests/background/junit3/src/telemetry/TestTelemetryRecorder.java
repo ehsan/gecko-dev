@@ -163,4 +163,9 @@ public class TestTelemetryRecorder extends FakeProfileTestCase {
       fail("Unsupported encoding: " + e);
     }
   }
+
+  @Override
+  protected String getCacheSuffix() {
+    return File.separator + "telemetry-recorder-" + System.currentTimeMillis() + ".profile";
+  }
 }

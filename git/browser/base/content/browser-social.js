@@ -591,12 +591,6 @@ SocialShare = {
       return this.panel.lastChild;
   },
 
-  uninit: function () {
-    if (this.iframe) {
-      this.iframe.remove();
-    }
-  },
-
   _createFrame: function() {
     let panel = this.panel;
     if (!SocialUI.enabled || this.iframe)
