@@ -262,7 +262,7 @@ nsDocAccessible *
 nsAccessNode::GetDocAccessible() const
 {
   return mContent ?
-    GetAccService()->GetDocAccessible(mContent->OwnerDoc()) : nsnull;
+    GetAccService()->GetDocAccessible(mContent->GetOwnerDoc()) : nsnull;
 }
 
 nsRootAccessible*
@@ -465,8 +465,10 @@ nsAccessNode::GetLanguage(nsAString& aLanguage)
   nsCoreUtils::GetLanguageFor(mContent, nsnull, aLanguage);
 
   if (aLanguage.IsEmpty()) { // Nothing found, so use document's language
-    mContent->OwnerDoc()->GetHeaderData(nsGkAtoms::headerContentLanguage,
-                                        aLanguage);
+    nsIDocument *doc = mContent->GetOwnerDoc();
+    if (doc) {
+      doc->GetHeaderData(nsGkAtoms::headerContentLanguage, aLanguage);
+    }
   }
  
   return NS_OK;

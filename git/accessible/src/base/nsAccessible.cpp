@@ -2101,7 +2101,7 @@ nsAccessible::RelationByType(PRUint32 aType)
       } else {
         // In XUL, use first <button default="true" .../> in the document
         nsCOMPtr<nsIDOMXULDocument> xulDoc =
-          do_QueryInterface(mContent->OwnerDoc());
+          do_QueryInterface(mContent->GetOwnerDoc());
         nsCOMPtr<nsIDOMXULButtonElement> buttonEl;
         if (xulDoc) {
           nsCOMPtr<nsIDOMNodeList> possibleDefaultButtons;
@@ -2769,7 +2769,7 @@ nsAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
     mContent->GetAttr(kNameSpaceID_XLink, nsGkAtoms::href, href);
 
     nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
-    nsCOMPtr<nsIDocument> document = mContent->OwnerDoc();
+    nsCOMPtr<nsIDocument> document = mContent->GetOwnerDoc();
     nsIURI* anchorURI = nsnull;
     NS_NewURI(&anchorURI, href,
               document ? document->GetDocumentCharacterSet().get() : nsnull,
@@ -2942,7 +2942,7 @@ nsAccessible::CurrentItem()
   nsAutoString id;
   if (mContent->GetAttr(kNameSpaceID_None,
                         nsGkAtoms::aria_activedescendant, id)) {
-    nsIDocument* DOMDoc = mContent->OwnerDoc();
+    nsIDocument* DOMDoc = mContent->GetOwnerDoc();
     dom::Element* activeDescendantElm = DOMDoc->GetElementById(id);
     if (activeDescendantElm) {
       nsDocAccessible* document = GetDocAccessible();
@@ -3057,7 +3057,7 @@ nsAccessible::GetFirstAvailableAccessible(nsINode *aStartNode) const
   if (accessible)
     return accessible;
 
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(aStartNode->OwnerDoc());
+  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(aStartNode->GetOwnerDoc());
   NS_ENSURE_TRUE(domDoc, nsnull);
 
   nsCOMPtr<nsIDOMNode> currentNode = do_QueryInterface(aStartNode);

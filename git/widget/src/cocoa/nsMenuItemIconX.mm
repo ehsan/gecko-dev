@@ -307,7 +307,8 @@ nsMenuItemIconX::LoadIcon(nsIURI* aIconURI)
 
   if (!mContent) return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIDocument> document = mContent->OwnerDoc();
+  nsCOMPtr<nsIDocument> document = mContent->GetOwnerDoc();
+  if (!document) return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsILoadGroup> loadGroup = document->GetDocumentLoadGroup();
   if (!loadGroup) return NS_ERROR_FAILURE;

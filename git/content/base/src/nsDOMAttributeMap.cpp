@@ -299,7 +299,7 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMNode *aNode,
 
     if (!mContent->HasSameOwnerDoc(iAttribute)) {
       nsCOMPtr<nsIDOMDocument> domDoc =
-        do_QueryInterface(mContent->OwnerDoc(), &rv);
+        do_QueryInterface(mContent->GetOwnerDoc(), &rv);
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsCOMPtr<nsIDOMNode> adoptedNode;

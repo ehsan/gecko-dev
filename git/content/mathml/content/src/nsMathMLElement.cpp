@@ -581,7 +581,7 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
     nsAutoString hrefStr;
     href->ToString(hrefStr); 
     nsContentUtils::NewURIWithDocumentCharset(aURI, hrefStr,
-                                              OwnerDoc(), baseURI);
+                                              GetOwnerDoc(), baseURI);
     // must promise out param is non-null if we return true
     return !!*aURI;
   }
@@ -612,7 +612,10 @@ nsMathMLElement::GetLinkTarget(nsAString& aTarget)
     case 1:
       return;
     }
-    OwnerDoc()->GetBaseTarget(aTarget);
+    nsIDocument* ownerDoc = GetOwnerDoc();
+    if (ownerDoc) {
+      ownerDoc->GetBaseTarget(aTarget);
+    }
   }
 }
 

@@ -123,7 +123,7 @@ nsSVGAnimateTransformElement::ParseAttribute(PRInt32 aNamespaceID,
         atom != nsGkAtoms::rotate &&
         atom != nsGkAtoms::skewX &&
         atom != nsGkAtoms::skewY) {
-      ReportAttributeParseFailure(OwnerDoc(), aAttribute, aValue);
+      ReportAttributeParseFailure(GetOwnerDoc(), aAttribute, aValue);
     }
     return true;
   }

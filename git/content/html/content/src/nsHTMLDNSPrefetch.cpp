@@ -292,7 +292,7 @@ nsHTMLDNSPrefetch::nsDeferrals::SubmitQueue()
 
   while (mHead != mTail) {
     nsCOMPtr<nsIContent> content = do_QueryReferent(mEntries[mTail].mElement);
-    if (content) {
+    if (content && content->GetOwnerDoc()) {
       nsCOMPtr<Link> link = do_QueryInterface(content);
       nsCOMPtr<nsIURI> hrefURI(link ? link->GetURI() : nsnull);
       if (hrefURI)

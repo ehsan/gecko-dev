@@ -1161,7 +1161,7 @@ PresShell::Destroy()
 
   MaybeReleaseCapturingContent();
 
-  if (gKeyDownTarget && gKeyDownTarget->OwnerDoc() == mDocument) {
+  if (gKeyDownTarget && gKeyDownTarget->GetOwnerDoc() == mDocument) {
     NS_RELEASE(gKeyDownTarget);
   }
 
@@ -6047,7 +6047,7 @@ PresShell::HandleEvent(nsIView         *aView,
       }
 
       mCurrentEventFrame = nsnull;
-      nsIDocument* targetDoc = eventTarget ? eventTarget->OwnerDoc() : nsnull;
+      nsIDocument* targetDoc = eventTarget ? eventTarget->GetOwnerDoc() : nsnull;
       if (targetDoc && targetDoc != mDocument) {
         PopCurrentEventInfo();
         nsIPresShell* shell = targetDoc->GetShell();
@@ -6230,7 +6230,7 @@ IsFullScreenAndRestrictedKeyEvent(nsIContent* aTarget, const nsEvent* aEvent)
       (aEvent->message != NS_KEY_DOWN &&
       aEvent->message != NS_KEY_UP &&
       aEvent->message != NS_KEY_PRESS) ||
-      !(doc = aTarget->OwnerDoc()) ||
+      !(doc = aTarget->GetOwnerDoc()) ||
       !doc->IsFullScreenDoc() ||
       !nsContentUtils::IsFullScreenKeyInputRestricted()) {
     return false;
@@ -6304,7 +6304,7 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
           // We're in DOM full-screen mode, and a key with a restricted key
           // code has been pressed. Exit full-screen mode.
           NS_DispatchToCurrentThread(
-            NS_NewRunnableMethod(mCurrentEventContent->OwnerDoc(),
+            NS_NewRunnableMethod(mCurrentEventContent->GetOwnerDoc(),
                                  &nsIDocument::CancelFullScreen));
         }
         // Else not full-screen mode or key code is unrestricted, fall

@@ -245,7 +245,7 @@ nsSVGMpathElement::UpdateHrefTarget(nsIContent* aParent,
   nsCOMPtr<nsIURI> targetURI;
   nsCOMPtr<nsIURI> baseURI = GetBaseURI();
   nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI),
-                                            aHrefStr, OwnerDoc(), baseURI);
+                                            aHrefStr, GetOwnerDoc(), baseURI);
 
   // Stop observing old target (if any)
   if (mHrefTarget.get()) {

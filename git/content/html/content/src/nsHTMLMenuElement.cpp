@@ -207,7 +207,10 @@ nsHTMLMenuElement::CanLoadIcon(nsIContent* aContent, const nsAString& aIcon)
     return false;
   }
 
-  nsIDocument* doc = aContent->OwnerDoc();
+  nsIDocument* doc = aContent->GetOwnerDoc();
+  if (!doc) {
+    return false;
+  }
 
   nsCOMPtr<nsIURI> baseURI = aContent->GetBaseURI();
   nsCOMPtr<nsIURI> uri;

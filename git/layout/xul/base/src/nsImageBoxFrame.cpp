@@ -101,7 +101,12 @@ private:
 NS_IMETHODIMP
 nsImageBoxFrameEvent::Run()
 {
-  nsIPresShell *pres_shell = mContent->OwnerDoc()->GetShell();
+  nsIDocument* doc = mContent->GetOwnerDoc();
+  if (!doc) {
+    return NS_OK;
+  }
+
+  nsIPresShell *pres_shell = doc->GetShell();
   if (!pres_shell) {
     return NS_OK;
   }

@@ -599,7 +599,7 @@ protected:
       frameSelection->SetMouseDownState(false);
     }
     if (gCaptureInfo.mContent &&
-        gCaptureInfo.mContent->OwnerDoc() == mDocument) {
+        gCaptureInfo.mContent->GetOwnerDoc() == mDocument) {
       SetCapturingContent(nsnull, 0);
     }
   }

@@ -2091,7 +2091,7 @@ BuildStyleRule(nsCSSProperty aProperty,
   declaration->InitializeEmpty();
 
   bool changed; // ignored, but needed as outparam for ParseProperty
-  nsIDocument* doc = aTargetElement->OwnerDoc();
+  nsIDocument* doc = aTargetElement->GetOwnerDoc();
   nsCOMPtr<nsIURI> baseURI = aTargetElement->GetBaseURI();
   nsCSSParser parser(doc->CSSLoader());
 

@@ -278,7 +278,9 @@ public:
    */
   inline bool IsInHTMLDocument() const
   {
-    return OwnerDoc()->IsHTML();
+    nsIDocument* doc = GetOwnerDoc();
+    return doc && // XXX clean up after bug 335998 lands
+           doc->IsHTML();
   }
 
   /**

@@ -182,7 +182,7 @@ public:
   NS_IMETHOD SetTextContent(const nsAString& aTextContent)
   {
     // Batch possible DOMSubtreeModified events.
-    mozAutoSubtreeModified subtree(OwnerDoc(), nsnull);
+    mozAutoSubtreeModified subtree(GetOwnerDoc(), nsnull);
     return SetNodeValue(aTextContent);
   }
 

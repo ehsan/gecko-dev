@@ -118,7 +118,7 @@ static void logMessage(nsIContent*      aContent,
                        const nsAString& aCoordsSpec,
                        PRInt32          aFlags,
                        const char* aMessageName) {
-  nsIDocument* doc = aContent->OwnerDoc();
+  nsIDocument* doc = aContent->GetOwnerDoc();
 
   nsContentUtils::ReportToConsole(
      nsContentUtils::eLAYOUT_PROPERTIES,

@@ -87,7 +87,7 @@ public:
   nsLoadBlockingPLDOMEvent(nsINode *aEventNode, const nsAString& aEventType,
                            bool aBubbles, bool aDispatchChromeOnly)
     : nsPLDOMEvent(aEventNode, aEventType, aBubbles, aDispatchChromeOnly),
-      mBlockedDoc(aEventNode->OwnerDoc())
+      mBlockedDoc(aEventNode->GetOwnerDoc())
   {
     if (mBlockedDoc) {
       mBlockedDoc->BlockOnload();
@@ -96,7 +96,7 @@ public:
 
   nsLoadBlockingPLDOMEvent(nsINode *aEventNode, nsIDOMEvent *aEvent)
     : nsPLDOMEvent(aEventNode, aEvent),
-      mBlockedDoc(aEventNode->OwnerDoc())
+      mBlockedDoc(aEventNode->GetOwnerDoc())
   {
     if (mBlockedDoc) {
       mBlockedDoc->BlockOnload();

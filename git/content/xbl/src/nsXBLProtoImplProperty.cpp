@@ -157,10 +157,10 @@ nsXBLProtoImplProperty::InstallMember(nsIScriptContext* aContext,
                   "Should not be installing an uncompiled property");
   JSContext* cx = aContext->GetNativeContext();
 
-  nsIDocument *ownerDoc = aBoundElement->OwnerDoc();
+  nsIDocument *ownerDoc = aBoundElement->GetOwnerDoc();
   nsIScriptGlobalObject *sgo;
 
-  if (!(sgo = ownerDoc->GetScopeObject())) {
+  if (!ownerDoc || !(sgo = ownerDoc->GetScopeObject())) {
     return NS_ERROR_UNEXPECTED;
   }
 

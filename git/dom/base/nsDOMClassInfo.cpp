@@ -7255,7 +7255,17 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
   // principal of globalObj (i.e. the principal of the document that's being
   // loaded) and not the principal of the document that's being unloaded.
   // See http://bugzilla.mozilla.org/show_bug.cgi?id=227417
-  nsIDocument* doc = node->OwnerDoc();
+  nsIDocument* doc = node->GetOwnerDoc();
+
+  if (!doc) {
+    // No document reachable from nativeObj, use the global object
+    // that was passed to this method.
+
+    *parentObj = globalObj;
+
+    return node->IsInNativeAnonymousSubtree() ?
+      NS_SUCCESS_CHROME_ACCESS_ONLY : NS_OK;
+  }
 
   // If we have a document, make sure one of these is true
   // (1) it has a script handling object,
@@ -7487,7 +7497,7 @@ nsElementSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 #endif
 
   nsIDocument *doc = element->HasFlag(NODE_FORCE_XBL_BINDINGS) ?
-                     element->OwnerDoc() :
+                     element->GetOwnerDoc() :
                      element->GetCurrentDoc();
 
   if (!doc) {
@@ -7533,7 +7543,7 @@ nsElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
   nsIDocument* doc;
   if (element->HasFlag(NODE_FORCE_XBL_BINDINGS)) {
-    doc = element->OwnerDoc();
+    doc = element->GetOwnerDoc();
   }
   else {
     doc = element->GetCurrentDoc();
@@ -7608,7 +7618,11 @@ nsElementSH::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   nsCOMPtr<nsIContent> content(do_QueryWrappedNative(wrapper, obj));
   NS_ENSURE_TRUE(content, NS_ERROR_UNEXPECTED);
 
-  nsIDocument* doc = content->OwnerDoc();
+  nsIDocument* doc = content->GetOwnerDoc();
+  if (!doc) {
+    // Nothing else to do here
+    return NS_OK;
+  }
 
   nsRefPtr<nsXBLBinding> binding = doc->BindingManager()->GetBinding(content);
   if (!binding) {
@@ -8145,7 +8159,8 @@ nsDOMStringMapSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 
   nsDOMStringMap* dataset = static_cast<nsDOMStringMap*>(nativeObj);
 
-  nsIDocument* document = dataset->GetElement()->OwnerDoc();
+  nsIDocument* document = dataset->GetElement()->GetOwnerDoc();
+  NS_ENSURE_TRUE(document, NS_OK);
 
   nsCOMPtr<nsIScriptGlobalObject> sgo =
       do_GetInterface(document->GetScopeObject());

@@ -199,7 +199,10 @@ public:
       return NS_ERROR_NULL_POINTER;
     }
 
-    nsIDocument* document = mElement->OwnerDoc();
+    nsIDocument* document = mElement->GetOwnerDoc();
+    if (!document) {
+      return NS_OK;
+    }
 
     nsPIDOMWindow* window = document->GetWindow();
     if (!window) {
@@ -224,7 +227,7 @@ public:
 
     // If something is focused in the same document, ignore autofocus.
     if (!fm->GetFocusedContent() ||
-        fm->GetFocusedContent()->OwnerDoc() != document) {
+        fm->GetFocusedContent()->GetOwnerDoc() != document) {
       return mElement->Focus();
     }
 
@@ -674,7 +677,10 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
 {
   aInnerHTML.Truncate();
 
-  nsIDocument* doc = OwnerDoc();
+  nsIDocument* doc = GetOwnerDoc();
+  if (!doc) {
+    return NS_OK; // We rely on the document for doing HTML conversion
+  }
 
   nsresult rv = NS_OK;
 
@@ -742,7 +748,8 @@ nsGenericHTMLElement::FireMutationEventsForDirectParsing(nsIDocument* aDoc,
 nsresult
 nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
 {
-  nsIDocument* doc = OwnerDoc();
+  nsIDocument* doc = GetOwnerDoc();
+  NS_ENSURE_STATE(doc);
 
   nsresult rv = NS_OK;
 
@@ -827,7 +834,8 @@ nsGenericHTMLElement::InsertAdjacentHTML(const nsAString& aPosition,
     destination = this;
   }
 
-  nsIDocument* doc = OwnerDoc();
+  nsIDocument* doc = GetOwnerDoc();
+  NS_ENSURE_STATE(doc);
 
   // Needed when insertAdjacentHTML is used in combination with contenteditable
   mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, true);
@@ -950,7 +958,7 @@ nsGenericHTMLElement::GetSpellcheck(bool* aSpellcheck)
   }
 
   // Is this a chrome element?
-  if (nsContentUtils::IsChromeDoc(OwnerDoc())) {
+  if (nsContentUtils::IsChromeDoc(GetOwnerDoc())) {
     return NS_OK;                       // Not spellchecked by default
   }
 
@@ -1256,7 +1264,7 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName,
     // normal.
     // XXXbz sXBL/XBL2 issue: should we instead use GetCurrentDoc() here,
     // override BindToTree for those classes and munge event listeners there?
-    nsIDocument *document = OwnerDoc();
+    nsIDocument *document = GetOwnerDoc();
 
     // FIXME (https://bugzilla.mozilla.org/show_bug.cgi?id=431767)
     // nsDocument::GetInnerWindow can return an outer window in some cases,
@@ -1264,7 +1272,8 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName,
     // bail if it does.  See similar code in nsHTMLBodyElement and
     // nsHTMLFramesetElement
     *aDefer = false;
-    if ((win = document->GetInnerWindow()) && win->IsInnerWindow()) {
+    if (document &&
+        (win = document->GetInnerWindow()) && win->IsInnerWindow()) {
       nsCOMPtr<nsIDOMEventTarget> piTarget(do_QueryInterface(win));
 
       return piTarget->GetListenerManager(true);
@@ -1369,7 +1378,12 @@ nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
 void
 nsGenericHTMLElement::GetBaseTarget(nsAString& aBaseTarget) const
 {
-  OwnerDoc()->GetBaseTarget(aBaseTarget);
+  nsIDocument* ownerDoc = GetOwnerDoc();
+  if (ownerDoc) {
+    ownerDoc->GetBaseTarget(aBaseTarget);
+  } else {
+    aBaseTarget.Truncate();
+  }
 }
 
 //----------------------------------------------------------------------
@@ -2328,7 +2342,7 @@ nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsIURI** aU
       nsCOMPtr<nsIURI> baseAttrURI;
       nsresult rv =
         nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(baseAttrURI),
-                                                  baseAttrValue, OwnerDoc(),
+                                                  baseAttrValue, GetOwnerDoc(),
                                                   baseURI);
       if (NS_FAILED(rv)) {
         return true;
@@ -2341,7 +2355,7 @@ nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsIURI** aU
   // return true, and *aURI will be null.
   nsContentUtils::NewURIWithDocumentCharset(aURI,
                                             attr->GetStringValue(),
-                                            OwnerDoc(), baseURI);
+                                            GetOwnerDoc(), baseURI);
   return true;
 }
 
@@ -2354,7 +2368,7 @@ nsGenericHTMLElement::GetURIListAttr(nsIAtom* aAttr, nsAString& aResult)
   if (!GetAttr(kNameSpaceID_None, aAttr, value))
     return NS_OK;
 
-  nsIDocument* doc = OwnerDoc(); 
+  nsIDocument* doc = GetOwnerDoc(); 
   nsCOMPtr<nsIURI> baseURI = GetBaseURI();
 
   // Value contains relative URIs split on spaces (U+0020)
@@ -2959,7 +2973,7 @@ nsGenericHTMLFormElement::AddFormIdObserver()
                                 "we should be in a document!");
 
   nsAutoString formId;
-  nsIDocument* doc = OwnerDoc();
+  nsIDocument* doc = GetOwnerDoc();
   GetAttr(kNameSpaceID_None, nsGkAtoms::form, formId);
   NS_ASSERTION(!formId.IsEmpty(),
                "@form value should not be the empty string!");
@@ -2972,7 +2986,7 @@ void
 nsGenericHTMLFormElement::RemoveFormIdObserver()
 {
   /**
-   * We are using OwnerDoc() because we don't really care about having the
+   * We are using GetOwnerDoc() because we don't really care about having the
    * element actually being in the tree. If it is not and @form value changes,
    * this method will be called for nothing but removing an observer which does
    * not exist doesn't cost so much (no entry in the hash table) so having a
@@ -2980,7 +2994,7 @@ nsGenericHTMLFormElement::RemoveFormIdObserver()
    * complex for nothing.
    */
 
-  nsIDocument* doc = OwnerDoc();
+  nsIDocument* doc = GetOwnerDoc();
 
   // At this point, we may not have a document anymore. In that case, we can't
   // remove the observer. The document did that for us.
@@ -3351,7 +3365,7 @@ nsGenericHTMLFrameElement::CopyInnerTo(nsGenericElement* aDest) const
   nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsIDocument* doc = aDest->OwnerDoc();
+  nsIDocument* doc = aDest->GetOwnerDoc();
   if (doc->IsStaticDocument() && mFrameLoader) {
     nsGenericHTMLFrameElement* dest =
       static_cast<nsGenericHTMLFrameElement*>(aDest);
@@ -3412,7 +3426,8 @@ nsresult nsGenericHTMLElement::MozRequestFullScreen()
     return NS_OK;
   }
 
-  nsIDocument* doc = OwnerDoc();
+  nsIDocument* doc = GetOwnerDoc();
+  NS_ENSURE_STATE(doc);
   nsCOMPtr<nsIDOMDocument> domDocument(do_QueryInterface(doc));
   NS_ENSURE_STATE(domDocument);
   bool fullScreenEnabled;

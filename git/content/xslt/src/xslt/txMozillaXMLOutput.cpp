@@ -117,8 +117,13 @@ txMozillaXMLOutput::txMozillaXMLOutput(txOutputFormat* aFormat,
     mOutputFormat.setFromDefaults();
 
     mCurrentNode = do_QueryInterface(aFragment);
-    mDocument = mCurrentNode->OwnerDoc();
-    mNodeInfoManager = mDocument->NodeInfoManager();
+    mDocument = mCurrentNode->GetOwnerDoc();
+    if (mDocument) {
+      mNodeInfoManager = mDocument->NodeInfoManager();
+    }
+    else {
+      mCurrentNode = nsnull;
+    }
 }
 
 txMozillaXMLOutput::~txMozillaXMLOutput()

@@ -2052,7 +2052,10 @@ nsJSNPRuntime::OnPluginDestroy(NPP npp)
     return;
   }
 
-  nsIDocument* doc = content->OwnerDoc();
+  nsIDocument* doc = content->GetOwnerDoc();
+  if (!doc) {
+    return;
+  }
 
   nsIScriptGlobalObject* sgo = doc->GetScriptGlobalObject();
   if (!sgo) {

@@ -1883,7 +1883,7 @@ NS_NewPluginDocument(nsIDocument** aInstancePtrResult);
 inline nsIDocument*
 nsINode::GetOwnerDocument() const
 {
-  nsIDocument* ownerDoc = OwnerDoc();
+  nsIDocument* ownerDoc = GetOwnerDoc();
 
   return ownerDoc != this ? ownerDoc : nsnull;
 }

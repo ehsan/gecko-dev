@@ -610,7 +610,8 @@ protected:
   nsIPresShell *GetPresShell() {
     nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
     if (content) {
-      return content->OwnerDoc()->GetShell();
+      nsIDocument* ownerDoc = content->GetOwnerDoc();
+      return ownerDoc ? ownerDoc->GetShell() : nsnull;
     }
     if (mDocShell) {
       nsCOMPtr<nsIPresShell> shell;
@@ -1065,7 +1066,7 @@ nsCanvasRenderingContext2DAzure::SetStyleFromStringOrInterface(const nsAString& 
 
   if (!aStr.IsVoid()) {
     nsIDocument* document = mCanvasElement ?
-                            HTMLCanvasElement()->OwnerDoc() : nsnull;
+                            HTMLCanvasElement()->GetOwnerDoc() : nsnull;
 
     // Pass the CSS Loader object to the parser, to allow parser error
     // reports to include the outer window ID.
@@ -1102,7 +1103,7 @@ nsCanvasRenderingContext2DAzure::SetStyleFromStringOrInterface(const nsAString& 
     EmptyString(), 0, 0,
     nsIScriptError::warningFlag,
     "Canvas",
-    mCanvasElement ? HTMLCanvasElement()->OwnerDoc() : nsnull);
+    mCanvasElement ? HTMLCanvasElement()->GetOwnerDoc() : nsnull);
 
   return NS_OK;
 }
@@ -1240,7 +1241,7 @@ nsCanvasRenderingContext2DAzure::SetDimensions(PRInt32 width, PRInt32 height)
     nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
     nsIDocument* ownerDoc = nsnull;
     if (content) {
-      ownerDoc = content->OwnerDoc();
+      ownerDoc = content->GetOwnerDoc();
     }
 
     nsRefPtr<LayerManager> layerManager = nsnull;
@@ -2019,7 +2020,7 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::SetShadowColor(const nsAString& colorstr)
 {
   nsIDocument* document = mCanvasElement ?
-                          HTMLCanvasElement()->OwnerDoc() : nsnull;
+                          HTMLCanvasElement()->GetOwnerDoc() : nsnull;
 
   // Pass the CSS Loader object to the parser, to allow parser error reports
   // to include the outer window ID.
@@ -2674,7 +2675,7 @@ CreateFontStyleRule(const nsAString& aFont,
   bool changed;
 
   nsIPrincipal* principal = aNode->NodePrincipal();
-  nsIDocument* document = aNode->OwnerDoc();
+  nsIDocument* document = aNode->GetOwnerDoc();
 
   nsIURI* docURL = document->GetDocumentURI();
   nsIURI* baseURL = document->GetDocBaseURI();
@@ -3904,7 +3905,7 @@ nsCanvasRenderingContext2DAzure::DrawWindow(nsIDOMWindow* aWindow, float aX, flo
   nscolor bgColor;
 
   nsIDocument* elementDoc = mCanvasElement ?
-                            HTMLCanvasElement()->OwnerDoc() : nsnull;
+                            HTMLCanvasElement()->GetOwnerDoc() : nsnull;
 
   // Pass the CSS Loader object to the parser, to allow parser error reports
   // to include the outer window ID.

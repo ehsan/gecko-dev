@@ -4715,7 +4715,7 @@ nsCSSFrameConstructor::FindSVGData(Element* aElement,
   if (parentContent) {
     PRInt32 parentNSID;
     nsIAtom* parentTag =
-      parentContent->OwnerDoc()->BindingManager()->
+      parentContent->GetOwnerDoc()->BindingManager()->
         ResolveTag(aParentFrame->GetContent(), &parentNSID);
 
     // It's not clear whether the SVG spec intends to allow any SVG

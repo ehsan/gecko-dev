@@ -133,7 +133,7 @@ nsContentPolicy::CheckPolicy(CPMethod          policyMethod,
         nsCOMPtr<nsIDocument> doc;
         nsCOMPtr<nsIContent> node = do_QueryInterface(requestingContext);
         if (node) {
-            doc = node->OwnerDoc();
+            doc = node->GetOwnerDoc();
         }
         if (!doc) {
             doc = do_QueryInterface(requestingContext);

@@ -123,9 +123,9 @@ nsDOMCSSAttributeDeclaration::DocToUpdate()
                                      nsIDOMMutationEvent::MODIFICATION);
   }
  
-  // We need OwnerDoc() rather than GetCurrentDoc() because it might
+  // We need GetOwnerDoc() rather than GetCurrentDoc() because it might
   // be the BeginUpdate call that inserts mElement into the document.
-  return mElement->OwnerDoc();
+  return mElement->GetOwnerDoc();
 }
 
 css::Declaration*
@@ -175,7 +175,13 @@ nsDOMCSSAttributeDeclaration::GetCSSParsingEnvironment(CSSParsingEnvironment& aC
 {
   NS_ASSERTION(mElement, "Something is severely broken -- there should be an Element here!");
 
-  nsIDocument* doc = mElement->OwnerDoc();
+  nsIDocument* doc = mElement->GetOwnerDoc();
+  if (!doc) {
+    // document has been destroyed
+    aCSSParseEnv.mPrincipal = nsnull;
+    return;
+  }
+
   aCSSParseEnv.mSheetURI = doc->GetDocumentURI();
   aCSSParseEnv.mBaseURI = mElement->GetBaseURI();
   aCSSParseEnv.mPrincipal = mElement->NodePrincipal();
