@@ -206,8 +206,7 @@ BluetoothDevice::GetUuids(JSContext* aCx, ErrorResult& aRv)
     return JS::NullValue();
   }
 
-  JS::ExposeObjectToActiveJS(mJsUuids);
-  return JS::ObjectValue(*mJsUuids);
+  return JS::ObjectValue(*xpc_UnmarkGrayObject(mJsUuids));
 }
 
 JS::Value
@@ -219,8 +218,7 @@ BluetoothDevice::GetServices(JSContext* aCx, ErrorResult& aRv)
     return JS::Value(JSVAL_NULL);
   }
 
-  JS::ExposeObjectToActiveJS(mJsServices);
-  return JS::ObjectValue(*mJsServices);
+  return JS::ObjectValue(*xpc_UnmarkGrayObject(mJsServices));
 }
 
 JSObject*

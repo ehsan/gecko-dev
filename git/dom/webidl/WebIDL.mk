@@ -69,7 +69,6 @@ webidl_files = \
   DocumentType.webidl \
   DOMCursor.webidl \
   DOMError.webidl \
-  DOMException.webidl \
   DOMImplementation.webidl \
   DOMMMIError.webidl \
   DOMParser.webidl \

@@ -9,6 +9,9 @@ DOMCI_CLASS(Location)
 DOMCI_CLASS(DOMPrototype)
 DOMCI_CLASS(DOMConstructor)
 
+// Core classes
+DOMCI_CLASS(DOMException)
+
 DOMCI_CLASS(DeviceAcceleration)
 DOMCI_CLASS(DeviceRotationRate)
 

@@ -451,7 +451,6 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
 
     let checkbox = document.createElement("checkbox");
     checkbox.setAttribute("checked", "true");
-    checkbox.className = "dbg-breakpoint-checkbox";
 
     let lineNumberNode = document.createElement("label");
     lineNumberNode.className = "plain dbg-breakpoint-line";
