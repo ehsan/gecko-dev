@@ -28,14 +28,6 @@ using namespace mozilla::dom;
 class Agent : public nsIAudioChannelAgentCallback,
               public nsSupportsWeakReference
 {
-protected:
-  virtual ~Agent()
-  {
-    if (mRegistered) {
-      StopPlaying();
-    }
-  }
-
 public:
   NS_DECL_ISUPPORTS
 
@@ -46,6 +38,13 @@ public:
   , mCanPlay(AUDIO_CHANNEL_STATE_MUTED)
   {
     mAgent = do_CreateInstance("@mozilla.org/audiochannelagent;1");
+  }
+
+  virtual ~Agent()
+  {
+    if (mRegistered) {
+      StopPlaying();
+    }
   }
 
   nsresult Init(bool video=false)

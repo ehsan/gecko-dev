@@ -50,7 +50,6 @@ public:
     nsresult SetOutputDocument(nsIDocument* aDocument);
 
 private:
-    ~txTransformNotifier();
     void SignalTransformEnd(nsresult aResult = NS_OK);
 
     nsCOMPtr<nsIDocument> mDocument;

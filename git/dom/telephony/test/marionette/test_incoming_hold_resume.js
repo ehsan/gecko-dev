@@ -21,13 +21,14 @@ function simulateIncoming() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incomingCall);
 
-    emulator.runWithCallback("gsm list", function(result) {
+    emulator.run("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + number + " : incoming");
+      is(result[1], "OK");
       answer();
     });
   };
-  emulator.runWithCallback("gsm call " + number);
+  emulator.run("gsm call " + number);
 }
 
 function answer() {
@@ -49,9 +50,10 @@ function answer() {
 
     is(incomingCall, telephony.active);
 
-    emulator.runWithCallback("gsm list", function(result) {
+    emulator.run("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + number + " : active");
+      is(result[1], "OK");
       hold();
     });
   };
@@ -79,9 +81,10 @@ function hold() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incomingCall);
 
-    emulator.runWithCallback("gsm list", function(result) {
+    emulator.run("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + number + " : held");
+      is(result[1], "OK");
       // Wait on hold for a couple of seconds
       log("Pausing 2 seconds while on hold");
       setTimeout(resume, 2000);
@@ -111,9 +114,10 @@ function resume() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incomingCall);
 
-    emulator.runWithCallback("gsm list", function(result) {
+    emulator.run("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + number + " : active");
+      is(result[1], "OK");
       hangUp();
     });
   };
@@ -140,8 +144,9 @@ function hangUp() {
     is(telephony.active, null);
     is(telephony.calls.length, 0);
 
-    emulator.runWithCallback("gsm list", function(result) {
+    emulator.run("gsm list", function(result) {
       log("Call list is now: " + result);
+      is(result[0], "OK");
       cleanUp();
     });
   };

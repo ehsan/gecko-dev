@@ -21,9 +21,7 @@ g.eval("Number.prototype.f = f; v = 3.14; v.f();");
 g.eval("f.call(v);");
 g.eval("String.prototype.f = f; v = 'hello'; v.f();");
 g.eval("f.call(v);");
-g.eval("Symbol.prototype.f = f; v = Symbol('world'); v.f();");
-g.eval("f.call(v);");
 g.eval("v = undefined; f.call(v);");
 g.eval("v = null; f.call(v);");
 
-assertEq(hits, 10);
+assertEq(hits, 8);

@@ -24,8 +24,6 @@ public:
   NS_DECL_NSIPKCS11SLOT
 
   nsPKCS11Slot(PK11SlotInfo *slot);
-
-protected:
   virtual ~nsPKCS11Slot();
 
 private:
@@ -47,8 +45,6 @@ public:
   NS_DECL_NSIPKCS11MODULE
 
   nsPKCS11Module(SECMODModule *module);
-
-protected:
   virtual ~nsPKCS11Module();
 
 private:
@@ -67,8 +63,6 @@ public:
   NS_DECL_NSICRYPTOFIPSINFO
 
   nsPKCS11ModuleDB();
-
-protected:
   virtual ~nsPKCS11ModuleDB();
   /* additional members */
 };

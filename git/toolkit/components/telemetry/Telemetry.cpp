@@ -557,6 +557,8 @@ class TelemetryImpl MOZ_FINAL
   NS_DECL_NSIMEMORYREPORTER
 
 public:
+  ~TelemetryImpl();
+
   void InitMemoryReporter();
 
   static bool CanRecord();
@@ -585,7 +587,6 @@ public:
 
 private:
   TelemetryImpl();
-  ~TelemetryImpl();
 
   static nsCString SanitizeSQL(const nsACString& sql);
 

@@ -46,10 +46,11 @@ function dial() {
 }
 
 function checkCallList() {
-  emulator.runWithCallback("gsm list", function(result) {
+  emulator.run("gsm list", function(result) {
     log("Call list is now: " + result);
     if (((result[0] == "outbound to  " + number + " : unknown") ||
-         (result[0] == "outbound to  " + number + " : dialing"))) {
+         (result[0] == "outbound to  " + number + " : dialing")) &&
+        (result[1] == "OK")) {
       answer();
     } else {
       window.setTimeout(checkCallList, 100);
@@ -69,19 +70,20 @@ function answer() {
 
     is(outgoing, telephony.active);
 
-    emulator.runWithCallback("gsm list", function(result) {
+    emulator.run("gsm list", function(result) {
       log("Call list (after 'connected' event) is now: " + result);
       is(result[0], "outbound to  " + number + " : active");
+      is(result[1], "OK");
       hangUp();
     });
   };
-  emulator.runWithCallback("gsm accept " + number);
+  emulator.run("gsm accept " + number);
 }
 
 function hangUp() {
   log("Hanging up the outgoing call.");
 
-  emulator.runWithCallback("gsm cancel " + number);
+  emulator.run("gsm cancel " + number);
 }
 
 function cleanUp() {

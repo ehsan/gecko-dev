@@ -24,6 +24,7 @@ class nsImageBoxListener : public imgINotificationObserver,
 {
 public:
   nsImageBoxListener();
+  virtual ~nsImageBoxListener();
 
   NS_DECL_ISUPPORTS
   NS_DECL_IMGINOTIFICATIONOBSERVER
@@ -32,8 +33,6 @@ public:
   void SetFrame(nsImageBoxFrame *frame) { mFrame = frame; }
 
 private:
-  virtual ~nsImageBoxListener();
-
   nsImageBoxFrame *mFrame;
 };
 

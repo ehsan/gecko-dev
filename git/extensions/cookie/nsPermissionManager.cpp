@@ -183,8 +183,6 @@ GetNextSubDomainForHost(const nsACString& aHost)
 }
 
 class AppClearDataObserver MOZ_FINAL : public nsIObserver {
-  ~AppClearDataObserver() {}
-
 public:
   NS_DECL_ISUPPORTS
 
@@ -246,8 +244,6 @@ nsPermissionManager::PermissionKey::PermissionKey(nsIPrincipal* aPrincipal)
  */
 class CloseDatabaseListener MOZ_FINAL : public mozIStorageCompletionCallback
 {
-  ~CloseDatabaseListener() {}
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGECOMPLETIONCALLBACK
@@ -297,8 +293,6 @@ CloseDatabaseListener::Complete(nsresult, nsISupports*)
  */
 class DeleteFromMozHostListener MOZ_FINAL : public mozIStorageStatementCallback
 {
-  ~DeleteFromMozHostListener() {}
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGESTATEMENTCALLBACK

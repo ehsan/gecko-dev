@@ -134,7 +134,6 @@ public:
   nsresult Clone(nsNavHistoryQueryOptions **aResult);
 
 private:
-  ~nsNavHistoryQueryOptions() {}
   nsNavHistoryQueryOptions(const nsNavHistoryQueryOptions& other) {} // no copy
 
   // IF YOU ADD MORE ITEMS:

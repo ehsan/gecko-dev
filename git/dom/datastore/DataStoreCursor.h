@@ -49,7 +49,6 @@ public:
   void SetDataStoreCursorImpl(DataStoreCursorImpl& aCursor);
 
 private:
-  ~DataStoreCursor() {}
   nsRefPtr<DataStoreCursorImpl> mCursor;
 };
 

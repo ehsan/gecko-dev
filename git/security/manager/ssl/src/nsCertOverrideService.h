@@ -136,6 +136,7 @@ public:
   NS_DECL_NSIOBSERVER
 
   nsCertOverrideService();
+  ~nsCertOverrideService();
 
   nsresult Init();
   void RemoveAllTemporaryOverrides();
@@ -156,8 +157,6 @@ public:
     static void GetHostWithPort(const nsACString & aHostName, int32_t aPort, nsACString& _retval);
 
 protected:
-    ~nsCertOverrideService();
-
     mozilla::ReentrantMonitor monitor;
     nsCOMPtr<nsIFile> mSettingsFile;
     nsTHashtable<nsCertOverrideEntry> mSettingsTable;

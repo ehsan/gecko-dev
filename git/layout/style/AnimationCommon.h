@@ -10,9 +10,9 @@
 #include "nsIStyleRule.h"
 #include "nsRefreshDriver.h"
 #include "prclist.h"
+#include "nsStyleAnimation.h"
 #include "nsCSSProperty.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/StyleAnimationValue.h"
 #include "mozilla/dom/Element.h"
 #include "nsSMILKeySpline.h"
 #include "nsStyleStruct.h"
@@ -27,9 +27,6 @@ struct ElementPropertyTransition;
 
 
 namespace mozilla {
-
-class StyleAnimationValue;
-
 namespace css {
 
 bool IsGeometricProperty(nsCSSProperty aProperty);
@@ -40,6 +37,7 @@ class CommonAnimationManager : public nsIStyleRuleProcessor,
                                public nsARefreshObserver {
 public:
   CommonAnimationManager(nsPresContext *aPresContext);
+  virtual ~CommonAnimationManager();
 
   // nsISupports
   NS_DECL_ISUPPORTS
@@ -69,10 +67,8 @@ public:
   static bool ExtractComputedValueForTransition(
                   nsCSSProperty aProperty,
                   nsStyleContext* aStyleContext,
-                  mozilla::StyleAnimationValue& aComputedValue);
+                  nsStyleAnimation::Value& aComputedValue);
 protected:
-  virtual ~CommonAnimationManager();
-
   friend struct CommonElementAnimationData; // for ElementDataRemoved
 
   virtual void AddElementData(CommonElementAnimationData* aData) = 0;
@@ -163,7 +159,7 @@ class_::UpdateAllThrottledStylesInternal()                                     \
 }
 
 /**
- * A style rule that maps property-StyleAnimationValue pairs.
+ * A style rule that maps property-nsStyleAnimation::Value pairs.
  */
 class AnimValuesStyleRule MOZ_FINAL : public nsIStyleRule
 {
@@ -177,15 +173,14 @@ public:
   virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
 #endif
 
-  void AddValue(nsCSSProperty aProperty,
-                mozilla::StyleAnimationValue &aStartValue)
+  void AddValue(nsCSSProperty aProperty, nsStyleAnimation::Value &aStartValue)
   {
     PropertyValuePair v = { aProperty, aStartValue };
     mPropertyValuePairs.AppendElement(v);
   }
 
   // Caller must fill in returned value.
-  mozilla::StyleAnimationValue* AddEmptyValue(nsCSSProperty aProperty)
+  nsStyleAnimation::Value* AddEmptyValue(nsCSSProperty aProperty)
   {
     PropertyValuePair *p = mPropertyValuePairs.AppendElement();
     p->mProperty = aProperty;
@@ -194,12 +189,10 @@ public:
 
   struct PropertyValuePair {
     nsCSSProperty mProperty;
-    mozilla::StyleAnimationValue mValue;
+    nsStyleAnimation::Value mValue;
   };
 
 private:
-  ~AnimValuesStyleRule() {}
-
   InfallibleTArray<PropertyValuePair> mPropertyValuePairs;
 };
 
@@ -225,7 +218,7 @@ private:
 struct AnimationPropertySegment
 {
   float mFromKey, mToKey;
-  mozilla::StyleAnimationValue mFromValue, mToValue;
+  nsStyleAnimation::Value mFromValue, mToValue;
   mozilla::css::ComputedTimingFunction mTimingFunction;
 };
 
@@ -439,9 +432,6 @@ struct CommonElementAnimationData : public PRCList
     // This will call our destructor.
     mElement->DeleteProperty(mElementProperty);
   }
-
-  static void PropertyDtor(void *aObject, nsIAtom *aPropertyName,
-                           void *aPropertyValue, void *aData);
 
   // This updates mNeedsRefreshes so the caller may need to check
   // for changes to values (for example, nsAnimationManager provides

@@ -52,9 +52,6 @@ public:
 
 class nsSplitterFrameInner : public nsIDOMEventListener
 {
-protected:
-  virtual ~nsSplitterFrameInner();
-
 public:
 
   NS_DECL_ISUPPORTS
@@ -65,6 +62,7 @@ public:
     mOuter = aSplitter;
     mPressed = false;
   }
+  virtual ~nsSplitterFrameInner();
 
   void Disconnect() { mOuter = nullptr; }
 

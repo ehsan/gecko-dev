@@ -24,7 +24,6 @@ namespace downloads {
  */
 class GenerateGUIDFunction MOZ_FINAL : public mozIStorageFunction
 {
-  ~GenerateGUIDFunction() {}
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEFUNCTION

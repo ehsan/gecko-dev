@@ -582,8 +582,6 @@ static int64_t gSurfaceMemoryUsed[size_t(gfxSurfaceType::Max)] = { 0 };
 
 class SurfaceMemoryReporter MOZ_FINAL : public nsIMemoryReporter
 {
-    ~SurfaceMemoryReporter() {}
-
 public:
     NS_DECL_ISUPPORTS
 

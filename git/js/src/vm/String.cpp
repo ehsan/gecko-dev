@@ -64,9 +64,8 @@ JSString::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
 
 #ifdef DEBUG
 
-template <typename CharT>
-/*static */ void
-JSString::dumpChars(const CharT *s, size_t n, FILE *fp)
+void
+JSString::dumpChars(const jschar *s, size_t n)
 {
     if (n == SIZE_MAX) {
         n = 0;
@@ -74,59 +73,29 @@ JSString::dumpChars(const CharT *s, size_t n, FILE *fp)
             n++;
     }
 
-    fputc('"', fp);
+    fputc('"', stderr);
     for (size_t i = 0; i < n; i++) {
-        jschar c = s[i];
-        if (c == '\n')
-            fprintf(fp, "\\n");
-        else if (c == '\t')
-            fprintf(fp, "\\t");
-        else if (c >= 32 && c < 127)
-            fputc(s[i], fp);
-        else if (c <= 255)
-            fprintf(fp, "\\x%02x", unsigned(c));
+        if (s[i] == '\n')
+            fprintf(stderr, "\\n");
+        else if (s[i] == '\t')
+            fprintf(stderr, "\\t");
+        else if (s[i] >= 32 && s[i] < 127)
+            fputc(s[i], stderr);
+        else if (s[i] <= 255)
+            fprintf(stderr, "\\x%02x", (unsigned int) s[i]);
         else
-            fprintf(fp, "\\u%04x", unsigned(c));
+            fprintf(stderr, "\\u%04x", (unsigned int) s[i]);
     }
-    fputc('"', fp);
-}
-
-template void
-JSString::dumpChars(const Latin1Char *s, size_t n, FILE *fp);
-
-template void
-JSString::dumpChars(const jschar *s, size_t n, FILE *fp);
-
-void
-JSString::dumpCharsNoNewline(FILE *fp)
-{
-    if (JSLinearString *linear = ensureLinear(nullptr)) {
-        AutoCheckCannotGC nogc;
-        if (hasLatin1Chars())
-            dumpChars(linear->latin1Chars(nogc), length(), fp);
-        else
-            dumpChars(linear->twoByteChars(nogc), length(), fp);
-    } else {
-        fprintf(fp, "(oom in JSString::dumpCharsNoNewline)");
-    }
+    fputc('"', stderr);
 }
 
 void
 JSString::dump()
 {
-    if (JSLinearString *linear = ensureLinear(nullptr)) {
-        AutoCheckCannotGC nogc;
-        if (hasLatin1Chars()) {
-            const Latin1Char *chars = linear->latin1Chars(nogc);
-            fprintf(stderr, "JSString* (%p) = Latin1Char * (%p) = ", (void *) this,
-                    (void *) chars);
-            dumpChars(chars, length(), stderr);
-        } else {
-            const jschar *chars = linear->twoByteChars(nogc);
-            fprintf(stderr, "JSString* (%p) = jschar * (%p) = ", (void *) this,
-                    (void *) chars);
-            dumpChars(chars, length(), stderr);
-        }
+    if (const jschar *chars = getChars(nullptr)) {
+        fprintf(stderr, "JSString* (%p) = jschar * (%p) = ",
+                (void *) this, (void *) chars);
+        dumpChars(chars, length());
     } else {
         fprintf(stderr, "(oom in JSString::dump)");
     }
@@ -201,33 +170,20 @@ AllocChars(ThreadSafeContext *maybecx, size_t length, CharT **chars, size_t *cap
 }
 
 bool
-JSRope::copyLatin1CharsZ(ThreadSafeContext *cx, ScopedJSFreePtr<Latin1Char> &out) const
+JSRope::copyNonPureChars(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
 {
-    return copyCharsInternal<Latin1Char>(cx, out, true);
+    return copyNonPureCharsInternal(cx, out, false);
 }
 
 bool
-JSRope::copyTwoByteCharsZ(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
+JSRope::copyNonPureCharsZ(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
 {
-    return copyCharsInternal<jschar>(cx, out, true);
+    return copyNonPureCharsInternal(cx, out, true);
 }
 
 bool
-JSRope::copyLatin1Chars(ThreadSafeContext *cx, ScopedJSFreePtr<Latin1Char> &out) const
-{
-    return copyCharsInternal<Latin1Char>(cx, out, false);
-}
-
-bool
-JSRope::copyTwoByteChars(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
-{
-    return copyCharsInternal<jschar>(cx, out, false);
-}
-
-template <typename CharT>
-bool
-JSRope::copyCharsInternal(ThreadSafeContext *cx, ScopedJSFreePtr<CharT> &out,
-                          bool nullTerminate) const
+JSRope::copyNonPureCharsInternal(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out,
+                                 bool nullTerminate) const
 {
     /*
      * Perform non-destructive post-order traversal of the rope, splatting
@@ -236,24 +192,25 @@ JSRope::copyCharsInternal(ThreadSafeContext *cx, ScopedJSFreePtr<CharT> &out,
 
     size_t n = length();
     if (cx)
-        out.reset(cx->pod_malloc<CharT>(n + 1));
+        out.reset(cx->pod_malloc<jschar>(n + 1));
     else
-        out.reset(js_pod_malloc<CharT>(n + 1));
+        out.reset(js_pod_malloc<jschar>(n + 1));
 
     if (!out)
         return false;
 
     Vector<const JSString *, 8, SystemAllocPolicy> nodeStack;
     const JSString *str = this;
-    CharT *pos = out;
+    jschar *pos = out;
     while (true) {
         if (str->isRope()) {
             if (!nodeStack.append(str->asRope().rightChild()))
                 return false;
             str = str->asRope().leftChild();
         } else {
-            CopyChars(pos, str->asLinear());
-            pos += str->length();
+            size_t len = str->length();
+            PodCopy(pos, str->asLinear().chars(), len);
+            pos += len;
             if (nodeStack.empty())
                 break;
             str = nodeStack.popCopy();
@@ -533,6 +490,23 @@ js::ConcatStrings<CanGC>(ThreadSafeContext *cx, HandleString left, HandleString 
 template JSString *
 js::ConcatStrings<NoGC>(ThreadSafeContext *cx, JSString *left, JSString *right);
 
+bool
+JSDependentString::copyNonPureCharsZ(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> &out) const
+{
+    JS_ASSERT(JSString::isDependent());
+
+    size_t n = length();
+    jschar *s = cx->pod_malloc<jschar>(n + 1);
+    if (!s)
+        return false;
+
+    PodCopy(s, nonInlineChars(), n);
+    s[n] = 0;
+
+    out.reset(s);
+    return true;
+}
+
 template <typename CharT>
 JSFlatString *
 JSDependentString::undependInternal(ExclusiveContext *cx)
@@ -647,30 +621,14 @@ ScopedThreadSafeStringInspector::ensureChars(ThreadSafeContext *cx, const AutoCh
             latin1Chars_ = linear->latin1Chars(nogc);
         }
     } else {
-        if (str_->isLinear()) {
-            if (str_->hasLatin1Chars()) {
-                state_ = Latin1;
-                latin1Chars_ = str_->asLinear().latin1Chars(nogc);
-            } else {
-                state_ = TwoByte;
-                twoByteChars_ = str_->asLinear().twoByteChars(nogc);
-            }
+        if (str_->hasPureChars()) {
+            state_ = TwoByte;
+            twoByteChars_ = str_->pureChars();
         } else {
-            if (str_->hasLatin1Chars()) {
-                ScopedJSFreePtr<Latin1Char> chars;
-                if (!str_->asRope().copyLatin1Chars(cx, chars))
-                    return false;
-                state_ = Latin1;
-                latin1Chars_ = chars;
-                scopedChars_ = chars.forget();
-            } else {
-                ScopedJSFreePtr<jschar> chars;
-                if (!str_->asRope().copyTwoByteChars(cx, chars))
-                    return false;
-                state_ = TwoByte;
-                twoByteChars_ = chars;
-                scopedChars_ = chars.forget();
-            }
+            if (!str_->copyNonPureChars(cx, scopedChars_))
+                return false;
+            state_ = TwoByte;
+            twoByteChars_ = scopedChars_;
         }
     }
 
@@ -772,11 +730,11 @@ StaticStrings::trace(JSTracer *trc)
         MarkPermanentAtom(trc, intStaticTable[i], "int-static-string");
 }
 
-template <typename CharT>
-/* static */ bool
-StaticStrings::isStatic(const CharT *chars, size_t length)
+bool
+StaticStrings::isStatic(JSAtom *atom)
 {
-    switch (length) {
+    const jschar *chars = atom->chars();
+    switch (atom->length()) {
       case 1:
         return chars[0] < UNIT_STATIC_LIMIT;
       case 2:
@@ -795,15 +753,6 @@ StaticStrings::isStatic(const CharT *chars, size_t length)
       default:
         return false;
     }
-}
-
-/* static */ bool
-StaticStrings::isStatic(JSAtom *atom)
-{
-    AutoCheckCannotGC nogc;
-    return atom->hasLatin1Chars()
-           ? isStatic(atom->latin1Chars(nogc), atom->length())
-           : isStatic(atom->twoByteChars(nogc), atom->length());
 }
 
 AutoStableStringChars::~AutoStableStringChars()

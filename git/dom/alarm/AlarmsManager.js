@@ -18,11 +18,13 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
 
-function AlarmsManager() {
+function AlarmsManager()
+{
   debug("Constructor");
 }
 
 AlarmsManager.prototype = {
+
   __proto__: DOMRequestIpcHelper.prototype,
 
   contractID : "@mozilla.org/alarmsManager;1",
@@ -46,7 +48,6 @@ AlarmsManager.prototype = {
     }
 
     let isIgnoreTimezone = true;
-
     switch (aRespectTimezone) {
       case "honorTimezone":
         isIgnoreTimezone = false;
@@ -62,30 +63,35 @@ AlarmsManager.prototype = {
     }
 
     let request = this.createRequest();
-    this._cpmm.sendAsyncMessage("AlarmsManager:Add",
-                                { requestId: this.getRequestId(request),
-                                  date: aDate,
-                                  ignoreTimezone: isIgnoreTimezone,
-                                  data: aData,
-                                  pageURL: this._pageURL,
-                                  manifestURL: this._manifestURL });
+    this._cpmm.sendAsyncMessage(
+      "AlarmsManager:Add",
+      { requestId: this.getRequestId(request),
+        date: aDate,
+        ignoreTimezone: isIgnoreTimezone,
+        data: aData,
+        pageURL: this._pageURL,
+        manifestURL: this._manifestURL }
+    );
     return request;
   },
 
   remove: function remove(aId) {
     debug("remove()");
 
-    this._cpmm.sendAsyncMessage("AlarmsManager:Remove",
-                                { id: aId, manifestURL: this._manifestURL });
+    this._cpmm.sendAsyncMessage(
+      "AlarmsManager:Remove",
+      { id: aId, manifestURL: this._manifestURL }
+    );
   },
 
   getAll: function getAll() {
     debug("getAll()");
 
     let request = this.createRequest();
-    this._cpmm.sendAsyncMessage("AlarmsManager:GetAll",
-                                { requestId: this.getRequestId(request),
-                                  manifestURL: this._manifestURL });
+    this._cpmm.sendAsyncMessage(
+      "AlarmsManager:GetAll",
+      { requestId: this.getRequestId(request), manifestURL: this._manifestURL }
+    );
     return request;
   },
 
@@ -109,14 +115,13 @@ AlarmsManager.prototype = {
         // We don't need to expose everything to the web content.
         let alarms = [];
         json.alarms.forEach(function trimAlarmInfo(aAlarm) {
-          let alarm = { "id": aAlarm.id,
-                        "date": aAlarm.date,
+          let alarm = { "id":              aAlarm.id,
+                        "date":            aAlarm.date,
                         "respectTimezone": aAlarm.ignoreTimezone ?
                                              "ignoreTimezone" : "honorTimezone",
-                        "data": aAlarm.data };
+                        "data":            aAlarm.data };
           alarms.push(alarm);
         });
-
         Services.DOMRequest.fireSuccess(request,
                                         Cu.cloneInto(alarms, this._window));
         break;
@@ -133,7 +138,6 @@ AlarmsManager.prototype = {
         debug("Wrong message: " + aMessage.name);
         break;
     }
-
     this.removeRequest(json.requestId);
    },
 

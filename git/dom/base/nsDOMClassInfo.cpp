@@ -1965,8 +1965,6 @@ protected:
   {
   }
 
-  ~nsDOMConstructor() {}
-
 public:
 
   static nsresult Create(const char16_t* aName,

@@ -21,7 +21,5 @@ public:
   NS_DECL_IMGITOOLS
 
   imgTools();
-
-private:
   virtual ~imgTools();
 };

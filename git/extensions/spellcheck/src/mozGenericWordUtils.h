@@ -12,13 +12,12 @@
 
 class mozGenericWordUtils : public mozISpellI18NUtil
 {
-protected:
-  virtual ~mozGenericWordUtils();
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISPELLI18NUTIL
 
   mozGenericWordUtils();
+  virtual ~mozGenericWordUtils();
 };
 
 #endif

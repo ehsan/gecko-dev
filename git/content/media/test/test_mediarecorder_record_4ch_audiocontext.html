@@ -26,7 +26,6 @@ function startTest() {
   var onstopTriggered = false;
   dest.channelCount = 4;
   var expectedMimeType = 'audio/ogg';
-  var totalBlobSize = 0;
   source.channelCountMode = 'explicit';
   source.connect(dest);
   var elem = document.createElement('audio');
@@ -50,11 +49,7 @@ function startTest() {
     SimpleTest.finish();
   };
   mMediaRecorder.ondataavailable = function (e) {
-    if (mMediaRecorder.state == 'recording') {
-      ok(e.data.size > 0, 'check blob has data');
-    }
-    totalBlobSize += e.data.size;
-    ok(totalBlobSize > 0, 'check the totalBlobSize');
+    ok(e.data.size > 0, 'check blob has data');
     is(mMediaRecorder.mimeType, expectedMimeType, 'blob should has mimetype, return ' + mMediaRecorder.mimeType);
     if (!stopTriggered) {
       mMediaRecorder.stop();

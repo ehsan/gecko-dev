@@ -54,6 +54,7 @@ class nsFontCache MOZ_FINAL : public nsIObserver
 {
 public:
     nsFontCache()   { MOZ_COUNT_CTOR(nsFontCache); }
+    ~nsFontCache()  { MOZ_COUNT_DTOR(nsFontCache); }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
@@ -71,8 +72,6 @@ public:
     void Flush();
 
 protected:
-    ~nsFontCache()  { MOZ_COUNT_DTOR(nsFontCache); }
-
     nsDeviceContext*          mContext; // owner
     nsCOMPtr<nsIAtom>         mLocaleLanguage;
     nsTArray<nsFontMetrics*>  mFontMetrics;

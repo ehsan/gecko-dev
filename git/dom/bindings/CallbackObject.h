@@ -55,6 +55,11 @@ public:
     Init(aCallback, aIncumbentGlobal);
   }
 
+  virtual ~CallbackObject()
+  {
+    DropJSObjects();
+  }
+
   JS::Handle<JSObject*> Callback() const
   {
     JS::ExposeObjectToActiveJS(mCallback);
@@ -98,11 +103,6 @@ public:
   }
 
 protected:
-  virtual ~CallbackObject()
-  {
-    DropJSObjects();
-  }
-
   explicit CallbackObject(CallbackObject* aCallbackObject)
   {
     Init(aCallbackObject->mCallback, aCallbackObject->mIncumbentGlobal);

@@ -470,8 +470,7 @@ class MochitestOptions(optparse.OptionParser):
 
         # allow relative paths
         options.xrePath = mochitest.getFullPath(options.xrePath)
-        if options.profilePath:
-            options.profilePath = mochitest.getFullPath(options.profilePath)
+        options.profilePath = mochitest.getFullPath(options.profilePath)
         options.app = mochitest.getFullPath(options.app)
         if options.dmdPath is not None:
             options.dmdPath = mochitest.getFullPath(options.dmdPath)

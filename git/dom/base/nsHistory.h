@@ -31,6 +31,7 @@ public:
 
 public:
   nsHistory(nsPIDOMWindow* aInnerWindow);
+  virtual ~nsHistory();
 
   nsPIDOMWindow* GetParentObject() const;
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
@@ -49,8 +50,6 @@ public:
                     mozilla::ErrorResult& aRv);
 
 protected:
-  virtual ~nsHistory();
-
   nsIDocShell* GetDocShell() const;
 
   void PushOrReplaceState(JSContext* aCx, JS::Handle<JS::Value> aData,

@@ -74,8 +74,6 @@ private:
   class HTMLColorRule;
   friend class HTMLColorRule;
   class HTMLColorRule MOZ_FINAL : public nsIStyleRule {
-  private:
-    ~HTMLColorRule() {}
   public:
     HTMLColorRule() {}
 
@@ -96,10 +94,9 @@ private:
   class GenericTableRule;
   friend class GenericTableRule;
   class GenericTableRule : public nsIStyleRule {
-  protected:
-    virtual ~GenericTableRule() {}
   public:
     GenericTableRule() {}
+    virtual ~GenericTableRule() {}
 
     NS_DECL_ISUPPORTS
 
@@ -133,8 +130,6 @@ public: // for mLangRuleTable structures only
   // Rule to handle xml:lang attributes, of which we have exactly one
   // per language string, maintained in mLangRuleTable.
   class LangRule MOZ_FINAL : public nsIStyleRule {
-  private:
-    ~LangRule() {}
   public:
     LangRule(const nsSubstring& aLang) : mLang(aLang) {}
 

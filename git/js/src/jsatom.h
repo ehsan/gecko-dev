@@ -181,14 +181,11 @@ extern const char * const TypeStrings[];
 /*
  * Atom tracing and garbage collection hooks.
  */
-void
+extern void
 MarkAtoms(JSTracer *trc);
 
-void
+extern void
 MarkPermanentAtoms(JSTracer *trc);
-
-void
-MarkWellKnownSymbols(JSTracer *trc);
 
 /* N.B. must correspond to boolean tagging behavior. */
 enum InternBehavior

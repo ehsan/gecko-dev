@@ -93,6 +93,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(mozHunspell, mozISpellCheckingEngine)
 
   mozHunspell();
+  virtual ~mozHunspell();
 
   nsresult Init();
 
@@ -110,7 +111,6 @@ public:
   }
 
 protected:
-  virtual ~mozHunspell();
 
   nsCOMPtr<mozIPersonalDictionary> mPersonalDictionary;
   nsCOMPtr<nsIUnicodeEncoder>      mEncoder;

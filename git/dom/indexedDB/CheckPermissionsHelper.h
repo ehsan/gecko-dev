@@ -45,8 +45,6 @@ public:
   }
 
 private:
-  ~CheckPermissionsHelper() {}
-
   nsRefPtr<OpenDatabaseHelper> mHelper;
   nsCOMPtr<nsIDOMWindow> mWindow;
   bool mPromptAllowed;

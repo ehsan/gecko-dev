@@ -1404,8 +1404,7 @@ WrapNativeParent(JSContext* cx, T* p, nsWrapperCache* cache,
   }
 
   // If useXBLScope is true, it means that the canonical reflector for this
-  // native object should live in the content XBL scope. Note that we never put
-  // anonymous content inside an add-on scope.
+  // native object should live in the XBL scope.
   if (xpc::IsInContentXBLScope(parent)) {
     return parent;
   }
@@ -1995,12 +1994,6 @@ TraceMozMapValue(T* aValue, void* aClosure)
   return PL_DHASH_NEXT;
 }
 
-template<typename T>
-void TraceMozMap(JSTracer* trc, MozMap<T>& map)
-{
-  map.EnumerateValues(TraceMozMapValue<T>, trc);
-}
-
 // sequence<MozMap>
 template<typename T>
 class SequenceTracer<MozMap<T>, false, false, false>
@@ -2117,14 +2110,19 @@ private:
 
   virtual void trace(JSTracer *trc) MOZ_OVERRIDE
   {
+    MozMap<T>* mozMap;
     if (mMozMapType == eMozMap) {
-      TraceMozMap(trc, *mMozMap);
+      mozMap = mMozMap;
     } else {
       MOZ_ASSERT(mMozMapType == eNullableMozMap);
-      if (!mNullableMozMap->IsNull()) {
-        TraceMozMap(trc, mNullableMozMap->Value());
+      if (mNullableMozMap->IsNull()) {
+        // Nothing to do
+        return;
       }
+      mozMap = &mNullableMozMap->Value();
     }
+
+    mozMap->EnumerateValues(TraceMozMapValue<T>, trc);
   }
 
   union {

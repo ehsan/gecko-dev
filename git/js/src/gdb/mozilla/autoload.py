@@ -11,7 +11,6 @@ import mozilla.prettyprinters
 import mozilla.jsid
 import mozilla.JSObject
 import mozilla.JSString
-import mozilla.JSSymbol
 import mozilla.jsval
 import mozilla.Root
 

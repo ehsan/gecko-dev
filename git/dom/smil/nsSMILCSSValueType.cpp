@@ -7,54 +7,53 @@
 
 #include "nsSMILCSSValueType.h"
 #include "nsString.h"
+#include "nsStyleAnimation.h"
 #include "nsSMILParserUtils.h"
 #include "nsSMILValue.h"
 #include "nsCSSValue.h"
 #include "nsColor.h"
 #include "nsPresContext.h"
-#include "mozilla/StyleAnimationValue.h"
 #include "mozilla/dom/Element.h"
 #include "nsDebug.h"
 #include "nsStyleUtil.h"
 #include "nsIDocument.h"
 
 using namespace mozilla::dom;
-using mozilla::StyleAnimationValue;
 
 /*static*/ nsSMILCSSValueType nsSMILCSSValueType::sSingleton;
 
 struct ValueWrapper {
-  ValueWrapper(nsCSSProperty aPropID, const StyleAnimationValue& aValue) :
+  ValueWrapper(nsCSSProperty aPropID, const nsStyleAnimation::Value& aValue) :
     mPropID(aPropID), mCSSValue(aValue) {}
 
   nsCSSProperty mPropID;
-  StyleAnimationValue mCSSValue;
+  nsStyleAnimation::Value mCSSValue;
 };
 
 // Helper Methods
 // --------------
-static const StyleAnimationValue*
-GetZeroValueForUnit(StyleAnimationValue::Unit aUnit)
+static const nsStyleAnimation::Value*
+GetZeroValueForUnit(nsStyleAnimation::Unit aUnit)
 {
-  static const StyleAnimationValue
-    sZeroCoord(0, StyleAnimationValue::CoordConstructor);
-  static const StyleAnimationValue
-    sZeroPercent(0.0f, StyleAnimationValue::PercentConstructor);
-  static const StyleAnimationValue
-    sZeroFloat(0.0f,  StyleAnimationValue::FloatConstructor);
-  static const StyleAnimationValue
-    sZeroColor(NS_RGB(0,0,0), StyleAnimationValue::ColorConstructor);
+  static const nsStyleAnimation::Value
+    sZeroCoord(0, nsStyleAnimation::Value::CoordConstructor);
+  static const nsStyleAnimation::Value
+    sZeroPercent(0.0f, nsStyleAnimation::Value::PercentConstructor);
+  static const nsStyleAnimation::Value
+    sZeroFloat(0.0f,  nsStyleAnimation::Value::FloatConstructor);
+  static const nsStyleAnimation::Value
+    sZeroColor(NS_RGB(0,0,0), nsStyleAnimation::Value::ColorConstructor);
 
-  NS_ABORT_IF_FALSE(aUnit != StyleAnimationValue::eUnit_Null,
+  NS_ABORT_IF_FALSE(aUnit != nsStyleAnimation::eUnit_Null,
                     "Need non-null unit for a zero value");
   switch (aUnit) {
-    case StyleAnimationValue::eUnit_Coord:
+    case nsStyleAnimation::eUnit_Coord:
       return &sZeroCoord;
-    case StyleAnimationValue::eUnit_Percent:
+    case nsStyleAnimation::eUnit_Percent:
       return &sZeroPercent;
-    case StyleAnimationValue::eUnit_Float:
+    case nsStyleAnimation::eUnit_Float:
       return &sZeroFloat;
-    case StyleAnimationValue::eUnit_Color:
+    case nsStyleAnimation::eUnit_Color:
       return &sZeroColor;
     default:
       return nullptr;
@@ -72,8 +71,8 @@ GetZeroValueForUnit(StyleAnimationValue::Unit aUnit)
 //
 // Returns true on success, or false.
 static const bool
-FinalizeStyleAnimationValues(const StyleAnimationValue*& aValue1,
-                             const StyleAnimationValue*& aValue2)
+FinalizeStyleAnimationValues(const nsStyleAnimation::Value*& aValue1,
+                             const nsStyleAnimation::Value*& aValue2)
 {
   NS_ABORT_IF_FALSE(aValue1 || aValue2,
                     "expecting at least one non-null value");
@@ -91,32 +90,32 @@ FinalizeStyleAnimationValues(const StyleAnimationValue*& aValue1,
   // Ok, both values were specified.
   // Need to handle a special-case, though: unitless nonzero length (parsed as
   // eUnit_Float) mixed with unitless 0 length (parsed as eUnit_Coord).  These
-  // won't interoperate in StyleAnimationValue, since their Units don't match.
+  // won't interoperate in nsStyleAnimation, since their Units don't match.
   // In this case, we replace the eUnit_Coord 0 value with eUnit_Float 0 value.
-  const StyleAnimationValue& zeroCoord =
-    *GetZeroValueForUnit(StyleAnimationValue::eUnit_Coord);
+  const nsStyleAnimation::Value& zeroCoord =
+    *GetZeroValueForUnit(nsStyleAnimation::eUnit_Coord);
   if (*aValue1 == zeroCoord &&
-      aValue2->GetUnit() == StyleAnimationValue::eUnit_Float) {
-    aValue1 = GetZeroValueForUnit(StyleAnimationValue::eUnit_Float);
+      aValue2->GetUnit() == nsStyleAnimation::eUnit_Float) {
+    aValue1 = GetZeroValueForUnit(nsStyleAnimation::eUnit_Float);
   } else if (*aValue2 == zeroCoord &&
-             aValue1->GetUnit() == StyleAnimationValue::eUnit_Float) {
-    aValue2 = GetZeroValueForUnit(StyleAnimationValue::eUnit_Float);
+             aValue1->GetUnit() == nsStyleAnimation::eUnit_Float) {
+    aValue2 = GetZeroValueForUnit(nsStyleAnimation::eUnit_Float);
   }
 
   return true;
 }
 
 static void
-InvertSign(StyleAnimationValue& aValue)
+InvertSign(nsStyleAnimation::Value& aValue)
 {
   switch (aValue.GetUnit()) {
-    case StyleAnimationValue::eUnit_Coord:
+    case nsStyleAnimation::eUnit_Coord:
       aValue.SetCoordValue(-aValue.GetCoordValue());
       break;
-    case StyleAnimationValue::eUnit_Percent:
+    case nsStyleAnimation::eUnit_Percent:
       aValue.SetPercentValue(-aValue.GetPercentValue());
       break;
-    case StyleAnimationValue::eUnit_Float:
+    case nsStyleAnimation::eUnit_Float:
       aValue.SetFloatValue(-aValue.GetFloatValue());
       break;
     default:
@@ -225,15 +224,15 @@ nsSMILCSSValueType::Add(nsSMILValue& aDest, const nsSMILValue& aValueToAdd,
   nsCSSProperty property = (valueToAddWrapper ? valueToAddWrapper->mPropID :
                             destWrapper->mPropID);
   // Special case: font-size-adjust and stroke-dasharray are explicitly
-  // non-additive (even though StyleAnimationValue *could* support adding them)
+  // non-additive (even though nsStyleAnimation *could* support adding them)
   if (property == eCSSProperty_font_size_adjust ||
       property == eCSSProperty_stroke_dasharray) {
     return NS_ERROR_FAILURE;
   }
 
-  const StyleAnimationValue* valueToAdd = valueToAddWrapper ?
+  const nsStyleAnimation::Value* valueToAdd = valueToAddWrapper ?
     &valueToAddWrapper->mCSSValue : nullptr;
-  const StyleAnimationValue* destValue = destWrapper ?
+  const nsStyleAnimation::Value* destValue = destWrapper ?
     &destWrapper->mCSSValue : nullptr;
   if (!FinalizeStyleAnimationValues(valueToAdd, destValue)) {
     return NS_ERROR_FAILURE;
@@ -250,8 +249,8 @@ nsSMILCSSValueType::Add(nsSMILValue& aDest, const nsSMILValue& aValueToAdd,
       new ValueWrapper(property, *destValue);
   }
 
-  return StyleAnimationValue::Add(property,
-                                  destWrapper->mCSSValue, *valueToAdd, aCount) ?
+  return nsStyleAnimation::Add(property,
+                               destWrapper->mCSSValue, *valueToAdd, aCount) ?
     NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -268,16 +267,16 @@ nsSMILCSSValueType::ComputeDistance(const nsSMILValue& aFrom,
   const ValueWrapper* toWrapper = ExtractValueWrapper(aTo);
   NS_ABORT_IF_FALSE(toWrapper, "expecting non-null endpoint");
 
-  const StyleAnimationValue* fromCSSValue = fromWrapper ?
+  const nsStyleAnimation::Value* fromCSSValue = fromWrapper ?
     &fromWrapper->mCSSValue : nullptr;
-  const StyleAnimationValue* toCSSValue = &toWrapper->mCSSValue;
+  const nsStyleAnimation::Value* toCSSValue = &toWrapper->mCSSValue;
   if (!FinalizeStyleAnimationValues(fromCSSValue, toCSSValue)) {
     return NS_ERROR_FAILURE;
   }
 
-  return StyleAnimationValue::ComputeDistance(toWrapper->mPropID,
-                                              *fromCSSValue, *toCSSValue,
-                                              aDistance) ?
+  return nsStyleAnimation::ComputeDistance(toWrapper->mPropID,
+                                           *fromCSSValue, *toCSSValue,
+                                           aDistance) ?
     NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -300,17 +299,17 @@ nsSMILCSSValueType::Interpolate(const nsSMILValue& aStartVal,
   const ValueWrapper* endWrapper = ExtractValueWrapper(aEndVal);
   NS_ABORT_IF_FALSE(endWrapper, "expecting non-null endpoint");
 
-  const StyleAnimationValue* startCSSValue = startWrapper ?
+  const nsStyleAnimation::Value* startCSSValue = startWrapper ?
     &startWrapper->mCSSValue : nullptr;
-  const StyleAnimationValue* endCSSValue = &endWrapper->mCSSValue;
+  const nsStyleAnimation::Value* endCSSValue = &endWrapper->mCSSValue;
   if (!FinalizeStyleAnimationValues(startCSSValue, endCSSValue)) {
     return NS_ERROR_FAILURE;
   }
 
-  StyleAnimationValue resultValue;
-  if (StyleAnimationValue::Interpolate(endWrapper->mPropID,
-                                       *startCSSValue, *endCSSValue,
-                                       aUnitDistance, resultValue)) {
+  nsStyleAnimation::Value resultValue;
+  if (nsStyleAnimation::Interpolate(endWrapper->mPropID,
+                                    *startCSSValue, *endCSSValue,
+                                    aUnitDistance, resultValue)) {
     aResult.mU.mPtr = new ValueWrapper(endWrapper->mPropID, resultValue);
     return NS_OK;
   }
@@ -332,13 +331,13 @@ GetPresContextForElement(Element* aElem)
   return shell ? shell->GetPresContext() : nullptr;
 }
 
-// Helper function to parse a string into a StyleAnimationValue
+// Helper function to parse a string into a nsStyleAnimation::Value
 static bool
 ValueFromStringHelper(nsCSSProperty aPropID,
                       Element* aTargetElement,
                       nsPresContext* aPresContext,
                       const nsAString& aString,
-                      StyleAnimationValue& aStyleAnimValue,
+                      nsStyleAnimation::Value& aStyleAnimValue,
                       bool* aIsContextSensitive)
 {
   // If value is negative, we'll strip off the "-" so the CSS parser won't
@@ -359,19 +358,19 @@ ValueFromStringHelper(nsCSSProperty aPropID,
     }
   }
   nsDependentSubstring subString(aString, subStringBegin);
-  if (!StyleAnimationValue::ComputeValue(aPropID, aTargetElement, subString,
-                                         true, aStyleAnimValue,
-                                         aIsContextSensitive)) {
+  if (!nsStyleAnimation::ComputeValue(aPropID, aTargetElement, subString,
+                                      true, aStyleAnimValue,
+                                      aIsContextSensitive)) {
     return false;
   }
   if (isNegative) {
     InvertSign(aStyleAnimValue);
   }
-
+  
   if (aPropID == eCSSProperty_font_size) {
     // Divide out text-zoom, since SVG is supposed to ignore it
     NS_ABORT_IF_FALSE(aStyleAnimValue.GetUnit() ==
-                        StyleAnimationValue::eUnit_Coord,
+                        nsStyleAnimation::eUnit_Coord,
                       "'font-size' value with unexpected style unit");
     aStyleAnimValue.SetCoordValue(aStyleAnimValue.GetCoordValue() /
                                   aPresContext->TextZoom());
@@ -402,7 +401,7 @@ nsSMILCSSValueType::ValueFromString(nsCSSProperty aPropID,
     return;
   }
 
-  StyleAnimationValue parsedValue;
+  nsStyleAnimation::Value parsedValue;
   if (ValueFromStringHelper(aPropID, aTargetElement, presContext,
                             aString, parsedValue, aIsContextSensitive)) {
     sSingleton.Init(aValue);
@@ -419,6 +418,6 @@ nsSMILCSSValueType::ValueToString(const nsSMILValue& aValue,
                     "Unexpected SMIL value type");
   const ValueWrapper* wrapper = ExtractValueWrapper(aValue);
   return !wrapper ||
-    StyleAnimationValue::UncomputeValue(wrapper->mPropID,
-                                        wrapper->mCSSValue, aString);
+    nsStyleAnimation::UncomputeValue(wrapper->mPropID,
+                                     wrapper->mCSSValue, aString);
 }

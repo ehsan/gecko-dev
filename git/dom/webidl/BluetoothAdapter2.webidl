@@ -86,12 +86,10 @@ interface BluetoothAdapter : EventTarget {
   // Fired when attributes of BluetoothAdapter changed
            attribute EventHandler   onattributechanged;
 
-  // Promise<void>
-  [Throws]
-  Promise setName(DOMString aName);
-  // Promise<void>
-  [Throws]
-  Promise setDiscoverable(boolean aDiscoverable);
+  [NewObject, Throws]
+  DOMRequest setName(DOMString name);
+  [NewObject, Throws]
+  DOMRequest setDiscoverable(boolean discoverable);
   [NewObject, Throws]
   DOMRequest startDiscovery();
   [NewObject, Throws]
@@ -119,10 +117,8 @@ interface BluetoothAdapter : EventTarget {
    * enabled/disabled.
    */
   // Promise<void>
-  [Throws]
   Promise enable();
   // Promise<void>
-  [Throws]
   Promise disable();
 
   /**

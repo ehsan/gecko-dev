@@ -1951,8 +1951,7 @@ AndroidBridge::IsContentDocumentDisplayed()
 }
 
 bool
-AndroidBridge::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const LayerRect& aDisplayPort, float aDisplayResolution,
-                                         bool aDrawingCritical, ScreenPoint& aScrollOffset, CSSToScreenScale& aZoom)
+AndroidBridge::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const LayerRect& aDisplayPort, float aDisplayResolution, bool aDrawingCritical, ParentLayerRect& aCompositionBounds, CSSToParentLayerScale& aZoom)
 {
     mozilla::widget::android::GeckoLayerClient *client = mLayerClient;
     if (!client) {
@@ -1972,8 +1971,10 @@ AndroidBridge::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const
 
     ProgressiveUpdateData* progressiveUpdateData = ProgressiveUpdateData::Wrap(progressiveUpdateDataJObj);
 
-    aScrollOffset.x = progressiveUpdateData->getx();
-    aScrollOffset.y = progressiveUpdateData->gety();
+    aCompositionBounds.x = progressiveUpdateData->getx();
+    aCompositionBounds.y = progressiveUpdateData->gety();
+    aCompositionBounds.width = progressiveUpdateData->getwidth();
+    aCompositionBounds.height = progressiveUpdateData->getheight();
     aZoom.scale = progressiveUpdateData->getscale();
 
     bool ret = progressiveUpdateData->getabort();

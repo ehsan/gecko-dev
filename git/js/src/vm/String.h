@@ -328,6 +328,23 @@ class JSString : public js::gc::BarrieredCell<JSString>
     inline const jschar *getCharsZ(js::ExclusiveContext *cx);
     inline bool getChar(js::ExclusiveContext *cx, size_t index, jschar *code);
 
+    /*
+     * A string has "pure" chars if it can return a pointer to its chars
+     * infallibly without mutating anything so they are safe to be from off the
+     * main thread. If a string does not have pure chars, the caller can call
+     * copyNonPureChars to allocate a copy of the chars which is also a
+     * non-mutating threadsafe operation. Beware, this is an O(n) operation
+     * (involving a DAG traversal for ropes).
+     */
+    bool hasPureChars() const { return isLinear(); }
+    bool hasPureCharsZ() const { return isFlat(); }
+    inline const jschar *pureChars() const;
+    inline const jschar *pureCharsZ() const;
+    inline bool copyNonPureChars(js::ThreadSafeContext *cx,
+                                 js::ScopedJSFreePtr<jschar> &out) const;
+    inline bool copyNonPureCharsZ(js::ThreadSafeContext *cx,
+                                  js::ScopedJSFreePtr<jschar> &out) const;
+
     /* Strings have either Latin1 or TwoByte chars. */
     bool hasLatin1Chars() const {
         return d.u1.flags & LATIN1_CHARS_BIT;
@@ -487,11 +504,7 @@ class JSString : public js::gc::BarrieredCell<JSString>
 
 #ifdef DEBUG
     void dump();
-    void dumpCharsNoNewline(FILE *fp=stderr);
-
-    template <typename CharT>
-    static void dumpChars(const CharT *s, size_t len, FILE *fp=stderr);
-
+    static void dumpChars(const jschar *s, size_t len);
     bool equals(const char *s);
 #endif
 
@@ -524,9 +537,11 @@ static const bool EnableLatin1Strings = false;
 
 class JSRope : public JSString
 {
-    template <typename CharT>
-    bool copyCharsInternal(js::ThreadSafeContext *cx, js::ScopedJSFreePtr<CharT> &out,
-                           bool nullTerminate) const;
+    bool copyNonPureCharsInternal(js::ThreadSafeContext *cx,
+                                  js::ScopedJSFreePtr<jschar> &out,
+                                  bool nullTerminate) const;
+    bool copyNonPureChars(js::ThreadSafeContext *cx, js::ScopedJSFreePtr<jschar> &out) const;
+    bool copyNonPureCharsZ(js::ThreadSafeContext *cx, js::ScopedJSFreePtr<jschar> &out) const;
 
     enum UsingBarrier { WithIncrementalBarrier, NoBarrier };
 
@@ -547,17 +562,6 @@ class JSRope : public JSString
                                typename js::MaybeRooted<JSString*, allowGC>::HandleType left,
                                typename js::MaybeRooted<JSString*, allowGC>::HandleType right,
                                size_t length);
-
-    bool copyLatin1Chars(js::ThreadSafeContext *cx,
-                         js::ScopedJSFreePtr<JS::Latin1Char> &out) const;
-    bool copyTwoByteChars(js::ThreadSafeContext *cx, js::ScopedJSFreePtr<jschar> &out) const;
-
-    bool copyLatin1CharsZ(js::ThreadSafeContext *cx,
-                          js::ScopedJSFreePtr<JS::Latin1Char> &out) const;
-    bool copyTwoByteCharsZ(js::ThreadSafeContext *cx, js::ScopedJSFreePtr<jschar> &out) const;
-
-    template <typename CharT>
-    bool copyChars(js::ThreadSafeContext *cx, js::ScopedJSFreePtr<CharT> &out) const;
 
     inline JSString *leftChild() const {
         JS_ASSERT(isRope());
@@ -679,6 +683,8 @@ JS_STATIC_ASSERT(sizeof(JSLinearString) == sizeof(JSString));
 
 class JSDependentString : public JSLinearString
 {
+    bool copyNonPureCharsZ(js::ThreadSafeContext *cx, js::ScopedJSFreePtr<jschar> &out) const;
+
     friend class JSString;
     JSFlatString *undepend(js::ExclusiveContext *cx);
 
@@ -1017,7 +1023,7 @@ class ScopedThreadSafeStringInspector
 {
   private:
     JSString *str_;
-    ScopedJSFreePtr<void> scopedChars_;
+    ScopedJSFreePtr<jschar> scopedChars_;
     union {
         const jschar *twoByteChars_;
         const JS::Latin1Char *latin1Chars_;
@@ -1165,8 +1171,6 @@ class StaticStrings
     /* May not return atom, returns null on (reported) failure. */
     inline JSLinearString *getUnitStringForElement(JSContext *cx, JSString *str, size_t index);
 
-    template <typename CharT>
-    static bool isStatic(const CharT *chars, size_t len);
     static bool isStatic(JSAtom *atom);
 
     /* Return null if no static atom exists for the given (chars, length). */
@@ -1331,6 +1335,36 @@ JSString::getCharsZ(js::ExclusiveContext *cx)
     return nullptr;
 }
 
+MOZ_ALWAYS_INLINE const jschar *
+JSString::pureChars() const
+{
+    JS_ASSERT(hasPureChars());
+    return asLinear().chars();
+}
+
+MOZ_ALWAYS_INLINE const jschar *
+JSString::pureCharsZ() const
+{
+    JS_ASSERT(hasPureCharsZ());
+    return asFlat().charsZ();
+}
+
+MOZ_ALWAYS_INLINE bool
+JSString::copyNonPureChars(js::ThreadSafeContext *cx, js::ScopedJSFreePtr<jschar> &out) const
+{
+    JS_ASSERT(!hasPureChars());
+    return asRope().copyNonPureChars(cx, out);
+}
+
+MOZ_ALWAYS_INLINE bool
+JSString::copyNonPureCharsZ(js::ThreadSafeContext *cx, js::ScopedJSFreePtr<jschar> &out) const
+{
+    JS_ASSERT(!hasPureChars());
+    if (isDependent())
+        return asDependent().copyNonPureCharsZ(cx, out);
+    return asRope().copyNonPureCharsZ(cx, out);
+}
+
 MOZ_ALWAYS_INLINE JSLinearString *
 JSString::ensureLinear(js::ExclusiveContext *cx)
 {
@@ -1383,21 +1417,6 @@ MOZ_ALWAYS_INLINE const JS::Latin1Char *
 JSLinearString::chars(const JS::AutoCheckCannotGC &nogc) const
 {
     return rawLatin1Chars();
-}
-
-template <>
-MOZ_ALWAYS_INLINE bool
-JSRope::copyChars<JS::Latin1Char>(js::ThreadSafeContext *cx,
-                                  js::ScopedJSFreePtr<JS::Latin1Char> &out) const
-{
-    return copyLatin1Chars(cx, out);
-}
-
-template <>
-MOZ_ALWAYS_INLINE bool
-JSRope::copyChars<jschar>(js::ThreadSafeContext *cx, js::ScopedJSFreePtr<jschar> &out) const
-{
-    return copyTwoByteChars(cx, out);
 }
 
 template<>

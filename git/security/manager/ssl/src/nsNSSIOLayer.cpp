@@ -1377,8 +1377,6 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIOBSERVER
   PrefObserver(nsSSLIOLayerHelpers* aOwner) : mOwner(aOwner) {}
-
-protected:
   virtual ~PrefObserver() {}
 private:
   nsSSLIOLayerHelpers* mOwner;

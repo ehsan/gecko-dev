@@ -230,9 +230,10 @@ bool
 CrossCompartmentWrapper::getPropertyDescriptor(JSContext *cx, HandleObject wrapper, HandleId id,
                                                MutableHandle<PropertyDescriptor> desc)
 {
+    RootedId idCopy(cx, id);
     PIERCE(cx, wrapper,
-           NOTHING,
-           Wrapper::getPropertyDescriptor(cx, wrapper, id, desc),
+           cx->compartment()->wrapId(cx, idCopy.address()),
+           Wrapper::getPropertyDescriptor(cx, wrapper, idCopy, desc),
            cx->compartment()->wrap(cx, desc));
 }
 
@@ -240,9 +241,10 @@ bool
 CrossCompartmentWrapper::getOwnPropertyDescriptor(JSContext *cx, HandleObject wrapper, HandleId id,
                                                   MutableHandle<PropertyDescriptor> desc)
 {
+    RootedId idCopy(cx, id);
     PIERCE(cx, wrapper,
-           NOTHING,
-           Wrapper::getOwnPropertyDescriptor(cx, wrapper, id, desc),
+           cx->compartment()->wrapId(cx, idCopy.address()),
+           Wrapper::getOwnPropertyDescriptor(cx, wrapper, idCopy, desc),
            cx->compartment()->wrap(cx, desc));
 }
 
@@ -250,10 +252,11 @@ bool
 CrossCompartmentWrapper::defineProperty(JSContext *cx, HandleObject wrapper, HandleId id,
                                         MutableHandle<PropertyDescriptor> desc)
 {
+    RootedId idCopy(cx, id);
     Rooted<PropertyDescriptor> desc2(cx, desc);
     PIERCE(cx, wrapper,
-           cx->compartment()->wrap(cx, &desc2),
-           Wrapper::defineProperty(cx, wrapper, id, &desc2),
+           cx->compartment()->wrapId(cx, idCopy.address()) && cx->compartment()->wrap(cx, &desc2),
+           Wrapper::defineProperty(cx, wrapper, idCopy, &desc2),
            NOTHING);
 }
 
@@ -264,15 +267,16 @@ CrossCompartmentWrapper::getOwnPropertyNames(JSContext *cx, HandleObject wrapper
     PIERCE(cx, wrapper,
            NOTHING,
            Wrapper::getOwnPropertyNames(cx, wrapper, props),
-           NOTHING);
+           cx->compartment()->wrap(cx, props));
 }
 
 bool
 CrossCompartmentWrapper::delete_(JSContext *cx, HandleObject wrapper, HandleId id, bool *bp)
 {
+    RootedId idCopy(cx, id);
     PIERCE(cx, wrapper,
-           NOTHING,
-           Wrapper::delete_(cx, wrapper, id, bp),
+           cx->compartment()->wrapId(cx, idCopy.address()),
+           Wrapper::delete_(cx, wrapper, idCopy, bp),
            NOTHING);
 }
 
@@ -282,24 +286,26 @@ CrossCompartmentWrapper::enumerate(JSContext *cx, HandleObject wrapper, AutoIdVe
     PIERCE(cx, wrapper,
            NOTHING,
            Wrapper::enumerate(cx, wrapper, props),
-           NOTHING);
+           cx->compartment()->wrap(cx, props));
 }
 
 bool
 CrossCompartmentWrapper::has(JSContext *cx, HandleObject wrapper, HandleId id, bool *bp)
 {
+    RootedId idCopy(cx, id);
     PIERCE(cx, wrapper,
-           NOTHING,
-           Wrapper::has(cx, wrapper, id, bp),
+           cx->compartment()->wrapId(cx, idCopy.address()),
+           Wrapper::has(cx, wrapper, idCopy, bp),
            NOTHING);
 }
 
 bool
 CrossCompartmentWrapper::hasOwn(JSContext *cx, HandleObject wrapper, HandleId id, bool *bp)
 {
+    RootedId idCopy(cx, id);
     PIERCE(cx, wrapper,
-           NOTHING,
-           Wrapper::hasOwn(cx, wrapper, id, bp),
+           cx->compartment()->wrapId(cx, idCopy.address()),
+           Wrapper::hasOwn(cx, wrapper, idCopy, bp),
            NOTHING);
 }
 
@@ -308,12 +314,16 @@ CrossCompartmentWrapper::get(JSContext *cx, HandleObject wrapper, HandleObject r
                              HandleId id, MutableHandleValue vp)
 {
     RootedObject receiverCopy(cx, receiver);
+    RootedId idCopy(cx, id);
     {
         AutoCompartment call(cx, wrappedObject(wrapper));
-        if (!cx->compartment()->wrap(cx, &receiverCopy))
+        if (!cx->compartment()->wrap(cx, &receiverCopy) ||
+            !cx->compartment()->wrapId(cx, idCopy.address()))
+        {
             return false;
+        }
 
-        if (!Wrapper::get(cx, wrapper, receiverCopy, id, vp))
+        if (!Wrapper::get(cx, wrapper, receiverCopy, idCopy, vp))
             return false;
     }
     return cx->compartment()->wrap(cx, vp);
@@ -324,10 +334,12 @@ CrossCompartmentWrapper::set(JSContext *cx, HandleObject wrapper, HandleObject r
                              HandleId id, bool strict, MutableHandleValue vp)
 {
     RootedObject receiverCopy(cx, receiver);
+    RootedId idCopy(cx, id);
     PIERCE(cx, wrapper,
            cx->compartment()->wrap(cx, &receiverCopy) &&
+           cx->compartment()->wrapId(cx, idCopy.address()) &&
            cx->compartment()->wrap(cx, vp),
-           Wrapper::set(cx, wrapper, receiverCopy, id, strict, vp),
+           Wrapper::set(cx, wrapper, receiverCopy, idCopy, strict, vp),
            NOTHING);
 }
 
@@ -337,7 +349,7 @@ CrossCompartmentWrapper::keys(JSContext *cx, HandleObject wrapper, AutoIdVector 
     PIERCE(cx, wrapper,
            NOTHING,
            Wrapper::keys(cx, wrapper, props),
-           NOTHING);
+           cx->compartment()->wrap(cx, props));
 }
 
 /*
@@ -396,6 +408,8 @@ Reify(JSContext *cx, JSCompartment *origin, MutableHandleValue vp)
             if (!ValueToId<CanGC>(cx, v, &id))
                 return false;
             keys.infallibleAppend(id);
+            if (!origin->wrapId(cx, keys[i].address()))
+                return false;
         }
     }
 

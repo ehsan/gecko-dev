@@ -68,8 +68,6 @@ public:
 
   layers::ImageContainer* GetImageContainer() { return mDecoder->GetImageContainer(); }
 
-  virtual bool IsMediaSeekable() MOZ_OVERRIDE;
-
 private:
 
   void ReadAndPushData(guint aLength);

@@ -47,12 +47,11 @@ public:
     }
 
     OfflineCacheUpdateParent(uint32_t aAppId, bool aIsInBrowser);
+    ~OfflineCacheUpdateParent();
 
     virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
 private:
-    ~OfflineCacheUpdateParent();
-
     bool mIPCClosed;
 
     bool     mIsInBrowserElement;

@@ -25,10 +25,9 @@ class DOMLocalStorageManager;
 class DOMStorageDBChild MOZ_FINAL : public DOMStorageDBBridge
                                   , public PStorageChild
 {
-  virtual ~DOMStorageDBChild();
-
 public:
   DOMStorageDBChild(DOMLocalStorageManager* aManager);
+  virtual ~DOMStorageDBChild();
 
   NS_IMETHOD_(MozExternalRefCountType) AddRef(void);
   NS_IMETHOD_(MozExternalRefCountType) Release(void);
@@ -109,10 +108,9 @@ private:
 class DOMStorageDBParent MOZ_FINAL : public PStorageParent
                                    , public DOMStorageObserverSink
 {
-  virtual ~DOMStorageDBParent();
-
 public:
   DOMStorageDBParent();
+  virtual ~DOMStorageDBParent();
 
   virtual mozilla::ipc::IProtocol*
   CloneProtocol(Channel* aChannel,

@@ -40,7 +40,7 @@ struct jsid
 #define JSID_TYPE_STRING                 0x0
 #define JSID_TYPE_INT                    0x1
 #define JSID_TYPE_VOID                   0x2
-#define JSID_TYPE_SYMBOL                 0x4
+#define JSID_TYPE_OBJECT                 0x4
 #define JSID_TYPE_MASK                   0x7
 
 // Avoid using canonical 'id' for jsid parameters since this is a magic word in
@@ -98,35 +98,34 @@ INT_TO_JSID(int32_t i)
 }
 
 static MOZ_ALWAYS_INLINE bool
-JSID_IS_SYMBOL(jsid id)
+JSID_IS_OBJECT(jsid id)
 {
-    return (JSID_BITS(id) & JSID_TYPE_MASK) == JSID_TYPE_SYMBOL &&
-           JSID_BITS(id) != JSID_TYPE_SYMBOL;
+    return (JSID_BITS(id) & JSID_TYPE_MASK) == JSID_TYPE_OBJECT &&
+           (size_t)JSID_BITS(id) != JSID_TYPE_OBJECT;
 }
 
-static MOZ_ALWAYS_INLINE JS::Symbol *
-JSID_TO_SYMBOL(jsid id)
+static MOZ_ALWAYS_INLINE JSObject *
+JSID_TO_OBJECT(jsid id)
 {
-    MOZ_ASSERT(JSID_IS_SYMBOL(id));
-    return (JS::Symbol *)(JSID_BITS(id) & ~(size_t)JSID_TYPE_MASK);
+    MOZ_ASSERT(JSID_IS_OBJECT(id));
+    return (JSObject *)(JSID_BITS(id) & ~(size_t)JSID_TYPE_MASK);
 }
 
 static MOZ_ALWAYS_INLINE jsid
-SYMBOL_TO_JSID(JS::Symbol *sym)
+OBJECT_TO_JSID(JSObject *obj)
 {
     jsid id;
-    MOZ_ASSERT(sym != nullptr);
-    MOZ_ASSERT((size_t(sym) & JSID_TYPE_MASK) == 0);
-    JS_ASSERT(!js::gc::IsInsideNursery(JS::AsCell(sym)));
-    JS_ASSERT(!JS::IsPoisonedPtr(sym));
-    JSID_BITS(id) = (size_t(sym) | JSID_TYPE_SYMBOL);
+    MOZ_ASSERT(obj != nullptr);
+    MOZ_ASSERT(((size_t)obj & JSID_TYPE_MASK) == 0);
+    JS_ASSERT(!js::gc::IsInsideNursery(JS::AsCell(obj)));
+    JSID_BITS(id) = ((size_t)obj | JSID_TYPE_OBJECT);
     return id;
 }
 
 static MOZ_ALWAYS_INLINE bool
 JSID_IS_GCTHING(jsid id)
 {
-    return JSID_IS_STRING(id) || JSID_IS_SYMBOL(id);
+    return JSID_IS_STRING(id) || JSID_IS_OBJECT(id);
 }
 
 static MOZ_ALWAYS_INLINE void *
@@ -146,8 +145,10 @@ JSID_IS_VOID(const jsid id)
 static MOZ_ALWAYS_INLINE bool
 JSID_IS_EMPTY(const jsid id)
 {
-    return ((size_t)JSID_BITS(id) == JSID_TYPE_SYMBOL);
+    return ((size_t)JSID_BITS(id) == JSID_TYPE_OBJECT);
 }
+
+#undef id
 
 extern JS_PUBLIC_DATA(const jsid) JSID_VOID;
 extern JS_PUBLIC_DATA(const jsid) JSID_EMPTY;
@@ -158,12 +159,12 @@ extern JS_PUBLIC_DATA(const JS::HandleId) JSID_EMPTYHANDLE;
 namespace js {
 
 inline bool
-IsPoisonedId(jsid id)
+IsPoisonedId(jsid iden)
 {
-    if (JSID_IS_STRING(id))
-        return JS::IsPoisonedPtr(JSID_TO_STRING(id));
-    if (JSID_IS_SYMBOL(id))
-        return JS::IsPoisonedPtr(JSID_TO_SYMBOL(id));
+    if (JSID_IS_STRING(iden))
+        return JS::IsPoisonedPtr(JSID_TO_STRING(iden));
+    if (JSID_IS_OBJECT(iden))
+        return JS::IsPoisonedPtr(JSID_TO_OBJECT(iden));
     return false;
 }
 
@@ -177,8 +178,6 @@ template <> struct GCMethods<jsid>
     static void relocate(jsid *idp) {}
 #endif
 };
-
-#undef id
 
 }
 

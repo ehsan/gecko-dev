@@ -36,8 +36,6 @@ public:
     }
 
 private:
-    ~txFunctionEvaluationContext() {}
-
     txIEvalContext *mContext;
     nsCOMPtr<nsISupports> mState;
 };

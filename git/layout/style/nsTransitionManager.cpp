@@ -17,9 +17,9 @@
 #include "nsRuleProcessorData.h"
 #include "nsRuleWalker.h"
 #include "nsCSSPropertySet.h"
+#include "nsStyleAnimation.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/ContentEvents.h"
-#include "mozilla/StyleAnimationValue.h"
 #include "mozilla/dom/Element.h"
 #include "nsIFrame.h"
 #include "Layers.h"
@@ -65,6 +65,21 @@ ElementPropertyTransition::ValuePortionFor(TimeStamp aRefreshTime) const
              "Animation property should have one segment for a transition");
   return mProperties[0].mSegments[0].mTimingFunction
          .GetValue(computedTiming.mTimeFraction);
+}
+
+static void
+ElementTransitionsPropertyDtor(void           *aObject,
+                               nsIAtom        *aPropertyName,
+                               void           *aPropertyValue,
+                               void           *aData)
+{
+  CommonElementAnimationData* et =
+    static_cast<CommonElementAnimationData*>(aPropertyValue);
+#ifdef DEBUG
+  NS_ABORT_IF_FALSE(!et->mCalledPropertyDtor, "can't call dtor twice");
+  et->mCalledPropertyDtor = true;
+#endif
+  delete et;
 }
 
 /*****************************************************************************
@@ -302,7 +317,7 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
     ElementAnimationPtrArray& animations = et->mAnimations;
     uint32_t i = animations.Length();
     NS_ABORT_IF_FALSE(i != 0, "empty transitions list?");
-    StyleAnimationValue currentValue;
+    nsStyleAnimation::Value currentValue;
     do {
       --i;
       ElementAnimation* animation = animations[i];
@@ -405,7 +420,7 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
 
   nsRefPtr<ElementPropertyTransition> pt = new ElementPropertyTransition();
 
-  StyleAnimationValue startValue, endValue, dummyValue;
+  nsStyleAnimation::Value startValue, endValue, dummyValue;
   bool haveValues =
     ExtractComputedValueForTransition(aProperty, aOldStyleContext,
                                       startValue) &&
@@ -420,8 +435,8 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
     // Check that we can interpolate between these values
     // (If this is ever a performance problem, we could add a
     // CanInterpolate method, but it seems fine for now.)
-    StyleAnimationValue::Interpolate(aProperty, startValue, endValue,
-                                     0.5, dummyValue);
+    nsStyleAnimation::Interpolate(aProperty, startValue, endValue,
+                                  0.5, dummyValue);
 
   bool haveCurrentTransition = false;
   size_t currentIndex = nsTArray<ElementPropertyTransition>::NoIndex;
@@ -617,9 +632,8 @@ nsTransitionManager::GetElementTransitions(dom::Element *aElement,
     // FIXME: Consider arena-allocating?
     et = new CommonElementAnimationData(aElement, propName, this,
       mPresContext->RefreshDriver()->MostRecentRefresh());
-    nsresult rv =
-      aElement->SetProperty(propName, et,
-                            &CommonElementAnimationData::PropertyDtor, false);
+    nsresult rv = aElement->SetProperty(propName, et,
+                                        ElementTransitionsPropertyDtor, false);
     if (NS_FAILED(rv)) {
       NS_WARNING("SetProperty failed");
       delete et;

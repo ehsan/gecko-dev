@@ -35,6 +35,7 @@ public:
   NS_DECL_NSIASYNCINPUTSTREAM
 
   nsICOEncoder();
+  ~nsICOEncoder();
   
   // Obtains the width of the icon directory entry
   uint32_t GetRealWidth() const
@@ -49,8 +50,6 @@ public:
   }
 
 protected:
-  ~nsICOEncoder();
-
   nsresult ParseOptions(const nsAString& aOptions, uint32_t* bpp, 
                         bool *usePNG);
   void NotifyListener();

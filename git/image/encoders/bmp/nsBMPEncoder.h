@@ -31,10 +31,9 @@ public:
   NS_DECL_NSIASYNCINPUTSTREAM
 
   nsBMPEncoder();
-
-protected:
   ~nsBMPEncoder();
 
+protected:
   enum Version {
       VERSION_3 = 3,
       VERSION_5 = 5

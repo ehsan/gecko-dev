@@ -445,7 +445,6 @@ private:
 // A memory reporter for ContentParent objects themselves.
 class ContentParentsMemoryReporter MOZ_FINAL : public nsIMemoryReporter
 {
-    ~ContentParentsMemoryReporter() {}
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIMEMORYREPORTER
@@ -1136,8 +1135,6 @@ public:
     }
 
 private:
-    ~SystemMessageHandledListener() {}
-
     static StaticAutoPtr<LinkedList<SystemMessageHandledListener> > sListeners;
 
     void ShutDown()

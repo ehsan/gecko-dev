@@ -45,10 +45,9 @@ class TabParent;
 
 class OverOutElementsWrapper MOZ_FINAL : public nsISupports
 {
-  ~OverOutElementsWrapper();
-
 public:
   OverOutElementsWrapper();
+  ~OverOutElementsWrapper();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(OverOutElementsWrapper)
@@ -73,10 +72,9 @@ class EventStateManager : public nsSupportsWeakReference,
   friend class mozilla::ScrollbarsForWheel;
   friend class mozilla::WheelTransaction;
 
-  virtual ~EventStateManager();
-
 public:
   EventStateManager();
+  virtual ~EventStateManager();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIOBSERVER
