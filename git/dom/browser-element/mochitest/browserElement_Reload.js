@@ -19,7 +19,7 @@ var countAcc;
 
 function runTest() {
   browserElementTestHelpers.setEnabledPref(true);
-  browserElementTestHelpers.addPermission();
+  browserElementTestHelpers.addToWhitelist();
 
   iframe = document.createElement('iframe');
   iframe.mozbrowser = true;
@@ -31,7 +31,6 @@ function runTest() {
 }
 
 function iframeBodyRecv(data) {
-  data = SpecialPowers.wrap(data);
   var previousCount = countAcc;
   var currentCount = parseInt(data.json.data, 10);
   countAcc = currentCount;

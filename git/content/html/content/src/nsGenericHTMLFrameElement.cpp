@@ -12,7 +12,6 @@
 #include "nsIAppsService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIDOMApplicationRegistry.h"
-#include "nsIPermissionManager.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -291,15 +290,18 @@ nsGenericHTMLFrameElement::GetReallyIsBrowser(bool *aOut)
   }
 
   // Fail if the node principal isn't trusted.
+  // TODO: check properly for mozApps rights when mozApps will be less hacky.
   nsIPrincipal *principal = NodePrincipal();
-  nsCOMPtr<nsIPermissionManager> permMgr =
-    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-  NS_ENSURE_STATE(permMgr);
+  nsCOMPtr<nsIURI> principalURI;
+  principal->GetURI(getter_AddRefs(principalURI));
+  if (!nsContentUtils::IsSystemPrincipal(principal) &&
+      !nsContentUtils::URIIsChromeOrInPref(principalURI,
+                                           "dom.mozBrowserFramesWhitelist")) {
+    return NS_OK;
+  }
 
-  PRUint32 permission = nsIPermissionManager::DENY_ACTION;
-  nsresult rv = permMgr->TestPermissionFromPrincipal(principal, "browser", &permission);
-  NS_ENSURE_SUCCESS(rv, NS_OK);
-  *aOut = permission == nsIPermissionManager::ALLOW_ACTION;
+  // Otherwise, succeed.
+  *aOut = true;
   return NS_OK;
 }
 

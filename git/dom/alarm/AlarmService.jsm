@@ -98,7 +98,6 @@ let AlarmService = {
           ignoreTimezone: json.ignoreTimezone, 
           timezoneOffset: this._currentTimezoneOffset, 
           data: json.data,
-          pageURL: json.pageURL,
           manifestURL: json.manifestURL
         };
 
@@ -254,8 +253,7 @@ let AlarmService = {
   _fireSystemMessage: function _fireSystemMessage(aAlarm) {
     debug("Fire system message: " + JSON.stringify(aAlarm));
     let manifestURI = Services.io.newURI(aAlarm.manifestURL, null, null);
-    let pageURI = Services.io.newURI(aAlarm.pageURL, null, null);
-    messenger.sendMessage("alarm", aAlarm, pageURI, manifestURI);
+    messenger.sendMessage("alarm", aAlarm, manifestURI);
   },
 
   _onAlarmFired: function _onAlarmFired() {

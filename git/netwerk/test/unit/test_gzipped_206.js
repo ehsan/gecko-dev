@@ -1,9 +1,4 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var httpserver = null;
 
@@ -75,7 +70,7 @@ function finish_test(request, data, ctx) {
 }
 
 function run_test() {
-  httpserver = new HttpServer();
+  httpserver = new nsHttpServer();
   httpserver.registerPathHandler("/cached/test.gz", cachedHandler);
   httpserver.start(4444);
 

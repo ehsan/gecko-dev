@@ -79,51 +79,50 @@ ContactAddress.prototype = {
   QueryInterface : XPCOMUtils.generateQI([nsIDOMContactAddress])
 }
 
-//ContactField
+//ContactEmail
 
-const CONTACTFIELD_CONTRACTID = "@mozilla.org/contactField;1";
-const CONTACTFIELD_CID        = Components.ID("{e2cb19c0-e4aa-11e1-9b23-0800200c9a66}");
-const nsIDOMContactField      = Components.interfaces.nsIDOMContactField;
+const CONTACTEMAIL_CONTRACTID = "@mozilla.org/contactEmail;1";
+const CONTACTEMAIL_CID        = Components.ID("{94811520-c11f-11e1-afa7-0800200c9a66}");
+const nsIDOMContactEmail      = Components.interfaces.nsIDOMContactEmail;
 
-function ContactField(aType, aValue) {
+function ContactEmail(aType, aAddress) {
   this.type = aType || null;
-  this.value = aValue || null;
+  this.address = aAddress || null;
 };
 
-ContactField.prototype = {
+ContactEmail.prototype = {
 
-  classID : CONTACTFIELD_CID,
-  classInfo : XPCOMUtils.generateCI({classID: CONTACTFIELD_CID,
-                                     contractID: CONTACTFIELD_CONTRACTID,
-                                     classDescription: "ContactField",
-                                     interfaces: [nsIDOMContactField],
+  classID : CONTACTEMAIL_CID,
+  classInfo : XPCOMUtils.generateCI({classID: CONTACTEMAIL_CID,
+                                     contractID: CONTACTEMAIL_CONTRACTID,
+                                     classDescription: "ContactEmail",
+                                     interfaces: [nsIDOMContactEmail],
                                      flags: nsIClassInfo.DOM_OBJECT}),
 
-  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactField])
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactEmail])
 }
 
-//ContactTelField
+//ContactTelephone
 
-const CONTACTTELFIELD_CONTRACTID = "@mozilla.org/contactTelField;1";
-const CONTACTTELFIELD_CID        = Components.ID("{ed0ab260-e4aa-11e1-9b23-0800200c9a66}");
-const nsIDOMContactTelField      = Components.interfaces.nsIDOMContactTelField;
+const CONTACTTELEPHONE_CONTRACTID = "@mozilla.org/contactTelephone;1";
+const CONTACTTELEPHONE_CID        = Components.ID("{82601b20-89e8-11e1-b0c4-0800200c9a66}");
+const nsIDOMContactTelephone      = Components.interfaces.nsIDOMContactTelephone;
 
-function ContactTelField(aType, aValue, aCarrier) {
+function ContactTelephone(aType, aNumber) {
   this.type = aType || null;
-  this.value = aValue || null;
-  this.carrier = aCarrier || null;
+  this.number = aNumber || null;
 };
 
-ContactTelField.prototype = {
+ContactTelephone.prototype = {
 
-  classID : CONTACTTELFIELD_CID,
-  classInfo : XPCOMUtils.generateCI({classID: CONTACTTELFIELD_CID,
-                                     contractID: CONTACTTELFIELD_CONTRACTID,
-                                     classDescription: "ContactTelField",
-                                     interfaces: [nsIDOMContactTelField],
+  classID : CONTACTTELEPHONE_CID,
+  classInfo : XPCOMUtils.generateCI({classID: CONTACTTELEPHONE_CID,
+                                     contractID: CONTACTTELEPHONE_CONTRACTID,
+                                     classDescription: "ContactTelephone",
+                                     interfaces: [nsIDOMContactTelephone],
                                      flags: nsIClassInfo.DOM_OBJECT}),
 
-  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactTelField])
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactTelephone])
 }
 
 //ContactFindOptions
@@ -197,12 +196,13 @@ Contact.prototype = {
       aProp.email = Array.isArray(aProp.email) ? aProp.email : [aProp.email];
       this.email = new Array();
       for (let i = 0; i < aProp.email.length; i++)
-        this.email.push(new ContactField(aProp.email[i].type, aProp.email[i].value));
+        this.email.push(new ContactEmail(aProp.email[i].type, aProp.email[i].address));
     } else {
       this.email = null;
     }
 
     this.photo =           _checkBlobArray(aProp.photo) || null;
+    this.url =             _create(aProp.url) || null;
     this.category =        _create(aProp.category) || null;
 
     if (aProp.adr) {
@@ -221,7 +221,7 @@ Contact.prototype = {
       aProp.tel = Array.isArray(aProp.tel) ? aProp.tel : [aProp.tel];
       this.tel = new Array();
       for (let i = 0; i < aProp.tel.length; i++)
-        this.tel.push(new ContactTelField(aProp.tel[i].type, aProp.tel[i].value, aProp.tel[i].carrier));
+        this.tel.push(new ContactTelephone(aProp.tel[i].type, aProp.tel[i].number));
     } else {
       this.tel = null;
     }
@@ -230,25 +230,7 @@ Contact.prototype = {
     this.jobTitle =        _create(aProp.jobTitle) || null;
     this.bday =            (aProp.bday == "undefined" || aProp.bday == null) ? null : new Date(aProp.bday);
     this.note =            _create(aProp.note) || null;
-
-    if (aProp.impp) {
-      aProp.impp = Array.isArray(aProp.impp) ? aProp.impp : [aProp.impp];
-      this.impp = new Array();
-      for (let i = 0; i < aProp.impp.length; i++)
-        this.impp.push(new ContactField(aProp.impp[i].type, aProp.impp[i].value));
-    } else {
-      this.impp = null;
-    }
-
-    if (aProp.url) {
-      aProp.url = Array.isArray(aProp.url) ? aProp.url : [aProp.url];
-      this.url = new Array();
-      for (let i = 0; i < aProp.url.length; i++)
-        this.url.push(new ContactField(aProp.url[i].type, aProp.url[i].value));
-    } else {
-      this.url = null;
-    }
-
+    this.impp =            _create(aProp.impp) || null;
     this.anniversary =     (aProp.anniversary == "undefined" || aProp.anniversary == null) ? null : new Date(aProp.anniversary);
     this.sex =             (aProp.sex != "undefined") ? aProp.sex : null;
     this.genderIdentity =  (aProp.genderIdentity != "undefined") ? aProp.genderIdentity : null;
@@ -557,4 +539,4 @@ ContactManager.prototype = {
 }
 
 const NSGetFactory = XPCOMUtils.generateNSGetFactory(
-                       [Contact, ContactManager, ContactProperties, ContactAddress, ContactField, ContactTelField, ContactFindOptions])
+                       [Contact, ContactManager, ContactProperties, ContactAddress, ContactTelephone, ContactFindOptions, ContactEmail])

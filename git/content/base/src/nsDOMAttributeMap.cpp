@@ -13,7 +13,7 @@
 #include "nsGenericElement.h"
 #include "nsIDocument.h"
 #include "nsINameSpaceManager.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsContentUtils.h"
 #include "nsNodeInfoManager.h"
 #include "nsAttrName.h"

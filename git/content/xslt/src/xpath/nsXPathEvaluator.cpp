@@ -13,12 +13,13 @@
 #include "nsContentCID.h"
 #include "txExpr.h"
 #include "txExprParser.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "txURIUtils.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsDOMString.h"
 #include "nsINameSpaceManager.h"
+#include "txError.h"
 #include "nsContentUtils.h"
 
 // txIParseContext implementation

@@ -107,13 +107,11 @@ LayerManagerD3D9::Destroy()
 void
 LayerManagerD3D9::BeginTransaction()
 {
-  mInTransaction = true;
 }
 
 void
 LayerManagerD3D9::BeginTransactionWithTarget(gfxContext *aTarget)
 {
-  mInTransaction = true;
   mTarget = aTarget;
 }
 
@@ -125,8 +123,6 @@ LayerManagerD3D9::EndConstruction()
 bool
 LayerManagerD3D9::EndEmptyTransaction(EndTransactionFlags aFlags)
 {
-  mInTransaction = false;
-
   // If the device reset count from our last EndTransaction doesn't match
   // the current device reset count, the device must have been reset one or
   // more times since our last transaction. In that case, an empty transaction
@@ -143,8 +139,6 @@ LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
                                  void* aCallbackData,
                                  EndTransactionFlags aFlags)
 {
-  mInTransaction = false;
-
   mDeviceResetCount = mDeviceManager->GetDeviceResetCount();
 
   if (mRoot && !(aFlags & END_NO_IMMEDIATE_REDRAW)) {

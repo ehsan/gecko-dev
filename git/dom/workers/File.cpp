@@ -8,7 +8,7 @@
 
 #include "nsIDOMFile.h"
 #include "nsDOMBlobBuilder.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 
 #include "jsapi.h"
 #include "jsatom.h"

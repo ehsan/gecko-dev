@@ -136,23 +136,19 @@ BasicLayerManager::~BasicLayerManager()
 }
 
 void
-BasicLayerManager::SetDefaultTarget(gfxContext* aContext)
+BasicLayerManager::SetDefaultTarget(gfxContext* aContext,
+                                    BufferMode aDoubleBuffering,
+                                    ScreenRotation aRotation)
 {
   NS_ASSERTION(!InTransaction(),
                "Must set default target outside transaction");
   mDefaultTarget = aContext;
-}
-
-void
-BasicLayerManager::SetDefaultTargetConfiguration(BufferMode aDoubleBuffering, ScreenRotation aRotation)
-{
   mDoubleBuffering = aDoubleBuffering;
 }
 
 void
 BasicLayerManager::BeginTransaction()
 {
-  mInTransaction = true;
   mUsingDefaultTarget = true;
   BeginTransactionWithTarget(mDefaultTarget);
 }
@@ -205,8 +201,6 @@ BasicLayerManager::PopGroupToSourceWithCachedSurface(gfxContext *aTarget, gfxCon
 void
 BasicLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
 {
-  mInTransaction = true;
-
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("[----- BeginTransaction"));
   Log();
@@ -393,8 +387,6 @@ BasicLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
                                   void* aCallbackData,
                                   EndTransactionFlags aFlags)
 {
-  mInTransaction = false;
-
   EndTransactionInternal(aCallback, aCallbackData, aFlags);
 }
 
@@ -406,7 +398,6 @@ BasicLayerManager::AbortTransaction()
   mPhase = PHASE_NONE;
 #endif
   mUsingDefaultTarget = false;
-  mInTransaction = false;
 }
 
 bool
@@ -535,8 +526,6 @@ BasicLayerManager::FlashWidgetUpdateArea(gfxContext *aContext)
 bool
 BasicLayerManager::EndEmptyTransaction(EndTransactionFlags aFlags)
 {
-  mInTransaction = false;
-
   if (!mRoot) {
     return false;
   }
@@ -977,9 +966,11 @@ BasicShadowLayerManager::GetMaxTextureSize() const
 }
 
 void
-BasicShadowLayerManager::SetDefaultTargetConfiguration(BufferMode aDoubleBuffering, ScreenRotation aRotation)
+BasicShadowLayerManager::SetDefaultTarget(gfxContext* aContext,
+                                          BufferMode aDoubleBuffering,
+                                          ScreenRotation aRotation)
 {
-  BasicLayerManager::SetDefaultTargetConfiguration(aDoubleBuffering, aRotation);
+  BasicLayerManager::SetDefaultTarget(aContext, aDoubleBuffering, aRotation);
   mTargetRotation = aRotation;
   if (mWidget) {
     mTargetBounds = mWidget->GetNaturalBounds();

@@ -116,16 +116,16 @@ let TestObserver = {
       return;
     }
 
-    var expectedCategory = TESTS[pos].category;
+    is(aSubject.category, TESTS[pos].category,
+      "test #" + pos + ": error category '" + TESTS[pos].category + "'");
 
-    info("test #" + pos + " console observer got " + aSubject.category + ", is expecting " + expectedCategory);
-
-    if (aSubject.category == expectedCategory) {
+    if (aSubject.category == TESTS[pos].category) {
       foundCategory = true;
     }
     else {
-      info("unexpected message was: " + aSubject.sourceName + ':' + aSubject.lineNumber + '; ' +
+      ok(false, aSubject.sourceName + ':' + aSubject.lineNumber + '; ' +
                 aSubject.errorMessage);
+      testEnded = true;
     }
   }
 };

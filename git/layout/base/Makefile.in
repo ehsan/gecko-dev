@@ -46,6 +46,7 @@ EXPORTS		= \
 		nsIPercentHeightObserver.h  \
 		nsIPresShell.h \
 		nsIReflowCallback.h \
+		nsLayoutErrors.h \
 		nsLayoutUtils.h \
 		nsPresArena.h \
 		nsPresContext.h \
@@ -77,6 +78,7 @@ CPPSRCS		= \
 		nsFrameManager.cpp \
 		nsFrameIterator.cpp \
 		nsGenConList.cpp \
+		nsImageLoader.cpp \
 		nsLayoutDebugger.cpp \
 		nsLayoutHistoryState.cpp \
 		nsLayoutUtils.cpp \

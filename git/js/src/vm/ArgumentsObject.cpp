@@ -86,8 +86,15 @@ ArgumentsObject::create(JSContext *cx, StackFrame *fp)
     JSScript *script = fp->script();
     if (fp->fun()->isHeavyweight() && script->argsObjAliasesFormals()) {
         obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(fp->callObj()));
-        for (AliasedFormalIter fi(script); fi; fi++)
-            data->args[fi.frameIndex()] = MagicValue(JS_FORWARD_TO_CALL_OBJECT);
+
+        /* Flag each slot that canonically lives in the callObj. */
+        if (script->bindingsAccessedDynamically) {
+            for (unsigned i = 0; i < numFormals; ++i)
+                data->args[i] = MagicValue(JS_FORWARD_TO_CALL_OBJECT);
+        } else {
+            for (unsigned i = 0; i < script->numClosedArgs(); ++i)
+                data->args[script->getClosedArg(i)] = MagicValue(JS_FORWARD_TO_CALL_OBJECT);
+        }
     }
 
     ArgumentsObject &argsobj = obj->asArguments();

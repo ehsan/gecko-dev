@@ -144,8 +144,7 @@ nsHTMLEditor::SetInlineProperty(nsIAtom *aProperty,
 
     // loop thru the ranges in the selection
     nsCOMPtr<nsISupports> currentItem;
-    for (enumerator->First();
-         static_cast<nsresult>(NS_ENUMERATOR_FALSE) == enumerator->IsDone();
+    for (enumerator->First(); NS_ENUMERATOR_FALSE == enumerator->IsDone();
          enumerator->Next()) {
       res = enumerator->CurrentItem(getter_AddRefs(currentItem));
       NS_ENSURE_SUCCESS(res, res);
@@ -1392,7 +1391,8 @@ nsresult nsHTMLEditor::RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAStr
     // loop thru the ranges in the selection
     enumerator->First(); 
     nsCOMPtr<nsISupports> currentItem;
-    while (static_cast<nsresult>(NS_ENUMERATOR_FALSE) == enumerator->IsDone()) {
+    while ((NS_ENUMERATOR_FALSE == enumerator->IsDone()))
+    {
       res = enumerator->CurrentItem(getter_AddRefs(currentItem));
       NS_ENSURE_SUCCESS(res, res);
       NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);
@@ -1579,7 +1579,8 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
   // loop thru the ranges in the selection
   enumerator->First(); 
   nsCOMPtr<nsISupports> currentItem;
-  while (static_cast<nsresult>(NS_ENUMERATOR_FALSE) == enumerator->IsDone()) {
+  while ((NS_ENUMERATOR_FALSE == enumerator->IsDone()))
+  {
     res = enumerator->CurrentItem(getter_AddRefs(currentItem));
     NS_ENSURE_SUCCESS(res, res);
     NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);

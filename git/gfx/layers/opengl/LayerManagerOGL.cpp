@@ -361,14 +361,11 @@ LayerManagerOGL::SetClippingRegion(const nsIntRegion& aClippingRegion)
 void
 LayerManagerOGL::BeginTransaction()
 {
-  mInTransaction = true;
 }
 
 void
 LayerManagerOGL::BeginTransactionWithTarget(gfxContext *aTarget)
 {
-  mInTransaction = true;
-
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("[----- BeginTransaction"));
   Log();
@@ -385,8 +382,6 @@ LayerManagerOGL::BeginTransactionWithTarget(gfxContext *aTarget)
 bool
 LayerManagerOGL::EndEmptyTransaction(EndTransactionFlags aFlags)
 {
-  mInTransaction = false;
-
   if (!mRoot)
     return false;
 
@@ -399,8 +394,6 @@ LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
                                 void* aCallbackData,
                                 EndTransactionFlags aFlags)
 {
-  mInTransaction = false;
-
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("  ----- (beginning paint)"));
   Log();

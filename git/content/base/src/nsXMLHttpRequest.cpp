@@ -51,9 +51,10 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsIContentPolicy.h"
 #include "nsContentPolicyUtils.h"
-#include "nsError.h"
+#include "nsContentErrors.h"
 #include "nsLayoutStatics.h"
 #include "nsCrossSiteListenerProxy.h"
+#include "nsDOMError.h"
 #include "nsIHTMLDocument.h"
 #include "nsIMultiPartChannel.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -3224,8 +3225,8 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
     const char *kInvalidHeaders[] = {
       "accept-charset", "accept-encoding", "access-control-request-headers",
       "access-control-request-method", "connection", "content-length",
-      "cookie", "cookie2", "content-transfer-encoding", "date", "dnt",
-      "expect", "host", "keep-alive", "origin", "referer", "te", "trailer",
+      "cookie", "cookie2", "content-transfer-encoding", "date", "expect",
+      "host", "keep-alive", "origin", "referer", "te", "trailer",
       "transfer-encoding", "upgrade", "user-agent", "via"
     };
     PRUint32 i;

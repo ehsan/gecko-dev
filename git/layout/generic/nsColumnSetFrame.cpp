@@ -763,7 +763,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
           if (continuationColumns.NotEmpty()) {
             SetOverflowFrames(PresContext(), continuationColumns);
           }
-          child = nullptr;
+          child = nsnull;
           break;
         } else if (contentBottom > aReflowState.mComputedMaxHeight ||
                    contentBottom > aReflowState.ComputedHeight()) {

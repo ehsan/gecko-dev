@@ -9,7 +9,7 @@
 #include "nsIPipe.h"
 
 #include "nsEmbedStream.h"
-#include "nsError.h"
+#include "nsNetError.h"
 #include "nsString.h"
 
 NS_IMPL_ISUPPORTS0(nsEmbedStream)

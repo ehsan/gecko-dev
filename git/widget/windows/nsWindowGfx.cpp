@@ -34,7 +34,6 @@ using mozilla::plugins::PluginInstanceParent;
 #include "nsRenderingContext.h"
 #include "prmem.h"
 #include "WinUtils.h"
-#include "nsIWidgetListener.h"
 #include "mozilla/unused.h"
 
 #include "LayerManagerOGL.h"
@@ -235,13 +234,13 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
     return true;
   }
 
-  nsIWidgetListener* listener = mAttachedWidgetListener ? mAttachedWidgetListener : mWidgetListener;
-  if (listener) {
-    listener->WillPaintWindow(this, true);
-  }
+  nsPaintEvent willPaintEvent(true, NS_WILL_PAINT, this);
+  willPaintEvent.willSendDidPaint = true;
+  DispatchWindowEvent(&willPaintEvent);
 
   bool result = true;
   PAINTSTRUCT ps;
+  nsEventStatus eventStatus = nsEventStatus_eIgnore;
 
 #ifdef MOZ_XUL
   if (!aDC && (eTransparencyTransparent == mTransparencyMode))
@@ -278,13 +277,20 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
     mPaintDC = hDC;
   }
 
+  // generate the event and call the event callback
+  nsPaintEvent event(true, NS_PAINT, this);
+  InitEvent(event);
+
 #ifdef MOZ_XUL
   bool forceRepaint = aDC || (eTransparencyTransparent == mTransparencyMode);
 #else
   bool forceRepaint = NULL != aDC;
 #endif
-  nsIntRegion region = GetRegionToPaint(forceRepaint, ps, hDC);
-  if (!region.IsEmpty() && listener)
+  event.region = GetRegionToPaint(forceRepaint, ps, hDC);
+  event.willSendDidPaint = true;
+  event.didSendWillPaint = true;
+
+  if (!event.region.IsEmpty() && mEventCallback)
   {
     // Should probably pass in a real region here, using GetRandomRgn
     // http://msdn.microsoft.com/library/default.asp?url=/library/en-us/gdi/clipping_4q0e.asp
@@ -292,7 +298,7 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
 #ifdef WIDGET_DEBUG_OUTPUT
     debug_DumpPaintEvent(stdout,
                          this,
-                         region,
+                         &event,
                          nsCAutoString("noname"),
                          (PRInt32) mWnd);
 #endif // WIDGET_DEBUG_OUTPUT
@@ -379,7 +385,7 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
           nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
           if (IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)) {
             const nsIntRect* r;
-            for (nsIntRegionRectIterator iter(region);
+            for (nsIntRegionRectIterator iter(event.region);
                  (r = iter.Next()) != nullptr;) {
               thebesContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), true);
             }
@@ -416,7 +422,7 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
           {
             AutoLayerManagerSetup
                 setupLayerManager(this, thebesContext, doubleBuffering);
-            result = listener->PaintWindow(this, region, true, true);
+            result = DispatchWindowEvent(&event, eventStatus);
           }
 
 #ifdef MOZ_XUL
@@ -530,16 +536,16 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
         break;
       case LAYERS_OPENGL:
         static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager())->
-          SetClippingRegion(region);
-        result = listener->PaintWindow(this, region, true, true);
+          SetClippingRegion(event.region);
+        result = DispatchWindowEvent(&event, eventStatus);
         break;
 #ifdef MOZ_ENABLE_D3D9_LAYER
       case LAYERS_D3D9:
         {
           LayerManagerD3D9 *layerManagerD3D9 =
             static_cast<mozilla::layers::LayerManagerD3D9*>(GetLayerManager());
-          layerManagerD3D9->SetClippingRegion(region);
-          result = listener->PaintWindow(this, region, true, true);
+          layerManagerD3D9->SetClippingRegion(event.region);
+          result = DispatchWindowEvent(&event, eventStatus);
           if (layerManagerD3D9->DeviceWasRemoved()) {
             mLayerManager->Destroy();
             mLayerManager = nullptr;
@@ -559,7 +565,7 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
           if (layerManagerD3D10->device() != gfxWindowsPlatform::GetPlatform()->GetD3D10Device()) {
             Invalidate();
           } else {
-            result = listener->PaintWindow(this, region, true, true);
+            result = DispatchWindowEvent(&event, eventStatus);
           }
         }
         break;
@@ -583,7 +589,7 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
     // Only flash paint events which have not ignored the paint message.
     // Those that ignore the paint message aren't painting anything so there
     // is only the overhead of the dispatching the paint event.
-    if (result) {
+    if (nsEventStatus_eIgnore != eventStatus) {
       ::InvertRgn(debugPaintFlashDC, debugPaintFlashRegion);
       PR_Sleep(PR_MillisecondsToInterval(30));
       ::InvertRgn(debugPaintFlashDC, debugPaintFlashRegion);
@@ -596,8 +602,8 @@ bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
 
   mPainting = false;
 
-  if (listener)
-    listener->DidPaintWindow();
+  nsPaintEvent didPaintEvent(true, NS_DID_PAINT, this);
+  DispatchWindowEvent(&didPaintEvent);
 
   if (aNestingLevel == 0 && ::GetUpdateRect(mWnd, NULL, false)) {
     OnPaint(aDC, 1);

@@ -17,7 +17,7 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsDOMLists.h"
 #include "nsGUIEvent.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsIDragService.h"
 #include "nsIScriptableRegion.h"
 #include "nsContentUtils.h"

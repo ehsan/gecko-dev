@@ -255,4 +255,7 @@ public class testBrowserProviderPerf extends ContentProviderTest {
         c.close();
     }
 
+    public void tearDown() throws Exception {
+        super.tearDown();
+    }
 }

@@ -17,7 +17,7 @@
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsEscape.h"
-#include "nsError.h"
+#include "nsNetError.h"
 #include "nsIProgrammingLanguage.h"
 #include "mozilla/Util.h" // for DebugOnly
 
@@ -41,8 +41,7 @@ nsSimpleURI::~nsSimpleURI()
 NS_IMPL_ADDREF(nsSimpleURI)
 NS_IMPL_RELEASE(nsSimpleURI)
 NS_INTERFACE_TABLE_HEAD(nsSimpleURI)
-NS_INTERFACE_TABLE5(nsSimpleURI, nsIURI, nsISerializable,
-                    nsIIPCSerializableObsolete, nsIClassInfo, nsIMutable)
+NS_INTERFACE_TABLE5(nsSimpleURI, nsIURI, nsISerializable, nsIIPCSerializable, nsIClassInfo, nsIMutable)
 NS_INTERFACE_TABLE_TO_MAP_SEGUE
   if (aIID.Equals(kThisSimpleURIImplementationCID))
     foundInterface = static_cast<nsIURI*>(this);
@@ -118,7 +117,7 @@ nsSimpleURI::Write(nsIObjectOutputStream* aStream)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsIIPCSerializableObsolete methods:
+// nsIIPCSerializable methods:
 
 bool
 nsSimpleURI::Read(const IPC::Message *aMsg, void **aIter)

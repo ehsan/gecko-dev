@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
-
 #include "nsLayoutStatics.h"
 #include "nscore.h"
 
@@ -96,7 +94,6 @@
 #include "nsHyphenationManager.h"
 #include "nsEditorSpellCheck.h"
 #include "nsWindowMemoryReporter.h"
-#include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ipc/ProcessPriorityManager.h"
 
 extern void NS_ShutdownChainItemPool();
@@ -118,8 +115,6 @@ nsLayoutStatics::Initialize()
                 "nsLayoutStatics", 1);
 
   nsresult rv;
-
-  ContentParent::StartUp();
 
   // Register all of our atoms once
   nsCSSAnonBoxes::AddRefAtoms();
@@ -349,6 +344,4 @@ nsLayoutStatics::Shutdown()
   nsHyphenationManager::Shutdown();
   nsEditorSpellCheck::ShutDown();
   nsDOMMutationObserver::Shutdown();
-
-  ContentParent::ShutDown();
 }

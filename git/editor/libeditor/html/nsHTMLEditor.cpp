@@ -4685,7 +4685,8 @@ nsHTMLEditor::SetCSSBackgroundColor(const nsAString& aColor)
     nsCOMPtr<nsISupports> currentItem;
     nsAutoString bgcolor; bgcolor.AssignLiteral("bgcolor");
     nsCOMPtr<nsIDOMNode> cachedBlockParent = nullptr;
-    while (static_cast<nsresult>(NS_ENUMERATOR_FALSE) == enumerator->IsDone()) {
+    while ((NS_ENUMERATOR_FALSE == enumerator->IsDone()))
+    {
       res = enumerator->CurrentItem(getter_AddRefs(currentItem));
       NS_ENSURE_SUCCESS(res, res);
       NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);

@@ -1240,8 +1240,8 @@ var NativeWindow = {
         name: aName,
         context: aSelector,
         callback: aCallback,
-        matches: function(aElt, aX, aY) {
-          return this.context.matches(aElt, aX, aY);
+        matches: function(aElt) {
+          return this.context.matches(aElt);
         },
         getValue: function(aElt) {
           return {
@@ -1370,7 +1370,7 @@ var NativeWindow = {
         for each (let item in this.items) {
           // since we'll have to spin through this for each element, check that
           // it is not already in the list
-          if ((!this.menuitems || !this.menuitems[item.id]) && item.matches(element, aX, aY)) {
+          if ((!this.menuitems || !this.menuitems[item.id]) && item.matches(element)) {
             if (!this.menuitems)
               this.menuitems = {};
             this.menuitems[item.id] = item;
@@ -1383,7 +1383,7 @@ var NativeWindow = {
       }
 
       // only send the contextmenu event to content if we are planning to show a context menu (i.e. not on every long tap)
-      if (this.menuitems) {
+      if (!this.textContext.matches(element) && this.menuitems) {
         let event = rootElement.ownerDocument.createEvent("MouseEvent");
         event.initMouseEvent("contextmenu", true, true, content,
                              0, aX, aY, aX, aY, false, false, false, false,
@@ -1434,8 +1434,8 @@ var NativeWindow = {
 
       if (selectedItem && selectedItem.callback) {
         while (popupNode) {
-          if (selectedItem.matches(popupNode, aEvent.clientX, aEvent.clientY)) {
-            selectedItem.callback.call(selectedItem, popupNode, aEvent.clientX, aEvent.clientY);
+          if (selectedItem.matches(popupNode)) {
+            selectedItem.callback.call(selectedItem, popupNode);
             break;
           }
           popupNode = popupNode.parentNode;
@@ -1647,9 +1647,16 @@ var SelectionHandler = {
 
   // aX/aY are in top-level window browser coordinates
   startSelection: function sh_startSelection(aElement, aX, aY) {
-    // Clear out any existing selection
-    if (this._active)
+    if (this._active) {
+      // If the user long tapped on the selection, show a context menu
+      if (this._pointInSelection(aX, aY)) {
+        this.showContextMenu(aX, aY);
+        return;
+      }
+
+      // Clear out any existing selection
       this.endSelection();
+    }
 
     // Get the element's view
     this._view = aElement.ownerDocument.defaultView;
@@ -1700,9 +1707,6 @@ var SelectionHandler = {
 
     this.showHandles();
     this._active = true;
-
-    if (aElement instanceof Ci.nsIDOMNSEditableElement)
-      aElement.focus();
   },
 
   getSelection: function sh_getSelection() {
@@ -1723,19 +1727,47 @@ var SelectionHandler = {
                           QueryInterface(Ci.nsISelectionController);
   },
 
-  // Used by the contextmenu "matches" functions in ClipboardHelper
-  shouldShowContextMenu: function sh_shouldShowContextMenu(aX, aY) {
-    return this._active && this._pointInSelection(aX, aY);
-  },
+  showContextMenu: function sh_showContextMenu(aX, aY) {
+    let [SELECT_ALL, COPY, SHARE] = [0, 1, 2];
+    let listitems = [
+      { label: Strings.browser.GetStringFromName("contextmenu.selectAll"), id: SELECT_ALL },
+      { label: Strings.browser.GetStringFromName("contextmenu.copy"), id: COPY },
+      { label: Strings.browser.GetStringFromName("contextmenu.share"), id: SHARE }
+    ];
 
-  selectAll: function sh_selectAll(aElement, aX, aY) {
-    if (!this._active)
-      this.startSelection(aElement, aX, aY);
+    let msg = {
+      gecko: {
+        type: "Prompt:Show",
+        title: "",
+        listitems: listitems
+      }
+    };
+    let id = JSON.parse(sendMessageToJava(msg)).button;
 
-    let selectionController = this.getSelectionController();
-    selectionController.selectAll();
-    this.updateCacheForSelection();
-    this.positionHandles();
+    switch (id) {
+      case SELECT_ALL: {
+        let selectionController = this.getSelectionController();
+        selectionController.selectAll();
+        this.updateCacheForSelection();
+        this.positionHandles();
+        break;
+      }
+      case COPY: {
+        // Passing coordinates to endSelection takes care of copying for us
+        this.endSelection(aX, aY);
+        break;
+      }
+      case SHARE: {
+        let selectedText = this.endSelection();
+        sendMessageToJava({
+          gecko: {
+            type: "Share:Text",
+            text: selectedText
+          }
+        });
+        break;
+      }
+    }
   },
 
   // Moves the ends of the selection in the page. aX/aY are in top-level window
@@ -4984,9 +5016,7 @@ var ClipboardHelper = {
   init: function() {
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.copy"), ClipboardHelper.getCopyContext(false), ClipboardHelper.copy.bind(ClipboardHelper));
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.copyAll"), ClipboardHelper.getCopyContext(true), ClipboardHelper.copy.bind(ClipboardHelper));
-    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.selectWord"), ClipboardHelper.selectWordContext, ClipboardHelper.selectWord.bind(ClipboardHelper));
-    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.selectAll"), ClipboardHelper.selectAllContext, ClipboardHelper.selectAll.bind(ClipboardHelper));
-    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.share"), ClipboardHelper.shareContext, ClipboardHelper.share.bind(ClipboardHelper));
+    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.selectAll"), ClipboardHelper.selectAllContext, ClipboardHelper.select.bind(ClipboardHelper));
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.paste"), ClipboardHelper.pasteContext, ClipboardHelper.paste.bind(ClipboardHelper));
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.changeInputMethod"), NativeWindow.contextmenus.textContext, ClipboardHelper.inputMethod.bind(ClipboardHelper));
   },
@@ -5001,13 +5031,7 @@ var ClipboardHelper = {
     return this.clipboard = Cc["@mozilla.org/widget/clipboard;1"].getService(Ci.nsIClipboard);
   },
 
-  copy: function(aElement, aX, aY) {
-    if (SelectionHandler.shouldShowContextMenu(aX, aY)) {
-      // Passing coordinates to endSelection takes care of copying for us
-      SelectionHandler.endSelection(aX, aY);
-      return;
-    }
-
+  copy: function(aElement) {
     let selectionStart = aElement.selectionStart;
     let selectionEnd = aElement.selectionEnd;
     if (selectionStart != selectionEnd) {
@@ -5018,22 +5042,12 @@ var ClipboardHelper = {
     }
   },
 
-  selectWord: function(aElement, aX, aY) {
-    SelectionHandler.startSelection(aElement, aX, aY);
-  },
-
-  selectAll: function(aElement, aX, aY) {
-    SelectionHandler.selectAll(aElement, aX, aY);
-  },
-
-  share: function() {
-    let selectedText = SelectionHandler.endSelection();
-    sendMessageToJava({
-      gecko: {
-        type: "Share:Text",
-        text: selectedText
-      }
-    });
+  select: function(aElement) {
+    if (!aElement || !(aElement instanceof Ci.nsIDOMNSEditableElement))
+      return;
+    let target = aElement.QueryInterface(Ci.nsIDOMNSEditableElement);
+    target.editor.selectAll();
+    target.focus();
   },
 
   paste: function(aElement) {
@@ -5050,11 +5064,7 @@ var ClipboardHelper = {
 
   getCopyContext: function(isCopyAll) {
     return {
-      matches: function(aElement, aX, aY) {
-        // Do not show "Copy All" for normal non-input text selection.
-        if (!isCopyAll && SelectionHandler.shouldShowContextMenu(aX, aY))
-          return true;
-
+      matches: function(aElement) {
         if (NativeWindow.contextmenus.textContext.matches(aElement)) {
           // Don't include "copy" for password fields.
           // mozIsTextField(true) tests for only non-password fields.
@@ -5074,30 +5084,14 @@ var ClipboardHelper = {
     }
   },
 
-  selectWordContext: {
-    matches: function selectWordContextMatches(aElement) {
-      if (NativeWindow.contextmenus.textContext.matches(aElement))
-        return aElement.textLength > 0;
-
-      return false;
-    }
-  },
-
   selectAllContext: {
-    matches: function selectAllContextMatches(aElement, aX, aY) {
-      if (SelectionHandler.shouldShowContextMenu(aX, aY))
-        return true;
-
-      if (NativeWindow.contextmenus.textContext.matches(aElement))
-        return (aElement.selectionStart > 0 || aElement.selectionEnd < aElement.textLength);
-
+    matches: function selectAllContextMatches(aElement) {
+      if (NativeWindow.contextmenus.textContext.matches(aElement)) {
+          let selectionStart = aElement.selectionStart;
+          let selectionEnd = aElement.selectionEnd;
+          return (selectionStart > 0 || selectionEnd < aElement.textLength);
+      }
       return false;
-    }
-  },
-
-  shareContext: {
-    matches: function shareContextMatches(aElement, aX, aY) {
-      return SelectionHandler.shouldShowContextMenu(aX, aY);
     }
   },
 
@@ -6612,13 +6606,8 @@ let Reader = {
 
     browser.addEventListener("DOMContentLoaded", function (event) {
       let doc = event.originalTarget;
-
-      // ignore on frames and other documents
-      if (doc != browser.contentDocument)
-        return;
-
       this.log("Done loading: " + doc);
-      if (doc.location.href == "about:blank") {
+      if (doc.location.href == "about:blank" || doc.defaultView.frameElement) {
         callback(null);
 
         // Request has finished with error, remove browser element

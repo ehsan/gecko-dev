@@ -7,7 +7,7 @@
 #include "imgTools.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
-#include "nsError.h"
+#include "ImageErrors.h"
 #include "imgIContainer.h"
 #include "imgIEncoder.h"
 #include "imgIDecoderObserver.h"

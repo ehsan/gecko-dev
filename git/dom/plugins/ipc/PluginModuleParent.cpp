@@ -689,8 +689,9 @@ PluginModuleParent::RecvBackUpXResources(const FileDescriptor& aXSocketFd)
 #else
     NS_ABORT_IF_FALSE(0 > mPluginXSocketFdDup.get(),
                       "Already backed up X resources??");
+    int fd = aXSocketFd.fd; // Copy to discard |const| qualifier
     mPluginXSocketFdDup.forget();
-    mPluginXSocketFdDup.reset(aXSocketFd.PlatformHandle());
+    mPluginXSocketFdDup.reset(fd);
 #endif
     return true;
 }

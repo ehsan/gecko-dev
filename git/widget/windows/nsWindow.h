@@ -84,6 +84,7 @@ public:
   NS_IMETHOD              Create(nsIWidget *aParent,
                                  nsNativeWidget aNativeParent,
                                  const nsIntRect &aRect,
+                                 EVENT_CALLBACK aHandleEventFunction,
                                  nsDeviceContext *aContext,
                                  nsWidgetInitData *aInitData = nullptr);
   NS_IMETHOD              Destroy();
@@ -205,6 +206,7 @@ public:
   void                    SuppressBlurEvents(bool aSuppress); // Called from nsFilePicker
   bool                    BlurEventsSuppressed();
 #ifdef ACCESSIBILITY
+  Accessible* DispatchAccessibleEvent(PRUint32 aEventType);
   Accessible* GetRootAccessible();
 #endif // ACCESSIBILITY
 
@@ -328,7 +330,8 @@ protected:
    * Event processing helpers
    */
   bool                    DispatchPluginEvent(const MSG &aMsg);
-  void                    DispatchFocusToTopLevelWindow(bool aIsActivate);
+  bool                    DispatchFocusToTopLevelWindow(PRUint32 aEventType);
+  bool                    DispatchFocus(PRUint32 aEventType);
   bool                    DispatchStandardEvent(PRUint32 aMsg);
   bool                    DispatchCommandEvent(PRUint32 aEventCommand);
   void                    RelayMouseEvent(UINT aMsg, WPARAM wParam, LPARAM lParam);

@@ -12,7 +12,7 @@
 
 #include "nsImageLoadingContent.h"
 #include "nsAutoPtr.h"
-#include "nsError.h"
+#include "nsContentErrors.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsIScriptGlobalObject.h"
@@ -72,9 +72,7 @@ static void PrintReqURL(imgIRequest* req) {
 
 
 nsImageLoadingContent::nsImageLoadingContent()
-  : mCurrentRequestFlags(0),
-    mPendingRequestFlags(0),
-    mObserverList(nullptr),
+  : mObserverList(nullptr),
     mImageBlockingStatus(nsIContentPolicy::ACCEPT),
     mLoadingEnabled(true),
     mIsImageStateForced(false),
@@ -83,7 +81,10 @@ nsImageLoadingContent::nsImageLoadingContent()
     mBroken(true),
     mUserDisabled(false),
     mSuppressed(false),
+    mBlockingOnload(false),
     mNewRequestsWillNeedAnimationReset(false),
+    mPendingRequestNeedsResetAnimation(false),
+    mCurrentRequestNeedsResetAnimation(false),
     mStateChangerDepth(0),
     mCurrentRequestRegistered(false),
     mPendingRequestRegistered(false)
@@ -152,6 +153,23 @@ nsImageLoadingContent::OnStartDecode(imgIRequest* aRequest)
 {
   NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
 
+  // Onload blocking. This only applies for the current request.
+  if (aRequest == mCurrentRequest) {
+
+    // Determine whether this is a background request (this can be the case
+    // with multipart/x-mixed-replace images, for example).
+    PRUint32 loadFlags;
+    nsresult rv = aRequest->GetLoadFlags(&loadFlags);
+    bool background =
+      (NS_SUCCEEDED(rv) && (loadFlags & nsIRequest::LOAD_BACKGROUND));
+
+    // Block onload for non-background requests
+    if (!background) {
+      NS_ABORT_IF_FALSE(!mBlockingOnload, "Shouldn't already be blocking");
+      SetBlockingOnload(true);
+    }
+  }
+
   LOOP_OVER_OBSERVERS(OnStartDecode(aRequest));
   return NS_OK;
 }
@@ -197,6 +215,10 @@ nsImageLoadingContent::OnStopFrame(imgIRequest* aRequest,
 {
   NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
 
+  // If we're blocking a load, one frame is enough
+  if (aRequest == mCurrentRequest)
+    SetBlockingOnload(false);
+
   LOOP_OVER_OBSERVERS(OnStopFrame(aRequest, aFrame));
   return NS_OK;
 }
@@ -206,6 +228,15 @@ nsImageLoadingContent::OnStopContainer(imgIRequest* aRequest,
                                        imgIContainer* aContainer)
 {
   NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
+  // This is really hacky. We need to handle the case where we start decoding,
+  // block onload, but then hit an error before we get to our first frame. In
+  // theory we would just hook in at OnStopDecode, but OnStopDecode is broken
+  // until we fix bug 505385. OnStopContainer is actually going away at that
+  // point. So for now we take advantage of the fact that OnStopContainer is
+  // always fired in the decoders at the same time as OnStopDecode.
+  if (aRequest == mCurrentRequest)
+    SetBlockingOnload(false);
 
   LOOP_OVER_OBSERVERS(OnStopContainer(aRequest, aContainer));
   return NS_OK;
@@ -261,9 +292,7 @@ nsImageLoadingContent::OnStopDecode(imgIRequest* aRequest,
   // initial paint delay (for example, being in the bfcache), but we probably
   // aren't loading images in those situations.
 
-  // XXXkhuey should this be GetOurCurrentDoc?  Decoding if we're not in
-  // the document seems silly.
-  nsIDocument* doc = GetOurOwnerDoc();
+  nsIDocument* doc = GetOurDocument();
   nsIPresShell* shell = doc ? doc->GetShell() : nullptr;
   if (shell && shell->IsVisible() &&
       (!shell->DidInitialReflow() || shell->IsPaintingSuppressed())) {
@@ -278,7 +307,7 @@ nsImageLoadingContent::OnStopDecode(imgIRequest* aRequest,
     FireEvent(NS_LITERAL_STRING("error"));
   }
 
-  nsCOMPtr<nsINode> thisNode = do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  nsCOMPtr<nsINode> thisNode = do_QueryInterface(this);
   nsSVGEffects::InvalidateDirectRenderingObservers(thisNode->AsElement());
 
   return NS_OK;
@@ -522,7 +551,7 @@ nsImageLoadingContent::LoadImageWithChannel(nsIChannel* aChannel,
     return NS_ERROR_NULL_POINTER;
   }
 
-  nsCOMPtr<nsIDocument> doc = GetOurOwnerDoc();
+  nsCOMPtr<nsIDocument> doc = GetOurDocument();
   if (!doc) {
     // Don't bother
     return NS_OK;
@@ -567,39 +596,25 @@ NS_IMETHODIMP nsImageLoadingContent::ForceReload()
   return LoadImage(currentURI, true, true, nullptr, nsIRequest::VALIDATE_ALWAYS);
 }
 
-NS_IMETHODIMP
-nsImageLoadingContent::BlockOnload(imgIRequest* aRequest)
-{
-  if (aRequest != mCurrentRequest) {
-    return NS_OK;
-  }
-
-  nsIDocument* doc = GetOurCurrentDoc();
-  if (doc) {
-    doc->BlockOnload();
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageLoadingContent::UnblockOnload(imgIRequest* aRequest)
-{
-  if (aRequest != mCurrentRequest) {
-    return NS_OK;
-  }
-
-  nsIDocument* doc = GetOurCurrentDoc();
-  if (doc) {
-    doc->UnblockOnload(false);
-  }
-
-  return NS_OK;
-}
-
 /*
  * Non-interface methods
  */
+
+void
+nsImageLoadingContent::NotifyOwnerDocumentChanged(nsIDocument *aOldDoc)
+{
+  // If we had a document before, unregister ourselves with it.
+  if (aOldDoc) {
+    if (mCurrentRequest)
+      aOldDoc->RemoveImage(mCurrentRequest);
+    if (mPendingRequest)
+      aOldDoc->RemoveImage(mPendingRequest);
+  }
+
+  // Re-track the images
+  TrackImage(mCurrentRequest);
+  TrackImage(mPendingRequest);
+}
 
 nsresult
 nsImageLoadingContent::LoadImage(const nsAString& aNewURI,
@@ -607,7 +622,7 @@ nsImageLoadingContent::LoadImage(const nsAString& aNewURI,
                                  bool aNotify)
 {
   // First, get a document (needed for security checks and the like)
-  nsIDocument* doc = GetOurOwnerDoc();
+  nsIDocument* doc = GetOurDocument();
   if (!doc) {
     // No reason to bother, I think...
     return NS_OK;
@@ -655,11 +670,11 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
     return NS_OK;
   }
 
-  NS_ASSERTION(!aDocument || aDocument == GetOurOwnerDoc(),
+  NS_ASSERTION(!aDocument || aDocument == GetOurDocument(),
                "Bogus document passed in");
   // First, get a document (needed for security checks and the like)
   if (!aDocument) {
-    aDocument = GetOurOwnerDoc();
+    aDocument = GetOurDocument();
     if (!aDocument) {
       // No reason to bother, I think...
       return NS_OK;
@@ -690,7 +705,7 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
   // We use the principal of aDocument to avoid having to QI |this| an extra
   // time. It should always be the same as the principal of this node.
 #ifdef DEBUG
-  nsCOMPtr<nsIContent> thisContent = do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  nsCOMPtr<nsIContent> thisContent = do_QueryInterface(this);
   NS_ABORT_IF_FALSE(thisContent &&
                     thisContent->NodePrincipal() == aDocument->NodePrincipal(),
                     "Principal mismatch?");
@@ -698,11 +713,8 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
 
   // Are we blocked?
   PRInt16 cpDecision = nsIContentPolicy::REJECT_REQUEST;
-  nsContentUtils::CanLoadImage(aNewURI,
-                               static_cast<nsIImageLoadingContent*>(this),
-                               aDocument,
-                               aDocument->NodePrincipal(),
-                               &cpDecision);
+  nsContentUtils::CanLoadImage(aNewURI, this, aDocument,
+                               aDocument->NodePrincipal(), &cpDecision);
   if (!NS_CP_ACCEPTED(cpDecision)) {
     FireEvent(NS_LITERAL_STRING("error"));
     SetBlockedRequest(aNewURI, cpDecision);
@@ -808,7 +820,7 @@ nsImageLoadingContent::UpdateImageState(bool aNotify)
     return;
   }
   
-  nsCOMPtr<nsIContent> thisContent = do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  nsCOMPtr<nsIContent> thisContent = do_QueryInterface(this);
   if (!thisContent) {
     return;
   }
@@ -870,30 +882,18 @@ nsImageLoadingContent::UseAsPrimaryRequest(imgIRequest* aRequest,
 }
 
 nsIDocument*
-nsImageLoadingContent::GetOurOwnerDoc()
+nsImageLoadingContent::GetOurDocument()
 {
-  nsCOMPtr<nsIContent> thisContent =
-    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  nsCOMPtr<nsIContent> thisContent = do_QueryInterface(this);
   NS_ENSURE_TRUE(thisContent, nullptr);
 
   return thisContent->OwnerDoc();
 }
 
-nsIDocument*
-nsImageLoadingContent::GetOurCurrentDoc()
-{
-  nsCOMPtr<nsIContent> thisContent =
-    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
-  NS_ENSURE_TRUE(thisContent, nullptr);
-
-  return thisContent->GetCurrentDoc();
-}
-
 nsIFrame*
 nsImageLoadingContent::GetOurPrimaryFrame()
 {
-  nsCOMPtr<nsIContent> thisContent =
-    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  nsCOMPtr<nsIContent> thisContent = do_QueryInterface(this);
   return thisContent->GetPrimaryFrame();
 }
 
@@ -916,7 +916,7 @@ nsImageLoadingContent::StringToURI(const nsAString& aSpec,
   NS_PRECONDITION(aURI, "Null out param");
 
   // (1) Get the base URI
-  nsCOMPtr<nsIContent> thisContent = do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  nsCOMPtr<nsIContent> thisContent = do_QueryInterface(this);
   NS_ASSERTION(thisContent, "An image loading content must be an nsIContent");
   nsCOMPtr<nsIURI> baseURL = thisContent->GetBaseURI();
 
@@ -938,7 +938,7 @@ nsImageLoadingContent::FireEvent(const nsAString& aEventType)
   // loops in cases when onLoad handlers reset the src and the new src is in
   // cache.
 
-  nsCOMPtr<nsINode> thisNode = do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  nsCOMPtr<nsINode> thisNode = do_QueryInterface(this);
 
   nsRefPtr<nsAsyncDOMEvent> event =
     new nsLoadBlockingAsyncDOMEvent(thisNode, aEventType, false, false);
@@ -996,9 +996,7 @@ nsImageLoadingContent::PrepareCurrentRequest()
   // Get rid of anything that was there previously.
   ClearCurrentRequest(NS_ERROR_IMAGE_SRC_CHANGED);
 
-  if (mNewRequestsWillNeedAnimationReset) {
-    mCurrentRequestFlags |= REQUEST_NEEDS_ANIMATION_RESET;
-  }
+  mCurrentRequestNeedsResetAnimation = mNewRequestsWillNeedAnimationReset;
 
   // Return a reference.
   return mCurrentRequest;
@@ -1010,9 +1008,7 @@ nsImageLoadingContent::PreparePendingRequest()
   // Get rid of anything that was there previously.
   ClearPendingRequest(NS_ERROR_IMAGE_SRC_CHANGED);
 
-  if (mNewRequestsWillNeedAnimationReset) {
-    mPendingRequestFlags |= REQUEST_NEEDS_ANIMATION_RESET;
-  }
+  mPendingRequestNeedsResetAnimation = mNewRequestsWillNeedAnimationReset;
 
   // Return a reference.
   return mPendingRequest;
@@ -1058,8 +1054,8 @@ nsImageLoadingContent::MakePendingRequestCurrent()
 
   PrepareCurrentRequest() = mPendingRequest;
   mPendingRequest = nullptr;
-  mCurrentRequestFlags = mPendingRequestFlags;
-  mPendingRequestFlags = 0;
+  mCurrentRequestNeedsResetAnimation = mPendingRequestNeedsResetAnimation;
+  mPendingRequestNeedsResetAnimation = false;
   ResetAnimationIfNeeded();
 }
 
@@ -1084,7 +1080,11 @@ nsImageLoadingContent::ClearCurrentRequest(nsresult aReason)
   UntrackImage(mCurrentRequest);
   mCurrentRequest->CancelAndForgetObserver(aReason);
   mCurrentRequest = nullptr;
-  mCurrentRequestFlags = 0;
+  mCurrentRequestNeedsResetAnimation = false;
+
+  // We only block onload during the decoding of "current" images. This one is
+  // going away, so we should unblock unconditionally here.
+  SetBlockingOnload(false);
 }
 
 void
@@ -1107,7 +1107,7 @@ nsImageLoadingContent::ClearPendingRequest(nsresult aReason)
   UntrackImage(mPendingRequest);
   mPendingRequest->CancelAndForgetObserver(aReason);
   mPendingRequest = nullptr;
-  mPendingRequestFlags = 0;
+  mPendingRequestNeedsResetAnimation = false;
 }
 
 bool*
@@ -1125,13 +1125,12 @@ nsImageLoadingContent::GetRegisteredFlagForRequest(imgIRequest* aRequest)
 void
 nsImageLoadingContent::ResetAnimationIfNeeded()
 {
-  if (mCurrentRequest &&
-      (mCurrentRequestFlags & REQUEST_NEEDS_ANIMATION_RESET)) {
+  if (mCurrentRequest && mCurrentRequestNeedsResetAnimation) {
     nsCOMPtr<imgIContainer> container;
     mCurrentRequest->GetImage(getter_AddRefs(container));
     if (container)
       container->ResetAnimation();
-    mCurrentRequestFlags &= ~REQUEST_NEEDS_ANIMATION_RESET;
+    mCurrentRequestNeedsResetAnimation = false;
   }
 }
 
@@ -1149,33 +1148,25 @@ nsImageLoadingContent::HaveSize(imgIRequest *aImage)
 }
 
 void
-nsImageLoadingContent::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                                  nsIContent* aBindingParent,
-                                  bool aCompileEventHandlers)
+nsImageLoadingContent::SetBlockingOnload(bool aBlocking)
 {
-  // We may be entering the document, so if our image should be tracked,
-  // track it.
-  if (!aDocument)
+  // If we're already in the desired state, we have nothing to do
+  if (mBlockingOnload == aBlocking)
     return;
 
-  if (mCurrentRequestFlags & REQUEST_SHOULD_BE_TRACKED)
-    aDocument->AddImage(mCurrentRequest);
-  if (mPendingRequestFlags & REQUEST_SHOULD_BE_TRACKED)
-    aDocument->AddImage(mPendingRequest);
-}
+  // Get the document
+  nsIDocument* doc = GetOurDocument();
 
-void
-nsImageLoadingContent::UnbindFromTree(bool aDeep, bool aNullParent)
-{
-  // We may be leaving the document, so if our image is tracked, untrack it.
-  nsCOMPtr<nsIDocument> doc = GetOurCurrentDoc();
-  if (!doc)
-    return;
+  if (doc) {
+    // Take the appropriate action
+    if (aBlocking)
+      doc->BlockOnload();
+    else
+      doc->UnblockOnload(false);
 
-  if (mCurrentRequestFlags & REQUEST_SHOULD_BE_TRACKED)
-    doc->RemoveImage(mCurrentRequest);
-  if (mPendingRequestFlags & REQUEST_SHOULD_BE_TRACKED)
-    doc->RemoveImage(mPendingRequest);
+    // Update our state
+    mBlockingOnload = aBlocking;
+  }
 }
 
 nsresult
@@ -1184,15 +1175,7 @@ nsImageLoadingContent::TrackImage(imgIRequest* aImage)
   if (!aImage)
     return NS_OK;
 
-  MOZ_ASSERT(aImage == mCurrentRequest || aImage == mPendingRequest,
-             "Why haven't we heard of this request?");
-  if (aImage == mCurrentRequest) {
-    mCurrentRequestFlags |= REQUEST_SHOULD_BE_TRACKED;
-  } else {
-    mPendingRequestFlags |= REQUEST_SHOULD_BE_TRACKED;
-  }
-
-  nsIDocument* doc = GetOurCurrentDoc();
+  nsIDocument* doc = GetOurDocument();
   if (doc)
     return doc->AddImage(aImage);
   return NS_OK;
@@ -1204,18 +1187,10 @@ nsImageLoadingContent::UntrackImage(imgIRequest* aImage)
   if (!aImage)
     return NS_OK;
 
-  MOZ_ASSERT(aImage == mCurrentRequest || aImage == mPendingRequest,
-             "Why haven't we heard of this request?");
-  if (aImage == mCurrentRequest) {
-    mCurrentRequestFlags &= ~REQUEST_SHOULD_BE_TRACKED;
-  } else {
-    mPendingRequestFlags &= ~REQUEST_SHOULD_BE_TRACKED;
-  }
-
   // If GetOurDocument() returns null here, we've outlived our document.
   // That's fine, because the document empties out the tracker and unlocks
   // all locked images on destruction.
-  nsIDocument* doc = GetOurCurrentDoc();
+  nsIDocument* doc = GetOurDocument();
   if (doc)
     return doc->RemoveImage(aImage);
   return NS_OK;

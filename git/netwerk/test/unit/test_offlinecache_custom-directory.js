@@ -9,12 +9,7 @@
  * 3. checks presence of index.sql and files in the expected location
  */
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var httpServer = null;
 var cacheUpdateObserver = null;
@@ -90,7 +85,7 @@ function finish_test(customDir)
 
 function run_test()
 {
-  httpServer = new HttpServer();
+  httpServer = new nsHttpServer();
   httpServer.registerPathHandler("/masterEntry", masterEntryHandler);
   httpServer.registerPathHandler("/manifest", manifestHandler);
   httpServer.start(4444);

@@ -5,7 +5,7 @@
 
 #include "DOMSVGStringList.h"
 #include "DOMSVGTests.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsCOMPtr.h"
 #include "nsSVGAttrTearoffTable.h"
 

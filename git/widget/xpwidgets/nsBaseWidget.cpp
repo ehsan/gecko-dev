@@ -22,19 +22,11 @@
 #include "BasicLayers.h"
 #include "LayerManagerOGL.h"
 #include "nsIXULRuntime.h"
-#include "nsIXULWindow.h"
-#include "nsIBaseWindow.h"
-#include "nsEventStateManager.h"
-#include "nsIWidgetListener.h"
 #include "nsIGfxInfo.h"
 #include "npapi.h"
 #include "base/thread.h"
 #include "prenv.h"
 #include "mozilla/Attributes.h"
-
-#ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
-#endif
 
 #ifdef DEBUG
 #include "nsIObserver.h"
@@ -84,8 +76,10 @@ nsAutoRollup::~nsAutoRollup()
 //-------------------------------------------------------------------------
 
 nsBaseWidget::nsBaseWidget()
-: mWidgetListener(nullptr)
-, mAttachedWidgetListener(nullptr)
+: mClientData(nullptr)
+, mViewWrapperPtr(nullptr)
+, mEventCallback(nullptr)
+, mViewCallback(nullptr)
 , mContext(nullptr)
 , mCursor(eCursor_standard)
 , mWindowType(eWindowType_child)
@@ -94,7 +88,6 @@ nsBaseWidget::nsBaseWidget()
 , mUseAcceleratedRendering(false)
 , mForceLayersAcceleration(false)
 , mTemporarilyUseBasicLayerManager(false)
-, mUseAttachedEvents(false)
 , mBounds(0,0,0,0)
 , mOriginalBounds(nullptr)
 , mClipRectCount(0)
@@ -180,6 +173,7 @@ nsBaseWidget::~nsBaseWidget()
 //-------------------------------------------------------------------------
 void nsBaseWidget::BaseCreate(nsIWidget *aParent,
                               const nsIntRect &aRect,
+                              EVENT_CALLBACK aHandleEventFunction,
                               nsDeviceContext *aContext,
                               nsWidgetInitData *aInitData)
 {
@@ -191,6 +185,9 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
     gDisableNativeThemeCached = true;
   }
 
+  // save the event callback function
+  mEventCallback = aHandleEventFunction;
+  
   // keep a reference to the device context
   if (aContext) {
     mContext = aContext;
@@ -225,18 +222,21 @@ NS_IMETHODIMP nsBaseWidget::CaptureMouse(bool aCapture)
 //
 //-------------------------------------------------------------------------
 
-nsIWidgetListener* nsBaseWidget::GetWidgetListener()
+NS_IMETHODIMP nsBaseWidget::GetClientData(void*& aClientData)
 {
-  return mWidgetListener;
+  aClientData = mClientData;
+  return NS_OK;
 }
 
-void nsBaseWidget::SetWidgetListener(nsIWidgetListener* aWidgetListener)
+NS_IMETHODIMP nsBaseWidget::SetClientData(void* aClientData)
 {
-  mWidgetListener = aWidgetListener;
+  mClientData = aClientData;
+  return NS_OK;
 }
 
 already_AddRefed<nsIWidget>
 nsBaseWidget::CreateChild(const nsIntRect  &aRect,
+                          EVENT_CALLBACK   aHandleEventFunction,
                           nsDeviceContext *aContext,
                           nsWidgetInitData *aInitData,
                           bool             aForceUseIWidgetParent)
@@ -263,6 +263,7 @@ nsBaseWidget::CreateChild(const nsIntRect  &aRect,
 
   if (widget &&
       NS_SUCCEEDED(widget->Create(parent, nativeParent, aRect,
+                                  aHandleEventFunction,
                                   aContext, aInitData))) {
     return widget.forget();
   }
@@ -270,9 +271,26 @@ nsBaseWidget::CreateChild(const nsIntRect  &aRect,
   return nullptr;
 }
 
+NS_IMETHODIMP
+nsBaseWidget::SetEventCallback(EVENT_CALLBACK aEventFunction,
+                               nsDeviceContext *aContext)
+{
+  NS_ASSERTION(aEventFunction, "Must have valid event callback!");
+
+  mEventCallback = aEventFunction;
+
+  if (aContext) {
+    NS_IF_RELEASE(mContext);
+    mContext = aContext;
+    NS_ADDREF(mContext);
+  }
+
+  return NS_OK;
+}
+
 // Attach a view to our widget which we'll send events to. 
 NS_IMETHODIMP
-nsBaseWidget::AttachViewToTopLevel(bool aUseAttachedEvents,
+nsBaseWidget::AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction,
                                    nsDeviceContext *aContext)
 {
   NS_ASSERTION((mWindowType == eWindowType_toplevel ||
@@ -281,7 +299,7 @@ nsBaseWidget::AttachViewToTopLevel(bool aUseAttachedEvents,
                 mWindowType == eWindowType_child),
                "Can't attach to window of that type");
 
-  mUseAttachedEvents = aUseAttachedEvents;
+  mViewCallback = aViewEventFunction;
 
   if (aContext) {
     if (mContext) {
@@ -294,14 +312,15 @@ nsBaseWidget::AttachViewToTopLevel(bool aUseAttachedEvents,
   return NS_OK;
 }
 
-nsIWidgetListener* nsBaseWidget::GetAttachedWidgetListener()
+ViewWrapper* nsBaseWidget::GetAttachedViewPtr()
  {
-   return mAttachedWidgetListener;
+   return mViewWrapperPtr;
  }
  
-void nsBaseWidget::SetAttachedWidgetListener(nsIWidgetListener* aListener)
+NS_IMETHODIMP nsBaseWidget::SetAttachedViewPtr(ViewWrapper* aViewWrapper)
  {
-   mAttachedWidgetListener = aListener;
+   mViewWrapperPtr = aViewWrapper;
+   return NS_OK;
  }
 
 //-------------------------------------------------------------------------
@@ -720,8 +739,7 @@ nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
   if (manager) {
     NS_ASSERTION(manager->GetBackendType() == LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
-    manager->SetDefaultTarget(aTarget);
-    manager->SetDefaultTargetConfiguration(aDoubleBuffering, aRotation);
+    manager->SetDefaultTarget(aTarget, aDoubleBuffering, aRotation);
   }
 }
 
@@ -732,8 +750,8 @@ nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
   if (manager) {
     NS_ASSERTION(manager->GetBackendType() == LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
-    manager->SetDefaultTarget(nullptr);
-    manager->SetDefaultTargetConfiguration(mozilla::layers::BUFFER_NONE, ROTATION_0);
+    manager->SetDefaultTarget(nullptr, mozilla::layers::BUFFER_NONE,
+                              ROTATION_0);
   }
 }
 
@@ -1317,95 +1335,6 @@ const widget::SizeConstraints& nsBaseWidget::GetSizeConstraints() const
   return mSizeConstraints;
 }
 
-void
-nsBaseWidget::NotifyWindowDestroyed()
-{
-  if (!mWidgetListener)
-    return;
-
-  nsCOMPtr<nsIXULWindow> window = mWidgetListener->GetXULWindow();
-  nsCOMPtr<nsIBaseWindow> xulWindow(do_QueryInterface(window));
-  if (xulWindow) {
-    xulWindow->Destroy();
-  }
-}
-
-void
-nsBaseWidget::NotifySizeMoveDone()
-{
-  if (!mWidgetListener || mWidgetListener->GetXULWindow())
-    return;
-
-  nsIPresShell* presShell = mWidgetListener->GetPresShell();
-  if (presShell) {
-    presShell->WindowSizeMoveDone();
-  }
-}
-
-void
-nsBaseWidget::NotifySysColorChanged()
-{
-  if (!mWidgetListener || mWidgetListener->GetXULWindow())
-    return;
-
-  nsIPresShell* presShell = mWidgetListener->GetPresShell();
-  if (presShell) {
-    presShell->SysColorChanged();
-  }
-}
-
-void
-nsBaseWidget::NotifyThemeChanged()
-{
-  if (!mWidgetListener || mWidgetListener->GetXULWindow())
-    return;
-
-  nsIPresShell* presShell = mWidgetListener->GetPresShell();
-  if (presShell) {
-    presShell->ThemeChanged();
-  }
-}
-
-void
-nsBaseWidget::NotifyUIStateChanged(UIStateChangeType aShowAccelerators,
-                                   UIStateChangeType aShowFocusRings)
-{
-  nsIPresShell* presShell = mWidgetListener->GetPresShell();
-  nsIDocument* doc = presShell->GetDocument();
-  if (doc) {
-    nsPIDOMWindow* win = doc->GetWindow();
-    if (win) {
-      win->SetKeyboardIndicators(aShowAccelerators, aShowFocusRings);
-    }
-  }
-}
-
-#ifdef ACCESSIBILITY
-
-Accessible*
-nsBaseWidget::GetAccessible()
-{
-  nsIPresShell* presShell = mWidgetListener->GetPresShell();
-  NS_ENSURE_TRUE(presShell, nullptr);
-
-  // If container is null then the presshell is not active. This often happens
-  // when a preshell is being held onto for fastback.
-  nsPresContext* presContext = presShell->GetPresContext();
-  nsCOMPtr<nsISupports> container = presContext->GetContainer();
-  NS_ENSURE_TRUE(container, nullptr);
-
-  // Accessible creation might be not safe so use IsSafeToRunScript to
-  // make sure it's not created at unsafe times.
-  nsCOMPtr<nsIAccessibilityService> accService = services::GetAccessibilityService();
-  if (accService) {
-    return accService->GetRootDocumentAccessible(presShell, nsContentUtils::IsSafeToRunScript());
-  }
-
-  return nullptr;
-}
-
-#endif
-
 #ifdef DEBUG
 //////////////////////////////////////////////////////////////
 //
@@ -1430,6 +1359,8 @@ case _value: eventName.AssignLiteral(_name) ; break
   switch(aGuiEvent->message)
   {
     _ASSIGN_eventName(NS_BLUR_CONTENT,"NS_BLUR_CONTENT");
+    _ASSIGN_eventName(NS_CREATE,"NS_CREATE");
+    _ASSIGN_eventName(NS_DESTROY,"NS_DESTROY");
     _ASSIGN_eventName(NS_DRAGDROP_GESTURE,"NS_DND_GESTURE");
     _ASSIGN_eventName(NS_DRAGDROP_DROP,"NS_DND_DROP");
     _ASSIGN_eventName(NS_DRAGDROP_ENTER,"NS_DND_ENTER");
@@ -1453,6 +1384,7 @@ case _value: eventName.AssignLiteral(_name) ; break
     _ASSIGN_eventName(NS_MOUSE_CLICK,"NS_MOUSE_CLICK");
     _ASSIGN_eventName(NS_MOUSE_DOUBLECLICK,"NS_MOUSE_DBLCLICK");
     _ASSIGN_eventName(NS_MOUSE_MOVE,"NS_MOUSE_MOVE");
+    _ASSIGN_eventName(NS_MOVE,"NS_MOVE");
     _ASSIGN_eventName(NS_LOAD,"NS_LOAD");
     _ASSIGN_eventName(NS_POPSTATE,"NS_POPSTATE");
     _ASSIGN_eventName(NS_BEFORE_SCRIPT_EXECUTE,"NS_BEFORE_SCRIPT_EXECUTE");
@@ -1460,8 +1392,15 @@ case _value: eventName.AssignLiteral(_name) ; break
     _ASSIGN_eventName(NS_PAGE_UNLOAD,"NS_PAGE_UNLOAD");
     _ASSIGN_eventName(NS_HASHCHANGE,"NS_HASHCHANGE");
     _ASSIGN_eventName(NS_READYSTATECHANGE,"NS_READYSTATECHANGE");
+    _ASSIGN_eventName(NS_PAINT,"NS_PAINT");
     _ASSIGN_eventName(NS_XUL_BROADCAST, "NS_XUL_BROADCAST");
     _ASSIGN_eventName(NS_XUL_COMMAND_UPDATE, "NS_XUL_COMMAND_UPDATE");
+    _ASSIGN_eventName(NS_SCROLLBAR_LINE_NEXT,"NS_SB_LINE_NEXT");
+    _ASSIGN_eventName(NS_SCROLLBAR_LINE_PREV,"NS_SB_LINE_PREV");
+    _ASSIGN_eventName(NS_SCROLLBAR_PAGE_NEXT,"NS_SB_PAGE_NEXT");
+    _ASSIGN_eventName(NS_SCROLLBAR_PAGE_PREV,"NS_SB_PAGE_PREV");
+    _ASSIGN_eventName(NS_SCROLLBAR_POS,"NS_SB_POS");
+    _ASSIGN_eventName(NS_SIZE,"NS_SIZE");
 
 #undef _ASSIGN_eventName
 
@@ -1599,6 +1538,10 @@ nsBaseWidget::debug_DumpEvent(FILE *                aFileOut,
                               const nsCAutoString & aWidgetName,
                               PRInt32               aWindowID)
 {
+  // NS_PAINT is handled by debug_DumpPaintEvent()
+  if (aGuiEvent->message == NS_PAINT)
+    return;
+
   if (aGuiEvent->message == NS_MOUSE_MOVE)
   {
     if (!debug_GetCachedBoolPref("nglayout.debug.motion_event_dumping"))
@@ -1631,17 +1574,18 @@ nsBaseWidget::debug_DumpEvent(FILE *                aFileOut,
 /* static */ void
 nsBaseWidget::debug_DumpPaintEvent(FILE *                aFileOut,
                                    nsIWidget *           aWidget,
-                                   const nsIntRegion &   aRegion,
+                                   nsPaintEvent *        aPaintEvent,
                                    const nsCAutoString & aWidgetName,
                                    PRInt32               aWindowID)
 {
   NS_ASSERTION(nullptr != aFileOut,"cmon, null output FILE");
   NS_ASSERTION(nullptr != aWidget,"cmon, the widget is null");
+  NS_ASSERTION(nullptr != aPaintEvent,"cmon, the paint event is null");
 
   if (!debug_GetCachedBoolPref("nglayout.debug.paint_dumping"))
     return;
   
-  nsIntRect rect = aRegion.GetBounds();
+  nsIntRect rect = aPaintEvent->region.GetBounds();
   fprintf(aFileOut,
           "%4d PAINT      widget=%p name=%-12s id=%-8p bounds-rect=%3d,%-3d %3d,%-3d", 
           _GetPrintCount(),

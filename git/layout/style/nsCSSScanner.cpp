@@ -284,7 +284,7 @@ static int
 CSSErrorsPrefChanged(const char *aPref, void *aClosure)
 {
   gReportErrors = Preferences::GetBool(CSS_ERRORS_PREF, true);
-  return 0;
+  return NS_OK;
 }
 #endif
 

@@ -17,8 +17,7 @@
 #include "nsCOMPtr.h"
 #include "prlog.h"
 #include "prio.h"
-#include "nsIIPCSerializableInputStream.h"
-#include "nsIIPCSerializableObsolete.h"
+#include "nsIIPCSerializable.h"
 
 template<class CharType> class nsLineBuffer;
 
@@ -103,15 +102,13 @@ protected:
 class nsFileInputStream : public nsFileStreamBase,
                           public nsIFileInputStream,
                           public nsILineInputStream,
-                          public nsIIPCSerializableObsolete,
-                          public nsIIPCSerializableInputStream
+                          public nsIIPCSerializable
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIFILEINPUTSTREAM
     NS_DECL_NSILINEINPUTSTREAM
-    NS_DECL_NSIIPCSERIALIZABLEOBSOLETE
-    NS_DECL_NSIIPCSERIALIZABLEINPUTSTREAM
+    NS_DECL_NSIIPCSERIALIZABLE
 
     NS_IMETHOD Close();
     NS_IMETHOD Available(PRUint64* _retval)
@@ -134,11 +131,9 @@ public:
     NS_IMETHOD Seek(PRInt32 aWhence, PRInt64 aOffset);
 
     nsFileInputStream()
-      : mIOFlags(0), mPerm(0)
     {
         mLineBuffer = nullptr;
     }
-
     virtual ~nsFileInputStream() 
     {
         Close();
@@ -184,12 +179,7 @@ public:
     using nsFileInputStream::Init;
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIPARTIALFILEINPUTSTREAM
-    NS_DECL_NSIIPCSERIALIZABLEOBSOLETE
-    NS_DECL_NSIIPCSERIALIZABLEINPUTSTREAM
-
-    nsPartialFileInputStream()
-      : mStart(0), mLength(0), mPosition(0)
-    { }
+    NS_DECL_NSIIPCSERIALIZABLE
 
     NS_IMETHOD Tell(PRInt64 *aResult);
     NS_IMETHOD Available(PRUint64 *aResult);

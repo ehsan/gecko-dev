@@ -25,9 +25,7 @@ EXPORTS_mozilla/ipc = \
   AsyncChannel.h \
   BrowserProcessSubThread.h \
   CrossProcessMutex.h \
-  FileDescriptor.h \
   GeckoChildProcessHost.h \
-  InputStreamUtils.h \
   IOThreadChild.h \
   ProcessChild.h \
   ProtocolUtils.h \
@@ -41,8 +39,6 @@ EXPORTS_mozilla/ipc = \
   ScopedXREEmbed.h \
   Transport.h \
   $(NULL)
-
-EXPORTS = nsIIPCSerializableInputStream.h
 
 ifeq ($(OS_ARCH),WINNT) #{
 EXPORTS_mozilla/ipc += \
@@ -67,9 +63,7 @@ endif #}
 CPPSRCS += \
   AsyncChannel.cpp \
   BrowserProcessSubThread.cpp \
-  FileDescriptor.cpp \
   GeckoChildProcessHost.cpp \
-  InputStreamUtils.cpp \
   MessagePump.cpp \
   ProcessChild.cpp \
   ProtocolUtils.cpp \

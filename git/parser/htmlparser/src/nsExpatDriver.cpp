@@ -24,7 +24,7 @@
 #include "nsIScriptError.h"
 #include "nsIContentPolicy.h"
 #include "nsContentPolicyUtils.h"
-#include "nsError.h"
+#include "nsContentErrors.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsUnicharInputStream.h"
 

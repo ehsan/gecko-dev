@@ -1925,7 +1925,9 @@ void nsWindow::OnDestroy()
   // from the Release() below.  This is very bad...
   if (!(nsWindowState_eDoingDelete & mWindowState)) {
     AddRef();
-    NotifyWindowDestroyed();
+    nsGUIEvent event(true, NS_DESTROY, this);
+    InitEvent(event);
+    DispatchWindowEvent(&event);
     Release();
   }
 
@@ -2946,8 +2948,10 @@ NS_IMETHODIMP nsWindow::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
     return NS_OK;
   }
 
+  // if state is eInCreate, only send out NS_CREATE
   // if state is eDoingDelete, don't send out anything
-  if (mWindowState & nsWindowState_eLive) {
+  if ((mWindowState & nsWindowState_eLive) ||
+      (mWindowState == nsWindowState_eInCreate && event->message == NS_CREATE)) {
     aStatus = (*mEventCallback)(event);
   }
   return NS_OK;

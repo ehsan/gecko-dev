@@ -22,7 +22,7 @@
 #include "nsCRT.h"
 #include "nsCRTGlue.h"
 #include "nsIJSContextStack.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsDOMCID.h"
 #include "jsdbgapi.h"
 #include "nsIXPConnect.h"

@@ -42,8 +42,6 @@ protected:
                                   PRInt32 aClickCount,
                                   PRInt32 aModifiers,
                                   bool aIgnoreRootScrollFrame,
-                                  float aPressure,
-                                  unsigned short aInputSourceArg,
                                   bool aToWindow);
 
   static mozilla::widget::Modifiers GetWidgetModifiers(PRInt32 aModifiers);

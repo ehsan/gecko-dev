@@ -631,14 +631,17 @@ abstract public class GeckoApp
     }
 
     void processThumbnail(Tab thumbnailTab, Bitmap bitmap, byte[] compressed) {
-        try {
-            if (bitmap == null) {
-                if (compressed == null) {
-                    Log.e(LOGTAG, "processThumbnail: one of bitmap or compressed must be non-null!");
-                    return;
-                }
-                bitmap = BitmapFactory.decodeByteArray(compressed, 0, compressed.length);
+        if (shouldUpdateThumbnail(thumbnailTab)) {
+            if (compressed == null) {
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                bitmap.compress(Bitmap.CompressFormat.PNG, 0, bos);
+                compressed = bos.toByteArray();
             }
+        }
+
+        try {
+            if (bitmap == null)
+                bitmap = BitmapFactory.decodeByteArray(compressed, 0, compressed.length);
             thumbnailTab.updateThumbnail(bitmap);
         } catch (OutOfMemoryError ome) {
             Log.w(LOGTAG, "decoding byte array ran out of memory", ome);
@@ -1514,7 +1517,12 @@ abstract public class GeckoApp
         }
 
         GeckoAppShell.loadMozGlue();
-        if (sGeckoThread != null) {
+        if (sGeckoThread == null) {
+            sGeckoThread = new GeckoThread();
+            String uri = getURIFromIntent(getIntent());
+            if (uri != null && uri.length() > 0 && !uri.equals("about:home"))
+                sGeckoThread.start();
+        } else {
             // this happens when the GeckoApp activity is destroyed by android
             // without killing the entire application (see bug 769269)
             mIsRestoringActivity = true;
@@ -1622,19 +1630,17 @@ abstract public class GeckoApp
             passedUri = "about:empty";
         }
 
-        if (!mIsRestoringActivity) {
-            sGeckoThread = new GeckoThread(intent, passedUri, mRestoreMode);
-        }
+        sGeckoThread.init(intent, passedUri, mRestoreMode);
         if (!ACTION_DEBUG.equals(action) &&
             checkAndSetLaunchState(LaunchState.Launching, LaunchState.Launched)) {
-            sGeckoThread.start();
+            sGeckoThread.reallyStart();
         } else if (ACTION_DEBUG.equals(action) &&
             checkAndSetLaunchState(LaunchState.Launching, LaunchState.WaitForDebugger)) {
             mMainHandler.postDelayed(new Runnable() {
                 public void run() {
                     Log.i(LOGTAG, "Launching from debug intent after 5s wait");
                     setLaunchState(LaunchState.Launching);
-                    sGeckoThread.start();
+                    sGeckoThread.reallyStart();
                 }
             }, 1000 * 5 /* 5 seconds */);
             Log.i(LOGTAG, "Intent : ACTION_DEBUG - waiting 5s before launching");
@@ -1768,16 +1774,17 @@ abstract public class GeckoApp
      * Enable Android StrictMode checks (for supported OS versions).
      * http://developer.android.com/reference/android/os/StrictMode.html
      */
-    private void enableStrictMode()
-    {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.GINGERBREAD) {
+    private void enableStrictMode() {
+        int SDK_INT = Build.VERSION.SDK_INT;
+        if (SDK_INT < 9)
             return;
-        }
 
-        StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder()
-                                  .detectAll()
-                                  .penaltyLog()
-                                  .build());
+        StrictMode.ThreadPolicy.Builder threadPolicyBuilder = new StrictMode.ThreadPolicy.Builder()
+                                                                            .detectAll()
+                                                                            .penaltyLog();
+        if (SDK_INT >= 11)
+            threadPolicyBuilder = threadPolicyBuilder.penaltyFlashScreen();
+        StrictMode.setThreadPolicy(threadPolicyBuilder.build());
 
         StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder()
                                .detectAll()

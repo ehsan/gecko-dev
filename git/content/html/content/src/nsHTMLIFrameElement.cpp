@@ -9,7 +9,7 @@
 #include "nsIDOMSVGDocument.h"
 #include "nsGkAtoms.h"
 #include "nsMappedAttributes.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsRuleData.h"
 #include "nsStyleConsts.h"
 

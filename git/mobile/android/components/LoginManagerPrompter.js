@@ -221,7 +221,7 @@ LoginManagerPrompter.prototype = {
                 label:     rememberButtonText,
                 accessKey: rememberButtonAccessKey,
                 popup:     null,
-                callback: function() {
+                callback: function(aNotificationBar, aButton) {
                     pwmgr.addLogin(aLogin);
                 }
             },
@@ -231,7 +231,7 @@ LoginManagerPrompter.prototype = {
                 label:     neverButtonText,
                 accessKey: neverButtonAccessKey,
                 popup:     null,
-                callback: function() {
+                callback: function(aNotificationBar, aButton) {
                     pwmgr.setLoginSavingEnabled(aLogin.hostname, false);
                 }
             },
@@ -362,7 +362,7 @@ LoginManagerPrompter.prototype = {
                 label:     changeButtonText,
                 accessKey: changeButtonAccessKey,
                 popup:     null,
-                callback:  function() {
+                callback:  function(aNotificationBar, aButton) {
                     self._updateLogin(aOldLogin, aNewPassword);
                 }
             },
@@ -372,7 +372,7 @@ LoginManagerPrompter.prototype = {
                 label:     dontChangeButtonText,
                 accessKey: dontChangeButtonAccessKey,
                 popup:     null,
-                callback:  function() {
+                callback:  function(aNotificationBar, aButton) {
                     // do nothing
                 }
             }

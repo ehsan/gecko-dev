@@ -32,7 +32,7 @@
 #include "nsGkAtoms.h"
 #include "nsString.h"
 #include "nsUnicharUtils.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsRuleWalker.h"
 #include "nsCSSPseudoClasses.h"
 #include "nsCSSPseudoElements.h"

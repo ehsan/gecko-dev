@@ -12,7 +12,7 @@
 #include "nsPresContext.h"
 #include "nsIDocument.h"
 #include "nsIFormControlFrame.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsContentUtils.h"
 #include "nsInterfaceHashtable.h"
 #include "nsContentList.h"

@@ -4591,33 +4591,34 @@ main (int argc, char *argv[])
   //
 
   result = simple_test();
-  NS_ENSURE_SUCCESS(result, 1);
+  NS_ENSURE_SUCCESS(result, result);
 
   result = aggregation_test();
-  NS_ENSURE_SUCCESS(result, 1);
+  NS_ENSURE_SUCCESS(result, result);
 
   //
   // quick_batch_test() part:
   //
 
   result = simple_batch_test();
-  NS_ENSURE_SUCCESS(result, 1);
+  NS_ENSURE_SUCCESS(result, result);
 
   result = aggregation_batch_test();
-  NS_ENSURE_SUCCESS(result, 1);
+  NS_ENSURE_SUCCESS(result, result);
 
   //
   // stress_test() part:
   //
 
   result = simple_stress_test();
-  NS_ENSURE_SUCCESS(result, 1);
+  NS_ENSURE_SUCCESS(result, result);
 
   result = aggregation_stress_test();
-  NS_ENSURE_SUCCESS(result, 1);
+  NS_ENSURE_SUCCESS(result, result);
 
   result = aggregation_batch_stress_test();
-  NS_ENSURE_SUCCESS(result, 1);
+  NS_ENSURE_SUCCESS(result, result);
 
-  return 0;
+
+  return NS_OK;
 }

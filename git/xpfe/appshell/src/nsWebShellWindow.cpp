@@ -30,7 +30,6 @@
 #include "nsGUIEvent.h"
 #include "nsWidgetsCID.h"
 #include "nsIWidget.h"
-#include "nsIWidgetListener.h"
 
 #include "nsIDOMCharacterData.h"
 #include "nsIDOMNodeList.h"
@@ -160,11 +159,12 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
     mParentWindow = do_GetWeakReference(aParent);
   }
 
-  mWindow->SetWidgetListener(this);
+  mWindow->SetClientData(this);
   mWindow->Create((nsIWidget *)parentWidget,          // Parent nsIWidget
-                  nullptr,                            // Native parent widget
+                  nullptr,                             // Native parent widget
                   r,                                  // Widget dimensions
-                  nullptr,                            // Device context
+                  nsWebShellWindow::HandleEvent,      // Event handler function
+                  nullptr,                             // Device context
                   &widgetInitData);                   // Widget initialization data
   mWindow->GetClientBounds(r);
   // Match the default background color of content. Important on windows
@@ -216,181 +216,232 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
   return rv;
 }
 
-nsIPresShell*
-nsWebShellWindow::GetPresShell()
-{
-  if (!mDocShell)
-    return nullptr;
 
-  nsCOMPtr<nsIPresShell> presShell;
-  mDocShell->GetPresShell(getter_AddRefs(presShell));
-  return presShell.get();
+/*
+ * Toolbar
+ */
+nsresult
+nsWebShellWindow::Toolbar()
+{
+    nsCOMPtr<nsIXULWindow> kungFuDeathGrip(this);
+    nsCOMPtr<nsIWebBrowserChrome> wbc(do_GetInterface(kungFuDeathGrip));
+    if (!wbc)
+      return NS_ERROR_UNEXPECTED;
+
+    // rjc: don't use "nsIWebBrowserChrome::CHROME_EXTRA"
+    //      due to components with multiple sidebar components
+    //      (such as Mail/News, Addressbook, etc)... and frankly,
+    //      Mac IE, OmniWeb, and other Mac OS X apps all work this way
+
+    PRUint32    chromeMask = (nsIWebBrowserChrome::CHROME_TOOLBAR |
+                              nsIWebBrowserChrome::CHROME_LOCATIONBAR |
+                              nsIWebBrowserChrome::CHROME_PERSONAL_TOOLBAR);
+
+    PRUint32    chromeFlags, newChromeFlags = 0;
+    wbc->GetChromeFlags(&chromeFlags);
+    newChromeFlags = chromeFlags & chromeMask;
+    if (!newChromeFlags)    chromeFlags |= chromeMask;
+    else                    chromeFlags &= (~newChromeFlags);
+    wbc->SetChromeFlags(chromeFlags);
+    return NS_OK;
 }
 
-bool
-nsWebShellWindow::WindowMoved(nsIWidget* aWidget, PRInt32 x, PRInt32 y)
+
+/*
+ * Event handler function...
+ *
+ * This function is called to process events for the nsIWidget of the 
+ * nsWebShellWindow...
+ */
+nsEventStatus
+nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
 {
-  nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm) {
-    nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mDocShell);
-    pm->AdjustPopupsOnWindowChange(window);
-  }
+  nsEventStatus result = nsEventStatus_eIgnore;
+  nsIDocShell* docShell = nullptr;
+  nsWebShellWindow *eventWindow = nullptr;
 
-  // Persist position, but not immediately, in case this OS is firing
-  // repeated move events as the user drags the window
-  SetPersistenceTimer(PAD_POSITION);
-  return false;
-}
+  // Get the WebShell instance...
+  if (nullptr != aEvent->widget) {
+    void* data;
 
-bool
-nsWebShellWindow::WindowResized(nsIWidget* aWidget, PRInt32 aWidth, PRInt32 aHeight)
-{
-  nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm) {
-    nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mDocShell);
-    pm->AdjustPopupsOnWindowChange(window);
-  }
-
-  nsCOMPtr<nsIBaseWindow> shellAsWin(do_QueryInterface(mDocShell));
-  if (shellAsWin) {
-    shellAsWin->SetPositionAndSize(0, 0, aWidth, aHeight, false);
-  }
-  // Persist size, but not immediately, in case this OS is firing
-  // repeated size events as the user drags the sizing handle
-  if (!IsLocked())
-    SetPersistenceTimer(PAD_POSITION | PAD_SIZE | PAD_MISC);
-  return true;
-}
-
-bool
-nsWebShellWindow::RequestWindowClose(nsIWidget* aWidget)
-{
-  // Maintain a reference to this as it is about to get destroyed.
-  nsCOMPtr<nsIXULWindow> xulWindow(this);
-
-  nsCOMPtr<nsPIDOMWindow> window(do_GetInterface(mDocShell));
-  nsCOMPtr<nsIDOMEventTarget> eventTarget = do_QueryInterface(window);
-
-  nsCOMPtr<nsIPresShell> presShell;
-  mDocShell->GetPresShell(getter_AddRefs(presShell));
-
-  if (eventTarget) {
-    nsRefPtr<nsPresContext> presContext = presShell->GetPresContext();
-
-    nsEventStatus status = nsEventStatus_eIgnore;
-    nsMouseEvent event(true, NS_XUL_CLOSE, nullptr, nsMouseEvent::eReal);
-    if (NS_SUCCEEDED(eventTarget->DispatchDOMEvent(&event, nullptr, presContext, &status)) &&
-        status == nsEventStatus_eConsumeNoDefault)
-      return false;
-  }
-
-  Destroy();
-  return false;
-}
-
-void
-nsWebShellWindow::SizeModeChanged(nsSizeMode sizeMode)
-{
-  // An alwaysRaised (or higher) window will hide any newly opened normal
-  // browser windows, so here we just drop a raised window to the normal
-  // zlevel if it's maximized. We make no provision for automatically
-  // re-raising it when restored.
-  if (sizeMode == nsSizeMode_Maximized || sizeMode == nsSizeMode_Fullscreen) {
-    PRUint32 zLevel;
-    GetZLevel(&zLevel);
-    if (zLevel > nsIXULWindow::normalZ)
-      SetZLevel(nsIXULWindow::normalZ);
-  }
-  mWindow->SetSizeMode(sizeMode);
-
-  // Persist mode, but not immediately, because in many (all?)
-  // cases this will merge with the similar call in NS_SIZE and
-  // write the attribute values only once.
-  SetPersistenceTimer(PAD_MISC);
-  nsCOMPtr<nsPIDOMWindow> ourWindow = do_GetInterface(mDocShell);
-  if (ourWindow) {
-    // Let the application know if it's in fullscreen mode so it
-    // can update its UI.
-    if (sizeMode == nsSizeMode_Fullscreen) {
-      ourWindow->SetFullScreen(true);
+    aEvent->widget->GetClientData(data);
+    if (data != nullptr) {
+      eventWindow = reinterpret_cast<nsWebShellWindow *>(data);
+      docShell = eventWindow->mDocShell;
     }
-    else if (sizeMode != nsSizeMode_Minimized) {
-      ourWindow->SetFullScreen(false);
-    }
-
-    // And always fire a user-defined sizemodechange event on the window
-    ourWindow->DispatchCustomEvent("sizemodechange");
   }
 
-  // Note the current implementation of SetSizeMode just stores
-  // the new state; it doesn't actually resize. So here we store
-  // the state and pass the event on to the OS. The day is coming
-  // when we'll handle the event here, and the return result will
-  // then need to be different.
-}
+  if (docShell) {
+    switch(aEvent->message) {
+      /*
+       * For size events, the DocShell must be resized to fill the entire
+       * client area of the window...
+       */
+      case NS_MOVE: {
+        // Adjust any child popups so that their widget offsets and coordinates
+        // are correct with respect to the new position of the window
+        nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+        if (pm) {
+          nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(docShell);
+          pm->AdjustPopupsOnWindowChange(window);
+        }
 
-void
-nsWebShellWindow::OSToolbarButtonPressed()
-{
-  // Keep a reference as setting the chrome flags can fire events.
-  nsCOMPtr<nsIXULWindow> xulWindow(this);
+        // persist position, but not immediately, in case this OS is firing
+        // repeated move events as the user drags the window
+        eventWindow->SetPersistenceTimer(PAD_POSITION);
+        break;
+      }
+      case NS_SIZE: {
+        nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+        if (pm) {
+          nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(docShell);
+          pm->AdjustPopupsOnWindowChange(window);
+        }
+ 
+        nsSizeEvent* sizeEvent = (nsSizeEvent*)aEvent;
+        nsCOMPtr<nsIBaseWindow> shellAsWin(do_QueryInterface(docShell));
+        shellAsWin->SetPositionAndSize(0, 0, sizeEvent->windowSize->width, 
+          sizeEvent->windowSize->height, false);  
+        // persist size, but not immediately, in case this OS is firing
+        // repeated size events as the user drags the sizing handle
+        if (!eventWindow->IsLocked())
+          eventWindow->SetPersistenceTimer(PAD_POSITION | PAD_SIZE | PAD_MISC);
+        result = nsEventStatus_eConsumeNoDefault;
+        break;
+      }
+      case NS_SIZEMODE: {
+        nsSizeModeEvent* modeEvent = (nsSizeModeEvent*)aEvent;
 
-  // rjc: don't use "nsIWebBrowserChrome::CHROME_EXTRA"
-  //      due to components with multiple sidebar components
-  //      (such as Mail/News, Addressbook, etc)... and frankly,
-  //      Mac IE, OmniWeb, and other Mac OS X apps all work this way
-  PRUint32    chromeMask = (nsIWebBrowserChrome::CHROME_TOOLBAR |
-                            nsIWebBrowserChrome::CHROME_LOCATIONBAR |
-                            nsIWebBrowserChrome::CHROME_PERSONAL_TOOLBAR);
+        // an alwaysRaised (or higher) window will hide any newly opened
+        // normal browser windows. here we just drop a raised window
+        // to the normal zlevel if it's maximized. we make no provision
+        // for automatically re-raising it when restored.
+        if (modeEvent->mSizeMode == nsSizeMode_Maximized ||
+            modeEvent->mSizeMode == nsSizeMode_Fullscreen) {
+          PRUint32 zLevel;
+          eventWindow->GetZLevel(&zLevel);
+          if (zLevel > nsIXULWindow::normalZ)
+            eventWindow->SetZLevel(nsIXULWindow::normalZ);
+        }
 
-  nsCOMPtr<nsIWebBrowserChrome> wbc(do_GetInterface(xulWindow));
-  if (!wbc)
-    return;
+        aEvent->widget->SetSizeMode(modeEvent->mSizeMode);
 
-  PRUint32    chromeFlags, newChromeFlags = 0;
-  wbc->GetChromeFlags(&chromeFlags);
-  newChromeFlags = chromeFlags & chromeMask;
-  if (!newChromeFlags)    chromeFlags |= chromeMask;
-  else                    chromeFlags &= (~newChromeFlags);
-  wbc->SetChromeFlags(chromeFlags);
-}
+        // persist mode, but not immediately, because in many (all?)
+        // cases this will merge with the similar call in NS_SIZE and
+        // write the attribute values only once.
+        eventWindow->SetPersistenceTimer(PAD_MISC);
+        result = nsEventStatus_eConsumeDoDefault;
 
-bool
-nsWebShellWindow::ZLevelChanged(bool aImmediate, nsWindowZ *aPlacement,
-                                nsIWidget* aRequestBelow, nsIWidget** aActualBelow)
-{
-  if (aActualBelow)
-    *aActualBelow = nullptr;
+        nsCOMPtr<nsPIDOMWindow> ourWindow = do_GetInterface(docShell);
+        if (ourWindow) {
+          // Let the application know if it's in fullscreen mode so it
+          // can update its UI.
+          if (modeEvent->mSizeMode == nsSizeMode_Fullscreen) {
+            ourWindow->SetFullScreen(true);
+          }
+          else if (modeEvent->mSizeMode != nsSizeMode_Minimized) {
+            ourWindow->SetFullScreen(false);
+          }
 
-  return ConstrainToZLevel(aImmediate, aPlacement, aRequestBelow, aActualBelow);
-}
+          // And always fire a user-defined sizemodechange event on the window
+          ourWindow->DispatchCustomEvent("sizemodechange");
+        }
 
-void
-nsWebShellWindow::WindowActivated()
-{
-  nsCOMPtr<nsIXULWindow> xulWindow(this);
+        // Note the current implementation of SetSizeMode just stores
+        // the new state; it doesn't actually resize. So here we store
+        // the state and pass the event on to the OS. The day is coming
+        // when we'll handle the event here, and the return result will
+        // then need to be different.
+        break;
+      }
+      case NS_OS_TOOLBAR: {
+        nsCOMPtr<nsIXULWindow> kungFuDeathGrip(eventWindow);
+        eventWindow->Toolbar();
+        break;
+      }
+      case NS_XUL_CLOSE: {
+        // Calling ExecuteCloseHandler may actually close the window
+        // (it probably shouldn't, but you never know what the users JS 
+        // code will do).  Therefore we add a death-grip to the window
+        // for the duration of the close handler.
+        nsCOMPtr<nsIXULWindow> kungFuDeathGrip(eventWindow);
+        if (!eventWindow->ExecuteCloseHandler())
+          eventWindow->Destroy();
+        break;
+      }
+      /*
+       * Notify the ApplicationShellService that the window is being closed...
+       */
+      case NS_DESTROY: {
+        eventWindow->Destroy();
+        break;
+      }
 
-  // focusing the window could cause it to close, so keep a reference to it
-  nsCOMPtr<nsIDOMWindow> window = do_GetInterface(mDocShell);
-  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  if (fm && window)
-    fm->WindowRaised(window);
+      case NS_UISTATECHANGED: {
+        nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(docShell);
+        if (window) {
+          nsUIStateChangeEvent* event = (nsUIStateChangeEvent*)aEvent;
+          window->SetKeyboardIndicators(event->showAccelerators, event->showFocusRings);
+        }
+        break;
+      }
 
-  if (mChromeLoaded) {
-    PersistentAttributesDirty(PAD_POSITION | PAD_SIZE | PAD_MISC);
-    SavePersistentAttributes();
-   }
-}
+      case NS_SETZLEVEL: {
+        nsZLevelEvent *zEvent = (nsZLevelEvent *) aEvent;
 
-void
-nsWebShellWindow::WindowDeactivated()
-{
-  nsCOMPtr<nsIXULWindow> xulWindow(this);
+        zEvent->mAdjusted = eventWindow->ConstrainToZLevel(zEvent->mImmediate,
+                              &zEvent->mPlacement,
+                              zEvent->mReqBelow, &zEvent->mActualBelow);
+        break;
+      }
 
-  nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mDocShell);
-  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  if (fm && window)
-    fm->WindowLowered(window);
+      case NS_ACTIVATE: {
+#if defined(DEBUG_saari) || defined(DEBUG_smaug)
+        printf("nsWebShellWindow::NS_ACTIVATE\n");
+#endif
+        // focusing the window could cause it to close, so keep a reference to it
+        nsCOMPtr<nsIXULWindow> kungFuDeathGrip(eventWindow);
+
+        nsCOMPtr<nsIDOMWindow> window = do_GetInterface(docShell);
+        nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
+        if (fm && window)
+          fm->WindowRaised(window);
+
+        if (eventWindow->mChromeLoaded) {
+          eventWindow->PersistentAttributesDirty(
+                             PAD_POSITION | PAD_SIZE | PAD_MISC);
+          eventWindow->SavePersistentAttributes();
+        }
+
+        break;
+      }
+
+      case NS_DEACTIVATE: {
+#if defined(DEBUG_saari) || defined(DEBUG_smaug)
+        printf("nsWebShellWindow::NS_DEACTIVATE\n");
+#endif
+
+        nsCOMPtr<nsIDOMWindow> window = do_GetInterface(docShell);
+        nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
+        if (fm && window)
+          fm->WindowLowered(window);
+        break;
+      }
+      
+      case NS_GETACCESSIBLE: {
+        nsCOMPtr<nsIPresShell> presShell;
+        docShell->GetPresShell(getter_AddRefs(presShell));
+        if (presShell) {
+          presShell->HandleEventWithTarget(aEvent, nullptr, nullptr, &result);
+        }
+        break;
+      }
+      default:
+        break;
+
+    }
+  }
+  return result;
 }
 
 #ifdef USE_NATIVE_MENUS

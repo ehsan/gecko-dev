@@ -3187,19 +3187,12 @@ DebuggerArguments_getArg(JSContext *cx, unsigned argc, Value *vp)
     JS_ASSERT(i >= 0);
     Value arg;
     if (unsigned(i) < fp->numActualArgs()) {
-        JSScript *script = fp->script();
-        if (unsigned(i) < fp->numFormalArgs() && script->formalIsAliased(i)) {
-            for (AliasedFormalIter fi(script); ; fi++) {
-                if (fi.frameIndex() == unsigned(i)) {
-                    arg = fp->callObj().aliasedVar(fi);
-                    break;
-                }
-            }
-        } else if (script->argsObjAliasesFormals() && fp->hasArgsObj()) {
+        if (unsigned(i) < fp->numFormalArgs() && fp->script()->formalLivesInCallObject(i))
+            arg = fp->callObj().formal(i);
+        else if (fp->script()->argsObjAliasesFormals() && fp->hasArgsObj())
             arg = fp->argsObj().arg(i);
-        } else {
+        else
             arg = fp->unaliasedActual(i, DONT_CHECK_ALIASING);
-        }
     } else {
         arg.setUndefined();
     }
@@ -3717,16 +3710,13 @@ DebuggerObject_getParameterNames(JSContext *cx, unsigned argc, Value *vp)
         JS_ASSERT(fun->nargs == fun->script()->bindings.numArgs());
 
         if (fun->nargs > 0) {
-            BindingVector bindings(cx);
-            if (!FillBindingVector(fun->script()->bindings, &bindings))
+            BindingVector names(cx);
+            if (!GetOrderedBindings(cx, fun->script()->bindings, &names))
                 return false;
+
             for (size_t i = 0; i < fun->nargs; i++) {
-                Value v;
-                if (bindings[i].name()->length() == 0)
-                    v = UndefinedValue();
-                else
-                    v = StringValue(bindings[i].name());
-                result->setDenseArrayElement(i, v);
+                PropertyName *name = names[i].maybeName;
+                result->setDenseArrayElement(i, name ? StringValue(name) : UndefinedValue());
             }
         }
     } else {

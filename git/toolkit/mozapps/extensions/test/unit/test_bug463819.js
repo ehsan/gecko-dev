@@ -12,7 +12,6 @@ const INSTALLERROR_SOFTBLOCKED           = -10;
 gPrefs.setBoolPref("extensions.checkUpdateSecurity", false);
 
 // Get the HTTP server.
-const Cr = Components.results;
 Components.utils.import("resource://testing-common/httpd.js");
 var testserver;
 

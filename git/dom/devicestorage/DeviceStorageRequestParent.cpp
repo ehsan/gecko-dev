@@ -186,6 +186,7 @@ DeviceStorageRequestParent::PostBlobSuccessEvent::CancelableRun() {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   nsString mime;
+  mime.AssignWithConversion(mMimeType);
   CopyASCIItoUTF16(mMimeType, mime);
 
   nsCOMPtr<nsIDOMBlob> blob = new nsDOMFileFile(mFile->mPath, mime, mLength, mFile->mFile);
@@ -316,18 +317,7 @@ DeviceStorageRequestParent::StatFileEvent::CancelableRun()
     NS_DispatchToMainThread(r);
     return NS_OK;
   }
-  nsString state;
-  state.Assign(NS_LITERAL_STRING("available"));
-
-#ifdef MOZ_WIDGET_GONK
-  rv = GetSDCardStatus(state);
-  if (NS_FAILED(rv)) {
-    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
-    NS_DispatchToMainThread(r);
-    return NS_OK;
-  }
-#endif
-  r = new PostStatResultEvent(mParent, diskUsage, freeSpace, state);
+  r = new PostStatResultEvent(mParent, diskUsage, freeSpace);
   NS_DispatchToMainThread(r);
   return NS_OK;
 }
@@ -447,12 +437,10 @@ DeviceStorageRequestParent::PostPathResultEvent::CancelableRun()
 
 DeviceStorageRequestParent::PostStatResultEvent::PostStatResultEvent(DeviceStorageRequestParent* aParent,
                                                                      PRInt64 aFreeBytes,
-                                                                     PRInt64 aTotalBytes,
-                                                                     nsAString& aState)
+                                                                     PRInt64 aTotalBytes)
   : CancelableRunnable(aParent)
   , mFreeBytes(aFreeBytes)
   , mTotalBytes(aTotalBytes)
-  , mState(aState)
 {
 }
 
@@ -465,7 +453,7 @@ DeviceStorageRequestParent::PostStatResultEvent::CancelableRun()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  StatStorageResponse response(mFreeBytes, mTotalBytes, mState);
+  StatStorageResponse response(mFreeBytes, mTotalBytes);
   unused <<  mParent->Send__delete__(mParent, response);
   return NS_OK;
 }

@@ -62,6 +62,8 @@ ContainsVarOrConst(ParseNode *pn)
         return ContainsVarOrConst(pn->pn_kid);
       case PN_NAME:
         return ContainsVarOrConst(pn->maybeExpr());
+      case PN_NAMESET:
+        return ContainsVarOrConst(pn->pn_tree);
       default:;
     }
     return NULL;
@@ -503,6 +505,12 @@ frontend::FoldConstants(JSContext *cx, ParseNode *pn, Parser *parser, bool inGen
             if (pn1 && !FoldConstants(cx, pn1, parser, inGenexpLambda))
                 return false;
         }
+        break;
+
+      case PN_NAMESET:
+        pn1 = pn->pn_tree;
+        if (!FoldConstants(cx, pn1, parser, inGenexpLambda))
+            return false;
         break;
 
       case PN_NULLARY:

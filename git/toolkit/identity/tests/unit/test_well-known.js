@@ -16,7 +16,7 @@ let SERVER_PORT = 8080;
 function test_well_known_1() {
   do_test_pending();
 
-  let server = new HttpServer();
+  let server = new nsHttpServer();
   server.registerFile(WELL_KNOWN_PATH, do_get_file("data/idp_1" + WELL_KNOWN_PATH));
   server.start(SERVER_PORT);
   let hostPort = "localhost:" + SERVER_PORT;
@@ -40,7 +40,7 @@ function test_well_known_1() {
 function test_well_known_404() {
   do_test_pending();
 
-  let server = new HttpServer();
+  let server = new nsHttpServer();
   // Don't register the well-known file
   // Change ports to avoid HTTP caching
   SERVER_PORT++;
@@ -62,7 +62,7 @@ function test_well_known_404() {
 function test_well_known_invalid_1() {
   do_test_pending();
 
-  let server = new HttpServer();
+  let server = new nsHttpServer();
   server.registerFile(WELL_KNOWN_PATH, do_get_file("data/idp_invalid_1" + WELL_KNOWN_PATH));
   // Change ports to avoid HTTP caching
   SERVER_PORT++;

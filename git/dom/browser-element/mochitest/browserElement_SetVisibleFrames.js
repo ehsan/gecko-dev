@@ -16,7 +16,7 @@ var iframe;
 
 function runTest() {
   browserElementTestHelpers.setEnabledPref(true);
-  browserElementTestHelpers.addPermission();
+  browserElementTestHelpers.addToWhitelist();
 
   iframe = document.createElement('iframe');
   iframe.mozbrowser = true;

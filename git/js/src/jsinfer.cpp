@@ -2019,7 +2019,7 @@ void
 TypeCompartment::processPendingRecompiles(FreeOp *fop)
 {
     /* Steal the list of scripts to recompile, else we will try to recursively recompile them. */
-    Vector<RecompileInfo> *pending = pendingRecompiles;
+    Vector<CompilerOutput> *pending = pendingRecompiles;
     pendingRecompiles = NULL;
 
     JS_ASSERT(!pending->empty());
@@ -2029,12 +2029,11 @@ TypeCompartment::processPendingRecompiles(FreeOp *fop)
     mjit::ExpandInlineFrames(compartment());
 
     for (unsigned i = 0; i < pending->length(); i++) {
-        CompilerOutput &co = *(*pending)[i].compilerOutput(*this);
-        if (co.isJM()) {
-            JS_ASSERT(co.isValid());
-            mjit::Recompiler::clearStackReferences(fop, co.script);
-            co.mjit()->destroyChunk(fop, co.chunkIndex);
-            JS_ASSERT(co.script == NULL);
+        const CompilerOutput &info = (*pending)[i];
+        mjit::JITScript *jit = info.script->getJIT(info.constructing, info.barriers);
+        if (jit && jit->chunkDescriptor(info.chunkIndex).chunk) {
+            mjit::Recompiler::clearStackReferences(fop, info.script);
+            jit->destroyChunk(fop, info.chunkIndex);
         }
     }
 
@@ -2104,69 +2103,56 @@ TypeCompartment::nukeTypes(FreeOp *fop)
 }
 
 void
-TypeCompartment::addPendingRecompile(JSContext *cx, const RecompileInfo &info)
+TypeCompartment::addPendingRecompile(JSContext *cx, CompilerOutput &co)
 {
-    CompilerOutput *co = info.compilerOutput(cx);
-
-    if (co->pendingRecompilation)
+    if (!co.isValid())
         return;
-
-    if (!co->isValid()) {
-        JS_ASSERT(co->script == NULL);
-        return;
-    }
 
 #ifdef JS_METHODJIT
-    mjit::JITScript *jit = co->script->getJIT(co->constructing, co->barriers);
-    if (!jit || !jit->chunkDescriptor(co->chunkIndex).chunk) {
+    mjit::JITScript *jit = co.script->getJIT(co.constructing, co.barriers);
+    if (!jit || !jit->chunkDescriptor(co.chunkIndex).chunk) {
         /* Scripts which haven't been compiled yet don't need to be recompiled. */
         return;
     }
-#endif
 
     if (!pendingRecompiles) {
-        pendingRecompiles = cx->new_< Vector<RecompileInfo> >(cx);
+        pendingRecompiles = cx->new_< Vector<CompilerOutput> >(cx);
         if (!pendingRecompiles) {
             cx->compartment->types.setPendingNukeTypes(cx);
             return;
         }
     }
 
-#if DEBUG
-    for (size_t i = 0; i < pendingRecompiles->length(); i++) {
-        RecompileInfo pr = (*pendingRecompiles)[i];
-        JS_ASSERT(info.outputIndex != pr.outputIndex);
-    }
-#endif
-
-    if (!pendingRecompiles->append(info)) {
+    co.invalidate();
+    if (!pendingRecompiles->append(co)) {
         cx->compartment->types.setPendingNukeTypes(cx);
         return;
     }
+#endif
+}
 
-    co->setPendingRecompilation();
+void
+TypeCompartment::addPendingRecompile(JSContext *cx, const RecompileInfo &info)
+{
+    addPendingRecompile(cx, (*constrainedOutputs)[info.outputIndex]);
 }
 
 void
 TypeCompartment::addPendingRecompile(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
-    JS_ASSERT(script);
-    if (!constrainedOutputs)
-        return;
-
 #ifdef JS_METHODJIT
+    CompilerOutput info;
+    info.script = script;
+
     for (int constructing = 0; constructing <= 1; constructing++) {
         for (int barriers = 0; barriers <= 1; barriers++) {
-            mjit::JITScript *jit = script->getJIT((bool) constructing, (bool) barriers);
-            if (!jit)
-                continue;
-
-            unsigned int chunkIndex = jit->chunkIndex(pc);
-            mjit::JITChunk *chunk = jit->chunkDescriptor(chunkIndex).chunk;
-            if (!chunk)
-                continue;
-
-            addPendingRecompile(cx, chunk->recompileInfo);
+            if (mjit::JITScript *jit = script->getJIT((bool) constructing, (bool) barriers)) {
+                info.constructing = constructing;
+                info.barriers = barriers;
+                info.chunkIndex = jit->chunkIndex(pc);
+                info.mjit = jit;
+                addPendingRecompile(cx, info);
+            }
         }
     }
 #endif

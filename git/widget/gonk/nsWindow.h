@@ -51,6 +51,7 @@ public:
     NS_IMETHOD Create(nsIWidget *aParent,
                       void *aNativeParent,
                       const nsIntRect &aRect,
+                      EVENT_CALLBACK aHandleEventFunction,
                       nsDeviceContext *aContext,
                       nsWidgetInitData *aInitData);
     NS_IMETHOD Destroy(void);
@@ -89,8 +90,6 @@ public:
         return NS_ERROR_NOT_IMPLEMENTED;
     }
     NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent);
-
-    NS_IMETHOD MakeFullScreen(bool aFullScreen) /*MOZ_OVERRIDE*/;
 
     virtual float GetDPI();
     virtual mozilla::layers::LayerManager*

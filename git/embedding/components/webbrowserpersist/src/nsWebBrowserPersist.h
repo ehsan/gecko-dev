@@ -203,7 +203,7 @@ private:
     bool                      mReplaceExisting;
     bool                      mSerializingOutput;
     PRUint32                  mPersistFlags;
-    nsresult                  mPersistResult;
+    PRUint32                  mPersistResult;
     PRInt64                   mTotalCurrentProgress;
     PRInt64                   mTotalMaxProgress;
     PRInt16                   mWrapColumn;

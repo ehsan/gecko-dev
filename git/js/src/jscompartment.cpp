@@ -45,9 +45,9 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     gcStoreBuffer(&gcNursery),
 #endif
     needsBarrier_(false),
-    gcScheduled(false),
-    gcState(NoGC),
+    gcState(NoGCScheduled),
     gcPreserveCode(false),
+    gcStarted(false),
     gcBytes(0),
     gcTriggerBytes(0),
     gcHeapGrowthFactor(3.0),
@@ -67,6 +67,7 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     debugModeBits(rt->debugMode ? DebugFromC : 0),
     watchpointMap(NULL),
     scriptCountsMap(NULL),
+    sourceMapMap(NULL),
     debugScriptMap(NULL)
 {
     setGCMaxMallocBytes(rt->gcMaxMallocBytes);
@@ -76,6 +77,7 @@ JSCompartment::~JSCompartment()
 {
     Foreground::delete_(watchpointMap);
     Foreground::delete_(scriptCountsMap);
+    Foreground::delete_(sourceMapMap);
     Foreground::delete_(debugScriptMap);
 }
 
@@ -112,9 +114,7 @@ void
 JSCompartment::setNeedsBarrier(bool needs)
 {
 #ifdef JS_METHODJIT
-    /* ClearAllFrames calls compileBarriers() and needs the old value. */
-    bool old = compileBarriers();
-    if (compileBarriers(needs) != old)
+    if (needsBarrier_ != needs)
         mjit::ClearAllFrames(this);
 #endif
     needsBarrier_ = needs;
@@ -486,15 +486,6 @@ JSCompartment::discardJitCode(FreeOp *fop)
     }
 
 #endif /* JS_METHODJIT */
-}
-
-bool
-JSCompartment::isDiscardingJitCode(JSTracer *trc)
-{
-    if (!IS_GC_MARKING_TRACER(trc))
-        return false;
-
-    return !gcPreserveCode;
 }
 
 void

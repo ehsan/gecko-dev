@@ -6,7 +6,7 @@
 #ifndef __NS_SVGSTRING_H__
 #define __NS_SVGSTRING_H__
 
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsIDOMSVGAnimatedString.h"
 #include "nsSVGElement.h"
 #include "mozilla/Attributes.h"

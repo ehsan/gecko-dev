@@ -1004,7 +1004,6 @@ ShadowThebesLayerOGL::Swap(const ThebesBuffer& aNewFront,
     // Don't drop buffers on the floor.
     *aNewBack = aNewFront;
     *aNewBackValidRegion = aNewFront.rect();
-    *aReadOnlyFront = null_t();
     return;
   }
 

@@ -343,7 +343,7 @@ static bool HostIgnoredByProxy(const nsACString& aIgnore,
     nsCAutoString maskStr2(maskStr);
     nsresult err;
     mask = maskStr2.ToInteger(&err);
-    if (NS_FAILED(err)) {
+    if (err != 0) {
       mask = 128;
     }
     --slash;

@@ -12,6 +12,7 @@ include $(DEPTH)/config/autoconf.mk
 
 MOCHITEST_WEBAPPRT_CHROME_FILES = \
   head.js \
+  install.html \
   browser_sample.js \
     sample.webapp \
     sample.html \

@@ -17,7 +17,7 @@ var iframeScript = function() {
 function runTest() {
 
   browserElementTestHelpers.setEnabledPref(true);
-  browserElementTestHelpers.addPermission();
+  browserElementTestHelpers.addToWhitelist();
 
   var mm;
   var numEvents = 0;
@@ -28,7 +28,6 @@ function runTest() {
   document.body.appendChild(iframe1);
 
   function recvVisibilityChanged(msg) {
-    msg = SpecialPowers.wrap(msg);
     numEvents++;
     if (numEvents === 1) {
       ok(true, 'iframe recieved visibility changed');

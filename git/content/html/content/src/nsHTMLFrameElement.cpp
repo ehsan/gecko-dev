@@ -8,7 +8,7 @@
 #include "nsIDOMHTMLFrameElement.h"
 #include "nsGenericHTMLFrameElement.h"
 #include "nsGkAtoms.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 
 class nsIDOMDocument;
 

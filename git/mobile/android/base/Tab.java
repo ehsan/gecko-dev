@@ -175,13 +175,11 @@ public final class Tab {
     }
 
     int getThumbnailWidth() {
-        int desiredWidth = (int) (GeckoApp.mAppContext.getResources().getDimension(R.dimen.tab_thumbnail_width));
-        return desiredWidth & ~0x1;
+        return (int) (GeckoApp.mAppContext.getResources().getDimension(R.dimen.tab_thumbnail_width));
     }
 
     int getThumbnailHeight() {
-        int desiredHeight = (int) (GeckoApp.mAppContext.getResources().getDimension(R.dimen.tab_thumbnail_height));
-        return desiredHeight & ~0x1;
+        return (int) (GeckoApp.mAppContext.getResources().getDimension(R.dimen.tab_thumbnail_height));
     }
 
     public void updateThumbnail(final Bitmap b) {

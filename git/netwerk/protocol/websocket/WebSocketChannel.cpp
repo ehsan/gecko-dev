@@ -28,7 +28,7 @@
 #include "nsXPIDLString.h"
 #include "nsCRT.h"
 #include "nsThreadUtils.h"
-#include "nsError.h"
+#include "nsNetError.h"
 #include "nsStringStream.h"
 #include "nsAlgorithm.h"
 #include "nsProxyRelease.h"

@@ -9,6 +9,7 @@
 #include "nsAutoPtr.h"
 #include "nsCoord.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsDOMError.h"
 #include "nsError.h"
 #include "nsIDOMSVGAnimatedLength.h"
 #include "nsIDOMSVGLength.h"

@@ -643,8 +643,6 @@ struct JSRuntime : js::RuntimeFriendFields
 
     bool isHeapBusy() { return heapState != Idle; }
 
-    bool isHeapCollecting() { return heapState == Collecting; }
-
     /*
      * These options control the zealousness of the GC. The fundamental values
      * are gcNextScheduled and gcDebugCompartmentGC. At every allocation,

@@ -418,7 +418,7 @@ private:
   // aValue.
   PRInt32 StringToInteger(const nsAString& aValue,
                           bool* aStrict,
-                          nsresult* aErrorCode,
+                          PRInt32* aErrorCode,
                           bool aCanBePercent = false,
                           bool* aIsPercent = nullptr) const;
   // Given an enum table and a particular entry in that table, return

@@ -2247,7 +2247,7 @@ bool nsDisplayWrapList::ChildrenCanBeInactive(nsDisplayListBuilder* aBuilder,
     }
 
     LayerState state = i->GetLayerState(aBuilder, aManager, aParameters);
-    if (state == LAYER_ACTIVE || state == LAYER_ACTIVE_FORCE)
+    if (state == LAYER_ACTIVE)
       return false;
     if (state == LAYER_NONE) {
       nsDisplayList* list = i->GetList();

@@ -260,6 +260,28 @@ var VirtualCursorController = {
         }
         this[methodName](document, false, rule);
         break;
+      case aEvent.DOM_VK_END:
+        if (this.editableState) {
+          if (target.selectionEnd != target.textLength)
+            // Don't move forward if caret is not at end of entry.
+            // XXX: Fix for rtl
+            return;
+          else
+            target.blur();
+        }
+        this.moveForward(document, true);
+        break;
+      case aEvent.DOM_VK_HOME:
+        if (this.editableState) {
+          if (target.selectionEnd != 0)
+            // Don't move backward if caret is not at start of entry.
+            // XXX: Fix for rtl
+            return;
+          else
+            target.blur();
+        }
+        this.moveBackward(document, true);
+        break;
       case aEvent.DOM_VK_RIGHT:
         if (this.editableState) {
           if (target.selectionEnd != target.textLength)
@@ -291,7 +313,7 @@ var VirtualCursorController = {
             target.blur();
         }
 
-        if (Utils.MozBuildApp == 'mobile/android')
+        if (Utils.OS == 'Android')
           // Return focus to native Android browser chrome.
           Cc['@mozilla.org/android/bridge;1'].
             getService(Ci.nsIAndroidBridge).handleGeckoMessage(

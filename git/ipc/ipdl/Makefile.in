@@ -32,7 +32,6 @@ IPDLDIRS =  \
   dom/src/storage \
   gfx/layers/ipc \
   hal/sandbox \
-  ipc/glue  \
   ipc/testshell  \
   js/ipc  \
   layout/ipc \

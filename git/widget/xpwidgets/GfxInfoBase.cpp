@@ -536,7 +536,7 @@ GfxInfoBase::FindBlocklistedDeviceInList(const nsTArray<GfxDriverInfo>& info,
       NS_FAILED(GetAdapterDeviceID(adapterDeviceID)) ||
       NS_FAILED(GetAdapterDriverVersion(adapterDriverVersionString)))
   {
-    return 0;
+    return NS_OK;
   }
 
   PRUint64 driverVersion;

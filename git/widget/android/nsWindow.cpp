@@ -22,7 +22,6 @@ using mozilla::unused;
 #include "nsWindow.h"
 #include "nsIObserverService.h"
 #include "nsFocusManager.h"
-#include "nsIWidgetListener.h"
 
 #include "nsRenderingContext.h"
 #include "nsIDOMSimpleGestureEvent.h"
@@ -188,6 +187,7 @@ NS_IMETHODIMP
 nsWindow::Create(nsIWidget *aParent,
                  nsNativeWidget aNativeParent,
                  const nsIntRect &aRect,
+                 EVENT_CALLBACK aHandleEventFunction,
                  nsDeviceContext *aContext,
                  nsWidgetInitData *aInitData)
 {
@@ -216,7 +216,7 @@ nsWindow::Create(nsIWidget *aParent,
         mBounds.height = gAndroidBounds.height;
     }
 
-    BaseCreate(nullptr, mBounds, aContext, aInitData);
+    BaseCreate(nullptr, mBounds, aHandleEventFunction, aContext, aInitData);
 
     NS_ASSERTION(IsTopLevel() || parent, "non top level windowdoesn't have a parent!");
 
@@ -570,10 +570,8 @@ nsWindow::BringToFront()
     gTopLevelWindows.InsertElementAt(0, this);
 
     if (oldTop) {
-      nsIWidgetListener* listener = oldTop->GetWidgetListener();
-      if (listener) {
-          listener->WindowDeactivated();
-      }
+        nsGUIEvent event(true, NS_DEACTIVATE, oldTop);
+        DispatchEvent(&event);
     }
 
     if (Destroyed()) {
@@ -585,9 +583,8 @@ nsWindow::BringToFront()
         newTop = gTopLevelWindows[0];
     }
 
-    if (mWidgetListener) {
-        mWidgetListener->WindowActivated();
-    }
+    nsGUIEvent event(true, NS_ACTIVATE, newTop);
+    DispatchEvent(&event);
 
     // force a window resize
     nsAppShell::gAppShell->ResendLastResizeEvent(newTop);
@@ -634,8 +631,8 @@ nsWindow::DispatchEvent(nsGUIEvent *aEvent,
 nsEventStatus
 nsWindow::DispatchEvent(nsGUIEvent *aEvent)
 {
-    if (mWidgetListener) {
-        nsEventStatus status = mWidgetListener->HandleEvent(aEvent, mUseAttachedEvents);
+    if (mEventCallback) {
+        nsEventStatus status = (*mEventCallback)(aEvent);
 
         switch (aEvent->message) {
         case NS_COMPOSITION_START:
@@ -967,10 +964,11 @@ bool
 nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
 {
     mozilla::layers::RenderTraceScope trace("DrawTo", "717171");
-    if (!mIsVisible || !mWidgetListener)
+    if (!mIsVisible)
         return false;
 
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
+    nsEventStatus status;
     nsIntRect boundsRect(0, 0, mBounds.width, mBounds.height);
 
     // Figure out if any of our children cover this widget completely
@@ -986,8 +984,8 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
 
     // If we have no covering child, then we need to render this.
     if (coveringChildIndex == -1) {
-        bool painted = false;
-        nsIntRegion region = invalidRect;
+        nsPaintEvent event(true, NS_PAINT, this);
+        event.region = invalidRect;
 
         switch (GetLayerManager(nullptr)->GetBackendType()) {
             case mozilla::layers::LAYERS_BASIC: {
@@ -999,13 +997,13 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
                     AutoLayerManagerSetup
                       setupLayerManager(this, ctx, mozilla::layers::BUFFER_NONE);
 
-                    painted = mWidgetListener->PaintWindow(this, region, false, false);
+                    status = DispatchEvent(&event);
                 }
 
                 // XXX uhh.. we can't just ignore this because we no longer have
                 // what we needed before, but let's keep drawing the children anyway?
 #if 0
-                if (!painted)
+                if (status == nsEventStatus_eIgnore)
                     return false;
 #endif
 
@@ -1019,7 +1017,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
                 static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager(nullptr))->
                     SetClippingRegion(nsIntRegion(boundsRect));
 
-                painted = mWidgetListener->PaintWindow(this, region, false, false);
+                status = DispatchEvent(&event);
                 break;
             }
 
@@ -1229,14 +1227,24 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
 void
 nsWindow::OnSizeChanged(const gfxIntSize& aSize)
 {
-    ALOG("nsWindow: %p OnSizeChanged [%d %d]", (void*)this, aSize.width, aSize.height);
+    int w = aSize.width;
+    int h = aSize.height;
 
-    mBounds.width = aSize.width;
-    mBounds.height = aSize.height;
+    ALOG("nsWindow: %p OnSizeChanged [%d %d]", (void*)this, w, h);
 
-    if (mWidgetListener) {
-        mWidgetListener->WindowResized(this, aSize.width, aSize.height);
-    }
+    nsRefPtr<nsWindow> kungFuDeathGrip(this);
+    nsSizeEvent event(true, NS_SIZE, this);
+    InitEvent(event);
+
+    nsIntRect wsz(0, 0, w, h);
+    event.windowSize = &wsz;
+    event.mWinWidth = w;
+    event.mWinHeight = h;
+
+    mBounds.width = w;
+    mBounds.height = h;
+
+    DispatchEvent(&event);
 }
 
 void

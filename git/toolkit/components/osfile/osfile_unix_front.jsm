@@ -141,18 +141,21 @@
         * the file or from the end of the file is determined by
         * argument |whence|.  Note that |pos| may exceed the length of
         * the file.
-        * @param {number=} whence The reference position. If omitted
-        * or |OS.File.POS_START|, |pos| is relative to the start of the
-        * file.  If |OS.File.POS_CURRENT|, |pos| is relative to the
-        * current position in the file. If |OS.File.POS_END|, |pos| is
-        * relative to the end of the file.
+        * @param {number=} whence The reference position. If omitted or
+        * |OS.File.POS_START|, |pos| is taken from the start of the file.
+        * If |OS.File.POS_CURRENT|, |pos| is taken from the current position
+        * in the file. If |OS.File.POS_END|, |pos| is taken from the end of
+        * the file.
         *
         * @return The new position in the file.
         */
        setPosition: function setPosition(pos, whence) {
-         if (whence === undefined) {
-           whence = Const.SEEK_START;
-         }
+         // We are cheating to avoid one unnecessary conversion:
+         // In this implementation,
+         // OS.File.POS_START == OS.Constants.libc.SEEK_SET
+         // OS.File.POS_CURRENT == OS.Constants.libc.SEEK_CUR
+         // OS.File.POS_END == OS.Constants.libc.SEEK_END
+         whence = (whence == undefined)?OS.Constants.libc.SEEK_SET:whence;
          return throw_on_negative("setPosition",
            UnixFile.lseek(this.fd, pos, whence)
          );
@@ -807,12 +810,13 @@
        return result;
      }
 
+     File.POS_START = exports.OS.Constants.libc.SEEK_SET;
+     File.POS_CURRENT = exports.OS.Constants.libc.SEEK_CUR;
+     File.POS_END = exports.OS.Constants.libc.SEEK_END;
+
      File.Unix = exports.OS.Unix.File;
      File.Error = exports.OS.Shared.Unix.Error;
      exports.OS.File = File;
 
-     Object.defineProperty(File, "POS_START", { value: OS.Shared.POS_START });
-     Object.defineProperty(File, "POS_CURRENT", { value: OS.Shared.POS_CURRENT });
-     Object.defineProperty(File, "POS_END", { value: OS.Shared.POS_END });
    })(this);
 }

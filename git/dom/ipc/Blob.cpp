@@ -10,14 +10,13 @@
 
 #include "nsIDOMFile.h"
 #include "nsIInputStream.h"
-#include "nsIIPCSerializableInputStream.h"
 #include "nsIRemoteBlob.h"
 #include "nsISeekableStream.h"
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/unused.h"
-#include "mozilla/ipc/InputStreamUtils.h"
+#include "mozilla/net/NeckoMessageUtils.h"
 #include "nsDOMFile.h"
 #include "nsThreadUtils.h"
 
@@ -26,7 +25,6 @@
 
 using namespace mozilla::dom;
 using namespace mozilla::dom::ipc;
-using namespace mozilla::ipc;
 
 namespace {
 
@@ -229,18 +227,10 @@ private:
   }
 };
 
-NS_IMPL_THREADSAFE_ADDREF(RemoteInputStream)
-NS_IMPL_THREADSAFE_RELEASE(RemoteInputStream)
-
-NS_INTERFACE_MAP_BEGIN(RemoteInputStream)
-  NS_INTERFACE_MAP_ENTRY(nsIInputStream)
-  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsISeekableStream, IsSeekableStream())
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIInputStream)
-NS_INTERFACE_MAP_END
-
 template <ActorFlavorEnum ActorFlavor>
 class InputStreamActor : public BlobTraits<ActorFlavor>::StreamType
 {
+  typedef typename BlobTraits<ActorFlavor>::StreamType::InputStream InputStream;
   nsRefPtr<RemoteInputStream> mRemoteStream;
 
 public:
@@ -259,17 +249,12 @@ public:
 private:
   // This method is only called by the IPDL message machinery.
   virtual bool
-  Recv__delete__(const InputStreamParams& aParams) MOZ_OVERRIDE
+  Recv__delete__(const InputStream& aStream) MOZ_OVERRIDE
   {
     MOZ_ASSERT(NS_IsMainThread());
     MOZ_ASSERT(mRemoteStream);
 
-    nsCOMPtr<nsIInputStream> stream = DeserializeInputStream(aParams);
-    if (!stream) {
-      return false;
-    }
-
-    mRemoteStream->SetStream(stream);
+    mRemoteStream->SetStream(aStream);
     return true;
   }
 };
@@ -620,9 +605,13 @@ public:
   virtual void*
   GetPBlob() MOZ_OVERRIDE
   {
-    return static_cast<typename ActorType::ProtocolType*>(mActor);
+    return static_cast<typename ActorType::BaseType*>(mActor);
   }
 };
+
+} // namespace ipc
+} // namespace dom
+} // namespace mozilla
 
 template <ActorFlavorEnum ActorFlavor>
 Blob<ActorFlavor>::Blob(nsIDOMBlob* aBlob)
@@ -751,7 +740,7 @@ Blob<ActorFlavor>::SetMysteryBlobInfo(const nsString& aName,
   ToConcreteBlob(mBlob)->SetLazyData(aName, aContentType, aLength);
 
   FileBlobConstructorParams params(aName, aContentType, aLength);
-  return ProtocolType::SendResolveMystery(params);
+  return BaseType::SendResolveMystery(params);
 }
 
 template <ActorFlavorEnum ActorFlavor>
@@ -770,7 +759,7 @@ Blob<ActorFlavor>::SetMysteryBlobInfo(const nsString& aContentType,
   ToConcreteBlob(mBlob)->SetLazyData(voidString, aContentType, aLength);
 
   NormalBlobConstructorParams params(aContentType, aLength);
-  return ProtocolType::SendResolveMystery(params);
+  return BaseType::SendResolveMystery(params);
 }
 
 template <ActorFlavorEnum ActorFlavor>
@@ -820,7 +809,7 @@ Blob<ActorFlavor>::NoteDyingRemoteBlob()
   // access a dangling pointer.
   mRemoteBlob = nullptr;
 
-  mozilla::unused << ProtocolType::Send__delete__(this);
+  mozilla::unused << BaseType::Send__delete__(this);
 }
 
 template <ActorFlavorEnum ActorFlavor>
@@ -879,9 +868,9 @@ Blob<ActorFlavor>::RecvResolveMystery(const ResolveMysteryParams& aParams)
   return true;
 }
 
-template <>
+template <ActorFlavorEnum ActorFlavor>
 bool
-Blob<Parent>::RecvPBlobStreamConstructor(StreamType* aActor)
+Blob<ActorFlavor>::RecvPBlobStreamConstructor(StreamType* aActor)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mBlob);
@@ -891,55 +880,7 @@ Blob<Parent>::RecvPBlobStreamConstructor(StreamType* aActor)
   nsresult rv = mBlob->GetInternalStream(getter_AddRefs(stream));
   NS_ENSURE_SUCCESS(rv, false);
 
-  nsCOMPtr<nsIIPCSerializableInputStream> serializable =
-    do_QueryInterface(stream);
-  if (!serializable) {
-    MOZ_ASSERT(false, "Must be serializable!");
-    return false;
-  }
-
-  nsCOMPtr<nsIEventTarget> target =
-    do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(target, false);
-
-  nsRefPtr<BaseType::OpenStreamRunnable> runnable =
-    new BaseType::OpenStreamRunnable(this, aActor, stream, serializable,
-                                      target);
-
-  rv = target->Dispatch(runnable, NS_DISPATCH_NORMAL);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  nsRevocableEventPtr<BaseType::OpenStreamRunnable>* arrayMember =
-    mOpenStreamRunnables.AppendElement();
-  *arrayMember = runnable;
-  return true;
-}
-
-template <>
-bool
-Blob<Child>::RecvPBlobStreamConstructor(StreamType* aActor)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(mBlob);
-  MOZ_ASSERT(!mRemoteBlob);
-
-  nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = mBlob->GetInternalStream(getter_AddRefs(stream));
-  NS_ENSURE_SUCCESS(rv, false);
-
-  nsCOMPtr<nsIIPCSerializableInputStream> serializable =
-    do_QueryInterface(stream);
-  if (!serializable) {
-    MOZ_ASSERT(false, "Must be serializable!");
-    return false;
-  }
-
-  InputStreamParams params;
-  serializable->Serialize(params);
-
-  MOZ_ASSERT(params.type() != InputStreamParams::T__None);
-
-  return aActor->Send__delete__(aActor, params);
+  return aActor->Send__delete__(aActor, stream.get());
 }
 
 template <ActorFlavorEnum ActorFlavor>
@@ -969,127 +910,18 @@ template <ActorFlavorEnum ActorFlavor>
 NS_IMPL_QUERY_INTERFACE_INHERITED1(RemoteBlob<ActorFlavor>, nsDOMFile,
                                                             nsIRemoteBlob)
 
-void
-BlobTraits<Parent>::BaseType::NoteRunnableCompleted(
-                    BlobTraits<Parent>::BaseType::OpenStreamRunnable* aRunnable)
-{
-  MOZ_ASSERT(NS_IsMainThread());
+NS_IMPL_THREADSAFE_ADDREF(RemoteInputStream)
+NS_IMPL_THREADSAFE_RELEASE(RemoteInputStream)
 
-  for (PRUint32 index = 0; index < mOpenStreamRunnables.Length(); index++) {
-    nsRevocableEventPtr<BaseType::OpenStreamRunnable>& runnable =
-      mOpenStreamRunnables[index];
+NS_INTERFACE_MAP_BEGIN(RemoteInputStream)
+  NS_INTERFACE_MAP_ENTRY(nsIInputStream)
+  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsISeekableStream, IsSeekableStream())
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIInputStream)
+NS_INTERFACE_MAP_END
 
-    if (runnable.get() == aRunnable) {
-      runnable.Forget();
-      mOpenStreamRunnables.RemoveElementAt(index);
-      return;
-    }
-  }
-
-  MOZ_NOT_REACHED("Runnable not in our array!");
-}
-
-BlobTraits<Parent>::BaseType::
-OpenStreamRunnable::OpenStreamRunnable(
-                                   BlobTraits<Parent>::BaseType* aOwner,
-                                   BlobTraits<Parent>::StreamType* aActor,
-                                   nsIInputStream* aStream,
-                                   nsIIPCSerializableInputStream* aSerializable,
-                                   nsIEventTarget* aTarget)
-: mOwner(aOwner), mActor(aActor), mStream(aStream),
-  mSerializable(aSerializable), mTarget(aTarget), mRevoked(false),
-  mClosing(false)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(aOwner);
-  MOZ_ASSERT(aActor);
-  MOZ_ASSERT(aStream);
-  MOZ_ASSERT(aSerializable);
-  MOZ_ASSERT(aTarget);
-}
-
-NS_IMETHODIMP
-BlobTraits<Parent>::BaseType::OpenStreamRunnable::Run()
-{
-  MOZ_ASSERT(mStream);
-
-  nsresult rv;
-
-  if (NS_IsMainThread()) {
-    MOZ_ASSERT(mTarget);
-    MOZ_ASSERT(!mClosing);
-
-    if (mRevoked) {
-      MOZ_ASSERT(!mOwner);
-      MOZ_ASSERT(!mActor);
-    }
-    else {
-      MOZ_ASSERT(mOwner);
-      MOZ_ASSERT(mActor);
-
-      nsCOMPtr<nsIIPCSerializableInputStream> serializable;
-      mSerializable.swap(serializable);
-
-      InputStreamParams params;
-      serializable->Serialize(params);
-
-      MOZ_ASSERT(params.type() != InputStreamParams::T__None);
-
-      unused << mActor->Send__delete__(mActor, params);
-
-      mOwner->NoteRunnableCompleted(this);
-
-#ifdef DEBUG
-      mOwner = nullptr;
-      mActor = nullptr;
-#endif
-    }
-
-    mClosing = true;
-
-    nsCOMPtr<nsIEventTarget> target;
-    mTarget.swap(target);
-
-    rv = target->Dispatch(this, NS_DISPATCH_NORMAL);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return NS_OK;
-  }
-
-  if (!mClosing) {
-    // To force the stream open we call Available(). We don't actually care how
-    // much data is available.
-    PRUint64 available;
-    if (NS_FAILED(mStream->Available(&available))) {
-      NS_WARNING("Available failed on this stream!");
-    }
-
-    rv = NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return NS_OK;
-  }
-
-  // Going to always release here.
-  nsCOMPtr<nsIInputStream> stream;
-  mStream.swap(stream);
-
-  rv = stream->Close();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-#ifdef DEBUG
-void
-BlobTraits<Parent>::BaseType::OpenStreamRunnable::Revoke()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  mOwner = nullptr;
-  mActor = nullptr;
-  mRevoked = true;
-}
-#endif
+namespace mozilla {
+namespace dom {
+namespace ipc {
 
 // Explicit instantiation of both classes.
 template class Blob<Parent>;

@@ -107,14 +107,13 @@ nsRegressionTester::DumpFrameModel(nsIDOMWindow *aWindowToDump,
 }
 
 NS_IMETHODIMP
-nsRegressionTester::CompareFrameModels(nsIFile *aBaseFile, nsIFile *aVerFile,
-                                       PRUint32 aFlags, bool *aResult)
+nsRegressionTester::CompareFrameModels(nsIFile *aBaseFile, nsIFile *aVerFile, PRUint32 aFlags, PRInt32 *aResult) 
 {
   NS_ENSURE_ARG(aBaseFile);
   NS_ENSURE_ARG(aVerFile);
   NS_ENSURE_ARG_POINTER(aResult);
   
-  *aResult = false;
+  *aResult = NS_OK;
   
   nsresult rv;
   FILE* baseFile;

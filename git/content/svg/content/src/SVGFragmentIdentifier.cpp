@@ -32,7 +32,8 @@ GetViewElement(nsIDocument *aDocument, const nsAString &aId)
 void 
 SVGFragmentIdentifier::SaveOldPreserveAspectRatio(nsSVGSVGElement *root)
 {
-  if (root->mPreserveAspectRatio.IsExplicitlySet()) {
+  const SVGPreserveAspectRatio *oldPARPtr = root->GetPreserveAspectRatioProperty();
+  if (!oldPARPtr) {
     root->SetPreserveAspectRatioProperty(root->mPreserveAspectRatio.GetBaseValue());
   }
 }
@@ -43,15 +44,15 @@ SVGFragmentIdentifier::RestoreOldPreserveAspectRatio(nsSVGSVGElement *root)
   const SVGPreserveAspectRatio *oldPARPtr = root->GetPreserveAspectRatioProperty();
   if (oldPARPtr) {
     root->mPreserveAspectRatio.SetBaseValue(*oldPARPtr, root);
-  } else if (root->mPreserveAspectRatio.IsExplicitlySet()) {
-    root->RemoveAttribute(NS_LITERAL_STRING("preserveAspectRatio"));
+    root->ClearPreserveAspectRatioProperty();
   }
 }
 
 void 
 SVGFragmentIdentifier::SaveOldViewBox(nsSVGSVGElement *root)
 {
-  if (root->mViewBox.IsExplicitlySet()) {
+  const nsSVGViewBoxRect *oldViewBoxPtr = root->GetViewBoxProperty();
+  if (!oldViewBoxPtr) {
     root->SetViewBoxProperty(root->mViewBox.GetBaseValue());
   }
 }
@@ -62,15 +63,15 @@ SVGFragmentIdentifier::RestoreOldViewBox(nsSVGSVGElement *root)
   const nsSVGViewBoxRect *oldViewBoxPtr = root->GetViewBoxProperty();
   if (oldViewBoxPtr) {
     root->mViewBox.SetBaseValue(*oldViewBoxPtr, root);
-  } else if (root->mViewBox.IsExplicitlySet()) {
-    root->RemoveAttribute(NS_LITERAL_STRING("viewBox"));
+    root->ClearViewBoxProperty();
   }
 }
 
 void 
 SVGFragmentIdentifier::SaveOldZoomAndPan(nsSVGSVGElement *root)
 {
-  if (root->mEnumAttributes[nsSVGSVGElement::ZOOMANDPAN].IsExplicitlySet()) {
+  PRUint16 oldZoomAndPan = root->GetZoomAndPanProperty();
+  if (oldZoomAndPan == nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_UNKNOWN) {
     root->SetZoomAndPanProperty(root->mEnumAttributes[nsSVGSVGElement::ZOOMANDPAN].GetBaseValue());
   }
 }
@@ -81,8 +82,7 @@ SVGFragmentIdentifier::RestoreOldZoomAndPan(nsSVGSVGElement *root)
   PRUint16 oldZoomAndPan = root->GetZoomAndPanProperty();
   if (oldZoomAndPan != nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_UNKNOWN) {
     root->mEnumAttributes[nsSVGSVGElement::ZOOMANDPAN].SetBaseValue(oldZoomAndPan, root);
-  } else if (root->mEnumAttributes[nsSVGSVGElement::ZOOMANDPAN].IsExplicitlySet()) {
-    root->RemoveAttribute(NS_LITERAL_STRING("zoomAndPan"));
+    root->ClearZoomAndPanProperty();
   }
 }
 
@@ -146,18 +146,21 @@ SVGFragmentIdentifier::ProcessSVGViewSpec(const nsAString &aViewSpec,
   } while (tokenizer.hasMoreTokens());
 
   if (viewBoxParams) {
+    SaveOldViewBox(root);
     root->mViewBox.SetBaseValueString(*viewBoxParams, root);
   } else {
     RestoreOldViewBox(root);
   }
 
   if (preserveAspectRatioParams) {
+    SaveOldPreserveAspectRatio(root);
     root->mPreserveAspectRatio.SetBaseValueString(*preserveAspectRatioParams, root);
   } else {
     RestoreOldPreserveAspectRatio(root);
   }
 
   if (zoomAndPanParams) {
+    SaveOldZoomAndPan(root);
     nsCOMPtr<nsIAtom> valAtom = do_GetAtom(*zoomAndPanParams);
     const nsSVGEnumMapping *mapping = root->sZoomAndPanMap;
     while (mapping->mKey) {
@@ -184,28 +187,25 @@ SVGFragmentIdentifier::ProcessFragmentIdentifier(nsIDocument *aDocument,
   nsSVGSVGElement *rootElement =
     static_cast<nsSVGSVGElement*>(aDocument->GetRootElement());
 
-  if (!rootElement->mUseCurrentView) {
-    SaveOldViewBox(rootElement);
-    SaveOldPreserveAspectRatio(rootElement);
-    SaveOldZoomAndPan(rootElement);
-  }
-
   const nsSVGViewElement *viewElement = GetViewElement(aDocument, aAnchorName);
 
   if (viewElement) {
     if (viewElement->mViewBox.IsExplicitlySet()) {
+      SaveOldViewBox(rootElement);
       rootElement->mViewBox.SetBaseValue(
         viewElement->mViewBox.GetBaseValue(), rootElement);
     } else {
       RestoreOldViewBox(rootElement);
     }
     if (viewElement->mPreserveAspectRatio.IsExplicitlySet()) {
+      SaveOldPreserveAspectRatio(rootElement);
       rootElement->mPreserveAspectRatio.SetBaseValue(
         viewElement->mPreserveAspectRatio.GetBaseValue(), rootElement);
     } else {
       RestoreOldPreserveAspectRatio(rootElement);
     }
     if (viewElement->mEnumAttributes[nsSVGViewElement::ZOOMANDPAN].IsExplicitlySet()) {
+      SaveOldZoomAndPan(rootElement);
       rootElement->mEnumAttributes[nsSVGSVGElement::ZOOMANDPAN].SetBaseValue(
         viewElement->mEnumAttributes[nsSVGViewElement::ZOOMANDPAN].GetBaseValue(), rootElement);
     } else {
@@ -220,10 +220,7 @@ SVGFragmentIdentifier::ProcessFragmentIdentifier(nsIDocument *aDocument,
     return true;
   }
   RestoreOldViewBox(rootElement);
-  rootElement->ClearViewBoxProperty();
   RestoreOldPreserveAspectRatio(rootElement);
-  rootElement->ClearPreserveAspectRatioProperty();
   RestoreOldZoomAndPan(rootElement);
-  rootElement->ClearZoomAndPanProperty();
   return false;
 }

@@ -14,7 +14,7 @@
 #include "prprf.h"
 
 #include "nsCOMPtr.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsEscape.h"
 #include "nsLayoutCID.h"
 #include "nsNetUtil.h"

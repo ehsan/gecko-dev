@@ -213,8 +213,6 @@ nsTableCellFrame::AttributeChanged(PRInt32         aNameSpaceID,
 /* virtual */ void
 nsTableCellFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
-  nsContainerFrame::DidSetStyleContext(aOldStyleContext);
-
   if (!aOldStyleContext) //avoid this on init
     return;
 

@@ -12,7 +12,7 @@
 #include "mozilla/dom/Element.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsINameSpaceManager.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsUnicharUtils.h"
 #include "nsDOMString.h"
 #include "nsIDocument.h"

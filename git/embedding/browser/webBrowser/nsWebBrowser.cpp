@@ -92,7 +92,7 @@ NS_IMETHODIMP nsWebBrowser::InternalDestroy()
 {
 
    if (mInternalWidget) {
-     mInternalWidget->SetWidgetListener(nullptr);
+     mInternalWidget->SetClientData(0);
      mInternalWidget->Destroy();
      mInternalWidget = nullptr; // Force release here.
    }
@@ -887,8 +887,8 @@ NS_IMETHODIMP nsWebBrowser::GetCurrentState(PRUint32 *aCurrentState)
     return NS_OK;
 }
 
-/* readonly attribute nsresult result; */
-NS_IMETHODIMP nsWebBrowser::GetResult(nsresult *aResult)
+/* readonly attribute unsigned long result; */
+NS_IMETHODIMP nsWebBrowser::GetResult(PRUint32 *aResult)
 {
     NS_ENSURE_ARG_POINTER(aResult);
     if (mPersist)
@@ -1118,8 +1118,9 @@ NS_IMETHODIMP nsWebBrowser::Create()
       widgetInit.mWindowType = eWindowType_child;
       nsIntRect bounds(mInitInfo->x, mInitInfo->y, mInitInfo->cx, mInitInfo->cy);
       
-      mInternalWidget->SetWidgetListener(this);
-      mInternalWidget->Create(nullptr, mParentNativeWindow, bounds, nullptr, &widgetInit);
+      mInternalWidget->SetClientData(static_cast<nsWebBrowser *>(this));
+      mInternalWidget->Create(nullptr, mParentNativeWindow, bounds, nsWebBrowser::HandleEvent,
+                              nullptr, &widgetInit);  
       }
 
     nsCOMPtr<nsIDocShell> docShell(do_CreateInstance("@mozilla.org/docshell;1", &rv));
@@ -1658,45 +1659,69 @@ static void DrawThebesLayer(ThebesLayer* aLayer,
   aContext->Fill();  
 }
 
-void nsWebBrowser::WindowRaised(nsIWidget* aWidget)
+/* static */
+nsEventStatus nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
 {
+  nsWebBrowser  *browser = nullptr;
+  void          *data = nullptr;
+  nsIWidget     *widget = aEvent->widget;
+
+  if (!widget)
+    return nsEventStatus_eIgnore;
+
+  widget->GetClientData(data);
+  if (!data)
+    return nsEventStatus_eIgnore;
+
+  browser = static_cast<nsWebBrowser *>(data);
+
+  switch(aEvent->message) {
+
+  case NS_PAINT: {
+      LayerManager* layerManager = widget->GetLayerManager();
+      NS_ASSERTION(layerManager, "Must be in paint event");
+
+      layerManager->BeginTransaction();
+      nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
+      nsPaintEvent* paintEvent = static_cast<nsPaintEvent*>(aEvent);
+      nsIntRect dirtyRect = paintEvent->region.GetBounds();
+      if (root) {
+          root->SetVisibleRegion(dirtyRect);
+          layerManager->SetRoot(root);
+      }
+      layerManager->EndTransaction(DrawThebesLayer, &browser->mBackgroundColor);
+      return nsEventStatus_eConsumeDoDefault;
+    }
+
+  case NS_ACTIVATE: {
 #if defined(DEBUG_smaug)
-  nsCOMPtr<nsIDOMDocument> domDocument = do_GetInterface(mDocShell);
-  nsAutoString documentURI;
-  domDocument->GetDocumentURI(documentURI);
-  printf("nsWebBrowser::NS_ACTIVATE %p %s\n", (void*)browser,
-         NS_ConvertUTF16toUTF8(documentURI).get());
+    nsCOMPtr<nsIDOMDocument> domDocument = do_GetInterface(browser->mDocShell);
+    nsAutoString documentURI;
+    domDocument->GetDocumentURI(documentURI);
+    printf("nsWebBrowser::NS_ACTIVATE %p %s\n", (void*)browser,
+           NS_ConvertUTF16toUTF8(documentURI).get());
 #endif
-  Activate();
-}
-
-void nsWebBrowser::WindowLowered(nsIWidget* aWidget)
-{
-#if defined(DEBUG_smaug)
-  nsCOMPtr<nsIDOMDocument> domDocument = do_GetInterface(mDocShell);
-  nsAutoString documentURI;
-  domDocument->GetDocumentURI(documentURI);
-  printf("nsWebBrowser::NS_DEACTIVATE %p %s\n", (void*)browser,
-         NS_ConvertUTF16toUTF8(documentURI).get());
-#endif
-  Deactivate();
-}
-
-bool nsWebBrowser::PaintWindow(nsIWidget* aWidget, bool isRequest, nsIntRegion aRegion, bool aWillSendDidPaint)
-{
-  LayerManager* layerManager = aWidget->GetLayerManager();
-  NS_ASSERTION(layerManager, "Must be in paint event");
-
-  layerManager->BeginTransaction();
-  nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
-  if (root) {
-    nsIntRect dirtyRect = aRegion.GetBounds();
-    root->SetVisibleRegion(dirtyRect);
-    layerManager->SetRoot(root);
+    browser->Activate();
+    break;
   }
 
-  layerManager->EndTransaction(DrawThebesLayer, &mBackgroundColor);
-  return true;
+  case NS_DEACTIVATE: {
+#if defined(DEBUG_smaug)
+    nsCOMPtr<nsIDOMDocument> domDocument = do_GetInterface(browser->mDocShell);
+    nsAutoString documentURI;
+    domDocument->GetDocumentURI(documentURI);
+    printf("nsWebBrowser::NS_DEACTIVATE %p %s\n", (void*)browser,
+           NS_ConvertUTF16toUTF8(documentURI).get());
+#endif
+    browser->Deactivate();
+    break;
+  }
+
+  default:
+    break;
+  }
+
+  return nsEventStatus_eIgnore;
 }
 
 NS_IMETHODIMP nsWebBrowser::GetPrimaryContentWindow(nsIDOMWindow** aDOMWindow)

@@ -24,23 +24,61 @@ namespace js {
 
 inline
 Bindings::Bindings()
-    : callObjShape_(NULL), bindingArray_(NULL), numArgs_(0), numVars_(0)
+    : lastBinding(NULL), nargs(0), nvars(0), hasDup_(false)
 {}
+
+inline void
+Bindings::transfer(Bindings *bindings)
+{
+    JS_ASSERT(!lastBinding);
+    JS_ASSERT(!bindings->lastBinding || !bindings->lastBinding->inDictionary());
+
+    *this = *bindings;
+#ifdef DEBUG
+    bindings->lastBinding = NULL;
+#endif
+}
+
+Shape *
+Bindings::initialShape(JSContext *cx) const
+{
+    /* Get an allocation kind to match an empty call object. */
+    gc::AllocKind kind = gc::FINALIZE_OBJECT2_BACKGROUND;
+    JS_ASSERT(gc::GetGCKindSlots(kind) == CallObject::RESERVED_SLOTS);
+
+    return EmptyShape::getInitialShape(cx, &CallClass, NULL, cx->global(),
+                                       kind, BaseShape::VAROBJ);
+}
+
+bool
+Bindings::ensureShape(JSContext *cx)
+{
+    if (!lastBinding) {
+        lastBinding = initialShape(cx);
+        if (!lastBinding)
+            return false;
+    }
+    return true;
+}
 
 bool
 Bindings::extensibleParents()
 {
-    return callObjShape_->extensibleParents();
+    return lastBinding && lastBinding->extensibleParents();
 }
 
-inline
-AliasedFormalIter::AliasedFormalIter(JSScript *script)
-  : begin_(script->bindings.bindingArray_),
-    p_(begin_),
-    end_(begin_ + (script->funHasAnyAliasedFormal ? script->bindings.numArgs() : 0)),
-    slot_(CallObject::RESERVED_SLOTS)
+uint16_t
+Bindings::formalIndexToSlot(uint16_t i)
 {
-    settle();
+    JS_ASSERT(i < nargs);
+    return CallObject::RESERVED_SLOTS + i;
+}
+
+uint16_t
+Bindings::varIndexToSlot(uint16_t i)
+{
+    JS_ASSERT(i < nvars);
+    return CallObject::RESERVED_SLOTS + i + nargs;
 }
 
 extern void

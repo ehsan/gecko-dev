@@ -6,7 +6,6 @@
 #ifndef _MOZILLA_GFX_2D_H
 #define _MOZILLA_GFX_2D_H
 
-#include "Types.h"
 #include "Point.h"
 #include "Rect.h"
 #include "Matrix.h"

@@ -36,7 +36,7 @@
 #include "prenv.h"
 #include "plstr.h"
 #include "nsGUIEvent.h"
-#include "nsError.h"
+#include "nsLayoutErrors.h"
 #include "nsAutoPtr.h"
 #include "nsIServiceManager.h"
 #include "nsIScrollableFrame.h"
@@ -46,6 +46,7 @@
 #endif
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
+#include "nsContentErrors.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsCSSRendering.h"

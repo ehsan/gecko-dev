@@ -5,14 +5,17 @@
 import select
 import socket
 import SocketServer
-import time
+import time, datetime
 import os
 import re
+import hashlib
 import posixpath
 import subprocess
 from threading import Thread
+import traceback
+import sys
 import StringIO
-from devicemanager import DeviceManager, FileError, NetworkTools, _pop_last_line
+from devicemanager import DeviceManager, DMError, FileError, NetworkTools, _pop_last_line
 import errno
 
 class AgentError(Exception):
@@ -123,8 +126,7 @@ class DeviceManagerSUT(DeviceManager):
     one fails.  this is necessary in particular for pushFile(), where we don't want
     to accidentally send extra data if a failure occurs during data transmission.
     '''
-    if timeout:
-      raise NotImplementedError("'timeout' parameter is not yet supported")
+    done = False
     while self.retries < self.retrylimit:
       try:
         self._doCmds(cmdlist, outputfile, timeout)
@@ -185,7 +187,7 @@ class DeviceManagerSUT(DeviceManager):
           sent = self._sock.send(cmd['data'])
           if sent != len(cmd['data']):
               raise AgentError("ERROR: we had %s bytes of data to send, but "
-                               "only sent %s" % (len(cmd['data']), sent))
+                               "only sent %s" % (len(cmd['data'], sent)))
 
         if (self.debug >= 4): print "sent cmd: " + str(cmd['cmd'])
       except socket.error, msg:
@@ -263,16 +265,16 @@ class DeviceManagerSUT(DeviceManager):
   # returns:
   # success: <return code>
   # failure: None
-  def shell(self, cmd, outputfile, env=None, cwd=None, timeout=None):
+  def shell(self, cmd, outputfile, env=None, cwd=None):
     cmdline = self._escapedCommandLine(cmd)
     if env:
       cmdline = '%s %s' % (self.formatEnvString(env), cmdline)
 
     try:
       if cwd:
-        self.sendCmds([{ 'cmd': 'execcwd %s %s' % (cwd, cmdline) }], outputfile, timeout)
+        self.sendCmds([{ 'cmd': 'execcwd %s %s' % (cwd, cmdline) }], outputfile)
       else:
-        self.sendCmds([{ 'cmd': 'exec su -c "%s"' % cmdline }], outputfile, timeout)
+        self.sendCmds([{ 'cmd': 'exec su -c "%s"' % cmdline }], outputfile)
     except AgentError:
       return None
 
@@ -501,7 +503,7 @@ class DeviceManagerSUT(DeviceManager):
         return None
 
     try:
-      self.runCmds([{ 'cmd': 'exec ' + appname }])
+      data = self.runCmds([{ 'cmd': 'exec ' + appname }])
     except AgentError:
       return None
 
@@ -545,7 +547,7 @@ class DeviceManagerSUT(DeviceManager):
     if forceKill:
       print "WARNING: killProcess(): forceKill parameter unsupported on SUT"
     try:
-      self.runCmds([{ 'cmd': 'kill ' + appname }])
+      data = self.runCmds([{ 'cmd': 'kill ' + appname }])
     except AgentError:
       return False
 
@@ -638,8 +640,7 @@ class DeviceManagerSUT(DeviceManager):
     # or, if error,
     # <filename>,-1\n<error message>
     try:
-      # just send the command first, we read the response inline below
-      self.runCmds([{ 'cmd': 'pull ' + remoteFile }])
+      data = self.runCmds([{ 'cmd': 'pull ' + remoteFile }])
     except AgentError:
       return None
 
@@ -879,6 +880,7 @@ class DeviceManagerSUT(DeviceManager):
     cmd = 'rebt'
 
     if (self.debug > 3): print "INFO: sending rebt command"
+    callbacksvrstatus = None
 
     if (ipAddr is not None):
     #create update.info file:

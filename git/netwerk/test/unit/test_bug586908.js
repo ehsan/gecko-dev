@@ -1,9 +1,5 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
 
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var httpserv = null;
 
@@ -49,7 +45,7 @@ function makeChan(url) {
 }
 
 function run_test() {
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
   httpserv.registerPathHandler("/redirect", redirect);
   httpserv.registerPathHandler("/pac", pac);
   httpserv.registerPathHandler("/target", target);

@@ -6,7 +6,7 @@
 
 #include "nsSSLSocketProvider.h"
 #include "nsNSSIOLayer.h"
-#include "nsError.h"
+#include "nsNetError.h"
 
 nsSSLSocketProvider::nsSSLSocketProvider()
 {

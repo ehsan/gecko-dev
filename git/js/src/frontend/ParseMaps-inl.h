@@ -49,7 +49,7 @@ ParseMapPool::allocate()
 }
 
 inline Definition *
-AtomDecls::lookupFirst(JSAtom *atom) const
+AtomDecls::lookupFirst(JSAtom *atom)
 {
     JS_ASSERT(map);
     AtomDefnListPtr p = map->lookup(atom);
@@ -59,7 +59,7 @@ AtomDecls::lookupFirst(JSAtom *atom) const
 }
 
 inline DefinitionList::Range
-AtomDecls::lookupMulti(JSAtom *atom) const
+AtomDecls::lookupMulti(JSAtom *atom)
 {
     JS_ASSERT(map);
     if (AtomDefnListPtr p = map->lookup(atom))

@@ -10,7 +10,7 @@
 
 #include "IPC/IPCMessageUtils.h"
 #include "nsCOMPtr.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsDOMEvent.h"
 #include "nsEventStateManager.h"
 #include "nsIFrame.h"
@@ -142,6 +142,8 @@ nsDOMEvent::nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent)
   }
 
   InitPresContextData(aPresContext);
+
+  NS_ASSERTION(mEvent->message != NS_PAINT, "Trying to create a DOM paint event!");
 }
 
 void
@@ -599,6 +601,34 @@ nsDOMEvent::DuplicatePrivateData()
       newEvent = new nsGUIEvent(false, msg, nullptr);
       break;
     }
+    case NS_SIZE_EVENT:
+    {
+      nsSizeEvent* sizeEvent = new nsSizeEvent(false, msg, nullptr);
+      NS_ENSURE_TRUE(sizeEvent, NS_ERROR_OUT_OF_MEMORY);
+      sizeEvent->mWinWidth = static_cast<nsSizeEvent*>(mEvent)->mWinWidth;
+      sizeEvent->mWinHeight = static_cast<nsSizeEvent*>(mEvent)->mWinHeight;
+      newEvent = sizeEvent;
+      break;
+    }
+    case NS_SIZEMODE_EVENT:
+    {
+      newEvent = new nsSizeModeEvent(false, msg, nullptr);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
+      static_cast<nsSizeModeEvent*>(newEvent)->mSizeMode =
+        static_cast<nsSizeModeEvent*>(mEvent)->mSizeMode;
+      break;
+    }
+    case NS_ZLEVEL_EVENT:
+    {
+      nsZLevelEvent* zLevelEvent = new nsZLevelEvent(false, msg, nullptr);
+      NS_ENSURE_TRUE(zLevelEvent, NS_ERROR_OUT_OF_MEMORY);
+      nsZLevelEvent* oldZLevelEvent = static_cast<nsZLevelEvent*>(mEvent);
+      zLevelEvent->mPlacement = oldZLevelEvent->mPlacement;
+      zLevelEvent->mImmediate = oldZLevelEvent->mImmediate;
+      zLevelEvent->mAdjusted = oldZLevelEvent->mAdjusted;
+      newEvent = zLevelEvent;
+      break;
+    }
     case NS_SCROLLBAR_EVENT:
     {
       newEvent = new nsScrollbarEvent(false, msg, nullptr);
@@ -762,6 +792,14 @@ nsDOMEvent::DuplicatePrivateData()
       newEvent = mutationEvent;
       break;
     }
+#ifdef ACCESSIBILITY
+    case NS_ACCESSIBLE_EVENT:
+    {
+      newEvent = new nsAccessibleEvent(false, msg, nullptr);
+      isInputEvent = true;
+      break;
+    }
+#endif
     case NS_FORM_EVENT:
     {
       newEvent = new nsFormEvent(false, msg);

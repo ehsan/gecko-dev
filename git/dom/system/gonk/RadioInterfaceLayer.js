@@ -151,16 +151,14 @@ function RadioInterfaceLayer() {
     radioState:     RIL.GECKO_RADIOSTATE_UNAVAILABLE,
     cardState:      RIL.GECKO_CARDSTATE_UNAVAILABLE,
     icc:            null,
+    cell:           null,
 
     // These objects implement the nsIDOMMozMobileConnectionInfo interface,
-    // although the actual implementation lives in the content process. So are
-    // the child attributes `network` and `cell`, which implement
-    // nsIDOMMozMobileNetworkInfo and nsIDOMMozMobileCellInfo respectively.
+    // although the actual implementation lives in the content process.
     voice:          {connected: false,
                      emergencyCallsOnly: false,
                      roaming: false,
                      network: null,
-                     cell: null,
                      type: null,
                      signalStrength: null,
                      relSignalStrength: null},
@@ -168,7 +166,6 @@ function RadioInterfaceLayer() {
                      emergencyCallsOnly: false,
                      roaming: false,
                      network: null,
-                     cell: null,
                      type: null,
                      signalStrength: null,
                      relSignalStrength: null},
@@ -401,10 +398,14 @@ RadioInterfaceLayer.prototype = {
       case "iccinfochange":
         this.rilContext.icc = message;
         break;
-      case "iccGetCardLock":
-      case "iccSetCardLock":
-      case "iccUnlockCardLock":
-        this.handleICCCardLockResult(message);
+      case "iccgetcardlock":
+        this.handleICCGetCardLock(message);
+        break;
+      case "iccsetcardlock":
+        this.handleICCSetCardLock(message);
+        break;
+      case "iccunlockcardlock":
+        this.handleICCUnlockCardLock(message);
         break;
       case "icccontacts":
         if (!this._contactsCallbacks) {
@@ -418,6 +419,9 @@ RadioInterfaceLayer.prototype = {
         break;
       case "iccmbdn":
         ppmm.sendAsyncMessage("RIL:VoicemailNumberChanged", message);
+        break;
+      case "celllocationchanged":
+        this.rilContext.cell = message;
         break;
       case "ussdreceived":
         debug("ussdreceived " + JSON.stringify(message));
@@ -502,13 +506,6 @@ RadioInterfaceLayer.prototype = {
       voiceInfo.relSignalStrength = null;
     }
 
-    let newCell = newInfo.cell;
-    if ((newCell.gsmLocationAreaCode < 0) || (newCell.gsmCellId < 0)) {
-      voiceInfo.cell = null;
-    } else {
-      voiceInfo.cell = newCell;
-    }
-
     if (!newInfo.batch) {
       ppmm.sendAsyncMessage("RIL:VoiceInfoChanged", voiceInfo);
     }
@@ -530,13 +527,6 @@ RadioInterfaceLayer.prototype = {
       dataInfo.network = null;
       dataInfo.signalStrength = null;
       dataInfo.relSignalStrength = null;
-    }
-
-    let newCell = newInfo.cell;
-    if ((newCell.gsmLocationAreaCode < 0) || (newCell.gsmCellId < 0)) {
-      dataInfo.cell = null;
-    } else {
-      dataInfo.cell = newCell;
     }
 
     if (!newInfo.batch) {
@@ -956,8 +946,16 @@ RadioInterfaceLayer.prototype = {
                                   [message.datacalls, message.datacalls.length]);
   },
 
-  handleICCCardLockResult: function handleICCCardLockResult(message) {
-    ppmm.sendAsyncMessage("RIL:CardLockResult", message);
+  handleICCGetCardLock: function handleICCGetCardLock(message) {
+    ppmm.sendAsyncMessage("RIL:GetCardLock:Return:OK", message);
+  },
+
+  handleICCSetCardLock: function handleICCSetCardLock(message) {
+    ppmm.sendAsyncMessage("RIL:SetCardLock:Return:OK", message);
+  },
+
+  handleICCUnlockCardLock: function handleICCUnlockCardLock(message) {
+    ppmm.sendAsyncMessage("RIL:UnlockCardLock:Return:OK", message);
   },
 
   handleUSSDReceived: function handleUSSDReceived(ussd) {
@@ -1642,17 +1640,67 @@ RadioInterfaceLayer.prototype = {
   },
 
   getCardLock: function getCardLock(message) {
-    message.rilMessageType = "iccGetCardLock";
+    // Currently only support pin.
+    switch (message.lockType) {
+      case "pin" :
+        message.rilMessageType = "getICCPinLock";
+        break;
+      default:
+        ppmm.sendAsyncMessage("RIL:GetCardLock:Return:KO",
+                              {errorMsg: "Unsupported Card Lock.",
+                               requestId: message.requestId});
+        return;
+    }
     this.worker.postMessage(message);
   },
 
   unlockCardLock: function unlockCardLock(message) {
-    message.rilMessageType = "iccUnlockCardLock";
+    switch (message.lockType) {
+      case "pin":
+        message.rilMessageType = "enterICCPIN";
+        break;
+      case "pin2":
+        message.rilMessageType = "enterICCPIN2";
+        break;
+      case "puk":
+        message.rilMessageType = "enterICCPUK";
+        break;
+      case "puk2":
+        message.rilMessageType = "enterICCPUK2";
+        break;
+      default:
+        ppmm.sendAsyncMessage("RIL:UnlockCardLock:Return:KO",
+                              {errorMsg: "Unsupported Card Lock.",
+                               requestId: message.requestId});
+        return;
+    }
     this.worker.postMessage(message);
   },
 
   setCardLock: function setCardLock(message) {
-    message.rilMessageType = "iccSetCardLock";
+    // Change pin.
+    if (message.newPin !== undefined) {
+      switch (message.lockType) {
+        case "pin":
+          message.rilMessageType = "changeICCPIN";
+          break;
+        case "pin2":
+          message.rilMessageType = "changeICCPIN2";
+          break;
+        default:
+          ppmm.sendAsyncMessage("RIL:SetCardLock:Return:KO",
+                                {errorMsg: "Unsupported Card Lock.",
+                                 requestId: message.requestId});
+          return;
+      }
+    } else { // Enable/Disable pin lock.
+      if (message.lockType != "pin") {
+          ppmm.sendAsyncMessage("RIL:SetCardLock:Return:KO",
+                                {errorMsg: "Unsupported Card Lock.",
+                                 requestId: message.requestId});
+      }
+      message.rilMessageType = "setICCPinLock";
+    }
     this.worker.postMessage(message);
   },
 
@@ -1717,16 +1765,6 @@ let RILNetworkInterface = {
 
   dhcp: false,
 
-  ip: null,
-
-  netmask: null,
-
-  broadcast: null,
-
-  dns1: null,
-
-  dns2: null,
-
   httpProxyHost: null,
 
   httpProxyPort: null,
@@ -1741,12 +1779,6 @@ let RILNetworkInterface = {
       this.connecting = false;
       this.cid = datacall.cid;
       this.name = datacall.ifname;
-      this.ip = datacall.ip;
-      this.netmask = datacall.netmask;
-      this.broadcast = datacall.broadcast;
-      this.gateway = datacall.gw;
-      this.dns1 = datacall.dns[0];
-      this.dns2 = datacall.dns[1];
       if (!this.registeredAsNetworkInterface) {
         let networkManager = Cc["@mozilla.org/network/manager;1"]
                                .getService(Ci.nsINetworkManager);

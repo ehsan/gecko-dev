@@ -84,7 +84,7 @@
 #include "nsIObserverService.h"
 #include "nsIDocShell.h"        // for reflow observation
 #include "nsIBaseWindow.h"
-#include "nsError.h"
+#include "nsLayoutErrors.h"
 #include "nsLayoutUtils.h"
 #include "nsCSSRendering.h"
   // for |#ifdef DEBUG| code
@@ -172,7 +172,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 #include "sampler.h"
-#include "mozilla/css/ImageLoader.h"
 
 #include "Layers.h"
 #include "nsAsyncDOMEvent.h"
@@ -1957,10 +1956,11 @@ PresShell::FireResizeEvent()
 void
 PresShell::SetIgnoreFrameDestruction(bool aIgnore)
 {
-  if (mDocument) {
-    // We need to tell the ImageLoader to drop all its references to frames
-    // because they're about to go away and it won't get notifications of that.
-    mDocument->StyleImageLoader()->ClearAll();
+  if (mPresContext) {
+    // We need to destroy the image loaders first, as they won't be
+    // notified when frames are destroyed once this setting takes effect.
+    // (See bug 673984)
+    mPresContext->DestroyImageLoaders();
   }
   mIgnoreFrameDestruction = aIgnore;
 }
@@ -1973,7 +1973,7 @@ PresShell::NotifyDestroyingFrame(nsIFrame* aFrame)
   mPresContext->ForgetUpdatePluginGeometryFrame(aFrame);
 
   if (!mIgnoreFrameDestruction) {
-    mDocument->StyleImageLoader()->DropRequestsForFrame(aFrame);
+    mPresContext->StopImagesFor(aFrame);
 
     mFrameConstructor->NotifyDestroyingFrame(aFrame);
 
@@ -5662,6 +5662,16 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
 
   RecordMouseLocation(aEvent);
 
+#ifdef ACCESSIBILITY
+  if (aEvent->eventStructType == NS_ACCESSIBLE_EVENT) {
+    NS_TIME_FUNCTION_MIN(1.0);
+
+    // Accessibility events come through OS requests and not from scripts,
+    // so it is safe to handle here
+    return HandleEventInternal(aEvent, aEventStatus);
+  }
+#endif
+
   if (!nsContentUtils::IsSafeToRunScript())
     return NS_OK;
 
@@ -5733,6 +5743,30 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
         return shell->HandleEvent(frame, aEvent, true, aEventStatus);
       }
     }
+  }
+
+  // Check for a theme change up front, since the frame type is irrelevant
+  if (aEvent->message == NS_THEMECHANGED && mPresContext) {
+    mPresContext->ThemeChanged();
+    return NS_OK;
+  }
+
+  if (aEvent->message == NS_UISTATECHANGED && mDocument) {
+    nsPIDOMWindow* win = mDocument->GetWindow();
+    if (win) {
+      nsUIStateChangeEvent* event = (nsUIStateChangeEvent*)aEvent;
+      win->SetKeyboardIndicators(event->showAccelerators, event->showFocusRings);
+    }
+    return NS_OK;
+  }
+
+  // Check for a system color change up front, since the frame type is
+  // irrelevant
+  if ((aEvent->message == NS_SYSCOLORCHANGED) && mPresContext &&
+      aFrame == mFrameConstructor->GetRootFrame()) {
+    *aEventStatus = nsEventStatus_eConsumeDoDefault;
+    mPresContext->SysColorChanged();
+    return NS_OK;
   }
 
   if (aEvent->eventStructType == NS_KEY_EVENT &&
@@ -6271,6 +6305,32 @@ nsresult
 PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
 {
   NS_TIME_FUNCTION_MIN(1.0);
+
+#ifdef ACCESSIBILITY
+  if (aEvent->eventStructType == NS_ACCESSIBLE_EVENT)
+  {
+    nsAccessibleEvent *accEvent = static_cast<nsAccessibleEvent*>(aEvent);
+    accEvent->mAccessible = nullptr;
+
+    nsCOMPtr<nsIAccessibilityService> accService =
+      do_GetService("@mozilla.org/accessibilityService;1");
+    if (accService) {
+      nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
+      if (!container) {
+        // This presshell is not active. This often happens when a
+        // preshell is being held onto for fastback.
+        return NS_OK;
+      }
+
+      // Accessible creation might be not safe so we make sure it's not created
+      // at unsafe times.
+      accEvent->mAccessible =
+        accService->GetRootDocumentAccessible(this, nsContentUtils::IsSafeToRunScript());
+
+      return NS_OK;
+    }
+  }
+#endif
 
   nsRefPtr<nsEventStateManager> manager = mPresContext->EventStateManager();
   nsresult rv = NS_OK;
@@ -7648,15 +7708,6 @@ PresShell::ProcessReflowCommands(bool aInterruptible)
   }
 
   return !interrupted;
-}
-
-void
-PresShell::WindowSizeMoveDone()
-{
-  if (mPresContext) {
-    nsEventStateManager::ClearGlobalActiveContent(nullptr);
-    ClearMouseCapture(nullptr);
-  }
 }
 
 #ifdef MOZ_XUL

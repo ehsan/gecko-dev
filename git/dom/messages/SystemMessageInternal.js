@@ -26,7 +26,7 @@ try {
 }
 
 function debug(aMsg) { 
-  //dump("-- SystemMessageInternal " + Date.now() + " : " + aMsg + "\n");
+  //dump("-- SystemMessageInternal " + Date.now() + " : " + aMsg + "\n"); 
 }
 
 // Implementation of the component used by internal users.
@@ -40,7 +40,7 @@ function SystemMessageInternal() {
 }
 
 SystemMessageInternal.prototype = {
-  sendMessage: function sendMessage(aType, aMessage, aPageURI, aManifestURI) {
+  sendMessage: function sendMessage(aType, aMessage, aManifestURI) {
     debug("Broadcasting " + aType + " " + JSON.stringify(aMessage));
     ppmm.sendAsyncMessage("SystemMessageManager:Message" , { type: aType,
                                                              msg: aMessage,
@@ -48,9 +48,7 @@ SystemMessageInternal.prototype = {
 
     // Queue the message for pages that registered an handler for this type.
     this._pages.forEach(function sendMess_openPage(aPage) {
-      if (aPage.type != aType ||
-          aPage.manifest != aManifestURI.spec ||
-          aPage.uri != aPageURI.spec) {
+      if (aPage.type != aType || aPage.manifest != aManifestURI.spec) {
         return;
       }
 
@@ -60,10 +58,7 @@ SystemMessageInternal.prototype = {
       }
 
       // We don't need to send the full object to observers.
-      let page = { uri: aPage.uri,
-                   manifest: aPage.manifest,
-                   type: aPage.type,
-                   target: aMessage.target };
+      let page = { uri: aPage.uri, manifest: aPage.manifest };
       debug("Asking to open  " + JSON.stringify(page));
       Services.obs.notifyObservers(this, "system-messages-open-app", JSON.stringify(page));
     }.bind(this))

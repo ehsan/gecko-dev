@@ -1,12 +1,7 @@
 // This file ensures that canceling a channel early does not
 // send the request to the server (bug 350790)
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 const NS_BINDING_ABORTED = 0x804b0002;
 
@@ -55,19 +50,19 @@ var httpserv = null;
 
 function execute_test() {
   var chan = makeChan("http://localhost:4444/failtest");
-
+ 
   var obs = Components.classes["@mozilla.org/observer-service;1"].getService();
   obs = obs.QueryInterface(Components.interfaces.nsIObserverService);
-  obs.addObserver(observer, "http-on-modify-request", false);
-
+  obs.addObserver(observer, "http-on-modify-request", false); 
+ 
   chan.asyncOpen(listener, null);
 }
 
 function run_test() {
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
   httpserv.registerPathHandler("/failtest", failtest);
   httpserv.start(4444);
-
+  
   execute_test();
 
   do_test_pending();

@@ -1,9 +1,4 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var httpServer = null;
 var path = "/bug699001";
@@ -91,7 +86,7 @@ function handler(metadata, response)
 
 function run_test()
 {
-  httpServer = new HttpServer();
+  httpServer = new nsHttpServer();
   httpServer.registerPathHandler(path, handler);
   httpServer.start(4444);
 

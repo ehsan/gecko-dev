@@ -417,7 +417,7 @@ extern JS_PUBLIC_API(uintptr_t *)
 JS_GetFunctionLocalNameArray(JSContext *cx, JSFunction *fun, void **markp)
 {
     BindingVector bindings(cx);
-    if (!FillBindingVector(fun->script()->bindings, &bindings))
+    if (!GetOrderedBindings(cx, fun->script()->bindings, &bindings))
         return NULL;
 
     /* Munge data into the API this method implements.  Avert your eyes! */
@@ -430,7 +430,7 @@ JS_GetFunctionLocalNameArray(JSContext *cx, JSFunction *fun, void **markp)
     }
 
     for (size_t i = 0; i < bindings.length(); i++)
-        names[i] = reinterpret_cast<uintptr_t>(bindings[i].name());
+        names[i] = reinterpret_cast<uintptr_t>(bindings[i].maybeName);
 
     return names;
 }
@@ -695,9 +695,7 @@ JS_GetScriptFilename(JSContext *cx, JSScript *script)
 JS_PUBLIC_API(const jschar *)
 JS_GetScriptSourceMap(JSContext *cx, JSScript *script)
 {
-    ScriptSource *source = script->scriptSource();
-    JS_ASSERT(source);
-    return source->hasSourceMap() ? source->sourceMap() : NULL;
+    return script->hasSourceMap ? script->getSourceMap() : NULL;
 }
 
 JS_PUBLIC_API(unsigned)

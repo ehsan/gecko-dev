@@ -52,7 +52,7 @@ XPIDLSRCS	= \
 		nsIInputStreamPump.idl \
 		nsIInputStreamChannel.idl \
                 nsIIOService2.idl \
-                nsIIPCSerializableObsolete.idl \
+                nsIIPCSerializable.idl \
 		nsIMIMEInputStream.idl \
 		nsINetAddr.idl \
                 nsINetworkLinkService.idl \
@@ -125,6 +125,7 @@ endif
 
 EXPORTS		= \
 		netCore.h \
+		nsNetError.h \
 		nsNetUtil.h \
 		nsNetStrings.h \
 		nsChannelProperties.h \

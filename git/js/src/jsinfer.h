@@ -932,6 +932,8 @@ class TypeScript
 
     static inline unsigned NumTypeSets(JSScript *script);
 
+    static bool SetScope(JSContext *cx, JSScript *script, JSObject *scope);
+
     static inline TypeSet *ReturnTypes(JSScript *script);
     static inline TypeSet *ThisTypes(JSScript *script);
     static inline TypeSet *ArgTypes(JSScript *script, unsigned i);
@@ -1011,22 +1013,18 @@ struct CompilerOutput
     JSScript *script;
     bool constructing : 1;
     bool barriers : 1;
-    bool pendingRecompilation : 1;
-    uint32_t chunkIndex:29;
+    uint32_t chunkIndex:30;
 
-    CompilerOutput();
-
-    bool isJM() const { return true; }
-
-    mjit::JITScript * mjit() const;
+#ifdef JS_METHODJIT
+    js::mjit::JITScript *mjit;       /* Information attached by JM */
+#endif
 
     bool isValid() const;
 
-    void setPendingRecompilation() {
-        pendingRecompilation = true;
-    }
     void invalidate() {
-        script = NULL;
+#ifdef JS_METHODJIT
+        mjit = NULL;
+#endif
     }
 };
 
@@ -1035,15 +1033,9 @@ struct RecompileInfo
     static const uint32_t NoCompilerRunning = uint32_t(-1);
     uint32_t outputIndex;
 
-    RecompileInfo()
-      : outputIndex(NoCompilerRunning)
-    {
-    }
-
     bool operator == (const RecompileInfo &o) const {
         return outputIndex == o.outputIndex;
     }
-    CompilerOutput *compilerOutput(TypeCompartment &types) const;
     CompilerOutput *compilerOutput(JSContext *cx) const;
 };
 
@@ -1085,7 +1077,7 @@ struct TypeCompartment
     Vector<CompilerOutput> *constrainedOutputs;
 
     /* Pending recompilations to perform before execution of JIT code can resume. */
-    Vector<RecompileInfo> *pendingRecompiles;
+    Vector<CompilerOutput> *pendingRecompiles;
 
     /*
      * Number of recompilation events and inline frame expansions that have
@@ -1156,6 +1148,7 @@ struct TypeCompartment
     void setPendingNukeTypesNoReport();
 
     /* Mark a script as needing recompilation once inference has finished. */
+    void addPendingRecompile(JSContext *cx, CompilerOutput &co);
     void addPendingRecompile(JSContext *cx, const RecompileInfo &info);
     void addPendingRecompile(JSContext *cx, JSScript *script, jsbytecode *pc);
 

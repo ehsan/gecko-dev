@@ -14,7 +14,7 @@
 #include "mozilla/LookAndFeel.h"
 #include "nsBidiPresUtils.h"
 #include "nsDisplayList.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsIDOMSVGRect.h"
 #include "nsRenderingContext.h"
 #include "nsSVGEffects.h"

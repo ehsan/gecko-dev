@@ -2,16 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import('resource://gre/modules/CSPUtils.jsm');
-Cu.import('resource://gre/modules/NetUtil.jsm');
+Components.utils.import('resource://gre/modules/CSPUtils.jsm');
+Components.utils.import('resource://gre/modules/NetUtil.jsm');
 
 // load the HTTP server
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 const REPORT_SERVER_PORT = 9000;
 const REPORT_SERVER_URI = "http://localhost";
@@ -92,7 +87,7 @@ function run_test() {
                                ":" + REPORT_SERVER_PORT +
                                "/foo/self");
 
-  httpServer = new HttpServer();
+  httpServer = new nsHttpServer();
   httpServer.start(REPORT_SERVER_PORT);
 
   // test that inline script violations cause a report.

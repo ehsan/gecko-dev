@@ -40,7 +40,6 @@ struct StatStorageResponse
 {
   PRInt64 totalBytes;
   PRInt64 freeBytes;
-  nsString mountState;
 };
 
 union DeviceStorageResponseValue

@@ -580,7 +580,6 @@ nsListControlFrame::ReflowAsDropdown(nsPresContext*           aPresContext,
     if (above <= 0 && below <= 0) {
       state.SetComputedHeight(heightOfARow);
       mNumDisplayRows = 1;
-      mDropdownCanGrow = GetNumberOfOptions() > 1;
     } else {
       nscoord bp = aReflowState.mComputedBorderPadding.TopBottom();
       nscoord availableHeight = NS_MAX(above, below) - bp;

@@ -6,7 +6,7 @@
 #ifndef TRANSFRMX_TXSTYLESHEETCOMPILEHANDLERS_H
 #define TRANSFRMX_TXSTYLESHEETCOMPILEHANDLERS_H
 
-#include "nsError.h"
+#include "txError.h"
 #include "txNamespaceMap.h"
 #include "txExpandedNameMap.h"
 

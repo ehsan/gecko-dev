@@ -581,7 +581,7 @@ nsSVGOuterSVGFrame::AttributeChanged(PRInt32  aNameSpaceID,
                                      PRInt32  aModType)
 {
   if (aNameSpaceID == kNameSpaceID_None &&
-      !(GetStateBits() & (NS_FRAME_FIRST_REFLOW | NS_STATE_SVG_NONDISPLAY_CHILD))) {
+      !(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
     if (aAttribute == nsGkAtoms::viewBox ||
         aAttribute == nsGkAtoms::preserveAspectRatio ||
         aAttribute == nsGkAtoms::transform) {

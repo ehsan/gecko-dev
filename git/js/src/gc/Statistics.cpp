@@ -313,22 +313,15 @@ FormatPhaseTimes(StatisticsSerializer &ss, const char *name, int64_t *times)
     ss.endObject();
 }
 
-void
-Statistics::gcDuration(int64_t *total, int64_t *maxPause)
-{
-    *total = *maxPause = 0;
-    for (SliceData *slice = slices.begin(); slice != slices.end(); slice++) {
-        *total += slice->duration();
-        if (slice->duration() > *maxPause)
-            *maxPause = slice->duration();
-    }
-}
-
 bool
 Statistics::formatData(StatisticsSerializer &ss, uint64_t timestamp)
 {
-    int64_t total, longest;
-    gcDuration(&total, &longest);
+    int64_t total = 0, longest = 0;
+    for (SliceData *slice = slices.begin(); slice != slices.end(); slice++) {
+        total += slice->duration();
+        if (slice->duration() > longest)
+            longest = slice->duration();
+    }
 
     double mmu20 = computeMMU(20 * PRMJ_USEC_PER_MSEC);
     double mmu50 = computeMMU(50 * PRMJ_USEC_PER_MSEC);
@@ -458,6 +451,12 @@ Statistics::~Statistics()
     }
 }
 
+int64_t
+Statistics::gcDuration()
+{
+    return slices.back().end - slices[0].start;
+}
+
 void
 Statistics::printStats()
 {
@@ -470,11 +469,8 @@ Statistics::printStats()
             js_free(msg);
         }
     } else {
-        int64_t total, longest;
-        gcDuration(&total, &longest);
-
         fprintf(fp, "%f %f %f\n",
-                t(total),
+                t(gcDuration()),
                 t(phaseTimes[PHASE_MARK]),
                 t(phaseTimes[PHASE_SWEEP]));
     }
@@ -505,16 +501,10 @@ Statistics::endGC()
         phaseTotals[i] += phaseTimes[i];
 
     if (JSAccumulateTelemetryDataCallback cb = runtime->telemetryCallback) {
-        int64_t total, longest;
-        gcDuration(&total, &longest);
-
         (*cb)(JS_TELEMETRY_GC_IS_COMPARTMENTAL, collectedCount == compartmentCount ? 0 : 1);
-        (*cb)(JS_TELEMETRY_GC_MS, t(total));
-        (*cb)(JS_TELEMETRY_GC_MAX_PAUSE_MS, t(longest));
+        (*cb)(JS_TELEMETRY_GC_MS, t(gcDuration()));
         (*cb)(JS_TELEMETRY_GC_MARK_MS, t(phaseTimes[PHASE_MARK]));
         (*cb)(JS_TELEMETRY_GC_SWEEP_MS, t(phaseTimes[PHASE_SWEEP]));
-        (*cb)(JS_TELEMETRY_GC_MARK_ROOTS_MS, t(phaseTimes[PHASE_MARK_ROOTS]));
-        (*cb)(JS_TELEMETRY_GC_MARK_GRAY_MS, t(phaseTimes[PHASE_MARK_GRAY]));
         (*cb)(JS_TELEMETRY_GC_NON_INCREMENTAL, !!nonincrementalReason);
         (*cb)(JS_TELEMETRY_GC_INCREMENTAL_DISABLED, !runtime->gcIncrementalEnabled);
 

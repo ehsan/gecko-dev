@@ -19,12 +19,12 @@
 #include "nsIStringStream.h"
 #include "nsString.h"
 #include "nsMIMEInputStream.h"
-#include "nsIIPCSerializableObsolete.h"
+#include "nsIIPCSerializable.h"
 #include "nsIClassInfoImpl.h"
 
 class nsMIMEInputStream : public nsIMIMEInputStream,
                           public nsISeekableStream,
-                          public nsIIPCSerializableObsolete
+                          public nsIIPCSerializable
 {
 public:
     nsMIMEInputStream();
@@ -34,7 +34,7 @@ public:
     NS_DECL_NSIINPUTSTREAM
     NS_DECL_NSIMIMEINPUTSTREAM
     NS_DECL_NSISEEKABLESTREAM
-    NS_DECL_NSIIPCSERIALIZABLEOBSOLETE
+    NS_DECL_NSIIPCSERIALIZABLE
     
     NS_METHOD Init();
 
@@ -73,12 +73,12 @@ NS_IMPL_QUERY_INTERFACE4_CI(nsMIMEInputStream,
                             nsIMIMEInputStream,
                             nsIInputStream,
                             nsISeekableStream,
-                            nsIIPCSerializableObsolete)
+                            nsIIPCSerializable)
 NS_IMPL_CI_INTERFACE_GETTER4(nsMIMEInputStream,
                              nsIMIMEInputStream,
                              nsIInputStream,
                              nsISeekableStream,
-                             nsIIPCSerializableObsolete)
+                             nsIIPCSerializable)
 
 nsMIMEInputStream::nsMIMEInputStream() : mAddContentLength(false),
                                          mStartedReading(false)

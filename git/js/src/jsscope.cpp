@@ -1176,10 +1176,12 @@ Shape::setExtensibleParents(JSContext *cx, Shape *shape)
 bool
 Bindings::setExtensibleParents(JSContext *cx)
 {
-    Shape *newShape = Shape::setExtensibleParents(cx, callObjShape_);
+    if (!ensureShape(cx))
+        return false;
+    Shape *newShape = Shape::setExtensibleParents(cx, lastBinding);
     if (!newShape)
         return false;
-    callObjShape_ = newShape;
+    lastBinding = newShape;
     return true;
 }
 

@@ -8,7 +8,7 @@
  */
 
 #include "nsDOMLists.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsDOMClassInfoID.h"
 #include "nsINode.h"
 

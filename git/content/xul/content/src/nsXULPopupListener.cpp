@@ -41,7 +41,7 @@
 #include "nsFocusManager.h"
 #include "nsPIDOMWindow.h"
 #include "nsIViewManager.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsMenuFrame.h"
 
 using namespace mozilla;

@@ -22,7 +22,7 @@
 #include "nsNetCID.h"
 #include "nsContentUtils.h"
 #include "nsDOMJSUtils.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "mozilla/AutoRestore.h"

@@ -312,7 +312,6 @@
       if (childIndex == -1) {
         throw "removeChild: node not found";
       } else {
-        child.parentNode = null;
         return childNodes.splice(childIndex, 1)[0];
       }
     },

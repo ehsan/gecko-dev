@@ -756,9 +756,6 @@ public:
     void UnmarkSkippableJSHolders();
 
     static void GCCallback(JSRuntime *rt, JSGCStatus status);
-    static void GCSliceCallback(JSRuntime *rt,
-                                js::GCProgress progress,
-                                const js::GCDescription &desc);
     static void FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool isCompartmentGC);
 
     inline void AddVariantRoot(XPCTraceableVariant* variant);
@@ -913,7 +910,6 @@ private:
     bool mWatchdogHibernating;
     PRTime mLastActiveTime; // -1 if active NOW
     XPCIncrementalReleaseRunnable *mReleaseRunnable;
-    js::GCSliceCallback mPrevGCSliceCallback;
 
     nsCOMPtr<nsIException>   mPendingException;
     nsCOMPtr<nsIExceptionManager> mExceptionManager;

@@ -14,7 +14,7 @@
 #include "nsIContent.h"
 
 #include "nsTextFragment.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsEventListenerManager.h"
 #include "nsGenericElement.h"
 #include "nsCycleCollectionParticipant.h"

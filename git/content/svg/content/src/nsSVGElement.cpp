@@ -18,7 +18,7 @@
 #include "nsBindingManager.h"
 #include "nsXBLBinding.h"
 #include "nsStyleConsts.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsIPresShell.h"
 #include "nsIServiceManager.h"
 #include "nsGkAtoms.h"

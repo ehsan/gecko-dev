@@ -508,7 +508,7 @@ NS_IMETHODIMP nsXULWindow::Destroy()
     NS_RELEASE(mChromeTreeOwner);
   }
   if (mWindow) {
-    mWindow->SetWidgetListener(nullptr); // nsWebShellWindow hackery
+    mWindow->SetClientData(0); // nsWebShellWindow hackery
     mWindow->Destroy();
     mWindow = nullptr;
   }
@@ -1879,7 +1879,11 @@ bool nsXULWindow::ConstrainToZLevel(bool        aImmediate,
        to come to the top (below null) */
     nsCOMPtr<nsIXULWindow> windowAbove;
     if (newPosition == nsIWindowMediator::zLevelBelow && *aActualBelow) {
-      windowAbove = (*aActualBelow)->GetWidgetListener()->GetXULWindow();
+      void *data;
+      (*aActualBelow)->GetClientData(data);
+      if (data) {
+        windowAbove = reinterpret_cast<nsWebShellWindow*>(data);
+      }
     }
 
     mediator->SetZPosition(us, newPosition, windowAbove);

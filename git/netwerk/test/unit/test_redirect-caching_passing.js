@@ -1,9 +1,4 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var httpserver = null;
 // Need to randomize, because apparently no one clears our cache
@@ -47,7 +42,7 @@ function finish_test(request, buffer)
 
 function run_test()
 {
-  httpserver = new HttpServer();
+  httpserver = new nsHttpServer();
   httpserver.registerPathHandler(randomPath, redirectHandler);
   httpserver.registerPathHandler("/content", contentHandler);
   httpserver.start(4444);

@@ -118,12 +118,11 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMDEVICESTORAGESTAT
 
-  nsDOMDeviceStorageStat(PRUint64 aFreeBytes, PRUint64 aTotalBytes, nsAString& aState);
+  nsDOMDeviceStorageStat(PRUint64 aFreeBytes, PRUint64 aTotalBytes);
 
 private:
   ~nsDOMDeviceStorageStat();
   PRUint64 mFreeBytes, mTotalBytes;
-  nsString mState;
 };
 
 //helpers
@@ -131,8 +130,5 @@ jsval StringToJsval(nsPIDOMWindow* aWindow, nsAString& aString);
 jsval nsIFileToJsval(nsPIDOMWindow* aWindow, DeviceStorageFile* aFile);
 jsval InterfaceToJsval(nsPIDOMWindow* aWindow, nsISupports* aObject, const nsIID* aIID);
 
-#ifdef MOZ_WIDGET_GONK
-nsresult GetSDCardStatus(nsAString& aState);
-#endif
 
 #endif

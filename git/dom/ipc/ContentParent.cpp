@@ -21,7 +21,10 @@
 #include "IndexedDBParent.h"
 #include "IndexedDatabaseManager.h"
 #include "mozIApplication.h"
-#include "mozilla/ClearOnShutdown.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/Services.h"
+#include "mozilla/Util.h"
 #include "mozilla/dom/ExternalHelperAppParent.h"
 #include "mozilla/dom/PMemoryReportRequestParent.h"
 #include "mozilla/dom/StorageParent.h"
@@ -31,10 +34,6 @@
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/layers/CompositorParent.h"
 #include "mozilla/net/NeckoParent.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
-#include "mozilla/StaticPtr.h"
-#include "mozilla/Util.h"
 #include "mozilla/unused.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsAppDirectoryServiceDefs.h"
@@ -159,93 +158,6 @@ nsTArray<ContentParent*>* ContentParent::gPrivateContent;
 // The first content child has ID 1, so the chrome process can have ID 0.
 static PRUint64 gContentChildID = 1;
 
-// Try to keep an app process always preallocated, to get
-// initialization off the critical path of app startup.
-static bool sKeepAppProcessPreallocated;
-static StaticRefPtr<ContentParent> sPreallocatedAppProcess;
-static CancelableTask* sPreallocateAppProcessTask;
-// This number is fairly arbitrary ... the intention is to put off
-// launching another app process until the last one has finished
-// loading its content, to reduce CPU/memory/IO contention.
-static int sPreallocateDelayMs;
-// We want the prelaunched process to know that it's for apps, but not
-// actually for any app in particular.  Use a magic manifest URL.
-// Can't be a static constant.
-#define MAGIC_PREALLOCATED_APP_MANIFEST_URL NS_LITERAL_STRING("{{template}}")
-
-/*static*/ void
-ContentParent::PreallocateAppProcess()
-{
-    MOZ_ASSERT(!sPreallocatedAppProcess);
-
-    if (sPreallocateAppProcessTask) {
-        // We were called directly while a delayed task was scheduled.
-        sPreallocateAppProcessTask->Cancel();
-        sPreallocateAppProcessTask = nullptr;
-    }
-
-    sPreallocatedAppProcess =
-        new ContentParent(MAGIC_PREALLOCATED_APP_MANIFEST_URL);
-    sPreallocatedAppProcess->Init();
-}
-
-/*static*/ void
-ContentParent::DelayedPreallocateAppProcess()
-{
-    sPreallocateAppProcessTask = nullptr;
-    if (!sPreallocatedAppProcess) {
-        PreallocateAppProcess();
-    }
-}
-
-/*static*/ void
-ContentParent::ScheduleDelayedPreallocateAppProcess()
-{
-    if (!sKeepAppProcessPreallocated || sPreallocateAppProcessTask) {
-        return;
-    }
-    sPreallocateAppProcessTask =
-        NewRunnableFunction(DelayedPreallocateAppProcess);
-    MessageLoop::current()->PostDelayedTask(
-        FROM_HERE, sPreallocateAppProcessTask, sPreallocateDelayMs);
-}
-
-/*static*/ already_AddRefed<ContentParent>
-ContentParent::MaybeTakePreallocatedAppProcess()
-{
-    nsRefPtr<ContentParent> process = sPreallocatedAppProcess.get();
-    sPreallocatedAppProcess = nullptr;
-    ScheduleDelayedPreallocateAppProcess();
-    return process.forget();
-}
-
-/*static*/ void
-ContentParent::StartUp()
-{
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
-        return;
-    }
-
-    sKeepAppProcessPreallocated =
-        Preferences::GetBool("dom.ipc.processPrelauch.enabled", false);
-    if (sKeepAppProcessPreallocated) {
-        ClearOnShutdown(&sPreallocatedAppProcess);
-
-        sPreallocateDelayMs = Preferences::GetUint(
-            "dom.ipc.processPrelauch.delayMs", 1000);
-
-        MOZ_ASSERT(!sPreallocateAppProcessTask);
-        ScheduleDelayedPreallocateAppProcess();
-    }
-}
-
-/*static*/ void
-ContentParent::ShutDown()
-{
-    // No-op for now.  We rely on normal process shutdown and
-    // ClearOnShutdown() to clean up our state.
-}
-
 /*static*/ ContentParent*
 ContentParent::GetNewOrUsed()
 {
@@ -313,16 +225,10 @@ ContentParent::CreateBrowser(mozIApplication* aApp, bool aIsBrowserElement)
         return nullptr;
     }
 
-    nsRefPtr<ContentParent> p = gAppContentParents->Get(manifestURL);
+    ContentParent* p = gAppContentParents->Get(manifestURL);
     if (!p) {
-        p = MaybeTakePreallocatedAppProcess();
-        if (p) {
-            p->SetManifestFromPreallocated(manifestURL);
-        } else {
-            NS_WARNING("Unable to use pre-allocated app process");
-            p = new ContentParent(manifestURL);
-            p->Init();
-        }
+        p = new ContentParent(manifestURL);
+        p->Init();
         gAppContentParents->Put(manifestURL, p);
     }
 
@@ -396,16 +302,7 @@ ContentParent::Init()
 }
 
 void
-ContentParent::SetManifestFromPreallocated(const nsAString& aAppManifestURL)
-{
-    MOZ_ASSERT(mAppManifestURL == MAGIC_PREALLOCATED_APP_MANIFEST_URL);
-    // Clients should think of mAppManifestURL as const ... we're
-    // bending the rules here just for the preallocation hack.
-    const_cast<nsString&>(mAppManifestURL) = aAppManifestURL;
-}
-
-void
-ContentParent::ShutDownProcess()
+ContentParent::ShutDown()
 {
     if (mIsAlive) {
         // Close() can only be called once.  It kicks off the
@@ -550,10 +447,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
 #endif
     }
 
-    if (sPreallocatedAppProcess == this) {
-        sPreallocatedAppProcess = nullptr;
-    }
-
     mMessageManager->Disconnect();
 
     // clear the child memory reporters
@@ -620,7 +513,7 @@ ContentParent::NotifyTabDestroyed(PBrowserParent* aTab)
     if (IsForApp() && ManagedPBrowserParent().Length() == 1) {
         MessageLoop::current()->PostTask(
             FROM_HERE,
-            NewRunnableMethod(this, &ContentParent::ShutDownProcess));
+            NewRunnableMethod(this, &ContentParent::ShutDown));
     }
 }
 
@@ -793,9 +686,7 @@ ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissio
 }
 
 bool
-ContentParent::RecvSetClipboardText(const nsString& text,
-                                       const bool& isPrivateData,
-                                       const PRInt32& whichClipboard)
+ContentParent::RecvSetClipboardText(const nsString& text, const PRInt32& whichClipboard)
 {
     nsresult rv;
     nsCOMPtr<nsIClipboard> clipboard(do_GetService(kCClipboardCID, &rv));
@@ -814,7 +705,6 @@ ContentParent::RecvSetClipboardText(const nsString& text,
     
     // If our data flavor has already been added, this will fail. But we don't care
     trans->AddDataFlavor(kUnicodeMime);
-    trans->SetIsPrivateData(isPrivateData);
     
     nsCOMPtr<nsISupports> nsisupportsDataWrapper =
         do_QueryInterface(dataWrapper);

@@ -7,7 +7,7 @@
 #include "nsAutoPtr.h"
 #include "jsapi.h"
 #include "nsCRT.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsJSProtocolHandler.h"

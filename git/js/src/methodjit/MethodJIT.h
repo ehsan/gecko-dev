@@ -667,8 +667,6 @@ struct JITChunk
     ExecPoolVector execPools;
 #endif
 
-    types::RecompileInfo recompileInfo;
-
     // Additional ExecutablePools for native call and getter stubs.
     Vector<NativeCallStub, 0, SystemAllocPolicy> nativeCallStubs;
 
@@ -1002,7 +1000,7 @@ VMFrame::pc()
 inline void *
 JSScript::nativeCodeForPC(bool constructing, jsbytecode *pc)
 {
-    js::mjit::JITScript *jit = getJIT(constructing, compartment()->compileBarriers());
+    js::mjit::JITScript *jit = getJIT(constructing, compartment()->needsBarrier());
     if (!jit)
         return NULL;
     js::mjit::JITChunk *chunk = jit->chunk(pc);

@@ -12,7 +12,7 @@ var mm;
 
 function runTest() {
   browserElementTestHelpers.setEnabledPref(true);
-  browserElementTestHelpers.addPermission();
+  browserElementTestHelpers.addToWhitelist();
 
   iframe = document.createElement('iframe');
   iframe.mozbrowser = true;
@@ -21,11 +21,11 @@ function runTest() {
   mm = SpecialPowers.getBrowserFrameMessageManager(iframe);
   mm.addMessageListener('test-success', function(msg) {
     numPendingChildTests--;
-    ok(true, SpecialPowers.wrap(msg).json);
+    ok(true, msg.json);
   });
   mm.addMessageListener('test-fail', function(msg) {
     numPendingChildTests--;
-    ok(false, SpecialPowers.wrap(msg).json);
+    ok(false, msg.json);
   });
 
   // Wait for the initial load to finish, then navigate the page, then wait

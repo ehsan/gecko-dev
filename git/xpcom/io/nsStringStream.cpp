@@ -19,12 +19,8 @@
 #include "prerror.h"
 #include "plstr.h"
 #include "nsIClassInfoImpl.h"
-#include "nsIIPCSerializableObsolete.h"
+#include "nsIIPCSerializable.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/ipc/IPCSerializableParams.h"
-#include "nsIIPCSerializableInputStream.h"
-
-using namespace mozilla::ipc;
 
 //-----------------------------------------------------------------------------
 // nsIStringInputStream implementation
@@ -33,8 +29,7 @@ using namespace mozilla::ipc;
 class nsStringInputStream MOZ_FINAL : public nsIStringInputStream
                                     , public nsISeekableStream
                                     , public nsISupportsCString
-                                    , public nsIIPCSerializableObsolete
-                                    , public nsIIPCSerializableInputStream
+                                    , public nsIIPCSerializable
 {
 public:
     NS_DECL_ISUPPORTS
@@ -43,8 +38,7 @@ public:
     NS_DECL_NSISEEKABLESTREAM
     NS_DECL_NSISUPPORTSPRIMITIVE
     NS_DECL_NSISUPPORTSCSTRING
-    NS_DECL_NSIIPCSERIALIZABLEOBSOLETE
-    NS_DECL_NSIIPCSERIALIZABLEINPUTSTREAM
+    NS_DECL_NSIIPCSERIALIZABLE
 
     nsStringInputStream()
     {
@@ -86,18 +80,18 @@ NS_IMPL_THREADSAFE_RELEASE(nsStringInputStream)
 
 NS_IMPL_CLASSINFO(nsStringInputStream, NULL, nsIClassInfo::THREADSAFE,
                   NS_STRINGINPUTSTREAM_CID)
-NS_IMPL_QUERY_INTERFACE6_CI(nsStringInputStream,
+NS_IMPL_QUERY_INTERFACE5_CI(nsStringInputStream,
                             nsIStringInputStream,
                             nsIInputStream,
                             nsISupportsCString,
                             nsISeekableStream,
-                            nsIIPCSerializableObsolete,
-                            nsIIPCSerializableInputStream)
-NS_IMPL_CI_INTERFACE_GETTER4(nsStringInputStream,
+                            nsIIPCSerializable)
+NS_IMPL_CI_INTERFACE_GETTER5(nsStringInputStream,
                              nsIStringInputStream,
                              nsIInputStream,
                              nsISupportsCString,
-                             nsISeekableStream)
+                             nsISeekableStream,
+                             nsIIPCSerializable)
 
 /////////
 // nsISupportsCString implementation
@@ -294,7 +288,7 @@ nsStringInputStream::SetEOF()
 }
 
 /////////
-// nsIIPCSerializableObsolete implementation
+// nsIIPCSerializable implementation
 /////////
 
 bool
@@ -320,33 +314,6 @@ nsStringInputStream::Write(IPC::Message *aMsg)
     using IPC::WriteParam;
 
     WriteParam(aMsg, static_cast<const nsCString&>(PromiseFlatCString(mData)));
-}
-
-void
-nsStringInputStream::Serialize(InputStreamParams& aParams)
-{
-    StringInputStreamParams params;
-    params.data() = PromiseFlatCString(mData);
-    aParams = params;
-}
-
-bool
-nsStringInputStream::Deserialize(const InputStreamParams& aParams)
-{
-    if (aParams.type() != InputStreamParams::TStringInputStreamParams) {
-        NS_ERROR("Received unknown parameters from the other process!");
-        return false;
-    }
-
-    const StringInputStreamParams& params =
-        aParams.get_StringInputStreamParams();
-
-    if (NS_FAILED(SetData(params.data()))) {
-        NS_WARNING("SetData failed!");
-        return false;
-    }
-
-    return true;
 }
 
 nsresult

@@ -73,7 +73,8 @@
 #include "imgIRequest.h"
 #include "nsLayoutCID.h"
 #include "nsUnicharUtils.h"
-#include "nsError.h"
+#include "nsLayoutErrors.h"
+#include "nsContentErrors.h"
 #include "nsContainerFrame.h"
 #include "nsBoxLayoutState.h"
 #include "nsBlockFrame.h"
@@ -96,12 +97,10 @@
 
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/css/ImageLoader.h"
 
 using namespace mozilla;
 using namespace mozilla::layers;
 using namespace mozilla::layout;
-using namespace mozilla::css;
 
 // Struct containing cached metrics for box-wrapped frames.
 struct nsBoxLayoutMetrics
@@ -699,50 +698,27 @@ EqualImages(imgIRequest *aOldImage, imgIRequest *aNewImage)
 /* virtual */ void
 nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
-  ImageLoader* imageLoader = PresContext()->Document()->StyleImageLoader();
-
-  // If the old context had a background image image and new context
-  // does not have the same image, clear the image load notifier
-  // (which keeps the image loading, if it still is) for the frame.
-  // We want to do this conservatively because some frames paint their
-  // backgrounds from some other frame's style data, and we don't want
-  // to clear those notifiers unless we have to.  (They'll be reset
-  // when we paint, although we could miss a notification in that
-  // interval.)
-  const nsStyleBackground *oldBG = aOldStyleContext ?
-                                   aOldStyleContext->GetStyleBackground() :
-                                   nullptr;
-  const nsStyleBackground *newBG = GetStyleBackground();
-  if (oldBG) {
+  if (aOldStyleContext) {
+    // If the old context had a background image image and new context
+    // does not have the same image, clear the image load notifier
+    // (which keeps the image loading, if it still is) for the frame.
+    // We want to do this conservatively because some frames paint their
+    // backgrounds from some other frame's style data, and we don't want
+    // to clear those notifiers unless we have to.  (They'll be reset
+    // when we paint, although we could miss a notification in that
+    // interval.)
+    const nsStyleBackground *oldBG = aOldStyleContext->GetStyleBackground();
+    const nsStyleBackground *newBG = GetStyleBackground();
     NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, oldBG) {
-      // If there is an image in oldBG that's not in newBG, drop it.
       if (i >= newBG->mImageCount ||
           oldBG->mLayers[i].mImage != newBG->mLayers[i].mImage) {
-        const nsStyleImage& oldImage = oldBG->mLayers[i].mImage;
-        if (oldImage.GetType() != eStyleImageType_Image) {
-          continue;
-        }
-
-        imageLoader->DisassociateRequestFromFrame(oldImage.GetImageData(),
-                                                  this);
-      }          
-    }
-  }
-
-  NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, newBG) {
-    // If there is an image in newBG that's not in oldBG, add it.
-    if (!oldBG || i >= oldBG->mImageCount ||
-        newBG->mLayers[i].mImage != oldBG->mLayers[i].mImage) {
-      const nsStyleImage& newImage = newBG->mLayers[i].mImage;
-      if (newImage.GetType() != eStyleImageType_Image) {
-        continue;
+        // stop the image loading for the frame, the image has changed
+        PresContext()->SetImageLoaders(this,
+          nsPresContext::BACKGROUND_IMAGE, nullptr);
+        break;
       }
+    }
 
-      imageLoader->AssociateRequestToFrame(newImage.GetImageData(), this);
-    }          
-  }
-
-  if (aOldStyleContext) {
     // If we detect a change on margin, padding or border, we store the old
     // values on the frame itself between now and reflow, so if someone
     // calls GetUsed(Margin|Border|Padding)() before the next reflow, we
@@ -781,7 +757,6 @@ nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   imgIRequest *oldBorderImage = aOldStyleContext
     ? aOldStyleContext->GetStyleBorder()->GetBorderImage()
     : nullptr;
-  imgIRequest *newBorderImage = GetStyleBorder()->GetBorderImage();
   // FIXME (Bug 759996): The following is no longer true.
   // For border-images, we can't be as conservative (we need to set the
   // new loaders if there has been any change) since the CalcDifference
@@ -796,14 +771,9 @@ nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   // is loaded) and paint.  We also don't really care about any callers
   // who try to paint borders with a different style context, because
   // they won't have the correct size for the border either.
-  if (!EqualImages(oldBorderImage, newBorderImage)) {
+  if (!EqualImages(oldBorderImage, GetStyleBorder()->GetBorderImage())) {
     // stop and restart the image loading/notification
-    if (oldBorderImage) {
-      imageLoader->DisassociateRequestFromFrame(oldBorderImage, this);
-    }
-    if (newBorderImage) {
-      imageLoader->AssociateRequestToFrame(newBorderImage, this);
-    }
+    PresContext()->SetupBorderImageLoaders(this, GetStyleBorder());
   }
 
   // If the page contains markup that overrides text direction, and
@@ -4690,6 +4660,11 @@ nsIFrame::InvalidateInternalAfterResize(const nsRect& aDamageRect, nscoord aX,
 
   if ((mState & NS_FRAME_HAS_CONTAINER_LAYER) &&
       !(aFlags & INVALIDATE_NO_THEBES_LAYERS)) {
+    // XXX for now I'm going to assume this is in the local coordinate space
+    // This only matters for frames with transforms and retained layers,
+    // which can't happen right now since transforms trigger fallback
+    // rendering and the display items that trigger layers are nested inside
+    // the nsDisplayTransform
     // XXX need to set INVALIDATE_NO_THEBES_LAYERS for certain kinds of
     // invalidation, e.g. video update, 'opacity' change
     FrameLayerBuilder::InvalidateThebesLayerContents(this,
@@ -5088,10 +5063,6 @@ nsIFrame::GetPreEffectsVisualOverflowRect() const
 /* virtual */ bool
 nsFrame::UpdateOverflow()
 {
-  MOZ_ASSERT(!(mState & NS_FRAME_SVG_LAYOUT) ||
-             !(mState & NS_STATE_SVG_NONDISPLAY_CHILD),
-             "Non-display SVG do not maintain visual overflow rects");
-
   nsRect rect(nsPoint(0, 0), GetSize());
   nsOverflowAreas overflowAreas(rect, rect);
 
@@ -5392,11 +5363,6 @@ nsFrame::MakeFrameName(const nsAString& aType, nsAString& aResult) const
   if (mContent && !mContent->IsNodeOfType(nsINode::eTEXT)) {
     nsAutoString buf;
     mContent->Tag()->ToString(buf);
-    if (GetType() == nsGkAtoms::subDocumentFrame) {
-      nsAutoString src;
-      mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::src, src);
-      buf.Append(NS_LITERAL_STRING(" src=") + src);
-    }
     aResult.Append(NS_LITERAL_STRING("(") + buf + NS_LITERAL_STRING(")"));
   }
   char buf[40];

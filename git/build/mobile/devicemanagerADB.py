@@ -6,8 +6,8 @@ import subprocess
 from devicemanager import DeviceManager, DMError, _pop_last_line
 import re
 import os
+import sys
 import tempfile
-import time
 
 class DeviceManagerADB(DeviceManager):
 
@@ -65,7 +65,7 @@ class DeviceManagerADB(DeviceManager):
     self.useRunAs = False
     try:
       self.verifyRoot()
-    except DMError:
+    except DMError, e:
       try:
         self.checkCmd(["root"])
         # The root command does not fail even if ADB cannot get
@@ -90,13 +90,11 @@ class DeviceManagerADB(DeviceManager):
     if self.host:
       self.disconnectRemoteADB()
 
-  # external function: executes shell command on device.
-  # timeout is specified in seconds, and if no timeout is given, 
-  # we will run until the script returns
+  # external function: executes shell command on device
   # returns:
   # success: <return code>
   # failure: None
-  def shell(self, cmd, outputfile, env=None, cwd=None, timeout=None):
+  def shell(self, cmd, outputfile, env=None, cwd=None):
     # FIXME: this function buffers all output of the command into memory,
     # always. :(
 
@@ -119,16 +117,6 @@ class DeviceManagerADB(DeviceManager):
     args.extend(["shell", cmdline])
     proc = subprocess.Popen(args,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if timeout:
-        timeout = int(timeout)
-        start_time = time.time()
-        ret_code = proc.poll()
-        while ((time.time() - start_time) <= timeout) and ret_code == None:
-            time.sleep(1)
-            ret_code = proc.poll()
-        if ret_code == None:
-            proc.kill()
-            raise DMError("Timeout exceeded for shell call")
     (stdout, stderr) = proc.communicate()
     outputfile.write(stdout.rstrip('\n'))
 
@@ -406,9 +394,7 @@ class DeviceManagerADB(DeviceManager):
            args.append("-9")
          args.append(pid)
          p = self.runCmdAs(args)
-         p.communicate()
-         if p.returncode == 0:
-             didKillProcess = True
+         didKillProcess = True
 
     return didKillProcess
 
@@ -513,11 +499,11 @@ class DeviceManagerADB(DeviceManager):
   #  success: MD5 hash for given filename
   #  failure: None
   def getRemoteHash(self, filename):
-    data = self.runCmd(["shell", "ls", "-l", filename]).stdout.read()
+    data = p = self.runCmd(["shell", "ls", "-l", filename]).stdout.read()
     return data.split()[3]
 
   def getLocalHash(self, filename):
-    data = subprocess.Popen(["ls", "-l", filename], stdout=subprocess.PIPE).stdout.read()
+    data = p = subprocess.Popen(["ls", "-l", filename], stdout=subprocess.PIPE).stdout.read()
     return data.split()[4]
 
   # Internal method to setup the device root and cache its value
@@ -707,7 +693,7 @@ class DeviceManagerADB(DeviceManager):
     return ret
 
   def runCmd(self, args):
-    # If we are not root but have run-as, and we're trying to execute
+    # If we are not root but have run-as, and we're trying to execute 
     # a shell command then using run-as is the best we can do
     finalArgs = [self.adbPath]
     if self.deviceSerial:
@@ -724,10 +710,8 @@ class DeviceManagerADB(DeviceManager):
       args.insert(2, self.packageName)
     return self.runCmd(args)
 
-  # timeout is specified in seconds, and if no timeout is given, 
-  # we will run until the script returns
-  def checkCmd(self, args, timeout=None):
-    # If we are not root but have run-as, and we're trying to execute
+  def checkCmd(self, args):
+    # If we are not root but have run-as, and we're trying to execute 
     # a shell command then using run-as is the best we can do
     finalArgs = [self.adbPath]
     if self.deviceSerial:
@@ -736,25 +720,13 @@ class DeviceManagerADB(DeviceManager):
       args.insert(1, "run-as")
       args.insert(2, self.packageName)
     finalArgs.extend(args)
-    if timeout:
-        timeout = int(timeout)
-        proc = subprocess.Popen(finalArgs)
-        start_time = time.time()
-        ret_code = proc.poll()
-        while ((time.time() - start_time) <= timeout) and ret_code == None:
-            time.sleep(1)
-            ret_code = proc.poll()
-        if ret_code == None:
-            proc.kill()
-            raise DMError("Timeout exceeded for checkCmd call")
-        return ret_code
     return subprocess.check_call(finalArgs)
 
-  def checkCmdAs(self, args, timeout=None):
+  def checkCmdAs(self, args):
     if (self.useRunAs):
       args.insert(1, "run-as")
       args.insert(2, self.packageName)
-    return self.checkCmd(args, timeout)
+    return self.checkCmd(args)
 
   # external function
   # returns:

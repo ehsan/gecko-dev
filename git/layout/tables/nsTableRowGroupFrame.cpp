@@ -1337,8 +1337,6 @@ nsTableRowGroupFrame::Reflow(nsPresContext*           aPresContext,
 /* virtual */ void
 nsTableRowGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
-  nsContainerFrame::DidSetStyleContext(aOldStyleContext);
-
   if (!aOldStyleContext) //avoid this on init
     return;
      

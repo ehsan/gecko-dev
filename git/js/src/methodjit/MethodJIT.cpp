@@ -1079,7 +1079,7 @@ mjit::JaegerShot(JSContext *cx, bool partial)
 {
     StackFrame *fp = cx->fp();
     JSScript *script = fp->script();
-    JITScript *jit = script->getJIT(fp->isConstructing(), cx->compartment->compileBarriers());
+    JITScript *jit = script->getJIT(fp->isConstructing(), cx->compartment->needsBarrier());
 
     JS_ASSERT(cx->regs().pc == script->code);
 
@@ -1267,10 +1267,6 @@ JITScript::destroyChunk(FreeOp *fop, unsigned chunkIndex, bool resetUses)
     ChunkDescriptor &desc = chunkDescriptor(chunkIndex);
 
     if (desc.chunk) {
-        // Invalidates the CompilerOutput of the chunk.
-        types::TypeCompartment &types = script->compartment()->types;
-        desc.chunk->recompileInfo.compilerOutput(types)->invalidate();
-
         /*
          * Write barrier: Before we destroy the chunk, trace through the objects
          * it holds.

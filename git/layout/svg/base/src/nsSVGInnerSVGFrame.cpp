@@ -162,8 +162,7 @@ nsSVGInnerSVGFrame::AttributeChanged(PRInt32  aNameSpaceID,
                                      nsIAtom* aAttribute,
                                      PRInt32  aModType)
 {
-  if (aNameSpaceID == kNameSpaceID_None &&
-      !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
+  if (aNameSpaceID == kNameSpaceID_None) {
 
     nsSVGSVGElement* content = static_cast<nsSVGSVGElement*>(mContent);
 

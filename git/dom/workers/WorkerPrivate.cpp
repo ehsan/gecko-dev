@@ -31,7 +31,7 @@
 #include "js/MemoryMetrics.h"
 #include "nsAlgorithm.h"
 #include "nsContentUtils.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsDOMJSUtils.h"
 #include "nsGUIEvent.h"
 #include "nsJSEnvironment.h"

@@ -723,8 +723,7 @@ AppendRequestsToISupportsArray(PLDHashTable *table, PLDHashEntryHdr *hdr,
     RequestMapEntry *e = static_cast<RequestMapEntry *>(hdr);
     nsISupportsArray *array = static_cast<nsISupportsArray *>(arg);
 
-    // nsISupportsArray::AppendElement returns a bool disguised as nsresult
-    bool ok = static_cast<bool>(array->AppendElement(e->mKey));
+    bool ok = array->AppendElement(e->mKey);
 
     if (!ok) {
         return PL_DHASH_STOP;

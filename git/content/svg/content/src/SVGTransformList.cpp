@@ -7,7 +7,7 @@
 #include "SVGTransformList.h"
 #include "SVGTransformListParser.h"
 #include "nsString.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 
 namespace mozilla {
 

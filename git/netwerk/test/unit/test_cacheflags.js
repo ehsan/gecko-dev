@@ -1,9 +1,4 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var httpserver = null;
 
@@ -296,7 +291,7 @@ function longexp_handler(metadata, response) {
 }
 
 function run_test() {
-  httpserver = new HttpServer();
+  httpserver = new nsHttpServer();
   httpserver.registerPathHandler(shortexpPath, shortexp_handler);
   httpserver.registerPathHandler(longexpPath, longexp_handler);
   httpserver.registerPathHandler(nocachePath, nocache_handler);
