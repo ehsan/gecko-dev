@@ -852,13 +852,6 @@ JSClass js_NoSuchMethodClass = {
     NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
-JS_BEGIN_EXTERN_C
-
-JSObject*
-js_InitNoSuchMethodClass(JSContext *cx, JSObject* obj);
-
-JS_END_EXTERN_C
-
 JSObject*
 js_InitNoSuchMethodClass(JSContext *cx, JSObject* obj)
 {
