@@ -1348,7 +1348,12 @@ PRUint32
 nsIContent::GetDesiredIMEState()
 {
   if (!IsEditableInternal()) {
-    return IME_STATUS_DISABLE;
+    // Check for the special case where we're dealing with elements which don't
+    // have the editable flag set, but are readwrite (such as text controls).
+    if (!IsElement() ||
+        !AsElement()->State().HasState(NS_EVENT_STATE_MOZ_READWRITE)) {
+      return IME_STATUS_DISABLE;
+    }
   }
   // NOTE: The content for independent editors (e.g., input[type=text],
   // textarea) must override this method, so, we don't need to worry about
@@ -3056,14 +3061,6 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   return NS_OK;
 }
 
-static bool
-IsFullScreenAncestor(Element* aElement)
-{
-  nsEventStates state = aElement->State();
-  return state.HasAtLeastOneOfStates(NS_EVENT_STATE_FULL_SCREEN_ANCESTOR |
-                                     NS_EVENT_STATE_FULL_SCREEN);
-}
-
 void
 nsGenericElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
@@ -3075,11 +3072,6 @@ nsGenericElement::UnbindFromTree(bool aDeep, bool aNullParent)
     HasFlag(NODE_FORCE_XBL_BINDINGS) ? OwnerDoc() : GetCurrentDoc();
 
   if (aNullParent) {
-    if (IsFullScreenAncestor(this)) {
-      // The element being removed is an ancestor of the full-screen element,
-      // exit full-screen state.
-      OwnerDoc()->CancelFullScreen();
-    }
     if (GetParent()) {
       NS_RELEASE(mParent);
     } else {
@@ -4207,6 +4199,16 @@ nsINode::IsEqualNode(nsIDOMNode* aOther, bool* aReturn)
 {
   nsCOMPtr<nsINode> other = do_QueryInterface(aOther);
   *aReturn = IsEqualTo(other);
+  return NS_OK;
+}
+
+nsresult
+nsINode::IsSameNode(nsIDOMNode* aOther, bool* aReturn)
+{
+  OwnerDoc()->WarnOnceAbout(nsIDocument::eIsSameNode);
+
+  nsCOMPtr<nsINode> other = do_QueryInterface(aOther);
+  *aReturn = other == this;
   return NS_OK;
 }
 
@@ -5365,93 +5367,6 @@ ParseSelectorList(nsINode* aNode,
   return NS_OK;
 }
 
-// Actually find elements matching aSelectorList (which must not be
-// null) and which are descendants of aRoot and put them in Alist.  If
-// onlyFirstMatch, then stop once the first one is found.
-template<bool onlyFirstMatch, class T>
-inline static nsresult FindMatchingElements(nsINode* aRoot,
-                                            const nsAString& aSelector,
-                                            T &aList)
-{
-  nsAutoPtr<nsCSSSelectorList> selectorList;
-  nsresult rv = ParseSelectorList(aRoot, aSelector,
-                                  getter_Transfers(selectorList));
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(selectorList, NS_OK);
-
-  NS_ASSERTION(selectorList->mSelectors,
-               "How can we not have any selectors?");
-
-  nsIDocument* doc = aRoot->OwnerDoc();  
-  TreeMatchContext matchingContext(false, nsRuleWalker::eRelevantLinkUnvisited,
-                                   doc);
-
-  // Fast-path selectors involving IDs.  We can only do this if aRoot
-  // is in the document and the document is not in quirks mode, since
-  // ID selectors are case-insensitive in quirks mode.  Also, only do
-  // this if selectorList only has one selector, because otherwise
-  // ordering the elements correctly is a pain.
-  NS_ASSERTION(aRoot->IsElement() || aRoot->IsNodeOfType(nsINode::eDOCUMENT),
-               "Unexpected root node");
-  if (aRoot->IsInDoc() &&
-      doc->GetCompatibilityMode() != eCompatibility_NavQuirks &&
-      !selectorList->mNext &&
-      selectorList->mSelectors->mIDList) {
-    nsIAtom* id = selectorList->mSelectors->mIDList->mAtom;
-    const nsSmallVoidArray* elements =
-      doc->GetAllElementsForId(nsDependentAtomString(id));
-
-    // XXXbz: Should we fall back to the tree walk if aRoot is not the
-    // document and |elements| is long, for some value of "long"?
-    if (elements) {
-      for (PRUint32 i = 0; i < elements->Count(); ++i) {
-        Element *element = static_cast<Element*>(elements->ElementAt(i));
-        if (!aRoot->IsElement() ||
-            nsContentUtils::ContentIsDescendantOf(element, aRoot)) {
-          // We have an element with the right id and it's a descendant
-          // of aRoot.  Make sure it really matches the selector.
-          if (nsCSSRuleProcessor::SelectorListMatches(element, matchingContext,
-                                                      selectorList)) {
-            aList.AppendElement(element);
-            if (onlyFirstMatch) {
-              return NS_OK;
-            }
-          }
-        }
-      }
-    }
-
-    // No elements with this id, or none of them are our descendants,
-    // or none of them match.  We're done here.
-    return NS_OK;
-  }
-
-  for (nsIContent* cur = aRoot->GetFirstChild();
-       cur;
-       cur = cur->GetNextNode(aRoot)) {
-    if (cur->IsElement() &&
-        nsCSSRuleProcessor::SelectorListMatches(cur->AsElement(),
-                                                matchingContext,
-                                                selectorList)) {
-      aList.AppendElement(cur->AsElement());
-      if (onlyFirstMatch) {
-        return NS_OK;
-      }
-    }
-  }
-
-  return NS_OK;
-}
-
-struct ElementHolder {
-  ElementHolder() : mElement(nsnull) {}
-  void AppendElement(Element* aElement) {
-    NS_ABORT_IF_FALSE(!mElement, "Should only get one element");
-    mElement = aElement;
-  }
-  Element* mElement;
-};
-
 /* static */
 nsIContent*
 nsGenericElement::doQuerySelector(nsINode* aRoot, const nsAString& aSelector,
@@ -5459,10 +5374,26 @@ nsGenericElement::doQuerySelector(nsINode* aRoot, const nsAString& aSelector,
 {
   NS_PRECONDITION(aResult, "Null out param?");
 
-  ElementHolder holder;
-  *aResult = FindMatchingElements<true>(aRoot, aSelector, holder);
+  nsAutoPtr<nsCSSSelectorList> selectorList;
+  *aResult = ParseSelectorList(aRoot, aSelector,
+                               getter_Transfers(selectorList));
+  NS_ENSURE_SUCCESS(*aResult, nsnull);
 
-  return holder.mElement;
+  TreeMatchContext matchingContext(false,
+                                   nsRuleWalker::eRelevantLinkUnvisited,
+                                   aRoot->OwnerDoc());
+  for (nsIContent* cur = aRoot->GetFirstChild();
+       cur;
+       cur = cur->GetNextNode(aRoot)) {
+    if (cur->IsElement() &&
+        nsCSSRuleProcessor::SelectorListMatches(cur->AsElement(),
+                                                matchingContext,
+                                                selectorList)) {
+      return cur;
+    }
+  }
+
+  return nsnull;
 }
 
 /* static */
@@ -5477,7 +5408,25 @@ nsGenericElement::doQuerySelectorAll(nsINode* aRoot,
   NS_ENSURE_TRUE(contentList, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(*aReturn = contentList);
   
-  return FindMatchingElements<false>(aRoot, aSelector, *contentList);
+  nsAutoPtr<nsCSSSelectorList> selectorList;
+  nsresult rv = ParseSelectorList(aRoot, aSelector,
+                                  getter_Transfers(selectorList));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  TreeMatchContext matchingContext(false,
+                                   nsRuleWalker::eRelevantLinkUnvisited,
+                                   aRoot->OwnerDoc());
+  for (nsIContent* cur = aRoot->GetFirstChild();
+       cur;
+       cur = cur->GetNextNode(aRoot)) {
+    if (cur->IsElement() &&
+        nsCSSRuleProcessor::SelectorListMatches(cur->AsElement(),
+                                                matchingContext,
+                                                selectorList)) {
+      contentList->AppendElement(cur);
+    }
+  }
+  return NS_OK;
 }
 
 

@@ -201,9 +201,6 @@ ConsoleAPI.prototype = {
     }
     let args = Array.prototype.slice.call(aArguments);
     let format = args.shift();
-    if (typeof format != "string") {
-      return aArguments;
-    }
     // Format specification regular expression.
     let pattern = /%(\d*).?(\d*)[a-zA-Z]/g;
     let processed = format.replace(pattern, function CA_PA_substitute(spec) {

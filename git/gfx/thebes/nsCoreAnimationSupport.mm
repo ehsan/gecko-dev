@@ -438,10 +438,7 @@ void nsCARenderer::Destroy() {
   mIOTexture = nsnull;
 }
 
-nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight,
-                                     AllowOfflineRendererEnum aAllowOfflineRenderer) {
-  mAllowOfflineRenderer = aAllowOfflineRenderer;
-
+nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight) {
   if (aWidth == 0 || aHeight == 0)
     return NS_ERROR_FAILURE;
 
@@ -455,14 +452,10 @@ nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight,
 
   CGLPixelFormatAttribute attributes[] = {
     kCGLPFAAccelerated,
-    kCGLPFADepthSize, (CGLPixelFormatAttribute)24,
     kCGLPFAAllowOfflineRenderers,
+    kCGLPFADepthSize, (CGLPixelFormatAttribute)24,
     (CGLPixelFormatAttribute)0
   };
-
-  if (mAllowOfflineRenderer == DISALLOW_OFFLINE_RENDERER) {
-    attributes[3] = (CGLPixelFormatAttribute)0;
-  }
 
   GLint screen;
   CGLPixelFormatObj format;
@@ -676,8 +669,7 @@ nsresult nsCARenderer::Render(int aWidth, int aHeight,
     //      if we are resizing down.
     CALayer* caLayer = [caRenderer layer];
     Destroy();
-    if (SetupRenderer(caLayer, aWidth, aHeight,
-                      mAllowOfflineRenderer) != NS_OK) {
+    if (SetupRenderer(caLayer, aWidth, aHeight) != NS_OK) {
       return NS_ERROR_FAILURE;
     }
 

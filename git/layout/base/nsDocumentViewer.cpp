@@ -657,11 +657,10 @@ DocumentViewerImpl::SyncParentSubDocMap()
       nsCOMPtr<nsIDocument> parent_doc(do_QueryInterface(dom_doc));
 
       if (parent_doc) {
-        if (mDocument &&
-            parent_doc->GetSubDocumentFor(content) != mDocument) {
+        if (mDocument && parent_doc->GetSubDocumentFor(content) != mDocument) {
           mDocument->SuppressEventHandling(parent_doc->EventHandlingSuppressed());
         }
-        return parent_doc->SetSubDocumentFor(content->AsElement(), mDocument);
+        return parent_doc->SetSubDocumentFor(content, mDocument);
       }
     }
   }

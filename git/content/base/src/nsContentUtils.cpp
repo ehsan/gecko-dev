@@ -90,7 +90,7 @@
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIDOMHTMLFormElement.h"
-#include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 #include "nsGkAtoms.h"
@@ -203,7 +203,8 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsDOMTouchEvent.h"
 #include "nsIScriptElement.h"
 #include "nsIContentViewer.h"
-#include "nsIObjectLoadingContent.h"
+
+#include "prdtoa.h"
 
 #include "mozilla/Preferences.h"
 
@@ -1453,13 +1454,6 @@ nsContentUtils::IsCallerTrustedForWrite()
   return IsCallerTrustedForCapability("UniversalBrowserWrite");
 }
 
-bool
-nsContentUtils::IsImageSrcSetDisabled()
-{
-  return Preferences::GetBool("dom.disable_image_src_set") &&
-         !IsCallerChrome();
-}
-
 // static
 nsINode*
 nsContentUtils::GetCrossDocParentNode(nsINode* aChild)
@@ -2409,7 +2403,7 @@ nsContentUtils::GetStaticRequest(imgIRequest* aRequest)
 bool
 nsContentUtils::ContentIsDraggable(nsIContent* aContent)
 {
-  nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(aContent);
+  nsCOMPtr<nsIDOMNSHTMLElement> htmlElement = do_QueryInterface(aContent);
   if (htmlElement) {
     bool draggable = false;
     htmlElement->GetDraggable(&draggable);
@@ -2708,7 +2702,6 @@ static const char gPropertiesFiles[nsContentUtils::PropertiesFile_COUNT][56] = {
   "chrome://global/locale/layout/HtmlForm.properties",
   "chrome://global/locale/printing.properties",
   "chrome://global/locale/dom/dom.properties",
-  "chrome://global/locale/layout/htmlparser.properties",
   "chrome://global/locale/svg/svg.properties",
   "chrome://branding/locale/brand.properties",
   "chrome://global/locale/commonDialogs.properties"
@@ -5820,70 +5813,6 @@ bool
 nsContentUtils::IsFullScreenKeyInputRestricted()
 {
   return sFullScreenKeyInputRestricted;
-}
-
-static void
-CheckForWindowedPlugins(nsIContent* aContent, void* aResult)
-{
-  if (!aContent->IsInDoc()) {
-    return;
-  }
-  nsCOMPtr<nsIObjectLoadingContent> olc(do_QueryInterface(aContent));
-  if (!olc) {
-    return;
-  }
-  nsRefPtr<nsNPAPIPluginInstance> plugin;
-  olc->GetPluginInstance(getter_AddRefs(plugin));
-  if (!plugin) {
-    return;
-  }
-  bool isWindowless = false;
-  nsresult res = plugin->IsWindowless(&isWindowless);
-  if (NS_SUCCEEDED(res) && !isWindowless) {
-    *static_cast<bool*>(aResult) = true;
-  }
-}
-
-static bool
-DocTreeContainsWindowedPlugins(nsIDocument* aDoc, void* aResult)
-{
-  if (!nsContentUtils::IsChromeDoc(aDoc)) {
-    aDoc->EnumerateFreezableElements(CheckForWindowedPlugins, aResult);
-  }
-  if (*static_cast<bool*>(aResult)) {
-    // Return false to stop iteration, we found a windowed plugin.
-    return false;
-  }
-  aDoc->EnumerateSubDocuments(DocTreeContainsWindowedPlugins, aResult);
-  // Return false to stop iteration if we found a windowed plugin in
-  // the sub documents.
-  return !*static_cast<bool*>(aResult);
-}
-
-/* static */
-bool
-nsContentUtils::HasPluginWithUncontrolledEventDispatch(nsIDocument* aDoc)
-{
-#ifdef XP_MACOSX
-  // We control dispatch to all mac plugins.
-  return false;
-#endif
-  bool result = false;
-  DocTreeContainsWindowedPlugins(aDoc, &result);
-  return result;
-}
-
-/* static */
-bool
-nsContentUtils::HasPluginWithUncontrolledEventDispatch(nsIContent* aContent)
-{
-#ifdef XP_MACOSX
-  // We control dispatch to all mac plugins.
-  return false;
-#endif
-  bool result = false;
-  CheckForWindowedPlugins(aContent, &result);
-  return result;
 }
 
 // static

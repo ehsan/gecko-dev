@@ -3383,7 +3383,7 @@ nsXULDocument::LoadScript(nsXULPrototypeScript* aScriptProto, bool* aBlock)
 
     if (isChromeDoc && useXULCache) {
         PRUint32 fetchedLang = nsIProgrammingLanguage::UNKNOWN;
-        JSScript* newScriptObject =
+        void *newScriptObject =
             nsXULPrototypeCache::GetInstance()->GetScript(
                                    aScriptProto->mSrcURI,
                                    &fetchedLang);
@@ -3623,7 +3623,7 @@ nsXULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
 
 
 nsresult
-nsXULDocument::ExecuteScript(nsIScriptContext * aContext, JSScript* aScriptObject)
+nsXULDocument::ExecuteScript(nsIScriptContext * aContext, void * aScriptObject)
 {
     NS_PRECONDITION(aScriptObject != nsnull && aContext != nsnull, "null ptr");
     if (! aScriptObject || ! aContext)
@@ -3631,11 +3631,15 @@ nsXULDocument::ExecuteScript(nsIScriptContext * aContext, JSScript* aScriptObjec
 
     NS_ENSURE_TRUE(mScriptGlobalObject, NS_ERROR_NOT_INITIALIZED);
 
-    NS_ABORT_IF_FALSE(aContext->GetScriptTypeID() == nsIProgrammingLanguage::JAVASCRIPT,
-                      "Should have a JavaScript nsIScriptContext.");
     // Execute the precompiled script with the given version
-    JSObject* global = mScriptGlobalObject->GetGlobalJSObject();
-    return aContext->ExecuteScript(aScriptObject, global, nsnull, nsnull);
+    nsresult rv;
+    void *global = mScriptGlobalObject->GetScriptGlobal(
+                                            aContext->GetScriptTypeID());
+    rv = aContext->ExecuteScript(aScriptObject,
+                                 global,
+                                 nsnull, nsnull);
+
+    return rv;
 }
 
 nsresult
@@ -3850,6 +3854,7 @@ nsXULDocument::CreateTemplateBuilder(nsIContent* aElement)
             nsresult rv =
                 document->CreateElem(nsDependentAtomString(nsGkAtoms::treechildren),
                                      nsnull, kNameSpaceID_XUL,
+                                     false,
                                      getter_AddRefs(bodyContent));
             NS_ENSURE_SUCCESS(rv, rv);
 

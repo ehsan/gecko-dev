@@ -969,50 +969,18 @@
     <vbox id="browser-border-end" hidden="true" layer="true"/>
   </hbox>
 
-  <hbox id="full-screen-warning-container" hidden="true" fadeout="true">
-    <hbox style="min-width: 100%;" pack="center"> <!-- Inner hbox needed due to bug 579776. -->
-      <hbox id="full-screen-warning-message">
-        <description id="full-screen-warning-text" value="&domFullScreenWarning.label;"></description>
-      </hbox>
-    </hbox>
-  </hbox>
-
   <vbox id="browser-bottombox" layer="true">
     <toolbar id="inspector-toolbar"
              nowindowdrag="true"
              hidden="true">
-      <vbox flex="1">
-        <resizer id="inspector-top-resizer" flex="1" 
-                 class="inspector-resizer"
-                 dir="top" disabled="true"
-                 element="inspector-tree-box"/>
-        <hbox>
-#ifdef XP_MACOSX
-          <toolbarbutton id="highlighter-closebutton"
-                         oncommand="InspectorUI.closeInspectorUI(false);"
-                         tooltiptext="&inspectCloseButton.tooltiptext;"/>
-#endif
-          <toolbarbutton id="inspector-inspect-toolbutton"
-                         label="&inspectButton.label;"
-                         accesskey="&inspectButton.accesskey;"
-                         command="Inspector:Inspect"/>
-          <arrowscrollbox id="inspector-breadcrumbs"
-                          flex="1" orient="horizontal"
-                          clicktoscroll="true"/>
-          <hbox id="inspector-tools">
-            <!-- registered tools go here -->
-          </hbox>
-#ifndef XP_MACOSX
-          <toolbarbutton id="highlighter-closebutton"
-                         oncommand="InspectorUI.closeInspectorUI(false);"
-                         tooltiptext="&inspectCloseButton.tooltiptext;"/>
-#endif
-          <resizer id="inspector-end-resizer"
-                   class="inspector-resizer"
-                   dir="top" disabled="true"
-                   element="inspector-tree-box"/>
-        </hbox>
-      </vbox>
+      <toolbarbutton id="inspector-inspect-toolbutton"
+                     label="&inspectButton.label;"
+                     accesskey="&inspectButton.accesskey;"
+                     command="Inspector:Inspect"/>
+      <toolbarseparator />
+      <hbox id="inspector-tools">
+        <!-- registered tools go here -->
+      </hbox>
     </toolbar>
     <toolbar id="addon-bar"
              toolbarname="&addonBarCmd.label;" accesskey="&addonBarCmd.accesskey;"

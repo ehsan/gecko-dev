@@ -899,7 +899,8 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   nsContentUtils::GetWrapperSafeScriptFilename(mDocument, uri, url);
 
   bool isUndefined;
-  rv = context->EvaluateString(aScript, globalObject->GetGlobalJSObject(),
+  rv = context->EvaluateString(aScript,
+                          globalObject->GetScriptGlobal(stid),
                           mDocument->NodePrincipal(), url.get(),
                           aRequest->mLineNo, aRequest->mJSVersion, nsnull,
                           &isUndefined);

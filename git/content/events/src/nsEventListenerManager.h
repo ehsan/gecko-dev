@@ -264,7 +264,7 @@ protected:
    * any, is returned in aListenerStruct.
    */
   nsresult SetJSEventListener(nsIScriptContext *aContext,
-                              JSObject* aScopeGlobal,
+                              void *aScopeGlobal,
                               nsIAtom* aName,
                               JSObject *aHandler,
                               bool aPermitUntrustedEvents,

@@ -112,11 +112,13 @@ PuppetWidget::Create(nsIWidget        *aParent,
                      const nsIntRect  &aRect,
                      EVENT_CALLBACK   aHandleEventFunction,
                      nsDeviceContext *aContext,
+                     nsIToolkit       *aToolkit,
                      nsWidgetInitData *aInitData)
 {
   NS_ABORT_IF_FALSE(!aNativeParent, "got a non-Puppet native parent");
 
-  BaseCreate(nsnull, aRect, aHandleEventFunction, aContext, aInitData);
+  BaseCreate(nsnull, aRect, aHandleEventFunction, aContext,
+             aToolkit, aInitData);
 
   mBounds = aRect;
   mEnabled = true;
@@ -149,6 +151,7 @@ already_AddRefed<nsIWidget>
 PuppetWidget::CreateChild(const nsIntRect  &aRect,
                           EVENT_CALLBACK   aHandleEventFunction,
                           nsDeviceContext *aContext,
+                          nsIToolkit       *aToolkit,
                           nsWidgetInitData *aInitData,
                           bool             aForceUseIWidgetParent)
 {
@@ -157,7 +160,8 @@ PuppetWidget::CreateChild(const nsIntRect  &aRect,
   return ((widget &&
            NS_SUCCEEDED(widget->Create(isPopup ? nsnull: this, nsnull, aRect,
                                        aHandleEventFunction,
-                                       aContext, aInitData))) ?
+                                       aContext, aToolkit,
+                                       aInitData))) ?
           widget.forget() : nsnull);
 }
 

@@ -73,7 +73,7 @@ public:
     { return nsIProgrammingLanguage::JAVASCRIPT; }
 
   virtual nsresult EvaluateString(const nsAString& aScript,
-                                  JSObject* aScopeObject,
+                                  void *aScopeObject,
                                   nsIPrincipal *principal,
                                   const char *aURL,
                                   PRUint32 aLineNo,
@@ -97,8 +97,8 @@ public:
                                  PRUint32 aLineNo,
                                  PRUint32 aVersion,
                                  nsScriptObjectHolder &aScriptObject);
-  virtual nsresult ExecuteScript(JSScript* aScriptObject,
-                                 JSObject* aScopeObject,
+  virtual nsresult ExecuteScript(void* aScriptObject,
+                                 void *aScopeObject,
                                  nsAString* aRetValue,
                                  bool* aIsUndefined);
 
@@ -109,11 +109,11 @@ public:
                                        const char *aURL, PRUint32 aLineNo,
                                        PRUint32 aVersion,
                                        nsScriptObjectHolder &aHandler);
-  virtual nsresult CallEventHandler(nsISupports* aTarget, JSObject* aScope,
+  virtual nsresult CallEventHandler(nsISupports* aTarget, void *aScope,
                                     void* aHandler,
                                     nsIArray *argv, nsIVariant **rv);
   virtual nsresult BindCompiledEventHandler(nsISupports *aTarget,
-                                            JSObject *aScope,
+                                            void *aScope,
                                             void *aHandler,
                                             nsScriptObjectHolder& aBoundHandler);
   virtual nsresult CompileFunction(void* aTarget,
@@ -130,7 +130,7 @@ public:
   virtual void SetDefaultLanguageVersion(PRUint32 aVersion);
   virtual nsIScriptGlobalObject *GetGlobalObject();
   virtual JSContext* GetNativeContext();
-  virtual JSObject* GetNativeGlobal();
+  virtual void *GetNativeGlobal();
   virtual nsresult CreateNativeGlobalForInner(
                                       nsIScriptGlobalObject *aGlobal,
                                       bool aIsChrome,
@@ -167,8 +167,9 @@ public:
 
   virtual void WillInitializeContext();
   virtual void DidInitializeContext();
+  virtual void DidSetDocument(nsISupports *aDocdoc, void *aGlobal) {;}
 
-  virtual nsresult Serialize(nsIObjectOutputStream* aStream, JSScript* aScriptObject);
+  virtual nsresult Serialize(nsIObjectOutputStream* aStream, void *aScriptObject);
   virtual nsresult Deserialize(nsIObjectInputStream* aStream,
                                nsScriptObjectHolder &aResult);
 
@@ -200,7 +201,7 @@ protected:
 
   // Helper to convert xpcom datatypes to jsvals.
   nsresult ConvertSupportsTojsvals(nsISupports *aArgs,
-                                   JSObject *aScope,
+                                   void *aScope,
                                    PRUint32 *aArgc,
                                    jsval **aArgv,
                                    mozilla::Maybe<nsRootedJSValueArray> &aPoolRelease);
@@ -209,7 +210,7 @@ protected:
 
   // given an nsISupports object (presumably an event target or some other
   // DOM object), get (or create) the JSObject wrapping it.
-  nsresult JSObjectFromInterface(nsISupports *aSup, JSObject *aScript,
+  nsresult JSObjectFromInterface(nsISupports *aSup, void *aScript, 
                                  JSObject **aRet);
 
   // Report the pending exception on our mContext, if any.  This

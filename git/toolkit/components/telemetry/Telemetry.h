@@ -83,8 +83,8 @@ base::Histogram* GetHistogramById(ID id);
 template<ID id>
 class AutoTimer {
 public:
-  AutoTimer(TimeStamp aStart = TimeStamp::Now() MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
-     : start(aStart)
+  AutoTimer(MOZILLA_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
+    : start(TimeStamp::Now())
   {
     MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
   }

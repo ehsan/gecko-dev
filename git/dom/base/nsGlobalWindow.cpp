@@ -1575,6 +1575,14 @@ nsGlobalWindow::GetScriptContext(PRUint32 lang)
   return mContext;
 }
 
+void *
+nsGlobalWindow::GetScriptGlobal(PRUint32 lang)
+{
+  NS_ASSERTION(lang == nsIProgrammingLanguage::JAVASCRIPT,
+               "We don't support this language ID");
+  return mJSObject;
+}
+
 nsIScriptContext *
 nsGlobalWindow::GetContext()
 {
@@ -1589,6 +1597,8 @@ nsGlobalWindow::GetContext()
 JSObject *
 nsGlobalWindow::GetGlobalJSObject()
 {
+  NS_ASSERTION(mJSObject == GetScriptGlobal(nsIProgrammingLanguage::JAVASCRIPT),
+               "GetGlobalJSObject confused?");
   return FastGetGlobalJSObject();
 }
 
@@ -2147,7 +2157,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       mContext->CreateOuterObject(this, newInnerWindow);
       mContext->DidInitializeContext();
 
-      mJSObject = mContext->GetNativeGlobal();
+      mJSObject = (JSObject *)mContext->GetNativeGlobal();
       SetWrapper(mJSObject);
     } else {
       JSObject *outerObject =
@@ -2250,8 +2260,11 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     }
   }
 
+  // Tell the contexts we have completed setting up the doc.
   // Add an extra ref in case we release mContext during GC.
   nsCOMPtr<nsIScriptContext> kungFuDeathGrip(mContext);
+  nsCOMPtr<nsIDOMDocument> dd(do_QueryInterface(aDocument));
+  mContext->DidSetDocument(dd, newInnerWindow->mJSObject);
 
   // Now that the prototype is all set up, install the global scope
   // polluter. This must happen after the above prototype fixup. If
@@ -7449,18 +7462,9 @@ nsGlobalWindow::GetListenerManager(bool aCreateIfNotFound)
 nsIScriptContext*
 nsGlobalWindow::GetContextForEventHandlers(nsresult* aRv)
 {
-  *aRv = NS_ERROR_UNEXPECTED;
-  if (IsInnerWindow()) {
-    nsPIDOMWindow* outer = GetOuterWindow();
-    NS_ENSURE_TRUE(outer && outer->GetCurrentInnerWindow() == this, nsnull);
-  }
-
-  nsIScriptContext* scx;
-  if ((scx = GetContext())) {
-    *aRv = NS_OK;
-    return scx;
-  }
-  return nsnull;
+  nsIScriptContext* scx = GetContext();
+  *aRv = scx ? NS_OK : NS_ERROR_UNEXPECTED;
+  return scx;
 }
 
 //*****************************************************************************
@@ -9294,7 +9298,8 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
       NS_TIME_FUNCTION_MARK("(file: %s, line: %d)", filename, lineNo);
 
       bool is_undefined;
-      scx->EvaluateString(nsDependentString(script), FastGetGlobalJSObject(),
+      scx->EvaluateString(nsDependentString(script), 
+                          GetScriptGlobal(handler->GetScriptTypeID()),
                           timeout->mPrincipal, filename, lineNo,
                           handler->GetScriptVersion(), nsnull,
                           &is_undefined);
@@ -9307,7 +9312,8 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
 
       nsCOMPtr<nsIVariant> dummy;
       nsCOMPtr<nsISupports> me(static_cast<nsIDOMWindow *>(this));
-      scx->CallEventHandler(me, FastGetGlobalJSObject(),
+      scx->CallEventHandler(me,
+                            GetScriptGlobal(handler->GetScriptTypeID()),
                             scriptObject, handler->GetArgv(),
                             // XXXmarkh - consider allowing CallEventHandler to
                             // accept nsnull?

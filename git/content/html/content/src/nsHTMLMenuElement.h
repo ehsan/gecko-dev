@@ -37,6 +37,7 @@
 #include "nsIDOMHTMLMenuElement.h"
 #include "nsIHTMLMenu.h"
 #include "nsGenericHTMLElement.h"
+#include "nsIDOMNSHTMLElement.h"
 
 class nsHTMLMenuElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLMenuElement,

@@ -68,9 +68,6 @@
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Telemetry.h"
 #include "nsDOMError.h"
-#include "nsAlgorithm.h"
-
-using namespace mozilla;
 
 // Device IDs for various cache types
 const char kDiskDeviceID[] = "disk";
@@ -3794,7 +3791,7 @@ nsHttpChannel::SetupFallbackChannel(const char *aFallbackKey)
 NS_IMETHODIMP
 nsHttpChannel::SetPriority(PRInt32 value)
 {
-    PRInt16 newValue = clamped(value, PR_INT16_MIN, PR_INT16_MAX);
+    PRInt16 newValue = NS_CLAMP(value, PR_INT16_MIN, PR_INT16_MAX);
     if (mPriority == newValue)
         return NS_OK;
     mPriority = newValue;
@@ -4301,26 +4298,8 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
         mListenerContext = 0;
     }
 
-    if (mCacheEntry) {
-        bool asFile = false;
-        if (mInitedCacheEntry && !mCachedContentIsPartial &&
-            (NS_SUCCEEDED(mStatus) || contentComplete) &&
-            (mCacheAccess & nsICache::ACCESS_WRITE) &&
-            NS_SUCCEEDED(GetCacheAsFile(&asFile)) && asFile) {
-            // We can allow others access to the cache entry
-            // because we don't write to the cache anymore.
-            // CloseCacheEntry may not actually close the cache
-            // entry immediately because someone (such as XHR2
-            // blob response) may hold the token to the cache
-            // entry. So we mark the cache valid here.
-            // We also need to check the entry is stored as file
-            // because we write to the cache asynchronously when
-            // it isn't stored in the file and it isn't completely
-            // written to the disk yet.
-            mCacheEntry->MarkValid();
-        }
+    if (mCacheEntry)
         CloseCacheEntry(!contentComplete);
-    }
 
     if (mOfflineCacheEntry)
         CloseOfflineCacheEntry();

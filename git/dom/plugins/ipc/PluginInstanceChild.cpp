@@ -915,9 +915,7 @@ PluginInstanceChild::AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event,
                 return false;
             }
 
-            mCARenderer.SetupRenderer(caLayer, mWindow.width, mWindow.height,
-                            GetQuirks() & PluginModuleChild::QUIRK_ALLOW_OFFLINE_RENDERER ?
-                            ALLOW_OFFLINE_RENDERER : DISALLOW_OFFLINE_RENDERER);
+            mCARenderer.SetupRenderer(caLayer, mWindow.width, mWindow.height);
 
             // Flash needs to have the window set again after this step
             if (mPluginIface->setwindow)
@@ -2719,10 +2717,8 @@ PluginInstanceChild::EnsureCurrentBuffer(void)
     }
 
     if (!mDoubleBufferCARenderer.HasFrontSurface()) {
-        bool allocSurface = mDoubleBufferCARenderer.InitFrontSurface(
-                                mWindow.width, mWindow.height,
-                                GetQuirks() & PluginModuleChild::QUIRK_ALLOW_OFFLINE_RENDERER ?
-                                ALLOW_OFFLINE_RENDERER : DISALLOW_OFFLINE_RENDERER);
+        bool allocSurface = mDoubleBufferCARenderer.InitFrontSurface(mWindow.width, 
+                                                           mWindow.height);
         if (!allocSurface) {
             PLUGIN_LOG_DEBUG(("Fail to allocate front IOSurface"));
             return false;

@@ -1280,8 +1280,7 @@ CompartmentCallback(JSContext *cx, void *vdata, JSCompartment *compartment)
     curr->tjitDataAllocatorsReserve = GetCompartmentTjitDataAllocatorsReserveSize(compartment);
     curr->tjitDataNonAllocators = GetCompartmentTjitDataTraceMonitorSize(compartment);
 #endif
-    JS_GetTypeInferenceMemoryStats(cx, compartment, &curr->typeInferenceMemory,
-                                   moz_malloc_usable_size);
+    JS_GetTypeInferenceMemoryStats(cx, compartment, &curr->typeInferenceMemory);
 }
 
 void
@@ -1307,42 +1306,30 @@ CellCallback(JSContext *cx, void *vdata, void *thing, JSGCTraceKind traceKind,
 {
     IterateData *data = static_cast<IterateData *>(vdata);
     CompartmentStats *curr = data->currCompartmentStats;
+    curr->gcHeapKinds[traceKind] += thingSize;
     switch (traceKind) {
         case JSTRACE_OBJECT:
         {
             JSObject *obj = static_cast<JSObject *>(thing);
-            if (obj->isFunction()) {
-                curr->gcHeapObjectsFunction += thingSize;
-            } else {
-                curr->gcHeapObjectsNonFunction += thingSize;
-            }
             curr->objectSlots += obj->sizeOfSlotsArray(moz_malloc_usable_size);
             break;
         }
         case JSTRACE_STRING:
         {
             JSString *str = static_cast<JSString *>(thing);
-            curr->gcHeapStrings += thingSize;
             curr->stringChars += str->charsHeapSize(moz_malloc_usable_size);
             break;
         }
         case JSTRACE_SHAPE:
         {
             js::Shape *shape = static_cast<js::Shape *>(thing);
-            if (shape->inDictionary()) {
-                curr->gcHeapShapesDict += thingSize;
-                curr->shapesExtraDictTables += shape->sizeOfPropertyTable(moz_malloc_usable_size);
-            } else {
-                curr->gcHeapShapesTree += thingSize;
-                curr->shapesExtraTreeTables += shape->sizeOfPropertyTable(moz_malloc_usable_size);
-                curr->shapesExtraTreeShapeKids += shape->sizeOfKids(moz_malloc_usable_size);
-            }
+            curr->propertyTables += shape->sizeOfPropertyTable(moz_malloc_usable_size);
+            curr->shapeKids += shape->sizeOfKids(moz_malloc_usable_size);
             break;
         }
         case JSTRACE_SCRIPT:
         {
             JSScript *script = static_cast<JSScript *>(thing);
-            curr->gcHeapScripts += thingSize;
             curr->scriptData += script->dataSize(moz_malloc_usable_size);
 #ifdef JS_METHODJIT
             curr->mjitData += script->jitDataSize(moz_malloc_usable_size);
@@ -1352,13 +1339,11 @@ CellCallback(JSContext *cx, void *vdata, void *thing, JSGCTraceKind traceKind,
         case JSTRACE_TYPE_OBJECT:
         {
             js::types::TypeObject *obj = static_cast<js::types::TypeObject *>(thing);
-            curr->gcHeapTypeObjects += thingSize;
-            JS_GetTypeInferenceObjectStats(obj, &curr->typeInferenceMemory, moz_malloc_usable_size);
+            JS_GetTypeInferenceObjectStats(obj, &curr->typeInferenceMemory);
             break;
         }
         case JSTRACE_XML:
         {
-            curr->gcHeapXML += thingSize;
             break;
         }
     }
@@ -1578,6 +1563,7 @@ CollectCompartmentStatsForRuntime(JSRuntime *rt, IterateData *data)
     // subtract used space from it each time around the loop.
     data->gcHeapChunkDirtyUnused = data->gcHeapChunkTotal -
                                    data->gcHeapChunkCleanUnused;
+    data->gcHeapArenaUnused = 0;
 
     for (PRUint32 index = 0;
          index < data->compartmentStatsVector.Length();
@@ -1586,41 +1572,12 @@ CollectCompartmentStatsForRuntime(JSRuntime *rt, IterateData *data)
 
         PRInt64 used = stats.gcHeapArenaHeaders +
                        stats.gcHeapArenaPadding +
-                       stats.gcHeapArenaUnused +
-                       stats.gcHeapObjectsNonFunction +
-                       stats.gcHeapObjectsFunction +
-                       stats.gcHeapStrings +
-                       stats.gcHeapShapesTree +
-                       stats.gcHeapShapesDict +
-                       stats.gcHeapScripts +
-                       stats.gcHeapTypeObjects +
-                       stats.gcHeapXML;
+                       stats.gcHeapArenaUnused;
+        for (size_t i = 0; i < ArrayLength(stats.gcHeapKinds); ++i)
+            used += stats.gcHeapKinds[i];
 
         data->gcHeapChunkDirtyUnused -= used;
         data->gcHeapArenaUnused += stats.gcHeapArenaUnused;
-        data->totalObjects += stats.gcHeapObjectsNonFunction + 
-                              stats.gcHeapObjectsFunction +
-                              stats.objectSlots;
-        data->totalShapes  += stats.gcHeapShapesTree + 
-                              stats.gcHeapShapesDict +
-                              stats.shapesExtraTreeTables +
-                              stats.shapesExtraDictTables +
-                              stats.typeInferenceMemory.emptyShapes;
-        data->totalScripts += stats.gcHeapScripts + 
-                              stats.scriptData;
-        data->totalStrings += stats.gcHeapStrings + 
-                              stats.stringChars;
-#ifdef JS_METHODJIT
-        data->totalMjit    += stats.mjitCodeMethod + 
-                              stats.mjitCodeRegexp +
-                              stats.mjitCodeUnused +
-                              stats.mjitData;
-#endif
-        data->totalTypeInference += stats.gcHeapTypeObjects +
-                                    stats.typeInferenceMemory.objects +
-                                    stats.typeInferenceMemory.scripts + 
-                                    stats.typeInferenceMemory.tables;
-        data->totalAnalysisTemp  += stats.typeInferenceMemory.temporary;
     }
 
     size_t numDirtyChunks = (data->gcHeapChunkTotal -
@@ -1652,14 +1609,14 @@ ReportCompartmentStats(const CompartmentStats &stats,
                        nsISupports *closure)
 {
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "gc-heap/arena/headers"),
+                                              "gc-heap/arena-headers"),
                        JS_GC_HEAP_KIND, stats.gcHeapArenaHeaders,
                        "Memory on the compartment's garbage-collected JavaScript heap, within "
                        "arenas, that is used to hold internal book-keeping information.",
                        callback, closure);
 
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "gc-heap/arena/padding"),
+                                              "gc-heap/arena-padding"),
                        JS_GC_HEAP_KIND, stats.gcHeapArenaPadding,
                        "Memory on the compartment's garbage-collected JavaScript heap, within "
                        "arenas, that is unused and present only so that other data is aligned. "
@@ -1667,29 +1624,22 @@ ReportCompartmentStats(const CompartmentStats &stats,
                        callback, closure);
 
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "gc-heap/arena/unused"),
+                                              "gc-heap/arena-unused"),
                        JS_GC_HEAP_KIND, stats.gcHeapArenaUnused,
                        "Memory on the compartment's garbage-collected JavaScript heap, within "
                        "arenas, that could be holding useful data but currently isn't.",
                        callback, closure);
 
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "gc-heap/objects/non-function"),
-                       JS_GC_HEAP_KIND, stats.gcHeapObjectsNonFunction,
+                                              "gc-heap/objects"),
+                       JS_GC_HEAP_KIND, stats.gcHeapKinds[JSTRACE_OBJECT],
                        "Memory on the compartment's garbage-collected JavaScript heap that holds "
-                       "non-function objects.",
-                       callback, closure);
-
-    ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "gc-heap/objects/function"),
-                       JS_GC_HEAP_KIND, stats.gcHeapObjectsFunction,
-                       "Memory on the compartment's garbage-collected JavaScript heap that holds "
-                       "function objects.",
+                       "objects.",
                        callback, closure);
 
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
                                               "gc-heap/strings"),
-                       JS_GC_HEAP_KIND, stats.gcHeapStrings,
+                       JS_GC_HEAP_KIND, stats.gcHeapKinds[JSTRACE_STRING],
                        "Memory on the compartment's garbage-collected JavaScript heap that holds "
                        "string headers.  String headers contain various pieces of information "
                        "about a string, but do not contain (except in the case of very short "
@@ -1699,36 +1649,30 @@ ReportCompartmentStats(const CompartmentStats &stats,
 
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
                                               "gc-heap/scripts"),
-                       JS_GC_HEAP_KIND, stats.gcHeapScripts,
+                       JS_GC_HEAP_KIND, stats.gcHeapKinds[JSTRACE_SCRIPT],
                        "Memory on the compartment's garbage-collected JavaScript heap that holds "
                        "JSScript instances. A JSScript is created for each user-defined function "
                        "in a script. One is also created for the top-level code in a script.",
                        callback, closure);
 
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "gc-heap/shapes/tree"),
-                       JS_GC_HEAP_KIND, stats.gcHeapShapesTree,
+                                              "gc-heap/shapes"),
+                       JS_GC_HEAP_KIND, stats.gcHeapKinds[JSTRACE_SHAPE],
                        "Memory on the compartment's garbage-collected JavaScript heap that holds "
-                       "shapes that are in a property tree.",
-                       callback, closure);
-
-    ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "gc-heap/shapes/dict"),
-                       JS_GC_HEAP_KIND, stats.gcHeapShapesDict,
-                       "Memory on the compartment's garbage-collected JavaScript heap that holds "
-                       "shapes that are in dictionary mode.",
+                       "shapes. A shape is an internal data structure that makes JavaScript "
+                       "property accesses fast.",
                        callback, closure);
 
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
                                               "gc-heap/type-objects"),
-                       JS_GC_HEAP_KIND, stats.gcHeapTypeObjects,
+                       JS_GC_HEAP_KIND, stats.gcHeapKinds[JSTRACE_TYPE_OBJECT],
                        "Memory on the compartment's garbage-collected JavaScript heap that holds "
                        "type inference information.",
                        callback, closure);
 
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
                                               "gc-heap/xml"),
-                       JS_GC_HEAP_KIND, stats.gcHeapXML,
+                       JS_GC_HEAP_KIND, stats.gcHeapKinds[JSTRACE_XML],
                        "Memory on the compartment's garbage-collected JavaScript heap that holds "
                        "E4X XML objects.",
                        callback, closure);
@@ -1754,32 +1698,26 @@ ReportCompartmentStats(const CompartmentStats &stats,
                        callback, closure);
 
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "shapes-extra/tree-tables"),
-                       nsIMemoryReporter::KIND_HEAP, stats.shapesExtraTreeTables,
-                       "Memory allocated for the compartment's property tables that belong to "
-                       "shapes that are in a property tree." SLOP_BYTES_STRING,
+                                              "property-tables"),
+                       nsIMemoryReporter::KIND_HEAP, stats.propertyTables,
+                       "Memory allocated for the compartment's property tables.  A property "
+                       "table is an internal data structure that makes JavaScript property "
+                       "accesses fast." SLOP_BYTES_STRING,
                        callback, closure);
 
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "shapes-extra/dict-tables"),
-                       nsIMemoryReporter::KIND_HEAP, stats.shapesExtraDictTables,
-                       "Memory allocated for the compartment's property tables that belong to "
-                       "shapes that are in dictionary mode." SLOP_BYTES_STRING,
-                       callback, closure);
-
-    ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "shapes-extra/tree-shape-kids"),
-                       nsIMemoryReporter::KIND_HEAP, stats.shapesExtraTreeShapeKids,
-                       "Memory allocated for the compartment's kid hashes that belong to shapes "
-                       "that are in a property tree.",
-                       callback, closure);
-
-    ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "shapes-extra/empty-shape-arrays"),
+                                              "object-empty-shapes"),
                        nsIMemoryReporter::KIND_HEAP,
                        stats.typeInferenceMemory.emptyShapes,
-                       "Memory used for arrays attached to prototype JS objects managing shape "
-                       "information.",
+                       "Arrays attached to prototype JS objects managing shape information.",
+                       callback, closure);
+
+    ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
+                                              "shape-kids"),
+                       nsIMemoryReporter::KIND_HEAP, stats.shapeKids,
+                       "Memory allocated for the compartment's shape kids.  A shape kid "
+                       "is an internal data structure that makes JavaScript property accesses "
+                       "fast.",
                        callback, closure);
 
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
@@ -1990,53 +1928,6 @@ public:
                                "'js-gc-heap-chunk-dirty-unused' + 'js-gc-heap-arena-unused') / "
                                "'js-gc-heap'.",
                                callback, closure);
-
-        ReportMemoryBytes(NS_LITERAL_CSTRING("js-total-objects"),
-                          nsIMemoryReporter::KIND_OTHER, data.totalObjects,
-                          "Memory used for all object-related data.  This is the sum of all "
-                          "compartments' 'gc-heap/objects-non-function', "
-                          "'gc-heap/objects-function' and 'object-slots' numbers.",
-                          callback, closure);
-
-        ReportMemoryBytes(NS_LITERAL_CSTRING("js-total-shapes"),
-                          nsIMemoryReporter::KIND_OTHER, data.totalShapes,
-                          "Memory used for all shape-related data.  This is the sum of all "
-                          "compartments' 'gc-heap/shapes/tree', 'gc-heap/shapes/dict', "
-                          "'shapes-extra/tree-tables', 'shapes-extra/dict-tables', "
-                          "'shapes-extra/tree-shape-kids' and 'shapes-extra/empty-shape-arrays'.",
-                          callback, closure);
-
-        ReportMemoryBytes(NS_LITERAL_CSTRING("js-total-scripts"),
-                          nsIMemoryReporter::KIND_OTHER, data.totalScripts,
-                          "Memory used for all script-related data.  This is the sum of all "
-                          "compartments' 'gc-heap/scripts' and 'script-data' numbers.",
-                          callback, closure);
-
-        ReportMemoryBytes(NS_LITERAL_CSTRING("js-total-strings"),
-                          nsIMemoryReporter::KIND_OTHER, data.totalStrings,
-                          "Memory used for all string-related data.  This is the sum of all "
-                          "compartments' 'gc-heap/strings' and 'string-chars' numbers.",
-                          callback, closure);
-#ifdef JS_METHODJIT
-        ReportMemoryBytes(NS_LITERAL_CSTRING("js-total-mjit"),
-                          nsIMemoryReporter::KIND_OTHER, data.totalMjit,
-                          "Memory used by the method JIT.  This is the sum of all compartments' "
-                          "'mjit-code-method', 'mjit-code-regexp', 'mjit-code-unused' and '"
-                          "'mjit-data' numbers.",
-                          callback, closure);
-#endif
-        ReportMemoryBytes(NS_LITERAL_CSTRING("js-total-type-inference"),
-                          nsIMemoryReporter::KIND_OTHER, data.totalTypeInference,
-                          "Non-transient memory used by type inference.  This is the sum of all "
-                          "compartments' 'gc-heap/type-objects', 'type-inference/script-main', "
-                          "'type-inference/object-main' and 'type-inference/tables' numbers.",
-                          callback, closure);
-
-        ReportMemoryBytes(NS_LITERAL_CSTRING("js-total-analysis-temporary"),
-                          nsIMemoryReporter::KIND_OTHER, data.totalAnalysisTemp,
-                          "Transient memory used during type inference and compilation. "
-                          "This is the sum of all compartments' 'analysis-temporary' numbers.",
-                          callback, closure);
 
         return NS_OK;
     }

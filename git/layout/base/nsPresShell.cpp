@@ -202,7 +202,6 @@
 #include "mozilla/Telemetry.h"
 
 #include "Layers.h"
-#include "nsPLDOMEvent.h"
 
 #ifdef NS_FUNCTION_TIMER
 #define NS_TIME_FUNCTION_DECLARE_DOCURL                \
@@ -3656,49 +3655,40 @@ PresShell::DispatchSynthMouseMove(nsGUIEvent *aEvent,
 NS_IMETHODIMP_(void)
 PresShell::ClearMouseCapture(nsIView* aView)
 {
-  if (!aView) {
-    nsIPresShell::ClearMouseCapture(static_cast<nsIFrame*>(nsnull));
-    return;
-  }
+  if (gCaptureInfo.mContent) {
+    if (aView) {
+      // if a view was specified, ensure that the captured content is within
+      // this view.
+      nsIFrame* frame = gCaptureInfo.mContent->GetPrimaryFrame();
+      if (frame) {
+        nsIView* view = frame->GetClosestView();
+        // if there is no view, capturing won't be handled any more, so
+        // just release the capture.
+        if (view) {
+          do {
+            if (view == aView) {
+              NS_RELEASE(gCaptureInfo.mContent);
+              // the view containing the captured content likely disappeared so
+              // disable capture for now.
+              gCaptureInfo.mAllowed = false;
+              break;
+            }
 
-  nsIFrame* frame = nsnull;
-  nsIView* view = aView;
-  while (!frame && view) {
-    frame = static_cast<nsIFrame*>(view->GetClientData());
-    view = view->GetParent();
-  }
+            view = view->GetParent();
+          } while (view);
+          // return if the view wasn't found
+          return;
+        }
+      }
+    }
 
-  if (frame) {
-    nsIPresShell::ClearMouseCapture(frame);
-  }
-}
-
-void
-nsIPresShell::ClearMouseCapture(nsIFrame* aFrame)
-{
-  if (!gCaptureInfo.mContent) {
-    gCaptureInfo.mAllowed = false;
-    return;
-  }
-
-  // null frame argument means clear the capture
-  if (!aFrame) {
     NS_RELEASE(gCaptureInfo.mContent);
-    gCaptureInfo.mAllowed = false;
-    return;
   }
 
-  nsIFrame* capturingFrame = gCaptureInfo.mContent->GetPrimaryFrame();
-  if (!capturingFrame) {
-    NS_RELEASE(gCaptureInfo.mContent);
-    gCaptureInfo.mAllowed = false;
-    return;
-  }
-
-  if (nsLayoutUtils::IsAncestorFrameCrossDoc(aFrame, capturingFrame)) {
-    NS_RELEASE(gCaptureInfo.mContent);
-    gCaptureInfo.mAllowed = false;
-  }
+  // disable mouse capture until the next mousedown as a dialog has opened
+  // or a drag has started. Otherwise, someone could start capture during
+  // the modal dialog or drag.
+  gCaptureInfo.mAllowed = false;
 }
 
 nsresult
@@ -4460,13 +4450,6 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
   NS_TIME_FUNCTION_WITH_DOCURL;
 
   NS_ENSURE_TRUE(!(aFlags & RENDER_IS_UNTRUSTED), NS_ERROR_NOT_IMPLEMENTED);
-
-  nsRootPresContext* rootPresContext = mPresContext->GetRootPresContext();
-  if (rootPresContext) {
-    rootPresContext->FlushWillPaintObservers();
-    if (mIsDestroying)
-      return NS_OK;
-  }
 
   nsAutoScriptBlocker blockScripts;
 
@@ -5252,11 +5235,8 @@ static nsIView* FindFloatingViewContaining(nsIView* aView, nsPoint aPt)
     return nsnull;
 
   nsIFrame* frame = static_cast<nsIFrame*>(aView->GetClientData());
-  if (frame) {
-    if (!frame->IsVisibleConsideringAncestors(nsIFrame::VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY) ||
-        !frame->PresContext()->PresShell()->IsActive()) {
-      return nsnull;
-    }
+  if (frame && !frame->PresContext()->PresShell()->IsActive()) {
+    return nsnull;
   }
 
   for (nsIView* v = aView->GetFirstChild(); v; v = v->GetNextSibling()) {
@@ -5289,11 +5269,8 @@ static nsIView* FindViewContaining(nsIView* aView, nsPoint aPt)
   }
 
   nsIFrame* frame = static_cast<nsIFrame*>(aView->GetClientData());
-  if (frame) {
-    if (!frame->IsVisibleConsideringAncestors(nsIFrame::VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY) ||
-        !frame->PresContext()->PresShell()->IsActive()) {
-      return nsnull;
-    }
+  if (frame && !frame->PresContext()->PresShell()->IsActive()) {
+    return nsnull;
   }
 
   for (nsIView* v = aView->GetFirstChild(); v; v = v->GetNextSibling()) {
@@ -6057,17 +6034,7 @@ PresShell::HandleEvent(nsIView         *aView,
       // still get sent to the window properly if nothing is focused or if a
       // frame goes away while it is focused.
       if (!eventTarget || !eventTarget->GetPrimaryFrame()) {
-        nsCOMPtr<nsIDOMHTMLDocument> htmlDoc = do_QueryInterface(mDocument);
-        if (htmlDoc) {
-          nsCOMPtr<nsIDOMHTMLElement> body;
-          htmlDoc->GetBody(getter_AddRefs(body));
-          eventTarget = do_QueryInterface(body);
-          if (!eventTarget) {
-            eventTarget = mDocument->GetRootElement();
-          }
-        } else {
-          eventTarget = mDocument->GetRootElement();
-        }
+        eventTarget = mDocument->GetRootElement();
       }
 
       if (aEvent->message == NS_KEY_DOWN) {
@@ -6345,38 +6312,17 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
       switch (aEvent->message) {
       case NS_KEY_PRESS:
       case NS_KEY_DOWN:
-      case NS_KEY_UP: {
-        nsIDocument *doc = mCurrentEventContent ?
-                           mCurrentEventContent->OwnerDoc() : nsnull;
-        if (doc &&
-            doc->IsFullScreenDoc() &&
-            static_cast<const nsKeyEvent*>(aEvent)->keyCode == NS_VK_ESCAPE) {
-          // Prevent default action on ESC key press when exiting
-          // DOM full-screen mode. This prevents the browser ESC key
-          // handler from stopping all loads in the document, which
-          // would cause <video> loads to stop.
-          aEvent->flags |= (NS_EVENT_FLAG_NO_DEFAULT |
-                            NS_EVENT_FLAG_ONLY_CHROME_DISPATCH);
-
-          if (aEvent->message == NS_KEY_UP) {
-           // ESC key released while in DOM full-screen mode.
-           // Exit full-screen mode.
-           NS_DispatchToCurrentThread(
-             NS_NewRunnableMethod(mCurrentEventContent->OwnerDoc(),
-                                  &nsIDocument::CancelFullScreen));
-          }
-        } else if (IsFullScreenAndRestrictedKeyEvent(mCurrentEventContent, aEvent)) {
-          // Restricted key press while in DOM full-screen mode. Dispatch
-          // an event to chrome so it knows to show a warning message
-          // informing the user how to exit full-screen.
-          nsRefPtr<nsPLDOMEvent> e =
-            new nsPLDOMEvent(doc, NS_LITERAL_STRING("MozShowFullScreenWarning"),
-                             true, true);
-          e->PostDOMEvent();
+      case NS_KEY_UP:
+        if (IsFullScreenAndRestrictedKeyEvent(mCurrentEventContent, aEvent) &&
+            aEvent->message == NS_KEY_DOWN) {
+          // We're in DOM full-screen mode, and a key with a restricted key
+          // code has been pressed. Exit full-screen mode.
+          NS_DispatchToCurrentThread(
+            NS_NewRunnableMethod(mCurrentEventContent->OwnerDoc(),
+                                 &nsIDocument::CancelFullScreen));
         }
         // Else not full-screen mode or key code is unrestricted, fall
         // through to normal handling.
-      }
       case NS_MOUSE_BUTTON_DOWN:
       case NS_MOUSE_BUTTON_UP:
         isHandlingUserInput = true;
@@ -6892,21 +6838,19 @@ PresShell::WillPaint(bool aWillSendDidPaint)
 {
   // Don't bother doing anything if some viewmanager in our tree is painting
   // while we still have painting suppressed or we are not active.
-  if (mPaintingSuppressed || !mIsActive || !IsVisible()) {
+  if (mPaintingSuppressed || !mIsActive) {
     return;
   }
 
-  nsRootPresContext* rootPresContext = mPresContext->GetRootPresContext();
-  if (!rootPresContext) {
-    return;
+  if (!aWillSendDidPaint) {
+    nsRootPresContext* rootPresContext = mPresContext->GetRootPresContext();
+    if (!rootPresContext) {
+      return;
+    }
+    if (rootPresContext == mPresContext) {
+      rootPresContext->UpdatePluginGeometry();
+    }
   }
-
-  if (!aWillSendDidPaint && rootPresContext == mPresContext) {
-    rootPresContext->UpdatePluginGeometry();
-  }
-  rootPresContext->FlushWillPaintObservers();
-  if (mIsDestroying)
-    return;
 
   // Process reflows, if we have them, to reduce flicker due to invalidates and
   // reflow being interspersed.  Note that we _do_ allow this to be
@@ -6918,7 +6862,7 @@ PresShell::WillPaint(bool aWillSendDidPaint)
 NS_IMETHODIMP_(void)
 PresShell::DidPaint()
 {
-  if (mPaintingSuppressed || !mIsActive || !IsVisible()) {
+  if (mPaintingSuppressed || !mIsActive) {
     return;
   }
 
@@ -6929,33 +6873,6 @@ PresShell::DidPaint()
   if (rootPresContext == mPresContext) {
     rootPresContext->UpdatePluginGeometry();
   }
-}
-
-NS_IMETHODIMP_(bool)
-PresShell::IsVisible()
-{
-  if (!mViewManager)
-    return false;
-
-  nsIView* view = mViewManager->GetRootView();
-  if (!view)
-    return true;
-
-  // inner view of subdoc frame
-  view = view->GetParent();
-  if (!view)
-    return true;
-  
-  // subdoc view
-  view = view->GetParent();
-  if (!view)
-    return true;
-
-  nsIFrame* frame = static_cast<nsIFrame*>(view->GetClientData());
-  if (!frame)
-    return true;
-
-  return frame->IsVisibleConsideringAncestors(nsIFrame::VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY);
 }
 
 nsresult

@@ -174,8 +174,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         return true;
     }
 
-    mHasRobustness = IsExtensionSupported(ARB_robustness);
-
     SymLoadStruct symbols[] = {
         { (PRFuncPtr*) &mSymbols.fActiveTexture, { "ActiveTexture", "ActiveTextureARB", NULL } },
         { (PRFuncPtr*) &mSymbols.fAttachShader, { "AttachShader", "AttachShaderARB", NULL } },
@@ -327,9 +325,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         { mIsGLES2 ? (PRFuncPtr*) NULL : (PRFuncPtr*) &mSymbols.fUnmapBuffer,
           { mIsGLES2 ? NULL : "UnmapBuffer", NULL } },
 
-        { mHasRobustness ? (PRFuncPtr*) &mSymbols.fGetGraphicsResetStatus : (PRFuncPtr*) NULL,
-          { mHasRobustness ? "GetGraphicsResetStatusARB" : NULL, NULL } },
-
         { NULL, { NULL } },
 
     };
@@ -419,7 +414,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 
         fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
         fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mMaxRenderbufferSize);
-        mMaxTextureImageSize = mMaxTextureSize;
 
         UpdateActualFormat();
     }
@@ -476,7 +470,6 @@ static const char *sExtensionNames[] = {
     "GL_EXT_framebuffer_multisample",
     "GL_ANGLE_framebuffer_multisample",
     "GL_OES_rgb8_rgba8",
-    "GL_ARB_robustness",
     NULL
 };
 

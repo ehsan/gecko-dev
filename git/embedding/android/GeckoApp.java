@@ -330,9 +330,7 @@ abstract public class GeckoApp
                 } catch (Exception e) {
                     Log.e(LOG_FILE_NAME, "top level exception", e);
                     StringWriter sw = new StringWriter();
-                    PrintWriter pw = new PrintWriter(sw);
-                    e.printStackTrace(pw);
-                    pw.flush();
+                    e.printStackTrace(new PrintWriter(sw));
                     GeckoAppShell.reportJavaCrash(sw.toString());
                 }
             }
@@ -604,6 +602,7 @@ abstract public class GeckoApp
             Log.w(LOG_FILE_NAME, "error removing files", ex);
         }
         unpackFile(zip, buf, null, "application.ini");
+        unpackFile(zip, buf, null, getContentProcessName());
         try {
             unpackFile(zip, buf, null, "update.locale");
         } catch (Exception e) {/* this is non-fatal */}

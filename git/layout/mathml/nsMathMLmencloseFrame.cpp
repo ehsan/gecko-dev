@@ -759,7 +759,7 @@ void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
   gfxRect rect = presContext->AppUnitsToGfxUnits(mRect + ToReferenceFrame());
 
   // paint the frame with the current text color
-  aCtx->SetColor(mFrame->GetVisitedDependentColor(eCSSProperty_color));
+  aCtx->SetColor(mFrame->GetStyleColor()->mColor);
 
   // change line width to mThickness
   gfxContext *gfxCtx = aCtx->ThebesContext();

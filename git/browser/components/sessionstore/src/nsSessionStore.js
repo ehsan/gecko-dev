@@ -143,7 +143,7 @@ XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
 XPCOMUtils.defineLazyServiceGetter(this, "CookieSvc",
   "@mozilla.org/cookiemanager;1", "nsICookieManager2");
 
-#ifdef MOZ_CRASHREPORTER
+#ifdef MOZ_CRASH_REPORTER
 XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
   "@mozilla.org/xre/app-info;1", "nsICrashReporter");
 #endif
@@ -2481,19 +2481,7 @@ SessionStoreService.prototype = {
     if (ix != -1 && total[ix] && total[ix].sizemode == "minimized")
       ix = -1;
 
-    let session = {
-      state: this._loadState == STATE_RUNNING ? STATE_RUNNING_STR : STATE_STOPPED_STR,
-      lastUpdate: Date.now(),
-      startTime: this._sessionStartTime,
-      recentCrashes: this._recentCrashes
-    };
-
-    return {
-      windows: total,
-      selectedWindow: ix + 1,
-      _closedWindows: lastClosedWindowsCopy,
-      session: session
-    };
+    return { windows: total, selectedWindow: ix + 1, _closedWindows: lastClosedWindowsCopy };
   },
 
   /**
@@ -2577,7 +2565,7 @@ SessionStoreService.prototype = {
       this._closedWindows = root._closedWindows;
 
     var winData;
-    if (!root.selectedWindow || root.selectedWindow > root.windows.length) {
+    if (!root.selectedWindow) {
       root.selectedWindow = 0;
     } else {
       // put the selected window at the beginning of the array to ensure that
@@ -3192,7 +3180,6 @@ SessionStoreService.prototype = {
       shEntry.postData = stream;
     }
 
-    let childDocIdents = {};
     if (aEntry.docIdentifier) {
       // If we have a serialized document identifier, try to find an SHEntry
       // which matches that doc identifier and adopt that SHEntry's
@@ -3200,12 +3187,10 @@ SessionStoreService.prototype = {
       // for the document identifier.
       let matchingEntry = aDocIdentMap[aEntry.docIdentifier];
       if (!matchingEntry) {
-        matchingEntry = {shEntry: shEntry, childDocIdents: childDocIdents};
-        aDocIdentMap[aEntry.docIdentifier] = matchingEntry;
+        aDocIdentMap[aEntry.docIdentifier] = shEntry;
       }
       else {
-        shEntry.adoptBFCacheEntry(matchingEntry.shEntry);
-        childDocIdents = matchingEntry.childDocIdents;
+        shEntry.adoptBFCacheEntry(matchingEntry);
       }
     }
 
@@ -3227,24 +3212,8 @@ SessionStoreService.prototype = {
         //XXXzpao Wallpaper patch for bug 514751
         if (!aEntry.children[i].url)
           continue;
-
-        // We're getting sessionrestore.js files with a cycle in the
-        // doc-identifier graph, likely due to bug 698656.  (That is, we have
-        // an entry where doc identifier A is an ancestor of doc identifier B,
-        // and another entry where doc identifier B is an ancestor of A.)
-        //
-        // If we were to respect these doc identifiers, we'd create a cycle in
-        // the SHEntries themselves, which causes the docshell to loop forever
-        // when it looks for the root SHEntry.
-        //
-        // So as a hack to fix this, we restrict the scope of a doc identifier
-        // to be a node's siblings and cousins, and pass childDocIdents, not
-        // aDocIdents, to _deserializeHistoryEntry.  That is, we say that two
-        // SHEntries with the same doc identifier have the same document iff
-        // they have the same parent or their parents have the same document.
-
         shEntry.AddChild(this._deserializeHistoryEntry(aEntry.children[i], aIdMap,
-                                                       childDocIdents), i);
+                                                       aDocIdentMap), i);
       }
     }
     
@@ -3552,6 +3521,14 @@ SessionStoreService.prototype = {
       }
     }
 
+    oState.session = {
+      state: this._loadState == STATE_RUNNING ? STATE_RUNNING_STR : STATE_STOPPED_STR,
+      lastUpdate: Date.now(),
+      startTime: this._sessionStartTime
+    };
+    if (this._recentCrashes)
+      oState.session.recentCrashes = this._recentCrashes;
+
     // Persist the last session if we deferred restoring it
     if (this._lastSessionState)
       oState.lastSessionState = this._lastSessionState;
@@ -3819,7 +3796,7 @@ SessionStoreService.prototype = {
    * Annotate a breakpad crash report with the currently selected tab's URL.
    */
   _updateCrashReportURL: function sss_updateCrashReportURL(aWindow) {
-#ifdef MOZ_CRASHREPORTER
+#ifdef MOZ_CRASH_REPORTER
     try {
       var currentURI = aWindow.gBrowser.currentURI.clone();
       // if the current URI contains a username/password, remove it

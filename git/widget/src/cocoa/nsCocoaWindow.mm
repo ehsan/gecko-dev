@@ -246,6 +246,7 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
                                const nsIntRect &aRect,
                                EVENT_CALLBACK aHandleEventFunction,
                                nsDeviceContext *aContext,
+                               nsIToolkit *aToolkit,
                                nsWidgetInitData *aInitData)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -282,11 +283,8 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
   mWindowType = eWindowType_toplevel;
   mBorderStyle = eBorderStyle_default;
 
-  // Ensure that the toolkit is created.
-  nsToolkit::GetToolkit();
-
   Inherited::BaseCreate(aParent, newBounds, aHandleEventFunction, aContext,
-                        aInitData);
+                        aToolkit, aInitData);
 
   mParent = aParent;
 
@@ -302,7 +300,7 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
     if (aInitData->mIsDragPopup) {
       [mWindow setIgnoresMouseEvents:YES];
     }
-    return CreatePopupContentView(newBounds, aHandleEventFunction, aContext);
+    return CreatePopupContentView(newBounds, aHandleEventFunction, aContext, aToolkit);
   }
 
   return NS_OK;
@@ -479,7 +477,8 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
 
 NS_IMETHODIMP nsCocoaWindow::CreatePopupContentView(const nsIntRect &aRect,
                              EVENT_CALLBACK aHandleEventFunction,
-                             nsDeviceContext *aContext)
+                             nsDeviceContext *aContext,
+                             nsIToolkit *aToolkit)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -492,7 +491,7 @@ NS_IMETHODIMP nsCocoaWindow::CreatePopupContentView(const nsIntRect &aRect,
 
   nsIWidget* thisAsWidget = static_cast<nsIWidget*>(this);
   mPopupContentView->Create(thisAsWidget, nsnull, aRect, aHandleEventFunction,
-                            aContext, nsnull);
+                            aContext, aToolkit, nsnull);
 
   ChildView* newContentView = (ChildView*)mPopupContentView->GetNativeData(NS_NATIVE_WIDGET);
   [mWindow setContentView:newContentView];

@@ -38,6 +38,7 @@
 
 #include "nsHTMLObjectResizer.h"
 
+#include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMText.h"
 

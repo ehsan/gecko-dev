@@ -205,21 +205,15 @@ nsImageFrame::CreateAccessible()
 #endif
 
 void
-nsImageFrame::DisconnectMap()
-{
-  if (mImageMap) {
-    mImageMap->Destroy();
-    NS_RELEASE(mImageMap);
-  }
-}
-
-void
 nsImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // Tell our image map, if there is one, to clean up
   // This causes the nsImageMap to unregister itself as
   // a DOM listener.
-  DisconnectMap();
+  if (mImageMap) {
+    mImageMap->Destroy();
+    NS_RELEASE(mImageMap);
+  }
 
   // set the frame to null so we don't send messages to a dead object.
   if (mListener) {
@@ -230,10 +224,6 @@ nsImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
       // JS. See bug 604262.
       nsCxPusher pusher;
       pusher.PushNull();
-
-      // Notify our image loading content that we are going away so it can
-      // deregister with our refresh driver.
-      imageLoader->FrameDestroyed(this);
 
       imageLoader->RemoveObserver(mListener);
     }
@@ -279,10 +269,6 @@ nsImageFrame::Init(nsIContent*      aContent,
   
   if (!gIconLoad)
     LoadIcons(aPresContext);
-
-  // We have a PresContext now, so we need to notify the image content node
-  // that it can register images.
-  imageLoader->FrameCreated(this);
 
   // Give image loads associated with an image frame a small priority boost!
   nsCOMPtr<imgIRequest> currentRequest;
@@ -558,7 +544,6 @@ nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
    */
   nsPresContext *presContext = PresContext();
   aImage->SetAnimationMode(presContext->ImageAnimationMode());
-  mImageContainer = nsnull;
 
   if (IsPendingLoad(aRequest)) {
     // We don't care
@@ -636,7 +621,6 @@ nsImageFrame::OnStopDecode(imgIRequest *aRequest,
   nsPresContext *presContext = PresContext();
   nsIPresShell *presShell = presContext->GetPresShell();
   NS_ASSERTION(presShell, "No PresShell.");
-  mImageContainer = nsnull;
 
   // Check what request type we're dealing with
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
@@ -1253,10 +1237,7 @@ nsDisplayImage::ConfigureLayer(ImageLayer* aLayer)
 nsRefPtr<ImageContainer>
 nsImageFrame::GetContainer(LayerManager* aManager, imgIContainer* aImage)
 {
-  if (mImageContainer && 
-      (mImageContainer->Manager() == aManager || 
-       (!mImageContainer->Manager() && 
-        (mImageContainer->GetBackendType() == aManager->GetBackendType())))) {
+  if (mImageContainer && mImageContainer->Manager() == aManager) {
     return mImageContainer;
   }
 
@@ -1571,9 +1552,11 @@ nsImageFrame::GetContentForEvent(nsEvent* aEvent,
     TranslateEventCoords(
       nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, this), p);
     bool inside = false;
-    nsCOMPtr<nsIContent> area = map->GetArea(p.x, p.y);
-    if (area) {
-      area.swap(*aContent);
+    nsCOMPtr<nsIContent> area;
+    inside = map->IsInside(p.x, p.y, getter_AddRefs(area));
+    if (inside && area) {
+      *aContent = area;
+      NS_ADDREF(*aContent);
       return NS_OK;
     }
   }
@@ -1607,7 +1590,8 @@ nsImageFrame::HandleEvent(nsPresContext* aPresContext,
       // (in case we deal with a case of both client-side and
       // sever-side on the same image - it happens!)
       if (nsnull != map) {
-        inside = !!map->GetArea(p.x, p.y);
+        nsCOMPtr<nsIContent> area;
+        inside = map->IsInside(p.x, p.y, getter_AddRefs(area));
       }
 
       if (!inside && isServerMap) {
@@ -1654,8 +1638,8 @@ nsImageFrame::GetCursor(const nsPoint& aPoint,
   if (nsnull != map) {
     nsIntPoint p;
     TranslateEventCoords(aPoint, p);
-    nsCOMPtr<nsIContent> area = map->GetArea(p.x, p.y);
-    if (area) {
+    nsCOMPtr<nsIContent> area;
+    if (map->IsInside(p.x, p.y, getter_AddRefs(area))) {
       // Use the cursor from the style of the *area* element.
       // XXX Using the image as the parent style context isn't
       // technically correct, but it's probably the right thing to do

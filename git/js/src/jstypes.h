@@ -341,6 +341,13 @@ typedef int JSIntn;
 typedef unsigned int JSUintn;
 
 /************************************************************************
+** TYPES:       JSFloat64
+** DESCRIPTION:
+**  NSPR's floating point type is always 64 bits.
+************************************************************************/
+typedef double          JSFloat64;
+
+/************************************************************************
 ** TYPES:       JSSize
 ** DESCRIPTION:
 **  A type for representing the size of objects.

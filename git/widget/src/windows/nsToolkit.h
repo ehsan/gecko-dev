@@ -40,6 +40,7 @@
 #define TOOLKIT_H
 
 #include "nsdefs.h"
+#include "nsIToolkit.h"
 
 #include "nsITimer.h"
 #include "nsCOMPtr.h"
@@ -72,11 +73,15 @@ class MouseTrailer;
  * execute within the same thread that created the widget under Win32.
  */ 
 
-class nsToolkit
+class nsToolkit : public nsIToolkit
 {
 
   public:
+
+            NS_DECL_ISUPPORTS
+
                             nsToolkit();
+            NS_IMETHOD      Init(PRThread *aThread);
             void            CreateInternalWindow(PRThread *aThread);
 
 private:
@@ -84,9 +89,6 @@ private:
             void            CreateUIThread(void);
 
 public:
-
-    static nsToolkit* GetToolkit();
-
     // Window procedure for the internal window
     static LRESULT CALLBACK WindowProc(HWND hWnd, 
                                         UINT Msg, 
@@ -94,8 +96,6 @@ public:
                                         LPARAM lParam);
 
 protected:
-    static nsToolkit* gToolkit;
-
     // Handle of the window used to receive dispatch messages.
     HWND        mDispatchWnd;
     // Thread Id of the "main" Gui thread.
@@ -114,6 +114,8 @@ public:
 
     static MouseTrailer *gMouseTrailer;
 };
+
+class  nsWindow;
 
 /**
  * Makes sure exit/enter mouse messages are always dispatched.

@@ -339,12 +339,9 @@ struct WebGLContextOptions {
 class WebGLContext :
     public nsIDOMWebGLRenderingContext,
     public nsICanvasRenderingContextInternal,
-    public nsSupportsWeakReference,
-    public nsITimerCallback
+    public nsSupportsWeakReference
 {
     friend class WebGLMemoryReporter;
-    friend class WebGLExtensionLoseContext;
-    friend class WebGLContextUserData;
 
 public:
     WebGLContext();
@@ -355,8 +352,6 @@ public:
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(WebGLContext, nsIDOMWebGLRenderingContext)
 
     NS_DECL_NSIDOMWEBGLRENDERINGCONTEXT
-
-    NS_DECL_NSITIMERCALLBACK
 
     // nsICanvasRenderingContextInternal
     NS_IMETHOD SetCanvasElement(nsHTMLCanvasElement* aParentCanvas);
@@ -384,9 +379,6 @@ public:
     NS_IMETHOD Swap(PRUint32 nativeID,
                     PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h)
                     { return NS_ERROR_NOT_IMPLEMENTED; }
-
-    bool LoseContext();
-    bool RestoreContext();
 
     nsresult SynthesizeGLError(WebGLenum err);
     nsresult SynthesizeGLError(WebGLenum err, const char *fmt, ...);
@@ -444,22 +436,6 @@ public:
     
     bool MinCapabilityMode() const {
         return mMinCapability;
-    }
-
-    // Sets up the GL_ARB_robustness timer if it isn't already, so that if the
-    // driver gets restarted, the context may get reset with it.
-    void SetupRobustnessTimer() {
-        if (mContextLost)
-            return;
-
-        if (!mContextRestorer)
-            mContextRestorer = do_CreateInstance("@mozilla.org/timer;1");
-        
-        // As long as there's still activity, we reset the timer each time that
-        // this function gets called.
-        mContextRestorer->InitWithCallback(static_cast<nsITimerCallback*>(this),
-                                           PR_MillisecondsToInterval(1000),
-                                           nsITimer::TYPE_ONE_SHOT);
     }
 
 protected:
@@ -526,7 +502,6 @@ protected:
     enum WebGLExtensionID {
         WebGL_OES_texture_float,
         WebGL_OES_standard_derivatives,
-        WebGL_WEBKIT_lose_context,
         WebGLExtensionID_Max
     };
     nsCOMPtr<WebGLExtension> mEnabledExtensions[WebGLExtensionID_Max];
@@ -580,7 +555,7 @@ protected:
                                 int jsArrayType,
                                 int srcFormat, bool srcPremultiplied);
     nsresult ReadPixels_base(WebGLint x, WebGLint y, WebGLsizei width, WebGLsizei height,
-                             WebGLenum format, WebGLenum type, JSObject* pixels);
+                             WebGLenum format, WebGLenum type, void *data, PRUint32 byteLength);
     nsresult TexParameter_base(WebGLenum target, WebGLenum pname,
                                WebGLint *intParamPtr, WebGLfloat *floatParamPtr);
 
@@ -658,10 +633,6 @@ protected:
                              GLenum type,
                              const GLvoid *data);
 
-    void MaybeRestoreContext();
-    void ForceLoseContext();
-    void ForceRestoreContext();
-
     // the buffers bound to the current program's attribs
     nsTArray<WebGLVertexAttribData> mAttribBuffers;
 
@@ -719,10 +690,6 @@ protected:
     WebGLfloat mDepthClearValue;
 
     int mBackbufferClearingStatus;
-
-    nsCOMPtr<nsITimer> mContextRestorer;
-    bool mContextLost;
-    bool mAllowRestore;
 
 public:
     // console logging helpers

@@ -205,6 +205,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
                   r,                                  // Widget dimensions
                   nsWebShellWindow::HandleEvent,      // Event handler function
                   nsnull,                             // Device context
+                  nsnull,                             // nsIToolkit
                   &widgetInitData);                   // Widget initialization data
   mWindow->GetClientBounds(r);
   // Match the default background color of content. Important on windows

@@ -36,7 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsHTMLEditor.h"
-#include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIPresShell.h"
 #include "nsIDocumentObserver.h"
@@ -232,17 +232,15 @@ nsHTMLEditor::RemoveMouseClickListener(nsIDOMElement * aElement)
 NS_IMETHODIMP
 nsHTMLEditor::RefreshInlineTableEditingUI()
 {
-  nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(mInlineEditedCell);
-  if (!htmlElement) {
-    return NS_ERROR_NULL_POINTER;
-  }
+  nsCOMPtr<nsIDOMNSHTMLElement> nsElement = do_QueryInterface(mInlineEditedCell);
+  if (!nsElement) {return NS_ERROR_NULL_POINTER; }
 
   PRInt32 xCell, yCell, wCell, hCell;
   GetElementOrigin(mInlineEditedCell, xCell, yCell);
 
-  nsresult res = htmlElement->GetOffsetWidth(&wCell);
+  nsresult res = nsElement->GetOffsetWidth(&wCell);
   NS_ENSURE_SUCCESS(res, res);
-  res = htmlElement->GetOffsetHeight(&hCell);
+  res = nsElement->GetOffsetHeight(&hCell);
   NS_ENSURE_SUCCESS(res, res);
 
   PRInt32 xHoriz = xCell + wCell/2;
