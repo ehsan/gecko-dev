@@ -2273,10 +2273,7 @@ class AutoIdArray : private AutoGCRooter
 } /* namespace JS */
 
 extern JS_PUBLIC_API(bool)
-JS_ValueToId(JSContext *cx, JS::HandleValue v, JS::MutableHandleId idp);
-
-extern JS_PUBLIC_API(bool)
-JS_StringToId(JSContext *cx, JS::HandleString s, JS::MutableHandleId idp);
+JS_ValueToId(JSContext *cx, jsval v, JS::MutableHandle<jsid> idp);
 
 extern JS_PUBLIC_API(bool)
 JS_IdToValue(JSContext *cx, jsid id, JS::MutableHandle<JS::Value> vp);
@@ -2523,7 +2520,7 @@ extern JS_PUBLIC_API(JSObject *)
 JS_GetParent(JSObject *obj);
 
 extern JS_PUBLIC_API(bool)
-JS_SetParent(JSContext *cx, JS::HandleObject obj, JS::HandleObject parent);
+JS_SetParent(JSContext *cx, JSObject *obj, JSObject *parent);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_GetConstructor(JSContext *cx, JS::Handle<JSObject*> proto);
@@ -2725,7 +2722,7 @@ extern JS_PUBLIC_API(bool)
 JS_PreventExtensions(JSContext *cx, JS::HandleObject obj);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_New(JSContext *cx, JS::HandleObject ctor, const JS::HandleValueArray& args);
+JS_New(JSContext *cx, JSObject *ctor, const JS::HandleValueArray& args);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_DefineObject(JSContext *cx, JSObject *obj, const char *name, const JSClass *clasp,
@@ -3040,8 +3037,8 @@ extern JS_PUBLIC_API(bool)
 JS_GetElement(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::MutableHandleValue vp);
 
 extern JS_PUBLIC_API(bool)
-JS_ForwardGetElementTo(JSContext *cx, JS::HandleObject obj, uint32_t index,
-                       JS::HandleObject onBehalfOf, JS::MutableHandleValue vp);
+JS_ForwardGetElementTo(JSContext *cx, JSObject *obj, uint32_t index, JSObject *onBehalfOf,
+                       JS::MutableHandleValue vp);
 
 extern JS_PUBLIC_API(bool)
 JS_SetElement(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::HandleValue v);
@@ -3072,7 +3069,7 @@ JS_DeleteElement2(JSContext *cx, JS::HandleObject obj, uint32_t index, bool *suc
  * assign undefined to all writable data properties.
  */
 JS_PUBLIC_API(void)
-JS_ClearNonGlobalObject(JSContext *cx, JS::HandleObject obj);
+JS_ClearNonGlobalObject(JSContext *cx, JSObject *objArg);
 
 /*
  * Assign 'undefined' to all of the object's non-reserved slots. Note: this is
@@ -3116,7 +3113,7 @@ extern JS_PUBLIC_API(void *)
 JS_ReallocateArrayBufferContents(JSContext *cx, uint32_t nbytes, void *oldContents, uint32_t oldNbytes);
 
 extern JS_PUBLIC_API(JSIdArray *)
-JS_Enumerate(JSContext *cx, JS::HandleObject obj);
+JS_Enumerate(JSContext *cx, JSObject *obj);
 
 /*
  * Create an object to iterate over enumerable properties of obj, in arbitrary
@@ -4058,7 +4055,7 @@ JS_EncodeString(JSContext *cx, JSString *str);
  * Same behavior as JS_EncodeString(), but encode into UTF-8 string
  */
 JS_PUBLIC_API(char *)
-JS_EncodeStringToUTF8(JSContext *cx, JS::HandleString str);
+JS_EncodeStringToUTF8(JSContext *cx, JSString *str);
 
 /*
  * Get number of bytes in the string encoding (without accounting for a
@@ -4115,7 +4112,7 @@ class JSAutoByteString
 
     char *encodeLatin1(js::ExclusiveContext *cx, JSString *str);
 
-    char *encodeUtf8(JSContext *cx, JS::HandleString str) {
+    char *encodeUtf8(JSContext *cx, JSString *str) {
         JS_ASSERT(!mBytes);
         JS_ASSERT(cx);
         mBytes = JS_EncodeStringToUTF8(cx, str);

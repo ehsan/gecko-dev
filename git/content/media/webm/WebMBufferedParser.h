@@ -182,7 +182,7 @@ private:
   uint32_t mSkipBytes;
 };
 
-class WebMBufferedState MOZ_FINAL
+class WebMBufferedState
 {
   NS_INLINE_DECL_REFCOUNTING(WebMBufferedState)
 
@@ -191,16 +191,15 @@ public:
     MOZ_COUNT_CTOR(WebMBufferedState);
   }
 
+  ~WebMBufferedState() {
+    MOZ_COUNT_DTOR(WebMBufferedState);
+  }
+
   void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset);
   bool CalculateBufferedForRange(int64_t aStartOffset, int64_t aEndOffset,
                                  uint64_t* aStartTime, uint64_t* aEndTime);
 
 private:
-  // Private destructor, to discourage deletion outside of Release():
-  ~WebMBufferedState() {
-    MOZ_COUNT_DTOR(WebMBufferedState);
-  }
-
   // Synchronizes access to the mTimeMapping array.
   ReentrantMonitor mReentrantMonitor;
 

@@ -34,7 +34,6 @@ class EventChainPostVisitor;
 class EventChainPreVisitor;
 class EventChainVisitor;
 class EventListenerManager;
-class EventStates;
 namespace dom {
 class HTMLFormElement;
 class HTMLPropertiesCollection;
@@ -596,7 +595,7 @@ public:
 
   virtual void UpdateEditableState(bool aNotify) MOZ_OVERRIDE;
 
-  virtual mozilla::EventStates IntrinsicState() const MOZ_OVERRIDE;
+  virtual nsEventStates IntrinsicState() const MOZ_OVERRIDE;
 
   // Helper for setting our editable flag and notifying
   void DoSetEditableFlag(bool aEditable, bool aNotify) {
@@ -1322,7 +1321,7 @@ public:
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true) MOZ_OVERRIDE;
   virtual IMEState GetDesiredIMEState() MOZ_OVERRIDE;
-  virtual mozilla::EventStates IntrinsicState() const MOZ_OVERRIDE;
+  virtual nsEventStates IntrinsicState() const MOZ_OVERRIDE;
 
   virtual nsresult PreHandleEvent(
                      mozilla::EventChainPreVisitor& aVisitor) MOZ_OVERRIDE;

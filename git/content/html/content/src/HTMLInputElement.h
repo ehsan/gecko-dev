@@ -169,13 +169,12 @@ public:
 
   virtual void DoneCreatingElement() MOZ_OVERRIDE;
 
-  virtual EventStates IntrinsicState() const MOZ_OVERRIDE;
+  virtual nsEventStates IntrinsicState() const MOZ_OVERRIDE;
 
   // Element
 private:
-  virtual void AddStates(EventStates aStates);
-  virtual void RemoveStates(EventStates aStates);
-
+  virtual void AddStates(nsEventStates aStates);
+  virtual void RemoveStates(nsEventStates aStates);
 public:
 
   // nsITextControlElement

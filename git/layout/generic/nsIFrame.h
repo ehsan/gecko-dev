@@ -91,9 +91,6 @@ struct nsMargin;
 struct CharacterDataChangeInfo;
 
 namespace mozilla {
-
-class EventStates;
-
 namespace layers {
 class Layer;
 }
@@ -1439,7 +1436,7 @@ public:
    *
    * @param aStates the changed states
    */
-  virtual void ContentStatesChanged(mozilla::EventStates aStates);
+  virtual void ContentStatesChanged(nsEventStates aStates) { }
 
   /**
    * Return how your frame can be split.

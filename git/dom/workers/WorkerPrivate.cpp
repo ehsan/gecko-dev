@@ -426,10 +426,9 @@ struct WorkerStructuredCloneCallbacks
 
         // Write the internals to the stream.
         JSAutoCompartment ac(aCx, dataArray);
-        JS::Rooted<JS::Value> arrayValue(aCx, JS::ObjectValue(*dataArray));
         return JS_WriteUint32Pair(aWriter, SCTAG_DOM_IMAGEDATA, 0) &&
                JS_WriteUint32Pair(aWriter, width, height) &&
-               JS_WriteTypedArray(aWriter, arrayValue);
+               JS_WriteTypedArray(aWriter, JS::ObjectValue(*dataArray));
       }
     }
 

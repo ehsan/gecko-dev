@@ -11,7 +11,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/HTMLTextAreaElementBinding.h"
 #include "mozilla/EventDispatcher.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/MouseEvents.h"
 #include "nsAttrValueInlines.h"
 #include "nsContentCID.h"
@@ -1099,10 +1098,10 @@ HTMLTextAreaElement::RestoreState(nsPresState* aState)
   return false;
 }
 
-EventStates
+nsEventStates
 HTMLTextAreaElement::IntrinsicState() const
 {
-  EventStates state = nsGenericHTMLFormElementWithState::IntrinsicState();
+  nsEventStates state = nsGenericHTMLFormElementWithState::IntrinsicState();
 
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::required)) {
     state |= NS_EVENT_STATE_REQUIRED;

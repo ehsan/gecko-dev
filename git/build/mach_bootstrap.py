@@ -31,7 +31,6 @@ SEARCH_PATHS = [
     'python/mozversioncontrol',
     'python/blessings',
     'python/configobj',
-    'python/jsmin',
     'python/psutil',
     'python/which',
     'build/pymake',

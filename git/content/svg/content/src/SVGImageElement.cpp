@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/ArrayUtils.h"
-#include "mozilla/EventStates.h"
 
 #include "mozilla/dom/SVGImageElement.h"
 #include "mozilla/gfx/2D.h"
@@ -204,7 +203,7 @@ SVGImageElement::UnbindFromTree(bool aDeep, bool aNullParent)
   SVGImageElementBase::UnbindFromTree(aDeep, aNullParent);
 }
 
-EventStates
+nsEventStates
 SVGImageElement::IntrinsicState() const
 {
   return SVGImageElementBase::IntrinsicState() |

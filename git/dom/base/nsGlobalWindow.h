@@ -547,6 +547,9 @@ public:
   void DisableDialogs();
   bool AreDialogsEnabled();
 
+  // Inner windows only.
+  virtual void SetHasAudioAvailableEventListeners();
+
   nsIScriptContext *GetContextInternal()
   {
     if (mOuterWindow) {

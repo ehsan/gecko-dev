@@ -15,6 +15,12 @@ function debug(msg) {
 // mozbrowser API clients.
 docShell.isActive = true;
 
+let infos = sendSyncMessage('browser-element-api:call',
+                            { 'msg_name': 'hello' })[0];
+docShell.QueryInterface(Ci.nsIDocShellTreeItem).name = infos.name;
+docShell.setFullscreenAllowed(infos.fullscreenAllowed);
+
+
 function parentDocShell(docshell) {
   if (!docshell) {
     return null;
@@ -51,8 +57,3 @@ if (!('BrowserElementIsPreloaded' in this)) {
 }
 
 var BrowserElementIsReady = true;
-
-let infos = sendSyncMessage('browser-element-api:call',
-                            { 'msg_name': 'hello' })[0];
-docShell.QueryInterface(Ci.nsIDocShellTreeItem).name = infos.name;
-docShell.setFullscreenAllowed(infos.fullscreenAllowed);

@@ -67,7 +67,7 @@ public:
   virtual void DoneCreatingElement() MOZ_OVERRIDE;
 
   // Element
-  EventStates IntrinsicState() const MOZ_OVERRIDE;
+  nsEventStates IntrinsicState() const MOZ_OVERRIDE;
   /**
    * Called when an attribute is about to be changed
    */

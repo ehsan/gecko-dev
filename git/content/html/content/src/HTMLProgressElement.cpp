@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/EventStates.h"
 #include "mozilla/dom/HTMLProgressElement.h"
 #include "mozilla/dom/HTMLProgressElementBinding.h"
 
@@ -31,10 +30,10 @@ HTMLProgressElement::~HTMLProgressElement()
 NS_IMPL_ELEMENT_CLONE(HTMLProgressElement)
 
 
-EventStates
+nsEventStates
 HTMLProgressElement::IntrinsicState() const
 {
-  EventStates state = nsGenericHTMLElement::IntrinsicState();
+  nsEventStates state = nsGenericHTMLElement::IntrinsicState();
 
   if (IsIndeterminate()) {
     state |= NS_EVENT_STATE_INDETERMINATE;

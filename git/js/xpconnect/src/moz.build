@@ -88,6 +88,7 @@ LOCAL_INCLUDES += [
     '/content/html/document/src',
     '/content/svg/content/src',
     '/dom/base',
+    '/dom/events',
     '/dom/workers',
     '/js/ipc',
     '/layout/base',

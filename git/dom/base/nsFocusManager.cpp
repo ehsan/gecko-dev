@@ -40,7 +40,6 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventStateManager.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/IMEStateManager.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/Preferences.h"
@@ -1030,7 +1029,7 @@ nsFocusManager::NotifyFocusStateChange(nsIContent* aContent,
   if (!aContent->IsElement()) {
     return;
   }
-  EventStates eventState = NS_EVENT_STATE_FOCUS;
+  nsEventStates eventState = NS_EVENT_STATE_FOCUS;
   if (aWindowShouldShowFocusRing) {
     eventState |= NS_EVENT_STATE_FOCUSRING;
   }

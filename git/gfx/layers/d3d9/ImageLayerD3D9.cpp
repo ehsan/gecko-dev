@@ -4,9 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ipc/AutoOpenSurface.h"
-#include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/Point.h"
-#include "mozilla/RefPtr.h"
 #include "mozilla/layers/PLayerTransaction.h"
 #include "gfxSharedImageSurface.h"
 
@@ -27,9 +25,9 @@ namespace layers {
 using namespace mozilla::gfx;
 
 static inline _D3DFORMAT
-D3dFormatForSurfaceFormat(SurfaceFormat aFormat)
+D3dFormatForGfxFormat(gfxImageFormat aFormat)
 {
-  if (aFormat == SurfaceFormat::A8) {
+  if (aFormat == gfxImageFormat::A8) {
     return D3DFMT_A8;
   }
 
@@ -135,22 +133,24 @@ OpenSharedTexture(const D3DSURFACE_DESC& aDesc,
 
 static already_AddRefed<IDirect3DTexture9>
 SurfaceToTexture(IDirect3DDevice9 *aDevice,
-                 SourceSurface *aSurface,
+                 gfxASurface *aSurface,
                  const IntSize &aSize)
 {
-  RefPtr<DataSourceSurface> dataSurface = aSurface->GetDataSurface();
-  if (!dataSurface) {
-    return nullptr;
+
+  nsRefPtr<gfxImageSurface> imageSurface = aSurface->GetAsImageSurface();
+
+  if (!imageSurface) {
+    imageSurface = new gfxImageSurface(ThebesIntSize(aSize),
+                                       gfxImageFormat::ARGB32);
+
+    nsRefPtr<gfxContext> context = new gfxContext(imageSurface);
+    context->SetSource(aSurface);
+    context->SetOperator(gfxContext::OPERATOR_SOURCE);
+    context->Paint();
   }
-  DataSourceSurface::MappedSurface map;
-  if (!dataSurface->Map(DataSourceSurface::MapType::READ, &map)) {
-    return nullptr;
-  }
-  nsRefPtr<IDirect3DTexture9> texture =
-    DataToTexture(aDevice, map.mData, map.mStride, aSize,
-                  D3dFormatForSurfaceFormat(dataSurface->GetFormat()));
-  dataSurface->Unmap();
-  return texture.forget();
+
+  return DataToTexture(aDevice, imageSurface->Data(), imageSurface->Stride(),
+                       aSize, D3dFormatForGfxFormat(imageSurface->Format()));
 }
 
 static void AllocateTexturesYCbCr(PlanarYCbCrImage *aImage,
@@ -344,7 +344,7 @@ ImageLayerD3D9::GetTexture(Image *aImage, bool& aHasAlpha)
     CairoImage *cairoImage =
       static_cast<CairoImage*>(aImage);
 
-    RefPtr<SourceSurface> surf = cairoImage->GetAsSourceSurface();
+    nsRefPtr<gfxASurface> surf = cairoImage->DeprecatedGetAsSurface();
     if (!surf) {
       return nullptr;
     }
@@ -357,7 +357,7 @@ ImageLayerD3D9::GetTexture(Image *aImage, bool& aHasAlpha)
       }
     }
 
-    aHasAlpha = surf->GetFormat() == SurfaceFormat::B8G8R8A8;
+    aHasAlpha = surf->GetContentType() == gfxContentType::COLOR_ALPHA;
   } else if (aImage->GetFormat() == ImageFormat::D3D9_RGB32_TEXTURE) {
     if (!aImage->GetBackendData(mozilla::layers::LayersBackend::LAYERS_D3D9)) {
       // The texture in which the frame is stored belongs to DXVA's D3D9 device.
@@ -415,8 +415,8 @@ ImageLayerD3D9::RenderLayer()
       image->GetFormat() == ImageFormat::D3D9_RGB32_TEXTURE)
   {
     NS_ASSERTION(image->GetFormat() != ImageFormat::CAIRO_SURFACE ||
-                 !static_cast<CairoImage*>(image)->mSourceSurface ||
-                 static_cast<CairoImage*>(image)->mSourceSurface->GetFormat() != SurfaceFormat::A8,
+                 !static_cast<CairoImage*>(image)->mDeprecatedSurface ||
+                 static_cast<CairoImage*>(image)->mDeprecatedSurface->GetContentType() != gfxContentType::ALPHA,
                  "Image layer has alpha image");
 
     bool hasAlpha = false;

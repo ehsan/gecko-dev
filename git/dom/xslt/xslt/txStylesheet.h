@@ -22,7 +22,7 @@ class txDecimalFormat;
 class txStripSpaceTest;
 class txXSLKey;
 
-class txStylesheet MOZ_FINAL
+class txStylesheet
 {
 public:
     class ImportFrame;
@@ -32,6 +32,7 @@ public:
     friend class ImportFrame;
 
     txStylesheet();
+    ~txStylesheet();
     nsresult init();
     
     NS_INLINE_DECL_REFCOUNTING(txStylesheet)
@@ -106,9 +107,6 @@ public:
     };
 
 private:
-    // Private destructor, to discourage deletion outside of Release():
-    ~txStylesheet();
-
     nsresult addTemplate(txTemplateItem* aTemplate, ImportFrame* aImportFrame);
     nsresult addGlobalVariable(txVariableItem* aVariable);
     nsresult addFrames(txListIterator& aInsertIter);
