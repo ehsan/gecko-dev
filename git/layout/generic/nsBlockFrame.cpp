@@ -677,6 +677,7 @@ nsBlockFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
         // XXX Bug NNNNNN Should probably handle percentage text-indent.
 
         data.line = &line;
+        data.lineContainer = curFrame;
         nsIFrame *kid = line->mFirstChild;
         for (PRInt32 i = 0, i_end = line->GetChildCount(); i != i_end;
              ++i, kid = kid->GetNextSibling()) {
@@ -751,6 +752,7 @@ nsBlockFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
         // XXX Bug NNNNNN Should probably handle percentage text-indent.
 
         data.line = &line;
+        data.lineContainer = curFrame;
         nsIFrame *kid = line->mFirstChild;
         for (PRInt32 i = 0, i_end = line->GetChildCount(); i != i_end;
              ++i, kid = kid->GetNextSibling()) {
@@ -1520,6 +1522,9 @@ nsBlockFrame::PrepareResizeReflow(nsBlockReflowState& aState)
       (NS_STYLE_TEXT_ALIGN_LEFT == styleText->mTextAlign ||
        (NS_STYLE_TEXT_ALIGN_DEFAULT == styleText->mTextAlign &&
         NS_STYLE_DIRECTION_LTR ==
+          aState.mReflowState.mStyleVisibility->mDirection) ||
+       (NS_STYLE_TEXT_ALIGN_END == styleText->mTextAlign &&
+        NS_STYLE_DIRECTION_RTL ==
           aState.mReflowState.mStyleVisibility->mDirection)) &&
       // The left content-edge must be a constant distance from the left
       // border-edge.
@@ -3005,6 +3010,17 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
       aState.mY = startingY;
       aState.mPrevBottomMargin = incomingMargin;
       continue;
+    }
+
+    if (blockHtmlRS.WillReflowAgainForClearance()) {
+      // If an ancestor of ours is going to reflow for clearance, we
+      // need to avoid calling PlaceBlock, because it unsets dirty bits
+      // on the child block (both itself, and through its call to
+      // nsFrame::DidReflow), and those dirty bits imply dirtiness for
+      // all of the child block, including the lines it didn't reflow.
+      NS_ASSERTION(originalPosition == frame->GetPosition(),
+                   "we need to call PositionChildViews");
+      return NS_OK;
     }
     
     aState.mPrevChild = frame;
@@ -5229,7 +5245,7 @@ nsBlockInFlowLineIterator::FindValidLine()
 {
   line_iterator end = mInOverflowLines ? mInOverflowLines->end() : mFrame->end_lines();
   if (mLine != end)
-    return PR_TRUE; 
+    return PR_TRUE;
   PRBool currentlyInOverflowLines = mInOverflowLines != nsnull;
   while (PR_TRUE) {
     if (currentlyInOverflowLines) {

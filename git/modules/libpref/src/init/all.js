@@ -83,6 +83,7 @@ pref("offline-apps.quota.warn",        51200);
 // of content viewers to cache based on the amount of available memory.
 pref("browser.sessionhistory.max_total_viewers", -1);
 
+pref("ui.use_native_colors", true);
 pref("browser.display.use_document_fonts",  1);  // 0 = never, 1 = quick, 2 = always
 pref("browser.display.use_document_colors", true);
 pref("browser.display.use_system_colors",   false);
@@ -2680,3 +2681,10 @@ pref("image.cache.size", 5242880);
 // A weight, from 0-1000, to place on time when comparing to size.
 // Size is given a weight of 1000 - timeweight.
 pref("image.cache.timeweight", 500);
+
+#ifdef XP_WIN
+#ifndef WINCE
+// The default TCP send window on Windows is too small, and autotuning only occurs on receive
+pref("network.tcp.sendbuffer", 131072);
+#endif
+#endif
