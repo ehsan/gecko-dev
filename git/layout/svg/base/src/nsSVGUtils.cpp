@@ -82,11 +82,12 @@
 #include "nsSVGForeignObjectFrame.h"
 #include "nsIFontMetrics.h"
 #include "nsIDOMSVGUnitTypes.h"
-#include "nsReferencedElement.h"
+
+static PRBool AddEffectProperties(nsIFrame *aFrame);
 
 class nsSVGPropertyBase : public nsStubMutationObserver {
 public:
-  nsSVGPropertyBase(nsIURI* aURI, nsIFrame *aFrame);
+  nsSVGPropertyBase(nsIContent *aContent, nsIFrame *aFrame, nsIAtom *aName);
   virtual ~nsSVGPropertyBase();
 
   // nsISupports
@@ -101,68 +102,34 @@ public:
 protected:
   virtual void DoUpdate() = 0;
 
-  class SourceReference : public nsReferencedElement {
-  public:
-    SourceReference(nsSVGPropertyBase* aContainer) : mContainer(aContainer) {}
-  protected:
-    virtual void ContentChanged(nsIContent* aFrom, nsIContent* aTo) {
-      if (aFrom) {
-        aFrom->RemoveMutationObserver(mContainer);
-      }
-      nsReferencedElement::ContentChanged(aFrom, aTo);
-      if (aTo) {
-        aTo->AddMutationObserver(mContainer);
-      }
-      mContainer->DoUpdate();
-    }
-    /**
-     * Override IsPersistent because we want to keep tracking the element
-     * for the ID even when it changes.
-     */
-    virtual PRBool IsPersistent() { return PR_TRUE; }
-  private:
-    nsSVGPropertyBase* mContainer;
-  };
-  
-  /**
-   * @param aOK this is only for the convenience of callers. We set *aOK to false
-   * if this function returns null.
-   */
-  nsIFrame* GetReferencedFrame(nsIAtom* aFrameType, PRBool* aOK) {
-    if (mElement.get()) {
-      nsIFrame *frame =
-        static_cast<nsGenericElement*>(mElement.get())->GetPrimaryFrame();
-      if (frame && frame->GetType() == aFrameType)
-        return frame;
-    }
-    if (aOK) {
-      *aOK = PR_FALSE;
-    }
-    return nsnull;
-  }
-
-  SourceReference mElement;
+  nsWeakPtr mObservedContent;
   nsIFrame *mFrame;
 };
 
 NS_IMPL_ISUPPORTS1(nsSVGPropertyBase, nsIMutationObserver)
 
-nsSVGPropertyBase::nsSVGPropertyBase(nsIURI *aURI,
-                                     nsIFrame *aFrame)
-  : mElement(this), mFrame(aFrame)
+nsSVGPropertyBase::nsSVGPropertyBase(nsIContent *aContent,
+                                     nsIFrame *aFrame,
+                                     nsIAtom *aName)
+  : mFrame(aFrame)
 {
-  // Start watching the target element
-  mElement.Reset(aFrame->GetContent(), aURI);
-  if (mElement.get()) {
-    mElement.get()->AddMutationObserver(this);
-  }
+  mObservedContent = do_GetWeakReference(aContent);
+  aContent->AddMutationObserver(this);
+
+  // Would like to NS_ADDREF here to avoid AddEffectProperties needing
+  // to do it manually, but that confuses the XPCOM_MEM_LOG_LEAKS
+  // tracking code because the call isn't virtual at this point.
+
+  mFrame->SetProperty(aName,
+                      static_cast<nsISupports*>(this),
+                      nsPropertyTable::SupportsDtorFunc);
 }
 
 nsSVGPropertyBase::~nsSVGPropertyBase()
 {
-  if (mElement.get()) {
-    mElement.get()->RemoveMutationObserver(this);
-  }
+  nsCOMPtr<nsIContent> content = do_QueryReferent(mObservedContent);
+  if (content)
+    content->RemoveMutationObserver(this);
 }
 
 void
@@ -205,12 +172,12 @@ nsSVGPropertyBase::ContentRemoved(nsIDocument *aDocument,
 class nsSVGFilterProperty :
   public nsSVGPropertyBase, public nsISVGFilterProperty {
 public:
-  nsSVGFilterProperty(nsIURI *aURI, nsIFrame *aFilteredFrame);
-
-  nsSVGFilterFrame *GetFilterFrame(PRBool *aOK) {
-    return static_cast<nsSVGFilterFrame *>
-      (GetReferencedFrame(nsGkAtoms::svgFilterFrame, aOK));
+  nsSVGFilterProperty(nsIContent *aFilter, nsIFrame *aFilteredFrame);
+  virtual ~nsSVGFilterProperty() {
+    mFrame->RemoveStateBits(NS_STATE_SVG_FILTERED);
   }
+
+  nsSVGFilterFrame *GetFilterFrame();
   void UpdateRect();
 
   // nsISupports
@@ -233,21 +200,36 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsSVGFilterProperty,
                              nsSVGPropertyBase,
                              nsISVGFilterProperty)
 
-nsSVGFilterProperty::nsSVGFilterProperty(nsIURI *aURI,
+nsSVGFilterProperty::nsSVGFilterProperty(nsIContent *aFilter,
                                          nsIFrame *aFilteredFrame)
-  : nsSVGPropertyBase(aURI, aFilteredFrame)
+  : nsSVGPropertyBase(aFilter, aFilteredFrame, nsGkAtoms::filter)
 {
+  mFrame->AddStateBits(NS_STATE_SVG_FILTERED);
   UpdateRect();
+}
+
+nsSVGFilterFrame *
+nsSVGFilterProperty::GetFilterFrame()
+{
+  nsCOMPtr<nsIContent> filter = do_QueryReferent(mObservedContent);
+  if (filter) {
+    nsIFrame *frame =
+      static_cast<nsGenericElement*>(filter.get())->GetPrimaryFrame();
+    if (frame && frame->GetType() == nsGkAtoms::svgFilterFrame)
+      return static_cast<nsSVGFilterFrame*>(frame);
+  }
+
+  return nsnull;
 }
 
 void
 nsSVGFilterProperty::UpdateRect()
 {
-  nsSVGFilterFrame *filter = GetFilterFrame(nsnull);
+  nsSVGFilterFrame *filter = GetFilterFrame();
   if (filter) {
-    mFilterRect = filter->GetInvalidationRegion(mFrame, mFrame->GetRect());
-  } else {
-    mFilterRect = nsRect();
+    nsISVGChildFrame *svg;
+    CallQueryInterface(mFrame, &svg);
+    mFilterRect = filter->GetInvalidationRegion(mFrame, svg->GetCoveredRegion());
   }
 }
 
@@ -277,13 +259,15 @@ nsSVGFilterProperty::ParentChainChanged(nsIContent *aContent)
 
 class nsSVGClipPathProperty : public nsSVGPropertyBase {
 public:
-  nsSVGClipPathProperty(nsIURI *aURI, nsIFrame *aClippedFrame)
-    : nsSVGPropertyBase(aURI, aClippedFrame) {}
-
-  nsSVGClipPathFrame *GetClipPathFrame(PRBool *aOK) {
-    return static_cast<nsSVGClipPathFrame *>
-      (GetReferencedFrame(nsGkAtoms::svgClipPathFrame, aOK));
+  nsSVGClipPathProperty(nsIContent *aClipPath, nsIFrame *aClippedFrame)
+    : nsSVGPropertyBase(aClipPath, aClippedFrame, nsGkAtoms::clipPath) {
+    mFrame->AddStateBits(NS_STATE_SVG_CLIPPED);
   }
+  virtual ~nsSVGClipPathProperty() {
+    mFrame->RemoveStateBits(NS_STATE_SVG_CLIPPED);
+  }
+
+  nsSVGClipPathFrame *GetClipPathFrame();
 
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_PARENTCHAINCHANGED
@@ -291,6 +275,20 @@ public:
 private:
   virtual void DoUpdate();
 };
+
+nsSVGClipPathFrame *
+nsSVGClipPathProperty::GetClipPathFrame()
+{
+  nsCOMPtr<nsIContent> clipPath = do_QueryReferent(mObservedContent);
+  if (clipPath) {
+    nsIFrame *frame =
+      static_cast<nsGenericElement*>(clipPath.get())->GetPrimaryFrame();
+    if (frame && frame->GetType() == nsGkAtoms::svgClipPathFrame)
+      return static_cast<nsSVGClipPathFrame*>(frame);
+  }
+
+  return nsnull;
+}
 
 void
 nsSVGClipPathProperty::DoUpdate()
@@ -312,24 +310,21 @@ nsSVGClipPathProperty::ParentChainChanged(nsIContent *aContent)
   if (aContent->IsInDoc())
     return;
 
-  nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(mFrame);
-  if (outerSVGFrame)
-    outerSVGFrame->InvalidateCoveredRegion(mFrame);
-
   mFrame->DeleteProperty(nsGkAtoms::clipPath);
 }
 
 
 class nsSVGMaskProperty : public nsSVGPropertyBase {
 public:
-  nsSVGMaskProperty(nsIURI *aURI, nsIFrame *aMaskedFrame)
-    : nsSVGPropertyBase(aURI, aMaskedFrame) {}
-
-  nsSVGMaskFrame *GetMaskFrame(PRBool *aOK) {
-    return static_cast<nsSVGMaskFrame *>
-      (GetReferencedFrame(nsGkAtoms::svgMaskFrame, aOK));
+  nsSVGMaskProperty(nsIContent *aMask, nsIFrame *aMaskedFrame)
+    : nsSVGPropertyBase(aMask, aMaskedFrame, nsGkAtoms::mask) {
+    mFrame->AddStateBits(NS_STATE_SVG_MASKED);
+  }
+  virtual ~nsSVGMaskProperty() {
+    mFrame->RemoveStateBits(NS_STATE_SVG_MASKED);
   }
 
+  nsSVGMaskFrame *GetMaskFrame();
 
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_PARENTCHAINCHANGED
@@ -337,6 +332,20 @@ public:
 private:
   virtual void DoUpdate();
 };
+
+nsSVGMaskFrame *
+nsSVGMaskProperty::GetMaskFrame()
+{
+  nsCOMPtr<nsIContent> mask = do_QueryReferent(mObservedContent);
+  if (mask) {
+    nsIFrame *frame =
+      static_cast<nsGenericElement*>(mask.get())->GetPrimaryFrame();
+    if (frame && frame->GetType() == nsGkAtoms::svgMaskFrame)
+      return static_cast<nsSVGMaskFrame*>(frame);
+  }
+
+  return nsnull;
+}
 
 void
 nsSVGMaskProperty::DoUpdate()
@@ -357,10 +366,6 @@ nsSVGMaskProperty::ParentChainChanged(nsIContent *aContent)
 {
   if (aContent->IsInDoc())
     return;
-
-  nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(mFrame);
-  if (outerSVGFrame)
-    outerSVGFrame->InvalidateCoveredRegion(mFrame);
 
   mFrame->DeleteProperty(nsGkAtoms::mask);
 }
@@ -848,69 +853,6 @@ nsSVGUtils::GetBBox(nsFrameList *aFrames, nsIDOMSVGRect **_retval)
   return NS_ERROR_FAILURE;
 }
 
-// ************************************************************
-// Effect helper functions
-
-struct EffectProperties {
-  nsSVGFilterProperty*   mFilter;
-  nsSVGMaskProperty*     mMask;
-  nsSVGClipPathProperty* mClipPath;
-};
-
-static nsSVGPropertyBase *
-CreateFilterProperty(nsIURI *aURI, nsIFrame *aFrame)
-{ return new nsSVGFilterProperty(aURI, aFrame); }
-
-static nsSVGPropertyBase *
-CreateMaskProperty(nsIURI *aURI, nsIFrame *aFrame)
-{ return new nsSVGMaskProperty(aURI, aFrame); }
-
-static nsSVGPropertyBase *
-CreateClipPathProperty(nsIURI *aURI, nsIFrame *aFrame)
-{ return new nsSVGClipPathProperty(aURI, aFrame); }
-
-static nsSVGPropertyBase *
-GetEffectProperty(nsIURI *aURI, nsIFrame *aFrame, nsIAtom *aProp,
-                  nsSVGPropertyBase * (* aCreate)(nsIURI *, nsIFrame *))
-{
-  if (!aURI)
-    return nsnull;
-  nsSVGPropertyBase *prop = static_cast<nsSVGPropertyBase*>(aFrame->GetProperty(aProp));
-  if (prop)
-    return prop;
-  prop = aCreate(aURI, aFrame);
-  if (!prop)
-    return nsnull;
-  NS_ADDREF(prop);
-  aFrame->SetProperty(aProp,
-                      static_cast<nsISupports*>(prop),
-                      nsPropertyTable::SupportsDtorFunc);
-  return prop;
-}
-
-static EffectProperties
-GetEffectProperties(nsIFrame *aFrame)
-{
-  EffectProperties result;
-  const nsStyleSVGReset *style = aFrame->GetStyleSVGReset();
-  result.mFilter = static_cast<nsSVGFilterProperty*>
-    (GetEffectProperty(style->mFilter, aFrame, nsGkAtoms::filter, CreateFilterProperty));
-  result.mClipPath = static_cast<nsSVGClipPathProperty*>
-    (GetEffectProperty(style->mClipPath, aFrame, nsGkAtoms::clipPath, CreateClipPathProperty));
-  result.mMask = static_cast<nsSVGMaskProperty*>
-    (GetEffectProperty(style->mMask, aFrame, nsGkAtoms::mask, CreateMaskProperty));
-  return result;
-}
-
-static nsSVGFilterProperty *
-GetFilterProperty(nsIFrame *aFrame)
-{
-  if (!aFrame->GetStyleSVGReset()->mFilter)
-    return nsnull;
-
-  return static_cast<nsSVGFilterProperty *>(aFrame->GetProperty(nsGkAtoms::filter));
-}
-
 nsRect
 nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
 {
@@ -920,9 +862,11 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
     if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)
       break;
 
-    nsSVGFilterProperty *property = GetFilterProperty(aFrame);
-    if (property) {
-      nsSVGFilterFrame *filter = property->GetFilterFrame(nsnull);
+    if (aFrame->GetStateBits() & NS_STATE_SVG_FILTERED) {
+      nsSVGFilterProperty *property;
+      property = static_cast<nsSVGFilterProperty *>
+                            (aFrame->GetProperty(nsGkAtoms::filter));
+      nsSVGFilterFrame *filter = property->GetFilterFrame();
       if (filter) {
         rect = filter->GetInvalidationRegion(aFrame, rect);
       }
@@ -936,9 +880,13 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
 void
 nsSVGUtils::UpdateFilterRegion(nsIFrame *aFrame)
 {
-  EffectProperties props = GetEffectProperties(aFrame);
-  if (props.mFilter) {
-    props.mFilter->UpdateRect();
+  AddEffectProperties(aFrame);
+
+  if (aFrame->GetStateBits() & NS_STATE_SVG_FILTERED) {
+    nsSVGFilterProperty *property;
+    property = static_cast<nsSVGFilterProperty *>
+                          (aFrame->GetProperty(nsGkAtoms::filter));
+    property->UpdateRect();
   }
 }
 
@@ -983,8 +931,10 @@ nsSVGUtils::NotifyAncestorsOfFilterRegionChange(nsIFrame *aFrame)
     if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)
       return;
 
-    nsSVGFilterProperty *property = GetFilterProperty(aFrame);
-    if (property) {
+    if (aFrame->GetStateBits() & NS_STATE_SVG_FILTERED) {
+      nsSVGFilterProperty *property;
+      property = static_cast<nsSVGFilterProperty *>
+                            (aFrame->GetProperty(nsGkAtoms::filter));
       property->Invalidate();
     }
     aFrame = aFrame->GetParent();
@@ -1259,6 +1209,94 @@ nsSVGUtils::RemoveObserver(nsISupports *aObserver, nsISupports *aTarget)
 }
 
 // ************************************************************
+// Effect helper functions
+
+static PRBool
+AddEffectProperties(nsIFrame *aFrame)
+{
+  const nsStyleSVGReset *style = aFrame->GetStyleSVGReset();
+
+  if (style->mFilter && !(aFrame->GetStateBits() & NS_STATE_SVG_FILTERED)) {
+    nsIContent *filter = NS_GetSVGFilterElement(style->mFilter,
+                                                aFrame->GetContent());
+    if (!filter) {
+      return PR_FALSE;
+    }
+    nsSVGPropertyBase *property;
+    if (!(property = new nsSVGFilterProperty(filter, aFrame))) {
+      NS_ERROR("Could not create filter property");
+      return PR_FALSE;
+    }
+    NS_ADDREF(property); // addref to allow QI - SupportsDtorFunc releases
+  }
+
+  if (style->mClipPath && !(aFrame->GetStateBits() & NS_STATE_SVG_CLIPPED)) {
+    nsIContent *clipPath = NS_GetSVGClipPathElement(style->mClipPath,
+                                                    aFrame->GetContent());
+    if (!clipPath) {
+      return PR_FALSE;
+    }
+    nsSVGPropertyBase *property;
+    if (!(property = new nsSVGClipPathProperty(clipPath, aFrame))) {
+      NS_ERROR("Could not create clipPath property");
+      return PR_FALSE;
+    }
+    NS_ADDREF(property); // addref to allow QI - SupportsDtorFunc releases
+  }
+
+  if (style->mMask && !(aFrame->GetStateBits() & NS_STATE_SVG_MASKED)) {
+    nsIContent *mask = NS_GetSVGMaskElement(style->mMask,
+                                            aFrame->GetContent());
+    if (!mask) {
+      return PR_FALSE;
+    }
+    nsSVGPropertyBase *property;
+    if (!(property = new nsSVGMaskProperty(mask, aFrame))) {
+      NS_ERROR("Could not create mask property");
+      return PR_FALSE;
+    }
+    NS_ADDREF(property); // addref to allow QI - SupportsDtorFunc releases
+  }
+  return PR_TRUE;
+}
+
+static nsSVGFilterFrame *
+GetFilterFrame(nsFrameState aState, nsIFrame *aFrame)
+{
+  if (aState & NS_STATE_SVG_FILTERED) {
+    nsSVGFilterProperty *property;
+    property = static_cast<nsSVGFilterProperty *>
+                          (aFrame->GetProperty(nsGkAtoms::filter));
+    return property->GetFilterFrame();
+  }
+  return nsnull;
+}
+
+static nsSVGClipPathFrame *
+GetClipPathFrame(nsFrameState aState, nsIFrame *aFrame)
+{
+  if (aState & NS_STATE_SVG_CLIPPED) {
+    nsSVGClipPathProperty *property;
+    property = static_cast<nsSVGClipPathProperty *>
+                          (aFrame->GetProperty(nsGkAtoms::clipPath));
+    return property->GetClipPathFrame();
+  }
+  return nsnull;
+}
+
+static nsSVGMaskFrame *
+GetMaskFrame(nsFrameState aState, nsIFrame *aFrame)
+{
+  if (aState & NS_STATE_SVG_MASKED) {
+    nsSVGMaskProperty *property;
+    property = static_cast<nsSVGMaskProperty *>
+                          (aFrame->GetProperty(nsGkAtoms::mask));
+    return property->GetMaskFrame();
+  }
+  return nsnull;
+}
+
+// ************************************************************
 
 void
 nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
@@ -1278,11 +1316,13 @@ nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
   /* Properties are added lazily and may have been removed by a restyle,
      so make sure all applicable ones are set again. */
 
-  EffectProperties effectProperties = GetEffectProperties(aFrame);
+  if (!AddEffectProperties(aFrame))
+    return;
+  nsFrameState state = aFrame->GetStateBits();
 
   /* Check if we need to draw anything */
   if (aDirtyRect && svgChildFrame->HasValidCoveredRect()) {
-    if (effectProperties.mFilter) {
+    if (state & NS_STATE_SVG_FILTERED) {
       if (!aDirtyRect->Intersects(FindFilterInvalidation(aFrame, aFrame->GetRect())))
         return;
     } else {
@@ -1311,21 +1351,11 @@ nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
   gfxContext *gfx = aContext->GetGfxContext();
   PRBool complexEffects = PR_FALSE;
 
-  PRBool isOK = PR_TRUE;
-  nsSVGClipPathFrame *clipPathFrame = effectProperties.mClipPath ?
-    effectProperties.mClipPath->GetClipPathFrame(&isOK) : nsnull;
-  nsSVGFilterFrame *filterFrame = effectProperties.mFilter ?
-    effectProperties.mFilter->GetFilterFrame(&isOK) : nsnull;
-  nsSVGMaskFrame *maskFrame = effectProperties.mMask ?
-    effectProperties.mMask->GetMaskFrame(&isOK) : nsnull;
-
+  nsSVGClipPathFrame *clipPathFrame = GetClipPathFrame(state, aFrame);
   PRBool isTrivialClip = clipPathFrame ? clipPathFrame->IsTrivial() : PR_TRUE;
 
-  if (!isOK) {
-    // Some resource is missing. We shouldn't paint anything.
-    return;
-  }
-  
+  nsSVGMaskFrame *maskFrame = GetMaskFrame(state, aFrame);
+
   nsCOMPtr<nsIDOMSVGMatrix> matrix =
     (clipPathFrame || maskFrame) ? GetCanvasTM(aFrame) : nsnull;
 
@@ -1346,6 +1376,7 @@ nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
   }
 
   /* Paint the child */
+  nsSVGFilterFrame *filterFrame = GetFilterFrame(state, aFrame);
   if (filterFrame) {
     filterFrame->FilterPaint(aContext, svgChildFrame, aDirtyRect);
   } else {
@@ -1395,32 +1426,40 @@ nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
 }
 
 void
-nsSVGUtils::UpdateEffects(nsIFrame *aFrame)
+nsSVGUtils::StyleEffects(nsIFrame *aFrame)
 {
-  aFrame->DeleteProperty(nsGkAtoms::filter);
-  aFrame->DeleteProperty(nsGkAtoms::mask);
-  aFrame->DeleteProperty(nsGkAtoms::clipPath);
+  nsFrameState state = aFrame->GetStateBits();
+
+  /* clear out all effects */
+
+  if (state & NS_STATE_SVG_CLIPPED) {
+    aFrame->DeleteProperty(nsGkAtoms::clipPath);
+  }
+
+  if (state & NS_STATE_SVG_FILTERED) {
+    aFrame->DeleteProperty(nsGkAtoms::filter);
+  }
+
+  if (state & NS_STATE_SVG_MASKED) {
+    aFrame->DeleteProperty(nsGkAtoms::mask);
+  }
 }
 
 PRBool
 nsSVGUtils::HitTestClip(nsIFrame *aFrame, float x, float y)
 {
-  EffectProperties props = GetEffectProperties(aFrame);
-  if (!props.mClipPath)
-    return PR_TRUE;
+  nsSVGClipPathFrame *clipPathFrame =
+    GetClipPathFrame(aFrame->GetStateBits(), aFrame);
 
-  nsSVGClipPathFrame *clipPathFrame = props.mClipPath->GetClipPathFrame(nsnull);
-  if (!clipPathFrame) {
-    // clipPath is not a valid resource, so nothing gets painted, so
-    // hit-testing must fail.
-    return PR_FALSE;
+  if (clipPathFrame) {
+    nsISVGChildFrame* SVGFrame;
+    CallQueryInterface(aFrame, &SVGFrame);
+
+    nsCOMPtr<nsIDOMSVGMatrix> matrix = GetCanvasTM(aFrame);
+    return clipPathFrame->ClipHitTest(SVGFrame, matrix, x, y);
   }
 
-  nsISVGChildFrame* SVGFrame;
-  CallQueryInterface(aFrame, &SVGFrame);
-
-  nsCOMPtr<nsIDOMSVGMatrix> matrix = GetCanvasTM(aFrame);
-  return clipPathFrame->ClipHitTest(SVGFrame, matrix, x, y);
+  return PR_TRUE;
 }
 
 void
@@ -1669,7 +1708,7 @@ nsSVGUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
 PRBool
 nsSVGUtils::CanOptimizeOpacity(nsIFrame *aFrame)
 {
-  if (!aFrame->GetStyleSVGReset()->mFilter) {
+  if (!(aFrame->GetStateBits() & NS_STATE_SVG_FILTERED)) {
     nsIAtom *type = aFrame->GetType();
     if (type == nsGkAtoms::svgImageFrame)
       return PR_TRUE;

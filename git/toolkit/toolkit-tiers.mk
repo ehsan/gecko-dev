@@ -118,13 +118,13 @@ endif
 
 ifdef MOZ_OGG
 tier_gecko_dirs += \
-		media/libfishsound \
-		media/libogg \
-		media/liboggplay \
-		media/liboggplay_audio \
-		media/liboggz \
-		media/libtheora \
-		media/libvorbis \
+		modules/libfishsound \
+		modules/libogg \
+		modules/liboggplay \
+		modules/liboggplay_audio \
+		modules/liboggz \
+		modules/libtheora \
+		modules/libvorbis \
 		$(NULL)
 endif
 

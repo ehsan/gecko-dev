@@ -72,7 +72,8 @@ enum nsCSSType {
   eCSSType_Rect,
   eCSSType_ValuePair,
   eCSSType_ValueList,
-  eCSSType_ValuePairList
+  eCSSType_CounterData,
+  eCSSType_Quotes
 };
 
 #endif /* nsCSSProperty_h___ */

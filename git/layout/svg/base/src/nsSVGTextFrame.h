@@ -59,6 +59,7 @@ public:
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
+  NS_IMETHOD DidSetStyleContext();
 
   /**
    * Get the "type" of the frame

@@ -190,8 +190,7 @@ nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyleData,
-                                mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyleData, mStyleContext, skipSides);
 
     aRenderingContext.PopState();
 
@@ -205,8 +204,7 @@ nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyleData,
-                                mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyleData, mStyleContext, skipSides);
 
     aRenderingContext.PopState();
 
@@ -221,8 +219,7 @@ nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyleData,
-                                mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyleData, mStyleContext, skipSides);
 
     aRenderingContext.PopState();
     

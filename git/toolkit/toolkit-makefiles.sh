@@ -283,52 +283,52 @@ MAKEFILES_libutil="
 "
 
 MAKEFILES_libvorbis="
-  media/libvorbis/Makefile
-  media/libvorbis/lib/Makefile
-  media/libvorbis/include/Makefile
-  media/libvorbis/include/vorbis/Makefile
+  modules/libvorbis/Makefile
+  modules/libvorbis/lib/Makefile
+  modules/libvorbis/include/Makefile
+  modules/libvorbis/include/vorbis/Makefile
 "
 
 MAKEFILES_libtheora="
-  media/libtheora/Makefile
-  media/libtheora/lib/Makefile
-  media/libtheora/include/Makefile
-  media/libtheora/include/theora/Makefile
+  modules/libtheora/Makefile
+  modules/libtheora/lib/Makefile
+  modules/libtheora/include/Makefile
+  modules/libtheora/include/theora/Makefile
 "
 
 MAKEFILES_liboggz="
-  media/liboggz/Makefile
-  media/liboggz/src/Makefile
-  media/liboggz/src/liboggz/Makefile
-  media/liboggz/include/Makefile
-  media/liboggz/include/oggz/Makefile
+  modules/liboggz/Makefile
+  modules/liboggz/src/Makefile
+  modules/liboggz/src/liboggz/Makefile
+  modules/liboggz/include/Makefile
+  modules/liboggz/include/oggz/Makefile
 "
 
 MAKEFILES_libogg="
-  media/libogg/Makefile
-  media/libogg/src/Makefile
-  media/libogg/include/Makefile
-  media/libogg/include/ogg/Makefile
+  modules/libogg/Makefile
+  modules/libogg/src/Makefile
+  modules/libogg/include/Makefile
+  modules/libogg/include/ogg/Makefile
 "
 
 MAKEFILES_libfishsound="
-  media/libfishsound/Makefile
-  media/libfishsound/src/Makefile
-  media/libfishsound/src/libfishsound/Makefile
-  media/libfishsound/include/Makefile
-  media/libfishsound/include/fishsound/Makefile
+  modules/libfishsound/Makefile
+  modules/libfishsound/src/Makefile
+  modules/libfishsound/src/libfishsound/Makefile
+  modules/libfishsound/include/Makefile
+  modules/libfishsound/include/fishsound/Makefile
 "
 
 MAKEFILES_liboggplay="
-  media/liboggplay/Makefile
-  media/liboggplay/src/Makefile
-  media/liboggplay/src/liboggplay/Makefile
-  media/liboggplay/include/Makefile
-  media/liboggplay/include/oggplay/Makefile
+  modules/liboggplay/Makefile
+  modules/liboggplay/src/Makefile
+  modules/liboggplay/src/liboggplay/Makefile
+  modules/liboggplay/include/Makefile
+  modules/liboggplay/include/oggplay/Makefile
 "
 
 MAKEFILES_liboggplay_audio="
-  media/liboggplay_audio/Makefile
+  modules/liboggplay_audio/Makefile
 "
 
 MAKEFILES_oji="

@@ -885,34 +885,25 @@ nsStyleSVGReset::nsStyleSVGReset(const nsStyleSVGReset& aSource)
 
 nsChangeHint nsStyleSVGReset::CalcDifference(const nsStyleSVGReset& aOther) const
 {
-  nsChangeHint hint = nsChangeHint(0);
-
-  if (!EqualURIs(mClipPath, aOther.mClipPath) ||
-      !EqualURIs(mFilter, aOther.mFilter)     ||
-      !EqualURIs(mMask, aOther.mMask)) {
-    NS_UpdateHint(hint, nsChangeHint_UpdateEffects);
-    NS_UpdateHint(hint, nsChangeHint_ReflowFrame);
-    NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
-  }
-
   if (mStopColor             != aOther.mStopColor     ||
       mFloodColor            != aOther.mFloodColor    ||
       mLightingColor         != aOther.mLightingColor ||
+      !EqualURIs(mClipPath, aOther.mClipPath)         ||
+      !EqualURIs(mFilter, aOther.mFilter)             ||
+      !EqualURIs(mMask, aOther.mMask)                 ||
       mStopOpacity           != aOther.mStopOpacity   ||
       mFloodOpacity          != aOther.mFloodOpacity  ||
       mDominantBaseline != aOther.mDominantBaseline)
-    NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
-
-  return hint;
+    return NS_STYLE_HINT_VISUAL;
+  
+  return NS_STYLE_HINT_NONE;
 }
 
 #ifdef DEBUG
 /* static */
 nsChangeHint nsStyleSVGReset::MaxDifference()
 {
-  return NS_CombineHint(NS_CombineHint(nsChangeHint_UpdateEffects,
-                                       nsChangeHint_ReflowFrame),
-                                       nsChangeHint_RepaintFrame);
+  return NS_STYLE_HINT_VISUAL;
 }
 #endif
 

@@ -154,17 +154,30 @@ struct nsCSSValueListRect {
   static const side_type sides[4];
 };
 
-// Maybe should be replaced with nsCSSValueList and nsCSSValue::Array?
-struct nsCSSValuePairList {
-  nsCSSValuePairList(void);
-  nsCSSValuePairList(const nsCSSValuePairList& aCopy);
-  ~nsCSSValuePairList(void);
+// Should be replaced with nsCSSValueList and nsCSSValue::Array.
+struct nsCSSCounterData {
+  nsCSSCounterData(void);
+  nsCSSCounterData(const nsCSSCounterData& aCopy);
+  ~nsCSSCounterData(void);
 
-  static PRBool Equal(nsCSSValuePairList* aList1, nsCSSValuePairList* aList2);
+  static PRBool Equal(nsCSSCounterData* aList1, nsCSSCounterData* aList2);
 
-  nsCSSValue          mXValue;
-  nsCSSValue          mYValue;
-  nsCSSValuePairList* mNext;
+  nsCSSValue        mCounter;
+  nsCSSValue        mValue;
+  nsCSSCounterData* mNext;
+};
+
+// Should be replaced with nsCSSValueList and nsCSSValue::Array.
+struct nsCSSQuotes {
+  nsCSSQuotes(void);
+  nsCSSQuotes(const nsCSSQuotes& aCopy);
+  ~nsCSSQuotes(void);
+
+  static PRBool Equal(nsCSSQuotes* aList1, nsCSSQuotes* aList2);
+
+  nsCSSValue    mOpen;
+  nsCSSValue    mClose;
+  nsCSSQuotes*  mNext;
 };
 
 /****************************************************************************/
@@ -460,11 +473,11 @@ struct nsCSSContent : public nsCSSStruct  {
   nsCSSContent(void);
   ~nsCSSContent(void);
 
-  nsCSSValueList*     mContent;
-  nsCSSValuePairList* mCounterIncrement;
-  nsCSSValuePairList* mCounterReset;
-  nsCSSValue          mMarkerOffset;
-  nsCSSValuePairList* mQuotes;
+  nsCSSValueList*   mContent;
+  nsCSSCounterData* mCounterIncrement;
+  nsCSSCounterData* mCounterReset;
+  nsCSSValue        mMarkerOffset;
+  nsCSSQuotes*      mQuotes;
 private:
   nsCSSContent(const nsCSSContent& aOther); // NOT IMPLEMENTED
 };

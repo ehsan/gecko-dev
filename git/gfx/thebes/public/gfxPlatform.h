@@ -53,7 +53,6 @@ typedef void* cmsHPROFILE;
 typedef void* cmsHTRANSFORM;
 
 class gfxImageSurface;
-class gfxFont;
 class gfxFontGroup;
 struct gfxFontStyle;
 

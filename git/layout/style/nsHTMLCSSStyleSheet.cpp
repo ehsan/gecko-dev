@@ -81,17 +81,17 @@ public:
 #endif
 protected:
   nsCSSValueList mInheritList;
-  nsCSSValuePairList mInheritQuotes;
-  nsCSSValuePairList mNoneCounter;
+  nsCSSQuotes mInheritQuotes;
+  nsCSSCounterData mNoneCounter;
 };
 
 CSSDisablePropsRule::CSSDisablePropsRule()
 {
   nsCSSValue none(eCSSUnit_None);
-  mNoneCounter.mXValue = none;
+  mNoneCounter.mCounter = none;
   nsCSSValue inherit(eCSSUnit_Inherit);
   mInheritList.mValue = inherit;
-  mInheritQuotes.mXValue = inherit;
+  mInheritQuotes.mOpen = inherit;
 }
 
 class CSSFirstLineRule : public CSSDisablePropsRule {

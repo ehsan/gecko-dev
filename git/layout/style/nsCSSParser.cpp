@@ -410,7 +410,7 @@ protected:
   PRBool DoParseRect(nsCSSRect& aRect, nsresult& aErrorCode);
   PRBool ParseContent(nsresult& aErrorCode);
   PRBool ParseCounterData(nsresult& aErrorCode,
-                          nsCSSValuePairList** aResult,
+                          nsCSSCounterData** aResult,
                           nsCSSProperty aPropID);
   PRBool ParseCue(nsresult& aErrorCode);
   PRBool ParseCursor(nsresult& aErrorCode);
@@ -3928,12 +3928,20 @@ CSSParserImpl::DoTransferTempData(nsCSSDeclaration* aDeclaration,
       *source = nsnull;
     } break;
 
-    case eCSSType_ValuePairList: {
-      nsCSSValuePairList **source =
-        static_cast<nsCSSValuePairList**>(v_source);
-      nsCSSValuePairList **dest =
-        static_cast<nsCSSValuePairList**>(v_dest);
-      if (!nsCSSValuePairList::Equal(*source, *dest))
+    case eCSSType_CounterData: {
+      nsCSSCounterData **source = static_cast<nsCSSCounterData**>(v_source);
+      nsCSSCounterData **dest = static_cast<nsCSSCounterData**>(v_dest);
+      if (!nsCSSCounterData::Equal(*source, *dest))
+        *aChanged = PR_TRUE;
+      delete *dest;
+      *dest = *source;
+      *source = nsnull;
+    } break;
+
+    case eCSSType_Quotes: {
+      nsCSSQuotes **source = static_cast<nsCSSQuotes**>(v_source);
+      nsCSSQuotes **dest = static_cast<nsCSSQuotes**>(v_dest);
+      if (!nsCSSQuotes::Equal(*source, *dest))
         *aChanged = PR_TRUE;
       delete *dest;
       *dest = *source;
@@ -6165,7 +6173,7 @@ struct SingleCounterPropValue {
 };
 
 PRBool CSSParserImpl::ParseCounterData(nsresult& aErrorCode,
-                                       nsCSSValuePairList** aResult,
+                                       nsCSSCounterData** aResult,
                                        nsCSSProperty aPropID)
 {
   nsSubstring* ident = NextIdent(aErrorCode);
@@ -6182,12 +6190,12 @@ PRBool CSSParserImpl::ParseCounterData(nsresult& aErrorCode,
        sv != sv_end; ++sv) {
     if (ident->LowerCaseEqualsASCII(sv->str)) {
       if (ExpectEndProperty(aErrorCode)) {
-        nsCSSValuePairList* dataHead = new nsCSSValuePairList();
+        nsCSSCounterData* dataHead = new nsCSSCounterData();
         if (!dataHead) {
           aErrorCode = NS_ERROR_OUT_OF_MEMORY;
           return PR_FALSE;
         }
-        dataHead->mXValue = nsCSSValue(sv->unit);
+        dataHead->mCounter = nsCSSValue(sv->unit);
         *aResult = dataHead;
         mTempData.SetPropertyBit(aPropID);
         return PR_TRUE;
@@ -6197,22 +6205,22 @@ PRBool CSSParserImpl::ParseCounterData(nsresult& aErrorCode,
   }
   UngetToken(); // undo NextIdent
 
-  nsCSSValuePairList* dataHead = nsnull;
-  nsCSSValuePairList **next = &dataHead;
+  nsCSSCounterData* dataHead = nsnull;
+  nsCSSCounterData **next = &dataHead;
   for (;;) {
     if (!GetToken(aErrorCode, PR_TRUE) || mToken.mType != eCSSToken_Ident) {
       break;
     }
-    nsCSSValuePairList *data = *next = new nsCSSValuePairList();
+    nsCSSCounterData *data = *next = new nsCSSCounterData();
     if (!data) {
       aErrorCode = NS_ERROR_OUT_OF_MEMORY;
       break;
     }
     next = &data->mNext;
-    data->mXValue.SetStringValue(mToken.mIdent, eCSSUnit_String);
+    data->mCounter.SetStringValue(mToken.mIdent, eCSSUnit_String);
     if (GetToken(aErrorCode, PR_TRUE)) {
       if (eCSSToken_Number == mToken.mType && mToken.mIntegerValid) {
-        data->mYValue.SetIntValue(mToken.mInteger, eCSSUnit_Integer);
+        data->mValue.SetIntValue(mToken.mInteger, eCSSUnit_Integer);
       } else {
         UngetToken();
       }
@@ -6691,17 +6699,16 @@ PRBool CSSParserImpl::ParseQuotes(nsresult& aErrorCode)
   nsCSSValue  open;
   if (ParseVariant(aErrorCode, open, VARIANT_HOS, nsnull)) {
     if (eCSSUnit_String == open.GetUnit()) {
-      nsCSSValuePairList* quotesHead = new nsCSSValuePairList();
-      nsCSSValuePairList* quotes = quotesHead;
+      nsCSSQuotes* quotesHead = new nsCSSQuotes();
+      nsCSSQuotes* quotes = quotesHead;
       if (nsnull == quotes) {
         aErrorCode = NS_ERROR_OUT_OF_MEMORY;
         return PR_FALSE;
       }
-      quotes->mXValue = open;
+      quotes->mOpen = open;
       while (nsnull != quotes) {
         // get mandatory close
-        if (ParseVariant(aErrorCode, quotes->mYValue, VARIANT_STRING,
-                         nsnull)) {
+        if (ParseVariant(aErrorCode, quotes->mClose, VARIANT_STRING, nsnull)) {
           if (ExpectEndProperty(aErrorCode)) {
             mTempData.SetPropertyBit(eCSSProperty_quotes);
             mTempData.mContent.mQuotes = quotesHead;
@@ -6710,10 +6717,10 @@ PRBool CSSParserImpl::ParseQuotes(nsresult& aErrorCode)
           }
           // look for another open
           if (ParseVariant(aErrorCode, open, VARIANT_STRING, nsnull)) {
-            quotes->mNext = new nsCSSValuePairList();
+            quotes->mNext = new nsCSSQuotes();
             quotes = quotes->mNext;
             if (nsnull != quotes) {
-              quotes->mXValue = open;
+              quotes->mOpen = open;
               continue;
             }
             aErrorCode = NS_ERROR_OUT_OF_MEMORY;
@@ -6725,8 +6732,8 @@ PRBool CSSParserImpl::ParseQuotes(nsresult& aErrorCode)
       return PR_FALSE;
     }
     if (ExpectEndProperty(aErrorCode)) {
-      nsCSSValuePairList* quotesHead = new nsCSSValuePairList();
-      quotesHead->mXValue = open;
+      nsCSSQuotes* quotesHead = new nsCSSQuotes();
+      quotesHead->mOpen = open;
       mTempData.mContent.mQuotes = quotesHead;
       mTempData.SetPropertyBit(eCSSProperty_quotes);
       return PR_TRUE;

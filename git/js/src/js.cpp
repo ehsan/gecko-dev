@@ -1032,12 +1032,6 @@ ValueToScript(JSContext *cx, jsval v)
             return NULL;
         script = FUN_SCRIPT(fun);
     }
-
-    if (!script) {
-        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL,
-                             JSSMSG_SCRIPTS_ONLY);
-    }
-
     return script;
 }
 
@@ -1374,16 +1368,19 @@ Disassemble(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     }
     for (i = 0; i < argc; i++) {
         script = ValueToScript(cx, argv[i]);
-        if (!script)
+        if (!script) {
+            JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL,
+                                 JSSMSG_SCRIPTS_ONLY);
             return JS_FALSE;
+        }
         if (VALUE_IS_FUNCTION(cx, argv[i])) {
             JSFunction *fun = JS_ValueToFunction(cx, argv[i]);
             if (fun && (fun->flags & JSFUN_FLAGS_MASK)) {
                 uint16 flags = fun->flags;
                 fputs("flags:", stdout);
-
+                
 #define SHOW_FLAG(flag) if (flags & JSFUN_##flag) fputs(" " #flag, stdout);
-
+                
                 SHOW_FLAG(LAMBDA);
                 SHOW_FLAG(SETTER);
                 SHOW_FLAG(GETTER);
@@ -1394,14 +1391,17 @@ Disassemble(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
                 SHOW_FLAG(THISP_BOOLEAN);
                 SHOW_FLAG(EXPR_CLOSURE);
                 SHOW_FLAG(INTERPRETED);
-
+                
 #undef SHOW_FLAG
                 putchar('\n');
             }
         }
-
-        if (!js_Disassemble(cx, script, lines, stdout))
+        
+        if (!js_Disassemble(cx, script, lines, stdout)) {
+            JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL,
+                                 JSSMSG_CANT_DISASSEMBLE);
             return JS_FALSE;
+        }
         SrcNotes(cx, script);
         TryNotes(cx, script);
     }
@@ -1418,16 +1418,11 @@ DisassWithSrc(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     FILE *file;
     char linebuf[LINE_BUF_LEN];
     jsbytecode *pc, *end;
-    JSBool ok;
     static char sep[] = ";-------------------------";
 
-    ok = JS_TRUE;
-    for (i = 0; ok && i < argc; i++) {
+    for (i = 0; i < argc; i++) {
         script = ValueToScript(cx, argv[i]);
-        if (!script)
-           return JS_FALSE;
-
-        if (!script->filename) {
+        if (!script || !script->filename) {
             JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL,
                                  JSSMSG_FILE_SCRIPTS_ONLY);
             return JS_FALSE;
@@ -1436,8 +1431,8 @@ DisassWithSrc(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
         file = fopen(script->filename, "r");
         if (!file) {
             JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL,
-                                 JSSMSG_CANT_OPEN, script->filename,
-                                 strerror(errno));
+                            JSSMSG_CANT_OPEN,
+                            script->filename, strerror(errno));
             return JS_FALSE;
         }
 
@@ -1467,7 +1462,6 @@ DisassWithSrc(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL,
                                              JSSMSG_UNEXPECTED_EOF,
                                              script->filename);
-                        ok = JS_FALSE;
                         goto bail;
                     }
                     line1++;
@@ -1479,8 +1473,9 @@ DisassWithSrc(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                                   PTRDIFF(pc, script->code, jsbytecode),
                                   JS_TRUE, stdout);
             if (!len) {
-                ok = JS_FALSE;
-                goto bail;
+                JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL,
+                                     JSSMSG_CANT_DISASSEMBLE);
+                return JS_FALSE;
             }
             pc += len;
         }
@@ -1488,7 +1483,7 @@ DisassWithSrc(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
       bail:
         fclose(file);
     }
-    return ok;
+    return JS_TRUE;
 #undef LINE_BUF_LEN
 }
 
