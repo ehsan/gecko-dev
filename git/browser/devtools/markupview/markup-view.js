@@ -2317,7 +2317,7 @@ ElementEditor.prototype = {
    * Called when the tag name editor has is done editing.
    */
   onTagEdit: function(newTagName, isCommit) {
-    if (!isCommit || newTagName.toLowerCase() === this.node.tagName.toLowerCase() ||
+    if (!isCommit || newTagName == this.node.tagName ||
         !("editTagName" in this.markup.walker)) {
       return;
     }

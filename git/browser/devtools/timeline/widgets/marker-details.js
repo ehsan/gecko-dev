@@ -22,14 +22,12 @@ loader.lazyRequireGetter(this, "EventEmitter",
  *
  * @param nsIDOMNode parent
  *        The parent node holding the view.
- * @param nsIDOMNode splitter
- *        The splitter node that the resize event is bound to.
  */
-function MarkerDetails(parent, splitter) {
+function MarkerDetails(parent) {
   EventEmitter.decorate(this);
   this._document = parent.ownerDocument;
   this._parent = parent;
-  this._splitter = splitter;
+  this._splitter = this._document.querySelector("#timeline-waterfall-container > splitter");
   this._splitter.addEventListener("mouseup", () => this.emit("resize"));
 }
 
@@ -37,7 +35,6 @@ MarkerDetails.prototype = {
   destroy: function() {
     this.empty();
     this._parent = null;
-    this._splitter = null;
   },
 
   /**

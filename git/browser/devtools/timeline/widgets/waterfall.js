@@ -48,14 +48,11 @@ const WATERFALL_ROWCOUNT_ONPAGEUPDOWN = 10;
  *
  * @param nsIDOMNode parent
  *        The parent node holding the waterfall.
- * @param nsIDOMNode container
- *        The container node that key events should be bound to.
  */
-function Waterfall(parent, container) {
+function Waterfall(parent) {
   EventEmitter.decorate(this);
   this._parent = parent;
   this._document = parent.ownerDocument;
-  this._container = container;
   this._fragment = this._document.createDocumentFragment();
   this._outstandingMarkers = [];
 
@@ -81,15 +78,9 @@ function Waterfall(parent, container) {
   // Selected row index. By default, we want the first
   // row to be selected.
   this._selectedRowIdx = 0;
-
-  // Default rowCount
-  this.rowCount = WATERFALL_ROWCOUNT_ONPAGEUPDOWN;
 }
 
 Waterfall.prototype = {
-  destroy: function() {
-    this._parent = this._document = this._container = null;
-  },
   /**
    * Populates this view with the provided data source.
    *
@@ -119,7 +110,7 @@ Waterfall.prototype = {
    * Keybindings.
    */
   setupKeys: function() {
-    let pane = this._container;
+    let pane = this._document.querySelector("#timeline-pane");
     pane.parentNode.parentNode.addEventListener("keydown", e => {
       if (e.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_UP) {
         e.preventDefault();
@@ -139,11 +130,11 @@ Waterfall.prototype = {
       }
       if (e.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_PAGE_UP) {
         e.preventDefault();
-        this.selectNearestRow(this._selectedRowIdx - this.rowCount);
+        this.selectNearestRow(this._selectedRowIdx - WATERFALL_ROWCOUNT_ONPAGEUPDOWN);
       }
       if (e.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_PAGE_DOWN) {
         e.preventDefault();
-        this.selectNearestRow(this._selectedRowIdx + this.rowCount);
+        this.selectNearestRow(this._selectedRowIdx + WATERFALL_ROWCOUNT_ONPAGEUPDOWN);
       }
     }, true);
   },

@@ -76,16 +76,6 @@ public class ToolbarComponent extends BaseComponent {
         return this;
     }
 
-    public ToolbarComponent assertIsUrlEditTextSelected() {
-        fAssertTrue("The edit text is selected", isUrlEditTextSelected());
-        return this;
-    }
-
-    public ToolbarComponent assertIsUrlEditTextNotSelected() {
-        fAssertFalse("The edit text is not selected", isUrlEditTextSelected());
-        return this;
-    }
-
     /**
      * Returns the root View for the browser toolbar.
      */
@@ -202,7 +192,7 @@ public class ToolbarComponent extends BaseComponent {
                 urlEditText.isInputMethodTarget());
 
         mSolo.clearEditText(urlEditText);
-        mSolo.typeText(urlEditText, url);
+        mSolo.enterText(urlEditText, url);
 
         return this;
     }
@@ -255,9 +245,5 @@ public class ToolbarComponent extends BaseComponent {
                 return !isEditing();
             }
         });
-    }
-
-    private boolean isUrlEditTextSelected() {
-        return getUrlEditText().isSelected();
     }
 }
