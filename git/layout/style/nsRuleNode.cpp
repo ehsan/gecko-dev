@@ -67,7 +67,6 @@
 #include "nsSize.h"
 #include "imgIRequest.h"
 #include "nsRuleData.h"
-#include "nsILanguageAtomService.h"
 #include "nsIStyleRule.h"
 #include "nsBidiUtils.h"
 #include "nsUnicharUtils.h"
@@ -773,6 +772,17 @@ static PRBool SetColor(const nsCSSValue& aValue, const nscolor aParentColor,
     result = PR_TRUE;
     aCanStoreInRuleTree = PR_FALSE;
   }
+  else if (eCSSUnit_Enumerated == unit &&
+           aValue.GetIntValue() == NS_STYLE_COLOR_INHERIT_FROM_BODY) {
+    NS_ASSERTION(aPresContext->CompatibilityMode() == eCompatibility_NavQuirks,
+                 "Should only get this value in quirks mode");
+    // We just grab the color from the prescontext, and rely on the fact that
+    // if the body color ever changes all its descendants will get new style
+    // contexts (but NOT necessarily new rulenodes).
+    aResult = aPresContext->BodyTextColor();
+    result = PR_TRUE;
+    aCanStoreInRuleTree = PR_FALSE;
+  }
   return result;
 }
 
@@ -1171,8 +1181,6 @@ nsRuleNode* nsRuleNode::CreateRootNode(nsPresContext* aPresContext)
   return new (aPresContext)
     nsRuleNode(aPresContext, nsnull, nsnull, 0xff, PR_FALSE);
 }
-
-nsILanguageAtomService* nsRuleNode::gLangService = nsnull;
 
 nsRuleNode::nsRuleNode(nsPresContext* aContext, nsRuleNode* aParent,
                        nsIStyleRule* aRule, PRUint8 aLevel,
@@ -4528,17 +4536,11 @@ nsRuleNode::ComputeVisibilityData(void* aStartStruct,
   // this is not a real CSS property, it is a html attribute mapped to CSS struture
   const nsCSSValue* langValue = aRuleData->ValueForLang();
   if (eCSSUnit_Ident == langValue->GetUnit()) {
-    if (!gLangService) {
-      CallGetService(NS_LANGUAGEATOMSERVICE_CONTRACTID, &gLangService);
-    }
+    nsAutoString lang;
+    langValue->GetStringValue(lang);
 
-    if (gLangService) {
-      nsAutoString lang;
-      langValue->GetStringValue(lang);
-
-      nsContentUtils::ASCIIToLower(lang);
-      visibility->mLanguage = do_GetAtom(lang);
-    }
+    nsContentUtils::ASCIIToLower(lang);
+    visibility->mLanguage = do_GetAtom(lang);
   }
 
   COMPUTE_END_INHERITED(Visibility, visibility)
@@ -5349,6 +5351,9 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
         switch (value.GetIntValue()) {
           case NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR:
             border->SetBorderToForeground(side);
+            break;
+          default:
+            NS_NOTREACHED("Unexpected enumerated color");
             break;
         }
       }

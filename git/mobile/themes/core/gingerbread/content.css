@@ -36,12 +36,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+%filter substitution
+%include defines.inc
+
 @namespace url("http://www.w3.org/1999/xhtml");
 @namespace xul url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 
 /* make clicking on links stand out a bit (bug 532206) */
 * > *:not(embed):focus, * > *:focus > font {
-  outline: 2px solid #8db8d8 !important;
+  outline: 2px solid @color_background_highlight@ !important;
   /*
     XXX How do I preserve mac focusring without blowing focus color on other platforms?
     outline-color: -moz-mac-focusring !important;
@@ -120,7 +123,7 @@ xul|scrollbarbutton[sbattr="scrollbar-bottom-top"] {
 }
 
 xul|thumb {
-  background-color: rgba(0, 0, 0, 0.4) !important;
+  background-color: @color_background_scroller@ !important;
   -moz-border-top-colors: none !important;
   -moz-border-bottom-colors: none !important;
   -moz-border-right-colors: none !important;
@@ -341,7 +344,7 @@ option:active,
 select:active,
 label:active,
 textarea:active {
-  background-color: rgba(141, 184, 216, 0.5) !important;
+  background-color: @color_background_highlight_overlay@ !important;
 }
 
 /* 

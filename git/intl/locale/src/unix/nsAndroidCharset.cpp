@@ -1,4 +1,4 @@
-/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -14,14 +14,11 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2000
+ * The Initial Developer of the Original Code is The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Vidur Apparao <vidur@netscape.com> (original author)
- *   Johnny Stenback <jst@netscape.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -37,17 +34,53 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMNode.idl"
+#include "nsIPlatformCharset.h"
+#include "nsPlatformCharset.h"
 
-/**
- * nsIDOMEntityReference is an interface to a node that represents a 
- * reference to one of the entities defined in the document.
- *
- * For more information on this interface please see 
- * http://www.w3.org/TR/DOM-Level-2-Core/
- */
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsPlatformCharset, nsIPlatformCharset)
 
-[scriptable, uuid(ab7e88aa-7c95-4d0a-94de-c632ca0c25cc)]
-interface nsIDOMEntityReference : nsIDOMNode
+nsPlatformCharset::nsPlatformCharset()
 {
-};
+}
+
+nsPlatformCharset::~nsPlatformCharset()
+{
+}
+
+NS_IMETHODIMP 
+nsPlatformCharset::Init()
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP 
+nsPlatformCharset::GetCharset(nsPlatformCharsetSel selector, nsACString& oResult)
+{
+  oResult.AssignLiteral("UTF-8");
+  return NS_OK;
+}
+
+NS_IMETHODIMP 
+nsPlatformCharset::GetDefaultCharsetForLocale(const nsAString& localeName, nsACString &oResult)
+{
+  oResult.AssignLiteral("UTF-8");
+  return NS_OK;
+}
+
+nsresult
+nsPlatformCharset::ConvertLocaleToCharsetUsingDeprecatedConfig(nsAString& locale, nsACString& oResult)
+{
+  return NS_OK;
+}
+
+nsresult
+nsPlatformCharset::InitGetCharset(nsACString &oString)
+{
+  return NS_OK;
+}
+
+nsresult
+nsPlatformCharset::VerifyCharset(nsCString &aCharset)
+{
+  return NS_OK;
+}
