@@ -532,6 +532,9 @@ interface nsIDOMCSS2Properties : nsISupports
            attribute DOMString        MozColumnWidth;
                                         // raises(DOMException) on setting
 
+           attribute DOMString        MozColumnFill;
+                                        // raises(DOMException) on setting
+
            attribute DOMString        MozColumnGap;
                                         // raises(DOMException) on setting
 

@@ -1420,11 +1420,7 @@ public:
    * If this document is a static clone, this returns the original
    * document.
    */
-  nsIDocument* GetOriginalDocument()
-  {
-    MOZ_ASSERT(!mOriginalDocument || !mOriginalDocument->GetOriginalDocument());
-    return mOriginalDocument;
-  }
+  nsIDocument* GetOriginalDocument() { return mOriginalDocument; }
 
   /**
    * Called by nsParser to preload images. Can be removed and code moved

@@ -218,9 +218,7 @@ Section "MaintenanceService"
   ; this value to determine if we should show the service update pref.
   ; Since the Maintenance service can be installed either x86 or x64,
   ; always use the 64-bit registry for checking if an attempt was made.
-  ${If} ${RunningX64}
-    SetRegView 64
-  ${EndIf}
+  SetRegView 64
   WriteRegDWORD HKLM "Software\Mozilla\MaintenanceService" "Attempted" 1
   WriteRegDWORD HKLM "Software\Mozilla\MaintenanceService" "Installed" 1
 
@@ -229,9 +227,7 @@ Section "MaintenanceService"
   ; check from the service so that tests can be run.
   ; WriteRegStr HKLM "${FallbackKey}\0" "name" "Mozilla Corporation"
   ; WriteRegStr HKLM "${FallbackKey}\0" "issuer" "Thawte Code Signing CA - G2"
-  ${If} ${RunningX64}
-    SetRegView lastused
-  ${EndIf}
+  SetRegView lastused
 SectionEnd
 
 ; By renaming before deleting we improve things slightly in case
@@ -268,12 +264,8 @@ Section "Uninstall"
 
   DeleteRegKey HKLM "${MaintUninstallKey}"
 
-  ${If} ${RunningX64}
-    SetRegView 64
-  ${EndIf}
+  SetRegView 64
   DeleteRegValue HKLM "Software\Mozilla\MaintenanceService" "Installed"
   DeleteRegKey HKLM "${FallbackKey}\"
-  ${If} ${RunningX64}
-    SetRegView lastused
-  ${EndIf}
+  SetRegView lastused
 SectionEnd

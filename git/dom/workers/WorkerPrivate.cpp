@@ -3138,8 +3138,6 @@ WorkerPrivate::NotifyFeatures(JSContext* aCx, Status aStatus)
 void
 WorkerPrivate::CancelAllTimeouts(JSContext* aCx)
 {
-  AssertIsOnWorkerThread();
-
   if (mTimerRunning) {
     NS_ASSERTION(mTimer, "Huh?!");
     NS_ASSERTION(!mTimeouts.IsEmpty(), "Huh?!");
@@ -3152,19 +3150,13 @@ WorkerPrivate::CancelAllTimeouts(JSContext* aCx)
       mTimeouts[index]->mCanceled = true;
     }
 
-    if (!RunExpiredTimeouts(aCx)) {
-      JS_ReportPendingException(aCx);
-    }
+    RunExpiredTimeouts(aCx);
 
-    mTimerRunning = false;
+    mTimer = nsnull;
   }
-#ifdef DEBUG
-  else if (!mRunningExpiredTimeouts) {
+  else {
     NS_ASSERTION(mTimeouts.IsEmpty(), "Huh?!");
   }
-#endif
-
-  mTimer = nsnull;
 }
 
 PRUint32
@@ -3493,15 +3485,8 @@ WorkerPrivate::SetTimeout(JSContext* aCx, uintN aArgc, jsval* aVp,
     currentStatus = mStatus;
   }
 
-  // It's a script bug if setTimeout/setInterval are called from a close handler
-  // so throw an exception.
-  if (currentStatus == Closing) {
+  if (currentStatus > Running) {
     JS_ReportError(aCx, "Cannot schedule timeouts from the close handler!");
-  }
-
-  // If the worker is trying to call setTimeout/setInterval and the parent
-  // thread has initiated the close process then just silently fail.
-  if (currentStatus >= Closing) {
     return false;
   }
 
@@ -3644,7 +3629,6 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
     return true;
   }
 
-  NS_ASSERTION(mTimer, "Must have a timer!");
   NS_ASSERTION(!mTimeouts.IsEmpty(), "Should have some work to do!");
 
   bool retval = true;
@@ -3709,16 +3693,12 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
       }
     }
 
-    NS_ASSERTION(mRunningExpiredTimeouts, "Someone changed this!");
-
     // Reschedule intervals.
-    if (info->mIsInterval && !info->mCanceled) {
+    if (info->mIsInterval) {
       PRUint32 timeoutIndex = mTimeouts.IndexOf(info);
       NS_ASSERTION(timeoutIndex != PRUint32(-1),
                    "Should still be in the main list!");
 
-      // This is nasty but we have to keep the old nsAutoPtr from deleting the
-      // info we're about to re-add.
       mTimeouts[timeoutIndex].forget();
       mTimeouts.RemoveElementAt(timeoutIndex);
 
@@ -3749,8 +3729,8 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
     }
   }
 
-  // Either signal the parent that we're no longer using timeouts or reschedule
-  // the timer.
+  // Signal the parent that we're no longer using timeouts or reschedule the
+  // timer.
   if (mTimeouts.IsEmpty()) {
     if (!ModifyBusyCountFromWorker(aCx, false)) {
       retval = false;

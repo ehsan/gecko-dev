@@ -1111,7 +1111,6 @@ gfxFontCache::NotifyReleased(gfxFont *aFont)
 void
 gfxFontCache::NotifyExpired(gfxFont *aFont)
 {
-    aFont->ClearCachedWords();
     RemoveObject(aFont);
     DestroyFont(aFont);
 }
