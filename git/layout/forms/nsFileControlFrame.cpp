@@ -672,7 +672,7 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   // Clip height only
   nsRect clipRect(aBuilder->ToReferenceFrame(this), GetSize());
-  clipRect.width = GetVisualOverflowRect().XMost();
+  clipRect.width = GetOverflowRect().XMost();
   nscoord radii[8] = {0, 0, 0, 0, 0, 0, 0, 0};
   rv = OverflowClip(aBuilder, tempList, aLists, clipRect, radii);
   NS_ENSURE_SUCCESS(rv, rv);
