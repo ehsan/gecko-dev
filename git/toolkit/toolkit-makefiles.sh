@@ -206,6 +206,10 @@ MAKEFILES_xpconnect="
   js/src/xpconnect/tests/idl/Makefile
 "
 
+MAKEFILES_jsipc="
+  js/ipc/Makefile
+"
+
 MAKEFILES_jsdebugger="
   js/jsd/Makefile
   js/jsd/idl/Makefile
@@ -788,6 +792,7 @@ add_makefiles "
   $MAKEFILES_htmlparser
   $MAKEFILES_intl
   $MAKEFILES_xpconnect
+  $MAKEFILES_jsipc
   $MAKEFILES_jsdebugger
   $MAKEFILES_jsctypes
   $MAKEFILES_content

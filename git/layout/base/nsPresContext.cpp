@@ -107,6 +107,7 @@
 #endif // IBMBIDI
 
 #include "nsContentUtils.h"
+#include "nsPIWindowRoot.h"
 
 // Needed for Start/Stop of Image Animation
 #include "imgIContainer.h"
