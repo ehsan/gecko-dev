@@ -17,11 +17,13 @@ UNIFIED_SOURCES += [
     'nsTestCrasher.cpp',
 ]
 
-SharedLibrary('testcrasher')
+LIBRARY_NAME = 'testcrasher'
 
 EXTRA_JS_MODULES += [
     'CrashTestUtils.jsm',
 ]
+
+FORCE_SHARED_LIB = True
 
 DEFINES['SHARED_LIBRARY'] = '%s%s%s' % (
     CONFIG['DLL_PREFIX'],

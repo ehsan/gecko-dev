@@ -23,14 +23,14 @@ if CONFIG['MOZ_CRASHREPORTER']:
     HOST_SOURCES += [
         'dump_syms.mm',
     ]
-    HostLibrary('host_breakpad_mac_common_s')
+    HOST_LIBRARY_NAME = 'host_breakpad_mac_common_s'
 
 SOURCES += [
     'HTTPMultipartUpload.m',
     'MachIPC.mm',
 ]
 
-Library('breakpad_mac_common_s')
+LIBRARY_NAME = 'breakpad_mac_common_s'
 
 FINAL_LIBRARY = 'xul'
 

@@ -64,7 +64,7 @@ namespace places {
   class BookmarkKeyClass : public nsTrimInt64HashKey
   {
     public:
-    explicit BookmarkKeyClass(const int64_t* aItemId)
+    BookmarkKeyClass(const int64_t* aItemId)
     : nsTrimInt64HashKey(aItemId)
     , creationTime(PR_Now())
     {
@@ -373,7 +373,7 @@ private:
 
   class RemoveFolderTransaction MOZ_FINAL : public nsITransaction {
   public:
-    explicit RemoveFolderTransaction(int64_t aID) : mID(aID) {}
+    RemoveFolderTransaction(int64_t aID) : mID(aID) {}
 
     NS_DECL_ISUPPORTS
 

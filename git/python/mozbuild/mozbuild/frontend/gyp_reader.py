@@ -11,7 +11,7 @@ import mozpack.path as mozpath
 from mozpack.files import FileFinder
 from .sandbox import alphabetical_sorted
 from .context import (
-    TemplateContext,
+    Context,
     VARIABLES,
 )
 from mozbuild.util import (
@@ -52,7 +52,7 @@ for unused in ['RULE_INPUT_PATH', 'RULE_INPUT_ROOT', 'RULE_INPUT_NAME',
   generator_default_variables[unused] = b''
 
 
-class GypContext(TemplateContext):
+class GypContext(Context):
     """Specialized Context for use with data extracted from Gyp.
 
     config is the ConfigEnvironment for this context.
@@ -61,8 +61,7 @@ class GypContext(TemplateContext):
     """
     def __init__(self, config, relobjdir):
         self._relobjdir = relobjdir
-        TemplateContext.__init__(self, allowed_variables=self.VARIABLES(),
-            config=config)
+        Context.__init__(self, allowed_variables=self.VARIABLES(), config=config)
 
     @classmethod
     @memoize

@@ -6,12 +6,16 @@
 
 FAIL_ON_WARNINGS = True
 
-SimplePrograms([
+SIMPLE_PROGRAMS = [
     'BadCertServer',
     'ClientAuthServer',
     'GenerateOCSPResponse',
     'OCSPStaplingServer',
-])
+]
+
+SOURCES += [
+    '%s.cpp' % s for s in SIMPLE_PROGRAMS
+]
 
 LOCAL_INCLUDES += [
     '../lib',

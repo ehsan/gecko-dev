@@ -215,7 +215,7 @@ void GetTagsSqlFragment(int64_t aTagsFolder,
 class UpdateBatchScoper
 {
 public:
-  explicit UpdateBatchScoper(nsNavHistory& aNavHistory) : mNavHistory(aNavHistory)
+  UpdateBatchScoper(nsNavHistory& aNavHistory) : mNavHistory(aNavHistory)
   {
     mNavHistory.BeginUpdateBatch();
   }
@@ -3191,7 +3191,7 @@ class ConditionBuilder
 {
 public:
 
-  explicit ConditionBuilder(int32_t aQueryIndex): mQueryIndex(aQueryIndex)
+  ConditionBuilder(int32_t aQueryIndex): mQueryIndex(aQueryIndex)
   { }
 
   ConditionBuilder& Condition(const char* aStr)

@@ -13,10 +13,14 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'android':
     if CONFIG['MOZ_MAINTENANCE_SERVICE'] and not CONFIG['HAVE_64BIT_BUILD']:
         XPCSHELL_TESTS_MANIFESTS += ['unit_service_updater/xpcshell.ini']
 
-    SimplePrograms([
+    SIMPLE_PROGRAMS = [
         'TestAUSHelper',
         'TestAUSReadStrings',
-    ])
+    ]
+
+    SOURCES += [
+        '%s.cpp' % s for s in SIMPLE_PROGRAMS
+    ]
 
     LOCAL_INCLUDES += [
         '/toolkit/mozapps/update',
