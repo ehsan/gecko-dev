@@ -106,11 +106,6 @@ public:
   NS_DECL_NSIOBSERVER
   NS_DECL_NSITIMERCALLBACK
 
-  nsresult GetPluginName(nsNPAPIPluginInstance *aPluginInstance, const char** aPluginName);
-  nsresult StopPluginInstance(nsNPAPIPluginInstance* aInstance);
-  nsresult HandleBadPlugin(PRLibrary* aLibrary, nsNPAPIPluginInstance *aInstance);
-  nsresult GetPluginTagForInstance(nsNPAPIPluginInstance *aPluginInstance, nsIPluginTag **aPluginTag);
-
   nsresult
   NewPluginURLStream(const nsString& aURL, 
                      nsNPAPIPluginInstance *aInstance, 
@@ -306,7 +301,7 @@ private:
 class NS_STACK_CLASS PluginDestructionGuard : protected PRCList
 {
 public:
-  PluginDestructionGuard(nsNPAPIPluginInstance *aInstance)
+  PluginDestructionGuard(nsIPluginInstance *aInstance)
     : mInstance(aInstance)
   {
     Init();
@@ -320,7 +315,7 @@ public:
 
   ~PluginDestructionGuard();
 
-  static PRBool DelayDestroy(nsNPAPIPluginInstance *aInstance);
+  static PRBool DelayDestroy(nsIPluginInstance *aInstance);
 
 protected:
   void Init()
@@ -333,7 +328,7 @@ protected:
     PR_INSERT_BEFORE(this, &sListHead);
   }
 
-  nsRefPtr<nsNPAPIPluginInstance> mInstance;
+  nsCOMPtr<nsIPluginInstance> mInstance;
   PRBool mDelayedDestroy;
 
   static PRCList sListHead;

@@ -459,7 +459,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDummyJavaPluginOwner)
 
 private:
-  nsRefPtr<nsNPAPIPluginInstance> mInstance;
+  nsCOMPtr<nsIPluginInstance> mInstance;
   nsCOMPtr<nsIDocument> mDocument;
 };
 
@@ -489,7 +489,7 @@ nsDummyJavaPluginOwner::Destroy()
 }
 
 NS_IMETHODIMP
-nsDummyJavaPluginOwner::SetInstance(nsNPAPIPluginInstance *aInstance)
+nsDummyJavaPluginOwner::SetInstance(nsIPluginInstance *aInstance)
 {
   // If we're going to null out mInstance after use, be sure to call
   // mInstance->InvalidateOwner() here, since it now won't be called
@@ -503,10 +503,9 @@ nsDummyJavaPluginOwner::SetInstance(nsNPAPIPluginInstance *aInstance)
 }
 
 NS_IMETHODIMP
-nsDummyJavaPluginOwner::GetInstance(nsNPAPIPluginInstance **aInstance)
+nsDummyJavaPluginOwner::GetInstance(nsIPluginInstance *&aInstance)
 {
-  NS_IF_ADDREF(mInstance);
-  *aInstance = mInstance;
+  NS_IF_ADDREF(aInstance = mInstance);
 
   return NS_OK;
 }
@@ -6571,8 +6570,8 @@ nsGlobalWindow::InitJavaProperties()
     return;
   }
 
-  nsRefPtr<nsNPAPIPluginInstance> dummyPlugin;
-  mDummyJavaPluginOwner->GetInstance(getter_AddRefs(dummyPlugin));
+  nsCOMPtr<nsIPluginInstance> dummyPlugin;
+  mDummyJavaPluginOwner->GetInstance(*getter_AddRefs(dummyPlugin));
 
   if (dummyPlugin) {
     // A dummy plugin was instantiated. This means we have a Java

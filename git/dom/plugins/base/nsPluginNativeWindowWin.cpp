@@ -143,7 +143,7 @@ public:
   nsPluginNativeWindowWin();
   virtual ~nsPluginNativeWindowWin();
 
-  virtual nsresult CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> &aPluginInstance);
+  virtual nsresult CallSetWindow(nsCOMPtr<nsIPluginInstance> &aPluginInstance);
 
 private:
   nsresult SubclassAndAssociateWindow();
@@ -175,7 +175,7 @@ static PRBool sInMessageDispatch = PR_FALSE;
 static PRBool sInPreviousMessageDispatch = PR_FALSE;
 static UINT sLastMsg = 0;
 
-static PRBool ProcessFlashMessageDelayed(nsPluginNativeWindowWin * aWin, nsNPAPIPluginInstance * aInst,
+static PRBool ProcessFlashMessageDelayed(nsPluginNativeWindowWin * aWin, nsIPluginInstance * aInst,
                                          HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
   NS_ENSURE_TRUE(aWin, NS_ERROR_NULL_POINTER);
@@ -204,14 +204,14 @@ static PRBool ProcessFlashMessageDelayed(nsPluginNativeWindowWin * aWin, nsNPAPI
 class nsDelayedPopupsEnabledEvent : public nsRunnable
 {
 public:
-  nsDelayedPopupsEnabledEvent(nsNPAPIPluginInstance *inst)
+  nsDelayedPopupsEnabledEvent(nsIPluginInstance *inst)
     : mInst(inst)
   {}
 
   NS_DECL_NSIRUNNABLE
 
 private:
-  nsRefPtr<nsNPAPIPluginInstance> mInst;
+  nsCOMPtr<nsIPluginInstance> mInst;
 };
 
 NS_IMETHODIMP nsDelayedPopupsEnabledEvent::Run()
@@ -232,7 +232,7 @@ static LRESULT CALLBACK PluginWndProcInternal(HWND hWnd, UINT msg, WPARAM wParam
   // The DispatchEvent(NS_PLUGIN_ACTIVATE) below can trigger a reentrant focus
   // event which might destroy us.  Hold a strong ref on the plugin instance
   // to prevent that, bug 374229.
-  nsRefPtr<nsNPAPIPluginInstance> inst;
+  nsCOMPtr<nsIPluginInstance> inst;
   win->GetPluginInstance(inst);
 
   // Real may go into a state where it recursivly dispatches the same event
@@ -564,7 +564,7 @@ NS_IMETHODIMP PluginWindowEvent::Run()
   if (!hWnd)
     return NS_OK;
 
-  nsRefPtr<nsNPAPIPluginInstance> inst;
+  nsCOMPtr<nsIPluginInstance> inst;
   win->GetPluginInstance(inst);
 
   if (GetMsg() == WM_USER_FLASH) {
@@ -621,7 +621,7 @@ nsPluginNativeWindowWin::GetPluginWindowEvent(HWND aWnd, UINT aMsg, WPARAM aWPar
   return event;
 }
 
-nsresult nsPluginNativeWindowWin::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> &aPluginInstance)
+nsresult nsPluginNativeWindowWin::CallSetWindow(nsCOMPtr<nsIPluginInstance> &aPluginInstance)
 {
   // Note, 'window' can be null
 

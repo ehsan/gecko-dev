@@ -39,14 +39,10 @@
 
 interface nsIFrame;
 interface nsIObjectFrame;
+interface nsIPluginInstance;
 interface nsIPluginTag;
 interface nsIDOMElement;
 interface nsIDOMClientRect;
-
-%{C++
-#include "nsNPAPIPluginInstance.h"
-%}
-[ptr] native nsNPAPIPluginInstancePtr(nsNPAPIPluginInstance);
 
 /**
  * This interface represents a content node that loads objects.
@@ -84,7 +80,7 @@ interface nsIObjectLoadingContent : nsISupports
    * will never instantiate the plugin and so is safe to call even when
    * content script must not execute.
    */
-  [noscript] readonly attribute nsNPAPIPluginInstancePtr pluginInstance;
+  [noscript] readonly attribute nsIPluginInstance pluginInstance;
 
   /**
    * Makes sure that a frame for this object exists, and that the plugin is
@@ -102,7 +98,7 @@ interface nsIObjectLoadingContent : nsISupports
    * trigger fallback to replacement content, and the type will change (and
    * this method will return a failure code)
    */
-  [noscript] nsNPAPIPluginInstancePtr ensureInstantiation();
+  [noscript] nsIPluginInstance ensureInstantiation();
 
   /**
    * Tells the content about an associated object frame.

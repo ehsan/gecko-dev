@@ -643,9 +643,9 @@ nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
   // NOTE: we don't want to try again if we didn't get the MIME type this time
   
   if (!mPluginInstance && mOwner && !aContentType.IsEmpty()) {
-    nsRefPtr<nsNPAPIPluginInstance> pluginInstRefPtr;
-    mOwner->GetInstance(getter_AddRefs(pluginInstRefPtr));
-    mPluginInstance = pluginInstRefPtr.get();
+    nsCOMPtr<nsIPluginInstance> pluginInstCOMPtr;
+    mOwner->GetInstance(getter_AddRefs(pluginInstCOMPtr));
+    mPluginInstance = static_cast<nsNPAPIPluginInstance*>(pluginInstCOMPtr.get());
 
     mOwner->GetWindow(window);
     if (!mPluginInstance && window) {
@@ -666,8 +666,8 @@ nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
       }
       
       if (NS_OK == rv) {
-        mOwner->GetInstance(getter_AddRefs(pluginInstRefPtr));
-        mPluginInstance = pluginInstRefPtr.get();
+        mOwner->GetInstance(getter_AddRefs(pluginInstCOMPtr));
+        mPluginInstance = static_cast<nsNPAPIPluginInstance*>(pluginInstCOMPtr.get());
         if (mPluginInstance) {
           mPluginInstance->Start();
           mOwner->CreateWidget();

@@ -148,7 +148,7 @@
 
 #include "nsPIDOMWindow.h"
 #include "nsFocusManager.h"
-#include "nsNPAPIPluginInstance.h"
+#include "nsIPluginInstance.h"
 #include "nsIObjectFrame.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsNetUtil.h"
@@ -7760,7 +7760,7 @@ ThawElement(nsIContent *aContent, void *aShell)
 {
   nsCOMPtr<nsIObjectLoadingContent> objlc(do_QueryInterface(aContent));
   if (objlc) {
-    nsRefPtr<nsNPAPIPluginInstance> inst;
+    nsCOMPtr<nsIPluginInstance> inst;
     objlc->EnsureInstantiation(getter_AddRefs(inst));
   }
 }

@@ -150,7 +150,7 @@
 #include "nsIDOMHTMLSelectElement.h"
 
 // HTMLEmbed/ObjectElement helper includes
-#include "nsNPAPIPluginInstance.h"
+#include "nsIPluginInstance.h"
 #include "nsIObjectFrame.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsIPluginHost.h"
@@ -9698,7 +9698,7 @@ nsHTMLSelectElementSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
 nsresult
 nsHTMLPluginObjElementSH::GetPluginInstanceIfSafe(nsIXPConnectWrappedNative *wrapper,
                                                   JSObject *obj,
-                                                  nsNPAPIPluginInstance **_result)
+                                                  nsIPluginInstance **_result)
 {
   *_result = nsnull;
 
@@ -9801,7 +9801,7 @@ nsHTMLPluginObjElementSH::SetupProtoChain(nsIXPConnectWrappedNative *wrapper,
     return NS_ERROR_UNEXPECTED;
   }
 
-  nsRefPtr<nsNPAPIPluginInstance> pi;
+  nsCOMPtr<nsIPluginInstance> pi;
   nsresult rv = GetPluginInstanceIfSafe(wrapper, obj, getter_AddRefs(pi));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -10018,7 +10018,7 @@ nsHTMLPluginObjElementSH::Call(nsIXPConnectWrappedNative *wrapper,
                                JSContext *cx, JSObject *obj, PRUint32 argc,
                                jsval *argv, jsval *vp, PRBool *_retval)
 {
-  nsRefPtr<nsNPAPIPluginInstance> pi;
+  nsCOMPtr<nsIPluginInstance> pi;
   nsresult rv = GetPluginInstanceIfSafe(wrapper, obj, getter_AddRefs(pi));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -10050,7 +10050,7 @@ nsHTMLPluginObjElementSH::Call(nsIXPConnectWrappedNative *wrapper,
 
 nsresult
 nsHTMLPluginObjElementSH::GetPluginJSObject(JSContext *cx, JSObject *obj,
-                                            nsNPAPIPluginInstance *plugin_inst,
+                                            nsIPluginInstance *plugin_inst,
                                             JSObject **plugin_obj,
                                             JSObject **plugin_proto)
 {
@@ -10086,7 +10086,7 @@ nsHTMLPluginObjElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
   // Make sure the plugin instance is loaded and instantiated, if
   // possible.
 
-  nsRefPtr<nsNPAPIPluginInstance> pi;
+  nsCOMPtr<nsIPluginInstance> pi;
   nsresult rv = GetPluginInstanceIfSafe(wrapper, obj, getter_AddRefs(pi));
   NS_ENSURE_SUCCESS(rv, rv);
 

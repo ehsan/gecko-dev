@@ -161,7 +161,6 @@ class nsNativeTheme : public nsITimerCallback
 
   // progressbar:
   PRBool IsIndeterminateProgress(nsIFrame* aFrame, nsEventStates aEventStates);
-  PRBool IsVerticalProgress(nsIFrame* aFrame);
 
   // textfield:
   PRBool IsReadOnly(nsIFrame* aFrame) {

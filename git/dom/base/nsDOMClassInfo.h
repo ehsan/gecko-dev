@@ -72,7 +72,7 @@ class nsIDOMSVGTransformList;
 class nsIDOMWindow;
 class nsIForm;
 class nsIHTMLDocument;
-class nsNPAPIPluginInstance;
+class nsIPluginInstance;
 class nsSVGTransformList;
 
 struct nsDOMClassInfoData;
@@ -1093,10 +1093,10 @@ protected:
 
   static nsresult GetPluginInstanceIfSafe(nsIXPConnectWrappedNative *aWrapper,
                                           JSObject *obj,
-                                          nsNPAPIPluginInstance **aResult);
+                                          nsIPluginInstance **aResult);
 
   static nsresult GetPluginJSObject(JSContext *cx, JSObject *obj,
-                                    nsNPAPIPluginInstance *plugin_inst,
+                                    nsIPluginInstance *plugin_inst,
                                     JSObject **plugin_obj,
                                     JSObject **plugin_proto);
 

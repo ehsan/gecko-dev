@@ -56,7 +56,7 @@ public:
   nsPluginNativeWindowQt();
   virtual ~nsPluginNativeWindowQt();
 
-  virtual nsresult CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> &aPluginInstance);
+  virtual nsresult CallSetWindow(nsCOMPtr<nsIPluginInstance> &aPluginInstance);
 private:
 
   NPSetWindowCallbackStruct mWsInfo;
@@ -105,7 +105,7 @@ nsresult PLUG_DeletePluginNativeWindow(nsPluginNativeWindow * aPluginNativeWindo
   return NS_OK;
 }
 
-nsresult nsPluginNativeWindowQt::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> &aPluginInstance)
+nsresult nsPluginNativeWindowQt::CallSetWindow(nsCOMPtr<nsIPluginInstance> &aPluginInstance)
 {
   if (aPluginInstance) {
     if (type == NPWindowTypeWindow) {

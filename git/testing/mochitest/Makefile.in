@@ -86,6 +86,7 @@ _SERV_FILES = 	\
 		$(topsrcdir)/build/mobile/remoteautomation.py \
 		gen_template.pl \
 		server.js \
+		harness-a11y.xul \
 		harness-overlay.xul \
 		harness.xul \
 		browser-test-overlay.xul \
@@ -94,6 +95,7 @@ _SERV_FILES = 	\
 		ipc-overlay.xul \
 		ipc.js \
 		browser-harness.xul \
+		redirect-a11y.html \
 		redirect.html \
 		redirect.js \
 		$(topsrcdir)/build/pgo/server-locations.txt \

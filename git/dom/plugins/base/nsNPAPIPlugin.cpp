@@ -535,7 +535,7 @@ nsNPAPIPlugin::PluginFuncs()
 }
 
 nsresult
-nsNPAPIPlugin::CreatePluginInstance(nsNPAPIPluginInstance **aResult)
+nsNPAPIPlugin::CreatePluginInstance(nsIPluginInstance **aResult)
 {
   if (!aResult)
     return NS_ERROR_NULL_POINTER;
@@ -547,7 +547,7 @@ nsNPAPIPlugin::CreatePluginInstance(nsNPAPIPluginInstance **aResult)
     return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ADDREF(inst);
-  *aResult = inst;
+  *aResult = static_cast<nsIPluginInstance*>(inst);
   return NS_OK;
 }
 
@@ -1048,7 +1048,7 @@ _newstream(NPP npp, NPMIMEType type, const char* target, NPStream* *result)
 
   NPError err = NPERR_INVALID_INSTANCE_ERROR;
   if (npp && npp->ndata) {
-    nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance*)npp->ndata;
+    nsIPluginInstance *inst = (nsIPluginInstance *) npp->ndata;
 
     PluginDestructionGuard guard(inst);
 
@@ -1168,7 +1168,7 @@ _status(NPP npp, const char *message)
     return;
   }
 
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance*)npp->ndata;
+  nsIPluginInstance *inst = (nsIPluginInstance *) npp->ndata;
 
   PluginDestructionGuard guard(inst);
 
@@ -1233,7 +1233,7 @@ _invalidaterect(NPP npp, NPRect *invalidRect)
     return;
   }
 
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance*)npp->ndata;
+  nsIPluginInstance *inst = (nsIPluginInstance *) npp->ndata;
 
   PluginDestructionGuard guard(inst);
 
@@ -1256,7 +1256,7 @@ _invalidateregion(NPP npp, NPRegion invalidRegion)
     return;
   }
 
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance*)npp->ndata;
+  nsIPluginInstance *inst = (nsIPluginInstance *)npp->ndata;
 
   PluginDestructionGuard guard(inst);
 
@@ -1277,7 +1277,7 @@ _forceredraw(NPP npp)
     return;
   }
 
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance*)npp->ndata;
+  nsIPluginInstance *inst = (nsIPluginInstance *) npp->ndata;
 
   PluginDestructionGuard guard(inst);
 
