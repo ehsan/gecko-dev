@@ -303,13 +303,17 @@ builtin_CloseIterator(JSContext* cx, jsval v)
 }
 
 GuardRecord* FASTCALL
-builtin_CallTree(InterpState* state, Fragment* f)
+builtin_CallTree(InterpState* outer, Fragment* f)
 {
-    /* current we can't deal with inner trees that have globals so report an error */
-    JS_ASSERT(!((TreeInfo*)f->vmprivate)->globalSlots.length());
+    InterpState state;
+    state.ip = f->ip;
+    state.sp = outer->sp;
+    state.rp = outer->rp;
+    state.gp = outer->gp;
+    state.cx = outer->cx;
     union { NIns *code; GuardRecord* (FASTCALL *func)(InterpState*, Fragment*); } u;
     u.code = f->code();
-    return u.func(state, NULL);
+    return u.func(&state, NULL);
 }
 
 #define LO ARGSIZE_LO

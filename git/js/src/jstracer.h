@@ -143,32 +143,6 @@ public:
     void            clear();
 };
 
-/*
- * The oracle keeps track of slots that should not be demoted to int because we know them
- * to overflow or they result in type-unstable traces. We are using a simple hash table. 
- * Collisions lead to loss of optimization (demotable slots are not demoted) but have no
- * correctness implications.
- */
-#define ORACLE_SIZE 4096
-
-class Oracle {
-    avmplus::BitSet _dontDemote;
-public:
-    void markGlobalSlotUndemotable(JSScript* script, unsigned slot);
-    bool isGlobalSlotUndemotable(JSScript* script, unsigned slot) const;
-    void markStackSlotUndemotable(JSScript* script, jsbytecode* ip, unsigned slot);
-    bool isStackSlotUndemotable(JSScript* script, jsbytecode* ip, unsigned slot) const;
-};
-
-typedef Queue<uint16> SlotList;
-
-class TypeMap : public Queue<uint8> {
-public:
-    void captureGlobalTypes(JSContext* cx, SlotList& slots);
-    void captureStackTypes(JSContext* cx, unsigned callDepth);
-    bool matches(TypeMap& other);
-};
-
 class TreeInfo {
     nanojit::Fragment*      fragment;
 public:
@@ -177,11 +151,15 @@ public:
     ptrdiff_t               nativeStackBase;
     unsigned                maxCallDepth;
     uint32                  globalShape;
-    SlotList                globalSlots;
-    TypeMap                 stackTypeMap;
-    TypeMap                 globalTypeMap;
+    Queue<uint16>           globalSlots;
+    Queue<uint8>            stackTypeMap;
+    Queue<uint8>            globalTypeMap;
+    Queue<nanojit::Fragment*> outerTrees;
     
     TreeInfo(nanojit::Fragment* _fragment) { fragment = _fragment; }
+    
+    void addOuterTree(nanojit::Fragment* outer);
+    void mergeGlobalsFromInnerTree(nanojit::Fragment* inner);
 };
 
 extern struct nanojit::CallInfo builtins[];
@@ -192,6 +170,7 @@ class TraceRecorder {
     Tracker                 tracker;
     Tracker                 nativeFrameTracker;
     char*                   entryTypeMap;
+    struct JSFrameRegs*     entryRegs;
     unsigned                callDepth;
     JSAtom**                atoms;
     nanojit::GuardRecord*   anchor;
@@ -214,11 +193,11 @@ class TraceRecorder {
     ptrdiff_t nativeGlobalOffset(jsval* p) const;
     void import(nanojit::LIns* base, ptrdiff_t offset, jsval* p, uint8& t, 
                 const char *prefix, int index, JSStackFrame *fp);
-    void import(unsigned ngslots, uint8* globalTypeMap, uint8* stackTypeMap);
     void trackNativeStackUse(unsigned slots);
 
     bool lazilyImportGlobalSlot(unsigned slot);
     
+    unsigned getCallDepth() const;
     nanojit::LIns* guard(bool expected, nanojit::LIns* cond, 
             nanojit::ExitType exitType = nanojit::DONT_GROW);
     nanojit::LIns* addName(nanojit::LIns* ins, const char* name);
@@ -226,7 +205,7 @@ class TraceRecorder {
     nanojit::LIns* get(jsval* p);
     void set(jsval* p, nanojit::LIns* l, bool initializing = false);
 
-    bool checkType(jsval& v, uint8 type, bool& recompile);
+    bool checkType(jsval& v, uint8& type, bool& recompile);
     bool verifyTypeStability();
 
     jsval& argval(unsigned n) const;
@@ -288,6 +267,8 @@ class TraceRecorder {
     bool forInProlog(nanojit::LIns*& iterobj_ins);
 
 public:
+    int backEdgeCount;
+
     TraceRecorder(JSContext* cx, nanojit::GuardRecord*, nanojit::Fragment*, 
             unsigned ngslots, uint8* globalTypeMap, uint8* stackTypeMap);
     ~TraceRecorder();
@@ -296,9 +277,7 @@ public:
     nanojit::Fragment* getFragment() const { return fragment; }
     bool isLoopHeader(JSContext* cx) const;
     void closeLoop(nanojit::Fragmento* fragmento);
-    void blacklist() { fragment->blacklist(); }
     void emitTreeCall(nanojit::Fragment* inner, nanojit::GuardRecord* lr);
-    unsigned getCallDepth() const;
     
     bool record_EnterFrame();
     bool record_LeaveFrame();
