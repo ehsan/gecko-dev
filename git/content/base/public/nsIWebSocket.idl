@@ -51,10 +51,10 @@ interface nsPIDOMWindow;
  * http://dev.w3.org/html5/websockets/
  *
  */
-[scriptable, uuid(4403cd57-07fc-477f-a062-d6ba7dd0781b)]
+[scriptable, uuid(af0d293a-d18c-43e6-84ed-d1de5e85b885)]
 interface nsIWebSocket : nsISupports
 {
-  readonly attribute DOMString url;
+  readonly attribute DOMString URL;
 
   //ready state
   const unsigned short CONNECTING = 0;
