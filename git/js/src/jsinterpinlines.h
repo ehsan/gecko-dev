@@ -18,7 +18,7 @@
  * May 28, 2008.
  *
  * The Initial Developer of the Original Code is
- *   Andreas Gal <gal@uci.edu>
+ *   Andreas Gal <gal@mozilla.com>
  *
  * Contributor(s):
  *   Brendan Eich <brendan@mozilla.org>
@@ -374,18 +374,6 @@ PRIMITIVE(guard_boolean_is_true)(JSContext* cx, JSFrameRegs& regs, JSBool& cond)
 }
 
 static inline void
-PRIMITIVE(prim_icmp_eq)(JSContext* cx, jsint& a, jsint& b, JSBool& r)
-{
-    r = a == b;
-}
-
-static inline void
-PRIMITIVE(prim_icmp_ne)(JSContext* cx, jsint& a, jsint& b, JSBool& r)
-{
-    r = a != b;
-}
-
-static inline void
 PRIMITIVE(prim_icmp_lt)(JSContext* cx, jsint& a, jsint& b, JSBool& r)
 {
     r = a < b;
@@ -407,20 +395,6 @@ static inline void
 PRIMITIVE(prim_icmp_ge)(JSContext* cx, jsint& a, jsint& b, JSBool& r)
 {
     r = a >= b;
-}
-
-static inline void
-PRIMITIVE(prim_dcmp_eq)(JSContext* cx, bool ifnan, jsdouble& a, jsdouble& b,
-                        JSBool& r)
-{
-    r = JSDOUBLE_COMPARE(a, ==, b, ifnan);
-}
-
-static inline void
-PRIMITIVE(prim_dcmp_ne)(JSContext* cx, bool ifnan, jsdouble& a, jsdouble& b,
-                        JSBool& r)
-{
-    r = JSDOUBLE_COMPARE(a, !=, b, ifnan);
 }
 
 static inline void
