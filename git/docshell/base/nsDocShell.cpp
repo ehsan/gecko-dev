@@ -5804,7 +5804,8 @@ nsDocShell::SetPosition(int32_t x, int32_t y)
 NS_IMETHODIMP
 nsDocShell::GetPosition(int32_t * aX, int32_t * aY)
 {
-    return GetPositionAndSize(aX, aY, nullptr, nullptr);
+    int32_t dummyHolder;
+    return GetPositionAndSize(aX, aY, &dummyHolder, &dummyHolder);
 }
 
 NS_IMETHODIMP
@@ -5818,7 +5819,8 @@ nsDocShell::SetSize(int32_t aCX, int32_t aCY, bool aRepaint)
 NS_IMETHODIMP
 nsDocShell::GetSize(int32_t * aCX, int32_t * aCY)
 {
-    return GetPositionAndSize(nullptr, nullptr, aCX, aCY);
+    int32_t dummyHolder;
+    return GetPositionAndSize(&dummyHolder, &dummyHolder, aCX, aCY);
 }
 
 NS_IMETHODIMP
@@ -9184,9 +9186,7 @@ nsDocShell::CheckLoadingPermissions()
     // Note - The check for a current JSContext here isn't necessarily sensical.
     // It's just designed to preserve the old semantics during a mass-conversion
     // patch.
-    if (!nsContentUtils::GetCurrentJSContext()) {
-      return NS_OK;
-    }
+    NS_ENSURE_TRUE(nsContentUtils::GetCurrentJSContext(), NS_OK);
 
     // Check if the caller is from the same origin as this docshell,
     // or any of its ancestors.
@@ -10174,9 +10174,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     else
       srcdoc = NullString();
 
-    mozilla::net::PredictorLearn(aURI, nullptr,
-                                 nsINetworkPredictor::LEARN_LOAD_TOPLEVEL,
-                                 this);
     mozilla::net::PredictorPredict(aURI, nullptr,
                                    nsINetworkPredictor::PREDICT_LOAD,
                                    this, nullptr);

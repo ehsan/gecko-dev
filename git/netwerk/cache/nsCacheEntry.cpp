@@ -382,7 +382,8 @@ nsCacheEntryHashTable::ops =
     HashKey,
     MatchEntry,
     MoveEntry,
-    ClearEntry
+    ClearEntry,
+    PL_DHashFinalizeStub
 };
 
 
@@ -405,7 +406,7 @@ nsresult
 nsCacheEntryHashTable::Init()
 {
     nsresult rv = NS_OK;
-    initialized = PL_DHashTableInit(&table, &ops,
+    initialized = PL_DHashTableInit(&table, &ops, nullptr,
                                     sizeof(nsCacheEntryHashTableEntry),
                                     fallible_t(), 256);
 

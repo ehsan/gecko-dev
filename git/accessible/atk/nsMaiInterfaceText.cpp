@@ -9,7 +9,6 @@
 #include "Accessible-inl.h"
 #include "HyperTextAccessible-inl.h"
 #include "nsMai.h"
-#include "ProxyAccessible.h"
 
 #include "nsIAccessibleTypes.h"
 #include "nsIPersistentProperties2.h"
@@ -111,23 +110,21 @@ static gchar*
 getTextCB(AtkText *aText, gint aStartOffset, gint aEndOffset)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  nsAutoString autoStr;
-  if (accWrap) {
-    HyperTextAccessible* text = accWrap->AsHyperText();
-    if (!text || !text->IsTextRole())
-      return nullptr;
+  if (!accWrap)
+    return nullptr;
 
+  HyperTextAccessible* text = accWrap->AsHyperText();
+  if (!text || !text->IsTextRole())
+    return nullptr;
+
+    nsAutoString autoStr;
     text->TextSubstring(aStartOffset, aEndOffset, autoStr);
 
     ConvertTexttoAsterisks(accWrap, autoStr);
-  } else if (ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText))) {
-    proxy->TextSubstring(aStartOffset, aEndOffset, autoStr);
-  }
+    NS_ConvertUTF16toUTF8 cautoStr(autoStr);
 
-  NS_ConvertUTF16toUTF8 cautoStr(autoStr);
-
-  //copy and return, libspi will free it.
-  return (cautoStr.get()) ? g_strdup(cautoStr.get()) : nullptr;
+    //copy and return, libspi will free it.
+    return (cautoStr.get()) ? g_strdup(cautoStr.get()) : nullptr;
 }
 
 static gchar*

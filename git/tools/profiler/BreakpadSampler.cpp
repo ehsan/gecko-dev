@@ -53,7 +53,7 @@ int     sProfileEntries  = 0;
 using std::string;
 using namespace mozilla;
 
-#if defined(_MSC_VER) && _MSC_VER < 1900
+#if _MSC_VER
  #define snprintf _snprintf
 #endif
 

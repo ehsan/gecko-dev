@@ -410,16 +410,9 @@ let dataProviders = {
     if (infoInfo)
       data.info = infoInfo;
 
-    let failureCount = {};
-    let failureIndices = {};
-
-    let failures = gfxInfo.getFailures(failureCount, failureIndices);
-    if (failures.length) {
+    let failures = gfxInfo.getFailures();
+    if (failures.length)
       data.failures = failures;
-      if (failureIndices.value.length == failures.length) {
-        data.indices = failureIndices.value;
-      }
-    }
 
     done(data);
   },

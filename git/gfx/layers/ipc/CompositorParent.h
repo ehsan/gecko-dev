@@ -190,8 +190,6 @@ public:
   void ForceIsFirstPaint();
   void Destroy();
 
-  static void SetShadowProperties(Layer* aLayer);
-
   void NotifyChildCreated(const uint64_t& aChild);
 
   void AsyncRender();

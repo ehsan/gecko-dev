@@ -271,7 +271,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
         staticLevel = 0;
 
         // Use the global as 'this', modulo outerization.
-        JSObject *thisobj = GetThisObject(cx, scopeobj);
+        JSObject *thisobj = JSObject::thisObject(cx, scopeobj);
         if (!thisobj)
             return false;
         thisv = ObjectValue(*thisobj);
@@ -307,11 +307,6 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
         if (maybeScript && maybeScript->scriptSource()->introducerFilename())
             introducerFilename = maybeScript->scriptSource()->introducerFilename();
 
-        RootedObject enclosing(cx);
-        if (evalType == DIRECT_EVAL)
-            enclosing = callerScript->innermostStaticScope(pc);
-        Rooted<StaticEvalObject *> staticScope(cx, StaticEvalObject::create(cx, enclosing));
-
         CompileOptions options(cx);
         options.setFileAndLine(filename, 1)
                .setCompileAndGo(true)
@@ -331,13 +326,10 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
                                                   : SourceBufferHolder::NoOwnership;
         SourceBufferHolder srcBuf(chars, flatStr->length(), ownership);
         JSScript *compiled = frontend::CompileScript(cx, &cx->tempLifoAlloc(),
-                                                     scopeobj, callerScript, staticScope,
-                                                     options, srcBuf, flatStr, staticLevel);
+                                                     scopeobj, callerScript, options,
+                                                     srcBuf, flatStr, staticLevel);
         if (!compiled)
             return false;
-
-        if (compiled->strict())
-            staticScope->setStrict();
 
         esg.setNewScript(compiled);
     }
@@ -389,11 +381,6 @@ js::DirectEvalStringFromIon(JSContext *cx,
         if (maybeScript && maybeScript->scriptSource()->introducerFilename())
             introducerFilename = maybeScript->scriptSource()->introducerFilename();
 
-        RootedObject enclosing(cx, callerScript->innermostStaticScope(pc));
-        Rooted<StaticEvalObject *> staticScope(cx, StaticEvalObject::create(cx, enclosing));
-        if (!staticScope)
-            return false;
-
         CompileOptions options(cx);
         options.setFileAndLine(filename, 1)
                .setCompileAndGo(true)
@@ -413,13 +400,10 @@ js::DirectEvalStringFromIon(JSContext *cx,
                                                   : SourceBufferHolder::NoOwnership;
         SourceBufferHolder srcBuf(chars, flatStr->length(), ownership);
         JSScript *compiled = frontend::CompileScript(cx, &cx->tempLifoAlloc(),
-                                                     scopeobj, callerScript, staticScope,
-                                                     options, srcBuf, flatStr, staticLevel);
+                                                     scopeobj, callerScript, options,
+                                                     srcBuf, flatStr, staticLevel);
         if (!compiled)
             return false;
-
-        if (compiled->strict())
-            staticScope->setStrict();
 
         esg.setNewScript(compiled);
     }
@@ -509,7 +493,7 @@ js::ExecuteInGlobalAndReturnScope(JSContext *cx, HandleObject global, HandleScri
     if (!scope->setUnqualifiedVarObj(cx))
         return false;
 
-    JSObject *thisobj = GetThisObject(cx, global);
+    JSObject *thisobj = JSObject::thisObject(cx, global);
     if (!thisobj)
         return false;
 

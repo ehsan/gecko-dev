@@ -22,6 +22,6 @@ setup(name=PACKAGE_NAME,
       install_requires=[],
       entry_points="""
       [console_scripts]
-      manifestparser = manifestparser.cli:main
+      manifestparser = manifestparser.manifestparser:main
       """,
      )

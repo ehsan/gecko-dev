@@ -3051,6 +3051,12 @@ nsLineLayout::TextAlignLine(nsLineBox* aLine,
   }
 }
 
+void
+nsLineLayout::RelativePositionFrames(nsOverflowAreas& aOverflowAreas)
+{
+  RelativePositionFrames(mRootSpan, aOverflowAreas);
+}
+
 // This method applies any relative positioning to the given frame.
 void
 nsLineLayout::ApplyRelativePositioning(PerFrameData* aPFD)
@@ -3197,4 +3203,22 @@ nsLineLayout::RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflo
     frame->FinishAndStoreOverflow(overflowAreas, frame->GetSize());
   }
   aOverflowAreas = overflowAreas;
+}
+
+void
+nsLineLayout::AdvanceICoord(nscoord aAmount)
+{
+  mCurrentSpan->mICoord += aAmount;
+}
+
+WritingMode
+nsLineLayout::GetWritingMode()
+{
+  return mRootSpan->mWritingMode;
+}
+
+nscoord
+nsLineLayout::GetCurrentICoord()
+{
+  return mCurrentSpan->mICoord;
 }

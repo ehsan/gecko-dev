@@ -1083,8 +1083,8 @@ class GMPStorageTest : public GMPDecryptorProxyCallback
   }
 
   virtual void SessionMessage(const nsCString& aSessionId,
-                              GMPSessionMessageType aMessageType,
-                              const nsTArray<uint8_t>& aMessage) MOZ_OVERRIDE
+                              const nsTArray<uint8_t>& aMessage,
+                              const nsCString& aDestinationURL) MOZ_OVERRIDE
   {
     MonitorAutoLock mon(mMonitor);
 

@@ -244,7 +244,8 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     aMetrics.ISize(lineWM) = ll->EndSpan(this) + bp.IStartEnd(wm);
     ll->SetInFirstLetter(false);
 
-    nsLayoutUtils::SetBSizeFromFontMetrics(this, aMetrics, bp, lineWM, wm);
+    nsLayoutUtils::SetBSizeFromFontMetrics(this, aMetrics, aReflowState,
+                                           bp, lineWM, wm);
   }
 
   // Ensure that the overflow rect contains the child textframe's overflow rect.

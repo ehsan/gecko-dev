@@ -29,7 +29,7 @@ extern PRLogModuleInfo* GetMediaSourceAPILog();
 #define MSE_DEBUG(...)
 #endif
 
-#define UNIMPLEMENTED() { /* Logging this is too spammy to do by default */ }
+#define UNIMPLEMENTED() MSE_DEBUG("SourceBufferResource(%p): UNIMPLEMENTED FUNCTION at %s:%d", this, __FILE__, __LINE__)
 
 class nsIStreamListener;
 

@@ -30,48 +30,49 @@
 using namespace mozilla::pkix;
 using namespace mozilla::pkix::test;
 
-class CreateEncodedOCSPRequestTrustDomain final : public TrustDomain
+class CreateEncodedOCSPRequestTrustDomain : public TrustDomain
 {
 private:
-  Result GetCertTrust(EndEntityOrCA, const CertPolicyId&, Input,
-                      /*out*/ TrustLevel&) override
+  virtual Result GetCertTrust(EndEntityOrCA, const CertPolicyId&,
+                              Input, /*out*/ TrustLevel&)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result FindIssuer(Input, IssuerChecker&, Time) override
+  virtual Result FindIssuer(Input, IssuerChecker&, Time)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result CheckRevocation(EndEntityOrCA, const CertID&, Time, const Input*,
-                         const Input*) override
+  virtual Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
+                                 const Input*, const Input*)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result IsChainValid(const DERArray&, Time) override
+  virtual Result IsChainValid(const DERArray&, Time)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result VerifySignedData(const SignedDataWithSignature&, Input) override
+  virtual Result VerifySignedData(const SignedDataWithSignature&,
+                                  Input)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result DigestBuf(Input item, /*out*/ uint8_t *digestBuf, size_t digestBufLen)
-                   override
+  virtual Result DigestBuf(Input item, /*out*/ uint8_t *digestBuf,
+                           size_t digestBufLen)
   {
     return TestDigestBuf(item, digestBuf, digestBufLen);
   }
 
-  Result CheckPublicKey(Input subjectPublicKeyInfo) override
+  virtual Result CheckPublicKey(Input subjectPublicKeyInfo)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;

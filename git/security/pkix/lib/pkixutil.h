@@ -38,7 +38,7 @@ namespace mozilla { namespace pkix {
 // Each BackCert contains pointers to all the given certificate's extensions
 // so that we can parse the extension block once and then process the
 // extensions in an order that may be different than they appear in the cert.
-class BackCert final
+class BackCert
 {
 public:
   // certDER and childCert must be valid for the lifetime of BackCert.
@@ -147,7 +147,7 @@ private:
   void operator=(const BackCert&) = delete;
 };
 
-class NonOwningDERArray final : public DERArray
+class NonOwningDERArray : public DERArray
 {
 public:
   NonOwningDERArray()
@@ -157,9 +157,9 @@ public:
     // numItems before accessing i.
   }
 
-  size_t GetLength() const override { return numItems; }
+  virtual size_t GetLength() const { return numItems; }
 
-  const Input* GetDER(size_t i) const override
+  virtual const Input* GetDER(size_t i) const
   {
     return i < numItems ? &items[i] : nullptr;
   }

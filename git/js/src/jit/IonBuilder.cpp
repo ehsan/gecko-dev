@@ -315,7 +315,8 @@ IonBuilder::getPolyCallTargets(types::TemporaryTypeSet *calleeTypes, bool constr
             return true;
         }
 
-        targets.infallibleAppend(obj);
+        DebugOnly<bool> appendOk = targets.append(obj);
+        MOZ_ASSERT(appendOk);
     }
 
     // For now, only inline "singleton" lambda calls
@@ -4654,7 +4655,7 @@ IonBuilder::makeInliningDecision(JSObject *targetArg, CallInfo &callInfo)
 }
 
 bool
-IonBuilder::selectInliningTargets(const ObjectVector &targets, CallInfo &callInfo, BoolVector &choiceSet,
+IonBuilder::selectInliningTargets(ObjectVector &targets, CallInfo &callInfo, BoolVector &choiceSet,
                                   uint32_t *numInlineable)
 {
     *numInlineable = 0;
@@ -4839,7 +4840,7 @@ IonBuilder::inlineSingleCall(CallInfo &callInfo, JSObject *targetArg)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineCallsite(const ObjectVector &targets, ObjectVector &originals,
+IonBuilder::inlineCallsite(ObjectVector &targets, ObjectVector &originals,
                            bool lambda, CallInfo &callInfo)
 {
     if (targets.empty())
@@ -5023,7 +5024,7 @@ IonBuilder::inlineTypeObjectFallback(CallInfo &callInfo, MBasicBlock *dispatchBl
 }
 
 bool
-IonBuilder::inlineCalls(CallInfo &callInfo, const ObjectVector &targets,
+IonBuilder::inlineCalls(CallInfo &callInfo, ObjectVector &targets,
                         ObjectVector &originals, BoolVector &choiceSet,
                         MGetPropertyCache *maybeCache)
 {
@@ -5594,10 +5595,12 @@ IonBuilder::jsop_funapplyarguments(uint32_t argc)
     vp->setImplicitlyUsedUnchecked();
 
     // Arguments
+    MDefinitionVector args(alloc());
     if (inliningDepth_) {
-        if (!callInfo.setArgs(inlineCallInfo_->argv()))
+        if (!args.appendAll(inlineCallInfo_->argv()))
             return false;
     }
+    callInfo.setArgs(&args);
 
     // This
     MDefinition *argThis = current->pop();
@@ -5660,8 +5663,6 @@ IonBuilder::jsop_call(uint32_t argc, bool constructing)
     // Keep track of the originals as we need to case on them for poly inline.
     bool hasClones = false;
     ObjectVector targets(alloc());
-    if (!targets.reserve(originals.length()))
-        return false;
     for (uint32_t i = 0; i < originals.length(); i++) {
         JSObject *obj = originals[i];
         if (obj->is<JSFunction>()) {
@@ -5675,7 +5676,8 @@ IonBuilder::jsop_call(uint32_t argc, bool constructing)
                 }
             }
         }
-        targets.infallibleAppend(obj);
+        if (!targets.append(obj))
+            return false;
     }
 
     CallInfo callInfo(alloc(), constructing);

@@ -519,11 +519,10 @@ HandleClosingGeneratorReturn(JSContext *cx, const JitFrameIterator &frame, jsbyt
 struct AutoDebuggerHandlingException
 {
     BaselineFrame *frame;
-    AutoDebuggerHandlingException(BaselineFrame *frame, jsbytecode *pc)
+    explicit AutoDebuggerHandlingException(BaselineFrame *frame)
       : frame(frame)
     {
         frame->setIsDebuggerHandlingException();
-        frame->setOverridePc(pc); // Will be cleared in HandleException.
     }
     ~AutoDebuggerHandlingException() {
         frame->unsetIsDebuggerHandlingException();
@@ -555,7 +554,7 @@ HandleExceptionBaseline(JSContext *cx, const JitFrameIterator &frame, ResumeFrom
     {
         // Set for debug mode OSR. See note concerning
         // 'isDebuggerHandlingException' in CollectJitStackScripts.
-        AutoDebuggerHandlingException debuggerHandling(frame.baselineFrame(), pc);
+        AutoDebuggerHandlingException debuggerHandling(frame.baselineFrame());
 
         switch (Debugger::onExceptionUnwind(cx, frame.baselineFrame())) {
           case JSTRAP_ERROR:
@@ -586,7 +585,7 @@ HandleExceptionBaseline(JSContext *cx, const JitFrameIterator &frame, ResumeFrom
     JSTryNote *tnEnd = tn + script->trynotes()->length;
 
     uint32_t pcOffset = uint32_t(pc - script->main());
-    ScopeIter si(cx, frame.baselineFrame(), pc);
+    ScopeIter si(frame.baselineFrame(), pc, cx);
     for (; tn != tnEnd; ++tn) {
         if (pcOffset < tn->start)
             continue;
@@ -1495,11 +1494,10 @@ GetPcScript(JSContext *cx, JSScript **scriptRes, jsbytecode **pcRes)
         return;
 
     // Lookup failed: undertake expensive process to recover the innermost inlined frame.
-    if (!it.isBailoutJS())
-        ++it; // Skip exit frame.
+    ++it; // Skip exit frame.
     jsbytecode *pc = nullptr;
 
-    if (it.isIonJS() || it.isBailoutJS()) {
+    if (it.isIonJS()) {
         InlineFrameIterator ifi(cx, &it);
         *scriptRes = ifi.script();
         pc = ifi.pc();

@@ -11,7 +11,6 @@
 #include "platform.h"
 #include "PlatformMacros.h"
 #include "prenv.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/ThreadLocal.h"
 #include "PseudoStack.h"
@@ -573,7 +572,6 @@ void mozilla_sampler_init(void* stackTop)
 
   const char* features[] = {"js"
                          , "leaf"
-                         , "threads"
 #if defined(XP_WIN) || defined(XP_MACOSX) || (defined(SPS_ARCH_arm) && defined(linux))
                          , "stackwalk"
 #endif
@@ -581,12 +579,10 @@ void mozilla_sampler_init(void* stackTop)
                          , "java"
 #endif
                          };
-
-  const char* threadFilters[] = { "GeckoMain", "Compositor" };
-
   profiler_start(PROFILE_DEFAULT_ENTRY, PROFILE_DEFAULT_INTERVAL,
-                         features, MOZ_ARRAY_LENGTH(features),
-                         threadFilters, MOZ_ARRAY_LENGTH(threadFilters));
+                         features, sizeof(features)/sizeof(const char*),
+                         // TODO Add env variable to select threads
+                         nullptr, 0);
   LOG("END   mozilla_sampler_init");
 }
 

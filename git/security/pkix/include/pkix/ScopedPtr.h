@@ -25,14 +25,14 @@
 #ifndef mozilla_pkix__ScopedPtr_h
 #define mozilla_pkix__ScopedPtr_h
 
-#include "pkix/stdkeywords.h"
+#include "pkix/nullptr.h"
 
 namespace mozilla { namespace pkix {
 
 // Similar to boost::scoped_ptr and std::unique_ptr. Does not support copying
 // or assignment.
 template <typename T, void (&Destroyer)(T*)>
-class ScopedPtr final
+class ScopedPtr
 {
 public:
   explicit ScopedPtr(T* value = nullptr) : mValue(value) { }

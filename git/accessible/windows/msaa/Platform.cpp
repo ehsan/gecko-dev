@@ -35,7 +35,7 @@ a11y::PlatformShutdown()
 }
 
 void
-a11y::ProxyCreated(ProxyAccessible*, uint32_t)
+a11y::ProxyCreated(ProxyAccessible*)
 {
 }
 

@@ -213,14 +213,14 @@ GMPDecryptorParent::RecvRejectPromise(const uint32_t& aPromiseId,
 
 bool
 GMPDecryptorParent::RecvSessionMessage(const nsCString& aSessionId,
-                                       const GMPSessionMessageType& aMessageType,
-                                       const nsTArray<uint8_t>& aMessage)
+                                       const nsTArray<uint8_t>& aMessage,
+                                       const nsCString& aDestinationURL)
 {
   if (!mIsOpen) {
     NS_WARNING("Trying to use a dead GMP decrypter!");
     return false;
   }
-  mCallback->SessionMessage(aSessionId, aMessageType, aMessage);
+  mCallback->SessionMessage(aSessionId, aMessage, aDestinationURL);
   return true;
 }
 

@@ -169,8 +169,6 @@ public:
   explicit CrashStatsLogForwarder(const char* aKey);
   virtual void Log(const std::string& aString) MOZ_OVERRIDE;
 
-  virtual std::vector<std::pair<int32_t,std::string> > StringsVectorCopy();
-
   void SetCircularBufferSize(uint32_t aCapacity);
 
 private:
@@ -201,13 +199,6 @@ void CrashStatsLogForwarder::SetCircularBufferSize(uint32_t aCapacity)
 
   mMaxCapacity = aCapacity;
   mBuffer.reserve(static_cast<size_t>(aCapacity));
-}
-
-std::vector<std::pair<int32_t,std::string> >
-CrashStatsLogForwarder::StringsVectorCopy()
-{
-  MutexAutoLock lock(mMutex);
-  return mBuffer;
 }
 
 bool
@@ -681,16 +672,19 @@ gfxPlatform::ShutdownLayersIPC()
     }
     sLayersIPCIsUp = false;
 
-    if (XRE_GetProcessType() == GeckoProcessType_Default)
-    {
+    GeckoProcessType processType = XRE_GetProcessType();
+    if (processType == GeckoProcessType_Default) {
         // This must happen after the shutdown of media and widgets, which
         // are triggered by the NS_XPCOM_SHUTDOWN_OBSERVER_ID notification.
         layers::ImageBridgeChild::ShutDown();
+
 #ifdef MOZ_WIDGET_GONK
         layers::SharedBufferManagerChild::ShutDown();
 #endif
 
         layers::CompositorParent::ShutDown();
+    } else if (processType == GeckoProcessType_Content) {
+        layers::CompositorChild::ShutDown();
     }
 }
 

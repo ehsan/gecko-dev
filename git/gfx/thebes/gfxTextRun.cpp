@@ -1703,9 +1703,7 @@ gfxFontGroup::FindPlatformFont(const nsAString& aName,
                 uint32_t count = userfonts.Length();
                 for (uint32_t i = 0; i < count; i++) {
                     fe = userfonts[i];
-                    FamilyFace ff(family, fe, needsBold);
-                    ff.CheckState(mSkipDrawing);
-                    mFonts.AppendElement(ff);
+                    mFonts.AppendElement(FamilyFace(family, fe, needsBold));
                 }
             }
         }
@@ -3097,7 +3095,7 @@ gfxFontGroup::WhichPrefFontSupportsChar(uint32_t aCh)
             bool needsBold;
             gfxFontEntry *fe = family->FindFontForStyle(mStyle, needsBold);
             // if ch in cmap, create and return a gfxFont
-            if (fe && fe->HasCharacter(aCh)) {
+            if (fe && fe->TestCharacterMap(aCh)) {
                 nsRefPtr<gfxFont> prefFont = fe->FindOrMakeFont(&mStyle, needsBold);
                 if (!prefFont) continue;
                 mLastPrefFamily = family;

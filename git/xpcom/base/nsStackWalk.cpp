@@ -13,7 +13,7 @@
 
 #include "nsStackWalk.h"
 
-#if defined(_MSC_VER) && _MSC_VER < 1900
+#ifdef XP_WIN
 #define snprintf _snprintf
 #endif
 

@@ -26,6 +26,7 @@
 
 #include <ctime>
 
+#include "pkix/nullptr.h"
 #include "pkix/Time.h"
 
 namespace mozilla { namespace pkix { namespace test {

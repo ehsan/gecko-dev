@@ -60,48 +60,49 @@ CreateCertWithOneExtension(const char* subjectStr, const ByteString& extension)
   return CreateCertWithExtensions(subjectStr, extensions);
 }
 
-class TrustEverythingTrustDomain final : public TrustDomain
+class TrustEverythingTrustDomain : public TrustDomain
 {
 private:
-  Result GetCertTrust(EndEntityOrCA, const CertPolicyId&, Input candidateCert,
-                      /*out*/ TrustLevel& trustLevel) override
+  virtual Result GetCertTrust(EndEntityOrCA, const CertPolicyId&,
+                              Input candidateCert,
+                              /*out*/ TrustLevel& trustLevel)
   {
     trustLevel = TrustLevel::TrustAnchor;
     return Success;
   }
 
-  Result FindIssuer(Input /*encodedIssuerName*/, IssuerChecker& /*checker*/,
-                    Time /*time*/) override
+  virtual Result FindIssuer(Input /*encodedIssuerName*/,
+                            IssuerChecker& /*checker*/, Time /*time*/)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
-                         /*optional*/ const Input*, /*optional*/ const Input*)
-                         override
+  virtual Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
+                                 /*optional*/ const Input*,
+                                 /*optional*/ const Input*)
   {
     return Success;
   }
 
-  Result IsChainValid(const DERArray&, Time) override
+  virtual Result IsChainValid(const DERArray&, Time)
   {
     return Success;
   }
 
-  Result VerifySignedData(const SignedDataWithSignature& signedData,
-                          Input subjectPublicKeyInfo) override
+  virtual Result VerifySignedData(const SignedDataWithSignature& signedData,
+                                  Input subjectPublicKeyInfo)
   {
     return TestVerifySignedData(signedData, subjectPublicKeyInfo);
   }
 
-  Result DigestBuf(Input, /*out*/ uint8_t*, size_t) override
+  virtual Result DigestBuf(Input, /*out*/ uint8_t*, size_t)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;
   }
 
-  Result CheckPublicKey(Input subjectPublicKeyInfo) override
+  virtual Result CheckPublicKey(Input subjectPublicKeyInfo)
   {
     return TestCheckPublicKey(subjectPublicKeyInfo);
   }

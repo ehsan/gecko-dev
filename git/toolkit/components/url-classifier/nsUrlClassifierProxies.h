@@ -7,7 +7,6 @@
 #define nsUrlClassifierProxies_h
 
 #include "nsIUrlClassifierDBService.h"
-#include "nsUrlClassifierDBService.h"
 #include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Attributes.h"
@@ -22,7 +21,7 @@ class UrlClassifierDBServiceWorkerProxy MOZ_FINAL :
   public nsIUrlClassifierDBServiceWorker
 {
 public:
-  explicit UrlClassifierDBServiceWorkerProxy(nsUrlClassifierDBServiceWorker* aTarget)
+  explicit UrlClassifierDBServiceWorkerProxy(nsIUrlClassifierDBServiceWorker* aTarget)
     : mTarget(aTarget)
   { }
 
@@ -33,7 +32,7 @@ public:
   class LookupRunnable : public nsRunnable
   {
   public:
-    LookupRunnable(nsUrlClassifierDBServiceWorker* aTarget,
+    LookupRunnable(nsIUrlClassifierDBServiceWorker* aTarget,
                    nsIPrincipal* aPrincipal,
                    const nsACString& aTables,
                    nsIUrlClassifierCallback* aCB)
@@ -46,7 +45,7 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsRefPtr<nsUrlClassifierDBServiceWorker> mTarget;
+    nsCOMPtr<nsIUrlClassifierDBServiceWorker> mTarget;
     nsCOMPtr<nsIPrincipal> mPrincipal;
     nsCString mLookupTables;
     nsCOMPtr<nsIUrlClassifierCallback> mCB;
@@ -55,7 +54,7 @@ public:
   class GetTablesRunnable : public nsRunnable
   {
   public:
-    GetTablesRunnable(nsUrlClassifierDBServiceWorker* aTarget,
+    GetTablesRunnable(nsIUrlClassifierDBServiceWorker* aTarget,
                       nsIUrlClassifierCallback* aCB)
       : mTarget(aTarget)
       , mCB(aCB)
@@ -64,14 +63,14 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsRefPtr<nsUrlClassifierDBServiceWorker> mTarget;
+    nsCOMPtr<nsIUrlClassifierDBServiceWorker> mTarget;
     nsCOMPtr<nsIUrlClassifierCallback> mCB;
   };
 
   class BeginUpdateRunnable : public nsRunnable
   {
   public:
-    BeginUpdateRunnable(nsUrlClassifierDBServiceWorker* aTarget,
+    BeginUpdateRunnable(nsIUrlClassifierDBServiceWorker* aTarget,
                         nsIUrlClassifierUpdateObserver* aUpdater,
                         const nsACString& aTables)
       : mTarget(aTarget)
@@ -82,7 +81,7 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsRefPtr<nsUrlClassifierDBServiceWorker> mTarget;
+    nsCOMPtr<nsIUrlClassifierDBServiceWorker> mTarget;
     nsCOMPtr<nsIUrlClassifierUpdateObserver> mUpdater;
     nsCString mTables;
   };
@@ -90,7 +89,7 @@ public:
   class BeginStreamRunnable : public nsRunnable
   {
   public:
-    BeginStreamRunnable(nsUrlClassifierDBServiceWorker* aTarget,
+    BeginStreamRunnable(nsIUrlClassifierDBServiceWorker* aTarget,
                         const nsACString& aTable)
       : mTarget(aTarget)
       , mTable(aTable)
@@ -99,14 +98,14 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsRefPtr<nsUrlClassifierDBServiceWorker> mTarget;
+    nsCOMPtr<nsIUrlClassifierDBServiceWorker> mTarget;
     nsCString mTable;
   };
 
   class UpdateStreamRunnable : public nsRunnable
   {
   public:
-    UpdateStreamRunnable(nsUrlClassifierDBServiceWorker* aTarget,
+    UpdateStreamRunnable(nsIUrlClassifierDBServiceWorker* aTarget,
                          const nsACString& aUpdateChunk)
       : mTarget(aTarget)
       , mUpdateChunk(aUpdateChunk)
@@ -115,14 +114,14 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsRefPtr<nsUrlClassifierDBServiceWorker> mTarget;
+    nsCOMPtr<nsIUrlClassifierDBServiceWorker> mTarget;
     nsCString mUpdateChunk;
   };
 
   class CacheCompletionsRunnable : public nsRunnable
   {
   public:
-    CacheCompletionsRunnable(nsUrlClassifierDBServiceWorker* aTarget,
+    CacheCompletionsRunnable(nsIUrlClassifierDBServiceWorker* aTarget,
                              mozilla::safebrowsing::CacheResultArray *aEntries)
       : mTarget(aTarget)
       , mEntries(aEntries)
@@ -131,14 +130,14 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsRefPtr<nsUrlClassifierDBServiceWorker> mTarget;
+    nsCOMPtr<nsIUrlClassifierDBServiceWorker> mTarget;
      mozilla::safebrowsing::CacheResultArray *mEntries;
   };
 
   class CacheMissesRunnable : public nsRunnable
   {
   public:
-    CacheMissesRunnable(nsUrlClassifierDBServiceWorker* aTarget,
+    CacheMissesRunnable(nsIUrlClassifierDBServiceWorker* aTarget,
                         mozilla::safebrowsing::PrefixArray *aEntries)
       : mTarget(aTarget)
       , mEntries(aEntries)
@@ -147,41 +146,14 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsRefPtr<nsUrlClassifierDBServiceWorker> mTarget;
+    nsCOMPtr<nsIUrlClassifierDBServiceWorker> mTarget;
     mozilla::safebrowsing::PrefixArray *mEntries;
   };
-
-  class DoLocalLookupRunnable : public nsRunnable
-  {
-  public:
-    DoLocalLookupRunnable(nsUrlClassifierDBServiceWorker* aTarget,
-                          const nsACString& spec,
-                          const nsACString& tables,
-                          mozilla::safebrowsing::LookupResultArray* results)
-      : mTarget(aTarget)
-      , mSpec(spec)
-      , mTables(tables)
-      , mResults(results)
-    { }
-
-    NS_DECL_NSIRUNNABLE
-  private:
-    nsRefPtr<nsUrlClassifierDBServiceWorker> mTarget;
-
-    nsCString mSpec;
-    nsCString mTables;
-    mozilla::safebrowsing::LookupResultArray* mResults;
-  };
-
-public:
-  nsresult DoLocalLookup(const nsACString& spec,
-                         const nsACString& tables,
-                         mozilla::safebrowsing::LookupResultArray* results);
 
 private:
   ~UrlClassifierDBServiceWorkerProxy() {}
 
-  nsRefPtr<nsUrlClassifierDBServiceWorker> mTarget;
+  nsCOMPtr<nsIUrlClassifierDBServiceWorker> mTarget;
 };
 
 // The remaining classes here are all proxies to the main thread

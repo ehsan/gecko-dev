@@ -142,7 +142,7 @@ AssemblerX86Shared::InvertCondition(Condition cond)
 CPUInfo::SSEVersion CPUInfo::maxSSEVersion = UnknownSSE;
 CPUInfo::SSEVersion CPUInfo::maxEnabledSSEVersion = UnknownSSE;
 bool CPUInfo::avxPresent = false;
-bool CPUInfo::avxEnabled = false;
+bool CPUInfo::avxEnabled = true;
 
 static uintptr_t
 ReadXGETBV()

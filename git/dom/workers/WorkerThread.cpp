@@ -68,7 +68,7 @@ WorkerThread::WorkerThread()
   : nsThread(nsThread::NOT_MAIN_THREAD, kWorkerStackSize)
   , mWorkerPrivateCondVar(mLock, "WorkerThread::mWorkerPrivateCondVar")
   , mWorkerPrivate(nullptr)
-  , mOtherThreadsDispatchingViaEventTarget(0)
+  , mOtherThreadDispatchingViaEventTarget(false)
   , mAcceptingNonWorkerRunnables(true)
 {
 }
@@ -76,7 +76,7 @@ WorkerThread::WorkerThread()
 WorkerThread::~WorkerThread()
 {
   MOZ_ASSERT(!mWorkerPrivate);
-  MOZ_ASSERT(!mOtherThreadsDispatchingViaEventTarget);
+  MOZ_ASSERT(!mOtherThreadDispatchingViaEventTarget);
   MOZ_ASSERT(mAcceptingNonWorkerRunnables);
 }
 
@@ -123,11 +123,11 @@ WorkerThread::SetWorker(const WorkerThreadFriendKey& /* aKey */,
 
       MOZ_ASSERT(mWorkerPrivate);
       MOZ_ASSERT(!mAcceptingNonWorkerRunnables);
-      MOZ_ASSERT(!mOtherThreadsDispatchingViaEventTarget,
+      MOZ_ASSERT(!mOtherThreadDispatchingViaEventTarget,
                  "XPCOM Dispatch hapenning at the same time our thread is "
                  "being unset! This should not be possible!");
 
-      while (mOtherThreadsDispatchingViaEventTarget) {
+      while (mOtherThreadDispatchingViaEventTarget) {
         mWorkerPrivateCondVar.Wait();
       }
 
@@ -234,14 +234,14 @@ WorkerThread::Dispatch(nsIRunnable* aRunnable, uint32_t aFlags)
   } else {
     MutexAutoLock lock(mLock);
 
-    MOZ_ASSERT(mOtherThreadsDispatchingViaEventTarget < UINT32_MAX);
+    MOZ_ASSERT(!mOtherThreadDispatchingViaEventTarget);
 
     if (mWorkerPrivate) {
       workerPrivate = mWorkerPrivate;
 
-      // Incrementing this counter will make the worker thread sleep if it
-      // somehow tries to unset mWorkerPrivate while we're using it.
-      mOtherThreadsDispatchingViaEventTarget++;
+      // Setting this flag will make the worker thread sleep if it somehow tries
+      // to unset mWorkerPrivate while we're using it.
+      mOtherThreadDispatchingViaEventTarget = true;
     }
   }
 
@@ -270,11 +270,10 @@ WorkerThread::Dispatch(nsIRunnable* aRunnable, uint32_t aFlags)
     {
       MutexAutoLock lock(mLock);
 
-      MOZ_ASSERT(mOtherThreadsDispatchingViaEventTarget);
+      MOZ_ASSERT(mOtherThreadDispatchingViaEventTarget);
+      mOtherThreadDispatchingViaEventTarget = false;
 
-      if (!--mOtherThreadsDispatchingViaEventTarget) {
-        mWorkerPrivateCondVar.Notify();
-      }
+      mWorkerPrivateCondVar.Notify();
     }
   }
 

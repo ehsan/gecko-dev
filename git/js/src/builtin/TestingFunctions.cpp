@@ -14,7 +14,9 @@
 #include "jsfriendapi.h"
 #include "jsgc.h"
 #include "jsobj.h"
+#ifndef JS_MORE_DETERMINISTIC
 #include "jsprf.h"
+#endif
 #include "jswrapper.h"
 
 #include "asmjs/AsmJSLink.h"
@@ -1220,6 +1222,17 @@ DisplayName(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
+bool
+js::testingFunc_inParallelSection(JSContext *cx, unsigned argc, jsval *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    // If we were actually *in* a parallel section, then this function
+    // would be inlined to TRUE in ion-generated code.
+    args.rval().setBoolean(false);
+    return true;
+}
+
 static bool
 ShellObjectMetadataCallback(JSContext *cx, JSObject **pmetadata)
 {
@@ -2211,7 +2224,7 @@ SetImmutablePrototype(JSContext *cx, unsigned argc, Value *vp)
     RootedObject obj(cx, &args[0].toObject());
 
     bool succeeded;
-    if (!js::SetImmutablePrototype(cx, obj, &succeeded))
+    if (!JSObject::setImmutablePrototype(cx, obj, &succeeded))
         return false;
 
     args.rval().setBoolean(succeeded);
@@ -2442,6 +2455,10 @@ gc::ZealModeHelpText),
     JS_FN_HELP("isRelazifiableFunction", IsRelazifiableFunction, 1, 0,
 "isRelazifiableFunction(fun)",
 "  Ture if fun is a JSFunction with a relazifiable JSScript."),
+
+    JS_FN_HELP("inParallelSection", testingFunc_inParallelSection, 0, 0,
+"inParallelSection()",
+"  True if this code is executing within a parallel section."),
 
     JS_FN_HELP("setObjectMetadataCallback", SetObjectMetadataCallback, 1, 0,
 "setObjectMetadataCallback(fn)",

@@ -1019,20 +1019,15 @@ GetWrapperFor(ProxyAccessible* aProxy)
 }
 
 static uint16_t
-GetInterfacesForProxy(ProxyAccessible* aProxy, uint32_t aInterfaces)
+GetInterfacesForProxy(ProxyAccessible* aProxy)
 {
-  uint16_t interfaces = 1 << MAI_INTERFACE_COMPONENT;
-  if (aInterfaces & Interfaces::HYPERTEXT)
-    interfaces |= (1 << MAI_INTERFACE_HYPERTEXT) | (1 << MAI_INTERFACE_TEXT)
-        | (1 << MAI_INTERFACE_EDITABLE_TEXT);
-
-  return interfaces;
+  return MAI_INTERFACE_COMPONENT;
 }
 
 void
-a11y::ProxyCreated(ProxyAccessible* aProxy, uint32_t aInterfaces)
+a11y::ProxyCreated(ProxyAccessible* aProxy)
 {
-  GType type = GetMaiAtkType(GetInterfacesForProxy(aProxy, aInterfaces));
+  GType type = GetMaiAtkType(GetInterfacesForProxy(aProxy));
   NS_ASSERTION(type, "why don't we have a type!");
 
   AtkObject* obj =

@@ -16,7 +16,7 @@
 // Self
 #include "ProfileEntry.h"
 
-#if defined(_MSC_VER) && _MSC_VER < 1900
+#if _MSC_VER
  #define snprintf _snprintf
 #endif
 
