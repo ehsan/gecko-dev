@@ -177,7 +177,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "GMPInstallManager",
     "Reader:ShowToast",
     "Reader:ToolbarVisibility",
     "Reader:SystemUIVisibility",
-    "Reader:UpdateReaderButton",
+    "Reader:UpdateIsArticle",
   ], "chrome://browser/content/Reader.js"],
 ].forEach(aScript => {
   let [name, messages, script] = aScript;
@@ -2607,20 +2607,14 @@ var NativeWindow = {
       if (SelectionHandler.canSelect(this._target)) {
         // If textSelection WORD is successful,
         // consume / preventDefault the context menu event.
-        let selectionResult = SelectionHandler.startSelection(this._target,
-          { mode: SelectionHandler.SELECT_AT_POINT,
-            x: event.clientX,
-            y: event.clientY
-          }
-        );
-        if (selectionResult === SelectionHandler.ERROR_NONE) {
+        if (SelectionHandler.startSelection(this._target,
+          { mode: SelectionHandler.SELECT_AT_POINT, x: event.clientX, y: event.clientY })) {
           event.preventDefault();
           return;
         }
-
         // If textSelection caret-attachment is successful,
         // consume / preventDefault the context menu event.
-        if (SelectionHandler.attachCaret(this._target) === SelectionHandler.ERROR_NONE) {
+        if (SelectionHandler.attachCaret(this._target)) {
           event.preventDefault();
           return;
         }
@@ -3287,6 +3281,7 @@ function Tab(aURL, aParams) {
   this.clickToPlayPluginsActivated = false;
   this.desktopMode = false;
   this.originalURI = null;
+  this.isArticle = false;
   this.hasTouchListener = false;
   this.browserWidth = 0;
   this.browserHeight = 0;
@@ -4879,6 +4874,10 @@ Tab.prototype = {
     }
   },
 
+  get readerActive() {
+    return this.browser.currentURI.spec.startsWith("about:reader");
+  },
+
   // nsIBrowserTab
   get window() {
     if (!this.browser)
@@ -5096,10 +5095,7 @@ var BrowserEventHandler = {
           // If the element was previously focused, show the caret attached to it.
           let element = this._highlightElement;
           if (element && element == BrowserApp.getFocusedInput(BrowserApp.selectedBrowser)) {
-            let result = SelectionHandler.attachCaret(element);
-            if (result !== SelectionHandler.ERROR_NONE) {
-              dump("Unexpected failure during caret attach: " + result);
-            }
+            SelectionHandler.attachCaret(element);
           }
         } catch(e) {
           Cu.reportError(e);

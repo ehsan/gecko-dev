@@ -20,8 +20,7 @@ describe("loop.webapp", function() {
       stubGetPermsAndCacheMedia,
       fakeAudioXHR,
       dispatcher,
-      feedbackStore,
-      WEBSOCKET_REASONS = loop.shared.utils.WEBSOCKET_REASONS;
+      feedbackStore;
 
   beforeEach(function() {
     sandbox = sinon.sandbox.create();
@@ -243,7 +242,7 @@ describe("loop.webapp", function() {
             it("should display the FailedConversationView", function() {
               ocView._websocket.trigger("progress", {
                 state: "terminated",
-                reason: WEBSOCKET_REASONS.REJECT
+                reason: "reject"
               });
 
               TestUtils.findRenderedComponentWithType(ocView,
@@ -258,17 +257,17 @@ describe("loop.webapp", function() {
 
                 ocView._websocket.trigger("progress", {
                   state: "terminated",
-                  reason: WEBSOCKET_REASONS.REJECT
+                  reason: "reject"
                 });
 
                 sinon.assert.calledOnce(multiplexGum.reset);
               });
 
-            it("should display an error message if the reason is not WEBSOCKET_REASONS.CANCEL",
+            it("should display an error message if the reason is not 'cancel'",
               function() {
                 ocView._websocket.trigger("progress", {
                   state: "terminated",
-                  reason: WEBSOCKET_REASONS.REJECT
+                  reason: "reject"
                 });
 
                 sinon.assert.calledOnce(notifications.errorL10n);
@@ -276,11 +275,11 @@ describe("loop.webapp", function() {
                   "call_timeout_notification_text");
               });
 
-            it("should not display an error message if the reason is WEBSOCKET_REASONS.CANCEL",
+            it("should not display an error message if the reason is 'cancel'",
               function() {
                 ocView._websocket.trigger("progress", {
                   state: "terminated",
-                  reason: WEBSOCKET_REASONS.CANCEL
+                  reason: "cancel"
                 });
 
                 sinon.assert.notCalled(notifications.errorL10n);

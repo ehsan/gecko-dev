@@ -1434,9 +1434,6 @@ pref("devtools.profiler.ui.flatten-tree-recursion", true);
 pref("devtools.profiler.ui.show-platform-data", false);
 pref("devtools.profiler.ui.show-idle-blocks", true);
 
-// The default Performance UI settings
-pref("devtools.performance.ui.invert-call-tree", true);
-
 // The default cache UI setting
 pref("devtools.cache.disabled", false);
 
@@ -1815,6 +1812,3 @@ pref("dom.ipc.cpow.timeout", 500);
 // detection).
 pref("dom.ipc.processHangMonitor", true);
 pref("dom.ipc.reportProcessHangs", true);
-
-// Disable reader mode by default.
-pref("reader.parse-on-load.enabled", false);

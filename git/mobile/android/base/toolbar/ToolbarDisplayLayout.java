@@ -203,6 +203,10 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
         Button.OnClickListener faviconListener = new Button.OnClickListener() {
             @Override
             public void onClick(View view) {
+                if (mSiteSecurity.getVisibility() != View.VISIBLE) {
+                    return;
+                }
+
                 mSiteIdentityPopup.show();
             }
         };

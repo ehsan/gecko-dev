@@ -24,9 +24,6 @@ const GRAPH_SCROLL_EVENTS_DRAIN = 50; // ms
  * framerate, markers and memory over time.
  */
 let OverviewView = {
-  _beginAt: null,
-  _endAt: null,
-
   /**
    * Sets up the view with event binding.
    */
@@ -69,13 +66,6 @@ let OverviewView = {
     PerformanceController.off(EVENTS.RECORDING_STARTED, this._onRecordingStarted);
     PerformanceController.off(EVENTS.RECORDING_STOPPED, this._onRecordingStopped);
     PerformanceController.off(EVENTS.RECORDING_SELECTED, this._onRecordingSelected);
-  },
-
-  /**
-   * Gets currently selected range's beginAt and endAt values.
-   */
-  getRange: function () {
-    return { beginAt: this._beginAt, endAt: this._endAt };
   },
 
   /**
@@ -158,12 +148,8 @@ let OverviewView = {
   _onSelectionChange: function () {
     if (this.framerateGraph.hasSelection()) {
       let { min: beginAt, max: endAt } = this.framerateGraph.getMappedSelection();
-      this._beginAt = beginAt;
-      this._endAt = endAt;
       this.emit(EVENTS.OVERVIEW_RANGE_SELECTED, { beginAt, endAt });
     } else {
-      this._beginAt = null;
-      this._endAt = null;
       this.emit(EVENTS.OVERVIEW_RANGE_CLEARED);
     }
   },

@@ -135,9 +135,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "FormValidationHandler",
 XPCOMUtils.defineLazyModuleGetter(this, "WebChannel",
                                   "resource://gre/modules/WebChannel.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "ReaderParent",
-                                  "resource:///modules/ReaderParent.jsm");
-
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
 
@@ -596,7 +593,6 @@ BrowserGlue.prototype = {
     ContentPrefServiceParent.init();
 
     LoginManagerParent.init();
-    ReaderParent.init();
 
 #ifdef NIGHTLY_BUILD
     Services.prefs.addObserver(POLARIS_ENABLED, this, false);
