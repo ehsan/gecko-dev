@@ -93,14 +93,14 @@
 %ifdef WINSTRIPE_AERO
 @media not all and (-moz-windows-compositor) {
 %endif
-  #main-window[tabsintitlebar] #titlebar-content:not(:-moz-lwtheme),
-  #main-window[tabsintitlebar]:not([inFullscreen]) #TabsToolbar:not(:-moz-lwtheme) {
-    background-color: ActiveCaption;
+  #main-window[tabsintitlebar]:not([inFullscreen]) #toolbar-menubar[inactive] ~ #TabsToolbar:not(:-moz-lwtheme) {
+    background: -moz-linear-gradient(bottom, @toolbarShadowColor@ 1px, transparent 1px),
+                -moz-linear-gradient(rgba(50%,50%,50%,0), ActiveCaption 85%);
     color: CaptionText;
   }
-  #main-window[tabsintitlebar] #titlebar-content:not(:-moz-lwtheme):-moz-window-inactive,
-  #main-window[tabsintitlebar]:not([inFullscreen]) #TabsToolbar:not(:-moz-lwtheme):-moz-window-inactive {
-    background-color: InactiveCaption;
+  #main-window[tabsintitlebar]:not([inFullscreen]) #toolbar-menubar[inactive] ~ #TabsToolbar:not(:-moz-lwtheme):-moz-window-inactive {
+    background: -moz-linear-gradient(bottom, @toolbarShadowColor@ 1px, transparent 1px),
+                -moz-linear-gradient(rgba(50%,50%,50%,0), InactiveCaption 85%);
     color: InactiveCaptionText;
   }
 
@@ -121,17 +121,10 @@
   padding-bottom: 1px;
 }
 
-#nav-bar:not(:-moz-lwtheme),
-#nav-bar[collapsed="true"] + toolbar:not(:-moz-lwtheme),
-#nav-bar[collapsed="true"] + #customToolbars + #PersonalToolbar:not(:-moz-lwtheme),
 #navigator-toolbox[tabsontop="true"] > #nav-bar,
 #navigator-toolbox[tabsontop="true"]:not([customizing]) > #nav-bar[collapsed="true"] + toolbar,
 #navigator-toolbox[tabsontop="true"]:not([customizing]) > #nav-bar[collapsed="true"] + #customToolbars + #PersonalToolbar {
   background-image: -moz-linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
-}
-
-#navigator-toolbox[tabsontop="false"] > #toolbar-menubar:not(:-moz-lwtheme) {
-  background-image: -moz-linear-gradient(@toolbarHighlight@, @toolbarHighlight@);
 }
 
 #personal-bookmarks {
@@ -225,6 +218,10 @@
   padding: 0;
   margin: 0;
   -moz-margin-start: .5em;
+}
+
+.splitmenu-menuitem {
+  -moz-margin-end: 1px;
 }
 
 .splitmenu-menu {
