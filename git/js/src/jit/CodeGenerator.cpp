@@ -3761,7 +3761,13 @@ CodeGenerator::emitObjectOrStringResultChecks(LInstruction *lir, MDefinition *mi
         masm.jump(&ok);
 
         masm.bind(&miss);
-        masm.guardTypeSetMightBeIncomplete(output, temp, &ok);
+
+        // Type set guards might miss when an object's group changes and its
+        // properties become unknown, so check for this case.
+        masm.loadPtr(Address(output, JSObject::offsetOfGroup()), temp);
+        masm.branchTestPtr(Assembler::NonZero,
+                           Address(temp, ObjectGroup::offsetOfFlags()),
+                           Imm32(OBJECT_FLAG_UNKNOWN_PROPERTIES), &ok);
 
         masm.assumeUnreachable("MIR instruction returned object with unexpected type");
 
@@ -3833,12 +3839,15 @@ CodeGenerator::emitValueResultChecks(LInstruction *lir, MDefinition *mir)
 
         masm.bind(&miss);
 
-        // Check for cases where the type set guard might have missed due to
-        // changing object groups.
+        // Type set guards might miss when an object's group changes and its
+        // properties become unknown, so check for this case.
         Label realMiss;
         masm.branchTestObject(Assembler::NotEqual, output, &realMiss);
         Register payload = masm.extractObject(output, temp1);
-        masm.guardTypeSetMightBeIncomplete(payload, temp1, &ok);
+        masm.loadPtr(Address(payload, JSObject::offsetOfGroup()), temp1);
+        masm.branchTestPtr(Assembler::NonZero,
+                           Address(temp1, ObjectGroup::offsetOfFlags()),
+                           Imm32(OBJECT_FLAG_UNKNOWN_PROPERTIES), &ok);
         masm.bind(&realMiss);
 
         masm.assumeUnreachable("MIR instruction returned value with unexpected type");
@@ -4382,14 +4391,12 @@ CodeGenerator::visitSimdBox(LSimdBox *lir)
     gc::InitialHeap initialHeap = lir->mir()->initialHeap();
     MIRType type = lir->mir()->input()->type();
 
-    MOZ_ASSERT(lir->safepoint()->liveRegs().has(in),
-               "Save the input register across the oolCallVM");
-    OutOfLineCode *ool = oolCallVM(NewTypedObjectInfo, lir,
-                                   (ArgList(), ImmGCPtr(templateObject), Imm32(initialHeap)),
-                                   StoreRegisterTo(object));
-
-    masm.createGCObject(object, temp, templateObject, initialHeap, ool->entry());
-    masm.bind(ool->rejoin());
+    // :TODO: We cannot spill SIMD registers (Bug 1112164) from safepoints, thus
+    // we cannot use the same oolCallVM as visitNewTypedObject for allocating
+    // SIMD Typed Objects if we are at the end of the nursery. (Bug 1119303)
+    Label bail;
+    masm.createGCObject(object, temp, templateObject, initialHeap, &bail);
+    bailoutFrom(&bail, lir->snapshot());
 
     Address objectData(object, InlineTypedObject::offsetOfDataStart());
     switch (type) {

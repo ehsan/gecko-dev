@@ -47,17 +47,13 @@ struct ProtoTableEntry {
     ClassInitializerOp init;
 };
 
-namespace js {
-
 #define DECLARE_PROTOTYPE_CLASS_INIT(name,code,init,clasp) \
     extern JSObject *init(JSContext *cx, Handle<JSObject*> obj);
 JS_FOR_EACH_PROTOTYPE(DECLARE_PROTOTYPE_CLASS_INIT)
 #undef DECLARE_PROTOTYPE_CLASS_INIT
 
-} // namespace js
-
 JSObject *
-js::InitViaClassSpec(JSContext *cx, Handle<JSObject*> obj)
+js_InitViaClassSpec(JSContext *cx, Handle<JSObject*> obj)
 {
     MOZ_CRASH("js_InitViaClassSpec() should not be called.");
 }
@@ -109,7 +105,7 @@ GlobalObject::resolveConstructor(JSContext *cx, Handle<GlobalObject*> global, JS
     // top of this file. The other lives in the ClassSpec for classes that
     // define it. Classes may use one or the other, but not both.
     ClassInitializerOp init = protoTable[key].init;
-    if (init == InitViaClassSpec)
+    if (init == js_InitViaClassSpec)
         init = nullptr;
 
     const Class *clasp = ProtoKeyToClass(key);
@@ -419,7 +415,7 @@ GlobalObject::warnOnceAbout(JSContext *cx, HandleObject obj, uint32_t slot, unsi
     Rooted<GlobalObject*> global(cx, &obj->global());
     HeapSlot &v = global->getSlotRef(slot);
     if (v.isUndefined()) {
-        if (!JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING, GetErrorMessage, nullptr,
+        if (!JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING, js_GetErrorMessage, nullptr,
                                           errorNumber))
         {
             return false;

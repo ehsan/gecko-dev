@@ -19,10 +19,10 @@
 #include "vm/ErrorObject.h"
 #include "vm/Runtime.h"
 
-namespace js {
-
 extern JSObject *
-InitSharedArrayBufferClass(JSContext *cx, HandleObject obj);
+js_InitSharedArrayBufferClass(JSContext *cx, js::HandleObject obj);
+
+namespace js {
 
 class Debugger;
 class TypedObjectModuleObject;

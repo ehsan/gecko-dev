@@ -242,7 +242,6 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  nsCSSParser::Startup();
   nsCSSRuleProcessor::Startup();
 
 #ifdef MOZ_XUL

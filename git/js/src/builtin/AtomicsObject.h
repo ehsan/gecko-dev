@@ -123,9 +123,9 @@ public:
 #endif
 };
 
-JSObject *
-InitAtomicsClass(JSContext *cx, HandleObject obj);
-
 }  /* namespace js */
+
+JSObject *
+js_InitAtomicsClass(JSContext *cx, js::HandleObject obj);
 
 #endif /* builtin_AtomicsObject_h */

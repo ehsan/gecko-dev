@@ -39,7 +39,7 @@
  * Currently, all "globals" related to typed objects are packaged
  * within a single "module" object `TypedObject`. This module has its
  * own js::Class and when that class is initialized, we also create
- * and define all other values (in `js::InitTypedObjectModuleClass()`).
+ * and define all other values (in `js_InitTypedObjectModuleClass()`).
  *
  * - Type objects, meta type objects, and type representations:
  *
@@ -1042,10 +1042,10 @@ class LazyArrayBufferTable
     size_t sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
 };
 
-JSObject *
-InitTypedObjectModuleObject(JSContext *cx, JS::HandleObject obj);
-
 } // namespace js
+
+JSObject *
+js_InitTypedObjectModuleObject(JSContext *cx, JS::HandleObject obj);
 
 template <>
 inline bool

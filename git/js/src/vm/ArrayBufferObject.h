@@ -536,9 +536,6 @@ class InnerViewTable
     size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf);
 };
 
-extern JSObject *
-InitArrayBufferClass(JSContext *cx, HandleObject obj);
-
 } // namespace js
 
 template <>

@@ -1161,19 +1161,14 @@ function testClasses() {
     // No unnamed class statements.
     assertError("class { constructor() { } }", SyntaxError);
 
-    function simpleMethod(id, kind, generator, args=[], isStatic=false) {
+    function simpleMethod(id, kind, generator, args=[]) {
         assertEq(generator && kind === "method", generator);
         let idN = ident(id);
         let methodMaker = generator ? genFunExpr : funExpr;
         let methodName = kind !== "method" ? null : idN;
         let methodFun = methodMaker(methodName, args.map(ident), blockStmt([]));
 
-        return classMethod(idN, methodFun, kind, isStatic);
-    }
-    function emptyCPNMethod(id, isStatic) {
-        return classMethod(computedName(lit(id)),
-                           funExpr(null, [], blockStmt([])),
-                           "method", isStatic);
+        return classMethod(idN, methodFun, kind, false);
     }
     function setClassMethods(class_, methods) {
         class_.template.body = methods;
@@ -1196,60 +1191,17 @@ function testClasses() {
     setClassMethods(stmt, [simpleConstructor, simpleMethod("method", "set", false, ["x"])]);
     assertStmt("class Foo { constructor() { } set method(x) { } }", stmt);
 
-    /* Static */
-    setClassMethods(stmt, [simpleConstructor,
-                           simpleMethod("method", "method", false, [], true),
-                           simpleMethod("methodGen", "method", true, [], true),
-                           simpleMethod("getter", "get", false, [], true),
-                           simpleMethod("setter", "set", false, ["x"], true)]);
-    assertStmt(`class Foo {
-                  constructor() { };
-                  static method() { };
-                  static *methodGen() { };
-                  static get getter() { };
-                  static set setter(x) { }
-                }`, stmt);
-
-
-    // It's not an error to have a method named static, static, or not.
-    setClassMethods(stmt, [simpleConstructor, simpleMethod("static", "method", false, [], false)]);
-    assertStmt("class Foo{ constructor() { } static() { } }", stmt);
-    setClassMethods(stmt, [simpleMethod("static", "method", false, [], true), simpleConstructor]);
-    assertStmt("class Foo{ static static() { }; constructor() { } }", stmt);
-    setClassMethods(stmt, [simpleMethod("static", "get", false, [], true), simpleConstructor]);
-    assertStmt("class Foo { static get static() { }; constructor() { } }", stmt);
-    setClassMethods(stmt, [simpleConstructor, simpleMethod("static", "set", false, ["x"], true)]);
-    assertStmt("class Foo { constructor() { }; static set static(x) { } }", stmt);
-
-    // You do, however, have to put static in the right spot
-    assertError("class Foo { constructor() { }; get static foo() { } }", SyntaxError);
-
-    // Spec disallows "prototype" as a static member in a class, since that
-    // one's important to make the desugaring work
-    assertError("class Foo { constructor() { } static prototype() { } }", SyntaxError);
-    assertError("class Foo { constructor() { } static *prototype() { } }", SyntaxError);
-    assertError("class Foo { static get prototype() { }; constructor() { } }", SyntaxError);
-    assertError("class Foo { static set prototype(x) { }; constructor() { } }", SyntaxError);
-
-    // You are, however, allowed to have a CPN called prototype as a static
-    setClassMethods(stmt, [simpleConstructor, emptyCPNMethod("prototype", true)]);
-    assertStmt("class Foo { constructor() { }; static [\"prototype\"]() { } }", stmt);
-
     /* Constructor */
     // Currently, we do not allow default constructors
     assertError("class Foo { }", TypeError);
 
     // It is an error to have two methods named constructor, but not other
-    // names, regardless if one is an accessor or a generator or static.
+    // names, regardless if one is an accessor or a generator.
     assertError("class Foo { constructor() { } constructor(a) { } }", SyntaxError);
     let methods = [["method() { }", simpleMethod("method", "method", false)],
                    ["*method() { }", simpleMethod("method", "method", true)],
                    ["get method() { }", simpleMethod("method", "get", false)],
-                   ["set method(x) { }", simpleMethod("method", "set", false, ["x"])],
-                   ["static method() { }", simpleMethod("method", "method", false, [], true)],
-                   ["static *method() { }", simpleMethod("method", "method", true, [], true)],
-                   ["static get method() { }", simpleMethod("method", "get", false, [], true)],
-                   ["static set method(x) { }", simpleMethod("method", "set", false, ["x"], true)]];
+                   ["set method(x) { }", simpleMethod("method", "set", false, ["x"])]];
     let i,j;
     for (i=0; i < methods.length; i++) {
         for (j=0; j < methods.length; j++) {
@@ -1266,8 +1218,12 @@ function testClasses() {
 
     // It is, however, not an error to have a constructor, and a method with a
     // computed property name 'constructor'
-    setClassMethods(stmt, [simpleConstructor, emptyCPNMethod("constructor", false)]);
-    assertStmt("class Foo { constructor () { } [\"constructor\"] () { } }", stmt);
+    assertStmt("class Foo { constructor () { } [\"constructor\"] () { } }",
+               classStmt(ident("Foo"), null,
+                         [simpleConstructor,
+                          classMethod(computedName(lit("constructor")),
+                                      funExpr(null, [], blockStmt([])),
+                                      "method", false)]));
 
     // It is an error to have a generator or accessor named constructor
     assertError("class Foo { *constructor() { } }", SyntaxError);
@@ -1327,13 +1283,6 @@ function testClasses() {
     assertError("class Foo { constructor()", SyntaxError);
     assertError("class Foo { constructor() {", SyntaxError);
     assertError("class Foo { constructor() { }", SyntaxError);
-    assertError("class Foo { static", SyntaxError);
-    assertError("class Foo { static y", SyntaxError);
-    assertError("class Foo { static *", SyntaxError);
-    assertError("class Foo { static *y", SyntaxError);
-    assertError("class Foo { static get", SyntaxError);
-    assertError("class Foo { static get y", SyntaxError);
-
 }
 
 if (classesEnabled())

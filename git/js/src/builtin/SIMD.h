@@ -323,7 +323,7 @@ struct Int32x4 {
 };
 
 template<typename V>
-JSObject *CreateSimd(JSContext *cx, const typename V::Elem *data);
+JSObject *CreateSimd(JSContext *cx, typename V::Elem *data);
 
 template<typename V>
 bool IsVectorObject(HandleValue v);
@@ -349,9 +349,9 @@ simd_int32x4_##Name(JSContext *cx, unsigned argc, Value *vp);
 INT32X4_FUNCTION_LIST(DECLARE_SIMD_INT32x4_FUNCTION)
 #undef DECLARE_SIMD_INT32x4_FUNCTION
 
-JSObject *
-InitSIMDClass(JSContext *cx, HandleObject obj);
-
 }  /* namespace js */
+
+JSObject *
+js_InitSIMDClass(JSContext *cx, js::HandleObject obj);
 
 #endif /* builtin_SIMD_h */

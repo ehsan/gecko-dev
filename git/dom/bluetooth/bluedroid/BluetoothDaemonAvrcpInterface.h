@@ -346,7 +346,6 @@ public:
 private:
   void DispatchError(BluetoothAvrcpResultHandler* aRes,
                      BluetoothStatus aStatus);
-  void DispatchError(BluetoothAvrcpResultHandler* aRes, nsresult aRv);
 
   BluetoothDaemonAvrcpModule* mModule;
 };

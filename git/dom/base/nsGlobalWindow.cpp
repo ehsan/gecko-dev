@@ -1057,15 +1057,13 @@ const nsChromeOuterWindowProxy
 nsChromeOuterWindowProxy::singleton;
 
 static JSObject*
-NewOuterWindowProxy(JSContext *cx, JS::Handle<JSObject*> global, bool isChrome)
+NewOuterWindowProxy(JSContext *cx, JS::Handle<JSObject*> parent, bool isChrome)
 {
-  JSAutoCompartment ac(cx, global);
-  MOZ_ASSERT(js::GetGlobalForObjectCrossCompartment(global) == global);
-
+  JSAutoCompartment ac(cx, parent);
   js::WrapperOptions options;
   options.setClass(&OuterWindowProxyClass);
   options.setSingleton(true);
-  JSObject *obj = js::Wrapper::New(cx, global,
+  JSObject *obj = js::Wrapper::New(cx, parent, parent,
                                    isChrome ? &nsChromeOuterWindowProxy::singleton
                                             : &nsOuterWindowProxy::singleton,
                                    options);
@@ -2599,10 +2597,21 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
       SetWrapper(outerObject);
 
-      MOZ_ASSERT(js::GetObjectParent(outerObject) == newInnerGlobal);
+      {
+        JSAutoCompartment ac(cx, outerObject);
 
-      // Inform the nsJSContext, which is the canonical holder of the outer.
-      mContext->SetWindowProxy(outerObject);
+        JS_SetParent(cx, outerObject, newInnerGlobal);
+
+        // Inform the nsJSContext, which is the canonical holder of the outer.
+        mContext->SetWindowProxy(outerObject);
+
+        NS_ASSERTION(!JS_IsExceptionPending(cx),
+                     "We might overwrite a pending exception!");
+        XPCWrappedNativeScope* scope = xpc::ObjectScope(outerObject);
+        if (scope->mWaiverWrapperMap) {
+          scope->mWaiverWrapperMap->Reparent(cx, newInnerGlobal);
+        }
+      }
     }
 
     // Enter the new global's compartment.
@@ -9179,7 +9188,7 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aUrl, nsIVariant* aArgument,
                             (aUrl, aArgument, aOptions, aError), aError,
                             nullptr);
 
-  if (!IsShowModalDialogEnabled() || XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (!IsShowModalDialogEnabled()) {
     aError.Throw(NS_ERROR_NOT_AVAILABLE);
     return nullptr;
   }

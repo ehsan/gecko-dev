@@ -186,12 +186,6 @@ SelectionCarets::HandleEvent(WidgetEvent* aEvent)
     movePoint = mouseEvent->AsGUIEvent()->refPoint;
   }
 
-  // XUL has no SelectionCarets elements.
-  if (!mPresShell->GetSelectionCaretsStartElement() ||
-      !mPresShell->GetSelectionCaretsEndElement()) {
-    return nsEventStatus_eIgnore;
-  }
-
   // Get event coordinate relative to root frame
   nsIFrame* rootFrame = mPresShell->GetRootFrame();
   if (!rootFrame) {
@@ -463,7 +457,7 @@ SelectionCarets::UpdateSelectionCarets()
     return;
   }
 
-  int32_t rangeCount = selection->RangeCount();
+  int32_t rangeCount = selection->GetRangeCount();
   nsRefPtr<nsRange> firstRange = selection->GetRangeAt(0);
   nsRefPtr<nsRange> lastRange = selection->GetRangeAt(rangeCount - 1);
 
@@ -769,7 +763,7 @@ SelectionCarets::DragSelection(const nsPoint &movePoint)
     return nsEventStatus_eConsumeNoDefault;
   }
 
-  int32_t rangeCount = selection->RangeCount();
+  int32_t rangeCount = selection->GetRangeCount();
   if (rangeCount <= 0) {
     return nsEventStatus_eConsumeNoDefault;
   }
@@ -825,7 +819,7 @@ SelectionCarets::GetCaretYCenterPosition()
     return 0;
   }
 
-  int32_t rangeCount = selection->RangeCount();
+  int32_t rangeCount = selection->GetRangeCount();
   if (rangeCount <= 0) {
     return 0;
   }

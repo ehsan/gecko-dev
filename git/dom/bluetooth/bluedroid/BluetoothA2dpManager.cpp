@@ -335,9 +335,6 @@ public:
   {
     BT_WARNING("BluetoothAvrcpInterface::Cleanup failed: %d",
                (int)aStatus);
-
-    sBtAvrcpInterface = nullptr;
-
     if (mRes) {
       if (aStatus == STATUS_UNSUPPORTED) {
         /* Not all versions of Bluedroid support AVRCP. So if the
@@ -374,9 +371,6 @@ public:
   {
     BT_WARNING("BluetoothA2dpInterface::Cleanup failed: %d",
                (int)aStatus);
-
-    sBtA2dpInterface = nullptr;
-
     if (mRes) {
       mRes->OnError(NS_ERROR_FAILURE);
     }

@@ -1512,7 +1512,7 @@ BluetoothDaemonHandsfreeInterface::Init(
     aMaxNumClients, res);
 
   if (NS_FAILED(rv) && aRes) {
-    DispatchError(aRes, rv);
+    DispatchError(aRes, STATUS_FAIL);
   }
 }
 
@@ -1532,7 +1532,6 @@ public:
   {
     MOZ_ASSERT(NS_IsMainThread());
 
-    BT_LOGR("%s:%d", __func__, __LINE__);
     if (mRes) {
       mRes->OnError(aStatus);
     }
@@ -1542,7 +1541,6 @@ public:
   {
     MOZ_ASSERT(NS_IsMainThread());
 
-    BT_LOGR("%s:%d", __func__, __LINE__);
     // Clear notification handler _after_ module has been
     // unregistered. While unregistering the module, we might
     // still receive notifications.
@@ -1562,14 +1560,8 @@ void
 BluetoothDaemonHandsfreeInterface::Cleanup(
   BluetoothHandsfreeResultHandler* aRes)
 {
-  BT_LOGR("%s:%d", __func__, __LINE__);
-  nsresult rv = mModule->UnregisterModule(
-    BluetoothDaemonHandsfreeModule::SERVICE_ID,
-    new CleanupResultHandler(mModule, aRes));
-  BT_LOGR("%s:%d", __func__, __LINE__);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->UnregisterModule(BluetoothDaemonHandsfreeModule::SERVICE_ID,
+                            new CleanupResultHandler(mModule, aRes));
 }
 
 /* Connect / Disconnect */
@@ -1580,10 +1572,7 @@ BluetoothDaemonHandsfreeInterface::Connect(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->ConnectCmd(aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->ConnectCmd(aBdAddr, aRes);
 }
 
 void
@@ -1592,10 +1581,7 @@ BluetoothDaemonHandsfreeInterface::Disconnect(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->DisconnectCmd(aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->DisconnectCmd(aBdAddr, aRes);
 }
 
 void
@@ -1604,10 +1590,7 @@ BluetoothDaemonHandsfreeInterface::ConnectAudio(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->ConnectAudioCmd(aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->ConnectAudioCmd(aBdAddr, aRes);
 }
 
 void
@@ -1616,10 +1599,7 @@ BluetoothDaemonHandsfreeInterface::DisconnectAudio(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->DisconnectAudioCmd(aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->DisconnectAudioCmd(aBdAddr, aRes);
 }
 
 /* Voice Recognition */
@@ -1630,10 +1610,7 @@ BluetoothDaemonHandsfreeInterface::StartVoiceRecognition(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->StartVoiceRecognitionCmd(aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->StartVoiceRecognitionCmd(aBdAddr, aRes);
 }
 
 void
@@ -1642,10 +1619,7 @@ BluetoothDaemonHandsfreeInterface::StopVoiceRecognition(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->StopVoiceRecognitionCmd(aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->StopVoiceRecognitionCmd(aBdAddr, aRes);
 }
 
 /* Volume */
@@ -1657,10 +1631,7 @@ BluetoothDaemonHandsfreeInterface::VolumeControl(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->VolumeControlCmd(aType, aVolume, aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->VolumeControlCmd(aType, aVolume, aBdAddr, aRes);
 }
 
 /* Device status */
@@ -1673,12 +1644,8 @@ BluetoothDaemonHandsfreeInterface::DeviceStatusNotification(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->DeviceStatusNotificationCmd(aNtkState, aSvcType,
-                                                     aSignal, aBattChg,
-                                                     aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->DeviceStatusNotificationCmd(aNtkState, aSvcType, aSignal,
+                                       aBattChg, aRes);
 }
 
 /* Responses */
@@ -1690,10 +1657,7 @@ BluetoothDaemonHandsfreeInterface::CopsResponse(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->CopsResponseCmd(aCops, aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->CopsResponseCmd(aCops, aBdAddr, aRes);
 }
 
 void
@@ -1705,12 +1669,8 @@ BluetoothDaemonHandsfreeInterface::CindResponse(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->CindResponseCmd(aSvc, aNumActive, aNumHeld,
-                                         aCallSetupState, aSignal,
-                                         aRoam, aBattChg, aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->CindResponseCmd(aSvc, aNumActive, aNumHeld, aCallSetupState,
+                           aSignal, aRoam, aBattChg, aBdAddr, aRes);
 }
 
 void
@@ -1720,10 +1680,7 @@ BluetoothDaemonHandsfreeInterface::FormattedAtResponse(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->FormattedAtResponseCmd(aRsp, aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->FormattedAtResponseCmd(aRsp, aBdAddr, aRes);
 }
 
 void
@@ -1733,11 +1690,7 @@ BluetoothDaemonHandsfreeInterface::AtResponse(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->AtResponseCmd(aResponseCode, aErrorCode,
-                                       aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->AtResponseCmd(aResponseCode, aErrorCode, aBdAddr, aRes);
 }
 
 void
@@ -1753,11 +1706,8 @@ BluetoothDaemonHandsfreeInterface::ClccResponse(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->ClccResponseCmd(aIndex, aDir, aState, aMode, aMpty,
-                                         aNumber, aType, aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->ClccResponseCmd(aIndex, aDir, aState, aMode, aMpty, aNumber,
+                           aType, aBdAddr, aRes);
 }
 
 /* Phone State */
@@ -1772,12 +1722,8 @@ BluetoothDaemonHandsfreeInterface::PhoneStateChange(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->PhoneStateChangeCmd(aNumActive, aNumHeld,
-                                             aCallSetupState, aNumber,
-                                             aType, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->PhoneStateChangeCmd(aNumActive, aNumHeld, aCallSetupState, aNumber,
+                               aType, aRes);
 }
 
 /* Wide Band Speech */
@@ -1789,10 +1735,7 @@ BluetoothDaemonHandsfreeInterface::ConfigureWbs(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->ConfigureWbsCmd(aBdAddr, aConfig, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->ConfigureWbsCmd(aBdAddr, aConfig, aRes);
 }
 
 void
@@ -1803,18 +1746,6 @@ BluetoothDaemonHandsfreeInterface::DispatchError(
                            BluetoothStatus, BluetoothStatus>::Dispatch(
     aRes, &BluetoothHandsfreeResultHandler::OnError,
     ConstantInitOp1<BluetoothStatus>(aStatus));
-}
-
-void
-BluetoothDaemonHandsfreeInterface::DispatchError(
-  BluetoothHandsfreeResultHandler* aRes, nsresult aRv)
-{
-  BluetoothStatus status;
-
-  if (NS_WARN_IF(NS_FAILED(Convert(aRv, status)))) {
-    status = STATUS_FAIL;
-  }
-  DispatchError(aRes, status);
 }
 
 END_BLUETOOTH_NAMESPACE

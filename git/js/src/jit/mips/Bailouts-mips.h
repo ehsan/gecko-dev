@@ -26,8 +26,8 @@ class BailoutStack
     };
 
   protected:
-    RegisterDump::FPUArray fpregs_;
-    RegisterDump::GPRArray regs_;
+    mozilla::Array<double, FloatRegisters::TotalPhys> fpregs_;
+    mozilla::Array<uintptr_t, Registers::Total> regs_;
 
     uintptr_t snapshotOffset_;
     uintptr_t padding_;

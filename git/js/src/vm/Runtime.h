@@ -64,16 +64,16 @@ extern mozilla::ThreadLocal<PerThreadData*> TlsPerThreadData;
 
 struct DtoaState;
 
+extern MOZ_COLD void
+js_ReportOutOfMemory(js::ExclusiveContext *cx);
+
+extern MOZ_COLD void
+js_ReportAllocationOverflow(js::ExclusiveContext *maybecx);
+
+extern MOZ_COLD void
+js_ReportOverRecursed(js::ExclusiveContext *cx);
+
 namespace js {
-
-extern MOZ_COLD void
-ReportOutOfMemory(ExclusiveContext *cx);
-
-extern MOZ_COLD void
-ReportAllocationOverflow(ExclusiveContext *maybecx);
-
-extern MOZ_COLD void
-ReportOverRecursed(ExclusiveContext *cx);
 
 class Activation;
 class ActivationIterator;
@@ -508,7 +508,7 @@ class PerThreadData : public PerThreadDataFriendFields
 
     /*
      * When this flag is non-zero, any attempt to GC will be skipped. It is used
-     * to suppress GC when reporting an OOM (see ReportOutOfMemory) and in
+     * to suppress GC when reporting an OOM (see js_ReportOutOfMemory) and in
      * debugging facilities that cannot tolerate a GC and would rather OOM
      * immediately, such as utilities exposed to GDB. Setting this flag is
      * extremely dangerous and should only be used when in an OOM situation or
@@ -1254,11 +1254,9 @@ struct JSRuntime : public JS::shadow::Runtime,
     JSAtomState *commonNames;
 
     // All permanent atoms in the runtime, other than those in staticStrings.
-    // Unlike |atoms_|, access to this does not require
-    // AutoLockForExclusiveAccess because it is frozen and thus read-only.
-    js::FrozenAtomSet *permanentAtoms;
+    js::AtomSet *permanentAtoms;
 
-    bool transformToPermanentAtoms(JSContext *cx);
+    bool transformToPermanentAtoms();
 
     // Cached well-known symbols (ES6 rev 24 6.1.5.1). Like permanent atoms,
     // these are shared with the parentRuntime, if any.
@@ -1314,7 +1312,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     void updateMallocCounter(size_t nbytes);
     void updateMallocCounter(JS::Zone *zone, size_t nbytes);
 
-    void reportAllocationOverflow() { js::ReportAllocationOverflow(nullptr); }
+    void reportAllocationOverflow() { js_ReportAllocationOverflow(nullptr); }
 
     /*
      * The function must be called outside the GC lock.
@@ -1417,9 +1415,6 @@ struct JSRuntime : public JS::shadow::Runtime,
      * function to assess the size of malloc'd blocks of memory.
      */
     mozilla::MallocSizeOf debuggerMallocSizeOf;
-
-    /* Last time at which an animation was played for this runtime. */
-    int64_t lastAnimationTime;
 };
 
 namespace js {
