@@ -61,13 +61,13 @@ Tracker::getPageBase(const void* v) const
     return ((long)v) & (~(NJ_PAGE_SIZE-1));
 }
 
-struct Tracker::Page*
-Tracker::findPage(const void* v) const
+struct Tracker::Page* 
+Tracker::findPage(const void* v) const 
 {
     long base = getPageBase(v);
     struct Tracker::Page* p = pagelist;
     while (p) {
-        if (p->base == base)
+        if (p->base == base) 
             return p;
         p = p->next;
     }
@@ -95,24 +95,61 @@ Tracker::clear()
     }
 }
 
-LIns*
-Tracker::get(const void* v) const
+LIns* 
+Tracker::get(const void* v) const 
 {
     struct Tracker::Page* p = findPage(v);
     JS_ASSERT(p != 0); /* we must have a page for the slot we are looking for */
     LIns* i = p->map[(((long)v) & 0xfff) >> 2];
+    printf("get v=%p ins=%p\n", v, i);
     JS_ASSERT(i != 0);
     return i;
 }
 
-void
-Tracker::set(const void* v, LIns* ins)
+void 
+Tracker::set(const void* v, LIns* ins) 
 {
+    static int q = 0;
+    printf("q=%d set v=%p ins=%p\n", q, v, ins);
+    //if (q++ > 3)
+    //printf("%d: 0x80689c is %p\n", q, get((void*)0x80689c));
     struct Tracker::Page* p = findPage(v);
-    if (!p)
+    if (!p) 
         p = addPage(v);
     p->map[(((long)v) & 0xfff) >> 2] = ins;
 }
+
+template <int N>
+class BitStream
+{
+    uint32_t* ptr;
+    unsigned n;
+public:
+    BitStream(uint32_t* p, int words) 
+    {
+        ptr = p;
+        n = 0;
+    }
+    
+    void write(int data) 
+    {
+        if (n + N > sizeof(uint32_t)) {
+            n = 0;
+            ++ptr;
+        }
+        *ptr |= ((data & 7) << n);
+        n += N;
+    }
+    
+    unsigned read(int data)
+    {
+        if (n + N > sizeof(uint32_t)) {
+            n = 0;
+            ++ptr;
+        }
+        return (*ptr >> n) & 7;
+    }
+};
 
 using namespace avmplus;
 using namespace nanojit;
@@ -139,27 +176,29 @@ static GC gc = GC();
 
 static struct CallInfo builtins[] = {
 #include "builtins.tbl"
-};
+};        
 
-#undef NAME
+#undef NAME    
 #undef BUILTIN1
 #undef BUILTIN2
-#undef BUILTIN3
+#undef BUILTIN3    
 
 void
 js_StartRecording(JSContext* cx, JSFrameRegs& regs)
 {
-    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
+    struct JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
 
     if (!tm->fragmento) {
         Fragmento* fragmento = new (&gc) Fragmento(core);
+#ifdef DEBUG        
         fragmento->labels = new (&gc) LabelMap(core, NULL);
+#endif        
         fragmento->assm()->setCallTable(builtins);
         tm->fragmento = fragmento;
-    }
+    }   
 
     memcpy(&tm->entryState, &regs, sizeof(regs));
-
+    
     InterpState state;
     state.ip = NULL;
     state.sp = NULL;
@@ -168,7 +207,9 @@ js_StartRecording(JSContext* cx, JSFrameRegs& regs)
 
     Fragment* fragment = tm->fragmento->getLoop(state);
     LirBuffer* lirbuf = new (&gc) LirBuffer(tm->fragmento, builtins);
+#ifdef DEBUG    
     lirbuf->names = new (&gc) LirNameMap(&gc, builtins, tm->fragmento->labels);
+#endif    
     fragment->lirbuf = lirbuf;
     LirWriter* lir = new (&gc) LirBufWriter(lirbuf);
     lir->ins0(LIR_trace);
@@ -178,8 +219,7 @@ js_StartRecording(JSContext* cx, JSFrameRegs& regs)
 
     tm->tracker.set(cx, fragment->param0);
 
-#define LOAD_CONTEXT(p) \
-    tm->tracker.set(p, lir->insLoadi(fragment->param1, STACK_OFFSET(p)))
+#define LOAD_CONTEXT(p) tm->tracker.set(p, lir->insLoadi(fragment->param1, STACK_OFFSET(p)))    
 
     unsigned n;
     for (n = 0; n < fp->argc; ++n)
@@ -188,20 +228,28 @@ js_StartRecording(JSContext* cx, JSFrameRegs& regs)
         LOAD_CONTEXT(&fp->vars[n]);
     for (n = 0; n < (unsigned)(regs.sp - fp->spbase); ++n)
         LOAD_CONTEXT(&fp->spbase[n]);
-
+    
     tm->fragment = fragment;
     tm->lir = lir;
-
+    
     tm->status = RECORDING;
 }
 
 void
 js_EndRecording(JSContext* cx, JSFrameRegs& regs)
 {
-    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
+    struct JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
     if (tm->status == RECORDING) {
         tm->fragment->lastIns = tm->lir->ins0(LIR_loop);
         compile(tm->fragmento->assm(), tm->fragment);
     }
     tm->status = IDLE;
+/*   
+    uint32_t x[2];
+    BitStream<3> w(x, 2);
+    for (int n = 0; n < 12; ++n)
+        w.write(n);
+    BitStream<3> r(x, 2);
+    for (int n = 0; n < 12; ++n)
+        printf("bs: %d\n", r.read(n));*/
 }
