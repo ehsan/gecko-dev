@@ -931,14 +931,13 @@ nsTextBoxFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
 
     const nsStyleText* textStyle = GetStyleText();
     
-    nsRect scrollBounds(nsPoint(0, 0), GetSize());
+    nsRect bounds(nsPoint(0, 0), GetSize());
     nsRect textRect = mTextDrawRect;
     
     nsRefPtr<nsFontMetrics> fontMet;
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet));
     nsBoundingMetrics metrics = 
-      fontMet->GetInkBoundsForVisualOverflow(mCroppedTitle.get(),
-                                             mCroppedTitle.Length(),
+      fontMet->GetInkBoundsForVisualOverflow(mTitle.get(), mTitle.Length(),
                                              aBoxLayoutState.GetRenderingContext());
 
     textRect.x -= metrics.leftBearing;
@@ -947,14 +946,12 @@ nsTextBoxFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
     textRect.y += fontMet->MaxAscent() - metrics.ascent;
     textRect.height = metrics.ascent + metrics.descent;
 
-    // Our scrollable overflow is our bounds; our visual overflow may
-    // extend beyond that.
-    nsRect visualBounds;
-    visualBounds.UnionRect(scrollBounds, textRect);
-    nsOverflowAreas overflow(visualBounds, scrollBounds);
+    bounds.UnionRect(bounds, textRect);
+    nsOverflowAreas overflow(bounds, bounds);
 
     if (textStyle->mTextShadow) {
-      // text-shadow extends our visual but not scrollable bounds
+      // Our scrollable overflow is our bounds; our visual overflow may
+      // extend beyond that.
       nsRect &vis = overflow.VisualOverflow();
       vis.UnionRect(vis, nsLayoutUtils::GetTextShadowRectsUnion(mTextDrawRect, this));
     }
