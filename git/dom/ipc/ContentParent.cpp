@@ -88,10 +88,6 @@
 #include "mozilla/dom/StorageParent.h"
 #include "nsAccelerometer.h"
 
-#ifdef ANDROID
-#include "gfxAndroidPlatform.h"
-#endif
-
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using namespace mozilla::places;
@@ -324,16 +320,6 @@ ContentParent::RecvReadPrefsArray(InfallibleTArray<PrefTuple> *prefs)
     mPrefService->MirrorPreferences(prefs);
     return true;
 }
-
-bool
-ContentParent::RecvReadFontList(InfallibleTArray<FontListEntry>* retValue)
-{
-#ifdef ANDROID
-    gfxAndroidPlatform::GetPlatform()->GetFontList(retValue);
-#endif
-    return true;
-}
-
 
 void
 ContentParent::EnsurePrefService()

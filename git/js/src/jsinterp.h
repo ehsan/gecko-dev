@@ -837,7 +837,7 @@ ReportIncompatibleMethod(JSContext *cx, Value *vp, Class *clasp);
 template <typename T>
 bool GetPrimitiveThis(JSContext *cx, Value *vp, T *v);
 
-void
+inline void
 PutActivationObjects(JSContext *cx, JSStackFrame *fp);
 
 /*

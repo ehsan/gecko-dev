@@ -38,6 +38,7 @@
 const TAB_STATE_NEEDS_RESTORE = 1;
 const TAB_STATE_RESTORING = 2;
 
+Cu.import("resource://gre/modules/Services.jsm");
 let ss = Cc["@mozilla.org/browser/sessionstore;1"].
          getService(Ci.nsISessionStore);
 
@@ -152,3 +153,4 @@ function test() {
 function r() {
   return "" + Date.now() + Math.random();
 }
+

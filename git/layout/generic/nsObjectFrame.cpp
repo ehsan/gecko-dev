@@ -3458,9 +3458,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetDocument(nsIDocument* *aDocument)
 
 NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(NPRect *invalidRect)
 {
-  // If our object frame has gone away, we won't be able to determine
-  // up-to-date-ness, so just fire off the event.
-  if (mWaitingForPaint && (!mObjectFrame || IsUpToDate())) {
+  if (mWaitingForPaint && IsUpToDate()) {
     // We don't care when the event is dispatched as long as it's "soon",
     // since whoever needs it will be wwaiting for it
     nsCOMPtr<nsIRunnable> event = new AsyncPaintWaitEvent(mContent, PR_TRUE);

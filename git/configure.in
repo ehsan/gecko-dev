@@ -3595,9 +3595,7 @@ AC_SUBST(XT_LIBS)
 AC_SUBST(XSS_LIBS)
 
 AC_MSG_CHECKING(for ARM SIMD support in compiler)
-# We try to link so that this also fails when
-# building with LTO.
-AC_TRY_LINK([],
+AC_TRY_COMPILE([],
                [asm("uqadd8 r1, r1, r2");],
                result="yes", result="no")
 AC_MSG_RESULT("$result")
@@ -3613,9 +3611,7 @@ if test "$GNU_CC"; then
   # gcc needs -mfpu=neon to recognize NEON instructions
   CFLAGS="$CFLAGS -mfpu=neon -mfloat-abi=softfp"
 fi
-# We try to link so that this also fails when
-# building with LTO.
-AC_TRY_LINK([],
+AC_TRY_COMPILE([],
                [asm("vadd.i8 d0, d0, d0");],
                result="yes", result="no")
 AC_MSG_RESULT("$result")

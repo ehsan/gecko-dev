@@ -250,7 +250,6 @@ using namespace mozilla::layers;
  *
  **************************************************************/
 
-PRBool          nsWindow::sDropShadowEnabled      = PR_TRUE;
 PRUint32        nsWindow::sInstanceCount          = 0;
 PRBool          nsWindow::sSwitchKeyboardLayout   = PR_FALSE;
 BOOL            nsWindow::sIsOleInitialized       = FALSE;
@@ -1046,19 +1045,6 @@ BOOL nsWindow::SetNSWindowPtr(HWND aWnd, nsWindow * ptr)
   }
 }
 
-static BOOL CALLBACK AddMonitor(HMONITOR, HDC, LPRECT, LPARAM aParam)
-{
-  (*(PRInt32*)aParam)++;
-  return TRUE;
-}
-
-PRInt32 nsWindow::GetMonitorCount()
-{
-  PRInt32 monitorCount = 0;
-  EnumDisplayMonitors(NULL, NULL, AddMonitor, (LPARAM)&monitorCount);
-  return monitorCount;
-}
-
 /**************************************************************
  *
  * SECTION: nsIWidget::SetParent, nsIWidget::GetParent
@@ -1224,29 +1210,6 @@ NS_METHOD nsWindow::Show(PRBool bState)
     splash->Close();
   }
 #endif
-
-  if (mWindowType == eWindowType_popup) {
-    // See bug 603793. When we try to draw D3D10 windows with a drop shadow
-    // without the DWM on a secondary monitor, windows fails to composite
-    // our windows correctly. We therefor switch off the drop shadow for
-    // pop-up windows when the DWM is disabled and two monitors are
-    // connected.
-    if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-        gfxWindowsPlatform::RENDER_DIRECT2D &&
-        GetMonitorCount() > 1 &&
-        !nsUXThemeData::CheckForCompositor())
-    {
-      if (sDropShadowEnabled) {
-        ::SetClassLongA(mWnd, GCL_STYLE, 0);
-        sDropShadowEnabled = PR_FALSE;
-      }
-    } else {
-      if (!sDropShadowEnabled) {
-        ::SetClassLongA(mWnd, GCL_STYLE, CS_DROPSHADOW);
-        sDropShadowEnabled = PR_TRUE;
-      }
-    }
-  }
 
 #ifdef NS_FUNCTION_TIMER
   static bool firstShow = true;
@@ -3945,9 +3908,12 @@ void nsWindow::DispatchPendingEvents()
     --recursionBlocker;
   }
 
-  // Quickly check to see if there are any
-  // paint events pending.
-  if (::GetQueueStatus(QS_PAINT)) {
+  // Quickly check to see if there are any paint events pending,
+  // but only dispatch them if it has been long enough since the
+  // last paint completed.
+  if (::GetQueueStatus(QS_PAINT) && 
+      (mLastPaintEndTime.IsNull() ||
+       (TimeStamp::Now() - mLastPaintEndTime).ToMilliseconds() >= 50)) {
     // Find the top level window.
     HWND topWnd = GetTopLevelHWND(mWnd);
 

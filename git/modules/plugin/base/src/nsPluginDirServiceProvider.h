@@ -43,6 +43,7 @@
 
 #if defined (XP_WIN)
 #include "nsCOMArray.h"
+#include <windows.h>
 #endif
 
 class nsISimpleEnumerator;
@@ -70,7 +71,7 @@ public:
 #ifdef XP_WIN
    static nsresult GetPLIDDirectories(nsISimpleEnumerator **aEnumerator);
 private:
-   static nsresult GetPLIDDirectoriesWithRootKey(PRUint32 aKey,
+   static nsresult GetPLIDDirectoriesWithHKEY(HKEY aKey, 
      nsCOMArray<nsILocalFile> &aDirs);
 #endif
 

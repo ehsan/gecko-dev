@@ -4032,31 +4032,7 @@ JSTerm.prototype = {
     if (aString.trim() === "help" || aString.trim() === "?") {
       aString = "help()";
     }
-
-    let window = unwrap(this.sandbox.window);
-    let $ = null, $$ = null;
-
-    // We prefer to execute the page-provided implementations for the $() and
-    // $$() functions.
-    if (typeof window.$ == "function") {
-      $ = this.sandbox.$;
-      delete this.sandbox.$;
-    }
-    if (typeof window.$$ == "function") {
-      $$ = this.sandbox.$$;
-      delete this.sandbox.$$;
-    }
-
-    let result = Cu.evalInSandbox(aString, this.sandbox, "1.8", "Web Console", 1);
-
-    if ($) {
-      this.sandbox.$ = $;
-    }
-    if ($$) {
-      this.sandbox.$$ = $$;
-    }
-
-    return result;
+    return Cu.evalInSandbox(aString, this.sandbox, "1.8", "Web Console", 1);
   },
 
 
