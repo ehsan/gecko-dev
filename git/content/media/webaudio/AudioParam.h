@@ -64,10 +64,6 @@ public:
   // sure that the callback is called every time that this object gets mutated.
   void SetValue(float aValue)
   {
-    // Optimize away setting the same value on an AudioParam
-    if (HasSimpleValue() && fabsf(GetValue() - aValue) < 1e-7) {
-      return;
-    }
     AudioParamTimeline::SetValue(aValue);
     mCallback(mNode);
   }

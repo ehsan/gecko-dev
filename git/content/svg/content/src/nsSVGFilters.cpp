@@ -3817,8 +3817,8 @@ nsSVGFELightingElement::Filter(nsSVGFilterInstance *instance,
   if (!info.mTarget)
     return NS_ERROR_FAILURE;
 
-  SVGFEDistantLightElement* distantLight = nullptr;
-  SVGFEPointLightElement* pointLight = nullptr;
+  SVGFEDistantLightElement* distantLight;
+  SVGFEPointLightElement* pointLight;
   nsCOMPtr<nsIDOMSVGFESpotLightElement> spotLight;
 
   nsIFrame* frame = GetPrimaryFrame();
