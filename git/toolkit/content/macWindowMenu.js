@@ -55,9 +55,6 @@ function checkFocusedWindow()
 
 function toOpenWindow( aWindow )
 {
-  // deminiaturize the window, if it's in the Dock
-  if (aWindow.windowState == STATE_MINIMIZED)
-    aWindow.restore();
   aWindow.document.commandDispatcher.focusedWindow.focus();
 }
 

@@ -291,7 +291,7 @@ public:
   PRBool HasAudio()
   {
     NS_ASSERTION(mState > DECODER_STATE_DECODING_METADATA, "HasAudio() called during invalid state");
-    PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+    //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "HasAudio() called without acquiring decoder monitor");
     return mAudioTrack != -1;
   }
 
@@ -746,7 +746,7 @@ void nsOggDecodeStateMachine::HandleDecodeErrors(OggPlayErrorCode aErrorCode)
       aErrorCode != E_OGGPLAY_CONTINUE) {
     mState = DECODER_STATE_SHUTDOWN;
     nsCOMPtr<nsIRunnable> event =
-      NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, DecodeError);
+      NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, NetworkError);
     NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
   }
 }
@@ -974,7 +974,7 @@ void nsOggDecodeStateMachine::PlayFrame() {
 
 void nsOggDecodeStateMachine::PlayVideo(FrameData* aFrame)
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "PlayVideo() called without acquiring decoder monitor");
   if (aFrame && aFrame->mVideoHeader) {
     OggPlayVideoData* videoData = oggplay_callback_info_get_video_data(aFrame->mVideoHeader);
 
@@ -1009,7 +1009,7 @@ void nsOggDecodeStateMachine::PlayVideo(FrameData* aFrame)
 
 void nsOggDecodeStateMachine::PlayAudio(FrameData* aFrame)
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "PlayAudio() called without acquiring decoder monitor");
   if (!mAudioStream)
     return;
 
@@ -1018,7 +1018,7 @@ void nsOggDecodeStateMachine::PlayAudio(FrameData* aFrame)
 
 void nsOggDecodeStateMachine::OpenAudioStream()
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "OpenAudioStream() called without acquiring decoder monitor");
   mAudioStream = new nsAudioStream();
   if (!mAudioStream) {
     LOG(PR_LOG_ERROR, ("Could not create audio stream"));
@@ -1031,7 +1031,7 @@ void nsOggDecodeStateMachine::OpenAudioStream()
 
 void nsOggDecodeStateMachine::CloseAudioStream()
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "CloseAudioStream() called without acquiring decoder monitor");
   if (mAudioStream) {
     mAudioStream->Shutdown();
     mAudioStream = nsnull;
@@ -1040,7 +1040,7 @@ void nsOggDecodeStateMachine::CloseAudioStream()
 
 void nsOggDecodeStateMachine::StartAudio()
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "StartAudio() called without acquiring decoder monitor");
   if (HasAudio()) {
     OpenAudioStream();
   }
@@ -1048,7 +1048,7 @@ void nsOggDecodeStateMachine::StartAudio()
 
 void nsOggDecodeStateMachine::StopAudio()
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "StopAudio() called without acquiring decoder monitor");
   if (HasAudio()) {
     CloseAudioStream();
   }
@@ -1056,7 +1056,7 @@ void nsOggDecodeStateMachine::StopAudio()
 
 void nsOggDecodeStateMachine::StartPlayback()
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "StartPlayback() called without acquiring decoder monitor");
   StartAudio();
   mPlaying = PR_TRUE;
 
@@ -1078,7 +1078,7 @@ void nsOggDecodeStateMachine::StartPlayback()
 
 void nsOggDecodeStateMachine::StopPlayback()
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "StopPlayback() called without acquiring decoder monitor");
   mLastFrame = mDecodedFrames.ResetTimes(mCallbackPeriod);
   StopAudio();
   mPlaying = PR_FALSE;
@@ -1133,7 +1133,7 @@ void nsOggDecodeStateMachine::UpdatePlaybackPosition(float aTime)
 
 void nsOggDecodeStateMachine::QueueDecodedFrames()
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "QueueDecodedFrames() called without acquiring decoder monitor");
   FrameData* frame;
   while (!mDecodedFrames.IsFull() && (frame = NextFrame())) {
     if (mDecodedFrames.GetCount() < 2) {
@@ -1152,13 +1152,13 @@ void nsOggDecodeStateMachine::QueueDecodedFrames()
 
 void nsOggDecodeStateMachine::ClearPositionChangeFlag()
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "ClearPositionChangeFlag() called without acquiring decoder monitor");
   mPositionChangeQueued = PR_FALSE;
 }
 
 void nsOggDecodeStateMachine::SetVolume(float volume)
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "SetVolume() called without acquiring decoder monitor");
   if (mAudioStream) {
     mAudioStream->SetVolume(volume);
   }
@@ -1168,25 +1168,25 @@ void nsOggDecodeStateMachine::SetVolume(float volume)
 
 float nsOggDecodeStateMachine::GetCurrentTime()
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "GetCurrentTime() called without acquiring decoder monitor");
   return mCurrentFrameTime;
 }
 
 PRInt64 nsOggDecodeStateMachine::GetDuration()
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "GetDuration() called without acquiring decoder monitor");
   return mDuration;
 }
 
 void nsOggDecodeStateMachine::SetDuration(PRInt64 aDuration)
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+   //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "SetDuration() called without acquiring decoder monitor");
   mDuration = aDuration;
 }
 
 void nsOggDecodeStateMachine::SetSeekable(PRBool aSeekable)
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mDecoder->GetMonitor());
+   //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "SetSeekable() called without acquiring decoder monitor");
   mSeekable = aSeekable;
 }
 
@@ -1764,7 +1764,7 @@ void nsOggDecodeStateMachine::LoadOggHeaders(nsChannelReader* aReader)
         LOG(PR_LOG_DEBUG, ("Frame rate: %f", mFramerate));
 
         int aspectd, aspectn;
-        // this can return E_OGGPLAY_UNINITIALISED if the video has
+        // this can return E_OGGPLAY_UNINITIALIZED if the video has
         // no aspect ratio data. We assume 1.0 in that case.
         OggPlayErrorCode r =
           oggplay_get_video_aspect_ratio(mPlayer, i, &aspectd, &aspectn);
@@ -1783,12 +1783,6 @@ void nsOggDecodeStateMachine::LoadOggHeaders(nsChannelReader* aReader)
         oggplay_get_audio_channels(mPlayer, i, &mAudioChannels);
         LOG(PR_LOG_DEBUG, ("samplerate: %d, channels: %d", mAudioRate, mAudioChannels));
       }
-    }
-
-    if (mVideoTrack == -1 && mAudioTrack == -1) {
-      nsAutoMonitor mon(mDecoder->GetMonitor());
-      HandleDecodeErrors(E_OGGPLAY_UNINITIALISED);
-      return;
     }
 
     SetTracksActive();
@@ -1946,9 +1940,7 @@ void nsOggDecoder::Shutdown()
 
   // Force any outstanding seek and byterange requests to complete
   // to prevent shutdown from deadlocking.
-  if (mReader) {
-    mReader->Stream()->Close();
-  }
+  mReader->Stream()->Close();
 
   ChangeState(PLAY_STATE_SHUTDOWN);
   nsMediaDecoder::Shutdown();
@@ -2164,17 +2156,6 @@ void nsOggDecoder::NetworkError()
 
   if (mElement)
     mElement->NetworkError();
-
-  Shutdown();
-}
-
-void nsOggDecoder::DecodeError()
-{
-  if (mShuttingDown)
-    return;
-
-  if (mElement)
-    mElement->DecodeError();
 
   Shutdown();
 }
@@ -2551,7 +2532,7 @@ void nsOggDecoder::StartProgressUpdates()
 
 void nsOggDecoder::MoveLoadsToBackground()
 {
-  if (mReader) {
+  if (mReader && mReader->Stream()) {
     mReader->Stream()->MoveLoadsToBackground();
   }
 }

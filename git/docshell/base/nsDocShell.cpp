@@ -10579,7 +10579,7 @@ nsDocShell::GetControllerForCommand(const char * inCommand,
   if (window) {
     nsIFocusController *focusController = window->GetRootFocusController();
     if (focusController)
-      rv = focusController->GetControllerForCommand (window, inCommand, outController);
+      rv = focusController->GetControllerForCommand (inCommand, outController);
   } // if window
 
   return rv;

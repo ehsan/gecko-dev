@@ -59,6 +59,7 @@
 #include "nsIEventStateManager.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIFocusController.h"
 #include "nsISelectionController.h"
 #include "nsISelection.h"
 #include "nsIFrame.h"

@@ -902,7 +902,7 @@ nsCanvasRenderingContext2D::InitializeWithSurface(nsIDocShell *docShell, gfxASur
     mHeight = height;
 
     mSurface = surface;
-    mThebes = surface ? new gfxContext(mSurface) : nsnull;
+    mThebes = new gfxContext(mSurface);
 
     /* Create dummy surfaces here */
     if (mSurface == nsnull || mSurface->CairoStatus() != 0 ||

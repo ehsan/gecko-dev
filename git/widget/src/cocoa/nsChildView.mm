@@ -653,57 +653,6 @@ static CFArrayRef CreateAllKeyboardLayoutList()
 
 #endif // LEOPARD_AND_LATER
 
-#if defined(DEBUG) && defined(PR_LOGGING)
-
-static void DebugPrintAllKeyboardLayouts()
-{
-#ifdef LEOPARD_AND_LATER
-  CFArrayRef list = CreateAllKeyboardLayoutList();
-  PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("Keyboard layout configuration:"));
-  CFIndex idx = ::CFArrayGetCount(list);
-  nsTISInputSource tis;
-  for (CFIndex i = 0; i < idx; ++i) {
-    TISInputSourceRef inputSource = static_cast<TISInputSourceRef>(
-      const_cast<void *>(::CFArrayGetValueAtIndex(list, i)));
-    tis.InitByTISInputSourceRef(inputSource);
-    nsAutoString name;
-    tis.GetLocalizedName(name);
-    nsAutoString isid;
-    tis.GetInputSourceID(isid);
-    const UCKeyboardLayout* uchr = tis.GetUCKeyboardLayout();
-    PRBool isASCII = tis.IsASCIICapable();
-    PR_LOG(sCocoaLog, PR_LOG_ALWAYS,
-           ("  %s\t<%s>%s%s\n",
-            NS_ConvertUTF16toUTF8(name).get(),
-            NS_ConvertUTF16toUTF8(isid).get(),
-            isASCII ? "" : "\t(Isn't ASCII capable)",
-            uchr ? "" : "\t(uchr is NOT AVAILABLE)"));
-  }
-  ::CFRelease(list);
-#else
-  CFIndex idx;
-  KLGetKeyboardLayoutCount(&idx);
-  PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("Keyboard layout configuration:"));
-  for (CFIndex i = 0; i < idx; ++i) {
-    KeyboardLayoutRef curKL;
-    if (KLGetKeyboardLayoutAtIndex(i, &curKL) == noErr) {
-      CFStringRef name;
-      if (KLGetKeyboardLayoutProperty(curKL, kKLName, (const void**)&name) == noErr) {
-        int idn;
-        KLGetKeyboardLayoutProperty(curKL, kKLIdentifier, (const void**)&idn);
-        int kind;
-        KLGetKeyboardLayoutProperty(curKL, kKLKind, (const void**)&kind);
-        char buf[256];
-        CFStringGetCString(name, buf, 256, kCFStringEncodingASCII);
-        PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("  %d,%s,%d\n", idn, buf, kind));
-      }
-    }
-  }
-#endif // LEOPARD_AND_LATER
-}
-
-#endif // defined(DEBUG) && defined(PR_LOGGING)
-
 #pragma mark -
 
 nsChildView::nsChildView() : nsBaseWidget()
@@ -719,9 +668,49 @@ nsChildView::nsChildView() : nsBaseWidget()
 #ifdef PR_LOGGING
   if (!sCocoaLog) {
     sCocoaLog = PR_NewLogModule("nsCocoaWidgets");
-#ifdef DEBUG
-    DebugPrintAllKeyboardLayouts();
-#endif // DEBUG
+#ifdef LEOPARD_AND_LATER
+    CFArrayRef list = CreateAllKeyboardLayoutList();
+    PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("Keyboard layout configuration:"));
+    CFIndex idx = ::CFArrayGetCount(list);
+    nsTISInputSource tis;
+    for (CFIndex i = 0; i < idx; ++i) {
+      TISInputSourceRef inputSource = static_cast<TISInputSourceRef>(
+        const_cast<void *>(::CFArrayGetValueAtIndex(list, i)));
+      tis.InitByTISInputSourceRef(inputSource);
+      nsAutoString name;
+      tis.GetLocalizedName(name);
+      nsAutoString isid;
+      tis.GetInputSourceID(isid);
+      const UCKeyboardLayout* uchr = tis.GetUCKeyboardLayout();
+      PRBool isASCII = tis.IsASCIICapable();
+      PR_LOG(sCocoaLog, PR_LOG_ALWAYS,
+             ("  %s\t<%s>%s%s\n",
+              NS_ConvertUTF16toUTF8(name).get(),
+              NS_ConvertUTF16toUTF8(isid).get(),
+              isASCII ? "" : "\t(Isn't ASCII capable)",
+              uchr ? "" : "\t(uchr is NOT AVAILABLE)"));
+    }
+    ::CFRelease(list);
+#else
+    CFIndex idx;
+    KLGetKeyboardLayoutCount(&idx);
+    PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("Keyboard layout configuration:"));
+    for (CFIndex i = 0; i < idx; ++i) {
+      KeyboardLayoutRef curKL;
+      if (KLGetKeyboardLayoutAtIndex(i, &curKL) == noErr) {
+        CFStringRef name;
+        if (KLGetKeyboardLayoutProperty(curKL, kKLName, (const void**)&name) == noErr) {
+          int idn;
+          KLGetKeyboardLayoutProperty(curKL, kKLIdentifier, (const void**)&idn);
+          int kind;
+          KLGetKeyboardLayoutProperty(curKL, kKLKind, (const void**)&kind);
+          char buf[256];
+          CFStringGetCString(name, buf, 256, kCFStringEncodingASCII);
+          PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("  %d,%s,%d\n", idn, buf, kind));
+        }
+      }
+    }
+#endif // LEOPARD_AND_LATER
   }
 #endif // PR_LOGGING
 
@@ -1896,18 +1885,15 @@ void nsChildView::Scroll(const nsIntPoint& aDelta,
   if (!mParentView)
     return;
 
-#ifndef LEOPARD_AND_LATER
-  BOOL viewWasDirty = mVisible && [mView needsDisplay];
-#endif
+  BOOL viewWasDirty = NO;
   if (mVisible) {
+    viewWasDirty = [mView needsDisplay];
+
     for (PRUint32 i = 0; i < aDestRects.Length(); ++i) {
       NSRect rect;
       GeckoRectToNSRect(aDestRects[i] - aDelta, rect);
       NSSize scrollVector = {aDelta.x, aDelta.y};
       [mView scrollRect:rect by:scrollVector];
-#ifdef LEOPARD_AND_LATER
-      [mView translateRectsNeedingDisplayInRect:rect by:scrollVector];
-#endif
     }
   }
 
@@ -1924,11 +1910,9 @@ void nsChildView::Scroll(const nsIntPoint& aDelta,
   if (mOnDestroyCalled)
     return;
 
-#ifndef LEOPARD_AND_LATER
-  if (viewWasDirty) {
-    [mView setNeedsDisplay:YES];
+  if (mVisible) {
+    [mView setNeedsDisplay:viewWasDirty];
   }
-#endif
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -2753,15 +2737,6 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 #endif
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-- (void)viewWillDraw
-{
-  if (!mGeckoChild)
-    return;
-
-  nsPaintEvent paintEvent(PR_TRUE, NS_WILL_PAINT, mGeckoChild);
-  mGeckoChild->DispatchWindowEvent(paintEvent);
 }
 
 // Allows us to turn off setting up the clip region
@@ -5817,9 +5792,6 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   if (nsTSMManager::IsComposing())
     return NO;
 
-  UInt32 modifierFlags =
-    nsCocoaUtils::GetCocoaEventModifierFlags(theEvent) & NSDeviceIndependentModifierFlagsMask;
-
   // Set to true if embedding menus handled the event when a plugin has focus.
   // We give menus a crack at handling commands before Gecko in the plugin case.
   BOOL handledByEmbedding = NO;
@@ -5832,24 +5804,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   NSMenu* mainMenu = [NSApp mainMenu];
   if (mIsPluginView) {
     if ([mainMenu isKindOfClass:[GeckoNSMenu class]]) {
-      // Maintain a list of cmd+key combinations that we never act on (in the
-      // browser) when the keyboard focus is in a plugin.  What a particular
-      // cmd+key combo means here (to the browser) is governed by browser.dtd,
-      // which "contains the browser main menu items".
-      PRBool dontActOnKeyEquivalent = PR_FALSE;
-      if (modifierFlags == NSCommandKeyMask) {
-        NSString *unmodchars = [theEvent charactersIgnoringModifiers];
-        if ([unmodchars length] == 1) {
-          if ([unmodchars characterAtIndex:0] ==
-              nsMenuBarX::GetLocalizedAccelKey("key_selectAll"))
-            dontActOnKeyEquivalent = PR_TRUE;
-        }
-      }
-      if (dontActOnKeyEquivalent) {
-        [(GeckoNSMenu*)mainMenu performMenuUserInterfaceEffectsForEvent:theEvent];
-      } else {
-        [(GeckoNSMenu*)mainMenu actOnKeyEquivalent:theEvent];
-      }
+      [(GeckoNSMenu*)mainMenu actOnKeyEquivalent:theEvent];
     }
     else {
       // This is probably an embedding situation. If the native menu handle the event
@@ -5866,6 +5821,8 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   // With Cmd key or Ctrl+Tab or Ctrl+Esc, keyDown will be never called.
   // Therefore, we need to call processKeyDownEvent from performKeyEquivalent.
+  UInt32 modifierFlags =
+    nsCocoaUtils::GetCocoaEventModifierFlags(theEvent) & NSDeviceIndependentModifierFlagsMask;
   UInt32 keyCode = nsCocoaUtils::GetCocoaEventKeyCode(theEvent);
   PRBool keyDownNeverFiredEvent = (modifierFlags & NSCommandKeyMask) ||
            ((modifierFlags & NSControlKeyMask) &&

@@ -38,6 +38,7 @@
 # ***** END LICENSE BLOCK ***** */
 
 import re, sys, os, os.path, logging, shutil
+import tempfile
 from glob import glob
 from optparse import OptionParser
 from subprocess import Popen, PIPE, STDOUT
@@ -68,24 +69,18 @@ def readManifest(manifest):
     pass # just eat exceptions
   return testdirs
 
-def runTests(xpcshell, xrePath=None, symbolsPath=None,
-             manifest=None, testdirs=[], testPath=None,
-             interactive=False, logfiles=True):
-  """Run xpcshell tests.
+def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
+             manifest=None, interactive=False, symbolsPath=None):
+  """Run the tests in |testdirs| using the |xpcshell| executable.
 
-  |xpcshell|, is the xpcshell executable to use to run the tests.
   |xrePath|, if provided, is the path to the XRE to use.
-  |symbolsPath|, if provided is the path to a directory containing
-    breakpad symbols for processing crashes in tests.
+  |testPath|, if provided, indicates a single path and/or test to run.
   |manifest|, if provided, is a file containing a list of
     test directories to run.
-  |testdirs|, if provided, is a list of absolute paths of test directories.
-    No-manifest only option.
-  |testPath|, if provided, indicates a single path and/or test to run.
   |interactive|, if set to True, indicates to provide an xpcshell prompt
     instead of automatically executing the test.
-  |logfiles|, if set to False, indicates not to save output to log files.
-    Non-interactive only option.
+  |symbolsPath|, if provided is the path to a directory containing
+    breakpad symbols for processing crashes in tests.
   """
 
   if not testdirs and not manifest:
@@ -106,6 +101,11 @@ def runTests(xpcshell, xrePath=None, symbolsPath=None,
   env["XPCOM_DEBUG_BREAK"] = "stack-and-abort"
   # Don't launch the crash reporter client
   env["MOZ_CRASHREPORTER_NO_REPORT"] = "1"
+
+  # Enable leaks (only) detection to its own log file.
+  # Each test will overwrite it.
+  leakLogFile = os.path.join(tempfile.gettempdir(), "runxpcshelltests_leaks.log")
+  env["XPCOM_MEM_LEAK_LOG"] = leakLogFile
 
   if xrePath is None:
     xrePath = os.path.dirname(xpcshell)
@@ -132,7 +132,7 @@ def runTests(xpcshell, xrePath=None, symbolsPath=None,
   else:
     xpcsRunArgs = ['-e', '_execute_test();']
     if sys.platform == 'os2emx':
-      pStdout = None
+      pStdout = None 
     else:
       pStdout = PIPE
     pStderr = STDOUT
@@ -163,7 +163,6 @@ def runTests(xpcshell, xrePath=None, symbolsPath=None,
       # Simply remove optional ending separator.
       testPath = testPath.rstrip("/")
 
-  # Override testdirs.
   if manifest is not None:
     testdirs = readManifest(os.path.abspath(manifest))
 
@@ -207,54 +206,51 @@ def runTests(xpcshell, xrePath=None, symbolsPath=None,
       # The test file will have to be loaded after the head files.
       cmdT = ['-e', 'const _TEST_FILE = ["%s"];' %
                       os.path.join(testdir, test).replace('\\', '/')]
-
       # create a temp dir that the JS harness can stick a profile in
-      profileDir = None
-      try:
-        profileDir = mkdtemp()
-        env["XPCSHELL_TEST_PROFILE_DIR"] = profileDir
+      profd = mkdtemp()
+      env["XPCSHELL_TEST_PROFILE_DIR"] = profd
 
-        # Enable leaks (only) detection to its own log file.
-        leakLogFile = os.path.join(profileDir, "runxpcshelltests_leaks.log")
-        env["XPCOM_MEM_LEAK_LOG"] = leakLogFile
+      proc = Popen(cmdH + cmdT + xpcsRunArgs,
+                   stdout=pStdout, stderr=pStderr, env=env, cwd=testdir)
+      # |stderr == None| as |pStderr| was either |None| or redirected to |stdout|.
+      stdout, stderr = proc.communicate()
 
-        proc = Popen(cmdH + cmdT + xpcsRunArgs,
-                     stdout=pStdout, stderr=pStderr, env=env, cwd=testdir)
-        # |stderr == None| as |pStderr| was either |None| or redirected to |stdout|.
-        stdout, stderr = proc.communicate()
+      shutil.rmtree(profd, True)
 
-        if interactive:
-          # Not sure what else to do here...
-          return True
+      if interactive:
+        # not sure what else to do here...
+        return True
 
-        if proc.returncode != 0 or (stdout and re.search("^TEST-UNEXPECTED-FAIL", stdout, re.MULTILINE)):
-          print """TEST-UNEXPECTED-FAIL | %s | test failed (with xpcshell return code: %d), see following log:
+      if proc.returncode != 0 or (stdout is not None and re.search("^TEST-UNEXPECTED-FAIL", stdout, re.MULTILINE)):
+        print """TEST-UNEXPECTED-FAIL | %s | test failed (with xpcshell return code: %d), see following log:
   >>>>>>>
   %s
   <<<<<<<""" % (test, proc.returncode, stdout)
-          checkForCrashes(testdir, symbolsPath, testName=test)
-          failCount += 1
-        else:
-          print "TEST-PASS | %s | test passed" % test
-          passCount += 1
+        checkForCrashes(testdir, symbolsPath, testName=test)
+        failCount += 1
+      else:
+        print "TEST-PASS | %s | test passed" % test
+        passCount += 1
 
-        dumpLeakLog(leakLogFile, True)
+      dumpLeakLog(leakLogFile, True)
 
-        if logfiles and stdout:
-          try:
-            f = open(test + ".log", "w")
-            f.write(stdout)
+      if stdout is not None:
+        try:
+          f = open(test + '.log', 'w')
+          f.write(stdout)
 
-            if os.path.exists(leakLogFile):
-              leaks = open(leakLogFile, "r")
-              f.write(leaks.read())
-              leaks.close()
-          finally:
-            if f:
-              f.close()
-      finally:
-        if profileDir:
-          shutil.rmtree(profileDir)
+          if os.path.exists(leakLogFile):
+            leaks = open(leakLogFile, "r")
+            f.write(leaks.read())
+            leaks.close()
+        finally:
+          if f:
+            f.close()
+
+      # Remove the leak detection file (here) so it can't "leak" to the next test.
+      # The file is not there if leak logging was not enabled in the xpcshell build.
+      if os.path.exists(leakLogFile):
+        os.remove(leakLogFile)
 
   if passCount == 0 and failCount == 0:
     print "TEST-UNEXPECTED-FAIL | runxpcshelltests.py | No tests run. Did you pass an invalid --test-path?"
@@ -271,21 +267,15 @@ def main():
   parser = OptionParser()
 
   addCommonOptions(parser)
+  parser.add_option("--test-path",
+                    action="store", type="string", dest="testPath",
+                    default=None, help="single path and/or test filename to test")
   parser.add_option("--interactive",
                     action="store_true", dest="interactive", default=False,
                     help="don't automatically run tests, drop to an xpcshell prompt")
-  parser.add_option("--logfiles",
-                    action="store_true", dest="logfiles", default=True,
-                    help="create log files (default, only used to override --no-logfiles)")
   parser.add_option("--manifest",
-                    type="string", dest="manifest", default=None,
-                    help="Manifest of test directories to use")
-  parser.add_option("--no-logfiles",
-                    action="store_false", dest="logfiles",
-                    help="don't create log files")
-  parser.add_option("--test-path",
-                    type="string", dest="testPath", default=None,
-                    help="single path and/or test filename to test")
+                    action="store", type="string", dest="manifest",
+                    default=None, help="Manifest of test directories to use")
   options, args = parser.parse_args()
 
   if len(args) < 2 and options.manifest is None or \
@@ -299,14 +289,12 @@ def main():
     print >>sys.stderr, "Error: You must specify a test filename in interactive mode!"
     sys.exit(1)
 
-  if not runTests(args[0],
+  if not runTests(args[0], testdirs=args[1:],
                   xrePath=options.xrePath,
-                  symbolsPath=options.symbolsPath,
-                  manifest=options.manifest,
-                  testdirs=args[1:],
                   testPath=options.testPath,
                   interactive=options.interactive,
-                  logfiles=options.logfiles):
+                  manifest=options.manifest,
+                  symbolsPath=options.symbolsPath):
     sys.exit(1)
 
 if __name__ == '__main__':

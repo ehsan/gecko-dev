@@ -5064,8 +5064,7 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
           nsIFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm) {
             nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
-            fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOUSE |
-                               nsIFocusManager::FLAG_NOSCROLL);
+            fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOUSE);
           }
 
           aVisitor.mPresContext->EventStateManager()->

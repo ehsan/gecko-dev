@@ -59,6 +59,7 @@ class nsIPresShell;
 class nsIDocShell;
 class nsIDocShellTreeNode;
 class nsIDocShellTreeItem;
+class nsIFocusController;
 class imgIContainer;
 class nsDOMDataTransfer;
 

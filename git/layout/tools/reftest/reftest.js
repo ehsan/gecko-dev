@@ -121,9 +121,6 @@ const EXPECTED_DEATH = 3;  // test must be skipped to avoid e.g. crash/hang
 var HTTP_SERVER_PORT = 4444;
 const HTTP_SERVER_PORTS_TO_TRY = 50;
 
-// whether we should skip caching canvases
-var gNoCanvasCache = false;
-
 var gRecycledCanvases = new Array();
 
 function AllocateCanvas()
@@ -136,15 +133,12 @@ function AllocateCanvas()
     var canvas = document.createElementNS(XHTML_NS, "canvas");
     canvas.setAttribute("width", windowElem.getAttribute("width"));
     canvas.setAttribute("height", windowElem.getAttribute("height"));
-
     return canvas;
 }
 
 function ReleaseCanvas(canvas)
 {
-    // store a maximum of 2 canvases, if we're not caching
-    if (!gNoCanvasCache || gRecycledCanvases.length < 2)
-        gRecycledCanvases.push(canvas);
+    gRecycledCanvases.push(canvas);
 }
 
 function OnRefTestLoad()
@@ -213,12 +207,7 @@ function StartTests()
 {
     try {
         // Need to read the manifest once we have the final HTTP_SERVER_PORT.
-        args = window.arguments[0].wrappedJSObject;
-
-        if ("nocache" in args && args["nocache"])
-            gNoCanvasCache = true;
-
-        ReadTopManifest(args.uri);
+        ReadTopManifest(window.arguments[0]);
         BuildUseCounts();
         gTotalTests = gURLs.length;
 
@@ -801,8 +790,7 @@ function UpdateCanvasCache(url, canvas)
     var spec = url.spec;
 
     --gURIUseCounts[spec];
-
-    if (gNoCanvasCache || gURIUseCounts[spec] == 0) {
+    if (gURIUseCounts[spec] == 0) {
         ReleaseCanvas(canvas);
         delete gURICanvases[spec];
     } else if (gURIUseCounts[spec] > 0) {

@@ -244,8 +244,8 @@ private:
   // Notifies the element that playback has completed.
   void PlaybackEnded();
 
-  // Notifies the element that decoding has failed.
-  void DecodeError();
+  // Notifies the element that metadata loading has failed.
+  void MediaErrorDecode();
 
   void RegisterShutdownObserver();
   void UnregisterShutdownObserver();
