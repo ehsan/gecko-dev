@@ -1,12 +1,50 @@
 package org.mozilla.gecko.tests;
 
-public class testTextareaSelections extends SelectionHandlerTest {
+import org.mozilla.gecko.Actions;
+import org.mozilla.gecko.EventDispatcher;
+import org.mozilla.gecko.tests.helpers.GeckoHelper;
+import org.mozilla.gecko.tests.helpers.NavigationHelper;
 
-    public testTextareaSelections() {
-        super("chrome://roboextender/content/testTextareaSelections.html");
-    }
+import android.util.Log;
+
+import org.json.JSONObject;
+
+
+public class testTextareaSelections extends UITest {
 
     public void testTextareaSelections() {
-        super.testSelection();
+        GeckoHelper.blockForReady();
+
+        Actions.EventExpecter robocopTestExpecter =
+            getActions().expectGeckoEvent("Robocop:testTextareaSelections");
+        final String url = "chrome://roboextender/content/testTextareaSelections.html";
+        NavigationHelper.enterAndLoadUrl(url);
+        mToolbar.assertTitle(url);
+
+        while (!test(robocopTestExpecter)) {
+            // do nothing
+        }
+
+        robocopTestExpecter.unregisterListener();
+    }
+
+    private boolean test(Actions.EventExpecter expecter) {
+        final JSONObject eventData;
+        try {
+            eventData = new JSONObject(expecter.blockForEventData());
+        } catch(Exception ex) {
+            // Log and ignore
+            getAsserter().ok(false, "JS Test", "Error decoding data " + ex);
+            return false;
+        }
+
+        if (eventData.has("result")) {
+            getAsserter().ok(eventData.optBoolean("result"), "JS Test", eventData.optString("msg"));
+        } else if (eventData.has("todo")) {
+            getAsserter().todo(eventData.optBoolean("todo"), "JS TODO", eventData.optString("msg"));
+        }
+
+        EventDispatcher.sendResponse(eventData, new JSONObject());
+        return eventData.optBoolean("done", false);
     }
 }

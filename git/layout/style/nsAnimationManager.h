@@ -59,7 +59,7 @@ public:
     : dom::AnimationPlayer(aTimeline)
     , mIsStylePaused(false)
     , mPauseShouldStick(false)
-    , mPreviousPhaseOrIteration(PREVIOUS_PHASE_BEFORE)
+    , mLastNotification(LAST_NOTIFICATION_NONE)
   {
   }
 
@@ -139,12 +139,12 @@ protected:
   bool mPauseShouldStick;
 
   enum {
-    PREVIOUS_PHASE_BEFORE = uint64_t(-1),
-    PREVIOUS_PHASE_AFTER = uint64_t(-2)
+    LAST_NOTIFICATION_NONE = uint64_t(-1),
+    LAST_NOTIFICATION_END = uint64_t(-2)
   };
-  // One of the PREVIOUS_PHASE_* constants, or an integer for the iteration
+  // One of the LAST_NOTIFICATION_* constants, or an integer for the iteration
   // whose start we last notified on.
-  uint64_t mPreviousPhaseOrIteration;
+  uint64_t mLastNotification;
 };
 
 } /* namespace mozilla */

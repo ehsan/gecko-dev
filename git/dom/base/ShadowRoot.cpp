@@ -711,15 +711,6 @@ ShadowRoot::ContentRemoved(nsIDocument* aDocument,
   }
 }
 
-void
-ShadowRoot::DestroyContent()
-{
-  if (mOlderShadow) {
-    mOlderShadow->DestroyContent();
-  }
-  DocumentFragment::DestroyContent();
-}
-
 NS_IMPL_CYCLE_COLLECTION_INHERITED(ShadowRootStyleSheetList, StyleSheetList,
                                    mShadowRoot)
 

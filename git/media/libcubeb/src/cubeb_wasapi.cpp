@@ -520,14 +520,7 @@ wasapi_stream_render_loop(LPVOID stream)
         close_wasapi_stream(stm);
         /* Reopen a stream and start it immediately. This will automatically pick the
          * new default device for this role. */
-        int r = setup_wasapi_stream(stm);
-        if (r != CUBEB_OK) {
-          /* Don't destroy the stream here, since we expect the caller to do
-             so after the error has propagated via the state callback. */
-          is_playing = false;
-          hr = -1;
-          continue;
-        }
+        setup_wasapi_stream(stm);
       }
       stm->client->Start();
       break;
@@ -585,7 +578,7 @@ wasapi_stream_render_loop(LPVOID stream)
   }
 
   if (FAILED(hr)) {
-    stm->state_callback(stm, stm->user_ptr, CUBEB_STATE_ERROR);
+    stm->state_callback(stm, stm->user_ptr, CUBEB_STATE_STOPPED);
   }
 
   stm->context->revert_mm_thread_characteristics(mmcss_handle);
@@ -974,6 +967,8 @@ int setup_wasapi_stream(cubeb_stream * stm)
   hr = get_default_endpoint(&device);
   if (FAILED(hr)) {
     LOG("Could not get default endpoint, error: %x\n", hr);
+    stm->stream_reset_lock->leave();
+    wasapi_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
@@ -985,6 +980,8 @@ int setup_wasapi_stream(cubeb_stream * stm)
   SafeRelease(device);
   if (FAILED(hr)) {
     LOG("Could not activate the device to get an audio client: error: %x\n", hr);
+    stm->stream_reset_lock->leave();
+    wasapi_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
@@ -993,6 +990,8 @@ int setup_wasapi_stream(cubeb_stream * stm)
   hr = stm->client->GetMixFormat(&mix_format);
   if (FAILED(hr)) {
     LOG("Could not fetch current mix format from the audio client: error: %x\n", hr);
+    stm->stream_reset_lock->leave();
+    wasapi_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
@@ -1016,12 +1015,16 @@ int setup_wasapi_stream(cubeb_stream * stm)
 
   if (FAILED(hr)) {
     LOG("Unable to initialize audio client: %x.\n", hr);
+    stm->stream_reset_lock->leave();
+    wasapi_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
   hr = stm->client->GetBufferSize(&stm->buffer_frame_count);
   if (FAILED(hr)) {
     LOG("Could not get the buffer size from the client %x.\n", hr);
+    stm->stream_reset_lock->leave();
+    wasapi_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
@@ -1032,6 +1035,8 @@ int setup_wasapi_stream(cubeb_stream * stm)
   hr = stm->client->SetEventHandle(stm->refill_event);
   if (FAILED(hr)) {
     LOG("Could set the event handle for the client %x.\n", hr);
+    stm->stream_reset_lock->leave();
+    wasapi_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
@@ -1039,6 +1044,8 @@ int setup_wasapi_stream(cubeb_stream * stm)
                                (void **)&stm->render_client);
   if (FAILED(hr)) {
     LOG("Could not get the render client %x.\n", hr);
+    stm->stream_reset_lock->leave();
+    wasapi_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
@@ -1046,6 +1053,8 @@ int setup_wasapi_stream(cubeb_stream * stm)
                                (void **)&stm->audio_stream_volume);
   if (FAILED(hr)) {
     LOG("Could not get the IAudioStreamVolume %x.\n", hr);
+    stm->stream_reset_lock->leave();
+    wasapi_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
@@ -1061,6 +1070,8 @@ int setup_wasapi_stream(cubeb_stream * stm)
                                           CUBEB_RESAMPLER_QUALITY_DESKTOP);
   if (!stm->resampler) {
     LOG("Could not get a resampler\n");
+    stm->stream_reset_lock->leave();
+    wasapi_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
@@ -1120,15 +1131,14 @@ wasapi_stream_init(cubeb * context, cubeb_stream ** stream,
   }
 
   {
-    /* Locking here is not strictly necessary, because we don't have a
+    /* Locking here is not stricly necessary, because we don't have a
        notification client that can reset the stream yet, but it lets us
        assert that the lock is held in the function. */
     auto_lock lock(stm->stream_reset_lock);
     rv = setup_wasapi_stream(stm);
-  }
-  if (rv != CUBEB_OK) {
-    wasapi_stream_destroy(stm);
-    return rv;
+    if (rv != CUBEB_OK) {
+      return rv;
+    }
   }
 
   hr = register_notification_client(stm);

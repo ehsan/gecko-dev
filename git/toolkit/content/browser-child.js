@@ -541,10 +541,6 @@ let AutoCompletePopup = {
                   getService(Components.interfaces.nsIAutoCompleteController);
       controller.handleEnter(message.data.isPopupSelection);
     });
-
-    addEventListener("unload", function() {
-      AutoCompletePopup.destroy();
-    });
   },
 
   destroy: function() {
@@ -603,3 +599,7 @@ if (initData.length) {
     setTimeout(() => AutoCompletePopup.init(), 0);
   }
 }
+
+addEventListener("unload", function() {
+  AutoCompletePopup.destroy();
+});
