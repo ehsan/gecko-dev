@@ -453,6 +453,10 @@
 #include "nsIDOMLoadStatus.h"
 #include "nsIDOMLoadStatusEvent.h"
 
+// Geolocation
+#include "nsIDOMGeolocation.h"
+#include "nsIDOMGeolocator.h"
+
 #include "nsIDOMFileList.h"
 #include "nsIDOMFile.h"
 #include "nsIDOMFileException.h"
@@ -1242,6 +1246,12 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(MessageEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
+  NS_DEFINE_CLASSINFO_DATA(Geolocation, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+ 
+   NS_DEFINE_CLASSINFO_DATA(Geolocator, nsDOMGenericSH,
+                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
+
 #if defined(MOZ_MEDIA) 
   NS_DEFINE_CLASSINFO_DATA(HTMLVideoElement, nsHTMLElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
@@ -1358,9 +1368,9 @@ jsval nsDOMClassInfo::sDocumentURIObject_id=JSVAL_VOID;
 jsval nsDOMClassInfo::sOncopy_id          = JSVAL_VOID;
 jsval nsDOMClassInfo::sOncut_id           = JSVAL_VOID;
 jsval nsDOMClassInfo::sOnpaste_id         = JSVAL_VOID;
-#ifdef OJI
 jsval nsDOMClassInfo::sJava_id            = JSVAL_VOID;
 jsval nsDOMClassInfo::sPackages_id        = JSVAL_VOID;
+#ifdef OJI
 jsval nsDOMClassInfo::sNetscape_id        = JSVAL_VOID;
 jsval nsDOMClassInfo::sSun_id             = JSVAL_VOID;
 jsval nsDOMClassInfo::sJavaObject_id      = JSVAL_VOID;
@@ -1550,9 +1560,9 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSVAL_TO_STRING(sOncopy_id,          cx, "oncopy");
   SET_JSVAL_TO_STRING(sOncut_id,           cx, "oncut");
   SET_JSVAL_TO_STRING(sOnpaste_id,         cx, "onpaste");
-#ifdef OJI
   SET_JSVAL_TO_STRING(sJava_id,            cx, "java");
   SET_JSVAL_TO_STRING(sPackages_id,        cx, "Packages");
+#ifdef OJI
   SET_JSVAL_TO_STRING(sNetscape_id,        cx, "netscape");
   SET_JSVAL_TO_STRING(sSun_id,             cx, "sun");
   SET_JSVAL_TO_STRING(sJavaObject_id,      cx, "JavaObject");
@@ -1923,6 +1933,7 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(Navigator, nsIDOMNavigator)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigator)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSNavigator)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorGeolocator)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMClientInformation)
   DOM_CLASSINFO_MAP_END
 
@@ -3405,6 +3416,14 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(Geolocation, nsIDOMGeolocation)
+     DOM_CLASSINFO_MAP_ENTRY(nsIDOMGeolocation)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(Geolocator, nsIDOMGeolocator)
+     DOM_CLASSINFO_MAP_ENTRY(nsIDOMGeolocator)
+  DOM_CLASSINFO_MAP_END
+
 #if defined(MOZ_MEDIA)
   DOM_CLASSINFO_MAP_BEGIN(HTMLVideoElement, nsIDOMHTMLVideoElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLVideoElement)
@@ -4153,9 +4172,9 @@ nsDOMClassInfo::ShutDown()
   sOncopy_id          = JSVAL_VOID;
   sOncut_id           = JSVAL_VOID;
   sOnpaste_id         = JSVAL_VOID;
-#ifdef OJI
   sJava_id            = JSVAL_VOID;
   sPackages_id        = JSVAL_VOID;
+#ifdef OJI
   sNetscape_id        = JSVAL_VOID;
   sSun_id             = JSVAL_VOID;
   sJavaObject_id      = JSVAL_VOID;
@@ -6221,10 +6240,11 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       return NS_OK;
     }
 
+    if (id == sJava_id || id == sPackages_id
 #ifdef OJI
-    if (id == sJava_id || id == sPackages_id || id == sNetscape_id ||
-        id == sSun_id || id == sJavaObject_id || id == sJavaClass_id ||
-        id == sJavaArray_id || id == sJavaMember_id
+        || id == sNetscape_id || id == sSun_id || id == sJavaObject_id ||
+        id == sJavaClass_id || id == sJavaArray_id || id == sJavaMember_id
+#endif
         ) {
       static PRBool isResolvingJavaProperties;
 
@@ -6259,7 +6279,6 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
         }
       }
     }
-#endif
   }
 
   JSObject *oldobj = *objp;
