@@ -2670,7 +2670,7 @@ TraceRecorder::cmp(LOpcode op, bool negate)
         LIns* r_ins = get(&r);
         jsdouble lnum;
         jsdouble rnum;
-        LIns* args[] = { l_ins, cx_ins };
+        LIns* args[] = { get(&l), cx_ins };
         if (JSVAL_IS_STRING(l)) {
             l_ins = lir->insCall(F_StringToNumber, args);
         } else if (JSVAL_TAG(l) == JSVAL_BOOLEAN) {
@@ -3297,8 +3297,10 @@ TraceRecorder::record_JSOP_RETURN()
     jsval& rval = stackval(-1);
     JSStackFrame *fp = cx->fp;
     if (cx->fp->flags & JSFRAME_CONSTRUCTING) {
-        JS_ASSERT(OBJECT_TO_JSVAL(fp->thisp) == fp->argv[-1]);
-        rval_ins = get(&fp->argv[-1]);
+        if (JSVAL_IS_PRIMITIVE(rval)) {
+            JS_ASSERT(OBJECT_TO_JSVAL(fp->thisp) == fp->argv[-1]);
+            rval_ins = get(&fp->argv[-1]);
+        }
     } else {
         rval_ins = get(&rval);
     }
@@ -3801,9 +3803,9 @@ TraceRecorder::record_JSOP_TYPEOF()
     jsval& r = stackval(-1);
     LIns* type;
     if (JSVAL_IS_STRING(r)) {
-        type = INS_CONSTPTR(ATOM_TO_STRING(cx->runtime->atomState.typeAtoms[JSTYPE_STRING]));
+        type = lir->insImmPtr((void*)cx->runtime->atomState.typeAtoms[JSTYPE_STRING]);
     } else if (isNumber(r)) {
-        type = INS_CONSTPTR(ATOM_TO_STRING(cx->runtime->atomState.typeAtoms[JSTYPE_NUMBER]));
+        type = lir->insImmPtr((void*)cx->runtime->atomState.typeAtoms[JSTYPE_NUMBER]);
     } else {
         LIns* args[] = { get(&r), cx_ins };
         if (JSVAL_TAG(r) == JSVAL_BOOLEAN) {
