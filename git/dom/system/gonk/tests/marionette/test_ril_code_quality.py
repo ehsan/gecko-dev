@@ -140,10 +140,7 @@ class ResourceUriFileReader:
     @classmethod
     def get_uri(cls, filename):
         """Convert filename to URI in system."""
-        if filename.startswith(cls.URI_PREFIX):
-            return filename
-        else:
-            return cls.URI_PREFIX + cls.URI_PATH[filename]
+        return cls.URI_PREFIX + cls.URI_PATH[filename]
 
     def __init__(self, marionette):
         self.runjs = lambda x: marionette.execute_script(x, new_sandbox=False)
@@ -281,15 +278,13 @@ class Linter:
             # Maintain a mapping table.
             # New line number after merge => original file and line number.
             info.append((dst_line, filepath, 1))
-            try:
-                code = self.code_reader.read_file(filepath)
-                lines = code.splitlines(True)  # Keep '\n'.
-                src_results = StringUtility.auto_wrap_strict_mode(
-                    StringUtility.auto_close(lines))
-                dst_results.extend(src_results)
-                dst_line += len(src_results)
-            except:
-                info.pop()
+
+            code = self.code_reader.read_file(filepath)
+            lines = code.splitlines(True)  # Keep '\n'.
+            src_results = StringUtility.auto_wrap_strict_mode(
+                StringUtility.auto_close(lines))
+            dst_results.extend(src_results)
+            dst_line += len(src_results)
         return dst_results, info
 
     def _convert_merged_result(self, error_lines, line_info):

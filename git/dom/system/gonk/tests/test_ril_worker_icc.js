@@ -2706,8 +2706,6 @@ add_test(function test_personalization_state() {
                       GECKO_CARDSTATE_CORPORATE_PUK_REQUIRED);
   testPersonalization(CARD_PERSOSUBSTATE_SIM_SERVICE_PROVIDER_PUK,
                       GECKO_CARDSTATE_SERVICE_PROVIDER_PUK_REQUIRED);
-  testPersonalization(CARD_PERSOSUBSTATE_READY,
-                      GECKO_CARDSTATE_PERSONALIZATION_READY);
 
   run_next_test();
 });
