@@ -656,11 +656,7 @@ DeviceStorageRequestParent::PostAvailableResultEvent::CancelableRun()
   nsString state;
   state.Assign(NS_LITERAL_STRING("available"));
 #ifdef MOZ_WIDGET_GONK
-  nsString path;
-  nsresult rv = mFile->mFile->GetPath(path);
-  if (NS_SUCCEEDED(rv)) {
-    rv = GetSDCardStatus(path, state);
-  }
+  nsresult rv = GetSDCardStatus(mFile->mPath, state);
   if (NS_FAILED(rv)) {
     state.Assign(NS_LITERAL_STRING("unavailable"));
   }
