@@ -99,7 +99,7 @@ static bool test_pldhash_grow_to_max_capacity()
   // Keep inserting elements until failure occurs because the table is full.
   size_t numInserted = 0;
   while (true) {
-    if (!PL_DHashTableAdd(&t, (const void*)numInserted)) {
+    if (!PL_DHashTableOperate(&t, (const void*)numInserted, PL_DHASH_ADD)) {
       break;
     }
     numInserted++;

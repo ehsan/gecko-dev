@@ -19,7 +19,6 @@
 #include "nsIContentPolicy.h"
 #include "mozilla/ipc/BackgroundUtils.h"
 #include "nsIOService.h"
-#include "mozilla/LoadInfo.h"
 
 using namespace mozilla::ipc;
 
@@ -89,7 +88,7 @@ FTPChannelParent::Init(const FTPChannelCreationArgs& aArgs)
     const FTPChannelOpenArgs& a = aArgs.get_FTPChannelOpenArgs();
     return DoAsyncOpen(a.uri(), a.startPos(), a.entityID(), a.uploadStream(),
                        a.requestingPrincipalInfo(), a.triggeringPrincipalInfo(),
-                       a.securityFlags(), a.contentPolicyType(), a.innerWindowID());
+                       a.securityFlags(), a.contentPolicyType());
   }
   case FTPChannelCreationArgs::TFTPChannelConnectArgs:
   {
@@ -110,8 +109,7 @@ FTPChannelParent::DoAsyncOpen(const URIParams& aURI,
                               const ipc::PrincipalInfo& aRequestingPrincipalInfo,
                               const ipc::PrincipalInfo& aTriggeringPrincipalInfo,
                               const uint32_t& aSecurityFlags,
-                              const uint32_t& aContentPolicyType,
-                              const uint32_t& aInnerWindowID)
+                              const uint32_t& aContentPolicyType)
 {
   nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
   if (!uri)
@@ -150,16 +148,19 @@ FTPChannelParent::DoAsyncOpen(const URIParams& aURI,
   if (NS_FAILED(rv)) {
     return SendFailedAsyncOpen(rv);
   }
-
-  nsCOMPtr<nsILoadInfo> loadInfo =
-    new mozilla::LoadInfo(requestingPrincipal, triggeringPrincipal,
-                          aSecurityFlags, aContentPolicyType,
-                          aInnerWindowID);
+  
 
   nsCOMPtr<nsIChannel> chan;
-  rv = NS_NewChannelInternal(getter_AddRefs(chan), uri, loadInfo,
-                             nullptr, nullptr,
-                             nsIRequest::LOAD_NORMAL, ios);
+  rv = NS_NewChannelWithTriggeringPrincipal(getter_AddRefs(chan),
+                                            uri,
+                                            requestingPrincipal,
+                                            triggeringPrincipal,
+                                            aSecurityFlags,
+                                            aContentPolicyType,
+                                            nullptr, // aLoadGroup
+                                            nullptr, // aCallbacks
+                                            nsIRequest::LOAD_NORMAL,
+                                            ios);
 
   if (NS_FAILED(rv))
     return SendFailedAsyncOpen(rv);

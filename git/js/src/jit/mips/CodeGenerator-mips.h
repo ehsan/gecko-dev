@@ -264,6 +264,8 @@ class CodeGeneratorMIPS : public CodeGeneratorShared
 
     void visitAsmJSPassStackArg(LAsmJSPassStackArg *ins);
 
+    void visitForkJoinGetSlice(LForkJoinGetSlice *ins);
+
     void generateInvalidateEpilogue();
 
   protected:

@@ -20,13 +20,10 @@ XPCOMUtils.defineLazyGetter(this, "RIL", function () {
 
 const GONK_TELEPHONYSERVICE_CONTRACTID =
   "@mozilla.org/telephony/gonktelephonyservice;1";
-
 const GONK_TELEPHONYSERVICE_CID =
   Components.ID("{67d26434-d063-4d28-9f48-5b3189788155}");
 const MOBILECALLFORWARDINGOPTIONS_CID =
   Components.ID("{79b5988b-9436-48d8-a652-88fa033f146c}");
-const TELEPHONYCALLINFO_CID =
-  Components.ID("{d9e8b358-a02c-4cf3-9fc7-816c2e8d46e4}");
 
 const NS_XPCOM_SHUTDOWN_OBSERVER_ID = "xpcom-shutdown";
 
@@ -115,45 +112,6 @@ MobileCallForwardingOptions.prototype = {
   number: null,
   timeSeconds: -1,
   serviceClass: Ci.nsIMobileConnection.ICC_SERVICE_CLASS_NONE
-};
-
-function TelephonyCallInfo(aCall) {
-  this.clientId = aCall.clientId;
-  this.callIndex = aCall.callIndex;
-  this.callState = aCall.state;
-  this.number = aCall.number;
-  this.numberPresentation = aCall.numberPresentation;
-  this.name = aCall.name;
-  this.namePresentation = aCall.namePresentation;
-  this.isOutgoing = aCall.isOutgoing;
-  this.isEmergency = aCall.isEmergency;
-  this.isConference = aCall.isConference;
-  this.isSwitchable = aCall.isSwitchable;
-  this.isMergeable = aCall.isMergeable;
-}
-TelephonyCallInfo.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsITelephonyCallInfo]),
-  classID: TELEPHONYCALLINFO_CID,
-  classInfo: XPCOMUtils.generateCI({
-    classID:          TELEPHONYCALLINFO_CID,
-    classDescription: "TelephonyCallInfo",
-    interfaces:       [Ci.nsITelephonyCallInfo]
-  }),
-
-  // nsITelephonyCallInfo
-
-  clientId: 0,
-  callIndex: 0,
-  callState: nsITelephonyService.CALL_STATE_UNKNOWN,
-  number: "",
-  numberPresentation: nsITelephonyService.CALL_PRESENTATION_ALLOWED,
-  name: "",
-  namePresentation: nsITelephonyService.CALL_PRESENTATION_ALLOWED,
-  isOutgoing: true,
-  isEmergency: false,
-  isConference: false,
-  isSwitchable: true,
-  isMergeable: true
 };
 
 function TelephonyService() {
@@ -425,8 +383,12 @@ TelephonyService.prototype = {
       }
       for (let i = 0, indexes = Object.keys(calls); i < indexes.length; ++i) {
         let call = calls[indexes[i]];
-        let callInfo = new TelephonyCallInfo(call);
-        aListener.enumerateCallState(callInfo);
+        aListener.enumerateCallState(call.clientId, call.callIndex,
+                                     call.state, call.number,
+                                     call.numberPresentation, call.name,
+                                     call.namePresentation, call.isOutgoing,
+                                     call.isEmergency, call.isConference,
+                                     call.isSwitchable, call.isMergeable);
       }
     }
     aListener.enumerateCallStateComplete();
@@ -1227,8 +1189,18 @@ TelephonyService.prototype = {
 
     if (!aCall.failCause ||
         aCall.failCause === RIL.GECKO_CALL_ERROR_NORMAL_CALL_CLEARING) {
-      let callInfo = new TelephonyCallInfo(aCall);
-      this._notifyAllListeners("callStateChanged", [callInfo]);
+      this._notifyAllListeners("callStateChanged", [aClientId,
+                                                    aCall.callIndex,
+                                                    aCall.state,
+                                                    aCall.number,
+                                                    aCall.numberPresentation,
+                                                    aCall.name,
+                                                    aCall.namePresentation,
+                                                    aCall.isOutgoing,
+                                                    aCall.isEmergency,
+                                                    aCall.isConference,
+                                                    aCall.isSwitchable,
+                                                    aCall.isMergeable]);
     } else {
       this._notifyAllListeners("notifyError",
                                [aClientId, aCall.callIndex, aCall.failCause]);
@@ -1304,8 +1276,18 @@ TelephonyService.prototype = {
       this._cachedDialRequest = null;
     }
 
-    let callInfo = new TelephonyCallInfo(call);
-    this._notifyAllListeners("callStateChanged", [callInfo]);
+    this._notifyAllListeners("callStateChanged", [aClientId,
+                                                  call.callIndex,
+                                                  call.state,
+                                                  call.number,
+                                                  call.numberPresentation,
+                                                  call.name,
+                                                  call.namePresentation,
+                                                  call.isOutgoing,
+                                                  call.isEmergency,
+                                                  call.isConference,
+                                                  call.isSwitchable,
+                                                  call.isMergeable]);
   },
 
   notifyCdmaCallWaiting: function(aClientId, aCall) {

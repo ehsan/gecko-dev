@@ -10,7 +10,6 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Move.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/TypedEnum.h"
 #include "mozilla/VolatileBuffer.h"
 #include "gfxDrawable.h"
 #include "imgIContainer.h"
@@ -21,29 +20,6 @@ namespace image {
 class ImageRegion;
 class DrawableFrameRef;
 class RawAccessFrameRef;
-
-MOZ_BEGIN_ENUM_CLASS(BlendMethod, int8_t)
-  // All color components of the frame, including alpha, overwrite the current
-  // contents of the frame's output buffer region.
-  SOURCE,
-
-  // The frame should be composited onto the output buffer based on its alpha,
-  // using a simple OVER operation.
-  OVER
-MOZ_END_ENUM_CLASS(BlendMethod)
-
-MOZ_BEGIN_ENUM_CLASS(DisposalMethod, int8_t)
-  CLEAR_ALL = -1,  // Clear the whole image, revealing what's underneath.
-  NOT_SPECIFIED,   // Leave the frame and let the new frame draw on top.
-  KEEP,            // Leave the frame and let the new frame draw on top.
-  CLEAR,           // Clear the frame's area, revealing what's underneath.
-  RESTORE_PREVIOUS // Restore the previous (composited) frame.
-MOZ_END_ENUM_CLASS(DisposalMethod)
-
-MOZ_BEGIN_ENUM_CLASS(Opacity, uint8_t)
-  OPAQUE,
-  SOME_TRANSPARENCY
-MOZ_END_ENUM_CLASS(Opacity)
 
 class imgFrame
 {
@@ -137,15 +113,10 @@ public:
   int32_t GetRawTimeout() const;
   void SetRawTimeout(int32_t aTimeout);
 
-  DisposalMethod GetDisposalMethod() const { return mDisposalMethod; }
-  void SetDisposalMethod(DisposalMethod aDisposalMethod)
-  {
-    mDisposalMethod = aDisposalMethod;
-  }
-
-  BlendMethod GetBlendMethod() const { return mBlendMethod; }
-  void SetBlendMethod(BlendMethod aBlendMethod) { mBlendMethod = aBlendMethod; }
-
+  int32_t GetFrameDisposalMethod() const;
+  void SetFrameDisposalMethod(int32_t aFrameDisposalMethod);
+  int32_t GetBlendMethod() const;
+  void SetBlendMethod(int32_t aBlendMethod);
   bool ImageComplete() const;
 
   void SetHasNoAlpha();
@@ -231,6 +202,7 @@ private: // data
   Color        mSinglePixelColor;
 
   int32_t      mTimeout; // -1 means display forever
+  int32_t      mDisposalMethod;
 
   /** Indicates how many readers currently have locked this frame */
   int32_t mLockCount;
@@ -238,10 +210,9 @@ private: // data
   RefPtr<VolatileBuffer> mVBuf;
   VolatileBufferPtr<uint8_t> mVBufPtr;
 
-  SurfaceFormat  mFormat;
-  uint8_t        mPaletteDepth;
-  DisposalMethod mDisposalMethod;
-  BlendMethod    mBlendMethod;
+  SurfaceFormat mFormat;
+  uint8_t      mPaletteDepth;
+  int8_t       mBlendMethod;
   bool mSinglePixel;
   bool mCompositingFailed;
   bool mHasNoAlpha;

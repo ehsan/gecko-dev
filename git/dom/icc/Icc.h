@@ -16,7 +16,6 @@ namespace dom {
 
 class DOMRequest;
 class OwningMozIccInfoOrMozGsmIccInfoOrMozCdmaIccInfo;
-class Promise;
 
 class Icc MOZ_FINAL : public DOMEventTargetHelper
 {
@@ -101,9 +100,6 @@ public:
   already_AddRefed<DOMRequest>
   MatchMvno(IccMvnoType aMvnoType, const nsAString& aMatchData,
             ErrorResult& aRv);
-
-  already_AddRefed<Promise>
-  GetServiceState(IccService aService, ErrorResult& aRv);
 
   IMPL_EVENT_HANDLER(iccinfochange)
   IMPL_EVENT_HANDLER(cardstatechange)

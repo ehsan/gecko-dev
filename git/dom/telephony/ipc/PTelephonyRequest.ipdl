@@ -7,8 +7,6 @@
 include protocol PTelephony;
 include TelephonyTypes;
 
-using nsTelephonyCallInfo from "mozilla/dom/telephony/TelephonyIPCSerializer.h";
-
 namespace mozilla {
 namespace dom {
 namespace telephony {
@@ -66,7 +64,7 @@ protocol PTelephonyRequest
   manager PTelephony;
 
 child:
-  NotifyEnumerateCallState(nsTelephonyCallInfo aInfo);
+  NotifyEnumerateCallState(uint32_t aClientId, IPCCallStateData aData);
 
   NotifyDialMMI(nsString aServiceCode);
 

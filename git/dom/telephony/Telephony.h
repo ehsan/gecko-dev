@@ -11,7 +11,6 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/telephony/TelephonyCommon.h"
 
-#include "nsITelephonyCallInfo.h"
 #include "nsITelephonyService.h"
 
 // Need to include TelephonyCall.h because we have inline methods that
@@ -184,9 +183,6 @@ private:
                ErrorResult& aRv);
 
   already_AddRefed<TelephonyCallId>
-  CreateCallId(nsITelephonyCallInfo *aInfo);
-
-  already_AddRefed<TelephonyCallId>
   CreateCallId(const nsAString& aNumber,
                uint16_t aNumberPresentation = nsITelephonyService::CALL_PRESENTATION_ALLOWED,
                const nsAString& aName = EmptyString(),
@@ -212,9 +208,6 @@ private:
 
   already_AddRefed<TelephonyCall>
   GetCallFromEverywhere(uint32_t aServiceId, uint32_t aCallIndex);
-
-  nsresult
-  HandleCallInfo(nsITelephonyCallInfo* aInfo);
 };
 
 } // namespace dom

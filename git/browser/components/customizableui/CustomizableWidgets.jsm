@@ -920,7 +920,7 @@ const CustomizableWidgets = [
     tooltiptext: "email-link-button.tooltiptext3",
     onCommand: function(aEvent) {
       let win = aEvent.view;
-      win.MailIntegration.sendLinkForBrowser(win.gBrowser.selectedBrowser)
+      win.MailIntegration.sendLinkForWindow(win.content);
     }
   }, {
     id: "loop-button",
