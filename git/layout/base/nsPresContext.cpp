@@ -2299,17 +2299,17 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
     if (gDumpPluginList) {
       fprintf(stderr, "Plugins --- before optimization (bounds %d,%d,%d,%d):\n",
           bounds.x, bounds.y, bounds.width, bounds.height);
-      nsFrame::PrintDisplayList(&builder, list);
+      nsIFrameDebug::PrintDisplayList(&builder, list);
     }
 #endif
-
+  
     nsRegion visibleRegion(bounds);
     list.OptimizeVisibility(&builder, &visibleRegion);
 
 #ifdef DEBUG
     if (gDumpPluginList) {
       fprintf(stderr, "Plugins --- after optimization:\n");
-      nsFrame::PrintDisplayList(&builder, list);
+      nsIFrameDebug::PrintDisplayList(&builder, list);
     }
 #endif
 

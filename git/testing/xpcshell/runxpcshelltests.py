@@ -158,6 +158,7 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
   xpcsCmd = [xpcshell, '-g', xrePath, '-j', '-s'] + \
             ['-e', 'const _HTTPD_JS_PATH = "%s";' % httpdJSPath,
              '-f', os.path.join(testharnessdir, 'head.js')]
+  xpcsTailFile = [os.path.join(testharnessdir, 'tail.js')]
 
   # |testPath| will be the optional path only, or |None|.
   # |singleFile| will be the optional test only, or |None|.
@@ -213,7 +214,7 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
     cmdH = ", ".join(['"' + f.replace('\\', '/') + '"'
                        for f in testHeadFiles])
     cmdT = ", ".join(['"' + f.replace('\\', '/') + '"'
-                       for f in testTailFiles])
+                       for f in (testTailFiles + xpcsTailFile)])
     cmdH = xpcsCmd + \
            ['-e', 'const _HEAD_FILES = [%s];' % cmdH] + \
            ['-e', 'const _TAIL_FILES = [%s];' % cmdT]

@@ -143,6 +143,7 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsIWebBrowserChrome.h"
 #include "nsIDocShell.h"
 #include "nsIBaseWindow.h"
+#include "nsIFrameDebug.h"
 #include "nsILayoutHistoryState.h"
 #include "nsFrameManager.h"
 #include "nsIParser.h"
@@ -2175,7 +2176,10 @@ nsPrintEngine::DoPrint(nsPrintObject * aPO)
 #ifdef NS_DEBUG
       // output the regression test
       nsIFrame* root = poPresShell->FrameManager()->GetRootFrame();
-      root->DumpRegressionData(poPresContext, mPrt->mDebugFilePtr, 0);
+      nsIFrameDebug* fdbg = do_QueryFrame(root);
+      if (fdbg) {
+        fdbg->DumpRegressionData(poPresContext, mPrt->mDebugFilePtr, 0);
+      }
       fclose(mPrt->mDebugFilePtr);
       SetIsPrinting(PR_FALSE);
 #endif
@@ -3334,7 +3338,9 @@ static void RootFrameList(nsPresContext* aPresContext, FILE* out, PRInt32 aInden
   if (shell) {
     nsIFrame* frame = shell->FrameManager()->GetRootFrame();
     if (frame) {
-      frame->List(aPresContext, out, aIndent);
+      nsIFrameDebug* debugFrame = do_QueryFrame(frame);
+      if (debugFrame)
+        debugFrame->List(aPresContext, out, aIndent);
     }
   }
 }
@@ -3359,7 +3365,11 @@ static void DumpFrames(FILE*                 out,
      fprintf(out, "  ");
     }
     nsAutoString tmp;
-    child->GetFrameName(tmp);
+
+    nsIFrameDebug* frameDebug = do_QueryFrame(child);
+    if (frameDebug) {
+      frameDebug->GetFrameName(tmp);
+    }
     fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
     PRBool isSelected;
     if (NS_SUCCEEDED(child->IsVisibleForPainting(aPresContext, *aRendContext, PR_TRUE, &isSelected))) {

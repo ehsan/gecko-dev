@@ -71,19 +71,22 @@
                          flex="1">
             <children/>
           </xul:scrollbox>
-          <xul:toolbarbutton type="menu"
-                             class="chevron"
-                             mousethrough="never"
-                             collapsed="true"
-                             tooltiptext="&bookmarksToolbarChevron.tooltip;"
-                             onpopupshowing="_onChevronPopupShowing(event);">
-            <xul:menupopup anonid="chevronPopup"
-                           xbl:inherits="tooltip"
+          <xul:hbox mousethrough="always"
+                    pack="end">
+            <xul:toolbarbutton type="menu"
+                               class="chevron"
+                               mousethrough="never"
+                               collapsed="true"
+                               tooltiptext="&bookmarksToolbarChevron.tooltip;"
+                               onpopupshowing="_onChevronPopupShowing(event);">
+              <xul:menupopup anonid="chevronPopup"
+                             xbl:inherits="tooltip"
 #ifndef XP_MACOSX
-                           context="placesContext"
+                             context="placesContext"
 #endif
-            />
-          </xul:toolbarbutton>
+              />
+            </xul:toolbarbutton>
+          </xul:hbox>
         </xul:hbox>
     </content>
 
@@ -134,9 +137,7 @@
       <field name="_chevron">
         document.getAnonymousElementByAttribute(this, "class", "chevron")
       </field>
-      <field name="_chevronPopup">
-        document.getAnonymousElementByAttribute(this, "anonid", "chevronPopup")
-      </field>
+      <field name="_chevronPopup">this._chevron.lastChild</field>
 
       <field name="_openedMenuButton">null</field>
       <field name="_allowPopupShowing">true</field>

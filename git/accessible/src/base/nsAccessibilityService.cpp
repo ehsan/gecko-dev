@@ -1912,7 +1912,8 @@ nsresult nsAccessibilityService::GetAccessibleByType(nsIDOMNode *aNode,
       *aAccessible = new nsXULThumbAccessible(aNode, weakShell);
       break;
     case nsIAccessibleProvider::XULTree:
-      return GetAccessibleForXULTree(aNode, weakShell, aAccessible);
+      *aAccessible = new nsXULTreeAccessibleWrap(aNode, weakShell);
+      break;
     case nsIAccessibleProvider::XULTreeColumns:
       *aAccessible = new nsXULTreeColumnsAccessibleWrap(aNode, weakShell);
       break;
@@ -2146,34 +2147,3 @@ nsAccessibilityService::GetAccessibleForDeckChildren(nsIDOMNode *aNode, nsIAcces
 
   return NS_OK;
 }
-
-#ifdef MOZ_XUL
-nsresult
-nsAccessibilityService::GetAccessibleForXULTree(nsIDOMNode *aNode,
-                                                nsIWeakReference *aWeakShell,
-                                                nsIAccessible **aAccessible)
-{
-  nsCOMPtr<nsITreeBoxObject> treeBoxObj;
-  nsCoreUtils::GetTreeBoxObject(aNode, getter_AddRefs(treeBoxObj));
-  if (!treeBoxObj)
-    return NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsITreeColumns> treeColumns;
-  treeBoxObj->GetColumns(getter_AddRefs(treeColumns));
-  if (!treeColumns)
-    return NS_OK;
-
-  PRInt32 count = 0;
-  treeColumns->GetCount(&count);
-  if (count == 1) // outline of list accessible
-    *aAccessible = new nsXULTreeAccessible(aNode, aWeakShell);
-  else // table or tree table accessible
-    *aAccessible = new nsXULTreeGridAccessibleWrap(aNode, aWeakShell);
-
-  if (!*aAccessible)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  NS_ADDREF(*aAccessible);
-  return NS_OK;
-}
-#endif

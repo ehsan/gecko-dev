@@ -366,7 +366,10 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
         NS_ASSERTION(kid->GetParent() == (nsIFrame*)this, "bad parent frame pointer");
 
         // Have the child frame list
-        kid->List(out, aIndent + 1);
+        nsIFrameDebug*  frameDebug = do_QueryFrame(kid);
+        if (frameDebug) {
+          frameDebug->List(out, aIndent + 1);
+        }
         kid = kid->GetNextSibling();
       }
       IndentBy(out, aIndent);
@@ -390,7 +393,10 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
     fputs(" <\n", out);
     ++aIndent;
     for (nsPopupFrameList* l = mPopupList; l; l = l->mNextPopup) {
-      l->mPopupFrame->List(out, aIndent);
+      nsIFrameDebug* frameDebug = do_QueryFrame(l->mPopupFrame);
+      if (frameDebug) {
+        frameDebug->List(out, aIndent);
+      }
     }
     --aIndent;
     IndentBy(out, aIndent);

@@ -1804,26 +1804,27 @@ nsresult nsRange::InsertNode(nsIDOMNode* aN)
     res = tStartContainer->GetParentNode(getter_AddRefs(tSCParentNode));
     if(NS_FAILED(res)) return res;
     NS_ENSURE_STATE(tSCParentNode);
+    
+    PRBool isCollapsed;
+    res = GetCollapsed(&isCollapsed);
+    if(NS_FAILED(res)) return res;
 
     PRInt32 tEndOffset;
     GetEndOffset(&tEndOffset);
 
-    nsCOMPtr<nsIDOMNode> tEndContainer;
-    res = this->GetEndContainer(getter_AddRefs(tEndContainer));
-    if(NS_FAILED(res)) return res;
-
     nsCOMPtr<nsIDOMText> secondPart;
     res = startTextNode->SplitText(tStartOffset, getter_AddRefs(secondPart));
     if (NS_FAILED(res)) return res;
-
-    nsCOMPtr<nsIDOMNode> tResultNode;
-    res = tSCParentNode->InsertBefore(aN, secondPart, getter_AddRefs(tResultNode));
-    if (NS_FAILED(res)) return res;
-
-    if (tEndContainer == tStartContainer && tEndOffset != tStartOffset)
+    
+    // SplitText collapses the range; fix that (bug 253609)
+    if (!isCollapsed)
+    {
       res = SetEnd(secondPart, tEndOffset - tStartOffset);
-
-    return res;
+      if(NS_FAILED(res)) return res;
+    }
+    
+    nsCOMPtr<nsIDOMNode> tResultNode;
+    return tSCParentNode->InsertBefore(aN, secondPart, getter_AddRefs(tResultNode));
   }  
 
   nsCOMPtr<nsIDOMNodeList>tChildList;

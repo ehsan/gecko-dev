@@ -58,6 +58,7 @@
 #include "nsIPresShell.h"
 #include "nsIViewManager.h"
 #include "nsIFrame.h"
+#include "nsIFrameDebug.h"
 
 #include "nsILayoutDebugger.h"
 #include "nsLayoutCID.h"
@@ -433,7 +434,10 @@ DumpFramesRecur(nsIDocShell* aDocShell, FILE* out)
     if (shell) {
         nsIFrame* root = shell->GetRootFrame();
         if (root) {
-            root->List(out, 0);
+            nsIFrameDebug* fdbg = do_QueryFrame(root);
+            if (fdbg) {
+                fdbg->List(out, 0);
+            }
         }
     }
     else {

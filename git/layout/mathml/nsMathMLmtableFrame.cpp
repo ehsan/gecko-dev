@@ -340,7 +340,9 @@ ListMathMLTree(nsIFrame* atLeast)
       break;
   }
   if (!f) f = atLeast;
-  f->List(stdout, 0);
+  nsIFrameDebug* fdbg;
+  CallQueryInterface(f, &fdbg);
+  fdbg->List(stdout, 0);
 }
 #endif
 

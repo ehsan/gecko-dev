@@ -6458,8 +6458,11 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
 
 #ifdef DEBUG
   if (gReallyNoisyContentUpdates) {
-    printf("nsCSSFrameConstructor::ContentAppended: resulting frame model:\n");
-    parentFrame->List(stdout, 0);
+    nsIFrameDebug* fdbg = do_QueryFrame(parentFrame);
+    if (fdbg) {
+      printf("nsCSSFrameConstructor::ContentAppended: resulting frame model:\n");
+      fdbg->List(stdout, 0);
+    }
   }
 #endif
 
@@ -6566,9 +6569,12 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
       InvalidateCanvasIfNeeded(mPresShell, aChild);
 #ifdef DEBUG
       if (gReallyNoisyContentUpdates) {
-        printf("nsCSSFrameConstructor::ContentInserted: resulting frame "
-               "model:\n");
-        mFixedContainingBlock->List(stdout, 0);
+        nsIFrameDebug* fdbg = do_QueryFrame(mFixedContainingBlock);
+        if (fdbg) {
+          printf("nsCSSFrameConstructor::ContentInserted: resulting frame "
+                 "model:\n");
+          fdbg->List(stdout, 0);
+        }
       }
 #endif
     }
@@ -6877,8 +6883,11 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
 
 #ifdef DEBUG
   if (gReallyNoisyContentUpdates && parentFrame) {
-    printf("nsCSSFrameConstructor::ContentInserted: resulting frame model:\n");
-    parentFrame->List(stdout, 0);
+    nsIFrameDebug* fdbg = do_QueryFrame(parentFrame);
+    if (fdbg) {
+      printf("nsCSSFrameConstructor::ContentInserted: resulting frame model:\n");
+      fdbg->List(stdout, 0);
+    }
   }
 #endif
 
@@ -7270,8 +7279,11 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
     if (gReallyNoisyContentUpdates) {
       printf("nsCSSFrameConstructor::ContentRemoved: childFrame=");
       nsFrame::ListTag(stdout, childFrame);
-      putchar('\n');
-      parentFrame->List(stdout, 0);
+      printf("\n");
+
+      nsIFrameDebug* fdbg = do_QueryFrame(parentFrame);
+      if (fdbg)
+        fdbg->List(stdout, 0);
     }
 #endif
 
@@ -7369,8 +7381,11 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
 
 #ifdef DEBUG
     if (gReallyNoisyContentUpdates && parentFrame) {
-      printf("nsCSSFrameConstructor::ContentRemoved: resulting frame model:\n");
-      parentFrame->List(stdout, 0);
+      nsIFrameDebug* fdbg = do_QueryFrame(parentFrame);
+      if (fdbg) {
+        printf("nsCSSFrameConstructor::ContentRemoved: resulting frame model:\n");
+        fdbg->List(stdout, 0);
+      }
     }
 #endif
   }
@@ -10815,20 +10830,22 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
   MarkIBSpecialPrevSibling(blockFrame, newFrame);
   MarkIBSpecialPrevSibling(inlineFrame, blockFrame);
 
-#ifdef DEBUG
+  #ifdef DEBUG
   if (gNoisyInlineConstruction) {
+    nsIFrameDebug*  frameDebug;
+
     printf("nsCSSFrameConstructor::ConstructInline:\n");
-    if (*aNewFrame) {
+    if ( (frameDebug = do_QueryFrame(*aNewFrame)) ) {
       printf("  ==> leading inline frame:\n");
-      (*aNewFrame)->List(stdout, 2);
+      frameDebug->List(stdout, 2);
     }
-    if (blockFrame) {
+    if ( (frameDebug = do_QueryFrame(blockFrame)) ) {
       printf("  ==> block frame:\n");
-      blockFrame->List(stdout, 2);
+      frameDebug->List(stdout, 2);
     }
-    if (inlineFrame) {
+    if ( (frameDebug = do_QueryFrame(inlineFrame)) ) {
       printf("  ==> trailing inline frame:\n");
-      inlineFrame->List(stdout, 2);
+      frameDebug->List(stdout, 2);
     }
   }
 #endif

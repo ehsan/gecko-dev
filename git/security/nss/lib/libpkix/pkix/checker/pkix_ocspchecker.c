@@ -187,7 +187,7 @@ pkix_OcspChecker_CheckLocal(
         }
 
         PKIX_CHECK(
-            PKIX_PL_OcspCertID_GetFreshCacheStatus(cid, date,
+            PKIX_PL_OcspCertID_GetFreshCacheStatus(cid, NULL,
                                                    &hasFreshStatus,
                                                    &statusIsGood,
                                                    &resultCode,
@@ -321,7 +321,7 @@ pkix_OcspChecker_CheckExternal(
         }
 
         PKIX_CHECK(
-            pkix_pl_OcspResponse_GetStatusForCert(cid, response, date,
+            pkix_pl_OcspResponse_GetStatusForCert(cid, response,
                                                   &passed, &resultCode,
                                                   plContext),
             PKIX_OCSPRESPONSEGETSTATUSFORCERTFAILED);

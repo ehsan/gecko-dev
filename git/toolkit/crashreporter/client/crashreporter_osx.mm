@@ -866,19 +866,7 @@ bool UIFileExists(const string& path)
 
 bool UIMoveFile(const string& file, const string& newfile)
 {
-  if (!rename(file.c_str(), newfile.c_str()))
-    return true;
-  if (errno != EXDEV)
-    return false;
-
-  NSFileManager *fileManager = [NSFileManager defaultManager];
-  NSString *source = [fileManager stringWithFileSystemRepresentation:file.c_str() length:file.length()];
-  NSString *dest = [fileManager stringWithFileSystemRepresentation:newfile.c_str() length:newfile.length()];
-  if (!source || !dest)
-    return false;
-
-  [fileManager movePath:source toPath:dest handler:nil];
-  return UIFileExists(newfile);
+  return (rename(file.c_str(), newfile.c_str()) != -1);
 }
 
 bool UIDeleteFile(const string& file)

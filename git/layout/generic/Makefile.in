@@ -90,6 +90,7 @@ EXPORTS		= \
 		nsIAnonymousContentCreator.h \
 		nsICanvasFrame.h \
 		nsIFrame.h \
+		nsIFrameDebug.h \
 		nsIFrameFrame.h \
 		nsIFrameUtil.h \
 		nsIImageFrame.h \

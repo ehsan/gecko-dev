@@ -1124,7 +1124,7 @@ void
 nsContainerFrame::DestroyOverflowList(nsPresContext* aPresContext)
 {
   nsFrameList* list =
-    RemovePropTableFrames(aPresContext, nsGkAtoms::overflowProperty);
+    RemovePropTableFrames(aPresContext, nsGkAtoms::overflowList);
   if (list)
     list->Destroy();
 }
@@ -1629,7 +1629,10 @@ nsContainerFrame::List(FILE* out, PRInt32 aIndent) const
         NS_ASSERTION(kid->GetParent() == (nsIFrame*)this, "bad parent frame pointer");
 
         // Have the child frame list
-        kid->List(out, aIndent + 1);
+        nsIFrameDebug *frameDebug = do_QueryFrame(kid);
+        if (frameDebug) {
+          frameDebug->List(out, aIndent + 1);
+        }
         kid = kid->GetNextSibling();
       }
       IndentBy(out, aIndent);

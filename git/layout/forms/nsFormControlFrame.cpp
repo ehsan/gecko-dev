@@ -177,9 +177,9 @@ nsFormControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
   return NS_OK;
 }
 
-// static
-nsRect
-nsFormControlFrame::GetUsableScreenRect(nsPresContext* aPresContext)
+nsresult 
+nsFormControlFrame::GetScreenHeight(nsPresContext* aPresContext,
+                                    nscoord& aHeight)
 {
   nsRect screen;
 
@@ -189,9 +189,10 @@ nsFormControlFrame::GetUsableScreenRect(nsPresContext* aPresContext)
   lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MenusCanOverlapOSBar,
                          dropdownCanOverlapOSBar);
   if ( dropdownCanOverlapOSBar )
-    context->GetRect(screen);
+    context->GetRect ( screen );
   else
     context->GetClientRect(screen);
 
-  return screen;
+  aHeight = aPresContext->AppUnitsToDevPixels(screen.height);
+  return NS_OK;
 }

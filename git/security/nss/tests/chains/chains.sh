@@ -74,8 +74,7 @@ chains_init()
     CERT_SN_CNT=$(date '+%m%d%H%M%S' | sed "s/^0*//")
     CERT_SN_FIX=$(expr ${CERT_SN_CNT} - 1000)
 
-    PK7_NONCE=$CERT_SN_CNT
-    SCEN_CNT=0
+    PK7_NONCE=$CERT_SN_CNT;
 
     AIA_FILES="${HOSTDIR}/aiafiles"
 
@@ -416,16 +415,16 @@ process_crldp()
 "
 
         for ITEM in ${CRLDP}; do
-            CRL_PUBLIC="${HOST}-$$-${ITEM}-${SCEN_CNT}.crl"
+            CRL_PUBLIC="${HOST}-$$-${ITEM}.crl"
 
             EXT_DATA="${EXT_DATA}7
 ${NSS_AIA_HTTP}/${CRL_PUBLIC}
 "
         done
 
-        EXT_DATA="${EXT_DATA}-1
--1
--1
+        EXT_DATA="${EXT_DATA}0
+0
+0
 n
 n
 "
@@ -460,7 +459,7 @@ copy_crl()
     fi
 
     CRL_LOCAL="${COPYCRL}.crl"
-    CRL_PUBLIC="${HOST}-$$-${COPYCRL}-${SCEN_CNT}.crl"
+    CRL_PUBLIC="${HOST}-$$-${COPYCRL}.crl"
 
     cp ${CRL_LOCAL} ${NSS_AIA_PATH}/${CRL_PUBLIC} 2> /dev/null
     chmod a+r ${NSS_AIA_PATH}/${CRL_PUBLIC}
@@ -858,7 +857,6 @@ parse_config()
             EXT_KU=
             EXT_NS=
             EXT_EKU=
-            SERIAL=
             ;;
         "type")
             TYPE="${VALUE}"
@@ -980,8 +978,6 @@ parse_config()
                 LOGNAME="libpkix-${VALUE}"
                 LOGFILE="${LOGDIR}/${LOGNAME}"
             fi
-
-            SCEN_CNT=$(expr ${SCEN_CNT} + 1)
             ;;
         "sleep")
             sleep ${VALUE}

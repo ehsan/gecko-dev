@@ -96,15 +96,15 @@ NS_NewLineBox(nsIPresShell* aPresShell, nsIFrame* aFrame,
 
 // Overloaded new operator. Uses an arena (which comes from the presShell)
 // to perform the allocation.
-void*
+void* 
 nsLineBox::operator new(size_t sz, nsIPresShell* aPresShell) CPP_THROW_NEW
 {
-  return aPresShell->AllocateMisc(sz);
+  return aPresShell->AllocateFrame(sz);
 }
 
 // Overloaded delete operator. Doesn't actually free the memory, because we
 // use an arena
-void
+void 
 nsLineBox::operator delete(void* aPtr, size_t sz)
 {
 }
@@ -116,7 +116,7 @@ nsLineBox::Destroy(nsIPresShell* aPresShell)
   delete this;
 
   // Have the pres shell recycle the memory
-  aPresShell->FreeMisc(sizeof(*this), (void*)this);
+  aPresShell->FreeFrame(sizeof(*this), (void*)this);
 }
 
 void
@@ -137,6 +137,7 @@ nsLineBox::Cleanup()
 static void
 ListFloats(FILE* out, PRInt32 aIndent, const nsFloatCacheList& aFloats)
 {
+  nsAutoString frameName;
   nsFloatCache* fc = aFloats.Head();
   while (fc) {
     nsFrame::IndentBy(out, aIndent);
@@ -145,9 +146,11 @@ ListFloats(FILE* out, PRInt32 aIndent, const nsFloatCacheList& aFloats)
       fprintf(out, "placeholder@%p ", static_cast<void*>(ph));
       nsIFrame* frame = ph->GetOutOfFlowFrame();
       if (frame) {
-        nsAutoString frameName;
-        frame->GetFrameName(frameName);
-        fputs(NS_LossyConvertUTF16toASCII(frameName).get(), out);
+        nsIFrameDebug* frameDebug = do_QueryFrame(frame);
+        if (frameDebug) {
+          frameDebug->GetFrameName(frameName);
+          fputs(NS_LossyConvertUTF16toASCII(frameName).get(), out);
+        }
       }
 
       if (!frame) {
@@ -219,7 +222,10 @@ nsLineBox::List(FILE* out, PRInt32 aIndent) const
   nsIFrame* frame = mFirstChild;
   PRInt32 n = GetChildCount();
   while (--n >= 0) {
-    frame->List(out, aIndent + 1);
+    nsIFrameDebug* frameDebug = do_QueryFrame(frame);
+    if (frameDebug) {
+      frameDebug->List(out, aIndent + 1);
+    }
     frame = frame->GetNextSibling();
   }
 

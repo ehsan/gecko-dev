@@ -49,14 +49,8 @@ EXPORTS		= \
 		nsICanvasElement.h \
 		$(NULL)
 
-ifdef MOZ_ENABLE_CANVAS3D
-
-XPIDL_MODULE = content_canvas
-
 XPIDLSRCS	= \
 		nsICanvasGLPrivate.idl \
 		$(NULL)
-
-endif
 
 include $(topsrcdir)/config/rules.mk

@@ -280,7 +280,7 @@ public:
   void* AllocateFromShell(size_t aSize)
   {
     if (mShell)
-      return mShell->AllocateMisc(aSize);
+      return mShell->AllocateFrame(aSize);
     return nsnull;
   }
 
@@ -288,7 +288,7 @@ public:
   {
     NS_ASSERTION(mShell, "freeing after shutdown");
     if (mShell)
-      mShell->FreeMisc(aSize, aFreeChunk);
+      mShell->FreeFrame(aSize, aFreeChunk);
   }
 
   /**

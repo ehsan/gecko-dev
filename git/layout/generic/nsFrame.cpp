@@ -168,29 +168,29 @@ static void RefreshContentFrames(nsPresContext* aPresContext, nsIContent * aStar
 
 #include "prenv.h"
 
-// Formerly the nsIFrameDebug interface
+// start nsIFrameDebug
 
 #ifdef NS_DEBUG
 static PRBool gShowFrameBorders = PR_FALSE;
 
-void nsFrame::ShowFrameBorders(PRBool aEnable)
+void nsIFrameDebug::ShowFrameBorders(PRBool aEnable)
 {
   gShowFrameBorders = aEnable;
 }
 
-PRBool nsFrame::GetShowFrameBorders()
+PRBool nsIFrameDebug::GetShowFrameBorders()
 {
   return gShowFrameBorders;
 }
 
 static PRBool gShowEventTargetFrameBorder = PR_FALSE;
 
-void nsFrame::ShowEventTargetFrameBorder(PRBool aEnable)
+void nsIFrameDebug::ShowEventTargetFrameBorder(PRBool aEnable)
 {
   gShowEventTargetFrameBorder = aEnable;
 }
 
-PRBool nsFrame::GetShowEventTargetFrameBorder()
+PRBool nsIFrameDebug::GetShowEventTargetFrameBorder()
 {
   return gShowEventTargetFrameBorder;
 }
@@ -206,7 +206,7 @@ static PRLogModuleInfo* gStyleVerifyTreeLogModuleInfo;
 static PRBool gStyleVerifyTreeEnable = PRBool(0x55);
 
 PRBool
-nsFrame::GetVerifyStyleTreeEnable()
+nsIFrameDebug::GetVerifyStyleTreeEnable()
 {
   if (gStyleVerifyTreeEnable == PRBool(0x55)) {
     if (nsnull == gStyleVerifyTreeLogModuleInfo) {
@@ -218,13 +218,13 @@ nsFrame::GetVerifyStyleTreeEnable()
 }
 
 void
-nsFrame::SetVerifyStyleTreeEnable(PRBool aEnabled)
+nsIFrameDebug::SetVerifyStyleTreeEnable(PRBool aEnabled)
 {
   gStyleVerifyTreeEnable = aEnabled;
 }
 
 PRLogModuleInfo*
-nsFrame::GetLogModuleInfo()
+nsIFrameDebug::GetLogModuleInfo()
 {
   if (nsnull == gLogModule) {
     gLogModule = PR_NewLogModule("frame");
@@ -233,26 +233,29 @@ nsFrame::GetLogModuleInfo()
 }
 
 void
-nsFrame::DumpFrameTree(nsIFrame* aFrame)
+nsIFrameDebug::DumpFrameTree(nsIFrame* aFrame)
 {
     RootFrameList(aFrame->PresContext(), stdout, 0);
 }
 
 void
-nsFrame::RootFrameList(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent)
+nsIFrameDebug::RootFrameList(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent)
 {
-  if (!aPresContext || !out)
+  if((nsnull == aPresContext) || (nsnull == out))
     return;
 
   nsIPresShell *shell = aPresContext->GetPresShell();
-  if (shell) {
+  if (nsnull != shell) {
     nsIFrame* frame = shell->FrameManager()->GetRootFrame();
-    if(frame) {
-      frame->List(out, aIndent);
+    if(nsnull != frame) {
+      nsIFrameDebug* debugFrame = do_QueryFrame(frame);
+      if (debugFrame)
+        debugFrame->List(out, aIndent);
     }
   }
 }
 #endif
+// end nsIFrameDebug
 
 void
 NS_MergeReflowStatusInto(nsReflowStatus* aPrimary, nsReflowStatus aSecondary)
@@ -287,17 +290,24 @@ NS_NewEmptyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsFrame(aContext);
 }
 
-// Overloaded new operator. Relies on an arena (which comes from the
-// presShell) to perform the allocation.
-void*
+// Overloaded new operator. Initializes the memory to 0 and relies on an arena
+// (which comes from the presShell) to perform the allocation.
+void* 
 nsFrame::operator new(size_t sz, nsIPresShell* aPresShell) CPP_THROW_NEW
 {
-  return aPresShell->AllocateFrame(sz, 0 /* dummy */);
+  // Check the recycle list first.
+  void* result = aPresShell->AllocateFrame(sz);
+  
+  if (result) {
+    memset(result, 0, sz);
+  }
+
+  return result;
 }
 
 // Overridden to prevent the global delete from being called, since the memory
 // came out of an nsIArena instead of the global delete operator's heap.
-void
+void 
 nsFrame::operator delete(void* aPtr, size_t sz)
 {
   // Don't let the memory be freed, since it will be recycled
@@ -331,6 +341,9 @@ nsFrame::~nsFrame()
 
 NS_QUERYFRAME_HEAD(nsFrame)
   NS_QUERYFRAME_ENTRY(nsIFrame)
+#ifdef DEBUG
+  NS_QUERYFRAME_ENTRY(nsIFrameDebug)
+#endif
 NS_QUERYFRAME_TAIL
 
 /////////////////////////////////////////////////////////////////////////////
@@ -464,7 +477,7 @@ nsFrame::Destroy()
   if (view) {
     // Break association between view and frame
     view->SetClientData(nsnull);
-
+    
     // Destroy the view
     view->Destroy();
   }
@@ -476,7 +489,7 @@ nsFrame::Destroy()
   // Now that we're totally cleaned out, we need to add ourselves to the presshell's
   // recycler.
   size_t* sz = (size_t*)this;
-  shell->FreeFrame(*sz, 0 /* dummy */, (void*)this);
+  shell->FreeFrame(*sz, (void*)this);
 }
 
 NS_IMETHODIMP
@@ -1206,12 +1219,12 @@ DisplayDebugBorders(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
                     const nsDisplayListSet& aLists) {
   // Draw a border around the child
   // REVIEW: From nsContainerFrame::PaintChild
-  if (nsFrame::GetShowFrameBorders() && !aFrame->GetRect().IsEmpty()) {
+  if (nsIFrameDebug::GetShowFrameBorders() && !aFrame->GetRect().IsEmpty()) {
     aLists.Outlines()->AppendNewToTop(new (aBuilder)
         nsDisplayGeneric(aFrame, PaintDebugBorder, "DebugBorder"));
   }
   // Draw a border around the current event target
-  if (nsFrame::GetShowEventTargetFrameBorder() &&
+  if (nsIFrameDebug::GetShowEventTargetFrameBorder() &&
       aFrame->PresContext()->PresShell()->GetDrawEventTargetFrame() == aFrame) {
     aLists.Outlines()->AppendNewToTop(new (aBuilder)
         nsDisplayGeneric(aFrame, PaintEventTargetBorder, "EventTargetBorder"));
@@ -4385,7 +4398,10 @@ nsFrame::DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 
       }
       aIndent++;
       while (kid) {
-        kid->DumpRegressionData(aPresContext, out, aIndent);
+        nsIFrameDebug* frameDebug = do_QueryFrame(kid);
+        if (kid) {
+          frameDebug->DumpRegressionData(aPresContext, out, aIndent);
+        }
         kid = kid->GetNextSibling();
       }
       aIndent--;
@@ -6733,7 +6749,13 @@ nsAdaptorPrintReason(nsHTMLReflowState& aReflowState)
 void
 nsFrame::GetBoxName(nsAutoString& aName)
 {
-  GetFrameName(aName);
+   nsIFrameDebug*  frameDebug;
+   nsAutoString name;
+   if (NS_SUCCEEDED(QueryInterface(NS_GET_IID(nsIFrameDebug), (void**)&frameDebug))) {
+      frameDebug->GetFrameName(name);
+   }
+
+  aName = name;
 }
 #endif
 
@@ -7273,9 +7295,10 @@ void DR_State::DisplayFrameTypeInfo(nsIFrame* aFrame,
       printf(" ");
     }
     if(!strcmp(frameTypeInfo->mNameAbbrev, "unknown")) {
-      if (aFrame) {
-       nsAutoString  name;
-       aFrame->GetFrameName(name);
+      nsAutoString  name;
+      nsIFrameDebug* frameDebug = do_QueryFrame(aFrame);
+      if (frameDebug) {
+       frameDebug->GetFrameName(name);
        printf("%s %p ", NS_LossyConvertUTF16toASCII(name).get(), (void*)aFrame);
       }
       else {

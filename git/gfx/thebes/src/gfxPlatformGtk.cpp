@@ -377,8 +377,8 @@ gfxPlatformGtk::UpdateFontList()
             gPlatformFonts->Put(key, ff);
         }
 
-        FontEntry *fe = new FontEntry(ff->mName);
-        ff->AddFontEntry(fe);
+        nsRefPtr<FontEntry> fe = new FontEntry(ff->mName);
+        ff->mFaces.AppendElement(fe);
 
         if (FcPatternGetString(fs->fonts[i], FC_FILE, 0, (FcChar8 **) &str) == FcResultMatch) {
             fe->mFilename = nsDependentCString(str);

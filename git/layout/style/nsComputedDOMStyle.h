@@ -86,13 +86,6 @@ public:
   GetStyleContextForContent(nsIContent* aContent, nsIAtom* aPseudo,
                             nsIPresShell* aPresShell);
 
-  static already_AddRefed<nsStyleContext>
-  GetStyleContextForContentNoFlush(nsIContent* aContent, nsIAtom* aPseudo,
-                                   nsIPresShell* aPresShell);
-
-  static nsIPresShell*
-  GetPresShellForContent(nsIContent* aContent);
-
 private:
   void AssertFlushedPendingReflows() {
     NS_ASSERTION(mFlushedPendingReflows,
@@ -325,12 +318,6 @@ private:
   nsresult GetColumnRuleWidth(nsIDOMCSSValue** aValue);
   nsresult GetColumnRuleStyle(nsIDOMCSSValue** aValue);
   nsresult GetColumnRuleColor(nsIDOMCSSValue** aValue);
-
-  /* CSS Transitions */
-  nsresult GetTransitionProperty(nsIDOMCSSValue** aValue);
-  nsresult GetTransitionDuration(nsIDOMCSSValue** aValue);
-  nsresult GetTransitionDelay(nsIDOMCSSValue** aValue);
-  nsresult GetTransitionTimingFunction(nsIDOMCSSValue** aValue);
 
 #ifdef MOZ_SVG
   /* SVG properties */

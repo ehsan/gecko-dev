@@ -1061,10 +1061,7 @@ PR_STATIC_CALLBACK(PLDHashOperator)
 CheckSecure(nsSessionStorageEntry* aEntry, void* userArg)
 {
   PRBool* secure = (PRBool*)userArg;
-  if (aEntry->mItem->IsSecure()) {
-    *secure = PR_TRUE;
-    return PL_DHASH_STOP;
-  }
+  *secure |= aEntry->mItem->IsSecure();
 
   return PL_DHASH_NEXT;
 }

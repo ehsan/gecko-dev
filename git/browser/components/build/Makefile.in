@@ -31,7 +31,6 @@ REQUIRES = \
 	browserplaces \
 	microsummaries \
 	privatebrowsing \
-	browserabout \
 	$(NULL)
 
 EXPORTS = nsBrowserCompsCID.h
@@ -50,7 +49,6 @@ LOCAL_INCLUDES = \
 	-I$(srcdir)/../feeds/src \
 	-I$(srcdir)/../places/src \
 	-I$(srcdir)/../privatebrowsing/src \
-	-I$(srcdir)/../about \
 	$(NULL)
 
 ifeq ($(OS_ARCH),WINNT)
@@ -61,7 +59,6 @@ SHARED_LIBRARY_LIBS = \
 	../feeds/src/$(LIB_PREFIX)browser_feeds_s.$(LIB_SUFFIX) \
 	../places/src/$(LIB_PREFIX)browserplaces_s.$(LIB_SUFFIX) \
 	../privatebrowsing/src/$(LIB_PREFIX)privatebrowsing_s.$(LIB_SUFFIX) \
-	../about/$(LIB_PREFIX)browserabout_s.$(LIB_SUFFIX) \
 	$(NULL)
 
 ifneq (,$(filter windows mac cocoa gtk2, $(MOZ_WIDGET_TOOLKIT)))
