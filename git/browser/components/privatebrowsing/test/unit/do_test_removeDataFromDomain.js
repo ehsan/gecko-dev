@@ -576,11 +576,11 @@ function test_storage_cleared()
 {
   function getStorageForURI(aURI)
   {
-    let principal = Cc["@mozilla.org/scriptsecuritymanager;1"].
-                    getService(Ci.nsIScriptSecurityManager).
+    let principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"].
+                    getService(Components.interfaces.nsIScriptSecurityManager).
                     getCodebasePrincipal(aURI);
-    let dsm = Cc["@mozilla.org/dom/storagemanager;1"].
-              getService(Ci.nsIDOMStorageManager);
+    let dsm = Components.classes["@mozilla.org/dom/storagemanager;1"].
+              getService(Components.interfaces.nsIDOMStorageManager);
     return dsm.getLocalStorageForPrincipal(principal, "");
   }
 

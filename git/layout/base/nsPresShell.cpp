@@ -1146,19 +1146,6 @@ protected:
     }
   }
 
-  nsresult HandleRetargetedEvent(nsEvent* aEvent, nsIView* aView,
-                                 nsEventStatus* aStatus, nsIContent* aTarget)
-  {
-    PushCurrentEventInfo(nsnull, nsnull);
-    mCurrentEventContent = aTarget;
-    nsresult rv = NS_OK;
-    if (GetCurrentEventFrame()) {
-      rv = HandleEventInternal(aEvent, aView, aStatus);
-    }
-    PopCurrentEventInfo();
-    return rv;
-  }
-
   nsRefPtr<nsCSSStyleSheet> mPrefStyleSheet; // mStyleSet owns it but we
                                              // maintain a ref, may be null
 #ifdef DEBUG
@@ -6741,12 +6728,11 @@ PresShell::HandleEvent(nsIView         *aView,
 
     // key and IME related events go to the focused frame in this DOM window.
     if (NS_IsEventTargetedAtFocusedContent(aEvent)) {
-      mCurrentEventContent = nsnull;
-
+      NS_ASSERTION(mDocument, "mDocument is null");
       nsCOMPtr<nsPIDOMWindow> window =
         do_QueryInterface(mDocument->GetWindow());
       nsCOMPtr<nsPIDOMWindow> focusedWindow;
-      nsCOMPtr<nsIContent> eventTarget =
+      mCurrentEventContent =
         nsFocusManager::GetFocusedDescendant(window, PR_FALSE,
                                              getter_AddRefs(focusedWindow));
 
@@ -6754,13 +6740,12 @@ PresShell::HandleEvent(nsIView         *aView,
       // no frame, just use the root content. This ensures that key events
       // still get sent to the window properly if nothing is focused or if a
       // frame goes away while it is focused.
-      if (!eventTarget || !eventTarget->GetPrimaryFrame()) {
-        eventTarget = mDocument->GetRootElement();
-      }
+      if (!mCurrentEventContent || !GetCurrentEventFrame())
+        mCurrentEventContent = mDocument->GetRootElement();
 
       if (aEvent->message == NS_KEY_DOWN) {
         NS_IF_RELEASE(gKeyDownTarget);
-        NS_IF_ADDREF(gKeyDownTarget = eventTarget);
+        NS_IF_ADDREF(gKeyDownTarget = mCurrentEventContent);
       }
       else if ((aEvent->message == NS_KEY_PRESS || aEvent->message == NS_KEY_UP) &&
                gKeyDownTarget) {
@@ -6770,10 +6755,10 @@ PresShell::HandleEvent(nsIView         *aView,
         // retarget the event back at the keydown target. This prevents a
         // content area from grabbing the focus from chrome in-between key
         // events.
-        if (eventTarget &&
+        if (mCurrentEventContent &&
             nsContentUtils::IsChromeDoc(gKeyDownTarget->GetCurrentDoc()) !=
-            nsContentUtils::IsChromeDoc(eventTarget->GetCurrentDoc())) {
-          eventTarget = gKeyDownTarget;
+            nsContentUtils::IsChromeDoc(mCurrentEventContent->GetCurrentDoc())) {
+          mCurrentEventContent = gKeyDownTarget;
         }
 
         if (aEvent->message == NS_KEY_UP) {
@@ -6782,23 +6767,6 @@ PresShell::HandleEvent(nsIView         *aView,
       }
 
       mCurrentEventFrame = nsnull;
-      nsIDocument* targetDoc = eventTarget ? eventTarget->GetOwnerDoc() : nsnull;
-      if (targetDoc && targetDoc != mDocument) {
-        PopCurrentEventInfo();
-        nsIPresShell* shell = targetDoc->GetShell();
-        nsCOMPtr<nsIViewObserver> vo = do_QueryInterface(shell);
-        if (vo) {
-          nsIView* root = nsnull;
-          shell->GetViewManager()->GetRootView(root);
-          rv = static_cast<PresShell*>(shell)->HandleRetargetedEvent(aEvent,
-                                                                     root,
-                                                                     aEventStatus,
-                                                                     eventTarget);
-        }
-        return rv;
-      } else {
-        mCurrentEventContent = eventTarget;
-      }
         
       if (!mCurrentEventContent || !GetCurrentEventFrame() ||
           InZombieDocument(mCurrentEventContent)) {

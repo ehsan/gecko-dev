@@ -26,12 +26,12 @@
 
     function doTest()
     {
-      todo(false, "Disabled test. (Bug 586818)");
+      // Actually, just disable this test everywhere -- bug 586818.
       SimpleTest.finish();
       return;
 
       if (LINUX) {
-        todo(false, "Skip test on Linux. (Bug 525175)");
+        todo(false, "Enable test on Linux - see bug 525175.");
         SimpleTest.finish();
         return;
       }

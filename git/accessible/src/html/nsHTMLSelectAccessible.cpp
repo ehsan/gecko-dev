@@ -871,7 +871,7 @@ nsHTMLComboboxListAccessible::
 // nsHTMLComboboxAccessible: nsAccessNode
 
 nsIFrame*
-nsHTMLComboboxListAccessible::GetFrame() const
+nsHTMLComboboxListAccessible::GetFrame()
 {
   nsIFrame* frame = nsHTMLSelectListAccessible::GetFrame();
 

@@ -1553,9 +1553,7 @@ nsWaveDecoder::NotifyDownloadEnded(nsresult aStatus)
     ResourceLoaded();
   } else if (aStatus == NS_BINDING_ABORTED) {
     // Download has been cancelled by user.
-    if (mElement) {
-      mElement->LoadAborted();
-    }
+    mElement->LoadAborted();
   } else if (aStatus != NS_BASE_STREAM_CLOSED) {
     NetworkError();
   }

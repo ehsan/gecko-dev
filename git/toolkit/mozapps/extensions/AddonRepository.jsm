@@ -899,9 +899,8 @@ var AddonRepository = {
       let localName = node.localName;
 
       // Handle case where the wanted string value is located in text content
-      // but only if the content is not empty
       if (localName in STRING_KEY_MAP) {
-        addon[STRING_KEY_MAP[localName]] = this._getTextContent(node) || addon[STRING_KEY_MAP[localName]];
+        addon[STRING_KEY_MAP[localName]] = this._getTextContent(node);
         continue;
       }
 
@@ -1163,7 +1162,6 @@ var AddonRepository = {
 
     this._request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
                     createInstance(Ci.nsIXMLHttpRequest);
-    this._request.mozBackgroundRequest = true;
     this._request.open("GET", aURI, true);
     this._request.overrideMimeType("text/xml");
 

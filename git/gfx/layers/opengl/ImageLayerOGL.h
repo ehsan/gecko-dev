@@ -236,6 +236,7 @@ public:
 
   GLTexture mTexture;
   gfxIntSize mSize;
+  nsRefPtr<GLContext> mASurfaceAsGLContext;
   gl::ShaderProgramType mLayerProgram;
 };
 

@@ -408,29 +408,6 @@ gfxWindowsPlatform::VerifyD2DDevice(PRBool aAttemptForce)
 #endif
 }
 
-// bug 630201 - older pre-RTM versions of Direct2D/DirectWrite cause odd
-// crashers so blacklist them altogether
-
-#ifdef CAIRO_HAS_DWRITE_FONT
-#define WINDOWS7_RTM_BUILD 7600
-
-static PRBool
-AllowDirectWrite()
-{
-    PRInt32 winVers, buildNum;
-
-    winVers = gfxWindowsPlatform::WindowsOSVersion(&buildNum);
-    if (winVers == gfxWindowsPlatform::kWindows7 &&
-        buildNum < WINDOWS7_RTM_BUILD)
-    {
-        // don't use Direct2D/DirectWrite on older versions of Windows 7
-        return PR_FALSE;
-    }
-
-    return PR_TRUE;
-}
-#endif
-
 gfxPlatformFontList*
 gfxWindowsPlatform::CreatePlatformFontList()
 {
@@ -440,7 +417,7 @@ gfxWindowsPlatform::CreatePlatformFontList()
     pfl = new gfxFT2FontList();
 #else
 #ifdef CAIRO_HAS_DWRITE_FONT
-    if (AllowDirectWrite() && GetDWriteFactory()) {
+    if (GetDWriteFactory()) {
         pfl = new gfxDWriteFontList();
         if (NS_SUCCEEDED(pfl->InitFontList())) {
             return pfl;
@@ -700,10 +677,9 @@ gfxWindowsPlatform::UseClearTypeAlways()
 }
 
 PRInt32
-gfxWindowsPlatform::WindowsOSVersion(PRInt32 *aBuildNum)
+gfxWindowsPlatform::WindowsOSVersion()
 {
     static PRInt32 winVersion = UNINITIALIZED_VALUE;
-    static PRInt32 buildNum = UNINITIALIZED_VALUE;
 
     OSVERSIONINFO vinfo;
 
@@ -711,17 +687,10 @@ gfxWindowsPlatform::WindowsOSVersion(PRInt32 *aBuildNum)
         vinfo.dwOSVersionInfoSize = sizeof (vinfo);
         if (!GetVersionEx(&vinfo)) {
             winVersion = kWindowsUnknown;
-            buildNum = 0;
         } else {
             winVersion = PRInt32(vinfo.dwMajorVersion << 16) + vinfo.dwMinorVersion;
-            buildNum = PRInt32(vinfo.dwBuildNumber);
         }
     }
-
-    if (aBuildNum) {
-        *aBuildNum = buildNum;
-    }
-
     return winVersion;
 }
 

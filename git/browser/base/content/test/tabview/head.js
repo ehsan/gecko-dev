@@ -37,16 +37,17 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function createEmptyGroupItem(contentWindow, width, height, padding, animate) {
+function createEmptyGroupItem(contentWindow, width, height, padding, noAnimation) {
   let pageBounds = contentWindow.Items.getPageBounds();
   pageBounds.inset(padding, padding);
 
   let box = new contentWindow.Rect(pageBounds);
   box.width = width;
   box.height = height;
-
+  
+  let immediately = noAnimation ? true: false;
   let emptyGroupItem =
-    new contentWindow.GroupItem([], { bounds: box, immediately: !animate });
+    new contentWindow.GroupItem([], { bounds: box, immediately: immediately });
 
   return emptyGroupItem;
 }
@@ -200,32 +201,4 @@ function whenTabViewIsShown(callback, win) {
     win.removeEventListener('tabviewshown', arguments.callee, false);
     callback();
   }, false);
-}
-
-// ----------
-function hideGroupItem(groupItem, callback) {
-  if (groupItem.hidden) {
-    callback();
-    return;
-  }
-
-  groupItem.addSubscriber(groupItem, "groupHidden", function () {
-    groupItem.removeSubscriber(groupItem, "groupHidden");
-    callback();
-  });
-  groupItem.closeAll();
-}
-
-// ----------
-function unhideGroupItem(groupItem, callback) {
-  if (!groupItem.hidden) {
-    callback();
-    return;
-  }
-
-  groupItem.addSubscriber(groupItem, "groupShown", function () {
-    groupItem.removeSubscriber(groupItem, "groupShown");
-    callback();
-  });
-  groupItem._unhide();
 }

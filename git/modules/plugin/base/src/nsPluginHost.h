@@ -249,8 +249,6 @@ private:
                            PRBool * aPluginsChanged,
                            PRBool checkForUnwantedPlugins = PR_FALSE);
 
-  nsresult EnsurePluginLoaded(nsPluginTag* plugin);
-
   PRBool IsRunningPlugin(nsPluginTag * plugin);
 
   // Stores all plugins info into the registry
@@ -264,10 +262,7 @@ private:
   void RemoveCachedPluginsInfo(const char *filePath,
                                nsPluginTag **result);
 
-  // Checks to see if a tag object is in our list of live tags.
-  PRBool IsLiveTag(nsIPluginTag* tag);
-
-  // Checks our list of live tags for an equivalent tag.
+  //checks if the list already have the same plugin as given
   nsPluginTag* HaveSamePlugin(nsPluginTag * aPluginTag);
 
   // checks if given plugin is a duplicate of what we already have
@@ -310,6 +305,7 @@ private:
                              const nsTArray<nsCString>& sites,
                              InfallibleTArray<nsCString>& result,
                              bool firstMatchOnly);
+  nsPluginTag* EnsurePlugin(nsIPluginTag* plugin);
 
   nsWeakPtr mCurrentDocument; // weak reference, we use it to id document only
 

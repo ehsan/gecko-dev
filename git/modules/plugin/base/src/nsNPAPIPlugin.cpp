@@ -123,10 +123,6 @@ using mozilla::plugins::PluginModuleParent;
 #include "mozilla/X11Util.h"
 #endif
 
-#ifdef XP_WIN
-#include <windows.h>
-#endif
-
 using namespace mozilla::plugins::parent;
 
 // We should make this const...
@@ -277,7 +273,7 @@ nsNPAPIPlugin::PluginCrashed(const nsAString& pluginDumpID,
 
 #ifdef MOZ_IPC
 
-#if defined(XP_MACOSX) && defined(__i386__)
+#ifdef XP_MACOSX
 static PRInt32 OSXVersion()
 {
   static PRInt32 gOSXVersion = 0x0;
@@ -292,6 +288,7 @@ static PRInt32 OSXVersion()
   return gOSXVersion;
 }
 
+#if defined(__i386__)
 // Detects machines with Intel GMA9xx GPUs.
 // kCGLRendererIDMatchingMask and kCGLRendererIntel900ID are only defined in the 10.6 SDK.
 #define CGLRendererIDMatchingMask 0x00FE7F00
@@ -316,6 +313,7 @@ static PRBool GMA9XXGraphics()
   return hasIntelGMA9XX;
 }
 #endif
+#endif
 
 PRBool
 nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
@@ -328,7 +326,7 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
     return PR_FALSE;
   }
 
-#if defined(XP_MACOSX) && defined(__i386__)
+#ifdef XP_MACOSX
   // Only allow on Mac OS X 10.6 or higher.
   if (OSXVersion() < 0x00001060) {
     return PR_FALSE;
@@ -350,11 +348,13 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
       }
     }
 
+#if defined(__i386__)
     // At this point we have Flash 10.1+ but now we also need to blacklist
     // if the machine has a Intel GMA9XX GPU.
     if (GMA9XXGraphics()) {
       return PR_FALSE;
     }
+#endif
   }
 #endif
 

@@ -249,19 +249,19 @@ PluginPRLibrary::AsyncSetWindow(NPP instance, NPWindow* window)
 nsresult
 PluginPRLibrary::GetSurface(NPP instance, gfxASurface** aSurface)
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
+  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
+  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
+  *aSurface = nsnull;
+  return NS_OK;
 }
 
 nsresult
 PluginPRLibrary::GetImage(NPP instance, ImageContainer* aContainer, Image** aImage)
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-PluginPRLibrary::GetImageSize(NPP instance, nsIntSize* aSize)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
+  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
+  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
+  *aImage = nsnull;
+  return NS_OK;
 }
 
 #if defined(XP_MACOSX)

@@ -368,15 +368,6 @@ AsyncChannel::Clear()
     }
 }
 
-static void
-PrintErrorMessage(bool isChild, const char* channelName, const char* msg)
-{
-#ifdef DEBUG
-    fprintf(stderr, "\n###!!! [%s][%s] Error: %s\n\n",
-            isChild ? "Child" : "Parent", channelName, msg);
-#endif
-}
-
 bool
 AsyncChannel::MaybeHandleError(Result code, const char* channelName)
 {
@@ -409,7 +400,7 @@ AsyncChannel::MaybeHandleError(Result code, const char* channelName)
         return false;
     }
 
-    PrintErrorMessage(mChild, channelName, errorMsg);
+    PrintErrorMessage(channelName, errorMsg);
 
     mListener->OnProcessingError(code);
 
@@ -441,7 +432,7 @@ AsyncChannel::ReportConnectionError(const char* channelName) const
         NS_RUNTIMEABORT("unreached");
     }
 
-    PrintErrorMessage(mChild, channelName, errorMsg);
+    PrintErrorMessage(channelName, errorMsg);
 
     mListener->OnProcessingError(MsgDropped);
 }

@@ -56,6 +56,7 @@
 #include "nsIDOMElement.h"
 #include "prmem.h"
 #include "nsIContent.h"
+#include "xpcpublic.h"
 
 using namespace mozilla::plugins::parent;
 
@@ -2037,20 +2038,18 @@ nsJSNPRuntime::OnPluginDestroy(NPP npp)
     return;
   }
 
-  nsCOMPtr<nsIXPConnectWrappedNative> holder;
-  xpc->GetWrappedNativeOfNativeObject(cx, sgo->GetGlobalJSObject(), content,
-                                      NS_GET_IID(nsISupports),
-                                      getter_AddRefs(holder));
-  if (!holder) {
+  nsCOMPtr<nsINode> node(do_QueryInterface(element));
+
+  JSObject *obj;
+  if (!node || !(obj = node->GetWrapper())) {
     return;
   }
 
-  JSObject *obj, *proto;
-  holder->GetJSObject(&obj);
+  JSObject *proto;
 
   JSAutoEnterCompartment ac;
 
-  if (obj && !ac.enter(cx, obj)) {
+  if (!ac.enter(cx, obj)) {
     // Failure to enter compartment, nothing more we can do then.
     return;
   }
