@@ -3,7 +3,7 @@
    - http://creativecommons.org/publicdomain/zero/1.0/ -->
 <html>
   <head>
-    <link rel="author" title="Corey Ford" href="mailto:corey@coreyford.name">
+    <link rel="author" title="Corey Ford" href="mailto:cford@mozilla.com">
     <link rel="stylesheet" type="text/css" href="ahem.css">
     <style>
       #scroll {
@@ -14,17 +14,23 @@
       }
       #sticky {
         position: absolute;
-        top: 0;
+        top: 20px;
         left: 10px;
       }
       #hidden {
         visibility: hidden;
       }
+      b {
+        display: inline-block;
+        width: 40px;
+        height: 10px;
+        background: black;
+      }
     </style>
   </head>
   <body>
     <div id="scroll">
-      test <span id="sticky"><span id="hidden">test </span>test<br>test</span>
+      <b></b><span id="sticky"><b id="hidden"></b><b></b><br><b></b></span>
     </div>
   </body>
 </html>

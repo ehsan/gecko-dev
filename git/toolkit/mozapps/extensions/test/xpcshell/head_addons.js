@@ -377,8 +377,10 @@ function startupManager(aAppChanged) {
     do_throw("Test attempt to startup manager that was already started.");
 
   if (aAppChanged || aAppChanged === undefined) {
-    if (gExtensionsINI.exists())
-      gExtensionsINI.remove(true);
+    var file = gProfD.clone();
+    file.append("extensions.ini");
+    if (file.exists())
+      file.remove(true);
   }
 
   gInternalManager = AM_Cc["@mozilla.org/addons/integration;1"].
@@ -471,12 +473,14 @@ function loadAddonsList() {
     themes: []
   };
 
-  if (!gExtensionsINI.exists())
+  var file = gProfD.clone();
+  file.append("extensions.ini");
+  if (!file.exists())
     return;
 
   var factory = AM_Cc["@mozilla.org/xpcom/ini-parser-factory;1"].
                 getService(AM_Ci.nsIINIParserFactory);
-  var parser = factory.createINIParser(gExtensionsINI);
+  var parser = factory.createINIParser(file);
   gAddonsList.extensions = readDirectories("ExtensionDirs");
   gAddonsList.themes = readDirectories("ThemeDirs");
 }
@@ -1210,14 +1214,6 @@ if ("nsIWindowsRegKey" in AM_Ci) {
 // Get the profile directory for tests to use.
 const gProfD = do_get_profile();
 
-const EXTENSIONS_DB = "extensions.json";
-let gExtensionsJSON = gProfD.clone();
-gExtensionsJSON.append(EXTENSIONS_DB);
-
-const EXTENSIONS_INI = "extensions.ini";
-let gExtensionsINI = gProfD.clone();
-gExtensionsINI.append(EXTENSIONS_INI);
-
 // Enable more extensive EM logging
 Services.prefs.setBoolPref("extensions.logging.enabled", true);
 
@@ -1402,6 +1398,10 @@ function do_exception_wrap(func) {
     }
   };
 }
+
+const EXTENSIONS_DB = "extensions.json";
+let gExtensionsJSON = gProfD.clone();
+gExtensionsJSON.append(EXTENSIONS_DB);
 
 /**
  * Change the schema version of the JSON extensions database

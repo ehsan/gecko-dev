@@ -500,8 +500,9 @@ namespace mozilla {
 
 // The following base class reduces the amount of boilerplate code required for
 // memory uni-reporters.  You just need to provide the following.
-// - The constant values: path, kind, units, and description.  They are
-//   arguments to the MemoryUniReporter constructor.
+// - The constant values: nameAndPath (which serves as both the reporters name,
+//   and the path in its single report), kind, units, and description.  They
+//   are arguments to the MemoryUniReporter constructor.
 // - A private Amount() or public GetAmount() method.  It can use the
 //   MallocSizeOf method if necessary.  (There is also
 //   MallocSizeOfOn{Alloc,Free}, which can be useful.)  Use Amount() if the
@@ -509,17 +510,17 @@ namespace mozilla {
 //   provide one or the other, you'll get assertion failures when the memory
 //   reporter runs.)
 //
-// The class name of subclasses should match the path, minus the "explicit" (if
-// present), and with "Reporter" at the end.  For example:
-// - path == "explicit/dom/xyzzy"     --> DOMXyzzyReporter
-// - path == "js-compartments/system" --> JSCompartmentsSystemReporter
+// The class name of subclasses should match the nameAndPath, minus the
+// "explicit" (if present), and with "Reporter" at the end.  For example:
+// - nameAndPath == "explicit/dom/xyzzy"     --> DOMXyzzyReporter
+// - nameAndPath == "js-compartments/system" --> JSCompartmentsSystemReporter
 //
 class MemoryUniReporter : public nsIMemoryReporter
 {
 public:
-  MemoryUniReporter(const char* aPath, int32_t aKind, int32_t aUnits,
+  MemoryUniReporter(const char* aNameAndPath, int32_t aKind, int32_t aUnits,
                     const char* aDescription)
-    : mPath(aPath)
+    : mNameAndPath(aNameAndPath)
     , mKind(aKind)
     , mUnits(aUnits)
     , mDescription(aDescription)
@@ -529,6 +530,12 @@ public:
 
   NS_DECL_THREADSAFE_ISUPPORTS
 
+  NS_IMETHOD GetName(nsACString& aName)
+  {
+    aName.Assign(mNameAndPath);
+    return NS_OK;
+  }
+
   NS_IMETHOD CollectReports(nsIMemoryReporterCallback* aCallback,
                             nsISupports* aData)
   {
@@ -537,7 +544,7 @@ public:
     if (NS_WARN_IF(NS_FAILED(rv)))
       return rv;
 
-    return aCallback->Callback(EmptyCString(), mPath, mKind, mUnits,
+    return aCallback->Callback(EmptyCString(), mNameAndPath, mKind, mUnits,
                                amount, mDescription, aData);
   }
 
@@ -559,7 +566,7 @@ protected:
   NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_ALLOC_FUN(MallocSizeOfOnAlloc)
   NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_FREE_FUN(MallocSizeOfOnFree)
 
-  const nsCString mPath;
+  const nsCString mNameAndPath;
   const int32_t   mKind;
   const int32_t   mUnits;
   const nsCString mDescription;
@@ -580,7 +587,9 @@ protected:
 class MemoryMultiReporter : public nsIMemoryReporter
 {
 public:
-  MemoryMultiReporter() {}
+  MemoryMultiReporter(const char* aName)
+    : mName(aName)
+  {}
 
   virtual ~MemoryMultiReporter() {}
 
@@ -593,6 +602,8 @@ protected:
   NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(MallocSizeOf)
   NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_ALLOC_FUN(MallocSizeOfOnAlloc)
   NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_FREE_FUN(MallocSizeOfOnFree)
+
+  const nsCString mName;
 };
 
 } // namespace mozilla

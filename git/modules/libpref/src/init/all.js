@@ -1639,7 +1639,7 @@ pref("signed.applets.codebase_principal_support", false);
 pref("security.checkloaduri", true);
 pref("security.xpconnect.plugin.unrestricted", true);
 // security-sensitive dialogs should delay button enabling. In milliseconds.
-pref("security.dialog_enable_delay", 1000);
+pref("security.dialog_enable_delay", 2000);
 pref("security.notification_enable_delay", 500);
 
 pref("security.csp.enable", true);
@@ -4254,6 +4254,13 @@ pref("layers.use-deprecated-textures", true);
 // Asynchonous video compositing using the ImageBridge IPDL protocol.
 // requires off-main-thread compositing.
 pref("layers.async-video.enabled",false);
+
+// For now, only nightly users get OMTC on windows.
+// Windows OMTC riding the trains is blocked on bugs 913503 and 904890,
+// and general stability.
+#if defined(XP_WIN) && defined(NIGHTLY_BUILD)
+pref("layers.offmainthreadcomposition.enabled", true);
+#endif
 
 #ifdef XP_MACOSX
 pref("layers.offmainthreadcomposition.enabled", true);

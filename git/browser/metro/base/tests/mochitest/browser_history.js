@@ -43,13 +43,13 @@ function uriFromIndex(aIndex) {
 }
 
 gTests.push({
-  desc: "Test history StartUI hide",
+  desc: "Test history StartUI unpin",
   setUp: setup,
   tearDown: tearDown,
-  run: function testHistoryStartHide() {
-    let hideButton = document.getElementById("hide-selected-button");
+  run: function testHistoryStartUnpin() {
+    let unpinButton = document.getElementById("unpin-selected-button");
 
-    // --------- hide item 2
+    // --------- unpin item 2
 
     let item = gStartView._set.getItemsByUrl(uriFromIndex(2))[0];
 
@@ -57,19 +57,19 @@ gTests.push({
     sendContextMenuClickToElement(window, item, 10, 10);
     yield promise;
 
-    ok(!hideButton.hidden, "Hide button is visible.");
+    ok(!unpinButton.hidden, "Unpin button is visible.");
 
     let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-    hideButton.click();
+    unpinButton.click();
     yield promise;
 
     item = gStartView._set.getItemsByUrl(uriFromIndex(2))[0];
 
     ok(!item, "Item not in grid");
-    ok(!gStartView._pinHelper.isPinned(uriFromIndex(2)), "Item hidden");
+    ok(!gStartView._pinHelper.isPinned(uriFromIndex(2)), "Item unpinned");
     is(gStartView._set.itemCount, gStartView._limit, "Grid repopulated");
 
-    // --------- hide multiple items
+    // --------- unpin multiple items
 
     let item1 = gStartView._set.getItemsByUrl(uriFromIndex(0))[0];
     let item2 = gStartView._set.getItemsByUrl(uriFromIndex(5))[0];
@@ -82,10 +82,10 @@ gTests.push({
     sendContextMenuClickToElement(window, item3, 10, 10);
     yield promise;
 
-    ok(!hideButton.hidden, "Hide button is visible.");
+    ok(!unpinButton.hidden, "Unpin button is visible.");
 
     let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-    EventUtils.synthesizeMouse(hideButton, 10, 10, {}, window);
+    EventUtils.synthesizeMouse(unpinButton, 10, 10, {}, window);
     yield promise;
 
     item1 = gStartView._set.getItemsByUrl(uriFromIndex(0))[0];
@@ -93,7 +93,7 @@ gTests.push({
     item3 = gStartView._set.getItemsByUrl(uriFromIndex(12))[0];
 
     ok(!item1 && !item2 && !item3, "Items are not in grid");
-    ok(!gStartView._pinHelper.isPinned(uriFromIndex(0)) && !gStartView._pinHelper.isPinned(uriFromIndex(5)) && !gStartView._pinHelper.isPinned(uriFromIndex(12)) , "Items hidden");
+    ok(!gStartView._pinHelper.isPinned(uriFromIndex(0)) && !gStartView._pinHelper.isPinned(uriFromIndex(5)) && !gStartView._pinHelper.isPinned(uriFromIndex(12)) , "Items unpinned");
     ok(gStartView._set.itemCount === gStartView._limit - 1, "Grid repopulated");
   }
 });

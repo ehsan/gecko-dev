@@ -1221,10 +1221,6 @@ HyperTextAccessible::TextBounds(int32_t aStartOffset, int32_t aEndOffset,
 
   while (childIdx < ChildCount()) {
     nsIFrame* frame = GetChildAt(childIdx)->GetFrame();
-    if (!frame) {
-      NS_NOTREACHED("No frame for a child!");
-      continue;
-    }
 
     childIdx++;
     int32_t nextOffset = GetChildOffset(childIdx);

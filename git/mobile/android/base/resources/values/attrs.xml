@@ -11,9 +11,6 @@
         <!-- Style for MenuItemActionBar -->
         <attr name="menuItemActionBarStyle" format="reference"/>
 
-        <!-- Style for MenuItemActionBar -->
-        <attr name="menuItemActionModeStyle" format="reference"/>
-
         <!-- Style for MenuItemActionView -->
         <attr name="menuItemActionViewStyle" format="reference"/>
 
