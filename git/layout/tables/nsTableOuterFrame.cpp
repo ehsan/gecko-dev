@@ -103,7 +103,7 @@ nsTableCaptionFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
 
   // If we're a container for font size inflation, then shrink
   // wrapping inside of us should not apply font size inflation.
-  AutoMaybeDisableFontInflation an(this);
+  AutoMaybeNullInflationContainer an(this);
 
   PRUint8 captionSide = GetStyleTableBorder()->mCaptionSide;
   if (captionSide == NS_STYLE_CAPTION_SIDE_LEFT ||
@@ -533,7 +533,7 @@ ChildShrinkWrapWidth(nsRenderingContext *aRenderingContext,
                      nsSize aCBSize, nscoord aAvailableWidth,
                      nscoord *aMarginResult = nsnull)
 {
-  AutoMaybeDisableFontInflation an(aChildFrame);
+  AutoMaybeNullInflationContainer an(aChildFrame);
 
   nsCSSOffsetState offsets(aChildFrame, aRenderingContext, aCBSize.width);
   nsSize size = aChildFrame->ComputeSize(aRenderingContext, aCBSize,

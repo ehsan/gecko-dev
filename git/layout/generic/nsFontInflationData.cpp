@@ -235,7 +235,6 @@ nsFontInflationData::UpdateWidth(const nsHTMLReflowState &aReflowState)
     mTextDirty = true;
   }
 
-  mNCAWidth = newNCAWidth;
   mTextThreshold = newTextThreshold;
   mInflationEnabled = mTextAmount >= mTextThreshold;
 }

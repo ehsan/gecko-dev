@@ -1420,7 +1420,8 @@ nsBulletFrame::Reflow(nsPresContext* aPresContext,
   DO_GLOBAL_REFLOW_COUNT("nsBulletFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aMetrics, aStatus);
 
-  float inflation = nsLayoutUtils::FontSizeInflationFor(this);
+  float inflation =
+    nsLayoutUtils::FontSizeInflationFor(this, nsLayoutUtils::eInReflow);
   SetFontSizeInflation(inflation);
 
   // Get the base size
