@@ -55,9 +55,7 @@ nsHttpResponseHead::Flatten(nsACString &buf, bool pruneTransients)
         return;
 
     buf.AppendLiteral("HTTP/");
-    if (mVersion == NS_HTTP_VERSION_2_0)
-        buf.AppendLiteral("2.0 ");
-    else if (mVersion == NS_HTTP_VERSION_1_1)
+    if (mVersion == NS_HTTP_VERSION_1_1)
         buf.AppendLiteral("1.1 ");
     else
         buf.AppendLiteral("1.0 ");
@@ -768,9 +766,7 @@ nsHttpResponseHead::ParseVersion(const char *str)
     int major = atoi(str + 1);
     int minor = atoi(p);
 
-    if ((major > 2) || ((major == 2) && (minor >= 0)))
-        mVersion = NS_HTTP_VERSION_2_0;
-    else if ((major == 1) && (minor >= 1))
+    if ((major > 1) || ((major == 1) && (minor >= 1)))
         // at least HTTP/1.1
         mVersion = NS_HTTP_VERSION_1_1;
     else

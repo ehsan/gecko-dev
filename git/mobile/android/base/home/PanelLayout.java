@@ -144,10 +144,6 @@ abstract class PanelLayout extends FrameLayout {
                 view = new PanelListView(getContext(), viewConfig);
                 break;
 
-            case GRID:
-                view = new PanelGridView(getContext(), viewConfig);
-                break;
-
             default:
                 throw new IllegalStateException("Unrecognized view type in " + getClass().getSimpleName());
         }

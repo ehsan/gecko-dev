@@ -378,7 +378,10 @@ NS_IMETHODIMP JSStackFrame::GetFilename(nsACString& aFilename)
   if (!mFilenameInitialized) {
     JS::FrameDescription& desc = mStackDescription->FrameAt(mIndex);
     if (desc.script()) {
-      ThreadsafeAutoSafeJSContext cx;
+      // This cx dance is silly, since JS_GetScriptFilename ignores
+      // its cx argument.
+      JSContext* cx = nsContentUtils::GetDefaultJSContextForThread();
+      JSAutoRequest ar(cx);
       JSAutoCompartment ac(cx, desc.script());
       const char* filename = JS_GetScriptFilename(cx, desc.script());
       if (filename) {
@@ -404,7 +407,8 @@ NS_IMETHODIMP JSStackFrame::GetName(nsACString& aFunction)
   if (!mFunnameInitialized) {
     JS::FrameDescription& desc = mStackDescription->FrameAt(mIndex);
     if (desc.fun() && desc.script()) {
-      ThreadsafeAutoSafeJSContext cx;
+      JSContext* cx = nsContentUtils::GetDefaultJSContextForThread();
+      JSAutoRequest ar(cx);
       JSAutoCompartment ac(cx, desc.script());
       JS::Rooted<JSFunction*> fun(cx, desc.fun());
       JS::Rooted<JSString*> funid(cx, JS_GetFunctionDisplayId(fun));

@@ -27,6 +27,7 @@ HBSOURCES =  \
 	hb-buffer.cc \
 	hb-cache-private.hh \
 	hb-common.cc \
+	hb-fallback-shape.cc \
 	hb-face-private.hh \
 	hb-face.cc \
 	hb-font-private.hh \
@@ -91,8 +92,6 @@ HBSOURCES += \
 	hb-ot-shape-complex-arabic-fallback.hh \
 	hb-ot-shape-complex-arabic-table.hh \
 	hb-ot-shape-complex-default.cc \
-	hb-ot-shape-complex-hangul.cc \
-	hb-ot-shape-complex-hebrew.cc \
 	hb-ot-shape-complex-indic.cc \
 	hb-ot-shape-complex-indic-machine.hh \
 	hb-ot-shape-complex-indic-private.hh \
@@ -102,7 +101,6 @@ HBSOURCES += \
 	hb-ot-shape-complex-sea.cc \
 	hb-ot-shape-complex-sea-machine.hh \
 	hb-ot-shape-complex-thai.cc \
-	hb-ot-shape-complex-tibetan.cc \
 	hb-ot-shape-complex-private.hh \
 	hb-ot-shape-normalize-private.hh \
 	hb-ot-shape-normalize.cc \
@@ -113,13 +111,8 @@ HBSOURCES += \
 HBHEADERS += \
 	hb-ot.h \
 	hb-ot-layout.h \
-	hb-ot-shape.h \
 	hb-ot-tag.h \
 	$(NULL)
-endif
-
-if HAVE_FALLBACK
-HBSOURCES += hb-fallback-shape.cc
 endif
 
 if HAVE_PTHREAD

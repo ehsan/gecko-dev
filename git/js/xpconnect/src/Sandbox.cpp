@@ -789,7 +789,7 @@ WrapCallable(JSContext *cx, JSObject *callable, JSObject *sandboxProtoProxy)
 
     RootedValue priv(cx, ObjectValue(*callable));
     js::ProxyOptions options;
-    options.selectDefaultClass(true);
+    options.setCallable(true);
     return js::NewProxyObject(cx, &xpc::sandboxCallableProxyHandler,
                               priv, nullptr,
                               sandboxProtoProxy, options);
@@ -1802,17 +1802,6 @@ xpc::NewFunctionForwarder(JSContext *cx, HandleId id, HandleObject callable, boo
     js::SetFunctionNativeReserved(funobj, 0, ObjectValue(*callable));
     vp.setObject(*funobj);
     return true;
-}
-
-bool
-xpc::NewFunctionForwarder(JSContext *cx, HandleObject callable, bool doclone,
-                          MutableHandleValue vp)
-{
-    RootedId emptyId(cx);
-    if (!JS_ValueToId(cx, JS_GetEmptyStringValue(cx), &emptyId))
-        return false;
-
-    return NewFunctionForwarder(cx, emptyId, callable, doclone, vp);
 }
 
 

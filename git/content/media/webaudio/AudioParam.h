@@ -42,11 +42,6 @@ public:
     return mNode->Context();
   }
 
-  double DOMTimeToStreamTime(double aTime) const
-  {
-    return mNode->Context()->DOMTimeToStreamTime(aTime);
-  }
-
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
@@ -59,7 +54,7 @@ public:
       return;
     }
     AudioParamTimeline::SetValueCurveAtTime(aValues.Data(), aValues.Length(),
-                                            DOMTimeToStreamTime(aStartTime), aDuration, aRv);
+                                            aStartTime, aDuration, aRv);
     mCallback(mNode);
   }
 
@@ -81,7 +76,7 @@ public:
       aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
       return;
     }
-    AudioParamTimeline::SetValueAtTime(aValue, DOMTimeToStreamTime(aStartTime), aRv);
+    AudioParamTimeline::SetValueAtTime(aValue, aStartTime, aRv);
     mCallback(mNode);
   }
   void LinearRampToValueAtTime(float aValue, double aEndTime, ErrorResult& aRv)
@@ -90,7 +85,7 @@ public:
       aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
       return;
     }
-    AudioParamTimeline::LinearRampToValueAtTime(aValue, DOMTimeToStreamTime(aEndTime), aRv);
+    AudioParamTimeline::LinearRampToValueAtTime(aValue, aEndTime, aRv);
     mCallback(mNode);
   }
   void ExponentialRampToValueAtTime(float aValue, double aEndTime, ErrorResult& aRv)
@@ -99,7 +94,7 @@ public:
       aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
       return;
     }
-    AudioParamTimeline::ExponentialRampToValueAtTime(aValue, DOMTimeToStreamTime(aEndTime), aRv);
+    AudioParamTimeline::ExponentialRampToValueAtTime(aValue, aEndTime, aRv);
     mCallback(mNode);
   }
   void SetTargetAtTime(float aTarget, double aStartTime, double aTimeConstant, ErrorResult& aRv)
@@ -109,7 +104,7 @@ public:
       aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
       return;
     }
-    AudioParamTimeline::SetTargetAtTime(aTarget, DOMTimeToStreamTime(aStartTime), aTimeConstant, aRv);
+    AudioParamTimeline::SetTargetAtTime(aTarget, aStartTime, aTimeConstant, aRv);
     mCallback(mNode);
   }
   void SetTargetValueAtTime(float aTarget, double aStartTime, double aTimeConstant, ErrorResult& aRv)
@@ -122,7 +117,7 @@ public:
       aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
       return;
     }
-    AudioParamTimeline::CancelScheduledValues(DOMTimeToStreamTime(aStartTime));
+    AudioParamTimeline::CancelScheduledValues(aStartTime);
     mCallback(mNode);
   }
 

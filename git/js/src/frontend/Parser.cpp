@@ -3099,31 +3099,32 @@ Parser<FullParseHandler>::checkDestructuring(BindData<FullParseHandler> *data,
         }
     } else {
         JS_ASSERT(left->isKind(PNK_OBJECT));
-        for (ParseNode *member = left->pn_head; member; member = member->pn_next) {
-            MOZ_ASSERT(member->isKind(PNK_COLON));
-            ParseNode *expr = member->pn_right;
+        for (ParseNode *pair = left->pn_head; pair; pair = pair->pn_next) {
+            JS_ASSERT(pair->isKind(PNK_COLON));
+            ParseNode *pn = pair->pn_right;
 
-            if (expr->isKind(PNK_ARRAY) || expr->isKind(PNK_OBJECT)) {
-                ok = checkDestructuring(data, expr, false);
+            if (pn->isKind(PNK_ARRAY) || pn->isKind(PNK_OBJECT)) {
+                ok = checkDestructuring(data, pn, false);
             } else if (data) {
-                if (!expr->isKind(PNK_NAME)) {
-                    report(ParseError, false, expr, JSMSG_NO_VARIABLE_NAME);
+                if (!pn->isKind(PNK_NAME)) {
+                    report(ParseError, false, pn, JSMSG_NO_VARIABLE_NAME);
                     return false;
                 }
-                ok = bindDestructuringVar(data, expr);
+                ok = bindDestructuringVar(data, pn);
             } else {
                 /*
-                 * If this is a destructuring shorthand ({x} = ...), then
-                 * identifierName wasn't used to parse |x|.  As a result, |x|
-                 * hasn't been officially linked to its def or registered in
-                 * lexdeps.  Do that now.
+                 * If right and left point to the same node, then this is
+                 * destructuring shorthand ({x} = ...). In that case,
+                 * identifierName was not used to parse 'x' so 'x' has not been
+                 * officially linked to its def or registered in lexdeps. Do
+                 * that now.
                  */
-                if (member->pn_right == member->pn_left) {
-                    RootedPropertyName name(context, expr->pn_atom->asPropertyName());
-                    if (!noteNameUse(name, expr))
+                if (pair->pn_right == pair->pn_left) {
+                    RootedPropertyName name(context, pn->pn_atom->asPropertyName());
+                    if (!noteNameUse(name, pn))
                         return false;
                 }
-                ok = checkAndMarkAsAssignmentLhs(expr, KeyedDestructuringAssignment);
+                ok = checkAndMarkAsAssignmentLhs(pn, KeyedDestructuringAssignment);
             }
             if (!ok)
                 return false;
@@ -3658,9 +3659,8 @@ Parser<FullParseHandler>::letStatement()
         JS_ASSERT_IF(pn, pn->isKind(PNK_LET) || pn->isKind(PNK_SEMI));
         JS_ASSERT_IF(pn && pn->isKind(PNK_LET) && pn->pn_expr->getOp() != JSOP_POPNV,
                      pn->pn_expr->isOp(JSOP_POPN));
-    } else {
+    } else 
         pn = letDeclaration();
-    }
     return pn;
 }
 
@@ -6807,6 +6807,7 @@ Parser<ParseHandler>::objectLiteral()
 
         JSOp op = JSOP_INITPROP;
         Node propname;
+        uint32_t begin;
         switch (ltok) {
           case TOK_NUMBER:
             atom = DoubleToAtom(context, tokenStream.currentToken().number());
@@ -6825,6 +6826,10 @@ Parser<ParseHandler>::objectLiteral()
                 propname = handler.newIdentifier(atom, pos());
                 if (!propname)
                     return null();
+                if (atom == context->names().proto) {
+                    begin = pos().begin;
+                    op = JSOP_MUTATEPROTO;
+                }
                 break;
             }
 
@@ -6893,7 +6898,7 @@ Parser<ParseHandler>::objectLiteral()
             return null();
         }
 
-        if (op == JSOP_INITPROP) {
+        if (op == JSOP_INITPROP || op == JSOP_MUTATEPROTO) {
             TokenKind tt = tokenStream.getToken();
             Node propexpr;
             if (tt == TOK_COLON) {
@@ -6909,11 +6914,15 @@ Parser<ParseHandler>::objectLiteral()
                  * so that we can later assume singleton objects delegate to
                  * the default Object.prototype.
                  */
-                if (!handler.isConstant(propexpr) || atom == context->names().proto)
+                if (!handler.isConstant(propexpr) || op == JSOP_MUTATEPROTO)
                     handler.setListFlag(literal, PNX_NONCONST);
 
-                if (!handler.addPropertyDefinition(literal, propname, propexpr))
+                if (op == JSOP_MUTATEPROTO
+                    ? !handler.addPrototypeMutation(literal, begin, propexpr)
+                    : !handler.addPropertyDefinition(literal, propname, propexpr))
+                {
                     return null();
+                }
             }
 #if JS_HAS_DESTRUCTURING_SHORTHAND
             else if (ltok == TOK_NAME && (tt == TOK_COMMA || tt == TOK_RC)) {
@@ -6959,7 +6968,7 @@ Parser<ParseHandler>::objectLiteral()
          * any part of an accessor property.
          */
         AssignmentType assignType;
-        if (op == JSOP_INITPROP)
+        if (op == JSOP_INITPROP || op == JSOP_MUTATEPROTO)
             assignType = VALUE;
         else if (op == JSOP_INITPROP_GETTER)
             assignType = GET;

@@ -152,7 +152,6 @@ public:
     mRetainingManager(nullptr),
     mDetectedDOMModification(false),
     mInvalidateAllLayers(false),
-    mInLayerTreeCompressionMode(false),
     mContainerLayerGeneration(0),
     mMaxContainerLayerGeneration(0)
   {
@@ -592,13 +591,6 @@ public:
     return mContainingThebesLayer;
   }
 
-  /**
-   * Attempt to build the most compressed layer tree possible, even if it means
-   * throwing away existing retained buffers.
-   */
-  void SetLayerTreeCompressionMode() { mInLayerTreeCompressionMode = true; }
-  bool CheckInLayerTreeCompressionMode();
-
 protected:
   void RemoveThebesItemsAndOwnerDataForLayerSubtree(Layer* aLayer,
                                                     bool aRemoveThebesItems,
@@ -659,8 +651,6 @@ protected:
    * during this paint.
    */
   bool                                mInvalidateAllLayers;
-
-  bool                                mInLayerTreeCompressionMode;
 
   uint32_t                            mContainerLayerGeneration;
   uint32_t                            mMaxContainerLayerGeneration;

@@ -114,7 +114,6 @@ UDPClientListener::OnPacketReceived(nsIUDPSocket* socket, nsIUDPMessage* message
     } else {
       fail("Response written");
     }
-    return NS_OK;
   } else if (TEST_OUTPUT_STREAM != phase || !CheckMessageContent(message, RESPONSE)) {
     mResult = NS_ERROR_FAILURE;
   }
@@ -179,13 +178,10 @@ UDPServerListener::OnPacketReceived(nsIUDPSocket* socket, nsIUDPMessage* message
     } else {
       fail("Response written");
     }
-    return NS_OK;
   } else if (TEST_SEND_API != phase || !CheckMessageContent(message, RESPONSE)) {
     mResult = NS_ERROR_FAILURE;
   }
 
-  // Notify thread
-  QuitPumpingEvents();
   return NS_OK;
 }
 
