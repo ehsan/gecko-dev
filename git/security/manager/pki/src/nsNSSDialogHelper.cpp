@@ -39,7 +39,7 @@ nsNSSDialogHelper::openDialog(
   // gets a system principal, otherwise we'll bork when trying to wrap the
   // nsIKeyGenThread |arguments| property into the unprivileged scoope.
   MOZ_ASSERT(!strncmp("chrome://", url, strlen("chrome://")));
-  mozilla::dom::AutoNoJSAPI nojsapi;
+  mozilla::dom::AutoSystemCaller asc;
 
   nsCOMPtr<nsIDOMWindow> newWindow;
   rv = windowWatcher->OpenWindow(parent,

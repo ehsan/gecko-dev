@@ -2899,7 +2899,7 @@ PresShell::ClearFrameRefs(nsIFrame* aFrame)
 }
 
 already_AddRefed<nsRenderingContext>
-PresShell::CreateReferenceRenderingContext()
+PresShell::GetReferenceRenderingContext()
 {
   nsDeviceContext* devCtx = mPresContext->DeviceContext();
   nsRefPtr<nsRenderingContext> rc;
@@ -2907,10 +2907,8 @@ PresShell::CreateReferenceRenderingContext()
     rc = new nsRenderingContext();
     rc->Init(devCtx, gfxPlatform::GetPlatform()->ScreenReferenceSurface());
   } else {
-    rc = devCtx->CreateRenderingContext();
+    devCtx->CreateRenderingContext(*getter_AddRefs(rc));
   }
-
-  MOZ_ASSERT(rc, "shouldn't break promise to return non-null");
   return rc.forget();
 }
 
@@ -5826,7 +5824,11 @@ PresShell::Paint(nsView*        aViewToPaint,
   NS_ASSERTION(layerManager, "Must be in paint event");
   bool shouldInvalidate = layerManager->NeedsWidgetInvalidation();
 
-  nsAutoNotifyDidPaint notifyDidPaint(this, aFlags);
+  uint32_t didPaintFlags = aFlags;
+  if (!shouldInvalidate) {
+    didPaintFlags |= PAINT_COMPOSITE;
+  }
+  nsAutoNotifyDidPaint notifyDidPaint(this, didPaintFlags);
   AutoUpdateHitRegion updateHitRegion(this, frame);
 
   // Whether or not we should set first paint when painting is
@@ -8348,7 +8350,11 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
 
   nsIFrame* rootFrame = mFrameConstructor->GetRootFrame();
 
-  nsRefPtr<nsRenderingContext> rcx = CreateReferenceRenderingContext();
+  nsRefPtr<nsRenderingContext> rcx = GetReferenceRenderingContext();
+  if (!rcx) {
+    NS_NOTREACHED("CreateRenderingContext failure");
+    return false;
+  }
 
 #ifdef DEBUG
   mCurrentReflowRoot = target;

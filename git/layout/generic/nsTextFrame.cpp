@@ -1774,10 +1774,14 @@ GetFontGroupForFrame(nsIFrame* aFrame, float aFontSizeInflation,
 }
 
 static already_AddRefed<gfxContext>
-CreateReferenceThebesContext(nsTextFrame* aTextFrame)
+GetReferenceRenderingContext(nsTextFrame* aTextFrame, nsRenderingContext* aRC)
 {
-  nsRefPtr<nsRenderingContext> tmp =
-    aTextFrame->PresContext()->PresShell()->CreateReferenceRenderingContext();
+  nsRefPtr<nsRenderingContext> tmp = aRC;
+  if (!tmp) {
+    tmp = aTextFrame->PresContext()->PresShell()->GetReferenceRenderingContext();
+    if (!tmp)
+      return nullptr;
+  }
 
   nsRefPtr<gfxContext> ctx = tmp->ThebesContext();
   return ctx.forget();
@@ -1791,7 +1795,7 @@ GetHyphenTextRun(gfxTextRun* aTextRun, gfxContext* aContext, nsTextFrame* aTextF
 {
   nsRefPtr<gfxContext> ctx = aContext;
   if (!ctx) {
-    ctx = CreateReferenceThebesContext(aTextFrame);
+    ctx = GetReferenceRenderingContext(aTextFrame, nullptr);
   }
   if (!ctx)
     return nullptr;
@@ -2554,7 +2558,7 @@ nsTextFrame::EnsureTextRun(TextRunType aWhichTextRun,
   } else {
     nsRefPtr<gfxContext> ctx = aReferenceContext;
     if (!ctx) {
-      ctx = CreateReferenceThebesContext(this);
+      ctx = GetReferenceRenderingContext(this, nullptr);
     }
     if (ctx) {
       BuildTextRuns(ctx, this, aLineContainer, aLine, aWhichTextRun);
@@ -2836,7 +2840,7 @@ public:
   }
 
   virtual already_AddRefed<gfxContext> GetContext() {
-    return CreateReferenceThebesContext(GetFrame());
+    return GetReferenceRenderingContext(GetFrame(), nullptr);
   }
 
   virtual uint32_t GetAppUnitsPerDevUnit() {

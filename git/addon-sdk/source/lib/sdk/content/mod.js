@@ -31,9 +31,6 @@ let detachFrom = method("detatchFrom");
 exports.detachFrom = detachFrom;
 
 function attach(modification, target) {
-  if (!modification)
-    return;
-
   let window = getTargetWindow(target);
 
   attachTo(modification, window);
@@ -45,9 +42,6 @@ function attach(modification, target) {
 exports.attach = attach;
 
 function detach(modification, target) {
-  if (!modification)
-    return;
-
   if (target) {
     let window = getTargetWindow(target);
     detachFrom(modification, window);

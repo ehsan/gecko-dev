@@ -3,6 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
+// Disable tests below for now.
+// See https://bugzilla.mozilla.org/show_bug.cgi?id=987348
+/*
 var m = require("main");
 var self = require("sdk/self");
 
@@ -20,3 +23,4 @@ exports.testMain = function(test) {
 exports.testData = function(test) {
   test.assert(self.data.load("panel.js").length > 0);
 };
+*/

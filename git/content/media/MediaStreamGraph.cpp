@@ -831,7 +831,9 @@ MediaStreamGraphImpl::CreateOrDestroyAudioStreams(GraphTime aAudioOutputStartTim
           continue;
         }
 
-        // Allocating a AudioStream would be slow, so we finish the Init async
+        // XXX allocating a AudioStream could be slow so we're going to have to do
+        // something here ... preallocation, async allocation, multiplexing onto a single
+        // stream ...
         MediaStream::AudioOutputStream* audioOutputStream =
           aStream->mAudioOutputStreams.AppendElement();
         audioOutputStream->mAudioPlaybackStartTime = aAudioOutputStartTime;
@@ -840,7 +842,6 @@ MediaStreamGraphImpl::CreateOrDestroyAudioStreams(GraphTime aAudioOutputStartTim
         audioOutputStream->mStream = new AudioStream();
         // XXX for now, allocate stereo output. But we need to fix this to
         // match the system's ideal channel configuration.
-        // NOTE: we presume this is either fast or async-under-the-covers
         audioOutputStream->mStream->Init(2, IdealAudioRate(),
                                          AudioChannel::Normal,
                                          AudioStream::LowLatency);

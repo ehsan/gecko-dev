@@ -3285,7 +3285,8 @@ nsDocumentViewer::GetContentSize(int32_t* aWidth, int32_t* aHeight)
   nscoord prefWidth;
   {
     nsRefPtr<nsRenderingContext> rcx =
-      presShell->CreateReferenceRenderingContext();
+      presShell->GetReferenceRenderingContext();
+    NS_ENSURE_TRUE(rcx, NS_ERROR_FAILURE);
     prefWidth = root->GetPrefWidth(rcx);
   }
 

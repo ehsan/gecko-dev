@@ -13,6 +13,7 @@
 #include "frontend/SourceNotes.h"
 #include "jit/BaselineFrame.h"
 #include "jit/BaselineInspector.h"
+#include "jit/ExecutionModeInlines.h"
 #include "jit/Ion.h"
 #include "jit/IonOptimizationLevels.h"
 #include "jit/IonSpewer.h"
@@ -28,7 +29,6 @@
 #include "jsscriptinlines.h"
 
 #include "jit/CompileInfo-inl.h"
-#include "jit/ExecutionMode-inl.h"
 
 using namespace js;
 using namespace js::jit;
@@ -1047,46 +1047,48 @@ IonBuilder::addOsrValueTypeBarrier(uint32_t slot, MInstruction **def_,
         def = barrier;
     }
 
-    switch (type) {
-      case MIRType_Boolean:
-      case MIRType_Int32:
-      case MIRType_Double:
-      case MIRType_String:
-      case MIRType_Object:
-        if (type != def->type()) {
+    if (type != def->type()) {
+        switch (type) {
+          case MIRType_Boolean:
+          case MIRType_Int32:
+          case MIRType_Double:
+          case MIRType_String:
+          case MIRType_Object:
+          {
             MUnbox *unbox = MUnbox::New(alloc(), def, type, MUnbox::Fallible);
             osrBlock->insertBefore(osrBlock->lastIns(), unbox);
             osrBlock->rewriteSlot(slot, unbox);
             def = unbox;
+            break;
+          }
+
+          case MIRType_Null:
+          {
+            MConstant *c = MConstant::New(alloc(), NullValue());
+            osrBlock->insertBefore(osrBlock->lastIns(), c);
+            osrBlock->rewriteSlot(slot, c);
+            def = c;
+            break;
+          }
+
+          case MIRType_Undefined:
+          {
+            MConstant *c = MConstant::New(alloc(), UndefinedValue());
+            osrBlock->insertBefore(osrBlock->lastIns(), c);
+            osrBlock->rewriteSlot(slot, c);
+            def = c;
+            break;
+          }
+
+          case MIRType_Magic:
+            JS_ASSERT(lazyArguments_);
+            osrBlock->rewriteSlot(slot, lazyArguments_);
+            def = lazyArguments_;
+            break;
+
+          default:
+            break;
         }
-        break;
-
-      case MIRType_Null:
-      {
-        MConstant *c = MConstant::New(alloc(), NullValue());
-        osrBlock->insertBefore(osrBlock->lastIns(), c);
-        osrBlock->rewriteSlot(slot, c);
-        def = c;
-        break;
-      }
-
-      case MIRType_Undefined:
-      {
-        MConstant *c = MConstant::New(alloc(), UndefinedValue());
-        osrBlock->insertBefore(osrBlock->lastIns(), c);
-        osrBlock->rewriteSlot(slot, c);
-        def = c;
-        break;
-      }
-
-      case MIRType_Magic:
-        JS_ASSERT(lazyArguments_);
-        osrBlock->rewriteSlot(slot, lazyArguments_);
-        def = lazyArguments_;
-        break;
-
-      default:
-        break;
     }
 
     JS_ASSERT(def == osrBlock->getSlot(slot));
