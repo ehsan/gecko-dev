@@ -80,6 +80,10 @@ function NfcContentHelper() {
   Services.obs.addObserver(this, "xpcom-shutdown", false);
 
   this._requestMap = [];
+
+  // Maintains an array of PeerEvent related callbacks, mainly
+  // one for 'peerReady' and another for 'peerLost'.
+  this.peerEventsCallbackMap = {};
 }
 
 NfcContentHelper.prototype = {
@@ -96,7 +100,7 @@ NfcContentHelper.prototype = {
   }),
 
   _requestMap: null,
-  peerEventListener: null,
+  peerEventsCallbackMap: null,
 
   encodeNDEFRecords: function encodeNDEFRecords(records) {
     let encodedRecords = [];
@@ -257,26 +261,34 @@ NfcContentHelper.prototype = {
     });
   },
 
-  registerPeerEventListener: function registerPeerEventListener(listener) {
-    this.peerEventListener = listener;
-  },
-
-  registerTargetForPeerReady: function registerTargetForPeerReady(window, appId) {
+  registerTargetForPeerEvent: function registerTargetForPeerEvent(window,
+                                                  appId, event, callback) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
                                   Cr.NS_ERROR_UNEXPECTED);
     }
-
-    cpmm.sendAsyncMessage("NFC:RegisterPeerReadyTarget", { appId: appId });
+    this.peerEventsCallbackMap[event] = callback;
+    cpmm.sendAsyncMessage("NFC:RegisterPeerTarget", {
+      appId: appId,
+      event: event
+    });
   },
 
-  unregisterTargetForPeerReady: function unregisterTargetForPeerReady(window, appId) {
+  unregisterTargetForPeerEvent: function unregisterTargetForPeerEvent(window,
+                                                                appId, event) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
                                   Cr.NS_ERROR_UNEXPECTED);
     }
+    let callback = this.peerEventsCallbackMap[event];
+    if (callback != null) {
+      delete this.peerEventsCallbackMap[event];
+    }
 
-    cpmm.sendAsyncMessage("NFC:UnregisterPeerReadyTarget", { appId: appId });
+    cpmm.sendAsyncMessage("NFC:UnregisterPeerTarget", {
+      appId: appId,
+      event: event
+    });
   },
 
   checkP2PRegistration: function checkP2PRegistration(window, appId) {
@@ -415,13 +427,12 @@ NfcContentHelper.prototype = {
         }
         break;
       case "NFC:PeerEvent":
-        switch (result.event) {
-          case NFC.NFC_PEER_EVENT_READY:
-            this.peerEventListener.notifyPeerReady(result.sessionToken);
-            break;
-          case NFC.NFC_PEER_EVENT_LOST:
-            this.peerEventListener.notifyPeerLost(result.sessionToken);
-            break;
+        let callback = this.peerEventsCallbackMap[result.event];
+        if (callback) {
+          callback.peerNotification(result.event, result.sessionToken);
+        } else {
+          debug("PeerEvent: No valid callback registered for the event " +
+                result.event);
         }
         break;
     }

@@ -1586,7 +1586,7 @@ static void
 GeneratorWriteBarrierPre(JSContext *cx, JSGenerator *gen)
 {
     JS::Zone *zone = cx->zone();
-    if (zone->needsIncrementalBarrier())
+    if (zone->needsBarrier())
         MarkGeneratorFrame(zone->barrierTracer(), gen);
 }
 

@@ -17,8 +17,7 @@ callback AnyCallback = any (any value);
 
 // REMOVE THE RELEVANT ENTRY FROM test_interfaces.html WHEN THIS IS IMPLEMENTED IN JS.
 [Constructor(PromiseInit init)]
-// Need to escape "Promise" so it's treated as an identifier.
-interface _Promise {
+interface Promise {
   // TODO bug 875289 - static Promise fulfill(any value);
 
   // Disable the static methods when the interface object is supposed to be
@@ -27,22 +26,22 @@ interface _Promise {
   // Promise object in this scope without having resolved the interface object
   // first.
   [NewObject, Throws]
-  static Promise<any> resolve(optional any value);
+  static Promise resolve(optional any value);
   [NewObject, Throws]
-  static Promise<void> reject(optional any value);
+  static Promise reject(optional any value);
 
   // The [TreatNonCallableAsNull] annotation is required since then() should do
   // nothing instead of throwing errors when non-callable arguments are passed.
   [NewObject, Throws]
-  Promise<any> then([TreatNonCallableAsNull] optional AnyCallback? fulfillCallback = null,
-                    [TreatNonCallableAsNull] optional AnyCallback? rejectCallback = null);
+  Promise then([TreatNonCallableAsNull] optional AnyCallback? fulfillCallback = null,
+               [TreatNonCallableAsNull] optional AnyCallback? rejectCallback = null);
 
   [NewObject, Throws]
-  Promise<any> catch([TreatNonCallableAsNull] optional AnyCallback? rejectCallback = null);
+  Promise catch([TreatNonCallableAsNull] optional AnyCallback? rejectCallback = null);
 
   [NewObject, Throws]
-  static Promise<any> all(sequence<any> iterable);
+  static Promise all(sequence<any> iterable);
 
   [NewObject, Throws]
-  static Promise<any> race(sequence<any> iterable);
+  static Promise race(sequence<any> iterable);
 };

@@ -248,10 +248,10 @@ gc::GCRuntime::startVerifyPreBarriers()
     incrementalState = MARK;
     marker.start();
 
-    rt->setNeedsIncrementalBarrier(true);
+    rt->setNeedsBarrier(true);
     for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
         PurgeJITCaches(zone);
-        zone->setNeedsIncrementalBarrier(true, Zone::UpdateJit);
+        zone->setNeedsBarrier(true, Zone::UpdateJit);
         zone->allocator.arenas.purge();
     }
 
@@ -333,13 +333,13 @@ gc::GCRuntime::endVerifyPreBarriers()
 
     /* We need to disable barriers before tracing, which may invoke barriers. */
     for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
-        if (!zone->needsIncrementalBarrier())
+        if (!zone->needsBarrier())
             compartmentCreated = true;
 
-        zone->setNeedsIncrementalBarrier(false, Zone::UpdateJit);
+        zone->setNeedsBarrier(false, Zone::UpdateJit);
         PurgeJITCaches(zone);
     }
-    rt->setNeedsIncrementalBarrier(false);
+    rt->setNeedsBarrier(false);
 
     /*
      * We need to bump gcNumber so that the methodjit knows that jitcode has

@@ -26,6 +26,9 @@
 #define mozilla_pkix__pkixutil_h
 
 #include "pkixder.h"
+#include "prerror.h"
+#include "seccomon.h"
+#include "secerr.h"
 
 namespace mozilla { namespace pkix {
 
@@ -42,7 +45,7 @@ class BackCert
 {
 public:
   // certDER and childCert must be valid for the lifetime of BackCert.
-  BackCert(Input certDER, EndEntityOrCA endEntityOrCA,
+  BackCert(const SECItem& certDER, EndEntityOrCA endEntityOrCA,
            const BackCert* childCert)
     : der(certDER)
     , endEntityOrCA(endEntityOrCA)
@@ -52,51 +55,45 @@ public:
 
   Result Init();
 
-  const Input GetDER() const { return der; }
+  const SECItem& GetDER() const { return der; }
   const der::Version GetVersion() const { return version; }
   const SignedDataWithSignature& GetSignedData() const { return signedData; }
-  const Input GetIssuer() const { return issuer; }
+  const SECItem& GetIssuer() const { return issuer; }
   // XXX: "validity" is a horrible name for the structure that holds
   // notBefore & notAfter, but that is the name used in RFC 5280 and we use the
   // RFC 5280 names for everything.
-  const Input GetValidity() const { return validity; }
-  const Input GetSerialNumber() const { return serialNumber; }
-  const Input GetSubject() const { return subject; }
-  const Input GetSubjectPublicKeyInfo() const
+  const SECItem& GetValidity() const { return validity; }
+  const SECItem& GetSerialNumber() const { return serialNumber; }
+  const SECItem& GetSubject() const { return subject; }
+  const SECItem& GetSubjectPublicKeyInfo() const
   {
     return subjectPublicKeyInfo;
   }
-  const Input* GetAuthorityInfoAccess() const
+  const SECItem* GetAuthorityInfoAccess() const
   {
-    return MaybeInput(authorityInfoAccess);
+    return MaybeSECItem(authorityInfoAccess);
   }
-  const Input* GetBasicConstraints() const
+  const SECItem* GetBasicConstraints() const
   {
-    return MaybeInput(basicConstraints);
+    return MaybeSECItem(basicConstraints);
   }
-  const Input* GetCertificatePolicies() const
+  const SECItem* GetCertificatePolicies() const
   {
-    return MaybeInput(certificatePolicies);
+    return MaybeSECItem(certificatePolicies);
   }
-  const Input* GetExtKeyUsage() const
+  const SECItem* GetExtKeyUsage() const { return MaybeSECItem(extKeyUsage); }
+  const SECItem* GetKeyUsage() const { return MaybeSECItem(keyUsage); }
+  const SECItem* GetInhibitAnyPolicy() const
   {
-    return MaybeInput(extKeyUsage);
+    return MaybeSECItem(inhibitAnyPolicy);
   }
-  const Input* GetKeyUsage() const
+  const SECItem* GetNameConstraints() const
   {
-    return MaybeInput(keyUsage);
-  }
-  const Input* GetInhibitAnyPolicy() const
-  {
-    return MaybeInput(inhibitAnyPolicy);
-  }
-  const Input* GetNameConstraints() const
-  {
-    return MaybeInput(nameConstraints);
+    return MaybeSECItem(nameConstraints);
   }
 
 private:
-  const Input der;
+  const SECItem& der;
 
 public:
   const EndEntityOrCA endEntityOrCA;
@@ -111,32 +108,43 @@ private:
   // *processing* extensions, we distinguish between whether an extension was
   // included or not based on whetehr the GetXXX function for the extension
   // returns nullptr.
-  static inline const Input* MaybeInput(const Input& item)
+  static inline const SECItem* MaybeSECItem(const SECItem& item)
   {
-    return item.GetLength() > 0 ? &item : nullptr;
+    return item.len > 0 ? &item : nullptr;
   }
 
+  // Helper classes to zero-initialize these fields on construction and to
+  // document that they contain non-owning pointers to the data they point
+  // to.
+  struct NonOwningSECItem : public SECItemStr {
+    NonOwningSECItem()
+    {
+      data = nullptr;
+      len = 0;
+    }
+  };
+
   SignedDataWithSignature signedData;
-  Input issuer;
+  NonOwningSECItem issuer;
   // XXX: "validity" is a horrible name for the structure that holds
   // notBefore & notAfter, but that is the name used in RFC 5280 and we use the
   // RFC 5280 names for everything.
-  Input validity;
-  Input serialNumber;
-  Input subject;
-  Input subjectPublicKeyInfo;
+  NonOwningSECItem validity;
+  NonOwningSECItem serialNumber;
+  NonOwningSECItem subject;
+  NonOwningSECItem subjectPublicKeyInfo;
 
-  Input authorityInfoAccess;
-  Input basicConstraints;
-  Input certificatePolicies;
-  Input extKeyUsage;
-  Input inhibitAnyPolicy;
-  Input keyUsage;
-  Input nameConstraints;
-  Input subjectAltName;
+  NonOwningSECItem authorityInfoAccess;
+  NonOwningSECItem basicConstraints;
+  NonOwningSECItem certificatePolicies;
+  NonOwningSECItem extKeyUsage;
+  NonOwningSECItem inhibitAnyPolicy;
+  NonOwningSECItem keyUsage;
+  NonOwningSECItem nameConstraints;
+  NonOwningSECItem subjectAltName;
 
-  Result RememberExtension(Reader& extnID, const Input& extnValue,
-                           /*out*/ bool& understood);
+  Result RememberExtension(Input& extnID, const SECItem& extnValue,
+                                /*out*/ bool& understood);
 
   BackCert(const BackCert&) /* = delete */;
   void operator=(const BackCert&); /* = delete */;
@@ -154,20 +162,17 @@ public:
 
   virtual size_t GetLength() const { return numItems; }
 
-  virtual const Input* GetDER(size_t i) const
+  virtual const SECItem* GetDER(size_t i) const
   {
-    return i < numItems ? &items[i] : nullptr;
+    return i < numItems ? items[i] : nullptr;
   }
 
-  Result Append(Input der)
+  Result Append(const SECItem& der)
   {
     if (numItems >= MAX_LENGTH) {
-      return Result::FATAL_ERROR_INVALID_ARGS;
+      return Fail(SEC_ERROR_INVALID_ARGS);
     }
-    Result rv = items[numItems].Init(der); // structure assignment
-    if (rv != Success) {
-      return rv;
-    }
+    items[numItems] = &der;
     ++numItems;
     return Success;
   }
@@ -175,11 +180,8 @@ public:
   // Public so we can static_assert on this. Keep in sync with MAX_SUBCA_COUNT.
   static const size_t MAX_LENGTH = 8;
 private:
-  Input items[MAX_LENGTH]; // avoids any heap allocations
+  const SECItem* items[MAX_LENGTH]; // avoids any heap allocations
   size_t numItems;
-
-  NonOwningDERArray(const NonOwningDERArray&) /* = delete*/;
-  void operator=(const NonOwningDERArray&) /* = delete*/;
 };
 
 } } // namespace mozilla::pkix

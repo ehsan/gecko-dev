@@ -38,7 +38,8 @@ interface Directory {
    * File object. Otherwise, rejected with a DOM error.
    */
   [NewObject, Throws]
-  Promise<File> createFile(DOMString path, optional CreateFileOptions options);
+  // Promise<File>
+  Promise createFile(DOMString path, optional CreateFileOptions options);
 
   /*
    * Creates a descendent directory. This method will create any intermediate
@@ -50,7 +51,8 @@ interface Directory {
    * Directory object. Otherwise, rejected with a DOM error.
    */
   [NewObject, Throws]
-  Promise<Directory> createDirectory(DOMString path);
+  // Promise<Directory>
+  Promise createDirectory(DOMString path);
 
   /*
    * Gets a descendent file or directory with the given path.
@@ -61,7 +63,8 @@ interface Directory {
    * rejected with a DOM error.
    */
   [NewObject, Throws]
-  Promise<(File or Directory)> get(DOMString path);
+  // Promise<(File or Directory)>
+  Promise get(DOMString path);
 
   /*
    * Deletes a file or an empty directory. The target must be a descendent of
@@ -75,7 +78,8 @@ interface Directory {
    * and was successfully deleted, the promise is resolved with boolean true.
    */
   [NewObject, Throws]
-  Promise<boolean> remove((DOMString or File or Directory) path);
+  // Promise<boolean>
+  Promise remove((DOMString or File or Directory) path);
 
   /*
    * Deletes a file or a directory recursively. The target should be a
@@ -89,7 +93,8 @@ interface Directory {
    * deleted, the promise is resolved with boolean true.
    */
   [NewObject, Throws]
-  Promise<boolean> removeDeep((DOMString or File or Directory) path);
+  // Promise<boolean>
+  Promise removeDeep((DOMString or File or Directory) path);
 };
 
 enum CreateIfExistsMode { "replace", "fail" };

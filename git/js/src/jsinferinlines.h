@@ -1294,11 +1294,11 @@ inline void
 TypeNewScript::writeBarrierPre(TypeNewScript *newScript)
 {
 #ifdef JSGC_INCREMENTAL
-    if (!newScript || !newScript->fun->runtimeFromAnyThread()->needsIncrementalBarrier())
+    if (!newScript || !newScript->fun->runtimeFromAnyThread()->needsBarrier())
         return;
 
     JS::Zone *zone = newScript->fun->zoneFromAnyThread();
-    if (zone->needsIncrementalBarrier()) {
+    if (zone->needsBarrier()) {
         MarkObject(zone->barrierTracer(), &newScript->fun, "write barrier");
         MarkObject(zone->barrierTracer(), &newScript->templateObject, "write barrier");
     }

@@ -301,7 +301,7 @@ class JSFunction : public JSObject
             MOZ_ASSERT(fun);
             JSScript *script = fun->nonLazyScript();
 
-            if (shadowZone()->needsIncrementalBarrier())
+            if (shadowZone()->needsBarrier())
                 js::LazyScript::writeBarrierPre(lazy);
 
             flags_ &= ~INTERPRETED_LAZY;

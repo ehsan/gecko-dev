@@ -32,7 +32,6 @@
 #include "nsRect.h"                     // for nsIntRect
 #include "nsRegion.h"                   // for nsIntRegion
 #include "nsTArray.h"                   // for nsTArray, nsTArray_Impl, etc
-#include "nsExpirationTracker.h"
 #include "mozilla/layers/ISurfaceAllocator.h"
 #include "gfxReusableSurfaceWrapper.h"
 #include "pratom.h"                     // For PR_ATOMIC_INCREMENT/DECREMENT
@@ -156,7 +155,6 @@ struct TileClient
 {
   // Placeholder
   TileClient();
-  ~TileClient();
 
   TileClient(const TileClient& o);
 
@@ -209,8 +207,6 @@ struct TileClient
     DiscardBackBuffer();
   }
 
-  nsExpirationState *GetExpirationState() { return &mExpirationState; }
-
   TileDescriptor GetTileDescriptor();
 
   /**
@@ -233,21 +229,7 @@ struct TileClient
 
   void DiscardBackBuffer();
 
-  /* We wrap the back buffer in a class that disallows assignment
-   * so that we can track when ever it changes so that we can update
-   * the expiry tracker for expiring the back buffers */
-  class PrivateProtector {
-    public:
-      void Set(TileClient * container, RefPtr<TextureClient>);
-      void Set(TileClient * container, TextureClient*);
-      // Implicitly convert to TextureClient* because we can't chain
-      // implicit conversion that would happen on RefPtr<TextureClient>
-      operator TextureClient*() const { return mBuffer; }
-      RefPtr<TextureClient> operator ->() { return mBuffer; }
-    private:
-      PrivateProtector& operator=(const PrivateProtector &);
-      RefPtr<TextureClient> mBuffer;
-  } mBackBuffer;
+  RefPtr<TextureClient> mBackBuffer;
   RefPtr<TextureClient> mFrontBuffer;
   RefPtr<gfxSharedReadLock> mBackLock;
   RefPtr<gfxSharedReadLock> mFrontLock;
@@ -258,7 +240,6 @@ struct TileClient
 #endif
   nsIntRegion mInvalidFront;
   nsIntRegion mInvalidBack;
-  nsExpirationState mExpirationState;
 
 private:
   void ValidateBackBufferFromFront(const nsIntRegion &aDirtyRegion,

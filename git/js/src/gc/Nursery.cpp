@@ -341,21 +341,20 @@ class MinorCollectionTracer : public JSTracer
         tenuredSize(0),
         head(nullptr),
         tail(&head),
-        savedRuntimeNeedBarrier(rt->needsIncrementalBarrier()),
+        savedRuntimeNeedBarrier(rt->needsBarrier()),
         disableStrictProxyChecking(rt)
     {
         rt->gc.incGcNumber();
 
         /*
-         * We disable the runtime needsIncrementalBarrier() check so that
-         * pre-barriers do not fire on objects that have been relocated. The
-         * pre-barrier's call to obj->zone() will try to look through shape_,
-         * which is now the relocation magic and will crash. However,
-         * zone->needsIncrementalBarrier() must still be set correctly so that
-         * allocations we make in minor GCs between incremental slices will
-         * allocate their objects marked.
+         * We disable the runtime needsBarrier() check so that pre-barriers do
+         * not fire on objects that have been relocated. The pre-barrier's
+         * call to obj->zone() will try to look through shape_, which is now
+         * the relocation magic and will crash. However, zone->needsBarrier()
+         * must still be set correctly so that allocations we make in minor
+         * GCs between incremental slices will allocate their objects marked.
          */
-        rt->setNeedsIncrementalBarrier(false);
+        rt->setNeedsBarrier(false);
 
         /*
          * We use the live array buffer lists to track traced buffers so we can
@@ -372,7 +371,7 @@ class MinorCollectionTracer : public JSTracer
     }
 
     ~MinorCollectionTracer() {
-        runtime()->setNeedsIncrementalBarrier(savedRuntimeNeedBarrier);
+        runtime()->setNeedsBarrier(savedRuntimeNeedBarrier);
         if (runtime()->gc.state() != NO_INCREMENTAL)
             ArrayBufferObject::restoreArrayBufferLists(liveArrayBuffers);
     }

@@ -65,7 +65,6 @@ enum DeviceFamily {
   IntelGMA3150,
   IntelGMAX3000,
   IntelGMAX4500HD,
-  IntelHD3000,
   IntelMobileHDGraphics,
   NvidiaBlockD3D9Layers,
   RadeonX1000,

@@ -58,8 +58,6 @@ public:
 
   virtual bool IsWaitingMediaResources() MOZ_OVERRIDE;
 
-  virtual nsresult ResetDecode() MOZ_OVERRIDE;
-
 private:
 
   void ExtractCryptoInitData(nsTArray<uint8_t>& aInitData);
@@ -123,7 +121,6 @@ private:
       , mError(false)
       , mIsFlushing(false)
       , mDrainComplete(false)
-      , mEOS(false)
     {
     }
 
@@ -146,7 +143,6 @@ private:
     bool mError;
     bool mIsFlushing;
     bool mDrainComplete;
-    bool mEOS;
   };
   DecoderData mAudio;
   DecoderData mVideo;

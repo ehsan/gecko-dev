@@ -11,7 +11,6 @@
 #include "nsNSSCertificateDB.h"
 
 #include "pkix/pkix.h"
-#include "pkix/pkixnss.h"
 #include "mozilla/RefPtr.h"
 #include "CryptoTask.h"
 #include "AppTrustDomain.h"
@@ -542,19 +541,13 @@ VerifyCertificate(CERTCertificate* signerCert, void* voidContext, void* pinArg)
   if (trustDomain.SetTrustedRoot(context.trustedRoot) != SECSuccess) {
     return MapSECStatus(SECFailure);
   }
-  Input certDER;
-  Result rv = certDER.Init(signerCert->derCert.data, signerCert->derCert.len);
-  if (rv != Success) {
-    return mozilla::psm::GetXPCOMFromNSSError(MapResultToPRErrorCode(rv));
-  }
-  rv = BuildCertChain(trustDomain, certDER, PR_Now(),
-                      EndEntityOrCA::MustBeEndEntity,
-                      KeyUsage::digitalSignature,
-                      KeyPurposeId::id_kp_codeSigning,
-                      CertPolicyId::anyPolicy,
-                      nullptr/*stapledOCSPResponse*/);
-  if (rv != Success) {
-    return mozilla::psm::GetXPCOMFromNSSError(MapResultToPRErrorCode(rv));
+  if (BuildCertChain(trustDomain, signerCert->derCert, PR_Now(),
+                     EndEntityOrCA::MustBeEndEntity,
+                     KeyUsage::digitalSignature,
+                     KeyPurposeId::id_kp_codeSigning,
+                     CertPolicyId::anyPolicy,
+                     nullptr/*stapledOCSPResponse*/) != SECSuccess) {
+    return MapSECStatus(SECFailure);
   }
 
   return NS_OK;
