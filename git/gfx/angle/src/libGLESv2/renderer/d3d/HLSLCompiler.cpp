@@ -82,8 +82,8 @@ void HLSLCompiler::release()
     }
 }
 
-gl::Error HLSLCompiler::compileToBinary(gl::InfoLog &infoLog, const std::string &hlsl, const std::string &profile,
-                                        const std::vector<CompileConfig> &configs, ID3DBlob **outCompiledBlob) const
+ID3DBlob *HLSLCompiler::compileToBinary(gl::InfoLog &infoLog, const std::string &hlsl, const std::string &profile,
+                                        const std::vector<CompileConfig> &configs) const
 {
     ASSERT(mD3DCompilerModule && mD3DCompileFunc);
 
@@ -115,15 +115,13 @@ gl::Error HLSLCompiler::compileToBinary(gl::InfoLog &infoLog, const std::string 
 
         if (SUCCEEDED(result))
         {
-            *outCompiledBlob = binary;
-            return gl::Error(GL_NO_ERROR);
+            return binary;
         }
         else
         {
             if (result == E_OUTOFMEMORY)
             {
-                *outCompiledBlob = NULL;
-                return gl::Error(GL_OUT_OF_MEMORY, "HLSL compiler had an unexpected failure, result: 0x%X.", result);
+                return gl::error<ID3DBlob*>(GL_OUT_OF_MEMORY, NULL);
             }
 
             infoLog.append("Warning: D3D shader compilation failed with %s flags.", configs[i].name.c_str());
@@ -135,9 +133,7 @@ gl::Error HLSLCompiler::compileToBinary(gl::InfoLog &infoLog, const std::string 
         }
     }
 
-    // None of the configurations succeeded in compiling this shader but the compiler is still intact
-    *outCompiledBlob = NULL;
-    return gl::Error(GL_NO_ERROR);
+    return NULL;
 }
 
 }

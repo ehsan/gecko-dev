@@ -7,9 +7,9 @@
 
 /**
  * Android system headers have two different elf.h file. The one under linux/
- * is the most complete on older android API versions.
+ * is the most complete.
  */
-#if defined(ANDROID) && __ANDROID_API__ < 21
+#ifdef ANDROID
 #include <linux/elf.h>
 #else
 #include <elf.h>

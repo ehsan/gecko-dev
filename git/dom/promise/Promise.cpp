@@ -12,7 +12,6 @@
 #include "mozilla/dom/OwningNonNull.h"
 #include "mozilla/dom/PromiseBinding.h"
 #include "mozilla/dom/ScriptSettings.h"
-#include "mozilla/dom/MediaStreamError.h"
 #include "mozilla/CycleCollectedJSRuntime.h"
 #include "mozilla/Preferences.h"
 #include "PromiseCallback.h"
@@ -353,11 +352,6 @@ Promise::MaybeReject(JSContext* aCx,
                      JS::Handle<JS::Value> aValue)
 {
   MaybeRejectInternal(aCx, aValue);
-}
-
-void
-Promise::MaybeReject(const nsRefPtr<MediaStreamError>& aArg) {
-  MaybeSomething(aArg, &Promise::MaybeReject);
 }
 
 void
