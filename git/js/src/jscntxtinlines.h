@@ -48,7 +48,7 @@ NewObjectCache::lookup(Class *clasp, gc::Cell *key, gc::AllocKind kind, EntryInd
 inline bool
 NewObjectCache::lookupProto(Class *clasp, JSObject *proto, gc::AllocKind kind, EntryIndex *pentry)
 {
-    JS_ASSERT(!proto->isGlobal());
+    JS_ASSERT(!proto->is<GlobalObject>());
     return lookup(clasp, proto, kind, pentry);
 }
 
@@ -395,7 +395,7 @@ CallJSNativeConstructor(JSContext *cx, Native native, const CallArgs &args)
     JS_ASSERT_IF(native != FunctionProxyClass.construct &&
                  native != js::CallOrConstructBoundFunction &&
                  native != js::IteratorConstructor &&
-                 (!callee->isFunction() || callee->toFunction()->native() != obj_construct),
+                 (!callee->is<JSFunction>() || callee->as<JSFunction>().native() != obj_construct),
                  !args.rval().isPrimitive() && callee != &args.rval().toObject());
 
     return true;
@@ -572,6 +572,29 @@ JSContext::setCompartment(JSCompartment *comp)
 {
     compartment_ = comp;
     zone_ = comp ? comp->zone() : NULL;
+    allocator_ = zone_ ? &zone_->allocator : NULL;
+}
+
+template <typename T>
+inline bool
+js::ThreadSafeContext::isInsideCurrentZone(T thing) const
+{
+    return thing->isInsideZone(zone_);
+}
+
+inline js::AllowGC
+js::ThreadSafeContext::allowGC() const
+{
+    switch (contextKind_) {
+      case Context_JS:
+        return CanGC;
+      case Context_ForkJoin:
+        return NoGC;
+      default:
+        /* Silence warnings. */
+        JS_NOT_REACHED("Bad context kind");
+        return NoGC;
+    }
 }
 
 #endif /* jscntxtinlines_h */

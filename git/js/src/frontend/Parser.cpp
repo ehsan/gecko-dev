@@ -311,17 +311,8 @@ ParseContext<ParseHandler>::generateFunctionBindings(JSContext *cx, InternalHand
     AppendPackedBindings(this, args_, packedBindings);
     AppendPackedBindings(this, vars_, packedBindings + args_.length());
 
-    if (!Bindings::initWithTemporaryStorage(cx, bindings, args_.length(), vars_.length(),
-                                            packedBindings))
-    {
-        return false;
-    }
-
-    FunctionBox *funbox = sc->asFunctionBox();
-    if (bindings->hasAnyAliasedBindings() || funbox->hasExtensibleScope())
-        funbox->function()->setIsHeavyweight();
-
-    return true;
+    return Bindings::initWithTemporaryStorage(cx, bindings, args_.length(), vars_.length(),
+                                              packedBindings);
 }
 
 template <typename ParseHandler>
@@ -1194,9 +1185,9 @@ Parser<ParseHandler>::newFunction(GenericParseContext *pc, HandleAtom atom,
 
     /*
      * Find the global compilation context in order to pre-set the newborn
-     * function's parent slot to pc->sc->asGlobal()->scopeChain. If the global
-     * context is a compile-and-go one, we leave the pre-set parent intact;
-     * otherwise we clear parent and proto.
+     * function's parent slot to pc->sc->as<GlobalObject>()->scopeChain. If the
+     * global context is a compile-and-go one, we leave the pre-set parent
+     * intact; otherwise we clear parent and proto.
      */
     while (pc->parent)
         pc = pc->parent;
@@ -1279,7 +1270,7 @@ ConvertDefinitionToNamedLambdaUse(JSContext *cx, ParseContext<FullParseHandler> 
      * produce an error (in strict mode).
      */
     if (dn->isClosed() || dn->isAssigned())
-        funbox->function()->setIsHeavyweight();
+        funbox->setNeedsDeclEnvObject();
     return true;
 }
 
@@ -2035,7 +2026,7 @@ Parser<SyntaxParseHandler>::finishFunctionDefinition(Node pn, FunctionBox *funbo
         lazy->setUsesArgumentsAndApply();
     PropagateTransitiveParseFlags(funbox, lazy);
 
-    funbox->object->toFunction()->initLazyScript(lazy);
+    funbox->object->as<JSFunction>().initLazyScript(lazy);
     return true;
 }
 

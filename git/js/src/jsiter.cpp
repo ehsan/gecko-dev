@@ -23,6 +23,7 @@
 #include "jsproxy.h"
 #include "jsscript.h"
 
+#include "ds/Sort.h"
 #include "gc/Marking.h"
 #include "vm/GeneratorObject.h"
 #include "vm/GlobalObject.h"
@@ -1844,7 +1845,7 @@ GlobalObject::initIteratorClasses(JSContext *cx, Handle<GlobalObject *> global)
 JSObject *
 js_InitIteratorClasses(JSContext *cx, HandleObject obj)
 {
-    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
+    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
     if (!GlobalObject::initIteratorClasses(cx, global))
         return NULL;
     return global->getIteratorPrototype();

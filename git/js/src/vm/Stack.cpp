@@ -352,10 +352,12 @@ StackFrame::epilogue(JSContext *cx)
              * indirect eval frames scoped to an object carrying the introduced
              * bindings.
              */
-            if (isDebuggerFrame())
-                JS_ASSERT(scopeChain()->isGlobal() || scopeChain()->enclosingScope()->isGlobal());
-            else
-                JS_ASSERT(scopeChain()->isGlobal());
+            if (isDebuggerFrame()) {
+                JS_ASSERT(scopeChain()->is<GlobalObject>() ||
+                          scopeChain()->enclosingScope()->is<GlobalObject>());
+            } else {
+                JS_ASSERT(scopeChain()->is<GlobalObject>());
+            }
         }
         return;
     }
@@ -905,7 +907,7 @@ ContextStack::pushInvokeFrame(JSContext *cx, const CallArgs &args,
                               InitialFrameFlags initial, InvokeFrameGuard *ifg)
 {
     JSObject &callee = args.callee();
-    JSFunction *fun = callee.toFunction();
+    JSFunction *fun = &callee.as<JSFunction>();
     if (!pushInvokeFrame(cx, REPORT_ERROR, args, fun, initial, ifg))
         return false;
     return true;
