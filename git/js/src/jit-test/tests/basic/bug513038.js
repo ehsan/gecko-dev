@@ -6,7 +6,7 @@ function f() {
     (eval("\
       (function(){\
         with(\
-          this.__defineGetter__(\"x\", function(){for(a = 0; a < 3; a++){c=a}})\
+          __defineGetter__(\"x\", function(){for(a = 0; a < 3; a++){c=a}})\
         ){}\
       })\
     "))()

@@ -57,7 +57,7 @@
 #include "mozilla/Services.h"
 #include "nsThreadUtils.h"
 #include "nsNetUtil.h"
-#include "nsIXPConnect.h"
+#include "nsContentUtils.h"
 
 // Initial size for the cache holding visited status observers.
 #define VISIT_OBSERVERS_INITIAL_CACHE_SIZE 128
@@ -204,13 +204,13 @@ GetURIFromJSObject(JSContext* aCtx,
   jsval uriVal;
   JSBool rc = JS_GetProperty(aCtx, aObject, aProperty, &uriVal);
   NS_ENSURE_TRUE(rc, nsnull);
-
   if (!JSVAL_IS_PRIMITIVE(uriVal)) {
-    nsCOMPtr<nsIXPConnect> xpc = mozilla::services::GetXPConnect();
-
     nsCOMPtr<nsIXPConnectWrappedNative> wrappedObj;
-    nsresult rv = xpc->GetWrappedNativeOfJSObject(aCtx, JSVAL_TO_OBJECT(uriVal),
-                                                  getter_AddRefs(wrappedObj));
+    nsresult rv = nsContentUtils::XPConnect()->GetWrappedNativeOfJSObject(
+      aCtx,
+      JSVAL_TO_OBJECT(uriVal),
+      getter_AddRefs(wrappedObj)
+    );
     NS_ENSURE_SUCCESS(rv, nsnull);
     nsCOMPtr<nsIURI> uri = do_QueryWrappedNative(wrappedObj);
     return uri.forget();
@@ -589,6 +589,8 @@ private:
  *        The URI to check.
  * @param [optional] aGUID
  *        The guid of the URI to check.  This is passed back to the callback.
+ * @param [optional] aPlaceId
+ *        The placeId of the URI to check.  This is passed back to the callback.
  * @param [optional] aCallback
  *        The callback to notify if the URI cannot be added to history.
  * @return true if the URI can be added to history, false otherwise.
@@ -596,6 +598,7 @@ private:
 bool
 CanAddURI(nsIURI* aURI,
           const nsCString& aGUID = EmptyCString(),
+          PRInt64 aPlaceId = 0,
           mozIVisitInfoCallback* aCallback = NULL)
 {
   nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
@@ -616,6 +619,7 @@ CanAddURI(nsIURI* aURI,
 
     VisitData place(aURI);
     place.guid = aGUID;
+    place.placeId = aPlaceId;
     nsCOMPtr<nsIRunnable> event =
       new NotifyCompletion(aCallback, place, NS_ERROR_INVALID_ARG);
     (void)NS_DispatchToMainThread(event);
@@ -1851,6 +1855,15 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIURI> uri = GetURIFromJSObject(aCtx, info, "uri");
+    PRInt64 placeId;
+    rv = GetIntFromJSObject(aCtx, info, "placeId", &placeId);
+    if (rv == NS_ERROR_INVALID_ARG) {
+      placeId = 0;
+    }
+    else {
+      NS_ENSURE_SUCCESS(rv, rv);
+      NS_ENSURE_ARG(placeId > 0);
+    }
     nsCString guid;
     {
       nsString fatGUID;
@@ -1865,12 +1878,12 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
 
     // Make sure that any uri we are given can be added to history, and if not,
     // skip it (CanAddURI will notify our callback for us).
-    if (uri && !CanAddURI(uri, guid, aCallback)) {
+    if (uri && !CanAddURI(uri, guid, placeId, aCallback)) {
       continue;
     }
 
-    // We must have at least one of uri or guid.
-    NS_ENSURE_ARG(uri || !guid.IsVoid());
+    // We must have at least one of uri, valid id, or guid.
+    NS_ENSURE_ARG(uri || placeId > 0 || !guid.IsVoid());
 
     // If we were given a guid, make sure it is valid.
     bool isValidGUID = IsValidGUID(guid);
@@ -1905,6 +1918,7 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
       NS_ENSURE_SUCCESS(rv, rv);
 
       VisitData& data = *visitData.AppendElement(VisitData(uri));
+      data.placeId = placeId;
       data.title = title;
       data.guid = guid;
 

@@ -148,45 +148,27 @@ JSProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id,
         return false;
     /* The control-flow here differs from ::get() because of the fall-through case below. */
     if (desc.obj) {
+        if (desc.setter && ((desc.attrs & JSPROP_SETTER) || desc.setter != PropertyStub))
+            return CallSetter(cx, receiver, id, desc.setter, desc.attrs, desc.shortid, vp);
         if (desc.attrs & JSPROP_READONLY)
             return true;
-        if (desc.setter && ((desc.attrs & JSPROP_SETTER) || desc.setter != PropertyStub)) {
-            if (!CallSetter(cx, receiver, id, desc.setter, desc.attrs, desc.shortid, vp))
-                return false;
-            if (desc.attrs & JSPROP_SHARED)
-                return true;
-        }
-        if (!desc.getter)
-            desc.getter = PropertyStub;
-        if (!desc.setter)
-            desc.setter = PropertyStub;
         desc.value = *vp;
         return defineProperty(cx, receiver, id, &desc);
     }
     if (!getPropertyDescriptor(cx, proxy, id, true, &desc))
         return false;
     if (desc.obj) {
+        if (desc.setter && ((desc.attrs & JSPROP_SETTER) || desc.setter != PropertyStub))
+            return CallSetter(cx, receiver, id, desc.setter, desc.attrs, desc.shortid, vp);
         if (desc.attrs & JSPROP_READONLY)
             return true;
-        if (desc.setter && ((desc.attrs & JSPROP_SETTER) || desc.setter != PropertyStub)) {
-            if (!CallSetter(cx, receiver, id, desc.setter, desc.attrs, desc.shortid, vp))
-                return false;
-            if (desc.attrs & JSPROP_SHARED)
-                return true;
-        }
-        if (!desc.getter)
-            desc.getter = PropertyStub;
-        if (!desc.setter)
-            desc.setter = PropertyStub;
         /* fall through */
-    } else {
-        /* Pick up the class getter/setter. */
-        desc.getter = desc.setter = NULL;
     }
-
     desc.obj = receiver;
     desc.value = *vp;
     desc.attrs = JSPROP_ENUMERATE;
+    desc.getter = NULL;
+    desc.setter = NULL;
     desc.shortid = 0;
     return defineProperty(cx, receiver, id, &desc);
 }
@@ -277,7 +259,14 @@ JSProxyHandler::construct(JSContext *cx, JSObject *proxy,
     Value fval = GetConstruct(proxy);
     if (fval.isUndefined())
         return ExternalInvokeConstructor(cx, GetCall(proxy), argc, argv, rval);
-    return ExternalInvoke(cx, UndefinedValue(), fval, argc, argv, rval);
+
+    /*
+     * FIXME: The Proxy proposal says to pass undefined as the this argument,
+     * but primitive this is not supported yet. See bug 576644.
+     */
+    JS_ASSERT(fval.isObject());
+    JSObject *thisobj = fval.toObject().getGlobal();
+    return ExternalInvoke(cx, thisobj, fval, argc, argv, rval);
 }
 
 bool
@@ -346,7 +335,7 @@ GetDerivedTrap(JSContext *cx, JSObject *handler, JSAtom *atom, Value *fvalp)
 static bool
 Trap(JSContext *cx, JSObject *handler, Value fval, uintN argc, Value* argv, Value *rval)
 {
-    return ExternalInvoke(cx, ObjectValue(*handler), fval, argc, argv, rval);
+    return ExternalInvoke(cx, handler, fval, argc, argv, rval);
 }
 
 static bool
@@ -515,8 +504,8 @@ JSScriptedProxyHandler::getPropertyDescriptor(JSContext *cx, JSObject *proxy, js
     return GetFundamentalTrap(cx, handler, ATOM(getPropertyDescriptor), tvr.addr()) &&
            Trap1(cx, handler, tvr.value(), id, tvr.addr()) &&
            ((tvr.value().isUndefined() && IndicatePropertyNotFound(cx, desc)) ||
-            (ReturnedValueMustNotBePrimitive(cx, proxy, ATOM(getPropertyDescriptor), tvr.value()) &&
-             ParsePropertyDescriptorObject(cx, proxy, id, tvr.value(), desc)));
+            ReturnedValueMustNotBePrimitive(cx, proxy, ATOM(getPropertyDescriptor), tvr.value()) &&
+            ParsePropertyDescriptorObject(cx, proxy, id, tvr.value(), desc));
 }
 
 bool
@@ -528,8 +517,8 @@ JSScriptedProxyHandler::getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy,
     return GetFundamentalTrap(cx, handler, ATOM(getOwnPropertyDescriptor), tvr.addr()) &&
            Trap1(cx, handler, tvr.value(), id, tvr.addr()) &&
            ((tvr.value().isUndefined() && IndicatePropertyNotFound(cx, desc)) ||
-            (ReturnedValueMustNotBePrimitive(cx, proxy, ATOM(getPropertyDescriptor), tvr.value()) &&
-             ParsePropertyDescriptorObject(cx, proxy, id, tvr.value(), desc)));
+            ReturnedValueMustNotBePrimitive(cx, proxy, ATOM(getPropertyDescriptor), tvr.value()) &&
+            ParsePropertyDescriptorObject(cx, proxy, id, tvr.value(), desc));
 }
 
 bool
@@ -1290,12 +1279,15 @@ static const uint32 JSSLOT_CALLABLE_CONSTRUCT = 1;
 static JSBool
 callable_Call(JSContext *cx, uintN argc, Value *vp)
 {
+    JSObject *thisobj = ComputeThisFromVp(cx, vp);
+    if (!thisobj)
+        return false;
+
     JSObject *callable = &JS_CALLEE(cx, vp).toObject();
     JS_ASSERT(callable->getClass() == &CallableObjectClass);
     const Value &fval = callable->getSlot(JSSLOT_CALLABLE_CALL);
-    const Value &thisval = vp[1];
     Value rval;
-    bool ok = ExternalInvoke(cx, thisval, fval, argc, JS_ARGV(cx, vp), &rval);
+    bool ok = ExternalInvoke(cx, thisobj, fval, argc, JS_ARGV(cx, vp), &rval);
     *vp = rval;
     return ok;
 }
@@ -1334,7 +1326,7 @@ callable_Construct(JSContext *cx, uintN argc, Value *vp)
 
         /* If the call returns an object, return that, otherwise the original newobj. */
         Value rval;
-        if (!ExternalInvoke(cx, ObjectValue(*newobj), callable->getSlot(JSSLOT_CALLABLE_CALL),
+        if (!ExternalInvoke(cx, newobj, callable->getSlot(JSSLOT_CALLABLE_CALL),
                             argc, vp + 2, &rval)) {
             return false;
         }
@@ -1346,7 +1338,7 @@ callable_Construct(JSContext *cx, uintN argc, Value *vp)
     }
 
     Value rval;
-    bool ok = ExternalInvoke(cx, ObjectValue(*thisobj), fval, argc, vp + 2, &rval);
+    bool ok = ExternalInvoke(cx, thisobj, fval, argc, vp + 2, &rval);
     *vp = rval;
     return ok;
 }

@@ -67,6 +67,7 @@ static NS_DEFINE_CID(kSocketTransportServiceCID, NS_SOCKETTRANSPORTSERVICE_CID);
 nsHttpConnection::nsHttpConnection()
     : mTransaction(nsnull)
     , mConnInfo(nsnull)
+    , mLock(nsnull)
     , mLastReadTime(0)
     , mIdleTimeout(0)
     , mKeepAlive(PR_TRUE) // assume to keep-alive by default
@@ -74,7 +75,6 @@ nsHttpConnection::nsHttpConnection()
     , mSupportsPipelining(PR_FALSE) // assume low-grade server
     , mIsReused(PR_FALSE)
     , mCompletedSSLConnect(PR_FALSE)
-    , mLastTransactionExpectedNoContent(PR_FALSE)
 {
     LOG(("Creating nsHttpConnection @%x\n", this));
 
@@ -90,6 +90,11 @@ nsHttpConnection::~nsHttpConnection()
     NS_IF_RELEASE(mConnInfo);
     NS_IF_RELEASE(mTransaction);
 
+    if (mLock) {
+        PR_DestroyLock(mLock);
+        mLock = nsnull;
+    }
+
     // release our reference to the handler
     nsHttpHandler *handler = gHttpHandler;
     NS_RELEASE(handler);
@@ -102,6 +107,10 @@ nsHttpConnection::Init(nsHttpConnectionInfo *info, PRUint16 maxHangTime)
 
     NS_ENSURE_ARG_POINTER(info);
     NS_ENSURE_TRUE(!mConnInfo, NS_ERROR_ALREADY_INITIALIZED);
+
+    mLock = PR_NewLock();
+    if (!mLock)
+        return NS_ERROR_OUT_OF_MEMORY;
 
     mConnInfo = info;
     NS_ADDREF(mConnInfo);
@@ -318,6 +327,16 @@ nsHttpConnection::OnHeadersAvailable(nsAHttpTransaction *trans,
 
     // reset to default (the server may have changed since we last checked)
     mSupportsPipelining = PR_FALSE;
+
+    // Ignore response to CONNECT from SSL proxy, we need
+    // version of the target server.
+    if (!mSSLProxyConnectStream) {
+        if ((responseHead->Version() > NS_HTTP_VERSION_0_9) &&
+            (requestHead->Version() > NS_HTTP_VERSION_0_9))
+        {
+            mConnInfo->DisallowHttp09();
+        }
+    }
 
     if ((responseHead->Version() < NS_HTTP_VERSION_1_1) ||
         (requestHead->Version() < NS_HTTP_VERSION_1_1)) {

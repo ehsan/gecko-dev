@@ -269,7 +269,7 @@ nsCaretAccessible::NormalSelectionChanged(nsISelection* aSelection)
     return; // No selection
   }
 
-  nsHyperTextAccessible* textAcc =
+  nsRefPtr<nsHyperTextAccessible> textAcc =
     nsAccUtils::GetTextAccessibleFromSelection(aSelection);
   if (!textAcc)
     return;
@@ -287,7 +287,7 @@ nsCaretAccessible::NormalSelectionChanged(nsISelection* aSelection)
   }
 
   mLastCaretOffset = caretOffset;
-  mLastTextAccessible = textAcc;
+  mLastTextAccessible.swap(textAcc);
 
   nsRefPtr<AccEvent> event =
     new AccCaretMoveEvent(mLastTextAccessible->GetNode());
@@ -304,7 +304,7 @@ nsCaretAccessible::SpellcheckSelectionChanged(nsISelection* aSelection)
   // misspelled word). If spellchecking is disabled (for example,
   // @spellcheck="false" on html:body) then we won't fire any event.
 
-  nsHyperTextAccessible* textAcc =
+  nsRefPtr<nsHyperTextAccessible> textAcc =
     nsAccUtils::GetTextAccessibleFromSelection(aSelection);
   if (!textAcc)
     return;

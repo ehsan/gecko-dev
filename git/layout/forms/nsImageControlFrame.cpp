@@ -56,7 +56,7 @@
 #include "nsContainerFrame.h"
 #include "nsLayoutUtils.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 
 void
@@ -167,7 +167,8 @@ NS_QUERYFRAME_TAIL_INHERITING(nsImageControlFrameSuper)
 already_AddRefed<nsAccessible>
 nsImageControlFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     if (mContent->Tag() == nsGkAtoms::button) {
       return accService->CreateHTML4ButtonAccessible(mContent, PresContext()->PresShell());

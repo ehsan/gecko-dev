@@ -48,7 +48,7 @@
 #include "nsHTMLParts.h"
 #include "nsIPresShell.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 #include "nsIDOMNode.h"
@@ -150,7 +150,7 @@ already_AddRefed<nsAccessible>
 nsTableCaptionFrame::CreateAccessible()
 {
   if (!GetRect().IsEmpty()) {
-    nsAccessibilityService* accService = nsIPresShell::AccService();
+    nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
     if (accService) {
       return accService->CreateHTMLCaptionAccessible(mContent,
                                                      PresContext()->PresShell());
@@ -196,7 +196,8 @@ NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 already_AddRefed<nsAccessible>
 nsTableOuterFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHTMLTableAccessible(mContent,
                                                  PresContext()->PresShell());

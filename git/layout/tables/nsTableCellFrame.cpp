@@ -54,7 +54,7 @@
 #include "nsCOMPtr.h"
 #include "nsIDOMHTMLTableCellElement.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 #include "nsIDOMNode.h"
@@ -992,7 +992,8 @@ NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 already_AddRefed<nsAccessible>
 nsTableCellFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHTMLTableCellAccessible(mContent,
                                                      PresContext()->PresShell());

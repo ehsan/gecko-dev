@@ -287,7 +287,7 @@ class AudioShutdownEvent : public nsRunnable
   NS_IMETHOD Run()
   {
     if (mAudioChild->IsIPCOpen())
-      mAudioChild->SendShutdown();
+      PAudioChild::Send__delete__(mAudioChild);
     return NS_OK;
   }
   
@@ -512,8 +512,6 @@ void nsAudioStreamLocal::SetVolume(double aVolume)
 
 void nsAudioStreamLocal::Drain()
 {
-  NS_ASSERTION(!mPaused, "Don't drain audio when paused, it won't finish!");
-
   if (mInError)
     return;
 

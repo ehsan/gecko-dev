@@ -449,11 +449,6 @@ toolbar[mode="icons"] .toolbarbutton-1 > menupopup {
   margin-top: 1px;
 }
 
-#navigator-toolbox > toolbar {
-  /* force iconsize="small" on these toolbars */
-  counter-reset: smallicons;
-}
-
 /* unified back/forward button */
 
 #unified-back-forward-button {
@@ -470,7 +465,7 @@ toolbar:not([mode="icons"]) #back-button:-moz-locale-dir(rtl) {
   -moz-image-region: rect(0, 60px, 20px, 40px);
 }
 
-#navigator-toolbox[iconsize="large"][mode="icons"] > #nav-bar #back-button {
+toolbar:not([iconsize="small"])[mode="icons"] #back-button {
   -moz-margin-end: -5px;
   position: relative;
   z-index: 1;
@@ -490,17 +485,27 @@ toolbar[mode="icons"] #forward-button {
   -moz-margin-start: 0;
 }
 
-#navigator-toolbox[iconsize="large"][mode="icons"] > #nav-bar #forward-button {
+toolbar[mode="icons"]:not([iconsize="small"]) #forward-button {
   /* 1px to the right */
   padding-left: 4px;
   padding-right: 2px;
 }
 
-#navigator-toolbox[iconsize="large"][mode="icons"] > #nav-bar #forward-button:-moz-lwtheme {
+toolbar[mode="icons"]:not([iconsize="small"]) #forward-button:-moz-lwtheme {
   mask: url(chrome://browser/content/browser.xul#pinstripe-keyhole-forward-mask);
 }
 
-#navigator-toolbox[iconsize="small"][mode="icons"] > #nav-bar #forward-button {
+toolbar[iconsize="small"][mode="icons"] #back-button {
+  -moz-margin-end: 0;
+}
+
+toolbar[iconsize="small"][mode="icons"] #back-button {
+  width: 26px;
+  border-right-width: 0;
+  padding-right: 2px;
+}
+
+toolbar[iconsize="small"][mode="icons"] #forward-button  {
   width: 27px;
   padding-left: 2px;
 }
@@ -510,11 +515,7 @@ toolbar[mode="icons"] #forward-button {
   border-bottom-left-radius: 0;
 }
 
-#navigator-toolbox[iconsize="small"][mode="icons"] > #nav-bar #back-button {
-  -moz-margin-end: 0;
-  width: 26px;
-  padding-right: 2px;
-  border-right-width: 0;
+toolbar[iconsize="small"][mode="icons"] #back-button {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -894,6 +895,42 @@ toolbar[mode="icons"] #zoom-in-button {
 
 #PopupAutoCompleteRichResult {
   margin-top: 2px;
+}
+
+/* over-link in location bar */
+
+.urlbar-origin-label {
+  padding-top: 0;
+  padding-bottom: 0;
+  -moz-padding-start: 1px;
+  -moz-padding-end: 0;
+  margin: 0;
+}
+
+.urlbar-over-link-box {
+  position: relative;
+  color: GrayText;
+  min-height: 20px;
+  padding-top: 0;
+  padding-bottom: 0;
+  -moz-padding-start: 18px;
+  -moz-padding-end: 5px;
+}
+
+.urlbar-over-link-box:-moz-locale-dir(ltr) {
+  background: url(chrome://browser/skin/urlbar-over-link-arrow.png) no-repeat left center;
+  right: 0;
+}
+
+.urlbar-over-link-box:-moz-locale-dir(rtl) {
+  background: url(chrome://browser/skin/urlbar-over-link-arrow-rtl.png) no-repeat right center;
+  left: 0;
+}
+
+.urlbar-over-link-host-label,
+.urlbar-over-link-path-label {
+  padding: 0;
+  margin: 0;
 }
 
 /* ----- AUTOCOMPLETE ----- */
@@ -1766,8 +1803,8 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
  */
 
 .tab-drop-indicator {
+  margin-top: -8px !important;
   list-style-image: url(chrome://browser/skin/tabbrowser/tabDragIndicator.png);
-  margin-bottom: -8px;
 }
 
 /**
@@ -1898,16 +1935,16 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 
 #TabsToolbar #alltabs-button {
   list-style-image: url(chrome://browser/skin/tabbrowser/alltabs-box-bkgnd-icon.png);
-  -moz-image-region: rect(0, 17px, 20px, 0);
+  -moz-image-region: rect(0, 22px, 20px, 0);
 }
 
 #TabsToolbar > #alltabs-button:not([disabled="true"]):hover {
-  -moz-image-region: rect(0, 34px, 20px, 17px);
+  -moz-image-region: rect(0, 44px, 20px, 22px);
 }
 
 #TabsToolbar > #alltabs-button[type="menu"][open="true"]:not([disabled="true"]),
 #TabsToolbar > #alltabs-button:not([disabled="true"]):hover:active {
-  -moz-image-region: rect(0, 51px, 20px, 34px);
+  -moz-image-region: rect(0, 66px, 20px, 44px);
 }
 
 #alltabs-button[type="menu"] > .toolbarbutton-menu-dropmarker {
@@ -2321,7 +2358,6 @@ panel[dimmed="true"] {
 
 #addon-bar {
   min-height: 18px;
-  padding-right: 16px; /* replace with -moz-padding-end when/if bug 631729 gets fixed */
 }
 
 #addon-bar:not(:-moz-lwtheme) {
@@ -2330,7 +2366,6 @@ panel[dimmed="true"] {
 
 #status-bar {
   -moz-appearance: none;
-  padding-right: 0;
 }
 
 #status-bar > statusbarpanel {
@@ -2351,30 +2386,4 @@ panel[dimmed="true"] {
 
 #addonbar-closebutton:hover:active {
   list-style-image: url("chrome://global/skin/icons/closetab-active.png");
-}
-
-/* Status panel */
-
-.statuspanel-label {
-  margin: 0;
-  padding: 2px 4px;
-  background: -moz-linear-gradient(white, #ddd);
-  border: 1px none #ccc;
-  border-top-style: solid;
-  color: #333;
-  text-shadow: none;
-}
-
-.statuspanel-label:-moz-locale-dir(ltr):not([mirror]),
-.statuspanel-label:-moz-locale-dir(rtl)[mirror] {
-  border-right-style: solid;
-  border-top-right-radius: .3em;
-  margin-right: 1em;
-}
-
-.statuspanel-label:-moz-locale-dir(rtl):not([mirror]),
-.statuspanel-label:-moz-locale-dir(ltr)[mirror] {
-  border-left-style: solid;
-  border-top-left-radius: .3em;
-  margin-left: 1em;
 }

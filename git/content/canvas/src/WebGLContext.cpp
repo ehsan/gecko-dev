@@ -402,11 +402,10 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     PRBool forceOSMesa = PR_FALSE;
     PRBool preferEGL = PR_FALSE;
     PRBool preferOpenGL = PR_FALSE;
-    PRBool forceEnabled = PR_FALSE;
     prefService->GetBoolPref("webgl.force_osmesa", &forceOSMesa);
-    prefService->GetBoolPref("webgl.prefer-egl", &preferEGL);
-    prefService->GetBoolPref("webgl.prefer-native-gl", &preferOpenGL);
-    prefService->GetBoolPref("webgl.force-enabled", &forceEnabled);
+    prefService->GetBoolPref("webgl.prefer_egl", &preferEGL);
+    prefService->GetBoolPref("webgl.prefer_gl", &preferOpenGL);
+
     if (PR_GetEnv("MOZ_WEBGL_PREFER_EGL")) {
         preferEGL = PR_TRUE;
     }
@@ -416,7 +415,7 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     PRBool useANGLE = PR_TRUE;
 
     nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-    if (gfxInfo && !forceEnabled) {
+    if (gfxInfo) {
         PRInt32 status;
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_OPENGL, &status))) {
             if (status != nsIGfxInfo::FEATURE_NO_INFO) {
@@ -574,12 +573,9 @@ WebGLContext::GetInputStream(const char* aMimeType,
     if (surf->CairoStatus() != 0)
         return NS_ERROR_FAILURE;
 
-    nsRefPtr<gfxContext> tmpcx = new gfxContext(surf);
-    // Use Render() to make sure that appropriate y-flip gets applied
-    nsresult rv = Render(tmpcx, gfxPattern::FILTER_NEAREST);
-    if (NS_FAILED(rv))
-        return rv;
+    gl->ReadPixelsIntoImageSurface(0, 0, mWidth, mHeight, surf);
 
+    nsresult rv;
     const char encoderPrefix[] = "@mozilla.org/image/encoder;2?type=";
     nsAutoArrayPtr<char> conid(new char[strlen(encoderPrefix) + strlen(aMimeType) + 1]);
 
@@ -622,7 +618,6 @@ WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
         if (mInvalidated) {
             aOldLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
             mInvalidated = PR_FALSE;
-            HTMLCanvasElement()->GetPrimaryCanvasFrame()->MarkLayersActive();
         }
         return aOldLayer;
     }

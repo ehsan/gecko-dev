@@ -2521,13 +2521,7 @@ ia64*-hpux*)
         if test $_MSC_VER -ge 1400; then
             LDFLAGS="$LDFLAGS -SAFESEH"
         fi
-
-        if test -n "$GNU_CC"; then
-            CFLAGS="$CFLAGS -mstackrealign"
-            CXXFLAGS="$CXXFLAGS -mstackrealign"
-        fi
-
-        AC_CHECK_HEADERS(mmintrin.h)
+	AC_CHECK_HEADERS(mmintrin.h)
     	AC_DEFINE(_X86_)
 	;;
     alpha-*)
@@ -4623,7 +4617,7 @@ MOZ_ARG_WITH_BOOL(system-nspr,
     _USE_SYSTEM_NSPR=1 )
 
 if test -n "$_USE_SYSTEM_NSPR"; then
-    AM_PATH_NSPR(4.8.7, [MOZ_NATIVE_NSPR=1], [AC_MSG_ERROR([your don't have NSPR installed or your version is too old])])
+    AM_PATH_NSPR(4.8.7, [MOZ_NATIVE_NSPR=1], [MOZ_NATIVE_NSPR=])
 fi
 
 if test -n "$MOZ_NATIVE_NSPR"; then
@@ -4700,7 +4694,7 @@ MOZ_ARG_WITH_BOOL(system-nss,
     _USE_SYSTEM_NSS=1 )
 
 if test -n "$_USE_SYSTEM_NSS"; then
-    AM_PATH_NSS(3.12.9, [MOZ_NATIVE_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
+    AM_PATH_NSS(3.12.9, [MOZ_NATIVE_NSS=1], [MOZ_NATIVE_NSS=])
 fi
 
 if test -n "$MOZ_NATIVE_NSS"; then
@@ -5426,6 +5420,7 @@ AC_SUBST(MOZ_GTK2_CFLAGS)
 AC_SUBST(MOZ_GTK2_LIBS)
 AC_SUBST(MOZ_QT_CFLAGS)
 AC_SUBST(MOZ_QT_LIBS)
+AC_SUBST(MOZ_ENABLE_MEEGOTOUCH)
 
 AC_SUBST(MOC)
 
@@ -6356,21 +6351,22 @@ if test -n "$MOZ_ANGLE"; then
     AC_MSG_ERROR([Building ANGLE requires MSVC.  To build without ANGLE, reconfigure with --disable-angle.])
   fi
 
-  # Get the SDK path from the registry.
-  MOZ_DIRECTX_SDK_REG_KEY=`reg query 'HKLM\Software\Microsoft\DirectX' //s | grep 'Microsoft DirectX SDK' | head -n 1`
-  MOZ_DIRECTX_SDK_PATH=`reg query "$MOZ_DIRECTX_SDK_REG_KEY" //v InstallPath | grep REG_SZ | sed 's,  *, ,g' | cut -d' ' -f4-`
+  AC_CHECK_HEADER(d3dx9.h, [], [MOZ_ANGLE=])
 
-  MOZ_ANGLE=
-
-  if test -n "$MOZ_DIRECTX_SDK_PATH" ; then
-    if test -f "$MOZ_DIRECTX_SDK_PATH"/include/d3dx9.h && test -f "$MOZ_DIRECTX_SDK_PATH"/lib/x86/dxguid.lib ; then
-      AC_MSG_RESULT([Found DirectX SDK via DXSDK_DIR, using $MOZ_DIRECTX_SDK_PATH])
-      MOZ_ANGLE=1
+  if test -z "$MOZ_ANGLE"; then
+    # Try again, but try to get the SDK path from the registry.  We're going to hardcode
+    # the February 2010 SDK, since that's the one that's installed on the tinderboxen.
+    MOZ_DIRECTX_SDK_PATH=`reg query 'HKLM\Software\Microsoft\DirectX\Microsoft DirectX SDK (February 2010)' //v InstallPath | grep REG_SZ | sed 's,  *, ,g' | cut -d' ' -f4-`
+    if test -n "$MOZ_DIRECTX_SDK_PATH" ; then
+      if test -f "$MOZ_DIRECTX_SDK_PATH"/include/d3dx9.h && test -f "$MOZ_DIRECTX_SDK_PATH"/lib/x86/dxguid.lib ; then
+        AC_MSG_WARN([Found DirectX SDK in registry, using $MOZ_DIRECTX_SDK_PATH])
+        MOZ_ANGLE=1
+      fi
     fi
   fi
 
-  if test -z "$MOZ_ANGLE" ; then
-    AC_MSG_WARN([Couldn't find the DirectX SDK, needed for ANGLE. Please install it (February 2010 or newer). To explicitly build without ANGLE, reconfigure with --disable-angle.])
+  if test -z "$MOZ_ANGLE"; then
+    AC_MSG_WARN([Couldn't find d3dx9.h in your INCLUDE path, needed for ANGLE.  Please install the February 2010 DirectX SDK, or make another version available in your LIB and INCLUDE path env variables.  To explicitly build without ANGLE, reconfigure with --disable-angle.])
     AC_MSG_WARN([This will become an error in the future.])
   fi
 fi
@@ -6388,9 +6384,7 @@ i?86-apple-darwin*|powerpc-apple-darwin*|x86_64-apple-darwin*)
   MOZ_CRASHREPORTER=1
   ;;
 i?86-*-linux*|x86_64-*-linux*|arm-*-linux*)
-  if test "$MOZ_ENABLE_GTK2"; then
-    MOZ_CRASHREPORTER=1
-  fi
+  MOZ_CRASHREPORTER=1
   ;;
 arm-android-eabi)
   MOZ_CRASHREPORTER=1
@@ -7097,27 +7091,19 @@ if test $MOZ_PLATFORM_MAEMO; then
 
    fi
    if test $MOZ_PLATFORM_MAEMO = 6; then
-      dnl ========================================================
-      dnl = Enable meego libcontentaction
-      dnl ========================================================
-      MOZ_ARG_ENABLE_BOOL(meegocontentaction,
-      [  --enable-meegocontentaction           Enable meegocontentaction support],
-         MOZ_MEEGOCONTENTACTION=1,
-         MOZ_MEEGOCONTENTACTION=)
-
-      if test -n "$MOZ_MEEGOCONTENTACTION"; then
-
-         PKG_CHECK_MODULES(LIBCONTENTACTION, contentaction-0.1, _LIB_FOUND=1, _LIB_FOUND=)
-         if test "$_LIB_FOUND"; then
-            MOZ_PLATFORM_MAEMO_LIBS="$MOZ_PLATFORM_MAEMO_LIBS $LIBCONTENTACTION_LIBS"
-            MOZ_PLATFORM_MAEMO_CFLAGS="$MOZ_PLATFORM_MAEMO_CFLAGS $LIBCONTENTACTION_CFLAGS"
-            MOZ_ENABLE_CONTENTACTION=1
-            AC_DEFINE(MOZ_ENABLE_CONTENTACTION)
-            AC_SUBST(MOZ_ENABLE_CONTENTACTION)
-         fi
+      PKG_CHECK_MODULES(LIBCONTENTACTION, contentaction-0.1, _LIB_FOUND=1, _LIB_FOUND=)
+      MOZ_PLATFORM_MAEMO_LIBS="$MOZ_PLATFORM_MAEMO_LIBS $LIBCONTENTACTION_LIBS"
+      MOZ_PLATFORM_MAEMO_CFLAGS="$MOZ_PLATFORM_MAEMO_CFLAGS $LIBCONTENTACTION_CFLAGS"
+      if test -z "$_LIB_FOUND"; then
+         AC_MSG_ERROR([libcontentaction is required when build for Maemo])
       fi
-
-      MOZ_THUMB2=1
+     
+     MOZ_THUMB2=1
+     PKG_CHECK_MODULES(MOZ_MEEGOTOUCH, meegotouchcore)
+     MOZ_ENABLE_MEEGOTOUCH=1
+     AC_DEFINE(MOZ_ENABLE_MEEGOTOUCH)
+     MOZ_QT_CFLAGS="$MOZ_MEEGOTOUCH_CFLAGS $MOZ_QT_CFLAGS"
+     MOZ_QT_LIBS="$MOZ_MEEGOTOUCH_LIBS $MOZ_QT_LIBS"
    fi
 
    PKG_CHECK_MODULES(LIBLOCATION,liblocation, _LIB_FOUND=1, _LIB_FOUND=)
@@ -9181,7 +9167,6 @@ AC_SUBST(HOST_CC)
 AC_SUBST(HOST_CXX)
 AC_SUBST(HOST_CFLAGS)
 AC_SUBST(HOST_CXXFLAGS)
-AC_SUBST(HOST_LDFLAGS)
 AC_SUBST(HOST_OPTIMIZE_FLAGS)
 AC_SUBST(HOST_AR)
 AC_SUBST(HOST_AR_FLAGS)

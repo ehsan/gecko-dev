@@ -198,6 +198,37 @@ function test_invalid_places_throws()
   run_next_test();
 }
 
+function test_invalid_id_throws()
+{
+  // First check invalid id "0".
+  let place = {
+    placeId: 0,
+    uri: NetUtil.newURI(TEST_DOMAIN + "test_invalid_id_throws"),
+    visits: [
+      new VisitInfo(),
+    ],
+  };
+  try {
+    gHistory.updatePlaces(place);
+    do_throw("Should have thrown!");
+  }
+  catch (e) {
+    do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
+  }
+
+  // Now check negative id.
+  place.placeId = -5;
+  try {
+    gHistory.updatePlaces(place);
+    do_throw("Should have thrown!");
+  }
+  catch (e) {
+    do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
+  }
+
+  run_next_test();
+}
+
 function test_invalid_guid_throws()
 {
   // First check invalid length guid.
@@ -241,6 +272,7 @@ function test_no_visits_throws()
     let str = "Testing place with " +
       (aPlace.uri ? "uri" : "no uri") + ", " +
       (aPlace.guid ? "guid" : "no guid") + ", " +
+      (aPlace.placeId ? "placeId" : "no placeId") + ", " +
       (aPlace.visits ? "visits array" : "no visits array");
     do_log_info(str);
   };
@@ -255,16 +287,20 @@ function test_no_visits_throws()
     for (let guid = 1; guid >= 0; guid--) {
       place.guid = guid ? TEST_GUID : undefined;
 
-      for (let visits = 1; visits >= 0; visits--) {
-        place.visits = visits ? [] : undefined;
+      for (let placeId = 1; placeId >= 0; placeId--) {
+        place.placeId = placeId ? TEST_PLACEID : undefined;
 
-        log_test_conditions(place);
-        try {
-          gHistory.updatePlaces(place);
-          do_throw("Should have thrown!");
-        }
-        catch (e) {
-          do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
+        for (let visits = 1; visits >= 0; visits--) {
+          place.visits = visits ? [] : undefined;
+
+          log_test_conditions(place);
+          try {
+            gHistory.updatePlaces(place);
+            do_throw("Should have thrown!");
+          }
+          catch (e) {
+            do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
+          }
         }
       }
     }
@@ -858,6 +894,7 @@ let gTests = [
   test_interface_exists,
   test_invalid_uri_throws,
   test_invalid_places_throws,
+  test_invalid_id_throws,
   test_invalid_guid_throws,
   test_no_visits_throws,
   test_add_visit_no_date_throws,

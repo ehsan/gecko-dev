@@ -181,7 +181,8 @@
 #include "nsIDOMHTMLLinkElement.h"
 #include "nsITimer.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
+#include "nsAccessible.h"
 #endif
 
 // For style data reconstruction
@@ -1900,9 +1901,12 @@ PresShell::Destroy()
     return;
 
 #ifdef ACCESSIBILITY
-  nsAccessibilityService* accService = AccService();
-  if (accService) {
-    accService->PresShellDestroyed(this);
+  if (gIsAccessibilityActive) {
+    nsCOMPtr<nsIAccessibilityService> accService =
+      do_GetService("@mozilla.org/accessibilityService;1");
+    if (accService) {
+      accService->PresShellDestroyed(this);
+    }
   }
 #endif // ACCESSIBILITY
 
@@ -4026,8 +4030,9 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
   }
 
 #ifdef ACCESSIBILITY
-  if (anchorTarget) {
-    nsAccessibilityService* accService = AccService();
+  if (anchorTarget && gIsAccessibilityActive) {
+    nsCOMPtr<nsIAccessibilityService> accService = 
+      do_GetService("@mozilla.org/accessibilityService;1");
     if (accService)
       accService->NotifyOfAnchorJumpTo(anchorTarget);
   }
@@ -4416,7 +4421,7 @@ nsresult PresShell::GetLinkLocation(nsIDOMNode* aNode, nsAString& aLocationStrin
   NS_ENSURE_ARG_POINTER(aNode);
   nsresult rv;
   nsAutoString anchorText;
-  static const char strippedChars[] = "\t\r\n";
+  static char strippedChars[] = {'\t','\r','\n'};
 
   // are we an anchor?
   nsCOMPtr<nsIDOMHTMLAnchorElement> anchor(do_QueryInterface(aNode));
@@ -4996,7 +5001,18 @@ PresShell::DocumentStatesChanged(nsIDocument* aDocument,
   if (aStateMask.HasState(NS_DOCUMENT_STATE_WINDOW_INACTIVE)) {
     nsIFrame* root = FrameManager()->GetRootFrame();
     if (root) {
-      root->InvalidateFrameSubtree();
+      // It's a display root. So, invalidate the layer contents of
+      // everything we can find. We need to do this because the contents
+      // of controls etc can depend on whether the window is active,
+      // and when a window becomes (in)active it just gets repainted
+      // and we don't specifically invalidate each affected control.
+      nsIWidget* widget = root->GetNearestWidget();
+      if (widget) {
+        LayerManager* layerManager = widget->GetLayerManager();
+        if (layerManager) {
+          FrameLayerBuilder::InvalidateAllThebesLayerContents(layerManager);
+        }
+      }
     }
   }
 }
@@ -5139,13 +5155,6 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
 nsresult
 PresShell::ReconstructFrames(void)
 {
-  NS_PRECONDITION(!FrameManager()->GetRootFrame() || mDidInitialReflow,
-                  "Must not have root frame before initial reflow");
-  if (!mDidInitialReflow) {
-    // Nothing to do here
-    return NS_OK;
-  }
-
   nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
 
   // Have to make sure that the content notifications are flushed before we
@@ -6127,33 +6136,16 @@ PresShell::Paint(nsIView*           aDisplayRoot,
   nsIFrame* frame = aPaintDefaultBackground
       ? nsnull : static_cast<nsIFrame*>(aDisplayRoot->GetClientData());
 
-  bool isRetainingManager;
-  LayerManager* layerManager =
-    aWidgetToPaint->GetLayerManager(&isRetainingManager);
+  LayerManager* layerManager = aWidgetToPaint->GetLayerManager();
   NS_ASSERTION(layerManager, "Must be in paint event");
   layerManager->BeginTransaction();
 
-  if (frame && isRetainingManager) {
-    // Try to do an empty transaction, if the frame tree does not
-    // need to be updated. Do not try to do an empty transaction on
-    // a non-retained layer manager (like the BasicLayerManager that
-    // draws the window title bar on Mac), because a) it won't work
-    // and b) below we don't want to clear NS_FRAME_UPDATE_LAYER_TREE,
-    // that will cause us to forget to update the real layer manager!
-    if (!(frame->GetStateBits() & NS_FRAME_UPDATE_LAYER_TREE)) {
-      if (layerManager->EndEmptyTransaction()) {
-        frame->UpdatePaintCountForPaintedPresShells();
-        presContext->NotifyDidPaintForSubtree();
-        
-        return NS_OK;
-      }
-    }
-    
-
-    frame->RemoveStateBits(NS_FRAME_UPDATE_LAYER_TREE);
-  }
   if (frame) {
-    frame->ClearPresShellsFromLastPaint();
+    if (!(frame->GetStateBits() & NS_FRAME_UPDATE_LAYER_TREE)) {
+      if (layerManager->EndEmptyTransaction())
+        return NS_OK;
+    }
+    frame->RemoveStateBits(NS_FRAME_UPDATE_LAYER_TREE);
   }
 
   nscolor bgcolor = ComputeBackstopColor(aDisplayRoot);
@@ -6740,8 +6732,8 @@ PresShell::HandleEvent(nsIView         *aView,
         // content area from grabbing the focus from chrome in-between key
         // events.
         if (mCurrentEventContent &&
-            nsContentUtils::IsChromeDoc(gKeyDownTarget->GetCurrentDoc()) !=
-            nsContentUtils::IsChromeDoc(mCurrentEventContent->GetCurrentDoc())) {
+            nsContentUtils::IsChromeDoc(gKeyDownTarget->GetCurrentDoc()) &&
+            !nsContentUtils::IsChromeDoc(mCurrentEventContent->GetCurrentDoc())) {
           mCurrentEventContent = gKeyDownTarget;
         }
 
@@ -8178,9 +8170,8 @@ PRBool
 nsIPresShell::AddRefreshObserverInternal(nsARefreshObserver* aObserver,
                                          mozFlushType aFlushType)
 {
-  nsPresContext* presContext = GetPresContext();
-  return presContext ? presContext->RefreshDriver()->
-    AddRefreshObserver(aObserver, aFlushType) : PR_FALSE;
+  return GetPresContext()->RefreshDriver()->
+    AddRefreshObserver(aObserver, aFlushType);
 }
 
 /* virtual */ PRBool
@@ -8194,9 +8185,8 @@ PRBool
 nsIPresShell::RemoveRefreshObserverInternal(nsARefreshObserver* aObserver,
                                             mozFlushType aFlushType)
 {
-  nsPresContext* presContext = GetPresContext();
-  return presContext ? presContext->RefreshDriver()->
-    RemoveRefreshObserver(aObserver, aFlushType) : PR_FALSE;
+  return GetPresContext()->RefreshDriver()->
+    RemoveRefreshObserver(aObserver, aFlushType);
 }
 
 /* virtual */ PRBool
@@ -9267,23 +9257,6 @@ nsIFrame* nsIPresShell::GetAbsoluteContainingBlock(nsIFrame *aFrame)
 {
   return FrameConstructor()->GetAbsoluteContainingBlock(aFrame);
 }
-
-#ifdef ACCESSIBILITY
-nsAccessibilityService*
-nsIPresShell::AccService()
-{
-#ifdef MOZ_ENABLE_LIBXUL
-  return GetAccService();
-#else
-  if (gIsAccessibilityActive) {
-    nsCOMPtr<nsIAccessibilityService> srv =
-      do_GetService("@mozilla.org/accessibilityService;1");
-    return static_cast<nsAccessibilityService*>(srv.get());
-  }
-  return nsnull;
-#endif
-}
-#endif
 
 void nsIPresShell::InitializeStatics()
 {

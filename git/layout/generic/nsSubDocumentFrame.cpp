@@ -100,7 +100,7 @@ using mozilla::layout::RenderFrameParent;
 
 // For Accessibility
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 
@@ -131,7 +131,7 @@ nsSubDocumentFrame::nsSubDocumentFrame(nsStyleContext* aContext)
 already_AddRefed<nsAccessible>
 nsSubDocumentFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
   return accService ?
     accService->CreateOuterDocAccessible(mContent, PresContext()->PresShell()) :
     nsnull;
@@ -673,6 +673,11 @@ nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
   CheckInvalidateSizeChange(aDesiredSize);
 
   FinishAndStoreOverflow(&aDesiredSize);
+
+  // Invalidate the frame contents
+  // XXX is this really needed?
+  nsRect rect(nsPoint(0, 0), GetSize());
+  Invalidate(rect);
 
   if (!aPresContext->IsPaginated() && !mPostedReflowCallback) {
     PresContext()->PresShell()->PostReflowCallback(this);

@@ -1387,7 +1387,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   if (aFlags & PAINT_SYNC_DECODE_IMAGES) {
     builder.SetSyncDecodeImages(PR_TRUE);
   }
-  if (aFlags & (PAINT_WIDGET_LAYERS | PAINT_TO_WINDOW)) {
+  if (aFlags & PAINT_WIDGET_LAYERS || aFlags & PAINT_TO_WINDOW) {
     builder.SetPaintingToWindow(PR_TRUE);
   }
   if (aFlags & PAINT_IGNORE_SUPPRESSION) {
@@ -3775,12 +3775,6 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
 
   if (!imageLoader)
     return result;
-
-  // Push a null JSContext on the stack so that code that runs within
-  // the below code doesn't think it's being called by JS. See bug
-  // 604262.
-  nsCxPusher pusher;
-  pusher.PushNull();
 
   nsCOMPtr<imgIRequest> imgRequest;
   rv = imageLoader->GetRequest(nsIImageLoadingContent::CURRENT_REQUEST,

@@ -418,7 +418,7 @@ let UI = {
       let self = this;
       this._activeTab.addSubscriber(this, "close", function(closedTabItem) {
         if (self._activeTab == closedTabItem)
-          self.setActiveTab(null);
+          self._activeTab = null;
       });
 
       this._activeTab.makeActive();
@@ -515,6 +515,9 @@ let UI = {
         TabItems.resumePainting();
       });
     } else {
+      if (currentTab && currentTab._tabViewTabItem)
+        currentTab._tabViewTabItem.setZoomPrep(false);
+
       self.setActiveTab(null);
       dispatchEvent(event);
 
@@ -731,23 +734,19 @@ let UI = {
           let closingLastOfGroup = (groupItem && 
               groupItem._children.length == 1 && 
               groupItem._children[0].tab == tab);
-
+          
           // 2) Take care of the case where you've closed the last tab in
           // an un-named groupItem, which means that the groupItem is gone (null) and
           // there are no visible tabs. 
           let closingUnnamedGroup = (groupItem == null &&
               gBrowser.visibleTabs.length <= 1); 
-
-          // 3) When a blank tab is active while restoring a closed tab the
-          // blank tab gets removed. The active group is not closed as this is
-          // where the restored tab goes. So do not show the TabView.
-          let closingBlankTabAfterRestore =
-            (tab && tab._tabViewTabIsRemovedAfterRestore);
-
-          if ((closingLastOfGroup || closingUnnamedGroup) &&
-              !closingBlankTabAfterRestore) {
+              
+          if (closingLastOfGroup || closingUnnamedGroup) {
             // for the tab focus event to pick up.
             self._closedLastVisibleTab = true;
+            // remove the zoom prep.
+            if (tab && tab._tabViewTabItem)
+              tab._tabViewTabItem.setZoomPrep(false);
             self.showTabView();
           }
         }
@@ -788,10 +787,6 @@ let UI = {
 
       TabItems.handleTabUnpin(tab);
       GroupItems.removeAppTab(tab);
-
-      let groupItem = tab._tabViewTabItem.parent;
-      if (groupItem)
-        self.setReorderTabItemsOnShow(groupItem);
     };
 
     // Actually register the above handlers
@@ -891,6 +886,15 @@ let UI = {
       if (GroupItems.getActiveGroupItem() || GroupItems.getActiveOrphanTab())
         GroupItems._updateTabBar();
     }
+
+    // ___ prepare for when we return to TabView
+    if (newItem != oldItem) {
+      if (oldItem)
+        oldItem.setZoomPrep(false);
+      if (newItem)
+        newItem.setZoomPrep(true);
+    } else if (oldItem)
+      oldItem.setZoomPrep(true);
   },
 
   // ----------
@@ -1239,6 +1243,9 @@ let UI = {
     itemBounds.width = 1;
     itemBounds.height = 1;
     items.forEach(function(item) {
+      if (item.locked.bounds)
+        return;
+
       var bounds = item.getBounds();
       itemBounds = (itemBounds ? itemBounds.union(bounds) : new Rect(bounds));
     });
@@ -1266,6 +1273,9 @@ let UI = {
     var self = this;
     var pairs = [];
     items.forEach(function(item) {
+      if (item.locked.bounds)
+        return;
+
       var bounds = item.getBounds();
       bounds.left += (UI.rtl ? -1 : 1) * (newPageBounds.left - self._pageBounds.left);
       bounds.left *= scale;

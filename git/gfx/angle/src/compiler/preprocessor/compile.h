@@ -59,7 +59,6 @@ typedef struct Options_Rec{
     int DumpAtomTable;
 } Options;
 
-#define MAX_IF_NESTING  64
 struct CPPStruct_Rec {
     // Public members
     SourceLoc *pLastSourceLoc;  // Set at the start of each statement by the tree walkers
@@ -81,7 +80,7 @@ struct CPPStruct_Rec {
     // Private members:
     SourceLoc ltokenLoc;
 	int ifdepth;                //current #if-#else-#endif nesting in the cpp.c file (pre-processor)    
-    int elsedepth[MAX_IF_NESTING];//Keep a track of #if depth..Max allowed is 64.
+    int elsedepth[64];          //Keep a track of #if depth..Max allowed is 64.   
     int elsetracker;            //#if-#else and #endif constructs...Counter.
     const char *ErrMsg;
     int CompileError;           //Indicate compile error when #error, #else,#elif mismatch.

@@ -1186,7 +1186,7 @@ nsWindow::EnumAllWindows(WindowEnumCallback aCallback)
 {
   EnumThreadWindows(GetCurrentThreadId(),
                     EnumAllThreadWindowProc,
-                    (LPARAM)aCallback);
+                    (LPARAM)&aCallback);
 }
 
 /**************************************************************
@@ -2098,7 +2098,7 @@ GetWindowInfoHook(HWND hWnd, PWINDOWINFO pwi)
     return FALSE;
   }
   int windowStatus = 
-    reinterpret_cast<LONG_PTR>(GetPropW(hWnd, kManageWindowInfoProperty));
+    reinterpret_cast<int>(GetPropW(hWnd, kManageWindowInfoProperty));
   // No property set, return the default data.
   if (!windowStatus)
     return sGetWindowInfoPtrStub(hWnd, pwi);
@@ -2118,7 +2118,7 @@ nsWindow::UpdateGetWindowInfoCaptionStatus(PRBool aActiveCaption)
 
   if (!sGetWindowInfoPtrStub) {
     sUser32Intercept.Init("user32.dll");
-    if (!sUser32Intercept.AddHook("GetWindowInfo", (void*)GetWindowInfoHook,
+    if (!sUser32Intercept.AddHook("GetWindowInfo", GetWindowInfoHook,
                                   (void**) &sGetWindowInfoPtrStub))
       return;
   }
@@ -2655,12 +2655,18 @@ void nsWindow::UpdateGlass()
   DWMNCRENDERINGPOLICY policy = DWMNCRP_USEWINDOWSTYLE;
   switch (mTransparencyMode) {
   case eTransparencyBorderlessGlass:
-    // Only adjust if there is some opaque rectangle
+    // Margins must be 2px (kGlassMarginAdjustment) or larger to cover the 2px
+    // border Windows adds. A value of -1 in cxLeftWidth indicates a sheet of
+    // glass which we ignore here.
     if (margins.cxLeftWidth >= 0) {
-      margins.cxLeftWidth += kGlassMarginAdjustment;
-      margins.cyTopHeight += kGlassMarginAdjustment;
-      margins.cxRightWidth += kGlassMarginAdjustment;
-      margins.cyBottomHeight += kGlassMarginAdjustment;
+      if (margins.cxLeftWidth >= 0 && margins.cxLeftWidth < kGlassMarginAdjustment)
+        margins.cxLeftWidth = kGlassMarginAdjustment;
+      if (margins.cyTopHeight >= 0 && margins.cyTopHeight < kGlassMarginAdjustment)
+        margins.cyTopHeight = kGlassMarginAdjustment;
+      if (margins.cxRightWidth >= 0 && margins.cxRightWidth < kGlassMarginAdjustment)
+        margins.cxRightWidth = kGlassMarginAdjustment;
+      if (margins.cyBottomHeight >= 0 && margins.cyBottomHeight < kGlassMarginAdjustment)
+        margins.cyBottomHeight = kGlassMarginAdjustment;
     }
     // Fall through
   case eTransparencyGlass:
@@ -8496,7 +8502,7 @@ nsWindow::ClearCachedResources()
       static_cast<BasicLayerManager*>(mLayerManager.get())->
         ClearCachedResources();
     }
-    ::EnumChildWindows(mWnd, nsWindow::ClearResourcesCallback, 0);
+    ::EnumChildWindows(mWnd, nsWindow::ClearResourcesCallback, NULL);
 }
 
 static PRBool IsDifferentThreadWindow(HWND aWnd)

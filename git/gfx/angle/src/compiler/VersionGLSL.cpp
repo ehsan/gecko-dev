@@ -9,17 +9,13 @@
 static const int GLSL_VERSION_110 = 110;
 static const int GLSL_VERSION_120 = 120;
 
-// We need to scan for three things:
+// We need to scan for two things:
 // 1. "invariant" keyword: This can occur in both - vertex and fragment shaders
 //    but only at the global scope.
 // 2. "gl_PointCoord" built-in variable: This can only occur in fragment shader
 //    but inside any scope.
-// 3. Call to a matrix constructor with another matrix as argument.
-//    (These constructors were reserved in GLSL version 1.10.)
-//
-// If it weren't for (3) then we would only need to scan the global
-// scope of the vertex shader. However, we need to scan the entire
-// shader in both cases.
+// So we need to scan the entire fragment shader but only the global scope
+// of vertex shader.
 //
 // TODO(alokp): The following two cases of invariant decalaration get lost
 // during parsing - they do not get carried over to the intermediate tree.
@@ -38,32 +34,40 @@ TVersionGLSL::TVersionGLSL(ShShaderType type)
 
 void TVersionGLSL::visitSymbol(TIntermSymbol* node)
 {
+    ASSERT(mShaderType == SH_FRAGMENT_SHADER);
+
     if (node->getSymbol() == "gl_PointCoord")
         updateVersion(GLSL_VERSION_120);
 }
 
 void TVersionGLSL::visitConstantUnion(TIntermConstantUnion*)
 {
+    ASSERT(mShaderType == SH_FRAGMENT_SHADER);
 }
 
 bool TVersionGLSL::visitBinary(Visit, TIntermBinary*)
 {
+    ASSERT(mShaderType == SH_FRAGMENT_SHADER);
     return true;
 }
 
 bool TVersionGLSL::visitUnary(Visit, TIntermUnary*)
 {
+    ASSERT(mShaderType == SH_FRAGMENT_SHADER);
     return true;
 }
 
 bool TVersionGLSL::visitSelection(Visit, TIntermSelection*)
 {
+    ASSERT(mShaderType == SH_FRAGMENT_SHADER);
     return true;
 }
 
 bool TVersionGLSL::visitAggregate(Visit, TIntermAggregate* node)
 {
-    bool visitChildren = true;
+    // We need to scan the entire fragment shader but only the global scope
+    // of vertex shader.
+    bool visitChildren = mShaderType == SH_FRAGMENT_SHADER ? true : false;
 
     switch (node->getOp()) {
       case EOpSequence:
@@ -79,19 +83,6 @@ bool TVersionGLSL::visitAggregate(Visit, TIntermAggregate* node)
         }
         break;
       }
-      case EOpConstructMat2:
-      case EOpConstructMat3:
-      case EOpConstructMat4: {
-        const TIntermSequence& sequence = node->getSequence();
-        if (sequence.size() == 1) {
-          TIntermTyped* typed = sequence.front()->getAsTyped();
-          if (typed && typed->isMatrix()) {
-            updateVersion(GLSL_VERSION_120);
-          }
-        }
-        break;
-      }
-
       default: break;
     }
 
@@ -100,11 +91,13 @@ bool TVersionGLSL::visitAggregate(Visit, TIntermAggregate* node)
 
 bool TVersionGLSL::visitLoop(Visit, TIntermLoop*)
 {
+    ASSERT(mShaderType == SH_FRAGMENT_SHADER);
     return true;
 }
 
 bool TVersionGLSL::visitBranch(Visit, TIntermBranch*)
 {
+    ASSERT(mShaderType == SH_FRAGMENT_SHADER);
     return true;
 }
 

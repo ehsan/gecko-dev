@@ -331,13 +331,9 @@ nsAutoCompleteController::HandleStartComposition()
 
   PRBool isOpen = PR_FALSE;
   input->GetPopupOpen(&isOpen);
-  if (isOpen) {
+  if (isOpen)
     ClosePopup();
-
-    PRBool stillOpen = PR_FALSE;
-    input->GetPopupOpen(&stillOpen);
-    mPopupClosedByCompositionStart = !stillOpen;
-  }
+  mPopupClosedByCompositionStart = isOpen;
   return NS_OK;
 }
 
@@ -1044,15 +1040,6 @@ nsAutoCompleteController::StartSearch()
     if (NS_FAILED(rv)) {
       ++searchesFailed;
       --mSearchesOngoing;
-    }
-    // Because of the joy of nested event loops (which can easily happen when some
-    // code uses a generator for an asynchronous AutoComplete search),
-    // nsIAutoCompleteSearch::StartSearch might cause us to be detached from our input
-    // field.  The next time we iterate, we'd be touching something that we shouldn't
-    // be, and result in a crash.
-    if (!mInput) {
-      // The search operation has been finished.
-      return NS_OK;
     }
   }
 

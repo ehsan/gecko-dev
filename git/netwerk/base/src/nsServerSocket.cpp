@@ -60,9 +60,6 @@ PostEvent(nsServerSocket *s, nsServerSocketFunc func)
   if (!ev)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  if (!gSocketTransportService)
-    return NS_ERROR_FAILURE;
-
   return gSocketTransportService->Dispatch(ev, NS_DISPATCH_NORMAL);
 }
 
@@ -79,12 +76,12 @@ nsServerSocket::nsServerSocket()
   // constructed yet.  the STS constructor sets gSocketTransportService.
   if (!gSocketTransportService)
   {
-    // This call can fail if we're offline, for example.
     nsCOMPtr<nsISocketTransportService> sts =
         do_GetService(kSocketTransportServiceCID);
+    NS_ASSERTION(sts, "no socket transport service");
   }
   // make sure the STS sticks around as long as we do
-  NS_IF_ADDREF(gSocketTransportService);
+  NS_ADDREF(gSocketTransportService);
 }
 
 nsServerSocket::~nsServerSocket()
@@ -96,7 +93,7 @@ nsServerSocket::~nsServerSocket()
 
   // release our reference to the STS
   nsSocketTransportService *serv = gSocketTransportService;
-  NS_IF_RELEASE(serv);
+  NS_RELEASE(serv);
 }
 
 void
@@ -138,9 +135,6 @@ nsresult
 nsServerSocket::TryAttach()
 {
   nsresult rv;
-
-  if (!gSocketTransportService)
-    return NS_ERROR_FAILURE;
 
   //
   // find out if it is going to be ok to attach another socket to the STS.

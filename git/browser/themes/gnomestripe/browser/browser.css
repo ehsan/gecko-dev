@@ -908,7 +908,7 @@ toolbar[iconsize="small"] #feed-button {
   padding: 0;
 }
 
-.urlbar-textbox-container {
+.urlbar-frontcap-and-textbox {
   -moz-appearance: none;
 }
 
@@ -952,6 +952,47 @@ toolbar[iconsize="small"] #feed-button {
   margin-top: 0;
   margin-bottom: 0;
   color: GrayText;
+}
+
+/* over-link in location bar */
+
+.urlbar-over-link-layer {
+  margin: -2px 0;
+  -moz-margin-start: 0;
+}
+
+.urlbar-origin-label {
+  padding-top: 0;
+  padding-bottom: 0;
+  -moz-padding-start: 4px;
+  -moz-padding-end: 0;
+  margin: 0;
+}
+
+.urlbar-over-link-box {
+  position: relative;
+  color: GrayText;
+  min-height: 22px;
+  padding-top: 0;
+  padding-bottom: 0;
+  -moz-padding-start: 18px;
+  -moz-padding-end: 5px;
+}
+
+.urlbar-over-link-box:-moz-locale-dir(ltr) {
+  background: url(chrome://browser/skin/urlbar-over-link-arrow.png) no-repeat left center;
+  right: 0;
+}
+
+.urlbar-over-link-box:-moz-locale-dir(rtl) {
+  background: url(chrome://browser/skin/urlbar-over-link-arrow-rtl.png) no-repeat right center;
+  left: 0;
+}
+
+.urlbar-over-link-host-label,
+.urlbar-over-link-path-label {
+  padding: 0;
+  margin: 0;
 }
 
 /* Favicon */
@@ -1517,7 +1558,6 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 /* Tab drag and drop */
 .tab-drop-indicator {
   list-style-image: url(chrome://browser/skin/tabbrowser/tabDragIndicator.png);
-  margin-bottom: -11px;
 }
 
 /* In-tab close button */
@@ -1770,7 +1810,6 @@ panel[dimmed="true"] {
 /* Add-on bar */
 
 #addon-bar {
-  box-shadow: 0 1px 0 rgba(0,0,0,.15) inset;
   padding: 0;
   min-height: 20px;
 }
@@ -1791,30 +1830,4 @@ panel[dimmed="true"] {
 #addonbar-closebutton > .toolbarbutton-icon {
   margin-top: -2px;
   margin-bottom: -2px;
-}
-
-/* Status panel */
-
-.statuspanel-label {
-  margin: 0;
-  padding: 2px 4px;
-  background: -moz-linear-gradient(white, #ddd);
-  border: 1px none #ccc;
-  border-top-style: solid;
-  color: #333;
-  text-shadow: none;
-}
-
-.statuspanel-label:-moz-locale-dir(ltr):not([mirror]),
-.statuspanel-label:-moz-locale-dir(rtl)[mirror] {
-  border-right-style: solid;
-  border-top-right-radius: .3em;
-  margin-right: 1em;
-}
-
-.statuspanel-label:-moz-locale-dir(rtl):not([mirror]),
-.statuspanel-label:-moz-locale-dir(ltr)[mirror] {
-  border-left-style: solid;
-  border-top-left-radius: .3em;
-  margin-left: 1em;
 }

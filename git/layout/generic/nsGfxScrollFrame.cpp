@@ -74,7 +74,7 @@
 #include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsBidiUtils.h"
 #include "nsFrameManager.h"
@@ -950,7 +950,8 @@ nsHTMLScrollFrame::CreateAccessible()
     return nsnull;
   }
   // Focusable via CSS, so needs to be in accessibility hierarchy
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHyperTextAccessible(mContent,
                                                  PresContext()->PresShell());
@@ -1478,8 +1479,7 @@ nsGfxScrollFrameInner::ScrollTo(nsPoint aScrollPosition,
 
   PRInt32 currentVelocityX = 0;
   PRInt32 currentVelocityY = 0;
-  PRBool isSmoothScroll = (aMode == nsIScrollableFrame::SMOOTH) &&
-                          IsSmoothScrollingEnabled();
+  PRBool isSmoothScroll = IsSmoothScrollingEnabled();
 
   if (mAsyncScroll) {
     if (mAsyncScroll->mIsSmoothScroll) {

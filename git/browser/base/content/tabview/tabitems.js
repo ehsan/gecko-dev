@@ -92,8 +92,10 @@ function TabItem(tab, options) {
   this.tabCanvas = new TabCanvas(this.tab, this.$canvas[0]);
 
   this.defaultSize = new Point(TabItems.tabWidth, TabItems.tabHeight);
+  this.locked = {};
   this._hidden = false;
   this.isATabItem = true;
+  this._zoomPrep = false;
   this.sizeExtra = new Point();
   this.keepProportional = true;
   this._hasBeenDrawn = false;
@@ -368,8 +370,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         }
       }
 
-      let currentUrl = this.tab.linkedBrowser.currentURI.spec;
-      if (tabData.imageData && tabData.url == currentUrl)
+      if (tabData.imageData)
         this.showCachedData(tabData);
     } else {
       // create tab by double click is handled in UI_init().
@@ -427,6 +428,9 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     let rect = new Rect(inRect.left, inRect.top, 
       validSize.x, validSize.y);
 
+    if (this._zoomPrep)
+      this.bounds.copy(rect);
+    else {
       var css = {};
 
       if (rect.left != this.bounds.left || options.force)
@@ -516,6 +520,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       }
 
       this._hasBeenDrawn = true;
+    }
 
     UI.clearShouldResizeItems();
 
@@ -620,22 +625,17 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       return;
 
     var self = this;
-    var $tabEl = this.$container, $canvas = this.$canvas;
+    var $tabEl = this.$container;
     var childHitResult = { shouldZoom: true };
     if (this.parent)
       childHitResult = this.parent.childHit(this);
 
-    this.shouldHideCachedData = true;
-    TabItems._update(this.tab);
-
     if (childHitResult.shouldZoom) {
       // Zoom in!
       var tab = this.tab;
+      var orig = $tabEl.bounds();
 
       function onZoomDone() {
-        $canvas.css({ '-moz-transform': null });
-        $tabEl.removeClass("front");
-
         UI.goToTab(tab);
 
         // tab might not be selected because hideTabView() is invoked after 
@@ -652,13 +652,9 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
       let animateZoom = gPrefBranch.getBoolPref("animate_zoom");
       if (animateZoom) {
-        let transform = this.getZoomTransform();
         TabItems.pausePainting();
-
-        $tabEl.addClass("front");
-        $canvas
-        .css({ '-moz-transform-origin': transform.transformOrigin })
-        .animate({ '-moz-transform': transform.transform }, {
+        $tabEl.addClass("front")
+        .animate(this.getZoomRect(), {
           duration: 230,
           easing: 'fast',
           complete: function() {
@@ -666,6 +662,10 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
             setTimeout(function() {
               TabItems.resumePainting();
+
+              $tabEl
+                .css(orig)
+                .removeClass("front");
             }, 0);
           }
         });
@@ -683,37 +683,34 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Parameters:
   //   complete - a function to call after the zoom down animation
   zoomOut: function TabItem_zoomOut(complete) {
-    let $tab = this.$container, $canvas = this.$canvas;
+    var $tab = this.$container;
     var self = this;
     
     let onZoomDone = function onZoomDone() {
-      $tab.removeClass("front");
-      $canvas.css("-moz-transform", null);
+      self.setZoomPrep(false);
 
       GroupItems.setActiveOrphanTab(null);
 
       if (typeof complete == "function")
         complete();
     };
-
-    this.shouldHideCachedData = true;
-    TabItems._update(this.tab);
-
-    $tab.addClass("front");
-
+    
     let animateZoom = gPrefBranch.getBoolPref("animate_zoom");
     if (animateZoom) {
-      // The scaleCheat of 2 here is a clever way to speed up the zoom-out
-      // code. See getZoomTransform() below.
-      let transform = this.getZoomTransform(2);
+      let box = this.getBounds();
+      box.width -= this.sizeExtra.x;
+      if (!this.isStacked)
+        box.height -= this.sizeExtra.y + TabItems.fontSizeRange.max;
+      else
+        box.height -= this.sizeExtra.y;
+  
       TabItems.pausePainting();
-
-      $canvas.css({
-        '-moz-transform': transform.transform,
-        '-moz-transform-origin': transform.transformOrigin
-      });
-
-      $canvas.animate({ "-moz-transform": "scale(1.0)" }, {
+      $tab.animate({
+        left: box.left,
+        top: box.top,
+        width: box.width,
+        height: box.height
+      }, {
         duration: 300,
         easing: 'cubic-bezier', // note that this is legal easing, even without parameters
         complete: function() {
@@ -727,42 +724,65 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   },
 
   // ----------
-  // Function: getZoomTransform
-  // Returns the transform function which represents the maximum bounds of the
-  // tab thumbnail in the zoom animation.
-  getZoomTransform: function TabItem_getZoomTransform(scaleCheat) {
-    // Taking the bounds of the container (as opposed to the canvas) makes us
-    // immune to any transformations applied to the canvas.
-    let { left, top, width, height, right, bottom } = this.$container.bounds();
-
-    let { innerWidth: windowWidth, innerHeight: windowHeight } = window;
-
+  // Function: getZoomRect
+  // Returns a faux rect (just an object with top, left, width, height)
+  // which represents the maximum bounds of the tab thumbnail in the zoom
+  // animation. Note that this is not just the rect of the window itself,
+  // due to scaleCheat.
+  getZoomRect: function TabItem_getZoomRect(scaleCheat) {
+    let $tabEl = iQ(this.container);
+    let orig = $tabEl.bounds();
     // The scaleCheat is a clever way to speed up the zoom-in code.
     // Because image scaling is slowest on big images, we cheat and stop
     // the image at scaled-down size and placed accordingly. Because the
     // animation is fast, you can't see the difference but it feels a lot
     // zippier. The only trick is choosing the right animation function so
-    // that you don't see a change in percieved animation speed from frame #1
-    // (the tab) to frame #2 (the half-size image) to frame #3 (the first frame
-    // of real animation). Choosing an animation that starts fast is key.
-
+    // that you don't see a change in percieved animation speed.
     if (!scaleCheat)
       scaleCheat = 1.7;
 
-    let zoomWidth = width + (window.innerWidth - width) / scaleCheat;
-    let zoomScaleFactor = zoomWidth / width;
-
-    let zoomHeight = height * zoomScaleFactor;
-    let zoomTop = top * (1 - 1/scaleCheat);
-    let zoomLeft = left * (1 - 1/scaleCheat);
-
-    let xOrigin = (left - zoomLeft) / ((left - zoomLeft) + (zoomLeft + zoomWidth - right)) * 100;
-    let yOrigin = (top - zoomTop) / ((top - zoomTop) + (zoomTop + zoomHeight - bottom)) * 100;
-
+    let zoomWidth = orig.width + (window.innerWidth - orig.width) / scaleCheat;
     return {
-      transformOrigin: xOrigin + "% " + yOrigin + "%",
-      transform: "scale(" + zoomScaleFactor + ")"
+      top:    orig.top    * (1 - 1/scaleCheat),
+      left:   orig.left   * (1 - 1/scaleCheat),
+      width:  zoomWidth,
+      height: (orig.width ? orig.height * zoomWidth / orig.width : 0)
     };
+  },
+
+  // ----------
+  // Function: setZoomPrep
+  // Either go into or return from (depending on <value>) "zoom prep" mode,
+  // where the tab fills a large portion of the screen in anticipation of
+  // the zoom out animation.
+  setZoomPrep: function TabItem_setZoomPrep(value) {
+    let animateZoom = gPrefBranch.getBoolPref("animate_zoom");
+
+    var $div = this.$container;
+
+    if (value && animateZoom) {
+      this._zoomPrep = true;
+
+      // The scaleCheat of 2 here is a clever way to speed up the zoom-out code.
+      // Because image scaling is slowest on big images, we cheat and start the image
+      // at half-size and placed accordingly. Because the animation is fast, you can't
+      // see the difference but it feels a lot zippier. The only trick is choosing the
+      // right animation function so that you don't see a change in percieved
+      // animation speed from frame #1 (the tab) to frame #2 (the half-size image) to
+      // frame #3 (the first frame of real animation). Choosing an animation that starts
+      // fast is key.
+
+      $div
+        .addClass('front')
+        .css(this.getZoomRect(2));
+    } else {
+      let box = this.getBounds();
+
+      this._zoomPrep = false;
+      $div.removeClass('front');
+
+      this.setBounds(box, true, {force: true});
+    }
   }
 });
 
@@ -810,7 +830,7 @@ let TabItems = {
     // 150 pixels is an empirical size, below which FF's drawWindow()
     // algorithm breaks down
     this.tempCanvas.width = 150;
-    this.tempCanvas.height = 112;
+    this.tempCanvas.height = 150;
 
     this.tabsProgressListener = {
       onStateChange: function(browser, webProgress, request, stateFlags, status) {
@@ -954,9 +974,7 @@ let TabItems = {
       // ___ label
       let label = tab.label;
       let $name = tabItem.$tabTitle;
-      let isLabelUpdateAllowed = !tabItem.isShowingCachedData() ||
-                                 tabItem.shouldHideCachedData;
-      if (isLabelUpdateAllowed && $name.text() != label)
+      if (!tabItem.isShowingCachedData() && $name.text() != label)
         $name.text(label);
 
       // ___ thumbnail
@@ -1105,7 +1123,6 @@ let TabItems = {
    // three times before TabItems will start updating thumbnails again.
    resumePainting: function TabItems_resumePainting() {
      this.paintingPaused--;
-     Utils.assert(this.paintingPaused > -1, "paintingPaused should not go below zero");
      if (!this.isPaintingPaused())
        this.startHeartbeat();
    },
@@ -1284,95 +1301,67 @@ TabCanvas.prototype = {
     if (!w || !h)
       return;
 
-    if (!this.tab.linkedBrowser.contentWindow) {
-      Utils.log('no tab.linkedBrowser.contentWindow in TabCanvas.paint()');
+    let fromWin = this.tab.linkedBrowser.contentWindow;
+    if (fromWin == null) {
+      Utils.log('null fromWin in paint');
       return;
     }
 
-    let ctx = this.canvas.getContext("2d");
     let tempCanvas = TabItems.tempCanvas;
-    let bgColor = '#fff';
-
     if (w < tempCanvas.width) {
       // Small draw case where nearest-neighbor algorithm breaks down in Windows
       // First draw to a larger canvas (150px wide), and then draw that image
       // to the destination canvas.
-      let tempCtx = tempCanvas.getContext("2d");
-      this._drawWindow(tempCtx, tempCanvas.width, tempCanvas.height, bgColor);
-
-      // Now copy to tabitem canvas.
-      try {
-        this._fillCanvasBackground(ctx, w, h, bgColor);
-        ctx.drawImage(tempCanvas, 0, 0, w, h);
-      } catch (e) {
+      
+      var tempCtx = tempCanvas.getContext("2d");
+      
+      let canvW = tempCanvas.width;
+      let canvH = (h/w) * canvW;
+      
+      var scaler = canvW/fromWin.innerWidth;
+  
+      tempCtx.save();
+      tempCtx.clearRect(0,0,tempCanvas.width,tempCanvas.height);
+      tempCtx.scale(scaler, scaler);
+      try{
+        tempCtx.drawWindow(fromWin, fromWin.scrollX, fromWin.scrollY, 
+          canvW/scaler, canvH/scaler, "#fff");
+      } catch(e) {
         Utils.error('paint', e);
-      }
+      }  
+      tempCtx.restore();
+      
+      // Now copy to tabitem canvas. No save/restore necessary.      
+      var destCtx = this.canvas.getContext("2d");      
+      try{
+        // the tempcanvas is square, so draw it as a square.
+        destCtx.drawImage(tempCanvas, 0, 0, w, w);
+      } catch(e) {
+        Utils.error('paint', e);
+      }  
+      
     } else {
       // General case where nearest neighbor algorithm looks good
       // Draw directly to the destination canvas
-      this._drawWindow(ctx, w, h, bgColor);
+      
+      var ctx = this.canvas.getContext("2d");
+      
+      var scaler = w/fromWin.innerWidth;
+  
+      // TODO: Potentially only redraw the dirty rect? (Is it worth it?)
+  
+      ctx.save();
+      ctx.scale(scaler, scaler);
+      try{
+        ctx.drawWindow(fromWin, fromWin.scrollX, fromWin.scrollY, 
+          w/scaler, h/scaler, "#fff",
+          Ci.nsIDOMCanvasRenderingContext2D.DRAWWINDOW_DO_NOT_FLUSH);
+      } catch(e) {
+        Utils.error('paint', e);
+      }
+  
+      ctx.restore();
     }
-  },
-
-  // ----------
-  // Function: _fillCanvasBackground
-  // Draws a rectangle of <width>x<height> with color <bgColor> to the given
-  // canvas context.
-  _fillCanvasBackground: function TabCanvas__fillCanvasBackground(ctx, width, height, bgColor) {
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, width, height);
-  },
-
-  // ----------
-  // Function: _drawWindow
-  // Draws contents of the tabs' browser window to the given canvas context.
-  _drawWindow: function TabCanvas__drawWindow(ctx, width, height, bgColor) {
-    this._fillCanvasBackground(ctx, width, height, bgColor);
-
-    let rect = this._calculateClippingRect(width, height);
-    let scaler = width / rect.width;
-
-    ctx.save();
-    ctx.scale(scaler, scaler);
-
-    try {
-      let win = this.tab.linkedBrowser.contentWindow;
-      ctx.drawWindow(win, rect.left, rect.top, rect.width, rect.height,
-                     bgColor, ctx.DRAWWINDOW_DO_NOT_FLUSH);
-    } catch (e) {
-      Utils.error('paint', e);
-    }
-
-    ctx.restore();
-  },
-
-  // ----------
-  // Function: _calculateClippingRect
-  // Calculate the clipping rect that will be projected to the tab's
-  // thumbnail canvas.
-  _calculateClippingRect: function TabCanvas__calculateClippingRect(origWidth, origHeight) {
-    let win = this.tab.linkedBrowser.contentWindow;
-
-    // TODO BUG 631593: retrieve actual scrollbar width
-    // 25px is supposed to be width of the vertical scrollbar
-    let maxWidth = win.innerWidth - 25;
-    let maxHeight = win.innerHeight;
-
-    let height = Math.min(maxHeight, Math.floor(origHeight * maxWidth / origWidth));
-    let width = Math.floor(origWidth * height / origHeight);
-
-    // very short pages in combination with a very wide browser window force us
-    // to extend the clipping rect and add some empty space around the thumb
-    let factor = 0.7;
-    if (width < maxWidth * factor) {
-      width = maxWidth * factor;
-      height = Math.floor(origHeight * width / origWidth);
-    }
-
-    let left = win.scrollX + Math.max(0, Math.round((maxWidth - width) / 2));
-    let top = win.scrollY;
-
-    return new Rect(left, top, width, height);
   },
 
   // ----------

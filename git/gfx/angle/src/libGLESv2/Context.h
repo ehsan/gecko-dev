@@ -50,12 +50,13 @@ class Stencilbuffer;
 class DepthStencilbuffer;
 class VertexDataManager;
 class IndexDataManager;
+class BufferBackEnd;
 class Blit;
 class Fence;
 
 enum
 {
-    MAX_VERTEX_ATTRIBS = 16,
+    MAX_VERTEX_ATTRIBS = 16 - 1,            // Stream 0 reserved to enable instancing for non-array attributes
     MAX_VERTEX_UNIFORM_VECTORS = 256 - 2,   // 256 is the minimum for SM2, and in practice the maximum for DX9. Reserve space for dx_HalfPixelSize and dx_DepthRange.
     MAX_VARYING_VECTORS_SM2 = 8,
     MAX_VARYING_VECTORS_SM3 = 10,
@@ -85,55 +86,31 @@ struct Color
 };
 
 // Helper structure describing a single vertex attribute
-class VertexAttribute
+class AttributeState
 {
   public:
-    VertexAttribute() : mType(GL_FLOAT), mSize(0), mNormalized(false), mStride(0), mPointer(NULL), mArrayEnabled(false)
+    AttributeState()
+        : mType(GL_FLOAT), mSize(0), mNormalized(false), mStride(0), mPointer(NULL), mEnabled(false)
     {
-        mCurrentValue[0] = 0.0f;
-        mCurrentValue[1] = 0.0f;
-        mCurrentValue[2] = 0.0f;
-        mCurrentValue[3] = 1.0f;
+        mCurrentValue[0] = 0;
+        mCurrentValue[1] = 0;
+        mCurrentValue[2] = 0;
+        mCurrentValue[3] = 1;
     }
 
-    int typeSize() const
-    {
-        switch (mType)
-        {
-          case GL_BYTE:           return mSize * sizeof(GLbyte);
-          case GL_UNSIGNED_BYTE:  return mSize * sizeof(GLubyte);
-          case GL_SHORT:          return mSize * sizeof(GLshort);
-          case GL_UNSIGNED_SHORT: return mSize * sizeof(GLushort);
-          case GL_FIXED:          return mSize * sizeof(GLfixed);
-          case GL_FLOAT:          return mSize * sizeof(GLfloat);
-          default: UNREACHABLE(); return mSize * sizeof(GLfloat);
-        }
-    }
-
-    GLsizei stride() const
-    {
-        return mStride ? mStride : typeSize();
-    }
-
-    // From glVertexAttribPointer
+    // From VertexArrayPointer
     GLenum mType;
     GLint mSize;
     bool mNormalized;
-    GLsizei mStride;   // 0 means natural stride
+    GLsizei mStride; // 0 means natural stride
+    const void *mPointer;
 
-    union
-    {
-        const void *mPointer;
-        intptr_t mOffset;
-    };
+    BindingPointer<Buffer> mBoundBuffer; // Captured when VertexArrayPointer is called.
 
-    BindingPointer<Buffer> mBoundBuffer;   // Captured when glVertexAttribPointer is called.
+    bool mEnabled; // From Enable/DisableVertexAttribArray
 
-    bool mArrayEnabled;   // From glEnable/DisableVertexAttribArray
-    float mCurrentValue[4];   // From glVertexAttrib
+    float mCurrentValue[4]; // From VertexAttrib4f
 };
-
-typedef VertexAttribute VertexAttributeArray[MAX_VERTEX_ATTRIBS];
 
 // Helper structure to store all raw state
 struct State
@@ -211,7 +188,7 @@ struct State
     BindingPointer<Renderbuffer> renderbuffer;
     GLuint currentProgram;
 
-    VertexAttribute vertexAttribute[MAX_VERTEX_ATTRIBS];
+    AttributeState vertexAttribute[MAX_VERTEX_ATTRIBS];
     BindingPointer<Texture> samplerTexture[SAMPLER_TYPE_COUNT][MAX_TEXTURE_IMAGE_UNITS];
 
     GLint unpackAlignment;
@@ -306,13 +283,13 @@ class Context
 
     GLuint getArrayBufferHandle() const;
 
-    void setEnableVertexAttribArray(unsigned int attribNum, bool enabled);
-    const VertexAttribute &getVertexAttribState(unsigned int attribNum);
+    void setVertexAttribEnabled(unsigned int attribNum, bool enabled);
+    const AttributeState &getVertexAttribState(unsigned int attribNum);
     void setVertexAttribState(unsigned int attribNum, Buffer *boundBuffer, GLint size, GLenum type,
                               bool normalized, GLsizei stride, const void *pointer);
     const void *getVertexAttribPointer(unsigned int attribNum) const;
 
-    const VertexAttributeArray &getVertexAttributes();
+    const AttributeState *getVertexAttribBlock();
 
     void setUnpackAlignment(GLint alignment);
     GLint getUnpackAlignment() const;
@@ -382,21 +359,19 @@ class Context
 
     bool applyRenderTarget(bool ignoreViewport);
     void applyState(GLenum drawMode);
-    GLenum applyVertexBuffer(GLint first, GLsizei count);
+    GLenum applyVertexBuffer(GLenum mode, GLint first, GLsizei count, bool *useIndexing, TranslatedIndexData *indexInfo);
+    GLenum applyVertexBuffer(const TranslatedIndexData &indexInfo);
     GLenum applyIndexBuffer(const void *indices, GLsizei count, GLenum mode, GLenum type, TranslatedIndexData *indexInfo);
+    GLenum applyCountingIndexBuffer(GLenum mode, GLenum count, TranslatedIndexData *indexInfo);
     void applyShaders();
     void applyTextures();
 
     void readPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* pixels);
     void clear(GLbitfield mask);
     void drawArrays(GLenum mode, GLint first, GLsizei count);
-    void drawElements(GLenum mode, GLsizei count, GLenum type, const void *indices);
+    void drawElements(GLenum mode, GLsizei count, GLenum type, const void* indices);
     void finish();
     void flush();
-
-	// Draw the last segment of a line loop
-    void drawClosingLine(unsigned int first, unsigned int last);
-    void drawClosingLine(GLsizei count, GLenum type, const void *indices);
 
     void recordInvalidEnum();
     void recordInvalidValue();
@@ -426,7 +401,6 @@ class Context
     bool supportsHalfFloatRenderableTextures() const;
     bool supportsLuminanceTextures() const;
     bool supportsLuminanceAlphaTextures() const;
-    bool supports32bitIndices() const;
 
     void blitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, 
                          GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
@@ -458,6 +432,7 @@ class Context
     BindingPointer<Texture2D> mTexture2DZero;
     BindingPointer<TextureCubeMap> mTextureCubeMapZero;
 
+
     typedef std::map<GLuint, Framebuffer*> FramebufferMap;
     FramebufferMap mFramebufferMap;
 
@@ -467,6 +442,7 @@ class Context
     void initExtensionString();
     std::string mExtensionString;
 
+    BufferBackEnd *mBufferBackEnd;
     VertexDataManager *mVertexDataManager;
     IndexDataManager *mIndexDataManager;
 
@@ -506,7 +482,6 @@ class Context
     bool mSupportsHalfFloatRenderableTextures;
     bool mSupportsLuminanceTextures;
     bool mSupportsLuminanceAlphaTextures;
-    bool mSupports32bitIndices;
 
     // state caching flags
     bool mClearStateDirty;

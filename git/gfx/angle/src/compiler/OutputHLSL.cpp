@@ -196,25 +196,11 @@ void OutputHLSL::header()
         out <<  uniforms;
         out << "\n";
 
-        // The texture fetch functions "flip" the Y coordinate in one way or another. This is because textures are stored
-        // according to the OpenGL convention, i.e. (0, 0) is "bottom left", rather than the D3D convention where (0, 0)
-        // is "top left". Since the HLSL texture fetch functions expect textures to be stored according to the D3D
-        // convention, the Y coordinate passed to these functions is adjusted to compensate.
-        //
-        // The simplest case is texture2D where the mapping is Y -> 1-Y, which maps [0, 1] -> [1, 0].
-        //
-        // The texture2DProj functions are more complicated because the projection divides by either Z or W. For the vec3
-        // case, the mapping is Y -> Z-Y or Y/Z -> 1-Y/Z, which again maps [0, 1] -> [1, 0].
-        //
-        // For cube textures the mapping is Y -> -Y, which maps [-1, 1] -> [1, -1]. This is not sufficient on its own for the
-        // +Y and -Y faces, which are now on the "wrong sides" of the cube. This is compensated for by exchanging the
-        // +Y and -Y faces everywhere else throughout the code.
-        
         if (mUsesTexture2D)
         {
             out << "float4 gl_texture2D(sampler2D s, float2 t)\n"
                    "{\n"
-                   "    return tex2D(s, float2(t.x, 1 - t.y));\n"
+                   "    return tex2D(s, t);\n"
                    "}\n"
                    "\n";
         }
@@ -223,7 +209,7 @@ void OutputHLSL::header()
         {
             out << "float4 gl_texture2D(sampler2D s, float2 t, float bias)\n"
                    "{\n"
-                   "    return tex2Dbias(s, float4(t.x, 1 - t.y, 0, bias));\n"
+                   "    return tex2Dbias(s, float4(t.x, t.y, 0, bias));\n"
                    "}\n"
                    "\n";
         }
@@ -232,12 +218,12 @@ void OutputHLSL::header()
         {
             out << "float4 gl_texture2DProj(sampler2D s, float3 t)\n"
                    "{\n"
-                   "    return tex2Dproj(s, float4(t.x, t.z - t.y, 0, t.z));\n"
+                   "    return tex2Dproj(s, float4(t.x, t.y, 0, t.z));\n"
                    "}\n"
                    "\n"
                    "float4 gl_texture2DProj(sampler2D s, float4 t)\n"
                    "{\n"
-                   "    return tex2Dproj(s, float4(t.x, t.w - t.y, t.z, t.w));\n"
+                   "    return tex2Dproj(s, t);\n"
                    "}\n"
                    "\n";
         }
@@ -246,12 +232,12 @@ void OutputHLSL::header()
         {
             out << "float4 gl_texture2DProj(sampler2D s, float3 t, float bias)\n"
                    "{\n"
-                   "    return tex2Dbias(s, float4(t.x / t.z, 1 - (t.y / t.z), 0, bias));\n"
+                   "    return tex2Dbias(s, float4(t.x / t.z, t.y / t.z, 0, bias));\n"
                    "}\n"
                    "\n"
                    "float4 gl_texture2DProj(sampler2D s, float4 t, float bias)\n"
                    "{\n"
-                   "    return tex2Dbias(s, float4(t.x / t.w, 1 - (t.y / t.w), 0, bias));\n"
+                   "    return tex2Dbias(s, float4(t.x / t.w, t.y / t.w, 0, bias));\n"
                    "}\n"
                    "\n";
         }
@@ -260,7 +246,7 @@ void OutputHLSL::header()
         {
             out << "float4 gl_textureCube(samplerCUBE s, float3 t)\n"
                    "{\n"
-                   "    return texCUBE(s, float3(t.x, -t.y, t.z));\n"
+                   "    return texCUBE(s, t);\n"
                    "}\n"
                    "\n";
         }
@@ -269,7 +255,7 @@ void OutputHLSL::header()
         {
             out << "float4 gl_textureCube(samplerCUBE s, float3 t, float bias)\n"
                    "{\n"
-                   "    return texCUBEbias(s, float4(t.x, -t.y, t.z, bias));\n"
+                   "    return texCUBEbias(s, float4(t.x, t.y, t.z, bias));\n"
                    "}\n"
                    "\n";
         }
@@ -982,7 +968,7 @@ bool OutputHLSL::visitUnary(Visit visit, TIntermUnary *node)
       case EOpLength:           outputTriplet(visit, "length(", "", ")");    break;
       case EOpNormalize:        outputTriplet(visit, "normalize(", "", ")"); break;
       case EOpDFdx:             outputTriplet(visit, "ddx(", "", ")");       break;
-      case EOpDFdy:             outputTriplet(visit, "(-ddy(", "", "))");    break;
+      case EOpDFdy:             outputTriplet(visit, "ddy(", "", ")");       break;
       case EOpFwidth:           outputTriplet(visit, "fwidth(", "", ")");    break;        
       case EOpAny:              outputTriplet(visit, "any(", "", ")");       break;
       case EOpAll:              outputTriplet(visit, "all(", "", ")");       break;
@@ -1003,7 +989,6 @@ bool OutputHLSL::visitAggregate(Visit visit, TIntermAggregate *node)
         {
             if (mInsideFunction)
             {
-                outputLineDirective(node->getLine());
                 out << "{\n";
 
                 mScopeDepth++;
@@ -1020,8 +1005,6 @@ bool OutputHLSL::visitAggregate(Visit visit, TIntermAggregate *node)
 
             for (TIntermSequence::iterator sit = node->getSequence().begin(); sit != node->getSequence().end(); sit++)
             {
-                outputLineDirective((*sit)->getLine());
-
                 if (isSingleStatement(*sit))
                 {
                     mUnfoldSelect->traverse(*sit);
@@ -1034,7 +1017,6 @@ bool OutputHLSL::visitAggregate(Visit visit, TIntermAggregate *node)
 
             if (mInsideFunction)
             {
-                outputLineDirective(node->getEndLine());
                 out << "}\n";
 
                 mScopeDepth--;
@@ -1175,16 +1157,13 @@ bool OutputHLSL::visitAggregate(Visit visit, TIntermAggregate *node)
 
                 sequence.erase(sequence.begin());
 
-                out << ")\n";
-                
-                outputLineDirective(node->getLine());
-                out << "{\n";
-                
+                out << ")\n"
+                       "{\n";
+
                 mInsideFunction = true;
             }
             else if (visit == PostVisit)
             {
-                outputLineDirective(node->getEndLine());
                 out << "}\n";
 
                 mInsideFunction = false;
@@ -1409,30 +1388,23 @@ bool OutputHLSL::visitSelection(Visit visit, TIntermSelection *node)
 
         node->getCondition()->traverse(this);
 
-        out << ")\n";
-        
-        outputLineDirective(node->getLine());
-        out << "{\n";
+        out << ")\n"
+               "{\n";
 
         if (node->getTrueBlock())
         {
             node->getTrueBlock()->traverse(this);
         }
 
-        outputLineDirective(node->getLine());
         out << ";}\n";
 
         if (node->getFalseBlock())
         {
-            out << "else\n";
+            out << "else\n"
+                   "{\n";
 
-            outputLineDirective(node->getFalseBlock()->getLine());
-            out << "{\n";
-
-            outputLineDirective(node->getFalseBlock()->getLine());
             node->getFalseBlock()->traverse(this);
 
-            outputLineDirective(node->getFalseBlock()->getLine());
             out << ";}\n";
         }
     }
@@ -1456,10 +1428,8 @@ bool OutputHLSL::visitLoop(Visit visit, TIntermLoop *node)
 
     if (node->getType() == ELoopDoWhile)
     {
-        out << "do\n";
-
-        outputLineDirective(node->getLine());
-        out << "{\n";
+        out << "do\n"
+               "{\n";
     }
     else
     {
@@ -1499,10 +1469,8 @@ bool OutputHLSL::visitLoop(Visit visit, TIntermLoop *node)
             node->getExpression()->traverse(this);
         }
 
-        out << ")\n";
-        
-        outputLineDirective(node->getLine());
-        out << "{\n";
+        out << ")\n"
+               "{\n";
     }
 
     if (node->getBody())
@@ -1510,12 +1478,10 @@ bool OutputHLSL::visitLoop(Visit visit, TIntermLoop *node)
         node->getBody()->traverse(this);
     }
 
-    outputLineDirective(node->getLine());
     out << "}\n";
 
     if (node->getType() == ELoopDoWhile)
     {
-        outputLineDirective(node->getCondition()->getLine());
         out << "while(\n";
 
         node->getCondition()->traverse(this);
@@ -1551,10 +1517,7 @@ bool OutputHLSL::visitBranch(Visit visit, TIntermBranch *node)
         }
         else if (visit == PostVisit)
         {
-            if (node->getExpression())
-            {
-                out << ";\n";
-            }
+            out << ";\n";
         }
         break;
       default: UNREACHABLE();
@@ -1734,17 +1697,14 @@ bool OutputHLSL::handleExcessiveLoop(TIntermLoop *node)
                 index->traverse(this);
                 out << " += ";
                 out << increment;
-                out << ")\n";
-                
-                outputLineDirective(node->getLine());
-                out << "{\n";
+                out << ")\n"
+                       "{\n";
 
                 if (node->getBody())
                 {
                     node->getBody()->traverse(this);
                 }
 
-                outputLineDirective(node->getLine());
                 out << "}\n";
 
                 initial += 255 * increment;
@@ -1774,21 +1734,6 @@ void OutputHLSL::outputTriplet(Visit visit, const TString &preString, const TStr
     else if (visit == PostVisit)
     {
         out << postString;
-    }
-}
-
-void OutputHLSL::outputLineDirective(int line)
-{
-    if ((mContext.compileOptions & SH_LINE_DIRECTIVES) && (line > 0))
-    {
-        mBody << "#line " << line;
-
-        if (mContext.sourcePath)
-        {
-            mBody << " \"" << mContext.sourcePath << "\"";
-        }
-        
-        mBody << "\n";
     }
 }
 

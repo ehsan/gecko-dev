@@ -712,7 +712,6 @@ nsDocShell::nsDocShell():
     mIsOffScreenBrowser(PR_FALSE),
     mIsActive(PR_TRUE),
     mIsAppTab(PR_FALSE),
-    mUseGlobalHistory(PR_FALSE),
     mFiredUnloadEvent(PR_FALSE),
     mEODForCurrentDocument(PR_FALSE),
     mURIResultedInDocument(PR_FALSE),
@@ -3091,7 +3090,7 @@ nsDocShell::AddChild(nsIDocShellTreeItem * aChild)
     childDocShell->SetChildOffset(dynamic ? -1 : mChildList.Count() - 1);
 
     /* Set the child's global history if the parent has one */
-    if (mUseGlobalHistory) {
+    if (mGlobalHistory) {
         nsCOMPtr<nsIDocShellHistory>
             dsHistoryChild(do_QueryInterface(aChild));
         if (dsHistoryChild)
@@ -3369,7 +3368,6 @@ nsDocShell::AddChildSHEntry(nsISHEntry * aCloneRef, nsISHEntry * aNewEntry,
             nsCOMPtr<nsISHEntry> nextEntry;
             aCloneRef->GetID(&cloneID);
             rv = CloneAndReplace(currentEntry, this, cloneID, aNewEntry,
-                                 loadType == LOAD_PUSHSTATE,
                                  getter_AddRefs(nextEntry));
 
             if (NS_SUCCEEDED(rv)) {
@@ -3434,8 +3432,6 @@ nsDocShell::SetUseGlobalHistory(PRBool aUseGlobalHistory)
 {
     nsresult rv;
 
-    mUseGlobalHistory = aUseGlobalHistory;
-
     if (!aUseGlobalHistory) {
         mGlobalHistory = nsnull;
         return NS_OK;
@@ -3452,7 +3448,7 @@ nsDocShell::SetUseGlobalHistory(PRBool aUseGlobalHistory)
 NS_IMETHODIMP
 nsDocShell::GetUseGlobalHistory(PRBool *aUseGlobalHistory)
 {
-    *aUseGlobalHistory = mUseGlobalHistory;
+    *aUseGlobalHistory = (mGlobalHistory != nsnull);
     return NS_OK;
 }
 
@@ -4953,7 +4949,7 @@ nsDocShell::SetTitle(const PRUnichar * aTitle)
             treeOwnerAsWin->SetTitle(aTitle);
     }
 
-    if (mCurrentURI && mLoadType != LOAD_ERROR_PAGE && mUseGlobalHistory) {
+    if (mCurrentURI && mLoadType != LOAD_ERROR_PAGE) {
         nsCOMPtr<IHistory> history = services::GetHistoryService();
         if (history) {
             history->SetURITitle(mCurrentURI, mTitle);
@@ -8356,14 +8352,12 @@ nsDocShell::InternalLoad(nsIURI * aURI,
 
             /* Set the title for the Global History entry for this anchor url.
              */
-            if (mUseGlobalHistory) {
-                nsCOMPtr<IHistory> history = services::GetHistoryService();
-                if (history) {
-                    history->SetURITitle(aURI, mTitle);
-                }
-                else if (mGlobalHistory) {
-                    mGlobalHistory->SetPageTitle(aURI, mTitle);
-                }
+            nsCOMPtr<IHistory> history = services::GetHistoryService();
+            if (history) {
+                history->SetURITitle(aURI, mTitle);
+            }
+            else if (mGlobalHistory) {
+                mGlobalHistory->SetPageTitle(aURI, mTitle);
             }
 
             if (sameDocIdent) {
@@ -9919,16 +9913,6 @@ nsDocShell::AddToSessionHistory(nsIURI * aURI, nsIChannel * aChannel,
 
 
     if (root == static_cast<nsIDocShellTreeItem *>(this) && mSessionHistory) {
-        // Bug 629559: Detect if this is an anchor navigation and clone the
-        // session history in that case too
-        if (mLoadType == LOAD_PUSHSTATE) {
-            PRUint32 cloneID;
-            mOSHE->GetID(&cloneID);
-            nsCOMPtr<nsISHEntry> newEntry;
-            CloneAndReplace(mOSHE, this, cloneID, entry, PR_TRUE, getter_AddRefs(newEntry));
-            NS_ASSERTION(entry == newEntry, "The new session history should be in the new entry");
-        }
-
         // This is the root docshell
         if (LOAD_TYPE_HAS_FLAGS(mLoadType, LOAD_FLAGS_REPLACE_HISTORY)) {            
             // Replace current entry in session history.
@@ -10142,14 +10126,12 @@ nsDocShell::WalkHistoryEntries(nsISHEntry *aRootEntry,
 struct NS_STACK_CLASS CloneAndReplaceData
 {
     CloneAndReplaceData(PRUint32 aCloneID, nsISHEntry *aReplaceEntry,
-                        PRBool aCloneChildren, nsISHEntry *aDestTreeParent)
+                        nsISHEntry *aDestTreeParent)
         : cloneID(aCloneID),
-          cloneChildren(aCloneChildren),
           replaceEntry(aReplaceEntry),
           destTreeParent(aDestTreeParent) { }
 
     PRUint32              cloneID;
-    PRBool                cloneChildren;
     nsISHEntry           *replaceEntry;
     nsISHEntry           *destTreeParent;
     nsCOMPtr<nsISHEntry>  resultEntry;
@@ -10179,19 +10161,9 @@ nsDocShell::CloneAndReplaceChild(nsISHEntry *aEntry, nsDocShell *aShell,
     aEntry->GetID(&srcID);
 
     if (srcID == cloneID) {
-        // Replace the entry
+        // Just replace the entry, and don't walk the children.
         dest = replaceEntry;
         dest->SetIsSubFrame(PR_TRUE);
-
-        if (data->cloneChildren) {
-            // Walk the children
-            CloneAndReplaceData childData(cloneID, replaceEntry,
-                                          data->cloneChildren, dest);
-            result = WalkHistoryEntries(aEntry, aShell,
-                                        CloneAndReplaceChild, &childData);
-            if (NS_FAILED(result))
-                return result;
-        }
     } else {
         // Clone the SHEntry...
         result = aEntry->Clone(getter_AddRefs(dest));
@@ -10202,8 +10174,7 @@ nsDocShell::CloneAndReplaceChild(nsISHEntry *aEntry, nsDocShell *aShell,
         dest->SetIsSubFrame(PR_TRUE);
 
         // Walk the children
-        CloneAndReplaceData childData(cloneID, replaceEntry,
-                                      data->cloneChildren, dest);
+        CloneAndReplaceData childData(cloneID, replaceEntry, dest);
         result = WalkHistoryEntries(aEntry, aShell,
                                     CloneAndReplaceChild, &childData);
         if (NS_FAILED(result))
@@ -10225,13 +10196,12 @@ nsDocShell::CloneAndReplace(nsISHEntry *aSrcEntry,
                                    nsDocShell *aSrcShell,
                                    PRUint32 aCloneID,
                                    nsISHEntry *aReplaceEntry,
-                                   PRBool aCloneChildren,
                                    nsISHEntry **aResultEntry)
 {
     NS_ENSURE_ARG_POINTER(aResultEntry);
     NS_ENSURE_TRUE(aReplaceEntry, NS_ERROR_FAILURE);
 
-    CloneAndReplaceData data(aCloneID, aReplaceEntry, aCloneChildren, nsnull);
+    CloneAndReplaceData data(aCloneID, aReplaceEntry, nsnull);
     nsresult rv = CloneAndReplaceChild(aSrcEntry, aSrcShell, 0, &data);
 
     data.resultEntry.swap(*aResultEntry);
@@ -10556,9 +10526,8 @@ nsDocShell::AddURIVisit(nsIURI* aURI,
 {
     NS_ASSERTION(aURI, "Visited URI is null!");
 
-    // Only content-type docshells save URI visits.  Also don't do
-    // anything here if we're not supposed to use global history.
-    if (mItemType != typeContent || !mUseGlobalHistory) {
+    // Only content-type docshells save URI visits.
+    if (mItemType != typeContent) {
         return;
     }
 

@@ -107,9 +107,9 @@ static HWND sBrowserHwnd = NULL;
 
 PluginModuleChild::PluginModuleChild() :
     mLibrary(0),
-    mQuirks(QUIRKS_NOT_INITIALIZED),
     mShutdownFunc(0),
-    mInitializeFunc(0)
+    mInitializeFunc(0),
+    mQuirks(QUIRKS_NOT_INITIALIZED)
 #if defined(OS_WIN) || defined(OS_MACOSX)
   , mGetEntryPointsFunc(0)
 #elif defined(MOZ_WIDGET_GTK2)
@@ -1884,13 +1884,7 @@ PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor
     // plugins need to actively negotiate something else in order to work
     // out of process.
     if (childInstance->EventModel() == NPEventModelCarbon) {
-      // Send notification that a plugin tried to negotiate Carbon NPAPI so that
-      // users can be notified that restarting the browser in i386 mode may allow
-      // them to use the plugin.
-      childInstance->SendNegotiatedCarbon();
-
-      // Fail to instantiate.
-      *rv = NPERR_MODULE_LOAD_FAILED_ERROR;
+        *rv = NPERR_MODULE_LOAD_FAILED_ERROR;
     }
 #endif
 

@@ -77,7 +77,7 @@
 #include "nsIServiceManager.h"
 #include "nsINodeInfo.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsISelectElement.h"
 #include "nsIPrivateDOMEvent.h"
@@ -406,7 +406,8 @@ NS_QUERYFRAME_TAIL_INHERITING(nsHTMLScrollFrame)
 already_AddRefed<nsAccessible>
 nsListControlFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHTMLListboxAccessible(mContent,
                                                    PresContext()->PresShell());

@@ -236,6 +236,7 @@ SHELL_WRAPPER1(notifyGeckoOfEvent, jobject)
 SHELL_WRAPPER1(setSurfaceView, jobject)
 SHELL_WRAPPER0(onResume)
 SHELL_WRAPPER0(onLowMemory)
+SHELL_WRAPPER0(onCriticalOOM)
 SHELL_WRAPPER3(callObserver, jstring, jstring, jstring)
 SHELL_WRAPPER1(removeObserver, jstring)
 SHELL_WRAPPER1(onChangeNetworkLinkStatus, jstring)
@@ -666,6 +667,7 @@ loadLibs(const char *apkName)
   GETFUNC(setSurfaceView);
   GETFUNC(onResume);
   GETFUNC(onLowMemory);
+  GETFUNC(onCriticalOOM);
   GETFUNC(callObserver);
   GETFUNC(removeObserver);
   GETFUNC(onChangeNetworkLinkStatus);
@@ -699,23 +701,13 @@ Java_org_mozilla_gecko_GeckoAppShell_loadLibs(JNIEnv *jenv, jclass jGeckoAppShel
       if (cache_mapping[i].buffer)
         haveLibsToWrite = true;
 
-  int count = cache_count;
-  struct lib_cache_info *info;
   if (haveLibsToWrite) {
-    if (fork()) {
-      // just unmap.  fork will do the real work.
-      while (count--) {
-        info = &cache_mapping[count];
-        if (!info->buffer)
-          continue;
-        munmap(info->buffer, info->lib_size);
-      }
-    }
-    else {
+    if (!fork()) {
       sleep(10);
       nice(10);
+      int count = cache_count;
       while (count--) {
-        info = &cache_mapping[count];
+        struct lib_cache_info *info = &cache_mapping[count];
         if (!info->buffer)
           continue;
 
@@ -727,6 +719,7 @@ Java_org_mozilla_gecko_GeckoAppShell_loadLibs(JNIEnv *jenv, jclass jGeckoAppShel
         // using sendfile would be preferable, but it doesn't seem to work
         // with shared memory on any of the devices we've tested
         uint32_t sent = write(file_fd, info->buffer, info->lib_size);
+
         munmap(info->buffer, info->lib_size);
         info->buffer = 0;
         close(file_fd);

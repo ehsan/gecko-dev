@@ -600,11 +600,6 @@ public:
     virtual void PrintAllReferencesTo(void *p);
 #endif
 
-    XPCCallContext *GetCycleCollectionContext()
-    {
-        return mCycleCollectionContext;
-    }
-
     unsigned GetOutstandingRequests(JSContext* cx);
 
     // This returns the singleton nsCycleCollectionParticipant for JSContexts.
@@ -808,9 +803,6 @@ public:
     nsresult RemoveJSHolder(void* aHolder);
 
     void ClearWeakRoots();
-
-    static void SuspectWrappedNative(JSContext *cx, XPCWrappedNative *wrapper,
-                                     nsCycleCollectionTraversalCallback &cb);
 
     void DebugDump(PRInt16 depth);
 
@@ -4038,7 +4030,7 @@ public:
      * @param errorReporter the error reporter callback function to set
      */
 
-    PRBool StartEvaluating(JSObject *scope, JSErrorReporter errorReporter = nsnull);
+    void StartEvaluating(JSErrorReporter errorReporter = nsnull);
     /**
      * Does the post script evaluation and resets the error reporter
      */
@@ -4049,7 +4041,6 @@ private:
     PRBool mErrorReporterSet;
     PRBool mEvaluated;
     jsword mContextHasThread;
-    JSAutoEnterCompartment mEnterCompartment;
     MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // No copying or assignment allowed

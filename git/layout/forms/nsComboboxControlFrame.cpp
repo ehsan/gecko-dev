@@ -77,7 +77,7 @@
 #include "nsListControlFrame.h"
 #include "nsContentCID.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 #include "nsIDOMNode.h"
@@ -305,7 +305,8 @@ NS_QUERYFRAME_TAIL_INHERITING(nsBlockFrame)
 already_AddRefed<nsAccessible>
 nsComboboxControlFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHTMLComboboxAccessible(mContent,
                                                     PresContext()->PresShell());
