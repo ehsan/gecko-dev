@@ -9,7 +9,7 @@
 #ifndef LIBGLESV2_QUERY_H_
 #define LIBGLESV2_QUERY_H_
 
-#include <GLES3/gl3.h>
+#define GL_APICALL
 #include <GLES2/gl2.h>
 
 #include "common/angleutils.h"
@@ -37,7 +37,6 @@ class Query : public RefCountObject
     GLboolean isResultAvailable();
 
     GLenum getType() const;
-    bool isStarted() const;
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Query);

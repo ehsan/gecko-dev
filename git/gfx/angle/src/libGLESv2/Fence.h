@@ -10,7 +10,6 @@
 #define LIBGLESV2_FENCE_H_
 
 #include "common/angleutils.h"
-#include "common/RefCountObject.h"
 
 namespace rx
 {
@@ -21,50 +20,22 @@ class FenceImpl;
 namespace gl
 {
 
-class FenceNV
+class Fence
 {
   public:
-    explicit FenceNV(rx::Renderer *renderer);
-    virtual ~FenceNV();
+    explicit Fence(rx::Renderer *renderer);
+    virtual ~Fence();
 
-    GLboolean isFence() const;
+    GLboolean isFence();
     void setFence(GLenum condition);
     GLboolean testFence();
     void finishFence();
-    GLint getFencei(GLenum pname);
-
-    GLboolean getStatus() const { return mStatus; }
-    GLuint getCondition() const { return mCondition; }
+    void getFenceiv(GLenum pname, GLint *params);
 
   private:
-    DISALLOW_COPY_AND_ASSIGN(FenceNV);
+    DISALLOW_COPY_AND_ASSIGN(Fence);
 
     rx::FenceImpl *mFence;
-
-    GLboolean mStatus;
-    GLenum mCondition;
-};
-
-class FenceSync : public RefCountObject
-{
-  public:
-    explicit FenceSync(rx::Renderer *renderer, GLuint id);
-    virtual ~FenceSync();
-
-    void set(GLenum condition);
-    GLenum clientWait(GLbitfield flags, GLuint64 timeout);
-    void serverWait();
-    GLenum getStatus() const;
-
-    GLuint getCondition() const { return mCondition; }
-
-  private:
-    DISALLOW_COPY_AND_ASSIGN(FenceSync);
-
-    rx::FenceImpl *mFence;
-    LONGLONG mCounterFrequency;
-
-    GLenum mCondition;
 };
 
 }

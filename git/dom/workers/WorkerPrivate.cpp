@@ -5192,9 +5192,9 @@ WorkerPrivate::ReportError(JSContext* aCx, const char* aMessage,
     JS::Rooted<JSString*> messageStr(aCx,
                                      js::ErrorReportToString(aCx, aReport));
     if (messageStr) {
-      nsAutoJSString autoStr;
-      if (autoStr.init(aCx, messageStr)) {
-        message = autoStr;
+      nsDependentJSString depStr;
+      if (depStr.init(aCx, messageStr)) {
+        message = depStr;
       }
     }
     filename = NS_ConvertUTF8toUTF16(aReport->filename);

@@ -790,26 +790,19 @@ typedef HashSet<GlobalObject *, DefaultHasher<GlobalObject *>, SystemAllocPolicy
  * for ClassSpecs.
  */
 
-template<JSNative ctor, unsigned length, gc::AllocKind kind>
+template<JSNative ctor, size_t atomOffset, unsigned length>
 JSObject *
 GenericCreateConstructor(JSContext *cx, JSProtoKey key)
 {
-    // Note - We duplicate the trick from ClassName() so that we don't need to
-    // include jsatominlines.h here.
-    PropertyName *name = (&cx->names().Null)[key];
-    return cx->global()->createConstructor(cx, ctor, name, length, kind);
+    JSAtom *atom = AtomStateOffsetToName(cx->names(), atomOffset);
+    return cx->global()->createConstructor(cx, ctor, atom, length);
 }
 
 template<const Class *clasp>
 JSObject *
 GenericCreatePrototype(JSContext *cx, JSProtoKey key)
 {
-    MOZ_ASSERT(key != JSProto_Object);
-    JSProtoKey parentKey = ParentKeyForStandardClass(key);
-    if (!GlobalObject::ensureConstructor(cx, cx->global(), parentKey))
-        return nullptr;
-    JSObject *parentProto = &cx->global()->getPrototype(parentKey).toObject();
-    return cx->global()->createBlankPrototypeInheriting(cx, clasp, *parentProto);
+    return cx->global()->createBlankPrototype(cx, clasp);
 }
 
 } // namespace js

@@ -7,8 +7,6 @@
 #ifndef mozilla_ScopedNSSTypes_h
 #define mozilla_ScopedNSSTypes_h
 
-#include <limits>
-
 #include "NSSErrorsService.h"
 #include "mozilla/Likely.h"
 #include "mozilla/mozalloc_oom.h"
@@ -61,14 +59,6 @@ MapSECStatus(SECStatus rv)
 
   return mozilla::psm::GetXPCOMFromNSSError(PR_GetError());
 }
-
-#ifdef _MSC_VER
-// C4061: enumerator 'symbol' in switch of enum 'symbol' is not explicitly
-// handled.
-#define MOZ_NON_EXHAUSTIVE_SWITCH __pragma(warning(suppress:4061)) switch
-#else
-#define MOZ_NON_EXHAUSTIVE_SWITCH switch
-#endif
 
 // Alphabetical order by NSS type
 MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(ScopedPRFileDesc,
@@ -174,13 +164,9 @@ public:
 
   nsresult DigestBuf(SECOidTag hashAlg, const uint8_t * buf, uint32_t len)
   {
-    if (len > static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) {
-      return NS_ERROR_INVALID_ARG;
-    }
     nsresult rv = SetLength(hashAlg);
     NS_ENSURE_SUCCESS(rv, rv);
-    return MapSECStatus(PK11_HashBuf(hashAlg, item.data, buf,
-                                     static_cast<int32_t>(len)));
+    return MapSECStatus(PK11_HashBuf(hashAlg, item.data, buf, len));
   }
 
   nsresult End(SECOidTag hashAlg, ScopedPK11Context & context)
@@ -200,7 +186,7 @@ public:
 private:
   nsresult SetLength(SECOidTag hashType)
   {
-    MOZ_NON_EXHAUSTIVE_SWITCH (hashType)
+    switch (hashType)
     {
       case SEC_OID_SHA1:   item.len = SHA1_LENGTH;   break;
       case SEC_OID_SHA256: item.len = SHA256_LENGTH; break;

@@ -27,7 +27,6 @@
 #include "mozilla/MemoryReporting.h"
 #include "nsCycleCollector.h"
 #include "nsIXPConnect.h"
-#include "nsJSUtils.h"
 #include "MainThreadUtils.h"
 #include "nsISupportsImpl.h"
 #include "qsObjectHelper.h"
@@ -624,13 +623,6 @@ bool
 DefineProperties(JSContext* cx, JS::Handle<JSObject*> obj,
                  const NativeProperties* properties,
                  const NativeProperties* chromeOnlyProperties);
-
-/*
- * Define the unforgeable methods on an object.
- */
-bool
-DefineUnforgeableMethods(JSContext* cx, JS::Handle<JSObject*> obj,
-                         const Prefable<const JSFunctionSpec>* props);
 
 /*
  * Define the unforgeable attributes on an object.
@@ -1858,6 +1850,25 @@ private:
   };
 };
 
+template<typename T>
+inline bool
+AssignJSString(JSContext *cx, T &dest, JSString *s)
+{
+  size_t len = js::GetStringLength(s);
+  static_assert(js::MaxStringLength < (1 << 28),
+                "Shouldn't overflow here or in FakeString::SetCapacity");
+  if (MOZ_UNLIKELY(!dest.SetCapacity(len + 1, mozilla::fallible_t()))) {
+    JS_ReportOutOfMemory(cx);
+    return false;
+  }
+  if (MOZ_UNLIKELY(!js::CopyStringChars(cx, dest.BeginWriting(), s, len))) {
+    return false;
+  }
+  dest.BeginWriting()[len] = '\0';
+  dest.SetLength(len);
+  return true;
+}
+
 } // namespace binding_detail
 
 enum StringificationBehavior {
@@ -1901,7 +1912,7 @@ ConvertJSValueToString(JSContext* cx, JS::Handle<JS::Value> v,
     }
   }
 
-  return AssignJSString(cx, result, s);
+  return binding_detail::AssignJSString(cx, result, s);
 }
 
 bool

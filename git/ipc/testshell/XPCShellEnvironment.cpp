@@ -596,13 +596,13 @@ XPCShellEnvironment::EvaluateString(const nsString& aString,
   if (ok && result != JSVAL_VOID) {
       JSErrorReporter old = JS_SetErrorReporter(cx, nullptr);
       JSString* str = JS::ToString(cx, result);
-      nsAutoJSString autoStr;
+      nsDependentJSString depStr;
       if (str)
-          autoStr.init(cx, str);
+          depStr.init(cx, str);
       JS_SetErrorReporter(cx, old);
 
-      if (!autoStr.IsEmpty() && aResult) {
-          aResult->Assign(autoStr);
+      if (!depStr.IsEmpty() && aResult) {
+          aResult->Assign(depStr);
       }
   }
 

@@ -119,7 +119,7 @@ nsSVGPathGeometryElement::GetStrokeWidth()
     nsComputedDOMStyle::GetStyleContextForElementNoFlush(this, nullptr,
                                                          nullptr);
   return styleContext ?
-    SVGContentUtils::CoordToFloat(this,
+    SVGContentUtils::CoordToFloat(styleContext->PresContext(), this,
                                   styleContext->StyleSVG()->mStrokeWidth) :
     0.0f;
 }

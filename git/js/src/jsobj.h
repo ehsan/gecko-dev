@@ -1249,6 +1249,9 @@ GetBuiltinConstructor(ExclusiveContext *cx, JSProtoKey key, MutableHandleObject 
 bool
 GetBuiltinPrototype(ExclusiveContext *cx, JSProtoKey key, MutableHandleObject objp);
 
+const Class *
+ProtoKeyToClass(JSProtoKey key);
+
 JSObject *
 GetBuiltinPrototypePure(GlobalObject *global, JSProtoKey protoKey);
 

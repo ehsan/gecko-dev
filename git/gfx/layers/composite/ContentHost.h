@@ -102,10 +102,11 @@ public:
 
   virtual void SetPaintWillResample(bool aResample) { mPaintWillResample = aResample; }
 
+  virtual bool Lock() = 0;
+  virtual void Unlock() = 0;
+
   virtual NewTextureSource* GetTextureSource() = 0;
   virtual NewTextureSource* GetTextureSourceOnWhite() = 0;
-
-  virtual TemporaryRef<TexturedEffect> GenEffect(const gfx::Filter& aFilter) MOZ_OVERRIDE;
 
 protected:
   virtual nsIntPoint GetOriginOffset()
@@ -149,7 +150,7 @@ public:
   virtual void UseComponentAlphaTextures(TextureHost* aTextureOnBlack,
                                          TextureHost* aTextureOnWhite) MOZ_OVERRIDE;
 
-  virtual bool Lock() MOZ_OVERRIDE {
+  virtual bool Lock() {
     MOZ_ASSERT(!mLocked);
     if (!mTextureHost) {
       return false;
@@ -165,7 +166,7 @@ public:
     mLocked = true;
     return true;
   }
-  virtual void Unlock() MOZ_OVERRIDE {
+  virtual void Unlock() {
     MOZ_ASSERT(mLocked);
     mTextureHost->Unlock();
     if (mTextureHostOnWhite) {
@@ -174,11 +175,11 @@ public:
     mLocked = false;
   }
 
-  virtual NewTextureSource* GetTextureSource() MOZ_OVERRIDE {
+  virtual NewTextureSource* GetTextureSource() {
     MOZ_ASSERT(mLocked);
     return mTextureHost->GetTextureSources();
   }
-  virtual NewTextureSource* GetTextureSourceOnWhite() MOZ_OVERRIDE {
+  virtual NewTextureSource* GetTextureSourceOnWhite() {
     MOZ_ASSERT(mLocked);
     if (mTextureHostOnWhite) {
       return mTextureHostOnWhite->GetTextureSources();
@@ -280,20 +281,20 @@ public:
 
   virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix) MOZ_OVERRIDE;
 
-  virtual bool Lock() MOZ_OVERRIDE {
+  virtual bool Lock() {
     MOZ_ASSERT(!mLocked);
     ProcessTextureUpdates();
     mLocked = true;
     return true;
   }
 
-  virtual void Unlock() MOZ_OVERRIDE {
+  virtual void Unlock() {
     MOZ_ASSERT(mLocked);
     mLocked = false;
   }
 
-  virtual NewTextureSource* GetTextureSource() MOZ_OVERRIDE;
-  virtual NewTextureSource* GetTextureSourceOnWhite() MOZ_OVERRIDE;
+  virtual NewTextureSource* GetTextureSource();
+  virtual NewTextureSource* GetTextureSourceOnWhite();
 
 private:
 

@@ -244,6 +244,8 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
     fillRule = StyleSVG()->mClipRule;
   } else {
     hitTestFlags = GetHitTestFlags();
+    // XXX once bug 614732 is fixed, aPoint won't need any conversion in order
+    // to compare it with mRect.
     nsPoint point =
       nsSVGUtils::TransformOuterSVGPointToChildFrame(aPoint, canvasTM, PresContext());
     if (!hitTestFlags || ((hitTestFlags & SVG_HIT_TEST_CHECK_MRECT) &&
@@ -259,7 +261,8 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
 
   GeneratePath(tmpCtx, ToMatrix(canvasTM));
   gfxPoint userSpacePoint =
-    tmpCtx->DeviceToUser(gfxPoint(aPoint.x, aPoint.y) / PresContext()->AppUnitsPerCSSPixel());
+    tmpCtx->DeviceToUser(gfxPoint(PresContext()->AppUnitsToGfxUnits(aPoint.x),
+                                  PresContext()->AppUnitsToGfxUnits(aPoint.y)));
 
   if (fillRule == NS_STYLE_FILL_RULE_EVENODD)
     tmpCtx->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
@@ -509,11 +512,9 @@ gfxMatrix
 nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
 {
   if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY) && !aTransformRoot) {
-    if (aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) {
+    if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
+        (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
-    }
-    if (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled()) {
-      return gfxMatrix();
     }
   }
 

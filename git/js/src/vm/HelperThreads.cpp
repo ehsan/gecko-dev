@@ -1025,9 +1025,6 @@ CurrentHelperThread()
 void
 js::PauseCurrentHelperThread()
 {
-    TraceLogger *logger = TraceLoggerForCurrentThread();
-    AutoTraceLog logPaused(logger, TraceLogger::IonCompilationPaused);
-
     HelperThread *thread = CurrentHelperThread();
 
     AutoLockHelperThreadState lock;

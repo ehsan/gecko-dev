@@ -2568,7 +2568,7 @@ this.DOMApplicationRegistry = {
     if (!aData.isPackage) {
       this.updateAppHandlers(null, app.manifest, app);
       if (aInstallSuccessCallback) {
-        aInstallSuccessCallback(app, app.manifest);
+        aInstallSuccessCallback(app.manifest);
       }
     }
 
@@ -2657,7 +2657,7 @@ this.DOMApplicationRegistry = {
     });
 
     if (aInstallSuccessCallback) {
-      aInstallSuccessCallback(aNewApp, aManifest, zipFile.path);
+      aInstallSuccessCallback(aManifest, zipFile.path);
     }
   }),
 

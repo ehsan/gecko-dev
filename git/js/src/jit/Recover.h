@@ -40,7 +40,6 @@ namespace jit {
     _(Pow)                                      \
     _(PowHalf)                                  \
     _(MinMax)                                   \
-    _(Abs)                                      \
     _(NewObject)                                \
     _(NewDerivedTypedObject)
 
@@ -384,18 +383,6 @@ class RMinMax MOZ_FINAL : public RInstruction
 
     virtual uint32_t numOperands() const {
         return 2;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
-class RAbs MOZ_FINAL : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(Abs)
-
-    virtual uint32_t numOperands() const {
-        return 1;
     }
 
     bool recover(JSContext *cx, SnapshotIterator &iter) const;

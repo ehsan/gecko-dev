@@ -77,7 +77,7 @@ this.WebappRT = {
                                   config.app.categories,
                                   config.registryDir);
     try {
-      yield nativeApp.applyUpdate(config.app);
+      yield nativeApp.applyUpdate();
     } catch (ex) {
       return false;
     }

@@ -181,7 +181,7 @@ InstallXBLField(JSContext* cx,
   // Field[GS]etter where we attempt a cross-compartment call), we must enter
   // the callee's compartment to access its reserved slots.
   nsXBLPrototypeBinding* protoBinding;
-  nsAutoJSString fieldName;
+  nsDependentJSString fieldName;
   {
     JSAutoCompartment ac(cx, callee);
 
@@ -189,9 +189,8 @@ InstallXBLField(JSContext* cx,
     xblProto = &js::GetFunctionNativeReserved(callee, XBLPROTO_SLOT).toObject();
 
     JS::Rooted<JS::Value> name(cx, js::GetFunctionNativeReserved(callee, FIELD_SLOT));
-    if (!fieldName.init(cx, name.toString())) {
-      return false;
-    }
+    JSFlatString* fieldStr = JS_ASSERT_STRING_IS_FLAT(name.toString());
+    fieldName.infallibleInit(fieldStr);
 
     MOZ_ALWAYS_TRUE(JS_ValueToId(cx, name, idp));
 

@@ -11,7 +11,6 @@
 #define LIBGLESV2_RENDERER_SHADEREXECUTABLE_H_
 
 #include "common/angleutils.h"
-#include "common/debug.h"
 
 namespace rx
 {
@@ -45,22 +44,6 @@ class ShaderExecutable
 
     void *mFunction;
     const size_t mLength;
-};
-
-class UniformStorage
-{
-  public:
-    UniformStorage(size_t initialSize)
-        : mSize(initialSize)
-    {
-    }
-
-    virtual ~UniformStorage() {}
-
-    size_t size() const { return mSize; }
-
-  private:
-    size_t mSize;
 };
 
 }

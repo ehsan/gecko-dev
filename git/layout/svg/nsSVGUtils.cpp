@@ -373,13 +373,11 @@ nsSVGUtils::GetCanvasTM(nsIFrame *aFrame, uint32_t aFor,
 
   if (!(aFrame->GetStateBits() & NS_FRAME_IS_NONDISPLAY) &&
       !aTransformRoot) {
-    if (aFor == nsISVGChildFrame::FOR_PAINTING &&
-        NS_SVGDisplayListPaintingEnabled()) {
+    if ((aFor == nsISVGChildFrame::FOR_PAINTING &&
+         NS_SVGDisplayListPaintingEnabled()) ||
+        (aFor == nsISVGChildFrame::FOR_HIT_TESTING &&
+         NS_SVGDisplayListHitTestingEnabled())) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(aFrame);
-    }
-    if (aFor == nsISVGChildFrame::FOR_HIT_TESTING &&
-        NS_SVGDisplayListHitTestingEnabled()) {
-      return gfxMatrix();
     }
   }
 
@@ -761,9 +759,9 @@ nsSVGUtils::TransformOuterSVGPointToChildFrame(nsPoint aPoint,
                     "Callers must not pass a singular matrix");
   gfxMatrix canvasDevToFrameUserSpace = aFrameToCanvasTM;
   canvasDevToFrameUserSpace.Invert();
-  gfxPoint cssPxPt =
-    gfxPoint(aPoint.x, aPoint.y) / aPresContext->AppUnitsPerCSSPixel();
-  gfxPoint userPt = canvasDevToFrameUserSpace.Transform(cssPxPt);
+  gfxPoint devPt = gfxPoint(aPoint.x, aPoint.y) /
+    aPresContext->AppUnitsPerDevPixel();
+  gfxPoint userPt = canvasDevToFrameUserSpace.Transform(devPt);
   gfxPoint appPt = (userPt * aPresContext->AppUnitsPerCSSPixel()).Round();
   userPt.x = clamped(appPt.x, gfxFloat(nscoord_MIN), gfxFloat(nscoord_MAX));
   userPt.y = clamped(appPt.y, gfxFloat(nscoord_MIN), gfxFloat(nscoord_MAX));
@@ -1367,7 +1365,8 @@ nsSVGUtils::GetStrokeWidth(nsIFrame* aFrame, gfxTextContextPaint *aContextPaint)
 
   nsSVGElement *ctx = static_cast<nsSVGElement*>(content);
 
-  return SVGContentUtils::CoordToFloat(ctx, style->mStrokeWidth);
+  return SVGContentUtils::CoordToFloat(aFrame->PresContext(), ctx,
+                                       style->mStrokeWidth);
 }
 
 void
@@ -1422,6 +1421,7 @@ GetStrokeDashData(nsIFrame* aFrame,
                   gfxTextContextPaint *aContextPaint)
 {
   const nsStyleSVG* style = aFrame->StyleSVG();
+  nsPresContext *presContext = aFrame->PresContext();
   nsIContent *content = aFrame->GetContent();
   nsSVGElement *ctx = static_cast<nsSVGElement*>
     (content->IsNodeOfType(nsINode::eTEXT) ?
@@ -1457,7 +1457,8 @@ GetStrokeDashData(nsIFrame* aFrame,
     const nsStyleCoord *dasharray = style->mStrokeDasharray;
 
     for (uint32_t i = 0; i < count; i++) {
-      aDashes[i] = SVGContentUtils::CoordToFloat(ctx,
+      aDashes[i] = SVGContentUtils::CoordToFloat(presContext,
+                                                 ctx,
                                                  dasharray[i]) * pathScale;
       if (aDashes[i] < 0.0) {
         return false;
@@ -1469,7 +1470,8 @@ GetStrokeDashData(nsIFrame* aFrame,
   if (aContextPaint && style->mStrokeDashoffsetFromObject) {
     *aDashOffset = aContextPaint->GetStrokeDashOffset();
   } else {
-    *aDashOffset = SVGContentUtils::CoordToFloat(ctx,
+    *aDashOffset = SVGContentUtils::CoordToFloat(presContext,
+                                                 ctx,
                                                  style->mStrokeDashoffset);
   }
   

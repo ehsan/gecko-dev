@@ -51,7 +51,6 @@ class MediaKeys;
 class TextTrack;
 class TimeRanges;
 class WakeLock;
-class MediaTrack;
 }
 }
 
@@ -68,8 +67,6 @@ namespace dom {
 class MediaError;
 class MediaSource;
 class TextTrackList;
-class AudioTrackList;
-class VideoTrackList;
 
 class HTMLMediaElement : public nsGenericHTMLElement,
                          public nsIObserver,
@@ -151,7 +148,10 @@ public:
   // Called by the video decoder object, on the main thread,
   // when it has read the metadata containing video dimensions,
   // etc.
-  virtual void MetadataLoaded(const MediaInfo* aInfo,
+  virtual void MetadataLoaded(int aChannels,
+                              int aRate,
+                              bool aHasAudio,
+                              bool aHasVideo,
                               const MetadataTags* aTags) MOZ_FINAL MOZ_OVERRIDE;
 
   // Called by the video decoder object, on the main thread,
@@ -281,8 +281,6 @@ public:
    * whether it's appropriate to fire an error event.
    */
   void NotifyLoadError();
-
-  void NotifyMediaTrackEnabled(MediaTrack* aTrack);
 
   virtual bool IsNodeOfType(uint32_t aFlags) const MOZ_OVERRIDE;
 
@@ -562,10 +560,6 @@ public:
   }
 
   void SetMozAudioChannelType(AudioChannel aValue, ErrorResult& aRv);
-
-  AudioTrackList* AudioTracks();
-
-  VideoTrackList* VideoTracks();
 
   TextTrackList* TextTracks();
 
@@ -1110,8 +1104,7 @@ protected:
   enum MutedReasons {
     MUTED_BY_CONTENT               = 0x01,
     MUTED_BY_INVALID_PLAYBACK_RATE = 0x02,
-    MUTED_BY_AUDIO_CHANNEL         = 0x04,
-    MUTED_BY_AUDIO_TRACK           = 0x08
+    MUTED_BY_AUDIO_CHANNEL         = 0x04
   };
 
   uint32_t mMuted;
@@ -1215,19 +1208,10 @@ protected:
   // Is this media element playing?
   bool mPlayingThroughTheAudioChannel;
 
-  // Disable the video playback by track selection. This flag might not be
-  // enough if we ever expand the ability of supporting multi-tracks video
-  // playback.
-  bool mDisableVideo;
-
   // An agent used to join audio channel service.
   nsCOMPtr<nsIAudioChannelAgent> mAudioChannelAgent;
 
   nsRefPtr<TextTrackManager> mTextTrackManager;
-
-  nsRefPtr<AudioTrackList> mAudioTrackList;
-
-  nsRefPtr<VideoTrackList> mVideoTrackList;
 
   MediaWaitingFor mWaitingFor;
 };

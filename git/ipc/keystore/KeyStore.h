@@ -33,15 +33,6 @@ enum ResponseCode {
   NO_RESPONSE
 };
 
-void FormatCaData(const uint8_t *aCaData, int aCaDataLength,
-                  const char *aName, const uint8_t **aFormatData,
-                  int *aFormatDataLength);
-
-ResponseCode getCertificate(const char *aCertName, const uint8_t **aCertData,
-                            int *aCertDataLength);
-
-bool checkPermission(uid_t uid);
-
 static const int MAX_PARAM = 2;
 static const int KEY_SIZE = ((NAME_MAX - 15) / 2);
 static const int VALUE_SIZE = 32768;
@@ -119,6 +110,9 @@ private:
   void ResetHandlerInfo();
   void Listen();
 
+  void FormatCaData(const uint8_t *aCaData, int aCaDataLength, const char *aName,
+                    const uint8_t **aFormatData, int &aFormatDataLength);
+
   bool CheckSize(UnixSocketRawData *aMessage, size_t aExpectSize);
   ResponseCode ReadCommand(UnixSocketRawData *aMessage);
   ResponseCode ReadLength(UnixSocketRawData *aMessage);
@@ -127,6 +121,8 @@ private:
   void SendData(const uint8_t *data, int length);
 
   bool mShutdown;
+
+  CERTCertDBHandle *certdb;
 };
 
 } // namespace ipc

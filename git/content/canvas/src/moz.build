@@ -25,7 +25,6 @@ UNIFIED_SOURCES += [
 
 if CONFIG['MOZ_WEBGL']:
     UNIFIED_SOURCES += [
-        'MurmurHash3.cpp',
         'WebGL1Context.cpp',
         'WebGL2Context.cpp',
         'WebGLActiveInfo.cpp',

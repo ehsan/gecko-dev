@@ -567,7 +567,8 @@ SVGContentUtils::ParseInteger(const nsAString& aString,
 }
 
 float
-SVGContentUtils::CoordToFloat(nsSVGElement *aContent,
+SVGContentUtils::CoordToFloat(nsPresContext *aPresContext,
+                              nsSVGElement *aContent,
                               const nsStyleCoord &aCoord)
 {
   switch (aCoord.GetUnit()) {

@@ -241,7 +241,8 @@ public:
    * Factor (straight userspace), Coord (dimensioned), and Percent (of
    * aContent's SVG viewport)
    */
-  static float CoordToFloat(nsSVGElement *aContent,
+  static float CoordToFloat(nsPresContext *aPresContext,
+                            nsSVGElement *aContent,
                             const nsStyleCoord &aCoord);
   /**
    * Parse the SVG path string

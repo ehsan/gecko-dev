@@ -12,16 +12,14 @@
 #ifndef LIBGLESV2_SHADER_H_
 #define LIBGLESV2_SHADER_H_
 
-#include <GLES3/gl3.h>
+#define GL_APICALL
 #include <GLES2/gl2.h>
 #include <string>
 #include <list>
 #include <vector>
 
-#include "common/shadervars.h"
+#include "compiler/CompilerUniform.h"
 #include "common/angleutils.h"
-#include "libGLESv2/angletypes.h"
-#include "GLSLANG/ShaderLang.h"
 
 namespace rx
 {
@@ -32,26 +30,27 @@ namespace gl
 {
 class ResourceManager;
 
-struct PackedVarying : public Varying
+struct Varying
 {
-    unsigned int registerIndex; // Assigned during link
-
-    PackedVarying(const Varying &varying)
-      : Varying(varying),
-        registerIndex(GL_INVALID_INDEX)
-    {}
-
-    bool registerAssigned() const { return registerIndex != GL_INVALID_INDEX; }
-
-    void resetRegisterAssignment()
+    Varying(GLenum type, const std::string &name, int size, bool array)
+        : type(type), name(name), size(size), array(array), reg(-1), col(-1)
     {
-        registerIndex = GL_INVALID_INDEX;
     }
+
+    GLenum type;
+    std::string name;
+    int size;   // Number of 'type' elements
+    bool array;
+
+    int reg;    // First varying register, assigned during link
+    int col;    // First register element, assigned during link
 };
+
+typedef std::list<Varying> VaryingList;
 
 class Shader
 {
-    friend class DynamicHLSL;
+    friend class ProgramBinary;
 
   public:
     Shader(ResourceManager *manager, const rx::Renderer *renderer, GLuint handle);
@@ -62,49 +61,42 @@ class Shader
     GLuint getHandle() const;
 
     void deleteSource();
-    void setSource(GLsizei count, const char *const *string, const GLint *length);
+    void setSource(GLsizei count, const char **string, const GLint *length);
     int getInfoLogLength() const;
-    void getInfoLog(GLsizei bufSize, GLsizei *length, char *infoLog) const;
+    void getInfoLog(GLsizei bufSize, GLsizei *length, char *infoLog);
     int getSourceLength() const;
-    void getSource(GLsizei bufSize, GLsizei *length, char *buffer) const;
+    void getSource(GLsizei bufSize, GLsizei *length, char *buffer);
     int getTranslatedSourceLength() const;
-    void getTranslatedSource(GLsizei bufSize, GLsizei *length, char *buffer) const;
-    const std::vector<Uniform> &getUniforms() const;
-    const std::vector<InterfaceBlock> &getInterfaceBlocks() const;
-    std::vector<PackedVarying> &getVaryings();
+    void getTranslatedSource(GLsizei bufSize, GLsizei *length, char *buffer);
+    const sh::ActiveUniforms &getUniforms();
 
     virtual void compile() = 0;
     virtual void uncompile();
-    bool isCompiled() const;
-    const std::string &getHLSL() const;
+    bool isCompiled();
+    const char *getHLSL();
 
     void addRef();
     void release();
     unsigned int getRefCount() const;
     bool isFlaggedForDeletion() const;
     void flagForDeletion();
-    int getShaderVersion() const;
-    void resetVaryingsRegisterAssignment();
 
     static void releaseCompiler();
-    static ShShaderOutput getCompilerOutputType(GLenum shader);
-
-    bool usesDepthRange() const { return mUsesDepthRange; }
-    bool usesPointSize() const { return mUsesPointSize; }
-    rx::D3DWorkaroundType getD3DWorkarounds() const;
 
   protected:
-    void parseVaryings(void *compiler);
+    void parseVaryings();
+    void resetVaryingsRegisterAssignment();
 
     void compileToHLSL(void *compiler);
 
-    void getSourceImpl(const std::string &source, GLsizei bufSize, GLsizei *length, char *buffer) const;
+    void getSourceImpl(char *source, GLsizei bufSize, GLsizei *length, char *buffer);
 
-    static bool compareVarying(const PackedVarying &x, const PackedVarying &y);
+    static GLenum parseType(const std::string &type);
+    static bool compareVarying(const Varying &x, const Varying &y);
 
     const rx::Renderer *const mRenderer;
 
-    std::vector<PackedVarying> mVaryings;
+    VaryingList mVaryings;
 
     bool mUsesMultipleRenderTargets;
     bool mUsesFragColor;
@@ -115,9 +107,6 @@ class Shader
     bool mUsesPointCoord;
     bool mUsesDepthRange;
     bool mUsesFragDepth;
-    int mShaderVersion;
-    bool mUsesDiscardRewriting;
-    bool mUsesNestedBreak;
 
     static void *mFragmentCompiler;
     static void *mVertexCompiler;
@@ -131,18 +120,33 @@ class Shader
     unsigned int mRefCount;     // Number of program objects this shader is attached to
     bool mDeleteStatus;         // Flag to indicate that the shader can be deleted when no longer in use
 
-    std::string mSource;
-    std::string mHlsl;
-    std::string mInfoLog;
-    std::vector<Uniform> mActiveUniforms;
-    std::vector<InterfaceBlock> mActiveInterfaceBlocks;
+    char *mSource;
+    char *mHlsl;
+    char *mInfoLog;
+    sh::ActiveUniforms mActiveUniforms;
 
     ResourceManager *mResourceManager;
 };
 
+struct Attribute
+{
+    Attribute() : type(GL_NONE), name("")
+    {
+    }
+
+    Attribute(GLenum type, const std::string &name) : type(type), name(name)
+    {
+    }
+
+    GLenum type;
+    std::string name;
+};
+
+typedef std::vector<Attribute> AttributeArray;
+
 class VertexShader : public Shader
 {
-    friend class DynamicHLSL;
+    friend class ProgramBinary;
 
   public:
     VertexShader(ResourceManager *manager, const rx::Renderer *renderer, GLuint handle);
@@ -154,14 +158,12 @@ class VertexShader : public Shader
     virtual void uncompile();
     int getSemanticIndex(const std::string &attributeName);
 
-    const std::vector<Attribute> &activeAttributes() const { return mActiveAttributes; }
-
   private:
     DISALLOW_COPY_AND_ASSIGN(VertexShader);
 
     void parseAttributes();
 
-    std::vector<Attribute> mActiveAttributes;
+    AttributeArray mAttributes;
 };
 
 class FragmentShader : public Shader
@@ -173,13 +175,9 @@ class FragmentShader : public Shader
 
     virtual GLenum getType();
     virtual void compile();
-    virtual void uncompile();
-    const std::vector<Attribute> &getOutputVariables() const;
 
   private:
     DISALLOW_COPY_AND_ASSIGN(FragmentShader);
-
-    std::vector<Attribute> mActiveOutputVariables;
 };
 }
 
