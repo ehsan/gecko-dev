@@ -456,10 +456,9 @@ NetworkManager.prototype = {
 
   // Helpers
 
-  idgen: 0,
   controlMessage: function controlMessage(params, callback) {
     if (callback) {
-      let id = this.idgen++;
+      let id = callback.name;
       params.id = id;
       this.controlCallbacks[id] = callback;
     }
@@ -477,7 +476,6 @@ NetworkManager.prototype = {
     let callback = this.controlCallbacks[id];
     if (callback) {
       callback.call(this, response);
-      delete this.controlCallbacks[id];
     }
   },
 

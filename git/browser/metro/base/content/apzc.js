@@ -16,12 +16,6 @@ let Cr = Components.results;
 
 var APZCObserver = {
   _debugEvents: false,
-  _enabled: false,
-
-  get enabled() {
-    return this._enabled;
-  },
-
   init: function() {
     this._enabled = Services.prefs.getBoolPref(kAsyncPanZoomEnabled);
     if (!this._enabled) {

@@ -108,7 +108,6 @@ let ScriptContexts = {};
   ["NavButtonSlider", "chrome://browser/content/NavButtonSlider.js"],
   ["ContextUI", "chrome://browser/content/ContextUI.js"],
   ["FlyoutPanelsUI", "chrome://browser/content/flyoutpanels/FlyoutPanelsUI.js"],
-  ["APZCObserver", "chrome://browser/content/apzc.js"],
 ].forEach(function (aScript) {
   let [name, script] = aScript;
   XPCOMUtils.defineLazyGetter(window, name, function() {

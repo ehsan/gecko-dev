@@ -28,15 +28,14 @@ function _getWorker() {
 
 var timeoutCallback = null;
 var timeoutDelayMs = 0;
-const TIMER_ID = 1234;
-const TIMEOUT_VALUE = 300000;  // 5 mins.
+var TIMER_ID = 1234;
 
 // No window in xpcshell-test. Create our own timer mechanism.
 
 function setTimeout(callback, timeoutMs) {
   timeoutCallback = callback;
   timeoutDelayMs = timeoutMs;
-  do_check_eq(timeoutMs, TIMEOUT_VALUE);
+  do_check_eq(timeoutMs, 300000);  // 5 mins.
   return TIMER_ID;
 }
 
@@ -57,22 +56,19 @@ add_test(function test_enter_emergencyCbMode() {
   let workerHelper = _getWorker();
   let worker = workerHelper.worker;
 
-  // Do it twice. Should always send the event.
-  for (let i = 0; i < 2; ++i) {
-    worker.RIL[UNSOLICITED_ENTER_EMERGENCY_CALLBACK_MODE]();
-    let postedMessage = workerHelper.postedMessage;
+  worker.RIL[UNSOLICITED_ENTER_EMERGENCY_CALLBACK_MODE]();
+  let postedMessage = workerHelper.postedMessage;
 
-    // Should store the mode.
-    do_check_eq(worker.RIL._isInEmergencyCbMode, true);
+  // Should store the mode.
+  do_check_eq(worker.RIL._isInEmergencyCbMode, true);
 
-    // Should notify change.
-    do_check_eq(postedMessage.rilMessageType, "emergencyCbModeChange");
-    do_check_eq(postedMessage.active, true);
-    do_check_eq(postedMessage.timeoutMs, TIMEOUT_VALUE);
+  // Should notify change.
+  do_check_eq(postedMessage.rilMessageType, "emergencyCbModeChange");
+  do_check_eq(postedMessage.active, true);
+  do_check_eq(postedMessage.timeoutMs, 300000);
 
-    // Should start timer.
-    do_check_eq(worker.RIL._exitEmergencyCbModeTimeoutID, TIMER_ID);
-  }
+  // Should start timer.
+  do_check_eq(worker.RIL._exitEmergencyCbModeTimeoutID, TIMER_ID);
 
   run_next_test();
 });

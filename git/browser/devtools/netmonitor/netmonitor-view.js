@@ -260,7 +260,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     dumpn("Initializing the RequestsMenuView");
 
     this.widget = new SideMenuWidget($("#requests-menu-contents"), false);
-    this._splitter = $('#splitter');
     this._summary = $("#request-menu-network-summary");
 
     this.allowFocusOnRightClick = true;
@@ -268,7 +267,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     this.widget.autoscrollWithAppendedItems = true;
 
     this.widget.addEventListener("select", this._onSelect, false);
-    this._splitter.addEventListener("mousemove", this._onResize, false);
     window.addEventListener("resize", this._onResize, false);
   },
 
@@ -279,7 +277,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     dumpn("Destroying the SourcesView");
 
     this.widget.removeEventListener("select", this._onSelect, false);
-    this._splitter.removeEventListener("mousemove", this._onResize, false);
     window.removeEventListener("resize", this._onResize, false);
   },
 
@@ -1315,7 +1312,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
     return this._cachedWaterfallWidth;
   },
 
-  _splitter: null,
   _summary: null,
   _canvas: null,
   _ctx: null,
