@@ -168,6 +168,11 @@ nsHTMLEditor::~nsHTMLEditor()
   // free any default style propItems
   RemoveAllDefaultProperties();
 
+  while (mStyleSheetURLs.Length())
+  {
+    RemoveOverrideStyleSheet(mStyleSheetURLs[0]);
+  }
+
   if (mLinkHandler && mDocWeak)
   {
     nsCOMPtr<nsIPresShell> ps = GetPresShell();
@@ -354,11 +359,6 @@ nsHTMLEditor::PreDestroy(PRBool aDestroyingFrames)
     document->RemoveMutationObserver(this);
   }
 
-  while (mStyleSheetURLs.Length())
-  {
-    RemoveOverrideStyleSheet(mStyleSheetURLs[0]);
-  }
-
   return nsPlaintextEditor::PreDestroy(aDestroyingFrames);
 }
 
@@ -443,9 +443,11 @@ nsresult
 nsHTMLEditor::CreateEventListeners()
 {
   // Don't create the handler twice
-  if (!mEventListener) {
-    mEventListener = new nsHTMLEditorEventListener();
-  }
+  if (mEventListener)
+    return NS_OK;
+  mEventListener = do_QueryInterface(
+    static_cast<nsIDOMKeyListener*>(new nsHTMLEditorEventListener()));
+  NS_ENSURE_TRUE(mEventListener, NS_ERROR_OUT_OF_MEMORY);
   return NS_OK;
 }
 
@@ -484,10 +486,11 @@ nsHTMLEditor::RemoveEventListeners()
 
     if (mMouseMotionListenerP)
     {
-      // mMouseMotionListenerP might be registerd either as bubbling or
-      // capturing, unregister by both.
-      target->RemoveEventListener(NS_LITERAL_STRING("mousemove"),
-                                  mMouseMotionListenerP, PR_FALSE);
+      // mMouseMotionListenerP might be registerd either by IID or
+      // name, unregister by both.
+      target->RemoveEventListenerByIID(mMouseMotionListenerP,
+                                       NS_GET_IID(nsIDOMMouseMotionListener));
+
       target->RemoveEventListener(NS_LITERAL_STRING("mousemove"),
                                   mMouseMotionListenerP, PR_TRUE);
     }

@@ -780,10 +780,6 @@ customMethodCalls = {
                 '    rv = nsGenericElement::doQuerySelectorAll(self, '
                 'arg0, getter_AddRefs(result));'
         },
-    'nsIDOMNode_Normalize': {
-        'thisType': 'nsINode',
-        'canFail': False
-        },
     'nsIDOMNode_GetBaseURI': {
         'thisType': 'nsINode',
         'canFail': False

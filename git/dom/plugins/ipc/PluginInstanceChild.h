@@ -45,7 +45,7 @@
 #include "mozilla/plugins/PPluginSurfaceChild.h"
 #if defined(OS_WIN)
 #include "mozilla/gfx/SharedDIBWin.h"
-#elif defined(MOZ_WIDGET_COCOA)
+#elif defined(OS_MACOSX)
 #include "nsCoreAnimationSupport.h"
 #include "base/timer.h"
 #endif
@@ -407,7 +407,7 @@ private:
       HBITMAP         bmp;
     } mAlphaExtract;
 #endif // defined(OS_WIN)
-#if defined(MOZ_WIDGET_COCOA)
+#if defined(OS_MACOSX)
 private:
 #if defined(__i386__)
     NPEventModel          mEventModel;

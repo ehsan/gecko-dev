@@ -400,6 +400,7 @@ public:
   NS_IMETHOD GetAttributes(nsIDOMNamedNodeMap** aAttributes);
   NS_IMETHOD GetNamespaceURI(nsAString& aNamespaceURI);
   NS_IMETHOD GetPrefix(nsAString& aPrefix);
+  NS_IMETHOD Normalize();
   NS_IMETHOD IsSupported(const nsAString& aFeature,
                          const nsAString& aVersion, PRBool* aReturn);
   NS_IMETHOD HasAttributes(PRBool* aHasAttributes);
@@ -477,6 +478,14 @@ public:
    * Do whatever needs to be done when the mouse leaves a link
    */
   nsresult LeaveLink(nsPresContext* aPresContext);
+
+  /**
+   * Take two text nodes and append the second to the first.
+   * @param aFirst the node which will contain first + second [INOUT]
+   * @param aSecond the node which will be appended
+   */
+  nsresult JoinTextNodes(nsIContent* aFirst,
+                         nsIContent* aSecond);
 
   /**
    * Check whether a spec feature/version is supported.

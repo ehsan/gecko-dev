@@ -94,7 +94,6 @@ STATIC_LIBS += \
   mozipc_s \
   mozipdlgen_s \
   ipcshell_s \
-  gfx2d \
   gfxipc_s \
   $(NULL)
 

@@ -247,9 +247,6 @@ mjit::TryCompile(JSContext *cx, StackFrame *fp)
     if (fp->script()->hasSharps)
         return Compile_Abort;
 #endif
-    bool ok = cx->compartment->ensureJaegerCompartmentExists(cx);
-    if (!ok)
-        return Compile_Abort;
 
     // Ensure that constructors have at least one slot.
     if (fp->isConstructing() && !fp->script()->nslots)
@@ -414,7 +411,7 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
 
     JSC::ExecutablePool *execPool;
     uint8 *result =
-        (uint8 *)script->compartment->jaegerCompartment()->execAlloc()->alloc(codeSize, &execPool);
+        (uint8 *)script->compartment->jaegerCompartment->execAlloc()->alloc(codeSize, &execPool);
     if (!result) {
         js_ReportOutOfMemory(cx);
         return Compile_Error;

@@ -52,7 +52,6 @@
 #include "nsIComponentManager.h"
 #include "nsPIDOMWindow.h"
 #include "nsProgressFrame.h"
-#include "nsIMenuFrame.h"
 
 nsNativeTheme::nsNativeTheme()
 : mAnimatedContentTimeout(PR_UINT32_MAX)
@@ -508,14 +507,6 @@ nsNativeTheme::IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent)
   }
 
   return PR_FALSE;
-}
-
-PRBool
-nsNativeTheme::IsRegularMenuItem(nsIFrame *aFrame)
-{
-  nsIMenuFrame *menuFrame = do_QueryFrame(aFrame);
-  return !(menuFrame && (menuFrame->IsOnMenuBar() ||
-                         menuFrame->GetParentMenuListType() != eNotMenuList));
 }
 
 PRBool

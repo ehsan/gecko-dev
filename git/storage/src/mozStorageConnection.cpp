@@ -377,33 +377,8 @@ public:
 
   NS_IMETHOD GetKind(PRInt32 *kind)
   {
-    *kind = KIND_HEAP;
+    *kind = MR_HEAP;
     return NS_OK;
-  }
-
-  NS_IMETHOD GetUnits(PRInt32 *units)
-  {
-    *units = UNITS_BYTES;
-    return NS_OK;
-  }
-
-  NS_IMETHOD GetAmount(PRInt64 *amount)
-  {
-    int type = 0;
-    if (mType == Cache_Used) {
-      type = SQLITE_DBSTATUS_CACHE_USED;
-    }
-    else if (mType == Schema_Used) {
-      type = SQLITE_DBSTATUS_SCHEMA_USED;
-    }
-    else if (mType == Stmt_Used) {
-      type = SQLITE_DBSTATUS_STMT_USED;
-    }
-
-    int cur=0, max=0;
-    int rc = ::sqlite3_db_status(mDBConn, type, &cur, &max, 0);
-    *amount = cur;
-    return convertResultCode(rc);
   }
 
   NS_IMETHOD GetDescription(char **desc)
@@ -421,6 +396,24 @@ public:
     return NS_OK;
   }
 
+  NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed)
+  {
+    int type = 0;
+    if (mType == Cache_Used) {
+      type = SQLITE_DBSTATUS_CACHE_USED;
+    }
+    else if (mType == Schema_Used) {
+      type = SQLITE_DBSTATUS_SCHEMA_USED;
+    }
+    else if (mType == Stmt_Used) {
+      type = SQLITE_DBSTATUS_STMT_USED;
+    }
+
+    int cur=0, max=0;
+    int rc = ::sqlite3_db_status(mDBConn, type, &cur, &max, 0);
+    *memoryUsed = cur;
+    return convertResultCode(rc);
+  }
   Connection &mDBConn;
   nsCString mFileName;
   ReporterType mType;

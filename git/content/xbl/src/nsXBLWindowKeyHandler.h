@@ -41,7 +41,7 @@
 #define nsXBLWindowKeyHandler_h__
 
 #include "nsWeakPtr.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMKeyListener.h"
 
 class nsIAtom;
 class nsIDOMElement;
@@ -52,14 +52,23 @@ class nsIXBLDocumentInfo;
 class nsXBLSpecialDocInfo;
 class nsXBLPrototypeHandler;
 
-class nsXBLWindowKeyHandler : public nsIDOMEventListener
+class nsXBLWindowKeyHandler : public nsIDOMKeyListener
 {
 public:
   nsXBLWindowKeyHandler(nsIDOMElement* aElement, nsIDOMEventTarget* aTarget);
   virtual ~nsXBLWindowKeyHandler();
+  
+  // nsIDOMetc.
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent)
+  {
+    return NS_OK;
+  }
 
+  NS_IMETHOD KeyUp(nsIDOMEvent* aKeyEvent);
+  NS_IMETHOD KeyDown(nsIDOMEvent* aKeyEvent);
+  NS_IMETHOD KeyPress(nsIDOMEvent* aKeyEvent);
+   
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIDOMEVENTLISTENER
 
   // release globals
   static NS_HIDDEN_(void) ShutDown();

@@ -219,8 +219,9 @@ nsContainerFrame::RemoveFrame(nsIAtom*  aListName,
       generateReflowCommand = PR_FALSE;
     }
 #endif
-    nsContainerFrame* parent = static_cast<nsContainerFrame*>(aOldFrame->GetParent());
     while (aOldFrame) {
+      nsContainerFrame* parent =
+        static_cast<nsContainerFrame*>(aOldFrame->GetParent());
       // When the parent is an inline frame we have a simple task - just
       // remove the frame from its parents list and generate a reflow
       // command.
@@ -237,15 +238,17 @@ nsContainerFrame::RemoveFrame(nsIAtom*  aListName,
           aOldFrame->Destroy();
         }
       } else {
-        // This recursive call takes care of all continuations after aOldFrame,
-        // so we don't need to loop anymore.
-        parent->RemoveFrame(nsnull, aOldFrame);
-        break;
+        // We don't want to simply make a recursive call here because with
+        // thousands of continuations it would exhaust the stack.  Instead,
+        // unhook aOldFrame from the continuation chain, destroy it, and
+        // continue the loop.
+        if (oldFrameNextContinuation) {
+          oldFrameNextContinuation->SetPrevContinuation(nsnull);
+          aOldFrame->SetNextContinuation(nsnull);
+        }
+        parent->RemoveFrame(aListName, aOldFrame);
       }
       aOldFrame = oldFrameNextContinuation;
-      if (aOldFrame) {
-        parent = static_cast<nsContainerFrame*>(aOldFrame->GetParent());
-      }
     }
 
     if (generateReflowCommand) {
@@ -319,12 +322,12 @@ nsContainerFrame::GetChildList(nsIAtom* aListName) const
     return list ? *list : nsFrameList::EmptyList();
   }
 
-  return nsFrameList::EmptyList();
+  return nsSplittableFrame::GetChildList(aListName);
 }
 
-#define NS_CONTAINER_FRAME_OVERFLOW_LIST_INDEX                   0
-#define NS_CONTAINER_FRAME_OVERFLOW_CONTAINERS_LIST_INDEX        1
-#define NS_CONTAINER_FRAME_EXCESS_OVERFLOW_CONTAINERS_LIST_INDEX 2
+#define NS_CONTAINER_FRAME_OVERFLOW_LIST_INDEX                   1
+#define NS_CONTAINER_FRAME_OVERFLOW_CONTAINERS_LIST_INDEX        2
+#define NS_CONTAINER_FRAME_EXCESS_OVERFLOW_CONTAINERS_LIST_INDEX 3
 // If adding/removing lists, don't forget to update count in .h file
 
 
@@ -339,7 +342,7 @@ nsContainerFrame::GetAdditionalChildListName(PRInt32 aIndex) const
     else if (NS_CONTAINER_FRAME_EXCESS_OVERFLOW_CONTAINERS_LIST_INDEX == aIndex)
       return nsGkAtoms::excessOverflowContainersList;
   }
-  return nsnull;
+  return nsSplittableFrame::GetAdditionalChildListName(aIndex);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1375,14 +1378,21 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
 /**
  * Set the frames on the overflow list
  */
-void
+nsresult
 nsContainerFrame::SetOverflowFrames(nsPresContext* aPresContext,
                                     const nsFrameList& aOverflowFrames)
 {
   NS_PRECONDITION(aOverflowFrames.NotEmpty(), "Shouldn't be called");
   nsFrameList* newList = new nsFrameList(aOverflowFrames);
+  if (!newList) {
+    // XXXbz should really destroy the frames here, but callers are holding
+    // pointers to them.... We should switch all callers to framelists, then
+    // audit and do that.
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   aPresContext->PropertyTable()->Set(this, OverflowProperty(), newList);
+  return NS_OK;
 }
 
 nsFrameList*

@@ -183,7 +183,11 @@ nsLayoutStatics::Initialize()
 
   nsCSSRendering::Init();
 
-  nsTextFrameTextRunCache::Init();
+  rv = nsTextFrameTextRunCache::Init();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize textframe textrun cache");
+    return rv;
+  }
 
   rv = nsHTMLDNSPrefetch::Initialize();
   if (NS_FAILED(rv)) {
@@ -261,7 +265,11 @@ nsLayoutStatics::Initialize()
 
   nsCORSListenerProxy::Startup();
 
-  nsFrameList::Init();
+  rv = nsFrameList::Init();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsFrameList");
+    return rv;
+  }
 
   NS_SealStaticAtomTable();
 

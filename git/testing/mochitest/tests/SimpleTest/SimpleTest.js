@@ -790,22 +790,21 @@ var isDeeply = SimpleTest.isDeeply;
 var gOldOnError = window.onerror;
 window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
     var funcIdentifier = "[SimpleTest/SimpleTest.js, window.onerror]";
-    var isPlainMochitest = window.location.protocol != "chrome:";
 
     // Log the message.
     // XXX Chrome mochitests sometimes trigger this window.onerror handler,
     // but there are a number of uncaught JS exceptions from those tests
     // currently, so we can't log them as errors just yet.  For now, when
-    // not in a plain mochitest, just dump it so that the error is visible but
+    // parentRunner is null, just dump it so that the error is visible but
     // doesn't cause a test failure.  See bug 652494.
-    function logError(message) {
-        if (isPlainMochitest) {
-            SimpleTest.ok(false, funcIdentifier, message);
+    function logInfo(message) {
+        if (parentRunner) {
+            SimpleTest._logInfo(funcIdentifier, message);
         } else {
             dump(funcIdentifier + " " + message);
         }
     }
-    logError("An error occurred: " + errorMsg + " at " + url + ":" + lineNumber);
+    logInfo("An error occurred: " + errorMsg + " at " + url + ":" + lineNumber);
     // There is no Components.stack.caller to log. (See bug 511888.)
 
     // Call previous handler.
@@ -815,10 +814,10 @@ window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
             gOldOnError(errorMsg, url, lineNumber);
         } catch (e) {
             // Log the error.
-            logError("Exception thrown by gOldOnError(): " + e);
+            logInfo("Exception thrown by gOldOnError(): " + e);
             // Log its stack.
             if (e.stack) {
-                logError("JavaScript error stack:\n" + e.stack);
+                logInfo("JavaScript error stack:\n" + e.stack);
             }
         }
     }

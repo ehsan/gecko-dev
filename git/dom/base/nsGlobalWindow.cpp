@@ -2987,9 +2987,6 @@ nsGlobalWindow::GetPerformance(nsIDOMPerformance** aPerformance)
 
   if (nsGlobalWindow::HasPerformanceSupport()) {
     if (!mPerformance) {
-      if (!mDoc) {
-        return NS_OK;
-      }
       nsRefPtr<nsDOMNavigationTiming> timing = mDoc->GetNavigationTiming();
       if (timing) {
         mPerformance = new nsPerformance(timing);
@@ -4649,13 +4646,6 @@ nsGlobalWindow::CanMoveResizeWindows()
         return PR_FALSE;
       }
     }
-  }
-
-  if (mDocShell) {
-    PRBool allow;
-    nsresult rv = mDocShell->GetAllowWindowControl(&allow);
-    if (NS_SUCCEEDED(rv) && !allow)
-      return PR_FALSE;
   }
 
   if (gMouseDown && !gDragServiceDisabled) {
