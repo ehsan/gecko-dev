@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
  
 #include "nsEncoderDecoderUtils.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 
 #include "mozilla/dom/EncodingUtils.h"
 

@@ -24,6 +24,7 @@ class nsIDocument;
 class nsIDocShell;
 class nsIDocShellTreeItem;
 class imgIContainer;
+class nsDOMDataTransfer;
 class EnterLeaveDispatcher;
 class nsIMarkupDocumentViewer;
 class nsIScrollableFrame;
@@ -31,7 +32,6 @@ class nsITimer;
 
 namespace mozilla {
 namespace dom {
-class DataTransfer;
 class TabParent;
 }
 }
@@ -737,9 +737,9 @@ protected:
    * aSelection - [out] set to the selection to be dragged
    * aTargetNode - [out] the draggable node, or null if there isn't one
    */
-  void DetermineDragTarget(nsPIDOMWindow* aWindow,
+  void DetermineDragTarget(nsPresContext* aPresContext,
                            nsIContent* aSelectionTarget,
-                           mozilla::dom::DataTransfer* aDataTransfer,
+                           nsDOMDataTransfer* aDataTransfer,
                            nsISelection** aSelection,
                            nsIContent** aTargetNode);
 
@@ -755,7 +755,7 @@ protected:
    */
   bool DoDefaultDragStart(nsPresContext* aPresContext,
                           mozilla::WidgetDragEvent* aDragEvent,
-                          mozilla::dom::DataTransfer* aDataTransfer,
+                          nsDOMDataTransfer* aDataTransfer,
                           nsIContent* aDragTarget,
                           nsISelection* aSelection);
 

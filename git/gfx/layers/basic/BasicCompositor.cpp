@@ -16,7 +16,6 @@
 #include "YCbCrUtils.h"
 #include <algorithm>
 #include "ImageContainer.h"
-#include "gfxPrefs.h"
 #define PIXMAN_DONT_DEFINE_STDINT
 #include "pixman.h"                     // for pixman_f_transform, etc
 
@@ -619,7 +618,7 @@ BasicCompositor::EndFrame()
   // Pop aClipRectIn/bounds rect
   mRenderTarget->mDrawTarget->PopClip();
 
-  if (gfxPrefs::WidgetUpdateFlashing()) {
+  if (gfxPlatform::GetPlatform()->WidgetUpdateFlashing()) {
     float r = float(rand()) / RAND_MAX;
     float g = float(rand()) / RAND_MAX;
     float b = float(rand()) / RAND_MAX;

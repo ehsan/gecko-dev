@@ -11817,9 +11817,7 @@ ICCIOHelperObject.prototype = {
       }
       this.context.debug(errorMsg);
     }
-    if (options.onerror) {
-      options.onerror(requestError);
-    }
+    onerror(requestError);
   },
 };
 ICCIOHelperObject.prototype[ICC_COMMAND_SEEK] = null;
@@ -12207,7 +12205,7 @@ ICCRecordHelperObject.prototype = {
       callback: onsuccess,
       onerror: onerror
     });
-  },
+ },
 
   /**
    * Cache EF_ANR record size.

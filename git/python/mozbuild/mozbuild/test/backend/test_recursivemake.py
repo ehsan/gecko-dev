@@ -340,17 +340,17 @@ class TestRecursiveMakeBackend(BackendTester):
             'USE_STATIC_LIBS': [
                 'USE_STATIC_LIBS := 1',
             ],
-            'MOZBUILD_CFLAGS': [
-                'MOZBUILD_CFLAGS += -fno-exceptions',
-                'MOZBUILD_CFLAGS += -w',
+            'CFLAGS': [
+                'CFLAGS += -fno-exceptions',
+                'CFLAGS += -w',
             ],
-            'MOZBUILD_CXXFLAGS': [
-                'MOZBUILD_CXXFLAGS += -fcxx-exceptions',
-                'MOZBUILD_CXXFLAGS += -include foo.h',
+            'CXXFLAGS': [
+                'CXXFLAGS += -fcxx-exceptions',
+                'CXXFLAGS += -include foo.h',
             ],
-            'MOZBUILD_LDFLAGS': [
-                'MOZBUILD_LDFLAGS += -framework Foo',
-                'MOZBUILD_LDFLAGS += -x',
+            'LDFLAGS': [
+                'LDFLAGS += -framework Foo',
+                'LDFLAGS += -x',
             ],
             'WIN32_EXE_LDFLAGS': [
                 'WIN32_EXE_LDFLAGS += -subsystem:console',

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsTraceRefcnt.h"
+#include "nsTraceRefcntImpl.h"
 #include "mozilla/IntegerPrintfMacros.h"
 #include "nsXPCOMPrivate.h"
 #include "nscore.h"
@@ -316,7 +316,7 @@ public:
 
   void DumpTotal(FILE* out) {
     mClassSize /= mAllStats.mCreates;
-    Dump(-1, out, nsTraceRefcnt::ALL_STATS);
+    Dump(-1, out, nsTraceRefcntImpl::ALL_STATS);
   }
 
   static bool HaveLeaks(nsTraceRefcntStats* stats) {
@@ -324,11 +324,11 @@ public:
             (stats->mCreates != stats->mDestroys));
   }
 
-  bool PrintDumpHeader(FILE* out, const char* msg, nsTraceRefcnt::StatisticsType type) {
+  bool PrintDumpHeader(FILE* out, const char* msg, nsTraceRefcntImpl::StatisticsType type) {
     fprintf(out, "\n== BloatView: %s, %s process %d\n", msg,
             XRE_ChildProcessTypeToString(XRE_GetProcessType()), getpid());
     nsTraceRefcntStats& stats =
-      (type == nsTraceRefcnt::NEW_STATS) ? mNewStats : mAllStats;
+      (type == nsTraceRefcntImpl::NEW_STATS) ? mNewStats : mAllStats;
     if (gLogLeaksOnly && !HaveLeaks(&stats))
       return false;
 
@@ -342,8 +342,8 @@ public:
     return true;
   }
 
-  void Dump(int i, FILE* out, nsTraceRefcnt::StatisticsType type) {
-    nsTraceRefcntStats* stats = (type == nsTraceRefcnt::NEW_STATS) ? &mNewStats : &mAllStats;
+  void Dump(int i, FILE* out, nsTraceRefcntImpl::StatisticsType type) {
+    nsTraceRefcntStats* stats = (type == nsTraceRefcntImpl::NEW_STATS) ? &mNewStats : &mAllStats;
     if (gLogLeaksOnly && !HaveLeaks(stats)) {
       return;
     }
@@ -479,7 +479,7 @@ class nsDefaultComparator <BloatEntry*, BloatEntry*> {
 #endif /* NS_IMPL_REFCNT_LOGGING */
 
 nsresult
-nsTraceRefcnt::DumpStatistics(StatisticsType type, FILE* out)
+nsTraceRefcntImpl::DumpStatistics(StatisticsType type, FILE* out)
 {
 #ifdef NS_IMPL_REFCNT_LOGGING
   if (gBloatLog == nullptr || gBloatView == nullptr) {
@@ -527,7 +527,7 @@ nsTraceRefcnt::DumpStatistics(StatisticsType type, FILE* out)
     fprintf(out, "\n");
   }
 
-  fprintf(out, "nsTraceRefcnt::DumpStatistics: %d entries\n", count);
+  fprintf(out, "nsTraceRefcntImpl::DumpStatistics: %d entries\n", count);
 
   if (gSerialNumbers) {
     fprintf(out, "\nSerial Numbers of Leaked Objects:\n");
@@ -542,7 +542,7 @@ nsTraceRefcnt::DumpStatistics(StatisticsType type, FILE* out)
 }
 
 void
-nsTraceRefcnt::ResetStatistics()
+nsTraceRefcntImpl::ResetStatistics()
 {
 #ifdef NS_IMPL_REFCNT_LOGGING
   LOCK_TRACELOG();
@@ -856,7 +856,7 @@ static void PrintStackFrame(void *aPC, void *aSP, void *aClosure)
 }
 
 void
-nsTraceRefcnt::WalkTheStack(FILE* aStream)
+nsTraceRefcntImpl::WalkTheStack(FILE* aStream)
 {
 #ifdef STACKWALKING_AVAILABLE
   NS_StackWalk(PrintStackFrame, /* skipFrames */ 2, /* maxFrames */ 0, aStream,
@@ -874,7 +874,7 @@ nsTraceRefcnt::WalkTheStack(FILE* aStream)
 #endif // MOZ_DEMANGLE_SYMBOLS
 
 void
-nsTraceRefcnt::DemangleSymbol(const char * aSymbol,
+nsTraceRefcntImpl::DemangleSymbol(const char * aSymbol,
                               char * aBuffer,
                               int aBufLen)
 {
@@ -908,7 +908,7 @@ NS_LogInit()
 #endif
 #ifdef NS_IMPL_REFCNT_LOGGING
   if (++gInitCount)
-    nsTraceRefcnt::SetActivityIsLegal(true);
+    nsTraceRefcntImpl::SetActivityIsLegal(true);
 #endif
 
 #ifdef NS_TRACE_MALLOC
@@ -950,12 +950,12 @@ LogTerm()
 #endif
     
     if (gInitialized) {
-      nsTraceRefcnt::DumpStatistics();
-      nsTraceRefcnt::ResetStatistics();
+      nsTraceRefcntImpl::DumpStatistics();
+      nsTraceRefcntImpl::ResetStatistics();
     }
-    nsTraceRefcnt::Shutdown();
+    nsTraceRefcntImpl::Shutdown();
 #ifdef NS_IMPL_REFCNT_LOGGING
-    nsTraceRefcnt::SetActivityIsLegal(false);
+    nsTraceRefcntImpl::SetActivityIsLegal(false);
     gActivityTLS = BAD_TLS_INDEX;
 #endif
   }
@@ -1001,7 +1001,7 @@ NS_LogAddRef(void* aPtr, nsrefcnt aRefcnt,
     if (aRefcnt == 1 && gAllocLog && loggingThisType && loggingThisObject) {
       fprintf(gAllocLog, "\n<%s> 0x%08X %" PRIdPTR " Create\n",
               aClazz, NS_PTR_TO_INT32(aPtr), serialno);
-      nsTraceRefcnt::WalkTheStack(gAllocLog);
+      nsTraceRefcntImpl::WalkTheStack(gAllocLog);
     }
 
     if (gRefcntsLog && loggingThisType && loggingThisObject) {
@@ -1012,7 +1012,7 @@ NS_LogAddRef(void* aPtr, nsrefcnt aRefcnt,
           // Can't use PR_LOG(), b/c it truncates the line
           fprintf(gRefcntsLog,
                   "\n<%s> 0x%08X %" PRIdPTR " AddRef %d\n", aClazz, NS_PTR_TO_INT32(aPtr), serialno, aRefcnt);
-          nsTraceRefcnt::WalkTheStack(gRefcntsLog);
+          nsTraceRefcntImpl::WalkTheStack(gRefcntsLog);
           fflush(gRefcntsLog);
       }
     }
@@ -1060,7 +1060,7 @@ NS_LogRelease(void* aPtr, nsrefcnt aRefcnt, const char* aClazz)
           // Can't use PR_LOG(), b/c it truncates the line
           fprintf(gRefcntsLog,
                   "\n<%s> 0x%08X %" PRIdPTR " Release %d\n", aClazz, NS_PTR_TO_INT32(aPtr), serialno, aRefcnt);
-          nsTraceRefcnt::WalkTheStack(gRefcntsLog);
+          nsTraceRefcntImpl::WalkTheStack(gRefcntsLog);
           fflush(gRefcntsLog);
       }
     }
@@ -1072,7 +1072,7 @@ NS_LogRelease(void* aPtr, nsrefcnt aRefcnt, const char* aClazz)
       fprintf(gAllocLog,
               "\n<%s> 0x%08X %" PRIdPTR " Destroy\n",
               aClazz, NS_PTR_TO_INT32(aPtr), serialno);
-      nsTraceRefcnt::WalkTheStack(gAllocLog);
+      nsTraceRefcntImpl::WalkTheStack(gAllocLog);
     }
 
     if (aRefcnt == 0 && gSerialNumbers && loggingThisType) {
@@ -1112,7 +1112,7 @@ NS_LogCtor(void* aPtr, const char* aType, uint32_t aInstanceSize)
     if (gAllocLog && loggingThisType && loggingThisObject) {
       fprintf(gAllocLog, "\n<%s> 0x%08X %" PRIdPTR " Ctor (%d)\n",
              aType, NS_PTR_TO_INT32(aPtr), serialno, aInstanceSize);
-      nsTraceRefcnt::WalkTheStack(gAllocLog);
+      nsTraceRefcntImpl::WalkTheStack(gAllocLog);
     }
 
     UNLOCK_TRACELOG();
@@ -1153,7 +1153,7 @@ NS_LogDtor(void* aPtr, const char* aType, uint32_t aInstanceSize)
     if (gAllocLog && loggingThisType && loggingThisObject) {
       fprintf(gAllocLog, "\n<%s> 0x%08X %" PRIdPTR " Dtor (%d)\n",
              aType, NS_PTR_TO_INT32(aPtr), serialno, aInstanceSize);
-      nsTraceRefcnt::WalkTheStack(gAllocLog);
+      nsTraceRefcntImpl::WalkTheStack(gAllocLog);
     }
 
     UNLOCK_TRACELOG();
@@ -1194,7 +1194,7 @@ NS_LogCOMPtrAddRef(void* aCOMPtr, nsISupports* aObject)
     if (gCOMPtrLog && loggingThisObject) {
       fprintf(gCOMPtrLog, "\n<?> 0x%08X %" PRIdPTR " nsCOMPtrAddRef %d 0x%08X\n",
               NS_PTR_TO_INT32(object), serialno, count?(*count):-1, NS_PTR_TO_INT32(aCOMPtr));
-      nsTraceRefcnt::WalkTheStack(gCOMPtrLog);
+      nsTraceRefcntImpl::WalkTheStack(gCOMPtrLog);
     }
 
     UNLOCK_TRACELOG();
@@ -1235,7 +1235,7 @@ NS_LogCOMPtrRelease(void* aCOMPtr, nsISupports* aObject)
     if (gCOMPtrLog && loggingThisObject) {
       fprintf(gCOMPtrLog, "\n<?> 0x%08X %" PRIdPTR " nsCOMPtrRelease %d 0x%08X\n",
               NS_PTR_TO_INT32(object), serialno, count?(*count):-1, NS_PTR_TO_INT32(aCOMPtr));
-      nsTraceRefcnt::WalkTheStack(gCOMPtrLog);
+      nsTraceRefcntImpl::WalkTheStack(gCOMPtrLog);
     }
 
     UNLOCK_TRACELOG();
@@ -1244,7 +1244,7 @@ NS_LogCOMPtrRelease(void* aCOMPtr, nsISupports* aObject)
 }
 
 void
-nsTraceRefcnt::Startup()
+nsTraceRefcntImpl::Startup()
 {
 }
 
@@ -1258,7 +1258,7 @@ static void maybeUnregisterAndCloseFile(FILE *&f) {
 }
 
 void
-nsTraceRefcnt::Shutdown()
+nsTraceRefcntImpl::Shutdown()
 {
 #ifdef NS_IMPL_REFCNT_LOGGING
 
@@ -1287,7 +1287,7 @@ nsTraceRefcnt::Shutdown()
 }
 
 void
-nsTraceRefcnt::SetActivityIsLegal(bool aLegal)
+nsTraceRefcntImpl::SetActivityIsLegal(bool aLegal)
 {
 #ifdef NS_IMPL_REFCNT_LOGGING
   if (gActivityTLS == BAD_TLS_INDEX)

@@ -24,7 +24,6 @@
 #include "gfxImageSurface.h"            // for gfxImageSurface
 #include "gfxMatrix.h"                  // for gfxMatrix
 #include "gfxPlatform.h"                // for gfxPlatform
-#include "gfxPrefs.h"                   // for gfxPrefs
 #include "gfxPoint.h"                   // for gfxIntSize, gfxPoint
 #include "gfxRect.h"                    // for gfxRect
 #include "gfxUtils.h"                   // for gfxUtils
@@ -46,6 +45,7 @@
 #include "nsRect.h"                     // for nsIntRect
 #include "nsRegion.h"                   // for nsIntRegion, etc
 #include "nsTArray.h"                   // for nsAutoTArray
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #define PIXMAN_DONT_DEFINE_STDINT
 #include "pixman.h"                     // for pixman_f_transform, etc
 
@@ -543,7 +543,7 @@ static uint16_t sFrameCount = 0;
 void
 BasicLayerManager::RenderDebugOverlay()
 {
-  if (!gfxPrefs::DrawFrameCounter()) {
+  if (!gfxPlatform::DrawFrameCounter()) {
     return;
   }
 
@@ -664,7 +664,7 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
 void
 BasicLayerManager::FlashWidgetUpdateArea(gfxContext *aContext)
 {
-  if (gfxPrefs::WidgetUpdateFlashing()) {
+  if (gfxPlatform::GetPlatform()->WidgetUpdateFlashing()) {
     float r = float(rand()) / RAND_MAX;
     float g = float(rand()) / RAND_MAX;
     float b = float(rand()) / RAND_MAX;

@@ -1329,11 +1329,11 @@ jit::JitActivation::JitActivation(JSContext *cx, bool firstFrameIsConstructing, 
 {
     if (active) {
         prevIonTop_ = cx->mainThread().ionTop;
-        prevJitJSContext_ = cx->mainThread().jitJSContext;
-        cx->mainThread().jitJSContext = cx;
+        prevIonJSContext_ = cx->mainThread().ionJSContext;
+        cx->mainThread().ionJSContext = cx;
     } else {
         prevIonTop_ = nullptr;
-        prevJitJSContext_ = nullptr;
+        prevIonJSContext_ = nullptr;
     }
 }
 
@@ -1341,7 +1341,7 @@ jit::JitActivation::~JitActivation()
 {
     if (active_) {
         cx_->mainThread().ionTop = prevIonTop_;
-        cx_->mainThread().jitJSContext = prevJitJSContext_;
+        cx_->mainThread().ionJSContext = prevIonJSContext_;
     }
 }
 
@@ -1356,11 +1356,11 @@ jit::JitActivation::setActive(JSContext *cx, bool active)
 
     if (active) {
         prevIonTop_ = cx->mainThread().ionTop;
-        prevJitJSContext_ = cx->mainThread().jitJSContext;
-        cx->mainThread().jitJSContext = cx;
+        prevIonJSContext_ = cx->mainThread().ionJSContext;
+        cx->mainThread().ionJSContext = cx;
     } else {
         cx->mainThread().ionTop = prevIonTop_;
-        cx->mainThread().jitJSContext = prevJitJSContext_;
+        cx->mainThread().ionJSContext = prevIonJSContext_;
     }
 }
 
@@ -1401,8 +1401,9 @@ ActivationIterator::operator++()
 void
 ActivationIterator::settle()
 {
-    // Stop at the next active activation. No need to update jitTop_, since
-    // we don't iterate over an active jit activation.
-    while (!done() && activation_->isJit() && !activation_->asJit()->isActive())
+    while (!done() && activation_->isJit() && !activation_->asJit()->isActive()) {
+        if (activation_->asJit()->isActive())
+            jitTop_ = activation_->asJit()->prevIonTop();
         activation_ = activation_->prev();
+    }
 }

@@ -32,11 +32,9 @@
 #include "gc/Marking.h"
 #include "jit/AsmJS.h"
 #include "jit/AsmJSModule.h"
-#include "vm/ArrayBufferObject.h"
 #include "vm/GlobalObject.h"
 #include "vm/Interpreter.h"
 #include "vm/NumericConversions.h"
-#include "vm/SharedArrayObject.h"
 #include "vm/WrapperObject.h"
 
 #include "jsatominlines.h"
@@ -109,12 +107,6 @@ TypedArrayObject::neuter(JSContext *cx)
     setSlot(BYTELENGTH_SLOT, Int32Value(0));
     setSlot(BYTEOFFSET_SLOT, Int32Value(0));
     setPrivate(nullptr);
-}
-
-ArrayBufferObject *
-TypedArrayObject::sharedBuffer() const
-{
-    return &bufferValue(const_cast<TypedArrayObject*>(this)).toObject().as<SharedArrayBufferObject>();
 }
 
 bool
@@ -620,7 +612,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
         obj->setSlot(TYPE_SLOT, Int32Value(ArrayTypeID()));
         obj->setSlot(BUFFER_SLOT, ObjectValue(*bufobj));
 
-        Rooted<ArrayBufferObject *> buffer(cx, &AsArrayBuffer(bufobj));
+        Rooted<ArrayBufferObject *> buffer(cx, &bufobj->as<ArrayBufferObject>());
 
         InitArrayBufferViewDataPointer(obj, buffer, byteOffset);
         obj->setSlot(LENGTH_SLOT, Int32Value(len));
@@ -709,11 +701,8 @@ class TypedArrayObjectTemplate : public TypedArrayObject
          * properties from the object, treating it as some sort of array.
          * Note that offset and length will be ignored
          */
-        if (!UncheckedUnwrap(dataObj)->is<ArrayBufferObject>() &&
-            !UncheckedUnwrap(dataObj)->is<SharedArrayBufferObject>())
-        {
+        if (!UncheckedUnwrap(dataObj)->is<ArrayBufferObject>())
             return fromArray(cx, dataObj);
-        }
 
         /* (ArrayBuffer, [byteOffset, [length]]) */
         int32_t byteOffset = 0;
@@ -985,7 +974,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
             return nullptr; // must be arrayBuffer
         }
 
-        JS_ASSERT(IsArrayBuffer(bufobj) || bufobj->is<ProxyObject>());
+        JS_ASSERT(bufobj->is<ArrayBufferObject>() || bufobj->is<ProxyObject>());
         if (bufobj->is<ProxyObject>()) {
             /*
              * Normally, NonGenericMethodGuard handles the case of transparent
@@ -1003,7 +992,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
                 JS_ReportError(cx, "Permission denied to access object");
                 return nullptr;
             }
-            if (IsArrayBuffer(wrapped)) {
+            if (wrapped->is<ArrayBufferObject>()) {
                 /*
                  * And for even more fun, the new view's prototype should be
                  * set to the origin compartment's prototype object, not the
@@ -1038,12 +1027,12 @@ class TypedArrayObjectTemplate : public TypedArrayObject
             }
         }
 
-        if (!IsArrayBuffer(bufobj)) {
+        if (!bufobj->is<ArrayBufferObject>()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);
             return nullptr; // must be arrayBuffer
         }
 
-        ArrayBufferObject &buffer = AsArrayBuffer(bufobj);
+        ArrayBufferObject &buffer = bufobj->as<ArrayBufferObject>();
 
         if (byteOffset > buffer.byteLength() || byteOffset % sizeof(NativeType) != 0) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);
@@ -1636,7 +1625,7 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
     // Verify that the private slot is at the expected place
     JS_ASSERT(dvobj.numFixedSlots() == DATA_SLOT);
 
-    arrayBuffer->addView(&dvobj);
+    arrayBuffer->as<ArrayBufferObject>().addView(&dvobj);
 
     return &dvobj;
 }
@@ -1644,13 +1633,13 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
 bool
 DataViewObject::construct(JSContext *cx, JSObject *bufobj, const CallArgs &args, HandleObject proto)
 {
-    if (!IsArrayBuffer(bufobj)) {
+    if (!bufobj->is<ArrayBufferObject>()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_EXPECTED_TYPE,
                              "DataView", "ArrayBuffer", bufobj->getClass()->name);
         return false;
     }
 
-    Rooted<ArrayBufferObject*> buffer(cx, &AsArrayBuffer(bufobj));
+    Rooted<ArrayBufferObject*> buffer(cx, &bufobj->as<ArrayBufferObject>());
     uint32_t bufferLength = buffer->byteLength();
     uint32_t byteOffset = 0;
     uint32_t byteLength = bufferLength;
@@ -1708,7 +1697,7 @@ DataViewObject::class_constructor(JSContext *cx, unsigned argc, Value *vp)
     if (!GetFirstArgumentAsObject(cx, args, "DataView constructor", &bufobj))
         return false;
 
-    if (bufobj->is<WrapperObject>() && IsArrayBuffer(UncheckedUnwrap(bufobj))) {
+    if (bufobj->is<WrapperObject>() && UncheckedUnwrap(bufobj)->is<ArrayBufferObject>()) {
         Rooted<GlobalObject*> global(cx, cx->compartment()->maybeGlobal());
         Rooted<JSObject*> proto(cx, global->getOrCreateDataViewPrototype(cx));
         if (!proto)
@@ -2768,18 +2757,7 @@ js::IsTypedArrayConstructor(HandleValue v, uint32_t type)
 bool
 js::IsTypedArrayBuffer(HandleValue v)
 {
-    return v.isObject() &&
-           (v.toObject().is<ArrayBufferObject>() ||
-            v.toObject().is<SharedArrayBufferObject>());
-}
-
-ArrayBufferObject &
-js::AsTypedArrayBuffer(HandleValue v)
-{
-    JS_ASSERT(IsTypedArrayBuffer(v));
-    if (v.toObject().is<ArrayBufferObject>())
-        return v.toObject().as<ArrayBufferObject>();
-    return v.toObject().as<SharedArrayBufferObject>();
+    return v.isObject() && v.toObject().is<ArrayBufferObject>();
 }
 
 /* JS Friend API */

@@ -11,7 +11,6 @@
 #include "gfxASurface.h"                // for gfxASurface, etc
 #include "gfxContext.h"                 // for gfxContext
 #include "gfxRect.h"                    // for gfxRect
-#include "gfxPrefs.h"                   // for gfxPrefs
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/gfx/2D.h"             // for DrawTarget
 #include "mozilla/gfx/Matrix.h"         // for Matrix
@@ -172,7 +171,7 @@ ClientLayerManager::CreateThebesLayerWithHint(ThebesLayerCreationHint aHint)
 #ifdef MOZ_B2G
       aHint == SCROLLABLE &&
 #endif
-      gfxPrefs::LayersTilesEnabled() && AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_OPENGL) {
+      gfxPlatform::GetPrefLayersEnableTiles() && AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_OPENGL) {
     nsRefPtr<ClientTiledThebesLayer> layer =
       new ClientTiledThebesLayer(this);
     CREATE_SHADOW(Thebes);

@@ -17,7 +17,7 @@
 #include "nsIChannel.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsISelectionPrivate.h"
-#include "nsTraceRefcnt.h"
+#include "nsTraceRefcntImpl.h"
 #include "nsIWebProgress.h"
 #include "prenv.h"
 #include "nsIDocShellTreeItem.h"
@@ -800,7 +800,7 @@ logging::Stack()
 {
   if (IsEnabled(eStack)) {
     printf("  stack: \n");
-    nsTraceRefcnt::WalkTheStack(stdout);
+    nsTraceRefcntImpl::WalkTheStack(stdout);
   }
 }
 

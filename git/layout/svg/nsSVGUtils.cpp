@@ -679,14 +679,10 @@ nsSVGUtils::HitTestClip(nsIFrame *aFrame, const nsPoint &aPoint)
 
   bool isOK = true;
   nsSVGClipPathFrame *clipPathFrame = props.GetClipPathFrame(&isOK);
-  if (!isOK) {
+  if (!clipPathFrame || !isOK) {
     // clipPath is not a valid resource, so nothing gets painted, so
     // hit-testing must fail.
     return false;
-  }
-  if (!clipPathFrame) {
-    // clipPath doesn't exist, ignore it.
-    return true;
   }
 
   return clipPathFrame->ClipHitTest(aFrame, GetCanvasTM(aFrame,

@@ -21,12 +21,7 @@ class nsIContent;
 class nsIURI;
 class nsIFile;
 class nsISimpleEnumerator;
-
-namespace mozilla {
-namespace dom {
-class DataTransfer;
-}
-}
+class nsDOMDataTransfer;
 
 //
 // class nsContentAreaDragDrop, used to generate the dragdata
@@ -57,7 +52,7 @@ public:
                               nsIContent* aTarget,
                               nsIContent* aSelectionTargetNode,
                               bool aIsAltKeyPressed,
-                              mozilla::dom::DataTransfer* aDataTransfer,
+                              nsDOMDataTransfer* aDataTransfer,
                               bool* aCanDrag,
                               nsISelection** aSelection,
                               nsIContent** aDragNode);

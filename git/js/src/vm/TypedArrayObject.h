@@ -67,12 +67,8 @@ class TypedArrayObject : public ArrayBufferViewObject
         return tarr->getFixedSlot(LENGTH_SLOT);
     }
 
-    ArrayBufferObject *sharedBuffer() const;
     ArrayBufferObject *buffer() const {
-        JSObject &obj = bufferValue(const_cast<TypedArrayObject*>(this)).toObject();
-        if (obj.is<ArrayBufferObject>())
-            return &obj.as<ArrayBufferObject>();
-        return sharedBuffer();
+        return &bufferValue(const_cast<TypedArrayObject*>(this)).toObject().as<ArrayBufferObject>();
     }
     uint32_t byteOffset() const {
         return byteOffsetValue(const_cast<TypedArrayObject*>(this)).toInt32();
@@ -149,9 +145,6 @@ IsTypedArrayConstructor(HandleValue v, uint32_t type);
 
 bool
 IsTypedArrayBuffer(HandleValue v);
-
-ArrayBufferObject &
-AsTypedArrayBuffer(HandleValue v);
 
 static inline unsigned
 TypedArrayShift(ArrayBufferView::ViewType viewType)

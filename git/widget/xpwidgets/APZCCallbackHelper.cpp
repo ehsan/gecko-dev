@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "APZCCallbackHelper.h"
-#include "gfxPrefs.h" // For gfxPrefs::LayersTilesEnabled
+#include "gfxPlatform.h" // For gfxPlatform::GetPrefLayersEnableTiles
 #include "mozilla/Preferences.h"
 #include "nsIScrollableFrame.h"
 #include "nsLayoutUtils.h"
@@ -72,7 +72,7 @@ MaybeAlignAndClampDisplayPort(mozilla::layers::FrameMetrics& aFrameMetrics,
 
   // Expand the display port to the next tile boundaries, if tiled thebes layers
   // are enabled.
-  if (gfxPrefs::LayersTilesEnabled()) {
+  if (gfxPlatform::GetPrefLayersEnableTiles()) {
     displayPort =
       ExpandDisplayPortToTileBoundaries(displayPort + aActualScrollOffset,
                                         aFrameMetrics.LayersPixelsPerCSSPixel())

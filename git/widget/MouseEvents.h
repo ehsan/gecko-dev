@@ -10,8 +10,8 @@
 
 #include "mozilla/BasicEvents.h"
 #include "mozilla/MathAlgorithms.h"
-#include "mozilla/dom/DataTransfer.h"
 #include "nsCOMPtr.h"
+#include "nsIDOMDataTransfer.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMWheelEvent.h"
 
@@ -35,27 +35,6 @@ namespace dom {
   class PBrowserParent;
   class PBrowserChild;
 } // namespace dom
-
-/******************************************************************************
- * mozilla::WidgetPointerHelper
- ******************************************************************************/
-
-class WidgetPointerHelper
-{
-public:
-  bool convertToPointer;
-  uint32_t tiltX;
-  uint32_t tiltY;
-
-  WidgetPointerHelper() : convertToPointer(true), tiltX(0), tiltY(0) {}
-
-  void AssignPointerHelperData(const WidgetPointerHelper& aEvent)
-  {
-    convertToPointer = aEvent.convertToPointer;
-    tiltX = aEvent.tiltX;
-    tiltY = aEvent.tiltY;
-  }
-};
 
 /******************************************************************************
  * mozilla::WidgetMouseEventBase
@@ -149,7 +128,7 @@ public:
  * mozilla::WidgetMouseEvent
  ******************************************************************************/
 
-class WidgetMouseEvent : public WidgetMouseEventBase, public WidgetPointerHelper
+class WidgetMouseEvent : public WidgetMouseEventBase
 {
 private:
   friend class mozilla::dom::PBrowserParent;
@@ -263,7 +242,6 @@ public:
   void AssignMouseEventData(const WidgetMouseEvent& aEvent, bool aCopyTargets)
   {
     AssignMouseEventBaseData(aEvent, aCopyTargets);
-    AssignPointerHelperData(aEvent);
 
     acceptActivation = aEvent.acceptActivation;
     ignoreRootScrollFrame = aEvent.ignoreRootScrollFrame;
@@ -310,7 +288,7 @@ public:
   }
 
   // The dragging data.
-  nsCOMPtr<dom::DataTransfer> dataTransfer;
+  nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
 
   // If this is true, user has cancelled the drag operation.
   bool userCancelled;
@@ -554,6 +532,8 @@ public:
     , pointerId(0)
     , width(0)
     , height(0)
+    , tiltX(0)
+    , tiltY(0)
     , isPrimary(true)
   {
     UpdateFlags();
@@ -564,6 +544,8 @@ public:
     , pointerId(0)
     , width(0)
     , height(0)
+    , tiltX(0)
+    , tiltY(0)
     , isPrimary(true)
   {
     eventStructType = NS_POINTER_EVENT;
@@ -597,6 +579,8 @@ public:
   uint32_t pointerId;
   uint32_t width;
   uint32_t height;
+  uint32_t tiltX;
+  uint32_t tiltY;
   bool isPrimary;
 
   // XXX Not tested by test_assign_event_data.html
@@ -608,6 +592,8 @@ public:
     pointerId = aEvent.pointerId;
     width = aEvent.width;
     height = aEvent.height;
+    tiltX = aEvent.tiltX;
+    tiltY = aEvent.tiltY;
     isPrimary = aEvent.isPrimary;
   }
 };

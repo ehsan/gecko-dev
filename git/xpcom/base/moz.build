@@ -56,7 +56,7 @@ EXPORTS += [
     'nsISupportsObsolete.h',
     'nsObjCExceptions.h',
     'nsStackWalk.h',
-    'nsTraceRefcnt.h',
+    'nsTraceRefcntImpl.h',
     'nsWeakPtr.h',
 ]
 
@@ -110,7 +110,7 @@ UNIFIED_SOURCES += [
     'nsMessageLoop.cpp',
     'nsSecurityConsoleMessage.cpp',
     'nsSystemInfo.cpp',
-    'nsTraceRefcnt.cpp',
+    'nsTraceRefcntImpl.cpp',
     'nsUUIDGenerator.cpp',
     'nsVersionComparatorImpl.cpp',
     'VisualEventTracer.cpp',

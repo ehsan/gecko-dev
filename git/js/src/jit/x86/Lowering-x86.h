@@ -66,10 +66,6 @@ class LIRGeneratorX86 : public LIRGeneratorX86Shared
     static bool allowFloat32Optimizations() {
         return true;
     }
-
-    static bool allowInlineForkJoinGetSlice() {
-        return true;
-    }
 };
 
 typedef LIRGeneratorX86 LIRGeneratorSpecific;
