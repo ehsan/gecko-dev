@@ -842,7 +842,8 @@ RasterImage::InternalAddFrame(PRUint32 framenum,
 
   if (mFrames.Length() == 1) {
     // Since we're about to add our second frame, initialize animation stuff
-    EnsureAnimExists();
+    if (!ensureAnimExists())
+      return NS_ERROR_OUT_OF_MEMORY;
     
     // If we dispose of the first frame by clearing it, then the
     // First Frame's refresh area is all of itself.
@@ -1112,7 +1113,8 @@ RasterImage::StartAnimation()
 
   NS_ABORT_IF_FALSE(ShouldAnimate(), "Should not animate!");
 
-  EnsureAnimExists();
+  if (!ensureAnimExists())
+    return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ABORT_IF_FALSE(mAnim && !mAnim->timer, "Anim must exist and not have a timer yet");
   
