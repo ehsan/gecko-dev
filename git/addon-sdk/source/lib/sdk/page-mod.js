@@ -14,7 +14,7 @@ const { getAttachEventType, WorkerHost } = require('./content/utils');
 const { Class } = require('./core/heritage');
 const { Disposable } = require('./core/disposable');
 const { WeakReference } = require('./core/reference');
-const { Worker } = require('./content/worker');
+const { Worker } = require('./content/worker-parent');
 const { EventTarget } = require('./event/target');
 const { on, emit, once, setListeners } = require('./event/core');
 const { on: domOn, removeListener: domOff } = require('./dom/events');
@@ -189,10 +189,6 @@ function applyOnExistingDocuments (mod) {
   getTabs().forEach(tab => {
     // Fake a newly created document
     let window = getTabContentWindow(tab);
-    // on startup with e10s, contentWindow might not exist yet,
-    // in which case we will get notified by "document-element-inserted".
-    if (!window || !window.frames)
-      return;
     let uri = getTabURI(tab);
     if (has(mod.attachTo, "top") && modMatchesURI(mod, uri))
       onContent(mod, window);
@@ -220,7 +216,7 @@ function createWorker (mod, window) {
     // page-mod's "attach" event needs a worker
     if (event === 'attach')
       emit(mod, event, worker)
-    else
+    else 
       emit(mod, event, ...args);
   })
   once(worker, 'detach', () => worker.destroy());
@@ -262,20 +258,6 @@ function onContent (mod, window) {
       return;
     domOff(window, eventName, onReady, true);
     createWorker(mod, window);
-
-    // Attaching is asynchronous so if the document is already loaded we will
-    // miss the pageshow event so send a synthetic one.
-    if (window.document.readyState == "complete") {
-      mod.on('attach', worker => {
-        try {
-          worker.send('pageshow');
-          emit(worker, 'pageshow');
-        }
-        catch (e) {
-          // This can fail if an earlier attach listener destroyed the worker
-        }
-      });
-    }
   }, true);
 }
 

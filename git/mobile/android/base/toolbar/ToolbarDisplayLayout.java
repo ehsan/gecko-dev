@@ -23,7 +23,6 @@ import org.mozilla.gecko.animation.PropertyAnimator;
 import org.mozilla.gecko.animation.ViewHelper;
 import org.mozilla.gecko.favicons.Favicons;
 import org.mozilla.gecko.toolbar.BrowserToolbarTabletBase.ForwardButtonAnimation;
-import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.StringUtils;
 import org.mozilla.gecko.widget.ThemedLinearLayout;
 import org.mozilla.gecko.widget.ThemedTextView;
@@ -355,7 +354,7 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
         }
 
         // If the pref to show the title is set, use the tab's display title.
-        if (!mPrefs.shouldShowUrl() || url == null) {
+        if (!mPrefs.shouldShowUrl(mActivity) || url == null) {
             setTitle(tab.getDisplayTitle());
             return;
         }
@@ -383,8 +382,8 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
     }
 
     private void updateFavicon(Tab tab) {
-        if (HardwareUtils.isTablet()) {
-            // We don't display favicons in the toolbar on tablet.
+        if (NewTabletUI.isEnabled(getContext())) {
+            // We don't display favicons in the toolbar for the new Tablet UI.
             return;
         }
 
@@ -499,8 +498,8 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
     }
 
     private void setSiteSecurityVisibility(boolean visible, EnumSet<UpdateFlags> flags) {
-        // We don't hide site security on tablet.
-        if (visible == mSiteSecurityVisible || HardwareUtils.isTablet()) {
+        // We don't hide site security on new tablets.
+        if (visible == mSiteSecurityVisible || NewTabletUI.isEnabled(getContext())) {
             return;
         }
 
@@ -545,7 +544,7 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
     }
 
     View getDoorHangerAnchor() {
-        if (!HardwareUtils.isTablet()) {
+        if (!NewTabletUI.isEnabled(getContext())) {
             return mFavicon;
         } else {
             return mSiteSecurity;

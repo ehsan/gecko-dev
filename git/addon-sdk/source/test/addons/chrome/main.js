@@ -9,6 +9,7 @@ const { WindowTracker } = require('sdk/deprecated/window-utils');
 const { close, open } = require('sdk/window/helpers');
 const { data } = require('sdk/self');
 const { Panel } = require('sdk/panel');
+const { setTimeout } = require("sdk/timers")
 
 const XUL_URL = 'chrome://test/content/new-window.xul'
 
@@ -22,7 +23,7 @@ exports.testChromeSkin = function(assert, done) {
     url: skinURL,
     overrideMimeType: 'text/plain',
     onComplete: function (response) {
-      assert.ok(/test\{\}\s*$/.test(response.text), 'chrome.manifest skin folder was registered!');
+      assert.equal(response.text.trim(), 'test{}', 'chrome.manifest skin folder was registered!');
       done();
     }
   }).get();
@@ -77,9 +78,13 @@ exports.testChromeInPanel = function(assert, done) {
     assert.pass('panel shown');
     panel.port.once('echo', _ => {
       assert.pass('got echo');
-      panel.destroy();
-      assert.pass('panel is destroyed');
-      done();
+      panel.once('hide', _ => {
+        assert.pass('panel hidden');
+        panel.destroy();
+        assert.pass('panel is destroyed');
+        done();
+      });
+      setTimeout(() => panel.hide());
     });
     panel.port.emit('echo');
   });
