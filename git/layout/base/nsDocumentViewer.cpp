@@ -95,11 +95,8 @@
 #include "nsIPrintOptions.h"
 #include "nsISimpleEnumerator.h"
 
-#ifdef DEBUG
 // PrintOptions is now implemented by PrintSettingsService
-static const char sPrintOptionsContractID[] =
-  "@mozilla.org/gfx/printsettings-service;1";
-#endif // DEBUG
+static const char sPrintOptionsContractID[]         = "@mozilla.org/gfx/printsettings-service;1";
 
 #include "nsIPluginDocument.h"
 

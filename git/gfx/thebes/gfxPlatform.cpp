@@ -1611,17 +1611,19 @@ gfxPlatform::UseLowPrecisionBuffer()
 float
 gfxPlatform::GetLowPrecisionResolution()
 {
-    static int32_t sLowPrecisionResolutionX1000 = 250;
+    static float sLowPrecisionResolution;
     static bool sLowPrecisionResolutionPrefCached = false;
 
     if (!sLowPrecisionResolutionPrefCached) {
+        int32_t lowPrecisionResolution = 250;
         sLowPrecisionResolutionPrefCached = true;
-        mozilla::Preferences::AddIntVarCache(&sLowPrecisionResolutionX1000,
+        mozilla::Preferences::AddIntVarCache(&lowPrecisionResolution,
                                              "layers.low-precision-resolution",
-                                             sLowPrecisionResolutionX1000);
+                                             250);
+        sLowPrecisionResolution = lowPrecisionResolution / 1000.f;
     }
 
-    return sLowPrecisionResolutionX1000/1000.f;
+    return sLowPrecisionResolution;
 }
 
 bool

@@ -3250,7 +3250,7 @@ MaybeResolveConstructor(ExclusiveContext *cxArg, Handle<GlobalObject*> global, J
     AutoResolving resolving(cx, global, name);
     if (resolving.alreadyStarted())
        return true;
-    return GlobalObject::ensureConstructor(cx, global, key);
+    return global->ensureConstructor(cx, key);
 }
 
 bool

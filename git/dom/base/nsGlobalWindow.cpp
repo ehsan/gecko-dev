@@ -4090,19 +4090,6 @@ nsGlobalWindow::GetOwnPropertyNames(JSContext* aCx, nsTArray<nsString>& aNames,
   }
 }
 
-/* static */ bool
-nsGlobalWindow::IsChromeWindow(JSContext* aCx, JSObject* aObj)
-{
-  // For now, have to deal with XPConnect objects here.
-  nsGlobalWindow* win;
-  nsresult rv = UNWRAP_OBJECT(Window, aObj, win);
-  if (NS_FAILED(rv)) {
-    nsCOMPtr<nsPIDOMWindow> piWin = do_QueryWrapper(aCx, aObj);
-    win = static_cast<nsGlobalWindow*>(piWin.get());
-  }
-  return win->IsChromeWindow();
-}
-
 nsIDOMOfflineResourceList*
 nsGlobalWindow::GetApplicationCache(ErrorResult& aError)
 {
@@ -12897,149 +12884,103 @@ NS_IMPL_RELEASE_INHERITED(nsGlobalChromeWindow, nsGlobalWindow)
 NS_IMETHODIMP
 nsGlobalChromeWindow::GetWindowState(uint16_t* aWindowState)
 {
-  *aWindowState = WindowState();
-  return NS_OK;
-}
+  *aWindowState = nsIDOMChromeWindow::STATE_NORMAL;
 
-uint16_t
-nsGlobalWindow::WindowState()
-{
   nsCOMPtr<nsIWidget> widget = GetMainWidget();
 
   int32_t mode = widget ? widget->SizeMode() : 0;
 
   switch (mode) {
     case nsSizeMode_Minimized:
-      return nsIDOMChromeWindow::STATE_MINIMIZED;
+      *aWindowState = nsIDOMChromeWindow::STATE_MINIMIZED;
+      break;
     case nsSizeMode_Maximized:
-      return nsIDOMChromeWindow::STATE_MAXIMIZED;
+      *aWindowState = nsIDOMChromeWindow::STATE_MAXIMIZED;
+      break;
     case nsSizeMode_Fullscreen:
-      return nsIDOMChromeWindow::STATE_FULLSCREEN;
+      *aWindowState = nsIDOMChromeWindow::STATE_FULLSCREEN;
+      break;
     case nsSizeMode_Normal:
-      return nsIDOMChromeWindow::STATE_NORMAL;
+      *aWindowState = nsIDOMChromeWindow::STATE_NORMAL;
+      break;
     default:
       NS_WARNING("Illegal window state for this chrome window");
       break;
   }
 
-  return nsIDOMChromeWindow::STATE_NORMAL;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsGlobalChromeWindow::Maximize()
 {
-  ErrorResult rv;
-  Maximize(rv);
-  return rv.ErrorCode();
-}
-
-void
-nsGlobalWindow::Maximize(ErrorResult& aError)
-{
   nsCOMPtr<nsIWidget> widget = GetMainWidget();
+  nsresult rv = NS_OK;
 
   if (widget) {
-    aError = widget->SetSizeMode(nsSizeMode_Maximized);
+    rv = widget->SetSizeMode(nsSizeMode_Maximized);
   }
+
+  return rv;
 }
 
 NS_IMETHODIMP
 nsGlobalChromeWindow::Minimize()
 {
-  ErrorResult rv;
-  Minimize(rv);
-  return rv.ErrorCode();
-}
-
-void
-nsGlobalWindow::Minimize(ErrorResult& aError)
-{
   nsCOMPtr<nsIWidget> widget = GetMainWidget();
+  nsresult rv = NS_OK;
 
-  if (widget) {
-    aError = widget->SetSizeMode(nsSizeMode_Minimized);
-  }
+  if (widget)
+    rv = widget->SetSizeMode(nsSizeMode_Minimized);
+
+  return rv;
 }
 
 NS_IMETHODIMP
 nsGlobalChromeWindow::Restore()
 {
-  ErrorResult rv;
-  Restore(rv);
-  return rv.ErrorCode();
-}
-
-void
-nsGlobalWindow::Restore(ErrorResult& aError)
-{
   nsCOMPtr<nsIWidget> widget = GetMainWidget();
+  nsresult rv = NS_OK;
 
   if (widget) {
-    aError = widget->SetSizeMode(nsSizeMode_Normal);
+    rv = widget->SetSizeMode(nsSizeMode_Normal);
   }
+
+  return rv;
 }
 
 NS_IMETHODIMP
 nsGlobalChromeWindow::GetAttention()
 {
-  ErrorResult rv;
-  GetAttention(rv);
-  return rv.ErrorCode();
-}
-
-void
-nsGlobalWindow::GetAttention(ErrorResult& aResult)
-{
-  return GetAttentionWithCycleCount(-1, aResult);
+  return GetAttentionWithCycleCount(-1);
 }
 
 NS_IMETHODIMP
 nsGlobalChromeWindow::GetAttentionWithCycleCount(int32_t aCycleCount)
 {
-  ErrorResult rv;
-  GetAttentionWithCycleCount(aCycleCount, rv);
-  return rv.ErrorCode();
-}
-
-void
-nsGlobalWindow::GetAttentionWithCycleCount(int32_t aCycleCount,
-                                           ErrorResult& aError)
-{
   nsCOMPtr<nsIWidget> widget = GetMainWidget();
+  nsresult rv = NS_OK;
 
   if (widget) {
-    aError = widget->GetAttention(aCycleCount);
+    rv = widget->GetAttention(aCycleCount);
   }
+
+  return rv;
 }
 
 NS_IMETHODIMP
 nsGlobalChromeWindow::BeginWindowMove(nsIDOMEvent *aMouseDownEvent, nsIDOMElement* aPanel)
-{
-  NS_ENSURE_TRUE(aMouseDownEvent, NS_ERROR_FAILURE);
-  nsDOMEvent* mouseDownEvent = aMouseDownEvent->InternalDOMEvent();
-  NS_ENSURE_TRUE(mouseDownEvent, NS_ERROR_FAILURE);
-
-  nsCOMPtr<Element> panel = do_QueryInterface(aPanel);
-  NS_ENSURE_TRUE(panel || !aPanel, NS_ERROR_FAILURE);
-
-  ErrorResult rv;
-  BeginWindowMove(*mouseDownEvent, panel, rv);
-  return rv.ErrorCode();
-}
-
-void
-nsGlobalWindow::BeginWindowMove(nsDOMEvent& aMouseDownEvent, Element* aPanel,
-                                ErrorResult& aError)
 {
   nsCOMPtr<nsIWidget> widget;
 
   // if a panel was supplied, use its widget instead.
 #ifdef MOZ_XUL
   if (aPanel) {
-    nsIFrame* frame = aPanel->GetPrimaryFrame();
-    if (!frame || frame->GetType() != nsGkAtoms::menuPopupFrame) {
-      return;
-    }
+    nsCOMPtr<nsIContent> panel = do_QueryInterface(aPanel);
+    NS_ENSURE_TRUE(panel, NS_ERROR_FAILURE);
+
+    nsIFrame* frame = panel->GetPrimaryFrame();
+    NS_ENSURE_TRUE(frame && frame->GetType() == nsGkAtoms::menuPopupFrame, NS_OK);
 
     widget = (static_cast<nsMenuPopupFrame*>(frame))->GetWidget();
   }
@@ -13051,17 +12992,15 @@ nsGlobalWindow::BeginWindowMove(nsDOMEvent& aMouseDownEvent, Element* aPanel,
 #endif
 
   if (!widget) {
-    return;
+    return NS_OK;
   }
 
+  NS_ENSURE_TRUE(aMouseDownEvent, NS_ERROR_FAILURE);
   WidgetMouseEvent* mouseEvent =
-    aMouseDownEvent.GetInternalNSEvent()->AsMouseEvent();
-  if (!mouseEvent || mouseEvent->eventStructType != NS_MOUSE_EVENT) {
-    aError.Throw(NS_ERROR_FAILURE);
-    return;
-  }
-
-  aError = widget->BeginMoveDrag(mouseEvent);
+    aMouseDownEvent->GetInternalNSEvent()->AsMouseEvent();
+  NS_ENSURE_TRUE(mouseEvent && mouseEvent->eventStructType == NS_MOUSE_EVENT,
+                 NS_ERROR_FAILURE);
+  return widget->BeginMoveDrag(mouseEvent);
 }
 
 //Note: This call will lock the cursor, it will not change as it moves.
@@ -13069,16 +13008,9 @@ nsGlobalWindow::BeginWindowMove(nsDOMEvent& aMouseDownEvent, Element* aPanel,
 NS_IMETHODIMP
 nsGlobalChromeWindow::SetCursor(const nsAString& aCursor)
 {
-  ErrorResult rv;
-  SetCursor(aCursor, rv);
-  return rv.ErrorCode();
-}
+  FORWARD_TO_OUTER_CHROME(SetCursor, (aCursor), NS_ERROR_NOT_INITIALIZED);
 
-void
-nsGlobalWindow::SetCursor(const nsAString& aCursor, ErrorResult& aError)
-{
-  FORWARD_TO_OUTER_OR_THROW(SetCursor, (aCursor, aError), aError, );
-
+  nsresult rv = NS_OK;
   int32_t cursor;
 
   if (aCursor.EqualsLiteral("auto"))
@@ -13087,7 +13019,7 @@ nsGlobalWindow::SetCursor(const nsAString& aCursor, ErrorResult& aError)
     nsCSSKeyword keyword = nsCSSKeywords::LookupKeyword(aCursor);
     if (eCSSKeyword_UNKNOWN == keyword ||
         !nsCSSProps::FindKeyword(keyword, nsCSSProps::kCursorKTable, cursor)) {
-      return;
+      return NS_OK;
     }
   }
 
@@ -13099,164 +13031,109 @@ nsGlobalWindow::SetCursor(const nsAString& aCursor, ErrorResult& aError)
   if (presContext) {
     // Need root widget.
     nsCOMPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
-    if (!presShell) {
-      aError.Throw(NS_ERROR_FAILURE);
-      return;
-    }
+    NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
 
     nsViewManager* vm = presShell->GetViewManager();
-    if (!vm) {
-      aError.Throw(NS_ERROR_FAILURE);
-      return;
-    }
+    NS_ENSURE_TRUE(vm, NS_ERROR_FAILURE);
 
     nsView* rootView = vm->GetRootView();
-    if (!rootView) {
-      aError.Throw(NS_ERROR_FAILURE);
-      return;
-    }
+    NS_ENSURE_TRUE(rootView, NS_ERROR_FAILURE);
 
     nsIWidget* widget = rootView->GetNearestWidget(nullptr);
-    if (!widget) {
-      aError.Throw(NS_ERROR_FAILURE);
-      return;
-    }
+    NS_ENSURE_TRUE(widget, NS_ERROR_FAILURE);
 
     // Call esm and set cursor.
-    aError = presContext->EventStateManager()->SetCursor(cursor, nullptr,
-                                                         false, 0.0f, 0.0f,
-                                                         widget, true);
+    rv = presContext->EventStateManager()->SetCursor(cursor, nullptr,
+                                                     false, 0.0f, 0.0f,
+                                                     widget, true);
   }
+
+  return rv;
 }
 
 NS_IMETHODIMP
 nsGlobalChromeWindow::GetBrowserDOMWindow(nsIBrowserDOMWindow **aBrowserWindow)
 {
-  ErrorResult rv;
-  NS_IF_ADDREF(*aBrowserWindow = GetBrowserDOMWindow(rv));
-  return rv.ErrorCode();
-}
+  FORWARD_TO_OUTER_CHROME(GetBrowserDOMWindow, (aBrowserWindow),
+                          NS_ERROR_NOT_INITIALIZED);
 
-nsIBrowserDOMWindow*
-nsGlobalWindow::GetBrowserDOMWindow(ErrorResult& aError)
-{
-  FORWARD_TO_OUTER_OR_THROW(GetBrowserDOMWindow, (aError), aError, nullptr);
+  NS_ENSURE_ARG_POINTER(aBrowserWindow);
 
-  MOZ_ASSERT(IsChromeWindow());
-  return static_cast<nsGlobalChromeWindow*>(this)->mBrowserDOMWindow;
+  *aBrowserWindow = mBrowserDOMWindow;
+  NS_IF_ADDREF(*aBrowserWindow);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsGlobalChromeWindow::SetBrowserDOMWindow(nsIBrowserDOMWindow *aBrowserWindow)
 {
-  ErrorResult rv;
-  SetBrowserDOMWindow(aBrowserWindow, rv);
-  return rv.ErrorCode();
-}
+  FORWARD_TO_OUTER_CHROME(SetBrowserDOMWindow, (aBrowserWindow),
+                          NS_ERROR_NOT_INITIALIZED);
 
-void
-nsGlobalWindow::SetBrowserDOMWindow(nsIBrowserDOMWindow* aBrowserWindow,
-                                    ErrorResult& aError)
-{
-  FORWARD_TO_OUTER_OR_THROW(SetBrowserDOMWindow, (aBrowserWindow, aError),
-                            aError, );
-  MOZ_ASSERT(IsChromeWindow());
-  static_cast<nsGlobalChromeWindow*>(this)->mBrowserDOMWindow = aBrowserWindow;
+  mBrowserDOMWindow = aBrowserWindow;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsGlobalChromeWindow::NotifyDefaultButtonLoaded(nsIDOMElement* aDefaultButton)
 {
-  nsCOMPtr<Element> defaultButton = do_QueryInterface(aDefaultButton);
-  NS_ENSURE_ARG(defaultButton);
-
-  ErrorResult rv;
-  NotifyDefaultButtonLoaded(*defaultButton, rv);
-  return rv.ErrorCode();
-}
-
-void
-nsGlobalWindow::NotifyDefaultButtonLoaded(Element& aDefaultButton,
-                                          ErrorResult& aError)
-{
 #ifdef MOZ_XUL
+  NS_ENSURE_ARG(aDefaultButton);
+
   // Don't snap to a disabled button.
   nsCOMPtr<nsIDOMXULControlElement> xulControl =
-                                      do_QueryInterface(&aDefaultButton);
-  if (!xulControl) {
-    aError.Throw(NS_ERROR_FAILURE);
-    return;
-  }
+                                      do_QueryInterface(aDefaultButton);
+  NS_ENSURE_TRUE(xulControl, NS_ERROR_FAILURE);
   bool disabled;
-  aError = xulControl->GetDisabled(&disabled);
-  if (aError.Failed() || disabled) {
-    return;
-  }
+  nsresult rv = xulControl->GetDisabled(&disabled);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (disabled)
+    return NS_OK;
 
   // Get the button rect in screen coordinates.
-  nsIFrame *frame = aDefaultButton.GetPrimaryFrame();
-  if (!frame) {
-    aError.Throw(NS_ERROR_FAILURE);
-    return;
-  }
+  nsCOMPtr<nsIContent> content(do_QueryInterface(aDefaultButton));
+  NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
+  nsIFrame *frame = content->GetPrimaryFrame();
+  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
   nsIntRect buttonRect = frame->GetScreenRect();
 
   // Get the widget rect in screen coordinates.
   nsIWidget *widget = GetNearestWidget();
-  if (!widget) {
-    aError.Throw(NS_ERROR_FAILURE);
-    return;
-  }
+  NS_ENSURE_TRUE(widget, NS_ERROR_FAILURE);
   nsIntRect widgetRect;
-  aError = widget->GetScreenBounds(widgetRect);
-  if (aError.Failed()) {
-    return;
-  }
+  rv = widget->GetScreenBounds(widgetRect);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Convert the buttonRect coordinates from screen to the widget.
   buttonRect -= widgetRect.TopLeft();
-  nsresult rv = widget->OnDefaultButtonLoaded(buttonRect);
-  if (NS_FAILED(rv) && rv != NS_ERROR_NOT_IMPLEMENTED) {
-    aError.Throw(rv);
-  }
+  rv = widget->OnDefaultButtonLoaded(buttonRect);
+  if (rv == NS_ERROR_NOT_IMPLEMENTED)
+    return NS_OK;
+  return rv;
 #else
-  aError.Throw(NS_ERROR_NOT_IMPLEMENTED);
+  return NS_ERROR_NOT_IMPLEMENTED;
 #endif
 }
 
 NS_IMETHODIMP
 nsGlobalChromeWindow::GetMessageManager(nsIMessageBroadcaster** aManager)
 {
-  ErrorResult rv;
-  NS_IF_ADDREF(*aManager = GetMessageManager(rv));
-  return rv.ErrorCode();
-}
-
-nsIMessageBroadcaster*
-nsGlobalWindow::GetMessageManager(ErrorResult& aError)
-{
-  FORWARD_TO_INNER_OR_THROW(GetMessageManager, (aError), aError, nullptr);
-  MOZ_ASSERT(IsChromeWindow());
-  nsGlobalChromeWindow* myself = static_cast<nsGlobalChromeWindow*>(this);
-  if (!myself->mMessageManager) {
+  FORWARD_TO_INNER_CHROME(GetMessageManager, (aManager), NS_ERROR_FAILURE);
+  if (!mMessageManager) {
     nsIScriptContext* scx = GetContextInternal();
-    if (NS_WARN_IF(!scx)) {
-      aError.Throw(NS_ERROR_UNEXPECTED);
-      return nullptr;
-    }
+    NS_ENSURE_STATE(scx);
     AutoPushJSContext cx(scx->GetNativeContext());
-    if (NS_WARN_IF(!cx)) {
-      aError.Throw(NS_ERROR_UNEXPECTED);
-      return nullptr;
-    }
+    NS_ENSURE_STATE(cx);
     nsCOMPtr<nsIMessageBroadcaster> globalMM =
       do_GetService("@mozilla.org/globalmessagemanager;1");
-    myself->mMessageManager =
+    mMessageManager =
       new nsFrameMessageManager(nullptr,
                                 static_cast<nsFrameMessageManager*>(globalMM.get()),
                                 MM_CHROME | MM_BROADCASTER);
+    NS_ENSURE_TRUE(mMessageManager, NS_ERROR_OUT_OF_MEMORY);
   }
-  return myself->mMessageManager;
+  CallQueryInterface(mMessageManager, aManager);
+  return NS_OK;
 }
 
 // nsGlobalModalWindow implementation

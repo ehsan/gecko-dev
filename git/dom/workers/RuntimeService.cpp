@@ -275,30 +275,6 @@ GetWorkerPref(const nsACString& aPref,
   return result;
 }
 
-// This function creates a key for a SharedWorker composed by "name|scriptSpec".
-// If the name contains a '|', this will be replaced by '||'.
-void
-GenerateSharedWorkerKey(const nsACString& aScriptSpec, const nsACString& aName,
-                        nsCString& aKey)
-{
-  aKey.Truncate();
-  aKey.SetCapacity(aScriptSpec.Length() + aName.Length() + 1);
-
-  nsACString::const_iterator start, end;
-  aName.BeginReading(start);
-  aName.EndReading(end);
-  for (; start != end; ++start) {
-    if (*start == '|') {
-      aKey.AppendASCII("||");
-    } else {
-      aKey.Append(*start);
-    }
-  }
-
-  aKey.Append('|');
-  aKey.Append(aScriptSpec);
-}
-
 void
 LoadJSContextOptions(const char* aPrefName, void* /* aClosure */)
 {
@@ -1281,7 +1257,7 @@ RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
 
   bool isSharedWorker = aWorkerPrivate->IsSharedWorker();
 
-  const nsCString& sharedWorkerName = aWorkerPrivate->SharedWorkerName();
+  const nsString& sharedWorkerName = aWorkerPrivate->SharedWorkerName();
   nsCString sharedWorkerScriptSpec;
 
   if (isSharedWorker) {
@@ -1330,14 +1306,13 @@ RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     }
 
     if (isSharedWorker) {
-      nsAutoCString key;
-      GenerateSharedWorkerKey(sharedWorkerScriptSpec, sharedWorkerName, key);
-      MOZ_ASSERT(!domainInfo->mSharedWorkerInfos.Get(key));
+      MOZ_ASSERT(!domainInfo->mSharedWorkerInfos.Get(sharedWorkerScriptSpec));
 
       SharedWorkerInfo* sharedWorkerInfo =
         new SharedWorkerInfo(aWorkerPrivate, sharedWorkerScriptSpec,
                              sharedWorkerName);
-      domainInfo->mSharedWorkerInfos.Put(key, sharedWorkerInfo);
+      domainInfo->mSharedWorkerInfos.Put(sharedWorkerScriptSpec,
+                                         sharedWorkerInfo);
     }
   }
 
@@ -1427,10 +1402,8 @@ RuntimeService::UnregisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
                                                    &match);
 
       if (match.mSharedWorkerInfo) {
-        nsAutoCString key;
-        GenerateSharedWorkerKey(match.mSharedWorkerInfo->mScriptSpec,
-                                match.mSharedWorkerInfo->mName, key);
-        domainInfo->mSharedWorkerInfos.Remove(key);
+        domainInfo->mSharedWorkerInfos.Remove(
+          match.mSharedWorkerInfo->mScriptSpec);
       }
     }
 
@@ -2078,7 +2051,7 @@ RuntimeService::ResumeWorkersForWindow(nsPIDOMWindow* aWindow)
 nsresult
 RuntimeService::CreateSharedWorker(const GlobalObject& aGlobal,
                                    const nsAString& aScriptURL,
-                                   const nsACString& aName,
+                                   const nsAString& aName,
                                    SharedWorker** aSharedWorker)
 {
   AssertIsOnMainThread();
@@ -2106,11 +2079,9 @@ RuntimeService::CreateSharedWorker(const GlobalObject& aGlobal,
     WorkerDomainInfo* domainInfo;
     SharedWorkerInfo* sharedWorkerInfo;
 
-    nsAutoCString key;
-    GenerateSharedWorkerKey(scriptSpec, aName, key);
-
     if (mDomainMap.Get(loadInfo.mDomain, &domainInfo) &&
-        domainInfo->mSharedWorkerInfos.Get(key, &sharedWorkerInfo)) {
+        domainInfo->mSharedWorkerInfos.Get(scriptSpec, &sharedWorkerInfo) &&
+        sharedWorkerInfo->mName == aName) {
       workerPrivate = sharedWorkerInfo->mWorkerPrivate;
     }
   }
@@ -2173,10 +2144,8 @@ RuntimeService::ForgetSharedWorker(WorkerPrivate* aWorkerPrivate)
                                                  &match);
 
     if (match.mSharedWorkerInfo) {
-      nsAutoCString key;
-      GenerateSharedWorkerKey(match.mSharedWorkerInfo->mScriptSpec,
-                              match.mSharedWorkerInfo->mName, key);
-      domainInfo->mSharedWorkerInfos.Remove(key);
+      domainInfo->mSharedWorkerInfos.Remove(
+        match.mSharedWorkerInfo->mScriptSpec);
     }
   }
 }

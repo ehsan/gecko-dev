@@ -533,16 +533,16 @@ Java_org_mozilla_gecko_gfx_NativePanZoomController_getOverScrollMode(JNIEnv * ar
 
 #ifdef JNI_STUBS
 
-typedef jboolean (*Java_org_mozilla_gecko_ANRReporter_requestNativeStack_t)(JNIEnv *, jclass, jboolean);
+typedef jboolean (*Java_org_mozilla_gecko_ANRReporter_requestNativeStack_t)(JNIEnv *, jclass);
 static Java_org_mozilla_gecko_ANRReporter_requestNativeStack_t f_Java_org_mozilla_gecko_ANRReporter_requestNativeStack;
 extern "C" NS_EXPORT jboolean JNICALL
-Java_org_mozilla_gecko_ANRReporter_requestNativeStack(JNIEnv * arg0, jclass arg1, jboolean arg2) {
+Java_org_mozilla_gecko_ANRReporter_requestNativeStack(JNIEnv * arg0, jclass arg1) {
     if (!f_Java_org_mozilla_gecko_ANRReporter_requestNativeStack) {
         arg0->ThrowNew(arg0->FindClass("java/lang/UnsupportedOperationException"),
                        "JNI Function called before it was loaded");
         return false;
     }
-    return f_Java_org_mozilla_gecko_ANRReporter_requestNativeStack(arg0, arg1, arg2);
+    return f_Java_org_mozilla_gecko_ANRReporter_requestNativeStack(arg0, arg1);
 }
 #endif
 

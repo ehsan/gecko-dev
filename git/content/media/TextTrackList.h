@@ -51,7 +51,6 @@ public:
 
   void AddTextTrack(TextTrack* aTextTrack) {
     mTextTracks.AppendElement(aTextTrack);
-    aTextTrack->SetTextTrackList(this);
   }
 
   void RemoveTextTrack(TextTrack* aTrack);

@@ -311,7 +311,7 @@ DedicatedWorkerGlobalScope::PostMessage(JSContext* aCx,
 }
 
 SharedWorkerGlobalScope::SharedWorkerGlobalScope(WorkerPrivate* aWorkerPrivate,
-                                                 const nsCString& aName)
+                                                 const nsString& aName)
 : WorkerGlobalScope(aWorkerPrivate), mName(aName)
 {
 }

@@ -15,7 +15,7 @@
 typedef nsSVGElement SVGFilterElementBase;
 
 class nsSVGFilterFrame;
-class nsSVGFilterInstance;
+class nsAutoFilterInstance;
 
 nsresult NS_NewSVGFilterElement(nsIContent **aResult,
                                 already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -27,7 +27,7 @@ class SVGAnimatedLength;
 class SVGFilterElement : public SVGFilterElementBase
 {
   friend class ::nsSVGFilterFrame;
-  friend class ::nsSVGFilterInstance;
+  friend class ::nsAutoFilterInstance;
 
 protected:
   friend nsresult (::NS_NewSVGFilterElement(nsIContent **aResult,

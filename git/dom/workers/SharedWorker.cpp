@@ -72,9 +72,9 @@ SharedWorker::Constructor(const GlobalObject& aGlobal, JSContext* aCx,
     return nullptr;
   }
 
-  nsCString name;
+  nsString name;
   if (aName.WasPassed()) {
-    name = NS_ConvertUTF16toUTF8(aName.Value());
+    name = aName.Value();
   }
 
   nsRefPtr<SharedWorker> sharedWorker;

@@ -59,10 +59,9 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*       aPresContext,
   , mBlockDelta(0)
   , mReflowDepth(0)
 {
+  NS_PRECONDITION(aPresContext, "no pres context");
   NS_PRECONDITION(aRenderingContext, "no rendering context");
-  MOZ_ASSERT(aPresContext, "no pres context");
-  MOZ_ASSERT(aFrame, "no frame");
-  MOZ_ASSERT(aPresContext == aFrame->PresContext(), "wrong pres context");
+  NS_PRECONDITION(aFrame, "no frame");
   parentReflowState = nullptr;
   AvailableWidth() = aAvailableSpace.width;
   AvailableHeight() = aAvailableSpace.height;
@@ -160,9 +159,8 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*           aPresContext,
   , mReflowDepth(aParentReflowState.mReflowDepth + 1)
   , mFlags(aParentReflowState.mFlags)
 {
-  MOZ_ASSERT(aPresContext, "no pres context");
-  MOZ_ASSERT(aFrame, "no frame");
-  MOZ_ASSERT(aPresContext == aFrame->PresContext(), "wrong pres context");
+  NS_PRECONDITION(aPresContext, "no pres context");
+  NS_PRECONDITION(aFrame, "no frame");
   NS_PRECONDITION((aContainingBlockWidth == -1) ==
                     (aContainingBlockHeight == -1),
                   "cb width and height should only be non-default together");

@@ -32,7 +32,7 @@
 
 using namespace mozilla;
 
-#ifdef PR_LOGGING
+#ifdef MOZ_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 
