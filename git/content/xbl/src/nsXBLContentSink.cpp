@@ -159,8 +159,7 @@ nsXBLContentSink::FlushText(PRBool aReleaseTextNode)
       }
       else if (mSecondaryState == eXBL_InField) {
         // Get the text and add it to the method
-        if (mField)
-          mField->AppendFieldText(text);
+        mField->AppendFieldText(text);
       }
       mTextLength = 0;
       return NS_OK;

@@ -223,7 +223,7 @@ protected:
   nsresult DragOver(nsIDOMDragEvent* aDragEvent);
   nsresult DragLeave(nsIDOMDragEvent* aDragEvent);
   nsresult Drop(nsIDOMDragEvent* aDragEvent);
-  nsresult DragGesture(nsIDOMDragEvent* aDragEvent);
+  nsresult DragStart(nsIDOMDragEvent* aDragEvent);
 
 protected:
   nsIEditor* mEditor;
