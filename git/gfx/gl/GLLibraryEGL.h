@@ -23,7 +23,8 @@ typedef void *EGLDisplay;
 typedef void *EGLSurface;
 typedef void *EGLClientBuffer;
 typedef void *EGLCastToRelevantPtr;
-typedef void *EGLImage;
+typedef void *EGLImageKHR;
+typedef void *GLeglImageOES;
 
 #if defined(XP_WIN)
 
@@ -107,42 +108,15 @@ public:
     GLLibraryEGL() 
         : mInitialized(false),
           mEGLLibrary(nsnull),
-          mIsANGLE(false)
+          mIsANGLE(false),
+          mHasRobustness(false),
+          mHave_EGL_KHR_image_base(false),
+          mHave_EGL_KHR_image_pixmap(false),
+          mHave_EGL_KHR_gl_texture_2D_image(false),
+          mHave_EGL_KHR_lock_surface(false),
+          mHave_EGL_ANGLE_surface_d3d_texture_2d_share_handle(false)
     {
     }
-
-    void InitExtensions();
-
-    /**
-     * Known GL extensions that can be queried by
-     * IsExtensionSupported.  The results of this are cached, and as
-     * such it's safe to use this even in performance critical code.
-     * If you add to this array, remember to add to the string names
-     * in GLContext.cpp.
-     */
-    enum EGLExtensions {
-        KHR_image_base,
-        KHR_image_pixmap,
-        KHR_gl_texture_2D_image,
-        KHR_lock_surface,
-        ANGLE_surface_d3d_texture_2d_share_handle,
-        EXT_create_context_robustness,
-        KHR_image,
-        Extensions_Max
-    };
-
-    bool IsExtensionSupported(EGLExtensions aKnownExtension) {
-        return mAvailableExtensions[aKnownExtension];
-    }
-
-    void MarkExtensionUnsupported(EGLExtensions aKnownExtension) {
-        mAvailableExtensions[aKnownExtension] = 0;
-    }
-
-protected:
-    GLContext::ExtensionBitset<Extensions_Max> mAvailableExtensions;
-
-public:
 
     EGLDisplay fGetDisplay(void* display_id)
     {
@@ -336,35 +310,35 @@ public:
         return b;
     }
 
-    EGLImage fCreateImage(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list)
+    EGLImageKHR fCreateImageKHR(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list)
     {
          BEFORE_GL_CALL;
-         EGLImage i = mSymbols.fCreateImage(dpy, ctx, target, buffer, attrib_list);
+         EGLImageKHR i = mSymbols.fCreateImageKHR(dpy, ctx, target, buffer, attrib_list);
          AFTER_GL_CALL;
          return i;
     }
 
-    EGLBoolean fDestroyImage(EGLDisplay dpy, EGLImage image)
+    EGLBoolean fDestroyImageKHR(EGLDisplay dpy, EGLImageKHR image)
     {
         BEFORE_GL_CALL;
-        EGLBoolean b = mSymbols.fDestroyImage(dpy, image);
+        EGLBoolean b = mSymbols.fDestroyImageKHR(dpy, image);
         AFTER_GL_CALL;
         return b;
     }
 
     // New extension which allow us to lock texture and get raw image pointer
-    EGLBoolean fLockSurface(EGLDisplay dpy, EGLSurface surface, const EGLint *attrib_list)
+    EGLBoolean fLockSurfaceKHR(EGLDisplay dpy, EGLSurface surface, const EGLint *attrib_list)
     {
         BEFORE_GL_CALL;
-        EGLBoolean b = mSymbols.fLockSurface(dpy, surface, attrib_list);
+        EGLBoolean b = mSymbols.fLockSurfaceKHR(dpy, surface, attrib_list);
         AFTER_GL_CALL;
         return b;
     }
 
-    EGLBoolean fUnlockSurface(EGLDisplay dpy, EGLSurface surface)
+    EGLBoolean fUnlockSurfaceKHR(EGLDisplay dpy, EGLSurface surface)
     {
         BEFORE_GL_CALL;
-        EGLBoolean b = mSymbols.fUnlockSurface(dpy, surface);
+        EGLBoolean b = mSymbols.fUnlockSurfaceKHR(dpy, surface);
         AFTER_GL_CALL;
         return b;
     }
@@ -385,6 +359,15 @@ public:
         return b;
     }
 
+    // This is EGL specific GL ext symbol "glEGLImageTargetTexture2DOES"
+    // Lets keep it here for now.
+    void fImageTargetTexture2DOES(GLenum target, GLeglImageOES image)
+    {
+        BEFORE_GL_CALL;
+        mSymbols.fImageTargetTexture2DOES(target, image);
+        AFTER_GL_CALL;
+    }
+
     EGLDisplay Display() {
         return mEGLDisplay;
     }
@@ -394,27 +377,27 @@ public:
     }
 
     bool HasKHRImageBase() {
-        return IsExtensionSupported(KHR_image) || IsExtensionSupported(KHR_image_base);
+        return mHave_EGL_KHR_image_base;
     }
 
     bool HasKHRImagePixmap() {
-        return IsExtensionSupported(KHR_image) || IsExtensionSupported(KHR_image_pixmap);
+        return mHave_EGL_KHR_image_pixmap;
     }
 
     bool HasKHRImageTexture2D() {
-        return IsExtensionSupported(KHR_gl_texture_2D_image);
+        return mHave_EGL_KHR_gl_texture_2D_image;
     }
 
     bool HasKHRLockSurface() {
-        return IsExtensionSupported(KHR_lock_surface);
+        return mHave_EGL_KHR_lock_surface;
     }
 
     bool HasANGLESurfaceD3DTexture2DShareHandle() {
-        return IsExtensionSupported(ANGLE_surface_d3d_texture_2d_share_handle);
+        return mHave_EGL_ANGLE_surface_d3d_texture_2d_share_handle;
     }
 
     bool HasRobustness() {
-        return IsExtensionSupported(EXT_create_context_robustness);
+        return mHasRobustness;
     }
 
     bool EnsureInitialized();
@@ -473,21 +456,26 @@ public:
         pfnBindTexImage fBindTexImage;
         typedef EGLBoolean (GLAPIENTRY * pfnReleaseTexImage)(EGLDisplay, EGLSurface surface, EGLint buffer);
         pfnReleaseTexImage fReleaseTexImage;
-        typedef EGLImage (GLAPIENTRY * pfnCreateImage)(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list);
-        pfnCreateImage fCreateImage;
-        typedef EGLBoolean (GLAPIENTRY * pfnDestroyImage)(EGLDisplay dpy, EGLImage image);
-        pfnDestroyImage fDestroyImage;
+        typedef EGLImageKHR (GLAPIENTRY * pfnCreateImageKHR)(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list);
+        pfnCreateImageKHR fCreateImageKHR;
+        typedef EGLBoolean (GLAPIENTRY * pfnDestroyImageKHR)(EGLDisplay dpy, EGLImageKHR image);
+        pfnDestroyImageKHR fDestroyImageKHR;
 
         // New extension which allow us to lock texture and get raw image pointer
-        typedef EGLBoolean (GLAPIENTRY * pfnLockSurface)(EGLDisplay dpy, EGLSurface surface, const EGLint *attrib_list);
-        pfnLockSurface fLockSurface;
-        typedef EGLBoolean (GLAPIENTRY * pfnUnlockSurface)(EGLDisplay dpy, EGLSurface surface);
-        pfnUnlockSurface fUnlockSurface;
+        typedef EGLBoolean (GLAPIENTRY * pfnLockSurfaceKHR)(EGLDisplay dpy, EGLSurface surface, const EGLint *attrib_list);
+        pfnLockSurfaceKHR fLockSurfaceKHR;
+        typedef EGLBoolean (GLAPIENTRY * pfnUnlockSurfaceKHR)(EGLDisplay dpy, EGLSurface surface);
+        pfnUnlockSurfaceKHR fUnlockSurfaceKHR;
         typedef EGLBoolean (GLAPIENTRY * pfnQuerySurface)(EGLDisplay dpy, EGLSurface surface, EGLint attribute, EGLint *value);
         pfnQuerySurface fQuerySurface;
 
         typedef EGLBoolean (GLAPIENTRY * pfnQuerySurfacePointerANGLE)(EGLDisplay dpy, EGLSurface surface, EGLint attribute, void **value);
         pfnQuerySurfacePointerANGLE fQuerySurfacePointerANGLE;
+
+        // This is EGL specific GL ext symbol "glEGLImageTargetTexture2DOES"
+        // Lets keep it here for now.
+        typedef void (GLAPIENTRY * pfnImageTargetTexture2DOES)(GLenum target, GLeglImageOES image);
+        pfnImageTargetTexture2DOES fImageTargetTexture2DOES;
     } mSymbols;
 
 private:
@@ -496,6 +484,13 @@ private:
     EGLDisplay mEGLDisplay;
 
     bool mIsANGLE;
+    bool mHasRobustness;
+
+    bool mHave_EGL_KHR_image_base;
+    bool mHave_EGL_KHR_image_pixmap;
+    bool mHave_EGL_KHR_gl_texture_2D_image;
+    bool mHave_EGL_KHR_lock_surface;
+    bool mHave_EGL_ANGLE_surface_d3d_texture_2d_share_handle;
 };
 
 } /* namespace gl */

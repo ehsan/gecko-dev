@@ -503,14 +503,11 @@ public class GeckoInputConnection
         mUpdateExtract.partialStartOffset = 0;
         mUpdateExtract.partialEndOffset = oldEnd;
 
-        String updatedText = (newEnd > text.length() ? text : text.substring(0, newEnd));
-        int updatedTextLength = updatedText.length();
-
         // Faster to not query for selection
-        mUpdateExtract.selectionStart = updatedTextLength;
-        mUpdateExtract.selectionEnd = updatedTextLength;
+        mUpdateExtract.selectionStart = newEnd;
+        mUpdateExtract.selectionEnd = newEnd;
 
-        mUpdateExtract.text = updatedText;
+        mUpdateExtract.text = text.substring(0, newEnd);
         mUpdateExtract.startOffset = 0;
 
         imm.updateExtractedText(v, mUpdateRequest.token, mUpdateExtract);
@@ -1154,7 +1151,7 @@ public class GeckoInputConnection
 
                     if (mIMEState != IME_STATE_DISABLED) {
                         imm.showSoftInput(v, 0);
-                    } else if (imm.isActive(v)) {
+                    } else {
                         imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
                     }
                 }
@@ -1321,12 +1318,9 @@ private static final class DebugGeckoInputConnection extends GeckoInputConnectio
                                     int start, int oldEnd, int newEnd) {
         // notifyTextChange() call is posted to UI thread from notifyIMEChange().
         GeckoApp.assertOnUiThread();
-        String msg = String.format("IME: >notifyTextChange(\"%s\", start=%d, oldEnd=%d, newEnd=%d)",
-                                   text, start, oldEnd, newEnd);
-        Log.d(LOGTAG, msg);
-        if (start < 0 || oldEnd < start || newEnd < start || newEnd > text.length()) {
-            throw new IllegalArgumentException("BUG! " + msg);
-        }
+        Log.d(LOGTAG, String.format(
+                      "IME: >notifyTextChange(\"%s\", start=%d, oldEnd=%d, newEnd=%d)",
+                      text, start, oldEnd, newEnd));
         super.notifyTextChange(imm, text, start, oldEnd, newEnd);
     }
 

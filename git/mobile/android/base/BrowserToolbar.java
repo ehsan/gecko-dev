@@ -228,12 +228,15 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
         mMenu = (ImageButton) mLayout.findViewById(R.id.menu);
         mActionItemBar = (LinearLayout) mLayout.findViewById(R.id.menu_items);
-        mHasSoftMenuButton = !GeckoApp.mAppContext.hasPermanentMenuKey();
+        mHasSoftMenuButton = GeckoApp.mAppContext.hasPermanentMenuKey();
 
         if (mHasSoftMenuButton) {
             mMenu.setVisibility(View.VISIBLE);
             mMenu.setOnClickListener(new Button.OnClickListener() {
                 public void onClick(View view) {
+                    if (!GeckoApp.mAppContext.isTablet() && GeckoApp.mAppContext.areTabsShown())
+                        return;
+
                     GeckoApp.mAppContext.openOptionsMenu();
                 }
             });
@@ -371,7 +374,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         if (areTabsShown) {
             mTabs.getBackground().setLevel(TABS_EXPANDED);
 
-            if (!GeckoApp.mAppContext.hasTabsSideBar()) {
+            if (!GeckoApp.mAppContext.isTablet()) {
                 mTabs.setImageLevel(0);
                 mTabsCount.setVisibility(View.GONE);
                 mMenu.setImageLevel(TABS_EXPANDED);
@@ -383,7 +386,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             mTabs.setImageLevel(TABS_CONTRACTED);
             mTabs.getBackground().setLevel(TABS_CONTRACTED);
 
-            if (!GeckoApp.mAppContext.hasTabsSideBar()) {
+            if (!GeckoApp.mAppContext.isTablet()) {
                 mTabsCount.setVisibility(View.VISIBLE);
                 mMenu.setImageLevel(TABS_CONTRACTED);
                 mMenu.getBackground().setLevel(TABS_CONTRACTED);
@@ -555,7 +558,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         if (!mHasSoftMenuButton)
             return false;
 
-        GeckoApp.mAppContext.invalidateOptionsMenu();
         if (mMenuPopup != null && !mMenuPopup.isShowing())
             mMenuPopup.showAsDropDown(mMenu);
 

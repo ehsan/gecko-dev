@@ -38,7 +38,6 @@
 #include "nsISmsRequestManager.h"
 #include "nsISmsDatabaseService.h"
 #include "nsPluginInstanceOwner.h"
-#include "nsSurfaceTexture.h"
 
 using namespace mozilla;
 using namespace mozilla::dom::sms;
@@ -81,7 +80,7 @@ Java_org_mozilla_gecko_GeckoAppShell_setSurfaceView(JNIEnv *jenv, jclass, jobjec
 NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_setLayerClient(JNIEnv *jenv, jclass, jobject obj)
 {
-    AndroidBridge::Bridge()->SetLayerClient(jenv, obj);
+    AndroidBridge::Bridge()->SetLayerClient(jenv->NewGlobalRef(obj));
 }
 
 NS_EXPORT void JNICALL
@@ -1022,18 +1021,6 @@ Java_org_mozilla_gecko_GeckoAppShell_getNextMessageFromQueue(JNIEnv* jenv, jclas
         return msg;
     msg = jenv->CallObjectMethod(queue, jNextMethod);
     return msg;
-}
-
-NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_onSurfaceTextureFrameAvailable(JNIEnv* jenv, jclass, jobject surfaceTexture, jint id)
-{
-  nsSurfaceTexture* st = nsSurfaceTexture::Find(id);
-  if (!st) {
-    __android_log_print(ANDROID_LOG_ERROR, "GeckoJNI", "Failed to find nsSurfaceTexture with id %d", id);
-    return;
-  }
-
-  st->NotifyFrameAvailable();
 }
 
 #endif

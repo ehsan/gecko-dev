@@ -40,12 +40,10 @@ typedef ptrdiff_t GLintptr;
 #include "mozilla/StandardInteger.h"
 
 // ARB_sync
-typedef struct __GLsync* GLsync;
+typedef struct __GLsync *GLsync;
 typedef int64_t GLint64;
 typedef uint64_t GLuint64;
 
-// OES_EGL_image (GLES)
-typedef void* GLeglImage;
 
 #ifndef GLAPIENTRY
 # ifdef WIN32
@@ -3251,13 +3249,5 @@ typedef void* GLeglImage;
 #define LOCAL_EGL_CORE_NATIVE_ENGINE          0x305B
 #define LOCAL_EGL_READ                        0x305A
 #define LOCAL_EGL_DRAW                        0x3059
-#define LOCAL_EGL_BAD_PARAMETER               0x300C
 #define LOCAL_EGL_CONTEXT_LOST                0x300E
-
-// EGL_KHR_gl_texture_2D_image
-#define LOCAL_EGL_GL_TEXTURE_2D               0x30B1
-
-// OES_EGL_image_external
-#define LOCAL_GL_TEXTURE_EXTERNAL             0x8D65
-
 #endif

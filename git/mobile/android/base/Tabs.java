@@ -93,8 +93,7 @@ public class Tabs implements GeckoEventListener {
         selectedTab = tab;
         GeckoApp.mAppContext.mMainHandler.post(new Runnable() { 
             public void run() {
-                if (GeckoApp.mAppContext.mFormAssistPopup != null)
-                    GeckoApp.mAppContext.mFormAssistPopup.hide();
+                GeckoApp.mFormAssistPopup.hide();
                 if (isSelectedTab(tab)) {
                     String url = tab.getURL();
                     notifyListeners(tab, TabEvents.SELECTED);
@@ -306,8 +305,7 @@ public class Tabs implements GeckoEventListener {
         UNSELECTED,
         ADDED,
         RESTORED,
-        LOCATION_CHANGE,
-        MENU_UPDATED
+        LOCATION_CHANGE
     }
 
     public void notifyListeners(Tab tab, TabEvents msg) {

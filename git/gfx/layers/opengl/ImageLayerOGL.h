@@ -178,13 +178,6 @@ private:
   bool Init(const SharedImage& aFront);
 
   nsRefPtr<TextureImage> mTexImage;
-
-  // For SharedTextureHandle
-  gl::SharedTextureHandle mSharedHandle;
-  gl::TextureImage::TextureShareType mShareType;
-  bool mInverted;
-  GLuint mTexture; 
-
   GLTexture mYUVTexture[3];
   gfxIntSize mSize;
   gfxIntSize mCbCrSize;

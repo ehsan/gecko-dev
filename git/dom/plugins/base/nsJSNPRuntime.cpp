@@ -1150,19 +1150,14 @@ nsJSObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, JSObject *obj)
 // Climb the prototype chain, unwrapping as necessary until we find an NP object
 // wrapper.
 //
-// Because this function unwraps, its return value must be wrapped for the cx
-// compartment for callers that plan to hold onto the result or do anything
-// substantial with it.
+// Note that the returned value is not necessarily in the same compartment as cx.
+// Callers should use it in very limited ways (checking the private is fine).
 static JSObject *
-GetNPObjectWrapper(JSContext *cx, JSObject *obj, bool wrapResult = true)
+GetNPObjectWrapper(JSContext *cx, JSObject *obj)
 {
   while (obj && (obj = js::UnwrapObjectChecked(cx, obj))) {
-    if (JS_GetClass(obj) == &sNPObjectJSWrapperClass) {
-      if (wrapResult && !JS_WrapObject(cx, &obj)) {
-        return NULL;
-      }
+    if (JS_GetClass(obj) == &sNPObjectJSWrapperClass)
       return obj;
-    }
     obj = ::JS_GetPrototype(obj);
   }
   return NULL;
@@ -1171,7 +1166,7 @@ GetNPObjectWrapper(JSContext *cx, JSObject *obj, bool wrapResult = true)
 static NPObject *
 GetNPObject(JSContext *cx, JSObject *obj)
 {
-  obj = GetNPObjectWrapper(cx, obj, /* wrapResult = */ false);
+  obj = GetNPObjectWrapper(cx, obj);
   if (!obj) {
     return nsnull;
   }
