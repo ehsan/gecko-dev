@@ -333,7 +333,6 @@
 #include "nsIDOMRange.h"
 #include "nsIDOMNSRange.h"
 #include "nsIDOMRangeException.h"
-#include "nsIDOMNodeIterator.h"
 #include "nsIDOMTreeWalker.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMXULElement.h"
@@ -1265,10 +1264,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(HTMLAudioElement, nsHTMLElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
 #endif
-
-  // DOM Traversal NodeIterator class  
-  NS_DEFINE_CLASSINFO_DATA(NodeIterator, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 };
 
 // Objects that shuld be constructable through |new Name();|
@@ -1857,17 +1852,14 @@ nsDOMClassInfo::RegisterExternalClasses()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                                \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Document)                                  \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)                                      \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMXPathEvaluator)                             \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
-
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMXPathEvaluator)
 
 #define DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES                                \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLElement)                              \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementCSSInlineStyle)                      \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                                \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)                                      \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)                                  \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)
 
 #define DOM_CLASSINFO_EVENT_MAP_ENTRIES                                       \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)                                      \
@@ -2008,7 +2000,6 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(DocumentFragment, nsIDOMDocumentFragment)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentFragment)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(Element, nsIDOMElement)
@@ -2016,7 +2007,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(Attr, nsIDOMAttr)
@@ -2522,10 +2512,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSRange)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(NodeIterator, nsIDOMNodeIterator)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeIterator)
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(TreeWalker, nsIDOMTreeWalker)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMTreeWalker)
   DOM_CLASSINFO_MAP_END
@@ -2547,7 +2533,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementCSSInlineStyle)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(XULCommandDispatcher, nsIDOMXULCommandDispatcher)
@@ -2663,8 +2648,7 @@ nsDOMClassInfo::Init()
 #define DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGElement) \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)  \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)      \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
 
 #define DOM_CLASSINFO_SVG_GRAPHIC_ELEMENT_MAP_ENTRIES \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)        \

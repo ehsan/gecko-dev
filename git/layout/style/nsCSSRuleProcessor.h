@@ -49,7 +49,6 @@
 #include "nsCSSStyleSheet.h"
 
 struct RuleCascadeData;
-struct nsCSSSelectorList;
 
 /**
  * The CSS style rule processor provides a mechanism for sibling style
@@ -73,14 +72,6 @@ public:
   nsresult ClearRuleCascades();
 
   static void Shutdown();
-
-  /*
-   * Returns true if the given RuleProcessorData matches one of the
-   * selectors in aSelectorList.  Note that this method will assume
-   * the matching is not for styling purposes.
-   */
-  static PRBool SelectorListMatches(RuleProcessorData& aData,
-                                    nsCSSSelectorList* aSelectorList);
 
   // nsIStyleRuleProcessor
   NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);

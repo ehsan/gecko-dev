@@ -67,7 +67,6 @@
 #include "nsIContent.h"
 #include "nsIEventListenerManager.h"
 #include "nsIDOM3Node.h"
-#include "nsIDOMNodeSelector.h"
 #include "nsIPrincipal.h"
 #include "nsIParser.h"
 #include "nsBindingManager.h"
@@ -405,7 +404,6 @@ class nsDocument : public nsIDocument,
                    public nsIDOMNSEventTarget,
                    public nsIScriptObjectPrincipal,
                    public nsIRadioGroupContainer,
-                   public nsIDOMNodeSelector,
                    public nsStubMutationObserver
 {
 public:
@@ -735,9 +733,6 @@ public:
 
   // nsIDOMNSEventTarget
   NS_DECL_NSIDOMNSEVENTTARGET
-
-  // nsIDOMNodeSelector
-  NS_DECL_NSIDOMNODESELECTOR
 
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
