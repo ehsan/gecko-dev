@@ -709,23 +709,13 @@ xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval,
     mValid = JS_TRUE;
 }
 
-xpc_qsACString::xpc_qsACString(JSContext *cx, jsval v, jsval *pval,
-                               StringificationBehavior nullBehavior,
-                               StringificationBehavior undefinedBehavior)
+xpc_qsACString::xpc_qsACString(JSContext *cx, jsval v, jsval *pval)
 {
     typedef implementation_type::char_traits traits;
     // From the T_CSTRING case in XPCConvert::JSData2Native.
-    JSString *s = InitOrStringify<traits>(cx, v, pval, nullBehavior,
-                                          undefinedBehavior);
+    JSString *s = InitOrStringify<traits>(cx, v, pval, eNull, eNull);
     if (!s)
         return;
-
-    size_t len = JS_GetStringEncodingLength(cx, s);
-    if(len == size_t(-1))
-    {
-        mValid = JS_FALSE;
-        return;
-    }
 
     JSAutoByteString bytes(cx, s);
     if(!bytes)
@@ -734,7 +724,7 @@ xpc_qsACString::xpc_qsACString(JSContext *cx, jsval v, jsval *pval,
         return;
     }
 
-    new(mBuf) implementation_type(bytes.ptr(), len);
+    new(mBuf) implementation_type(bytes.ptr(), strlen(bytes.ptr()));
     mValid = JS_TRUE;
 }
 

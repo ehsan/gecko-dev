@@ -908,7 +908,7 @@ Execute(JSContext *cx, JSObject *chain, JSScript *script,
     if (script->isEmpty()) {
         if (result)
             result->setUndefined();
-        return true;
+        return JS_TRUE;
     }
 
     LeaveTrace(cx);
@@ -2505,6 +2505,9 @@ Interpret(JSContext *cx, JSStackFrame *entryFrame, uintN inlineCallCount, JSInte
     JSScript *script = regs.fp->script();
     Value *argv = regs.fp->maybeFormalArgs();
     CHECK_INTERRUPT_HANDLER();
+
+    JS_ASSERT(!script->isEmpty());
+    JS_ASSERT(script->length >= 1);
 
 #if defined(JS_TRACER) && defined(JS_METHODJIT)
     bool leaveOnSafePoint = (interpMode == JSINTERP_SAFEPOINT);
@@ -4674,7 +4677,7 @@ BEGIN_CASE(JSOP_FUNCALL)
         if (newfun->isInterpreted())
       inline_call:
         {
-            JSScript *newscript = newfun->script();
+            JSScript *newscript = newfun->u.i.script;
             if (JS_UNLIKELY(newscript->isEmpty())) {
                 vp->setUndefined();
                 regs.sp = vp + 1;
@@ -6829,7 +6832,7 @@ END_CASE(JSOP_ARRAYPUSH)
         /*
          * Look for a try block in script that can catch this exception.
          */
-        if (!JSScript::isValidOffset(script->trynotesOffset))
+        if (script->trynotesOffset == 0)
             goto no_catch;
 
         offset = (uint32)(regs.pc - script->main);

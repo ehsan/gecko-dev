@@ -622,10 +622,6 @@ def writeResultDecl(f, type, varname):
 
 def outParamForm(name, type):
     type = unaliasType(type)
-    # If we start allowing [jsval] return types here, we need to tack
-    # the return value onto the arguments list in the callers,
-    # possibly, and handle properly returning it too.  See bug 604198.
-    assert getBuiltinOrNativeTypeName(type) is not '[jsval]'
     if type.kind == 'builtin':
         return '&' + name
     elif type.kind == 'native':
@@ -1188,10 +1184,9 @@ def writeTraceableArgumentConversion(f, member, i, name, type, haveCcx,
                 f.write("    nsresult rv;\n");
             f.write("    %s *%s;\n" % (type.name, name))
             f.write("    xpc_qsSelfRef %sref;\n" % name)
-            f.write("    js::Anchor<jsval> %sanchor;\n" % name);
             f.write("    rv = xpc_qsUnwrapArg<%s>("
-                    "cx, js::Jsvalify(js::ValueArgToConstRef(%s)), &%s, &%sref.ptr, &%sanchor.get());\n"
-                    % (type.name, argVal, name, name, name))
+                    "cx, js::Jsvalify(js::ValueArgToConstRef(%s)), &%s, &%sref.ptr, &vp.array[%d]);\n"
+                    % (type.name, argVal, name, name, 2 + i))
             f.write("    if (NS_FAILED(rv)) {\n")
             if haveCcx:
                 f.write("        xpc_qsThrowBadArgWithCcx(ccx, rv, %d);\n" % i)
@@ -1256,26 +1251,24 @@ def writeTraceableResultConv(f, type):
         # else fall through; this type isn't supported yet
     elif isInterfaceType(type):
         if isVariantType(type):
-            f.write("    jsval returnVal;\n"
-                    "    JSBool ok = xpc_qsVariantToJsval(lccx, result, "
-                    "&returnVal);\n")
+            f.write("    JSBool ok = xpc_qsVariantToJsval(lccx, result, "
+                    "&vp.array[0]);\n")
         else:
             f.write("    nsWrapperCache* cache = xpc_qsGetWrapperCache(result);\n"
                     "    JSObject* wrapper =\n"
-                    "      xpc_GetCachedSlimWrapper(cache, obj);\n"
+                    "      xpc_GetCachedSlimWrapper(cache, obj, &vp.array[0]);\n"
                     "    if (wrapper) {\n"
                     "      return wrapper;\n"
                     "    }\n"
                     "    // After this point do not use 'result'!\n"
                     "    qsObjectHelper helper(result, cache);\n"
-                    "    jsval returnVal;\n"
                     "    JSBool ok = xpc_qsXPCOMObjectToJsval(lccx, "
                     "helper, &NS_GET_IID(%s), &interfaces[k_%s], "
-                    "&returnVal);\n"
+                    "&vp.array[0]);\n"
                     % (type.name, type.name))
         f.write("    if (!ok) {\n");
         writeFailure(f, getTraceInfoDefaultReturn(type), 2)
-        f.write("    return JSVAL_TO_OBJECT(returnVal);\n")
+        f.write("    return JSVAL_TO_OBJECT(vp.array[0]);\n")
         return
 
     warn("Unable to convert result of type %s" % typeName)
@@ -1328,17 +1321,17 @@ def writeTraceableQuickStub(f, customMethodCalls, member, stubName):
     else:
         f.write("    %s *self;\n" % customMethodCall['thisType'])
     f.write("    xpc_qsSelfRef selfref;\n")
-    f.write("    js::Anchor<jsval> selfanchor;\n")
+    f.write("    xpc_qsArgValArray<%d> vp(cx);\n" % (2 + len(member.params)))
     if haveCcx:
         f.write("    if (!xpc_qsUnwrapThisFromCcx(ccx, &self, &selfref.ptr, "
-                "&selfanchor.get())) {\n")
+                "&vp.array[1])) {\n")
     elif (member.kind == 'method') and isInterfaceType(member.realtype):
         f.write("    XPCLazyCallContext lccx(JS_CALLER, cx, obj);\n")
         f.write("    if (!xpc_qsUnwrapThis(cx, obj, callee, &self, &selfref.ptr, "
-                "&selfanchor.get(), &lccx)) {\n")
+                "&vp.array[1], &lccx)) {\n")
     else:
         f.write("    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, "
-                "&selfanchor.get(), nsnull)) {\n")
+                "&vp.array[1], nsnull)) {\n")
     writeFailure(f, getTraceInfoDefaultReturn(member.realtype), 2)
 
     argNames = []
@@ -1378,7 +1371,9 @@ def writeTraceableQuickStub(f, customMethodCalls, member, stubName):
 
         # Call the method.
         comName = header.methodNativeName(member)
-        if not isVoidType(member.realtype):
+        if getBuiltinOrNativeTypeName(member.realtype) == '[jsval]':
+            argNames.append("&vp.array[0]")
+        elif not isVoidType(member.realtype):
             argNames.append(outParamForm(resultname, member.realtype))
         args = ', '.join(argNames)
 

@@ -124,11 +124,4 @@ xpc_GetCachedSlimWrapper(nsWrapperCache *cache, JSObject *scope, jsval *vp)
     return nsnull;
 }
 
-inline JSObject*
-xpc_GetCachedSlimWrapper(nsWrapperCache *cache, JSObject *scope)
-{
-    jsval dummy;
-    return xpc_GetCachedSlimWrapper(cache, scope, &dummy);
-}
-
 #endif

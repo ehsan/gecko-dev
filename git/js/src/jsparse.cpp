@@ -865,7 +865,6 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
 #endif
 
     inDirectivePrologue = true;
-    tokenStream.setOctalCharacterEscape(false);
     for (;;) {
         tt = tokenStream.peekToken(TSF_OPERAND);
         if (tt <= TOK_EOF) {
@@ -880,8 +879,8 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
             goto out;
         JS_ASSERT(!cg.blockNode);
 
-        if (inDirectivePrologue && !parser.recognizeDirectivePrologue(pn, &inDirectivePrologue))
-            goto out;
+        if (inDirectivePrologue)
+            inDirectivePrologue = parser.recognizeDirectivePrologue(pn);
 
         if (!js_FoldConstants(cx, pn, &cg))
             goto out;
@@ -979,7 +978,7 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
     JS_DumpArenaStats(stdout);
 #endif
     script = JSScript::NewScriptFromCG(cx, &cg);
-    if (script && funbox)
+    if (script && funbox && script != script->emptyScript())
         script->savedCallerFun = true;
 
 #ifdef JS_SCOPE_DEPTH_METER
@@ -1070,7 +1069,7 @@ Compiler::defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *scrip
         JSScript *inner = worklist.back();
         worklist.popBack();
 
-        if (JSScript::isValidOffset(inner->objectsOffset)) {
+        if (inner->objectsOffset != 0) {
             JSObjectArray *arr = inner->objects();
             for (size_t i = 0; i < arr->length; i++) {
                 JSObject *obj = arr->vector[i];
@@ -1079,16 +1078,14 @@ Compiler::defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *scrip
                 JSFunction *fun = obj->getFunctionPrivate();
                 JS_ASSERT(fun->isInterpreted());
                 JSScript *inner = fun->u.i.script;
-                if (!JSScript::isValidOffset(inner->globalsOffset) &&
-                    !JSScript::isValidOffset(inner->objectsOffset)) {
+                if (inner->globalsOffset == 0 && inner->objectsOffset == 0)
                     continue;
-                }
                 if (!worklist.append(inner))
                     return false;
             }
         }
 
-        if (!JSScript::isValidOffset(inner->globalsOffset))
+        if (inner->globalsOffset == 0)
             continue;
 
         GlobalSlotArray *globalUses = inner->globals();
@@ -3162,7 +3159,7 @@ Parser::functionDef(JSAtom *funAtom, FunctionType type, uintN lambda)
     if (!outertc->inFunction() && topLevel && funAtom && !lambda &&
         outertc->compiling()) {
         JS_ASSERT(pn->pn_cookie.isFree());
-        if (!DefineGlobal(pn, outertc->asCodeGenerator(), funAtom))
+        if (!DefineGlobal(pn, (JSCodeGenerator *)outertc, funAtom))
             return false;
     }
 
@@ -3228,33 +3225,13 @@ Parser::functionExpr()
  * if it can't possibly be a directive, now or in the future.
  */
 bool
-Parser::recognizeDirectivePrologue(JSParseNode *pn, bool *isDirectivePrologueMember)
+Parser::recognizeDirectivePrologue(JSParseNode *pn)
 {
-    *isDirectivePrologueMember = pn->isDirectivePrologueMember();
-    if (!*isDirectivePrologueMember)
-        return true;
+    if (!pn->isDirectivePrologueMember())
+        return false;
     if (pn->isDirective()) {
         JSAtom *directive = pn->pn_kid->pn_atom;
         if (directive == context->runtime->atomState.useStrictAtom) {
-            /*
-             * Unfortunately, Directive Prologue members in general may contain
-             * escapes, even while "use strict" directives may not.  Therefore
-             * we must check whether an octal character escape has been seen in
-             * any previous directives whenever we encounter a "use strict"
-             * directive, so that the octal escape is properly treated as a
-             * syntax error.  An example of this case:
-             *
-             *   function error()
-             *   {
-             *     "\145"; // octal escape
-             *     "use strict"; // retroactively makes "\145" a syntax error
-             *   }
-             */
-            if (tokenStream.hasOctalCharacterEscape()) {
-                reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_DEPRECATED_OCTAL);
-                return false;
-            }
-
             tc->flags |= TCF_STRICT_MODE_CODE;
             tokenStream.setStrictMode();
         }
@@ -3272,6 +3249,7 @@ Parser::statements()
 {
     JSParseNode *pn, *pn2, *saveBlock;
     TokenKind tt;
+    bool inDirectivePrologue = tc->atTopLevel();
 
     JS_CHECK_RECURSION(context, return NULL);
 
@@ -3284,8 +3262,6 @@ Parser::statements()
     saveBlock = tc->blockNode;
     tc->blockNode = pn;
 
-    bool inDirectivePrologue = tc->atTopLevel();
-    tokenStream.setOctalCharacterEscape(false);
     for (;;) {
         tt = tokenStream.peekToken(TSF_OPERAND);
         if (tt <= TOK_EOF || tt == TOK_RC) {
@@ -3303,8 +3279,8 @@ Parser::statements()
             return NULL;
         }
 
-        if (inDirectivePrologue && !recognizeDirectivePrologue(pn2, &inDirectivePrologue))
-            return NULL;
+        if (inDirectivePrologue)
+            inDirectivePrologue = recognizeDirectivePrologue(pn2);
 
         if (pn2->pn_type == TOK_FUNCTION) {
             /*
@@ -3607,7 +3583,7 @@ BindGvar(JSParseNode *pn, JSTreeContext *tc)
     if (!tc->compiling() || tc->parser->callerFrame)
         return true;
 
-    JSCodeGenerator *cg = tc->asCodeGenerator();
+    JSCodeGenerator *cg = (JSCodeGenerator *) tc;
 
     if (pn->pn_dflags & PND_CONST)
         return true;

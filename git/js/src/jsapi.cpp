@@ -4672,6 +4672,7 @@ JS_NewScriptObject(JSContext *cx, JSScript *script)
      * described in the comment for JSScript::u.object.
      */
     JS_ASSERT(script->u.object);
+    JS_ASSERT(script != JSScript::emptyScript());
     return script->u.object;
 }
 
@@ -4888,7 +4889,7 @@ JS_ExecuteScript(JSContext *cx, JSObject *obj, JSScript *script, jsval *rval)
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, script);
     /* This should receive only scripts handed out via the JSAPI. */
-    JS_ASSERT(script->u.object);
+    JS_ASSERT(script == JSScript::emptyScript() || script->u.object);
     ok = Execute(cx, obj, script, NULL, 0, Valueify(rval));
     LAST_FRAME_CHECKS(cx, ok);
     return ok;
@@ -5182,12 +5183,8 @@ JS_NewString(JSContext *cx, char *bytes, size_t nbytes)
 
     /* Free chars (but not bytes, which caller frees on error) if we fail. */
     str = js_NewString(cx, chars, length);
-    if (!str) {
+    if (!str)
         cx->free(chars);
-        return NULL;
-    }
-
-    js_free(bytes);
     return str;
 }
 

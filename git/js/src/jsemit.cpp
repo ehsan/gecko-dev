@@ -1737,7 +1737,7 @@ LookupCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
                     break;
             }
         }
-    } while (cg->parent && (cg = cg->parent->asCodeGenerator()));
+    } while ((cg = (JSCodeGenerator *) cg->parent) != NULL);
     return JS_TRUE;
 }
 
@@ -2332,8 +2332,9 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         JSTreeContext *tc = cg;
         while (tc->staticLevel != level)
             tc = tc->parent;
+        JS_ASSERT(tc->compiling());
 
-        JSCodeGenerator *evalcg = tc->asCodeGenerator();
+        JSCodeGenerator *evalcg = (JSCodeGenerator *) tc;
         JS_ASSERT(evalcg->compileAndGo());
         JS_ASSERT(caller->isFunctionFrame());
         JS_ASSERT(cg->parser->callerVarObj == evalcg->scopeChain());
@@ -4603,7 +4604,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         if (!cg2->init())
             return JS_FALSE;
 
-        cg2->flags = pn->pn_funbox->tcflags | TCF_COMPILING | TCF_IN_FUNCTION;
+        cg2->flags = pn->pn_funbox->tcflags | TCF_IN_FUNCTION;
 #if JS_HAS_SHARP_VARS
         if (cg2->flags & TCF_HAS_SHARPS) {
             cg2->sharpSlotBase = fun->sharpSlotBase(cx);

@@ -1,7 +1,5 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=79 ft=cpp:
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -14,15 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is SpiderMonkey JavaScript engine.
+ * The Original Code is JavaScript Engine testing utilities.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2005
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s):
- *   Jason Orendorff <jorendorff@mozilla.com>
+ * Contributor(s): Igor Bukanov
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -38,55 +35,27 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef jsscriptinlines_h___
-#define jsscriptinlines_h___
+//-----------------------------------------------------------------------------
+var BUGNUMBER = 313500;
+var summary = 'Root access to "prototype" property';
+var actual = 'No Crash';
+var expect = 'No Crash';
 
-#include "jsfun.h"
-#include "jsopcode.h"
-#include "jsregexp.h"
-#include "jsscript.h"
+printBugNumber(BUGNUMBER);
+printStatus (summary);
+printStatus('This test requires TOO_MUCH_GC');
 
-inline JSFunction *
-JSScript::getFunction(size_t index)
-{
-    JSObject *funobj = getObject(index);
-    JS_ASSERT(funobj->isFunction());
-    JS_ASSERT(funobj == (JSObject *) funobj->getPrivate());
-    JSFunction *fun = (JSFunction *) funobj;
-    JS_ASSERT(FUN_INTERPRETED(fun));
-    return fun;
-}
+function F() { }
 
-inline JSObject *
-JSScript::getRegExp(size_t index)
-{
-    JSObjectArray *arr = regexps();
-    JS_ASSERT((uint32) index < arr->length);
-    JSObject *obj = arr->vector[index];
-    JS_ASSERT(obj->getClass() == &js_RegExpClass);
-    return obj;
-}
+var prepared = new Object();
 
-inline bool
-JSScript::isEmpty() const
-{
-    return (this == emptyScript());
+F.prototype = {};
+F.__defineGetter__('prototype', function() {
+		     var tmp = prepared;
+		     prepared = null;
+		     return tmp;
+		   });
 
-    // See bug 603044 comment #21.
-#if 0
-    if (this == emptyScript())
-        return true;
-
-    if (length <= 3) {
-        jsbytecode *pc = code;
-
-        if (noScriptRval && JSOp(*pc) == JSOP_FALSE)
-            ++pc;
-        if (JSOp(*pc) == JSOP_STOP)
-            return true;
-    }
-    return false;
-#endif
-}
-
-#endif /* jsscriptinlines_h___ */
+new F();
+ 
+reportCompare(expect, actual, summary);

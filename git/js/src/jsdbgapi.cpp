@@ -265,6 +265,12 @@ JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
     if (!CheckDebugMode(cx))
         return JS_FALSE;
 
+    if (script == JSScript::emptyScript()) {
+        JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage,
+                                     NULL, JSMSG_READ_ONLY, "empty script");
+        return JS_FALSE;
+    }
+
     JS_ASSERT((JSOp) *pc != JSOP_TRAP);
     junk = NULL;
     rt = cx->runtime;
@@ -1755,7 +1761,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
         continue;
     nbytes += (sn - notes + 1) * sizeof *sn;
 
-    if (JSScript::isValidOffset(script->objectsOffset)) {
+    if (script->objectsOffset != 0) {
         objarray = script->objects();
         i = objarray->length;
         nbytes += sizeof *objarray + i * sizeof objarray->vector[0];
@@ -1764,7 +1770,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
         } while (i != 0);
     }
 
-    if (JSScript::isValidOffset(script->regexpsOffset)) {
+    if (script->regexpsOffset != 0) {
         objarray = script->regexps();
         i = objarray->length;
         nbytes += sizeof *objarray + i * sizeof objarray->vector[0];
@@ -1773,7 +1779,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
         } while (i != 0);
     }
 
-    if (JSScript::isValidOffset(script->trynotesOffset)) {
+    if (script->trynotesOffset != 0) {
         nbytes += sizeof(JSTryNoteArray) +
             script->trynotes()->length * sizeof(JSTryNote);
     }

@@ -895,9 +895,8 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_iv_tn(JSContext *cx, JSObject *obj,
 
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
-    js::Anchor<jsval> self_anchor;
-    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr,
-                          &self_anchor.get(), nsnull)) {
+    xpc_qsArgValArray<3> vp(cx);
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, &vp.array[0], nsnull)) {
         js_SetTraceableNativeFailed(cx);
         return;
     }
@@ -911,11 +910,8 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_iv_tn(JSContext *cx, JSObject *obj,
 
     nsIWebGLUniformLocation *location;
     xpc_qsSelfRef location_selfref;
-    js::Anchor<jsval> location_anchor;
     nsresult rv_convert_arg0
-        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location,
-                           &location_selfref.ptr, &location_anchor.get(),
-                           nsnull);
+        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location, &location_selfref.ptr, &vp.array[1], nsnull);
     if (NS_FAILED(rv_convert_arg0)) {
         js_SetTraceableNativeFailed(cx);
         return;
@@ -967,9 +963,8 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_fv_tn(JSContext *cx, JSObject *obj,
 
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
-    js::Anchor<jsval> self_anchor;
-    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr,
-                          &self_anchor.get(), nsnull)) {
+    xpc_qsArgValArray<3> vp(cx);
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, &vp.array[0], nsnull)) {
         js_SetTraceableNativeFailed(cx);
         return;
     }
@@ -983,11 +978,8 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_fv_tn(JSContext *cx, JSObject *obj,
 
     nsIWebGLUniformLocation *location;
     xpc_qsSelfRef location_selfref;
-    js::Anchor<jsval> location_anchor;
     nsresult rv_convert_arg0
-        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location,
-                           &location_selfref.ptr, &location_anchor.get(),
-                           nsnull);
+        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location, &location_selfref.ptr, &vp.array[1], nsnull);
     if (NS_FAILED(rv_convert_arg0)) {
         js_SetTraceableNativeFailed(cx);
         return;
@@ -1041,9 +1033,8 @@ helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv_tn(JSContext *cx, JSObject
 
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
-    js::Anchor<jsval> self_anchor;
-    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr,
-                          &self_anchor.get(), nsnull)) {
+    xpc_qsArgValArray<4> vp(cx);
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, &vp.array[0], nsnull)) {
         js_SetTraceableNativeFailed(cx);
         return;
     }
@@ -1057,11 +1048,8 @@ helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv_tn(JSContext *cx, JSObject
 
     nsIWebGLUniformLocation *location;
     xpc_qsSelfRef location_selfref;
-    js::Anchor<jsval> location_anchor;
     nsresult rv_convert_arg0
-        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location,
-                           &location_selfref.ptr, &location_anchor.get(),
-                           nsnull);
+        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location, &location_selfref.ptr, &vp.array[1], nsnull);
     if (NS_FAILED(rv_convert_arg0)) {
         js_SetTraceableNativeFailed(cx);
         return;
