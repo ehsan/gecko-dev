@@ -93,7 +93,7 @@ public:
   }
 
   // Return true if all of the active tracks contain data for the specified time.
-  bool TrackBuffersContainTime(int64_t aTime);
+  bool TrackBuffersContainTime(double aTime);
 
   // Mark the reader to indicate that EndOfStream has been called on our MediaSource
   void Ended();
@@ -102,18 +102,29 @@ public:
   bool IsEnded();
 
 private:
-  bool SwitchAudioReader(int64_t aTarget);
-  bool SwitchVideoReader(int64_t aTarget);
+  bool SwitchAudioReader(double aTarget);
+  bool SwitchVideoReader(double aTarget);
 
-  // Return a reader from the set available in aTrackDecoders that has data
-  // available in the range requested by aTarget.
-  already_AddRefed<MediaDecoderReader> SelectReader(int64_t aTarget,
+  // Return a reader from the set available in aTrackDecoders that is considered
+  // usable by the aCanUserReader callback and has data available in the range
+  // requested by aTarget.
+  // aCanSelectReader is passed each reader available in aTrackDecoders and is
+  // expected to return true if the reader is considerable selectable.
+  already_AddRefed<MediaDecoderReader> SelectReader(double aTarget,
+                                                    bool (MediaSourceReader::*aCanSelectReader)(MediaDecoderReader*),
                                                     const nsTArray<nsRefPtr<SourceBufferDecoder>>& aTrackDecoders);
+
+  // Passed to SelectReader to enforce any track format specific requirements.
+  // In the case of CanSelectAudioReader, verifies that aNewReader has a
+  // matching audio format to the existing reader, as format switching is not
+  // yet supported.
+  bool CanSelectAudioReader(MediaDecoderReader* aNewReader);
+  bool CanSelectVideoReader(MediaDecoderReader* aNewReader);
 
   // Waits on the decoder monitor for aTime to become available in the active
   // TrackBuffers.  Used to block a Seek call until the necessary data has been
   // provided to the relevant SourceBuffers.
-  void WaitForTimeRange(int64_t aTime);
+  void WaitForTimeRange(double aTime);
 
   nsRefPtr<MediaDecoderReader> mAudioReader;
   nsRefPtr<MediaDecoderReader> mVideoReader;

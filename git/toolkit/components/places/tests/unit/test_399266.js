@@ -60,13 +60,13 @@ add_task(function test_execute()
   // http://www.test-19.com/
   // ...
   // http://www.test-10.com/
-  options = PlacesUtils.history.getNewQueryOptions();
+  let options = PlacesUtils.history.getNewQueryOptions();
   options.sortingMode = options.SORT_BY_VISITCOUNT_DESCENDING;
   options.resultType = options.RESULTS_AS_URI;
-  root = PlacesUtils.history.executeQuery(PlacesUtils.history.getNewQuery(),
+  let root = PlacesUtils.history.executeQuery(PlacesUtils.history.getNewQuery(),
                                               options).root;
   root.containerOpen = true;
-  cc = root.childCount;
+  let cc = root.childCount;
   do_check_eq(cc, TOTAL_SITES);
   for (let i = 0; i < 10; i++) {
     let node = root.getChild(i);

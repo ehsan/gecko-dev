@@ -102,7 +102,7 @@ function mutationTest(testSpec) {
 
         gWalker.once("mutations", (mutations) => {
           // Filter out our dummy mutation.
-          mutations = mutations.filter(change => {
+          let mutations = mutations.filter(change => {
             if (change.type == "attributes" &&
                 change.attributeName == "data-dummy") {
               return false;

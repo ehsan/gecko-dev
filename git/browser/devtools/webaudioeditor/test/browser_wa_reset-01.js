@@ -40,8 +40,8 @@ function spawnTest() {
   is($("#content").hidden, false,
     "The tool's content should not be hidden anymore.");
 
-  navigating = once(target, "will-navigate");
-  started = once(gFront, "start-context");
+  let navigating = once(target, "will-navigate");
+  let started = once(gFront, "start-context");
 
   reload(target);
 

@@ -2170,9 +2170,9 @@ let DefaultBrowserCheck = {
 
     let neverItem = doc.createElement("menuitem");
     neverItem.id = "defaultBrowserNever";
-    label = bundle.getString("setDefaultBrowserNever.label");
+    let label = bundle.getString("setDefaultBrowserNever.label");
     neverItem.setAttribute("label", label);
-    accesskey = bundle.getString("setDefaultBrowserNever.accesskey");
+    let accesskey = bundle.getString("setDefaultBrowserNever.accesskey");
     neverItem.setAttribute("accesskey", accesskey);
     popup.appendChild(neverItem);
 

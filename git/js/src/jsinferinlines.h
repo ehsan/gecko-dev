@@ -137,13 +137,10 @@ GetValueType(const Value &val)
 }
 
 inline Type
-GetMaybeUntrackedValueType(const Value &val)
+GetMaybeOptimizedOutValueType(const Value &val)
 {
-    if (val.isMagic() && (val.whyMagic() == JS_OPTIMIZED_OUT ||
-                          val.whyMagic() == JS_UNINITIALIZED_LEXICAL))
-    {
+    if (val.isMagic() && val.whyMagic() == JS_OPTIMIZED_OUT)
         return Type::UnknownType();
-    }
     return GetValueType(val);
 }
 

@@ -39,12 +39,12 @@ function testSteps()
 
   db.close();
 
-  request = indexedDB.open(name, 2);
+  let request = indexedDB.open(name, 2);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  event = yield undefined;
+  let event = yield undefined;
 
-  db = event.target.result;
+  let db = event.target.result;
   let trans = event.target.transaction;
 
   let oldObjectStore = trans.objectStore(objectStoreName);
@@ -83,12 +83,12 @@ function testSteps()
 
   db.close();
 
-  request = indexedDB.open(name, 3);
+  let request = indexedDB.open(name, 3);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  event = yield undefined;
+  let event = yield undefined;
 
-  db = event.target.result;
+  let db = event.target.result;
 
   objectStore = db.createObjectStore(objectStoreName, { keyPath: "foo" });
 

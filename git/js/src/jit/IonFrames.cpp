@@ -555,7 +555,7 @@ HandleExceptionBaseline(JSContext *cx, const JitFrameIterator &frame, ResumeFrom
 
         // Unwind scope chain (pop block objects).
         if (cx->isExceptionPending()) {
-            *unwoundScopeToPc = UnwindScopeToTryPc(script, tn);
+            *unwoundScopeToPc = script->main() + tn->start;
             UnwindScope(cx, si, *unwoundScopeToPc);
         }
 

@@ -38,7 +38,7 @@ let test = asyncTest(function*() {
   checkRuleViewContent(view, ["element", ".testclass"]);
 
   info("Reverting the ID attribute change");
-  ruleViewRefreshed = inspector.once("rule-view-refreshed");
+  let ruleViewRefreshed = inspector.once("rule-view-refreshed");
   testElement.setAttribute("id", "testid");
   yield ruleViewRefreshed;
 

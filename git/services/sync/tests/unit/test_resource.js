@@ -153,7 +153,7 @@ function run_test() {
 
   do_test_pending();
 
-  let logger = Log.repository.getLogger('Test');
+  logger = Log.repository.getLogger('Test');
   Log.repository.rootLogger.addAppender(new Log.DumpAppender());
 
   let server = httpd_setup({
@@ -206,7 +206,7 @@ function run_test() {
   do_check_eq(res.data, content);
 
   // Observe logging messages.
-  logger = res._log;
+  let logger = res._log;
   let dbg    = logger.debug;
   let debugMessages = [];
   logger.debug = function (msg) {

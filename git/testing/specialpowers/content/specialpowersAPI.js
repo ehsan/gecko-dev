@@ -1847,7 +1847,7 @@ SpecialPowersAPI.prototype = {
       this._quotaManagerCallbackInfos.push(callbackInfo)
     } else {
       callbackInfo.listener = function(msg) {
-        msg = msg.data;
+        let msg = msg.data;
         for (let index in this._quotaManagerCallbackInfos) {
           let callbackInfo = this._quotaManagerCallbackInfos[index];
           if (callbackInfo.id == msg.id) {

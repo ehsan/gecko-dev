@@ -9,7 +9,7 @@
     {
         new f
     }
-    var w = {}
+    let w = {}
 })()
 
 /* Make sure that MICs don't have the same bug. */
@@ -25,6 +25,6 @@ x = Object();
     {
         new f
     }
-    var w = {}
+    let w = {}
 })()
 /* Don't assert. */

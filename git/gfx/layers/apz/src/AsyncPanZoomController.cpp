@@ -528,16 +528,20 @@ public:
 
     ScreenPoint offset = velocity * aDelta.ToMilliseconds();
 
+    // Inversely scale the offset by the resolution (when you're zoomed further in,
+    // the same swipe should move you a shorter distance).
+    CSSPoint cssOffset = offset / aFrameMetrics.GetZoom();
+
     // Ordinarily we might need to do a ScheduleComposite if either of
     // the following AdjustDisplacement calls returns true, but this
     // is already running as part of a FlingAnimation, so we'll be compositing
     // per frame of animation anyway.
-    ScreenPoint overscroll;
-    ScreenPoint adjustedOffset;
-    mApzc.mX.AdjustDisplacement(offset.x, adjustedOffset.x, overscroll.x);
-    mApzc.mY.AdjustDisplacement(offset.y, adjustedOffset.y, overscroll.y);
+    CSSPoint overscroll;
+    CSSPoint adjustedOffset;
+    mApzc.mX.AdjustDisplacement(cssOffset.x, adjustedOffset.x, overscroll.x);
+    mApzc.mY.AdjustDisplacement(cssOffset.y, adjustedOffset.y, overscroll.y);
 
-    aFrameMetrics.ScrollBy(adjustedOffset / aFrameMetrics.GetZoom());
+    aFrameMetrics.ScrollBy(adjustedOffset);
 
     // The fling may have caused us to reach the end of our scroll range.
     if (!IsZero(overscroll)) {
@@ -746,17 +750,18 @@ public:
     } else {
       mApzc.mY.SetVelocity(velocity.y);
     }
+
     // If we overscroll, hand off to a fling animation that will complete the
     // spring back.
-    CSSToScreenScale zoom = aFrameMetrics.GetZoom();
-    ScreenPoint displacement = (position - aFrameMetrics.GetScrollOffset()) * zoom;
+    float displacement_x = position.x - mApzc.mX.GetOrigin();
+    float displacement_y = position.y - mApzc.mY.GetOrigin();
 
-    ScreenPoint overscroll;
-    ScreenPoint adjustedOffset;
-    mApzc.mX.AdjustDisplacement(displacement.x, adjustedOffset.x, overscroll.x);
-    mApzc.mY.AdjustDisplacement(displacement.y, adjustedOffset.y, overscroll.y);
+    CSSPoint overscroll;
+    CSSPoint adjustedOffset;
+    mApzc.mX.AdjustDisplacement(displacement_x, adjustedOffset.x, overscroll.x);
+    mApzc.mY.AdjustDisplacement(displacement_y, adjustedOffset.y, overscroll.y);
 
-    aFrameMetrics.ScrollBy(adjustedOffset / zoom);
+    aFrameMetrics.ScrollBy(adjustedOffset);
 
     // The smooth scroll may have caused us to reach the end of our scroll range.
     // This can happen if either the layout.css.scroll-behavior.damping-ratio
@@ -1389,13 +1394,17 @@ nsEventStatus AsyncPanZoomController::OnScale(const PinchGestureInput& aEvent) {
 
     CSSToParentLayerScale userZoom = mFrameMetrics.GetZoomToParent();
     ParentLayerPoint focusPoint = ToParentLayerCoords(aEvent.mFocusPoint) - mFrameMetrics.mCompositionBounds.TopLeft();
-    CSSPoint cssFocusPoint = focusPoint / mFrameMetrics.GetZoomToParent();
+    CSSPoint cssFocusPoint = focusPoint / userZoom;
 
     CSSPoint focusChange = (mLastZoomFocus - focusPoint) / userZoom;
     // If displacing by the change in focus point will take us off page bounds,
     // then reduce the displacement such that it doesn't.
-    focusChange.x -= mX.DisplacementWillOverscrollAmount(focusChange.x);
-    focusChange.y -= mY.DisplacementWillOverscrollAmount(focusChange.y);
+    if (mX.DisplacementWillOverscroll(focusChange.x) != Axis::OVERSCROLL_NONE) {
+      focusChange.x -= mX.DisplacementWillOverscrollAmount(focusChange.x);
+    }
+    if (mY.DisplacementWillOverscroll(focusChange.y) != Axis::OVERSCROLL_NONE) {
+      focusChange.y -= mY.DisplacementWillOverscrollAmount(focusChange.y);
+    }
     ScrollBy(focusChange);
 
     // When we zoom in with focus, we can zoom too much towards the boundaries
@@ -1918,18 +1927,27 @@ bool AsyncPanZoomController::AttemptScroll(const ScreenPoint& aStartPoint,
   ScreenPoint displacement = aStartPoint - aEndPoint;
 
   ScreenPoint overscroll;  // will be used outside monitor block
+  CSSPoint cssOverscroll;  // ditto
   {
     ReentrantMonitorAutoEnter lock(mMonitor);
 
-    ScreenPoint adjustedDisplacement;
-    bool xChanged = mX.AdjustDisplacement(displacement.x, adjustedDisplacement.x, overscroll.x);
-    bool yChanged = mY.AdjustDisplacement(displacement.y, adjustedDisplacement.y, overscroll.y);
+    CSSToScreenScale zoom = mFrameMetrics.GetZoom();
+
+    // Inversely scale the offset by the resolution (when you're zoomed further in,
+    // the same swipe should move you a shorter distance).
+    CSSPoint cssDisplacement = displacement / zoom;
+
+    CSSPoint adjustedDisplacement;
+    bool xChanged = mX.AdjustDisplacement(cssDisplacement.x, adjustedDisplacement.x, cssOverscroll.x);
+    bool yChanged = mY.AdjustDisplacement(cssDisplacement.y, adjustedDisplacement.y, cssOverscroll.y);
     if (xChanged || yChanged) {
       ScheduleComposite();
     }
 
+    overscroll = cssOverscroll * zoom;
+
     if (!IsZero(adjustedDisplacement)) {
-      ScrollBy(adjustedDisplacement / mFrameMetrics.GetZoom());
+      ScrollBy(adjustedDisplacement);
       ScheduleCompositeAndMaybeRepaint();
       UpdateSharedCompositorFrameMetrics();
     }
@@ -1954,10 +1972,10 @@ bool AsyncPanZoomController::AttemptScroll(const ScreenPoint& aStartPoint,
   // overscroll, try to accept it ourselves. We only accept it if we
   // are pannable.
   APZC_LOG("%p taking overscroll during panning\n", this);
-  return OverscrollBy(overscroll);
+  return OverscrollBy(cssOverscroll);
 }
 
-bool AsyncPanZoomController::OverscrollBy(const ScreenPoint& aOverscroll) {
+bool AsyncPanZoomController::OverscrollBy(const CSSPoint& aOverscroll) {
   if (!gfxPrefs::APZOverscrollEnabled()) {
     return false;
   }
@@ -2420,7 +2438,7 @@ void AsyncPanZoomController::GetOverscrollTransform(Matrix4x4* aTransform) const
 
   // Compute the amount of the stretch along each axis. The stretch is
   // proportional to the amount by which we are overscrolled along that axis.
-  ScreenSize compositionSize(mX.GetCompositionLength(), mY.GetCompositionLength());
+  CSSSize compositionSize(mX.GetCompositionLength(), mY.GetCompositionLength());
   float scaleX = 1 + kStretchFactor * fabsf(mX.GetOverscroll()) / mX.GetCompositionLength();
   float scaleY = 1 + kStretchFactor * fabsf(mY.GetOverscroll()) / mY.GetCompositionLength();
 
@@ -2429,23 +2447,24 @@ void AsyncPanZoomController::GetOverscrollTransform(Matrix4x4* aTransform) const
   // are overscrolling at the top or on the left, but if we are overscrolling
   // at the bottom or on the right, we want the bottom or right edge of the
   // content to stay in place instead, so we add a translation to compensate.
-  ScreenPoint translation;
+  CSSPoint translation;
   if (mX.IsOverscrolled() && mX.GetOverscroll() > 0) {
     // Overscrolled on the right.
-    ScreenCoord overscrolledCompositionWidth = scaleX * compositionSize.width;
-    ScreenCoord extraCompositionWidth = overscrolledCompositionWidth - compositionSize.width;
+    CSSCoord overscrolledCompositionWidth = scaleX * compositionSize.width;
+    CSSCoord extraCompositionWidth = overscrolledCompositionWidth - compositionSize.width;
     translation.x = -extraCompositionWidth;
   }
   if (mY.IsOverscrolled() && mY.GetOverscroll() > 0) {
     // Overscrolled at the bottomn.
-    ScreenCoord overscrolledCompositionHeight = scaleY * compositionSize.height;
-    ScreenCoord extraCompositionHeight = overscrolledCompositionHeight - compositionSize.height;
+    CSSCoord overscrolledCompositionHeight = scaleY * compositionSize.height;
+    CSSCoord extraCompositionHeight = overscrolledCompositionHeight - compositionSize.height;
     translation.y = -extraCompositionHeight;
   }
 
   // Combine the transformations into a matrix.
+  ScreenPoint screenTranslation = translation * mFrameMetrics.GetZoom();
   *aTransform = Matrix4x4().Scale(scaleX, scaleY, 1)
-                           .PostTranslate(translation.x, translation.y, 0);
+                           .PostTranslate(screenTranslation.x, screenTranslation.y, 0);
 }
 
 bool AsyncPanZoomController::AdvanceAnimations(const TimeStamp& aSampleTime)

@@ -113,7 +113,7 @@ function registerSelf() {
 }
 
 function emitTouchEventForIFrame(message) {
-  message = message.json;
+  let message = message.json;
   let frames = curFrame.document.getElementsByTagName("iframe");
   let iframe = frames[message.index];
   let identifier = nextTouchId;

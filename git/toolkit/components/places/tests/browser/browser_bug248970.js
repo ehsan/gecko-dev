@@ -118,7 +118,7 @@ function getPlacesItemsCount() {
 
   // Get history item count
   options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY;
-  root = PlacesUtils.history.executeQuery(
+  let root = PlacesUtils.history.executeQuery(
     PlacesUtils.history.getNewQuery(), options).root;
   root.containerOpen = true;
   cc += root.childCount;

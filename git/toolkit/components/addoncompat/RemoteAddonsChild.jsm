@@ -42,52 +42,45 @@ let NotificationTracker = {
   init: function() {
     let cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"]
                .getService(Ci.nsISyncMessageSender);
-    cpmm.addMessageListener("Addons:ChangeNotification", this);
+    cpmm.addMessageListener("Addons:AddNotification", this);
+    cpmm.addMessageListener("Addons:RemoveNotification", this);
     let [paths] = cpmm.sendSyncMessage("Addons:GetNotifications");
     this._paths = paths;
-    this._registered = new Map();
     this._watchers = {};
   },
 
   receiveMessage: function(msg) {
-    let path = msg.data.path;
-    let count = msg.data.count;
+    let path = msg.data;
 
     let tracked = this._paths;
     for (let component of path) {
       tracked = setDefault(tracked, component, {});
     }
+    let count = tracked._count || 0;
+
+    switch (msg.name) {
+    case "Addons:AddNotification":
+      count++;
+      break;
+    case "Addons:RemoveNotification":
+      count--;
+      break;
+    }
 
     tracked._count = count;
 
-    if (this._watchers[path[0]]) {
-      for (let watcher of this._watchers[path[0]]) {
-        this.runCallback(watcher, path, count);
-      }
+    for (let cb of this._watchers[path[0]]) {
+      cb(path, count);
     }
   },
 
-  runCallback: function(watcher, path, count) {
-    let pathString = path.join("/");
-    let registeredSet = this._registered.get(watcher);
-    let registered = registeredSet.has(pathString);
-    if (count && !registered) {
-      watcher.track(path, true);
-      registeredSet.add(pathString);
-    } else if (!count && registered) {
-      watcher.track(path, false);
-      registeredSet.delete(pathString);
-    }
-  },
+  watch: function(component1, callback) {
+    setDefault(this._watchers, component1, []).push(callback);
 
-  watch: function(component1, watcher) {
-    setDefault(this._watchers, component1, []).push(watcher);
-    this._registered.set(watcher, new Set());
-
-    let enumerate = (tracked, curPath) => {
+    function enumerate(tracked, curPath) {
       for (let component in tracked) {
         if (component == "_count") {
-          this.runCallback(watcher, curPath, tracked._count);
+          callback(curPath, tracked._count);
         } else {
           let path = curPath.slice();
           if (component === "true") {
@@ -101,17 +94,7 @@ let NotificationTracker = {
       }
     }
     enumerate(this._paths[component1] || {}, [component1]);
-  },
-
-  unwatch: function(component1, watcher) {
-    let watchers = this._watchers[component1];
-    let index = watchers.lastIndexOf(watcher);
-    if (index > -1) {
-      watchers.splice(index, 1);
-    }
-
-    this._registered.delete(watcher);
-  },
+  }
 };
 
 // This code registers an nsIContentPolicy in the child process. When
@@ -127,18 +110,18 @@ let ContentPolicyChild = {
     let registrar = Components.manager.QueryInterface(Ci.nsIComponentRegistrar);
     registrar.registerFactory(this._classID, this._classDescription, this._contractID, this);
 
-    NotificationTracker.watch("content-policy", this);
+    NotificationTracker.watch("content-policy", (path, count) => this.track(path, count));
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentPolicy, Ci.nsIObserver,
                                          Ci.nsIChannelEventSink, Ci.nsIFactory,
                                          Ci.nsISupportsWeakReference]),
 
-  track: function(path, register) {
+  track: function(path, count) {
     let catMan = Cc["@mozilla.org/categorymanager;1"].getService(Ci.nsICategoryManager);
-    if (register) {
+    if (count == 1) {
       catMan.addCategoryEntry("content-policy", this._contractID, this._contractID, false, true);
-    } else {
+    } else if (count == 0) {
       catMan.deleteCategoryEntry("content-policy", this._contractID, false);
     }
   },
@@ -311,17 +294,17 @@ let AboutProtocolChild = {
 
   init: function() {
     this._instances = {};
-    NotificationTracker.watch("about-protocol", this);
+    NotificationTracker.watch("about-protocol", (path, count) => this.track(path, count));
   },
 
-  track: function(path, register) {
+  track: function(path, count) {
     let contractID = path[1];
     let registrar = Components.manager.QueryInterface(Ci.nsIComponentRegistrar);
-    if (register) {
+    if (count == 1) {
       let instance = new AboutProtocolInstance(contractID);
       this._instances[contractID] = instance;
       registrar.registerFactory(this._classID, this._classDescription, contractID, instance);
-    } else {
+    } else if (count == 0) {
       delete this._instances[contractID];
       registerFactory.unregisterFactory(this._classID, this);
     }
@@ -332,14 +315,14 @@ let AboutProtocolChild = {
 // the parent asks for notifications on the given topic.
 let ObserverChild = {
   init: function() {
-    NotificationTracker.watch("observer", this);
+    NotificationTracker.watch("observer", (path, count) => this.track(path, count));
   },
 
-  track: function(path, register) {
+  track: function(path, count) {
     let topic = path[1];
-    if (register) {
+    if (count == 1) {
       Services.obs.addObserver(this, topic, false);
-    } else {
+    } else if (count == 0) {
       Services.obs.removeObserver(this, topic);
     }
   },
@@ -361,20 +344,16 @@ let ObserverChild = {
 function EventTargetChild(childGlobal)
 {
   this._childGlobal = childGlobal;
-  NotificationTracker.watch("event", this);
+  NotificationTracker.watch("event", (path, count) => this.track(path, count));
 }
 
 EventTargetChild.prototype = {
-  uninit: function() {
-    NotificationTracker.unwatch("event", this);
-  },
-
-  track: function(path, register) {
+  track: function(path, count) {
     let eventType = path[1];
     let useCapture = path[2];
-    if (register) {
+    if (count == 1) {
       this._childGlobal.addEventListener(eventType, this, useCapture, true);
-    } else {
+    } else if (count == 0) {
       this._childGlobal.removeEventListener(eventType, this, useCapture);
     }
   },
@@ -401,10 +380,6 @@ function SandboxChild(chromeGlobal)
 }
 
 SandboxChild.prototype = {
-  uninit: function() {
-    this.clearSandboxes();
-  },
-
   addListener: function() {
     let webProgress = this.chromeGlobal.docShell.QueryInterface(Ci.nsIInterfaceRequestor)
       .getInterface(Ci.nsIWebProgress);
@@ -418,7 +393,10 @@ SandboxChild.prototype = {
   },
 
   onLocationChange: function(webProgress, request, location, flags) {
-    this.clearSandboxes();
+    if (this.sandboxes.length) {
+      this.removeListener();
+    }
+    this.sandboxes = [];
   },
 
   addSandbox: function(sandbox) {
@@ -426,13 +404,6 @@ SandboxChild.prototype = {
       this.addListener();
     }
     this.sandboxes.push(sandbox);
-  },
-
-  clearSandboxes: function() {
-    if (this.sandboxes.length) {
-      this.removeListener();
-    }
-    this.sandboxes = [];
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
@@ -462,11 +433,5 @@ let RemoteAddonsChild = {
 
     // Return this so it gets rooted in the content script.
     return [new EventTargetChild(global), sandboxChild];
-  },
-
-  uninit: function(perTabShims) {
-    for (let shim of perTabShims) {
-      shim.uninit();
-    }
   },
 };

@@ -66,7 +66,6 @@ class ScopeCoordinate;
 // InterpreterActivation) is a local var of js::Interpret.
 
 enum MaybeCheckAliasing { CHECK_ALIASING = true, DONT_CHECK_ALIASING = false };
-enum MaybeCheckLexical { CheckLexical = true, DontCheckLexical = false };
 
 /*****************************************************************************/
 
@@ -424,12 +423,8 @@ class InterpreterFrame
 
     bool initFunctionScopeObjects(JSContext *cx);
 
-    /*
-     * Initialize local variables of newly-pushed frame. 'var' bindings are
-     * initialized to undefined and lexical bindings are initialized to
-     * JS_UNINITIALIZED_LEXICAL.
-     */
-    void initLocals();
+    /* Initialize local variables of newly-pushed frame. */
+    void initVarsToUndefined();
 
     /*
      * Stack frame type

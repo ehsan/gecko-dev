@@ -147,7 +147,7 @@ let PositionHandler = {
   },
   setXPosition: function(desiredX) {
     // Ensure the indicator isn't moved outside the available area of the screen.
-    desiredX = Math.max(desiredX, screen.availLeft);
+    let desiredX = Math.max(desiredX, screen.availLeft);
     let maxX =
       screen.availLeft + screen.availWidth - document.documentElement.clientWidth;
     window.moveTo(Math.min(desiredX, maxX), screen.availTop);

@@ -31,7 +31,7 @@ add_task(function test_label_and_icon() {
   browser = null;
 
   // Open a new tab to restore into.
-  tab = gBrowser.addTab("about:blank");
+  let tab = gBrowser.addTab("about:blank");
   ss.setTabState(tab, state);
   yield promiseTabRestoring(tab);
 

@@ -29,11 +29,11 @@ static float ClampFactor(float aFactor)
 }
 
 nsCSSFilterInstance::nsCSSFilterInstance(const nsStyleFilter& aFilter,
-                                         nscolor aShadowFallbackColor,
+                                         nsIFrame *aTargetFrame,
                                          const nsIntRect& aTargetBBoxInFilterSpace,
                                          const gfxMatrix& aFrameSpaceInCSSPxToFilterSpaceTransform)
   : mFilter(aFilter)
-  , mShadowFallbackColor(aShadowFallbackColor)
+  , mTargetFrame(aTargetFrame)
   , mTargetBBoxInFilterSpace(aTargetBBoxInFilterSpace)
   , mFrameSpaceInCSSPxToFilterSpaceTransform(aFrameSpaceInCSSPxToFilterSpaceTransform)
 {
@@ -201,7 +201,8 @@ nsCSSFilterInstance::SetAttributesForDropShadow(FilterPrimitiveDescription& aDes
   aDescr.Attributes().Set(eDropShadowOffset, offsetInFilterSpace);
 
   // Set color. If unspecified, use the CSS color property.
-  nscolor shadowColor = shadow->mHasColor ? shadow->mColor : mShadowFallbackColor;
+  nscolor shadowColor = shadow->mHasColor ?
+    shadow->mColor : mTargetFrame->StyleColor()->mColor;
   aDescr.Attributes().Set(eDropShadowColor, ToAttributeColor(shadowColor));
 
   return NS_OK;

@@ -180,6 +180,7 @@ const Symbiont = Worker.resolve({
     }
 
     let eventName = 'end' == this.contentScriptWhen ? 'load' : 'DOMContentLoaded';
+    let self = this;
     this._loadEvent = eventName;
     frame.addEventListener(eventName,
       this._loadListener = function _onReady(event) {

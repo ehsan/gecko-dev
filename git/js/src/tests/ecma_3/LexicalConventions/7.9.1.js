@@ -42,7 +42,7 @@ function test()
 
   code   = 'expr\n++';
   expr   = 0;
-  expect = 'SyntaxError: expected expression, got end of script';
+  expect = 'SyntaxError: syntax error';
 
   try
   {
@@ -74,7 +74,7 @@ function test()
 
   code   = 'expr\n--';
   expr   = 0;
-  expect = 'SyntaxError: expected expression, got end of script';
+  expect = 'SyntaxError: syntax error';
 
   try
   {

@@ -817,7 +817,7 @@ js::CreateItrResultObject(JSContext *cx, HandleValue value, bool done)
 }
 
 bool
-js::ThrowStopIteration(JSContext *cx)
+js_ThrowStopIteration(JSContext *cx)
 {
     JS_ASSERT(!JS_IsExceptionPending(cx));
 
@@ -865,15 +865,15 @@ iterator_next_impl(JSContext *cx, CallArgs args)
     RootedObject thisObj(cx, &args.thisv().toObject());
 
     bool more;
-    if (!IteratorMore(cx, thisObj, &more))
+    if (!js_IteratorMore(cx, thisObj, &more))
         return false;
 
     if (!more) {
-        ThrowStopIteration(cx);
+        js_ThrowStopIteration(cx);
         return false;
     }
 
-    return IteratorNext(cx, thisObj, args.rval());
+    return js_IteratorNext(cx, thisObj, args.rval());
 }
 
 static bool
@@ -1209,7 +1209,7 @@ public:
 } /* anonymous namespace */
 
 bool
-js::SuppressDeletedProperty(JSContext *cx, HandleObject obj, jsid id)
+js_SuppressDeletedProperty(JSContext *cx, HandleObject obj, jsid id)
 {
     if (JSID_IS_SYMBOL(id))
         return true;
@@ -1221,12 +1221,12 @@ js::SuppressDeletedProperty(JSContext *cx, HandleObject obj, jsid id)
 }
 
 bool
-js::SuppressDeletedElement(JSContext *cx, HandleObject obj, uint32_t index)
+js_SuppressDeletedElement(JSContext *cx, HandleObject obj, uint32_t index)
 {
     RootedId id(cx);
     if (!IndexToId(cx, index, &id))
         return false;
-    return SuppressDeletedProperty(cx, obj, id);
+    return js_SuppressDeletedProperty(cx, obj, id);
 }
 
 namespace {
@@ -1248,13 +1248,13 @@ class IndexRangePredicate {
 } /* anonymous namespace */
 
 bool
-js::SuppressDeletedElements(JSContext *cx, HandleObject obj, uint32_t begin, uint32_t end)
+js_SuppressDeletedElements(JSContext *cx, HandleObject obj, uint32_t begin, uint32_t end)
 {
     return SuppressDeletedPropertyHelper(cx, obj, IndexRangePredicate(begin, end));
 }
 
 bool
-js::IteratorMore(JSContext *cx, HandleObject iterobj, bool *res)
+js_IteratorMore(JSContext *cx, HandleObject iterobj, bool *res)
 {
     /* Fast path for native iterators */
     NativeIterator *ni = nullptr;
@@ -1320,7 +1320,7 @@ js::IteratorMore(JSContext *cx, HandleObject iterobj, bool *res)
 }
 
 bool
-js::IteratorNext(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
+js_IteratorNext(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
 {
     /* Fast path for native iterators */
     if (iterobj->is<PropertyIteratorObject>()) {
@@ -1888,7 +1888,7 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, HandleObject obj,
             // if needed.
             rval.setUndefined();
             if (op != JSGENOP_CLOSE)
-                ok = ThrowStopIteration(cx);
+                ok = js_ThrowStopIteration(cx);
         }
     }
 
@@ -1936,7 +1936,7 @@ legacy_generator_next(JSContext *cx, CallArgs args)
 
     JSGenerator *gen = thisObj->as<LegacyGeneratorObject>().getGenerator();
     if (gen->state == JSGEN_CLOSED)
-        return ThrowStopIteration(cx);
+        return js_ThrowStopIteration(cx);
 
     return SendToGenerator(cx, JSGENOP_SEND, thisObj, gen, args.get(0), LegacyGenerator,
                            args.rval());

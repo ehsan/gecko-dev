@@ -327,7 +327,7 @@ add_task(function* test_CardDavImport() {
   });
   Assert.equal(error.message, "401 Auth Failure", "Auth error should propagate");
 
-  error = yield new Promise ((resolve, reject) => {
+  let error = yield new Promise ((resolve, reject) => {
     info("Initiating import");
     importer.startImport({
         "host": "example.invalid",
@@ -342,7 +342,7 @@ add_task(function* test_CardDavImport() {
   mockDb.getByServiceId = function(serviceId, callback) {
     callback(new Error("getByServiceId failed"));
   };
-  error = yield new Promise ((resolve, reject) => {
+  let error = yield new Promise ((resolve, reject) => {
     info("Initiating import");
     importer.startImport({
         "host": "example.com",
@@ -354,7 +354,7 @@ add_task(function* test_CardDavImport() {
   Assert.equal(error.message, "getByServiceId failed", "Database error should propagate");
   mockDb.getByServiceId = tmp;
 
-  error = yield new Promise ((resolve, reject) => {
+  let error = yield new Promise ((resolve, reject) => {
     info("Initiating import");
     importer.startImport({
         "host": "example.com",

@@ -512,7 +512,7 @@ const ContentPanning = {
   },
 
   _recvDoubleTap: function(data) {
-    data = data.json;
+    let data = data.json;
 
     // We haven't received a metrics update yet; don't do anything.
     if (this._viewport == null) {

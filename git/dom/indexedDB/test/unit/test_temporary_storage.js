@@ -200,7 +200,7 @@ function testSteps()
 
   is(event.type, "success", "Got correct event type");
 
-  db = event.target.result;
+  let db = event.target.result;
 
   checkUsage(3);
   yield undefined;

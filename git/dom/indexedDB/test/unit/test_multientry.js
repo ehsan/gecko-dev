@@ -143,6 +143,7 @@ function testSteps()
   index = store.createIndex("myindex", "x", { multiEntry: true, unique: true });
   is(index.multiEntry, true, "index created with multiEntry");
 
+  let i;
   let indexes;
   for (i = 0; i < tests.length; ++i) {
     let test = tests[i];
