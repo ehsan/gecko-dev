@@ -79,31 +79,16 @@ SetElemICInspector::sawTypedArrayWrite() const
     return false;
 }
 
-template <typename S, typename T>
-static bool
-VectorAppendNoDuplicate(S &list, T value)
-{
-    for (size_t i = 0; i < list.length(); i++) {
-        if (list[i] == value)
-            return true;
-    }
-    return list.append(value);
-}
-
 bool
 BaselineInspector::maybeInfoForPropertyOp(jsbytecode *pc,
                                           ShapeVector &nativeShapes,
-                                          ObjectGroupVector &unboxedGroups,
-                                          ObjectGroupVector &convertUnboxedGroups)
+                                          ObjectGroupVector &unboxedGroups)
 {
     // Return lists of native shapes and unboxed objects seen by the baseline
     // IC for the current op. Empty lists indicate no shapes/types are known,
-    // or there was an uncacheable access. convertUnboxedGroups is used for
-    // unboxed object groups which have been seen, but have had instances
-    // converted to native objects and should be eagerly converted by Ion.
+    // or there was an uncacheable access.
     MOZ_ASSERT(nativeShapes.empty());
     MOZ_ASSERT(unboxedGroups.empty());
-    MOZ_ASSERT(convertUnboxedGroups.empty());
 
     if (!hasBaselineScript())
         return true;
@@ -129,18 +114,27 @@ BaselineInspector::maybeInfoForPropertyOp(jsbytecode *pc,
             return true;
         }
 
-        if (group && group->unboxedLayout().nativeGroup()) {
-            if (!VectorAppendNoDuplicate(convertUnboxedGroups, group))
-                return false;
-            shape = group->unboxedLayout().nativeShape();
-            group = nullptr;
-        }
-
+        // Don't add the same shape/group twice (this can happen if there are
+        // multiple SetProp_Native stubs with different ObjectGroups).
         if (shape) {
-            if (!VectorAppendNoDuplicate(nativeShapes, shape))
+            bool found = false;
+            for (size_t i = 0; i < nativeShapes.length(); i++) {
+                if (nativeShapes[i] == shape) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found && !nativeShapes.append(shape))
                 return false;
         } else {
-            if (!VectorAppendNoDuplicate(unboxedGroups, group))
+            bool found = false;
+            for (size_t i = 0; i < unboxedGroups.length(); i++) {
+                if (unboxedGroups[i] == group) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found && !unboxedGroups.append(group))
                 return false;
         }
 

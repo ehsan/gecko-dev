@@ -251,7 +251,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     void visitStoreElementHoleT(LStoreElementHoleT *lir);
     void visitStoreElementHoleV(LStoreElementHoleV *lir);
     void visitStoreUnboxedPointer(LStoreUnboxedPointer *lir);
-    void visitConvertUnboxedObjectToNative(LConvertUnboxedObjectToNative *lir);
     void emitArrayPopShift(LInstruction *lir, const MArrayPopShift *mir, Register obj,
                            Register elementsTemp, Register lengthTemp, TypedOrValueRegister out);
     void visitArrayPopShiftV(LArrayPopShiftV *lir);
