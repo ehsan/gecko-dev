@@ -91,6 +91,7 @@ public:
 
 protected:
   // Internal helper functions
+  nsIntPoint GetScreenPoint();
   nsIntPoint GetClientPoint();
   nsIntPoint GetMovementPoint();
   nsIntPoint GetLayerPoint();
@@ -113,6 +114,7 @@ protected:
   nsIntPoint mPagePoint;
   nsIntPoint mMovementPoint;
   bool mIsPointerLocked;
+  nsIntPoint mLastScreenPoint;
   nsIntPoint mLastClientPoint;
 
   typedef mozilla::widget::Modifiers Modifiers;

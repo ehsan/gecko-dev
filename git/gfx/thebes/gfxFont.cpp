@@ -667,8 +667,7 @@ gfxFontFamily::FindWeightsForStyle(gfxFontEntry* aFontsForWeights[],
     PRUint32 foundWeights = 0;
     PRUint32 bestMatchDistance = 0xffffffff;
 
-    PRUint32 count = mAvailableFonts.Length();
-    for (PRUint32 i = 0; i < count; i++) {
+    for (PRUint32 i = 0; i < mAvailableFonts.Length(); i++) {
         // this is not called for "simple" families, and therefore it does not
         // need to check the mAvailableFonts entries for NULL
         gfxFontEntry *fe = mAvailableFonts[i];
@@ -1390,11 +1389,11 @@ gfxFont::gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
 
 gfxFont::~gfxFont()
 {
-    PRUint32 i, count = mGlyphExtentsArray.Length();
+    PRUint32 i;
     // We destroy the contents of mGlyphExtentsArray explicitly instead of
     // using nsAutoPtr because VC++ can't deal with nsTArrays of nsAutoPtrs
     // of classes that lack a proper copy constructor
-    for (i = 0; i < count; ++i) {
+    for (i = 0; i < mGlyphExtentsArray.Length(); ++i) {
         delete mGlyphExtentsArray[i];
     }
 }
@@ -2184,14 +2183,16 @@ gfxFont::GetShapedWord(gfxContext *aContext,
         return nsnull;
     }
     gfxShapedWord *sw = entry->mShapedWord;
+    Telemetry::Accumulate(Telemetry::WORD_CACHE_LOOKUP_LEN, aLength);
+    Telemetry::Accumulate(Telemetry::WORD_CACHE_LOOKUP_SCRIPT, aRunScript);
 
     if (sw) {
         sw->ResetAge();
-        Telemetry::Accumulate(Telemetry::WORD_CACHE_HITS, aLength);
+        Telemetry::Accumulate(Telemetry::WORD_CACHE_HIT_LEN, aLength);
+        Telemetry::Accumulate(Telemetry::WORD_CACHE_HIT_SCRIPT, aRunScript);
         return sw;
     }
 
-    Telemetry::Accumulate(Telemetry::WORD_CACHE_MISSES, aLength);
     sw = entry->mShapedWord = gfxShapedWord::Create(aText, aLength,
                                                     aRunScript,
                                                     aAppUnitsPerDevUnit,
@@ -2462,8 +2463,8 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
 
 gfxGlyphExtents *
 gfxFont::GetOrCreateGlyphExtents(PRUint32 aAppUnitsPerDevUnit) {
-    PRUint32 i, count = mGlyphExtentsArray.Length();
-    for (i = 0; i < count; ++i) {
+    PRUint32 i;
+    for (i = 0; i < mGlyphExtentsArray.Length(); ++i) {
         if (mGlyphExtentsArray[i]->GetAppUnitsPerDevUnit() == aAppUnitsPerDevUnit)
             return mGlyphExtentsArray[i];
     }
@@ -2839,8 +2840,8 @@ gfxGlyphExtents::GetTightGlyphExtentsAppUnits(gfxFont *aFont,
 
 gfxGlyphExtents::GlyphWidths::~GlyphWidths()
 {
-    PRUint32 i, count = mBlocks.Length();
-    for (i = 0; i < count; ++i) {
+    PRUint32 i;
+    for (i = 0; i < mBlocks.Length(); ++i) {
         PtrBits bits = mBlocks[i];
         if (bits && !(bits & 0x1)) {
             delete[] reinterpret_cast<PRUint16 *>(bits);
@@ -2967,8 +2968,7 @@ gfxFontGroup::BuildFontList()
             // (see bug 554544)
             nsAutoTArray<nsRefPtr<gfxFontFamily>,200> families;
             pfl->GetFontFamilyList(families);
-            PRUint32 count = families.Length();
-            for (PRUint32 i = 0; i < count; ++i) {
+            for (PRUint32 i = 0; i < families.Length(); ++i) {
                 gfxFontEntry *fe = families[i]->FindFontForStyle(mStyle,
                                                                  needsBold);
                 if (fe) {
@@ -2993,8 +2993,7 @@ gfxFontGroup::BuildFontList()
     }
 
     if (!mStyle.systemFont) {
-        PRUint32 count = mFonts.Length();
-        for (PRUint32 i = 0; i < count; ++i) {
+        for (PRUint32 i = 0; i < mFonts.Length(); ++i) {
             gfxFont* font = mFonts[i];
             if (font->GetFontEntry()->mIsBadUnderlineFont) {
                 gfxFloat first = mFonts[0]->GetMetrics().underlineOffset;
@@ -3059,8 +3058,7 @@ gfxFontGroup::FindPlatformFont(const nsAString& aName,
 bool
 gfxFontGroup::HasFont(const gfxFontEntry *aFontEntry)
 {
-    PRUint32 count = mFonts.Length();
-    for (PRUint32 i = 0; i < count; ++i) {
+    for (PRUint32 i = 0; i < mFonts.Length(); ++i) {
         if (mFonts.ElementAt(i)->GetFontEntry() == aFontEntry)
             return true;
     }
@@ -3641,23 +3639,7 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
                               PRInt32 aRunScript, gfxFont *aPrevMatchedFont,
                               PRUint8 *aMatchType)
 {
-    // To optimize common cases, try the first font in the font-group
-    // before going into the more detailed checks below
-    PRUint32 nextIndex = 0;
-    bool isJoinControl = gfxFontUtils::IsJoinControl(aCh);
-    bool wasJoinCauser = gfxFontUtils::IsJoinCauser(aPrevCh);
-    bool isVarSelector = gfxFontUtils::IsVarSelector(aCh);
-
-    if (!isJoinControl && !wasJoinCauser && !isVarSelector) {
-        gfxFont *firstFont = mFonts[0];
-        if (firstFont->HasCharacter(aCh)) {
-            *aMatchType = gfxTextRange::kFontGroup;
-            firstFont->AddRef();
-            return firstFont;
-        }
-        // we don't need to check the first font again below
-        ++nextIndex;
-    }
+    nsRefPtr<gfxFont>    selectedFont;
 
     if (aPrevMatchedFont) {
         // Don't switch fonts for control characters, regardless of
@@ -3665,16 +3647,17 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
         // actually be rendered (see bug 716229)
         PRUint8 category = GetGeneralCategory(aCh);
         if (category == HB_UNICODE_GENERAL_CATEGORY_CONTROL) {
-            aPrevMatchedFont->AddRef();
-            return aPrevMatchedFont;
+            selectedFont = aPrevMatchedFont;
+            return selectedFont.forget();
         }
 
         // if this character is a join-control or the previous is a join-causer,
         // use the same font as the previous range if we can
-        if (isJoinControl || wasJoinCauser) {
+        if (gfxFontUtils::IsJoinControl(aCh) ||
+            gfxFontUtils::IsJoinCauser(aPrevCh)) {
             if (aPrevMatchedFont->HasCharacter(aCh)) {
-                aPrevMatchedFont->AddRef();
-                return aPrevMatchedFont;
+                selectedFont = aPrevMatchedFont;
+                return selectedFont.forget();
             }
         }
     }
@@ -3682,19 +3665,18 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
     // if this character is a variation selector,
     // use the previous font regardless of whether it supports VS or not.
     // otherwise the text run will be divided.
-    if (isVarSelector) {
+    if (gfxFontUtils::IsVarSelector(aCh)) {
         if (aPrevMatchedFont) {
-            aPrevMatchedFont->AddRef();
-            return aPrevMatchedFont;
+            selectedFont = aPrevMatchedFont;
+            return selectedFont.forget();
         }
         // VS alone. it's meaningless to search different fonts
         return nsnull;
     }
 
-    // 1. check remaining fonts in the font group
-    PRUint32 fontListLength = FontListLength();
-    for (PRUint32 i = nextIndex; i < fontListLength; i++) {
-        nsRefPtr<gfxFont> font = mFonts[i];
+    // 1. check fonts in the font group
+    for (PRUint32 i = 0; i < FontListLength(); i++) {
+        nsRefPtr<gfxFont> font = GetFontAt(i);
         if (font->HasCharacter(aCh)) {
             *aMatchType = gfxTextRange::kFontGroup;
             return font.forget();
@@ -3711,9 +3693,10 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
             if (fe) {
                 bool needsBold =
                     font->GetStyle()->weight >= 600 && !fe->IsBold();
-                font = fe->FindOrMakeFont(font->GetStyle(), needsBold);
-                if (font) {
-                    return font.forget();
+                selectedFont =
+                    fe->FindOrMakeFont(font->GetStyle(), needsBold);
+                if (selectedFont) {
+                    return selectedFont.forget();
                 }
             }
         }
@@ -3724,18 +3707,17 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
         return nsnull;
 
     // 2. search pref fonts
-    nsRefPtr<gfxFont> font = WhichPrefFontSupportsChar(aCh);
-    if (font) {
+    if ((selectedFont = WhichPrefFontSupportsChar(aCh))) {
         *aMatchType = gfxTextRange::kPrefsFallback;
-        return font.forget();
+        return selectedFont.forget();
     }
 
     // 3. use fallback fonts
     // -- before searching for something else check the font used for the previous character
-    if (aPrevMatchedFont && aPrevMatchedFont->HasCharacter(aCh)) {
+    if (!selectedFont && aPrevMatchedFont && aPrevMatchedFont->HasCharacter(aCh)) {
         *aMatchType = gfxTextRange::kSystemFallback;
-        aPrevMatchedFont->AddRef();
-        return aPrevMatchedFont;
+        selectedFont = aPrevMatchedFont;
+        return selectedFont.forget();
     }
 
     // never fall back for characters from unknown scripts
@@ -3753,9 +3735,13 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
     }
 
     // -- otherwise look for other stuff
-    *aMatchType = gfxTextRange::kSystemFallback;
-    font = WhichSystemFontSupportsChar(aCh, aRunScript);
-    return font.forget();
+    if (!selectedFont) {
+        *aMatchType = gfxTextRange::kSystemFallback;
+        selectedFont = WhichSystemFontSupportsChar(aCh, aRunScript);
+        return selectedFont.forget();
+    }
+
+    return nsnull;
 }
 
 template<typename T>
@@ -5153,8 +5139,8 @@ gfxTextRun::SortGlyphRuns()
 
     // Now copy back, coalescing adjacent glyph runs that have the same font
     mGlyphRuns.Clear();
-    PRUint32 i, count = runs.Length();
-    for (i = 0; i < count; ++i) {
+    PRUint32 i;
+    for (i = 0; i < runs.Length(); ++i) {
         // a GlyphRun with the same font as the previous GlyphRun can just
         // be skipped; the last GlyphRun will cover its character range.
         if (i == 0 || runs[i].mFont != runs[i - 1].mFont) {
@@ -5435,14 +5421,13 @@ gfxTextRun::FetchGlyphExtents(gfxContext *aRefContext)
     if (!needsGlyphExtents && !mDetailedGlyphs)
         return;
 
-    PRUint32 i, runCount = mGlyphRuns.Length();
+    PRUint32 i;
     CompressedGlyph *charGlyphs = mCharacterGlyphs;
-    for (i = 0; i < runCount; ++i) {
-        const GlyphRun& run = mGlyphRuns[i];
-        gfxFont *font = run.mFont;
-        PRUint32 start = run.mCharacterOffset;
-        PRUint32 end = i + 1 < runCount ?
-            mGlyphRuns[i + 1].mCharacterOffset : GetLength();
+    for (i = 0; i < mGlyphRuns.Length(); ++i) {
+        gfxFont *font = mGlyphRuns[i].mFont;
+        PRUint32 start = mGlyphRuns[i].mCharacterOffset;
+        PRUint32 end = i + 1 < mGlyphRuns.Length()
+            ? mGlyphRuns[i + 1].mCharacterOffset : GetLength();
         bool fontIsSetup = false;
         PRUint32 j;
         gfxGlyphExtents *extents = font->GetOrCreateGlyphExtents(mAppUnitsPerDevUnit);
@@ -5513,8 +5498,7 @@ gfxTextRun::ClusterIterator::Reset()
 bool
 gfxTextRun::ClusterIterator::NextCluster()
 {
-    PRUint32 len = mTextRun->GetLength();
-    while (++mCurrentChar < len) {
+    while (++mCurrentChar < mTextRun->GetLength()) {
         if (mTextRun->IsClusterStart(mCurrentChar)) {
             return true;
         }
@@ -5531,9 +5515,8 @@ gfxTextRun::ClusterIterator::ClusterLength() const
         return 0;
     }
 
-    PRUint32 i = mCurrentChar,
-             len = mTextRun->GetLength();
-    while (++i < len) {
+    PRUint32 i = mCurrentChar;
+    while (++i < mTextRun->GetLength()) {
         if (mTextRun->IsClusterStart(i)) {
             break;
         }

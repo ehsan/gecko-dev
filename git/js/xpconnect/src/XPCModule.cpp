@@ -13,6 +13,7 @@ xpcModuleCtor()
     nsXPConnect::InitStatics();
     nsXPCException::InitStatics();
     XPCWrappedNativeScope::InitStatics();
+    XPCPerThreadData::InitStatics();
 
     return NS_OK;
 }

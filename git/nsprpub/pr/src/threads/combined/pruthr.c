@@ -1597,11 +1597,11 @@ PR_IMPLEMENT(PRStatus) PR_SetCurrentThreadName(const char *name)
         return PR_FAILURE;
 
     PR_Free(thread->name);
-    nameLen = strlen(name);
-    thread->name = (char *)PR_Malloc(nameLen + 1);
+    nameLen = strlen(name) + 1;
+    thread->name = (char *)PR_Malloc(nameLen);
     if (!thread->name)
         return PR_FAILURE;
-    memcpy(thread->name, name, nameLen + 1);
+    memcpy(thread->name, name, nameLen);
     _PR_MD_SET_CURRENT_THREAD_NAME(thread->name);
     return PR_SUCCESS;
 }

@@ -77,13 +77,13 @@ protected:
         fixupCount  =  0;
     }
 
-    void push(PRUint32 endPairChar, PRInt32 scriptCode);
+    void push(PRInt32 pairIndex, PRInt32 scriptCode);
     void pop();
     void fixup(PRInt32 scriptCode);
 
     struct ParenStackEntry {
-        PRUint32 endPairChar;
-        PRInt32  scriptCode;
+        PRInt32 pairIndex;
+        PRInt32 scriptCode;
     };
 
     const PRUnichar *textPtr;

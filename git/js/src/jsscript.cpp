@@ -235,10 +235,30 @@ Bindings::getLocalNameArray(JSContext *cx, BindingNames *namesp)
 }
 
 const Shape *
+Bindings::lastArgument() const
+{
+    JS_ASSERT(lastBinding);
+
+    const js::Shape *shape = lastVariable();
+    if (nvars > 0) {
+        while (shape->previous() && shape->setter() != CallObject::setArgOp)
+            shape = shape->previous();
+    }
+    return shape;
+}
+
+const Shape *
 Bindings::lastVariable() const
 {
     JS_ASSERT(lastBinding);
     return lastBinding;
+}
+
+void
+Bindings::makeImmutable()
+{
+    JS_ASSERT(lastBinding);
+    JS_ASSERT(!lastBinding->inDictionary());
 }
 
 void
@@ -397,7 +417,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
     JS_ASSERT(nargs != Bindings::BINDING_COUNT_LIMIT);
     JS_ASSERT(nvars != Bindings::BINDING_COUNT_LIMIT);
 
-    Bindings bindings;
+    Bindings bindings(cx);
     Bindings::AutoRooter bindingsRoot(cx, &bindings);
 
     uint32_t nameCount = nargs + nvars;
@@ -469,6 +489,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
     if (mode == XDR_DECODE) {
         if (!bindings.ensureShape(cx))
             return false;
+        bindings.makeImmutable();
     }
 
     if (mode == XDR_ENCODE)
@@ -578,7 +599,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
                                               nClosedVars, nTypeSets))
             return JS_FALSE;
 
-        script->bindings.transfer(&bindings);
+        script->bindings.transfer(cx, &bindings);
         JS_ASSERT(!script->mainOffset);
         script->mainOffset = prologLength;
         script->nfixed = uint16_t(version >> 16);
@@ -1149,7 +1170,7 @@ JSScript::partiallyInit(JSContext *cx, uint32_t length, uint32_t nsrcnotes, uint
 
     script->length = length;
 
-    new (&script->bindings) Bindings;
+    new (&script->bindings) Bindings(cx);
 
     uint8_t *cursor = data;
     if (nconsts != 0) {
@@ -1274,6 +1295,8 @@ JSScript::fullyInitFromEmitter(JSContext *cx, BytecodeEmitter *bce)
                                bce->typesetCount))
         return false;
 
+    bce->sc->bindings.makeImmutable();
+
     JS_ASSERT(script->mainOffset == 0);
     script->mainOffset = prologLength;
     PodCopy<jsbytecode>(script->code, bce->prologBase(), prologLength);
@@ -1340,7 +1363,7 @@ JSScript::fullyInitFromEmitter(JSContext *cx, BytecodeEmitter *bce)
     if (nClosedVars)
         PodCopy<uint32_t>(script->closedVars()->vector, &bce->closedVars[0], nClosedVars);
 
-    script->bindings.transfer(&bce->sc->bindings);
+    script->bindings.transfer(cx, &bce->sc->bindings);
 
     JSFunction *fun = NULL;
     if (bce->sc->inFunction()) {
@@ -1714,7 +1737,7 @@ js::CloneScript(JSContext *cx, HandleScript src)
 
     /* Bindings */
 
-    Bindings bindings;
+    Bindings bindings(cx);
     Bindings::AutoRooter bindingsRoot(cx, &bindings);
     BindingNames names(cx);
     if (!src->bindings.getLocalNameArray(cx, &names))
@@ -1722,8 +1745,7 @@ js::CloneScript(JSContext *cx, HandleScript src)
 
     for (unsigned i = 0; i < names.length(); ++i) {
         if (JSAtom *atom = names[i].maybeAtom) {
-            Rooted<JSAtom*> root(cx, atom);
-            if (!bindings.add(cx, root, names[i].kind))
+            if (!bindings.add(cx, RootedAtom(cx, atom), names[i].kind))
                 return NULL;
         } else {
             uint16_t _;
@@ -1734,6 +1756,7 @@ js::CloneScript(JSContext *cx, HandleScript src)
 
     if (!bindings.ensureShape(cx))
         return NULL;
+    bindings.makeImmutable();
 
     /* Objects */
 
@@ -1773,8 +1796,8 @@ js::CloneScript(JSContext *cx, HandleScript src)
         return NULL;
     }
 
-    new (&dst->bindings) Bindings;
-    dst->bindings.transfer(&bindings);
+    new (&dst->bindings) Bindings(cx);
+    dst->bindings.transfer(cx, &bindings);
 
     /* This assignment must occur before all the Rebase calls. */
     dst->data = data;

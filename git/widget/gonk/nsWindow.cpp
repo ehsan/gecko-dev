@@ -267,7 +267,6 @@ nsWindow::Create(nsIWidget *aParent,
 
     nsWindow *parent = (nsWindow *)aNativeParent;
     mParent = parent;
-    mVisible = false;
 
     if (!aNativeParent) {
         mBounds = sVirtualBounds;

@@ -2821,10 +2821,7 @@ nsDocument::ElementFromPointHelper(float aX, float aY,
   if (elem && !elem->IsElement()) {
     elem = elem->GetParent();
   }
-  if (elem) {
-    CallQueryInterface(elem, aReturn);
-  }
-  return NS_OK;
+  return CallQueryInterface(elem, aReturn);
 }
 
 nsresult
@@ -2874,12 +2871,12 @@ nsDocument::NodesFromRectHelper(float aX, float aY,
   // Used to filter out repeated elements in sequence.
   nsIContent* lastAdded = nsnull;
 
-  for (PRUint32 i = 0; i < outFrames.Length(); i++) {
+  for (PRInt32 i = 0; i < outFrames.Length(); i++) {
     nsIContent* node = GetContentInThisDocument(outFrames[i]);
 
     if (node && !node->IsElement() && !node->IsNodeOfType(nsINode::eTEXT)) {
-      // We have a node that isn't an element or a text node,
-      // use its parent content instead.
+      // If we have a node that isn't an element or a text node,
+      // replace it with the first parent node.
       node = node->GetParent();
     }
     if (node && node != lastAdded) {
@@ -7163,12 +7160,12 @@ nsDocument::GetContentInThisDocument(nsIFrame* aFrame) const
 {
   for (nsIFrame* f = aFrame; f;
        f = nsLayoutUtils::GetParentOrPlaceholderForCrossDoc(f)) {
-    nsIContent* content = f->GetContent();
-    if (!content || content->IsInAnonymousSubtree())
+    nsIContent* ptContent = f->GetContent();
+    if (!ptContent || ptContent->IsInAnonymousSubtree())
       continue;
 
-    if (content->OwnerDoc() == this) {
-      return content;
+    if (ptContent->OwnerDoc() == this) {
+      return ptContent;
     }
     // We must be in a subdocument so jump directly to the root frame.
     // GetParentOrPlaceholderForCrossDoc gets called immediately to jump up to

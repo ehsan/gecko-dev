@@ -38,8 +38,6 @@ public:
 private:
   friend class DrawTargetD2D;
 
-  uint32_t GetByteSize() const;
-
   RefPtr<ID2D1Bitmap> mBitmap;
   SurfaceFormat mFormat;
   IntSize mSize;

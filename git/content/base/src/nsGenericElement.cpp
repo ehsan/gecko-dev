@@ -2033,20 +2033,6 @@ nsGenericElement::GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent)
   aRect.height = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.height);
 }
 
-nsIntSize
-nsGenericElement::GetPaddingRectSize()
-{
-  nsIFrame* frame = GetStyledFrame();
-  if (!frame) {
-    return nsIntSize(0, 0);
-  }
-
-  NS_ASSERTION(frame->GetParent(), "Styled frame has no parent");
-  nsRect rcFrame = nsLayoutUtils::GetAllInFlowPaddingRectsUnion(frame, frame->GetParent());
-  return nsIntSize(nsPresContext::AppUnitsToIntCSSPixels(rcFrame.width),
-                   nsPresContext::AppUnitsToIntCSSPixels(rcFrame.height));
-}
-
 nsIScrollableFrame*
 nsGenericElement::GetScrollFrame(nsIFrame **aStyledFrame)
 {
@@ -2159,7 +2145,10 @@ nsGenericElement::GetScrollHeight()
 
   nsIScrollableFrame* sf = GetScrollFrame();
   if (!sf) {
-    return GetPaddingRectSize().height;
+    nsRect rcFrame;
+    nsCOMPtr<nsIContent> parent;
+    GetOffsetRect(rcFrame, getter_AddRefs(parent));
+    return rcFrame.height;
   }
 
   nscoord height = sf->GetScrollRange().height + sf->GetScrollPortRect().height;
@@ -2182,7 +2171,10 @@ nsGenericElement::GetScrollWidth()
 
   nsIScrollableFrame* sf = GetScrollFrame();
   if (!sf) {
-    return GetPaddingRectSize().width;
+    nsRect rcFrame;
+    nsCOMPtr<nsIContent> parent;
+    GetOffsetRect(rcFrame, getter_AddRefs(parent));
+    return rcFrame.width;
   }
 
   nscoord width = sf->GetScrollRange().width + sf->GetScrollPortRect().width;

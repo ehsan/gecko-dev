@@ -150,7 +150,7 @@ function js_traverse(template, check, object) {
     object = SpecialPowers.wrap(object);
 
   if (type == "object") {
-    if (Object.keys(template).length == 0) {
+    if (Object.keys(template).length == 1 && template["status"]) {
       check(!object || object.length == 0,"The return object from mozApps api was null as expected");
       return;
     }
@@ -195,18 +195,19 @@ function js_traverse(template, check, object) {
  * @check An abstraction over ok / todo to allow for that determination to be made by the invoking code
  * @next  The next operation to jump to
  */
-function mozAppscb(pending, comparatorObj, expectedStatus, check, next) {
+function mozAppscb(pending, comparatorObj, check, next) {
   debug("inside mozAppscb"); 
   pending.onsuccess = function () {
     debug("success cb, called");
-    check(expectedStatus == "success", "the success callback was called");
     if(pending.result) {
       if(typeof pending.result.length !== 'undefined') {
         for(i=0;i < pending.result.length;i++) {
+          SpecialPowers.wrap(pending).result[i].status= 'success';
           js_traverse(comparatorObj[i], check, pending.result[i]);
         }
       } else {
         debug("comparatorOBj in else");
+        SpecialPowers.wrap(pending).result.status = 'success';
         js_traverse(comparatorObj[0], check, pending.result);
       }
     } else {
@@ -219,8 +220,8 @@ function mozAppscb(pending, comparatorObj, expectedStatus, check, next) {
   };
 
   pending.onerror = function () {
-    debug("failure cb called");
-    check(expectedStatus == "error", "the error callback was called");
+    SpecialPowers.wrap(pending).error.status = 'error';
+    check(true, "failure cb called");
     js_traverse(comparatorObj[0], check, pending.error);
     if(typeof next == 'function') {
       debug("calling next");
@@ -274,6 +275,7 @@ function install(appURL, check, next) {
   mozAppscb(navigator.mozApps.install(
       appURL, null),
       [{
+        status: "== \"success\"",
         installOrigin: "== " + installOrigin.quote(),
         installTime: "!== undefined",
         origin: "== " + origin.quote(),
@@ -284,7 +286,7 @@ function install(appURL, check, next) {
           name: "== " + unescape(manifest.name).quote(),
           installs_allowed_from: manifest.installs_allowed_from
         })
-      }], "success", check, 
+      }], check, 
       next);
 }
 
@@ -309,6 +311,7 @@ function getInstalled(appURLs, check, next) {
     }
     
     checkInstalled[i] = {
+        status: "== " + "success".quote(),
         installOrigin: "== " + "chrome://mochitests".quote(),
         origin: "== " + origin.quote(),
         manifestURL: "== " +  appURL.quote(),
@@ -322,7 +325,7 @@ function getInstalled(appURLs, check, next) {
      };
   }
   debug(JSON.stringify(checkInstalled));
-  mozAppscb(navigator.mozApps.getInstalled(), checkInstalled, "success", check, next);
+  mozAppscb(navigator.mozApps.getInstalled(), checkInstalled, check, next);
 }
 
 /**

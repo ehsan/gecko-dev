@@ -62,7 +62,6 @@ CMMSRCS = \
   TextInputHandler.mm \
   nsMacDockSupport.mm \
   nsStandaloneNativeMenu.mm \
-  nsMacWebAppUtils.mm \
   GfxInfo.mm \
   WidgetTraceEvent.mm \
   $(NULL)

@@ -66,13 +66,7 @@ BrowserElementChild.prototype = {
     docShell.QueryInterface(Ci.nsIWebProgress)
             .addProgressListener(this._progressListener,
                                  Ci.nsIWebProgress.NOTIFY_LOCATION |
-                                 Ci.nsIWebProgress.NOTIFY_SECURITY |
                                  Ci.nsIWebProgress.NOTIFY_STATE_WINDOW);
-
-    // This is necessary to get security web progress notifications.
-    var securityUI = Cc['@mozilla.org/secure_browser_ui;1']
-                       .createInstance(Ci.nsISecureBrowserUI);
-    securityUI.init(content);
 
     // A mozbrowser iframe contained inside a mozapp iframe should return false
     // for nsWindowUtils::IsPartOfApp (unless the mozbrowser iframe is itself
@@ -111,10 +105,6 @@ BrowserElementChild.prototype = {
 
     addMsgListener("get-screenshot", this._recvGetScreenshot);
     addMsgListener("set-visible", this._recvSetVisible);
-    addMsgListener("get-can-go-back", this._recvCanGoBack);
-    addMsgListener("get-can-go-forward", this._recvCanGoForward);
-    addMsgListener("go-back", this._recvGoBack);
-    addMsgListener("go-forward", this._recvGoForward);
     addMsgListener("unblock-modal-prompt", this._recvStopWaiting);
 
     let els = Cc["@mozilla.org/eventlistenerservice;1"]
@@ -324,7 +314,7 @@ BrowserElementChild.prototype = {
                    content.innerHeight, "rgb(255,255,255)");
     sendAsyncMsg('got-screenshot', {
       id: data.json.id,
-      rv: canvas.toDataURL("image/png")
+      screenshot: canvas.toDataURL("image/png")
     });
   },
 
@@ -332,38 +322,6 @@ BrowserElementChild.prototype = {
     debug("Received setVisible message: (" + data.json.visible + ")");
     if (docShell.isActive !== data.json.visible) {
       docShell.isActive = data.json.visible;
-    }
-  },
-
-  _recvCanGoBack: function(data) {
-    var webNav = docShell.QueryInterface(Ci.nsIWebNavigation);
-    sendAsyncMsg('got-can-go-back', {
-      id: data.json.id,
-      rv: webNav.canGoBack
-    });
-  },
-
-  _recvCanGoForward: function(data) {
-    var webNav = docShell.QueryInterface(Ci.nsIWebNavigation);
-    sendAsyncMsg('got-can-go-forward', {
-      id: data.json.id,
-      rv: webNav.canGoForward
-    });
-  },
-
-  _recvGoBack: function(data) {
-    try {
-      docShell.QueryInterface(Ci.nsIWebNavigation).goBack();
-    } catch(e) {
-      // Silently swallow errors; these happen when we can't go back.
-    }
-  },
-
-  _recvGoForward: function(data) {
-    try {
-      docShell.QueryInterface(Ci.nsIWebNavigation).goForward();
-    } catch(e) {
-      // Silently swallow errors; these happen when we can't go forward.
     }
   },
 
@@ -414,35 +372,10 @@ BrowserElementChild.prototype = {
       }
     },
 
-    onSecurityChange: function(webProgress, request, state) {
-      if (webProgress != docShell) {
-        return;
-      }
-
-      var stateDesc;
-      if (state & Ci.nsIWebProgressListener.STATE_IS_SECURE) {
-        stateDesc = 'secure';
-      }
-      else if (state & Ci.nsIWebProgressListener.STATE_IS_BROKEN) {
-        stateDesc = 'broken';
-      }
-      else if (state & Ci.nsIWebProgressListener.STATE_IS_INSECURE) {
-        stateDesc = 'insecure';
-      }
-      else {
-        debug("Unexpected securitychange state!");
-        stateDesc = '???';
-      }
-
-      // XXX Until bug 764496 is fixed, this will always return false.
-      var isEV = !!(state & Ci.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL);
-
-      sendAsyncMsg('securitychange', {state: stateDesc, extendedValidation: isEV});
-    },
-
     onStatusChange: function(webProgress, request, status, message) {},
     onProgressChange: function(webProgress, request, curSelfProgress,
                                maxSelfProgress, curTotalProgress, maxTotalProgress) {},
+    onSecurityChange: function(webProgress, request, aState) {}
   },
 };
 

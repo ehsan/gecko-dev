@@ -15,7 +15,6 @@ DIST_UNI = $(DIST_ARCH_1)/universal
 OBJDIR = $(OBJDIR_ARCH_1)
 endif
 
-topsrcdir = $(TOPSRCDIR)
 include $(OBJDIR)/config/autoconf.mk
 
 DIST = $(OBJDIR)/dist

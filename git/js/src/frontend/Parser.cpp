@@ -84,12 +84,13 @@ StrictModeGetter::get() const
 
 Parser::Parser(JSContext *cx, JSPrincipals *prin, JSPrincipals *originPrin,
                const jschar *chars, size_t length, const char *fn, unsigned ln, JSVersion v,
-               bool foldConstants, bool compileAndGo)
+               StackFrame *cfp, bool foldConstants, bool compileAndGo)
   : AutoGCRooter(cx, PARSER),
     context(cx),
     strictModeGetter(this),
     tokenStream(cx, prin, originPrin, chars, length, fn, ln, v, &strictModeGetter),
     tempPoolMark(NULL),
+    callerFrame(cfp),
     allocator(cx),
     traceListHead(NULL),
     tc(NULL),
@@ -98,6 +99,7 @@ Parser::Parser(JSContext *cx, JSPrincipals *prin, JSPrincipals *originPrin,
     compileAndGo(compileAndGo)
 {
     cx->activeCompilations++;
+    JS_ASSERT_IF(cfp, cfp->isScriptFrame());
 }
 
 bool
@@ -155,7 +157,7 @@ FunctionBox::FunctionBox(ObjectBox* traceListHead, JSObject *obj, ParseNode *fn,
     siblings(tc->functionList),
     kids(NULL),
     parent(tc->sc->inFunction() ? tc->sc->funbox() : NULL),
-    bindings(),
+    bindings(tc->sc->context),
     level(tc->staticLevel),
     ndefaults(0),
     inLoop(false),
@@ -493,7 +495,7 @@ CheckStrictParameters(JSContext *cx, Parser *parser)
     if (!parameters.init(sc->bindings.numArgs()))
         return false;
 
-    // Start with lastVariable(), not the last argument, for destructuring.
+    /* Start with lastVariable(), not lastArgument(), for destructuring. */
     for (Shape::Range r = sc->bindings.lastVariable(); !r.empty(); r.popFront()) {
         jsid id = r.front().propid();
         if (!JSID_IS_ATOM(id))
@@ -538,8 +540,7 @@ BindLocalVariable(JSContext *cx, TreeContext *tc, ParseNode *pn, BindingKind kin
     JS_ASSERT(kind == VARIABLE || kind == CONSTANT);
 
     unsigned index = tc->sc->bindings.numVars();
-    Rooted<JSAtom*> atom(cx, pn->pn_atom);
-    if (!tc->sc->bindings.add(cx, atom, kind))
+    if (!tc->sc->bindings.add(cx, RootedAtom(cx, pn->pn_atom), kind))
         return false;
 
     if (!pn->pn_cookie.set(cx, tc->staticLevel, index))
@@ -603,7 +604,7 @@ Parser::functionBody(FunctionBodyType type)
     if (!CheckStrictParameters(context, this))
         return NULL;
 
-    Rooted<PropertyName*> arguments(context, context->runtime->atomState.argumentsAtom);
+    Rooted<PropertyName*> const arguments(context, context->runtime->atomState.argumentsAtom);
 
     /*
      * Non-top-level functions use JSOP_DEFFUN which is a dynamic scope
@@ -706,6 +707,24 @@ Parser::functionBody(FunctionBodyType type)
     }
 
     return pn;
+}
+
+bool
+Parser::checkForArgumentsAndRest()
+{
+    JS_ASSERT(!tc->sc->inFunction());
+    if (callerFrame && callerFrame->isFunctionFrame() && callerFrame->fun()->hasRest()) {
+        PropertyName *arguments = context->runtime->atomState.argumentsAtom;
+        for (AtomDefnRange r = tc->lexdeps->all(); !r.empty(); r.popFront()) {
+            if (r.front().key() == arguments) {
+                reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_ARGUMENTS_AND_REST);
+                return false;
+            }
+        }
+        /* We're not in a function context, so we don't expect any bindings. */
+        JS_ASSERT(tc->sc->bindings.lookup(context, arguments, NULL) == NONE);
+    }
+    return true;
 }
 
 // Create a placeholder Definition node for |atom|.
@@ -1218,7 +1237,7 @@ LeaveFunction(ParseNode *fn, Parser *parser, PropertyName *funName = NULL,
 
     }
 
-    funbox->bindings.transfer(&funtc->sc->bindings);
+    funbox->bindings.transfer(funtc->sc->context, &funtc->sc->bindings);
 
     return true;
 }
@@ -6832,8 +6851,8 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
                     pn->pn_xflags |= PNX_NONCONST;
 
                     /* NB: Getter function in { get x(){} } is unnamed. */
-                    Rooted<PropertyName*> funName(context, NULL);
-                    pn2 = functionDef(funName, op == JSOP_GETTER ? Getter : Setter, Expression);
+                    pn2 = functionDef(RootedPropertyName(context, NULL),
+                                      op == JSOP_GETTER ? Getter : Setter, Expression);
                     if (!pn2)
                         return NULL;
                     TokenPos pos = {begin, pn2->pn_pos.end};

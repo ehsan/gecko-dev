@@ -53,8 +53,6 @@ public class BrowserDB {
 
         public boolean isBookmark(ContentResolver cr, String uri);
 
-        public boolean isReadingListItem(ContentResolver cr, String uri);
-
         public String getUrlForKeyword(ContentResolver cr, String keyword);
 
         public void addBookmark(ContentResolver cr, String title, String uri);
@@ -66,8 +64,6 @@ public class BrowserDB {
         public void updateBookmark(ContentResolver cr, int id, String uri, String title, String keyword);
 
         public void addReadingListItem(ContentResolver cr, String title, String uri);
-
-        public void removeReadingListItemWithURL(ContentResolver cr, String uri);
 
         public BitmapDrawable getFaviconForUrl(ContentResolver cr, String uri);
 
@@ -144,10 +140,6 @@ public class BrowserDB {
         return sDb.isBookmark(cr, uri);
     }
 
-    public static boolean isReadingListItem(ContentResolver cr, String uri) {
-        return sDb.isReadingListItem(cr, uri);
-    }
-
     public static void addBookmark(ContentResolver cr, String title, String uri) {
         sDb.addBookmark(cr, title, uri);
     }
@@ -166,10 +158,6 @@ public class BrowserDB {
 
     public static void addReadingListItem(ContentResolver cr, String title, String uri) {
         sDb.addReadingListItem(cr, title, uri);
-    }
-
-    public static void removeReadingListItemWithURL(ContentResolver cr, String uri) {
-        sDb.removeReadingListItemWithURL(cr, uri);
     }
 
     public static BitmapDrawable getFaviconForUrl(ContentResolver cr, String uri) {

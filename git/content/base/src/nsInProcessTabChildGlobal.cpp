@@ -256,8 +256,7 @@ nsInProcessTabChildGlobal::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   aVisitor.mCanHandle = true;
 
-  if (mIsBrowserFrame &&
-      (!mOwner || !nsContentUtils::IsInChromeDocshell(mOwner->OwnerDoc()))) {
+  if (mIsBrowserFrame) {
     if (mOwner) {
       nsPIDOMWindow* innerWindow = mOwner->OwnerDoc()->GetInnerWindow();
       if (innerWindow) {

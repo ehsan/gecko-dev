@@ -49,7 +49,6 @@ let RILQUIRKS_DATACALLSTATE_DOWN_IS_UP = false;
 let RILQUIRKS_V5_LEGACY = true;
 let RILQUIRKS_REQUEST_USE_DIAL_EMERGENCY_CALL = false;
 let RILQUIRKS_MODEM_DEFAULTS_TO_EMERGENCY_MODE = false;
-let RILQUIRKS_DATACALLSTATE_NO_SUGGESTEDRETRYTIME = false;
 
 /**
  * This object contains helpers buffering incoming data & deconstructing it
@@ -689,12 +688,6 @@ let RIL = {
         // call state.
         let model_id = libcutils.property_get("ril.model_id");
         if (DEBUG) debug("Detected RIL model " + model_id);
-        if (!model_id) {
-          // On some RIL models, the RIL has to be "warmed up" for us to read this property.
-          // It apparently isn't warmed up yet, going to try again later.
-          if (DEBUG) debug("Could not detect correct model_id. Going to try later.");
-          return;
-        }
         if (model_id == "I9100") {
           if (DEBUG) {
             debug("Detected I9100, enabling " +
@@ -715,12 +708,6 @@ let RIL = {
         }
         break;
       case "Qualcomm RIL 1.0":
-        let product_model = libcutils.property_get("ro.product.model");
-        if (DEBUG) debug("Detected product model " + product_model);
-        if (product_model == "otoro1") {
-          if (DEBUG) debug("Enabling RILQUIRKS_DATACALLSTATE_NO_SUGGESTEDRETRYTIME.");
-          RILQUIRKS_DATACALLSTATE_NO_SUGGESTEDRETRYTIME = true;
-        }
         if (DEBUG) {
           debug("Detected Qualcomm RIL 1.0, " +
                 "disabling RILQUIRKS_V5_LEGACY and " +
@@ -1631,6 +1618,18 @@ let RIL = {
    *        String containing the processId for the SmsRequestManager.
    */
   sendSMS: function sendSMS(options) {
+    // Get the SMS Center address
+    if (!this.SMSC) {
+      // We request the SMS center address again, passing it the SMS options
+      // in order to try to send it again after retrieving the SMSC number.
+      this.getSMSCAddress(options);
+      return;
+    }
+    // We explicitly save this information on the options object so that we
+    // can refer to it later, in particular on the main thread (where this
+    // object may get sent eventually.)
+    options.SMSC = this.SMSC;
+
     //TODO: verify values on 'options'
 
     if (!options.retryCount) {
@@ -1702,9 +1701,12 @@ let RIL = {
 
   /**
    * Get the Short Message Service Center address.
+   *
+   * @param pendingSMS
+   *        Object containing the parameters of an SMS waiting to be sent.
    */
-  getSMSCAddress: function getSMSCAddress() {
-    Buf.simpleRequest(REQUEST_GET_SMSC_ADDRESS);
+  getSMSCAddress: function getSMSCAddress(pendingSMS) {
+    Buf.simpleRequest(REQUEST_GET_SMSC_ADDRESS, pendingSMS);
   },
 
   /**
@@ -2189,48 +2191,6 @@ let RIL = {
     if (stateChanged) {
       rs.type = "dataregistrationstatechange";
       this._sendNetworkInfoMessage(NETWORK_INFO_DATA_REGISTRATION_STATE, rs);
-    }
-  },
-
-  _processOperator: function _processOperator(operatorData) {
-    if (operatorData.length < 3) {
-      if (DEBUG) {
-        debug("Expected at least 3 strings for operator.");
-      }
-    }
-
-    if (!this.operator) {
-      this.operator = {type: "operatorchange"};
-    }
-
-    let [longName, shortName, networkTuple] = operatorData;
-    let thisTuple = String(this.operator.mcc) + this.operator.mnc;
-
-    if (this.operator.longName !== longName ||
-        this.operator.shortName !== shortName ||
-        thisTuple !== networkTuple) {
-
-      this.operator.longName = longName;
-      this.operator.shortName = shortName;
-      this.operator.mcc = 0;
-      this.operator.mnc = 0;
-
-      // According to ril.h, the operator fields will be NULL when the operator
-      // is not currently registered. We can avoid trying to parse the numeric
-      // tuple in that case.
-      if (DEBUG && !longName) {
-        debug("Operator is currently unregistered");
-      }
-
-      if (longName && shortName && networkTuple) {
-        try {
-          this._processNetworkTuple(networkTuple, this.operator);
-        } catch (e) {
-          debug("Error processing operator tuple: " + e);
-        }
-      }
-
-      this._sendNetworkInfoMessage(NETWORK_INFO_OPERATOR, this.operator);
     }
   },
 
@@ -3030,12 +2990,36 @@ RIL[REQUEST_OPERATOR] = function REQUEST_OPERATOR(length, options) {
     return;
   }
 
-  let operatorData = Buf.readStringList();
-  if (DEBUG) debug("operator: " + operatorData);
+  let operator = Buf.readStringList();
 
-  this._processOperator(operatorData);
+  if (DEBUG) debug("Operator data: " + operator);
+  if (operator.length < 3) {
+    if (DEBUG) debug("Expected at least 3 strings for operator.");
+  }
 
+  if (!this.operator) {
+    this.operator = {type: "operatorchange"};
+  }
 
+  let numeric = String(this.operator.mcc) + this.operator.mnc;
+  if (this.operator.longName != operator[0] ||
+      this.operator.shortName != operator[1] ||
+      numeric != operator[2]) {
+
+    this.operator.longName = operator[0];
+    this.operator.shortName = operator[1];
+    this.operator.mcc = 0;
+    this.operator.mnc = 0;
+
+    let networkTuple = operator[2];
+    try {
+      this._processNetworkTuple(networkTuple, this.operator);
+    } catch (e) {
+      debug("Error processing operator tuple: " + e);
+    }
+
+    this._sendNetworkInfoMessage(NETWORK_INFO_OPERATOR, this.operator);
+  }
 };
 RIL[REQUEST_RADIO_POWER] = null;
 RIL[REQUEST_DTMF] = null;
@@ -3297,9 +3281,7 @@ RIL.readDataCall_v6 = function readDataCall_v6(obj) {
     obj = {};
   }
   obj.status = Buf.readUint32();  // DATACALL_FAIL_*
-  if (!RILQUIRKS_DATACALLSTATE_NO_SUGGESTEDRETRYTIME) {
-    obj.suggestedRetryTime = Buf.readUint32();
-  }
+  obj.suggestedRetryTime = Buf.readUint32();
   obj.cid = Buf.readUint32().toString();
   obj.active = Buf.readUint32();  // DATACALL_ACTIVE_*
   obj.type = Buf.readString();
@@ -3393,10 +3375,24 @@ RIL[REQUEST_DEVICE_IDENTITY] = null;
 RIL[REQUEST_EXIT_EMERGENCY_CALLBACK_MODE] = null;
 RIL[REQUEST_GET_SMSC_ADDRESS] = function REQUEST_GET_SMSC_ADDRESS(length, options) {
   if (options.rilRequestError) {
+    if (options.type == "sendSMS") {
+      this.sendDOMMessage({
+        type: "sms-send-failed",
+        envelopeId: options.envelopeId,
+        error: options.rilRequestError,
+      });
+    }
     return;
   }
 
   this.SMSC = Buf.readString();
+  // If the SMSC was not retrieved on RIL initialization, an attempt to
+  // get it is triggered from this.sendSMS followed by the 'options'
+  // parameter of the SMS, so that we can send it after successfully
+  // retrieving the SMSC.
+  if (this.SMSC && options.body) {
+    this.sendSMS(options);
+  }
 };
 RIL[REQUEST_SET_SMSC_ADDRESS] = null;
 RIL[REQUEST_REPORT_SMS_MEMORY_STATUS] = null;
@@ -3530,7 +3526,7 @@ RIL[UNSOLICITED_DATA_CALL_LIST_CHANGED] = function UNSOLICITED_DATA_CALL_LIST_CH
     this.getDataCallList();
     return;
   }
-  this[REQUEST_DATA_CALL_LIST](length, {rilRequestError: ERROR_SUCCESS});
+  this[REQUEST_GET_DATA_CALL_LIST](length, {rilRequestError: ERROR_SUCCESS});
 };
 RIL[UNSOLICITED_SUPP_SVC_NOTIFICATION] = null;
 RIL[UNSOLICITED_STK_SESSION_END] = null;

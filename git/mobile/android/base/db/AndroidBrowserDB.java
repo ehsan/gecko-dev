@@ -194,10 +194,6 @@ public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
         return (count == 1);
     }
 
-    public boolean isReadingListItem(ContentResolver cr, String uri) {
-        return false;
-    }
-
     public String getUrlForKeyword(ContentResolver cr, String keyword) {
         return null;
     }
@@ -271,10 +267,6 @@ public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public void addReadingListItem(ContentResolver cr, String title, String uri) {
-        // Do nothing
-    }
-
-    public void removeReadingListItemWithURL(ContentResolver cr, String uri) {
         // Do nothing
     }
 

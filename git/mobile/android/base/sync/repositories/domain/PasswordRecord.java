@@ -168,17 +168,18 @@ public class PasswordRecord extends Record {
   public String toString() {
     return "PasswordRecord {"
         + "lastModified: " + this.lastModified + ", "
-        + "hostname null?: " + (this.hostname == null) + ", "
-        + "formSubmitURL null?: " + (this.formSubmitURL == null) + ", "
-        + "httpRealm null?: " + (this.httpRealm == null) + ", "
-        + "usernameField null?: " + (this.usernameField == null) + ", "
-        + "passwordField null?: " + (this.passwordField == null) + ", "
-        + "encryptedUsername null?: " + (this.encryptedUsername == null) + ", "
-        + "encryptedPassword null?: " + (this.encryptedPassword == null) + ", "
+        + "hostname: " + this.hostname + ", "
+        + "formSubmitURL: " + this.formSubmitURL + ", "
+        + "httpRealm: " + this.httpRealm + ", "
+        + "usernameField: " + this.usernameField + ", "
+        + "passwordField: " + this.passwordField + ", "
+        + "encryptedUsername: " + this.encryptedUsername + ", "
+        + "encryptedPassword: " + this.encryptedPassword + ", "
         + "encType: " + this.encType + ", "
         + "timeCreated: " + this.timeCreated + ", "
         + "timeLastUsed: " + this.timeLastUsed + ", "
         + "timePasswordChanged: " + this.timePasswordChanged + ", "
         + "timesUsed: " + this.timesUsed;
   }
+
 }

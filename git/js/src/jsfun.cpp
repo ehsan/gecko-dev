@@ -426,8 +426,7 @@ js::CloneInterpretedFunction(JSContext *cx, JSFunction *srcFun)
     if (!clone->clearType(cx))
         return NULL;
 
-    Rooted<JSScript*> srcScript(cx, srcFun->script());
-    JSScript *clonedScript = CloneScript(cx, srcScript);
+    JSScript *clonedScript = CloneScript(cx, RootedScript(cx, srcFun->script()));
     if (!clonedScript)
         return NULL;
 
@@ -1005,7 +1004,7 @@ Function(JSContext *cx, unsigned argc, Value *vp)
         return false;
     }
 
-    Bindings bindings;
+    Bindings bindings(cx);
     Bindings::AutoRooter bindingsRoot(cx, &bindings);
 
     bool hasRest = false;

@@ -167,7 +167,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
 
     /* Unwrap incoming objects. */
     if (vp->isObject()) {
-        Rooted<JSObject*> obj(cx, &vp->toObject());
+        JSObject *obj = &vp->toObject();
 
         if (obj->compartment() == this)
             return WrapForSameCompartment(cx, obj, vp);
@@ -194,7 +194,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
 
 #ifdef DEBUG
         {
-            JSObject *outer = GetOuterObject(cx, obj);
+            JSObject *outer = GetOuterObject(cx, RootedObject(cx, obj));
             JS_ASSERT(outer && outer == obj);
         }
 #endif
@@ -648,27 +648,26 @@ JSCompartment::updateForDebugMode(FreeOp *fop, AutoDebugModeGC &dmgc)
 #ifdef JS_METHODJIT
     bool enabled = debugMode();
 
-    JS_ASSERT_IF(enabled, !hasScriptsOnStack());
+    if (enabled)
+        JS_ASSERT(!hasScriptsOnStack());
+    else if (hasScriptsOnStack())
+        return;
 
     for (gc::CellIter i(this, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
+        mjit::ReleaseScriptCode(fop, script);
         script->debugMode = enabled;
     }
 
-    // When we change a compartment's debug mode, whether we're turning it
-    // on or off, we must always throw away all analyses: debug mode
-    // affects various aspects of the analysis, which then get baked into
-    // SSA results, which affects code generation in complicated ways. We
-    // must also throw away all JIT code, as its soundness depends on the
-    // analyses.
-    //
-    // It suffices to do a garbage collection cycle or to finish the
-    // ongoing GC cycle. The necessary cleanup happens in
-    // JSCompartment::sweep.
+    // Discard JIT code and bytecode analysis for all scripts in this
+    // compartment. Because !hasScriptsOnStack(), it suffices to do a garbage
+    // collection cycle or to finish the ongoing GC cycle. The necessary
+    // cleanup happens in JSCompartment::sweep.
     //
     // dmgc makes sure we can't forget to GC, but it is also important not
     // to run any scripts in this compartment until the dmgc is destroyed.
     // That is the caller's responsibility.
+    //
     if (!rt->gcRunning)
         dmgc.scheduleGC(this);
 #endif

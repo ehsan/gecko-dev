@@ -924,12 +924,10 @@ DocAccessible::Observe(nsISupports* aSubject, const char* aTopic,
 NS_IMETHODIMP
 DocAccessible::OnPivotChanged(nsIAccessiblePivot* aPivot,
                               nsIAccessible* aOldAccessible,
-                              PRInt32 aOldStart, PRInt32 aOldEnd,
-                              PivotMoveReason aReason)
+                              PRInt32 aOldStart, PRInt32 aOldEnd)
 {
   nsRefPtr<AccEvent> event = new AccVCChangeEvent(this, aOldAccessible,
-                                                  aOldStart, aOldEnd,
-                                                  aReason);
+                                                  aOldStart, aOldEnd);
   nsEventShell::FireEvent(event);
 
   return NS_OK;

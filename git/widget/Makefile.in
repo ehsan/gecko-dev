@@ -143,7 +143,6 @@ endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 XPIDLSRCS +=	nsIMacDockSupport.idl \
 		nsIStandaloneNativeMenu.idl \
-		nsIMacWebAppUtils.idl \
 		$(NULL)
 endif
 

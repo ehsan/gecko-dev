@@ -8,7 +8,6 @@ import java.util.Locale;
 
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.sync.Logger;
-import org.mozilla.gecko.sync.ThreadPool;
 import org.mozilla.gecko.sync.setup.Constants;
 import org.mozilla.gecko.sync.setup.InvalidSyncKeyException;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
@@ -26,9 +25,9 @@ import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
-import android.view.View.OnClickListener;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -237,49 +236,45 @@ public class AccountActivity extends AccountAuthenticatorActivity {
       return;
     }
     // Successful authentication. Create and add account to AccountManager.
-    SyncAccountParameters syncAccount = new SyncAccountParameters(
+    final SyncAccountParameters syncAccount = new SyncAccountParameters(
         mContext, mAccountManager, username, key, password, server);
-    createAccountOnThread(syncAccount);
-  }
+    final Account account = SyncAccounts.createSyncAccount(syncAccount);
+    final boolean accountResult = (account != null);
 
-  private void createAccountOnThread(final SyncAccountParameters syncAccount) {
-    ThreadPool.run(new Runnable() {
-      @Override
-      public void run() {
-        Account account = SyncAccounts.createSyncAccount(syncAccount);
-        boolean isSuccess = (account != null);
-        if (!isSuccess) {
-          setResult(RESULT_CANCELED);
-          runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-              // Use default error.
-              // TODO: Bug 766499: Show specific error message when Android fails on Account creation.
-              Logger.debug(LOG_TAG, "displayFailure()");
-              displayFailure(AuthenticationResult.FAILURE_OTHER);
-            }
-          });
-          return;
+    final Intent intent = new Intent(); // The intent to return.
+    intent.putExtra(AccountManager.KEY_ACCOUNT_NAME, syncAccount.username);
+    intent.putExtra(AccountManager.KEY_ACCOUNT_TYPE, Constants.ACCOUNTTYPE_SYNC);
+    intent.putExtra(AccountManager.KEY_AUTHTOKEN, Constants.ACCOUNTTYPE_SYNC);
+    setAccountAuthenticatorResult(intent.getExtras());
+
+    if (!accountResult) {
+      // Failed to add account!
+      setResult(RESULT_CANCELED, intent);
+      runOnUiThread(new Runnable() {
+        @Override
+        public void run() {
+          // Use default error.
+          // TODO: Display more accurate error (Account failed to be created).
+          Logger.debug(LOG_TAG, "displayFailure()");
+          displayFailure(result);
         }
+      });
+      return;
+    }
 
-        // Account created successfully.
-        clearErrors();
+    clearErrors();
+    if (intent != null) {
+      setAccountAuthenticatorResult(intent.getExtras());
+      setResult(RESULT_OK, intent);
 
-        Bundle resultBundle = new Bundle();
-        resultBundle.putString(AccountManager.KEY_ACCOUNT_NAME, syncAccount.username);
-        resultBundle.putString(AccountManager.KEY_ACCOUNT_TYPE, Constants.ACCOUNTTYPE_SYNC);
-        resultBundle.putString(AccountManager.KEY_AUTHTOKEN, Constants.ACCOUNTTYPE_SYNC);
-        setAccountAuthenticatorResult(resultBundle);
-
-        setResult(RESULT_OK);
-        runOnUiThread(new Runnable() {
-          @Override
-          public void run() {
-            authSuccess();
-          }
-        });
-      }
-    });
+      runOnUiThread(new Runnable() {
+        @Override
+        public void run() {
+          authSuccess();
+        }
+      });
+      return;
+    }
   }
 
   private void displayVerifying(final boolean isVerifying) {

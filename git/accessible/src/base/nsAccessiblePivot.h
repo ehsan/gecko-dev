@@ -48,8 +48,7 @@ private:
    * observers have been notified.
    */
   bool NotifyOfPivotChange(Accessible* aOldAccessible,
-                           PRInt32 aOldStart, PRInt32 aOldEnd,
-                           PivotMoveReason aReason);
+                           PRInt32 aOldStart, PRInt32 aOldEnd);
 
   /*
    * Check to see that the given accessible is in the pivot's subtree.
@@ -76,7 +75,7 @@ private:
   /*
    * Update the pivot, and notify observers. Return true if it moved.
    */
-  bool MovePivotInternal(Accessible* aPosition, PivotMoveReason aReason);
+  bool MovePivotInternal(Accessible* aPosition);
 
   /*
    * The root accessible.

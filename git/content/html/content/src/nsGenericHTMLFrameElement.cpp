@@ -297,8 +297,7 @@ nsGenericHTMLFrameElement::GetReallyIsBrowser(bool *aOut)
   nsIPrincipal *principal = NodePrincipal();
   nsCOMPtr<nsIURI> principalURI;
   principal->GetURI(getter_AddRefs(principalURI));
-  if (!nsContentUtils::IsSystemPrincipal(principal) &&
-      !nsContentUtils::URIIsChromeOrInPref(principalURI,
+  if (!nsContentUtils::URIIsChromeOrInPref(principalURI,
                                            "dom.mozBrowserFramesWhitelist")) {
     return NS_OK;
   }
