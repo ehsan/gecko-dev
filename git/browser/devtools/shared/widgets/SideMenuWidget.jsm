@@ -487,6 +487,7 @@ function SideMenuGroup(aWidget, aName, aOptions={}) {
     if (aOptions.showCheckbox) {
       let checkbox = this._checkbox = makeCheckbox(title, { description: aName });
       checkbox.className = "side-menu-widget-group-checkbox";
+      checkbox.setAttribute("align", "start");
     }
 
     title.appendChild(name);
@@ -591,6 +592,7 @@ function SideMenuItem(aGroup, aContents, aTooltip, aAttachment={}, aOptions={}) 
     if (aOptions.showCheckbox) {
       let checkbox = this._checkbox = makeCheckbox(container, aAttachment);
       checkbox.className = "side-menu-widget-item-checkbox";
+      checkbox.setAttribute("align", "start");
     }
 
     container.appendChild(target);

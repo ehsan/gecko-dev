@@ -9,6 +9,7 @@
  * even the ones tests.h itself included, to verify this.
  */
 
+#include "jsapi.h"
 #include "jscpucfg.h"
 #include "jspubtd.h"
 #include "jstypes.h"

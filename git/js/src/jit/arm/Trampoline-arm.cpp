@@ -10,10 +10,10 @@
 #include "jit/arm/BaselineHelpers-arm.h"
 #include "jit/Bailouts.h"
 #include "jit/ExecutionModeInlines.h"
+#include "jit/IonCompartment.h"
 #include "jit/IonFrames.h"
 #include "jit/IonLinker.h"
 #include "jit/IonSpewer.h"
-#include "jit/JitCompartment.h"
 #ifdef JS_ION_PERF
 # include "jit/PerfSpewer.h"
 #endif
@@ -104,7 +104,7 @@ struct EnterJITStack
  *   ...using standard EABI calling convention
  */
 IonCode *
-JitRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
+IonRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
 {
     const Address slot_token(sp, offsetof(EnterJITStack, token));
     const Address slot_vp(sp, offsetof(EnterJITStack, vp));
@@ -112,7 +112,7 @@ JitRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
     JS_ASSERT(OsrFrameReg == r3);
 
     MacroAssembler masm(cx);
-    AutoFlushCache afc("GenerateEnterJIT", cx->runtime()->jitRuntime());
+    AutoFlushCache afc("GenerateEnterJIT", cx->runtime()->ionRuntime());
     Assembler *aasm = &masm;
 
     // Save non-volatile registers. These must be saved by the trampoline,
@@ -349,9 +349,9 @@ JitRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
 }
 
 IonCode *
-JitRuntime::generateInvalidator(JSContext *cx)
+IonRuntime::generateInvalidator(JSContext *cx)
 {
-    // See large comment in x86's JitRuntime::generateInvalidator.
+    // See large comment in x86's IonRuntime::generateInvalidator.
     MacroAssembler masm(cx);
     //masm.as_bkpt();
     // At this point, one of two things has happened.
@@ -396,7 +396,7 @@ JitRuntime::generateInvalidator(JSContext *cx)
     masm.ma_add(sp, r1, sp);
 
     // Jump to shared bailout tail. The BailoutInfo pointer has to be in r2.
-    IonCode *bailoutTail = cx->runtime()->jitRuntime()->getBailoutTail();
+    IonCode *bailoutTail = cx->runtime()->ionRuntime()->getBailoutTail();
     masm.branch(bailoutTail);
 
     Linker linker(masm);
@@ -411,7 +411,7 @@ JitRuntime::generateInvalidator(JSContext *cx)
 }
 
 IonCode *
-JitRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void **returnAddrOut)
+IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void **returnAddrOut)
 {
     MacroAssembler masm(cx);
     // ArgumentsRectifierReg contains the |nargs| pushed onto the current frame.
@@ -609,12 +609,12 @@ GenerateBailoutThunk(JSContext *cx, MacroAssembler &masm, uint32_t frameClass)
     }
 
     // Jump to shared bailout tail. The BailoutInfo pointer has to be in r2.
-    IonCode *bailoutTail = cx->runtime()->jitRuntime()->getBailoutTail();
+    IonCode *bailoutTail = cx->runtime()->ionRuntime()->getBailoutTail();
     masm.branch(bailoutTail);
 }
 
 IonCode *
-JitRuntime::generateBailoutTable(JSContext *cx, uint32_t frameClass)
+IonRuntime::generateBailoutTable(JSContext *cx, uint32_t frameClass)
 {
     MacroAssembler masm(cx);
 
@@ -636,7 +636,7 @@ JitRuntime::generateBailoutTable(JSContext *cx, uint32_t frameClass)
 }
 
 IonCode *
-JitRuntime::generateBailoutHandler(JSContext *cx)
+IonRuntime::generateBailoutHandler(JSContext *cx)
 {
     MacroAssembler masm(cx);
     GenerateBailoutThunk(cx, masm, NO_FRAME_SIZE_CLASS_ID);
@@ -652,7 +652,7 @@ JitRuntime::generateBailoutHandler(JSContext *cx)
 }
 
 IonCode *
-JitRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
+IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 {
     typedef MoveResolver::MoveOperand MoveOperand;
 
@@ -832,7 +832,7 @@ JitRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 }
 
 IonCode *
-JitRuntime::generatePreBarrier(JSContext *cx, MIRType type)
+IonRuntime::generatePreBarrier(JSContext *cx, MIRType type)
 {
     MacroAssembler masm(cx);
 
@@ -876,7 +876,7 @@ typedef bool (*HandleDebugTrapFn)(JSContext *, BaselineFrame *, uint8_t *, bool 
 static const VMFunction HandleDebugTrapInfo = FunctionInfo<HandleDebugTrapFn>(HandleDebugTrap);
 
 IonCode *
-JitRuntime::generateDebugTrapHandler(JSContext *cx)
+IonRuntime::generateDebugTrapHandler(JSContext *cx)
 {
     MacroAssembler masm;
 
@@ -893,7 +893,7 @@ JitRuntime::generateDebugTrapHandler(JSContext *cx)
     masm.movePtr(ImmPtr(nullptr), BaselineStubReg);
     EmitEnterStubFrame(masm, scratch2);
 
-    IonCode *code = cx->runtime()->jitRuntime()->getVMWrapper(HandleDebugTrapInfo);
+    IonCode *code = cx->runtime()->ionRuntime()->getVMWrapper(HandleDebugTrapInfo);
     if (!code)
         return nullptr;
 
@@ -928,7 +928,7 @@ JitRuntime::generateDebugTrapHandler(JSContext *cx)
 }
 
 IonCode *
-JitRuntime::generateExceptionTailStub(JSContext *cx)
+IonRuntime::generateExceptionTailStub(JSContext *cx)
 {
     MacroAssembler masm;
 
@@ -945,7 +945,7 @@ JitRuntime::generateExceptionTailStub(JSContext *cx)
 }
 
 IonCode *
-JitRuntime::generateBailoutTailStub(JSContext *cx)
+IonRuntime::generateBailoutTailStub(JSContext *cx)
 {
     MacroAssembler masm;
 

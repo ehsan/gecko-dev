@@ -496,15 +496,16 @@ JavaScriptChild::AnswerCall(const ObjectId &objId, const nsTArray<JSParam> &argv
         }
     }
 
-    RootedValue rval(cx);
-    {
-        AutoSaveContextOptions asco(cx);
-        ContextOptionsRef(cx).setDontReportUncaught(true);
+    uint32_t oldOpts =
+        JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_DONT_REPORT_UNCAUGHT);
 
-        bool success = JS::Call(cx, vals[1], vals[0], vals.length() - 2, vals.begin() + 2, &rval);
-        if (!success)
-            return fail(cx, rs);
-    }
+    RootedValue rval(cx);
+    bool success = JS::Call(cx, vals[1], vals[0], vals.length() - 2, vals.begin() + 2, &rval);
+
+    JS_SetOptions(cx, oldOpts);
+
+    if (!success)
+        return fail(cx, rs);
 
     if (!toVariant(cx, rval, result))
         return fail(cx, rs);

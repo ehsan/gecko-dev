@@ -16,6 +16,7 @@
 
 #include <string.h>
 
+#include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"
 #include "jsautooplen.h"

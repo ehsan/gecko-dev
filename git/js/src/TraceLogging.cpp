@@ -13,6 +13,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "jsapi.h"
 #include "jsscript.h"
 
 using namespace js;

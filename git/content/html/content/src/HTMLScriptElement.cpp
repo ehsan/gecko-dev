@@ -11,6 +11,7 @@
 #include "nsNetUtil.h"
 #include "nsContentUtils.h"
 #include "nsUnicharUtils.h"  // for nsCaseInsensitiveStringComparator()
+#include "jsapi.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIXPConnect.h"

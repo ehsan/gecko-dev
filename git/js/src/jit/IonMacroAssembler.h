@@ -18,8 +18,8 @@
 #elif defined(JS_CPU_ARM)
 # include "jit/arm/MacroAssembler-arm.h"
 #endif
+#include "jit/IonCompartment.h"
 #include "jit/IonInstrumentation.h"
-#include "jit/JitCompartment.h"
 #include "jit/VMFunctions.h"
 #include "vm/ProxyObject.h"
 #include "vm/Shape.h"
@@ -647,10 +647,10 @@ class MacroAssembler : public MacroAssemblerSpecific
         Push(PreBarrierReg);
         computeEffectiveAddress(address, PreBarrierReg);
 
-        JitRuntime *rt = GetIonContext()->runtime->jitRuntime();
+        JSRuntime *runtime = GetIonContext()->runtime;
         IonCode *preBarrier = (type == MIRType_Shape)
-                              ? rt->shapePreBarrier()
-                              : rt->valuePreBarrier();
+                              ? runtime->ionRuntime()->shapePreBarrier()
+                              : runtime->ionRuntime()->valuePreBarrier();
 
         call(preBarrier);
         Pop(PreBarrierReg);

@@ -1303,11 +1303,6 @@ class MTest
     bool operandMightEmulateUndefined() const {
         return operandMightEmulateUndefined_;
     }
-#ifdef DEBUG
-    bool isConsistentFloat32Use() const {
-        return true;
-    }
-#endif
 };
 
 // Returns from this function to the previous caller.

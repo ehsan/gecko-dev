@@ -6,6 +6,7 @@
 
 #include "vm/Debugger-inl.h"
 
+#include "jsapi.h"
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsnum.h"

@@ -215,8 +215,6 @@
 #include "mozilla/dom/XPathEvaluator.h"
 #include "nsIDocumentEncoder.h"
 #include "nsIStructuredCloneContainer.h"
-#include "nsIMutableArray.h"
-#include "nsContentPermissionHelper.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -10649,11 +10647,17 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsPointerLockPermissionRequest,
                              nsIContentPermissionRequest)
 
 NS_IMETHODIMP
-nsPointerLockPermissionRequest::GetTypes(nsIArray** aTypes)
+nsPointerLockPermissionRequest::GetType(nsACString& aType)
 {
-  return CreatePermissionArray(NS_LITERAL_CSTRING("pointerLock"),
-                               NS_LITERAL_CSTRING("unused"),
-                               aTypes);
+  aType = "pointerLock";
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPointerLockPermissionRequest::GetAccess(nsACString& aAccess)
+{
+  aAccess = "unused";
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -11087,28 +11091,24 @@ nsDocument::GetVisibilityState(nsAString& aState)
 /* virtual */ void
 nsIDocument::DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
 {
-  aWindowSizes->mDOMOtherSize +=
+  aWindowSizes->mDOMOther +=
     nsINode::SizeOfExcludingThis(aWindowSizes->mMallocSizeOf);
 
   if (mPresShell) {
     mPresShell->AddSizeOfIncludingThis(aWindowSizes->mMallocSizeOf,
                                        &aWindowSizes->mArenaStats,
-                                       &aWindowSizes->mLayoutPresShellSize,
-                                       &aWindowSizes->mLayoutStyleSetsSize,
-                                       &aWindowSizes->mLayoutTextRunsSize,
-                                       &aWindowSizes->mLayoutPresContextSize);
+                                       &aWindowSizes->mLayoutPresShell,
+                                       &aWindowSizes->mLayoutStyleSets,
+                                       &aWindowSizes->mLayoutTextRuns,
+                                       &aWindowSizes->mLayoutPresContext);
   }
 
-  aWindowSizes->mPropertyTablesSize +=
+  aWindowSizes->mPropertyTables +=
     mPropertyTable.SizeOfExcludingThis(aWindowSizes->mMallocSizeOf);
   for (uint32_t i = 0, count = mExtraPropertyTables.Length();
        i < count; ++i) {
-    aWindowSizes->mPropertyTablesSize +=
+    aWindowSizes->mPropertyTables +=
       mExtraPropertyTables[i]->SizeOfExcludingThis(aWindowSizes->mMallocSizeOf);
-  }
-
-  if (nsEventListenerManager* elm = GetExistingListenerManager()) {
-    aWindowSizes->mDOMEventListenersCount += elm->ListenerCount();
   }
 
   // Measurement of the following members may be added later if DMD finds it
@@ -11119,7 +11119,7 @@ nsIDocument::DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
 void
 nsIDocument::DocAddSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
 {
-  aWindowSizes->mDOMOtherSize += aWindowSizes->mMallocSizeOf(this);
+  aWindowSizes->mDOMOther += aWindowSizes->mMallocSizeOf(this);
   DocAddSizeOfExcludingThis(aWindowSizes);
 }
 
@@ -11155,62 +11155,58 @@ nsDocument::DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
 
     switch (node->NodeType()) {
     case nsIDOMNode::ELEMENT_NODE:
-      p = &aWindowSizes->mDOMElementNodesSize;
+      p = &aWindowSizes->mDOMElementNodes;
       break;
     case nsIDOMNode::TEXT_NODE:
-      p = &aWindowSizes->mDOMTextNodesSize;
+      p = &aWindowSizes->mDOMTextNodes;
       break;
     case nsIDOMNode::CDATA_SECTION_NODE:
-      p = &aWindowSizes->mDOMCDATANodesSize;
+      p = &aWindowSizes->mDOMCDATANodes;
       break;
     case nsIDOMNode::COMMENT_NODE:
-      p = &aWindowSizes->mDOMCommentNodesSize;
+      p = &aWindowSizes->mDOMCommentNodes;
       break;
     default:
-      p = &aWindowSizes->mDOMOtherSize;
+      p = &aWindowSizes->mDOMOther;
       break;
     }
 
     *p += nodeSize;
-
-    if (nsEventListenerManager* elm = node->GetExistingListenerManager()) {
-      aWindowSizes->mDOMEventListenersCount += elm->ListenerCount();
-    }
   }
 
-  aWindowSizes->mStyleSheetsSize +=
+  aWindowSizes->mStyleSheets +=
     mStyleSheets.SizeOfExcludingThis(SizeOfStyleSheetsElementIncludingThis,
                                      aWindowSizes->mMallocSizeOf);
-  aWindowSizes->mStyleSheetsSize +=
+  aWindowSizes->mStyleSheets +=
     mCatalogSheets.SizeOfExcludingThis(SizeOfStyleSheetsElementIncludingThis,
                                        aWindowSizes->mMallocSizeOf);
-  aWindowSizes->mStyleSheetsSize +=
+  aWindowSizes->mStyleSheets +=
     mAdditionalSheets[eAgentSheet].
       SizeOfExcludingThis(SizeOfStyleSheetsElementIncludingThis,
                           aWindowSizes->mMallocSizeOf);
-  aWindowSizes->mStyleSheetsSize +=
+  aWindowSizes->mStyleSheets +=
     mAdditionalSheets[eUserSheet].
       SizeOfExcludingThis(SizeOfStyleSheetsElementIncludingThis,
                           aWindowSizes->mMallocSizeOf);
-  aWindowSizes->mStyleSheetsSize +=
+  aWindowSizes->mStyleSheets +=
     mAdditionalSheets[eAuthorSheet].
       SizeOfExcludingThis(SizeOfStyleSheetsElementIncludingThis,
                           aWindowSizes->mMallocSizeOf);
   // Lumping in the loader with the style-sheets size is not ideal,
   // but most of the things in there are in fact stylesheets, so it
   // doesn't seem worthwhile to separate it out.
-  aWindowSizes->mStyleSheetsSize +=
+  aWindowSizes->mStyleSheets +=
     CSSLoader()->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf);
 
-  aWindowSizes->mDOMOtherSize +=
+  aWindowSizes->mDOMOther +=
     mAttrStyleSheet ?
     mAttrStyleSheet->DOMSizeOfIncludingThis(aWindowSizes->mMallocSizeOf) :
     0;
 
-  aWindowSizes->mDOMOtherSize +=
+  aWindowSizes->mDOMOther +=
     mStyledLinks.SizeOfExcludingThis(nullptr, aWindowSizes->mMallocSizeOf);
 
-  aWindowSizes->mDOMOtherSize +=
+  aWindowSizes->mDOMOther +=
     mIdentifierMap.SizeOfExcludingThis(nsIdentifierMapEntry::SizeOfExcludingThis,
                                        aWindowSizes->mMallocSizeOf);
 

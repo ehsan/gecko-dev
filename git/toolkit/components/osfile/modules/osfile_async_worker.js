@@ -408,12 +408,6 @@ if (this.Components) {
          return this.getPosition();
        });
    },
-   File_prototype_flush: function flush(fd) {
-     return withFile(fd,
-       function do_flush() {
-         return this.flush();
-       });
-   },
    // Methods of OS.File.DirectoryIterator
    DirectoryIterator_prototype_next: function next(dir) {
      return withDir(dir,

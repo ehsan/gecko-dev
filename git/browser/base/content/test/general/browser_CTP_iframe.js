@@ -5,7 +5,7 @@ const gHttpTestRoot = rootDir.replace("chrome://mochitests/content/", "http://12
 var gTestBrowser = null;
 var gNextTest = null;
 var gPluginHost = Components.classes["@mozilla.org/plugin/host;1"].getService(Components.interfaces.nsIPluginHost);
-var gRunNextTestAfterPluginRemoved = false;
+var gPageLoads = 0;
 
 Components.utils.import("resource://gre/modules/Services.jsm");
 
@@ -60,7 +60,6 @@ function test() {
   registerCleanupFunction(function() {
     clearAllPluginPermissions();
     Services.prefs.clearUserPref("extensions.blocklist.suppressUI");
-    gTestBrowser.removeEventListener("PluginRemoved", handlePluginRemoved, true, true);
   });
   Services.prefs.setBoolPref("extensions.blocklist.suppressUI", true);
 
@@ -68,12 +67,11 @@ function test() {
   gBrowser.selectedTab = newTab;
   gTestBrowser = gBrowser.selectedBrowser;
   gTestBrowser.addEventListener("load", pageLoad, true);
-  gTestBrowser.addEventListener("PluginRemoved", handlePluginRemoved, true, true);
 
   Services.prefs.setBoolPref("plugins.click_to_play", true);
   setTestPluginEnabledState(Ci.nsIPluginTag.STATE_CLICKTOPLAY);
 
-  prepareTest(runAfterPluginBindingAttached(test1), gHttpTestRoot + "plugin_two_types.html");
+  prepareTest(runAfterPluginBindingAttached(test1), gHttpTestRoot + "plugin_iframe.html");
 }
 
 function finishTest() {
@@ -85,8 +83,12 @@ function finishTest() {
 }
 
 function pageLoad() {
+  // Wait for the iframe to be loaded as well.
+  if (gPageLoads++ < 1)
+    return;
+
   // The plugin events are async dispatched and can come after the load event
-  // This just allows the events to fire before we then go on to test the states
+  // This just allows the events to fire before we then go on to test the states.
   executeSoon(gNextTest);
 }
 
@@ -101,7 +103,7 @@ function prepareTest(nextTest, url) {
 // afterwards.
 function runAfterPluginBindingAttached(func) {
   return function() {
-    let doc = gTestBrowser.contentDocument;
+    let doc = gTestBrowser.contentDocument.getElementById('frame').contentDocument;
     let elems = doc.getElementsByTagName('embed');
     if (elems.length < 1) {
       elems = doc.getElementsByTagName('object');
@@ -111,50 +113,23 @@ function runAfterPluginBindingAttached(func) {
   };
 }
 
-function handlePluginRemoved() {
-  if (gRunNextTestAfterPluginRemoved) {
-    executeSoon(gNextTest);
-    gRunNextTestAfterPluginRemoved = false;
-  }
-}
-
-function runAfterPluginRemoved(func) {
-  gNextTest = func;
-  gRunNextTestAfterPluginRemoved = true;
-}
-
-// Test that the click-to-play notification is not shown for non-plugin object elements
+// Test that we don't show a doorhanger after removing the last plugin
+// when the plugin was in an iframe.
 
 function test1() {
   let popupNotification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
   ok(popupNotification, "Test 1, Should have a click-to-play notification");
 
-  let plugin = gTestBrowser.contentDocument.getElementById("secondtestA");
-  plugin.parentNode.removeChild(plugin);
-  plugin = gTestBrowser.contentDocument.getElementById("secondtestB");
-  plugin.parentNode.removeChild(plugin);
+  let frame = gTestBrowser.contentDocument.getElementById("frame");
+  frame.parentElement.removeChild(frame);
 
-  let image = gTestBrowser.contentDocument.createElement("object");
-  image.type = "image/png";
-  image.data = "moz.png";
-  gTestBrowser.contentDocument.body.appendChild(image);
+  let condition = () => {
+    let notification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
+    if (notification) {
+      notification.reshow();
+    }
+    return !notification;
+  }
 
-  runAfterPluginRemoved(test2);
-}
-
-function test2() {
-  let popupNotification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
-  ok(popupNotification, "Test 2, Should have a click-to-play notification");
-
-  let plugin = gTestBrowser.contentDocument.getElementById("test");
-  plugin.parentNode.removeChild(plugin);
-
-  runAfterPluginRemoved(() => executeSoon(test3));
-}
-
-function test3() {
-  let popupNotification = PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser);
-  ok(!popupNotification, "Test 3, Should not have a click-to-play notification");
-
-  finishTest();
+  waitForCondition(condition, finishTest, "Test1, Waited too long for notification too be removed");
 }

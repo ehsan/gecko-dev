@@ -148,13 +148,14 @@ nsTitleBarFrame::HandleEvent(nsPresContext* aPresContext,
      }
      break;
 
-    case NS_MOUSE_CLICK: {
-      WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
-      if (mouseEvent->IsLeftClickEvent()) {
-        MouseClicked(aPresContext, mouseEvent);
+
+
+    case NS_MOUSE_CLICK:
+      if (aEvent->IsLeftClickEvent())
+      {
+        MouseClicked(aPresContext, aEvent);
       }
       break;
-    }
   }
 
   if ( doDefault )
@@ -165,7 +166,7 @@ nsTitleBarFrame::HandleEvent(nsPresContext* aPresContext,
 
 void
 nsTitleBarFrame::MouseClicked(nsPresContext* aPresContext,
-                              WidgetMouseEvent* aEvent)
+                              WidgetGUIEvent* aEvent)
 {
   // Execute the oncommand event handler.
   nsContentUtils::DispatchXULCommand(mContent,

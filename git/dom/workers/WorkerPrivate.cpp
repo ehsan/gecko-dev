@@ -1387,13 +1387,13 @@ public:
 
 class UpdateJSContextOptionsRunnable : public WorkerControlRunnable
 {
-  JS::ContextOptions mContentOptions;
-  JS::ContextOptions mChromeOptions;
+  uint32_t mContentOptions;
+  uint32_t mChromeOptions;
 
 public:
   UpdateJSContextOptionsRunnable(WorkerPrivate* aWorkerPrivate,
-                                 const JS::ContextOptions& aContentOptions,
-                                 const JS::ContextOptions& aChromeOptions)
+                                 uint32_t aContentOptions,
+                                 uint32_t aChromeOptions)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
     mContentOptions(aContentOptions), mChromeOptions(aChromeOptions)
   { }
@@ -2044,6 +2044,11 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
     aParent->AssertIsOnWorkerThread();
 
     aParent->CopyJSSettings(mJSSettings);
+
+    NS_ASSERTION(JS_GetOptions(aCx) == (aParent->IsChromeWorker() ?
+                                        mJSSettings.chrome.options :
+                                        mJSSettings.content.options),
+                 "Options mismatch!");
   }
   else {
     AssertIsOnMainThread();
@@ -2677,8 +2682,8 @@ WorkerPrivateParent<Derived>::GetInnerWindowId()
 template <class Derived>
 void
 WorkerPrivateParent<Derived>::UpdateJSContextOptions(JSContext* aCx,
-                                                     const JS::ContextOptions& aContentOptions,
-                                                     const JS::ContextOptions& aChromeOptions)
+                                                     uint32_t aContentOptions,
+                                                     uint32_t aChromeOptions)
 {
   AssertIsOnParentThread();
 
@@ -4893,12 +4898,12 @@ WorkerPrivate::RescheduleTimeoutTimer(JSContext* aCx)
 
 void
 WorkerPrivate::UpdateJSContextOptionsInternal(JSContext* aCx,
-                                              const JS::ContextOptions& aContentOptions,
-                                              const JS::ContextOptions& aChromeOptions)
+                                              uint32_t aContentOptions,
+                                              uint32_t aChromeOptions)
 {
   AssertIsOnWorkerThread();
 
-  JS::ContextOptionsRef(aCx) = IsChromeWorker() ? aChromeOptions : aContentOptions;
+  JS_SetOptions(aCx, IsChromeWorker() ? aChromeOptions : aContentOptions);
 
   for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
     mChildWorkers[index]->UpdateJSContextOptions(aCx, aContentOptions,

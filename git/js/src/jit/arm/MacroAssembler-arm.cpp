@@ -3679,7 +3679,7 @@ MacroAssemblerARMCompat::handleFailureWithHandler(void *handler)
     passABIArg(r0);
     callWithABI(handler);
 
-    IonCode *excTail = GetIonContext()->runtime->jitRuntime()->getExceptionTail();
+    IonCode *excTail = GetIonContext()->runtime->ionRuntime()->getExceptionTail();
     branch(excTail);
 }
 

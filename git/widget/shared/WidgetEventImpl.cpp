@@ -167,6 +167,22 @@ WidgetEvent::HasPluginActivationEventMessage() const
  ******************************************************************************/
 
 bool
+WidgetEvent::IsLeftClickEvent() const
+{
+  const WidgetMouseEvent* mouseEvent = AsMouseEvent();
+  return mouseEvent && message == NS_MOUSE_CLICK &&
+         mouseEvent->button == WidgetMouseEvent::eLeftButton;
+}
+
+bool
+WidgetEvent::IsContextMenuKeyEvent() const
+{
+  const WidgetMouseEvent* mouseEvent = AsMouseEvent();
+  return mouseEvent && message == NS_CONTEXTMENU &&
+         mouseEvent->context == WidgetMouseEvent::eContextMenuKey;
+}
+
+bool
 WidgetEvent::IsRetargetedNativeEventDelivererForPlugin() const
 {
   const WidgetPluginEvent* pluginEvent = AsPluginEvent();
@@ -189,11 +205,8 @@ WidgetEvent::IsIMERelatedEvent() const
 bool
 WidgetEvent::IsUsingCoordinates() const
 {
-  const WidgetMouseEvent* mouseEvent = AsMouseEvent();
-  if (mouseEvent) {
-    return !mouseEvent->IsContextMenuKeyEvent();
-  }
   return !HasKeyEventMessage() && !IsIMERelatedEvent() &&
+         !IsContextMenuKeyEvent() &&
          !HasPluginActivationEventMessage() &&
          !IsNativeEventDelivererForPlugin() &&
          !IsContentCommandEvent() &&
@@ -203,11 +216,8 @@ WidgetEvent::IsUsingCoordinates() const
 bool
 WidgetEvent::IsTargetedAtFocusedWindow() const
 {
-  const WidgetMouseEvent* mouseEvent = AsMouseEvent();
-  if (mouseEvent) {
-    return mouseEvent->IsContextMenuKeyEvent();
-  }
   return HasKeyEventMessage() || IsIMERelatedEvent() ||
+         IsContextMenuKeyEvent() ||
          IsContentCommandEvent() ||
          IsRetargetedNativeEventDelivererForPlugin();
 }
@@ -215,11 +225,8 @@ WidgetEvent::IsTargetedAtFocusedWindow() const
 bool
 WidgetEvent::IsTargetedAtFocusedContent() const
 {
-  const WidgetMouseEvent* mouseEvent = AsMouseEvent();
-  if (mouseEvent) {
-    return mouseEvent->IsContextMenuKeyEvent();
-  }
   return HasKeyEventMessage() || IsIMERelatedEvent() ||
+         IsContextMenuKeyEvent() ||
          IsRetargetedNativeEventDelivererForPlugin();
 }
 

@@ -51,6 +51,8 @@
 
 .side-menu-widget-item-checkbox {
   -moz-appearance: none;
+  -moz-margin-end: -6px;
+  padding: 0;
   opacity: 0;
   transition: opacity .15s ease-out 0s;
 }
@@ -64,10 +66,10 @@
   transition: opacity .15s ease-out 0s;
 }
 
-.side-menu-widget-item-checkbox .checkbox-check {
+.side-menu-widget-item-checkbox > .checkbox-check {
   -moz-appearance: none;
   background: none;
-  background-image: url(itemToggle.png);
+  background-image: url("chrome://browser/skin/devtools/itemToggle.png");
   background-repeat: no-repeat;
   background-clip: content-box;
   background-size: 32px 16px;
@@ -77,7 +79,7 @@
   border: 0;
 }
 
-.side-menu-widget-item-checkbox[checked] .checkbox-check {
+.side-menu-widget-item-checkbox[checked] > .checkbox-check {
   background-position: 0 0;
 }
 

@@ -1849,7 +1849,7 @@ loser:
 static nsISupports *
 GetISupportsFromContext(JSContext *cx)
 {
-    if (JS::ContextOptionsRef(cx).privateIsNSISupports())
+    if (JS_GetOptions(cx) & JSOPTION_PRIVATE_IS_NSISUPPORTS)
         return static_cast<nsISupports *>(JS_GetContextPrivate(cx));
 
     return nullptr;
