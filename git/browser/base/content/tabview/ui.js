@@ -448,25 +448,10 @@ let UI = {
   _addTabActionHandlers: function UI__addTabActionHandlers() {
     var self = this;
 
-    // TabOpen
-    this._eventListeners.open = function(tab) {
-      if (tab.ownerDocument.defaultView != gWindow)
-        return;
-
-      // if it's an app tab, add it to all the group items
-      if (tab.pinned)
-        GroupItems.addAppTab(tab);
-    };
-    
-    // TabClose
     this._eventListeners.close = function(tab) {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
-      // if it's an app tab, remove it from all the group items
-      if (tab.pinned)
-        GroupItems.removeAppTab(tab);
-        
       if (self._isTabViewVisible()) {
         // just closed the selected tab in the TabView interface.
         if (self._currentTab == tab)
@@ -485,17 +470,13 @@ let UI = {
 
           // 1) Only go back to the TabView tab when there you close the last
           // tab of a groupItem.
-          let closingLastOfGroup = (groupItem && 
-              groupItem._children.length == 1 && 
-              groupItem._children[0].tab == tab);
-          
           // 2) Take care of the case where you've closed the last tab in
           // an un-named groupItem, which means that the groupItem is gone (null) and
-          // there are no visible tabs. 
-          let closingUnnamedGroup = (groupItem == null &&
-              gBrowser.visibleTabs.length <= 1); 
-              
-          if (closingLastOfGroup || closingUnnamedGroup) {
+          // there are no visible tabs.
+          // Can't use timeout here because user would see a flicker of
+          // switching to another tab before the TabView interface shows up.
+          if ((groupItem && groupItem._children.length == 1) ||
+              (groupItem == null && gBrowser.visibleTabs.length <= 1)) {
             // for the tab focus event to pick up.
             self._closedLastVisibleTab = true;
             // remove the zoom prep.
@@ -507,7 +488,6 @@ let UI = {
       }
     };
 
-    // TabMove
     this._eventListeners.move = function(tab) {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
@@ -517,7 +497,6 @@ let UI = {
         self.setReorderTabItemsOnShow(activeGroupItem);
     };
 
-    // TabSelect
     this._eventListeners.select = function(tab) {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
@@ -525,14 +504,13 @@ let UI = {
       self.onTabSelect(tab);
     };
 
-    // Actually register the above handlers
     for (let name in this._eventListeners)
       AllTabs.register(name, this._eventListeners[name]);
 
     // Start watching for tab pin events, and set up our uninit for same.
     function handleTabPin(event) {
       TabItems.handleTabPin(event.originalTarget);
-      GroupItems.addAppTab(event.originalTarget);
+      GroupItems.handleTabPin(event.originalTarget);
     }
 
     gBrowser.tabContainer.addEventListener("TabPinned", handleTabPin, false);
@@ -543,7 +521,7 @@ let UI = {
     // Start watching for tab unpin events, and set up our uninit for same.
     function handleTabUnpin(event) {
       TabItems.handleTabUnpin(event.originalTarget);
-      GroupItems.removeAppTab(event.originalTarget);
+      GroupItems.handleTabUnpin(event.originalTarget);
     }
 
     gBrowser.tabContainer.addEventListener("TabUnpinned", handleTabUnpin, false);

@@ -48,7 +48,6 @@
 #include "nsTArray.h"
 #include "nsIObserver.h"
 #include "nsIIdleService.h"
-#include "nsCategoryCache.h"
 
 /**
  * Class we can use to store an observer with its associated idle time
@@ -77,7 +76,14 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
-  nsIdleServiceDaily(nsIdleService* aIdleService);
+  /**
+   * Function to call to tell the daily idle service that the idle service
+   * is ready.
+   *
+   * @param aIdleService
+   *        Pointer to the idle service.
+   */
+  void Init(nsIdleService *aIdleService);
 
   /**
    * This function will make this class release its allocated resources (its
@@ -90,12 +96,7 @@ private:
    * @note This is a normal pointer, or the idle service could keep it self
    * alive.
    */
-  nsIdleService* mIdleService;
-
-  /**
-   * Set to true when the instantiated object has a idle observer.
-   */
-  bool mObservesIdle;
+  nsIdleService *mIdleService;
 
   /**
    * Place to hold the timer used by this class to determine when a day has
@@ -107,11 +108,6 @@ private:
    * Function that is called back once a day.
    */
   static void DailyCallback(nsITimer* aTimer, void* aClosure);
-
-  /**
-   * Cache of observers for the "idle-daily" category.
-   */
-  nsCategoryCache<nsIObserver> mCategoryObservers;
 };
 
 class nsIdleService : public nsIIdleService

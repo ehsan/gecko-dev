@@ -849,7 +849,7 @@ nsLayoutUtils::GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
   for (i = 0; i < popups.Length(); i++) {
     nsIFrame* popup = popups[i];
     if (popup->PresContext()->GetRootPresContext() == aPresContext &&
-        popup->GetScrollableOverflowRect().Contains(
+        popup->GetOverflowRect().Contains(
           GetEventCoordinatesRelativeTo(aEvent, popup))) {
       return popup;
     }
@@ -1242,7 +1242,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
     // document-rendering state.  We rely on PresShell to flush
     // retained layers as needed when that persistent state changes.
     if (!presShell->UsingDisplayPort()) {
-      visibleRegion = aFrame->GetVisualOverflowRectRelativeToSelf();
+      visibleRegion = aFrame->GetOverflowRectRelativeToSelf();
     } else {
       visibleRegion = presShell->GetDisplayPort();
     }
@@ -2787,9 +2787,7 @@ nsLayoutUtils::CalculateContentBottom(nsIFrame* aFrame)
 
   nscoord contentBottom = aFrame->GetRect().height;
 
-  // We want scrollable overflow rather than visual because this
-  // calculation is intended to affect layout.
-  if (aFrame->GetScrollableOverflowRect().height > contentBottom) {
+  if (aFrame->GetOverflowRect().height > contentBottom) {
     nsBlockFrame* blockFrame = GetAsBlock(aFrame);
     nsIAtom* childList = nsnull;
     PRIntn nextListID = 0;
