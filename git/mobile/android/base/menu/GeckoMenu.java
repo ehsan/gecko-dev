@@ -11,7 +11,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.util.AttributeSet;
-import android.view.ActionProvider;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -233,23 +232,10 @@ public class GeckoMenu extends ListView
 
     @Override
     public void clear() {
-        for (GeckoMenuItem menuItem : mItems) {
-            if (menuItem.hasSubMenu()) {
-                SubMenu subMenu = menuItem.getSubMenu();
-                subMenu.clear();
-            }
-        }
-
-        mAdapter.clear();
-
-        mItems.clear();
-        mActionItems.clear();
     }
 
     @Override
     public void close() {
-        if (mMenuPresenter != null)
-            mMenuPresenter.closeMenu();
     }
 
     @Override
@@ -258,12 +244,10 @@ public class GeckoMenu extends ListView
             if (menuItem.getItemId() == id) {
                 return menuItem;
             } else if (menuItem.hasSubMenu()) {
-                if (menuItem.getActionProvider() == null) {
-                    SubMenu subMenu = menuItem.getSubMenu();
-                    MenuItem item = subMenu.findItem(id);
-                    if (item != null)
-                        return item;
-                }
+                SubMenu subMenu = menuItem.getSubMenu();
+                MenuItem item = subMenu.findItem(id);
+                if (item != null)
+                    return item;
             }
         }
         return null;
@@ -393,14 +377,6 @@ public class GeckoMenu extends ListView
 
             return mCallback.onMenuItemSelected(item);
         } else {
-            // Refresh the submenu for the provider.
-            ActionProvider provider = item.getActionProvider();
-            if (provider != null) {
-                GeckoSubMenu subMenu = new GeckoSubMenu(mContext, null);
-                provider.onPrepareSubMenu(subMenu);
-                ((GeckoMenuItem) item).setSubMenu(subMenu);
-            }
-
             // Show the submenu.
             if (mMenuPresenter != null)
                 mMenuPresenter.showMenu((GeckoSubMenu) item.getSubMenu());
@@ -576,11 +552,6 @@ public class GeckoMenu extends ListView
         public void removeMenuItem(GeckoMenuItem menuItem) {
             // Remove it from the list.
             mItems.remove(menuItem);
-            notifyDataSetChanged();
-        }
-
-        public void clear() {
-            mItems.clear();
             notifyDataSetChanged();
         }
 

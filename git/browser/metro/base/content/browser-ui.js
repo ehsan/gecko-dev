@@ -1409,7 +1409,6 @@ var StartUI = {
     Elements.startUI.addEventListener("autocompleteend", this, false);
     Elements.startUI.addEventListener("contextmenu", this, false);
     Elements.startUI.addEventListener("click", this, false);
-    Elements.startUI.addEventListener("MozMousePixelScroll", this, false);
 
     this.sections.forEach(function (sectionName) {
       let section = window[sectionName];
@@ -1512,16 +1511,6 @@ var StartUI = {
         break;
       case "click":
         this.onClick(aEvent);
-        break;
-
-      case "MozMousePixelScroll":
-        let startBox = document.getElementById("start-scrollbox");
-        let [, scrollInterface] = ScrollUtils.getScrollboxFromElement(startBox);
-
-        scrollInterface.scrollBy(aEvent.detail, 0);
-
-        aEvent.preventDefault();
-        aEvent.stopPropagation();
         break;
     }
   }

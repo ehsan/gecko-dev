@@ -17,6 +17,7 @@
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsgc.h"
+#include "jsinterp.h"
 #include "jsobj.h"
 #include "jsopcode.h"
 #include "jsscript.h"
@@ -24,9 +25,8 @@
 #include "jswatchpoint.h"
 #include "jswrapper.h"
 
-#include "frontend/SourceNotes.h"
+#include "frontend/BytecodeEmitter.h"
 #include "vm/Debugger.h"
-#include "vm/Interpreter.h"
 #include "vm/Shape.h"
 
 #ifdef JS_ASMJS
@@ -36,9 +36,9 @@
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
+#include "jsinterpinlines.h"
 #include "jsscriptinlines.h"
 
-#include "vm/Interpreter-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace js;

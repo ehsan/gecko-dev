@@ -52,11 +52,10 @@
 #include "jsheaptools.h"
 
 #include "jsinferinlines.h"
+#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 #include "ion/Ion.h"
-
-#include "vm/Interpreter-inl.h"
 
 #ifdef XP_UNIX
 #include <unistd.h>
@@ -3178,6 +3177,8 @@ Parse(JSContext *cx, unsigned argc, jsval *vp)
                                     JS_GetStringCharsZ(cx, scriptContents),
                                     JS_GetStringLength(scriptContents),
                                     /* foldConstants = */ true, NULL, NULL);
+    if (!parser.init())
+        return false;
 
     ParseNode *pn = parser.parse(NULL);
     if (!pn)
@@ -3216,6 +3217,8 @@ SyntaxParse(JSContext *cx, unsigned argc, jsval *vp)
     const jschar *chars = JS_GetStringCharsZ(cx, scriptContents);
     size_t length = JS_GetStringLength(scriptContents);
     Parser<frontend::SyntaxParseHandler> parser(cx, options, chars, length, false, NULL, NULL);
+    if (!parser.init())
+        return false;
 
     bool succeeded = parser.parse(NULL);
     if (cx->isExceptionPending())

@@ -293,7 +293,9 @@ this.PushService = {
         Services.obs.removeObserver(this, "profile-change-teardown");
         this._shutdown();
         break;
-      case "network-active-changed":
+      case "network-interface-state-changed":
+        debug("network-interface-state-changed");
+
         if (this._udpServer) {
           this._udpServer.close();
         }
@@ -407,20 +409,9 @@ this.PushService = {
         return null;
 
     Services.obs.addObserver(this, "profile-change-teardown", false);
+    Services.obs.addObserver(this, "network-interface-state-changed",
+                             false);
     Services.obs.addObserver(this, "webapps-uninstall", false);
-
-    // This observer is notified only on B2G by
-    // dom/system/gonk/NetworkManager.js.
-    //
-    // The "active network" is based on priority - i.e. Wi-Fi has higher
-    // priority than data. The PushService should just use the preferred
-    // network, and not care about all interface changes.
-    // network-active-changed is not fired when the network goes offline, but
-    // socket connections time out. The check for Services.io.offline in
-    // _beginWSSetup() prevents unnecessary retries.  When the network comes
-    // back online, network-active-changed is fired.
-    Services.obs.addObserver(this, "network-active-changed", false);
-
     this._db = new PushDB(this);
 
     let ppmm = Cc["@mozilla.org/parentprocessmessagemanager;1"]
@@ -473,7 +464,8 @@ this.PushService = {
   _shutdown: function() {
     debug("_shutdown()");
 
-    Services.obs.removeObserver(this, "network-active-changed");
+    Services.obs.removeObserver(this, "network-interface-state-changed",
+                                false);
     Services.obs.removeObserver(this, "webapps-uninstall", false);
 
     if (this._db) {
@@ -542,11 +534,6 @@ this.PushService = {
 
     // Stop any pending reconnects scheduled for the near future.
     this._stopAlarm();
-
-    if (Services.io.offline) {
-      debug("Network is offline.");
-      return;
-    }
 
     var serverURL = prefs.get("serverURL");
     if (!serverURL) {

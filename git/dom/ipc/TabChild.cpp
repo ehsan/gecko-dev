@@ -350,9 +350,8 @@ TabChild::Observe(nsISupports *aSubject,
         mLastMetrics.mViewport =
             gfx::Rect(0, 0,
                       kDefaultViewportSize.width, kDefaultViewportSize.height);
-        // I don't know what units mInnerSize is in, hence FromUnknownRect
-        mLastMetrics.mCompositionBounds = LayerIntRect::FromUnknownRect(
-          gfx::IntRect(0, 0, mInnerSize.width, mInnerSize.height));
+        mLastMetrics.mCompositionBounds = nsIntRect(nsIntPoint(0, 0),
+                                                    mInnerSize);
         mLastMetrics.mResolution =
           AsyncPanZoomController::CalculateResolution(mLastMetrics);
         mLastMetrics.mScrollOffset = CSSPoint(0, 0);
@@ -591,10 +590,8 @@ TabChild::HandlePossibleViewportChange()
 
   FrameMetrics metrics(mLastMetrics);
   metrics.mViewport = gfx::Rect(0.0f, 0.0f, viewportW, viewportH);
-  metrics.mScrollableRect = CSSRect(0.0f, 0.0f, pageWidth, pageHeight);
-  // I don't know what units mInnerSize is in, hence FromUnknownRect
-  metrics.mCompositionBounds = LayerIntRect::FromUnknownRect(
-    gfx::IntRect(0, 0, mInnerSize.width, mInnerSize.height));
+  metrics.mScrollableRect = gfx::Rect(0.0f, 0.0f, pageWidth, pageHeight);
+  metrics.mCompositionBounds = nsIntRect(0, 0, mInnerSize.width, mInnerSize.height);
 
   // Changing the zoom when we're not doing a first paint will get ignored
   // by AsyncPanZoomController and causes a blurry flash.
@@ -1486,7 +1483,7 @@ TabChild::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
         return true;
     }
 
-    CSSRect cssCompositedRect =
+    gfx::Rect cssCompositedRect =
       AsyncPanZoomController::CalculateCompositedRectInCssPixels(aFrameMetrics);
     // The BrowserElementScrolling helper must know about these updated metrics
     // for other functions it performs, such as double tap handling.

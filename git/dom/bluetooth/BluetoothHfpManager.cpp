@@ -307,14 +307,18 @@ public:
       return;
     }
 
-    nsAutoCString ringMsg("RING");
+    nsAutoCString ringMsg(kHfpCrlf);
+    ringMsg.AppendLiteral("RING");
+    ringMsg.AppendLiteral(kHfpCrlf);
     gBluetoothHfpManager->SendLine(ringMsg.get());
 
     if (!mNumber.IsEmpty()) {
-      nsAutoCString clipMsg("+CLIP: \"");
+      nsAutoCString clipMsg(kHfpCrlf);
+      clipMsg.AppendLiteral("+CLIP: \"");
       clipMsg.Append(NS_ConvertUTF16toUTF8(mNumber).get());
       clipMsg.AppendLiteral("\",");
       clipMsg.AppendInt(mType);
+      clipMsg.AppendLiteral(kHfpCrlf);
       gBluetoothHfpManager->SendLine(clipMsg.get());
     }
 

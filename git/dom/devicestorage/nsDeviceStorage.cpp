@@ -111,32 +111,47 @@ DeviceStorageUsedSpaceCache::GetCacheEntry(const nsAString& aStorageName)
   return nullptr;
 }
 
-static int64_t
-GetFreeBytes(const nsAString& aStorageName)
-{
-  // This function makes the assumption that the various types
-  // are all stored on the same filesystem. So we use pictures.
-
-  DeviceStorageFile dsf(NS_LITERAL_STRING(DEVICESTORAGE_PICTURES), aStorageName);
-  int64_t freeBytes = 0;
-  dsf.GetDiskFreeSpace(&freeBytes);
-  return freeBytes;
-}
-
 nsresult
-DeviceStorageUsedSpaceCache::AccumUsedSizes(const nsAString& aStorageName,
-                                            uint64_t* aPicturesSoFar,
-                                            uint64_t* aVideosSoFar,
-                                            uint64_t* aMusicSoFar,
-                                            uint64_t* aTotalSoFar)
+DeviceStorageUsedSpaceCache::GetUsedSizeForType(const nsAString& aStorageType,
+                                                const nsAString& aStorageName,
+                                                uint64_t* usedSize)
 {
   RefPtr<CacheEntry> cacheEntry = GetCacheEntry(aStorageName);
   if (!cacheEntry || cacheEntry->mDirty) {
     return NS_ERROR_NOT_AVAILABLE;
   }
-  int64_t freeBytes = GetFreeBytes(cacheEntry->mStorageName);
-  if (freeBytes != cacheEntry->mFreeBytes) {
-    // Free space changed, so our cached results are no longer valid.
+
+  if (aStorageType.EqualsLiteral(DEVICESTORAGE_PICTURES)) {
+    *usedSize = cacheEntry->mPicturesUsedSize;
+    return NS_OK;
+  }
+
+  if (aStorageType.EqualsLiteral(DEVICESTORAGE_VIDEOS)) {
+    *usedSize = cacheEntry->mVideosUsedSize;
+    return NS_OK;
+  }
+
+  if (aStorageType.EqualsLiteral(DEVICESTORAGE_MUSIC)) {
+    *usedSize = cacheEntry->mMusicUsedSize;
+    return NS_OK;
+  }
+
+  if (aStorageType.EqualsLiteral(DEVICESTORAGE_SDCARD)) {
+    *usedSize = cacheEntry->mTotalUsedSize;
+    return NS_OK;
+  }
+
+  return NS_ERROR_FAILURE;
+}
+
+nsresult DeviceStorageUsedSpaceCache::AccumUsedSizes(const nsAString& aStorageName,
+                                                     uint64_t* aPicturesSoFar,
+                                                     uint64_t* aVideosSoFar,
+                                                     uint64_t* aMusicSoFar,
+                                                     uint64_t* aTotalSoFar)
+{
+  RefPtr<CacheEntry> cacheEntry = GetCacheEntry(aStorageName);
+  if (!cacheEntry || cacheEntry->mDirty) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -161,7 +176,6 @@ DeviceStorageUsedSpaceCache::SetUsedSizes(const nsAString& aStorageName,
     cacheEntry->mStorageName = aStorageName;
     mCacheEntries.AppendElement(cacheEntry);
   }
-  cacheEntry->mFreeBytes = GetFreeBytes(cacheEntry->mStorageName);
 
   cacheEntry->mPicturesUsedSize = aPictureSize;
   cacheEntry->mVideosUsedSize = aVideosSize;
@@ -3041,14 +3055,6 @@ nsDOMDeviceStorage::GetRootDirectoryForFile(const nsAString& aName, nsIFile** aR
     return NS_ERROR_FAILURE;
   }
   return ds->mRootDirectory->Clone(aRootDirectory);
-}
-
-NS_IMETHODIMP
-nsDOMDeviceStorage::GetDefault(bool* aDefault) {
-  nsString defaultStorageName;
-  GetWritableStorageName(mStorageType, defaultStorageName);
-  *aDefault = mStorageName.Equals(defaultStorageName);
-  return NS_OK;
 }
 
 NS_IMETHODIMP

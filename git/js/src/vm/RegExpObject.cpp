@@ -621,15 +621,11 @@ RegExpShared::executeMatchOnly(JSContext *cx, const jschar *chars, size_t length
     if (result == JSC::Yarr::offsetNoMatch)
         return RegExpRunStatus_Success_NotFound;
 
-    match = MatchPair(result, matches[0].limit);
-    match.displace(displacement);
-
-#ifdef DEBUG
     matches.displace(displacement);
     matches.checkAgainst(origLength);
-#endif
 
-    *lastIndex = match.limit;
+    *lastIndex = matches[0].limit;
+    match = MatchPair(result, matches[0].limit);
     return RegExpRunStatus_Success;
 }
 

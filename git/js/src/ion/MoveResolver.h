@@ -25,7 +25,6 @@ class MoveResolver
             REG,
             FLOAT_REG,
             ADDRESS,
-            FLOAT_ADDRESS,
             EFFECTIVE_ADDRESS
         };
 
@@ -36,8 +35,7 @@ class MoveResolver
       public:
         enum AddressKind {
             MEMORY = ADDRESS,
-            EFFECTIVE = EFFECTIVE_ADDRESS,
-            FLOAT = FLOAT_ADDRESS
+            EFFECTIVE = EFFECTIVE_ADDRESS
         };
 
         MoveOperand()
@@ -63,13 +61,10 @@ class MoveResolver
             return kind_ == REG;
         }
         bool isDouble() const {
-            return kind_ == FLOAT_REG || kind_ == FLOAT_ADDRESS;
+            return kind_ == FLOAT_REG;
         }
         bool isMemory() const {
             return kind_ == ADDRESS;
-        }
-        bool isFloatAddress() const {
-            return kind_ == FLOAT_ADDRESS;
         }
         bool isEffectiveAddress() const {
             return kind_ == EFFECTIVE_ADDRESS;
@@ -83,7 +78,7 @@ class MoveResolver
             return FloatRegister::FromCode(code_);
         }
         Register base() const {
-            JS_ASSERT(isMemory() || isEffectiveAddress() || isFloatAddress());
+            JS_ASSERT(isMemory() || isEffectiveAddress());
             return Register::FromCode(code_);
         }
         int32_t disp() const {

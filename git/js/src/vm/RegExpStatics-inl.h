@@ -10,6 +10,7 @@
 #include "RegExpStatics.h"
 
 #include "gc/Marking.h"
+#include "vm/RegExpObject-inl.h"
 #include "vm/String-inl.h"
 
 namespace js {

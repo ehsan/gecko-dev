@@ -6,23 +6,22 @@
 
 #include "Ion.h"
 #include "IonCompartment.h"
+#include "jsinterp.h"
 #include "ion/BaselineFrame-inl.h"
 #include "ion/BaselineIC.h"
 #include "ion/IonFrames.h"
 
-#include "vm/Debugger.h"
-#include "vm/Interpreter.h"
 #include "vm/StringObject-inl.h"
+#include "vm/Debugger.h"
 
 #include "builtin/ParallelArray.h"
 
 #include "frontend/TokenStream.h"
 
 #include "jsboolinlines.h"
+#include "jsinterpinlines.h"
 
 #include "ion/IonFrames-inl.h" // for GetTopIonJSScript
-
-#include "vm/Interpreter-inl.h"
 #include "vm/StringObject-inl.h"
 
 using namespace js;
@@ -367,10 +366,14 @@ ArrayConcatDense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObje
 bool
 CharCodeAt(JSContext *cx, HandleString str, int32_t index, uint32_t *code)
 {
-    jschar c;
-    if (!str->getChar(cx, index, &c))
+    JS_ASSERT(index >= 0 &&
+              static_cast<uint32_t>(index) < str->length());
+
+    const jschar *chars = str->getChars(cx);
+    if (!chars)
         return false;
-    *code = c;
+
+    *code = chars[index];
     return true;
 }
 

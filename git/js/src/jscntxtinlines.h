@@ -10,12 +10,12 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsfriendapi.h"
+#include "jsinterp.h"
 #include "jsprobes.h"
 #include "jsgc.h"
 
 #include "builtin/Object.h" // For js::obj_construct
 #include "frontend/ParseMaps.h"
-#include "vm/Interpreter.h"
 #include "vm/RegExpObject.h"
 
 #include "jsgcinlines.h"
@@ -518,6 +518,15 @@ JSContext::setPendingException(js::Value v) {
     this->throwing = true;
     this->exception = v;
     js::assertSameCompartment(this, v);
+}
+
+inline bool
+JSContext::ensureParseMapPool()
+{
+    if (parseMapPool_)
+        return true;
+    parseMapPool_ = js_new<js::frontend::ParseMapPool>(this);
+    return parseMapPool_;
 }
 
 inline js::PropertyTree&

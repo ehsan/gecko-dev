@@ -227,9 +227,6 @@ this.TouchAdapter = {
             case 'doubletap-tap':
               details.type = 'tripletap';
               break;
-            case 'doubletap-dwell':
-              details.type = 'doubletaphold';
-              break;
             case 'tap-dwell':
               details.type = 'taphold';
               break;
@@ -263,9 +260,6 @@ this.TouchAdapter = {
         if (aDetails.type == 'tap') {
           emitDelay = 50;
           aDetails.type = 'doubletap';
-        } else if (aDetails.type == 'dwell') {
-          emitDelay = 50;
-          aDetails.type = 'doubletaphold';
         } else {
           aDetails.touches.push(this.MOUSE_ID);
         }

@@ -193,7 +193,8 @@ function runTests() {
          "File picker should show the correct filter index (" + testName + ")");
 
       if (++currentTest == testData.length) {
-        setTimeout(testDisconnectedElement, 0);
+        MockFilePicker.cleanup();
+        SimpleTest.finish();
       } else {
         launchNextTest();
       }
@@ -201,20 +202,6 @@ function runTests() {
   };
 
   launchNextTest();
-}
-
-function testDisconnectedElement() {
-  MockFilePicker.shown = false;
-  MockFilePicker.showCallback = function(filepicker) {
-    ok(MockFilePicker.shown, "FilePicker should be open!");
-    MockFilePicker.shown = false;
-    MockFilePicker.cleanup();
-    SimpleTest.finish();
-  }
-  var f = document.createElement("input");
-  f.setAttribute("type", "file");
-  f.click();
-  ok(!MockFilePicker.shown, "FilePicker should open asynchronously!");
 }
 
 </script>

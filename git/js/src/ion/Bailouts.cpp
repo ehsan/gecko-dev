@@ -6,6 +6,7 @@
 
 #include "jscntxt.h"
 #include "jscompartment.h"
+#include "jsinterp.h"
 #include "Bailouts.h"
 #include "SnapshotReader.h"
 #include "Ion.h"
@@ -14,7 +15,6 @@
 #include "jsinfer.h"
 #include "jsanalyze.h"
 #include "jsinferinlines.h"
-#include "vm/Interpreter.h"
 #include "IonFrames-inl.h"
 #include "BaselineJIT.h"
 

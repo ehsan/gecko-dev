@@ -36,7 +36,6 @@ callback interface TestSingleOperationCallbackInterface {
 };
 
 enum TestEnum {
-  "1",
   "a",
   "b"
 };

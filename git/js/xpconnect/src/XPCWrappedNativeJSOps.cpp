@@ -54,7 +54,7 @@ ToStringGuts(XPCCallContext& ccx)
     XPCWrappedNative* wrapper = ccx.GetWrapper();
 
     if (wrapper)
-        sz = wrapper->ToString(ccx.GetTearOff());
+        sz = wrapper->ToString(ccx, ccx.GetTearOff());
     else
         sz = JS_smprintf("[xpconnect wrapped native prototype]");
 
@@ -192,10 +192,14 @@ XPC_WN_DoubleWrappedGetter(JSContext *cx, unsigned argc, jsval *vp)
     // It is a double wrapped object. Figure out if the caller
     // is allowed to see it.
 
-    nsIXPCSecurityManager* sm = nsXPConnect::XPConnect()->GetDefaultSecurityManager();
+    nsIXPCSecurityManager* sm;
+    XPCContext* xpcc = ccx.GetXPCContext();
+
+    sm = xpcc->GetAppropriateSecurityManager(nsIXPCSecurityManager::HOOK_GET_PROPERTY);
     if (sm) {
         AutoMarkingNativeInterfacePtr iface(ccx);
-        iface = XPCNativeInterface::GetNewOrUsed(&NS_GET_IID(nsIXPCWrappedJSObjectGetter));
+        iface = XPCNativeInterface::
+                    GetNewOrUsed(ccx, &NS_GET_IID(nsIXPCWrappedJSObjectGetter));
 
         if (iface) {
             jsid id = ccx.GetRuntime()->
@@ -320,9 +324,9 @@ DefinePropertyIfFound(XPCCallContext& ccx,
 
             if (JSID_IS_STRING(id) &&
                 name.encodeLatin1(ccx, JSID_TO_STRING(id)) &&
-                (iface2 = XPCNativeInterface::GetNewOrUsed(name.ptr()), iface2) &&
+                (iface2 = XPCNativeInterface::GetNewOrUsed(ccx, name.ptr()), iface2) &&
                 nullptr != (to = wrapperToReflectInterfaceNames->
-                           FindTearOff(iface2, true, &rv)) &&
+                           FindTearOff(ccx, iface2, true, &rv)) &&
                 nullptr != (jso = to->GetJSObject()))
 
             {
@@ -379,7 +383,7 @@ DefinePropertyIfFound(XPCCallContext& ccx,
     if (!member) {
         if (wrapperToReflectInterfaceNames) {
             XPCWrappedNativeTearOff* to =
-              wrapperToReflectInterfaceNames->FindTearOff(iface, true);
+              wrapperToReflectInterfaceNames->FindTearOff(ccx, iface, true);
 
             if (!to)
                 return false;
@@ -1270,7 +1274,8 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSHandleObject obj)
 
 // static
 XPCNativeScriptableInfo*
-XPCNativeScriptableInfo::Construct(const XPCNativeScriptableCreateInfo* sci)
+XPCNativeScriptableInfo::Construct(XPCCallContext& ccx,
+                                   const XPCNativeScriptableCreateInfo* sci)
 {
     NS_ASSERTION(sci, "bad param");
     NS_ASSERTION(sci->GetCallback(), "bad param");
@@ -1288,7 +1293,7 @@ XPCNativeScriptableInfo::Construct(const XPCNativeScriptableCreateInfo* sci)
 
     JSBool success;
 
-    XPCJSRuntime* rt = XPCJSRuntime::Get();
+    XPCJSRuntime* rt = ccx.GetRuntime();
     XPCNativeScriptableSharedMap* map = rt->GetNativeScriptableSharedMap();
     {   // scoped lock
         XPCAutoLock lock(rt->GetMapLock());

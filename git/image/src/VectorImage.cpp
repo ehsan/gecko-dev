@@ -714,8 +714,7 @@ VectorImage::Draw(gfxContext* aContext,
   gfxUtils::DrawPixelSnapped(aContext, drawable,
                              aUserSpaceToImageSpace,
                              subimage, sourceRect, imageRect, aFill,
-                             gfxASurface::ImageFormatARGB32, aFilter,
-                             aFlags);
+                             gfxASurface::ImageFormatARGB32, aFilter);
 
   // Allow ourselves to fire FrameChanged and OnStopFrame again.
   MOZ_ASSERT(mRenderingObserver, "Should have a rendering observer by now");

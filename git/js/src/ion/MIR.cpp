@@ -315,12 +315,6 @@ MDefinition::replaceAllUsesWith(MDefinition *dom)
     }
 }
 
-bool
-MDefinition::emptyResultTypeSet() const
-{
-    return resultTypeSet() && resultTypeSet()->empty();
-}
-
 static inline bool
 IsPowerOfTwo(uint32_t n)
 {
@@ -1343,16 +1337,6 @@ MBinaryArithInstruction::inferFallback(BaselineInspector *inspector,
         specialization_ = MIRType_Double;
         setResultType(MIRType_Double);
         return;
-    }
-
-    // If we can't specialize because we have no type information at all for
-    // the lhs or rhs, mark the binary instruction as having no possible types
-    // either to avoid degrading subsequent analysis.
-    if (getOperand(0)->emptyResultTypeSet() || getOperand(1)->emptyResultTypeSet()) {
-        LifoAlloc *alloc = GetIonContext()->temp->lifoAlloc();
-        types::StackTypeSet *types = alloc->new_<types::StackTypeSet>();
-        if (types)
-            setResultTypeSet(types);
     }
 }
 

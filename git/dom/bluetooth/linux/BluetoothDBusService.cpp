@@ -39,7 +39,6 @@
 #include "mozilla/ipc/DBusUtils.h"
 #include "mozilla/ipc/RawDBusConnection.h"
 #include "mozilla/Util.h"
-#include "mozilla/NullPtr.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #if defined(MOZ_WIDGET_GONK)
 #include "cutils/properties.h"
@@ -467,7 +466,7 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     if (!reply) {
       errorStr.AssignLiteral("Memory can't be allocated for the message.");
     } else {
-      dbus_func_send(conn, nullptr, reply);
+      dbus_connection_send(conn, reply, NULL);
       dbus_message_unref(reply);
       v = parameters;
     }
@@ -619,7 +618,7 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     if (!reply) {
       errorStr.AssignLiteral("Memory can't be allocated for the message.");
     } else {
-      dbus_func_send(conn, nullptr, reply);
+      dbus_connection_send(conn, reply, NULL);
       dbus_message_unref(reply);
 
       // Do not send an notification to upper layer, too annoying.
@@ -689,12 +688,15 @@ RegisterLocalAgent(const char* adapterPath,
     return false;
   }
 
-  DBusError err = DBUS_ERROR_INIT;
-  DBusMessage* reply;
+  DBusError err;
+  dbus_error_init(&err);
 
-  dbus_bool_t success = dbus_func_send_and_block(gThreadConnection->GetConnection(),
-                                                 -1, &reply, &err, msg);
-  if (!success) {
+  DBusMessage* reply =
+    dbus_connection_send_with_reply_and_block(gThreadConnection->GetConnection(),
+                                              msg, -1, &err);
+  dbus_message_unref(msg);
+
+  if (!reply) {
     if (dbus_error_is_set(&err)) {
       if (!strcmp(err.name, "org.bluez.Error.AlreadyExists")) {
         LOG_AND_FREE_DBUS_ERROR(&err);
@@ -707,7 +709,7 @@ RegisterLocalAgent(const char* adapterPath,
         return false;
       }
     }
-  } else if (reply) {
+  } else {
     dbus_message_unref(reply);
   }
 
@@ -903,7 +905,14 @@ RunDBusCallback(DBusMessage* aMsg, void* aBluetoothReplyRunnable,
   // being gtk based, sometimes we'll get signals/reply coming in on the main
   // thread. There's not a lot we can do about that for the time being and it
   // (technically) shouldn't hurt anything. However, on gonk, die.
-  MOZ_ASSERT(!NS_IsMainThread());
+
+  // Due to the fact introducing workaround in Bug 827888, the callback for a
+  // message gets executed immediately. The proper fix is in bug 830290, but
+  // it's a intrusive change, it is better to remove assertion here since it
+  // would not hurt anything.
+  // Tracking bug 830290 for intrusive solution.
+
+  // MOZ_ASSERT(!NS_IsMainThread());
 #endif
   nsRefPtr<BluetoothReplyRunnable> replyRunnable =
     dont_AddRef(static_cast< BluetoothReplyRunnable* >(aBluetoothReplyRunnable));
@@ -2349,7 +2358,7 @@ BluetoothDBusService::SetPinCodeInternal(const nsAString& aDeviceAddress,
     errorStr.AssignLiteral("Couldn't append arguments to dbus message.");
     result = false;
   } else {
-    result = dbus_func_send(mConnection, nullptr, reply);
+    result = dbus_connection_send(mConnection, reply, NULL);
   }
 
   dbus_message_unref(msg);
@@ -2395,7 +2404,7 @@ BluetoothDBusService::SetPasskeyInternal(const nsAString& aDeviceAddress,
     errorStr.AssignLiteral("Couldn't append arguments to dbus message.");
     result = false;
   } else {
-    result = dbus_func_send(mConnection, nullptr, reply);
+    result = dbus_connection_send(mConnection, reply, NULL);
   }
 
   dbus_message_unref(msg);
@@ -2439,7 +2448,7 @@ BluetoothDBusService::SetPairingConfirmationInternal(
     return false;
   }
 
-  bool result = dbus_func_send(mConnection, nullptr, reply);
+  bool result = dbus_connection_send(mConnection, reply, NULL);
   if (!result) {
     errorStr.AssignLiteral("Can't send message!");
   }
@@ -2485,7 +2494,7 @@ BluetoothDBusService::SetAuthorizationInternal(
     return false;
   }
 
-  bool result = dbus_func_send(mConnection, nullptr, reply);
+  bool result = dbus_connection_send(mConnection, reply, NULL);
   if (!result) {
     errorStr.AssignLiteral("Can't send message!");
   }

@@ -4902,7 +4902,6 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
   return aDocument->GetViewportInfo(aDisplayWidth, aDisplayHeight);
 }
 
-#ifdef MOZ_WIDGET_ANDROID
 /* static */
 double
 nsContentUtils::GetDevicePixelsPerMetaViewportPixel(nsIWidget* aWidget)
@@ -4924,7 +4923,6 @@ nsContentUtils::GetDevicePixelsPerMetaViewportPixel(nsIWidget* aWidget)
   // For very high-density displays like the iPhone 4, use an integer ratio.
   return floor(dpi / 150.0);
 }
-#endif
 
 /* static */
 nsresult

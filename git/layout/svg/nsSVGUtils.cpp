@@ -451,19 +451,6 @@ nsSVGUtils::OuterSVGIsCallingReflowSVG(nsIFrame *aFrame)
   return GetOuterSVGFrame(aFrame)->IsCallingReflowSVG();
 }
 
-bool
-nsSVGUtils::AnyOuterSVGIsCallingReflowSVG(nsIFrame* aFrame)
-{
-  nsSVGOuterSVGFrame* outer = GetOuterSVGFrame(aFrame);
-  do {
-    if (outer->IsCallingReflowSVG()) {
-      return true;
-    }
-    outer = GetOuterSVGFrame(outer->GetParent());
-  } while (outer);
-  return false;
-}
-
 void
 nsSVGUtils::ScheduleReflowSVG(nsIFrame *aFrame)
 {
