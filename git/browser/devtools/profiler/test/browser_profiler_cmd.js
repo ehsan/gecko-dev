@@ -48,7 +48,7 @@ function testProfilerStart() {
     deferred.resolve();
   });
 
-  cmd("profiler start", gcli.lookup("profilerStarted2"));
+  cmd("profiler start", gcli.lookup("profilerStarted"));
   return deferred.promise;
 }
 

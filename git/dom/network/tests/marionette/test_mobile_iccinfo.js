@@ -5,9 +5,9 @@ MARIONETTE_TIMEOUT = 30000;
 
 SpecialPowers.addPermission("mobileconnection", true, document);
 
-let icc = navigator.mozIccManager;
-ok(icc instanceof MozIccManager,
-   "icc is instanceof " + icc.constructor);
+let connection = navigator.mozMobileConnection;
+ok(connection instanceof MozMobileConnection,
+   "connection is instanceof " + connection.constructor);
 
 let emulatorCmdPendingCount = 0;
 function sendEmulatorCommand(cmd, callback) {
@@ -28,8 +28,8 @@ function setEmulatorMccMnc(mcc, mnc) {
 }
 
 function waitForIccInfoChange(callback) {
-  icc.addEventListener("iccinfochange", function handler() {
-    icc.removeEventListener("iccinfochange", handler);
+  connection.addEventListener("iccinfochange", function handler() {
+    connection.removeEventListener("iccinfochange", handler);
     callback();
   });
 }
@@ -39,20 +39,18 @@ function finalize() {
   finish();
 }
 
-let iccInfo = icc.iccInfo;
-
 // The emulator's hard coded iccid value.
 // See it here {B2G_HOME}/external/qemu/telephony/sim_card.c#L299.
-is(iccInfo.iccid, 89014103211118510720);
+is(connection.iccInfo.iccid, 89014103211118510720);
 
 // The emulator's hard coded mcc and mnc codes.
 // See it here {B2G_HOME}/external/qemu/telephony/android_modem.c#L2465.
-is(iccInfo.mcc, 310);
-is(iccInfo.mnc, 260);
-is(iccInfo.spn, "Android");
+is(connection.iccInfo.mcc, 310);
+is(connection.iccInfo.mnc, 260);
+is(connection.iccInfo.spn, "Android");
 // Phone number is hardcoded in MSISDN
 // See {B2G_HOME}/external/qemu/telephony/sim_card.c, in asimcard_io()
-is(iccInfo.msisdn, "15555215554");
+is(connection.iccInfo.msisdn, "15555215554");
 
 // Test display condition change.
 function testDisplayConditionChange(func, caseArray, oncomplete) {
@@ -66,9 +64,9 @@ function testDisplayConditionChange(func, caseArray, oncomplete) {
 function testSPN(mcc, mnc, expectedIsDisplayNetworkNameRequired,
                   expectedIsDisplaySpnRequired, callback) {
   waitForIccInfoChange(function() {
-    is(iccInfo.isDisplayNetworkNameRequired,
+    is(connection.iccInfo.isDisplayNetworkNameRequired,
        expectedIsDisplayNetworkNameRequired);
-    is(iccInfo.isDisplaySpnRequired,
+    is(connection.iccInfo.isDisplaySpnRequired,
        expectedIsDisplaySpnRequired);
     // operatorchange will be ignored if we send commands too soon.
     window.setTimeout(callback, 100);
