@@ -3347,7 +3347,7 @@ nsObjectLoadingContent::TeardownProtoChain()
 
   // Loop over the DOM element's JS object prototype chain and remove
   // all JS objects of the class sNPObjectJSWrapperClass
-  DebugOnly<bool> removed = false;
+  bool removed = false;
   while (obj) {
     if (!::JS_GetPrototype(cx, obj, &proto)) {
       return;

@@ -287,7 +287,8 @@ bool
 ThreadPool::submitOne(JSContext *cx, TaskExecutor *executor)
 {
     JS_ASSERT(numWorkers() > 0);
-    JS_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
+
+    runtime_->assertValidThread();
 
     if (!lazyStartWorkers(cx))
         return false;
@@ -300,7 +301,7 @@ ThreadPool::submitOne(JSContext *cx, TaskExecutor *executor)
 bool
 ThreadPool::submitAll(JSContext *cx, TaskExecutor *executor)
 {
-    JS_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
+    runtime_->assertValidThread();
 
     if (!lazyStartWorkers(cx))
         return false;

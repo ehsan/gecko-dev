@@ -793,7 +793,7 @@ static void
 StartRequest(JSContext *cx)
 {
     JSRuntime *rt = cx->runtime();
-    JS_ASSERT(CurrentThreadCanAccessRuntime(rt));
+    rt->assertValidThread();
 
     if (rt->requestDepth) {
         rt->requestDepth++;
@@ -810,8 +810,7 @@ static void
 StopRequest(JSContext *cx)
 {
     JSRuntime *rt = cx->runtime();
-    JS_ASSERT(CurrentThreadCanAccessRuntime(rt));
-
+    rt->assertValidThread();
     JS_ASSERT(rt->requestDepth != 0);
     if (rt->requestDepth != 1) {
         rt->requestDepth--;
@@ -848,7 +847,7 @@ JS_PUBLIC_API(JSBool)
 JS_IsInRequest(JSRuntime *rt)
 {
 #ifdef JS_THREADSAFE
-    JS_ASSERT(CurrentThreadCanAccessRuntime(rt));
+    rt->assertValidThread();
     return rt->requestDepth != 0;
 #else
     return false;
@@ -3050,7 +3049,7 @@ JS_IsNative(JSObject *obj)
 JS_PUBLIC_API(JSRuntime *)
 JS_GetObjectRuntime(JSObject *obj)
 {
-    return obj->compartment()->runtimeFromMainThread();
+    return obj->compartment()->rt;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3158,14 +3157,18 @@ JS_LookupPropertyById(JSContext *cx, JSObject *objArg, jsid idArg, MutableHandle
 }
 
 JS_PUBLIC_API(JSBool)
-JS_LookupElement(JSContext *cx, JSObject *objArg, uint32_t index, MutableHandleValue vp)
+JS_LookupElement(JSContext *cx, JSObject *objArg, uint32_t index, jsval *vp)
 {
     RootedObject obj(cx, objArg);
     CHECK_REQUEST(cx);
     RootedId id(cx);
     if (!IndexToId(cx, index, &id))
         return false;
-    return JS_LookupPropertyById(cx, obj, id, vp);
+    RootedValue value(cx);
+    if (!JS_LookupPropertyById(cx, obj, id, &value))
+        return false;
+    *vp = value;
+    return true;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3810,14 +3813,13 @@ JS_GetPropertyByIdDefault(JSContext *cx, JSObject *objArg, jsid idArg, jsval def
 }
 
 JS_PUBLIC_API(JSBool)
-JS_GetElement(JSContext *cx, JSObject *objArg, uint32_t index, MutableHandleValue vp)
+JS_GetElement(JSContext *cx, JSObject *objArg, uint32_t index, jsval *vp)
 {
     return JS_ForwardGetElementTo(cx, objArg, index, objArg, vp);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_ForwardGetElementTo(JSContext *cx, JSObject *objArg, uint32_t index, JSObject *onBehalfOfArg,
-                       MutableHandleValue vp)
+JS_ForwardGetElementTo(JSContext *cx, JSObject *objArg, uint32_t index, JSObject *onBehalfOfArg, jsval *vp)
 {
     RootedObject obj(cx, objArg);
     RootedObject onBehalfOf(cx, onBehalfOfArg);
@@ -3826,12 +3828,16 @@ JS_ForwardGetElementTo(JSContext *cx, JSObject *objArg, uint32_t index, JSObject
     assertSameCompartment(cx, obj);
     JSAutoResolveFlags rf(cx, 0);
 
-    return JSObject::getElement(cx, obj, onBehalfOf, index, vp);
+    RootedValue value(cx);
+    if (!JSObject::getElement(cx, obj, onBehalfOf, index, &value))
+        return false;
+
+    *vp = value;
+    return true;
 }
 
 JS_PUBLIC_API(JSBool)
-JS_GetElementIfPresent(JSContext *cx, JSObject *objArg, uint32_t index, JSObject *onBehalfOfArg,
-                       MutableHandleValue vp, JSBool* present)
+JS_GetElementIfPresent(JSContext *cx, JSObject *objArg, uint32_t index, JSObject *onBehalfOfArg, jsval *vp, JSBool* present)
 {
     RootedObject obj(cx, objArg);
     RootedObject onBehalfOf(cx, onBehalfOfArg);
@@ -3840,10 +3846,12 @@ JS_GetElementIfPresent(JSContext *cx, JSObject *objArg, uint32_t index, JSObject
     assertSameCompartment(cx, obj);
     JSAutoResolveFlags rf(cx, 0);
 
+    RootedValue value(cx);
     bool isPresent;
-    if (!JSObject::getElementIfPresent(cx, obj, onBehalfOf, index, vp, &isPresent))
+    if (!JSObject::getElementIfPresent(cx, obj, onBehalfOf, index, &value, &isPresent))
         return false;
 
+    *vp = value;
     *present = isPresent;
     return true;
 }
@@ -3890,15 +3898,20 @@ JS_SetPropertyById(JSContext *cx, JSObject *objArg, jsid idArg, HandleValue v)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_SetElement(JSContext *cx, JSObject *objArg, uint32_t index, MutableHandleValue vp)
+JS_SetElement(JSContext *cx, JSObject *objArg, uint32_t index, jsval *vp)
 {
     RootedObject obj(cx, objArg);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj, vp);
+    assertSameCompartment(cx, obj, *vp);
     JSAutoResolveFlags rf(cx, JSRESOLVE_ASSIGNING);
 
-    return JSObject::setElement(cx, obj, obj, index, vp, false);
+    RootedValue value(cx, *vp);
+    if (!JSObject::setElement(cx, obj, obj, index, &value, false))
+        return false;
+
+    *vp = value;
+    return true;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3919,7 +3932,7 @@ JS_SetUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t nam
 }
 
 JS_PUBLIC_API(JSBool)
-JS_DeletePropertyById2(JSContext *cx, JSObject *objArg, jsid id, bool *result)
+JS_DeletePropertyById2(JSContext *cx, JSObject *objArg, jsid id, MutableHandleValue rval)
 {
     RootedObject obj(cx, objArg);
     AssertHeapIsIdle(cx);
@@ -3939,12 +3952,12 @@ JS_DeletePropertyById2(JSContext *cx, JSObject *objArg, jsid id, bool *result)
             return false;
     }
 
-    *result = !!succeeded;
+    rval.setBoolean(succeeded);
     return true;
 }
 
 JS_PUBLIC_API(JSBool)
-JS_DeleteElement2(JSContext *cx, JSObject *objArg, uint32_t index, bool *result)
+JS_DeleteElement2(JSContext *cx, JSObject *objArg, uint32_t index, jsval *rval)
 {
     RootedObject obj(cx, objArg);
     AssertHeapIsIdle(cx);
@@ -3956,12 +3969,12 @@ JS_DeleteElement2(JSContext *cx, JSObject *objArg, uint32_t index, bool *result)
     if (!JSObject::deleteElement(cx, obj, index, &succeeded))
         return false;
 
-    *result = !!succeeded;
+    *rval = BooleanValue(succeeded);
     return true;
 }
 
 JS_PUBLIC_API(JSBool)
-JS_DeleteProperty2(JSContext *cx, JSObject *objArg, const char *name, bool *result)
+JS_DeleteProperty2(JSContext *cx, JSObject *objArg, const char *name, MutableHandleValue rval)
 {
     RootedObject obj(cx, objArg);
     CHECK_REQUEST(cx);
@@ -3976,13 +3989,13 @@ JS_DeleteProperty2(JSContext *cx, JSObject *objArg, const char *name, bool *resu
     if (!JSObject::deleteByValue(cx, obj, StringValue(atom), &succeeded))
         return false;
 
-    *result = !!succeeded;
+    rval.setBoolean(succeeded);
     return true;
 }
 
 JS_PUBLIC_API(JSBool)
 JS_DeleteUCProperty2(JSContext *cx, JSObject *objArg, const jschar *name, size_t namelen,
-                     bool *result)
+                     MutableHandleValue rval)
 {
     RootedObject obj(cx, objArg);
     CHECK_REQUEST(cx);
@@ -3997,28 +4010,28 @@ JS_DeleteUCProperty2(JSContext *cx, JSObject *objArg, const jschar *name, size_t
     if (!JSObject::deleteByValue(cx, obj, StringValue(atom), &succeeded))
         return false;
 
-    *result = !!succeeded;
+    rval.setBoolean(succeeded);
     return true;
 }
 
 JS_PUBLIC_API(JSBool)
 JS_DeletePropertyById(JSContext *cx, JSObject *objArg, jsid idArg)
 {
-    bool junk;
+    RootedValue junk(cx);
     return JS_DeletePropertyById2(cx, objArg, idArg, &junk);
 }
 
 JS_PUBLIC_API(JSBool)
 JS_DeleteElement(JSContext *cx, JSObject *objArg, uint32_t index)
 {
-    bool junk;
+    jsval junk;
     return JS_DeleteElement2(cx, objArg, index, &junk);
 }
 
 JS_PUBLIC_API(JSBool)
 JS_DeleteProperty(JSContext *cx, JSObject *objArg, const char *name)
 {
-    bool junk;
+    RootedValue junk(cx);
     return JS_DeleteProperty2(cx, objArg, name, &junk);
 }
 
@@ -6600,10 +6613,7 @@ JS_SetRuntimeThread(JSRuntime *rt)
 extern JS_NEVER_INLINE JS_PUBLIC_API(void)
 JS_AbortIfWrongThread(JSRuntime *rt)
 {
-    if (!CurrentThreadCanAccessRuntime(rt))
-        MOZ_CRASH();
-    if (!js::TlsPerThreadData.get()->associatedWith(rt))
-        MOZ_CRASH();
+    rt->abortIfWrongThread();
 }
 
 #ifdef JS_GC_ZEAL

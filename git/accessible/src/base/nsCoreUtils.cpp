@@ -75,7 +75,8 @@ nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
   if (!document)
     return;
 
-  nsCOMPtr<nsIPresShell> presShell = document->GetShell();
+  nsIPresShell *presShell = nullptr;
+  presShell = document->GetShell();
   if (!presShell)
     return;
 
@@ -101,14 +102,14 @@ nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
   tcBoxObj->GetY(&tcY);
 
   // Dispatch mouse events.
-  nsWeakFrame tcFrame = tcContent->GetPrimaryFrame();
+  nsIFrame* tcFrame = tcContent->GetPrimaryFrame();
   nsIFrame* rootFrame = presShell->GetRootFrame();
 
   nsPoint offset;
   nsIWidget *rootWidget =
     rootFrame->GetViewExternal()->GetNearestWidget(&offset);
 
-  nsRefPtr<nsPresContext> presContext = presShell->GetPresContext();
+  nsPresContext* presContext = presShell->GetPresContext();
 
   int32_t cnvdX = presContext->CSSPixelsToDevPixels(tcX + x + 1) +
     presContext->AppUnitsToDevPixels(offset.x);

@@ -34,8 +34,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(Crypto)
 
   JSObject *
-  GetRandomValues(JSContext* aCx, const ArrayBufferView& aArray,
-		  ErrorResult& aRv);
+  GetRandomValues(JSContext* aCx, ArrayBufferView& aArray, ErrorResult& aRv);
 
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
   virtual bool EnableSmartCardEvents() = 0;

@@ -2366,6 +2366,7 @@ GetPDA(JSContext *cx, unsigned argc, jsval *vp)
     bool ok;
     JSPropertyDescArray pda;
     JSPropertyDesc *pd;
+    jsval v;
 
     if (!JS_ValueToObject(cx, argc == 0 ? UndefinedValue() : vp[2], vobj.address()))
         return false;
@@ -2398,8 +2399,7 @@ GetPDA(JSContext *cx, unsigned argc, jsval *vp)
         }
 
         /* Protect pdobj from GC by setting it as an element of aobj now */
-        RootedValue v(cx);
-        v.setObject(*pdobj);
+        v = OBJECT_TO_JSVAL(pdobj);
         ok = !!JS_SetElement(cx, aobj, i, &v);
         if (!ok)
             break;

@@ -3,7 +3,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "base/basictypes.h"
-#include "mozilla/Assertions.h"
 #include "DOMCameraPreview.h"
 #include "CameraRecorderProfiles.h"
 #include "CameraControlImpl.h"
@@ -21,7 +20,6 @@ CameraControlImpl::CameraControlImpl(uint32_t aCameraId, nsIThread* aCameraThrea
   , mFileFormat()
   , mMaxMeteringAreas(0)
   , mMaxFocusAreas(0)
-  , mPreviewState(PREVIEW_STOPPED)
   , mDOMPreview(nullptr)
   , mAutoFocusOnSuccessCb(nullptr)
   , mAutoFocusOnErrorCb(nullptr)
@@ -30,7 +28,6 @@ CameraControlImpl::CameraControlImpl(uint32_t aCameraId, nsIThread* aCameraThrea
   , mOnShutterCb(nullptr)
   , mOnClosedCb(nullptr)
   , mOnRecorderStateChangeCb(nullptr)
-  , mOnPreviewStateChangeCb(nullptr)
 {
   DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
 }
@@ -107,7 +104,7 @@ CameraControlImpl::Set(JSContext* aCx, uint32_t aKey, const JS::Value& aValue, u
   for (uint32_t i = 0; i < length; ++i) {
     JS::Rooted<JS::Value> v(aCx);
 
-    if (!JS_GetElement(aCx, regions, i, &v)) {
+    if (!JS_GetElement(aCx, regions, i, v.address())) {
       return NS_ERROR_FAILURE;
     }
 
@@ -189,7 +186,7 @@ CameraControlImpl::Get(JSContext* aCx, uint32_t aKey, JS::Value* aValue)
     }
 
     v = OBJECT_TO_JSVAL(o);
-    if (!JS_SetElement(aCx, array, i, &v)) {
+    if (!JS_SetElement(aCx, array, i, v.address())) {
       return NS_ERROR_FAILURE;
     }
   }
@@ -240,20 +237,6 @@ CameraControlImpl::Get(nsICameraRecorderStateChange** aOnRecorderStateChange)
   return NS_OK;
 }
 
-nsresult
-CameraControlImpl::Set(nsICameraPreviewStateChange* aOnPreviewStateChange)
-{
-  mOnPreviewStateChangeCb = new nsMainThreadPtrHolder<nsICameraPreviewStateChange>(aOnPreviewStateChange);
-  return NS_OK;
-}
-
-nsresult
-CameraControlImpl::Get(nsICameraPreviewStateChange** aOnPreviewStateChange)
-{
-  *aOnPreviewStateChange = mOnPreviewStateChangeCb;
-  return NS_OK;
-}
-
 already_AddRefed<RecorderProfileManager>
 CameraControlImpl::GetRecorderProfileManager()
 {
@@ -271,7 +254,6 @@ CameraControlImpl::Shutdown()
   mOnShutterCb = nullptr;
   mOnClosedCb = nullptr;
   mOnRecorderStateChangeCb = nullptr;
-  mOnPreviewStateChangeCb = nullptr;
 }
 
 void
@@ -342,39 +324,6 @@ CameraControlImpl::OnRecorderStateChange(const nsString& aStateMsg, int32_t aSta
   nsresult rv = NS_DispatchToMainThread(onRecorderStateChange);
   if (NS_FAILED(rv)) {
     DOM_CAMERA_LOGE("Failed to dispatch onRecorderStateChange event to main thread (%d)\n", rv);
-  }
-}
-
-void
-CameraControlImpl::OnPreviewStateChange(PreviewState aNewState)
-{
-  if (aNewState == mPreviewState) {
-    DOM_CAMERA_LOGI("OnPreviewStateChange: state did not change from %d\n", mPreviewState);
-    return;
-  }
-
-  nsString msg;
-  switch (aNewState) {
-    case PREVIEW_STOPPED:
-      msg = NS_LITERAL_STRING("stopped");
-      break;
-
-    case PREVIEW_STARTED:
-      msg = NS_LITERAL_STRING("started");
-      break;
-
-    default:
-      MOZ_ASSUME_UNREACHABLE("Preview state can only be PREVIEW_STOPPED or _STARTED!");
-  }
-
-  // const nsString& aStateMsg)
-  DOM_CAMERA_LOGI("OnPreviewStateChange: '%s'\n", NS_ConvertUTF16toUTF8(msg).get());
-  mPreviewState = aNewState;
-
-  nsCOMPtr<nsIRunnable> onPreviewStateChange = new CameraPreviewStateChange(mOnPreviewStateChangeCb, msg, mWindowId);
-  nsresult rv = NS_DispatchToMainThread(onPreviewStateChange);
-  if (NS_FAILED(rv)) {
-    DOM_CAMERA_LOGE("Failed to dispatch onPreviewStateChange event to main thread (%d)\n", rv);
   }
 }
 

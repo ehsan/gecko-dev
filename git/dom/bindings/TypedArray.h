@@ -9,8 +9,6 @@
 
 #include "jsfriendapi.h"
 #include "js/RootingAPI.h"
-#include "jsapi.h"
-#include "mozilla/dom/BindingDeclarations.h"
 
 namespace mozilla {
 namespace dom {
@@ -23,15 +21,10 @@ namespace dom {
  */
 template<typename T,
          JSObject* UnboxArray(JSObject*, uint32_t*, T**)>
-struct TypedArray_base : AllTypedArraysBase {
+struct TypedArray_base {
   TypedArray_base(JSObject* obj)
   {
-    DoInit(obj);
-  }
-
-  TypedArray_base() :
-    mObj(nullptr)
-  {
+    mObj = UnboxArray(obj, &mLength, &mData);
   }
 
 private:
@@ -40,13 +33,6 @@ private:
   JSObject* mObj;
 
 public:
-  inline bool Init(JSObject* obj)
-  {
-    MOZ_ASSERT(!inited());
-    DoInit(obj);
-    return inited();
-  }
-
   inline bool inited() const {
     return !!mObj;
   }
@@ -65,22 +51,6 @@ public:
     MOZ_ASSERT(inited());
     return mObj;
   }
-
-  inline bool WrapIntoNewCompartment(JSContext* cx)
-  {
-    return JS_WrapObject(cx, &mObj);
-  }
-
-  inline void TraceSelf(JSTracer* trc)
-  {
-    JS_CallObjectTracer(trc, &mObj, "TypedArray.mObj");
-  }
-
-protected:
-  inline void DoInit(JSObject* obj)
-  {
-    mObj = UnboxArray(obj, &mLength, &mData);
-  }
 };
 
 
@@ -91,10 +61,6 @@ template<typename T,
 struct TypedArray : public TypedArray_base<T,UnboxArray> {
   TypedArray(JSObject* obj) :
     TypedArray_base<T,UnboxArray>(obj)
-  {}
-
-  TypedArray() :
-    TypedArray_base<T,UnboxArray>()
   {}
 
   static inline JSObject*

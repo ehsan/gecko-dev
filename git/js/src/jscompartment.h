@@ -122,13 +122,10 @@ class WeakMapBase;
 
 struct JSCompartment
 {
+    JS::Zone                     *zone_;
     JS::CompartmentOptions       options_;
 
-  private:
-    JS::Zone                     *zone_;
-    JSRuntime                    *runtime_;
-
-  public:
+    JSRuntime                    *rt;
     JSPrincipals                 *principals;
     bool                         isSystem;
     bool                         marked;
@@ -156,17 +153,6 @@ struct JSCompartment
     const JS::Zone *zone() const { return zone_; }
     JS::CompartmentOptions &options() { return options_; }
     const JS::CompartmentOptions &options() const { return options_; }
-
-    JSRuntime *runtimeFromMainThread() {
-        JS_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
-        return runtime_;
-    }
-
-    // Note: Unrestricted access to the zone's runtime from an arbitrary
-    // thread can easily lead to races. Use this method very carefully.
-    JSRuntime *runtimeFromAnyThread() const {
-        return runtime_;
-    }
 
     /*
      * Nb: global_ might be NULL, if (a) it's the atoms compartment, or (b) the

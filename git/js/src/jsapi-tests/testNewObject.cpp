@@ -41,8 +41,7 @@ constructHook(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     // Perform a side-effect to indicate that this hook was actually called.
-    JS::RootedValue value(cx, argv[0]);
-    if (!JS_SetElement(cx, callee, 0, &value))
+    if (!JS_SetElement(cx, callee, 0, &argv[0]))
         return false;
 
     *vp = OBJECT_TO_JSVAL(obj);
@@ -88,7 +87,7 @@ BEGIN_TEST(testNewObject_1)
     CHECK(JS_IsArrayObject(cx, obj));
     CHECK(JS_GetArrayLength(cx, obj, &len));
     CHECK_EQUAL(len, N);
-    CHECK(JS_GetElement(cx, obj, N - 1, &v));
+    CHECK(JS_GetElement(cx, obj, N - 1, v.address()));
     CHECK_SAME(v, INT_TO_JSVAL(N - 1));
 
     // With JSClass.construct.
@@ -104,7 +103,7 @@ BEGIN_TEST(testNewObject_1)
     JS::RootedValue rt2(cx, OBJECT_TO_JSVAL(ctor));
     obj = JS_New(cx, ctor, 3, argv);
     CHECK(obj);
-    CHECK(JS_GetElement(cx, ctor, 0, &v));
+    CHECK(JS_GetElement(cx, ctor, 0, v.address()));
     CHECK_SAME(v, JSVAL_ZERO);
 
     JS_RemoveValueRoot(cx, &argv[0]);

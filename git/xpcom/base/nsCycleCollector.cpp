@@ -909,6 +909,8 @@ class nsCycleCollectorRunner;
 // Top level structure for the cycle collector.
 ////////////////////////////////////////////////////////////////////////
 
+class AsyncFreeSnowWhite;
+
 class nsCycleCollector
 {
     friend class GCGraphBuilder;
@@ -2234,6 +2236,7 @@ public:
                            bool aAsyncSnowWhiteFreeing,
                            CC_ForgetSkippableCallback aCb)
         : SnowWhiteKiller(aAsyncSnowWhiteFreeing ? 0 : aMaxCount),
+          mCollector(aCollector),
           mRemoveChildlessNodes(aRemoveChildlessNodes),
           mAsyncSnowWhiteFreeing(aAsyncSnowWhiteFreeing),
           mDispatchedDeferredDeletion(false),
@@ -2277,6 +2280,7 @@ public:
     }
 
 private:
+    nsCycleCollector* mCollector;
     bool mRemoveChildlessNodes;
     bool mAsyncSnowWhiteFreeing;
     bool mDispatchedDeferredDeletion;

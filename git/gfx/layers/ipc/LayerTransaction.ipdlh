@@ -18,7 +18,6 @@ include "mozilla/dom/ScreenOrientation.h";
 include "nsCSSProperty.h";
 include "gfxipc/ShadowLayerUtils.h";
 include "ImageLayers.h";
-include "mozilla/layers/CompositorTypes.h";
 
 using gfxPoint3D;
 using nscoord;
@@ -33,7 +32,6 @@ using mozilla::layers::TextureInfo;
 using mozilla::LayerMargin;
 using mozilla::LayerPoint;
 using mozilla::layers::ImageLayer::ScaleMode;
-using mozilla::layers::DiagnosticTypes;
 
 namespace mozilla {
 namespace layers {
@@ -239,7 +237,7 @@ struct OpRemoveChild      { PLayer container; PLayer childLayer; };
 struct OpRepositionChild  { PLayer container; PLayer childLayer; PLayer after; };
 struct OpRaiseToTopChild  { PLayer container; PLayer childLayer; };
 
-struct OpSetDiagnosticTypes { DiagnosticTypes diagnostics; };
+struct OpSetColoredBorders { bool enabled; };
 
 // Paint (buffer update)
 struct OpPaintTiledLayerBuffer {
@@ -362,7 +360,7 @@ union Edit {
   OpCreateRefLayer;
 
   OpSetLayerAttributes;
-  OpSetDiagnosticTypes;
+  OpSetColoredBorders;
 
   OpSetRoot;
   OpInsertAfter;

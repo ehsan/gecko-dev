@@ -400,19 +400,15 @@ WebGLContext::BufferData(WebGLenum target, WebGLsizeiptr size,
 }
 
 void
-WebGLContext::BufferData(WebGLenum target,
-                         const Nullable<ArrayBuffer> &maybeData,
-                         WebGLenum usage)
+WebGLContext::BufferData(WebGLenum target, ArrayBuffer *data, WebGLenum usage)
 {
     if (!IsContextStable())
         return;
 
-    if (maybeData.IsNull()) {
+    if (!data) {
         // see http://www.khronos.org/bugzilla/show_bug.cgi?id=386
         return ErrorInvalidValue("bufferData: null object passed");
     }
-
-    const ArrayBuffer& data = maybeData.Value();
 
     WebGLBuffer *boundBuffer = nullptr;
 
@@ -433,22 +429,21 @@ WebGLContext::BufferData(WebGLenum target,
     MakeContextCurrent();
     InvalidateCachedMinInUseAttribArrayLength();
 
-    GLenum error = CheckedBufferData(target, data.Length(), data.Data(), usage);
+    GLenum error = CheckedBufferData(target, data->Length(), data->Data(), usage);
 
     if (error) {
         GenerateWarning("bufferData generated error %s", ErrorName(error));
         return;
     }
 
-    boundBuffer->SetByteLength(data.Length());
-    if (!boundBuffer->ElementArrayCacheBufferData(data.Data(), data.Length())) {
+    boundBuffer->SetByteLength(data->Length());
+    if (!boundBuffer->ElementArrayCacheBufferData(data->Data(), data->Length())) {
         return ErrorOutOfMemory("bufferData: out of memory");
     }
 }
 
 void
-WebGLContext::BufferData(WebGLenum target, const ArrayBufferView& data,
-                         WebGLenum usage)
+WebGLContext::BufferData(WebGLenum target, ArrayBufferView& data, WebGLenum usage)
 {
     if (!IsContextStable())
         return;
@@ -486,17 +481,15 @@ WebGLContext::BufferData(WebGLenum target, const ArrayBufferView& data,
 
 void
 WebGLContext::BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
-                            const Nullable<ArrayBuffer> &maybeData)
+                            ArrayBuffer *data)
 {
     if (!IsContextStable())
         return;
 
-    if (maybeData.IsNull()) {
+    if (!data) {
         // see http://www.khronos.org/bugzilla/show_bug.cgi?id=386
         return;
     }
-
-    const ArrayBuffer& data = maybeData.Value();
 
     WebGLBuffer *boundBuffer = nullptr;
 
@@ -514,7 +507,7 @@ WebGLContext::BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
     if (!boundBuffer)
         return ErrorInvalidOperation("bufferData: no buffer bound!");
 
-    CheckedUint32 checked_neededByteLength = CheckedUint32(byteOffset) + data.Length();
+    CheckedUint32 checked_neededByteLength = CheckedUint32(byteOffset) + data->Length();
     if (!checked_neededByteLength.isValid())
         return ErrorInvalidValue("bufferSubData: integer overflow computing the needed byte length");
 
@@ -524,14 +517,14 @@ WebGLContext::BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
 
     MakeContextCurrent();
 
-    boundBuffer->ElementArrayCacheBufferSubData(byteOffset, data.Data(), data.Length());
+    boundBuffer->ElementArrayCacheBufferSubData(byteOffset, data->Data(), data->Length());
 
-    gl->fBufferSubData(target, byteOffset, data.Length(), data.Data());
+    gl->fBufferSubData(target, byteOffset, data->Length(), data->Data());
 }
 
 void
 WebGLContext::BufferSubData(WebGLenum target, WebGLsizeiptr byteOffset,
-                            const ArrayBufferView& data)
+                            ArrayBufferView& data)
 {
     if (!IsContextStable())
         return;
@@ -3021,7 +3014,7 @@ WebGLContext::PixelStorei(WebGLenum pname, WebGLint param)
 void
 WebGLContext::ReadPixels(WebGLint x, WebGLint y, WebGLsizei width,
                          WebGLsizei height, WebGLenum format,
-                         WebGLenum type, const Nullable<ArrayBufferView> &pixels,
+                         WebGLenum type, ArrayBufferView* pixels,
                          ErrorResult& rv)
 {
     if (!IsContextStable()) {
@@ -3036,7 +3029,7 @@ WebGLContext::ReadPixels(WebGLint x, WebGLint y, WebGLsizei width,
     if (width < 0 || height < 0)
         return ErrorInvalidValue("readPixels: negative size passed");
 
-    if (pixels.IsNull())
+    if (!pixels)
         return ErrorInvalidValue("readPixels: null destination buffer");
 
     const WebGLRectangleObject *framebufferRect = FramebufferRectangleObject();
@@ -3079,7 +3072,7 @@ WebGLContext::ReadPixels(WebGLint x, WebGLint y, WebGLsizei width,
             return ErrorInvalidEnum("readPixels: Bad type");
     }
 
-    int dataType = JS_GetArrayBufferViewType(pixels.Value().Obj());
+    int dataType = JS_GetArrayBufferViewType(pixels->Obj());
 
     // Check the pixels param type
     if (dataType != requiredDataType)
@@ -3097,11 +3090,11 @@ WebGLContext::ReadPixels(WebGLint x, WebGLint y, WebGLsizei width,
     if (!checked_neededByteLength.isValid())
         return ErrorInvalidOperation("readPixels: integer overflow computing the needed buffer size");
 
-    uint32_t dataByteLen = JS_GetTypedArrayByteLength(pixels.Value().Obj());
+    uint32_t dataByteLen = JS_GetTypedArrayByteLength(pixels->Obj());
     if (checked_neededByteLength.value() > dataByteLen)
         return ErrorInvalidOperation("readPixels: buffer too small");
 
-    void* data = pixels.Value().Data();
+    void* data = pixels->Data();
     if (!data) {
         ErrorOutOfMemory("readPixels: buffer storage is null. Did we run out of memory?");
         return rv.Throw(NS_ERROR_OUT_OF_MEMORY);
@@ -4296,7 +4289,7 @@ WebGLContext::CompileShader(WebGLShader *shader)
 void
 WebGLContext::CompressedTexImage2D(WebGLenum target, WebGLint level, WebGLenum internalformat,
                                    WebGLsizei width, WebGLsizei height, WebGLint border,
-                                   const ArrayBufferView& view)
+                                   ArrayBufferView& view)
 {
     if (!IsContextStable()) {
         return;
@@ -4336,7 +4329,7 @@ WebGLContext::CompressedTexImage2D(WebGLenum target, WebGLint level, WebGLenum i
 void
 WebGLContext::CompressedTexSubImage2D(WebGLenum target, WebGLint level, WebGLint xoffset,
                                       WebGLint yoffset, WebGLsizei width, WebGLsizei height,
-                                      WebGLenum format, const ArrayBufferView& view)
+                                      WebGLenum format, ArrayBufferView& view)
 {
     if (!IsContextStable()) {
         return;
@@ -4868,15 +4861,15 @@ void
 WebGLContext::TexImage2D(WebGLenum target, WebGLint level,
                          WebGLenum internalformat, WebGLsizei width,
                          WebGLsizei height, WebGLint border, WebGLenum format,
-                         WebGLenum type, const Nullable<ArrayBufferView> &pixels, ErrorResult& rv)
+                         WebGLenum type, ArrayBufferView *pixels, ErrorResult& rv)
 {
     if (!IsContextStable())
         return;
 
     return TexImage2D_base(target, level, internalformat, width, height, 0, border, format, type,
-                           pixels.IsNull() ? 0 : pixels.Value().Data(),
-                           pixels.IsNull() ? 0 : pixels.Value().Length(),
-                           pixels.IsNull() ? -1 : (int)JS_GetArrayBufferViewType(pixels.Value().Obj()),
+                           pixels ? pixels->Data() : 0,
+                           pixels ? pixels->Length() : 0,
+                           pixels ? (int)JS_GetArrayBufferViewType(pixels->Obj()) : -1,
                            WebGLTexelConversions::Auto, false);
 }
 
@@ -5018,19 +5011,19 @@ WebGLContext::TexSubImage2D(WebGLenum target, WebGLint level,
                             WebGLint xoffset, WebGLint yoffset,
                             WebGLsizei width, WebGLsizei height,
                             WebGLenum format, WebGLenum type,
-                            const Nullable<ArrayBufferView> &pixels,
+                            ArrayBufferView* pixels,
                             ErrorResult& rv)
 {
     if (!IsContextStable())
         return;
 
-    if (pixels.IsNull())
+    if (!pixels)
         return ErrorInvalidValue("texSubImage2D: pixels must not be null!");
 
     return TexSubImage2D_base(target, level, xoffset, yoffset,
                               width, height, 0, format, type,
-                              pixels.Value().Data(), pixels.Value().Length(),
-                              JS_GetArrayBufferViewType(pixels.Value().Obj()),
+                              pixels->Data(), pixels->Length(),
+                              JS_GetArrayBufferViewType(pixels->Obj()),
                               WebGLTexelConversions::Auto, false);
 }
 
@@ -5284,7 +5277,6 @@ WebGLContext::ReattachTextureToAnyFramebufferToWorkAroundBugs(WebGLTexture *tex,
         return;
 
     MakeContextCurrent();
-    WebGLFramebuffer* curFB = mBoundFramebuffer;
 
     for(WebGLFramebuffer *framebuffer = mFramebuffers.getFirst();
         framebuffer;
@@ -5294,31 +5286,29 @@ WebGLContext::ReattachTextureToAnyFramebufferToWorkAroundBugs(WebGLTexture *tex,
         for (size_t i = 0; i < colorAttachmentCount; i++)
         {
             if (framebuffer->ColorAttachment(i).Texture() == tex) {
-                BindFramebuffer(LOCAL_GL_FRAMEBUFFER, framebuffer);
+                ScopedBindFramebuffer autoFB(gl, framebuffer->GLName());
                 framebuffer->FramebufferTexture2D(
                   LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0 + i,
                   tex->Target(), tex, level);
             }
         }
         if (framebuffer->DepthAttachment().Texture() == tex) {
-            BindFramebuffer(LOCAL_GL_FRAMEBUFFER, framebuffer);
+            ScopedBindFramebuffer autoFB(gl, framebuffer->GLName());
             framebuffer->FramebufferTexture2D(
               LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT,
               tex->Target(), tex, level);
         }
         if (framebuffer->StencilAttachment().Texture() == tex) {
-            BindFramebuffer(LOCAL_GL_FRAMEBUFFER, framebuffer);
+            ScopedBindFramebuffer autoFB(gl, framebuffer->GLName());
             framebuffer->FramebufferTexture2D(
               LOCAL_GL_FRAMEBUFFER, LOCAL_GL_STENCIL_ATTACHMENT,
               tex->Target(), tex, level);
         }
         if (framebuffer->DepthStencilAttachment().Texture() == tex) {
-            BindFramebuffer(LOCAL_GL_FRAMEBUFFER, framebuffer);
+            ScopedBindFramebuffer autoFB(gl, framebuffer->GLName());
             framebuffer->FramebufferTexture2D(
               LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_STENCIL_ATTACHMENT,
               tex->Target(), tex, level);
         }
     }
-
-    BindFramebuffer(LOCAL_GL_FRAMEBUFFER, curFB);
 }

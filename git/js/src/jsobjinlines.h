@@ -106,7 +106,7 @@ JSObject::finalize(js::FreeOp *fop)
     JS_ASSERT(isTenured());
     if (!IsBackgroundFinalized(tenuredGetAllocKind())) {
         /* Assert we're on the main thread. */
-        JS_ASSERT(CurrentThreadCanAccessRuntime(fop->runtime()));
+        fop->runtime()->assertValidThread();
     }
 #endif
     js::Class *clasp = getClass();
@@ -278,7 +278,7 @@ inline void
 JSObject::initDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count)
 {
     JS_ASSERT(dstStart + count <= getDenseCapacity());
-    JSRuntime *rt = runtimeFromMainThread();
+    JSRuntime *rt = runtime();
     for (uint32_t i = 0; i < count; ++i)
         elements[dstStart + i].init(rt, this, js::HeapSlot::Element, dstStart + i, src[i]);
 }
@@ -316,7 +316,7 @@ JSObject::moveDenseElements(uint32_t dstStart, uint32_t srcStart, uint32_t count
         }
     } else {
         memmove(elements + dstStart, elements + srcStart, count * sizeof(js::HeapSlot));
-        DenseRangeWriteBarrierPost(runtimeFromMainThread(), this, dstStart, count);
+        DenseRangeWriteBarrierPost(runtime(), this, dstStart, count);
     }
 }
 
@@ -352,7 +352,7 @@ JSObject::ensureDenseInitializedLength(js::ExclusiveContext *cx, uint32_t index,
         markDenseElementsNotPacked(cx);
 
     if (initlen < index + extra) {
-        JSRuntime *rt = runtimeFromAnyThread();
+        JSRuntime *rt = runtime();
         size_t offset = initlen;
         for (js::HeapSlot *sp = elements + initlen;
              sp != elements + (index + extra);

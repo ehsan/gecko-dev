@@ -93,7 +93,7 @@ JSObjectBuilder::ArrayPush(JSCustomArray *aArray, int value)
     return;
 
   JS::Rooted<JS::Value> objval(mCx, INT_TO_JSVAL(value));
-  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, &objval);
+  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, objval.address());
 }
 
 void
@@ -115,7 +115,7 @@ JSObjectBuilder::ArrayPush(JSCustomArray *aArray, const char *value)
     return;
 
   JS::Rooted<JS::Value> objval(mCx, STRING_TO_JSVAL(string));
-  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, &objval);
+  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, objval.address());
 }
 
 void
@@ -131,7 +131,7 @@ JSObjectBuilder::ArrayPush(JSCustomArray *aArray, JSCustomObject *aObject)
     return;
 
   JS::Rooted<JS::Value> objval(mCx, OBJECT_TO_JSVAL((JSObject*)aObject));
-  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, &objval);
+  mOk = JS_SetElement(mCx, (JSObject*)aArray, length, objval.address());
 }
 
 JSCustomArray*

@@ -2462,7 +2462,7 @@ ImplicitConvert(JSContext* cx,
 
       for (uint32_t i = 0; i < sourceLength; ++i) {
         RootedValue item(cx);
-        if (!JS_GetElement(cx, valObj, i, &item))
+        if (!JS_GetElement(cx, valObj, i, item.address()))
           return false;
 
         char* data = intermediate.get() + elementSize * i;
@@ -4793,7 +4793,7 @@ StructType::DefineInternal(JSContext* cx, JSObject* typeObj_, JSObject* fieldsOb
 
     for (uint32_t i = 0; i < len; ++i) {
       RootedValue item(cx);
-      if (!JS_GetElement(cx, fieldsObj, i, &item))
+      if (!JS_GetElement(cx, fieldsObj, i, item.address()))
         return JS_FALSE;
 
       RootedObject fieldType(cx, NULL);
@@ -5567,7 +5567,7 @@ FunctionType::Create(JSContext* cx, unsigned argc, jsval* vp)
     return JS_FALSE;
   }
 
-  AutoValueVector argTypes(cx);
+  Array<jsval, 16> argTypes;
   RootedObject arrayObj(cx, NULL);
 
   if (args.length() == 3) {
@@ -5582,16 +5582,17 @@ FunctionType::Create(JSContext* cx, unsigned argc, jsval* vp)
     uint32_t len;
     ASSERT_OK(JS_GetArrayLength(cx, arrayObj, &len));
 
-    if (!argTypes.resize(len)) {
+    if (!argTypes.appendN(JSVAL_VOID, len)) {
       JS_ReportOutOfMemory(cx);
       return JS_FALSE;
     }
   }
 
   // Pull out the argument types from the array, if any.
-  JS_ASSERT_IF(argTypes.length(), arrayObj);
+  JS_ASSERT(!argTypes.length() || arrayObj);
+  js::AutoArrayRooter items(cx, argTypes.length(), argTypes.begin());
   for (uint32_t i = 0; i < argTypes.length(); ++i) {
-    if (!JS_GetElement(cx, arrayObj, i, argTypes.handleAt(i)))
+    if (!JS_GetElement(cx, arrayObj, i, &argTypes[i]))
       return JS_FALSE;
   }
 

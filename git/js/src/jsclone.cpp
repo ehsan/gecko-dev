@@ -478,7 +478,7 @@ JSStructuredCloneWriter::parseTransferable()
     RootedValue v(context());
 
     for (uint32_t i = 0; i < length; ++i) {
-        if (!JS_GetElement(context(), array, i, &v)) {
+        if (!JS_GetElement(context(), array, i, v.address())) {
             return false;
         }
 

@@ -855,10 +855,7 @@ ContentParent::ShutDownProcess(bool aCloseWithError)
   // CC'ed objects, so we need to null them out here, while we still can.  See
   // bug 899761.
   mMemoryReporters.Clear();
-  if (mMessageManager) {
-    mMessageManager->Disconnect();
-    mMessageManager = nullptr;
-  }
+  mMessageManager = nullptr;
 }
 
 void
@@ -997,9 +994,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
 #endif
     }
 
-    if (ppm) {
-      ppm->Disconnect();
-    }
+    mMessageManager->Disconnect();
 
     // clear the child memory reporters
     InfallibleTArray<MemoryReport> empty;

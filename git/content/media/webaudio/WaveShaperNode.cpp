@@ -121,14 +121,14 @@ WaveShaperNode::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
 }
 
 void
-WaveShaperNode::SetCurve(const Nullable<Float32Array>& aCurve)
+WaveShaperNode::SetCurve(const Float32Array* aCurve)
 {
   nsTArray<float> curve;
-  if (!aCurve.IsNull()) {
-    mCurve = aCurve.Value().Obj();
+  if (aCurve) {
+    mCurve = aCurve->Obj();
 
-    curve.SetLength(aCurve.Value().Length());
-    PodCopy(curve.Elements(), aCurve.Value().Data(), aCurve.Value().Length());
+    curve.SetLength(aCurve->Length());
+    PodCopy(curve.Elements(), aCurve->Data(), aCurve->Length());
   } else {
     mCurve = nullptr;
   }
