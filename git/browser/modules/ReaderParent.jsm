@@ -178,7 +178,8 @@ let ReaderParent = {
     }
 
     // Next, try to find a parsed article in the cache.
-    article = yield ReaderMode.getArticleFromCache(url);
+    let uri = Services.io.newURI(url, null, null);
+    article = yield ReaderMode.getArticleFromCache(uri);
     if (article) {
       return article;
     }

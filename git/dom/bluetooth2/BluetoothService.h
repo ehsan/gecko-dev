@@ -93,39 +93,21 @@ public:
   UnregisterAllSignalHandlers(BluetoothSignalObserver* aMsgHandler);
 
   /**
-   * Create a signal without value and distribute it to the observer list
-   *
-   * @param aName Name of the signal
-   * @param aPath Path of the signal to distribute to
-   */
-  void
-  DistributeSignal(const nsAString& aName, const nsAString& aPath);
-
-  /**
-   * Create a signal and distribute it to the observer list
-   *
-   * @param aName Name of the signal
-   * @param aPath Path of the signal to distribute to
-   * @param aValue Value of the signal to carry
-   */
-  void
-  DistributeSignal(const nsAString& aName, const nsAString& aPath,
-                   const BluetoothValue& aValue);
-
-  /**
    * Distribute a signal to the observer list
    *
    * @param aSignal Signal object to distribute
+   *
+   * @return NS_OK if signal distributed, NS_ERROR_FAILURE on error
    */
   void
-  DistributeSignal(const BluetoothSignal& aSignal);
+  DistributeSignal(const BluetoothSignal& aEvent);
 
   /**
    * Returns the BluetoothService singleton. Only to be called from main thread.
    *
    * @param aService Pointer to return singleton into.
    *
-   * @return non-nullptr on proper assignment, nullptr otherwise (if service
+   * @return NS_OK on proper assignment, NS_ERROR_FAILURE otherwise (if service
    * has not yet been started, for instance)
    */
   static BluetoothService*

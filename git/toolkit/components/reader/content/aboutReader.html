@@ -11,19 +11,17 @@
 </head>
 
 <body>
-  <div id="container">
-    <div id="reader-header" class="header">
-      <a id="reader-domain" class="domain"></a>
-      <div class="domain-border"></div>
-      <h1 id="reader-title"></h1>
-      <div id="reader-credits" class="credits"></div>
-    </div>
+  <div id="reader-header" class="header">
+    <a id="reader-domain" class="domain"></a>
+    <div class="domain-border"></div>
+    <h1 id="reader-title"></h1>
+    <div id="reader-credits" class="credits"></div>
+  </div>
 
-    <div id="reader-content" class="content">
-    </div>
+  <div id="reader-content" class="content">
+  </div>
 
-    <div id="reader-message" class="message">
-    </div>
+  <div id="reader-message" class="message">
   </div>
 
   <ul id="reader-toolbar" class="toolbar toolbar-hidden">
@@ -32,15 +30,14 @@
     <ul id="style-dropdown" class="dropdown">
       <li><button class="dropdown-toggle button style-button"/></li>
       <li class="dropdown-popup">
-        <div id="font-type-buttons"></div>
+        <ul id="font-type-buttons"></ul>
         <hr></hr>
         <div id="font-size-buttons">
           <button id="font-size-minus" class="minus-button"/>
-          <button id="font-size-sample"/>
           <button id="font-size-plus" class="plus-button"/>
         </div>
         <hr></hr>
-        <div id="color-scheme-buttons"></div>
+        <ul id="color-scheme-buttons" class="segmented-button"></ul>
         <div class="dropdown-arrow"/>
       </li>
     </ul>

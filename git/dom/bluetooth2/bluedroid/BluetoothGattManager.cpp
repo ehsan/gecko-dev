@@ -261,10 +261,11 @@ public:
     NS_ENSURE_TRUE_VOID(bs);
 
     // Notify BluetoothGatt for client disconnected
-    bs->DistributeSignal(
+    BluetoothSignal signal(
       NS_LITERAL_STRING(GATT_CONNECTION_STATE_CHANGED_ID),
       mClient->mAppUuid,
       BluetoothValue(false)); // Disconnected
+    bs->DistributeSignal(signal);
 
     // Reject the connect request
     if (mClient->mConnectRunnable) {
@@ -297,10 +298,11 @@ public:
     NS_ENSURE_TRUE_VOID(bs);
 
     // Notify BluetoothGatt to clear the clientIf
-    bs->DistributeSignal(
+    BluetoothSignal signal(
       NS_LITERAL_STRING("ClientUnregistered"),
       mClient->mAppUuid,
       BluetoothValue(true));
+    bs->DistributeSignal(signal);
 
     // Resolve the unregister request
     DispatchReplySuccess(mClient->mUnregisterClientRunnable);
@@ -372,10 +374,11 @@ public:
     NS_ENSURE_TRUE_VOID(bs);
 
     // Notify BluetoothGatt for client disconnected
-    bs->DistributeSignal(
+    BluetoothSignal signal(
       NS_LITERAL_STRING(GATT_CONNECTION_STATE_CHANGED_ID),
       mClient->mAppUuid,
       BluetoothValue(false)); // Disconnected
+    bs->DistributeSignal(signal);
 
     // Reject the connect request
     DispatchReplyError(mClient->mConnectRunnable,
@@ -441,10 +444,11 @@ public:
     NS_ENSURE_TRUE_VOID(bs);
 
     // Notify BluetoothGatt that the client remains connected
-    bs->DistributeSignal(
+    BluetoothSignal signal(
       NS_LITERAL_STRING(GATT_CONNECTION_STATE_CHANGED_ID),
       mClient->mAppUuid,
       BluetoothValue(true)); // Connected
+    bs->DistributeSignal(signal);
 
     // Reject the disconnect request
     DispatchReplyError(mClient->mDisconnectRunnable,
@@ -511,9 +515,10 @@ BluetoothGattManager::RegisterClientNotification(int aStatus,
       aClientIf, aStatus, NS_ConvertUTF16toUTF8(uuid).get());
 
     // Notify BluetoothGatt for client disconnected
-    bs->DistributeSignal(
+    BluetoothSignal signal(
       NS_LITERAL_STRING(GATT_CONNECTION_STATE_CHANGED_ID),
       uuid, BluetoothValue(false)); // Disconnected
+    bs->DistributeSignal(signal);
 
     // Reject the connect request
     if (client->mConnectRunnable) {
@@ -530,9 +535,10 @@ BluetoothGattManager::RegisterClientNotification(int aStatus,
   client->mClientIf = aClientIf;
 
   // Notify BluetoothGatt to update the clientIf
-  bs->DistributeSignal(
+  BluetoothSignal signal(
     NS_LITERAL_STRING("ClientRegistered"),
     uuid, BluetoothValue(uint32_t(aClientIf)));
+  bs->DistributeSignal(signal);
 
   // Client just registered, proceed remaining connect request.
   if (client->mConnectRunnable) {
@@ -570,10 +576,11 @@ BluetoothGattManager::ConnectNotification(int aConnId,
                  aClientIf, aConnId, aStatus);
 
     // Notify BluetoothGatt that the client remains disconnected
-    bs->DistributeSignal(
+    BluetoothSignal signal(
       NS_LITERAL_STRING(GATT_CONNECTION_STATE_CHANGED_ID),
       client->mAppUuid,
       BluetoothValue(false)); // Disconnected
+    bs->DistributeSignal(signal);
 
     // Reject the connect request
     if (client->mConnectRunnable) {
@@ -588,10 +595,11 @@ BluetoothGattManager::ConnectNotification(int aConnId,
   client->mConnId = aConnId;
 
   // Notify BluetoothGatt for client connected
-  bs->DistributeSignal(
+  BluetoothSignal signal(
     NS_LITERAL_STRING(GATT_CONNECTION_STATE_CHANGED_ID),
     client->mAppUuid,
     BluetoothValue(true)); // Connected
+  bs->DistributeSignal(signal);
 
   // Resolve the connect request
   if (client->mConnectRunnable) {
@@ -619,10 +627,11 @@ BluetoothGattManager::DisconnectNotification(int aConnId,
 
   if (aStatus) { // operation failed
     // Notify BluetoothGatt that the client remains connected
-    bs->DistributeSignal(
+    BluetoothSignal signal(
       NS_LITERAL_STRING(GATT_CONNECTION_STATE_CHANGED_ID),
       client->mAppUuid,
       BluetoothValue(true)); // Connected
+    bs->DistributeSignal(signal);
 
     // Reject the disconnect request
     if (client->mDisconnectRunnable) {
@@ -637,10 +646,11 @@ BluetoothGattManager::DisconnectNotification(int aConnId,
   client->mConnId = 0;
 
   // Notify BluetoothGatt for client disconnected
-  bs->DistributeSignal(
+  BluetoothSignal signal(
     NS_LITERAL_STRING(GATT_CONNECTION_STATE_CHANGED_ID),
     client->mAppUuid,
     BluetoothValue(false)); // Disconnected
+  bs->DistributeSignal(signal);
 
   // Resolve the disconnect request
   if (client->mDisconnectRunnable) {

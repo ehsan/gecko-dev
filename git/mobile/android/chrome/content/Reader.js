@@ -28,7 +28,8 @@ let Reader = {
         break;
       }
       case "Reader:Removed": {
-        ReaderMode.removeArticleFromCache(aData).catch(e => Cu.reportError("Error removing article from cache: " + e));
+        let uri = Services.io.newURI(aData, null, null);
+        ReaderMode.removeArticleFromCache(uri).catch(e => Cu.reportError("Error removing article from cache: " + e));
 
         let mm = window.getGroupMessageManager("browsers");
         mm.broadcastAsyncMessage("Reader:Removed", { url: aData });
@@ -221,8 +222,8 @@ let Reader = {
       throw new Error("Can't add tab to reading list because no tab found for ID: " + tabID);
     }
 
-    let url = tab.browser.currentURI.spec;
-    let article = yield this._getArticle(url, tab.browser).catch(e => {
+    let urlWithoutRef = tab.browser.currentURI.specIgnoringRef;
+    let article = yield this._getArticle(urlWithoutRef, tab.browser).catch(e => {
       Cu.reportError("Error getting article for tab: " + e);
       return null;
     });
@@ -230,7 +231,7 @@ let Reader = {
       // If there was a problem getting the article, just store the
       // URL and title from the tab.
       article = {
-        url: url,
+        url: urlWithoutRef,
         title: tab.browser.contentDocument.title,
         length: 0,
         excerpt: "",
@@ -275,7 +276,8 @@ let Reader = {
     }
 
     // Next, try to find a parsed article in the cache.
-    article = yield ReaderMode.getArticleFromCache(url);
+    let uri = Services.io.newURI(url, null, null);
+    article = yield ReaderMode.getArticleFromCache(uri);
     if (article) {
       return article;
     }

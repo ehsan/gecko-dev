@@ -100,7 +100,6 @@ function debug(s) {
 }
 
 function SmsService() {
-  this._updateDebugFlag();
   this._silentNumbers = [];
   this.smsDefaultServiceId = this._getDefaultServiceId();
 
@@ -130,7 +129,7 @@ SmsService.prototype = {
 
   _updateDebugFlag: function() {
     try {
-      DEBUG = DEBUG ||
+      DEBUG = RIL.DEBUG_RIL ||
               Services.prefs.getBoolPref(kPrefRilDebuggingEnabled);
     } catch (e) {}
   },
