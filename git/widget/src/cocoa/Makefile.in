@@ -87,7 +87,6 @@ CMMSRCS = \
 		nsPrintSettingsX.mm \
 		nsIdleServiceX.mm \
 		nsAccelerometerX.mm \
-		nsCocoaTextInputHandler.mm \
 		$(NULL)
 
 ifdef MOZ_COCOA_PRINTING
