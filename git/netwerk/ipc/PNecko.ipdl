@@ -13,7 +13,6 @@ include protocol PWyciwygChannel;
 include protocol PFTPChannel;
 include protocol PWebSocket;
 include protocol PTCPSocket;
-include protocol PTCPServerSocket;
 include protocol PRemoteOpenFile;
 include protocol PBlob; //FIXME: bug #792908
 
@@ -38,7 +37,6 @@ sync protocol PNecko
   manages PFTPChannel;
   manages PWebSocket;
   manages PTCPSocket;
-  manages PTCPServerSocket;
   manages PRemoteOpenFile;
 
 parent:
@@ -53,14 +51,15 @@ parent:
               FTPChannelCreationArgs args);
 
   PWebSocket(PBrowser browser, SerializedLoadContext loadContext);
-  PTCPServerSocket(uint16_t localPort, uint16_t backlog, nsString binaryType);
+  PTCPSocket(nsString host, uint16_t port, bool useSSL, nsString binaryType,
+             nullable PBrowser browser);
+
+  // Request that the parent open a file.
   PRemoteOpenFile(URIParams fileuri, nullable PBrowser browser);
 
   HTMLDNSPrefetch(nsString hostname, uint16_t flags);
   CancelHTMLDNSPrefetch(nsString hostname, uint16_t flags, nsresult reason);
 
-both:
-  PTCPSocket();
 };
 
 

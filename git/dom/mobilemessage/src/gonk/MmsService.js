@@ -287,11 +287,6 @@ XPCOMUtils.defineLazyGetter(this, "gMmsConnection", function () {
         return;
       }
 
-      if (!this.port) {
-        this.port = 80;
-        if (DEBUG) debug("updateProxyInfo: port is 0. Set to defult port 80.");
-      }
-
       this.proxyInfo =
         gpps.newProxyInfo("http", this.proxy, this.port,
                           Ci.nsIProxyInfo.TRANSPARENT_PROXY_RESOLVES_HOST,
