@@ -781,8 +781,8 @@ ArrayBufferViewObject *
 ArrayBufferObject::firstView()
 {
     return getSlot(FIRST_VIEW_SLOT).isObject()
-        ? static_cast<ArrayBufferViewObject*>(&getSlot(FIRST_VIEW_SLOT).toObject())
-        : nullptr;
+           ? &getSlot(FIRST_VIEW_SLOT).toObject().as<ArrayBufferViewObject>()
+           : nullptr;
 }
 
 void
@@ -797,8 +797,7 @@ ArrayBufferObject::addView(JSContext *cx, JSObject *viewArg)
     // Note: we don't pass in an ArrayBufferViewObject as the argument due to
     // tricky inheritance in the various view classes. View classes do not
     // inherit from ArrayBufferViewObject so won't be upcast automatically.
-    MOZ_ASSERT(viewArg->is<ArrayBufferViewObject>() || viewArg->is<TypedObject>());
-    ArrayBufferViewObject *view = static_cast<ArrayBufferViewObject*>(viewArg);
+    ArrayBufferViewObject *view = &viewArg->as<ArrayBufferViewObject>();
 
     if (!firstView()) {
         setFirstView(view);
@@ -986,7 +985,7 @@ template <>
 bool
 JSObject::is<js::ArrayBufferViewObject>() const
 {
-    return is<DataViewObject>() || is<TypedArrayObject>();
+    return is<DataViewObject>() || is<TypedArrayObject>() || is<TypedObject>();
 }
 
 void
@@ -1212,9 +1211,7 @@ JS_GetArrayBufferViewBuffer(JSContext *cx, HandleObject objArg)
     JSObject *obj = CheckedUnwrap(objArg);
     if (!obj)
         return nullptr;
-    MOZ_ASSERT(obj->is<ArrayBufferViewObject>());
-
-    Rooted<ArrayBufferViewObject *> viewObject(cx, static_cast<ArrayBufferViewObject*>(obj));
+    Rooted<ArrayBufferViewObject *> viewObject(cx, &obj->as<ArrayBufferViewObject>());
     return ArrayBufferViewObject::bufferObject(cx, viewObject);
 }
 

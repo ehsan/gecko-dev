@@ -453,7 +453,7 @@ WebGLContext::CopyTexSubImage2D_base(TexImageTarget texImageTarget,
             tex->SetImageInfo(texImageTarget, level, width, height, 1,
                       effectiveInternalFormat,
                       WebGLImageDataStatus::UninitializedImageData);
-            tex->EnsureNoUninitializedImageData(texImageTarget, level);
+            tex->DoDeferredImageInitialization(texImageTarget, level);
         }
 
         // if we are completely outside of the framebuffer, we can exit now with our black texture
@@ -601,7 +601,7 @@ WebGLContext::CopyTexSubImage2D(GLenum rawTexImgTarget,
         if (coversWholeImage) {
             tex->SetImageDataStatus(texImageTarget, level, WebGLImageDataStatus::InitializedImageData);
         } else {
-            tex->EnsureNoUninitializedImageData(texImageTarget, level);
+            tex->DoDeferredImageInitialization(texImageTarget, level);
         }
     }
 
@@ -927,7 +927,7 @@ WebGLContext::GenerateMipmap(GLenum rawTarget)
         return ErrorInvalidOperation("generateMipmap: Level zero of texture is not defined.");
     }
 
-    if (!IsWebGL2() && !tex->IsFirstImagePowerOfTwo())
+    if (!tex->IsFirstImagePowerOfTwo())
         return ErrorInvalidOperation("generateMipmap: Level zero of texture does not have power-of-two width and height.");
 
     TexInternalFormat internalformat = tex->ImageInfoAt(imageTarget, 0).EffectiveInternalFormat();
@@ -1611,12 +1611,6 @@ WebGLContext::GetTexParameter(GLenum rawTarget, GLenum pname)
         return JS::NullValue();
     }
 
-    return GetTexParameterInternal(target, pname);
-}
-
-JS::Value
-WebGLContext::GetTexParameterInternal(const TexTarget& target, GLenum pname)
-{
     switch (pname) {
         case LOCAL_GL_TEXTURE_MIN_FILTER:
         case LOCAL_GL_TEXTURE_MAG_FILTER:
@@ -3436,7 +3430,7 @@ WebGLContext::CompressedTexSubImage2D(GLenum rawTexImgTarget, GLint level, GLint
         if (coversWholeImage) {
             tex->SetImageDataStatus(texImageTarget, level, WebGLImageDataStatus::InitializedImageData);
         } else {
-            tex->EnsureNoUninitializedImageData(texImageTarget, level);
+            tex->DoDeferredImageInitialization(texImageTarget, level);
         }
     }
 
@@ -3972,7 +3966,7 @@ WebGLContext::TexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
         if (coversWholeImage) {
             tex->SetImageDataStatus(texImageTarget, level, WebGLImageDataStatus::InitializedImageData);
         } else {
-            tex->EnsureNoUninitializedImageData(texImageTarget, level);
+            tex->DoDeferredImageInitialization(texImageTarget, level);
         }
     }
     MakeContextCurrent();

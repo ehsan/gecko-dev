@@ -162,7 +162,7 @@ assertSameCompartment(ThreadSafeContext *cx, const T1 &t1)
 template <class T1> inline void
 assertSameCompartmentDebugOnly(ThreadSafeContext *cx, const T1 &t1)
 {
-#if defined(DEBUG) && defined(JS_CRASH_DIAGNOSTICS)
+#ifdef DEBUG
     START_ASSERT_SAME_COMPARTMENT();
     c.check(t1);
 #endif

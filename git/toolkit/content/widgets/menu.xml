@@ -49,14 +49,16 @@
     <implementation implements="nsIDOMXULContainerElement">
       <property name="open" onget="return this.hasAttribute('open');">
         <setter><![CDATA[
-          this.boxObject.openMenu(val);
+          this.boxObject.QueryInterface(Components.interfaces.nsIMenuBoxObject)
+              .openMenu(val);
           return val;
         ]]></setter>
       </property>
 
       <property name="openedWithKey" readonly="true">
         <getter><![CDATA[
-          return this.boxObject.openedWithKey;
+          return this.boxObject.QueryInterface(Components.interfaces.nsIMenuBoxObject)
+              .openedWithKey;
         ]]></getter>
       </property>
 

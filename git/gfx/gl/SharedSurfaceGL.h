@@ -47,6 +47,7 @@ public:
 protected:
     const GLuint mTex;
     GLuint mFB;
+    RefPtr<gfx::DataSourceSurface> mData;
 
     SharedSurface_Basic(GLContext* gl,
                         const gfx::IntSize& size,
@@ -60,12 +61,22 @@ public:
     virtual void LockProdImpl() MOZ_OVERRIDE {}
     virtual void UnlockProdImpl() MOZ_OVERRIDE {}
 
-    virtual void Fence() MOZ_OVERRIDE {}
-    virtual bool WaitSync() MOZ_OVERRIDE { return true; }
-    virtual bool PollSync() MOZ_OVERRIDE { return true; }
+
+    virtual void Fence() MOZ_OVERRIDE;
+    virtual bool WaitSync() MOZ_OVERRIDE;
+    virtual bool PollSync() MOZ_OVERRIDE;
+
+    virtual void Fence_ContentThread_Impl() MOZ_OVERRIDE;
+    virtual bool WaitSync_ContentThread_Impl() MOZ_OVERRIDE;
+    virtual bool PollSync_ContentThread_Impl() MOZ_OVERRIDE;
 
     virtual GLuint ProdTexture() MOZ_OVERRIDE {
         return mTex;
+    }
+
+    // Implementation-specific functions below:
+    gfx::DataSourceSurface* GetData() {
+        return mData;
     }
 };
 

@@ -968,7 +968,11 @@ nsXPConnect::DebugDumpJSStack(bool showArgs,
                               bool showLocals,
                               bool showThisProps)
 {
-    xpc_DumpJSStack(showArgs, showLocals, showThisProps);
+    JSContext* cx = GetCurrentJSContext();
+    if (!cx)
+        printf("there is no JSContext on the nsIThreadJSContextStack!\n");
+    else
+        xpc_DumpJSStack(cx, showArgs, showLocals, showThisProps);
 
     return NS_OK;
 }
@@ -1385,7 +1389,12 @@ nsXPConnect::ReadFunction(nsIObjectInputStream *stream, JSContext *cx, JSObject 
 extern "C" {
 JS_EXPORT_API(void) DumpJSStack()
 {
-    xpc_DumpJSStack(true, true, false);
+    nsresult rv;
+    nsCOMPtr<nsIXPConnect> xpc(do_GetService(nsIXPConnect::GetCID(), &rv));
+    if (NS_SUCCEEDED(rv) && xpc)
+        xpc->DebugDumpJSStack(true, true, false);
+    else
+        printf("failed to get XPConnect service!\n");
 }
 
 JS_EXPORT_API(char*) PrintJSStack()

@@ -220,7 +220,6 @@
 #include "nsWindowMemoryReporter.h"
 #include "nsLocation.h"
 #include "mozilla/dom/FontFaceSet.h"
-#include "mozilla/dom/BoxObject.h"
 
 #ifdef MOZ_MEDIA_NAVIGATOR
 #include "mozilla/MediaManager.h"
@@ -6948,7 +6947,7 @@ nsDocument::DoNotifyPossibleTitleChange()
                                       true, true);
 }
 
-already_AddRefed<BoxObject>
+already_AddRefed<nsIBoxObject>
 nsDocument::GetBoxObjectFor(Element* aElement, ErrorResult& aRv)
 {
   if (!aElement) {
@@ -6975,7 +6974,7 @@ nsDocument::GetBoxObjectFor(Element* aElement, ErrorResult& aRv)
   } else {
     nsCOMPtr<nsPIBoxObject> boxObject = mBoxObjectTable->Get(aElement);
     if (boxObject) {
-      return boxObject.forget().downcast<BoxObject>();
+      return boxObject.forget();
     }
   }
 
@@ -7016,7 +7015,7 @@ nsDocument::GetBoxObjectFor(Element* aElement, ErrorResult& aRv)
     mBoxObjectTable->Put(aElement, boxObject.get());
   }
 
-  return boxObject.forget().downcast<BoxObject>();
+  return boxObject.forget();
 }
 
 void

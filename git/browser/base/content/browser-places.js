@@ -708,12 +708,13 @@ var BookmarksEventHandler = {
 
     if (aDocument.tooltipNode.localName == "treechildren") {
       var tree = aDocument.tooltipNode.parentNode;
+      var row = {}, column = {};
       var tbo = tree.treeBoxObject;
-      var cell = tbo.getCellAt(aEvent.clientX, aEvent.clientY);
-      if (cell.row == -1)
+      tbo.getCellAt(aEvent.clientX, aEvent.clientY, row, column, {});
+      if (row.value == -1)
         return false;
-      node = tree.view.nodeForTreeIndex(cell.row);
-      cropped = tbo.isCellCropped(cell.row, cell.col);
+      node = tree.view.nodeForTreeIndex(row.value);
+      cropped = tbo.isCellCropped(row.value, column.value);
     }
     else {
       // Check whether the tooltipNode is a Places node.

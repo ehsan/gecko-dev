@@ -529,20 +529,6 @@ GLScreenBuffer::Readback(SharedSurface* src, gfx::DataSourceSurface* dest)
   }
 }
 
-bool
-GLScreenBuffer::IsDrawFramebufferDefault() const
-{
-    if (!mDraw)
-        return IsReadFramebufferDefault();
-    return mDraw->mFB == 0;
-}
-
-bool
-GLScreenBuffer::IsReadFramebufferDefault() const
-{
-    return SharedSurf()->mAttachType == AttachmentType::Screen;
-}
-
 ////////////////////////////////////////////////////////////////////////
 // DrawBuffer
 

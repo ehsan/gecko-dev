@@ -1511,9 +1511,10 @@
             this.style.direction = aElement.ownerDocument.defaultView
                                            .getComputedStyle(aElement)
                                            .direction;
+            const nsIPopupBoxObject = Components.interfaces.nsIPopupBoxObject;
             this.popupBoxObject.setConsumeRollupEvent(aInput.consumeRollupEvent
-              ? PopupBoxObject.ROLLUP_CONSUME
-              : PopupBoxObject.ROLLUP_NO_CONSUME);
+              ? nsIPopupBoxObject.ROLLUP_CONSUME
+              : nsIPopupBoxObject.ROLLUP_NO_CONSUME);
             this.openPopup(aElement, "after_start", 0, 0, false, false);
             if (this.state != "closed")
               this.input = aInput;
@@ -1644,3 +1645,4 @@
   </binding>
 
 </bindings>
+

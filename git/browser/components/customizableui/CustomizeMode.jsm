@@ -1905,14 +1905,8 @@ CustomizeMode.prototype = {
       aEvent.dataTransfer.mozGetDataAt(kDragDataTypePrefix + documentId, 0);
 
     let draggedWrapper = document.getElementById("wrapper-" + draggedItemId);
-
-    // DraggedWrapper might no longer available if a widget node is
-    // destroyed after starting (but before stopping) a drag.
-    if (draggedWrapper) {
-      draggedWrapper.hidden = false;
-      draggedWrapper.removeAttribute("mousedown");
-    }
-
+    draggedWrapper.hidden = false;
+    draggedWrapper.removeAttribute("mousedown");
     if (this._dragOverItem) {
       this._cancelDragActive(this._dragOverItem);
       this._dragOverItem = null;

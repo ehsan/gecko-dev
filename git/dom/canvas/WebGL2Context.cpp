@@ -78,8 +78,7 @@ WebGLContext::InitWebGL2()
     };
     const GLFeature sFeatureRequiredArr[] = {
         GLFeature::instanced_non_arrays,
-        GLFeature::transform_feedback2,
-        GLFeature::invalidate_framebuffer
+        GLFeature::transform_feedback2
     };
 
     // check WebGL extensions that are supposed to be natively supported

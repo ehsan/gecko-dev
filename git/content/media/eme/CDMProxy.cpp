@@ -426,19 +426,6 @@ CDMProxy::OnSessionMessage(const nsAString& aSessionId,
 }
 
 void
-CDMProxy::OnKeysChange(const nsAString& aSessionId)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  if (mKeys.IsNull()) {
-    return;
-  }
-  nsRefPtr<dom::MediaKeySession> session(mKeys->GetSession(aSessionId));
-  if (session) {
-    session->DispatchKeysChange();
-  }
-}
-
-void
 CDMProxy::OnExpirationChange(const nsAString& aSessionId,
                              GMPTimestamp aExpiryTime)
 {

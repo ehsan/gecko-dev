@@ -2968,7 +2968,8 @@ xpc_JSObjectIsID(JSContext *cx, JSObject* obj);
 // in XPCDebug.cpp
 
 extern bool
-xpc_DumpJSStack(bool showArgs, bool showLocals, bool showThisProps);
+xpc_DumpJSStack(JSContext* cx, bool showArgs, bool showLocals,
+                bool showThisProps);
 
 // Return a newly-allocated string containing a representation of the
 // current JS stack.  It is the *caller's* responsibility to free this

@@ -24,7 +24,6 @@ struct nsRect;
 namespace mozilla {
 namespace dom {
 class Element;
-class TreeBoxObject;
 } // namespace dom
 } // namespace mozilla
 
@@ -141,7 +140,7 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
   // WebIDL
-  mozilla::dom::TreeBoxObject* GetTree() const;
+  nsITreeBoxObject* GetTree() const;
   uint32_t Count();
   uint32_t Length()
   {

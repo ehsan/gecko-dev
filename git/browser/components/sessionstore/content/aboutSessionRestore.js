@@ -144,8 +144,9 @@ function onListClick(aEvent) {
   if (aEvent.button == 2)
     return;
 
-  var cell = treeView.treeBox.getCellAt(aEvent.clientX, aEvent.clientY);
-  if (cell.col) {
+  var row = {}, col = {};
+  treeView.treeBox.getCellAt(aEvent.clientX, aEvent.clientY, row, col, {});
+  if (col.value) {
     // Restore this specific tab in the same window for middle/double/accel clicking
     // on a tab's title.
 #ifdef XP_MACOSX
@@ -154,13 +155,13 @@ function onListClick(aEvent) {
     let accelKey = aEvent.ctrlKey;
 #endif
     if ((aEvent.button == 1 || aEvent.button == 0 && aEvent.detail == 2 || accelKey) &&
-        cell.col.id == "title" &&
-        !treeView.isContainer(cell.row)) {
-      restoreSingleTab(cell.row, aEvent.shiftKey);
+        col.value.id == "title" &&
+        !treeView.isContainer(row.value)) {
+      restoreSingleTab(row.value, aEvent.shiftKey);
       aEvent.stopPropagation();
     }
-    else if (cell.col.id == "restore")
-      toggleRowChecked(cell.row);
+    else if (col.value.id == "restore")
+      toggleRowChecked(row.value);
   }
 }
 

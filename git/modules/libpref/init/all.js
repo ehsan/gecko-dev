@@ -3435,6 +3435,8 @@ pref("font.size.fixed.el", 12);
 
 pref("font.size.fixed.he", 12);
 
+pref("font.minimum-size.th", 13);
+
 pref("font.default.x-cyrillic", "sans-serif");
 pref("font.size.fixed.x-cyrillic", 12);
 

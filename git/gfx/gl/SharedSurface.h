@@ -31,9 +31,6 @@
 class nsIThread;
 
 namespace mozilla {
-namespace gfx {
-class DrawTarget;
-}
 namespace gl {
 
 class GLContext;
@@ -255,8 +252,6 @@ public:
     ScopedReadbackFB(SharedSurface* src);
     ~ScopedReadbackFB();
 };
-
-bool ReadbackSharedSurface(SharedSurface* src, gfx::DrawTarget* dst);
 
 } // namespace gl
 } // namespace mozilla

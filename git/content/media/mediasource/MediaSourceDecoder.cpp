@@ -107,9 +107,9 @@ MediaSourceDecoder::Shutdown()
 
 /*static*/
 already_AddRefed<MediaResource>
-MediaSourceDecoder::CreateResource(nsIPrincipal* aPrincipal)
+MediaSourceDecoder::CreateResource()
 {
-  return nsRefPtr<MediaResource>(new MediaSourceResource(aPrincipal)).forget();
+  return nsRefPtr<MediaResource>(new MediaSourceResource()).forget();
 }
 
 void

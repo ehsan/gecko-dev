@@ -4195,7 +4195,7 @@ nsDocShell::AddChildSHEntry(nsISHEntry * aCloneRef, nsISHEntry * aNewEntry,
 {
     nsresult rv;
 
-    if (mLSHE && loadType != LOAD_PUSHSTATE && !aCloneRef) {
+    if (mLSHE && loadType != LOAD_PUSHSTATE) {
         /* You get here if you are currently building a 
          * hierarchy ie.,you just visited a frameset page
          */

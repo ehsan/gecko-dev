@@ -38,13 +38,15 @@ function middleClickTest(win) {
   let tree = browser.contentDocument.getElementById("tabList");
   is(tree.view.rowCount, 3, "There should be three items");
 
+  let x = {}, y = {}, width = {}, height = {};
+
   // click on the first tab item
-  var rect = tree.treeBoxObject.getCoordsForCellItem(1, tree.columns[1], "text");
-  EventUtils.synthesizeMouse(tree.body, rect.x, rect.y, { button: 1 },
+  tree.treeBoxObject.getCoordsForCellItem(1, tree.columns[1], "text", x, y, width, height);
+  EventUtils.synthesizeMouse(tree.body, x.value, y.value, { button: 1 },
                              browser.contentWindow);
   // click on the second tab item
-  rect = tree.treeBoxObject.getCoordsForCellItem(2, tree.columns[1], "text");
-  EventUtils.synthesizeMouse(tree.body, rect.x, rect.y, { button: 1 },
+  tree.treeBoxObject.getCoordsForCellItem(2, tree.columns[1], "text", x, y, width, height);
+  EventUtils.synthesizeMouse(tree.body, x.value, y.value, { button: 1 },
                              browser.contentWindow);
 
   is(win.gBrowser.tabs.length, 3,

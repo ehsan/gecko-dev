@@ -42,6 +42,7 @@
 #include "nsViewManager.h"
 #include "nsWidgetsCID.h"
 #include "nsBoxFrame.h"
+#include "nsBoxObject.h"
 #include "nsIURL.h"
 #include "nsNetUtil.h"
 #include "nsBoxLayoutState.h"
@@ -56,7 +57,7 @@
 #include "nsLayoutUtils.h"
 #include "nsIScrollableFrame.h"
 #include "nsDisplayList.h"
-#include "mozilla/dom/TreeBoxObject.h"
+#include "nsTreeBoxObject.h"
 #include "nsRenderingContext.h"
 #include "nsIScriptableRegion.h"
 #include <algorithm>
@@ -331,8 +332,8 @@ nsTreeBodyFrame::EnsureBoxObject()
         nsCOMPtr<nsITreeBoxObject> realTreeBoxObject = do_QueryInterface(pBox);
         if (realTreeBoxObject) {
           nsTreeBodyFrame* innerTreeBoxObject =
-            static_cast<dom::TreeBoxObject*>(realTreeBoxObject.get())
-              ->GetCachedTreeBodyFrame();
+            static_cast<nsTreeBoxObject*>(realTreeBoxObject.get())
+              ->GetCachedTreeBody();
           ENSURE_TRUE(!innerTreeBoxObject || innerTreeBoxObject == this);
           mTreeBoxObject = realTreeBoxObject;
         }
@@ -538,6 +539,13 @@ nsTreeBodyFrame::SetView(nsITreeView * aView)
 }
 
 nsresult
+nsTreeBodyFrame::GetFocused(bool* aFocused)
+{
+  *aFocused = mFocused;
+  return NS_OK;
+}
+
+nsresult
 nsTreeBodyFrame::SetFocused(bool aFocused)
 {
   if (mFocused != aFocused) {
@@ -562,22 +570,25 @@ nsTreeBodyFrame::GetTreeBody(nsIDOMElement** aElement)
   return mContent->QueryInterface(NS_GET_IID(nsIDOMElement), (void**)aElement);
 }
 
-int32_t
-nsTreeBodyFrame::RowHeight() const
+nsresult
+nsTreeBodyFrame::GetRowHeight(int32_t* _retval)
 {
-  return nsPresContext::AppUnitsToIntCSSPixels(mRowHeight);
+  *_retval = nsPresContext::AppUnitsToIntCSSPixels(mRowHeight);
+  return NS_OK;
 }
 
-int32_t
-nsTreeBodyFrame::RowWidth()
+nsresult
+nsTreeBodyFrame::GetRowWidth(int32_t *aRowWidth)
 {
-  return nsPresContext::AppUnitsToIntCSSPixels(CalcHorzWidth(GetScrollParts()));
+  *aRowWidth = nsPresContext::AppUnitsToIntCSSPixels(CalcHorzWidth(GetScrollParts()));
+  return NS_OK;
 }
 
-int32_t
-nsTreeBodyFrame::GetHorizontalPosition() const
+nsresult
+nsTreeBodyFrame::GetHorizontalPosition(int32_t *aHorizontalPosition)
 {
-  return nsPresContext::AppUnitsToIntCSSPixels(mHorzPosition);
+  *aHorizontalPosition = nsPresContext::AppUnitsToIntCSSPixels(mHorzPosition); 
+  return NS_OK;
 }
 
 nsresult

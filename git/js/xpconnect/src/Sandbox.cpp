@@ -1241,8 +1241,7 @@ OptionsBase::ParseString(const char *name, nsCString &prop)
 
     char *tmp = JS_EncodeString(mCx, value.toString());
     NS_ENSURE_TRUE(tmp, false);
-    prop.Assign(tmp, strlen(tmp));
-    js_free(tmp);
+    prop.Adopt(tmp, strlen(tmp));
     return true;
 }
 

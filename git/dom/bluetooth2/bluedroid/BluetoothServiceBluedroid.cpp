@@ -825,7 +825,7 @@ public:
   }
 
 private:
-  nsRefPtr<BluetoothReplyRunnable> mRunnable;
+  BluetoothReplyRunnable* mRunnable;
 };
 
 nsresult
@@ -860,7 +860,7 @@ public:
   }
 
 private:
-  nsRefPtr<BluetoothReplyRunnable> mRunnable;
+  BluetoothReplyRunnable* mRunnable;
 };
 
 nsresult

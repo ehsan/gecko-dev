@@ -2,13 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Attributes.h"
-#include "mozilla/Types.h"
+#define EXPORT_CDECL(type)   NS_EXPORT type
 
-#define EXPORT_CDECL(type)   MOZ_EXPORT type
-
-MOZ_BEGIN_EXTERN_C
-
+NS_EXTERN_C
+{
   EXPORT_CDECL(void) test_finalizer_start(size_t size);
   EXPORT_CDECL(void) test_finalizer_stop();
   EXPORT_CDECL(bool) test_finalizer_resource_is_acquired(size_t i);
@@ -54,4 +51,4 @@ MOZ_BEGIN_EXTERN_C
   EXPORT_CDECL(void) test_finalizer_rel_size_t_set_errno(size_t i);
   EXPORT_CDECL(void) reset_errno();
 
-MOZ_END_EXTERN_C
+}

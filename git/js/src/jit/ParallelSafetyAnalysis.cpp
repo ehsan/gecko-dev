@@ -456,8 +456,9 @@ ParallelSafetyVisitor::convertToBailout(MInstructionIterator &iter)
 
     clearUnsafe();
 
-    // Allocate a new bailout instruction.
+    // Allocate a new bailout instruction and transplant the resume point.
     MBail *bail = MBail::New(graph_.alloc(), Bailout_ParallelUnsafe);
+    TransplantResumePoint(ins, bail);
 
     // Discard the rest of the block and sever its link to its successors in
     // the CFG.
@@ -781,6 +782,7 @@ ParallelSafetyVisitor::visitThrow(MThrow *thr)
     MBasicBlock *block = thr->block();
     MOZ_ASSERT(block->lastIns() == thr);
     MBail *bail = MBail::New(alloc(), Bailout_ParallelUnsafe);
+    TransplantResumePoint(thr, bail);
     block->discardLastIns();
     block->add(bail);
     block->end(MUnreachable::New(alloc()));

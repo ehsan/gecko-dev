@@ -272,18 +272,8 @@ CDMCallbackProxy::KeyIdUsable(const nsCString& aSessionId,
 {
   MOZ_ASSERT(mProxy->IsOnGMPThread());
 
-  bool keysChange = false;
-  {
-    CDMCaps::AutoLock caps(mProxy->Capabilites());
-    keysChange = caps.SetKeyUsable(aKeyId, NS_ConvertUTF8toUTF16(aSessionId));
-  }
-  if (keysChange) {
-    nsRefPtr<nsIRunnable> task;
-    task = NS_NewRunnableMethodWithArg<nsString>(mProxy,
-                                                 &CDMProxy::OnKeysChange,
-                                                 NS_ConvertUTF8toUTF16(aSessionId));
-    NS_DispatchToMainThread(task);
-  }
+  CDMCaps::AutoLock caps(mProxy->Capabilites());
+  caps.SetKeyUsable(aKeyId, NS_ConvertUTF8toUTF16(aSessionId));
 }
 
 void
@@ -292,18 +282,8 @@ CDMCallbackProxy::KeyIdNotUsable(const nsCString& aSessionId,
 {
   MOZ_ASSERT(mProxy->IsOnGMPThread());
 
-  bool keysChange = false;
-  {
-    CDMCaps::AutoLock caps(mProxy->Capabilites());
-    keysChange = caps.SetKeyUnusable(aKeyId, NS_ConvertUTF8toUTF16(aSessionId));
-  }
-  if (keysChange) {
-    nsRefPtr<nsIRunnable> task;
-    task = NS_NewRunnableMethodWithArg<nsString>(mProxy,
-                                                 &CDMProxy::OnKeysChange,
-                                                 NS_ConvertUTF8toUTF16(aSessionId));
-    NS_DispatchToMainThread(task);
-  }
+  CDMCaps::AutoLock caps(mProxy->Capabilites());
+  caps.SetKeyUnusable(aKeyId, NS_ConvertUTF8toUTF16(aSessionId));
 }
 
 void

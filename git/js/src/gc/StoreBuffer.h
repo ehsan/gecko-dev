@@ -78,18 +78,7 @@ class StoreBuffer
     friend class mozilla::ReentrancyGuard;
 
     /* The size at which a block is about to overflow. */
-    static const size_t LowAvailableThreshold = (size_t)(LifoAllocBlockSize * 1.0 / 16.0);
-
-    /*
-     * If the space available in the store buffer hits the
-     * LowAvailableThreshold and gets compacted, but still doesn't have at
-     * least HighAvailableThreshold space available, then we will trigger a
-     * minor GC. HighAvailableThreshold should be set to provide enough space
-     * for the mutator to run for a while in between compactions. (If
-     * HighAvailableThreshold is too low, we will thrash and spend most of the
-     * time compacting. If it is too high, we will tenure things too early.)
-     */
-    static const size_t HighAvailableThreshold = (size_t)(LifoAllocBlockSize * 1.0 / 4.0);
+    static const size_t MinAvailableSize = (size_t)(LifoAllocBlockSize * 1.0 / 8.0);
 
     /*
      * This buffer holds only a single type of edge. Using this buffer is more
@@ -121,11 +110,7 @@ class StoreBuffer
         }
 
         bool isAboutToOverflow() const {
-            return !storage_->isEmpty() && storage_->availableInCurrentChunk() < LowAvailableThreshold;
-        }
-
-        bool isLowOnSpace() const {
-            return !storage_->isEmpty() && storage_->availableInCurrentChunk() < HighAvailableThreshold;
+            return !storage_->isEmpty() && storage_->availableInCurrentChunk() < MinAvailableSize;
         }
 
         void handleOverflow(StoreBuffer *owner);
@@ -204,7 +189,7 @@ class StoreBuffer
         }
 
         bool isAboutToOverflow() const {
-            return !storage_->isEmpty() && storage_->availableInCurrentChunk() < LowAvailableThreshold;
+            return !storage_->isEmpty() && storage_->availableInCurrentChunk() < MinAvailableSize;
         }
 
         /* Mark all generic edges. */

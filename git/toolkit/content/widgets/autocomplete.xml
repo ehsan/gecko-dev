@@ -795,7 +795,9 @@
         <setter><![CDATA[
           // We must do this by hand because the tree binding may not be ready yet
           this.mView = val;
-          this.tree.boxObject.view = val;
+          var bx = this.tree.boxObject;
+          bx = bx.QueryInterface(Components.interfaces.nsITreeBoxObject);
+          bx.view = val;
         ]]></setter>
       </property>
 

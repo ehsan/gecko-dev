@@ -195,7 +195,7 @@ FastListWidget.prototype = {
     }
 
     // Ensure the element is visible but not scrolled horizontally.
-    let boxObject = this._list.boxObject;
+    let boxObject = this._list.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
     boxObject.ensureElementIsVisible(element);
     boxObject.scrollBy(-this._list.clientWidth, 0);
   },

@@ -53,7 +53,6 @@ import android.widget.TextView;
 
 import com.jayway.android.robotium.solo.Condition;
 import com.jayway.android.robotium.solo.Solo;
-import com.jayway.android.robotium.solo.Timeout;
 
 /**
  *  A convenient base class suitable for most Robocop tests.
@@ -397,17 +396,8 @@ abstract class BaseTest extends BaseRobocopTest {
         return assets.open(filename);
     }
 
-    public boolean waitForText(final String text) {
-        // false is the default value for finding only
-        // visible views in `Solo.waitForText(String)`.
-        return waitForText(text, false);
-    }
-
-    public boolean waitForText(final String text, final boolean onlyVisibleViews) {
-        // We use the default robotium values from
-        // `Waiter.waitForText(String)` for unspecified arguments.
-        final boolean rc =
-                mSolo.waitForText(text, 0, Timeout.getLargeTimeout(), true, onlyVisibleViews);
+    public boolean waitForText(String text) {
+        boolean rc = mSolo.waitForText(text);
         if (!rc) {
             // log out failed wait for diagnostic purposes only;
             // waitForText failures are sometimes expected/normal
@@ -469,7 +459,7 @@ abstract class BaseTest extends BaseRobocopTest {
     }
 
 
-    /**
+    /** 
      * Select <item> from Menu > "Settings" > <section>.
      */
     public void selectSettingsItem(String section, String item) {
@@ -499,7 +489,7 @@ abstract class BaseTest extends BaseRobocopTest {
         // build the item name ready to be used
         String itemName = "^" + menuItemName + "$";
         mActions.sendSpecialKey(Actions.SpecialKey.MENU);
-        if (waitForText(itemName, true)) {
+        if (waitForText(itemName)) {
             mSolo.clickOnText(itemName);
         } else {
             // Older versions of Android have additional settings under "More",
@@ -958,7 +948,7 @@ abstract class BaseTest extends BaseRobocopTest {
     public void setPreferenceAndWaitForChange(final JSONObject jsonPref) {
         mActions.sendGeckoEvent("Preferences:Set", jsonPref.toString());
 
-        // Get the preference name from the json and store it in an array. This array
+        // Get the preference name from the json and store it in an array. This array 
         // will be used later while fetching the preference data.
         String[] prefNames = new String[1];
         try {

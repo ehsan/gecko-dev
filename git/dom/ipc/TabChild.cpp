@@ -3022,7 +3022,6 @@ TabChild::RecvUIResolutionChanged()
 TabChildGlobal::TabChildGlobal(TabChildBase* aTabChild)
 : mTabChild(aTabChild)
 {
-  SetIsNotDOMBinding();
 }
 
 TabChildGlobal::~TabChildGlobal()

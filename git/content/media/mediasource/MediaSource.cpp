@@ -22,7 +22,6 @@
 #include "nsDebug.h"
 #include "nsError.h"
 #include "nsIRunnable.h"
-#include "nsIScriptObjectPrincipal.h"
 #include "nsPIDOMWindow.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
@@ -395,19 +394,12 @@ MediaSource::MediaSource(nsPIDOMWindow* aWindow)
   : DOMEventTargetHelper(aWindow)
   , mDuration(UnspecifiedNaN<double>())
   , mDecoder(nullptr)
-  , mPrincipal(nullptr)
   , mReadyState(MediaSourceReadyState::Closed)
   , mFirstSourceBufferInitialized(false)
 {
   MOZ_ASSERT(NS_IsMainThread());
   mSourceBuffers = new SourceBufferList(this);
   mActiveSourceBuffers = new SourceBufferList(this);
-
-  nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryInterface(aWindow);
-  if (sop) {
-    mPrincipal = sop->GetPrincipal();
-  }
-
   MSE_API("MediaSource(%p)::MediaSource(aWindow=%p) mSourceBuffers=%p mActiveSourceBuffers=%p",
           this, aWindow, mSourceBuffers.get(), mActiveSourceBuffers.get());
 }

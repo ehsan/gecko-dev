@@ -135,7 +135,7 @@
       <property name="contentDocument" readonly="true"
                 onget="return this.webNavigation.document;"/>
       <property name="docShell"
-                onget="return this.boxObject.docShell;"
+                onget="return this.boxObject.QueryInterface(Components.interfaces.nsIContainerBoxObject).docShell;"
                 readonly="true"/>
       <property name="currentURI"
                 readonly="true"
@@ -168,3 +168,4 @@
   </binding>
 
 </bindings>
+

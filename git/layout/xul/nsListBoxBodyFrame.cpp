@@ -495,18 +495,27 @@ nsListBoxBodyFrame::ReflowCallbackCanceled()
   mReflowCallbackPosted = false;
 }
 
-///////// ListBoxObject ///////////////
+///////// nsIListBoxObject ///////////////
 
-int32_t
-nsListBoxBodyFrame::GetNumberOfVisibleRows()
+nsresult
+nsListBoxBodyFrame::GetRowCount(int32_t* aResult)
 {
-  return mRowHeight ? GetAvailableHeight() / mRowHeight : 0;
+  *aResult = GetRowCount();
+  return NS_OK;
 }
 
-int32_t
-nsListBoxBodyFrame::GetIndexOfFirstVisibleRow()
+nsresult
+nsListBoxBodyFrame::GetNumberOfVisibleRows(int32_t *aResult)
 {
-  return mCurrentIndex;
+  *aResult= mRowHeight ? GetAvailableHeight() / mRowHeight : 0;
+  return NS_OK;
+}
+
+nsresult
+nsListBoxBodyFrame::GetIndexOfFirstVisibleRow(int32_t *aResult)
+{
+  *aResult = mCurrentIndex;
+  return NS_OK;
 }
 
 nsresult
@@ -552,8 +561,9 @@ nsListBoxBodyFrame::EnsureIndexIsVisible(int32_t aRowIndex)
 nsresult
 nsListBoxBodyFrame::ScrollByLines(int32_t aNumLines)
 {
-  int32_t scrollIndex = GetIndexOfFirstVisibleRow(),
-    visibleRows = GetNumberOfVisibleRows();
+  int32_t scrollIndex, visibleRows;
+  GetIndexOfFirstVisibleRow(&scrollIndex);
+  GetNumberOfVisibleRows(&visibleRows);
 
   scrollIndex += aNumLines;
   

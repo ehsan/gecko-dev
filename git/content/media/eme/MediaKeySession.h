@@ -84,8 +84,6 @@ public:
 
   void DispatchKeyError(uint32_t system_code);
 
-  void DispatchKeysChange();
-
   void OnClosed();
 
   bool IsClosed() const;

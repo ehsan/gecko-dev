@@ -3267,6 +3267,7 @@ var gDetailView = {
       let detailViewBoxObject = gDetailView.node.boxObject;
       top -= detailViewBoxObject.y;
 
+      detailViewBoxObject.QueryInterface(Ci.nsIScrollBoxObject);
       detailViewBoxObject.scrollTo(0, top);
     }
   },

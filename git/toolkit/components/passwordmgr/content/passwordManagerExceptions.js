@@ -48,7 +48,7 @@ function LoadRejects() {
   rejectsTreeView.rowCount = rejects.length;
 
   // sort and display the table
-  rejectsTree.view = rejectsTreeView;
+  rejectsTree.treeBoxObject.view = rejectsTreeView;
   RejectColumnSort(lastRejectSortColumn);
 
   var element = document.getElementById("removeAllRejects");

@@ -5,7 +5,6 @@
 const TEST_ORIGIN = "example.org";
 const TEST_ORIGIN_2 = "example.com";
 const TEST_PERMISSION = "test-permission";
-Components.utils.import("resource://gre/modules/Promise.jsm");
 
 function promiseTimeout(delay) {
   let deferred = Promise.defer();

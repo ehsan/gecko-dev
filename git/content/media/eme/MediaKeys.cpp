@@ -591,11 +591,5 @@ CopyArrayBufferViewOrArrayBufferData(const ArrayBufferViewOrArrayBuffer& aBuffer
   return true;
 }
 
-nsIDocument*
-MediaKeys::GetOwnerDoc() const
-{
-  return mElement ? mElement->OwnerDoc() : nullptr;
-}
-
 } // namespace dom
 } // namespace mozilla
