@@ -3122,6 +3122,15 @@
     "extended_statistics_ok": true,
     "description": "Number of thumbnails stored in the browser DB"
   },
+  "FENNEC_READING_LIST_COUNT": {
+    "expires_in_version": "40",
+    "kind": "exponential",
+    "high": "1000",
+    "n_buckets": 10,
+    "cpp_guard": "ANDROID",
+    "extended_statistics_ok": true,
+    "description": "Number of reading list items stored in the browser DB"
+  },
   "PLACES_SORTED_BOOKMARKS_PERC": {
     "expires_in_version": "never",
     "kind": "linear",
@@ -6322,6 +6331,14 @@
     "kind": "enumerated",
     "n_values": 24,
     "description": "Was a certificate error overridden on this handshake? What was it? (0=unknown error (indicating bug), 1=no, >1=a specific error)"
+  },
+  "SSL_PERMANENT_CERT_ERROR_OVERRIDES": {
+    "alert_emails": ["seceng@mozilla.org"],
+    "expires_in_version": "42",
+    "kind": "exponential",
+    "high": 1024,
+    "n_buckets": 10,
+    "description": "How many permanent certificate overrides a user has stored."
   },
   "TELEMETRY_TEST_EXPIRED": {
     "expires_in_version": "4.0a1",
