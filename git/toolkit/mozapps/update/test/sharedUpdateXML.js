@@ -50,8 +50,6 @@ const STATE_SUCCEEDED       = "succeeded";
 const STATE_DOWNLOAD_FAILED = "download-failed";
 const STATE_FAILED          = "failed";
 
-var gTestserverPort;
-
 /**
  * Constructs a string representing a remote update xml file.
  *
@@ -346,8 +344,7 @@ function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
  * @param  aURL (optional)
  *         The patch's url to the mar file.
  *         If not specified it will default to the value of:
- *         URL_HOST + (gTestserverPort ? ":" + gTestserverPort : "") + "/" +
- *         URL_PATH + "/" + FILE_SIMPLE_MAR
+ *         URL_HOST + URL_PATH + "/" + FILE_SIMPLE_MAR
  * @param  aHashFunction (optional)
  *         The patch's hash function used to verify the mar file.
  *         If not specified it will default to 'MD5'.
@@ -363,9 +360,7 @@ function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
  */
 function getPatchString(aType, aURL, aHashFunction, aHashValue, aSize) {
   let type = aType ? aType : "complete";
-  let url = aURL ? aURL : URL_HOST +
-                          (gTestserverPort ? ":" + gTestserverPort : "") +
-                          "/" + URL_PATH + "/" + FILE_SIMPLE_MAR;
+  let url = aURL ? aURL : URL_HOST + URL_PATH + "/" + FILE_SIMPLE_MAR;
   let hashFunction = aHashFunction ? aHashFunction : "MD5";
   let hashValue = aHashValue ? aHashValue : MD5_HASH_SIMPLE_MAR;
   let size = aSize ? aSize : SIZE_SIMPLE_MAR;
