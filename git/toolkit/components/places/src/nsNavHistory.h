@@ -83,11 +83,10 @@
 // mInPrivateBrowsing member
 #define PRIVATEBROWSING_NOTINITED (PRBool(0xffffffff))
 
-// Clamp title and URL to generously large, but not too large, length.
-// See bug 319004 for details.
-#define URI_LENGTH_MAX 65536
-#define TITLE_LENGTH_MAX 4096
-
+#define PLACES_INIT_COMPLETE_TOPIC "places-init-complete"
+#define PLACES_DB_LOCKED_TOPIC "places-database-locked"
+#define PLACES_AUTOCOMPLETE_FEEDBACK_UPDATED_TOPIC "places-autocomplete-feedback-updated"
+#define PLACES_VACUUM_STARTING_TOPIC "places-vacuum-starting"
 
 class mozIAnnotationService;
 class nsNavHistory;
@@ -273,10 +272,11 @@ public:
   void SendPageChangedNotification(nsIURI* aURI, PRUint32 aWhat,
                                    const nsAString& aValue);
 
-  /**
-   * Returns current number of days stored in history.
-   */
-  PRInt32 GetDaysOfHistory();
+  // current time optimization
+  PRTime GetNow();
+
+  // well-known annotations used by the history and bookmarks systems
+  static const char kAnnotationPreviousEncoding[];
 
   // used by query result nodes to update: see comment on body of CanLiveUpdateQuery
   static PRUint32 GetUpdateRequirements(const nsCOMArray<nsNavHistoryQuery>& aQueries,
@@ -413,22 +413,22 @@ protected:
   /**
    * Finalize all internal statements.
    */
-  nsresult FinalizeStatements();
+  NS_HIDDEN_(nsresult) FinalizeStatements();
 
   /**
    * Analyzes the database and VACUUM it, if needed.
    */
-  nsresult DecayFrecency();
+  NS_HIDDEN_(nsresult) DecayFrecency();
   /**
    * Decays frecency and inputhistory values.
    */
-  nsresult VacuumDatabase();
+  NS_HIDDEN_(nsresult) VacuumDatabase();
 
   /**
    * Finalizes all Places internal statements, allowing to safely close the
    * database connection.
    */
-  nsresult FinalizeInternalStatements();
+  NS_HIDDEN_(nsresult) FinalizeInternalStatements();
 
   // nsICharsetResolver
   NS_DECL_NSICHARSETRESOLVER
@@ -507,18 +507,10 @@ protected:
    */
   nsresult LoadPrefs(PRBool aInitializing);
 
-  /**
-   * Calculates and returns value for mCachedNow.
-   * This is an hack to avoid calling PR_Now() too often, as is the case when
-   * we're asked the ageindays of many history entries in a row.  A timer is
-   * set which will clear our valid flag after a short timeout.
-   */
-  PRTime GetNow();
-  PRTime mCachedNow;
+  // Current time optimization
+  PRTime mLastNow;
+  PRBool mNowValid;
   nsCOMPtr<nsITimer> mExpireNowTimer;
-  /**
-   * Called when the cached now value is expired and needs renewal.
-   */
   static void expireNowTimerCallback(nsITimer* aTimer, void* aClosure);
 
   // expiration
@@ -574,7 +566,7 @@ protected:
   nsresult StartLazyTimer();
   nsresult AddLazyMessage(const LazyMessage& aMessage);
   static void LazyTimerCallback(nsITimer* aTimer, void* aClosure);
-  void CommitLazyMessages(PRBool aIsShutdown = PR_FALSE);
+  NS_HIDDEN_(void) CommitLazyMessages(PRBool aIsShutdown = PR_FALSE);
 #endif
 
   nsresult ConstructQueryString(const nsCOMArray<nsNavHistoryQuery>& aQueries, 
@@ -643,9 +635,9 @@ protected:
   PRBool GetRedirectFor(const nsACString& aDestination, nsACString& aSource,
                         PRTime* aTime, PRUint32* aRedirectType);
 
-  // Sessions tracking.
+  // session tracking
   PRInt64 mLastSessionID;
-  PRInt64 GetNewSessionID();
+  PRInt64 GetNewSessionID() { mLastSessionID ++; return mLastSessionID; }
 
 #ifdef MOZ_XUL
   // AutoComplete stuff
@@ -660,7 +652,7 @@ protected:
   PRInt32 mExpireDaysMax;
   PRInt32 mExpireSites;
 
-  // Frecency preferences.
+  // frecency prefs
   PRInt32 mNumVisitsForFrecency;
   PRInt32 mFirstBucketCutoffInDays;
   PRInt32 mSecondBucketCutoffInDays;
