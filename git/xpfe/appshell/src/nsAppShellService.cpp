@@ -156,8 +156,6 @@ nsAppShellService::DestroyHiddenWindow()
   return NS_OK;
 }
 
-PRTime gCreateTopLevelWindowTimestamp = 0;
-
 /*
  * Create a new top level window and display the given URL within it...
  */
@@ -172,9 +170,6 @@ nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
 
 {
   nsresult rv;
-
-  if (!gCreateTopLevelWindowTimestamp)
-    gCreateTopLevelWindowTimestamp = PR_Now();
 
   nsWebShellWindow *newWindow = nsnull;
   rv = JustCreateTopWindow(aParent, aUrl,

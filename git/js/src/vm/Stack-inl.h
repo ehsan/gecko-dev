@@ -397,7 +397,7 @@ StackFrame::functionPrologue(JSContext *cx)
 }
 
 inline void
-StackFrame::functionEpilogue()
+StackFrame::functionEpilogue(bool objectsOnly)
 {
     JS_ASSERT(isNonEvalFunctionFrame());
 
@@ -409,12 +409,12 @@ StackFrame::functionEpilogue()
             js_PutArgsObject(this);
     }
 
-    if (maintainNestingState())
+    if (!objectsOnly && maintainNestingState())
         types::NestingEpilogue(this);
 }
 
 inline void
-StackFrame::markFunctionEpilogueDone()
+StackFrame::markFunctionEpilogueDone(bool activationOnly)
 {
     if (flags_ & (HAS_ARGS_OBJ | HAS_CALL_OBJ)) {
         if (hasArgsObj() && !argsObj().maybeStackFrame()) {
@@ -441,7 +441,7 @@ StackFrame::markFunctionEpilogueDone()
      * when we redo it in the epilogue we get the right final value. The other
      * nesting epilogue changes (update active args/vars) are idempotent.
      */
-    if (maintainNestingState())
+    if (!activationOnly && maintainNestingState())
         script()->nesting()->activeFrames++;
 }
 

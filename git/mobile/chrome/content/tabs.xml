@@ -195,7 +195,9 @@
             },
 
             dragStart: function dragStart(cx, cy, target) {
-              this._grabSidebar = false;
+              this._grabSidebar = Util.isTablet() && !Util.isPortrait();
+              if (this._grabSidebar)
+                Browser.grabSidebar();
               dragger.dragStart(cx, cy, target, scroller);
             },
 
@@ -206,11 +208,6 @@
             },
 
             dragMove: function dragMove(dx, dy) {
-              if (!this._grabSidebar) {
-                this._grabSidebar = dx && Util.isTablet() && !Util.isPortrait();
-                if (this._grabSidebar)
-                  Browser.grabSidebar();
-              }
               if (this._grabSidebar)
                 Browser.slideSidebarBy(dx);
               return dragger.dragMove(dx, dy, scroller);
