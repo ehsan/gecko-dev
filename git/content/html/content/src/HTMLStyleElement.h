@@ -74,7 +74,7 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
   bool Disabled();
-  void SetDisabled(bool aDisabled);
+  void SetDisabled(bool aDisabled, ErrorResult& aError);
   void SetMedia(const nsAString& aMedia, ErrorResult& aError)
   {
     SetHTMLAttr(nsGkAtoms::media, aMedia, aError);

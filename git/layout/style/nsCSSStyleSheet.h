@@ -23,7 +23,6 @@
 #include "nsString.h"
 #include "mozilla/CORSMode.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsWrapperCache.h"
 
 class nsXMLNameSpaceMap;
 class nsCSSRuleProcessor;
@@ -105,15 +104,14 @@ class CSSRuleListImpl;
 
 class nsCSSStyleSheet MOZ_FINAL : public nsIStyleSheet,
                                   public nsIDOMCSSStyleSheet,
-                                  public nsICSSLoaderObserver,
-                                  public nsWrapperCache
+                                  public nsICSSLoaderObserver
 {
 public:
   nsCSSStyleSheet(mozilla::CORSMode aCORSMode);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsCSSStyleSheet,
-                                                         nsIStyleSheet)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsCSSStyleSheet,
+                                           nsIStyleSheet)
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_CSS_STYLE_SHEET_IMPL_CID)
 
@@ -176,7 +174,8 @@ public:
 
   void SetTitle(const nsAString& aTitle) { mTitle = aTitle; }
   void SetMedia(nsMediaList* aMedia);
-  void SetOwningNode(nsINode* aOwningNode) { mOwningNode = aOwningNode; /* Not ref counted */ }
+  void SetOwningNode(nsIDOMNode* aOwningNode) { mOwningNode = aOwningNode; /* Not ref counted */ }
+  nsIDOMNode* GetOwningNode() const { return mOwningNode; }
 
   void SetOwnerRule(mozilla::css::ImportRule* aOwnerRule) { mOwnerRule = aOwnerRule; /* Not ref counted */ }
   mozilla::css::ImportRule* GetOwnerRule() const { return mOwnerRule; }
@@ -186,7 +185,7 @@ public:
   already_AddRefed<nsCSSStyleSheet> Clone(nsCSSStyleSheet* aCloneParent,
                                           mozilla::css::ImportRule* aCloneOwnerRule,
                                           nsIDocument* aCloneDocument,
-                                          nsINode* aCloneOwningNode) const;
+                                          nsIDOMNode* aCloneOwningNode) const;
 
   bool IsModified() const { return mDirty; }
 
@@ -254,57 +253,12 @@ public:
     mScopeElement = aScopeElement;
   }
 
-  // WebIDL StyleSheet API
-  // Our nsIStyleSheet::GetType is a const method, so it ends up
-  // ambiguous with with the XPCOM version.  Just disambiguate.
-  void GetType(nsString& aType) {
-    const_cast<const nsCSSStyleSheet*>(this)->GetType(aType);
-  }
-  // Our XPCOM GetHref is fine for WebIDL
-  nsINode* GetOwnerNode() const { return mOwningNode; }
-  nsCSSStyleSheet* GetParentStyleSheet() const { return mParent; }
-  // Our nsIStyleSheet::GetTitle is a const method, so it ends up
-  // ambiguous with with the XPCOM version.  Just disambiguate.
-  void GetTitle(nsString& aTitle) {
-    const_cast<const nsCSSStyleSheet*>(this)->GetTitle(aTitle);
-  }
-  nsIDOMMediaList* Media();
-  bool Disabled() const { return mDisabled; }
-  // The XPCOM SetDisabled is fine for WebIDL
-
-  // WebIDL CSSStyleSheet API
-  // Can't be inline because we can't include ImportRule here.  And can't be
-  // called GetOwnerRule because that would be ambiguous with the ImportRule
-  // version.
-  nsIDOMCSSRule* GetDOMOwnerRule() const;
-  nsIDOMCSSRuleList* GetCssRules(mozilla::ErrorResult& aRv);
-  uint32_t InsertRule(const nsAString& aRule, uint32_t aIndex,
-                      mozilla::ErrorResult& aRv) {
-    uint32_t retval;
-    aRv = InsertRule(aRule, aIndex, &retval);
-    return retval;
-  }
-  void DeleteRule(uint32_t aIndex, mozilla::ErrorResult& aRv) {
-    aRv = DeleteRule(aIndex);
-  }
-
-  // WebIDL miscellaneous bits
-  mozilla::dom::ParentObject GetParentObject() const {
-    if (mOwningNode) {
-      return mozilla::dom::ParentObject(mOwningNode);
-    }
-
-    return mozilla::dom::ParentObject(static_cast<nsIStyleSheet*>(mParent),
-                                      mParent);
-  }
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
-
 private:
   nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,
                   nsCSSStyleSheet* aParentToUse,
                   mozilla::css::ImportRule* aOwnerRuleToUse,
                   nsIDocument* aDocumentToUse,
-                  nsINode* aOwningNodeToUse);
+                  nsIDOMNode* aOwningNodeToUse);
 
   nsCSSStyleSheet(const nsCSSStyleSheet& aCopy) MOZ_DELETE;
   nsCSSStyleSheet& operator=(const nsCSSStyleSheet& aCopy) MOZ_DELETE;
@@ -346,7 +300,7 @@ protected:
 
   nsRefPtr<CSSRuleListImpl> mRuleCollection;
   nsIDocument*          mDocument; // weak ref; parents maintain this for their children
-  nsINode*              mOwningNode; // weak ref
+  nsIDOMNode*           mOwningNode; // weak ref
   bool                  mDisabled;
   bool                  mDirty; // has been modified 
   nsRefPtr<mozilla::dom::Element> mScopeElement;

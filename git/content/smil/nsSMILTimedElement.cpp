@@ -5,7 +5,6 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "mozilla/dom/SVGAnimationElement.h"
 #include "nsSMILTimedElement.h"
 #include "nsAttrValueInlines.h"
 #include "nsSMILAnimationFunction.h"
@@ -30,7 +29,6 @@
 #include <algorithm>
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 // Helper class: InstanceTimeComparator
@@ -265,7 +263,7 @@ nsSMILTimedElement::~nsSMILTimedElement()
 }
 
 void
-nsSMILTimedElement::SetAnimationElement(SVGAnimationElement* aElement)
+nsSMILTimedElement::SetAnimationElement(nsISMILAnimationElement* aElement)
 {
   NS_ABORT_IF_FALSE(aElement, "NULL owner element");
   NS_ABORT_IF_FALSE(!mAnimationElement, "Re-setting owner");
@@ -276,14 +274,6 @@ nsSMILTimeContainer*
 nsSMILTimedElement::GetTimeContainer()
 {
   return mAnimationElement ? mAnimationElement->GetTimeContainer() : nullptr;
-}
-
-dom::Element*
-nsSMILTimedElement::GetTargetElement()
-{
-  return mAnimationElement ?
-      mAnimationElement->GetTargetElementContent() :
-      nullptr;
 }
 
 //----------------------------------------------------------------------
@@ -773,13 +763,13 @@ nsSMILTimedElement::Rewind()
   if (mAnimationElement->HasAnimAttr(nsGkAtoms::begin)) {
     nsAutoString attValue;
     mAnimationElement->GetAnimAttr(nsGkAtoms::begin, attValue);
-    SetBeginSpec(attValue, mAnimationElement, RemoveNonDynamic);
+    SetBeginSpec(attValue, &mAnimationElement->AsElement(), RemoveNonDynamic);
   }
 
   if (mAnimationElement->HasAnimAttr(nsGkAtoms::end)) {
     nsAutoString attValue;
     mAnimationElement->GetAnimAttr(nsGkAtoms::end, attValue);
-    SetEndSpec(attValue, mAnimationElement, RemoveNonDynamic);
+    SetEndSpec(attValue, &mAnimationElement->AsElement(), RemoveNonDynamic);
   }
 
   mPrevRegisteredMilestone = sMaxMilestone;
@@ -2270,7 +2260,7 @@ nsSMILTimedElement::FireTimeEventAsync(uint32_t aMsg, int32_t aDetail)
     return;
 
   nsCOMPtr<nsIRunnable> event =
-    new AsyncTimeEventRunner(mAnimationElement, aMsg, aDetail);
+    new AsyncTimeEventRunner(&mAnimationElement->AsElement(), aMsg, aDetail);
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 }
 

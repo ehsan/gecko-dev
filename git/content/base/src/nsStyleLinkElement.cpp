@@ -56,17 +56,21 @@ nsStyleLinkElement::Traverse(nsCycleCollectionTraversalCallback &cb)
 }
 
 NS_IMETHODIMP 
-nsStyleLinkElement::SetStyleSheet(nsCSSStyleSheet* aStyleSheet)
+nsStyleLinkElement::SetStyleSheet(nsIStyleSheet* aStyleSheet)
 {
-  if (mStyleSheet) {
-    mStyleSheet->SetOwningNode(nullptr);
+  nsRefPtr<nsCSSStyleSheet> cssSheet = do_QueryObject(mStyleSheet);
+  if (cssSheet) {
+    cssSheet->SetOwningNode(nullptr);
   }
 
   mStyleSheet = aStyleSheet;
-  if (mStyleSheet) {
-    nsCOMPtr<nsINode> node = do_QueryObject(this);
+  cssSheet = do_QueryObject(mStyleSheet);
+  if (cssSheet) {
+    nsCOMPtr<nsIDOMNode> node;
+    CallQueryInterface(this,
+                       static_cast<nsIDOMNode**>(getter_AddRefs(node)));
     if (node) {
-      mStyleSheet->SetOwningNode(node);
+      cssSheet->SetOwningNode(node);
     }
   }
     
@@ -93,7 +97,15 @@ nsStyleLinkElement::InitStyleLinkElement(bool aDontLoadStyle)
 NS_IMETHODIMP
 nsStyleLinkElement::GetSheet(nsIDOMStyleSheet** aSheet)
 {
-  NS_IF_ADDREF(*aSheet = mStyleSheet);
+  NS_ENSURE_ARG_POINTER(aSheet);
+  *aSheet = nullptr;
+
+  if (mStyleSheet) {
+    CallQueryInterface(mStyleSheet, aSheet);
+  }
+
+  // Always return NS_OK to avoid throwing JS exceptions if mStyleSheet 
+  // is not a nsIDOMStyleSheet
   return NS_OK;
 }
 
@@ -404,10 +416,14 @@ nsStyleLinkElement::UpdateStyleSheetScopedness(bool aIsNowScoped)
     return;
   }
 
+  nsRefPtr<nsCSSStyleSheet> cssStyleSheet = do_QueryObject(mStyleSheet);
+  NS_ASSERTION(cssStyleSheet, "should only call UpdateStyleSheetScope for "
+                              "an nsCSSStyleSheet");
+
   nsCOMPtr<nsIContent> thisContent;
   CallQueryInterface(this, getter_AddRefs(thisContent));
 
-  Element* oldScopeElement = mStyleSheet->GetScopeElement();
+  Element* oldScopeElement = cssStyleSheet->GetScopeElement();
   Element* newScopeElement = aIsNowScoped ?
                                thisContent->GetParentElement() :
                                nullptr;
@@ -421,7 +437,7 @@ nsStyleLinkElement::UpdateStyleSheetScopedness(bool aIsNowScoped)
   document->BeginUpdate(UPDATE_STYLE);
   document->RemoveStyleSheet(mStyleSheet);
 
-  mStyleSheet->SetScopeElement(newScopeElement);
+  cssStyleSheet->SetScopeElement(newScopeElement);
 
   document->AddStyleSheet(mStyleSheet);
   document->EndUpdate(UPDATE_STYLE);

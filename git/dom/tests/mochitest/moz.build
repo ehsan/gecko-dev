@@ -20,7 +20,6 @@ DIRS += [
     'sessionstorage',
     'storageevent',
     'pointerlock',
-    'notification',
     'webapps',
     'webcomponents',
 ]

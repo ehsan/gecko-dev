@@ -6,7 +6,7 @@
 #include "SVGAnimatedTransformList.h"
 #include "DOMSVGAnimatedTransformList.h"
 
-#include "mozilla/dom/SVGAnimationElement.h"
+#include "nsISMILAnimationElement.h"
 #include "nsSMILValue.h"
 #include "prdtoa.h"
 #include "SVGContentUtils.h"
@@ -146,7 +146,7 @@ SVGAnimatedTransformList::ToSMILAttr(nsSVGElement* aSVGElement)
 nsresult
 SVGAnimatedTransformList::SMILAnimatedTransformList::ValueFromString(
   const nsAString& aStr,
-  const dom::SVGAnimationElement* aSrcElement,
+  const nsISMILAnimationElement* aSrcElement,
   nsSMILValue& aValue,
   bool& aPreventCachingOfSandwich) const
 {

@@ -27,8 +27,6 @@ NS_IMPL_ISUPPORTS1(AlertServiceObserver, nsIObserver)
 /* nsDesktopNotification                                                    */
 /* ------------------------------------------------------------------------ */
 
-uint32_t nsDOMDesktopNotification::sCount = 0;
-
 nsresult
 nsDOMDesktopNotification::PostDesktopNotification()
 {
@@ -58,18 +56,10 @@ nsDOMDesktopNotification::PostDesktopNotification()
   if (!alerts)
     return NS_ERROR_NOT_IMPLEMENTED;
 
-  // Generate a unique name (which will also be used as a cookie) because
-  // the nsIAlertsService will coalesce notifications with the same name.
-  // In the case of IPC, the parent process will use the cookie to map
-  // to nsIObservers, thus cookies must be unique to differentiate observers.
-  nsString uniqueName = NS_LITERAL_STRING("desktop-notification:");
-  uniqueName.AppendInt(sCount++);
   return alerts->ShowAlertNotification(mIconURL, mTitle, mDescription,
                                        true,
-                                       uniqueName,
+                                       EmptyString(),
                                        mObserver,
-                                       uniqueName,
-                                       NS_LITERAL_STRING("auto"),
                                        EmptyString());
 }
 

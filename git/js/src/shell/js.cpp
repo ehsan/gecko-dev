@@ -1749,15 +1749,13 @@ DisassembleScript(JSContext *cx, HandleScript script, HandleFunction fun, bool l
         if (fun->isHeavyweight())
             Sprint(sp, " HEAVYWEIGHT");
         if (fun->isExprClosure())
-            Sprint(sp, " EXPRESSION_CLOSURE");
+            Sprint(sp, " EXPRESSION CLOSURE");
         if (fun->isFunctionPrototype())
             Sprint(sp, " Function.prototype");
         if (fun->isSelfHostedBuiltin())
             Sprint(sp, " SELF_HOSTED");
         if (fun->isSelfHostedConstructor())
             Sprint(sp, " SELF_HOSTED_CTOR");
-        if (fun->isArrow())
-            Sprint(sp, " ARROW");
         Sprint(sp, "\n");
     }
 
@@ -4780,12 +4778,6 @@ NewGlobalObject(JSContext *cx)
             return NULL;
         if (!JS_DefineProperty(cx, glob, "customRdOnly", UndefinedValue(), its_getter,
                                its_setter, JSPROP_READONLY))
-            return NULL;
-
-        if (!JS_DefineProperty(cx, glob, "customNative", UndefinedValue(),
-                               (JSPropertyOp)its_get_customNative,
-                               (JSStrictPropertyOp)its_set_customNative,
-                               JSPROP_READONLY | JSPROP_NATIVE_ACCESSORS))
             return NULL;
 
         /* Initialize FakeDOMObject. */

@@ -48,7 +48,6 @@ function telemetry_ping () {
   const TelemetryPing = Cc["@mozilla.org/base/telemetry-ping;1"].getService(Ci.nsITelemetryPing);
   TelemetryPing.gatherStartup();
   TelemetryPing.enableLoadSaveNotifications();
-  TelemetryPing.cacheProfileDirectory();
   TelemetryPing.testPing(SERVER);
 }
 

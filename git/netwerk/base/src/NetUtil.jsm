@@ -152,19 +152,7 @@ this.NetUtil = {
             channel = this.newChannel(aSource);
         }
 
-        try {
-            channel.asyncOpen(listener, null);
-        }
-        catch (e) {
-            let exception = new Components.Exception(
-                "Failed to open input source '" + channel.originalURI.spec + "'",
-                e.result,
-                Components.stack.caller,
-                aSource,
-                e
-            );
-            throw exception;
-        }
+        channel.asyncOpen(listener, null);
     },
 
     /**

@@ -22,9 +22,6 @@
 
 #include "mozilla/dom/HTMLObjectElement.h"
 #include "mozilla/dom/HTMLObjectElementBinding.h"
-#include "mozilla/dom/HTMLSharedObjectElement.h"
-#include "mozilla/dom/HTMLEmbedElementBinding.h"
-#include "mozilla/dom/HTMLAppletElementBinding.h"
 
 namespace mozilla {
 namespace dom {
@@ -1536,20 +1533,9 @@ ReparentWrapper(JSContext* aCx, JSObject* aObj)
     MOZ_CRASH();
   }
 
-  nsObjectLoadingContent* htmlobject;
+  HTMLObjectElement* htmlobject;
   nsresult rv = UnwrapObject<HTMLObjectElement>(aCx, aObj, htmlobject);
-  if (NS_FAILED(rv)) {
-    rv = UnwrapObject<prototypes::id::HTMLEmbedElement,
-                      HTMLSharedObjectElement>(aCx, aObj, htmlobject);
-    if (NS_FAILED(rv)) {
-      rv = UnwrapObject<prototypes::id::HTMLAppletElement,
-                        HTMLSharedObjectElement>(aCx, aObj, htmlobject);
-      if (NS_FAILED(rv)) {
-        htmlobject = nullptr;
-      }
-    }
-  }
-  if (htmlobject) {
+  if (NS_SUCCEEDED(rv)) {
     htmlobject->SetupProtoChain(aCx, aObj);
   }
 

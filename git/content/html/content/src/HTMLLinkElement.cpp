@@ -69,34 +69,43 @@ NS_HTML_CONTENT_INTERFACE_MAP_END
 NS_IMPL_ELEMENT_CLONE(HTMLLinkElement)
 
 bool
-HTMLLinkElement::Disabled()
+HTMLLinkElement::GetDisabled(ErrorResult& aRv)
 {
-  nsCSSStyleSheet* ss = GetSheet();
-  return ss && ss->Disabled();
+  nsCOMPtr<nsIDOMStyleSheet> ss = do_QueryInterface(GetSheet());
+  if (!ss) {
+    return false;
+  }
+
+  bool disabled = false;
+  aRv = ss->GetDisabled(&disabled);
+  return disabled;
 }
 
 NS_IMETHODIMP
-HTMLLinkElement::GetMozDisabled(bool* aDisabled)
+HTMLLinkElement::GetDisabled(bool* aDisabled)
 {
-  *aDisabled = Disabled();
-  return NS_OK;
+  ErrorResult rv;
+  *aDisabled = GetDisabled(rv);
+  return rv.ErrorCode();
 }
 
 void
-HTMLLinkElement::SetDisabled(bool aDisabled)
+HTMLLinkElement::SetDisabled(bool aDisabled, ErrorResult& aRv)
 {
-  nsCSSStyleSheet* ss = GetSheet();
-  if (ss) {
-    ss->SetDisabled(aDisabled);
+  nsCOMPtr<nsIDOMStyleSheet> ss = do_QueryInterface(GetSheet());
+  if (!ss) {
+    return;
   }
 
+  aRv = ss->SetDisabled(aDisabled);
 }
 
 NS_IMETHODIMP
-HTMLLinkElement::SetMozDisabled(bool aDisabled)
+HTMLLinkElement::SetDisabled(bool aDisabled)
 {
-  SetDisabled(aDisabled);
-  return NS_OK;
+  ErrorResult rv;
+  SetDisabled(aDisabled, rv);
+  return rv.ErrorCode();
 }
 
 

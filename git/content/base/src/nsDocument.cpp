@@ -1922,19 +1922,6 @@ nsIDocument::GetExtraPropertyTable(uint16_t aCategory)
   return mExtraPropertyTables[aCategory - 1];
 }
 
-bool
-nsIDocument::IsVisibleConsideringAncestors() const
-{
-  const nsIDocument *parent = this;
-  do {
-    if (!parent->IsVisible()) {
-      return false;
-    }
-  } while ((parent = parent->GetParentDocument()));
-
-  return true;
-      }
-
 void
 nsDocument::Reset(nsIChannel* aChannel, nsILoadGroup* aLoadGroup)
 {

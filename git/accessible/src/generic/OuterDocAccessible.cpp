@@ -149,10 +149,8 @@ OuterDocAccessible::InvalidateChildren()
 }
 
 bool
-OuterDocAccessible::InsertChildAt(uint32_t aIdx, Accessible* aAccessible)
+OuterDocAccessible::AppendChild(Accessible* aAccessible)
 {
-  NS_ASSERTION(aAccessible->IsDoc(),
-               "OuterDocAccessible should only have document child!");
   // We keep showing the old document for a bit after creating the new one,
   // and while building the new DOM and frame tree. That's done on purpose
   // to avoid weird flashes of default background color.
@@ -161,7 +159,7 @@ OuterDocAccessible::InsertChildAt(uint32_t aIdx, Accessible* aAccessible)
   if (mChildren.Length())
     mChildren[0]->Shutdown();
 
-  if (!AccessibleWrap::InsertChildAt(0, aAccessible))
+  if (!AccessibleWrap::AppendChild(aAccessible))
     return false;
 
 #ifdef A11Y_LOG

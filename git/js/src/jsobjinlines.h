@@ -759,8 +759,6 @@ JSObject::getType(JSContext *cx)
     JS_ASSERT(cx->compartment == compartment());
     if (hasLazyType()) {
         JS::RootedObject self(cx, this);
-        if (cx->compartment != compartment())
-            MOZ_CRASH();
         return makeLazyType(cx, self);
     }
     return static_cast<js::types::TypeObject*>(type_);

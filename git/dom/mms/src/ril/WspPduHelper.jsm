@@ -2292,8 +2292,14 @@ this.PduHelper = {
         let octetArray = Octet.decodeMultiple(data, contentEnd);
         let content = null;
         if (octetArray) {
-          content = new Blob([octetArray],
-                             {type : headers["content-type"].media});
+          if (headers["content-type"].media.indexOf("text/") === 0) {
+            content = this.decodeStringContent(octetArray,
+              headers["content-type"].params.charset["charset"]);
+          }
+          if (!content) {
+            content = new Blob([octetArray],
+              {"type" : headers["content-type"].media});
+          }
         }
 
         parts[i] = {

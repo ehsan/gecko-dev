@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <stdio.h>
 #include <stdarg.h>
 
 #include "mozilla/Assertions.h"
@@ -165,29 +166,22 @@ void flex_string_append(flex_string *fs, const char *more) {
 }
 
 /*
- * va_copy is part of the C99 spec but MSVC doesn't have it.
- */
-#ifndef va_copy
-#define va_copy(d,s) ((d) = (s))
-#endif
-
-/*
- * flex_string_vsprintf
+ * flex_string_sprintf
  *
  * Not thread-safe
  */
-void flex_string_vsprintf(flex_string *fs, const char *format, va_list original_ap) {
+void flex_string_sprintf(flex_string *fs, const char *format, ...) {
   va_list ap;
   int vsnprintf_result;
 
-  va_copy(ap, original_ap);
+  va_start(ap, format);
   vsnprintf_result = vsnprintf(fs->buffer + fs->string_length, fs->buffer_length - fs->string_length, format, ap);
   va_end(ap);
 
   /* Special case just for Windows where vsnprintf is broken
      and returns -1 if buffer too large unless you size it 0. */
   if (vsnprintf_result < 0) {
-    va_copy(ap, original_ap);
+    va_start(ap, format);
     vsnprintf_result = vsnprintf(NULL, 0, format, ap);
     va_end(ap);
   }
@@ -197,10 +191,10 @@ void flex_string_vsprintf(flex_string *fs, const char *format, va_list original_
     flex_string_check_alloc(fs, fs->string_length + vsnprintf_result + 1);
 
     /* Try again with new buffer */
-    va_copy(ap, original_ap);
+    va_start(ap, format);
     vsnprintf_result = vsnprintf(fs->buffer + fs->string_length, fs->buffer_length - fs->string_length, format, ap);
-    va_end(ap);
     MOZ_ASSERT(vsnprintf_result > 0 && vsnprintf_result < (fs->buffer_length - fs->string_length));
+    va_end(ap);
   }
 
   if (vsnprintf_result > 0) {
@@ -208,16 +202,4 @@ void flex_string_vsprintf(flex_string *fs, const char *format, va_list original_
   }
 }
 
-/*
- * flex_string_sprintf
- *
- * Not thread-safe
- */
-void flex_string_sprintf(flex_string *fs, const char *format, ...) {
-  va_list ap;
-
-  va_start(ap, format);
-  flex_string_vsprintf(fs, format, ap);
-  va_end(ap);
-}
 

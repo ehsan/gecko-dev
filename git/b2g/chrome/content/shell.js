@@ -636,7 +636,6 @@ var CustomEventManager = {
     dump('XXX FIXME : Got a mozContentEvent: ' + detail.type + "\n");
 
     switch(detail.type) {
-      case 'desktop-notification-show':
       case 'desktop-notification-click':
       case 'desktop-notification-close':
         AlertsHelper.handleEvent(detail);
@@ -674,16 +673,8 @@ var AlertsHelper = {
     if (!listener)
      return;
 
-    let topic;
-    if (detail.type == "desktop-notification-click") {
-      topic = "alertclickcallback";
-    } else if (detail.type == "desktop-notification-show") {
-      topic = "alertshow";
-    } else {
-      /* desktop-notification-close */
-      topic = "alertfinished";
-    }
-
+    let topic = detail.type == "desktop-notification-click" ? "alertclickcallback"
+                           /* desktop-notification-close */ : "alertfinished";
     if (uid.startsWith("app-notif")) {
       try {
         listener.mm.sendAsyncMessage("app-notification-return", {
@@ -716,8 +707,10 @@ var AlertsHelper = {
     }
   },
 
-  registerListener: function alert_registerListener(alertId, cookie, alertListener) {
-    this._listeners[alertId] = { observer: alertListener, cookie: cookie };
+  registerListener: function alert_registerListener(cookie, alertListener) {
+    let uid = "alert" + this._count++;
+    this._listeners[uid] = { observer: alertListener, cookie: cookie };
+    return uid;
   },
 
   registerAppListener: function alert_registerAppListener(uid, listener) {
@@ -752,8 +745,7 @@ var AlertsHelper = {
                                                     textClickable,
                                                     cookie,
                                                     uid,
-                                                    bidi,
-                                                    lang,
+                                                    name,
                                                     manifestUrl) {
     function send(appName, appIcon) {
       shell.sendChromeEvent({
@@ -762,8 +754,6 @@ var AlertsHelper = {
         icon: imageUrl,
         title: title,
         text: text,
-        bidi: bidi,
-        lang: lang,
         appName: appName,
         appIcon: appIcon,
         manifestURL: manifestUrl
@@ -789,24 +779,10 @@ var AlertsHelper = {
                                                               textClickable,
                                                               cookie,
                                                               alertListener,
-                                                              name,
-                                                              bidi,
-                                                              lang) {
-    let currentListener = this._listeners[name];
-    if (currentListener) {
-      currentListener.observer.observe(null, "alertfinished", currentListener.cookie);
-    }
-
-    this.registerListener(name, cookie, alertListener);
+                                                              name) {
+    let uid = this.registerListener(null, alertListener);
     this.showNotification(imageUrl, title, text, textClickable, cookie,
-                          name, bidi, lang, null);
-  },
-
-  closeAlert: function alert_closeAlert(name) {
-    shell.sendChromeEvent({
-      type: "desktop-notification-close",
-      id: name
-    });
+                          uid, name, null);
   },
 
   receiveMessage: function alert_receiveMessage(aMessage) {
@@ -828,7 +804,7 @@ var AlertsHelper = {
 
     this.showNotification(data.imageURL, data.title, data.text,
                           data.textClickable, null,
-                          data.uid, null, null, data.manifestURL);
+                          data.uid, null, data.manifestURL);
   },
 }
 

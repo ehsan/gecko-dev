@@ -396,7 +396,7 @@ AbstractHealthReporter.prototype = Object.freeze({
     }
 
     if (this._initialized) {
-      return CommonUtils.laterTickResolvingPromise(this);
+      return Promise.resolve(this);
     }
 
     return this._initializedDeferred.promise;
@@ -432,6 +432,7 @@ AbstractHealthReporter.prototype = Object.freeze({
   },
 
   _initProvider: function (provider) {
+    provider.initPreferences(this._branch + "provider.");
     provider.healthReporter = this;
   },
 
@@ -456,7 +457,7 @@ AbstractHealthReporter.prototype = Object.freeze({
     let logMessage = message;
 
     if (ex) {
-      recordMessage += ": " + CommonUtils.exceptionStr(ex);
+      recordMessage += ": " + ex.message;
       logMessage += ": " + CommonUtils.exceptionStr(ex);
     }
 
@@ -792,7 +793,7 @@ AbstractHealthReporter.prototype = Object.freeze({
         let decoder = new TextDecoder();
         let json = JSON.parse(decoder.decode(buffer));
 
-        return CommonUtils.laterTickResolvingPromise(json);
+        return Promise.resolve(json);
       },
       function onError(error) {
         return Promise.reject(error);
@@ -1103,7 +1104,7 @@ HealthReporter.prototype = Object.freeze({
   _onBagheeraResult: function (request, isDelete, result) {
     this._log.debug("Received Bagheera result.");
 
-    let promise = CommonUtils.laterTickResolvingPromise(null);
+    let promise = Promise.resolve(null);
 
     if (!result.transportSuccess) {
       request.onSubmissionFailureSoft("Network transport error.");

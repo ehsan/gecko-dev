@@ -20,7 +20,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
-  virtual bool InsertChildAt(uint32_t aIdx, Accessible* aChild) MOZ_OVERRIDE;
+  virtual bool AppendChild(Accessible* aChild);
   virtual bool RemoveChild(Accessible* aChild);
 
   /**

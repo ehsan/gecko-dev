@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import mozcrash
+import automationutils
 import threading
 import os
 import Queue
@@ -81,10 +81,6 @@ class B2GRemoteAutomation(Automation):
         if env is None:
             env = {}
 
-        if crashreporter:
-            env['MOZ_CRASHREPORTER'] = '1'
-            env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
-
         # We always hide the results table in B2G; it's much slower if we don't.
         env['MOZ_HIDE_RESULTS_TABLE'] = '1'
         return env
@@ -104,16 +100,17 @@ class B2GRemoteAutomation(Automation):
         return active
 
     def checkForCrashes(self, directory, symbolsPath):
-        crashed = False
-        remote_dump_dir = self._remoteProfile + '/minidumps'
-        if self._devicemanager.dirExists(remote_dump_dir):
-            local_dump_dir = tempfile.mkdtemp()
-            self._devicemanager.getDirectory(remote_dump_dir, local_dump_dir)
+        # XXX: This will have to be updated after crash reporting on b2g
+        # is in place.
+        try:
+            dumpDir = tempfile.mkdtemp()
+            self._devicemanager.getDirectory(self._remoteProfile + '/minidumps/', dumpDir)
+            crashed = automationutils.checkForCrashes(dumpDir, symbolsPath, self.lastTestSeen)
+        finally:
             try:
-                crashed = mozcrash.check_for_crashes(local_dump_dir, symbolsPath, test_name=self.lastTestSeen)
-            finally:
-                shutil.rmtree(local_dump_dir)
-                self._devicemanager.removeDir(remote_dump_dir)
+                shutil.rmtree(dumpDir)
+            except:
+                print "WARNING: unable to remove directory: %s" % (dumpDir)
         return crashed
 
     def initializeProfile(self,  profileDir, extraPrefs=[],

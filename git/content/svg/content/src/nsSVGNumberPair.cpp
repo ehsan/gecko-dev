@@ -204,7 +204,7 @@ nsSVGNumberPair::ToSMILAttr(nsSVGElement *aSVGElement)
 
 nsresult
 nsSVGNumberPair::SMILNumberPair::ValueFromString(const nsAString& aStr,
-                                                 const dom::SVGAnimationElement* /*aSrcElement*/,
+                                                 const nsISMILAnimationElement* /*aSrcElement*/,
                                                  nsSMILValue& aValue,
                                                  bool& aPreventCachingOfSandwich) const
 {

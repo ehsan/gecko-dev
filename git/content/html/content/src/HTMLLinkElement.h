@@ -92,8 +92,8 @@ public:
   void CreateAndDispatchEvent(nsIDocument* aDoc, const nsAString& aEventName);
 
   // WebIDL
-  bool Disabled();
-  void SetDisabled(bool aDisabled);
+  bool GetDisabled(ErrorResult& aRv);
+  void SetDisabled(bool aDisabled, ErrorResult& aRv);
   // XPCOM GetHref is fine.
   void SetHref(const nsAString& aHref, ErrorResult& aRv)
   {

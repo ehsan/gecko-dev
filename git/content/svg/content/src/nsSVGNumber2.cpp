@@ -184,7 +184,7 @@ nsSVGNumber2::ToSMILAttr(nsSVGElement *aSVGElement)
 
 nsresult
 nsSVGNumber2::SMILNumber::ValueFromString(const nsAString& aStr,
-                                          const mozilla::dom::SVGAnimationElement* /*aSrcElement*/,
+                                          const nsISMILAnimationElement* /*aSrcElement*/,
                                           nsSMILValue& aValue,
                                           bool& aPreventCachingOfSandwich) const
 {

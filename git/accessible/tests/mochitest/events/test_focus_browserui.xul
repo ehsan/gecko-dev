@@ -24,6 +24,9 @@
 
   <script type="application/javascript">
   <![CDATA[
+    if (navigator.platform.startsWith("Linux")) {
+      SimpleTest.expectAssertions(1);
+    }
     ////////////////////////////////////////////////////////////////////////////
     // Helpers
 
@@ -115,12 +118,8 @@ if (!MAC) {
       gQueue.invoke();
     }
 
-    if (navigator.oscpu.startsWith("Windows NT 6.1") || navigator.oscpu.startsWith("Windows NT 6.2")) {
-      todo(false, "fix the leak!");
-      } else {
-      SimpleTest.waitForExplicitFinish();
-      openBrowserWindow(doTests, gInputDocURI);
-    }
+    SimpleTest.waitForExplicitFinish();
+    openBrowserWindow(doTests, gInputDocURI);
   ]]>
   </script>
 

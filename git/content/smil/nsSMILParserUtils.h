@@ -11,16 +11,11 @@
 #include "nsString.h"
 
 class nsISMILAttr;
+class nsISMILAnimationElement;
 class nsSMILTimeValue;
 class nsSMILValue;
 class nsSMILRepeatCount;
 class nsSMILTimeValueSpecParams;
-
-namespace mozilla {
-namespace dom {
-class SVGAnimationElement;
-}
-}
 
 /**
  * Common parsing utilities for the SMIL module. There is little re-use here; it
@@ -45,7 +40,7 @@ public:
                                                       nsTArray<double>& aArray);
 
   static nsresult ParseValues(const nsAString& aSpec,
-                              const mozilla::dom::SVGAnimationElement* aSrcElement,
+                              const nsISMILAnimationElement* aSrcElement,
                               const nsISMILAttr& aAttribute,
                               nsTArray<nsSMILValue>& aValuesArray,
                               bool& aPreventCachingOfSandwich);

@@ -49,7 +49,7 @@ public: // construction, destruction
   virtual void Shutdown ();
   virtual void InvalidateChildren();
 
-  virtual bool InsertChildAt(uint32_t aIdx, Accessible* aChild) MOZ_OVERRIDE;
+  virtual bool AppendChild(Accessible* aAccessible);
   virtual bool RemoveChild(Accessible* aAccessible);
 
   virtual nsresult HandleAccEvent(AccEvent* aEvent);

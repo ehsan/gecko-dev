@@ -78,7 +78,6 @@ MobileMessageManager::Init(nsPIDOMWindow *aWindow)
   obs->AddObserver(this, kMmsSendingObserverTopic, false);
   obs->AddObserver(this, kMmsSentObserverTopic, false);
   obs->AddObserver(this, kMmsFailedObserverTopic, false);
-  obs->AddObserver(this, kMmsReceivedObserverTopic, false);
 }
 
 void
@@ -100,7 +99,6 @@ MobileMessageManager::Shutdown()
   obs->RemoveObserver(this, kMmsSendingObserverTopic);
   obs->RemoveObserver(this, kMmsSentObserverTopic);
   obs->RemoveObserver(this, kMmsFailedObserverTopic);
-  obs->RemoveObserver(this, kMmsReceivedObserverTopic);
 }
 
 NS_IMETHODIMP
@@ -452,17 +450,6 @@ MobileMessageManager::Observe(nsISupports* aSubject, const char* aTopic,
     }
 
     DispatchTrustedMmsEventToSelf(FAILED_EVENT_NAME, message);
-    return NS_OK;
-  }
-
-  if (!strcmp(aTopic, kMmsReceivedObserverTopic)) {
-    nsCOMPtr<nsIDOMMozMmsMessage> message = do_QueryInterface(aSubject);
-    if (!message) {
-      NS_ERROR("Got a 'mms-received' topic without a valid message!");
-      return NS_OK;
-    }
-
-    DispatchTrustedMmsEventToSelf(RECEIVED_EVENT_NAME, message);
     return NS_OK;
   }
 

@@ -18,7 +18,6 @@
 #include "prlong.h"
 #include "nsCharSeparatedTokenizer.h"
 
-using namespace mozilla::dom;
 //------------------------------------------------------------------------------
 // Helper functions and Constants
 
@@ -521,7 +520,7 @@ nsSMILParserUtils::ParseSemicolonDelimitedProgressList(const nsAString& aSpec,
 class SMILValueParser : public nsSMILParserUtils::GenericValueParser
 {
 public:
-  SMILValueParser(const SVGAnimationElement* aSrcElement,
+  SMILValueParser(const nsISMILAnimationElement* aSrcElement,
                   const nsISMILAttr* aSMILAttr,
                   nsTArray<nsSMILValue>* aValuesArray,
                   bool* aPreventCachingOfSandwich) :
@@ -548,7 +547,7 @@ public:
     return NS_OK;
   }
 protected:
-  const SVGAnimationElement* mSrcElement;
+  const nsISMILAnimationElement* mSrcElement;
   const nsISMILAttr* mSMILAttr;
   nsTArray<nsSMILValue>* mValuesArray;
   bool* mPreventCachingOfSandwich;
@@ -556,7 +555,7 @@ protected:
 
 nsresult
 nsSMILParserUtils::ParseValues(const nsAString& aSpec,
-                               const SVGAnimationElement* aSrcElement,
+                               const nsISMILAnimationElement* aSrcElement,
                                const nsISMILAttr& aAttribute,
                                nsTArray<nsSMILValue>& aValuesArray,
                                bool& aPreventCachingOfSandwich)

@@ -333,8 +333,7 @@ public:
   /**
    * Append/insert/remove a child. Return true if operation was successful.
    */
-  bool AppendChild(Accessible* aChild)
-    { return InsertChildAt(mChildren.Length(), aChild); }
+  virtual bool AppendChild(Accessible* aChild);
   virtual bool InsertChildAt(uint32_t aIndex, Accessible* aChild);
   virtual bool RemoveChild(Accessible* aChild);
 

@@ -7,7 +7,6 @@
 #include "nsAppShell.h"
 #include "nsToolkit.h"
 #include "nsThreadUtils.h"
-#include "WinUtils.h"
 #include "WinTaskbar.h"
 #include "WinMouseScrollHandler.h"
 #include "nsWindowDefs.h"
@@ -15,8 +14,6 @@
 #include "WinIMEHandler.h"
 #include "mozilla/widget/AudioSession.h"
 #include "mozilla/HangMonitor.h"
-
-using namespace mozilla::widget;
 
 const PRUnichar* kAppShellEventId = L"nsAppShell:EventID";
 const PRUnichar* kTaskbarButtonEventId = L"TaskbarButtonCreated";
@@ -50,20 +47,17 @@ static bool PeekUIMessage(MSG* aMsg)
   // it may make different modifier key state or mouse cursor position between
   // them.
   if (mozilla::widget::MouseScrollHandler::IsWaitingInternalMessage() &&
-      WinUtils::PeekMessage(aMsg, NULL, MOZ_WM_MOUSEWHEEL_FIRST,
-                            MOZ_WM_MOUSEWHEEL_LAST, PM_REMOVE)) {
+      ::PeekMessageW(aMsg, NULL, MOZ_WM_MOUSEWHEEL_FIRST,
+                     MOZ_WM_MOUSEWHEEL_LAST, PM_REMOVE)) {
     return true;
   }
 
   MSG keyMsg, imeMsg, mouseMsg, *pMsg = 0;
   bool haveKeyMsg, haveIMEMsg, haveMouseMsg;
 
-  haveKeyMsg = WinUtils::PeekMessage(&keyMsg, NULL, WM_KEYFIRST,
-                                     WM_IME_KEYLAST, PM_NOREMOVE);
-  haveIMEMsg = WinUtils::PeekMessage(&imeMsg, NULL, NS_WM_IMEFIRST,
-                                     NS_WM_IMELAST, PM_NOREMOVE);
-  haveMouseMsg = WinUtils::PeekMessage(&mouseMsg, NULL, WM_MOUSEFIRST,
-                                       WM_MOUSELAST, PM_NOREMOVE);
+  haveKeyMsg = ::PeekMessageW(&keyMsg, NULL, WM_KEYFIRST, WM_IME_KEYLAST, PM_NOREMOVE);
+  haveIMEMsg = ::PeekMessageW(&imeMsg, NULL, NS_WM_IMEFIRST, NS_WM_IMELAST, PM_NOREMOVE);
+  haveMouseMsg = ::PeekMessageW(&mouseMsg, NULL, WM_MOUSEFIRST, WM_MOUSELAST, PM_NOREMOVE);
 
   if (haveKeyMsg) {
     pMsg = &keyMsg;
@@ -84,8 +78,7 @@ static bool PeekUIMessage(MSG* aMsg)
     return false;
   }
 
-  return WinUtils::PeekMessage(aMsg, NULL, pMsg->message,
-                               pMsg->message, PM_REMOVE);
+  return ::PeekMessageW(aMsg, NULL, pMsg->message, pMsg->message, PM_REMOVE);
 }
 
 /*static*/ LRESULT CALLBACK
@@ -230,7 +223,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
 
     // Give priority to keyboard and mouse messages.
     if (uiMessage ||
-        WinUtils::PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+        PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
       gotMessage = true;
       if (msg.message == WM_QUIT) {
         ::PostQuitMessage(msg.wParam);
@@ -241,12 +234,6 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         mozilla::HangMonitor::NotifyActivity(
           uiMessage ? mozilla::HangMonitor::kUIActivity :
                       mozilla::HangMonitor::kActivityNoUIAVail);
-
-        if (msg.message >= WM_KEYFIRST && msg.message <= WM_KEYLAST &&
-            IMEHandler::ProcessRawKeyMessage(msg)) {
-          continue;  // the message is consumed.
-        }
-
         ::TranslateMessage(&msg);
         ::DispatchMessageW(&msg);
       }

@@ -121,8 +121,7 @@ PannerNode::PannerNode(AudioContext* aContext)
   , mConeOuterAngle(360.)
   , mConeOuterGain(0.)
 {
-  mStream = aContext->Graph()->CreateAudioNodeStream(new PannerNodeEngine(),
-                                                     MediaStreamGraph::INTERNAL_STREAM);
+  mStream = aContext->Graph()->CreateAudioNodeStream(new PannerNodeEngine());
   // We should register once we have set up our stream and engine.
   Context()->Listener()->RegisterPannerNode(this);
 }

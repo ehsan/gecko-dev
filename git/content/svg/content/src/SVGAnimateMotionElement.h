@@ -39,10 +39,10 @@ public:
   // nsIDOMNode specializations
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  // SVGAnimationElement
+  // nsISMILAnimationElement
   virtual nsSMILAnimationFunction& AnimationFunction();
   virtual bool GetTargetAttributeName(int32_t *aNamespaceID,
-                                      nsIAtom **aLocalName) const;
+                                        nsIAtom **aLocalName) const;
   virtual nsSMILTargetAttrType GetTargetAttributeType() const;
 
   // nsSVGElement

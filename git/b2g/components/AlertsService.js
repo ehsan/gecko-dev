@@ -46,19 +46,11 @@ AlertsService.prototype = {
                                                         aTextClickable,
                                                         aCookie,
                                                         aAlertListener,
-                                                        aName,
-                                                        aBidi,
-                                                        aLang) {
+                                                        aName) {
     let browser = Services.wm.getMostRecentWindow("navigator:browser");
     browser.AlertsHelper.showAlertNotification(aImageUrl, aTitle, aText,
                                                aTextClickable, aCookie,
-                                               aAlertListener, aName, aBidi,
-                                               aLang);
-  },
-
-  closeAlert: function(aName) {
-    let browser = Services.wm.getMostRecentWindow("navigator:browser");
-    browser.AlertsHelper.closeAlert(aName);
+                                               aAlertListener, aName);
   },
 
   // nsIAppNotificationService

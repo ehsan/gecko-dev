@@ -27,7 +27,6 @@
 #include "nsIOService.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsNetAddr.h"
-#include "nsProxyRelease.h"
 
 #include "mozilla/Attributes.h"
 
@@ -517,13 +516,15 @@ class DNSListenerProxy MOZ_FINAL : public nsIDNSListener
 {
 public:
   DNSListenerProxy(nsIDNSListener* aListener, nsIEventTarget* aTargetThread)
-    // Sometimes aListener is a main-thread only object like XPCWrappedJS, and
-    // sometimes it's a threadsafe object like nsSOCKSSocketInfo. Use a main-
-    // thread pointer holder, but disable strict enforcement of thread invariants.
-    // The AddRef implementation of XPCWrappedJS will assert if we go wrong here.
-    : mListener(new nsMainThreadPtrHolder<nsIDNSListener>(aListener, false))
+    : mListener(aListener)
     , mTargetThread(aTargetThread)
   { }
+
+  ~DNSListenerProxy()
+  {
+    nsCOMPtr<nsIThread> mainThread(do_GetMainThread());
+    NS_ProxyRelease(mainThread, mListener);
+  }
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDNSLISTENER
@@ -531,7 +532,7 @@ public:
   class OnLookupCompleteRunnable : public nsRunnable
   {
   public:
-    OnLookupCompleteRunnable(nsMainThreadPtrHolder<nsIDNSListener>* aListener,
+    OnLookupCompleteRunnable(nsIDNSListener* aListener,
                              nsICancelable* aRequest,
                              nsIDNSRecord* aRecord,
                              nsresult aStatus)
@@ -541,17 +542,23 @@ public:
       , mStatus(aStatus)
     { }
 
+    ~OnLookupCompleteRunnable()
+    {
+      nsCOMPtr<nsIThread> mainThread(do_GetMainThread());
+      NS_ProxyRelease(mainThread, mListener);
+    }
+
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsMainThreadPtrHandle<nsIDNSListener> mListener;
+    nsCOMPtr<nsIDNSListener> mListener;
     nsCOMPtr<nsICancelable> mRequest;
     nsCOMPtr<nsIDNSRecord> mRecord;
     nsresult mStatus;
   };
 
 private:
-  nsMainThreadPtrHandle<nsIDNSListener> mListener;
+  nsCOMPtr<nsIDNSListener> mListener;
   nsCOMPtr<nsIEventTarget> mTargetThread;
 };
 

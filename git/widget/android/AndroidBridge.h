@@ -222,7 +222,7 @@ public:
                                            int64_t aProgressMax,
                                            const nsAString& aAlertText);
 
-    void CloseNotification(const nsAString& aAlertName);
+    void AlertsProgressListener_OnCancel(const nsAString& aAlertName);
 
     int GetDPI();
 
@@ -431,7 +431,7 @@ protected:
     jmethodID jUnlockProfile;
     jmethodID jKillAnyZombies;
     jmethodID jAlertsProgressListener_OnProgress;
-    jmethodID jCloseNotification;
+    jmethodID jAlertsProgressListener_OnCancel;
     jmethodID jGetDpi;
     jmethodID jSetFullScreen;
     jmethodID jShowInputMethodPicker;

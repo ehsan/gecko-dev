@@ -3806,7 +3806,7 @@ void nsWindow::RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg,
     }
     msg = aFakeCharMessage->GetCharMessage(mWnd);
   } else {
-    WinUtils::GetMessage(&msg, mWnd, aFirstMsg, aLastMsg);
+    ::GetMessageW(&msg, mWnd, aFirstMsg, aLastMsg);
   }
   DispatchPluginEvent(msg);
 }
@@ -4564,7 +4564,6 @@ bool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         obsServ->NotifyObservers(nullptr, "profile-change-net-teardown", context.get());
         obsServ->NotifyObservers(nullptr, "profile-change-teardown", context.get());
         obsServ->NotifyObservers(nullptr, "profile-before-change", context.get());
-        obsServ->NotifyObservers(nullptr, "profile-before-change2", context.get());
         // Then a controlled but very quick exit.
         _exit(0);
       }
@@ -5640,10 +5639,10 @@ void nsWindow::PostSleepWakeNotification(const bool aIsSleepMode)
 void nsWindow::RemoveNextCharMessage(HWND aWnd)
 {
   MSG msg;
-  if (WinUtils::PeekMessage(&msg, aWnd, WM_KEYFIRST, WM_KEYLAST,
-                            PM_NOREMOVE | PM_NOYIELD) &&
+  if (::PeekMessageW(&msg, aWnd,
+                     WM_KEYFIRST, WM_KEYLAST, PM_NOREMOVE | PM_NOYIELD) &&
       (msg.message == WM_CHAR || msg.message == WM_SYSCHAR)) {
-    WinUtils::GetMessage(&msg, aWnd, msg.message, msg.message);
+    ::GetMessageW(&msg, aWnd, msg.message, msg.message);
   }
 }
 
@@ -6565,8 +6564,7 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
   extraFlags.mDefaultPrevented = noDefault;
   MSG msg;
   BOOL gotMsg = aFakeCharMessage ||
-    WinUtils::PeekMessage(&msg, mWnd, WM_KEYFIRST, WM_KEYLAST,
-                          PM_NOREMOVE | PM_NOYIELD);
+    ::PeekMessageW(&msg, mWnd, WM_KEYFIRST, WM_KEYLAST, PM_NOREMOVE | PM_NOYIELD);
   // Enter and backspace are always handled here to avoid for example the
   // confusion between ctrl-enter and ctrl-J.
   if (DOMKeyCode == NS_VK_RETURN || DOMKeyCode == NS_VK_BACK ||
@@ -6593,8 +6591,7 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
         RemoveMessageAndDispatchPluginEvent(WM_KEYFIRST, WM_KEYLAST);
         anyCharMessagesRemoved = true;
 
-        gotMsg = WinUtils::PeekMessage(&msg, mWnd, WM_KEYFIRST, WM_KEYLAST,
-                                       PM_NOREMOVE | PM_NOYIELD);
+        gotMsg = ::PeekMessageW (&msg, mWnd, WM_KEYFIRST, WM_KEYLAST, PM_NOREMOVE | PM_NOYIELD);
       }
     }
 
@@ -6636,7 +6633,7 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
     }
 
     // If prevent default set for keydown, do same for keypress
-    WinUtils::GetMessage(&msg, mWnd, msg.message, msg.message);
+    ::GetMessageW(&msg, mWnd, msg.message, msg.message);
 
     if (msg.message == WM_DEADCHAR) {
       if (!PluginHasFocus())

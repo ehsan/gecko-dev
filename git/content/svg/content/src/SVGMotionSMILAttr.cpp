@@ -7,7 +7,7 @@
 
 #include "SVGMotionSMILAttr.h"
 #include "SVGMotionSMILType.h"
-#include "mozilla/dom/SVGAnimationElement.h"
+#include "nsISMILAnimationElement.h"
 #include "nsSMILValue.h"
 #include "nsDebug.h"
 #include "nsSVGElement.h"
@@ -16,7 +16,7 @@ namespace mozilla {
 
 nsresult
 SVGMotionSMILAttr::ValueFromString(const nsAString& aStr,
-                                   const dom::SVGAnimationElement* aSrcElement,
+                                   const nsISMILAnimationElement* aSrcElement,
                                    nsSMILValue& aValue,
                                    bool& aPreventCachingOfSandwich) const
 {

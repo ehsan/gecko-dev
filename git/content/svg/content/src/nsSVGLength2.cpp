@@ -505,7 +505,7 @@ nsSVGLength2::ToSMILAttr(nsSVGElement *aSVGElement)
 
 nsresult
 nsSVGLength2::SMILLength::ValueFromString(const nsAString& aStr,
-                                 const SVGAnimationElement* /*aSrcElement*/,
+                                 const nsISMILAnimationElement* /*aSrcElement*/,
                                  nsSMILValue& aValue,
                                  bool& aPreventCachingOfSandwich) const
 {

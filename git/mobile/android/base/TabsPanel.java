@@ -137,15 +137,18 @@ public class TabsPanel extends LinearLayout
     }
 
     private static int getTabContainerHeight(TabsListContainer listContainer) {
-        Resources resources = listContainer.getContext().getResources();
+        Context context = listContainer.getContext();
 
         PanelView panelView = listContainer.getCurrentPanelView();
         if (panelView != null && !panelView.shouldExpand()) {
-            return resources.getDimensionPixelSize(R.dimen.tabs_tray_horizontal_height);
+            final View v = (View) panelView;
+            final int sizeSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED);
+            v.measure(sizeSpec, sizeSpec);
+            return v.getMeasuredHeight();
         }
 
-        int actionBarHeight = resources.getDimensionPixelSize(R.dimen.browser_toolbar_height);
-        int screenHeight = resources.getDisplayMetrics().heightPixels;
+        int actionBarHeight = context.getResources().getDimensionPixelSize(R.dimen.browser_toolbar_height);
+        int screenHeight = context.getResources().getDisplayMetrics().heightPixels;
 
         Rect windowRect = new Rect();
         listContainer.getWindowVisibleDisplayFrame(windowRect);

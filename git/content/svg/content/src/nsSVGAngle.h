@@ -12,6 +12,7 @@
 #include "mozilla/Attributes.h"
 
 class nsISupports;
+class nsISMILAnimationElement;
 class nsSMILValue;
 class nsSVGElement;
 
@@ -28,7 +29,6 @@ namespace dom {
 class nsSVGOrientType;
 class SVGAngle;
 class SVGAnimatedAngle;
-class SVGAnimationElement;
 }
 }
 
@@ -116,7 +116,7 @@ public:
 
     // nsISMILAttr methods
     virtual nsresult ValueFromString(const nsAString& aStr,
-                                     const mozilla::dom::SVGAnimationElement* aSrcElement,
+                                     const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue& aValue,
                                      bool& aPreventCachingOfSandwich) const;
     virtual nsSMILValue GetBaseValue() const;

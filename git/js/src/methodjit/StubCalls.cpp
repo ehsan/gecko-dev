@@ -1016,11 +1016,11 @@ JSObject * JS_FASTCALL
 stubs::Lambda(VMFrame &f, JSFunction *fun_)
 {
     RootedFunction fun(f.cx, fun_);
-    JSObject *clone = Lambda(f.cx, fun, f.fp()->scopeChain());
-    if (!clone)
+    fun = CloneFunctionObjectIfNotSingleton(f.cx, fun, f.fp()->scopeChain());
+    if (!fun)
         THROWV(NULL);
 
-    return clone;
+    return fun;
 }
 
 void JS_FASTCALL

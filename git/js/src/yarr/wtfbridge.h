@@ -133,7 +133,8 @@ class Vector {
     Vector() {}
 
     Vector(const Vector &v) {
-        append(v);
+        // XXX yarr-oom
+        (void) append(v);
     }
 
     size_t size() const {
@@ -166,19 +167,19 @@ class Vector {
 
     template <typename U>
     void append(const U &u) {
-        if (!impl.append(static_cast<T>(u)))
-            MOZ_CRASH();
+        // XXX yarr-oom
+        (void) impl.append(static_cast<T>(u));
     }
 
     template <size_t M>
     void append(const Vector<T,M> &v) {
-        if (!impl.append(v.impl))
-            MOZ_CRASH();
+        // XXX yarr-oom
+        (void) impl.append(v.impl);
     }
 
     void insert(size_t i, const T& t) {
-        if (!impl.insert(&impl[i], t))
-            MOZ_CRASH();
+        // XXX yarr-oom
+        (void) impl.insert(&impl[i], t);
     }
 
     void remove(size_t i) {
@@ -190,9 +191,9 @@ class Vector {
     }
 
     void shrink(size_t newLength) {
+        // XXX yarr-oom
         JS_ASSERT(newLength <= impl.length());
-        if (!impl.resize(newLength))
-            MOZ_CRASH();
+        (void) impl.resize(newLength);
     }
 
     void swap(Vector &other) {
@@ -202,10 +203,6 @@ class Vector {
     void deleteAllValues() {
         for (T *p = impl.begin(); p != impl.end(); ++p)
             js_delete(*p);
-    }
-
-    bool reserve(size_t capacity) {
-        return impl.reserve(capacity);
     }
 };
 
@@ -221,8 +218,8 @@ class Vector<OwnPtr<T> > {
     }
 
     void append(T *t) {
-        if (!impl.append(t))
-            MOZ_CRASH();
+        // XXX yarr-oom
+        (void) impl.append(t);
     }
 
     PassOwnPtr<T> operator[](size_t i) {
@@ -233,11 +230,6 @@ class Vector<OwnPtr<T> > {
         for (T **p = impl.begin(); p != impl.end(); ++p)
             delete_(*p);
         return impl.clear();
-    }
-
-    void reserve(size_t capacity) {
-        if (!impl.reserve(capacity))
-            MOZ_CRASH();
     }
 };
 

@@ -32,12 +32,12 @@
             // as richgrid is adopting multi-select behavior, but select/selected are already being
             // used to describe triggering the default action of a tile
             if (this._selectedItem){
-              this._selectedItem.removeAttribute("selected");
+              this._selectedItem.selected = false;
               this._selectedItem = null;
             }
 
             for (let childItem of this.selectedItems) {
-              childItem.removeAttribute("selected");
+              childItem.selected = false;
             }
             // reset context actions
             this._contextActions = null;
@@ -49,16 +49,7 @@
         <parameter name="anItem"/>
         <body>
           <![CDATA[
-            let wasSelected = anItem.selected;
-            if ("single" == this.getAttribute("seltype")) {
-              this.clearSelection();
-            }
-            this._selectedItem = wasSelected ? null : anItem;
-            if(anItem.selected) {
-              anItem.removeAttribute("selected");
-            } else {
-              anItem.setAttribute("selected", true);
-            }
+            anItem.selected = !anItem.selected;
             this._fireOnSelectionChange();
           ]]>
         </body>
@@ -68,20 +59,11 @@
         <parameter name="anItem"/>
         <body>
           <![CDATA[
-            let wasSelected = anItem.selected,
-                isSingleMode = ("single" == this.getAttribute("seltype"));
-            if (isSingleMode) {
-              this.clearSelection();
-            }
+            this.clearSelection();
             this._selectedItem = anItem;
-            anItem.selected = true;
-            if (isSingleMode) {
-              if (!wasSelected) {
-                this._fireOnSelect();
-              }
-            } else {
-              this._fireOnSelectionChange();
-            }
+            this._selectedItem.selected = true;
+
+            this._fireOnSelect();
           ]]>
         </body>
       </method>
@@ -510,7 +492,8 @@
                 onset="this._backgroundimage = val; this.setBackgroundImage();"
                 onget="return this._backgroundimage;" />
       <property name="selected"
-                onget="return this.getAttribute('selected') == 'true';" />
+                onget="return this.getAttribute('selected') == 'true';"
+                onset="this.setAttribute('selected', val);"/>
 
       <constructor>
         <![CDATA[

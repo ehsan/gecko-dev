@@ -10,9 +10,7 @@
 #include "MetroApp.h"
 #include "nsIObserverService.h"
 #include "nsServiceManagerUtils.h"
-#include "WinUtils.h"
 
-using namespace mozilla::widget;
 using namespace mozilla::widget::winrt;
 using namespace Microsoft::WRL;
 using namespace Microsoft::WRL::Wrappers;
@@ -142,14 +140,14 @@ MetroAppShell::ProcessNextNativeEvent(bool mayWait)
   MSG msg;
 
   if (mayWait) {
-    if (!WinUtils::PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
+    if (!PeekMessageW(&msg, NULL, 0, 0, PM_NOREMOVE)) {
       WaitMessage();
     }
     ProcessOneNativeEventIfPresent();
     return true;
   }
 
-  if (WinUtils::PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
+  if (PeekMessageW(&msg, NULL, 0, 0, PM_NOREMOVE)) {
     ProcessOneNativeEventIfPresent();
     return true;
   }

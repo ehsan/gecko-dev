@@ -780,16 +780,12 @@ UnixSocketConsumer::ConnectSocket(UnixSocketConnector* aConnector,
 {
   MOZ_ASSERT(aConnector);
   MOZ_ASSERT(NS_IsMainThread());
-
-  nsAutoPtr<UnixSocketConnector> connector(aConnector);
-
   if (mImpl) {
     NS_WARNING("Socket already connecting/connected!");
     return false;
   }
-
   nsCString addr(aAddress);
-  mImpl = new UnixSocketImpl(this, connector.forget(), addr);
+  mImpl = new UnixSocketImpl(this, aConnector, addr);
   MessageLoop* ioLoop = XRE_GetIOMessageLoop();
   mConnectionStatus = SOCKET_CONNECTING;
   if (aDelayMs > 0) {
@@ -805,15 +801,11 @@ UnixSocketConsumer::ListenSocket(UnixSocketConnector* aConnector)
 {
   MOZ_ASSERT(aConnector);
   MOZ_ASSERT(NS_IsMainThread());
-
-  nsAutoPtr<UnixSocketConnector> connector(aConnector);
-
   if (mImpl) {
     NS_WARNING("Socket already connecting/connected!");
     return false;
   }
-
-  mImpl = new UnixSocketImpl(this, connector.forget(), EmptyCString());
+  mImpl = new UnixSocketImpl(this, aConnector, EmptyCString());
   mConnectionStatus = SOCKET_LISTENING;
   XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
                                    new SocketAcceptTask(mImpl));

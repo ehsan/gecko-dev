@@ -153,7 +153,7 @@ this.ProviderManager.prototype = Object.freeze({
     }
 
     if (this._providers.has(provider.name)) {
-      return CommonUtils.laterTickResolvingPromise();
+      return Promise.resolve();
     }
 
     let deferred = Promise.defer();
@@ -222,13 +222,13 @@ this.ProviderManager.prototype = Object.freeze({
    */
   ensurePullOnlyProvidersRegistered: function () {
     if (this._pullOnlyProvidersRegistered) {
-      return CommonUtils.laterTickResolvingPromise();
+      return Promise.resolve();
     }
 
     let onFinished = function () {
       this._pullOnlyProvidersRegistered = true;
 
-      return CommonUtils.laterTickResolvingPromise();
+      return Promise.resolve();
     }.bind(this);
 
     return Task.spawn(function registerPullProviders() {
@@ -245,13 +245,13 @@ this.ProviderManager.prototype = Object.freeze({
 
   ensurePullOnlyProvidersUnregistered: function () {
     if (!this._pullOnlyProvidersRegistered) {
-      return CommonUtils.laterTickResolvingPromise();
+      return Promise.resolve();
     }
 
     let onFinished = function () {
       this._pullOnlyProvidersRegistered = false;
 
-      return CommonUtils.laterTickResolvingPromise();
+      return Promise.resolve();
     }.bind(this);
 
     return Task.spawn(function unregisterPullProviders() {
@@ -373,7 +373,7 @@ this.ProviderManager.prototype = Object.freeze({
           }
         }
 
-        return CommonUtils.laterTickResolvingPromise(result);
+        return Promise.resolve(result);
       });
 
       promises.push([provider.name, promise]);
@@ -412,7 +412,7 @@ this.ProviderManager.prototype = Object.freeze({
   _recordProviderError: function (name, msg, ex) {
     let msg = "Provider error: " + name + ": " + msg;
     if (ex) {
-      msg += ": " + CommonUtils.exceptionStr(ex);
+      msg += ": " + ex.message;
     }
     this._log.warn(msg);
 

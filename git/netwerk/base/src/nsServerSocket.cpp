@@ -345,7 +345,7 @@ class ServerSocketListenerProxy MOZ_FINAL : public nsIServerSocketListener
 {
 public:
   ServerSocketListenerProxy(nsIServerSocketListener* aListener)
-    : mListener(new nsMainThreadPtrHolder<nsIServerSocketListener>(aListener))
+    : mListener(aListener)
     , mTargetThread(do_GetCurrentThread())
   { }
 
@@ -355,7 +355,7 @@ public:
   class OnSocketAcceptedRunnable : public nsRunnable
   {
   public:
-    OnSocketAcceptedRunnable(nsMainThreadPtrHolder<nsIServerSocketListener>* aListener,
+    OnSocketAcceptedRunnable(nsIServerSocketListener* aListener,
                              nsIServerSocket* aServ,
                              nsISocketTransport* aTransport)
       : mListener(aListener)
@@ -366,7 +366,7 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsMainThreadPtrHandle<nsIServerSocketListener> mListener;
+    nsCOMPtr<nsIServerSocketListener> mListener;
     nsCOMPtr<nsIServerSocket> mServ;
     nsCOMPtr<nsISocketTransport> mTransport;
   };
@@ -374,7 +374,7 @@ public:
   class OnStopListeningRunnable : public nsRunnable
   {
   public:
-    OnStopListeningRunnable(nsMainThreadPtrHolder<nsIServerSocketListener>* aListener,
+    OnStopListeningRunnable(nsIServerSocketListener* aListener,
                             nsIServerSocket* aServ,
                             nsresult aStatus)
       : mListener(aListener)
@@ -385,13 +385,13 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsMainThreadPtrHandle<nsIServerSocketListener> mListener;
+    nsCOMPtr<nsIServerSocketListener> mListener;
     nsCOMPtr<nsIServerSocket> mServ;
     nsresult mStatus;
   };
 
 private:
-  nsMainThreadPtrHandle<nsIServerSocketListener> mListener;
+  nsCOMPtr<nsIServerSocketListener> mListener;
   nsCOMPtr<nsIEventTarget> mTargetThread;
 };
 

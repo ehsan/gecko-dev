@@ -101,11 +101,7 @@ var MasterPasswordUI = {
     let buttonOk = this._dialog.getElementsByAttribute("class", "prompt-buttons")[0].firstChild;
     let isPasswordValid = this._secModuleDB.isFIPSEnabled ? (newPasswordValue1 != "" && newPasswordValue1 == newPasswordValue2)
                                                           : (newPasswordValue1 == newPasswordValue2);
-    if (isPasswordValid) {
-      buttonOk.removeAttribute("disabled");
-    } else {
-      buttonOk.setAttribute("disabled", true);
-    }
+    buttonOk.setAttribute("disabled", !isPasswordValid);
 
     return isPasswordValid;
   },

@@ -28,7 +28,7 @@ ReleaseStringBufferPropertyValue(void*    aObject,       /* unused */
 
 nsresult
 nsSMILMappedAttribute::ValueFromString(const nsAString& aStr,
-                                       const mozilla::dom::SVGAnimationElement* aSrcElement,
+                                       const nsISMILAnimationElement* aSrcElement,
                                        nsSMILValue& aValue,
                                        bool& aPreventCachingOfSandwich) const
 {

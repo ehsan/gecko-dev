@@ -508,6 +508,23 @@ Provider.prototype = Object.freeze({
     return m;
   },
 
+  /**
+   * Initializes preferences storage for this provider.
+   *
+   * Providers are allocated preferences storage under a pref branch named
+   * after the provider.
+   *
+   * This function is typically only called by the entity that constructs the
+   * Provider instance.
+   */
+  initPreferences: function (branchParent) {
+    if (!branchParent.endsWith(".")) {
+      throw new Error("branchParent must end with '.': " + branchParent);
+    }
+
+    this._prefs = new Preferences(branchParent + this.name + ".");
+  },
+
   init: function (storage) {
     if (this.storage !== null) {
       throw new Error("Provider() not called. Did the sub-type forget to call it?");
@@ -569,7 +586,7 @@ Provider.prototype = Object.freeze({
    * initialization activities have completed.
    */
   onInit: function () {
-    return CommonUtils.laterTickResolvingPromise();
+    return Promise.resolve();
   },
 
   /**
@@ -582,7 +599,7 @@ Provider.prototype = Object.freeze({
    * shutdown activities have completed.
    */
   onShutdown: function () {
-    return CommonUtils.laterTickResolvingPromise();
+    return Promise.resolve();
   },
 
   /**
@@ -594,7 +611,7 @@ Provider.prototype = Object.freeze({
    * @return Promise<>
    */
   collectConstantData: function () {
-    return CommonUtils.laterTickResolvingPromise();
+    return Promise.resolve();
   },
 
   /**
@@ -610,7 +627,7 @@ Provider.prototype = Object.freeze({
    * @return Promise<>
    */
   collectDailyData: function () {
-    return CommonUtils.laterTickResolvingPromise();
+    return Promise.resolve();
   },
 
   /**

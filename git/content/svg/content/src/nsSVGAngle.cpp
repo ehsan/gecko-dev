@@ -372,7 +372,7 @@ nsSVGAngle::ToSMILAttr(nsSVGElement *aSVGElement)
 
 nsresult
 nsSVGAngle::SMILOrient::ValueFromString(const nsAString& aStr,
-                                        const SVGAnimationElement* /*aSrcElement*/,
+                                        const nsISMILAnimationElement* /*aSrcElement*/,
                                         nsSMILValue& aValue,
                                         bool& aPreventCachingOfSandwich) const
 {

@@ -371,9 +371,6 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
     case eIntID_MacLionTheme:
       aResult = nsCocoaFeatures::OnLionOrLater();
       break;
-    case eIntID_AlertNotificationOrigin:
-      aResult = NS_ALERT_TOP;
-      break;
     case eIntID_TabFocusModel:
     {
       // we should probably cache this

@@ -140,7 +140,7 @@ nsSVGInteger::ToSMILAttr(nsSVGElement *aSVGElement)
 
 nsresult
 nsSVGInteger::SMILInteger::ValueFromString(const nsAString& aStr,
-                                           const dom::SVGAnimationElement* /*aSrcElement*/,
+                                           const nsISMILAnimationElement* /*aSrcElement*/,
                                            nsSMILValue& aValue,
                                            bool& aPreventCachingOfSandwich) const
 {

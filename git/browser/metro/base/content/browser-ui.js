@@ -591,16 +591,8 @@ var BrowserUI = {
 
   _updateButtons: function _updateButtons() {
     let browser = Browser.selectedBrowser;
-    if (browser.canGoBack) {
-      this._back.removeAttribute("disabled");
-    } else {
-      this._back.setAttribute("disabled", true);
-    }
-    if (browser.canGoForward) {
-      this._forward.removeAttribute("disabled");
-    } else {
-      this._forward.setAttribute("disabled", true);
-    }
+    this._back.setAttribute("disabled", !browser.canGoBack);
+    this._forward.setAttribute("disabled", !browser.canGoForward);
   },
 
   _updateToolbar: function _updateToolbar() {

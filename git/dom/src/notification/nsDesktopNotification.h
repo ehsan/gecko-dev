@@ -109,8 +109,6 @@ protected:
   nsCOMPtr<nsIPrincipal> mPrincipal;
   bool mAllow;
   bool mShowHasBeenCalled;
-
-  static uint32_t sCount;
 };
 
 /*

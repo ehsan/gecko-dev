@@ -29,10 +29,6 @@ var gPermObj = {
       return SESSION;
     return ALLOW;
   },
-  "desktop-notification": function getNotificationDefaultPermission()
-  {
-    return BLOCK;
-  },
   popup: function getPopupDefaultPermission()
   {
     if (gPrefs.getBoolPref("dom.disable_open_during_load"))

@@ -313,7 +313,7 @@ typedef SVGAnimatedPreserveAspectRatio::SMILPreserveAspectRatio
 
 nsresult
 SMILPreserveAspectRatio::ValueFromString(const nsAString& aStr,
-                                         const SVGAnimationElement* /*aSrcElement*/,
+                                         const nsISMILAnimationElement* /*aSrcElement*/,
                                          nsSMILValue& aValue,
                                          bool& aPreventCachingOfSandwich) const
 {

@@ -369,8 +369,7 @@ DocManager::CreateDocOrRootAccessible(nsIDocument* aDocument)
 {
   // Ignore temporary, hiding, resource documents and documents without
   // docshell.
-  if (aDocument->IsInitialDocument() ||
-      !aDocument->IsVisibleConsideringAncestors() ||
+  if (aDocument->IsInitialDocument() || !aDocument->IsVisible() ||
       aDocument->IsResourceDoc() || !aDocument->IsActive())
     return nullptr;
 
