@@ -32,7 +32,7 @@
 
       <xul:popupset>
         <xul:panel type="autocomplete" anonid="popup"
-                   ignorekeys="true" noautofocus="true" level="top"
+                   ignorekeys="true" noautofocus="true"
                    xbl:inherits="for=id,nomatch"/>
       </xul:popupset>
       

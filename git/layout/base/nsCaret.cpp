@@ -1010,7 +1010,6 @@ PRBool nsCaret::MustDrawCaret(PRBool aIgnoreDrawnState)
 
 PRBool nsCaret::IsMenuPopupHidingCaret()
 {
-#ifdef MOZ_XUL
   // Check if there are open popups.
   nsXULPopupManager *popMgr = nsXULPopupManager::GetInstance();
   nsTArray<nsIFrame*> popups = popMgr->GetOpenPopups();
@@ -1050,7 +1049,6 @@ PRBool nsCaret::IsMenuPopupHidingCaret()
       return PR_TRUE;
     }
   }
-#endif
 
   // There are no open menu popups, no need to hide the caret.
   return PR_FALSE;

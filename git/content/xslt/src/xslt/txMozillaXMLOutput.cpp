@@ -260,12 +260,13 @@ txMozillaXMLOutput::endDocument(nsresult aResult)
     }
 
     if (!mRefreshString.IsEmpty()) {
-        nsPIDOMWindow *win = mDocument->GetWindow();
+        nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocument);
+        nsPIDOMWindow *win = doc->GetWindow();
         if (win) {
             nsCOMPtr<nsIRefreshURI> refURI =
                 do_QueryInterface(win->GetDocShell());
             if (refURI) {
-                refURI->SetupRefreshURIFromHeader(mDocument->GetBaseURI(),
+                refURI->SetupRefreshURIFromHeader(doc->GetBaseURI(),
                                                   mRefreshString);
             }
         }
@@ -673,9 +674,6 @@ txMozillaXMLOutput::createTxWrapper()
         }
     }
 
-    if (!mCurrentNodeStack.AppendObject(wrapper)) {
-        return NS_ERROR_OUT_OF_MEMORY;
-    }
     mCurrentNode = wrapper;
     mRootContentCreated = PR_TRUE;
     NS_ASSERTION(rootLocation == mDocument->GetChildCount(),
@@ -776,16 +774,18 @@ txMozillaXMLOutput::endHTMLElement(nsIContent* aElement)
         // The first base wins
         mHaveBaseElement = PR_TRUE;
 
+        nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocument);
+        NS_ASSERTION(doc, "document doesn't implement nsIDocument");
         nsAutoString value;
         aElement->GetAttr(kNameSpaceID_None, txHTMLAtoms::target, value);
-        mDocument->SetBaseTarget(value);
+        doc->SetBaseTarget(value);
 
         aElement->GetAttr(kNameSpaceID_None, txHTMLAtoms::href, value);
         nsCOMPtr<nsIURI> baseURI;
         NS_NewURI(getter_AddRefs(baseURI), value, nsnull);
 
         if (baseURI) {
-            mDocument->SetBaseURI(baseURI); // The document checks if it is legal to set this base
+            doc->SetBaseURI(baseURI); // The document checks if it is legal to set this base
         }
     }
     else if (mCreatingNewDocument && atom == txHTMLAtoms::meta) {
@@ -1092,12 +1092,13 @@ txTransformNotifier::SignalTransformEnd(nsresult aResult)
     // we remove ourselfs from the scriptloader
     nsCOMPtr<nsIScriptLoaderObserver> kungFuDeathGrip(this);
 
-    if (mDocument) {
-        mDocument->ScriptLoader()->RemoveObserver(this);
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocument);
+    if (doc) {
+        doc->ScriptLoader()->RemoveObserver(this);
         // XXX Maybe we want to cancel script loads if NS_FAILED(rv)?
 
         if (NS_FAILED(aResult)) {
-            mDocument->CSSLoader()->Stop();
+            doc->CSSLoader()->Stop();
         }
     }
 
