@@ -290,10 +290,10 @@ protected:
   nsresult CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
                                          nsIURI* aBaseURI,
                                          bool aTryToSaveOldPresentation = true);
-  nsresult CreateContentViewer(const nsACString& aContentType,
+  nsresult CreateContentViewer(const char* aContentType,
                                nsIRequest* aRequest,
                                nsIStreamListener** aContentHandler);
-  nsresult NewContentViewerObj(const nsACString& aContentType,
+  nsresult NewContentViewerObj(const char* aContentType,
                                nsIRequest* aRequest, nsILoadGroup* aLoadGroup,
                                nsIStreamListener** aContentHandler,
                                nsIContentViewer** aViewer);

@@ -46,10 +46,6 @@ function sendMessage(action, data, sync, callbackCookie) {
   return Components.utils.cloneInto(result, content);
 }
 
-function enableDebug() {
-  sendAsyncMessage('Shumway:enableDebug', null);
-}
-
 addMessageListener('Shumway:init', function (message) {
   sendAsyncMessage('Shumway:running', {}, {
     externalInterface: externalInterfaceWrapper
@@ -59,7 +55,6 @@ addMessageListener('Shumway:init', function (message) {
   // up Xray wrappers.
   shumwayComAdapter = Components.utils.createObjectIn(content, {defineAs: 'ShumwayCom'});
   Components.utils.exportFunction(sendMessage, shumwayComAdapter, {defineAs: 'sendMessage'});
-  Components.utils.exportFunction(enableDebug, shumwayComAdapter, {defineAs: 'enableDebug'});
   Object.defineProperties(shumwayComAdapter, {
     onLoadFileCallback: { value: null, writable: true },
     onExternalCallback: { value: null, writable: true },

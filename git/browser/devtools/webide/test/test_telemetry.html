@@ -113,7 +113,6 @@
         return Task.spawn(function*() {
           let packagedAppLocation = getTestFilePath("app");
           yield win.Cmds.importPackagedApp(packagedAppLocation);
-          yield waitForUpdate(win, "project-validated");
         });
       }
 

@@ -32,7 +32,6 @@ interface ServiceWorkerContainer : EventTarget {
   attribute EventHandler oncontrollerchange;
   attribute EventHandler onreloadpage;
   attribute EventHandler onerror;
-  attribute EventHandler onmessage;
 };
 
 // Testing only.

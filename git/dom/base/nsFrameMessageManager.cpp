@@ -1682,17 +1682,6 @@ nsMessageManagerScriptExecutor::InitChildGlobalInternal(
   return true;
 }
 
-void
-nsMessageManagerScriptExecutor::MarkScopesForCC()
-{
-  for (uint32_t i = 0; i < mAnonymousGlobalScopes.Length(); ++i) {
-    JSObject* obj = mAnonymousGlobalScopes[i];
-    if (obj) {
-      JS::ExposeObjectToActiveJS(obj);
-    }
-  }
-}
-
 NS_IMPL_ISUPPORTS(nsScriptCacheCleaner, nsIObserver)
 
 nsFrameMessageManager* nsFrameMessageManager::sChildProcessManager = nullptr;

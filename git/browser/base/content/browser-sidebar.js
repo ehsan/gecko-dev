@@ -32,7 +32,11 @@ let SidebarUI = {
     this._title = document.getElementById("sidebar-title");
     this._splitter = document.getElementById("sidebar-splitter");
 
-    if (!this.adoptFromWindow(window.opener)) {
+    if (window.opener && !window.opener.closed &&
+        window.opener.document.documentURIObject.schemeIs("chrome") &&
+        PrivateBrowsingUtils.isWindowPrivate(window) == PrivateBrowsingUtils.isWindowPrivate(window.opener)) {
+      this.adoptFromWindow(window.opener);
+    } else {
       let commandID = this._box.getAttribute("sidebarcommand");
       if (commandID) {
         let command = document.getElementById(commandID);
@@ -63,40 +67,24 @@ let SidebarUI = {
   },
 
   /**
-   * Try and adopt the status of the sidebar from another window.
+   * Adopt the status of the sidebar from another window.
    * @param {Window} sourceWindow - Window to use as a source for sidebar status.
-   * @return true if we adopted the state, or false if the caller should
-   * initialize the state itself.
    */
   adoptFromWindow(sourceWindow) {
-    // No source window, or it being closed, or not chrome, or in a different
-    // private-browsing context means we can't adopt.
-    if (!sourceWindow || sourceWindow.closed ||
-        !sourceWindow.document.documentURIObject.schemeIs("chrome") ||
-        PrivateBrowsingUtils.isWindowPrivate(window) != PrivateBrowsingUtils.isWindowPrivate(sourceWindow)) {
-      return false;
-    }
-
     // If the opener had a sidebar, open the same sidebar in our window.
     // The opener can be the hidden window too, if we're coming from the state
     // where no windows are open, and the hidden window has no sidebar box.
     let sourceUI = sourceWindow.SidebarUI;
-    if (!sourceUI || !sourceUI._box) {
-      // no source UI or no _box means we also can't adopt the state.
-      return false;
-    }
-    if (sourceUI._box.hidden) {
-      // just hidden means we have adopted the hidden state.
-      return true;
+    if (!sourceUI || sourceUI._box.hidden) {
+      return;
     }
 
     let commandID = sourceUI._box.getAttribute("sidebarcommand");
     let commandElem = document.getElementById(commandID);
 
-    // dynamically generated sidebars will fail this check, but we still
-    // consider it adopted.
+    // dynamically generated sidebars will fail this check.
     if (!commandElem) {
-      return true;
+      return;
     }
 
     this._title.setAttribute("value",
@@ -113,7 +101,6 @@ let SidebarUI = {
     this._box.hidden = false;
     this._splitter.hidden = false;
     commandElem.setAttribute("checked", "true");
-    return true;
   },
 
   /**

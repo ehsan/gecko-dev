@@ -136,15 +136,6 @@ static volatile bool gServiceInterrupt = false;
 static JS::PersistentRootedValue gInterruptFunc;
 
 static bool enableDisassemblyDumps = false;
-static bool offthreadCompilation = false;
-static bool enableBaseline = false;
-static bool enableIon = false;
-static bool enableAsmJS = false;
-static bool enableNativeRegExp = false;
-static bool enableUnboxedObjects = false;
-#ifdef JS_GC_ZEAL
-static char gZealStr[128];
-#endif
 
 static bool printTiming = false;
 static const char *jsCacheDir = nullptr;
@@ -2782,8 +2773,6 @@ struct WorkerInput
     }
 };
 
-static void SetWorkerRuntimeOptions(JSRuntime *rt);
-
 static void
 WorkerMain(void *arg)
 {
@@ -2795,7 +2784,6 @@ WorkerMain(void *arg)
         return;
     }
     JS_SetErrorReporter(rt, my_ErrorReporter);
-    SetWorkerRuntimeOptions(rt);
 
     JSContext *cx = NewContext(rt);
     if (!cx) {
@@ -5803,11 +5791,11 @@ ProcessArgs(JSContext *cx, JSObject *obj_, OptionParser *op)
 static bool
 SetRuntimeOptions(JSRuntime *rt, const OptionParser &op)
 {
-    enableBaseline = !op.getBoolOption("no-baseline");
-    enableIon = !op.getBoolOption("no-ion");
-    enableAsmJS = !op.getBoolOption("no-asmjs");
-    enableNativeRegExp = !op.getBoolOption("no-native-regexp");
-    enableUnboxedObjects = op.getBoolOption("unboxed-objects");
+    bool enableBaseline = !op.getBoolOption("no-baseline");
+    bool enableIon = !op.getBoolOption("no-ion");
+    bool enableAsmJS = !op.getBoolOption("no-asmjs");
+    bool enableNativeRegExp = !op.getBoolOption("no-native-regexp");
+    bool enableUnboxedObjects = op.getBoolOption("unboxed-objects");
 
     JS::RuntimeOptionsRef(rt).setBaseline(enableBaseline)
                              .setIon(enableIon)
@@ -5932,7 +5920,7 @@ SetRuntimeOptions(JSRuntime *rt, const OptionParser &op)
     if (op.getBoolOption("ion-eager"))
         jit::js_JitOptions.setEagerCompilation();
 
-    offthreadCompilation = true;
+    bool offthreadCompilation = true;
     if (const char *str = op.getStringOption("ion-offthread-compile")) {
         if (strcmp(str, "off") == 0)
             offthreadCompilation = false;
@@ -5995,34 +5983,11 @@ SetRuntimeOptions(JSRuntime *rt, const OptionParser &op)
 
 #ifdef JS_GC_ZEAL
     const char *zealStr = op.getStringOption("gc-zeal");
-    gZealStr[0] = 0;
-    if (zealStr) {
-        if (!rt->gc.parseAndSetZeal(zealStr))
-            return false;
-        strncpy(gZealStr, zealStr, sizeof(gZealStr));
-        gZealStr[sizeof(gZealStr)-1] = 0;
-    }
+    if (zealStr && !rt->gc.parseAndSetZeal(zealStr))
+        return false;
 #endif
 
     return true;
-}
-
-static void
-SetWorkerRuntimeOptions(JSRuntime *rt)
-{
-    // Copy option values from the main thread.
-    JS::RuntimeOptionsRef(rt).setBaseline(enableBaseline)
-                             .setIon(enableIon)
-                             .setAsmJS(enableAsmJS)
-                             .setNativeRegExp(enableNativeRegExp)
-                             .setUnboxedObjects(enableUnboxedObjects);
-    rt->setOffthreadIonCompilationEnabled(offthreadCompilation);
-    rt->profilingScripts = enableDisassemblyDumps;
-
-#ifdef JS_GC_ZEAL
-    if (*gZealStr)
-        rt->gc.parseAndSetZeal(gZealStr);
-#endif
 }
 
 static int
