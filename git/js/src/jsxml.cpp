@@ -1887,7 +1887,7 @@ ParseXMLSource(JSContext *cx, JSString *src)
         }
     }
 
-    if (!js_InitParseContext(cx, &pc, NULL, chars, length, NULL,
+    if (!js_InitParseContext(cx, &pc, NULL, NULL, chars, length, NULL,
                              filename, lineno))
         goto out;
     pn = js_ParseXMLText(cx, cx->fp->scopeChain, &pc, JS_FALSE);
@@ -6036,7 +6036,7 @@ TraceObjectVector(JSTracer *trc, JSObject **vec, uint32 len)
     }
 }
 
-JS_STATIC_DLL_CALLBACK(void)
+static void
 trace_temp_ns_array(JSTracer *trc, JSTempValueRooter *tvr)
 {
     JSTempRootedNSArray *tmp = (JSTempRootedNSArray *)tvr;
