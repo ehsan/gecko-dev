@@ -426,8 +426,6 @@ panel[type="arrow"] {
   -moz-binding: url("chrome://global/content/bindings/popup.xml#arrowpanel");
 }
 
-%ifndef MOZ_WIDGET_GTK
-
 panel[type="arrow"]:not([animate="false"]) {
   transform: scale(.7);
   opacity: 0;
@@ -486,8 +484,6 @@ panel[arrowposition="start_before"][animate="cancel"],
 panel[arrowposition="end_after"][animate="cancel"] {
   transform: scale(.7) skew(-10deg, -10deg);
 }
-
-%endif
 
 %ifdef XP_MACOSX
 .statusbar-resizerpanel {

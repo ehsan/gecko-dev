@@ -346,12 +346,19 @@ var BrowserApp = {
       });
     }, false);
 
-    window.addEventListener("mozfullscreenchange", function() {
+    window.addEventListener("mozfullscreenchange", function(e) {
+      // This event gets fired on the document and its entire ancestor chain
+      // of documents. When enabling fullscreen, it is fired on the top-level
+      // document first and goes down; when disabling the order is reversed
+      // (per spec). This means the last event on enabling will be for the innermost
+      // document, which will have mozFullScreenElement set correctly.
+      let doc = e.target;
       sendMessageToJava({
-        type: document.mozFullScreen ? "DOMFullScreen:Start" : "DOMFullScreen:Stop"
+        type: doc.mozFullScreen ? "DOMFullScreen:Start" : "DOMFullScreen:Stop",
+        rootElement: (doc.mozFullScreen && doc.mozFullScreenElement == doc.documentElement)
       });
 
-      if (document.mozFullScreen)
+      if (doc.mozFullScreen)
         showFullScreenWarning();
     }, false);
 
@@ -4204,26 +4211,20 @@ Tab.prototype = {
     sendMessageToJava(message);
   },
 
-  _getGeckoZoom: function() {
-    let res = {x: {}, y: {}};
-    let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-    cwu.getResolution(res.x, res.y);
-    let zoom = res.x.value * window.devicePixelRatio;
-    return zoom;
-  },
-
   saveSessionZoom: function(aZoom) {
     let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
     cwu.setResolution(aZoom / window.devicePixelRatio, aZoom / window.devicePixelRatio);
   },
 
   restoredSessionZoom: function() {
-    let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-
-    if (this._restoreZoom && cwu.isHistoryRestored) {
-      return this._getGeckoZoom();
+    if (!this._restoreZoom) {
+      return null;
     }
-    return null;
+
+    let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+    let res = {x: {}, y: {}};
+    cwu.getResolution(res.x, res.y);
+    return res.x.value * window.devicePixelRatio;
   },
 
   OnHistoryNewEntry: function(aUri) {

@@ -241,7 +241,6 @@ private:
   bool mIsChromeWorker;
   bool mMainThreadObjectsForgotten;
   WorkerType mWorkerType;
-  TimeStamp mCreationTimeStamp;
 
 protected:
   // The worker is owned by its thread, which is represented here.  This is set
@@ -507,11 +506,6 @@ public:
   {
     AssertIsOnMainThread();
     return mLoadInfo.mResolvedScriptURI;
-  }
-
-  TimeStamp CreationTimeStamp() const
-  {
-    return mCreationTimeStamp;
   }
 
   nsIPrincipal*

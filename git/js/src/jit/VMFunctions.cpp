@@ -553,8 +553,8 @@ NewCallObject(JSContext *cx, HandleShape shape, HandleTypeObject type, HeapSlot 
     // The JIT creates call objects in the nursery, so elides barriers for
     // the initializing writes. The interpreter, however, may have allocated
     // the call object tenured, so barrier as needed before re-entering.
-    if (!IsInsideNursery(obj))
-        cx->runtime()->gc.storeBuffer.putWholeCellFromMainThread(obj);
+    if (!IsInsideNursery(cx->runtime(), obj))
+        cx->runtime()->gc.storeBuffer.putWholeCell(obj);
 #endif
 
     return obj;
@@ -571,9 +571,9 @@ NewSingletonCallObject(JSContext *cx, HandleShape shape, HeapSlot *slots)
     // The JIT creates call objects in the nursery, so elides barriers for
     // the initializing writes. The interpreter, however, may have allocated
     // the call object tenured, so barrier as needed before re-entering.
-    MOZ_ASSERT(!IsInsideNursery(obj),
+    MOZ_ASSERT(!IsInsideNursery(cx->runtime(), obj),
                "singletons are created in the tenured heap");
-    cx->runtime()->gc.storeBuffer.putWholeCellFromMainThread(obj);
+    cx->runtime()->gc.storeBuffer.putWholeCell(obj);
 #endif
 
     return obj;
@@ -714,7 +714,7 @@ void
 PostWriteBarrier(JSRuntime *rt, JSObject *obj)
 {
     JS_ASSERT(!IsInsideNursery(rt, obj));
-    rt->gc.storeBuffer.putWholeCellFromMainThread(obj);
+    rt->gc.storeBuffer.putWholeCell(obj);
 }
 
 void
