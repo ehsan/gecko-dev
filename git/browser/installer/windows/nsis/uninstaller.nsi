@@ -221,12 +221,12 @@ Section "Uninstall"
   ${un.DeleteShortcuts}
 
   ClearErrors
-  WriteRegStr HKLM "Software\Mozilla" "${BrandShortName}InstallerTest" "Write Test"
+  WriteRegStr HKLM "Software\Mozilla\InstallerTest" "InstallerTest" "Test"
   ${If} ${Errors}
     StrCpy $TmpVal "HKCU" ; used primarily for logging
   ${Else}
     SetShellVarContext all  ; Set SHCTX to HKLM
-    DeleteRegValue HKLM "Software\Mozilla" "${BrandShortName}InstallerTest"
+    DeleteRegKey HKLM "Software\Mozilla\InstallerTest"
     StrCpy $TmpVal "HKLM" ; used primarily for logging
     ${un.RegCleanMain} "Software\Mozilla"
     ${un.RegCleanUninstall}

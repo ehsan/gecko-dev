@@ -40,6 +40,8 @@
 #include "nsSVGAnimatedTransformList.h"
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
+#include "nsSVGAnimatedRect.h"
+#include "nsSVGRect.h"
 #include "nsSVGMatrix.h"
 #include "nsSVGPatternElement.h"
 #include "nsIFrame.h"
@@ -115,6 +117,19 @@ nsSVGPatternElement::Init()
     NS_ENSURE_SUCCESS(rv,rv);
   }
 
+  // nsIDOMSVGFitToViewBox properties
+
+  // DOM property: viewBox
+  {
+    nsCOMPtr<nsIDOMSVGRect> viewbox;
+    rv = NS_NewSVGRect(getter_AddRefs(viewbox));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedRect(getter_AddRefs(mViewBox), viewbox);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::viewBox, mViewBox);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
   return NS_OK;
 }
 
@@ -129,7 +144,9 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGPatternElement)
 /* readonly attribute nsIDOMSVGAnimatedRect viewBox; */
 NS_IMETHODIMP nsSVGPatternElement::GetViewBox(nsIDOMSVGAnimatedRect * *aViewBox)
 {
-  return mViewBox.ToDOMAnimatedRect(aViewBox, this);
+  *aViewBox = mViewBox;
+  NS_ADDREF(*aViewBox);
+  return NS_OK;
 }
 
 /* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
@@ -234,12 +251,6 @@ nsSVGPatternElement::GetEnumInfo()
 {
   return EnumAttributesInfo(mEnumAttributes, sEnumInfo,
                             NS_ARRAY_LENGTH(sEnumInfo));
-}
-
-nsSVGViewBox *
-nsSVGPatternElement::GetViewBox()
-{
-  return &mViewBox;
 }
 
 nsSVGPreserveAspectRatio *

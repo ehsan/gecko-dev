@@ -74,8 +74,8 @@ inDeepTreeWalker::inDeepTreeWalker()
 
 inDeepTreeWalker::~inDeepTreeWalker() 
 { 
-  for (PRInt32 i = mStack.Length() - 1; i >= 0; --i) {
-    delete mStack[i];
+  for (PRInt32 i = mStack.Count() - 1; i >= 0; --i) {
+    delete static_cast<DeepTreeStackItem*>(mStack[i]);
   }
 }
 
@@ -228,15 +228,15 @@ inDeepTreeWalker::NextNode(nsIDOMNode **_retval)
   nsCOMPtr<nsIDOMNode> next;
   
   while (1) {
-    DeepTreeStackItem* top = mStack.ElementAt(mStack.Length()-1);
+    DeepTreeStackItem* top = (DeepTreeStackItem*)mStack.ElementAt(mStack.Count()-1);
     nsCOMPtr<nsIDOMNodeList> kids = top->kids;
     PRUint32 childCount;
     kids->GetLength(&childCount);
 
     if (top->lastIndex == childCount) {
-      mStack.RemoveElementAt(mStack.Length()-1);
+      mStack.RemoveElementAt(mStack.Count()-1);
       delete top;
-      if (mStack.Length() == 0) {
+      if (mStack.Count() == 0) {
         mCurrentNode = nsnull;
         break;
       }
@@ -288,7 +288,7 @@ inDeepTreeWalker::PushNode(nsIDOMNode* aNode)
   
   item->kids = kids;
   item->lastIndex = 0;
-  mStack.AppendElement(item);
+  mStack.AppendElement((void*)item);
 }
 
 /*

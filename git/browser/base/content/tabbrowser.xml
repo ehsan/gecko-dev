@@ -1921,8 +1921,6 @@
             dt.setDragImage(canvas, 0, 0);
             aEvent.stopPropagation();
           }
-
-          this._dragLeftWindow = false;
         ]]>
         </body>
       </method>

@@ -986,8 +986,6 @@ mozJSComponentLoader::StartFastLoad(nsIFastLoadService *flSvc)
                                                   kFastLoadWriteDelay,
                                                   nsITimer::TYPE_ONE_SHOT);
     } else {
-        // Note, that since CloseFastLoad nulls out mFastLoadTimer,
-        // SetDelay() will only be called on a timer that hasn't fired.
         rv = mFastLoadTimer->SetDelay(kFastLoadWriteDelay);
     }
 

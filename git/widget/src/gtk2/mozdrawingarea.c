@@ -52,10 +52,10 @@ static void moz_drawingarea_finalize            (GObject *object);
 
 static GObjectClass *parent_class = NULL;
 
-GType
+GtkType
 moz_drawingarea_get_type(void)
 {
-    static GType moz_drawingarea_type = 0;
+    static GtkType moz_drawingarea_type = 0;
 
    if (!moz_drawingarea_type) {
        static GTypeInfo moz_drawingarea_info = {

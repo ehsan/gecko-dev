@@ -63,6 +63,9 @@ class nsIDOMHTMLOptionsCollection;
 class nsIDOMHTMLOptionElement;
 class nsIComboboxControlFrame;
 class nsPresContext;
+class nsVoidArray;
+
+class nsVoidArray;
 class nsListEventListener;
 
 /**

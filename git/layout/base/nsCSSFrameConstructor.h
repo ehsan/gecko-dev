@@ -61,6 +61,7 @@ class nsStyleContext;
 struct nsStyleContent;
 struct nsStyleDisplay;
 class nsIPresShell;
+class nsVoidArray;
 class nsFrameManager;
 class nsIDOMHTMLSelectElement;
 class nsPresContext;
@@ -791,7 +792,6 @@ private:
   static const FrameConstructionData* FindHTMLData(nsIContent* aContent,
                                                    nsIAtom* aTag,
                                                    PRInt32 aNameSpaceID,
-                                                   nsIFrame* aParentFrame,
                                                    nsStyleContext* aStyleContext);
   // HTML data-finding helper functions
   static const FrameConstructionData*

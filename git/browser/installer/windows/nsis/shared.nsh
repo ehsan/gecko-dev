@@ -46,32 +46,19 @@
   ${UpdateProtocolHandlers}
 
   ClearErrors
-  WriteRegStr HKLM "Software\Mozilla" "${BrandShortName}InstallerTest" "Write Test"
+  WriteRegStr HKLM "Software\Mozilla\InstallerTest" "InstallerTest" "Test"
   ${If} ${Errors}
     StrCpy $TmpVal "HKCU" ; used primarily for logging
   ${Else}
     SetShellVarContext all    ; Set SHCTX to all users (e.g. HKLM)
-    DeleteRegValue HKLM "Software\Mozilla" "${BrandShortName}InstallerTest"
+    DeleteRegKey HKLM "Software\Mozilla\InstallerTest"
     StrCpy $TmpVal "HKLM" ; used primarily for logging
     ${RegCleanMain} "Software\Mozilla"
     ${RegCleanUninstall}
-    ${UpdateProtocolHandlers}
+    ${SetStartMenuInternet}
     ${FixShellIconHandler}
-
-    ; Only update the Clients\StartMenuInternet registry key values if they
-    ; don't exist or this installation is the same as the one set in those keys.
-    ${StrFilter} "${FileMainEXE}" "+" "" "" $1
-    ReadRegStr $0 HKLM "Software\Clients\StartMenuInternet\$1\DefaultIcon" ""
-    ${GetPathFromString} "$0" $0
-    ${GetParent} "$0" $0
-    ${If} ${FileExists} "$0"
-      ${GetLongPath} "$0" $0
-    ${EndIf}
-    ${If} "$0" == "$INSTDIR"
-      ${SetStartMenuInternet}
-    ${EndIf}
-
     ${SetUninstallKeys}
+    ${UpdateProtocolHandlers}
 
     ReadRegStr $0 HKLM "Software\mozilla.org\Mozilla" "CurrentVersion"
     ${If} "$0" != "${GREVersion}"

@@ -186,7 +186,7 @@ nsNavHistoryResultNode::GetTags(nsAString& aTags) {
   // then build it the first time this method called is called (and by that,
   // implicitly unset the void flag). Result observers may re-set the void flag
   // in order to force rebuilding of the tags string.
-  if (!mTags.IsVoid()) {
+  if (!mTags.IsVoid() && mParent) {
     aTags.Assign(mTags);
     return NS_OK;
   }
@@ -2979,6 +2979,7 @@ nsNavHistoryFolderResultNode::nsNavHistoryFolderResultNode(
   mContentsValid(PR_FALSE),
   mQueryItemId(-1),
   mIsRegisteredFolderObserver(PR_FALSE)
+, mBatchInProgress(PR_FALSE)
 {
   mItemId = aFolderId;
 }
@@ -3371,6 +3372,7 @@ nsNavHistoryFolderResultNode::FindChildById(PRInt64 aItemId,
 NS_IMETHODIMP
 nsNavHistoryFolderResultNode::OnBeginUpdateBatch()
 {
+  mBatchInProgress = PR_TRUE;
   return NS_OK;
 }
 
@@ -3380,6 +3382,13 @@ nsNavHistoryFolderResultNode::OnBeginUpdateBatch()
 NS_IMETHODIMP
 nsNavHistoryFolderResultNode::OnEndUpdateBatch()
 {
+  if (mBatchInProgress) {
+    mBatchInProgress = PR_FALSE;
+    nsresult rv = Refresh();
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+  else
+    NS_WARNING("EndUpdateBatch without a begin");
   return NS_OK;
 }
 
@@ -3392,6 +3401,9 @@ nsNavHistoryFolderResultNode::OnItemAdded(PRInt64 aItemId,
                                           PRInt32 aIndex)
 {
   NS_ASSERTION(aParentFolder == mItemId, "Got wrong bookmark update");
+
+  if (mBatchInProgress)
+    return NS_OK;
 
   // here, try to do something reasonable if the bookmark service gives us
   // a bogus index.
@@ -3472,6 +3484,9 @@ NS_IMETHODIMP
 nsNavHistoryFolderResultNode::OnItemRemoved(PRInt64 aItemId,
                                             PRInt64 aParentFolder, PRInt32 aIndex)
 {
+  if (mBatchInProgress)
+    return NS_OK;
+
   // We only care about notifications when a child changes. When the deleted
   // item is us, our parent should also be registered and will remove us from
   // its list.
@@ -3587,6 +3602,9 @@ nsNavHistoryFolderResultNode::OnItemChanged(PRInt64 aItemId,
                                             const nsACString& aProperty,
                                             PRBool aIsAnnotationProperty,
                                             const nsACString& aValue) {
+  if (mBatchInProgress)
+    return NS_OK;
+
   // The query-item's title is used for simple-query nodes
   if (mQueryItemId != -1) {
     PRBool isTitleChange = aProperty.EqualsLiteral("title");
@@ -3609,6 +3627,9 @@ NS_IMETHODIMP
 nsNavHistoryFolderResultNode::OnItemVisited(PRInt64 aItemId,
                                             PRInt64 aVisitId, PRTime aTime)
 {
+  if (mBatchInProgress)
+    return NS_OK;
+
   if (mOptions->ExcludeItems())
     return NS_OK; // don't update items when we aren't displaying them
   if (! StartIncrementalUpdate())
@@ -3660,6 +3681,10 @@ nsNavHistoryFolderResultNode::OnItemMoved(PRInt64 aItemId, PRInt64 aOldParent,
 {
   NS_ASSERTION(aOldParent == mItemId || aNewParent == mItemId,
                "Got a bookmark message that doesn't belong to us");
+
+  if (mBatchInProgress)
+    return NS_OK;
+
   if (! StartIncrementalUpdate())
     return NS_OK; // entire container was refreshed for us
 
@@ -4077,6 +4102,18 @@ nsNavHistoryResult::GetRoot(nsINavHistoryContainerResultNode** aRoot)
 
 // nsINavBookmarkObserver implementation
 
+PR_STATIC_CALLBACK(PLDHashOperator)
+FolderObserverEnumerator(nsTrimInt64HashKey::KeyType,
+                         nsNavHistoryResult::FolderObserverList *aList,
+                         void *aData)
+{
+  nsNavHistoryResult::FolderObserverList *list =
+    static_cast<nsNavHistoryResult::FolderObserverList *>(aData);
+  (void)list->AppendElements(*aList);
+  
+  return PL_DHASH_NEXT;
+}
+
 // Here, it is important that we create a COPY of the observer array. Some
 // observers will requery themselves, which may cause the observer array to
 // be modified or added to.
@@ -4089,6 +4126,15 @@ nsNavHistoryResult::GetRoot(nsINavHistoryContainerResultNode** aRoot)
         if (_listCopy[_fol_i]) \
           _listCopy[_fol_i]->_functionCall; \
       } \
+    } \
+  }
+#define ENUMERATE_ALL_BOOKMARK_FOLDER_OBSERVERS(_functionCall) \
+  { \
+    FolderObserverList _folders; \
+    mBookmarkFolderObservers.EnumerateRead(FolderObserverEnumerator, &_folders); \
+    for (PRUint32 _fol_i = 0; _fol_i < _folders.Length(); _fol_i++) { \
+      if (_folders[_fol_i]) \
+        _folders[_fol_i]->_functionCall; \
     } \
   }
 #define ENUMERATE_ALL_BOOKMARKS_OBSERVERS(_functionCall) \
@@ -4116,6 +4162,7 @@ nsNavHistoryResult::OnBeginUpdateBatch()
   mBatchInProgress = PR_TRUE;
   ENUMERATE_HISTORY_OBSERVERS(OnBeginUpdateBatch());
   ENUMERATE_ALL_BOOKMARKS_OBSERVERS(OnBeginUpdateBatch());
+  ENUMERATE_ALL_BOOKMARK_FOLDER_OBSERVERS(OnBeginUpdateBatch());
   return NS_OK;
 }
 
@@ -4129,6 +4176,7 @@ nsNavHistoryResult::OnEndUpdateBatch()
     mBatchInProgress = PR_FALSE;
     ENUMERATE_HISTORY_OBSERVERS(OnEndUpdateBatch());
     ENUMERATE_ALL_BOOKMARKS_OBSERVERS(OnEndUpdateBatch());
+    ENUMERATE_ALL_BOOKMARK_FOLDER_OBSERVERS(OnEndUpdateBatch());
   }
   else
     NS_WARNING("EndUpdateBatch without a begin");

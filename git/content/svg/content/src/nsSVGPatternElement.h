@@ -47,7 +47,6 @@
 #include "nsSVGLength2.h"
 #include "nsSVGEnum.h"
 #include "nsSVGString.h"
-#include "nsSVGViewBox.h"
 #include "nsSVGPreserveAspectRatio.h"
 
 //--------------------- Patterns ------------------------
@@ -94,7 +93,6 @@ protected:
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual EnumAttributesInfo GetEnumInfo();
-  virtual nsSVGViewBox *GetViewBox();
   virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
   virtual StringAttributesInfo GetStringInfo();
 
@@ -115,7 +113,7 @@ protected:
   static StringInfo sStringInfo[1];
 
   // nsIDOMSVGFitToViewbox properties
-  nsSVGViewBox mViewBox;
+  nsCOMPtr<nsIDOMSVGAnimatedRect> mViewBox;
   nsSVGPreserveAspectRatio mPreserveAspectRatio;
 };
 
