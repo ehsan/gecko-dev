@@ -1115,9 +1115,7 @@ GCRuntime::GCRuntime(JSRuntime *rt) :
     mallocBytes(0),
     mallocGCTriggered(false),
     scriptAndCountsVector(nullptr),
-#ifdef DEBUG
     inUnsafeRegion(0),
-#endif
     alwaysPreserveCode(false),
 #ifdef DEBUG
     noGCOrAllocationCheck(0),
@@ -2439,8 +2437,6 @@ GCHelperState::work()
     JS_ASSERT(!thread);
     thread = PR_GetCurrentThread();
 
-    TraceLogger *logger = TraceLoggerForCurrentThread();
-
     switch (state()) {
 
       case IDLE:
@@ -2448,14 +2444,22 @@ GCHelperState::work()
         break;
 
       case SWEEPING: {
-        AutoTraceLog logSweeping(logger, TraceLogger::GCSweeping);
+#if JS_TRACE_LOGGING
+        AutoTraceLog logger(TraceLogging::getLogger(TraceLogging::GC_BACKGROUND),
+                            TraceLogging::GC_SWEEPING_START,
+                            TraceLogging::GC_SWEEPING_STOP);
+#endif
         doSweep();
         JS_ASSERT(state() == SWEEPING);
         break;
       }
 
       case ALLOCATING: {
-        AutoTraceLog logAllocation(logger, TraceLogger::GCAllocation);
+#if JS_TRACE_LOGGING
+        AutoTraceLog logger(TraceLogging::getLogger(TraceLogging::GC_BACKGROUND),
+                            TraceLogging::GC_ALLOCATING_START,
+                            TraceLogging::GC_ALLOCATING_STOP);
+#endif
         do {
             Chunk *chunk;
             {
@@ -5616,7 +5620,6 @@ JS::GetGCNumber()
 }
 #endif
 
-#ifdef DEBUG
 JS::AutoAssertOnGC::AutoAssertOnGC()
   : runtime(nullptr), gcNumber(0)
 {
@@ -5662,4 +5665,3 @@ JS::AutoAssertOnGC::VerifyIsSafeToGC(JSRuntime *rt)
     if (rt->gc.inUnsafeRegion > 0)
         MOZ_CRASH("[AutoAssertOnGC] possible GC in GC-unsafe region");
 }
-#endif

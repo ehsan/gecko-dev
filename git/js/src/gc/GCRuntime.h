@@ -537,7 +537,6 @@ class GCRuntime
     /* Strong references on scripts held for PCCount profiling API. */
     js::ScriptAndCountsVector *scriptAndCountsVector;
 
-#ifdef DEBUG
     /*
      * Some regions of code are hard for the static rooting hazard analysis to
      * understand. In those cases, we trade the static analysis for a dynamic
@@ -545,7 +544,6 @@ class GCRuntime
      * might trigger, a GC.
      */
     int inUnsafeRegion;
-#endif
 
   private:
     /* Always preserve JIT code during GCs, for testing. */

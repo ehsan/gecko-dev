@@ -14,6 +14,7 @@
 #include "json.h"
 #include "jsprototypes.h"
 #include "jsweakmap.h"
+#include "jsworkers.h"
 
 #include "builtin/Eval.h"
 #if EXPOSE_INTL_API
@@ -24,7 +25,6 @@
 #include "builtin/RegExp.h"
 #include "builtin/SIMD.h"
 #include "builtin/TypedObject.h"
-#include "vm/HelperThreads.h"
 #include "vm/PIC.h"
 #include "vm/RegExpStatics.h"
 #include "vm/StopIterationObject.h"

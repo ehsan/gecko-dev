@@ -18,6 +18,7 @@
 #include "jsprf.h"
 #include "jsscript.h"
 #include "jsstr.h"
+#include "jsworkers.h"
 #include "prmjtime.h"
 
 #include "gc/Marking.h"
@@ -28,7 +29,6 @@
 #include "jit/JitCompartment.h"
 #endif
 #include "js/MemoryMetrics.h"
-#include "vm/HelperThreads.h"
 #include "vm/Opcodes.h"
 #include "vm/Shape.h"
 

@@ -40,6 +40,9 @@
 #include "jsutil.h"
 #include "jswatchpoint.h"
 #include "jsweakmap.h"
+#ifdef JS_THREADSAFE
+#include "jsworkers.h"
+#endif
 #include "jswrapper.h"
 #include "prmjtime.h"
 
@@ -67,7 +70,6 @@
 #include "vm/DateObject.h"
 #include "vm/Debugger.h"
 #include "vm/ErrorObject.h"
-#include "vm/HelperThreads.h"
 #include "vm/Interpreter.h"
 #include "vm/NumericConversions.h"
 #include "vm/RegExpStatics.h"
