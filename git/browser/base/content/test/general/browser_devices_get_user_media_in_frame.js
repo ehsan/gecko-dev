@@ -319,14 +319,21 @@ let gTests = [
     yield checkSharingUI({video: true, audio: true});
 
     info("reloading the frame");
-    yield promiseObserverCalled("recording-device-events",
-                                () => { global.location.reload(); });
+    let deferred = Promise.defer();
+    let browser = gBrowser.selectedBrowser;
+    browser.addEventListener("load", function onload() {
+      browser.removeEventListener("load", onload, true);
+      deferred.resolve();
+    }, true);
+    global.location.reload();
+    yield deferred.promise;
 
     yield promiseNoPopupNotification("webRTC-sharingDevices");
-    if (gObservedTopics["recording-device-events"] == 1) {
+    if (gObservedTopics["recording-device-events"] == 2) {
       todo(false, "Got the 'recording-device-events' notification twice, likely because of bug 962719");
-      gObservedTopics["recording-device-events"] = 0;
+      --gObservedTopics["recording-device-events"];
     }
+    expectObserverCalled("recording-device-events");
     expectObserverCalled("recording-window-ended");
     expectNoObserverCalled();
     yield checkNotSharing();
@@ -345,11 +352,18 @@ let gTests = [
     checkDeviceSelectors(true, true);
 
     info("reloading the frame");
-    yield promiseObserverCalled("recording-window-ended",
-                                () => { global.location.reload(); });
+    let deferred = Promise.defer();
+    let browser = gBrowser.selectedBrowser;
+    browser.addEventListener("load", function onload() {
+      browser.removeEventListener("load", onload, true);
+      deferred.resolve();
+    }, true);
+    global.location.reload();
+    yield deferred.promise;
 
     yield promiseNoPopupNotification("webRTC-shareDevices");
 
+    expectObserverCalled("recording-window-ended");
     expectNoObserverCalled();
     yield checkNotSharing();
   }
@@ -399,15 +413,22 @@ let gTests = [
     expectNoObserverCalled();
 
     info("reloading the second frame");
-    yield promiseObserverCalled("recording-device-events",
-                                () => { g2.location.reload(); });
+    let deferred = Promise.defer();
+    let browser = gBrowser.selectedBrowser;
+    browser.addEventListener("load", function onload() {
+      browser.removeEventListener("load", onload, true);
+      deferred.resolve();
+    }, true);
+    g2.location.reload();
+    yield deferred.promise;
 
     yield checkSharingUI({video: false, audio: true});
     expectObserverCalled("recording-window-ended");
-    if (gObservedTopics["recording-device-events"] == 1) {
+    if (gObservedTopics["recording-device-events"] == 2) {
       todo(false, "Got the 'recording-device-events' notification twice, likely because of bug 962719");
-      gObservedTopics["recording-device-events"] = 0;
+      --gObservedTopics["recording-device-events"];
     }
+    expectObserverCalled("recording-device-events");
     expectNoObserverCalled();
 
     yield closeStream(g1);
