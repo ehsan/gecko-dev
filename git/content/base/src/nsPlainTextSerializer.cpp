@@ -235,21 +235,21 @@ nsPlainTextSerializer::Init(PRUint32 aFlags, PRUint32 aWrapColumn,
 }
 
 PRBool
-nsPlainTextSerializer::GetLastBool(const nsTArray<PRPackedBool>& aStack)
+nsPlainTextSerializer::GetLastBool(const nsVoidArray& aStack)
 {
-  PRUint32 size = aStack.Length();
+  PRUint32 size = aStack.Count();
   if (size == 0) {
     return PR_FALSE;
   }
-  return aStack.ElementAt(size-1);
+  return (aStack.ElementAt(size-1) != reinterpret_cast<void*>(PR_FALSE));
 }
 
 void
-nsPlainTextSerializer::SetLastBool(nsTArray<PRPackedBool>& aStack, PRBool aValue)
+nsPlainTextSerializer::SetLastBool(nsVoidArray& aStack, PRBool aValue)
 {
-  PRUint32 size = aStack.Length();
+  PRUint32 size = aStack.Count();
   if (size > 0) {
-    aStack.ElementAt(size-1) = aValue;
+    aStack.ReplaceElementAt(reinterpret_cast<void*>(aValue), size-1);
   }
   else {
     NS_ERROR("There is no \"Last\" value");
@@ -257,18 +257,18 @@ nsPlainTextSerializer::SetLastBool(nsTArray<PRPackedBool>& aStack, PRBool aValue
 }
 
 void
-nsPlainTextSerializer::PushBool(nsTArray<PRPackedBool>& aStack, PRBool aValue)
+nsPlainTextSerializer::PushBool(nsVoidArray& aStack, PRBool aValue)
 {
-    aStack.AppendElement(PRPackedBool(aValue));
+    aStack.AppendElement(reinterpret_cast<void*>(aValue));
 }
 
 PRBool
-nsPlainTextSerializer::PopBool(nsTArray<PRPackedBool>& aStack)
+nsPlainTextSerializer::PopBool(nsVoidArray& aStack)
 {
   PRBool returnValue = PR_FALSE;
-  PRUint32 size = aStack.Length();
+  PRUint32 size = aStack.Count();
   if (size > 0) {
-    returnValue = aStack.ElementAt(size-1);
+    returnValue = (aStack.ElementAt(size-1) != reinterpret_cast<void*>(PR_FALSE));
     aStack.RemoveElementAt(size-1);
   }
   return returnValue;
@@ -681,7 +681,7 @@ nsPlainTextSerializer::DoOpenContainer(const nsIParserNode* aNode, PRInt32 aTag)
       AddToLine(NS_LITERAL_STRING("\t").get(), 1);
       mInWhitespace = PR_TRUE;
     }
-    else if (mHasWrittenCellsForRow.IsEmpty()) {
+    else if (mHasWrittenCellsForRow.Count() == 0) {
       // We don't always see a <tr> (nor a <table>) before the <td> if we're
       // copying part of a table
       PushBool(mHasWrittenCellsForRow, PR_TRUE); // will never be popped

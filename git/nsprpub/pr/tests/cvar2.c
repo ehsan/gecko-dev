@@ -998,7 +998,7 @@ default_threads, default_threads*2, default_threads*3, default_threads*4);
     return 0;
 }
 
-int main(int argc, char **argv)
+PRIntn main(PRIntn argc, char *argv[])
 {
     PRIntn rv;
     

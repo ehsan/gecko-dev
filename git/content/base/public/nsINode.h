@@ -59,6 +59,7 @@ class nsEventChainPreVisitor;
 class nsEventChainPostVisitor;
 class nsIEventListenerManager;
 class nsIPrincipal;
+class nsVoidArray;
 class nsIMutationObserver;
 class nsChildContentList;
 class nsNodeWeakReference;

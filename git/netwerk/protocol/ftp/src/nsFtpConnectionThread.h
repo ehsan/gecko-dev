@@ -52,7 +52,6 @@
 #include "nsIStreamListener.h"
 #include "nsICacheListener.h"
 #include "nsIURI.h"
-#include "prnetdb.h"
 #include "prtime.h"
 #include "nsString.h"
 #include "nsIFTPChannel.h"
@@ -287,7 +286,7 @@ private:
     
     static PRUint32         mSessionStartTime;
 
-    PRNetAddr               mServerAddress;
+    char                    mServerAddress[64];
 
     // ***** control read gvars
     nsresult                mControlStatus;

@@ -67,7 +67,6 @@ typedef enum {
 typedef struct _cairo_command_header {
     cairo_command_type_t	 type;
     cairo_meta_region_type_t     region;
-    cairo_rectangle_int_t        extents;
 } cairo_command_header_t;
 
 typedef struct _cairo_command_paint {

@@ -206,17 +206,21 @@ XPCWrapper::AddProperty(JSContext *cx, JSObject *wrapperObj,
 
   JSBool isXOW = (STOBJ_GET_CLASS(wrapperObj) == &sXPC_XOW_JSClass.base);
 
-  JSPropertyDescriptor desc;
-  if (!GetPropertyAttrs(cx, wrapperObj, interned_id, JSRESOLVE_QUALIFIED,
-                        isXOW, &desc)) {
+  JSObject *wrapperObjp;
+  uintN attrs = JSPROP_ENUMERATE;
+  JSPropertyOp getter = nsnull;
+  JSPropertyOp setter = nsnull;
+
+  if (!GetPropertyAttrs(cx, wrapperObj, interned_id, &wrapperObjp, isXOW,
+                        JSRESOLVE_QUALIFIED, &attrs, &getter, &setter, vp)) {
     return JS_FALSE;
   }
 
-  NS_ASSERTION(desc.obj == wrapperObj,
+  NS_ASSERTION(wrapperObjp == wrapperObj,
                "What weird wrapper are we using?");
 
-  return JS_DefinePropertyById(cx, innerObj, interned_id, desc.value,
-                               desc.getter, desc.setter, desc.attrs);
+  return DefineProperty(cx, innerObj, interned_id, isXOW, *vp,
+                        getter, setter, attrs);
 }
 
 // static
@@ -292,25 +296,31 @@ XPCWrapper::NewResolve(JSContext *cx, JSObject *wrapperObj,
                        JSObject *innerObj, jsval id, uintN flags,
                        JSObject **objp, JSBool preserveVal)
 {
+  jsval v = JSVAL_VOID;
+
   jsid interned_id;
   if (!::JS_ValueToId(cx, id, &interned_id)) {
     return JS_FALSE;
   }
 
   JSBool isXOW = (STOBJ_GET_CLASS(wrapperObj) == &sXPC_XOW_JSClass.base);
+  JSObject *innerObjp;
+  uintN attrs = JSPROP_ENUMERATE;
+  JSPropertyOp getter = nsnull;
+  JSPropertyOp setter = nsnull;
 
-  JSPropertyDescriptor desc;
-  if (!GetPropertyAttrs(cx, innerObj, interned_id, flags, isXOW, &desc)) {
+  if (!GetPropertyAttrs(cx, innerObj, interned_id, &innerObjp, isXOW, flags,
+                        &attrs, &getter, &setter, &v)) {
     return JS_FALSE;
   }
 
-  if (!desc.obj) {
+  if (!innerObjp) {
     // Nothing to define.
     return JS_TRUE;
   }
 
   if (!preserveVal) {
-    desc.value = JSVAL_VOID;
+    v = JSVAL_VOID;
   }
 
   jsval oldSlotVal;
@@ -319,8 +329,8 @@ XPCWrapper::NewResolve(JSContext *cx, JSObject *wrapperObj,
     return JS_FALSE;
   }
 
-  JSBool ok = JS_DefinePropertyById(cx, wrapperObj, interned_id, desc.value,
-                                    desc.getter, desc.setter, desc.attrs);
+  JSBool ok = DefineProperty(cx, wrapperObj, interned_id, isXOW, v,
+                             getter, setter, attrs);
 
   if (ok && (ok = ::JS_SetReservedSlot(cx, wrapperObj, sResolvingSlot,
                                        oldSlotVal))) {
@@ -768,15 +778,55 @@ XPCWrapper::NativeToString(JSContext *cx, XPCWrappedNative *wrappedNative,
 
 // static
 JSBool
-XPCWrapper::GetPropertyAttrs(JSContext *cx, JSObject *obj, jsid interned_id,
-                             uintN flags, JSBool wantDetails,
-                             JSPropertyDescriptor *desc)
+XPCWrapper::GetPropertyAttrs(JSContext *cx, JSObject *obj,
+                             jsid interned_id, JSObject **objp,
+                             JSBool wantDetails, uintN flags, uintN *attrsp,
+                             JSPropertyOp *getterp, JSPropertyOp *setterp,
+                             jsval *vp)
 {
-  if (!JS_GetPropertyDescriptorById(cx, obj, interned_id, flags, desc)) {
+  // NB: All parameters must be initialized by this point.
+  if (!JS_LookupPropertyWithFlagsById(cx, obj, interned_id, flags,
+                                      objp, vp)) {
     return JS_FALSE;
   }
 
-  const uintN interesting_attrs = wantDetails
+  if (!*objp) {
+    // Nothing to define.
+    return JS_TRUE;
+  }
+
+  if (!wantDetails) {
+    *vp = JSVAL_VOID;
+  } else {
+    JSBool found;
+    if (!JS_GetPropertyAttrsGetterAndSetterById(cx, *objp, interned_id,
+                                                attrsp, &found,
+                                                getterp, setterp)) {
+      return JS_FALSE;
+    }
+
+    // JS_GetPropertyAttrsGetterAndSetterById returns non scripted getters and
+    // setters, we don't want those.
+    uintN attrs = *attrsp;
+    if (!(attrs & JSPROP_GETTER)) {
+      *getterp = nsnull;
+    }
+    if (!(attrs & JSPROP_SETTER)) {
+      *setterp = nsnull;
+    }
+  }
+
+  return JS_TRUE;
+}
+
+// static
+JSBool
+XPCWrapper::DefineProperty(JSContext *cx, JSObject *obj, jsid interned_id,
+                           JSBool haveDetails, jsval v,
+                           JSPropertyOp getter, JSPropertyOp setter,
+                           uintN attrs)
+{
+  const uintN interesting_attrs = haveDetails
                                   ? (JSPROP_ENUMERATE |
                                      JSPROP_READONLY  |
                                      JSPROP_PERMANENT |
@@ -784,22 +834,6 @@ XPCWrapper::GetPropertyAttrs(JSContext *cx, JSObject *obj, jsid interned_id,
                                      JSPROP_GETTER    |
                                      JSPROP_SETTER)
                                   : JSPROP_ENUMERATE;
-  desc->attrs &= interesting_attrs;
-
-  if (wantDetails) {
-    // JS_GetPropertyDescriptorById returns non scripted getters and setters.
-    // If wantDetails is true, then we need to censor them.
-    if (!(desc->attrs & JSPROP_GETTER)) {
-      desc->getter = nsnull;
-    }
-    if (!(desc->attrs & JSPROP_SETTER)) {
-      desc->setter = nsnull;
-    }
-  } else {
-    // Clear out all but attrs and obj.
-    desc->getter = desc->setter = nsnull;
-    desc->value = JSVAL_VOID;
-  }
-
-  return JS_TRUE;
+  return JS_DefinePropertyById(cx, obj, interned_id, v, getter, setter,
+                               (attrs & interesting_attrs));
 }

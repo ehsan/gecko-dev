@@ -35,30 +35,22 @@
  * ***** END LICENSE BLOCK ***** */
 // nsIProcess unit test
 
+// get the path to {objdir}/dist/bin
+var bindir = Components.classes["@mozilla.org/file/directory_service;1"]
+.getService(Components.interfaces.nsIProperties)
+.get("CurProcD", Components.interfaces.nsIFile);
+
+// the the os
 var isWindows = ("@mozilla.org/windows-registry-key;1" in Components.classes);
 
-function get_test_program(prog)
-{
-    var progPath = do_get_cwd();
-    progPath.append(prog);
-    if (isWindows) {
-	progPath.leafName = progPath.leafName + ".exe";
-    }
-    return progPath;
-}
+var filePrefix = "";
+var fileSuffix = "";
 
-function set_environment()
-{
-  var envSvc = Components.classes["@mozilla.org/process/environment;1"].
-    getService(Components.interfaces.nsIEnvironment);
-  var dirSvc = Components.classes["@mozilla.org/file/directory_service;1"].
-    getService(Components.interfaces.nsIProperties);
-  var greDir = dirSvc.get("GreD", Components.interfaces.nsIFile);
-
-  envSvc.set("DYLD_LIBRARY_PATH", greDir.path);
-  // For Linux
-  envSvc.set("LD_LIBRARY_PATH", greDir.path);
-  //XXX: handle windows
+if (isWindows) {
+  filePrefix = bindir.path + "\\";
+  fileSuffix = ".exe";
+} else {
+  filePrefix = bindir.path + "/";
 }
 
 
@@ -66,12 +58,17 @@ function set_environment()
 // and then killed
 function test_kill()
 {
-  var file = get_test_program("TestBlockingProcess");
+  var testapp = filePrefix + "TestBlockingProcess" +fileSuffix;
+  print(testapp);
+ 
+  var file = Components.classes["@mozilla.org/file/local;1"]
+                       .createInstance(Components.interfaces.nsILocalFile);
+  file.initWithPath(testapp);
  
   var process = Components.classes["@mozilla.org/process/util;1"]
                           .createInstance(Components.interfaces.nsIProcess);
   process.init(file);
-
+  
   do_check_false(process.isRunning);
 
   try {
@@ -99,7 +96,11 @@ function test_kill()
 // guaranteed to return an exit value of 42
 function test_quick()
 {
-  var file = get_test_program("TestQuickReturn");
+  var testapp = filePrefix + "TestQuickReturn" + fileSuffix;
+  
+  var file = Components.classes["@mozilla.org/file/local;1"]
+                       .createInstance(Components.interfaces.nsILocalFile);
+  file.initWithPath(testapp);
   
   var process = Components.classes["@mozilla.org/process/util;1"]
                           .createInstance(Components.interfaces.nsIProcess);
@@ -115,7 +116,11 @@ function test_quick()
 // that will return -1 if "mozilla" is not the first argument
 function test_arguments()
 {
-  var file = get_test_program("TestArguments");
+  var testapp = filePrefix + "TestArguments" + fileSuffix;
+  
+  var file = Components.classes["@mozilla.org/file/local;1"]
+                       .createInstance(Components.interfaces.nsILocalFile);
+  file.initWithPath(testapp);
   
   var process = Components.classes["@mozilla.org/process/util;1"]
                           .createInstance(Components.interfaces.nsIProcess);
@@ -135,8 +140,12 @@ var gProcess;
 // run non-blocking
 function test_nonblocking()
 {
-  var file = get_test_program("TestQuickReturn");
-
+  var testapp = filePrefix + "TestQuickReturn" + fileSuffix;
+  
+  var file = Components.classes["@mozilla.org/file/local;1"]
+                       .createInstance(Components.interfaces.nsILocalFile);
+  file.initWithPath(testapp);
+  
   gProcess = Components.classes["@mozilla.org/process/util;1"]
                        .createInstance(Components.interfaces.nsIProcess);
   gProcess.init(file);
@@ -159,7 +168,6 @@ function check_nonblocking()
 }
 
 function run_test() {
-  set_environment();
   test_kill();
   test_quick();
   test_arguments();

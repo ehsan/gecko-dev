@@ -99,6 +99,7 @@ class nsIRunnable;
 class nsIInterfaceRequestor;
 template<class E> class nsCOMArray;
 class nsIPref;
+class nsVoidArray;
 struct JSRuntime;
 class nsICaseConversion;
 class nsIUGenCategory;
@@ -211,9 +212,12 @@ public:
   /*
    * This method fills the |aArray| with all ancestor nodes of |aNode|
    * including |aNode| at the zero index.
+   *
+   * These elements were |nsIDOMNode*|s before casting to |void*| and must
+   * be cast back to |nsIDOMNode*| on usage, or bad things will happen.
    */
   static nsresult GetAncestors(nsIDOMNode* aNode,
-                               nsTArray<nsIDOMNode*>* aArray);
+                               nsVoidArray* aArray);
 
   /*
    * This method fills |aAncestorNodes| with all ancestor nodes of |aNode|
@@ -221,12 +225,16 @@ public:
    * For each ancestor, there is a corresponding element in |aAncestorOffsets|
    * which is the IndexOf the child in relation to its parent.
    *
+   * The elements of |aAncestorNodes| were |nsIContent*|s before casting to
+   * |void*| and must be cast back to |nsIContent*| on usage, or bad things
+   * will happen.
+   *
    * This method just sucks.
    */
   static nsresult GetAncestorsAndOffsets(nsIDOMNode* aNode,
                                          PRInt32 aOffset,
-                                         nsTArray<nsIContent*>* aAncestorNodes,
-                                         nsTArray<PRInt32>* aAncestorOffsets);
+                                         nsVoidArray* aAncestorNodes,
+                                         nsVoidArray* aAncestorOffsets);
 
   /*
    * The out parameter, |aCommonAncestor| will be the closest node, if any,
@@ -829,7 +837,7 @@ public:
   static nsresult ReleasePtrOnShutdown(nsISupports** aSupportsPtr) {
     NS_ASSERTION(aSupportsPtr, "Expect to crash!");
     NS_ASSERTION(*aSupportsPtr, "Expect to crash!");
-    return sPtrsToPtrsToRelease->AppendElement(aSupportsPtr) != nsnull ? NS_OK :
+    return sPtrsToPtrsToRelease->AppendElement(aSupportsPtr) ? NS_OK :
       NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -1455,7 +1463,7 @@ private:
   static nsIUGenCategory* sGenCat;
 
   // Holds pointers to nsISupports* that should be released at shutdown
-  static nsTArray<nsISupports**>* sPtrsToPtrsToRelease;
+  static nsVoidArray* sPtrsToPtrsToRelease;
 
   static nsIScriptRuntime* sScriptRuntimes[NS_STID_ARRAY_UBOUND];
   static PRInt32 sScriptRootCount[NS_STID_ARRAY_UBOUND];

@@ -152,7 +152,6 @@ static PRIntervalTime NonContentiousLock(PRUint32 loops)
     while (loops-- > 0)
     {
         PR_Lock(ml);
-        PR_ASSERT_CURRENT_THREAD_OWNS_LOCK(ml);
         PR_Unlock(ml);
     }
     PR_DestroyLock(ml);
@@ -165,11 +164,9 @@ static void PR_CALLBACK LockContender(void *arg)
     while (contention->loops-- > 0)
     {
         PR_Lock(contention->ml);
-        PR_ASSERT_CURRENT_THREAD_OWNS_LOCK(contention->ml);
         contention->contender+= 1;
         contention->overhead += contention->interval;
         PR_Sleep(contention->interval);
-        PR_ASSERT_CURRENT_THREAD_OWNS_LOCK(contention->ml);
         PR_Unlock(contention->ml);
     }
 }  /* LockContender */
@@ -196,11 +193,9 @@ static PRIntervalTime ContentiousLock(PRUint32 loops)
     while (contention->loops-- > 0)
     {
         PR_Lock(contention->ml);
-        PR_ASSERT_CURRENT_THREAD_OWNS_LOCK(contention->ml);
         contention->contentious+= 1;
         contention->overhead += contention->interval;
         PR_Sleep(contention->interval);
-        PR_ASSERT_CURRENT_THREAD_OWNS_LOCK(contention->ml);
         PR_Unlock(contention->ml);
     }
 
@@ -239,7 +234,6 @@ static PRIntervalTime NonContentiousMonitor(PRUint32 loops)
     while (loops-- > 0)
     {
         PR_EnterMonitor(ml);
-        PR_ASSERT_CURRENT_THREAD_IN_MONITOR(ml);
         PR_ExitMonitor(ml);
     }
     PR_DestroyMonitor(ml);
@@ -251,7 +245,6 @@ static void PR_CALLBACK TryEntry(void *arg)
     PRMonitor *ml = (PRMonitor*)arg;
     if (debug_mode) PR_fprintf(std_err, "Reentrant thread created\n");
     PR_EnterMonitor(ml);
-    PR_ASSERT_CURRENT_THREAD_IN_MONITOR(ml);
     if (debug_mode) PR_fprintf(std_err, "Reentrant thread acquired monitor\n");
     PR_ExitMonitor(ml);
     if (debug_mode) PR_fprintf(std_err, "Reentrant thread released monitor\n");
@@ -265,9 +258,7 @@ static PRIntervalTime ReentrantMonitor(PRUint32 loops)
     if (debug_mode) PR_fprintf(std_err, "\nMonitor created for reentrant test\n");
 
     PR_EnterMonitor(ml);
-    PR_ASSERT_CURRENT_THREAD_IN_MONITOR(ml);
     PR_EnterMonitor(ml);
-    PR_ASSERT_CURRENT_THREAD_IN_MONITOR(ml);
     if (debug_mode) PR_fprintf(std_err, "Monitor acquired twice\n");
 
     thread = PR_CreateThread(
@@ -275,10 +266,8 @@ static PRIntervalTime ReentrantMonitor(PRUint32 loops)
         PR_PRIORITY_LOW, PR_LOCAL_THREAD, PR_JOINABLE_THREAD, 0);
     PR_ASSERT(thread != NULL);
     PR_Sleep(PR_SecondsToInterval(1));
-    PR_ASSERT_CURRENT_THREAD_IN_MONITOR(ml);
 
     PR_ExitMonitor(ml);
-    PR_ASSERT_CURRENT_THREAD_IN_MONITOR(ml);
     if (debug_mode) PR_fprintf(std_err, "Monitor released first time\n");
 
     PR_ExitMonitor(ml);
@@ -299,11 +288,9 @@ static void PR_CALLBACK MonitorContender(void *arg)
     while (contention->loops-- > 0)
     {
         PR_EnterMonitor(contention->ml);
-        PR_ASSERT_CURRENT_THREAD_IN_MONITOR(contention->ml);
         contention->contender+= 1;
         contention->overhead += contention->interval;
         PR_Sleep(contention->interval);
-        PR_ASSERT_CURRENT_THREAD_IN_MONITOR(contention->ml);
         PR_ExitMonitor(contention->ml);
     }
 }  /* MonitorContender */
@@ -330,11 +317,9 @@ static PRUint32 ContentiousMonitor(PRUint32 loops)
     while (contention->loops-- > 0)
     {
         PR_EnterMonitor(contention->ml);
-        PR_ASSERT_CURRENT_THREAD_IN_MONITOR(contention->ml);
         contention->contentious+= 1;
         contention->overhead += contention->interval;
         PR_Sleep(contention->interval);
-        PR_ASSERT_CURRENT_THREAD_IN_MONITOR(contention->ml);
         PR_ExitMonitor(contention->ml);
     }
 

@@ -1725,7 +1725,7 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
   req = nsnull;
 
   // relative to aBorderArea
-  nsRect bgOriginRect(0, 0, 0, 0);
+  nsRect bgOriginRect;
 
   nsIAtom* frameType = aForFrame->GetType();
   nsIFrame* geometryFrame = aForFrame;
@@ -1747,20 +1747,18 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
     }
   } else if (frameType == nsGkAtoms::canvasFrame) {
     geometryFrame = aForFrame->GetFirstChild(nsnull);
-    // geometryFrame might be null if this canvas is a page created
-    // as an overflow container (e.g. the in-flow content has already
-    // finished and this page only displays the continuations of
-    // absolutely positioned content).
-    if (geometryFrame) {
-      bgOriginRect = geometryFrame->GetRect();
-    }
+    NS_ASSERTION(geometryFrame, "A canvas with a background "
+      "image had no child frame, which is impossible according to CSS. "
+      "Make sure there isn't a background image specified on the "
+      "|:viewport| pseudo-element in |html.css|.");
+    bgOriginRect = geometryFrame->GetRect();
   } else {
     bgOriginRect = nsRect(nsPoint(0,0), aBorderArea.Size());
   }
 
   // Background images are tiled over the 'background-clip' area
   // but the origin of the tiling is based on the 'background-origin' area
-  if (aLayer.mOrigin != NS_STYLE_BG_ORIGIN_BORDER && geometryFrame) {
+  if (aLayer.mOrigin != NS_STYLE_BG_ORIGIN_BORDER) {
     nsMargin border = geometryFrame->GetUsedBorder();
     geometryFrame->ApplySkipSides(border);
     bgOriginRect.Deflate(border);

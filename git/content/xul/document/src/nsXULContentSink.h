@@ -46,6 +46,7 @@
 #include "nsIXMLContentSink.h"
 #include "nsAutoPtr.h"
 #include "nsNodeInfoManager.h"
+#include "nsVoidArray.h"
 #include "nsWeakPtr.h"
 #include "nsXULElement.h"
 

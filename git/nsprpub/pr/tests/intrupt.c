@@ -335,7 +335,7 @@ void PR_CALLBACK Intrupt(void *arg)
     PR_DestroyLock(ml);    
 }  /* Intrupt */
 
-int main(int argc, char **argv)
+PRIntn main(PRIntn argc, char **argv)
 {
     PRThread *intrupt;
 	PLOptStatus os;

@@ -43,7 +43,6 @@
  */
 #include <string.h>     /* for memcpy */
 #include "jstypes.h"
-#include "jsstdint.h"
 #include "jsutil.h"
 #include "jsarena.h"
 #include "jsapi.h"

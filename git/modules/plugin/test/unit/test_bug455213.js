@@ -55,7 +55,7 @@ var gDirSvc = Cc["@mozilla.org/file/directory_service;1"].
 // pluginreg.dat from
 function createProfileFolder() {
   // Remove '/unit/*.js'.
-  gProfD = do_get_cwd();
+  gProfD = __LOCATION__.parent.parent;
   gProfD.append("profile");
   
   if (gProfD.exists())

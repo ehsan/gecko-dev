@@ -35,23 +35,17 @@
 #
 # ***** END LICENSE BLOCK *****
 
-# this file is used directly during configure as well as included from Makefile.in
-
 DEVENV_FLAG=-
 
 CC=cl -O2
 
 MOZCE_DEVENV=vs$(MOZ_MSVCVERSION)
 
+MOZCE_SHUNT_SLN=$(TOPSRCDIR)/build/wince/shunt/build/$(MOZCE_DEVENV)/mozce_shunt_static.sln
+MOZCE_PROJECT="Release|Windows Mobile 6 Professional SDK (ARMV4I)"
+MOZCE_SHUNT_DLL=../shunt/build/$(MOZCE_DEVENV)/mozce_shunt.dll
 MOZCE_TOOLS_DIR=$(TOPSRCDIR)/build/wince/tools
-
-ifdef MOZCE_NOT_CONFIGURE
-MOZCE_TOOLS_BIN_DIR=$(OBJDIR)/build/wince/tools
-else
-# if we're building the tools in configure, we want them to go directly to the sdk 
-# so they get rebuilt once we have a full environment
 MOZCE_TOOLS_BIN_DIR=$(OBJDIR)/dist/sdk/bin
-endif
 
 BUILD_SWITCH=$(DEVENV_FLAG)Build
 REBUILD_SWITCH=$(DEVENV_FLAG)Rebuild
@@ -87,49 +81,55 @@ endif
 endif
 
 ifdef VPATH
-CFLAGS	+= -DSHUNT_INC='"$(OBJDIR)/dist/include/mozce_shunt"'
-CFLAGS	+= -DSHUNT_LIB='"$(OBJDIR)/dist/lib"'
-CFLAGS	+= -DJEMALLOC_LIB='"$(OBJDIR)/dist/lib/jemalloc.lib"'
+CFLAGS	+= -DSHUNT_INC='"$(OBJDIR)/dist/include/shunt"'
+else
+CFLAGS	+= -DSHUNT_INC='"$(TOPSRCDIR)/build/wince/shunt/include"'
 endif
 CFLAGS += -DEBUG -Zi
 
-SDK_TOOLS = $(MOZCE_TOOLS_BIN_DIR)/arm-wince-as.exe \
-            $(MOZCE_TOOLS_BIN_DIR)/arm-wince-gcc.exe \
-            $(MOZCE_TOOLS_BIN_DIR)/arm-wince-lib.exe \
-            $(MOZCE_TOOLS_BIN_DIR)/arm-wince-link.exe \
-            $(MOZCE_TOOLS_BIN_DIR)/arm-wince-res.exe 
+all: libs
 
-all: libs export
-
-libs: $(SDK_TOOLS)
+libs:  output_some_env \
+	 $(MOZCE_TOOLS_BIN_DIR)/arm-wince-as.exe \
+	 $(MOZCE_TOOLS_BIN_DIR)/arm-wince-gcc.exe \
+	 $(MOZCE_TOOLS_BIN_DIR)/arm-wince-lib.exe \
+	 $(MOZCE_TOOLS_BIN_DIR)/arm-wince-link.exe \
+	 $(MOZCE_TOOLS_BIN_DIR)/arm-wince-res.exe 
+	devenv $(MOZCE_SHUNT_SLN) $(BUILD_SWITCH) $(MOZCE_PROJECT)
 
 clean: clobber
 
 
 clobber:
-	rm $(MOZCE_TOOLS_BIN_DIR)/*.exe  
+	rm $(MOZCE_TOOLS_BIN_DIR)/arm-wince-as.exe 
+	rm $(MOZCE_TOOLS_BIN_DIR)/arm-wince-gcc.exe 
+	rm $(MOZCE_TOOLS_BIN_DIR)/arm-wince-lib.exe 
+	rm $(MOZCE_TOOLS_BIN_DIR)/arm-wince-link.exe 
+	rm $(MOZCE_TOOLS_BIN_DIR)/arm-wince-res.exe 
+	devenv $(MOZCE_SHUNT_SLN) $(CLEAN_SWITCH) $(MOZCE_PROJECT)
+
+output_some_env:
+	@echo FOUND $(MOZCE_DEVENV)
+	@echo FOUND $(MOZCE_DEVENV): VSINSTALLDIR=$(VSINSTALLDIR) / MINGW32=$(MINGW32) / MSYSTEM=$(MSYSTEM)
+	@echo FOUND $(MOZCE_DEVENV)
 
 $(MOZCE_TOOLS_BIN_DIR)/arm-wince-as.exe:	$(MOZCE_TOOLS_DIR)/arm-wince-as.c $(MOZCE_TOOLS_DIR)/toolspath.h $(MOZCE_TOOLS_DIR)/Makefile
 	mkdir -p $(MOZCE_TOOLS_BIN_DIR);
-	$(CC) $(CFLAGS) -Fo$(MOZCE_TOOLS_BIN_DIR) -Fe$@ $(MOZCE_TOOLS_DIR)/arm-wince-as.c
+	$(CC) $(CFLAGS) -Fe$@ $(MOZCE_TOOLS_DIR)/arm-wince-as.c
 
 $(MOZCE_TOOLS_BIN_DIR)/arm-wince-gcc.exe:	$(MOZCE_TOOLS_DIR)/arm-wince-gcc.c $(MOZCE_TOOLS_DIR)/toolspath.h $(MOZCE_TOOLS_DIR)/Makefile
 	mkdir -p $(MOZCE_TOOLS_BIN_DIR);
-	$(CC) $(CFLAGS) -Fo$(MOZCE_TOOLS_BIN_DIR) -Fe$@ $(MOZCE_TOOLS_DIR)/arm-wince-gcc.c
+	$(CC) $(CFLAGS) -Fe$@ $(MOZCE_TOOLS_DIR)/arm-wince-gcc.c
 
 $(MOZCE_TOOLS_BIN_DIR)/arm-wince-lib.exe:	$(MOZCE_TOOLS_DIR)/arm-wince-lib.c $(MOZCE_TOOLS_DIR)/toolspath.h $(MOZCE_TOOLS_DIR)/Makefile
 	mkdir -p $(MOZCE_TOOLS_BIN_DIR);
-	$(CC) $(CFLAGS) -Fo$(MOZCE_TOOLS_BIN_DIR) -Fe$@ $(MOZCE_TOOLS_DIR)/arm-wince-lib.c
+	$(CC) $(CFLAGS) -Fe$@ $(MOZCE_TOOLS_DIR)/arm-wince-lib.c
 
 $(MOZCE_TOOLS_BIN_DIR)/arm-wince-link.exe:	$(MOZCE_TOOLS_DIR)/arm-wince-link.c $(MOZCE_TOOLS_DIR)/toolspath.h $(MOZCE_TOOLS_DIR)/Makefile
 	mkdir -p $(MOZCE_TOOLS_BIN_DIR);
-	$(CC) $(CFLAGS) -Fo$(MOZCE_TOOLS_BIN_DIR) -Fe$@ $(MOZCE_TOOLS_DIR)/arm-wince-link.c
+	$(CC) $(CFLAGS) -Fe$@ $(MOZCE_TOOLS_DIR)/arm-wince-link.c
 
 $(MOZCE_TOOLS_BIN_DIR)/arm-wince-res.exe:	$(MOZCE_TOOLS_DIR)/arm-wince-res.c $(MOZCE_TOOLS_DIR)/toolspath.h $(MOZCE_TOOLS_DIR)/Makefile
 	mkdir -p $(MOZCE_TOOLS_BIN_DIR);
-	$(CC) $(CFLAGS) -Fo$(MOZCE_TOOLS_BIN_DIR) -Fe$@ $(MOZCE_TOOLS_DIR)/arm-wince-res.c
+	$(CC) $(CFLAGS) -Fe$@ $(MOZCE_TOOLS_DIR)/arm-wince-res.c
 
-
-export:: $(SDK_TOOLS)
-	mkdir -p $(OBJDIR)/dist/sdk/bin
-	cp $^ $(OBJDIR)/dist/sdk/bin

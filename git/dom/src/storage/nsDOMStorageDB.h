@@ -47,39 +47,6 @@
 class nsDOMStorage;
 class nsSessionStorageEntry;
 
-/**
- * For the purposes of quota checking, we want to be able to efficiently
- * reference data items that belong to a host or its subhosts.  We do this by
- * using a reversed domain name as the key for an item.  For example, a
- * storage for foo.bar.com would use a key of 'moc.rab.oof.".
- *
- * Additionally, globalStorage and localStorage items must be distinguished.
- * globalStorage items are scoped to the host, and localStorage are items are
- * scoped to the scheme/host/port.  To scope localStorage data, its port and
- * scheme are appended to its key.  http://foo.bar.com is stored as
- * moc.rab.foo.:http:80.
- *
- * So the following queries can be used, for http://foo.bar.com:
- *
- * All data owned by globalStorage["foo.bar.com"] -> SELECT * WHERE Domain =
- * "moc.rab.foo.:"
- *
- * All data owned by localStorage -> SELECT * WHERE Domain =
- * "moc.rab.foo.:http:80"
- *
- * All data owned by foo.bar.com, in any storage ->
- * SELECT * WHERE Domain GLOB "moc.rab.foo.:*"
- *
- * All data owned by foo.bar.com or any subdomain, in any storage ->
- * SELECT * WHERE Domain GLOB "moc.rab.foo.*".
- *
- * This key is called the "scope DB key" throughout the code.  So the scope DB
- * key for localStorage at http://foo.bar.com is "moc.rab.foo.:http:80".
- *
- * When calculating quotas, we want to lump together everything in an ETLD+1.
- * So we use a "quota key" during lookups to calculate the quota.  So the
- * quota key for localStorage at http://foo.bar.com is "moc.rab.". */
-
 class nsDOMStorageDB
 {
 public:
@@ -93,7 +60,8 @@ public:
    * Retrieve a list of all the keys associated with a particular domain.
    */
   nsresult
-  GetAllKeys(nsDOMStorage* aStorage,
+  GetAllKeys(const nsAString& aDomain,
+             nsDOMStorage* aStorage,
              nsTHashtable<nsSessionStorageEntry>* aKeys);
 
   /**
@@ -102,19 +70,21 @@ public:
    * @throws NS_ERROR_DOM_NOT_FOUND_ERR if key not found
    */
   nsresult
-  GetKeyValue(nsDOMStorage* aStorage,
+  GetKeyValue(const nsAString& aDomain,
               const nsAString& aKey,
               nsAString& aValue,
-              PRBool* aSecure);
+              PRBool* aSecure,
+              nsAString& aOwner);
 
   /**
    * Set the value and secure flag for a key in storage.
    */
   nsresult
-  SetKey(nsDOMStorage* aStorage,
+  SetKey(const nsAString& aDomain,
          const nsAString& aKey,
          const nsAString& aValue,
          PRBool aSecure,
+         const nsAString& aOwner,
          PRInt32 aQuota,
          PRInt32* aNewUsage);
 
@@ -123,7 +93,7 @@ public:
    * not found.
    */
   nsresult
-  SetSecure(nsDOMStorage* aStorage,
+  SetSecure(const nsAString& aDomain,
             const nsAString& aKey,
             const PRBool aSecure);
 
@@ -131,28 +101,23 @@ public:
    * Removes a key from storage.
    */
   nsresult
-  RemoveKey(nsDOMStorage* aStorage,
+  RemoveKey(const nsAString& aDomain,
             const nsAString& aKey,
+            const nsAString& aOwner,
             PRInt32 aKeyUsage);
-
-  /**
-    * Remove all keys belonging to this storage.
-    */
-  nsresult ClearStorage(nsDOMStorage* aStorage);
 
   /**
    * Removes all keys added by a given domain.
    */
   nsresult
-  RemoveOwner(const nsACString& aOwner, PRBool aIncludeSubDomains);
+  RemoveOwner(const nsAString& aOwner);
 
   /**
    * Removes keys owned by domains that either match or don't match the
    * list.
    */
   nsresult
-  RemoveOwners(const nsTArray<nsString>& aOwners,
-               PRBool aIncludeSubDomains, PRBool aMatch);
+  RemoveOwners(const nsTArray<nsString>& aOwners, PRBool aMatch);
 
   /**
    * Removes all keys from storage. Used when clearing storage.
@@ -160,39 +125,7 @@ public:
   nsresult
   RemoveAll();
 
-  /**
-    * Returns usage for a storage using its GetQuotaDomainDBKey() as a key.
-    */
-  nsresult
-  GetUsage(nsDOMStorage* aStorage, PRInt32 *aUsage);
-
-  /**
-    * Returns usage of the domain and optionaly by any subdomain.
-    */
-  nsresult
-  GetUsage(const nsACString& aDomain, PRBool aIncludeSubDomains, PRInt32 *aUsage);
-
-  /**
-    * Turns "http://foo.bar.com:80" to "moc.rab.oof.:http:80",
-    * i.e. reverses the host, appends a dot, appends the schema
-    * and a port number.
-    */
-  static nsresult CreateOriginScopeDBKey(nsIURI* aUri, nsACString& aKey);
-
-  /**
-    * Turns "http://foo.bar.com" to "moc.rab.oof.",
-    * i.e. reverses the host and appends a dot.
-    */
-  static nsresult CreateDomainScopeDBKey(nsIURI* aUri, nsACString& aKey);
-  static nsresult CreateDomainScopeDBKey(const nsACString& aAsciiDomain, nsACString& aKey);
-
-  /**
-    * Turns "foo.bar.com" to "moc.rab.",
-    * i.e. extracts eTLD+1 from the host, reverses the result
-    * and appends a dot.
-    */
-  static nsresult CreateQuotaDomainDBKey(const nsACString& aAsciiDomain,
-                                         PRBool aIncludeSubDomains, nsACString& aKey);
+  nsresult GetUsage(const nsAString &aOwner, PRInt32 *aUsage);
 
 protected:
 
@@ -205,15 +138,11 @@ protected:
   nsCOMPtr<mozIStorageStatement> mSetSecureStatement;
   nsCOMPtr<mozIStorageStatement> mRemoveKeyStatement;
   nsCOMPtr<mozIStorageStatement> mRemoveOwnerStatement;
-  nsCOMPtr<mozIStorageStatement> mRemoveStorageStatement;
   nsCOMPtr<mozIStorageStatement> mRemoveAllStatement;
   nsCOMPtr<mozIStorageStatement> mGetUsageStatement;
 
-  nsCString mCachedOwner;
+  nsAutoString mCachedOwner;
   PRInt32 mCachedUsage;
-
-  nsresult
-  GetUsageInternal(const nsACString& aQuotaDomainDBKey, PRInt32 *aUsage);
 };
 
 #endif /* nsDOMStorageDB_h___ */

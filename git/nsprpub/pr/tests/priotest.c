@@ -160,7 +160,7 @@ static void CreateThreads(PRUint32 *lowCount, PRUint32 *highCount)
         PR_LOCAL_THREAD, PR_JOINABLE_THREAD, 0);
 } /* CreateThreads */
 
-int main(int argc, char **argv)
+PRIntn main(PRIntn argc, char **argv)
 {
     PLOptStatus os;
     PRIntn duration = DEFAULT_DURATION;

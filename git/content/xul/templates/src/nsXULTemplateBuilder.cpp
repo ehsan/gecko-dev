@@ -89,7 +89,7 @@
 #include "nsRDFCID.h"
 #include "nsXULContentUtils.h"
 #include "nsString.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsXPIDLString.h"
 #include "nsWhitespaceTokenizer.h"
 #include "nsGkAtoms.h"
@@ -2488,15 +2488,15 @@ nsXULTemplateBuilder::AddSimpleRuleBindings(nsTemplateRule* aRule,
     // Crawl the content tree of a "simple" rule, adding a variable
     // assignment for any attribute whose value is "rdf:".
 
-    nsAutoTArray<nsIContent*, 8> elements;
+    nsAutoVoidArray elements;
 
-    if (elements.AppendElement(aElement) == nsnull)
+    if (!elements.AppendElement(aElement))
         return NS_ERROR_OUT_OF_MEMORY;
 
-    while (elements.Length()) {
+    while (elements.Count()) {
         // Pop the next element off the stack
-        PRUint32 i = elements.Length() - 1;
-        nsIContent* element = elements[i];
+        PRUint32 i = (PRUint32)(elements.Count() - 1);
+        nsIContent* element = static_cast<nsIContent*>(elements[i]);
         elements.RemoveElementAt(i);
 
         // Iterate through its attributes, looking for substitutions
@@ -2521,7 +2521,7 @@ nsXULTemplateBuilder::AddSimpleRuleBindings(nsTemplateRule* aRule,
         count = element->GetChildCount();
 
         while (count-- > 0) {
-            if (elements.AppendElement(element->GetChildAt(count)) == nsnull)
+            if (!elements.AppendElement(element->GetChildAt(count)))
                 return NS_ERROR_OUT_OF_MEMORY;
         }
     }

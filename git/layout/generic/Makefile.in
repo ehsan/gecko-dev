@@ -170,8 +170,8 @@ RESOURCES_HTML = \
 		$(NULL)
 
 RESOURCES = \
-		$(srcdir)/broken-image.png \
-		$(srcdir)/loading-image.png \
+		$(srcdir)/broken-image.gif \
+		$(srcdir)/loading-image.gif \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1

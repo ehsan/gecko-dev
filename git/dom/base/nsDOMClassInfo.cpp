@@ -500,7 +500,8 @@ static const char kDOMStringBundleURL[] =
  ((DOM_DEFAULT_SCRIPTABLE_FLAGS |                                             \
    nsIXPCScriptable::WANT_GETPROPERTY |                                       \
    nsIXPCScriptable::WANT_ADDPROPERTY |                                       \
-   nsIXPCScriptable::WANT_SETPROPERTY) &                                      \
+   nsIXPCScriptable::WANT_SETPROPERTY |                                       \
+   nsIXPCScriptable::WANT_FINALIZE) &                                         \
   ~nsIXPCScriptable::USE_JSSTUB_FOR_ADDPROPERTY)
 
 // We need to let JavaScript QI elements to interfaces that are not in
@@ -531,9 +532,14 @@ static const char kDOMStringBundleURL[] =
    nsIXPCScriptable::WANT_GETPROPERTY |                                       \
    nsIXPCScriptable::WANT_ENUMERATE)
 
+#define NODELIST_SCRIPTABLE_FLAGS                                             \
+  (ARRAY_SCRIPTABLE_FLAGS             |                                       \
+   nsIXPCScriptable::WANT_FINALIZE)
+
 #define EVENTTARGET_SCRIPTABLE_FLAGS                                          \
   (DOM_DEFAULT_SCRIPTABLE_FLAGS       |                                       \
-   nsIXPCScriptable::WANT_ADDPROPERTY)
+   nsIXPCScriptable::WANT_ADDPROPERTY |                                       \
+   nsIXPCScriptable::WANT_FINALIZE)
 
 #define DOMCLASSINFO_STANDARD_FLAGS                                           \
   (nsIClassInfo::MAIN_THREAD_ONLY | nsIClassInfo::DOM_OBJECT)
@@ -645,7 +651,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(ProcessingInstruction, nsNodeSH,
                            NODE_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(Notation, nsNodeSH, NODE_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(NodeList, nsNodeListSH, ARRAY_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(NodeList, nsNodeListSH, NODELIST_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(NamedNodeMap, nsNamedNodeMapSH,
                            ARRAY_SCRIPTABLE_FLAGS)
 
@@ -896,7 +902,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ARRAY_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA_WITH_NAME(ContentList, HTMLCollection,
-                                     nsContentListSH, ARRAY_SCRIPTABLE_FLAGS)
+                                     nsContentListSH, NODELIST_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(XMLStylesheetProcessingInstruction, nsNodeSH,
                            NODE_SCRIPTABLE_FLAGS)
@@ -1197,15 +1203,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   // setProperty(), except in the case when a getter or setter is set
   // for a property. But we don't care about getters or setters here.
   NS_DEFINE_CLASSINFO_DATA(Storage, nsStorageSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS |
-                           nsIXPCScriptable::WANT_NEWRESOLVE |
-                           nsIXPCScriptable::WANT_GETPROPERTY |
-                           nsIXPCScriptable::WANT_SETPROPERTY |
-                           nsIXPCScriptable::WANT_DELPROPERTY |
-                           nsIXPCScriptable::DONT_ENUM_STATIC_PROPS |
-                           nsIXPCScriptable::WANT_NEWENUMERATE)
-
-  NS_DEFINE_CLASSINFO_DATA(Storage2, nsStorage2SH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS |
                            nsIXPCScriptable::WANT_NEWRESOLVE |
                            nsIXPCScriptable::WANT_GETPROPERTY |
@@ -3433,10 +3430,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(Storage, nsIDOMStorage)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorage)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(Storage2, nsIDOMStorage2)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorage2)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(StorageList, nsIDOMStorageList)
@@ -6980,13 +6973,8 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
   // to wrap here? But that's not always reachable, let's use
   // globalObj for now...
 
-  nsIXPConnectJSObjectHolder *wrapper;
-  if (native_parent == doc &&
-      (wrapper = static_cast<nsIXPConnectJSObjectHolder*>(doc->GetWrapper()))) {
-    wrapper->GetJSObject(parentObj);
-    if(*parentObj) {
-      return NS_OK;
-    }
+  if (native_parent == doc && (*parentObj = doc->GetJSObject())) {
+    return NS_OK;
   }
 
   jsval v;
@@ -6997,6 +6985,16 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
   *parentObj = JSVAL_TO_OBJECT(v);
 
   return rv;
+}
+
+NS_IMETHODIMP
+nsNodeSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                     JSObject *obj)
+{
+  nsINode* node = static_cast<nsINode*>(wrapper->Native());
+  node->SetWrapper(wrapper);
+
+  return nsEventReceiverSH::PostCreate(wrapper, cx, obj);
 }
 
 NS_IMETHODIMP
@@ -7092,6 +7090,16 @@ nsNodeSH::GetFlags(PRUint32 *aFlags)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsNodeSH::Finalize(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                   JSObject *obj)
+{
+  nsINode* node = static_cast<nsINode*>(wrapper->Native());
+  node->ClearWrapper();
+
+  return NS_OK;
+}
+ 
 // EventReceiver helper
 
 // static
@@ -7448,6 +7456,16 @@ nsEventTargetSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 }
 
 NS_IMETHODIMP
+nsEventTargetSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                            JSObject *obj)
+{
+  nsXHREventTarget *target = nsXHREventTarget::FromSupports(wrapper->Native());
+  target->SetWrapper(wrapper);
+
+  return nsDOMGenericSH::PostCreate(wrapper, cx, obj);
+}
+
+NS_IMETHODIMP
 nsEventTargetSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
                             JSContext *cx, JSObject *obj, jsval id,
                             PRUint32 flags, JSObject **objp, PRBool *_retval)
@@ -7472,6 +7490,16 @@ nsEventTargetSH::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
   nsXHREventTarget *target = nsXHREventTarget::FromSupports(wrapper->Native());
   target->PreserveWrapper();
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsEventTargetSH::Finalize(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                          JSObject *obj)
+{
+  nsXHREventTarget *target = nsXHREventTarget::FromSupports(wrapper->Native());
+  target->ClearWrapper();
 
   return NS_OK;
 }
@@ -7776,6 +7804,19 @@ nsNodeListSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
   return rv;
 }
 
+NS_IMETHODIMP
+nsNodeListSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                         JSObject *obj)
+{
+  nsWrapperCache* cache = nsnull;
+  CallQueryInterface(wrapper->Native(), &cache);
+  if (cache) {
+    cache->SetWrapper(wrapper);
+  }
+
+  return nsArraySH::PostCreate(wrapper, cx, obj);
+}
+
 nsresult
 nsNodeListSH::GetLength(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj, PRUint32 *length)
@@ -7812,6 +7853,19 @@ nsNodeListSH::GetItemAt(nsISupports *aNative, PRUint32 aIndex,
 #endif
 
   return list->GetNodeAt(aIndex);
+}
+
+NS_IMETHODIMP
+nsNodeListSH::Finalize(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                       JSObject *obj)
+{
+  nsWrapperCache* cache = nsnull;
+  CallQueryInterface(wrapper->Native(), &cache);
+  if (cache) {
+    cache->ClearWrapper();
+  }
+
+  return NS_OK;
 }
 
 
@@ -7962,6 +8016,16 @@ nsContentListSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
   return rv;
 }
 
+NS_IMETHODIMP
+nsContentListSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                            JSObject *obj)
+{
+  nsContentList *list = nsContentList::FromSupports(wrapper->Native());
+  list->SetWrapper(wrapper);
+
+  return nsNamedArraySH::PostCreate(wrapper, cx, obj);
+}
+
 nsresult
 nsContentListSH::GetLength(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                            JSObject *obj, PRUint32 *length)
@@ -7987,6 +8051,16 @@ nsContentListSH::GetNamedItem(nsISupports *aNative, const nsAString& aName,
   nsContentList *list = nsContentList::FromSupports(aNative);
 
   return list->GetNamedItem(aName, aResult);
+}
+
+NS_IMETHODIMP
+nsContentListSH::Finalize(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                          JSObject *obj)
+{
+  nsContentList *list = nsContentList::FromSupports(wrapper->Native());
+  list->ClearWrapper();
+
+  return NS_OK;
 }
 
 // Document helper for document.location and document.on*
@@ -8164,6 +8238,10 @@ nsDocumentSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     return NS_ERROR_UNEXPECTED;
   }
 
+  // Cache the document's JSObject on the document so we can optimize
+  // nsNodeSH::PreCreate() to avoid nested WrapNative() calls.
+  doc->SetJSObject(obj);
+
   nsresult rv = nsNodeSH::PostCreate(wrapper, cx, obj);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -8195,6 +8273,20 @@ nsDocumentSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     }
   }
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocumentSH::Finalize(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                       JSObject *obj)
+{
+  nsCOMPtr<nsIDocument> doc = do_QueryWrappedNative(wrapper);
+  if (!doc) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  doc->SetJSObject(nsnull);
+
+  return nsNodeSH::Finalize(wrapper, cx, obj);
 }
 
 // HTMLDocument helper
@@ -9787,20 +9879,15 @@ nsHTMLPluginObjElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
     do_QueryInterface(pi);
 #endif
 
-  // Bail if we don't have a plugin instance or this is an NPRuntime or Java
-  // plugin since the following code is only useful for XPCOM plugins.
-  if (!pi || (plugin_internal && plugin_internal->GetJSObject(cx))
-#ifdef OJI
-      || java_plugin_instance
-#endif
-      ) {
-    return nsHTMLElementSH::NewResolve(wrapper, cx, obj, id, flags, objp,
-                                       _retval);
-  }
-
   JSObject *proto = ::JS_GetPrototype(cx, obj);
 
-  if (!proto || strcmp(STOBJ_GET_CLASS(proto)->name, NPRUNTIME_JSCLASS_NAME)) {
+  if (pi && (!plugin_internal ||
+             (!proto || strcmp(JS_GET_CLASS(cx, proto)->name,
+                               NPRUNTIME_JSCLASS_NAME) != 0))
+#ifdef OJI
+      && !java_plugin_instance
+#endif
+      ) {
     // This is not an NPRuntime plugin or Java plugin, continue on...
 
     JSString *str = JSVAL_TO_STRING(id);
@@ -10407,208 +10494,6 @@ nsStorageSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   return NS_OK;
 }
 
-
-// Storage2SH
-
-// One reason we need a newResolve hook is that in order for
-// enumeration of storage object keys to work the keys we're
-// enumerating need to exist on the storage object for the JS engine
-// to find them.
-
-NS_IMETHODIMP
-nsStorage2SH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                         JSObject *obj, jsval id, PRUint32 flags,
-                         JSObject **objp, PRBool *_retval)
-{
-  JSObject *realObj;
-  wrapper->GetJSObject(&realObj);
-
-  // First check to see if the property is defined on our prototype,
-  // after converting id to a string if it's an integer.
-
-  JSString *jsstr = JS_ValueToString(cx, id);
-  if (!jsstr) {
-    return JS_FALSE;
-  }
-
-  JSObject *proto = ::JS_GetPrototype(cx, realObj);
-  JSBool hasProp;
-
-  if (proto &&
-      (::JS_HasUCProperty(cx, proto, ::JS_GetStringChars(jsstr),
-                          ::JS_GetStringLength(jsstr), &hasProp) &&
-       hasProp)) {
-    // We found the property we're resolving on the prototype,
-    // nothing left to do here then.
-
-    return NS_OK;
-  }
-
-  // We're resolving property that doesn't exist on the prototype,
-  // check if the key exists in the storage object.
-
-  nsCOMPtr<nsIDOMStorage2> storage(do_QueryWrappedNative(wrapper));
-
-  // GetItem() will return null if the caller can't access the session
-  // storage item.
-  nsAutoString data;
-  nsresult rv = storage->GetItem(nsDependentJSString(jsstr), data);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!DOMStringIsNull(data)) {
-    if (!::JS_DefineUCProperty(cx, realObj, ::JS_GetStringChars(jsstr),
-                               ::JS_GetStringLength(jsstr), JSVAL_VOID, nsnull,
-                               nsnull, 0)) {
-      return NS_ERROR_FAILURE;
-    }
-
-    *objp = realObj;
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsStorage2SH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                          JSObject *obj, jsval id, jsval *vp, PRBool *_retval)
-{
-  nsCOMPtr<nsIDOMStorage2> storage(do_QueryWrappedNative(wrapper));
-  NS_ENSURE_TRUE(storage, NS_ERROR_UNEXPECTED);
-
-  nsAutoString val;
-  nsresult rv = NS_OK;
-
-  if (JSVAL_IS_STRING(id)) {
-    // For native wrappers, do not get random names on storage objects.
-    if (ObjectIsNativeWrapper(cx, obj)) {
-      return NS_ERROR_NOT_AVAILABLE;
-    }
-
-    rv = storage->GetItem(nsDependentJSString(id), val);
-    NS_ENSURE_SUCCESS(rv, rv);
-  } else {
-    PRInt32 n = GetArrayIndexFromId(cx, id);
-    NS_ENSURE_TRUE(n >= 0, NS_ERROR_NOT_AVAILABLE);
-
-    rv = storage->Key(n, val);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  JSAutoRequest ar(cx);
-
-  if (DOMStringIsNull(val)) {
-      *vp = JSVAL_NULL;
-  }
-  else {
-      JSString *str =
-        ::JS_NewUCStringCopyN(cx, reinterpret_cast<const jschar *>(val.get()),
-                              val.Length());
-      NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
-
-      *vp = STRING_TO_JSVAL(str);
-  }
-
-  return NS_SUCCESS_I_DID_SOMETHING;
-}
-
-NS_IMETHODIMP
-nsStorage2SH::SetProperty(nsIXPConnectWrappedNative *wrapper,
-                          JSContext *cx, JSObject *obj, jsval id,
-                          jsval *vp, PRBool *_retval)
-{
-  nsCOMPtr<nsIDOMStorage2> storage(do_QueryWrappedNative(wrapper));
-  NS_ENSURE_TRUE(storage, NS_ERROR_UNEXPECTED);
-
-  JSString *key = ::JS_ValueToString(cx, id);
-  NS_ENSURE_TRUE(key, NS_ERROR_UNEXPECTED);
-
-  JSString *value = ::JS_ValueToString(cx, *vp);
-  NS_ENSURE_TRUE(value, NS_ERROR_UNEXPECTED);
-
-  nsresult rv = storage->SetItem(nsDependentJSString(key),
-                                 nsDependentJSString(value));
-  if (NS_SUCCEEDED(rv)) {
-    rv = NS_SUCCESS_I_DID_SOMETHING;
-  }
-
-  return rv;
-}
-
-NS_IMETHODIMP
-nsStorage2SH::DelProperty(nsIXPConnectWrappedNative *wrapper,
-                          JSContext *cx, JSObject *obj, jsval id,
-                          jsval *vp, PRBool *_retval)
-{
-  nsCOMPtr<nsIDOMStorage2> storage(do_QueryWrappedNative(wrapper));
-  NS_ENSURE_TRUE(storage, NS_ERROR_UNEXPECTED);
-
-  JSString *key = ::JS_ValueToString(cx, id);
-  NS_ENSURE_TRUE(key, NS_ERROR_UNEXPECTED);
-
-  nsresult rv = storage->RemoveItem(nsDependentJSString(key));
-  if (NS_SUCCEEDED(rv)) {
-    rv = NS_SUCCESS_I_DID_SOMETHING;
-  }
-
-  return rv;
-}
-
-
-NS_IMETHODIMP
-nsStorage2SH::NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                           JSObject *obj, PRUint32 enum_op, jsval *statep,
-                           jsid *idp, PRBool *_retval)
-{
-  nsTArray<nsString> *keys =
-    (nsTArray<nsString> *)JSVAL_TO_PRIVATE(*statep);
-
-  switch (enum_op) {
-    case JSENUMERATE_INIT:
-    {
-      nsCOMPtr<nsPIDOMStorage> storage(do_QueryWrappedNative(wrapper));
-
-      // XXXndeakin need to free the keys afterwards
-      keys = storage->GetKeys();
-      NS_ENSURE_TRUE(keys, NS_ERROR_OUT_OF_MEMORY);
-
-      *statep = PRIVATE_TO_JSVAL(keys);
-
-      if (idp) {
-        *idp = INT_TO_JSVAL(keys->Length());
-      }
-      break;
-    }
-    case JSENUMERATE_NEXT:
-      if (keys->Length() != 0) {
-        nsString& key = keys->ElementAt(0);
-        JSString *str =
-          JS_NewUCStringCopyN(cx, reinterpret_cast<const jschar *>
-                                                  (key.get()),
-                              key.Length());
-        NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
-
-        JS_ValueToId(cx, STRING_TO_JSVAL(str), idp);
-
-        keys->RemoveElementAt(0);
-
-        break;
-      }
-
-      // Fall through
-    case JSENUMERATE_DESTROY:
-      delete keys;
-
-      *statep = JSVAL_NULL;
-
-      break;
-    default:
-      NS_NOTREACHED("Bad call from the JS engine");
-
-      return NS_ERROR_FAILURE;
-  }
-
-  return NS_OK;
-}
 
 // StorageList scriptable helper
 

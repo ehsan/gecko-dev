@@ -47,6 +47,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIDOM3Text.h"
 #include "nsTextFragment.h"
+#include "nsVoidArray.h"
 #include "nsDOMError.h"
 #include "nsIEventListenerManager.h"
 #include "nsGenericElement.h"

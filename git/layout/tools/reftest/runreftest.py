@@ -80,10 +80,6 @@ def main():
                     action = "store", type = "string", dest = "app",
                     default = os.path.join(SCRIPT_DIRECTORY, automation.DEFAULT_APP),
                     help = "absolute path to application, overriding default")
-  parser.add_option("--xre-path",
-                    action = "store", type = "string", dest = "xrePath",
-                    default = None, # default is set below
-                    help = "absolute path to directory containing XRE (probably xulrunner)")
   parser.add_option("--extra-profile-file",
                     action = "append", dest = "extraProfileFiles",
                     default = [],
@@ -105,12 +101,6 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
         % {"app": options.app}
     sys.exit(1)
 
-  if options.xrePath is None:
-    options.xrePath = os.path.dirname(options.app)
-  else:
-    # allow relative paths
-    options.xrePath = getFullPath(options.xrePath)
-
   profileDir = None
   try:
     profileDir = mkdtemp()
@@ -124,9 +114,10 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
     # via the commandline at your own risk.
     browserEnv["NO_EM_RESTART"] = "1"
     browserEnv["XPCOM_DEBUG_BREAK"] = "warn"
+    appDir = os.path.dirname(options.app)
     if automation.UNIXISH:
-      browserEnv["LD_LIBRARY_PATH"] = options.xrePath
-      browserEnv["MOZILLA_FIVE_HOME"] = options.xrePath
+      browserEnv["LD_LIBRARY_PATH"] = appDir
+      browserEnv["MOZILLA_FIVE_HOME"] = appDir
       browserEnv["GNOME_DISABLE_CRASH_DIALOG"] = "1"
 
     # Retrieve the logger where to report the leaks to.

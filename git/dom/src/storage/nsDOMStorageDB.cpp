@@ -41,66 +41,11 @@
 #include "nsDOMStorage.h"
 #include "nsDOMStorageDB.h"
 #include "nsIFile.h"
-#include "nsIVariant.h"
-#include "nsIEffectiveTLDService.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "mozStorageCID.h"
 #include "mozStorageHelper.h"
 #include "mozIStorageService.h"
 #include "mozIStorageValueArray.h"
-#include "mozIStorageFunction.h"
-#include "nsPrintfCString.h"
-#include "nsNetUtil.h"
-
-static
-void ReverseString(const nsCSubstring& source, nsCSubstring& result)
-{
-  nsACString::const_iterator sourceBegin, sourceEnd;
-  source.BeginReading(sourceBegin);
-  source.EndReading(sourceEnd);
-
-  result.SetLength(source.Length());
-  nsACString::iterator destEnd;
-  result.EndWriting(destEnd);
-
-  while (sourceBegin != sourceEnd) {
-    *(--destEnd) = *sourceBegin;
-    ++sourceBegin;
-  }
-}
-
-class nsReverseStringSQLFunction : public mozIStorageFunction
-{
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGEFUNCTION
-};
-
-NS_IMPL_ISUPPORTS1(nsReverseStringSQLFunction, mozIStorageFunction)
-
-NS_IMETHODIMP
-nsReverseStringSQLFunction::OnFunctionCall(
-    mozIStorageValueArray *aFunctionArguments, nsIVariant **aResult)
-{
-  nsresult rv;
-
-  nsCAutoString stringToReverse;
-  rv = aFunctionArguments->GetUTF8String(0, stringToReverse);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCAutoString result;
-  ReverseString(stringToReverse, result);
-
-  nsCOMPtr<nsIWritableVariant> outVar(do_CreateInstance(
-      NS_VARIANT_CONTRACTID, &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = outVar->SetAsAUTF8String(result);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *aResult = outVar.get();
-  outVar.forget();
-  return NS_OK;
-}
 
 nsresult
 nsDOMStorageDB::Init()
@@ -127,156 +72,134 @@ nsDOMStorageDB::Init()
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Ensure Gecko 1.9.1 storage table
-  rv = mConnection->ExecuteSimpleSQL(
-         NS_LITERAL_CSTRING("CREATE TABLE IF NOT EXISTS webappsstore2 ("
-                            "scope TEXT, "
-                            "key TEXT, "
-                            "value TEXT, "
-                            "secure INTEGER, "
-                            "owner TEXT)"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-        "CREATE UNIQUE INDEX IF NOT EXISTS scope_key_index"
-        " ON webappsstore2(scope, key)"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<mozIStorageFunction> function(new nsReverseStringSQLFunction());
-  NS_ENSURE_TRUE(function, NS_ERROR_OUT_OF_MEMORY);
-
-  rv = mConnection->CreateFunction(NS_LITERAL_CSTRING("REVERSESTRING"), 1, function);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   PRBool exists;
-
-  // Check if there is storage of Gecko 1.9.0 and if so, upgrade that storage
-  // to actual webappsstore2 table and drop the obsolete table. First process
-  // this newer table upgrade to priority potential duplicates from older
-  // storage table.
-  rv = mConnection->TableExists(NS_LITERAL_CSTRING("webappsstore"),
-                                &exists);
+  rv = mConnection->TableExists(NS_LITERAL_CSTRING("webappsstore"), &exists);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  if (exists) {
-      rv = mConnection->ExecuteSimpleSQL(
-             NS_LITERAL_CSTRING("INSERT OR IGNORE INTO "
-                                "webappsstore2(scope, key, value, secure, owner) "
-                                "SELECT REVERSESTRING(domain) || '.:', key, value, secure, owner "
-                                "FROM webappsstore"));
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = mConnection->ExecuteSimpleSQL(
-             NS_LITERAL_CSTRING("DROP TABLE webappsstore"));
-      NS_ENSURE_SUCCESS(rv, rv);
+  if (! exists) {
+    rv = mConnection->ExecuteSimpleSQL(
+           NS_LITERAL_CSTRING("CREATE TABLE webappsstore ("
+                              "domain TEXT, "
+                              "key TEXT, "
+                              "value TEXT, "
+                              "secure INTEGER, "
+                              "owner TEXT)"));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
   
-  // Check if there is storage of Gecko 1.8 and if so, upgrade that storage
-  // to actual webappsstore2 table and drop the obsolete table. Potential
-  // duplicates will be ignored.
   rv = mConnection->TableExists(NS_LITERAL_CSTRING("moz_webappsstore"),
                                 &exists);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (exists) {
-      rv = mConnection->ExecuteSimpleSQL(
-             NS_LITERAL_CSTRING("INSERT OR IGNORE INTO "
-                                "webappsstore2(scope, key, value, secure, owner) "
-                                "SELECT REVERSESTRING(domain) || '.:', key, value, secure, domain "
-                                "FROM moz_webappsstore"));
-      NS_ENSURE_SUCCESS(rv, rv);
+      // upgrade an old store
+      
+      // create a temporary index to handle dup checking
+       rv = mConnection->ExecuteSimpleSQL(
+              NS_LITERAL_CSTRING("CREATE UNIQUE INDEX webappsstore_tmp "
+                                 " ON webappsstore(domain, key)"));
 
-      rv = mConnection->ExecuteSimpleSQL(
-             NS_LITERAL_CSTRING("DROP TABLE moz_webappsstore"));
-      NS_ENSURE_SUCCESS(rv, rv);
+      // if the index can't be created, there are dup domain/key combos
+      // in moz_webappstore2, which indicates a bug elsewhere.  Fail to upgrade
+      // in this case
+      if (NS_SUCCEEDED(rv)) {
+          rv = mConnection->ExecuteSimpleSQL(
+                 NS_LITERAL_CSTRING("INSERT OR IGNORE INTO "
+                                    "webappsstore(domain, key, value, secure, owner) "
+                                    "SELECT domain, key, value, secure, domain "
+                                    "FROM moz_webappsstore"));
+
+          // try to drop the index even in case of an error
+          mConnection->ExecuteSimpleSQL(
+            NS_LITERAL_CSTRING("DROP INDEX webappsstore_tmp"));
+
+          NS_ENSURE_SUCCESS(rv, rv);
+
+          rv = mConnection->ExecuteSimpleSQL(
+                 NS_LITERAL_CSTRING("DROP TABLE moz_webappsstore"));
+          NS_ENSURE_SUCCESS(rv, rv);
+      }
   }
   
   // retrieve all keys associated with a domain
   rv = mConnection->CreateStatement(
-         NS_LITERAL_CSTRING("SELECT key, secure FROM webappsstore2 "
-                            "WHERE scope = ?1"),
+         NS_LITERAL_CSTRING("SELECT key, secure FROM webappsstore "
+                            "WHERE domain = ?1"),
          getter_AddRefs(mGetAllKeysStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // retrieve a value given a domain and a key
   rv = mConnection->CreateStatement(
-         NS_LITERAL_CSTRING("SELECT value, secure FROM webappsstore2 "
-                            "WHERE scope = ?1 "
+         NS_LITERAL_CSTRING("SELECT value, secure, owner FROM webappsstore "
+                            "WHERE domain = ?1 "
                             "AND key = ?2"),
          getter_AddRefs(mGetKeyValueStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // insert a new key
   rv = mConnection->CreateStatement(
-    NS_LITERAL_CSTRING("INSERT OR REPLACE INTO "
-                            "webappsstore2(scope, key, value, secure) "
-                            "VALUES (?1, ?2, ?3, ?4)"),
+    NS_LITERAL_CSTRING("INSERT INTO "
+                       "webappsstore(domain, key, value, secure, owner) "
+                       "VALUES (?1, ?2, ?3, ?4, ?5)"),
          getter_AddRefs(mInsertKeyStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // update an existing key
   rv = mConnection->CreateStatement(
-         NS_LITERAL_CSTRING("UPDATE webappsstore2 "
-                            "SET value = ?1, secure = ?2"
-                            "WHERE scope = ?3 "
-                            "AND key = ?4"),
+         NS_LITERAL_CSTRING("UPDATE webappsstore "
+                            "SET value = ?1, secure = ?2, owner = ?3"
+                            "WHERE domain = ?4 "
+                            "AND key = ?5 "),
          getter_AddRefs(mUpdateKeyStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // update the secure status of an existing key
   rv = mConnection->CreateStatement(
-         NS_LITERAL_CSTRING("UPDATE webappsstore2 "
+         NS_LITERAL_CSTRING("UPDATE webappsstore "
                             "SET secure = ?1 "
-                            "WHERE scope = ?2 "
+                            "WHERE domain = ?2 "
                             "AND key = ?3 "),
          getter_AddRefs(mSetSecureStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // remove a key
   rv = mConnection->CreateStatement(
-         NS_LITERAL_CSTRING("DELETE FROM webappsstore2 "
-                            "WHERE scope = ?1 "
+         NS_LITERAL_CSTRING("DELETE FROM webappsstore "
+                            "WHERE domain = ?1 "
                             "AND key = ?2"),
          getter_AddRefs(mRemoveKeyStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // remove keys owned by a specific domain
   rv = mConnection->CreateStatement(
-         NS_LITERAL_CSTRING("DELETE FROM webappsstore2 "
-                            "WHERE scope GLOB ?1"),
+         NS_LITERAL_CSTRING("DELETE FROM webappsstore "
+                            "WHERE owner = ?1"),
          getter_AddRefs(mRemoveOwnerStatement));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // remove keys belonging exactly only to a specific domain
-  rv = mConnection->CreateStatement(
-         NS_LITERAL_CSTRING("DELETE FROM webappsstore2 "
-                            "WHERE scope = ?1"),
-         getter_AddRefs(mRemoveStorageStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // remove all keys
   rv = mConnection->CreateStatement(
-         NS_LITERAL_CSTRING("DELETE FROM webappsstore2"),
+         NS_LITERAL_CSTRING("DELETE FROM webappsstore"),
          getter_AddRefs(mRemoveAllStatement));
   NS_ENSURE_SUCCESS(rv, rv);
   
   // check the usage for a given owner
   rv = mConnection->CreateStatement(
          NS_LITERAL_CSTRING("SELECT SUM(LENGTH(key) + LENGTH(value)) "
-                            "FROM webappsstore2 "
-                            "WHERE scope GLOB ?1"),
+                            "FROM webappsstore "
+                            "WHERE owner = ?1"),
          getter_AddRefs(mGetUsageStatement));
 
   return rv;
 }
 
 nsresult
-nsDOMStorageDB::GetAllKeys(nsDOMStorage* aStorage,
+nsDOMStorageDB::GetAllKeys(const nsAString& aDomain,
+                           nsDOMStorage* aStorage,
                            nsTHashtable<nsSessionStorageEntry>* aKeys)
 {
   mozStorageStatementScoper scope(mGetAllKeysStatement);
 
-  nsresult rv = mGetAllKeysStatement->BindUTF8StringParameter(0, aStorage->GetScopeDBKey());
+  nsresult rv = mGetAllKeysStatement->BindStringParameter(0, aDomain);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool exists;
@@ -305,15 +228,15 @@ nsDOMStorageDB::GetAllKeys(nsDOMStorage* aStorage,
 }
 
 nsresult
-nsDOMStorageDB::GetKeyValue(nsDOMStorage* aStorage,
+nsDOMStorageDB::GetKeyValue(const nsAString& aDomain,
                             const nsAString& aKey,
                             nsAString& aValue,
-                            PRBool* aSecure)
+                            PRBool* aSecure,
+                            nsAString& aOwner)
 {
   mozStorageStatementScoper scope(mGetKeyValueStatement);
 
-  nsresult rv = mGetKeyValueStatement->BindUTF8StringParameter(
-                                                  0, aStorage->GetScopeDBKey());
+  nsresult rv = mGetKeyValueStatement->BindStringParameter(0, aDomain);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = mGetKeyValueStatement->BindStringParameter(1, aKey);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -329,6 +252,9 @@ nsDOMStorageDB::GetKeyValue(nsDOMStorage* aStorage,
 
     rv = mGetKeyValueStatement->GetInt32(1, &secureInt);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = mGetKeyValueStatement->GetString(2, aOwner);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
   else {
     rv = NS_ERROR_DOM_NOT_FOUND_ERR;
@@ -340,10 +266,11 @@ nsDOMStorageDB::GetKeyValue(nsDOMStorage* aStorage,
 }
 
 nsresult
-nsDOMStorageDB::SetKey(nsDOMStorage* aStorage,
+nsDOMStorageDB::SetKey(const nsAString& aDomain,
                        const nsAString& aKey,
                        const nsAString& aValue,
                        PRBool aSecure,
+                       const nsAString& aOwner,
                        PRInt32 aQuota,
                        PRInt32 *aNewUsage)
 {
@@ -351,15 +278,14 @@ nsDOMStorageDB::SetKey(nsDOMStorage* aStorage,
  
   PRInt32 usage = 0;
   nsresult rv;
-  if (!aStorage->GetQuotaDomainDBKey().IsEmpty()) {
-    rv = GetUsage(aStorage, &usage);
+  if (!aOwner.IsEmpty()) {
+    rv = GetUsage(aOwner, &usage);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   usage += aKey.Length() + aValue.Length();
 
-  rv = mGetKeyValueStatement->BindUTF8StringParameter(0,
-                                                      aStorage->GetScopeDBKey());
+  rv = mGetKeyValueStatement->BindStringParameter(0, aDomain);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = mGetKeyValueStatement->BindStringParameter(1, aKey);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -377,11 +303,16 @@ nsDOMStorageDB::SetKey(nsDOMStorage* aStorage,
         return NS_ERROR_DOM_SECURITY_ERR;
     }
 
-    nsAutoString previousValue;
-    rv = mGetKeyValueStatement->GetString(0, previousValue);
+    nsAutoString previousOwner;
+    rv = mGetKeyValueStatement->GetString(2, previousOwner);
     NS_ENSURE_SUCCESS(rv, rv);
     
-    usage -= aKey.Length() + previousValue.Length();
+    if (previousOwner == aOwner) {
+      nsAutoString previousValue;
+      rv = mGetKeyValueStatement->GetString(0, previousValue);
+      NS_ENSURE_SUCCESS(rv, rv);
+      usage -= aKey.Length() + previousValue.Length();
+    }
 
     mGetKeyValueStatement->Reset();
 
@@ -395,10 +326,11 @@ nsDOMStorageDB::SetKey(nsDOMStorage* aStorage,
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mUpdateKeyStatement->BindInt32Parameter(1, aSecure);
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = mUpdateKeyStatement->BindUTF8StringParameter(2,
-                                                      aStorage->GetScopeDBKey());
+    rv = mUpdateKeyStatement->BindStringParameter(2, aOwner);
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = mUpdateKeyStatement->BindStringParameter(3, aKey);
+    rv = mUpdateKeyStatement->BindStringParameter(3, aDomain);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = mUpdateKeyStatement->BindStringParameter(4, aKey);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = mUpdateKeyStatement->Execute();
@@ -411,8 +343,7 @@ nsDOMStorageDB::SetKey(nsDOMStorage* aStorage,
     
     mozStorageStatementScoper scopeinsert(mInsertKeyStatement);
     
-    rv = mInsertKeyStatement->BindUTF8StringParameter(0,
-                                                      aStorage->GetScopeDBKey());
+    rv = mInsertKeyStatement->BindStringParameter(0, aDomain);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mInsertKeyStatement->BindStringParameter(1, aKey);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -420,13 +351,15 @@ nsDOMStorageDB::SetKey(nsDOMStorage* aStorage,
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mInsertKeyStatement->BindInt32Parameter(3, aSecure);
     NS_ENSURE_SUCCESS(rv, rv);
-
+    rv = mInsertKeyStatement->BindStringParameter(4, aOwner);
+    NS_ENSURE_SUCCESS(rv, rv);
+    
     rv = mInsertKeyStatement->Execute();
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  if (!aStorage->GetQuotaDomainDBKey().IsEmpty()) {
-    mCachedOwner = aStorage->GetQuotaDomainDBKey();
+  if (!aOwner.IsEmpty()) {
+    mCachedOwner = aOwner;
     mCachedUsage = usage;
   }
 
@@ -436,37 +369,52 @@ nsDOMStorageDB::SetKey(nsDOMStorage* aStorage,
 }
 
 nsresult
-nsDOMStorageDB::SetSecure(nsDOMStorage* aStorage,
+nsDOMStorageDB::SetSecure(const nsAString& aDomain,
                           const nsAString& aKey,
                           const PRBool aSecure)
 {
-  nsresult rv;
+  mozStorageStatementScoper scope(mGetKeyValueStatement);
 
-  mozStorageStatementScoper scope(mSetSecureStatement);
-
-  rv = mSetSecureStatement->BindInt32Parameter(0, aSecure ? 1 : 0);
+  nsresult rv = mGetKeyValueStatement->BindStringParameter(0, aDomain);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = mSetSecureStatement->BindUTF8StringParameter(1, aStorage->GetScopeDBKey());
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = mSetSecureStatement->BindStringParameter(2, aKey);
+  rv = mGetKeyValueStatement->BindStringParameter(1, aKey);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return mSetSecureStatement->Execute();
+  PRBool exists;
+  rv = mGetKeyValueStatement->ExecuteStep(&exists);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (exists) {
+    mGetKeyValueStatement->Reset();
+    
+    mozStorageStatementScoper scopeupdate(mUpdateKeyStatement);
+
+    rv = mSetSecureStatement->BindInt32Parameter(0, aSecure ? 1 : 0);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = mSetSecureStatement->BindStringParameter(1, aDomain);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = mSetSecureStatement->BindStringParameter(2, aKey);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return mSetSecureStatement->Execute();
+  }
+
+  return NS_OK;
 }
 
 nsresult
-nsDOMStorageDB::RemoveKey(nsDOMStorage* aStorage,
+nsDOMStorageDB::RemoveKey(const nsAString& aDomain,
                           const nsAString& aKey,
+                          const nsAString& aOwner,
                           PRInt32 aKeyUsage)
 {
   mozStorageStatementScoper scope(mRemoveKeyStatement);
 
-  if (aStorage->GetQuotaDomainDBKey() == mCachedOwner) {
+  if (aOwner == mCachedOwner) {
     mCachedUsage -= aKeyUsage;
   }
 
-  nsresult rv = mRemoveKeyStatement->BindUTF8StringParameter(
-                                                0, aStorage->GetScopeDBKey());
+  nsresult rv = mRemoveKeyStatement->BindStringParameter(0, aDomain);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = mRemoveKeyStatement->BindStringParameter(1, aKey);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -475,42 +423,16 @@ nsDOMStorageDB::RemoveKey(nsDOMStorage* aStorage,
 }
 
 nsresult
-nsDOMStorageDB::ClearStorage(nsDOMStorage* aStorage)
-{
-  mozStorageStatementScoper scope(mRemoveStorageStatement);
-
-  mCachedUsage = 0;
-  mCachedOwner.Truncate();
-
-  nsresult rv;
-
-  rv = mRemoveStorageStatement->BindUTF8StringParameter(
-                                                0, aStorage->GetScopeDBKey());
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return mRemoveStorageStatement->Execute();
-}
-
-nsresult
-nsDOMStorageDB::RemoveOwner(const nsACString& aOwner, PRBool aIncludeSubDomains)
+nsDOMStorageDB::RemoveOwner(const nsAString& aOwner)
 {
   mozStorageStatementScoper scope(mRemoveOwnerStatement);
 
-  nsCAutoString subdomainsDBKey;
-  nsDOMStorageDB::CreateDomainScopeDBKey(aOwner, subdomainsDBKey);
-
-  if (!aIncludeSubDomains)
-    subdomainsDBKey.AppendLiteral(":");
-  subdomainsDBKey.AppendLiteral("*");
-
-  if (subdomainsDBKey == mCachedOwner) {
+  if (aOwner == mCachedOwner) {
     mCachedUsage = 0;
     mCachedOwner.Truncate();
   }
 
-  nsresult rv;
-
-  rv = mRemoveOwnerStatement->BindUTF8StringParameter(0, subdomainsDBKey);
+  nsresult rv = mRemoveOwnerStatement->BindStringParameter(0, aOwner);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return mRemoveOwnerStatement->Execute();
@@ -518,8 +440,7 @@ nsDOMStorageDB::RemoveOwner(const nsACString& aOwner, PRBool aIncludeSubDomains)
 
 
 nsresult
-nsDOMStorageDB::RemoveOwners(const nsTArray<nsString> &aOwners,
-                             PRBool aIncludeSubDomains, PRBool aMatch)
+nsDOMStorageDB::RemoveOwners(const nsTArray<nsString> &aOwners, PRBool aMatch)
 {
   if (aOwners.Length() == 0) {
     if (aMatch) {
@@ -529,23 +450,20 @@ nsDOMStorageDB::RemoveOwners(const nsTArray<nsString> &aOwners,
     return RemoveAll();
   }
 
-  // Using nsString here because it is going to be very long
-  nsCString expression;
+  nsCAutoString expression;
 
   if (aMatch) {
-    expression.AppendLiteral("DELETE FROM webappsstore2 WHERE scope IN (");
+    expression.Assign(NS_LITERAL_CSTRING("DELETE FROM webappsstore "
+                                         "WHERE owner IN (?"));
   } else {
-    expression.AppendLiteral("DELETE FROM webappsstore2 WHERE scope NOT IN (");
+    expression.Assign(NS_LITERAL_CSTRING("DELETE FROM webappsstore "
+                                         "WHERE owner NOT IN (?"));
   }
 
-  for (PRUint32 i = 0; i < aOwners.Length(); i++) {
-    if (i)
-      expression.AppendLiteral(" UNION ");
-
-    expression.AppendLiteral(
-      "SELECT DISTINCT scope FROM webappsstore2 WHERE scope GLOB ?");
+  for (PRUint32 i = 1; i < aOwners.Length(); i++) {
+    expression.Append(", ?");
   }
-  expression.AppendLiteral(");");
+  expression.Append(")");
 
   nsCOMPtr<mozIStorageStatement> statement;
 
@@ -554,21 +472,11 @@ nsDOMStorageDB::RemoveOwners(const nsTArray<nsString> &aOwners,
   NS_ENSURE_SUCCESS(rv, rv);
 
   for (PRUint32 i = 0; i < aOwners.Length(); i++) {
-    nsCAutoString quotaKey;
-    rv = nsDOMStorageDB::CreateDomainScopeDBKey(NS_ConvertUTF16toUTF8(aOwners[i]), quotaKey);
-
-    if (!aIncludeSubDomains)
-      quotaKey.AppendLiteral(":");
-    quotaKey.AppendLiteral("*");
-
-    rv = statement->BindUTF8StringParameter(i, quotaKey);
+    rv = statement->BindStringParameter(i, aOwners[i]);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  rv = statement->Execute();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
+  return statement->Execute();
 }
 
 nsresult
@@ -579,40 +487,16 @@ nsDOMStorageDB::RemoveAll()
 }
 
 nsresult
-nsDOMStorageDB::GetUsage(nsDOMStorage* aStorage, PRInt32 *aUsage)
+nsDOMStorageDB::GetUsage(const nsAString &aOwner, PRInt32 *aUsage)
 {
-  return GetUsageInternal(aStorage->GetQuotaDomainDBKey(), aUsage);
-}
-
-nsresult
-nsDOMStorageDB::GetUsage(const nsACString& aDomain,
-                         PRBool aIncludeSubDomains, PRInt32 *aUsage)
-{
-  nsresult rv;
-
-  nsCAutoString quotadomainDBKey;
-  rv = nsDOMStorageDB::CreateQuotaDomainDBKey(aDomain,
-                                              aIncludeSubDomains,
-                                              quotadomainDBKey);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return GetUsageInternal(quotadomainDBKey, aUsage);
-}
-
-nsresult
-nsDOMStorageDB::GetUsageInternal(const nsACString& aQuotaDomainDBKey,
-                                 PRInt32 *aUsage)
-{
-  if (aQuotaDomainDBKey == mCachedOwner) {
+  if (aOwner == mCachedOwner) {
     *aUsage = mCachedUsage;
     return NS_OK;
   }
 
   mozStorageStatementScoper scope(mGetUsageStatement);
 
-  nsresult rv;
-
-  rv = mGetUsageStatement->BindUTF8StringParameter(0, aQuotaDomainDBKey);
+  nsresult rv = mGetUsageStatement->BindStringParameter(0, aOwner);
   NS_ENSURE_SUCCESS(rv, rv);
   
   PRBool exists;
@@ -627,96 +511,10 @@ nsDOMStorageDB::GetUsageInternal(const nsACString& aQuotaDomainDBKey,
   rv = mGetUsageStatement->GetInt32(0, aUsage);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!aQuotaDomainDBKey.IsEmpty()) {
-    mCachedOwner = aQuotaDomainDBKey;
+  if (!aOwner.IsEmpty()) {
+    mCachedOwner = aOwner;
     mCachedUsage = *aUsage;
   }
 
-  return NS_OK;
-}
-
-nsresult
-nsDOMStorageDB::CreateOriginScopeDBKey(nsIURI* aUri, nsACString& aKey)
-{
-  nsresult rv;
-
-  rv = CreateDomainScopeDBKey(aUri, aKey);
-  if (NS_FAILED(rv))
-    return rv;
-
-  nsCAutoString scheme;
-  rv = aUri->GetScheme(scheme);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  aKey.AppendLiteral(":");
-  aKey.Append(scheme);
-
-  PRInt32 port = NS_GetRealPort(aUri);
-  if (port != -1) {
-    aKey.AppendLiteral(":");
-    aKey.Append(nsPrintfCString(32, "%d", port));
-  }
-
-  return NS_OK;
-}
-
-nsresult
-nsDOMStorageDB::CreateDomainScopeDBKey(nsIURI* aUri, nsACString& aKey)
-{
-  nsresult rv;
-
-  nsCAutoString host;
-  rv = aUri->GetAsciiHost(host);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = CreateDomainScopeDBKey(host, aKey);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-nsresult
-nsDOMStorageDB::CreateDomainScopeDBKey(const nsACString& aAsciiDomain, nsACString& aKey)
-{
-  if (aAsciiDomain.IsEmpty())
-    return NS_ERROR_NOT_AVAILABLE;
-
-  ReverseString(aAsciiDomain, aKey);
-
-  aKey.AppendLiteral(".");
-  return NS_OK;
-}
-
-nsresult
-nsDOMStorageDB::CreateQuotaDomainDBKey(const nsACString& aAsciiDomain,
-                                       PRBool aIncludeSubDomains, nsACString& aKey)
-{
-  nsresult rv;
-
-  nsCOMPtr<nsIEffectiveTLDService> eTLDService(do_GetService(
-    NS_EFFECTIVETLDSERVICE_CONTRACTID, &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIURI> uri;
-  rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_CSTRING("http://") + aAsciiDomain);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCAutoString eTLDplusOne;
-  rv = eTLDService->GetBaseDomain(uri, 0, eTLDplusOne);
-  if (NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS == rv) {
-    // XXX bug 357323 - what to do for localhost/file exactly?
-    eTLDplusOne = aAsciiDomain;
-    rv = NS_OK;
-  }
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCAutoString subdomainsDBKey;
-  nsDOMStorageDB::CreateDomainScopeDBKey(eTLDplusOne, subdomainsDBKey);
-
-  if (!aIncludeSubDomains)
-    subdomainsDBKey.AppendLiteral(":");
-  subdomainsDBKey.AppendLiteral("*");
-
-  aKey.Assign(subdomainsDBKey);
   return NS_OK;
 }

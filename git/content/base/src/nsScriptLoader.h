@@ -181,15 +181,6 @@ public:
   void ProcessPendingRequests();
 
   /**
-   * Check whether it's OK to load a script from aURI in
-   * aDocument.
-   */
-  static nsresult ShouldLoadScript(nsIDocument* aDocument,
-                                   nsISupports* aContext,
-                                   nsIURI* aURI,
-                                   const nsAString &aType);
-
-  /**
    * Check whether it's OK to execute a script loaded via aChannel in
    * aDocument.
    */
@@ -242,10 +233,9 @@ protected:
   /**
    * Helper function to check the content policy for a given request.
    */
-  static nsresult CheckContentPolicy(nsIDocument* aDocument,
-                                     nsISupports *aContext,
-                                     nsIURI *aURI,
-                                     const nsAString &aType);
+  nsresult CheckContentPolicy(nsScriptLoadRequest *aRequest,
+                              nsISupports *aContext,
+                              const nsAString &aType);
 
   /**
    * Start a load for aRequest's URI.

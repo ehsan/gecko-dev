@@ -34,16 +34,11 @@
  *	Vladimir Vukicevic <vladimir@mozilla.com>
  */
 
-#define _GNU_SOURCE /* required for RTLD_DEFAULT */
 #include "cairoint.h"
 
 #include "cairo-quartz-private.h"
 
 #include <dlfcn.h>
-
-#ifndef RTLD_DEFAULT
-#define RTLD_DEFAULT ((void *) 0)
-#endif
 
 /* The 10.5 SDK includes a funky new definition of FloatToFixed which
  * causes all sorts of breakage; so reset to old-style definition
@@ -294,8 +289,7 @@ typedef struct _quartz_stroke {
 
 /* cairo path -> execute in context */
 static cairo_status_t
-_cairo_path_to_quartz_context_move_to (void *closure,
-				       const cairo_point_t *point)
+_cairo_path_to_quartz_context_move_to (void *closure, cairo_point_t *point)
 {
     //ND((stderr, "moveto: %f %f\n", _cairo_fixed_to_double(point->x), _cairo_fixed_to_double(point->y)));
     quartz_stroke_t *stroke = (quartz_stroke_t *)closure;
@@ -310,8 +304,7 @@ _cairo_path_to_quartz_context_move_to (void *closure,
 }
 
 static cairo_status_t
-_cairo_path_to_quartz_context_line_to (void *closure,
-				       const cairo_point_t *point)
+_cairo_path_to_quartz_context_line_to (void *closure, cairo_point_t *point)
 {
     //ND((stderr, "lineto: %f %f\n",  _cairo_fixed_to_double(point->x), _cairo_fixed_to_double(point->y)));
     quartz_stroke_t *stroke = (quartz_stroke_t *)closure;
@@ -329,10 +322,7 @@ _cairo_path_to_quartz_context_line_to (void *closure,
 }
 
 static cairo_status_t
-_cairo_path_to_quartz_context_curve_to (void *closure,
-					const cairo_point_t *p0,
-					const cairo_point_t *p1,
-					const cairo_point_t *p2)
+_cairo_path_to_quartz_context_curve_to (void *closure, cairo_point_t *p0, cairo_point_t *p1, cairo_point_t *p2)
 {
     //ND( (stderr, "curveto: %f,%f %f,%f %f,%f\n",
     //		   _cairo_fixed_to_double(p0->x), _cairo_fixed_to_double(p0->y),
@@ -641,7 +631,7 @@ static void
 ComputeGradientValue (void *info, const float *in, float *out)
 {
     double fdist = *in;
-    const cairo_gradient_pattern_t *grad = (cairo_gradient_pattern_t*) info;
+    cairo_gradient_pattern_t *grad = (cairo_gradient_pattern_t*) info;
     unsigned int i;
 
     /* Put fdist back in the 0.0..1.0 range if we're doing
@@ -690,21 +680,15 @@ ComputeGradientValue (void *info, const float *in, float *out)
 }
 
 static CGFunctionRef
-CreateGradientFunction (const cairo_gradient_pattern_t *gpat)
+CreateGradientFunction (cairo_gradient_pattern_t *gpat)
 {
-    cairo_pattern_t *pat;
     float input_value_range[2] = { 0.f, 1.f };
     float output_value_ranges[8] = { 0.f, 1.f, 0.f, 1.f, 0.f, 1.f, 0.f, 1.f };
     CGFunctionCallbacks callbacks = {
 	0, ComputeGradientValue, (CGFunctionReleaseInfoCallback) cairo_pattern_destroy
     };
 
-    if (_cairo_pattern_create_copy (&pat, &gpat->base))
-	/* quartz doesn't deal very well with malloc failing, so there's
-	 * not much point in us trying either */
-	return NULL;
-
-    return CGFunctionCreate (pat,
+    return CGFunctionCreate (gpat,
 			     1,
 			     input_value_range,
 			     4,
@@ -714,11 +698,10 @@ CreateGradientFunction (const cairo_gradient_pattern_t *gpat)
 
 static CGFunctionRef
 CreateRepeatingGradientFunction (cairo_quartz_surface_t *surface,
-				 const cairo_gradient_pattern_t *gpat,
+				 cairo_gradient_pattern_t *gpat,
 				 CGPoint *start, CGPoint *end,
 				 CGAffineTransform matrix)
 {
-    cairo_pattern_t *pat;
     float input_value_range[2];
     float output_value_ranges[8] = { 0.f, 1.f, 0.f, 1.f, 0.f, 1.f, 0.f, 1.f };
     CGFunctionCallbacks callbacks = {
@@ -783,12 +766,7 @@ CreateRepeatingGradientFunction (cairo_quartz_surface_t *surface,
     input_value_range[0] = 0.0 - 1.0 * rep_start;
     input_value_range[1] = 1.0 + 1.0 * rep_end;
 
-    if (_cairo_pattern_create_copy (&pat, &gpat->base))
-	/* quartz doesn't deal very well with malloc failing, so there's
-	 * not much point in us trying either */
-	return NULL;
-
-    return CGFunctionCreate (pat,
+    return CGFunctionCreate (gpat,
 			     1,
 			     input_value_range,
 			     4,
@@ -926,7 +904,7 @@ SurfacePatternReleaseInfoFunc (void *ainfo)
 
 static cairo_int_status_t
 _cairo_quartz_cairo_repeating_surface_pattern_to_quartz (cairo_quartz_surface_t *dest,
-							 const cairo_pattern_t *apattern,
+							 cairo_pattern_t *apattern,
 							 CGPatternRef *cgpat)
 {
     cairo_surface_pattern_t *spattern;
@@ -1035,7 +1013,7 @@ typedef enum {
 
 static cairo_quartz_action_t
 _cairo_quartz_setup_fallback_source (cairo_quartz_surface_t *surface,
-				     const cairo_pattern_t *source)
+				     cairo_pattern_t *source)
 {
     CGRect clipBox = CGContextGetClipBoundingBox (surface->cgContext);
     CGAffineTransform ctm;
@@ -1044,7 +1022,6 @@ _cairo_quartz_setup_fallback_source (cairo_quartz_surface_t *surface,
     cairo_surface_t *fallback;
     cairo_t *fallback_cr;
     CGImageRef img;
-    cairo_pattern_t *source_copy;
 
     cairo_status_t status;
 
@@ -1073,13 +1050,7 @@ _cairo_quartz_setup_fallback_source (cairo_quartz_surface_t *surface,
     /* Paint the source onto our temporary */
     fallback_cr = cairo_create (fallback);
     cairo_set_operator (fallback_cr, CAIRO_OPERATOR_SOURCE);
-
-    /* Use a copy of the pattern because it is const and could be allocated
-     * on the stack */
-    status = _cairo_pattern_create_copy (&source_copy, source);
-    cairo_set_source (fallback_cr, source_copy);
-    cairo_pattern_destroy (source_copy);
-
+    cairo_set_source (fallback_cr, source);
     cairo_paint (fallback_cr);
     cairo_destroy (fallback_cr);
 
@@ -1099,9 +1070,9 @@ _cairo_quartz_setup_fallback_source (cairo_quartz_surface_t *surface,
 
 static cairo_quartz_action_t
 _cairo_quartz_setup_linear_source (cairo_quartz_surface_t *surface,
-				   const cairo_linear_pattern_t *lpat)
+				   cairo_linear_pattern_t *lpat)
 {
-    const cairo_pattern_t *abspat = &lpat->base.base;
+    cairo_pattern_t *abspat = (cairo_pattern_t *) lpat;
     cairo_matrix_t mat;
     CGPoint start, end;
     CGFunctionRef gradFunc;
@@ -1114,7 +1085,7 @@ _cairo_quartz_setup_linear_source (cairo_quartz_surface_t *surface,
 	return DO_SOLID;
     }
 
-    mat = abspat->matrix;
+    cairo_pattern_get_matrix (abspat, &mat);
     cairo_matrix_invert (&mat);
     _cairo_quartz_cairo_matrix_to_quartz (&mat, &surface->sourceTransform);
 
@@ -1125,13 +1096,16 @@ _cairo_quartz_setup_linear_source (cairo_quartz_surface_t *surface,
     end = CGPointMake (_cairo_fixed_to_double (lpat->p2.x),
 		       _cairo_fixed_to_double (lpat->p2.y));
 
+    // ref will be released by the CGShading's destructor
+    cairo_pattern_reference ((cairo_pattern_t*) lpat);
+
     if (abspat->extend == CAIRO_EXTEND_NONE ||
 	abspat->extend == CAIRO_EXTEND_PAD)
     {
-	gradFunc = CreateGradientFunction (&lpat->base);
+	gradFunc = CreateGradientFunction ((cairo_gradient_pattern_t*) lpat);
     } else {
 	gradFunc = CreateRepeatingGradientFunction (surface,
-						    &lpat->base,
+						    (cairo_gradient_pattern_t*) lpat,
 						    &start, &end, surface->sourceTransform);
     }
 
@@ -1148,9 +1122,9 @@ _cairo_quartz_setup_linear_source (cairo_quartz_surface_t *surface,
 
 static cairo_quartz_action_t
 _cairo_quartz_setup_radial_source (cairo_quartz_surface_t *surface,
-				   const cairo_radial_pattern_t *rpat)
+				   cairo_radial_pattern_t *rpat)
 {
-    const cairo_pattern_t *abspat = &rpat->base.base;
+    cairo_pattern_t *abspat = (cairo_pattern_t *)rpat;
     cairo_matrix_t mat;
     CGPoint start, end;
     CGFunctionRef gradFunc;
@@ -1171,10 +1145,10 @@ _cairo_quartz_setup_radial_source (cairo_quartz_surface_t *surface,
 	 * Radial shadings).  So, instead, let's just render an image
 	 * for pixman to draw the shading into, and use that.
 	 */
-	return _cairo_quartz_setup_fallback_source (surface, &rpat->base.base);
+	return _cairo_quartz_setup_fallback_source (surface, (cairo_pattern_t*) rpat);
     }
 
-    mat = abspat->matrix;
+    cairo_pattern_get_matrix (abspat, &mat);
     cairo_matrix_invert (&mat);
     _cairo_quartz_cairo_matrix_to_quartz (&mat, &surface->sourceTransform);
 
@@ -1185,7 +1159,10 @@ _cairo_quartz_setup_radial_source (cairo_quartz_surface_t *surface,
     end = CGPointMake (_cairo_fixed_to_double (rpat->c2.x),
 		       _cairo_fixed_to_double (rpat->c2.y));
 
-    gradFunc = CreateGradientFunction (&rpat->base);
+    // ref will be released by the CGShading's destructor
+    cairo_pattern_reference ((cairo_pattern_t*) rpat);
+
+    gradFunc = CreateGradientFunction ((cairo_gradient_pattern_t*) rpat);
 
     surface->sourceShading = CGShadingCreateRadial (rgb,
 						    start,
@@ -1203,7 +1180,7 @@ _cairo_quartz_setup_radial_source (cairo_quartz_surface_t *surface,
 
 static cairo_quartz_action_t
 _cairo_quartz_setup_source (cairo_quartz_surface_t *surface,
-			    const cairo_pattern_t *source)
+			    cairo_pattern_t *source)
 {
     assert (!(surface->sourceImage || surface->sourceShading || surface->sourcePattern));
 
@@ -1228,13 +1205,13 @@ _cairo_quartz_setup_source (cairo_quartz_surface_t *surface,
     }
 
     if (source->type == CAIRO_PATTERN_TYPE_LINEAR) {
-	const cairo_linear_pattern_t *lpat = (const cairo_linear_pattern_t *)source;
+	cairo_linear_pattern_t *lpat = (cairo_linear_pattern_t *)source;
 	return _cairo_quartz_setup_linear_source (surface, lpat);
 
     }
 
     if (source->type == CAIRO_PATTERN_TYPE_RADIAL) {
-	const cairo_radial_pattern_t *rpat = (const cairo_radial_pattern_t *)source;
+	cairo_radial_pattern_t *rpat = (cairo_radial_pattern_t *)source;
 	return _cairo_quartz_setup_radial_source (surface, rpat);
 
     }
@@ -1242,7 +1219,7 @@ _cairo_quartz_setup_source (cairo_quartz_surface_t *surface,
     if (source->type == CAIRO_PATTERN_TYPE_SURFACE &&
 	(source->extend == CAIRO_EXTEND_NONE || (CGContextDrawTiledImagePtr && source->extend == CAIRO_EXTEND_REPEAT)))
     {
-	const cairo_surface_pattern_t *spat = (const cairo_surface_pattern_t *) source;
+	cairo_surface_pattern_t *spat = (cairo_surface_pattern_t *) source;
 	cairo_surface_t *pat_surf = spat->surface;
 	CGImageRef img;
 	cairo_matrix_t m = spat->base.matrix;
@@ -1349,7 +1326,7 @@ _cairo_quartz_setup_source (cairo_quartz_surface_t *surface,
 
 static void
 _cairo_quartz_teardown_source (cairo_quartz_surface_t *surface,
-			       const cairo_pattern_t *source)
+				cairo_pattern_t *source)
 {
     CGContextSetInterpolationQuality (surface->cgContext, surface->oldInterpolationQuality);
 
@@ -1589,7 +1566,7 @@ _cairo_quartz_surface_create_similar (void *abstract_surface,
     // verify width and height of surface
     if (!_cairo_quartz_verify_surface_size(width, height)) {
 	return _cairo_surface_create_in_error (_cairo_error
-					       (CAIRO_STATUS_INVALID_SIZE));
+					       (CAIRO_STATUS_NO_MEMORY));
     }
 
     return cairo_quartz_surface_create (format, width, height);
@@ -1696,8 +1673,7 @@ _cairo_quartz_surface_get_extents (void *abstract_surface,
 static cairo_int_status_t
 _cairo_quartz_surface_paint (void *abstract_surface,
 			     cairo_operator_t op,
-			     const cairo_pattern_t *source,
-			     cairo_rectangle_int_t *extents)
+			     cairo_pattern_t *source)
 {
     cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
     cairo_int_status_t rv = CAIRO_STATUS_SUCCESS;
@@ -1748,12 +1724,11 @@ _cairo_quartz_surface_paint (void *abstract_surface,
 static cairo_int_status_t
 _cairo_quartz_surface_fill (void *abstract_surface,
 			     cairo_operator_t op,
-			     const cairo_pattern_t *source,
+			     cairo_pattern_t *source,
 			     cairo_path_fixed_t *path,
 			     cairo_fill_rule_t fill_rule,
 			     double tolerance,
-			     cairo_antialias_t antialias,
-			     cairo_rectangle_int_t *extents)
+			     cairo_antialias_t antialias)
 {
     cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
     cairo_int_status_t rv = CAIRO_STATUS_SUCCESS;
@@ -1854,14 +1829,13 @@ _cairo_quartz_surface_fill (void *abstract_surface,
 static cairo_int_status_t
 _cairo_quartz_surface_stroke (void *abstract_surface,
 			      cairo_operator_t op,
-			      const cairo_pattern_t *source,
+			      cairo_pattern_t *source,
 			      cairo_path_fixed_t *path,
 			      cairo_stroke_style_t *style,
 			      cairo_matrix_t *ctm,
 			      cairo_matrix_t *ctm_inverse,
 			      double tolerance,
-			      cairo_antialias_t antialias,
-			      cairo_rectangle_int_t *extents)
+			      cairo_antialias_t antialias)
 {
     cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
     cairo_int_status_t rv = CAIRO_STATUS_SUCCESS;
@@ -2001,12 +1975,11 @@ _cairo_quartz_surface_stroke (void *abstract_surface,
 static cairo_int_status_t
 _cairo_quartz_surface_show_glyphs (void *abstract_surface,
 				   cairo_operator_t op,
-				   const cairo_pattern_t *source,
+				   cairo_pattern_t *source,
 				   cairo_glyph_t *glyphs,
 				   int num_glyphs,
 				   cairo_scaled_font_t *scaled_font,
-				   int *remaining_glyphs,
-				   cairo_rectangle_int_t *extents)
+				   int *remaining_glyphs)
 {
     CGAffineTransform textTransform, ctm;
 #define STATIC_BUF_SIZE 64
@@ -2211,23 +2184,22 @@ BAIL:
 static cairo_int_status_t
 _cairo_quartz_surface_mask_with_surface (cairo_quartz_surface_t *surface,
                                          cairo_operator_t op,
-                                         const cairo_pattern_t *source,
-                                         const cairo_surface_pattern_t *mask,
-                                         cairo_rectangle_int_t *extents)
+                                         cairo_pattern_t *source,
+                                         cairo_surface_pattern_t *mask)
 {
-    cairo_rectangle_int_t mask_extents;
+    cairo_rectangle_int_t extents;
     CGRect rect;
     CGImageRef img;
     cairo_surface_t *pat_surf = mask->surface;
     cairo_status_t status = CAIRO_STATUS_SUCCESS;
     CGAffineTransform ctm, mask_matrix;
 
-    status = _cairo_surface_get_extents (pat_surf, &mask_extents);
+    status = _cairo_surface_get_extents (pat_surf, &extents);
     if (status)
 	return status;
 
     // everything would be masked out, so do nothing
-    if (mask_extents.width == 0 || mask_extents.height == 0)
+    if (extents.width == 0 || extents.height == 0)
 	return CAIRO_STATUS_SUCCESS;
 
     status = _cairo_surface_to_cgimage ((cairo_surface_t *) surface, pat_surf, &img);
@@ -2236,7 +2208,7 @@ _cairo_quartz_surface_mask_with_surface (cairo_quartz_surface_t *surface,
     if (status)
 	return status;
 
-    rect = CGRectMake (0.0f, 0.0f, mask_extents.width, mask_extents.height);
+    rect = CGRectMake (0.0f, 0.0f, extents.width, extents.height);
 
     CGContextSaveGState (surface->cgContext);
 
@@ -2253,7 +2225,7 @@ _cairo_quartz_surface_mask_with_surface (cairo_quartz_surface_t *surface,
 
     CGContextSetCTM (surface->cgContext, ctm);
 
-    status = _cairo_quartz_surface_paint (surface, op, source, extents);
+    status = _cairo_quartz_surface_paint (surface, op, source);
 
     CGContextRestoreGState (surface->cgContext);
 
@@ -2277,9 +2249,8 @@ _cairo_quartz_surface_mask_with_surface (cairo_quartz_surface_t *surface,
 static cairo_int_status_t
 _cairo_quartz_surface_mask_with_generic (cairo_quartz_surface_t *surface,
 					 cairo_operator_t op,
-					 const cairo_pattern_t *source,
-					 const cairo_pattern_t *mask,
-					 cairo_rectangle_int_t *extents)
+					 cairo_pattern_t *source,
+					 cairo_pattern_t *mask)
 {
     int width = surface->extents.width - surface->extents.x;
     int height = surface->extents.height - surface->extents.y;
@@ -2288,7 +2259,6 @@ _cairo_quartz_surface_mask_with_generic (cairo_quartz_surface_t *surface,
     cairo_t *gradient_surf_cr = NULL;
 
     cairo_surface_pattern_t surface_pattern;
-    cairo_pattern_t *mask_copy;
     cairo_int_status_t status;
 
     /* Render the gradient to a surface */
@@ -2296,13 +2266,7 @@ _cairo_quartz_surface_mask_with_generic (cairo_quartz_surface_t *surface,
 						 width,
 						 height);
     gradient_surf_cr = cairo_create(gradient_surf);
-
-    /* make a copy of the pattern because because cairo_set_source doesn't take
-     * a 'const cairo_pattern_t *' */
-    _cairo_pattern_create_copy (&mask_copy, mask);
-    cairo_set_source (gradient_surf_cr, mask_copy);
-    cairo_pattern_destroy (mask_copy);
-
+    cairo_set_source (gradient_surf_cr, mask);
     cairo_set_operator (gradient_surf_cr, CAIRO_OPERATOR_SOURCE);
     cairo_paint (gradient_surf_cr);
     status = cairo_status (gradient_surf_cr);
@@ -2313,7 +2277,7 @@ _cairo_quartz_surface_mask_with_generic (cairo_quartz_surface_t *surface,
 
     _cairo_pattern_init_for_surface (&surface_pattern, gradient_surf);
 
-    status = _cairo_quartz_surface_mask_with_surface (surface, op, source, &surface_pattern, extents);
+    status = _cairo_quartz_surface_mask_with_surface (surface, op, source, &surface_pattern);
 
     _cairo_pattern_fini (&surface_pattern.base);
 
@@ -2327,9 +2291,8 @@ _cairo_quartz_surface_mask_with_generic (cairo_quartz_surface_t *surface,
 static cairo_int_status_t
 _cairo_quartz_surface_mask (void *abstract_surface,
 			    cairo_operator_t op,
-			    const cairo_pattern_t *source,
-			    const cairo_pattern_t *mask,
-			    cairo_rectangle_int_t *extents)
+			    cairo_pattern_t *source,
+			    cairo_pattern_t *mask)
 {
     cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
     cairo_int_status_t rv = CAIRO_STATUS_SUCCESS;
@@ -2344,7 +2307,7 @@ _cairo_quartz_surface_mask (void *abstract_surface,
 	cairo_solid_pattern_t *solid_mask = (cairo_solid_pattern_t *) mask;
 
 	CGContextSetAlpha (surface->cgContext, solid_mask->color.alpha);
-	rv = _cairo_quartz_surface_paint (surface, op, source, extents);
+	rv = _cairo_quartz_surface_paint (surface, op, source);
 	CGContextSetAlpha (surface->cgContext, 1.0);
 
 	return rv;
@@ -2354,9 +2317,9 @@ _cairo_quartz_surface_mask (void *abstract_surface,
     if (CGContextClipToMaskPtr) {
 	/* For these, we can skip creating a temporary surface, since we already have one */
 	if (mask->type == CAIRO_PATTERN_TYPE_SURFACE && mask->extend == CAIRO_EXTEND_NONE)
-	    return _cairo_quartz_surface_mask_with_surface (surface, op, source, (cairo_surface_pattern_t *) mask, extents);
+	    return _cairo_quartz_surface_mask_with_surface (surface, op, source, (cairo_surface_pattern_t *) mask);
 
-	return _cairo_quartz_surface_mask_with_generic (surface, op, source, mask, extents);
+	return _cairo_quartz_surface_mask_with_generic (surface, op, source, mask);
     }
 
     /* So, CGContextClipToMask is not present in 10.3.9, so we're
@@ -2433,8 +2396,6 @@ static const struct _cairo_surface_backend cairo_quartz_surface_backend = {
     NULL, /* composite */
     NULL, /* fill_rectangles */
     NULL, /* composite_trapezoids */
-    NULL, /* create_span_renderer */
-    NULL, /* check_span_renderer */
     NULL, /* copy_page */
     NULL, /* show_page */
     NULL, /* set_clip_region */
@@ -2586,7 +2547,7 @@ cairo_quartz_surface_create (cairo_format_t format,
 
     // verify width and height of surface
     if (!_cairo_quartz_verify_surface_size(width, height))
-	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_INVALID_SIZE));
+	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 
     if (width == 0 || height == 0) {
 	return (cairo_surface_t*) _cairo_quartz_surface_create_internal (NULL, _cairo_content_from_format (format),

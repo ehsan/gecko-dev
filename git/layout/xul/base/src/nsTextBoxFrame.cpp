@@ -512,7 +512,6 @@ nsTextBoxFrame::DrawText(nsIRenderingContext& aRenderingContext,
                                       &posResolve,
                                       1);
            mAccessKeyInfo->mBeforeWidth = posResolve.visualLeftTwips;
-           mAccessKeyInfo->mAccessWidth = posResolve.visualWidth;
         }
         else
         {

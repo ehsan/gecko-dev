@@ -125,9 +125,7 @@ static PRStatus MakeReceiver(Shared *shared)
     {
         char *argv[3];
         char path[1024 + sizeof("/tmoacc")];
-
-        getcwd(path, sizeof(path));
-
+        (void)getcwd(path, sizeof(path));
         (void)strcat(path, "/tmoacc");
 #ifdef XP_PC
         (void)strcat(path, ".exe");

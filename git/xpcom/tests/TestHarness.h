@@ -53,8 +53,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-static PRBool gFailCount;
-
 /**
  * Prints the given failure message and arguments using printf, prepending
  * "TEST-UNEXPECTED-FAIL " for the benefit of the test harness and
@@ -71,7 +69,6 @@ void fail(const char* msg, ...)
   va_end(ap);
 
   putchar('\n');
-  ++gFailCount;
 }
 
 /**

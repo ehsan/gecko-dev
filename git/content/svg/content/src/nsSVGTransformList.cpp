@@ -80,8 +80,8 @@ nsSVGTransformList::~nsSVGTransformList()
 void
 nsSVGTransformList::ReleaseTransforms()
 {
-  PRUint32 count = mTransforms.Length();
-  for (PRUint32 i = 0; i < count; ++i) {
+  PRInt32 count = mTransforms.Count();
+  for (PRInt32 i = 0; i < count; ++i) {
     nsIDOMSVGTransform* transform = ElementAt(i);
     nsCOMPtr<nsISVGValue> val = do_QueryInterface(transform);
     val->RemoveObserver(this);
@@ -93,20 +93,20 @@ nsSVGTransformList::ReleaseTransforms()
 nsIDOMSVGTransform*
 nsSVGTransformList::ElementAt(PRInt32 index)
 {
-  return mTransforms.ElementAt(index);
+  return (nsIDOMSVGTransform*)mTransforms.ElementAt(index);
 }
 
 PRBool
 nsSVGTransformList::AppendElement(nsIDOMSVGTransform* aElement)
 {
-  if (mTransforms.AppendElement(aElement)) {
+  PRBool rv = mTransforms.AppendElement((void*)aElement);
+  if (rv) {
     NS_ADDREF(aElement);
     nsCOMPtr<nsISVGValue> val = do_QueryInterface(aElement);
     val->AddObserver(this);
-    return PR_TRUE;
   }
 
-  return PR_FALSE;
+  return rv;
 }
 
 already_AddRefed<nsIDOMSVGMatrix>
@@ -199,11 +199,11 @@ nsSVGTransformList::GetValueString(nsAString& aValue)
 {
   aValue.Truncate();
 
-  PRUint32 count = mTransforms.Length();
+  PRInt32 count = mTransforms.Count();
 
-  if (count == 0) return NS_OK;
+  if (count<=0) return NS_OK;
 
-  PRUint32 i = 0;
+  PRInt32 i = 0;
   
   while (1) {
     nsIDOMSVGTransform* transform = ElementAt(i);
@@ -228,7 +228,7 @@ nsSVGTransformList::GetValueString(nsAString& aValue)
 /* readonly attribute unsigned long numberOfItems; */
 NS_IMETHODIMP nsSVGTransformList::GetNumberOfItems(PRUint32 *aNumberOfItems)
 {
-  *aNumberOfItems = mTransforms.Length();
+  *aNumberOfItems = mTransforms.Count();
   return NS_OK;
 }
 
@@ -262,7 +262,7 @@ NS_IMETHODIMP nsSVGTransformList::Initialize(nsIDOMSVGTransform *newItem,
 /* nsIDOMSVGTransform getItem (in unsigned long index); */
 NS_IMETHODIMP nsSVGTransformList::GetItem(PRUint32 index, nsIDOMSVGTransform **_retval)
 {
-  if (index >= mTransforms.Length()) {
+  if (index >= static_cast<PRUint32>(mTransforms.Count())) {
     *_retval = nsnull;
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
@@ -281,9 +281,9 @@ NS_IMETHODIMP nsSVGTransformList::InsertItemBefore(nsIDOMSVGTransform *newItem,
 
   nsSVGValueAutoNotifier autonotifier(this);
 
-  PRUint32 count = mTransforms.Length();
+  PRUint32 count = mTransforms.Count();
 
-  if (!mTransforms.InsertElementAt((index < count)? index: count, newItem)) {
+  if (!mTransforms.InsertElementAt((void*)newItem, (index < count)? index: count)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -305,12 +305,15 @@ NS_IMETHODIMP nsSVGTransformList::ReplaceItem(nsIDOMSVGTransform *newItem,
 
   nsSVGValueAutoNotifier autonotifier(this);
 
-  if (index >= mTransforms.Length())
+  if (index >= PRUint32(mTransforms.Count()))
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
   nsIDOMSVGTransform* oldItem = ElementAt(index);
 
-  mTransforms.ElementAt(index) = newItem;
+  if (!mTransforms.ReplaceElementAt((void*)newItem, index)) {
+    NS_NOTREACHED("removal of element failed");
+    return NS_ERROR_UNEXPECTED;
+  }
 
   nsCOMPtr<nsISVGValue> val = do_QueryInterface(oldItem);
   val->RemoveObserver(this);
@@ -329,14 +332,18 @@ NS_IMETHODIMP nsSVGTransformList::RemoveItem(PRUint32 index, nsIDOMSVGTransform 
 {
   nsSVGValueAutoNotifier autonotifier(this);
 
-  if (index >= mTransforms.Length()) {
+  if (index >= static_cast<PRUint32>(mTransforms.Count())) {
     *_retval = nsnull;
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
   *_retval = ElementAt(index);
 
-  mTransforms.RemoveElementAt(index);
+  if (!mTransforms.RemoveElementAt(index)) {
+    NS_NOTREACHED("removal of element failed");
+    *_retval = nsnull;
+    return NS_ERROR_UNEXPECTED;
+  }
 
   nsCOMPtr<nsISVGValue> val = do_QueryInterface(*_retval);
   val->RemoveObserver(this);
@@ -385,7 +392,7 @@ NS_IMETHODIMP nsSVGTransformList::Consolidate(nsIDOMSVGTransform **_retval)
 
   *_retval = nsnull;
 
-  PRUint32 count = mTransforms.Length();
+  PRInt32 count = mTransforms.Count();
   if (count==0) return NS_OK;
   if (count==1) {
     *_retval = ElementAt(0);

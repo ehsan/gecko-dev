@@ -146,7 +146,7 @@ static void Test(PRThreadScope scope1, PRThreadScope scope2)
     }
 }
 
-int main(int argc, char **argv)
+PRIntn main(PRIntn argc, char **argv)
 {
     PR_STDIO_INIT();
     lock = PR_NewLock();

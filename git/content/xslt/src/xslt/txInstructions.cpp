@@ -642,10 +642,10 @@ txPushNewContext::txPushNewContext(nsAutoPtr<Expr> aSelect)
 
 txPushNewContext::~txPushNewContext()
 {
-    PRUint32 i;
-    for (i = 0; i < mSortKeys.Length(); ++i)
+    PRInt32 i;
+    for (i = 0; i < mSortKeys.Count(); ++i)
     {
-        delete mSortKeys[i];
+        delete static_cast<SortKey*>(mSortKeys[i]);
     }
 }
 
@@ -673,9 +673,9 @@ txPushNewContext::execute(txExecutionState& aEs)
     }
 
     txNodeSorter sorter;
-    PRUint32 i, count = mSortKeys.Length();
+    PRInt32 i, count = mSortKeys.Count();
     for (i = 0; i < count; ++i) {
-        SortKey* sort = mSortKeys[i];
+        SortKey* sort = static_cast<SortKey*>(mSortKeys[i]);
         rv = sorter.addSortElement(sort->mSelectExpr, sort->mLangExpr,
                                    sort->mDataTypeExpr, sort->mOrderExpr,
                                    sort->mCaseOrderExpr,
@@ -711,7 +711,7 @@ txPushNewContext::addSort(nsAutoPtr<Expr> aSelectExpr,
                                 aOrderExpr, aCaseOrderExpr);
     NS_ENSURE_TRUE(sort, NS_ERROR_OUT_OF_MEMORY);
 
-    if (mSortKeys.AppendElement(sort) == nsnull) {
+    if (!mSortKeys.AppendElement(sort)) {
         delete sort;
         return NS_ERROR_OUT_OF_MEMORY;
     }

@@ -396,9 +396,7 @@ TCP_Server(void *arg)
 		int index = 0;
 		char port[32];
         char path[1024 + sizeof("/thrpool_client")];
-
-        getcwd(path, sizeof(path));
-
+        (void)getcwd(path, sizeof(path));
         (void)strcat(path, "/thrpool_client");
 #ifdef XP_PC
         (void)strcat(path, ".exe");
@@ -547,7 +545,8 @@ exit:
 #define DEFAULT_MAX_THREADS			100
 #define DEFAULT_STACKSIZE			(512 * 1024)
 
-int main(int argc, char **argv)
+int
+main(int argc, char **argv)
 {
 	PRInt32 initial_threads = DEFAULT_INITIAL_THREADS;
 	PRInt32 max_threads = DEFAULT_MAX_THREADS;

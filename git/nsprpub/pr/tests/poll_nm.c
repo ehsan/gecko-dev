@@ -78,7 +78,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
 PRIntn failed_already=0;
 PRIntn debug_mode;
 

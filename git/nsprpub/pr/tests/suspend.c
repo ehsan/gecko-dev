@@ -196,7 +196,8 @@ static void CreateThreadsKK(void)
 }
 
 
-int main(int argc, char **argv)
+void
+main(int argc, char **argv)
 {
     PR_Init(PR_USER_THREAD, PR_PRIORITY_NORMAL, 0);
     PR_STDIO_INIT();

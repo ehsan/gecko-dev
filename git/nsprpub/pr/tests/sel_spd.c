@@ -47,9 +47,6 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
-#ifdef SYMBIAN
-#include <getopt.h>
-#endif
 
 #ifdef XP_MAC
 #include "prlog.h"
@@ -76,7 +73,7 @@ typedef struct timer_slot_t {
 static long _iterations = 5;
 static long _client_data = 8192;
 
-#if defined(XP_MAC) || defined(SYMBIAN)
+#if defined(XP_MAC)
 /*
  * Mac does not scale well specially the requirement for thread stack
  * space and buffer allocation space.  It is easy to get into a fragmented

@@ -52,26 +52,27 @@ nsSVGValue::~nsSVGValue()
 void
 nsSVGValue::ReleaseObservers()
 {
-  PRUint32 count = mObservers.Length();
-  PRUint32 i;
+  PRInt32 count = mObservers.Count();
+  PRInt32 i;
   for (i = 0; i < count; ++i) {
-    nsIWeakReference* wr = mObservers.ElementAt(i);
+    nsIWeakReference* wr = static_cast<nsIWeakReference*>(mObservers.ElementAt(i));
     NS_RELEASE(wr);
   }
-  mObservers.Clear();
+  while (i)
+    mObservers.RemoveElementAt(--i);
 }
 
 void
 nsSVGValue::NotifyObservers(SVGObserverNotifyFunction f,
                             modificationType aModType)
 {
-  PRInt32 count = mObservers.Length();
+  PRInt32 count = mObservers.Count();
 
   // Since notification might cause the listeners to remove themselves
   // from the observer list (mod_die), walk backwards through the list
   // to catch everyone.
   for (PRInt32 i = count - 1; i >= 0; i--) {
-    nsIWeakReference* wr = mObservers.ElementAt(i);
+    nsIWeakReference* wr = static_cast<nsIWeakReference*>(mObservers.ElementAt(i));
     nsCOMPtr<nsISVGValueObserver> observer = do_QueryReferent(wr);
     if (observer)
        (static_cast<nsISVGValueObserver*>(observer)->*f)(this, aModType);
@@ -107,12 +108,12 @@ nsSVGValue::AddObserver(nsISVGValueObserver* observer)
   // stroke and fill.  Safe, as on a style change we remove both, as
   // the change notification isn't fine grained, and re-add as
   // appropriate.
-  if (mObservers.Contains(wr)) {
+  if (mObservers.IndexOf((void*)wr) >= 0) {
     NS_RELEASE(wr);
     return NS_OK;
   }
 
-  mObservers.AppendElement(wr);
+  mObservers.AppendElement((void*)wr);
   return NS_OK;
 }
 
@@ -121,9 +122,9 @@ nsSVGValue::RemoveObserver(nsISVGValueObserver* observer)
 {
   nsCOMPtr<nsIWeakReference> wr = do_GetWeakReference(observer);
   if (!wr) return NS_ERROR_FAILURE;
-  PRInt32 i = mObservers.IndexOf(wr);
+  PRInt32 i = mObservers.IndexOf((void*)wr);
   if (i<0) return NS_ERROR_FAILURE;
-  nsIWeakReference* wr2 = mObservers.ElementAt(i);
+  nsIWeakReference* wr2 = static_cast<nsIWeakReference*>(mObservers.ElementAt(i));
   NS_RELEASE(wr2);
   mObservers.RemoveElementAt(i);
   return NS_OK;

@@ -52,7 +52,6 @@ EXPORTS =                                      \
 
 XPIDLSRCS =                                    \
        nsIDOMToString.idl                      \
-       nsIDOMStorage2.idl                      \
        nsIDOMStorageManager.idl                \
        $(NULL)
 

@@ -45,6 +45,7 @@
 #include "nsIRDFResource.h"
 #include "nsIContent.h"
 #include "nsIDOMNode.h"
+#include "nsVoidArray.h"
 #include "nsTArray.h"
 #include "nsString.h"
 #include "nsIXULTemplateRuleFilter.h"
@@ -276,7 +277,7 @@ protected:
 class nsTemplateQuerySet
 {
 protected:
-    nsTArray<nsTemplateRule*> mRules; // rules owned by nsTemplateQuerySet
+    nsVoidArray mRules; // rules owned by nsTemplateQuerySet
 
     // a number which increments for each successive queryset. It is stored so
     // it can be used as an optimization when updating results so that it is
@@ -320,28 +321,28 @@ public:
     {
         // nsTemplateMatch stores the index as a 16-bit value,
         // so check to make sure for overflow
-        if (mRules.Length() == PR_INT16_MAX)
+        if (mRules.Count() == PR_INT16_MAX)
             return NS_ERROR_FAILURE;
 
-        if (mRules.AppendElement(aChild) == nsnull)
+        if (!mRules.AppendElement(aChild))
             return NS_ERROR_OUT_OF_MEMORY;
         return NS_OK;
     }
 
     PRInt16 RuleCount() const
     {
-        return mRules.Length();
+        return mRules.Count();
     }
 
     nsTemplateRule* GetRuleAt(PRInt16 aIndex)
     {
-        return mRules[aIndex];
+        return static_cast<nsTemplateRule*>(mRules[aIndex]);
     }
 
     void Clear()
     {
-        for (PRInt32 r = mRules.Length() - 1; r >= 0; r--) {
-            nsTemplateRule* rule = mRules[r];
+        for (PRInt32 r = mRules.Count() - 1; r >= 0; r--) {
+            nsTemplateRule* rule = static_cast<nsTemplateRule*>(mRules[r]);
             delete rule;
         }
         mRules.Clear();
