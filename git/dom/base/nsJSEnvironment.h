@@ -68,6 +68,11 @@ public:
   static void LoadStart();
   static void LoadEnd();
 
+  enum IsCompartment {
+    CompartmentGC,
+    NonCompartmentGC
+  };
+
   enum IsShrinking {
     ShrinkingGC,
     NonShrinkingGC
@@ -83,6 +88,7 @@ public:
 
   static void GarbageCollectNow(JS::gcreason::Reason reason,
                                 IsIncremental aIncremental = NonIncrementalGC,
+                                IsCompartment aCompartment = NonCompartmentGC,
                                 IsShrinking aShrinking = NonShrinkingGC,
                                 int64_t aSliceMillis = 0);
   static void ShrinkGCBuffersNow();

@@ -349,10 +349,8 @@ public class GeckoAppShell
                 }
             });
 
-        if (!AppConstants.MOZILLA_OFFICIAL) {
-            Log.d(LOGTAG, "GeckoLoader.nativeRun " + combinedArgs);
-        }
         // and go
+        Log.d(LOGTAG, "GeckoLoader.nativeRun " + combinedArgs);
         GeckoLoader.nativeRun(combinedArgs);
 
         // Remove pumpMessageLoop() idle handler

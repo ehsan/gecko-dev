@@ -30,6 +30,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "FileUtils", "resource://gre/modules/Fil
 XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "console", "resource://gre/modules/devtools/Console.jsm");
 
+let SourceMap = {};
+Cu.import("resource://gre/modules/devtools/SourceMap.jsm", SourceMap);
+
 let loader = Cu.import("resource://gre/modules/commonjs/toolkit/loader.js", {}).Loader;
 let promise = Cu.import("resource://gre/modules/Promise.jsm", {}).Promise;
 
@@ -58,12 +61,12 @@ function BuiltinProvider() {}
 BuiltinProvider.prototype = {
   load: function() {
     this.loader = new loader.Loader({
-      id: "fx-devtools",
       modules: {
         "Debugger": Debugger,
         "Services": Object.create(Services),
         "Timer": Object.create(Timer),
         "toolkit/loader": loader,
+        "source-map": SourceMap,
       },
       paths: {
         // When you add a line to this mapping, don't forget to make a
@@ -84,11 +87,8 @@ BuiltinProvider.prototype = {
         "devtools/async-utils": "resource://gre/modules/devtools/async-utils",
         "devtools/content-observer": "resource://gre/modules/devtools/content-observer",
         "gcli": "resource://gre/modules/devtools/gcli",
-        "projecteditor": "resource:///modules/devtools/projecteditor",
         "acorn": "resource://gre/modules/devtools/acorn",
         "acorn/util/walk": "resource://gre/modules/devtools/acorn/walk.js",
-        "tern": "resource://gre/modules/devtools/tern",
-        "source-map": "resource://gre/modules/devtools/SourceMap.jsm",
 
         // Allow access to xpcshell test items from the loader.
         "xpcshell-test": "resource://test"
@@ -137,18 +137,15 @@ SrcdirProvider.prototype = {
     let asyncUtilsURI = this.fileURI(OS.Path.join(toolkitDir), "async-utils.js");
     let contentObserverURI = this.fileURI(OS.Path.join(toolkitDir), "content-observer.js");
     let gcliURI = this.fileURI(OS.Path.join(toolkitDir, "gcli", "source", "lib", "gcli"));
-    let projecteditorURI = this.fileURI(OS.Path.join(devtoolsDir, "projecteditor"));
     let acornURI = this.fileURI(OS.Path.join(toolkitDir, "acorn"));
     let acornWalkURI = OS.Path.join(acornURI, "walk.js");
-    let ternURI = OS.Path.join(toolkitDir, "tern");
-    let sourceMapURI = this.fileURI(OS.Path.join(toolkitDir), "SourceMap.jsm");
     this.loader = new loader.Loader({
-      id: "fx-devtools",
       modules: {
         "Debugger": Debugger,
         "Services": Object.create(Services),
         "Timer": Object.create(Timer),
         "toolkit/loader": loader,
+        "source-map": SourceMap,
       },
       paths: {
         "": "resource://gre/modules/commonjs/",
@@ -167,11 +164,8 @@ SrcdirProvider.prototype = {
         "devtools/async-utils": asyncUtilsURI,
         "devtools/content-observer": contentObserverURI,
         "gcli": gcliURI,
-        "projecteditor": projecteditorURI,
         "acorn": acornURI,
-        "acorn/util/walk": acornWalkURI,
-        "tern": ternURI,
-        "source-map": sourceMapURI,
+        "acorn/util/walk": acornWalkURI
       },
       globals: loaderGlobals,
       invisibleToDebugger: this.invisibleToDebugger

@@ -14,7 +14,6 @@ const {Services} = Cu.import("resource://gre/modules/Services.jsm");
 const {AppProjects} = require("devtools/app-manager/app-projects");
 const {Connection} = require("devtools/client/connection-manager");
 const {AppManager} = require("devtools/app-manager");
-const ProjectEditor = require("projecteditor/projecteditor");
 
 const Strings = Services.strings.createBundle("chrome://webide/content/webide.properties");
 
@@ -262,65 +261,22 @@ let UI = {
     }
   },
 
-  // ProjectEditor & details screen
-
-  getProjectEditor: function() {
-    if (this.projecteditor) {
-      return this.projecteditor.loaded;
-    }
-
-    let projecteditorIframe = document.querySelector("#projecteditor");
-    this.projecteditor = ProjectEditor.ProjectEditor(projecteditorIframe);
-    this.projecteditor.on("onEditorSave", (editor, resource) => {
-      AppManager.validateProject(AppManager.selectedProject);
-    });
-    return this.projecteditor.loaded;
-  },
-
-  isProjectEditorEnabled: function() {
-    return Services.prefs.getBoolPref("devtools.webide.showProjectEditor");
-  },
+  // details.xhtml
 
   openProject: function() {
-    let detailsIframe = document.querySelector("#details");
-    let projecteditorIframe = document.querySelector("#projecteditor");
-
+    let details = document.querySelector("#details");
     let project = AppManager.selectedProject;
 
-    // Nothing to show
-
     if (!project) {
-      detailsIframe.setAttribute("hidden", "true");
-      projecteditorIframe.setAttribute("hidden", "true");
-      document.commandDispatcher.focusedElement = document.documentElement;
+      details.setAttribute("hidden", "true");
       return;
     }
-
-    // Show only the details screen
-
-    if (project.type != "packaged" || !this.isProjectEditorEnabled()) {
-      detailsIframe.removeAttribute("hidden");
-      projecteditorIframe.setAttribute("hidden", "true");
-      document.commandDispatcher.focusedElement = document.documentElement;
-      return;
-    }
-
-    // Show ProjectEditor
-
-    detailsIframe.setAttribute("hidden", "true");
-    projecteditorIframe.removeAttribute("hidden");
-
-    this.getProjectEditor().then((projecteditor) => {
-      projecteditor.setProjectToAppPath(project.location, {
-        name: project.name,
-        iconUrl: project.icon,
-        projectOverviewURL: "chrome://webide/content/details.xhtml"
-      });
-    }, UI.console.error);
 
     if (project.location) {
       Services.prefs.setCharPref("devtools.webide.lastprojectlocation", project.location);
     }
+
+    details.removeAttribute("hidden");
   },
 
   /********** COMMANDS **********/
@@ -439,6 +395,7 @@ let UI = {
     if (this.toolboxPromise) {
       this.toolboxPromise.then(toolbox => {
         toolbox.destroy();
+        document.querySelector("#action-button-debug").removeAttribute("active");
         this.toolboxPromise = null;
       }, this.console.error);
     }
@@ -479,7 +436,6 @@ let UI = {
 
     let splitter = document.querySelector(".devtools-horizontal-splitter");
     splitter.setAttribute("hidden", "true");
-    document.querySelector("#action-button-debug").removeAttribute("active");
   },
 
   console: {
@@ -774,7 +730,6 @@ let Cmds = {
   },
 
   toggleEditors: function() {
-    Services.prefs.setBoolPref("devtools.webide.showProjectEditor", !UI.isProjectEditorEnabled());
-    UI.openProject();
+    // Toggle Itchpad
   },
 }

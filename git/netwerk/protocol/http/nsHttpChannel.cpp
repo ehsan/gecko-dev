@@ -2203,7 +2203,7 @@ nsHttpChannel::ProcessPartialContent()
         if (NS_FAILED(rv)) return rv;
 
         // make the cached response be the current response
-        mResponseHead = Move(mCachedResponseHead);
+        mResponseHead = mCachedResponseHead;
 
         UpdateInhibitPersistentCachingFlag();
 
@@ -2334,7 +2334,7 @@ nsHttpChannel::ProcessNotModified()
     if (NS_FAILED(rv)) return rv;
 
     // make the cached response be the current response
-    mResponseHead = Move(mCachedResponseHead);
+    mResponseHead = mCachedResponseHead;
 
     UpdateInhibitPersistentCachingFlag();
 
@@ -3536,7 +3536,7 @@ nsHttpChannel::ReadFromCache(bool alreadyMarkedValid)
          "Using cached copy of: %s\n", this, mSpec.get()));
 
     if (mCachedResponseHead)
-        mResponseHead = Move(mCachedResponseHead);
+        mResponseHead = mCachedResponseHead;
 
     UpdateInhibitPersistentCachingFlag();
 
@@ -5156,7 +5156,7 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
             }
             else if (contentLength != int64_t(-1) && contentLength != size) {
                 LOG(("  concurrent cache entry write has been interrupted"));
-                mCachedResponseHead = Move(mResponseHead);
+                mCachedResponseHead = mResponseHead;
                 rv = MaybeSetupByteRangeRequest(size, contentLength);
                 if (NS_SUCCEEDED(rv) && mIsPartialRequest) {
                     // Prevent read from cache again

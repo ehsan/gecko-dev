@@ -6382,7 +6382,8 @@ AutoFilename::reset(void *newScriptSource)
 const char *
 AutoFilename::get() const
 {
-    return scriptSource_ ? reinterpret_cast<ScriptSource*>(scriptSource_)->filename() : nullptr;
+    JS_ASSERT(scriptSource_);
+    return reinterpret_cast<ScriptSource*>(scriptSource_)->filename();
 }
 
 JS_PUBLIC_API(bool)

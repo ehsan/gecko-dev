@@ -32,6 +32,12 @@ function init_all() {
 
   let categories = document.getElementById("categories");
   categories.addEventListener("select", event => gotoPref(event.target.value));
+
+  if (history.length > 1 && history.state) {
+    selectCategory(history.state);
+  } else {
+    history.replaceState("paneGeneral", document.title);
+  }
 }
 
 function selectCategory(name) {

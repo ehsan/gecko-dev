@@ -21,18 +21,18 @@ var gTestInstallListener = {
 
   onInstallEnded: function(aInstall) {
     check_hidden(false);
-    run_next_test();
+    executeSoon(run_next_test);
   },
 
   onInstallCancelled: function(aInstall) {
     ok(gExpectedCancel, "Should expect install cancel");
     check_hidden(false);
-    run_next_test();
+    executeSoon(run_next_test);
   },
 
   onInstallFailed: function(aInstall) {
     ok(false, "Did not expect onInstallFailed");
-    run_next_test();
+    executeSoon(run_next_test);
   }
 };
 

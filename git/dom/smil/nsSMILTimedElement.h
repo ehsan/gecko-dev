@@ -6,7 +6,6 @@
 #ifndef NS_SMILTIMEDELEMENT_H_
 #define NS_SMILTIMEDELEMENT_H_
 
-#include "mozilla/Move.h"
 #include "nsSMILInterval.h"
 #include "nsSMILInstanceTime.h"
 #include "nsSMILMilestone.h"
@@ -525,7 +524,7 @@ protected:
   {
     if (mCurrentInterval) {
       // Transfer ownership to temp var. (This sets mCurrentInterval to null.)
-      nsAutoPtr<nsSMILInterval> interval(mozilla::Move(mCurrentInterval));
+      nsAutoPtr<nsSMILInterval> interval(mCurrentInterval);
       interval->Unlink();
     }
   }
