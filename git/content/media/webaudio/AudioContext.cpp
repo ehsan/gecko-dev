@@ -514,10 +514,7 @@ AudioContext::Graph() const
 MediaStream*
 AudioContext::DestinationStream() const
 {
-  if (Destination()) {
-    return Destination()->Stream();
-  }
-  return nullptr;
+  return Destination()->Stream();
 }
 
 double
@@ -583,7 +580,7 @@ AudioContext::Shutdown()
   }
 
   // For offline contexts, we can destroy the MediaStreamGraph at this point.
-  if (mIsOffline && mDestination) {
+  if (mIsOffline) {
     mDestination->OfflineShutdown();
   }
 }

@@ -7,6 +7,8 @@
 #ifndef mozilla_dom_BindingUtils_h__
 #define mozilla_dom_BindingUtils_h__
 
+#include <algorithm>
+
 #include "jsfriendapi.h"
 #include "jswrapper.h"
 #include "mozilla/Alignment.h"
@@ -2203,9 +2205,7 @@ class DeferredFinalizer
     MOZ_ASSERT(aSlice > 0, "nonsensical/useless call with aSlice == 0");
     SmartPtrArray* pointers = static_cast<SmartPtrArray*>(aData);
     uint32_t oldLen = pointers->Length();
-    if (oldLen < aSlice) {
-      aSlice = oldLen;
-    }
+    aSlice = std::min(oldLen, aSlice);
     uint32_t newLen = oldLen - aSlice;
     pointers->RemoveElementsAt(newLen, aSlice);
     if (newLen == 0) {

@@ -4062,7 +4062,7 @@ JS_NewDateObjectMsec(JSContext *cx, double msec);
  * Infallible predicate to test whether obj is a date object.
  */
 extern JS_PUBLIC_API(bool)
-JS_ObjectIsDate(JSContext *cx, JS::HandleObject obj);
+JS_ObjectIsDate(JSContext *cx, JSObject *obj);
 
 /*
  * Clears the cache of calculated local time from each Date object.
@@ -4082,24 +4082,20 @@ JS_ClearDateCaches(JSContext *cx);
 #define JSREG_STICKY    0x08    /* only match starting at lastIndex */
 
 extern JS_PUBLIC_API(JSObject *)
-JS_NewRegExpObject(JSContext *cx, JS::HandleObject obj, char *bytes, size_t length,
-                   unsigned flags);
+JS_NewRegExpObject(JSContext *cx, JSObject *obj, char *bytes, size_t length, unsigned flags);
 
 extern JS_PUBLIC_API(JSObject *)
-JS_NewUCRegExpObject(JSContext *cx, JS::HandleObject obj, jschar *chars, size_t length,
-                     unsigned flags);
+JS_NewUCRegExpObject(JSContext *cx, JSObject *obj, jschar *chars, size_t length, unsigned flags);
 
 extern JS_PUBLIC_API(void)
-JS_SetRegExpInput(JSContext *cx, JS::HandleObject obj, JS::HandleString input,
-                  bool multiline);
+JS_SetRegExpInput(JSContext *cx, JSObject *obj, JSString *input, bool multiline);
 
 extern JS_PUBLIC_API(void)
-JS_ClearRegExpStatics(JSContext *cx, JS::HandleObject obj);
+JS_ClearRegExpStatics(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(bool)
-JS_ExecuteRegExp(JSContext *cx, JS::HandleObject obj, JS::HandleObject reobj,
-                 jschar *chars, size_t length, size_t *indexp, bool test,
-                 JS::MutableHandleValue rval);
+JS_ExecuteRegExp(JSContext *cx, JSObject *obj, JSObject *reobj, jschar *chars, size_t length,
+                 size_t *indexp, bool test, jsval *rval);
 
 /* RegExp interface for clients without a global object. */
 
@@ -4110,17 +4106,17 @@ extern JS_PUBLIC_API(JSObject *)
 JS_NewUCRegExpObjectNoStatics(JSContext *cx, jschar *chars, size_t length, unsigned flags);
 
 extern JS_PUBLIC_API(bool)
-JS_ExecuteRegExpNoStatics(JSContext *cx, JS::HandleObject reobj, jschar *chars, size_t length,
-                          size_t *indexp, bool test, JS::MutableHandleValue rval);
+JS_ExecuteRegExpNoStatics(JSContext *cx, JSObject *reobj, jschar *chars, size_t length,
+                          size_t *indexp, bool test, jsval *rval);
 
 extern JS_PUBLIC_API(bool)
-JS_ObjectIsRegExp(JSContext *cx, JS::HandleObject obj);
+JS_ObjectIsRegExp(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(unsigned)
-JS_GetRegExpFlags(JSContext *cx, JS::HandleObject obj);
+JS_GetRegExpFlags(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(JSString *)
-JS_GetRegExpSource(JSContext *cx, JS::HandleObject obj);
+JS_GetRegExpSource(JSContext *cx, JSObject *obj);
 
 /************************************************************************/
 
@@ -4128,10 +4124,10 @@ extern JS_PUBLIC_API(bool)
 JS_IsExceptionPending(JSContext *cx);
 
 extern JS_PUBLIC_API(bool)
-JS_GetPendingException(JSContext *cx, JS::MutableHandleValue vp);
+JS_GetPendingException(JSContext *cx, jsval *vp);
 
 extern JS_PUBLIC_API(void)
-JS_SetPendingException(JSContext *cx, JS::HandleValue v);
+JS_SetPendingException(JSContext *cx, jsval v);
 
 extern JS_PUBLIC_API(void)
 JS_ClearPendingException(JSContext *cx);
@@ -4167,7 +4163,7 @@ JS_DropExceptionState(JSContext *cx, JSExceptionState *state);
  * of the exception object.
  */
 extern JS_PUBLIC_API(JSErrorReport *)
-JS_ErrorFromException(JSContext *cx, JS::HandleValue v);
+JS_ErrorFromException(JSContext *cx, jsval v);
 
 /*
  * Given a reported error's message and JSErrorReport struct pointer, throw
@@ -4273,7 +4269,7 @@ JS_SetGlobalJitCompilerOption(JSContext *cx, JSJitCompilerOption opt, uint32_t v
  * Convert a uint32_t index into a jsid.
  */
 extern JS_PUBLIC_API(bool)
-JS_IndexToId(JSContext *cx, uint32_t index, JS::MutableHandleId);
+JS_IndexToId(JSContext *cx, uint32_t index, jsid *id);
 
 /*
  * Convert chars into a jsid.
@@ -4281,13 +4277,13 @@ JS_IndexToId(JSContext *cx, uint32_t index, JS::MutableHandleId);
  * |chars| may not be an index.
  */
 extern JS_PUBLIC_API(bool)
-JS_CharsToId(JSContext* cx, JS::TwoByteChars chars, JS::MutableHandleId);
+JS_CharsToId(JSContext* cx, JS::TwoByteChars chars, jsid *idp);
 
 /*
  *  Test if the given string is a valid ECMAScript identifier
  */
 extern JS_PUBLIC_API(bool)
-JS_IsIdentifier(JSContext *cx, JS::HandleString str, bool *isIdentifier);
+JS_IsIdentifier(JSContext *cx, JSString *str, bool *isIdentifier);
 
 /*
  * Return the current script and line number of the most currently running

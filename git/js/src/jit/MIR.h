@@ -217,12 +217,10 @@ class AliasSet {
         FixedSlot         = 1 << 3, // A member of obj->fixedSlots().
         TypedArrayElement = 1 << 4, // A typed array element.
         DOMProperty       = 1 << 5, // A DOM property
-        AsmJSGlobalVar    = 1 << 6, // An asm.js global var
-        AsmJSHeap         = 1 << 7, // An asm.js heap load
-        Last              = AsmJSHeap,
+        Last              = DOMProperty,
         Any               = Last | (Last - 1),
 
-        NumCategories     = 8,
+        NumCategories     = 6,
 
         // Indicates load or store.
         Store_            = 1 << 31
@@ -8408,7 +8406,6 @@ class MAsmJSLoadHeap : public MUnaryInstruction, public MAsmJSHeapAccess
     MAsmJSLoadHeap(ArrayBufferView::ViewType vt, MDefinition *ptr)
       : MUnaryInstruction(ptr), MAsmJSHeapAccess(vt, false)
     {
-        setMovable();
         if (vt == ArrayBufferView::TYPE_FLOAT32 || vt == ArrayBufferView::TYPE_FLOAT64)
             setResultType(MIRType_Double);
         else
@@ -8423,12 +8420,6 @@ class MAsmJSLoadHeap : public MUnaryInstruction, public MAsmJSHeapAccess
     }
 
     MDefinition *ptr() const { return getOperand(0); }
-
-    bool congruentTo(MDefinition *ins) const;
-    AliasSet getAliasSet() const {
-        return AliasSet::Load(AliasSet::AsmJSHeap);
-    }
-    bool mightAlias(MDefinition *def);
 };
 
 class MAsmJSStoreHeap : public MBinaryInstruction, public MAsmJSHeapAccess
@@ -8446,10 +8437,6 @@ class MAsmJSStoreHeap : public MBinaryInstruction, public MAsmJSHeapAccess
 
     MDefinition *ptr() const { return getOperand(0); }
     MDefinition *value() const { return getOperand(1); }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::Store(AliasSet::AsmJSHeap);
-    }
 };
 
 class MAsmJSLoadGlobalVar : public MNullaryInstruction
@@ -8459,7 +8446,8 @@ class MAsmJSLoadGlobalVar : public MNullaryInstruction
     {
         JS_ASSERT(type == MIRType_Int32 || type == MIRType_Double);
         setResultType(type);
-        setMovable();
+        if (isConstant)
+            setMovable();
     }
 
     unsigned globalDataOffset_;
@@ -8474,13 +8462,12 @@ class MAsmJSLoadGlobalVar : public MNullaryInstruction
 
     unsigned globalDataOffset() const { return globalDataOffset_; }
 
-    bool congruentTo(MDefinition *ins) const;
-
     AliasSet getAliasSet() const {
-        return AliasSet::Load(AliasSet::AsmJSGlobalVar);
+        if (isConstant_)
+            return AliasSet::None();
+        else
+            return AliasSet::Store(AliasSet::Any);
     }
-
-    bool mightAlias(MDefinition *def);
 };
 
 class MAsmJSStoreGlobalVar : public MUnaryInstruction
@@ -8500,10 +8487,6 @@ class MAsmJSStoreGlobalVar : public MUnaryInstruction
 
     unsigned globalDataOffset() const { return globalDataOffset_; }
     MDefinition *value() const { return getOperand(0); }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::Store(AliasSet::AsmJSGlobalVar);
-    }
 };
 
 class MAsmJSLoadFuncPtr : public MUnaryInstruction
