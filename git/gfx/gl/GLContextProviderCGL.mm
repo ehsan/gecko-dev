@@ -16,7 +16,7 @@
 #include "gfxFailure.h"
 #include "prenv.h"
 #include "mozilla/Preferences.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 using namespace mozilla::gfx;
 
@@ -162,7 +162,7 @@ public:
 
     bool SwapBuffers()
     {
-      PROFILER_LABEL("GLContext", "SwapBuffers");
+      SAMPLE_LABEL("GLContext", "SwapBuffers");
       [mContext flushBuffer];
       return true;
     }

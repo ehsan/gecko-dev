@@ -10,7 +10,7 @@
 #include "nsThreadManager.h"
 #include "nsThreadUtils.h"
 #include "plarena.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
@@ -494,7 +494,7 @@ void nsTimerImpl::Fire()
   if (mCanceled)
     return;
 
-  PROFILER_LABEL("Timer", "Fire");
+  SAMPLE_LABEL("Timer", "Fire");
 
   TimeStamp now = TimeStamp::Now();
 #ifdef DEBUG_TIMERS

@@ -14,7 +14,7 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIDOMApplicationRegistry.h"
 #include "nsIPermissionManager.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -185,7 +185,7 @@ nsGenericHTMLFrameElement::BindToTree(nsIDocument* aDocument,
     NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                  "Missing a script blocker!");
 
-    PROFILER_LABEL("nsGenericHTMLFrameElement", "BindToTree");
+    SAMPLE_LABEL("nsGenericHTMLFrameElement", "BindToTree");
 
     // We're in a document now.  Kick off the frame load.
     LoadSrc();

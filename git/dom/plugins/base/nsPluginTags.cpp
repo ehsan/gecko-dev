@@ -74,7 +74,8 @@ NS_IMPL_ISUPPORTS1(DOMMimeTypeImpl, nsIDOMMimeType)
 /* nsPluginTag */
 
 nsPluginTag::nsPluginTag(nsPluginTag* aPluginTag)
-: mName(aPluginTag->mName),
+: mPluginHost(nullptr),
+mName(aPluginTag->mName),
 mDescription(aPluginTag->mDescription),
 mMimeTypes(aPluginTag->mMimeTypes),
 mMimeDescriptions(aPluginTag->mMimeDescriptions),
@@ -91,7 +92,8 @@ mNiceFileName()
 }
 
 nsPluginTag::nsPluginTag(nsPluginInfo* aPluginInfo)
-: mName(aPluginInfo->fName),
+: mPluginHost(nullptr),
+mName(aPluginInfo->fName),
 mDescription(aPluginInfo->fDescription),
 mLibrary(nullptr),
 mIsJavaPlugin(false),
@@ -120,7 +122,8 @@ nsPluginTag::nsPluginTag(const char* aName,
                          int32_t aVariants,
                          int64_t aLastModifiedTime,
                          bool aArgsAreUTF8)
-: mName(aName),
+: mPluginHost(nullptr),
+mName(aName),
 mDescription(aDescription),
 mLibrary(nullptr),
 mIsJavaPlugin(false),
@@ -273,6 +276,11 @@ nsresult nsPluginTag::EnsureMembersAreUTF8()
 #endif
 }
 
+void nsPluginTag::SetHost(nsPluginHost * aHost)
+{
+  mPluginHost = aHost;
+}
+
 NS_IMETHODIMP
 nsPluginTag::GetDescription(nsACString& aDescription)
 {
@@ -336,9 +344,7 @@ nsPluginTag::SetEnabled(bool enabled)
     SetPluginState(ePluginState_Enabled);
   }
 
-  if (nsRefPtr<nsPluginHost> host = nsPluginHost::GetInst()) {
-    host->UpdatePluginInfo(this);
-  }
+  mPluginHost->UpdatePluginInfo(this);
 }
 
 NS_IMETHODIMP
@@ -382,9 +388,7 @@ nsPluginTag::SetBlocklisted(bool blocklisted)
     Preferences::ClearUser(pref.get());
   }
 
-  if (nsRefPtr<nsPluginHost> host = nsPluginHost::GetInst()) {
-    host->UpdatePluginInfo(this);
-  }
+  mPluginHost->UpdatePluginInfo(this);
   return NS_OK;
 }
 
@@ -414,9 +418,7 @@ nsPluginTag::SetClicktoplay(bool clicktoplay)
     SetPluginState(ePluginState_Clicktoplay);
   }
 
-  if (nsRefPtr<nsPluginHost> host = nsPluginHost::GetInst()) {
-    host->UpdatePluginInfo(this);
-  }
+  mPluginHost->UpdatePluginInfo(this);
   return NS_OK;
 }
 

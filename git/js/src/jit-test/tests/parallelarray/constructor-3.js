@@ -10,5 +10,4 @@ function buildArrayLike() {
   assertEq(p.toString(), e);
 }
 
-if (getBuildConfiguration().parallelJS)
-  buildArrayLike();
+buildArrayLike();

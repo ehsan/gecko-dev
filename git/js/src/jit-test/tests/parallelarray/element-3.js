@@ -8,5 +8,4 @@ function testElement() {
 }
 
 // FIXME(bug 844882) self-hosted object not array-like, exposes internal properties
-// if (getBuildConfiguration().parallelJS)
-//   testElement();
+// testElement();

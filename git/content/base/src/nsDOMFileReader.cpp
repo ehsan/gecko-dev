@@ -140,7 +140,7 @@ nsDOMFileReader::Init()
 
 NS_IMETHODIMP
 nsDOMFileReader::Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
-                            uint32_t argc, JS::Value *argv)
+                            uint32_t argc, jsval *argv)
 {
   nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(aOwner);
   if (!owner) {
@@ -176,7 +176,7 @@ nsDOMFileReader::GetReadyState(uint16_t *aReadyState)
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::GetResult(JSContext* aCx, JS::Value* aResult)
+nsDOMFileReader::GetResult(JSContext* aCx, jsval* aResult)
 {
   if (mDataFormat == FILE_AS_ARRAYBUFFER) {
     if (mReadyState == nsIDOMFileReader::DONE && mResultArrayBuffer) {

@@ -28,4 +28,4 @@ function testReduce() {
   assertStructuralEq(parResult, seqResult);
 }
 
-if (getBuildConfiguration().parallelJS) testReduce();
+testReduce();

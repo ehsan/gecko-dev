@@ -370,7 +370,7 @@ JSObject::getChildProperty(JSContext *cx, HandleObject obj, HandleShape parent, 
 }
 
 bool
-js::ObjectImpl::toDictionaryMode(JSContext *cx)
+JSObject::toDictionaryMode(JSContext *cx)
 {
     JS_ASSERT(!inDictionaryMode());
 
@@ -379,7 +379,7 @@ js::ObjectImpl::toDictionaryMode(JSContext *cx)
 
     uint32_t span = slotSpan();
 
-    Rooted<ObjectImpl*> self(cx, this);
+    RootedObject self(cx, this);
 
     /*
      * Clone the shapes into a new dictionary list. Don't update the
@@ -925,17 +925,17 @@ JSObject::rollbackProperties(JSContext *cx, uint32_t slotSpan)
 }
 
 Shape *
-js::ObjectImpl::replaceWithNewEquivalentShape(JSContext *cx, Shape *oldShape, Shape *newShape)
+JSObject::replaceWithNewEquivalentShape(JSContext *cx, Shape *oldShape, Shape *newShape)
 {
     JS_ASSERT(cx->compartment == oldShape->compartment());
     JS_ASSERT_IF(oldShape != lastProperty(),
                  inDictionaryMode() &&
                  nativeLookup(cx, oldShape->propidRef()) == oldShape);
 
-    ObjectImpl *self = this;
+    JSObject *self = this;
 
     if (!inDictionaryMode()) {
-        Rooted<ObjectImpl*> selfRoot(cx, self);
+        RootedObject selfRoot(cx, self);
         RootedShape newRoot(cx, newShape);
         if (!toDictionaryMode(cx))
             return NULL;
@@ -945,7 +945,7 @@ js::ObjectImpl::replaceWithNewEquivalentShape(JSContext *cx, Shape *oldShape, Sh
     }
 
     if (!newShape) {
-        Rooted<ObjectImpl*> selfRoot(cx, self);
+        RootedObject selfRoot(cx, self);
         RootedShape oldRoot(cx, oldShape);
         newShape = js_NewGCShape(cx);
         if (!newShape)
@@ -1056,15 +1056,14 @@ JSObject::preventExtensions(JSContext *cx)
 }
 
 bool
-js::ObjectImpl::setFlag(JSContext *cx, /*BaseShape::Flag*/ uint32_t flag_,
-                        GenerateShape generateShape)
+JSObject::setFlag(JSContext *cx, /*BaseShape::Flag*/ uint32_t flag_, GenerateShape generateShape)
 {
     BaseShape::Flag flag = (BaseShape::Flag) flag_;
 
     if (lastProperty()->getObjectFlags() & flag)
         return true;
 
-    Rooted<ObjectImpl*> self(cx, this);
+    RootedObject self(cx, this);
 
     if (inDictionaryMode()) {
         if (generateShape == GENERATE_SHAPE && !generateOwnShape(cx))
@@ -1079,8 +1078,7 @@ js::ObjectImpl::setFlag(JSContext *cx, /*BaseShape::Flag*/ uint32_t flag_,
         return true;
     }
 
-    RawShape newShape =
-        Shape::setObjectFlag(cx, flag, self->getTaggedProto(), self->lastProperty());
+    RawShape newShape = Shape::setObjectFlag(cx, flag, getTaggedProto(), lastProperty());
     if (!newShape)
         return false;
 
@@ -1089,12 +1087,12 @@ js::ObjectImpl::setFlag(JSContext *cx, /*BaseShape::Flag*/ uint32_t flag_,
 }
 
 bool
-js::ObjectImpl::clearFlag(JSContext *cx, /*BaseShape::Flag*/ uint32_t flag)
+JSObject::clearFlag(JSContext *cx, /*BaseShape::Flag*/ uint32_t flag)
 {
     JS_ASSERT(inDictionaryMode());
     JS_ASSERT(lastProperty()->getObjectFlags() & flag);
 
-    RootedObject self(cx, this->asObjectPtr());
+    RootedObject self(cx, this);
 
     StackBaseShape base(self->lastProperty());
     base.flags &= ~flag;

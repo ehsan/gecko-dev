@@ -6,4 +6,4 @@ function testScanOne() {
   assertEq(s.get(0), p.reduce(f));
 }
 
-if (getBuildConfiguration().parallelJS) testScanOne();
+testScanOne();

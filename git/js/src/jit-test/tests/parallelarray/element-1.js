@@ -10,5 +10,4 @@ function testElement() {
   assertEq(p.get(42), undefined);
 }
 
-if (getBuildConfiguration().parallelJS)
-  testElement();
+testElement();

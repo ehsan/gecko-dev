@@ -314,7 +314,6 @@ function createExecuteContentSandbox(aWindow, timeout) {
   sandbox.document = sandbox.window.document;
   sandbox.navigator = sandbox.window.navigator;
   sandbox.testUtils = utils;
-  sandbox.asyncTestCommandId = asyncTestCommandId;
 
   let marionette = new Marionette(this, aWindow, "content",
                                   marionetteLogObj, marionettePerf,
@@ -333,45 +332,44 @@ function createExecuteContentSandbox(aWindow, timeout) {
     return new SpecialPowers(aWindow);
   });
 
-  sandbox.asyncComplete = function sandbox_asyncComplete(value, status, stack, commandId) {
-    if (commandId == asyncTestCommandId) {
-      curWindow.removeEventListener("unload", onunload, false);
-      curWindow.clearTimeout(asyncTestTimeoutId);
+  sandbox.asyncComplete = function sandbox_asyncComplete(value, status) {
+    curWindow.removeEventListener("unload", onunload, false);
 
-      sendSyncMessage("Marionette:shareData", {log: elementManager.wrapValue(marionetteLogObj.getLogs()),
-                                               perf: elementManager.wrapValue(marionettePerf.getPerfData())});
-      marionetteLogObj.clearLogs();
-      marionettePerf.clearPerfData();
+    curWindow.clearTimeout(asyncTestTimeoutId);
 
-      if (status == 0){
-        if (Object.keys(_emu_cbs).length) {
-          _emu_cbs = {};
-          sendError("Emulator callback still pending when finish() called",
-                    500, null, commandId);
-        }
-        else {
-          sendResponse({value: elementManager.wrapValue(value), status: status},
-                       commandId);
-        }
+    sendSyncMessage("Marionette:shareData", {log: elementManager.wrapValue(marionetteLogObj.getLogs()),
+                                             perf: elementManager.wrapValue(marionettePerf.getPerfData())});
+    marionetteLogObj.clearLogs();
+    marionettePerf.clearPerfData();
+
+    if (status == 0){
+      if (Object.keys(_emu_cbs).length) {
+        _emu_cbs = {};
+        sendError("Emulator callback still pending when finish() called",
+                  500, null, asyncTestCommandId);
       }
       else {
-        sendError(value, status, stack, commandId);
+        sendResponse({value: elementManager.wrapValue(value), status: status},
+                     asyncTestCommandId);
       }
-
-      asyncTestRunning = false;
-      asyncTestTimeoutId = undefined;
-      asyncTestCommandId = undefined;
     }
+    else {
+      sendError(value, status, null, asyncTestCommandId);
+    }
+
+    asyncTestRunning = false;
+    asyncTestTimeoutId = undefined;
+    asyncTestCommandId = undefined;
   };
   sandbox.finish = function sandbox_finish() {
     if (asyncTestRunning) {
-      sandbox.asyncComplete(marionette.generate_results(), 0, null, sandbox.asyncTestCommandId);
+      sandbox.asyncComplete(marionette.generate_results(), 0);
     } else {
       return marionette.generate_results();
     }
   };
   sandbox.marionetteScriptFinished = function sandbox_marionetteScriptFinished(value) {
-    return sandbox.asyncComplete(value, 0, null, sandbox.asyncTestCommandId);
+    return sandbox.asyncComplete(value, 0);
   };
 
   return sandbox;
@@ -392,9 +390,6 @@ function executeScript(msg, directInject) {
       sendError("Could not create sandbox!", 500, null, asyncTestCommandId);
       return;
     }
-  }
-  else {
-    sandbox.asyncTestCommandId = asyncTestCommandId;
   }
 
   try {
@@ -502,9 +497,6 @@ function executeWithCallback(msg, useFinish) {
       sendError("Could not create sandbox!", 17, null, asyncTestCommandId);
       return;
     }
-  }
-  else {
-    sandbox.asyncTestCommandId = asyncTestCommandId;
   }
   sandbox.tag = script;
 

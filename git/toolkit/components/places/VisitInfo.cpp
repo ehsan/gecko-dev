@@ -14,11 +14,13 @@ namespace places {
 VisitInfo::VisitInfo(int64_t aVisitId,
                      PRTime aVisitDate,
                      uint32_t aTransitionType,
-                     already_AddRefed<nsIURI> aReferrer)
+                     already_AddRefed<nsIURI> aReferrer,
+                     int64_t aSessionId)
 : mVisitId(aVisitId)
 , mVisitDate(aVisitDate)
 , mTransitionType(aTransitionType)
 , mReferrer(aReferrer)
+, mSessionId(aSessionId)
 {
 }
 
@@ -50,6 +52,13 @@ NS_IMETHODIMP
 VisitInfo::GetReferrerURI(nsIURI** _referrer)
 {
   NS_IF_ADDREF(*_referrer = mReferrer);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+VisitInfo::GetSessionId(int64_t* _sessionId)
+{
+  *_sessionId = mSessionId;
   return NS_OK;
 }
 

@@ -173,7 +173,9 @@ BookmarksView.prototype = {
       let node = rootNode.getChild(i);
 
       // Ignore folders, separators, undefined item types, etc.
-      if (node.type != node.RESULT_TYPE_URI)
+      if (node.type != node.RESULT_TYPE_URI &&
+          node.type != node.RESULT_TYPE_VISIT &&
+          node.type != node.RESULT_TYPE_FULL_VISIT)
         continue;
 
       this.addBookmark(node.itemId);

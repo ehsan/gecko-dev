@@ -13,6 +13,5 @@ function test() {
   // exceptions:
   x.map(inc, {mode: "par", expect: "disqualified"});
 }
-
-if (getBuildConfiguration().parallelJS) test();
+test();
 

@@ -5,4 +5,4 @@ function testReduce() {
   compareAgainstArray(range(1, 513), "reduce", sum);
 }
 
-if (getBuildConfiguration().parallelJS) testReduce();
+testReduce();

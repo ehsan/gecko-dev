@@ -14,13 +14,11 @@ XPCSHELL_TESTS = tests
 
 include $(DEPTH)/config/autoconf.mk
 
-EXPORTS = GeckoProfiler.h
+EXPORTS = sampler.h
 
 ifdef MOZ_ENABLE_PROFILER_SPS
 EXPORTS += \
-  GeckoProfilerImpl.h \
-  GeckoProfilerFunc.h \
-  PseudoStack.h \
+  sps_sampler.h \
   shared-libraries.h \
   $(NULL)
 

@@ -63,7 +63,7 @@
 
 #include "nsFrameManager.h"
 #include "nsRuleProcessorData.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -1658,7 +1658,7 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
                                       RestyleTracker&    aRestyleTracker,
                                       bool               aRestyleDescendants)
 {
-  PROFILER_LABEL("CSS", "ComputeStyleChangeFor");
+  SAMPLE_LABEL("CSS", "ComputeStyleChangeFor");
 
   nsIContent *content = aFrame->GetContent();
   if (aMinChange) {

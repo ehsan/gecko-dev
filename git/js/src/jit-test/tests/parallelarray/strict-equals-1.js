@@ -10,4 +10,4 @@ function testEquals() {
 }
 
 // FIXME(bug 844991) logical shape not implemented
-// if (getBuildConfiguration().parallelJS) testEquals();
+// testEquals();

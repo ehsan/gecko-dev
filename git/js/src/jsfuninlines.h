@@ -189,13 +189,9 @@ CloneFunctionObjectIfNotSingleton(JSContext *cx, HandleFunction fun, HandleObjec
         }
     }
 
-    // These intermediate variables are needed to avoid link errors on some
-    // platforms.  Sigh.
-    gc::AllocKind finalizeKind = JSFunction::ExtendedFinalizeKind;
-    gc::AllocKind extendedFinalizeKind = JSFunction::ExtendedFinalizeKind;
     gc::AllocKind kind = fun->isExtended()
-                         ? finalizeKind
-                         : extendedFinalizeKind;
+                         ? JSFunction::ExtendedFinalizeKind
+                         : JSFunction::FinalizeKind;
     return CloneFunctionObject(cx, fun, parent, kind);
 }
 

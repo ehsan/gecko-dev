@@ -38,7 +38,7 @@
 #include "PluginHangUIParent.h"
 #include "mozilla/widget/AudioSession.h"
 #endif
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 using base::KillProcess;
 
@@ -859,7 +859,7 @@ PluginModuleParent::NPP_NewStream(NPP instance, NPMIMEType type,
                                   NPStream* stream, NPBool seekable,
                                   uint16_t* stype)
 {
-    PROFILER_LABEL("PluginModuleParent", "NPP_NewStream");
+    SAMPLE_LABEL("PluginModuleParent", "NPP_NewStream");
     PluginInstanceParent* i = InstCast(instance);
     if (!i)
         return NPERR_GENERIC_ERROR;

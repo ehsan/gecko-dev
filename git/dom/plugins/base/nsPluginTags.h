@@ -48,6 +48,7 @@ public:
               bool aArgsAreUTF8 = false);
   virtual ~nsPluginTag();
 
+  void SetHost(nsPluginHost * aHost);
   void TryUnloadPlugin(bool inShutdown);
 
   // plugin is enabled and not blocklisted
@@ -68,6 +69,7 @@ public:
   nsCString GetNiceFileName();
 
   nsRefPtr<nsPluginTag> mNext;
+  nsPluginHost *mPluginHost;
   nsCString     mName; // UTF-8
   nsCString     mDescription; // UTF-8
   nsTArray<nsCString> mMimeTypes; // UTF-8

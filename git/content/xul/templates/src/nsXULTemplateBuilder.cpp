@@ -1389,7 +1389,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
 
     JSAutoRequest ar(jscontext);
 
-    JS::Value v;
+    jsval v;
     nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
     rv = nsContentUtils::WrapNative(jscontext, scope, mRoot, mRoot, &v,
                                     getter_AddRefs(wrapper));
@@ -1399,7 +1399,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
 
     if (mDB) {
         // database
-        JS::Value jsdatabase;
+        jsval jsdatabase;
         rv = nsContentUtils::WrapNative(jscontext, scope, mDB,
                                         &NS_GET_IID(nsIRDFCompositeDataSource),
                                         &jsdatabase, getter_AddRefs(wrapper));
@@ -1414,7 +1414,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
 
     {
         // builder
-        JS::Value jsbuilder;
+        jsval jsbuilder;
         nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
         rv = nsContentUtils::WrapNative(jscontext, jselement,
                                         static_cast<nsIXULTemplateBuilder*>(this),

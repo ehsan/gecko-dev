@@ -52,16 +52,16 @@ public:
                         JSContext* aCx,
                         JSObject* aObj,
                         uint32_t aArgc,
-                        JS::Value* aArgv);
+                        jsval* aArgv);
 
   typedef nsIDOMBlob* (*UnwrapFuncPtr)(JSContext*, JSObject*);
   nsresult InitBlob(JSContext* aCx,
                     uint32_t aArgc,
-                    JS::Value* aArgv,
+                    jsval* aArgv,
                     UnwrapFuncPtr aUnwrapFunc);
   nsresult InitFile(JSContext* aCx,
                     uint32_t aArgc,
-                    JS::Value* aArgv);
+                    jsval* aArgv);
 
   already_AddRefed<nsIDOMBlob>
   CreateSlice(uint64_t aStart, uint64_t aLength, const nsAString& aContentType);

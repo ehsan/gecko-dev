@@ -9,4 +9,4 @@ function testScan() {
   assertEq(r >= 1 && r <= 4, true);
 }
 
-if (getBuildConfiguration().parallelJS) testScan();
+testScan();

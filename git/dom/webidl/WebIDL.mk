@@ -190,9 +190,6 @@ webidl_files = \
   SVGFEColorMatrixElement.webidl \
   SVGFEComponentTransferElement.webidl \
   SVGFECompositeElement.webidl \
-  SVGFEConvolveMatrixElement.webidl \
-  SVGFEDiffuseLightingElement.webidl \
-  SVGFEDisplacementMapElement.webidl \
   SVGFEDistantLightElement.webidl \
   SVGFEFloodElement.webidl \
   SVGFEFuncAElement.webidl \
@@ -205,8 +202,6 @@ webidl_files = \
   SVGFEMergeNodeElement.webidl \
   SVGFEOffsetElement.webidl \
   SVGFEPointLightElement.webidl \
-  SVGFESpecularLightingElement.webidl \
-  SVGFESpotLightElement.webidl \
   SVGFETileElement.webidl \
   SVGFitToViewBox.webidl \
   SVGForeignObjectElement.webidl \

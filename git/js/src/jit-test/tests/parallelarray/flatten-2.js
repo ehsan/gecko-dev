@@ -6,5 +6,4 @@ function testFlatten() {
   assertEqParallelArray(p.flatten(), p2);
 }
 
-if (getBuildConfiguration().parallelJS)
-  testFlatten();
+testFlatten();

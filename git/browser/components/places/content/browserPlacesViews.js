@@ -282,7 +282,7 @@ PlacesViewBase.prototype = {
     }
     else {
       let itemId = aPlacesNode.itemId;
-      if (type == Ci.nsINavHistoryResultNode.RESULT_TYPE_URI) {
+      if (PlacesUtils.uriTypes.indexOf(type) != -1) {
         element = document.createElement("menuitem");
         element.className = "menuitem-iconic bookmark-item menuitem-with-favicon";
         element.setAttribute("scheme",

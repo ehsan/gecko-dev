@@ -11,8 +11,6 @@
 #include "MetroAppShell.h"
 #include "nsICommandLineRunner.h"
 #include "FrameworkView.h"
-#include "nsAppDirectoryServiceDefs.h"
-#include <shellapi.h>
 
 using namespace ABI::Windows::ApplicationModel;
 using namespace ABI::Windows::ApplicationModel::Core;
@@ -24,7 +22,7 @@ using namespace Microsoft::WRL::Wrappers;
 
 // Metro specific XRE methods we call from here on an
 // appropriate thread.
-extern nsresult XRE_metroStartup(bool runXREMain);
+extern nsresult XRE_metroStartup();
 extern void XRE_metroShutdown();
 
 #ifdef PR_LOGGING
@@ -70,7 +68,7 @@ MetroApp::Initialize()
   if (!xpcomInit) {
     xpcomInit = true;
     Log(L"XPCOM startup initialization began");
-    nsresult rv = XRE_metroStartup(true);
+    nsresult rv = XRE_metroStartup();
     Log(L"XPCOM startup initialization complete");
     if (NS_FAILED(rv)) {
       Log(L"XPCOM startup initialization failed, bailing. rv=%X", rv);
@@ -197,17 +195,6 @@ MetroApp::PostSleepWakeNotification(const bool aIsSleep)
 
 } } }
 
-
-static bool
-IsBackgroundSessionClosedStartup()
-{
-  int argc;
-  LPWSTR *argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-  bool backgroundSessionClosed = argc > 1 && !wcsicmp(argv[1], L"-BackgroundSessionClosed");
-  LocalFree(argv);
-  return backgroundSessionClosed;
-}
-
 bool
 XRE_MetroCoreApplicationRun()
 {
@@ -232,28 +219,7 @@ XRE_MetroCoreApplicationRun()
   }
 
   sFrameworkView = Make<FrameworkView>(sMetroApp.Get());
-
-  // Perform any cleanup for unclean shutdowns here, such as when the background session
-  // is closed via the appbar on the left when outside of Metro.  Windows restarts the
-  // process solely for cleanup reasons.
-  if (IsBackgroundSessionClosedStartup() && SUCCEEDED(XRE_metroStartup(false))) {
-
-    // Whether or  not to use sessionstore depends on if the bak exists.  Since host process
-    // shutdown isn't a crash we shouldn't restore sessionstore.
-    nsCOMPtr<nsIFile> sessionBAK;
-    if (NS_FAILED(NS_GetSpecialDirectory("ProfDS", getter_AddRefs(sessionBAK)))) {
-      return false;
-    }
-
-    sessionBAK->AppendNative(nsDependentCString("sessionstore.bak"));
-    bool exists;
-    if (NS_SUCCEEDED(sessionBAK->Exists(&exists)) && exists) {
-      sessionBAK->Remove(false);
-    }
-    return false;
-  }
-
-  hr = sCoreApp->Run(sMetroApp.Get());
+  sCoreApp->Run(sMetroApp.Get());
 
   Log(L"Exiting CoreApplication::Run");
 

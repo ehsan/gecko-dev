@@ -23,5 +23,4 @@ function test() {
   }
 }
 
-if (getBuildConfiguration().parallelJS)
-  test();
+test();

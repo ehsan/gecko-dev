@@ -981,7 +981,7 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
                   continue;
                 }
 
-                JS::Value protoBinding = ::JS_GetReservedSlot(proto, 0);
+                jsval protoBinding = ::JS_GetReservedSlot(proto, 0);
 
                 if (JSVAL_TO_PRIVATE(protoBinding) != mPrototypeBinding) {
                   // Not the right binding
@@ -1130,7 +1130,7 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
     }
   }
 
-  JS::Value val;
+  jsval val;
   JSObject* proto = NULL;
   if ((!::JS_LookupPropertyWithFlags(cx, global, className.get(), 0, &val)) ||
       JSVAL_IS_PRIMITIVE(val)) {

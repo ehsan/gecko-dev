@@ -653,7 +653,7 @@ protected:
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
   
-  JS::Value mResultJSON;
+  jsval mResultJSON;
   JSObject* mResultArrayBuffer;
 
   void ResetResponse();

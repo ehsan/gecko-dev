@@ -18,5 +18,4 @@ function buildComprehension() {
   assertEqParallelArray(p, p2);
 }
 
-if (getBuildConfiguration().parallelJS)
-  buildComprehension();
+buildComprehension();

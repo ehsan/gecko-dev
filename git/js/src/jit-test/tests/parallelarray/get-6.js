@@ -10,5 +10,4 @@ function testGet() {
 }
 
 // FIXME(bug 844991) logical shape not implemented
-// if (getBuildConfiguration().parallelJS)
-//   testGet();
+// testGet();

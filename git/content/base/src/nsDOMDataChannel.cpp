@@ -324,7 +324,7 @@ nsDOMDataChannel::GetSendParams(nsIVariant* aData, nsCString& aStringOut,
     nsMemory::Free(iid);
 
     // ArrayBuffer?
-    JS::Value realVal;
+    jsval realVal;
     JSObject* obj;
     nsresult rv = aData->GetAsJSVal(&realVal);
     if (NS_SUCCEEDED(rv) && !JSVAL_IS_PRIMITIVE(realVal) &&
@@ -399,7 +399,7 @@ nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aData,
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   JSAutoRequest ar(cx);
-  JS::Value jsData;
+  jsval jsData;
 
   if (aBinary) {
     if (mBinaryType == DC_BINARY_TYPE_BLOB) {

@@ -126,7 +126,7 @@
 #include "nsMemoryInfoDumper.h"
 #include "xpcpublic.h"
 #include "nsXPCOMPrivate.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 #include <stdio.h>
 #include <string.h>
 #ifdef WIN32
@@ -2838,7 +2838,7 @@ void
 nsCycleCollector_forgetSkippable(bool aRemoveChildlessNodes)
 {
     if (sCollector) {
-        PROFILER_LABEL("CC", "nsCycleCollector_forgetSkippable");
+        SAMPLE_LABEL("CC", "nsCycleCollector_forgetSkippable");
         TimeLog timeLog;
         sCollector->ForgetSkippable(aRemoveChildlessNodes);
         timeLog.Checkpoint("ForgetSkippable()");
@@ -2851,7 +2851,7 @@ nsCycleCollector_collect(bool aMergeZones,
                          nsICycleCollectorListener *aListener)
 {
     MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");
-    PROFILER_LABEL("CC", "nsCycleCollector_collect");
+    SAMPLE_LABEL("CC", "nsCycleCollector_collect");
     nsCOMPtr<nsICycleCollectorListener> listener(aListener);
     if (!aListener && sCollector && sCollector->mParams.mLogAll) {
         listener = new nsCycleCollectorLogger();
@@ -2889,7 +2889,7 @@ nsCycleCollector_shutdown()
     MOZ_ASSERT(!sCollectorThread, "Should have finished before!");
 
     if (sCollector) {
-        PROFILER_LABEL("CC", "nsCycleCollector_shutdown");
+        SAMPLE_LABEL("CC", "nsCycleCollector_shutdown");
         sCollector->Shutdown();
         delete sCollector;
         sCollector = nullptr;

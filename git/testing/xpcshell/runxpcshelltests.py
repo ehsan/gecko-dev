@@ -28,7 +28,6 @@ try:
     import mozcrash
 except:
     deps = ['mozcrash',
-            'mozfile',
             'mozlog']
     for dep in deps:
         module = os.path.join(mozbase, dep)
