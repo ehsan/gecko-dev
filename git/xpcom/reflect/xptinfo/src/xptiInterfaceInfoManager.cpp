@@ -10,7 +10,6 @@
 
 #include "mozilla/FileUtils.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/StaticPtr.h"
 
 #include "xptiprivate.h"
 #include "nsDependentString.h"
@@ -27,7 +26,10 @@ NS_IMPL_ISUPPORTS_INHERITED1(
   MemoryUniReporter,
   nsIInterfaceInfoManager)
 
-static StaticRefPtr<XPTInterfaceInfoManager> gInterfaceInfoManager;
+static XPTInterfaceInfoManager* gInterfaceInfoManager = nullptr;
+#ifdef DEBUG
+static int gCallCount = 0;
+#endif
 
 size_t
 XPTInterfaceInfoManager::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
@@ -60,6 +62,7 @@ XPTInterfaceInfoManager::GetSingleton()
 {
     if (!gInterfaceInfoManager) {
         gInterfaceInfoManager = new XPTInterfaceInfoManager();
+        NS_ADDREF(gInterfaceInfoManager);
         gInterfaceInfoManager->InitMemoryReporter();
     }
     return gInterfaceInfoManager;
@@ -68,7 +71,7 @@ XPTInterfaceInfoManager::GetSingleton()
 void
 XPTInterfaceInfoManager::FreeInterfaceInfoManager()
 {
-    gInterfaceInfoManager = nullptr;
+    NS_IF_RELEASE(gInterfaceInfoManager);
 }
 
 XPTInterfaceInfoManager::XPTInterfaceInfoManager()
@@ -85,6 +88,11 @@ XPTInterfaceInfoManager::~XPTInterfaceInfoManager()
     mWorkingSet.InvalidateInterfaceInfos();
 
     UnregisterWeakMemoryReporter(this);
+
+    gInterfaceInfoManager = nullptr;
+#ifdef DEBUG
+    gCallCount = 0;
+#endif
 }
 
 void

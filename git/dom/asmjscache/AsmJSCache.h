@@ -32,20 +32,10 @@ enum OpenMode
   NUM_OPEN_MODES
 };
 
-// Implementation of AsmJSCacheOps, installed for the main JSRuntime by
-// nsJSEnvironment.cpp and DOM Worker JSRuntimes in RuntimeService.cpp.
-//
-// The Open* functions cannot be called directly from AsmJSCacheOps: they take
-// an nsIPrincipal as the first argument instead of a Handle<JSObject*>. The
-// caller must map the object to an nsIPrincipal.
-//
-// These methods may be called off the main thread and guarantee not to
-// access the given aPrincipal except on the main thread. In exchange, the
-// caller must ensure the given principal is alive from when OpenEntryForX is
-// called to when CloseEntryForX returns.
+// Implementation of AsmJSCacheOps, installed by nsJSEnvironment:
 
 bool
-OpenEntryForRead(nsIPrincipal* aPrincipal,
+OpenEntryForRead(JS::Handle<JSObject*> aGlobal,
                  const jschar* aBegin,
                  const jschar* aLimit,
                  size_t* aSize,
@@ -57,7 +47,7 @@ CloseEntryForRead(JS::Handle<JSObject*> aGlobal,
                   const uint8_t* aMemory,
                   intptr_t aHandle);
 bool
-OpenEntryForWrite(nsIPrincipal* aPrincipal,
+OpenEntryForWrite(JS::Handle<JSObject*> aGlobal,
                   const jschar* aBegin,
                   const jschar* aEnd,
                   size_t aSize,

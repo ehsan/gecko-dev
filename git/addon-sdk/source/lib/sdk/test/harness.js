@@ -377,7 +377,11 @@ function getPotentialLeaks() {
   let mgr = Cc["@mozilla.org/memory-reporter-manager;1"].
             getService(Ci.nsIMemoryReporterManager);
 
-  mgr.getReportsForThisProcess(logReporter, null);
+  let enm = mgr.enumerateReporters();
+  while (enm.hasMoreElements()) {
+    let mr = enm.getNext().QueryInterface(Ci.nsIMemoryReporter);
+    mr.collectReports(logReporter, null);
+  }
 
   return { compartments: compartments, windows: windows };
 }

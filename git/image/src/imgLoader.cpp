@@ -48,12 +48,12 @@
 using namespace mozilla;
 using namespace mozilla::image;
 
-MOZ_DEFINE_MALLOC_SIZE_OF(ImagesMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(ImagesMallocSizeOf)
 
-class imgMemoryReporter MOZ_FINAL : public nsIMemoryReporter
+class imgMemoryReporter MOZ_FINAL : public MemoryMultiReporter
 {
 public:
-  NS_DECL_ISUPPORTS
+  imgMemoryReporter() {}
 
   NS_IMETHOD CollectReports(nsIMemoryReporterCallback *callback,
                             nsISupports *closure)
@@ -212,12 +212,10 @@ private:
   }
 };
 
-NS_IMPL_ISUPPORTS1(imgMemoryReporter, nsIMemoryReporter)
-
 NS_IMPL_ISUPPORTS3(nsProgressNotificationProxy,
-                   nsIProgressEventSink,
-                   nsIChannelEventSink,
-                   nsIInterfaceRequestor)
+                     nsIProgressEventSink,
+                     nsIChannelEventSink,
+                     nsIInterfaceRequestor)
 
 NS_IMETHODIMP
 nsProgressNotificationProxy::OnProgress(nsIRequest* request,

@@ -130,23 +130,6 @@ struct IsPointer : FalseType {};
 template<typename T>
 struct IsPointer<T*> : TrueType {};
 
-/**
- * IsLvalueReference determines whether a type is an lvalue reference.
- *
- * mozilla::IsLvalueReference<struct S*>::value is false;
- * mozilla::IsLvalueReference<int**>::value is false;
- * mozilla::IsLvalueReference<void (*)(void)>::value is false;
- * mozilla::IsLvalueReference<int>::value is false;
- * mozilla::IsLvalueReference<struct S>::value is false;
- * mozilla::IsLvalueReference<struct S*&>::value is true;
- * mozilla::IsLvalueReference<struct S&&>::value is false.
- */
-template<typename T>
-struct IsLvalueReference : FalseType {};
-
-template<typename T>
-struct IsLvalueReference<T&> : TrueType {};
-
 namespace detail {
 
 // __is_enum is a supported extension across all of our supported compilers.
@@ -440,6 +423,16 @@ template<typename From, typename To>
 struct IsConvertible
   : IntegralConstant<bool, detail::ConvertibleTester<From, To>::value>
 {};
+
+/**
+ * Is IsLvalueReference<T> is true if its template param is T& and is false if
+ * its type is T or T&&.
+ */
+template<typename T>
+struct IsLvalueReference : FalseType {};
+
+template<typename T>
+struct IsLvalueReference<T&> : TrueType {};
 
 /* 20.9.7 Transformations between types [meta.trans] */
 
