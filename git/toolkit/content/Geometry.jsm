@@ -60,7 +60,7 @@ Point.prototype = {
     this.y = y;
     return this;
   },
-  
+
   equals: function equals(x, y) {
     return this.x == x && this.y == y;
   },
