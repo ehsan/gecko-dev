@@ -285,7 +285,6 @@ Highlighter.prototype = {
    */
   destroy: function Highlighter_destroy()
   {
-    this.IUI.win.clearTimeout(this.transitionDisabler);
     this.browser.removeEventListener("scroll", this, true);
     this.browser.removeEventListener("resize", this, true);
     this.boundCloseEventHandler = null;

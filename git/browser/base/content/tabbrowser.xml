@@ -1963,8 +1963,6 @@
             else
               this.showTab(tab);
           }, this);
-
-          this.tabContainer.mTabstrip.ensureElementIsVisible(this.selectedTab, false);
         ]]>
         </body>
       </method>
