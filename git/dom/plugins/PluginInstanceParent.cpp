@@ -343,16 +343,14 @@ PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginDrawingModel(
     const int& drawingModel, NPError* result)
 {
 #ifdef XP_MACOSX
-    if (drawingModel == NPDrawingModelCoreAnimation ||
-        drawingModel == NPDrawingModelInvalidatingCoreAnimation) {
+    if (drawingModel == NPDrawingModelCoreAnimation) {
         // We need to request CoreGraphics otherwise
         // the nsObjectFrame will try to draw a CALayer
         // that can not be shared across process.
-        mDrawingModel = drawingModel;
+        mDrawingModel = NPDrawingModelCoreAnimation;
         *result = mNPNIface->setvalue(mNPP, NPPVpluginDrawingModel,
                                   (void*)NPDrawingModelCoreGraphics);
-        if (drawingModel == NPDrawingModelCoreAnimation &&
-            mQuirks & COREANIMATION_REFRESH_TIMER) {
+        if (mQuirks & COREANIMATION_REFRESH_TIMER) {
             mParent->AddToRefreshTimer(this);
         }
     } else {
@@ -507,8 +505,7 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
 
 #if defined(XP_MACOSX)
     if (mShWidth != window.width || mShHeight != window.height) {
-        if (mDrawingModel == NPDrawingModelCoreAnimation || 
-            mDrawingModel == NPDrawingModelInvalidatingCoreAnimation) {
+        if (mDrawingModel == NPDrawingModelCoreAnimation) {
             if (mIOSurface) {
                 delete mIOSurface;
             }
@@ -723,8 +720,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
 
 #ifdef XP_MACOSX
     if (npevent->type == NPCocoaEventDrawRect) {
-        if (mDrawingModel == NPDrawingModelCoreAnimation ||
-            mDrawingModel == NPDrawingModelInvalidatingCoreAnimation) {
+        if (mDrawingModel == NPDrawingModelCoreAnimation) {
             if (!mIOSurface) {
                 NS_ERROR("No IOSurface allocated.");
                 return false;

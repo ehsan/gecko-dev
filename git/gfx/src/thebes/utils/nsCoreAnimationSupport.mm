@@ -690,13 +690,6 @@ nsresult nsCARenderer::DrawSurfaceToCGContext(CGContextRef aContext,
     return NS_ERROR_FAILURE;
   }
 
-  // We get rendering glitches if we use a width/height that falls
-  // outside of the IOSurface.
-  if (aWidth > ioWidth - aX) 
-    aWidth = ioWidth - aX;
-  if (aHeight > ioHeight - aY) 
-    aHeight = ioHeight - aY;
-
   CGImageRef cgImage = ::CGImageCreate(ioWidth, ioHeight, 8, 32, bytesPerRow,
               aColorSpace, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host,
               dataProvider, NULL, true, kCGRenderingIntentDefault);
@@ -713,8 +706,10 @@ nsresult nsCARenderer::DrawSurfaceToCGContext(CGContextRef aContext,
     return NS_ERROR_FAILURE;
   }
 
+  ::CGContextTranslateCTM(aContext, 0.0f, float(aHeight));
   ::CGContextScaleCTM(aContext, 1.0f, -1.0f);
-  ::CGContextDrawImage(aContext, CGRectMake(aX, -aY-aHeight, aWidth, aHeight), subImage);
+  ::CGContextTranslateCTM(aContext, aX, -aY);
+  CGContextDrawImage(aContext, CGRectMake(0, 0, aWidth, aHeight), subImage);
 
   ::CGImageRelease(subImage);
   ::CGImageRelease(cgImage);

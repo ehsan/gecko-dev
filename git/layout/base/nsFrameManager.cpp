@@ -627,14 +627,17 @@ VerifyContextParent(nsPresContext* aPresContext, nsIFrame* aFrame,
   }
 
   nsStyleContext* childStyleIfVisited = aContext->GetStyleIfVisited();
-  // Either childStyleIfVisited has aContext->GetParent()->GetStyleIfVisited()
-  // as the parent or it has a different rulenode from aContext _and_ has
-  // aContext->GetParent() as the parent.
+  // Since we have different rules for :link and :visited in our ua/user sheets,
+  // we know that either childStyleIfVisited has a different rulenode than
+  // aContext (in which case it has :visited rules applied and its parent must
+  // be aContext->GetParent()), or it has the same rulenode and then its parent
+  // must be aContext->GetParent()->GetStyleIfVisited().
   if (childStyleIfVisited &&
       !((childStyleIfVisited->GetRuleNode() != aContext->GetRuleNode() &&
          childStyleIfVisited->GetParent() == aContext->GetParent()) ||
-        childStyleIfVisited->GetParent() ==
-          aContext->GetParent()->GetStyleIfVisited())) {
+        (childStyleIfVisited->GetRuleNode() == aContext->GetRuleNode() &&
+         childStyleIfVisited->GetParent() ==
+         aContext->GetParent()->GetStyleIfVisited()))) {
     NS_ERROR("Visited style has wrong parent");
     DumpContext(aFrame, aContext);
     fputs("\n", stdout);
