@@ -1680,9 +1680,7 @@ nsHttpHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsHttpHandler::NewChannel2(nsIURI* uri,
-                           nsILoadInfo* aLoadInfo,
-                           nsIChannel** result)
+nsHttpHandler::NewChannel(nsIURI *uri, nsIChannel **result)
 {
     LOG(("nsHttpHandler::NewChannel\n"));
 
@@ -1707,12 +1705,6 @@ nsHttpHandler::NewChannel2(nsIURI* uri,
 }
 
 NS_IMETHODIMP
-nsHttpHandler::NewChannel(nsIURI *uri, nsIChannel **result)
-{
-    return NewChannel2(uri, nullptr, result);
-}
-
-NS_IMETHODIMP
 nsHttpHandler::AllowPort(int32_t port, const char *scheme, bool *_retval)
 {
     // don't override anything.
@@ -1725,12 +1717,11 @@ nsHttpHandler::AllowPort(int32_t port, const char *scheme, bool *_retval)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsHttpHandler::NewProxiedChannel2(nsIURI *uri,
-                                  nsIProxyInfo* givenProxyInfo,
-                                  uint32_t proxyResolveFlags,
-                                  nsIURI *proxyURI,
-                                  nsILoadInfo* aLoadInfo,
-                                  nsIChannel** result)
+nsHttpHandler::NewProxiedChannel(nsIURI *uri,
+                                 nsIProxyInfo* givenProxyInfo,
+                                 uint32_t proxyResolveFlags,
+                                 nsIURI *proxyURI,
+                                 nsIChannel **result)
 {
     nsRefPtr<HttpBaseChannel> httpChannel;
 
@@ -1773,18 +1764,6 @@ nsHttpHandler::NewProxiedChannel2(nsIURI *uri,
 
     httpChannel.forget(result);
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpHandler::NewProxiedChannel(nsIURI *uri,
-                                 nsIProxyInfo* givenProxyInfo,
-                                 uint32_t proxyResolveFlags,
-                                 nsIURI *proxyURI,
-                                 nsIChannel **result)
-{
-    return NewProxiedChannel2(uri, givenProxyInfo,
-                              proxyResolveFlags, proxyURI,
-                              nullptr, result);
 }
 
 //-----------------------------------------------------------------------------
@@ -2078,20 +2057,12 @@ nsHttpsHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsHttpsHandler::NewChannel2(nsIURI* aURI,
-                            nsILoadInfo* aLoadInfo,
-                            nsIChannel** _retval)
+nsHttpsHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 {
     MOZ_ASSERT(gHttpHandler);
     if (!gHttpHandler)
       return NS_ERROR_UNEXPECTED;
     return gHttpHandler->NewChannel(aURI, _retval);
-}
-
-NS_IMETHODIMP
-nsHttpsHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
-{
-    return NewChannel2(aURI, nullptr, _retval);
 }
 
 NS_IMETHODIMP

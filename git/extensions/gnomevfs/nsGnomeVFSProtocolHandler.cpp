@@ -899,9 +899,7 @@ nsGnomeVFSProtocolHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsGnomeVFSProtocolHandler::NewChannel2(nsIURI* aURI,
-                                       nsILoadInfo* aLoadInfo,
-                                       nsIChannel** aResult)
+nsGnomeVFSProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **aResult)
 {
   NS_ENSURE_ARG_POINTER(aURI);
   nsresult rv;
@@ -926,12 +924,6 @@ nsGnomeVFSProtocolHandler::NewChannel2(nsIURI* aURI,
       stream->SetChannel(*aResult);
   }
   return rv;
-}
-
-NS_IMETHODIMP
-nsGnomeVFSProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **aResult)
-{
-    return NewChannel2(aURI, nullptr, aResult);
 }
 
 NS_IMETHODIMP

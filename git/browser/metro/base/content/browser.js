@@ -1477,6 +1477,9 @@ Tab.prototype = {
     // stop about:blank from loading
     browser.stop();
 
+    let fl = browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
+    fl.renderMode = Ci.nsIFrameLoader.RENDER_MODE_ASYNC_SCROLL;
+
     return browser;
   },
 

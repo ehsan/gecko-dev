@@ -157,14 +157,13 @@ LOCAL_INCLUDES += [
     '/content/base/src',
     '/content/html/document/src',
     '/content/xul/document/src',
-    '/docshell/base',
     '/dom/geolocation',
     '/dom/storage',
     '/layout/base',
     '/layout/generic',
     '/layout/style',
     '/layout/xul',
-    '/widget',
+    '/widget/shared',
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':

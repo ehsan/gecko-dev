@@ -4,16 +4,18 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "gfxQuartzNativeDrawing.h"
+#include "gfxQuartzSurface.h"
 #include "gfxPlatform.h"
-#include "mozilla/gfx/Helpers.h"
+#include "cairo-quartz.h"
+#include "gfx2DGlue.h"
 
 using namespace mozilla::gfx;
 using namespace mozilla;
 
-gfxQuartzNativeDrawing::gfxQuartzNativeDrawing(DrawTarget& aDrawTarget,
-                                               const Rect& nativeRect)
-  : mDrawTarget(&aDrawTarget)
-  , mNativeRect(nativeRect)
+gfxQuartzNativeDrawing::gfxQuartzNativeDrawing(gfxContext* ctx,
+                                               const gfxRect& nativeRect)
+  : mContext(ctx)
+  , mNativeRect(ToRect(nativeRect))
   , mCGContext(nullptr)
 {
 }
@@ -23,32 +25,32 @@ gfxQuartzNativeDrawing::BeginNativeDrawing()
 {
   NS_ASSERTION(!mCGContext, "BeginNativeDrawing called when drawing already in progress");
 
-  DrawTarget *dt = mDrawTarget;
+  DrawTarget *dt = mContext->GetDrawTarget();
   if (dt->GetBackendType() != BackendType::COREGRAPHICS ||
       dt->IsDualDrawTarget() ||
       dt->IsTiledDrawTarget()) {
-    // We need a DrawTarget that we can get a CGContextRef from:
     Matrix transform = dt->GetTransform();
-
     mNativeRect = transform.TransformBounds(mNativeRect);
     mNativeRect.RoundOut();
+
     // Quartz theme drawing often adjusts drawing rects, so make
     // sure our surface is big enough for that.
     mNativeRect.Inflate(5);
+
     if (mNativeRect.IsEmpty()) {
       return nullptr;
     }
 
-    mTempDrawTarget =
-      Factory::CreateDrawTarget(BackendType::COREGRAPHICS,
-                                IntSize(mNativeRect.width, mNativeRect.height),
-                                SurfaceFormat::B8G8R8A8);
+    mDrawTarget = Factory::CreateDrawTarget(BackendType::COREGRAPHICS,
+                                            IntSize(mNativeRect.width, mNativeRect.height),
+                                            SurfaceFormat::B8G8R8A8);
 
     transform.PostTranslate(-mNativeRect.x, -mNativeRect.y);
-    mTempDrawTarget->SetTransform(transform);
 
-    dt = mTempDrawTarget;
+    mDrawTarget->SetTransform(transform);
+    dt = mDrawTarget;
   }
+
   mCGContext = mBorrowedContext.Init(dt);
   MOZ_ASSERT(mCGContext);
   return mCGContext;
@@ -60,12 +62,18 @@ gfxQuartzNativeDrawing::EndNativeDrawing()
   NS_ASSERTION(mCGContext, "EndNativeDrawing called without BeginNativeDrawing");
 
   mBorrowedContext.Finish();
-  if (mTempDrawTarget) {
-    RefPtr<SourceSurface> source = mTempDrawTarget->Snapshot();
+  if (mDrawTarget) {
+    DrawTarget *dest = mContext->GetDrawTarget();
+    RefPtr<SourceSurface> source = mDrawTarget->Snapshot();
 
-    AutoRestoreTransform autoRestore(mDrawTarget);
-    mDrawTarget->SetTransform(Matrix());
-    mDrawTarget->DrawSurface(source, mNativeRect,
-                             Rect(0, 0, mNativeRect.width, mNativeRect.height));
+    Matrix oldTransform = dest->GetTransform();
+    dest->SetTransform(Matrix());
+
+    dest->DrawSurface(source,
+                      mNativeRect,
+                      gfx::Rect(0, 0, mNativeRect.width, mNativeRect.height));
+
+
+    dest->SetTransform(oldTransform);
   }
 }

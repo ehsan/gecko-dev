@@ -89,9 +89,7 @@ NS_IMPL_ISUPPORTS(nsAboutCacheEntry,
 // nsAboutCacheEntry::nsIAboutModule
 
 NS_IMETHODIMP
-nsAboutCacheEntry::NewChannel(nsIURI* uri,
-                              nsILoadInfo* aLoadInfo,
-                              nsIChannel** result)
+nsAboutCacheEntry::NewChannel(nsIURI *uri, nsIChannel **result)
 {
     NS_ENSURE_ARG_POINTER(uri);
     nsresult rv;

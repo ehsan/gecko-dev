@@ -1243,23 +1243,16 @@ XPCWrappedNativeXrayTraits::resolveNativeProperty(JSContext *cx, HandleObject wr
 }
 
 static bool
-wrappedJSObject_getter(JSContext *cx, unsigned argc, Value *vp)
+wrappedJSObject_getter(JSContext *cx, HandleObject wrapper, HandleId id, MutableHandleValue vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.thisv().isObject()) {
-        JS_ReportError(cx, "This value not an object");
-        return false;
-    }
-    RootedObject wrapper(cx, &args.thisv().toObject());
-    if (!IsWrapper(wrapper) || !WrapperFactory::IsXrayWrapper(wrapper) ||
-        !AccessCheck::wrapperSubsumes(wrapper)) {
+    if (!IsWrapper(wrapper) || !WrapperFactory::IsXrayWrapper(wrapper)) {
         JS_ReportError(cx, "Unexpected object");
         return false;
     }
 
-    args.rval().setObject(*wrapper);
+    vp.set(OBJECT_TO_JSVAL(wrapper));
 
-    return WrapperFactory::WaiveXrayAndWrap(cx, args.rval());
+    return WrapperFactory::WaiveXrayAndWrap(cx, vp);
 }
 
 bool
@@ -1320,10 +1313,8 @@ XrayTraits::resolveOwnProperty(JSContext *cx, const Wrapper &jsWrapper,
         if (!JS_AlreadyHasOwnPropertyById(cx, holder, id, &found))
             return false;
         if (!found && !JS_DefinePropertyById(cx, holder, id, UndefinedHandleValue,
-                                             JSPROP_ENUMERATE | JSPROP_SHARED |
-                                             JSPROP_NATIVE_ACCESSORS,
-                                             JS_CAST_NATIVE_TO(wrappedJSObject_getter,
-                                                               JSPropertyOp))) {
+                                             JSPROP_ENUMERATE | JSPROP_SHARED,
+                                             wrappedJSObject_getter)) {
             return false;
         }
         if (!JS_GetPropertyDescriptorById(cx, holder, id, desc))

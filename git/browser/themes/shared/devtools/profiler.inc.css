@@ -50,9 +50,12 @@
 
 /* Recordings pane */
 
-#recordings-pane > tabs,
+#recordings-pane > tabs {
+  -moz-border-end: 1px solid;
+}
+
 #recordings-pane .devtools-toolbar {
-  -moz-border-end-width: 1px;
+  -moz-border-end: 1px solid;
 }
 
 .theme-dark #recordings-pane > tabs,

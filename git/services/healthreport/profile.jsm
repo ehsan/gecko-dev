@@ -7,7 +7,7 @@
 "use strict";
 
 this.EXPORTED_SYMBOLS = [
-  "ProfileTimesAccessor",
+  "ProfileCreationTimeAccessor",
   "ProfileMetadataProvider",
 ];
 
@@ -20,7 +20,6 @@ Cu.import("resource://gre/modules/Metrics.jsm");
 #endif
 
 const DEFAULT_PROFILE_MEASUREMENT_NAME = "age";
-const DEFAULT_PROFILE_MEASUREMENT_VERSION = 2;
 const REQUIRED_UINT32_TYPE = {type: "TYPE_UINT32"};
 
 Cu.import("resource://gre/modules/Promise.jsm");
@@ -29,17 +28,17 @@ Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://services-common/utils.js");
 
-// Profile access to times.json (eg, creation/reset time).
+// Profile creation time access.
 // This is separate from the provider to simplify testing and enable extraction
 // to a shared location in the future.
-this.ProfileTimesAccessor = function(profile, log) {
+this.ProfileCreationTimeAccessor = function(profile, log) {
   this.profilePath = profile || OS.Constants.Path.profileDir;
   if (!this.profilePath) {
     throw new Error("No profile directory.");
   }
   this._log = log || {"debug": function (s) { dump(s + "\n"); }};
 }
-this.ProfileTimesAccessor.prototype = {
+this.ProfileCreationTimeAccessor.prototype = {
   /**
    * There are three ways we can get our creation time:
    *
@@ -53,21 +52,25 @@ this.ProfileTimesAccessor.prototype = {
    * @return a promise that resolves to the profile's creation time.
    */
   get created() {
+    if (this._created) {
+      return Promise.resolve(this._created);
+    }
+
     function onSuccess(times) {
-      if (times.created) {
-        return times.created;
+      if (times && times.created) {
+        return this._created = times.created;
       }
       return onFailure.call(this, null, times);
     }
 
     function onFailure(err, times) {
-      return this.computeAndPersistCreated(times)
+      return this.computeAndPersistTimes(times)
                  .then(function onSuccess(created) {
-                         return created;
+                         return this._created = created;
                        }.bind(this));
     }
 
-    return this.getTimes()
+    return this.readTimes()
                .then(onSuccess.bind(this),
                      onFailure.bind(this));
   },
@@ -78,21 +81,6 @@ this.ProfileTimesAccessor.prototype = {
    */
   getPath: function (file) {
     return OS.Path.join(this.profilePath, file);
-  },
-
-  /**
-   * Return a promise which resolves to the JSON contents
-   * of the time file, using the already read value if possible.
-   */
-  getTimes: function (file="times.json") {
-    if (this._times) {
-      return Promise.resolve(this._times);
-    }
-    return this.readTimes(file).then(
-      times => {
-        return this.times = times || {};
-      }
-    );
   },
 
   /**
@@ -115,12 +103,11 @@ this.ProfileTimesAccessor.prototype = {
    * Merge existing contents with a 'created' field, writing them
    * to the specified file. Promise, naturally.
    */
-  computeAndPersistCreated: function (existingContents, file="times.json") {
+  computeAndPersistTimes: function (existingContents, file="times.json") {
     let path = this.getPath(file);
     function onOldest(oldest) {
       let contents = existingContents || {};
       contents.created = oldest;
-      this._times = contents;
       return this.writeTimes(contents, path)
                  .then(function onSuccess() {
                    return oldest;
@@ -190,38 +177,11 @@ this.ProfileTimesAccessor.prototype = {
 
     return promise.then(onSuccess, onFailure);
   },
-
-  /**
-   * Record (and persist) when a profile reset happened.  We just store a
-   * single value - the timestamp of the most recent reset - but there is scope
-   * to keep a list of reset times should our health-reporter successor
-   * be able to make use of that.
-   * Returns a promise that is resolved once the file has been written.
-   */
-  recordProfileReset: function (time=Date.now(), file="times.json") {
-    return this.getTimes(file).then(
-      times => {
-        times.reset = time;
-        return this.writeTimes(times, file);
-      }
-    );
-  },
-
-  /* Returns a promise that resolves to the time the profile was reset,
-   * or undefined if not recorded.
-   */
-  get reset() {
-    return this.getTimes().then(
-      times => times.reset
-    );
-  },
 }
 
 /**
  * Measurements pertaining to the user's profile.
  */
-// This is "version 1" of the metadata measurement - it must remain, but
-// it's currently unused - see bug 1063714 comment 12 for why.
 function ProfileMetadataMeasurement() {
   Metrics.Measurement.call(this);
 }
@@ -237,24 +197,6 @@ ProfileMetadataMeasurement.prototype = {
   },
 };
 
-// This is the current measurement - it adds the profileReset value.
-function ProfileMetadataMeasurement2() {
-  Metrics.Measurement.call(this);
-}
-ProfileMetadataMeasurement2.prototype = {
-  __proto__: Metrics.Measurement.prototype,
-
-  name: DEFAULT_PROFILE_MEASUREMENT_NAME,
-  version: DEFAULT_PROFILE_MEASUREMENT_VERSION,
-
-  fields: {
-    // Profile creation date. Number of days since Unix epoch.
-    profileCreation: {type: Metrics.Storage.FIELD_LAST_NUMERIC},
-    // Profile reset date. Number of days since Unix epoch.
-    profileReset: {type: Metrics.Storage.FIELD_LAST_NUMERIC},
-  },
-};
-
 /**
  * Turn a millisecond timestamp into a day timestamp.
  *
@@ -266,8 +208,7 @@ function truncate(msec) {
 }
 
 /**
- * A Metrics.Provider for profile metadata, such as profile creation and
- * reset time.
+ * A Metrics.Provider for profile metadata, such as profile creation time.
  */
 this.ProfileMetadataProvider = function() {
   Metrics.Provider.call(this);
@@ -277,37 +218,25 @@ this.ProfileMetadataProvider.prototype = {
 
   name: "org.mozilla.profile",
 
-  measurementTypes: [ProfileMetadataMeasurement2],
+  measurementTypes: [ProfileMetadataMeasurement],
 
   pullOnly: true,
 
-  getProfileDays: Task.async(function* () {
-    let result = {};
-    let accessor = new ProfileTimesAccessor(null, this._log);
+  getProfileCreationDays: function () {
+    let accessor = new ProfileCreationTimeAccessor(null, this._log);
 
-    let created = yield accessor.created;
-    result["profileCreation"] = truncate(created);
-    let reset = yield accessor.reset;
-    if (reset) {
-      result["profileReset"] = truncate(reset);
-    }
-    return result;
-  }),
+    return accessor.created
+                   .then(truncate);
+  },
 
   collectConstantData: function () {
-    let m = this.getMeasurement(DEFAULT_PROFILE_MEASUREMENT_NAME,
-                                DEFAULT_PROFILE_MEASUREMENT_VERSION);
+    let m = this.getMeasurement(DEFAULT_PROFILE_MEASUREMENT_NAME, 1);
 
-    return Task.spawn(function* collectConstants() {
-      let days = yield this.getProfileDays();
+    return Task.spawn(function collectConstant() {
+      let createdDays = yield this.getProfileCreationDays();
 
       yield this.enqueueStorageOperation(function storeDays() {
-        return Task.spawn(function* () {
-          yield m.setLastNumeric("profileCreation", days["profileCreation"]);
-          if (days["profileReset"]) {
-            yield m.setLastNumeric("profileReset", days["profileReset"]);
-          }
-        });
+        return m.setLastNumeric("profileCreation", createdDays);
       });
     }.bind(this));
   },

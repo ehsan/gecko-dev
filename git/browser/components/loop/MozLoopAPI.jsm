@@ -9,10 +9,7 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 Cu.import("resource://services-common/utils.js");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/loop/LoopCalls.jsm");
 Cu.import("resource:///modules/loop/MozLoopService.jsm");
-Cu.import("resource:///modules/loop/LoopRooms.jsm");
-Cu.import("resource:///modules/loop/LoopContacts.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "LoopContacts",
                                         "resource:///modules/loop/LoopContacts.jsm");
@@ -50,7 +47,7 @@ const cloneErrorObject = function(error, targetWindow) {
     if (typeof value != "string" && typeof value != "number") {
       value = String(value);
     }
-    
+
     Object.defineProperty(Cu.waiveXrays(obj), prop, {
       configurable: false,
       enumerable: true,
@@ -126,7 +123,6 @@ function injectLoopAPI(targetWindow) {
   let ringerStopper;
   let appVersionInfo;
   let contactsAPI;
-  let roomsAPI;
 
   let api = {
     /**
@@ -208,7 +204,7 @@ function injectLoopAPI(targetWindow) {
       enumerable: true,
       writable: true,
       value: function(loopCallId) {
-        return Cu.cloneInto(LoopCalls.getCallData(loopCallId), targetWindow);
+        return Cu.cloneInto(MozLoopService.getCallData(loopCallId), targetWindow);
       }
     },
 
@@ -223,7 +219,7 @@ function injectLoopAPI(targetWindow) {
       enumerable: true,
       writable: true,
       value: function(loopCallId) {
-        LoopCalls.releaseCallData(loopCallId);
+        MozLoopService.releaseCallData(loopCallId);
       }
     },
 
@@ -245,21 +241,6 @@ function injectLoopAPI(targetWindow) {
           LoopStorage.switchDatabase(profile.uid);
         }
         return contactsAPI = injectObjectAPI(LoopContacts, targetWindow);
-      }
-    },
-
-    /**
-     * Returns the rooms API.
-     *
-     * @returns {Object} The rooms API object
-     */
-    rooms: {
-      enumerable: true,
-      get: function() {
-        if (roomsAPI) {
-          return roomsAPI;
-        }
-        return roomsAPI = injectObjectAPI(LoopRooms, targetWindow);
       }
     },
 
@@ -672,7 +653,7 @@ function injectLoopAPI(targetWindow) {
       enumerable: true,
       writable: true,
       value: function(contact, callType) {
-        LoopCalls.startDirectCall(contact, callType);
+        MozLoopService.startDirectCall(contact, callType);
       }
     },
   };

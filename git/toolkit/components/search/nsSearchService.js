@@ -3674,7 +3674,6 @@ SearchService.prototype = {
         let deferred = Promise.defer();
         let request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
                         createInstance(Ci.nsIXMLHttpRequest);
-        request.overrideMimeType("text/plain");
         request.onload = function(aEvent) {
           deferred.resolve(aEvent.target.responseText);
         };

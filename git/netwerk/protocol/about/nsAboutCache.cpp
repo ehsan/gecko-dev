@@ -27,9 +27,7 @@ using namespace mozilla::net;
 NS_IMPL_ISUPPORTS(nsAboutCache, nsIAboutModule, nsICacheStorageVisitor)
 
 NS_IMETHODIMP
-nsAboutCache::NewChannel(nsIURI* aURI,
-                         nsILoadInfo* aLoadInfo,
-                         nsIChannel** result)
+nsAboutCache::NewChannel(nsIURI *aURI, nsIChannel **result)
 {
     NS_ENSURE_ARG_POINTER(aURI);
 

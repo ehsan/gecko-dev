@@ -537,7 +537,10 @@
   }
 
   window.addEventListener("DOMContentLoaded", function() {
-    React.renderComponent(<App />, document.body);
+    var body = document.body;
+    body.className = loop.shared.utils.getTargetPlatform();
+
+    React.renderComponent(<App />, body);
 
     _renderComponentsInIframes();
 

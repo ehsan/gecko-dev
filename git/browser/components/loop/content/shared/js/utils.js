@@ -30,6 +30,26 @@ loop.shared.utils = (function(mozL10n) {
   }
 
   /**
+   * Used for adding different styles to the panel
+   * @returns {String} Corresponds to the client platform
+   * */
+  function getTargetPlatform() {
+    var platform="unknown_platform";
+
+    if (navigator.platform.indexOf("Win") !== -1) {
+      platform = "windows";
+    }
+    if (navigator.platform.indexOf("Mac") !== -1) {
+      platform = "mac";
+    }
+    if (navigator.platform.indexOf("Linux") !== -1) {
+      platform = "linux";
+    }
+
+    return platform;
+  }
+
+  /**
    * Used for getting a boolean preference. It will either use the browser preferences
    * (if navigator.mozLoop is defined) or try to get them from localStorage.
    *
@@ -71,15 +91,8 @@ loop.shared.utils = (function(mozL10n) {
       return this._iOSRegex.test(platform);
     },
 
-    /**
-     * Helper to allow getting some of the location data in a way that's compatible
-     * with stubbing for unit tests.
-     */
-    locationData: function() {
-      return {
-        hash: window.location.hash,
-        pathname: window.location.pathname
-      };
+    locationHash: function() {
+      return window.location.hash;
     }
   };
 
@@ -113,6 +126,7 @@ loop.shared.utils = (function(mozL10n) {
     Helper: Helper,
     composeCallUrlEmail: composeCallUrlEmail,
     formatDate: formatDate,
+    getTargetPlatform: getTargetPlatform,
     getBoolPreference: getBoolPreference
   };
 })(document.mozL10n || navigator.mozL10n);

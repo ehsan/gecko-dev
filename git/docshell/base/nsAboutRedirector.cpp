@@ -78,9 +78,7 @@ static RedirEntry kRedirMap[] = {
 static const int kRedirTotal = mozilla::ArrayLength(kRedirMap);
 
 NS_IMETHODIMP
-nsAboutRedirector::NewChannel(nsIURI* aURI,
-                              nsILoadInfo* aLoadInfo,
-                              nsIChannel** result)
+nsAboutRedirector::NewChannel(nsIURI *aURI, nsIChannel **result)
 {
     NS_ENSURE_ARG_POINTER(aURI);
     NS_ASSERTION(result, "must not be null");

@@ -161,7 +161,7 @@ class Symbol;
 
 namespace js {
 
-class AccessorShape;
+class NativeObject;
 class ArrayObject;
 class ArgumentsObject;
 class ArrayBufferObjectMaybeShared;
@@ -173,7 +173,6 @@ class BaseShape;
 class DebugScopeObject;
 class GlobalObject;
 class LazyScript;
-class NativeObject;
 class NestedScopeObject;
 class Nursery;
 class PropertyName;
@@ -227,7 +226,6 @@ template <> struct MapTypeToTraceKind<PropertyName>     { static const JSGCTrace
 template <> struct MapTypeToTraceKind<SavedFrame>       { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<ScopeObject>      { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<Shape>            { static const JSGCTraceKind kind = JSTRACE_SHAPE; };
-template <> struct MapTypeToTraceKind<AccessorShape>    { static const JSGCTraceKind kind = JSTRACE_SHAPE; };
 template <> struct MapTypeToTraceKind<SharedArrayBufferObject>{ static const JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<SharedTypedArrayObject>{ static const JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<UnownedBaseShape> { static const JSGCTraceKind kind = JSTRACE_BASE_SHAPE; };

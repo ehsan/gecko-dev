@@ -6,6 +6,7 @@
 
 XPIDL_SOURCES += [
     'nsIDOMXPathEvaluator.idl',
+    'nsIDOMXPathNSResolver.idl',
     'nsIDOMXPathResult.idl',
 ]
 

@@ -584,7 +584,7 @@ loop.conversation = (function(mozL10n) {
 
     // Obtain the callId and pass it through
     var helper = new loop.shared.utils.Helper();
-    var locationHash = helper.locationData().hash;
+    var locationHash = helper.locationHash();
     var callId;
     var outgoing;
     var localRoomStore;
@@ -618,6 +618,8 @@ loop.conversation = (function(mozL10n) {
       // Handle direct close of dialog box via [x] control.
       navigator.mozLoop.releaseCallData(callId);
     });
+
+    document.body.classList.add(loop.shared.utils.getTargetPlatform());
 
     React.renderComponent(AppControllerView({
       localRoomStore: localRoomStore, 
