@@ -31,6 +31,9 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMEVENTLISTENER
 
+  // release globals
+  static NS_HIDDEN_(void) ShutDown();
+
 protected:
   nsresult WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventType);
 
@@ -46,15 +49,15 @@ protected:
 
   // lazily load the handlers. Overridden to handle being attached
   // to a particular element rather than the document
-  nsresult EnsureHandlers();
+  nsresult EnsureHandlers(bool *aIsEditor);
 
   // check if the given handler cares about the given key event
   bool EventMatched(nsXBLPrototypeHandler* inHandler, nsIAtom* inEventType,
                       nsIDOMKeyEvent* inEvent, uint32_t aCharCode,
                       bool aIgnoreShiftKey);
 
-  // Is an HTML editable element focused
-  bool IsHTMLEditableFieldFocused();
+  // are we working with editor or browser?
+  bool IsEditor() ;
 
   // Returns the element which was passed as a parameter to the constructor,
   // unless the element has been removed from the document.

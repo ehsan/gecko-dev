@@ -253,7 +253,7 @@ CompositorOGL::CompositorOGL(nsIWidget *aWidget, int aSurfaceWidth,
   , mHeight(0)
 {
   MOZ_COUNT_CTOR(CompositorOGL);
-  sBackend = LayersBackend::LAYERS_OPENGL;
+  sBackend = LAYERS_OPENGL;
 }
 
 CompositorOGL::~CompositorOGL()
@@ -1507,7 +1507,7 @@ CompositorOGL::CopyToTarget(DrawTarget *aTarget, const gfxMatrix& aTransform)
     new gfxImageSurface(map.mData,
                         gfxIntSize(width, height),
                         map.mStride,
-                        gfxImageFormat::ARGB32);
+                        gfxImageFormatARGB32);
   ReadPixelsIntoImageSurface(mGLContext, surf);
   source->Unmap();
 
@@ -1552,10 +1552,6 @@ void
 CompositorOGL::Pause()
 {
 #ifdef MOZ_WIDGET_ANDROID
-  if (!gl() || gl()->IsDestroyed())
-    return;
-
-  // ReleaseSurface internally calls MakeCurrent.
   gl()->ReleaseSurface();
 #endif
 }
@@ -1564,10 +1560,6 @@ bool
 CompositorOGL::Resume()
 {
 #ifdef MOZ_WIDGET_ANDROID
-  if (!gl() || gl()->IsDestroyed())
-    return false;
-
-  // RenewSurface internally calls MakeCurrent.
   return gl()->RenewSurface();
 #endif
   return true;

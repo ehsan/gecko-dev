@@ -575,7 +575,6 @@ bool CheckOverRecursedWithExtra(JSContext *cx, BaselineFrame *frame,
 
 bool DefVarOrConst(JSContext *cx, HandlePropertyName dn, unsigned attrs, HandleObject scopeChain);
 bool SetConst(JSContext *cx, HandlePropertyName name, HandleObject scopeChain, HandleValue rval);
-bool MutatePrototype(JSContext *cx, HandleObject obj, HandleValue value);
 bool InitProp(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue value);
 
 template<bool Equal>
@@ -664,10 +663,8 @@ JSObject *CreateDerivedTypedObj(JSContext *cx, HandleObject type,
                                 HandleObject owner, int32_t offset);
 
 bool Recompile(JSContext *cx);
-JSString *RegExpReplace(JSContext *cx, HandleString string, HandleObject regexp,
-                        HandleString repl);
-JSString *StringReplace(JSContext *cx, HandleString string, HandleString pattern,
-                        HandleString repl);
+JSString *regexp_replace(JSContext *cx, HandleString string, HandleObject regexp,
+                         HandleString repl);
 
 #ifdef DEBUG
 void AssertValidObjectPtr(JSContext *cx, JSObject *obj);

@@ -127,7 +127,7 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
     tileIter->BeginTileIteration();
   }
 
-  if (sourceOnWhite) {
+  if (mTextureHostOnWhite) {
     iterOnWhite = sourceOnWhite->AsTileIterator();
     MOZ_ASSERT(!tileIter || tileIter->GetTileCount() == iterOnWhite->GetTileCount(),
                "Tile count mismatch on component alpha texture");
@@ -221,9 +221,11 @@ void
 ContentHostBase::UseTextureHost(TextureHost* aTexture)
 {
   if (aTexture->GetFlags() & TEXTURE_ON_WHITE) {
+    mTextureHost = nullptr;
     mTextureHostOnWhite = aTexture;
     mTextureHostOnWhite->SetCompositor(GetCompositor());
   } else {
+    mTextureHostOnWhite = nullptr;
     mTextureHost = aTexture;
     mTextureHost->SetCompositor(GetCompositor());
   }

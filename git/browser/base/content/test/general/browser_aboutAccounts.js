@@ -9,7 +9,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
 
 registerCleanupFunction(function() {
   // Ensure we don't pollute prefs for next tests.
-  Services.prefs.clearUserPref("identity.fxaccounts.remote.uri");
+  Services.prefs.clearUserPref("firefox.accounts.remoteUrl");
 });
 
 let gTests = [
@@ -18,7 +18,7 @@ let gTests = [
   desc: "Test the remote commands",
   setup: function ()
   {
-    Services.prefs.setCharPref("identity.fxaccounts.remote.uri",
+    Services.prefs.setCharPref("firefox.accounts.remoteUrl",
                                "https://example.com/browser/browser/base/content/test/general/accounts_testRemoteCommands.html");
   },
   run: function ()

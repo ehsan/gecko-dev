@@ -19,10 +19,12 @@ import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.util.Log;
-import android.util.SparseArray;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class PanelManager implements GeckoEventListener {
@@ -49,7 +51,7 @@ public class PanelManager implements GeckoEventListener {
     private static AtomicInteger sRequestId = new AtomicInteger(0);
 
     // Stores set of pending request callbacks.
-    private static final SparseArray<RequestCallback> sCallbacks = new SparseArray<RequestCallback>();
+    private static final Map<Integer, RequestCallback> sCallbacks = Collections.synchronizedMap(new HashMap<Integer, RequestCallback>());
 
     /**
      * Asynchronously fetches list of available panels from Gecko.
@@ -61,7 +63,7 @@ public class PanelManager implements GeckoEventListener {
 
         synchronized(sCallbacks) {
             // If there are no pending callbacks, register the event listener.
-            if (sCallbacks.size() == 0) {
+            if (sCallbacks.isEmpty()) {
                 GeckoAppShell.getEventDispatcher().registerEventListener("HomePanels:Data", this);
             }
             sCallbacks.put(requestId, callback);
@@ -89,11 +91,10 @@ public class PanelManager implements GeckoEventListener {
             final int requestId = message.getInt("requestId");
 
             synchronized(sCallbacks) {
-                callback = sCallbacks.get(requestId);
-                sCallbacks.delete(requestId);
+                callback = sCallbacks.remove(requestId);
 
                 // Unregister the event listener if there are no more pending callbacks.
-                if (sCallbacks.size() == 0) {
+                if (sCallbacks.isEmpty()) {
                     GeckoAppShell.getEventDispatcher().unregisterEventListener("HomePanels:Data", this);
                 }
             }

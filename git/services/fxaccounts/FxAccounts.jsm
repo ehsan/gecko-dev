@@ -198,7 +198,7 @@ InternalMethods.prototype = {
       // We are now ready for business. This should only be invoked once
       // per setSignedInUser(), regardless of whether we've rebooted since
       // setSignedInUser() was called.
-      internal.notifyObservers(ONVERIFIED_NOTIFICATION);
+      internal.notifyObservers(ONLOGIN_NOTIFICATION);
       return data;
     }.bind(this));
   },
@@ -327,7 +327,7 @@ InternalMethods.prototype = {
     // that will fire when we are completely ready.
     //
     // Login is truly complete once keys have been fetched, so once getKeys()
-    // obtains and stores kA and kB, it will fire the onverified observer
+    // obtains and stores kA and kB, it will fire the onlogin observer
     // notification.
     return this.whenVerified(data)
       .then((data) => this.getKeys(data));
@@ -339,22 +339,11 @@ InternalMethods.prototype = {
       return Promise.resolve(data);
     }
     if (!this.whenVerifiedPromise) {
+      this.whenVerifiedPromise = Promise.defer();
       log.debug("whenVerified promise starts polling for verified email");
       this.pollEmailStatus(data.sessionToken, "start");
     }
     return this.whenVerifiedPromise.promise;
-  },
-
-  /**
-   * Resend the verification email to the logged-in user.
-   *
-   * @return Promise
-   *         fulfilled: json data returned from xhr call
-   *         rejected: error
-   */
-  resendVerificationEmail: function(data) {
-    this.pollEmailStatus(data.sessionToken, "start");
-    return this.fxAccountsClient.resendVerificationEmail(data.sessionToken);
   },
 
   notifyObservers: function(topic) {
@@ -375,13 +364,12 @@ InternalMethods.prototype = {
     let myGenerationCount = this.generationCount;
     log.debug("entering pollEmailStatus: " + why + " " + myGenerationCount);
     if (why == "start") {
-      // If we were already polling, stop and start again.  This could happen
-      // if the user requested the verification email to be resent while we
-      // were already polling for receipt of an earlier email.
-      this.pollTimeRemaining = this.POLL_SESSION;
-      if (!this.whenVerifiedPromise) {
-        this.whenVerifiedPromise = Promise.defer();
+      if (this.currentTimer) {
+        // safety check - this case should have been caught on
+        // entry with setSignedInUser
+        throw new Error("Already polling for email status");
       }
+      this.pollTimeRemaining = this.POLL_SESSION;
     }
 
     this.checkEmailStatus(sessionToken)
@@ -469,8 +457,8 @@ this.FxAccounts.prototype = Object.freeze({
   // set() makes sure that polling is happening, if necessary.
   // get() does not wait for verification, and returns an object even if
   // unverified. The caller of get() must check .verified .
-  // The "fxaccounts:onverified" event will fire only when the verified
-  // state goes from false to true, so callers must register their observer
+  // The "fxaccounts:onlogin" event will fire only when the verified state
+  // goes from false to true, so callers must register their observer
   // and then call get(). In particular, it will not fire when the account
   // was found to be verified in a previous boot: if our stored state says
   // the account is verified, the event will never fire. So callers must do:
@@ -499,7 +487,7 @@ this.FxAccounts.prototype = Object.freeze({
     log.debug("setSignedInUser - aborting any existing flows");
     internal.abortExistingFlow();
 
-    let record = {version: this.version, accountData: credentials};
+    let record = {version: this.version, accountData: credentials };
     // Cache a clone of the credentials object.
     internal.signedInUser = JSON.parse(JSON.stringify(record));
 
@@ -507,7 +495,6 @@ this.FxAccounts.prototype = Object.freeze({
     // We're telling the caller that this is durable now.
     return internal.signedInUserStorage.set(record)
       .then(() => {
-        internal.notifyObservers(ONLOGIN_NOTIFICATION);
         if (!internal.isUserEmailVerified(credentials)) {
           internal.startVerifiedCheck(credentials);
         }
@@ -543,22 +530,6 @@ this.FxAccounts.prototype = Object.freeze({
         }
         return data;
       });
-  },
-
-  /**
-   * Resend the verification email fot the currently signed-in user.
-   *
-   */
-  resendVerificationEmail: function resendVerificationEmail() {
-    return this.getSignedInUser().then((data) => {
-      // If the caller is asking for verification to be re-sent, and there is
-      // no signed-in user to begin with, this is probably best regarded as an
-      // error.
-      if (data) {
-        return internal.resendVerificationEmail(data);
-      }
-      throw new Error("Cannot resend verification email; no signed-in user");
-    });
   },
 
   /**
@@ -610,7 +581,7 @@ this.FxAccounts.prototype = Object.freeze({
 
   // Return the URI of the remote UI flows.
   getAccountsURI: function() {
-    let url = Services.urlFormatter.formatURLPref("identity.fxaccounts.remote.uri");
+    let url = Services.urlFormatter.formatURLPref("firefox.accounts.remoteUrl");
     if (!/^https:/.test(url)) { // Comment to un-break emacs js-mode highlighting
       throw new Error("Firefox Accounts server must use HTTPS");
     }

@@ -70,8 +70,6 @@ if CONFIG['TARGET_CPU'] == 'x86_64':
         'ComplexTextInputPanel.mm',
     ]
 
-include('/ipc/chromium/chromium-config.mozbuild')
-
 FINAL_LIBRARY = 'xul'
 LOCAL_INCLUDES += [
     '../shared',

@@ -12,28 +12,10 @@ if (this.Components) {
 (function(exports) {
   "use strict";
 
-  // Timestamps, for use in Telemetry.
-  // The object is set to |null| once it has been sent
-  // to the main thread.
-  let timeStamps = {
-    entered: Date.now(),
-    loaded: null
-  };
-
   importScripts("resource://gre/modules/osfile.jsm");
 
   let SharedAll = require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm");
   let LOG = SharedAll.LOG.bind(SharedAll, "Agent");
-
-  // Post a message to the parent, decorate it with statistics if
-  // necessary. Use this instead of self.postMessage.
-  function post(message, ...transfers) {
-    if (timeStamps) {
-      message.timeStamps = timeStamps;
-      timeStamps = null;
-    }
-    self.postMessage(message, ...transfers);
-  }
 
  /**
   * Communications with the controller.
@@ -88,33 +70,33 @@ if (this.Components) {
      if (result instanceof Meta) {
        if ("transfers" in result.meta) {
          // Take advantage of zero-copy transfers
-         post({ok: result.data, id: id, durationMs: durationMs},
+         self.postMessage({ok: result.data, id: id, durationMs: durationMs},
            result.meta.transfers);
        } else {
-         post({ok: result.data, id:id, durationMs: durationMs});
+         self.postMessage({ok: result.data, id:id, durationMs: durationMs});
        }
        if (result.meta.shutdown || false) {
          // Time to close the worker
          self.close();
        }
      } else {
-       post({ok: result, id:id, durationMs: durationMs});
+       self.postMessage({ok: result, id:id, durationMs: durationMs});
      }
    } else if (exn == StopIteration) {
      // StopIteration cannot be serialized automatically
      LOG("Sending back StopIteration");
-     post({StopIteration: true, id: id, durationMs: durationMs});
+     self.postMessage({StopIteration: true, id: id, durationMs: durationMs});
    } else if (exn instanceof exports.OS.File.Error) {
      LOG("Sending back OS.File error", exn, "id is", id);
      // Instances of OS.File.Error know how to serialize themselves
      // (deserialization ensures that we end up with OS-specific
      // instances of |OS.File.Error|)
-     post({fail: exports.OS.File.Error.toMsg(exn), id:id, durationMs: durationMs});
+     self.postMessage({fail: exports.OS.File.Error.toMsg(exn), id:id, durationMs: durationMs});
    } else {
      // Other exceptions do not, and should be propagated through DOM's
      // built-in mechanism for uncaught errors, although this mechanism
      // may lose interesting information.
-     LOG("Sending back regular error", exn, exn.moduleStack || exn.stack, "id is", id);
+     LOG("Sending back regular error", exn, exn.stack, "id is", id);
 
      throw exn;
    }
@@ -484,6 +466,4 @@ if (this.Components) {
        });
    }
   };
-
-  timeStamps.loaded = Date.now();
 })(this);

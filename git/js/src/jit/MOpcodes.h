@@ -12,7 +12,6 @@ namespace jit {
 
 #define MIR_OPCODE_LIST(_)                                                  \
     _(Constant)                                                             \
-    _(CloneLiteral)                                                         \
     _(Parameter)                                                            \
     _(Callee)                                                               \
     _(TableSwitch)                                                          \
@@ -93,7 +92,6 @@ namespace jit {
     _(NewStringObject)                                                      \
     _(InitElem)                                                             \
     _(InitElemGetterSetter)                                                 \
-    _(MutateProto)                                                          \
     _(InitProp)                                                             \
     _(InitPropGetterSetter)                                                 \
     _(Start)                                                                \
@@ -103,7 +101,6 @@ namespace jit {
     _(RegExpExec)                                                           \
     _(RegExpTest)                                                           \
     _(RegExpReplace)                                                        \
-    _(StringReplace)                                                        \
     _(Lambda)                                                               \
     _(ImplicitThis)                                                         \
     _(Slots)                                                                \

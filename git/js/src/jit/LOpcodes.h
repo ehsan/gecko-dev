@@ -17,7 +17,6 @@
     _(Double)                       \
     _(Float32)                      \
     _(Value)                        \
-    _(CloneLiteral)                 \
     _(Parameter)                    \
     _(Callee)                       \
     _(TableSwitch)                  \
@@ -36,7 +35,6 @@
     _(AbortPar)                     \
     _(InitElem)                     \
     _(InitElemGetterSetter)         \
-    _(MutateProto)                    \
     _(InitProp)                     \
     _(InitPropGetterSetter)         \
     _(CheckOverRecursed)            \
@@ -154,7 +152,6 @@
     _(RegExpExec)                   \
     _(RegExpTest)                   \
     _(RegExpReplace)                \
-    _(StringReplace)                \
     _(Lambda)                       \
     _(LambdaForSingleton)           \
     _(LambdaPar)                    \

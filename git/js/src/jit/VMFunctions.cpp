@@ -188,24 +188,14 @@ SetConst(JSContext *cx, HandlePropertyName name, HandleObject scopeChain, Handle
 }
 
 bool
-MutatePrototype(JSContext *cx, HandleObject obj, HandleValue value)
-{
-    // Copy the incoming value. This may be overwritten; the return value is discarded.
-    RootedValue rval(cx, value);
-
-    RootedId id(cx, NameToId(cx->names().proto));
-    return baseops::SetPropertyHelper<SequentialExecution>(cx, obj, obj, id, 0, &rval, false);
-}
-
-bool
 InitProp(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue value)
 {
     // Copy the incoming value. This may be overwritten; the return value is discarded.
     RootedValue rval(cx, value);
     RootedId id(cx, NameToId(name));
 
-    MOZ_ASSERT(name != cx->names().proto,
-               "__proto__ should have been handled by JSOP_MUTATEPROTO");
+    if (name == cx->names().proto)
+        return baseops::SetPropertyHelper<SequentialExecution>(cx, obj, obj, id, 0, &rval, false);
     return DefineNativeProperty(cx, obj, id, rval, nullptr, nullptr, JSPROP_ENUMERATE, 0, 0, 0);
 }
 
@@ -924,27 +914,13 @@ JSObject *CreateDerivedTypedObj(JSContext *cx, HandleObject type,
 }
 
 JSString *
-RegExpReplace(JSContext *cx, HandleString string, HandleObject regexp, HandleString repl)
+regexp_replace(JSContext *cx, HandleString string, HandleObject regexp, HandleString repl)
 {
-    JS_ASSERT(string);
-    JS_ASSERT(repl);
+    JS_ASSERT(!!string);
+    JS_ASSERT(!!repl);
 
     RootedValue rval(cx);
     if (!str_replace_regexp_raw(cx, string, regexp, repl, &rval))
-        return nullptr;
-
-    return rval.toString();
-}
-
-JSString *
-StringReplace(JSContext *cx, HandleString string, HandleString pattern, HandleString repl)
-{
-    JS_ASSERT(string);
-    JS_ASSERT(pattern);
-    JS_ASSERT(repl);
-
-    RootedValue rval(cx);
-    if (!str_replace_string_raw(cx, string, pattern, repl, &rval))
         return nullptr;
 
     return rval.toString();

@@ -29,7 +29,7 @@ namespace {
 
 inline nsresult
 GetKeyFromJSVal(JSContext* aCx,
-                JS::Handle<JS::Value> aVal,
+                jsval aVal,
                 Key& aKey,
                 bool aAllowUnset = false)
 {
@@ -52,7 +52,7 @@ GetKeyFromJSVal(JSContext* aCx,
 // static
 nsresult
 IDBKeyRange::FromJSVal(JSContext* aCx,
-                       JS::Handle<JS::Value> aVal,
+                       const jsval& aVal,
                        IDBKeyRange** aKeyRange)
 {
   nsRefPtr<IDBKeyRange> keyRange;
@@ -145,8 +145,8 @@ IDBKeyRange::DropJSObjects()
   if (!mRooted) {
     return;
   }
-  mCachedLowerVal = JS::UndefinedValue();
-  mCachedUpperVal = JS::UndefinedValue();
+  mCachedLowerVal = JSVAL_VOID;
+  mCachedUpperVal = JSVAL_VOID;
   mHaveCachedLowerVal = false;
   mHaveCachedUpperVal = false;
   mRooted = false;

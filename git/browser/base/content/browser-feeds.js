@@ -34,12 +34,8 @@ var FeedHandler = {
       return false;
     }
 
-    for (let i = container.childNodes.length - 1; i >= 0; --i) {
-      let node = container.childNodes[i];
-      if (isSubview && node.localName == "label")
-        continue;
-      container.removeChild(node);
-    }
+    while (container.firstChild)
+      container.removeChild(container.firstChild);
 
     if (!feeds || feeds.length <= 1)
       return false;
@@ -50,16 +46,14 @@ var FeedHandler = {
       var item = document.createElement(itemNodeType);
       var baseTitle = feedInfo.title || feedInfo.href;
       var labelStr = gNavigatorBundle.getFormattedString("feedShowFeedNew", [baseTitle]);
+      item.setAttribute("class", "feed-" + itemNodeType);
       item.setAttribute("label", labelStr);
       item.setAttribute("feed", feedInfo.href);
       item.setAttribute("tooltiptext", feedInfo.href);
       item.setAttribute("crop", "center");
-      let className = "feed-" + itemNodeType;
       if (isSubview) {
         item.setAttribute("tabindex", "0");
-        className += " subviewbutton";
       }
-      item.setAttribute("class", className);
       container.appendChild(item);
     }
     return true;

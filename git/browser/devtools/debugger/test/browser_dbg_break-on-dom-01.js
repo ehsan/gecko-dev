@@ -32,7 +32,7 @@ function test() {
       is(gEvents.itemCount, 0, "There should be no events before reloading.");
 
       let reloaded = waitForSourcesAfterReload();
-      gDebugger.DebuggerController._target.activeTab.reload();
+      gDebugger.gClient.activeTab.reload();
 
       is(gEvents.itemCount, 0, "There should be no events while reloading.");
       yield reloaded;

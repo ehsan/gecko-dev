@@ -66,34 +66,10 @@ WeaveService.prototype = {
   },
 
   get fxAccountsEnabled() {
-    // first check if Firefox accounts is available at all.  This is so we can
-    // get this landed without forcing Fxa to be used (and require nightly
-    // testers to manually set this pref)
-    // Once we decide we want Fxa to be available, we just remove this block.
-    let fxAccountsAvailable;
+    let fxAccountsEnabled = false;
     try {
-      fxAccountsAvailable = Services.prefs.getBoolPref("identity.fxaccounts.enabled");
+      fxAccountsEnabled = Services.prefs.getBoolPref("identity.fxaccounts.enabled");
     } catch (_) {
-    }
-    if (!fxAccountsAvailable) {
-      // Currently we don't support toggling this pref after initialization, so
-      // inject the pref value as a regular boolean.
-      delete this.fxAccountsEnabled;
-      this.fxAccountsEnabled = false;
-      return false;
-    }
-    // work out what identity manager to use.  This is stored in a preference;
-    // if the preference exists, we trust it.
-    let fxAccountsEnabled;
-    try {
-      fxAccountsEnabled = Services.prefs.getBoolPref("services.sync.fxaccounts.enabled");
-    } catch (_) {
-      // That pref doesn't exist - so let's assume this is a first-run.
-      // If sync already appears configured, we assume it's for the legacy
-      // provider.
-      let prefs = Services.prefs.getBranch(SYNC_PREFS_BRANCH);
-      fxAccountsEnabled = !prefs.prefHasUserValue("username");
-      Services.prefs.setBoolPref("services.sync.fxaccounts.enabled", fxAccountsEnabled);
     }
     // Currently we don't support toggling this pref after initialization, so
     // inject the pref value as a regular boolean.
@@ -131,7 +107,7 @@ WeaveService.prototype = {
               // This makes sure that Weave.Service is loaded
               Svc.Obs.notify("weave:service:setup-complete");
               // TODO: this shouldn't be here. It should be at the end
-              // of the promise chain of the 'fxaccounts:onverified' handler.
+              // of the promise chain of the 'fxaccounts:onlogin' handler.
               Weave.Utils.nextTick(Weave.Service.sync, Weave.Service);
               this.ensureLoaded();
             }
@@ -151,7 +127,7 @@ WeaveService.prototype = {
       let os = Cc["@mozilla.org/observer-service;1"].
                getService(Ci.nsIObserverService);
       os.addObserver(this, "final-ui-startup", true);
-      os.addObserver(this, "fxaccounts:onverified", true);
+      os.addObserver(this, "fxaccounts:onlogin", true);
       os.addObserver(this, "fxaccounts:onlogout", true);
       break;
 
@@ -185,7 +161,7 @@ WeaveService.prototype = {
       }, 10000, Ci.nsITimer.TYPE_ONE_SHOT);
       break;
 
-    case 'fxaccounts:onverified':
+    case 'fxaccounts:onlogin':
         // Tell sync that if this is a first sync, it should try and sync the
         // server data with what is on the client - despite the name implying
         // otherwise, this is what "resetClient" does.

@@ -12,8 +12,6 @@ Cu.import("resource://gre/modules/Services.jsm")
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
 
-const DEFAULT_ICON = "chrome://browser/skin/images/default-app-icon.png";
-
 let gStrings = Services.strings.createBundle("chrome://browser/locale/aboutApps.properties");
 
 XPCOMUtils.defineLazyGetter(window, "gChromeWin", function()
@@ -41,7 +39,6 @@ function openLink(aEvent) {
   } catch (ex) {}
 }
 
-#ifndef MOZ_ANDROID_SYNTHAPKS
 var ContextMenus = {
   target: null,
 
@@ -61,7 +58,8 @@ var ContextMenus = {
 
   addToHomescreen: function() {
     let manifest = this.target.manifest;
-    gChromeWin.WebappsUI.createShortcut(manifest.name, manifest.fullLaunchPath(), manifest.biggestIconURL || DEFAULT_ICON, "webapp");
+    let origin = Services.io.newURI(this.target.app.origin, null, null);
+    gChromeWin.WebappsUI.createShortcut(manifest.name, manifest.fullLaunchPath(), gChromeWin.WebappsUI.getBiggestIcon(manifest.icons, origin), "webapp");
     this.target = null;
   },
 
@@ -79,9 +77,15 @@ var ContextMenus = {
     this.target = null;
   }
 }
-#endif
 
 function onLoad(aEvent) {
+  try {
+    let formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].getService(Ci.nsIURLFormatter);
+    let link = document.getElementById("marketplaceURL");
+    let url = formatter.formatURLPref(link.getAttribute("pref"));
+    link.setAttribute("href", url);
+  } catch (e) {}
+
   let elmts = document.querySelectorAll("[pref]");
   for (let i = 0; i < elmts.length; i++) {
     elmts[i].addEventListener("click",  openLink,  false);
@@ -91,9 +95,7 @@ function onLoad(aEvent) {
   navigator.mozApps.mgmt.onuninstall = onUninstall;
   updateList();
 
-#ifndef MOZ_ANDROID_SYNTHAPKS
   ContextMenus.init();
-#endif
 }
 
 function updateList() {
@@ -117,21 +119,16 @@ function addApplication(aApp) {
 
   let container = document.createElement("div");
   container.className = "app list-item";
-#ifndef MOZ_ANDROID_SYNTHAPKS
   container.setAttribute("contextmenu", "appmenu");
-#endif
   container.setAttribute("id", "app-" + aApp.origin);
   container.setAttribute("mozApp", aApp.origin);
   container.setAttribute("title", manifest.name);
 
   let img = document.createElement("img");
-  img.src = manifest.biggestIconURL || DEFAULT_ICON;
+  let origin = Services.io.newURI(aApp.origin, null, null);
+  img.src = gChromeWin.WebappsUI.getBiggestIcon(manifest.icons, origin);
   img.onerror = function() {
-    // If the image failed to load, and it was not our default icon, attempt to
-    // use our default as a fallback.
-    if (img.src != DEFAULT_ICON) {
-      img.src = DEFAULT_ICON;
-    }
+      img.src = "chrome://browser/skin/images/default-app-icon.png";
   }
   img.setAttribute("title", manifest.name);
 

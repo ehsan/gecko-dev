@@ -61,15 +61,15 @@ static inline QImage::Format
 _qimage_from_gfximage_format (gfxImageFormat aFormat)
 {
     switch (aFormat) {
-    case gfxImageFormat::ARGB32:
+    case gfxImageFormatARGB32:
         return QImage::Format_ARGB32_Premultiplied;
-    case gfxImageFormat::RGB24:
+    case gfxImageFormatRGB24:
         return QImage::Format_RGB32;
-    case gfxImageFormat::RGB16_565:
+    case gfxImageFormatRGB16_565:
         return QImage::Format_RGB16;
-    case gfxImageFormat::A8:
+    case gfxImageFormatA8:
         return QImage::Format_Indexed8;
-    case gfxImageFormat::A1:
+    case gfxImageFormatA1:
 #ifdef WORDS_BIGENDIAN
         return QImage::Format_Mono;
 #else
@@ -93,7 +93,7 @@ nsNativeThemeQt::DrawWidgetBackground(nsRenderingContext* aContext,
     nsRefPtr<gfxASurface> surface = context->CurrentSurface();
 
 #ifdef CAIRO_HAS_QT_SURFACE
-    if (surface->GetType() == gfxSurfaceType::QPainter) {
+    if (surface->GetType() == gfxSurfaceTypeQPainter) {
         gfxQPainterSurface* qSurface = (gfxQPainterSurface*) (surface.get());
         QPainter *painter = qSurface->GetQPainter();
         NS_ASSERTION(painter, "Where'd my QPainter go?");
@@ -104,7 +104,7 @@ nsNativeThemeQt::DrawWidgetBackground(nsRenderingContext* aContext,
                                     aRect, aClipRect);
     } else
 #endif
-    if (surface->GetType() == gfxSurfaceType::Image) {
+    if (surface->GetType() == gfxSurfaceTypeImage) {
         gfxImageSurface* qSurface = (gfxImageSurface*) (surface.get());
         QImage tempQImage(qSurface->Data(),
                           qSurface->Width(),
@@ -117,7 +117,7 @@ nsNativeThemeQt::DrawWidgetBackground(nsRenderingContext* aContext,
                                     aRect, aClipRect);
     }
 #if defined(MOZ_X11) && defined(Q_WS_X11)
-    else if (surface->GetType() == gfxSurfaceType::Xlib) {
+    else if (surface->GetType() == gfxSurfaceTypeXlib) {
         gfxXlibSurface* qSurface = (gfxXlibSurface*) (surface.get());
         QPixmap pixmap(QPixmap::fromX11Pixmap(qSurface->XDrawable()));
         QPainter painter(&pixmap);

@@ -12,8 +12,8 @@ function test() {
   waitForExplicitFinish();
 
   let doc;
+  let node;
   let view;
-  let viewDoc;
   let inspector;
 
   gBrowser.selectedTab = gBrowser.addTab();
@@ -43,23 +43,25 @@ function test() {
   }
 
   function openFontInspector(aInspector) {
-    info("Inspector open");
     inspector = aInspector;
+
+    info("Inspector open");
 
     inspector.selection.setNode(doc.body);
     inspector.sidebar.select("fontinspector");
-    inspector.sidebar.once("fontinspector-ready", testBodyFonts);
+    inspector.sidebar.once("fontinspector-ready", viewReady);
   }
 
-  function testBodyFonts() {
+  function viewReady() {
     info("Font Inspector ready");
 
     view = inspector.sidebar.getWindowForTab("fontinspector");
-    viewDoc = view.document;
 
     ok(!!view.fontInspector, "Font inspector document is alive.");
 
-    let s = viewDoc.querySelectorAll("#all-fonts > section");
+    let d = view.document;
+
+    let s = d.querySelectorAll("#all-fonts > section");
     is(s.length, 2, "Found 2 fonts");
 
     is(s[0].querySelector(".font-name").textContent,
@@ -74,6 +76,7 @@ function test() {
     is(s[0].querySelector(".font-css-name").textContent,
        "bar", "font 0: right css name");
 
+
     let font1Name = s[1].querySelector(".font-name").textContent;
     let font1CssName = s[1].querySelector(".font-css-name").textContent;
 
@@ -86,40 +89,14 @@ function test() {
     ok((font1CssName == "Arial") || (font1CssName == "Liberation Sans"),
        "Arial", "font 1: right css name");
 
-    testDivFonts();
-  }
-
-  function testDivFonts() {
-    inspector.selection.setNode(doc.querySelector("div"));
-    inspector.once("inspector-updated", () => {
-      let s = viewDoc.querySelectorAll("#all-fonts > section");
-      is(s.length, 1, "Found 1 font on DIV");
-      is(s[0].querySelector(".font-name").textContent, "DeLarge Bold",
-        "The DIV font has the right name");
-
-      testShowAllFonts();
-    });
-  }
-
-  function testShowAllFonts() {
-    viewDoc.querySelector("#showall").click();
-    inspector.once("inspector-updated", () => {
-      is(inspector.selection.node, doc.body, "Show all fonts selected the body node");
-      let s = viewDoc.querySelectorAll("#all-fonts > section");
-      is(s.length, 2, "And font-inspector still shows 2 fonts for body");
-
-      finishUp();
+    executeSoon(function() {
+      gDevTools.once("toolbox-destroyed", finishUp);
+      inspector._toolbox.destroy();
     });
   }
 
   function finishUp() {
-    executeSoon(function() {
-      gDevTools.once("toolbox-destroyed", () => {
-        doc = view = viewDoc = inspector = null;
-        gBrowser.removeCurrentTab();
-        finish();
-      });
-      inspector._toolbox.destroy();
-    });
+    gBrowser.removeCurrentTab();
+    finish();
   }
 }

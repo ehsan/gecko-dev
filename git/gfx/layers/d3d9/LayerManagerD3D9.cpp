@@ -347,7 +347,7 @@ LayerManagerD3D9::PaintToTarget()
     new gfxImageSurface((unsigned char*)rect.pBits,
                         gfxIntSize(desc.Width, desc.Height),
                         rect.Pitch,
-                        gfxImageFormat::ARGB32);
+                        gfxImageFormatARGB32);
 
   mTarget->SetSource(imageSurface);
   mTarget->SetOperator(gfxContext::OPERATOR_OVER);

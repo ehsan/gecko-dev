@@ -8,9 +8,8 @@ import android.graphics.Bitmap;
 import org.mozilla.gecko.favicons.Favicons;
 import org.mozilla.gecko.gfx.BitmapUtils;
 
-import android.util.SparseArray;
-
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
@@ -153,7 +152,7 @@ public class ICODecoder implements Iterable<Bitmap> {
         int minimumMaximum = Integer.MAX_VALUE;
 
         // Used to track the best entry for each size. The entries we want to keep.
-        SparseArray<IconDirectoryEntry> preferenceArray = new SparseArray<IconDirectoryEntry>();
+        HashMap<Integer, IconDirectoryEntry> preferenceMap = new HashMap<Integer, IconDirectoryEntry>();
 
         for (int i = 0; i < numEncodedImages; i++, bufferIndex += ICO_ICONDIRENTRY_LENGTH_BYTES) {
             // Decode the Icon Directory Entry at this offset.
@@ -173,39 +172,42 @@ public class ICODecoder implements Iterable<Bitmap> {
                 }
 
                 // Remove the previous minimum-maximum.
-                preferenceArray.delete(minimumMaximum);
+                if (preferenceMap.containsKey(minimumMaximum)) {
+                    preferenceMap.remove(minimumMaximum);
+                }
 
                 minimumMaximum = newEntry.mWidth;
             }
 
-            IconDirectoryEntry oldEntry = preferenceArray.get(newEntry.mWidth);
+            IconDirectoryEntry oldEntry = preferenceMap.get(newEntry.mWidth);
             if (oldEntry == null) {
-                preferenceArray.put(newEntry.mWidth, newEntry);
+                preferenceMap.put(newEntry.mWidth, newEntry);
                 continue;
             }
 
             if (oldEntry.compareTo(newEntry) < 0) {
-                preferenceArray.put(newEntry.mWidth, newEntry);
+                preferenceMap.put(newEntry.mWidth, newEntry);
             }
         }
 
-        final int count = preferenceArray.size();
+        Collection<IconDirectoryEntry> entriesRetained = preferenceMap.values();
 
         // Abort if no entries are desired (Perhaps all are corrupt?)
-        if (count == 0) {
+        if (entriesRetained.isEmpty()) {
             return false;
         }
 
         // Allocate space for the icon directory entries in the decoded directory.
-        mIconDirectory = new IconDirectoryEntry[count];
+        mIconDirectory = new IconDirectoryEntry[entriesRetained.size()];
 
         // The size of the data in the buffer that we find useful.
         int retainedSpace = ICO_HEADER_LENGTH_BYTES;
 
-        for (int i = 0; i < count; i++) {
-            IconDirectoryEntry e = preferenceArray.valueAt(i);
+        int dirInd = 0;
+        for (IconDirectoryEntry e : entriesRetained) {
             retainedSpace += ICO_ICONDIRENTRY_LENGTH_BYTES + e.mPayloadSize;
-            mIconDirectory[i] = e;
+            mIconDirectory[dirInd] = e;
+            dirInd++;
         }
 
         mIsValid = true;

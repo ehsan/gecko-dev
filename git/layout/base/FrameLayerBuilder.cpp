@@ -2170,7 +2170,7 @@ PaintInactiveLayer(nsDisplayListBuilder* aBuilder,
   nsRefPtr<gfxASurface> surf;
   if (gfxUtils::sDumpPainting) {
     surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(itemVisibleRect.Size(),
-                                                              gfxContentType::COLOR_ALPHA);
+                                                              GFX_CONTENT_COLOR_ALPHA);
     surf->SetDeviceOffset(-itemVisibleRect.TopLeft());
     context = new gfxContext(surf);
   }
@@ -3344,7 +3344,7 @@ static void DebugPaintItem(nsRenderingContext* aDest, nsDisplayItem *aItem, nsDi
 
   nsRefPtr<gfxASurface> surf =
     gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(bounds.width, bounds.height),
-                                                       gfxContentType::COLOR_ALPHA);
+                                                       GFX_CONTENT_COLOR_ALPHA);
   surf->SetDeviceOffset(-bounds.TopLeft());
   nsRefPtr<gfxContext> context = new gfxContext(surf);
   nsRefPtr<nsRenderingContext> ctx = new nsRenderingContext();
@@ -3513,7 +3513,7 @@ static bool ShouldDrawRectsSeparately(gfxContext* aContext, DrawRegionClip aClip
 
   if (!sPaintRectsSeparately ||
       aContext->IsCairo() ||
-      aClip == DrawRegionClip::CLIP_NONE) {
+      aClip == CLIP_NONE) {
     return false;
   }
 
@@ -3594,9 +3594,9 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
   bool shouldDrawRectsSeparately = ShouldDrawRectsSeparately(aContext, aClip);
 
   if (!shouldDrawRectsSeparately) {
-    if (aClip == DrawRegionClip::DRAW_SNAPPED) {
+    if (aClip == CLIP_DRAW_SNAPPED) {
       gfxUtils::ClipToRegionSnapped(aContext, aRegionToDraw);
-    } else if (aClip == DrawRegionClip::DRAW) {
+    } else if (aClip == CLIP_DRAW) {
       gfxUtils::ClipToRegion(aContext, aRegionToDraw);
     }
 
@@ -3623,7 +3623,7 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
     while (const nsIntRect* iterRect = it.Next()) {
       gfxContextAutoSaveRestore save(aContext);
       aContext->NewPath();
-      aContext->Rectangle(*iterRect, aClip == DrawRegionClip::DRAW_SNAPPED);
+      aContext->Rectangle(*iterRect, aClip == CLIP_DRAW_SNAPPED);
       aContext->Clip();
 
       DrawForcedBackgroundColor(aContext, aLayer, userData->mForcedBackgroundColor);

@@ -11,38 +11,37 @@ function processCSU(csu, body)
         return;
     for (var field of body.DataField) {
         var type = field.Field.Type;
-        var fieldName = field.Field.Name[0];
         if (type.Kind == "Pointer") {
             var target = type.Type;
             if (target.Kind == "CSU")
-                addNestedPointer(csu, target.Name, fieldName);
+                addNestedPointer(csu, target.Name);
         }
         if (type.Kind == "CSU") {
             // Ignore nesting in classes which are AutoGCRooters. We only consider
             // types with fields that may not be properly rooted.
             if (type.Name == "JS::AutoGCRooter" || type.Name == "JS::CustomAutoRooter")
                 return;
-            addNestedStructure(csu, type.Name, fieldName);
+            addNestedStructure(csu, type.Name);
         }
     }
 }
 
-var structureParents = {}; // Map from field => list of <parent, fieldName>
-var pointerParents = {}; // Map from field => list of <parent, fieldName>
-
-function addNestedStructure(csu, inner, field)
+function addNestedStructure(csu, inner)
 {
     if (!(inner in structureParents))
         structureParents[inner] = [];
-    structureParents[inner].push([ csu, field ]);
+    structureParents[inner].push(csu);
 }
 
-function addNestedPointer(csu, inner, field)
+function addNestedPointer(csu, inner)
 {
     if (!(inner in pointerParents))
         pointerParents[inner] = [];
-    pointerParents[inner].push([ csu, field ]);
+    pointerParents[inner].push(csu);
 }
+
+var structureParents = {};
+var pointerParents = {};
 
 var xdb = xdbLibrary();
 xdb.open("src_comp.xdb");
@@ -61,66 +60,32 @@ for (var csuIndex = minStream; csuIndex <= maxStream; csuIndex++) {
     xdb.free_string(data);
 }
 
-var gcTypes = {}; // map from parent struct => Set of GC typed children
-var gcPointers = {}; // map from parent struct => Set of GC typed children
-var gcFields = {};
-
-function addGCType(name, child, why)
+function addGCType(name)
 {
-    if (!why)
-        why = '<annotation>';
-    if (!child)
-        child = 'annotation';
-
     if (isRootedTypeName(name))
         return;
 
-    if (!(name in gcTypes))
-        gcTypes[name] = Set();
-    gcTypes[name].add(why);
-
-    if (!(name in gcFields))
-        gcFields[name] = Map();
-    gcFields[name].set(why, child);
-
+    print("GCThing: " + name);
     if (name in structureParents) {
-        for (var field of structureParents[name]) {
-            var [ holder, fieldName ] = field;
-            addGCType(holder, name, fieldName);
-        }
+        for (var holder of structureParents[name])
+            addGCType(holder);
     }
     if (name in pointerParents) {
-        for (var field of pointerParents[name]) {
-            var [ holder, fieldName ] = field;
-            addGCPointer(holder, name, fieldName);
-        }
+        for (var holder of pointerParents[name])
+            addGCPointer(holder);
     }
 }
 
-function addGCPointer(name, child, why)
+function addGCPointer(name)
 {
-    if (!why)
-        why = '<annotation>';
-    if (!child)
-        child = 'annotation';
-
-    // Ignore types that are properly rooted.
+    // Ignore types which are properly rooted.
     if (isRootedPointerTypeName(name))
         return;
 
-    if (!(name in gcPointers))
-        gcPointers[name] = Set();
-    gcPointers[name].add(why);
-
-    if (!(name in gcFields))
-        gcFields[name] = Map();
-    gcFields[name].set(why, child);
-
+    print("GCPointer: " + name);
     if (name in structureParents) {
-        for (var field of structureParents[name]) {
-            var [ holder, fieldName ] = field;
-            addGCPointer(holder, name, fieldName);
-        }
+        for (var holder of structureParents[name])
+            addGCPointer(holder);
     }
 }
 
@@ -133,32 +98,3 @@ addGCType('js::LazyScript');
 addGCType('js::ion::IonCode');
 addGCPointer('JS::Value');
 addGCPointer('jsid');
-
-function explain(csu, indent, seen) {
-    if (!seen)
-        seen = Set();
-    seen.add(csu);
-    if (!(csu in gcFields))
-        return;
-    if (gcFields[csu].has('<annotation>')) {
-        print(indent + "because I said so");
-        return;
-    }
-    for (var [ field, child ] of gcFields[csu]) {
-        var inherit = "";
-        if (field == "field:0")
-            inherit = " (probably via inheritance)";
-        print(indent + "contains field '" + field + "' of type " + child + inherit);
-        if (!seen.has(child))
-            explain(child, indent + "  ", seen);
-    }
-}
-
-for (var csu in gcTypes) {
-    print("GCThing: " + csu);
-    explain(csu, "  ");
-}
-for (var csu in gcPointers) {
-    print("GCPointer: " + csu);
-    explain(csu, "  ");
-}

@@ -68,7 +68,7 @@ function testBreakOnAll() {
 
   // Test calling pauseOnDOMEvents from a paused state.
   gThreadClient.pauseOnDOMEvents("*", (aPacket) => {
-    is(aPacket.error, undefined,
+    is(aPacket, undefined,
       "The pause-on-any-event request completed successfully.");
 
     gClient.addOneTimeListener("paused", (aEvent, aPacket) => {

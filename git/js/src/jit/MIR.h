@@ -999,27 +999,6 @@ class MConstant : public MNullaryInstruction
     bool canProduceFloat32() const;
 };
 
-// Deep clone a constant JSObject.
-class MCloneLiteral
-  : public MUnaryInstruction,
-    public ObjectPolicy<0>
-{
-  protected:
-    MCloneLiteral(MDefinition *obj)
-      : MUnaryInstruction(obj)
-    {
-        setResultType(MIRType_Object);
-    }
-
-  public:
-    INSTRUCTION_HEADER(CloneLiteral)
-    static MCloneLiteral *New(TempAllocator &alloc, MDefinition *obj);
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
 class MParameter : public MNullaryInstruction
 {
     int32_t index_;
@@ -1621,42 +1600,6 @@ class MAbortPar : public MAryControlInstruction<0, 0>
 
     static MAbortPar *New(TempAllocator &alloc) {
         return new(alloc) MAbortPar();
-    }
-};
-
-// Setting __proto__ in an object literal.
-class MMutateProto
-  : public MAryInstruction<2>,
-    public MixPolicy<ObjectPolicy<0>, BoxPolicy<1> >
-{
-  protected:
-    MMutateProto(MDefinition *obj, MDefinition *value)
-    {
-        setOperand(0, obj);
-        setOperand(1, value);
-        setResultType(MIRType_None);
-    }
-
-  public:
-    INSTRUCTION_HEADER(MutateProto)
-
-    static MMutateProto *New(TempAllocator &alloc, MDefinition *obj, MDefinition *value)
-    {
-        return new(alloc) MMutateProto(obj, value);
-    }
-
-    MDefinition *getObject() const {
-        return getOperand(0);
-    }
-    MDefinition *getValue() const {
-        return getOperand(1);
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-    bool possiblyCalls() const {
-        return true;
     }
 };
 
@@ -4942,26 +4885,29 @@ class MRegExpTest
     }
 };
 
-template <class Policy1>
-class MStrReplace
+class MRegExpReplace
   : public MTernaryInstruction,
-    public Mix3Policy<StringPolicy<0>, Policy1, StringPolicy<2> >
+    public Mix3Policy<StringPolicy<0>, ObjectPolicy<1>, StringPolicy<2> >
 {
-  protected:
+  private:
 
-    MStrReplace(MDefinition *string, MDefinition *pattern, MDefinition *replacement)
-      : MTernaryInstruction(string, pattern, replacement)
+    MRegExpReplace(MDefinition *string, MDefinition *regexp, MDefinition *replacement)
+      : MTernaryInstruction(string, regexp, replacement)
     {
-        setMovable();
         setResultType(MIRType_String);
     }
 
   public:
+    INSTRUCTION_HEADER(RegExpReplace)
+
+    static MRegExpReplace *New(TempAllocator &alloc, MDefinition *string, MDefinition *regexp, MDefinition *replacement) {
+        return new(alloc) MRegExpReplace(string, regexp, replacement);
+    }
 
     MDefinition *string() const {
         return getOperand(0);
     }
-    MDefinition *pattern() const {
+    MDefinition *regexp() const {
         return getOperand(1);
     }
     MDefinition *replacement() const {
@@ -4974,46 +4920,6 @@ class MStrReplace
 
     bool possiblyCalls() const {
         return true;
-    }
-};
-
-class MRegExpReplace
-    : public MStrReplace< ObjectPolicy<1> >
-{
-  private:
-
-    MRegExpReplace(MDefinition *string, MDefinition *pattern, MDefinition *replacement)
-      : MStrReplace< ObjectPolicy<1> >(string, pattern, replacement)
-    {
-    }
-
-  public:
-    INSTRUCTION_HEADER(RegExpReplace);
-
-    static MRegExpReplace *New(TempAllocator &alloc, MDefinition *string, MDefinition *pattern, MDefinition *replacement) {
-        return new(alloc) MRegExpReplace(string, pattern, replacement);
-    }
-};
-
-class MStringReplace
-    : public MStrReplace< StringPolicy<1> >
-{
-  private:
-
-    MStringReplace(MDefinition *string, MDefinition *pattern, MDefinition *replacement)
-      : MStrReplace< StringPolicy<1> >(string, pattern, replacement)
-    {
-    }
-
-  public:
-    INSTRUCTION_HEADER(StringReplace);
-
-    static MStringReplace *New(TempAllocator &alloc, MDefinition *string, MDefinition *pattern, MDefinition *replacement) {
-        return new(alloc) MStringReplace(string, pattern, replacement);
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
     }
 };
 

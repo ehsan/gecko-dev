@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
-public final class HomeConfig {
+final class HomeConfig {
     /**
      * Used to determine what type of HomeFragment subclass to use when creating
      * a given panel. With the exception of DYNAMIC, all of these types correspond
@@ -100,11 +100,11 @@ public final class HomeConfig {
         private static final String JSON_KEY_LAYOUT = "layout";
         private static final String JSON_KEY_VIEWS = "views";
         private static final String JSON_KEY_DEFAULT = "default";
-        private static final String JSON_KEY_DISABLED = "disabled";
+
+        private static final int IS_DEFAULT = 1;
 
         public enum Flags {
-            DEFAULT_PANEL,
-            DISABLED_PANEL
+            DEFAULT_PANEL
         }
 
         public PanelConfig(JSONObject json) throws JSONException, IllegalArgumentException {
@@ -135,12 +135,9 @@ public final class HomeConfig {
 
             mFlags = EnumSet.noneOf(Flags.class);
 
-            if (json.optBoolean(JSON_KEY_DEFAULT, false)) {
+            final boolean isDefault = (json.optInt(JSON_KEY_DEFAULT, -1) == IS_DEFAULT);
+            if (isDefault) {
                 mFlags.add(Flags.DEFAULT_PANEL);
-            }
-
-            if (json.optBoolean(JSON_KEY_DISABLED, false)) {
-                mFlags.add(Flags.DISABLED_PANEL);
             }
 
             validate();
@@ -161,24 +158,6 @@ public final class HomeConfig {
             validate();
         }
 
-        public PanelConfig(PanelConfig panelConfig) {
-            mType = panelConfig.mType;
-            mTitle = panelConfig.mTitle;
-            mId = panelConfig.mId;
-            mLayoutType = panelConfig.mLayoutType;
-
-            mViews = new ArrayList<ViewConfig>();
-            List<ViewConfig> viewConfigs = panelConfig.mViews;
-            if (viewConfigs != null) {
-                for (ViewConfig viewConfig : viewConfigs) {
-                    mViews.add(new ViewConfig(viewConfig));
-                }
-            }
-            mFlags = panelConfig.mFlags.clone();
-
-            validate();
-        }
-
         public PanelConfig(PanelType type, String title, String id) {
             this(type, title, id, EnumSet.noneOf(Flags.class));
         }
@@ -192,9 +171,9 @@ public final class HomeConfig {
             mType = type;
             mTitle = title;
             mId = id;
+            mFlags = flags;
             mLayoutType = layoutType;
             mViews = views;
-            mFlags = flags;
 
             validate();
         }
@@ -253,26 +232,6 @@ public final class HomeConfig {
             return mFlags.contains(Flags.DEFAULT_PANEL);
         }
 
-        public void setIsDefault(boolean isDefault) {
-            if (isDefault) {
-                mFlags.add(Flags.DEFAULT_PANEL);
-            } else {
-                mFlags.remove(Flags.DEFAULT_PANEL);
-            }
-        }
-
-        public boolean isDisabled() {
-            return mFlags.contains(Flags.DISABLED_PANEL);
-        }
-
-        public void setIsDisabled(boolean isDisabled) {
-            if (isDisabled) {
-                mFlags.add(Flags.DISABLED_PANEL);
-            } else {
-                mFlags.remove(Flags.DISABLED_PANEL);
-            }
-        }
-
         public JSONObject toJSON() throws JSONException {
             final JSONObject json = new JSONObject();
 
@@ -298,11 +257,7 @@ public final class HomeConfig {
             }
 
             if (mFlags.contains(Flags.DEFAULT_PANEL)) {
-                json.put(JSON_KEY_DEFAULT, true);
-            }
-
-            if (mFlags.contains(Flags.DISABLED_PANEL)) {
-                json.put(JSON_KEY_DISABLED, true);
+                json.put(JSON_KEY_DEFAULT, IS_DEFAULT);
             }
 
             return json;
@@ -456,13 +411,6 @@ public final class HomeConfig {
         public ViewConfig(Parcel in) {
             mType = (ViewType) in.readParcelable(getClass().getClassLoader());
             mDatasetId = in.readString();
-
-            validate();
-        }
-
-        public ViewConfig(ViewConfig viewConfig) {
-            mType = viewConfig.mType;
-            mDatasetId = viewConfig.mDatasetId;
 
             validate();
         }

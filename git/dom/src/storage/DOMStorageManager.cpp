@@ -457,9 +457,7 @@ DOMStorageManager::CheckStorage(nsIPrincipal* aPrincipal,
 
   nsAutoCString scope;
   nsresult rv = CreateScopeKey(aPrincipal, scope);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   DOMStorageCache* cache = GetCache(scope);
   if (cache != pstorage->GetCache()) {

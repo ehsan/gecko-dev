@@ -386,10 +386,10 @@ public:
 
   ISurfaceAllocator* GetAllocator() const;
 
-  mozilla::ipc::Shmem& GetShmem() { return mShmem; }
+  ipc::Shmem& GetShmem() { return mShmem; }
 
 protected:
-  mozilla::ipc::Shmem mShmem;
+  ipc::Shmem mShmem;
   RefPtr<ISurfaceAllocator> mAllocator;
   bool mAllocated;
 };
@@ -625,7 +625,7 @@ public:
   virtual void SetDescriptorFromReply(const SurfaceDescriptor& aDescriptor) MOZ_OVERRIDE;
   virtual void SetDescriptor(const SurfaceDescriptor& aDescriptor) MOZ_OVERRIDE;
   virtual void ReleaseResources();
-  virtual gfxContentType GetContentType() MOZ_OVERRIDE { return gfxContentType::COLOR_ALPHA; }
+  virtual gfxContentType GetContentType() MOZ_OVERRIDE { return GFX_CONTENT_COLOR_ALPHA; }
 };
 
 class DeprecatedTextureClientTile : public DeprecatedTextureClient

@@ -677,7 +677,7 @@ WebappsActor.prototype = {
       } catch(e) {
         deferred.resolve({
           error: "noIcon",
-          message: "The icon file '" + iconURL + "' doesn't exist"
+          message: "The icon file '" + iconURL + "' doesn't exists"
         });
         return;
       }

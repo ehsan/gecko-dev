@@ -148,14 +148,6 @@ static bool
 ProtoSetter(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-
-    // Do this here, rather than in |ProtoSetterImpl|, so even likely-buggy
-    // use of the __proto__ setter on unacceptable values, where no subsequent
-    // use occurs on an acceptable value, will trigger a warning.
-    RootedObject callee(cx, &args.callee());
-    if (!GlobalObject::warnOnceAboutPrototypeMutation(cx, callee))
-        return false;
-
     return CallNonGenericMethod(cx, TestProtoThis, ProtoSetterImpl, args);
 }
 
@@ -509,17 +501,18 @@ GlobalObject::isRuntimeCodeGenEnabled(JSContext *cx, Handle<GlobalObject*> globa
 }
 
 /* static */ bool
-GlobalObject::warnOnceAbout(JSContext *cx, HandleObject obj, uint32_t slot, unsigned errorNumber)
+GlobalObject::warnOnceAboutWatch(JSContext *cx, HandleObject obj)
 {
     Rooted<GlobalObject*> global(cx, &obj->global());
-    HeapSlot &v = global->getSlotRef(slot);
+    HeapSlot &v = global->getSlotRef(WARNED_WATCH_DEPRECATED);
     if (v.isUndefined()) {
+        // Warn only once per global object.
         if (!JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING, js_GetErrorMessage, nullptr,
-                                          errorNumber))
+                                          JSMSG_OBJECT_WATCH_DEPRECATED))
         {
             return false;
         }
-        v.init(global, HeapSlot::Slot, slot, BooleanValue(true));
+        v.init(global, HeapSlot::Slot, WARNED_WATCH_DEPRECATED, BooleanValue(true));
     }
     return true;
 }

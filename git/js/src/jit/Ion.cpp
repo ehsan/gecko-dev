@@ -7,7 +7,6 @@
 #include "jit/Ion.h"
 
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/ThreadLocal.h"
 
 #include "jscompartment.h"
 #include "jsworkers.h"
@@ -52,31 +51,48 @@ using namespace js;
 using namespace js::jit;
 
 using mozilla::Maybe;
-using mozilla::ThreadLocal;
 
 // Assert that JitCode is gc::Cell aligned.
 JS_STATIC_ASSERT(sizeof(JitCode) % gc::CellSize == 0);
 
-static ThreadLocal<IonContext*> TlsIonContext;
+#ifdef JS_THREADSAFE
+static bool IonTLSInitialized = false;
+static unsigned IonTLSIndex;
 
-static IonContext *
+static inline IonContext *
 CurrentIonContext()
 {
-    if (!TlsIonContext.initialized())
-        return nullptr;
-    return TlsIonContext.get();
+    return (IonContext *)PR_GetThreadPrivate(IonTLSIndex);
 }
 
-void
+bool
 jit::SetIonContext(IonContext *ctx)
 {
-    TlsIonContext.set(ctx);
+    return PR_SetThreadPrivate(IonTLSIndex, ctx) == PR_SUCCESS;
 }
+
+#else
+
+static IonContext *GlobalIonContext;
+
+static inline IonContext *
+CurrentIonContext()
+{
+    return GlobalIonContext;
+}
+
+bool
+jit::SetIonContext(IonContext *ctx)
+{
+    GlobalIonContext = ctx;
+    return true;
+}
+#endif
 
 IonContext *
 jit::GetIonContext()
 {
-    MOZ_ASSERT(CurrentIonContext());
+    JS_ASSERT(CurrentIonContext());
     return CurrentIonContext();
 }
 
@@ -138,8 +154,15 @@ IonContext::~IonContext()
 bool
 jit::InitializeIon()
 {
-    if (!TlsIonContext.initialized() && !TlsIonContext.init())
-        return false;
+#ifdef JS_THREADSAFE
+    if (!IonTLSInitialized) {
+        PRStatus status = PR_NewThreadPrivateIndex(&IonTLSIndex, nullptr);
+        if (status != PR_SUCCESS)
+            return false;
+
+        IonTLSInitialized = true;
+    }
+#endif
     CheckLogging();
     CheckPerf();
     return true;
@@ -1683,11 +1706,10 @@ IonCompile(JSContext *cx, JSScript *script,
         return AbortReason_Alloc;
 
     const OptimizationInfo *optimizationInfo = js_IonOptimizations.get(optimizationLevel);
-    const JitCompileOptions options(cx);
 
     IonBuilder *builder = alloc->new_<IonBuilder>((JSContext *) nullptr,
                                                   CompileCompartment::get(cx->compartment()),
-                                                  options, temp, graph, constraints,
+                                                  temp, graph, constraints,
                                                   inspector, info, optimizationInfo,
                                                   baselineFrameInspector);
     if (!builder)

@@ -82,7 +82,7 @@ public:
 
   TemporaryRef<DeprecatedTextureClient>
   CreateDeprecatedTextureClient(DeprecatedTextureClientType aDeprecatedTextureClientType,
-                                gfxContentType aContentType = gfxContentType::SENTINEL);
+                                gfxContentType aContentType = GFX_CONTENT_SENTINEL);
 
   virtual TemporaryRef<BufferTextureClient>
   CreateBufferTextureClient(gfx::SurfaceFormat aFormat,
