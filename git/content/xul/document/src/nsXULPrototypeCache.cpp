@@ -8,6 +8,7 @@
 #include "plstr.h"
 #include "nsXULPrototypeDocument.h"
 #include "nsCSSStyleSheet.h"
+#include "nsIScriptRuntime.h"
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
 

@@ -77,9 +77,6 @@ const TAB_EVENTS = [
   "TabUnpinned"
 ];
 
-// The number of milliseconds in a day
-const MS_PER_DAY = 1000.0 * 60.0 * 60.0 * 24.0;
-
 #ifndef XP_WIN
 #define BROKEN_WM_Z_ORDER
 #endif
@@ -467,8 +464,10 @@ let SessionStoreInternal = {
             }
           }
 
-          // Update the session start time using the restored session state.
-          this._updateSessionStartTime(state);
+          // Load the session start time from the previous state
+          this._sessionStartTime = state.session &&
+                                   state.session.startTime ||
+                                   this._sessionStartTime;
 
           // make sure that at least the first window doesn't have anything hidden
           delete state.windows[0].hidden;
@@ -1802,9 +1801,9 @@ let SessionStoreInternal = {
     // Set data that persists between sessions
     this._recentCrashes = lastSessionState.session &&
                           lastSessionState.session.recentCrashes || 0;
-
-    // Update the session start time using the restored session state.
-    this._updateSessionStartTime(lastSessionState);
+    this._sessionStartTime = lastSessionState.session &&
+                             lastSessionState.session.startTime ||
+                             this._sessionStartTime;
 
     this._lastSessionState = null;
   },
@@ -3635,28 +3634,6 @@ let SessionStoreInternal = {
   },
 
   /* ........ Auxiliary Functions .............. */
-
-  /**
-   * Update the session start time and send a telemetry measurement
-   * for the number of days elapsed since the session was started.
-   *
-   * @param state
-   *        The session state.
-   */
-  _updateSessionStartTime: function ssi_updateSessionStartTime(state) {
-    // Attempt to load the session start time from the session state
-    if (state.session && state.session.startTime) {
-      this._sessionStartTime = state.session.startTime;
-
-      // ms to days
-      let sessionLength = (Date.now() - this._sessionStartTime) / MS_PER_DAY;
-
-      if (sessionLength > 0) {
-        // Submit the session length telemetry measurement
-        Services.telemetry.getHistogramById("FX_SESSION_RESTORE_SESSION_LENGTH").add(sessionLength);
-      }
-    }
-  },
 
   /**
    * call a callback for all currently opened browser windows

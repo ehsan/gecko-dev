@@ -104,7 +104,7 @@ class BuildProgressFooter(object):
         self._monitor = monitor
 
     def _clear_lines(self, n):
-        self._fh.write(self._t.move_x(0))
+        self._fh.write(self._t.move(self._t.height - n, 0))
         self._fh.write(self._t.clear_eos())
 
     def clear(self):
@@ -113,9 +113,7 @@ class BuildProgressFooter(object):
 
     def draw(self):
         """Draws this footer in the terminal."""
-        tiers = self._monitor.tiers
-
-        if not tiers.tiers:
+        if not self._monitor.tiers:
             return
 
         # The drawn terminal looks something like:
@@ -126,48 +124,34 @@ class BuildProgressFooter(object):
         # big comment below.
         parts = [('bold', 'TIER'), ':', ' ']
 
-        for tier, active, finished in tiers.tier_status():
-            if active:
+        current_encountered = False
+        for tier in self._monitor.tiers:
+            if tier == self._monitor.current_tier:
                 parts.extend([('underline_yellow', tier), ' '])
-            elif finished:
+                current_encountered = True
+            elif not current_encountered:
                 parts.extend([('green', tier), ' '])
             else:
                 parts.extend([tier, ' '])
 
         parts.extend([('bold', 'SUBTIER'), ':', ' '])
-        for subtier, active, finished in tiers.current_subtier_status():
-            if active:
-                parts.extend([('underline_yellow', subtier), ' '])
-            elif finished:
+        for subtier in self._monitor.subtiers:
+            if subtier in self._monitor.current_subtier_finished:
                 parts.extend([('green', subtier), ' '])
+            elif subtier in self._monitor.current_subtier_started:
+                parts.extend([('underline_yellow', subtier), ' '])
             else:
                 parts.extend([subtier, ' '])
 
-        if tiers.active_dirs:
-            parts.extend([('bold', 'DIRECTORIES'), ': '])
-            have_dirs = False
-
-            for subtier, all_dirs, active_dirs, complete in tiers.current_dirs_status():
-                if len(all_dirs) < 2:
-                    continue
-
-                have_dirs = True
-
-                parts.extend([
-                    '%02d' % (complete + 1),
-                    '/',
-                    '%02d' % len(all_dirs),
-                    ' ',
-                    '(',
-                ])
-                for d in active_dirs:
-                    parts.extend([
-                        ('magenta', d), ' ,'
-                    ])
-                parts[-1] = ')'
-
-            if not have_dirs:
-                parts = parts[0:-2]
+        if self._monitor.current_subtier_dirs and self._monitor.current_tier_dir:
+            parts.extend([
+                ('bold', 'DIRECTORIES'), ': ',
+                '%02d' % self._monitor.current_tier_dir_index,
+                '/',
+                '%02d' % len(self._monitor.current_subtier_dirs),
+                ' ',
+                '(', ('magenta', self._monitor.current_tier_dir), ')',
+            ])
 
         # We don't want to write more characters than the current width of the
         # terminal otherwise wrapping may result in weird behavior. We can't
@@ -199,9 +183,8 @@ class BuildProgressFooter(object):
 
                 write_pieces.append(part)
                 written += len(part)
-        with self._t.location():
-            self._t.move(self._t.height-1,0)
-            self._fh.write(''.join(write_pieces))
+
+        self._fh.write(''.join(write_pieces))
         self._fh.flush()
 
 
@@ -291,8 +274,7 @@ class Build(MachCommandBase):
         from mozbuild.util import resolve_target_to_make
 
         warnings_path = self._get_state_filename('warnings.json')
-        monitor = self._spawn(BuildMonitor)
-        monitor.init(warnings_path)
+        monitor = BuildMonitor(self.topobjdir, warnings_path)
 
         with BuildOutputManager(self.log_manager, monitor) as output:
             monitor.start()

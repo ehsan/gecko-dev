@@ -55,7 +55,6 @@
 #include "ScrollbarActivity.h"
 #include "nsRefreshDriver.h"
 #include "nsContentList.h"
-#include "nsThemeConstants.h"
 #include <algorithm>
 #include <cstdlib> // for std::abs(int/long)
 #include <cmath> // for std::abs(float/double)

@@ -17,7 +17,6 @@
 #include "nsDisplayList.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Preferences.h"
-#include "RestyleManager.h"
 
 using namespace mozilla::layers;
 

@@ -339,13 +339,6 @@ class InlineFrameIteratorMaybeGC
         resetOn(iter);
     }
 
-    InlineFrameIteratorMaybeGC(JSRuntime *rt, const IonFrameIterator *iter)
-      : callee_(rt),
-        script_(rt)
-    {
-        resetOn(iter);
-    }
-
     InlineFrameIteratorMaybeGC(JSContext *cx, const IonBailoutIterator *iter);
 
     InlineFrameIteratorMaybeGC(JSContext *cx, const InlineFrameIteratorMaybeGC *iter)

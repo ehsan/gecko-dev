@@ -10,7 +10,11 @@
  * used during painting and hit testing
  */
 
+// include PBrowserChild explicitly because TabChild won't include it
+// because we're in layout :(
+#include "mozilla/dom/PBrowserChild.h"
 #include "mozilla/dom/TabChild.h"
+
 #include "mozilla/layers/PLayerTransaction.h"
 
 #include "nsDisplayList.h"
@@ -20,6 +24,8 @@
 #include "nsISelectionController.h"
 #include "nsIPresShell.h"
 #include "nsRegion.h"
+#include "nsFrameManager.h"
+#include "gfxContext.h"
 #include "nsStyleStructInlines.h"
 #include "nsStyleTransformMatrix.h"
 #include "gfxMatrix.h"
@@ -30,6 +36,7 @@
 #include "LayerTreeInvalidation.h"
 
 #include "imgIContainer.h"
+#include "nsIInterfaceRequestorUtils.h"
 #include "BasicLayers.h"
 #include "nsBoxFrame.h"
 #include "nsViewportFrame.h"

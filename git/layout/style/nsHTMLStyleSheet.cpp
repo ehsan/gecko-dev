@@ -34,7 +34,6 @@
 #include "mozilla/dom/Element.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsHashKeys.h"
-#include "RestyleManager.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

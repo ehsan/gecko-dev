@@ -1452,7 +1452,8 @@ Navigator::DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
     return true;
   }
 
-  nsScriptNameSpaceManager* nameSpaceManager = GetNameSpaceManager();
+  nsScriptNameSpaceManager* nameSpaceManager =
+    nsJSRuntime::GetNameSpaceManager();
   if (!nameSpaceManager) {
     return Throw<true>(aCx, NS_ERROR_NOT_INITIALIZED);
   }
@@ -1566,7 +1567,8 @@ void
 Navigator::GetOwnPropertyNames(JSContext* aCx, nsTArray<nsString>& aNames,
                                ErrorResult& aRv)
 {
-  nsScriptNameSpaceManager *nameSpaceManager = GetNameSpaceManager();
+  nsScriptNameSpaceManager *nameSpaceManager =
+    nsJSRuntime::GetNameSpaceManager();
   if (!nameSpaceManager) {
     NS_ERROR("Can't get namespace manager.");
     aRv.Throw(NS_ERROR_UNEXPECTED);

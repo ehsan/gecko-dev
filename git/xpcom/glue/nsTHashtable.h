@@ -11,7 +11,6 @@
 #include "nsDebug.h"
 #include <new>
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/Move.h"
 #include "mozilla/fallible.h"
 
 // helper function for nsTHashtable::Clear()
@@ -46,10 +45,9 @@ PL_DHashStubEnumRemove(PLDHashTable    *table,
  *
  *     EntryType(KeyTypePointer aKey);
  *
- *     // A copy or move constructor must be defined, even if AllowMemMove() ==
- *     // true, otherwise you will cause link errors.
- *     EntryType(const EntryType& aEnt);   // Either this...
- *     EntryType(MoveRef<EntryType> aEnt); // ...or this
+ *     // the copy constructor must be defined, even if AllowMemMove() == true
+ *     // or you will cause link errors!
+ *     EntryType(const EntryType& aEnt);
  *
  *     // the destructor must be defined... or you will cause link errors!
  *     ~EntryType();
@@ -89,8 +87,6 @@ public:
    * destructor, cleans up and deallocates
    */
   ~nsTHashtable();
-
-  nsTHashtable(mozilla::MoveRef<nsTHashtable<EntryType> > aOther);
 
   /**
    * Initialize the table.  This function must be called before any other
@@ -383,15 +379,6 @@ nsTHashtable<EntryType>::nsTHashtable()
 }
 
 template<class EntryType>
-nsTHashtable<EntryType>::nsTHashtable(
-  mozilla::MoveRef<nsTHashtable<EntryType> > aOther)
-  : mTable(aOther->mTable)
-{
-  aOther->mTable = PLDHashTable();
-  aOther->mTable.entrySize = 0;
-}
-
-template<class EntryType>
 nsTHashtable<EntryType>::~nsTHashtable()
 {
   if (mTable.entrySize)
@@ -461,12 +448,10 @@ nsTHashtable<EntryType>::s_CopyEntry(PLDHashTable          *table,
                                      const PLDHashEntryHdr *from,
                                      PLDHashEntryHdr       *to)
 {
-  using mozilla::Move;
-
   EntryType* fromEntry =
     const_cast<EntryType*>(reinterpret_cast<const EntryType*>(from));
 
-  new(to) EntryType(Move(*fromEntry));
+  new(to) EntryType(*fromEntry);
 
   fromEntry->~EntryType();
 }

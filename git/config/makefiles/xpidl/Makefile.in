@@ -76,6 +76,10 @@ xpidl:: $(linked_xpt_files) $(dist_headers)
 
 $(linked_xpt_files): $(process_py) $(call mkdir_deps,$(idl_deps_dir) $(idl_headers_dir) $(idl_xpt_dir))
 
-$(call include_deps,$(depends_files))
+ifdef .PYMAKE
+-includedeps $(depends_files)
+else
+-include $(depends_files)
+endif
 
 .PHONY: xpidl

@@ -6,8 +6,10 @@
 
 #include "nsLayoutUtils.h"
 
+#include "base/basictypes.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
+#include "nsIFormControlFrame.h"
 #include "nsPresContext.h"
 #include "nsIContent.h"
 #include "nsIDOMHTMLDocument.h"
@@ -21,6 +23,7 @@
 #include "nsView.h"
 #include "nsPlaceholderFrame.h"
 #include "nsIScrollableFrame.h"
+#include "nsCSSFrameConstructor.h"
 #include "nsIDOMEvent.h"
 #include "nsGUIEvent.h"
 #include "nsDisplayList.h"
@@ -38,11 +41,13 @@
 #include "nsCxPusher.h"
 #include "nsThemeConstants.h"
 #include "nsPIDOMWindow.h"
+#include "nsIBaseWindow.h"
 #include "nsIDocShell.h"
 #include "nsIWidget.h"
 #include "gfxMatrix.h"
 #include "gfxPoint3D.h"
 #include "gfxTypes.h"
+#include "gfxUserFontSet.h"
 #include "nsTArray.h"
 #include "mozilla/dom/HTMLCanvasElement.h"
 #include "nsICanvasRenderingContextInternal.h"
@@ -56,6 +61,8 @@
 #include "nsCOMPtr.h"
 #include "nsCSSProps.h"
 #include "nsListControlFrame.h"
+#include "ImageLayers.h"
+#include "mozilla/arm.h"
 #include "mozilla/dom/Element.h"
 #include "nsCanvasFrame.h"
 #include "gfxDrawable.h"
@@ -65,10 +72,15 @@
 #include "nsFontFaceList.h"
 #include "nsFontInflationData.h"
 #include "nsSVGUtils.h"
+#include "nsSVGIntegrationUtils.h"
+#include "nsSVGForeignObjectFrame.h"
+#include "nsSVGOuterSVGFrame.h"
 #include "nsSVGTextFrame2.h"
 #include "nsStyleStructInlines.h"
 #include "nsStyleTransformMatrix.h"
 
+#include "mozilla/dom/PBrowserChild.h"
+#include "mozilla/dom/TabChild.h"
 #include "mozilla/Preferences.h"
 
 #ifdef MOZ_XUL
@@ -78,7 +90,7 @@
 #include "GeckoProfiler.h"
 #include "nsAnimationManager.h"
 #include "nsTransitionManager.h"
-#include "RestyleManager.h"
+#include "nsViewportInfo.h"
 
 using namespace mozilla;
 using namespace mozilla::css;

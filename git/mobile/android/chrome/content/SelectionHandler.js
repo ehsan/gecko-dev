@@ -179,12 +179,6 @@ var SelectionHandler = {
     if ((aReason & Ci.nsISelectionListener.COLLAPSETOSTART_REASON) ||
         (aReason & Ci.nsISelectionListener.COLLAPSETOEND_REASON)) {
       this._closeSelection();
-      return;
-    }
-
-    // If selected text no longer exists, close
-    if (!aSelection.toString()) {
-      this._closeSelection();
     }
   },
 
@@ -480,10 +474,9 @@ var SelectionHandler = {
     if (this._activeType == this.TYPE_SELECTION) {
       let selection = this._getSelection();
       if (selection) {
-        // Remove our listener before we clear the selection
+        // Remove our listener before we removeAllRanges()
         selection.QueryInterface(Ci.nsISelectionPrivate).removeSelectionListener(this);
-        // Clear selection without clearing the anchorNode or focusNode
-        selection.collapseToStart();
+        selection.removeAllRanges();
       }
     }
 

@@ -36,7 +36,6 @@
 #include "nsIPrincipal.h"
 #include "nsIObserverService.h"
 #include "nsIObjectFrame.h"
-#include "nsBindingManager.h"
 
 #include "mozilla/dom/Element.h"
 #include "mozilla/LookAndFeel.h"

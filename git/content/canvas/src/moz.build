@@ -32,7 +32,6 @@ if CONFIG['MOZ_WEBGL']:
         'WebGL2Context.cpp',
         'WebGLContext.cpp',
         'WebGLContextAsyncQueries.cpp',
-        'WebGLContextBuffers.cpp',
         'WebGLContextGL.cpp',
         'WebGLContextUtils.cpp',
         'WebGLContextReporter.cpp',

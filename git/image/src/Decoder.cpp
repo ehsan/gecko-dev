@@ -343,7 +343,6 @@ Decoder::PostFrameStop(FrameBlender::FrameAlpha aFrameAlpha /* = FrameBlender::k
   mCurrentFrame->SetFrameDisposalMethod(aDisposalMethod);
   mCurrentFrame->SetTimeout(aTimeout);
   mCurrentFrame->SetBlendMethod(aBlendMethod);
-  mCurrentFrame->ImageUpdated(mCurrentFrame->GetRect());
 
   // Flush any invalidations before we finish the frame
   FlushInvalidations();
