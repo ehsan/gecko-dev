@@ -172,12 +172,16 @@ nsSound::Init()
     }
 
     if (!libasound) {
-        PRFuncPtr func = PR_FindFunctionSymbolAndLibrary("snd_lib_error_set_handler",
-                                                         &libasound);
+        libasound = PR_LoadLibrary("libasound.so.2");
         if (libasound) {
             snd_lib_error_set_handler_fn snd_lib_error_set_handler =
-                 (snd_lib_error_set_handler_fn) func;
-            snd_lib_error_set_handler(quiet_error_handler);
+                 (snd_lib_error_set_handler_fn) PR_FindFunctionSymbol(libasound, "snd_lib_error_set_handler");
+            if (snd_lib_error_set_handler) {
+                snd_lib_error_set_handler(quiet_error_handler);
+            } else {
+                PR_UnloadLibrary(libasound);
+                libasound = nsnull;
+            }
         }
     }
 
