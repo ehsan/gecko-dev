@@ -86,6 +86,9 @@
 #ifdef XP_WIN
 #include <windows.h>
 #endif
+#ifdef __SYMBIAN32__
+#include <unistd.h>
+#endif
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"

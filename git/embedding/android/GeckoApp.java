@@ -266,8 +266,29 @@ abstract public class GeckoApp
 
 
             }});
-        surfaceView.mSplashStatusMsg =
-            getResources().getString(R.string.splash_screen_loading);
+        File cacheFile = GeckoAppShell.getCacheDir();
+        File libxulFile = new File(cacheFile, "libxul.so");
+
+        if (GeckoAppShell.getFreeSpace() > GeckoAppShell.kFreeSpaceThreshold &&
+            (!libxulFile.exists() ||
+             new File(getApplication().getPackageResourcePath()).lastModified()
+             >= libxulFile.lastModified())) {
+            surfaceView.mSplashStatusMsg =
+                getResources().getString(R.string.splash_screen_installing_libs);
+            File[] libs = cacheFile.listFiles(new FilenameFilter() {
+                public boolean accept(File dir, String name) {
+                    return name.endsWith(".so");
+                }
+            });
+            if (libs != null) {
+                for (int i = 0; i < libs.length; i++) {
+                    libs[i].delete();
+                }
+            }
+        } else {
+            surfaceView.mSplashStatusMsg =
+                getResources().getString(R.string.splash_screen_loading);
+        }
         mLibLoadThread.start();
     }
 
