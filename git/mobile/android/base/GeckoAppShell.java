@@ -1175,7 +1175,7 @@ public class GeckoAppShell
         }
 
         final Uri uri = normalizeUriScheme(targetURI.indexOf(':') >= 0 ? Uri.parse(targetURI) : new Uri.Builder().scheme(targetURI).build());
-        if (!TextUtils.isEmpty(mimeType)) {
+        if (mimeType.length() > 0) {
             Intent intent = getIntentForActionString(action);
             intent.setDataAndType(uri, mimeType);
             return intent;
@@ -1191,10 +1191,8 @@ public class GeckoAppShell
         // custom handlers that would apply.
         // Start with the original URI. If we end up modifying it, we'll
         // overwrite it.
-        final String extension = MimeTypeMap.getFileExtensionFromUrl(targetURI);
-        final String mimeType2 = getMimeTypeFromExtension(extension);
         final Intent intent = getIntentForActionString(action);
-        intent.setDataAndType(uri, mimeType2);
+        intent.setData(uri);
 
         if ("vnd.youtube".equals(scheme) &&
             !hasHandlersForIntent(intent) &&

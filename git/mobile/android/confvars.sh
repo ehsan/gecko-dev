@@ -73,8 +73,11 @@ MOZ_WEBGL_CONFORMANT=1
 # Enable the Search Activity.
 MOZ_ANDROID_SEARCH_ACTIVITY=1
 
-# Use the new tablet UI. This will go away in Bug 1106935.
-MOZ_ANDROID_NEW_TABLET_UI=1
+# Enable the new tablet UI in pre-release builds
+# if the max Android sdk is undefined or at least 11.
+if test ! "$RELEASE_BUILD"; then
+  MOZ_ANDROID_NEW_TABLET_UI=1
+fi
 
 # Enable the share handler.
 MOZ_ANDROID_SHARE_OVERLAY=1

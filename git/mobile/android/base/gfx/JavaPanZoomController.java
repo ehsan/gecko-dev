@@ -123,8 +123,8 @@ class JavaPanZoomController
     private float mAutonavZoomDelta;
     /* The user selected panning mode */
     private AxisLockMode mMode;
-    /* Whether or not to wait for a double-tap before dispatching a single-tap */
-    private boolean mWaitForDoubleTap;
+    /* A medium-length tap/press is happening */
+    private boolean mMediumPress;
     /* Used to change the scrollY direction */
     private boolean mNegateWheelScrollY;
     /* Whether the current event has been default-prevented. */
@@ -1333,7 +1333,7 @@ class JavaPanZoomController
 
     @Override
     public boolean onDown(MotionEvent motionEvent) {
-        mWaitForDoubleTap = mTarget.getZoomConstraints().getAllowDoubleTapZoom();
+        mMediumPress = false;
         return false;
     }
 
@@ -1345,7 +1345,7 @@ class JavaPanZoomController
         // does not). In the former case, we want to make sure it is
         // treated as a click. (Note that if this is called, we will
         // not get a call to onDoubleTap).
-        mWaitForDoubleTap = false;
+        mMediumPress = true;
     }
 
     @Override
@@ -1354,11 +1354,17 @@ class JavaPanZoomController
         GeckoAppShell.sendEventToGecko(e);
     }
 
+    private boolean waitForDoubleTap() {
+        return !mMediumPress && mTarget.getZoomConstraints().getAllowDoubleTapZoom();
+    }
+
     @Override
     public boolean onSingleTapUp(MotionEvent motionEvent) {
         // When double-tapping is allowed, we have to wait to see if this is
         // going to be a double-tap.
-        if (!mWaitForDoubleTap) {
+        // However, if mMediumPress is true then we know there will be no
+        // double-tap so we treat this as a click.
+        if (!waitForDoubleTap()) {
             sendPointToGecko("Gesture:SingleTap", motionEvent);
         }
         // return false because we still want to get the ACTION_UP event that triggers this
@@ -1368,7 +1374,7 @@ class JavaPanZoomController
     @Override
     public boolean onSingleTapConfirmed(MotionEvent motionEvent) {
         // In cases where we don't wait for double-tap, we handle this in onSingleTapUp.
-        if (mWaitForDoubleTap) {
+        if (waitForDoubleTap()) {
             sendPointToGecko("Gesture:SingleTap", motionEvent);
         }
         return true;

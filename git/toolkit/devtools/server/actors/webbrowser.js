@@ -285,8 +285,7 @@ BrowserTabList.prototype._getBrowsers = function*() {
 };
 
 BrowserTabList.prototype._getChildren = function(aWindow) {
-  let children = aWindow.gBrowser ? aWindow.gBrowser.browsers : [];
-  return children ? children : [];
+  return aWindow.gBrowser ? aWindow.gBrowser.browsers : [];
 };
 
 BrowserTabList.prototype._isRemoteBrowser = function(browser) {
