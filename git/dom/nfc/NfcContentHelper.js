@@ -187,6 +187,27 @@ NfcContentHelper.prototype = {
     });
   },
 
+  connect: function connect(techType, sessionToken, callback) {
+    let requestId = callback.getCallbackId();
+    this._requestMap[requestId] = callback;
+
+    cpmm.sendAsyncMessage("NFC:Connect", {
+      requestId: requestId,
+      sessionToken: sessionToken,
+      techType: techType
+    });
+  },
+
+  close: function close(sessionToken, callback) {
+    let requestId = callback.getCallbackId();
+    this._requestMap[requestId] = callback;
+
+    cpmm.sendAsyncMessage("NFC:Close", {
+      requestId: requestId,
+      sessionToken: sessionToken
+    });
+  },
+
   sendFile: function sendFile(data, sessionToken, callback) {
     let requestId = callback.getCallbackId();
     this._requestMap[requestId] = callback;
@@ -263,7 +284,7 @@ NfcContentHelper.prototype = {
   // nsIMessageListener
   receiveMessage: function receiveMessage(message) {
     DEBUG && debug("Message received: " + JSON.stringify(message));
-    let result = message.data;
+    let result = message.json;
 
     switch (message.name) {
       case "NFC:ReadNDEFResponse":
@@ -275,7 +296,9 @@ NfcContentHelper.prototype = {
       case "NFC:TransceiveResponse":
         this.handleTransceiveResponse(result);
         break;
-      case "NFC:WriteNDEFResponse": // Fall through.
+      case "NFC:ConnectResponse": // Fall through.
+      case "NFC:CloseResponse":
+      case "NFC:WriteNDEFResponse":
       case "NFC:MakeReadOnlyResponse":
       case "NFC:FormatResponse":
       case "NFC:NotifySendFileStatusResponse":
@@ -332,7 +355,7 @@ NfcContentHelper.prototype = {
     }
   },
 
-  handleGeneralResponse: function handleGeneralResponse(result) {
+  handleGeneralResponse: function handleReadNDEFResponse(result) {
     let requestId = result.requestId;
     let callback = this._requestMap[requestId];
     if (!callback) {

@@ -265,10 +265,7 @@ nsRubyBaseContainerFrame::AddInlinePrefISize(
 /* virtual */ bool 
 nsRubyBaseContainerFrame::IsFrameOfType(uint32_t aFlags) const 
 {
-  if (aFlags & eSupportsCSSTransforms) {
-    return false;
-  }
-  return nsContainerFrame::IsFrameOfType(aFlags &
+  return nsContainerFrame::IsFrameOfType(aFlags & 
          ~(nsIFrame::eLineParticipant));
 }
 

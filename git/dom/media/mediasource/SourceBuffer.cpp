@@ -387,17 +387,14 @@ SourceBuffer::PrepareAppend(ErrorResult& aRv)
   // TODO: Make the eviction threshold smaller for audio-only streams.
   // TODO: Drive evictions off memory pressure notifications.
   // TODO: Consider a global eviction threshold  rather than per TrackBuffer.
-  double newBufferStartTime = 0.0;
-  bool evicted =
-    mTrackBuffer->EvictData(mMediaSource->GetDecoder()->GetCurrentTime(),
-                            mEvictionThreshold, &newBufferStartTime);
+  bool evicted = mTrackBuffer->EvictData(mEvictionThreshold);
   if (evicted) {
     MSE_DEBUG("SourceBuffer(%p)::AppendData Evict; current buffered start=%f",
               this, GetBufferedStart());
 
     // We notify that we've evicted from the time range 0 through to
     // the current start point.
-    mMediaSource->NotifyEvicted(0.0, newBufferStartTime);
+    mMediaSource->NotifyEvicted(0.0, GetBufferedStart());
   }
 
   // TODO: Test buffer full flag.

@@ -206,9 +206,6 @@ nsresult
 Convert(uint8_t aIn, BluetoothHandsfreeVolumeType& aOut);
 
 nsresult
-Convert(uint8_t aIn, BluetoothHandsfreeWbsConfig& aOut);
-
-nsresult
 Convert(uint8_t aIn, BluetoothBondState& aOut);
 
 nsresult
@@ -291,9 +288,6 @@ Convert(BluetoothHandsfreeServiceType aIn, uint8_t& aOut);
 
 nsresult
 Convert(BluetoothHandsfreeVolumeType aIn, uint8_t& aOut);
-
-nsresult
-Convert(BluetoothHandsfreeWbsConfig aIn, uint8_t& aOut);
 
 nsresult
 Convert(BluetoothPropertyType aIn, uint8_t& aOut);

@@ -111,7 +111,7 @@ private:
     status_t parseTrackFragmentRun(off64_t offset, off64_t size);
     status_t parseSampleAuxiliaryInformationSizes(off64_t offset, off64_t size);
     status_t parseSampleAuxiliaryInformationOffsets(off64_t offset, off64_t size);
-    status_t lookForMoof();
+    void lookForMoof();
     status_t moveToNextFragment();
 
     struct TrackFragmentHeaderInfo {
@@ -3204,14 +3204,14 @@ size_t MPEG4Source::parseNALSize(const uint8_t *data) const {
     return 0;
 }
 
-status_t MPEG4Source::lookForMoof() {
+void MPEG4Source::lookForMoof() {
     off64_t offset = 0;
     off64_t size;
     while (true) {
         uint32_t hdr[2];
         auto x = mDataSource->readAt(offset, hdr, 8);
         if (x < 8) {
-            return NOT_ENOUGH_DATA;
+            break;
         }
         uint32_t chunk_size = ntohl(hdr[0]);
         uint32_t chunk_type = ntohl(hdr[1]);
@@ -3220,10 +3220,10 @@ status_t MPEG4Source::lookForMoof() {
         if (chunk_type == FOURCC('m', 'o', 'o', 'f')) {
             mFirstMoofOffset = mCurrentMoofOffset = offset;
             parseChunk(&offset);
-            return OK;
+            break;
         }
         if (chunk_type == FOURCC('m', 'd', 'a', 't')) {
-            return OK;
+            break;
         }
         offset += chunk_size;
     }
@@ -3237,7 +3237,8 @@ status_t MPEG4Source::read(
     CHECK(mStarted);
 
     if (!mLookedForMoof) {
-        mLookedForMoof = lookForMoof() == OK;
+      mLookedForMoof = true;
+      lookForMoof();
     }
 
     if (mFirstMoofOffset > 0) {
