@@ -174,6 +174,8 @@ TelemetryPing.prototype = {
   _slowSQLStartup: {},
   _prevSession: null,
   _hasWindowRestoredObserver : false,
+  // Bug 756152
+  _disablePersistentTelemetrySending: true,
 
   /**
    * When reflecting a histogram into JS, Telemetry hands us an object
@@ -645,6 +647,10 @@ TelemetryPing.prototype = {
   },
 
   loadHistograms: function loadHistograms(file, sync) {
+    if (this._disablePersistentTelemetrySending) {
+      return;
+    }
+
     let self = this;
     let loadCallback = function(data) {
       self._prevSession = data;
@@ -731,6 +737,9 @@ TelemetryPing.prototype = {
       break;
     case "test-load-histograms":
       this.loadHistograms(aSubject.QueryInterface(Ci.nsILocalFile), true);
+      break;
+    case "test-enable-persistent-telemetry-send":
+      this._disablePersistentTelemetrySending = false;
       break;
     case "test-ping":
       server = aData;
