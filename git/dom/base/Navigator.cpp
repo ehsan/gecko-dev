@@ -1143,7 +1143,7 @@ Navigator::GetMozTelephony(ErrorResult& aRv)
   return mTelephony;
 }
 
-Voicemail*
+nsIDOMMozVoicemail*
 Navigator::GetMozVoicemail(ErrorResult& aRv)
 {
   if (!mVoicemail) {

@@ -13,6 +13,5 @@ PARALLEL_DIRS += [
     'sourcemap',
     'webconsole',
     'apps',
-    'styleinspector',
-    'escodegen'
+    'styleinspector'
 ]

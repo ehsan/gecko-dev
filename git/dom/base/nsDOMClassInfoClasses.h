@@ -127,6 +127,7 @@ DOMCI_CLASS(CSSPageRule)
 DOMCI_CLASS(MediaQueryList)
 
 #ifdef MOZ_B2G_RIL
+DOMCI_CLASS(MozVoicemail)
 DOMCI_CLASS(MozIccManager)
 #endif
 

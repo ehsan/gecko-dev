@@ -269,6 +269,8 @@ partial interface Navigator {
   readonly attribute MozCellBroadcast mozCellBroadcast;
 };
 
+// nsIMozNavigatorVoicemail
+interface MozVoicemail;
 partial interface Navigator {
   [Throws, Func="Navigator::HasVoicemailSupport"]
   readonly attribute MozVoicemail mozVoicemail;

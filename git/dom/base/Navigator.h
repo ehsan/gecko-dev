@@ -35,6 +35,7 @@ class systemMessageCallback;
 
 #ifdef MOZ_B2G_RIL
 class nsIDOMMozMobileConnection;
+class nsIDOMMozVoicemail;
 class nsIDOMMozIccManager;
 #endif // MOZ_B2G_RIL
 
@@ -88,10 +89,6 @@ namespace bluetooth {
 class BluetoothManager;
 } // namespace bluetooth
 #endif // MOZ_B2G_BT
-
-#ifdef MOZ_B2G_RIL
-class Voicemail;
-#endif
 
 namespace power {
 class PowerManager;
@@ -224,7 +221,7 @@ public:
   telephony::Telephony* GetMozTelephony(ErrorResult& aRv);
   nsIDOMMozMobileConnection* GetMozMobileConnection(ErrorResult& aRv);
   CellBroadcast* GetMozCellBroadcast(ErrorResult& aRv);
-  Voicemail* GetMozVoicemail(ErrorResult& aRv);
+  nsIDOMMozVoicemail* GetMozVoicemail(ErrorResult& aRv);
   nsIDOMMozIccManager* GetMozIccManager(ErrorResult& aRv);
 #endif // MOZ_B2G_RIL
 #ifdef MOZ_GAMEPAD
@@ -318,7 +315,7 @@ private:
   nsRefPtr<MobileMessageManager> mMobileMessageManager;
 #ifdef MOZ_B2G_RIL
   nsRefPtr<telephony::Telephony> mTelephony;
-  nsRefPtr<Voicemail> mVoicemail;
+  nsCOMPtr<nsIDOMMozVoicemail> mVoicemail;
 #endif
   nsRefPtr<network::Connection> mConnection;
 #ifdef MOZ_B2G_RIL

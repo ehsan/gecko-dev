@@ -331,18 +331,12 @@ let FormAssistant = {
         }
 
         // Focusing on Window, Document or iFrame should focus body
-        if (target instanceof HTMLHtmlElement) {
+        if (target instanceof HTMLHtmlElement)
           target = target.document.body;
-        } else if (target instanceof HTMLDocument) {
+        else if (target instanceof HTMLDocument)
           target = target.body;
-        } else if (target instanceof HTMLIFrameElement) {
-          target = target.contentDocument ? target.contentDocument.body
-                                          : null;
-        }
-
-        if (!target) {
-          break;
-        }
+        else if (target instanceof HTMLIFrameElement)
+          target = target.contentDocument.body;
 
         if (isContentEditable(target)) {
           this.showKeyboard(this.getTopLevelEditable(target));

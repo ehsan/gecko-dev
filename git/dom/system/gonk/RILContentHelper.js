@@ -1086,7 +1086,7 @@ RILContentHelper.prototype = {
     let requestId = this.getRequestId(request);
 
     if (DEBUG) debug("setCallBarringOption: " + JSON.stringify(option));
-    if (!this._isValidCallBarringOption(option, true)) {
+    if (!this._isValidCallBarringOption(option)) {
       this.dispatchFireRequestError(requestId, "InvalidCallBarringOption");
       return request;
     }
@@ -2072,20 +2072,10 @@ RILContentHelper.prototype = {
   /**
    * Helper for guarding us against invalid option for call barring.
    */
-  _isValidCallBarringOption:
-      function _isValidCallBarringOption(option, usedForSetting) {
-    if (!option ||
-        option.serviceClass == null ||
-        !this._isValidCallBarringProgram(option.program)) {
-      return false;
-    }
-
-    // For setting callbarring option, |enabled| and |password| are required.
-    if (usedForSetting && (option.enabled == null || option.password == null)) {
-      return false;
-    }
-
-    return true;
+  _isValidCallBarringOption: function _isValidCallBarringOption(option) {
+    return (option
+            && option.serviceClass != null
+            && this._isValidCallBarringProgram(option.program));
   }
 };
 
