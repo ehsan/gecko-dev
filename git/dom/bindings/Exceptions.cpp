@@ -114,16 +114,7 @@ Throw(JSContext* aCx, nsresult aRv, const char* aMessage)
     nsresult nr;
     if (NS_SUCCEEDED(existingException->GetResult(&nr)) && 
         aRv == nr) {
-      // Reuse the existing exception.
-
-      // Clear pending exception
-      runtime->SetPendingException(nullptr);
-
-      if (!ThrowExceptionObject(aCx, existingException)) {
-        // If we weren't able to throw an exception we're
-        // most likely out of memory
-        JS_ReportOutOfMemory(aCx);
-      }
+      // Just reuse the existing exception.
       return false;
     }
   }
