@@ -46,7 +46,7 @@
 
 #include "GfxInfoX11.h"
 
-#ifdef MOZ_CRASHREPORTER
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
 #include "nsExceptionHandler.h"
 #include "nsICrashReporter.h"
 #endif
@@ -165,7 +165,7 @@ GfxInfo::GetData()
             mAdapterDescription.Append(nsDependentCString(buf));
             mAdapterDescription.AppendLiteral("\n");
         }
-#ifdef MOZ_CRASHREPORTER
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
         CrashReporter::AppendAppNotesToCrashReport(mAdapterDescription);
 #endif
         return;
@@ -181,7 +181,7 @@ GfxInfo::GetData()
     note.Append(" -- ");
     note.Append(mVersion);
     note.Append("\n");
-#ifdef MOZ_CRASHREPORTER
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
     CrashReporter::AppendAppNotesToCrashReport(note);
 #endif
 
