@@ -3794,7 +3794,7 @@ var XULBrowserWindow = {
 
         // Update starring UI
         BookmarksMenuButton.updateStarState();
-        SocialShareButton.updateShareState();
+        SocialMark.updateMarkState();
       }
 
       // Show or hide browser chrome based on the whitelist

@@ -209,52 +209,6 @@
       </vbox>
     </panel>
 
-    <panel id="unsharePopup"
-           type="arrow"
-           orient="vertical"
-           ignorekeys="true"
-           hidden="true"
-           onpopupshown="SocialShareButton.panelShown(event);"
-           consumeoutsideclicks="true"
-           level="top">
-      <!-- Note that 'label', 'accesskey', 'value' and 'aria-label' attributes
-           for many of these elements are supplied by the provider and filled
-           in at runtime
-      -->
-      <row id="unsharePopupHeader" align="center">
-        <vbox align="center">
-          <image id="socialUserPortrait" onclick="SocialUI.showProfile();"/>
-        </vbox>
-        <vbox id="unsharePopupText">
-          <button id="socialUserDisplayName" pack="start"
-                  oncommand="SocialUI.showProfile();"/>
-          <spacer flex="1"/>
-          <label id="socialUserRecommendedText"/>
-        </vbox>
-      </row>
-      <hbox id="unsharePopupBottomButtons" pack="end">
-#ifdef XP_UNIX
-        <button id="unsharePopupStopSharingButton"
-                class="unsharePopupBottomButton"
-                command="Social:UnsharePage"/>
-        <button id="unsharePopupContinueSharingButton"
-                class="unsharePopupBottomButton"
-                default="true"
-                autofocus="autofocus"
-                oncommand="SocialShareButton.dismissUnsharePopup();"/>
-#else
-        <button id="unsharePopupContinueSharingButton"
-                class="unsharePopupBottomButton"
-                default="true"
-                autofocus="autofocus"
-                oncommand="SocialShareButton.dismissUnsharePopup();"/>
-        <button id="unsharePopupStopSharingButton"
-                class="unsharePopupBottomButton"
-                command="Social:UnsharePage"/>
-#endif
-      </hbox>
-    </panel>
-
     <panel id="social-notification-panel"
            class="social-panel"
            type="arrow"
@@ -640,13 +594,6 @@
                      hidden="true"
                      tooltiptext="&pageReportIcon.tooltip;"
                      onclick="gPopupBlockerObserver.onReportButtonClick(event);"/>
-
-              <label id="share-button-status" collapsed="true" role="status"/>
-              <image id="share-button"
-                     class="urlbar-icon"
-                     hidden="true"
-                     onclick="SocialShareButton.onClick(event);"/>
-
               <image id="go-button"
                      class="urlbar-icon"
                      tooltiptext="&goEndCap.tooltip;"
@@ -1007,6 +954,9 @@
                       oncommand="SocialUI.showLearnMore();"/>
           </menupopup>
         </toolbarbutton>
+        <toolbarbutton id="social-mark-button"
+                       class="toolbarbutton-1"
+                       command="Social:TogglePageMark"/>
       </toolbaritem>
 
       <toolbarbutton id="print-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
@@ -1228,7 +1178,7 @@
 
   <svg:svg height="0">
     <svg:clipPath id="tab-curve-clip-path-start" clipPathUnits="objectBoundingBox">
-      <svg:path d="M 1,0.0645 C 0.5683,0.0679,0.51693,0.3764,0.4837,0.5484 c -0.0522,0.2702,-0.1425,0.4194,0.4333,0.4194 L 0,1 H 1.0333 V 0.0645 z"/>
+      <svg:path d="M 1,0.0645 C 0.5683,0.0679,0.51693,0.3764,0.4837,0.5484 c -0.0522,0.2702,-0.1425,0.4194,-0.4333,0.4194 L 0,1 H 1.0333 V 0.0645 z"/>
     </svg:clipPath>
     <svg:clipPath id="tab-curve-clip-path-end" clipPathUnits="objectBoundingBox">
       <svg:path d="M -0.0333,0.0645 C 0.4317,0.0679,0.4831,0.3764,0.5163,0.5484 c 0.0522,0.2702,+0.1425,0.4194,0.4333,0.4194 L 1,1 H -0.033 V 0.0645 z"/>
