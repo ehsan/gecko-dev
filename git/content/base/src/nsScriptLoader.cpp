@@ -68,6 +68,8 @@
 #include "nsContentErrors.h"
 #include "nsIParser.h"
 #include "nsThreadUtils.h"
+#include "nsIChannelClassifier.h"
+#include "nsDocShellCID.h"
 
 //////////////////////////////////////////////////////////////
 // Per-request data structure
@@ -123,7 +125,9 @@ NS_IMPL_THREADSAFE_ISUPPORTS0(nsScriptLoadRequest)
 nsScriptLoader::nsScriptLoader(nsIDocument *aDocument)
   : mDocument(aDocument),
     mBlockerCount(0),
-    mEnabled(PR_TRUE)
+    mEnabled(PR_TRUE),
+    mDeferEnabled(PR_FALSE),
+    mUnblockOnloadWhenDoneProcessing(PR_FALSE)
 {
 }
 
@@ -264,7 +268,21 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType)
   rv = NS_NewStreamLoader(getter_AddRefs(loader), this);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return channel->AsyncOpen(loader, aRequest);
+  rv = channel->AsyncOpen(loader, aRequest);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Check the load against the URI classifier
+  nsCOMPtr<nsIChannelClassifier> classifier =
+    do_CreateInstance(NS_CHANNELCLASSIFIER_CONTRACTID);
+  if (classifier) {
+    rv = classifier->Start(channel, PR_TRUE);
+    if (NS_FAILED(rv)) {
+      channel->Cancel(rv);
+      return rv;
+    }
+  }
+
+  return NS_OK;
 }
 
 PRBool
@@ -711,6 +729,15 @@ nsScriptLoader::ProcessPendingRequests()
     mPendingChildLoaders.RemoveElementAt(0);
     child->RemoveExecuteBlocker();
   }
+
+  if (mUnblockOnloadWhenDoneProcessing && mDocument &&
+      !GetFirstPendingRequest()) {
+    // No more pending scripts; time to unblock onload.
+    // OK to unblock onload synchronously here, since callers must be
+    // prepared for the world changing anyway.
+    mUnblockOnloadWhenDoneProcessing = PR_FALSE;
+    mDocument->UnblockOnload(PR_TRUE);
+  }
 }
 
 PRBool
@@ -988,6 +1015,11 @@ nsScriptLoader::ShouldExecuteScript(nsIDocument* aDocument,
 void
 nsScriptLoader::EndDeferringScripts()
 {
+  if (mDeferEnabled) {
+    // Have to check because we apparently get EndDeferringScripts
+    // without BeginDeferringScripts in some cases
+    mUnblockOnloadWhenDoneProcessing = PR_TRUE;
+  }
   mDeferEnabled = PR_FALSE;
   for (PRUint32 i = 0; i < (PRUint32)mRequests.Count(); ++i) {
     mRequests[i]->mDefer = PR_FALSE;
