@@ -24,4 +24,4 @@ if [ -z "$CXX" ]; then
     export CXX=clang++
 fi
 
-. "$topsrcdir/build/mozconfig.cache"
+ac_add_options --with-ccache

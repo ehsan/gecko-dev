@@ -216,7 +216,6 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     WRITE_GUARDED_OP(SetElementCache, object)
     UNSAFE_OP(BindNameCache)
     SAFE_OP(GuardShape)
-    SAFE_OP(GuardShapePolymorphic)
     SAFE_OP(GuardObjectType)
     SAFE_OP(GuardObjectIdentity)
     SAFE_OP(GuardClass)
@@ -490,9 +489,8 @@ ParallelSafetyVisitor::convertToBailout(MBasicBlock *block, MInstruction *ins)
 
         // create bailout block to insert on this edge
         MBasicBlock *bailBlock = MBasicBlock::NewAbortPar(graph_, block->info(), pred,
-                                                          BytecodeSite(block->trackedTree(),
-                                                                       block->pc()),
-                                                          block->entryResumePoint());
+                                                               block->pc(),
+                                                               block->entryResumePoint());
         if (!bailBlock)
             return false;
 

@@ -43,7 +43,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     };
 
   private:
-    MBasicBlock(MIRGraph &graph, CompileInfo &info, const BytecodeSite &site, Kind kind);
+    MBasicBlock(MIRGraph &graph, CompileInfo &info, jsbytecode *pc, Kind kind);
     bool init();
     void copySlots(MBasicBlock *from);
     bool inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlock *pred,
@@ -69,18 +69,18 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     // Creates a new basic block for a MIR generator. If |pred| is not nullptr,
     // its slots and stack depth are initialized from |pred|.
     static MBasicBlock *New(MIRGraph &graph, BytecodeAnalysis *analysis, CompileInfo &info,
-                            MBasicBlock *pred, const BytecodeSite &site, Kind kind);
+                            MBasicBlock *pred, jsbytecode *entryPc, Kind kind);
     static MBasicBlock *NewPopN(MIRGraph &graph, CompileInfo &info,
-                                MBasicBlock *pred, const BytecodeSite &site, Kind kind, uint32_t popn);
+                                MBasicBlock *pred, jsbytecode *entryPc, Kind kind, uint32_t popn);
     static MBasicBlock *NewWithResumePoint(MIRGraph &graph, CompileInfo &info,
-                                           MBasicBlock *pred, const BytecodeSite &site,
+                                           MBasicBlock *pred, jsbytecode *entryPc,
                                            MResumePoint *resumePoint);
     static MBasicBlock *NewPendingLoopHeader(MIRGraph &graph, CompileInfo &info,
-                                             MBasicBlock *pred, const BytecodeSite &site,
+                                             MBasicBlock *pred, jsbytecode *entryPc,
                                              unsigned loopStateSlots);
     static MBasicBlock *NewSplitEdge(MIRGraph &graph, CompileInfo &info, MBasicBlock *pred);
     static MBasicBlock *NewAbortPar(MIRGraph &graph, CompileInfo &info,
-                                    MBasicBlock *pred, const BytecodeSite &site,
+                                    MBasicBlock *pred, jsbytecode *entryPc,
                                     MResumePoint *resumePoint);
     static MBasicBlock *NewAsmJS(MIRGraph &graph, CompileInfo &info,
                                  MBasicBlock *pred, Kind kind);
@@ -469,18 +469,12 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
 
     // Track bailouts by storing the current pc in MIR instruction added at this
     // cycle. This is also used for tracking calls when profiling.
-    void updateTrackedSite(const BytecodeSite &site) {
-        JS_ASSERT(site.tree() == trackedSite_.tree());
-        trackedSite_ = site;
+    void updateTrackedPc(jsbytecode *pc) {
+        trackedPc_ = pc;
     }
-    const BytecodeSite &trackedSite() const {
-        return trackedSite_;
-    }
-    jsbytecode *trackedPc() const {
-        return trackedSite_.pc();
-    }
-    InlineScriptTree *trackedTree() const {
-        return trackedSite_.tree();
+
+    jsbytecode *trackedPc() {
+        return trackedPc_;
     }
 
   private:
@@ -511,7 +505,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     MBasicBlock *immediateDominator_;
     size_t numDominated_;
 
-    BytecodeSite trackedSite_;
+    jsbytecode *trackedPc_;
 
 #if defined (JS_ION_PERF)
     unsigned lineno_;

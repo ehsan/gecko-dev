@@ -445,6 +445,7 @@ protected:
   gfx::IntSize mSize;
   gfx::BackendType mBackend;
   OpenMode mOpenMode;
+  bool mUsingFallbackDrawTarget;
   bool mLocked;
 };
 
