@@ -329,6 +329,10 @@ namespace avmplus {
             verbose_live = 1;
             show_stats = 1;
 #endif
+#if defined (AVMPLUS_AMD64)
+            sse2 = true;
+            use_cmov = true;
+#endif
         }
         
         uint32_t tree_opt:1;
@@ -339,8 +343,7 @@ namespace avmplus {
         uint32_t verbose_exits:1;
         uint32_t show_stats:1;
 
-#if defined (AVMPLUS_IA32)
-	// Whether or not we can use SSE2 instructions and conditional moves.
+#if defined (AVMPLUS_IA32) || defined(AVMPLUS_AMD64)
         bool sse2;
         bool use_cmov;
 #endif
@@ -430,23 +433,19 @@ namespace avmplus {
         static GC* gc;
         static String* k_str[];
 
-#ifdef AVMPLUS_IA32
+#if defined (AVMPLUS_IA32) || defined(AVMPLUS_AMD64)
         static inline bool
         use_sse2()
         {
             return config.sse2;
         }
-#endif
         
         static inline bool
         use_cmov()
         {
-#ifdef AVMPLUS_IA32
             return config.use_cmov;
-#else
-	    return true;
-#endif
         }
+#endif
 
         static inline bool
         quiet_opt()
