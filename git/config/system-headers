@@ -1036,7 +1036,4 @@ event.h
 #ifdef MOZ_ENABLE_LIBPROXY
 proxy.h
 #endif
-#if MOZ_PLATFORM_MAEMO==6
-contentaction/contentaction.h
-#endif
 
