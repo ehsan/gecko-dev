@@ -118,14 +118,14 @@ struct nsTableReflowState {
     if (NS_UNCONSTRAINEDSIZE != availSize.width) {
       availSize.width -= borderPadding.left + borderPadding.right
                          + (2 * cellSpacingX);
-      availSize.width = NS_MAX(0, availSize.width);
+      availSize.width = PR_MAX(0, availSize.width);
     }
 
     availSize.height = aAvailHeight;
     if (NS_UNCONSTRAINEDSIZE != availSize.height) {
       availSize.height -= borderPadding.top + borderPadding.bottom
                           + (2 * table->GetCellSpacingY());
-      availSize.height = NS_MAX(0, availSize.height);
+      availSize.height = PR_MAX(0, availSize.height);
     }
   }
 
@@ -634,7 +634,7 @@ void nsTableFrame::InsertCol(nsTableColFrame& aColFrame,
   }
   // for now, just bail and recalc all of the collapsing borders
   if (IsBorderCollapse()) {
-    nsRect damageArea(0, 0, NS_MAX(1, GetColCount()), NS_MAX(1, GetRowCount()));
+    nsRect damageArea(0, 0, PR_MAX(1, GetColCount()), PR_MAX(1, GetRowCount()));
     SetBCDamageArea(damageArea);
   }
 }
@@ -1216,8 +1216,7 @@ nsDisplayTableBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
 {
   static_cast<nsTableFrame*>(mFrame)->
     PaintTableBorderBackground(*aCtx, aDirtyRect,
-                               aBuilder->ToReferenceFrame(mFrame),
-                               aBuilder->GetBackgroundPaintFlags());
+                               aBuilder->ToReferenceFrame(mFrame));
 }
 
 static PRInt32 GetTablePartRank(nsDisplayItem* aItem)
@@ -1371,13 +1370,13 @@ nsTableFrame::GetDeflationForBackground(nsPresContext* aPresContext) const
 void
 nsTableFrame::PaintTableBorderBackground(nsIRenderingContext& aRenderingContext,
                                          const nsRect& aDirtyRect,
-                                         nsPoint aPt, PRUint32 aBGPaintFlags)
+                                         nsPoint aPt)
 {
   nsPresContext* presContext = PresContext();
 
   TableBackgroundPainter painter(this, TableBackgroundPainter::eOrigin_Table,
                                  presContext, aRenderingContext,
-                                 aDirtyRect, aPt, aBGPaintFlags);
+                                 aDirtyRect, aPt);
   nsMargin deflate = GetDeflationForBackground(presContext);
   // If 'deflate' is (0,0,0,0) then we'll paint the table background
   // in a separate display item, so don't do it here.
@@ -1429,7 +1428,7 @@ nsTableFrame::SetColumnDimensions(nscoord         aHeight,
   nsTableIterator iter(mColGroups); 
   nsIFrame* colGroupFrame = iter.First();
   PRBool tableIsLTR = GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_LTR;
-  PRInt32 colX =tableIsLTR ? 0 : NS_MAX(0, GetColCount() - 1);
+  PRInt32 colX =tableIsLTR ? 0 : PR_MAX(0, GetColCount() - 1);
   PRInt32 tableColIncr = tableIsLTR ? 1 : -1; 
   nsPoint colGroupOrigin(aBorderPadding.left + cellSpacingX,
                          aBorderPadding.top + cellSpacingY);
@@ -2348,7 +2347,7 @@ nsTableFrame::RemoveFrame(nsIAtom*        aListName,
   // for now, just bail and recalc all of the collapsing borders
   // XXXldb [reflow branch merging 20060830] do we still need this?
   if (IsBorderCollapse()) {
-    nsRect damageArea(0, 0, NS_MAX(1, GetColCount()), NS_MAX(1, GetRowCount()));
+    nsRect damageArea(0, 0, PR_MAX(1, GetColCount()), PR_MAX(1, GetRowCount()));
     SetBCDamageArea(damageArea);
   }
   PresContext()->PresShell()->FrameNeedsReflow(this, nsIPresShell::eTreeChange,
@@ -3156,7 +3155,7 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
         nsRect rowRect = rowFrame->GetRect();
         if ((amountUsed < aAmount) && rowFrame->HasPctHeight()) {
           nscoord pctHeight = rowFrame->GetHeight(pctBasis);
-          nscoord amountForRow = NS_MIN(aAmount - amountUsed, pctHeight - rowRect.height);
+          nscoord amountForRow = PR_MIN(aAmount - amountUsed, pctHeight - rowRect.height);
           if (amountForRow > 0) {
             nsRect oldRowRect = rowRect;
             rowRect.height += amountForRow;
@@ -3313,7 +3312,7 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
           // gets the remainder
           nscoord amountForRow = (rowFrame == lastEligibleRow) 
                                  ? aAmount - amountUsed : NSToCoordRound(((float)(heightToDistribute)) * ratio);
-          amountForRow = NS_MIN(amountForRow, aAmount - amountUsed);
+          amountForRow = PR_MIN(amountForRow, aAmount - amountUsed);
 
           if (yOriginRow != rowRect.y) {
             rowFrame->InvalidateOverflowRect();
@@ -3471,8 +3470,6 @@ NS_NewTableFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsTableFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsTableFrame)
-
 nsTableFrame*
 nsTableFrame::GetTableFrame(nsIFrame* aSourceFrame)
 {
@@ -3537,7 +3534,7 @@ nsTableFrame::CalcBorderBoxHeight(const nsHTMLReflowState& aState)
     nsMargin borderPadding = GetChildAreaOffset(&aState);
     height += borderPadding.top + borderPadding.bottom;
   }
-  height = NS_MAX(0, height);
+  height = PR_MAX(0, height);
 
   return height;
 }
@@ -3938,8 +3935,8 @@ void
 nsTableFrame::SetBCDamageArea(const nsRect& aValue)
 {
   nsRect newRect(aValue);
-  newRect.width  = NS_MAX(1, newRect.width);
-  newRect.height = NS_MAX(1, newRect.height);
+  newRect.width  = PR_MAX(1, newRect.width);
+  newRect.height = PR_MAX(1, newRect.height);
 
   if (!IsBorderCollapse()) {
     NS_ASSERTION(PR_FALSE, "invalid call - not border collapse model");
@@ -4323,7 +4320,7 @@ BCMapCellInfo::SetInfo(nsTableRowFrame*   aNewRow,
   // col group frame info
   mColGroup = static_cast<nsTableColGroupFrame*>(mLeftCol->GetParent());
   PRInt32 cgStart = mColGroup->GetStartColumnIndex();
-  PRInt32 cgEnd = NS_MAX(0, cgStart + mColGroup->GetColCount() - 1);
+  PRInt32 cgEnd = PR_MAX(0, cgStart + mColGroup->GetColCount() - 1);
   mCgAtLeft  = (cgStart == aColIndex);
   mCgAtRight = (cgEnd == aColIndex + mColSpan - 1);
 }
@@ -5021,7 +5018,7 @@ struct BCCorners
   
   BCCornerInfo& operator [](PRInt32 i) const
   { NS_ASSERTION((i >= startIndex) && (i <= endIndex), "program error");
-    return corners[NS_MAX(NS_MIN(i, endIndex), startIndex) - startIndex]; }
+    return corners[PR_MAX(PR_MIN(i, endIndex), startIndex) - startIndex]; }
 
   PRInt32       startIndex;
   PRInt32       endIndex;
@@ -5047,7 +5044,7 @@ struct BCCellBorders
   
   BCCellBorder& operator [](PRInt32 i) const
   { NS_ASSERTION((i >= startIndex) && (i <= endIndex), "program error");
-    return borders[NS_MAX(NS_MIN(i, endIndex), startIndex) - startIndex]; }
+    return borders[PR_MAX(PR_MIN(i, endIndex), startIndex) - startIndex]; }
 
   PRInt32       startIndex;
   PRInt32       endIndex;
@@ -5178,12 +5175,12 @@ nsTableFrame::ExpandBCDamageArea(nsRect& aRect) const
       if ((dStartY >= rgStartY) && (dStartY <= rgEndY)) {
         // the damage area starts in the row group
         iterStartY = dStartY;
-        iterEndY   = NS_MIN(dEndY, rgEndY);
+        iterEndY   = PR_MIN(dEndY, rgEndY);
       }
       else if ((dEndY >= rgStartY) && (dEndY <= rgEndY)) {
         // the damage area ends in the row group
         iterStartY = rgStartY;
-        iterEndY   = NS_MIN(dEndY, rgStartY);
+        iterEndY   = PR_MIN(dEndY, rgStartY);
       }
       else if ((rgStartY >= dStartY) && (rgEndY <= dEndY)) {
         // the damage area contains the row group
@@ -5231,7 +5228,7 @@ nsTableFrame::ExpandBCDamageArea(nsRect& aRect) const
 static PRUint8
 LimitBorderWidth(PRUint16 aWidth)
 {
-  return NS_MIN(PRUint16(MAX_TABLE_BORDER_WIDTH), aWidth);
+  return PR_MIN(MAX_TABLE_BORDER_WIDTH, aWidth);
 }
 
 #define TABLE_EDGE  PR_TRUE
@@ -5410,7 +5407,7 @@ void
 BCMapCellInfo::SetTableTopBorderWidth(BCPixelSize aWidth)
 {
   mTableBCData->mTopBorderWidth =
-     LimitBorderWidth(NS_MAX(mTableBCData->mTopBorderWidth, aWidth));
+     LimitBorderWidth(PR_MAX(mTableBCData->mTopBorderWidth, (PRUint8) aWidth));
 }
 
 void
@@ -5426,7 +5423,7 @@ BCMapCellInfo::SetTableLeftBorderWidth(PRInt32 aRowY, BCPixelSize aWidth)
     }
   }
   mTableBCData->mLeftBorderWidth =
-               LimitBorderWidth(NS_MAX(mTableBCData->mLeftBorderWidth, aWidth));
+               LimitBorderWidth(PR_MAX(mTableBCData->mLeftBorderWidth, aWidth));
 }
 
 void
@@ -5442,7 +5439,7 @@ BCMapCellInfo::SetTableRightBorderWidth(PRInt32 aRowY, BCPixelSize aWidth)
     }
   }
   mTableBCData->mRightBorderWidth =
-              LimitBorderWidth(NS_MAX(mTableBCData->mRightBorderWidth, aWidth));
+              LimitBorderWidth(PR_MAX(mTableBCData->mRightBorderWidth, aWidth));
 }
 
 void
@@ -5450,12 +5447,12 @@ BCMapCellInfo::SetRightBorderWidths(BCPixelSize aWidth)
 {
    // update the borders of the cells and cols affected
   if (mCell) {
-    mCell->SetBorderWidth(mEndSide, NS_MAX(aWidth,
+    mCell->SetBorderWidth(mEndSide, PR_MAX(aWidth,
                           mCell->GetBorderWidth(mEndSide)));
   }
   if (mRightCol) {
     BCPixelSize half = BC_BORDER_LEFT_HALF(aWidth);
-    mRightCol->SetRightBorderWidth(NS_MAX(nscoord(half),
+    mRightCol->SetRightBorderWidth(PR_MAX(half,
                                    mRightCol->GetRightBorderWidth()));
   }
 }
@@ -5465,12 +5462,12 @@ BCMapCellInfo::SetBottomBorderWidths(BCPixelSize aWidth)
 {
   // update the borders of the affected cells and rows
   if (mCell) {
-    mCell->SetBorderWidth(NS_SIDE_BOTTOM, NS_MAX(aWidth,
+    mCell->SetBorderWidth(NS_SIDE_BOTTOM, PR_MAX(aWidth,
                           mCell->GetBorderWidth(NS_SIDE_BOTTOM)));
   }
   if (mBottomRow) {
     BCPixelSize half = BC_BORDER_TOP_HALF(aWidth);
-    mBottomRow->SetBottomBCBorderWidth(NS_MAX(nscoord(half),
+    mBottomRow->SetBottomBCBorderWidth(PR_MAX(half,
                                        mBottomRow->GetBottomBCBorderWidth()));
   }
 }
@@ -5478,26 +5475,24 @@ void
 BCMapCellInfo::SetTopBorderWidths(BCPixelSize aWidth)
 {
  if (mCell) {
-     mCell->SetBorderWidth(NS_SIDE_TOP, NS_MAX(aWidth,
+     mCell->SetBorderWidth(NS_SIDE_TOP, PR_MAX(aWidth,
                            mCell->GetBorderWidth(NS_SIDE_TOP)));
   }
   if (mTopRow) {
     BCPixelSize half = BC_BORDER_BOTTOM_HALF(aWidth);
-    mTopRow->SetTopBCBorderWidth(NS_MAX(nscoord(half),
-                                        mTopRow->GetTopBCBorderWidth()));
+    mTopRow->SetTopBCBorderWidth(PR_MAX(half, mTopRow->GetTopBCBorderWidth()));
   }
 }
 void
 BCMapCellInfo::SetLeftBorderWidths(BCPixelSize aWidth)
 {
   if (mCell) {
-    mCell->SetBorderWidth(mStartSide, NS_MAX(aWidth,
+    mCell->SetBorderWidth(mStartSide, PR_MAX(aWidth,
                           mCell->GetBorderWidth(mStartSide)));
   }
   if (mLeftCol) {
     BCPixelSize half = BC_BORDER_RIGHT_HALF(aWidth);
-    mLeftCol->SetLeftBorderWidth(NS_MAX(nscoord(half),
-                                        mLeftCol->GetLeftBorderWidth()));
+    mLeftCol->SetLeftBorderWidth(PR_MAX(half, mLeftCol->GetLeftBorderWidth()));
   }
 }
 
@@ -5505,7 +5500,7 @@ void
 BCMapCellInfo::SetTableBottomBorderWidth(BCPixelSize aWidth)
 {
   mTableBCData->mBottomBorderWidth =
-             LimitBorderWidth(NS_MAX(mTableBCData->mBottomBorderWidth, aWidth));
+             LimitBorderWidth(PR_MAX(mTableBCData->mBottomBorderWidth, aWidth));
 }
 
 void
@@ -5850,8 +5845,8 @@ nsTableFrame::CalcBCBorders()
         currentBorder = CompareBorders(!CELL_CORNER, currentBorder,
                                         adjacentBorder, !HORIZONTAL);
                           
-        segLength = NS_MAX(1, ajaInfo.mRowIndex + ajaInfo.mRowSpan - rowY);
-        segLength = NS_MIN(segLength, info.mRowIndex + info.mRowSpan - rowY);
+        segLength = PR_MAX(1, ajaInfo.mRowIndex + ajaInfo.mRowSpan - rowY);
+        segLength = PR_MIN(segLength, info.mRowIndex + info.mRowSpan - rowY);
 
         // update lastVerBorders and see if a new segment starts
         startSeg = SetBorder(currentBorder,
@@ -5984,8 +5979,8 @@ nsTableFrame::CalcBCBorders()
         adjacentBorder = ajaInfo.GetTopInternalBorder();
         currentBorder = CompareBorders(!CELL_CORNER, currentBorder,
                                         adjacentBorder, HORIZONTAL);
-        segLength = NS_MAX(1, ajaInfo.mColIndex + ajaInfo.mColSpan - colX);
-        segLength = NS_MIN(segLength, info.mColIndex + info.mColSpan - colX);
+        segLength = PR_MAX(1, ajaInfo.mColIndex + ajaInfo.mColSpan - colX);
+        segLength = PR_MIN(segLength, info.mColIndex + info.mColSpan - colX);
 
         // update, store the bottom left corner
         BCCornerInfo& blCorner = bottomCorners[colX]; // bottom left
@@ -6514,7 +6509,7 @@ BCVerticalSeg::Start(BCMapBorderIterator& aIter,
 
   nscoord cornerSubWidth  = (aIter.bcData) ? aIter.bcData->GetCorner(ownerSide, bevel) : 0;
   PRBool  topBevel        = (aVerSegWidth > 0) ? bevel : PR_FALSE;
-  nscoord maxHorSegHeight = NS_MAX(aPrevHorSegHeight, aHorSegHeight);
+  nscoord maxHorSegHeight = PR_MAX(aPrevHorSegHeight, aHorSegHeight);
   nscoord offset          = CalcVerCornerOffset(ownerSide, cornerSubWidth, maxHorSegHeight, 
                                                 PR_TRUE, topBevel);
 
@@ -6592,7 +6587,7 @@ BCHorizontalSeg::Start(BCMapBorderIterator& aIter,
 {
   owner = aBorderOwner;
   leftBevel = (aHorSegHeight > 0) ? aBevel : PR_FALSE;
-  nscoord maxVerSegWidth = NS_MAX(aTopVerSegWidth, aBottomVerSegWidth);
+  nscoord maxVerSegWidth = PR_MAX(aTopVerSegWidth, aBottomVerSegWidth);
   nscoord offset = CalcHorCornerOffset(aCornerOwnerSide, aSubWidth, maxVerSegWidth, 
                                        PR_TRUE, leftBevel, aTableIsLTR);
   leftBevelOffset = (leftBevel && (aHorSegHeight > 0)) ? maxVerSegWidth : 0;
@@ -6795,7 +6790,7 @@ nsTableFrame::PaintBCBorders(nsIRenderingContext& aRenderingContext,
           bevel = PR_FALSE; // ???
         }
         PRBool endBevel = (info.segWidth > 0) ? bevel : PR_FALSE; 
-        nscoord bottomHorSegHeight = NS_MAX(prevHorSegHeight, horSegHeight); 
+        nscoord bottomHorSegHeight = PR_MAX(prevHorSegHeight, horSegHeight); 
         nscoord endOffset = CalcVerCornerOffset(ownerSide, cornerSubWidth, bottomHorSegHeight, 
                                                 PR_FALSE, endBevel);
         info.segHeight += endOffset;
@@ -6908,7 +6903,7 @@ nsTableFrame::PaintBCBorders(nsIRenderingContext& aRenderingContext,
       }
     }
     cornerSubWidth = (iter.bcData) ? iter.bcData->GetCorner(ownerSide, bevel) : 0;
-    nscoord verWidth = NS_MAX(nscoord(verInfo[xAdj].segWidth), leftSegWidth);
+    nscoord verWidth = PR_MAX(verInfo[xAdj].segWidth, leftSegWidth);
     if (iter.isNewRow || (iter.IsLeftMost() && iter.IsBottomMost())) {
       horSeg.y = nextY;
       nextY    = nextY + iter.row->GetSize().height;

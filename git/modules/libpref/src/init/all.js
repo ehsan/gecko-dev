@@ -537,6 +537,7 @@ pref("privacy.popups.disable_from_plugins", 2);
 pref("dom.event.contextmenu.enabled",       true);
 
 pref("javascript.enabled",                  true);
+pref("javascript.allow.mailnews",           false);
 pref("javascript.options.strict",           false);
 pref("javascript.options.relimit",          false);
 pref("javascript.options.jit.content",      true);
@@ -549,6 +550,7 @@ pref("javascript.options.mem.high_water_mark", 32);
 pref("javascript.options.mem.gc_frequency",   1600);
 
 // advanced prefs
+pref("security.enable_java",                true);
 pref("advanced.mailftp",                    false);
 pref("image.animation_mode",                "normal");
 
@@ -865,6 +867,7 @@ pref("network.proxy.no_proxies_on",         "localhost, 127.0.0.1");
 pref("network.proxy.failover_timeout",      1800); // 30 minutes
 pref("network.online",                      true); //online/offline
 pref("network.cookie.cookieBehavior",       0); // 0-Accept, 1-dontAcceptForeign, 2-dontUse
+pref("network.cookie.disableCookieForMailNews", true); // disable all cookies for mail
 pref("network.cookie.lifetimePolicy",       0); // accept normally, 1-askBeforeAccepting, 2-acceptForSession,3-acceptForNDays
 pref("network.cookie.alwaysAcceptSessionCookies", false);
 pref("network.cookie.prefsMigrated",        false);
@@ -1125,7 +1128,7 @@ pref("layout.css.dpi", -1);
 // automatically based on the DPI. A positive value is used as-is. This effectively
 // controls the size of a CSS "px". This is only used for pixel-based
 // (screen) output devices.
-pref("layout.css.devPixelsPerPx", "-1");
+pref("layout.css.devPixelsPerPx", -1);
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
@@ -1596,14 +1599,12 @@ pref("intl.jis0208.map", "CP932");
 // Switch the keyboard layout per window
 pref("intl.keyboard.per_window_layout", false);
 
-#ifdef NS_ENABLE_TSF
 // Enable/Disable TSF support
 pref("intl.enable_tsf_support", false);
 
 // We need to notify the layout change to TSF, but we cannot check the actual
 // change now, therefore, we always notify it by this fequency.
 pref("intl.tsf.on_layout_change_interval", 100);
-#endif
 
 // See bug 448927, on topmost panel, some IMEs are not usable on Windows.
 pref("ui.panel.default_level_parent", false);

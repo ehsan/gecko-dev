@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   David Hyatt <hyatt@netscape.com> (Original Author)
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -94,9 +93,8 @@ private:
   PRUint32 CalcAlphaRowSize();
 
 private:
-  nsCOMPtr<imgIContainer> mImage;
   nsCOMPtr<imgIDecoderObserver> mObserver;
-  PRUint32 mFlags;
+  nsCOMPtr<imgIContainer> mImage;
   
   PRUint32 mPos;
   PRUint16 mNumIcons;
@@ -121,7 +119,6 @@ private:
   PRPackedBool mHaveAlphaData;
   PRPackedBool mIsCursor;
   PRPackedBool mDecodingAndMask;
-  PRPackedBool mError;
 };
 
 

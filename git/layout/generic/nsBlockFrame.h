@@ -92,10 +92,14 @@ class nsIntervalSet;
  * flow frames whose placeholders are in the overflow list.
  * -- A given piece of content has at most one placeholder
  * frame in a block's normal child list.
- * -- While a block is being reflowed, it may have a floatContinuationProperty
- * frame property that points to an nsFrameList in its
- * nsBlockReflowState. This list contains continuations for
- * floats whose prev-in-flow is in the block's regular float
+ * -- A given piece of content can have an unlimited number
+ * of placeholder frames in the overflow-lines list.
+ * -- A line containing a continuation placeholder contains
+ * only continuation placeholders.
+ * -- While a block is being reflowed, its overflowPlaceholdersList
+ * frame property points to an nsFrameList in its
+ * nsBlockReflowState. This list contains placeholders for
+ * floats whose prev-in-flow is in the block's regular line
  * list. The list is always empty/non-existent after the
  * block has been reflowed.
  * -- In all these frame lists, if there are two frames for
@@ -119,11 +123,12 @@ class nsIntervalSet;
 #define NS_BLOCK_HAS_LINE_CURSOR            0x01000000
 #define NS_BLOCK_HAS_OVERFLOW_LINES         0x02000000
 #define NS_BLOCK_HAS_OVERFLOW_OUT_OF_FLOWS  0x04000000
+#define NS_BLOCK_HAS_OVERFLOW_PLACEHOLDERS  0x08000000
 
 // Set on any block that has descendant frames in the normal
 // flow with 'clear' set to something other than 'none'
 // (including <BR CLEAR="..."> frames)
-#define NS_BLOCK_HAS_CLEAR_CHILDREN         0x08000000
+#define NS_BLOCK_HAS_CLEAR_CHILDREN         0x10000000
 
 #define nsBlockFrameSuper nsHTMLContainerFrame
 
@@ -137,8 +142,7 @@ class nsIntervalSet;
 class nsBlockFrame : public nsBlockFrameSuper
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsBlockFrame)
-  NS_DECL_FRAMEARENA_HELPERS
+  NS_DECLARE_FRAME_ACCESSOR(nsBlockFrame)
 
   typedef nsLineList::iterator                  line_iterator;
   typedef nsLineList::const_iterator            const_line_iterator;
@@ -235,11 +239,6 @@ public:
   virtual PRBool CachedIsEmpty();
   virtual PRBool IsSelfEmpty();
 
-  // Given that we have a bullet, does it actually draw something, i.e.,
-  // do we have either a 'list-style-type' or 'list-style-image' that is
-  // not 'none'?
-  PRBool BulletIsEmpty() const;
-
   virtual void MarkIntrinsicWidthsDirty();
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
@@ -257,7 +256,7 @@ public:
 
   virtual nsresult StealFrame(nsPresContext* aPresContext,
                               nsIFrame*      aChild,
-                              PRBool         aForceNormal = PR_FALSE);
+                              PRBool         aForceNormal);
 
   virtual void DeleteNextInFlowChild(nsPresContext* aPresContext,
                                      nsIFrame*      aNextInFlow,
@@ -277,6 +276,16 @@ public:
   nsIFrame* GetTopBlockChild(nsPresContext *aPresContext);
 
   static nsresult GetCurrentLine(nsBlockReflowState *aState, nsLineBox **aOutCurrentLine);
+
+  // Create a contination for aPlaceholder and its out of flow frame and
+  // add it to the list of overflow floats
+  nsresult SplitPlaceholder(nsBlockReflowState& aState, nsIFrame* aPlaceholder);
+  
+  PRBool HandleOverflowPlaceholdersForPulledFrame(
+    nsBlockReflowState& aState, nsIFrame* aFrame);
+
+  PRBool HandleOverflowPlaceholdersOnPulledLine(
+    nsBlockReflowState& aState, nsLineBox* aLine);
 
   static PRBool BlockIsMarginRoot(nsIFrame* aBlock);
   static PRBool BlockNeedsFloatManager(nsIFrame* aBlock);
@@ -303,17 +312,6 @@ public:
     WidthToClearPastFloats(nsBlockReflowState& aState,
                            const nsRect& aFloatAvailableSpace,
                            nsIFrame* aFrame);
-
-  /**
-   * Creates a contination for aFloat and adds it to the list of overflow floats.
-   * Also updates aState.mReflowStatus to include the float's incompleteness.
-   * Must only be called while this block frame is in reflow.
-   * aFloatStatus must be the float's true, unmodified reflow status.
-   * 
-   */
-  nsresult SplitFloat(nsBlockReflowState& aState,
-                      nsIFrame*           aFloat,
-                      nsReflowStatus      aFloatStatus);
 
   /**
    * Walks up the frame tree, starting with aCandidate, and returns the first
@@ -427,9 +425,14 @@ public:
    * -- marks lines dirty as needed
    * -- marks textruns dirty (unless FRAMES_ARE_EMPTY is given, in which
    * case textruns do not need to be dirtied)
-   * -- destroys all removed frames
+   * -- destroys all removed frames (unless PRESERVE_REMOVED_FRAMES is
+   * given)
+   * 
+   * PRESERVE_REMOVED_FRAMES does NOT work on out of flow frames so
+   * don't use it for out of flows.
    */
   enum {
+    PRESERVE_REMOVED_FRAMES    = 0x01,
     REMOVE_FIXED_CONTINUATIONS = 0x02,
     FRAMES_ARE_EMPTY           = 0x04
   };
@@ -439,14 +442,6 @@ public:
                       nsBlockFrame* aOldParent, PRBool aFromOverflow,
                       PRBool aReparentSiblings);
 
-  /** Load all of aFrame's floats into the float manager iff aFrame is not a
-   *  block formatting context. Handles all necessary float manager translations;
-   *  assumes float manager is in aFrame's parent's coord system.
-   *  Safe to call on non-blocks (does nothing).
-   */
-  static void RecoverFloatsFor(nsIFrame*       aFrame,
-                               nsFloatManager& aFloatManager);
-
 protected:
 
   /** grab overflow lines from this block's prevInFlow, and make them
@@ -454,26 +449,6 @@ protected:
     * @return PR_TRUE if any lines were drained.
     */
   PRBool DrainOverflowLines(nsBlockReflowState& aState);
-
-  /** grab float continuations from this block's prevInFlow, and splice
-    * them into this block's mFloats list.
-    */
-  void DrainFloatContinuations(nsBlockReflowState& aState);
-
-  /** Load all our floats into the float manager (without reflowing them).
-   *  Assumes float manager is in our own coordinate system.
-   */
-  void RecoverFloats(nsFloatManager& aFloatManager);
-
-  /** Reflow float continuations
-   */
-  nsresult ReflowFloatContinuations(nsBlockReflowState& aState,
-                                    nsRect&             aBounds,
-                                    nsReflowStatus&     aStatus);
-
-  /** Find any trailing BR clear from the last line of the block (or its PIFs)
-   */
-  PRUint8 FindTrailingClear();
 
   /**
     * Remove a float from our float list and also the float cache
@@ -579,12 +554,12 @@ protected:
   // Computes the border-box width of the float
   nscoord ComputeFloatWidth(nsBlockReflowState& aState,
                             const nsRect&       aFloatAvailableSpace,
-                            nsIFrame*           aFloat);
+                            nsPlaceholderFrame* aPlaceholder);
   // An incomplete aReflowStatus indicates the float should be split
   // but only if the available height is constrained.
   nsresult ReflowFloat(nsBlockReflowState& aState,
                        const nsRect&       aFloatAvailableSpace,
-                       nsIFrame*           aFloat,
+                       nsPlaceholderFrame* aPlaceholder,
                        nsMargin&           aFloatMargin,
                        nsReflowStatus&     aReflowStatus);
 
@@ -659,6 +634,8 @@ public:
 protected:
   nsLineList* RemoveOverflowLines();
   nsresult SetOverflowLines(nsLineList* aOverflowLines);
+
+  nsFrameList* GetOverflowPlaceholders() const;
 
   /**
    * This class is useful for efficiently modifying the out of flow

@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Mats Palmgren <mats.palmgren@bredband.net>
- *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -584,18 +583,6 @@
 // See nsStyleMargin
 #define NS_STYLE_MARGIN_SIZE_AUTO               0
 
-// See nsStyleDisplay
-#define NS_STYLE_POINTER_EVENTS_NONE            0
-#define NS_STYLE_POINTER_EVENTS_VISIBLEPAINTED  1
-#define NS_STYLE_POINTER_EVENTS_VISIBLEFILL     2
-#define NS_STYLE_POINTER_EVENTS_VISIBLESTROKE   3
-#define NS_STYLE_POINTER_EVENTS_VISIBLE         4
-#define NS_STYLE_POINTER_EVENTS_PAINTED         5
-#define NS_STYLE_POINTER_EVENTS_FILL            6
-#define NS_STYLE_POINTER_EVENTS_STROKE          7
-#define NS_STYLE_POINTER_EVENTS_ALL             8
-#define NS_STYLE_POINTER_EVENTS_AUTO            9
-
 // See nsStyleText
 #define NS_STYLE_TEXT_ALIGN_DEFAULT               0
 #define NS_STYLE_TEXT_ALIGN_LEFT                  1
@@ -630,13 +617,6 @@
 #define NS_STYLE_TEXT_TRANSFORM_CAPITALIZE      1
 #define NS_STYLE_TEXT_TRANSFORM_LOWERCASE       2
 #define NS_STYLE_TEXT_TRANSFORM_UPPERCASE       3
-
-// See nsStyleDisplay
-#define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE         0
-#define NS_STYLE_TRANSITION_TIMING_FUNCTION_LINEAR       1
-#define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_IN      2
-#define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_OUT     3
-#define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_IN_OUT  4
 
 // See nsStyleText
 // Note: these values pickup after the text-align values because there
@@ -771,6 +751,17 @@
 #define NS_STYLE_IMAGE_RENDERING_OPTIMIZESPEED    1
 #define NS_STYLE_IMAGE_RENDERING_OPTIMIZEQUALITY  2
 #define NS_STYLE_IMAGE_RENDERING_CRISPEDGES       3
+
+// pointer-events
+#define NS_STYLE_POINTER_EVENTS_NONE            0
+#define NS_STYLE_POINTER_EVENTS_VISIBLEPAINTED  1
+#define NS_STYLE_POINTER_EVENTS_VISIBLEFILL     2
+#define NS_STYLE_POINTER_EVENTS_VISIBLESTROKE   3
+#define NS_STYLE_POINTER_EVENTS_VISIBLE         4
+#define NS_STYLE_POINTER_EVENTS_PAINTED         5
+#define NS_STYLE_POINTER_EVENTS_FILL            6
+#define NS_STYLE_POINTER_EVENTS_STROKE          7
+#define NS_STYLE_POINTER_EVENTS_ALL             8
 
 // shape-rendering
 #define NS_STYLE_SHAPE_RENDERING_AUTO               0

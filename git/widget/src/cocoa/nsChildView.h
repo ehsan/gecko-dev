@@ -56,10 +56,11 @@
 
 #include "nsIAppShell.h"
 
+#include "nsIEventListener.h"
 #include "nsString.h"
 #include "nsIDragService.h"
 
-#include "npapi.h"
+#include "nsplugindefs.h"
 
 #import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
@@ -122,12 +123,14 @@ enum {
                               mozView, NSTextInput>
 {
 @private
+  NSWindow* mWindow; // shortcut to the top window, [WEAK]
+  
   // the nsChildView that created the view. It retains this NSView, so
   // the link back to it must be weak.
   nsChildView* mGeckoChild;
-
+    
+  // Whether we're a plugin view.
   BOOL mIsPluginView;
-  NPEventModel mPluginEventModel;
 
   // The following variables are only valid during key down event processing.
   // Their current usage needs to be fixed to avoid problems with nested event
@@ -334,9 +337,12 @@ public:
   NS_IMETHOD              Enable(PRBool aState);
   NS_IMETHOD              IsEnabled(PRBool *aState);
   NS_IMETHOD              SetFocus(PRBool aRaise);
+  NS_IMETHOD              SetBounds(const nsIntRect &aRect);
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
 
+  NS_IMETHOD              Invalidate(PRBool aIsSynchronous);
   NS_IMETHOD              Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous);
+  NS_IMETHOD              Validate();
 
   virtual void*           GetNativeData(PRUint32 aDataType);
   virtual nsresult        ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
@@ -379,16 +385,16 @@ public:
   NS_IMETHOD        StartDrawPlugin();
   NS_IMETHOD        EndDrawPlugin();
   NS_IMETHOD        SetPluginInstanceOwner(nsIPluginInstanceOwner* aInstanceOwner);
-
-  NS_IMETHOD        SetPluginEventModel(int inEventModel);
-  NS_IMETHOD        GetPluginEventModel(int* outEventModel);
-
+  
   virtual nsTransparencyMode GetTransparencyMode();
   virtual void                SetTransparencyMode(nsTransparencyMode aMode);
   
   // Mac specific methods
   
   virtual PRBool    DispatchWindowEvent(nsGUIEvent& event);
+  
+  void              LiveResizeStarted();
+  void              LiveResizeEnded();
   
 #ifdef ACCESSIBILITY
   void              GetDocumentAccessible(nsIAccessible** aAccessible);
@@ -417,6 +423,8 @@ protected:
   PRBool            ReportDestroyEvent();
   PRBool            ReportMoveEvent();
   PRBool            ReportSizeEvent();
+
+  virtual PRBool    OnPaint(nsPaintEvent & aEvent);
 
   // override to create different kinds of child views. Autoreleases, so
   // caller must retain.
@@ -447,6 +455,7 @@ protected:
 
   PRPackedBool          mVisible;
   PRPackedBool          mDrawing;
+  PRPackedBool          mLiveResizeInProgress;
   PRPackedBool          mIsPluginView;
   PRPackedBool          mPluginDrawing;
   PRPackedBool          mPluginIsCG; // true if this is a CoreGraphics plugin

@@ -858,18 +858,22 @@ PrintWinCodebase(nsGlobalWindow *win)
 }
 #endif
 
+// Don't GC for the first 10s (startup).
+PRIntervalTime startTime = -1;
+
 static void
 MaybeGC(JSContext *cx)
 {
-  size_t bytes = cx->runtime->gcBytes;
-  size_t lastBytes = cx->runtime->gcLastBytes;
-  if ((bytes > 8192 && bytes > lastBytes * 16)
-#ifdef DEBUG
-      || cx->runtime->gcZeal > 0
-#endif
-      ) {
-    JS_GC(cx);
+  if (startTime) {
+    if (startTime == -1) {
+      startTime = PR_IntervalNow();
+      return;
+    }
+    if (PR_IntervalToMilliseconds(PR_IntervalNow() - startTime) < 10000)
+      return;
+    startTime = 0;
   }
+  JS_MaybeGC(cx);
 }
 
 static already_AddRefed<nsIPrompt>
@@ -1893,7 +1897,12 @@ nsJSContext::JSObjectFromInterface(nsISupports* aTarget, void *aScope, JSObject 
   // later.
   nsresult rv;
   jsval v;
-  rv = nsContentUtils::WrapNative(mContext, (JSObject *)aScope, aTarget, &v);
+  rv = nsContentUtils::XPConnect()->WrapNativeToJSVal(mContext,
+                                                      (JSObject *)aScope,
+                                                      aTarget,
+                                                      &NS_GET_IID(nsISupports),
+                                                      PR_FALSE,
+                                                      &v, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef NS_DEBUG
@@ -2532,17 +2541,23 @@ nsJSContext::InitContext(nsIScriptGlobalObject *aGlobalObject)
     // properties will be forwarded to the inner window.
     ::JS_ClearScope(mContext, global);
 
-    // Now that the inner and outer windows are connected, tell XPConnect to
-    // re-initialize the prototypes on the outer window's scope.
-    rv = xpc->InitClassesForOuterObject(mContext, global);
+    // Tell XPConnect to re-initialize the global object to do things like
+    // define the Components object on the global again and forget all
+    // old prototypes in this scope.
+    // XXX Except that now, the global is thawed and has an inner window. So
+    // anything that XPConnect does to our global will be forwarded. So I
+    // think the only thing that this does for real is to call SetGlobal on
+    // our XPCWrappedNativeScope. Perhaps XPConnect should have a more
+    // targeted API?
+    rv = xpc->InitClasses(mContext, global);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIClassInfo> ci(do_QueryInterface(aGlobalObject));
 
     if (ci) {
-      jsval v;
-      rv = nsContentUtils::WrapNative(mContext, global, aGlobalObject, &v,
-                                      getter_AddRefs(holder));
+      rv = xpc->WrapNative(mContext, global, aGlobalObject,
+                           NS_GET_IID(nsISupports),
+                           getter_AddRefs(holder));
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsCOMPtr<nsIXPConnectWrappedNative> wrapper(do_QueryInterface(holder));
@@ -2688,11 +2703,15 @@ nsJSContext::ConvertSupportsTojsvals(nsISupports *aArgs,
                        "Don't pass nsISupportsPrimitives - use nsIVariant!");
 #endif
           nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-          jsval v;
-          rv = nsContentUtils::WrapNative(mContext, (JSObject *)aScope, arg,
-                                          &v, getter_AddRefs(wrapper));
+          rv = xpc->WrapNative(mContext, (JSObject *)aScope, arg,
+                               NS_GET_IID(nsISupports),
+                               getter_AddRefs(wrapper));
           if (NS_SUCCEEDED(rv)) {
-            *thisval = v;
+            JSObject *obj;
+            rv = wrapper->GetJSObject(&obj);
+            if (NS_SUCCEEDED(rv)) {
+              *thisval = OBJECT_TO_JSVAL(obj);
+            }
           }
         }
       }
@@ -2891,14 +2910,20 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv)
 
       AutoFree iidGuard(iid); // Free iid upon destruction.
 
-      nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-      jsval v;
-      nsresult rv = nsContentUtils::WrapNative(cx, ::JS_GetGlobalObject(cx),
-                                               data, iid, &v,
-                                               getter_AddRefs(wrapper));
+      nsresult rv;
+      nsCOMPtr<nsIXPConnect> xpc(do_GetService(nsIXPConnect::GetCID(), &rv));
       NS_ENSURE_SUCCESS(rv, rv);
 
-      *aArgv = v;
+      nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
+      rv = xpc->WrapNative(cx, ::JS_GetGlobalObject(cx), data,
+                           *iid, getter_AddRefs(wrapper));
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      JSObject *obj;
+      rv = wrapper->GetJSObject(&obj);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      *aArgv = OBJECT_TO_JSVAL(obj);
 
       break;
     }
@@ -3858,30 +3883,10 @@ SetMemoryHighWaterMarkPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
   PRInt32 highwatermark = nsContentUtils::GetIntPref(aPrefName, 32);
 
-  if (highwatermark >= 32) {
-    // There are two options of memory usage in tracemonkey. One is
-    // to use malloc() and the other is to use memory for GC. (E.g.
-    // js_NewGCThing()/RefillDoubleFreeList()).
-    // Let's limit the high water mark for the first one to 32MB,
-    // and second one to 0xffffffff.
-    JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_MALLOC_BYTES,
-                      32L * 1024L * 1024L);
-    JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_BYTES,
-                      0xffffffff);
-  } else {
-    JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_MALLOC_BYTES,
-                      highwatermark * 1024L * 1024L);
-    JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_BYTES,
-                      highwatermark * 1024L * 1024L);
-  }
-  return 0;
-}
-
-static int
-SetMemoryGCFrequencyPrefChangedCallback(const char* aPrefName, void* aClosure)
-{
-  PRInt32 triggerFactor = nsContentUtils::GetIntPref(aPrefName, 1600);
-  JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_TRIGGER_FACTOR, triggerFactor);
+  JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_BYTES,
+                    (highwatermark >= 32)
+                    ? 0xffffffff
+                    : highwatermark * 1024L * 1024L);
   return 0;
 }
 
@@ -3973,12 +3978,6 @@ nsJSRuntime::Init()
                                        nsnull);
   SetMemoryHighWaterMarkPrefChangedCallback("javascript.options.mem.high_water_mark",
                                             nsnull);
-
-  nsContentUtils::RegisterPrefCallback("javascript.options.mem.gc_frequency",
-                                       SetMemoryGCFrequencyPrefChangedCallback,
-                                       nsnull);
-  SetMemoryGCFrequencyPrefChangedCallback("javascript.options.mem.gc_frequency",
-                                          nsnull);
 
   nsCOMPtr<nsIObserverService> obs =
     do_GetService("@mozilla.org/observer-service;1", &rv);

@@ -38,9 +38,8 @@
 // NOTE: alphabetically ordered
 #include "nsAccessibilityService.h"
 #include "nsAccessibleEventData.h"
-#include "nsApplicationAccessibleWrap.h"
-
 #include "nsHTMLSelectAccessible.h"
+#include "nsIBaseWindow.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeNode.h"
@@ -54,7 +53,6 @@
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsIDOMDataContainerEvent.h"
-#include "nsIDOMNSDocument.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIDOMXULMenuListElement.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
@@ -84,6 +82,12 @@
 #include "nsIXULWindow.h"
 #endif
 
+#ifdef MOZ_ACCESSIBILITY_ATK
+#include "nsAppRootAccessible.h"
+#else
+#include "nsApplicationAccessibleWrap.h"
+#endif
+
 // Expanded version of NS_IMPL_ISUPPORTS_INHERITED2 
 // so we can QI directly to concrete nsRootAccessible
 NS_IMPL_QUERY_HEAD(nsRootAccessible)
@@ -111,6 +115,7 @@ nsRootAccessible::~nsRootAccessible()
 {
 }
 
+// helpers
 /* readonly attribute AString name; */
 NS_IMETHODIMP
 nsRootAccessible::GetName(nsAString& aName)
@@ -128,8 +133,22 @@ nsRootAccessible::GetName(nsAString& aName)
     }
   }
 
-  nsCOMPtr<nsIDOMNSDocument> document(do_QueryInterface(mDocument));
-  return document->GetTitle(aName);
+  nsCOMPtr<nsIDocShellTreeItem> docShellAsItem =
+    nsCoreUtils::GetDocShellTreeItemFor(mDOMNode);
+  NS_ENSURE_TRUE(docShellAsItem, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
+  docShellAsItem->GetTreeOwner(getter_AddRefs(treeOwner));
+
+  nsCOMPtr<nsIBaseWindow> baseWindow(do_QueryInterface(treeOwner));
+  if (baseWindow) {
+    nsXPIDLString title;
+    baseWindow->GetTitle(getter_Copies(title));
+    aName.Assign(title);
+    return NS_OK;
+  }
+
+  return NS_ERROR_FAILURE;
 }
 
 /* readonly attribute nsIAccessible accParent; */
@@ -396,8 +415,7 @@ void nsRootAccessible::TryFireEarlyLoadEvent(nsIDOMNode *aDocNode)
   NS_ASSERTION(rootContentTreeItem, "No root content tree item");
   if (rootContentTreeItem == treeItem) {
     // No frames or iframes, so we can fire the doc load finished event early
-    FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_INTERNAL_LOAD,
-                               aDocNode);
+    FireDelayedToolkitEvent(nsIAccessibleEvent::EVENT_INTERNAL_LOAD, aDocNode);
   }
 }
 
@@ -539,9 +557,9 @@ PRBool nsRootAccessible::FireAccessibleFocusEvent(nsIAccessible *aAccessible,
     }
   }
 
-  FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_FOCUS,
-                             finalFocusNode, nsAccEvent::eRemoveDupes,
-                             aIsAsynch);
+  FireDelayedToolkitEvent(nsIAccessibleEvent::EVENT_FOCUS,
+                          finalFocusNode, nsAccEvent::eRemoveDupes,
+                          aIsAsynch);
 
   return PR_TRUE;
 }
@@ -684,7 +702,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     PRBool isEnabled = (state & (nsIAccessibleStates::STATE_CHECKED |
                         nsIAccessibleStates::STATE_SELECTED)) != 0;
 
-    nsCOMPtr<nsIAccessibleEvent> accEvent =
+    nsCOMPtr<nsIAccessibleStateChangeEvent> accEvent =
       new nsAccStateChangeEvent(accessible, nsIAccessibleStates::STATE_CHECKED,
                                 PR_FALSE, isEnabled);
     acc->FireAccessibleEvent(accEvent);
@@ -700,7 +718,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
 
     PRBool isEnabled = !!(state & nsIAccessibleStates::STATE_CHECKED);
 
-    nsCOMPtr<nsIAccessibleEvent> accEvent =
+    nsCOMPtr<nsIAccessibleStateChangeEvent> accEvent =
       new nsAccStateChangeEvent(accessible,
                                 nsIAccessibleStates::STATE_CHECKED,
                                 PR_FALSE, isEnabled);
@@ -736,7 +754,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     PRUint32 state = nsAccUtils::State(accessible); // collapsed/expanded changed
     PRBool isEnabled = (state & nsIAccessibleStates::STATE_EXPANDED) != 0;
 
-    nsCOMPtr<nsIAccessibleEvent> accEvent =
+    nsCOMPtr<nsIAccessibleStateChangeEvent> accEvent =
       new nsAccStateChangeEvent(accessible, nsIAccessibleStates::STATE_EXPANDED,
                                 PR_FALSE, isEnabled);
     return FireAccessibleEvent(accEvent);
@@ -894,8 +912,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     FireCurrentFocusEvent();
   }
   else if (eventType.EqualsLiteral("ValueChange")) {
-    FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
-                               aTargetNode, nsAccEvent::eRemoveDupes);
+    FireDelayedToolkitEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE, aTargetNode, nsAccEvent::eRemoveDupes);
   }
 #ifdef DEBUG
   else if (eventType.EqualsLiteral("mouseover")) {
@@ -1093,7 +1110,7 @@ nsRootAccessible::HandlePopupShownEvent(nsIAccessible *aAccessible)
     // The accessible for it stays the same no matter where it moves. 
     // AT's expect to get an EVENT_SHOW for the tooltip. 
     // In event callback the tooltip's accessible will be ready.
-    return nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_SHOW,
+    return nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_ASYNCH_SHOW,
                                     aAccessible);
   }
 
@@ -1106,7 +1123,7 @@ nsRootAccessible::HandlePopupShownEvent(nsIAccessible *aAccessible)
     PRUint32 comboboxRole = nsAccUtils::Role(comboboxAcc);
     if (comboboxRole == nsIAccessibleRole::ROLE_COMBOBOX ||
         comboboxRole == nsIAccessibleRole::ROLE_AUTOCOMPLETE) {
-      nsCOMPtr<nsIAccessibleEvent> event =
+      nsCOMPtr<nsIAccessibleStateChangeEvent> event =
         new nsAccStateChangeEvent(comboboxAcc,
                                   nsIAccessibleStates::STATE_EXPANDED,
                                   PR_FALSE, PR_TRUE);
@@ -1150,7 +1167,7 @@ nsRootAccessible::HandlePopupHidingEvent(nsIDOMNode *aNode,
   PRUint32 comboboxRole = nsAccUtils::Role(comboboxAcc);
   if (comboboxRole == nsIAccessibleRole::ROLE_COMBOBOX ||
       comboboxRole == nsIAccessibleRole::ROLE_AUTOCOMPLETE) {
-    nsCOMPtr<nsIAccessibleEvent> event =
+    nsCOMPtr<nsIAccessibleStateChangeEvent> event =
       new nsAccStateChangeEvent(comboboxAcc,
                                 nsIAccessibleStates::STATE_EXPANDED,
                                 PR_FALSE, PR_FALSE);

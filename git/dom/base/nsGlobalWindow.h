@@ -347,8 +347,6 @@ public:
   virtual NS_HIDDEN_(void) EnterModalState();
   virtual NS_HIDDEN_(void) LeaveModalState();
 
-  virtual NS_HIDDEN_(void) SetHasOrientationEventListener();
-
   // nsIDOMViewCSS
   NS_DECL_NSIDOMVIEWCSS
 
@@ -708,9 +706,6 @@ protected:
   // event.
   PRPackedBool           mNeedsFocus : 1;
   PRPackedBool           mHasFocus : 1;
-
-  // Indicates whether this window is getting acceleration change events
-  PRPackedBool           mHasAcceleration  : 1;
 
   nsCOMPtr<nsIScriptContext>    mContext;
   nsWeakPtr                     mOpener;

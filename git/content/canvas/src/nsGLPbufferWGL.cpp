@@ -36,16 +36,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIPrefService.h"
-#include "nsServiceManagerUtils.h"
+// this must be first, else windows.h breaks us
+#include "nsICanvasRenderingContextGL.h"
 
-#include "WebGLContext.h"
+#include "nsIPrefService.h"
+
 #include "nsGLPbuffer.h"
+#include "nsCanvasRenderingContextGL.h"
 
 #include "gfxContext.h"
-#include "gfxImageSurface.h"
-
-using namespace mozilla;
 
 static PRUint32 gActiveBuffers = 0;
 
@@ -100,7 +99,7 @@ nsGLPbufferWGL::nsGLPbufferWGL()
 }
 
 PRBool
-nsGLPbufferWGL::Init(WebGLContext *priv)
+nsGLPbufferWGL::Init(nsCanvasRenderingContextGLPrivate *priv)
 {
     // XXX lookup SYSTEM32 path!
     char *opengl32 = "C:\\WINDOWS\\SYSTEM32\\OPENGL32.DLL";
@@ -122,7 +121,7 @@ nsGLPbufferWGL::Init(WebGLContext *priv)
         wc.lpszClassName = "GLEW";
 
         if (!RegisterClass(&wc)) {
-            LogMessage("Canvas 3D: RegisterClass failed");
+            LogMessage(NS_LITERAL_CSTRING("Canvas 3D: RegisterClass failed"));
             return PR_FALSE;
         }
     }
@@ -131,14 +130,14 @@ nsGLPbufferWGL::Init(WebGLContext *priv)
     mGlewWindow = CreateWindow("GLEW", "GLEW", 0, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 
                                CW_USEDEFAULT, NULL, NULL, GetModuleHandle(NULL), NULL);
     if (!mGlewWindow) {
-        LogMessage("Canvas 3D: CreateWindow failed");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: CreateWindow failed"));
         return PR_FALSE;
     }
 
     // get the device context
     mGlewDC = GetDC(mGlewWindow);
     if (!mGlewDC) {
-        LogMessage("Canvas 3D: GetDC failed");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: GetDC failed"));
         return PR_FALSE;
     }
 
@@ -151,19 +150,19 @@ nsGLPbufferWGL::Init(WebGLContext *priv)
 
     // set the pixel format for the dc
     if (!SetPixelFormat(mGlewDC, pixelformat, &pfd)) {
-        LogMessage("Canvas 3D: SetPixelFormat failed");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: SetPixelFormat failed"));
         return PR_FALSE;
     }
 
     // create rendering context
     mGlewWglContext = wglCreateContext(mGlewDC);
     if (!mGlewWglContext) {
-        LogMessage("Canvas 3D: wglCreateContext failed");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: wglCreateContext failed"));
         return PR_FALSE;
     }
 
     if (!wglMakeCurrent(mGlewDC, (HGLRC) mGlewWglContext)) {
-        LogMessage("Canvas 3D: wglMakeCurrent failed");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: wglMakeCurrent failed"));
         return PR_FALSE;
     }
 
@@ -174,14 +173,14 @@ nsGLPbufferWGL::Init(WebGLContext *priv)
 
     // XXX look up system32 dir
     if (!mGLWrap.OpenLibrary(opengl32)) {
-        LogMessage("Canvas 3D: Failed to open opengl32.dll (only looked in c:\\windows\\system32, fixme)");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: Failed to open opengl32.dll (only looked in c:\\windows\\system32, fixme)"));
         return PR_FALSE;
     }
 
     mGLWrap.SetLookupFunc((LibrarySymbolLoader::PlatformLookupFunction) wglGetProcAddress);
 
     if (!mGLWrap.Init(GLES20Wrap::TRY_NATIVE_GL)) {
-        LogMessage("Canvas 3D: GLWrap init failed");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: GLWrap init failed"));
         return PR_FALSE;
     }
 
@@ -213,7 +212,7 @@ nsGLPbufferWGL::Resize(PRInt32 width, PRInt32 height)
     if (NS_FAILED(rv))
         prefAntialiasing = 0;
 
-    mThebesSurface = new gfxImageSurface(gfxIntSize(width, height), gfxASurface::ImageFormatARGB32);
+    mThebesSurface = CanvasGLThebes::CreateImageSurface(gfxIntSize(width, height), gfxASurface::ImageFormatARGB32);
     if (mThebesSurface->CairoStatus() != 0) {
         fprintf (stderr, "image surface failed\n");
         return PR_FALSE;
@@ -226,15 +225,15 @@ nsGLPbufferWGL::Resize(PRInt32 width, PRInt32 height)
 
     if (!wglMakeCurrent(mGlewDC, (HGLRC) mGlewWglContext)) {
         fprintf (stderr, "Error: %d\n", GetLastError());
-        LogMessage("Canvas 3D: wglMakeCurrent failed");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: wglMakeCurrent failed"));
         return PR_FALSE;
     }
 
     PRBool ignoreAA = PR_FALSE;
     int attribs[] = {
-        WGL_SUPPORT_OPENGL_ARB, LOCAL_GL_TRUE,
-        WGL_DRAW_TO_PBUFFER_ARB, LOCAL_GL_TRUE,
-        WGL_DOUBLE_BUFFER_ARB, LOCAL_GL_FALSE,
+        WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
+        WGL_DRAW_TO_PBUFFER_ARB, GL_TRUE,
+        WGL_DOUBLE_BUFFER_ARB, GL_FALSE,
 
         WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
 
@@ -283,7 +282,7 @@ TRY_FIND_AGAIN:
             goto TRY_FIND_AGAIN;
         }
 
-        LogMessage("Canvas 3D: wglChoosePixelFormat failed (or couldn't find any matching formats).");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: wglChoosePixelFormat failed (or couldn't find any matching formats)."));
         ReleaseDC(NULL, mGlewDC);
         return PR_FALSE;
     }
@@ -335,7 +334,7 @@ TRY_FIND_AGAIN:
     }
 
     if (chosenFormat == -1) {
-        LogMessage("Canvas 3D: Couldn't find a suitable pixel format!");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: Couldn't find a suitable pixel format!"));
         return PR_FALSE;
     }
     
@@ -345,7 +344,7 @@ TRY_FIND_AGAIN:
     int pbattribs = 0;
     mPbuffer = gWGLWrap.fCreatePbuffer(mGlewDC, chosenFormat, width, height, &pbattribs);
     if (!mPbuffer) {
-        LogMessage("Canvas 3D: Failed to create pbuffer");
+        LogMessage(NS_LITERAL_CSTRING("Canvas 3D: Failed to create pbuffer"));
         return PR_FALSE;
     }
 
@@ -409,7 +408,7 @@ void
 nsGLPbufferWGL::SwapBuffers()
 {
     MakeContextCurrent();
-    mGLWrap.fReadPixels (0, 0, mWidth, mHeight, LOCAL_GL_BGRA, LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV, mThebesSurface->Data());
+    mGLWrap.fReadPixels (0, 0, mWidth, mHeight, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, mThebesSurface->Data());
 
     // premultiply the image
     int len = mWidth*mHeight*4;

@@ -43,6 +43,9 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = test_xulapp
 
+REQUIRES = \
+	string \
+	$(NULL)
 
 CPPSRCS = \
 	TestXREMakeCommandLineWin.cpp \

@@ -61,9 +61,7 @@ class nsTreeContentView : public nsINativeTreeView,
 
     ~nsTreeContentView(void);
 
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsTreeContentView,
-                                             nsINativeTreeView)
+    NS_DECL_ISUPPORTS
 
     NS_DECL_NSITREEVIEW
     // nsINativeTreeView: Untrusted code can use us

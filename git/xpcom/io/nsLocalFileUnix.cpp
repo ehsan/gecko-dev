@@ -83,7 +83,6 @@
 #include "nsITimelineService.h"
 
 #ifdef MOZ_WIDGET_GTK2
-#include "nsIGIOService.h"
 #include "nsIGnomeVFSService.h"
 #endif
 
@@ -1633,9 +1632,8 @@ NS_IMETHODIMP
 nsLocalFile::Reveal()
 {
 #ifdef MOZ_WIDGET_GTK2
-    nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-    nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
-    if (!giovfs && !gnomevfs)
+    nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+    if (!vfs)
         return NS_ERROR_FAILURE;
 
     PRBool isDirectory;
@@ -1643,11 +1641,7 @@ nsLocalFile::Reveal()
         return NS_ERROR_FAILURE;
 
     if (isDirectory) {
-        if (giovfs)
-            return giovfs->ShowURIForInput(mPath);
-        else 
-            /* Fallback to GnomeVFS */
-            return gnomevfs->ShowURIForInput(mPath);
+        return vfs->ShowURIForInput(mPath);
     } else {
         nsCOMPtr<nsIFile> parentDir;
         nsCAutoString dirPath;
@@ -1656,10 +1650,7 @@ nsLocalFile::Reveal()
         if (NS_FAILED(parentDir->GetNativePath(dirPath)))
             return NS_ERROR_FAILURE;
 
-        if (giovfs)
-            return giovfs->ShowURIForInput(dirPath);
-        else 
-            return gnomevfs->ShowURIForInput(dirPath);        
+        return vfs->ShowURIForInput(dirPath);
     }
 #else
     return NS_ERROR_FAILURE;
@@ -1688,16 +1679,11 @@ nsLocalFile::Launch()
       return NS_ERROR_FAILURE;
     return NS_OK;
 #else
-    nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-    nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
-    if (giovfs) {
-      return giovfs->ShowURIForInput(mPath);
-    } else if (gnomevfs) {
-      /* GnomeVFS fallback */
-      return gnomevfs->ShowURIForInput(mPath);
-    }
-    
-    return NS_ERROR_FAILURE;
+    nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+    if (!vfs)
+        return NS_ERROR_FAILURE;
+
+    return vfs->ShowURIForInput(mPath);
 #endif
 #else
     return NS_ERROR_FAILURE;

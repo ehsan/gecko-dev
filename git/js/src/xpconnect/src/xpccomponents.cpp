@@ -48,7 +48,6 @@
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIDOMWindow.h"
 #include "xpcJSWeakReference.h"
-#include "XPCNativeWrapper.h"
 #include "XPCWrapper.h"
 
 #ifdef MOZ_JSLOADER
@@ -2735,15 +2734,7 @@ MethodWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
 
     if (JSVAL_IS_PRIMITIVE(*rval))
        return JS_TRUE;
-
-    XPCWrappedNative *wn =
-        XPCWrappedNative::GetWrappedNativeOfJSObject(cx, JSVAL_TO_OBJECT(*rval));
-    if (!wn) {
-        XPCThrower::Throw(NS_ERROR_UNEXPECTED, cx);
-        return JS_FALSE;
-    }
-
-    return XPCNativeWrapper::CreateExplicitWrapper(cx, wn, JS_TRUE, rval);
+    return XPCNativeWrapperCtor(cx, nsnull, 1, rval, rval);
 }
 
 /* void lookupMethod (); */

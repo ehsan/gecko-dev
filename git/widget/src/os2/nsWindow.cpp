@@ -370,6 +370,11 @@ NS_IMETHODIMP nsWindow::DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus
     if (nsnull != mEventCallback) {
       aStatus = (*mEventCallback)( event);
     }
+   
+    // Dispatch to event listener if event was not consumed
+    if ((aStatus != nsEventStatus_eIgnore) && (nsnull != mEventListener)) {
+      aStatus = mEventListener->ProcessEvent(*event);
+    }
   }
 
   return NS_OK;
@@ -1330,8 +1335,8 @@ NS_METHOD nsWindow::Resize(PRInt32 aX,
 
       if (!WinSetWindowPos(GetMainWindow(), 0, ptl.x, ptl.y, w, h,
                            SWP_MOVE | SWP_SIZE)) {
-         if (aRepaint && mWnd) {
-            WinInvalidateRect( mWnd, 0, FALSE);
+         if (aRepaint) {
+            Invalidate(PR_FALSE);
          }
       }
 
@@ -1619,9 +1624,7 @@ NS_IMETHODIMP nsWindow::SetCursor(imgIContainer* aCursor,
   }
 
   nsRefPtr<gfxImageSurface> frame;
-  aCursor->CopyFrame(imgIContainer::FRAME_CURRENT,
-                     imgIContainer::FLAG_SYNC_DECODE,
-                     getter_AddRefs(frame));
+  aCursor->CopyCurrentFrame(getter_AddRefs(frame));
   if (!frame)
     return NS_ERROR_NOT_AVAILABLE;
 
@@ -1867,6 +1870,26 @@ NS_IMETHODIMP nsWindow::HideWindowChrome(PRBool aShouldHide)
 // Invalidate this component visible area
 //
 //-------------------------------------------------------------------------
+NS_METHOD nsWindow::Invalidate(PRBool aIsSynchronous)
+{
+    if (mWnd)
+    {
+      WinInvalidateRect( mWnd, 0, FALSE);
+#if 0
+      if( PR_TRUE == aIsSynchronous) {
+         Update();
+      }
+#endif
+    }
+
+    return NS_OK;
+}
+
+//-------------------------------------------------------------------------
+//
+// Invalidate this component visible area
+//
+//-------------------------------------------------------------------------
 NS_METHOD nsWindow::Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous)
 {
   if (mWnd)
@@ -2098,8 +2121,8 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
         if (w->mBounds.Intersects(affectedRect)) {
           if (!ClipRegionContainedInRect(configuration.mClipRegion,
                                          affectedRect - (w->mBounds.TopLeft()
-                                                         + aDelta)) && mWnd) {
-            WinInvalidateRect( mWnd, 0, FALSE);
+                                                         + aDelta))) {
+            w->Invalidate(PR_FALSE);
           }
 
           // Send a WM_VRNDISABLED to the plugin child of this widget.
@@ -2799,7 +2822,7 @@ PRBool nsWindow::OnPaint()
   } // if paint flashing
 #endif
 
-  if (mContext && mEventCallback) {
+  if (mContext && (mEventCallback || mEventListener)) {
     // Get rect to redraw and validate window
     RECTL rcl = { 0 };
 
@@ -2873,7 +2896,7 @@ PRBool nsWindow::OnPaint()
     if (hpsDrag) {
       ReleaseIfDragHPS(hpsDrag);
     }
-  } // if (mContext && mEventCallback)
+  } // if (mContext && (mEventCallback || mEventListener))
 
 #ifdef NS_DEBUG
   if (debug_WantPaintFlashing()) {

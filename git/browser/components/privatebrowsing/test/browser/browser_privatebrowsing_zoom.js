@@ -40,7 +40,9 @@
 
 function test() {
   // initialization
-  gPrefService.setBoolPref("browser.privatebrowsing.keep_current_session", true);
+  let prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                   getService(Ci.nsIPrefBranch);
+  prefBranch.setBoolPref("browser.privatebrowsing.keep_current_session", true);
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
 
@@ -83,7 +85,7 @@ function test() {
       pb.privateBrowsingEnabled = false;
 
       // cleanup
-      gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
+      prefBranch.clearUserPref("browser.privatebrowsing.keep_current_session");
       FullZoom.reset();
       gBrowser.removeTab(tabRobots);
       gBrowser.removeTab(tabAbout);

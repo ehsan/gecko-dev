@@ -89,7 +89,7 @@ mozSpellChecker::NextMisspelledWord(nsAString &aWord, nsTArray<nsString> *aSugge
   if(!aSuggestions||!mConverter)
     return NS_ERROR_NULL_POINTER;
 
-  PRInt32 selOffset;
+  PRUint32 selOffset;
   PRInt32 begin,end;
   nsresult result;
   result = SetupDoc(&selOffset);
@@ -174,7 +174,7 @@ mozSpellChecker::Replace(const nsAString &aOldWord, const nsAString &aNewWord, P
   nsAutoString newWord(aNewWord); // sigh
 
   if(aAllOccurrences){
-    PRInt32 selOffset;
+    PRUint32 selOffset;
     PRInt32 startBlock,currentBlock,currOffset;
     PRInt32 begin,end;
     PRBool done;
@@ -202,10 +202,9 @@ mozSpellChecker::Replace(const nsAString &aOldWord, const nsAString &aNewWord, P
             if (aOldWord.Equals(Substring(str, begin, end-begin))) {
               // if we are before the current selection point but in the same block
               // move the selection point forwards
-              if((currentBlock == startBlock)&&(begin < selOffset)){
-                selOffset +=
-                  PRInt32(aNewWord.Length()) - PRInt32(aOldWord.Length());
-                if(selOffset < begin) selOffset=begin;
+              if((currentBlock == startBlock)&&(begin < (PRInt32) selOffset)){
+                selOffset += (aNewWord.Length() - aOldWord.Length());
+                if(selOffset < 0) selOffset=0;
               }
               mTsDoc->SetSelection(begin, end-begin);
               mTsDoc->InsertText(&newWord);
@@ -389,7 +388,7 @@ mozSpellChecker::SetCurrentDictionary(const nsAString &aDictionary)
 }
 
 nsresult
-mozSpellChecker::SetupDoc(PRInt32 *outBlockOffset)
+mozSpellChecker::SetupDoc(PRUint32 *outBlockOffset)
 {
   nsresult  rv;
 

@@ -73,8 +73,6 @@ NS_NewMathMLmpaddedFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMathMLmpaddedFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmpaddedFrame)
-
 nsMathMLmpaddedFrame::~nsMathMLmpaddedFrame()
 {
 }
@@ -451,7 +449,7 @@ nsMathMLmpaddedFrame::Place(nsIRenderingContext& aRenderingContext,
   if (mLeftSpaceSign != NS_MATHML_SIGN_INVALID ||
       mWidthSign != NS_MATHML_SIGN_INVALID) { // there was padding on the right
     // dismiss the right italic correction now (so that our parent won't correct us)
-    mBoundingMetrics.width = NS_MAX(0, lspace + width);
+    mBoundingMetrics.width = PR_MAX(0, lspace + width);
     mBoundingMetrics.rightBearing = mBoundingMetrics.width;
   }
 

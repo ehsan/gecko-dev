@@ -46,7 +46,6 @@
 
 #include "nsMIMEInfoUnix.h"
 #include "nsGNOMERegistry.h"
-#include "nsIGIOService.h"
 #include "nsIGnomeVFSService.h"
 #ifdef MOZ_ENABLE_DBUS
 #include "nsDBusHandlerApp.h"
@@ -75,16 +74,10 @@ NS_IMETHODIMP
 nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
 {
   *_retval = PR_FALSE;
-  nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-  nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
-  if (giovfs) {
-    nsCOMPtr<nsIGIOMimeApp> app;
-    if (NS_SUCCEEDED(giovfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
-      *_retval = PR_TRUE;
-  } else if (gnomevfs) {
-     /* Fallback to GnomeVFS*/
+  nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+  if (vfs) {
     nsCOMPtr<nsIGnomeVFSMimeApp> app;
-    if (NS_SUCCEEDED(gnomevfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
+    if (NS_SUCCEEDED(vfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
       *_retval = PR_TRUE;
   }
 
@@ -115,16 +108,10 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
     return NS_OK;
 #endif
 
-  nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-  nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
-  if (giovfs) {
-    nsCOMPtr<nsIGIOMimeApp> app;
-    if (NS_SUCCEEDED(giovfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
-      return app->Launch(nativePath);
-  } else if (gnomevfs) {
-    /* Fallback to GnomeVFS */
+  nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+  if (vfs) {
     nsCOMPtr<nsIGnomeVFSMimeApp> app;
-    if (NS_SUCCEEDED(gnomevfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
+    if (NS_SUCCEEDED(vfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
       return app->Launch(nativePath);
   }
 

@@ -204,7 +204,7 @@ nsPrintPreviewListener::HandleEvent(nsIDOMEvent* aEvent)
             fm->MoveFocus(win, from,
                           forward ? nsIFocusManager::MOVEFOCUS_FORWARD :
                                     nsIFocusManager::MOVEFOCUS_BACKWARD,
-                          nsIFocusManager::FLAG_BYKEY, getter_AddRefs(result));
+                          0, getter_AddRefs(result));
           }
         }
       }

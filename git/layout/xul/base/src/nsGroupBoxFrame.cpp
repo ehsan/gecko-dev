@@ -44,7 +44,6 @@
 
 class nsGroupBoxFrame : public nsBoxFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
 
   nsGroupBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
     nsBoxFrame(aShell, aContext) {}
@@ -102,8 +101,6 @@ NS_NewGroupBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsGroupBoxFrame(aPresShell, aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsGroupBoxFrame)
 
 class nsDisplayXULGroupBackground : public nsDisplayItem {
 public:
@@ -178,8 +175,7 @@ nsGroupBoxFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
   groupRect += aPt;
 
   nsCSSRendering::PaintBackground(presContext, aRenderingContext, this,
-                                  aDirtyRect, rect,
-                                  nsCSSRendering::PAINTBG_SYNC_DECODE_IMAGES);
+                                  aDirtyRect, rect, 0);
 
   if (groupBox) {
 

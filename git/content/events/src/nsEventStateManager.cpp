@@ -373,40 +373,23 @@ public:
   static void OnEvent(nsEvent* aEvent);
   static void Shutdown();
   static PRUint32 GetTimeoutTime();
-  static void AccelerateWheelDelta(PRInt32 &aScrollX, PRInt32 &aScrollY);
-
-  enum {
-    kScrollSeriesTimeout = 80
-  };
 protected:
   static nsIntPoint GetScreenPoint(nsGUIEvent* aEvent);
   static void OnFailToScrollTarget();
   static void OnTimeout(nsITimer *aTimer, void *aClosure);
   static void SetTimeout();
   static PRUint32 GetIgnoreMoveDelayTime();
-  static PRInt32 GetAccelerationStart();
-  static PRInt32 GetAccelerationFactor();
-  static PRInt32 ComputeWheelDelta(PRInt32 aDelta, PRInt32 aFactor);
 
   static nsWeakFrame sTargetFrame;
   static PRUint32    sTime;        // in milliseconds
   static PRUint32    sMouseMoved;  // in milliseconds
   static nsITimer*   sTimer;
-  static PRInt32     sScrollSeriesCounter;
 };
 
 nsWeakFrame nsMouseWheelTransaction::sTargetFrame(nsnull);
 PRUint32    nsMouseWheelTransaction::sTime        = 0;
 PRUint32    nsMouseWheelTransaction::sMouseMoved  = 0;
 nsITimer*   nsMouseWheelTransaction::sTimer       = nsnull;
-PRInt32     nsMouseWheelTransaction::sScrollSeriesCounter = 0;
-
-static PRBool
-OutOfTime(PRUint32 aBaseTime, PRUint32 aThreshold)
-{
-  PRUint32 now = PR_IntervalToMilliseconds(PR_IntervalNow());
-  return (now - aBaseTime > aThreshold);
-}
 
 static PRBool
 CanScrollOn(nsIScrollableView* aScrollView, PRInt32 aNumLines,
@@ -427,7 +410,6 @@ nsMouseWheelTransaction::BeginTransaction(nsIFrame* aTargetFrame,
 {
   NS_ASSERTION(!sTargetFrame, "previous transaction is not finished!");
   sTargetFrame = aTargetFrame;
-  sScrollSeriesCounter = 0;
   if (!UpdateTransaction(aNumLines, aScrollHorizontal)) {
     NS_ERROR("BeginTransaction is called even cannot scroll the frame");
     EndTransaction();
@@ -451,11 +433,6 @@ nsMouseWheelTransaction::UpdateTransaction(PRInt32 aNumLines,
   }
 
   SetTimeout();
-
-  if (sScrollSeriesCounter != 0 && OutOfTime(sTime, kScrollSeriesTimeout))
-    sScrollSeriesCounter = 0;
-  sScrollSeriesCounter++;
-
   // We should use current time instead of nsEvent.time.
   // 1. Some events doesn't have the correct creation time.
   // 2. If the computer runs slowly by other processes eating the CPU resource,
@@ -471,7 +448,13 @@ nsMouseWheelTransaction::EndTransaction()
   if (sTimer)
     sTimer->Cancel();
   sTargetFrame = nsnull;
-  sScrollSeriesCounter = 0;
+}
+
+static PRBool
+OutOfTime(PRUint32 aBaseTime, PRUint32 aThreshold)
+{
+  PRUint32 now = PR_IntervalToMilliseconds(PR_IntervalNow());
+  return (now - aBaseTime > aThreshold);
 }
 
 void
@@ -619,43 +602,6 @@ nsMouseWheelTransaction::GetIgnoreMoveDelayTime()
 {
   return (PRUint32)
     nsContentUtils::GetIntPref("mousewheel.transaction.ignoremovedelay", 100);
-}
-
-void
-nsMouseWheelTransaction::AccelerateWheelDelta(PRInt32 &aScrollX,
-                                              PRInt32 &aScrollY)
-{
-  PRInt32 start = GetAccelerationStart();
-  if (start < 0 || sScrollSeriesCounter < start)
-    return;
-
-  PRInt32 factor = GetAccelerationFactor();
-  if (factor < 0)
-    return;
-
-  aScrollX = ComputeWheelDelta(aScrollX, factor);
-  aScrollY = ComputeWheelDelta(aScrollY, factor);
-}
-
-PRInt32
-nsMouseWheelTransaction::ComputeWheelDelta(PRInt32 aDelta, PRInt32 aFactor)
-{
-  if (aDelta == 0)
-    return 0;
-
-  return PRInt32(0.5 + (aDelta * sScrollSeriesCounter * (double)aFactor / 10));
-}
-
-PRInt32
-nsMouseWheelTransaction::GetAccelerationStart()
-{
-  return nsContentUtils::GetIntPref("mousewheel.acceleration.start", -1);
-}
-
-PRInt32
-nsMouseWheelTransaction::GetAccelerationFactor()
-{
-  return nsContentUtils::GetIntPref("mousewheel.acceleration.factor", -1);
 }
 
 /******************************************************************/
@@ -2520,7 +2466,6 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
         (noDefer ? NS_VMREFRESH_IMMEDIATE : NS_VMREFRESH_DEFERRED));
     }
     else {
-      nsMouseWheelTransaction::AccelerateWheelDelta(scrollX, scrollY);
       scrollView->ScrollByLinesWithOverflow(scrollX, scrollY, overflowX, overflowY,
         (noDefer ? NS_VMREFRESH_IMMEDIATE : NS_VMREFRESH_SMOOTHSCROLL));
     }
@@ -2741,9 +2686,19 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
     {
       if (static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton &&
           !mNormalLMouseEventInProcess) {
-        // We got a mouseup event while a mousedown event was being processed.
-        // Make sure that the capturing content is cleared.
-        nsIPresShell::SetCapturingContent(nsnull, 0);
+        //Our state is out of whack.  We got a mouseup while still processing
+        //the mousedown.  Kill View-level mouse capture or it'll stay stuck
+        if (aView) {
+          nsIViewManager* viewMan = aView->GetViewManager();
+          if (viewMan) {
+            nsIView* grabbingView;
+            viewMan->GetMouseEventGrabber(grabbingView);
+            if (grabbingView == aView) {
+              PRBool result;
+              viewMan->GrabMouseEvents(nsnull, result);
+            }
+          }
+        }
         break;
       }
 
@@ -2848,9 +2803,17 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         ret =
           CheckForAndDispatchClick(presContext, (nsMouseEvent*)aEvent, aStatus);
       }
-
       nsIPresShell *shell = presContext->GetPresShell();
       if (shell) {
+        nsIViewManager* viewMan = shell->GetViewManager();
+        if (viewMan) {
+          nsIView* grabbingView = nsnull;
+          viewMan->GetMouseEventGrabber(grabbingView);
+          if (grabbingView == aView) {
+            PRBool result;
+            viewMan->GrabMouseEvents(nsnull, result);
+          }
+        }
         nsCOMPtr<nsFrameSelection> frameSelection = shell->FrameSelection();
         frameSelection->SetMouseDownState(PR_FALSE);
       }

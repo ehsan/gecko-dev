@@ -35,8 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "TestHarness.h"
+// No output means test passed.
 
+#include <stdio.h>
 #include <string.h>
 #include "nsColor.h"
 #include "nsColorNames.h"
@@ -68,10 +69,6 @@ static const char* kJunkNames[] = {
 
 int main(int argc, char** argv)
 {
-  ScopedXPCOM xpcom("TestColorNames");
-  if (xpcom.failed())
-    return -1;
-
   nscolor rgb;
   int rv = 0;
 
@@ -82,30 +79,30 @@ int main(int argc, char** argv)
   // be in the table. Futz with the case to make sure any case will
   // work
     
-  for (PRUint32 index = 0 ; index < NS_ARRAY_LENGTH(kColorNames); index++) {
+  for (int index = 0 ; index < NS_ARRAY_LENGTH(kColorNames); index++) {
     // Lookup color by name and make sure it has the right id
     nsCString tagName(kColorNames[index]);
 
     // Check that color lookup by name gets the right rgb value
     if (!NS_ColorNameToRGB(NS_ConvertASCIItoUTF16(tagName), &rgb)) {
-      fail("can't find '%s'", tagName.get());
+      printf("bug: can't find '%s'\n", tagName.get());
       rv = -1;
     }
     if (rgb != kColors[index]) {
-      fail("name='%s' ColorNameToRGB=%x kColors[%d]=%08x",
-           tagName.get(), rgb, index, kColors[index]);
+      printf("bug: name='%s' ColorNameToRGB=%x kColors[%d]=%08x\n",
+             tagName.get(), rgb, index, kColors[index]);
       rv = -1;
     }
 
     // fiddle with the case to make sure we can still find it
     tagName.SetCharAt(tagName.CharAt(0) - 32, 0);
     if (!NS_ColorNameToRGB(NS_ConvertASCIItoUTF16(tagName), &rgb)) {
-      fail("can't find '%s'", tagName.get());
+      printf("bug: can't find '%s'\n", tagName.get());
       rv = -1;
     }
     if (rgb != kColors[index]) {
-      fail("name='%s' ColorNameToRGB=%x kColors[%d]=%08x",
-           tagName.get(), rgb, index, kColors[index]);
+      printf("bug: name='%s' ColorNameToRGB=%x kColors[%d]=%08x\n",
+             tagName.get(), rgb, index, kColors[index]);
       rv = -1;
     }
 
@@ -113,36 +110,29 @@ int main(int argc, char** argv)
     PRUint8 r = NS_GET_R(rgb);
     PRUint8 g = NS_GET_G(rgb);
     PRUint8 b = NS_GET_B(rgb);
-    PRUint8 a = NS_GET_A(rgb);
-    if (a != PR_UINT8_MAX) {
-      // NS_HexToRGB() can not handle a color with alpha channel
-      rgb = NS_RGB(r, g, b);
-    }
     char cbuf[50];
     PR_snprintf(cbuf, sizeof(cbuf), "%02x%02x%02x", r, g, b);
     nscolor hexrgb;
     if (!NS_HexToRGB(NS_ConvertASCIItoUTF16(cbuf), &hexrgb)) {
-      fail("hex conversion to color of '%s'", cbuf);
+      printf("bug: hex conversion to color of '%s' failed\n", cbuf);
       rv = -1;
     }
     if (hexrgb != rgb) {
-      fail("rgb=%x hexrgb=%x", rgb, hexrgb);
+      printf("bug: rgb=%x hexrgb=%x\n", rgb, hexrgb);
       rv = -1;
     }
   }
 
   // Now make sure we don't find some garbage
-  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(kJunkNames); i++) {
+  for (int i = 0; i < NS_ARRAY_LENGTH(kJunkNames); i++) {
     nsCString tag(kJunkNames[i]);
     if (NS_ColorNameToRGB(NS_ConvertASCIItoUTF16(tag), &rgb)) {
-      fail("found '%s'", kJunkNames[i] ? kJunkNames[i] : "(null)");
+      printf("bug: found '%s'\n", kJunkNames[i] ? kJunkNames[i] : "(null)");
       rv = -1;
     }
   }
 
   nsColorNames::ReleaseTable();
 
-  if (rv == 0)
-    passed("TestColorNames");
   return rv;
 }

@@ -45,8 +45,9 @@ function test() {
 
   waitForExplicitFinish();
 
-  gBrowser.selectedTab = gBrowser.addTab();
-  let aboutBrowser = gBrowser.selectedBrowser;
+  let tabAbout = gBrowser.addTab();
+  gBrowser.selectedTab = tabAbout;
+  let aboutBrowser = gBrowser.getBrowserForTab(tabAbout);
   aboutBrowser.addEventListener("load", function () {
     aboutBrowser.removeEventListener("load", arguments.callee, true);
 
@@ -61,7 +62,7 @@ function test() {
           win.addEventListener("load", function() {
             win.removeEventListener("load", arguments.callee, false);
 
-            let browser = win.getBrowser();
+            let browser = win.document.defaultView.getBrowser();
             browser.addEventListener("load", function() {
               browser.removeEventListener("load", arguments.callee, true);
               
@@ -78,7 +79,9 @@ function test() {
 
     function openViewSource() {
       // invoke the View Source command
-      document.getElementById("View:PageSource").doCommand();
+      let event = document.createEvent("Events");
+      event.initEvent("command", true, true);
+      document.getElementById("View:PageSource").dispatchEvent(event);
     }
 
     function step1() {
@@ -133,7 +136,7 @@ function test() {
             win.addEventListener("load", function() {
               win.removeEventListener("load", arguments.callee, false);
 
-              let browser = win.getBrowser();
+              let browser = win.document.defaultView.getBrowser();
               browser.addEventListener("load", function() {
                 browser.removeEventListener("load", arguments.callee, true);
                 
@@ -168,16 +171,16 @@ function test() {
             win.addEventListener("load", function() {
               win.removeEventListener("load", arguments.callee, false);
 
-              let browser = win.getBrowser();
+              let browser = win.document.defaultView.getBrowser();
               browser.addEventListener("load", function() {
                 browser.removeEventListener("load", arguments.callee, true);
                 
-                is(win.content.location.href, "view-source:about:",
+                is(browser.currentURI.spec, "view-source:about:",
                   "The correct view source window should be restored");
 
                 // cleanup
                 win.close();
-                gBrowser.removeCurrentTab();
+                gBrowser.removeTab(gBrowser.selectedTab);
                 finish();
               }, true);
             }, false);

@@ -2106,7 +2106,6 @@ nsHttpChannel::CheckCache()
     }
 
     PRBool doValidation = PR_FALSE;
-    PRBool canAddImsHeader = PR_TRUE;
 
     // Be optimistic: assume that we won't need to do validation
     mRequestHead.ClearHeader(nsHttp::If_Modified_Since);
@@ -2147,7 +2146,6 @@ nsHttpChannel::CheckCache()
 
     else if (ResponseWouldVary()) {
         LOG(("Validating based on Vary headers returning TRUE\n"));
-        canAddImsHeader = PR_FALSE;
         doValidation = PR_TRUE;
     }
     
@@ -2231,13 +2229,10 @@ nsHttpChannel::CheckCache()
              mRequestHead.Method() == nsHttp::Head)) {
             const char *val;
             // Add If-Modified-Since header if a Last-Modified was given
-            // and we are allowed to do this (see bugs 510359 and 269303)
-            if (canAddImsHeader) {
-                val = mCachedResponseHead->PeekHeader(nsHttp::Last_Modified);
-                if (val)
-                    mRequestHead.SetHeader(nsHttp::If_Modified_Since,
-                                           nsDependentCString(val));
-            }
+            val = mCachedResponseHead->PeekHeader(nsHttp::Last_Modified);
+            if (val)
+                mRequestHead.SetHeader(nsHttp::If_Modified_Since,
+                                       nsDependentCString(val));
             // Add If-None-Match header if an ETag was given in the response
             val = mCachedResponseHead->PeekHeader(nsHttp::ETag);
             if (val)
@@ -2771,7 +2766,7 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
         return NS_OK; // no other options to set
 
     if (preserveMethod) {
-        nsCOMPtr<nsIUploadChannel2> uploadChannel = do_QueryInterface(httpChannel);
+        nsCOMPtr<nsIUploadChannel> uploadChannel = do_QueryInterface(httpChannel);
         if (mUploadStream && uploadChannel) {
             // rewind upload stream
             nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mUploadStream);
@@ -2779,23 +2774,19 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
                 seekable->Seek(nsISeekableStream::NS_SEEK_SET, 0);
 
             // replicate original call to SetUploadStream...
-            const char *ctype = mRequestHead.PeekHeader(nsHttp::Content_Type);
-            if (!ctype)
-              ctype = "";
-            const char *clen  = mRequestHead.PeekHeader(nsHttp::Content_Length);
-            if (clen)
-                uploadChannel->ExplicitSetUploadStream(
-                    mUploadStream,
-                    nsDependentCString(ctype),
-                    nsCRT::atoll(clen),
-                    nsDependentCString(mRequestHead.Method()),
-                    mUploadStreamHasHeaders);
+            if (mUploadStreamHasHeaders)
+                uploadChannel->SetUploadStream(mUploadStream, EmptyCString(), -1);
+            else {
+                const char *ctype = mRequestHead.PeekHeader(nsHttp::Content_Type);
+                const char *clen  = mRequestHead.PeekHeader(nsHttp::Content_Length);
+                if (ctype && clen)
+                    uploadChannel->SetUploadStream(mUploadStream,
+                                                   nsDependentCString(ctype),
+                                                   atoi(clen));
+            }
         }
-        // since preserveMethod is true, we need to ensure that the appropriate 
-        // request method gets set on the channel, regardless of whether or not 
-        // we set the upload stream above. This means SetRequestMethod() will
-        // be called twice if ExplicitSetUploadStream() gets called above.
-
+        // must happen after setting upload stream since SetUploadStream
+        // may change the request method.
         httpChannel->SetRequestMethod(nsDependentCString(mRequestHead.Method()));
     }
     // convey the referrer if one was used for this channel to the next one
@@ -4082,7 +4073,6 @@ NS_INTERFACE_MAP_BEGIN(nsHttpChannel)
     NS_INTERFACE_MAP_ENTRY(nsIHttpChannel)
     NS_INTERFACE_MAP_ENTRY(nsICachingChannel)
     NS_INTERFACE_MAP_ENTRY(nsIUploadChannel)
-    NS_INTERFACE_MAP_ENTRY(nsIUploadChannel2)
     NS_INTERFACE_MAP_ENTRY(nsICacheListener)
     NS_INTERFACE_MAP_ENTRY(nsIEncodedChannel)
     NS_INTERFACE_MAP_ENTRY(nsIHttpChannelInternal)
@@ -4690,9 +4680,7 @@ nsHttpChannel::GetUploadStream(nsIInputStream **stream)
 }
 
 NS_IMETHODIMP
-nsHttpChannel::SetUploadStream(nsIInputStream *stream,
-                               const nsACString &contentType,
-                               PRInt32 contentLength)
+nsHttpChannel::SetUploadStream(nsIInputStream *stream, const nsACString &contentType, PRInt32 contentLength)
 {
     // NOTE: for backwards compatibility and for compatibility with old style
     // plugins, |stream| may include headers, specifically Content-Type and
@@ -4710,8 +4698,7 @@ nsHttpChannel::SetUploadStream(nsIInputStream *stream,
                     return NS_ERROR_FAILURE;
                 }
             }
-            mRequestHead.SetHeader(nsHttp::Content_Length,
-                                   nsPrintfCString("%d", contentLength));
+            mRequestHead.SetHeader(nsHttp::Content_Length, nsPrintfCString("%d", contentLength));
             mRequestHead.SetHeader(nsHttp::Content_Type, contentType);
             mUploadStreamHasHeaders = PR_FALSE;
             mRequestHead.SetMethod(nsHttp::Put); // PUT request
@@ -4726,37 +4713,6 @@ nsHttpChannel::SetUploadStream(nsIInputStream *stream,
         mRequestHead.SetMethod(nsHttp::Get); // revert to GET request
     }
     mUploadStream = stream;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
-                                       const nsACString &aContentType,
-                                       PRInt64 aContentLength,
-                                       const nsACString &aMethod,
-                                       PRBool aStreamHasHeaders)
-{
-    // Ensure stream is set and method is valid 
-    NS_ENSURE_TRUE(aStream, NS_ERROR_FAILURE);
-
-    if (aContentLength < 0) {
-        PRUint32 streamLength;
-        aStream->Available(&streamLength);
-        aContentLength = streamLength;
-        if (aContentLength < 0) {
-            NS_ERROR("unable to determine content length");
-            return NS_ERROR_FAILURE;
-        }
-    }
-
-    nsresult rv = SetRequestMethod(aMethod);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    mRequestHead.SetHeader(nsHttp::Content_Length, nsPrintfCString("%lld", aContentLength));
-    mRequestHead.SetHeader(nsHttp::Content_Type, aContentType);
-
-    mUploadStreamHasHeaders = aStreamHasHeaders;
-    mUploadStream = aStream;
     return NS_OK;
 }
 

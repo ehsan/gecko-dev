@@ -18,9 +18,6 @@ function handleRequest(request, response) {
   });
   if (query["continue"] == "true") {
 
-    // Debugging information so we can figure out the hang
-    dump("file_IconTestServer.js DEBUG - Got continue command\n");
-
     // Get the context structure and finish the old request
     getObjectState("context", function(obj) {
 
@@ -42,9 +39,6 @@ function handleRequest(request, response) {
     response.finish();
     return;
   }
-
-  // Debugging information so we can figure out the hang
-  dump("file_IconTestServer.js DEBUG - Got initial request\n");
 
   // Context structure - we need to set this up properly to pass to setObjectState
   var ctx = {
@@ -87,8 +81,5 @@ function handleRequest(request, response) {
   setObjectState("context", ctx);
 
   // Now we play the waiting game...
-
-  // Debugging information so we can figure out the hang
-  dump("file_IconTestServer.js DEBUG - Playing the waiting game\n");
 }
 

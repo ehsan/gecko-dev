@@ -156,8 +156,6 @@
      */
     var gQueue = null;
 
-    // gA11yEventDumpID = "eventdump"; // debug stuff
-
     function testCaretOffset(aAccOrElmOrID, aCaretOffset)
     {
       var acc = getAccessible(aAccOrElmOrID, [nsIAccessibleText]);
@@ -222,6 +220,5 @@
   <p id="p" contentEditable="true"><span>text</span><br/>text</p>
   <div id="div" contentEditable="true"><p id="p1_in_div">text</p><p id="p2_in_div">text</p></div>
 
-  <div id="eventdump"></div>
 </body>
 </html>

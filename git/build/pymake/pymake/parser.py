@@ -64,9 +64,6 @@ class Data(object):
     def getloc(self, offset):
         return self.startloc + self.data[:offset]
 
-    def endloc(self):
-        return self.startloc + self.data
-
     def skipwhitespace(self, offset):
         """
         Return the offset into data after skipping whitespace.
@@ -518,7 +515,7 @@ def parsestream(fd, filename):
                     raise SyntaxError("unmatched 'endif' directive",
                                       d.getloc(offset))
 
-                condstack.pop().endloc = d.getloc(offset)
+                condstack.pop()
                 continue
             
             if kword == 'else':
@@ -529,14 +526,14 @@ def parsestream(fd, filename):
                 kword, offset = d.findtoken(offset, _conditionkeywordstokenlist, True)
                 if kword is None:
                     _ensureend(d, offset, "Unexpected data after 'else' directive.")
-                    condstack[-1].addcondition(d.getloc(0), parserdata.ElseCondition())
+                    condstack[-1].addcondition(d.getloc(offset), parserdata.ElseCondition())
                 else:
                     if kword not in _conditionkeywords:
                         raise SyntaxError("Unexpected condition after 'else' directive.",
                                           d.getloc(offset))
 
                     c = _conditionkeywords[kword](d, offset)
-                    condstack[-1].addcondition(d.getloc(0), c)
+                    condstack[-1].addcondition(d.getloc(offset), c)
                 continue
 
             if kword in _conditionkeywords:
@@ -559,7 +556,7 @@ def parsestream(fd, filename):
                     raise SyntaxError("Unterminated define", d.getloc())
 
                 value = _iterflatten(iterdefinechars, d, startpos)
-                condstack[-1].append(parserdata.SetVariable(vname, value=value, valueloc=d.getloc(0), token='=', targetexp=None, source=data.Variables.SOURCE_MAKEFILE, endloc=d.endloc()))
+                condstack[-1].append(parserdata.SetVariable(vname, value=value, valueloc=d.getloc(0), token='=', targetexp=None))
                 continue
 
             if kword in ('include', '-include'):
@@ -586,7 +583,7 @@ def parsestream(fd, filename):
 
                 value = _iterflatten(itermakefilechars, d, offset).lstrip()
 
-                condstack[-1].append(parserdata.SetVariable(vname, value=value, valueloc=d.getloc(offset), token=token, targetexp=None, source=data.Variables.SOURCE_OVERRIDE, endloc=d.endloc()))
+                condstack[-1].append(parserdata.SetVariable(vname, value=value, valueloc=d.getloc(offset), token=token, targetexp=None, source=data.Variables.SOURCE_OVERRIDE))
                 continue
 
             if kword == 'export':
@@ -601,7 +598,7 @@ def parsestream(fd, filename):
                     condstack[-1].append(parserdata.ExportDirective(e, single=True))
 
                     value = _iterflatten(itermakefilechars, d, offset).lstrip()
-                    condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=None, source=data.Variables.SOURCE_MAKEFILE, endloc=d.endloc()))
+                    condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=None))
 
                 continue
 
@@ -629,7 +626,7 @@ def parsestream(fd, filename):
 
                 value = _iterflatten(itermakefilechars, d, offset).lstrip()
 
-                condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=None, source=data.Variables.SOURCE_MAKEFILE, endloc=d.endloc()))
+                condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=None))
             else:
                 doublecolon = token == '::'
 
@@ -660,7 +657,7 @@ def parsestream(fd, filename):
                     e.rstrip()
 
                     value = _iterflatten(itermakefilechars, d, offset).lstrip()
-                    condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=targets, source=data.Variables.SOURCE_MAKEFILE, endloc=d.endloc()))
+                    condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=targets))
                 elif token == '|':
                     raise SyntaxError('order-only prerequisites not implemented', d.getloc(offset))
                 else:

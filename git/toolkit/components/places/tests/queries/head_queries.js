@@ -176,8 +176,6 @@ function populateDB(aArray) {
           stmt.params.url = qdata.uri;
           try {
             stmt.execute();
-            // Force a notification so results are updated.
-            histsvc.runInBatchMode({runBatched: function(){}}, null);
           }
           finally {
             stmt.finalize();
@@ -195,8 +193,6 @@ function populateDB(aArray) {
           stmt.params.url = qdata.uri;
           try {
             stmt.execute();
-            // Force a notification so results are updated.
-            histsvc.runInBatchMode({runBatched: function(){}}, null);
           }
           finally {
             stmt.finalize();
@@ -218,46 +214,27 @@ function populateDB(aArray) {
       }
 
       if (qdata.isPageAnnotation) {
-        if (qdata.removeAnnotation) 
-          annosvc.removePageAnnotation(uri(qdata.uri), qdata.annoName);
-        else {
-          annosvc.setPageAnnotation(uri(qdata.uri),
-                                    qdata.annoName, qdata.annoVal,
-                                    qdata.annoFlags, qdata.annoExpiration);
-        }
+        annosvc.setPageAnnotation(uri(qdata.uri), qdata.annoName, qdata.annoVal,
+                                  qdata.annoFlags, qdata.annoExpiration);
       }
 
       if (qdata.isItemAnnotation) {
-        if (qdata.removeAnnotation)
-          annosvc.removeItemAnnotation(qdata.itemId, qdata.annoName);
-        else {
-          annosvc.setItemAnnotation(qdata.itemId, qdata.annoName, qdata.annoVal,
-                                    qdata.annoFlags, qdata.annoExpiration);
-        }
+        annosvc.setItemAnnotation(qdata.itemId, qdata.annoName, qdata.annoVal,
+                                  qdata.annoFlags, qdata.annoExpiration);
       }
 
       if (qdata.isPageBinaryAnnotation) {
-        if (qdata.removeAnnotation)
-          annosvc.removePageAnnotation(uri(qdata.uri), qdata.annoName);
-        else {
-          annosvc.setPageAnnotationBinary(uri(qdata.uri), qdata.annoName,
-                                          qdata.binarydata,
-                                          qdata.binaryDataLength,
-                                          qdata.annoMimeType, qdata.annoFlags,
-                                          qdata.annoExpiration);
-        }
+        annosvc.setPageAnnotationBinary(uri(qdata.uri), qdata.annoName,
+                                        qdata.binarydata, qdata.binaryDataLength,
+                                        qdata.annoMimeType, qdata.annoFlags,
+                                        qdata.annoExpiration);
       }
 
       if (qdata.isItemBinaryAnnotation) {
-        if (qdata.removeAnnotation)
-          annosvc.removeItemAnnotation(qdata.itemId, qdata.annoName);
-        else {
-          annosvc.setItemAnnotationBinary(qdata.itemId, qdata.annoName,
-                                          qdata.binaryData,
-                                          qdata.binaryDataLength,
-                                          qdata.annoMimeType, qdata.annoFlags,
-                                          qdata.annoExpiration);
-        }
+        annosvc.setItemAnnotationBinary(qdata.itemId, qdata.annoName,
+                                        qdata.binaryData, qdata.binaryDataLength,
+                                        qdata.annoMimeType, qdata.annoFlags,
+                                        qdata.annoExpiration);
       }
 
       if (qdata.isFavicon) {
@@ -272,9 +249,7 @@ function populateDB(aArray) {
       }
 
       if (qdata.isFolder) {
-        let folderId = bmsvc.createFolder(qdata.parentFolder, qdata.title, qdata.index);
-        if (qdata.readOnly)
-          bmsvc.setFolderReadonly(folderId, true);
+        bmsvc.createFolder(qdata.parentFolder, qdata.title, qdata.index);
       }
 
       if (qdata.isLivemark) {
@@ -336,7 +311,6 @@ function queryData(obj) {
   this.markPageAsTyped = obj.markPageAsTyped ? obj.markPageAsTyped : false;
   this.hidePage = obj.hidePage ? obj.hidePage : false;
   this.isPageAnnotation = obj.isPageAnnotation ? obj.isPageAnnotation : false;
-  this.removeAnnotation= obj.removeAnnotation ? true : false;
   this.annoName = obj.annoName ? obj.annoName : "";
   this.annoVal = obj.annoVal ? obj.annoVal : "";
   this.annoFlags = obj.annoFlags ? obj.annoFlags : 0;
@@ -368,7 +342,6 @@ function queryData(obj) {
   this.dateAdded = obj.dateAdded ? obj.dateAdded : today;
   this.keyword = obj.keyword ? obj.keyword : "";
   this.visitCount = obj.visitCount ? obj.visitCount : 0;
-  this.readOnly = obj.readOnly ? obj.readOnly : false;
 
   // And now, the attribute for whether or not this object should appear in the
   // resulting query

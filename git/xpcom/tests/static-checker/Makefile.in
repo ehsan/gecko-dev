@@ -129,6 +129,7 @@ STATIC_PASS_TESTCASES = \
   $(FLOW_PASS_TESTCASES) \
   $(NULL)
 
+REQUIRES = xpcom
 
 include $(topsrcdir)/config/rules.mk
 

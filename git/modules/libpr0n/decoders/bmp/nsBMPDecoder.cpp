@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Neil Rashbrook <neil@parkwaycc.co.uk>
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -51,6 +50,8 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 
+#include "imgILoad.h"
+
 #include "prlog.h"
 
 #ifdef PR_LOGGING
@@ -72,47 +73,40 @@ nsBMPDecoder::nsBMPDecoder()
     mState = eRLEStateInitial;
     mStateData = 0;
     mLOH = WIN_HEADER_LENGTH;
-    mError = PR_FALSE;
 }
 
 nsBMPDecoder::~nsBMPDecoder()
 {
-  delete[] mColors;
-  if (mRow)
-      free(mRow);
+    delete[] mColors;
+    if (mRow)
+        free(mRow);
 }
 
-NS_IMETHODIMP nsBMPDecoder::Init(imgIContainer *aImage,
-                                 imgIDecoderObserver *aObserver,
-                                 PRUint32 aFlags)
+NS_IMETHODIMP nsBMPDecoder::Init(imgILoad *aLoad)
 {
-    PR_LOG(gBMPLog, PR_LOG_DEBUG, ("nsBMPDecoder::Init(%p)\n", aImage));
-    mImage = aImage;
-    mObserver = aObserver;
-    mFlags = aFlags;
+    PR_LOG(gBMPLog, PR_LOG_DEBUG, ("nsBMPDecoder::Init(%p)\n", aLoad));
+    mObserver = do_QueryInterface(aLoad);
 
-    // Fire OnStartDecode at init time to support bug 512435
-    if (!(mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY) && mObserver)
-        mObserver->OnStartDecode(nsnull);
+    nsresult rv;
+    mImage = do_CreateInstance("@mozilla.org/image/container;2", &rv);
+    if (NS_FAILED(rv))
+        return rv;
 
-    return NS_OK;
+    return aLoad->SetImage(mImage);
 }
 
-NS_IMETHODIMP nsBMPDecoder::Close(PRUint32 aFlags)
+NS_IMETHODIMP nsBMPDecoder::Close()
 {
     PR_LOG(gBMPLog, PR_LOG_DEBUG, ("nsBMPDecoder::Close()\n"));
 
-    // Send notifications if appropriate
-    if (!(mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY) &&
-        !mError && !(aFlags & CLOSE_FLAG_DONTNOTIFY)) {
-        if (mObserver)
-            mObserver->OnStopFrame(nsnull, 0);
-        mImage->DecodingComplete();
-        if (mObserver) {
-            mObserver->OnStopContainer(nsnull, mImage);
-            mObserver->OnStopDecode(nsnull, NS_OK, nsnull);
-        }
+    mImage->DecodingComplete();
+    if (mObserver) {
+        mObserver->OnStopFrame(nsnull, 0);
+        mObserver->OnStopContainer(nsnull, mImage);
+        mObserver->OnStopDecode(nsnull, NS_OK, nsnull);
+        mObserver = nsnull;
     }
+    mImage = nsnull;
     return NS_OK;
 }
 
@@ -126,31 +120,29 @@ NS_METHOD nsBMPDecoder::ReadSegCb(nsIInputStream* aIn, void* aClosure,
                              PRUint32 aCount, PRUint32 *aWriteCount) 
 {
     nsBMPDecoder *decoder = reinterpret_cast<nsBMPDecoder*>(aClosure);
-
-    // Always read everything
     *aWriteCount = aCount;
-
+    
     nsresult rv = decoder->ProcessData(aFromRawSegment, aCount);
 
-    // Necko doesn't propagate rvs. Set a flag before returning.
-    if (NS_FAILED(rv))
-        decoder->mError = PR_TRUE;
+    if (NS_FAILED(rv)) {
+        *aWriteCount = 0;
+    }
+
     return rv;
 }
 
-NS_IMETHODIMP nsBMPDecoder::WriteFrom(nsIInputStream *aInStr, PRUint32 aCount)
+NS_IMETHODIMP nsBMPDecoder::WriteFrom(nsIInputStream *aInStr, PRUint32 aCount, PRUint32 *aRetval)
 {
-    PR_LOG(gBMPLog, PR_LOG_DEBUG, ("nsBMPDecoder::WriteFrom(%p, %lu, %p)\n", aInStr, aCount));
+    PR_LOG(gBMPLog, PR_LOG_DEBUG, ("nsBMPDecoder::WriteFrom(%p, %lu, %p)\n", aInStr, aCount, aRetval));
 
-    // Decode, watching for errors.
-    nsresult rv = NS_OK;
-    PRUint32 ignored;
-    if (!mError)
-        rv = aInStr->ReadSegments(ReadSegCb, this, aCount, &ignored);
-    if (mError || NS_FAILED(rv)) {
-        return NS_ERROR_FAILURE;
+    nsresult rv = aInStr->ReadSegments(ReadSegCb, this, aCount, aRetval);
+    
+    if (aCount != *aRetval) { 
+        *aRetval = aCount; 
+        return NS_ERROR_FAILURE; 
     }
-    return NS_OK;
+    
+    return rv;    
 }
 
 // ----------------------------------------
@@ -210,6 +202,8 @@ NS_METHOD nsBMPDecoder::ProcessData(const char* aBuffer, PRUint32 aCount)
         aBuffer += toCopy;
     }
     if (mPos == BFH_LENGTH) {
+        rv = mObserver->OnStartDecode(nsnull);
+        NS_ENSURE_SUCCESS(rv, rv);
         ProcessFileHeader();
         if (mBFH.signature[0] != 'B' || mBFH.signature[1] != 'M')
             return NS_ERROR_FAILURE;
@@ -234,30 +228,6 @@ NS_METHOD nsBMPDecoder::ProcessData(const char* aBuffer, PRUint32 aCount)
             mBIH.bpp != 16 && mBIH.bpp != 24 && mBIH.bpp != 32)
           return NS_ERROR_UNEXPECTED;
 
-        // BMPs with negative width are invalid
-        // Reject extremely wide images to keep the math sane
-        const PRInt32 k64KWidth = 0x0000FFFF;
-        if (mBIH.width < 0 || mBIH.width > k64KWidth)
-            return NS_ERROR_FAILURE;
-
-        PRUint32 real_height = (mBIH.height > 0) ? mBIH.height : -mBIH.height;
-
-        // Set the size and notify
-        rv = mImage->SetSize(mBIH.width, real_height);
-        NS_ENSURE_SUCCESS(rv, rv);
-        if (mObserver) {
-            rv = mObserver->OnStartContainer(nsnull, mImage);
-            NS_ENSURE_SUCCESS(rv, rv);
-        }
-
-        // We have the size. If we're doing a header-only decode, we got what
-        // we came for.
-        if (mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY)
-            return NS_OK;
-
-        // We're doing a real decode.
-        mOldLine = mCurLine = real_height;
-
         if (mBIH.bpp <= 8) {
             mNumColors = 1 << mBIH.bpp;
             if (mBIH.colors && mBIH.colors < mNumColors)
@@ -277,6 +247,18 @@ NS_METHOD nsBMPDecoder::ProcessData(const char* aBuffer, PRUint32 aCount)
             mBitFields.blue  = 0x001F;
             CalcBitShift();
         }
+        // BMPs with negative width are invalid
+        // Reject extremely wide images to keep the math sane
+        const PRInt32 k64KWidth = 0x0000FFFF;
+        if (mBIH.width < 0 || mBIH.width > k64KWidth)
+            return NS_ERROR_FAILURE;
+
+        PRUint32 real_height = (mBIH.height > 0) ? mBIH.height : -mBIH.height;
+        rv = mImage->Init(mBIH.width, real_height, mObserver);
+        NS_ENSURE_SUCCESS(rv, rv);
+        rv = mObserver->OnStartContainer(nsnull, mImage);
+        NS_ENSURE_SUCCESS(rv, rv);
+        mOldLine = mCurLine = real_height;
 
         PRUint32 imageLength;
         if ((mBIH.compression == BI_RLE8) || (mBIH.compression == BI_RLE4)) {
@@ -309,10 +291,8 @@ NS_METHOD nsBMPDecoder::ProcessData(const char* aBuffer, PRUint32 aCount)
             memset(mImageData, 0, imageLength);
         }
 
-        if (mObserver) {
-            mObserver->OnStartFrame(nsnull, 0);
-            NS_ENSURE_SUCCESS(rv, rv);
-        }
+        mObserver->OnStartFrame(nsnull, 0);
+        NS_ENSURE_SUCCESS(rv, rv);
     }
     PRUint8 bpc; // bytes per color
     bpc = (mBFH.bihsize == OS2_BIH_LENGTH) ? 3 : 4; // OS/2 Bitmaps have no padding byte
@@ -619,8 +599,7 @@ NS_METHOD nsBMPDecoder::ProcessData(const char* aBuffer, PRUint32 aCount)
         rv = mImage->FrameUpdated(0, r); 
         NS_ENSURE_SUCCESS(rv, rv);
 
-        if (mObserver)
-            mObserver->OnDataAvailable(nsnull, PR_TRUE, &r);
+        mObserver->OnDataAvailable(nsnull, PR_TRUE, &r);
         mOldLine = mCurLine;
     }
 

@@ -53,8 +53,6 @@ NS_NewSVGClipPathFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsSVGClipPathFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGClipPathFrame)
-
 nsresult
 nsSVGClipPathFrame::ClipPaint(nsSVGRenderState* aContext,
                               nsIFrame* aParent,

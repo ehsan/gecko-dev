@@ -642,8 +642,13 @@ function restoreDefaultSet()
   }
 
   // Restore the default icon size and mode.
-  document.getElementById("smallicons").checked = (updateIconSize() == "small");
-  document.getElementById("modelist").value = updateToolbarMode();
+  var defaultMode = gToolbox.getAttribute("defaultmode");
+  var defaultIconsSmall = gToolbox.getAttribute("defaulticonsize") == "small";
+
+  updateIconSize(defaultIconsSmall, true);
+  document.getElementById("smallicons").checked = defaultIconsSmall;
+  updateToolbarMode(defaultMode, true);
+  document.getElementById("modelist").value = defaultMode;
 
   // Now rebuild the palette.
   buildPalette();
@@ -654,40 +659,52 @@ function restoreDefaultSet()
   toolboxChanged("reset");
 }
 
-function updateIconSize(aSize) {
-  return updateToolboxProperty("iconsize", aSize);
+function updateIconSize(aUseSmallIcons, localDefault)
+{
+  gToolboxIconSize = aUseSmallIcons ? "small" : "large";
+
+  setAttribute(gToolbox, "iconsize", gToolboxIconSize);
+  gToolboxDocument.persist(gToolbox.id, "iconsize");
+
+  for (var i = 0; i < gToolbox.childNodes.length; ++i) {
+    var toolbar = getToolbarAt(i);
+    if (isCustomizableToolbar(toolbar)) {
+      var toolbarIconSize = (localDefault && toolbar.hasAttribute("defaulticonsize")) ?
+                            toolbar.getAttribute("defaulticonsize") :
+                            gToolboxIconSize;
+      setAttribute(toolbar, "iconsize", toolbarIconSize);
+      gToolboxDocument.persist(toolbar.id, "iconsize");
+    }
+  }
 }
 
-function updateToolbarMode(aModeValue) {
-  var mode = updateToolboxProperty("mode", aModeValue);
+function updateToolbarMode(aModeValue, localDefault)
+{
+  setAttribute(gToolbox, "mode", aModeValue);
+  gToolboxDocument.persist(gToolbox.id, "mode");
+
+  for (var i = 0; i < gToolbox.childNodes.length; ++i) {
+    var toolbar = getToolbarAt(i);
+    if (isCustomizableToolbar(toolbar)) {
+      var toolbarMode = (localDefault && toolbar.hasAttribute("defaultmode")) ?
+                        toolbar.getAttribute("defaultmode") :
+                        aModeValue;
+      setAttribute(toolbar, "mode", toolbarMode);
+      gToolboxDocument.persist(toolbar.id, "mode");
+    }
+  }
 
   var iconSizeCheckbox = document.getElementById("smallicons");
-  iconSizeCheckbox.disabled = mode == "text";
-
-  return mode;
+  iconSizeCheckbox.disabled = aModeValue == "text";
 }
 
-function updateToolboxProperty(aProp, aValue) {
-  var toolboxDefault = gToolbox.getAttribute("default" + aProp);
 
-  gToolbox.setAttribute(aProp, aValue || toolboxDefault);
-  gToolboxDocument.persist(gToolbox.id, aProp);
-
-  Array.forEach(gToolbox.childNodes, function (toolbar) {
-    if (!isCustomizableToolbar(toolbar))
-      return;
-
-    var toolbarDefault = toolbar.getAttribute("default" + aProp) ||
-                         toolboxDefault;
-    if (toolbar.getAttribute("lock" + aProp) == "true" &&
-        toolbar.getAttribute(aProp) == toolbarDefault)
-      return;
-
-    toolbar.setAttribute(aProp, aValue || toolbarDefault);
-    gToolboxDocument.persist(toolbar.id, aProp);
-  });
-
-  return aValue;
+function setAttribute(aElt, aAttr, aVal)
+{
+ if (aVal)
+    aElt.setAttribute(aAttr, aVal);
+  else
+    aElt.removeAttribute(aAttr);
 }
 
 function isCustomizableToolbar(aElt)

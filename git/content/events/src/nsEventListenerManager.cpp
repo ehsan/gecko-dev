@@ -470,10 +470,6 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
                                    kAllMutationBits :
                                    MutationBitForEventType(aType));
     }
-  } else if (aTypeAtom == nsGkAtoms::onMozOrientation) {
-    nsPIDOMWindow* window = GetInnerWindowForTarget();
-    if (window)
-      window->SetHasOrientationEventListener();
   }
 
   return NS_OK;
@@ -832,13 +828,17 @@ nsEventListenerManager::RegisterScriptEventListener(nsIScriptContext *aContext,
 
     if (aContext->GetScriptTypeID() == nsIProgrammingLanguage::JAVASCRIPT) {
         nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-        jsval v;
-        rv = nsContentUtils::WrapNative(cx, (JSObject *)aScope, aObject, &v,
-                                        getter_AddRefs(holder));
+        rv = nsContentUtils::XPConnect()->
+          WrapNative(cx, (JSObject *)aScope, aObject, NS_GET_IID(nsISupports),
+                     getter_AddRefs(holder));
         NS_ENSURE_SUCCESS(rv, rv);
+        JSObject *jsobj = nsnull;
       
+        rv = holder->GetJSObject(&jsobj);
+        NS_ENSURE_SUCCESS(rv, rv);
+
         rv = nsContentUtils::GetSecurityManager()->
-          CheckPropertyAccess(cx, JSVAL_TO_OBJECT(v),
+          CheckPropertyAccess(cx, jsobj,
                               "EventTarget",
                               sAddListenerID,
                               nsIXPCSecurityManager::ACCESS_SET_PROPERTY);

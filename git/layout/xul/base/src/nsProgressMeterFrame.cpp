@@ -61,9 +61,7 @@ nsIFrame*
 NS_NewProgressMeterFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsProgressMeterFrame(aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsProgressMeterFrame)
+} // NS_NewProgressMeterFrame
 
 //
 // nsProgressMeterFrame dstr

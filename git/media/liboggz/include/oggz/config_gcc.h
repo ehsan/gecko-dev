@@ -1,6 +1,9 @@
 /* config.h.  Generated from config.h.in by configure.  */
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Define if building universal (internal helper macro) */
+/* #undef AC_APPLE_UNIVERSAL_BUILD */
+
 /* Define if the compiler implements enums as signed values. */
 /* #undef ALLOW_SIGNED_ENUMS */
 
@@ -11,7 +14,7 @@
 #define HAVE_FCNTL_H 1
 
 /* Define to 1 if you have the 'getopt_long' function */
-#define HAVE_GETOPT_LONG 
+#define HAVE_GETOPT_LONG /**/
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
@@ -21,6 +24,10 @@
 
 /* Define to 1 if you have the <memory.h> header file. */
 #define HAVE_MEMORY_H 1
+
+/* Define to 1 if your system has a GNU libc compatible `realloc' function,
+   and to 0 otherwise. */
+#define HAVE_REALLOC 1
 
 /* Define to 1 if the system has the type `ssize_t'. */
 #define HAVE_SSIZE_T 1
@@ -63,7 +70,7 @@
 #define OGGZ_OFF_MAX 0x7FFFFFFFFFFFFFFFLL
 
 /* Define if <ogg/ogg.h> is const-correct */
-/* #undef OGG_H_CONST_CORRECT */
+#define OGG_H_CONST_CORRECT /**/
 
 /* Name of package */
 #define PACKAGE "liboggz"
@@ -104,12 +111,25 @@
 /* Version number of package */
 #define VERSION "0.9.9"
 
-/* Define to 1 if your processor stores words with the most significant byte
-   first (like Motorola and SPARC, unlike Intel and VAX). */
-/* #undef WORDS_BIGENDIAN */
+/* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
+   significant byte first (like Motorola and SPARC, unlike Intel). */
+#if defined AC_APPLE_UNIVERSAL_BUILD
+# if defined __BIG_ENDIAN__
+#  define WORDS_BIGENDIAN 1
+# endif
+#else
+# ifndef WORDS_BIGENDIAN
+/* #  undef WORDS_BIGENDIAN */
+# endif
+#endif
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 #define _FILE_OFFSET_BITS 64
+
+#include "prcpucfg.h"
+#ifdef IS_BIG_ENDIAN
+#define WORDS_BIGENDIAN
+#endif
 
 /* Define to make fseeko etc. visible, on some hosts. */
 #define _LARGEFILE_SOURCE 1
@@ -126,10 +146,8 @@
 /* Define to `long int' if <sys/types.h> does not define. */
 /* #undef off_t */
 
-#include "prcpucfg.h"
-#ifdef IS_BIG_ENDIAN
-#define WORDS_BIGENDIAN
-#endif
+/* Define to rpl_realloc if the replacement function should be used. */
+/* #undef realloc */
 
 /* Define to `unsigned int' if <sys/types.h> does not define. */
 /* #undef size_t */

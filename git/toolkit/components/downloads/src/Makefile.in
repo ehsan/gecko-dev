@@ -49,6 +49,27 @@ LIBRARY_NAME  = download_s
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
 
+REQUIRES  = xpcom \
+            string \
+            rdf \
+            uriloader \
+            mimetype \
+            necko \
+            pref \
+            intl \
+            windowwatcher \
+            webbrowserpersist \
+            appshell \
+            dom \
+            embed_base \
+            alerts \
+            parentalcontrols \
+            storage \
+            exthandler \
+            docshell \
+            toolkitcomps \
+            places \
+            $(NULL)
 
 CPPSRCS   = \
     nsDownloadManager.cpp \
@@ -57,6 +78,7 @@ CPPSRCS   = \
 ifndef GNU_CXX
 ifeq ($(OS_ARCH),WINNT)
 CPPSRCS += nsDownloadScanner.cpp
+REQUIRES += xulapp
 endif
 endif
 

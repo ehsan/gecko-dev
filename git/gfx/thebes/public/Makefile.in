@@ -8,6 +8,9 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= thebes
 
+REQUIRES	= cairo \
+			unicharutil \
+			$(NULL)
 
 EXPORTS		= 	gfxASurface.h \
 			gfxAlphaRecovery.h \

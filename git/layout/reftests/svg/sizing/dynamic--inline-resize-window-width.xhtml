@@ -40,9 +40,7 @@ function handle_load(e)
 function restore_width()
 {
   top.innerWidth = initial_width;
-  document.addEventListener("MozReftestInvalidate", notify_test_finished, false);
-  // in case we're not gecko
-  setTimeout(notify_test_finished, 5000);
+  setTimeout(notify_test_finished, 50); // allow some time for layout and rendering
 }
 
 function notify_test_finished()

@@ -58,9 +58,7 @@ nsIFrame*
 NS_NewStackFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsStackFrame(aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsStackFrame)
+} // NS_NewStackFrame
 
 nsStackFrame::nsStackFrame(nsIPresShell* aPresShell, nsStyleContext* aContext):
   nsBoxFrame(aPresShell, aContext)

@@ -65,7 +65,6 @@
 #include "nsLayoutStylesheetCache.h"
 #include "nsNodeInfo.h"
 #include "nsRange.h"
-#include "nsRegion.h"
 #include "nsRepeatService.h"
 #include "nsFloatManager.h"
 #include "nsSprocketLayout.h"
@@ -156,12 +155,6 @@ nsLayoutStatics::Initialize()
   nsGkAtoms::AddRefAtoms();
 
   nsJSRuntime::Startup();
-  rv = nsRegion::InitStatic();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsRegion");
-    return rv;
-  }
-
   rv = nsContentUtils::Init();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsContentUtils");
@@ -382,8 +375,6 @@ nsLayoutStatics::Shutdown()
   nsXMLHttpRequest::ShutdownACCache();
   
   nsHtml5Module::ReleaseStatics();
-
-  nsRegion::ShutdownStatic();
 
   NS_ShutdownChainItemPool();
 

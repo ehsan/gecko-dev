@@ -42,13 +42,11 @@
 
 #include "Accessible2.h"
 #include "AccessibleTable_i.c"
-#include "AccessibleTable2_i.c"
 
 #include "nsIAccessible.h"
 #include "nsIAccessibleTable.h"
 #include "nsIWinAccessNode.h"
 #include "nsAccessNodeWrap.h"
-#include "nsWinUtils.h"
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
@@ -69,16 +67,9 @@ CAccessibleTable::QueryInterface(REFIID iid, void** ppv)
     return S_OK;
   }
 
-  if (IID_IAccessibleTable2 == iid) {
-    *ppv = static_cast<IAccessibleTable2*>(this);
-    (reinterpret_cast<IUnknown*>(*ppv))->AddRef();
-    return S_OK;
-  }
-
   return E_NOINTERFACE;
 }
 
-////////////////////////////////////////////////////////////////////////////////
 // IAccessibleTable
 
 STDMETHODIMP
@@ -94,7 +85,7 @@ __try {
     return E_FAIL;
 
   nsCOMPtr<nsIAccessible> cell;
-  nsresult rv = tableAcc->GetCellAt(aRow, aColumn, getter_AddRefs(cell));
+  nsresult rv = tableAcc->CellRefAt(aRow, aColumn, getter_AddRefs(cell));
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
@@ -162,15 +153,14 @@ __try {
     return E_FAIL;
 
   PRInt32 childIndex = 0;
-  nsresult rv = tableAcc->GetCellIndexAt(aRowIndex, aColumnIndex, &childIndex);
+  nsresult rv = tableAcc->GetIndexAt(aRowIndex, aColumnIndex, &childIndex);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
   *aChildIndex = childIndex;
   return S_OK;
 
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
-                                                  GetExceptionInformation())) { }
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
 
@@ -230,11 +220,37 @@ CAccessibleTable::get_columnHeader(IAccessibleTable **aAccessibleTable,
 {
 __try {
   *aAccessibleTable = NULL;
-  *aStartingRowIndex = -1;
 
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
-                                                  GetExceptionInformation())) {}
-  return E_NOTIMPL;
+  // XXX: starting row index is always 0.
+  *aStartingRowIndex = 0;
+
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryInterface(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
+
+  nsCOMPtr<nsIAccessibleTable> header;
+  nsresult rv = tableAcc->GetColumnHeader(getter_AddRefs(header));
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  if (!header)
+    return S_FALSE;
+
+  nsCOMPtr<nsIWinAccessNode> winAccessNode(do_QueryInterface(header));
+  if (!winAccessNode)
+    return E_FAIL;
+
+  void *instancePtr = NULL;
+  rv = winAccessNode->QueryNativeInterface(IID_IAccessibleTable, &instancePtr);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  *aAccessibleTable = static_cast<IAccessibleTable*>(instancePtr);
+  return S_OK;
+
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
@@ -249,15 +265,14 @@ __try {
     return E_FAIL;
 
   PRInt32 columnIndex = 0;
-  nsresult rv = tableAcc->GetColumnIndexAt(aChildIndex, &columnIndex);
+  nsresult rv = tableAcc->GetColumnAtIndex(aChildIndex, &columnIndex);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
   *aColumnIndex = columnIndex;
   return S_OK;
 
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
-                                                  GetExceptionInformation())) {}
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
 
@@ -273,15 +288,14 @@ __try {
     return E_FAIL;
 
   PRInt32 columnCount = 0;
-  nsresult rv = tableAcc->GetColumnCount(&columnCount);
+  nsresult rv = tableAcc->GetColumns(&columnCount);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
   *aColumnCount = columnCount;
   return S_OK;
 
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
-                                                  GetExceptionInformation())) {}
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
 
@@ -297,15 +311,14 @@ __try {
     return E_FAIL;
 
   PRInt32 rowCount = 0;
-  nsresult rv = tableAcc->GetRowCount(&rowCount);
+  nsresult rv = tableAcc->GetRows(&rowCount);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
   *aRowCount = rowCount;
   return S_OK;
 
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
-                                                  GetExceptionInformation())) {}
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
 
@@ -321,7 +334,7 @@ __try {
     return E_FAIL;
 
   PRUint32 count = 0;
-  nsresult rv = tableAcc->GetSelectedCellCount(&count);
+  nsresult rv = tableAcc->GetSelectedCellsCount(&count);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
@@ -344,7 +357,7 @@ __try {
     return E_FAIL;
 
   PRUint32 count = 0;
-  nsresult rv = tableAcc->GetSelectedColumnCount(&count);
+  nsresult rv = tableAcc->GetSelectedColumnsCount(&count);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
@@ -367,7 +380,7 @@ __try {
     return E_FAIL;
 
   PRUint32 count = 0;
-  nsresult rv = tableAcc->GetSelectedRowCount(&count);
+  nsresult rv = tableAcc->GetSelectedRowsCount(&count);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
@@ -433,11 +446,38 @@ CAccessibleTable::get_rowHeader(IAccessibleTable **aAccessibleTable,
 {
 __try {
   *aAccessibleTable = NULL;
-  *aStartingColumnIndex = -1;
 
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
-                                                  GetExceptionInformation())) {}
-  return E_NOTIMPL;
+  // XXX: starting column index is always 0.
+  *aStartingColumnIndex = 0;
+
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryInterface(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
+
+  nsCOMPtr<nsIAccessibleTable> header;
+  nsresult rv = tableAcc->GetRowHeader(getter_AddRefs(header));
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  if (!header)
+    return S_FALSE;
+
+  nsCOMPtr<nsIWinAccessNode> winAccessNode(do_QueryInterface(header));
+  if (!winAccessNode)
+    return E_FAIL;
+
+  void *instancePtr = NULL;
+  rv = winAccessNode->QueryNativeInterface(IID_IAccessibleTable,
+                                           &instancePtr);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  *aAccessibleTable = static_cast<IAccessibleTable*>(instancePtr);
+  return S_OK;
+
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
@@ -452,15 +492,14 @@ __try {
     return E_FAIL;
 
   PRInt32 rowIndex = 0;
-  nsresult rv = tableAcc->GetRowIndexAt(aChildIndex, &rowIndex);
+  nsresult rv = tableAcc->GetRowAtIndex(aChildIndex, &rowIndex);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
   *aRowIndex = rowIndex;
   return S_OK;
 
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
-                                                  GetExceptionInformation())) {}
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
 
@@ -469,10 +508,8 @@ CAccessibleTable::get_selectedChildren(long aMaxChildren, long **aChildren,
                                        long *aNChildren)
 {
 __try {
-  return GetSelectedItems(aChildren, aNChildren, ITEMSTYPE_CELLS);
-
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
-                                                  GetExceptionInformation())) {}
+  return GetSelectedItems(aMaxChildren, aChildren, aNChildren, ITEMSTYPE_CELLS);
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
 
@@ -481,10 +518,8 @@ CAccessibleTable::get_selectedColumns(long aMaxColumns, long **aColumns,
                                       long *aNColumns)
 {
 __try {
-  return GetSelectedItems(aColumns, aNColumns, ITEMSTYPE_COLUMNS);
-
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
-                                                  GetExceptionInformation())) {}
+  return GetSelectedItems(aMaxColumns, aColumns, aNColumns, ITEMSTYPE_COLUMNS);
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
 
@@ -492,10 +527,8 @@ STDMETHODIMP
 CAccessibleTable::get_selectedRows(long aMaxRows, long **aRows, long *aNRows)
 {
 __try {
-  return GetSelectedItems(aRows, aNRows, ITEMSTYPE_ROWS);
-
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
-                                                  GetExceptionInformation())) {}
+  return GetSelectedItems(aMaxRows, aRows, aNRows, ITEMSTYPE_ROWS);
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
 
@@ -667,12 +700,12 @@ __try {
     return E_FAIL;
 
   PRInt32 row = -1;
-  nsresult rv = tableAcc->GetRowIndexAt(aIndex, &row);
+  nsresult rv = tableAcc->GetRowAtIndex(aIndex, &row);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
   PRInt32 column = -1;
-  rv = tableAcc->GetColumnIndexAt(aIndex, &column);
+  rv = tableAcc->GetColumnAtIndex(aIndex, &column);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
@@ -711,71 +744,11 @@ __try {
   return E_NOTIMPL;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// IAccessibleTable2
-
-STDMETHODIMP
-CAccessibleTable::get_cellAt(long row, long column, IUnknown **cell)
-{
-  return get_accessibleAt(row, column, cell);
-}
-
-STDMETHODIMP
-CAccessibleTable::get_nSelectedCells(long *cellCount)
-{
-  return get_nSelectedChildren(cellCount);
-}
-
-STDMETHODIMP
-CAccessibleTable::get_selectedCells(IUnknown ***cells, long *nSelectedCells)
-{
-__try {
-  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryInterface(this));
-  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
-  if (!tableAcc)
-    return E_FAIL;
-
-  nsCOMPtr<nsIArray> geckoCells;
-  nsresult rv = tableAcc->GetSelectedCells(getter_AddRefs(geckoCells));
-  if (NS_FAILED(rv))
-    return GetHRESULT(rv);
-
-  return nsWinUtils::ConvertToIA2Array(geckoCells, cells, nSelectedCells);
-
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
-                                                  GetExceptionInformation())) {}
-
-  return E_FAIL;
-}
-
-STDMETHODIMP
-CAccessibleTable::get_selectedColumns(long **aColumns, long *aNColumns)
-{
-__try {
-  return GetSelectedItems(aColumns, aNColumns, ITEMSTYPE_COLUMNS);
-
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
-                                                  GetExceptionInformation())) {}
-  return E_FAIL;
-}
-
-STDMETHODIMP
-CAccessibleTable::get_selectedRows(long **aRows, long *aNRows)
-{
-__try {
-  return GetSelectedItems(aRows, aNRows, ITEMSTYPE_ROWS);
-
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
-                                                  GetExceptionInformation())) {}
-  return E_FAIL;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// CAccessibleTable public
+// CAccessibleTable
 
 HRESULT
-CAccessibleTable::GetSelectedItems(long **aItems, long *aItemsCount,
-                                   eItemsType aType)
+CAccessibleTable::GetSelectedItems(long aMaxItems, long **aItems,
+                                   long *aItemsCount, eItemsType aType)
 {
   *aItemsCount = 0;
 
@@ -790,13 +763,13 @@ CAccessibleTable::GetSelectedItems(long **aItems, long *aItemsCount,
   nsresult rv = NS_OK;
   switch (aType) {
     case ITEMSTYPE_CELLS:
-      rv = tableAcc->GetSelectedCellIndices(&size, &items);
+      rv = tableAcc->GetSelectedCells(&size, &items);
       break;
     case ITEMSTYPE_COLUMNS:
-      rv = tableAcc->GetSelectedColumnIndices(&size, &items);
+      rv = tableAcc->GetSelectedColumns(&size, &items);
       break;
     case ITEMSTYPE_ROWS:
-      rv = tableAcc->GetSelectedRowIndices(&size, &items);
+      rv = tableAcc->GetSelectedRows(&size, &items);
       break;
     default:
       return E_FAIL;
@@ -808,12 +781,14 @@ CAccessibleTable::GetSelectedItems(long **aItems, long *aItemsCount,
   if (size == 0 || !items)
     return S_FALSE;
 
-  *aItems = static_cast<long*>(nsMemory::Alloc((size) * sizeof(long)));
+  PRUint32 maxSize = size < static_cast<PRUint32>(aMaxItems) ? size : aMaxItems;
+  *aItemsCount = maxSize;
+
+  *aItems = static_cast<long*>(nsMemory::Alloc((maxSize) * sizeof(long)));
   if (!*aItems)
     return E_OUTOFMEMORY;
 
-  *aItemsCount = size;
-  for (PRUint32 index = 0; index < size; ++index)
+  for (PRUint32 index = 0; index < maxSize; ++index)
     (*aItems)[index] = items[index];
 
   nsMemory::Free(items);

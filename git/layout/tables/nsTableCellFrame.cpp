@@ -82,9 +82,7 @@ nsTableCellFrame::~nsTableCellFrame()
 {
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsTableCellFrame)
-
-nsTableCellFrame*
+nsTableCellFrame*  
 nsTableCellFrame::GetNextCell() const
 {
   nsIFrame* childFrame = GetNextSibling();
@@ -363,24 +361,22 @@ nsTableCellFrame::DecorateForSelection(nsIRenderingContext& aRenderingContext,
 void
 nsTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
                                   const nsRect&        aDirtyRect,
-                                  nsPoint              aPt,
-                                  PRUint32             aFlags)
+                                  nsPoint              aPt)
 {
   nsRect rect(aPt, GetSize());
   nsCSSRendering::PaintBackground(PresContext(), aRenderingContext, this,
-                                  aDirtyRect, rect, aFlags);
+                                  aDirtyRect, rect, 0);
 }
 
 // Called by nsTablePainter
 void
 nsTableCellFrame::PaintCellBackground(nsIRenderingContext& aRenderingContext,
-                                      const nsRect& aDirtyRect, nsPoint aPt,
-                                      PRUint32 aFlags)
+                                      const nsRect& aDirtyRect, nsPoint aPt)
 {
   if (!GetStyleVisibility()->IsVisible())
     return;
 
-  PaintBackground(aRenderingContext, aDirtyRect, aPt, aFlags);
+  PaintBackground(aRenderingContext, aDirtyRect, aPt);
 }
 
 class nsDisplayTableCellBackground : public nsDisplayTableItem {
@@ -407,8 +403,7 @@ void nsDisplayTableCellBackground::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   static_cast<nsTableCellFrame*>(mFrame)->
-    PaintBackground(*aCtx, aDirtyRect, aBuilder->ToReferenceFrame(mFrame),
-                    aBuilder->GetBackgroundPaintFlags());
+    PaintBackground(*aCtx, aDirtyRect, aBuilder->ToReferenceFrame(mFrame));
 }
 
 nsRect
@@ -591,7 +586,7 @@ void nsTableCellFrame::VerticallyAlignChild(nscoord aMaxAscent)
       kidYTop = (height - childHeight - bottomInset + topInset) / 2;
   }
   // if the content is larger than the cell height align from top
-  kidYTop = NS_MAX(0, kidYTop);
+  kidYTop = PR_MAX(0, kidYTop);
 
   if (kidYTop != kidRect.y) {
     // Invalidate at the old position first
@@ -1029,8 +1024,6 @@ NS_NewTableCellFrame(nsIPresShell*   aPresShell,
     return new (aPresShell) nsTableCellFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsBCTableCellFrame)
-
 nsMargin* 
 nsTableCellFrame::GetBorderWidth(nsMargin&  aBorder) const
 {
@@ -1156,8 +1149,7 @@ nsBCTableCellFrame::GetSelfOverflow(nsRect& aOverflowArea)
 void
 nsBCTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
                                     const nsRect&        aDirtyRect,
-                                    nsPoint              aPt,
-                                    PRUint32             aFlags)
+                                    nsPoint              aPt)
 {
   // make border-width reflect the half of the border-collapse
   // assigned border that's inside the cell
@@ -1176,5 +1168,5 @@ nsBCTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
   nsCSSRendering::PaintBackgroundWithSC(PresContext(), aRenderingContext, this,
                                         aDirtyRect, rect,
                                         *GetStyleBackground(), myBorder,
-                                        aFlags, nsnull);
+                                        0, nsnull);
 }

@@ -177,7 +177,18 @@ GPSDProvider.prototype = {
     LOG("shutdown called\n"); 
     this.outputStream.close();
     this.inputStream.close();
-    this.transport.close(Components.results.NS_OK);
+    this.transport.close();
+  },
+  
+  isReady: function() {
+    LOG("isReady called\n");
+    try {
+      this.inputStream.available();
+    } catch (e) {
+      return false;
+    }
+
+    return true;
   },
   
   watch: function(c) {

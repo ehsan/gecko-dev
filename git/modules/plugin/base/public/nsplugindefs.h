@@ -201,7 +201,6 @@ enum nsPluginInstanceVariable {
     nsPluginInstanceVariable_WantsAllNetworkStreams  = 18
 #ifdef XP_MACOSX
     , nsPluginInstanceVariable_DrawingModel          = 20
-    , nsPluginInstanceVariable_EventModel            = 21
 #endif
 };
 
@@ -231,7 +230,7 @@ enum nsPluginWindowType {
 
 #ifdef XP_MACOSX
 
-typedef void* nsPluginPlatformWindowRef;
+typedef WindowRef       nsPluginPlatformWindowRef;
 
 #ifndef NP_NO_QUICKDRAW
 struct nsPluginPortQD {
@@ -245,7 +244,7 @@ typedef RgnHandle       nsPluginRegionQD;
 
 struct nsPluginPortCG {
     CGContextRef context;
-    void* window;
+    WindowRef window;
 };
 
 typedef CGPathRef       nsPluginRegionCG;
@@ -320,8 +319,8 @@ struct nsPluginPrint {
 struct nsPluginEvent {
 
 #ifdef XP_MACOSX
-  void* event;
-  nsPluginPlatformWindowRef window;
+    EventRecord*                event;
+    nsPluginPlatformWindowRef   window;
 
 #elif defined(XP_OS2)
     uint32      event;

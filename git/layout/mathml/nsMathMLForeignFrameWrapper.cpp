@@ -64,8 +64,6 @@ NS_NewMathMLForeignFrameWrapper(nsIPresShell* aPresShell, nsStyleContext* aConte
   return new (aPresShell) nsMathMLForeignFrameWrapper(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMathMLForeignFrameWrapper)
-
 NS_IMETHODIMP
 nsMathMLForeignFrameWrapper::Reflow(nsPresContext*          aPresContext,
                                     nsHTMLReflowMetrics&     aDesiredSize,

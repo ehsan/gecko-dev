@@ -48,7 +48,6 @@
 #include "nsIScriptContext.h"
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
 #include "nsIScriptGlobalObject.h"
-#include "nsContentUtils.h"
 
 class nsIDOMWindow;
 class nsIDOMNSHTMLOptionCollection;
@@ -138,11 +137,7 @@ public:
                              PRBool aAllowWrapping, jsval *vp,
                              // If non-null aHolder will keep the jsval alive
                              // while there's a ref to it
-                             nsIXPConnectJSObjectHolder** aHolder = nsnull)
-  {
-    return nsContentUtils::WrapNative(cx, scope, native, aIID, vp, aHolder,
-                                      aAllowWrapping);
-  }
+                             nsIXPConnectJSObjectHolder** aHolder = nsnull);
 
   // Same as the WrapNative above, but use this one if aIID is nsISupports' IID.
   static nsresult WrapNative(JSContext *cx, JSObject *scope,

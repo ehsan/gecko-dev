@@ -40,22 +40,38 @@
 
 #include "nsCacheMetaData.h"
 #include "nsICacheEntryDescriptor.h"
-#include "prmem.h"
+#include "nsString.h"
+#include "nsReadableUtils.h"
+#include "plstr.h"
+
+nsCacheMetaData::nsCacheMetaData()
+    : mData(nsnull), mMetaSize(0)
+{
+}
+
+void
+nsCacheMetaData::Clear()
+{
+    mMetaSize = 0;
+    MetaElement * elem;
+    while (mData) {
+        elem = mData->mNext;
+        delete mData;
+        mData = elem;
+    }
+}
 
 const char *
 nsCacheMetaData::GetElement(const char * key)
 {
-    const char * data = mBuffer;
-    const char * limit = mBuffer + mMetaSize;
+    // We assume the number of meta data elements will be very small, so
+    // we keep it real simple.  Singly-linked list, linearly searched.
 
-    while (data < limit) {
-        // Point to the value part
-        const char * value = data + strlen(data) + 1;
-        if (strcmp(data, key) == 0)
-            return value;
-
-        // Skip value part
-        data = value + strlen(value) + 1;
+    MetaElement * elem = mData;
+    while (elem) {
+        if (elem->mKey.EqualsASCII(key))
+            return elem->mValue;
+        elem = elem->mNext;
     }
     return nsnull;
 }
@@ -65,52 +81,54 @@ nsresult
 nsCacheMetaData::SetElement(const char * key,
                             const char * value)
 {
-    const PRUint32 keySize = strlen(key) + 1;
-    char * pos = (char *)GetElement(key);
+    PRUint32 keySize = strlen(key);
+    PRUint32 valueSize = value ? strlen(value) : 0;
 
-    if (!value) {
-        // No value means remove the key/value pair completely, if existing
-        if (pos) {
-            PRUint32 oldValueSize = strlen(pos) + 1;
-            PRUint32 offset = pos - mBuffer;
-            PRUint32 remainder = mMetaSize - (offset + oldValueSize);
-
-            memmove(pos - keySize, pos + oldValueSize, remainder);
-            mMetaSize -= keySize + oldValueSize;
+    // find and remove or update old meta data element
+    MetaElement * elem = mData, * last = nsnull;
+    while (elem) {
+        if (elem->mKey.Equals(key)) {
+            // Get length of old value
+            PRUint32 oldValueLen = strlen(elem->mValue);
+            if (valueSize == oldValueLen) {
+                // Just replace value
+                memcpy(elem->mValue, value, valueSize);
+                return NS_OK;
+            }
+            // remove elem
+            if (last)
+                last->mNext = elem->mNext;
+            else
+                mData = elem->mNext;
+            // 2 for the zero bytes of both strings
+            mMetaSize -= 2 + keySize + oldValueLen;
+            delete elem;
+            break;
         }
-        return NS_OK;
+        last = elem;
+        elem = elem->mNext;
     }
 
-    const PRUint32 valueSize = strlen(value) + 1;
-    PRUint32 newSize = mMetaSize + valueSize;
-    if (pos) {
-        const PRUint32 oldValueSize = strlen(pos) + 1;
-        const PRUint32 offset = pos - mBuffer;
-        const PRUint32 remainder = mMetaSize - (offset + oldValueSize);
+    // allocate new meta data element
+    if (value) {
+        elem = new (value, valueSize) MetaElement;
+        if (!elem)
+            return NS_ERROR_OUT_OF_MEMORY;
+        elem->mKey.Assign(key);
 
-        // Update the value in place
-        newSize -= oldValueSize;
-        nsresult rv = EnsureBuffer(newSize);
-        NS_ENSURE_SUCCESS(rv, rv);
+        // insert after last or as first element...
+        if (last) {
+            elem->mNext = last->mNext;
+            last->mNext = elem;
+        }
+        else {
+            elem->mNext = mData;
+            mData = elem;
+        }
 
-        // Move the remainder to the right place
-        pos = mBuffer + offset;
-        memmove(pos + valueSize, pos + oldValueSize, remainder);
-    } else {
-        // allocate new meta data element
-        newSize += keySize;
-        nsresult rv = EnsureBuffer(newSize);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        // Add after last element
-        pos = mBuffer + mMetaSize;
-        memcpy(pos, key, keySize);
-        pos += keySize;
+        // Adjust CacheMetaData size, 2 for the zero bytes of both strings
+        mMetaSize += 2 + keySize + valueSize;
     }
-
-    // Update value
-    memcpy(pos, value, valueSize);
-    mMetaSize = newSize;
 
     return NS_OK;
 }
@@ -123,19 +141,56 @@ nsCacheMetaData::FlattenMetaData(char * buffer, PRUint32 bufSize)
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    memcpy(buffer, mBuffer, mMetaSize);
+    MetaElement * elem = mData;
+    while (elem) {
+        PRUint32 keySize = 1 + elem->mKey.Length();
+        memcpy(buffer, elem->mKey.get(), keySize);
+        buffer += keySize;
+
+        PRUint32 valSize = 1 + strlen(elem->mValue);
+        memcpy(buffer, elem->mValue, valSize);
+        buffer += valSize;
+
+        elem = elem->mNext;
+    }
     return NS_OK;
 }
 
 nsresult
 nsCacheMetaData::UnflattenMetaData(const char * data, PRUint32 size)
 {
-    if (data && size) {
-        nsresult rv = EnsureBuffer(size);
-        NS_ENSURE_SUCCESS(rv, rv);
+    if (size == 0) return NS_OK;
 
-        memcpy(mBuffer, data, size);
-        mMetaSize = size;
+    const char* limit = data + size;
+    MetaElement * last = nsnull;
+
+    while (data < limit) {
+        const char* key = data;
+        PRUint32 keySize = strlen(key);
+        data += 1 + keySize;
+        if (data < limit) {
+            PRUint32 valueSize = strlen(data);
+            MetaElement *elem = new (data, valueSize) MetaElement;
+            if (!elem)
+                 return NS_ERROR_OUT_OF_MEMORY;
+            elem->mKey.Assign(key);
+
+            // insert after last or as first element...
+            if (last) {
+                elem->mNext = last->mNext;
+                last->mNext = elem;
+            }
+            else {
+                elem->mNext = mData;
+                mData = elem;
+            }
+
+            last = elem;
+            data += 1 + valueSize;
+
+            // Adjust CacheMetaData size, 2 for the zero bytes of both strings
+            mMetaSize += 2 + keySize + valueSize;
+        }
     }
     return NS_OK;
 }
@@ -143,34 +198,33 @@ nsCacheMetaData::UnflattenMetaData(const char * data, PRUint32 size)
 nsresult
 nsCacheMetaData::VisitElements(nsICacheMetaDataVisitor * visitor)
 {
-    const char * data = mBuffer;
-    const char * limit = mBuffer + mMetaSize;
-
-    while (data < limit) {
-        const char * key = data;
-        // Skip key part
-        data += strlen(data) + 1;
+    MetaElement * elem = mData;
+    while (elem) {
         PRBool keepGoing;
-        nsresult rv = visitor->VisitMetaDataElement(key, data, &keepGoing);
+        nsresult rv = visitor->VisitMetaDataElement(elem->mKey.get(), elem->mValue, &keepGoing);
+
         if (NS_FAILED(rv) || !keepGoing)
             break;
 
-        // Skip value part
-        data += strlen(data) + 1;
+        elem = elem->mNext;
     }
+
     return NS_OK;
 }
 
-nsresult
-nsCacheMetaData::EnsureBuffer(PRUint32 bufSize)
+void *
+nsCacheMetaData::MetaElement::operator new(size_t size,
+                                           const char *value,
+                                           PRUint32 valueSize) CPP_THROW_NEW
 {
-    if (mBufferSize < bufSize) {
-        char * buf = (char *)PR_REALLOC(mBuffer, bufSize);
-        if (!buf) {
-            return NS_ERROR_OUT_OF_MEMORY;
-        }
-        mBuffer = buf;
-        mBufferSize = bufSize;
-    }
-    return NS_OK;
-}        
+    size += valueSize;
+
+    MetaElement *elem = (MetaElement *) ::operator new(size);
+    if (!elem)
+        return nsnull;
+
+    memcpy(elem->mValue, value, valueSize);
+    elem->mValue[valueSize] = 0;
+
+    return elem;
+}

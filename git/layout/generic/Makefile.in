@@ -49,7 +49,37 @@ MODULE		= layout
 LIBRARY_NAME	= gkgeneric_s
 LIBXUL_LIBRARY	= 1
 
+REQUIRES	= xpcom \
+		  string \
+		  dom \
+		  content \
+		  thebes \
+		  gfx \
+		  widget \
+		  locale \
+		  view \
+		  necko \
+		  js \
+		  caps \
+		  pref \
+		  htmlparser \
+		  webshell \
+		  plugin \
+		  docshell \
+		  webbrwsr \
+		  unicharutil \
+		  lwbrk \
+		  imglib2 \
+		  xpconnect \
+		  java \
+		  intl \
+		  thebes \
+		  cairo \
+		  $(NULL)
 
+ifdef ACCESSIBILITY
+REQUIRES	+= accessibility
+endif
 
 EXPORTS		= \
 		nsQueryFrame.h \
@@ -60,6 +90,7 @@ EXPORTS		= \
 		nsIAnonymousContentCreator.h \
 		nsICanvasFrame.h \
 		nsIFrame.h \
+		nsIFrameDebug.h \
 		nsIFrameFrame.h \
 		nsIFrameUtil.h \
 		nsIImageFrame.h \
@@ -130,12 +161,6 @@ endif
 ifdef IBMBIDI
 CPPSRCS		+= \
 		nsBidiFrames.cpp \
-		$(NULL)
-endif
-
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-CMMSRCS		+= \
-		nsPluginUtilsOSX.mm \
 		$(NULL)
 endif
 

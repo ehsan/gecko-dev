@@ -47,6 +47,10 @@ MODULE		= plugin
 LIBRARY_NAME	= npnulos2
 RESFILE		= npnulos2.res
 
+REQUIRES	= java \
+		  xpcom \
+		  pref \
+		  $(NULL)
 
 CPPSRCS		= \
 		maindll.cpp \

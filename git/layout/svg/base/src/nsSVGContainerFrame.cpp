@@ -54,9 +54,6 @@ NS_NewSVGContainerFrame(nsIPresShell* aPresShell,
   return new (aPresShell) nsSVGContainerFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGContainerFrame)
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGDisplayContainerFrame)
-
 NS_IMETHODIMP
 nsSVGContainerFrame::AppendFrames(nsIAtom* aListName,
                                   nsFrameList& aFrameList)

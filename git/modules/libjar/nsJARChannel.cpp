@@ -672,8 +672,7 @@ nsJARChannel::Open(nsIInputStream **stream)
 
     // force load the jar file now so GetContentLength will return a
     // meaningful value once we return.
-    rv = mJarInput->EnsureJarStream();
-    if (NS_FAILED(rv)) return rv;
+    mJarInput->EnsureJarStream();
 
     NS_ADDREF(*stream = mJarInput);
     return NS_OK;

@@ -44,10 +44,6 @@
                 accesskey="&spellAddToDictionary.accesskey;"
                 oncommand="InlineSpellCheckerUI.addToDictionary();"/>
       <menuseparator id="spell-suggestions-separator"/>
-      <menuitem id="context-openlinkincurrent"
-                label="&openLinkCmdInCurrent.label;"
-                accesskey="&openLinkCmdInCurrent.accesskey;"
-                oncommand="gContextMenu.openLinkInCurrent();"/>
       <menuitem id="context-openlink"
                 label="&openLinkCmd.label;"
                 accesskey="&openLinkCmd.accesskey;"
@@ -285,6 +281,7 @@
                     oncommand="gContextMenu.viewFrameInfo();"/>
         </menupopup>
       </menu>
+      <menuseparator id="context-sep-properties"/>
       <menuitem id="context-viewpartialsource-selection"
                 label="&viewPartialSourceForSelectionCmd.label;"
                 accesskey="&viewPartialSourceCmd.accesskey;"
@@ -295,7 +292,6 @@
                 accesskey="&viewPartialSourceCmd.accesskey;"
                 oncommand="gContextMenu.viewPartialSource('mathml');"
                 observes="isImage"/>
-      <menuseparator id="context-sep-viewsource"/>
       <menuitem id="context-viewsource"
                 label="&viewPageSourceCmd.label;"
                 accesskey="&viewPageSourceCmd.accesskey;"
@@ -305,6 +301,10 @@
                 label="&viewPageInfoCmd.label;"
                 accesskey="&viewPageInfoCmd.accesskey;"
                 oncommand="gContextMenu.viewInfo();"/>
+      <menuitem id="context-metadata"
+                label="&metadataCmd.label;"
+                accesskey="&metadataCmd.accesskey;"
+                oncommand="gContextMenu.showMetadata();"/>
       <menuseparator id="spell-separator"/>
       <menuitem id="spell-check-enabled"
                 label="&spellCheckEnable.label;"

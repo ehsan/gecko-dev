@@ -84,12 +84,7 @@
 #include <windows.h>
 #endif
 
-#ifdef WINCE
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
-#else
 #include <GL/gl.h>
-#endif
 
 using namespace mozilla;
 
@@ -412,11 +407,7 @@ GL_SAME_METHOD_1(Clear, Clear, PRUint32)
 
 GL_SAME_METHOD_4(ClearColor, ClearColor, float, float, float, float)
 
-#ifdef USE_GLES2
-GL_SAME_METHOD_1(ClearDepthf, ClearDepth, float)
-#else
 GL_SAME_METHOD_1(ClearDepth, ClearDepth, float)
-#endif
 
 GL_SAME_METHOD_1(ClearStencil, ClearStencil, PRInt32)
 
@@ -672,11 +663,7 @@ GL_SAME_METHOD_1(DepthFunc, DepthFunc, PRUint32)
 
 GL_SAME_METHOD_1(DepthMask, DepthMask, PRBool)
 
-#ifdef USE_GLES2
-GL_SAME_METHOD_2(DepthRangef, DepthRange, float, float)
-#else
 GL_SAME_METHOD_2(DepthRange, DepthRange, float, float)
-#endif
 
 GL_SAME_METHOD_1(Disable, Disable, PRUint32)
 
@@ -2298,7 +2285,7 @@ nsCanvasRenderingContextGLWeb20::TexSubImage2D()
                                &argTarget, &argLevel, &argX, &argY,
                                &argWidth, &argHeight, &argFormat, &argType,
                                &argPixelsObj) ||
-        !argPixelsObj ||
+        JSVAL_IS_NULL(argPixelsObj) ||
         !::JS_IsArrayObject(js.ctx, argPixelsObj) ||
         !::JS_GetArrayLength(js.ctx, argPixelsObj, &argPixelsLen))
     {
@@ -2410,9 +2397,9 @@ nsCanvasRenderingContextGLWeb20::TexImage2D()
                                &argTarget, &argLevel, &argInternalFormat, &argWidth,
                                &argHeight, &argBorder, &argFormat, &argType,
                                &argPixelsObj) ||
-        !argPixelsObj ||
+        (argPixelsObj != NULL && !JSVAL_IS_NULL(argPixelsObj) && (
         !::JS_IsArrayObject(js.ctx, argPixelsObj) ||
-        !::JS_GetArrayLength(js.ctx, argPixelsObj, &argPixelsLen))
+        !::JS_GetArrayLength(js.ctx, argPixelsObj, &argPixelsLen))))
     {
         LogMessage(NS_LITERAL_CSTRING("texImage2D: argument error"));
         return NS_ERROR_DOM_SYNTAX_ERR;
@@ -2512,7 +2499,7 @@ nsCanvasRenderingContextGLWeb20::TexImage2D()
 
     // XXX handle GL_UNPACK_ALIGNMENT !
 
-    if (argPixelsObj == NULL) {
+    if (argPixelsObj == NULL || JSVAL_IS_NULL(argPixelsObj)) {
       MakeContextCurrent();
       gl->fTexImage2D (argTarget, argLevel, argInternalFormat, argWidth, argHeight, argBorder, argFormat, argType, NULL);
     } else {

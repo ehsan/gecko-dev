@@ -40,34 +40,23 @@
 
 #include "nscore.h"
 
-#define NS_DECL_QUERYFRAME_TARGET(classname)                    \
+#define NS_DECLARE_FRAME_ACCESSOR(classname) \
   static const nsQueryFrame::FrameIID kFrameIID = nsQueryFrame::classname##_id;
 
-#define NS_DECL_QUERYFRAME                                      \
+#define NS_DECL_QUERYFRAME \
   virtual void* QueryFrame(FrameIID id);
 
-#define NS_QUERYFRAME_HEAD(class)                               \
-  void* class::QueryFrame(FrameIID id) { switch (id) {
+#define NS_QUERYFRAME_HEAD(class) \
+  void* class::QueryFrame(FrameIID id) {
 
-#define NS_QUERYFRAME_ENTRY(class)                              \
-  case class::kFrameIID: return static_cast<class*>(this);
+#define NS_QUERYFRAME_ENTRY(class) \
+  if (class::kFrameIID == id) \
+    return static_cast<class*>(this);
 
-#define NS_QUERYFRAME_ENTRY_CONDITIONAL(class, condition)       \
-  case class::kFrameIID:                                        \
-  if (condition) return static_cast<class*>(this);              \
-  break;
+#define NS_QUERYFRAME_TAIL_INHERITING(class) \
+  return class::QueryFrame(id); }
 
-#define NS_QUERYFRAME_TAIL_INHERITING(class)                    \
-  default: break;                                               \
-  }                                                             \
-  return class::QueryFrame(id);                                 \
-}
-
-#define NS_QUERYFRAME_TAIL_INHERITANCE_ROOT                     \
-  default: break;                                               \
-  }                                                             \
-  return nsnull;                                                \
-}
+#define NS_QUERYFRAME_TAIL return nsnull; }
 
 class nsQueryFrame
 {
@@ -75,6 +64,7 @@ public:
   enum FrameIID {
     BRFrame_id,
     CanvasFrame_id,
+    nsAreaFrame_id,
     nsAutoRepeatBoxFrame_id,
     nsBCTableCellFrame_id,
     nsBlockFrame_id,
@@ -116,6 +106,7 @@ public:
     nsIComboboxControlFrame_id,
     nsIFormControlFrame_id,
     nsIFrame_id,
+    nsIFrameDebug_id,
     nsIFrameFrame_id,
     nsIImageFrame_id,
     nsIListControlFrame_id,
@@ -158,7 +149,6 @@ public:
     nsMathMLmactionFrame_id,
     nsMathMLmathBlockFrame_id,
     nsMathMLmathInlineFrame_id,
-    nsMathMLmencloseFrame_id,
     nsMathMLmfencedFrame_id,
     nsMathMLmfracFrame_id,
     nsMathMLmmultiscriptsFrame_id,
@@ -248,17 +238,9 @@ public:
     nsTreeBodyFrame_id,
     nsTreeColFrame_id,
     nsVideoFrame_id,
-    nsXULLabelFrame_id,
     nsXULScrollFrame_id,
     SpacerFrame_id,
-    ViewportFrame_id,
-
-    // The PresArena implementation uses this bit to distinguish
-    // objects allocated by size (that is, non-frames) from objects
-    // allocated by code (that is, frames).  It should not collide
-    // with any frame ID.  It is not 0x80000000 to avoid the question
-    // of whether enumeration constants are signed.
-    NON_FRAME_MARKER = 0x40000000
+    ViewportFrame_id
   };
 
   virtual void* QueryFrame(FrameIID id) = 0;

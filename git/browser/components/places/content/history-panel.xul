@@ -77,9 +77,6 @@
   <!-- required to overlay the context menu -->
   <popup id="placesContext" />
 
-  <!-- Bookmarks and history tooltip -->
-  <tooltip id="bhTooltip"/>
-
   <hbox align="center">
     <label value="&find.label;" accesskey="&find.accesskey;" 
            control="search-box"/>
@@ -125,6 +122,6 @@
     <treecols>
       <treecol id="title" flex="1" primary="true" hideheader="true"/>
     </treecols>
-    <treechildren class="sidebar-placesTreechildren" flex="1" tooltip="bhTooltip"/>
+    <treechildren class="sidebar-placesTreechildren" flex="1"/>
   </tree>
 </page>

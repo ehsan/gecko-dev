@@ -117,8 +117,6 @@ class nsMenuPopupFrame;
 class nsMenuPopupFrame : public nsBoxFrame, public nsMenuParent
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
   // nsMenuParent interface

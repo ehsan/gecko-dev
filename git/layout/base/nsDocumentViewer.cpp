@@ -98,6 +98,7 @@
 #include "nsIDocShellTreeOwner.h"
 #include "nsIDocShell.h"
 #include "nsIBaseWindow.h"
+#include "nsIFrameDebug.h"
 #include "nsILayoutHistoryState.h"
 #include "nsIParser.h"
 #include "nsGUIEvent.h"
@@ -1161,7 +1162,7 @@ DocumentViewerImpl::PermitUnload(PRBool *aPermitUnload)
 
       // Limit the length of the text the page can inject into this
       // dialogue to 1024 characters.
-      PRInt32 len = NS_MIN(text.Length(), 1024U);
+      PRInt32 len = PR_MIN(text.Length(), 1024);
 
       nsAutoString msg;
       if (len == 0) {
@@ -2315,11 +2316,7 @@ DocumentViewerImpl::FindContainerView()
           parentDocShell->GetPresShell(getter_AddRefs(parentPresShell));
         }
       }
-      if (!content) {
-        NS_WARNING("Subdocument container has no content");
-      } else if (!parentPresShell) {
-        NS_WARNING("Subdocument container has no presshell");
-      } else {
+      if (content && parentPresShell) {
         nsIFrame* f = parentPresShell->GetRealPrimaryFrameFor(content);
         if (f) {
           nsIFrame* subdocFrame = f->GetContentInsertionFrame();
@@ -2333,11 +2330,7 @@ DocumentViewerImpl::FindContainerView()
             nsIView* innerView = subdocFrameView->GetFirstChild();
             NS_ASSERTION(innerView, "Subdoc frames must have an inner view too");
             containerView = innerView;
-          } else {
-            NS_WARNING("Subdocument container has non-subdocument frame");
           }
-        } else {
-          NS_WARNING("Subdocument container has no frame");
         }
       }
     }
@@ -3666,7 +3659,7 @@ DocumentViewerImpl::Print(nsIPrintSettings*       aPrintSettings,
 
   nsCOMPtr<nsIPresShell> presShell;
   docShell->GetPresShell(getter_AddRefs(presShell));
-  if (!presShell || !mDocument || !mDeviceContext) {
+  if (!presShell || !mDocument || !mDeviceContext || !mParentWidget) {
     PR_PL(("Can't Print without pres shell, document etc"));
     return NS_ERROR_FAILURE;
   }
@@ -3695,10 +3688,7 @@ DocumentViewerImpl::Print(nsIPrintSettings*       aPrintSettings,
     NS_ENSURE_TRUE(mPrintEngine, NS_ERROR_OUT_OF_MEMORY);
 
     rv = mPrintEngine->Initialize(this, docShell, mDocument, 
-                                  float(mDeviceContext->AppUnitsPerInch()) /
-                                  float(mDeviceContext->AppUnitsPerDevPixel()) /
-                                  mPageZoom,
-                                  mParentWidget,
+                                  mDeviceContext, mParentWidget,
 #ifdef NS_DEBUG
                                   mDebugFile
 #else
@@ -3761,10 +3751,7 @@ DocumentViewerImpl::PrintPreview(nsIPrintSettings* aPrintSettings,
     NS_ENSURE_TRUE(mPrintEngine, NS_ERROR_OUT_OF_MEMORY);
 
     rv = mPrintEngine->Initialize(this, docShell, mDocument,
-                                  float(mDeviceContext->AppUnitsPerInch()) /
-                                  float(mDeviceContext->AppUnitsPerDevPixel()) /
-                                  mPageZoom,
-                                  mParentWidget,
+                                  mDeviceContext, mParentWidget,
 #ifdef NS_DEBUG
                                   mDebugFile
 #else

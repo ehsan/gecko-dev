@@ -54,8 +54,6 @@ class nsSliderFrame;
 class nsScrollbarButtonFrame : public nsButtonBoxFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsScrollbarButtonFrame(nsIPresShell* aPresShell, nsStyleContext* aContext):
     nsButtonBoxFrame(aPresShell, aContext) {}
 

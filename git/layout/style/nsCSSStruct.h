@@ -371,15 +371,10 @@ struct nsCSSDisplay : public nsCSSStruct  {
   nsCSSRect  mClip;
   nsCSSValue mOverflowX;
   nsCSSValue mOverflowY;
-  nsCSSValue mPointerEvents;
   nsCSSValue mVisibility;
   nsCSSValue mOpacity;
   nsCSSValueList *mTransform; // List of Arrays containing transform information
   nsCSSValuePair mTransformOrigin;
-  nsCSSValueList* mTransitionProperty;
-  nsCSSValueList* mTransitionDuration;
-  nsCSSValueList* mTransitionTimingFunction;
-  nsCSSValueList* mTransitionDelay;
 
   // temp fix for bug 24000 
   nsCSSValue mBreakBefore;
@@ -693,6 +688,7 @@ struct nsCSSSVG : public nsCSSStruct {
   nsCSSValue mMarkerMid;
   nsCSSValue mMarkerStart;
   nsCSSValue mMask;
+  nsCSSValue mPointerEvents;
   nsCSSValue mShapeRendering;
   nsCSSValue mStopColor;
   nsCSSValue mStopOpacity;

@@ -81,7 +81,6 @@ function PrivateBrowsingService() {
   this._obs.addObserver(this, "profile-after-change", true);
   this._obs.addObserver(this, "quit-application-granted", true);
   this._obs.addObserver(this, "private-browsing", true);
-  this._obs.addObserver(this, "command-line-startup", true);
 }
 
 PrivateBrowsingService.prototype = {
@@ -346,11 +345,6 @@ PrivateBrowsingService.prototype = {
           consoleService.reset();
         }
         break;
-      case "command-line-startup":
-        this._obs.removeObserver(this, "command-line-startup");
-        aSubject.QueryInterface(Ci.nsICommandLine);
-        this.handle(aSubject);
-        break;
     }
   },
 
@@ -573,7 +567,9 @@ PrivateBrowsingService.prototype = {
 
       // Now, for each name we got back, remove all of its prefs.
       for (let i = 0; i < names.length; i++) {
-        let uri = names[i];
+        // The service only cares about the host of the URI, so we don't need a
+        // full nsIURI object here.
+        let uri = { host: names[i]};
         let enumerator = cp.getPrefs(uri).enumerator;
         while (enumerator.hasMoreElements()) {
           let pref = enumerator.getNext().QueryInterface(Ci.nsIProperty);

@@ -40,7 +40,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsAccessibleWrap.h"
-#include "nsApplicationAccessibleWrap.h"
 #include "nsRootAccessible.h"
 #include "nsDocAccessibleWrap.h"
 #include "nsIAccessibleValue.h"
@@ -64,8 +63,9 @@
 #include "nsMaiInterfaceDocument.h"
 #include "nsMaiInterfaceImage.h"
 
-//defined in nsApplicationAccessibleWrap.cpp
-extern "C" GType g_atk_hyperlink_impl_type;
+#include "nsAppRootAccessible.h"
+
+extern "C" GType g_atk_hyperlink_impl_type; //defined in nsAppRootAccessible.cpp
 
 /* MaiAtkObject */
 
@@ -1131,8 +1131,10 @@ nsAccessibleWrap::FirePlatformEvent(nsIAccessibleEvent *aEvent)
     // We don't create ATK objects for nsIAccessible plain text leaves,
     // just return NS_OK in such case
     if (!atkObj) {
-        NS_ASSERTION(type == nsIAccessibleEvent::EVENT_SHOW ||
-                     type == nsIAccessibleEvent::EVENT_HIDE,
+        NS_ASSERTION(type == nsIAccessibleEvent::EVENT_ASYNCH_SHOW ||
+                     type == nsIAccessibleEvent::EVENT_ASYNCH_HIDE ||
+                     type == nsIAccessibleEvent::EVENT_DOM_CREATE ||
+                     type == nsIAccessibleEvent::EVENT_DOM_DESTROY,
                      "Event other than SHOW and HIDE fired for plain text leaves");
         return NS_OK;
     }
@@ -1157,7 +1159,7 @@ nsAccessibleWrap::FirePlatformEvent(nsIAccessibleEvent *aEvent)
         if (rootAccWrap && rootAccWrap->mActivated) {
             atk_focus_tracker_notify(atkObj);
             // Fire state change event for focus
-            nsCOMPtr<nsIAccessibleEvent> stateChangeEvent =
+            nsCOMPtr<nsIAccessibleStateChangeEvent> stateChangeEvent =
               new nsAccStateChangeEvent(accessible,
                                         nsIAccessibleStates::STATE_FOCUSED,
                                         PR_FALSE, PR_TRUE);
@@ -1306,10 +1308,12 @@ nsAccessibleWrap::FirePlatformEvent(nsIAccessibleEvent *aEvent)
         g_signal_emit_by_name(atkObj, "visible_data_changed");
         break;
 
-    case nsIAccessibleEvent::EVENT_SHOW:
+    case nsIAccessibleEvent::EVENT_DOM_CREATE:
+    case nsIAccessibleEvent::EVENT_ASYNCH_SHOW:
         return FireAtkShowHideEvent(aEvent, atkObj, PR_TRUE);
 
-    case nsIAccessibleEvent::EVENT_HIDE:
+    case nsIAccessibleEvent::EVENT_DOM_DESTROY:
+    case nsIAccessibleEvent::EVENT_ASYNCH_HIDE:
         return FireAtkShowHideEvent(aEvent, atkObj, PR_FALSE);
 
         /*
@@ -1446,7 +1450,7 @@ nsAccessibleWrap::FireAtkTextChangedEvent(nsIAccessibleEvent *aEvent,
     event->IsInserted(&isInserted);
 
     PRBool isFromUserInput;
-    aEvent->GetIsFromUserInput(&isFromUserInput);
+    event->GetIsFromUserInput(&isFromUserInput);
 
     char *signal_name = g_strconcat(isInserted ? "text_changed::insert" : "text_changed::delete",
                                     isFromUserInput ? "" : kNonUserInputEvent, NULL);
