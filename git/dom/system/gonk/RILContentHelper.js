@@ -65,8 +65,6 @@ const CELLBROADCASTETWSINFO_CID =
   Components.ID("{59f176ee-9dcd-4005-9d47-f6be0cd08e17}");
 const DOMMMIERROR_CID =
   Components.ID("{6b204c42-7928-4e71-89ad-f90cd82aff96}");
-const ICCCARDLOCKERROR_CID =
-  Components.ID("{08a71987-408c-44ff-93fd-177c0a85c3dd}");
 
 const RIL_IPC_MSG_NAMES = [
   "RIL:CardStateChanged",
@@ -434,20 +432,6 @@ DOMMMIError.prototype = {
   },
 };
 
-function IccCardLockError() {
-}
-IccCardLockError.prototype = {
-  classDescription: "IccCardLockError",
-  classID:          ICCCARDLOCKERROR_CID,
-  contractID:       "@mozilla.org/dom/icccardlock-error;1",
-  QueryInterface:   XPCOMUtils.generateQI([Ci.nsISupports]),
-  __init: function(lockType, errorMsg, retryCount) {
-    this.__DOM_IMPL__.init(errorMsg);
-    this.lockType = lockType;
-    this.retryCount = retryCount;
-  },
-};
-
 function RILContentHelper() {
   this.rilContext = {
     cardState:            RIL.GECKO_CARDSTATE_UNKNOWN,
@@ -790,8 +774,6 @@ RILContentHelper.prototype = {
     }
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
-    this._windowsMap[requestId] = window;
-
     cpmm.sendAsyncMessage("RIL:GetCardLockState", {
       clientId: 0,
       data: {
@@ -809,8 +791,6 @@ RILContentHelper.prototype = {
     }
     let request = Services.DOMRequest.createRequest(window);
     info.requestId = this.getRequestId(request);
-    this._windowsMap[info.requestId] = window;
-
     cpmm.sendAsyncMessage("RIL:UnlockCardLock", {
       clientId: 0,
       data: info
@@ -825,8 +805,6 @@ RILContentHelper.prototype = {
     }
     let request = Services.DOMRequest.createRequest(window);
     info.requestId = this.getRequestId(request);
-    this._windowsMap[info.requestId] = window;
-
     cpmm.sendAsyncMessage("RIL:SetCardLock", {
       clientId: 0,
       data: info
@@ -1460,19 +1438,6 @@ RILContentHelper.prototype = {
                            Ci.nsIThread.DISPATCH_NORMAL);
   },
 
-  fireRequestDetailedError: function fireRequestDetailedError(requestId, detailedError) {
-    let request = this.takeRequest(requestId);
-    if (!request) {
-      if (DEBUG) {
-        debug("not firing detailed error for id: " + requestId +
-              ", detailedError: " + JSON.stringify(detailedError));
-      }
-      return;
-    }
-
-    Services.DOMRequest.fireDetailedError(request, detailedError);
-  },
-
   receiveMessage: function receiveMessage(msg) {
     let request;
     debug("Received message '" + msg.name + "': " + JSON.stringify(msg.json));
@@ -1530,27 +1495,20 @@ RILContentHelper.prototype = {
       case "RIL:VoicemailInfoChanged":
         this.updateInfo(data, this.voicemailInfo);
         break;
-      case "RIL:CardLockResult": {
-        let requestId = data.requestId;
-        let requestWindow = this._windowsMap[requestId];
-        delete this._windowsMap[requestId];
-
+      case "RIL:CardLockResult":
         if (data.success) {
           let result = new MobileIccCardLockResult(data);
-          this.fireRequestSuccess(requestId, result);
+          this.fireRequestSuccess(data.requestId, result);
         } else {
           if (data.rilMessageType == "iccSetCardLock" ||
               data.rilMessageType == "iccUnlockCardLock") {
-            let cardLockError = new requestWindow.IccCardLockError(data.lockType,
-                                                                   data.errorMsg,
-                                                                   data.retryCount);
-            this.fireRequestDetailedError(requestId, cardLockError);
-          } else {
-            this.fireRequestError(requestId, data.errorMsg);
+            this._deliverEvent("_iccListeners",
+                               "notifyIccCardLockError",
+                               [data.lockType, data.retryCount]);
           }
+          this.fireRequestError(data.requestId, data.errorMsg);
         }
         break;
-      }
       case "RIL:CardLockRetryCount":
         if (data.success) {
           let result = new MobileIccCardLockRetryCount(data);
@@ -1968,6 +1926,5 @@ RILContentHelper.prototype = {
 };
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([RILContentHelper,
-                                                     DOMMMIError,
-                                                     IccCardLockError]);
+                                                     DOMMMIError]);
 
