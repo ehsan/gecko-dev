@@ -144,12 +144,6 @@ ImageContainer::CreateImage(const ImageFormat *aFormats,
                             uint32_t aNumFormats)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  if (mImageContainerChild) {
-    nsRefPtr<Image> img = mImageContainerChild->CreateImage();
-    if (img) {
-      return img.forget();
-    }
-  }
   return mImageFactory->CreateImage(aFormats, aNumFormats, mScaleHint, mRecycleBin);
 }
 

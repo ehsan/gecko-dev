@@ -13,7 +13,6 @@ webidl_files = \
   AudioBufferSourceNode.webidl \
   AudioContext.webidl \
   AudioDestinationNode.webidl \
-  AudioListener.webidl \
   AudioNode.webidl \
   AudioParam.webidl \
   AudioSourceNode.webidl \
@@ -25,7 +24,6 @@ webidl_files = \
   DOMImplementation.webidl \
   DOMTokenList.webidl \
   DOMSettableTokenList.webidl \
-  DOMStringMap.webidl \
   Function.webidl \
   EventHandler.webidl \
   EventListener.webidl \

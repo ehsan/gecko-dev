@@ -1587,7 +1587,7 @@ InvalidateActivation(FreeOp *fop, uint8 *ionTop, bool invalidateAll)
           case IonFrame_Exit:
             IonSpew(IonSpew_Invalidate, "#%d exit frame @ %p", frameno, it.fp());
             break;
-          case IonFrame_OptimizedJS:
+          case IonFrame_JS:
           {
             JS_ASSERT(it.isScripted());
             IonSpew(IonSpew_Invalidate, "#%d JS frame @ %p, %s:%d (fun: %p, script: %p, pc %p)",

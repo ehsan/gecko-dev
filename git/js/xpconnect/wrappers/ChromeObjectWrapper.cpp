@@ -72,6 +72,7 @@ ChromeObjectWrapper::has(JSContext *cx, JSObject *wrapper, jsid id, bool *bp)
     // Try the prototype if that failed.
     MOZ_ASSERT(js::IsObjectInContextCompartment(wrapper, cx));
     JSPropertyDescriptor desc;
+    memset(&desc, 0, sizeof(desc));
     if (!JS_GetPropertyDescriptorById(cx, wrapperProto, id, 0, &desc))
         return false;
     *bp = !!desc.obj;
@@ -86,6 +87,7 @@ ChromeObjectWrapper::get(JSContext *cx, JSObject *wrapper, JSObject *receiver,
     // this because the call signature of ::get doesn't give us any way to
     // determine the object upon which the property was found.
     JSPropertyDescriptor desc;
+    memset(&desc, 0, sizeof(desc));
     if (!ChromeObjectWrapperBase::getPropertyDescriptor(cx, wrapper, id, false,
                                                         &desc)) {
         return false;

@@ -181,8 +181,12 @@ nsDiskCacheMap::Open(nsIFile *  cacheDirectory,
         goto error_exit;
     }
     
-    Telemetry::Accumulate(Telemetry::HTTP_DISK_CACHE_OVERHEAD,
-                          (uint32_t)SizeOfExcludingThis(moz_malloc_size_of));
+    {
+        // extra scope so the compiler doesn't barf on the above gotos jumping
+        // past this declaration down here
+        uint32_t overhead = moz_malloc_size_of(mRecordArray);
+        Telemetry::Accumulate(Telemetry::HTTP_DISK_CACHE_OVERHEAD, overhead);
+    }
 
     *corruptInfo = nsDiskCache::kNotCorrupt;
     return NS_OK;
@@ -1211,24 +1215,6 @@ nsDiskCacheMap::NotifyCapacityChange(uint32_t capacity)
     // We can only grow
     mMaxRecordCount = maxRecordCount;
   }
-}
-
-size_t
-nsDiskCacheMap::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-  size_t usage = aMallocSizeOf(mRecordArray);
-
-  usage += aMallocSizeOf(mBuffer);
-  usage += aMallocSizeOf(mMapFD);
-  usage += aMallocSizeOf(mCleanFD);
-  usage += aMallocSizeOf(mCacheDirectory);
-  usage += aMallocSizeOf(mCleanCacheTimer);
-
-  for (int i = 0; i < kNumBlockFiles; i++) {
-    usage += mBlockFile[i].SizeOfExcludingThis(aMallocSizeOf);
-  }
-
-  return usage;
 }
 
 nsresult

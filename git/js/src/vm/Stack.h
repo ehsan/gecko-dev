@@ -497,7 +497,8 @@ class StackFrame
     inline Value &unaliasedActual(unsigned i, MaybeCheckAliasing = CHECK_ALIASING);
     template <class Op> inline void forEachUnaliasedActual(Op op);
 
-    bool copyRawFrameSlots(AutoValueVector *v);
+    typedef Vector<Value, 16, SystemAllocPolicy> CopyVector;
+    bool copyRawFrameSlots(CopyVector *v);
 
     inline unsigned numFormalArgs() const;
     inline unsigned numActualArgs() const;
@@ -1197,7 +1198,7 @@ class FrameRegs
 
     void setToEndOfScript() {
         AutoAssertNoGC nogc;
-        RawScript script = fp()->script().get(nogc);
+        RawScript script = fp()->script();
         sp = fp()->base();
         pc = script->code + script->length - JSOP_STOP_LENGTH;
         JS_ASSERT(*pc == JSOP_STOP);

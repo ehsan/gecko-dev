@@ -5,7 +5,7 @@
 import os
 from setuptools import setup
 
-PACKAGE_VERSION = '0.14'
+PACKAGE_VERSION = '0.12'
 
 # take description from README
 here = os.path.dirname(os.path.abspath(__file__))

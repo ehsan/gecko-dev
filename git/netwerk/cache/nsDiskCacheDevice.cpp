@@ -1160,15 +1160,3 @@ nsDiskCacheDevice::SetMaxEntrySize(int32_t maxSizeInKilobytes)
     else
         mMaxEntrySize = -1;
 }
-
-size_t
-nsDiskCacheDevice::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-    size_t usage = aMallocSizeOf(this);
-
-    usage += mCacheMap.SizeOfExcludingThis(aMallocSizeOf);
-    usage += mBindery.SizeOfExcludingThis(aMallocSizeOf);
-
-    return usage;
-}
-

@@ -1213,7 +1213,8 @@ DOMXrayTraits::enumerateNames(JSContext *cx, JSObject *wrapper, unsigned flags,
                               JS::AutoIdVector &props)
 {
     return XrayEnumerateProperties(cx, wrapper, getTargetObject(wrapper),
-                                   flags, props);
+                                   flags & (JSITER_OWNONLY | JSITER_HIDDEN),
+                                   props);
 }
 
 bool

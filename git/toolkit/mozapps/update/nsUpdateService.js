@@ -1593,18 +1593,9 @@ UpdateService.prototype = {
    * notify the user of install success.
    */
   _postUpdateProcessing: function AUS__postUpdateProcessing() {
-    if (!this.canCheckForUpdates) {
-      LOG("UpdateService:_postUpdateProcessing - unable to check for " +
+    if (!this.canCheckForUpdates || !this.canApplyUpdates) {
+      LOG("UpdateService:_postUpdateProcessing - unable to check for or apply " +
           "updates... returning early");
-      return;
-    }
-
-    if (!this.canApplyUpdates) {
-      LOG("UpdateService:_postUpdateProcessing - unable to apply " +
-          "updates... returning early");
-      // If the update is present in the update directly somehow,
-      // it would prevent us from notifying the user of futher updates.
-      cleanupActiveUpdate();
       return;
     }
 

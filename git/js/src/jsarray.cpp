@@ -2603,7 +2603,8 @@ array_splice(JSContext *cx, unsigned argc, Value *vp)
     /* Steps 2, 8-9. */
     RootedObject arr(cx);
     if (CanOptimizeForDenseStorage(obj, actualStart, actualDeleteCount, cx)) {
-        arr = NewDenseCopiedArray(cx, actualDeleteCount, obj, actualStart);
+        arr = NewDenseCopiedArray(cx, actualDeleteCount,
+                                  obj->getDenseArrayElements() + actualStart);
         if (!arr)
             return false;
         TryReuseArrayType(obj, arr);
@@ -2802,8 +2803,9 @@ js::array_concat(JSContext *cx, unsigned argc, Value *vp)
     uint32_t length;
     if (aobj->isDenseArray()) {
         length = aobj->getArrayLength();
+        const Value *vector = aobj->getDenseArrayElements();
         uint32_t initlen = aobj->getDenseArrayInitializedLength();
-        nobj = NewDenseCopiedArray(cx, initlen, aobj, 0);
+        nobj = NewDenseCopiedArray(cx, initlen, vector);
         if (!nobj)
             return JS_FALSE;
         TryReuseArrayType(aobj, nobj);
@@ -2909,7 +2911,7 @@ array_slice(JSContext *cx, unsigned argc, Value *vp)
 
     if (obj->isDenseArray() && end <= obj->getDenseArrayInitializedLength() &&
         !js_PrototypeHasIndexedProperties(obj)) {
-        nobj = NewDenseCopiedArray(cx, end - begin, obj, begin);
+        nobj = NewDenseCopiedArray(cx, end - begin, obj->getDenseArrayElements() + begin);
         if (!nobj)
             return JS_FALSE;
         TryReuseArrayType(obj, nobj);
@@ -3706,37 +3708,21 @@ mjit::stubs::NewDenseUnallocatedArray(VMFrame &f, uint32_t length)
 #endif
 
 JSObject *
-NewDenseCopiedArray(JSContext *cx, uint32_t length, HandleObject src, uint32_t elementOffset, RawObject proto /* = NULL */)
+NewDenseCopiedArray(JSContext *cx, uint32_t length, const Value *vp, RawObject proto /* = NULL */)
 {
+    // XXX vp may be an internal pointer to an object's dense array elements.
+    SkipRoot skip(cx, &vp);
+
     JSObject* obj = NewArray<true>(cx, length, proto);
     if (!obj)
         return NULL;
 
     JS_ASSERT(obj->getDenseArrayCapacity() >= length);
 
-    const Value* vp = src->getDenseArrayElements() + elementOffset;
     obj->setDenseArrayInitializedLength(vp ? length : 0);
 
     if (vp)
         obj->initDenseArrayElements(0, vp, length);
-
-    return obj;
-}
-
-// values must point at already-rooted Value objects
-JSObject *
-NewDenseCopiedArray(JSContext *cx, uint32_t length, const Value *values, RawObject proto /* = NULL */)
-{
-    JSObject* obj = NewArray<true>(cx, length, proto);
-    if (!obj)
-        return NULL;
-
-    JS_ASSERT(obj->getDenseArrayCapacity() >= length);
-
-    obj->setDenseArrayInitializedLength(values ? length : 0);
-
-    if (values)
-        obj->initDenseArrayElements(0, values, length);
 
     return obj;
 }

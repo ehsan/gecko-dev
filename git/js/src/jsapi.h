@@ -4413,10 +4413,6 @@ struct JSPropertyDescriptor {
     JSPropertyOp       getter;
     JSStrictPropertyOp setter;
     jsval              value;
-
-    JSPropertyDescriptor() : obj(NULL), attrs(0), shortid(0), getter(NULL),
-                             setter(NULL), value(JSVAL_VOID)
-    {}
 };
 
 /*

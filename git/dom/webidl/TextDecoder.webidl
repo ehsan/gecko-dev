@@ -11,6 +11,7 @@
 
 [Constructor(optional DOMString label = "utf-8", optional TextDecoderOptions options)]
 interface TextDecoder {
+  [SetterThrows]
   readonly attribute DOMString encoding;
   [Throws]
   DOMString decode(optional ArrayBufferView? input = null, optional TextDecodeOptions options);

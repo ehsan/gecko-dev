@@ -485,8 +485,6 @@ public:
     
     int32_t  EntryCount()  { return mHeader.mEntryCount; }
 
-    size_t  SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf);
-
 
 private:
 

@@ -21,8 +21,8 @@ namespace ion {
 enum FrameType
 {
     // A JS frame is analagous to a js::StackFrame, representing one scripted
-    // functon activation. OptimizedJS frames are used by the optimizing compiler.
-    IonFrame_OptimizedJS,
+    // functon activation.
+    IonFrame_JS,
 
     // The entry frame is the initial prologue block transitioning from the VM
     // into the Ion world.
@@ -95,7 +95,7 @@ class IonFrameIterator
     inline uint8 *returnAddress() const;
 
     IonJSFrameLayout *jsFrame() const {
-        JS_ASSERT(type() == IonFrame_OptimizedJS);
+        JS_ASSERT(type() == IonFrame_JS);
         return (IonJSFrameLayout *) fp();
     }
 
@@ -110,7 +110,7 @@ class IonFrameIterator
     bool checkInvalidation() const;
 
     bool isScripted() const {
-        return type_ == IonFrame_OptimizedJS;
+        return type_ == IonFrame_JS;
     }
     bool isNative() const;
     bool isOOLNativeGetter() const;

@@ -348,13 +348,6 @@ HTMLPropertiesCollection::CrawlSubtree(Element* aElement)
   }                    
 }
 
-void
-HTMLPropertiesCollection::GetSupportedNames(nsTArray<nsString>& aNames)
-{
-  EnsureFresh();
-  mNames->CopyList(aNames);
-}
-
 PropertyNodeList::PropertyNodeList(HTMLPropertiesCollection* aCollection,
                                    nsIContent* aParent, const nsAString& aName)
   : mName(aName),
