@@ -194,22 +194,7 @@ nsChangeHint nsStyleFont::CalcDifference(const nsStyleFont& aOther) const
       mMathDisplay != aOther.mMathDisplay) {
     return NS_STYLE_HINT_REFLOW;
   }
-
-  nsChangeHint hint = CalcFontDifference(mFont, aOther.mFont);
-  if (hint) {
-    return hint;
-  }
-
-  // XXX Should any of these cause a non-nsChangeHint_NeutralChange change?
-  if (mGenericID != aOther.mGenericID ||
-      mScriptLevel != aOther.mScriptLevel ||
-      mScriptUnconstrainedSize != aOther.mScriptUnconstrainedSize ||
-      mScriptMinSize != aOther.mScriptMinSize ||
-      mScriptSizeMultiplier != aOther.mScriptSizeMultiplier) {
-    return nsChangeHint_NeutralChange;
-  }
-
-  return NS_STYLE_HINT_NONE;
+  return CalcFontDifference(mFont, aOther.mFont);
 }
 
 /* static */ nscoord
@@ -517,6 +502,8 @@ nsChangeHint nsStyleBorder::CalcDifference(const nsStyleBorder& aOther) const
                     shadowDifference == unsigned(NS_STYLE_HINT_NONE),
                     "should do more with shadowDifference");
 
+  // Note that differences in mBorder don't affect rendering (which should only
+  // use mComputedBorder), so don't need to be tested for here.
   // XXXbz we should be able to return a more specific change hint for
   // at least GetComputedBorder() differences...
   if (mTwipsPerPixel != aOther.mTwipsPerPixel ||
@@ -575,18 +562,7 @@ nsChangeHint nsStyleBorder::CalcDifference(const nsStyleBorder& aOther) const
     }
   }
 
-  if (shadowDifference) {
-    return shadowDifference;
-  }
-
-  // mBorder is the specified border value.  Changes to this don't
-  // need any change processing, since we operate on the computed
-  // border values instead.
-  if (mBorder != aOther.mBorder) {
-    return nsChangeHint_NeutralChange;
-  }
-
-  return NS_STYLE_HINT_NONE;
+  return shadowDifference;
 }
 
 nsStyleOutline::nsStyleOutline(nsPresContext* aPresContext)
@@ -652,23 +628,11 @@ nsChangeHint nsStyleOutline::CalcDifference(const nsStyleOutline& aOther) const
     return NS_CombineHint(nsChangeHint_AllReflowHints,
                           nsChangeHint_RepaintFrame);
   }
-
   if ((mOutlineStyle != aOther.mOutlineStyle) ||
       (mOutlineColor != aOther.mOutlineColor) ||
       (mOutlineRadius != aOther.mOutlineRadius)) {
     return nsChangeHint_RepaintFrame;
   }
-
-  // XXX Not exactly sure if we need to check the cached outline values.
-  if (mOutlineWidth != aOther.mOutlineWidth ||
-      mOutlineOffset != aOther.mOutlineOffset ||
-      mTwipsPerPixel != aOther.mTwipsPerPixel ||
-      mHasCachedOutline != aOther.mHasCachedOutline ||
-      (mHasCachedOutline &&
-       (mCachedOutlineWidth != aOther.mCachedOutlineWidth))) {
-    return nsChangeHint_NeutralChange;
-  }
-
   return NS_STYLE_HINT_NONE;
 }
 
@@ -821,13 +785,6 @@ nsChangeHint nsStyleColumn::CalcDifference(const nsStyleColumn& aOther) const
       mColumnRuleColor != aOther.mColumnRuleColor ||
       mColumnRuleColorIsForeground != aOther.mColumnRuleColorIsForeground)
     return NS_STYLE_HINT_VISUAL;
-
-  // XXX Is it right that we never check mTwipsPerPixel to return a
-  // non-nsChangeHint_NeutralChange hint?
-  if (mColumnRuleWidth != aOther.mColumnRuleWidth ||
-      mTwipsPerPixel != aOther.mTwipsPerPixel) {
-    return nsChangeHint_NeutralChange;
-  }
 
   return NS_STYLE_HINT_NONE;
 }
@@ -2104,15 +2061,6 @@ nsChangeHint nsStyleBackground::CalcDifference(const nsStyleBackground& aOther) 
   if (hasVisualDifference || mBackgroundColor != aOther.mBackgroundColor)
     return NS_STYLE_HINT_VISUAL;
 
-  if (mAttachmentCount != aOther.mAttachmentCount ||
-      mClipCount != aOther.mClipCount ||
-      mOriginCount != aOther.mOriginCount ||
-      mRepeatCount != aOther.mRepeatCount ||
-      mPositionCount != aOther.mPositionCount ||
-      mSizeCount != aOther.mSizeCount) {
-    return nsChangeHint_NeutralChange;
-  }
-
   return NS_STYLE_HINT_NONE;
 }
 
@@ -2374,17 +2322,6 @@ mozilla::StyleTransition::SetUnknownProperty(const nsAString& aUnknownProperty)
   mUnknownProperty = do_GetAtom(aUnknownProperty);
 }
 
-bool
-mozilla::StyleTransition::operator==(const mozilla::StyleTransition& aOther) const
-{
-  return mTimingFunction == aOther.mTimingFunction &&
-         mDuration == aOther.mDuration &&
-         mDelay == aOther.mDelay &&
-         mProperty == aOther.mProperty &&
-         (mProperty != eCSSProperty_UNKNOWN ||
-          mUnknownProperty == aOther.mUnknownProperty);
-}
-
 mozilla::StyleAnimation::StyleAnimation(const mozilla::StyleAnimation& aCopy)
   : mTimingFunction(aCopy.mTimingFunction)
   , mDuration(aCopy.mDuration)
@@ -2408,19 +2345,6 @@ mozilla::StyleAnimation::SetInitialValues()
   mFillMode = NS_STYLE_ANIMATION_FILL_MODE_NONE;
   mPlayState = NS_STYLE_ANIMATION_PLAY_STATE_RUNNING;
   mIterationCount = 1.0f;
-}
-
-bool
-mozilla::StyleAnimation::operator==(const mozilla::StyleAnimation& aOther) const
-{
-  return mTimingFunction == aOther.mTimingFunction &&
-         mDuration == aOther.mDuration &&
-         mDelay == aOther.mDelay &&
-         mName == aOther.mName &&
-         mDirection == aOther.mDirection &&
-         mFillMode == aOther.mFillMode &&
-         mPlayState == aOther.mPlayState &&
-         mIterationCount == aOther.mIterationCount;
 }
 
 nsStyleDisplay::nsStyleDisplay()
@@ -2609,29 +2533,24 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
     NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_AddOrRemoveTransform,
                           NS_CombineHint(nsChangeHint_UpdateOverflow,
                                          nsChangeHint_RepaintFrame)));
-  } else {
+  }
+  else if (HasTransformStyle()) {
     /* Otherwise, if we've kept the property lying around and we already had a
      * transform, we need to see whether or not we've changed the transform.
      * If so, we need to recompute its overflow rect (which probably changed
      * if the transform changed) and to redraw within the bounds of that new
      * overflow rect.
-     *
-     * If the property isn't present in either style struct, we still do the
-     * comparisons but turn all the resulting change hints into
-     * nsChangeHint_NeutralChange.
      */
-    nsChangeHint transformHint = nsChangeHint(0);
-
     if (!mSpecifiedTransform != !aOther.mSpecifiedTransform ||
         (mSpecifiedTransform &&
          *mSpecifiedTransform != *aOther.mSpecifiedTransform)) {
-      NS_UpdateHint(transformHint, nsChangeHint_UpdateTransformLayer);
+      NS_UpdateHint(hint, nsChangeHint_UpdateTransformLayer);
 
       if (mSpecifiedTransform &&
           aOther.mSpecifiedTransform) {
-        NS_UpdateHint(transformHint, nsChangeHint_UpdatePostTransformOverflow);
+        NS_UpdateHint(hint, nsChangeHint_UpdatePostTransformOverflow);
       } else {
-        NS_UpdateHint(transformHint, nsChangeHint_UpdateOverflow);
+        NS_UpdateHint(hint, nsChangeHint_UpdateOverflow);
       }
     }
 
@@ -2639,30 +2558,22 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
       NS_CombineHint(nsChangeHint_UpdateOverflow, nsChangeHint_RepaintFrame);
     for (uint8_t index = 0; index < 3; ++index)
       if (mTransformOrigin[index] != aOther.mTransformOrigin[index]) {
-        NS_UpdateHint(transformHint, kUpdateOverflowAndRepaintHint);
+        NS_UpdateHint(hint, kUpdateOverflowAndRepaintHint);
         break;
       }
     
     for (uint8_t index = 0; index < 2; ++index)
       if (mPerspectiveOrigin[index] != aOther.mPerspectiveOrigin[index]) {
-        NS_UpdateHint(transformHint, kUpdateOverflowAndRepaintHint);
+        NS_UpdateHint(hint, kUpdateOverflowAndRepaintHint);
         break;
       }
 
     if (mChildPerspective != aOther.mChildPerspective ||
         mTransformStyle != aOther.mTransformStyle)
-      NS_UpdateHint(transformHint, kUpdateOverflowAndRepaintHint);
+      NS_UpdateHint(hint, kUpdateOverflowAndRepaintHint);
 
     if (mBackfaceVisibility != aOther.mBackfaceVisibility)
-      NS_UpdateHint(transformHint, nsChangeHint_RepaintFrame);
-
-    if (transformHint) {
-      if (HasTransformStyle()) {
-        NS_UpdateHint(hint, transformHint);
-      } else {
-        NS_UpdateHint(hint, nsChangeHint_NeutralChange);
-      }
-    }
+      NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
   }
 
   uint8_t willChangeBitsChanged =
@@ -2688,32 +2599,6 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
   // Note: Likewise, for animation-*, the animation manager gets
   // notified about every new style context constructed, and it uses
   // that opportunity to handle dynamic changes appropriately.
-
-  // But we still need to return nsChangeHint_NeutralChange for these
-  // properties, since some data did change in the style struct.
-
-  if (!hint &&
-      (!mClip.IsEqualEdges(aOther.mClip) ||
-       mOriginalDisplay != aOther.mOriginalDisplay ||
-       mOriginalFloats != aOther.mOriginalFloats ||
-       mMixBlendMode != aOther.mMixBlendMode ||
-       mTransitions != aOther.mTransitions ||
-       mTransitionTimingFunctionCount !=
-         aOther.mTransitionTimingFunctionCount ||
-       mTransitionDurationCount != aOther.mTransitionDurationCount ||
-       mTransitionDelayCount != aOther.mTransitionDelayCount ||
-       mTransitionPropertyCount != aOther.mTransitionPropertyCount ||
-       mAnimations != aOther.mAnimations ||
-       mAnimationTimingFunctionCount != aOther.mAnimationTimingFunctionCount ||
-       mAnimationDurationCount != aOther.mAnimationDurationCount ||
-       mAnimationDelayCount != aOther.mAnimationDelayCount ||
-       mAnimationNameCount != aOther.mAnimationNameCount ||
-       mAnimationDirectionCount != aOther.mAnimationDirectionCount ||
-       mAnimationFillModeCount != aOther.mAnimationFillModeCount ||
-       mAnimationPlayStateCount != aOther.mAnimationPlayStateCount ||
-       mAnimationIterationCountCount != aOther.mAnimationIterationCountCount)) {
-    NS_UpdateHint(hint, nsChangeHint_NeutralChange);
-  }
 
   return hint;
 }
@@ -3350,18 +3235,13 @@ nsChangeHint nsStyleUserInterface::CalcDifference(const nsStyleUserInterface& aO
   if (mUserModify != aOther.mUserModify)
     NS_UpdateHint(hint, NS_STYLE_HINT_VISUAL);
   
-  if (mUserInput != aOther.mUserInput) {
-    if (NS_STYLE_USER_INPUT_NONE == mUserInput ||
-        NS_STYLE_USER_INPUT_NONE == aOther.mUserInput) {
-      NS_UpdateHint(hint, NS_STYLE_HINT_FRAMECHANGE);
-    } else {
-      NS_UpdateHint(hint, nsChangeHint_NeutralChange);
-    }
+  if ((mUserInput != aOther.mUserInput) &&
+      ((NS_STYLE_USER_INPUT_NONE == mUserInput) || 
+       (NS_STYLE_USER_INPUT_NONE == aOther.mUserInput))) {
+    NS_UpdateHint(hint, NS_STYLE_HINT_FRAMECHANGE);
   }
 
-  if (mUserFocus != aOther.mUserFocus) {
-    NS_UpdateHint(hint, nsChangeHint_NeutralChange);
-  }
+  // ignore mUserFocus
 
   return hint;
 }

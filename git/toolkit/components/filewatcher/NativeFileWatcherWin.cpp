@@ -262,7 +262,7 @@ WatchedPathsInfoHashtableTraverser(nsVoidPtrHashKey::KeyType key,
                                    void* userArg)
 {
   FILEWATCHERLOG("NativeFileWatcherIOTask::DeactivateRunnableMethod - "
-                 "%S is still being watched.", watchedResource->mPath.get());
+                 "%S is still being watched.", watchedResource->mPath);
 
   return PL_DHASH_NEXT;
 }
@@ -505,7 +505,7 @@ NativeFileWatcherIOTask::RunInternal()
       // Log that we also failed to dispatch the error callbacks.
       FILEWATCHERLOG(
         "NativeFileWatcherIOTask::Run - Failed to watch %s and"
-        " to dispatch the related error callbacks", changedRes->mPath.get());
+        " to dispatch the related error callbacks", changedRes->mPath);
       return rv;
     }
   }
@@ -616,7 +616,7 @@ NativeFileWatcherIOTask::AddPathRunnableMethod(
 
     FILEWATCHERLOG(
       "NativeFileWatcherIOTask::AddPathRunnableMethod - CreateFileW failed (error %x) for %S.",
-      dwError, wrappedParameters->mPath.get());
+      dwError, wrappedParameters->mPath);
 
     rv = ReportError(wrappedParameters->mErrorCallbackHandle, rv, dwError);
     if (NS_FAILED(rv)) {
@@ -642,7 +642,7 @@ NativeFileWatcherIOTask::AddPathRunnableMethod(
 
     FILEWATCHERLOG("NativeFileWatcherIOTask::AddPathRunnableMethod"
                    " - CreateIoCompletionPort failed (error %x) for %S.",
-                   dwError, wrappedParameters->mPath.get());
+                   dwError, wrappedParameters->mPath);
 
     // This could fail because passed parameters could be invalid |HANDLE|s
     // i.e. mIOCompletionPort was unexpectedly closed or failed.
@@ -705,7 +705,7 @@ NativeFileWatcherIOTask::AddPathRunnableMethod(
   // We failed to dispatch the error callbacks as well.
   FILEWATCHERLOG(
     "NativeFileWatcherIOTask::AddPathRunnableMethod - Failed to watch %s and"
-    " to dispatch the related error callbacks", resourceDesc->mPath.get());
+    " to dispatch the related error callbacks", resourceDesc->mPath);
 
   return rv;
 }
@@ -777,7 +777,7 @@ NativeFileWatcherIOTask::RemovePathRunnableMethod(
     FILEWATCHERLOG(
       "NativeFileWatcherIOTask::RemovePathRunnableMethod - Unable to remove the change "
       "callback from the change callback hash map for %S.",
-      wrappedParameters->mPath.get());
+      wrappedParameters->mPath);
     MOZ_CRASH();
   }
 
@@ -792,7 +792,7 @@ NativeFileWatcherIOTask::RemovePathRunnableMethod(
     FILEWATCHERLOG(
       "NativeFileWatcherIOTask::RemovePathRunnableMethod - Unable to remove the error "
       "callback from the error callback hash map for %S.",
-      wrappedParameters->mPath.get());
+      wrappedParameters->mPath);
     MOZ_CRASH();
   }
 
@@ -1080,7 +1080,7 @@ NativeFileWatcherIOTask::AddDirectoryToWatchList(
     FILEWATCHERLOG(
       "NativeFileWatcherIOTask::AddDirectoryToWatchList "
       " - ReadDirectoryChangesW failed (error %x) for %S.",
-      dwError, aDirectoryDescriptor->mPath.get());
+      dwError, aDirectoryDescriptor->mPath);
 
     nsresult rv =
       DispatchErrorCallbacks(aDirectoryDescriptor, NS_ERROR_FAILURE, dwError);
@@ -1207,15 +1207,15 @@ NativeFileWatcherIOTask::MakeResourcePath(
   if (NS_FAILED(rv)) {
     FILEWATCHERLOG(
       "NativeFileWatcherIOTask::MakeResourcePath - Failed to init nsILocalFile with %S (%x).",
-      changedDescriptor->mPath.get(), rv);
+      changedDescriptor->mPath, rv);
     return rv;
   }
 
   rv = localPath->AppendRelativePath(resourceName);
   if (NS_FAILED(rv)) {
     FILEWATCHERLOG(
-      "NativeFileWatcherIOTask::MakeResourcePath - Failed to append to %S (%x).",
-      changedDescriptor->mPath.get(), rv);
+      "NativeFileWatcherIOTask::MakeResourcePath - Failed to append %S to %S (%x).",
+      resourceName, changedDescriptor->mPath, rv);
     return rv;
   }
 

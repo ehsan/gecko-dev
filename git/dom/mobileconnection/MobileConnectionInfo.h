@@ -25,7 +25,7 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(MobileConnectionInfo)
 
-  explicit MobileConnectionInfo(nsPIDOMWindow* aWindow);
+  MobileConnectionInfo(nsPIDOMWindow* aWindow);
 
   MobileConnectionInfo(const nsAString& aState, bool aConnected,
                        bool aEmergencyCallsOnly, bool aRoaming,

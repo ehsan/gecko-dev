@@ -159,7 +159,7 @@ HostHasPermission(nsIURI &docURI)
   /*
      Test each domain name in the comma separated list
      after converting from UTF8 to ASCII. Each domain
-     must match exactly or have a single leading '*.' wildcard
+     must match exactly: no wildcards are used.
   */
   do {
     end = domainWhiteList.FindChar(',', begin);
