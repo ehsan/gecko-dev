@@ -6623,5 +6623,6 @@ IsSaneThisObject(JSObject &obj)
 }
 #endif
 
-#endif /* DEBUG */
+}  /* namespace js */
 
+#endif
