@@ -6,6 +6,10 @@ import com.jayway.android.robotium.solo.Solo;
 import org.mozilla.gecko.*;
 import org.mozilla.gecko.GeckoThread.LaunchState;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.content.ContentResolver;
@@ -59,14 +63,11 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     public static final int MAX_WAIT_MS = 4500;
     public static final int LONG_PRESS_TIME = 6000;
     private static final int GECKO_READY_WAIT_MS = 180000;
-
-    // IDs for UI views
-    private static final String BROWSER_TOOLBAR_ID = "browser_toolbar";
-    protected static final String URL_EDIT_TEXT_ID = "url_edit_text";
-    protected static final String URL_BAR_TITLE_ID = "url_bar_title";
+    public static final int MAX_WAIT_BLOCK_FOR_EVENT_DATA_MS = 90000;
 
     private static Class<Activity> mLauncherActivityClass;
     private Activity mActivity;
+    private int mPreferenceRequestID = 0;
     protected Solo mSolo;
     protected Driver mDriver;
     protected Assert mAsserter;
@@ -88,16 +89,6 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
             geckoReadyExpector.unregisterListener();
         } catch (Exception e) {
             mAsserter.dumpLog("Exception in blockForGeckoReady", e);
-        }
-    }
-
-    protected void blockForGeckoDelayedStartup() {
-        try {
-            Actions.EventExpecter geckoReadyExpector = mActions.expectGeckoEvent("Gecko:DelayedStartup");
-            geckoReadyExpector.blockForEvent();
-            geckoReadyExpector.unregisterListener();
-        } catch (Exception e) {
-            mAsserter.dumpLog("Exception in blockForGeckoDelayedStartup", e);
         }
     }
 
@@ -196,7 +187,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
      */
     protected final void focusUrlBar() {
         // Click on the browser toolbar to enter editing mode
-        final View toolbarView = mSolo.getView(BROWSER_TOOLBAR_ID);
+        final View toolbarView = mSolo.getView(R.id.browser_toolbar);
         mSolo.clickOnView(toolbarView);
 
         // Wait for highlighed text to gain focus
@@ -217,7 +208,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     }
 
     protected final void enterUrl(String url) {
-        final EditText urlEditView = (EditText) mSolo.getView(URL_EDIT_TEXT_ID);
+        final EditText urlEditView = (EditText) mSolo.getView(R.id.url_edit_text);
 
         focusUrlBar();
 
@@ -271,7 +262,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     }
 
     public final void verifyUrl(String url) {
-        final EditText urlEditText = (EditText) mSolo.getView(URL_EDIT_TEXT_ID);
+        final EditText urlEditText = (EditText) mSolo.getView(R.id.url_edit_text);
         String urlBarText = null;
         if (urlEditText != null) {
             // wait for a short time for the expected text, in case there is a delay
@@ -514,7 +505,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     }
 
     public final void verifyPageTitle(String title) {
-        final TextView urlBarTitle = (TextView) mSolo.getView(URL_BAR_TITLE_ID);
+        final TextView urlBarTitle = (TextView) mSolo.getView(R.id.url_bar_title);
         String pageTitle = null;
         if (urlBarTitle != null) {
             // Wait for the title to make sure it has been displayed in case the view
@@ -526,8 +517,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     }
 
     public final void verifyTabCount(int expectedTabCount) {
-        Activity activity = getActivity();
-        Element tabCount = mDriver.findElement(activity, "tabs_counter");
+        Element tabCount = mDriver.findElement(getActivity(), R.id.tabs_counter);
         String tabCountText = tabCount.getText();
         int tabCountInt = Integer.parseInt(tabCountText);
         mAsserter.is(tabCountInt, expectedTabCount, "The correct number of tabs are opened");
@@ -555,12 +545,12 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     }
 
     public void addTab() {
-        mSolo.clickOnView(mSolo.getView("tabs"));
+        mSolo.clickOnView(mSolo.getView(R.id.tabs));
         // wait for addTab to appear (this is usually immediate)
         boolean success = waitForCondition(new Condition() {
             @Override
             public boolean isSatisfied() {
-                View addTabView = mSolo.getView("add_tab");
+                View addTabView = mSolo.getView(R.id.add_tab);
                 if (addTabView == null) {
                     return false;
                 }
@@ -568,8 +558,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
             }
         }, MAX_WAIT_MS);
         mAsserter.ok(success, "waiting for add tab view", "add tab view available");
-        final View addTabView = mSolo.getView("add_tab");
-        mSolo.clickOnView(mSolo.getView("add_tab"));
+        mSolo.clickOnView(mSolo.getView(R.id.add_tab));
     }
 
     public void addTab(String url) {
@@ -585,11 +574,9 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
      * @return List view in the tabs tray
      */
     private final AdapterView<ListAdapter> getTabsList() {
-        Element tabs = mDriver.findElement(getActivity(), "tabs");
+        Element tabs = mDriver.findElement(getActivity(), R.id.tabs);
         tabs.click();
-        Element listElem = mDriver.findElement(getActivity(), "normal_tabs");
-        int listId = listElem.getId();
-        return (AdapterView<ListAdapter>) getActivity().findViewById(listId);
+        return (AdapterView<ListAdapter>) getActivity().findViewById(R.id.normal_tabs);
     }
 
     /**
@@ -650,8 +637,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
      * @param index Index of tab to close
      */
     public void closeTabAt(final int index) {
-        Element close = mDriver.findElement(getActivity(), "close");
-        View closeButton = getTabViewAt(index).findViewById(close.getId());
+        View closeButton = getTabViewAt(index).findViewById(R.id.close);
 
         mSolo.clickOnView(closeButton);
     }
@@ -760,7 +746,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
             Actions.EventExpecter pageShowExpecter = mActions.expectGeckoEvent("Content:PageShow");
 
             if (devType.equals("tablet")) {
-                Element backBtn = mDriver.findElement(getActivity(), "back");
+                Element backBtn = mDriver.findElement(getActivity(), R.id.back);
                 backBtn.click();
             } else {
                 mActions.sendSpecialKey(Actions.SpecialKey.BACK);
@@ -774,13 +760,13 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
             Actions.EventExpecter pageShowExpecter = mActions.expectGeckoEvent("Content:PageShow");
 
             if (devType.equals("tablet")) {
-                Element fwdBtn = mDriver.findElement(getActivity(), "forward");
+                Element fwdBtn = mDriver.findElement(getActivity(), R.id.forward);
                 fwdBtn.click();
             } else {
                 mActions.sendSpecialKey(Actions.SpecialKey.MENU);
                 waitForText("^New Tab$");
                 if (!osVersion.equals("2.x")) {
-                    Element fwdBtn = mDriver.findElement(getActivity(), "forward");
+                    Element fwdBtn = mDriver.findElement(getActivity(), R.id.forward);
                     fwdBtn.click();
                 } else {
                     mSolo.clickOnText("^Forward$");
@@ -794,13 +780,13 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
 
         public void reload() {
             if (devType.equals("tablet")) {
-                Element reloadBtn = mDriver.findElement(getActivity(), "reload");
+                Element reloadBtn = mDriver.findElement(getActivity(), R.id.reload);
                 reloadBtn.click();
             } else {
                 mActions.sendSpecialKey(Actions.SpecialKey.MENU);
                 waitForText("^New Tab$");
                 if (!osVersion.equals("2.x")) {
-                    Element reloadBtn = mDriver.findElement(getActivity(), "reload");
+                    Element reloadBtn = mDriver.findElement(getActivity(), R.id.reload);
                     reloadBtn.click();
                 } else {
                     mSolo.clickOnText("^Reload$");
@@ -818,7 +804,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
                 // This is the Android 2.x so the button has text
                 mSolo.clickOnText("^Bookmark$");
             } else {
-                Element bookmarkBtn = mDriver.findElement(getActivity(), "bookmark");
+                Element bookmarkBtn = mDriver.findElement(getActivity(), R.id.bookmark);
                 if (bookmarkBtn != null) {
                     // We are on Android 4.x so the button is an image button
                     bookmarkBtn.click();
@@ -893,5 +879,87 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         }
 
         return null;
+    }
+
+    /**
+     * Abstract class for running small test cases within a BaseTest.
+     */
+    abstract class TestCase implements Runnable {
+        /**
+         * Implement tests here. setUp and tearDown for the test case
+         * should be handled by the parent test. This is so we can avoid the
+         * overhead of starting Gecko and creating profiles.
+         */
+        protected abstract void test() throws Exception;
+
+        @Override
+        public void run() {
+            try {
+                test();
+            } catch (Exception e) {
+                mAsserter.ok(false,
+                             "Test " + this.getClass().getName() + " threw exception: " + e,
+                             "");
+            }
+        }
+    }
+
+    /**
+     * Set the preference and wait for it to change before proceeding with the test.
+     */
+    public void setPreferenceAndWaitForChange(final JSONObject jsonPref) {
+        mActions.sendGeckoEvent("Preferences:Set", jsonPref.toString());
+
+        // Get the preference name from the json and store it in an array. This array 
+        // will be used later while fetching the preference data.
+        String[] prefNames = new String[1];
+        try {
+            prefNames[0] = jsonPref.getString("name");
+        } catch (JSONException e) {
+            mAsserter.ok(false, "Exception in setPreferenceAndWaitForChange", getStackTraceString(e));
+        }
+
+        // Wait for confirmation of the pref change before proceeding with the test.
+        final int ourRequestID = mPreferenceRequestID--;
+        final Actions.RepeatedEventExpecter eventExpecter = mActions.expectGeckoEvent("Preferences:Data");
+        mActions.sendPreferencesGetEvent(ourRequestID, prefNames);
+
+        // Wait until we get the correct "Preferences:Data" event
+        waitForCondition(new Condition() {
+            final long endTime = SystemClock.elapsedRealtime() + MAX_WAIT_BLOCK_FOR_EVENT_DATA_MS;
+
+            @Override
+            public boolean isSatisfied() {
+                try {
+                    long timeout = endTime - SystemClock.elapsedRealtime();
+                    if (timeout < 0) {
+                        timeout = 0;
+                    }
+
+                    JSONObject data = new JSONObject(eventExpecter.blockForEventDataWithTimeout(timeout));
+                    int requestID = data.getInt("requestId");
+                    if (requestID != ourRequestID) {
+                        return false;
+                    }
+
+                    JSONArray preferences = data.getJSONArray("preferences");
+                    mAsserter.is(preferences.length(), 1, "Expecting preference array to have one element");
+                    JSONObject prefs = (JSONObject) preferences.get(0);
+                    mAsserter.is(prefs.getString("name"), jsonPref.getString("name"),
+                            "Expecting returned preference name to be the same as the set name");
+                    mAsserter.is(prefs.getString("type"), jsonPref.getString("type"),
+                            "Expecting returned preference type to be the same as the set type");
+                    mAsserter.is(prefs.get("value"), jsonPref.get("value"),
+                            "Expecting returned preference value to be the same as the set value");
+                    return true;
+                } catch(JSONException e) {
+                    mAsserter.ok(false, "Exception in setPreferenceAndWaitForChange", getStackTraceString(e));
+                    // Please the java compiler
+                    return false;
+                }
+            }
+        }, MAX_WAIT_BLOCK_FOR_EVENT_DATA_MS);
+
+        eventExpecter.unregisterListener();
     }
 }

@@ -296,7 +296,9 @@ var WifiManager = (function() {
         if (ok)
           debugEnabled = wanted;
       });
-      p2pManager.setDebug(DEBUG);
+      if (p2pSupported && p2pManager) {
+        p2pManager.setDebug(DEBUG);
+      }
     }
   }
 
@@ -552,14 +554,14 @@ var WifiManager = (function() {
       didConnectSupplicant(function(){});
       return;
     }
-    if (connectTries++ < 3) {
-      // Try again in 5 seconds.
+    if (connectTries++ < 5) {
+      // Try again in 1 seconds.
       if (!retryTimer)
         retryTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
 
       retryTimer.initWithCallback(function(timer) {
         wifiCommand.connectToSupplicant(connectCallback);
-      }, 5000, Ci.nsITimer.TYPE_ONE_SHOT);
+      }, 1000, Ci.nsITimer.TYPE_ONE_SHOT);
       return;
     }
 
@@ -1075,8 +1077,8 @@ var WifiManager = (function() {
   manager.getConfiguredNetworks = function(callback) {
     wifiCommand.listNetworks(function (reply) {
       var networks = Object.create(null);
-      var lines = reply.split("\n");
-      if (lines.length === 1) {
+      var lines = reply ? reply.split("\n") : 0;
+      if (lines.length <= 1) {
         // We need to make sure we call the callback even if there are no
         // configured networks.
         callback(networks);
@@ -1519,7 +1521,7 @@ let WifiNetworkInterface = {
 
   ip: null,
 
-  netmask: null,
+  prefixLength: 0,
 
   broadcast: null,
 
@@ -1930,7 +1932,7 @@ function WifiWorker() {
         WifiNetworkInterface.state =
           Ci.nsINetworkInterface.NETWORK_STATE_DISCONNECTED;
         WifiNetworkInterface.ip = null;
-        WifiNetworkInterface.netmask = null;
+        WifiNetworkInterface.prefixLength = 0;
         WifiNetworkInterface.broadcast = null;
         WifiNetworkInterface.gateway = null;
         WifiNetworkInterface.dns1 = null;
@@ -1964,10 +1966,12 @@ function WifiWorker() {
       return;
     }
 
+    let maskLength =
+      netHelpers.getMaskLength(netHelpers.stringToIP(this.info.mask_str));
     WifiNetworkInterface.state =
       Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED;
     WifiNetworkInterface.ip = this.info.ipaddr_str;
-    WifiNetworkInterface.netmask = this.info.mask_str;
+    WifiNetworkInterface.prefixLength = maskLength;
     WifiNetworkInterface.broadcast = this.info.broadcast_str;
     WifiNetworkInterface.gateway = this.info.gateway_str;
     WifiNetworkInterface.dns1 = this.info.dns1_str;
@@ -2300,8 +2304,10 @@ WifiWorker.prototype = {
       // Convert between netId-based and ssid-based indexing.
       for (let net in networks) {
         let network = networks[net];
+        delete networks[net];
+
         if (!network.ssid) {
-          delete networks[net]; // TODO support these?
+          WifiManager.removeNetwork(network.netId, function() {});
           continue;
         }
 
@@ -2309,8 +2315,11 @@ WifiWorker.prototype = {
           this._highestPriority = network.priority;
 
         let networkKey = getNetworkKey(network);
+        // Accept latest config of same network(same SSID and same security).
+        if (networks[networkKey]) {
+          WifiManager.removeNetwork(networks[networkKey].netId, function() {});
+        }
         networks[networkKey] = network;
-        delete networks[net];
       }
 
       this.configuredNetworks = networks;
@@ -2398,6 +2407,25 @@ WifiWorker.prototype = {
   _sendMessage: function(message, success, data, msg) {
     msg.manager.sendAsyncMessage(message + (success ? ":OK" : ":NO"),
                                  { data: data, rid: msg.rid, mid: msg.mid });
+    this._splicePendingRequest(msg);
+  },
+
+  _domRequest: [],
+
+  _splicePendingRequest: function(msg) {
+    for (let i = 0; i < this._domRequest.length; i++) {
+      if (this._domRequest[i].msg === msg) {
+        this._domRequest.splice(i, 1);
+        return;
+      }
+    }
+  },
+
+  _clearPendingRequest: function() {
+    if (this._domRequest.length === 0) return;
+    this._domRequest.forEach(function(req) {
+      this._sendMessage(req.name + ":Return", false, "Wifi is disabled", req.msg);
+    });
   },
 
   receiveMessage: function MessageManager_receiveMessage(aMessage) {
@@ -2427,6 +2455,11 @@ WifiWorker.prototype = {
 
     if (!aMessage.target.assertPermission("wifi-manage")) {
       return;
+    }
+
+    // We are interested in DOMRequests only.
+    if (aMessage.name != "WifiManager:getState") {
+      this._domRequest.push({name: aMessage.name, msg:msg});
     }
 
     switch (aMessage.name) {
@@ -2502,6 +2535,79 @@ WifiWorker.prototype = {
     }).bind(this));
   },
 
+  getWifiScanResults: function(callback) {
+    var count = 0;
+    var timer = null;
+    var self = this;
+
+    self.waitForScan(waitForScanCallback);
+    doScan();
+    function doScan() {
+      WifiManager.scan(true, function (ok) {
+        if (!ok) {
+          if (!timer) {
+            count = 0;
+            timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+          }
+
+          if (count++ >= 3) {
+            timer = null;
+            this.wantScanResults.splice(this.wantScanResults.indexOf(waitForScanCallback), 1);
+            callback.onfailure();
+            return;
+          }
+
+          // Else it's still running, continue waiting.
+          timer.initWithCallback(doScan, 10000, Ci.nsITimer.TYPE_ONE_SHOT);
+          return;
+        }
+      });
+    }
+
+    function waitForScanCallback(networks) {
+      if (networks === null) {
+        callback.onfailure();
+        return;
+      }
+
+      var wifiScanResults = new Array();
+      var net;
+      for (let net in networks) {
+        let value = networks[net];
+        wifiScanResults.push(transformResult(value));
+      }
+      callback.onready(wifiScanResults.length, wifiScanResults);
+    }
+
+    function transformResult(element) {
+      var result = new WifiScanResult();
+      result.connected = false;
+      for (let id in element) {
+        if (id === "__exposedProps__") {
+          continue;
+        }
+        if (id === "security") {
+          result[id] = 0;
+          var security = element[id];
+          for (let j = 0; j < security.length; j++) {
+            if (security[j] === "WPA-PSK") {
+              result[id] |= Ci.nsIWifiScanResult.WPA_PSK;
+            } else if (security[j] === "WPA-EAP") {
+              result[id] |= Ci.nsIWifiScanResult.WPA_EAP;
+            } else if (security[j] === "WEP") {
+              result[id] |= Ci.nsIWifiScanResult.WEP;
+            } else {
+             result[id] = 0;
+            }
+          }
+        } else {
+          result[id] = element[id];
+        }
+      }
+      return result;
+    }
+  },
+
   getKnownNetworks: function(msg) {
     const message = "WifiManager:getKnownNetworks:Return";
     if (!WifiManager.enabled) {
@@ -2535,6 +2641,11 @@ WifiWorker.prototype = {
   },
 
   setWifiEnabled: function(enabled, callback) {
+    // Reply error to pending requests.
+    if (!enabled) {
+      this._clearPendingRequest();
+    }
+
     WifiManager.setWifiEnabled(enabled, callback);
   },
 
@@ -2636,12 +2747,16 @@ WifiWorker.prototype = {
     const MAX_PRIORITY = 9999;
     const message = "WifiManager:associate:Return";
     let network = msg.data;
+
+    let privnet = network;
+    let dontConnect = privnet.dontConnect;
+    delete privnet.dontConnect;
+
     if (!WifiManager.enabled) {
       this._sendMessage(message, false, "Wifi is disabled", msg);
       return;
     }
 
-    let privnet = network;
     let self = this;
     function networkReady() {
       // saveConfig now before we disable most of the other networks.
@@ -2660,10 +2775,15 @@ WifiWorker.prototype = {
         });
       }
 
-      if (self._highestPriority >= MAX_PRIORITY)
-        self._reprioritizeNetworks(selectAndConnect);
-      else
-        WifiManager.saveConfig(selectAndConnect);
+      var selectAndConnectOrReturn = dontConnect ?
+        function() {
+          self._sendMessage(message, true, "Wifi has been recorded", msg);
+        } : selectAndConnect;
+      if (self._highestPriority >= MAX_PRIORITY) {
+        self._reprioritizeNetworks(selectAndConnectOrReturn);
+      } else {
+        WifiManager.saveConfig(selectAndConnectOrReturn);
+      }
     }
 
     let ssid = privnet.ssid;

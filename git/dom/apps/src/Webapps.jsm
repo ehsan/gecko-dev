@@ -55,7 +55,7 @@ XPCOMUtils.defineLazyGetter(this, "libcutils", function() {
 #endif
 
 function debug(aMsg) {
-#ifdef MOZ_DEBUG
+#ifdef DEBUG
   dump("-*- Webapps.jsm : " + aMsg + "\n");
 #endif
 }
@@ -76,6 +76,8 @@ function supportSystemMessages() {
 const MIN_PROGRESS_EVENT_DELAY = 1500;
 
 const WEBAPP_RUNTIME = Services.appinfo.ID == "webapprt@mozilla.org";
+
+const chromeWindowType = WEBAPP_RUNTIME ? "webapprt:webapp" : "navigator:browser";
 
 XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
   Cu.import("resource://gre/modules/NetUtil.jsm");
@@ -133,6 +135,7 @@ this.DOMApplicationRegistry = {
   webapps: { },
   children: [ ],
   allAppsLaunchable: false,
+  _updateHandlers: [ ],
 
   init: function() {
     this.messages = ["Webapps:Install", "Webapps:Uninstall",
@@ -546,43 +549,9 @@ this.DOMApplicationRegistry = {
     }.bind(this)).then(null, Cu.reportError);
   },
 
-#ifdef MOZ_WIDGET_GONK
-  fixIndexedDb: function() {
-    debug("Fixing indexedDb folder names");
-    let idbDir = FileUtils.getDir("indexedDBPDir", ["indexedDB"]);
-
-    if (!idbDir.exists() || !idbDir.isDirectory()) {
-      return;
-    }
-
-    let re = /^(\d+)\+(.*)\+(f|t)$/;
-
-    let entries = idbDir.directoryEntries;
-    while (entries.hasMoreElements()) {
-      let entry = entries.getNext().QueryInterface(Ci.nsIFile);
-      if (!entry.isDirectory()) {
-        continue;
-      }
-
-      let newName = entry.leafName.replace(re, "$1+$3+$2");
-      if (newName != entry.leafName) {
-        try {
-          entry.moveTo(idbDir, newName);
-        } catch(e) { }
-      }
-    }
-  },
-#endif
-
   loadAndUpdateApps: function() {
     return Task.spawn(function() {
       let runUpdate = AppsUtils.isFirstRun(Services.prefs);
-
-#ifdef MOZ_WIDGET_GONK
-      if (runUpdate) {
-        this.fixIndexedDb();
-      }
-#endif
 
       yield this.loadCurrentRegistry();
 
@@ -1230,6 +1199,23 @@ this.DOMApplicationRegistry = {
     });
   },
 
+  registerUpdateHandler: function(aHandler) {
+    this._updateHandlers.push(aHandler);
+  },
+
+  unregisterUpdateHandler: function(aHandler) {
+    let index = this._updateHandlers.indexOf(aHandler);
+    if (index != -1) {
+      this._updateHandlers.splice(index, 1);
+    }
+  },
+
+  notifyUpdateHandlers: function(aApp, aManifest, aZipPath) {
+    for (let updateHandler of this._updateHandlers) {
+      updateHandler(aApp, aManifest, aZipPath);
+    }
+  },
+
   _getAppDir: function(aId) {
     return FileUtils.getDir(DIRECTORY_NAME, ["webapps", aId], true, true);
   },
@@ -1521,6 +1507,13 @@ this.DOMApplicationRegistry = {
         this._saveApps().then(() => {
           // Update the handlers and permissions for this app.
           this.updateAppHandlers(aOldManifest, aData, app);
+
+          this._loadJSONAsync(staged.path).then((aUpdateManifest) => {
+            let appObject = AppsUtils.cloneAppObject(app);
+            appObject.updateManifest = aUpdateManifest;
+            this.notifyUpdateHandlers(appObject, aData, appFile.path);
+          });
+
           if (supportUseCurrentProfile()) {
             PermissionsInstaller.installPermissions(
               { manifest: aData,
@@ -1575,9 +1568,8 @@ this.DOMApplicationRegistry = {
         },
         manifestURL: aApp.manifestURL
       });
-      let cacheUpdate = aProfileDir
-        ? updateSvc.scheduleCustomProfileUpdate(appcacheURI, docURI, aProfileDir)
-        : updateSvc.scheduleAppUpdate(appcacheURI, docURI, aApp.localId, false);
+      let cacheUpdate = updateSvc.scheduleAppUpdate(
+        appcacheURI, docURI, aApp.localId, false, aProfileDir);
 
       // We save the download details for potential further usage like
       // cancelling it.
@@ -1931,6 +1923,8 @@ this.DOMApplicationRegistry = {
     let manifest;
     if (aNewManifest) {
       this.updateAppHandlers(aOldManifest, aNewManifest, aApp);
+
+      this.notifyUpdateHandlers(AppsUtils.cloneAppObject(aApp), aNewManifest);
 
       // Store the new manifest.
       let dir = this._getAppDir(aId).path;
@@ -2440,16 +2434,16 @@ onInstallSuccessAck: function onInstallSuccessAck(aManifestURL,
         // respond Webapps:Install:Return:Ack, which calls onInstallSuccessAck.
         this.broadcastMessage("Webapps:Install:Return:OK", aData);
       }
+      if (!aData.isPackage) {
+        this.updateAppHandlers(null, app.manifest, app);
+        if (aInstallSuccessCallback) {
+          aInstallSuccessCallback(app.manifest);
+        }
+      }
       Services.obs.notifyObservers(null, "webapps-installed",
         JSON.stringify({ manifestURL: app.manifestURL }));
     });
 
-    if (!aData.isPackage) {
-      this.updateAppHandlers(null, app.manifest, app);
-      if (aInstallSuccessCallback) {
-        aInstallSuccessCallback(app.manifest);
-      }
-    }
     let dontNeedNetwork = false;
     if (manifest.package_path) {
       // If it is a local app then it must been installed from a local file
@@ -2520,6 +2514,11 @@ onInstallSuccessAck: function onInstallSuccessAck(aManifestURL,
     app.downloadAvailable = false;
     this._saveApps().then(() => {
       this.updateAppHandlers(null, aManifest, aNewApp);
+      // Clear the manifest cache in case it holds the update manifest.
+      if (aId in this._manifestCache) {
+        delete this._manifestCache[aId];
+      }
+
       this.broadcastMessage("Webapps:AddApp", { id: aId, app: aNewApp });
       Services.obs.notifyObservers(null, "webapps-installed",
         JSON.stringify({ manifestURL: aNewApp.manifestURL }));
@@ -2699,7 +2698,7 @@ onInstallSuccessAck: function onInstallSuccessAck(aManifestURL,
   _ensureSufficientStorage: function(aNewApp) {
     let deferred = Promise.defer();
 
-    let navigator = Services.wm.getMostRecentWindow("navigator:browser")
+    let navigator = Services.wm.getMostRecentWindow(chromeWindowType)
                             .navigator;
     let deviceStorage = null;
 

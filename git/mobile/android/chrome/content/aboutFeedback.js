@@ -9,14 +9,11 @@ let Ci = Components.interfaces;
 let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/Messaging.jsm");
 document.addEventListener("DOMContentLoaded", init, false);
 
 function dump(a) {
   Services.console.logStringMessage(a);
-}
-
-function sendMessageToJava(aMessage) {
-  Services.androidBridge.handleGeckoMessage(JSON.stringify(aMessage));
 }
 
 function init() {
@@ -35,9 +32,9 @@ function init() {
 
   document.getElementById("open-play-store").addEventListener("click", openPlayStore, false);
   document.forms[0].addEventListener("submit", sendFeedback, false);
-  document.getElementById("no-thanks").addEventListener("click", function(evt) {
-    window.close();
-  }, false);
+  for (let anchor of document.querySelectorAll(".no-thanks")) {
+    anchor.addEventListener("click", evt => window.close(), false);
+  }
 
   let sumoLink = Services.urlFormatter.formatURLPref("app.support.baseURL");
   document.getElementById("sumo-link").href = sumoLink;

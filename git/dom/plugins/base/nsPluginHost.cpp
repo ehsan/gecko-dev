@@ -124,6 +124,7 @@ using mozilla::TimeStamp;
 
 static const char *kPrefWhitelist = "plugin.allowed_types";
 static const char *kPrefDisableFullPage = "plugin.disable_full_page_plugin_for_types";
+static const char *kPrefJavaMIME = "plugin.java.mime";
 
 // Version of cached plugin info
 // 0.01 first implementation
@@ -1555,8 +1556,12 @@ nsPluginHost::SiteHasData(nsIPluginTag* plugin, const nsACString& domain,
 
 bool nsPluginHost::IsJavaMIMEType(const char* aType)
 {
+  // The java mime pref may well not be one of these,
+  // e.g. application/x-java-test used in the test suite
+  nsAdoptingCString javaMIME = Preferences::GetCString(kPrefJavaMIME);
   return aType &&
-    ((0 == PL_strncasecmp(aType, "application/x-java-vm",
+    (javaMIME.EqualsIgnoreCase(aType) ||
+     (0 == PL_strncasecmp(aType, "application/x-java-vm",
                           sizeof("application/x-java-vm") - 1)) ||
      (0 == PL_strncasecmp(aType, "application/x-java-applet",
                           sizeof("application/x-java-applet") - 1)) ||
@@ -1776,13 +1781,12 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
         continue;
       }
 
-      pluginTag = new nsPluginTag(&info);
+      pluginTag = new nsPluginTag(&info, fileModTime);
       pluginFile.FreePluginInfo(info);
       if (!pluginTag)
         return NS_ERROR_OUT_OF_MEMORY;
 
       pluginTag->mLibrary = library;
-      pluginTag->mLastModifiedTime = fileModTime;
       uint32_t state = pluginTag->GetBlocklistState();
 
       // If the blocklist says it is risky and we have never seen this
@@ -3296,7 +3300,7 @@ nsPluginHost::CreateTempFileToPost(const char *aPostDataURL, nsIFile **aTmpFile)
     inStream->Close();
     outStream->Close();
     if (NS_SUCCEEDED(rv))
-      *aTmpFile = tempFile.forget().get();
+      tempFile.forget(aTmpFile);
   }
   return rv;
 }

@@ -16,7 +16,7 @@ Cu.import("resource://gre/modules/PluralForm.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
 let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
-Cu.import("resource:///modules/devtools/shared/event-emitter.js");
+Cu.import("resource://gre/modules/devtools/event-emitter.js");
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
 Cu.import("resource:///modules/devtools/StyleEditorUtil.jsm");
 Cu.import("resource:///modules/devtools/SplitView.jsm");
@@ -55,6 +55,7 @@ function StyleEditorUI(debuggee, target, panelDoc) {
 
   this.editors = [];
   this.selectedEditor = null;
+  this.savedLocations = {};
 
   this._updateSourcesLabel = this._updateSourcesLabel.bind(this);
   this._onStyleSheetCreated = this._onStyleSheetCreated.bind(this);
@@ -104,13 +105,14 @@ StyleEditorUI.prototype = {
     let toolbox = gDevTools.getToolbox(this._target);
     return toolbox.initInspector().then(() => {
       this._walker = toolbox.walker;
-    }).then(() => this.createUI())
-      .then(() => this._debuggee.getStyleSheets())
-      .then((styleSheets) => {
-      this._resetStyleSheetList(styleSheets);
+    }).then(() => {
+      this.createUI();
+      this._debuggee.getStyleSheets().then((styleSheets) => {
+        this._resetStyleSheetList(styleSheets);
 
-      this._target.on("will-navigate", this._clear);
-      this._target.on("navigate", this._onNewDocument);
+        this._target.on("will-navigate", this._clear);
+        this._target.on("navigate", this._onNewDocument);
+      });
     });
   },
 
@@ -167,30 +169,6 @@ StyleEditorUI.prototype = {
   },
 
   /**
-   * Remove all editors and add loading indicator.
-   */
-  _clear: function() {
-    // remember selected sheet and line number for next load
-    if (this.selectedEditor && this.selectedEditor.sourceEditor) {
-      let href = this.selectedEditor.styleSheet.href;
-      let {line, ch} = this.selectedEditor.sourceEditor.getCursor();
-
-      this._styleSheetToSelect = {
-        href: href,
-        line: line,
-        col: ch
-      };
-    }
-
-    this._clearStyleSheetEditors();
-    this._view.removeAll();
-
-    this.selectedEditor = null;
-
-    this._root.classList.add("loading");
-  },
-
-  /**
    * Add editors for all the given stylesheets to the UI.
    *
    * @param  {array} styleSheets
@@ -206,6 +184,38 @@ StyleEditorUI.prototype = {
     this._root.classList.remove("loading");
 
     this.emit("stylesheets-reset");
+  },
+
+  /**
+   * Remove all editors and add loading indicator.
+   */
+  _clear: function() {
+    // remember selected sheet and line number for next load
+    if (this.selectedEditor && this.selectedEditor.sourceEditor) {
+      let href = this.selectedEditor.styleSheet.href;
+      let {line, ch} = this.selectedEditor.sourceEditor.getCursor();
+
+      this._styleSheetToSelect = {
+        href: href,
+        line: line,
+        col: ch
+      };
+    }
+
+    // remember saved file locations
+    for (let editor of this.editors) {
+      if (editor.savedFile) {
+        let identifier = this.getStyleSheetIdentifier(editor.styleSheet);
+        this.savedLocations[identifier] = editor.savedFile;
+      }
+    }
+
+    this._clearStyleSheetEditors();
+    this._view.removeAll();
+
+    this.selectedEditor = null;
+
+    this._root.classList.add("loading");
   },
 
   /**
@@ -247,11 +257,17 @@ StyleEditorUI.prototype = {
    *         Optional if stylesheet is a new sheet created by user
    */
   _addStyleSheetEditor: function(styleSheet, file, isNew) {
+    // recall location of saved file for this sheet after page reload
+    let identifier = this.getStyleSheetIdentifier(styleSheet);
+    let savedFile = this.savedLocations[identifier];
+    if (savedFile && !file) {
+      file = savedFile;
+    }
+
     let editor =
       new StyleSheetEditor(styleSheet, this._window, file, isNew, this._walker);
 
     editor.on("property-change", this._summaryChange.bind(this, editor));
-    editor.on("style-applied", this._summaryChange.bind(this, editor));
     editor.on("linked-css-file", this._summaryChange.bind(this, editor));
     editor.on("linked-css-file-error", this._summaryChange.bind(this, editor));
     editor.on("error", this._onError);
@@ -512,6 +528,18 @@ StyleEditorUI.prototype = {
   },
 
   /**
+   * Returns an identifier for the given style sheet.
+   *
+   * @param {StyleSheet} aStyleSheet
+   *        The style sheet to be identified.
+   */
+  getStyleSheetIdentifier: function (aStyleSheet) {
+    // Identify inline style sheets by their host page URI and index at the page.
+    return aStyleSheet.href ? aStyleSheet.href :
+            "inline-" + aStyleSheet.styleSheetIndex + "-at-" + aStyleSheet.nodeHref;
+  },
+
+  /**
    * selects a stylesheet and optionally moves the cursor to a selected line
    *
    * @param {string} [href]
@@ -563,7 +591,7 @@ StyleEditorUI.prototype = {
     }
 
     let ruleCount = editor.styleSheet.ruleCount;
-    if (editor.styleSheet.relatedStyleSheet) {
+    if (editor.styleSheet.relatedStyleSheet && editor.linkedCSSFile) {
       ruleCount = editor.styleSheet.relatedStyleSheet.ruleCount;
     }
     if (ruleCount === undefined) {
@@ -584,6 +612,9 @@ StyleEditorUI.prototype = {
 
     let label = summary.querySelector(".stylesheet-name > label");
     label.setAttribute("value", editor.friendlyName);
+    if (editor.styleSheet.href) {
+      label.setAttribute("tooltiptext", editor.styleSheet.href);
+    }
 
     let linkedCSSFile = "";
     if (editor.linkedCSSFile) {

@@ -14,9 +14,10 @@
 #include "mozilla/gfx/Types.h"          // for Float
 #include "mozilla/layers/CompositorTypes.h"  // for DiagnosticTypes, etc
 #include "mozilla/layers/LayersTypes.h"  // for LayersBackend
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
+#include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
 #include "nsRegion.h"
 #include <vector>
+#include "mozilla/WidgetUtils.h"
 
 /**
  * Different elements of a web pages are rendered into separate "layers" before
@@ -133,6 +134,23 @@ enum SurfaceInitMode
 };
 
 /**
+ * A base class for a platform-dependent helper for use by TextureHost.
+ */
+class CompositorBackendSpecificData : public RefCounted<CompositorBackendSpecificData>
+{
+public:
+  MOZ_DECLARE_REFCOUNTED_TYPENAME(CompositorBackendSpecificData)
+  CompositorBackendSpecificData()
+  {
+    MOZ_COUNT_CTOR(CompositorBackendSpecificData);
+  }
+  virtual ~CompositorBackendSpecificData()
+  {
+    MOZ_COUNT_DTOR(CompositorBackendSpecificData);
+  }
+};
+
+/**
  * Common interface for compositor backends.
  *
  * Compositor provides a cross-platform interface to a set of operations for
@@ -179,10 +197,12 @@ enum SurfaceInitMode
 class Compositor : public RefCounted<Compositor>
 {
 public:
+  MOZ_DECLARE_REFCOUNTED_TYPENAME(Compositor)
   Compositor(PCompositorParent* aParent = nullptr)
     : mCompositorID(0)
     , mDiagnosticTypes(DIAGNOSTIC_NONE)
     , mParent(aParent)
+    , mScreenRotation(ROTATION_0)
   {
     MOZ_COUNT_CTOR(Compositor);
   }
@@ -389,6 +409,7 @@ public:
   virtual const char* Name() const = 0;
 #endif // MOZ_DUMP_PAINTING
 
+  virtual LayersBackend GetBackendType() const = 0;
 
   /**
    * Each Compositor has a unique ID.
@@ -406,13 +427,6 @@ public:
     MOZ_ASSERT(mCompositorID == 0, "The compositor ID must be set only once.");
     mCompositorID = aID;
   }
-
-  /**
-   * Notify the compositor that a layers transaction has occured. This is only
-   * used for FPS information at the moment.
-   * XXX: surely there is a better way to do this?
-   */
-  virtual void NotifyLayersTransaction() = 0;
 
   /**
    * Notify the compositor that composition is being paused. This allows the
@@ -453,6 +467,45 @@ public:
    */
   static LayersBackend GetBackend();
 
+  size_t GetFillRatio() {
+    float fillRatio = 0;
+    if (mPixelsFilled > 0 && mPixelsPerFrame > 0) {
+      fillRatio = 100.0f * float(mPixelsFilled) / float(mPixelsPerFrame);
+      if (fillRatio > 999.0f) {
+        fillRatio = 999.0f;
+      }
+    }
+    return fillRatio;
+  }
+
+  virtual CompositorBackendSpecificData* GetCompositorBackendSpecificData() {
+    return nullptr;
+  }
+
+  ScreenRotation GetScreenRotation() const {
+    return mScreenRotation;
+  }
+
+  void SetScreenRotation(ScreenRotation aRotation) {
+    mScreenRotation = aRotation;
+  }
+
+  // On b2g the clip rect is in the coordinate space of the physical screen
+  // independently of its rotation, while the coordinate space of the layers,
+  // on the other hand, depends on the screen orientation.
+  // This only applies to b2g as with other platforms, orientation is handled
+  // at the OS level rather than in Gecko.
+  gfx::Rect ClipRectInLayersCoordinates(gfx::Rect aClip) const {
+    switch (mScreenRotation) {
+      case ROTATION_90:
+      case ROTATION_270:
+        return gfx::Rect(aClip.y, aClip.x, aClip.height, aClip.width);
+      case ROTATION_0:
+      case ROTATION_180:
+      default:
+        return aClip;
+    }
+  }
 protected:
   void DrawDiagnosticsInternal(DiagnosticFlags aFlags,
                                const gfx::Rect& aVisibleRect,
@@ -461,8 +514,12 @@ protected:
 
   bool ShouldDrawDiagnostics(DiagnosticFlags);
 
+  /**
+   * Set the global Compositor backend, checking that one isn't already set.
+   */
+  static void SetBackend(LayersBackend backend);
+
   uint32_t mCompositorID;
-  static LayersBackend sBackend;
   DiagnosticTypes mDiagnosticTypes;
   PCompositorParent* mParent;
 
@@ -473,6 +530,12 @@ protected:
    */
   size_t mPixelsPerFrame;
   size_t mPixelsFilled;
+
+  ScreenRotation mScreenRotation;
+
+private:
+  static LayersBackend sBackend;
+
 };
 
 } // namespace layers

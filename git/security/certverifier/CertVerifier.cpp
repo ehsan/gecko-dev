@@ -272,7 +272,8 @@ CertVerifier::InsanityVerifyCert(
     case certificateUsageSSLClient: {
       // XXX: We don't really have a trust bit for SSL client authentication so
       // just use trustEmail as it is the closest alternative.
-      NSSCertDBTrustDomain trustDomain(trustEmail, ocspFetching, pinArg);
+      NSSCertDBTrustDomain trustDomain(trustEmail, ocspFetching, mOCSPCache,
+                                       pinArg);
       rv = BuildCertChain(trustDomain, cert, time, MustBeEndEntity,
                           KU_DIGITAL_SIGNATURE,
                           SEC_OID_EXT_KEY_USAGE_CLIENT_AUTH,
@@ -296,7 +297,7 @@ CertVerifier::InsanityVerifyCert(
                       ocspFetching == NSSCertDBTrustDomain::NeverFetchOCSP
                         ? NSSCertDBTrustDomain::LocalOnlyOCSPForEV
                         : NSSCertDBTrustDomain::FetchOCSPForEV,
-                      pinArg);
+                      mOCSPCache, pinArg);
         rv = BuildCertChainForOneKeyUsage(trustDomain, cert, time,
                                           KU_DIGITAL_SIGNATURE, // ECDHE/DHE
                                           KU_KEY_ENCIPHERMENT, // RSA
@@ -321,7 +322,8 @@ CertVerifier::InsanityVerifyCert(
       }
 
       // Now try non-EV.
-      NSSCertDBTrustDomain trustDomain(trustSSL, ocspFetching, pinArg);
+      NSSCertDBTrustDomain trustDomain(trustSSL, ocspFetching, mOCSPCache,
+                                       pinArg);
       rv = BuildCertChainForOneKeyUsage(trustDomain, cert, time,
                                         KU_DIGITAL_SIGNATURE, // ECDHE/DHE
                                         KU_KEY_ENCIPHERMENT, // RSA
@@ -333,7 +335,8 @@ CertVerifier::InsanityVerifyCert(
     }
 
     case certificateUsageSSLCA: {
-      NSSCertDBTrustDomain trustDomain(trustSSL, ocspFetching, pinArg);
+      NSSCertDBTrustDomain trustDomain(trustSSL, ocspFetching, mOCSPCache,
+                                       pinArg);
       rv = BuildCertChain(trustDomain, cert, time, MustBeCA,
                           KU_KEY_CERT_SIGN,
                           SEC_OID_EXT_KEY_USAGE_SERVER_AUTH,
@@ -343,7 +346,8 @@ CertVerifier::InsanityVerifyCert(
     }
 
     case certificateUsageEmailSigner: {
-      NSSCertDBTrustDomain trustDomain(trustEmail, ocspFetching, pinArg);
+      NSSCertDBTrustDomain trustDomain(trustEmail, ocspFetching, mOCSPCache,
+                                       pinArg);
       rv = BuildCertChain(trustDomain, cert, time, MustBeEndEntity,
                           KU_DIGITAL_SIGNATURE,
                           SEC_OID_EXT_KEY_USAGE_EMAIL_PROTECT,
@@ -356,7 +360,8 @@ CertVerifier::InsanityVerifyCert(
       // TODO: The higher level S/MIME processing should pass in which key
       // usage it is trying to verify for, and base its algorithm choices
       // based on the result of the verification(s).
-      NSSCertDBTrustDomain trustDomain(trustEmail, ocspFetching, pinArg);
+      NSSCertDBTrustDomain trustDomain(trustEmail, ocspFetching, mOCSPCache,
+                                       pinArg);
       rv = BuildCertChainForOneKeyUsage(trustDomain, cert, time,
                                         KU_KEY_ENCIPHERMENT, // RSA
                                         KU_KEY_AGREEMENT, // ECDH/DH
@@ -369,7 +374,7 @@ CertVerifier::InsanityVerifyCert(
 
     case certificateUsageObjectSigner: {
       NSSCertDBTrustDomain trustDomain(trustObjectSigning, ocspFetching,
-                                       pinArg);
+                                       mOCSPCache, pinArg);
       rv = BuildCertChain(trustDomain, cert, time, MustBeEndEntity,
                           KU_DIGITAL_SIGNATURE,
                           SEC_OID_EXT_KEY_USAGE_CODE_SIGN,
@@ -397,18 +402,21 @@ CertVerifier::InsanityVerifyCert(
         eku = SEC_OID_OCSP_RESPONDER;
       }
 
-      NSSCertDBTrustDomain sslTrust(trustSSL, ocspFetching, pinArg);
+      NSSCertDBTrustDomain sslTrust(trustSSL, ocspFetching, mOCSPCache,
+                                    pinArg);
       rv = BuildCertChain(sslTrust, cert, time, endEntityOrCA,
                           keyUsage, eku, SEC_OID_X509_ANY_POLICY,
                           stapledOCSPResponse, builtChain);
       if (rv == SECFailure && PR_GetError() == SEC_ERROR_UNKNOWN_ISSUER) {
-        NSSCertDBTrustDomain emailTrust(trustEmail, ocspFetching, pinArg);
+        NSSCertDBTrustDomain emailTrust(trustEmail, ocspFetching, mOCSPCache,
+                                        pinArg);
         rv = BuildCertChain(emailTrust, cert, time, endEntityOrCA, keyUsage,
                             eku, SEC_OID_X509_ANY_POLICY,
                             stapledOCSPResponse, builtChain);
         if (rv == SECFailure && SEC_ERROR_UNKNOWN_ISSUER) {
           NSSCertDBTrustDomain objectSigningTrust(trustObjectSigning,
-                                                  ocspFetching, pinArg);
+                                                  ocspFetching, mOCSPCache,
+                                                  pinArg);
           rv = BuildCertChain(objectSigningTrust, cert, time, endEntityOrCA,
                               keyUsage, eku, SEC_OID_X509_ANY_POLICY,
                               stapledOCSPResponse, builtChain);
@@ -555,7 +563,7 @@ CertVerifier::VerifyCert(CERTCertificate* cert,
   rev.chainTests.number_of_defined_methods = cert_revocation_method_ocsp + 1;
 
   const bool localOnly = flags & FLAG_LOCAL_ONLY;
-  CERTValInParam cvin[6];
+  CERTValInParam cvin[7];
 
   // Parameters for both EV and DV validation
   cvin[0].type = cert_pi_useAIACertFetch;
@@ -565,6 +573,16 @@ CertVerifier::VerifyCert(CERTCertificate* cert,
   cvin[2].type = cert_pi_date;
   cvin[2].value.scalar.time = time;
   i = 3;
+
+  CERTChainVerifyCallback callbackContainer;
+  if (usage == certificateUsageSSLServer) {
+    callbackContainer.isChainValid = chainValidationCallback;
+    callbackContainer.isChainValidArg = nullptr;
+    cvin[i].type = cert_pi_chainVerifyCallback;
+    cvin[i].value.pointer.chainVerifyCallback = &callbackContainer;
+    ++i;
+  }
+
   const size_t evParamLocation = i;
 
   if (evPolicy != SEC_OID_UNKNOWN) {
@@ -801,6 +819,8 @@ CertVerifier::VerifySSLServerCert(CERTCertificate* peerCert,
     return SECFailure;
   }
 
+  // CreateCertErrorRunnable assumes that CERT_VerifyCertName is only called
+  // if VerifyCert succeeded.
   ScopedCERTCertList validationChain;
   SECStatus rv = VerifyCert(peerCert, stapledOCSPResponse,
                             certificateUsageSSLServer, time,

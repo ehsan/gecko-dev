@@ -1946,7 +1946,6 @@ CustomizeMode.prototype = {
     }
     return aReferenceNode;
   },
-
 };
 
 function __dumpDragData(aEvent, caller) {

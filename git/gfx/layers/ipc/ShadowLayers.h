@@ -28,7 +28,7 @@ class gfxASurface;
 namespace mozilla {
 namespace layers {
 
-class BasicTiledLayerBuffer;
+class ClientTiledLayerBuffer;
 class CanvasClient;
 class CanvasLayerComposite;
 class CanvasSurface;
@@ -255,14 +255,10 @@ public:
                ShadowableLayer* aMaskLayer);
 
   /**
-   * Notify the compositor that a tiled layer buffer has changed
-   * that needs to be synced to the shadow retained copy. The tiled
-   * layer buffer will operate directly on the shadow retained buffer
-   * and is free to choose it's own internal representation (double buffering,
-   * copy on write, tiling).
+   * See CompositableForwarder::UseTiledLayerBuffer
    */
-  virtual void PaintedTiledLayerBuffer(CompositableClient* aCompositable,
-                                       const SurfaceDescriptorTiles& aTileLayerDescriptor) MOZ_OVERRIDE;
+  virtual void UseTiledLayerBuffer(CompositableClient* aCompositable,
+                                   const SurfaceDescriptorTiles& aTileLayerDescriptor) MOZ_OVERRIDE;
 
   /**
    * Notify the compositor that a compositable will be updated asynchronously
@@ -278,6 +274,9 @@ public:
   virtual void UpdateTexture(CompositableClient* aCompositable,
                              TextureIdentifier aTextureId,
                              SurfaceDescriptor* aDescriptor) MOZ_OVERRIDE;
+
+  virtual void RemoveTextureFromCompositable(CompositableClient* aCompositable,
+                                             TextureClient* aTexture) MOZ_OVERRIDE;
 
   virtual void RemoveTexture(TextureClient* aTexture) MOZ_OVERRIDE;
 
@@ -321,6 +320,9 @@ public:
    */
   virtual void UseTexture(CompositableClient* aCompositable,
                           TextureClient* aClient) MOZ_OVERRIDE;
+  virtual void UseComponentAlphaTextures(CompositableClient* aCompositable,
+                                         TextureClient* aClientOnBlack,
+                                         TextureClient* aClientOnWhite) MOZ_OVERRIDE;
 
   /**
    * End the current transaction and forward it to LayerManagerComposite.
@@ -385,6 +387,7 @@ public:
   virtual void DeallocShmem(mozilla::ipc::Shmem& aShmem) MOZ_OVERRIDE;
 
   virtual bool IPCOpen() const MOZ_OVERRIDE;
+  virtual bool IsSameProcess() const MOZ_OVERRIDE;
 
   /**
    * Construct a shadow of |aLayer| on the "other side", at the

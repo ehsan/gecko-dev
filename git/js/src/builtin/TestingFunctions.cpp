@@ -271,7 +271,7 @@ static const struct ParamPair {
 
 // Keep this in sync with above params.
 #define GC_PARAMETER_ARGS_LIST "maxBytes, maxMallocBytes, gcBytes, gcNumber, sliceTimeBudget, or markStackLimit"
- 
+
 static bool
 GCParameter(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -311,9 +311,17 @@ GCParameter(JSContext *cx, unsigned argc, Value *vp)
     }
 
     uint32_t value;
-    if (!ToUint32(cx, args[1], &value)) {
+    if (!ToUint32(cx, args[1], &value))
+        return false;
+
+    if (!value) {
         JS_ReportError(cx, "the second argument must be convertable to uint32_t "
                            "with non-zero value");
+        return false;
+    }
+
+    if (param == JSGC_MARK_STACK_LIMIT && IsIncrementalGCInProgress(cx->runtime())) {
+        JS_ReportError(cx, "attempt to set markStackLimit while a GC is in progress");
         return false;
     }
 
@@ -346,6 +354,42 @@ IsProxy(JSContext *cx, unsigned argc, Value *vp)
         return true;
     }
     args.rval().setBoolean(args[0].toObject().is<ProxyObject>());
+    return true;
+}
+
+static bool
+IsLazyFunction(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    if (argc != 1) {
+        JS_ReportError(cx, "The function takes exactly one argument.");
+        return false;
+    }
+    if (!args[0].isObject() || !args[0].toObject().is<JSFunction>()) {
+        JS_ReportError(cx, "The first argument should be a function.");
+        return true;
+    }
+    args.rval().setBoolean(args[0].toObject().as<JSFunction>().isInterpretedLazy());
+    return true;
+}
+
+static bool
+IsRelazifiableFunction(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    if (argc != 1) {
+        JS_ReportError(cx, "The function takes exactly one argument.");
+        return false;
+    }
+    if (!args[0].isObject() ||
+        !args[0].toObject().is<JSFunction>())
+    {
+        JS_ReportError(cx, "The first argument should be a function.");
+        return true;
+    }
+
+    JSFunction *fun = &args[0].toObject().as<JSFunction>();
+    args.rval().setBoolean(fun->hasScript() && fun->nonLazyScript()->isRelazifiable());
     return true;
 }
 
@@ -1121,7 +1165,7 @@ SetJitCompilerOption(JSContext *cx, unsigned argc, jsval *vp)
     if (number < 0)
         number = -1;
 
-    JS_SetGlobalJitCompilerOption(cx, opt, uint32_t(number));
+    JS_SetGlobalJitCompilerOption(cx->runtime(), opt, uint32_t(number));
 
     args.rval().setUndefined();
     return true;
@@ -1136,10 +1180,10 @@ GetJitCompilerOptions(JSContext *cx, unsigned argc, jsval *vp)
 
     RootedValue value(cx);
 
-#define JIT_COMPILER_MATCH(key, string)                         \
-    opt = JSJITCOMPILER_ ## key;                                \
-    value.setInt32(JS_GetGlobalJitCompilerOption(cx, opt));     \
-    if (!JS_SetProperty(cx, info, string, value))               \
+#define JIT_COMPILER_MATCH(key, string)                                \
+    opt = JSJITCOMPILER_ ## key;                                       \
+    value.setInt32(JS_GetGlobalJitCompilerOption(cx->runtime(), opt)); \
+    if (!JS_SetProperty(cx, info, string, value))                      \
         return false;
 
     JSJitCompilerOption opt = JSJITCOMPILER_NOT_AN_OPTION;
@@ -1197,7 +1241,7 @@ class CloneBufferObject : public JSObject {
     }
 
     uint64_t *data() const {
-        return static_cast<uint64_t*>(getReservedSlot(0).toPrivate());
+        return static_cast<uint64_t*>(getReservedSlot(DATA_SLOT).toPrivate());
     }
 
     void setData(uint64_t *aData) {
@@ -1313,6 +1357,7 @@ const Class CloneBufferObject::class_ = {
     nullptr,                  /* hasInstance */
     nullptr,                  /* construct */
     nullptr,                  /* trace */
+    JS_NULL_CLASS_SPEC,
     JS_NULL_CLASS_EXT,
     JS_NULL_OBJECT_OPS
 };
@@ -1405,7 +1450,11 @@ static bool
 WorkerThreadCount(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setNumber(static_cast<double>(cx->runtime()->workerThreadCount()));
+#ifdef JS_THREADSAFE
+    args.rval().setInt32(cx->runtime()->useHelperThreads() ? WorkerThreadState().threadCount : 0);
+#else
+    args.rval().setInt32(0);
+#endif
     return true;
 }
 
@@ -1588,6 +1637,14 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
 "isAsmJSFunction(fn)",
 "  Returns whether the given value is a nested function in an asm.js module that has been\n"
 "  both compile- and link-time validated."),
+
+    JS_FN_HELP("isLazyFunction", IsLazyFunction, 1, 0,
+"isLazyFunction(fun)",
+"  True if fun is a lazy JSFunction."),
+
+    JS_FN_HELP("isRelazifiableFunction", IsRelazifiableFunction, 1, 0,
+"isRelazifiableFunction(fun)",
+"  Ture if fun is a JSFunction with a relazifiable JSScript."),
 
     JS_FN_HELP("inParallelSection", testingFunc_inParallelSection, 0, 0,
 "inParallelSection()",

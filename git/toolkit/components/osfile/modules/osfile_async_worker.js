@@ -324,6 +324,10 @@ const EXCEPTION_NAMES = {
      return File.move(Type.path.fromMsg(sourcePath),
        Type.path.fromMsg(destPath), options);
    },
+   getAvailableFreeSpace: function getAvailableFreeSpace(sourcePath) {
+     return Type.uint64_t.toMsg(
+       File.getAvailableFreeSpace(Type.path.fromMsg(sourcePath)));
+   },
    makeDir: function makeDir(path, options) {
      return File.makeDir(Type.path.fromMsg(path), options);
    },
@@ -358,6 +362,9 @@ const EXCEPTION_NAMES = {
    },
    read: function read(path, bytes, options) {
      let data = File.read(Type.path.fromMsg(path), bytes, options);
+     if (typeof data == "string") {
+       return data;
+     }
      return new Meta({
          buffer: data.buffer,
          byteOffset: data.byteOffset,

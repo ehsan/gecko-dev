@@ -3432,6 +3432,17 @@ gfxFont::ShapeFragmentWithoutWordCache(gfxContext *aContext,
     return ok;
 }
 
+// Check if aCh is an unhandled control character that should be displayed
+// as a hexbox rather than rendered by some random font on the system.
+// We exclude \r as stray &#13;s are rather common (bug 941940).
+// Note that \n and \t don't come through here, as they have specific
+// meanings that have already been handled.
+static bool
+IsInvalidControlChar(uint32_t aCh)
+{
+    return aCh != '\r' && ((aCh & 0x7f) < 0x20 || aCh == 0x7f);
+}
+
 template<typename T>
 bool
 gfxFont::ShapeTextWithoutWordCache(gfxContext *aContext,
@@ -3465,11 +3476,15 @@ gfxFont::ShapeTextWithoutWordCache(gfxContext *aContext,
         }
 
         // fragment was terminated by an invalid char: skip it,
+        // unless it's a control char that we want to show as a hexbox,
         // but record where TAB or NEWLINE occur
         if (ch == '\t') {
             aTextRun->SetIsTab(aOffset + i);
         } else if (ch == '\n') {
             aTextRun->SetIsNewline(aOffset + i);
+        } else if (IsInvalidControlChar(ch) &&
+            !(aTextRun->GetFlags() & gfxTextRunFactory::TEXT_HIDE_CONTROL_CHARACTERS)) {
+            aTextRun->SetMissingGlyph(aOffset + i, ch, this);
         }
         fragStart = i + 1;
     }
@@ -3632,11 +3647,15 @@ gfxFont::SplitAndInitTextRun(gfxContext *aContext,
                      "how did we get here except via an invalid char?");
 
         // word was terminated by an invalid char: skip it,
+        // unless it's a control char that we want to show as a hexbox,
         // but record where TAB or NEWLINE occur
         if (ch == '\t') {
             aTextRun->SetIsTab(aRunStart + i);
         } else if (ch == '\n') {
             aTextRun->SetIsNewline(aRunStart + i);
+        } else if (IsInvalidControlChar(ch) &&
+            !(aTextRun->GetFlags() & gfxTextRunFactory::TEXT_HIDE_CONTROL_CHARACTERS)) {
+            aTextRun->SetMissingGlyph(aRunStart + i, ch, this);
         }
 
         hash = 0;
@@ -4315,14 +4334,14 @@ gfxFontGroup::Copy(const gfxFontStyle *aStyle)
 bool 
 gfxFontGroup::IsInvalidChar(uint8_t ch)
 {
-    return ((ch & 0x7f) < 0x20);
+    return ((ch & 0x7f) < 0x20 || ch == 0x7f);
 }
 
 bool 
 gfxFontGroup::IsInvalidChar(char16_t ch)
 {
     // All printable 7-bit ASCII values are OK
-    if (ch >= ' ' && ch < 0x80) {
+    if (ch >= ' ' && ch < 0x7f) {
         return false;
     }
     // No point in sending non-printing control chars through font shaping
@@ -4561,7 +4580,20 @@ gfxFontGroup::MakeSpaceTextRun(const Parameters *aParams, uint32_t aFlags)
         textRun->AddGlyphRun(font, gfxTextRange::kFontGroup, 0, false);
     }
     else {
-        textRun->SetSpaceGlyph(font, aParams->mContext, 0);
+        if (font->GetSpaceGlyph()) {
+            // Normally, the font has a cached space glyph, so we can avoid
+            // the cost of calling FindFontForChar.
+            textRun->SetSpaceGlyph(font, aParams->mContext, 0);
+        } else {
+            // In case the primary font doesn't have <space> (bug 970891),
+            // find one that does.
+            uint8_t matchType;
+            nsRefPtr<gfxFont> spaceFont =
+                FindFontForChar(' ', 0, MOZ_SCRIPT_LATIN, nullptr, &matchType);
+            if (spaceFont) {
+                textRun->SetSpaceGlyph(spaceFont, aParams->mContext, 0);
+            }
+        }
     }
 
     // Note that the gfxGlyphExtents glyph bounds storage for the font will
@@ -5021,15 +5053,15 @@ gfxFontGroup::FindFontForChar(uint32_t aCh, uint32_t aPrevCh,
         // Don't switch fonts for control characters, regardless of
         // whether they are present in the current font, as they won't
         // actually be rendered (see bug 716229)
-        uint8_t category = GetGeneralCategory(aCh);
-        if (category == HB_UNICODE_GENERAL_CATEGORY_CONTROL) {
+        if (isJoinControl ||
+            GetGeneralCategory(aCh) == HB_UNICODE_GENERAL_CATEGORY_CONTROL) {
             nsRefPtr<gfxFont> ret = aPrevMatchedFont;
             return ret.forget();
         }
 
-        // if this character is a join-control or the previous is a join-causer,
+        // if previous character was a join-causer (ZWJ),
         // use the same font as the previous range if we can
-        if (isJoinControl || wasJoinCauser) {
+        if (wasJoinCauser) {
             if (aPrevMatchedFont->HasCharacter(aCh)) {
                 nsRefPtr<gfxFont> ret = aPrevMatchedFont;
                 return ret.forget();
@@ -5113,13 +5145,16 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges,
     NS_ASSERTION(aLength > 0, "don't call ComputeRanges for zero-length text");
 
     uint32_t prevCh = 0;
-    uint8_t matchType = 0;
     int32_t lastRangeIndex = -1;
 
     // initialize prevFont to the group's primary font, so that this will be
     // used for string-initial control chars, etc rather than risk hitting font
     // fallback for these (bug 716229)
     gfxFont *prevFont = GetFontAt(0);
+
+    // if we use the initial value of prevFont, we treat this as a match from
+    // the font group; fixes bug 978313
+    uint8_t matchType = gfxTextRange::kFontGroup;
 
     for (uint32_t i = 0; i < aLength; i++) {
 

@@ -8,7 +8,7 @@
 import os
 import re
 import json
-
+import mozbuild.mozconfig as mozconfig
 
 def build_dict(config, env=os.environ):
     """
@@ -27,10 +27,9 @@ def build_dict(config, env=os.environ):
     d = {}
     d['topsrcdir'] = config.topsrcdir
 
-    if 'MOZCONFIG' in env:
-        mozconfig = env["MOZCONFIG"]
-        mozconfig = os.path.join(config.topsrcdir, mozconfig)
-        d['mozconfig'] = os.path.normpath(mozconfig)
+    the_mozconfig = mozconfig.MozconfigLoader(config.topsrcdir).find_mozconfig(env)
+    if the_mozconfig:
+        d['mozconfig'] = the_mozconfig
 
     # os
     o = substs["OS_TARGET"]
@@ -84,7 +83,6 @@ def build_dict(config, env=os.environ):
     d['tests_enabled'] = substs.get('ENABLE_TESTS') == "1"
     d['bin_suffix'] = substs.get('BIN_SUFFIX', '')
 
-    d['ogg'] = bool(substs.get('MOZ_OGG'))
     d['webm'] = bool(substs.get('MOZ_WEBM'))
     d['wave'] = bool(substs.get('MOZ_WAVE'))
 

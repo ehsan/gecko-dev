@@ -10,18 +10,13 @@ Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://services-common/utils.js");
-Cu.import("resource://services-common/hawk.js");
+Cu.import("resource://services-common/hawkclient.js");
 Cu.import("resource://services-crypto/utils.js");
 Cu.import("resource://gre/modules/FxAccountsCommon.js");
 Cu.import("resource://gre/modules/Credentials.jsm");
 
-// Default can be changed by the preference 'identity.fxaccounts.auth.uri'
-let _host = "https://api-accounts.dev.lcip.org/v1";
-try {
-  _host = Services.prefs.getCharPref("identity.fxaccounts.auth.uri");
-} catch(keepDefault) {}
+const HOST = Services.prefs.getCharPref("identity.fxaccounts.auth.uri");
 
-const HOST = _host;
 this.FxAccountsClient = function(host = HOST) {
   this.host = host;
 
@@ -91,6 +86,11 @@ this.FxAccountsClient.prototype = {
    *        The email address for the account (utf8)
    * @param password
    *        The user's password
+   * @param [getKeys=false]
+   *        If set to true the keyFetchToken will be retrieved
+   * @param [retryOK=true]
+   *        If capitalization of the email is wrong and retryOK is set to true,
+   *        we will retry with the suggested capitalization from the server
    * @return Promise
    *        Returns a promise that resolves to an object:
    *        {
@@ -98,15 +98,48 @@ this.FxAccountsClient.prototype = {
    *          sessionToken: a session token (hex)
    *          keyFetchToken: a key fetch token (hex)
    *          verified: flag indicating verification status of the email
+   *          authAt: authentication time for the session (seconds since epoch)
+   *          email: the primary email for this account
    *        }
    */
-  signIn: function signIn(email, password) {
+  signIn: function signIn(email, password, getKeys=false, retryOK=true) {
     return Credentials.setup(email, password).then((creds) => {
       let data = {
         email: creds.emailUTF8,
         authPW: CommonUtils.bytesAsHex(creds.authPW),
       };
-      return this._request("/account/login", "POST", null, data);
+      let keys = getKeys ? "?keys=true" : "";
+
+      return this._request("/account/login" + keys, "POST", null, data).then(
+        // Include the canonical capitalization of the email in the response so
+        // the caller can set its signed-in user state accordingly.
+        result => {
+          result.email = data.email;
+          return result;
+        },
+        error => {
+          log.debug("signIn error: " + JSON.stringify(error));
+          // If the user entered an email with different capitalization from
+          // what's stored in the database (e.g., Greta.Garbo@gmail.COM as
+          // opposed to greta.garbo@gmail.com), the server will respond with a
+          // errno 120 (code 400) and the expected capitalization of the email.
+          // We retry with this email exactly once.  If successful, we use the
+          // server's version of the email as the signed-in-user's email. This
+          // is necessary because the email also serves as salt; so we must be
+          // in agreement with the server on capitalization.
+          //
+          // API reference:
+          // https://github.com/mozilla/fxa-auth-server/blob/master/docs/api.md
+          if (ERRNO_INCORRECT_EMAIL_CASE === error.errno && retryOK) {
+            if (!error.email) {
+              log.error("Server returned errno 120 but did not provide email");
+              throw error;
+            }
+            return this.signIn(error.email, password, getKeys, false);
+          }
+          throw error;
+        }
+      );
     });
   },
 
@@ -341,8 +374,8 @@ this.FxAccountsClient.prototype = {
             error.retryAfter * 1000,
             this,
             "fxaBackoffTimer"
-          );
-        }
+           );
+	}
         deferred.reject(error);
       }
     );

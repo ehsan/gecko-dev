@@ -49,7 +49,7 @@ class Shmem;
 
 namespace layers {
 
-class BasicTiledLayerBuffer;
+class ClientTiledLayerBuffer;
 
 typedef nsTArray<SurfaceDescriptor> BufferArray;
 typedef std::vector<Edit> EditVector;
@@ -177,7 +177,6 @@ void
 CompositableForwarder::IdentifyTextureHost(const TextureFactoryIdentifier& aIdentifier)
 {
   mTextureFactoryIdentifier = aIdentifier;
-  mMultiProcess = aIdentifier.mParentProcessId != XRE_GetProcessType();
 }
 
 ShadowLayerForwarder::ShadowLayerForwarder()
@@ -276,8 +275,8 @@ ShadowLayerForwarder::InsertAfter(ShadowableLayer* aContainer,
                                 nullptr, Shadow(aChild),
                                 nullptr, Shadow(aAfter)));
   else
-    mTxn->AddEdit(OpAppendChild(nullptr, Shadow(aContainer),
-                                nullptr, Shadow(aChild)));
+    mTxn->AddEdit(OpPrependChild(nullptr, Shadow(aContainer),
+                                 nullptr, Shadow(aChild)));
 }
 void
 ShadowLayerForwarder::RemoveChild(ShadowableLayer* aContainer,
@@ -327,11 +326,11 @@ ShadowLayerForwarder::CheckSurfaceDescriptor(const SurfaceDescriptor* aDescripto
 #endif
 
 void
-ShadowLayerForwarder::PaintedTiledLayerBuffer(CompositableClient* aCompositable,
-                                              const SurfaceDescriptorTiles& aTileLayerDescriptor)
+ShadowLayerForwarder::UseTiledLayerBuffer(CompositableClient* aCompositable,
+                                          const SurfaceDescriptorTiles& aTileLayerDescriptor)
 {
-  mTxn->AddNoSwapPaint(OpPaintTiledLayerBuffer(nullptr, aCompositable->GetIPDLActor(),
-                                               aTileLayerDescriptor));
+  mTxn->AddNoSwapPaint(OpUseTiledLayerBuffer(nullptr, aCompositable->GetIPDLActor(),
+                                             aTileLayerDescriptor));
 }
 
 void
@@ -433,6 +432,29 @@ ShadowLayerForwarder::UseTexture(CompositableClient* aCompositable,
 {
   mTxn->AddEdit(OpUseTexture(nullptr, aCompositable->GetIPDLActor(),
                              nullptr, aTexture->GetIPDLActor()));
+}
+
+void
+ShadowLayerForwarder::UseComponentAlphaTextures(CompositableClient* aCompositable,
+                                                TextureClient* aTextureOnBlack,
+                                                TextureClient* aTextureOnWhite)
+{
+  mTxn->AddEdit(OpUseComponentAlphaTextures(nullptr, aCompositable->GetIPDLActor(),
+                                            nullptr, aTextureOnBlack->GetIPDLActor(),
+                                            nullptr, aTextureOnWhite->GetIPDLActor()));
+}
+
+void
+ShadowLayerForwarder::RemoveTextureFromCompositable(CompositableClient* aCompositable,
+                                                    TextureClient* aTexture)
+{
+  mTxn->AddEdit(OpRemoveTexture(nullptr, aCompositable->GetIPDLActor(),
+                                nullptr, aTexture->GetIPDLActor()));
+  if (aTexture->GetFlags() & TEXTURE_DEALLOCATE_CLIENT) {
+    mTxn->MarkSyncTransaction();
+  }
+  // Hold texture until transaction complete.
+  HoldUntilTransaction(aTexture);
 }
 
 void
@@ -600,6 +622,12 @@ ShadowLayerForwarder::IPCOpen() const
   return mShadowManager->IPCOpen();
 }
 
+bool
+ShadowLayerForwarder::IsSameProcess() const
+{
+  return mShadowManager->OtherProcess() == kInvalidProcessHandle;
+}
+
 /*static*/ already_AddRefed<gfxASurface>
 ShadowLayerForwarder::OpenDescriptor(OpenMode aMode,
                                      const SurfaceDescriptor& aSurface)
@@ -654,7 +682,7 @@ ShadowLayerForwarder::GetDescriptorSurfaceContentType(
 
   nsRefPtr<gfxASurface> surface = OpenDescriptor(aMode, aDescriptor);
   content = surface->GetContentType();
-  *aSurface = surface.forget().get();
+  surface.forget(aSurface);
   return content;
 }
 
@@ -694,7 +722,7 @@ ShadowLayerForwarder::GetDescriptorSurfaceImageFormat(
   NS_ASSERTION(format != gfxImageFormat::Unknown,
                "ImageSurface RGB format should be known");
 
-  *aSurface = surface.forget().get();
+  surface.forget(aSurface);
   return format;
 }
 

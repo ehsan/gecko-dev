@@ -9,7 +9,7 @@ const {Cc, Ci, Cu, Cr} = require("chrome");
 Cu.import("resource://gre/modules/Services.jsm");
 
 let promise = require("sdk/core/promise");
-let EventEmitter = require("devtools/shared/event-emitter");
+let EventEmitter = require("devtools/toolkit/event-emitter");
 let {CssLogic} = require("devtools/styleinspector/css-logic");
 
 loader.lazyGetter(this, "MarkupView", () => require("devtools/markupview/markup-view").MarkupView);
@@ -99,6 +99,10 @@ InspectorPanel.prototype = {
 
   get isOuterHTMLEditable() {
     return this._target.client.traits.editOuterHTML;
+  },
+
+  get hasUrlToImageDataResolver() {
+    return this._target.client.traits.urlToImageDataResolver;
   },
 
   _deferredOpen: function(defaultSelection) {

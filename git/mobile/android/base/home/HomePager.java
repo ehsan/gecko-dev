@@ -5,33 +5,29 @@
 
 package org.mozilla.gecko.home;
 
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
+
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.animation.PropertyAnimator;
 import org.mozilla.gecko.animation.ViewHelper;
 import org.mozilla.gecko.home.HomeAdapter.OnAddPanelListener;
 import org.mozilla.gecko.home.HomeConfig.PanelConfig;
-import org.mozilla.gecko.home.HomeConfig.PanelType;
-import org.mozilla.gecko.util.HardwareUtils;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.Loader;
 import android.support.v4.view.ViewPager;
-import android.view.ViewGroup.LayoutParams;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
-import android.view.ViewGroup;
 import android.view.View;
-
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.List;
+import android.view.ViewGroup;
 
 public class HomePager extends ViewPager {
 
@@ -50,9 +46,6 @@ public class HomePager extends ViewPager {
     private ConfigLoaderCallbacks mConfigLoaderCallbacks;
 
     private String mInitialPanelId;
-
-    // Whether or not we need to restart the loader when we show the HomePager.
-    private boolean mRestartLoader;
 
     // Cached original ViewPager background.
     private final Drawable mOriginalBackground;
@@ -154,35 +147,6 @@ public class HomePager extends ViewPager {
     }
 
     /**
-     * Invalidates the current configuration, reloading the HomePager if necessary.
-     */
-    public void invalidate(LoaderManager lm, FragmentManager fm) {
-        // We need to restart the loader to load the new strings.
-        mRestartLoader = true;
-
-        // If the HomePager is currently loaded, reload it with the new strings.
-        if (isLoaded()) {
-            reload(lm, fm);
-        }
-    }
-
-    private void reload(LoaderManager lm, FragmentManager fm) {
-        final HomeAdapter adapter = (HomeAdapter) getAdapter();
-
-        // If mInitialPanelId is non-null, this means the HomePager hasn't
-        // finished loading its config yet. Simply re-show() with the
-        // current target panel.
-        final String currentPanelId;
-        if (mInitialPanelId != null) {
-            currentPanelId = mInitialPanelId;
-        } else {
-            currentPanelId = adapter.getPanelIdAtPosition(getCurrentItem());
-        }
-
-        load(lm, fm, currentPanelId, null);
-    }
-
-    /**
      * Loads and initializes the pager.
      *
      * @param fm FragmentManager for the adapter
@@ -208,13 +172,8 @@ public class HomePager extends ViewPager {
         // list of panels in place.
         mTabStrip.setVisibility(View.INVISIBLE);
 
-        // Load list of panels from configuration. Restart the loader if necessary.
-        if (mRestartLoader) {
-            lm.restartLoader(LOADER_ID_CONFIG, null, mConfigLoaderCallbacks);
-            mRestartLoader = false;
-        } else {
-            lm.initLoader(LOADER_ID_CONFIG, null, mConfigLoaderCallbacks);
-        }
+        // Load list of panels from configuration
+        lm.initLoader(LOADER_ID_CONFIG, null, mConfigLoaderCallbacks);
 
         if (shouldAnimate) {
             animator.addPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
@@ -304,7 +263,7 @@ public class HomePager extends ViewPager {
         mHomeBanner.setActive(active);
     }
 
-    private void updateUiFromPanelConfigs(List<PanelConfig> panelConfigs) {
+    private void updateUiFromConfigState(HomeConfig.State configState) {
         // We only care about the adapter if HomePager is currently
         // loaded, which means it's visible in the activity.
         if (!mLoaded) {
@@ -324,7 +283,7 @@ public class HomePager extends ViewPager {
         // Only keep enabled panels.
         final List<PanelConfig> enabledPanels = new ArrayList<PanelConfig>();
 
-        for (PanelConfig panelConfig : panelConfigs) {
+        for (PanelConfig panelConfig : configState) {
             if (!panelConfig.isDisabled()) {
                 enabledPanels.add(panelConfig);
             }
@@ -376,19 +335,19 @@ public class HomePager extends ViewPager {
         }
     }
 
-    private class ConfigLoaderCallbacks implements LoaderCallbacks<List<PanelConfig>> {
+    private class ConfigLoaderCallbacks implements LoaderCallbacks<HomeConfig.State> {
         @Override
-        public Loader<List<PanelConfig>> onCreateLoader(int id, Bundle args) {
+        public Loader<HomeConfig.State> onCreateLoader(int id, Bundle args) {
             return new HomeConfigLoader(mContext, mConfig);
         }
 
         @Override
-        public void onLoadFinished(Loader<List<PanelConfig>> loader, List<PanelConfig> panelConfigs) {
-            updateUiFromPanelConfigs(panelConfigs);
+        public void onLoadFinished(Loader<HomeConfig.State> loader, HomeConfig.State configState) {
+            updateUiFromConfigState(configState);
         }
 
         @Override
-        public void onLoaderReset(Loader<List<PanelConfig>> loader) {
+        public void onLoaderReset(Loader<HomeConfig.State> loader) {
         }
     }
 

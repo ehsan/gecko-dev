@@ -22,8 +22,8 @@
 #include "jit/IonAllocPolicy.h"
 #include "jit/IonMacroAssembler.h"
 #include "jit/MOpcodes.h"
+#include "jit/TypeDescrSet.h"
 #include "jit/TypePolicy.h"
-#include "jit/TypeRepresentationSet.h"
 #include "vm/ScopeObject.h"
 #include "vm/TypedArrayObject.h"
 
@@ -1321,6 +1321,8 @@ class MTest
     }
     void infer();
     MDefinition *foldsTo(TempAllocator &alloc, bool useValueNumbers);
+    void filtersUndefinedOrNull(bool trueBranch, MDefinition **subject, bool *filtersUndefined,
+                                bool *filtersNull);
 
     void markOperandCantEmulateUndefined() {
         operandMightEmulateUndefined_ = false;
@@ -1557,9 +1559,9 @@ class MNewDerivedTypedObject
                       IntPolicy<2> >
 {
   private:
-    TypeRepresentationSet set_;
+    TypeDescrSet set_;
 
-    MNewDerivedTypedObject(TypeRepresentationSet set,
+    MNewDerivedTypedObject(TypeDescrSet set,
                            MDefinition *type,
                            MDefinition *owner,
                            MDefinition *offset)
@@ -1573,13 +1575,13 @@ class MNewDerivedTypedObject
   public:
     INSTRUCTION_HEADER(NewDerivedTypedObject);
 
-    static MNewDerivedTypedObject *New(TempAllocator &alloc, TypeRepresentationSet set,
+    static MNewDerivedTypedObject *New(TempAllocator &alloc, TypeDescrSet set,
                                        MDefinition *type, MDefinition *owner, MDefinition *offset)
     {
         return new(alloc) MNewDerivedTypedObject(set, type, owner, offset);
     }
 
-    TypeRepresentationSet set() const {
+    TypeDescrSet set() const {
         return set_;
     }
 
@@ -2252,12 +2254,18 @@ class MCompare
     bool operandMightEmulateUndefined_;
     bool operandsAreNeverNaN_;
 
+    // When a floating-point comparison is converted to an integer comparison
+    // (when range analysis proves it safe), we need to convert the operands
+    // to integer as well.
+    bool truncateOperands_;
+
     MCompare(MDefinition *left, MDefinition *right, JSOp jsop)
       : MBinaryInstruction(left, right),
         compareType_(Compare_Unknown),
         jsop_(jsop),
         operandMightEmulateUndefined_(true),
-        operandsAreNeverNaN_(false)
+        operandsAreNeverNaN_(false),
+        truncateOperands_(false)
     {
         setResultType(MIRType_Boolean);
         setMovable();
@@ -2272,6 +2280,8 @@ class MCompare
     bool tryFold(bool *result);
     bool evaluateConstantOperands(bool *result);
     MDefinition *foldsTo(TempAllocator &alloc, bool useValueNumbers);
+    void filtersUndefinedOrNull(bool trueBranch, MDefinition **subject, bool *filtersUndefined,
+                                bool *filtersNull);
 
     void infer(BaselineInspector *inspector, jsbytecode *pc);
     CompareType compareType() const {
@@ -3747,6 +3757,7 @@ class MPow
     static MPow *New(TempAllocator &alloc, MDefinition *input, MDefinition *power,
                      MIRType powerType)
     {
+        JS_ASSERT(powerType == MIRType_Double || powerType == MIRType_Int32);
         return new(alloc) MPow(input, power, powerType);
     }
 
@@ -3923,10 +3934,7 @@ class MMathFunction
     static const char *FunctionName(Function function);
 
     bool isFloat32Commutative() const {
-        return function_ == Log || function_ == Sin || function_ == Cos
-               || function_ == Exp || function_ == Tan || function_ == ATan
-               || function_ == ASin || function_ == ACos || function_ == Floor
-               || function_ == Ceil;
+        return function_ == Floor || function_ == Ceil || function_ == Round;
     }
     void trySpecializeFloat32(TempAllocator &alloc);
     void computeRange(TempAllocator &alloc);
@@ -4746,9 +4754,9 @@ class MCheckOverRecursedPar : public MUnaryInstruction
 };
 
 // Check for an interrupt (or rendezvous) in parallel mode.
-class MCheckInterruptPar : public MUnaryInstruction
+class MInterruptCheckPar : public MUnaryInstruction
 {
-    MCheckInterruptPar(MDefinition *cx)
+    MInterruptCheckPar(MDefinition *cx)
       : MUnaryInstruction(cx)
     {
         setResultType(MIRType_None);
@@ -4757,10 +4765,10 @@ class MCheckInterruptPar : public MUnaryInstruction
     }
 
   public:
-    INSTRUCTION_HEADER(CheckInterruptPar);
+    INSTRUCTION_HEADER(InterruptCheckPar);
 
-    static MCheckInterruptPar *New(TempAllocator &alloc, MDefinition *cx) {
-        return new(alloc) MCheckInterruptPar(cx);
+    static MInterruptCheckPar *New(TempAllocator &alloc, MDefinition *cx) {
+        return new(alloc) MInterruptCheckPar(cx);
     }
 
     MDefinition *forkJoinContext() const {
@@ -5532,6 +5540,41 @@ class MTypedArrayElements
     }
 };
 
+// Checks whether a typed object is neutered.
+class MNeuterCheck
+  : public MUnaryInstruction
+{
+  private:
+    MNeuterCheck(MDefinition *object)
+      : MUnaryInstruction(object)
+    {
+        JS_ASSERT(object->type() == MIRType_Object);
+        setResultType(MIRType_Object);
+        setResultTypeSet(object->resultTypeSet());
+        setGuard();
+        setMovable();
+    }
+
+  public:
+    INSTRUCTION_HEADER(NeuterCheck)
+
+    static MNeuterCheck *New(TempAllocator &alloc, MDefinition *object) {
+        return new(alloc) MNeuterCheck(object);
+    }
+
+    MDefinition *object() const {
+        return getOperand(0);
+    }
+
+    bool congruentTo(MDefinition *ins) const {
+        return congruentIfOperandsEqual(ins);
+    }
+
+    AliasSet getAliasSet() const {
+        return AliasSet::Load(AliasSet::ObjectFields);
+    }
+};
+
 // Load a binary data object's "elements", which is just its opaque
 // binary data space. Eventually this should probably be
 // unified with `MTypedArrayElements`.
@@ -6100,34 +6143,34 @@ class MArrayConcat
 class MLoadTypedArrayElement
   : public MBinaryInstruction
 {
-    ScalarTypeRepresentation::Type arrayType_;
+    ScalarTypeDescr::Type arrayType_;
 
     MLoadTypedArrayElement(MDefinition *elements, MDefinition *index,
-                           ScalarTypeRepresentation::Type arrayType)
+                           ScalarTypeDescr::Type arrayType)
       : MBinaryInstruction(elements, index), arrayType_(arrayType)
     {
         setResultType(MIRType_Value);
         setMovable();
         JS_ASSERT(elements->type() == MIRType_Elements);
         JS_ASSERT(index->type() == MIRType_Int32);
-        JS_ASSERT(arrayType >= 0 && arrayType < ScalarTypeRepresentation::TYPE_MAX);
+        JS_ASSERT(arrayType >= 0 && arrayType < ScalarTypeDescr::TYPE_MAX);
     }
 
   public:
     INSTRUCTION_HEADER(LoadTypedArrayElement)
 
     static MLoadTypedArrayElement *New(TempAllocator &alloc, MDefinition *elements, MDefinition *index,
-                                       ScalarTypeRepresentation::Type arrayType)
+                                       ScalarTypeDescr::Type arrayType)
     {
         return new(alloc) MLoadTypedArrayElement(elements, index, arrayType);
     }
 
-    ScalarTypeRepresentation::Type arrayType() const {
+    ScalarTypeDescr::Type arrayType() const {
         return arrayType_;
     }
     bool fallible() const {
         // Bailout if the result does not fit in an int32.
-        return arrayType_ == ScalarTypeRepresentation::TYPE_UINT32 && type() == MIRType_Int32;
+        return arrayType_ == ScalarTypeDescr::TYPE_UINT32 && type() == MIRType_Int32;
     }
     MDefinition *elements() const {
         return getOperand(0);
@@ -6143,7 +6186,7 @@ class MLoadTypedArrayElement
 
     void computeRange(TempAllocator &alloc);
 
-    bool canProduceFloat32() const { return arrayType_ == ScalarTypeRepresentation::TYPE_FLOAT32; }
+    bool canProduceFloat32() const { return arrayType_ == ScalarTypeDescr::TYPE_FLOAT32; }
 };
 
 // Load a value from a typed array. Out-of-bounds accesses are handled using
@@ -6161,7 +6204,7 @@ class MLoadTypedArrayElementHole
         setResultType(MIRType_Value);
         setMovable();
         JS_ASSERT(index->type() == MIRType_Int32);
-        JS_ASSERT(arrayType >= 0 && arrayType < ScalarTypeRepresentation::TYPE_MAX);
+        JS_ASSERT(arrayType >= 0 && arrayType < ScalarTypeDescr::TYPE_MAX);
     }
 
   public:
@@ -6180,7 +6223,7 @@ class MLoadTypedArrayElementHole
         return allowDouble_;
     }
     bool fallible() const {
-        return arrayType_ == ScalarTypeRepresentation::TYPE_UINT32 && !allowDouble_;
+        return arrayType_ == ScalarTypeDescr::TYPE_UINT32 && !allowDouble_;
     }
     TypePolicy *typePolicy() {
         return this;
@@ -6194,7 +6237,7 @@ class MLoadTypedArrayElementHole
     AliasSet getAliasSet() const {
         return AliasSet::Load(AliasSet::TypedArrayElement);
     }
-    bool canProduceFloat32() const { return arrayType_ == ScalarTypeRepresentation::TYPE_FLOAT32; }
+    bool canProduceFloat32() const { return arrayType_ == ScalarTypeDescr::TYPE_FLOAT32; }
 };
 
 // Load a value fallibly or infallibly from a statically known typed array.
@@ -6206,9 +6249,9 @@ class MLoadTypedArrayElementStatic
       : MUnaryInstruction(ptr), typedArray_(typedArray), fallible_(true)
     {
         int type = typedArray_->type();
-        if (type == ScalarTypeRepresentation::TYPE_FLOAT32)
+        if (type == ScalarTypeDescr::TYPE_FLOAT32)
             setResultType(MIRType_Float32);
-        else if (type == ScalarTypeRepresentation::TYPE_FLOAT64)
+        else if (type == ScalarTypeDescr::TYPE_FLOAT64)
             setResultType(MIRType_Double);
         else
             setResultType(MIRType_Int32);
@@ -6251,7 +6294,7 @@ class MLoadTypedArrayElementStatic
 
     void computeRange(TempAllocator &alloc);
     bool truncate();
-    bool canProduceFloat32() const { return typedArray_->type() == ScalarTypeRepresentation::TYPE_FLOAT32; }
+    bool canProduceFloat32() const { return typedArray_->type() == ScalarTypeDescr::TYPE_FLOAT32; }
 };
 
 class MStoreTypedArrayElement
@@ -6270,7 +6313,7 @@ class MStoreTypedArrayElement
         setMovable();
         JS_ASSERT(elements->type() == MIRType_Elements);
         JS_ASSERT(index->type() == MIRType_Int32);
-        JS_ASSERT(arrayType >= 0 && arrayType < ScalarTypeRepresentation::TYPE_MAX);
+        JS_ASSERT(arrayType >= 0 && arrayType < ScalarTypeDescr::TYPE_MAX);
     }
 
   public:
@@ -6286,13 +6329,13 @@ class MStoreTypedArrayElement
         return arrayType_;
     }
     bool isByteArray() const {
-        return (arrayType_ == ScalarTypeRepresentation::TYPE_INT8 ||
-                arrayType_ == ScalarTypeRepresentation::TYPE_UINT8 ||
-                arrayType_ == ScalarTypeRepresentation::TYPE_UINT8_CLAMPED);
+        return (arrayType_ == ScalarTypeDescr::TYPE_INT8 ||
+                arrayType_ == ScalarTypeDescr::TYPE_UINT8 ||
+                arrayType_ == ScalarTypeDescr::TYPE_UINT8_CLAMPED);
     }
     bool isFloatArray() const {
-        return (arrayType_ == ScalarTypeRepresentation::TYPE_FLOAT32 ||
-                arrayType_ == ScalarTypeRepresentation::TYPE_FLOAT64);
+        return (arrayType_ == ScalarTypeDescr::TYPE_FLOAT32 ||
+                arrayType_ == ScalarTypeDescr::TYPE_FLOAT64);
     }
     TypePolicy *typePolicy() {
         return this;
@@ -6318,7 +6361,7 @@ class MStoreTypedArrayElement
     bool isOperandTruncated(size_t index) const;
 
     bool canConsumeFloat32(MUse *use) const {
-        return use->index() == 2 && arrayType_ == ScalarTypeRepresentation::TYPE_FLOAT32;
+        return use->index() == 2 && arrayType_ == ScalarTypeDescr::TYPE_FLOAT32;
     }
 };
 
@@ -6340,7 +6383,7 @@ class MStoreTypedArrayElementHole
         JS_ASSERT(elements->type() == MIRType_Elements);
         JS_ASSERT(length->type() == MIRType_Int32);
         JS_ASSERT(index->type() == MIRType_Int32);
-        JS_ASSERT(arrayType >= 0 && arrayType < ScalarTypeRepresentation::TYPE_MAX);
+        JS_ASSERT(arrayType >= 0 && arrayType < ScalarTypeDescr::TYPE_MAX);
     }
 
   public:
@@ -6357,13 +6400,13 @@ class MStoreTypedArrayElementHole
         return arrayType_;
     }
     bool isByteArray() const {
-        return (arrayType_ == ScalarTypeRepresentation::TYPE_INT8 ||
-                arrayType_ == ScalarTypeRepresentation::TYPE_UINT8 ||
-                arrayType_ == ScalarTypeRepresentation::TYPE_UINT8_CLAMPED);
+        return (arrayType_ == ScalarTypeDescr::TYPE_INT8 ||
+                arrayType_ == ScalarTypeDescr::TYPE_UINT8 ||
+                arrayType_ == ScalarTypeDescr::TYPE_UINT8_CLAMPED);
     }
     bool isFloatArray() const {
-        return (arrayType_ == ScalarTypeRepresentation::TYPE_FLOAT32 ||
-                arrayType_ == ScalarTypeRepresentation::TYPE_FLOAT64);
+        return (arrayType_ == ScalarTypeDescr::TYPE_FLOAT32 ||
+                arrayType_ == ScalarTypeDescr::TYPE_FLOAT64);
     }
     TypePolicy *typePolicy() {
         return this;
@@ -6386,7 +6429,7 @@ class MStoreTypedArrayElementHole
     bool isOperandTruncated(size_t index) const;
 
     bool canConsumeFloat32(MUse *use) const {
-        return use->index() == 3 && arrayType_ == ScalarTypeRepresentation::TYPE_FLOAT32;
+        return use->index() == 3 && arrayType_ == ScalarTypeDescr::TYPE_FLOAT32;
     }
 };
 
@@ -6433,7 +6476,7 @@ class MStoreTypedArrayElementStatic :
     bool isOperandTruncated(size_t index) const;
 
     bool canConsumeFloat32(MUse *use) const {
-        return use->index() == 1 && typedArray_->type() == ScalarTypeRepresentation::TYPE_FLOAT32;
+        return use->index() == 1 && typedArray_->type() == ScalarTypeDescr::TYPE_FLOAT32;
     }
 };
 
@@ -6688,7 +6731,6 @@ class MGetPropertyCache
 {
     CompilerRootPropertyName name_;
     bool idempotent_;
-    bool allowGetters_;
     bool monitoredResult_;
 
     CacheLocationList location_;
@@ -6699,7 +6741,6 @@ class MGetPropertyCache
       : MUnaryInstruction(obj),
         name_(name),
         idempotent_(false),
-        allowGetters_(false),
         monitoredResult_(monitoredResult),
         location_(),
         inlinePropertyTable_(nullptr)
@@ -6747,14 +6788,8 @@ class MGetPropertyCache
         idempotent_ = true;
         setMovable();
     }
-    bool allowGetters() const {
-        return allowGetters_;
-    }
     bool monitoredResult() const {
         return monitoredResult_;
-    }
-    void setAllowGetters() {
-        allowGetters_ = true;
     }
     CacheLocationList &location() {
         return location_;
@@ -7448,6 +7483,33 @@ class MForkJoinContext
         // Indicate that this instruction reads nothing, stores nothing.
         // (For all intents and purposes)
         return AliasSet::None();
+    }
+
+    bool possiblyCalls() const {
+        return true;
+    }
+};
+
+// Calls the ForkJoinGetSlice stub, used for inlining the eponymous intrinsic.
+// Only applicable in ParallelExecution.
+class MForkJoinGetSlice
+  : public MUnaryInstruction
+{
+    MForkJoinGetSlice(MDefinition *cx)
+      : MUnaryInstruction(cx)
+    {
+        setResultType(MIRType_Int32);
+    }
+
+  public:
+    INSTRUCTION_HEADER(ForkJoinGetSlice);
+
+    static MForkJoinGetSlice *New(TempAllocator &alloc, MDefinition *cx) {
+        return new(alloc) MForkJoinGetSlice(cx);
+    }
+
+    MDefinition *forkJoinContext() {
+        return getOperand(0);
     }
 
     bool possiblyCalls() const {
@@ -8225,12 +8287,13 @@ class MFloor
 // Inlined version of Math.round().
 class MRound
   : public MUnaryInstruction,
-    public DoublePolicy<0>
+    public FloatingPointPolicy<0>
 {
     MRound(MDefinition *num)
       : MUnaryInstruction(num)
     {
         setResultType(MIRType_Int32);
+        setPolicyType(MIRType_Double);
         setMovable();
     }
 
@@ -8250,6 +8313,16 @@ class MRound
     TypePolicy *typePolicy() {
         return this;
     }
+
+    bool isFloat32Commutative() const {
+        return true;
+    }
+    void trySpecializeFloat32(TempAllocator &alloc);
+#ifdef DEBUG
+    bool isConsistentFloat32Use(MUse *use) const {
+        return true;
+    }
+#endif
 };
 
 class MIteratorStart
@@ -8737,6 +8810,37 @@ class MGuardThreadExclusive
     }
 };
 
+class MFilterTypeSet
+  : public MUnaryInstruction
+{
+    MFilterTypeSet(MDefinition *def, types::TemporaryTypeSet *types)
+      : MUnaryInstruction(def)
+    {
+        JS_ASSERT(!types->unknown());
+
+        MIRType type = MIRTypeFromValueType(types->getKnownTypeTag());
+        setResultType(type);
+        setResultTypeSet(types);
+    }
+
+  public:
+    INSTRUCTION_HEADER(FilterTypeSet)
+
+    static MFilterTypeSet *New(TempAllocator &alloc, MDefinition *def, types::TemporaryTypeSet *types) {
+        return new(alloc) MFilterTypeSet(def, types);
+    }
+
+    bool congruentTo(MDefinition *def) const {
+        return false;
+    }
+    AliasSet getAliasSet() const {
+        return AliasSet::None();
+    }
+    virtual bool neverHoist() const {
+        return resultTypeSet()->empty();
+    }
+};
+
 // Given a value, guard that the value is in a particular TypeSet, then returns
 // that value.
 class MTypeBarrier
@@ -8827,14 +8931,10 @@ class MMonitorTypes : public MUnaryInstruction, public BoxInputsPolicy
 
 // Given a value being written to another object, update the generational store
 // buffer if the value is in the nursery and object is in the tenured heap.
-class MPostWriteBarrier
-  : public MBinaryInstruction,
-    public ObjectPolicy<0>
+class MPostWriteBarrier : public MBinaryInstruction, public ObjectPolicy<0>
 {
-    bool hasValue_;
-
     MPostWriteBarrier(MDefinition *obj, MDefinition *value)
-      : MBinaryInstruction(obj, value), hasValue_(true)
+      : MBinaryInstruction(obj, value)
     {
         setGuard();
     }
@@ -8854,12 +8954,10 @@ class MPostWriteBarrier
         return getOperand(0);
     }
 
-    bool hasValue() const {
-        return hasValue_;
-    }
     MDefinition *value() const {
         return getOperand(1);
     }
+
 #ifdef DEBUG
     bool isConsistentFloat32Use(MUse *use) const {
         // During lowering, values that neither have object nor value MIR type
@@ -8867,33 +8965,6 @@ class MPostWriteBarrier
         return use->index() == 1;
     }
 #endif
-};
-
-class MNewSlots : public MNullaryInstruction
-{
-    unsigned nslots_;
-
-    MNewSlots(unsigned nslots)
-      : nslots_(nslots)
-    {
-        setResultType(MIRType_Slots);
-    }
-
-  public:
-    INSTRUCTION_HEADER(NewSlots)
-
-    static MNewSlots *New(TempAllocator &alloc, unsigned nslots) {
-        return new(alloc) MNewSlots(nslots);
-    }
-    unsigned nslots() const {
-        return nslots_;
-    }
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-    bool possiblyCalls() const {
-        return true;
-    }
 };
 
 class MNewDeclEnvObject : public MNullaryInstruction
@@ -8922,13 +8993,13 @@ class MNewDeclEnvObject : public MNullaryInstruction
     }
 };
 
-class MNewCallObject : public MUnaryInstruction
+class MNewCallObject : public MNullaryInstruction
 {
     CompilerRootObject templateObj_;
     bool needsSingletonType_;
 
-    MNewCallObject(JSObject *templateObj, bool needsSingletonType, MDefinition *slots)
-      : MUnaryInstruction(slots),
+    MNewCallObject(JSObject *templateObj, bool needsSingletonType)
+      : MNullaryInstruction(),
         templateObj_(templateObj),
         needsSingletonType_(needsSingletonType)
     {
@@ -8938,15 +9009,11 @@ class MNewCallObject : public MUnaryInstruction
   public:
     INSTRUCTION_HEADER(NewCallObject)
 
-    static MNewCallObject *New(TempAllocator &alloc, JSObject *templateObj, bool needsSingletonType,
-                               MDefinition *slots)
+    static MNewCallObject *New(TempAllocator &alloc, JSObject *templateObj, bool needsSingletonType)
     {
-        return new(alloc) MNewCallObject(templateObj, needsSingletonType, slots);
+        return new(alloc) MNewCallObject(templateObj, needsSingletonType);
     }
 
-    MDefinition *slots() {
-        return getOperand(0);
-    }
     JSObject *templateObject() {
         return templateObj_;
     }
@@ -8958,12 +9025,12 @@ class MNewCallObject : public MUnaryInstruction
     }
 };
 
-class MNewCallObjectPar : public MBinaryInstruction
+class MNewCallObjectPar : public MUnaryInstruction
 {
     CompilerRootObject templateObj_;
 
-    MNewCallObjectPar(MDefinition *cx, JSObject *templateObj, MDefinition *slots)
-        : MBinaryInstruction(cx, slots),
+    MNewCallObjectPar(MDefinition *cx, JSObject *templateObj)
+        : MUnaryInstruction(cx),
           templateObj_(templateObj)
     {
         setResultType(MIRType_Object);
@@ -8973,15 +9040,11 @@ class MNewCallObjectPar : public MBinaryInstruction
     INSTRUCTION_HEADER(NewCallObjectPar);
 
     static MNewCallObjectPar *New(TempAllocator &alloc, MDefinition *cx, MNewCallObject *callObj) {
-        return new(alloc) MNewCallObjectPar(cx, callObj->templateObject(), callObj->slots());
+        return new(alloc) MNewCallObjectPar(cx, callObj->templateObject());
     }
 
     MDefinition *forkJoinContext() const {
         return getOperand(0);
-    }
-
-    MDefinition *slots() const {
-        return getOperand(1);
     }
 
     JSObject *templateObj() const {
@@ -9317,6 +9380,39 @@ class MHaveSameClass
 
     TypePolicy *typePolicy() {
         return this;
+    }
+    AliasSet getAliasSet() const {
+        return AliasSet::None();
+    }
+};
+
+class MHasClass
+    : public MUnaryInstruction,
+      public SingleObjectPolicy
+{
+    const Class *class_;
+
+    MHasClass(MDefinition *object, const Class *clasp)
+      : MUnaryInstruction(object)
+      , class_(clasp)
+    {
+        JS_ASSERT(object->type() == MIRType_Object);
+        setResultType(MIRType_Boolean);
+        setMovable();
+    }
+
+  public:
+    INSTRUCTION_HEADER(HasClass);
+
+    static MHasClass *New(TempAllocator &alloc, MDefinition *obj, const Class *clasp) {
+        return new(alloc) MHasClass(obj, clasp);
+    }
+
+    MDefinition *object() const {
+        return getOperand(0);
+    }
+    const Class *getClass() const {
+        return class_;
     }
     AliasSet getAliasSet() const {
         return AliasSet::None();
@@ -9752,7 +9848,7 @@ typedef Vector<MDefinition *, 8, IonAllocPolicy> MDefinitionVector;
 
 bool ElementAccessIsDenseNative(MDefinition *obj, MDefinition *id);
 bool ElementAccessIsTypedArray(MDefinition *obj, MDefinition *id,
-                               ScalarTypeRepresentation::Type *arrayType);
+                               ScalarTypeDescr::Type *arrayType);
 bool ElementAccessIsPacked(types::CompilerConstraintList *constraints, MDefinition *obj);
 bool ElementAccessHasExtraIndexedProperty(types::CompilerConstraintList *constraints,
                                           MDefinition *obj);
@@ -9770,7 +9866,7 @@ bool PropertyReadOnPrototypeNeedsTypeBarrier(types::CompilerConstraintList *cons
                                              types::TemporaryTypeSet *observed);
 bool PropertyReadIsIdempotent(types::CompilerConstraintList *constraints,
                               MDefinition *obj, PropertyName *name);
-bool AddObjectsForPropertyRead(MDefinition *obj, PropertyName *name,
+void AddObjectsForPropertyRead(MDefinition *obj, PropertyName *name,
                                types::TemporaryTypeSet *observed);
 bool PropertyWriteNeedsTypeBarrier(TempAllocator &alloc, types::CompilerConstraintList *constraints,
                                    MBasicBlock *current, MDefinition **pobj,

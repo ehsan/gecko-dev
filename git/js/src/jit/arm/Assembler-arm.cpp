@@ -1704,7 +1704,6 @@ BufferOffset
 Assembler::as_BranchPool(uint32_t value, RepatchLabel *label, ARMBuffer::PoolEntry *pe, Condition c)
 {
     PoolHintPun php;
-    BufferOffset next = nextOffset();
     php.phd.init(0, c, PoolHintData::poolBranch, pc);
     m_buffer.markNextAsBranch();
     BufferOffset ret = m_buffer.insertEntry(4, (uint8_t*)&php.raw, int32Pool, (uint8_t*)&value, pe);
@@ -1712,9 +1711,9 @@ Assembler::as_BranchPool(uint32_t value, RepatchLabel *label, ARMBuffer::PoolEnt
     // a correct branch.
     if (label->bound()) {
         BufferOffset dest(label);
-        as_b(dest.diffB<BOffImm>(next), c, next);
+        as_b(dest.diffB<BOffImm>(ret), c, ret);
     } else {
-        label->use(next.getOffset());
+        label->use(ret.getOffset());
     }
     return ret;
 }
@@ -1808,11 +1807,6 @@ Assembler::placeConstantPoolBarrier(int offset)
     // this is still an active path, however, we do not hit it in the test
     // suite at all.
     MOZ_ASSUME_UNREACHABLE("ARMAssembler holdover");
-#if 0
-    offset = (offset - sizeof(ARMWord)) >> 2;
-    ASSERT((offset <= BOFFSET_MAX && offset >= BOFFSET_MIN));
-    return AL | B | (offset & BRANCH_MASK);
-#endif
 }
 
 // Control flow stuff:

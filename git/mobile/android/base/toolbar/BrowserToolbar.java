@@ -5,13 +5,19 @@
 
 package org.mozilla.gecko.toolbar;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
+
+import org.json.JSONObject;
 import org.mozilla.gecko.BrowserApp;
-import org.mozilla.gecko.GeckoApplication;
 import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GeckoApplication;
 import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.LightweightTheme;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.SiteIdentity.SecurityMode;
+import org.mozilla.gecko.ReaderModeUtils;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.animation.PropertyAnimator;
@@ -23,18 +29,15 @@ import org.mozilla.gecko.toolbar.ToolbarDisplayLayout.OnStopListener;
 import org.mozilla.gecko.toolbar.ToolbarDisplayLayout.OnTitleChangeListener;
 import org.mozilla.gecko.toolbar.ToolbarDisplayLayout.UpdateFlags;
 import org.mozilla.gecko.util.Clipboard;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.HardwareUtils;
+import org.mozilla.gecko.util.MenuUtils;
 import org.mozilla.gecko.widget.GeckoImageButton;
 import org.mozilla.gecko.widget.GeckoImageView;
 import org.mozilla.gecko.widget.GeckoRelativeLayout;
 
-import org.json.JSONObject;
-
 import android.content.Context;
 import android.content.res.Resources;
-import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
@@ -47,7 +50,6 @@ import android.view.LayoutInflater;
 import android.view.MenuInflater;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup.MarginLayoutParams;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.Interpolator;
 import android.view.inputmethod.InputMethodManager;
@@ -56,11 +58,6 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
-
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.List;
 
 /**
 * {@code BrowserToolbar} is single entry point for users of the toolbar
@@ -250,6 +247,9 @@ public class BrowserToolbar extends GeckoRelativeLayout
                     return;
                 }
 
+                // NOTE: Use MenuUtils.safeSetVisible because some actions might
+                // be on the Page menu
+
                 MenuInflater inflater = mActivity.getMenuInflater();
                 inflater.inflate(R.menu.titlebar_contextmenu, menu);
 
@@ -264,22 +264,22 @@ public class BrowserToolbar extends GeckoRelativeLayout
                     String url = tab.getURL();
                     if (url == null) {
                         menu.findItem(R.id.copyurl).setVisible(false);
-                        menu.findItem(R.id.share).setVisible(false);
                         menu.findItem(R.id.add_to_launcher).setVisible(false);
+                        MenuUtils.safeSetVisible(menu, R.id.share, false);
                     }
 
-                    menu.findItem(R.id.subscribe).setVisible(tab.hasFeeds());
-                    menu.findItem(R.id.add_search_engine).setVisible(tab.hasOpenSearch());
+                    MenuUtils.safeSetVisible(menu, R.id.subscribe, tab.hasFeeds());
+                    MenuUtils.safeSetVisible(menu, R.id.add_search_engine, tab.hasOpenSearch());
                 } else {
                     // if there is no tab, remove anything tab dependent
                     menu.findItem(R.id.copyurl).setVisible(false);
-                    menu.findItem(R.id.share).setVisible(false);
                     menu.findItem(R.id.add_to_launcher).setVisible(false);
-                    menu.findItem(R.id.subscribe).setVisible(false);
-                    menu.findItem(R.id.add_search_engine).setVisible(false);
+                    MenuUtils.safeSetVisible(menu, R.id.share, false);
+                    MenuUtils.safeSetVisible(menu, R.id.subscribe, false);
+                    MenuUtils.safeSetVisible(menu, R.id.add_search_engine, false);
                 }
 
-                menu.findItem(R.id.share).setVisible(!GeckoProfile.get(getContext()).inGuestMode());
+                MenuUtils.safeSetVisible(menu, R.id.share, !GeckoProfile.get(getContext()).inGuestMode());
             }
         });
 
@@ -503,6 +503,9 @@ public class BrowserToolbar extends GeckoRelativeLayout
                     break;
 
                 case SELECTED:
+                    flags.add(UpdateFlags.PRIVATE_MODE);
+                    setPrivateMode(tab.isPrivate());
+                    // Fall through.
                 case LOAD_ERROR:
                     flags.add(UpdateFlags.TITLE);
                     // Fall through.
@@ -511,12 +514,9 @@ public class BrowserToolbar extends GeckoRelativeLayout
                     // us of a title change, so we don't update the title here.
                     flags.add(UpdateFlags.FAVICON);
                     flags.add(UpdateFlags.SITE_IDENTITY);
-                    flags.add(UpdateFlags.PRIVATE_MODE);
 
                     updateBackButton(tab);
                     updateForwardButton(tab);
-
-                    setPrivateMode(tab.isPrivate());
                     break;
 
                 case TITLE:
@@ -1350,10 +1350,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
                 tab.toggleReaderMode();
             }
         } else if (event.equals("Reader:LongClick")) {
-            Tab tab = Tabs.getInstance().getSelectedTab();
-            if (tab != null) {
-                tab.addToReadingList();
-            }
+            ReaderModeUtils.addToReadingList(Tabs.getInstance().getSelectedTab());
         }
     }
 

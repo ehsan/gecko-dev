@@ -15,6 +15,7 @@ EXPORTS += [
 
 EXPORTS.mozilla += [
     'FileLocation.h',
+    'IOInterposer.h',
     'LateWriteChecks.h',
     'Omnijar.h',
     'PoisonIOInterposer.h',
@@ -24,6 +25,7 @@ EXPORTS.mozilla += [
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
+    EXPORTS += ['nsWindowsDllInterceptor.h']
     EXPORTS.mozilla += ['perfprobe.h']
     SOURCES += ['perfprobe.cpp']
     if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
@@ -55,6 +57,15 @@ UNIFIED_SOURCES += [
     'Services.cpp',
 ]
 
+if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
+    SOURCES += [
+        'IOInterposer.cpp',
+    ]
+    if CONFIG['OS_ARCH'] != 'WINNT':
+      SOURCES += [
+          'NSPRInterposer.cpp',
+      ]
+
 # FileLocation.cpp and Omnijar.cpp cannot be built in unified mode because they
 # use plarena.h.
 SOURCES += [
@@ -78,3 +89,21 @@ if CONFIG['TARGET_XPCOM_ABI']:
 
 if CONFIG['MOZ_OPTIMIZE']:
     DEFINES['MOZ_OPTIMIZE'] = True
+
+GENERATED_INCLUDES += ['..']
+LOCAL_INCLUDES += [
+    '../base',
+    '../components',
+    '../ds',
+    '../glue',
+    '../io',
+    '../reflect/xptinfo/src',
+    '../threads',
+    '/chrome/src',
+    '/docshell/base',
+]
+
+if CONFIG['MOZ_VPX']:
+    LOCAL_INCLUDES += [
+        '/media/libvpx',
+    ]

@@ -25,7 +25,6 @@
 #include "nsPoint.h"                    // for nsIntPoint
 #include "nsRect.h"                     // for nsIntRect
 #include "nsTArray.h"                   // for nsAutoTArray, nsTArray_Impl
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 
 namespace mozilla {
 namespace layers {
@@ -60,14 +59,12 @@ AddTransformedRegion(nsIntRegion& aDest, const nsIntRegion& aSource, const gfx3D
   while ((r = iter.Next())) {
     aDest.Or(aDest, TransformRect(*r, aTransform));
   }
-  aDest.SimplifyOutward(4);
 }
 
 static void
 AddRegion(nsIntRegion& aDest, const nsIntRegion& aSource)
 {
   aDest.Or(aDest, aSource);
-  aDest.SimplifyOutward(4);
 }
 
 static nsIntRegion
@@ -371,10 +368,15 @@ CloneLayerTreePropertiesInternal(Layer* aRoot)
   }
 
   switch (aRoot->GetType()) {
-    case Layer::TYPE_CONTAINER:  return new ContainerLayerProperties(aRoot->AsContainerLayer());
-    case Layer::TYPE_COLOR:  return new ColorLayerProperties(static_cast<ColorLayer*>(aRoot));
-    case Layer::TYPE_IMAGE:  return new ImageLayerProperties(static_cast<ImageLayer*>(aRoot));
-    default: return new LayerPropertiesBase(aRoot);
+    case Layer::TYPE_CONTAINER:
+    case Layer::TYPE_REF:
+      return new ContainerLayerProperties(aRoot->AsContainerLayer());
+    case Layer::TYPE_COLOR:
+      return new ColorLayerProperties(static_cast<ColorLayer*>(aRoot));
+    case Layer::TYPE_IMAGE:
+      return new ImageLayerProperties(static_cast<ImageLayer*>(aRoot));
+    default:
+      return new LayerPropertiesBase(aRoot);
   }
 
   return nullptr;

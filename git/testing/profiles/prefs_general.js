@@ -60,7 +60,8 @@ user_pref("extensions.installDistroAddons", false);
 user_pref("extensions.defaultProviders.enabled", true);
 
 user_pref("geo.wifi.uri", "http://%(server)s/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
-user_pref("geo.wifi.testing", true);
+user_pref("geo.wifi.timeToWaitBeforeSending", 200);
+user_pref("geo.wifi.scan", false);
 user_pref("geo.wifi.logging.enabled", true);
 
 user_pref("camino.warn_when_closing", false); // Camino-only, harmless to others
@@ -115,6 +116,9 @@ user_pref("datareporting.healthreport.documentServerURI", "http://%(server)s/hea
 // Make sure CSS error reporting is enabled for tests
 user_pref("layout.css.report_errors", true);
 
+// Enable CSS Grid for testing
+user_pref("layout.css.grid.enabled", true);
+
 // Enable mozContacts
 user_pref("dom.mozContacts.enabled", true);
 user_pref("dom.navigator-property.disable.mozContacts", false);
@@ -129,9 +133,6 @@ user_pref("network.http.bypass-cachelock-threshold", 200000);
 // Enable Gamepad
 user_pref("dom.gamepad.enabled", true);
 user_pref("dom.gamepad.non_standard_events.enabled", true);
-
-// Enable Web Audio
-user_pref("media.webaudio.enabled", true);
 
 // Enable Web Audio legacy APIs
 user_pref("media.webaudio.legacy.AudioBufferSourceNode", true);
@@ -157,9 +158,15 @@ user_pref("browser.download.panel.shown", true);
 // Disable first-tun tab
 user_pref("browser.firstrun.count", 0);
 
+// Tell the PBackground infrastructure to run a test at startup.
+user_pref("pbackground.testing", true);
+
 // Enable webapps testing mode, which bypasses native installation.
 user_pref("browser.webapps.testing", true);
 
 // Disable android snippets
 user_pref("browser.snippets.enabled", false);
 user_pref("browser.snippets.syncPromo.enabled", false);
+
+// Do not turn HTTP cache v2 for our infra tests (some tests are failing)
+user_pref("browser.cache.use_new_backend_temp", false);

@@ -27,6 +27,9 @@ Cu.import("resource://gre/modules/accessibility/AccessFu.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
                                   "resource://gre/modules/PluralForm.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "sendMessageToJava",
+                                  "resource://gre/modules/Messaging.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "DebuggerServer",
                                   "resource://gre/modules/devtools/dbg-server.jsm");
 
@@ -55,6 +58,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "Prompt",
 
 XPCOMUtils.defineLazyModuleGetter(this, "HelperApps",
                                   "resource://gre/modules/HelperApps.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "SSLExceptions",
+                                  "resource://gre/modules/SSLExceptions.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
                                   "resource://gre/modules/FormHistory.jsm");
@@ -85,6 +91,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "WebappManager",
   ["PluginHelper", "chrome://browser/content/PluginHelper.js"],
   ["OfflineApps", "chrome://browser/content/OfflineApps.js"],
   ["Linkifier", "chrome://browser/content/Linkify.js"],
+  ["ZoomHelper", "chrome://browser/content/ZoomHelper.js"],
   ["CastingApps", "chrome://browser/content/CastingApps.js"],
 ].forEach(function (aScript) {
   let [name, script] = aScript;
@@ -100,7 +107,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "WebappManager",
   ["WebrtcUI", ["getUserMedia:request", "recording-device-events"], "chrome://browser/content/WebrtcUI.js"],
 #endif
   ["MemoryObserver", ["memory-pressure", "Memory:Dump"], "chrome://browser/content/MemoryObserver.js"],
-  ["ConsoleAPI", ["console-api-log-event"], "chrome://browser/content/ConsoleAPI.js"],
   ["FindHelper", ["FindInPage:Find", "FindInPage:Prev", "FindInPage:Next", "FindInPage:Closed", "Tab:Selected"], "chrome://browser/content/FindHelper.js"],
   ["PermissionsHelper", ["Permissions:Get", "Permissions:Clear"], "chrome://browser/content/PermissionsHelper.js"],
   ["FeedHandler", ["Feeds:Subscribe"], "chrome://browser/content/FeedHandler.js"],
@@ -166,10 +172,6 @@ function dump(a) {
   Services.console.logStringMessage(a);
 }
 
-function sendMessageToJava(aMessage) {
-  return Services.androidBridge.handleGeckoMessage(JSON.stringify(aMessage));
-}
-
 function doChangeMaxLineBoxWidth(aWidth) {
   gReflowPending = null;
   let webNav = BrowserApp.selectedTab.window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
@@ -186,7 +188,7 @@ function doChangeMaxLineBoxWidth(aWidth) {
     docViewer.changeMaxLineBoxWidth(aWidth);
 
     if (range) {
-      BrowserEventHandler._zoomInAndSnapToRange(range);
+      ZoomHelper.zoomInAndSnapToRange(range);
     } else {
       // In this case, we actually didn't zoom into a specific range. It
       // probably happened from a page load reflow-on-zoom event, so we
@@ -240,7 +242,9 @@ function resolveGeckoURI(aURI) {
 }
 
 function shouldShowProgress(url) {
-  return (url != "about:home" && !url.startsWith("about:reader"));
+  return (url != "about:home" &&
+          url != "about:privatebrowsing" &&
+          !url.startsWith("about:reader"));
 }
 
 /**
@@ -422,8 +426,6 @@ var BrowserApp = {
     let event = document.createEvent("Events");
     event.initEvent("UIReady", true, false);
     window.dispatchEvent(event);
-
-    Services.obs.addObserver(this, "browser-delayed-startup-finished", false);
 
     if (this._startupStatus)
       this.onAppUpdated();
@@ -696,6 +698,10 @@ var BrowserApp = {
   },
 
   onAppUpdated: function() {
+    // initialize the form history and passwords databases on upgrades
+    Services.obs.notifyObservers(null, "FormHistory:Init", "");
+    Services.obs.notifyObservers(null, "Passwords:Init", "");
+
     // Migrate user-set "plugins.click_to_play" pref. See bug 884694.
     // Because the default value is true, a user-set pref means that the pref was set to false.
     if (Services.prefs.prefHasUserValue("plugins.click_to_play")) {
@@ -1181,6 +1187,7 @@ var BrowserApp = {
         case "browser.chrome.titlebarMode":
         case "network.cookie.cookieBehavior":
         case "font.size.inflation.minTwips":
+        case "home.sync.updateMode":
           pref.type = "string";
           pref.value = pref.value.toString();
           break;
@@ -1252,6 +1259,7 @@ var BrowserApp = {
       case "browser.chrome.titlebarMode":
       case "network.cookie.cookieBehavior":
       case "font.size.inflation.minTwips":
+      case "home.sync.updateMode":
         json.type = "int";
         json.value = parseInt(json.value);
         break;
@@ -1370,8 +1378,8 @@ var BrowserApp = {
       let shouldZoom = Services.prefs.getBoolPref("formhelper.autozoom");
       if (formHelperMode == kFormHelperModeDynamic && this.isTablet)
         shouldZoom = false;
-       // _zoomToElement will handle not sending any message if this input is already mostly filling the screen
-      BrowserEventHandler._zoomToElement(focused, -1, false,
+      // ZoomHelper.zoomToElement will handle not sending any message if this input is already mostly filling the screen
+      ZoomHelper.zoomToElement(focused, -1, false,
           aAllowZoom && shouldZoom && !ViewportHandler.getViewportMetadata(aBrowser.contentWindow).isSpecified);
     }
   },
@@ -1612,22 +1620,10 @@ var BrowserApp = {
         Services.prefs.setCharPref("general.useragent.locale", aData);
         break;
 
-      case "browser-delayed-startup-finished":
-        this._delayedStartup();
-        break;
-
       default:
         dump('BrowserApp.observe: unexpected topic "' + aTopic + '"\n');
         break;
 
-    }
-  },
-
-  _delayedStartup: function() {
-    // initialize the form history and passwords databases on upgrades
-    if (this._startupStatus) {
-      Services.obs.notifyObservers(null, "FormHistory:Init", "");
-      Services.obs.notifyObservers(null, "Passwords:Init", "");
     }
   },
 
@@ -1922,8 +1918,7 @@ var NativeWindow = {
   },
   contextmenus: {
     items: {}, //  a list of context menu items that we may show
-    _nativeItemsSeparator: 0, // the index to insert native context menu items at
-    _contextId: 0, // id to assign to new context menu items if they are added
+    DEFAULT_HTML5_ORDER: -1, // Sort order for HTML5 context menu items
 
     init: function() {
       Services.obs.addObserver(this, "Gesture:LongPress", false);
@@ -1933,27 +1928,26 @@ var NativeWindow = {
       Services.obs.removeObserver(this, "Gesture:LongPress");
     },
 
-    add: function(aName, aSelector, aCallback) {
-      if (!aName)
+    add: function() {
+      let args;
+      if (arguments.length == 1) {
+        args = arguments[0];
+      } else if (arguments.length == 3) {
+        args = {
+          label : arguments[0],
+          selector: arguments[1],
+          callback: arguments[2]
+        };
+      } else {
+        throw "Incorrect number of parameters";
+      }
+
+      if (!args.label)
         throw "Menu items must have a name";
 
-      let item = {
-        name: aName,
-        context: aSelector,
-        callback: aCallback,
-        matches: function(aElt, aX, aY) {
-          return this.context.matches(aElt, aX, aY);
-        },
-        getValue: function(aElt) {
-          return {
-            label: (typeof this.name == "function") ? this.name(aElt) : this.name,
-            id: this.id
-          }
-        }
-      };
-      item.id = this._contextId++;
-      this.items[item.id] = item;
-      return item.id;
+      let cmItem = new ContextMenuItem(args);
+      this.items[cmItem.id] = cmItem;
+      return cmItem.id;
     },
 
     remove: function(aId) {
@@ -2118,127 +2112,126 @@ var NativeWindow = {
       else this._targetRef = null;
     },
 
-    _addHTMLContextMenuItems: function cm_addContextMenuItems(aMenu, aParent) {
-      for (let i = 0; i < aMenu.childNodes.length; i++) {
-        let item = aMenu.childNodes[i];
-        if (!item.label)
+    _addHTMLContextMenuItemsForElement: function(element) {
+      let htmlMenu = element.contextMenu;
+      if (!htmlMenu)
+        return;
+
+      htmlMenu.QueryInterface(Components.interfaces.nsIHTMLMenu);
+      htmlMenu.sendShowEvent();
+
+      this._addHTMLContextMenuItemsForMenu(htmlMenu, element);
+    },
+
+    _addHTMLContextMenuItemsForMenu: function(menu, target) {
+      for (let i = 0; i < menu.childNodes.length; i++) {
+        let elt = menu.childNodes[i];
+        if (!elt.label)
           continue;
 
-        let id = this._contextId++;
-        let menuitem = {
-          id: id,
-          isGroup: false,
-          callback: (function(aTarget, aX, aY) {
-            // If this is a menu item, show a new context menu with the submenu in it
-            if (item instanceof Ci.nsIDOMHTMLMenuElement) {
-              this.menuitems = [];
-              this._nativeItemsSeparator = 0;
-
-              this._addHTMLContextMenuItems(item, id);
-              this._innerShow(aTarget, aX, aY);
-            } else {
-              // oltherwise just click the item
-              item.click();
-            }
-          }).bind(this),
-
-          getValue: function(aElt) {
-            if (item.hasAttribute("hidden"))
-              return null;
-
-            return {
-              icon: item.icon,
-              label: item.label,
-              id: id,
-              disabled: item.disabled,
-              parent: item instanceof Ci.nsIDOMHTMLMenuElement
-            }
-          }
-        };
-
-        this.menuitems.splice(this._nativeItemsSeparator, 0, menuitem);
-        this._nativeItemsSeparator++;
+        this.menuitems.push(new HTMLContextMenuItem(elt, target));
       }
     },
 
-    _getMenuItemForId: function(aId) {
+    _containsItem: function(aId) {
       if (!this.menuitems)
         return null;
 
-      for (let i = 0; i < this.menuitems.length; i++) {
-        if (this.menuitems[i].id == aId)
-          return this.menuitems[i];
+      let menu = this.menuitems;
+      for (let i = 0; i < menu.length; i++) {
+        if (menu[i].id == aId)
+          return menu[i];
       }
+
       return null;
+    },
+
+    shouldShow: function() {
+      return this.menuitems.length > 0;
+    },
+
+    _addNativeContextMenuItems: function(element, x, y) {
+      for (let itemId of Object.keys(this.items)) {
+        let item = this.items[itemId];
+
+        if (!this._containsItem(item.id) && item.matches(element, x, y)) {
+          this.menuitems.push(item);
+        }
+      }
     },
 
     // Checks if there are context menu items to show, and if it finds them
     // sends a contextmenu event to content. We also send showing events to
     // any html5 context menus we are about to show
-    _sendToContent: function(aX, aY) {
-      // find and store the top most element this context menu is being shown for
-      // use the highlighted element if possible, otherwise look for nearby clickable elements
-      // If we still don't find one we fall back to using anything
-      let target = BrowserEventHandler._highlightElement || ElementTouchHelper.elementFromPoint(aX, aY);
+    _sendToContent: function(x, y) {
+      let target = BrowserEventHandler._highlightElement || ElementTouchHelper.elementFromPoint(x, y);
       if (!target)
-        target = ElementTouchHelper.anyElementFromPoint(aX, aY);
+        target = ElementTouchHelper.anyElementFromPoint(x, y);
 
       if (!target)
         return;
 
-      // store a weakref to the target to be used when the context menu event returns
       this._target = target;
 
-      this.menuitems = [];
-      let menuitemsSet = false;
-
       Services.obs.notifyObservers(null, "before-build-contextmenu", "");
-
-      // now walk up the tree and for each node look for any context menu items that apply
-      let element = target;
-      this._nativeItemsSeparator = 0;
-      while (element) {
-        // first check for any html5 context menus that might exist
-        let contextmenu = element.contextMenu;
-        if (contextmenu) {
-          // send this before we build the list to make sure the site can update the menu
-          contextmenu.QueryInterface(Components.interfaces.nsIHTMLMenu);
-          contextmenu.sendShowEvent();
-          this._addHTMLContextMenuItems(contextmenu, null);
-        }
-
-        // then check for any context menu items registered in the ui
-        for (let itemId of Object.keys(this.items)) {
-          let item = this.items[itemId];
-          if (!this._getMenuItemForId(item.id) && item.matches(element, aX, aY)) {
-            this.menuitems.push(item);
-          }
-        }
-
-        element = element.parentNode;
-      }
+      this._buildMenu(x, y);
 
       // only send the contextmenu event to content if we are planning to show a context menu (i.e. not on every long tap)
-      if (this.menuitems.length > 0) {
+      if (this.shouldShow()) {
         let event = target.ownerDocument.createEvent("MouseEvent");
-        event.initMouseEvent("contextmenu", true, true, content,
-                             0, aX, aY, aX, aY, false, false, false, false,
+        event.initMouseEvent("contextmenu", true, true, target.defaultView,
+                             0, x, y, x, y, false, false, false, false,
                              0, null);
         target.ownerDocument.defaultView.addEventListener("contextmenu", this, false);
         target.dispatchEvent(event);
       } else {
-        this._target = null;
-        BrowserEventHandler._cancelTapHighlight();
+        this.menuitems = null;
+        Services.obs.notifyObservers({target: target, x: x, y: y}, "context-menu-not-shown", "");
 
         if (SelectionHandler.canSelect(target)) {
           if (!SelectionHandler.startSelection(target, {
-              mode: SelectionHandler.SELECT_AT_POINT,
-              x: aX,
-              y: aY
-            })) {
+            mode: SelectionHandler.SELECT_AT_POINT,
+            x: x,
+            y: y
+          })) { 
             SelectionHandler.attachCaret(target);
           }
         }
+      }
+    },
+
+    _getTitle: function(node) {
+      if (node.hasAttribute && node.hasAttribute("title")) {
+        return node.getAttribute("title");
+      }
+      return this._getUrl(node);
+    },
+
+    _getUrl: function(node) {
+      if ((node instanceof Ci.nsIDOMHTMLAnchorElement && node.href) ||
+                 (node instanceof Ci.nsIDOMHTMLAreaElement && node.href)) {
+        return this._getLinkURL(node);
+      } else if (node instanceof Ci.nsIImageLoadingContent && node.currentURI) {
+        return node.currentURI.spec;
+      } else if (node instanceof Ci.nsIDOMHTMLMediaElement) {
+        return (node.currentSrc || node.src);
+      }
+      return "";
+    },
+
+    _buildMenu: function(x, y) {
+      // now walk up the tree and for each node look for any context menu items that apply
+      let element = this._target;
+      this.menuitems = [];
+
+      while (element) {
+        // First check for any html5 context menus that might exist...
+        this._addHTMLContextMenuItemsForElement(element);
+        // then check for any context menu items registered in the ui.
+        this._addNativeContextMenuItems(element, x, y);
+
+        // walk up the tree and find more items to show
+        element = element.parentNode;
       }
     },
 
@@ -2253,69 +2246,83 @@ var NativeWindow = {
       this._innerShow(popupNode, aEvent.clientX, aEvent.clientY);
     },
 
-    _innerShow: function(aTarget, aX, aY) {
+    _findTitle: function(node) {
+      let title = "";
+      while(node && !title) {
+        title = this._getTitle(node);
+        node = node.parentNode;
+      }
+      return title;
+    },
+
+    _getItems: function(target) {
+      return this._getItemsInList(target, this.menuitems);
+    },
+
+    _getItemsInList: function(target, list) {
+      let itemArray = [];
+      for (let i = 0; i < list.length; i++) {
+        let t = target;
+        while(t) {
+          if (list[i].matches(t)) {
+            let val = list[i].getValue(t);
+
+            // hidden menu items will return null from getValue
+            if (val) {
+              itemArray.push(val);
+              break;
+            }
+          }
+
+          t = t.parentNode;
+        }
+      }
+      return itemArray;
+    },
+
+    _innerShow: function(target, x, y) {
       Haptic.performSimpleAction(Haptic.LongPress);
 
       // spin through the tree looking for a title for this context menu
-      let node = aTarget;
-      let title ="";
-      while(node && !title) {
-        if (node.hasAttribute && node.hasAttribute("title")) {
-          title = node.getAttribute("title");
-        } else if ((node instanceof Ci.nsIDOMHTMLAnchorElement && node.href) ||
-                (node instanceof Ci.nsIDOMHTMLAreaElement && node.href)) {
-          title = this._getLinkURL(node);
-        } else if (node instanceof Ci.nsIImageLoadingContent && node.currentURI) {
-          title = node.currentURI.spec;
-        } else if (node instanceof Ci.nsIDOMHTMLMediaElement) {
-          title = (node.currentSrc || node.src);
-        }
-        node = node.parentNode;
-      }
+      let title = this._findTitle(target);
 
-      // convert this.menuitems object to an array for sending to native code
-      let itemArray = [];
-      for (let i = 0; i < this.menuitems.length; i++) {
-        let val = this.menuitems[i].getValue(aTarget);
-
-        // hidden menu items will return null from getValue
-        if (val)
-          itemArray.push(val);
-      }
-
-      if (itemArray.length == 0)
-        return;
+      this.menuitems.sort((a,b) => {
+        if (a.order == b.order) return 0;
+        return (a.order > b.order) ? 1 : -1;
+      });
 
       let prompt = new Prompt({
-        window: aTarget.ownerDocument.defaultView,
+        window: target.ownerDocument.defaultView,
         title: title
-      }).setSingleChoiceItems(itemArray)
-      .show((function(data) {
-        if (data.button == -1) {
-          // prompt was cancelled
-          return;
-        }
+      });
 
-        let selectedId = itemArray[data.button].id;
-        let selectedItem = this._getMenuItemForId(selectedId);
+      let items = this._getItems(target);
+      prompt.setSingleChoiceItems(items);
+      prompt.show(this._promptDone.bind(this, target, x, y, items));
+    },
 
-        this.menuitems = null;
-        if (selectedItem && selectedItem.callback) {
-          if (selectedItem.matches) {
-            // for menuitems added using the native UI, pass the dom element that matched that item to the callback
-            while (aTarget) {
-              if (selectedItem.matches(aTarget, aX, aY)) {
-                selectedItem.callback.call(selectedItem, aTarget, aX, aY);
-                break;
-              }
-              aTarget = aTarget.parentNode;
-            }
-          } else {
-            // if this was added using the html5 context menu api, just click on the context menu item
-            selectedItem.callback.call(selectedItem, aTarget, aX, aY);
-          }
+    _promptDone: function(target, x, y, items, data) {
+      if (data.button == -1) {
+        // prompt was cancelled
+        return;
+      }
+
+      let selectedItemId = items[data.list[0]].id;
+      let selectedItem = this._containsItem(selectedItemId);
+      this.menuitems = null;
+
+      if (!selectedItem || !selectedItem.matches || !selectedItem.callback) {
+        return;
+      }
+
+      // for menuitems added using the native UI, pass the dom element that matched that item to the callback
+      while (target) {
+        if (selectedItem.matches(target, x, y)) {
+          selectedItem.callback(target, x, y);
+          break;
         }
-      }).bind(this));
+        target = target.parentNode;
+      }
     },
 
     handleEvent: function(aEvent) {
@@ -2347,7 +2354,7 @@ var NativeWindow = {
           aElement instanceof Ci.nsIDOMHTMLLinkElement ||
           aElement.getAttributeNS(kXLinkNamespace, "type") == "simple")) {
         try {
-          let url = NativeWindow.contextmenus._getLinkURL(aElement);
+          let url = this._getLinkURL(aElement);
           return Services.io.newURI(url, null, null);
         } catch (e) {}
       }
@@ -2935,16 +2942,16 @@ Tab.prototype = {
    *   2a. PerformReflowOnZoom() and resetMaxLineBoxWidth() schedule a call to
    *       doChangeMaxLineBoxWidth, based on a timeout specified in preferences.
    * 3. doChangeMaxLineBoxWidth changes the line box width (which also
-   *    schedules a reflow event), and then calls _zoomInAndSnapToRange.
-   * 4. _zoomInAndSnapToRange performs the positioning of reflow-on-zoom and
-   *    then re-enables painting.
+   *    schedules a reflow event), and then calls ZoomHelper.zoomInAndSnapToRange.
+   * 4. ZoomHelper.zoomInAndSnapToRange performs the positioning of reflow-on-zoom
+   *    and then re-enables painting.
    *
    * Some of the events happen synchronously, while others happen asynchronously.
    * The following is a rough sketch of the progression of events:
    *
    * double tap event seen -> onDoubleTap() -> ... asynchronous ...
    *   -> setViewport() -> performReflowOnZoom() -> ... asynchronous ...
-   *   -> doChangeMaxLineBoxWidth() -> _zoomInAndSnapToRange()
+   *   -> doChangeMaxLineBoxWidth() -> ZoomHelper.zoomInAndSnapToRange()
    *   -> ... asynchronous ... -> setViewport() -> Observe('after-viewport-change')
    *   -> resumePainting()
    */
@@ -2985,26 +2992,11 @@ Tab.prototype = {
       return;
 
     let url = currentURI.spec;
-    let flags = Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
+    let flags = Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE |
+                Ci.nsIWebNavigation.LOAD_FLAGS_REPLACE_HISTORY;
     if (this.originalURI && !this.originalURI.equals(currentURI)) {
       // We were redirected; reload the original URL
       url = this.originalURI.spec;
-      flags |= Ci.nsIWebNavigation.LOAD_FLAGS_REPLACE_HISTORY;
-    } else {
-      // Many sites use mobile-specific URLs, such as:
-      //   http://m.yahoo.com
-      //   http://www.google.com/m
-      // If the user clicks "Request Desktop Site" while on a mobile site, it
-      // will appear to do nothing since the mobile URL is still being
-      // requested. To address this, we do the following:
-      //   1) Remove the path from the URL (http://www.google.com/m?q=query -> http://www.google.com)
-      //   2) If a host subdomain is "m", remove it (http://en.m.wikipedia.org -> http://en.wikipedia.org)
-      // This means the user is sent to site's home page, but this is better
-      // than the setting having no effect at all.
-      if (aDesktopMode)
-        url = currentURI.prePath.replace(/([\/\.])m\./g, "$1");
-      else
-        flags |= Ci.nsIWebNavigation.LOAD_FLAGS_REPLACE_HISTORY;
     }
 
     this.browser.docShell.loadURI(url, flags, null, null, null);
@@ -3142,14 +3134,14 @@ Tab.prototype = {
                                     pageRect.left - geckoScrollX), pageXMost - dpW);
         let dpY = Math.min(Math.max(displayPort.y - displayPort.height * 1.5,
                                     pageRect.top - geckoScrollY), pageYMost - dpH);
-        cwu.setDisplayPortForElement(dpX, dpY, dpW, dpH, element);
+        cwu.setDisplayPortForElement(dpX, dpY, dpW, dpH, element, 0);
         cwu.setCriticalDisplayPortForElement(displayPort.x, displayPort.y,
                                              displayPort.width, displayPort.height,
                                              element);
       } else {
         cwu.setDisplayPortForElement(displayPort.x, displayPort.y,
                                      displayPort.width, displayPort.height,
-                                     element);
+                                     element, 0);
       }
     }
 
@@ -3805,9 +3797,15 @@ Tab.prototype = {
           this._linkifier.linkifyNumbers(this.browser.contentWindow.document);
         }
 
-        // Show page actions for helper apps.
-        if (BrowserApp.selectedTab == this)
-          ExternalApps.updatePageAction(this.browser.currentURI);
+        // Update page actions for helper apps.
+        let uri = this.browser.currentURI;
+        if (BrowserApp.selectedTab == this) {
+          if (ExternalApps.shouldCheckUri(uri)) {
+            ExternalApps.updatePageAction(uri);
+          } else {
+            ExternalApps.clearPageAction();
+          }
+        }
 
         if (!Reader.isEnabledForParseOnLoad)
           return;
@@ -3816,7 +3814,7 @@ Tab.prototype = {
         Reader.parseDocumentFromTab(this.id, function (article) {
           // Do nothing if there's no article or the page in this tab has
           // changed
-          let tabURL = this.browser.currentURI.specIgnoringRef;
+          let tabURL = uri.specIgnoringRef;
           if (article == null || (article.url != tabURL)) {
             // Don't clear the article for about:reader pages since we want to
             // use the article from the previous page
@@ -3950,6 +3948,11 @@ Tab.prototype = {
       } catch (e) {}
     }
 
+    // Update the page actions URI for helper apps.
+    if (BrowserApp.selectedTab == this) {
+      ExternalApps.updatePageActionUri(fixedURI);
+    }
+
     let message = {
       type: "Content:LocationChange",
       tabID: this.id,
@@ -4060,6 +4063,7 @@ Tab.prototype = {
   updateViewportMetadata: function updateViewportMetadata(aMetadata, aInitialLoad) {
     if (Services.prefs.getBoolPref("browser.ui.zoom.force-user-scalable")) {
       aMetadata.allowZoom = true;
+      aMetadata.allowDoubleTapZoom = true;
       aMetadata.minZoom = aMetadata.maxZoom = NaN;
     }
 
@@ -4075,8 +4079,9 @@ Tab.prototype = {
     aMetadata.isRTL = this.browser.contentDocument.documentElement.dir == "rtl";
 
     ViewportHandler.setMetadataForDocument(this.browser.contentDocument, aMetadata);
-    this.updateViewportSize(gScreenWidth, aInitialLoad);
     this.sendViewportMetadata();
+
+    this.updateViewportSize(gScreenWidth, aInitialLoad);
   },
 
   /** Update viewport when the metadata or the window size changes. */
@@ -4201,6 +4206,17 @@ Tab.prototype = {
 
     this.sendViewportUpdate();
 
+    if (metadata.allowZoom && !Services.prefs.getBoolPref("browser.ui.zoom.force-user-scalable")) {
+      // If the CSS viewport is narrower than the screen (i.e. width <= device-width)
+      // then we disable double-tap-to-zoom behaviour.
+      var oldAllowDoubleTapZoom = metadata.allowDoubleTapZoom;
+      var newAllowDoubleTapZoom = (!metadata.isSpecified) || (viewportW > screenW / window.devicePixelRatio);
+      if (oldAllowDoubleTapZoom !== newAllowDoubleTapZoom) {
+        metadata.allowDoubleTapZoom = newAllowDoubleTapZoom;
+        this.sendViewportMetadata();
+      }
+    }
+
     // Store the page size that was used to calculate the viewport so that we
     // can verify it's changed when we consider remeasuring in updateViewportForPageSize
     let viewport = this.getViewport();
@@ -4215,6 +4231,7 @@ Tab.prototype = {
     sendMessageToJava({
       type: "Tab:ViewportMetadata",
       allowZoom: metadata.allowZoom,
+      allowDoubleTapZoom: metadata.allowDoubleTapZoom,
       defaultZoom: metadata.defaultZoom || window.devicePixelRatio,
       minZoom: metadata.minZoom || 0,
       maxZoom: metadata.maxZoom || 0,
@@ -4544,7 +4561,6 @@ var BrowserEventHandler = {
             let [x, y] = [data.x, data.y];
             if (ElementTouchHelper.isElementClickable(element)) {
               [x, y] = this._moveClickPoint(element, x, y);
-              element = ElementTouchHelper.anyElementFromPoint(x, y);
             }
 
             // Was the element already focused before it was clicked?
@@ -4583,41 +4599,6 @@ var BrowserEventHandler = {
     }
   },
 
-  _zoomOut: function() {
-    BrowserEventHandler.resetMaxLineBoxWidth();
-    sendMessageToJava({ type: "Browser:ZoomToPageWidth" });
-  },
-
-  _isRectZoomedIn: function(aRect, aViewport) {
-    // This function checks to see if the area of the rect visible in the
-    // viewport (i.e. the "overlapArea" variable below) is approximately
-    // the max area of the rect we can show. It also checks that the rect
-    // is actually on-screen by testing the left and right edges of the rect.
-    // In effect, this tells us whether or not zooming in to this rect
-    // will significantly change what the user is seeing.
-    const minDifference = -20;
-    const maxDifference = 20;
-    const maxZoomAllowed = 4; // keep this in sync with mobile/android/base/ui/PanZoomController.MAX_ZOOM
-
-    let vRect = new Rect(aViewport.cssX, aViewport.cssY, aViewport.cssWidth, aViewport.cssHeight);
-    let overlap = vRect.intersect(aRect);
-    let overlapArea = overlap.width * overlap.height;
-    let availHeight = Math.min(aRect.width * vRect.height / vRect.width, aRect.height);
-    let showing = overlapArea / (aRect.width * availHeight);
-    let dw = (aRect.width - vRect.width);
-    let dx = (aRect.x - vRect.x);
-
-    if (fuzzyEquals(aViewport.zoom, maxZoomAllowed) && overlap.width / aRect.width > 0.9) {
-      // we're already at the max zoom and the block is not spilling off the side of the screen so that even
-      // if the block isn't taking up most of the viewport we can't pan/zoom in any more. return true so that we zoom out
-      return true;
-    }
-
-    return (showing > 0.9 &&
-            dx > minDifference && dx < maxDifference &&
-            dw > minDifference && dw < maxDifference);
-  },
-
   onDoubleTap: function(aData) {
     let data = JSON.parse(aData);
     let element = ElementTouchHelper.anyElementFromPoint(data.x, data.y);
@@ -4648,7 +4629,7 @@ var BrowserEventHandler = {
     }
 
     if (!element) {
-      this._zoomOut();
+      ZoomHelper.zoomOut();
       return;
     }
 
@@ -4656,9 +4637,9 @@ var BrowserEventHandler = {
       element = element.parentNode;
 
     if (!element) {
-      this._zoomOut();
+      ZoomHelper.zoomOut();
     } else {
-      this._zoomToElement(element, data.y);
+      ZoomHelper.zoomToElement(element, data.y);
     }
   },
 
@@ -4682,102 +4663,6 @@ var BrowserEventHandler = {
     }
 
     return false;
-  },
-
-  /* Zoom to an element, optionally keeping a particular part of it
-   * in view if it is really tall.
-   */
-  _zoomToElement: function(aElement, aClickY = -1, aCanZoomOut = true, aCanScrollHorizontally = true) {
-    const margin = 15;
-    let rect = ElementTouchHelper.getBoundingContentRect(aElement);
-
-    let viewport = BrowserApp.selectedTab.getViewport();
-    let bRect = new Rect(aCanScrollHorizontally ? Math.max(viewport.cssPageLeft, rect.x - margin) : viewport.cssX,
-                         rect.y,
-                         aCanScrollHorizontally ? rect.w + 2 * margin : viewport.cssWidth,
-                         rect.h);
-    // constrict the rect to the screen's right edge
-    bRect.width = Math.min(bRect.width, viewport.cssPageRight - bRect.x);
-
-    // if the rect is already taking up most of the visible area and is stretching the
-    // width of the page, then we want to zoom out instead.
-    if (BrowserEventHandler.mReflozPref) {
-      let zoomFactor = BrowserApp.selectedTab.getZoomToMinFontSize(aElement);
-
-      bRect.width = zoomFactor <= 1.0 ? bRect.width : gScreenWidth / zoomFactor;
-      bRect.height = zoomFactor <= 1.0 ? bRect.height : bRect.height / zoomFactor;
-      if (zoomFactor == 1.0 || this._isRectZoomedIn(bRect, viewport)) {
-        if (aCanZoomOut) {
-          this._zoomOut();
-        }
-        return;
-      }
-    } else if (this._isRectZoomedIn(bRect, viewport)) {
-      if (aCanZoomOut) {
-        this._zoomOut();
-      }
-      return;
-    }
-
-    rect.type = "Browser:ZoomToRect";
-    rect.x = bRect.x;
-    rect.y = bRect.y;
-    rect.w = bRect.width;
-    rect.h = Math.min(bRect.width * viewport.cssHeight / viewport.cssWidth, bRect.height);
-
-    if (aClickY >= 0) {
-      // if the block we're zooming to is really tall, and we want to keep a particular
-      // part of it in view, then adjust the y-coordinate of the target rect accordingly.
-      // the 1.2 multiplier is just a little fuzz to compensate for bRect including horizontal
-      // margins but not vertical ones.
-      let cssTapY = viewport.cssY + aClickY;
-      if ((bRect.height > rect.h) && (cssTapY > rect.y + (rect.h * 1.2))) {
-        rect.y = cssTapY - (rect.h / 2);
-      }
-    }
-
-    if (rect.w > viewport.cssWidth || rect.h > viewport.cssHeight) {
-      BrowserEventHandler.resetMaxLineBoxWidth();
-    }
-
-    sendMessageToJava(rect);
-  },
-
-  _zoomInAndSnapToRange: function(aRange) {
-    // aRange is always non-null here, since a check happened previously.
-    let viewport = BrowserApp.selectedTab.getViewport();
-    let fudge = 15; // Add a bit of fudge.
-    let boundingElement = aRange.offsetNode;
-    while (!boundingElement.getBoundingClientRect && boundingElement.parentNode) {
-      boundingElement = boundingElement.parentNode;
-    }
-
-    let rect = ElementTouchHelper.getBoundingContentRect(boundingElement);
-    let drRect = aRange.getClientRect();
-    let scrollTop =
-      BrowserApp.selectedBrowser.contentDocument.documentElement.scrollTop ||
-      BrowserApp.selectedBrowser.contentDocument.body.scrollTop;
-
-    // We subtract half the height of the viewport so that we can (ideally)
-    // center the area of interest on the screen.
-    let topPos = scrollTop + drRect.top - (viewport.cssHeight / 2.0);
-
-    // Factor in the border and padding
-    let boundingStyle = window.getComputedStyle(boundingElement);
-    let leftAdjustment = parseInt(boundingStyle.paddingLeft) +
-                         parseInt(boundingStyle.borderLeftWidth);
-
-    BrowserApp.selectedTab._mReflozPositioned = true;
-
-    rect.type = "Browser:ZoomToRect";
-    rect.x = Math.max(viewport.cssPageLeft, rect.x  - fudge + leftAdjustment);
-    rect.y = Math.max(topPos, viewport.cssPageTop);
-    rect.w = viewport.cssWidth;
-    rect.h = viewport.cssHeight;
-    rect.animate = false;
-
-    sendMessageToJava(rect);
-    BrowserApp.selectedTab._mReflozPoint = null;
   },
 
   onPinchFinish: function(aData) {
@@ -6028,6 +5913,11 @@ var ViewportHandler = {
     let allowZoomStr = windowUtils.getDocumentMetadata("viewport-user-scalable");
     let allowZoom = !/^(0|no|false)$/.test(allowZoomStr) && (minScale != maxScale);
 
+    // Double-tap should always be disabled if allowZoom is disabled. So we initialize
+    // allowDoubleTapZoom to the same value as allowZoom and have additional conditions to
+    // disable it in updateViewportSize.
+    let allowDoubleTapZoom = allowZoom;
+
     let autoSize = true;
 
     if (isNaN(scale) && isNaN(minScale) && isNaN(maxScale) && allowZoomStr == "" && widthStr == "" && heightStr == "") {
@@ -6037,7 +5927,8 @@ var ViewportHandler = {
         return new ViewportMetadata({
           defaultZoom: 1,
           autoSize: true,
-          allowZoom: true
+          allowZoom: true,
+          allowDoubleTapZoom: false
         });
       }
 
@@ -6046,7 +5937,8 @@ var ViewportHandler = {
         return new ViewportMetadata({
           defaultZoom: 1,
           autoSize: true,
-          allowZoom: true
+          allowZoom: true,
+          allowDoubleTapZoom: false
         });
       }
 
@@ -6078,6 +5970,7 @@ var ViewportHandler = {
       height: height,
       autoSize: autoSize,
       allowZoom: allowZoom,
+      allowDoubleTapZoom: allowDoubleTapZoom,
       isSpecified: hasMetaViewport,
       isRTL: isRTL
     });
@@ -6121,6 +6014,7 @@ var ViewportHandler = {
  *   maxZoom (float): The maximum zoom level.
  *   autoSize (boolean): Resize the CSS viewport when the window resizes.
  *   allowZoom (boolean): Let the user zoom in or out.
+ *   allowDoubleTapZoom (boolean): Allow double-tap to zoom in.
  *   isSpecified (boolean): Whether the page viewport is specified or not.
  */
 function ViewportMetadata(aMetadata = {}) {
@@ -6131,6 +6025,7 @@ function ViewportMetadata(aMetadata = {}) {
   this.maxZoom = ("maxZoom" in aMetadata) ? aMetadata.maxZoom : 0;
   this.autoSize = ("autoSize" in aMetadata) ? aMetadata.autoSize : false;
   this.allowZoom = ("allowZoom" in aMetadata) ? aMetadata.allowZoom : true;
+  this.allowDoubleTapZoom = ("allowDoubleTapZoom" in aMetadata) ? aMetadata.allowDoubleTapZoom : true;
   this.isSpecified = ("isSpecified" in aMetadata) ? aMetadata.isSpecified : false;
   this.isRTL = ("isRTL" in aMetadata) ? aMetadata.isRTL : false;
   Object.seal(this);
@@ -6144,8 +6039,22 @@ ViewportMetadata.prototype = {
   maxZoom: null,
   autoSize: null,
   allowZoom: null,
+  allowDoubleTapZoom: null,
   isSpecified: null,
   isRTL: null,
+
+  toString: function() {
+    return "width=" + this.width
+         + "; height=" + this.height
+         + "; defaultZoom=" + this.defaultZoom
+         + "; minZoom=" + this.minZoom
+         + "; maxZoom=" + this.maxZoom
+         + "; autoSize=" + this.autoSize
+         + "; allowZoom=" + this.allowZoom
+         + "; allowDoubleTapZoom=" + this.allowDoubleTapZoom
+         + "; isSpecified=" + this.isSpecified
+         + "; isRTL=" + this.isRTL;
+  }
 };
 
 
@@ -7142,18 +7051,20 @@ var WebappsUI = {
   doInstall: function doInstall(aData) {
     let jsonManifest = aData.isPackage ? aData.app.updateManifest : aData.app.manifest;
     let manifest = new ManifestHelper(jsonManifest, aData.app.origin);
-    let showPrompt = true;
 
-    if (!showPrompt || Services.prompt.confirm(null, Strings.browser.GetStringFromName("webapps.installTitle"), manifest.name + "\n" + aData.app.origin)) {
+    if (Services.prompt.confirm(null, Strings.browser.GetStringFromName("webapps.installTitle"), manifest.name + "\n" + aData.app.origin)) {
       // Get a profile for the app to be installed in. We'll download everything before creating the icons.
       let origin = aData.app.origin;
-      let profilePath = sendMessageToJava({
-        type: "Webapps:Preinstall",
-        name: manifest.name,
-        manifestURL: aData.app.manifestURL,
-        origin: origin
-      });
-      if (profilePath) {
+      sendMessageToJava({
+         type: "Webapps:Preinstall",
+         name: manifest.name,
+         manifestURL: aData.app.manifestURL,
+         origin: origin
+      }, (data) => {
+        let profilePath = JSON.parse(data).profile;
+        if (!profilePath)
+          return;
+
         let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
         file.initWithPath(profilePath);
 
@@ -7218,7 +7129,7 @@ var WebappsUI = {
             );
           }
         );
-      }
+      });
     } else {
       DOMApplicationRegistry.denyInstall(aData);
     }
@@ -7533,33 +7444,36 @@ let Reader = {
           throw new Error("Reader:Add requires a tabID or an URL as argument");
         }
 
-        let sendResult = function(result, title) {
-          this.log("Reader:Add success=" + result + ", url=" + url + ", title=" + title);
+        let sendResult = function(result, article) {
+          article = article || {};
+          this.log("Reader:Add success=" + result + ", url=" + url + ", title=" + article.title + ", excerpt=" + article.excerpt);
 
           sendMessageToJava({
             type: "Reader:Added",
             result: result,
-            title: title,
+            title: article.title,
             url: url,
+            length: article.length,
+            excerpt: article.excerpt
           });
         }.bind(this);
 
         let handleArticle = function(article) {
           if (!article) {
-            sendResult(this.READER_ADD_FAILED, "");
+            sendResult(this.READER_ADD_FAILED, null);
             return;
           }
 
           this.storeArticleInCache(article, function(success) {
             let result = (success ? this.READER_ADD_SUCCESS : this.READER_ADD_FAILED);
-            sendResult(result, article.title);
+            sendResult(result, article);
           }.bind(this));
         }.bind(this);
 
         this.getArticleFromCache(urlWithoutRef, function (article) {
           // If the article is already in reading list, bail
           if (article) {
-            sendResult(this.READER_ADD_DUPLICATE, "");
+            sendResult(this.READER_ADD_DUPLICATE, null);
             return;
           }
 
@@ -7573,8 +7487,16 @@ let Reader = {
       }
 
       case "Reader:Remove": {
-        this.removeArticleFromCache(aData, function(success) {
-          this.log("Reader:Remove success=" + success + ", url=" + aData);
+        let url = aData;
+        this.removeArticleFromCache(url, function(success) {
+          this.log("Reader:Remove success=" + success + ", url=" + url);
+
+          if (success) {
+            sendMessageToJava({
+              type: "Reader:Removed",
+              url: url
+            });
+          }
         }.bind(this));
         break;
       }
@@ -7969,7 +7891,7 @@ let Reader = {
 };
 
 var ExternalApps = {
-  _contextMenuId: -1,
+  _contextMenuId: null,
 
   // extend _getLink to pickup html5 media links.
   _getMediaLink: function(aElement) {
@@ -8001,7 +7923,10 @@ var ExternalApps = {
   },
 
   uninit: function helper_uninit() {
-    NativeWindow.contextmenus.remove(this._contextMenuId);
+    if (this._contextMenuId !== null) {
+      NativeWindow.contextmenus.remove(this._contextMenuId);
+    }
+    this._contextMenuId = null;
   },
 
   filter: {
@@ -8020,17 +7945,28 @@ var ExternalApps = {
     HelperApps.launchUri(uri);
   },
 
-  updatePageAction: function updatePageAction(uri) {
-    let apps = HelperApps.getAppsForUri(uri);
+  shouldCheckUri: function(uri) {
+    if (!(uri.schemeIs("http") || uri.schemeIs("https") || uri.schemeIs("file"))) {
+      return false;
+    }
 
-    if (apps.length > 0)
-      this._setUriForPageAction(uri, apps);
-    else
-      this._removePageAction();
+    return true;
+  },
+
+  updatePageAction: function updatePageAction(uri) {
+    HelperApps.getAppsForUri(uri, { filterHttp: true }, (apps) => {
+      this.clearPageAction();
+      if (apps.length > 0)
+        this._setUriForPageAction(uri, apps);
+    });
+  },
+
+  updatePageActionUri: function updatePageActionUri(uri) {
+    this._pageActionUri = uri;
   },
 
   _setUriForPageAction: function setUriForPageAction(uri, apps) {
-    this._pageActionUri = uri;
+    this.updatePageActionUri(uri);
 
     // If the pageaction is already added, simply update the URI to be launched when 'onclick' is triggered.
     if (this._pageActionId != undefined)
@@ -8039,11 +7975,8 @@ var ExternalApps = {
     this._pageActionId = NativeWindow.pageactions.add({
       title: Strings.browser.GetStringFromName("openInApp.pageAction"),
       icon: "drawable://icon_openinapp",
-      clickCallback: (function() {
-        let callback = function(app) {
-          app.launch(uri);
-        }
 
+      clickCallback: () => {
         if (apps.length > 1) {
           // Use the HelperApps prompt here to filter out any Http handlers
           HelperApps.prompt(apps, {
@@ -8052,20 +7985,20 @@ var ExternalApps = {
               Strings.browser.GetStringFromName("openInApp.ok"),
               Strings.browser.GetStringFromName("openInApp.cancel")
             ]
-          }, function(result) {
-            if (result.button != 0)
+          }, (result) => {
+            if (result.button != 0) {
               return;
-
-            callback(apps[result.icongrid0]);
+            }
+            apps[result.icongrid0].launch(this._pageActionUri);
           });
         } else {
-          callback(apps[0]);
+          apps[0].launch(this._pageActionUri);
         }
-      }).bind(this)
+      }
     });
   },
 
-  _removePageAction: function removePageAction() {
+  clearPageAction: function clearPageAction() {
     if(!this._pageActionId)
       return;
 
@@ -8342,3 +8275,108 @@ var Tabs = {
     }
   },
 };
+
+function ContextMenuItem(args) {
+  this.id = uuidgen.generateUUID().toString();
+  this.args = args;
+}
+
+ContextMenuItem.prototype = {
+  get order() {
+    return this.args.order || 0;
+  },
+
+  matches: function(elt, x, y) {
+    return this.args.selector.matches(elt, x, y);
+  },
+
+  callback: function(elt) {
+    this.args.callback(elt);
+  },
+
+  addVal: function(name, elt, defaultValue) {
+    if (!(name in this.args))
+      return defaultValue;
+
+    if (typeof this.args[name] == "function")
+      return this.args[name](elt);
+
+    return this.args[name];
+  },
+
+  getValue: function(elt) {
+    return {
+      id: this.id,
+      label: this.addVal("label", elt),
+      shareData: this.addVal("shareData", elt),
+      icon: this.addVal("icon", elt),
+      isGroup: this.addVal("isGroup", elt, false),
+      inGroup: this.addVal("inGroup", elt, false),
+      disabled: this.addVal("disabled", elt, false),
+      selected: this.addVal("selected", elt, false),
+      isParent: this.addVal("isParent", elt, false),
+    };
+  }
+}
+
+function HTMLContextMenuItem(elt, target) {
+  ContextMenuItem.call(this, { });
+
+  this.menuElementRef = Cu.getWeakReference(elt);
+  this.targetElementRef = Cu.getWeakReference(target);
+}
+
+HTMLContextMenuItem.prototype = Object.create(ContextMenuItem.prototype, {
+  order: {
+    value: NativeWindow.contextmenus.DEFAULT_HTML5_ORDER
+  },
+
+  matches: {
+    value: function(target) {
+      let t = this.targetElementRef.get();
+      return t === target;
+    },
+  },
+
+  callback: {
+    value: function(target) {
+      let elt = this.menuElementRef.get();
+      if (!elt) {
+        return;
+      }
+
+      // If this is a menu item, show a new context menu with the submenu in it
+      if (elt instanceof Ci.nsIDOMHTMLMenuElement) {
+        try {
+          NativeWindow.contextmenus.menuitems = [];
+          NativeWindow.contextmenus._addHTMLContextMenuItemsForMenu(elt, target);
+          NativeWindow.contextmenus._innerShow(target);
+        } catch(ex) {
+          Cu.reportError(ex);
+        }
+      } else {
+        // otherwise just click the menu item
+        elt.click();
+      }
+    },
+  },
+
+  getValue: {
+    value: function(target) {
+      let elt = this.menuElementRef.get();
+      if (!elt)
+        return null;
+
+      if (elt.hasAttribute("hidden"))
+        return null;
+
+      return {
+        id: this.id,
+        icon: elt.icon,
+        label: elt.label,
+        disabled: elt.disabled,
+        menu: elt instanceof Ci.nsIDOMHTMLMenuElement
+      };
+    }
+  },
+});

@@ -4,6 +4,7 @@
 
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 @namespace html url("http://www.w3.org/1999/xhtml");
+@namespace svg url("http://www.w3.org/2000/svg");
 
 #main-window:not([chromehidden~="toolbar"]) {
 %ifdef XP_MACOSX
@@ -117,6 +118,7 @@ tabbrowser {
   visibility: hidden;
 }
 
+.tab-close-button,
 .tab-background {
   /* Explicitly set the visibility to override the value (collapsed)
    * we inherit from #TabsToolbar[collapsed] upon opening a browser window. */
@@ -125,6 +127,7 @@ tabbrowser {
   transition: visibility 0ms 25ms;
 }
 
+.tab-close-button:not([fadein]):not([pinned]),
 .tab-background:not([fadein]):not([pinned]) {
   visibility: hidden;
   /* Closing tabs are hidden without a delay. */
@@ -133,8 +136,7 @@ tabbrowser {
 
 .tab-throbber:not([fadein]):not([pinned]),
 .tab-label:not([fadein]):not([pinned]),
-.tab-icon-image:not([fadein]):not([pinned]),
-.tab-close-button:not([fadein]):not([pinned]) {
+.tab-icon-image:not([fadein]):not([pinned]) {
   display: none;
 }
 
@@ -875,7 +877,7 @@ chatbox:-moz-full-screen-ancestor  {
   max-width: none !important;
   min-height: 0 !important;
   max-height: none !important;
-  -moz-box-sizing: border-box !important; 
+  box-sizing: border-box !important;
 }
 
 /* hide chat chrome when chat is fullscreen */
@@ -923,8 +925,8 @@ chatbox:-moz-full-screen-ancestor > .chat-titlebar {
 #navigator-toolbox,
 #content-deck {
   transition-property: margin-left, margin-right;
-  transition-duration: 150ms;
-  transition-timing-function: ease-out;
+  transition-duration: 200ms;
+  transition-timing-function: linear;
 }
 
 #tab-view-deck[fastcustomizeanimation] #navigator-toolbox,

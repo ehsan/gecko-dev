@@ -70,8 +70,6 @@
 
 #ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
-#elif defined(XP_OS2)
-#include "nsILocalFileOS2.h"
 #endif
 
 #include "nsIPluginHost.h" // XXX needed for ext->type mapping (bug 233289)
@@ -127,9 +125,6 @@
 
 using namespace mozilla;
 using namespace mozilla::ipc;
-
-// Buffer file writes in 32kb chunks
-#define BUFFERED_OUTPUT_SIZE (1024 * 32)
 
 // Download Folder location constants
 #define NS_PREF_DOWNLOAD_DIR        "browser.download.dir"
@@ -352,8 +347,8 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
   DeviceStorageFile dsf(NS_LITERAL_STRING("sdcard"),
                         storageName,
                         NS_LITERAL_STRING("downloads"));
-  NS_ENSURE_TRUE(dsf.mFile, NS_ERROR_FAILURE);
-  NS_ENSURE_TRUE(dsf.IsAvailable(), NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(dsf.mFile, NS_ERROR_FILE_ACCESS_DENIED);
+  NS_ENSURE_TRUE(dsf.IsAvailable(), NS_ERROR_FILE_ACCESS_DENIED);
 
   bool alreadyThere;
   nsresult rv = dsf.mFile->Exists(&alreadyThere);
@@ -434,14 +429,12 @@ static nsDefaultMimeTypeEntry defaultMimeEntries [] =
   { "application/xhtml+xml", "xhtml" },
   { "application/xhtml+xml", "xht" },
   { TEXT_PLAIN, "txt" },
-#ifdef MOZ_OGG
   { VIDEO_OGG, "ogv" },
   { VIDEO_OGG, "ogg" },
   { APPLICATION_OGG, "ogg" },
   { AUDIO_OGG, "oga" },
 #ifdef MOZ_OPUS
   { AUDIO_OGG, "opus" },
-#endif
 #endif
 #ifdef MOZ_WEBM
   { VIDEO_WEBM, "webm" },
@@ -534,7 +527,8 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
   { AUDIO_MP4, "m4a", "MPEG-4 Audio" },
   { VIDEO_RAW, "yuv", "Raw YUV Video" },
   { AUDIO_WAV, "wav", "Waveform Audio" },
-  { VIDEO_3GPP, "3gpp,3gp", "3GPP Video" }
+  { VIDEO_3GPP, "3gpp,3gp", "3GPP Video" },
+  { AUDIO_MIDI, "mid", "Standard MIDI Audio" }
 };
 
 #undef MAC_TYPE
@@ -671,6 +665,8 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
   nsAutoString fileName;
   nsAutoCString fileExtension;
   uint32_t reason = nsIHelperAppLauncherDialog::REASON_CANTHANDLE;
+  uint32_t contentDisposition = -1;
+
   nsresult rv;
 
   // Get the file extension and name that we will need later
@@ -680,7 +676,10 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
   if (channel) {
     channel->GetURI(getter_AddRefs(uri));
     channel->GetContentLength(&contentLength);
+    channel->GetContentDisposition(&contentDisposition);
+    channel->GetContentDispositionFilename(fileName);
   }
+  
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     nsCOMPtr<nsIDOMWindow> window = do_GetInterface(aWindowContext);
     NS_ENSURE_STATE(window);
@@ -697,8 +696,9 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
       return NS_ERROR_FAILURE;
 
     nsCString disp;
-    if (channel)
+    if (channel) {
       channel->GetContentDispositionHeader(disp);
+    }
 
     nsCOMPtr<nsIURI> referrer;
     rv = NS_GetReferrerFromChannel(channel, getter_AddRefs(referrer));
@@ -714,8 +714,9 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
     mozilla::dom::PExternalHelperAppChild *pc =
       child->SendPExternalHelperAppConstructor(uriParams,
                                                nsCString(aMimeContentType),
-                                               disp, aForceSave, contentLength,
-                                               referrerParams,
+                                               disp, contentDisposition,
+                                               fileName, aForceSave, 
+                                               contentLength, referrerParams,
                                                mozilla::dom::TabChild::GetFrom(window));
     ExternalHelperAppChild *childListener = static_cast<ExternalHelperAppChild *>(pc);
 
@@ -1201,10 +1202,10 @@ NS_INTERFACE_MAP_BEGIN(nsExternalAppHandler)
    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStreamListener)
    NS_INTERFACE_MAP_ENTRY(nsIStreamListener)
    NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
-   NS_INTERFACE_MAP_ENTRY(nsIHelperAppLauncher)   
+   NS_INTERFACE_MAP_ENTRY(nsIHelperAppLauncher)
    NS_INTERFACE_MAP_ENTRY(nsICancelable)
    NS_INTERFACE_MAP_ENTRY(nsITimerCallback)
-   NS_INTERFACE_MAP_ENTRY(nsIBackgroundFileSaverObserver)   
+   NS_INTERFACE_MAP_ENTRY(nsIBackgroundFileSaverObserver)
 NS_INTERFACE_MAP_END_THREADSAFE
 
 nsExternalAppHandler::nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo,
@@ -1253,12 +1254,11 @@ nsExternalAppHandler::nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo,
     char16_t(0x2066), // Left-to-Right Isolate
     char16_t(0x2067), // Right-to-Left Isolate
     char16_t(0x2068), // First Strong Isolate
-    char16_t(0x2069)  // Pop Directional Isolate
+    char16_t(0x2069), // Pop Directional Isolate
+    char16_t(0)
   };
-  for (uint32_t i = 0; i < ArrayLength(unsafeBidiCharacters); ++i) {
-    mSuggestedFileName.ReplaceChar(unsafeBidiCharacters[i], '_');
-    mTempFileExtension.ReplaceChar(unsafeBidiCharacters[i], '_');
-  }
+  mSuggestedFileName.ReplaceChar(unsafeBidiCharacters, '_');
+  mTempFileExtension.ReplaceChar(unsafeBidiCharacters, '_');
 
   // Make sure extension is correct.
   EnsureSuggestedFileName();
@@ -1269,6 +1269,15 @@ nsExternalAppHandler::nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo,
 nsExternalAppHandler::~nsExternalAppHandler()
 {
   MOZ_ASSERT(!mSaver, "Saver should hold a reference to us until deleted");
+}
+
+void
+nsExternalAppHandler::DidDivertRequest(nsIRequest *request)
+{
+  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Content, "in child process");
+  // Remove our request from the child loadGroup
+  RetargetLoadNotifications(request);
+  MaybeCloseWindow();
 }
 
 NS_IMETHODIMP nsExternalAppHandler::SetWebProgressListener(nsIWebProgressListener2 * aWebProgressListener)
@@ -1495,7 +1504,10 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
 
   rv = mSaver->EnableSha256();
   NS_ENSURE_SUCCESS(rv, rv);
-  LOG(("Enabled hashing"));
+
+  rv = mSaver->EnableSignatureInfo();
+  NS_ENSURE_SUCCESS(rv, rv);
+  LOG(("Enabled hashing and signature verification"));
 
   rv = mSaver->SetTarget(mTempFile, false);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1813,8 +1825,8 @@ void nsExternalAppHandler::SendStatusChange(ErrorType type, nsresult rv, nsIRequ
         break;
     }
     PR_LOG(nsExternalHelperAppService::mLog, PR_LOG_ERROR,
-        ("Error: %s, type=%i, listener=0x%p, rv=0x%08X\n",
-         NS_LossyConvertUTF16toASCII(msgId).get(), type, mDialogProgressListener.get(), rv));
+        ("Error: %s, type=%i, listener=0x%p, transfer=0x%p, rv=0x%08X\n",
+         NS_LossyConvertUTF16toASCII(msgId).get(), type, mDialogProgressListener.get(), mTransfer.get(), rv));
     PR_LOG(nsExternalHelperAppService::mLog, PR_LOG_ERROR,
         ("       path='%s'\n", NS_ConvertUTF16toUTF8(path).get()));
 
@@ -1840,16 +1852,55 @@ void nsExternalAppHandler::SendStatusChange(ErrorType type, nsresult rv, nsIRequ
               else
               if (XRE_GetProcessType() == GeckoProcessType_Default) {
                 // We don't have a listener.  Simply show the alert ourselves.
-                nsCOMPtr<nsIPrompt> prompter(do_GetInterface(mWindowContext));
+                nsresult qiRv;
+                nsCOMPtr<nsIPrompt> prompter(do_GetInterface(mWindowContext, &qiRv));
                 nsXPIDLString title;
                 bundle->FormatStringFromName(MOZ_UTF16("title"),
                                              strings,
                                              1,
                                              getter_Copies(title));
-                if (prompter)
+
+                PR_LOG(nsExternalHelperAppService::mLog, PR_LOG_DEBUG,
+                       ("mWindowContext=0x%p, prompter=0x%p, qi rv=0x%08X, title='%s', msg='%s'",
+                       mWindowContext.get(),
+                       prompter.get(),
+                       qiRv,
+                       NS_ConvertUTF16toUTF8(title).get(),
+                       NS_ConvertUTF16toUTF8(msgText).get()));
+
+                // If we didn't have a prompter we will try and get a window
+                // instead, get it's docshell and use it to alert the user.
+                if (!prompter)
                 {
-                  prompter->Alert(title, msgText);
+                  nsCOMPtr<nsPIDOMWindow> window(do_GetInterface(mWindowContext));
+                  if (!window || !window->GetDocShell())
+                  {
+                    return;
+                  }
+
+                  prompter = do_GetInterface(window->GetDocShell(), &qiRv);
+
+                  PR_LOG(nsExternalHelperAppService::mLog, PR_LOG_DEBUG,
+                         ("No prompter from mWindowContext, using DocShell, " \
+                          "window=0x%p, docShell=0x%p, " \
+                          "prompter=0x%p, qi rv=0x%08X",
+                          window.get(),
+                          window->GetDocShell(),
+                          prompter.get(),
+                          qiRv));
+
+                  // If we still don't have a prompter, there's nothing else we
+                  // can do so just return.
+                  if (!prompter)
+                  {
+                    PR_LOG(nsExternalHelperAppService::mLog, PR_LOG_ERROR,
+                           ("No prompter from DocShell, no way to alert user"));
+                    return;
+                  }
                 }
+
+                // We should always have a prompter at this point.
+                prompter->Alert(title, msgText);
               }
             }
         }
@@ -1935,6 +1986,7 @@ nsExternalAppHandler::OnSaveComplete(nsIBackgroundFileSaver *aSaver,
   if (!mCanceled) {
     // Save the hash
     (void)mSaver->GetSha256Hash(mHash);
+    (void)mSaver->GetSignatureInfo(getter_AddRefs(mSignatureInfo));
     // Free the reference that the saver keeps on us, even if we couldn't get
     // the hash.
     mSaver = nullptr;
@@ -1968,6 +2020,7 @@ void nsExternalAppHandler::NotifyTransfer(nsresult aStatus)
 
   if (NS_SUCCEEDED(aStatus)) {
     (void)mTransfer->SetSha256Hash(mHash);
+    (void)mTransfer->SetSignatureInfo(mSignatureInfo);
     (void)mTransfer->OnProgressChange64(nullptr, nullptr, mProgress,
       mContentLength, mProgress, mContentLength);
   }
@@ -2462,7 +2515,7 @@ NS_IMETHODIMP nsExternalHelperAppService::GetFromTypeAndExtension(const nsACStri
 
   // (1) Ask the OS for a mime info
   bool found;
-  *_retval = GetMIMEInfoFromOS(typeToUse, aFileExt, &found).get();
+  *_retval = GetMIMEInfoFromOS(typeToUse, aFileExt, &found).take();
   LOG(("OS gave back 0x%p - found: %i\n", *_retval, found));
   // If we got no mimeinfo, something went wrong. Probably lack of memory.
   if (!*_retval)

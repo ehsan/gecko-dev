@@ -418,7 +418,7 @@ add_task(function test_getAssertion() {
   _("delta: " + Date.parse(payload.exp - start) + "\n");
   let exp = Number(payload.exp);
 
-  do_check_eq(exp, now + TWO_MINUTES_MS);
+  do_check_eq(exp, now + ASSERTION_LIFETIME);
 
   // Reset for next call.
   fxa.internal._d_signCertificate = Promise.defer();
@@ -430,7 +430,7 @@ add_task(function test_getAssertion() {
   // There were no additional calls - same number of getcert calls as before
   do_check_eq(fxa.internal._getCertificateSigned_calls.length, 1);
 
-  // Wait an hour; assertion expires, but not the certificate
+  // Wait an hour; assertion use period expires, but not the certificate
   now += ONE_HOUR_MS;
   fxa.internal._now_is = now;
 
@@ -456,7 +456,7 @@ add_task(function test_getAssertion() {
   do_check_eq(keyPair.validUntil, start + KEY_LIFETIME);
   do_check_eq(cert.validUntil, start + CERT_LIFETIME);
   exp = Number(payload.exp);
-  do_check_eq(exp, now + TWO_MINUTES_MS);
+  do_check_eq(exp, now + ASSERTION_LIFETIME);
 
   // Now we wait even longer, and expect both assertion and cert to expire.  So
   // we will have to get a new keypair and cert.
@@ -479,7 +479,7 @@ add_task(function test_getAssertion() {
   do_check_eq(cert.validUntil, now + CERT_LIFETIME);
   exp = Number(payload.exp);
 
-  do_check_eq(exp, now + TWO_MINUTES_MS);
+  do_check_eq(exp, now + ASSERTION_LIFETIME);
   _("----- DONE ----\n");
 });
 
@@ -491,16 +491,12 @@ add_task(function test_resend_email_not_signed_in() {
   } catch(err) {
     do_check_eq(err.message,
       "Cannot resend verification email; no signed-in user");
-    do_test_finished();
-    run_next_test();
     return;
   }
   do_throw("Should not be able to resend email when nobody is signed in");
 });
 
-add_task(function test_resend_email() {
-  do_test_pending();
-
+add_test(function test_resend_email() {
   let fxa = new MockFxAccounts();
   let alice = getTestUser("alice");
 
@@ -535,7 +531,6 @@ add_task(function test_resend_email() {
 
         // Ok abort polling before we go on to the next test
         fxa.internal.abortExistingFlow();
-        do_test_finished();
         run_next_test();
       });
     });

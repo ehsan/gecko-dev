@@ -623,18 +623,19 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
 
   nsCxPusher pusher;
   pusher.Push(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JS::Rooted<JSObject*> jsobj(cx, npjsobj->mJSObj);
+  JSAutoCompartment ac(cx, jsobj);
   JS::Rooted<JS::Value> fv(cx);
 
   AutoJSExceptionReporter reporter(cx);
 
   if (method != NPIdentifier_VOID) {
-    if (!GetProperty(cx, npjsobj->mJSObj, method, &fv) ||
+    if (!GetProperty(cx, jsobj, method, &fv) ||
         ::JS_TypeOfValue(cx, fv) != JSTYPE_FUNCTION) {
       return false;
     }
   } else {
-    fv = OBJECT_TO_JSVAL(npjsobj->mJSObj);
+    fv.setObject(*jsobj);
   }
 
   // Convert args
@@ -652,15 +653,14 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
 
   if (ctorCall) {
     JSObject *newObj =
-      ::JS_New(cx, npjsobj->mJSObj, jsargs.length(), jsargs.begin());
+      ::JS_New(cx, jsobj, jsargs.length(), jsargs.begin());
 
     if (newObj) {
       v.setObject(*newObj);
       ok = true;
     }
   } else {
-    ok = ::JS_CallFunctionValue(cx, npjsobj->mJSObj, fv, jsargs.length(),
-                                jsargs.begin(), v.address());
+    ok = ::JS_CallFunctionValue(cx, jsobj, fv, jsargs, &v);
   }
 
   if (ok)
@@ -1589,7 +1589,7 @@ NPObjWrapper_NewResolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsi
 static bool
 NPObjWrapper_Convert(JSContext *cx, JS::Handle<JSObject*> obj, JSType hint, JS::MutableHandle<JS::Value> vp)
 {
-  JS_ASSERT(hint == JSTYPE_NUMBER || hint == JSTYPE_STRING || hint == JSTYPE_VOID);
+  MOZ_ASSERT(hint == JSTYPE_NUMBER || hint == JSTYPE_STRING || hint == JSTYPE_VOID);
 
   // Plugins do not simply use JS_ConvertStub, and the default [[DefaultValue]]
   // behavior, because that behavior involves calling toString or valueOf on
@@ -1606,7 +1606,7 @@ NPObjWrapper_Convert(JSContext *cx, JS::Handle<JSObject*> obj, JSType hint, JS::
   if (!JS_GetProperty(cx, obj, "toString", &v))
     return false;
   if (!JSVAL_IS_PRIMITIVE(v) && JS_ObjectIsCallable(cx, JSVAL_TO_OBJECT(v))) {
-    if (!JS_CallFunctionValue(cx, obj, v, 0, nullptr, vp.address()))
+    if (!JS_CallFunctionValue(cx, obj, v, JS::HandleValueArray::empty(), vp))
       return false;
     if (JSVAL_IS_PRIMITIVE(vp))
       return true;
@@ -1730,13 +1730,8 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
 
   if (!sNPObjWrappers.ops) {
     // No hash yet (or any more), initialize it.
-
-    if (!PL_DHashTableInit(&sNPObjWrappers, PL_DHashGetStubOps(), nullptr,
-                           sizeof(NPObjWrapperHashEntry), 16)) {
-      NS_ERROR("Error initializing PLDHashTable!");
-
-      return nullptr;
-    }
+    PL_DHashTableInit(&sNPObjWrappers, PL_DHashGetStubOps(), nullptr,
+                      sizeof(NPObjWrapperHashEntry), 16);
   }
 
   NPObjWrapperHashEntry *entry = static_cast<NPObjWrapperHashEntry *>

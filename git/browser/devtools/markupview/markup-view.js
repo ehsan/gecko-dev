@@ -14,7 +14,6 @@ const COLLAPSE_ATTRIBUTE_LENGTH = 120;
 const COLLAPSE_DATA_URL_REGEX = /^data.+base64/;
 const COLLAPSE_DATA_URL_LENGTH = 60;
 const CONTAINER_FLASHING_DURATION = 500;
-const IMAGE_PREVIEW_MAX_DIM = 400;
 const NEW_SELECTION_HIGHLIGHTER_TIMER = 1000;
 
 const {UndoStack} = require("devtools/shared/undo");
@@ -23,7 +22,7 @@ const {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
 const {HTMLEditor} = require("devtools/markupview/html-editor");
 const promise = require("sdk/core/promise");
 const {Tooltip} = require("devtools/shared/widgets/Tooltip");
-const EventEmitter = require("devtools/shared/event-emitter");
+const EventEmitter = require("devtools/toolkit/event-emitter");
 
 Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource://gre/modules/devtools/Templater.jsm");
@@ -166,7 +165,7 @@ MarkupView.prototype = {
   },
 
   _onMouseLeave: function() {
-    this._hideBoxModel();
+    this._hideBoxModel(true);
     if (this._hoveredNode) {
       this._containers.get(this._hoveredNode).hovered = false;
     }
@@ -177,8 +176,8 @@ MarkupView.prototype = {
     this._inspector.toolbox.highlighterUtils.highlightNodeFront(nodeFront, options);
   },
 
-  _hideBoxModel: function() {
-    this._inspector.toolbox.highlighterUtils.unhighlight();
+  _hideBoxModel: function(forceHide) {
+    this._inspector.toolbox.highlighterUtils.unhighlight(forceHide);
   },
 
   _briefBoxModelTimer: null,
@@ -1277,16 +1276,17 @@ MarkupContainer.prototype = {
         data: def.promise
       };
 
-      this.node.getImageData(IMAGE_PREVIEW_MAX_DIM).then(data => {
-        if (data) {
-          data.data.string().then(str => {
-            let res = {data: str, size: data.size};
-            // Resolving the data promise and, to always keep tooltipData.data
-            // as a promise, create a new one that resolves immediately
-            def.resolve(res);
-            this.tooltipData.data = promise.resolve(res);
-          });
-        }
+      let maxDim = Services.prefs.getIntPref("devtools.inspector.imagePreviewTooltipSize");
+      this.node.getImageData(maxDim).then(data => {
+        data.data.string().then(str => {
+          let res = {data: str, size: data.size};
+          // Resolving the data promise and, to always keep tooltipData.data
+          // as a promise, create a new one that resolves immediately
+          def.resolve(res);
+          this.tooltipData.data = promise.resolve(res);
+        });
+      }, () => {
+        this.tooltipData.data = promise.reject();
       });
     }
   },
@@ -1295,11 +1295,9 @@ MarkupContainer.prototype = {
     // We need to send again a request to gettooltipData even if one was sent for
     // the tooltip, because we want the full-size image
     this.node.getImageData().then(data => {
-      if (data) {
-        data.data.string().then(str => {
-          clipboardHelper.copyString(str, this.markup.doc);
-        });
-      }
+      data.data.string().then(str => {
+        clipboardHelper.copyString(str, this.markup.doc);
+      });
     });
   },
 
@@ -1307,6 +1305,8 @@ MarkupContainer.prototype = {
     if (this.tooltipData && target === this.tooltipData.target) {
       this.tooltipData.data.then(({data, size}) => {
         tooltip.setImageContent(data, size);
+      }, () => {
+        tooltip.setBrokenImageContent();
       });
       return true;
     }
@@ -1545,8 +1545,6 @@ MarkupContainer.prototype = {
 
     // Remove event listeners
     this.elt.removeEventListener("dblclick", this._onToggle, false);
-    this.elt.removeEventListener("mouseover", this._onMouseOver, false);
-    this.elt.removeEventListener("mouseout", this._onMouseOut, false);
     this.elt.removeEventListener("mousedown", this._onMouseDown, false);
     this.expander.removeEventListener("click", this._onToggle, false);
 

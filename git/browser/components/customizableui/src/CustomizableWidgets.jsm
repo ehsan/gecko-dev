@@ -320,6 +320,74 @@ const CustomizableWidgets = [{
       parent.appendChild(items);
     }
   }, {
+    id: "sidebar-button",
+    type: "view",
+    viewId: "PanelUI-sidebar",
+    onViewShowing: function(aEvent) {
+      // Largely duplicated from the developer-button above with a couple minor
+      // alterations.
+      // Populate the subview with whatever menuitems are in the
+      // sidebar menu. We skip menu elements, because the menu panel has no way
+      // of dealing with those right now.
+      let doc = aEvent.target.ownerDocument;
+      let win = doc.defaultView;
+
+      let items = doc.getElementById("PanelUI-sidebarItems");
+      let menu = doc.getElementById("viewSidebarMenu");
+
+      // First clear any existing menuitems then populate. Social sidebar
+      // options may not have been added yet, so we do that here. Add it to the
+      // standard menu first, then copy all sidebar options to the panel.
+      win.SocialSidebar.clearProviderMenus();
+      let providerMenuSeps = menu.getElementsByClassName("social-provider-menu");
+      if (providerMenuSeps.length > 0)
+        win.SocialSidebar.populateProviderMenu(providerMenuSeps[0]);
+
+      let attrs = ["oncommand", "onclick", "label", "key", "disabled",
+                   "command", "observes", "hidden", "class", "origin",
+                   "image", "checked"];
+
+      let fragment = doc.createDocumentFragment();
+      let itemsToDisplay = [...menu.children];
+      for (let node of itemsToDisplay) {
+        if (node.hidden)
+          continue;
+
+        let item;
+        if (node.localName == "menuseparator") {
+          item = doc.createElementNS(kNSXUL, "menuseparator");
+        } else if (node.localName == "menuitem") {
+          item = doc.createElementNS(kNSXUL, "toolbarbutton");
+        } else {
+          continue;
+        }
+        for (let attr of attrs) {
+          let attrVal = node.getAttribute(attr);
+          if (attrVal)
+            item.setAttribute(attr, attrVal);
+        }
+        if (node.localName == "menuitem")
+          item.classList.add("subviewbutton");
+        fragment.appendChild(item);
+      }
+
+      items.appendChild(fragment);
+    },
+    onViewHiding: function(aEvent) {
+      let doc = aEvent.target.ownerDocument;
+      let items = doc.getElementById("PanelUI-sidebarItems");
+      let parent = items.parentNode;
+      // We'll take the container out of the document before cleaning it out
+      // to avoid reflowing each time we remove something.
+      parent.removeChild(items);
+
+      while (items.firstChild) {
+        items.firstChild.remove();
+      }
+
+      parent.appendChild(items);
+    }
+  }, {
     id: "add-ons-button",
     shortcutId: "key_openAddons",
     tooltiptext: "add-ons-button.tooltiptext2",
@@ -695,8 +763,8 @@ const CustomizableWidgets = [{
         let elem = aDocument.createElementNS(kNSXUL, "toolbarbutton");
         elem.setAttribute("label", item.label);
         elem.setAttribute("type", "checkbox");
-        elem.section = aSection == "detectors" ? "detectors" : "charsets";
-        elem.value = item.id;
+        elem.section = aSection;
+        elem.value = item.value;
         elem.setAttribute("class", "subviewbutton");
         containerElem.appendChild(elem);
       }
@@ -704,10 +772,7 @@ const CustomizableWidgets = [{
     updateCurrentCharset: function(aDocument) {
       let content = aDocument.defaultView.content;
       let currentCharset = content && content.document && content.document.characterSet;
-      if (currentCharset) {
-        currentCharset = aDocument.defaultView.FoldCharset(currentCharset);
-      }
-      currentCharset = currentCharset ? ("charset." + currentCharset) : "";
+      currentCharset = CharsetMenu.foldCharset(currentCharset);
 
       let pinnedContainer = aDocument.getElementById("PanelUI-characterEncodingView-pinned");
       let charsetContainer = aDocument.getElementById("PanelUI-characterEncodingView-charsets");
@@ -717,13 +782,11 @@ const CustomizableWidgets = [{
     },
     updateCurrentDetector: function(aDocument) {
       let detectorContainer = aDocument.getElementById("PanelUI-characterEncodingView-autodetect");
-      let detectorEnum = CharsetManager.GetCharsetDetectorList();
       let currentDetector;
       try {
         currentDetector = Services.prefs.getComplexValue(
           "intl.charset.detector", Ci.nsIPrefLocalizedString).data;
       } catch (e) {}
-      currentDetector = "chardet." + (currentDetector || "off");
 
       this._updateElements(detectorContainer.childNodes, currentDetector);
     },
@@ -779,13 +842,8 @@ const CustomizableWidgets = [{
       // The behavior as implemented here is directly based off of the
       // `MultiplexHandler()` method in browser.js.
       if (section != "detectors") {
-        let charset = value.substring(value.indexOf('charset.') + 'charset.'.length);
-        window.BrowserSetForcedCharacterSet(charset);
+        window.BrowserSetForcedCharacterSet(value);
       } else {
-        value = value.replace(/^chardet\./, "");
-        if (value == "off") {
-          value = "";
-        }
         // Set the detector pref.
         try {
           let str = Cc["@mozilla.org/supports-string;1"]
@@ -858,7 +916,7 @@ const CustomizableWidgets = [{
 
 #ifdef XP_WIN
 #ifdef MOZ_METRO
-if (Services.sysinfo.getProperty("hasWindowsTouchInterface")) {
+if (Services.metro && Services.metro.supported) {
   let widgetArgs = {tooltiptext: "switch-to-metro-button2.tooltiptext"};
   let brandShortName = BrandBundle.GetStringFromName("brandShortName");
   let metroTooltip = CustomizableUI.getLocalizedProperty(widgetArgs, "tooltiptext",
