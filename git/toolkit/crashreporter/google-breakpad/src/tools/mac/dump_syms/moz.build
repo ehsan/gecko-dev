@@ -7,6 +7,3 @@
 HOST_SOURCES += [
     'dump_syms_tool.mm',
 ]
-
-HOST_PROGRAM = 'dump_syms'
-

@@ -376,8 +376,8 @@ select:disabled:disabled /* Need the pseudo-class twice to have the specificity
   cursor: inherit;
 }
 
-input:disabled,
-textarea:disabled {
+input:disabled > .anonymous-div,
+textarea:disabled > .anonymous-div {
   cursor: default;
 }
 

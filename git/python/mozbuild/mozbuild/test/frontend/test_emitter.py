@@ -11,17 +11,16 @@ from mozunit import main
 
 from mozbuild.frontend.data import (
     ConfigFileSubstitution,
-    Defines,
     DirectoryTraversal,
+    ReaderSummary,
+    VariablePassthru,
+    Defines,
     Exports,
     GeneratedInclude,
+    Program,
     IPDLFile,
     LocalInclude,
-    Program,
-    ReaderSummary,
-    SimpleProgram,
     TestManifest,
-    VariablePassthru,
 )
 from mozbuild.frontend.emitter import TreeMetadataEmitter
 from mozbuild.frontend.reader import (
@@ -162,6 +161,7 @@ class TestEmitterBasic(unittest.TestCase):
             OS_LIBS=['foo.so', '-l123', 'aaa.a'],
             SDK_LIBRARY=['fans.sdk', 'tans.sdk'],
             SHARED_LIBRARY_LIBS=['fans.sll', 'tans.sll'],
+            SIMPLE_PROGRAMS=['fans.x', 'tans.x'],
             SSRCS=['bans.S', 'fans.S'],
             VISIBILITY_FLAGS='',
         )
@@ -213,15 +213,12 @@ class TestEmitterBasic(unittest.TestCase):
         reader = self.reader('program')
         objs = self.read_topsrcdir(reader)
 
-        self.assertEqual(len(objs), 4)
+        self.assertEqual(len(objs), 2)
         self.assertIsInstance(objs[0], DirectoryTraversal)
         self.assertIsInstance(objs[1], Program)
-        self.assertIsInstance(objs[2], SimpleProgram)
-        self.assertIsInstance(objs[3], SimpleProgram)
 
-        self.assertEqual(objs[1].program, 'test_program.prog')
-        self.assertEqual(objs[2].program, 'test_program1.prog')
-        self.assertEqual(objs[3].program, 'test_program2.prog')
+        program = objs[1].program
+        self.assertEqual(program, 'test_program.prog')
 
     def test_test_manifest_missing_manifest(self):
         """A missing manifest file should result in an error."""

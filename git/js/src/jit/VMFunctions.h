@@ -570,8 +570,7 @@ JSObject *NewGCThing(JSContext *cx, gc::AllocKind allocKind, size_t thingSize,
                      gc::InitialHeap initialHeap);
 
 bool CheckOverRecursed(JSContext *cx);
-bool CheckOverRecursedWithExtra(JSContext *cx, BaselineFrame *frame,
-                                uint32_t extra, uint32_t earlyCheck);
+bool CheckOverRecursedWithExtra(JSContext *cx, uint32_t extra);
 
 bool DefVarOrConst(JSContext *cx, HandlePropertyName dn, unsigned attrs, HandleObject scopeChain);
 bool SetConst(JSContext *cx, HandlePropertyName name, HandleObject scopeChain, HandleValue rval);

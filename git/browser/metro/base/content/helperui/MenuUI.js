@@ -49,20 +49,17 @@ var AutofillMenuUI = {
   },
 
   show: function show(aAnchorRect, aSuggestionsList) {
-    this.commands.addEventListener("select", this, true);
-    window.addEventListener("keypress", this, true);
-
     this._anchorRect = aAnchorRect;
     this._emptyCommands();
     for (let idx = 0; idx < aSuggestionsList.length; idx++) {
       let item = document.createElement("richlistitem");
       let label = document.createElement("label");
       label.setAttribute("value", aSuggestionsList[idx].label);
-      item.setAttribute("value", aSuggestionsList[idx].value);
       item.setAttribute("data", aSuggestionsList[idx].value);
       item.appendChild(label);
       this.commands.appendChild(item);
     }
+
     this._menuPopup.show(this._positionOptions());
   },
 
@@ -72,42 +69,7 @@ var AutofillMenuUI = {
   },
 
   hide: function hide () {
-    window.removeEventListener("keypress", this, true);
-    this.commands.removeEventListener("select", this, true);
-
     this._menuPopup.hide();
-  },
-
-  handleEvent: function (aEvent) {
-    switch (aEvent.type) {
-      case "keypress":
-        switch (aEvent.keyCode) {
-          case aEvent.DOM_VK_ESCAPE:
-            this.hide();
-            break;
-
-          case aEvent.DOM_VK_DOWN:
-            this.commands.moveByOffset(1, true, false);
-            break;
-
-          case aEvent.DOM_VK_UP:
-            this.commands.moveByOffset(-1, true, false);
-            break;
-
-          case aEvent.DOM_VK_PAGE_DOWN:
-            this.commands.moveByOffset(this.commands.scrollOnePage(1), true, false);
-            break;
-
-          case aEvent.DOM_VK_PAGE_UP:
-            this.commands.moveByOffset(this.commands.scrollOnePage(-1), true, false);
-            break;
-        }
-        break;
-
-      case "select":
-        FormHelperUI.doAutoComplete(this.commands.value);
-        break;
-    }
   }
 };
 
@@ -384,7 +346,9 @@ MenuPopup.prototype = {
   get commands() { return this._popup.childNodes[0]; },
 
   show: function (aPositionOptions) {
-    if (!this.visible) {
+    if (this.visible) {
+      this._animateHide().then(() => this._animateShow(aPositionOptions));
+    } else {
       this._animateShow(aPositionOptions);
     }
   },
@@ -464,7 +428,6 @@ MenuPopup.prototype = {
     window.addEventListener("mousedown", this, true);
     window.addEventListener("touchstart", this, true);
     window.addEventListener("scroll", this, true);
-    window.addEventListener("blur", this, true);
     Elements.stack.addEventListener("PopupChanged", this, false);
 
     this._panel.hidden = false;
@@ -495,7 +458,6 @@ MenuPopup.prototype = {
     window.removeEventListener("mousedown", this, true);
     window.removeEventListener("touchstart", this, true);
     window.removeEventListener("scroll", this, true);
-    window.removeEventListener("blur", this, true);
     Elements.stack.removeEventListener("PopupChanged", this, false);
 
     let self = this;
@@ -532,7 +494,6 @@ MenuPopup.prototype = {
             this.hide();
         }
         break;
-      case "blur":
       case "mousedown":
       case "touchstart":
       case "scroll":

@@ -7,5 +7,3 @@
 HOST_SOURCES += [
     'bsdiff.c',
 ]
-
-HOST_PROGRAM = 'mbsdiff'
