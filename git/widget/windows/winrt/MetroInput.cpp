@@ -488,7 +488,6 @@ MetroInput::OnPointerNonTouch(UI::Input::IPointerPoint* aPoint) {
                          WidgetMouseEvent::eReal,
                          WidgetMouseEvent::eNormal);
   event->button = button;
-  aPoint->get_PointerId(&event->pointerId);
   InitGeckoMouseEventFromPointerPoint(event, aPoint);
   DispatchAsyncEventIgnoreStatus(event);
 }
