@@ -268,10 +268,16 @@ gfxWindowsPlatform::~gfxWindowsPlatform()
 void
 gfxWindowsPlatform::UpdateRenderMode()
 {
-/* Pick the default render mode for
- * desktop.
+/* Pick the default render mode differently between
+ * desktop, Windows Mobile, and Windows CE.
  */
+#if defined(WINCE_WINDOWS_MOBILE)
+    mRenderMode = RENDER_IMAGE_DDRAW16;
+#elif defined(WINCE)
+    mRenderMode = RENDER_DDRAW_GL;
+#else
     mRenderMode = RENDER_GDI;
+#endif
 
     OSVERSIONINFOA versionInfo;
     versionInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
