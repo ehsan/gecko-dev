@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,15 +11,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is sessionstore test code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2006
+ * Simon Bünzli <zeniko@gmail.com>.
+ * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *    Josh Aas <josh@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,43 +34,31 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsDragService_h_
-#define nsDragService_h_
-
-#include "nsBaseDragService.h"
-
-#include <Cocoa/Cocoa.h>
-
-extern NSString* const kWildcardPboardType;
-extern NSString* const kCorePboardType_url;
-extern NSString* const kCorePboardType_urld;
-extern NSString* const kCorePboardType_urln;
-
-class nsDragService : public nsBaseDragService
-{
-public:
-  nsDragService();
-  virtual ~nsDragService();
-
-  // nsIDragService
-  NS_IMETHOD InvokeDragSession(nsIDOMNode *aDOMNode, nsISupportsArray * anArrayTransferables,
-                               nsIScriptableRegion * aRegion, PRUint32 aActionType);
-  NS_IMETHOD EndDragSession(PRBool aDoneDrag);
-
-  // nsIDragSession
-  NS_IMETHOD GetData(nsITransferable * aTransferable, PRUint32 aItemIndex);
-  NS_IMETHOD IsDataFlavorSupported(const char *aDataFlavor, PRBool *_retval);
-  NS_IMETHOD GetNumDropItems(PRUint32 * aNumItems);
-
-private:
-
-  NSImage* ConstructDragImage(nsIDOMNode* aDOMNode,
-                              nsRect* aDragRect,
-                              nsIScriptableRegion* aRegion);
-
-  nsCOMPtr<nsISupportsArray> mDataItems; // only valid for a drag started within gecko
-  NSView* mNativeDragView;
-  NSEvent* mNativeDragEvent;
-};
-
-#endif // nsDragService_h_
+function test() {
+  /** Test for Bug 339445 **/
+  
+  waitForExplicitFinish();
+  
+  let testURL = "http://localhost:8888/browser/" +
+    "browser/components/sessionstore/test/browser/browser_339445_sample.html"
+  
+  let tab = gBrowser.addTab(testURL);
+  tab.linkedBrowser.addEventListener("load", function(aEvent) {
+    let doc = tab.linkedBrowser.contentDocument;
+    is(doc.getElementById("storageTestItem").textContent, "PENDING",
+       "sessionStorage value has been set");
+    
+    let tab2 = gBrowser.duplicateTab(tab);
+    tab2.linkedBrowser.addEventListener("load", function(aEvent) {
+      let doc2 = tab2.linkedBrowser.contentDocument;
+      is(doc2.getElementById("storageTestItem").textContent, "SUCCESS",
+         "sessionStorage value has been duplicated");
+      
+      // clean up
+      gBrowser.removeTab(tab2);
+      gBrowser.removeTab(tab);
+      
+      finish();
+    }, true);
+  }, true);
+}
