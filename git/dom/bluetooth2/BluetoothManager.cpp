@@ -260,7 +260,7 @@ BluetoothManager::DispatchAttributeEvent()
     NS_ENSURE_TRUE_VOID(scope);
 
     JSAutoCompartment ac(cx, scope);
-    if (!ToJSValue(cx, mAdapters[mDefaultAdapterIndex], &value)) {
+    if (!ToJSValue(cx, adapter, &value)) {
       JS_ClearPendingException(cx);
       return;
     }
