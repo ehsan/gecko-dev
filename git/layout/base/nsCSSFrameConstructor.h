@@ -235,9 +235,9 @@ public:
   nsresult CharacterDataChanged(nsIContent* aContent,
                                 CharacterDataChangeInfo* aInfo);
 
-  nsresult ContentStatesChanged(nsIContent*   aContent1,
-                                nsIContent*   aContent2,
-                                nsEventStates aStateMask);
+  nsresult ContentStatesChanged(nsIContent*     aContent1,
+                                nsIContent*     aContent2,
+                                PRInt32         aStateMask);
 
   // generate the child frames and process bindings
   nsresult GenerateChildFrames(nsIFrame* aFrame);
@@ -416,7 +416,7 @@ private:
                               nsIFrame*&     aCanvasFrame);
 
   void DoContentStateChanged(Element* aElement,
-                             nsEventStates aStateMask);
+                             PRInt32 aStateMask);
 
   /* aMinHint is the minimal change that should be made to the element */
   // XXXbz do we really need the aPrimaryFrame argument here?

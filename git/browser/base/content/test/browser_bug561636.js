@@ -16,7 +16,7 @@ function checkPopupHide()
 
 function checkPopupMessage(doc)
 {
-  is(gInvalidFormPopup.firstChild.textContent,
+  is(gInvalidFormPopup.firstChild.nodeValue,
      doc.getElementById('i').validationMessage.substring(0,256),
      "The panel should show the 256 first characters of the validationMessage");
 }
@@ -390,7 +390,7 @@ function test10()
 
     checkPopupShow();
 
-    is(gInvalidFormPopup.firstChild.textContent, "foo",
+    is(gInvalidFormPopup.firstChild.nodeValue, "foo",
        "The panel should show the author defined error message");
 
     // Clean-up and next test.

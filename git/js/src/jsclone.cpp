@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -159,7 +159,7 @@ SCInput::read(uint64_t *p)
 bool
 SCInput::readPair(uint32_t *tagp, uint32_t *datap)
 {
-    uint64_t u = 0;     /* initialize to shut GCC up */
+    uint64_t u;
     bool ok = read(&u);
     if (ok) {
         *tagp = uint32_t(u >> 32);
@@ -304,7 +304,7 @@ SCOutput::writeArray(const T *p, size_t nelems)
         js_ReportAllocationOverflow(context());
         return false;
     }
-    size_t nwords = JS_HOWMANY(nelems, sizeof(uint64_t) / sizeof(T));
+    uint64_t nwords = JS_HOWMANY(nelems, sizeof(uint64_t) / sizeof(T));
     size_t start = buf.length();
     if (!buf.growByUninitialized(nwords))
         return false;
@@ -463,7 +463,7 @@ JSStructuredCloneWriter::startObject(JSObject *obj)
     if (p) {
         JSContext *cx = context();
         const JSStructuredCloneCallbacks *cb = cx->runtime->structuredCloneCallbacks;
-        if (cb)
+        if (cb && cb->reportError)
             cb->reportError(cx, JS_SCERR_RECURSION);
         else
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_SC_RECURSION);
@@ -521,14 +521,20 @@ JSStructuredCloneWriter::startWrite(const js::Value &v)
         } else if (js_IsArrayBuffer(obj) && ArrayBuffer::fromJSObject(obj)) {
             return writeArrayBuffer(obj);
         }
-
-        const JSStructuredCloneCallbacks *cb = context()->runtime->structuredCloneCallbacks;
-        if (cb)
-            return cb->write(context(), this, obj);
         /* else fall through */
     }
 
-    JS_ReportErrorNumber(context(), js_GetErrorMessage, NULL, JSMSG_SC_UNSUPPORTED_TYPE);
+    /*
+     * v is either an object or some strange value like JSVAL_HOLE. Even in the
+     * latter case, we call the write op anyway, to let the application throw
+     * the NOT_SUPPORTED_ERR exception.
+     */
+    JSContext *cx = context();
+    JSRuntime *rt = cx->runtime;
+    if (rt->structuredCloneCallbacks)
+        return rt->structuredCloneCallbacks->write(cx, this, Jsvalify(v));
+
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_SC_UNSUPPORTED_TYPE);
     return false;
 }
 
@@ -729,7 +735,7 @@ JSStructuredCloneReader::startRead(Value *vp)
       case SCTAG_ARRAY_BUFFER_OBJECT:
         return readArrayBuffer(data, vp);
 
-      default: {
+      default:
         if (tag <= SCTAG_FLOAT_MAX) {
             jsdouble d = ReinterpretPairAsDouble(tag, data);
             if (IsNonCanonicalizedNaN(d)) {
@@ -744,17 +750,13 @@ JSStructuredCloneReader::startRead(Value *vp)
         if (SCTAG_TYPED_ARRAY_MIN <= tag && tag <= SCTAG_TYPED_ARRAY_MAX)
             return readTypedArray(tag, data, vp);
 
-        const JSStructuredCloneCallbacks *cb = context()->runtime->structuredCloneCallbacks;
-        if (!cb) {
+        JSRuntime *rt = context()->runtime;
+        if (!rt->structuredCloneCallbacks) {
             JS_ReportErrorNumber(context(), js_GetErrorMessage, NULL, JSMSG_SC_BAD_SERIALIZED_DATA,
                                  "unsupported type");
             return false;
         }
-        JSObject *obj = cb->read(context(), this, tag, data);
-        if (!obj)
-            return false;
-        vp->setObject(*obj);
-      }
+        return rt->structuredCloneCallbacks->read(context(), this, tag, data, Jsvalify(vp));
     }
     return true;
 }

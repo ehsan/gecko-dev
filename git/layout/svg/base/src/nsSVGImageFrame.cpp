@@ -240,28 +240,36 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
       currentRequest->GetImage(getter_AddRefs(mImageContainer));
   }
 
-  if (mImageContainer) {
-    if (mImageContainer->GetType() == imgIContainer::TYPE_VECTOR) {
-      // <svg:image> not supported for SVG images yet.
-      return NS_ERROR_FAILURE;
-    }
+  // XXXbholley - I don't think huge images in SVGs are common enough to
+  // warrant worrying about the responsiveness impact of doing synchronous
+  // decodes. The extra code complexity of determinining when we want to
+  // force sync probably just isn't worth it, so always pass FLAG_SYNC_DECODE
+  nsRefPtr<gfxASurface> currentFrame;
+  if (mImageContainer)
+    mImageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
+                              imgIContainer::FLAG_SYNC_DECODE,
+                              getter_AddRefs(currentFrame));
 
-    gfxContext* ctx = aContext->GetGfxContext();
-    gfxContextAutoSaveRestore autoRestorer(ctx);
+  // We need to wrap the surface in a pattern to have somewhere to set the
+  // graphics filter.
+  nsRefPtr<gfxPattern> thebesPattern;
+  if (currentFrame)
+    thebesPattern = new gfxPattern(currentFrame);
+
+  if (thebesPattern) {
+
+    thebesPattern->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
+    thebesPattern->SetExtend(gfxPattern::EXTEND_PAD_EDGE);
+
+    gfxContext *gfx = aContext->GetGfxContext();
 
     if (GetStyleDisplay()->IsScrollableOverflow()) {
-      gfxRect clipRect = nsSVGUtils::GetClipRectForFrame(this, x, y,
-                                                         width, height);
-      nsSVGUtils::SetClipRect(ctx, GetCanvasTM(), clipRect);
+      gfx->Save();
+
+      gfxRect clipRect =
+        nsSVGUtils::GetClipRectForFrame(this, x, y, width, height);
+      nsSVGUtils::SetClipRect(gfx, GetCanvasTM(), clipRect);
     }
-
-    nscoord appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
-    gfxFloat pageZoomFactor =
-      nsPresContext::AppUnitsToFloatCSSPixels(appUnitsPerDevPx);
-
-    // NOTE: We need to cancel out the effects of Full-Page-Zoom, or else
-    // it'll get applied an extra time by DrawSingleUnscaledImage.
-    ctx->Multiply(GetImageTransform().Scale(pageZoomFactor, pageZoomFactor));
 
     // fill-opacity doesn't affect <image>, so if we're allowed to
     // optimize group opacity, the opacity used for compositing the
@@ -271,35 +279,15 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
       opacity = GetStyleDisplay()->mOpacity;
     }
 
-    if (opacity != 1.0f) {
-      ctx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-    }
+    PRInt32 nativeWidth, nativeHeight;
+    mImageContainer->GetWidth(&nativeWidth);
+    mImageContainer->GetHeight(&nativeHeight);
 
-    nsRect dirtyRect; // only used if aDirtyRect is non-null
-    if (aDirtyRect) {
-      dirtyRect = aDirtyRect->ToAppUnits(appUnitsPerDevPx);
-      // Adjust dirtyRect to match our local coordinate system.
-      dirtyRect.MoveBy(-mRect.TopLeft());
-    }
+    nsSVGUtils::CompositePatternMatrix(gfx, thebesPattern, GetImageTransform(),
+                                       nativeWidth, nativeHeight, opacity);
 
-    // XXXbholley - I don't think huge images in SVGs are common enough to
-    // warrant worrying about the responsiveness impact of doing synchronous
-    // decodes. The extra code complexity of determinining when we want to
-    // force sync probably just isn't worth it, so always pass FLAG_SYNC_DECODE
-    nsLayoutUtils::DrawSingleUnscaledImage(
-      aContext->GetRenderingContext(this),
-      mImageContainer,
-      nsLayoutUtils::GetGraphicsFilterForFrame(this),
-      nsPoint(0, 0),
-      aDirtyRect ? &dirtyRect : nsnull,
-      imgIContainer::FLAG_SYNC_DECODE);
-
-    if (opacity != 1.0f) {
-      ctx->PopGroupToSource();
-      ctx->SetOperator(gfxContext::OPERATOR_OVER);
-      ctx->Paint(opacity);
-    }
-    // gfxContextAutoSaveRestore goes out of scope & cleans up our gfxContext
+    if (GetStyleDisplay()->IsScrollableOverflow())
+      gfx->Restore();
   }
 
   return rv;

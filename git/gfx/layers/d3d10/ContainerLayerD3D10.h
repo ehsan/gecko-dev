@@ -59,12 +59,12 @@ public:
   virtual void RemoveChild(Layer* aChild);
 
   /* LayerD3D10 implementation */
-  virtual Layer* GetLayer();
+  Layer* GetLayer();
 
-  virtual LayerD3D10* GetFirstChildD3D10();
+  LayerD3D10* GetFirstChildD3D10();
 
-  virtual void RenderLayer(float aOpacity, const gfx3DMatrix &aTransform);
-  virtual void Validate();
+  void RenderLayer(float aOpacity, const gfx3DMatrix &aTransform);
+  void Validate();
 
   virtual void LayerManagerDestroyed();
 

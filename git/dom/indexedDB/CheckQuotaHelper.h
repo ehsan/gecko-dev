@@ -70,8 +70,6 @@ public:
 
   bool PromptAndReturnQuotaIsDisabled();
 
-  void Cancel();
-
   PRUint32 WindowSerial()
   {
     return mWindowSerial;

@@ -47,7 +47,6 @@
 #include "nsIRunnable.h"
 
 #include "jsapi.h"
-#include "jsutil.h"
 #include "nsAutoJSValHolder.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
@@ -211,18 +210,17 @@ public:
   NS_DECL_NSIWORKERMESSAGEEVENT
   NS_DECL_NSICLASSINFO_GETINTERFACES
 
-  nsDOMWorkerMessageEvent() : mData(nsnull) { }
+  nsDOMWorkerMessageEvent() : mDataValWasReparented(PR_FALSE) { }
 
-  nsresult SetJSData(JSContext* aCx,
-                     JSAutoStructuredCloneBuffer& aBuffer);
+  nsresult SetJSVal(JSContext* aCx,
+                    jsval aData);
 
 protected:
   nsString mOrigin;
   nsCOMPtr<nsISupports> mSource;
 
   nsAutoJSValHolder mDataVal;
-  uint64* mData;
-  size_t mDataLen;
+  PRBool mDataValWasReparented;
 };
 
 class nsDOMWorkerProgressEvent : public nsDOMWorkerEvent,
@@ -269,6 +267,11 @@ protected:
   virtual ~nsDOMWorkerXHRState() { }
 
   nsAutoRefCnt mRefCnt;
+};
+
+enum SnapshotChoice {
+  WANT_SNAPSHOT,
+  NO_SNAPSHOT
 };
 
 class nsDOMWorkerXHREvent : public nsDOMWorkerProgressEvent,

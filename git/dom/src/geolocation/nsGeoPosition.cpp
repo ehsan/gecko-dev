@@ -238,12 +238,13 @@ nsGeoPosition::nsGeoPosition(double aLat, double aLong,
                                       aAlt, aHError,
                                       aVError, aHeading,
                                       aSpeed);
+    NS_ASSERTION(mCoords, "null mCoords in nsGeoPosition");
 }
 
 nsGeoPosition::nsGeoPosition(nsIDOMGeoPositionCoords *aCoords,
                              long long aTimestamp) :
-    mTimestamp(aTimestamp),
-    mCoords(aCoords)
+    mCoords(aCoords),
+    mTimestamp(aTimestamp)
 {
 }
 

@@ -90,11 +90,6 @@ public:
   {
   }
 
-  void Shutdown() {
-    mOwner = nsnull;
-    mScriptContext = nsnull;
-  }
-
 private:
   nsCOMPtr<nsPIDOMWindow> mOwner;
   nsCOMPtr<nsIScriptContext> mScriptContext;

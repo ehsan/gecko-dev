@@ -128,9 +128,7 @@ nsGIFDecoder2::nsGIFDecoder2()
 
 nsGIFDecoder2::~nsGIFDecoder2()
 {
-  if (mGIFStruct.local_colormap) {
-    moz_free(mGIFStruct.local_colormap);
-  }
+  PR_FREEIF(mGIFStruct.local_colormap);
 }
 
 void

@@ -167,7 +167,7 @@ function assertElementVisible(controller, elem, expectedVisibility) {
 
   switch (element.nodeName) {
     case 'panel':
-      visible = (element.state == 'open');
+      visible = ['open', 'showing'].indexOf(element.state) >= 0;
       break;
     default:
       var style = controller.window.getComputedStyle(element, '');
@@ -175,10 +175,8 @@ function assertElementVisible(controller, elem, expectedVisibility) {
       visible = (state == 'visible');
   }
 
-  controller.assertJS('subject.visible == subject.expectedVisibility', {
-    visible: visible,
-    expectedVisibility: expectedVisibility
-  });
+  controller.assertJS('subject.visible == subject.expectedVisibility',
+                      {visible: visible, expectedVisibility: expectedVisibility });
 }
 
 /**

@@ -69,19 +69,12 @@ JS_Assert(const char *s, const char *file, JSIntn ln);
 
 #define JS_ALWAYS_TRUE(expr) JS_ASSERT(expr)
 
-# ifdef JS_THREADSAFE
-# define JS_THREADSAFE_ASSERT(expr) JS_ASSERT(expr) 
-# else
-# define JS_THREADSAFE_ASSERT(expr) ((void) 0)
-# endif
-
 #else
 
 #define JS_ASSERT(expr)         ((void) 0)
 #define JS_ASSERT_IF(cond,expr) ((void) 0)
 #define JS_NOT_REACHED(reason)
 #define JS_ALWAYS_TRUE(expr)    ((void) (expr))
-#define JS_THREADSAFE_ASSERT(expr) ((void) 0)
 
 #endif /* defined(DEBUG) */
 
@@ -91,15 +84,14 @@ JS_Assert(const char *s, const char *file, JSIntn ln);
  * allowed.
  */
 
-#ifdef __SUNPRO_CC
 /*
  * Sun Studio C++ compiler has a bug
  * "sizeof expression not accepted as size of array parameter"
- * It happens when js_static_assert() function is declared inside functions.
  * The bug number is 6688515. It is not public yet.
- * Therefore, for Sun Studio, declare js_static_assert as an array instead.
+ * Turn off this assert for Sun Studio until this bug is fixed.
  */
-#define JS_STATIC_ASSERT(cond) extern char js_static_assert[(cond) ? 1 : -1]
+#ifdef __SUNPRO_CC
+#define JS_STATIC_ASSERT(cond)
 #else
 #ifdef __COUNTER__
     #define JS_STATIC_ASSERT_GLUE1(x,y) x##y

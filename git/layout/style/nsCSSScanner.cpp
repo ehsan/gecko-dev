@@ -1206,12 +1206,11 @@ nsCSSScanner::ParseNumber(PRInt32 c, nsCSSToken& aToken)
     // overloaded pow() on Windows.
     value *= pow(10.0, double(expSign * exponent));
   } else if (!gotDot) {
-    // Clamp values outside of integer range.
-    if (sign > 0) {
-      aToken.mInteger = PRInt32(NS_MIN(intPart, double(PR_INT32_MAX)));
-    } else {
-      aToken.mInteger = PRInt32(NS_MAX(-intPart, double(PR_INT32_MIN)));
+    if (intPart > PR_INT32_MAX) {
+      // Just clamp it.
+      intPart = PR_INT32_MAX;
     }
+    aToken.mInteger = PRInt32(sign * intPart);
     aToken.mIntegerValid = PR_TRUE;
   }
 

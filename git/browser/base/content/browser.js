@@ -253,6 +253,7 @@ function UpdateBackForwardCommands(aWebNavigation) {
   }
 }
 
+#ifdef XP_MACOSX
 /**
  * Click-and-Hold implementation for the Back and Forward buttons
  * XXXmano: should this live in toolbarbutton.xml?
@@ -309,8 +310,8 @@ function SetClickAndHoldHandlers() {
   // the forward buttons.
   var unifiedButton = document.getElementById("unified-back-forward-button");
   if (unifiedButton && !unifiedButton._clickHandlersAttached) {
-    var popup = document.getElementById("backForwardMenu").cloneNode(true);
-    popup.removeAttribute("id");
+    var popup = document.getElementById("back-forward-dropmarker")
+                        .firstChild.cloneNode(true);
     var backButton = document.getElementById("back-button");
     backButton.setAttribute("type", "menu");
     backButton.appendChild(popup);
@@ -323,6 +324,7 @@ function SetClickAndHoldHandlers() {
     unifiedButton._clickHandlersAttached = true;
   }
 }
+#endif
 
 const gSessionHistoryObserver = {
   observe: function(subject, topic, data)
@@ -787,6 +789,7 @@ const gFormSubmitObserver = {
   init: function()
   {
     this.panel = document.getElementById('invalid-form-popup');
+    this.panel.appendChild(document.createTextNode(""));
   },
 
   panelIsOpen: function()
@@ -820,7 +823,7 @@ const gFormSubmitObserver = {
     }
 
     // Limit the message to 256 characters.
-    this.panel.firstChild.textContent = element.validationMessage.substring(0, 256);
+    this.panel.firstChild.nodeValue = element.validationMessage.substring(0, 256);
 
     element.focus();
 
@@ -1459,10 +1462,12 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     document.getElementById("textfieldDirection-swap").hidden = false;
   }
 
+#ifdef XP_MACOSX
   // Setup click-and-hold gestures access to the session history
   // menus if global click-and-hold isn't turned on
   if (!getBoolPref("ui.click_hold_context_menus", false))
     SetClickAndHoldHandlers();
+#endif
 
   // Initialize the full zoom setting.
   // We do this before the session restore service gets initialized so we can
@@ -1530,6 +1535,11 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
       tempScope.DownloadTaskbarProgress.onBrowserWindowLoad(window);
     }
   }, 10000);
+
+  // Delayed initialization of PlacesDBUtils.
+  // This component checks for database coherence once per day, on
+  // an idle timer, taking corrective actions where needed.
+  setTimeout(function() PlacesUtils.startPlacesDBUtils(), 15000);
 
 #ifndef XP_MACOSX
   updateEditUIVisibility();
@@ -3482,6 +3492,12 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
     gIdentityHandler._cacheElements();
     window.XULBrowserWindow.init();
 
+    var backForwardDropmarker = document.getElementById("back-forward-dropmarker");
+    if (backForwardDropmarker)
+      backForwardDropmarker.disabled =
+        document.getElementById('Browser:Back').hasAttribute('disabled') &&
+        document.getElementById('Browser:Forward').hasAttribute('disabled');
+
 #ifndef XP_MACOSX
     updateEditUIVisibility();
 #endif
@@ -3508,11 +3524,15 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   var cmd = document.getElementById("cmd_CustomizeToolbars");
   cmd.removeAttribute("disabled");
 
+#ifdef XP_MACOSX
   // make sure to re-enable click-and-hold
   if (!getBoolPref("ui.click_hold_context_menus", false))
     SetClickAndHoldHandlers();
+#endif
 
-  window.content.focus();
+  // XXX Shouldn't have to do this, but I do
+  if (!gCustomizeSheet)
+    window.focus();
 }
 
 function BrowserToolboxCustomizeChange() {
@@ -3633,7 +3653,7 @@ var FullScreen = {
       // The user may quit fullscreen during an animation
       clearInterval(this._animationInterval);
       clearTimeout(this._animationTimeout);
-      gNavToolbox.style.marginTop = "";
+      gNavToolbox.style.marginTop = "0px";
       if (this._isChromeCollapsed)
         this.mouseoverToggle(true);
       this._isAnimating = false;
@@ -3766,7 +3786,7 @@ var FullScreen = {
       if (animateFrameAmount >= gNavToolbox.boxObject.height) {
         // We've animated enough
         clearInterval(FullScreen._animationInterval);
-        gNavToolbox.style.marginTop = "";
+        gNavToolbox.style.marginTop = "0px";
         FullScreen._isAnimating = false;
         FullScreen._shouldAnimate = false; // Just to make sure
         FullScreen.mouseoverToggle(false);
@@ -4227,12 +4247,14 @@ var XULBrowserWindow = {
 
   // Properties used to cache security state used to update the UI
   _state: null,
+  _tooltipText: null,
   _hostChanged: false, // onLocationChange will flip this bit
 
   onSecurityChange: function (aWebProgress, aRequest, aState) {
     // Don't need to do anything if the data we use to update the UI hasn't
     // changed
     if (this._state == aState &&
+        this._tooltipText == gBrowser.securityUI.tooltipText &&
         !this._hostChanged) {
 #ifdef DEBUG
       try {
@@ -4258,6 +4280,7 @@ var XULBrowserWindow = {
 #endif
 
     this._hostChanged = false;
+    this._tooltipText = gBrowser.securityUI.tooltipText
 
     // aState is defined as a bitmask that may be extended in the future.
     // We filter out any unknown bits before testing for known values.
@@ -4417,26 +4440,19 @@ var CombinedStopReload = {
     if (!this._initialized)
       return;
 
-    this.reload.removeAttribute("displaystop");
-
     if (!aDelay || this._stopClicked) {
       this._stopClicked = false;
       this._cancelTransition();
-      this.reload.disabled = XULBrowserWindow.reloadCommand
-                                             .getAttribute("disabled") == "true";
+      this.reload.removeAttribute("displaystop");
       return;
     }
 
     if (this._timer)
       return;
 
-    // Temporarily disable the reload button to prevent the user from
-    // accidentally reloading the page when intending to click the stop button
-    this.reload.disabled = true;
     this._timer = setTimeout(function (self) {
       self._timer = 0;
-      self.reload.disabled = XULBrowserWindow.reloadCommand
-                                             .getAttribute("disabled") == "true";
+      self.reload.removeAttribute("displaystop");
     }, 650, this);
   },
 
@@ -4467,7 +4483,7 @@ var TabsProgressListener = {
     // document URI is not yet the about:-uri of the error page.
 
     if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
-        /^about:/.test(aWebProgress.DOMWindow.document.documentURI)) {
+        /^about:/.test(aBrowser.contentWindow.document.documentURI)) {
       aBrowser.addEventListener("click", BrowserOnClick, false);
       aBrowser.addEventListener("pagehide", function () {
         aBrowser.removeEventListener("click", BrowserOnClick, false);
@@ -4619,8 +4635,10 @@ function onViewToolbarsPopupShowing(aEvent, aInsertPoint) {
   if (popup != aEvent.currentTarget)
     return;
 
+  var i;
+
   // Empty the menu
-  for (var i = popup.childNodes.length-1; i >= 0; --i) {
+  for (i = popup.childNodes.length-1; i >= 0; --i) {
     var deadItem = popup.childNodes[i];
     if (deadItem.hasAttribute("toolbarId"))
       popup.removeChild(deadItem);
@@ -4628,9 +4646,9 @@ function onViewToolbarsPopupShowing(aEvent, aInsertPoint) {
 
   var firstMenuItem = aInsertPoint || popup.firstChild;
 
-  let toolbarNodes = Array.slice(gNavToolbox.childNodes);
-  toolbarNodes.push(document.getElementById("addon-bar"));
-
+  let toolbarNodes = [document.getElementById("addon-bar")];
+  for (i = 0; i < gNavToolbox.childNodes.length; ++i)
+    toolbarNodes.push(gNavToolbox.childNodes[i]);
   toolbarNodes.forEach(function(toolbar) {
     var toolbarName = toolbar.getAttribute("toolbarname");
     if (toolbarName) {
@@ -5091,28 +5109,54 @@ function asyncOpenWebPanel(event)
    return true;
  }
 
-function handleLinkClick(event, href, linkNode) {
-  if (event.button == 2) // right click
-    return false;
-
-  var where = whereToOpenLink(event);
-  if (where == "current")
-    return false;
-
+function handleLinkClick(event, href, linkNode)
+{
   var doc = event.target.ownerDocument;
 
-  if (where == "save") {
-    saveURL(href, linkNode ? gatherTextUnder(linkNode) : "", null, true,
-            true, doc.documentURIObject);
-    return true;
-  }
+  switch (event.button) {
+    case 0:    // if left button clicked
+#ifdef XP_MACOSX
+      if (event.metaKey) { // Cmd
+#else
+      if (event.ctrlKey) {
+#endif
+        openNewTabWith(href, doc, null, event, false);
+        event.stopPropagation();
+        return true;
+      }
 
-  urlSecurityCheck(href, doc.nodePrincipal);
-  openLinkIn(href, where, { fromContent: true,
-                            referrerURI: doc.documentURIObject,
-                            charset: doc.characterSet });
-  event.stopPropagation();
-  return true;
+      if (event.shiftKey && event.altKey) {
+        var feedService =
+            Cc["@mozilla.org/browser/feeds/result-service;1"].
+            getService(Ci.nsIFeedResultService);
+        feedService.forcePreviewPage = true;
+        loadURI(href, null, null, false);
+        return false;
+      }
+
+      if (event.shiftKey) {
+        openNewWindowWith(href, doc, null, false);
+        event.stopPropagation();
+        return true;
+      }
+
+      if (event.altKey) {
+        saveURL(href, linkNode ? gatherTextUnder(linkNode) : "", null, true,
+                true, doc.documentURIObject);
+        return true;
+      }
+
+      return false;
+    case 1:    // if middle button clicked
+      var tab = gPrefService.getBoolPref("browser.tabs.opentabfor.middleclick");
+      if (tab)
+        openNewTabWith(href, doc, null, event, false);
+      else
+        openNewWindowWith(href, doc, null, false);
+      event.stopPropagation();
+      return true;
+  }
+  return false;
 }
 
 function middleMousePaste(event) {
@@ -5827,11 +5871,6 @@ var IndexedDBPromptHelper = {
 
 function WindowIsClosing()
 {
-  if (TabView.isVisible()) {
-    TabView.hide();
-    return false;
-  }
-
   var reallyClose = closeWindow(false, warnAboutClosingWindow);
   if (!reallyClose)
     return false;
@@ -6535,22 +6574,7 @@ function convertFromUnicode(charset, str)
  */
 var FeedHandler = {
   /**
-   * The click handler for the Feed icon in the toolbar. Opens the
-   * subscription page if user is not given a choice of feeds.
-   * (Otherwise the list of available feeds will be presented to the
-   * user in a popup menu.)
-   */
-  onFeedButtonClick: function(event) {
-    event.stopPropagation();
-
-    if (event.target.hasAttribute("feed") &&
-        event.eventPhase == Event.AT_TARGET &&
-        (event.button == 0 || event.button == 1)) {
-        this.subscribeToFeed(null, event);
-    }
-  },
-
- /** Called when the user clicks on the Subscribe to This Page... menu item.
+   * Called when the user clicks on the Subscribe to This Page... menu item.
    * Builds a menu of unique feeds associated with the page, and if there
    * is only one, shows the feed inline in the browser window.
    * @param   menuPopup
@@ -6574,13 +6598,6 @@ var FeedHandler = {
 
     while (menuPopup.firstChild)
       menuPopup.removeChild(menuPopup.firstChild);
-
-    if (feeds.length == 1) {
-      var feedButton = document.getElementById("feed-button");
-      if (feedButton)
-        feedButton.setAttribute("feed", feeds[0].href);
-      return false;
-    }
 
     // Build the menu showing the available feed choices for viewing.
     for (var i = 0; i < feeds.length; ++i) {
@@ -6653,30 +6670,16 @@ var FeedHandler = {
    * a page is loaded or the user switches tabs to a page that has feeds.
    */
   updateFeeds: function() {
-    var feedButton = document.getElementById("feed-button");
-
     var feeds = gBrowser.selectedBrowser.feeds;
     if (!feeds || feeds.length == 0) {
-      if (feedButton) {
-        feedButton.disabled = true;
-        feedButton.removeAttribute("feed");
-      }
       this._feedMenuitem.setAttribute("disabled", "true");
       this._feedMenupopup.setAttribute("hidden", "true");
       this._feedMenuitem.removeAttribute("hidden");
     } else {
-      if (feedButton)
-        feedButton.disabled = false;
-
       if (feeds.length > 1) {
         this._feedMenuitem.setAttribute("hidden", "true");
         this._feedMenupopup.removeAttribute("hidden");
-        if (feedButton)
-          feedButton.removeAttribute("feed");
       } else {
-        if (feedButton)
-          feedButton.setAttribute("feed", feeds[0].href);
-
         this._feedMenuitem.setAttribute("feed", feeds[0].href);
         this._feedMenuitem.removeAttribute("disabled");
         this._feedMenuitem.removeAttribute("hidden");
@@ -6697,12 +6700,6 @@ var FeedHandler = {
       browserForLink.feeds = [];
 
     browserForLink.feeds.push({ href: link.href, title: link.title });
-
-    if (browserForLink == gBrowser.selectedBrowser) {
-      var feedButton = document.getElementById("feed-button");
-      if (feedButton)
-        feedButton.collapsed = false;
-    }
   }
 };
 
@@ -7906,9 +7903,6 @@ var TabContextMenu = {
     let unpinnedTabs = gBrowser.visibleTabs.length - gBrowser._numPinnedTabs;
     document.getElementById("context_closeOtherTabs").disabled = unpinnedTabs <= 1;
     document.getElementById("context_closeOtherTabs").hidden = this.contextTab.pinned;
-
-    // Disable "Move to Group" if it's a pinned tab.
-    document.getElementById("context_tabViewMenu").disabled = this.contextTab.pinned;
   }
 };
 

@@ -206,15 +206,9 @@ nsLineBox::List(FILE* out, PRInt32 aIndent) const
   fprintf(out, "{%d,%d,%d,%d} ",
           mBounds.x, mBounds.y, mBounds.width, mBounds.height);
   if (mData) {
-    fprintf(out, "vis-overflow={%d,%d,%d,%d} scr-overflow={%d,%d,%d,%d} ",
-            mData->mOverflowAreas.VisualOverflow().x,
-            mData->mOverflowAreas.VisualOverflow().y,
-            mData->mOverflowAreas.VisualOverflow().width,
-            mData->mOverflowAreas.VisualOverflow().height,
-            mData->mOverflowAreas.ScrollableOverflow().x,
-            mData->mOverflowAreas.ScrollableOverflow().y,
-            mData->mOverflowAreas.ScrollableOverflow().width,
-            mData->mOverflowAreas.ScrollableOverflow().height);
+    fprintf(out, "ca={%d,%d,%d,%d} ",
+            mData->mCombinedArea.x, mData->mCombinedArea.y,
+            mData->mCombinedArea.width, mData->mCombinedArea.height);
   }
   fprintf(out, "<\n");
 
@@ -425,7 +419,7 @@ nsLineBox::SetCarriedOutBottomMargin(nsCollapsingMargin aValue)
 void
 nsLineBox::MaybeFreeData()
 {
-  if (mData && mData->mOverflowAreas == nsOverflowAreas(mBounds, mBounds)) {
+  if (mData && (mData->mCombinedArea == mBounds)) {
     if (IsInline()) {
       if (mInlineData->mFloats.IsEmpty()) {
         delete mInlineData;
@@ -495,31 +489,29 @@ nsLineBox::RemoveFloat(nsIFrame* aFrame)
 }
 
 void
-nsLineBox::SetOverflowAreas(const nsOverflowAreas& aOverflowAreas)
-{
-  NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
-    NS_ASSERTION(aOverflowAreas.Overflow(otype).width >= 0,
-                 "illegal width for combined area");
-    NS_ASSERTION(aOverflowAreas.Overflow(otype).height >= 0,
-                 "illegal height for combined area");
-  }
-  // REVIEW: should this use IsExactEqual?
-  if (aOverflowAreas.VisualOverflow() != mBounds ||
-      aOverflowAreas.ScrollableOverflow() != mBounds) {
-    if (!mData) {
+nsLineBox::SetCombinedArea(const nsRect& aCombinedArea)
+{  
+  NS_ASSERTION(aCombinedArea.width >= 0, "illegal width for combined area");
+  NS_ASSERTION(aCombinedArea.height >= 0, "illegal height for combined area");
+  if (aCombinedArea != mBounds) {
+    if (mData) {
+      mData->mCombinedArea = aCombinedArea;
+    }
+    else {
       if (IsInline()) {
-        mInlineData = new ExtraInlineData(mBounds);
+        mInlineData = new ExtraInlineData(aCombinedArea);
       }
       else {
-        mBlockData = new ExtraBlockData(mBounds);
+        mBlockData = new ExtraBlockData(aCombinedArea);
       }
     }
-    mData->mOverflowAreas = aOverflowAreas;
   }
-  else if (mData) {
-    // Store away new value so that MaybeFreeData compares against
-    // the right value.
-    mData->mOverflowAreas = aOverflowAreas;
+  else {
+    if (mData) {
+      // Store away new value so that MaybeFreeData compares against
+      // the right value.
+      mData->mCombinedArea = aCombinedArea;
+    }
     MaybeFreeData();
   }
 }

@@ -80,18 +80,23 @@ nsHTMLSelectListAccessible::GetStateInternal(PRUint32 *aState,
   //   nsIAccessibleStates::STATE_MULTISELECTABLE
   //   nsIAccessibleStates::STATE_EXTSELECTABLE
 
-  if (*aState & nsIAccessibleStates::STATE_FOCUSED) {
-    // Treat first focusable option node as actual focus, in order
-    // to avoid confusing JAWS, which needs focus on the option
-    nsCOMPtr<nsIContent> focusedOption =
-      nsHTMLSelectOptionAccessible::GetFocusedOption(mContent);
-    if (focusedOption) { // Clear focused state since it is on option
-      *aState &= ~nsIAccessibleStates::STATE_FOCUSED;
+  nsCOMPtr<nsIDOMHTMLSelectElement> select(do_QueryInterface(mContent));
+  if (select) {
+    if (*aState & nsIAccessibleStates::STATE_FOCUSED) {
+      // Treat first focusable option node as actual focus, in order
+      // to avoid confusing JAWS, which needs focus on the option
+      nsCOMPtr<nsIContent> focusedOption =
+        nsHTMLSelectOptionAccessible::GetFocusedOption(mContent);
+      if (focusedOption) { // Clear focused state since it is on option
+        *aState &= ~nsIAccessibleStates::STATE_FOCUSED;
+      }
     }
+    PRBool multiple;
+    select->GetMultiple(&multiple);
+    if ( multiple )
+      *aState |= nsIAccessibleStates::STATE_MULTISELECTABLE |
+                 nsIAccessibleStates::STATE_EXTSELECTABLE;
   }
-  if (mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::multiple))
-    *aState |= nsIAccessibleStates::STATE_MULTISELECTABLE |
-               nsIAccessibleStates::STATE_EXTSELECTABLE;
 
   return NS_OK;
 }
@@ -117,15 +122,19 @@ nsHTMLSelectListAccessible::IsSelect()
 bool
 nsHTMLSelectListAccessible::SelectAll()
 {
-  return mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::multiple) ?
-           nsAccessibleWrap::SelectAll() : false;
+  nsCOMPtr<nsIDOMHTMLSelectElement> selectElm(do_QueryInterface(mContent));
+  PRBool isMultiple = PR_FALSE;
+  selectElm->GetMultiple(&isMultiple);
+  return isMultiple ? nsAccessibleWrap::SelectAll() : false;
 }
 
 bool
 nsHTMLSelectListAccessible::UnselectAll()
 {
-  return mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::multiple) ?
-           nsAccessibleWrap::UnselectAll() : false;
+  nsCOMPtr<nsIDOMHTMLSelectElement> selectElm(do_QueryInterface(mContent));
+  PRBool isMultiple = PR_FALSE;
+  selectElm->GetMultiple(&isMultiple);
+  return isMultiple ? nsAccessibleWrap::UnselectAll() : false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -665,9 +674,6 @@ nsHTMLComboboxAccessible::
 {
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLComboboxAccessible: nsAccessible
-
 PRUint32
 nsHTMLComboboxAccessible::NativeRole()
 {
@@ -862,9 +868,6 @@ nsHTMLComboboxListAccessible::
 {
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLComboboxAccessible: nsAccessNode
-
 nsIFrame*
 nsHTMLComboboxListAccessible::GetFrame()
 {
@@ -879,15 +882,6 @@ nsHTMLComboboxListAccessible::GetFrame()
 
   return nsnull;
 }
-
-bool
-nsHTMLComboboxListAccessible::IsPrimaryForNode() const
-{
-  return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLComboboxAccessible: nsAccessible
 
 /**
   * As a nsHTMLComboboxListAccessible we can have the following states:
@@ -911,6 +905,14 @@ nsHTMLComboboxListAccessible::GetStateInternal(PRUint32 *aState,
   else
     *aState |= nsIAccessibleStates::STATE_INVISIBLE;
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsHTMLComboboxListAccessible::GetUniqueID(void **aUniqueID)
+{
+  // Since mContent is same for all tree item, use |this| pointer as the unique
+  // Id.
+  *aUniqueID = static_cast<void*>(this);
   return NS_OK;
 }
 
