@@ -49,9 +49,6 @@
 #ifndef R_ARM_V4BX
 #define R_ARM_V4BX 0x28
 #endif
-#ifndef R_ARM_THM_JUMP24
-#define R_ARM_THM_JUMP24 0x1e
-#endif
 
 char *rundir = NULL;
 
@@ -218,87 +215,42 @@ public:
         return entry_point;
     }
 private:
-    class pc32_relocation {
-    public:
-        Elf32_Addr operator()(unsigned int base_addr, Elf32_Off offset,
-                              Elf32_Word addend, unsigned int addr)
-        {
-            return addr + addend - offset - base_addr;
-        }
-    };
-
-    class arm_plt32_relocation {
-    public:
-        Elf32_Addr operator()(unsigned int base_addr, Elf32_Off offset,
-                              Elf32_Word addend, unsigned int addr)
-        {
-            // We don't care about sign_extend because the only case where this is
-            // going to be used only jumps forward.
-            Elf32_Addr tmp = (Elf32_Addr) (addr - offset - base_addr) >> 2;
-            tmp = (addend + tmp) & 0x00ffffff;
-            return (addend & 0xff000000) | tmp;
-        }
-    };
-
-    class arm_thm_jump24_relocation {
-    public:
-        Elf32_Addr operator()(unsigned int base_addr, Elf32_Off offset,
-                              Elf32_Word addend, unsigned int addr)
-        {
-            /* Follows description of b.w instructions as per
-               ARM Architecture Reference Manual ARM® v7-A and ARM® v7-R edition, A8.6.16
-               We limit ourselves to Encoding T3.
-               We don't care about sign_extend because the only case where this is
-               going to be used only jumps forward. */
-            Elf32_Addr tmp = (Elf32_Addr) (addr - offset - base_addr);
-            unsigned int word0 = addend & 0xffff,
-                         word1 = addend >> 16;
-
-            if (((word0 & 0xf800) != 0xf000) || ((word1 & 0xd000) != 0x9000))
-                throw std::runtime_error("R_ARM_THM_JUMP24 relocation only supported for B.W <label>");
-
-            unsigned int s = (word0 & (1 << 10)) >> 10;
-            unsigned int j1 = (word1 & (1 << 13)) >> 13;
-            unsigned int j2 = (word1 & (1 << 11)) >> 11;
-            unsigned int i1 = j1 ^ s ? 0 : 1;
-            unsigned int i2 = j2 ^ s ? 0 : 1;
-
-            tmp += ((s << 24) | (i1 << 23) | (i2 << 22) | ((word0 & 0x3ff) << 12) | ((word1 & 0x7ff) << 1));
-
-            s = (tmp & (1 << 24)) >> 24;
-            j1 = ((tmp & (1 << 23)) >> 23) ^ !s;
-            j2 = ((tmp & (1 << 22)) >> 22) ^ !s;
-
-            return 0xf000 | (s << 10) | ((tmp & (0x3ff << 12)) >> 12) | 
-                   (0x9000 << 16) | (j1 << 29) | (j2 << 27) | ((tmp & 0xffe) << 15);
-        }
-    };
-
-    class gotoff_relocation {
-    public:
-        Elf32_Addr operator()(unsigned int base_addr, Elf32_Off offset,
-                              Elf32_Word addend, unsigned int addr)
-        {
-            return addr + addend;
-        }
-    };
-
-    template <class relocation_type>
-    void apply_relocation(ElfSection *the_code, char *base, Elf_Rel *r, unsigned int addr)
+    void apply_pc32_relocation(ElfSection *the_code, char *base, Elf_Rel *r, unsigned int addr)
     {
-        relocation_type relocation;
-        Elf32_Addr value;
-        memcpy(&value, base + r->r_offset, 4);
-        value = relocation(the_code->getAddr(), r->r_offset, value, addr);
-        memcpy(base + r->r_offset, &value, 4);
+        *(Elf32_Addr *)(base + r->r_offset) += (Elf32_Addr) (addr - r->r_offset - the_code->getAddr());
     }
 
-    template <class relocation_type>
-    void apply_relocation(ElfSection *the_code, char *base, Elf_Rela *r, unsigned int addr)
+    void apply_pc32_relocation(ElfSection *the_code, char *base, Elf_Rela *r, unsigned int addr)
     {
-        relocation_type relocation;
-        Elf32_Addr value = relocation(the_code->getAddr(), r->r_offset, r->r_addend, addr);
-        memcpy(base + r->r_offset, &value, 4);
+        *(Elf32_Addr *)(base + r->r_offset) = (Elf32_Addr) (addr + r->r_addend - r->r_offset - the_code->getAddr());
+    }
+
+    void apply_arm_plt32_relocation(ElfSection *the_code, char *base, Elf_Rel *r, unsigned int addr)
+    {
+        // We don't care about sign_extend because the only case where this is
+        // going to be used only jumps forward.
+        Elf32_Addr addend = (Elf32_Addr) (addr - r->r_offset - the_code->getAddr()) >> 2;
+        addend = (*(Elf32_Addr *)(base + r->r_offset) + addend) & 0x00ffffff;
+        *(Elf32_Addr *)(base + r->r_offset) = (*(Elf32_Addr *)(base + r->r_offset) & 0xff000000) | addend;
+    }
+
+    void apply_arm_plt32_relocation(ElfSection *the_code, char *base, Elf_Rela *r, unsigned int addr)
+    {
+        // We don't care about sign_extend because the only case where this is
+        // going to be used only jumps forward.
+        Elf32_Addr addend = (Elf32_Addr) (addr - r->r_offset - the_code->getAddr()) >> 2;
+        addend = (r->r_addend + addend) & 0x00ffffff;
+        *(Elf32_Addr *)(base + r->r_offset) = (r->r_addend & 0xff000000) | addend;
+    }
+
+    void apply_gotoff_relocation(ElfSection *the_code, char *base, Elf_Rel *r, unsigned int addr)
+    {
+        *(Elf32_Addr *)(base + r->r_offset) += (Elf32_Addr) addr;
+    }
+
+    void apply_gotoff_relocation(ElfSection *the_code, char *base, Elf_Rela *r, unsigned int addr)
+    {
+        *(Elf32_Addr *)(base + r->r_offset) = (Elf32_Addr) addr + r->r_addend;
     }
 
     template <typename Rel_Type>
@@ -343,18 +295,14 @@ private:
             case REL(386, PC32):
             case REL(386, GOTPC):
             case REL(ARM, GOTPC):
-            case REL(ARM, REL32):
-                apply_relocation<pc32_relocation>(the_code, buf, &*r, addr);
+                apply_pc32_relocation(the_code, buf, &*r, addr);
                 break;
             case REL(ARM, PLT32):
-                apply_relocation<arm_plt32_relocation>(the_code, buf, &*r, addr);
-                break;
-            case REL(ARM, THM_JUMP24):
-                apply_relocation<arm_thm_jump24_relocation>(the_code, buf, &*r, addr);
+                apply_arm_plt32_relocation(the_code, buf, &*r, addr);
                 break;
             case REL(386, GOTOFF):
             case REL(ARM, GOTOFF):
-                apply_relocation<gotoff_relocation>(the_code, buf, &*r, addr);
+                apply_gotoff_relocation(the_code, buf, &*r, addr);
                 break;
             case REL(ARM, V4BX):
                 // Ignore R_ARM_V4BX relocations

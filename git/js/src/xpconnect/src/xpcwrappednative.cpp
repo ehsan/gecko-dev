@@ -122,8 +122,10 @@ NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Traverse(void *p,
         // for XPCWrappedNatives, described in a larger comment below and also
         // on our wiki at http://wiki.mozilla.org/XPConnect_object_wrapping 
 
-        JSObject *obj = tmp->GetFlatJSObjectPreserveColor();
-        cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, obj);
+        JSObject *obj = nsnull;
+        nsresult rv = tmp->GetJSObject(&obj);
+        if(NS_SUCCEEDED(rv))
+            cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, obj);
     }
 
     XPCJSRuntime *rt = tmp->GetRuntime();
@@ -332,7 +334,7 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
 {
     nsWrapperCache *cache = helper.GetWrapperCache();
 
-    NS_ASSERTION(!cache || !cache->GetWrapperPreserveColor(),
+    NS_ASSERTION(!cache || !cache->GetWrapper(),
                  "We assume the caller already checked if it could get the "
                  "wrapper from the cache.");
 
@@ -395,7 +397,7 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
         }
     }
 #ifdef DEBUG
-    else if(!cache->GetWrapperPreserveColor())
+    else if(!cache->GetWrapper())
     {   // scoped lock
         XPCAutoLock lock(mapLock);
         NS_ASSERTION(!map->Find(identity),
@@ -673,13 +675,13 @@ FinishCreate(XPCCallContext& ccx,
     }
     else if(wrapper)
     {
-        JSObject *flat = wrapper->GetFlatJSObject();
-        NS_ASSERTION(!cache || !cache->GetWrapperPreserveColor() ||
-                     flat == cache->GetWrapperPreserveColor(),
+        JSObject *flat = wrapper->GetFlatJSObjectAndMark();
+        NS_ASSERTION(!cache || !cache->GetWrapper() ||
+                     flat == cache->GetWrapper(),
                      "This object has a cached wrapper that's different from "
                      "the JSObject held by its native wrapper?");
 
-        if(cache && !cache->GetWrapperPreserveColor())
+        if(cache && !cache->GetWrapper())
             cache->SetWrapper(flat);
 
         // Our newly created wrapper is the one that we just added to the table.
@@ -1509,7 +1511,7 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
         if(NS_FAILED(rv))
             return rv;
 
-        flat = wrapper->GetFlatJSObject();
+        flat = wrapper->GetFlatJSObjectAndMark();
     }
 
     if(!flat)
@@ -3133,7 +3135,7 @@ CallMethodHelper::Invoke()
 /* readonly attribute JSObjectPtr JSObject; */
 NS_IMETHODIMP XPCWrappedNative::GetJSObject(JSObject * *aJSObject)
 {
-    *aJSObject = GetFlatJSObject();
+    *aJSObject = GetFlatJSObjectAndMark();
     return NS_OK;
 }
 
@@ -3151,7 +3153,7 @@ NS_IMETHODIMP XPCWrappedNative::GetNative(nsISupports * *aNative)
 NS_IMETHODIMP XPCWrappedNative::GetJSObjectPrototype(JSObject * *aJSObjectPrototype)
 {
     *aJSObjectPrototype = HasProto() ?
-                GetProto()->GetJSProtoObject() : GetFlatJSObject();
+                GetProto()->GetJSProtoObject() : GetFlatJSObjectAndMark();
     return NS_OK;
 }
 
@@ -3235,7 +3237,7 @@ NS_IMETHODIMP XPCWrappedNative::RefreshPrototype()
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     JSAutoEnterCompartment ac;
-    if(!ac.enter(ccx, GetFlatJSObject()))
+    if(!ac.enter(ccx, GetFlatJSObjectAndMark()))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     AutoMarkingWrappedNativeProtoPtr oldProto(ccx);
@@ -3259,7 +3261,7 @@ NS_IMETHODIMP XPCWrappedNative::RefreshPrototype()
     if(newProto.get() == oldProto.get())
         return NS_OK;
 
-    if(!JS_SetPrototype(ccx, GetFlatJSObject(),
+    if(!JS_SetPrototype(ccx, GetFlatJSObjectAndMark(),
                         newProto->GetJSProtoObject()))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
