@@ -57,9 +57,10 @@ import org.mozilla.gecko.sync.stage.SyncClientsEngineStage;
 import org.mozilla.gecko.sync.stage.UploadMetaGlobalStage;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import ch.boye.httpclientandroidlib.HttpResponse;
 
-public class GlobalSession implements HttpResponseObserver {
+public class GlobalSession implements PrefsSource, HttpResponseObserver {
   private static final String LOG_TAG = "GlobalSession";
 
   public static final long STORAGE_VERSION = 5;
@@ -274,6 +275,14 @@ public class GlobalSession implements HttpResponseObserver {
       this.abort(ex, "Uncaught exception in stage.");
       return;
     }
+  }
+
+  /*
+   * PrefsSource methods.
+   */
+  @Override
+  public SharedPreferences getPrefs(String name, int mode) {
+    return this.getContext().getSharedPreferences(name, mode);
   }
 
   public Context getContext() {

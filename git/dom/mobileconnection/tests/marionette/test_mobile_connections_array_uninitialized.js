@@ -8,6 +8,6 @@ startTestCommon(function() {
   let connections =
     workingFrame.contentWindow.navigator.mozMobileConnections;
 
-  let num = getNumOfRadioInterfaces();
+  let num = SpecialPowers.getIntPref("ril.numRadioInterfaces");
   is(connections.length, num, "ril.numRadioInterfaces");
 });

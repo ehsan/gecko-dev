@@ -23,7 +23,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
@@ -47,7 +46,7 @@ public class FxAccountSignInActivity extends FxAccountAbstractSetupActivity {
     super.onCreate(icicle);
     setContentView(R.layout.fxaccount_sign_in);
 
-    emailEdit = (AutoCompleteTextView) ensureFindViewById(null, R.id.email, "email edit");
+    emailEdit = (EditText) ensureFindViewById(null, R.id.email, "email edit");
     passwordEdit = (EditText) ensureFindViewById(null, R.id.password, "password edit");
     showPasswordButton = (Button) ensureFindViewById(null, R.id.show_password, "show password button");
     remoteErrorTextView = (TextView) ensureFindViewById(null, R.id.remote_error, "remote error text view");

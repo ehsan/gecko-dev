@@ -278,8 +278,7 @@ nsPlainTextSerializer::AppendText(nsIContent* aText,
     return NS_ERROR_FAILURE;
   }
   
-  int32_t fragLength = frag->GetLength();
-  int32_t endoffset = (aEndOffset == -1) ? fragLength : std::min(aEndOffset, fragLength);
+  int32_t endoffset = (aEndOffset == -1) ? frag->GetLength() : aEndOffset;
   NS_ASSERTION(aStartOffset <= endoffset, "A start offset is beyond the end of the text fragment!");
 
   int32_t length = endoffset - aStartOffset;

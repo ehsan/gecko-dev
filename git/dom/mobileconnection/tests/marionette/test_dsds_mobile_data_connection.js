@@ -6,8 +6,8 @@ MARIONETTE_HEAD_JS = "head.js";
 
 const SETTINGS_KEY_DATA_DEFAULT_ID = "ril.data.defaultServiceId";
 
-let connections;
-let numOfRadioInterfaces;
+let connections = window.navigator.mozMobileConnections;
+let numOfRadioInterfaces = getNumOfRadioInterfaces();
 let currentDataDefaultId = 0;
 
 function muxModem(id) {
@@ -142,9 +142,6 @@ function testDisableData() {
 }
 
 startDSDSTestCommon(function() {
-  connections = workingFrame.contentWindow.navigator.mozMobileConnections;
-  numOfRadioInterfaces = getNumOfRadioInterfaces();
-
   return testEnableData()
     .then(testSwitchDefaultDataToSimTwo)
     .then(testDisableDataRoamingWhileRoaming)

@@ -81,8 +81,7 @@ protected:
                               nsINode* aOriginalNode = nullptr);
   nsresult SerializeToStringRecursive(nsINode* aNode,
                                       nsAString& aStr,
-                                      bool aDontSerializeRoot,
-                                      uint32_t aMaxLength = 0);
+                                      bool aDontSerializeRoot);
   nsresult SerializeNodeEnd(nsINode* aNode, nsAString& aStr);
   // This serializes the content of aNode.
   nsresult SerializeToStringIterative(nsINode* aNode,
@@ -451,13 +450,8 @@ nsDocumentEncoder::SerializeNodeEnd(nsINode* aNode,
 nsresult
 nsDocumentEncoder::SerializeToStringRecursive(nsINode* aNode,
                                               nsAString& aStr,
-                                              bool aDontSerializeRoot,
-                                              uint32_t aMaxLength)
+                                              bool aDontSerializeRoot)
 {
-  if (aMaxLength > 0 && aStr.Length() >= aMaxLength) {
-    return NS_OK;
-  }
-
   if (!IsVisibleNode(aNode))
     return NS_OK;
 
@@ -493,12 +487,7 @@ nsDocumentEncoder::SerializeToStringRecursive(nsINode* aNode,
   }
 
   if (!aDontSerializeRoot) {
-    int32_t endOffset = -1;
-    if (aMaxLength > 0) {
-      MOZ_ASSERT(aMaxLength >= aStr.Length());
-      endOffset = aMaxLength - aStr.Length();
-    }
-    rv = SerializeNodeStart(maybeFixedNode, 0, endOffset, aStr, aNode);
+    rv = SerializeNodeStart(maybeFixedNode, 0, -1, aStr, aNode);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -507,7 +496,7 @@ nsDocumentEncoder::SerializeToStringRecursive(nsINode* aNode,
   for (nsINode* child = nsNodeUtils::GetFirstChildOfTemplateOrNode(node);
        child;
        child = child->GetNextSibling()) {
-    rv = SerializeToStringRecursive(child, aStr, false, aMaxLength);
+    rv = SerializeToStringRecursive(child, aStr, false);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -1028,13 +1017,6 @@ nsDocumentEncoder::SerializeRangeToString(nsRange *aRange,
 NS_IMETHODIMP
 nsDocumentEncoder::EncodeToString(nsAString& aOutputString)
 {
-  return EncodeToStringWithMaxLength(0, aOutputString);
-}
-
-NS_IMETHODIMP
-nsDocumentEncoder::EncodeToStringWithMaxLength(uint32_t aMaxLength,
-                                               nsAString& aOutputString)
-{
   if (!mDocument)
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -1164,7 +1146,7 @@ nsDocumentEncoder::EncodeToStringWithMaxLength(uint32_t aMaxLength,
     rv = mSerializer->AppendDocumentStart(mDocument, output);
 
     if (NS_SUCCEEDED(rv)) {
-      rv = SerializeToStringRecursive(mDocument, output, false, aMaxLength);
+      rv = SerializeToStringRecursive(mDocument, output, false);
     }
   }
 
