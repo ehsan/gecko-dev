@@ -613,7 +613,7 @@ nsComputedDOMStyle::DoGetBinding()
   const nsStyleDisplay* display = GetStyleDisplay();
 
   if (display->mBinding) {
-    val->SetURI(display->mBinding->GetURI());
+    val->SetURI(display->mBinding->mURI);
   } else {
     val->SetIdent(eCSSKeyword_none);
   }

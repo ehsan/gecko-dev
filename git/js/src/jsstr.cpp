@@ -283,6 +283,9 @@ JSRope::flatten(JSContext *maybecx)
     if (!wholeChars)
         return NULL;
 
+    if (maybecx)
+        maybecx->runtime->stringMemoryUsed += wholeLength * 2;
+
     pos = wholeChars;
     first_visit_node: {
         JSString &left = *str->d.u1.left;
@@ -386,6 +389,8 @@ JSDependentString::undepend(JSContext *cx)
     jschar *s = (jschar *) cx->malloc_(size);
     if (!s)
         return NULL;
+
+    cx->runtime->stringMemoryUsed += size;
 
     PodCopy(s, chars(), n);
     s[n] = 0;

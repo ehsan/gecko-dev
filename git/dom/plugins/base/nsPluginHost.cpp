@@ -49,6 +49,7 @@
 #include "nsIComponentManager.h"
 #include "nsNPAPIPlugin.h"
 #include "nsNPAPIPluginStreamListener.h"
+#include "nsIPlugin.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsIPluginStreamListener.h"
 #include "nsIHTTPHeaderListener.h"
@@ -1322,7 +1323,7 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
 
   NS_ASSERTION(pluginTag, "Must have plugin tag here!");
 
-  nsRefPtr<nsNPAPIPlugin> plugin;
+  nsCOMPtr<nsIPlugin> plugin;
   GetPlugin(mimetype, getter_AddRefs(plugin));
 
   nsCOMPtr<nsIPluginInstance> instance;
@@ -1725,7 +1726,7 @@ nsresult nsPluginHost::EnsurePluginLoaded(nsPluginTag* plugin)
   return NS_OK;
 }
 
-nsresult nsPluginHost::GetPlugin(const char *aMimeType, nsNPAPIPlugin** aPlugin)
+NS_IMETHODIMP nsPluginHost::GetPlugin(const char *aMimeType, nsIPlugin** aPlugin)
 {
   nsresult rv = NS_ERROR_FAILURE;
   *aPlugin = NULL;

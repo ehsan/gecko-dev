@@ -294,7 +294,8 @@ static
 void UpdatePanelFileTypes(NSOpenPanel* aPanel, NSArray* aFilters)
 {
   // If we show all file types, also "expose" bundles' contents.
-  [aPanel setTreatsFilePackagesAsDirectories:!aFilters];
+  // FIXME: the code seems to do the exact opposite, this bug 656260.
+  [aPanel setTreatsFilePackagesAsDirectories:!!aFilters];
 
   [aPanel setAllowedFileTypes:aFilters];
 }
@@ -395,8 +396,9 @@ nsFilePicker::GetLocalFiles(const nsString& inTitle, PRBool inAllowMultiple, nsC
     [observer release];
   } else {
     // If we show all file types, also "expose" bundles' contents.
+    // FIXME: the code seems to do the exact opposite, this bug 656260.
     if (!filters) {
-      [thePanel setTreatsFilePackagesAsDirectories:YES];
+      [thePanel setTreatsFilePackagesAsDirectories:NO];
     }
     result = [thePanel runModalForDirectory:theDir file:nil types:filters];
   }

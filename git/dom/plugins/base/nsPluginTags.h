@@ -45,6 +45,7 @@
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsIPluginTag.h"
+#include "nsIPlugin.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsISupportsArray.h"
 
