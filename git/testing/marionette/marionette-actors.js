@@ -336,21 +336,8 @@ MarionetteDriverActor.prototype = {
    *
    */
   newSession: function MDA_newSession() {
-
-    function waitForWindow() {
-      let checkTimer = Cc["@mozilla.org/timer;1"].
-                       createInstance(Ci.nsITimer);
-      let win = this.getCurrentWindow();
-      if (!win || (appName != "B2G" && !win.gBrowser)) { 
-        checkTimer.initWithCallback(waitForWindow.bind(this), 100, Ci.nsITimer.TYPE_ONE_SHOT);
-      }
-      else {
-        this.startBrowser(win, true);
-      }
-    }
-
     if (!prefs.getBoolPref("marionette.contentListener")) {
-      waitForWindow.call(this);
+      this.startBrowser(this.getCurrentWindow(), true);
     }
     else if ((appName == "B2G") && (this.curBrowser == null)) {
       //if there is a content listener, then we just wake it up

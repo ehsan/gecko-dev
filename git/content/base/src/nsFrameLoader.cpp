@@ -937,10 +937,7 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size)
     nsCOMPtr<nsIObserverService> os = services::GetObserverService();
     if (OwnerIsBrowserFrame() && os) {
       os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
-                          "remote-browser-frame-shown",
-                          mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::mozapp)
-                            ? NS_LITERAL_STRING("is-moz-app:true").get()
-                            : NS_LITERAL_STRING("is-moz-app:false").get());
+                          "remote-browser-frame-shown", NULL);
     }
   } else {
     nsRect dimensions;
@@ -1525,10 +1522,7 @@ nsFrameLoader::MaybeCreateDocShell()
   if (OwnerIsBrowserFrame() && os) {
     mDocShell->SetIsBrowserFrame(true);
     os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
-                        "in-process-browser-frame-shown",
-                        mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::mozapp)
-                          ? NS_LITERAL_STRING("is-moz-app:true").get()
-                          : NS_LITERAL_STRING("is-moz-app:false").get());
+                        "in-process-browser-frame-shown", NULL);
   }
 
   // This is nasty, this code (the do_GetInterface(mDocShell) below)
@@ -2171,6 +2165,19 @@ nsFrameLoader::GetRootContentView(nsIContentView** aContentView)
   return NS_OK;
 }
 
+static already_AddRefed<nsIDocShell>
+GetRootDocShell(nsIDocument *aDocument)
+{
+  nsCOMPtr<nsIWebNavigation> webNav = do_GetInterface(aDocument->GetWindow());
+  nsCOMPtr<nsIDocShellTreeItem> treeItem = do_QueryInterface(webNav);
+  NS_ENSURE_TRUE(treeItem, NULL);
+
+  nsCOMPtr<nsIDocShellTreeItem> rootItem;
+  treeItem->GetRootTreeItem(getter_AddRefs(rootItem));
+  nsCOMPtr<nsIDocShell> rootDocShell = do_QueryInterface(rootItem);
+  return rootDocShell.forget();
+}
+
 nsresult
 nsFrameLoader::EnsureMessageManager()
 {
@@ -2199,11 +2206,14 @@ nsFrameLoader::EnsureMessageManager()
   NS_ENSURE_STATE(cx);
 
   nsCOMPtr<nsIDOMChromeWindow> chromeWindow =
-    do_QueryInterface(GetOwnerDoc()->GetWindow());
-  nsCOMPtr<nsIChromeFrameMessageManager> parentManager;
-  if (chromeWindow) {
-    chromeWindow->GetMessageManager(getter_AddRefs(parentManager));
+    do_QueryInterface(OwnerDoc()->GetWindow());
+  if (!chromeWindow) {
+    nsCOMPtr<nsIDocShell> rootDocShell = GetRootDocShell(OwnerDoc());
+    nsCOMPtr<nsIDOMWindow> rootWindow = do_GetInterface(rootDocShell);
+    chromeWindow = do_GetInterface(rootWindow);
   }
+  nsCOMPtr<nsIChromeFrameMessageManager> parentManager;
+  chromeWindow->GetMessageManager(getter_AddRefs(parentManager));
 
   if (ShouldUseRemoteProcess()) {
     mMessageManager = new nsFrameMessageManager(true,

@@ -3502,6 +3502,9 @@ extern JS_PUBLIC_API(void)
 JS_GC(JSRuntime *rt);
 
 extern JS_PUBLIC_API(void)
+JS_CompartmentGC(JSRuntime *rt, JSCompartment *comp);
+
+extern JS_PUBLIC_API(void)
 JS_MaybeGC(JSContext *cx);
 
 extern JS_PUBLIC_API(void)

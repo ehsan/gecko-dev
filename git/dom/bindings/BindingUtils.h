@@ -418,47 +418,6 @@ GetWrapperCache(void* p)
   return NULL;
 }
 
-struct ParentObject {
-  template<class T>
-  ParentObject(T* aObject) :
-    mObject(aObject),
-    mWrapperCache(GetWrapperCache(aObject))
-  {}
-
-  template<class T, template<class> class SmartPtr>
-  ParentObject(const SmartPtr<T>& aObject) :
-    mObject(aObject.get()),
-    mWrapperCache(GetWrapperCache(aObject.get()))
-  {}
-
-  ParentObject(nsISupports* aObject, nsWrapperCache* aCache) :
-    mObject(aObject),
-    mWrapperCache(aCache)
-  {}
-
-  nsISupports* const mObject;
-  nsWrapperCache* const mWrapperCache;
-};
-
-inline nsWrapperCache*
-GetWrapperCache(const ParentObject& aParentObject)
-{
-  return aParentObject.mWrapperCache;
-}
-
-template<class T>
-inline nsISupports*
-GetParentPointer(T* aObject)
-{
-  return aObject;
-}
-
-inline nsISupports*
-GetParentPointer(const ParentObject& aObject)
-{
-  return aObject.mObject;
-}
-
 // Only set allowNativeWrapper to false if you really know you need it, if in
 // doubt use true. Setting it to false disables security wrappers.
 bool
@@ -529,18 +488,18 @@ WrapObject<JSObject>(JSContext* cx, JSObject* scope, JSObject* p, JS::Value* vp)
   return true;
 }
 
-template<typename T>
+template<class T>
 static inline JSObject*
-WrapNativeParent(JSContext* cx, JSObject* scope, const T& p)
+WrapNativeParent(JSContext* cx, JSObject* scope, T* p)
 {
-  if (!GetParentPointer(p))
+  if (!p)
     return scope;
 
   nsWrapperCache* cache = GetWrapperCache(p);
   JSObject* obj;
   if (cache && (obj = cache->GetWrapper())) {
 #ifdef DEBUG
-    qsObjectHelper helper(GetParentPointer(p), cache);
+    qsObjectHelper helper(p, cache);
     JS::Value debugVal;
 
     bool ok = XPCOMObjectToJsval(cx, scope, helper, NULL, false, &debugVal);
@@ -550,7 +509,7 @@ WrapNativeParent(JSContext* cx, JSObject* scope, const T& p)
     return obj;
   }
 
-  qsObjectHelper helper(GetParentPointer(p), cache);
+  qsObjectHelper helper(p, cache);
   JS::Value v;
   return XPCOMObjectToJsval(cx, scope, helper, NULL, false, &v) ?
          JSVAL_TO_OBJECT(v) :

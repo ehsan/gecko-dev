@@ -40,7 +40,6 @@
 package org.mozilla.gecko.db;
 
 import java.io.ByteArrayOutputStream;
-import java.util.HashMap;
 
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.BrowserContract.History;
@@ -75,9 +74,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     private final String mProfile;
-
-    // Map of folder GUIDs to IDs. Used for caching.
-    private HashMap<String, Long> mFolderIdMap;
+    private long mMobileFolderId;
 
     // Use wrapped Boolean so that we can have a null state
     private Boolean mDesktopBookmarksExist;
@@ -102,7 +99,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
     public LocalBrowserDB(String profile) {
         mProfile = profile;
-        mFolderIdMap = new HashMap<String, Long>();
+        mMobileFolderId = -1;
         mDesktopBookmarksExist = null;
 
         mBookmarksUriWithProfile = appendProfile(Bookmarks.CONTENT_URI);
@@ -300,7 +297,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
         // We always want to show mobile bookmarks in the root view.
         if (folderId == Bookmarks.FIXED_ROOT_ID) {
-            folderId = getFolderIdFromGuid(cr, Bookmarks.MOBILE_FOLDER_GUID);
+            folderId = getMobileBookmarksFolderId(cr);
 
             // We'll add a fake "Desktop Bookmarks" folder to the root view if desktop 
             // bookmarks exist, so that the user can still access non-mobile bookmarks.
@@ -349,16 +346,12 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         Cursor c = null;
         int count = 0;
         try {
-            // Check to see if there are any bookmarks in one of our three
-            // fixed "Desktop Boomarks" folders.
             c = cr.query(bookmarksUriWithLimit(1),
                          new String[] { Bookmarks._ID },
-                         Bookmarks.PARENT + " = ? OR " +
-                         Bookmarks.PARENT + " = ? OR " +
-                         Bookmarks.PARENT + " = ?",
-                         new String[] { String.valueOf(getFolderIdFromGuid(cr, Bookmarks.TOOLBAR_FOLDER_GUID)),
-                                        String.valueOf(getFolderIdFromGuid(cr, Bookmarks.MENU_FOLDER_GUID)),
-                                        String.valueOf(getFolderIdFromGuid(cr, Bookmarks.UNFILED_FOLDER_GUID)) },
+                         Bookmarks.PARENT + " != ? AND " +
+                         Bookmarks.PARENT + " != ?",
+                         new String[] { String.valueOf(getMobileBookmarksFolderId(cr)),
+                                        String.valueOf(Bookmarks.FIXED_ROOT_ID) },
                          null);
             count = c.getCount();
         } finally {
@@ -401,10 +394,15 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         return url;
     }
 
-    private synchronized long getFolderIdFromGuid(ContentResolver cr, String guid) {
-        if (mFolderIdMap.containsKey(guid))
-          return mFolderIdMap.get(guid);
+    private long getMobileBookmarksFolderId(ContentResolver cr) {
+        if (mMobileFolderId >= 0)
+            return mMobileFolderId;
 
+        mMobileFolderId = getFolderIdFromGuid(cr, Bookmarks.MOBILE_FOLDER_GUID);
+        return mMobileFolderId;
+    }
+
+    private long getFolderIdFromGuid(ContentResolver cr, String guid) {
         long folderId = -1;
         Cursor c = null;
 
@@ -422,7 +420,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                 c.close();
         }
 
-        mFolderIdMap.put(guid, folderId);
         return folderId;
     }
 
@@ -441,7 +438,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public void addBookmark(ContentResolver cr, String title, String uri) {
-        long folderId = getFolderIdFromGuid(cr, Bookmarks.MOBILE_FOLDER_GUID);
+        long folderId = getMobileBookmarksFolderId(cr);
         if (folderId < 0)
             return;
 

@@ -498,8 +498,7 @@ GENERATE_CACHE = \
   rm -rf jsloader jssubloader && \
   $(UNZIP) -q startupCache.zip && \
   rm startupCache.zip && \
-  $(ZIP) -r9m $(OMNIJAR_NAME) jsloader/resource/$(PRECOMPILE_RESOURCE) jssubloader/*/resource/$(PRECOMPILE_RESOURCE) && \
-  rm -rf jsloader jssubloader
+  $(ZIP) -r9m $(OMNIJAR_NAME) jsloader/resource/$(PRECOMPILE_RESOURCE) jssubloader/*/resource/$(PRECOMPILE_RESOURCE)
 else
 GENERATE_CACHE = true
 endif

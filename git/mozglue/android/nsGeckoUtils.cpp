@@ -66,14 +66,7 @@ __attribute__ ((visibility("default")))
 jobject JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_allocateDirectBuffer(JNIEnv *jenv, jclass, jlong size)
 {
-    jobject buffer = NULL;
-    void* mem = malloc(size);
-    if (mem) {
-        buffer = jenv->NewDirectByteBuffer(mem, size);
-        if (!buffer)
-            free(mem);
-    }
-    return buffer;
+    return jenv->NewDirectByteBuffer(malloc(size), size);
 }
 
 extern "C"

@@ -549,14 +549,14 @@ protected:
 class AutoLocalJNIFrame {
 public:
     AutoLocalJNIFrame(int nEntries = 128)
-        : mEntries(nEntries), mHasFrameBeenPushed(false)
+        : mEntries(nEntries)
     {
         mJNIEnv = AndroidBridge::GetJNIEnv();
         Push();
     }
 
     AutoLocalJNIFrame(JNIEnv* aJNIEnv, int nEntries = 128)
-        : mEntries(nEntries), mHasFrameBeenPushed(false)
+        : mEntries(nEntries)
     {
         mJNIEnv = aJNIEnv ? aJNIEnv : AndroidBridge::GetJNIEnv();
 
@@ -568,8 +568,7 @@ public:
     // any local refs that you need to keep around in global refs!
     void Purge() {
         if (mJNIEnv) {
-            if (mHasFrameBeenPushed)
-                mJNIEnv->PopLocalFrame(NULL);
+            mJNIEnv->PopLocalFrame(NULL);
             Push();
         }
     }
@@ -594,8 +593,7 @@ public:
 
         CheckForException();
 
-        if (mHasFrameBeenPushed)
-            mJNIEnv->PopLocalFrame(NULL);
+        mJNIEnv->PopLocalFrame(NULL);
     }
 
 private:
@@ -608,15 +606,13 @@ private:
         // not hurt.
         jint ret = mJNIEnv->PushLocalFrame(mEntries + 1);
         NS_ABORT_IF_FALSE(ret == 0, "Failed to push local JNI frame");
-        if (ret < 0)
+        if (ret < 0) {
             CheckForException();
-        else
-            mHasFrameBeenPushed = true;
+        }
     }
 
     int mEntries;
     JNIEnv* mJNIEnv;
-    bool mHasFrameBeenPushed;
 };
 
 }

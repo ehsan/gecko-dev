@@ -644,7 +644,7 @@ RenderFrameParent::AllocPLayers(LayerManager::LayersBackend* aBackendType)
   }
 
   nsRefPtr<LayerManager> lm = 
-    nsContentUtils::LayerManagerForDocument(mFrameLoader->GetOwnerDoc());
+    nsContentUtils::LayerManagerForDocument(mFrameLoader->OwnerDoc());
   ShadowLayerManager* slm = lm->AsShadowManager();
   if (!slm) {
     *aBackendType = LayerManager::LAYERS_NONE;

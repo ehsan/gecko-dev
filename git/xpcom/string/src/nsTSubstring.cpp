@@ -291,7 +291,7 @@ nsTSubstring_CharT::EnsureMutable( size_type newLen )
 
         newLen = mLength;
       }
-    return SetLength(newLen, fallible_t());
+    return SetLength(newLen);
   }
 
 // ---------------------------------------------------------------------------
@@ -300,36 +300,19 @@ nsTSubstring_CharT::EnsureMutable( size_type newLen )
 void
 nsTSubstring_CharT::Assign( char_type c )
   {
-    if (!ReplacePrep(0, mLength, 1))
-      NS_RUNTIMEABORT("OOM");
-
-    *mData = c;
+    if (ReplacePrep(0, mLength, 1))
+      *mData = c;
   }
 
-bool
-nsTSubstring_CharT::Assign( char_type c, const fallible_t& )
-  {
-    if (!ReplacePrep(0, mLength, 1))
-      return false;
-
-    *mData = c;
-    return true;
-  }
 
 void
 nsTSubstring_CharT::Assign( const char_type* data, size_type length )
   {
-    if (!Assign(data, length, fallible_t()))
-      NS_RUNTIMEABORT("OOM");
-  }
-
-bool
-nsTSubstring_CharT::Assign( const char_type* data, size_type length, const fallible_t& )
-  {
+      // unfortunately, some callers pass null :-(
     if (!data)
       {
         Truncate();
-        return true;
+        return;
       }
 
     if (length == size_type(-1))
@@ -337,66 +320,54 @@ nsTSubstring_CharT::Assign( const char_type* data, size_type length, const falli
 
     if (IsDependentOn(data, data + length))
       {
-        return Assign(string_type(data, length), fallible_t());
+        // take advantage of sharing here...
+        Assign(string_type(data, length));
+        return;
       }
 
-    if (!ReplacePrep(0, mLength, length))
-      return false;
-
-    char_traits::copy(mData, data, length);
-    return true;
+    if (ReplacePrep(0, mLength, length))
+      char_traits::copy(mData, data, length);
   }
 
 void
 nsTSubstring_CharT::AssignASCII( const char* data, size_type length )
-  {
-    if (!AssignASCII(data, length, fallible_t()))
-      NS_RUNTIMEABORT("OOM");
-  }
-
-bool
-nsTSubstring_CharT::AssignASCII( const char* data, size_type length, const fallible_t& )
   {
     // A Unicode string can't depend on an ASCII string buffer,
     // so this dependence check only applies to CStrings.
 #ifdef CharT_is_char
     if (IsDependentOn(data, data + length))
       {
-        return Assign(string_type(data, length), fallible_t());
+        // take advantage of sharing here...
+        Assign(string_type(data, length));
+        return;
       }
 #endif
 
-    if (!ReplacePrep(0, mLength, length))
-      return false;
+    if (ReplacePrep(0, mLength, length))
+      char_traits::copyASCII(mData, data, length);
+  }
 
-    char_traits::copyASCII(mData, data, length);
-    return true;
+void
+nsTSubstring_CharT::AssignASCII( const char* data )
+  {
+    AssignASCII(data, strlen(data));
   }
 
 void
 nsTSubstring_CharT::Assign( const self_type& str )
-{
-  if (!Assign(str, fallible_t()))
-    NS_RUNTIMEABORT("OOM");
-}
-
-bool
-nsTSubstring_CharT::Assign( const self_type& str, const fallible_t& )
   {
     // |str| could be sharable.  we need to check its flags to know how to
     // deal with it.
 
     if (&str == this)
-      return true;
+      return;
 
     if (!str.mLength)
       {
         Truncate();
         mFlags |= str.mFlags & F_VOIDED;
-        return true;
       }
-
-    if (str.mFlags & F_SHARED)
+    else if (str.mFlags & F_SHARED)
       {
         // nice! we can avoid a string copy :-)
 
@@ -411,27 +382,22 @@ nsTSubstring_CharT::Assign( const self_type& str, const fallible_t& )
 
         // get an owning reference to the mData
         nsStringBuffer::FromData(mData)->AddRef();
-        return true;
       }
-
-    // else, treat this like an ordinary assignment.
-    return Assign(str.Data(), str.Length(), fallible_t());
+    else
+      {
+        // else, treat this like an ordinary assignment.
+        Assign(str.Data(), str.Length());
+      }
   }
 
 void
 nsTSubstring_CharT::Assign( const substring_tuple_type& tuple )
   {
-    if (!Assign(tuple, fallible_t()))
-      NS_RUNTIMEABORT("OOM");
-  }
-
-bool
-nsTSubstring_CharT::Assign( const substring_tuple_type& tuple, const fallible_t& )
-  {
     if (tuple.IsDependentOn(mData, mData + mLength))
       {
         // take advantage of sharing here...
-        return Assign(string_type(tuple), fallible_t());
+        Assign(string_type(tuple));
+        return;
       }
 
     size_type length = tuple.Length();
@@ -439,16 +405,14 @@ nsTSubstring_CharT::Assign( const substring_tuple_type& tuple, const fallible_t&
     // don't use ReplacePrep here because it changes the length
     char_type* oldData;
     PRUint32 oldFlags;
-    if (!MutatePrep(length, &oldData, &oldFlags))
-      return false;
+    if (MutatePrep(length, &oldData, &oldFlags)) {
+      if (oldData)
+        ::ReleaseData(oldData, oldFlags);
 
-    if (oldData)
-      ::ReleaseData(oldData, oldFlags);
-
-    tuple.WriteTo(mData, length);
-    mData[length] = 0;
-    mLength = length;
-    return true;
+      tuple.WriteTo(mData, length);
+      mData[length] = 0;
+      mLength = length;
+    }
   }
 
 void
@@ -558,15 +522,8 @@ nsTSubstring_CharT::Replace( index_type cutStart, size_type cutLength, const sub
       tuple.WriteTo(mData + cutStart, length);
   }
 
-void
-nsTSubstring_CharT::SetCapacity( size_type capacity )
-  {
-    if (!SetCapacity(capacity, fallible_t()))
-      NS_RUNTIMEABORT("OOM");
-  }
-
 bool
-nsTSubstring_CharT::SetCapacity( size_type capacity, const fallible_t& )
+nsTSubstring_CharT::SetCapacity( size_type capacity )
   {
     // capacity does not include room for the terminating null char
 
@@ -577,48 +534,42 @@ nsTSubstring_CharT::SetCapacity( size_type capacity, const fallible_t& )
         mData = char_traits::sEmptyBuffer;
         mLength = 0;
         SetDataFlags(F_TERMINATED);
-        return true;
       }
-
-    char_type* oldData;
-    PRUint32 oldFlags;
-    if (!MutatePrep(capacity, &oldData, &oldFlags))
-      return false; // out-of-memory
-
-    // compute new string length
-    size_type newLen = NS_MIN(mLength, capacity);
-
-    if (oldData)
+    else
       {
-        // preserve old data
-        if (mLength > 0)
-          char_traits::copy(mData, oldData, newLen);
+        char_type* oldData;
+        PRUint32 oldFlags;
+        if (!MutatePrep(capacity, &oldData, &oldFlags))
+          return false; // out-of-memory
 
-        ::ReleaseData(oldData, oldFlags);
+        // compute new string length
+        size_type newLen = NS_MIN(mLength, capacity);
+
+        if (oldData)
+          {
+            // preserve old data
+            if (mLength > 0)
+              char_traits::copy(mData, oldData, newLen);
+
+            ::ReleaseData(oldData, oldFlags);
+          }
+
+        // adjust mLength if our buffer shrunk down in size
+        if (newLen < mLength)
+          mLength = newLen;
+
+        // always null-terminate here, even if the buffer got longer.  this is
+        // for backwards compat with the old string implementation.
+        mData[capacity] = char_type(0);
       }
-
-    // adjust mLength if our buffer shrunk down in size
-    if (newLen < mLength)
-      mLength = newLen;
-
-    // always null-terminate here, even if the buffer got longer.  this is
-    // for backwards compat with the old string implementation.
-    mData[capacity] = char_type(0);
 
     return true;
   }
 
-void
+bool
 nsTSubstring_CharT::SetLength( size_type length )
   {
-    SetCapacity(length);
-    mLength = length;
-  }
-
-bool
-nsTSubstring_CharT::SetLength( size_type length, const fallible_t& )
-  {
-    if (!SetCapacity(length, fallible_t()))
+    if (!SetCapacity(length))
       return false;
 
     mLength = length;
@@ -732,8 +683,7 @@ nsTSubstring_CharT::StripChar( char_type aChar, PRInt32 aOffset )
     if (mLength == 0 || aOffset >= PRInt32(mLength))
       return;
 
-    if (!EnsureMutable()) // XXX do this lazily?
-      NS_RUNTIMEABORT("OOM");
+    EnsureMutable(); // XXX do this lazily?
 
     // XXX(darin): this code should defer writing until necessary.
 
@@ -757,8 +707,7 @@ nsTSubstring_CharT::StripChars( const char_type* aChars, PRUint32 aOffset )
     if (aOffset >= PRUint32(mLength))
       return;
 
-    if (!EnsureMutable()) // XXX do this lazily?
-      NS_RUNTIMEABORT("OOM");
+    EnsureMutable(); // XXX do this lazily?
 
     // XXX(darin): this code should defer writing until necessary.
 

@@ -81,12 +81,8 @@ public abstract class TileLayer extends Layer {
 
     @Override
     protected void finalize() throws Throwable {
-        try {
-            if (mTextureIDs != null)
-                TextureReaper.get().add(mTextureIDs);
-        } finally {
-            super.finalize();
-        }
+        if (mTextureIDs != null)
+            TextureReaper.get().add(mTextureIDs);
     }
 
     public void setPaintMode(PaintMode mode) {
@@ -186,6 +182,24 @@ public abstract class TileLayer extends Layer {
             // Our texture has been expanded to the next power of two.
             // XXX We probably never want to take this path, so throw an exception.
             throw new RuntimeException("Buffer/image size mismatch in TileLayer!");
+
+            /*
+            int bpp = CairoUtils.bitsPerPixelForCairoFormat(cairoFormat)/8;
+            ByteBuffer tempBuffer =
+                GeckoAppShell.allocateDirectBuffer(mSize.width * mSize.height * bpp);
+            for (int y = 0; y < bufferSize.height; y++) {
+                tempBuffer.position(y * mSize.width * bpp);
+                imageBuffer.limit((y + 1) * bufferSize.width * bpp);
+                imageBuffer.position(y * bufferSize.width * bpp);
+                tempBuffer.put(imageBuffer);
+            }
+            imageBuffer.position(0);
+            tempBuffer.position(0);
+
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, glInfo.internalFormat, mSize.width,
+                                mSize.height, 0, glInfo.format, glInfo.type, tempBuffer);
+            GeckoAppShell.freeDirectBuffer(tempBuffer);
+            */
         }
     }
 

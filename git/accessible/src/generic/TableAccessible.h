@@ -51,8 +51,7 @@ public:
   /**
    * Return the index of the cell at the given row and column.
    */
-  virtual PRInt32 CellIndexAt(PRUint32 aRowIdx, PRUint32 aColIdx)
-    { return ColCount() * aRowIdx + aColIdx; }
+  virtual PRInt32 CellIndexAt(PRUint32 aRowIdx, PRUint32 aColIdx) { return -1; }
 
   /**
    * Return the column index of the cell with the given index.

@@ -588,6 +588,8 @@ void nsAccessNodeWrap::InitAccessibility()
   Compatibility::Init();
 
   nsWinUtils::MaybeStartWindowEmulation();
+
+  nsAccessNode::InitXPAccessibility();
 }
 
 void nsAccessNodeWrap::ShutdownAccessibility()
