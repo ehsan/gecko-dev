@@ -14,10 +14,10 @@ BEGIN_QUOTA_NAMESPACE
 class AcquireListener
 {
 public:
-  NS_IMETHOD_(MozExternalRefCountType)
+  NS_IMETHOD_(nsrefcnt)
   AddRef() = 0;
 
-  NS_IMETHOD_(MozExternalRefCountType)
+  NS_IMETHOD_(nsrefcnt)
   Release() = 0;
 
   virtual nsresult

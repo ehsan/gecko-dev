@@ -1458,7 +1458,7 @@ MacroAssemblerMIPSCompat::buildFakeExitFrame(const Register &scratch, uint32_t *
     CodeLabel cl;
     ma_li(scratch, cl.dest());
 
-    uint32_t descriptor = MakeFrameDescriptor(framePushed(), JitFrame_IonJS);
+    uint32_t descriptor = MakeFrameDescriptor(framePushed(), IonFrame_OptimizedJS);
     Push(Imm32(descriptor));
     Push(scratch);
 
@@ -1473,7 +1473,7 @@ bool
 MacroAssemblerMIPSCompat::buildOOLFakeExitFrame(void *fakeReturnAddr)
 {
     DebugOnly<uint32_t> initialDepth = framePushed();
-    uint32_t descriptor = MakeFrameDescriptor(framePushed(), JitFrame_IonJS);
+    uint32_t descriptor = MakeFrameDescriptor(framePushed(), IonFrame_OptimizedJS);
 
     Push(Imm32(descriptor)); // descriptor_
     Push(ImmPtr(fakeReturnAddr));
@@ -1484,7 +1484,7 @@ MacroAssemblerMIPSCompat::buildOOLFakeExitFrame(void *fakeReturnAddr)
 void
 MacroAssemblerMIPSCompat::callWithExitFrame(JitCode *target)
 {
-    uint32_t descriptor = MakeFrameDescriptor(framePushed(), JitFrame_IonJS);
+    uint32_t descriptor = MakeFrameDescriptor(framePushed(), IonFrame_OptimizedJS);
     Push(Imm32(descriptor)); // descriptor
 
     addPendingJump(m_buffer.nextOffset(), ImmPtr(target->raw()), Relocation::JITCODE);
@@ -1496,7 +1496,7 @@ void
 MacroAssemblerMIPSCompat::callWithExitFrame(JitCode *target, Register dynStack)
 {
     ma_addu(dynStack, dynStack, Imm32(framePushed()));
-    makeFrameDescriptor(dynStack, JitFrame_IonJS);
+    makeFrameDescriptor(dynStack, IonFrame_OptimizedJS);
     Push(dynStack); // descriptor
 
     addPendingJump(m_buffer.nextOffset(), ImmPtr(target->raw()), Relocation::JITCODE);

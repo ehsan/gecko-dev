@@ -398,13 +398,13 @@ XPCShellEnvironment::ProcessFile(JSContext *cx,
     fprintf(stdout, "\n");
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 XPCShellDirProvider::AddRef()
 {
     return 2;
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 XPCShellDirProvider::Release()
 {
     return 1;

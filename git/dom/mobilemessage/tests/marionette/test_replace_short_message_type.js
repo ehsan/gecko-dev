@@ -31,6 +31,34 @@ function buildPdu(aSender, aPid, aBody) {
          PDU_TIMESTAMP + PDU_UDL + aBody;
 }
 
+let receivedMessage;
+function consumeReceivedMessage() {
+  let message = receivedMessage;
+  receivedMessage = null;
+  return message;
+}
+
+function waitForIncomingMessage() {
+  if (receivedMessage) {
+    return consumeReceivedMessage();
+  }
+
+  let deferred = Promise.defer();
+
+  waitFor(function() {
+    deferred.resolve(consumeReceivedMessage());
+  }, function() {
+    return receivedMessage != null;
+  });
+
+  return deferred.promise;
+}
+
+function sendRawSmsAndWait(aPdu) {
+  sendRawSmsToEmulator(aPdu);
+  return waitForIncomingMessage();
+}
+
 function verifyReplacing(aVictim, aSender, aPid, aCompare) {
   let readableSender = aSender === PDU_SENDER_0 ? SENDER_0 : SENDER_1;
   log("  Checking ('" + readableSender + "', '" + aPid + "', '" + BODY_B + "')");
@@ -38,13 +66,12 @@ function verifyReplacing(aVictim, aSender, aPid, aCompare) {
   let pdu = buildPdu(aSender, aPid, PDU_UD_B);
   ok(true, "Sending " + pdu);
 
-  return sendMultipleRawSmsToEmulatorAndWait([pdu])
-    .then(function(results) {
-      let receivedMsg = results[0].message;
-      is(receivedMsg.sender, readableSender, "SmsMessage sender");
-      is(receivedMsg.body, BODY_B, "SmsMessage body");
+  return sendRawSmsAndWait(pdu)
+    .then(function(aReceivedMessage) {
+      is(aReceivedMessage.sender, readableSender, "SmsMessage sender");
+      is(aReceivedMessage.body, BODY_B, "SmsMessage body");
 
-      aCompare(receivedMsg.id, aVictim.id, "SmsMessage id");
+      aCompare(aReceivedMessage.id, aVictim.id, "SmsMessage id");
     });
 }
 
@@ -59,17 +86,16 @@ function verifyReplaced(aVictim, aSender, aPid) {
 function testPid(aPid) {
   log("Test message PID '" + aPid + "'");
 
-  return sendMultipleRawSmsToEmulatorAndWait([buildPdu(PDU_SENDER_0, aPid, PDU_UD_A)])
-    .then(function(results) {
-      let receivedMsg = results[0].message;
+  return sendRawSmsAndWait(buildPdu(PDU_SENDER_0, aPid, PDU_UD_A))
+    .then(function(aReceivedMessage) {
       let promise = Promise.resolve();
 
       for (let pid of PDU_PIDS) {
         let verify = (aPid !== PDU_PID_NORMAL && pid === aPid)
                    ? verifyReplaced : verifyNotReplaced;
         promise =
-          promise.then(verify.bind(null, receivedMsg, PDU_SENDER_0, pid))
-                 .then(verifyNotReplaced.bind(null, receivedMsg,
+          promise.then(verify.bind(null, aReceivedMessage, PDU_SENDER_0, pid))
+                 .then(verifyNotReplaced.bind(null, aReceivedMessage,
                                               PDU_SENDER_1, pid));
       }
 
@@ -78,11 +104,18 @@ function testPid(aPid) {
 }
 
 startTestCommon(function testCaseMain() {
+  manager.onreceived = function(event) {
+    receivedMessage = event.message;
+  };
+
   let promise = Promise.resolve();
   for (let pid of PDU_PIDS) {
     promise = promise.then(testPid.bind(null, pid))
                      .then(deleteAllMessages);
   }
 
-  return promise;
+  // Clear |manager.onreceived| handler.
+  return promise.then(function() {
+    manager.onreceived = null;
+  });
 });

@@ -22,10 +22,10 @@ class Client : public mozilla::dom::quota::Client
   typedef mozilla::dom::quota::UsageInfo UsageInfo;
 
 public:
-  NS_IMETHOD_(MozExternalRefCountType)
+  NS_IMETHOD_(nsrefcnt)
   AddRef() MOZ_OVERRIDE;
 
-  NS_IMETHOD_(MozExternalRefCountType)
+  NS_IMETHOD_(nsrefcnt)
   Release() MOZ_OVERRIDE;
 
   virtual Type

@@ -338,7 +338,7 @@ class AutoPropDescRooter : private JS::CustomAutoRooter
   public:
     explicit AutoPropDescRooter(JSContext *cx
                                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : CustomAutoRooter(cx)
+      : CustomAutoRooter(cx), skip(cx, &propDesc)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
@@ -388,6 +388,7 @@ class AutoPropDescRooter : private JS::CustomAutoRooter
     virtual void trace(JSTracer *trc);
 
     PropDesc propDesc;
+    SkipRoot skip;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
@@ -1320,6 +1321,7 @@ class AutoRooterGetterSetter
         uint8_t attrs;
         PropertyOp *pgetter;
         StrictPropertyOp *psetter;
+        SkipRoot getterRoot, setterRoot;
     };
 
   public:

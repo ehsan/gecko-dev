@@ -344,7 +344,7 @@ LazyIdleThread::SelfDestruct()
 
 NS_IMPL_ADDREF(LazyIdleThread)
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 LazyIdleThread::Release()
 {
   nsrefcnt count = --mRefCnt;

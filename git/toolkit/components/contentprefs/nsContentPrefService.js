@@ -1239,7 +1239,7 @@ ContentPrefService.prototype = {
 };
 
 function warnDeprecated() {
-  let Deprecated = Cu.import("resource://gre/modules/Deprecated.jsm", {}).Deprecated;
+  Cu.import("resource://gre/modules/Deprecated.jsm");
   Deprecated.warning("nsIContentPrefService is deprecated. Please use nsIContentPrefService2 instead.",
                      "https://developer.mozilla.org/en-US/docs/XPCOM_Interface_Reference/nsIContentPrefService2",
                      Components.stack.caller);

@@ -402,13 +402,13 @@ CategoryEnumerator::enumfunc_createenumerator(const char* aStr, CategoryNode* aN
 
 NS_IMPL_QUERY_INTERFACE2(nsCategoryManager, nsICategoryManager, nsIMemoryReporter)
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 nsCategoryManager::AddRef()
 {
   return 2;
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 nsCategoryManager::Release()
 {
   return 1;

@@ -67,14 +67,14 @@
 #define APZC_LOG_FM(fm, prefix, ...) \
   APZC_LOG(prefix ":" \
            " i=(%ld %lld) cb=(%d %d %d %d) rcs=(%.3f %.3f) dp=(%.3f %.3f %.3f %.3f) dpm=(%.3f %.3f %.3f %.3f) um=%d " \
-           "v=(%.3f %.3f %.3f %.3f) s=(%.3f %.3f) sr=(%.3f %.3f %.3f %.3f) z=(%.3f %.3f %.3f %.3f) u=(%d %lu)\n", \
+           "v=(%.3f %.3f %.3f %.3f) s=(%.3f %.3f) sr=(%.3f %.3f %.3f %.3f) z=(%.3f %.3f %.3f %.3f) u=(%d %llu)\n", \
            __VA_ARGS__, \
            fm.mPresShellId, fm.GetScrollId(), \
            fm.mCompositionBounds.x, fm.mCompositionBounds.y, fm.mCompositionBounds.width, fm.mCompositionBounds.height, \
            fm.GetRootCompositionSize().width, fm.GetRootCompositionSize().height, \
            fm.mDisplayPort.x, fm.mDisplayPort.y, fm.mDisplayPort.width, fm.mDisplayPort.height, \
-           fm.GetDisplayPortMargins().top, fm.GetDisplayPortMargins().right, fm.GetDisplayPortMargins().bottom, fm.GetDisplayPortMargins().left, \
-           fm.GetUseDisplayPortMargins() ? 1 : 0, \
+           fm.mDisplayPortMargins.top, fm.mDisplayPortMargins.right, fm.mDisplayPortMargins.bottom, fm.mDisplayPortMargins.left, \
+           fm.mUseDisplayPortMargins ? 1 : 0, \
            fm.mViewport.x, fm.mViewport.y, fm.mViewport.width, fm.mViewport.height, \
            fm.GetScrollOffset().x, fm.GetScrollOffset().y, \
            fm.mScrollableRect.x, fm.mScrollableRect.y, fm.mScrollableRect.width, fm.mScrollableRect.height, \
@@ -594,18 +594,6 @@ nsEventStatus AsyncPanZoomController::HandleInputEvent(const InputData& aEvent) 
     }
     break;
   }
-  default: NS_WARNING("Unhandled input event"); break;
-  }
-
-  mLastEventTime = aEvent.mTime;
-  return rv;
-}
-
-nsEventStatus AsyncPanZoomController::HandleGestureEvent(const InputData& aEvent)
-{
-  nsEventStatus rv = nsEventStatus_eIgnore;
-
-  switch (aEvent.mInputType) {
   case PINCHGESTURE_INPUT: {
     const PinchGestureInput& pinchGestureInput = aEvent.AsPinchGestureInput();
     switch (pinchGestureInput.mType) {
@@ -1427,7 +1415,7 @@ const LayerMargin AsyncPanZoomController::CalculatePendingDisplayPort(
   const ScreenPoint& aVelocity,
   double aEstimatedPaintDuration)
 {
-  CSSSize compositionBounds = aFrameMetrics.CalculateCompositedSizeInCssPixels();
+  CSSRect compositionBounds(aFrameMetrics.CalculateCompositedRectInCssPixels());
   CSSSize compositionSize = aFrameMetrics.GetRootCompositionSize();
   compositionSize =
     CSSSize(std::min(compositionBounds.width, compositionSize.width),
@@ -1679,10 +1667,10 @@ ViewTransform AsyncPanZoomController::GetCurrentAsyncTransform() {
   // within rendered content.
   if (!gAllowCheckerboarding &&
       !mLastContentPaintMetrics.mDisplayPort.IsEmpty()) {
-    CSSSize compositedSize = mLastContentPaintMetrics.CalculateCompositedSizeInCssPixels();
+    CSSRect compositedRect(mLastContentPaintMetrics.CalculateCompositedRectInCssPixels());
     CSSPoint maxScrollOffset = lastPaintScrollOffset +
-      CSSPoint(mLastContentPaintMetrics.mDisplayPort.XMost() - compositedSize.width,
-               mLastContentPaintMetrics.mDisplayPort.YMost() - compositedSize.height);
+      CSSPoint(mLastContentPaintMetrics.mDisplayPort.XMost() - compositedRect.width,
+               mLastContentPaintMetrics.mDisplayPort.YMost() - compositedRect.height);
     CSSPoint minScrollOffset = lastPaintScrollOffset + mLastContentPaintMetrics.mDisplayPort.TopLeft();
 
     if (minScrollOffset.x < maxScrollOffset.x) {
@@ -1745,13 +1733,6 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
     mFrameMetrics.mViewport = aLayerMetrics.mViewport;
   }
 
-  // If the layers update was not triggered by our own repaint request, then
-  // we want to take the new scroll offset. Check the scroll generation as well
-  // to filter duplicate calls to NotifyLayersUpdated with the same scroll offset
-  // update message.
-  bool scrollOffsetUpdated = aLayerMetrics.GetScrollOffsetUpdated()
-        && (aLayerMetrics.GetScrollGeneration() != mFrameMetrics.GetScrollGeneration());
-
   if (aIsFirstPaint || isDefault) {
     // Initialize our internal state to something sane when the content
     // that was just painted is something we knew nothing about previously
@@ -1788,12 +1769,14 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
     mFrameMetrics.mCumulativeResolution = aLayerMetrics.mCumulativeResolution;
     mFrameMetrics.mHasScrollgrab = aLayerMetrics.mHasScrollgrab;
 
-    if (scrollOffsetUpdated) {
+    // If the layers update was not triggered by our own repaint request, then
+    // we want to take the new scroll offset.
+    if (aLayerMetrics.GetScrollOffsetUpdated()) {
       APZC_LOG("%p updating scroll offset from (%f, %f) to (%f, %f)\n", this,
         mFrameMetrics.GetScrollOffset().x, mFrameMetrics.GetScrollOffset().y,
         aLayerMetrics.GetScrollOffset().x, aLayerMetrics.GetScrollOffset().y);
 
-      mFrameMetrics.CopyScrollInfoFrom(aLayerMetrics);
+      mFrameMetrics.SetScrollOffset(aLayerMetrics.GetScrollOffset());
 
       // Because of the scroll offset update, any inflight paint requests are
       // going to be ignored by layout, and so mLastDispatchedPaintMetrics
@@ -1804,14 +1787,13 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
     }
   }
 
-  if (scrollOffsetUpdated) {
+  if (aLayerMetrics.GetScrollOffsetUpdated()) {
     // Once layout issues a scroll offset update, it becomes impervious to
     // scroll offset updates from APZ until we acknowledge the update it sent.
     // This prevents APZ updates from clobbering scroll updates from other
     // more "legitimate" sources like content scripts.
     nsRefPtr<GeckoContentController> controller = GetGeckoContentController();
     if (controller) {
-      APZC_LOG("%p sending scroll update acknowledgement with gen %lu\n", this, aLayerMetrics.GetScrollGeneration());
       controller->AcknowledgeScrollUpdate(aLayerMetrics.GetScrollId(),
                                           aLayerMetrics.GetScrollGeneration());
     }
@@ -1868,11 +1850,11 @@ void AsyncPanZoomController::ZoomToRect(CSSRect aRect) {
     if (aRect.IsEmpty() ||
         (currentZoom == localMaxZoom && targetZoom >= localMaxZoom) ||
         (currentZoom == localMinZoom && targetZoom <= localMinZoom)) {
-      CSSSize compositedSize = mFrameMetrics.CalculateCompositedSizeInCssPixels();
+      CSSRect compositedRect = CSSRect(mFrameMetrics.CalculateCompositedRectInCssPixels());
       float y = scrollOffset.y;
       float newHeight =
-        cssPageRect.width * (compositedSize.height / compositedSize.width);
-      float dh = compositedSize.height - newHeight;
+        cssPageRect.width * (compositedRect.height / compositedRect.width);
+      float dh = compositedRect.height - newHeight;
 
       aRect = CSSRect(0.0f,
                       y + dh/2,
@@ -1888,16 +1870,16 @@ void AsyncPanZoomController::ZoomToRect(CSSRect aRect) {
     endZoomToMetrics.SetZoom(targetZoom / mFrameMetrics.mTransformScale);
 
     // Adjust the zoomToRect to a sensible position to prevent overscrolling.
-    CSSSize sizeAfterZoom = endZoomToMetrics.CalculateCompositedSizeInCssPixels();
+    CSSRect rectAfterZoom = CSSRect(endZoomToMetrics.CalculateCompositedRectInCssPixels());
 
     // If either of these conditions are met, the page will be
     // overscrolled after zoomed
-    if (aRect.y + sizeAfterZoom.height > cssPageRect.height) {
-      aRect.y = cssPageRect.height - sizeAfterZoom.height;
+    if (aRect.y + rectAfterZoom.height > cssPageRect.height) {
+      aRect.y = cssPageRect.height - rectAfterZoom.height;
       aRect.y = aRect.y > 0 ? aRect.y : 0;
     }
-    if (aRect.x + sizeAfterZoom.width > cssPageRect.width) {
-      aRect.x = cssPageRect.width - sizeAfterZoom.width;
+    if (aRect.x + rectAfterZoom.width > cssPageRect.width) {
+      aRect.x = cssPageRect.width - rectAfterZoom.width;
       aRect.x = aRect.x > 0 ? aRect.x : 0;
     }
 
@@ -2099,7 +2081,7 @@ void AsyncPanZoomController::SendAsyncScrollEvent() {
 
     isRoot = mFrameMetrics.mIsRoot;
     scrollableSize = mFrameMetrics.mScrollableRect.Size();
-    contentRect = mFrameMetrics.CalculateCompositedRectInCssPixels();
+    contentRect = CSSRect(mFrameMetrics.CalculateCompositedRectInCssPixels());
     contentRect.MoveTo(mCurrentAsyncScrollOffset);
   }
 

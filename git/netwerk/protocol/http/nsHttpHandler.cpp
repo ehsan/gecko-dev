@@ -1928,8 +1928,10 @@ nsHttpHandler::TickleWifi(nsIInterfaceRequestor *cb)
     if (!networkNavigator)
         return;
 
-    nsCOMPtr<nsINetworkProperties> networkProperties;
-    networkNavigator->GetProperties(getter_AddRefs(networkProperties));
+    nsCOMPtr<nsISupports> mozConnection;
+    networkNavigator->GetMozConnection(getter_AddRefs(mozConnection));
+    nsCOMPtr<nsINetworkProperties> networkProperties =
+        do_QueryInterface(mozConnection);
     if (!networkProperties)
         return;
 

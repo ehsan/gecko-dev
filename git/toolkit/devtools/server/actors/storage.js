@@ -783,8 +783,14 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
     this.childActorPool = new Map();
     this.childWindowPool = new Set();
 
+    // Get the top level content docshell for the tab we are targetting.
+    this.topDocshell = tabActor.window
+      .QueryInterface(Ci.nsIInterfaceRequestor)
+      .getInterface(Ci.nsIWebNavigation)
+      .QueryInterface(Ci.nsIDocShell)
+      .QueryInterface(Ci.nsIDocShellTreeItem);
     // Fetch all the inner iframe windows in this tab.
-    this.fetchChildWindows(this.parentActor.docShell);
+    this.fetchChildWindows(this.topDocshell);
 
     // Initialize the registered store types
     for (let [store, actor] of storageTypePool) {
@@ -799,7 +805,6 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
     tabActor.browser.addEventListener("pageshow", this.onPageChange, true);
     tabActor.browser.addEventListener("pagehide", this.onPageChange, true);
 
-    this.destroyed = false;
     this.boundUpdate = {};
     // The time which periodically flushes and transfers the updated store
     // objects.
@@ -815,11 +820,9 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
   destroy: function() {
     this.updateTimer.cancel();
     this.updateTimer = null;
-    this.layoutHelper = null;
     // Remove observers
     Services.obs.removeObserver(this, "content-document-global-created", false);
     Services.obs.removeObserver(this, "inner-window-destroyed", false);
-    this.destroyed = true;
     if (this.parentActor.browser) {
       this.parentActor.browser.removeEventListener(
         "pageshow", this.onPageChange, true);
@@ -831,8 +834,7 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
       actor.destroy();
     }
     this.childActorPool.clear();
-    this.childWindowPool.clear();
-    this.childWindowPool = this.childActorPool = null;
+    this.topDocshell = null;
   },
 
   /**
@@ -895,7 +897,7 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
     else if (topic == "inner-window-destroyed") {
       let window = this.getWindowFromInnerWindowID(subject);
       if (window) {
-        this.childWindowPool.delete(window);
+        this.childActorPool.delete(window);
         events.emit(this, "window-destroyed", window);
       }
     }
@@ -903,9 +905,6 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
   },
 
   onPageChange: function({target, type}) {
-    if (this.destroyed) {
-      return;
-    }
     let window = target.defaultView;
     if (type == "pagehide" && this.childWindowPool.delete(window)) {
       events.emit(this, "window-destroyed", window)
@@ -919,7 +918,7 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
   },
 
   /**
-   * Lists the available hosts for all the registered storage types.
+   * Lists the availabel hosts for all the registered storage types.
    *
    * @returns {object} An object containing with the following structure:
    *  - <storageType> : [{
@@ -930,7 +929,7 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
   listStores: method(function() {
     // Explictly recalculate the window-tree
     this.childWindowPool.clear();
-    this.fetchChildWindows(this.parentActor.docShell);
+    this.fetchChildWindows(this.topDocshell);
 
     let toReturn = {};
     for (let [name, value] of this.childActorPool) {

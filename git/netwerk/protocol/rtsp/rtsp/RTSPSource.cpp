@@ -52,9 +52,7 @@ RTSPSource::RTSPSource(
 {
     CHECK(aListener != NULL);
 
-    // Use main thread pointer, but allow access off main thread.
-    mListener =
-      new nsMainThreadPtrHolder<nsIStreamingProtocolListener>(aListener, false);
+    mListener = aListener;
     mPrintCount = 0;
 }
 
@@ -544,7 +542,7 @@ void RTSPSource::onConnected(bool isSeekable)
           meta->SetSampleRate(int32Value);
         } else {
           CHECK(format->findInt32(kKeyWidth, &int32Value));
-          meta->SetWidth(int32Value);
+	  meta->SetWidth(int32Value);
 
           CHECK(format->findInt32(kKeyHeight, &int32Value));
           meta->SetHeight(int32Value);
@@ -580,8 +578,8 @@ void RTSPSource::onDisconnected(const sp<AMessage> &msg) {
     CHECK(msg->findInt32("result", &err));
 
     if ((mLooper != NULL) && (mHandler != NULL)) {
-        mLooper->unregisterHandler(mHandler->id());
-        mHandler.clear();
+      mLooper->unregisterHandler(mHandler->id());
+      mHandler.clear();
     }
 
     mState = DISCONNECTED;
@@ -591,10 +589,11 @@ void RTSPSource::onDisconnected(const sp<AMessage> &msg) {
         finishDisconnectIfPossible();
     }
     if (mListener) {
-        nsresult reason = (err == OK) ? NS_OK : NS_ERROR_NET_TIMEOUT;
-        mListener->OnDisconnected(0, reason);
-        // Break the cycle reference between RtspController and us.
-        mListener = nullptr;
+      if (err == OK) {
+        mListener->OnDisconnected(0, NS_OK);
+      } else {
+        mListener->OnDisconnected(0, NS_ERROR_NET_TIMEOUT);
+      }
     }
     mAudioTrack = NULL;
     mVideoTrack = NULL;

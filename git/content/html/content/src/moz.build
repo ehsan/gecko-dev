@@ -183,5 +183,6 @@ LOCAL_INCLUDES += [
     '/layout/tables',
     '/layout/xul',
     '/netwerk/base/src',
+    '/xpcom/ds',
 ]
 

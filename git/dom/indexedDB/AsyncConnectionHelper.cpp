@@ -630,14 +630,14 @@ AsyncConnectionHelper::ConvertToArrayAndCleanup(
   return rv;
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 StackBasedEventTarget::AddRef()
 {
   NS_NOTREACHED("Don't call me!");
   return 2;
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 StackBasedEventTarget::Release()
 {
   NS_NOTREACHED("Don't call me!");

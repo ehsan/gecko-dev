@@ -62,7 +62,7 @@ extern JS_PUBLIC_API(void) JS_Abort(void);
 #if defined JS_USE_CUSTOM_ALLOCATOR
 # include "jscustomallocator.h"
 #else
-# if defined(DEBUG) || defined(JS_OOM_BREAKPOINT)
+# ifdef JS_DEBUG
 /*
  * In order to test OOM conditions, when the testing function
  * oomAfterAllocations COUNT is passed, we fail continuously after the NUM'th
@@ -89,7 +89,7 @@ static MOZ_NEVER_INLINE void js_failedAllocBreakpoint() { asm(""); }
 
 # else
 #  define JS_OOM_POSSIBLY_FAIL() do {} while(0)
-# endif /* DEBUG || JS_OOM_BREAKPOINT */
+# endif /* JS_DEBUG */
 
 static inline void* js_malloc(size_t bytes)
 {

@@ -183,7 +183,6 @@ struct GCSizes
     macro(_, _, marker) \
     macro(_, _, nurseryCommitted) \
     macro(_, _, nurseryDecommitted) \
-    macro(_, _, nurseryHugeSlots) \
     macro(_, _, storeBufferVals) \
     macro(_, _, storeBufferCells) \
     macro(_, _, storeBufferSlots) \

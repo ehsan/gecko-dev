@@ -16,22 +16,16 @@
 namespace js {
 
 template <size_t nbits>
-class BitArray
-{
+class BitArray {
   private:
     static const size_t bitsPerElement = sizeof(uintptr_t) * CHAR_BIT;
-    static const size_t numSlots = nbits / bitsPerElement + (nbits % bitsPerElement == 0 ? 0 : 1);
-    static const size_t paddingBits = (numSlots * bitsPerElement) - nbits;
-    static_assert(paddingBits < bitsPerElement, "More padding bits than expected.");
-    static const uintptr_t paddingMask = uintptr_t(-1) >> paddingBits;
-
+    static const size_t numSlots =
+        nbits / bitsPerElement + (nbits % bitsPerElement == 0 ? 0 : 1);
     uintptr_t map[numSlots];
 
   public:
     void clear(bool value) {
         memset(map, value ? 0xFF : 0, sizeof(map));
-        if (value)
-            map[numSlots - 1] &= paddingMask;
     }
 
     inline bool get(size_t offset) const {
@@ -40,13 +34,13 @@ class BitArray
         return map[index] & mask;
     }
 
-    void set(size_t offset) {
+    inline void set(size_t offset) {
         uintptr_t index, mask;
         getMarkWordAndMask(offset, &index, &mask);
         map[index] |= mask;
     }
 
-    void unset(size_t offset) {
+    inline void unset(size_t offset) {
         uintptr_t index, mask;
         getMarkWordAndMask(offset, &index, &mask);
         map[index] &= ~mask;
