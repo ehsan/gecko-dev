@@ -677,9 +677,6 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
                                                    SurfaceFormat::B8G8R8A8);
     NS_ENSURE_TRUE(dataSurface, NS_ERROR_FAILURE);
 
-    mappedOK = dataSurface->Map(DataSourceSurface::MapType::READ_WRITE, &map);
-    NS_ENSURE_TRUE(mappedOK, NS_ERROR_FAILURE);
-
     RefPtr<DrawTarget> dt =
       Factory::CreateDrawTargetForData(BackendType::CAIRO,
                                        map.mData,
@@ -688,6 +685,8 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
                                        SurfaceFormat::B8G8R8A8);
     dt->CopySurface(surface, IntRect(IntPoint(0, 0), iconSize),
                     IntPoint(0, 0));
+
+    mappedOK = dataSurface->Map(DataSourceSurface::MapType::READ, &map);
   } else {
     dataSurface = surface->GetDataSurface();
     mappedOK = dataSurface->Map(DataSourceSurface::MapType::READ, &map);

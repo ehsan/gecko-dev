@@ -7,6 +7,7 @@
 
 #include "mozilla/gfx/2D.h"
 #include "mozilla/layers/GrallocTextureClient.h"
+#include "mozilla/layers/CompositableClient.h"
 #include "mozilla/layers/CompositableForwarder.h"
 #include "mozilla/layers/ISurfaceAllocator.h"
 #include "mozilla/layers/ShadowLayerUtilsGralloc.h"
@@ -94,16 +95,28 @@ GrallocTextureClientOGL::GrallocTextureClientOGL(GrallocBufferActor* aActor,
                                                  gfx::IntSize aSize,
                                                  TextureFlags aFlags)
 : BufferTextureClient(nullptr, gfx::SurfaceFormat::UNKNOWN, aFlags)
+, mAllocator(nullptr)
 , mMappedBuffer(nullptr)
 {
   InitWith(aActor, aSize);
   MOZ_COUNT_CTOR(GrallocTextureClientOGL);
 }
 
+GrallocTextureClientOGL::GrallocTextureClientOGL(CompositableClient* aCompositable,
+                                                 gfx::SurfaceFormat aFormat,
+                                                 TextureFlags aFlags)
+: BufferTextureClient(aCompositable, aFormat, aFlags)
+, mAllocator(nullptr)
+, mMappedBuffer(nullptr)
+{
+  MOZ_COUNT_CTOR(GrallocTextureClientOGL);
+}
+
 GrallocTextureClientOGL::GrallocTextureClientOGL(ISurfaceAllocator* aAllocator,
                                                  gfx::SurfaceFormat aFormat,
                                                  TextureFlags aFlags)
-: BufferTextureClient(aAllocator, aFormat, aFlags)
+: BufferTextureClient(nullptr, aFormat, aFlags)
+, mAllocator(aAllocator)
 , mMappedBuffer(nullptr)
 {
   MOZ_COUNT_CTOR(GrallocTextureClientOGL);
@@ -442,6 +455,15 @@ GrallocTextureClientOGL::GetBufferSize() const
   // see Bug 908196
   MOZ_CRASH("This method should never be called.");
   return 0;
+}
+
+ISurfaceAllocator*
+GrallocTextureClientOGL::GetAllocator()
+{
+  MOZ_ASSERT(mCompositable || mAllocator);
+  return mCompositable ?
+         mCompositable->GetForwarder() :
+         mAllocator;
 }
 
 } // namesapace layers

@@ -1457,8 +1457,7 @@ nsFlexContainerFrame::SanityCheckAnonymousFlexItems() const
                "but it isn't");
     if (child->StyleContext()->GetPseudo() ==
         nsCSSAnonBoxes::anonymousFlexItem) {
-      MOZ_ASSERT(!prevChildWasAnonFlexItem ||
-                 HasAnyStateBits(NS_STATE_FLEX_CHILDREN_REORDERED),
+      MOZ_ASSERT(!prevChildWasAnonFlexItem || mChildrenHaveBeenReordered,
                  "two anon flex items in a row (shouldn't happen, unless our "
                  "children have been reordered with the 'order' property)");
 
@@ -2741,11 +2740,9 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
   // operations need to use a fancier LEQ function that also takes DOM order
   // into account, so that we can honor the spec's requirement that frames w/
   // equal "order" values are laid out in DOM order.
-
-  if (!HasAnyStateBits(NS_STATE_FLEX_CHILDREN_REORDERED)) {
-    if (SortChildrenIfNeeded<IsOrderLEQ>()) {
-      AddStateBits(NS_STATE_FLEX_CHILDREN_REORDERED);
-    }
+  if (!mChildrenHaveBeenReordered) {
+    mChildrenHaveBeenReordered =
+      SortChildrenIfNeeded<IsOrderLEQ>();
   } else {
     SortChildrenIfNeeded<IsOrderLEQWithDOMFallback>();
   }

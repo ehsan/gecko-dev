@@ -41,7 +41,6 @@
 #include "mozilla/dom/TextDecoder.h"
 #include "mozilla/dom/TouchEvent.h"
 #include "mozilla/dom/ShadowRoot.h"
-#include "mozilla/IMEStateManager.h"
 #include "mozilla/InternalMutationEvent.h"
 #include "mozilla/Likely.h"
 #include "mozilla/MouseEvents.h"
@@ -123,6 +122,7 @@
 #include "nsILineBreaker.h"
 #include "nsILoadContext.h"
 #include "nsILoadGroup.h"
+#include "nsIMEStateManager.h"
 #include "nsIMIMEService.h"
 #include "nsINode.h"
 #include "nsINodeInfo.h"
@@ -4324,7 +4324,7 @@ nsContentUtils::DestroyAnonymousContent(nsCOMPtr<Element>* aElement)
 void
 nsContentUtils::NotifyInstalledMenuKeyboardListener(bool aInstalling)
 {
-  IMEStateManager::OnInstalledMenuKeyboardListener(aInstalling);
+  nsIMEStateManager::OnInstalledMenuKeyboardListener(aInstalling);
 }
 
 static bool SchemeIs(nsIURI* aURI, const char* aScheme)

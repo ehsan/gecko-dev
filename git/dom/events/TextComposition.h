@@ -20,10 +20,9 @@
 
 class nsDispatchingCallback;
 class nsIEditor;
+class nsIMEStateManager;
 
 namespace mozilla {
-
-class IMEStateManager;
 
 /**
  * TextComposition represents a text composition.  This class stores the
@@ -33,7 +32,7 @@ class IMEStateManager;
 
 class TextComposition MOZ_FINAL
 {
-  friend class IMEStateManager;
+  friend class ::nsIMEStateManager;
 
   NS_INLINE_DECL_REFCOUNTING(TextComposition)
 
@@ -72,7 +71,7 @@ public:
   bool MatchesNativeContext(nsIWidget* aWidget) const;
 
   /**
-   * This is called when IMEStateManager stops managing the instance.
+   * This is called when nsIMEStateManager stops managing the instance.
    */
   void Destroy();
 
@@ -146,7 +145,7 @@ public:
 private:
   // This class holds nsPresContext weak.  This instance shouldn't block
   // destroying it.  When the presContext is being destroyed, it's notified to
-  // IMEStateManager::OnDestroyPresContext(), and then, it destroy
+  // nsIMEStateManager::OnDestroyPresContext(), and then, it destroy
   // this instance.
   nsPresContext* mPresContext;
   nsCOMPtr<nsINode> mNode;
@@ -253,7 +252,7 @@ private:
    * DispatchCompositionEventRunnable() dispatches a composition or text event
    * to the content.  Be aware, if you use this method, nsPresShellEventCB
    * isn't used.  That means that nsIFrame::HandleEvent() is never called.
-   * WARNING: The instance which is managed by IMEStateManager may be
+   * WARNING: The instance which is managed by nsIMEStateManager may be
    *          destroyed by this method call.
    *
    * @param aEventMessage       Must be one of composition event or text event.
@@ -271,7 +270,7 @@ private:
  * Managing with array is enough because only one composition is typically
  * there.  Even if user switches native IME context, it's very rare that
  * second or more composition is started.
- * It's assumed that this is used by IMEStateManager for storing all active
+ * It's assumed that this is used by nsIMEStateManager for storing all active
  * compositions in the process.  If the instance is it, each TextComposition
  * in the array can be destroyed by calling some methods of itself.
  */
