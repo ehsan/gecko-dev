@@ -77,7 +77,6 @@
 #include "jstracer.h"
 #include "jsdbgapi.h"
 #include "json.h"
-#include "jswrapper.h"
 
 #include "jsinterpinlines.h"
 #include "jsscopeinlines.h"
@@ -1055,7 +1054,7 @@ EvalCacheLookup(JSContext *cx, JSString *str, JSStackFrame *caller, uintN static
                     int i = 1;
 
                     if (objarray->length == 1) {
-                        if (JSScript::isValidOffset(script->regexpsOffset)) {
+                        if (script->regexpsOffset != 0) {
                             objarray = script->regexps();
                             i = 0;
                         } else {
@@ -1231,7 +1230,7 @@ EvalKernel(JSContext *cx, uintN argc, Value *vp, EvalType evalType, JSStackFrame
         script = Compiler::compileScript(cx, scopeobj, callerFrame,
                                          principals, tcflags,
                                          chars, length,
-                                         filename, lineno, str, staticLevel);
+                                         NULL, filename, lineno, str, staticLevel);
         if (!script)
             return false;
     }
@@ -1806,7 +1805,7 @@ obj_keys(JSContext *cx, uintN argc, Value *vp)
     }
 
     JS_ASSERT(props.length() <= UINT32_MAX);
-    JSObject *aobj = NewDenseCopiedArray(cx, jsuint(vals.length()), vals.begin());
+    JSObject *aobj = js_NewArrayObject(cx, jsuint(vals.length()), vals.begin());
     if (!aobj)
         return false;
     vp->setObject(*aobj);
@@ -2516,7 +2515,7 @@ obj_getOwnPropertyNames(JSContext *cx, uintN argc, Value *vp)
          }
     }
 
-    JSObject *aobj = NewDenseCopiedArray(cx, vals.length(), vals.begin());
+    JSObject *aobj = js_NewArrayObject(cx, vals.length(), vals.begin());
     if (!aobj)
         return false;
 
@@ -3297,155 +3296,6 @@ GetObjectSize(JSObject *obj)
            : sizeof(JSObject) + sizeof(js::Value) * obj->numFixedSlots();
 }
 
-bool
-JSObject::copyPropertiesFrom(JSContext *cx, JSObject *obj)
-{
-    // If we're not native, then we cannot copy properties.
-    JS_ASSERT(isNative() == obj->isNative());
-    if (!isNative())
-        return true;
-
-    Vector<const Shape *> shapes(cx);
-    for (Shape::Range r(obj->lastProperty()); !r.empty(); r.popFront()) {
-        if (!shapes.append(&r.front()))
-            return false;
-    }
-
-    size_t n = shapes.length();
-    while (n > 0) {
-        const Shape *shape = shapes[--n];
-        uintN attrs = shape->attributes();
-        PropertyOp getter = shape->getter();
-        if ((attrs & JSPROP_GETTER) && !cx->compartment->wrap(cx, &getter))
-            return false;
-        PropertyOp setter = shape->setter();
-        if ((attrs & JSPROP_SETTER) && !cx->compartment->wrap(cx, &setter))
-            return false;
-        Value v = shape->hasSlot() ? obj->getSlot(shape->slot) : UndefinedValue();
-        if (!cx->compartment->wrap(cx, &v))
-            return false;
-        if (!defineProperty(cx, shape->id, v, getter, setter, attrs))
-            return false;
-    }
-    return true;
-}
-
-static bool
-CopySlots(JSContext *cx, JSObject *from, JSObject *to)
-{
-    JS_ASSERT(!from->isNative() && !to->isNative());
-    size_t nslots = from->numSlots();
-    if (to->ensureSlots(cx, nslots))
-        return false;
-
-    size_t n = 0;
-    if (to->isWrapper() &&
-        (JSWrapper::wrapperHandler(to)->flags() & JSWrapper::CROSS_COMPARTMENT)) {
-        to->slots[0] = from->slots[0];
-        to->slots[1] = from->slots[1];
-        n = 2;
-    }
-
-    for (; n < nslots; ++n) {
-        Value v = from->slots[n];
-        if (!cx->compartment->wrap(cx, &v))
-            return false;
-        to->slots[n] = v;
-    }
-    return true;
-}
-
-JSObject *
-JSObject::clone(JSContext *cx, JSObject *proto, JSObject *parent)
-{
-    /*
-     * We can only clone native objects and proxies. Dense arrays are slowified if
-     * we try to clone them.
-     */
-    if (!isNative()) {
-        if (isDenseArray()) {
-            if (!makeDenseArraySlow(cx))
-                return NULL;
-        } else if (!isProxy()) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                 JSMSG_CANT_CLONE_OBJECT);
-            return NULL;
-        }
-    }
-    JSObject *clone = NewObject<WithProto::Given>(cx, getClass(),
-                                                  proto, parent,
-                                                  gc::FinalizeKind(finalizeKind()));
-    if (!clone)
-        return NULL;
-    if (isNative()) {
-        if (clone->isFunction() && (compartment() != clone->compartment())) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                 JSMSG_CANT_CLONE_OBJECT);
-            return NULL;
-        }
-
-        if (getClass()->flags & JSCLASS_HAS_PRIVATE)
-            clone->setPrivate(getPrivate());
-    } else {
-        JS_ASSERT(isProxy());
-        if (!CopySlots(cx, this, clone))
-            return NULL;
-    }
-    return clone;
-}
-
-static void
-TradeGuts(JSObject *a, JSObject *b)
-{
-    JS_ASSERT(a->compartment() == b->compartment());
-    JS_ASSERT(a->isFunction() == b->isFunction());
-
-    bool aInline = !a->hasSlotsArray();
-    bool bInline = !b->hasSlotsArray();
-
-    /* Trade the guts of the objects. */
-    const size_t size = GetObjectSize(a);
-    if (size == GetObjectSize(b)) {
-        /*
-         * If the objects are the same size, then we make no assumptions about
-         * whether they have dynamically allocated slots and instead just copy
-         * them over wholesale.
-         */
-        char tmp[tl::Max<sizeof(JSFunction), sizeof(JSObject_Slots16)>::result];
-        JS_ASSERT(size <= sizeof(tmp));
-
-        memcpy(tmp, a, size);
-        memcpy(a, b, size);
-        memcpy(b, tmp, size);
-
-        /* Fixup pointers for inline slots on the objects. */
-        if (aInline)
-            b->slots = b->fixedSlots();
-        if (bInline)
-            a->slots = a->fixedSlots();
-    } else {
-        /*
-         * If the objects are of differing sizes, then we only copy over the
-         * JSObject portion (things like class, etc.) and leave it to
-         * JSObject::clone to copy over the dynamic slots for us.
-         */
-        if (a->isFunction()) {
-            JSFunction tmp;
-            memcpy(&tmp, a, sizeof tmp);
-            memcpy(a, b, sizeof tmp);
-            memcpy(b, &tmp, sizeof tmp);
-        } else {
-            JSObject tmp;
-            memcpy(&tmp, a, sizeof tmp);
-            memcpy(a, b, sizeof tmp);
-            memcpy(b, &tmp, sizeof tmp);
-        }
-
-        JS_ASSERT(!aInline);
-        JS_ASSERT(!bInline);
-    }
-}
-
 /*
  * Use this method with extreme caution. It trades the guts of two objects and updates
  * scope ownership. This operation is not thread-safe, just as fast array to slow array
@@ -3455,11 +3305,17 @@ TradeGuts(JSObject *a, JSObject *b)
 bool
 JSObject::swap(JSContext *cx, JSObject *other)
 {
-    /*
-     * If we are swapping objects with a different number of builtin slots, force
-     * both to not use their inline slots.
-     */
-    if (GetObjectSize(this) != GetObjectSize(other)) {
+    size_t size = GetObjectSize(this);
+
+    if (size != GetObjectSize(other)) {
+        /*
+         * Objects with different numbers of fixed slots can be swapped only if they
+         * are both shapeless non-natives, to preserve the invariant that objects with the
+         * same shape have the same number of fixed slots.  Use a dynamic array for both.
+         */
+        JS_ASSERT(!isNative());
+        JS_ASSERT(!other->isNative());
+        size = sizeof(JSObject);
         if (!hasSlotsArray()) {
             if (!allocSlots(cx, numSlots()))
                 return false;
@@ -3470,31 +3326,24 @@ JSObject::swap(JSContext *cx, JSObject *other)
         }
     }
 
-    if (this->compartment() == other->compartment()) {
-        TradeGuts(this, other);
-        return true;
-    }
+    bool thisInline = !hasSlotsArray();
+    bool otherInline = !other->hasSlotsArray();
 
-    JSObject *thisClone;
-    JSObject *otherClone;
-    {
-        AutoCompartment ac(cx, other);
-        if (!ac.enter())
-            return false;
-        thisClone = this->clone(cx, other->getProto(), other->getParent());
-        if (!thisClone || !thisClone->copyPropertiesFrom(cx, this))
-            return false;
-    }
-    {
-        AutoCompartment ac(cx, this);
-        if (!ac.enter())
-            return false;
-        otherClone = other->clone(cx, other->getProto(), other->getParent());
-        if (!otherClone || !otherClone->copyPropertiesFrom(cx, other))
-            return false;
-    }
-    TradeGuts(this, otherClone);
-    TradeGuts(other, thisClone);
+    JS_STATIC_ASSERT(FINALIZE_OBJECT_LAST == FINALIZE_OBJECT16);
+
+    char tmp[tl::Max<sizeof(JSFunction), sizeof(JSObject_Slots16)>::result];
+    JS_ASSERT(size <= sizeof(tmp));
+
+    /* Trade the guts of the objects. */
+    memcpy(tmp, this, size);
+    memcpy(this, other, size);
+    memcpy(other, tmp, size);
+
+    /* Fixup pointers for inline slots on the objects. */
+    if (thisInline)
+        other->slots = other->fixedSlots();
+    if (otherInline)
+        this->slots = this->fixedSlots();
 
     return true;
 }
@@ -3538,9 +3387,9 @@ js_XDRBlockObject(JSXDRState *xdr, JSObject **objp)
     if (xdr->mode == JSXDR_ENCODE) {
         obj = *objp;
         parent = obj->getParent();
-        parentId = JSScript::isValidOffset(xdr->script->objectsOffset)
-                   ? FindObjectIndex(xdr->script->objects(), parent)
-                   : NO_PARENT_INDEX;
+        parentId = (xdr->script->objectsOffset == 0)
+                   ? NO_PARENT_INDEX
+                   : FindObjectIndex(xdr->script->objects(), parent);
         depth = (uint16)OBJ_BLOCK_DEPTH(cx, obj);
         count = (uint16)OBJ_BLOCK_COUNT(cx, obj);
         depthAndCount = (uint32)(depth << 16) | count;
@@ -3835,10 +3684,10 @@ js_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
      * Pre-brand the prototype and constructor if they have built-in methods.
      * This avoids extra shape guard branch exits in the tracejitted code.
      */
-    if (fs)
-        proto->brand(cx);
-    if (ctor != proto && static_fs)
-        ctor->brand(cx);
+    if (fs && !proto->brand(cx))
+        goto bad;
+    if (ctor != proto && static_fs && !ctor->brand(cx))
+        goto bad;
 
     /*
      * Make sure proto's emptyShape is available to be shared by objects of
@@ -3939,7 +3788,7 @@ JSObject::growSlots(JSContext *cx, size_t newcap)
     if (!hasSlotsArray())
         return allocSlots(cx, actualCapacity);
 
-    Value *tmpslots = (Value*) cx->realloc(slots, oldcap * sizeof(Value), actualCapacity * sizeof(Value));
+    Value *tmpslots = (Value*) cx->realloc(slots, actualCapacity * sizeof(Value));
     if (!tmpslots)
         return false;    /* Leave dslots as its old size. */
     slots = tmpslots;
@@ -4284,7 +4133,7 @@ JSObject::allocSlot(JSContext *cx, uint32 *slotp)
     return true;
 }
 
-bool
+void
 JSObject::freeSlot(JSContext *cx, uint32 slot)
 {
     uint32 limit = slotSpan();
@@ -4307,11 +4156,10 @@ JSObject::freeSlot(JSContext *cx, uint32 slot)
             JS_ASSERT_IF(last != SHAPE_INVALID_SLOT, last < slotSpan());
             vref.setPrivateUint32(last);
             last = slot;
-            return true;
+            return;
         }
     }
     vref.setUndefined();
-    return false;
 }
 
 /* JSBOXEDWORD_INT_MAX as a string */
@@ -4627,24 +4475,18 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
     }
 
     if (defineHow & JSDNP_CACHE_RESULT) {
-        JS_ASSERT_NOT_ON_TRACE(cx);
-        if (added) {
 #ifdef JS_TRACER
-            PropertyCacheEntry *entry =
+        JS_ASSERT_NOT_ON_TRACE(cx);
+        PropertyCacheEntry *entry =
 #endif
-                JS_PROPERTY_CACHE(cx).fill(cx, obj, 0, 0, obj, shape, true);
-            TRACE_2(SetPropHit, entry, shape);
-        } else {
-            TRACE_2(SetPropHit, JS_NO_PROP_CACHE_FILL, shape);
-        }
+            JS_PROPERTY_CACHE(cx).fill(cx, obj, 0, 0, obj, shape, added);
+        TRACE_2(SetPropHit, entry, shape);
     }
     if (propp)
         *propp = (JSProperty *) shape;
     return true;
 
-#ifdef JS_TRACER
 error: // TRACE_2 jumps here on error.
-#endif
     return false;
 }
 
@@ -5498,23 +5340,12 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
             shape = NULL;
         }
 
-        JS_ASSERT_IF(shape && shape->isMethod(), pobj->hasMethodBarrier());
-        JS_ASSERT_IF(shape && shape->isMethod(),
-                     &pobj->getSlot(shape->slot).toObject() == &shape->methodObject());
-        if (shape && (defineHow & JSDNP_SET_METHOD)) {
-            /*
-             * JSOP_SETMETHOD is assigning to an existing own property. If it
-             * is an identical method property, do nothing. Otherwise downgrade
-             * to ordinary assignment. Either way, do not fill the property
-             * cache, as the interpreter has no fast path for these unusual
-             * cases.
-             */
-            bool identical = shape->isMethod() && &shape->methodObject() == &vp->toObject();
-            if (!identical) {
-                if (!obj->methodShapeChange(cx, *shape))
-                    return false;
-
+        if (shape) {
+            if (shape->isMethod()) {
+                JS_ASSERT(pobj->hasMethodBarrier());
+            } else if ((defineHow & JSDNP_SET_METHOD) && obj->canHaveMethodBarrier()) {
                 JS_ASSERT(IsFunctionObject(*vp));
+                JS_ASSERT(!(attrs & (JSPROP_GETTER | JSPROP_SETTER)));
 
                 JSObject *funobj = &vp->toObject();
                 JSFunction *fun = GET_FUNCTION_PRIVATE(cx, funobj);
@@ -5525,11 +5356,6 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
                     vp->setObject(*funobj);
                 }
             }
-            if (defineHow & JSDNP_CACHE_RESULT) {
-                JS_ASSERT_NOT_ON_TRACE(cx);
-                TRACE_2(SetPropHit, JS_NO_PROP_CACHE_FILL, shape);
-            }
-            return identical || js_NativeSet(cx, obj, shape, false, vp);
         }
     }
 
@@ -6542,11 +6368,6 @@ dumpValue(const Value &v)
         } else {
             fputs("<unnamed function", stderr);
         }
-        if (fun->isInterpreted()) {
-            JSScript *script = fun->script();
-            fprintf(stderr, " (%s:%u)",
-                    script->filename ? script->filename : "", script->lineno);
-        }
         fprintf(stderr, " at %p (JSFunction at %p)>", (void *) funobj, (void *) fun);
     } else if (v.isObject()) {
         JSObject *obj = &v.toObject();
@@ -6607,8 +6428,6 @@ DumpShape(const Shape &shape)
     if (attrs & JSPROP_SETTER) fprintf(stderr, "setter ");
     if (attrs & JSPROP_SHARED) fprintf(stderr, "shared ");
     if (shape.isAlias()) fprintf(stderr, "alias ");
-    if (shape.isMethod()) fprintf(stderr, "method(%p) ", (void *) &shape.methodObject());
-
     if (JSID_IS_ATOM(id))
         dumpString(JSID_TO_STRING(id));
     else if (JSID_IS_INT(id))

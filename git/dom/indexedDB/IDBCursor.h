@@ -57,17 +57,23 @@ class IDBIndex;
 class IDBRequest;
 class IDBTransaction;
 
-class ContinueHelper;
-class ContinueObjectStoreHelper;
-class ContinueIndexHelper;
-class ContinueIndexObjectHelper;
+struct KeyValuePair
+{
+  Key key;
+  nsString value;
+};
+
+struct KeyKeyPair
+{
+  Key key;
+  Key value;
+};
+
+class ContinueRunnable;
 
 class IDBCursor : public nsIIDBCursor
 {
-  friend class ContinueHelper;
-  friend class ContinueObjectStoreHelper;
-  friend class ContinueIndexHelper;
-  friend class ContinueIndexObjectHelper;
+  friend class ContinueRunnable;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -75,50 +81,34 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBCursor)
 
-  // For OBJECTSTORE cursors.
   static
   already_AddRefed<IDBCursor>
   Create(IDBRequest* aRequest,
          IDBTransaction* aTransaction,
          IDBObjectStore* aObjectStore,
          PRUint16 aDirection,
-         const Key& aRangeKey,
-         const nsACString& aContinueQuery,
-         const nsACString& aContinueToQuery,
-         const Key& aKey,
-         const nsAString& aValue);
+         nsTArray<KeyValuePair>& aData);
 
-  // For INDEX cursors.
   static
   already_AddRefed<IDBCursor>
   Create(IDBRequest* aRequest,
          IDBTransaction* aTransaction,
          IDBIndex* aIndex,
          PRUint16 aDirection,
-         const Key& aRangeKey,
-         const nsACString& aContinueQuery,
-         const nsACString& aContinueToQuery,
-         const Key& aKey,
-         const Key& aObjectKey);
+         nsTArray<KeyKeyPair>& aData);
 
-  // For INDEXOBJECT cursors.
   static
   already_AddRefed<IDBCursor>
   Create(IDBRequest* aRequest,
          IDBTransaction* aTransaction,
          IDBIndex* aIndex,
          PRUint16 aDirection,
-         const Key& aRangeKey,
-         const nsACString& aContinueQuery,
-         const nsACString& aContinueToQuery,
-         const Key& aKey,
-         const Key& aObjectKey,
-         const nsAString& aValue);
+         nsTArray<KeyValuePair>& aData);
 
   enum Type
   {
     OBJECTSTORE = 0,
-    INDEXKEY,
+    INDEX,
     INDEXOBJECT
   };
 
@@ -135,11 +125,7 @@ protected:
   already_AddRefed<IDBCursor>
   CreateCommon(IDBRequest* aRequest,
                IDBTransaction* aTransaction,
-               IDBObjectStore* aObjectStore,
-               PRUint16 aDirection,
-               const Key& aRangeKey,
-               const nsACString& aContinueQuery,
-               const nsACString& aContinueToQuery);
+               PRUint16 aDirection);
 
   nsRefPtr<IDBRequest> mRequest;
   nsRefPtr<IDBTransaction> mTransaction;
@@ -149,26 +135,19 @@ protected:
   nsCOMPtr<nsIScriptContext> mScriptContext;
   nsCOMPtr<nsPIDOMWindow> mOwner;
 
-  nsCOMPtr<nsIVariant> mCachedKey;
-  nsCOMPtr<nsIVariant> mCachedObjectKey;
-
-  Type mType;
   PRUint16 mDirection;
-  nsCString mContinueQuery;
-  nsCString mContinueToQuery;
 
+  nsCOMPtr<nsIVariant> mCachedKey;
   jsval mCachedValue;
-
-  Key mRangeKey;
-
-  Key mKey;
-  Key mObjectKey;
-  nsString mValue;
-  Key mContinueToKey;
-
   bool mHaveCachedValue;
   bool mValueRooted;
+
   bool mContinueCalled;
+  PRUint32 mDataIndex;
+
+  Type mType;
+  nsTArray<KeyValuePair> mData;
+  nsTArray<KeyKeyPair> mKeyData;
 };
 
 END_INDEXEDDB_NAMESPACE

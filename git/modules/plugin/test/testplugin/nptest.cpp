@@ -569,13 +569,10 @@ NP_GetValue(void* future, NPPVariable aVariable, void* aValue) {
 }
 #endif
 
-static bool fillPluginFunctionTable(NPPluginFuncs* pFuncs)
+static void fillPluginFunctionTable(NPPluginFuncs* pFuncs)
 {
-  // Check the size of the provided structure based on the offset of the
-  // last member we need.
-  if (pFuncs->size < (offsetof(NPPluginFuncs, setvalue) + sizeof(void*)))
-    return false;
-
+  pFuncs->version = 11;
+  pFuncs->size = sizeof(*pFuncs);
   pFuncs->newp = NPP_New;
   pFuncs->destroy = NPP_Destroy;
   pFuncs->setwindow = NPP_SetWindow;
@@ -589,8 +586,6 @@ static bool fillPluginFunctionTable(NPPluginFuncs* pFuncs)
   pFuncs->urlnotify = testplugin_URLNotify;
   pFuncs->getvalue = NPP_GetValue;
   pFuncs->setvalue = NPP_SetValue;
-
-  return true;
 }
 
 #if defined(XP_MACOSX)
@@ -625,9 +620,7 @@ NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs)
   sNPClass.construct =      (NPConstructFunctionPtr)scriptableConstruct;
 
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
-  if (!fillPluginFunctionTable(pFuncs)) {
-    return NPERR_INVALID_FUNCTABLE_ERROR;
-  }
+  fillPluginFunctionTable(pFuncs);
 #endif
 
   return NPERR_NO_ERROR;
@@ -640,10 +633,7 @@ NPError OSCALL NP_GetEntryPoints(NPPluginFuncs* pFuncs)
 #endif
 #if defined(XP_MACOSX) || defined(XP_WIN) || defined(XP_OS2)
 {
-  if (!fillPluginFunctionTable(pFuncs)) {
-    return NPERR_INVALID_FUNCTABLE_ERROR;
-  }
-
+  fillPluginFunctionTable(pFuncs);
   return NPERR_NO_ERROR;
 }
 #endif

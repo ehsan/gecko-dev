@@ -60,7 +60,6 @@
 #include "nsContentUtils.h"
 #include "nsEscape.h"
 #include "nsNodeInfoManager.h"
-#include "nsNullPrincipal.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsNetUtil.h"
 #include "nsIScriptSecurityManager.h"
@@ -814,15 +813,12 @@ protected:
   nsresult NameFromNode(const nsIParserNode& aNode,
                         nsIAtom **aResult);
 
-  // The return value will be true if we have sanitized the rule
-  PRBool SanitizeStyleRule(nsICSSStyleRule *aRule, nsAutoString &aRuleText);
-
+  void SanitizeStyleRule(nsICSSStyleRule *aRule, nsAutoString &aRuleText);
+  
   PRPackedBool mSkip; // used when we descend into <style> or <script>
   PRPackedBool mProcessStyle; // used when style is explicitly white-listed
   PRPackedBool mInStyle; // whether we're inside a style element
   PRPackedBool mProcessComments; // used when comments are allowed
-
-  nsCOMPtr<nsIPrincipal> mNullPrincipal;
 
   // Use nsTHashTable as a hash set for our whitelists
   static nsTHashtable<nsISupportsHashKey>* sAllowedTags;
@@ -992,12 +988,7 @@ nsHTMLParanoidFragmentSink::AddAttributes(const nsIParserNode& aNode,
   nsresult rv;
   // use this to check for safe URIs in the few attributes that allow them
   nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
-  PRUint32 flags = nsIScriptSecurityManager::DISALLOW_INHERIT_PRINCIPAL;
   nsCOMPtr<nsIURI> baseURI;
-  if (!mNullPrincipal) {
-      mNullPrincipal = do_CreateInstance(NS_NULLPRINCIPAL_CONTRACTID, &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
-  }
 
   for (PRInt32 i = ac - 1; i >= 0; i--) {
     rv = NS_OK;
@@ -1031,7 +1022,9 @@ nsHTMLParanoidFragmentSink::AddAttributes(const nsIParserNode& aNode,
       rv = NS_NewURI(getter_AddRefs(attrURI), v, nsnull, baseURI);
       if (NS_SUCCEEDED(rv)) {
         rv = secMan->
-          CheckLoadURIWithPrincipal(mNullPrincipal, attrURI, flags);
+          CheckLoadURIWithPrincipal(mTargetDocument->NodePrincipal(),
+                attrURI,
+                nsIScriptSecurityManager::DISALLOW_INHERIT_PRINCIPAL);
       }
     }
     
@@ -1046,10 +1039,7 @@ nsHTMLParanoidFragmentSink::AddAttributes(const nsIParserNode& aNode,
       if (!baseURI) {
         baseURI = aContent->GetBaseURI();
       }
-
-      // Pass the CSS Loader object to the parser, to allow parser error reports
-      // to include the outer window ID.
-      nsCSSParser parser(mTargetDocument->CSSLoader());
+      nsCSSParser parser;
       nsCOMPtr<nsICSSStyleRule> rule;
       rv = parser.ParseStyleAttribute(aNode.GetValueAt(i),
                                       mTargetDocument->GetDocumentURI(),
@@ -1058,12 +1048,8 @@ nsHTMLParanoidFragmentSink::AddAttributes(const nsIParserNode& aNode,
                                       getter_AddRefs(rule));
       if (NS_SUCCEEDED(rv)) {
         nsAutoString cleanValue;
-        PRBool didSanitize = SanitizeStyleRule(rule, cleanValue);
-        if (didSanitize) {
-          aContent->SetAttr(kNameSpaceID_None, keyAtom, cleanValue, PR_FALSE);
-        } else {
-          aContent->SetAttr(kNameSpaceID_None, keyAtom, v, PR_FALSE);
-        }
+        SanitizeStyleRule(rule, cleanValue);
+        aContent->SetAttr(kNameSpaceID_None, keyAtom, cleanValue, PR_FALSE);
       } else {
         // we couldn't sanitize the style attribute, ignore it
         continue;
@@ -1153,7 +1139,6 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
     nsAutoString sanitizedStyleText;
     nsIContent* style = GetCurrentContent();
     if (style) {
-      PRBool didSanitize = PR_FALSE;
       // styleText will hold the text inside the style element.
       nsAutoString styleText;
       nsContentUtils::GetNodeTextContent(style, PR_FALSE, styleText);
@@ -1194,7 +1179,6 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
                 case nsICSSRule::IMPORT_RULE:
                 case nsICSSRule::MEDIA_RULE:
                 case nsICSSRule::PAGE_RULE:
-                  didSanitize = PR_TRUE;
                   // Ignore these rule types.
                   break;
                 case nsICSSRule::NAMESPACE_RULE:
@@ -1216,7 +1200,7 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
                   nsCOMPtr<nsICSSStyleRule> styleRule = do_QueryInterface(rule);
                   NS_ASSERTION(styleRule, "Must be a style rule");
                   nsAutoString decl;
-                  didSanitize = SanitizeStyleRule(styleRule, decl) || didSanitize;
+                  SanitizeStyleRule(styleRule, decl);
                   rv = styleRule->GetCssText(decl);
                   // Only add the rule when sanitized.
                   if (NS_SUCCEEDED(rv)) {
@@ -1228,28 +1212,23 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
           }
         }
       }
-      if (didSanitize) {
-        // Replace the style element content with its sanitized style text
-        nsContentUtils::SetNodeTextContent(style, sanitizedStyleText, PR_TRUE);
-      }
+      // Replace the style element content with its sanitized style text
+      nsContentUtils::SetNodeTextContent(style, sanitizedStyleText, PR_TRUE);
     }
   }
 
   return nsHTMLFragmentContentSink::CloseContainer(aTag);
 }
 
-PRBool
+void
 nsHTMLParanoidFragmentSink::SanitizeStyleRule(nsICSSStyleRule *aRule, nsAutoString &aRuleText)
 {
-  PRBool didSanitize = PR_FALSE;
   aRuleText.Truncate();
   css::Declaration *style = aRule->GetDeclaration();
   if (style) {
-    didSanitize = style->HasProperty(eCSSProperty_binding);
     style->RemoveProperty(eCSSProperty_binding);
     style->ToString(aRuleText);
   }
-  return didSanitize;
 }
 
 NS_IMETHODIMP

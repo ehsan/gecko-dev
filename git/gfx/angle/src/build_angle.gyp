@@ -16,6 +16,11 @@
         '.',
         '../include',
       ],
+      'variables': {
+        'glslang_cpp_file': '<(INTERMEDIATE_DIR)/glslang.cpp',
+        'glslang_tab_cpp_file': '<(INTERMEDIATE_DIR)/glslang_tab.cpp',
+        'glslang_tab_h_file': '<(INTERMEDIATE_DIR)/glslang_tab.h',
+      },
       'sources': [
         'compiler/BaseTypes.h',
         'compiler/Common.h',
@@ -23,10 +28,6 @@
         'compiler/ConstantUnion.h',
         'compiler/debug.cpp',
         'compiler/debug.h',
-        'compiler/glslang.h',
-        'compiler/glslang_lex.cpp',
-        'compiler/glslang_tab.cpp',
-        'compiler/glslang_tab.h',
         'compiler/InfoSink.cpp',
         'compiler/InfoSink.h',
         'compiler/Initialize.cpp',
@@ -57,10 +58,6 @@
         'compiler/SymbolTable.h',
         'compiler/Types.h',
         'compiler/unistd.h',
-        'compiler/util.cpp',
-        'compiler/util.h',
-        'compiler/ValidateLimitations.cpp',
-        'compiler/ValidateLimitations.h',
         'compiler/VariableInfo.cpp',
         'compiler/VariableInfo.h',
         'compiler/preprocessor/atom.c',
@@ -80,6 +77,10 @@
         'compiler/preprocessor/symbols.h',
         'compiler/preprocessor/tokens.c',
         'compiler/preprocessor/tokens.h',
+        # Generated files
+        '<(glslang_cpp_file)',
+        '<(glslang_tab_cpp_file)',
+        '<(glslang_tab_h_file)',
       ],
       'conditions': [
         ['OS=="win"', {
@@ -87,6 +88,35 @@
         }, { # else: posix
           'sources': ['compiler/ossource_posix.cpp'],
         }],
+      ],
+      'actions': [
+        {
+          'action_name': 'flex_glslang',
+          'inputs': ['compiler/glslang.l'],
+          'outputs': ['<(glslang_cpp_file)'],
+          'action': [
+            'flex',
+            '--noline',
+            '--nounistd',
+            '--outfile=<(glslang_cpp_file)',
+            '<(_inputs)',
+          ],
+          'message': 'Executing flex on <(_inputs)',
+        },
+        {
+          'action_name': 'bison_glslang',
+          'inputs': ['compiler/glslang.y'],
+          'outputs': ['<(glslang_tab_cpp_file)', '<(glslang_tab_h_file)'],
+          'action': [
+            'bison',
+            '--no-lines',
+            '--defines=<(glslang_tab_h_file)',
+            '--skeleton=yacc.c',
+            '--output=<(glslang_tab_cpp_file)',
+            '<(_inputs)',
+          ],
+          'message': 'Executing bison on <(_inputs)',
+        },
       ],
     },
     {
@@ -103,8 +133,6 @@
         'compiler/OutputGLSL.h',
         'compiler/TranslatorGLSL.cpp',
         'compiler/TranslatorGLSL.h',
-        'compiler/VersionGLSL.cpp',
-        'compiler/VersionGLSL.h',
       ],
     },
     {
@@ -123,8 +151,6 @@
         'compiler/TranslatorHLSL.h',
         'compiler/UnfoldSelect.cpp',
         'compiler/UnfoldSelect.h',
-        'compiler/SearchSymbol.cpp',
-        'compiler/SearchSymbol.h',
       ],
     },
   ],

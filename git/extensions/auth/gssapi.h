@@ -94,10 +94,6 @@
 
 EXTERN_C_BEGIN
 
-#if defined(XP_MACOSX)
-#    pragma pack(push,2)
-#endif
-
 /*
  * If the platform supports the xom.h header file, it should be
  * included here.
@@ -838,9 +834,6 @@ GSS_CALLCONV GSS_FUNC(gss_duplicate_name)
               );
 
 
-#if defined(XP_MACOSX)
-#    pragma pack(pop)
-#endif
 
 EXTERN_C_END
 

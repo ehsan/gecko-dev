@@ -36,12 +36,8 @@ Components.utils.import("resource://gre/modules/Services.jsm");
  * Before use setup must be called and finish must be called afterwards.
  */
 var Harness = {
-  // If set then the callback is called when an install is attempted and
-  // software installation is disabled.
-  installDisabledCallback: null,
-  // If set then the callback will be called when an install is blocked by the
-  // whitelist. The callback should return true to continue with the install
-  // anyway.
+  // If set then the install is expected to be blocked by the whitelist. The
+  // callback should return true to continue with the install anyway.
   installBlockedCallback: null,
   // If set will be called in the event of authentication being needed to get
   // the xpi. Should return a 2 element array of username and password, or
@@ -86,7 +82,6 @@ var Harness = {
 
       Services.prefs.setBoolPref(PREF_LOGGING_ENABLED, true);
       Services.obs.addObserver(this, "addon-install-started", false);
-      Services.obs.addObserver(this, "addon-install-disabled", false);
       Services.obs.addObserver(this, "addon-install-blocked", false);
       Services.obs.addObserver(this, "addon-install-failed", false);
       Services.obs.addObserver(this, "addon-install-complete", false);
@@ -99,7 +94,6 @@ var Harness = {
       registerCleanupFunction(function() {
         Services.prefs.clearUserPref(PREF_LOGGING_ENABLED);
         Services.obs.removeObserver(self, "addon-install-started");
-        Services.obs.removeObserver(self, "addon-install-disabled");
         Services.obs.removeObserver(self, "addon-install-blocked");
         Services.obs.removeObserver(self, "addon-install-failed");
         Services.obs.removeObserver(self, "addon-install-complete");
@@ -215,16 +209,6 @@ var Harness = {
 
   // Install blocked handling
 
-  installDisabled: function(installInfo) {
-    ok(!!this.installDisabledCallback, "Installation shouldn't have been disabled");
-    if (this.installDisabledCallback)
-      this.installDisabledCallback(installInfo);
-    installInfo.installs.forEach(function(install) {
-      install.cancel();
-    });
-    this.endTest();
-  },
-
   installBlocked: function(installInfo) {
     ok(!!this.installBlockedCallback, "Shouldn't have been blocked by the whitelist");
     if (this.installBlockedCallback && this.installBlockedCallback(installInfo)) {
@@ -325,9 +309,6 @@ var Harness = {
     case "addon-install-started":
       is(this.runningInstalls.length, installInfo.installs.length,
          "Should have seen the expected number of installs started");
-      break;
-    case "addon-install-disabled":
-      this.installDisabled(installInfo);
       break;
     case "addon-install-blocked":
       this.installBlocked(installInfo);

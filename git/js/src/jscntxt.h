@@ -928,7 +928,7 @@ struct TraceMonitor {
     TraceNativeStorage      *storage;
 
     /*
-     * There are 4 allocators here.  This might seem like overkill, but they
+     * There are 5 allocators here.  This might seem like overkill, but they
      * have different lifecycles, and by keeping them separate we keep the
      * amount of retained memory down significantly.  They are flushed (ie.
      * all the allocated memory is freed) periodically.
@@ -946,6 +946,10 @@ struct TraceMonitor {
      *   used to store LIR code and for all other elements in the LIR
      *   pipeline.
      *
+     * - reTempAlloc is just like tempAlloc, but is used for regexp
+     *   compilation in RegExpNativeCompiler rather than normal compilation in
+     *   TraceRecorder.
+     *
      * - codeAlloc has the same lifetime as dataAlloc, but its API is
      *   different (CodeAlloc vs. VMAllocator).  It's used for native code.
      *   It's also a good idea to keep code and data separate to avoid I-cache
@@ -954,6 +958,7 @@ struct TraceMonitor {
     VMAllocator*            dataAlloc;
     VMAllocator*            traceAlloc;
     VMAllocator*            tempAlloc;
+    VMAllocator*            reTempAlloc;
     nanojit::CodeAlloc*     codeAlloc;
     nanojit::Assembler*     assembler;
     FrameInfoCache*         frameCache;
@@ -1369,6 +1374,8 @@ struct JSRuntime {
     js::Value           negativeInfinityValue;
     js::Value           positiveInfinityValue;
 
+    js::DeflatedStringCache *deflatedStringCache;
+
     JSString            *emptyString;
 
     /* List of active contexts sharing this runtime; protected by gcLock. */
@@ -1581,7 +1588,6 @@ struct JSRuntime {
     jsrefcount          totalScripts;
     jsrefcount          liveEmptyScripts;
     jsrefcount          totalEmptyScripts;
-    jsrefcount          highWaterLiveScripts;
 #endif /* DEBUG */
 
 #ifdef JS_SCOPE_DEPTH_METER
@@ -1654,13 +1660,6 @@ struct JSRuntime {
         updateMallocCounter(bytes);
         void *p = ::js_calloc(bytes);
         return JS_LIKELY(!!p) ? p : onOutOfMemory(reinterpret_cast<void *>(1), bytes, cx);
-    }
-
-    void* realloc(void* p, size_t oldBytes, size_t newBytes, JSContext *cx = NULL) {
-        JS_ASSERT(oldBytes < newBytes);
-        updateMallocCounter(newBytes - oldBytes);
-        void *p2 = ::js_realloc(p, newBytes);
-        return JS_LIKELY(!!p2) ? p2 : onOutOfMemory(p, newBytes, cx);
     }
 
     void* realloc(void* p, size_t bytes, JSContext *cx = NULL) {
@@ -2302,10 +2301,6 @@ struct JSContext
         return runtime->realloc(p, bytes, this);
     }
 
-    inline void* realloc(void* p, size_t oldBytes, size_t newBytes) {
-        return runtime->realloc(p, oldBytes, newBytes, this);
-    }
-
     inline void free(void* p) {
 #ifdef JS_THREADSAFE
         if (gcBackgroundFree) {
@@ -2368,6 +2363,16 @@ struct JSContext
 #else
     void assertValidStackDepth(uintN /*depth*/) {}
 #endif
+
+    enum DollarPath {
+        DOLLAR_LITERAL = 1,
+        DOLLAR_AMP,
+        DOLLAR_PLUS,
+        DOLLAR_TICK,
+        DOLLAR_QUOT
+    };
+    volatile DollarPath *dollarPath;
+    volatile jschar *blackBox;
 
 private:
 

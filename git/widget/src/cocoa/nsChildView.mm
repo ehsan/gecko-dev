@@ -2718,8 +2718,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
 #endif
 
-  if (mGeckoChild->GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_OPENGL) {
-    LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(mGeckoChild->GetLayerManager(nsnull));
+  if (mGeckoChild->GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+    LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(mGeckoChild->GetLayerManager());
     manager->SetClippingRegion(paintEvent.region); 
     if (!mGLContext) {
       mGLContext = (NSOpenGLContext *)manager->gl()->GetNativeData(mozilla::gl::GLContext::NativeGLContext);
@@ -5365,15 +5365,9 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
       mGeckoChild->DispatchWindowEvent(pluginEvent);
       if (!mGeckoChild)
         return;
-
+      
       if (!mPluginComplexTextInputRequested) {
-#ifdef NP_NO_CARBON
-        [[ComplexTextInputPanel sharedComplexTextInputPanel] cancelComposition];
-#else
-        if (mPluginTSMDoc) {
-          ::FixTSMDocument(mPluginTSMDoc);
-        }
-#endif
+        // Ideally we'd cancel any TSM composition here.
         return;
       }
 

@@ -119,7 +119,7 @@ function test3()
 
     // Clean-up and next test.
     gBrowser.removeTab(gBrowser.selectedTab, {animate: false});
-    executeSoon(test4a);
+    executeSoon(test4);
   }, false);
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
@@ -133,10 +133,10 @@ function test3()
 }
 
 /**
- * In this test, we check that, we hide the popup by interacting with the
- * invalid element if the element becomes valid.
+ * In this test, we check that, we can hide the popup by interacting with the
+ * invalid element.
  */
-function test4a()
+function test4()
 {
   let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
@@ -155,46 +155,6 @@ function test4a()
 
     executeSoon(function () {
       checkPopupHide();
-
-      // Clean-up and next test.
-      gBrowser.removeTab(gBrowser.selectedTab, {animate: false});
-      executeSoon(test4b);
-    });
-  }, false);
-
-  tab.linkedBrowser.addEventListener("load", function(aEvent) {
-    tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
-
-    gBrowser.contentDocument.getElementById('s').click();
-  }, true);
-
-  gBrowser.selectedTab = tab;
-  gBrowser.selectedTab.linkedBrowser.loadURI(uri);
-}
-
-/**
- * In this test, we check that, we don't hide the popup by interacting with the
- * invalid element if the element is still invalid.
- */
-function test4b()
-{
-  let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input type='email' id='i' required><input id='s' type='submit'></form>";
-  let tab = gBrowser.addTab();
-
-  gInvalidFormPopup.addEventListener("popupshown", function() {
-    gInvalidFormPopup.removeEventListener("popupshown", arguments.callee, false);
-
-    let doc = gBrowser.contentDocument;
-    is(doc.activeElement, doc.getElementById('i'),
-       "First invalid element should be focused");
-
-    checkPopupShow();
-    checkPopupMessage(doc);
-
-    EventUtils.synthesizeKey("a", {});
-
-    executeSoon(function () {
-      checkPopupShow();
 
       // Clean-up and next test.
       gBrowser.removeTab(gBrowser.selectedTab, {animate: false});

@@ -66,75 +66,12 @@ class AudioWriteEvent : public nsRunnable
     PRUint32  mCount;
 };
 
-class AudioPauseEvent : public nsRunnable
-{
- public:
-  AudioPauseEvent(nsAudioStream* owner, PRBool aPause)
-  {
-    mOwner = owner;
-    mPause = aPause;
-  }
-
-  NS_IMETHOD Run()
-  {
-    if (mPause)
-        mOwner->Pause();
-    else
-        mOwner->Resume();
-    return NS_OK;
-  }
-
- private:
-    nsRefPtr<nsAudioStream> mOwner;
-    PRBool mPause;
-};
-
-class AudioDrainDoneEvent : public nsRunnable
-{
- public:
-  AudioDrainDoneEvent(AudioParent* owner)
-  {
-    mOwner = owner;
-  }
-
-  NS_IMETHOD Run()
-  {
-    mOwner->SendDrainDone();
-    return NS_OK;
-  }
-
- private:
-    nsRefPtr<AudioParent> mOwner;
-};
-
-class AudioDrainEvent : public nsRunnable
-{
- public:
-  AudioDrainEvent(AudioParent* parent, nsAudioStream* owner)
-  {
-    mParent = parent;
-    mOwner = owner;
-  }
-
-  NS_IMETHOD Run()
-  {
-    mOwner->Drain();
-    nsCOMPtr<nsIRunnable> event = new AudioDrainDoneEvent(mParent);
-    NS_DispatchToMainThread(event);
-    return NS_OK;
-  }
-
- private:
-    nsRefPtr<nsAudioStream> mOwner;
-    nsRefPtr<AudioParent> mParent;
-};
-
 NS_IMPL_THREADSAFE_ISUPPORTS1(AudioParent, nsITimerCallback)
 
 nsresult
 AudioParent::Notify(nsITimer* timer)
 {
-  if (!mIPCOpen || !mStream) {
+  if (!mStream) {
     timer->Cancel();
     return NS_ERROR_FAILURE;
   }
@@ -149,11 +86,11 @@ AudioParent::RecvWrite(
         const PRUint32& count)
 {
   nsCOMPtr<nsIRunnable> event = new AudioWriteEvent(mStream, data, count);
-  nsCOMPtr<nsIThread> thread = mStream->GetThread();
+  nsCOMPtr<nsIThread> thread = nsAudioStream::GetGlobalThread();
   thread->Dispatch(event, nsIEventTarget::DISPATCH_NORMAL);
   return true;
 }
-
+    
 bool
 AudioParent::RecvSetVolume(const float& aVolume)
 {
@@ -165,27 +102,24 @@ AudioParent::RecvSetVolume(const float& aVolume)
 bool
 AudioParent::RecvDrain()
 {
-  nsCOMPtr<nsIRunnable> event = new AudioDrainEvent(this, mStream);
-  nsCOMPtr<nsIThread> thread = mStream->GetThread();
-  thread->Dispatch(event, nsIEventTarget::DISPATCH_NORMAL);
+  if (mStream)
+    mStream->Drain();
   return true;
 }
 
 bool
 AudioParent::RecvPause()
 {
-  nsCOMPtr<nsIRunnable> event = new AudioPauseEvent(mStream, PR_TRUE);
-  nsCOMPtr<nsIThread> thread = mStream->GetThread();
-  thread->Dispatch(event, nsIEventTarget::DISPATCH_NORMAL);
+  if (mStream)
+    mStream->Pause();
   return true;
 }
 
 bool
 AudioParent::RecvResume()
 {
-  nsCOMPtr<nsIRunnable> event = new AudioPauseEvent(mStream, PR_FALSE);
-  nsCOMPtr<nsIThread> thread = mStream->GetThread();
-  thread->Dispatch(event, nsIEventTarget::DISPATCH_NORMAL);
+  if (mStream)
+    mStream->Resume();
   return true;
 }
 
@@ -205,7 +139,6 @@ AudioParent::Recv__delete__()
 }
 
 AudioParent::AudioParent(PRInt32 aNumChannels, PRInt32 aRate, PRInt32 aFormat)
-  : mIPCOpen(PR_TRUE)
 {
   mStream = nsAudioStream::AllocateStream();
   if (mStream)
@@ -221,12 +154,6 @@ AudioParent::AudioParent(PRInt32 aNumChannels, PRInt32 aRate, PRInt32 aFormat)
 
 AudioParent::~AudioParent()
 {
-}
-
-void
-AudioParent::ActorDestroy(ActorDestroyReason aWhy)
-{
-  mIPCOpen = PR_FALSE;
 }
 
 } // namespace dom

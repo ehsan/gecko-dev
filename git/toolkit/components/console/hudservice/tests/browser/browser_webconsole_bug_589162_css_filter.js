@@ -21,8 +21,11 @@ function onContentLoaded()
   let filterBox = HUD.querySelector(".hud-filter-box");
   let outputNode = HUD.querySelector(".hud-output-node");
 
-  let msg = "the unknown CSS property warning is displayed";
-  testLogEntry(outputNode, "foobarCssParser", msg, true);
+  let warningFound = "the unknown CSS property warning is displayed";
+  let warningNotFound = "could not find the unknown CSS property warning";
+
+  testLogEntry(outputNode, "foobarCssParser",
+               { success: warningFound, err: warningNotFound }, true);
 
   HUDService.setFilterState(hudId, "cssparser", false);
   let nodes = HUD.querySelectorAll(".hud-msg-node");
@@ -31,9 +34,13 @@ function onContentLoaded()
     function (){
       HUDService.setFilterState(hudId, "cssparser", false);
 
-      let msg = "the unknown CSS property warning is not displayed, " +
-                "after filtering";
-      testLogEntry(outputNode, "foobarCssParser", msg, true, true);
+      warningNotFound = "the unknown CSS property warning is not displayed, " +
+        "after filtering";
+      warningFound = "the unknown CSS property warning is still displayed, " +
+        "after filtering";
+
+      testLogEntry(outputNode, "foobarCssParser",
+                   { success: warningNotFound, err: warningFound }, true, true);
     }
   );
 

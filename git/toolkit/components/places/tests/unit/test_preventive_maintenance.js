@@ -97,10 +97,8 @@ function addPlace(aUrl, aFavicon) {
 
 function addBookmark(aPlaceId, aType, aParent, aKeywordId, aFolderType, aTitle) {
   let stmt = mDBConn.createStatement(
-    "INSERT INTO moz_bookmarks (fk, type, parent, keyword_id, folder_type, "
-  +                            "title, guid) "
-  + "VALUES (:place_id, :type, :parent, :keyword_id, :folder_type, :title, "
-  +         "GENERATE_GUID())");
+    "INSERT INTO moz_bookmarks (fk, type, parent, keyword_id, folder_type, title) " +
+    "VALUES (:place_id, :type, :parent, :keyword_id, :folder_type, :title)");
   stmt.params["place_id"] = aPlaceId || null;
   stmt.params["type"] = aType || bs.TYPE_BOOKMARK;
   stmt.params["parent"] = aParent || bs.unfiledBookmarksFolder;

@@ -62,7 +62,6 @@ private:
   nsString mDriverVersion;
   nsString mDriverDate;
   nsString mDeviceKey;
-  nsString mDeviceKeyDebug;
 
   nsresult GetFeatureStatusImpl(PRInt32 aFeature, PRInt32 *aStatus, nsAString & aSuggestedDriverVersion);
 };

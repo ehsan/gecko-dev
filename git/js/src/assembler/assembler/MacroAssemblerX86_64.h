@@ -380,12 +380,6 @@ public:
         m_assembler.movzbl_rr(dest, dest);
     }
 
-    void setPtr(Condition cond, RegisterID left, ImmPtr right, RegisterID dest)	
-    {
-        move(right, scratchRegister);
-        setPtr(cond, left, scratchRegister, dest);
-    }
-
     Jump branchPtr(Condition cond, RegisterID left, RegisterID right)
     {
         m_assembler.cmpq_rr(right, left);

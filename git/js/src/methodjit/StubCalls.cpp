@@ -1368,10 +1368,14 @@ stubs::Neg(VMFrame &f)
 JSObject * JS_FASTCALL
 stubs::NewInitArray(VMFrame &f, uint32 count)
 {
-    JSObject *obj = NewDenseAllocatedArray(f.cx, count);
-    if (!obj)
+    JSContext *cx = f.cx;
+    gc::FinalizeKind kind = GuessObjectGCKind(count, true);
+
+    JSObject *obj = NewArrayWithKind(cx, kind);
+    if (!obj || !obj->ensureSlots(cx, count))
         THROWV(NULL);
 
+    obj->setArrayLength(count);
     return obj;
 }
 
@@ -2446,15 +2450,15 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
 {
     jsbytecode *jpc = pc;
     JSScript *script = f.fp()->script();
-    bool ctor = f.fp()->isConstructing();
+    void **nmap = script->nativeMap(f.fp()->isConstructing());
 
     /* This is correct because the compiler adjusts the stack beforehand. */
     Value lval = f.regs.sp[-1];
 
     if (!lval.isPrimitive()) {
-        void* native = script->nativeCodeForPC(ctor, pc + GET_JUMP_OFFSET(pc));
-        JS_ASSERT(native);
-        return native;
+        ptrdiff_t offs = (pc + GET_JUMP_OFFSET(pc)) - script->code;
+        JS_ASSERT(nmap[offs]);
+        return nmap[offs];
     }
 
     JS_ASSERT(pc[0] == JSOP_LOOKUPSWITCH);
@@ -2473,10 +2477,9 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
             if (rval.isString()) {
                 JSString *rhs = rval.toString();
                 if (rhs == str || js_EqualStrings(str, rhs)) {
-                    void* native = script->nativeCodeForPC(ctor,
-                                                           jpc + GET_JUMP_OFFSET(pc));
-                    JS_ASSERT(native);
-                    return native;
+                    ptrdiff_t offs = (jpc + GET_JUMP_OFFSET(pc)) - script->code;
+                    JS_ASSERT(nmap[offs]);
+                    return nmap[offs];
                 }
             }
             pc += JUMP_OFFSET_LEN;
@@ -2487,10 +2490,9 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
             Value rval = script->getConst(GET_INDEX(pc));
             pc += INDEX_LEN;
             if (rval.isNumber() && d == rval.toNumber()) {
-                void* native = script->nativeCodeForPC(ctor,
-                                                       jpc + GET_JUMP_OFFSET(pc));
-                JS_ASSERT(native);
-                return native;
+                ptrdiff_t offs = (jpc + GET_JUMP_OFFSET(pc)) - script->code;
+                JS_ASSERT(nmap[offs]);
+                return nmap[offs];
             }
             pc += JUMP_OFFSET_LEN;
         }
@@ -2499,18 +2501,17 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
             Value rval = script->getConst(GET_INDEX(pc));
             pc += INDEX_LEN;
             if (lval == rval) {
-                void* native = script->nativeCodeForPC(ctor,
-                                                       jpc + GET_JUMP_OFFSET(pc));
-                JS_ASSERT(native);
-                return native;
+                ptrdiff_t offs = (jpc + GET_JUMP_OFFSET(pc)) - script->code;
+                JS_ASSERT(nmap[offs]);
+                return nmap[offs];
             }
             pc += JUMP_OFFSET_LEN;
         }
     }
 
-    void* native = script->nativeCodeForPC(ctor, jpc + GET_JUMP_OFFSET(jpc));
-    JS_ASSERT(native);
-    return native;
+    ptrdiff_t offs = (jpc + GET_JUMP_OFFSET(jpc)) - script->code;
+    JS_ASSERT(nmap[offs]);
+    return nmap[offs];
 }
 
 void * JS_FASTCALL
@@ -2555,12 +2556,13 @@ stubs::TableSwitch(VMFrame &f, jsbytecode *origPc)
     }
 
 finally:
+    JSScript *script = f.fp()->script();
+    void **nmap = script->nativeMap(f.fp()->isConstructing());
+
     /* Provide the native address. */
-    JSScript* script = f.fp()->script();
-    void* native = script->nativeCodeForPC(f.fp()->isConstructing(),
-                                           originalPC + jumpOffset);
-    JS_ASSERT(native);
-    return native;
+    ptrdiff_t offset = (originalPC + jumpOffset) - script->code;
+    JS_ASSERT(nmap[offset]);
+    return nmap[offset];
 }
 
 void JS_FASTCALL
@@ -2570,8 +2572,8 @@ stubs::Unbrand(VMFrame &f)
     if (!thisv.isObject())
         return;
     JSObject *obj = &thisv.toObject();
-    if (obj->isNative())
-        obj->unbrand(f.cx);
+    if (obj->isNative() && !obj->unbrand(f.cx))
+        THROW();
 }
 
 void JS_FASTCALL

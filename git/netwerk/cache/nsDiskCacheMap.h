@@ -441,12 +441,10 @@ public:
 
     nsresult    GetFileForDiskCacheRecord( nsDiskCacheRecord * record,
                                            PRBool              meta,
-                                           PRBool              createPath,
                                            nsIFile **          result);
                                           
     nsresult    GetLocalFileForDiskCacheRecord( nsDiskCacheRecord *  record,
                                                 PRBool               meta,
-                                                PRBool               createPath,
                                                 nsILocalFile **      result);
 
     // On success, this returns the buffer owned by nsDiskCacheMap,
@@ -500,8 +498,6 @@ private:
     nsresult    OpenBlockFiles();
     nsresult    CloseBlockFiles(PRBool flush);
     PRBool      CacheFilesExist();
-
-    nsresult    CreateCacheSubDirectories();
 
     PRUint32    CalculateFileIndex(PRUint32 size);
 

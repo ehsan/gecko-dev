@@ -646,11 +646,7 @@ var AddonManagerInternal = {
       let weblistener = Cc["@mozilla.org/addons/web-install-listener;1"].
                         getService(Ci.amIWebInstallListener);
 
-      if (!this.isInstallEnabled(aMimetype, aURI)) {
-        weblistener.onWebInstallDisabled(aSource, aURI, aInstalls,
-                                         aInstalls.length);
-      }
-      else if (!this.isInstallAllowed(aMimetype, aURI)) {
+      if (!this.isInstallAllowed(aMimetype, aURI)) {
         if (weblistener.onWebInstallBlocked(aSource, aURI, aInstalls,
                                             aInstalls.length)) {
           aInstalls.forEach(function(aInstall) {

@@ -43,10 +43,11 @@
 #include "SVGLengthList.h"
 #include "nsIDOMSVGLength.h"
 #include "nsIDOMSVGRect.h"
-#include "DOMSVGPoint.h"
+#include "nsIDOMSVGPoint.h"
 #include "nsSVGGlyphFrame.h"
 #include "nsSVGTextPathFrame.h"
 #include "nsSVGPathElement.h"
+#include "nsSVGPoint.h"
 #include "nsSVGRect.h"
 #include "nsDOMError.h"
 #include "gfxContext.h"
@@ -380,9 +381,7 @@ nsSVGGlyphFrame::PaintSVG(nsSVGRenderState *aContext,
   iter.SetInitialMatrix(gfx);
 
   if (SetupCairoFill(gfx)) {
-    gfxMatrix matrix = gfx->CurrentMatrix();
     FillCharacters(&iter, gfx);
-    gfx->SetMatrix(matrix);
   }
 
   if (SetupCairoStroke(gfx)) {
@@ -1098,8 +1097,7 @@ nsSVGGlyphFrame::GetStartPositionOfChar(PRUint32 charnum,
   if (!iter.AdvanceToCharacter(charnum))
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-  NS_ADDREF(*_retval = new DOMSVGPoint(iter.GetPositionData().pos));
-  return NS_OK;
+  return NS_NewSVGPoint(_retval, iter.GetPositionData().pos);
 }
 
 NS_IMETHODIMP
@@ -1116,8 +1114,7 @@ nsSVGGlyphFrame::GetEndPositionOfChar(PRUint32 charnum,
   iter.SetupForMetrics(tmpCtx);
   tmpCtx->MoveTo(gfxPoint(mTextRun->GetAdvanceWidth(charnum, 1, nsnull), 0));
   tmpCtx->IdentityMatrix();
-  NS_ADDREF(*_retval = new DOMSVGPoint(tmpCtx->CurrentPoint()));
-  return NS_OK;
+  return NS_NewSVGPoint(_retval, tmpCtx->CurrentPoint());
 }
 
 NS_IMETHODIMP
@@ -1253,7 +1250,7 @@ nsSVGGlyphFrame::GetEffectiveDxDy(PRInt32 strLength, nsTArray<float> &aDx, nsTAr
   aDy.AppendElements(dy.Elements() + mStartIndex, dyCount);
 }
 
-const SVGNumberList*
+already_AddRefed<nsIDOMSVGNumberList>
 nsSVGGlyphFrame::GetRotate()
 {
   nsSVGTextContainerFrame *containerFrame;
@@ -1443,22 +1440,6 @@ NS_IMETHODIMP_(void)
 nsSVGGlyphFrame::SetWhitespaceHandling(PRUint8 aWhitespaceHandling)
 {
   mWhitespaceHandling = aWhitespaceHandling;
-}
-
-NS_IMETHODIMP_(PRBool)
-nsSVGGlyphFrame::IsAllWhitespace()
-{
-  const nsTextFragment* text = mContent->GetText();
-
-  if (text->Is2b())
-    return PR_FALSE;
-  PRInt32 len = text->GetLength();
-  const char* str = text->Get1b();
-  for (PRInt32 i = 0; i < len; ++i) {
-    if (!NS_IsAsciiWhitespace(str[i]))
-      return PR_FALSE;
-  }
-  return PR_TRUE;
 }
 
 //----------------------------------------------------------------------

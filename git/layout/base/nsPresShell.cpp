@@ -852,7 +852,6 @@ public:
                    PRBool aWillSendDidPaint);
   NS_IMETHOD HandleEvent(nsIView*        aView,
                          nsGUIEvent*     aEvent,
-                         PRBool          aDontRetargetEvents,
                          nsEventStatus*  aEventStatus);
   virtual NS_HIDDEN_(nsresult) HandleDOMEventWithTarget(nsIContent* aTargetContent,
                                                         nsEvent* aEvent,
@@ -1300,6 +1299,10 @@ protected:
 
   static PRBool sDisableNonTestMouseEvents;
 
+  // false if a check should be done for key/ime events that should be
+  // retargeted to the currently focused presshell
+  static PRBool sDontRetargetEvents;
+
 private:
 
   PRBool InZombieDocument(nsIContent *aContent);
@@ -1462,6 +1465,7 @@ public:
 };
 
 PRBool PresShell::sDisableNonTestMouseEvents = PR_FALSE;
+PRBool PresShell::sDontRetargetEvents = PR_FALSE;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* PresShell::gLog;
@@ -4334,6 +4338,22 @@ PresShell::ScrollFrameRectIntoView(nsIFrame*     aFrame,
       if (aFlags & nsIPresShell::SCROLL_FIRST_ANCESTOR_ONLY) {
         break;
       }
+
+      nsRect scrollPort = sf->GetScrollPortRect();
+      if (rect.XMost() < scrollPort.x ||
+          rect.x > scrollPort.XMost() ||
+          rect.YMost() < scrollPort.y ||
+          rect.y > scrollPort.YMost()) {
+        // We tried to show the rectangle, but none of it is visible,
+        // not even an edge.
+        // Stop trying to scroll ancestors into view.
+        break;
+      }
+
+      // Restrict rect to the area that is actually visible through
+      // the scrollport. We don't want to try to scroll some clipped-out
+      // part of 'rect' into view in some ancestor.
+      rect.IntersectRect(rect, sf->GetScrollPortRect());
     }
     rect += container->GetPosition();
     nsIFrame* parent = container->GetParent();
@@ -5274,8 +5294,6 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
 
   NS_ENSURE_TRUE(!(aFlags & RENDER_IS_UNTRUSTED), NS_ERROR_NOT_IMPLEMENTED);
 
-  nsAutoScriptBlocker blockScripts;
-
   // Set up the rectangle as the path in aThebesContext
   gfxRect r(0, 0,
             nsPresContext::AppUnitsToFloatCSSPixels(aRect.width),
@@ -5559,7 +5577,6 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
   nsRect ancestorRect = ancestorFrame->GetVisualOverflowRect();
 
   // get a display list containing the range
-  info->mBuilder.SetIncludeAllOutOfFlows();
   if (aForPrimarySelection) {
     info->mBuilder.SetSelectedFramesOnly();
   }
@@ -6292,7 +6309,10 @@ PresShell::RetargetEventToParent(nsGUIEvent*     aEvent,
   nsIView *parentRootView;
   parentPresShell->GetViewManager()->GetRootView(parentRootView);
   
-  return parentViewObserver->HandleEvent(parentRootView, aEvent, PR_TRUE, aEventStatus);
+  sDontRetargetEvents = PR_TRUE;
+  nsresult rv = parentViewObserver->HandleEvent(parentRootView, aEvent, aEventStatus);
+  sDontRetargetEvents = PR_FALSE;
+  return rv;
 }
 
 void
@@ -6314,7 +6334,6 @@ PresShell::GetFocusedDOMWindowInOurWindow()
 NS_IMETHODIMP
 PresShell::HandleEvent(nsIView         *aView,
                        nsGUIEvent*     aEvent,
-                       PRBool          aDontRetargetEvents,
                        nsEventStatus*  aEventStatus)
 {
   NS_ASSERTION(aView, "null view");
@@ -6344,7 +6363,7 @@ PresShell::HandleEvent(nsIView         *aView,
     NS_IS_MOUSE_EVENT(aEvent) ? GetCapturingContent() : nsnull;
 
   nsCOMPtr<nsIDocument> retargetEventDoc;
-  if (!aDontRetargetEvents) {
+  if (!sDontRetargetEvents) {
     // key and IME related events should not cross top level window boundary.
     // Basically, such input events should be fired only on focused widget.
     // However, some IMEs might need to clean up composition after focused
@@ -6383,7 +6402,9 @@ PresShell::HandleEvent(nsIView         *aView,
 
         nsIView *view;
         presShell->GetViewManager()->GetRootView(view);
-        nsresult rv = viewObserver->HandleEvent(view, aEvent, PR_TRUE, aEventStatus);
+        sDontRetargetEvents = PR_TRUE;
+        nsresult rv = viewObserver->HandleEvent(view, aEvent, aEventStatus);
+        sDontRetargetEvents = PR_FALSE;
         return rv;
       }
     }
@@ -7480,15 +7501,13 @@ PresShell::Freeze()
 
   mDocument->EnumerateFreezableElements(FreezeElement, nsnull);
 
-  if (mCaret) {
+  if (mCaret)
     mCaret->SetCaretVisible(PR_FALSE);
-  }
 
   mPaintingSuppressed = PR_TRUE;
 
-  if (mDocument) {
+  if (mDocument)
     mDocument->EnumerateSubDocuments(FreezeSubDocument, nsnull);
-  }
 
   nsPresContext* presContext = GetPresContext();
   if (presContext &&
@@ -7497,9 +7516,7 @@ PresShell::Freeze()
   }
 
   mFrozen = PR_TRUE;
-  if (mDocument) {
-    UpdateImageLockingState();
-  }
+  UpdateImageLockingState();
 }
 
 void
@@ -9247,8 +9264,6 @@ SetExternalResourceIsActive(nsIDocument* aDocument, void* aClosure)
 nsresult
 PresShell::SetIsActive(PRBool aIsActive)
 {
-  NS_PRECONDITION(mDocument, "should only be called with a document");
-
   mIsActive = aIsActive;
   nsPresContext* presContext = GetPresContext();
   if (presContext &&
@@ -9257,8 +9272,10 @@ PresShell::SetIsActive(PRBool aIsActive)
   }
 
   // Propagate state-change to my resource documents' PresShells
-  mDocument->EnumerateExternalResources(SetExternalResourceIsActive,
-                                        &aIsActive);
+  if (mDocument) {
+    mDocument->EnumerateExternalResources(SetExternalResourceIsActive,
+                                          &aIsActive);
+  }
   return UpdateImageLockingState();
 }
 

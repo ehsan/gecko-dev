@@ -953,23 +953,6 @@ jsdProperty::GetVarArgSlot(PRUint32 *_rval)
 /* Scripts */
 NS_IMPL_THREADSAFE_ISUPPORTS2(jsdScript, jsdIScript, jsdIEphemeral)
 
-static NS_IMETHODIMP
-AssignToJSString(nsACString *x, JSString *str)
-{
-    if (!str) {
-        x->SetLength(0);
-        return NS_OK;
-    }
-    size_t length = JS_GetStringEncodingLength(NULL, str);
-    if (length == size_t(-1))
-        return NS_ERROR_FAILURE;
-    x->SetLength(PRUint32(length));
-    if (x->Length() != PRUint32(length))
-        return NS_ERROR_OUT_OF_MEMORY;
-    JS_EncodeStringToBuffer(str, x->BeginWriting(), length);
-    return NS_OK;
-}
-
 jsdScript::jsdScript (JSDContext *aCx, JSDScript *aScript) : mValid(PR_FALSE),
                                                              mTag(0),
                                                              mCx(aCx),
@@ -988,12 +971,8 @@ jsdScript::jsdScript (JSDContext *aCx, JSDScript *aScript) : mValid(PR_FALSE),
          * gets destroyed. */
         JSD_LockScriptSubsystem(mCx);
         mFileName = new nsCString(JSD_GetScriptFilename(mCx, mScript));
-        mFunctionName = new nsCString();
-        if (mFunctionName) {
-            JSString *str = JSD_GetScriptFunctionName(mCx, mScript);
-            if (str)
-                AssignToJSString(mFunctionName, str);
-        }
+        mFunctionName =
+            new nsCString(JSD_GetScriptFunctionName(mCx, mScript));
         mBaseLineNumber = JSD_GetScriptBaseLineNumber(mCx, mScript);
         mLineExtent = JSD_GetScriptLineExtent(mCx, mScript);
         mFirstPC = JSD_GetClosestPC(mCx, mScript, 0);
@@ -1865,11 +1844,7 @@ NS_IMETHODIMP
 jsdStackFrame::GetFunctionName(nsACString &_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    JSString *str = JSD_GetNameForStackFrame(mCx, mThreadState, mStackFrameInfo);
-    if (str)
-        return AssignToJSString(&_rval, str);
-    
-    _rval.Assign("anonymous");
+    _rval.Assign(JSD_GetNameForStackFrame(mCx, mThreadState, mStackFrameInfo));
     return NS_OK;
 }
 
@@ -2197,7 +2172,8 @@ NS_IMETHODIMP
 jsdValue::GetJsFunctionName(nsACString &_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    return AssignToJSString(&_rval, JSD_GetValueFunctionName(mCx, mValue));
+    _rval.Assign(JSD_GetValueFunctionName(mCx, mValue));
+    return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -38,12 +38,18 @@ function start() {
     }
     var context = null;
     try {
-        context = canvas.getContext("webgl");
+        context = canvas.getContext("experimental-webgl");
     } catch(e) {
     }
-		if (!context) {
+    if (!context) {
       try {
-          context = canvas.getContext("experimental-webgl");
+        context = canvas.getContext("webkit-3d");
+      } catch(e) {
+      }
+    }
+    if (!context) {
+      try {
+        context = canvas.getContext("moz-webgl");
       } catch(e) {
       }
     }

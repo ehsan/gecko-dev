@@ -527,28 +527,15 @@ protected:
                              "element is valid!");
 
     /**
-     * Never show the invalid UI if the form has the novalidate attribute set.
-     *
      * Always show the invalid UI if:
      * - the form has already tried to be submitted but was invalid;
      * - the element is suffering from a custom error;
      *
      * Otherwise, show the invalid UI if the selection has been changed.
      */
-    if (mForm) {
-      if (mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) {
-        return false;
-      }
-      if (mForm->HasEverTriedInvalidSubmit()) {
-        return true;
-      }
-    }
-
-    if (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR)) {
-      return true;
-    }
-
-    return mSelectionHasChanged;
+    return mSelectionHasChanged ||
+           (mForm && mForm->HasEverTriedInvalidSubmit()) ||
+           GetValidityState(VALIDITY_STATE_CUSTOM_ERROR);
   }
 
   /**
@@ -558,18 +545,9 @@ protected:
    * @note This doesn't take into account the validity of the element.
    */
   bool ShouldShowValidUI() const {
-    if (mForm) {
-      if (mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) {
-        return false;
-      }
-      if (mForm->HasEverTriedInvalidSubmit()) {
-        return true;
-      }
-    }
-
-    return mSelectionHasChanged;
+    return mSelectionHasChanged ||
+           (mForm && mForm->HasEverTriedInvalidSubmit());
   }
-
   /** The options[] array */
   nsRefPtr<nsHTMLOptionCollection> mOptions;
   /** false if the parser is in the middle of adding children. */

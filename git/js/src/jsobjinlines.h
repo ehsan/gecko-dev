@@ -105,13 +105,8 @@ inline bool
 JSObject::unbrand(JSContext *cx)
 {
     JS_ASSERT(isNative());
-    if (branded()) {
-        generateOwnShape(cx);
-        if (js_IsPropertyCacheDisabled(cx))  // check for rt->shapeGen overflow
-            return false;
-        flags &= ~BRANDED;
-    }
-    setGeneric();
+    if (!branded())
+        setGeneric();
     return true;
 }
 
@@ -194,7 +189,7 @@ ChangesMethodValue(const js::Value &prev, const js::Value &v)
 inline bool
 JSObject::methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Value &v)
 {
-    if (brandedOrHasMethodBarrier() && shape.slot != SHAPE_INVALID_SLOT) {
+    if (flags & (BRANDED | METHOD_BARRIER)) {
         const js::Value &prev = nativeGetSlot(shape.slot);
 
         if (ChangesMethodValue(prev, v)) {
@@ -208,7 +203,7 @@ JSObject::methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Va
 inline bool
 JSObject::methodWriteBarrier(JSContext *cx, uint32 slot, const js::Value &v)
 {
-    if (brandedOrHasMethodBarrier()) {
+    if (flags & (BRANDED | METHOD_BARRIER)) {
         const js::Value &prev = nativeGetSlot(slot);
 
         if (ChangesMethodValue(prev, v)) {
@@ -257,10 +252,10 @@ JSObject::setPrimitiveThis(const js::Value &pthis)
     setSlot(JSSLOT_PRIMITIVE_THIS, pthis);
 }
 
-inline /* gc::FinalizeKind */ unsigned
-JSObject::finalizeKind() const
+inline js::gc::FinalizeKind
+GetObjectFinalizeKind(const JSObject *obj)
 {
-    return js::gc::FinalizeKind(arena()->header()->thingKind);
+    return js::gc::FinalizeKind(obj->arena()->header()->thingKind);
 }
 
 inline size_t
@@ -270,7 +265,7 @@ JSObject::numFixedSlots() const
         return JSObject::FUN_CLASS_RESERVED_SLOTS;
     if (!hasSlotsArray())
         return capacity;
-    return js::gc::GetGCKindSlots(js::gc::FinalizeKind(finalizeKind()));
+    return js::gc::GetGCKindSlots(GetObjectFinalizeKind(this));
 }
 
 inline size_t
@@ -332,6 +327,13 @@ JSObject::setDenseArrayElement(uintN idx, const js::Value &val)
 {
     JS_ASSERT(isDenseArray());
     setSlot(idx, val);
+}
+
+inline bool
+JSObject::ensureDenseArrayElements(JSContext *cx, uintN cap)
+{
+    JS_ASSERT(isDenseArray());
+    return ensureSlots(cx, cap);
 }
 
 inline void
@@ -934,18 +936,6 @@ namespace WithProto {
  * Note that as a template, there will be lots of instantiations, which means
  * the internals will be specialized based on the template parameters.
  */
-static JS_ALWAYS_INLINE bool
-FindProto(JSContext *cx, js::Class *clasp, JSObject *parent, JSObject ** proto)
-{
-    JSProtoKey protoKey = GetClassProtoKey(clasp);
-    if (!js_GetClassPrototype(cx, parent, protoKey, proto, clasp))
-        return false;
-    if (!(*proto) && !js_GetClassPrototype(cx, parent, JSProto_Object, proto))
-        return false;
-
-    return true;
-}
-
 namespace detail
 {
 template <bool withProto, bool isFunction>
@@ -955,8 +945,11 @@ NewObject(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent,
 {
     /* Bootstrap the ur-object, and make it the default prototype object. */
     if (withProto == WithProto::Class && !proto) {
-        if (!FindProto (cx, clasp, parent, &proto))
-          return NULL;
+        JSProtoKey protoKey = GetClassProtoKey(clasp);
+        if (!js_GetClassPrototype(cx, parent, protoKey, &proto, clasp))
+            return NULL;
+        if (!proto && !js_GetClassPrototype(cx, parent, JSProto_Object, &proto))
+            return NULL;
     }
 
     /*
@@ -1037,6 +1030,13 @@ NewObject(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent)
     return NewObject<withProto>(cx, clasp, proto, parent, kind);
 }
 
+/* Creates a new array with a zero length and the given finalize kind. */
+static inline JSObject *
+NewArrayWithKind(JSContext* cx, gc::FinalizeKind kind)
+{
+    return NewNonFunction<WithProto::Class>(cx, &js_ArrayClass, NULL, NULL, kind);
+}
+
 /*
  * As for js_GetGCObjectKind, where numSlots is a guess at the final size of
  * the object, zero if the final size is unknown.
@@ -1070,7 +1070,7 @@ CopyInitializerObject(JSContext *cx, JSObject *baseobj)
     JS_ASSERT(baseobj->getClass() == &js_ObjectClass);
     JS_ASSERT(!baseobj->inDictionaryMode());
 
-    gc::FinalizeKind kind = gc::FinalizeKind(baseobj->finalizeKind());
+    gc::FinalizeKind kind = GetObjectFinalizeKind(baseobj);
     JSObject *obj = NewBuiltinClassInstance(cx, &js_ObjectClass, kind);
 
     if (!obj || !obj->ensureSlots(cx, baseobj->numSlots()))

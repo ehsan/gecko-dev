@@ -36,15 +36,13 @@ Shader::Shader(ResourceManager *manager, GLuint handle) : mHandle(handle), mReso
         {
             ShBuiltInResources resources;
             ShInitBuiltInResources(&resources);
-            Context *context = getContext();            
-
             resources.MaxVertexAttribs = MAX_VERTEX_ATTRIBS;
             resources.MaxVertexUniformVectors = MAX_VERTEX_UNIFORM_VECTORS;
-            resources.MaxVaryingVectors = context->getMaximumVaryingVectors();
+            resources.MaxVaryingVectors = MAX_VARYING_VECTORS;
             resources.MaxVertexTextureImageUnits = MAX_VERTEX_TEXTURE_IMAGE_UNITS;
             resources.MaxCombinedTextureImageUnits = MAX_COMBINED_TEXTURE_IMAGE_UNITS;
             resources.MaxTextureImageUnits = MAX_TEXTURE_IMAGE_UNITS;
-            resources.MaxFragmentUniformVectors = context->getMaximumFragmentUniformVectors();
+            resources.MaxFragmentUniformVectors = MAX_FRAGMENT_UNIFORM_VECTORS;
             resources.MaxDrawBuffers = MAX_DRAW_BUFFERS;
             resources.OES_standard_derivatives = 1;
 
@@ -243,7 +241,7 @@ void Shader::parseVaryings()
             char varyingType[256];
             char varyingName[256];
 
-            int matches = sscanf(input, "static %255s %255s", varyingType, varyingName);
+            int matches = sscanf(input, "static %s %s", varyingType, varyingName);
 
             if (matches != 2)
             {
@@ -473,7 +471,7 @@ void VertexShader::parseAttributes()
             char attributeType[256];
             char attributeName[256];
 
-            int matches = sscanf(input, "static %255s _%255s", attributeType, attributeName);
+            int matches = sscanf(input, "static %s _%s", attributeType, attributeName);
 
             if (matches != 2)
             {

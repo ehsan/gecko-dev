@@ -43,7 +43,6 @@
 #include "nsAutoLock.h"
 #include "nsNetCID.h"
 #include "nsCOMPtr.h"
-#include "nsNetUtil.h"
 
 #include "nsIServiceManager.h"
 
@@ -86,7 +85,6 @@ nsHttpConnectionMgr::nsHttpConnectionMgr()
     , mMaxConnsPerProxy(0)
     , mMaxPersistConnsPerHost(0)
     , mMaxPersistConnsPerProxy(0)
-    , mIsShuttingDown(PR_FALSE)
     , mNumActiveConns(0)
     , mNumIdleConns(0)
     , mTimeOfNextWakeUp(LL_MAXUINT)
@@ -103,32 +101,6 @@ nsHttpConnectionMgr::~nsHttpConnectionMgr()
 }
 
 nsresult
-nsHttpConnectionMgr::EnsureSocketThreadTargetIfOnline()
-{
-    nsresult rv;
-    nsCOMPtr<nsIEventTarget> sts;
-    nsCOMPtr<nsIIOService> ioService = do_GetIOService(&rv);
-    if (NS_SUCCEEDED(rv)) {
-        PRBool offline = PR_TRUE;
-        ioService->GetOffline(&offline);
-
-        if (!offline) {
-            sts = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
-        }
-    }
-
-    nsAutoMonitor mon(mMonitor);
-
-    // do nothing if already initialized or if we've shut down
-    if (mSocketThreadTarget || mIsShuttingDown)
-        return NS_OK;
-
-    mSocketThreadTarget = sts;
-
-    return rv;
-}
-
-nsresult
 nsHttpConnectionMgr::Init(PRUint16 maxConns,
                           PRUint16 maxConnsPerHost,
                           PRUint16 maxConnsPerProxy,
@@ -139,21 +111,28 @@ nsHttpConnectionMgr::Init(PRUint16 maxConns,
 {
     LOG(("nsHttpConnectionMgr::Init\n"));
 
-    {
-        nsAutoMonitor mon(mMonitor);
+    nsresult rv;
+    nsCOMPtr<nsIEventTarget> sts = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+    if (NS_FAILED(rv)) return rv;
 
-        mMaxConns = maxConns;
-        mMaxConnsPerHost = maxConnsPerHost;
-        mMaxConnsPerProxy = maxConnsPerProxy;
-        mMaxPersistConnsPerHost = maxPersistConnsPerHost;
-        mMaxPersistConnsPerProxy = maxPersistConnsPerProxy;
-        mMaxRequestDelay = maxRequestDelay;
-        mMaxPipelinedRequests = maxPipelinedRequests;
+    nsAutoMonitor mon(mMonitor);
 
-        mIsShuttingDown = PR_FALSE;
-    }
+    // do nothing if already initialized
+    if (mSocketThreadTarget)
+        return NS_OK;
 
-    return EnsureSocketThreadTargetIfOnline();
+    // no need to do any special synchronization here since there cannot be
+    // any activity on the socket thread (because Shutdown is synchronous).
+    mMaxConns = maxConns;
+    mMaxConnsPerHost = maxConnsPerHost;
+    mMaxConnsPerProxy = maxConnsPerProxy;
+    mMaxPersistConnsPerHost = maxPersistConnsPerHost;
+    mMaxPersistConnsPerProxy = maxPersistConnsPerProxy;
+    mMaxRequestDelay = maxRequestDelay;
+    mMaxPipelinedRequests = maxPipelinedRequests;
+
+    mSocketThreadTarget = sts;
+    return rv;
 }
 
 nsresult
@@ -172,7 +151,6 @@ nsHttpConnectionMgr::Shutdown()
     // release our reference to the STS to prevent further events
     // from being posted.  this is how we indicate that we are
     // shutting down.
-    mIsShuttingDown = PR_TRUE;
     mSocketThreadTarget = 0;
 
     if (NS_FAILED(rv)) {
@@ -188,12 +166,6 @@ nsHttpConnectionMgr::Shutdown()
 nsresult
 nsHttpConnectionMgr::PostEvent(nsConnEventHandler handler, PRInt32 iparam, void *vparam)
 {
-    // This object doesn't get reinitialized if the offline state changes, so our
-    // socket thread target might be uninitialized if we were offline when this
-    // object was being initialized, and we go online later on.  This call takes
-    // care of initializing the socket thread target if that's the case.
-    EnsureSocketThreadTargetIfOnline();
-
     nsAutoMonitor mon(mMonitor);
 
     nsresult rv;
@@ -313,12 +285,6 @@ nsHttpConnectionMgr::PruneDeadConnections()
 nsresult
 nsHttpConnectionMgr::GetSocketThreadTarget(nsIEventTarget **target)
 {
-    // This object doesn't get reinitialized if the offline state changes, so our
-    // socket thread target might be uninitialized if we were offline when this
-    // object was being initialized, and we go online later on.  This call takes
-    // care of initializing the socket thread target if that's the case.
-    EnsureSocketThreadTargetIfOnline();
-
     nsAutoMonitor mon(mMonitor);
     NS_IF_ADDREF(*target = mSocketThreadTarget);
     return NS_OK;
@@ -598,8 +564,8 @@ nsHttpConnectionMgr::AtActiveConnectionLimit(nsConnectionEntry *ent, PRUint8 cap
     LOG(("nsHttpConnectionMgr::AtActiveConnectionLimit [ci=%s caps=%x]\n",
         ci->HashKey().get(), caps));
 
-    // If there are more active connections than the global limit, then we're
-    // done. Purging idle connections won't get us below it.
+    // If we have more active connections than the limit, then we're done --
+    // purging idle connections won't get us below it.
     if (mNumActiveConns >= mMaxConns) {
         LOG(("  num active conns == max conns\n"));
         return PR_TRUE;
@@ -634,18 +600,6 @@ nsHttpConnectionMgr::AtActiveConnectionLimit(nsConnectionEntry *ent, PRUint8 cap
     // use >= just to be safe
     return (totalCount >= maxConns) || ( (caps & NS_HTTP_ALLOW_KEEPALIVE) &&
                                          (persistCount >= maxPersistConns) );
-}
-
-void
-nsHttpConnectionMgr::GetConnection(nsHttpConnectionInfo *ci,
-                                   PRUint8 caps,
-                                   nsHttpConnection **result)
-{
-    NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
-    nsCStringKey key(ci->HashKey());
-    nsConnectionEntry *ent = (nsConnectionEntry *) mCT.Get(&key);
-    if (!ent) return;
-    GetConnection(ent, caps, result);
 }
 
 void
@@ -716,11 +670,6 @@ nsHttpConnectionMgr::GetConnection(nsConnectionEntry *ent, PRUint8 caps,
         }
     }
 
-    // hold an owning ref to this connection
-    ent->mActiveConns.AppendElement(conn);
-    mNumActiveConns++;
-    NS_ADDREF(conn);
-
     *result = conn;
 }
 
@@ -744,6 +693,11 @@ nsHttpConnectionMgr::DispatchTransaction(nsConnectionEntry *ent,
         if (BuildPipeline(ent, trans, &pipeline))
             trans = pipeline;
     }
+
+    // hold an owning ref to this connection
+    ent->mActiveConns.AppendElement(conn);
+    mNumActiveConns++;
+    NS_ADDREF(conn);
 
     // give the transaction the indirect reference to the connection.
     trans->SetConnection(handle);
@@ -859,6 +813,15 @@ nsHttpConnectionMgr::ProcessNewTransaction(nsHttpTransaction *trans)
 
         // destroy connection handle.
         trans->SetConnection(nsnull);
+
+        // remove sticky connection from active connection list; we'll add it
+        // right back in DispatchTransaction.
+        if (ent->mActiveConns.RemoveElement(conn))
+            mNumActiveConns--;
+        else {
+            NS_ERROR("sticky connection not found in active list");
+            return NS_ERROR_UNEXPECTED;
+        }
     }
     else
         GetConnection(ent, caps, &conn);

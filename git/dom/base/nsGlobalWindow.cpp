@@ -2050,7 +2050,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
         return NS_ERROR_FAILURE;
       }
 
-      outerObject = JS_TransplantObject(cx, mJSObject, outerObject);
+      outerObject = JS_TransplantWrapper(cx, mJSObject, outerObject);
       if (!outerObject) {
         NS_ERROR("unable to transplant wrappers, probably OOM");
         return NS_ERROR_FAILURE;
@@ -5350,10 +5350,10 @@ ReportUseOfDeprecatedMethod(nsGlobalWindow* aWindow, const char* aWarning)
   nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                   aWarning,
                                   nsnull, 0,
-                                  nsnull,
+                                  doc ? doc->GetDocumentURI() : nsnull,
                                   EmptyString(), 0, 0,
                                   nsIScriptError::warningFlag,
-                                  "DOM Events", doc);
+                                  "DOM Events");
 }
 
 NS_IMETHODIMP
@@ -6048,10 +6048,11 @@ nsGlobalWindow::Close()
           nsContentUtils::eDOM_PROPERTIES,
           "WindowCloseBlockedWarning",
           nsnull, 0, // No params
-          nsnull,
+          nsnull, // No URI.  Not clear which URI we should be using
+                  // here anyway
           EmptyString(), 0, 0, // No source, or column/line number
           nsIScriptError::warningFlag,
-          "DOM Window", mDoc);  // Better name for the category?
+          "DOM Window");  // Better name for the category?
 
       return NS_OK;
     }
@@ -7505,20 +7506,11 @@ nsGlobalWindow::PageHidden()
 }
 
 nsresult
-nsGlobalWindow::DispatchAsyncHashchange()
+nsGlobalWindow::DispatchSyncHashchange()
 {
-  FORWARD_TO_INNER(DispatchAsyncHashchange, (), NS_OK);
-
-  nsCOMPtr<nsIRunnable> event =
-    NS_NewRunnableMethod(this, &nsGlobalWindow::FireHashchange);
-
-  return NS_DispatchToCurrentThread(event);
-}
-
-nsresult
-nsGlobalWindow::FireHashchange()
-{
-  NS_ENSURE_TRUE(IsInnerWindow(), NS_ERROR_FAILURE);
+  FORWARD_TO_INNER(DispatchSyncHashchange, (), NS_OK);
+  NS_ASSERTION(nsContentUtils::IsSafeToRunScript(),
+               "Must be safe to run script here.");
 
   // Don't do anything if the window is frozen.
   if (IsFrozen())
@@ -7583,14 +7575,14 @@ nsGlobalWindow::DispatchSyncPopState()
 
     JSContext *cx = (JSContext*) scx->GetNativeContext();
 
-    // Make sure we in the request while we have jsval on the native stack.
-    JSAutoRequest ar(cx);
-
     // If our json call triggers a JS-to-C++ call, we want that call to use cx
     // as the context.  So we push cx onto the context stack.
     nsCxPusher cxPusher;
 
     jsval jsStateObj = JSVAL_NULL;
+    // Root the container which will hold our decoded state object.
+    nsAutoGCRoot root(&jsStateObj, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // Deserialize the state object into an nsIVariant.
     nsCOMPtr<nsIJSON> json = do_GetService("@mozilla.org/dom/json;1");

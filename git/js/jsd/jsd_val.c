@@ -246,7 +246,7 @@ jsd_GetValueString(JSDContext* jsdc, JSDValue* jsdval)
     return jsdval->string;
 }
 
-JSString*
+const char*
 jsd_GetValueFunctionName(JSDContext* jsdc, JSDValue* jsdval)
 {
     JSContext* cx = jsdc->dumbContext;
@@ -272,9 +272,7 @@ jsd_GetValueFunctionName(JSDContext* jsdc, JSDValue* jsdval)
         JS_EndRequest(cx);
         if(!fun)
             return NULL;
-        jsdval->funName = JS_GetFunctionId(fun);
-        if (!jsdval->funName)
-            jsdval->funName = JS_GetEmptyString(jsdc->jsrt);
+        jsdval->funName = JS_GetFunctionName(fun);
     }
     return jsdval->funName;
 }

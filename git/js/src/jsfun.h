@@ -579,20 +579,11 @@ extern JSBool JS_FASTCALL
 js_PutCallObjectOnTrace(JSContext *cx, JSObject *scopeChain, uint32 nargs,
                         js::Value *argv, uint32 nvars, js::Value *slots);
 
-namespace js {
+extern JSBool
+js_GetCallArg(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
 
 extern JSBool
-GetCallArg(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
-
-extern JSBool
-GetCallVar(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
-
-/*
- * Slower version of js_GetCallVar used when call_resolve detects an attempt to
- * leak an optimized closure via indirect or debugger eval.
- */
-extern JSBool
-GetCallVarChecked(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
+js_GetCallVar(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
 
 extern JSBool
 SetCallArg(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
@@ -600,7 +591,12 @@ SetCallArg(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
 extern JSBool
 SetCallVar(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
 
-} // namespace js
+/*
+ * Slower version of js_GetCallVar used when call_resolve detects an attempt to
+ * leak an optimized closure via indirect or debugger eval.
+ */
+extern JSBool
+js_GetCallVarChecked(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
 
 extern JSBool
 js_GetArgsValue(JSContext *cx, JSStackFrame *fp, js::Value *vp);

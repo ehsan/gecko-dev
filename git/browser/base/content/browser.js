@@ -372,35 +372,15 @@ function findChildShell(aDocument, aDocShell, aSoughtURI) {
   return null;
 }
 
-var gPopupBlockerObserver = {
-  _reportButton: null,
-  
-  onReportButtonClick: function (aEvent)
-  {
-    if (aEvent.button != 0 || aEvent.target != this._reportButton)
-      return;
+const gPopupBlockerObserver = {
 
-    document.getElementById("blockedPopupOptions")
-            .openPopup(this._reportButton, "after_end", 0, 2, false, false, aEvent);
-  },
-
-  handleEvent: function (aEvent)
+  onUpdatePageReport: function (aEvent)
   {
     if (aEvent.originalTarget != gBrowser.selectedBrowser)
       return;
 
-    if (!this._reportButton && gURLBar)
-      this._reportButton = document.getElementById("page-report-button");
-
-    if (!gBrowser.pageReport) {
-      // Hide the icon in the location bar (if the location bar exists)
-      if (gURLBar)
-        this._reportButton.hidden = true;
+    if (!gBrowser.pageReport)
       return;
-    }
-
-    if (gURLBar)
-      this._reportButton.hidden = false;
 
     // Only show the notification again if we've not already shown it. Since
     // notifications are per-browser, we don't need to worry about re-adding
@@ -558,16 +538,7 @@ var gPopupBlockerObserver = {
     var blockedPopupDontShowMessage = document.getElementById("blockedPopupDontShowMessage");
     var showMessage = gPrefService.getBoolPref("privacy.popups.showBrowserMessage");
     blockedPopupDontShowMessage.setAttribute("checked", !showMessage);
-    if (aEvent.target.anchorNode.id == "page-report-button") {
-      aEvent.target.anchorNode.setAttribute("open", "true");
-      blockedPopupDontShowMessage.setAttribute("label", gNavigatorBundle.getString("popupWarningDontShowFromLocationbar"));
-    } else
-      blockedPopupDontShowMessage.setAttribute("label", gNavigatorBundle.getString("popupWarningDontShowFromMessage"));
-  },
-
-  onPopupHiding: function (aEvent) {
-    if (aEvent.target.anchorNode.id == "page-report-button")
-      aEvent.target.anchorNode.removeAttribute("open");
+    blockedPopupDontShowMessage.setAttribute("label", gNavigatorBundle.getString("popupWarningDontShowFromMessage"));
   },
 
   showBlockedPopup: function (aEvent)
@@ -614,9 +585,27 @@ var gPopupBlockerObserver = {
 
   dontShowMessage: function ()
   {
+#if 0 
+    // Disabled until bug 594294 is fixed.
     var showMessage = gPrefService.getBoolPref("privacy.popups.showBrowserMessage");
+    var firstTime = gPrefService.getBoolPref("privacy.popups.firstTime");
+
+    // If the info message is showing at the top of the window, and the user has never
+    // hidden the message before, show an info box telling the user where the info
+    // will be displayed.
+    if (showMessage && firstTime)
+      this._displayPageReportFirstTime();
+
     gPrefService.setBoolPref("privacy.popups.showBrowserMessage", !showMessage);
+#endif
+
     gBrowser.getNotificationBox().removeCurrentNotification();
+  },
+
+  _displayPageReportFirstTime: function ()
+  {
+    window.openDialog("chrome://browser/content/pageReportFirstTime.xul", "_blank",
+                      "dependent");
   }
 };
 
@@ -668,39 +657,45 @@ const gXPInstallObserver = {
     };
 
     switch (aTopic) {
-    case "addon-install-disabled":
-      notificationID = "xpinstall-disabled"
+    case "addon-install-blocked":
+      var enabled = true;
+      try {
+        enabled = gPrefService.getBoolPref("xpinstall.enabled");
+      }
+      catch (e) {
+      }
 
-      if (gPrefService.prefIsLocked("xpinstall.enabled")) {
-        messageString = gNavigatorBundle.getString("xpinstallDisabledMessageLocked");
-        buttons = [];
+      if (!enabled) {
+        notificationID = "xpinstall-disabled"
+
+        if (gPrefService.prefIsLocked("xpinstall.enabled")) {
+          messageString = gNavigatorBundle.getString("xpinstallDisabledMessageLocked");
+          buttons = [];
+        }
+        else {
+          messageString = gNavigatorBundle.getString("xpinstallDisabledMessage");
+
+          action = {
+            label: gNavigatorBundle.getString("xpinstallDisabledButton"),
+            accessKey: gNavigatorBundle.getString("xpinstallDisabledButton.accesskey"),
+            callback: function editPrefs() {
+              gPrefService.setBoolPref("xpinstall.enabled", true);
+            }
+          };
+        }
       }
       else {
-        messageString = gNavigatorBundle.getString("xpinstallDisabledMessage");
+        messageString = gNavigatorBundle.getFormattedString("xpinstallPromptWarning",
+                          [brandShortName, installInfo.originatingURI.host]);
 
         action = {
-          label: gNavigatorBundle.getString("xpinstallDisabledButton"),
-          accessKey: gNavigatorBundle.getString("xpinstallDisabledButton.accesskey"),
-          callback: function editPrefs() {
-            gPrefService.setBoolPref("xpinstall.enabled", true);
+          label: gNavigatorBundle.getString("xpinstallPromptAllowButton"),
+          accessKey: gNavigatorBundle.getString("xpinstallPromptAllowButton.accesskey"),
+          callback: function() {
+            installInfo.install();
           }
         };
       }
-
-      PopupNotifications.show(browser, notificationID, messageString, anchorID,
-                              action, null, options);
-      break;
-    case "addon-install-blocked":
-      messageString = gNavigatorBundle.getFormattedString("xpinstallPromptWarning",
-                        [brandShortName, installInfo.originatingURI.host]);
-
-      action = {
-        label: gNavigatorBundle.getString("xpinstallPromptAllowButton"),
-        accessKey: gNavigatorBundle.getString("xpinstallPromptAllowButton.accesskey"),
-        callback: function() {
-          installInfo.install();
-        }
-      };
 
       PopupNotifications.show(browser, notificationID, messageString, anchorID,
                               action, null, options);
@@ -828,25 +823,19 @@ const gFormSubmitObserver = {
 
     element.focus();
 
-    // If the user interacts with the element and makes it valid or leaves it,
-    // we want to remove the popup.
+    // If the user type something or blur the element, we want to remove the popup.
     // We could check for clicks but a click is already removing the popup.
-    function blurHandler() {
+    let eventHandler = function(e) {
       gFormSubmitObserver.panel.hidePopup();
     };
-    function inputHandler(e) {
-      if (e.originalTarget.validity.valid) {
-        gFormSubmitObserver.panel.hidePopup();
-      }
-    };
-    element.addEventListener("input", inputHandler, false);
-    element.addEventListener("blur", blurHandler, false);
+    element.addEventListener("input", eventHandler, false);
+    element.addEventListener("blur", eventHandler, false);
 
-    // One event to bring them all and in the darkness bind them.
+    // One event to bring them all and in the darkness bind them all.
     this.panel.addEventListener("popuphiding", function(aEvent) {
       aEvent.target.removeEventListener("popuphiding", arguments.callee, false);
-      element.removeEventListener("input", inputHandler, false);
-      element.removeEventListener("blur", blurHandler, false);
+      element.removeEventListener("input", eventHandler, false);
+      element.removeEventListener("blur", eventHandler, false);
     }, false);
 
     this.panel.hidden = false;
@@ -1263,9 +1252,6 @@ function BrowserStartup() {
 
   BookmarksMenuButton.init();
 
-  // initialize the private browsing UI
-  gPrivateBrowsingUI.init();
-
   setTimeout(delayedStartup, 0, isLoadingBlank, mustLoadSidebar);
 }
 
@@ -1299,7 +1285,7 @@ function HandleAppCommandEvent(evt) {
 }
 
 function prepareForStartup() {
-  gBrowser.addEventListener("DOMUpdatePageReport", gPopupBlockerObserver, false);
+  gBrowser.addEventListener("DOMUpdatePageReport", gPopupBlockerObserver.onUpdatePageReport, false);
 
   gBrowser.addEventListener("PluginNotFound",     gPluginHandler, true);
   gBrowser.addEventListener("PluginCrashed",      gPluginHandler, true);
@@ -1383,7 +1369,6 @@ function prepareForStartup() {
 
 function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   Services.obs.addObserver(gSessionHistoryObserver, "browser:purge-session-history", false);
-  Services.obs.addObserver(gXPInstallObserver, "addon-install-disabled", false);
   Services.obs.addObserver(gXPInstallObserver, "addon-install-blocked", false);
   Services.obs.addObserver(gXPInstallObserver, "addon-install-failed", false);
   Services.obs.addObserver(gXPInstallObserver, "addon-install-complete", false);
@@ -1407,6 +1392,8 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   }
 
   UpdateUrlbarSearchSplitterState();
+
+  PlacesStarButton.init();
 
   if (isLoadingBlank && gURLBar && isElementVisible(gURLBar))
     gURLBar.focus();
@@ -1551,6 +1538,9 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   placesContext.addEventListener("popuphiding", updateEditUIVisibility, false);
 #endif
 
+  // initialize the private browsing UI
+  gPrivateBrowsingUI.init();
+
   gBrowser.mPanelContainer.addEventListener("InstallBrowserTheme", LightWeightThemeWebInstaller, false, true);
   gBrowser.mPanelContainer.addEventListener("PreviewBrowserTheme", LightWeightThemeWebInstaller, false, true);
   gBrowser.mPanelContainer.addEventListener("ResetBrowserThemePreview", LightWeightThemeWebInstaller, false, true);
@@ -1574,11 +1564,11 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   // Enable Inspector?
   let enabled = gPrefService.getBoolPref(InspectorUI.prefEnabledName);
   if (enabled) {
-    document.getElementById("menu_pageinspect").hidden = false;
+    document.getElementById("menu_pageinspect").setAttribute("hidden", false);
     document.getElementById("Tools:Inspect").removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-    document.getElementById("appmenu_pageInspect").hidden = false;
-#endif
+    let appMenuInspect = document.getElementById("appmenu_pageInspect");
+    if (appMenuInspect)
+      appMenuInspect.setAttribute("hidden", false);
   }
 
   // Enable Error Console?
@@ -1589,14 +1579,17 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     document.getElementById("key_errorConsole").removeAttribute("disabled");
   }
 
-#ifdef MENUBAR_CAN_AUTOHIDE
   // If the user (or the locale) hasn't enabled the top-level "Character
   // Encoding" menu via the "browser.menu.showCharacterEncoding" preference,
   // hide it.
-  if ("true" != gPrefService.getComplexValue("browser.menu.showCharacterEncoding",
-                                             Ci.nsIPrefLocalizedString).data)
-    document.getElementById("appmenu_charsetMenu").hidden = true;
-#endif
+  const showCharacterEncodingPref = "browser.menu.showCharacterEncoding";
+  let extraCharacterEncodingMenuEnabled = gPrefService.
+    getComplexValue(showCharacterEncodingPref, Ci.nsIPrefLocalizedString).data;
+  if (extraCharacterEncodingMenuEnabled !== "true") {
+    let charsetMenu = document.getElementById("appmenu_charsetMenu");
+    if (charsetMenu)
+      charsetMenu.setAttribute("hidden", "true");
+  }
 
   Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
 }
@@ -1625,7 +1618,6 @@ function BrowserShutdown()
   }
 
   Services.obs.removeObserver(gSessionHistoryObserver, "browser:purge-session-history");
-  Services.obs.removeObserver(gXPInstallObserver, "addon-install-disabled");
   Services.obs.removeObserver(gXPInstallObserver, "addon-install-blocked");
   Services.obs.removeObserver(gXPInstallObserver, "addon-install-failed");
   Services.obs.removeObserver(gXPInstallObserver, "addon-install-complete");
@@ -2822,8 +2814,7 @@ function FillInHTMLTooltip(tipElement)
        tipElement instanceof HTMLTextAreaElement ||
        tipElement instanceof HTMLSelectElement ||
        tipElement instanceof HTMLButtonElement) &&
-      !tipElement.hasAttribute('title') &&
-      (!tipElement.form || !tipElement.form.noValidate)) {
+      !tipElement.hasAttribute('title')) {
     // If the element is barred from constraint validation or valid,
     // the validation message will be the empty string.
     titleText = tipElement.validationMessage;
@@ -2893,10 +2884,14 @@ function FillInHTMLTooltip(tipElement)
 var browserDragAndDrop = {
   canDropLink: function (aEvent) Services.droppedLinkHandler.canDropLink(aEvent, true),
 
-  dragOver: function (aEvent)
+  dragOver: function (aEvent, statusString)
   {
     if (this.canDropLink(aEvent)) {
       aEvent.preventDefault();
+
+      if (statusString) {
+        XULBrowserWindow.setStatusText(gNavigatorBundle.getString(statusString));
+      }
     }
   },
 
@@ -2911,11 +2906,12 @@ var homeButtonObserver = {
 
   onDragOver: function (aEvent)
     {
-      browserDragAndDrop.dragOver(aEvent);
+      browserDragAndDrop.dragOver(aEvent, "droponhomebutton");
       aEvent.dropEffect = "link";
     },
-  onDragExit: function (aEvent)
+  onDragLeave: function (aEvent)
     {
+      XULWindowBrowser.setStatusText("");
     }
 }
 
@@ -2952,23 +2948,25 @@ var bookmarksButtonObserver = {
 
   onDragOver: function (aEvent)
   {
-    browserDragAndDrop.dragOver(aEvent);
+    browserDragAndDrop.dragOver(aEvent, "droponbookmarksbutton");
     aEvent.dropEffect = "link";
   },
 
-  onDragExit: function (aEvent)
+  onDragLeave: function (aEvent)
   {
+    XULWindowBrowser.setStatusText("");
   }
 }
 
 var newTabButtonObserver = {
   onDragOver: function (aEvent)
   {
-    browserDragAndDrop.dragOver(aEvent);
+    browserDragAndDrop.dragOver(aEvent, "droponnewtabbutton");
   },
 
-  onDragExit: function (aEvent)
+  onDragLeave: function (aEvent)
   {
+    XULWindowBrowser.setStatusText("");
   },
 
   onDrop: function (aEvent)
@@ -2986,10 +2984,11 @@ var newTabButtonObserver = {
 var newWindowButtonObserver = {
   onDragOver: function (aEvent)
   {
-    browserDragAndDrop.dragOver(aEvent);
+    browserDragAndDrop.dragOver(aEvent, "droponnewwindowbutton");
   },
-  onDragExit: function (aEvent)
+  onDragLeave: function (aEvent)
   {
+    XULWindowBrowser.setStatusText("");
   },
   onDrop: function (aEvent)
   {
@@ -3006,6 +3005,7 @@ var newWindowButtonObserver = {
 var DownloadsButtonDNDObserver = {
   onDragOver: function (aEvent)
   {
+    XULWindowBrowser.setStatusText(gNavigatorBundle.getString("dropondownloadsbutton"));
     var types = aEvent.dataTransfer.types;
     if (types.contains("text/x-moz-url") ||
         types.contains("text/uri-list") ||
@@ -3013,8 +3013,9 @@ var DownloadsButtonDNDObserver = {
       aEvent.preventDefault();
   },
 
-  onDragExit: function (aEvent)
+  onDragLeave: function (aEvent)
   {
+    XULWindowBrowser.setStatusText("");
   },
 
   onDrop: function (aEvent)
@@ -3922,7 +3923,6 @@ var XULBrowserWindow = {
   startTime: 0,
   statusText: "",
   isBusy: false,
-  inContentWhitelist: ["about:addons"],
 
   QueryInterface: function (aIID) {
     if (aIID.equals(Ci.nsIWebProgressListener) ||
@@ -3999,29 +3999,18 @@ var XULBrowserWindow = {
     if (originalTarget != "" || !isAppTab)
       return originalTarget;
 
-    // External links from within app tabs should always open in new tabs
-    // instead of replacing the app tab's page (Bug 575561)
-    let linkHost;
-    let docHost;
+    let docURI = linkNode.ownerDocument.documentURIObject;
     try {
-      linkHost = linkURI.host;
-      docHost = linkNode.ownerDocument.documentURIObject.host;
+      let docURIDomain = Services.eTLD.getBaseDomain(docURI, 0);
+      let linkURIDomain = Services.eTLD.getBaseDomain(linkURI, 0);
+      // External links from within app tabs should always open in new tabs
+      // instead of replacing the app tab's page (Bug 575561)
+      if (docURIDomain != linkURIDomain)
+        return "_blank";
     } catch(e) {
-      // nsIURI.host can throw for non-nsStandardURL nsIURIs.
-      // If we fail to get either host, just return originalTarget.
-      return originalTarget;
+      // If getBaseDomain fails, we return originalTarget below.
     }
-
-    if (docHost == linkHost)
-      return originalTarget;
-
-    // Special case: ignore "www" prefix if it is part of host string
-    let [longHost, shortHost] =
-      linkHost.length > docHost.length ? [linkHost, docHost] : [docHost, linkHost];
-    if (longHost == "www." + shortHost)
-      return originalTarget;
-
-    return "_blank";
+    return originalTarget;
   },
 
   onLinkIconAvailable: function (aIconURL) {
@@ -4232,16 +4221,6 @@ var XULBrowserWindow = {
         // Update starring UI
         PlacesStarButton.updateState();
       }
-
-      // Show or hide browser chrome based on the whitelist
-      var disableChrome = this.inContentWhitelist.some(function(aSpec) {
-        return aSpec == location;
-      });
-
-      if (disableChrome)
-        document.documentElement.setAttribute("disablechrome", "true");
-      else
-        document.documentElement.removeAttribute("disablechrome");
     }
     UpdateBackForwardCommands(gBrowser.webNavigation);
 
@@ -4348,8 +4327,6 @@ var XULBrowserWindow = {
     var location = gBrowser.contentWindow.location;
     var locationObj = {};
     try {
-      // about:blank can be used by webpages so pretend it is http
-      locationObj.protocol = location == "about:blank" ? "http:" : location.protocol;
       locationObj.host = location.host;
       locationObj.hostname = location.hostname;
       locationObj.port = location.port;
@@ -5471,8 +5448,6 @@ function setStyleDisabled(disabled) {
 /* End of the Page Style functions */
 
 var BrowserOffline = {
-  _inited: false,
-
   /////////////////////////////////////////////////////////////////////////////
   // BrowserOffline Public Methods
   init: function ()
@@ -5483,14 +5458,13 @@ var BrowserOffline = {
     Services.obs.addObserver(this, "network:offline-status-changed", false);
 
     this._updateOfflineUI(Services.io.offline);
-
-    this._inited = true;
   },
 
   uninit: function ()
   {
-    if (this._inited) {
+    try {
       Services.obs.removeObserver(this, "network:offline-status-changed");
+    } catch (ex) {
     }
   },
 
@@ -5840,7 +5814,6 @@ var IndexedDBPromptHelper = {
 
   _quotaPrompt: "indexedDB-quota-prompt",
   _quotaResponse: "indexedDB-quota-response",
-  _quotaCancel: "indexedDB-quota-cancel",
 
   _notificationIcon: "indexedDB-notification-icon",
 
@@ -5848,21 +5821,18 @@ var IndexedDBPromptHelper = {
   function IndexedDBPromptHelper_init() {
     Services.obs.addObserver(this, this._permissionsPrompt, false);
     Services.obs.addObserver(this, this._quotaPrompt, false);
-    Services.obs.addObserver(this, this._quotaCancel, false);
   },
 
   uninit:
   function IndexedDBPromptHelper_uninit() {
     Services.obs.removeObserver(this, this._permissionsPrompt, false);
     Services.obs.removeObserver(this, this._quotaPrompt, false);
-    Services.obs.removeObserver(this, this._quotaCancel, false);
   },
 
   observe:
   function IndexedDBPromptHelper_observe(subject, topic, data) {
     if (topic != this._permissionsPrompt &&
-        topic != this._quotaPrompt &&
-        topic != this._quotaCancel) {
+        topic != this._quotaPrompt) {
       throw new Error("Unexpected topic!");
     }
 
@@ -5894,22 +5864,14 @@ var IndexedDBPromptHelper = {
                                                     [ host, data ]);
       responseTopic = this._quotaResponse;
     }
-    else if (topic == this._quotaCancel) {
-      responseTopic = this._quotaResponse;
-    }
 
-    const hiddenTimeoutDuration = 30000; // 30 seconds
-    const firstTimeoutDuration = 360000; // 5 minutes
-
-    var timeoutId;
-
+    var self = this;
     var observer = requestor.getInterface(Ci.nsIObserver);
 
     var mainAction = {
       label: gNavigatorBundle.getString("offlineApps.allow"),
       accessKey: gNavigatorBundle.getString("offlineApps.allowAccessKey"),
       callback: function() {
-        clearTimeout(timeoutId);
         observer.observe(null, responseTopic,
                          Ci.nsIPermissionManager.ALLOW_ACTION);
       }
@@ -5920,70 +5882,15 @@ var IndexedDBPromptHelper = {
         label: gNavigatorBundle.getString("offlineApps.never"),
         accessKey: gNavigatorBundle.getString("offlineApps.neverAccessKey"),
         callback: function() {
-          clearTimeout(timeoutId);
           observer.observe(null, responseTopic,
                            Ci.nsIPermissionManager.DENY_ACTION);
         }
       }
     ];
 
-    // This will be set to the result of PopupNotifications.show() below, or to
-    // the result of PopupNotifications.getNotification() if this is a
-    // quotaCancel notification.
-    var notification;
+    PopupNotifications.show(browser, topic, message, this._notificationIcon,
+                            mainAction, secondaryActions);
 
-    function timeoutNotification() {
-      // Remove the notification.
-      if (notification) {
-        notification.remove();
-      }
-
-      // Clear all of our timeout stuff. We may be called directly, not just
-      // when the timeout actually elapses.
-      clearTimeout(timeoutId);
-
-      // And tell the page that the popup timed out.
-      observer.observe(null, responseTopic,
-                       Ci.nsIPermissionManager.UNKNOWN_ACTION);
-    }
-
-    var options = {
-      eventCallback: function(state) {
-        // Don't do anything if the timeout has not been set yet.
-        if (!timeoutId) {
-          return;
-        }
-
-        // If the popup is being dismissed start the short timeout.
-        if (state == "dismissed") {
-          clearTimeout(timeoutId);
-          timeoutId = setTimeout(timeoutNotification, hiddenTimeoutDuration);
-          return;
-        }
-
-        // If the popup is being re-shown then clear the timeout allowing
-        // unlimited waiting.
-        if (state == "shown") {
-          clearTimeout(timeoutId);
-        }
-      }
-    };
-
-    if (topic == this._quotaCancel) {
-      notification = PopupNotifications.getNotification(this._quotaPrompt,
-                                                        browser);
-      timeoutNotification();
-      return;
-    }
-
-    notification = PopupNotifications.show(browser, topic, message,
-                                           this._notificationIcon, mainAction,
-                                           secondaryActions, options);
-
-    // Set the timeoutId after the popup has been created, and use the long
-    // timeout value. If the user doesn't notice the popup after this amount of
-    // time then it is most likely not visible and we want to alert the page.
-    timeoutId = setTimeout(timeoutNotification, firstTimeoutDuration);
   }
 };
 
@@ -6885,7 +6792,6 @@ function undoCloseTab(aIndex) {
   var ss = Cc["@mozilla.org/browser/sessionstore;1"].
            getService(Ci.nsISessionStore);
   if (ss.getClosedTabCount(window) > (aIndex || 0)) {
-    TabView.prepareUndoCloseTab();
     tab = ss.undoCloseTab(window, aIndex || 0);
 
     if (blankTabToRemove)
@@ -6986,12 +6892,10 @@ var gIdentityHandler = {
   IDENTITY_MODE_DOMAIN_VERIFIED  : "verifiedDomain",   // Minimal SSL CA-signed domain verification
   IDENTITY_MODE_UNKNOWN          : "unknownIdentity",  // No trusted identity information
   IDENTITY_MODE_MIXED_CONTENT    : "unknownIdentity mixedContent",  // SSL with unauthenticated content
-  IDENTITY_MODE_CHROMEUI         : "chromeUI",         // Part of the product's UI
 
   // Cache the most recent SSLStatus and Location seen in checkIdentity
   _lastStatus : null,
   _lastLocation : null,
-  _mode : "unknownIdentity",
 
   // smart getters
   get _encryptionLabel () {
@@ -7131,9 +7035,7 @@ var gIdentityHandler = {
     this._lastLocation = location;
 
     let nsIWebProgressListener = Ci.nsIWebProgressListener;
-    if (location.protocol == "chrome:" || location.protocol == "about:")
-      this.setMode(this.IDENTITY_MODE_CHROMEUI);
-    else if (state & nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL)
+    if (state & nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL)
       this.setMode(this.IDENTITY_MODE_IDENTIFIED);
     else if (state & nsIWebProgressListener.STATE_SECURE_HIGH)
       this.setMode(this.IDENTITY_MODE_DOMAIN_VERIFIED);
@@ -7182,8 +7084,6 @@ var gIdentityHandler = {
     // Update the popup too, if it's open
     if (this._identityPopup.state == "open")
       this.setPopupMessages(newMode);
-
-    this._mode = newMode;
   },
 
   /**
@@ -7249,12 +7149,6 @@ var gIdentityHandler = {
       // Unicode Bidirectional Algorithm proper (at the paragraph level).
       icon_labels_dir = /^[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufefc]/.test(icon_label) ?
                         "rtl" : "ltr";
-    }
-    else if (newMode == this.IDENTITY_MODE_CHROMEUI) {
-      icon_label = "";
-      tooltip = "";
-      icon_country_label = "";
-      icon_labels_dir = "ltr";
     }
     else {
       tooltip = gNavigatorBundle.getString("identity.unknown.tooltip");
@@ -7350,9 +7244,6 @@ var gIdentityHandler = {
     // Revert the contents of the location bar, see bug 406779
     gURLBar.handleRevert();
 
-    if (this._mode == this.IDENTITY_MODE_CHROMEUI)
-      return;
-
     // Make sure that the display:none style we set in xul is removed now that
     // the popup is actually needed
     this._identityPopup.hidden = false;
@@ -7366,7 +7257,7 @@ var gIdentityHandler = {
 
     // Make sure the identity popup hangs toward the middle of the location bar
     // in RTL builds
-    var position = (getComputedStyle(gNavToolbox, "").direction == "rtl") ? 'bottomcenter topright' : 'bottomcenter topleft';
+    var position = (getComputedStyle(gNavToolbox, "").direction == "rtl") ? 'after_end' : 'after_start';
 
     // Add the "open" attribute to the identity box for styling
     this._identityBox.setAttribute("open", "true");
@@ -7393,7 +7284,7 @@ var gIdentityHandler = {
     dt.setData("text/uri-list", value);
     dt.setData("text/plain", value);
     dt.setData("text/html", htmlString);
-    dt.addElement(event.currentTarget);
+    dt.setDragImage(event.currentTarget, 0, 0);
   }
 };
 
@@ -7553,7 +7444,6 @@ let gPrivateBrowsingUI = {
   _privateBrowsingService: null,
   _searchBarValue: null,
   _findBarValue: null,
-  _inited: false,
 
   init: function PBUI_init() {
     Services.obs.addObserver(this, "private-browsing", false);
@@ -7564,14 +7454,9 @@ let gPrivateBrowsingUI = {
 
     if (this.privateBrowsingEnabled)
       this.onEnterPrivateBrowsing(true);
-
-    this._inited = true;
   },
 
   uninit: function PBUI_unint() {
-    if (!this._inited)
-      return;
-
     Services.obs.removeObserver(this, "private-browsing");
     Services.obs.removeObserver(this, "private-browsing-transition-complete");
   },
@@ -7597,8 +7482,11 @@ let gPrivateBrowsingUI = {
     }
     else if (aTopic == "private-browsing-transition-complete") {
       if (this._disableUIOnToggle) {
-        document.getElementById("Tools:PrivateBrowsing")
-                .removeAttribute("disabled");
+        // use setTimeout here in order to make the code testable
+        setTimeout(function() {
+          document.getElementById("Tools:PrivateBrowsing")
+                  .removeAttribute("disabled");
+        }, 0);
       }
     }
   },
@@ -8178,17 +8066,8 @@ let AddonsMgrListener = {
   get statusBar() document.getElementById("status-bar"),
   getAddonBarItemCount: function() {
     // Take into account the contents of the status bar shim for the count.
-    var itemCount = this.statusBar.childNodes.length;
-
-    var defaultOrNoninteractive = this.addonBar.getAttribute("defaultset")
-                                      .split(",")
-                                      .concat(["separator", "spacer", "spring"]);
-    this.addonBar.currentSet.split(",").forEach(function (item) {
-      if (defaultOrNoninteractive.indexOf(item) == -1)
-        itemCount++;
-    });
-
-    return itemCount;
+    return this.addonBar.childNodes.length - 1 +
+           this.statusBar.childNodes.length;
   },
   onInstalling: function(aAddon) {
     this.lastAddonBarCount = this.getAddonBarItemCount();

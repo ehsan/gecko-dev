@@ -2154,9 +2154,9 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         return TRUE;
     }
 
-    if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_OPENGL)
+    if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL)
     {
-        LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(GetLayerManager(nsnull));
+        LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(GetLayerManager());
         manager->SetClippingRegion(event.region);
 
         nsEventStatus status;
@@ -4597,12 +4597,8 @@ nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
         pixman_region32_intersect(&intersectRegion,
                                   &newRegion, &existingRegion);
 
-        // If mClipRects is null we haven't set a clip rect yet, so we
-        // need to set the clip even if it is equal.
-        if (mClipRects &&
-            pixman_region32_equal(&intersectRegion, &existingRegion)) {
+        if (pixman_region32_equal(&intersectRegion, &existingRegion))
             return;
-        }
 
         if (!pixman_region32_equal(&intersectRegion, &newRegion)) {
             GetIntRects(intersectRegion, &intersectRects);
