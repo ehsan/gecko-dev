@@ -2,8 +2,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/dom/base \
-  $(NULL)
+import sys
 
-include $(topsrcdir)/config/rules.mk
+from mozbuild.preprocessor import Preprocessor
+
+
+def main(args):
+  pp = Preprocessor()
+  pp.handleCommandLine(args, True)
+
+
+if __name__ == "__main__":
+  main(sys.argv[1:])
