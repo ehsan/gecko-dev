@@ -91,9 +91,6 @@ public:
   static void RegisterVolumeObserver(EventObserver* aObserver, const char* aName);
   static void UnregisterVolumeObserver(EventObserver* aObserver, const char* aName);
 
-protected:
-  ~Volume() {}
-
 private:
   friend class AutoMounter;         // Calls StartXxx
   friend class nsVolume;            // Calls UpdateMountLock

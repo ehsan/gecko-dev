@@ -2028,11 +2028,9 @@ TIntermTyped* TParseContext::addIndexExpression(TIntermTyped *baseExpression, co
         recover();
     }
 
-    TIntermConstantUnion *indexConstantUnion = indexExpression->getAsConstantUnion();
-
-    if (indexExpression->getQualifier() == EvqConst && indexConstantUnion)
+    if (indexExpression->getQualifier() == EvqConst)
     {
-        int index = indexConstantUnion->getIConst(0);
+        int index = indexExpression->getAsConstantUnion()->getIConst(0);
         if (index < 0)
         {
             std::stringstream infoStream;
@@ -2093,7 +2091,7 @@ TIntermTyped* TParseContext::addIndexExpression(TIntermTyped *baseExpression, co
                 index = baseExpression->getType().getNominalSize() - 1;
             }
 
-            indexConstantUnion->getUnionArrayPointer()->setIConst(index);
+            indexExpression->getAsConstantUnion()->getUnionArrayPointer()->setIConst(index);
             indexedExpression = intermediate.addIndex(EOpIndexDirect, baseExpression, indexExpression, location);
         }
     }

@@ -20,6 +20,18 @@ const TEST_DATA = [
       relSignalStrength: null
     }
   },
+  // Valid rxlev with max value.
+  {
+    input: {
+      rxlev: 63,
+      rsrp: 65535,
+      rssnr: 65535
+    },
+    expect: {
+      signalStrength: -48,
+      relSignalStrength: 100
+    }
+  },
   // Valid rxlev.
   {
     input: {
@@ -28,7 +40,7 @@ const TEST_DATA = [
       rssnr: 65535
     },
     expect: {
-      signalStrength: null,
+      signalStrength: -99,
       relSignalStrength: 100
     }
   },
@@ -40,56 +52,8 @@ const TEST_DATA = [
       rssnr: 65535
     },
     expect: {
-      signalStrength: null,
+      signalStrength: -111,
       relSignalStrength: 0
-    }
-  },
-  // Valid rxlev with max value.
-  {
-    input: {
-      rxlev: 63,
-      rsrp: 65535,
-      rssnr: 65535
-    },
-    expect: {
-      signalStrength: null,
-      relSignalStrength: 100
-    }
-  },
-  // Valid rsrp.
-  {
-    input: {
-      rxlev: 31,
-      rsrp: 50,
-      rssnr: 65535
-    },
-    expect: {
-      signalStrength: 50,
-      relSignalStrength: 100
-    }
-  },
-  // Valid rssnr.
-  {
-    input: {
-      rxlev: 31,
-      rsrp: 65535,
-      rssnr: 100
-    },
-    expect: {
-      signalStrength: null,
-      relSignalStrength: 81
-    }
-  },
-  // Valid rsrp and rssnr.
-  {
-    input: {
-      rxlev: 31,
-      rsrp: 100,
-      rssnr: 30
-    },
-    expect: {
-      signalStrength: 100,
-      relSignalStrength: 37
     }
   }
 ];

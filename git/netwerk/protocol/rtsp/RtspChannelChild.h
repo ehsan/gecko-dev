@@ -37,6 +37,7 @@ public:
   NS_DECL_NSICHILDCHANNEL
 
   RtspChannelChild(nsIURI *aUri);
+  ~RtspChannelChild();
 
   // nsBaseChannel::nsIChannel
   NS_IMETHOD GetContentType(nsACString & aContentType) MOZ_OVERRIDE MOZ_FINAL;
@@ -74,9 +75,6 @@ public:
   // RtspChannelChild
   nsIStreamingProtocolController* GetController();
   void ReleaseController();
-
-protected:
-  ~RtspChannelChild();
 
 private:
   bool mIPCOpen;

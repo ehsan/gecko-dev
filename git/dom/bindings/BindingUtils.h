@@ -2865,24 +2865,14 @@ private:
   typename Conditional<IsRefcounted<T>::value, nsRefPtr<T>, OwnedNative>::Type mNative;
 };
 
-template<class T>
-struct DeferredFinalizerImpl
+template<class T,
+         bool isISupports=IsBaseOf<nsISupports, T>::value>
+class DeferredFinalizer
 {
-  typedef typename Conditional<IsSame<T, nsISupports>::value,
-                               nsCOMPtr<T>,
-                               typename Conditional<IsRefcounted<T>::value,
-                                                    nsRefPtr<T>,
-                                                    nsAutoPtr<T>>::Type>::Type SmartPtr;
+  typedef typename Conditional<IsRefcounted<T>::value,
+                               nsRefPtr<T>, nsAutoPtr<T>>::Type SmartPtr;
   typedef nsTArray<SmartPtr> SmartPtrArray;
 
-  static_assert(IsSame<T, nsISupports>::value || !IsBaseOf<nsISupports, T>::value,
-                "nsISupports classes should all use the nsISupports instantiation");
-
-  static inline void
-  AppendAndTake(nsTArray<nsCOMPtr<nsISupports>>& smartPtrArray, nsISupports* ptr)
-  {
-    smartPtrArray.AppendElement(dont_AddRef(ptr));
-  }
   template<class U>
   static inline void
   AppendAndTake(nsTArray<nsRefPtr<U>>& smartPtrArray, U* ptr)
@@ -2923,24 +2913,20 @@ struct DeferredFinalizerImpl
     }
     return false;
   }
-};
 
-template<class T,
-         bool isISupports=IsBaseOf<nsISupports, T>::value>
-struct DeferredFinalizer
-{
+public:
   static void
   AddForDeferredFinalization(T* aObject)
   {
-    typedef DeferredFinalizerImpl<T> Impl;
-    cyclecollector::DeferredFinalize(Impl::AppendDeferredFinalizePointer,
-                                     Impl::DeferredFinalize, aObject);
+    cyclecollector::DeferredFinalize(AppendDeferredFinalizePointer,
+                                     DeferredFinalize, aObject);
   }
 };
 
 template<class T>
-struct DeferredFinalizer<T, true>
+class DeferredFinalizer<T, true>
 {
+public:
   static void
   AddForDeferredFinalization(T* aObject)
   {

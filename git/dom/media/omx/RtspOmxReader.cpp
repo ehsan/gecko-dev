@@ -48,7 +48,6 @@ RtspOmxReader::Seek(int64_t aTime, int64_t aEndTime)
   // seek operation. The function will clear the |mVideoQueue| and |mAudioQueue|
   // that store the decoded data and also call the |DecodeToTarget| to pass
   // the seek time to OMX a/v decoders.
-  mEnsureActiveFromSeek = true;
   return MediaOmxReader::Seek(aTime, aEndTime);
 }
 
@@ -72,13 +71,9 @@ void RtspOmxReader::EnsureActive() {
   if (mRtspResource) {
     nsIStreamingProtocolController* controller =
         mRtspResource->GetMediaStreamController();
-    // We do not have to call Play if the EnsureActive request is from Seek
-    // operation because RTSP connection must already be established before
-    // performing Seek.
-    if (controller && !mEnsureActiveFromSeek) {
+    if (controller) {
       controller->Play();
     }
-    mEnsureActiveFromSeek = false;
     mRtspResource->SetSuspend(false);
   }
 

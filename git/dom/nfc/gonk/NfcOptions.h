@@ -58,23 +58,20 @@ struct CommandOptions
       NDEFRecordStruct record;
       record.mTnf = currentValue[i].mTnf;
 
-      if (currentValue[i].mType.WasPassed() &&
-          !currentValue[i].mType.Value().IsNull()) {
-        const dom::Uint8Array& type = currentValue[i].mType.Value().Value();
+      if (currentValue[i].mType.WasPassed()) {
+        const dom::Uint8Array& type = currentValue[i].mType.Value();
         type.ComputeLengthAndData();
         record.mType.AppendElements(type.Data(), type.Length());
       }
 
-      if (currentValue[i].mId.WasPassed() &&
-          !currentValue[i].mId.Value().IsNull()) {
-        const dom::Uint8Array& id = currentValue[i].mId.Value().Value();
+      if (currentValue[i].mId.WasPassed()) {
+        const dom::Uint8Array& id = currentValue[i].mId.Value();
         id.ComputeLengthAndData();
         record.mId.AppendElements(id.Data(), id.Length());
       }
 
-      if (currentValue[i].mPayload.WasPassed() &&
-          !currentValue[i].mPayload.Value().IsNull()) {
-        const dom::Uint8Array& payload = currentValue[i].mPayload.Value().Value();
+      if (currentValue[i].mPayload.WasPassed()) {
+        const dom::Uint8Array& payload = currentValue[i].mPayload.Value();
         payload.ComputeLengthAndData();
         record.mPayload.AppendElements(payload.Data(), payload.Length());
       }

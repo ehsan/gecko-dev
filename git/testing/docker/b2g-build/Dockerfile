@@ -14,8 +14,7 @@ RUN yum install -y epel-release && \
   bison \
   bzip2 \
   ccache \
-  # cmake: is disabled intentionally to work around: bug 1141417
-  # cmake \
+  cmake \
   curl \
   curl-devel \
   dbus-devel \

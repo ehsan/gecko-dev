@@ -11,6 +11,10 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsPIDOMWindow.h"
 
+#ifdef DEBUG
+#include "nsCycleCollector.h"
+#endif
+
 namespace mozilla {
 namespace dom {
 namespace indexedDB {
@@ -72,7 +76,7 @@ IDBWrapperCache::SetScriptOwner(JSObject* aScriptOwner)
 void
 IDBWrapperCache::AssertIsRooted() const
 {
-  MOZ_ASSERT(IsJSHolder(const_cast<IDBWrapperCache*>(this)),
+  MOZ_ASSERT(cyclecollector::IsJSHolder(const_cast<IDBWrapperCache*>(this)),
              "Why aren't we rooted?!");
 }
 #endif

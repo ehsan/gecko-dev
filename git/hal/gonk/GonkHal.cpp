@@ -297,9 +297,6 @@ public:
 
   static bool ShuttingDown() { return sShuttingDown; }
 
-protected:
-  ~VibratorRunnable() {}
-
 private:
   Monitor mMonitor;
 
@@ -474,7 +471,7 @@ public:
 
 } // anonymous namespace
 
-class BatteryObserver MOZ_FINAL : public IUeventObserver
+class BatteryObserver : public IUeventObserver
 {
 public:
   NS_INLINE_DECL_REFCOUNTING(BatteryObserver)
@@ -497,9 +494,6 @@ public:
       NS_DispatchToMainThread(mUpdater);
     }
   }
-
-protected:
-  ~BatteryObserver() {}
 
 private:
   nsRefPtr<BatteryUpdater> mUpdater;
@@ -1178,10 +1172,6 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
-
-protected:
-  ~OomVictimLogger() {}
-
 private:
   double mLastLineChecked;
   ScopedFreePtr<regex_t> mRegexes;

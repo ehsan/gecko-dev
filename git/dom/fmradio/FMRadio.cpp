@@ -60,6 +60,8 @@ public:
     mType = aType;
   }
 
+  ~FMRadioRequest() { }
+
   NS_IMETHODIMP
   Run()
   {
@@ -94,9 +96,6 @@ public:
 
     return NS_OK;
   }
-
-protected:
-  ~FMRadioRequest() { }
 
 private:
   FMRadioRequestArgs::Type mType;

@@ -50,7 +50,6 @@
 #include "nsINetworkLinkService.h"
 
 #include "mozilla/net/NeckoChild.h"
-#include "mozilla/ipc/URIUtils.h"
 #include "mozilla/Telemetry.h"
 
 #if defined(XP_UNIX)
@@ -1990,13 +1989,6 @@ NS_IMETHODIMP
 nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
                                   nsIInterfaceRequestor *aCallbacks)
 {
-    if (IsNeckoChild()) {
-        ipc::URIParams params;
-        SerializeURI(aURI, params);
-        gNeckoChild->SendSpeculativeConnect(params);
-        return NS_OK;
-    }
-
     if (!mHandlerActive)
         return NS_OK;
 

@@ -16,9 +16,6 @@ public:
   NS_DECL_NSICLIPBOARD
 
   nsClipboard();
-
-protected:
-  ~nsClipboard() {}
 };
 
 #endif
