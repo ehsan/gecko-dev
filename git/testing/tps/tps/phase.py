@@ -44,7 +44,7 @@ class TPSTestPhase(object):
       r"^(.*?)test phase (?P<matchphase>\d+): (?P<matchstatus>.*)$")
 
   def __init__(self, phase, profile, testname, testpath, logfile, env,
-               firefoxRunner, logfn, ignore_unused_engines=False):
+               firefoxRunner, logfn):
     self.phase = phase
     self.profile = profile
     self.testname = str(testname) # this might be passed in as unicode
@@ -53,7 +53,6 @@ class TPSTestPhase(object):
     self.env = env
     self.firefoxRunner = firefoxRunner
     self.log = logfn
-    self.ignore_unused_engines = ignore_unused_engines
     self._status = None
     self.errline = ''
 
@@ -69,17 +68,14 @@ class TPSTestPhase(object):
 
   def run(self):
     # launch Firefox
-    args = [ '-tps', self.testpath,
-             '-tpsphase', self.phasenum,
+    args = [ '-tps', self.testpath, 
+             '-tpsphase', self.phasenum, 
              '-tpslogfile', self.logfile ]
 
-    if self.ignore_unused_engines:
-        args.append('--ignore-unused-engines')
-
-    self.log("\nlaunching Firefox for phase %s with args %s\n" %
+    self.log("\nlaunching firefox for phase %s with args %s\n" % 
              (self.phase, str(args)))
     returncode = self.firefoxRunner.run(env=self.env,
-                                        args=args,
+                                        args=args, 
                                         profile=self.profile)
 
     # parse the logfile and look for results from the current test phase

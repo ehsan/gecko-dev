@@ -51,7 +51,7 @@ function run(aChrome)
   let elements;
 
   disabledCount = 0;
-  elements = document.querySelectorAll("button,toolbarbutton,textbox");
+  elements = document.querySelectorAll("button,input,select");
   for (let i = 0; i < elements.length; ++i) {
     if (elements[i].hasAttribute("disabled")) {
       disabledCount++;

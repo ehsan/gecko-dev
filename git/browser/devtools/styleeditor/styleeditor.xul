@@ -20,7 +20,6 @@
    -
    - Contributor(s):
    -   Cedric Vivier <cedricv@neonux.com> (original author)
-   -   Paul Rouget <paul@mozilla.com>
    -
    - Alternatively, the contents of this file may be used under the terms of
    - either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,7 +40,6 @@
 ]>
 <?xml-stylesheet href="chrome://global/skin/global.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/content/splitview.css" type="text/css"?>
-<?xml-stylesheet href="chrome://browser/skin/devtools/common.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/skin/devtools/splitview.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/content/styleeditor.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/skin/devtools/styleeditor.css" type="text/css"?>
@@ -55,23 +53,24 @@
 <xul:script type="application/javascript" src="chrome://global/content/globalOverlay.js"/>
 
 <xul:box id="style-editor-chrome" class="splitview-root">
-  <xul:box class="splitview-controller" id="stylesheets-controller" persist="width height">
+  <xul:box class="splitview-side-details"></xul:box>
+  <xul:box class="splitview-controller">
     <xul:box class="splitview-main">
-      <xul:toolbar class="devtools-toolbar">
-        <xul:toolbarbutton class="style-editor-newButton devtools-toolbarbutton"
+      <xul:box class="toolbar">
+        <xul:button class="style-editor-newButton"
                     accesskey="&newButton.accesskey;"
                     tooltiptext="&newButton.tooltip;"
-                    label="&newButton.label;"/>
-        <xul:toolbarbutton class="style-editor-importButton devtools-toolbarbutton"
+                    label="&newButton.label;"></xul:button>
+        <xul:button class="style-editor-importButton"
                     accesskey="&importButton.accesskey;"
                     tooltiptext="&importButton.tooltip;"
-                    label="&importButton.label;"/>
-        <xul:spacer flex="1"/>
-        <xul:textbox class="splitview-filter devtools-searchinput"
-                     type="search" flex="1"
+                    label="&importButton.label;"></xul:button>
+        <xul:box class="spacer" flex="1"></xul:box>
+        <xul:textbox class="splitview-filter"
+                     type="search"
                      tooltiptext="&searchInput.tooltip;"
                      placeholder="&searchInput.placeholder;"/>
-      </xul:toolbar>
+      </xul:box>
     </xul:box>
     <xul:box class="splitview-nav-container">
       <ol class="splitview-nav" tabindex="0"></ol>
@@ -91,7 +90,6 @@
       </div>
     </xul:box> <!-- .splitview-nav-container -->
   </xul:box>   <!-- .splitview-controller -->
-  <xul:box class="splitview-side-details"/>
 
   <div id="splitview-templates" hidden="true">
     <li id="splitview-tpl-summary-stylesheet" tabindex="0">
@@ -100,29 +98,24 @@
          accesskey="&saveButton.accesskey;"></a>
       <hgroup class="stylesheet-info">
         <h1><a class="stylesheet-name" href="#"></a></h1>
-        <div class="stylesheet-more">
-          <h3 class="stylesheet-title"></h3>
-          <h3 class="stylesheet-rule-count"></h3>
-          <h3 class="stylesheet-error-message"></h3>
-          <xul:spacer/>
-          <h3><a class="stylesheet-saveButton" href="#"
-                 title="&saveButton.tooltip;"
-                 accesskey="&saveButton.accesskey;">&saveButton.label;</a></h3>
-        </div>
+        <h2 class="stylesheet-title"></h2>
+        <h3 class="stylesheet-error-message"></h3>
       </hgroup>
+      <div class="stylesheet-more">
+        <hgroup class="stylesheet-stats">
+          <h3 class="stylesheet-rule-count"></h3>
+        </hgroup>
+        <hgroup class="stylesheet-actions">
+          <h1><a class="stylesheet-saveButton" href="#"
+                 title="&saveButton.tooltip;"
+                 accesskey="&saveButton.accesskey;">&saveButton.label;</a></h1>
+        </hgroup>
+      </div>
     </li>
 
     <xul:box id="splitview-tpl-details-stylesheet" class="splitview-details">
-      <xul:resizer class="splitview-portrait-resizer"
-               dir="bottom"
-               element="stylesheets-controller"/>
-      <xul:toolbar id="splitview-details-toolbar" class="devtools-toolbar">
-        <xul:resizer class="splitview-landscape-resizer"
-                     dir="bottomend"
-                     element="stylesheets-controller"/>
-      </xul:toolbar>
-      <xul:box class="stylesheet-editor-input textbox"
-               data-placeholder="&editorTextbox.placeholder;"/>
+      <div class="stylesheet-editor-input textbox"
+           data-placeholder="&editorTextbox.placeholder;"></div>
     </xul:box>
   </div> <!-- #splitview-templates -->
 </xul:box>   <!-- .splitview-root -->

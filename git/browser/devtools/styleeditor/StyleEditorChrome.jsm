@@ -351,7 +351,7 @@ StyleEditorChrome.prototype = {
    */
   _disableChrome: function SEC__disableChrome()
   {
-    let matches = this._root.querySelectorAll("button,toolbarbutton,textbox");
+    let matches = this._root.querySelectorAll("button,input,select");
     for (let i = 0; i < matches.length; ++i) {
       matches[i].setAttribute("disabled", "disabled");
     }

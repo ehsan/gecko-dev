@@ -218,7 +218,6 @@ class DeflateRequest(object):
 
 
 class _Deflater(object):
-
     def __init__(self, window_bits):
         self._logger = get_class_logger(self)
 
@@ -234,7 +233,6 @@ class _Deflater(object):
 
 
 class _Inflater(object):
-
     def __init__(self):
         self._logger = get_class_logger(self)
 
@@ -391,10 +389,6 @@ class DeflateConnection(object):
 
         self._deflater = _Deflater(zlib.MAX_WBITS)
         self._inflater = _Inflater()
-
-    def get_remote_addr(self):
-        return self._connection.remote_addr
-    remote_addr = property(get_remote_addr)
 
     def put_bytes(self, bytes):
         self.write(bytes)

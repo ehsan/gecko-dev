@@ -582,8 +582,7 @@ var gSyncSetup = {
         return document.getElementById(element).hasAttribute("checked");
       }
 
-      let prefs = ["engine.bookmarks", "engine.passwords", "engine.history",
-                   "engine.tabs", "engine.prefs", "engine.addons"];
+      let prefs = ["engine.bookmarks", "engine.passwords", "engine.history", "engine.tabs", "engine.prefs"];
       for (let i = 0;i < prefs.length;i++) {
         Weave.Svc.Prefs.set(prefs[i], isChecked(prefs[i]));
       }

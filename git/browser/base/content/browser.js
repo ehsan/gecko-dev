@@ -2197,7 +2197,14 @@ function openLocationCallback()
 
 function BrowserOpenTab()
 {
-  openUILinkIn("about:blank", "tab");
+  if (!gBrowser) {
+    // If there are no open browser windows, open a new one
+    window.openDialog("chrome://browser/content/", "_blank",
+                      "chrome,all,dialog=no", "about:blank");
+    return;
+  }
+  gBrowser.loadOneTab("about:blank", {inBackground: false});
+  focusAndSelectUrlBar();
 }
 
 /* Called from the openLocation dialog. This allows that dialog to instruct
@@ -8793,7 +8800,7 @@ function switchToTabHavingURI(aURI, aOpenNew) {
     if (isBrowserWindow && isTabEmpty(gBrowser.selectedTab))
       gBrowser.selectedBrowser.loadURI(aURI.spec);
     else
-      openUILinkIn(aURI.spec, "tab");
+      openUILinkIn(aURI.spec, "tab", { inBackground: false });
   }
 
   return false;
@@ -8903,16 +8910,20 @@ function duplicateTabIn(aTab, where, delta) {
                  .getService(Ci.nsISessionStore)
                  .duplicateTab(window, aTab, delta);
 
+  var loadInBackground =
+    getBoolPref("browser.tabs.loadBookmarksInBackground", false);
+
   switch (where) {
     case "window":
       gBrowser.hideTab(newTab);
       gBrowser.replaceTabWithWindow(newTab);
       break;
     case "tabshifted":
-      // A background tab has been opened, nothing else to do here.
-      break;
+      loadInBackground = !loadInBackground;
+      // fall through
     case "tab":
-      gBrowser.selectedTab = newTab;
+      if (!loadInBackground)
+        gBrowser.selectedTab = newTab;
       break;
   }
 }

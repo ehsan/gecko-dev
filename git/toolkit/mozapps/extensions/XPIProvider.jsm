@@ -820,17 +820,6 @@ function loadManifestFromRDF(aUri, aStream) {
 
   addon.applyBackgroundUpdates = AddonManager.AUTOUPDATE_DEFAULT;
 
-  // Generate random GUID used for Sync.
-  // This was lifted from util.js:makeGUID() from services-sync.
-  let rng = Cc["@mozilla.org/security/random-generator;1"].
-            createInstance(Ci.nsIRandomGenerator);
-  let bytes = rng.generateRandomBytes(9);
-  let byte_string = [String.fromCharCode(byte) for each (byte in bytes)]
-                    .join("");
-  // Base64 encode
-  addon.syncGUID = btoa(byte_string).replace('+', '-', 'g')
-                                    .replace('/', '_', 'g');
-
   return addon;
 }
 
@@ -5294,6 +5283,18 @@ var XPIDatabase = {
    *         The file descriptor of the add-on
    */
   addAddonMetadata: function XPIDB_addAddonMetadata(aAddon, aDescriptor) {
+    // Create a GUID if one does not exist
+    if (!aAddon.syncGUID) {
+      let rng = Cc["@mozilla.org/security/random-generator;1"].
+                createInstance(Ci.nsIRandomGenerator);
+      let bytes = rng.generateRandomBytes(9);
+      let byte_string = [String.fromCharCode(byte) for each (byte in bytes)]
+                        .join("");
+      // Base64 encode
+      aAddon.syncGUID = btoa(byte_string).replace('+', '-', 'g')
+                                         .replace('/', '_', 'g');
+    }
+
     // If there is no DB yet then forcibly create one
     if (!this.connection)
       this.openConnection(false, true);
@@ -7584,9 +7585,7 @@ function AddonWrapper(aAddon) {
     if (aAddon.syncGUID == val)
       return val;
 
-    if (aAddon instanceof DBAddonInternal)
-      XPIDatabase.setAddonSyncGUID(aAddon, val);
-
+    XPIDatabase.setAddonSyncGUID(aAddon, val);
     aAddon.syncGUID = val;
 
     return val;
