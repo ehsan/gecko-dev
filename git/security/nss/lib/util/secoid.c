@@ -1931,11 +1931,6 @@ SECOID_FindOIDTagDescription(SECOidTag tagnum)
   return oidData ? oidData->desc : 0;
 }
 
-/* for now, this is only used in a single place, so it can remain static */
-static PRBool parentForkedAfterC_Initialize;
-
-#define SKIP_AFTER_FORK(x) if (!parentForkedAfterC_Initialize) x
-
 /*
  * free up the oid tables.
  */
@@ -1956,7 +1951,7 @@ SECOID_Shutdown(void)
     ** the destruction of data that probably isn't initialized anyway.
     */
     if (dynOidLock) {
-	SKIP_AFTER_FORK(NSSRWLock_LockWrite(dynOidLock));
+	NSSRWLock_LockWrite(dynOidLock);
 	if (dynOidHash) {
 	    PL_HashTableDestroy(dynOidHash);
 	    dynOidHash = NULL;
@@ -1972,8 +1967,8 @@ SECOID_Shutdown(void)
 	dynOidEntriesAllocated = 0;
 	dynOidEntriesUsed = 0;
 
-	SKIP_AFTER_FORK(NSSRWLock_UnlockWrite(dynOidLock));
-	SKIP_AFTER_FORK(NSSRWLock_Destroy(dynOidLock));
+	NSSRWLock_UnlockWrite(dynOidLock);
+	NSSRWLock_Destroy(dynOidLock);
 	dynOidLock = NULL;
     } else {
     	/* Since dynOidLock doesn't exist, then all the data it protects
@@ -1990,10 +1985,3 @@ SECOID_Shutdown(void)
     }
     return SECSuccess;
 }
-
-void UTIL_SetForkState(PRBool forked)
-{
-    parentForkedAfterC_Initialize = forked;
-}
-
-

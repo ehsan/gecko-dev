@@ -18,9 +18,6 @@ const nsIAccessibleRelation = Components.interfaces.nsIAccessibleRelation;
 const nsIAccessNode = Components.interfaces.nsIAccessNode;
 const nsIAccessible = Components.interfaces.nsIAccessible;
 
-const nsIAccessibleCoordinateType =
-      Components.interfaces.nsIAccessibleCoordinateType;
-
 const nsIAccessibleDocument = Components.interfaces.nsIAccessibleDocument;
 
 const nsIAccessibleText = Components.interfaces.nsIAccessibleText;
@@ -36,10 +33,7 @@ const nsIAccessibleValue = Components.interfaces.nsIAccessibleValue;
 
 const nsIObserverService = Components.interfaces.nsIObserverService;
 
-const nsIDOMDocument = Components.interfaces.nsIDOMDocument;
 const nsIDOMNode = Components.interfaces.nsIDOMNode;
-const nsIDOMWindow = Components.interfaces.nsIDOMWindow;
-
 const nsIPropertyElement = Components.interfaces.nsIPropertyElement;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,12 +49,10 @@ const ROLE_DOCUMENT = nsIAccessibleRole.ROLE_DOCUMENT;
 const ROLE_ENTRY = nsIAccessibleRole.ROLE_ENTRY;
 const ROLE_FLAT_EQUATION = nsIAccessibleRole.ROLE_FLAT_EQUATION;
 const ROLE_FORM = nsIAccessibleRole.ROLE_FORM;
-const ROLE_GRAPHIC = nsIAccessibleRole.ROLE_GRAPHIC;
 const ROLE_GRID_CELL = nsIAccessibleRole.ROLE_GRID_CELL;
 const ROLE_HEADING = nsIAccessibleRole.ROLE_HEADING;
 const ROLE_LABEL = nsIAccessibleRole.ROLE_LABEL;
 const ROLE_LIST = nsIAccessibleRole.ROLE_LIST;
-const ROLE_LISTBOX = nsIAccessibleRole.ROLE_LISTBOX;
 const ROLE_OPTION = nsIAccessibleRole.ROLE_OPTION;
 const ROLE_PARAGRAPH = nsIAccessibleRole.ROLE_PARAGRAPH;
 const ROLE_PASSWORD_TEXT = nsIAccessibleRole.ROLE_PASSWORD_TEXT;
@@ -283,22 +275,6 @@ function relationTypeToString(aRelationType)
   return gAccRetrieval.getStringRelationType(aRelationType);
 }
 
-/**
- * Return pretty name for identifier, it may be ID, DOM node or accessible.
- */
-function prettyName(aIdentifier)
-{
-  if (aIdentifier instanceof nsIAccessible) {
-    var acc = getAccessible(aIdentifier, [nsIAccessNode]);
-    return getNodePrettyName(acc.DOMNode);
-  }
-
-  if (aIdentifier instanceof nsIDOMNode)
-    return getNodePrettyName(aIdentifier);
-
-  return " '" + aIdentifier + "' ";
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Private
 ////////////////////////////////////////////////////////////////////////////////
@@ -313,11 +289,3 @@ function initialize()
 }
 
 addLoadEvent(initialize);
-
-function getNodePrettyName(aNode)
-{
-  if (aNode.nodeType == nsIDOMNode.ELEMENT_NODE && aNode.hasAttribute("id"))
-    return " '" + aNode.getAttribute("id") + "' ";
-
-  return " '" + aNode.localName + " node' ";
-}

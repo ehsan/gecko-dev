@@ -3123,74 +3123,6 @@ nsGlobalWindow::SetName(const nsAString& aName)
   return result;
 }
 
-// Helper functions used by many methods below.
-PRInt32
-nsGlobalWindow::DevToCSSIntPixels(PRInt32 px)
-{
-  if (!mDocShell)
-    return px; // assume 1:1
-    
-  nsCOMPtr<nsPresContext> presContext;
-  mDocShell->GetPresContext(getter_AddRefs(presContext));
-  if (!presContext)
-    return px;
-  
-  return nsPresContext::AppUnitsToIntCSSPixels(
-    presContext->DevPixelsToAppUnits(px));
-}
-
-PRInt32
-nsGlobalWindow::CSSToDevIntPixels(PRInt32 px)
-{
-  if (!mDocShell)
-    return px; // assume 1:1
-    
-  nsCOMPtr<nsPresContext> presContext;
-  mDocShell->GetPresContext(getter_AddRefs(presContext));
-  if (!presContext)
-    return px;
-  
-  return presContext->AppUnitsToDevPixels(
-    nsPresContext::CSSPixelsToAppUnits(px));
-}
-
-nsIntSize
-nsGlobalWindow::DevToCSSIntPixels(nsIntSize px)
-{
-  if (!mDocShell)
-    return px; // assume 1:1
-    
-  nsCOMPtr<nsPresContext> presContext;
-  mDocShell->GetPresContext(getter_AddRefs(presContext));
-  if (!presContext)
-    return px;
-  
-  return nsIntSize(
-    nsPresContext::AppUnitsToIntCSSPixels(
-      presContext->DevPixelsToAppUnits(px.width)),
-    nsPresContext::AppUnitsToIntCSSPixels(
-      presContext->DevPixelsToAppUnits(px.height)));
-}
-
-nsIntSize
-nsGlobalWindow::CSSToDevIntPixels(nsIntSize px)
-{
-  if (!mDocShell)
-    return px; // assume 1:1
-    
-  nsCOMPtr<nsPresContext> presContext;
-  mDocShell->GetPresContext(getter_AddRefs(presContext));
-  if (!presContext)
-    return px;
-  
-  return nsIntSize(
-    presContext->AppUnitsToDevPixels(
-      nsPresContext::CSSPixelsToAppUnits(px.width)),
-    presContext->AppUnitsToDevPixels(
-      nsPresContext::CSSPixelsToAppUnits(px.height)));
-}
-
-
 NS_IMETHODIMP
 nsGlobalWindow::GetInnerWidth(PRInt32* aInnerWidth)
 {
@@ -3200,13 +3132,22 @@ nsGlobalWindow::GetInnerWidth(PRInt32* aInnerWidth)
 
   EnsureSizeUpToDate();
 
+  *aInnerWidth = 0;
+
   nsCOMPtr<nsIBaseWindow> docShellWin(do_QueryInterface(mDocShell));
   PRInt32 width = 0;
   PRInt32 notused;
   if (docShellWin)
     docShellWin->GetSize(&width, &notused);
 
-  *aInnerWidth = DevToCSSIntPixels(width);
+  nsCOMPtr<nsPresContext> presContext;
+  mDocShell->GetPresContext(getter_AddRefs(presContext));
+
+  if (presContext) {
+    *aInnerWidth = nsPresContext::
+      AppUnitsToIntCSSPixels(presContext->DevPixelsToAppUnits(width));
+  }
+
   return NS_OK;
 }
 
@@ -3236,14 +3177,21 @@ nsGlobalWindow::SetInnerWidth(PRInt32 aInnerWidth)
   NS_ENSURE_SUCCESS(CheckSecurityWidthAndHeight(&aInnerWidth, nsnull),
                     NS_ERROR_FAILURE);
 
-  PRInt32 width = CSSToDevIntPixels(aInnerWidth);
+  nsCOMPtr<nsPresContext> presContext;
+  mDocShell->GetPresContext(getter_AddRefs(presContext));
 
-  nsCOMPtr<nsIBaseWindow> docShellAsWin(do_QueryInterface(mDocShell));
-  PRInt32 notused, height = 0;
-  docShellAsWin->GetSize(&notused, &height);
+  if (presContext) {
+    PRInt32 width;
+    width = presContext->AppUnitsToDevPixels(
+                           nsPresContext::CSSPixelsToAppUnits(aInnerWidth));
 
-  NS_ENSURE_SUCCESS(treeOwner->SizeShellTo(docShellAsItem, width, height),
-                    NS_ERROR_FAILURE);
+    nsCOMPtr<nsIBaseWindow> docShellAsWin(do_QueryInterface(mDocShell));
+    PRInt32 notused, height = 0;
+    docShellAsWin->GetSize(&notused, &height);
+
+    NS_ENSURE_SUCCESS(treeOwner->SizeShellTo(docShellAsItem, width, height),
+                      NS_ERROR_FAILURE);
+  }
 
   return NS_OK;
 }
@@ -3257,13 +3205,22 @@ nsGlobalWindow::GetInnerHeight(PRInt32* aInnerHeight)
 
   EnsureSizeUpToDate();
 
+  *aInnerHeight = 0;
+
   nsCOMPtr<nsIBaseWindow> docShellWin(do_QueryInterface(mDocShell));
   PRInt32 height = 0;
   PRInt32 notused;
   if (docShellWin)
     docShellWin->GetSize(&notused, &height);
 
-  *aInnerHeight = DevToCSSIntPixels(height);
+  nsCOMPtr<nsPresContext> presContext;
+  mDocShell->GetPresContext(getter_AddRefs(presContext));
+
+  if (presContext) {
+    *aInnerHeight = nsPresContext::
+      AppUnitsToIntCSSPixels(presContext->DevPixelsToAppUnits(height));
+  }
+
   return NS_OK;
 }
 
@@ -3293,14 +3250,21 @@ nsGlobalWindow::SetInnerHeight(PRInt32 aInnerHeight)
   NS_ENSURE_SUCCESS(CheckSecurityWidthAndHeight(nsnull, &aInnerHeight),
                     NS_ERROR_FAILURE);
 
-  PRInt32 height = CSSToDevIntPixels(aInnerHeight);
+  nsCOMPtr<nsPresContext> presContext;
+  mDocShell->GetPresContext(getter_AddRefs(presContext));
 
-  nsCOMPtr<nsIBaseWindow> docShellAsWin(do_QueryInterface(mDocShell));
-  PRInt32 width = 0, notused;
-  docShellAsWin->GetSize(&width, &notused);
+  if (presContext) {
+    PRInt32 height;
+    height = presContext->AppUnitsToDevPixels(
+                            nsPresContext::CSSPixelsToAppUnits(aInnerHeight));
 
-  NS_ENSURE_SUCCESS(treeOwner->SizeShellTo(docShellAsItem, width, height),
-                    NS_ERROR_FAILURE);
+    nsCOMPtr<nsIBaseWindow> docShellAsWin(do_QueryInterface(mDocShell));
+    PRInt32 width = 0, notused;
+    docShellAsWin->GetSize(&width, &notused);
+    NS_ENSURE_SUCCESS(treeOwner->
+                      SizeShellTo(docShellAsItem, width, height),
+                      NS_ERROR_FAILURE);
+  }
 
   return NS_OK;
 }
@@ -3323,7 +3287,18 @@ nsGlobalWindow::GetOuterSize(nsIntSize* aSizeCSSPixels)
                                             &sizeDevPixels.height),
                     NS_ERROR_FAILURE);
 
-  *aSizeCSSPixels = DevToCSSIntPixels(sizeDevPixels);
+  nsCOMPtr<nsPresContext> presContext;
+  mDocShell->GetPresContext(getter_AddRefs(presContext));
+  if (!presContext) {
+    // XXX If we don't have a prescontext it's not really clear what we
+    // should do... For now let's assume a 1:1 ratio.
+    *aSizeCSSPixels = sizeDevPixels;
+    return NS_OK;
+  }
+
+  *aSizeCSSPixels = nsIntSize(
+    nsPresContext::AppUnitsToIntCSSPixels(presContext->DevPixelsToAppUnits(sizeDevPixels.width)),
+    nsPresContext::AppUnitsToIntCSSPixels(presContext->DevPixelsToAppUnits(sizeDevPixels.height)));
   return NS_OK;
 }
 
@@ -3369,15 +3344,26 @@ nsGlobalWindow::SetOuterSize(PRInt32 aLengthCSSPixels, PRBool aIsWidth)
   GetTreeOwner(getter_AddRefs(treeOwnerAsWin));
   NS_ENSURE_TRUE(treeOwnerAsWin, NS_ERROR_FAILURE);
 
+  nsCOMPtr<nsPresContext> presContext;
+  mDocShell->GetPresContext(getter_AddRefs(presContext));
+  PRInt32 lengthDevPixels;
+  if (presContext) {
+    lengthDevPixels =
+      presContext->AppUnitsToDevPixels(nsPresContext::CSSPixelsToAppUnits(aLengthCSSPixels));
+  } else {
+    // XXX If we don't have a prescontext it's not really clear what we
+    // should do... For now let's assume a 1:1 ratio.
+    lengthDevPixels = aLengthCSSPixels;
+  }
+
   NS_ENSURE_SUCCESS(CheckSecurityWidthAndHeight(
-                        aIsWidth ? &aLengthCSSPixels : nsnull,
-                        aIsWidth ? nsnull : &aLengthCSSPixels),
+                        aIsWidth ? &lengthDevPixels : nsnull,
+                        aIsWidth ? nsnull : &lengthDevPixels),
                     NS_ERROR_FAILURE);
 
   PRInt32 width, height;
   NS_ENSURE_SUCCESS(treeOwnerAsWin->GetSize(&width, &height), NS_ERROR_FAILURE);
 
-  PRInt32 lengthDevPixels = CSSToDevIntPixels(aLengthCSSPixels);
   if (aIsWidth) {
     width = lengthDevPixels;
   } else {
@@ -3411,12 +3397,11 @@ nsGlobalWindow::GetScreenX(PRInt32* aScreenX)
   GetTreeOwner(getter_AddRefs(treeOwnerAsWin));
   NS_ENSURE_TRUE(treeOwnerAsWin, NS_ERROR_FAILURE);
 
-  PRInt32 x, y;
+  PRInt32 y;
 
-  NS_ENSURE_SUCCESS(treeOwnerAsWin->GetPosition(&x, &y),
+  NS_ENSURE_SUCCESS(treeOwnerAsWin->GetPosition(aScreenX, &y),
                     NS_ERROR_FAILURE);
 
-  *aScreenX = DevToCSSIntPixels(x);
   return NS_OK;
 }
 
@@ -3445,9 +3430,7 @@ nsGlobalWindow::SetScreenX(PRInt32 aScreenX)
   NS_ENSURE_SUCCESS(treeOwnerAsWin->GetPosition(&x, &y),
                     NS_ERROR_FAILURE);
 
-  x = CSSToDevIntPixels(aScreenX);
-
-  NS_ENSURE_SUCCESS(treeOwnerAsWin->SetPosition(x, y),
+  NS_ENSURE_SUCCESS(treeOwnerAsWin->SetPosition(aScreenX, y),
                     NS_ERROR_FAILURE);
 
   return NS_OK;
@@ -3462,12 +3445,11 @@ nsGlobalWindow::GetScreenY(PRInt32* aScreenY)
   GetTreeOwner(getter_AddRefs(treeOwnerAsWin));
   NS_ENSURE_TRUE(treeOwnerAsWin, NS_ERROR_FAILURE);
 
-  PRInt32 x, y;
+  PRInt32 x;
 
-  NS_ENSURE_SUCCESS(treeOwnerAsWin->GetPosition(&x, &y),
+  NS_ENSURE_SUCCESS(treeOwnerAsWin->GetPosition(&x, aScreenY),
                     NS_ERROR_FAILURE);
 
-  *aScreenY = DevToCSSIntPixels(y);
   return NS_OK;
 }
 
@@ -3496,16 +3478,12 @@ nsGlobalWindow::SetScreenY(PRInt32 aScreenY)
   NS_ENSURE_SUCCESS(treeOwnerAsWin->GetPosition(&x, &y),
                     NS_ERROR_FAILURE);
 
-  y = CSSToDevIntPixels(aScreenY);
-
-  NS_ENSURE_SUCCESS(treeOwnerAsWin->SetPosition(x, y),
+  NS_ENSURE_SUCCESS(treeOwnerAsWin->SetPosition(x, aScreenY),
                     NS_ERROR_FAILURE);
 
   return NS_OK;
 }
 
-// NOTE: Arguments to this function should have values scaled to
-// CSS pixels, not device pixels.
 nsresult
 nsGlobalWindow::CheckSecurityWidthAndHeight(PRInt32* aWidth, PRInt32* aHeight)
 {
@@ -3535,8 +3513,6 @@ nsGlobalWindow::CheckSecurityWidthAndHeight(PRInt32* aWidth, PRInt32* aHeight)
   return NS_OK;
 }
 
-// NOTE: Arguments to this function should have values scaled to
-// CSS pixels, not device pixels.
 nsresult
 nsGlobalWindow::CheckSecurityLeftAndTop(PRInt32* aLeft, PRInt32* aTop)
 {
@@ -3565,13 +3541,6 @@ nsGlobalWindow::CheckSecurityLeftAndTop(PRInt32* aLeft, PRInt32* aTop)
     GetTreeOwner(getter_AddRefs(treeOwner));
     if (treeOwner)
       treeOwner->GetPositionAndSize(&winLeft, &winTop, &winWidth, &winHeight);
-
-    // convert those values to CSS pixels
-    // XXX four separate retrievals of the prescontext
-    winLeft   = DevToCSSIntPixels(winLeft);
-    winTop    = DevToCSSIntPixels(winTop);
-    winWidth  = DevToCSSIntPixels(winWidth);
-    winHeight = DevToCSSIntPixels(winHeight);
 
     // Get the screen dimensions
     // XXX This should use nsIScreenManager once it's fully fleshed out.
@@ -4483,10 +4452,7 @@ nsGlobalWindow::MoveTo(PRInt32 aXPos, PRInt32 aYPos)
   NS_ENSURE_SUCCESS(CheckSecurityLeftAndTop(&aXPos, &aYPos),
                     NS_ERROR_FAILURE);
 
-  // mild abuse of a "size" object so we don't need more helper functions
-  nsIntSize devPos(CSSToDevIntPixels(nsIntSize(aXPos, aYPos)));
-
-  NS_ENSURE_SUCCESS(treeOwnerAsWin->SetPosition(devPos.width, devPos.height),
+  NS_ENSURE_SUCCESS(treeOwnerAsWin->SetPosition(aXPos, aYPos),
                     NS_ERROR_FAILURE);
 
   return NS_OK;
@@ -4510,27 +4476,14 @@ nsGlobalWindow::MoveBy(PRInt32 aXDif, PRInt32 aYDif)
   GetTreeOwner(getter_AddRefs(treeOwnerAsWin));
   NS_ENSURE_TRUE(treeOwnerAsWin, NS_ERROR_FAILURE);
 
-  // To do this correctly we have to convert what we get from GetPosition
-  // into CSS pixels, add the arguments, do the security check, and
-  // then convert back to device pixels for the call to SetPosition.
-
   PRInt32 x, y;
   NS_ENSURE_SUCCESS(treeOwnerAsWin->GetPosition(&x, &y), NS_ERROR_FAILURE);
 
-  // mild abuse of a "size" object so we don't need more helper functions
-  nsIntSize cssPos(DevToCSSIntPixels(nsIntSize(x, y)));
+  PRInt32 newX = x + aXDif;
+  PRInt32 newY = y + aYDif;
+  NS_ENSURE_SUCCESS(CheckSecurityLeftAndTop(&newX, &newY), NS_ERROR_FAILURE);
 
-  cssPos.width += aXDif;
-  cssPos.height += aYDif;
-  
-  NS_ENSURE_SUCCESS(CheckSecurityLeftAndTop(&cssPos.width,
-                                            &cssPos.height),
-                    NS_ERROR_FAILURE);
-
-  nsIntSize newDevPos(CSSToDevIntPixels(cssPos));
-
-  NS_ENSURE_SUCCESS(treeOwnerAsWin->SetPosition(newDevPos.width,
-                                                newDevPos.height),
+  NS_ENSURE_SUCCESS(treeOwnerAsWin->SetPosition(newX, newY),
                     NS_ERROR_FAILURE);
 
   return NS_OK;
@@ -4553,13 +4506,11 @@ nsGlobalWindow::ResizeTo(PRInt32 aWidth, PRInt32 aHeight)
   nsCOMPtr<nsIBaseWindow> treeOwnerAsWin;
   GetTreeOwner(getter_AddRefs(treeOwnerAsWin));
   NS_ENSURE_TRUE(treeOwnerAsWin, NS_ERROR_FAILURE);
-  
+
   NS_ENSURE_SUCCESS(CheckSecurityWidthAndHeight(&aWidth, &aHeight),
                     NS_ERROR_FAILURE);
 
-  nsIntSize devSz(CSSToDevIntPixels(nsIntSize(aWidth, aHeight)));
-
-  NS_ENSURE_SUCCESS(treeOwnerAsWin->SetSize(devSz.width, devSz.height, PR_TRUE),
+  NS_ENSURE_SUCCESS(treeOwnerAsWin->SetSize(aWidth, aHeight, PR_TRUE),
                     NS_ERROR_FAILURE);
 
   return NS_OK;
@@ -4586,25 +4537,13 @@ nsGlobalWindow::ResizeBy(PRInt32 aWidthDif, PRInt32 aHeightDif)
   PRInt32 width, height;
   NS_ENSURE_SUCCESS(treeOwnerAsWin->GetSize(&width, &height), NS_ERROR_FAILURE);
 
-  // To do this correctly we have to convert what we got from GetSize
-  // into CSS pixels, add the arguments, do the security check, and
-  // then convert back to device pixels for the call to SetSize.
-
-  nsIntSize cssSize(DevToCSSIntPixels(nsIntSize(width, height)));
-
-  cssSize.width += aWidthDif;
-  cssSize.height += aHeightDif;
-
-  NS_ENSURE_SUCCESS(CheckSecurityWidthAndHeight(&cssSize.width,
-                                                &cssSize.height),
+  PRInt32 newWidth = width + aWidthDif;
+  PRInt32 newHeight = height + aHeightDif;
+  NS_ENSURE_SUCCESS(CheckSecurityWidthAndHeight(&newWidth, &newHeight),
                     NS_ERROR_FAILURE);
 
-  nsIntSize newDevSize(CSSToDevIntPixels(cssSize));
-
-  NS_ENSURE_SUCCESS(treeOwnerAsWin->SetSize(newDevSize.width,
-                                            newDevSize.height,
-                                            PR_TRUE),
-                    NS_ERROR_FAILURE);
+  NS_ENSURE_SUCCESS(treeOwnerAsWin->SetSize(newWidth, newHeight,
+                                            PR_TRUE), NS_ERROR_FAILURE);
 
   return NS_OK;
 }

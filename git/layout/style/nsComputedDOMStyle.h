@@ -76,6 +76,8 @@ public:
   static void Shutdown();
 
 private:
+  nsresult GetPropertyCSSValueInternal(const nsAString& aPropertyName,
+                                       nsIDOMCSSValue** aReturn);
   void FlushPendingReflows();
   
 #define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)                  \
@@ -113,7 +115,7 @@ private:
 
   nsresult GetCSSShadowArray(nsCSSShadowArray* aArray,
                              const nscolor& aDefaultColor,
-                             PRBool aIsBoxShadow,
+                             PRBool aUsesSpread,
                              nsIDOMCSSValue** aValue);
 
   /* Properties Queryable as CSSValues */

@@ -111,16 +111,6 @@ public:
   **/
 
   void AddScale(float ptX, float ptY) { m00 *= ptX; m11 *= ptY; }
-
- /**
-  * Set the scale (overriding any previous calls to AddScale, but leaving
-  * any existing translation).
-  *
-  * @param    ptX x value to add as x scale
-  * @param    ptY y value to add as y scale
-  **/
-
-  void SetScale(float ptX, float ptY) { m00 = ptX; m11 = ptY; }
 };
 
 #endif

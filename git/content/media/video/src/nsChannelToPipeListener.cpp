@@ -49,8 +49,13 @@
 
 nsChannelToPipeListener::nsChannelToPipeListener(
     nsMediaDecoder* aDecoder,
-    PRBool aSeeking) :
+    PRBool aSeeking,
+    PRInt64 aOffset) :
   mDecoder(aDecoder),
+  mIntervalStart(0),
+  mIntervalEnd(0),
+  mOffset(aOffset),
+  mTotalBytes(0),
   mSeeking(aSeeking)
 {
 }
@@ -82,6 +87,11 @@ void nsChannelToPipeListener::Cancel()
     mInput->Close();
 }
 
+double nsChannelToPipeListener::BytesPerSecond() const
+{
+  return mOutput ? mTotalBytes / ((PR_IntervalToMilliseconds(mIntervalEnd-mIntervalStart)) / 1000.0) : NS_MEDIA_UNKNOWN_RATE;
+}
+
 nsresult nsChannelToPipeListener::GetInputStream(nsIInputStream** aStream)
 {
   NS_IF_ADDREF(*aStream = mInput);
@@ -103,35 +113,17 @@ nsresult nsChannelToPipeListener::OnStartRequest(nsIRequest* aRequest, nsISuppor
     }
   }
 
+  mIntervalStart = PR_IntervalNow();
+  mIntervalEnd = mIntervalStart;
+  mTotalBytes = 0;
+  mDecoder->UpdateBytesDownloaded(mOffset);
   nsCOMPtr<nsIHttpChannel> hc = do_QueryInterface(aRequest);
   if (hc) {
     nsCAutoString ranges;
-    hc->GetResponseHeader(NS_LITERAL_CSTRING("Accept-Ranges"),
-                          ranges);
+    nsresult rv = hc->GetResponseHeader(NS_LITERAL_CSTRING("Accept-Ranges"),
+                                        ranges);
     PRBool acceptsRanges = ranges.EqualsLiteral("bytes"); 
 
-    if (!mSeeking) {
-      // Look for duration headers from known Ogg content systems. In the case
-      // of multiple options for obtaining the duration the order of precedence is;
-      // 1) The Media resource metadata if possible (done by the decoder itself).
-      // 2) X-Content-Duration.
-      // 3) x-amz-meta-content-duration.
-      // 4) Perform a seek in the decoder to find the value.
-      nsCAutoString durationText;
-      PRInt32 ec = 0;
-      nsresult rv = hc->GetResponseHeader(NS_LITERAL_CSTRING("X-Content-Duration"), durationText);
-      if (NS_FAILED(rv)) {
-        rv = hc->GetResponseHeader(NS_LITERAL_CSTRING("X-AMZ-Meta-Content-Duration"), durationText);
-      }
-
-      if (NS_SUCCEEDED(rv)) {
-        float duration = durationText.ToFloat(&ec);
-        if (ec == NS_OK && duration >= 0) {
-          mDecoder->SetDuration(PRInt64(NS_round(duration*1000)));
-        }
-      }
-    }
- 
     PRUint32 responseStatus = 0; 
     hc->GetResponseStatus(&responseStatus);
     if (mSeeking && responseStatus == HTTP_OK_CODE) {
@@ -191,8 +183,12 @@ nsresult nsChannelToPipeListener::OnStartRequest(nsIRequest* aRequest, nsISuppor
 nsresult nsChannelToPipeListener::OnStopRequest(nsIRequest* aRequest, nsISupports* aContext, nsresult aStatus) 
 {
   mOutput = nsnull;
-  if (mDecoder) {
-    mDecoder->NotifyDownloadEnded(aStatus);
+  if (aStatus != NS_BINDING_ABORTED && mDecoder) {
+    if (NS_SUCCEEDED(aStatus)) {
+      mDecoder->ResourceLoaded();
+    } else if (aStatus != NS_BASE_STREAM_CLOSED) {
+      mDecoder->NetworkError();
+    }
   }
   return NS_OK;
 }
@@ -206,16 +202,18 @@ nsresult nsChannelToPipeListener::OnDataAvailable(nsIRequest* aRequest,
   if (!mOutput)
     return NS_ERROR_FAILURE;
 
-  mDecoder->NotifyBytesDownloaded(aCount);
-
+  PRUint32 bytes = 0;
+  
   do {
-    PRUint32 bytes;
     nsresult rv = mOutput->WriteFrom(aStream, aCount, &bytes);
     if (NS_FAILED(rv))
       return rv;
     
     aCount -= bytes;
-  } while (aCount);
+    mTotalBytes += bytes;
+    aOffset += bytes;
+    mDecoder->UpdateBytesDownloaded(mOffset + aOffset);
+  } while (aCount) ;
   
   nsresult rv = mOutput->Flush();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -223,6 +221,8 @@ nsresult nsChannelToPipeListener::OnDataAvailable(nsIRequest* aRequest,
   // Fire a progress events according to the time and byte constraints outlined
   // in the spec.
   mDecoder->Progress(PR_FALSE);
+
+  mIntervalEnd = PR_IntervalNow();
   return NS_OK;
 }
 

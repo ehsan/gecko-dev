@@ -1178,31 +1178,21 @@ NS_IMETHODIMP nsLocalFile::IsSymlink(PRBool *_retval)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
+  // Check we are correctly initialized.
   CHECK_mBaseRef();
 
   NS_ENSURE_ARG(_retval);
   *_retval = PR_FALSE;
 
-  // First see if we are an actual symlink
-  nsCAutoString path;
-  nsresult rv = GetNativePath(path);
-  if (NS_FAILED(rv))
-    return rv;
-  struct stat symStat;
-  if (lstat(path.get(), &symStat) < 0)
-    return NSRESULT_FOR_ERRNO();
-  *_retval = S_ISLNK(symStat.st_mode);
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
 
-  // If we're not a symlink, see if we are an old-school Mac OS alias
-  if (!(*_retval)) {
-    FSRef fsRef;
-    if (::CFURLGetFSRef(mBaseRef, &fsRef)) {
-      Boolean isAlias, isFolder;
-      if (::FSIsAliasFile(&fsRef, &isAlias, &isFolder) == noErr)
+  FSRef fsRef;
+  if (::CFURLGetFSRef(mBaseRef, &fsRef)) {
+    Boolean isAlias, isFolder;
+    if (::FSIsAliasFile(&fsRef, &isAlias, &isFolder) == noErr)
         *_retval = isAlias;
-    }    
   }
-
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;

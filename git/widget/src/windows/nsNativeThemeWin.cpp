@@ -417,30 +417,45 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
       bool isCheckbox = (aWidgetType == NS_THEME_CHECKBOX);
       aPart = isCheckbox ? BP_CHECKBOX : BP_RADIO;
 
-      enum InputState {
-        UNCHECKED = 0, CHECKED, INDETERMINATE
-      };
-      InputState inputState = UNCHECKED;
-      PRBool isXULCheckboxRadio = PR_FALSE;
+      // XXXdwh This check will need to be more complicated, since HTML radio groups
+      // use checked, but XUL radio groups use selected.  There will need to be an
+      // IsNodeOfType test for HTML vs. XUL here.
+      nsIAtom* atom = isCheckbox ? nsWidgetAtoms::checked
+                                 : nsWidgetAtoms::selected;
 
-      if (!aFrame) {
+      PRBool isHTML = PR_FALSE;
+      PRBool isHTMLChecked = PR_FALSE;
+      PRBool isXULCheckboxRadio = PR_FALSE;
+      
+      if (!aFrame)
         aState = TS_NORMAL;
-      } else {
-        if (GetCheckedOrSelected(aFrame, !isCheckbox)) {
-          inputState = CHECKED;
-        } if (isCheckbox && GetIndeterminate(aFrame)) {
-          inputState = INDETERMINATE;
+      else {
+        // For XUL checkboxes and radio buttons, the state of the parent
+        // determines our state.
+        nsIContent* content = aFrame->GetContent();
+        PRBool isXULCheckboxRadio = content->IsNodeOfType(nsINode::eXUL);
+        if (!isXULCheckboxRadio) {
+          // Attempt a QI.
+          nsCOMPtr<nsIDOMHTMLInputElement> inputElt(do_QueryInterface(content));
+          if (inputElt) {
+            inputElt->GetChecked(&isHTMLChecked);
+            isHTML = PR_TRUE;
+          }
         }
 
-        if (IsDisabled(isXULCheckboxRadio ? aFrame->GetParent() : aFrame)) {
+        if (IsDisabled(isXULCheckboxRadio ? aFrame->GetParent(): aFrame))
           aState = TS_DISABLED;
-        } else {
+        else {
           aState = StandardGetState(aFrame, aWidgetType, PR_FALSE);
         }
       }
 
-      // 4 unchecked states, 4 checked states, 4 indeterminate states.
-      aState += inputState * 4;
+      if (isHTML) {
+        if (isHTMLChecked)
+          aState += 4;
+      }
+      else if (isCheckbox ? IsChecked(aFrame) : IsSelected(aFrame))
+        aState += 4; // 4 unchecked states, 4 checked states.
       return NS_OK;
     }
     case NS_THEME_TEXTFIELD:
@@ -1979,43 +1994,44 @@ nsresult nsNativeThemeWin::ClassicGetThemePartAndState(nsIFrame* aFrame, PRUint8
     }
     case NS_THEME_CHECKBOX:
     case NS_THEME_RADIO: {
-      PRInt32 contentState;
+      PRInt32 contentState ;
       aFocused = PR_FALSE;
 
       aPart = DFC_BUTTON;
-      aState = 0;
+      aState = (aWidgetType == NS_THEME_CHECKBOX) ? DFCS_BUTTONCHECK : DFCS_BUTTONRADIO;
       nsIContent* content = aFrame->GetContent();
-      PRBool isCheckbox = (aWidgetType == NS_THEME_CHECKBOX);
-      PRBool isChecked = GetCheckedOrSelected(aFrame, !isCheckbox);
-      PRBool isIndeterminate = isCheckbox && GetIndeterminate(aFrame);
-
-      if (isCheckbox) {
-        // indeterminate state takes precedence over checkedness.
-        if (isIndeterminate) {
-          aState = DFCS_BUTTON3STATE | DFCS_CHECKED;
-        } else {
-          aState = DFCS_BUTTONCHECK;
+           
+      if (content->IsNodeOfType(nsINode::eXUL)) {
+        // XUL
+        if (aWidgetType == NS_THEME_CHECKBOX) {
+          if (IsChecked(aFrame))
+            aState |= DFCS_CHECKED;
         }
-      } else {
-        aState = DFCS_BUTTONRADIO;
+        else
+          if (IsSelected(aFrame))
+            aState |= DFCS_CHECKED;
+        contentState = GetContentState(aFrame, aWidgetType);
       }
-      if (isChecked) {
-        aState |= DFCS_CHECKED;
+      else {
+        // HTML
+
+        nsCOMPtr<nsIDOMHTMLInputElement> inputElt(do_QueryInterface(content));
+        if (inputElt) {
+          PRBool isChecked = PR_FALSE;
+          inputElt->GetChecked(&isChecked);
+          if (isChecked)
+            aState |= DFCS_CHECKED;
+        }
+        contentState = GetContentState(aFrame, aWidgetType);
+        if (contentState & NS_EVENT_STATE_FOCUS)
+          aFocused = PR_TRUE;
       }
 
-      contentState = GetContentState(aFrame, aWidgetType);
-      if (!content->IsNodeOfType(nsINode::eXUL) &&
-          (contentState & NS_EVENT_STATE_FOCUS)) {
-        aFocused = PR_TRUE;
-      }
-
-      if (IsDisabled(aFrame)) {
+      if (IsDisabled(aFrame))
         aState |= DFCS_INACTIVE;
-      } else if (contentState & NS_EVENT_STATE_ACTIVE &&
-                 contentState & NS_EVENT_STATE_HOVER) {
+      else if (contentState & NS_EVENT_STATE_ACTIVE && contentState & NS_EVENT_STATE_HOVER)
         aState |= DFCS_PUSHED;
-      }
-
+      
       return NS_OK;
     }
     case NS_THEME_MENUITEM:

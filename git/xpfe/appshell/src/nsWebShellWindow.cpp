@@ -534,14 +534,6 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
         }
         break;
       }
-      case NS_GETACCESSIBLE: {
-        nsCOMPtr<nsIPresShell> presShell;
-        docShell->GetPresShell(getter_AddRefs(presShell));
-        if (presShell) {
-          presShell->HandleEventWithTarget(aEvent, nsnull, nsnull, &result);
-        }
-        break;
-      }
       default:
         break;
 

@@ -297,7 +297,7 @@ nsComputedDOMStyle::GetPropertyValue(const nsAString& aPropertyName,
 
   aReturn.Truncate();
 
-  nsresult rv = GetPropertyCSSValue(aPropertyName, getter_AddRefs(val));
+  nsresult rv = GetPropertyCSSValueInternal(aPropertyName, getter_AddRefs(val));
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (val) {
@@ -311,6 +311,18 @@ nsComputedDOMStyle::GetPropertyValue(const nsAString& aPropertyName,
 NS_IMETHODIMP
 nsComputedDOMStyle::GetPropertyCSSValue(const nsAString& aPropertyName,
                                         nsIDOMCSSValue** aReturn)
+{
+  nsCOMPtr<nsIDocument> document = do_QueryReferent(mDocumentWeak);
+  nsStyleUtil::
+    ReportUseOfDeprecatedMethod(document ? document->GetDocumentURI() : nsnull,
+                                "UseOfGetPropertyCSSValueWarning");
+
+  return GetPropertyCSSValueInternal(aPropertyName, aReturn);
+}
+
+nsresult
+nsComputedDOMStyle::GetPropertyCSSValueInternal(const nsAString& aPropertyName,
+                                                nsIDOMCSSValue** aReturn)
 {
   NS_ENSURE_ARG_POINTER(aReturn);
   *aReturn = nsnull;
@@ -1795,7 +1807,7 @@ nsComputedDOMStyle::GetEllipseRadii(const nsStyleCorners& aRadius,
 nsresult
 nsComputedDOMStyle::GetCSSShadowArray(nsCSSShadowArray* aArray,
                                       const nscolor& aDefaultColor,
-                                      PRBool aIsBoxShadow,
+                                      PRBool aUsesSpread,
                                       nsIDOMCSSValue** aValue)
 {
   if (!aArray) {
@@ -1819,7 +1831,7 @@ nsComputedDOMStyle::GetCSSShadowArray(nsCSSShadowArray* aArray,
 
   nscoord nsCSSShadowItem::* const * shadowValues;
   PRUint32 shadowValuesLength;
-  if (aIsBoxShadow) {
+  if (aUsesSpread) {
     shadowValues = shadowValuesWithSpread;
     shadowValuesLength = NS_ARRAY_LENGTH(shadowValuesWithSpread);
   } else {
@@ -1864,19 +1876,6 @@ nsComputedDOMStyle::GetCSSShadowArray(nsCSSShadowArray* aArray,
         return NS_ERROR_OUT_OF_MEMORY;
       }
       val->SetAppUnits(item->*(shadowValues[i]));
-    }
-
-    if (item->mInset && aIsBoxShadow) {
-      // This is an inset box-shadow
-      val = GetROCSSPrimitiveValue();
-      if (!val || !itemList->AppendCSSValue(val)) {
-        delete val;
-        delete valueList;
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-      val->SetIdent(
-        nsCSSProps::ValueToKeywordEnum(NS_STYLE_BOX_SHADOW_INSET,
-                                       nsCSSProps::kBoxShadowTypeKTable));
     }
   }
 

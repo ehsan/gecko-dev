@@ -235,11 +235,11 @@ nsTableRowFrame::InsertFrames(nsIAtom*        aListName,
   // gather the new frames (only those which are cells) into an array
   nsIAtom* cellFrameType = (tableFrame->IsBorderCollapse()) ? nsGkAtoms::bcTableCellFrame : nsGkAtoms::tableCellFrame;
   nsTableCellFrame* prevCellFrame = (nsTableCellFrame *)nsTableFrame::GetFrameAtOrBefore(this, aPrevFrame, cellFrameType);
-  nsTArray<nsTableCellFrame*> cellChildren;
+  nsVoidArray cellChildren;
   for (nsIFrame* childFrame = aFrameList; childFrame;
        childFrame = childFrame->GetNextSibling()) {
     if (IS_TABLE_CELL(childFrame->GetType())) {
-      cellChildren.AppendElement(static_cast<nsTableCellFrame*>(childFrame));
+      cellChildren.AppendElement(childFrame);
     }
   }
   // insert the cells into the cell map

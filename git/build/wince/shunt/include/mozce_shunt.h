@@ -103,8 +103,6 @@ MOZCE_SHUNT_API int _unlink(const char *filename );
 */
 
 
-MOZCE_SHUNT_API unsigned short* mozce_GetEnvironmentCL();
-
 #ifdef __cplusplus
 };
 #endif

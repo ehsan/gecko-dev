@@ -81,16 +81,19 @@ nsXULTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 }
 
 NS_IMETHODIMP
-nsXULTextAccessible::GetRelationByType(PRUint32 aRelationType,
-                                       nsIAccessibleRelation **aRelation)
+nsXULTextAccessible::GetAccessibleRelated(PRUint32 aRelationType,
+                                          nsIAccessible **aRelated)
 {
   nsresult rv =
-    nsHyperTextAccessibleWrap::GetRelationByType(aRelationType, aRelation);
+    nsHyperTextAccessibleWrap::GetAccessibleRelated(aRelationType, aRelated);
   NS_ENSURE_SUCCESS(rv, rv);
+  if (*aRelated) {
+    return NS_OK;
+  }
 
   nsIContent *content = nsCoreUtils::GetRoleContent(mDOMNode);
   if (!content)
-    return NS_OK;
+    return NS_ERROR_FAILURE;
 
   if (aRelationType == nsIAccessibleRelation::RELATION_LABEL_FOR) {
     // Caption is the label for groupbox
@@ -99,8 +102,7 @@ nsXULTextAccessible::GetRelationByType(PRUint32 aRelationType,
       nsCOMPtr<nsIAccessible> parentAccessible;
       GetParent(getter_AddRefs(parentAccessible));
       if (nsAccUtils::Role(parentAccessible) == nsIAccessibleRole::ROLE_GROUPING)
-        return nsRelUtils::
-          AddTarget(aRelationType, aRelation, parentAccessible);
+        parentAccessible.swap(*aRelated);
     }
   }
 

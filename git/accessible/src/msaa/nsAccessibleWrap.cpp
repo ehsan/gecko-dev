@@ -987,8 +987,13 @@ __try {
 
   pvarEndUpAt->vt = VT_EMPTY;
 
-  if (xpRelation)
-    xpAccessibleResult = nsRelUtils::GetRelatedAccessible(this, xpRelation);
+  if (xpRelation) {
+    nsresult rv = GetAccessibleRelated(xpRelation,
+                                       getter_AddRefs(xpAccessibleResult));
+    if (rv == NS_ERROR_NOT_IMPLEMENTED) {
+      return E_NOTIMPL;
+    }
+  }
 
   if (xpAccessibleResult) {
     pvarEndUpAt->pdispVal = NativeAccessible(xpAccessibleResult);

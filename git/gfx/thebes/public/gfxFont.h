@@ -158,12 +158,8 @@ public:
     THEBES_INLINE_DECL_REFCOUNTING(gfxFontEntry)
 
     gfxFontEntry(const nsAString& aName) : 
-        mName(aName), mItalic(PR_FALSE), mFixedPitch(PR_FALSE),
-        mUnicodeFont(PR_FALSE), mSymbolFont(PR_FALSE),
-        mTrueType(PR_FALSE), mIsType1(PR_FALSE),
-        mIsProxy(PR_FALSE), mIsValid(PR_TRUE), 
-        mIsBadUnderlineFont(PR_FALSE),
-        mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
+        mName(aName), mIsProxy(PR_FALSE), mIsValid(PR_TRUE), 
+        mIsBadUnderlineFont(PR_FALSE), 
         mCmapInitialized(PR_FALSE), mUserFontData(nsnull)
     { }
 
@@ -218,6 +214,12 @@ public:
     PRPackedBool     mCmapInitialized;
     gfxSparseBitSet  mCharacterMap;
     gfxUserFontData* mUserFontData;
+
+protected:
+    gfxFontEntry() :
+        mIsProxy(PR_FALSE), mIsValid(PR_TRUE), 
+        mCmapInitialized(PR_FALSE), mUserFontData(nsnull)
+    { }
 };
 
 

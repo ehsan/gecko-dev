@@ -2017,9 +2017,6 @@ SessionStoreService.prototype = {
         
         let value = aData[key];
         if (typeof value == "string" && node.type != "file") {
-          if (node.value == value)
-            continue; // don't dispatch an input event for no change
-          
           node.value = value;
           
           let event = aDocument.createEvent("UIEvents");

@@ -421,10 +421,9 @@ NS_IMETHODIMP nsXULGroupboxAccessible::GetRole(PRUint32 *aRole)
 nsresult
 nsXULGroupboxAccessible::GetNameInternal(nsAString& aName)
 {
-  // XXX: we use the first related accessible only.
-  nsCOMPtr<nsIAccessible> label =
-    nsRelUtils::GetRelatedAccessible(this, nsIAccessibleRelation::RELATION_LABELLED_BY);
-
+  nsCOMPtr<nsIAccessible> label;
+  GetAccessibleRelated(nsIAccessibleRelation::RELATION_LABELLED_BY,
+                       getter_AddRefs(label));
   if (label) {
     return label->GetName(aName);
   }
@@ -433,11 +432,16 @@ nsXULGroupboxAccessible::GetNameInternal(nsAString& aName)
 }
 
 NS_IMETHODIMP
-nsXULGroupboxAccessible::GetRelationByType(PRUint32 aRelationType,
-                                           nsIAccessibleRelation **aRelation)
+nsXULGroupboxAccessible::GetAccessibleRelated(PRUint32 aRelationType,
+                                              nsIAccessible **aRelated)
 {
-  nsresult rv = nsAccessibleWrap::GetRelationByType(aRelationType, aRelation);
-  NS_ENSURE_SUCCESS(rv, rv);
+  *aRelated = nsnull;
+
+  nsresult rv = nsAccessibleWrap::GetAccessibleRelated(aRelationType, aRelated);
+  if (NS_FAILED(rv) || *aRelated) {
+    // Either the node is shut down, or another relation mechanism has been used
+    return rv;
+  }
 
   if (aRelationType == nsIAccessibleRelation::RELATION_LABELLED_BY) {
     // The label for xul:groupbox is generated from xul:label that is
@@ -447,16 +451,13 @@ nsXULGroupboxAccessible::GetRelationByType(PRUint32 aRelationType,
     while (NextChild(testLabelAccessible)) {
       if (nsAccUtils::Role(testLabelAccessible) == nsIAccessibleRole::ROLE_LABEL) {
         // Ensure that it's our label
-        // XXX: we'll fail if group accessible expose more than one relation
-        // targets.
-        nsCOMPtr<nsIAccessible> testGroupboxAccessible =
-          nsRelUtils::GetRelatedAccessible(testLabelAccessible,
-                                           nsIAccessibleRelation::RELATION_LABEL_FOR);
-
+        nsCOMPtr<nsIAccessible> testGroupboxAccessible;
+        testLabelAccessible->GetAccessibleRelated(nsIAccessibleRelation::RELATION_LABEL_FOR,
+                                                  getter_AddRefs(testGroupboxAccessible));
         if (testGroupboxAccessible == this) {
           // The <label> points back to this groupbox
-          return nsRelUtils::
-            AddTarget(aRelationType, aRelation, testLabelAccessible);
+          NS_ADDREF(*aRelated = testLabelAccessible);
+          return NS_OK;
         }
       }
     }

@@ -1315,11 +1315,7 @@ nsOfflineCacheUpdate::LoadCompleted()
         if (status == 404 || status == 410) {
             mSucceeded = PR_FALSE;
             mObsolete = PR_TRUE;
-            if (mPreviousApplicationCache) {
-                NotifyObsolete();
-            } else {
-                NotifyError();
-            }
+            NotifyObsolete();
             Finish();
             return;
         }

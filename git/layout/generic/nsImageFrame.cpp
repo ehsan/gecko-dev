@@ -309,7 +309,7 @@ nsImageFrame::UpdateIntrinsicSize(imgIContainer* aImage)
 }
 
 void
-nsImageFrame::RecalculateTransform(PRBool aInnerAreaChanged)
+nsImageFrame::RecalculateTransform()
 {
   // In any case, we need to translate this over appropriately.  Set
   // translation _before_ setting scaling so that it does not get
@@ -318,19 +318,15 @@ nsImageFrame::RecalculateTransform(PRBool aInnerAreaChanged)
   // XXXbz does this introduce rounding errors because of the cast to
   // float?  Should we just manually add that stuff in every time
   // instead?
-  if (aInnerAreaChanged) {
-    nsRect innerArea = GetInnerArea();
-    mTransform.SetToTranslate(float(innerArea.x),
-                              float(innerArea.y - GetContinuationOffset()));
-  }
+  nsRect innerArea = GetInnerArea();
+  mTransform.SetToTranslate(float(innerArea.x),
+                            float(innerArea.y - GetContinuationOffset()));
   
   // Set the scale factors
   if (mIntrinsicSize.width != 0 && mIntrinsicSize.height != 0 &&
       mIntrinsicSize != mComputedSize) {
-    mTransform.SetScale(float(mComputedSize.width)  / float(mIntrinsicSize.width),
+    mTransform.AddScale(float(mComputedSize.width)  / float(mIntrinsicSize.width),
                         float(mComputedSize.height) / float(mIntrinsicSize.height));
-  } else {
-    mTransform.SetScale(1.0f, 1.0f);
   }
 }
 
@@ -510,24 +506,14 @@ nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
   
   UpdateIntrinsicSize(aImage);
 
-  if (mState & IMAGE_GOTINITIALREFLOW) {
-    // If we previously set the intrinsic size (in EnsureIntrinsicSize)
-    // to the size of the loading-image icon and reflowed the frame,
-    // we'll have an mTransform computed from that intrinsic size.  But
-    // if we still have that transform when we get OnDataAvailable
-    // calls, we'll invalidate the wrong area.  So update the transform
-    // now.
-    RecalculateTransform(PR_FALSE);
-
-    // Now we need to reflow if we have an unconstrained size and have
-    // already gotten the initial reflow
-    if (!(mState & IMAGE_SIZECONSTRAINED)) { 
-      nsIPresShell *presShell = presContext->GetPresShell();
-      NS_ASSERTION(presShell, "No PresShell.");
-      if (presShell) { 
-        presShell->FrameNeedsReflow(this, nsIPresShell::eStyleChange,
-                                    NS_FRAME_IS_DIRTY);
-      }
+  // Now we need to reflow if we have an unconstrained size and have
+  // already gotten the initial reflow
+  if (!(mState & IMAGE_SIZECONSTRAINED) && (mState & IMAGE_GOTINITIALREFLOW)) { 
+    nsIPresShell *presShell = presContext->GetPresShell();
+    NS_ASSERTION(presShell, "No PresShell.");
+    if (presShell) { 
+      presShell->FrameNeedsReflow(this, nsIPresShell::eStyleChange,
+                                  NS_FRAME_IS_DIRTY);
     }
   }
 
@@ -805,7 +791,7 @@ nsImageFrame::Reflow(nsPresContext*          aPresContext,
 
   mComputedSize = 
     nsSize(aReflowState.ComputedWidth(), aReflowState.ComputedHeight());
-  RecalculateTransform(PR_TRUE);
+  RecalculateTransform();
 
   aMetrics.width = mComputedSize.width;
   aMetrics.height = mComputedSize.height;

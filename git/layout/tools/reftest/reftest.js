@@ -89,7 +89,7 @@ var gTestResults = {
 var gTotalTests = 0;
 var gState;
 var gCurrentURL;
-var gFailureTimeout = null;
+var gFailureTimeout;
 var gFailureReason;
 var gServer;
 var gCount = 0;
@@ -111,8 +111,7 @@ const EXPECTED_DEATH = 3;  // test must be skipped to avoid e.g. crash/hang
 const EXPECTED_LOAD = 4; // test without a reference (just test that it does
                          // not assert, crash, hang, or leak)
 
-var HTTP_SERVER_PORT = 4444;
-const HTTP_SERVER_PORTS_TO_TRY = 50;
+const HTTP_SERVER_PORT = 4444;
 
 var gRecycledCanvases = new Array();
 
@@ -152,32 +151,14 @@ function OnRefTestLoad()
 
     gIOService = CC[IO_SERVICE_CONTRACTID].getService(CI.nsIIOService);
     gDebug = CC[DEBUG_CONTRACTID].getService(CI.nsIDebug2);
-    gServer = CC["@mozilla.org/server/jshttp;1"].
-                  createInstance(CI.nsIHttpServer);
 
     try {
-        if (gServer) {
-            gServer.registerContentType("sjs", "sjs");
-            // We want to try different ports in case the port we want
-            // is being used.
-            var tries = HTTP_SERVER_PORTS_TO_TRY;
-            var succeeded = false;
-            do {
-                try {
-                    gServer.start(HTTP_SERVER_PORT);
-                    succeeded = true;
-                } catch (ex) {
-                    gServer.stop();
-                    ++HTTP_SERVER_PORT;
-                    if (--tries == 0) {
-                        throw ex;
-                    }
-                }
-            } while (!succeeded);
-        }
-        // Need to read the manifest once we have the final HTTP_SERVER_PORT.
         ReadTopManifest(window.arguments[0]);
         BuildUseCounts();
+        if (gServer) {
+            gServer.registerContentType("sjs", "sjs");
+            gServer.start(HTTP_SERVER_PORT);
+        }
         gTotalTests = gURLs.length;
         gURICanvases = {};
         StartCurrentTest();
@@ -409,6 +390,10 @@ function BuildUseCounts()
 
 function ServeFiles(manifestURL, depth, directory, files)
 {
+    if (!gServer)
+        gServer = CC["@mozilla.org/server/jshttp;1"].
+                      createInstance(CI.nsIHttpServer);
+
     // Allow serving a tree that's an ancestor of the directory containing
     // the files so that they can use resources in ../ (etc.).
     var dirPath = "/";
@@ -468,11 +453,6 @@ function StartCurrentTest()
 function StartCurrentURI(aState)
 {
     gCurrentTestStartTime = Date.now();
-    if (gFailureTimeout != null) {
-        dump("REFTEST TEST-UNEXPECTED-FAIL | " + 
-             "| program error managing timeouts\n");
-        ++gTestResults.Exception;
-    }
     gFailureTimeout = setTimeout(LoadFailed, LOAD_FAILURE_TIMEOUT);
     gFailureReason = "timed out waiting for onload to fire";
 
@@ -792,7 +772,6 @@ function DocumentLoaded()
 
     clearTimeout(gFailureTimeout);
     gFailureReason = null;
-    gFailureTimeout = null;
 
     if (gURLs[0].expected == EXPECTED_LOAD) {
         ++gTestResults.LoadOnly;
@@ -894,7 +873,6 @@ function DocumentLoaded()
 
 function LoadFailed()
 {
-    gFailureTimeout = null;
     ++gTestResults.FailedLoad;
     dump("REFTEST TEST-UNEXPECTED-FAIL | " +
          gURLs[0]["url" + gState].spec + " | " + gFailureReason + "\n");

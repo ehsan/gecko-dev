@@ -38,21 +38,17 @@
 
 #include "nsAccessibleRelation.h"
 
-#include "nsArrayUtils.h"
+#include "nsIMutableArray.h"
 #include "nsComponentManagerUtils.h"
 
 nsAccessibleRelation::
   nsAccessibleRelation(PRUint32 aType, nsIAccessible *aTarget) :
-  mType(aType)
+  mType(aType), mTarget(aTarget)
 {
-  mTargets = do_CreateInstance(NS_ARRAY_CONTRACTID);
-  if (aTarget)
-    mTargets->AppendElement(aTarget, PR_FALSE);
 }
 
 // nsISupports
-NS_IMPL_ISUPPORTS2(nsAccessibleRelation, nsAccessibleRelation,
-                   nsIAccessibleRelation)
+NS_IMPL_ISUPPORTS1(nsAccessibleRelation, nsIAccessibleRelation)
 
 // nsIAccessibleRelation
 NS_IMETHODIMP
@@ -68,48 +64,33 @@ NS_IMETHODIMP
 nsAccessibleRelation::GetTargetsCount(PRUint32 *aCount)
 {
   NS_ENSURE_ARG_POINTER(aCount);
-  *aCount = 0;
 
-  NS_ENSURE_TRUE(mTargets, NS_ERROR_NOT_INITIALIZED);
-
-  return mTargets->GetLength(aCount);
+  *aCount = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsAccessibleRelation::GetTarget(PRUint32 aIndex, nsIAccessible **aTarget)
 {
   NS_ENSURE_ARG_POINTER(aTarget);
-  *aTarget = nsnull;
 
-  NS_ENSURE_TRUE(mTargets, NS_ERROR_NOT_INITIALIZED);
+  if (aIndex != 0)
+    return NS_ERROR_INVALID_ARG;
 
-  nsresult rv = NS_OK;
-  nsCOMPtr<nsIAccessible> target = do_QueryElementAt(mTargets, aIndex, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  target.swap(*aTarget);
+  NS_IF_ADDREF(*aTarget = mTarget);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsAccessibleRelation::GetTargets(nsIArray **aTargets)
+nsAccessibleRelation::GetTargets(nsIArray **aRelations)
 {
-  NS_ENSURE_ARG_POINTER(aTargets);
-  *aTargets = nsnull;
+  NS_ENSURE_ARG_POINTER(aRelations);
 
-  NS_ENSURE_TRUE(mTargets, NS_ERROR_NOT_INITIALIZED);
+  nsCOMPtr<nsIMutableArray> relations = do_CreateInstance(NS_ARRAY_CONTRACTID);
+  NS_ENSURE_TRUE(relations, NS_ERROR_OUT_OF_MEMORY);
 
-  NS_ADDREF(*aTargets = mTargets);
+  relations->AppendElement(mTarget, PR_FALSE);
+
+  NS_ADDREF(*aRelations = relations);
   return NS_OK;
-}
-
-// nsAccessibleRelation
-nsresult
-nsAccessibleRelation::AddTarget(nsIAccessible *aTarget)
-{
-  NS_ENSURE_ARG(aTarget);
-
-  NS_ENSURE_TRUE(mTargets, NS_ERROR_NOT_INITIALIZED);
-
-  return mTargets->AppendElement(aTarget, PR_FALSE);
 }

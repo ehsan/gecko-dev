@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: mutex.c,v $ $Revision: 1.9 $ $Date: 2009/02/09 07:55:52 $";
+static const char CVS_ID[] = "@(#) $RCSfile: mutex.c,v $ $Revision: 1.8 $ $Date: 2008/06/06 01:15:32 $";
 #endif /* DEBUG */
 
 /*
@@ -127,7 +127,7 @@ nssCKFWMutex_Create
   NSSCKFWMutex *mutex;
   
   mutex = nss_ZNEW(arena, NSSCKFWMutex);
-  if (!mutex) {
+  if( (NSSCKFWMutex *)NULL == mutex ) {
     *pError = CKR_HOST_MEMORY;
     return (NSSCKFWMutex *)NULL;
   }

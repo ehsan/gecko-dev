@@ -108,8 +108,7 @@ public:
 
   // nsIAccessible
   NS_IMETHOD GetRole(PRUint32 *_retval); 
-  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
-                               nsIAccessibleRelation **aRelation);
+  NS_IMETHOD GetAccessibleRelated(PRUint32 aRelationType, nsIAccessible **aRelated);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);

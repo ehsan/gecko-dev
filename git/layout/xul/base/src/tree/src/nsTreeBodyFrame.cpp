@@ -3223,6 +3223,8 @@ nsTreeBodyFrame::PaintCell(PRInt32              aRowIndex,
       aRenderingContext.SetLineStyle(ConvertBorderStyleToLineStyle(style));
 
       nscoord srcX = currX + twistyRect.width - mIndentation / 2;
+      if (isRTL)
+        srcX = currX + remainingWidth - (srcX - cellRect.x);
       nscoord lineY = (aRowIndex - mTopRowIndex) * mRowHeight + aPt.y;
 
       // Don't paint off our cell.

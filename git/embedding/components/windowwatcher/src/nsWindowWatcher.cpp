@@ -552,7 +552,7 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
 
   // Make sure we call CalculateChromeFlags() *before* we push the
   // callee context onto the context stack so that
-  // CalculateChromeFlags() sees the actual caller when doing its
+  // CalculateChromeFlags() sees the actual caller when doing it's
   // security checks.
   chromeFlags = CalculateChromeFlags(features.get(), featuresSpecified,
                                      aDialog, uriToLoadIsChrome,

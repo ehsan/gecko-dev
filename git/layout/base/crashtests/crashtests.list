@@ -1,15 +1,4 @@
-load 46043-1.html
-load 47843-1.html
-load 49122-1.html
-load 50257-1.html
-load 50395-1.html
-load 50395-1.html
-load 50395-1.html
-load 50395-1.html
 load 56746-1.html
-load 89101-1.html
-load 89358-1.html
-load 90205-1.html
 load 143862-1.html
 load 143862-2.html
 load 241300-1.html
@@ -32,7 +21,6 @@ load 322436-1.html
 load 325967-1.html
 load 325984-1.xhtml
 load 325984-2.html
-load 328944-1.xul
 load 331204-1.html
 load 331679-1.xhtml
 load 331679-2.xml
@@ -112,7 +100,7 @@ load 400185-1.xul
 load 400445-1.xhtml
 load 400904-1.xhtml
 load 401589-1.xul
-skip load 403175-1.html # times out occasionally, bug 473680
+load 403175-1.html
 load 403245-1.html
 load 403569-1.xhtml
 load 403569-2.xhtml
@@ -143,7 +131,6 @@ load 429088-1.html
 load 429088-2.html
 load 432752-1.svg
 load 433450-1.html
-load 437142-1.html
 load 444925-1.xul
 load 446328.html
 load 454751-1.xul
