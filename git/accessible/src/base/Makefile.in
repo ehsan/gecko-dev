@@ -77,7 +77,6 @@ CPPSRCS = \
   nsTextAccessible.cpp \
   nsTextEquivUtils.cpp \
   nsTextAttrs.cpp \
-  TextUpdater.cpp \
   $(NULL)
 
 EXPORTS = \

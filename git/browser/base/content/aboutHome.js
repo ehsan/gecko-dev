@@ -101,6 +101,10 @@ const SEARCH_ENGINES = {
            "7K/7IvC/CRhZ6Ep6evGGyXJS3kAsp3SGcgLKc7uSktBhrW7ZFq32r/HHCVbb0P9fBSYOTpIoJ5SE" +
            "7GUnpHbrbG8EzsfWfwgwAEfC/ToQIhkhAAAAAElFTkSuQmCC"
   , params: "source=hp&channel=np"
+  , links: {
+      advanced: "http://www.google.com/advanced_search"
+    , preferences: "http://www.google.com/preferences"
+    }
   }
 
 , "Яндекс":
@@ -142,7 +146,7 @@ const SEARCH_ENGINES = {
 // The <a/> part of the snippet will be linked to the corresponding url.
 const DEFAULT_SNIPPETS_URLS = [
   "http://www.mozilla.com/firefox/4.0/features"
-, "https://addons.mozilla.org/firefox/?src=snippet"
+, "https://addons.mozilla.org/firefox/?browse=featured"
 ];
 
 const SNIPPETS_UPDATE_INTERVAL_MS = 86400000; // 1 Day.
@@ -198,6 +202,19 @@ function setupSearchEngine()
     logoElt.alt = gSearchEngine.name;
   }
 
+  if (gSearchEngine.links) {
+    // Add search engine links.
+    if (gSearchEngine.links.advanced) {
+      let advancedLink = document.getElementById("searchEngineAdvancedLink");
+      advancedLink.setAttribute("href", gSearchEngine.links.advanced);
+      advancedLink.hidden = false;
+    }
+    if (gSearchEngine.links.preferences) {
+      let prefsLink = document.getElementById("searchEngineAdvancedPreferences");
+      prefsLink.setAttribute("href", gSearchEngine.links.preferences);
+      prefsLink.hidden = false;
+    }
+  }
 }
 
 function loadSnippets()

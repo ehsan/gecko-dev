@@ -2696,9 +2696,20 @@ HUD_SERVICE.prototype =
       }
     }
 
-    // Need to detect that the console component has been paved over.
+    // Need to detect that the console component has been paved over. Do this by
+    // checking whether its global object is equal to that of an object
+    // returned by our native ConsoleAPI nsIDOMGlobalPropertyInitializer.
     let consoleObject = unwrap(aContentWindow).console;
-    if (!("__mozillaConsole__" in consoleObject))
+    let consoleGlobal = Cu.getGlobalForObject(consoleObject);
+
+    let nativeConsoleObj = Cc["@mozilla.org/console-api;1"].
+                           createInstance(Ci.nsIDOMGlobalPropertyInitializer).
+                           init(aContentWindow);
+    let nativeConsoleGlobal = Cu.getGlobalForObject(nativeConsoleObj);
+
+    // Need a "===" comparison because backstagepass objects have strange
+    // behavior with ==
+    if (consoleGlobal !== nativeConsoleGlobal)
       this.logWarningAboutReplacedAPI(hudId);
 
     // register the controller to handle "select all" properly
@@ -2840,26 +2851,17 @@ HUD_SERVICE.prototype =
     // Gather up the selected items and concatenate their clipboard text.
 
     let strings = [];
-    let newGroup = false;
     for (let i = 0; i < aOutputNode.selectedCount; i++) {
       let item = aOutputNode.selectedItems[i];
 
       // Add newlines between groups so that group boundaries show up in the
       // copied output.
       if (i > 0 && item.classList.contains("webconsole-new-group")) {
-        newGroup = true;
+        strings.push("\n");
       }
 
-      // Ensure the selected item hasn't been filtered by type or string.
-      if (!item.classList.contains("hud-filtered-by-type") &&
-          !item.classList.contains("hud-filtered-by-string")) {
-        let timestampString = ConsoleUtils.timestampString(item.timestamp);
-        if (newGroup) {
-          strings.push("\n");
-          newGroup = false;
-        }
-        strings.push("[" + timestampString + "] " + item.clipboardText);
-      }
+      let timestampString = ConsoleUtils.timestampString(item.timestamp);
+      strings.push("[" + timestampString + "] " + item.clipboardText);
     }
     clipboardHelper.copyString(strings.join("\n"));
   }

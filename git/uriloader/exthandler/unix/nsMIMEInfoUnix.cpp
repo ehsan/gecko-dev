@@ -44,14 +44,12 @@
 #include <hildon-mime.h>
 #include <libosso.h>
 #endif
-#ifdef MOZ_WIDGET_QT
+#if (MOZ_PLATFORM_MAEMO == 6)
 #include <QDesktopServices>
 #include <QUrl>
 #include <QString>
-#if (MOZ_ENABLE_CONTENTACTION)
 #include <contentaction/contentaction.h>
 #include "nsContentHandlerApp.h"
-#endif
 #endif
 
 #include "nsMIMEInfoUnix.h"
@@ -81,7 +79,7 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
   }
 #endif
 
-#ifdef MOZ_WIDGET_QT
+#if (MOZ_PLATFORM_MAEMO == 6)
   if (NS_FAILED(rv)) {
     nsCAutoString spec;
     aURI->GetAsciiSpec(spec);
@@ -121,7 +119,7 @@ nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
   }
 #endif
 
-#if defined(MOZ_ENABLE_CONTENTACTION)
+#if (MOZ_PLATFORM_MAEMO == 6)
   ContentAction::Action action = 
     ContentAction::Action::defaultActionForFile(QUrl(), QString(mSchemeOrType.get()));
   if (action.isValid()) {
@@ -145,7 +143,7 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
     return NS_OK;
 #endif
 
-#if defined(MOZ_ENABLE_CONTENTACTION)
+#if (MOZ_PLATFORM_MAEMO == 6)
   QUrl uri = QUrl::fromLocalFile(QString::fromUtf8(nativePath.get()));
   ContentAction::Action action =
     ContentAction::Action::defaultActionForFile(uri, QString(mSchemeOrType.get()));
@@ -289,7 +287,7 @@ nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHa
 }
 #endif
 
-#if defined(MOZ_ENABLE_CONTENTACTION)
+#if (MOZ_PLATFORM_MAEMO == 6)
 NS_IMETHODIMP
 nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHandlers)
 {

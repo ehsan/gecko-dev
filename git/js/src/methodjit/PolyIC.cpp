@@ -2702,9 +2702,8 @@ JITScript::purgePICs()
 
     Repatcher repatcher(this);
 
-    ic::PICInfo *pics_ = pics();
     for (uint32 i = 0; i < nPICs; i++) {
-        ic::PICInfo &pic = pics_[i];
+        ic::PICInfo &pic = pics[i];
         switch (pic.kind) {
           case ic::PICInfo::SET:
           case ic::PICInfo::SETMETHOD:
@@ -2728,12 +2727,10 @@ JITScript::purgePICs()
         pic.reset();
     }
 
-    ic::GetElementIC *getElems_ = getElems();
-    ic::SetElementIC *setElems_ = setElems();
     for (uint32 i = 0; i < nGetElems; i++)
-        getElems_[i].purge(repatcher);
+        getElems[i].purge(repatcher);
     for (uint32 i = 0; i < nSetElems; i++)
-        setElems_[i].purge(repatcher);
+        setElems[i].purge(repatcher);
 }
 
 void

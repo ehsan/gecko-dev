@@ -427,95 +427,95 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     let rect = new Rect(inRect.left, inRect.top, 
       validSize.x, validSize.y);
 
-    var css = {};
+      var css = {};
 
-    if (rect.left != this.bounds.left || options.force)
-      css.left = rect.left;
+      if (rect.left != this.bounds.left || options.force)
+        css.left = rect.left;
 
-    if (rect.top != this.bounds.top || options.force)
-      css.top = rect.top;
+      if (rect.top != this.bounds.top || options.force)
+        css.top = rect.top;
 
-    if (rect.width != this.bounds.width || options.force) {
-      css.width = rect.width - this.sizeExtra.x;
-      css.fontSize = this._getFontSizeFromWidth(rect.width);
-      css.fontSize += 'px';
-    }
-
-    if (rect.height != this.bounds.height || options.force) {
-      if (!this.isStacked)
-        css.height = rect.height - this.sizeExtra.y - TabItems.fontSizeRange.max;
-      else
-        css.height = rect.height - this.sizeExtra.y;
-    }
-
-    if (Utils.isEmptyObject(css))
-      return;
-
-    this.bounds.copy(rect);
-
-    // If this is a brand new tab don't animate it in from
-    // a random location (i.e., from [0,0]). Instead, just
-    // have it appear where it should be.
-    if (immediately || (!this._hasBeenDrawn)) {
-      this.$container.css(css);
-    } else {
-      TabItems.pausePainting();
-      this.$container.animate(css, {
-          duration: 200,
-        easing: "tabviewBounce",
-        complete: function() {
-          TabItems.resumePainting();
-        }
-      });
-    }
-
-    if (css.fontSize && !this.isStacked) {
-      if (css.fontSize < TabItems.fontSizeRange.min)
-        immediately ? this.$tabTitle.hide() : this.$tabTitle.fadeOut();
-      else
-        immediately ? this.$tabTitle.show() : this.$tabTitle.fadeIn();
-    }
-
-    if (css.width) {
-      TabItems.update(this.tab);
-
-      let widthRange, proportion;
-
-      if (this.isStacked) {
-        if (UI.rtl) {
-          this.$fav.css({top:0, right:0});
-        } else {
-          this.$fav.css({top:0, left:0});
-        }
-        widthRange = new Range(70, 90);
-        proportion = widthRange.proportion(css.width); // between 0 and 1
-      } else {
-        if (UI.rtl) {
-          this.$fav.css({top:4, right:2});
-        } else {
-          this.$fav.css({top:4, left:4});
-        }
-        widthRange = new Range(40, 45);
-        proportion = widthRange.proportion(css.width); // between 0 and 1
+      if (rect.width != this.bounds.width || options.force) {
+        css.width = rect.width - this.sizeExtra.x;
+        css.fontSize = this._getFontSizeFromWidth(rect.width);
+        css.fontSize += 'px';
       }
 
-      if (proportion <= .1)
-        this.$close.hide();
-      else
-        this.$close.show().css({opacity:proportion});
+      if (rect.height != this.bounds.height || options.force) {
+        if (!this.isStacked)
+          css.height = rect.height - this.sizeExtra.y - TabItems.fontSizeRange.max;
+        else
+          css.height = rect.height - this.sizeExtra.y;
+      }
 
-      var pad = 1 + 5 * proportion;
-      var alphaRange = new Range(0.1,0.2);
-      this.$fav.css({
-       "-moz-padding-start": pad + "px",
-       "-moz-padding-end": pad + 2 + "px",
-       "padding-top": pad + "px",
-       "padding-bottom": pad + "px",
-       "border-color": "rgba(0,0,0,"+ alphaRange.scale(proportion) +")",
-      });
-    }
+      if (Utils.isEmptyObject(css))
+        return;
 
-    this._hasBeenDrawn = true;
+      this.bounds.copy(rect);
+
+      // If this is a brand new tab don't animate it in from
+      // a random location (i.e., from [0,0]). Instead, just
+      // have it appear where it should be.
+      if (immediately || (!this._hasBeenDrawn)) {
+        this.$container.css(css);
+      } else {
+        TabItems.pausePainting();
+        this.$container.animate(css, {
+            duration: 200,
+          easing: "tabviewBounce",
+          complete: function() {
+            TabItems.resumePainting();
+          }
+        });
+      }
+
+      if (css.fontSize && !this.isStacked) {
+        if (css.fontSize < TabItems.fontSizeRange.min)
+          immediately ? this.$tabTitle.hide() : this.$tabTitle.fadeOut();
+        else
+          immediately ? this.$tabTitle.show() : this.$tabTitle.fadeIn();
+      }
+
+      if (css.width) {
+        TabItems.update(this.tab);
+
+        let widthRange, proportion;
+
+        if (this.isStacked) {
+          if (UI.rtl) {
+            this.$fav.css({top:0, right:0});
+          } else {
+            this.$fav.css({top:0, left:0});
+          }
+          widthRange = new Range(70, 90);
+          proportion = widthRange.proportion(css.width); // between 0 and 1
+        } else {
+          if (UI.rtl) {
+            this.$fav.css({top:4, right:2});
+          } else {
+            this.$fav.css({top:4, left:4});
+          }
+          widthRange = new Range(40, 45);
+          proportion = widthRange.proportion(css.width); // between 0 and 1
+        }
+
+        if (proportion <= .1)
+          this.$close.hide();
+        else
+          this.$close.show().css({opacity:proportion});
+
+        var pad = 1 + 5 * proportion;
+        var alphaRange = new Range(0.1,0.2);
+        this.$fav.css({
+         "-moz-padding-start": pad + "px",
+         "-moz-padding-end": pad + 2 + "px",
+         "padding-top": pad + "px",
+         "padding-bottom": pad + "px",
+         "border-color": "rgba(0,0,0,"+ alphaRange.scale(proportion) +")",
+        });
+      }
+
+      this._hasBeenDrawn = true;
 
     UI.clearShouldResizeItems();
 
@@ -706,8 +706,6 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       // The scaleCheat of 2 here is a clever way to speed up the zoom-out
       // code. See getZoomTransform() below.
       let transform = this.getZoomTransform(2);
-      TabItems.pausePainting();
-
       $canvas.css({
         '-moz-transform': transform.transform,
         '-moz-transform-origin': transform.transformOrigin
@@ -810,7 +808,7 @@ let TabItems = {
     // 150 pixels is an empirical size, below which FF's drawWindow()
     // algorithm breaks down
     this.tempCanvas.width = 150;
-    this.tempCanvas.height = 112;
+    this.tempCanvas.height = 150;
 
     this.tabsProgressListener = {
       onStateChange: function(browser, webProgress, request, stateFlags, status) {
@@ -1105,7 +1103,6 @@ let TabItems = {
    // three times before TabItems will start updating thumbnails again.
    resumePainting: function TabItems_resumePainting() {
      this.paintingPaused--;
-     Utils.assert(this.paintingPaused > -1, "paintingPaused should not go below zero");
      if (!this.isPaintingPaused())
        this.startHeartbeat();
    },
@@ -1284,95 +1281,67 @@ TabCanvas.prototype = {
     if (!w || !h)
       return;
 
-    if (!this.tab.linkedBrowser.contentWindow) {
-      Utils.log('no tab.linkedBrowser.contentWindow in TabCanvas.paint()');
+    let fromWin = this.tab.linkedBrowser.contentWindow;
+    if (fromWin == null) {
+      Utils.log('null fromWin in paint');
       return;
     }
 
-    let ctx = this.canvas.getContext("2d");
     let tempCanvas = TabItems.tempCanvas;
-    let bgColor = '#fff';
-
     if (w < tempCanvas.width) {
       // Small draw case where nearest-neighbor algorithm breaks down in Windows
       // First draw to a larger canvas (150px wide), and then draw that image
       // to the destination canvas.
-      let tempCtx = tempCanvas.getContext("2d");
-      this._drawWindow(tempCtx, tempCanvas.width, tempCanvas.height, bgColor);
-
-      // Now copy to tabitem canvas.
-      try {
-        this._fillCanvasBackground(ctx, w, h, bgColor);
-        ctx.drawImage(tempCanvas, 0, 0, w, h);
-      } catch (e) {
+      
+      var tempCtx = tempCanvas.getContext("2d");
+      
+      let canvW = tempCanvas.width;
+      let canvH = (h/w) * canvW;
+      
+      var scaler = canvW/fromWin.innerWidth;
+  
+      tempCtx.save();
+      tempCtx.clearRect(0,0,tempCanvas.width,tempCanvas.height);
+      tempCtx.scale(scaler, scaler);
+      try{
+        tempCtx.drawWindow(fromWin, fromWin.scrollX, fromWin.scrollY, 
+          canvW/scaler, canvH/scaler, "#fff");
+      } catch(e) {
         Utils.error('paint', e);
-      }
+      }  
+      tempCtx.restore();
+      
+      // Now copy to tabitem canvas. No save/restore necessary.      
+      var destCtx = this.canvas.getContext("2d");      
+      try{
+        // the tempcanvas is square, so draw it as a square.
+        destCtx.drawImage(tempCanvas, 0, 0, w, w);
+      } catch(e) {
+        Utils.error('paint', e);
+      }  
+      
     } else {
       // General case where nearest neighbor algorithm looks good
       // Draw directly to the destination canvas
-      this._drawWindow(ctx, w, h, bgColor);
+      
+      var ctx = this.canvas.getContext("2d");
+      
+      var scaler = w/fromWin.innerWidth;
+  
+      // TODO: Potentially only redraw the dirty rect? (Is it worth it?)
+  
+      ctx.save();
+      ctx.scale(scaler, scaler);
+      try{
+        ctx.drawWindow(fromWin, fromWin.scrollX, fromWin.scrollY, 
+          w/scaler, h/scaler, "#fff",
+          Ci.nsIDOMCanvasRenderingContext2D.DRAWWINDOW_DO_NOT_FLUSH);
+      } catch(e) {
+        Utils.error('paint', e);
+      }
+  
+      ctx.restore();
     }
-  },
-
-  // ----------
-  // Function: _fillCanvasBackground
-  // Draws a rectangle of <width>x<height> with color <bgColor> to the given
-  // canvas context.
-  _fillCanvasBackground: function TabCanvas__fillCanvasBackground(ctx, width, height, bgColor) {
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, width, height);
-  },
-
-  // ----------
-  // Function: _drawWindow
-  // Draws contents of the tabs' browser window to the given canvas context.
-  _drawWindow: function TabCanvas__drawWindow(ctx, width, height, bgColor) {
-    this._fillCanvasBackground(ctx, width, height, bgColor);
-
-    let rect = this._calculateClippingRect(width, height);
-    let scaler = width / rect.width;
-
-    ctx.save();
-    ctx.scale(scaler, scaler);
-
-    try {
-      let win = this.tab.linkedBrowser.contentWindow;
-      ctx.drawWindow(win, rect.left, rect.top, rect.width, rect.height,
-                     bgColor, ctx.DRAWWINDOW_DO_NOT_FLUSH);
-    } catch (e) {
-      Utils.error('paint', e);
-    }
-
-    ctx.restore();
-  },
-
-  // ----------
-  // Function: _calculateClippingRect
-  // Calculate the clipping rect that will be projected to the tab's
-  // thumbnail canvas.
-  _calculateClippingRect: function TabCanvas__calculateClippingRect(origWidth, origHeight) {
-    let win = this.tab.linkedBrowser.contentWindow;
-
-    // TODO BUG 631593: retrieve actual scrollbar width
-    // 25px is supposed to be width of the vertical scrollbar
-    let maxWidth = win.innerWidth - 25;
-    let maxHeight = win.innerHeight;
-
-    let height = Math.min(maxHeight, Math.floor(origHeight * maxWidth / origWidth));
-    let width = Math.floor(origWidth * height / origHeight);
-
-    // very short pages in combination with a very wide browser window force us
-    // to extend the clipping rect and add some empty space around the thumb
-    let factor = 0.7;
-    if (width < maxWidth * factor) {
-      width = maxWidth * factor;
-      height = Math.floor(origHeight * width / origWidth);
-    }
-
-    let left = win.scrollX + Math.max(0, Math.round((maxWidth - width) / 2));
-    let top = win.scrollY;
-
-    return new Rect(left, top, width, height);
   },
 
   // ----------

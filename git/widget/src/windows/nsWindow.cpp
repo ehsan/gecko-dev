@@ -2655,12 +2655,18 @@ void nsWindow::UpdateGlass()
   DWMNCRENDERINGPOLICY policy = DWMNCRP_USEWINDOWSTYLE;
   switch (mTransparencyMode) {
   case eTransparencyBorderlessGlass:
-    // Only adjust if there is some opaque rectangle
+    // Margins must be 2px (kGlassMarginAdjustment) or larger to cover the 2px
+    // border Windows adds. A value of -1 in cxLeftWidth indicates a sheet of
+    // glass which we ignore here.
     if (margins.cxLeftWidth >= 0) {
-      margins.cxLeftWidth += kGlassMarginAdjustment;
-      margins.cyTopHeight += kGlassMarginAdjustment;
-      margins.cxRightWidth += kGlassMarginAdjustment;
-      margins.cyBottomHeight += kGlassMarginAdjustment;
+      if (margins.cxLeftWidth >= 0 && margins.cxLeftWidth < kGlassMarginAdjustment)
+        margins.cxLeftWidth = kGlassMarginAdjustment;
+      if (margins.cyTopHeight >= 0 && margins.cyTopHeight < kGlassMarginAdjustment)
+        margins.cyTopHeight = kGlassMarginAdjustment;
+      if (margins.cxRightWidth >= 0 && margins.cxRightWidth < kGlassMarginAdjustment)
+        margins.cxRightWidth = kGlassMarginAdjustment;
+      if (margins.cyBottomHeight >= 0 && margins.cyBottomHeight < kGlassMarginAdjustment)
+        margins.cyBottomHeight = kGlassMarginAdjustment;
     }
     // Fall through
   case eTransparencyGlass:
@@ -6227,9 +6233,11 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
     ::GetWindowPlacement(mWnd, &pl);
 
     if (pl.showCmd == SW_SHOWMAXIMIZED)
-      event.mSizeMode = (mFullscreenMode ? nsSizeMode_Fullscreen : nsSizeMode_Maximized);
+      event.mSizeMode = nsSizeMode_Maximized;
     else if (pl.showCmd == SW_SHOWMINIMIZED)
       event.mSizeMode = nsSizeMode_Minimized;
+    else if (mFullscreenMode)
+      event.mSizeMode = nsSizeMode_Fullscreen;
     else
       event.mSizeMode = nsSizeMode_Normal;
 
@@ -6395,9 +6403,11 @@ void nsWindow::OnWindowPosChanging(LPWINDOWPOS& info)
     ::GetWindowPlacement(mWnd, &pl);
     PRInt32 sizeMode;
     if (pl.showCmd == SW_SHOWMAXIMIZED)
-      sizeMode = (mFullscreenMode ? nsSizeMode_Fullscreen : nsSizeMode_Maximized);
+      sizeMode = nsSizeMode_Maximized;
     else if (pl.showCmd == SW_SHOWMINIMIZED)
       sizeMode = nsSizeMode_Minimized;
+    else if (mFullscreenMode)
+      sizeMode = nsSizeMode_Fullscreen;
     else
       sizeMode = nsSizeMode_Normal;
 

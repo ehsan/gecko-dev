@@ -2672,18 +2672,12 @@ nsEventStateManager::DoScrollText(nsIFrame* aTargetFrame,
       scrollY = 0;
     }
     
-    nsIScrollableFrame::ScrollMode mode;
-    if (aMouseEvent->scrollFlags & nsMouseScrollEvent::kNoDefer) {
-      mode = nsIScrollableFrame::INSTANT;
-    } else if (aScrollQuantity != nsIScrollableFrame::DEVICE_PIXELS) {
-      mode = nsIScrollableFrame::SMOOTH;
-    } else {
-      mode = nsIScrollableFrame::NORMAL;
-    }
-
+    PRBool noDefer = aMouseEvent->scrollFlags & nsMouseScrollEvent::kNoDefer;
     nsIntPoint overflow;
     frameToScroll->ScrollBy(nsIntPoint(scrollX, scrollY), aScrollQuantity,
-                            mode, &overflow);
+                            noDefer ? nsIScrollableFrame::INSTANT
+                                    : nsIScrollableFrame::SMOOTH,
+                            &overflow);
     aMouseEvent->scrollOverflow = isHorizontal ? overflow.x : overflow.y;
     return NS_OK;
   }

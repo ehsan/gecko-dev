@@ -62,33 +62,18 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     gcTriggerBytes(0),
     gcLastBytes(0),
     data(NULL),
+    marked(false),
     active(false),
-#ifdef JS_METHODJIT
-    jaegerCompartment(NULL),
-#endif
-    propertyTree(this),
     debugMode(rt->debugMode),
-#if ENABLE_YARR_JIT
-    regExpAllocator(NULL),
-#endif
-    mathCache(NULL),
-    marked(false)
+    mathCache(NULL)
 {
     JS_INIT_CLIST(&scripts);
-
-#ifdef JS_TRACER
-    /* InitJIT expects this area to be zero'd. */
-    PodZero(&traceMonitor);
-#endif
 
     PodArrayZero(scriptsToGC);
 }
 
 JSCompartment::~JSCompartment()
 {
-    Shape::finishEmptyShapes(this);
-    propertyTree.finish();
-
 #if ENABLE_YARR_JIT
     js_delete(regExpAllocator);
 #endif
@@ -96,7 +81,6 @@ JSCompartment::~JSCompartment()
 #if defined JS_TRACER
     FinishJIT(&traceMonitor);
 #endif
-
 #ifdef JS_METHODJIT
     js_delete(jaegerCompartment);
 #endif
@@ -123,22 +107,10 @@ JSCompartment::init()
     if (!crossCompartmentWrappers.init())
         return false;
 
-    if (!propertyTree.init())
-        return false;
-
-#ifdef DEBUG
-    if (rt->meterEmptyShapes()) {
-        if (!emptyShapes.init())
-            return false;
-    }
-#endif
-
-    if (!Shape::initEmptyShapes(this))
-        return false;
-
 #ifdef JS_TRACER
-    if (!InitJIT(&traceMonitor))
+    if (!InitJIT(&traceMonitor)) {
         return false;
+    }
 #endif
 
     if (!toSourceCache.init())
@@ -152,6 +124,9 @@ JSCompartment::init()
 
 #ifdef JS_METHODJIT
     if (!(jaegerCompartment = js_new<mjit::JaegerCompartment>())) {
+#ifdef JS_TRACER
+        FinishJIT(&traceMonitor);
+#endif
         return false;
     }
     return jaegerCompartment->Initialize();
@@ -414,44 +389,11 @@ ScriptPoolDestroyed(JSContext *cx, mjit::JITScript *jit,
 }
 #endif
 
-/*
- * This method marks pointers that cross compartment boundaries. It should be
- * called only by per-compartment GCs, since full GCs naturally follow pointers
- * across compartments.
- */
-void
-JSCompartment::markCrossCompartment(JSTracer *trc)
-{
-    for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront())
-        MarkValue(trc, e.front().key, "cross-compartment wrapper");
-}
-
 void
 JSCompartment::mark(JSTracer *trc)
 {
-    if (IS_GC_MARKING_TRACER(trc)) {
-        JSRuntime *rt = trc->context->runtime;
-        if (rt->gcCurrentCompartment != NULL && rt->gcCurrentCompartment != this)
-            return;
-        
-        if (marked)
-            return;
-        
-        marked = true;
-    }
-
-    if (emptyArgumentsShape)
-        emptyArgumentsShape->trace(trc);
-    if (emptyBlockShape)
-        emptyBlockShape->trace(trc);
-    if (emptyCallShape)
-        emptyCallShape->trace(trc);
-    if (emptyDeclEnvShape)
-        emptyDeclEnvShape->trace(trc);
-    if (emptyEnumeratorShape)
-        emptyEnumeratorShape->trace(trc);
-    if (emptyWithShape)
-        emptyWithShape->trace(trc);
+    for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront())
+        MarkValue(trc, e.front().key, "cross-compartment wrapper");
 }
 
 void

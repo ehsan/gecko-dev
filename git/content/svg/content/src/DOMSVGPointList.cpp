@@ -86,8 +86,10 @@ DOMSVGPointList::GetDOMWrapperIfExists(void *aList)
 
 DOMSVGPointList::~DOMSVGPointList()
 {
-  // There are now no longer any references to us held by script or list items.
-  // Note we must use GetAnimValKey/GetBaseValKey here, NOT InternalList()!
+  // We no longer have any list items, and there are no script references to
+  // us.
+  //
+  // Do NOT use InternalList() as the key here! That's different!
   void *key = mIsAnimValList ?
     InternalAList().GetAnimValKey() :
     InternalAList().GetBaseValKey();
@@ -102,13 +104,7 @@ DOMSVGPointList::InternalListWillChangeTo(const SVGPointList& aNewValue)
   // DOMSVGLengthList::InternalBaseValListWillChangeTo applies here too!
 
   PRUint32 oldLength = mItems.Length();
-
   PRUint32 newLength = aNewValue.Length();
-  if (newLength > DOMSVGPoint::MaxListIndex()) {
-    // It's safe to get out of sync with our internal list as long as we have
-    // FEWER items than it does.
-    newLength = DOMSVGPoint::MaxListIndex();
-  }
 
   // If our length will decrease, notify the items that will be removed:
   for (PRUint32 i = newLength; i < oldLength; ++i) {
@@ -256,11 +252,6 @@ DOMSVGPointList::InsertItemBefore(nsIDOMSVGPoint *aNewItem,
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
 
-  aIndex = NS_MIN(aIndex, Length());
-  if (aIndex >= DOMSVGPoint::MaxListIndex()) {
-    return NS_ERROR_DOM_INDEX_SIZE_ERR;
-  }
-
   nsCOMPtr<DOMSVGPoint> domItem = do_QueryInterface(aNewItem);
   if (!domItem) {
     return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
@@ -268,6 +259,7 @@ DOMSVGPointList::InsertItemBefore(nsIDOMSVGPoint *aNewItem,
   if (domItem->HasOwner() || domItem->IsReadonly()) {
     domItem = domItem->Clone(); // must do this before changing anything!
   }
+  aIndex = NS_MIN(aIndex, mItems.Length());
 
   // Ensure we have enough memory so we can avoid complex error handling below:
   if (!mItems.SetCapacity(mItems.Length() + 1) ||
@@ -278,9 +270,8 @@ DOMSVGPointList::InsertItemBefore(nsIDOMSVGPoint *aNewItem,
   InternalList().InsertItem(aIndex, domItem->ToSVGPoint());
   mItems.InsertElementAt(aIndex, domItem.get());
 
-  // This MUST come after the insertion into InternalList(), or else under the
-  // insertion into InternalList() the values read from domItem would be bad
-  // data from InternalList() itself!:
+  // This MUST come after the insertion into InternalList(), or else the data
+  // read from domItem would be bad data from InternalList() itself!
   domItem->InsertingIntoList(this, aIndex, IsAnimValList());
 
   for (PRUint32 i = aIndex + 1; i < Length(); ++i) {
@@ -329,7 +320,7 @@ DOMSVGPointList::ReplaceItem(nsIDOMSVGPoint *aNewItem,
   InternalList()[aIndex] = domItem->ToSVGPoint();
   mItems[aIndex] = domItem;
 
-  // This MUST come after the ToSVGPoint() call, otherwise that call
+  // This MUST come after the assignment to InternalList, otherwise that call
   // would end up reading bad data from InternalList()!
   domItem->InsertingIntoList(this, aIndex, IsAnimValList());
 

@@ -323,18 +323,11 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
         tmp.Append(uriStr);
 
         uriStr = tmp;
-    }
-
-    // Instead of calling NS_OpenURI, we create the channel ourselves and call
-    // SetContentType, to avoid expensive MIME type lookups (bug 632490).
-    rv = NS_NewChannel(getter_AddRefs(chan), uri, serv,
-                       nsnull, nsnull, nsIRequest::LOAD_NORMAL);
-    if (NS_SUCCEEDED(rv))
-    {
-        chan->SetContentType(NS_LITERAL_CSTRING("application/javascript"));
-        rv = chan->Open(getter_AddRefs(instream));
-    }
-
+    }        
+        
+    rv = NS_OpenURI(getter_AddRefs(instream), uri, serv,
+                    nsnull, nsnull, nsIRequest::LOAD_NORMAL,
+                    getter_AddRefs(chan));
     if (NS_FAILED(rv))
     {
         errmsg = JS_NewStringCopyZ (cx, LOAD_ERROR_NOSTREAM);

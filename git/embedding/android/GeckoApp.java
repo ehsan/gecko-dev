@@ -69,7 +69,6 @@ abstract public class GeckoApp
     public static GeckoSurfaceView surfaceView;
     public static GeckoApp mAppContext;
     public static boolean mFullscreen = false;
-    public static File sGREDir = null;
     static Thread mLibLoadThread = null;
 
     enum LaunchState {PreLaunch, Launching, WaitButton,
@@ -105,7 +104,7 @@ abstract public class GeckoApp
         new AlertDialog.Builder(this)
             .setMessage(message)
             .setCancelable(false)
-            .setPositiveButton(getResources().getString(R.string.exit_label),
+            .setPositiveButton("Exit",
                                new DialogInterface.OnClickListener() {
                                    public void onClick(DialogInterface dialog,
                                                        int id)
@@ -170,9 +169,6 @@ abstract public class GeckoApp
     {
         Log.i("GeckoApp", "create");
         super.onCreate(savedInstanceState);
-
-        if (sGREDir == null)
-            sGREDir = new File(this.getApplicationInfo().dataDir);
 
         mAppContext = this;
 
@@ -283,7 +279,8 @@ abstract public class GeckoApp
     {
         Log.i("GeckoApp", "resume");
         if (checkLaunchState(LaunchState.GeckoRunning))
-            GeckoAppShell.onResume();
+            GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_RESUMING));
+
         // After an onPause, the activity is back in the foreground.
         // Undo whatever we did in onPause.
         super.onResume();
@@ -292,39 +289,6 @@ abstract public class GeckoApp
         if (checkLaunchState(LaunchState.PreLaunch) ||
             checkLaunchState(LaunchState.Launching))
             onNewIntent(getIntent());
-    }
-
-    @Override
-    public void onStop()
-    {
-        Log.i("GeckoApp", "stop");
-        // We're about to be stopped, potentially in preparation for
-        // being destroyed.  We're killable after this point -- as I
-        // understand it, in extreme cases the process can be terminated
-        // without going through onDestroy.
-        //
-        // We might also get an onRestart after this; not sure what
-        // that would mean for Gecko if we were to kill it here.
-        // Instead, what we should do here is save prefs, session,
-        // etc., and generally mark the profile as 'clean', and then
-        // dirty it again if we get an onResume.
-
-        GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_STOPPING));
-        super.onStop();
-    }
-
-    @Override
-    public void onRestart()
-    {
-        Log.i("GeckoApp", "restart");
-        super.onRestart();
-    }
-
-    @Override
-    public void onStart()
-    {
-        Log.i("GeckoApp", "start");
-        super.onStart();
     }
 
     @Override
@@ -365,7 +329,8 @@ abstract public class GeckoApp
         ZipFile zip;
         InputStream listStream;
 
-        File componentsDir = new File(sGREDir, "components");
+        File componentsDir = new File("/data/data/" + getPackageName() +
+                                      "/components");
         componentsDir.mkdir();
         zip = new ZipFile(getApplication().getPackageResourcePath());
 
@@ -397,7 +362,8 @@ abstract public class GeckoApp
             throw new FileNotFoundException("Can't find " + name + " in " +
                                             zip.getName());
 
-        File outFile = new File(sGREDir, name);
+        File outFile = new File("/data/data/" + getPackageName() +
+                                "/" + name);
         if (outFile.exists() &&
             outFile.lastModified() == fileEntry.getTime() &&
             outFile.length() == fileEntry.getSize())
@@ -562,7 +528,9 @@ abstract public class GeckoApp
                 File file = 
                     File.createTempFile("tmp_" + 
                                         (int)Math.floor(1000 * Math.random()), 
-                                        fileExt, sGREDir);
+                                        fileExt, 
+                                        new File("/data/data/" +
+                                                 getPackageName()));
                 
                 FileOutputStream fos = new FileOutputStream(file);
                 InputStream is = cr.openInputStream(uri);

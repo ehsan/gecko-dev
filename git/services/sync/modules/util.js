@@ -198,23 +198,7 @@ let Utils = {
         throw batchEx;
     };
   },
-
-  runInTransaction: function(db, callback, thisObj) {
-    let hasTransaction = false;
-    try {
-      db.beginTransaction();
-      hasTransaction = true;
-    } catch(e) { /* om nom nom exceptions */ }
-
-    try {
-      return callback.call(thisObj);
-    } finally {
-      if (hasTransaction) {
-        db.commitTransaction();
-      }
-    }
-  },
-
+  
   createStatement: function createStatement(db, query) {
     // Gecko 2.0
     if (db.createAsyncStatement)

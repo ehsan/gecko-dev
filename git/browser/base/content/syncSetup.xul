@@ -375,7 +375,7 @@
         </label>
         <spacer id="passphraseHelpSpacer"/>
         <label class="text-link"
-               onclick="gSyncSetup.resetPassphrase(); return false;">
+               onclick="gSyncUtils.resetPassphrase(); return false;">
           &resetSyncKey.label;
         </label>
       </description>

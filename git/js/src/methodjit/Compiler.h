@@ -211,6 +211,7 @@ class Compiler : public BaseCompiler
         Label typeCheck;
         RegisterID shapeReg;
         RegisterID objReg;
+        RegisterID idReg;
         RegisterID typeReg;
         bool usePropCache;
         Label shapeGuard;

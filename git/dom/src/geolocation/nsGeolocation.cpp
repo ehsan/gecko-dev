@@ -1040,9 +1040,7 @@ nsGeolocation::GetCurrentPosition(nsIDOMGeoPositionCallback *callback,
     return NS_ERROR_FAILURE; // this as OKAY.  not sure why we wouldn't throw. xxx dft
 
   if (mOwner) {
-    if (!RegisterRequestWithPrompt(request))
-      return NS_ERROR_NOT_AVAILABLE;
-    
+    RegisterRequestWithPrompt(request);
     mPendingCallbacks.AppendElement(request);
     return NS_OK;
   }
@@ -1085,8 +1083,7 @@ nsGeolocation::WatchPosition(nsIDOMGeoPositionCallback *callback,
     return NS_ERROR_FAILURE; // this as OKAY.  not sure why we wouldn't throw. xxx dft
 
   if (mOwner) {
-    if (!RegisterRequestWithPrompt(request))
-      return NS_ERROR_NOT_AVAILABLE;
+    RegisterRequestWithPrompt(request);
 
     // need to hand back an index/reference.
     mWatchingCallbacks.AppendElement(request);
@@ -1144,20 +1141,18 @@ nsGeolocation::WindowOwnerStillExists()
   return PR_TRUE;
 }
 
-bool
+void
 nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
 {
 #ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mOwner);
     if (!window)
-      return true;
+      return;
 
     // because owner implements nsITabChild, we can assume that it is
     // the one and only TabChild.
     TabChild* child = GetTabChildFrom(window->GetDocShell());
-    if (!child)
-      return false;
     
     // Retain a reference so the object isn't deleted without IPDL's knowledge.
     // Corresponding release occurs in DeallocPContentPermissionRequest.
@@ -1167,7 +1162,7 @@ nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
     child->SendPContentPermissionRequestConstructor(request, type, IPC::URI(mURI));
     
     request->Sendprompt();
-    return true;
+    return;
   }
 #endif
 
@@ -1175,11 +1170,10 @@ nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
   {
     nsCOMPtr<nsIRunnable> ev  = new RequestAllowEvent(nsContentUtils::GetBoolPref("geo.prompt.testing.allow", PR_FALSE), request);
     NS_DispatchToMainThread(ev);
-    return true;
+    return;
   }
 
   nsCOMPtr<nsIRunnable> ev  = new RequestPromptEvent(request);
   NS_DispatchToMainThread(ev);
-  return true;
 }
 

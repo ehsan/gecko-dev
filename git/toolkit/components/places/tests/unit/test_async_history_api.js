@@ -198,6 +198,37 @@ function test_invalid_places_throws()
   run_next_test();
 }
 
+function test_invalid_id_throws()
+{
+  // First check invalid id "0".
+  let place = {
+    placeId: 0,
+    uri: NetUtil.newURI(TEST_DOMAIN + "test_invalid_id_throws"),
+    visits: [
+      new VisitInfo(),
+    ],
+  };
+  try {
+    gHistory.updatePlaces(place);
+    do_throw("Should have thrown!");
+  }
+  catch (e) {
+    do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
+  }
+
+  // Now check negative id.
+  place.placeId = -5;
+  try {
+    gHistory.updatePlaces(place);
+    do_throw("Should have thrown!");
+  }
+  catch (e) {
+    do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
+  }
+
+  run_next_test();
+}
+
 function test_invalid_guid_throws()
 {
   // First check invalid length guid.
@@ -241,6 +272,7 @@ function test_no_visits_throws()
     let str = "Testing place with " +
       (aPlace.uri ? "uri" : "no uri") + ", " +
       (aPlace.guid ? "guid" : "no guid") + ", " +
+      (aPlace.placeId ? "placeId" : "no placeId") + ", " +
       (aPlace.visits ? "visits array" : "no visits array");
     do_log_info(str);
   };
@@ -255,16 +287,20 @@ function test_no_visits_throws()
     for (let guid = 1; guid >= 0; guid--) {
       place.guid = guid ? TEST_GUID : undefined;
 
-      for (let visits = 1; visits >= 0; visits--) {
-        place.visits = visits ? [] : undefined;
+      for (let placeId = 1; placeId >= 0; placeId--) {
+        place.placeId = placeId ? TEST_PLACEID : undefined;
 
-        log_test_conditions(place);
-        try {
-          gHistory.updatePlaces(place);
-          do_throw("Should have thrown!");
-        }
-        catch (e) {
-          do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
+        for (let visits = 1; visits >= 0; visits--) {
+          place.visits = visits ? [] : undefined;
+
+          log_test_conditions(place);
+          try {
+            gHistory.updatePlaces(place);
+            do_throw("Should have thrown!");
+          }
+          catch (e) {
+            do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
+          }
         }
       }
     }
@@ -390,160 +426,6 @@ function test_non_addable_uri_errors()
     if (++callbackCount == places.length) {
       run_next_test();
     }
-  });
-}
-
-function test_invalid_referrerURI_ignored()
-{
-  let place = {
-    uri: NetUtil.newURI(TEST_DOMAIN +
-                        "test_invalid_referrerURI_ignored"),
-    visits: [
-      new VisitInfo(),
-    ],
-  };
-  place.visits[0].referrerURI = NetUtil.newURI(place.uri.spec + "_unvisistedURI");
-  do_check_false(gGlobalHistory.isVisited(place.uri));
-  do_check_false(gGlobalHistory.isVisited(place.visits[0].referrerURI));
-
-  gHistory.updatePlaces(place, function(aResultCode, aPlaceInfo) {
-    do_check_true(Components.isSuccessCode(aResultCode));
-    let uri = aPlaceInfo.uri;
-    do_check_true(gGlobalHistory.isVisited(uri));
-
-    // Check to make sure we do not visit the invalid referrer.
-    let visit = aPlaceInfo.visits[0];
-    do_check_false(gGlobalHistory.isVisited(visit.referrerURI));
-
-    // Check to make sure from_visit is zero in database.
-    let stmt = DBConn().createStatement(
-      "SELECT from_visit " +
-      "FROM moz_historyvisits " +
-      "WHERE id = :visit_id"
-    );
-    stmt.params.visit_id = aPlaceInfo.visits[0].visitId;
-    do_check_true(stmt.executeStep());
-    do_check_eq(stmt.row.from_visit, 0);
-    stmt.finalize();
-
-    run_next_test();
-  });
-}
-
-function test_nonnsIURI_referrerURI_ignored()
-{
-  let place = {
-    uri: NetUtil.newURI(TEST_DOMAIN +
-                        "test_nonnsIURI_referrerURI_ignored"),
-    visits: [
-      new VisitInfo(),
-    ],
-  };
-  place.visits[0].referrerURI = place.uri.spec + "_nonnsIURI";
-  do_check_false(gGlobalHistory.isVisited(place.uri));
-
-  gHistory.updatePlaces(place, function(aResultCode, aPlaceInfo) {
-    do_check_true(Components.isSuccessCode(aResultCode));
-    let uri = aPlaceInfo.uri;
-    do_check_true(gGlobalHistory.isVisited(uri));
-
-    // Check to make sure from_visit is zero in database.
-    let stmt = DBConn().createStatement(
-      "SELECT from_visit " +
-      "FROM moz_historyvisits " +
-      "WHERE id = :visit_id"
-    );
-    stmt.params.visit_id = aPlaceInfo.visits[0].visitId;
-    do_check_true(stmt.executeStep());
-    do_check_eq(stmt.row.from_visit, 0);
-    stmt.finalize();
-
-    run_next_test();
-  });
-}
-
-function test_invalid_sessionId_ignored()
-{
-  let place = {
-    uri: NetUtil.newURI(TEST_DOMAIN +
-                        "test_invalid_sessionId_ignored"),
-    visits: [
-      new VisitInfo(),
-    ],
-  };
-  place.visits[0].sessionId = -1;
-  do_check_false(gGlobalHistory.isVisited(place.uri));
-
-  gHistory.updatePlaces(place, function(aResultCode, aPlaceInfo) {
-    do_check_true(Components.isSuccessCode(aResultCode));
-    let uri = aPlaceInfo.uri;
-    do_check_true(gGlobalHistory.isVisited(uri));
-
-    // Check to make sure we do not persist bogus sessionId with the visit.
-    let visit = aPlaceInfo.visits[0];
-    do_check_neq(visit.sessionId, place.visits[0].sessionId);
-
-    // Check to make sure we do not persist bogus sessionId in database.
-    let stmt = DBConn().createStatement(
-      "SELECT session " +
-      "FROM moz_historyvisits " +
-      "WHERE id = :visit_id"
-    );
-    stmt.params.visit_id = visit.visitId;
-    do_check_true(stmt.executeStep());
-    do_check_neq(stmt.row.session, place.visits[0].sessionId);
-    stmt.finalize();
-
-    run_next_test();
-  });
-}
-
-function test_unstored_sessionId_ignored()
-{
-  let place = {
-    uri: NetUtil.newURI(TEST_DOMAIN +
-                        "test_unstored_sessionId_ignored"),
-    visits: [
-      new VisitInfo(),
-    ],
-  };
-
-  // Find max session id in database.
-  let stmt = DBConn().createStatement(
-    "SELECT MAX(session) as max_session " +
-    "FROM moz_historyvisits"
-  );
-  do_check_true(stmt.executeStep());
-  let maxSessionId = stmt.row.max_session;
-  stmt.finalize();
-
-  // Create bogus sessionId that is not in database.
-  place.visits[0].sessionId = maxSessionId + 10;
-  do_check_false(gGlobalHistory.isVisited(place.uri));
-
-  gHistory.updatePlaces(place, function(aResultCode, aPlaceInfo) {
-    do_check_true(Components.isSuccessCode(aResultCode));
-    let uri = aPlaceInfo.uri;
-    do_check_true(gGlobalHistory.isVisited(uri));
-
-    // Check to make sure we do not persist bogus sessionId with the visit.
-    let visit = aPlaceInfo.visits[0];
-    do_check_neq(visit.sessionId, place.visits[0].sessionId);
-
-    // Check to make sure we do not persist bogus sessionId in the database.
-    let stmt = DBConn().createStatement(
-      "SELECT MAX(session) as max_session " +
-      "FROM moz_historyvisits"
-    );
-    do_check_true(stmt.executeStep());
-
-    // Max sessionId should increase by 1 because we will generate a new
-    // non-bogus sessionId.
-    let newMaxSessionId = stmt.row.max_session;
-    do_check_eq(maxSessionId + 1, newMaxSessionId);
-    stmt.finalize();
-
-    run_next_test();
   });
 }
 
@@ -1012,16 +894,13 @@ let gTests = [
   test_interface_exists,
   test_invalid_uri_throws,
   test_invalid_places_throws,
+  test_invalid_id_throws,
   test_invalid_guid_throws,
   test_no_visits_throws,
   test_add_visit_no_date_throws,
   test_add_visit_no_transitionType_throws,
   test_add_visit_invalid_transitionType_throws,
   test_non_addable_uri_errors,
-  test_invalid_referrerURI_ignored,
-  test_nonnsIURI_referrerURI_ignored,
-  test_invalid_sessionId_ignored,
-  test_unstored_sessionId_ignored,
   test_observer_topic_dispatched_when_complete,
   test_add_visit,
   test_properties_saved,

@@ -287,8 +287,7 @@ table[align="right"] {
 
   /* Put this first so 'border' and 'frame' rules can override it. */
 table[rules] { 
-  border-width: thin;
-  border-style: hidden;
+  border: thin hidden; 
 }
 
   /* 'border' before 'frame' so 'frame' overrides
@@ -299,8 +298,7 @@ table[rules] {
      also checks for other zero-like values according to HTML attribute
      parsing rules */
 table:-moz-table-border-nonzero { 
-  border-width: thin;
-  border-style: outset;
+  border: thin outset; 
 }
 
 table[frame] {
@@ -330,8 +328,7 @@ table:-moz-table-border-nonzero > * > th,
 table:-moz-table-border-nonzero > td,
 table:-moz-table-border-nonzero > th
 {
-  border-width: thin;
-  border-style: inset;
+  border: thin inset;
 }
 
 /* collapse only if rules are really specified */
@@ -348,8 +345,7 @@ table[rules]:not([rules=""])> * > tr > th,
 table[rules]:not([rules=""])> td,
 table[rules]:not([rules=""])> th
 {
-  border-width: thin;
-  border-style: none;
+  border: thin none;
 }
 
 
@@ -360,8 +356,7 @@ table[rules][rules="none"] > * > tr > th,
 table[rules][rules="none"] > td,
 table[rules][rules="none"] > th
 {
-  border-width: thin;
-  border-style: hidden;
+  border: thin hidden;
 }
 
 table[rules][rules="all"] > tr > td,
@@ -371,16 +366,13 @@ table[rules][rules="all"] > * > tr > th,
 table[rules][rules="all"] > td,
 table[rules][rules="all"] > th 
 {
-  border-width: thin;
-  border-style: solid;
+  border: thin solid ;
 }
 
 table[rules][rules="rows"] > tr,
 table[rules][rules="rows"] > * > tr {
-  border-top-width: thin;
-  border-bottom-width: thin;
-  border-top-style: solid;
-  border-bottom-style: solid;
+  border-top: thin solid;
+  border-bottom: thin solid;
 }
 
 
@@ -388,25 +380,19 @@ table[rules][rules="cols"] > tr > td,
 table[rules][rules="cols"] > * > tr > td,
 table[rules][rules="cols"] > tr > th,
 table[rules][rules="cols"] > * > tr > th {
-  border-left-width: thin;
-  border-right-width: thin;
-  border-left-style: solid;
-  border-right-style: solid;
+  border-left: thin solid;
+  border-right: thin solid;
 }
 
 table[rules][rules="groups"] > colgroup {
-  border-left-width: thin;
-  border-right-width: thin;
-  border-left-style: solid;
-  border-right-style: solid;
+  border-left: thin solid;
+  border-right: thin solid;
 }
 table[rules][rules="groups"] > tfoot,
 table[rules][rules="groups"] > thead,
 table[rules][rules="groups"] > tbody {
-  border-top-width: thin;
-  border-bottom-width: thin;
-  border-top-style: solid;
-  border-bottom-style: solid;
+  border-top: thin solid;
+  border-bottom: thin solid;
 }
   
   
@@ -482,20 +468,6 @@ thead > form:-moz-is-html, tfoot > form:-moz-is-html,
 table > form:-moz-is-html {
   /* Important: don't show these forms in HTML */
   display: none !important;
-}
-
-table[bordercolor] > tbody,
-table[bordercolor] > thead,
-table[bordercolor] > tfoot,
-table[bordercolor] > col,
-table[bordercolor] > colgroup,
-table[bordercolor] > tr,
-table[bordercolor] > * > tr,
-table[bordercolor]  > tr > td,
-table[bordercolor] > * > tr > td,
-table[bordercolor]  > tr > th,
-table[bordercolor] > * > tr > th {
-  border-color: inherit;
 }
 
 /* inlines */

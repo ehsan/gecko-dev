@@ -213,7 +213,8 @@ struct JSStmtInfo {
  */
 #define TCF_STRICT_MODE_CODE    0x40000
 
-/* bit 0x80000 is unused */
+/* Function has parameter named 'eval'. */
+#define TCF_FUN_PARAM_EVAL      0x80000
 
 /*
  * Flag signifying that the current function seems to be a constructor that

@@ -204,8 +204,6 @@ protected:
   // Call this when you want to destroy mCx.
   void DestroyCx();
   void LoadFrameScriptInternal(const nsAString& aURL);
-  static void Traverse(nsFrameScriptExecutor *tmp,
-                       nsCycleCollectionTraversalCallback &cb);
   nsCOMPtr<nsIXPConnectJSObjectHolder> mGlobal;
   JSContext* mCx;
   nsCOMPtr<nsIPrincipal> mPrincipal;

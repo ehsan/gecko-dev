@@ -198,6 +198,9 @@ public:
   // Frame duration in ms.
   PRUint32 mFrameDuration;
 
+  // Number of frames per second.
+  float mFrameRate;
+
   float mPixelAspectRatio;
 };
 

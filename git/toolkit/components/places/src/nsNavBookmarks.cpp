@@ -124,19 +124,15 @@ class AsyncGetBookmarksForURI : public AsyncStatementCallback
 public:
   AsyncGetBookmarksForURI(nsNavBookmarks* aBookmarksSvc,
                           Method aCallback,
-                          const DataType& aData)
+                          DataType aData)
   : mBookmarksSvc(aBookmarksSvc)
   , mCallback(aCallback)
   , mData(aData)
   {
-  }
-
-  void Init()
-  {
     nsCOMPtr<mozIStorageStatement> stmt =
-      mBookmarksSvc->GetStatementById(DB_GET_BOOKMARKS_FOR_URI);
+      aBookmarksSvc->GetStatementById(DB_GET_BOOKMARKS_FOR_URI);
     if (stmt) {
-      (void)URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), mData.uri);
+      (void)URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), aData.uri);
       nsCOMPtr<mozIStoragePendingStatement> pendingStmt;
       (void)stmt->ExecuteAsync(this, getter_AddRefs(pendingStmt));
     }
@@ -2920,14 +2916,14 @@ nsNavBookmarks::RemoveObserver(nsINavBookmarkObserver* aObserver)
 }
 
 void
-nsNavBookmarks::NotifyItemVisited(const ItemVisitData& aData)
+nsNavBookmarks::NotifyItemVisited(ItemVisitData aData)
 {
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers, nsINavBookmarkObserver,
                    OnItemVisited(aData.itemId, aData.visitId, aData.time));
 }
 
 void
-nsNavBookmarks::NotifyItemChanged(const ItemChangeData& aData)
+nsNavBookmarks::NotifyItemChanged(ItemChangeData aData)
 {
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers, nsINavBookmarkObserver,
                    OnItemChanged(aData.itemId, aData.property,
@@ -2974,7 +2970,6 @@ nsNavBookmarks::OnVisit(nsIURI* aURI, PRInt64 aVisitId, PRTime aTime,
 
   nsRefPtr< AsyncGetBookmarksForURI<ItemVisitMethod, ItemVisitData> > notifier =
     new AsyncGetBookmarksForURI<ItemVisitMethod, ItemVisitData>(this, &nsNavBookmarks::NotifyItemVisited, visitData);
-  notifier->Init();
   return NS_OK;
 }
 
@@ -2999,7 +2994,6 @@ nsNavBookmarks::OnDeleteURI(nsIURI* aURI)
 
   nsRefPtr< AsyncGetBookmarksForURI<ItemChangeMethod, ItemChangeData> > notifier =
     new AsyncGetBookmarksForURI<ItemChangeMethod, ItemChangeData>(this, &nsNavBookmarks::NotifyItemChanged, changeData);
-  notifier->Init();
   return NS_OK;
 }
 
@@ -3060,7 +3054,6 @@ nsNavBookmarks::OnPageChanged(nsIURI* aURI, PRUint32 aWhat,
     else {
       nsRefPtr< AsyncGetBookmarksForURI<ItemChangeMethod, ItemChangeData> > notifier =
         new AsyncGetBookmarksForURI<ItemChangeMethod, ItemChangeData>(this, &nsNavBookmarks::NotifyItemChanged, changeData);
-      notifier->Init();
     }
   }
   return NS_OK;
