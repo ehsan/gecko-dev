@@ -164,7 +164,6 @@ function loadCommands() {
   let commandExports = {};
 
   Cu.import("resource:///modules/GcliCommands.jsm", commandExports);
-  Cu.import("resource:///modules/GcliTiltCommands.jsm", commandExports);
 
   return commandExports;
 }

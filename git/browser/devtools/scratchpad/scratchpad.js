@@ -441,8 +441,7 @@ var Scratchpad = {
   },
 
   /**
-   * Write out a value at the next line from the current insertion point.
-   * The comment block will always be preceded by a newline character.
+   * Write out a value at the current insertion point as a block comment
    * @param object aValue
    *        The Object to write out as a string
    */
@@ -453,7 +452,7 @@ var Scratchpad = {
                          selection.end : // after selected text
                          this.editor.getCharCount(); // after text end
                          
-    let newComment = "\n/*\n" + aValue + "\n*/";
+    let newComment = "/*\n" + aValue + "\n*/";
     
     this.setText(newComment, insertionPoint, insertionPoint);
 
