@@ -14,12 +14,6 @@ function test() {
   };
   runSocialTestWithProvider(manifest, function (finishcb) {
     SocialSidebar.show();
-    // disable transitions for the test
-    let panel = document.getElementById("social-flyout-panel");
-    registerCleanupFunction(function () {
-      panel.removeAttribute("animate");
-    });
-    panel.setAttribute("animate", "false");
     runSocialTests(tests, undefined, undefined, finishcb);
   });
 }
@@ -27,7 +21,8 @@ function test() {
 var tests = {
   testOpenCloseFlyout: function(next) {
     let panel = document.getElementById("social-flyout-panel");
-    ensureEventFired(panel, "popupshown").then(() => {
+    panel.addEventListener("popupshowing", function onShowing() {
+      panel.removeEventListener("popupshowing", onShowing);
       is(panel.firstChild.contentDocument.readyState, "complete", "panel is loaded prior to showing");
     });
     let port = SocialSidebar.provider.getWorkerPort();
@@ -80,7 +75,8 @@ var tests = {
           is(cs.height, "400px", "should be 400px high");
           is(iframe.boxObject.height, 400, "iframe should now be 400px high");
 
-          ensureEventFired(iframe.contentWindow, "resize").then(() => {
+          iframe.contentWindow.addEventListener("resize", function _doneHandler() {
+            iframe.contentWindow.removeEventListener("resize", _doneHandler, false);
             cs = iframe.contentWindow.getComputedStyle(body);
 
             is(cs.width, "500px", "should now be 500px wide");
@@ -90,7 +86,7 @@ var tests = {
             panel.hidePopup();
             port.close();
             next();
-          });
+          }, false);
           SocialFlyout.dispatchPanelEvent("socialTest-MakeWider");
           break;
       }
@@ -121,12 +117,13 @@ var tests = {
           if (e.data.result != "shown")
             return;
           let iframe = panel.firstChild;
-          ensureEventFired(iframe.contentDocument, "SocialTest-DoneCloseSelf").then(() => {
+          iframe.contentDocument.addEventListener("SocialTest-DoneCloseSelf", function _doneHandler() {
+            iframe.contentDocument.removeEventListener("SocialTest-DoneCloseSelf", _doneHandler, false);
             port.close();
             is(panel.state, "closed", "flyout should have closed itself");
             Services.prefs.setBoolPref(ALLOW_SCRIPTS_TO_CLOSE_PREF, oldAllowScriptsToClose);
             next();
-          });
+          }, false);
           is(panel.state, "open", "flyout should be open");
           SocialFlyout.dispatchPanelEvent("socialTest-CloseSelf");
           break;

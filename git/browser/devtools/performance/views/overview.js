@@ -21,15 +21,15 @@ const GRAPH_SCROLL_EVENTS_DRAIN = 50; // ms
 
 /**
  * View handler for the overview panel's time view, displaying
- * framerate, markers and memory over time.
+ * framerate over time.
  */
 let OverviewView = {
   /**
    * Sets up the view with event binding.
    */
   initialize: Task.async(function *() {
-    this._onRecordingStarted = this._onRecordingStarted.bind(this);
-    this._onRecordingStopped = this._onRecordingStopped.bind(this);
+    this._start = this._start.bind(this);
+    this._stop = this._stop.bind(this);
     this._onRecordingTick = this._onRecordingTick.bind(this);
     this._onGraphMouseUp = this._onGraphMouseUp.bind(this);
     this._onGraphScroll = this._onGraphScroll.bind(this);
@@ -45,8 +45,8 @@ let OverviewView = {
     this.memoryOverview.on("mouseup", this._onGraphMouseUp);
     this.memoryOverview.on("scroll", this._onGraphScroll);
 
-    PerformanceController.on(EVENTS.RECORDING_STARTED, this._onRecordingStarted);
-    PerformanceController.on(EVENTS.RECORDING_STOPPED, this._onRecordingStopped);
+    PerformanceController.on(EVENTS.RECORDING_STARTED, this._start);
+    PerformanceController.on(EVENTS.RECORDING_STOPPED, this._stop);
   }),
 
   /**
@@ -61,8 +61,8 @@ let OverviewView = {
     this.memoryOverview.off("scroll", this._onGraphScroll);
 
     clearNamedTimeout("graph-scroll");
-    PerformanceController.off(EVENTS.RECORDING_STARTED, this._onRecordingStarted);
-    PerformanceController.off(EVENTS.RECORDING_STOPPED, this._onRecordingStopped);
+    PerformanceController.off(EVENTS.RECORDING_STARTED, this._start);
+    PerformanceController.off(EVENTS.RECORDING_STOPPED, this._stop);
   },
 
   /**
@@ -112,6 +112,12 @@ let OverviewView = {
     let memory = PerformanceController.getMemory();
     let timestamps = PerformanceController.getTicks();
 
+    // Compute an approximate ending time for the view. This is
+    // needed to ensure that the view updates even when new data is
+    // not being generated.
+    let fakeTime = interval.startTime + interval.localElapsedTime;
+    interval.endTime = fakeTime;
+
     this.markersOverview.setData({ interval, markers });
     this.emit(EVENTS.MARKERS_GRAPH_RENDERED);
 
@@ -127,7 +133,7 @@ let OverviewView = {
 
   /**
    * Called at most every OVERVIEW_UPDATE_INTERVAL milliseconds
-   * and uses data fetched from the controller to render
+   * and uses data fetched from `_onTimelineData` to render
    * data into all the corresponding overview graphs.
    */
   _onRecordingTick: Task.async(function *() {
@@ -161,7 +167,7 @@ let OverviewView = {
 
   /**
    * Listener handling the "scroll" event for the framerate graph.
-   * Fires a debounced event to be handled elsewhere.
+   * Fires an event to be handled elsewhere.
    */
   _onGraphScroll: function () {
     setNamedTimeout("graph-scroll", GRAPH_SCROLL_EVENTS_DRAIN, () => {
@@ -183,7 +189,7 @@ let OverviewView = {
   /**
    * Called when recording starts.
    */
-  _onRecordingStarted: function () {
+  _start: function () {
     this._timeoutId = setTimeout(this._onRecordingTick, OVERVIEW_UPDATE_INTERVAL);
 
     this.framerateGraph.dropSelection();
@@ -195,7 +201,7 @@ let OverviewView = {
   /**
    * Called when recording stops.
    */
-  _onRecordingStopped: function () {
+  _stop: function () {
     clearTimeout(this._timeoutId);
     this._timeoutId = null;
 

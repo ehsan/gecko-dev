@@ -237,9 +237,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "PanelFrame", "resource:///modules/Panel
       if (options.sound) {
         // This will not do anything, until bug bug 1105222 is resolved.
         notificationOptions.mozbehavior = {
-          soundFile: ""
+          soundFile: `chrome://browser/content/loop/shared/sounds/${options.sound}.ogg`
         };
-        this.playSound(options.sound);
       }
 
       let notification = new window.Notification(options.title, notificationOptions);

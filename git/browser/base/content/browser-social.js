@@ -479,9 +479,11 @@ SocialShare = {
   },
 
   get iframe() {
-    // panel.firstChild is our toolbar hbox, panel.lastChild is the iframe
-    // container hbox used for an interstitial "loading" graphic
-    return this.panel.lastChild.firstChild;
+    // first element is our menu vbox.
+    if (this.panel.childElementCount == 1)
+      return null;
+    else
+      return this.panel.lastChild;
   },
 
   uninit: function () {
@@ -503,7 +505,7 @@ SocialShare = {
     iframe.setAttribute("tooltip", "aHTMLTooltip");
     iframe.setAttribute("disableglobalhistory", "true");
     iframe.setAttribute("flex", "1");
-    panel.lastChild.appendChild(iframe);
+    panel.appendChild(iframe);
     iframe.addEventListener("load", function _firstload() {
       iframe.removeEventListener("load", _firstload, true);
       iframe.messageManager.loadFrameScript("chrome://browser/content/content.js", true);
@@ -535,13 +537,13 @@ SocialShare = {
     // remove everything before the add-share-provider button (which should also
     // be lastChild if any share providers were added)
     let addButton = document.getElementById("add-share-provider");
-    while (hbox.lastChild != addButton) {
-      hbox.removeChild(hbox.lastChild);
+    while (hbox.firstChild != addButton) {
+      hbox.removeChild(hbox.firstChild);
     }
     let selectedProvider = this.getSelectedProvider();
     for (let provider of providers) {
       let button = document.createElement("toolbarbutton");
-      button.setAttribute("class", "toolbarbutton-1 share-provider-button");
+      button.setAttribute("class", "toolbarbutton share-provider-button");
       button.setAttribute("type", "radio");
       button.setAttribute("group", "share-providers");
       button.setAttribute("image", provider.iconURL);
@@ -552,7 +554,7 @@ SocialShare = {
       if (provider == selectedProvider) {
         this.defaultButton = button;
       }
-      hbox.appendChild(button);
+      hbox.insertBefore(button, addButton);
     }
     if (!this.defaultButton) {
       this.defaultButton = addButton;
@@ -575,7 +577,7 @@ SocialShare = {
   _onclick: function() {
     Services.telemetry.getHistogramById("SOCIAL_PANEL_CLICKS").add(0);
   },
-
+  
   onShowing: function() {
     this.anchor.setAttribute("open", "true");
     this.iframe.addEventListener("click", this._onclick, true);
@@ -680,40 +682,48 @@ SocialShare = {
 
     let shareEndpoint = OpenGraphBuilder.generateEndpointURL(provider.shareURL, pageData);
 
-    this._dynamicResizer.stop();
     let size = provider.getPageSize("share");
     if (size) {
-      // let the css on the share panel define width, but height
-      // calculations dont work on all sites, so we allow that to be
-      // defined.
-      delete size.width;
+      this._dynamicResizer.stop();
     }
 
     // if we've already loaded this provider/page share endpoint, we don't want
     // to add another load event listener.
+    let reload = true;
     let endpointMatch = shareEndpoint == iframe.getAttribute("src");
-    if (endpointMatch) {
-      this._dynamicResizer.start(iframe.parentNode, iframe, size);
+    let docLoaded = iframe.contentDocument && iframe.contentDocument.readyState == "complete";
+    if (endpointMatch && docLoaded) {
+      reload = shareEndpoint != iframe.contentDocument.location.spec;
+    }
+    if (!reload) {
+      if (!size)
+        this._dynamicResizer.start(this.panel, iframe);
       iframe.docShell.isActive = true;
       iframe.docShell.isAppTab = true;
       let evt = iframe.contentDocument.createEvent("CustomEvent");
       evt.initCustomEvent("OpenGraphData", true, true, JSON.stringify(pageData));
       iframe.contentDocument.documentElement.dispatchEvent(evt);
     } else {
-      iframe.parentNode.setAttribute("loading", "true");
       // first time load, wait for load and dispatch after load
       iframe.addEventListener("load", function panelBrowserOnload(e) {
         iframe.removeEventListener("load", panelBrowserOnload, true);
         iframe.docShell.isActive = true;
         iframe.docShell.isAppTab = true;
-        iframe.parentNode.removeAttribute("loading");
         // to support standard share endpoints mimick window.open by setting
         // window.opener, some share endpoints rely on w.opener to know they
         // should close the window when done.
         iframe.contentWindow.opener = iframe.contentWindow;
-
-        SocialShare._dynamicResizer.start(iframe.parentNode, iframe, size);
-
+        setTimeout(function() {
+          if (size) {
+            let panel = SocialShare.panel;
+            let {width, height} = size;
+            width += panel.boxObject.width - iframe.boxObject.width;
+            height += panel.boxObject.height - iframe.boxObject.height;
+            panel.sizeTo(width, height);
+          } else {
+            SocialShare._dynamicResizer.start(iframe.parentNode, iframe);
+          }
+        }, 0);
         let evt = iframe.contentDocument.createEvent("CustomEvent");
         evt.initCustomEvent("OpenGraphData", true, true, JSON.stringify(pageData));
         iframe.contentDocument.documentElement.dispatchEvent(evt);
@@ -737,18 +747,9 @@ SocialShare = {
   showDirectory: function() {
     this._createFrame();
     let iframe = this.iframe;
-    if (iframe.getAttribute("src") == "about:providerdirectory")
-      return;
     iframe.removeAttribute("origin");
-    iframe.parentNode.setAttribute("loading", "true");
-    iframe.addEventListener("DOMContentLoaded", function _dcl(e) {
-      iframe.removeEventListener("DOMContentLoaded", _dcl, true);
-      iframe.parentNode.removeAttribute("loading");
-    }, true);
-
     iframe.addEventListener("load", function panelBrowserOnload(e) {
       iframe.removeEventListener("load", panelBrowserOnload, true);
-
       hookWindowCloseForPanelClose(iframe.contentWindow);
       SocialShare._dynamicResizer.start(iframe.parentNode, iframe);
 
