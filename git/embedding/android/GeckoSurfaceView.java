@@ -599,7 +599,6 @@ class GeckoSurfaceView
         // KeyListener returns true if it handled the event for us.
         if (mIMEState == IME_STATE_DISABLED ||
             keyCode == KeyEvent.KEYCODE_ENTER ||
-            keyCode == KeyEvent.KEYCODE_DEL ||
             (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) != 0 ||
             !mKeyListener.onKeyDown(this, mEditable, keyCode, event))
             GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
@@ -618,7 +617,6 @@ class GeckoSurfaceView
         }
         if (mIMEState == IME_STATE_DISABLED ||
             keyCode == KeyEvent.KEYCODE_ENTER ||
-            keyCode == KeyEvent.KEYCODE_DEL ||
             (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) != 0 ||
             !mKeyListener.onKeyUp(this, mEditable, keyCode, event))
             GeckoAppShell.sendEventToGecko(new GeckoEvent(event));

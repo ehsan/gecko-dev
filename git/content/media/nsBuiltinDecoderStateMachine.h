@@ -252,7 +252,7 @@ public:
     return mEndTime;
   }
 
-  PRBool IsSeekable() {
+  PRBool GetSeekable() {
     mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
     return mSeekable;
   }

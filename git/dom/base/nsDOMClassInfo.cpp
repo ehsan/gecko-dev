@@ -285,7 +285,6 @@
 #include "nsIDOMHTMLLinkElement.h"
 #include "nsIDOMHTMLMapElement.h"
 #include "nsIDOMHTMLMenuElement.h"
-#include "nsIDOMHTMLMenuItemElement.h"
 #include "nsIDOMHTMLMetaElement.h"
 #include "nsIDOMHTMLModElement.h"
 #include "nsIDOMHTMLOListElement.h"
@@ -342,6 +341,7 @@
 #include "nsIDOMCRMFObject.h"
 #include "nsIControllers.h"
 #include "nsISelection.h"
+#include "nsISelection3.h"
 #include "nsIBoxObject.h"
 #ifdef MOZ_XUL
 #include "nsITreeSelection.h"
@@ -835,8 +835,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(HTMLMapElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLMenuElement, nsElementSH,
-                           ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(HTMLMenuItemElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLMetaElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
@@ -2697,11 +2695,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(HTMLMenuItemElement, nsIDOMHTMLMenuItemElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLMenuItemElement)
-    DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(HTMLMetaElement, nsIDOMHTMLMetaElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLMetaElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
@@ -2918,6 +2911,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(Selection, nsISelection)
     DOM_CLASSINFO_MAP_ENTRY(nsISelection)
+    DOM_CLASSINFO_MAP_ENTRY(nsISelection3)
   DOM_CLASSINFO_MAP_END
 
 #ifdef MOZ_XUL
@@ -5195,7 +5189,7 @@ nsWindowSH::InstallGlobalScopePolluter(JSContext *cx, JSObject *obj,
 
 static
 already_AddRefed<nsIDOMWindow>
-GetChildFrame(nsGlobalWindow *win, PRUint32 index)
+GetChildFrame(nsGlobalWindow *win, jsid id)
 {
   nsCOMPtr<nsIDOMWindowCollection> frames;
   win->GetFrames(getter_AddRefs(frames));
@@ -5203,7 +5197,7 @@ GetChildFrame(nsGlobalWindow *win, PRUint32 index)
   nsIDOMWindow *frame = nsnull;
 
   if (frames) {
-    frames->Item(index, &frame);
+    frames->Item(JSID_TO_INT(id), &frame);
   }
 
   return frame;
@@ -5240,14 +5234,16 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   // whacky, that's because this method is *extremely* performace
   // critical. Don't touch this unless you know what you're doing.
 
-  if (JSID_IS_INT(id) && JSID_TO_INT(id) >= 0) {
+  if (JSID_IS_INT(id)) {
     // If we're accessing a numeric property we'll treat that as if
     // window.frames[n] is accessed (since window.frames === window),
     // if window.frames[n] is a child frame, wrap the frame and return
     // it without doing a security check.
-    PRUint32 index = PRUint32(JSID_TO_INT(id));
+
+    nsCOMPtr<nsIDOMWindow> frame = GetChildFrame(win, id);
     nsresult rv = NS_OK;
-    if (nsCOMPtr<nsIDOMWindow> frame = GetChildFrame(win, index)) {
+
+    if (frame) {
       // A numeric property accessed and the numeric property is a
       // child frame, wrap the child frame without doing a security
       // check and return.
@@ -6508,17 +6504,19 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   nsGlobalWindow *win = nsGlobalWindow::FromWrapper(wrapper);
 
   if (!JSID_IS_STRING(id)) {
-    if (JSID_IS_INT(id) && JSID_TO_INT(id) >= 0 && !(flags & JSRESOLVE_ASSIGNING)) {
+    if (JSID_IS_INT(id) && !(flags & JSRESOLVE_ASSIGNING)) {
       // If we're resolving a numeric property, treat that as if
       // window.frames[n] is resolved (since window.frames ===
       // window), if window.frames[n] is a child frame, define a
       // property for this index.
-      PRUint32 index = PRUint32(JSID_TO_INT(id));
-      if (nsCOMPtr<nsIDOMWindow> frame = GetChildFrame(win, index)) {
+
+      nsCOMPtr<nsIDOMWindow> frame = GetChildFrame(win, id);
+
+      if (frame) {
         // A numeric property accessed and the numeric property is a
         // child frame. Define a property for this index.
 
-        *_retval = ::JS_DefineElement(cx, obj, index, JSVAL_VOID,
+        *_retval = ::JS_DefineElement(cx, obj, JSID_TO_INT(id), JSVAL_VOID,
                                       nsnull, nsnull, JSPROP_SHARED);
 
         if (*_retval) {
@@ -7495,7 +7493,6 @@ nsEventReceiverSH::ReallyIsEventName(jsid id, jschar aFirstChar)
             id == sOnratechange_id);
   case 's' :
     return (id == sOnscroll_id       ||
-            id == sOnshow_id         ||
             id == sOnselect_id       ||
             id == sOnsubmit_id       || 
             id == sOnseeked_id       ||
@@ -7910,9 +7907,8 @@ nsGenericArraySH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     nsresult rv = GetLength(wrapper, cx, obj, &length);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    PRUint32 index = PRUint32(n);
-    if (index < length) {
-      *_retval = ::JS_DefineElement(cx, obj, index, JSVAL_VOID, nsnull, nsnull,
+    if ((PRUint32)n < length) {
+      *_retval = ::JS_DefineElement(cx, obj, n, JSVAL_VOID, nsnull, nsnull,
                                     JSPROP_ENUMERATE | JSPROP_SHARED);
       *objp = obj;
     }
@@ -8938,7 +8934,12 @@ nsHTMLDocumentSH::DocumentAllNewResolve(JSContext *cx, JSObject *obj, jsid id,
   JSBool ok = JS_TRUE;
 
   if (v != JSVAL_VOID) {
-    ok = ::JS_DefinePropertyById(cx, obj, id, v, nsnull, nsnull, 0);
+    if (JSID_IS_STRING(id)) {
+      ok = ::JS_DefinePropertyById(cx, obj, id, v, nsnull, nsnull, 0);
+    } else {
+      ok = ::JS_DefineElement(cx, obj, JSID_TO_INT(id), v, nsnull, nsnull, 0);
+    }
+
     *objp = obj;
   }
 
@@ -9481,7 +9482,7 @@ nsHTMLSelectElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext 
       nsISupports *node = options->GetNodeAt(n);
       if (node) {
         *objp = obj;
-        *_retval = JS_DefineElement(cx, obj, PRUint32(n), JSVAL_VOID, nsnull, nsnull,
+        *_retval = JS_DefineElement(cx, obj, n, JSVAL_VOID, nsnull, nsnull,
                                     JSPROP_ENUMERATE | JSPROP_SHARED);
 
         return NS_OK;
@@ -9831,14 +9832,24 @@ nsHTMLPluginObjElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
   JSBool found = PR_FALSE;
 
   if (!ObjectIsNativeWrapper(cx, obj)) {
-    *_retval = ::JS_HasPropertyById(cx, pi_obj, id, &found);
+    if (JSID_IS_STRING(id)) {
+      *_retval = ::JS_HasPropertyById(cx, pi_obj, id, &found);
+    } else {
+      *_retval = ::JS_HasElement(cx, pi_obj, JSID_TO_INT(id), &found);
+    }
+
     if (!*_retval) {
       return NS_ERROR_UNEXPECTED;
     }
   }
 
   if (found) {
-    *_retval = ::JS_GetPropertyById(cx, pi_obj, id, vp);
+    if (JSID_IS_STRING(id)) {
+      *_retval = ::JS_GetPropertyById(cx, pi_obj, id, vp);
+    } else {
+      *_retval = ::JS_GetElement(cx, pi_obj, JSID_TO_INT(id), vp);
+    }
+
     return *_retval ? NS_SUCCESS_I_DID_SOMETHING : NS_ERROR_FAILURE;
   }
 
@@ -9860,14 +9871,24 @@ nsHTMLPluginObjElementSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
   JSBool found = PR_FALSE;
 
   if (!ObjectIsNativeWrapper(cx, obj)) {
-    *_retval = ::JS_HasPropertyById(cx, pi_obj, id, &found);
+    if (JSID_IS_STRING(id)) {
+      *_retval = ::JS_HasPropertyById(cx, pi_obj, id, &found);
+    } else {
+      *_retval = ::JS_HasElement(cx, pi_obj, JSID_TO_INT(id), &found);
+    }
+
     if (!*_retval) {
       return NS_ERROR_UNEXPECTED;
     }
   }
 
   if (found) {
-    *_retval = ::JS_SetPropertyById(cx, pi_obj, id, vp);
+    if (JSID_IS_STRING(id)) {
+      *_retval = ::JS_SetPropertyById(cx, pi_obj, id, vp);
+    } else {
+      *_retval = ::JS_SetElement(cx, pi_obj, JSID_TO_INT(id), vp);
+    }
+
     return *_retval ? NS_SUCCESS_I_DID_SOMETHING : NS_ERROR_FAILURE;
   }
 

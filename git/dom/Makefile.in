@@ -71,6 +71,7 @@ DIRS += interfaces/smil
 endif
 
 DIRS += \
+  public/coreEvents \
   base \
   src \
   locales \

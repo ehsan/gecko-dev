@@ -98,7 +98,8 @@ ConvertCloneBuffersToArrayInternal(
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
-    for (uint32 index = 0, count = aBuffers.Length(); index < count; index++) {
+    jsint count = jsint(aBuffers.Length());
+    for (jsint index = 0; index < count; index++) {
       JSAutoStructuredCloneBuffer& buffer = aBuffers[index];
 
       jsval val;

@@ -122,24 +122,6 @@ class nsNativeTheme : public nsITimerCallback
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::selected);
   }
   
-  PRBool IsNextToSelectedTab(nsIFrame* aFrame, PRInt32 aOffset);
-  
-  PRBool IsBeforeSelectedTab(nsIFrame* aFrame) {
-    return IsNextToSelectedTab(aFrame, -1);
-  }
-  
-  PRBool IsAfterSelectedTab(nsIFrame* aFrame) {
-    return IsNextToSelectedTab(aFrame, 1);
-  }
-
-  PRBool IsLeftToSelectedTab(nsIFrame* aFrame) {
-    return IsFrameRTL(aFrame) ? IsAfterSelectedTab(aFrame) : IsBeforeSelectedTab(aFrame);
-  }
-
-  PRBool IsRightToSelectedTab(nsIFrame* aFrame) {
-    return IsFrameRTL(aFrame) ? IsBeforeSelectedTab(aFrame) : IsAfterSelectedTab(aFrame);
-  }
-
   // button / toolbarbutton:
   PRBool IsCheckedButton(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::checked);

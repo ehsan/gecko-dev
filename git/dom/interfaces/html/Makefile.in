@@ -55,7 +55,6 @@ SDK_XPIDLSRCS =					\
 	nsIDOMHTMLBodyElement.idl		\
 	nsIDOMHTMLButtonElement.idl		\
 	nsIDOMHTMLCollection.idl		\
-	nsIDOMHTMLCommandElement.idl		\
 	nsIDOMHTMLDataListElement.idl		\
 	nsIDOMHTMLDListElement.idl		\
 	nsIDOMHTMLDirectoryElement.idl		\
@@ -81,7 +80,6 @@ SDK_XPIDLSRCS =					\
 	nsIDOMHTMLLinkElement.idl		\
 	nsIDOMHTMLMapElement.idl		\
 	nsIDOMHTMLMenuElement.idl		\
-	nsIDOMHTMLMenuItemElement.idl		\
 	nsIDOMHTMLMetaElement.idl		\
 	nsIDOMHTMLModElement.idl		\
 	nsIDOMHTMLOListElement.idl		\

@@ -536,8 +536,6 @@ class nsHashKey;
 #define NS_DEVICE_ORIENTATION        (NS_DEVICE_ORIENTATION_START)
 #define NS_DEVICE_MOTION             (NS_DEVICE_ORIENTATION_START+1)
 
-#define NS_SHOW_EVENT                5000
-
 /**
  * Return status for event processors, nsEventStatus, is defined in
  * nsEvent.h.
