@@ -463,8 +463,7 @@ private:
     nsCOMPtr<nsIWebNavigation> mWebNav;
     nsCOMPtr<nsIWidget> mWidget;
     nsCOMPtr<nsIURI> mLastURI;
-    FrameMetrics mLastRootMetrics;
-    FrameMetrics mLastSubFrameMetrics;
+    FrameMetrics mLastMetrics;
     RenderFrameChild* mRemoteFrame;
     nsRefPtr<ContentChild> mManager;
     nsRefPtr<TabChildGlobal> mTabChildGlobal;

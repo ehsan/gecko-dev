@@ -67,8 +67,7 @@ DEBUGGER_INFO = {
 
   "lldb": {
     "interactive": True,
-    "args": "--",
-    "requiresEscapedArgs": True
+    "args": "--"
   },
 
   # valgrind doesn't explain much about leaks unless you set the
@@ -212,8 +211,7 @@ def getDebuggerInfo(directory, debugger, debuggerArgs, debuggerInteractive = Fal
     debuggerInfo = {
       "path": debuggerPath,
       "interactive" : getDebuggerInfo("interactive", False),
-      "args": getDebuggerInfo("args", "").split(),
-      "requiresEscapedArgs": getDebuggerInfo("requiresEscapedArgs", False)
+      "args": getDebuggerInfo("args", "").split()
     }
 
     if debuggerArgs:
