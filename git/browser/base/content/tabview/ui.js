@@ -109,12 +109,6 @@ let UI = {
       // ___ currentTab
       this._currentTab = gBrowser.selectedTab;
 
-      // ___ exit button
-      iQ("#exit-button").click(function() {
-        self.exit();
-        self.blurAll();
-      });
-        
       // ___ Dev Menu
       // This dev menu is not meant for shipping, nor is it of general
       // interest, but we still need it for the time being. Change the
@@ -146,7 +140,9 @@ let UI = {
       });
 
       gWindow.addEventListener("tabviewhide", function() {
-        self.exit();
+        var activeTab = self.getActiveTab();
+        if (activeTab)
+          activeTab.zoomIn();
       }, false);
 
       // ___ setup key handlers
@@ -253,17 +249,13 @@ let UI = {
     GroupItems.groupItems.forEach(function(group) {
       group.close();
     });
-    
-    let options = {
-      bounds: box,
-      immediately: true
-    };
-    let groupItem = new GroupItem([], options);
+
+    let groupItem = new GroupItem([], {bounds: box});
     let items = TabItems.getItems();
     items.forEach(function(item) {
       if (item.parent)
         item.parent.remove(item);
-      groupItem.add(item, null, {immediately: true});
+      groupItem.add(item);
     });
     
     if (firstTime) {
@@ -390,13 +382,8 @@ let UI = {
         self._resize(true);
         dispatchEvent(event);
       });
-    } else {
-      if (currentTab && currentTab.tabItem)
-        currentTab.tabItem.setZoomPrep(false);
-
-      self.setActiveTab(null);
+    } else
       dispatchEvent(event);
-    }
 
     TabItems.resumePainting();
   },
@@ -461,25 +448,10 @@ let UI = {
   _addTabActionHandlers: function UI__addTabActionHandlers() {
     var self = this;
 
-    // TabOpen
-    this._eventListeners.open = function(tab) {
-      if (tab.ownerDocument.defaultView != gWindow)
-        return;
-
-      // if it's an app tab, add it to all the group items
-      if (tab.pinned)
-        GroupItems.addAppTab(tab);
-    };
-    
-    // TabClose
     this._eventListeners.close = function(tab) {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
-      // if it's an app tab, remove it from all the group items
-      if (tab.pinned)
-        GroupItems.removeAppTab(tab);
-        
       if (self._isTabViewVisible()) {
         // just closed the selected tab in the TabView interface.
         if (self._currentTab == tab)
@@ -498,17 +470,13 @@ let UI = {
 
           // 1) Only go back to the TabView tab when there you close the last
           // tab of a groupItem.
-          let closingLastOfGroup = (groupItem && 
-              groupItem._children.length == 1 && 
-              groupItem._children[0].tab == tab);
-          
           // 2) Take care of the case where you've closed the last tab in
           // an un-named groupItem, which means that the groupItem is gone (null) and
-          // there are no visible tabs. 
-          let closingUnnamedGroup = (groupItem == null &&
-              gBrowser.visibleTabs.length <= 1); 
-              
-          if (closingLastOfGroup || closingUnnamedGroup) {
+          // there are no visible tabs.
+          // Can't use timeout here because user would see a flicker of
+          // switching to another tab before the TabView interface shows up.
+          if ((groupItem && groupItem._children.length == 1) ||
+              (groupItem == null && gBrowser.visibleTabs.length <= 1)) {
             // for the tab focus event to pick up.
             self._closedLastVisibleTab = true;
             // remove the zoom prep.
@@ -520,7 +488,6 @@ let UI = {
       }
     };
 
-    // TabMove
     this._eventListeners.move = function(tab) {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
@@ -530,7 +497,6 @@ let UI = {
         self.setReorderTabItemsOnShow(activeGroupItem);
     };
 
-    // TabSelect
     this._eventListeners.select = function(tab) {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
@@ -538,14 +504,13 @@ let UI = {
       self.onTabSelect(tab);
     };
 
-    // Actually register the above handlers
     for (let name in this._eventListeners)
       AllTabs.register(name, this._eventListeners[name]);
 
     // Start watching for tab pin events, and set up our uninit for same.
     function handleTabPin(event) {
       TabItems.handleTabPin(event.originalTarget);
-      GroupItems.addAppTab(event.originalTarget);
+      GroupItems.handleTabPin(event.originalTarget);
     }
 
     gBrowser.tabContainer.addEventListener("TabPinned", handleTabPin, false);
@@ -556,7 +521,7 @@ let UI = {
     // Start watching for tab unpin events, and set up our uninit for same.
     function handleTabUnpin(event) {
       TabItems.handleTabUnpin(event.originalTarget);
-      GroupItems.removeAppTab(event.originalTarget);
+      GroupItems.handleTabUnpin(event.originalTarget);
     }
 
     gBrowser.tabContainer.addEventListener("TabUnpinned", handleTabUnpin, false);
@@ -611,32 +576,9 @@ let UI = {
 
     if (currentTab && currentTab.tabItem)
       oldItem = currentTab.tabItem;
-      
-    // update the tab bar for the new tab's group
     if (tab && tab.tabItem) {
       newItem = tab.tabItem;
       GroupItems.updateActiveGroupItemAndTabBar(newItem);
-    } else {
-      // No tabItem; must be an app tab. Base the tab bar on the current group.
-      // If no current group or orphan tab, figure it out based on what's
-      // already in the tab bar.
-      if (!GroupItems.getActiveGroupItem() && !GroupItems.getActiveOrphanTab()) {
-        for (let a = 0; a < gBrowser.tabs.length; a++) {
-          let theTab = gBrowser.tabs[a]; 
-          if (!theTab.pinned) {
-            let tabItem = theTab.tabItem; 
-            if (tabItem.parent) 
-              GroupItems.setActiveGroupItem(tabItem.parent);
-            else 
-              GroupItems.setActiveOrphanTab(tabItem); 
-              
-            break;
-          }
-        }
-      }
-
-      if (GroupItems.getActiveGroupItem() || GroupItems.getActiveOrphanTab())
-        GroupItems._updateTabBar();
     }
 
     // ___ prepare for when we return to TabView
@@ -697,9 +639,17 @@ let UI = {
     iQ(window).keydown(function(event) {
       if (event.metaKey) Keys.meta = true;
 
+      if (!self.getActiveTab() || iQ(":focus").length > 0) {
+        // prevent the default action when tab is pressed so it doesn't gives
+        // us problem with content focus.
+        if (event.keyCode == KeyEvent.DOM_VK_TAB) {
+          event.stopPropagation();
+          event.preventDefault();
+        }
+        return;
+      }
+
       function getClosestTabBy(norm) {
-        if (!self.getActiveTab())
-          return null;
         var centers =
           [[item.bounds.center(), item]
              for each(item in TabItems.getItems()) if (!item.parent || !item.parent.hidden)];
@@ -739,19 +689,16 @@ let UI = {
         }
         event.stopPropagation();
         event.preventDefault();
-      } else if (event.keyCode == KeyEvent.DOM_VK_ESCAPE) {
-        let activeGroupItem = GroupItems.getActiveGroupItem();
-        if (activeGroupItem && activeGroupItem.expanded)
-          activeGroupItem.collapse();
-        else 
-          self.exit();
-
-        event.stopPropagation();
-        event.preventDefault();
-      } else if (event.keyCode == KeyEvent.DOM_VK_RETURN ||
+      } else if (event.keyCode == KeyEvent.DOM_VK_ESCAPE ||
+                 event.keyCode == KeyEvent.DOM_VK_RETURN ||
                  event.keyCode == KeyEvent.DOM_VK_ENTER) {
         let activeTab = self.getActiveTab();
-        if (activeTab)
+        let activeGroupItem = GroupItems.getActiveGroupItem();
+
+        if (activeGroupItem && activeGroupItem.expanded &&
+            event.keyCode == KeyEvent.DOM_VK_ESCAPE)
+          activeGroupItem.collapse();
+        else if (activeTab)
             activeTab.zoomIn();
 
         event.stopPropagation();
@@ -920,9 +867,6 @@ let UI = {
     if (typeof force == "undefined")
       force = false;
 
-    if (!this._pageBounds)
-      return;
-
     // If TabView isn't focused and is not showing, don't perform a resize.
     // This resize really slows things down.
     if (!force && !this._isTabViewVisible())
@@ -1002,21 +946,16 @@ let UI = {
   },
 
   // ----------
-  // Function: exit
+  // Function: onExitButtonPressed
   // Exits TabView UI.
-  exit: function UI_exit() {
-    let self = this;
+  onExitButtonPressed: function() {
+    let activeTab = this.getActiveTab();
+    if (!activeTab)
+      activeTab = gBrowser.selectedTab.tabItem;
+    if (activeTab)
+      activeTab.zoomIn();
     
-    // If there's an active TabItem, zoom into it. If not (for instance when the
-    // selected tab is an app tab), just go there. 
-    let activeTabItem = this.getActiveTab();
-    if (!activeTabItem)
-      activeTabItem = gBrowser.selectedTab.tabItem;
-      
-    if (activeTabItem)
-      activeTabItem.zoomIn(); 
-    else
-      self.goToTab(gBrowser.selectedTab);
+    this.blurAll();
   },
 
   // ----------

@@ -48,7 +48,6 @@ _BROWSER_FILES = head.js \
                  image.html \
                  imageX2.html \
                  animated.gif \
-                 animated2.gif \
                  $(NULL)
 
 libs::	$(_BROWSER_FILES)

@@ -60,11 +60,6 @@
 
     nsIContent** AllocateContentHandle();
     
-    void accumulateCharactersForced(const PRUnichar* aBuf, PRInt32 aStart, PRInt32 aLength)
-    {
-      accumulateCharacters(aBuf, aStart, aLength);
-    }
-
   public:
 
     nsHtml5TreeBuilder(nsAHtml5TreeOpSink* aOpSink,

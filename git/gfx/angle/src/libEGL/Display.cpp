@@ -17,8 +17,7 @@
 
 #include "libEGL/main.h"
 
-#define REF_RAST 0        // Can also be enabled by defining FORCE_REF_RAST in the project's predefined macros
-#define ENABLE_D3D9EX 1   // Enables use of the IDirect3D9Ex interface, when available
+#define REF_RAST 0   // Can also be enabled by defining FORCE_REF_RAST in the project's predefined macros
 
 namespace egl
 {
@@ -41,6 +40,7 @@ Display::Display(HDC deviceContext) : mDc(deviceContext)
 
     mMinSwapInterval = 1;
     mMaxSwapInterval = 1;
+    setSwapInterval(1);
 }
 
 Display::~Display()
@@ -77,7 +77,7 @@ bool Display::initialize()
     // Use Direct3D9Ex if available. Among other things, this version is less
     // inclined to report a lost context, for example when the user switches
     // desktop. Direct3D9Ex is available in Windows Vista and later if suitable drivers are available.
-    if (ENABLE_D3D9EX && Direct3DCreate9ExPtr && SUCCEEDED(Direct3DCreate9ExPtr(D3D_SDK_VERSION, &mD3d9ex)))
+    if (Direct3DCreate9ExPtr && SUCCEEDED(Direct3DCreate9ExPtr(D3D_SDK_VERSION, &mD3d9ex)))
     {
         ASSERT(mD3d9ex);
         mD3d9ex->QueryInterface(IID_IDirect3D9, reinterpret_cast<void**>(&mD3d9));
@@ -95,24 +95,12 @@ bool Display::initialize()
         //  UNIMPLEMENTED();   // FIXME: Determine which adapter index the device context corresponds to
         }
 
-        HRESULT result;
-        
-        do
+        HRESULT result = mD3d9->GetDeviceCaps(mAdapter, mDeviceType, &mDeviceCaps);
+
+        if (result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY)
         {
-            result = mD3d9->GetDeviceCaps(mAdapter, mDeviceType, &mDeviceCaps);
-
-            if (result == D3DERR_NOTAVAILABLE)
-            {
-                Sleep(0);   // Give the driver some time to initialize/recover
-            }
-            else if (FAILED(result))   // D3DERR_OUTOFVIDEOMEMORY, E_OUTOFMEMORY, D3DERR_INVALIDDEVICE, or another error we can't recover from
-            {
-                return error(EGL_BAD_ALLOC, false);
-            }
+            return error(EGL_BAD_ALLOC, false);
         }
-        while(result == D3DERR_NOTAVAILABLE);
-
-        ASSERT(SUCCEEDED(result));
 
         if (mDeviceCaps.PixelShaderVersion < D3DPS_VERSION(2, 0))
         {
@@ -176,7 +164,7 @@ bool Display::initialize()
 
                         if (SUCCEEDED(result))
                         {
-                            // FIXME: enumerate multi-sampling
+                            // FIXME: Enumerate multi-sampling
 
                             configSet.add(currentDisplayMode, mMinSwapInterval, mMaxSwapInterval, renderTargetFormat, depthStencilFormat, 0);
                         }
@@ -195,6 +183,13 @@ bool Display::initialize()
 
             mConfigSet.mSet.insert(configuration);
         }
+
+        if (!createDevice())
+        {
+            terminate();
+
+            return false;
+        }
     }
 
     if (!isInitialized())
@@ -204,34 +199,23 @@ bool Display::initialize()
         return false;
     }
 
-    static const TCHAR windowName[] = TEXT("AngleHiddenWindow");
-    static const TCHAR className[] = TEXT("STATIC");
-
-    mDeviceWindow = CreateWindowEx(WS_EX_NOACTIVATE, className, windowName, WS_DISABLED | WS_POPUP, 0, 0, 1, 1, HWND_MESSAGE, NULL, GetModuleHandle(NULL), NULL);
-
     return true;
 }
 
 void Display::terminate()
 {
-    while (!mSurfaceSet.empty())
+    for (SurfaceSet::iterator surface = mSurfaceSet.begin(); surface != mSurfaceSet.end(); surface++)
     {
-        destroySurface(*mSurfaceSet.begin());
+        delete *surface;
     }
 
-    while (!mContextSet.empty())
+    for (ContextSet::iterator context = mContextSet.begin(); context != mContextSet.end(); context++)
     {
-        destroyContext(*mContextSet.begin());
+        glDestroyContext(*context);
     }
 
     if (mDevice)
     {
-        // If the device is lost, reset it first to prevent leaving the driver in an unstable state
-        if (FAILED(mDevice->TestCooperativeLevel()))
-        {
-            resetDevice();
-        }
-
         mDevice->Release();
         mDevice = NULL;
     }
@@ -330,12 +314,33 @@ bool Display::getConfigAttrib(EGLConfig config, EGLint attribute, EGLint *value)
 
 bool Display::createDevice()
 {
-    D3DPRESENT_PARAMETERS presentParameters = getDefaultPresentParameters();
+    static const TCHAR windowName[] = TEXT("AngleHiddenWindow");
+    static const TCHAR className[] = TEXT("STATIC");
+
+    mDeviceWindow = CreateWindowEx(WS_EX_NOACTIVATE, className, windowName, WS_DISABLED | WS_POPUP, 0, 0, 1, 1, HWND_MESSAGE, NULL, GetModuleHandle(NULL), NULL);
+
+    D3DPRESENT_PARAMETERS presentParameters = {0};
+
+    // The default swap chain is never actually used. Surface will create a new swap chain with the proper parameters.
+    presentParameters.AutoDepthStencilFormat = D3DFMT_UNKNOWN;
+    presentParameters.BackBufferCount = 1;
+    presentParameters.BackBufferFormat = D3DFMT_UNKNOWN;
+    presentParameters.BackBufferWidth = 1;
+    presentParameters.BackBufferHeight = 1;
+    presentParameters.EnableAutoDepthStencil = FALSE;
+    presentParameters.Flags = 0;
+    presentParameters.hDeviceWindow = mDeviceWindow;
+    presentParameters.MultiSampleQuality = 0;
+    presentParameters.MultiSampleType = D3DMULTISAMPLE_NONE;
+    presentParameters.PresentationInterval = convertInterval(mMinSwapInterval);
+    presentParameters.SwapEffect = D3DSWAPEFFECT_DISCARD;
+    presentParameters.Windowed = TRUE;
+
     DWORD behaviorFlags = D3DCREATE_FPU_PRESERVE | D3DCREATE_NOWINDOWCHANGES;
 
     HRESULT result = mD3d9->CreateDevice(mAdapter, mDeviceType, mDeviceWindow, behaviorFlags | D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_PUREDEVICE, &presentParameters, &mDevice);
 
-    if (result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY || result == D3DERR_DEVICELOST)
+    if (result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY)
     {
         return error(EGL_BAD_ALLOC, false);
     }
@@ -344,40 +349,18 @@ bool Display::createDevice()
     {
         result = mD3d9->CreateDevice(mAdapter, mDeviceType, mDeviceWindow, behaviorFlags | D3DCREATE_SOFTWARE_VERTEXPROCESSING, &presentParameters, &mDevice);
 
-        if (FAILED(result))
+        if (result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY)
         {
-            ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY || result == D3DERR_NOTAVAILABLE || result == D3DERR_DEVICELOST);
             return error(EGL_BAD_ALLOC, false);
         }
     }
+
+    ASSERT(SUCCEEDED(result));
 
     // Permanent non-default states
     mDevice->SetRenderState(D3DRS_POINTSPRITEENABLE, TRUE);
 
     mSceneStarted = false;
-
-    return true;
-}
-
-bool Display::resetDevice()
-{
-    D3DPRESENT_PARAMETERS presentParameters = getDefaultPresentParameters();
-    HRESULT result;
-    
-    do
-    {
-        Sleep(0);   // Give the graphics driver some CPU time
-
-        result = mDevice->Reset(&presentParameters);
-    }
-    while (result == D3DERR_DEVICELOST);
-
-    if (FAILED(result))
-    {
-        return error(EGL_BAD_ALLOC, false);
-    }
-
-    ASSERT(SUCCEEDED(result));
 
     return true;
 }
@@ -394,27 +377,6 @@ Surface *Display::createWindowSurface(HWND window, EGLConfig config)
 
 EGLContext Display::createContext(EGLConfig configHandle, const gl::Context *shareContext)
 {
-    if (!mDevice)
-    {
-        if (!createDevice())
-        {
-            return NULL;
-        }
-    }
-    else if (FAILED(mDevice->TestCooperativeLevel()))   // Lost device
-    {
-        if (!resetDevice())
-        {
-            return NULL;
-        }
-
-        // Restore any surfaces that may have been lost
-        for (SurfaceSet::iterator surface = mSurfaceSet.begin(); surface != mSurfaceSet.end(); surface++)
-        {
-            (*surface)->resetSwapChain();
-        }
-    }
-
     const egl::Config *config = mConfigSet.get(configHandle);
 
     gl::Context *context = glCreateContext(config, shareContext);
@@ -433,14 +395,6 @@ void Display::destroyContext(gl::Context *context)
 {
     glDestroyContext(context);
     mContextSet.erase(context);
-
-    if (mContextSet.empty() && mDevice && FAILED(mDevice->TestCooperativeLevel()))   // Last context of a lost device
-    {
-        for (SurfaceSet::iterator surface = mSurfaceSet.begin(); surface != mSurfaceSet.end(); surface++)
-        {
-            (*surface)->release();
-        }	
-    }
 }
 
 bool Display::isInitialized()
@@ -476,140 +430,42 @@ bool Display::hasExistingWindowSurface(HWND window)
     return false;
 }
 
-EGLint Display::getMinSwapInterval()
+void Display::setSwapInterval(GLint interval)
 {
-    return mMinSwapInterval;
+    mSwapInterval = interval;
+    mSwapInterval = std::max(mSwapInterval, mMinSwapInterval);
+    mSwapInterval = std::min(mSwapInterval, mMaxSwapInterval);
+
+    mPresentInterval = convertInterval(mSwapInterval);
 }
 
-EGLint Display::getMaxSwapInterval()
+DWORD Display::getPresentInterval()
 {
-    return mMaxSwapInterval;
+    return mPresentInterval;
+}
+
+DWORD Display::convertInterval(GLint interval)
+{
+    switch(interval)
+    {
+      case 0: return D3DPRESENT_INTERVAL_IMMEDIATE;
+      case 1: return D3DPRESENT_INTERVAL_ONE;
+      case 2: return D3DPRESENT_INTERVAL_TWO;
+      case 3: return D3DPRESENT_INTERVAL_THREE;
+      case 4: return D3DPRESENT_INTERVAL_FOUR;
+      default: UNREACHABLE();
+    }
+
+    return D3DPRESENT_INTERVAL_DEFAULT;
 }
 
 IDirect3DDevice9 *Display::getDevice()
 {
-    if (!mDevice)
-    {
-        if (!createDevice())
-        {
-            return NULL;
-        }
-    }
-
     return mDevice;
 }
 
 D3DCAPS9 Display::getDeviceCaps()
 {
     return mDeviceCaps;
-}
-
-void Display::getMultiSampleSupport(D3DFORMAT format, bool *multiSampleArray)
-{
-    for (int multiSampleIndex = 0; multiSampleIndex <= D3DMULTISAMPLE_16_SAMPLES; multiSampleIndex++)
-    {
-        HRESULT result = mD3d9->CheckDeviceMultiSampleType(mAdapter, mDeviceType, format,
-                                                           TRUE, (D3DMULTISAMPLE_TYPE)multiSampleIndex, NULL);
-
-        multiSampleArray[multiSampleIndex] = SUCCEEDED(result);
-    }
-}
-
-bool Display::getCompressedTextureSupport()
-{
-    D3DDISPLAYMODE currentDisplayMode;
-    mD3d9->GetAdapterDisplayMode(mAdapter, &currentDisplayMode);
-
-    return SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0, D3DRTYPE_TEXTURE, D3DFMT_DXT1));
-}
-
-bool Display::getFloatTextureSupport(bool *filtering, bool *renderable)
-{
-    D3DDISPLAYMODE currentDisplayMode;
-    mD3d9->GetAdapterDisplayMode(mAdapter, &currentDisplayMode);
-
-    *filtering = SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_QUERY_FILTER, 
-                                                    D3DRTYPE_TEXTURE, D3DFMT_A32B32G32R32F)) &&
-                 SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_QUERY_FILTER,
-                                                    D3DRTYPE_CUBETEXTURE, D3DFMT_A32B32G32R32F));
-    
-    *renderable = SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_RENDERTARGET,
-                                                     D3DRTYPE_TEXTURE, D3DFMT_A32B32G32R32F))&&
-                  SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_RENDERTARGET,
-                                                     D3DRTYPE_CUBETEXTURE, D3DFMT_A32B32G32R32F));
-
-    if (!filtering && !renderable)
-    {
-        return SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0, 
-                                                  D3DRTYPE_TEXTURE, D3DFMT_A32B32G32R32F)) &&
-               SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0,
-                                                  D3DRTYPE_CUBETEXTURE, D3DFMT_A32B32G32R32F));
-    }
-    else
-    {
-        return true;
-    }
-}
-
-bool Display::getHalfFloatTextureSupport(bool *filtering, bool *renderable)
-{
-    D3DDISPLAYMODE currentDisplayMode;
-    mD3d9->GetAdapterDisplayMode(mAdapter, &currentDisplayMode);
-
-    *filtering = SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_QUERY_FILTER, 
-                                                    D3DRTYPE_TEXTURE, D3DFMT_A16B16G16R16F)) &&
-                 SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_QUERY_FILTER,
-                                                    D3DRTYPE_CUBETEXTURE, D3DFMT_A16B16G16R16F));
-    
-    *renderable = SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_RENDERTARGET, 
-                                                    D3DRTYPE_TEXTURE, D3DFMT_A16B16G16R16F)) &&
-                 SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_RENDERTARGET,
-                                                    D3DRTYPE_CUBETEXTURE, D3DFMT_A16B16G16R16F));
-
-    if (!filtering && !renderable)
-    {
-        return SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0, 
-                                                  D3DRTYPE_TEXTURE, D3DFMT_A16B16G16R16F)) &&
-               SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0,
-                                                  D3DRTYPE_CUBETEXTURE, D3DFMT_A16B16G16R16F));
-    }
-    else
-    {
-        return true;
-    }
-}
-
-bool Display::getEventQuerySupport()
-{
-    IDirect3DQuery9 *query;
-    HRESULT result = mDevice->CreateQuery(D3DQUERYTYPE_EVENT, &query);
-    if (SUCCEEDED(result))
-    {
-        query->Release();
-    }
-
-    return result != D3DERR_NOTAVAILABLE;
-}
-
-D3DPRESENT_PARAMETERS Display::getDefaultPresentParameters()
-{
-    D3DPRESENT_PARAMETERS presentParameters = {0};
-
-    // The default swap chain is never actually used. Surface will create a new swap chain with the proper parameters.
-    presentParameters.AutoDepthStencilFormat = D3DFMT_UNKNOWN;
-    presentParameters.BackBufferCount = 1;
-    presentParameters.BackBufferFormat = D3DFMT_UNKNOWN;
-    presentParameters.BackBufferWidth = 1;
-    presentParameters.BackBufferHeight = 1;
-    presentParameters.EnableAutoDepthStencil = FALSE;
-    presentParameters.Flags = 0;
-    presentParameters.hDeviceWindow = mDeviceWindow;
-    presentParameters.MultiSampleQuality = 0;
-    presentParameters.MultiSampleType = D3DMULTISAMPLE_NONE;
-    presentParameters.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
-    presentParameters.SwapEffect = D3DSWAPEFFECT_DISCARD;
-    presentParameters.Windowed = TRUE;
-
-    return presentParameters;
 }
 }

@@ -56,7 +56,6 @@
 // Possible options:
 //   locked - see <Item.locked>; default is {}
 //   dontPush - true if this infoItem shouldn't push away on creation; default is false
-//   immediately - place the item immediately, without animation
 function InfoItem(bounds, options) {
   try {
     Utils.assertThrow(Utils.isRect(bounds), 'bounds');
@@ -106,8 +105,11 @@ function InfoItem(bounds, options) {
       this.draggable();
 
     // ___ Position
+    this.snap();
+
+    // ___ Push other objects away
     if (!options.dontPush)
-      this.snap(options.immediately);
+      this.pushAway();
 
     this._inited = true;
     this.save();
