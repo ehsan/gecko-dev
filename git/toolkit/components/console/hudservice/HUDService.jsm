@@ -2422,7 +2422,7 @@ JSTerm.prototype = {
       return;
     }
 
-    this.writeOutput(str, true);
+    this.writeOutput(str);
 
     try {
       var execStr = "with(window) {" + str + "}";
@@ -2430,13 +2430,13 @@ JSTerm.prototype = {
         Cu.evalInSandbox(execStr,  this.sandbox, "default", "HUD Console", 1);
 
       if (result || result === false || result === " ") {
-        this.writeOutput(result, false);
+        this.writeOutput(result);
       }
       else if (result === undefined) {
-        this.writeOutput("undefined", false);
+        this.writeOutput("undefined");
       }
       else if (result === null) {
-        this.writeOutput("null", false);
+        this.writeOutput("null");
       }
     }
     catch (ex) {
@@ -2451,35 +2451,15 @@ JSTerm.prototype = {
     this.inputNode.value = "";
   },
 
-  /**
-   * Writes a message to the HUD that originates from the interactive
-   * JavaScript console.
-   *
-   * @param string aOutputMessage
-   *        The message to display.
-   * @param boolean aIsInput
-   *        True if the message is the user's input, false if the message is
-   *        the result of the expression the user typed.
-   * @returns void
-   */
-  writeOutput: function JST_writeOutput(aOutputMessage, aIsInput)
+  writeOutput: function JST_writeOutput(aOutputMessage)
   {
     var node = this.elementFactory("div");
-    if (aIsInput) {
-      node.setAttribute("class", "jsterm-input-line");
-      aOutputMessage = "> " + aOutputMessage;
+    if (this.cssClassOverride) {
+      node.setAttribute("class", this.cssClassOverride);
     }
     else {
       node.setAttribute("class", "jsterm-output-line");
     }
-
-    if (this.cssClassOverride) {
-      let classes = this.cssClassOverride.split(" ");
-      for (let i = 0; i < classes.length; i++) {
-        node.classList.add(classes[i]);
-      }
-    }
-
     var textNode = this.textFactory(aOutputMessage);
     node.appendChild(textNode);
     this.outputNode.appendChild(node);
