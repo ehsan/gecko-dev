@@ -397,7 +397,7 @@ StackSpace::pushGeneratorFrame(JSContext *cx, JSFrameRegs *regs, GeneratorFrameG
 bool
 StackSpace::bumpCommitAndLimit(JSStackFrame *base, Value *sp, uintN nvals, Value **limit) const
 {
-    JS_ASSERT(sp == firstUnused());
+    JS_ASSERT(sp >= firstUnused());
     JS_ASSERT(sp + nvals >= *limit);
 #ifdef XP_WIN
     if (commitEnd <= *limit) {
@@ -735,22 +735,6 @@ js_PurgeThreads(JSContext *cx)
 #else
     cx->runtime->threadData.purge(cx);
 #endif
-}
-
-bool
-js::SyncOptionsToVersion(JSContext* cx)
-{
-    JSVersion version = cx->findVersion();
-    uint32 options = cx->options;
-    if (OptionsHasXML(options) == VersionHasXML(version) &&
-        OptionsHasAnonFunFix(options) == VersionHasAnonFunFix(version)) {
-        /* No need to override. */
-        return false;
-    }
-    VersionSetXML(&version, OptionsHasXML(options));
-    VersionSetAnonFunFix(&version, OptionsHasAnonFunFix(options));
-    cx->maybeOverrideVersion(version);
-    return true;
 }
 
 JSContext *
@@ -2232,8 +2216,18 @@ ComputeIsJITBroken()
         return false;
     }
 
-    bool broken = false;
     std::string line;
+
+    // Check for the known-bad kernel version (2.6.29).
+    std::ifstream osrelease("/proc/sys/kernel/osrelease");
+    std::getline(osrelease, line);
+    if (line.npos == line.find("2.6.29")) {
+        // We're using something other than 2.6.29, so the JITs should work.
+        return false;
+    }
+
+    // We're using 2.6.29, and this causes trouble with the JITs on i9000.
+    bool broken = false;
     std::ifstream cpuinfo("/proc/cpuinfo");
     do {
         if (0 == line.find("Hardware")) {
@@ -2290,7 +2284,7 @@ JSContext::updateJITEnabled()
 # endif
                         ;
 #ifdef JS_TRACER
-    profilingEnabled = (options & JSOPTION_PROFILING) && traceJitEnabled && methodJitEnabled;
+    profilingEnabled = (options & JSOPTION_PROFILING) && traceJitEnabled;
 #endif
 #endif
 }
