@@ -52,7 +52,6 @@ extern uint8_t gLayerManagerLayerBuilder;
 
 namespace mozilla {
 
-class ComputedTimingFunction;
 class FrameLayerBuilder;
 class StyleAnimationValue;
 class WebGLContext;
@@ -64,6 +63,10 @@ class SurfaceStream;
 
 namespace gfx {
 class DrawTarget;
+}
+
+namespace css {
+class ComputedTimingFunction;
 }
 
 namespace dom {
@@ -704,7 +707,7 @@ typedef InfallibleTArray<Animation> AnimationArray;
 struct AnimData {
   InfallibleTArray<mozilla::StyleAnimationValue> mStartValues;
   InfallibleTArray<mozilla::StyleAnimationValue> mEndValues;
-  InfallibleTArray<nsAutoPtr<mozilla::ComputedTimingFunction> > mFunctions;
+  InfallibleTArray<nsAutoPtr<mozilla::css::ComputedTimingFunction> > mFunctions;
 };
 
 /**

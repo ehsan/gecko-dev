@@ -142,14 +142,14 @@ class JitRuntime
 
     // Executable allocator for all code except the main code in an IonScript.
     // Shared with the runtime.
-    ExecutableAllocator *execAlloc_;
+    JSC::ExecutableAllocator *execAlloc_;
 
     // Executable allocator used for allocating the main code in an IonScript.
     // All accesses on this allocator must be protected by the runtime's
     // interrupt lock, as the executable memory may be protected() when
     // requesting an interrupt to force a fault in the Ion code and avoid the
     // need for explicit interrupt checks.
-    ExecutableAllocator *ionAlloc_;
+    JSC::ExecutableAllocator *ionAlloc_;
 
     // Shared post-exception-handler tail
     JitCode *exceptionTail_;
@@ -248,7 +248,7 @@ class JitRuntime
     JitCode *generateBaselineDebugModeOSRHandler(JSContext *cx, uint32_t *noFrameRegPopOffsetOut);
     JitCode *generateVMWrapper(JSContext *cx, const VMFunction &f);
 
-    ExecutableAllocator *createIonAlloc(JSContext *cx);
+    JSC::ExecutableAllocator *createIonAlloc(JSContext *cx);
 
   public:
     JitRuntime();
@@ -260,16 +260,16 @@ class JitRuntime
 
     static void Mark(JSTracer *trc);
 
-    ExecutableAllocator *execAlloc() const {
+    JSC::ExecutableAllocator *execAlloc() const {
         return execAlloc_;
     }
 
-    ExecutableAllocator *getIonAlloc(JSContext *cx) {
+    JSC::ExecutableAllocator *getIonAlloc(JSContext *cx) {
         JS_ASSERT(cx->runtime()->currentThreadOwnsInterruptLock());
         return ionAlloc_ ? ionAlloc_ : createIonAlloc(cx);
     }
 
-    ExecutableAllocator *ionAlloc(JSRuntime *rt) {
+    JSC::ExecutableAllocator *ionAlloc(JSRuntime *rt) {
         JS_ASSERT(rt->currentThreadOwnsInterruptLock());
         return ionAlloc_;
     }
@@ -469,7 +469,7 @@ class JitCompartment
 
     void toggleBaselineStubBarriers(bool enabled);
 
-    ExecutableAllocator *createIonAlloc();
+    JSC::ExecutableAllocator *createIonAlloc();
 
   public:
     JitCompartment();

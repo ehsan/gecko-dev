@@ -3494,8 +3494,7 @@ public:
         return dst.m_offset - src.m_offset;
     }
 
-    void* executableAllocAndCopy(js::jit::ExecutableAllocator* allocator,
-                                 js::jit::ExecutablePool **poolp, js::jit::CodeKind kind)
+    void* executableAllocAndCopy(ExecutableAllocator* allocator, ExecutablePool **poolp, CodeKind kind)
     {
         return m_formatter.executableAllocAndCopy(allocator, poolp, kind);
     }
@@ -4015,8 +4014,7 @@ private:
         bool oom() const { return m_buffer.oom(); }
         bool isAligned(int alignment) const { return m_buffer.isAligned(alignment); }
         void* data() const { return m_buffer.data(); }
-        void* executableAllocAndCopy(js::jit::ExecutableAllocator* allocator,
-                                     js::jit::ExecutablePool** poolp, js::jit::CodeKind kind) {
+        void* executableAllocAndCopy(ExecutableAllocator* allocator, ExecutablePool** poolp, CodeKind kind) {
             return m_buffer.executableAllocAndCopy(allocator, poolp, kind);
         }
 

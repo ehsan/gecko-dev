@@ -10,7 +10,6 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/dom/Animation.h"
 #include "AnimationCommon.h"
 #include "nsCSSPseudoElements.h"
 
@@ -29,11 +28,10 @@ struct StyleTransition;
 
 namespace mozilla {
 
-struct ElementPropertyTransition : public dom::Animation
+struct ElementPropertyTransition : public mozilla::ElementAnimation
 {
-  ElementPropertyTransition(nsIDocument* aDocument,
-                            const AnimationTiming &aTiming)
-    : dom::Animation(aDocument, aTiming) { }
+  explicit ElementPropertyTransition(mozilla::dom::AnimationTimeline* aTimeline)
+    : mozilla::ElementAnimation(aTimeline) { }
 
   virtual ElementPropertyTransition* AsTransition() { return this; }
   virtual const ElementPropertyTransition* AsTransition() const { return this; }
@@ -73,11 +71,11 @@ public:
   {
   }
 
-  typedef mozilla::AnimationPlayerCollection AnimationPlayerCollection;
+  typedef mozilla::ElementAnimationCollection ElementAnimationCollection;
 
-  static AnimationPlayerCollection*
+  static ElementAnimationCollection*
   GetTransitions(nsIContent* aContent) {
-    return static_cast<AnimationPlayerCollection*>
+    return static_cast<ElementAnimationCollection*>
       (aContent->GetProperty(nsGkAtoms::transitionsProperty));
   }
 
@@ -92,7 +90,7 @@ public:
     return false;
   }
 
-  static AnimationPlayerCollection*
+  static ElementAnimationCollection*
   GetAnimationsForCompositor(nsIContent* aContent, nsCSSProperty aProperty)
   {
     return mozilla::css::CommonAnimationManager::GetAnimationsForCompositor(
@@ -141,7 +139,7 @@ public:
 
   void FlushTransitions(FlushFlags aFlags);
 
-  AnimationPlayerCollection* GetElementTransitions(
+  ElementAnimationCollection* GetElementTransitions(
     mozilla::dom::Element *aElement,
     nsCSSPseudoElements::Type aPseudoType,
     bool aCreateIfNeeded);
@@ -149,14 +147,14 @@ public:
 protected:
   virtual void ElementCollectionRemoved() MOZ_OVERRIDE;
   virtual void
-  AddElementCollection(AnimationPlayerCollection* aCollection) MOZ_OVERRIDE;
+  AddElementCollection(ElementAnimationCollection* aCollection) MOZ_OVERRIDE;
 
 private:
   void
   ConsiderStartingTransition(nsCSSProperty aProperty,
                              const mozilla::StyleTransition& aTransition,
                              mozilla::dom::Element* aElement,
-                             AnimationPlayerCollection*& aElementTransitions,
+                             ElementAnimationCollection*& aElementTransitions,
                              nsStyleContext* aOldStyleContext,
                              nsStyleContext* aNewStyleContext,
                              bool* aStartedAny,

@@ -1626,14 +1626,11 @@ RangeAnalysis::analyzeLoop(MBasicBlock *header)
         return true;
     }
 
-    if (!loopIterationBounds.append(iterationBound))
-        return false;
-
 #ifdef DEBUG
     if (IonSpewEnabled(IonSpew_Range)) {
         Sprinter sp(GetIonContext()->cx);
         sp.init();
-        iterationBound->boundSum.print(sp);
+        iterationBound->sum.print(sp);
         IonSpew(IonSpew_Range, "computed symbolic bound on backedges: %s",
                 sp.string());
     }
@@ -1751,8 +1748,7 @@ RangeAnalysis::analyzeLoopIterationCount(MBasicBlock *header,
     if (lhsModified.term != lhs.term)
         return nullptr;
 
-    LinearSum iterationBound(alloc());
-    LinearSum currentIteration(alloc());
+    LinearSum bound(alloc());
 
     if (lhsModified.constant == 1 && !lessEqual) {
         // The value of lhs is 'initial(lhs) + iterCount' and this will end
@@ -1763,21 +1759,16 @@ RangeAnalysis::analyzeLoopIterationCount(MBasicBlock *header,
         // iterCount == rhsN - initial(lhs) - lhsN
 
         if (rhs) {
-            if (!iterationBound.add(rhs, 1))
+            if (!bound.add(rhs, 1))
                 return nullptr;
         }
-        if (!iterationBound.add(lhsInitial, -1))
+        if (!bound.add(lhsInitial, -1))
             return nullptr;
 
         int32_t lhsConstant;
         if (!SafeSub(0, lhs.constant, &lhsConstant))
             return nullptr;
-        if (!iterationBound.add(lhsConstant))
-            return nullptr;
-
-        if (!currentIteration.add(lhs.term, 1))
-            return nullptr;
-        if (!currentIteration.add(lhsInitial, -1))
+        if (!bound.add(lhsConstant))
             return nullptr;
     } else if (lhsModified.constant == -1 && lessEqual) {
         // The value of lhs is 'initial(lhs) - iterCount'. Similar to the above
@@ -1786,24 +1777,19 @@ RangeAnalysis::analyzeLoopIterationCount(MBasicBlock *header,
         // initial(lhs) - iterCount + lhsN == rhs
         // iterCount == initial(lhs) - rhs + lhsN
 
-        if (!iterationBound.add(lhsInitial, 1))
+        if (!bound.add(lhsInitial, 1))
             return nullptr;
         if (rhs) {
-            if (!iterationBound.add(rhs, -1))
+            if (!bound.add(rhs, -1))
                 return nullptr;
         }
-        if (!iterationBound.add(lhs.constant))
-            return nullptr;
-
-        if (!currentIteration.add(lhsInitial, 1))
-            return nullptr;
-        if (!currentIteration.add(lhs.term, -1))
+        if (!bound.add(lhs.constant))
             return nullptr;
     } else {
         return nullptr;
     }
 
-    return new(alloc()) LoopIterationBound(header, test, iterationBound, currentIteration);
+    return new(alloc()) LoopIterationBound(header, test, bound);
 }
 
 void
@@ -1850,7 +1836,7 @@ RangeAnalysis::analyzeLoopPhi(MBasicBlock *header, LoopIterationBound *loopBound
     // phi is initial(phi) + (loopBound - 1) * N, without requiring us to
     // ensure that loopBound >= 0.
 
-    LinearSum limitSum(loopBound->boundSum);
+    LinearSum limitSum(loopBound->sum);
     if (!limitSum.multiply(modified.constant) || !limitSum.add(initialSum))
         return;
 
@@ -1888,6 +1874,63 @@ SymbolicBoundIsValid(MBasicBlock *header, MBoundsCheck *ins, const SymbolicBound
     while (bb != header && bb != bound->loop->test->block())
         bb = bb->immediateDominator();
     return bb == bound->loop->test->block();
+}
+
+// Convert all components of a linear sum *except* its constant to a definition,
+// adding any necessary instructions to the end of block.
+static inline MDefinition *
+ConvertLinearSum(TempAllocator &alloc, MBasicBlock *block, const LinearSum &sum)
+{
+    MDefinition *def = nullptr;
+
+    for (size_t i = 0; i < sum.numTerms(); i++) {
+        LinearTerm term = sum.term(i);
+        JS_ASSERT(!term.term->isConstant());
+        if (term.scale == 1) {
+            if (def) {
+                def = MAdd::New(alloc, def, term.term);
+                def->toAdd()->setInt32();
+                block->insertBefore(block->lastIns(), def->toInstruction());
+                def->computeRange(alloc);
+            } else {
+                def = term.term;
+            }
+        } else if (term.scale == -1) {
+            if (!def) {
+                def = MConstant::New(alloc, Int32Value(0));
+                block->insertBefore(block->lastIns(), def->toInstruction());
+                def->computeRange(alloc);
+            }
+            def = MSub::New(alloc, def, term.term);
+            def->toSub()->setInt32();
+            block->insertBefore(block->lastIns(), def->toInstruction());
+            def->computeRange(alloc);
+        } else {
+            JS_ASSERT(term.scale != 0);
+            MConstant *factor = MConstant::New(alloc, Int32Value(term.scale));
+            block->insertBefore(block->lastIns(), factor);
+            MMul *mul = MMul::New(alloc, term.term, factor);
+            mul->setInt32();
+            block->insertBefore(block->lastIns(), mul);
+            mul->computeRange(alloc);
+            if (def) {
+                def = MAdd::New(alloc, def, mul);
+                def->toAdd()->setInt32();
+                block->insertBefore(block->lastIns(), def->toInstruction());
+                def->computeRange(alloc);
+            } else {
+                def = mul;
+            }
+        }
+    }
+
+    if (!def) {
+        def = MConstant::New(alloc, Int32Value(0));
+        block->insertBefore(block->lastIns(), def->toInstruction());
+        def->computeRange(alloc);
+    }
+
+    return def;
 }
 
 bool
