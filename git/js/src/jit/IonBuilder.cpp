@@ -135,24 +135,16 @@ IonBuilder::IonBuilder(JSContext *analysisContext, CompileCompartment *comp, Tem
     lazyArguments_(nullptr),
     inlineCallInfo_(nullptr)
 {
-    script_ = info->script();
+    script_.init(info->script());
     pc = info->startPC();
 
-#ifdef DEBUG
-    lock();
     JS_ASSERT(script()->hasBaselineScript());
-    unlock();
-#endif
     JS_ASSERT(!!analysisContext == (info->executionMode() == DefinitePropertiesAnalysis));
 }
 
 void
 IonBuilder::clearForBackEnd()
 {
-    // This case should only be hit if there was a failure while building.
-    if (!lock_.empty())
-        lock_.destroy();
-
     JS_ASSERT(!analysisContext);
     baselineFrame_ = nullptr;
 
@@ -262,7 +254,7 @@ bool
 IonBuilder::getPolyCallTargets(types::TemporaryTypeSet *calleeTypes, bool constructing,
                                ObjectVector &targets, uint32_t maxTargets, bool *gotLambda)
 {
-    JS_ASSERT(targets.empty());
+    JS_ASSERT(targets.length() == 0);
     JS_ASSERT(gotLambda);
     *gotLambda = false;
 
@@ -589,15 +581,11 @@ IonBuilder::pushLoop(CFGState::State initial, jsbytecode *stopAt, MBasicBlock *e
 bool
 IonBuilder::init()
 {
-    lock();
-
     if (!types::TypeScript::FreezeTypeSets(constraints(), script(),
                                            &thisTypes, &argTypes, &typeArray))
     {
         return false;
     }
-
-    unlock();
 
     if (!analysis().init(alloc(), gsn))
         return false;
@@ -705,8 +693,6 @@ IonBuilder::build()
 
     if (!traverseBytecode())
         return false;
-
-    unlock();
 
     if (!maybeAddOsrTypeBarriers())
         return false;
@@ -865,7 +851,6 @@ IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoi
     if (!traverseBytecode())
         return false;
 
-    unlock();
     return true;
 }
 
@@ -920,9 +905,6 @@ IonBuilder::initParameters()
     // interpreter and didn't accumulate type information, try to use that OSR
     // frame to determine possible initial types for 'this' and parameters.
 
-    // For unknownProperties() tests under addType.
-    lock();
-
     if (thisTypes->empty() && baselineFrame_) {
         if (!thisTypes->addType(baselineFrame_->thisType, alloc_->lifoAlloc()))
             return false;
@@ -946,8 +928,6 @@ IonBuilder::initParameters()
         current->initSlot(info().argSlotUnchecked(i), param);
     }
 
-    unlock();
-
     return true;
 }
 
@@ -969,8 +949,6 @@ IonBuilder::initScopeChain(MDefinition *callee)
     // them, so just use a constant undefined value.
     if (!script()->compileAndGo())
         return abort("non-CNG global scripts are not supported");
-
-    lock();
 
     if (JSFunction *fun = info().fun()) {
         if (!callee) {
@@ -996,8 +974,6 @@ IonBuilder::initScopeChain(MDefinition *callee)
     } else {
         scope = constant(ObjectValue(script()->global()));
     }
-
-    unlock();
 
     current->setScopeChain(scope);
     return true;
@@ -1192,14 +1168,6 @@ IonBuilder::maybeAddOsrTypeBarriers()
 bool
 IonBuilder::traverseBytecode()
 {
-    // Always hold the compilation lock when traversing bytecode, though release
-    // it before reacquiring it every few opcodes so that the main thread does not
-    // block for long when updating compilation data.
-    lock();
-
-    size_t lockOpcodeCount = 0;
-    static const size_t LOCK_OPCODE_GRANULARITY = 5;
-
     for (;;) {
         JS_ASSERT(pc < info().limitPC());
 
@@ -1273,12 +1241,6 @@ IonBuilder::traverseBytecode()
         JSOp op = JSOp(*pc);
         if (!inspectOpcode(op))
             return false;
-
-        if (++lockOpcodeCount == LOCK_OPCODE_GRANULARITY) {
-            unlock();
-            lock();
-            lockOpcodeCount = 0;
-        }
 
 #ifdef DEBUG
         for (size_t i = 0; i < popped.length(); i++) {
@@ -3883,15 +3845,12 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     LifoAlloc *lifoAlloc = alloc_->lifoAlloc();
     CompileInfo *info = lifoAlloc->new_<CompileInfo>(calleeScript, target,
                                                      (jsbytecode *)nullptr, callInfo.constructing(),
-                                                     this->info().executionMode(),
-                                                     /* needsArgsObj = */ false);
+                                                     this->info().executionMode());
     if (!info)
         return false;
 
     MIRGraphReturns returns(alloc());
     AutoAccumulateReturns aar(graph(), returns);
-
-    unlock();
 
     // Build the graph.
     IonBuilder inlineBuilder(analysisContext, compartment,
@@ -3916,8 +3875,6 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
         return false;
     }
 
-    lock();
-
     // Create return block.
     jsbytecode *postCall = GetNextPc(pc);
     MBasicBlock *returnBlock = newBlock(nullptr, postCall);
@@ -3934,7 +3891,7 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     returnBlock->pop();
 
     // Accumulate return values.
-    if (returns.empty()) {
+    if (returns.length() == 0) {
         // Inlining of functions that have no exit is not supported.
         calleeScript->setUninlineable();
         abortReason_ = AbortReason_Inlining;
@@ -4205,7 +4162,7 @@ IonBuilder::inlineCallsite(ObjectVector &targets, ObjectVector &originals,
     if (!inliningEnabled())
         return InliningStatus_NotInlined;
 
-    if (targets.empty())
+    if (targets.length() == 0)
         return InliningStatus_NotInlined;
 
     // Is the function provided by an MGetPropertyCache?
@@ -4741,7 +4698,7 @@ IonBuilder::createThisScriptedSingleton(JSFunction *target, MDefinition *callee)
     JSObject *templateObject = inspector->getTemplateObject(pc);
     if (!templateObject || !templateObject->is<JSObject>())
         return nullptr;
-    if (!templateObject->hasTenuredProto() || templateObject->getProto() != proto)
+    if (templateObject->getProto() != proto)
         return nullptr;
 
     if (!target->nonLazyScript()->types)
@@ -4992,7 +4949,7 @@ IonBuilder::jsop_funapplyarguments(uint32_t argc)
     // Arguments
     MDefinitionVector args(alloc());
     if (inliningDepth_) {
-        if (!args.appendAll(inlineCallInfo_->argv()))
+        if (!args.append(inlineCallInfo_->argv().begin(), inlineCallInfo_->argv().end()))
             return false;
     }
     callInfo.setArgs(&args);
@@ -5139,8 +5096,6 @@ IonBuilder::testShouldDOMCall(types::TypeSet *inTypes,
         if (!curType)
             continue;
 
-        if (!curType->hasTenuredProto())
-            return false;
         JSObject *proto = curType->proto().toObjectOrNull();
         if (!instanceChecker(proto, jinfo->protoID, jinfo->depth))
             return false;
@@ -6076,8 +6031,6 @@ IonBuilder::testSingletonProperty(JSObject *obj, PropertyName *name)
         if (ClassHasResolveHook(compartment, obj->getClass(), name))
             return nullptr;
 
-        if (!obj->hasTenuredProto())
-            return nullptr;
         obj = obj->getProto();
     }
 
@@ -6151,8 +6104,6 @@ IonBuilder::testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton, Pr
             if (property.isOwnProperty(constraints()))
                 return false;
 
-            if (!object->hasTenuredProto())
-                return false;
             if (JSObject *proto = object->proto().toObjectOrNull()) {
                 // Test this type.
                 if (testSingletonProperty(proto, name) != singleton)
@@ -7946,8 +7897,6 @@ IonBuilder::objectsHaveCommonPrototype(types::TemporaryTypeSet *types, PropertyN
                     return false;
             }
 
-            if (!type->hasTenuredProto())
-                return false;
             JSObject *proto = type->proto().toObjectOrNull();
             if (proto == foundProto)
                 break;
@@ -8047,7 +7996,7 @@ IonBuilder::annotateGetPropertyCache(MDefinition *obj, MGetPropertyCache *getPro
         if (!baseTypeObj)
             continue;
         types::TypeObjectKey *typeObj = types::TypeObjectKey::get(baseTypeObj);
-        if (typeObj->unknownProperties() || !typeObj->hasTenuredProto() || !typeObj->proto().isObject())
+        if (typeObj->unknownProperties() || !typeObj->proto().isObject())
             continue;
 
         const Class *clasp = typeObj->clasp();

@@ -66,9 +66,7 @@ class CompileRuntime
     const Value &NaNValue();
     const Value &positiveInfinityValue();
 
-#ifdef DEBUG
     bool isInsideNursery(gc::Cell *cell);
-#endif
 
     // DOM callbacks must be threadsafe (and will hopefully be removed soon).
     const DOMCallbacks *DOMcallbacks();
@@ -97,8 +95,6 @@ class CompileZone
 class CompileCompartment
 {
     JSCompartment *compartment();
-
-    friend class js::AutoLockForCompilation;
 
   public:
     static CompileCompartment *get(JSCompartment *comp);

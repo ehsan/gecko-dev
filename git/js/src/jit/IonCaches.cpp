@@ -468,7 +468,7 @@ GeneratePrototypeGuards(JSContext *cx, IonScript *ion, MacroAssembler &masm, JSO
         // Note: objectReg and scratchReg may be the same register, so we cannot
         // use objectReg in the rest of this function.
         masm.loadPtr(Address(objectReg, JSObject::offsetOfType()), scratchReg);
-        Address proto(scratchReg, types::TypeObject::offsetOfProto());
+        Address proto(scratchReg, offsetof(types::TypeObject, proto));
         masm.branchNurseryPtr(Assembler::NotEqual, proto,
                               ImmMaybeNurseryPtr(obj->getProto()), failures);
     }
@@ -796,7 +796,11 @@ GenerateReadSlot(JSContext *cx, IonScript *ion, MacroAssembler &masm,
             Register lastReg = object;
             JS_ASSERT(scratchReg != object);
             while (proto) {
-                masm.loadObjProto(lastReg, scratchReg);
+                Address addrType(lastReg, JSObject::offsetOfType());
+                masm.loadPtr(addrType, scratchReg);
+                Address addrProto(scratchReg, offsetof(types::TypeObject, proto));
+                masm.loadPtr(addrProto, scratchReg);
+                Address addrShape(scratchReg, JSObject::offsetOfShape());
 
                 // Guard the shape of the current prototype.
                 masm.branchPtr(Assembler::NotEqual,
@@ -2580,7 +2584,8 @@ GenerateAddSlot(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &att
         Shape *protoShape = proto->lastProperty();
 
         // load next prototype
-        masm.loadObjProto(protoReg, protoReg);
+        masm.loadPtr(Address(protoReg, JSObject::offsetOfType()), protoReg);
+        masm.loadPtr(Address(protoReg, offsetof(types::TypeObject, proto)), protoReg);
 
         // Ensure that its shape matches.
         masm.branchTestObjShape(Assembler::NotEqual, protoReg, protoShape, &failuresPopObject);

@@ -185,7 +185,7 @@ PerfSpewer::endBasicBlock(MacroAssembler &masm)
     if (!PerfBlockEnabled())
         return true;
 
-    masm.bind(&basicBlocks_.back().end);
+    masm.bind(&basicBlocks_[basicBlocks_.length() - 1].end);
     return true;
 }
 
@@ -372,7 +372,7 @@ js::jit::writePerfSpewerAsmJSBlocksMap(uintptr_t baseAddress, size_t funcStartOf
                                        const char *filename, const char *funcName,
                                        const js::jit::BasicBlocksVector &basicBlocks)
 {
-    if (!PerfBlockEnabled() || basicBlocks.empty())
+    if (!PerfBlockEnabled() || basicBlocks.length() == 0)
         return;
 
     if (!lockPerfMap())

@@ -184,50 +184,39 @@ SuspendWorkersForWindow(nsPIDOMWindow* aWindow);
 void
 ResumeWorkersForWindow(nsPIDOMWindow* aWindow);
 
-class WorkerTask
-{
-protected:
-  WorkerTask()
-  { }
-
-  virtual ~WorkerTask()
-  { }
-
+class WorkerTask {
 public:
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(WorkerTask)
+    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(WorkerTask)
 
-  virtual bool
-  RunTask(JSContext* aCx) = 0;
+    virtual ~WorkerTask() { }
+
+    virtual bool RunTask(JSContext* aCx) = 0;
 };
 
-class WorkerCrossThreadDispatcher
-{
-   friend class WorkerPrivate;
-
-  // Must be acquired *before* the WorkerPrivate's mutex, when they're both
-  // held.
-  Mutex mMutex;
-  WorkerPrivate* mWorkerPrivate;
-
-private:
-  // Only created by WorkerPrivate.
-  WorkerCrossThreadDispatcher(WorkerPrivate* aWorkerPrivate);
-
-  // Only called by WorkerPrivate.
-  void
-  Forget()
-  {
-    MutexAutoLock lock(mMutex);
-    mWorkerPrivate = nullptr;
-  }
-
+class WorkerCrossThreadDispatcher {
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(WorkerCrossThreadDispatcher)
 
-  // Generically useful function for running a bit of C++ code on the worker
-  // thread.
-  bool
-  PostTask(WorkerTask* aTask);
+  WorkerCrossThreadDispatcher(WorkerPrivate* aPrivate) :
+    mMutex("WorkerCrossThreadDispatcher"), mPrivate(aPrivate) {}
+  void Forget()
+  {
+    mozilla::MutexAutoLock lock(mMutex);
+    mPrivate = nullptr;
+  }
+
+  /**
+   * Generically useful function for running a bit of C++ code on the worker
+   * thread.
+   */
+  bool PostTask(WorkerTask* aTask);
+
+protected:
+  friend class WorkerPrivate;
+
+  // Must be acquired *before* the WorkerPrivate's mutex, when they're both held.
+  mozilla::Mutex mMutex;
+  WorkerPrivate* mPrivate;
 };
 
 WorkerCrossThreadDispatcher*

@@ -7,10 +7,7 @@
   <script type="text/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
 
   <!-- This file tests the saving and loading of memory reports to/from file in
-       about:memory in the presence of child processes.  It is also notable
-       for being an about:memory test that uses the real reporters, rather
-       than fake deterministic ones, and so tends to show up problems in the
-       real reporters (like bogus negative values). -->
+       about:memory in the presence of child processes. -->
 
   <!-- test results are displayed in the html:body -->
   <body xmlns="http://www.w3.org/1999/xhtml"></body>
@@ -32,13 +29,7 @@
   // Create some remote processes, and set up message-passing so that
   // we know when each child is fully initialized.
   let remotes = [];
-
-  let prefs = [
-    ["dom.ipc.processCount", 3],            // Allow up to 3 child processes
-    ["memory.system_memory_reporter", true] // Test SystemMemoryReporter
-  ];
-
-  SpecialPowers.pushPrefEnv({"set": prefs}, function() {
+  SpecialPowers.pushPrefEnv({"set": [["dom.ipc.processCount", 3]]}, function() {
     for (let i = 0; i < numRemotes; i++) {
       let w = remotes[i] = window.open("remote.xul", "", "chrome");
 
@@ -113,24 +104,14 @@
         // If we have more than 1000 chars, we've probably successfully
         // copy+pasted.
         if (actual.length > 1000) {
-
-          let good = true;
-
-          if (actual.match("End of System")) {
-            let m1 = actual.match("anonymous") &&
-                     actual.match("shared-libraries");
-            ok(m1, "system-wide reporter")
-            good = good && !!m1;
-          }
-
           // Note: Match "vsize" but not "vsize-max-contiguous".
           let vsizes = actual.match(/vsize[^-]/g);
           let endOfBrowsers  = actual.match(/End of Browser/g);
-          let m2 = (vsizes.length == 4 && endOfBrowsers.length == 3);
-          ok(m2, "three child processes present in loaded data");
-          good = good && !!m2;
 
-          if (!good) {
+          if (vsizes.length == 4 && endOfBrowsers.length == 3) {
+            ok(true, "three child processes present in loaded data");
+          } else {
+            ok(false, "pasted text lacks four 'vsize' and three 'End of Browser' strings");
             dump("*******ACTUAL*******\n");
             dump(actual);
             dump("********************\n");

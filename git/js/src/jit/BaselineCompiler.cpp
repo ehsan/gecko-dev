@@ -186,8 +186,10 @@ BaselineCompiler::compile()
     baselineScript->setMethod(code);
     baselineScript->setTemplateScope(templateScope);
 
+    script->setBaselineScript(baselineScript);
+
     IonSpew(IonSpew_BaselineScripts, "Created BaselineScript %p (raw %p) for %s:%d",
-            (void *) baselineScript, (void *) code->raw(),
+            (void *) script->baselineScript(), (void *) code->raw(),
             script->filename(), script->lineno());
 
 #ifdef JS_ION_PERF
@@ -251,8 +253,6 @@ BaselineCompiler::compile()
 
     if (script->compartment()->debugMode())
         baselineScript->setDebugMode();
-
-    script->setBaselineScript(cx, baselineScript);
 
     return Method_Compiled;
 }
@@ -694,7 +694,7 @@ BaselineCompiler::emitDebugTrap()
 
 #ifdef DEBUG
     // Patchable call offset has to match the pc mapping offset.
-    PCMappingEntry &entry = pcMappingEntries_.back();
+    PCMappingEntry &entry = pcMappingEntries_[pcMappingEntries_.length() - 1];
     JS_ASSERT((&offset)->offset() == entry.nativeOffset);
 #endif
 

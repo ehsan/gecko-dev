@@ -29,11 +29,11 @@ class BitSet : private TempObject
 
   private:
     BitSet(unsigned int numBits) :
-        bits_(nullptr),
-        numBits_(numBits) {}
+        numBits_(numBits),
+        bits_(nullptr) {}
 
+    unsigned int numBits_;
     uint32_t *bits_;
-    const unsigned int numBits_;
 
     static inline uint32_t bitForValue(unsigned int value) {
         return 1l << uint32_t(value % BitsPerWord);
@@ -120,29 +120,6 @@ class BitSet::Iterator
     unsigned word_;
     uint32_t value_;
 
-    void skipEmpty() {
-        // Skip words containing only zeros.
-        unsigned numWords = set_.numWords();
-        const uint32_t *bits = set_.bits_;
-        while (value_ == 0) {
-            word_++;
-            if (word_ == numWords)
-                return;
-
-            JS_STATIC_ASSERT(sizeof(value_) * 8 == BitSet::BitsPerWord);
-            index_ = word_ * sizeof(value_) * 8;
-            value_ = bits[word_];
-        }
-
-        // Be careful: the result of CountTrailingZeroes32 is undefined if the
-        // input is 0.
-        int numZeros = mozilla::CountTrailingZeroes32(value_);
-        index_ += numZeros;
-        value_ >>= numZeros;
-
-        JS_ASSERT_IF(index_ < set_.numBits_, set_.contains(index_));
-    }
-
   public:
     Iterator(BitSet &set) :
       set_(set),
@@ -150,7 +127,8 @@ class BitSet::Iterator
       word_(0),
       value_(set.bits_[0])
     {
-        skipEmpty();
+        if (!set_.contains(index_))
+            (*this)++;
     }
 
     inline bool more() const {
@@ -167,7 +145,23 @@ class BitSet::Iterator
         index_++;
         value_ >>= 1;
 
-        skipEmpty();
+        // Skip words containing only zeros.
+        while (value_ == 0) {
+            word_++;
+            if (!more())
+                return *this;
+
+            index_ = word_ * sizeof(value_) * 8;
+            value_ = set_.bits_[word_];
+        }
+
+        // Be careful: the result of CountTrailingZeroes32 is undefined if the
+        // input is 0.
+        int numZeros = mozilla::CountTrailingZeroes32(value_);
+        index_ += numZeros;
+        value_ >>= numZeros;
+
+        JS_ASSERT_IF(index_ < set_.numBits_, set_.contains(index_));
         return *this;
     }
 

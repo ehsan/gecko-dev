@@ -980,14 +980,12 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
     /* These functions are public, and they should remain public. */
 
   public:
-    js::TaggedProto getTaggedProto() const {
-        return type_->proto();
+    JSObject * getProto() const {
+        return type_->proto;
     }
 
-    bool hasTenuredProto() const;
-
     const Class *getClass() const {
-        return type_->clasp();
+        return type_->clasp;
     }
 
     static inline bool
@@ -1174,6 +1172,10 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
      */
 
   public:
+    js::TaggedProto getTaggedProto() const {
+        return TaggedProto(getProto());
+    }
+
     Shape * lastProperty() const {
         MOZ_ASSERT(shape_);
         return shape_;
