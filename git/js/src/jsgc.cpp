@@ -967,7 +967,7 @@ MarkExactStackRooter(JSTracer *trc, Rooted<void*> rooter, ThingRootKind kind)
       case THING_ROOT_STRING:      MarkStringRoot(trc, (JSSTring **)addr, "exact-string"); break;
       case THING_ROOT_SCRIPT:      MarkScriptRoot(trc, (JSScript **)addr, "exact-script"); break;
       case THING_ROOT_SHAPE:       MarkShapeRoot(trc, (Shape **)addr, "exact-shape"); break;
-      case THING_ROOT_BASE_SHAPE:  MarkBaseShapeRoot(trc, (BaseShape **)addr, "exact-baseshape"); break;
+      case THING_ROOT_BASE_SHAPE:  MarkBaseShapeRoot(trc, (RawBaseShape *)addr, "exact-baseshape"); break;
       case THING_ROOT_TYPE:        MarkTypeRoot(trc, (types::Type *)addr, "exact-type"); break;
       case THING_ROOT_TYPE_OBJECT: MarkTypeObjectRoot(trc, (types::TypeObject **)addr, "exact-typeobject"); break;
       case THING_ROOT_VALUE:       MarkValueRoot(trc, (Value *)addr, "exact-value"); break;
@@ -2335,7 +2335,7 @@ AutoGCRooter::trace(JSTracer *trc)
       case STACKSHAPE: {
         StackShape::AutoRooter *rooter = static_cast<StackShape::AutoRooter *>(this);
         if (rooter->shape->base)
-            MarkBaseShapeRoot(trc, (BaseShape**) &rooter->shape->base, "StackShape::AutoRooter base");
+            MarkBaseShapeRoot(trc, (RawBaseShape*) &rooter->shape->base, "StackShape::AutoRooter base");
         MarkIdRoot(trc, (jsid*) &rooter->shape->propid, "StackShape::AutoRooter id");
         return;
       }
@@ -3425,7 +3425,7 @@ BeginMarkPhase(JSRuntime *rt)
      * gcObjectsMarkedInDeadCompartment counter) and redo any ongoing GCs after
      * the JS_TransplantObject function has finished. This ensures that the dead
      * compartments will be cleaned up. See AutoMarkInDeadCompartment and
-     * AutoTransplantGC for details.
+     * AutoMaybeTouchDeadCompartments for details.
      */
 
     /* Set the maybeAlive flag based on cross-compartment edges. */
@@ -5883,23 +5883,32 @@ PurgeJITCaches(JSCompartment *c)
 #endif
 }
 
-AutoTransplantGC::AutoTransplantGC(JSContext *cx)
+AutoMaybeTouchDeadCompartments::AutoMaybeTouchDeadCompartments(JSContext *cx)
   : runtime(cx->runtime),
     markCount(runtime->gcObjectsMarkedInDeadCompartments),
     inIncremental(IsIncrementalGCInProgress(runtime)),
-    inTransplant(runtime->gcInTransplant)
+    manipulatingDeadCompartments(runtime->gcManipulatingDeadCompartments)
 {
-    runtime->gcInTransplant = true;
+    runtime->gcManipulatingDeadCompartments = true;
 }
 
-AutoTransplantGC::~AutoTransplantGC()
+AutoMaybeTouchDeadCompartments::AutoMaybeTouchDeadCompartments(JSObject *obj)
+  : runtime(obj->compartment()->rt),
+    markCount(runtime->gcObjectsMarkedInDeadCompartments),
+    inIncremental(IsIncrementalGCInProgress(runtime)),
+    manipulatingDeadCompartments(runtime->gcManipulatingDeadCompartments)
+{
+    runtime->gcManipulatingDeadCompartments = true;
+}
+
+AutoMaybeTouchDeadCompartments::~AutoMaybeTouchDeadCompartments()
 {
     if (inIncremental && runtime->gcObjectsMarkedInDeadCompartments != markCount) {
         PrepareForFullGC(runtime);
         js::GC(runtime, GC_NORMAL, gcreason::TRANSPLANT);
     }
 
-    runtime->gcInTransplant = inTransplant;
+    runtime->gcManipulatingDeadCompartments = manipulatingDeadCompartments;
 }
 
 } /* namespace js */
