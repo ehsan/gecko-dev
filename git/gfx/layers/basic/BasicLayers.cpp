@@ -19,6 +19,8 @@
 #include "BasicTiledThebesLayer.h"
 #include "ImageLayers.h"
 #include "RenderTrace.h"
+#include "nsXULAppAPI.h"
+#include "SharedTextureImage.h"
 
 #include "prprf.h"
 #include "nsTArray.h"
@@ -1199,9 +1201,12 @@ BasicCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
     if (currentFramebuffer != mCanvasFramebuffer)
       mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mCanvasFramebuffer);
 
+    // We need to Flush() the surface before modifying it outside of cairo.
+    isurf->Flush();
     mGLContext->ReadPixelsIntoImageSurface(0, 0,
                                            mBounds.width, mBounds.height,
                                            isurf);
+    isurf->MarkDirty();
 
     // Put back the previous framebuffer binding.
     if (currentFramebuffer != mCanvasFramebuffer)
@@ -2632,6 +2637,17 @@ BasicShadowableImageLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
   if (aMaskLayer) {
     static_cast<BasicImplData*>(aMaskLayer->ImplData())
       ->Paint(aContext, nsnull);
+  }
+
+  if (image->GetFormat() == Image::SHARED_TEXTURE &&
+      BasicManager()->GetParentBackendType() == LayerManager::LAYERS_OPENGL) {
+    SharedTextureImage *sharedImage = static_cast<SharedTextureImage*>(image);
+    const SharedTextureImage::Data *data = sharedImage->GetData();
+
+    SharedTextureDescriptor texture(data->mShareType, data->mHandle, data->mSize, data->mInverted);
+    SurfaceDescriptor descriptor(texture);
+    BasicManager()->PaintedImage(BasicManager()->Hold(this), descriptor);
+    return;
   }
 
   if (image->GetFormat() == Image::PLANAR_YCBCR && BasicManager()->IsCompositingCheap()) {
