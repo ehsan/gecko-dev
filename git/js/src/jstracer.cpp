@@ -45,26 +45,24 @@ using namespace nanojit;
 
 #include "jsinterp.cpp"
 
-template <typename T>
-Tracker<T>::Tracker()
+Tracker::Tracker()
 {
     pagelist = 0;
 }
 
-template <typename T>
-Tracker<T>::~Tracker()
+Tracker::~Tracker()
 {
     clear();
 }
 
-template <typename T> long
-Tracker<T>::getPageBase(const void* v) const
+long
+Tracker::getPageBase(const void* v) const
 {
     return ((long)v) & (~(NJ_PAGE_SIZE-1));
 }
 
-template <typename T> struct Tracker<T>::Page*
-Tracker<T>::findPage(const void* v) const
+struct Tracker::Page*
+Tracker::findPage(const void* v) const
 {
     long base = getPageBase(v);
     struct Tracker::Page* p = pagelist;
@@ -76,19 +74,19 @@ Tracker<T>::findPage(const void* v) const
     return 0;
 }
 
-template <typename T> struct Tracker<T>::Page*
-Tracker<T>::addPage(const void* v) {
+struct Tracker::Page*
+Tracker::addPage(const void* v) {
     long base = getPageBase(v);
-    struct Tracker<T>::Page* p = (struct Tracker<T>::Page*)
-        GC::Alloc(sizeof(struct Tracker<T>::Page) + (NJ_PAGE_SIZE >> 2) * sizeof(T));
+    struct Tracker::Page* p = (struct Tracker::Page*)
+        GC::Alloc(sizeof(struct Tracker::Page) + (NJ_PAGE_SIZE >> 2) * sizeof(LInsp));
     p->base = base;
     p->next = pagelist;
     pagelist = p;
     return p;
 }
 
-template <typename T> void
-Tracker<T>::clear()
+void
+Tracker::clear()
 {
     while (pagelist) {
         Page* p = pagelist;
@@ -97,23 +95,29 @@ Tracker<T>::clear()
     }
 }
 
-template <typename T> T
-Tracker<T>::get(const void* v) const
+LIns*
+Tracker::get(const void* v) const
 {
-    struct Page* p = findPage(v);
+    struct Tracker::Page* p = findPage(v);
     JS_ASSERT(p != 0); /* we must have a page for the slot we are looking for */
-    T i = p->map[(((long)v) & 0xfff) >> 2];
+    LIns* i = p->map[(((long)v) & 0xfff) >> 2];
     JS_ASSERT(i != 0);
+#ifdef DEBUG    
+    //printf("get %p, which is %s\n",v, nanojit::lirNames[i->opcode()]);
+#endif    
     return i;
 }
 
-template <typename T> void
-Tracker<T>::set(const void* v, T i)
+void
+Tracker::set(const void* v, LIns* ins)
 {
+#ifdef DEBUG    
+    //printf("set %p to %s\n", v, nanojit::lirNames[ins->opcode()]);
+#endif    
     struct Tracker::Page* p = findPage(v);
     if (!p)
         p = addPage(v);
-    p->map[(((long)v) & 0xfff) >> 2] = i;
+    p->map[(((long)v) & 0xfff) >> 2] = ins;
 }
 
 using namespace avmplus;
@@ -148,11 +152,11 @@ static struct CallInfo builtins[] = {
 #undef BUILTIN2
 #undef BUILTIN3
 
-bool
+void
 js_StartRecording(JSContext* cx, JSFrameRegs& regs)
 {
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-    
+
     if (!tm->fragmento) {
         Fragmento* fragmento = new (&gc) Fragmento(core);
 #ifdef DEBUG        
@@ -162,8 +166,7 @@ js_StartRecording(JSContext* cx, JSFrameRegs& regs)
         tm->fragmento = fragmento;
     }
 
-    JSTraceRecorder* recorder = new JSTraceRecorder(regs);
-    tm->recorder = recorder;
+    memcpy(&tm->entryState, &regs, sizeof(regs));
 
     InterpState state;
     state.ip = NULL;
@@ -183,37 +186,32 @@ js_StartRecording(JSContext* cx, JSFrameRegs& regs)
     fragment->param1 = lir->insImm8(LIR_param, Assembler::argRegs[1], 0);
     JSStackFrame* fp = cx->fp;
 
-    recorder->tracker.set(cx, lir->insLoadi(fragment->param0, 0));
-    recorder->tracker.set(&recorder->entryState.sp, lir->insLoadi(fragment->param0, 4));
+    tm->tracker.set(cx, fragment->param0);
 
-#define LOAD_CONTEXT(p)                                                       \
-    recorder->tracker.set(p,                                                  \
-        lir->insLoadi(recorder->tracker.get(&recorder->entryState.sp),        \
-                      STACK_OFFSET(p)))
+#define LOAD_CONTEXT(p) \
+    tm->tracker.set(p, lir->insLoadi(fragment->param1, STACK_OFFSET(p)))
 
     unsigned n;
     for (n = 0; n < fp->argc; ++n)
         LOAD_CONTEXT(&fp->argv[n]);
-    for (n = 0; n < fp->nvars; ++n) 
+    for (n = 0; n < fp->nvars; ++n)
         LOAD_CONTEXT(&fp->vars[n]);
     for (n = 0; n < (unsigned)(regs.sp - fp->spbase); ++n)
         LOAD_CONTEXT(&fp->spbase[n]);
 
-    recorder->fragment = fragment;
-    recorder->lir = lir;
+    tm->fragment = fragment;
+    tm->lir = lir;
 
-    return true;
+    tm->status = RECORDING;
 }
 
 void
 js_EndRecording(JSContext* cx, JSFrameRegs& regs)
 {
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-    if (tm->recorder != NULL) {
-        JSTraceRecorder* recorder = tm->recorder;
-        recorder->fragment->lastIns = recorder->lir->ins0(LIR_loop);
-        compile(tm->fragmento->assm(), recorder->fragment);
-        delete recorder;
-        tm->recorder = NULL;
+    if (tm->status == RECORDING) {
+        tm->fragment->lastIns = tm->lir->ins0(LIR_loop);
+        compile(tm->fragmento->assm(), tm->fragment);
     }
+    tm->status = IDLE;
 }
