@@ -216,7 +216,7 @@ Element::UpdateState(bool aNotify)
   if (aNotify) {
     EventStates changedStates = oldState ^ mState;
     if (!changedStates.IsEmpty()) {
-      nsIDocument* doc = GetCrossShadowCurrentDoc();
+      nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         nsAutoScriptBlocker scriptBlocker;
         doc->ContentStateChanged(this, changedStates);

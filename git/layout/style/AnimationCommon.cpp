@@ -364,8 +364,7 @@ ComputedTimingFunction::GetValue(double aPortion) const
 
 // In the Web Animations model, the time fraction can be outside the range
 // [0.0, 1.0] but it shouldn't be Infinity.
-const double ComputedTiming::kNullTimeFraction =
-  mozilla::PositiveInfinity<double>();
+const double ComputedTiming::kNullTimeFraction = NS_IEEEPositiveInfinity();
 
 bool
 ElementAnimation::IsRunningAt(TimeStamp aTime) const
@@ -400,87 +399,50 @@ ElementAnimation::GetComputedTimingAt(TimeDuration aElapsedDuration,
   // Always return the same object to benefit from return-value optimization.
   ComputedTiming result;
 
-  TimeDuration activeDuration = ActiveDuration(aTiming);
-
-  // When we finish exactly at the end of an iteration we need to report
-  // the end of the final iteration and not the start of the next iteration
-  // so we set up a flag for that case.
-  bool isEndOfFinalIteration = false;
-
-  // Get the normalized time within the active interval.
-  TimeDuration activeTime;
-  if (aElapsedDuration >= activeDuration) {
+  // Set |currentIterationCount| to the (fractional) number of
+  // iterations we've completed up to the current position.
+  double currentIterationCount = aElapsedDuration / aTiming.mIterationDuration;
+  if (currentIterationCount >= aTiming.mIterationCount) {
     result.mPhase = ComputedTiming::AnimationPhase_After;
     if (!aTiming.FillsForwards()) {
       // The animation isn't active or filling at this time.
       result.mTimeFraction = ComputedTiming::kNullTimeFraction;
       return result;
     }
-    activeTime = activeDuration;
-    // Note that infinity == floor(infinity) so this will also be true when we
-    // have finished an infinitely repeating animation of zero duration.
-    isEndOfFinalIteration =
-      aTiming.mIterationCount != 0.0 &&
-      aTiming.mIterationCount == floor(aTiming.mIterationCount);
-  } else if (aElapsedDuration < TimeDuration()) {
+    currentIterationCount = aTiming.mIterationCount;
+  } else if (currentIterationCount < 0.0) {
     result.mPhase = ComputedTiming::AnimationPhase_Before;
     if (!aTiming.FillsBackwards()) {
       // The animation isn't active or filling at this time.
       result.mTimeFraction = ComputedTiming::kNullTimeFraction;
       return result;
     }
-    // activeTime is zero
+    currentIterationCount = 0.0;
   } else {
-    MOZ_ASSERT(activeDuration != TimeDuration(),
-               "How can we be in the middle of a zero-duration interval?");
     result.mPhase = ComputedTiming::AnimationPhase_Active;
-    activeTime = aElapsedDuration;
   }
 
-  // Get the position within the current iteration.
-  TimeDuration iterationTime;
-  if (aTiming.mIterationDuration != TimeDuration()) {
-    iterationTime = isEndOfFinalIteration
-                    ? aTiming.mIterationDuration
-                    : activeTime % aTiming.mIterationDuration;
-  } /* else, iterationTime is zero */
+  // Set |positionInIteration| to the position from 0% to 100% along
+  // the keyframes.
+  NS_ABORT_IF_FALSE(currentIterationCount >= 0.0, "must be positive");
+  double positionInIteration = fmod(currentIterationCount, 1);
 
-  // Determine the 0-based index of the current iteration.
-  if (isEndOfFinalIteration) {
-    result.mCurrentIteration =
-      aTiming.mIterationCount == NS_IEEEPositiveInfinity()
-      ? UINT64_MAX // FIXME: When we return this via the API we'll need
-                   // to make sure it ends up being infinity.
-      : static_cast<uint64_t>(aTiming.mIterationCount) - 1;
-  } else if (activeTime == TimeDuration(0)) {
-    // If the active time is zero we're either in the first iteration
-    // (including filling backwards) or we have finished an animation with an
-    // iteration duration of zero that is filling forwards (but we're not at
-    // the exact end of an iteration since we deal with that above).
-    result.mCurrentIteration =
-      result.mPhase == ComputedTiming::AnimationPhase_After
-      ? static_cast<uint64_t>(aTiming.mIterationCount) // floor
-      : 0;
-  } else {
-    result.mCurrentIteration =
-      static_cast<uint64_t>(activeTime / aTiming.mIterationDuration); // floor
-  }
+  // Set |whichIteration| to the integral index of the current iteration.
+  // Casting to an integer here gives us floor(currentIterationCount).
+  // We don't check for overflow here since the range of an unsigned 64-bit
+  // integer is more than enough (i.e. we could handle an animation that
+  // iterates every *microsecond* for about 580,000 years).
+  uint64_t whichIteration = static_cast<uint64_t>(currentIterationCount);
 
-  // Normalize the iteration time into a fraction of the iteration duration.
-  if (result.mPhase == ComputedTiming::AnimationPhase_Before) {
-    result.mTimeFraction = 0.0;
-  } else if (result.mPhase == ComputedTiming::AnimationPhase_After) {
-    result.mTimeFraction = isEndOfFinalIteration
-                         ? 1.0
-                         : fmod(aTiming.mIterationCount, 1.0f);
-  } else {
-    // We are in the active phase so the iteration duration can't be zero.
-    MOZ_ASSERT(aTiming.mIterationDuration != TimeDuration(0),
-               "In the active phase of a zero-duration animation?");
-    result.mTimeFraction =
-      aTiming.mIterationDuration == TimeDuration::Forever()
-      ? 0.0
-      : iterationTime / aTiming.mIterationDuration;
+  // Check for the end of the final iteration.
+  if (whichIteration != 0 &&
+      result.mPhase == ComputedTiming::AnimationPhase_After &&
+      aTiming.mIterationCount == floor(aTiming.mIterationCount)) {
+    // When the animation's iteration count is an integer (as it
+    // normally is), we need to end at 100% of its final iteration
+    // rather than 0% of the next one (unless it's zero).
+    whichIteration -= 1;
+    positionInIteration = 1.0;
   }
 
   bool thisIterationReverse = false;
@@ -492,16 +454,23 @@ ElementAnimation::GetComputedTimingAt(TimeDuration aElapsedDuration,
       thisIterationReverse = true;
       break;
     case NS_STYLE_ANIMATION_DIRECTION_ALTERNATE:
-      thisIterationReverse = (result.mCurrentIteration & 1) == 1;
+      // uint64_t has more integer precision than double does, so if
+      // whichIteration is that large, we've already lost and we're just
+      // guessing.  But the animation is presumably oscillating so fast
+      // it doesn't matter anyway.
+      thisIterationReverse = (whichIteration & 1) == 1;
       break;
     case NS_STYLE_ANIMATION_DIRECTION_ALTERNATE_REVERSE:
-      thisIterationReverse = (result.mCurrentIteration & 1) == 0;
+      // see as previous case
+      thisIterationReverse = (whichIteration & 1) == 0;
       break;
   }
   if (thisIterationReverse) {
-    result.mTimeFraction = 1.0 - result.mTimeFraction;
+    positionInIteration = 1.0 - positionInIteration;
   }
 
+  result.mTimeFraction = positionInIteration;
+  result.mCurrentIteration = whichIteration;
   return result;
 }
 

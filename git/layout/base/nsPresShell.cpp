@@ -10475,12 +10475,6 @@ PresShell::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
 {
   mFrameArena.AddSizeOfExcludingThis(aMallocSizeOf, aArenaObjectsSize);
   *aPresShellSize += aMallocSizeOf(this);
-  *aPresShellSize += mVisibleImages.SizeOfExcludingThis(nullptr,
-                                                        aMallocSizeOf,
-                                                        nullptr);
-  *aPresShellSize += mFramesToDirty.SizeOfExcludingThis(nullptr,
-                                                        aMallocSizeOf,
-                                                        nullptr);
   *aPresShellSize += aArenaObjectsSize->mOther;
 
   *aStyleSetsSize += StyleSet()->SizeOfIncludingThis(aMallocSizeOf);

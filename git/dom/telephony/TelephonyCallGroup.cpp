@@ -7,8 +7,8 @@
 #include "TelephonyCallGroup.h"
 #include "mozilla/dom/TelephonyCallGroupBinding.h"
 
+#include "CallEvent.h"
 #include "CallsList.h"
-#include "mozilla/dom/CallEvent.h"
 #include "mozilla/dom/CallGroupErrorEvent.h"
 #include "Telephony.h"
 
@@ -142,12 +142,7 @@ nsresult
 TelephonyCallGroup::DispatchCallEvent(const nsAString& aType,
                                       TelephonyCall* aCall)
 {
-  CallEventInit init;
-  init.mBubbles = false;
-  init.mCancelable = false;
-  init.mCall = aCall;
-
-  nsRefPtr<CallEvent> event = CallEvent::Constructor(this, aType, init);
+  nsRefPtr<CallEvent> event = CallEvent::Create(this, aType, aCall, false, false);
   return DispatchTrustedEvent(event);
 }
 

@@ -493,10 +493,9 @@ nsTextControlFrame::Reflow(nsPresContext*   aPresContext,
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet),
                                         inflation);
   // now adjust for our borders and padding
-  WritingMode wm = aReflowState.GetWritingMode();
-  aDesiredSize.SetBlockStartAscent(
-    nsLayoutUtils::GetCenteredFontBaseline(fontMet, lineHeight) +
-    aReflowState.ComputedLogicalBorderPadding().BStart(wm));
+  aDesiredSize.SetTopAscent( 
+        nsLayoutUtils::GetCenteredFontBaseline(fontMet, lineHeight) 
+        + aReflowState.ComputedPhysicalBorderPadding().top);
 
   // overflow handling
   aDesiredSize.SetOverflowAreasToDesiredBounds();

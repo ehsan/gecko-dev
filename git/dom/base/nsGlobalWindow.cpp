@@ -4270,7 +4270,6 @@ nsGlobalWindow::DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObj,
 {
   MOZ_ASSERT(IsInnerWindow());
 
-  // Note: The infallibleInit call in GlobalResolve depends on this check.
   if (!JSID_IS_STRING(aId)) {
     return true;
   }

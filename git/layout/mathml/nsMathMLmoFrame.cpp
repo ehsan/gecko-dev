@@ -818,28 +818,26 @@ nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
   }
   if (isAccent && firstChild) {
     // see bug 188467 for what is going on here
-    nscoord dy = aDesiredStretchSize.BlockStartAscent() -
-      (mBoundingMetrics.ascent + leading);
-    aDesiredStretchSize.SetBlockStartAscent(mBoundingMetrics.ascent + leading);
-    aDesiredStretchSize.Height() = aDesiredStretchSize.BlockStartAscent() +
-                                   mBoundingMetrics.descent;
+    nscoord dy = aDesiredStretchSize.TopAscent() - (mBoundingMetrics.ascent + leading);
+    aDesiredStretchSize.SetTopAscent(mBoundingMetrics.ascent + leading);
+    aDesiredStretchSize.Height() = aDesiredStretchSize.TopAscent() + mBoundingMetrics.descent;
 
     firstChild->SetPosition(firstChild->GetPosition() - nsPoint(0, dy));
   }
   else if (useMathMLChar) {
     nscoord ascent = fm->MaxAscent();
     nscoord descent = fm->MaxDescent();
-    aDesiredStretchSize.SetBlockStartAscent(std::max(mBoundingMetrics.ascent + leading, ascent));
-    aDesiredStretchSize.Height() = aDesiredStretchSize.BlockStartAscent() +
+    aDesiredStretchSize.SetTopAscent(std::max(mBoundingMetrics.ascent + leading, ascent));
+    aDesiredStretchSize.Height() = aDesiredStretchSize.TopAscent() +
                                  std::max(mBoundingMetrics.descent + leading, descent);
   }
   aDesiredStretchSize.Width() = mBoundingMetrics.width;
   aDesiredStretchSize.mBoundingMetrics = mBoundingMetrics;
   mReference.x = 0;
-  mReference.y = aDesiredStretchSize.BlockStartAscent();
+  mReference.y = aDesiredStretchSize.TopAscent();
   // Place our mMathMLChar, its origin is in our coordinate system
   if (useMathMLChar) {
-    nscoord dy = aDesiredStretchSize.BlockStartAscent() - mBoundingMetrics.ascent;
+    nscoord dy = aDesiredStretchSize.TopAscent() - mBoundingMetrics.ascent;
     mMathMLChar.SetRect(nsRect(0, dy, charSize.width, charSize.ascent + charSize.descent));
   }
 

@@ -22,8 +22,6 @@ WebGLVertexArrayGL::DeleteImpl()
 void
 WebGLVertexArrayGL::BindVertexArrayImpl()
 {
-    mContext->mBoundVertexArray = this;
-
     mContext->gl->fBindVertexArray(mGLName);
 }
 

@@ -1192,16 +1192,12 @@ EventRunnable::PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
             mUseCachedArrayBufferResponse = true;
             doClone = false;
           } else {
-            MOZ_ASSERT(!JS_IsNeuteredArrayBufferObject(obj));
             JS::AutoValueArray<1> argv(aCx);
             argv[0].set(response);
             obj = JS_NewArrayObject(aCx, argv);
             if (obj) {
               transferable.setObject(*obj);
-              // Only cache the response when the readyState is DONE.
-              if (xhr->ReadyState() == nsIXMLHttpRequest::DONE) {
-                mProxy->mArrayBufferResponseWasTransferred = true;
-              }
+              mProxy->mArrayBufferResponseWasTransferred = true;
             } else {
               mResponseResult = NS_ERROR_OUT_OF_MEMORY;
               doClone = false;
