@@ -122,7 +122,7 @@ class WorkerThreadState
     }
     void resetAsmJSFailureState() {
         numAsmJSFailedJobs = 0;
-        asmJSFailedFunction = nullptr;
+        asmJSFailedFunction = NULL;
     }
     void *maybeAsmJSFailedFunction() const {
         return asmJSFailedFunction;
@@ -235,7 +235,7 @@ StartOffThreadIonCompile(JSContext *cx, jit::IonBuilder *builder);
 
 /*
  * Cancel a scheduled or in progress Ion compilation for script. If script is
- * nullptr, all compilations for the compartment are cancelled.
+ * NULL, all compilations for the compartment are cancelled.
  */
 void
 CancelOffThreadIonCompile(JSCompartment *compartment, JSScript *script);
@@ -377,13 +377,13 @@ struct AsmJSParallelTask
     unsigned compileTime;
 
     AsmJSParallelTask(size_t defaultChunkSize)
-      : lifo(defaultChunkSize), func(nullptr), mir(nullptr), lir(nullptr), compileTime(0)
+      : lifo(defaultChunkSize), func(NULL), mir(NULL), lir(NULL), compileTime(0)
     { }
 
     void init(void *func, jit::MIRGenerator *mir) {
         this->func = func;
         this->mir = mir;
-        this->lir = nullptr;
+        this->lir = NULL;
     }
 };
 #endif
@@ -451,10 +451,10 @@ struct SourceCompressionTask
 
   public:
     explicit SourceCompressionTask(ExclusiveContext *cx)
-      : cx(cx), ss(nullptr), chars(nullptr), oom(false), abort_(0)
+      : cx(cx), ss(NULL), chars(NULL), oom(false), abort_(0)
     {
 #ifdef JS_WORKER_THREADS
-        workerThread = nullptr;
+        workerThread = NULL;
 #endif
     }
 

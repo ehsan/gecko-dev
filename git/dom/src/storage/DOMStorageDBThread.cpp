@@ -37,6 +37,21 @@ DOMStorageDBBridge::DOMStorageDBBridge()
 {
 }
 
+DOMStorageUsage*
+DOMStorageDBBridge::GetScopeUsage(const nsACString& aScope)
+{
+  DOMStorageUsage* usage;
+  if (mUsages.Get(aScope, &usage)) {
+    return usage;
+  }
+
+  usage = new DOMStorageUsage(aScope);
+  AsyncGetUsage(usage);
+  mUsages.Put(aScope, usage);
+
+  return usage;
+}
+
 
 DOMStorageDBThread::DOMStorageDBThread()
 : mThread(nullptr)

@@ -241,7 +241,7 @@ class ScriptCounts
     jit::IonScriptCounts *ionCounts;
 
  public:
-    ScriptCounts() : pcCountsVector(nullptr), ionCounts(nullptr) { }
+    ScriptCounts() : pcCountsVector(NULL), ionCounts(NULL) { }
 
     inline void destroy(FreeOp *fop);
 
@@ -290,7 +290,7 @@ class ScriptSource
 
     union {
         // Before setSourceCopy or setSource are successfully called, this union
-        // has a nullptr pointer. When the script source is ready,
+        // has a NULL pointer. When the script source is ready,
         // compressedLength_ != 0 implies compressed holds the compressed data;
         // otherwise, source holds the uncompressed source. There is a special
         // pointer |emptySource| for source code for length 0.
@@ -320,15 +320,15 @@ class ScriptSource
       : refs(0),
         length_(0),
         compressedLength_(0),
-        filename_(nullptr),
-        sourceURL_(nullptr),
-        sourceMapURL_(nullptr),
+        filename_(NULL),
+        sourceURL_(NULL),
+        sourceMapURL_(NULL),
         originPrincipals_(originPrincipals),
         sourceRetrievable_(false),
         argumentsNotIncluded_(false),
         ready_(true)
     {
-        data.source = nullptr;
+        data.source = NULL;
         if (originPrincipals_)
             JS_HoldPrincipals(originPrincipals_);
     }
@@ -372,12 +372,12 @@ class ScriptSource
     // Source URLs
     bool setSourceURL(ExclusiveContext *cx, const jschar *sourceURL);
     const jschar *sourceURL();
-    bool hasSourceURL() const { return sourceURL_ != nullptr; }
+    bool hasSourceURL() const { return sourceURL_ != NULL; }
 
     // Source maps
     bool setSourceMapURL(ExclusiveContext *cx, const jschar *sourceMapURL);
     const jschar *sourceMapURL();
-    bool hasSourceMapURL() const { return sourceMapURL_ != nullptr; }
+    bool hasSourceMapURL() const { return sourceMapURL_ != NULL; }
 
     JSPrincipals *originPrincipals() const { return originPrincipals_; }
 
@@ -486,8 +486,8 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
     js::jit::IonScript *parallelIon;
 
     /*
-     * Pointer to either baseline->method()->raw() or ion->method()->raw(), or
-     * nullptr if there's no Baseline or Ion script.
+     * Pointer to either baseline->method()->raw() or ion->method()->raw(), or NULL
+     * if there's no Baseline or Ion script.
      */
     uint8_t *baselineOrIonRaw;
     uint8_t *baselineOrIonSkipArgCheck;
@@ -797,7 +797,7 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
 
     /*
      * Original compiled function for the script, if it has a function.
-     * nullptr for global and eval scripts.
+     * NULL for global and eval scripts.
      */
     JSFunction *function() const { return function_; }
     inline void setFunction(JSFunction *fun);
@@ -851,7 +851,7 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
     /* See StaticScopeIter comment. */
     JSObject *enclosingStaticScope() const {
         if (isCallsiteClone)
-            return nullptr;
+            return NULL;
         return enclosingScopeOrOriginalFunction_;
     }
 
@@ -1035,7 +1035,7 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
     js::BreakpointSite *getBreakpointSite(jsbytecode *pc)
     {
         JS_ASSERT(size_t(pc - code) < length);
-        return hasDebugScript ? debugScript()->breakpoints[pc - code] : nullptr;
+        return hasDebugScript ? debugScript()->breakpoints[pc - code] : NULL;
     }
 
     js::BreakpointSite *getOrCreateBreakpointSite(JSContext *cx, jsbytecode *pc);
@@ -1157,18 +1157,18 @@ class AliasedFormalIter
 // bytecode from its source.
 class LazyScript : public gc::BarrieredCell<LazyScript>
 {
-    // If non-nullptr, the script has been compiled and this is a forwarding
+    // If non-NULL, the script has been compiled and this is a forwarding
     // pointer to the result.
     HeapPtrScript script_;
 
     // Original function with which the lazy script is associated.
     HeapPtrFunction function_;
 
-    // Function or block chain in which the script is nested, or nullptr.
+    // Function or block chain in which the script is nested, or NULL.
     HeapPtrObject enclosingScope_;
 
-    // Source code object, or nullptr if the script in which this is nested
-    // has not been compiled yet.
+    // Source code object, or NULL if the script in which this is nested has
+    // not been compiled yet.
     HeapPtrObject sourceObject_;
 
     // Heap allocated table with any free variables or inner functions.
@@ -1364,7 +1364,7 @@ struct SharedScriptData
 
     HeapPtrAtom *atoms() {
         if (!natoms)
-            return nullptr;
+            return NULL;
         return reinterpret_cast<HeapPtrAtom *>(data + length - sizeof(JSAtom *) * natoms);
     }
 
@@ -1439,18 +1439,18 @@ js_GetScriptLineExtent(JSScript *script);
 namespace js {
 
 extern unsigned
-PCToLineNumber(JSScript *script, jsbytecode *pc, unsigned *columnp = nullptr);
+PCToLineNumber(JSScript *script, jsbytecode *pc, unsigned *columnp = NULL);
 
 extern unsigned
 PCToLineNumber(unsigned startLine, jssrcnote *notes, jsbytecode *code, jsbytecode *pc,
-               unsigned *columnp = nullptr);
+               unsigned *columnp = NULL);
 
 /*
  * This function returns the file and line number of the script currently
  * executing on cx. If there is no current script executing on cx (e.g., a
- * native called directly through JSAPI (e.g., by setTimeout)), nullptr and 0
- * are returned as the file and line. Additionally, this function avoids the
- * full linear scan to compute line number when the caller guarantees that the
+ * native called directly through JSAPI (e.g., by setTimeout)), NULL and 0 are
+ * returned as the file and line. Additionally, this function avoids the full
+ * linear scan to compute line number when the caller guarantees that the
  * script compilation occurs at a JSOP_EVAL/JSOP_SPREADEVAL.
  */
 
@@ -1472,7 +1472,7 @@ CloneFunctionScript(JSContext *cx, HandleFunction original, HandleFunction clone
                     NewObjectKind newKind = GenericObject);
 
 /*
- * JSAPI clients are allowed to leave CompileOptions.originPrincipals nullptr in
+ * JSAPI clients are allowed to leave CompileOptions.originPrincipals NULL in
  * which case the JS engine sets options.originPrincipals = origin.principals.
  * This normalization step must occur before the originPrincipals get stored in
  * the JSScript/ScriptSource.

@@ -46,7 +46,7 @@ BEGIN_TEST(testArrayBuffer_bug720949_steal)
 
         // Modifying the underlying data should update the value returned through the view
         uint8_t *data = JS_GetArrayBufferData(obj);
-        CHECK(data != nullptr);
+        CHECK(data != NULL);
         *reinterpret_cast<uint32_t*>(data) = MAGIC_VALUE_2;
         CHECK(JS_GetElement(cx, view, 0, &v));
         CHECK_SAME(v, INT_TO_JSVAL(MAGIC_VALUE_2));
@@ -54,8 +54,8 @@ BEGIN_TEST(testArrayBuffer_bug720949_steal)
         // Steal the contents
         void *contents;
         CHECK(JS_StealArrayBufferContents(cx, obj, &contents, &data));
-        CHECK(contents != nullptr);
-        CHECK(data != nullptr);
+        CHECK(contents != NULL);
+        CHECK(data != NULL);
 
         // Check that the original ArrayBuffer is neutered
         CHECK_EQUAL(JS_GetArrayBufferByteLength(obj), 0);
@@ -78,11 +78,11 @@ BEGIN_TEST(testArrayBuffer_bug720949_steal)
         data = JS_GetArrayBufferData(obj);
 
         JS::RootedObject dstview(cx, JS_NewInt32ArrayWithBuffer(cx, dst, 0, -1));
-        CHECK(dstview != nullptr);
+        CHECK(dstview != NULL);
 
         CHECK_EQUAL(JS_GetArrayBufferByteLength(dst), size);
         data = JS_GetArrayBufferData(dst);
-        CHECK(data != nullptr);
+        CHECK(data != NULL);
         CHECK_EQUAL(*reinterpret_cast<uint32_t*>(data), MAGIC_VALUE_2);
         CHECK(JS_GetElement(cx, dstview, 0, &v));
         CHECK_SAME(v, INT_TO_JSVAL(MAGIC_VALUE_2));
@@ -105,7 +105,7 @@ BEGIN_TEST(testArrayBuffer_bug720949_viewList)
 
     // No views
     buffer = JS_NewArrayBuffer(cx, 2000);
-    buffer = nullptr;
+    buffer = NULL;
     GC(cx);
 
     // One view.
@@ -115,15 +115,15 @@ BEGIN_TEST(testArrayBuffer_bug720949_viewList)
         void *contents;
         uint8_t *data;
         CHECK(JS_StealArrayBufferContents(cx, buffer, &contents, &data));
-        CHECK(contents != nullptr);
-        CHECK(data != nullptr);
-        JS_free(nullptr, contents);
+        CHECK(contents != NULL);
+        CHECK(data != NULL);
+        JS_free(NULL, contents);
         GC(cx);
         CHECK(isNeutered(view));
         CHECK(isNeutered(buffer));
-        view = nullptr;
+        view = NULL;
         GC(cx);
-        buffer = nullptr;
+        buffer = NULL;
         GC(cx);
     }
 
@@ -135,7 +135,7 @@ BEGIN_TEST(testArrayBuffer_bug720949_viewList)
         JS::RootedObject view2(cx, JS_NewUint8ArrayWithBuffer(cx, buffer, 1, 200));
 
         // Remove, re-add a view
-        view2 = nullptr;
+        view2 = NULL;
         GC(cx);
         view2 = JS_NewUint8ArrayWithBuffer(cx, buffer, 1, 200);
 
@@ -143,19 +143,19 @@ BEGIN_TEST(testArrayBuffer_bug720949_viewList)
         void *contents;
         uint8_t *data;
         CHECK(JS_StealArrayBufferContents(cx, buffer, &contents, &data));
-        CHECK(contents != nullptr);
-        CHECK(data != nullptr);
-        JS_free(nullptr, contents);
+        CHECK(contents != NULL);
+        CHECK(data != NULL);
+        JS_free(NULL, contents);
 
         CHECK(isNeutered(view1));
         CHECK(isNeutered(view2));
         CHECK(isNeutered(buffer));
 
-        view1 = nullptr;
+        view1 = NULL;
         GC(cx);
-        view2 = nullptr;
+        view2 = NULL;
         GC(cx);
-        buffer = nullptr;
+        buffer = NULL;
         GC(cx);
     }
 

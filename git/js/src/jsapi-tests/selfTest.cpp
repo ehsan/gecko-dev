@@ -21,7 +21,7 @@ END_TEST(selfTest_NaNsAreSame)
 
 BEGIN_TEST(selfTest_globalHasNoParent)
 {
-    CHECK(JS_GetParent(global) == nullptr);
+    CHECK(JS_GetParent(global) == NULL);
     return true;
 }
 END_TEST(selfTest_globalHasNoParent)

@@ -387,7 +387,7 @@ class AutoLockForExclusiveAccess
         if (runtime->numExclusiveThreads) {
             JS_ASSERT(runtime->exclusiveAccessOwner == PR_GetCurrentThread());
 #ifdef DEBUG
-            runtime->exclusiveAccessOwner = nullptr;
+            runtime->exclusiveAccessOwner = NULL;
 #endif
             PR_Unlock(runtime->exclusiveAccessLock);
         } else {
@@ -501,8 +501,8 @@ js::ExclusiveContext::setCompartment(JSCompartment *comp)
     JS_ASSERT_IF(comp, comp->hasBeenEntered());
 
     compartment_ = comp;
-    zone_ = comp ? comp->zone() : nullptr;
-    allocator_ = zone_ ? &zone_->allocator : nullptr;
+    zone_ = comp ? comp->zone() : NULL;
+    allocator_ = zone_ ? &zone_->allocator : NULL;
 }
 
 inline JSScript *
@@ -510,23 +510,23 @@ JSContext::currentScript(jsbytecode **ppc,
                          MaybeAllowCrossCompartment allowCrossCompartment) const
 {
     if (ppc)
-        *ppc = nullptr;
+        *ppc = NULL;
 
     js::Activation *act = mainThread().activation();
     while (act && (act->cx() != this || (act->isJit() && !act->asJit()->isActive())))
         act = act->prev();
 
     if (!act)
-        return nullptr;
+        return NULL;
 
     JS_ASSERT(act->cx() == this);
 
 #ifdef JS_ION
     if (act->isJit()) {
-        JSScript *script = nullptr;
+        JSScript *script = NULL;
         js::jit::GetPcScript(const_cast<JSContext *>(this), &script, ppc);
         if (!allowCrossCompartment && script->compartment() != compartment())
-            return nullptr;
+            return NULL;
         return script;
     }
 #endif
@@ -538,7 +538,7 @@ JSContext::currentScript(jsbytecode **ppc,
 
     JSScript *script = fp->script();
     if (!allowCrossCompartment && script->compartment() != compartment())
-        return nullptr;
+        return NULL;
 
     if (ppc) {
         *ppc = act->asInterpreter()->regs().pc;

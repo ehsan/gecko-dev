@@ -17,7 +17,7 @@ constructHook(JSContext *cx, unsigned argc, jsval *vp)
 
     // Check that arguments were passed properly from JS_New.
 
-    JS::RootedObject obj(cx, JS_NewObject(cx, js::Jsvalify(&JSObject::class_), nullptr, nullptr));
+    JS::RootedObject obj(cx, JS_NewObject(cx, js::Jsvalify(&JSObject::class_), NULL, NULL));
     if (!obj) {
         JS_ReportError(cx, "test failed, could not construct object");
         return false;
@@ -66,7 +66,7 @@ BEGIN_TEST(testNewObject_1)
     JS::RootedObject Array(cx, JSVAL_TO_OBJECT(v));
 
     // With no arguments.
-    JS::RootedObject obj(cx, JS_New(cx, Array, 0, nullptr));
+    JS::RootedObject obj(cx, JS_New(cx, Array, 0, NULL));
     CHECK(obj);
     JS::RootedValue rt(cx, OBJECT_TO_JSVAL(obj));
     CHECK(JS_IsArrayObject(cx, obj));
@@ -100,10 +100,10 @@ BEGIN_TEST(testNewObject_1)
         "testNewObject_1",
         0,
         JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-        JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, nullptr,
-        nullptr, nullptr, nullptr, constructHook
+        JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, NULL,
+        NULL, NULL, NULL, constructHook
     };
-    JS::RootedObject ctor(cx, JS_NewObject(cx, &cls, nullptr, nullptr));
+    JS::RootedObject ctor(cx, JS_NewObject(cx, &cls, NULL, NULL));
     CHECK(ctor);
     JS::RootedValue rt2(cx, OBJECT_TO_JSVAL(ctor));
     obj = JS_New(cx, ctor, 3, argv);

@@ -28,7 +28,7 @@ class TypeRepresentation;
 class TaggedProto
 {
   public:
-    TaggedProto() : proto(nullptr) {}
+    TaggedProto() : proto(NULL) {}
     TaggedProto(JSObject *proto) : proto(proto) {}
 
     uintptr_t toWord() const { return uintptr_t(proto); }
@@ -259,7 +259,7 @@ public:
     TypeConstraint *next;
 
     TypeConstraint()
-        : next(nullptr)
+        : next(NULL)
     {}
 
     /* Debugging name for this kind of constraint. */
@@ -451,7 +451,7 @@ class TypeSet
     TypeConstraint *constraintList;
 
     TypeSet()
-      : flags(0), objectSet(nullptr), constraintList(nullptr)
+      : flags(0), objectSet(NULL), constraintList(NULL)
     {}
 
     void print();
@@ -466,7 +466,7 @@ class TypeSet
     bool unknownObject() const { return !!(flags & (TYPE_FLAG_UNKNOWN | TYPE_FLAG_ANYOBJECT)); }
 
     bool empty() const { return !baseFlags() && !baseObjectCount(); }
-    bool noConstraints() const { return constraintList == nullptr; }
+    bool noConstraints() const { return constraintList == NULL; }
 
     bool hasAnyFlag(TypeFlags flags) const {
         JS_ASSERT((flags & TYPE_FLAG_BASE_MASK) == flags);
@@ -497,7 +497,7 @@ class TypeSet
     /*
      * Iterate through the objects in this set. getObjectCount overapproximates
      * in the hash case (see SET_ARRAY_SIZE in jsinferinlines.h), and getObject
-     * may return nullptr.
+     * may return NULL.
      */
     inline unsigned getObjectCount() const;
     inline TypeObjectKey *getObject(unsigned i) const;
@@ -618,10 +618,10 @@ class TemporaryTypeSet : public TypeSet
     /* Whether the type set contains objects with any of a set of flags. */
     bool hasObjectFlags(CompilerConstraintList *constraints, TypeObjectFlags flags);
 
-    /* Get the class shared by all objects in this set, or nullptr. */
+    /* Get the class shared by all objects in this set, or NULL. */
     const Class *getKnownClass();
 
-    /* Get the prototype shared by all objects in this set, or nullptr. */
+    /* Get the prototype shared by all objects in this set, or NULL. */
     JSObject *getCommonPrototype();
 
     /* Get the typed array type of all objects in this set, or TypedArrayObject::TYPE_MAX. */
@@ -636,7 +636,7 @@ class TemporaryTypeSet : public TypeSet
     /* Whether clasp->emulatesUndefined() is true for one or more objects in this set. */
     bool maybeEmulatesUndefined();
 
-    /* Get the single value which can appear in this type set, otherwise nullptr. */
+    /* Get the single value which can appear in this type set, otherwise NULL. */
     JSObject *getSingleton();
 
     /* Whether any objects in the type set needs a barrier on id. */
@@ -1242,7 +1242,7 @@ class CompilerOutput
 
   public:
     CompilerOutput()
-      : script_(nullptr), mode_(0), pendingInvalidation_(false)
+      : script_(NULL), mode_(0), pendingInvalidation_(false)
     {}
 
     CompilerOutput(JSScript *script, jit::ExecutionMode mode)
@@ -1255,10 +1255,10 @@ class CompilerOutput
     inline jit::IonScript *ion() const;
 
     bool isValid() const {
-        return script_ != nullptr;
+        return script_ != NULL;
     }
     void invalidate() {
-        script_ = nullptr;
+        script_ = NULL;
     }
 
     void setPendingInvalidation() {
@@ -1440,12 +1440,12 @@ bool TypeHasProperty(JSContext *cx, TypeObject *obj, jsid id, const Value &value
 
 #else
 
-inline const char * InferSpewColorReset() { return nullptr; }
-inline const char * InferSpewColor(TypeConstraint *constraint) { return nullptr; }
-inline const char * InferSpewColor(TypeSet *types) { return nullptr; }
+inline const char * InferSpewColorReset() { return NULL; }
+inline const char * InferSpewColor(TypeConstraint *constraint) { return NULL; }
+inline const char * InferSpewColor(TypeSet *types) { return NULL; }
 inline void InferSpew(SpewChannel which, const char *fmt, ...) {}
-inline const char * TypeString(Type type) { return nullptr; }
-inline const char * TypeObjectString(TypeObject *type) { return nullptr; }
+inline const char * TypeString(Type type) { return NULL; }
+inline const char * TypeObjectString(TypeObject *type) { return NULL; }
 
 #endif
 

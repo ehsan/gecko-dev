@@ -5,15 +5,13 @@ const TEST_PAGE = "/browser/browser/base/content/test/general/dummy_page.html";
 var gTestTab, gBgTab, gTestZoom;
 
 function testBackgroundLoad() {
-  Task.spawn(function () {
-    is(ZoomManager.zoom, gTestZoom, "opening a background tab should not change foreground zoom");
+  is(ZoomManager.zoom, gTestZoom, "opening a background tab should not change foreground zoom");
 
-    yield FullZoomHelper.removeTabAndWaitForLocationChange(gBgTab);
+  gBrowser.removeTab(gBgTab);
 
-    FullZoom.reset();
-    yield FullZoomHelper.removeTabAndWaitForLocationChange(gTestTab);
-    finish();
-  });
+  FullZoom.reset();
+  gBrowser.removeTab(gTestTab);
+  finish();
 }
 
 function testInitialZoom() {

@@ -70,7 +70,7 @@ class ChunkPool {
 
   public:
     ChunkPool()
-      : emptyChunkListHead(nullptr),
+      : emptyChunkListHead(NULL),
         emptyCount(0) { }
 
     size_t getEmptyCount() const {
@@ -359,7 +359,7 @@ struct ArenaList {
     }
 
     void clear() {
-        head = nullptr;
+        head = NULL;
         cursor = &head;
     }
 
@@ -419,8 +419,8 @@ class ArenaLists
         for (size_t i = 0; i != FINALIZE_LIMIT; ++i)
             backgroundFinalizeState[i] = BFS_DONE;
         for (size_t i = 0; i != FINALIZE_LIMIT; ++i)
-            arenaListsToSweep[i] = nullptr;
-        gcShapeArenasToSweep = nullptr;
+            arenaListsToSweep[i] = NULL;
+        gcShapeArenasToSweep = NULL;
     }
 
     ~ArenaLists() {
@@ -817,14 +817,14 @@ class GCHelperThread {
   public:
     GCHelperThread(JSRuntime *rt)
       : rt(rt),
-        thread(nullptr),
-        wakeup(nullptr),
-        done(nullptr),
+        thread(NULL),
+        wakeup(NULL),
+        done(NULL),
         state(IDLE),
         sweepFlag(false),
         shrinkFlag(false),
-        freeCursor(nullptr),
-        freeCursorEnd(nullptr),
+        freeCursor(NULL),
+        freeCursorEnd(NULL),
         backgroundAllocation(true)
     { }
 
@@ -915,11 +915,11 @@ struct MarkStack {
     size_t sizeLimit;
 
     MarkStack(size_t sizeLimit)
-      : stack(nullptr),
-        tos(nullptr),
-        limit(nullptr),
-        ballast(nullptr),
-        ballastLimit(nullptr),
+      : stack(NULL),
+        tos(NULL),
+        limit(NULL),
+        ballast(NULL),
+        ballastLimit(NULL),
         sizeLimit(sizeLimit) { }
 
     ~MarkStack() {
@@ -1310,7 +1310,7 @@ js_FinalizeStringRT(JSRuntime *rt, JSString *str);
  * Macro to test if a traversal is the marking phase of the GC.
  */
 #define IS_GC_MARKING_TRACER(trc) \
-    ((trc)->callback == nullptr || (trc)->callback == GCMarker::GrayCallback)
+    ((trc)->callback == NULL || (trc)->callback == GCMarker::GrayCallback)
 
 namespace js {
 

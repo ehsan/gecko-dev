@@ -11,7 +11,6 @@
  * JS public API typedefs.
  */
 
-#include "mozilla/NullPtr.h"
 #include "mozilla/PodOperations.h"
 
 #include "jsprototypes.h"
@@ -313,13 +312,13 @@ struct ContextFriendFields
 
   public:
     explicit ContextFriendFields(JSRuntime *rt)
-      : runtime_(rt), compartment_(nullptr), zone_(nullptr), autoGCRooters(nullptr)
+      : runtime_(rt), compartment_(NULL), zone_(NULL), autoGCRooters(NULL)
     {
 #ifdef JSGC_TRACK_EXACT_ROOTS
         mozilla::PodArrayZero(thingGCRooters);
 #endif
 #if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
-        skipGCRooters = nullptr;
+        skipGCRooters = NULL;
 #endif
     }
 

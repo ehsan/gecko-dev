@@ -531,7 +531,7 @@ num_toSource(JSContext *cx, unsigned argc, Value *vp)
 }
 #endif
 
-ToCStringBuf::ToCStringBuf() :dbuf(nullptr)
+ToCStringBuf::ToCStringBuf() :dbuf(NULL)
 {
     JS_STATIC_ASSERT(sbufSize >= DTOSTR_STANDARD_BUFFER_SIZE);
 }
@@ -546,14 +546,14 @@ static JSFlatString *
 LookupDtoaCache(ThreadSafeContext *cx, double d)
 {
     if (!cx->isExclusiveContext())
-        return nullptr;
+        return NULL;
 
     if (JSCompartment *comp = cx->asExclusiveContext()->compartment()) {
         if (JSFlatString *str = comp->dtoaCache.lookup(10, d))
             return str;
     }
 
-    return nullptr;
+    return NULL;
 }
 
 JS_ALWAYS_INLINE
@@ -604,7 +604,7 @@ js::Int32ToString(ThreadSafeContext *cx, int32_t si)
 
     JSShortString *str = js_NewGCShortString<allowGC>(cx);
     if (!str)
-        return nullptr;
+        return NULL;
 
     jschar buffer[JSShortString::MAX_SHORT_LENGTH + 1];
     size_t length;
@@ -636,7 +636,7 @@ js::Int32ToAtom(ExclusiveContext *cx, int32_t si)
 
     JSAtom *atom = AtomizeMaybeGC<allowGC>(cx, start, length);
     if (!atom)
-        return nullptr;
+        return NULL;
 
     CacheNumber(cx, si, atom);
     return atom;
@@ -648,7 +648,7 @@ js::Int32ToAtom<CanGC>(ExclusiveContext *cx, int32_t si);
 template JSAtom *
 js::Int32ToAtom<NoGC>(ExclusiveContext *cx, int32_t si);
 
-/* Returns a non-nullptr pointer to inside cbuf.  */
+/* Returns a non-NULL pointer to inside cbuf.  */
 static char *
 IntToCString(ToCStringBuf *cbuf, int i, size_t *len, int base = 10)
 {
@@ -704,7 +704,7 @@ num_toString_impl(JSContext *cx, CallArgs args)
             return false;
 
         if (d2 < 2 || d2 > 36) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_RADIX);
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_RADIX);
             return false;
         }
 
@@ -892,7 +892,7 @@ ComputePrecisionInRange(JSContext *cx, int minPrecision, int maxPrecision, Handl
 
     ToCStringBuf cbuf;
     if (char *numStr = NumberToCString(cx, &cbuf, prec, 10))
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_PRECISION_RANGE, numStr);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_PRECISION_RANGE, numStr);
     return false;
 }
 
@@ -1233,29 +1233,29 @@ js_InitNumberClass(JSContext *cx, HandleObject obj)
 
     RootedObject numberProto(cx, global->createBlankPrototype(cx, &NumberObject::class_));
     if (!numberProto)
-        return nullptr;
+        return NULL;
     numberProto->as<NumberObject>().setPrimitiveValue(0);
 
     RootedFunction ctor(cx);
     ctor = global->createConstructor(cx, Number, cx->names().Number, 1);
     if (!ctor)
-        return nullptr;
+        return NULL;
 
     if (!LinkConstructorAndPrototype(cx, ctor, numberProto))
-        return nullptr;
+        return NULL;
 
     /* Add numeric constants (MAX_VALUE, NaN, &c.) to the Number constructor. */
     if (!JS_DefineConstDoubles(cx, ctor, number_constants))
-        return nullptr;
+        return NULL;
 
-    if (!DefinePropertiesAndBrand(cx, ctor, nullptr, number_static_methods))
-        return nullptr;
+    if (!DefinePropertiesAndBrand(cx, ctor, NULL, number_static_methods))
+        return NULL;
 
-    if (!DefinePropertiesAndBrand(cx, numberProto, nullptr, number_methods))
-        return nullptr;
+    if (!DefinePropertiesAndBrand(cx, numberProto, NULL, number_methods))
+        return NULL;
 
     if (!JS_DefineFunctions(cx, global, number_functions))
-        return nullptr;
+        return NULL;
 
     RootedValue valueNaN(cx, cx->runtime()->NaNValue);
     RootedValue valueInfinity(cx, cx->runtime()->positiveInfinityValue);
@@ -1268,11 +1268,11 @@ js_InitNumberClass(JSContext *cx, HandleObject obj)
                               JS_PropertyStub, JS_StrictPropertyStub,
                               JSPROP_PERMANENT | JSPROP_READONLY, 0, 0))
     {
-        return nullptr;
+        return NULL;
     }
 
     if (!DefineConstructorAndPrototype(cx, global, JSProto_Number, ctor, numberProto))
-        return nullptr;
+        return NULL;
 
     return numberProto;
 }
@@ -1326,15 +1326,15 @@ js_NumberToStringWithBase(ThreadSafeContext *cx, double d, int base)
 
     /*
      * Caller is responsible for error reporting. When called from trace,
-     * returning nullptr here will cause us to fall of trace and then retry
+     * returning NULL here will cause us to fall of trace and then retry
      * from the interpreter (which will report the error).
      */
     if (base < 2 || base > 36)
-        return nullptr;
+        return NULL;
 
     JSCompartment *comp = cx->isExclusiveContext()
                           ? cx->asExclusiveContext()->compartment()
-                          : nullptr;
+                          : NULL;
 
     int32_t i;
     if (mozilla::DoubleIsInt32(d, &i)) {
@@ -1365,7 +1365,7 @@ js_NumberToStringWithBase(ThreadSafeContext *cx, double d, int base)
         numStr = FracNumberToCString(cx, &cbuf, d, base);
         if (!numStr) {
             js_ReportOutOfMemory(cx);
-            return nullptr;
+            return NULL;
         }
         JS_ASSERT_IF(base == 10,
                      !cbuf.dbuf && numStr >= cbuf.sbuf && numStr < cbuf.sbuf + cbuf.sbufSize);
@@ -1409,14 +1409,14 @@ js::NumberToAtom(ExclusiveContext *cx, double d)
     char *numStr = FracNumberToCString(cx, &cbuf, d);
     if (!numStr) {
         js_ReportOutOfMemory(cx);
-        return nullptr;
+        return NULL;
     }
     JS_ASSERT(!cbuf.dbuf && numStr >= cbuf.sbuf && numStr < cbuf.sbuf + cbuf.sbufSize);
 
     size_t length = strlen(numStr);
     JSAtom *atom = AtomizeMaybeGC<allowGC>(cx, numStr, length);
     if (!atom)
-        return nullptr;
+        return NULL;
 
     CacheNumber(cx, d, atom);
 
@@ -1434,7 +1434,7 @@ js::NumberToString(JSContext *cx, double d)
 {
     if (JSString *str = js_NumberToStringWithBase<CanGC>(cx, d, 10))
         return &str->asFlat();
-    return nullptr;
+    return NULL;
 }
 
 JSFlatString *
@@ -1449,7 +1449,7 @@ js::IndexToString(JSContext *cx, uint32_t index)
 
     JSShortString *str = js_NewGCShortString<CanGC>(cx);
     if (!str)
-        return nullptr;
+        return NULL;
 
     jschar buffer[JSShortString::MAX_SHORT_LENGTH + 1];
     RangedPtr<jschar> end(buffer + JSShortString::MAX_SHORT_LENGTH,

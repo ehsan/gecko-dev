@@ -53,14 +53,14 @@ class TempAllocPolicy
     void *malloc_(size_t bytes) {
         void *p = js_malloc(bytes);
         if (JS_UNLIKELY(!p))
-            p = onOutOfMemory(nullptr, bytes);
+            p = onOutOfMemory(NULL, bytes);
         return p;
     }
 
     void *calloc_(size_t bytes) {
         void *p = js_calloc(bytes);
         if (JS_UNLIKELY(!p))
-            p = onOutOfMemory(nullptr, bytes);
+            p = onOutOfMemory(NULL, bytes);
         return p;
     }
 
