@@ -65,7 +65,6 @@ static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 // nsXULSelectableAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
-// Helper methos
 nsXULSelectableAccessible::
   nsXULSelectableAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
   nsAccessibleWrap(aContent, aShell)
@@ -73,7 +72,8 @@ nsXULSelectableAccessible::
   mSelectControl = do_QueryInterface(aContent);
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsXULSelectableAccessible, nsAccessible, nsIAccessibleSelectable)
+////////////////////////////////////////////////////////////////////////////////
+// nsXULSelectableAccessible: nsAccessNode
 
 void
 nsXULSelectableAccessible::Shutdown()
@@ -82,51 +82,23 @@ nsXULSelectableAccessible::Shutdown()
   nsAccessibleWrap::Shutdown();
 }
 
-nsresult nsXULSelectableAccessible::ChangeSelection(PRInt32 aIndex, PRUint8 aMethod, PRBool *aSelState)
+////////////////////////////////////////////////////////////////////////////////
+// nsXULSelectableAccessible: SelectAccessible
+
+bool
+nsXULSelectableAccessible::IsSelect()
 {
-  *aSelState = PR_FALSE;
-
-  if (!mSelectControl) {
-    return NS_ERROR_FAILURE;
-  }
-  nsAccessible* child = GetChildAt(aIndex);
-  NS_ENSURE_TRUE(child, NS_ERROR_FAILURE);
-
-  nsCOMPtr<nsIDOMNode> childNode;
-  child->GetDOMNode(getter_AddRefs(childNode));
-  nsCOMPtr<nsIDOMXULSelectControlItemElement> item(do_QueryInterface(childNode));
-  NS_ENSURE_TRUE(item, NS_ERROR_FAILURE);
-
-  item->GetSelected(aSelState);
-  if (eSelection_GetState == aMethod) {
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIDOMXULMultiSelectControlElement> xulMultiSelect =
-    do_QueryInterface(mSelectControl);
-
-  if (eSelection_Add == aMethod && !(*aSelState)) {
-    return xulMultiSelect ? xulMultiSelect->AddItemToSelection(item) :
-                            mSelectControl->SetSelectedItem(item);
-  }
-  if (eSelection_Remove == aMethod && (*aSelState)) {
-    return xulMultiSelect ? xulMultiSelect->RemoveItemFromSelection(item) :
-                            mSelectControl->SetSelectedItem(nsnull);
-  }
-  return NS_ERROR_FAILURE;
+  return !!mSelectControl;
 }
 
 // Interface methods
-NS_IMETHODIMP nsXULSelectableAccessible::GetSelectedChildren(nsIArray **aChildren)
+already_AddRefed<nsIArray>
+nsXULSelectableAccessible::SelectedItems()
 {
-  *aChildren = nsnull;
-  if (!mSelectControl) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsIMutableArray> selectedAccessibles =
+  nsCOMPtr<nsIMutableArray> selectedItems =
     do_CreateInstance(NS_ARRAY_CONTRACTID);
-  NS_ENSURE_STATE(selectedAccessibles);
+  if (!selectedItems)
+    return nsnull;
 
   // For XUL multi-select control
   nsCOMPtr<nsIDOMXULMultiSelectControlElement> xulMultiSelect =
@@ -135,129 +107,165 @@ NS_IMETHODIMP nsXULSelectableAccessible::GetSelectedChildren(nsIArray **aChildre
     PRInt32 length = 0;
     xulMultiSelect->GetSelectedCount(&length);
     for (PRInt32 index = 0; index < length; index++) {
-      nsCOMPtr<nsIDOMXULSelectControlItemElement> selectedItem;
-      xulMultiSelect->GetSelectedItem(index, getter_AddRefs(selectedItem));
-      nsCOMPtr<nsIContent> selectedContent(do_QueryInterface(selectedItem));
-      nsAccessible *selectedAcc =
-        GetAccService()->GetAccessibleInWeakShell(selectedContent, mWeakShell);
-      if (selectedAcc)
-        selectedAccessibles->AppendElement(static_cast<nsIAccessible*>(selectedAcc),
-                                           PR_FALSE);
+      nsCOMPtr<nsIDOMXULSelectControlItemElement> itemElm;
+      xulMultiSelect->GetSelectedItem(index, getter_AddRefs(itemElm));
+      nsCOMPtr<nsINode> itemNode(do_QueryInterface(itemElm));
+      nsAccessible* item =
+        GetAccService()->GetAccessibleInWeakShell(itemNode, mWeakShell);
+      if (item)
+        selectedItems->AppendElement(static_cast<nsIAccessible*>(item),
+                                     PR_FALSE);
     }
   }
   else {  // Single select?
-    nsCOMPtr<nsIDOMXULSelectControlItemElement> selectedItem;
-    mSelectControl->GetSelectedItem(getter_AddRefs(selectedItem));
-    nsCOMPtr<nsIContent> selectedContent(do_QueryInterface(selectedItem));
-    if(selectedContent) {
-      nsAccessible *selectedAcc =
-        GetAccService()->GetAccessibleInWeakShell(selectedContent, mWeakShell);
-      if (selectedAcc)
-        selectedAccessibles->AppendElement(static_cast<nsIAccessible*>(selectedAcc),
-                                           PR_FALSE);
+    nsCOMPtr<nsIDOMXULSelectControlItemElement> itemElm;
+    mSelectControl->GetSelectedItem(getter_AddRefs(itemElm));
+    nsCOMPtr<nsINode> itemNode(do_QueryInterface(itemElm));
+    if(itemNode) {
+      nsAccessible* item =
+        GetAccService()->GetAccessibleInWeakShell(itemNode, mWeakShell);
+      if (item)
+        selectedItems->AppendElement(static_cast<nsIAccessible*>(item),
+                                     PR_FALSE);
     }
   }
 
-  PRUint32 uLength = 0;
-  selectedAccessibles->GetLength(&uLength);
-  if (uLength != 0) { // length of nsIArray containing selected options
-    NS_ADDREF(*aChildren = selectedAccessibles);
-  }
-
-  return NS_OK;
+  nsIMutableArray* items = nsnull;
+  selectedItems.forget(&items);
+  return items;
 }
 
-// return the nth selected child's nsIAccessible object
-NS_IMETHODIMP nsXULSelectableAccessible::RefSelection(PRInt32 aIndex, nsIAccessible **aAccessible)
+nsAccessible*
+nsXULSelectableAccessible::GetSelectedItem(PRUint32 aIndex)
 {
-  *aAccessible = nsnull;
-  if (!mSelectControl) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsIDOMXULSelectControlItemElement> selectedItem;
-  nsCOMPtr<nsIDOMXULMultiSelectControlElement> xulMultiSelect =
+  nsCOMPtr<nsIDOMXULMultiSelectControlElement> multiSelectControl =
     do_QueryInterface(mSelectControl);
-  if (xulMultiSelect)
-    xulMultiSelect->GetSelectedItem(aIndex, getter_AddRefs(selectedItem));
 
-  if (aIndex == 0)
-    mSelectControl->GetSelectedItem(getter_AddRefs(selectedItem));
+  nsCOMPtr<nsIDOMXULSelectControlItemElement> itemElm;
+  if (multiSelectControl)
+    multiSelectControl->GetSelectedItem(aIndex, getter_AddRefs(itemElm));
+  else if (aIndex == 0)
+    mSelectControl->GetSelectedItem(getter_AddRefs(itemElm));
 
-  if (!selectedItem)
-    return NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsIContent> selectedContent(do_QueryInterface(selectedItem));
-  nsAccessible *selectedAcc =
-    GetAccService()->GetAccessibleInWeakShell(selectedContent, mWeakShell);
-  if (!selectedAcc)
-    return NS_ERROR_FAILURE;
-
-  NS_ADDREF(*aAccessible = selectedAcc);
-  return NS_OK;
+  nsCOMPtr<nsINode> itemNode(do_QueryInterface(itemElm));
+  return itemNode ?
+    GetAccService()->GetAccessibleInWeakShell(itemNode, mWeakShell) : nsnull;
 }
 
-NS_IMETHODIMP nsXULSelectableAccessible::GetSelectionCount(PRInt32 *aSelectionCount)
+PRUint32
+nsXULSelectableAccessible::SelectedItemCount()
 {
-  *aSelectionCount = 0;
-  if (!mSelectControl) {
-    return NS_ERROR_FAILURE;
-  }
-
   // For XUL multi-select control
-  nsCOMPtr<nsIDOMXULMultiSelectControlElement> xulMultiSelect =
+  nsCOMPtr<nsIDOMXULMultiSelectControlElement> multiSelectControl =
     do_QueryInterface(mSelectControl);
-  if (xulMultiSelect)
-    return xulMultiSelect->GetSelectedCount(aSelectionCount);
+  if (multiSelectControl) {
+    PRInt32 count = 0;
+    multiSelectControl->GetSelectedCount(&count);
+    return count;
+  }
 
   // For XUL single-select control/menulist
   PRInt32 index;
   mSelectControl->GetSelectedIndex(&index);
-  if (index >= 0)
-    *aSelectionCount = 1;
-  return NS_OK;
+  return (index >= 0) ? 1 : 0;
 }
 
-NS_IMETHODIMP nsXULSelectableAccessible::AddChildToSelection(PRInt32 aIndex)
+bool
+nsXULSelectableAccessible::AddItemToSelection(PRUint32 aIndex)
 {
-  PRBool isSelected;
-  return ChangeSelection(aIndex, eSelection_Add, &isSelected);
+  nsAccessible* item = GetChildAt(aIndex);
+  if (!item)
+    return false;
+
+  nsCOMPtr<nsIDOMXULSelectControlItemElement> itemElm =
+    do_QueryInterface(item->GetContent());
+  if (!itemElm)
+    return false;
+
+  PRBool isItemSelected = PR_FALSE;
+  itemElm->GetSelected(&isItemSelected);
+  if (isItemSelected)
+    return true;
+
+  nsCOMPtr<nsIDOMXULMultiSelectControlElement> multiSelectControl =
+    do_QueryInterface(mSelectControl);
+
+  if (multiSelectControl)
+    multiSelectControl->AddItemToSelection(itemElm);
+  else
+    mSelectControl->SetSelectedItem(itemElm);
+
+  return true;
 }
 
-NS_IMETHODIMP nsXULSelectableAccessible::RemoveChildFromSelection(PRInt32 aIndex)
+bool
+nsXULSelectableAccessible::RemoveItemFromSelection(PRUint32 aIndex)
 {
-  PRBool isSelected;
-  return ChangeSelection(aIndex, eSelection_Remove, &isSelected);
+  nsAccessible* item = GetChildAt(aIndex);
+  if (!item)
+    return false;
+
+  nsCOMPtr<nsIDOMXULSelectControlItemElement> itemElm =
+      do_QueryInterface(item->GetContent());
+  if (!itemElm)
+    return false;
+
+  PRBool isItemSelected = PR_FALSE;
+  itemElm->GetSelected(&isItemSelected);
+  if (!isItemSelected)
+    return true;
+
+  nsCOMPtr<nsIDOMXULMultiSelectControlElement> multiSelectControl =
+    do_QueryInterface(mSelectControl);
+
+  if (multiSelectControl)
+    multiSelectControl->RemoveItemFromSelection(itemElm);
+  else
+    mSelectControl->SetSelectedItem(nsnull);
+
+  return true;
 }
 
-NS_IMETHODIMP nsXULSelectableAccessible::IsChildSelected(PRInt32 aIndex, PRBool *aIsSelected)
+bool
+nsXULSelectableAccessible::IsItemSelected(PRUint32 aIndex)
 {
-  *aIsSelected = PR_FALSE;
-  return ChangeSelection(aIndex, eSelection_GetState, aIsSelected);
+  nsAccessible* item = GetChildAt(aIndex);
+  if (!item)
+    return false;
+
+  nsCOMPtr<nsIDOMXULSelectControlItemElement> itemElm =
+    do_QueryInterface(item->GetContent());
+  if (!itemElm)
+    return false;
+
+  PRBool isItemSelected = PR_FALSE;
+  itemElm->GetSelected(&isItemSelected);
+  return isItemSelected;
 }
 
-NS_IMETHODIMP nsXULSelectableAccessible::ClearSelection()
+bool
+nsXULSelectableAccessible::UnselectAll()
 {
-  if (!mSelectControl) {
-    return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIDOMXULMultiSelectControlElement> multiSelectControl =
+    do_QueryInterface(mSelectControl);
+  multiSelectControl ?
+    multiSelectControl->ClearSelection() : mSelectControl->SetSelectedIndex(-1);
+
+  return true;
+}
+
+bool
+nsXULSelectableAccessible::SelectAll()
+{
+  nsCOMPtr<nsIDOMXULMultiSelectControlElement> multiSelectControl =
+    do_QueryInterface(mSelectControl);
+  if (multiSelectControl) {
+    multiSelectControl->SelectAll();
+    return true;
   }
-  nsCOMPtr<nsIDOMXULMultiSelectControlElement> xulMultiSelect =
-    do_QueryInterface(mSelectControl);
-  return xulMultiSelect ? xulMultiSelect->ClearSelection() : mSelectControl->SetSelectedIndex(-1);
-}
-
-NS_IMETHODIMP nsXULSelectableAccessible::SelectAllSelection(PRBool *aSucceeded)
-{
-  *aSucceeded = PR_TRUE;
-
-  nsCOMPtr<nsIDOMXULMultiSelectControlElement> xulMultiSelect =
-    do_QueryInterface(mSelectControl);
-  if (xulMultiSelect)
-    return xulMultiSelect->SelectAll();
 
   // otherwise, don't support this method
-  *aSucceeded = PR_FALSE;
-  return NS_ERROR_NOT_IMPLEMENTED;
+  return false;
 }
 
 
@@ -321,8 +329,7 @@ nsXULMenuitemAccessible::GetStateInternal(PRUint32 *aState,
   }
 
   // Combo box listitem
-  PRBool isComboboxOption =
-    (nsAccUtils::Role(this) == nsIAccessibleRole::ROLE_COMBOBOX_OPTION);
+  PRBool isComboboxOption = (Role() == nsIAccessibleRole::ROLE_COMBOBOX_OPTION);
   if (isComboboxOption) {
     // Is selected?
     PRBool isSelected = PR_FALSE;
@@ -345,7 +352,7 @@ nsXULMenuitemAccessible::GetStateInternal(PRUint32 *aState,
         // Set selected option offscreen/invisible according to combobox state
         nsAccessible* grandParentAcc = parentAcc->GetParent();
         NS_ENSURE_TRUE(grandParentAcc, NS_ERROR_FAILURE);
-        NS_ASSERTION(nsAccUtils::Role(grandParentAcc) == nsIAccessibleRole::ROLE_COMBOBOX,
+        NS_ASSERTION(grandParentAcc->Role() == nsIAccessibleRole::ROLE_COMBOBOX,
                      "grandparent of combobox listitem is not combobox");
         PRUint32 grandParentState, grandParentExtState;
         grandParentAcc->GetState(&grandParentState, &grandParentExtState);
@@ -420,7 +427,7 @@ nsXULMenuitemAccessible::GetKeyboardShortcut(nsAString& aAccessKey)
 
   nsAccessible* parentAcc = GetParent();
   if (parentAcc) {
-    if (nsAccUtils::RoleInternal(parentAcc) == nsIAccessibleRole::ROLE_MENUBAR) {
+    if (parentAcc->NativeRole() == nsIAccessibleRole::ROLE_MENUBAR) {
       // If top level menu item, add Alt+ or whatever modifier text to string
       // No need to cache pref service, this happens rarely
       if (gMenuAccesskeyModifier == -1) {
@@ -471,34 +478,28 @@ nsXULMenuitemAccessible::GetDefaultKeyBinding(nsAString& aKeyBinding)
   return NS_OK;
 }
 
-nsresult
-nsXULMenuitemAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsXULMenuitemAccessible::NativeRole()
 {
   nsCOMPtr<nsIDOMXULContainerElement> xulContainer(do_QueryInterface(mContent));
-  if (xulContainer) {
-    *aRole = nsIAccessibleRole::ROLE_PARENT_MENUITEM;
-    return NS_OK;
-  }
+  if (xulContainer)
+    return nsIAccessibleRole::ROLE_PARENT_MENUITEM;
 
-  if (nsAccUtils::Role(GetParent()) == nsIAccessibleRole::ROLE_COMBOBOX_LIST) {
-    *aRole = nsIAccessibleRole::ROLE_COMBOBOX_OPTION;
-    return NS_OK;
-  }
+  if (mParent && mParent->Role() == nsIAccessibleRole::ROLE_COMBOBOX_LIST)
+    return nsIAccessibleRole::ROLE_COMBOBOX_OPTION;
 
   if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::type,
                             nsAccessibilityAtoms::radio, eCaseMatters)) {
-    *aRole = nsIAccessibleRole::ROLE_RADIO_MENU_ITEM;
-
-  } else if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::type,
-                                   nsAccessibilityAtoms::checkbox,
-                                   eCaseMatters)) {
-    *aRole = nsIAccessibleRole::ROLE_CHECK_MENU_ITEM;
-
-  } else {
-    *aRole = nsIAccessibleRole::ROLE_MENUITEM;
+    return nsIAccessibleRole::ROLE_RADIO_MENU_ITEM;
   }
 
-  return NS_OK;
+  if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::type,
+                            nsAccessibilityAtoms::checkbox,
+                            eCaseMatters)) {
+    return nsIAccessibleRole::ROLE_CHECK_MENU_ITEM;
+  }
+
+  return nsIAccessibleRole::ROLE_MENUITEM;
 }
 
 PRInt32
@@ -579,11 +580,10 @@ nsXULMenuSeparatorAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-nsresult
-nsXULMenuSeparatorAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsXULMenuSeparatorAccessible::NativeRole()
 {
-  *aRole = nsIAccessibleRole::ROLE_SEPARATOR;
-  return NS_OK;
+  return nsIAccessibleRole::ROLE_SEPARATOR;
 }
 
 NS_IMETHODIMP nsXULMenuSeparatorAccessible::DoAction(PRUint8 index)
@@ -659,29 +659,28 @@ nsXULMenupopupAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-nsresult
-nsXULMenupopupAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsXULMenupopupAccessible::NativeRole()
 {
-  nsAccessible *parent = GetParent();
-  if (parent) {
-    PRUint32 role = nsAccUtils::Role(parent);
+  // If accessible is not bound to the tree (this happens while children are
+  // cached) return general role.
+  if (mParent) {
+    PRUint32 role = mParent->Role();
     if (role == nsIAccessibleRole::ROLE_COMBOBOX ||
         role == nsIAccessibleRole::ROLE_AUTOCOMPLETE) {
-      *aRole = nsIAccessibleRole::ROLE_COMBOBOX_LIST;
-      return NS_OK;
+      return nsIAccessibleRole::ROLE_COMBOBOX_LIST;
+    }
 
-    } else if (role == nsIAccessibleRole::ROLE_PUSHBUTTON) {
+    if (role == nsIAccessibleRole::ROLE_PUSHBUTTON) {
       // Some widgets like the search bar have several popups, owned by buttons.
-      nsAccessible *grandParent = parent->GetParent();
-      if (nsAccUtils::Role(grandParent) == nsIAccessibleRole::ROLE_AUTOCOMPLETE) {
-        *aRole = nsIAccessibleRole::ROLE_COMBOBOX_LIST;
-        return NS_OK;
-      }
+      nsAccessible* grandParent = mParent->GetParent();
+      if (grandParent &&
+          grandParent->Role() == nsIAccessibleRole::ROLE_AUTOCOMPLETE)
+        return nsIAccessibleRole::ROLE_COMBOBOX_LIST;
     }
   }
 
-  *aRole = nsIAccessibleRole::ROLE_MENUPOPUP;
-  return NS_OK;
+  return nsIAccessibleRole::ROLE_MENUPOPUP;
 }
 
 
@@ -715,10 +714,9 @@ nsXULMenubarAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-nsresult
-nsXULMenubarAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsXULMenubarAccessible::NativeRole()
 {
-  *aRole = nsIAccessibleRole::ROLE_MENUBAR;
-  return NS_OK;
+  return nsIAccessibleRole::ROLE_MENUBAR;
 }
 

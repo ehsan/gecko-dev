@@ -66,58 +66,38 @@ nsHTMLImageMapAccessible::
 NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLImageMapAccessible, nsHTMLImageAccessible)
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsHTMLImageMapAccessible: nsIAccessibleHyperLink
+// nsHTMLImageMapAccessible: nsAccessible public
 
-NS_IMETHODIMP
-nsHTMLImageMapAccessible::GetAnchorCount(PRInt32 *aAnchorCount)
+PRUint32
+nsHTMLImageMapAccessible::NativeRole()
 {
-  NS_ENSURE_ARG_POINTER(aAnchorCount);
-
-  return GetChildCount(aAnchorCount);
-}
-
-NS_IMETHODIMP
-nsHTMLImageMapAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
-{
-  NS_ENSURE_ARG_POINTER(aURI);
-  *aURI = nsnull;
-
-  nsAccessible *areaAcc = GetChildAt(aIndex);
-  if (!areaAcc)
-    return NS_ERROR_INVALID_ARG;
-
-  nsCOMPtr<nsIDOMNode> areaNode;
-  areaAcc->GetDOMNode(getter_AddRefs(areaNode));
-
-  nsCOMPtr<nsIContent> link(do_QueryInterface(areaNode));
-  if (link)
-    *aURI = link->GetHrefURI().get();
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHTMLImageMapAccessible::GetAnchor(PRInt32 aIndex, nsIAccessible **aAccessible)
-{
-  NS_ENSURE_ARG_POINTER(aAccessible);
-  *aAccessible = nsnull;
-
-  nsAccessible *areaAcc = GetChildAt(aIndex);
-  if (!areaAcc)
-    return NS_ERROR_INVALID_ARG;
-
-  NS_ADDREF(*aAccessible = areaAcc);
-  return NS_OK;
+  return nsIAccessibleRole::ROLE_IMAGE_MAP;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsHTMLImageMapAccessible: nsAccessible public
+// nsHTMLImageMapAccessible: HyperLinkAccessible
 
-nsresult
-nsHTMLImageMapAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsHTMLImageMapAccessible::AnchorCount()
 {
-  *aRole = nsIAccessibleRole::ROLE_IMAGE_MAP;
-  return NS_OK;
+  return GetChildCount();
+}
+
+nsAccessible*
+nsHTMLImageMapAccessible::GetAnchor(PRUint32 aAnchorIndex)
+{
+  return GetChildAt(aAnchorIndex);
+}
+
+already_AddRefed<nsIURI>
+nsHTMLImageMapAccessible::GetAnchorURI(PRUint32 aAnchorIndex)
+{
+  nsAccessible* area = GetChildAt(aAnchorIndex);
+  if (!area)
+    return nsnull;
+
+  nsIContent* linkContent = area->GetContent();
+  return linkContent ? linkContent->GetHrefURI() : nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -279,6 +259,26 @@ nsHTMLAreaAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
   // Don't walk into area accessibles.
   NS_ADDREF(*aChild = this);
   return NS_OK;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nsHTMLImageMapAccessible: HyperLinkAccessible
+
+PRUint32
+nsHTMLAreaAccessible::StartOffset()
+{
+  // Image map accessible is not hypertext accessible therefore
+  // StartOffset/EndOffset implementations of nsAccessible doesn't work here.
+  // We return index in parent because image map contains area links only which
+  // are embedded objects.
+  // XXX: image map should be a hypertext accessible.
+  return GetIndexInParent();
+}
+
+PRUint32
+nsHTMLAreaAccessible::EndOffset()
+{
+  return GetIndexInParent() + 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

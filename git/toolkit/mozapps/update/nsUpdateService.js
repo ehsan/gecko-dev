@@ -54,6 +54,10 @@ const Cr = Components.results;
 const PREF_APP_UPDATE_AUTO                = "app.update.auto";
 const PREF_APP_UPDATE_BACKGROUND_INTERVAL = "app.update.download.backgroundInterval";
 const PREF_APP_UPDATE_CERTS_BRANCH        = "app.update.certs.";
+const PREF_APP_UPDATE_CERT_CHECKATTRS     = "app.update.cert.checkAttributes";
+const PREF_APP_UPDATE_CERT_ERRORS         = "app.update.cert.errors";
+const PREF_APP_UPDATE_CERT_MAXERRORS      = "app.update.cert.maxErrors";
+const PREF_APP_UPDATE_CERT_REQUIREBUILTIN = "app.update.cert.requireBuiltIn";
 const PREF_APP_UPDATE_CHANNEL             = "app.update.channel";
 const PREF_APP_UPDATE_ENABLED             = "app.update.enabled";
 const PREF_APP_UPDATE_IDLETIME            = "app.update.idletime";
@@ -113,6 +117,9 @@ const STATE_FAILED          = "failed";
 // From updater/errors.h:
 const WRITE_ERROR        = 7;
 const ELEVATION_CANCELED = 9;
+
+const CERT_ATTR_CHECK_FAILED_NO_UPDATE  = 100;
+const CERT_ATTR_CHECK_FAILED_HAS_UPDATE = 101;
 
 const DOWNLOAD_CHUNK_SIZE           = 300000; // bytes
 const DOWNLOAD_BACKGROUND_INTERVAL  = 600;    // seconds
@@ -1192,14 +1199,18 @@ UpdateService.prototype = {
       cleanupActiveUpdate();
     }
     else {
-      // If we hit an error, then the error code will be included in the
-      // status string following a colon.  If we had an I/O error, then we
-      // assume that the patch is not invalid, and we restage the patch so
-      // that it can be attempted again the next time we restart.
-      var ary = status.split(": ");
+      // If we hit an error, then the error code will be included in the status
+      // string following a colon and a space. If we had an I/O error, then we
+      // assume that the patch is not invalid, and we re-stage the patch so that
+      // it can be attempted again the next time we restart. This will leave a
+      // space at the beginning of the error code when there is a failure which
+      // will be removed by using parseInt below. This prevents panic which has
+      // occurred numerous times previously (see bug 569642 comment #9 for one
+      // example) when testing releases due to forgetting to include the space.
+      var ary = status.split(":");
       update.state = ary[0];
       if (update.state == STATE_FAILED && ary[1]) {
-        update.errorCode = ary[1];
+        update.errorCode = parseInt(ary[1]);
         if (update.errorCode == WRITE_ERROR) {
           prompter.showUpdateError(update);
           writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
@@ -1270,8 +1281,23 @@ UpdateService.prototype = {
       onError: function AUS_notify_onError(request, update) {
         LOG("UpdateService:notify:listener - error during background update: " +
             update.statusText);
-      },
-    }
+
+        if (!update.errorCode ||
+            update.errorCode != CERT_ATTR_CHECK_FAILED_NO_UPDATE &&
+            update.errorCode != CERT_ATTR_CHECK_FAILED_HAS_UPDATE)
+          return;
+
+        var errCount = getPref("getIntPref", PREF_APP_UPDATE_CERT_ERRORS, 0);
+        errCount++;
+        Services.prefs.setIntPref(PREF_APP_UPDATE_CERT_ERRORS, errCount);
+
+        if (errCount >= getPref("getIntPref", PREF_APP_UPDATE_CERT_MAXERRORS, 5)) {
+          var prompter = Cc["@mozilla.org/updates/update-prompt;1"].
+                         createInstance(Ci.nsIUpdatePrompt);
+          prompter.showUpdateError(update);
+        }
+      }
+    };
     this.backgroundChecker.checkForUpdates(listener, false);
   },
 
@@ -1456,6 +1482,7 @@ UpdateService.prototype = {
         if (addon.type != "plugin" &&
             !addon.appDisabled && !addon.userDisabled &&
             addon.scope != AddonManager.SCOPE_APPLICATION &&
+            addon.isCompatible &&
             !addon.isCompatibleWith(self._update.appVersion,
                                     self._update.platformVersion))
           self._incompatibleAddons.push(addon);
@@ -2001,7 +2028,9 @@ Checker.prototype = {
     this._request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
                     createInstance(Ci.nsIXMLHttpRequest);
     this._request.open("GET", url, true);
-    this._request.channel.notificationCallbacks = new gCertUtils.BadCertHandler();
+    var allowNonBuiltIn = !getPref("getBoolPref",
+                                   PREF_APP_UPDATE_CERT_REQUIREBUILTIN, true);
+    this._request.channel.notificationCallbacks = new gCertUtils.BadCertHandler(allowNonBuiltIn);
     this._request.overrideMimeType("text/xml");
     this._request.setRequestHeader("Cache-Control", "no-cache");
 
@@ -2093,6 +2122,7 @@ Checker.prototype = {
     var prefs = Services.prefs;
     var certs = null;
     if (!prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE) &&
+        getPref("getBoolPref", PREF_APP_UPDATE_CERT_CHECKATTRS, true) &&
         prefs.getBranch(PREF_APP_UPDATE_CERTS_BRANCH).getChildList("").length) {
       certs = [];
       let counter = 1;
@@ -2112,39 +2142,32 @@ Checker.prototype = {
       }
     }
 
-    var certAttrCheckFailed = false;
-    var status;
     try {
-      try {
-        gCertUtils.checkCert(this._request.channel, certs);
-      }
-      catch (e) {
-        Components.utils.reportError(e);
-        if (e.result != Cr.NS_ERROR_ILLEGAL_VALUE)
-          throw e;
-
-        certAttrCheckFailed = true;
-      }
-
-      // Analyze the resulting DOM and determine the set of updates. If the
-      // certificate attribute check failed treat it as no updates found until
-      // Bug 583408 is fixed.
-      var updates = certAttrCheckFailed ? [] : this._updates;
-
+      // Analyze the resulting DOM and determine the set of updates.
+      var updates = this._updates;
       LOG("Checker:onLoad - number of updates available: " + updates.length);
+      var allowNonBuiltIn = !getPref("getBoolPref",
+                                     PREF_APP_UPDATE_CERT_REQUIREBUILTIN, true);
+      gCertUtils.checkCert(this._request.channel, allowNonBuiltIn, certs);
+
+      if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_CERT_ERRORS))
+        Services.prefs.clearUserPref(PREF_APP_UPDATE_CERT_ERRORS);
 
       // Tell the Update Service about the updates
       this._callback.onCheckComplete(event.target, updates, updates.length);
     }
     catch (e) {
-      LOG("Checker:onLoad - there was a problem with the update service URL " +
-          "specified, either the XML file was malformed or it does not exist " +
-          "at the location specified. Exception: " + e);
+      LOG("Checker:onLoad - there was a problem checking for updates. " +
+          "Exception: " + e);
       var request = event.target;
       var status = this._getChannelStatus(request);
       LOG("Checker:onLoad - request.status: " + status);
       var update = new Update(null);
       update.statusText = getStatusTextFromCode(status, 404);
+      if (e.result == Cr.NS_ERROR_ILLEGAL_VALUE) {
+        update.errorCode = updates[0] ? CERT_ATTR_CHECK_FAILED_HAS_UPDATE
+                                      : CERT_ATTR_CHECK_FAILED_NO_UPDATE;
+      }
       this._callback.onError(request, update);
     }
 
@@ -2561,7 +2584,7 @@ Downloader.prototype = {
       if (this._verifyDownload()) {
         state = STATE_PENDING;
 
-        // We only need to explicitly show the prompt if this is a backround
+        // We only need to explicitly show the prompt if this is a background
         // download, since otherwise some kind of UI is already visible and
         // that UI will notify.
         if (this.background)
@@ -2585,7 +2608,7 @@ Downloader.prototype = {
         var message = getStatusTextFromCode(vfCode, vfCode);
         this._update.statusText = message;
 
-        if (this._update.isCompleteUpdate)
+        if (this._update.isCompleteUpdate || this._update.patchCount != 2)
           deleteActiveUpdate = true;
 
         // Destroy the updates directory, since we're done with it.
@@ -2631,13 +2654,11 @@ Downloader.prototype = {
     this._request = null;
 
     if (state == STATE_DOWNLOAD_FAILED) {
-      if (!this._update.isCompleteUpdate) {
-        var allFailed = true;
-
-        // If we were downloading a patch and the patch verification phase
-        // failed, log this and then commence downloading the complete update.
+      var allFailed = true;
+      // Check if there is a complete update patch that can be downloaded.
+      if (!this._update.isCompleteUpdate && this._update.patchCount == 2) {
         LOG("Downloader:onStopRequest - verification of patch failed, " +
-            "downloading complete update");
+            "downloading complete update patch");
         this._update.isCompleteUpdate = true;
         var status = this.downloadUpdate(this._update);
 
@@ -2646,38 +2667,32 @@ Downloader.prototype = {
         } else {
           allFailed = false;
         }
-        // This will reset the |.state| property on this._update if a new
-        // download initiates.
       }
 
-      // if we still fail after trying a complete download, give up completely
       if (allFailed) {
-        // In all other failure cases, i.e. we're S.O.L. - no more failing over
-        // ...
+        LOG("Downloader:onStopRequest - all update patch downloads failed");
+        // If the update UI is not open (e.g. the user closed the window while
+        // downloading) and if at any point this was a foreground download
+        // notify the user about the error. If the update was a background
+        // update there is no notification since the user won't be expecting it.
+        if (!Services.wm.getMostRecentWindow(UPDATE_WINDOW_NAME)) {
+          try {
+            this._update.QueryInterface(Ci.nsIWritablePropertyBag);
+            var fgdl = this._update.getProperty("foregroundDownload");
+          }
+          catch (e) {
+          }
 
-        // If this was ever a foreground download, and now there is no UI active
-        // (e.g. because the user closed the download window) and there was an
-        // error, we must notify now. Otherwise we can keep the failure to
-        // ourselves since the user won't be expecting it.
-        try {
-          this._update.QueryInterface(Ci.nsIWritablePropertyBag);
-          var fgdl = this._update.getProperty("foregroundDownload");
+          if (fgdl == "true") {
+            var prompter = Cc["@mozilla.org/updates/update-prompt;1"].
+                           createInstance(Ci.nsIUpdatePrompt);
+            prompter.showUpdateError(this._update);
+          }
         }
-        catch (e) {
-        }
-
-        if (fgdl == "true") {
-          var prompter = Cc["@mozilla.org/updates/update-prompt;1"].
-                         createInstance(Ci.nsIUpdatePrompt);
-          this._update.QueryInterface(Ci.nsIWritablePropertyBag);
-          this._update.setProperty("downloadFailed", "true");
-          prompter.showUpdateError(this._update);
-        }
+        // Prevent leaking the update object (bug 454964).
+        this._update = null;
       }
-
-      // Prevent leaking the update object (bug 454964)
-      this._update = null;
-      // the complete download succeeded or total failure was handled, so exit
+      // A complete download has been initiated or the failure was handled.
       return;
     }
 
@@ -2736,7 +2751,8 @@ UpdatePrompt.prototype = {
    * See nsIUpdateService.idl
    */
   showUpdateAvailable: function UP_showUpdateAvailable(update) {
-    if (!this._enabled || this._getUpdateWindow())
+    if (getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false) ||
+        this._getUpdateWindow())
       return;
 
     var stringsPrefix = "updateAvailable_" + update.type + ".";
@@ -2754,7 +2770,7 @@ UpdatePrompt.prototype = {
    */
   showUpdateDownloaded: function UP_showUpdateDownloaded(update, background) {
     if (background) {
-      if (!this._enabled)
+      if (getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false))
         return;
 
       var stringsPrefix = "updateDownloaded_" + update.type + ".";
@@ -2775,8 +2791,9 @@ UpdatePrompt.prototype = {
    * See nsIUpdateService.idl
    */
   showUpdateInstalled: function UP_showUpdateInstalled() {
-    if (!this._enabled || this._getUpdateWindow() ||
-        !getPref("getBoolPref", PREF_APP_UPDATE_SHOW_INSTALLED_UI, false))
+    if (getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false) ||
+        !getPref("getBoolPref", PREF_APP_UPDATE_SHOW_INSTALLED_UI, false) ||
+        this._getUpdateWindow())
       return;
 
     var page = "installed";
@@ -2799,7 +2816,7 @@ UpdatePrompt.prototype = {
    * See nsIUpdateService.idl
    */
   showUpdateError: function UP_showUpdateError(update) {
-    if (!this._enabled)
+    if (getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false))
       return;
 
     // In some cases, we want to just show a simple alert dialog:
@@ -2809,10 +2826,18 @@ UpdatePrompt.prototype = {
                                                     [Services.appinfo.name,
                                                      Services.appinfo.name], 2);
       Services.ww.getNewPrompter(null).alert(title, text);
-    } else {
-      this._showUI(null, URI_UPDATE_PROMPT_DIALOG, null, UPDATE_WINDOW_NAME,
-                   "errors", update);
+      return;
     }
+
+    if (update.errorCode == CERT_ATTR_CHECK_FAILED_NO_UPDATE ||
+        update.errorCode == CERT_ATTR_CHECK_FAILED_HAS_UPDATE) {
+      this._showUIWhenIdle(null, URI_UPDATE_PROMPT_DIALOG, null,
+                           UPDATE_WINDOW_NAME, null, update);
+      return;
+    }
+
+    this._showUI(null, URI_UPDATE_PROMPT_DIALOG, null, UPDATE_WINDOW_NAME,
+                 "errors", update);
   },
 
   /**
@@ -2821,13 +2846,6 @@ UpdatePrompt.prototype = {
   showUpdateHistory: function UP_showUpdateHistory(parent) {
     this._showUI(parent, URI_UPDATE_HISTORY_DIALOG, "modal,dialog=yes",
                  "Update:History", null, null);
-  },
-
-  /**
-   * Whether or not we are enabled (i.e. not in Silent mode)
-   */
-  get _enabled() {
-    return !getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false);
   },
 
   /**

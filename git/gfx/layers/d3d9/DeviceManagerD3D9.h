@@ -48,7 +48,7 @@ namespace mozilla {
 namespace layers {
 
 class DeviceManagerD3D9;
-class ThebesLayerD3D9;
+class LayerD3D9;
 class Nv3DVUtils;
 
 /**
@@ -106,9 +106,13 @@ class THEBES_API DeviceManagerD3D9
 {
 public:
   DeviceManagerD3D9();
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
+protected:
+  nsAutoRefCnt mRefCnt;
+  NS_DECL_OWNINGTHREAD
 
-  NS_INLINE_DECL_REFCOUNTING(DeviceManagerD3D9)
-
+public:
   bool Init();
 
   /**
@@ -129,6 +133,7 @@ public:
 
   enum ShaderMode {
     RGBLAYER,
+    RGBALAYER,
     YCBCRLAYER,
     SOLIDCOLORLAYER
   };
@@ -141,10 +146,10 @@ public:
   Nv3DVUtils *GetNv3DVUtils()  { return mNv3DVUtils; } 
 
   /**
-   * We keep a list of all thebes layers since we need their D3DPOOL_DEFAULT
-   * surfaces to be released when we want to reset the device.
+   * We keep a list of all layers here that may have hardware resource allocated
+   * so we can clean their resources on reset.
    */
-  nsTArray<ThebesLayerD3D9*> mThebesLayers;
+  nsTArray<LayerD3D9*> mLayersWithResources;
 private:
   friend class SwapChainD3D9;
 
@@ -177,6 +182,9 @@ private:
 
   /* Pixel shader used for RGB textures */
   nsRefPtr<IDirect3DPixelShader9> mRGBPS;
+
+  /* Pixel shader used for RGBA textures */
+  nsRefPtr<IDirect3DPixelShader9> mRGBAPS;
 
   /* Pixel shader used for RGB textures */
   nsRefPtr<IDirect3DPixelShader9> mYCbCrPS;
