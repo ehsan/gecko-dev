@@ -333,13 +333,9 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   }
 
   if (!ok) {
-    // If a constructor or destructor threw an exception, it doesn't stop
-    // anything else.  We just report it.  Note that we need to set aside the
-    // frame chain here, since the constructor invocation is not related to
-    // whatever is on the stack right now, really.
-    JSStackFrame* frame = JS_SaveFrameChain(cx);
+    // If a constructor or destructor threw an exception, it doesn't
+    // stop anything else.  We just report it.
     ::JS_ReportPendingException(cx);
-    JS_RestoreFrameChain(cx, frame);
     return NS_ERROR_FAILURE;
   }
 

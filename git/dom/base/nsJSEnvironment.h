@@ -213,10 +213,11 @@ protected:
   nsresult JSObjectFromInterface(nsISupports *aSup, void *aScript, 
                                  JSObject **aRet);
 
-  // Report the pending exception on our mContext, if any.  This
-  // function will set aside the frame chain on mContext before
-  // reporting.
-  void ReportPendingException();
+  // Report the pending exception on our mContext, if any
+  // If aSetAsideFrameChain is true, set aside the frame chain on mContext
+  // before reporting.  True should be passed if the frame chain isn't really
+  // related to our exception.
+  void ReportPendingException(PRBool aSetAsideFrameChain);
 private:
   void DestroyJSContext();
 

@@ -363,11 +363,8 @@ function getUpdatesDir(key) {
   }
   updateDir.append(DIR_UPDATES);
   updateDir.append("0");
-  if (!updateDir.exists() && !key) {
-    LOG("General", "getUpdatesDir - update directory " + updateDir.path +
-        " doesn't exist, creating...");
+  if (!updateDir.exists() && !key)
     updateDir.create(Ci.nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
-  }
   return updateDir;
 }
 
@@ -381,10 +378,8 @@ function getUpdatesDir(key) {
 function readStatusFile(dir) {
   var statusFile = dir.clone();
   statusFile.append(FILE_UPDATE_STATUS);
-  var status = readStringFromFile(statusFile) || STATE_NONE;
-  LOG("General", "readStatusFile - status: " + status + ", path: " +
-      statusFile.path);
-  return status;
+  LOG("General", "readStatusFile - Reading Status File: " + statusFile.path);
+  return readStringFromFile(statusFile) || STATE_NONE;
 }
 
 /**
@@ -475,8 +470,6 @@ function cleanUpUpdatesDir(key) {
         updateDir.path + " - This is almost always bad. Exception = " + e);
     throw e;
   }
-  LOG("General", "cleanUpUpdatesDir - successfully removed update directory: " +
-      updateDir.path);
 }
 
 /**
@@ -647,10 +640,8 @@ function readStringFromFile(file) {
   var fis = Cc["@mozilla.org/network/file-input-stream;1"].
             createInstance(Ci.nsIFileInputStream);
   var modeFlags = MODE_RDONLY;
-  if (!file.exists()) {
-    LOG("General", "readStringFromFile - file doesn't exist: " + file.path);
+  if (!file.exists())
     return null;
-  }
   fis.init(file, modeFlags, PERMS_FILE, 0);
   var sis = Cc["@mozilla.org/scriptableinputstream;1"].
             createInstance(Ci.nsIScriptableInputStream);
@@ -1946,7 +1937,6 @@ UpdateManager.prototype = {
       // User switched channels, clear out any old active updates and remove
       // partial downloads
       this._activeUpdate = null;
-      this.saveUpdates();
 
       // Destroy the updates directory, since we're done with it.
       cleanUpUpdatesDir();
@@ -2038,7 +2028,6 @@ UpdateManager.prototype = {
     if (this._activeUpdate)
       this._addUpdate(this._activeUpdate);
 
-    this._ensureUpdates();
     // Don't write updates that have a temporary state to the updates.xml file.
     if (this._updates) {
       let updates = this._updates.slice();

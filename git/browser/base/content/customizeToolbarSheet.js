@@ -1,4 +1,3 @@
-#
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -12,18 +11,19 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is mozilla.org code.
+# The Original Code is mozilla.org Code.
 #
 # The Initial Developer of the Original Code is
-# Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2007
+# Mozilla Corporation
+# Portions created by the Initial Developer are Copyright (C) 2005-2006
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
+#   Asaf Romano <mozilla.mano@sent.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
-# either of the GNU General Public License Version 2 or later (the "GPL"),
-# or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
 # in which case the provisions of the GPL or the LGPL are applicable instead
 # of those above. If you wish to allow use of your version of this file only
 # under the terms of either the GPL or the LGPL, and not to allow others to
@@ -35,26 +35,8 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../../../..
-topsrcdir	= @top_srcdir@
-srcdir		= @srcdir@
-VPATH		= @srcdir@
-relativesrcdir	= dom/tests/mochitest/sessionstorage
-
-include $(DEPTH)/config/autoconf.mk
-
-include $(topsrcdir)/config/rules.mk
-
-_TEST_FILES	= \
-    frameReplace.html \
-    frameEqual.html \
-    frameNotEqual.html \
-    test_sessionStorageBase.html \
-    test_sessionStorageClone.html \
-    test_sessionStorageReplace.html \
-    interOriginSlave.js \
-    interOriginTest.js \
-    $(NULL)
-
-libs::	$(_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+var gCustomizeToolbarSheet = {
+  init: function() {
+    InitWithToolbox(window.parent.document.getElementById("navigator-toolbox"));
+  }
+};

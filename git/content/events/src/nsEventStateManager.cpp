@@ -2879,14 +2879,13 @@ nsEventStateManager::SendPixelScrollEvent(nsIFrame* aTargetFrame,
 nsresult
 nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
                                   nsIFrame* aTargetFrame,
-                                  nsMouseScrollEvent* aMouseEvent,
+                                  nsInputEvent* aEvent,
+                                  PRInt32 aNumLines,
+                                  PRBool aScrollHorizontal,
                                   ScrollQuantity aScrollQuantity)
 {
   nsIScrollableView* scrollView = nsnull;
   nsIFrame* scrollFrame = aTargetFrame;
-  PRInt32 numLines = aMouseEvent->delta;
-  PRBool isHorizontal = aMouseEvent->scrollFlags & nsMouseScrollEvent::kIsHorizontal;
-  aMouseEvent->scrollOverflow = 0;
 
   // If the user recently scrolled with the mousewheel, then they probably want
   // to scroll the same view as before instead of the view under the cursor.
@@ -2900,7 +2899,7 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
   if (lastScrollFrame) {
     nsIScrollableViewProvider* svp = do_QueryFrame(lastScrollFrame);
     if (svp && (scrollView = svp->GetScrollableView())) {
-      nsMouseWheelTransaction::UpdateTransaction(numLines, isHorizontal);
+      nsMouseWheelTransaction::UpdateTransaction(aNumLines, aScrollHorizontal);
       // When the scroll event will not scroll any views, UpdateTransaction
       // fired MozMouseScrollFailed event which is for automated testing.
       // In the event handler, the target frame might be destroyed.  Then,
@@ -2929,7 +2928,7 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
     nsPresContext::ScrollbarStyles ss =
       nsLayoutUtils::ScrollbarStylesOfView(scrollView);
     if (NS_STYLE_OVERFLOW_HIDDEN ==
-        (isHorizontal ? ss.mHorizontal : ss.mVertical)) {
+        (aScrollHorizontal ? ss.mHorizontal : ss.mVertical)) {
       continue;
     }
 
@@ -2938,10 +2937,10 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
     scrollView->GetLineHeight(&lineHeight);
 
     if (lineHeight != 0) {
-      if (CanScrollOn(scrollView, numLines, isHorizontal)) {
+      if (CanScrollOn(scrollView, aNumLines, aScrollHorizontal)) {
         passToParent = PR_FALSE;
         nsMouseWheelTransaction::BeginTransaction(scrollFrame,
-                                                  numLines, isHorizontal);
+                                                  aNumLines, aScrollHorizontal);
       }
 
       // Comboboxes need special care.
@@ -2974,13 +2973,13 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
       if (lineHeight) {
         nsSize pageScrollDistances(0, 0);
         scrollView->GetPageScrollDistances(&pageScrollDistances);
-        nscoord pageScroll = isHorizontal ?
+        nscoord pageScroll = aScrollHorizontal ?
           pageScrollDistances.width : pageScrollDistances.height;
 
-        if (PR_ABS(numLines) * lineHeight > pageScroll) {
+        if (PR_ABS(aNumLines) * lineHeight > pageScroll) {
           nscoord maxLines = (pageScroll / lineHeight);
           if (maxLines >= 1) {
-            numLines = ((numLines < 0) ? -1 : 1) * maxLines;
+            aNumLines = ((aNumLines < 0) ? -1 : 1) * maxLines;
           } else {
             aScrollQuantity = eScrollByPage;
           }
@@ -2989,51 +2988,33 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
     }
 
     PRInt32 scrollX = 0;
-    PRInt32 scrollY = numLines;
+    PRInt32 scrollY = aNumLines;
 
     if (aScrollQuantity == eScrollByPage)
       scrollY = (scrollY > 0) ? 1 : -1;
       
-    if (isHorizontal) {
+    if (aScrollHorizontal) {
       scrollX = scrollY;
       scrollY = 0;
     }
     
-    PRBool noDefer = aMouseEvent->scrollFlags & nsMouseScrollEvent::kNoDefer;
-    PRInt32 overflowX = 0, overflowY = 0;
-    
-    if (aScrollQuantity == eScrollByPage) {
-      scrollView->ScrollByPages(scrollX, scrollY,
-        (noDefer ? NS_VMREFRESH_IMMEDIATE : NS_VMREFRESH_SMOOTHSCROLL));
-    }
-    else if (aScrollQuantity == eScrollByPixel) {
-      scrollView->ScrollByPixels(scrollX, scrollY, overflowX, overflowY,
-        (noDefer ? NS_VMREFRESH_IMMEDIATE : NS_VMREFRESH_DEFERRED));
-    }
-    else {
-      scrollView->ScrollByLinesWithOverflow(scrollX, scrollY, overflowX, overflowY,
-        (noDefer ? NS_VMREFRESH_IMMEDIATE : NS_VMREFRESH_SMOOTHSCROLL));
-    }
-    
-    if (isHorizontal)
-      aMouseEvent->scrollOverflow = overflowX;
+    if (aScrollQuantity == eScrollByPage)
+      scrollView->ScrollByPages(scrollX, scrollY, NS_VMREFRESH_SMOOTHSCROLL);
+    else if (aScrollQuantity == eScrollByPixel)
+      scrollView->ScrollByPixels(scrollX, scrollY, NS_VMREFRESH_DEFERRED);
     else
-      aMouseEvent->scrollOverflow = overflowY;
-
-    return NS_OK;
+      scrollView->ScrollByLines(scrollX, scrollY, NS_VMREFRESH_SMOOTHSCROLL);
   }
-  
   if (passToParent) {
     nsresult rv;
     nsIFrame* newFrame = nsnull;
     nsCOMPtr<nsPresContext> newPresContext;
-    rv = GetParentScrollingView(aMouseEvent, aPresContext, newFrame,
+    rv = GetParentScrollingView(aEvent, aPresContext, newFrame,
                                 *getter_AddRefs(newPresContext));
     if (NS_SUCCEEDED(rv) && newFrame)
-      return DoScrollText(newPresContext, newFrame, aMouseEvent, aScrollQuantity);
+      return DoScrollText(newPresContext, newFrame, aEvent, aNumLines,
+                          aScrollHorizontal, aScrollQuantity);
   }
-
-  aMouseEvent->scrollOverflow = numLines;
 
   return NS_OK;
 }
@@ -3294,23 +3275,39 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
 
         switch (action) {
         case MOUSE_SCROLL_N_LINES:
-          DoScrollText(presContext, aTargetFrame, msEvent, eScrollByLine);
+          {
+            DoScrollText(presContext, aTargetFrame, msEvent, msEvent->delta,
+                         !!(msEvent->scrollFlags & nsMouseScrollEvent::kIsHorizontal),
+                         eScrollByLine);
+          }
           break;
 
         case MOUSE_SCROLL_PAGE:
-          DoScrollText(presContext, aTargetFrame, msEvent, eScrollByPage);
+          {
+            DoScrollText(presContext, aTargetFrame, msEvent, msEvent->delta,
+                         !!(msEvent->scrollFlags & nsMouseScrollEvent::kIsHorizontal),
+                         eScrollByPage);
+          }
           break;
 
         case MOUSE_SCROLL_PIXELS:
-          DoScrollText(presContext, aTargetFrame, msEvent, eScrollByPixel);
+          {
+            DoScrollText(presContext, aTargetFrame, msEvent, msEvent->delta,
+                         !!(msEvent->scrollFlags & nsMouseScrollEvent::kIsHorizontal),
+                         eScrollByPixel);
+          }
           break;
 
         case MOUSE_SCROLL_HISTORY:
-          DoScrollHistory(msEvent->delta);
+          {
+            DoScrollHistory(msEvent->delta);
+          }
           break;
 
         case MOUSE_SCROLL_ZOOM:
-          DoScrollZoom(aTargetFrame, msEvent->delta);
+          {
+            DoScrollZoom(aTargetFrame, msEvent->delta);
+          }
           break;
 
         default:  // Including -1 (do nothing)

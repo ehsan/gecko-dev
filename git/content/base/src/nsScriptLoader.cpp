@@ -692,8 +692,7 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   if (stid == nsIProgrammingLanguage::JAVASCRIPT) {
     cx = (JSContext *)context->GetNativeContext();
     ::JS_BeginRequest(cx);
-    NS_ASSERTION(!::JS_IsExceptionPending(cx),
-                 "JS_ReportPendingException wasn't called in EvaluateString");
+    ::JS_ReportPendingException(cx);
   }
 
   context->SetProcessingScriptTag(oldProcessingScriptTag);

@@ -41,9 +41,9 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-EXPORTS_NAMESPACES = sydneyaudio
+MODULE		= sydneyaudio
 
-EXPORTS_sydneyaudio = \
+EXPORTS		= \
 		sydney_audio.h \
 		$(NULL)
 

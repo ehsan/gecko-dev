@@ -209,7 +209,6 @@ void GetAutoCompleteBaseQuery(nsACString& aQuery) {
         "SELECT " MOZ_PLACES_COLUMNS " FROM moz_places_temp "
         "UNION ALL "
         "SELECT " MOZ_PLACES_COLUMNS " FROM moz_places "
-        "WHERE +id NOT IN (SELECT id FROM moz_places_temp) "
         "ORDER BY frecency DESC LIMIT ?2 OFFSET ?3) h "
       "LEFT OUTER JOIN moz_favicons f ON f.id = h.favicon_id "
       "WHERE h.frecency <> 0 "
