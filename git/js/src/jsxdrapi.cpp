@@ -493,7 +493,8 @@ XDRDoubleValue(JSXDRState *xdr, jsdouble *dp)
 {
     jsdpun u;
 
-    u.d = (xdr->mode == JSXDR_ENCODE) ? *dp : 0.0;
+    if (xdr->mode == JSXDR_ENCODE)
+        u.d = *dp;
     if (!JS_XDRUint32(xdr, &u.s.lo) || !JS_XDRUint32(xdr, &u.s.hi))
         return JS_FALSE;
     if (xdr->mode == JSXDR_DECODE)
@@ -504,7 +505,10 @@ XDRDoubleValue(JSXDRState *xdr, jsdouble *dp)
 JS_PUBLIC_API(JSBool)
 JS_XDRDouble(JSXDRState *xdr, jsdouble **dpp)
 {
-    jsdouble d = (xdr->mode == JSXDR_ENCODE) ? **dpp : 0.0;
+    jsdouble d;
+
+    if (xdr->mode == JSXDR_ENCODE)
+        d = **dpp;
     if (!XDRDoubleValue(xdr, &d))
         return JS_FALSE;
     if (xdr->mode == JSXDR_DECODE) {
@@ -540,7 +544,9 @@ XDRValueBody(JSXDRState *xdr, uint32 type, jsval *vp)
         break;
       }
       case JSVAL_DOUBLE: {
-        jsdouble *dp = (xdr->mode == JSXDR_ENCODE) ? JSVAL_TO_DOUBLE(*vp) : NULL;
+        jsdouble *dp;
+        if (xdr->mode == JSXDR_ENCODE)
+            dp = JSVAL_TO_DOUBLE(*vp);
         if (!JS_XDRDouble(xdr, &dp))
             return JS_FALSE;
         if (xdr->mode == JSXDR_DECODE)

@@ -615,7 +615,7 @@ Assembler::hint(LIns* i, RegisterMask allow /* = ~0 */)
     else if (op == LIR_callh)
         prefer = rmask(R1);
     else if (op == LIR_param)
-        prefer = rmask(imm2register(i->paramArg()));
+        prefer = rmask(imm2register(i->imm8()));
 
     if (_allocator.free & allow & prefer)
         allow &= prefer;
@@ -1564,6 +1564,7 @@ Assembler::asm_branch(bool branchOnFalse, LInsp cond, NIns* targ, bool isfar)
         // Standard signed and unsigned integer comparisons.
         case LIR_eq:    cc = EQ;    fp_cond = false;    break;
         case LIR_ov:    cc = VS;    fp_cond = false;    break;
+        case LIR_cs:    cc = CS;    fp_cond = false;    break;
         case LIR_lt:    cc = LT;    fp_cond = false;    break;
         case LIR_le:    cc = LE;    fp_cond = false;    break;
         case LIR_gt:    cc = GT;    fp_cond = false;    break;
@@ -1607,8 +1608,8 @@ Assembler::asm_cmp(LIns *cond)
 {
     LOpcode condop = cond->opcode();
 
-    // LIR_ov recycles the flags set by arithmetic ops
-    if ((condop == LIR_ov))
+    // LIR_ov and LIR_cs recycle the flags set by arithmetic ops
+    if ((condop == LIR_ov) || (condop == LIR_cs))
         return;
 
     LInsp lhs = cond->oprnd1();
@@ -1699,6 +1700,7 @@ Assembler::asm_cond(LInsp ins)
     {
         case LIR_eq:    SET(r,EQ);      break;
         case LIR_ov:    SET(r,VS);      break;
+        case LIR_cs:    SET(r,CS);      break;
         case LIR_lt:    SET(r,LT);      break;
         case LIR_le:    SET(r,LE);      break;
         case LIR_gt:    SET(r,GT);      break;
@@ -1880,6 +1882,7 @@ Assembler::asm_cmov(LInsp ins)
         // note that these are all opposites...
         case LIR_eq:    MOVNE(rr, iffalsereg);  break;
         case LIR_ov:    MOVVC(rr, iffalsereg);  break;
+        case LIR_cs:    MOVNC(rr, iffalsereg);  break;
         case LIR_lt:    MOVGE(rr, iffalsereg);  break;
         case LIR_le:    MOVGT(rr, iffalsereg);  break;
         case LIR_gt:    MOVLE(rr, iffalsereg);  break;
@@ -1915,8 +1918,8 @@ Assembler::asm_qlo(LInsp ins)
 void
 Assembler::asm_param(LInsp ins)
 {
-    uint32_t a = ins->paramArg();
-    uint32_t kind = ins->paramKind();
+    uint32_t a = ins->imm8();
+    uint32_t kind = ins->imm8b();
     if (kind == 0) {
         // ordinary param
         AbiKind abi = _thisfrag->lirbuf->abi;
