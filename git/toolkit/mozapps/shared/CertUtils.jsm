@@ -143,7 +143,7 @@ function BadCertHandler(aAllowNonBuiltInCerts) {
 BadCertHandler.prototype = {
 
   // nsIChannelEventSink
-  asyncOnChannelRedirect: function(oldChannel, newChannel, flags, callback) {
+  onChannelRedirect: function(oldChannel, newChannel, flags) {
     if (this.allowNonBuiltInCerts)
       return;
 
@@ -152,9 +152,7 @@ BadCertHandler.prototype = {
     // Don't call checkCert for internal redirects. See bug 569648.
     if (!(flags & Ci.nsIChannelEventSink.REDIRECT_INTERNAL))
       checkCert(oldChannel);
-    
-    callback.onRedirectVerifyCallback(Components.results.NS_OK);
-    },
+  },
 
   // Suppress any certificate errors
   notifyCertProblem: function(socketInfo, status, targetSite) {

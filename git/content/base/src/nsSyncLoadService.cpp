@@ -45,7 +45,6 @@
 #include "nsIChannel.h"
 #include "nsIDOMLoadListener.h"
 #include "nsIChannelEventSink.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsString.h"
 #include "nsWeakReference.h"
@@ -361,16 +360,14 @@ nsSyncLoader::Error(nsIDOMEvent* aEvent)
 }
 
 NS_IMETHODIMP
-nsSyncLoader::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                     nsIChannel *aNewChannel,
-                                     PRUint32 aFlags,
-                                     nsIAsyncVerifyRedirectCallback *callback)
+nsSyncLoader::OnChannelRedirect(nsIChannel *aOldChannel,
+                                nsIChannel *aNewChannel,
+                                PRUint32    aFlags)
 {
     NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
 
     mChannel = aNewChannel;
 
-    callback->OnRedirectVerifyCallback(NS_OK);
     return NS_OK;
 }
 

@@ -3044,7 +3044,6 @@ nsHttpChannel::ContinueProcessRedirectionAfterFallback(nsresult rv)
 nsresult
 nsHttpChannel::ContinueProcessRedirection(nsresult rv)
 {
-    LOG(("ContinueProcessRedirection [rv=%x]\n", rv));
     if (NS_FAILED(rv))
         return rv;
 
@@ -4367,9 +4366,6 @@ nsHttpChannel::WaitForRedirectCallback()
 NS_IMETHODIMP
 nsHttpChannel::OnRedirectVerifyCallback(nsresult result)
 {
-    LOG(("nsHttpChannel::OnRedirectVerifyCallback [this=%p] "
-         "result=%x stack=%d mWaitingForRedirectCallback=%u\n",
-         this, result, mRedirectFuncStack.Length(), mWaitingForRedirectCallback));
     NS_ASSERTION(mWaitingForRedirectCallback,
                  "Someone forgot to call WaitForRedirectCallback() ?!");
     mWaitingForRedirectCallback = PR_FALSE;

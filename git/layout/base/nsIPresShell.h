@@ -109,10 +109,6 @@ namespace mozilla {
 namespace dom {
 class Element;
 } // namespace dom
-
-namespace layers{
-class LayerManager;
-} // namespace layers
 } // namespace mozilla
 
 // Flags to pass to SetCapturingContent
@@ -137,8 +133,8 @@ typedef struct CapturingContentInfo {
 } CapturingContentInfo;
 
 #define NS_IPRESSHELL_IID     \
-  { 0xb2d3df3b, 0x54ba, 0x44cf, \
-    { 0x8c, 0xfd, 0x24, 0x84, 0x3e, 0xac, 0x27, 0x96 } }
+  { 0x318f7b6c, 0x56be, 0x4256, \
+    { 0xa3, 0x09, 0xff, 0xdc, 0xde, 0x04, 0x63, 0xf6 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -191,9 +187,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIPresShell_base, NS_IPRESSHELL_IID)
 
 class nsIPresShell : public nsIPresShell_base
 {
-protected:
-  typedef mozilla::layers::LayerManager LayerManager;
-
 public:
   virtual NS_HIDDEN_(nsresult) Init(nsIDocument* aDocument,
                                    nsPresContext* aPresContext,
@@ -961,16 +954,6 @@ public:
     return mObservesMutationsForPrint;
   }
 
-  void SetIsActive(PRBool aIsActive)
-  {
-    mIsActive = aIsActive;
-  }
-
-  PRBool IsActive()
-  {
-    return mIsActive;
-  }
-
   // mouse capturing
 
   static CapturingContentInfo gCaptureInfo;
@@ -1030,12 +1013,6 @@ public:
    * Get the root DOM window of this presShell.
    */
   virtual already_AddRefed<nsPIDOMWindow> GetRootWindow() = 0;
-
-  /**
-   * Get the layer manager for the widget of the root view, if it has
-   * one.
-   */
-  virtual LayerManager* GetLayerManager() = 0;
 
   /**
    * Refresh observer management.
@@ -1106,7 +1083,6 @@ protected:
   PRPackedBool              mIsReflowing;
   PRPackedBool              mPaintingSuppressed;  // For all documents we initially lock down painting.
   PRPackedBool              mIsThemeSupportDisabled;  // Whether or not form controls should use nsITheme in this shell.
-  PRPackedBool              mIsActive;
 
 #ifdef ACCESSIBILITY
   /**
