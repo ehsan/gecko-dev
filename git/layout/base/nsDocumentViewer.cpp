@@ -2402,6 +2402,12 @@ DocumentViewerImpl::FindContainerView()
           parentDocShell->GetPresShell(getter_AddRefs(parentPresShell));
         }
       }
+      if (!parentPresShell && containerElement) {
+        nsCOMPtr<nsIDocument> parentDoc = containerElement->GetCurrentDoc();
+        if (parentDoc) {
+          parentPresShell = parentDoc->GetShell();
+        }
+      }
       if (!containerElement) {
         NS_WARNING("Subdocument container has no content");
       } else if (!parentPresShell) {

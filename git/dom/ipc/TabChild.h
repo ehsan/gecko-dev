@@ -44,6 +44,7 @@
 #endif
 #include "nsIWebNavigation.h"
 #include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
 #include "nsIWebBrowserChrome2.h"
 #include "nsIEmbeddingSiteWindow2.h"
 #include "nsIWebBrowserChromeFocus.h"
@@ -314,7 +315,7 @@ private:
     nsCOMPtr<nsIWebNavigation> mWebNav;
     nsCOMPtr<nsIWidget> mWidget;
     RenderFrameChild* mRemoteFrame;
-    TabChildGlobal* mTabChildGlobal;
+    nsRefPtr<TabChildGlobal> mTabChildGlobal;
     PRUint32 mChromeFlags;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
