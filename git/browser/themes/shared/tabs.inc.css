@@ -319,5 +319,5 @@
 /* New tab button */
 
 .tabs-newtab-button {
-  width: calc(36px + @tabCurveWidth@);
+  width: 66px;
 }

@@ -41,7 +41,7 @@ private:
   ~NfcService();
 
   nsCOMPtr<nsIThread> mThread;
-  nsCOMPtr<nsINfcGonkEventListener> mListener;
+  nsCOMPtr<nsINfcEventListener> mListener;
   nsRefPtr<mozilla::ipc::NfcConsumer> mConsumer;
   nsAutoPtr<NfcMessageHandler> mHandler;
 };

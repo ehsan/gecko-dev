@@ -88,6 +88,11 @@ public class Tabs implements GeckoEventListener {
     private Tabs() {
         EventDispatcher.getInstance().registerGeckoThreadListener(this,
             "Session:RestoreEnd",
+            "SessionHistory:New",
+            "SessionHistory:Back",
+            "SessionHistory:Forward",
+            "SessionHistory:Goto",
+            "SessionHistory:Purge",
             "Tab:Added",
             "Tab:Close",
             "Tab:Select",
@@ -452,7 +457,10 @@ public class Tabs implements GeckoEventListener {
             if (tab == null)
                 return;
 
-            if (event.equals("Tab:Close")) {
+            if (event.startsWith("SessionHistory:")) {
+                event = event.substring("SessionHistory:".length());
+                tab.handleSessionHistoryMessage(event, message);
+            } else if (event.equals("Tab:Close")) {
                 closeTab(tab);
             } else if (event.equals("Tab:Select")) {
                 selectTab(tab.getId());

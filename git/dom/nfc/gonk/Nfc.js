@@ -55,7 +55,7 @@ const NFC_CID =
   Components.ID("{2ff24790-5e74-11e1-b86c-0800200c9a66}");
 
 const NFC_IPC_ADD_EVENT_TARGET_MSG_NAMES = [
-  "NFC:AddEventListener"
+  "NFC:AddEventTarget"
 ];
 
 const NFC_IPC_MSG_NAMES = [
@@ -104,7 +104,7 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
     // Manage registered Peer Targets
     peerTargets: {},
 
-    eventListeners: [],
+    eventTargets: [],
 
     init: function init(nfc) {
       this.nfc = nfc;
@@ -205,18 +205,18 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
       target.sendAsyncMessage("NFC:DOMEvent", options);
     },
 
-    addEventListener: function addEventListener(target) {
-      if (this.eventListeners.indexOf(target) != -1) {
+    addEventTarget: function addEventTarget(target) {
+      if (this.eventTargets.indexOf(target) != -1) {
         return;
       }
 
-      this.eventListeners.push(target);
+      this.eventTargets.push(target);
     },
 
-    removeEventListener: function removeEventListener(target) {
-      let index = this.eventListeners.indexOf(target);
+    removeEventTarget: function removeEventTarget(target) {
+      let index = this.eventTargets.indexOf(target);
       if (index !== -1) {
-        this.eventListeners.splice(index, 1);
+        this.eventTargets.splice(index, 1);
       }
     },
 
@@ -247,21 +247,21 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
 
     onTagFound: function onTagFound(message) {
       message.event = NFC.TAG_EVENT_FOUND;
-      for (let target of this.eventListeners) {
+      for (let target of this.eventTargets) {
         this.notifyDOMEvent(target, message);
       }
       delete message.event;
     },
 
     onTagLost: function onTagLost(sessionToken) {
-      for (let target of this.eventListeners) {
+      for (let target of this.eventTargets) {
         this.notifyDOMEvent(target, {event: NFC.TAG_EVENT_LOST,
                                      sessionToken: sessionToken});
       }
     },
 
     onPeerEvent: function onPeerEvent(eventType, sessionToken) {
-      for (let target of this.eventListeners) {
+      for (let target of this.eventTargets) {
         this.notifyDOMEvent(target, { event: eventType,
                                       sessionToken: sessionToken });
       }
@@ -277,7 +277,7 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
       if (message.name == "child-process-shutdown") {
         this.removePeerTarget(message.target);
         this.nfc.removeTarget(message.target);
-        this.removeEventListener(message.target);
+        this.removeEventTarget(message.target);
         return null;
       }
 
@@ -308,8 +308,8 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
       }
 
       switch (message.name) {
-        case "NFC:AddEventListener":
-          this.addEventListener(message.target);
+        case "NFC:AddEventTarget":
+          this.addEventTarget(message.target);
           return null;
         case "NFC:CheckSessionToken":
           let sessionToken = message.data.sessionToken;
@@ -450,7 +450,7 @@ Nfc.prototype = {
                                     classDescription: "Nfc",
                                     interfaces: [Ci.nsINfcService]}),
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver, Ci.nsINfcGonkEventListener]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver, Ci.nsINfcEventListener]),
 
   powerLevel: NFC.NFC_POWER_LEVEL_UNKNOWN,
 

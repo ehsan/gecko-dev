@@ -29,12 +29,6 @@ enum NfcErrorMessage {
 [NoInterfaceObject]
 interface MozNFCManager {
   /**
-   * Returns MozNFCPeer object or null in case of invalid sessionToken
-   */
-   [CheckPermissions="nfc-manager"]
-  MozNFCPeer? getNFCPeer(DOMString sessionToken);
-
-  /**
    * API to check if the given application's manifest
    * URL is registered with the Chrome Process or not.
    *
@@ -81,6 +75,11 @@ interface MozNFCManager {
  CheckPermissions="nfc-read nfc-write",
  AvailableIn="CertifiedApps"]
 interface MozNFC : EventTarget {
+  /**
+   * Returns MozNFCPeer object or null in case of invalid sessionToken
+   */
+  MozNFCPeer? getNFCPeer(DOMString sessionToken);
+
   /**
    * This event will be fired when another NFCPeer is detected, and user confirms
    * to share data to the NFCPeer object by calling mozNFC.notifyUserAcceptedP2P.

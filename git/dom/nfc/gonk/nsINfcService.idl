@@ -4,16 +4,16 @@
 
 #include "nsISupports.idl"
 
-[scriptable, uuid(cc9f1e96-fddc-4d98-8399-8d11c4f640aa)]
-interface nsINfcGonkEventListener : nsISupports
+[scriptable, uuid(976d2074-cb40-41f7-a195-8feee42eaace)]
+interface nsINfcEventListener : nsISupports
 {
   void onEvent(in jsval event);
 };
 
-[scriptable, uuid(8beeb4cd-5661-4e67-83ca-d335f0801484)]
+[scriptable, uuid(0329e687-87ff-4cf5-8aa5-e876d9d4a375)]
 interface nsINfcService : nsISupports
 {
-  void start(in nsINfcGonkEventListener listener);
+  void start(in nsINfcEventListener listener);
   void shutdown();
 
   [implicit_jscontext]
