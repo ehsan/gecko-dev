@@ -10,9 +10,8 @@ module.metadata = {
 
 const { Cc, Ci, Cr } = require("chrome");
 const { emit, on, off } = require("./core");
-const { addObserver, removeObserver } = Cc["@mozilla.org/observer-service;1"].
+const { addObserver } = Cc['@mozilla.org/observer-service;1'].
                         getService(Ci.nsIObserverService);
-const { when: unload } = require("../system/unload");
 
 // Simple class that can be used to instantiate event channel that
 // implements `nsIObserver` interface. It's will is used by `observe`
@@ -48,11 +47,6 @@ function observe(topic) {
   // will be GC-ed with all it's event listeners once no other references
   // will be held.
   addObserver(observerChannel, topic, true);
-
-  // We need to remove any observer added once the add-on is unloaded;
-  // otherwise we'll get a "dead object" exception.
-  // See: https://bugzilla.mozilla.org/show_bug.cgi?id=1001833
-  unload(() => removeObserver(observerChannel, topic));
 
   return observerChannel;
 }

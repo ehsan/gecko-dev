@@ -359,14 +359,9 @@ let ShadersEditorsView = {
   /**
    * Destruction function, called when the tool is closed.
    */
-  destroy: Task.async(function*() {
-    this._destroyed = true;
+  destroy: function() {
     this._toggleListeners("off");
-    for (let p of this._editorPromises.values()) {
-      let editor = yield p;
-      editor.destroy();
-    }
-  }),
+  },
 
   /**
    * Sets the text displayed in the vertex and fragment shader editors.
@@ -420,12 +415,7 @@ let ShadersEditorsView = {
     let parent = $("#" + type +"-editor");
     let editor = new Editor(DEFAULT_EDITOR_CONFIG);
     editor.config.mode = Editor.modes[type];
-
-    if (this._destroyed) {
-      deferred.resolve(editor);
-    } else {
-      editor.appendTo(parent).then(() => deferred.resolve(editor));
-    }
+    editor.appendTo(parent).then(() => deferred.resolve(editor));
 
     return deferred.promise;
   },

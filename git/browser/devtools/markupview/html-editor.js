@@ -181,7 +181,6 @@ HTMLEditor.prototype = {
     this.editorInner.removeEventListener("click", stopPropagation, false);
 
     this.hide(false);
-    this.container.remove();
-    this.editor.destroy();
+    this.container.parentNode.removeChild(this.container);
   }
 };

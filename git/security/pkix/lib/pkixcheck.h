@@ -33,7 +33,7 @@ namespace mozilla { namespace pkix {
 
 Result CheckIssuerIndependentProperties(
           TrustDomain& trustDomain,
-          const BackCert& cert,
+          BackCert& cert,
           PRTime time,
           EndEntityOrCA endEntityOrCA,
           KeyUsage requiredKeyUsageIfPresent,

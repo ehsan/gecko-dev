@@ -3895,7 +3895,6 @@ MOZ_SAFE_BROWSING=
 MOZ_HELP_VIEWER=
 MOZ_SPELLCHECK=1
 MOZ_ANDROID_OMTC=
-MOZ_NATIVE_CASTING=1
 MOZ_TOOLKIT_SEARCH=1
 MOZ_UI_LOCALE=en-US
 MOZ_UNIVERSALCHARDET=1
@@ -7553,6 +7552,14 @@ fi
 AC_SUBST(MOZ_AUDIO_CHANNEL_MANAGER)
 
 dnl ========================================================
+dnl = Enable Support for Firefox Accounts (services/fxaccounts)
+dnl ========================================================
+if test -n "$MOZ_SERVICES_FXACCOUNTS"; then
+    AC_DEFINE(MOZ_SERVICES_FXACCOUNTS)
+fi
+AC_SUBST(MOZ_SERVICES_FXACCOUNTS)
+
+dnl ========================================================
 dnl = Support for demangling undefined symbols
 dnl ========================================================
 if test -z "$SKIP_LIBRARY_CHECKS"; then
@@ -7669,19 +7676,6 @@ else
     OMNIJAR_NAME=omni.ja
 fi
 
-dnl ========================================================
-dnl = --disable-native-casting
-dnl ========================================================
-
-MOZ_ARG_DISABLE_BOOL(native-casting,
-[  --disable-native-casting      Disable native casting devices],
-    MOZ_NATIVE_CASTING=,
-    MOZ_NATIVE_CASTING=1)
-if test "$MOZ_NATIVE_CASTING"; then
-  AC_DEFINE(MOZ_NATIVE_CASTING)
-fi
-
-AC_SUBST(MOZ_NATIVE_CASTING)
 AC_SUBST(OMNIJAR_NAME)
 AC_SUBST(MOZ_OMNIJAR)
 AC_SUBST(MOZ_PACKAGER_FORMAT)

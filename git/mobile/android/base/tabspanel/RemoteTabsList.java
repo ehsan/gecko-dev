@@ -38,14 +38,7 @@ class RemoteTabsList extends ExpandableListView
     private final Context context;
     private TabsPanel tabsPanel;
 
-    private ArrayList <HashMap <String, String>> clients;
     private ArrayList <ArrayList <HashMap <String, String>>> tabsList;
-
-    // A list of the clients that are currently expanded.
-    private List<String> expandedClientList = new ArrayList<String>();
-
-    // The client that previously had an item selected is used to restore the scroll position.
-    private String clientScrollPosition;
 
     public RemoteTabsList(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -64,18 +57,8 @@ class RemoteTabsList extends ExpandableListView
     }
 
     @Override
-    public boolean onGroupClick(ExpandableListView parent, View view, int groupPosition, long id) {
-        final String clientGuid = clients.get(groupPosition).get("guid");
-
-        if (isGroupExpanded(groupPosition)) {
-            collapseGroup(groupPosition);
-            expandedClientList.remove(clientGuid);
-        } else {
-            expandGroup(groupPosition);
-            expandedClientList.add(clientGuid);
-        }
-
-        clientScrollPosition = clientGuid;
+    public boolean onGroupClick(ExpandableListView parent, View view, int position, long id) {
+        // By default, the group collapses/expands. Consume the event.
         return true;
     }
 
@@ -91,8 +74,6 @@ class RemoteTabsList extends ExpandableListView
 
         Tabs.getInstance().loadUrl(tab.get("url"), Tabs.LOADURL_NEW_TAB);
         autoHidePanel();
-
-        clientScrollPosition = clients.get(groupPosition).get("guid");
         return true;
     }
 
@@ -102,7 +83,8 @@ class RemoteTabsList extends ExpandableListView
         if (remoteTabs == null || remoteTabs.size() == 0)
             return;
 
-        clients = new ArrayList <HashMap <String, String>>();
+        ArrayList <HashMap <String, String>> clients = new ArrayList <HashMap <String, String>>();
+
         tabsList = new ArrayList <ArrayList <HashMap <String, String>>>();
 
         String oldGuid = null;
@@ -113,18 +95,16 @@ class RemoteTabsList extends ExpandableListView
         final long now = System.currentTimeMillis();
 
         for (TabsAccessor.RemoteTab remoteTab : remoteTabs) {
-            final String clientGuid = remoteTab.guid;
-            if (oldGuid == null || !TextUtils.equals(oldGuid, clientGuid)) {
+            if (oldGuid == null || !TextUtils.equals(oldGuid, remoteTab.guid)) {
                 client = new HashMap <String, String>();
                 client.put("name", remoteTab.name);
                 client.put("last_synced", getLastSyncedString(now, remoteTab.lastModified));
-                client.put("guid", clientGuid);
                 clients.add(client);
 
                 tabsForClient = new ArrayList <HashMap <String, String>>();
                 tabsList.add(tabsForClient);
 
-                oldGuid = new String(clientGuid);
+                oldGuid = new String(remoteTab.guid);
             }
 
             tab = new HashMap<String, String>();
@@ -143,20 +123,9 @@ class RemoteTabsList extends ExpandableListView
                                                    TAB_KEY,
                                                    TAB_RESOURCE));
 
-        // Expand the client groups, and restore the previous scroll position.
-        List<String> newExpandedClientList = new ArrayList<String>();
         for (int i = 0; i < clients.size(); i++) {
-            final String clientGuid = clients.get(i).get("guid");
-            if (expandedClientList.contains(clientGuid)) {
-                newExpandedClientList.add(clientGuid);
-                expandGroup(i);
-            }
-
-            if (clientGuid.equals(clientScrollPosition)) {
-                setSelectedGroup(i);
-            }
+            expandGroup(i);
         }
-        expandedClientList = newExpandedClientList;
     }
 
     /**

@@ -37,18 +37,15 @@ function errorCallback(err) {
   if (times >= 3) {
     navigator.geolocation.clearWatch(watchID);
     resume_geolocationProvider(function() {
-      set_network_request_cache_enabled(true,
-        function() { SimpleTest.finish(); } );
+      SimpleTest.finish();
     });
   }
 }
 
 function successCallback(position) {
-  ok(1, "on success");
   // Now that we got a success callback, lets try to ensure
   // that we get a timeout error.
-  // The network cache is already off, now stop the sjs from reponding to requests
-  stop_geolocationProvider(function(){});
+  stop_geolocationProvider(function() {});
 }
 
 var options = {
@@ -57,10 +54,7 @@ var options = {
 };
 
 function test1() {
- set_network_request_cache_enabled(false,
-      function() {
-        watchID = navigator.geolocation.watchPosition(successCallback, errorCallback, options);
-      });
+  watchID = navigator.geolocation.watchPosition(successCallback, errorCallback, options);
 }
 </script>
 </pre>

@@ -5,12 +5,14 @@
 import hashlib
 import mozlog
 import os
+import ntpath
 import posixpath
 import re
 import struct
 import StringIO
 import zlib
 
+from Zeroconf import Zeroconf, ServiceBrowser
 from functools import wraps
 
 class DMError(Exception):

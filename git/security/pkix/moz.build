@@ -7,7 +7,6 @@
 SOURCES += [
     'lib/pkixbind.cpp',
     'lib/pkixbuild.cpp',
-    'lib/pkixcert.cpp',
     'lib/pkixcheck.cpp',
     'lib/pkixder.cpp',
     'lib/pkixkey.cpp',

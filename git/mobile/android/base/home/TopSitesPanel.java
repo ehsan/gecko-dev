@@ -279,7 +279,8 @@ public class TopSitesPanel extends HomeFragment {
         MenuInflater inflater = new MenuInflater(view.getContext());
         inflater.inflate(R.menu.home_contextmenu, menu);
 
-        // Hide unused menu items.
+        // Hide ununsed menu items.
+        menu.findItem(R.id.home_open_in_reader).setVisible(false);
         menu.findItem(R.id.home_edit_bookmark).setVisible(false);
 
         TopSitesGridContextMenuInfo info = (TopSitesGridContextMenuInfo) menuInfo;

@@ -52,7 +52,7 @@ function setAttributes(aNode, aAttrs) {
         let additionalArgs = [];
         if (aAttrs.shortcutId) {
           let shortcut = doc.getElementById(aAttrs.shortcutId);
-          if (shortcut) {
+          if (doc) {
             additionalArgs.push(ShortcutUtils.prettifyShortcut(shortcut));
           }
         }

@@ -8,8 +8,10 @@ import mozinfo
 import mozinstall
 import mozfile
 import os
+import tarfile
 import tempfile
 import unittest
+import zipfile
 
 # Store file location at load time
 here = os.path.dirname(os.path.abspath(__file__))

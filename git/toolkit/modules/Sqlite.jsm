@@ -42,7 +42,7 @@ let connectionCounters = new Map();
  */
 let isClosed = false;
 
-let Debugging = {
+this.Debugging = {
   // Tests should fail if a connection auto closes.  The exception is
   // when finalization itself is tested, in which case this flag
   // should be set to false.
@@ -201,19 +201,10 @@ function ConnectionData(connection, basename, number, options) {
   }
 
   this._deferredClose = Promise.defer();
-  this._closeRequested = false;
 
   Barriers.connections.client.addBlocker(
     this._connectionIdentifier + ": waiting for shutdown",
-    this._deferredClose.promise,
-    () =>  ({
-      identifier: this._connectionIdentifier,
-      isCloseRequested: this._closeRequested,
-      hasDbConn: !!this._dbConn,
-      hasInProgressTransaction: !!this._inProgressTransaction,
-      pendingStatements: this._pendingStatements.size,
-      statementCounter: this._statementCounter,
-    })
+    this._deferredClose.promise
   );
 }
 
@@ -231,8 +222,6 @@ ConnectionData.byId = new Map();
 
 ConnectionData.prototype = Object.freeze({
   close: function () {
-    this._closeRequested = true;
-
     if (!this._dbConn) {
       return this._deferredClose.promise;
     }

@@ -1050,7 +1050,7 @@ nsSetEscrowAuthority(CRMFCertRequest *certReq, nsKeyPairInfo *keyInfo,
       CRMF_CertRequestIsControlPresent(certReq, crmfPKIArchiveOptionsControl)){
     return NS_ERROR_FAILURE;
   }
-  ScopedCERTCertificate cert(wrappingCert->GetCert());
+  mozilla::pkix::ScopedCERTCertificate cert(wrappingCert->GetCert());
   if (!cert)
     return NS_ERROR_FAILURE;
 
@@ -1950,7 +1950,7 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
       aRv.Throw(NS_ERROR_FAILURE);
       return nullptr;
     }
-    ScopedCERTCertificate cert(
+    mozilla::pkix::ScopedCERTCertificate cert(
       CERT_NewTempCertificate(CERT_GetDefaultCertDB(),
                               &certDer, nullptr, false, true));
     if (!cert) {
@@ -2199,7 +2199,8 @@ nsCertAlreadyExists(SECItem *derCert)
   CERTCertDBHandle *handle = CERT_GetDefaultCertDB();
   bool retVal = false;
 
-  ScopedCERTCertificate cert(CERT_FindCertByDERCert(handle, derCert));
+  mozilla::pkix::ScopedCERTCertificate cert(
+    CERT_FindCertByDERCert(handle, derCert));
   if (cert) {
     if (cert->isperm && !cert->nickname && !cert->emailAddr) {
       //If the cert doesn't have a nickname or email addr, it is
@@ -2360,7 +2361,8 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
 
   //Import the root chain into the cert db.
  {
-  ScopedCERTCertList caPubs(CMMF_CertRepContentGetCAPubs(certRepContent));
+  mozilla::pkix::ScopedCERTCertList
+    caPubs(CMMF_CertRepContentGetCAPubs(certRepContent));
   if (caPubs) {
     int32_t numCAs = nsCertListCount(caPubs.get());
     

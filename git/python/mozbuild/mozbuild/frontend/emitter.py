@@ -33,7 +33,6 @@ from .data import (
     InstallationTarget,
     IPDLFile,
     JARManifest,
-    JavaScriptModules,
     LibraryDefinition,
     LocalInclude,
     PerSourceFlag,
@@ -349,10 +348,6 @@ class TreeMetadataEmitter(LoggingMixin):
 
         for program in sandbox['HOST_SIMPLE_PROGRAMS']:
             yield HostSimpleProgram(sandbox, program, sandbox['CONFIG']['HOST_BIN_SUFFIX'])
-
-        test_js_modules = sandbox.get('TESTING_JS_MODULES')
-        if test_js_modules:
-            yield JavaScriptModules(sandbox, test_js_modules, 'testing')
 
         simple_lists = [
             ('GENERATED_EVENTS_WEBIDL_FILES', GeneratedEventWebIDLFile),

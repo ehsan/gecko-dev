@@ -8,6 +8,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from manifestparser import convert
 from manifestparser import ManifestParser
 from StringIO import StringIO
 

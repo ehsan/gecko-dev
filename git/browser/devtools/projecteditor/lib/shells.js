@@ -10,7 +10,6 @@ const { EventTarget } = require("sdk/event/target");
 const { emit } = require("sdk/event/core");
 const { EditorTypeForResource } = require("projecteditor/editors");
 const NetworkHelper = require("devtools/toolkit/webconsole/network-helper");
-const promise = require("promise");
 
 /**
  * The Shell is the object that manages the editor for a single resource.
@@ -193,10 +192,7 @@ var ShellDeck = Class({
       this.deck.selectedPanel = shell.elt;
       this._activeShell = shell;
 
-      // Only reload the shell if the editor doesn't have local changes.
-      if (shell.editor.isClean()) {
-        shell.load();
-      }
+      shell.load();
       shell.editorLoaded.then(() => {
         // Handle case where another shell has been requested before this
         // one is finished loading.

@@ -13,6 +13,7 @@
 
 class nsCString;
 class nsIArray;
+class nsRecentBadCerts;
 
 class nsNSSCertificateDB : public nsIX509CertDB
                          , public nsNSSShutDownObject
@@ -21,6 +22,8 @@ class nsNSSCertificateDB : public nsIX509CertDB
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIX509CERTDB
+
+  nsNSSCertificateDB(); 
 
   // Use this function to generate a default nickname for a user
   // certificate that is to be imported onto a token.
@@ -58,6 +61,10 @@ private:
   nsresult handleCACertDownload(nsIArray *x509Certs, 
                                 nsIInterfaceRequestor *ctx,
                                 const nsNSSShutDownPreventionLock &proofOfLock);
+
+  mozilla::Mutex mBadCertsLock;
+  mozilla::RefPtr<nsRecentBadCerts> mPublicRecentBadCerts;
+  mozilla::RefPtr<nsRecentBadCerts> mPrivateRecentBadCerts;
 
   // We don't own any NSS objects here, so no need to clean up
   virtual void virtualDestroyNSSReference() { };

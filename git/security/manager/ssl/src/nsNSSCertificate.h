@@ -17,7 +17,6 @@
 #include "nsISerializable.h"
 #include "nsIClassInfo.h"
 #include "pkix/pkixtypes.h"
-#include "ScopedNSSTypes.h"
 #include "certt.h"
 
 class nsAutoString;
@@ -50,7 +49,7 @@ public:
   static nsNSSCertificate* ConstructFromDER(char* certDER, int derLen);
 
 private:
-  mozilla::ScopedCERTCertificate mCert;
+  mozilla::pkix::ScopedCERTCertificate mCert;
   bool             mPermDelete;
   uint32_t         mCertType;
   nsresult CreateASN1Struct(nsIASN1Object** aRetVal);

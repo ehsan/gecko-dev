@@ -26,6 +26,7 @@
 #include "nsProxyRelease.h"
 #include "nsString.h"
 #include "nsTHashtable.h"
+#include "ScopedNSSTypes.h"
 
 #include "base64.h"
 #include "certdb.h"
@@ -541,7 +542,7 @@ VerifyCertificate(CERTCertificate* signerCert, void* voidContext, void* pinArg)
   if (trustDomain.SetTrustedRoot(context.trustedRoot) != SECSuccess) {
     return MapSECStatus(SECFailure);
   }
-  if (BuildCertChain(trustDomain, signerCert->derCert, PR_Now(),
+  if (BuildCertChain(trustDomain, signerCert, PR_Now(),
                      EndEntityOrCA::MustBeEndEntity,
                      KeyUsage::digitalSignature,
                      KeyPurposeId::id_kp_codeSigning,

@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+import os
+from time import sleep
+import unittest
+
 import mozrunner
 
 import mozrunnertest

@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
+import os
 from time import sleep
+import unittest
 
 import mozrunnertest
 
@@ -18,12 +20,12 @@ class MozrunnerStartTestCase(mozrunnertest.MozrunnerTestCase):
 
     def test_start_process_called_twice(self):
         """Start the process twice and test that first process is gone"""
-        self.runner.start()
+        pid1 = self.runner.start()
         # Bug 925480
         # Make a copy until mozprocess can kill a specific process
         process_handler = self.runner.process_handler
 
-        self.runner.start()
+        pid2 = self.runner.start()
 
         try:
             self.assertNotIn(process_handler.wait(1), [None, 0])

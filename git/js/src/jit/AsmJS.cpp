@@ -274,8 +274,8 @@ FunctionStatementList(ParseNode *fn)
 static inline bool
 IsNormalObjectField(ExclusiveContext *cx, ParseNode *pn)
 {
-    return pn->isKind(PNK_COLON) &&
-           pn->getOp() == JSOP_INITPROP &&
+    JS_ASSERT(pn->isKind(PNK_COLON) || pn->isKind(PNK_SHORTHAND));
+    return pn->getOp() == JSOP_INITPROP &&
            BinaryLeft(pn)->isKind(PNK_NAME) &&
            BinaryLeft(pn)->name() != cx->names().proto;
 }
@@ -288,9 +288,9 @@ ObjectNormalFieldName(ExclusiveContext *cx, ParseNode *pn)
 }
 
 static inline ParseNode *
-ObjectNormalFieldInitializer(ExclusiveContext *cx, ParseNode *pn)
+ObjectFieldInitializer(ParseNode *pn)
 {
-    JS_ASSERT(IsNormalObjectField(cx, pn));
+    JS_ASSERT(pn->isKind(PNK_COLON) || pn->isKind(PNK_SHORTHAND));
     return BinaryRight(pn);
 }
 
@@ -5795,7 +5795,7 @@ CheckModuleExportObject(ModuleCompiler &m, ParseNode *object)
 
         PropertyName *fieldName = ObjectNormalFieldName(m.cx(), pn);
 
-        ParseNode *initNode = ObjectNormalFieldInitializer(m.cx(), pn);
+        ParseNode *initNode = ObjectFieldInitializer(pn);
         if (!initNode->isKind(PNK_NAME))
             return m.fail(initNode, "initializer of exported object literal must be name of function");
 

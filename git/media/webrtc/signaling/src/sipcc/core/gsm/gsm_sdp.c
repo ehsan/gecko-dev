@@ -5262,10 +5262,7 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p, boolean initial
                       /*
                        * Add track to remote streams in dcb
                        */
-                      if (SDP_MEDIA_APPLICATION != media_type &&
-                          /* Do not expect to receive media if we're sendonly! */
-                          (media->direction == SDP_DIRECTION_SENDRECV ||
-                           media->direction == SDP_DIRECTION_RECVONLY)) {
+                      if (SDP_MEDIA_APPLICATION != media_type) {
                           int pc_stream_id = -1;
 
                           /* This is a hack to keep all the media in a single

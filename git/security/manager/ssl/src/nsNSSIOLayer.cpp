@@ -1885,9 +1885,9 @@ ClientAuthDataRunnable::RunOnTargetThread()
 {
   PLArenaPool* arena = nullptr;
   char** caNameStrings;
-  ScopedCERTCertificate cert;
+  mozilla::pkix::ScopedCERTCertificate cert;
   ScopedSECKEYPrivateKey privKey;
-  ScopedCERTCertList certList;
+  mozilla::pkix::ScopedCERTCertList certList;
   CERTCertListNode* node;
   ScopedCERTCertNicknames nicknames;
   int keyError = 0; // used for private key retrieval error
@@ -2231,7 +2231,7 @@ done:
     PORT_FreeArena(arena, false);
   }
 
-  *mPRetCert = cert.forget();
+  *mPRetCert = cert.release();
   *mPRetKey = privKey.forget();
 
   if (mRV == SECFailure) {
