@@ -44,7 +44,7 @@ class ChildProcessHost :
   class Iterator {
    public:
     Iterator();
-    explicit Iterator(ProcessType type);
+    Iterator(ProcessType type);
     ChildProcessHost* operator->() { return *iterator_; }
     ChildProcessHost* operator*() { return *iterator_; }
     ChildProcessHost* operator++();
@@ -101,7 +101,7 @@ class ChildProcessHost :
   // calling the subclass' implementation.
   class ListenerHook : public IPC::Channel::Listener {
    public:
-    explicit ListenerHook(ChildProcessHost* host);
+    ListenerHook(ChildProcessHost* host);
     virtual void OnMessageReceived(const IPC::Message& msg);
     virtual void OnChannelConnected(int32_t peer_pid);
     virtual void OnChannelError();

@@ -156,16 +156,10 @@ JavaScriptShared::JavaScriptShared(JSRuntime *rt)
 {
     if (!sLoggingInitialized) {
         sLoggingInitialized = true;
-
-        if (PR_GetEnv("MOZ_CPOW_LOG")) {
-            sLoggingEnabled = true;
-            sStackLoggingEnabled = true;
-        } else {
-            Preferences::AddBoolVarCache(&sLoggingEnabled,
-                                         "dom.ipc.cpows.log.enabled", false);
-            Preferences::AddBoolVarCache(&sStackLoggingEnabled,
-                                         "dom.ipc.cpows.log.stack", false);
-        }
+        Preferences::AddBoolVarCache(&sLoggingEnabled,
+                                     "dom.ipc.cpows.log.enabled", false);
+        Preferences::AddBoolVarCache(&sStackLoggingEnabled,
+                                     "dom.ipc.cpows.log.stack", false);
     }
 }
 
@@ -400,10 +394,8 @@ JavaScriptShared::findObjectById(JSContext *cx, uint32_t objId)
         }
     }
 
-    // If there's no TabChildGlobal, we use the junk scope. In the parent we use
-    // the unprivileged junk scope to prevent security vulnerabilities. In the
-    // child we use the privileged junk scope.
-    JSAutoCompartment ac(cx, defaultScope());
+    // If there's no TabChildGlobal, we use the junk scope.
+    JSAutoCompartment ac(cx, xpc::PrivilegedJunkScope());
     if (!JS_WrapObject(cx, &obj))
         return nullptr;
     return obj;

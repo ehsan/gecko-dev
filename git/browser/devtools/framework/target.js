@@ -229,13 +229,12 @@ TabTarget.prototype = {
   },
 
   get name() {
-    return this._tab && this._tab.linkedBrowser.contentDocument ?
-           this._tab.linkedBrowser.contentDocument.title :
-           this._form.title;
+    return this._tab ? this._tab.linkedBrowser.contentDocument.title :
+                       this._form.title;
   },
 
   get url() {
-    return this._tab ? this._tab.linkedBrowser.currentURI.spec :
+    return this._tab ? this._tab.linkedBrowser.contentDocument.location.href :
                        this._form.url;
   },
 
@@ -299,20 +298,17 @@ TabTarget.prototype = {
         this._client.listTabs(aResponse => {
           this._root = aResponse;
 
-          if (this.window) {
-            let windowUtils = this.window
-              .QueryInterface(Ci.nsIInterfaceRequestor)
-              .getInterface(Ci.nsIDOMWindowUtils);
-            let outerWindow = windowUtils.outerWindowID;
-            aResponse.tabs.some((tab) => {
-              if (tab.outerWindowID === outerWindow) {
-                this._form = tab;
-                return true;
-              }
-              return false;
-            });
-          }
-
+          let windowUtils = this.window
+            .QueryInterface(Ci.nsIInterfaceRequestor)
+            .getInterface(Ci.nsIDOMWindowUtils);
+          let outerWindow = windowUtils.outerWindowID;
+          aResponse.tabs.some((tab) => {
+            if (tab.outerWindowID === outerWindow) {
+              this._form = tab;
+              return true;
+            }
+            return false;
+          });
           if (!this._form) {
             this._form = aResponse.tabs[aResponse.selected];
           }

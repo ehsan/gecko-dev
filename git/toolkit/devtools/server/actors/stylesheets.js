@@ -430,8 +430,6 @@ let StyleSheetActor = protocol.ActorClass({
     return null;
   },
 
-  get ownerNode() this.rawSheet.ownerNode,
-
   /**
    * URL of underlying stylesheet.
    */
@@ -490,7 +488,8 @@ let StyleSheetActor = protocol.ActorClass({
       return promise.resolve(rules);
     }
 
-    if (!this.ownerNode) {
+    let ownerNode = this.rawSheet.ownerNode;
+    if (!ownerNode) {
       return promise.resolve([]);
     }
 
@@ -501,12 +500,12 @@ let StyleSheetActor = protocol.ActorClass({
     let deferred = promise.defer();
 
     let onSheetLoaded = (event) => {
-      this.ownerNode.removeEventListener("load", onSheetLoaded, false);
+      ownerNode.removeEventListener("load", onSheetLoaded, false);
 
       deferred.resolve(this.rawSheet.cssRules);
     };
 
-    this.ownerNode.addEventListener("load", onSheetLoaded, false);
+    ownerNode.addEventListener("load", onSheetLoaded, false);
 
     // cache so we don't add many listeners if this is called multiple times.
     this._cssRules = deferred.promise;
@@ -527,12 +526,13 @@ let StyleSheetActor = protocol.ActorClass({
     }
 
     let docHref;
-    if (this.ownerNode) {
-      if (this.ownerNode instanceof Ci.nsIDOMHTMLDocument) {
-        docHref = this.ownerNode.location.href;
+    let ownerNode = this.rawSheet.ownerNode;
+    if (ownerNode) {
+      if (ownerNode instanceof Ci.nsIDOMHTMLDocument) {
+        docHref = ownerNode.location.href;
       }
-      else if (this.ownerNode.ownerDocument && this.ownerNode.ownerDocument.location) {
-        docHref = this.ownerNode.ownerDocument.location.href;
+      else if (ownerNode.ownerDocument && ownerNode.ownerDocument.location) {
+        docHref = ownerNode.ownerDocument.location.href;
       }
     }
 
@@ -611,7 +611,7 @@ let StyleSheetActor = protocol.ActorClass({
 
     if (!this.href) {
       // this is an inline <style> sheet
-      let content = this.ownerNode.textContent;
+      let content = this.rawSheet.ownerNode.textContent;
       this.text = content;
       return promise.resolve(content);
     }

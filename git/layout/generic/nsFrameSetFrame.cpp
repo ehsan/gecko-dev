@@ -219,7 +219,7 @@ nsHTMLFramesetFrame::FrameResizePrefCallback(const char* aPref, void* aClosure)
   nsHTMLFramesetFrame *frame =
     reinterpret_cast<nsHTMLFramesetFrame *>(aClosure);
 
-  nsIDocument* doc = frame->mContent->GetComposedDoc();
+  nsIDocument* doc = frame->mContent->GetDocument();
   mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, true);
   if (doc) {
     nsNodeUtils::AttributeWillChange(frame->GetContent()->AsElement(),

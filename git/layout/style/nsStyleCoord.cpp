@@ -203,12 +203,6 @@ void nsStyleCoord::SetNoneValue()
 // accessors that are not inlined
 
 double
-nsStyleCoord::GetAngleValueInDegrees() const
-{
-  return GetAngleValueInRadians() * (180.0 / M_PI);
-}
-
-double
 nsStyleCoord::GetAngleValueInRadians() const
 {
   double angle = mValue.mFloat;

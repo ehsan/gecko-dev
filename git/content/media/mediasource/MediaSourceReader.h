@@ -11,7 +11,7 @@
 #include "mozilla/ReentrantMonitor.h"
 #include "nsCOMPtr.h"
 #include "nsError.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "MediaDecoderReader.h"
 
@@ -70,7 +70,8 @@ public:
   nsresult ReadMetadata(MediaInfo* aInfo, MetadataTags** aTags) MOZ_OVERRIDE;
   nsresult Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime,
                 int64_t aCurrentTime) MOZ_OVERRIDE;
-  already_AddRefed<SubBufferDecoder> CreateSubDecoder(const nsACString& aType);
+  already_AddRefed<SubBufferDecoder> CreateSubDecoder(const nsACString& aType,
+                                                      MediaSourceDecoder* aParentDecoder);
 
   void Shutdown();
 
@@ -93,24 +94,22 @@ private:
     SWITCH_FORCED
   };
 
-  bool SwitchReaders(SwitchType aType);
+  bool SwitchVideoReaders(SwitchType aType);
 
-  bool SwitchAudioReader(MediaDecoderReader* aTargetReader);
-  bool SwitchVideoReader(MediaDecoderReader* aTargetReader);
+  MediaDecoderReader* GetAudioReader();
+  MediaDecoderReader* GetVideoReader();
 
   void SetMediaSourceDuration(double aDuration) ;
 
   // These are read and written on the decode task queue threads.
   int64_t mTimeThreshold;
-  bool mDropAudioBeforeThreshold;
   bool mDropVideoBeforeThreshold;
 
   nsTArray<nsRefPtr<SubBufferDecoder>> mPendingDecoders;
   nsTArray<nsRefPtr<SubBufferDecoder>> mDecoders;
 
-  nsRefPtr<MediaDecoderReader> mAudioReader;
-  nsRefPtr<MediaDecoderReader> mVideoReader;
-
+  int32_t mActiveVideoDecoder;
+  int32_t mActiveAudioDecoder;
   dom::MediaSource* mMediaSource;
 };
 
