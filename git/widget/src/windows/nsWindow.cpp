@@ -222,10 +222,6 @@
 
 #include "mozilla/FunctionTimer.h"
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#endif
-
 using namespace mozilla::widget;
 
 /**************************************************************
@@ -4186,31 +4182,8 @@ nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
  *
  **************************************************************/
 
-static int ReportException(EXCEPTION_POINTERS *aExceptionInfo)
-{
-#ifdef MOZ_CRASHREPORTER
-  nsCOMPtr<nsICrashReporter> cr =
-    do_GetService("@mozilla.org/toolkit/crash-reporter;1");
-  if (cr)
-    cr->WriteMinidumpForException(aExceptionInfo);
-#endif
-  return EXCEPTION_EXECUTE_HANDLER;
-}
-
-// The WndProc procedure for all nsWindows in this toolkit. This merely catches
-// exceptions and passes the real work to WindowProcInternal. See bug 587406
-// and http://msdn.microsoft.com/en-us/library/ms633573%28VS.85%29.aspx
+// The WndProc procedure for all nsWindows in this toolkit
 LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-  __try {
-    return WindowProcInternal(hWnd, msg, wParam, lParam);
-  }
-  __except(ReportException(GetExceptionInformation())) {
-    ::TerminateProcess(::GetCurrentProcess(), 253);
-  }
-}
-
-LRESULT CALLBACK nsWindow::WindowProcInternal(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
   NS_TIME_FUNCTION_MIN_FMT(5.0, "%s (line %d) (hWnd: %p, msg: %p, wParam: %p, lParam: %p",
                            MOZ_FUNCTION_NAME, __LINE__, hWnd, msg,

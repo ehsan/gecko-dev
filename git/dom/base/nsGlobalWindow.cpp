@@ -222,8 +222,6 @@
 
 #include "mozilla/dom/indexedDB/IDBFactory.h"
 
-#include "nsRefreshDriver.h"
-
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gDOMLeakPRLog;
 #endif

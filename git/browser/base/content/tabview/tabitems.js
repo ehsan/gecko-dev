@@ -684,7 +684,9 @@ window.TabItems = {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
-      self.link(tab);
+      setTimeout(function() { // Marshal event from chrome thread to DOM thread
+        self.link(tab);
+      }, 1);
     }
     // When a tab's content is loaded, show the canvas and hide the cached data
     // if necessary.
@@ -692,14 +694,18 @@ window.TabItems = {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
-      self.update(tab);
+      setTimeout(function() { // Marshal event from chrome thread to DOM thread
+        self.update(tab);
+      }, 1);
     }
     // When a tab is closed, unlink.
     this._eventListeners["close"] = function(tab) {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
-      self.unlink(tab);
+      setTimeout(function() { // Marshal event from chrome thread to DOM thread
+        self.unlink(tab);
+      }, 1);
     }
     for (let name in this._eventListeners) {
       AllTabs.register(name, this._eventListeners[name]);
@@ -856,7 +862,6 @@ window.TabItems = {
       Items.unsquish(null, tab.tabItem);
 
       tab.tabItem = null;
-      Storage.saveTab(tab, null);
 
       let index = this._tabsWaitingForUpdate.indexOf(tab);
       if (index != -1)
