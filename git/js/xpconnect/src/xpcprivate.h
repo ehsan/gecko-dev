@@ -3607,40 +3607,15 @@ NewSandboxConstructor();
 bool
 IsSandbox(JSObject *obj);
 
-class MOZ_STACK_CLASS OptionsBase {
-public:
-    OptionsBase(JSContext *cx = xpc_GetSafeJSContext(),
-                JS::HandleObject options = JS::NullPtr())
-        : mCx(cx)
-        , mObject(cx, options)
-    { }
-
-    virtual bool Parse() = 0;
-
-protected:
-    bool ParseValue(const char *name, JS::MutableHandleValue prop, bool *found);
-    bool ParseBoolean(const char *name, bool *prop);
-    bool ParseObject(const char *name, JS::MutableHandleObject prop);
-    bool ParseString(const char *name, nsCString &prop);
-
-    JSContext *mCx;
-    JS::RootedObject mObject;
-};
-
-class MOZ_STACK_CLASS SandboxOptions : public OptionsBase {
-public:
-    SandboxOptions(JSContext *cx = xpc_GetSafeJSContext(),
-                   JS::HandleObject options = JS::NullPtr())
-        : OptionsBase(cx, options)
-        , wantXrays(true)
+struct SandboxOptions {
+    SandboxOptions(JSContext *cx)
+        : wantXrays(true)
         , wantComponents(true)
         , wantExportHelpers(false)
-        , proto(cx)
-        , sameZoneAs(cx)
-        , metadata(cx)
+        , proto(xpc_GetSafeJSContext())
+        , sameZoneAs(xpc_GetSafeJSContext())
+        , metadata(xpc_GetSafeJSContext())
     { }
-
-    virtual bool Parse();
 
     bool wantXrays;
     bool wantComponents;
@@ -3650,9 +3625,6 @@ public:
     JS::RootedObject sameZoneAs;
     GlobalProperties globalProperties;
     JS::RootedValue metadata;
-
-protected:
-    bool ParseGlobalProperties();
 };
 
 JSObject *

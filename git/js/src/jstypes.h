@@ -238,11 +238,7 @@
 #define JS_BITS_PER_BYTE 8
 #define JS_BITS_PER_BYTE_LOG2 3
 
-#if defined(JS_64BIT)
-# define JS_BITS_PER_WORD 64
-#else
-# define JS_BITS_PER_WORD 32
-#endif
+#define JS_BITS_PER_WORD (JS_BITS_PER_BYTE * JS_BYTES_PER_WORD)
 
 /***********************************************************************
 ** MACROS:      JS_FUNC_TO_DATA_PTR

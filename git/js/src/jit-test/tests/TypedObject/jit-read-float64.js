@@ -1,9 +1,9 @@
-if (!this.hasOwnProperty("TypedObject"))
+if (!this.hasOwnProperty("Type"))
   quit();
 
-var PointType = new TypedObject.StructType({x: TypedObject.float64,
-                                            y: TypedObject.float64,
-                                            z: TypedObject.float64});
+var PointType = new StructType({x: float64,
+                                y: float64,
+                                z: float64});
 
 function foo() {
   for (var i = 0; i < 30000; i += 3) {

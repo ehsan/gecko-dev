@@ -1120,40 +1120,36 @@ nsXPCComponents_utils_Sandbox::Construct(nsIXPConnectWrappedNative *wrapper, JSC
  * For sandbox constructor the first argument can be a URI string in which case
  * we use the related Codebase Principal for the sandbox.
  */
-bool
-ParsePrincipal(JSContext *cx, HandleString codebase, nsIPrincipal **principal)
+static nsresult
+GetPrincipalFromString(JSContext *cx, HandleString codebase, nsIPrincipal **principal)
 {
     MOZ_ASSERT(principal);
     MOZ_ASSERT(codebase);
     nsCOMPtr<nsIURI> uri;
     nsDependentJSString codebaseStr;
-    NS_ENSURE_TRUE(codebaseStr.init(cx, codebase), false);
+    NS_ENSURE_TRUE(codebaseStr.init(cx, codebase), NS_ERROR_FAILURE);
     nsresult rv = NS_NewURI(getter_AddRefs(uri), codebaseStr);
-    if (NS_FAILED(rv)) {
-        JS_ReportError(cx, "Creating URI from string failed");
-        return false;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIScriptSecurityManager> secman =
         do_GetService(kScriptSecurityManagerContractID);
-    NS_ENSURE_TRUE(secman, false);
+    NS_ENSURE_TRUE(secman, NS_ERROR_FAILURE);
 
     // We could allow passing in the app-id and browser-element info to the
     // sandbox constructor. But creating a sandbox based on a string is a
     // deprecated API so no need to add features to it.
     rv = secman->GetNoAppCodebasePrincipal(uri, principal);
-    if (NS_FAILED(rv) || !*principal) {
-        JS_ReportError(cx, "Creating Principal from URI failed");
-        return false;
-    }
-    return true;
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_TRUE(*principal, NS_ERROR_FAILURE);
+
+    return NS_OK;
 }
 
 /*
  * For sandbox constructor the first argument can be a principal object or
  * a script object principal (Document, Window).
  */
-static bool
+static nsresult
 GetPrincipalOrSOP(JSContext *cx, HandleObject from, nsISupports **out)
 {
     MOZ_ASSERT(out);
@@ -1164,25 +1160,25 @@ GetPrincipalOrSOP(JSContext *cx, HandleObject from, nsISupports **out)
     xpc->GetWrappedNativeOfJSObject(cx, from,
                                     getter_AddRefs(wrapper));
 
-    NS_ENSURE_TRUE(wrapper, false);
+    NS_ENSURE_TRUE(wrapper, NS_ERROR_INVALID_ARG);
 
     if (nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryWrappedNative(wrapper)) {
         sop.forget(out);
-        return true;
+        return NS_OK;
     }
 
     nsCOMPtr<nsIPrincipal> principal = do_QueryWrappedNative(wrapper);
     principal.forget(out);
-    NS_ENSURE_TRUE(*out, false);
+    NS_ENSURE_TRUE(*out, NS_ERROR_INVALID_ARG);
 
-    return true;
+    return NS_OK;
 }
 
 /*
  * The first parameter of the sandbox constructor might be an array of principals, either in string
  * format or actual objects (see GetPrincipalOrSOP)
  */
-static bool
+static nsresult
 GetExpandedPrincipal(JSContext *cx, HandleObject arrayObj, nsIExpandedPrincipal **out)
 {
     MOZ_ASSERT(out);
@@ -1195,187 +1191,202 @@ GetExpandedPrincipal(JSContext *cx, HandleObject arrayObj, nsIExpandedPrincipal 
         // We need a whitelist of principals or uri strings to create an
         // expanded principal, if we got an empty array or something else
         // report error.
-        JS_ReportError(cx, "Expected an array of URI strings");
-        return false;
+        return NS_ERROR_INVALID_ARG;
     }
 
     nsTArray< nsCOMPtr<nsIPrincipal> > allowedDomains(length);
     allowedDomains.SetLength(length);
     nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
-    NS_ENSURE_TRUE(ssm, false);
+    NS_ENSURE_TRUE(ssm, NS_ERROR_XPC_UNEXPECTED);
 
     for (uint32_t i = 0; i < length; ++i) {
         RootedValue allowed(cx);
         if (!JS_GetElement(cx, arrayObj, i, &allowed))
-            return false;
+            return NS_ERROR_INVALID_ARG;
 
         nsresult rv;
         nsCOMPtr<nsIPrincipal> principal;
         if (allowed.isString()) {
             // In case of string let's try to fetch a codebase principal from it.
             RootedString str(cx, allowed.toString());
-            if (!ParsePrincipal(cx, str, getter_AddRefs(principal)))
-                return false;
-
+            rv = GetPrincipalFromString(cx, str, getter_AddRefs(principal));
+            NS_ENSURE_SUCCESS(rv, rv);
         } else if (allowed.isObject()) {
             // In case of object let's see if it's a Principal or a ScriptObjectPrincipal.
             nsCOMPtr<nsISupports> prinOrSop;
             RootedObject obj(cx, &allowed.toObject());
-            if (!GetPrincipalOrSOP(cx, obj, getter_AddRefs(prinOrSop)))
-                return false;
+            rv = GetPrincipalOrSOP(cx, obj, getter_AddRefs(prinOrSop));
+            NS_ENSURE_SUCCESS(rv, rv);
 
             nsCOMPtr<nsIScriptObjectPrincipal> sop(do_QueryInterface(prinOrSop));
             principal = do_QueryInterface(prinOrSop);
-            if (sop)
+            if (sop) {
                 principal = sop->GetPrincipal();
+            }
         }
-        NS_ENSURE_TRUE(principal, false);
+        NS_ENSURE_TRUE(principal, NS_ERROR_INVALID_ARG);
 
         // We do not allow ExpandedPrincipals to contain any system principals.
         bool isSystem;
         rv = ssm->IsSystemPrincipal(principal, &isSystem);
-        NS_ENSURE_SUCCESS(rv, false);
-        if (isSystem) {
-            JS_ReportError(cx, "System principal is not allowed in an expanded principal");
-            return false;
-        }
+        NS_ENSURE_SUCCESS(rv, rv);
+        NS_ENSURE_FALSE(isSystem, NS_ERROR_INVALID_ARG);
         allowedDomains[i] = principal;
   }
 
   nsCOMPtr<nsIExpandedPrincipal> result = new nsExpandedPrincipal(allowedDomains);
   result.forget(out);
-  return true;
+  return NS_OK;
 }
 
 /*
  * Helper that tries to get a property form the options object.
  */
-bool
-OptionsBase::ParseValue(const char *name, MutableHandleValue prop, bool *found)
+static nsresult
+GetPropFromOptions(JSContext *cx, HandleObject from, const char *name, MutableHandleValue prop,
+                   bool *found)
 {
     MOZ_ASSERT(found);
-    bool ok = JS_HasProperty(mCx, mObject, name, found);
-    NS_ENSURE_TRUE(ok, false);
+    bool ok = JS_HasProperty(cx, from, name, found);
+    NS_ENSURE_TRUE(ok, NS_ERROR_INVALID_ARG);
 
     if (!*found)
-        return true;
+        return NS_OK;
 
-    return JS_GetProperty(mCx, mObject, name, prop);
+    ok = JS_GetProperty(cx, from, name, prop);
+    NS_ENSURE_TRUE(ok, NS_ERROR_INVALID_ARG);
+    return NS_OK;
 }
 
 /*
  * Helper that tries to get a boolean property form the options object.
  */
-bool
-OptionsBase::ParseBoolean(const char *name, bool *prop)
+static nsresult
+GetBoolPropFromOptions(JSContext *cx, HandleObject from, const char *name, bool *prop)
 {
     MOZ_ASSERT(prop);
-    RootedValue value(mCx);
+
+    RootedValue value(cx);
     bool found;
-    bool ok = ParseValue(name, &value, &found);
-    NS_ENSURE_TRUE(ok, false);
+    nsresult rv = GetPropFromOptions(cx, from, name, &value, &found);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     if (!found)
-        return true;
+        return NS_OK;
 
-    if (!value.isBoolean()) {
-        JS_ReportError(mCx, "Expected a boolean value for property %s", name);
-        return false;
-    }
+    NS_ENSURE_TRUE(value.isBoolean(), NS_ERROR_INVALID_ARG);
 
     *prop = value.toBoolean();
-    return true;
+    return NS_OK;
 }
 
 /*
  * Helper that tries to get an object property form the options object.
  */
-bool
-OptionsBase::ParseObject(const char *name, MutableHandleObject prop)
+static nsresult
+GetObjPropFromOptions(JSContext *cx, HandleObject from, const char *name, JSObject **prop)
 {
-    RootedValue value(mCx);
+    MOZ_ASSERT(prop);
+
+    RootedValue value(cx);
     bool found;
-    bool ok = ParseValue(name, &value, &found);
-    NS_ENSURE_TRUE(ok, false);
+    nsresult rv = GetPropFromOptions(cx, from, name, &value, &found);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    if (!found)
-        return true;
-
-    if (!value.isObject()) {
-        JS_ReportError(mCx, "Expected an object value for property %s", name);
-        return false;
+    if (!found) {
+        *prop = nullptr;
+        return NS_OK;
     }
-    prop.set(&value.toObject());
-    return true;
+
+    NS_ENSURE_TRUE(value.isObject(), NS_ERROR_INVALID_ARG);
+    *prop = &value.toObject();
+    return NS_OK;
 }
 
 /*
  * Helper that tries to get a string property form the options object.
  */
-bool
-OptionsBase::ParseString(const char *name, nsCString &prop)
+static nsresult
+GetStringPropFromOptions(JSContext *cx, HandleObject from, const char *name, nsCString &prop)
 {
-    RootedValue value(mCx);
+    RootedValue value(cx);
     bool found;
-    bool ok = ParseValue(name, &value, &found);
-    NS_ENSURE_TRUE(ok, false);
+    nsresult rv = GetPropFromOptions(cx, from, name, &value, &found);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     if (!found)
-        return true;
+        return NS_OK;
 
-    if (!value.isString()) {
-        JS_ReportError(mCx, "Expected a string value for property %s", name);
-        return false;
-    }
+    NS_ENSURE_TRUE(value.isString(), NS_ERROR_INVALID_ARG);
 
-    char *tmp = JS_EncodeString(mCx, value.toString());
-    NS_ENSURE_TRUE(tmp, false);
+    char *tmp = JS_EncodeString(cx, value.toString());
+    NS_ENSURE_TRUE(tmp, NS_ERROR_INVALID_ARG);
     prop.Adopt(tmp, strlen(tmp));
-    return true;
+    return NS_OK;
 }
 
 /*
  * Helper that tries to get a list of DOM constructors and other helpers from the options object.
  */
-bool
-SandboxOptions::ParseGlobalProperties()
+static nsresult
+GetGlobalPropertiesFromOptions(JSContext *cx, HandleObject from, SandboxOptions& options)
 {
-    RootedValue value(mCx);
+    RootedValue value(cx);
     bool found;
-    bool ok = ParseValue("wantGlobalProperties", &value, &found);
-    NS_ENSURE_TRUE(ok, false);
+    nsresult rv = GetPropFromOptions(cx, from, "wantGlobalProperties", &value, &found);
+    NS_ENSURE_SUCCESS(rv, rv);
     if (!found)
-        return true;
+        return NS_OK;
 
-    if (!value.isObject()) {
-        JS_ReportError(mCx, "Expected an array value for wantGlobalProperties");
-        return false;
-    }
-
-    RootedObject ctors(mCx, &value.toObject());
-    if (!JS_IsArrayObject(mCx, ctors)) {
-        JS_ReportError(mCx, "Expected an array value for wantGlobalProperties");
-        return false;
-    }
-
-    return globalProperties.Parse(mCx, ctors);
+    NS_ENSURE_TRUE(value.isObject(), NS_ERROR_INVALID_ARG);
+    RootedObject ctors(cx, &value.toObject());
+    NS_ENSURE_TRUE(JS_IsArrayObject(cx, ctors), NS_ERROR_INVALID_ARG);
+    bool ok = options.globalProperties.Parse(cx, ctors);
+    NS_ENSURE_TRUE(ok, NS_ERROR_INVALID_ARG);
+    return NS_OK;
 }
 
 /*
  * Helper that parsing the sandbox options object (from) and sets the fields of the incoming options struct (options).
  */
-bool
-SandboxOptions::Parse()
+static nsresult
+ParseOptionsObject(JSContext *cx, jsval from, SandboxOptions &options)
 {
+    NS_ENSURE_TRUE(from.isObject(), NS_ERROR_INVALID_ARG);
+    RootedObject optionsObject(cx, &from.toObject());
+    nsresult rv = GetObjPropFromOptions(cx, optionsObject,
+                                        "sandboxPrototype", options.proto.address());
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = GetBoolPropFromOptions(cx, optionsObject,
+                                "wantXrays", &options.wantXrays);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = GetBoolPropFromOptions(cx, optionsObject,
+                                "wantComponents", &options.wantComponents);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = GetBoolPropFromOptions(cx, optionsObject,
+                                "wantExportHelpers", &options.wantExportHelpers);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = GetStringPropFromOptions(cx, optionsObject,
+                                  "sandboxName", options.sandboxName);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = GetObjPropFromOptions(cx, optionsObject,
+                               "sameZoneAs", options.sameZoneAs.address());
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = GetGlobalPropertiesFromOptions(cx, optionsObject, options);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     bool found;
-    return ParseObject("sandboxPrototype", &proto) &&
-           ParseBoolean("wantXrays", &wantXrays) &&
-           ParseBoolean("wantComponents", &wantComponents) &&
-           ParseBoolean("wantExportHelpers", &wantExportHelpers) &&
-           ParseString("sandboxName", sandboxName) &&
-           ParseObject("sameZoneAs", &sameZoneAs) &&
-           ParseGlobalProperties() &&
-           ParseValue("metadata", &metadata, &found);
+    rv = GetPropFromOptions(cx, optionsObject,
+                            "metadata", &options.metadata, &found);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return NS_OK;
 }
 
 static nsresult
@@ -1422,7 +1433,6 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
         return ThrowAndFail(NS_ERROR_XPC_NOT_ENOUGH_ARGS, cx, _retval);
 
     nsresult rv;
-    bool ok = false;
 
     // Make sure to set up principals on the sandbox before initing classes.
     nsCOMPtr<nsIPrincipal> principal;
@@ -1431,31 +1441,29 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
 
     if (args[0].isString()) {
         RootedString str(cx, args[0].toString());
-        ok = ParsePrincipal(cx, str, getter_AddRefs(principal));
+        rv = GetPrincipalFromString(cx, str, getter_AddRefs(principal));
         prinOrSop = principal;
     } else if (args[0].isObject()) {
         RootedObject obj(cx, &args[0].toObject());
         if (JS_IsArrayObject(cx, obj)) {
-            ok = GetExpandedPrincipal(cx, obj, getter_AddRefs(expanded));
+            rv = GetExpandedPrincipal(cx, obj, getter_AddRefs(expanded));
             prinOrSop = expanded;
         } else {
-            ok = GetPrincipalOrSOP(cx, obj, getter_AddRefs(prinOrSop));
+            rv = GetPrincipalOrSOP(cx, obj, getter_AddRefs(prinOrSop));
         }
+    } else {
+        return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
     }
 
-    if (!ok)
-        return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
+    if (NS_FAILED(rv))
+        return ThrowAndFail(rv, cx, _retval);
 
-    bool calledWithOptions = args.length() > 1;
-    if (calledWithOptions && !args[1].isObject())
-        return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
+    SandboxOptions options(cx);
 
-    RootedObject optionsObject(cx, calledWithOptions ? &args[1].toObject()
-                                                     : nullptr);
-
-    SandboxOptions options(cx, optionsObject);
-    if (calledWithOptions && !options.Parse())
-        return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
+    if (args.length() > 1 && args[1].isObject()) {
+        if (NS_FAILED(ParseOptionsObject(cx, args[1], options)))
+            return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
+    }
 
     if (NS_FAILED(AssembleSandboxMemoryReporterName(cx, options.sandboxName)))
         return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
@@ -1466,7 +1474,8 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
         return ThrowAndFail(rv, cx, _retval);
 
     *_retval = true;
-    return NS_OK;
+
+    return rv;
 }
 
 class ContextHolder : public nsIScriptObjectPrincipal

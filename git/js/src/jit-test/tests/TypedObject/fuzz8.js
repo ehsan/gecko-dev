@@ -1,6 +1,6 @@
 // |jit-test| error:Error
 
-if (!this.hasOwnProperty("TypedObject"))
+if (!this.hasOwnProperty("Type"))
   throw new Error();
 
-new TypedObject.ArrayType(TypedObject.uint8, .0000000009);
+new ArrayType(uint8, .0000000009);

@@ -549,9 +549,8 @@ TelemetryPing.prototype = {
       info: info
     };
 
-    if (Object.keys(this._slowSQLStartup).length != 0 &&
-        (Object.keys(this._slowSQLStartup.mainThread).length ||
-         Object.keys(this._slowSQLStartup.otherThreads).length)) {
+    if (Object.keys(this._slowSQLStartup.mainThread).length
+      || Object.keys(this._slowSQLStartup.otherThreads).length) {
       payloadObj.slowSQLStartup = this._slowSQLStartup;
     }
 

@@ -1,16 +1,12 @@
-if (!this.hasOwnProperty("TypedObject"))
+if (!this.hasOwnProperty("Type"))
   quit();
 
-var PointType2 =
-  new TypedObject.StructType({
-    x: TypedObject.float64,
-    y: TypedObject.float64});
+var PointType2 = new StructType({x: float64,
+                                 y: float64});
 
-var PointType3 =
-  new TypedObject.StructType({
-    x: TypedObject.float64,
-    y: TypedObject.float64,
-    z: TypedObject.float64});
+var PointType3 = new StructType({x: float64,
+                                 y: float64,
+                                 z: float64});
 
 function xPlusY(p) {
   return p.x + p.y;

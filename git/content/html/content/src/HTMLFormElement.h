@@ -216,12 +216,11 @@ public:
                                  const nsAString& aName);
 
    /**
-    * Returns true if implicit submission of this form is disabled. For more
-    * on implicit submission see:
+    * Return whether there is one and only one input text control.
     *
-    * http://www.whatwg.org/specs/web-apps/current-work/multipage/association-of-controls-and-forms.html#implicit-submission
+    * @return Whether there is exactly one input text control.
     */
-  bool ImplicitSubmissionIsDisabled() const;
+  bool HasSingleTextControl() const;
 
   /**
    * Check whether a given nsIFormControl is the default submit

@@ -426,6 +426,9 @@ public:
   }
 };
 
+// TODO: Remove following typedef
+typedef WidgetWheelEvent                WheelEvent;
+
 } // namespace mozilla
 
 #endif // mozilla_MouseEvents_h__
