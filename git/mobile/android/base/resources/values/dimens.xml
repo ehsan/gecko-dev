@@ -96,8 +96,4 @@
 
     <!-- Banner -->
     <dimen name="home_banner_height">72dp</dimen>
-
-    <!-- Icon Grid -->
-    <dimen name="icongrid_columnwidth">128dp</dimen>
-    <dimen name="icongrid_padding">16dp</dimen>
 </resources>

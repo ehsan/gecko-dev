@@ -42,6 +42,8 @@
 
 using namespace mozilla;
 
+#define COMPONENT_DIRECTORY     NS_LITERAL_CSTRING("components")
+
 // define home directory
 // For Windows platform, We are choosing Appdata folder as HOME
 #if defined (XP_WIN)

@@ -245,28 +245,6 @@ void imgRequest::CancelAndAbort(nsresult aStatus)
   }
 }
 
-class imgRequestMainThreadCancel : public nsRunnable
-{
-public:
-  imgRequestMainThreadCancel(imgRequest *aImgRequest, nsresult aStatus)
-    : mImgRequest(aImgRequest)
-    , mStatus(aStatus)
-  {
-    MOZ_ASSERT(!NS_IsMainThread(), "Create me off main thread only!");
-    MOZ_ASSERT(aImgRequest);
-  }
-
-  NS_IMETHOD Run()
-  {
-    MOZ_ASSERT(NS_IsMainThread(), "I should be running on the main thread!");
-    mImgRequest->ContinueCancel(mStatus);
-    return NS_OK;
-  } 
-private:
-  nsRefPtr<imgRequest> mImgRequest;
-  nsresult mStatus;
-};
-
 void imgRequest::Cancel(nsresult aStatus)
 {
   /* The Cancel() method here should only be called by this class. */
@@ -280,22 +258,14 @@ void imgRequest::Cancel(nsresult aStatus)
   statusTracker->RecordCancel();
 
   if (NS_IsMainThread()) {
-    ContinueCancel(aStatus);
+    RemoveFromCache();
   } else {
-    NS_DispatchToMainThread(new imgRequestMainThreadCancel(this, aStatus));
+    NS_DispatchToMainThread(
+      NS_NewRunnableMethod(this, &imgRequest::RemoveFromCache));
   }
-}
 
-void imgRequest::ContinueCancel(nsresult aStatus)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  RemoveFromCache();
-
-  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
-  if (mRequest && statusTracker->IsLoading()) {
-     mRequest->Cancel(aStatus);
-  }
+  if (mRequest && statusTracker->IsLoading())
+    mRequest->Cancel(aStatus);
 }
 
 nsresult imgRequest::GetURI(ImageURL **aURI)

@@ -2286,7 +2286,7 @@ CodeGenerator::visitGetDynamicName(LGetDynamicName *lir)
 }
 
 bool
-CodeGenerator::visitFilterArgumentsOrEval(LFilterArgumentsOrEval *lir)
+CodeGenerator::visitFilterArguments(LFilterArguments *lir)
 {
     Register string = ToRegister(lir->getString());
     Register temp1 = ToRegister(lir->temp1());
@@ -2297,7 +2297,7 @@ CodeGenerator::visitFilterArgumentsOrEval(LFilterArgumentsOrEval *lir)
     masm.setupUnalignedABICall(2, temp1);
     masm.passABIArg(temp2);
     masm.passABIArg(string);
-    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, FilterArgumentsOrEval));
+    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, FilterArguments));
 
     Label bail;
     masm.branchIfFalseBool(ReturnReg, &bail);
