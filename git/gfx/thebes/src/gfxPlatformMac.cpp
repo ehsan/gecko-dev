@@ -93,9 +93,7 @@ gfxPlatformMac::gfxPlatformMac()
 gfxPlatformMac::~gfxPlatformMac()
 {
 #ifdef MOZ_CORETEXT
-#ifndef __LP64__
     if (mUseCoreText)
-#endif
         gfxCoreTextFont::Shutdown();
 #endif
 }
@@ -231,7 +229,7 @@ gfxPlatformMac::OSXVersion()
 {
     if (!mOSXVersion) {
         // minor version is not accurate, use gestaltSystemVersionMajor, gestaltSystemVersionMinor, gestaltSystemVersionBugFix for these
-        OSErr err = ::Gestalt(gestaltSystemVersion, (SInt32*) &mOSXVersion);
+        OSErr err = ::Gestalt(gestaltSystemVersion, (long int*) &mOSXVersion);
         if (err != noErr) {
             //This should probably be changed when our minimum version changes
             NS_ERROR("Couldn't determine OS X version, assuming 10.4");
@@ -315,18 +313,18 @@ gfxPlatformMac::AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, e
                 p++;
             }
         }
-
+    
         // Prefer the system locale if it is CJK.
-        TextEncoding sysScript = ::GetApplicationTextEncoding();
+        ScriptCode sysScript = ::GetScriptManagerVariable(smSysScript);
         // XXX Is not there the HK locale?
         switch (sysScript) {
-            case kTextEncodingMacJapanese:    AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Japanese); break;
-            case kTextEncodingMacChineseTrad: AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseTW); break;
-            case kTextEncodingMacKorean:      AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Korean); break;
-            case kTextEncodingMacChineseSimp: AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseCN); break;
-            default:                          break;
+            case smJapanese:    AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Japanese); break;
+            case smTradChinese: AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseTW); break;
+            case smKorean:      AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Korean); break;
+            case smSimpChinese: AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseCN); break;
+            default:            break;
         }
-
+    
         // last resort... (the order is same as old gfx.)
         AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Japanese);
         AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Korean);
@@ -397,7 +395,6 @@ gfxPlatformMac::GetPlatformCMSOutputProfile()
 
     qcms_profile *profile = nsnull;
     switch (device.locType) {
-#ifndef __LP64__
     case cmFileBasedProfile: {
         FSRef fsRef;
         if (!FSpMakeFSRef(&device.u.fileLoc.spec, &fsRef)) {
@@ -413,7 +410,6 @@ gfxPlatformMac::GetPlatformCMSOutputProfile()
         }
         break;
     }
-#endif
     case cmPathBasedProfile:
         profile = qcms_profile_from_path(device.u.pathLoc.path);
 #ifdef DEBUG_tor

@@ -155,7 +155,6 @@ private:
 private:
   PtWidget_t *mClientWidget, *mLastMenu;
   PRBool mIsTooSmall;
-  PRBool mIsDestroying;
 	static nsIRollupListener *gRollupListener;
 	static nsIWidget *gRollupWidget;
 };

@@ -38,7 +38,6 @@
 #define __NS_SVGCLIPPATHFRAME_H__
 
 #include "nsSVGContainerFrame.h"
-#include "gfxMatrix.h"
 
 typedef nsSVGContainerFrame nsSVGClipPathFrameBase;
 
@@ -113,7 +112,7 @@ public:
   PRPackedBool mInUse;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 };
 
 #endif

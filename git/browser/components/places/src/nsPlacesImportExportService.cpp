@@ -103,6 +103,7 @@
 #include "nsIHTMLContentSink.h"
 #include "nsIParser.h"
 #include "prprf.h"
+#include "nsVoidArray.h"
 #include "nsIBrowserGlue.h"
 #include "nsIObserverService.h"
 #include "nsISupportsPrimitives.h"

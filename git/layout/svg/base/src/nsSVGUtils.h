@@ -46,8 +46,6 @@
 #include "nsRect.h"
 #include "gfxContext.h"
 #include "nsIRenderingContext.h"
-#include "gfxRect.h"
-#include "gfxMatrix.h"
 
 class nsIDocument;
 class nsPresContext;
@@ -81,7 +79,6 @@ struct nsStyleFont;
 class nsSVGEnum;
 class nsISVGChildFrame;
 class nsSVGGeometryFrame;
-class nsSVGDisplayContainerFrame;
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -259,18 +256,16 @@ public:
   static nsresult GetNearestViewportElement(nsIContent *aContent,
                                             nsIDOMSVGElement * *aNearestViewportElement);
 
-  /**
-   * Gets the nearest nsSVGInnerSVGFrame or nsSVGOuterSVGFrame frame. aFrame
-   * must be an SVG frame. If aFrame is of type nsGkAtoms::svgOuterSVGFrame,
-   * returns nsnull.
-   */
-  static nsSVGDisplayContainerFrame* GetNearestSVGViewport(nsIFrame *aFrame);
-
   /*
    * Get the farthest viewport element
    */
   static nsresult GetFarthestViewportElement(nsIContent *aContent,
                                              nsIDOMSVGElement * *aFarthestViewportElement);
+
+  /*
+   * Creates a bounding box by walking the children and doing union.
+   */
+  static nsresult GetBBox(nsFrameList *aFrames, nsIDOMSVGRect **_retval);
 
   /**
    * Figures out the worst case invalidation area for a frame, taking
@@ -374,7 +369,7 @@ public:
    * child SVG frame, container SVG frame, or a regular frame.
    * For regular frames, we just return an identity matrix.
    */
-  static gfxMatrix GetCanvasTM(nsIFrame* aFrame);
+  static already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM(nsIFrame *aFrame);
 
   /*
    * Tells child frames that something that might affect them has changed

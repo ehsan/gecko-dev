@@ -45,6 +45,7 @@
 #include "nsEditProperty.h"
 #include "ChangeCSSInlineStyleTxn.h"
 #include "nsIDOMElement.h"
+#include "TransactionFactory.h"
 #include "nsIDOMElementCSSInlineStyle.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentView.h"
@@ -519,14 +520,15 @@ nsHTMLCSSUtils::CreateCSSPropertyTxn(nsIDOMElement *aElement,
                                      ChangeCSSInlineStyleTxn ** aTxn,
                                      PRBool aRemoveProperty)
 {
-  if (!aElement)
-    return NS_ERROR_NULL_POINTER;
-
-  *aTxn = new ChangeCSSInlineStyleTxn();
-  if (!*aTxn)
-    return NS_ERROR_OUT_OF_MEMORY;
-  NS_ADDREF(*aTxn);
-  return (*aTxn)->Init(mHTMLEditor, aElement, aAttribute, aValue, aRemoveProperty);
+  nsresult result = NS_ERROR_NULL_POINTER;
+  if (aElement)
+  {
+    result = TransactionFactory::GetNewTransaction(ChangeCSSInlineStyleTxn::GetCID(), (EditTxn **)aTxn);
+    if (NS_SUCCEEDED(result))  {
+      result = (*aTxn)->Init(mHTMLEditor, aElement, aAttribute, aValue, aRemoveProperty);
+    }
+  }
+  return result;
 }
 
 nsresult
@@ -851,7 +853,7 @@ nsHTMLCSSUtils::GetCSSPropertyAtom(nsCSSEditableProperty aProperty, nsIAtom ** a
 // Populate aProperty and aValueArray with the CSS declarations equivalent to the
 // value aValue according to the equivalence table aEquivTable
 void
-nsHTMLCSSUtils::BuildCSSDeclarations(nsTArray<nsIAtom*> & aPropertyArray,
+nsHTMLCSSUtils::BuildCSSDeclarations(nsVoidArray & aPropertyArray,
                                      nsTArray<nsString> & aValueArray,
                                      const CSSEquivTable * aEquivTable,
                                      const nsAString * aValue,
@@ -898,7 +900,7 @@ nsHTMLCSSUtils::GenerateCSSDeclarationsFromHTMLStyle(nsIDOMNode * aNode,
                                                      nsIAtom *aHTMLProperty,
                                                      const nsAString * aAttribute,
                                                      const nsAString * aValue,
-                                                     nsTArray<nsIAtom*> & cssPropertyArray,
+                                                     nsVoidArray & cssPropertyArray,
                                                      nsTArray<nsString> & cssValueArray,
                                                      PRBool aGetOrRemoveRequest)
 {
@@ -1001,17 +1003,17 @@ nsHTMLCSSUtils::SetCSSEquivalentToHTMLStyle(nsIDOMNode * aNode,
     // an equivalence for the requested HTML style in this implementation
 
     // Find the CSS equivalence to the HTML style
-    nsTArray<nsIAtom*> cssPropertyArray;
+    nsVoidArray cssPropertyArray;
     nsTArray<nsString> cssValueArray;
     GenerateCSSDeclarationsFromHTMLStyle(aNode, aHTMLProperty, aAttribute, aValue,
                                          cssPropertyArray, cssValueArray, PR_FALSE);
 
     // set the individual CSS inline styles
-    *aCount = cssPropertyArray.Length();
+    *aCount = cssPropertyArray.Count();
     PRInt32 index;
     for (index = 0; index < *aCount; index++) {
       nsCOMPtr<nsIDOMElement> theElement = do_QueryInterface(aNode);
-      res = SetCSSProperty(theElement, cssPropertyArray[index],
+      res = SetCSSProperty(theElement, (nsIAtom *)cssPropertyArray.ElementAt(index),
                            cssValueArray[index], aSuppressTransaction);
       if (NS_FAILED(res)) return res;
     }
@@ -1035,19 +1037,19 @@ nsHTMLCSSUtils::RemoveCSSEquivalentToHTMLStyle(nsIDOMNode * aNode,
     // an equivalence for the requested HTML style in this implementation
 
     // Find the CSS equivalence to the HTML style
-    nsTArray<nsIAtom*> cssPropertyArray;
+    nsVoidArray cssPropertyArray;
     nsTArray<nsString> cssValueArray;
     GenerateCSSDeclarationsFromHTMLStyle(aNode, aHTMLProperty, aAttribute, aValue,
                                          cssPropertyArray, cssValueArray, PR_TRUE);
 
     // remove the individual CSS inline styles
-    count = cssPropertyArray.Length();
+    count = cssPropertyArray.Count();
     PRInt32 index;
     for (index = 0; index < count; index++) {
-      res = RemoveCSSProperty(theElement,
-                              cssPropertyArray[index],
-                              cssValueArray[index],
-                              aSuppressTransaction);
+      res = RemoveCSSProperty(theElement, 
+                      (nsIAtom *)cssPropertyArray.ElementAt(index), 
+                      cssValueArray[index],
+                      aSuppressTransaction);
       if (NS_FAILED(res)) return res;
     }
   }
@@ -1098,18 +1100,18 @@ nsHTMLCSSUtils::GetCSSEquivalentToHTMLInlineStyleSet(nsIDOMNode * aNode,
       res = GetDefaultViewCSS(theElement, getter_AddRefs(viewCSS));
       if (NS_FAILED(res)) return res;
     }
-    nsTArray<nsIAtom*> cssPropertyArray;
+    nsVoidArray cssPropertyArray;
     nsTArray<nsString> cssValueArray;
     // get the CSS equivalence with last param PR_TRUE indicating we want only the
     // "gettable" properties
     GenerateCSSDeclarationsFromHTMLStyle(theElement, aHTMLProperty, aAttribute, nsnull,
                                          cssPropertyArray, cssValueArray, PR_TRUE);
-    PRInt32 count = cssPropertyArray.Length();
+    PRInt32 count = cssPropertyArray.Count();
     PRInt32 index;
     for (index = 0; index < count; index++) {
       nsAutoString valueString;
       // retrieve the specified/computed value of the property
-      res = GetCSSInlinePropertyBase(theElement, cssPropertyArray[index],
+      res = GetCSSInlinePropertyBase(theElement, (nsIAtom *)cssPropertyArray.ElementAt(index),
                                      valueString, viewCSS, aStyleType);
       if (NS_FAILED(res)) return res;
       // append the value to aValueString (possibly with a leading whitespace)

@@ -43,6 +43,7 @@
 
 #include "nsIEditorSpellCheck.h"
 #include "nsISpellChecker.h"
+#include "nsVoidArray.h"
 #include "nsCOMPtr.h"
 
 #define NS_EDITORSPELLCHECK_CID                     \

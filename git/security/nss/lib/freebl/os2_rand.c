@@ -369,5 +369,5 @@ static void rng_systemJitter(void)
 
 size_t RNG_SystemRNG(void *dest, size_t maxLen)
 {
-    return rng_systemFromNoise(dest,maxLen);
+    return rng_systemFromNoise(dest,maxlen);
 }

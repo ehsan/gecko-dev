@@ -59,13 +59,13 @@ def readManifest(manifest):
     pass # just eat exceptions
   return testdirs
 
-def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
+def runTests(xpcshell, testdirs=[], xrePath=None, testFile=None,
              manifest=None, interactive=False):
   """Run the tests in |testdirs| using the |xpcshell| executable.
 
   |xrePath|, if provided, is the path to the XRE to use.
-  |testPath|, if provided, indicates a single path and/or test to run.
-  |manifest|, if provided, is a file containing a list of
+  |testFile|, if provided, indicates a single test to run.
+  |manifeest|, if provided, is a file containing a list of
     test directories to run.
   |interactive|, if set to True, indicates to provide an xpcshell prompt
     instead of automatically executing  the test.
@@ -94,18 +94,18 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
     """Process the leak log."""
     # For the time being, don't warn (nor "info") if the log file is not there. (Bug 469523)
     if not os.path.exists(leakLogFile):
-      return None
+      return
 
     leaks = open(leakLogFile, "r")
     leakReport = leaks.read()
     leaks.close()
 
     # Only check whether an actual leak was reported.
-    if "0 TOTAL " in leakReport:
-      # For the time being, simply copy the log. (Bug 469523)
-      print leakReport.rstrip("\n")
+    if not "0 TOTAL " in leakReport:
+      return
 
-    return leakReport
+    # For the time being, simply copy the log. (Bug 469523)
+    print leakReport.rstrip("\n")
 
   if xrePath is None:
     xrePath = os.path.dirname(xpcshell)
@@ -125,26 +125,15 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
   if not interactive:
     tailfiles += ['-e', '_execute_test();']
 
-  # |testPath| will be the optional path only, or |None|.
-  # |singleFile| will be the optional test only, or |None|.
-  singleFile = None
-  if testPath:
-    if testPath.endswith('.js'):
-      # Split into path and file.
-      if testPath.find('/') == -1:
-        # Test only.
-        singleFile = testPath
-        testPath = None
-      else:
-        # Both path and test.
-        # Reuse |testPath| temporarily.
-        testPath = testPath.rsplit('/', 1)
-        singleFile = testPath[1]
-        testPath = testPath[0]
-    else:
-      # Path only.
-      # Simply remove optional ending separator.
-      testPath = testPath.rstrip("/")
+  # when --test is specified, it can either be just a filename or
+  # testdir/filename. This is for convenience when there's only one
+  # test dir.
+  singleDir = None
+  if testFile and testFile.find('/') != -1:
+    # directory was specified
+    bits = testFile.split('/', 1)
+    singleDir = bits[0]
+    testFile = bits[1]
 
   if manifest is not None:
     testdirs = readManifest(os.path.abspath(manifest))
@@ -152,9 +141,8 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
   # Process each test directory individually.
   success = True
   for testdir in testdirs:
-    if testPath and not testdir.endswith(testPath):
+    if singleDir and singleDir != os.path.basename(testdir):
       continue
-
     testdir = os.path.abspath(testdir)
 
     # get the list of head and tail files from the directory
@@ -169,9 +157,9 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
 
     # if a single test file was specified, we only want to execute that test
     testfiles = sorted(glob(os.path.join(testdir, "test_*.js")))
-    if singleFile:
-      if singleFile in [os.path.basename(x) for x in testfiles]:
-        testfiles = [os.path.join(testdir, singleFile)]
+    if testFile:
+      if testFile in [os.path.basename(x) for x in testfiles]:
+        testfiles = [os.path.join(testdir, testFile)]
       else: # not in this dir? skip it
         continue
 
@@ -197,25 +185,14 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
         return True
 
       if proc.returncode != 0 or stdout.find("*** PASS") == -1:
-        print """TEST-UNEXPECTED-FAIL | %s | test failed (with xpcshell return code: %d), see following log:
+        print """TEST-UNEXPECTED-FAIL | %s | test failed, see following log:
   >>>>>>>
   %s
-  <<<<<<<""" % (test, proc.returncode, stdout)
+  <<<<<<<""" % (test, stdout)
         success = False
       else:
         print "TEST-PASS | %s | all tests passed" % test
-
-      leakReport = processLeakLog(leakLogFile)
-
-      try:
-        f = open(test + '.log', 'w')
-        f.write(stdout)
-        if leakReport:
-          f.write(leakReport)
-      finally:
-        if f:
-          f.close()
-
+      processLeakLog(leakLogFile)
       # Remove the leak detection file (here) so it can't "leak" to the next test.
       # The file is not there if leak logging was not enabled in the xpcshell build.
       if os.path.exists(leakLogFile):
@@ -229,9 +206,9 @@ def main():
   parser.add_option("--xre-path",
                     action="store", type="string", dest="xrePath", default=None,
                     help="absolute path to directory containing XRE (probably xulrunner)")
-  parser.add_option("--test-path",
-                    action="store", type="string", dest="testPath",
-                    default=None, help="single path and/or test filename to test")
+  parser.add_option("--test",
+                    action="store", type="string", dest="testFile",
+                    default=None, help="single test filename to test")
   parser.add_option("--interactive",
                     action="store_true", dest="interactive", default=False,
                     help="don't automatically run tests, drop to an xpcshell prompt")
@@ -247,13 +224,13 @@ def main():
                                                            sys.argv[0])
     sys.exit(1)
 
-  if options.interactive and not options.testPath:
+  if options.interactive and not options.testFile:
     print >>sys.stderr, "Error: You must specify a test filename in interactive mode!"
     sys.exit(1)
 
   if not runTests(args[0], testdirs=args[1:],
                   xrePath=options.xrePath,
-                  testPath=options.testPath,
+                  testFile=options.testFile,
                   interactive=options.interactive,
                   manifest=options.manifest):
     sys.exit(1)
