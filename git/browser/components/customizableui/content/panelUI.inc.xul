@@ -36,12 +36,6 @@
 
     <panelview id="PanelUI-history" flex="1">
       <label value="&appMenuHistory.label;"/>
-      <toolbarbutton id="appMenuViewHistorySidebar" tabindex="0"
-                     label="&appMenuHistory.viewSidebar.label;"
-                     type="checkbox"
-                     oncommand="toggleSidebar('viewHistorySidebar'); PanelUI.hide();">
-        <observes element="viewHistorySidebar" attribute="checked"/>
-      </toolbarbutton>
       <toolbarbutton id="appMenuClearRecentHistory" tabindex="0"
                      label="&appMenuHistory.clearRecent.label;"
                      command="Tools:Sanitize"/>
@@ -49,11 +43,11 @@
                      label="&appMenuHistory.restoreSession.label;"
                      command="Browser:RestoreLastSession"/>
       <menuseparator id="PanelUI-recentlyClosedTabs-separator"/>
-      <vbox id="PanelUI-recentlyClosedTabs" tooltip="bhTooltip"/>
+      <vbox id="PanelUI-recentlyClosedTabs"/>
       <menuseparator id="PanelUI-recentlyClosedWindows-separator"/>
-      <vbox id="PanelUI-recentlyClosedWindows" tooltip="bhTooltip"/>
+      <vbox id="PanelUI-recentlyClosedWindows"/>
       <menuseparator id="PanelUI-historyItems-separator"/>
-      <vbox id="PanelUI-historyItems" tooltip="bhTooltip"/>
+      <vbox id="PanelUI-historyItems"/>
       <label value="&appMenuHistory.showAll.label;"
              id="PanelUI-historyMore"
              class="text-link"
