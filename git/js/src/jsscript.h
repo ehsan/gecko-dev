@@ -209,7 +209,7 @@ class Bindings
      * Sometimes iteration order must be from oldest to youngest, however. For
      * such cases, use js::Bindings::getLocalNameArray.
      */
-    js::Shape *lastVariable() const;
+    const js::Shape *lastVariable() const;
 
     void trace(JSTracer *trc);
 
