@@ -444,11 +444,10 @@ pref("browser.tabs.loadDivertedInBackground", false);
 pref("browser.tabs.loadBookmarksInBackground", false);
 pref("browser.tabs.tabClipWidth", 140);
 pref("browser.tabs.animate", true);
-pref("browser.tabs.onTop", true);
-#ifdef XP_WIN
-pref("browser.tabs.drawInTitlebar", true);
-#else
+#ifdef UNIX_BUT_NOT_MAC
 pref("browser.tabs.drawInTitlebar", false);
+#else
+pref("browser.tabs.drawInTitlebar", true);
 #endif
 
 // Where to show tab close buttons:
@@ -1333,3 +1332,9 @@ pref("geo.wifi.uri", "https://www.googleapis.com/geolocation/v1/geolocate?key=%G
 // Necko IPC security checks only needed for app isolation for cookies/cache/etc:
 // currently irrelevant for desktop e10s
 pref("network.disable.ipc.security", true);
+
+// CustomizableUI debug logging.
+pref("browser.uiCustomization.debug", false);
+
+// The URL of the Firefox Accounts auth server backend
+pref("identity.fxaccounts.auth.uri", "https://api-accounts.dev.lcip.org/v1");
