@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2015 Mozilla Foundation
+ * Copyright (C) 2013-2014 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,12 +110,6 @@ protected:
   class Parameters : public android::CameraParameters
   {
   public:
-    Parameters()
-      : mVendorSpecificKeyIsoMode(nullptr)
-      , mVendorSpecificKeySupportedIsoModes(nullptr)
-    { }
-    virtual ~Parameters() { }
-
     using android::CameraParameters::set;
     using android::CameraParameters::get;
     using android::CameraParameters::TRUE;
@@ -138,13 +132,7 @@ protected:
 
     void remove(const char* aKey)                 { android::CameraParameters::remove(aKey); }
 
-    const char* GetTextKey(uint32_t aKey);
-
-  protected:
-    const char* FindVendorSpecificKey(const char* aPotentialKeys[], size_t aPotentialKeyCount);
-
-    const char* mVendorSpecificKeyIsoMode;
-    const char* mVendorSpecificKeySupportedIsoModes;
+    static const char* GetTextKey(uint32_t aKey);
   };
 
   Parameters mParams;
@@ -159,7 +147,7 @@ protected:
   template<typename T> nsresult
   SetImpl(uint32_t aKey, const T& aValue)
   {
-    const char* key = mParams.GetTextKey(aKey);
+    const char* key = Parameters::GetTextKey(aKey);
     NS_ENSURE_TRUE(key, NS_ERROR_NOT_IMPLEMENTED);
 
     mParams.set(key, aValue);
@@ -169,7 +157,7 @@ protected:
   template<typename T> nsresult
   GetImpl(uint32_t aKey, T& aValue)
   {
-    const char* key = mParams.GetTextKey(aKey);
+    const char* key = Parameters::GetTextKey(aKey);
     NS_ENSURE_TRUE(key, NS_ERROR_NOT_IMPLEMENTED);
 
     mParams.get(key, aValue);
