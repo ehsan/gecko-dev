@@ -4124,9 +4124,6 @@ TraceRecorder::activeCallOrGlobalSlot(JSObject* obj, jsval*& vp)
         return true;
     }
 
-    if (wasDeepAborted())
-        ABORT_TRACE("deep abort from property lookup");
-
     if (obj == obj2 && OBJ_GET_CLASS(cx, obj) == &js_CallClass) {
         JSStackFrame* cfp = (JSStackFrame*) JS_GetPrivate(cx, obj);
         if (cfp && FrameInRange(cx->fp, cfp, callDepth)) {
@@ -4897,9 +4894,6 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
             ABORT_TRACE("failed to fill property cache");
     }
 
-    if (wasDeepAborted())
-        ABORT_TRACE("deep abort from property lookup");
-
 #ifdef JS_THREADSAFE
     // There's a potential race in any JS_THREADSAFE embedding that's nuts
     // enough to share mutable objects on the scope or proto chain, but we
@@ -5264,9 +5258,6 @@ TraceRecorder::guardElemOp(JSObject* obj, LIns* obj_ins, jsid id, size_t op_offs
         if (!traceable_slot)
             ABORT_TRACE("elem op hit direct and slotless getter or setter");
     }
-
-    if (wasDeepAborted())
-        ABORT_TRACE("deep abort from property lookup");
 
     // If we got this far, we're almost safe -- but we must check for a rogue resolve hook.
     if (OBJ_SHAPE(obj) != shape)
@@ -5757,7 +5748,12 @@ TraceRecorder::functionCall(bool constructing)
     jsval& tval = stackval(0 - (argc + 1));
     LIns* this_ins = get(&tval);
 
-    if (this_ins->isconstp() && !this_ins->constvalp() && !guardShapelessCallee(fval))
+    /*
+     * If this is NULL, this is a shapeless call. If we observe a shapeless call
+     * at recording time, the call at this point will always be shapeless so we
+     * can make the decision based on recording-time introspection of this.
+     */
+    if (tval == JSVAL_NULL && !guardShapelessCallee(fval))
         return false;
 
     /*
@@ -6462,10 +6458,21 @@ TraceRecorder::record_JSOP_CALLUPVAR()
 bool
 TraceRecorder::guardShapelessCallee(jsval& callee)
 {
+    LIns* exit = snapshot(BRANCH_EXIT);
+    JSObject* callee_obj = JSVAL_TO_OBJECT(callee);
+    LIns* callee_ins = get(&callee);
     guard(true,
-          addName(lir->ins2(LIR_eq, get(&callee), INS_CONSTPTR(JSVAL_TO_OBJECT(callee))),
-                  "guard(shapeless callee)"),
-          MISMATCH_EXIT);
+          lir->ins2(LIR_eq, 
+                    lir->ins2(LIR_piand, 
+                              stobj_get_fslot(callee_ins, JSSLOT_PRIVATE),
+                              INS_CONSTPTR((void*)(~JSVAL_INT))),
+                    INS_CONSTPTR(OBJ_GET_PRIVATE(cx, callee_obj))),
+          exit);
+    guard(true,
+          lir->ins2(LIR_eq,
+                    stobj_get_fslot(callee_ins, JSSLOT_PARENT),
+                    INS_CONSTPTR(OBJ_GET_PARENT(cx, callee_obj))),
+          exit);
     return true;
 }
 
