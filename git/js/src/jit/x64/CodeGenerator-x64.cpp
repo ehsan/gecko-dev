@@ -76,7 +76,7 @@ CodeGeneratorX64::visitBox(LBox *box)
             masm.convertFloat32ToDouble(reg, ScratchDoubleReg);
             reg = ScratchDoubleReg;
         }
-        masm.vmovq(reg, ToRegister(result));
+        masm.movq(reg, ToRegister(result));
     } else {
         masm.boxValue(ValueTypeFromMIRType(box->type()), ToRegister(in), ToRegister(result));
     }
