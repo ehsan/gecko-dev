@@ -451,8 +451,7 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDeleted(JNIEnv* jenv, jclass,
           AndroidBridge::Bridge()->DequeueSmsRequest(mRequestId);
         NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
-        // For android, we support only single SMS deletion.
-        request->NotifyMessageDeleted(&mDeleted, 1);
+        request->NotifyMessageDeleted(mDeleted);
         return NS_OK;
       }
 

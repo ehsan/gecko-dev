@@ -20,8 +20,6 @@
 namespace mozilla {
 namespace layers {
 
-class TextureImageTextureHostOGL;
-
 /*
  * TextureHost implementations for the OpenGL backend.
  *
@@ -54,8 +52,6 @@ public:
   virtual GLenum GetTextureTarget() const { return LOCAL_GL_TEXTURE_2D; }
   virtual GLenum GetWrapMode() const = 0;// { return LOCAL_GL_CLAMP_TO_EDGE; } // default
   virtual gfx3DMatrix GetTextureTransform() { return gfx3DMatrix(); }
-
-  virtual TextureImageTextureHostOGL* AsTextureImageTextureHost() { return nullptr; }
 };
 
 inline gl::ShaderProgramType
@@ -98,11 +94,6 @@ public:
     return this;
   }
 
-  virtual TextureImageTextureHostOGL* AsTextureImageTextureHost() MOZ_OVERRIDE
-  {
-    return this;
-  }
-
   // This is a hack that is here to not break on-main-thread ThebesLayerBuffer
   // please do not use it anywhere else, use SetCompositor instead.
   void SetGLContext(gl::GLContext* aGL)
@@ -113,16 +104,9 @@ public:
   // TextureHost
 
   void UpdateImpl(const SurfaceDescriptor& aImage,
-                  nsIntRegion* aRegion = nullptr,
-                  nsIntPoint* aOffset = nullptr) MOZ_OVERRIDE;
+                  nsIntRegion* aRegion = nullptr) MOZ_OVERRIDE;
 
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
-
-  virtual void EnsureBuffer(const nsIntSize& aSize, gfxContentType aType) MOZ_OVERRIDE;
-
-  virtual void CopyTo(const nsIntRect& aSourceRect,
-                      TextureHost *aDest,
-                      const nsIntRect& aDestRect) MOZ_OVERRIDE;
 
   bool IsValid() const MOZ_OVERRIDE
   {
@@ -235,8 +219,7 @@ public:
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
 
   virtual void UpdateImpl(const SurfaceDescriptor& aImage,
-                          nsIntRegion* aRegion = nullptr,
-                          nsIntPoint* aOffset = nullptr) MOZ_OVERRIDE;
+                          nsIntRegion* aRegion = nullptr) MOZ_OVERRIDE;
 
   virtual bool Lock() MOZ_OVERRIDE;
 
@@ -344,8 +327,7 @@ public:
   // override from TextureHost, we support both buffered
   // and unbuffered operation.
   virtual void UpdateImpl(const SurfaceDescriptor& aImage,
-                          nsIntRegion* aRegion = nullptr,
-                          nsIntPoint* aOffset = nullptr) MOZ_OVERRIDE;
+                          nsIntRegion* aRegion = nullptr) MOZ_OVERRIDE;
   virtual void SwapTexturesImpl(const SurfaceDescriptor& aImage,
                                 nsIntRegion* aRegion = nullptr) MOZ_OVERRIDE;
   virtual bool Lock() MOZ_OVERRIDE;
@@ -577,8 +559,7 @@ public:
   }
 
   virtual void UpdateImpl(const SurfaceDescriptor& aImage,
-                          nsIntRegion* aRegion = nullptr,
-                          nsIntPoint* aOffset = nullptr) MOZ_OVERRIDE;
+                          nsIntRegion* aRegion = nullptr) MOZ_OVERRIDE;
   virtual void SwapTexturesImpl(const SurfaceDescriptor& aImage,
                           nsIntRegion* aRegion = nullptr) MOZ_OVERRIDE;
   virtual bool Lock() MOZ_OVERRIDE;

@@ -2035,11 +2035,6 @@ nsCSSStyleSheet::DeleteRule(uint32_t aIndex)
     nsRefPtr<css::Rule> rule = mInner->mOrderedRules.ObjectAt(aIndex);
     if (rule) {
       mInner->mOrderedRules.RemoveObjectAt(aIndex);
-      if (mDocument && mDocument->StyleSheetChangeEventsEnabled()) {
-        // Force creation of the DOM rule, so that it can be put on the
-        // StyleRuleRemoved event object.
-        rule->GetDOMRule();
-      }
       rule->SetStyleSheet(nullptr);
       DidDirty();
 

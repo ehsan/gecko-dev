@@ -144,9 +144,6 @@ const WebProgress = {
 
     this._progressActive = true;
 
-    // display the track
-    Elements.progressContainer.removeAttribute("collapsed");
-
     // 'Whoosh' in
     this._progressCount = kProgressMarginStart;
     Elements.progress.style.width = this._progressCount + "%"; 
@@ -201,7 +198,6 @@ const WebProgress = {
     // Close out fade finished, reset
     if (data.propertyName == "opacity") {
       Elements.progress.style.width = "0px"; 
-      Elements.progressContainer.setAttribute("collapsed", true);
     }
   },
 };

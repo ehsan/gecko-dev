@@ -2738,7 +2738,7 @@ for (uint32_t i = 0; i < length; ++i) {
             memberType = arrayObjectMemberTypes[0]
             name = memberType.name
             arrayObject = CGGeneric("done = (failed = !%s.TrySetTo%s(cx, ${valHandle}, ${valPtr}, tryNext)) || !tryNext;" % (unionArgumentObj, name))
-            arrayObject = CGIfWrapper(arrayObject, "IsArrayLike(cx, argObj)")
+            arrayObject = CGIfWrapper(arrayObject, "IsArrayLike(cx, &argObj)")
             names.append(name)
         else:
             arrayObject = None
@@ -2750,7 +2750,7 @@ for (uint32_t i = 0; i < length; ++i) {
             name = memberType.name
             dateObject = CGGeneric("%s.SetTo%s(cx, ${val}, ${valPtr});\n"
                                    "done = true;" % (unionArgumentObj, name))
-            dateObject = CGIfWrapper(dateObject, "JS_ObjectIsDate(cx, argObj)");
+            dateObject = CGIfWrapper(dateObject, "JS_ObjectIsDate(cx, &argObj)");
             names.append(name)
         else:
             dateObject = None
@@ -2774,7 +2774,7 @@ for (uint32_t i = 0; i < length; ++i) {
 
         objectMemberTypes = filter(lambda t: t.isObject(), memberTypes)
         if len(objectMemberTypes) > 0:
-            object = CGGeneric("%s.SetToObject(cx, argObj);\n"
+            object = CGGeneric("%s.SetToObject(cx, &argObj);\n"
                                "done = true;" % unionArgumentObj)
         else:
             object = None
@@ -2804,8 +2804,8 @@ for (uint32_t i = 0; i < length; ++i) {
 
             if any([arrayObject, dateObject, callbackObject, dictionaryObject,
                     object]):
-                templateBody.prepend(CGGeneric("JS::Rooted<JSObject*> argObj(cx, &${valHandle}.toObject());"))
-            templateBody = CGIfWrapper(templateBody, "${valHandle}.isObject()")
+                templateBody.prepend(CGGeneric("JSObject& argObj = ${val}.toObject();"))
+            templateBody = CGIfWrapper(templateBody, "${val}.isObject()")
         else:
             templateBody = CGGeneric()
 
@@ -2955,18 +2955,12 @@ for (uint32_t i = 0; i < length; ++i) {
 
         templateBody = ""
         if descriptor.interface.isCallback():
-            # NOTE: This is only used for EventListener at this point
-            callbackConversion = str(CallbackObjectUnwrapper(
+            templateBody += str(CallbackObjectUnwrapper(
                     descriptor,
-                    "callbackObj",
+                    "&${val}.toObject()",
                     "${declName}",
                     exceptionCode,
                     codeOnFailure=failureCode))
-            templateBody += (
-                "{ // Scope for callbackObj\n"
-                "  JS::Rooted<JSObject*> callbackObj(cx, &${valHandle}.toObject());\n" +
-                CGIndenter(CGGeneric(callbackConversion)).define() +
-                "\n}")
         elif not descriptor.skipGen and not descriptor.interface.isConsequential() and not descriptor.interface.isExternal():
             if failureCode is not None:
                 templateBody += str(CastableObjectUnwrapper(
@@ -3313,7 +3307,7 @@ for (uint32_t i = 0; i < length; ++i) {
             # a dictionary, and return failureCode if not.
             template = CGIfWrapper(
                 CGGeneric(failureCode),
-                "!IsObjectValueConvertibleToDictionary(cx, ${valHandle})").define() + "\n\n"
+                "!IsConvertibleToDictionary(cx, &${valHandle}.toObject())").define() + "\n\n"
         else:
             template = ""
 
@@ -7935,10 +7929,8 @@ class CGBindingRoot(CGThing):
         # Do codegen for all the descriptors
         cgthings.extend([CGDescriptor(x) for x in descriptors])
 
-        # Do codegen for all the callback interfaces.  Again, skip
-        # worker callbacks.
-        cgthings.extend([CGCallbackInterface(x) for x in callbackDescriptors if
-                         not x.workers])
+        # Do codegen for all the callback interfaces
+        cgthings.extend([CGCallbackInterface(x) for x in callbackDescriptors])
 
         # Do codegen for JS implemented classes
         def getParentDescriptor(desc):

@@ -2147,7 +2147,12 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
                                mParameters.mYScale);
       }
 
-      ownLayer->SetIsFixedPosition(isFixed);
+      // If a transform layer is marked as fixed then the shadow transform gets
+      // overwritten by CompositorParent when doing scroll compensation on
+      // fixed layers. This means we need to make sure transform layers are not
+      // marked as fixed.
+      ownLayer->SetIsFixedPosition(
+        isFixed && item->GetType() != nsDisplayItem::TYPE_TRANSFORM);
 
       // Update that layer's clip and visible rects.
       NS_ASSERTION(ownLayer->Manager() == mManager, "Wrong manager");

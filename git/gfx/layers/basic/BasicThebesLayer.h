@@ -104,7 +104,7 @@ protected:
     mValidRegion.Or(mValidRegion, tmp);
   }
 
-  RefPtr<ContentClientBasic> mContentClient;
+  RefPtr<ContentClient> mContentClient;
 };
 
 }

@@ -306,9 +306,7 @@
 
     <!-- Windows 8 Appbar -->
     <appbar id="appbar" mousethrough="never" observes="bcast_windowState">
-      <hbox id="progress-container" layer="true">
-        <hbox id="progress-control" />
-      </hbox>
+      <hbox id="progress-control" layer="true"/>
 
       <!-- Main Toolbar -->
       <toolbar id="toolbar" observes="bcast_windowState" flex="1">
@@ -379,10 +377,10 @@
     </flyoutpanel>
 
     <flyoutpanel id="sync-flyoutpanel" headertext="&syncHeader.title;">
-      <description id="sync-description">&sync.setup.description;</description>
-      <description id="sync-accountinfo" collapsed="true"></description>
-      <description id="sync-lastsync" collapsed="true"></description>
-      <description id="sync-errordescription" collapsed="true"></description>
+      <description>&sync.setup.description;</description> 
+      <description id="sync-accountinfo" collapsed="true"></description> 
+      <description id="sync-lastsync" collapsed="true"></description> 
+      <description id="sync-errordescription" collapsed="true"></description> 
       <setting id="sync-connect" type="control" collapsed="true">
         <button label="&sync.setupbutton.label;" oncommand="Sync.tryConnect();" />
       </setting>

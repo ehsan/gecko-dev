@@ -331,17 +331,12 @@ public:
   {
     mShadowTransform = aMatrix;
   }
-  void SetShadowTransformSetByAnimation(bool aSetByAnimation)
-  {
-    mShadowTransformSetByAnimation = aSetByAnimation;
-  }
 
   // These getters can be used anytime.
   float GetShadowOpacity() { return mShadowOpacity; }
   const nsIntRect* GetShadowClipRect() { return mUseShadowClipRect ? &mShadowClipRect : nullptr; }
   const nsIntRegion& GetShadowVisibleRegion() { return mShadowVisibleRegion; }
   const gfx3DMatrix& GetShadowTransform() { return mShadowTransform; }
-  bool GetShadowTransformSetByAnimation() { return mShadowTransformSetByAnimation; }
 
 protected:
   gfx3DMatrix mShadowTransform;
@@ -351,7 +346,6 @@ protected:
   RefPtr<Compositor> mCompositor;
   float mShadowOpacity;
   bool mUseShadowClipRect;
-  bool mShadowTransformSetByAnimation;
   bool mDestroyed;
 };
 

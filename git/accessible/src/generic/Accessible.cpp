@@ -2024,8 +2024,7 @@ Accessible::RelationByType(uint32_t aType)
 
       // This is an ARIA tree or treegrid that doesn't use owns, so we need to
       // get the parent the hard way.
-      if (mRoleMapEntry && (mRoleMapEntry->role == roles::OUTLINEITEM ||
-                            mRoleMapEntry->role == roles::LISTITEM ||
+      if (mRoleMapEntry && (mRoleMapEntry->role == roles::OUTLINEITEM || 
                             mRoleMapEntry->role == roles::ROW)) {
         rel.AppendTarget(GetGroupInfo()->ConceptualParent());
       }
@@ -2056,10 +2055,8 @@ Accessible::RelationByType(uint32_t aType)
       // also can be organized by groups.
       if (mRoleMapEntry &&
           (mRoleMapEntry->role == roles::OUTLINEITEM ||
-           mRoleMapEntry->role == roles::LISTITEM ||
            mRoleMapEntry->role == roles::ROW ||
            mRoleMapEntry->role == roles::OUTLINE ||
-           mRoleMapEntry->role == roles::LIST ||
            mRoleMapEntry->role == roles::TREE_TABLE)) {
         rel.AppendIter(new ItemIterator(this));
       }
@@ -3259,11 +3256,10 @@ Accessible::GetLevelInternal()
     }
 
   } else if (role == roles::LISTITEM) {
-    // Expose 'level' attribute on nested lists. We support two hierarchies:
-    // a) list -> listitem -> list -> listitem (nested list is a last child
-    //   of listitem of the parent list);
-    // b) list -> listitem -> group -> listitem (nested listitems are contained
-    //   by group that is a last child of the parent listitem).
+    // Expose 'level' attribute on nested lists. We assume nested list is a last
+    // child of listitem of parent list. We don't handle the case when nested
+    // lists have more complex structure, for example when there are accessibles
+    // between parent listitem and nested list.
 
     // Calculate 'level' attribute based on number of parent listitems.
     level = 0;
@@ -3273,8 +3269,9 @@ Accessible::GetLevelInternal()
 
       if (parentRole == roles::LISTITEM)
         ++ level;
-      else if (parentRole != roles::LIST && parentRole != roles::GROUPING)
+      else if (parentRole != roles::LIST)
         break;
+
     }
 
     if (level == 0) {
@@ -3286,11 +3283,8 @@ Accessible::GetLevelInternal()
         Accessible* sibling = parent->GetChildAt(siblingIdx);
 
         Accessible* siblingChild = sibling->LastChild();
-        if (siblingChild) {
-          roles::Role lastChildRole = siblingChild->Role();
-          if (lastChildRole == roles::LIST || lastChildRole == roles::GROUPING)
-            return 1;
-        }
+        if (siblingChild && siblingChild->Role() == roles::LIST)
+          return 1;
       }
     } else {
       ++ level; // level is 1-index based

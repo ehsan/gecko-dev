@@ -65,8 +65,6 @@ enum CompositableType
   BUFFER_BRIDGE,          // image bridge protocol
   BUFFER_CONTENT,         // thebes layer interface, single buffering
   BUFFER_CONTENT_DIRECT,  // thebes layer interface, double buffering
-  BUFFER_CONTENT_INC,     // thebes layer interface, only sends incremental
-                          // updates to a texture on the compositor side.
   BUFFER_TILED,           // tiled thebes layer
   BUFFER_COUNT
 };
@@ -78,9 +76,7 @@ enum TextureHostFlags
 {
   TEXTURE_HOST_DEFAULT = 0,       // The default texture host for the given
                                   // SurfaceDescriptor
-  TEXTURE_HOST_TILED = 1 << 0,    // A texture host that supports tiling
-  TEXTURE_HOST_COPY_PREVIOUS = 1 << 1 // Texture contents should be initialized
-                                      // from the previous texture.
+  TEXTURE_HOST_TILED = 1 << 0     // A texture host that supports tiling
 };
 
 /**
@@ -92,17 +88,11 @@ struct TextureFactoryIdentifier
 {
   LayersBackend mParentBackend;
   int32_t mMaxTextureSize;
-  bool mSupportsTextureBlitting;
-  bool mSupportsPartialUploads;
 
   TextureFactoryIdentifier(LayersBackend aLayersBackend = LAYERS_NONE,
-                           int32_t aMaxTextureSize = 0,
-                           bool aSupportsTextureBlitting = false,
-                           bool aSupportsPartialUploads = false)
+                           int32_t aMaxTextureSize = 0)
     : mParentBackend(aLayersBackend)
     , mMaxTextureSize(aMaxTextureSize)
-    , mSupportsTextureBlitting(aSupportsTextureBlitting)
-    , mSupportsPartialUploads(aSupportsPartialUploads)
   {}
 };
 
