@@ -1415,8 +1415,6 @@ js::math_hypot_handle(JSContext *cx, HandleValueArray args, MutableHandleValue r
 
         isInfinite |= mozilla::IsInfinite(x);
         isNaN |= mozilla::IsNaN(x);
-        if (isInfinite || isNaN)
-            continue;
 
         double xabs = mozilla::Abs(x);
 

@@ -251,7 +251,7 @@ LOCAL_INCLUDES += [
     '/dom/camera',
     '/layout/generic',
     '/layout/xul',
-    '/netwerk/base',
+    '/netwerk/base/src',
 ]
 
 if CONFIG['MOZ_DIRECTSHOW']:

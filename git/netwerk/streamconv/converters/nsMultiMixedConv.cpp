@@ -539,10 +539,9 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
             mFirstOnData = true;
         }
         else if (!PL_strnstr(cursor, token, mTokenLen+2)) {
-            char *newBuffer = (char *) realloc(buffer, bufLen + mTokenLen + 1);
-            if (!newBuffer)
+            buffer = (char *) realloc(buffer, bufLen + mTokenLen + 1);
+            if (!buffer)
                 return NS_ERROR_OUT_OF_MEMORY;
-            buffer = newBuffer;
 
             memmove(buffer + mTokenLen + 1, buffer, bufLen);
             memcpy(buffer, token, mTokenLen);

@@ -105,6 +105,7 @@ GonkDisplayJB::GonkDisplayJB()
 
     mAlloc = new GraphicBufferAlloc();
 
+    status_t error;
 #if ANDROID_VERSION >= 21
     sp<IGraphicBufferProducer> producer;
     sp<IGraphicBufferConsumer> consumer;
@@ -118,7 +119,6 @@ GonkDisplayJB::GonkDisplayJB()
 #else
     sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
 #endif
-
     mFBSurface = new FramebufferSurface(0, mWidth, mHeight, surfaceformat, consumer);
 
 #if ANDROID_VERSION == 17
@@ -127,7 +127,6 @@ GonkDisplayJB::GonkDisplayJB()
 #else
     sp<Surface> stc = new Surface(producer);
 #endif
-
     mSTClient = stc;
     mSTClient->perform(mSTClient.get(), NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
     mSTClient->perform(mSTClient.get(), NATIVE_WINDOW_SET_USAGE,
@@ -139,8 +138,11 @@ GonkDisplayJB::GonkDisplayJB()
     if (mHwc)
         mHwc->blank(mHwc, HWC_DISPLAY_PRIMARY, 0);
 
-    ALOGI("Starting bootanimation with (%d) format framebuffer", surfaceformat);
-    StartBootAnimation();
+    if (error == NO_ERROR) {
+        ALOGI("Starting bootanimation with (%d) format framebuffer", surfaceformat);
+        StartBootAnimation();
+    } else
+        ALOGW("Couldn't show bootanimation (%s)", strerror(-error));
 }
 
 GonkDisplayJB::~GonkDisplayJB()

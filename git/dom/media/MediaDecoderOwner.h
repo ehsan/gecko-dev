@@ -21,6 +21,9 @@ public:
   // Called by the media decoder to indicate that the download is progressing.
   virtual void DownloadProgressed() = 0;
 
+  // Dispatch a synchronous event to the decoder owner
+  virtual nsresult DispatchEvent(const nsAString& aName) = 0;
+
   // Dispatch an asynchronous event to the decoder owner
   virtual nsresult DispatchAsyncEvent(const nsAString& aName) = 0;
 

@@ -33,7 +33,6 @@
 #include "MediaStreamSource.h"
 #include "MediaTaskQueue.h"
 #include "MP3FrameParser.h"
-#include "nsMimeTypes.h"
 #include "nsThreadUtils.h"
 #include "ImageContainer.h"
 #include "SharedThreadPool.h"
@@ -689,9 +688,7 @@ MediaCodecReader::ReadMetadata(MediaInfo* aInfo,
     return NS_ERROR_FAILURE;
   }
 
-  bool incrementalParserNeeded =
-    mDecoder->GetResource()->GetContentType().EqualsASCII(AUDIO_MP3);
-  if (incrementalParserNeeded && !TriggerIncrementalParser()) {
+  if (!TriggerIncrementalParser()) {
     return NS_ERROR_FAILURE;
   }
 
@@ -1422,10 +1419,10 @@ MediaCodecReader::TriggerIncrementalParser()
     mParsedDataLength = INT64_C(0);
 
     // MP3 file duration
+    mMP3FrameParser = new MP3FrameParser(mDecoder->GetResource()->GetLength());
     const char* mime = nullptr;
     if (mMetaData->findCString(kKeyMIMEType, &mime) &&
         !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
-      mMP3FrameParser = new MP3FrameParser(mDecoder->GetResource()->GetLength());
       {
         MonitorAutoUnlock monUnlock(mParserMonitor);
         // trigger parsing logic and wait for finishing parsing data in the beginning.

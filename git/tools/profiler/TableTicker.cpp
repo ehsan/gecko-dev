@@ -119,6 +119,7 @@ void TableTicker::StreamTaskTracer(JSStreamWriter& b)
       for (uint32_t i = 0; i < data->Length(); ++i) {
         b.Value((data->ElementAt(i)).get());
       }
+      mozilla::tasktracer::StartLogging(sStartTime);
     b.EndArray();
 
     b.Name("threads");
@@ -138,9 +139,6 @@ void TableTicker::StreamTaskTracer(JSStreamWriter& b)
         b.EndObject();
       }
     b.EndArray();
-
-    b.NameValue("start",
-                static_cast<double>(mozilla::tasktracer::GetStartTime()));
 #endif
   b.EndObject();
 }
