@@ -80,9 +80,9 @@ public:
     return mWriteLevel != uint32_t(0);
   }
 
-  virtual nsContentList* GetForms();
+  virtual NS_HIDDEN_(nsContentList*) GetForms();
  
-  virtual nsContentList* GetFormControls();
+  virtual NS_HIDDEN_(nsContentList*) GetFormControls();
  
   // nsIDOMDocument interface
   using nsDocument::CreateElement;
@@ -155,7 +155,7 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
-  virtual void RemovedFromDocShell() MOZ_OVERRIDE;
+  virtual NS_HIDDEN_(void) RemovedFromDocShell() MOZ_OVERRIDE;
 
   virtual mozilla::dom::Element *GetElementById(const nsAString& aElementId)
   {

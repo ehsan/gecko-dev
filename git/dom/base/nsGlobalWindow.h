@@ -429,67 +429,67 @@ public:
   NS_DECL_NSIINLINEEVENTHANDLERS
 
   // nsPIDOMWindow
-  virtual nsPIDOMWindow* GetPrivateRoot();
+  virtual NS_HIDDEN_(nsPIDOMWindow*) GetPrivateRoot();
 
   // Outer windows only.
-  virtual void ActivateOrDeactivate(bool aActivate);
-  virtual void SetActive(bool aActive);
-  virtual void SetIsBackground(bool aIsBackground);
-  virtual void SetChromeEventHandler(mozilla::dom::EventTarget* aChromeEventHandler);
+  virtual NS_HIDDEN_(void) ActivateOrDeactivate(bool aActivate);
+  virtual NS_HIDDEN_(void) SetActive(bool aActive);
+  virtual NS_HIDDEN_(void) SetIsBackground(bool aIsBackground);
+  virtual NS_HIDDEN_(void) SetChromeEventHandler(mozilla::dom::EventTarget* aChromeEventHandler);
 
   // Outer windows only.
-  virtual void SetInitialPrincipalToSubject();
+  virtual NS_HIDDEN_(void) SetInitialPrincipalToSubject();
 
-  virtual PopupControlState PushPopupControlState(PopupControlState state, bool aForce) const;
-  virtual void PopPopupControlState(PopupControlState state) const;
-  virtual PopupControlState GetPopupControlState() const;
+  virtual NS_HIDDEN_(PopupControlState) PushPopupControlState(PopupControlState state, bool aForce) const;
+  virtual NS_HIDDEN_(void) PopPopupControlState(PopupControlState state) const;
+  virtual NS_HIDDEN_(PopupControlState) GetPopupControlState() const;
 
   virtual already_AddRefed<nsISupports> SaveWindowState();
-  virtual nsresult RestoreWindowState(nsISupports *aState);
-  virtual void SuspendTimeouts(uint32_t aIncrease = 1,
+  virtual NS_HIDDEN_(nsresult) RestoreWindowState(nsISupports *aState);
+  virtual NS_HIDDEN_(void) SuspendTimeouts(uint32_t aIncrease = 1,
                                            bool aFreezeChildren = true);
-  virtual nsresult ResumeTimeouts(bool aThawChildren = true);
-  virtual uint32_t TimeoutSuspendCount();
-  virtual nsresult FireDelayedDOMEvents();
-  virtual bool IsFrozen() const
+  virtual NS_HIDDEN_(nsresult) ResumeTimeouts(bool aThawChildren = true);
+  virtual NS_HIDDEN_(uint32_t) TimeoutSuspendCount();
+  virtual NS_HIDDEN_(nsresult) FireDelayedDOMEvents();
+  virtual NS_HIDDEN_(bool) IsFrozen() const
   {
     return mIsFrozen;
   }
-  virtual bool IsRunningTimeout() { return mTimeoutFiringDepth > 0; }
+  virtual NS_HIDDEN_(bool) IsRunningTimeout() { return mTimeoutFiringDepth > 0; }
 
   // Outer windows only.
-  virtual bool WouldReuseInnerWindow(nsIDocument* aNewDocument);
+  virtual NS_HIDDEN_(bool) WouldReuseInnerWindow(nsIDocument* aNewDocument);
 
-  virtual void SetDocShell(nsIDocShell* aDocShell);
+  virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual void DetachFromDocShell();
-  virtual nsresult SetNewDocument(nsIDocument *aDocument,
+  virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
                                               nsISupports *aState,
                                               bool aForceReuseInnerWindow);
 
   // Outer windows only.
   void DispatchDOMWindowCreated();
 
-  virtual void SetOpenerWindow(nsIDOMWindow* aOpener,
+  virtual NS_HIDDEN_(void) SetOpenerWindow(nsIDOMWindow* aOpener,
                                            bool aOriginalOpener);
 
   // Outer windows only.
-  virtual void EnsureSizeUpToDate();
+  virtual NS_HIDDEN_(void) EnsureSizeUpToDate();
 
-  virtual void EnterModalState();
-  virtual void LeaveModalState();
+  virtual NS_HIDDEN_(void) EnterModalState();
+  virtual NS_HIDDEN_(void) LeaveModalState();
 
   // Outer windows only.
-  virtual bool CanClose();
-  virtual void ForceClose();
+  virtual NS_HIDDEN_(bool) CanClose();
+  virtual NS_HIDDEN_(void) ForceClose();
 
-  virtual void MaybeUpdateTouchState();
-  virtual void UpdateTouchState();
-  virtual bool DispatchCustomEvent(const char *aEventName);
-  virtual bool DispatchResizeEvent(const nsIntSize& aSize);
-  virtual void RefreshCompartmentPrincipal();
-  virtual nsresult SetFullScreenInternal(bool aIsFullScreen, bool aRequireTrust);
+  virtual NS_HIDDEN_(void) MaybeUpdateTouchState();
+  virtual NS_HIDDEN_(void) UpdateTouchState();
+  virtual NS_HIDDEN_(bool) DispatchCustomEvent(const char *aEventName);
+  virtual NS_HIDDEN_(bool) DispatchResizeEvent(const nsIntSize& aSize);
+  virtual NS_HIDDEN_(void) RefreshCompartmentPrincipal();
+  virtual NS_HIDDEN_(nsresult) SetFullScreenInternal(bool aIsFullScreen, bool aRequireTrust);
 
-  virtual void SetHasGamepadEventListener(bool aHasGamepad = true);
+  virtual NS_HIDDEN_(void) SetHasGamepadEventListener(bool aHasGamepad = true);
 
   // nsIInterfaceRequestor
   NS_DECL_NSIINTERFACEREQUESTOR
@@ -635,10 +635,10 @@ public:
   void RiskyUnlink();
 #endif
 
-  virtual JSObject*
+  virtual NS_HIDDEN_(JSObject*)
     GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey);
 
-  virtual void
+  virtual NS_HIDDEN_(void)
     CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
                              JS::Handle<JSObject*> aHandler);
 
@@ -1154,7 +1154,7 @@ protected:
    *
    * @param aReturn [out] The window that was opened, if any.
    */
-  nsresult OpenInternal(const nsAString& aUrl,
+  NS_HIDDEN_(nsresult) OpenInternal(const nsAString& aUrl,
                                     const nsAString& aName,
                                     const nsAString& aOptions,
                                     bool aDialog,

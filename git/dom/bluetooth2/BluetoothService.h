@@ -123,13 +123,13 @@ public:
   }
 
   /**
-   * Returns an array of each adapter's properties, implemented via a platform
+   * Returns the path of the default adapter, implemented via a platform
    * specific method.
    *
    * @return NS_OK on success, NS_ERROR_FAILURE otherwise
    */
   virtual nsresult
-  GetAdaptersInternal(BluetoothReplyRunnable* aRunnable) = 0;
+  GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable) = 0;
 
   /**
    * Returns the properties of paired devices, implemented via a platform

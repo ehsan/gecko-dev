@@ -94,14 +94,14 @@ public:
    *
    * @param aFrame the root of the subtree to reparent.  Must not be null.
    */
-  nsresult ReparentStyleContext(nsIFrame* aFrame);
+  NS_HIDDEN_(nsresult) ReparentStyleContext(nsIFrame* aFrame);
 
   /**
    * Re-resolve the style contexts for a frame tree, building
    * aChangeList based on the resulting style changes, plus aMinChange
    * applied to aFrame.
    */
-  void
+  NS_HIDDEN_(void)
     ComputeStyleChangeFor(nsIFrame* aFrame,
                           nsStyleChangeList* aChangeList,
                           nsChangeHint aMinChange,
@@ -112,7 +112,7 @@ public:
   /**
    * DEBUG ONLY method to verify integrity of style tree versus frame tree
    */
-  void DebugVerifyStyleTree(nsIFrame* aFrame);
+  NS_HIDDEN_(void) DebugVerifyStyleTree(nsIFrame* aFrame);
 #endif
 
   // Note: It's the caller's responsibility to make sure to wrap a

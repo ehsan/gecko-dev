@@ -122,7 +122,7 @@ private:
         gService = nullptr;
     }
 
-    nsresult Init();
+    NS_HIDDEN_(nsresult) Init();
 
     nsresult CreateTimesInternal(nsIFile *profileDir);
 

@@ -96,10 +96,10 @@ BluetoothServiceChildProcess::UnregisterBluetoothSignalHandler(
 }
 
 nsresult
-BluetoothServiceChildProcess::GetAdaptersInternal(
+BluetoothServiceChildProcess::GetDefaultAdapterPathInternal(
                                               BluetoothReplyRunnable* aRunnable)
 {
-  SendRequest(aRunnable, GetAdaptersRequest());
+  SendRequest(aRunnable, DefaultAdapterPathRequest());
   return NS_OK;
 }
 
