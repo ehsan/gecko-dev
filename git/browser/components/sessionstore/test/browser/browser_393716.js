@@ -59,7 +59,7 @@ function test() {
     
     // add text data
     let textbox = this.contentDocument.getElementById("textbox");
-    textbox.value = value3;
+    textbox.wrappedJSObject.value = value3;
     
     // duplicate the tab
     let duplicateTab = ss.duplicateTab(window, tab2);
@@ -71,7 +71,7 @@ function test() {
       ok(ss.getTabValue(duplicateTab, key2) == value2 && this.currentURI.spec == testURL,
          "correctly duplicated the tab's state");
       let textbox = this.contentDocument.getElementById("textbox");
-      is(textbox.value, value3, "also duplicated text data");
+      is(textbox.wrappedJSObject.value, value3, "also duplicated text data");
       
       // clean up
       tabbrowser.removeTab(duplicateTab);

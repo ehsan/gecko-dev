@@ -35,7 +35,6 @@
 #include <emmintrin.h> /* for SSE2 intrinsics */
 #include "pixman-private.h"
 #include "pixman-combine32.h"
-#include "pixman-fast-path.h"
 
 #if defined(_MSC_VER) && defined(_M_AMD64)
 /* Windows 64 doesn't allow MMX to be used, so
@@ -357,6 +356,34 @@ in_over_2x128 (__m128i* src_lo,
     over_2x128 (&s_lo, &s_hi, &a_lo, &a_hi, dst_lo, dst_hi);
 }
 
+static force_inline void
+cache_prefetch (__m128i* addr)
+{
+    _mm_prefetch ((void const*)addr, _MM_HINT_T0);
+}
+
+static force_inline void
+cache_prefetch_next (__m128i* addr)
+{
+    _mm_prefetch ((void const *)(addr + 4), _MM_HINT_T0); /* 64 bytes ahead */
+}
+
+/* prefetching NULL is very slow on some systems. don't do that. */
+
+static force_inline void
+maybe_prefetch (__m128i* addr)
+{
+    if (addr)
+	cache_prefetch (addr);
+}
+
+static force_inline void
+maybe_prefetch_next (__m128i* addr)
+{
+    if (addr)
+	cache_prefetch_next (addr);
+}
+
 /* load 4 pixels from a 16-byte boundary aligned address */
 static force_inline __m128i
 load_128_aligned (__m128i* src)
@@ -621,6 +648,11 @@ core_combine_over_u_sse2 (uint32_t*       pd,
     __m128i xmm_src_lo, xmm_src_hi;
     __m128i xmm_alpha_lo, xmm_alpha_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     /* Align dst on a 16-byte boundary */
     while (w && ((unsigned long)pd & 15))
     {
@@ -634,8 +666,18 @@ core_combine_over_u_sse2 (uint32_t*       pd,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	maybe_prefetch_next ((__m128i*)pm);
+
 	/* I'm loading unaligned because I'm not sure about
 	 * the address alignment.
 	 */
@@ -697,6 +739,11 @@ core_combine_over_reverse_u_sse2 (uint32_t*       pd,
     __m128i xmm_src_lo, xmm_src_hi;
     __m128i xmm_alpha_lo, xmm_alpha_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     /* Align dst on a 16-byte boundary */
     while (w &&
            ((unsigned long)pd & 15))
@@ -711,8 +758,18 @@ core_combine_over_reverse_u_sse2 (uint32_t*       pd,
 	    pm++;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	maybe_prefetch_next ((__m128i*)pm);
+
 	/* I'm loading unaligned because I'm not sure
 	 * about the address alignment.
 	 */
@@ -784,6 +841,11 @@ core_combine_in_u_sse2 (uint32_t*       pd,
     __m128i xmm_src_lo, xmm_src_hi;
     __m128i xmm_dst_lo, xmm_dst_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w && ((unsigned long) pd & 15))
     {
 	s = combine1 (ps, pm);
@@ -796,8 +858,18 @@ core_combine_in_u_sse2 (uint32_t*       pd,
 	    pm++;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	maybe_prefetch_next ((__m128i*)pm);
+
 	xmm_dst_hi = load_128_aligned ((__m128i*) pd);
 	xmm_src_hi = combine4 ((__m128i*) ps, (__m128i*) pm);
 
@@ -843,6 +915,11 @@ core_combine_reverse_in_u_sse2 (uint32_t*       pd,
     __m128i xmm_src_lo, xmm_src_hi;
     __m128i xmm_dst_lo, xmm_dst_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w && ((unsigned long) pd & 15))
     {
 	s = combine1 (ps, pm);
@@ -855,8 +932,18 @@ core_combine_reverse_in_u_sse2 (uint32_t*       pd,
 	    pm++;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	maybe_prefetch_next ((__m128i*)pm);
+
 	xmm_dst_hi = load_128_aligned ((__m128i*) pd);
 	xmm_src_hi = combine4 ((__m128i*) ps, (__m128i*)pm);
 
@@ -897,6 +984,11 @@ core_combine_reverse_out_u_sse2 (uint32_t*       pd,
                                  const uint32_t* pm,
                                  int             w)
 {
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w && ((unsigned long) pd & 15))
     {
 	uint32_t s = combine1 (ps, pm);
@@ -913,10 +1005,20 @@ core_combine_reverse_out_u_sse2 (uint32_t*       pd,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
 	__m128i xmm_src_lo, xmm_src_hi;
 	__m128i xmm_dst_lo, xmm_dst_hi;
+
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	maybe_prefetch_next ((__m128i*)pm);
 
 	xmm_src_hi = combine4 ((__m128i*)ps, (__m128i*)pm);
 	xmm_dst_hi = load_128_aligned ((__m128i*) pd);
@@ -964,6 +1066,11 @@ core_combine_out_u_sse2 (uint32_t*       pd,
                          const uint32_t* pm,
                          int             w)
 {
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w && ((unsigned long) pd & 15))
     {
 	uint32_t s = combine1 (ps, pm);
@@ -979,10 +1086,20 @@ core_combine_out_u_sse2 (uint32_t*       pd,
 	    pm++;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
 	__m128i xmm_src_lo, xmm_src_hi;
 	__m128i xmm_dst_lo, xmm_dst_hi;
+
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	maybe_prefetch_next ((__m128i*)pm);
 
 	xmm_src_hi = combine4 ((__m128i*) ps, (__m128i*)pm);
 	xmm_dst_hi = load_128_aligned ((__m128i*) pd);
@@ -1049,6 +1166,11 @@ core_combine_atop_u_sse2 (uint32_t*       pd,
     __m128i xmm_alpha_src_lo, xmm_alpha_src_hi;
     __m128i xmm_alpha_dst_lo, xmm_alpha_dst_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w && ((unsigned long) pd & 15))
     {
 	s = combine1 (ps, pm);
@@ -1061,8 +1183,18 @@ core_combine_atop_u_sse2 (uint32_t*       pd,
 	    pm++;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	maybe_prefetch_next ((__m128i*)pm);
+
 	xmm_src_hi = combine4 ((__m128i*)ps, (__m128i*)pm);
 	xmm_dst_hi = load_128_aligned ((__m128i*) pd);
 
@@ -1131,6 +1263,11 @@ core_combine_reverse_atop_u_sse2 (uint32_t*       pd,
     __m128i xmm_alpha_src_lo, xmm_alpha_src_hi;
     __m128i xmm_alpha_dst_lo, xmm_alpha_dst_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w && ((unsigned long) pd & 15))
     {
 	s = combine1 (ps, pm);
@@ -1143,8 +1280,18 @@ core_combine_reverse_atop_u_sse2 (uint32_t*       pd,
 	    pm++;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	maybe_prefetch_next ((__m128i*)pm);
+
 	xmm_src_hi = combine4 ((__m128i*)ps, (__m128i*)pm);
 	xmm_dst_hi = load_128_aligned ((__m128i*) pd);
 
@@ -1217,6 +1364,11 @@ core_combine_xor_u_sse2 (uint32_t*       dst,
     __m128i xmm_alpha_src_lo, xmm_alpha_src_hi;
     __m128i xmm_alpha_dst_lo, xmm_alpha_dst_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w && ((unsigned long) pd & 15))
     {
 	s = combine1 (ps, pm);
@@ -1229,8 +1381,18 @@ core_combine_xor_u_sse2 (uint32_t*       dst,
 	    pm++;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	maybe_prefetch_next ((__m128i*)pm);
+
 	xmm_src = combine4 ((__m128i*) ps, (__m128i*) pm);
 	xmm_dst = load_128_aligned ((__m128i*) pd);
 
@@ -1287,6 +1449,11 @@ core_combine_add_u_sse2 (uint32_t*       dst,
     const uint32_t* ps = src;
     const uint32_t* pm = mask;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w && (unsigned long)pd & 15)
     {
 	s = combine1 (ps, pm);
@@ -1300,9 +1467,19 @@ core_combine_add_u_sse2 (uint32_t*       dst,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
 	__m128i s;
+
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	maybe_prefetch_next ((__m128i*)pm);
 
 	s = combine4 ((__m128i*)ps, (__m128i*)pm);
 
@@ -1358,6 +1535,11 @@ core_combine_saturate_u_sse2 (uint32_t *      pd,
     uint32_t pack_cmp;
     __m128i xmm_src, xmm_dst;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w && (unsigned long)pd & 15)
     {
 	s = combine1 (ps, pm);
@@ -1370,8 +1552,18 @@ core_combine_saturate_u_sse2 (uint32_t *      pd,
 	    pm++;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    maybe_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	maybe_prefetch_next ((__m128i*)pm);
+
 	xmm_dst = load_128_aligned  ((__m128i*)pd);
 	xmm_src = combine4 ((__m128i*)ps, (__m128i*)pm);
 
@@ -1444,6 +1636,11 @@ core_combine_src_ca_sse2 (uint32_t*       pd,
     __m128i xmm_mask_lo, xmm_mask_hi;
     __m128i xmm_dst_lo, xmm_dst_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w && (unsigned long)pd & 15)
     {
 	s = *ps++;
@@ -1453,8 +1650,18 @@ core_combine_src_ca_sse2 (uint32_t*       pd,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	cache_prefetch_next ((__m128i*)pm);
+
 	xmm_src_hi = load_128_unaligned ((__m128i*)ps);
 	xmm_mask_hi = load_128_unaligned ((__m128i*)pm);
 
@@ -1510,6 +1717,11 @@ core_combine_over_ca_sse2 (uint32_t*       pd,
     __m128i xmm_dst_lo, xmm_dst_hi;
     __m128i xmm_mask_lo, xmm_mask_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w && (unsigned long)pd & 15)
     {
 	s = *ps++;
@@ -1520,8 +1732,18 @@ core_combine_over_ca_sse2 (uint32_t*       pd,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	cache_prefetch_next ((__m128i*)pm);
+
 	xmm_dst_hi = load_128_aligned ((__m128i*)pd);
 	xmm_src_hi = load_128_unaligned ((__m128i*)ps);
 	xmm_mask_hi = load_128_unaligned ((__m128i*)pm);
@@ -1584,6 +1806,11 @@ core_combine_over_reverse_ca_sse2 (uint32_t*       pd,
     __m128i xmm_dst_lo, xmm_dst_hi;
     __m128i xmm_mask_lo, xmm_mask_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w && (unsigned long)pd & 15)
     {
 	s = *ps++;
@@ -1594,8 +1821,18 @@ core_combine_over_reverse_ca_sse2 (uint32_t*       pd,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	cache_prefetch_next ((__m128i*)pm);
+
 	xmm_dst_hi = load_128_aligned ((__m128i*)pd);
 	xmm_src_hi = load_128_unaligned ((__m128i*)ps);
 	xmm_mask_hi = load_128_unaligned ((__m128i*)pm);
@@ -1647,6 +1884,11 @@ core_combine_in_ca_sse2 (uint32_t *      pd,
     __m128i xmm_dst_lo, xmm_dst_hi;
     __m128i xmm_mask_lo, xmm_mask_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w && (unsigned long)pd & 15)
     {
 	s = *ps++;
@@ -1661,8 +1903,18 @@ core_combine_in_ca_sse2 (uint32_t *      pd,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	cache_prefetch_next ((__m128i*)pm);
+
 	xmm_dst_hi = load_128_aligned ((__m128i*)pd);
 	xmm_src_hi = load_128_unaligned ((__m128i*)ps);
 	xmm_mask_hi = load_128_unaligned ((__m128i*)pm);
@@ -1720,6 +1972,11 @@ core_combine_in_reverse_ca_sse2 (uint32_t *      pd,
     __m128i xmm_dst_lo, xmm_dst_hi;
     __m128i xmm_mask_lo, xmm_mask_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w && (unsigned long)pd & 15)
     {
 	s = *ps++;
@@ -1734,8 +1991,18 @@ core_combine_in_reverse_ca_sse2 (uint32_t *      pd,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	cache_prefetch_next ((__m128i*)pm);
+
 	xmm_dst_hi = load_128_aligned ((__m128i*)pd);
 	xmm_src_hi = load_128_unaligned ((__m128i*)ps);
 	xmm_mask_hi = load_128_unaligned ((__m128i*)pm);
@@ -1791,6 +2058,11 @@ core_combine_out_ca_sse2 (uint32_t *      pd,
     __m128i xmm_dst_lo, xmm_dst_hi;
     __m128i xmm_mask_lo, xmm_mask_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w && (unsigned long)pd & 15)
     {
 	s = *ps++;
@@ -1805,8 +2077,18 @@ core_combine_out_ca_sse2 (uint32_t *      pd,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	cache_prefetch_next ((__m128i*)pm);
+
 	xmm_dst_hi = load_128_aligned ((__m128i*)pd);
 	xmm_src_hi = load_128_unaligned ((__m128i*)ps);
 	xmm_mask_hi = load_128_unaligned ((__m128i*)pm);
@@ -1865,6 +2147,11 @@ core_combine_out_reverse_ca_sse2 (uint32_t *      pd,
     __m128i xmm_dst_lo, xmm_dst_hi;
     __m128i xmm_mask_lo, xmm_mask_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w && (unsigned long)pd & 15)
     {
 	s = *ps++;
@@ -1880,8 +2167,18 @@ core_combine_out_reverse_ca_sse2 (uint32_t *      pd,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	cache_prefetch_next ((__m128i*)pm);
+
 	xmm_dst_hi = load_128_aligned ((__m128i*)pd);
 	xmm_src_hi = load_128_unaligned ((__m128i*)ps);
 	xmm_mask_hi = load_128_unaligned ((__m128i*)pm);
@@ -1960,6 +2257,11 @@ core_combine_atop_ca_sse2 (uint32_t *      pd,
     __m128i xmm_alpha_dst_lo, xmm_alpha_dst_hi;
     __m128i xmm_mask_lo, xmm_mask_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w && (unsigned long)pd & 15)
     {
 	s = *ps++;
@@ -1970,8 +2272,18 @@ core_combine_atop_ca_sse2 (uint32_t *      pd,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	cache_prefetch_next ((__m128i*)pm);
+
 	xmm_dst_hi = load_128_aligned ((__m128i*)pd);
 	xmm_src_hi = load_128_unaligned ((__m128i*)ps);
 	xmm_mask_hi = load_128_unaligned ((__m128i*)pm);
@@ -2051,6 +2363,11 @@ core_combine_reverse_atop_ca_sse2 (uint32_t *      pd,
     __m128i xmm_alpha_dst_lo, xmm_alpha_dst_hi;
     __m128i xmm_mask_lo, xmm_mask_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w && (unsigned long)pd & 15)
     {
 	s = *ps++;
@@ -2061,8 +2378,18 @@ core_combine_reverse_atop_ca_sse2 (uint32_t *      pd,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	cache_prefetch_next ((__m128i*)pm);
+
 	xmm_dst_hi = load_128_aligned ((__m128i*)pd);
 	xmm_src_hi = load_128_unaligned ((__m128i*)ps);
 	xmm_mask_hi = load_128_unaligned ((__m128i*)pm);
@@ -2145,6 +2472,11 @@ core_combine_xor_ca_sse2 (uint32_t *      pd,
     __m128i xmm_alpha_dst_lo, xmm_alpha_dst_hi;
     __m128i xmm_mask_lo, xmm_mask_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w && (unsigned long)pd & 15)
     {
 	s = *ps++;
@@ -2155,8 +2487,18 @@ core_combine_xor_ca_sse2 (uint32_t *      pd,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	cache_prefetch_next ((__m128i*)pm);
+
 	xmm_dst_hi = load_128_aligned ((__m128i*)pd);
 	xmm_src_hi = load_128_unaligned ((__m128i*)ps);
 	xmm_mask_hi = load_128_unaligned ((__m128i*)pm);
@@ -2219,6 +2561,11 @@ core_combine_add_ca_sse2 (uint32_t *      pd,
     __m128i xmm_dst_lo, xmm_dst_hi;
     __m128i xmm_mask_lo, xmm_mask_hi;
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w && (unsigned long)pd & 15)
     {
 	s = *ps++;
@@ -2232,8 +2579,18 @@ core_combine_add_ca_sse2 (uint32_t *      pd,
 	w--;
     }
 
+    /* call prefetch hint to optimize cache load*/
+    cache_prefetch ((__m128i*)ps);
+    cache_prefetch ((__m128i*)pd);
+    cache_prefetch ((__m128i*)pm);
+
     while (w >= 4)
     {
+	/* fill cache line with next memory */
+	cache_prefetch_next ((__m128i*)ps);
+	cache_prefetch_next ((__m128i*)pd);
+	cache_prefetch_next ((__m128i*)pm);
+
 	xmm_src_hi = load_128_unaligned ((__m128i*)ps);
 	xmm_mask_hi = load_128_unaligned ((__m128i*)pm);
 	xmm_dst_hi = load_128_aligned ((__m128i*)pd);
@@ -2613,6 +2970,9 @@ sse2_composite_over_n_8888 (pixman_implementation_t *imp,
     {
 	dst = dst_line;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)dst);
+
 	dst_line += dst_stride;
 	w = width;
 
@@ -2625,8 +2985,13 @@ sse2_composite_over_n_8888 (pixman_implementation_t *imp,
 	    w--;
 	}
 
+	cache_prefetch ((__m128i*)dst);
+
 	while (w >= 4)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)dst);
+
 	    xmm_dst = load_128_aligned ((__m128i*)dst);
 
 	    unpack_128_2x128 (xmm_dst, &xmm_dst_lo, &xmm_dst_hi);
@@ -2696,6 +3061,9 @@ sse2_composite_over_n_0565 (pixman_implementation_t *imp,
     {
 	dst = dst_line;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)dst);
+
 	dst_line += dst_stride;
 	w = width;
 
@@ -2710,8 +3078,14 @@ sse2_composite_over_n_0565 (pixman_implementation_t *imp,
 	    w--;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)dst);
+
 	while (w >= 8)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)dst);
+
 	    xmm_dst = load_128_aligned ((__m128i*)dst);
 
 	    unpack_565_128_4x128 (xmm_dst,
@@ -2802,6 +3176,10 @@ sse2_composite_add_n_8888_8888_ca (pixman_implementation_t *imp,
 	dst_line += dst_stride;
 	mask_line += mask_stride;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)pd);
+	cache_prefetch ((__m128i*)pm);
+
 	while (w && (unsigned long)pd & 15)
 	{
 	    m = *pm++;
@@ -2821,8 +3199,16 @@ sse2_composite_add_n_8888_8888_ca (pixman_implementation_t *imp,
 	    w--;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)pd);
+	cache_prefetch ((__m128i*)pm);
+
 	while (w >= 4)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)pd);
+	    cache_prefetch_next ((__m128i*)pm);
+
 	    xmm_mask = load_128_unaligned ((__m128i*)pm);
 
 	    pack_cmp =
@@ -2929,6 +3315,10 @@ sse2_composite_over_n_8888_8888_ca (pixman_implementation_t *imp,
 	dst_line += dst_stride;
 	mask_line += mask_stride;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)pd);
+	cache_prefetch ((__m128i*)pm);
+
 	while (w && (unsigned long)pd & 15)
 	{
 	    m = *pm++;
@@ -2949,8 +3339,16 @@ sse2_composite_over_n_8888_8888_ca (pixman_implementation_t *imp,
 	    w--;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)pd);
+	cache_prefetch ((__m128i*)pm);
+
 	while (w >= 4)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)pd);
+	    cache_prefetch_next ((__m128i*)pm);
+
 	    xmm_mask = load_128_unaligned ((__m128i*)pm);
 
 	    pack_cmp =
@@ -3048,6 +3446,10 @@ sse2_composite_over_8888_n_8888 (pixman_implementation_t *imp,
 	src_line += src_stride;
 	w = width;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)dst);
+	cache_prefetch ((__m128i*)src);
+
 	while (w && (unsigned long)dst & 15)
 	{
 	    uint32_t s = *src++;
@@ -3064,8 +3466,16 @@ sse2_composite_over_8888_n_8888 (pixman_implementation_t *imp,
 	    w--;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)dst);
+	cache_prefetch ((__m128i*)src);
+
 	while (w >= 4)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)dst);
+	    cache_prefetch_next ((__m128i*)src);
+
 	    xmm_src = load_128_unaligned ((__m128i*)src);
 	    xmm_dst = load_128_aligned ((__m128i*)dst);
 
@@ -3100,79 +3510,6 @@ sse2_composite_over_8888_n_8888 (pixman_implementation_t *imp,
 	    *dst++ = pack_1x64_32 (
 		in_over_1x64 (&ms, &alpha, &mask, &dest));
 
-	    w--;
-	}
-    }
-
-    _mm_empty ();
-}
-
-/*---------------------------------------------------------------------
- * composite_over_8888_n_8888
- */
-
-static void
-sse2_composite_src_x888_8888 (pixman_implementation_t *imp,
-			      pixman_op_t              op,
-			      pixman_image_t *         src_image,
-			      pixman_image_t *         mask_image,
-			      pixman_image_t *         dst_image,
-			      int32_t                  src_x,
-			      int32_t                  src_y,
-			      int32_t                  mask_x,
-			      int32_t                  mask_y,
-			      int32_t                  dest_x,
-			      int32_t                  dest_y,
-			      int32_t                  width,
-			      int32_t                  height)
-{
-    uint32_t    *dst_line, *dst;
-    uint32_t    *src_line, *src;
-    int32_t w;
-    int dst_stride, src_stride;
-
-
-    PIXMAN_IMAGE_GET_LINE (
-	dst_image, dest_x, dest_y, uint32_t, dst_stride, dst_line, 1);
-    PIXMAN_IMAGE_GET_LINE (
-	src_image, src_x, src_y, uint32_t, src_stride, src_line, 1);
-
-    while (height--)
-    {
-	dst = dst_line;
-	dst_line += dst_stride;
-	src = src_line;
-	src_line += src_stride;
-	w = width;
-
-	while (w && (unsigned long)dst & 15)
-	{
-	    *dst++ = *src++ | 0xff000000;
-	    w--;
-	}
-
-	while (w >= 16)
-	{
-	    __m128i xmm_src1, xmm_src2, xmm_src3, xmm_src4;
-	    
-	    xmm_src1 = load_128_unaligned ((__m128i*)src + 0);
-	    xmm_src2 = load_128_unaligned ((__m128i*)src + 1);
-	    xmm_src3 = load_128_unaligned ((__m128i*)src + 2);
-	    xmm_src4 = load_128_unaligned ((__m128i*)src + 3);
-	    
-	    save_128_aligned ((__m128i*)dst + 0, _mm_or_si128 (xmm_src1, mask_ff000000));
-	    save_128_aligned ((__m128i*)dst + 1, _mm_or_si128 (xmm_src2, mask_ff000000));
-	    save_128_aligned ((__m128i*)dst + 2, _mm_or_si128 (xmm_src3, mask_ff000000));
-	    save_128_aligned ((__m128i*)dst + 3, _mm_or_si128 (xmm_src4, mask_ff000000));
-	    
-	    dst += 16;
-	    src += 16;
-	    w -= 16;
-	}
-
-	while (w)
-	{
-	    *dst++ = *src++ | 0xff000000;
 	    w--;
 	}
     }
@@ -3226,6 +3563,10 @@ sse2_composite_over_x888_n_8888 (pixman_implementation_t *imp,
 	src_line += src_stride;
 	w = width;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)dst);
+	cache_prefetch ((__m128i*)src);
+
 	while (w && (unsigned long)dst & 15)
 	{
 	    uint32_t s = (*src++) | 0xff000000;
@@ -3242,8 +3583,16 @@ sse2_composite_over_x888_n_8888 (pixman_implementation_t *imp,
 	    w--;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)dst);
+	cache_prefetch ((__m128i*)src);
+
 	while (w >= 4)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)dst);
+	    cache_prefetch_next ((__m128i*)src);
+
 	    xmm_src = _mm_or_si128 (
 		load_128_unaligned ((__m128i*)src), mask_ff000000);
 	    xmm_dst = load_128_aligned ((__m128i*)dst);
@@ -3383,6 +3732,10 @@ sse2_composite_over_8888_0565 (pixman_implementation_t *imp,
 	dst = dst_line;
 	src = src_line;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)src);
+	cache_prefetch ((__m128i*)dst);
+
 	dst_line += dst_stride;
 	src_line += src_stride;
 	w = width;
@@ -3398,9 +3751,17 @@ sse2_composite_over_8888_0565 (pixman_implementation_t *imp,
 	    w--;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)src);
+	cache_prefetch ((__m128i*)dst);
+
 	/* It's a 8 pixel loop */
 	while (w >= 8)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)src);
+	    cache_prefetch_next ((__m128i*)dst);
+
 	    /* I'm loading unaligned because I'm not sure
 	     * about the address alignment.
 	     */
@@ -3510,6 +3871,10 @@ sse2_composite_over_n_8_8888 (pixman_implementation_t *imp,
 	mask_line += mask_stride;
 	w = width;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)mask);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w && (unsigned long)dst & 15)
 	{
 	    uint8_t m = *mask++;
@@ -3530,8 +3895,16 @@ sse2_composite_over_n_8_8888 (pixman_implementation_t *imp,
 	    dst++;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)mask);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w >= 4)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)mask);
+	    cache_prefetch_next ((__m128i*)dst);
+
 	    m = *((uint32_t*)mask);
 
 	    if (srca == 0xff && m == 0xffffffff)
@@ -3643,6 +4016,7 @@ pixman_fill_sse2 (uint32_t *bits,
 	return FALSE;
     }
 
+    cache_prefetch ((__m128i*)byte_line);
     xmm_def = create_mask_2x32_128 (data, data);
 
     while (height--)
@@ -3651,6 +4025,8 @@ pixman_fill_sse2 (uint32_t *bits,
 	uint8_t *d = byte_line;
 	byte_line += stride;
 	w = byte_width;
+
+	cache_prefetch_next ((__m128i*)d);
 
 	while (w >= 1 && ((unsigned long)d & 1))
 	{
@@ -3674,8 +4050,12 @@ pixman_fill_sse2 (uint32_t *bits,
 	    d += 4;
 	}
 
+	cache_prefetch_next ((__m128i*)d);
+
 	while (w >= 128)
 	{
+	    cache_prefetch (((__m128i*)d) + 12);
+
 	    save_128_aligned ((__m128i*)(d),     xmm_def);
 	    save_128_aligned ((__m128i*)(d + 16),  xmm_def);
 	    save_128_aligned ((__m128i*)(d + 32),  xmm_def);
@@ -3691,6 +4071,8 @@ pixman_fill_sse2 (uint32_t *bits,
 
 	if (w >= 64)
 	{
+	    cache_prefetch (((__m128i*)d) + 8);
+
 	    save_128_aligned ((__m128i*)(d),     xmm_def);
 	    save_128_aligned ((__m128i*)(d + 16),  xmm_def);
 	    save_128_aligned ((__m128i*)(d + 32),  xmm_def);
@@ -3699,6 +4081,8 @@ pixman_fill_sse2 (uint32_t *bits,
 	    d += 64;
 	    w -= 64;
 	}
+
+	cache_prefetch_next ((__m128i*)d);
 
 	if (w >= 32)
 	{
@@ -3716,6 +4100,8 @@ pixman_fill_sse2 (uint32_t *bits,
 	    d += 16;
 	    w -= 16;
 	}
+
+	cache_prefetch_next ((__m128i*)d);
 
 	while (w >= 4)
 	{
@@ -3796,6 +4182,10 @@ sse2_composite_src_n_8_8888 (pixman_implementation_t *imp,
 	mask_line += mask_stride;
 	w = width;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)mask);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w && (unsigned long)dst & 15)
 	{
 	    uint8_t m = *mask++;
@@ -3815,8 +4205,16 @@ sse2_composite_src_n_8_8888 (pixman_implementation_t *imp,
 	    dst++;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)mask);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w >= 4)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)mask);
+	    cache_prefetch_next ((__m128i*)dst);
+
 	    m = *((uint32_t*)mask);
 
 	    if (srca == 0xff && m == 0xffffffff)
@@ -3929,6 +4327,10 @@ sse2_composite_over_n_8_0565 (pixman_implementation_t *imp,
 	mask_line += mask_stride;
 	w = width;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)mask);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w && (unsigned long)dst & 15)
 	{
 	    m = *mask++;
@@ -3949,8 +4351,16 @@ sse2_composite_over_n_8_0565 (pixman_implementation_t *imp,
 	    dst++;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)mask);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w >= 8)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)mask);
+	    cache_prefetch_next ((__m128i*)dst);
+
 	    xmm_dst = load_128_aligned ((__m128i*) dst);
 	    unpack_565_128_4x128 (xmm_dst,
 				  &xmm_dst0, &xmm_dst1, &xmm_dst2, &xmm_dst3);
@@ -4077,6 +4487,10 @@ sse2_composite_over_pixbuf_0565 (pixman_implementation_t *imp,
 	src_line += src_stride;
 	w = width;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)src);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w && (unsigned long)dst & 15)
 	{
 	    s = *src++;
@@ -4090,8 +4504,16 @@ sse2_composite_over_pixbuf_0565 (pixman_implementation_t *imp,
 	    w--;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)src);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w >= 8)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)src);
+	    cache_prefetch_next ((__m128i*)dst);
+
 	    /* First round */
 	    xmm_src = load_128_unaligned ((__m128i*)src);
 	    xmm_dst = load_128_aligned  ((__m128i*)dst);
@@ -4210,6 +4632,10 @@ sse2_composite_over_pixbuf_8888 (pixman_implementation_t *imp,
 	src_line += src_stride;
 	w = width;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)src);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w && (unsigned long)dst & 15)
 	{
 	    s = *src++;
@@ -4222,8 +4648,16 @@ sse2_composite_over_pixbuf_8888 (pixman_implementation_t *imp,
 	    w--;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)src);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w >= 4)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)src);
+	    cache_prefetch_next ((__m128i*)dst);
+
 	    xmm_src_hi = load_128_unaligned ((__m128i*)src);
 
 	    opaque = is_opaque (xmm_src_hi);
@@ -4328,6 +4762,10 @@ sse2_composite_over_n_8888_0565_ca (pixman_implementation_t *imp,
 	mask_line += mask_stride;
 	dst_line += dst_stride;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)mask);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w && ((unsigned long)dst & 15))
 	{
 	    m = *(uint32_t *) mask;
@@ -4349,8 +4787,16 @@ sse2_composite_over_n_8888_0565_ca (pixman_implementation_t *imp,
 	    mask++;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)mask);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w >= 8)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)mask);
+	    cache_prefetch_next ((__m128i*)dst);
+
 	    /* First round */
 	    xmm_mask = load_128_unaligned ((__m128i*)mask);
 	    xmm_dst = load_128_aligned ((__m128i*)dst);
@@ -4472,6 +4918,10 @@ sse2_composite_in_n_8_8 (pixman_implementation_t *imp,
 	mask_line += mask_stride;
 	w = width;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)mask);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w && ((unsigned long)dst & 15))
 	{
 	    m = (uint32_t) *mask++;
@@ -4485,8 +4935,16 @@ sse2_composite_in_n_8_8 (pixman_implementation_t *imp,
 	    w--;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)mask);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w >= 16)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)mask);
+	    cache_prefetch_next ((__m128i*)dst);
+
 	    xmm_mask = load_128_unaligned ((__m128i*)mask);
 	    xmm_dst = load_128_aligned ((__m128i*)dst);
 
@@ -4518,103 +4976,6 @@ sse2_composite_in_n_8_8 (pixman_implementation_t *imp,
 		pix_multiply_1x64 (
 		    pix_multiply_1x64 (
 			_mm_movepi64_pi64 (xmm_alpha), unpack_32_1x64 (m)),
-		    unpack_32_1x64 (d)));
-	    w--;
-	}
-    }
-
-    _mm_empty ();
-}
-
-/* -----------------------------------------------------------------------
- * composite_in_n_8
- */
-
-static void
-sse2_composite_in_n_8 (pixman_implementation_t *imp,
-		       pixman_op_t              op,
-		       pixman_image_t *         src_image,
-		       pixman_image_t *         mask_image,
-		       pixman_image_t *         dst_image,
-		       int32_t                  src_x,
-		       int32_t                  src_y,
-		       int32_t                  mask_x,
-		       int32_t                  mask_y,
-		       int32_t                  dest_x,
-		       int32_t                  dest_y,
-		       int32_t                  width,
-		       int32_t                  height)
-{
-    uint8_t     *dst_line, *dst;
-    int dst_stride;
-    uint32_t d;
-    uint32_t src;
-    int32_t w;
-
-    __m128i xmm_alpha;
-    __m128i xmm_dst, xmm_dst_lo, xmm_dst_hi;
-
-    PIXMAN_IMAGE_GET_LINE (
-	dst_image, dest_x, dest_y, uint8_t, dst_stride, dst_line, 1);
-
-    src = _pixman_image_get_solid (src_image, dst_image->bits.format);
-
-    xmm_alpha = expand_alpha_1x128 (expand_pixel_32_1x128 (src));
-
-    src = src >> 24;
-
-    if (src == 0xff)
-	return;
-
-    if (src == 0x00)
-    {
-	pixman_fill (dst_image->bits.bits, dst_image->bits.rowstride,
-		     8, dest_x, dest_y, width, height, src);
-
-	return;
-    }
-
-    while (height--)
-    {
-	dst = dst_line;
-	dst_line += dst_stride;
-	w = width;
-
-	while (w && ((unsigned long)dst & 15))
-	{
-	    d = (uint32_t) *dst;
-
-	    *dst++ = (uint8_t) pack_1x64_32 (
-		pix_multiply_1x64 (
-		    _mm_movepi64_pi64 (xmm_alpha),
-		    unpack_32_1x64 (d)));
-	    w--;
-	}
-
-	while (w >= 16)
-	{
-	    xmm_dst = load_128_aligned ((__m128i*)dst);
-
-	    unpack_128_2x128 (xmm_dst, &xmm_dst_lo, &xmm_dst_hi);
-	    
-	    pix_multiply_2x128 (&xmm_alpha, &xmm_alpha,
-				&xmm_dst_lo, &xmm_dst_hi,
-				&xmm_dst_lo, &xmm_dst_hi);
-
-	    save_128_aligned (
-		(__m128i*)dst, pack_2x128_128 (xmm_dst_lo, xmm_dst_hi));
-
-	    dst += 16;
-	    w -= 16;
-	}
-
-	while (w)
-	{
-	    d = (uint32_t) *dst;
-
-	    *dst++ = (uint8_t) pack_1x64_32 (
-		pix_multiply_1x64 (
-		    _mm_movepi64_pi64 (xmm_alpha),
 		    unpack_32_1x64 (d)));
 	    w--;
 	}
@@ -4664,6 +5025,10 @@ sse2_composite_in_8_8 (pixman_implementation_t *imp,
 	src_line += src_stride;
 	w = width;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)src);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w && ((unsigned long)dst & 15))
 	{
 	    s = (uint32_t) *src++;
@@ -4675,8 +5040,16 @@ sse2_composite_in_8_8 (pixman_implementation_t *imp,
 	    w--;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)src);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w >= 16)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)src);
+	    cache_prefetch_next ((__m128i*)dst);
+
 	    xmm_src = load_128_unaligned ((__m128i*)src);
 	    xmm_dst = load_128_aligned ((__m128i*)dst);
 
@@ -4759,6 +5132,10 @@ sse2_composite_add_n_8_8 (pixman_implementation_t *imp,
 	mask_line += mask_stride;
 	w = width;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)mask);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w && ((unsigned long)dst & 15))
 	{
 	    m = (uint32_t) *mask++;
@@ -4772,8 +5149,16 @@ sse2_composite_add_n_8_8 (pixman_implementation_t *imp,
 	    w--;
 	}
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)mask);
+	cache_prefetch ((__m128i*)dst);
+
 	while (w >= 16)
 	{
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)mask);
+	    cache_prefetch_next ((__m128i*)dst);
+
 	    xmm_mask = load_128_unaligned ((__m128i*)mask);
 	    xmm_dst = load_128_aligned ((__m128i*)dst);
 
@@ -4813,112 +5198,24 @@ sse2_composite_add_n_8_8 (pixman_implementation_t *imp,
     _mm_empty ();
 }
 
-/* -------------------------------------------------------------------------
- * composite_add_n_8_8
- */
-
-static void
-sse2_composite_add_n_8 (pixman_implementation_t *imp,
-			pixman_op_t              op,
-			pixman_image_t *         src_image,
-			pixman_image_t *         mask_image,
-			pixman_image_t *         dst_image,
-			int32_t                  src_x,
-			int32_t                  src_y,
-			int32_t                  mask_x,
-			int32_t                  mask_y,
-			int32_t                  dest_x,
-			int32_t                  dest_y,
-			int32_t                  width,
-			int32_t                  height)
-{
-    uint8_t     *dst_line, *dst;
-    int dst_stride;
-    int32_t w;
-    uint32_t src;
-
-    __m128i xmm_src;
-
-    PIXMAN_IMAGE_GET_LINE (
-	dst_image, dest_x, dest_y, uint8_t, dst_stride, dst_line, 1);
-
-    src = _pixman_image_get_solid (src_image, dst_image->bits.format);
-
-    src >>= 24;
-
-    if (src == 0x00)
-	return;
-
-    if (src == 0xff)
-    {
-	pixman_fill (dst_image->bits.bits, dst_image->bits.rowstride,
-		     8, dest_x, dest_y, width, height, 0xff);
-
-	return;
-    }
-
-    src = (src << 24) | (src << 16) | (src << 8) | src;
-    xmm_src = _mm_set_epi32 (src, src, src, src);
-
-    while (height--)
-    {
-	dst = dst_line;
-	dst_line += dst_stride;
-	w = width;
-
-	while (w && ((unsigned long)dst & 15))
-	{
-	    *dst = (uint8_t)_mm_cvtsi64_si32 (
-		_mm_adds_pu8 (
-		    _mm_movepi64_pi64 (xmm_src),
-		    _mm_cvtsi32_si64 (*dst)));
-
-	    w--;
-	    dst++;
-	}
-
-	while (w >= 16)
-	{
-	    save_128_aligned (
-		(__m128i*)dst, _mm_adds_epu8 (xmm_src, load_128_aligned  ((__m128i*)dst)));
-
-	    dst += 16;
-	    w -= 16;
-	}
-
-	while (w)
-	{
-	    *dst = (uint8_t)_mm_cvtsi64_si32 (
-		_mm_adds_pu8 (
-		    _mm_movepi64_pi64 (xmm_src),
-		    _mm_cvtsi32_si64 (*dst)));
-
-	    w--;
-	    dst++;
-	}
-    }
-
-    _mm_empty ();
-}
-
 /* ----------------------------------------------------------------------
- * composite_add_8_8
+ * composite_add_8000_8000
  */
 
 static void
-sse2_composite_add_8_8 (pixman_implementation_t *imp,
-			pixman_op_t              op,
-			pixman_image_t *         src_image,
-			pixman_image_t *         mask_image,
-			pixman_image_t *         dst_image,
-			int32_t                  src_x,
-			int32_t                  src_y,
-			int32_t                  mask_x,
-			int32_t                  mask_y,
-			int32_t                  dest_x,
-			int32_t                  dest_y,
-			int32_t                  width,
-			int32_t                  height)
+sse2_composite_add_8000_8000 (pixman_implementation_t *imp,
+                              pixman_op_t              op,
+                              pixman_image_t *         src_image,
+                              pixman_image_t *         mask_image,
+                              pixman_image_t *         dst_image,
+                              int32_t                  src_x,
+                              int32_t                  src_y,
+                              int32_t                  mask_x,
+                              int32_t                  mask_y,
+                              int32_t                  dest_x,
+                              int32_t                  dest_y,
+                              int32_t                  width,
+                              int32_t                  height)
 {
     uint8_t     *dst_line, *dst;
     uint8_t     *src_line, *src;
@@ -4935,6 +5232,10 @@ sse2_composite_add_8_8 (pixman_implementation_t *imp,
     {
 	dst = dst_line;
 	src = src_line;
+
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)src);
+	cache_prefetch ((__m128i*)dst);
 
 	dst_line += dst_stride;
 	src_line += src_stride;
@@ -5057,6 +5358,9 @@ pixman_blt_sse2 (uint32_t *src_bits,
 	return FALSE;
     }
 
+    cache_prefetch ((__m128i*)src_bytes);
+    cache_prefetch ((__m128i*)dst_bytes);
+
     while (height--)
     {
 	int w;
@@ -5065,6 +5369,9 @@ pixman_blt_sse2 (uint32_t *src_bits,
 	src_bytes += src_stride;
 	dst_bytes += dst_stride;
 	w = byte_width;
+
+	cache_prefetch_next ((__m128i*)s);
+	cache_prefetch_next ((__m128i*)d);
 
 	while (w >= 2 && ((unsigned long)d & 3))
 	{
@@ -5083,9 +5390,16 @@ pixman_blt_sse2 (uint32_t *src_bits,
 	    d += 4;
 	}
 
+	cache_prefetch_next ((__m128i*)s);
+	cache_prefetch_next ((__m128i*)d);
+
 	while (w >= 64)
 	{
 	    __m128i xmm0, xmm1, xmm2, xmm3;
+
+	    /* 128 bytes ahead */
+	    cache_prefetch (((__m128i*)s) + 8);
+	    cache_prefetch (((__m128i*)d) + 8);
 
 	    xmm0 = load_128_unaligned ((__m128i*)(s));
 	    xmm1 = load_128_unaligned ((__m128i*)(s + 16));
@@ -5102,6 +5416,9 @@ pixman_blt_sse2 (uint32_t *src_bits,
 	    w -= 64;
 	}
 
+	cache_prefetch_next ((__m128i*)s);
+	cache_prefetch_next ((__m128i*)d);
+
 	while (w >= 16)
 	{
 	    save_128_aligned ((__m128i*)d, load_128_unaligned ((__m128i*)s) );
@@ -5110,6 +5427,9 @@ pixman_blt_sse2 (uint32_t *src_bits,
 	    d += 16;
 	    s += 16;
 	}
+
+	cache_prefetch_next ((__m128i*)s);
+	cache_prefetch_next ((__m128i*)d);
 
 	while (w >= 4)
 	{
@@ -5203,6 +5523,11 @@ sse2_composite_over_x888_8_8888 (pixman_implementation_t *imp,
 
         w = width;
 
+        /* call prefetch hint to optimize cache load*/
+        cache_prefetch ((__m128i*)src);
+        cache_prefetch ((__m128i*)dst);
+        cache_prefetch ((__m128i*)mask);
+
         while (w && (unsigned long)dst & 15)
         {
             s = 0xff000000 | *src++;
@@ -5222,8 +5547,18 @@ sse2_composite_over_x888_8_8888 (pixman_implementation_t *imp,
             w--;
         }
 
+        /* call prefetch hint to optimize cache load*/
+        cache_prefetch ((__m128i*)src);
+        cache_prefetch ((__m128i*)dst);
+        cache_prefetch ((__m128i*)mask);
+
         while (w >= 4)
         {
+            /* fill cache line with next memory */
+            cache_prefetch_next ((__m128i*)src);
+            cache_prefetch_next ((__m128i*)dst);
+            cache_prefetch_next ((__m128i*)mask);
+
             m = *(uint32_t*) mask;
             xmm_src = _mm_or_si128 (load_128_unaligned ((__m128i*)src), mask_ff000000);
 
@@ -5334,6 +5669,11 @@ sse2_composite_over_8888_8_8888 (pixman_implementation_t *imp,
 
         w = width;
 
+        /* call prefetch hint to optimize cache load*/
+        cache_prefetch ((__m128i *)src);
+        cache_prefetch ((__m128i *)dst);
+        cache_prefetch ((__m128i *)mask);
+
         while (w && (unsigned long)dst & 15)
         {
 	    uint32_t sa;
@@ -5368,8 +5708,18 @@ sse2_composite_over_8888_8_8888 (pixman_implementation_t *imp,
             w--;
         }
 
+        /* call prefetch hint to optimize cache load*/
+        cache_prefetch ((__m128i *)src);
+        cache_prefetch ((__m128i *)dst);
+        cache_prefetch ((__m128i *)mask);
+
         while (w >= 4)
         {
+            /* fill cache line with next memory */
+            cache_prefetch_next ((__m128i *)src);
+            cache_prefetch_next ((__m128i *)dst);
+            cache_prefetch_next ((__m128i *)mask);
+
             m = *(uint32_t *) mask;
 
 	    if (m)
@@ -5481,6 +5831,9 @@ sse2_composite_over_reverse_n_8888 (pixman_implementation_t *imp,
     {
 	dst = dst_line;
 
+	/* call prefetch hint to optimize cache load*/
+	cache_prefetch ((__m128i*)dst);
+
 	dst_line += dst_stride;
 	w = width;
 
@@ -5496,9 +5849,14 @@ sse2_composite_over_reverse_n_8888 (pixman_implementation_t *imp,
 	    dst++;
 	}
 
+	cache_prefetch ((__m128i*)dst);
+
 	while (w >= 4)
 	{
 	    __m128i tmp_lo, tmp_hi;
+
+	    /* fill cache line with next memory */
+	    cache_prefetch_next ((__m128i*)(dst + 4));
 
 	    xmm_dst = load_128_aligned ((__m128i*)dst);
 
@@ -5580,6 +5938,11 @@ sse2_composite_over_8888_8888_8888 (pixman_implementation_t *imp,
 
         w = width;
 
+        /* call prefetch hint to optimize cache load*/
+        cache_prefetch ((__m128i *)src);
+        cache_prefetch ((__m128i *)dst);
+        cache_prefetch ((__m128i *)mask);
+
         while (w && (unsigned long)dst & 15)
         {
 	    uint32_t sa;
@@ -5614,8 +5977,18 @@ sse2_composite_over_8888_8888_8888 (pixman_implementation_t *imp,
             w--;
         }
 
+        /* call prefetch hint to optimize cache load*/
+        cache_prefetch ((__m128i *)src);
+        cache_prefetch ((__m128i *)dst);
+        cache_prefetch ((__m128i *)mask);
+
         while (w >= 4)
         {
+            /* fill cache line with next memory */
+            cache_prefetch_next ((__m128i *)src);
+            cache_prefetch_next ((__m128i *)dst);
+            cache_prefetch_next ((__m128i *)mask);
+
 	    xmm_mask = load_128_unaligned ((__m128i*)mask);
 
 	    if (!is_transparent (xmm_mask))
@@ -5688,107 +6061,6 @@ sse2_composite_over_8888_8888_8888 (pixman_implementation_t *imp,
     _mm_empty ();
 }
 
-/* A variant of 'core_combine_over_u_sse2' with minor tweaks */
-static force_inline void
-scaled_nearest_scanline_sse2_8888_8888_OVER (uint32_t*       pd,
-                                             const uint32_t* ps,
-                                             int32_t         w,
-                                             pixman_fixed_t  vx,
-                                             pixman_fixed_t  unit_x,
-                                             pixman_fixed_t  max_vx)
-{
-    uint32_t s, d;
-    const uint32_t* pm = NULL;
-
-    __m128i xmm_dst_lo, xmm_dst_hi;
-    __m128i xmm_src_lo, xmm_src_hi;
-    __m128i xmm_alpha_lo, xmm_alpha_hi;
-
-    /* Align dst on a 16-byte boundary */
-    while (w && ((unsigned long)pd & 15))
-    {
-	d = *pd;
-	s = combine1 (ps + (vx >> 16), pm);
-	vx += unit_x;
-
-	*pd++ = core_combine_over_u_pixel_sse2 (s, d);
-	if (pm)
-	    pm++;
-	w--;
-    }
-
-    while (w >= 4)
-    {
-	__m128i tmp;
-	uint32_t tmp1, tmp2, tmp3, tmp4;
-
-	tmp1 = ps[vx >> 16];
-	vx += unit_x;
-	tmp2 = ps[vx >> 16];
-	vx += unit_x;
-	tmp3 = ps[vx >> 16];
-	vx += unit_x;
-	tmp4 = ps[vx >> 16];
-	vx += unit_x;
-
-	tmp = _mm_set_epi32 (tmp4, tmp3, tmp2, tmp1);
-
-	xmm_src_hi = combine4 ((__m128i*)&tmp, (__m128i*)pm);
-
-	if (is_opaque (xmm_src_hi))
-	{
-	    save_128_aligned ((__m128i*)pd, xmm_src_hi);
-	}
-	else if (!is_zero (xmm_src_hi))
-	{
-	    xmm_dst_hi = load_128_aligned ((__m128i*) pd);
-
-	    unpack_128_2x128 (xmm_src_hi, &xmm_src_lo, &xmm_src_hi);
-	    unpack_128_2x128 (xmm_dst_hi, &xmm_dst_lo, &xmm_dst_hi);
-
-	    expand_alpha_2x128 (
-		xmm_src_lo, xmm_src_hi, &xmm_alpha_lo, &xmm_alpha_hi);
-
-	    over_2x128 (&xmm_src_lo, &xmm_src_hi,
-			&xmm_alpha_lo, &xmm_alpha_hi,
-			&xmm_dst_lo, &xmm_dst_hi);
-
-	    /* rebuid the 4 pixel data and save*/
-	    save_128_aligned ((__m128i*)pd,
-			      pack_2x128_128 (xmm_dst_lo, xmm_dst_hi));
-	}
-
-	w -= 4;
-	pd += 4;
-	if (pm)
-	    pm += 4;
-    }
-
-    while (w)
-    {
-	d = *pd;
-	s = combine1 (ps + (vx >> 16), pm);
-	vx += unit_x;
-
-	*pd++ = core_combine_over_u_pixel_sse2 (s, d);
-	if (pm)
-	    pm++;
-
-	w--;
-    }
-    _mm_empty ();
-}
-
-FAST_NEAREST_MAINLOOP (sse2_8888_8888_cover_OVER,
-		       scaled_nearest_scanline_sse2_8888_8888_OVER,
-		       uint32_t, uint32_t, COVER);
-FAST_NEAREST_MAINLOOP (sse2_8888_8888_none_OVER,
-		       scaled_nearest_scanline_sse2_8888_8888_OVER,
-		       uint32_t, uint32_t, NONE);
-FAST_NEAREST_MAINLOOP (sse2_8888_8888_pad_OVER,
-		       scaled_nearest_scanline_sse2_8888_8888_OVER,
-		       uint32_t, uint32_t, PAD);
-
 static const pixman_fast_path_t sse2_fast_paths[] =
 {
     /* PIXMAN_OP_OVER */
@@ -5838,26 +6110,23 @@ static const pixman_fast_path_t sse2_fast_paths[] =
     PIXMAN_STD_FAST_PATH (OVER, rpixbuf, rpixbuf, b5g6r5, sse2_composite_over_pixbuf_0565),
     PIXMAN_STD_FAST_PATH (OVER, x8r8g8b8, null, x8r8g8b8, sse2_composite_copy_area),
     PIXMAN_STD_FAST_PATH (OVER, x8b8g8r8, null, x8b8g8r8, sse2_composite_copy_area),
-    
+
     /* PIXMAN_OP_OVER_REVERSE */
     PIXMAN_STD_FAST_PATH (OVER_REVERSE, solid, null, a8r8g8b8, sse2_composite_over_reverse_n_8888),
     PIXMAN_STD_FAST_PATH (OVER_REVERSE, solid, null, a8b8g8r8, sse2_composite_over_reverse_n_8888),
 
     /* PIXMAN_OP_ADD */
     PIXMAN_STD_FAST_PATH_CA (ADD, solid, a8r8g8b8, a8r8g8b8, sse2_composite_add_n_8888_8888_ca),
-    PIXMAN_STD_FAST_PATH (ADD, a8, null, a8, sse2_composite_add_8_8),
+    PIXMAN_STD_FAST_PATH (ADD, a8, null, a8, sse2_composite_add_8000_8000),
     PIXMAN_STD_FAST_PATH (ADD, a8r8g8b8, null, a8r8g8b8, sse2_composite_add_8888_8888),
     PIXMAN_STD_FAST_PATH (ADD, a8b8g8r8, null, a8b8g8r8, sse2_composite_add_8888_8888),
     PIXMAN_STD_FAST_PATH (ADD, solid, a8, a8, sse2_composite_add_n_8_8),
-    PIXMAN_STD_FAST_PATH (ADD, solid, null, a8, sse2_composite_add_n_8),
 
     /* PIXMAN_OP_SRC */
     PIXMAN_STD_FAST_PATH (SRC, solid, a8, a8r8g8b8, sse2_composite_src_n_8_8888),
     PIXMAN_STD_FAST_PATH (SRC, solid, a8, x8r8g8b8, sse2_composite_src_n_8_8888),
     PIXMAN_STD_FAST_PATH (SRC, solid, a8, a8b8g8r8, sse2_composite_src_n_8_8888),
     PIXMAN_STD_FAST_PATH (SRC, solid, a8, x8b8g8r8, sse2_composite_src_n_8_8888),
-    PIXMAN_STD_FAST_PATH (SRC, x8r8g8b8, null, a8r8g8b8, sse2_composite_src_x888_8888),
-    PIXMAN_STD_FAST_PATH (SRC, x8b8g8r8, null, a8b8g8r8, sse2_composite_src_x888_8888),
     PIXMAN_STD_FAST_PATH (SRC, a8r8g8b8, null, a8r8g8b8, sse2_composite_copy_area),
     PIXMAN_STD_FAST_PATH (SRC, a8b8g8r8, null, a8b8g8r8, sse2_composite_copy_area),
     PIXMAN_STD_FAST_PATH (SRC, a8r8g8b8, null, x8r8g8b8, sse2_composite_copy_area),
@@ -5870,20 +6139,6 @@ static const pixman_fast_path_t sse2_fast_paths[] =
     /* PIXMAN_OP_IN */
     PIXMAN_STD_FAST_PATH (IN, a8, null, a8, sse2_composite_in_8_8),
     PIXMAN_STD_FAST_PATH (IN, solid, a8, a8, sse2_composite_in_n_8_8),
-    PIXMAN_STD_FAST_PATH (IN, solid, null, a8, sse2_composite_in_n_8),
-
-    SIMPLE_NEAREST_FAST_PATH_COVER (OVER, a8r8g8b8, x8r8g8b8, sse2_8888_8888),
-    SIMPLE_NEAREST_FAST_PATH_COVER (OVER, a8b8g8r8, x8b8g8r8, sse2_8888_8888),
-    SIMPLE_NEAREST_FAST_PATH_COVER (OVER, a8r8g8b8, a8r8g8b8, sse2_8888_8888),
-    SIMPLE_NEAREST_FAST_PATH_COVER (OVER, a8b8g8r8, a8b8g8r8, sse2_8888_8888),
-    SIMPLE_NEAREST_FAST_PATH_NONE (OVER, a8r8g8b8, x8r8g8b8, sse2_8888_8888),
-    SIMPLE_NEAREST_FAST_PATH_NONE (OVER, a8b8g8r8, x8b8g8r8, sse2_8888_8888),
-    SIMPLE_NEAREST_FAST_PATH_NONE (OVER, a8r8g8b8, a8r8g8b8, sse2_8888_8888),
-    SIMPLE_NEAREST_FAST_PATH_NONE (OVER, a8b8g8r8, a8b8g8r8, sse2_8888_8888),
-    SIMPLE_NEAREST_FAST_PATH_PAD (OVER, a8r8g8b8, x8r8g8b8, sse2_8888_8888),
-    SIMPLE_NEAREST_FAST_PATH_PAD (OVER, a8b8g8r8, x8b8g8r8, sse2_8888_8888),
-    SIMPLE_NEAREST_FAST_PATH_PAD (OVER, a8r8g8b8, a8r8g8b8, sse2_8888_8888),
-    SIMPLE_NEAREST_FAST_PATH_PAD (OVER, a8b8g8r8, a8b8g8r8, sse2_8888_8888),
 
     { PIXMAN_OP_NONE },
 };

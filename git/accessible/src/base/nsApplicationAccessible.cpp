@@ -363,12 +363,6 @@ nsApplicationAccessible::Shutdown()
   mAppInfo = nsnull;
 }
 
-bool
-nsApplicationAccessible::IsPrimaryForNode() const
-{
-  return false;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible public methods
 
@@ -476,7 +470,7 @@ nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsIAccessNode and nsAccessNode
+// nsIAccessNode
 
 NS_IMETHODIMP
 nsApplicationAccessible::GetDOMNode(nsIDOMNode **aDOMNode)
@@ -531,6 +525,14 @@ nsApplicationAccessible::GetOwnerWindow(void **aOwnerWindow)
 }
 
 NS_IMETHODIMP
+nsApplicationAccessible::GetUniqueID(void **aUniqueID)
+{
+  NS_ENSURE_ARG_POINTER(aUniqueID);
+  *aUniqueID = static_cast<void *>(this);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsApplicationAccessible::GetComputedStyleValue(const nsAString &aPseudoElt,
                                                const nsAString &aPropertyName,
                                                nsAString &aValue)
@@ -554,4 +556,3 @@ nsApplicationAccessible::GetLanguage(nsAString &aLanguage)
   aLanguage.Truncate();
   return NS_OK;
 }
-

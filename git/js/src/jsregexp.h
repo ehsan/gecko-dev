@@ -59,11 +59,9 @@ namespace js {
 class RegExpStatics
 {
     typedef Vector<int, 20, SystemAllocPolicy> MatchPairs;
-    MatchPairs    matchPairs;
-    JSString      *input;
-    uintN         flags;
-    RegExpStatics *bufferLink;
-    bool          copied;
+    MatchPairs  matchPairs;
+    JSString    *input;
+    uintN       flags;
 
     bool createDependent(JSContext *cx, size_t start, size_t end, Value *out) const;
 
@@ -71,22 +69,6 @@ class RegExpStatics
         JS_ASSERT(matchPairs.length() % 2 == 0);
         return matchPairs.length() / 2;
     }
-
-    void copyTo(RegExpStatics &dst) {
-        dst.matchPairs.clear();
-        /* 'save' has already reserved space in matchPairs */
-        JS_ALWAYS_TRUE(dst.matchPairs.append(matchPairs));
-        dst.input = input;
-        dst.flags = flags;
-    }
-
-    void aboutToWrite() {
-        if (bufferLink && !bufferLink->copied) {
-            copyTo(*bufferLink);
-            bufferLink->copied = true;
-        }
-    }
-
     /*
      * Check whether the index at |checkValidIndex| is valid (>= 0).
      * If so, construct a string for it and place it in |*out|.
@@ -97,34 +79,13 @@ class RegExpStatics
     friend class RegExp;
 
   public:
-    RegExpStatics() : bufferLink(NULL), copied(false) { clear(); }
-
-    struct InitBuffer {};
-    explicit RegExpStatics(InitBuffer) : bufferLink(NULL), copied(false) {}
-
+    explicit RegExpStatics() { clear(); }
+    void clone(const RegExpStatics &other);
     static RegExpStatics *extractFrom(JSObject *global);
 
     /* Mutators. */
 
-    bool save(JSContext *cx, RegExpStatics *buffer) {
-        JS_ASSERT(!buffer->copied && !buffer->bufferLink);
-        buffer->bufferLink = bufferLink;
-        bufferLink = buffer;
-        if (!buffer->matchPairs.reserve(matchPairs.length())) {
-            js_ReportOutOfMemory(cx);
-            return false;
-        }
-        return true;
-    }
-
-    void restore() {
-        if (bufferLink->copied)
-            bufferLink->copyTo(*this);
-        bufferLink = bufferLink->bufferLink;
-    }
-
     void setMultiline(bool enabled) {
-        aboutToWrite();
         if (enabled)
             flags = flags | JSREG_MULTILINE;
         else
@@ -132,7 +93,6 @@ class RegExpStatics
     }
 
     void clear() {
-        aboutToWrite();
         input = 0;
         flags = 0;
         matchPairs.clear();
@@ -147,7 +107,6 @@ class RegExpStatics
     }
 
     void reset(JSString *newInput, bool newMultiline) {
-        aboutToWrite();
         clear();
         input = newInput;
         setMultiline(newMultiline);
@@ -155,7 +114,6 @@ class RegExpStatics
     }
 
     void setInput(JSString *newInput) {
-        aboutToWrite();
         input = newInput;
     }
 
@@ -216,28 +174,28 @@ inline const js::Value &
 JSObject::getRegExpLastIndex() const
 {
     JS_ASSERT(isRegExp());
-    return getSlot(JSSLOT_REGEXP_LAST_INDEX);
+    return fslots[JSSLOT_REGEXP_LAST_INDEX];
 }
 
 inline void
 JSObject::setRegExpLastIndex(const js::Value &v)
 {
     JS_ASSERT(isRegExp());
-    setSlot(JSSLOT_REGEXP_LAST_INDEX, v);
+    fslots[JSSLOT_REGEXP_LAST_INDEX] = v;
 }
 
 inline void
 JSObject::setRegExpLastIndex(jsdouble d)
 {
     JS_ASSERT(isRegExp());
-    setSlot(JSSLOT_REGEXP_LAST_INDEX, js::NumberValue(d));
+    fslots[JSSLOT_REGEXP_LAST_INDEX] = js::NumberValue(d);
 }
 
 inline void
 JSObject::zeroRegExpLastIndex()
 {
     JS_ASSERT(isRegExp());
-    getSlotRef(JSSLOT_REGEXP_LAST_INDEX).setInt32(0);
+    fslots[JSSLOT_REGEXP_LAST_INDEX].setInt32(0);
 }
 
 namespace js { class AutoStringRooter; }

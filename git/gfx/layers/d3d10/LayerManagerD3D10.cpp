@@ -84,7 +84,6 @@ LayerManagerD3D10::LayerManagerD3D10(nsIWidget *aWidget)
 
 LayerManagerD3D10::~LayerManagerD3D10()
 {
-  Destroy();
 }
 
 bool
@@ -99,7 +98,7 @@ LayerManagerD3D10::Initialize()
 
   mDevice = cairo_d2d_device_get_device(device);
 
-  UINT size = sizeof(ID3D10Effect*);
+  UINT size = 4;
   if (FAILED(mDevice->GetPrivateData(sEffect, &size, mEffect.StartAssignment()))) {
     D3D10CreateEffectFromMemoryFunc createEffect = (D3D10CreateEffectFromMemoryFunc)
 	GetProcAddress(LoadLibraryA("d3d10_1.dll"), "D3D10CreateEffectFromMemory");
@@ -122,7 +121,7 @@ LayerManagerD3D10::Initialize()
     mDevice->SetPrivateDataInterface(sEffect, mEffect);
   }
 
-  size = sizeof(ID3D10InputLayout*);
+  size = 4;
   if (FAILED(mDevice->GetPrivateData(sInputLayout, &size, mInputLayout.StartAssignment()))) {
     D3D10_INPUT_ELEMENT_DESC layout[] =
     {
@@ -145,7 +144,7 @@ LayerManagerD3D10::Initialize()
     mDevice->SetPrivateDataInterface(sInputLayout, mInputLayout);
   }
 
-  size = sizeof(ID3D10Buffer*);
+  size = 4;
   if (FAILED(mDevice->GetPrivateData(sVertexBuffer, &size, mVertexBuffer.StartAssignment()))) {
     Vertex vertices[] = { {0.0, 0.0}, {1.0, 0.0}, {0.0, 1.0}, {1.0, 1.0} };
     CD3D10_BUFFER_DESC bufferDesc(sizeof(vertices), D3D10_BIND_VERTEX_BUFFER);
@@ -196,21 +195,7 @@ LayerManagerD3D10::Initialize()
     return false;
   }
 
-  // We need this because we don't want DXGI to respond to Alt+Enter.
-  dxgiFactory->MakeWindowAssociation(swapDesc.OutputWindow, DXGI_MWA_NO_WINDOW_CHANGES);
-
   return true;
-}
-
-void
-LayerManagerD3D10::Destroy()
-{
-  if (!IsDestroyed()) {
-    if (mRoot) {
-      static_cast<LayerD3D10*>(mRoot->ImplData())->LayerManagerDestroyed();
-    }
-  }
-  LayerManager::Destroy();
 }
 
 void
@@ -504,10 +489,8 @@ LayerManagerD3D10::PaintToTarget()
                         gfxASurface::ImageFormatARGB32);
 
   mTarget->SetSource(tmpSurface);
-  mTarget->SetOperator(gfxContext::OPERATOR_OVER);
+  mTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
   mTarget->Paint();
-
-  readTexture->Unmap(0);
 }
 
 LayerD3D10::LayerD3D10(LayerManagerD3D10 *aManager)

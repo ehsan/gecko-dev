@@ -35,6 +35,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+
+Cu.import("resource:///modules/HUDService.jsm");
+
 const TEST_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-bug-593003-iframe-wrong-hud.html";
 
 const TEST_IFRAME_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-bug-593003-iframe-wrong-hud-iframe.html";
@@ -42,12 +48,6 @@ const TEST_IFRAME_URI = "http://example.com/browser/toolkit/components/console/h
 const TEST_DUMMY_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-console.html";
 
 let tab1, tab2;
-
-function test() {
-  addTab(TEST_URI);
-  tab1 = tab;
-  browser.addEventListener("load", tab1Loaded, true);
-}
 
 /**
  * Check if a log entry exists in the HUD output node.
@@ -94,13 +94,16 @@ function testLogEntry(aOutputNode, aMatchString, aSuccessErrObj, aOnlyVisible, a
 }
 
 function tab1Loaded(aEvent) {
-  browser.removeEventListener(aEvent.type, arguments.callee, true);
+  gBrowser.selectedBrowser.removeEventListener(aEvent.type, arguments.callee, true);
 
   waitForFocus(function () {
-    openConsole();
-    tab2 = gBrowser.addTab(TEST_DUMMY_URI);
+    HUDService.activateHUDForContext(gBrowser.selectedTab);
+
+    tab2 = gBrowser.addTab();
     gBrowser.selectedTab = tab2;
     gBrowser.selectedBrowser.addEventListener("load", tab2Loaded, true);
+
+    content.location = TEST_DUMMY_URI;
   }, content);
 }
 
@@ -140,12 +143,22 @@ function tab1Reloaded(aEvent) {
   const errorMsg2 = "Found the iframe network request in tab2";
 
   testLogEntry(outputNode2, TEST_IFRAME_URI,
-               { success: successMsg2, err: errorMsg2}, true, true);
+    { success: successMsg2, err: errorMsg2}, true, true);
 
+  HUDService.deactivateHUDForContext(tab1);
   HUDService.deactivateHUDForContext(tab2);
-  gBrowser.removeTab(tab2);
 
   tab1 = tab2 = null;
 
-  finishTest();
+  gBrowser.removeCurrentTab();
+  finish();
+}
+
+function test() {
+  waitForExplicitFinish();
+
+  tab1 = gBrowser.selectedTab;
+  gBrowser.selectedBrowser.addEventListener("load", tab1Loaded, true);
+
+  content.location = TEST_URI;
 }

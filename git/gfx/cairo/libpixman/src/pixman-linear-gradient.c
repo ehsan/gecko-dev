@@ -97,7 +97,8 @@ linear_gradient_get_scanline_32 (pixman_image_t *image,
                                  int             y,
                                  int             width,
                                  uint32_t *      buffer,
-                                 const uint32_t *mask)
+                                 const uint32_t *mask,
+                                 uint32_t        mask_bits)
 {
     pixman_vector_t v, unit;
     pixman_fixed_32_32_t l;
@@ -183,7 +184,7 @@ linear_gradient_get_scanline_32 (pixman_image_t *image,
 	    {
 		while (buffer < end)
 		{
-		    if (*mask++)
+		    if (*mask++ & mask_bits)
 			*buffer = _pixman_gradient_walker_pixel (&walker, t);
 
 		    buffer++;
@@ -222,7 +223,7 @@ linear_gradient_get_scanline_32 (pixman_image_t *image,
 	{
 	    while (buffer < end)
 	    {
-		if (!mask || *mask++)
+		if (!mask || *mask++ & mask_bits)
 		{
 		    if (v.vector[2] == 0)
 		    {
@@ -235,12 +236,12 @@ linear_gradient_get_scanline_32 (pixman_image_t *image,
 			y = ((pixman_fixed_48_16_t)v.vector[1] << 16) / v.vector[2];
 			t = ((a * x + b * y) >> 16) + off;
 		    }
-
+		    
 		    *buffer = _pixman_gradient_walker_pixel (&walker, t);
 		}
-
+		
 		++buffer;
-
+		
 		v.vector[0] += unit.vector[0];
 		v.vector[1] += unit.vector[1];
 		v.vector[2] += unit.vector[2];
@@ -264,6 +265,8 @@ pixman_image_create_linear_gradient (pixman_point_fixed_t *        p1,
 {
     pixman_image_t *image;
     linear_gradient_t *linear;
+
+    return_val_if_fail (n_stops >= 2, NULL);
 
     image = _pixman_image_allocate ();
 

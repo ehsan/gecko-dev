@@ -248,14 +248,12 @@ class FrameState
         }
 
         void pin() {
-            JS_ASSERT(fe_ != NULL);
             assertConsistency();
             save_ = fe_;
             fe_ = NULL;
         }
 
         void unpin() {
-            JS_ASSERT(save_ != NULL);
             assertConsistency();
             fe_ = save_;
             save_ = NULL;
@@ -411,6 +409,13 @@ class FrameState
     inline RegisterID tempRegForData(FrameEntry *fe, RegisterID reg, Assembler &masm) const;
 
     /*
+     * Forcibly loads the type tag for the specified FrameEntry
+     * into a register already marked as owning the type.
+     */
+    inline void emitLoadTypeTag(FrameEntry *fe, RegisterID reg) const;
+    inline void emitLoadTypeTag(Assembler &masm, FrameEntry *fe, RegisterID reg) const;
+
+    /*
      * Convert an integer to a double without applying
      * additional Register pressure.
      */
@@ -485,7 +490,7 @@ class FrameState
     void unpinEntry(const ValueRemat &vr);
 
     /* Syncs fe to memory, given its state as constructed by a call to pinEntry. */
-    void ensureValueSynced(Assembler &masm, FrameEntry *fe, const ValueRemat &vr);
+    void syncEntry(Assembler &masm, FrameEntry *fe, const ValueRemat &vr);
 
     struct BinaryAlloc {
         MaybeRegisterID lhsType;
@@ -511,7 +516,7 @@ class FrameState
                         bool resultNeeded = true);
 
     /* Ensures that an FE has both type and data remat'd in registers. */
-    void ensureFullRegs(FrameEntry *fe, MaybeRegisterID *typeReg, MaybeRegisterID *dataReg);
+    void ensureFullRegs(FrameEntry *fe);
 
     /*
      * Similar to allocForBinary, except works when the LHS and RHS have the
@@ -585,7 +590,7 @@ class FrameState
      * Fully stores a FrameEntry into two arbitrary registers. tempReg may be
      * used as a temporary.
      */
-    void loadTo(FrameEntry *fe, RegisterID typeReg, RegisterID dataReg, RegisterID tempReg);
+    void storeTo(FrameEntry *fe, RegisterID dataReg, RegisterID typeReg, RegisterID tempReg);
 
     /*
      * Stores the top stack slot back to a slot.
@@ -650,54 +655,43 @@ class FrameState
     inline void forgetType(FrameEntry *fe);
 
     /*
-     * Discards a FrameEntry, tricking the FS into thinking it's synced.
-     */
-    void discardFe(FrameEntry *fe);
-
-    /*
-     * Helper function. Tests if a slot's type is null. Condition must
+     * Helper function. Tests if a slot's type is null. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testNull(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is undefined. Condition must
-     * be Equal or NotEqual.
-     */
-    inline Jump testUndefined(Assembler::Condition cond, FrameEntry *fe);
-
-    /*
-     * Helper function. Tests if a slot's type is an integer. Condition must
+     * Helper function. Tests if a slot's type is an integer. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testInt32(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a double. Condition must
+     * Helper function. Tests if a slot's type is a double. Condition should
      * be Equal or Not Equal.
      */
     inline Jump testDouble(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a boolean. Condition must
+     * Helper function. Tests if a slot's type is a boolean. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testBoolean(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a string. Condition must
+     * Helper function. Tests if a slot's type is a string. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testString(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a non-funobj. Condition must
+     * Helper function. Tests if a slot's type is a non-funobj. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testObject(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is primitive. Condition must
+     * Helper function. Tests if a slot's type is primitve. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testPrimitive(Assembler::Condition cond, FrameEntry *fe);
@@ -793,26 +787,15 @@ class FrameState
     void evictReg(RegisterID reg);
     inline FrameEntry *rawPush();
     inline void addToTracker(FrameEntry *fe);
-
-    /* Guarantee sync, but do not set any sync flag. */
-    inline void ensureFeSynced(const FrameEntry *fe, Assembler &masm) const;
-    inline void ensureTypeSynced(const FrameEntry *fe, Assembler &masm) const;
-    inline void ensureDataSynced(const FrameEntry *fe, Assembler &masm) const;
-
-    /* Guarantee sync, even if register allocation is required, and set sync. */
-    inline void syncFe(FrameEntry *fe);
-    inline void syncType(FrameEntry *fe);
-    inline void syncData(FrameEntry *fe);
-
+    inline void syncType(const FrameEntry *fe, Address to, Assembler &masm) const;
+    inline void syncData(const FrameEntry *fe, Address to, Assembler &masm) const;
     inline FrameEntry *getLocal(uint32 slot);
     inline void forgetAllRegs(FrameEntry *fe);
     inline void swapInTracker(FrameEntry *lhs, FrameEntry *rhs);
     inline uint32 localIndex(uint32 n);
     void pushCopyOf(uint32 index);
-#if defined JS_NUNBOX32
     void syncFancy(Assembler &masm, Registers avail, FrameEntry *resumeAt,
                    FrameEntry *bottom) const;
-#endif
     inline bool tryFastDoubleLoad(FrameEntry *fe, FPRegisterID fpReg, Assembler &masm) const;
     void resetInternalState();
 
@@ -886,9 +869,7 @@ class FrameState
      */
     RegisterState regstate[Assembler::TotalRegisters];
 
-#if defined JS_NUNBOX32
     mutable ImmutableSync reifier;
-#endif
 
     JSPackedBool *closedVars;
     bool eval;

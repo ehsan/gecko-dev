@@ -285,7 +285,8 @@ nsCaretAccessible::SpellcheckSelectionChanged(nsIDOMDocument *aDoc,
   NS_ENSURE_STATE(textAcc);
 
   nsRefPtr<AccEvent> event =
-    new AccEvent(nsIAccessibleEvent::EVENT_TEXT_ATTRIBUTE_CHANGED, textAcc);
+    new AccEvent(nsIAccessibleEvent::EVENT_TEXT_ATTRIBUTE_CHANGED,
+                 textAcc, nsnull);
 
   nsEventShell::FireEvent(event);
   return NS_OK;

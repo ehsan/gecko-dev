@@ -916,7 +916,6 @@ struct JSObjectBox {
     JSObjectBox         *emitLink;
     JSObject            *object;
     uintN               index;
-    JSObjectBox         *parent;
 };
 
 #define JSFB_LEVEL_BITS 14

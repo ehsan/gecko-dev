@@ -47,9 +47,13 @@
 namespace js {
 namespace mjit {
 
-/* Don't use ImmTag. Use ImmType instead. */
-struct ImmTag : JSC::MacroAssembler::Imm32
+/* 
+ * Don't use ImmTag. Use ImmType instead.
+ * TODO: ImmTag should really just be for internal use...
+ */
+class ImmTag : public JSC::MacroAssembler::Imm32
 {
+  public:
     ImmTag(JSValueTag mask)
       : Imm32(int32(mask))
     { }
@@ -59,13 +63,6 @@ struct ImmType : ImmTag
 {
     ImmType(JSValueType type)
       : ImmTag(JSVAL_TYPE_TO_TAG(type))
-    { }
-};
-
-struct ImmPayload : JSC::MacroAssembler::Imm32
-{
-    ImmPayload(uint32 payload)
-      : Imm32(payload)
     { }
 };
 
@@ -90,14 +87,13 @@ class Assembler : public BaseAssembler
         return BaseIndex(address.base, address.index, address.scale, address.offset + TAG_OFFSET);
     }
 
-    void loadSlot(RegisterID obj, RegisterID clobber, uint32 slot, bool inlineAccess,
-                  RegisterID type, RegisterID data) {
+    void loadSlot(RegisterID obj, RegisterID clobber, uint32 slot, RegisterID type, RegisterID data) {
         JS_ASSERT(type != data);
-        Address address(obj, JSObject::getFixedSlotOffset(slot));
+        Address address(obj, offsetof(JSObject, fslots) + slot * sizeof(Value));
         RegisterID activeAddressReg = obj;
-        if (!inlineAccess) {
-            loadPtr(Address(obj, offsetof(JSObject, slots)), clobber);
-            address = Address(clobber, slot * sizeof(Value));
+        if (slot >= JS_INITIAL_NSLOTS) {
+            loadPtr(Address(obj, offsetof(JSObject, dslots)), clobber);
+            address = Address(clobber, (slot - JS_INITIAL_NSLOTS) * sizeof(Value));
             activeAddressReg = clobber;
         }
         if (activeAddressReg == type) {
@@ -115,7 +111,7 @@ class Assembler : public BaseAssembler
     }
 
     template <typename T>
-    void storeTypeTag(ImmTag imm, T address) {
+    void storeTypeTag(ImmType imm, T address) {
         store32(imm, tagOf(address));
     }
 
@@ -135,7 +131,7 @@ class Assembler : public BaseAssembler
     }
 
     template <typename T>
-    void storePayload(ImmPayload imm, T address) {
+    void storePayload(Imm32 imm, T address) {
         store32(imm, payloadOf(address));
     }
 
@@ -203,8 +199,9 @@ class Assembler : public BaseAssembler
     }
 
     void loadFunctionPrivate(RegisterID base, RegisterID to) {
-        Address priv(base, offsetof(JSObject, privateData));
-        loadPtr(priv, to);
+        Address privSlot(base, offsetof(JSObject, fslots) +
+                               JSSLOT_PRIVATE * sizeof(Value));
+        loadPtr(privSlot, to);
     }
 
     Jump testNull(Assembler::Condition cond, RegisterID reg) {
@@ -213,14 +210,6 @@ class Assembler : public BaseAssembler
 
     Jump testNull(Assembler::Condition cond, Address address) {
         return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_NULL));
-    }
-
-    Jump testUndefined(Assembler::Condition cond, RegisterID reg) {
-        return branch32(cond, reg, ImmTag(JSVAL_TAG_UNDEFINED));
-    }
-
-    Jump testUndefined(Assembler::Condition cond, Address address) {
-        return branch32(cond, tagOf(address), ImmTag(JSVAL_TAG_UNDEFINED));
     }
 
     Jump testInt32(Assembler::Condition cond, RegisterID reg) {

@@ -32,7 +32,8 @@ solid_fill_get_scanline_32 (pixman_image_t *image,
                             int             y,
                             int             width,
                             uint32_t *      buffer,
-                            const uint32_t *mask)
+                            const uint32_t *mask,
+                            uint32_t        mask_bits)
 {
     uint32_t *end = buffer + width;
     uint32_t color = image->solid.color_32;
@@ -49,7 +50,8 @@ solid_fill_get_scanline_64 (pixman_image_t *image,
 			    int             y,
 			    int             width,
 			    uint32_t *      buffer,
-			    const uint32_t *mask)
+			    const uint32_t *mask,
+			    uint32_t        mask_bits)
 {
     uint64_t *b = (uint64_t *)buffer;
     uint64_t *e = b + width;
