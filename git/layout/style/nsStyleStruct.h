@@ -413,19 +413,10 @@ struct nsStyleBackground {
     };
     PRUint8 mWidthType, mHeightType;
 
-    // True if the effective image size described by this depends on
-    // the size of the corresponding frame.  Gradients depend on the
-    // frame size when their dimensions are 'auto', images don't; both
-    // types depend on the frame size when their dimensions are
-    // 'contain', 'cover', or a percentage.
-    PRBool DependsOnFrameSize(nsStyleImageType aType) const {
-      if (aType == eStyleImageType_Image) {
-        return mWidthType <= ePercentage || mHeightType <= ePercentage;
-      } else if (aType == eStyleImageType_Gradient) {
-        return mWidthType <= eAuto || mHeightType <= eAuto;
-      } else {
-        NS_NOTREACHED("unrecognized image type");
-      }
+    // True if the effective image size described by this depends on the size
+    // of the corresponding frame.
+    PRBool DependsOnFrameSize() const {
+      return mWidthType <= ePercentage || mHeightType <= ePercentage;
     }
 
     // Initialize nothing
@@ -465,8 +456,9 @@ struct nsStyleBackground {
     // trying to identify gradients that don't depend on the frame size.
     PRBool RenderingMightDependOnFrameSize() const {
       return (!mImage.IsEmpty() &&
-              (mPosition.DependsOnFrameSize() ||
-               mSize.DependsOnFrameSize(mImage.GetType())));
+              (mImage.GetType() == eStyleImageType_Gradient ||
+               mPosition.DependsOnFrameSize() ||
+               mSize.DependsOnFrameSize()));
     }
 
     // An equality operator that compares the images using URL-equality

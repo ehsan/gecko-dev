@@ -1878,10 +1878,8 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
     }
     // Without a frame, this document can't be displayed; therefore, there is no
     // point to reflowing it
-    if (!frame) {
-      aPO->mDontPrint = PR_TRUE;
+    if (!frame)
       return NS_OK;
-    }
 
     adjSize = frame->GetContentRect().Size();
     documentIsTopLevel = PR_FALSE;
