@@ -1022,13 +1022,6 @@ nsFormFillController::KeyPress(nsIDOMEvent* aEvent)
 
   if (cancel) {
     aEvent->PreventDefault();
-    // Don't let the page see the RETURN event when the popup is open
-    // (indicated by cancel=true) so sites don't manually submit forms
-    // (e.g. via submit.click()) without the autocompleted value being filled.
-    // Bug 286933 will fix this for other key events.
-    if (k == nsIDOMKeyEvent::DOM_VK_RETURN) {
-      aEvent->StopPropagation();
-    }
   }
 
   return NS_OK;
@@ -1104,7 +1097,6 @@ nsFormFillController::AddWindowListeners(nsIDOMWindow *aWindow)
                            true, false);
   target->AddEventListener(NS_LITERAL_STRING("input"), this,
                            true, false);
-  target->AddEventListener(NS_LITERAL_STRING("keypress"), this, true, false);
   target->AddEventListener(NS_LITERAL_STRING("compositionstart"), this,
                            true, false);
   target->AddEventListener(NS_LITERAL_STRING("compositionend"), this,
@@ -1143,12 +1135,27 @@ nsFormFillController::RemoveWindowListeners(nsIDOMWindow *aWindow)
   target->RemoveEventListener(NS_LITERAL_STRING("pagehide"), this, true);
   target->RemoveEventListener(NS_LITERAL_STRING("mousedown"), this, true);
   target->RemoveEventListener(NS_LITERAL_STRING("input"), this, true);
-  target->RemoveEventListener(NS_LITERAL_STRING("keypress"), this, true);
   target->RemoveEventListener(NS_LITERAL_STRING("compositionstart"), this,
                               true);
   target->RemoveEventListener(NS_LITERAL_STRING("compositionend"), this,
                               true);
   target->RemoveEventListener(NS_LITERAL_STRING("contextmenu"), this, true);
+}
+
+void
+nsFormFillController::AddKeyListener(nsINode* aInput)
+{
+  aInput->AddEventListener(NS_LITERAL_STRING("keypress"), this,
+                           true, false);
+}
+
+void
+nsFormFillController::RemoveKeyListener()
+{
+  if (!mFocusedInputNode)
+    return;
+
+  mFocusedInputNode->RemoveEventListener(NS_LITERAL_STRING("keypress"), this, true);
 }
 
 void
@@ -1175,6 +1182,8 @@ nsFormFillController::StartControllingInput(nsIDOMHTMLInputElement *aInput)
     return;
   }
 
+  AddKeyListener(node);
+
   node->AddMutationObserverUnlessExists(this);
   mFocusedInputNode = node;
   mFocusedInput = aInput;
@@ -1194,6 +1203,8 @@ nsFormFillController::StartControllingInput(nsIDOMHTMLInputElement *aInput)
 void
 nsFormFillController::StopControllingInput()
 {
+  RemoveKeyListener();
+
   if (mListNode) {
     mListNode->RemoveMutationObserver(this);
     mListNode = nullptr;

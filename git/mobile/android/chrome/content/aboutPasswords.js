@@ -256,7 +256,7 @@ let Passwords = {
   },
 
   _filter: function(event) {
-    let value = event.target.value.toLowerCase();
+    let value = event.target.value;
     let logins = this._logins.filter((login) => {
       if (login.hostname.toLowerCase().indexOf(value) != -1) {
         return true;
