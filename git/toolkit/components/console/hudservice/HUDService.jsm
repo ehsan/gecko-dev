@@ -5425,12 +5425,9 @@ ConsoleUtils = {
 
     bodyNode.appendChild(aBody);
 
-    let repeatContainer = aDocument.createElementNS(XUL_NS, "xul:hbox");
-    repeatContainer.setAttribute("align", "start");
     let repeatNode = aDocument.createElementNS(XUL_NS, "xul:label");
     repeatNode.setAttribute("value", "1");
     repeatNode.classList.add("webconsole-msg-repeat");
-    repeatContainer.appendChild(repeatNode);
 
     // Create the timestamp.
     let timestampNode = aDocument.createElementNS(XUL_NS, "xul:label");
@@ -5458,7 +5455,7 @@ ConsoleUtils = {
     node.appendChild(timestampNode);  // childNode[0]
     node.appendChild(iconContainer);  // childNode[1]
     node.appendChild(bodyNode);       // childNode[2]
-    node.appendChild(repeatContainer);  // childNode[3]
+    node.appendChild(repeatNode);     // childNode[3]
     if (locationNode) {
       node.appendChild(locationNode); // childNode[4]
     }
@@ -5593,9 +5590,8 @@ ConsoleUtils = {
    */
   mergeFilteredMessageNode:
   function ConsoleUtils_mergeFilteredMessageNode(aOriginal, aFiltered) {
-    // childNodes[3].firstChild is the node containing the number of repetitions
-    // of a node.
-    let repeatNode = aOriginal.childNodes[3].firstChild;
+    // childNodes[3] is the node containing the number of repetitions of a node.
+    let repeatNode = aOriginal.childNodes[3];
     if (!repeatNode) {
       return aOriginal; // no repeat node, return early.
     }
