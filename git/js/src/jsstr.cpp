@@ -43,6 +43,7 @@
 #include "vm/Interpreter.h"
 #include "vm/NumericConversions.h"
 #include "vm/RegExpObject.h"
+#include "vm/ScopeObject.h"
 #include "vm/Shape.h"
 #include "vm/StringBuffer.h"
 
@@ -2690,10 +2691,10 @@ static const uint32_t ReplaceOptArg = 2;
 static bool
 LambdaIsGetElem(JSContext *cx, JSObject &lambda, MutableHandleObject pobj)
 {
-    if (!lambda.isFunction())
+    if (!lambda.is<JSFunction>())
         return true;
 
-    JSFunction *fun = lambda.toFunction();
+    JSFunction *fun = &lambda.as<JSFunction>();
     if (!fun->isInterpreted())
         return true;
 
@@ -3592,7 +3593,7 @@ js_InitStringClass(JSContext *cx, HandleObject obj)
 {
     JS_ASSERT(obj->isNative());
 
-    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
+    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
 
     Rooted<JSString*> empty(cx, cx->runtime()->emptyString);
     RootedObject proto(cx, global->createBlankPrototype(cx, &StringObject::class_));
