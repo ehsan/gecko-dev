@@ -142,9 +142,6 @@ public:
 
   char *mHostName;
   char *mCanonicalName;
-  uint16_t ttl;
-  static const uint16_t NO_TTL_DATA = (uint16_t) -1;
-
   LinkedList<NetAddrElement> mAddresses;
 
 private:

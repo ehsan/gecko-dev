@@ -10,7 +10,10 @@
 #define LIBGLESV2_MATHUTIL_H_
 
 #include "common/debug.h"
-#include "common/platform.h"
+
+#if defined(_WIN32)
+#include <intrin.h>
+#endif
 
 #include <limits>
 #include <algorithm>
@@ -109,7 +112,7 @@ inline unsigned int unorm(float x)
 
 inline bool supportsSSE2()
 {
-#ifdef ANGLE_PLATFORM_WINDOWS
+#if defined(_WIN32)
     static bool checked = false;
     static bool supports = false;
 
@@ -503,31 +506,19 @@ inline unsigned int averageFloat10(unsigned int a, unsigned int b)
 namespace rx
 {
 
-template <typename T>
 struct Range
 {
     Range() {}
-    Range(T lo, T hi) : start(lo), end(hi) { }
+    Range(int lo, int hi) : start(lo), end(hi) { ASSERT(lo <= hi); }
 
-    T start;
-    T end;
-
-    T length() const { return (end > start ? (end - start) : 0); }
+    int start;
+    int end;
 };
-
-typedef Range<int> RangeI;
-typedef Range<unsigned int> RangeUI;
 
 template <typename T>
 T roundUp(const T value, const T alignment)
 {
     return value + alignment - 1 - (value - 1) % alignment;
-}
-
-inline unsigned int UnsignedCeilDivide(unsigned int value, unsigned int divisor)
-{
-    unsigned int divided = value / divisor;
-    return (divided + ((value % divisor == 0) ? 0 : 1));
 }
 
 template <class T>

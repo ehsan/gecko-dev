@@ -55,6 +55,7 @@
 #include "nsCOMPtr.h"                   // for already_AddRefed
 #include "nsDebug.h"                    // for NS_WARNING
 #include "nsIDOMWindowUtils.h"          // for nsIDOMWindowUtils
+#include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
 #include "nsMathUtils.h"                // for NS_hypot
 #include "nsPoint.h"                    // for nsIntPoint
 #include "nsStyleConsts.h"
@@ -885,12 +886,15 @@ AsyncPanZoomController::AsyncPanZoomController(uint64_t aLayersId,
      mSharedLock(nullptr),
      mAsyncTransformAppliedToContent(false)
 {
+  MOZ_COUNT_CTOR(AsyncPanZoomController);
+
   if (aGestures == USE_GESTURE_DETECTOR) {
     mGestureEventListener = new GestureEventListener(this);
   }
 }
 
 AsyncPanZoomController::~AsyncPanZoomController() {
+  MOZ_COUNT_DTOR(AsyncPanZoomController);
 }
 
 PCompositorParent*

@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <algorithm>
 
-int TSymbolTable::uniqueIdCounter = 0;
+int TSymbolTableLevel::uniqueId = 0;
 
 //
 // Functions have buried pointers to delete.
@@ -36,25 +36,6 @@ TSymbolTableLevel::~TSymbolTableLevel()
 {
     for (tLevel::iterator it = level.begin(); it != level.end(); ++it)
         delete (*it).second;
-}
-
-bool TSymbolTableLevel::insert(TSymbol *symbol)
-{
-    symbol->setUniqueId(TSymbolTable::nextUniqueId());
-
-    // returning true means symbol was added to the table
-    tInsertResult result = level.insert(tLevelPair(symbol->getMangledName(), symbol));
-
-    return result.second;
-}
-
-TSymbol *TSymbolTableLevel::find(const TString &name) const
-{
-    tLevel::const_iterator it = level.find(name);
-    if (it == level.end())
-        return 0;
-    else
-        return (*it).second;
 }
 
 //
@@ -98,8 +79,7 @@ TSymbol::TSymbol(const TSymbol &copyOf)
     uniqueId = copyOf.uniqueId;
 }
 
-TSymbol *TSymbolTable::find(const TString &name, int shaderVersion,
-                            bool *builtIn, bool *sameScope) const
+TSymbol *TSymbolTable::find(const TString &name, int shaderVersion, bool *builtIn, bool *sameScope)
 {
     int level = currentLevel();
     TSymbol *symbol;
@@ -123,8 +103,7 @@ TSymbol *TSymbolTable::find(const TString &name, int shaderVersion,
     return symbol;
 }
 
-TSymbol *TSymbolTable::findBuiltIn(
-    const TString &name, int shaderVersion) const
+TSymbol *TSymbolTable::findBuiltIn(const TString &name, int shaderVersion)
 {
     for (int level = LAST_BUILTIN_LEVEL; level >= 0; level--)
     {
@@ -209,10 +188,10 @@ void TSymbolTable::insertBuiltIn(
         }
     }
 
-    insert(level, function);
+    insert(level, *function);
 }
 
-TPrecision TSymbolTable::getDefaultPrecision(TBasicType type) const
+TPrecision TSymbolTable::getDefaultPrecision(TBasicType type)
 {
     if (!SupportsPrecision(type))
         return EbpUndefined;

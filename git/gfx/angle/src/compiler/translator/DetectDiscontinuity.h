@@ -11,7 +11,7 @@
 #ifndef COMPILER_DETECTDISCONTINUITY_H_
 #define COMPILER_DETECTDISCONTINUITY_H_
 
-#include "compiler/translator/IntermNode.h"
+#include "compiler/translator/intermediate.h"
 
 namespace sh
 {

@@ -5,16 +5,14 @@
 //
 
 #include "compiler/translator/BuiltInFunctionEmulator.h"
-#include "compiler/translator/Compiler.h"
 #include "compiler/translator/DetectCallDepth.h"
 #include "compiler/translator/ForLoopUnroll.h"
 #include "compiler/translator/Initialize.h"
 #include "compiler/translator/InitializeParseContext.h"
 #include "compiler/translator/InitializeVariables.h"
 #include "compiler/translator/ParseContext.h"
-#include "compiler/translator/RegenerateStructNames.h"
 #include "compiler/translator/RenameFunction.h"
-#include "compiler/translator/ScalarizeVecAndMatConstructorArgs.h"
+#include "compiler/translator/ShHandle.h"
 #include "compiler/translator/UnfoldShortCircuitAST.h"
 #include "compiler/translator/ValidateLimitations.h"
 #include "compiler/translator/ValidateOutputs.h"
@@ -24,8 +22,6 @@
 #include "compiler/translator/timing/RestrictFragmentShaderTiming.h"
 #include "compiler/translator/timing/RestrictVertexShaderTiming.h"
 #include "third_party/compiler/ArrayBoundsClamper.h"
-#include "angle_gl.h"
-#include "common/utilities.h"
 
 bool IsWebGLBasedSpec(ShShaderSpec spec)
 {
@@ -96,7 +92,7 @@ TShHandleBase::~TShHandleBase()
     allocator.popAll();
 }
 
-TCompiler::TCompiler(sh::GLenum type, ShShaderSpec spec, ShShaderOutput output)
+TCompiler::TCompiler(ShShaderType type, ShShaderSpec spec, ShShaderOutput output)
     : shaderType(type),
       shaderSpec(spec),
       outputType(output),
@@ -116,7 +112,7 @@ TCompiler::~TCompiler()
 bool TCompiler::Init(const ShBuiltInResources& resources)
 {
     shaderVersion = 100;
-    maxUniformVectors = (shaderType == GL_VERTEX_SHADER) ?
+    maxUniformVectors = (shaderType == SH_VERTEX_SHADER) ?
         resources.MaxVertexUniformVectors :
         resources.MaxFragmentUniformVectors;
     maxExpressionComplexity = resources.MaxExpressionComplexity;
@@ -191,7 +187,7 @@ bool TCompiler::compile(const char* const shaderStrings[],
         if (success)
             success = detectCallDepth(root, infoSink, (compileOptions & SH_LIMIT_CALL_STACK_DEPTH) != 0);
 
-        if (success && shaderVersion == 300 && shaderType == GL_FRAGMENT_SHADER)
+        if (success && shaderVersion == 300 && shaderType == SH_FRAGMENT_SHADER)
             success = validateOutputs(root);
 
         if (success && (compileOptions & SH_VALIDATE_LOOP_INDEXING))
@@ -229,7 +225,7 @@ bool TCompiler::compile(const char* const shaderStrings[],
         if (success && (compileOptions & SH_CLAMP_INDIRECT_ARRAY_BOUNDS))
             arrayBoundsClamper.MarkIndirectArrayBoundsForClamping(root);
 
-        if (success && shaderType == GL_VERTEX_SHADER && (compileOptions & SH_INIT_GL_POSITION))
+        if (success && shaderType == SH_VERTEX_SHADER && (compileOptions & SH_INIT_GL_POSITION))
             initializeGLPosition(root);
 
         if (success && (compileOptions & SH_UNFOLD_SHORT_CIRCUIT))
@@ -251,22 +247,9 @@ bool TCompiler::compile(const char* const shaderStrings[],
                     infoSink.info << "too many uniforms";
                 }
             }
-            if (success && shaderType == GL_VERTEX_SHADER &&
+            if (success && shaderType == SH_VERTEX_SHADER &&
                 (compileOptions & SH_INIT_VARYINGS_WITHOUT_STATIC_USE))
                 initializeVaryingsWithoutStaticUse(root);
-        }
-
-        if (success && (compileOptions & SH_SCALARIZE_VEC_AND_MAT_CONSTRUCTOR_ARGS))
-        {
-            ScalarizeVecAndMatConstructorArgs scalarizer(
-                shaderType, fragmentPrecisionHigh);
-            root->traverse(&scalarizer);
-        }
-
-        if (success && (compileOptions & SH_REGENERATE_STRUCT_NAMES))
-        {
-            RegenerateStructNames gen(symbolTable, shaderVersion);
-            root->traverse(&gen);
         }
 
         if (success && (compileOptions & SH_INTERMEDIATE_TREE))
@@ -311,10 +294,10 @@ bool TCompiler::InitBuiltInSymbolTable(const ShBuiltInResources &resources)
 
     switch(shaderType)
     {
-      case GL_FRAGMENT_SHADER:
+      case SH_FRAGMENT_SHADER:
         symbolTable.setDefaultPrecision(integer, EbpMedium);
         break;
-      case GL_VERTEX_SHADER:
+      case SH_VERTEX_SHADER:
         symbolTable.setDefaultPrecision(integer, EbpHigh);
         symbolTable.setDefaultPrecision(floatingPoint, EbpHigh);
         break;
@@ -372,13 +355,9 @@ void TCompiler::clearResults()
     infoSink.obj.erase();
     infoSink.debug.erase();
 
-    attributes.clear();
-    outputVariables.clear();
+    attribs.clear();
     uniforms.clear();
-    expandedUniforms.clear();
     varyings.clear();
-    expandedVaryings.clear();
-    interfaceBlocks.clear();
 
     builtInFunctionEmulator.Cleanup();
 
@@ -439,7 +418,7 @@ bool TCompiler::enforceTimingRestrictions(TIntermNode* root, bool outputGraph)
         return false;
     }
 
-    if (shaderType == GL_FRAGMENT_SHADER)
+    if (shaderType == SH_FRAGMENT_SHADER)
     {
         TDependencyGraph graph(root);
 
@@ -502,24 +481,14 @@ bool TCompiler::enforceVertexShaderTimingRestrictions(TIntermNode* root)
 
 void TCompiler::collectVariables(TIntermNode* root)
 {
-    CollectVariables collect(&attributes,
-                             &outputVariables,
-                             &uniforms,
-                             &varyings,
-                             &interfaceBlocks,
-                             hashFunction);
+    CollectVariables collect(attribs, uniforms, varyings, hashFunction);
     root->traverse(&collect);
-
-    // For backwards compatiblity with ShGetVariableInfo, expand struct
-    // uniforms and varyings into separate variables for each field.
-    ExpandVariables(uniforms, &expandedUniforms);
-    ExpandVariables(varyings, &expandedVaryings);
 }
 
 bool TCompiler::enforcePackingRestrictions()
 {
     VariablePacker packer;
-    return packer.CheckVariablesWithinPackingLimits(maxUniformVectors, expandedUniforms);
+    return packer.CheckVariablesWithinPackingLimits(maxUniformVectors, uniforms);
 }
 
 void TCompiler::initializeGLPosition(TIntermNode* root)
@@ -537,16 +506,43 @@ void TCompiler::initializeVaryingsWithoutStaticUse(TIntermNode* root)
     InitializeVariables::InitVariableInfoList variables;
     for (size_t ii = 0; ii < varyings.size(); ++ii)
     {
-        const sh::Varying& varying = varyings[ii];
+        const TVariableInfo& varying = varyings[ii];
         if (varying.staticUse)
             continue;
-        unsigned char primarySize = static_cast<unsigned char>(gl::VariableColumnCount(varying.type));
-        unsigned char secondarySize = static_cast<unsigned char>(gl::VariableRowCount(varying.type));
-        TType type(EbtFloat, EbpUndefined, EvqVaryingOut, primarySize, secondarySize, varying.isArray());
-        TString name = varying.name.c_str();
-        if (varying.isArray())
+        unsigned char primarySize = 1, secondarySize = 1;
+        switch (varying.type)
         {
-            type.setArraySize(varying.arraySize);
+          case SH_FLOAT:
+            break;
+          case SH_FLOAT_VEC2:
+            primarySize = 2;
+            break;
+          case SH_FLOAT_VEC3:
+            primarySize = 3;
+            break;
+          case SH_FLOAT_VEC4:
+            primarySize = 4;
+            break;
+          case SH_FLOAT_MAT2:
+            primarySize = 2;
+            secondarySize = 2;
+            break;
+          case SH_FLOAT_MAT3:
+            primarySize = 3;
+            secondarySize = 3;
+            break;
+          case SH_FLOAT_MAT4:
+            primarySize = 4;
+            secondarySize = 4;
+            break;
+          default:
+            ASSERT(false);
+        }
+        TType type(EbtFloat, EbpUndefined, EvqVaryingOut, primarySize, secondarySize, varying.isArray);
+        TString name = varying.name.c_str();
+        if (varying.isArray)
+        {
+            type.setArraySize(varying.size);
             name = name.substr(0, name.find_first_of('['));
         }
 

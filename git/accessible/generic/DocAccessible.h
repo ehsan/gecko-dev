@@ -296,16 +296,7 @@ public:
   /**
    * Notify the document accessible that content was removed.
    */
-  void ContentRemoved(Accessible* aContainer, nsIContent* aChildNode)
-  {
-    // Update the whole tree of this document accessible when the container is
-    // null (document element is removed).
-    UpdateTree((aContainer ? aContainer : this), aChildNode, false);
-  }
-  void ContentRemoved(nsIContent* aContainerNode, nsIContent* aChildNode)
-  {
-    ContentRemoved(GetAccessibleOrContainer(aContainerNode), aChildNode);
-  }
+  void ContentRemoved(nsIContent* aContainerNode, nsIContent* aChildNode);
 
   /**
    * Updates accessible tree when rendered text is changed.
