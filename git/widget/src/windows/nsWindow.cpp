@@ -391,6 +391,7 @@ typedef int (__stdcall * HTCApiNavSetMode)(HANDLE, unsigned int);
 
 HTCApiNavOpen    gHTCApiNavOpen = nsnull;
 HTCApiNavSetMode gHTCApiNavSetMode = nsnull;
+static PRBool    gCheckForHTCApi = PR_FALSE;
 #endif
 
 // The last user input event time in microseconds. If
@@ -4089,21 +4090,21 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         }
       }
 #ifdef WINCE_WINDOWS_MOBILE
-      if (gHTCApiNavOpen == nsnull) {
-          HINSTANCE library;
-          library = LoadLibrary(L"HTCAPI.dll"); 
-          
-          gHTCApiNavOpen    = (HTCApiNavOpen)    GetProcAddress(library, "HTCNavOpen"); 
-          gHTCApiNavSetMode = (HTCApiNavSetMode) GetProcAddress(library ,"HTCNavSetMode"); 
-        }
+      if (!gCheckForHTCApi && gHTCApiNavOpen == nsnull) {
+        gCheckForHTCApi = PR_TRUE;
+
+        HINSTANCE library = LoadLibrary(L"HTCAPI.dll"); 
+        gHTCApiNavOpen    = (HTCApiNavOpen)    GetProcAddress(library, "HTCNavOpen"); 
+        gHTCApiNavSetMode = (HTCApiNavSetMode) GetProcAddress(library ,"HTCNavSetMode"); 
+      }
       
-      if (gHTCApiNavOpen != NULL)
+      if (gHTCApiNavOpen != nsnull) {
         gHTCApiNavOpen(mWnd, 1 /* undocumented value */);
-      
-      if (gHTCApiNavSetMode != NULL)
-        gHTCApiNavSetMode ( mWnd, 4);
-      // 4 is Gesture Mode. This will generate WM_HTCNAV events to the window
-      
+
+        if (gHTCApiNavSetMode != nsnull)
+          gHTCApiNavSetMode ( mWnd, 4);
+        // 4 is Gesture Mode. This will generate WM_HTCNAV events to the window
+      }
 #endif
       break;
       
@@ -4177,6 +4178,14 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_SETTINGCHANGE:
 #if !defined (WINCE_WINDOWS_MOBILE)
       getWheelInfo = PR_TRUE;
+#else
+      switch (wParam) {
+        case SPI_SIPMOVE:
+        case SPI_SETSIPINFO:
+        case SPI_SETCURRENTIM:
+          nsWindowCE::NotifySoftKbObservers();
+          break;
+      }
 #endif
       OnSettingsChange(wParam, lParam);
       break;
