@@ -510,21 +510,6 @@ LoginManager.prototype = {
 
 
     /*
-     * searchLogins
-     *
-     * Public wrapper around _searchLogins to convert the nsIPropertyBag to a
-     * JavaScript object and decrypt the results.
-     *
-     * Returns an array of decrypted nsILoginInfo.
-     */
-    searchLogins : function(count, matchData) {
-       this.log("Searching for logins");
-
-        return this._storage.searchLogins(count, matchData);
-    },
-
-
-    /*
      * countLogins
      *
      * Search for the known logins for entries matching the specified criteria,
@@ -655,17 +640,15 @@ LoginManager.prototype = {
         // Locate the password fields in the form.
         var pwFields = [];
         for (var i = 0; i < form.elements.length; i++) {
-            var element = form.elements[i];
-            if (!(element instanceof Ci.nsIDOMHTMLInputElement) ||
-                element.type != "password")
+            if (form.elements[i].type != "password")
                 continue;
 
-            if (skipEmptyFields && !element.value)
+            if (skipEmptyFields && !form.elements[i].value)
                 continue;
 
             pwFields[pwFields.length] = {
                                             index   : i,
-                                            element : element
+                                            element : form.elements[i]
                                         };
         }
 
@@ -1080,7 +1063,7 @@ LoginManager.prototype = {
         if (passwordField.maxLength >= 0)
             maxPasswordLen = passwordField.maxLength;
 
-        var logins = foundLogins.filter(function (l) {
+        logins = foundLogins.filter(function (l) {
                 var fit = (l.username.length <= maxUsernameLen &&
                            l.password.length <= maxPasswordLen);
                 if (!fit)

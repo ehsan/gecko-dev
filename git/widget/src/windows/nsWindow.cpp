@@ -625,6 +625,7 @@ nsWindow::nsWindow() : nsBaseWidget()
   mIsControlDown      = PR_FALSE;
   mIsAltDown          = PR_FALSE;
   mIsDestroying       = PR_FALSE;
+  mOnDestroyCalled    = PR_FALSE;
   mDeferredPositioner = NULL;
   mLastPoint.x        = 0;
   mLastPoint.y        = 0;
@@ -1490,10 +1491,10 @@ NS_IMETHODIMP nsWindow::SetParent(nsIWidget *aNewParent)
 //-------------------------------------------------------------------------
 nsIWidget* nsWindow::GetParent(void)
 {
-  return GetParentWindow(PR_FALSE);
+  return GetParentWindow();
 }
 
-nsWindow* nsWindow::GetParentWindow(PRBool aIncludeOwner)
+nsWindow* nsWindow::GetParentWindow()
 {
   if (mIsTopWidgetWindow) {
     // Must use a flag instead of mWindowType to tell if the window is the
@@ -1508,21 +1509,9 @@ nsWindow* nsWindow::GetParentWindow(PRBool aIncludeOwner)
   if (mIsDestroying || mOnDestroyCalled)
     return nsnull;
 
-
-  // aIncludeOwner set to true implies walking the parent chain to retrieve the
-  // root owner. aIncludeOwner set to false implies the search will stop at the
-  // true parent (default).
   nsWindow* widget = nsnull;
   if (mWnd) {
-#ifdef WINCE
     HWND parent = ::GetParent(mWnd);
-#else
-    HWND parent = nsnull;
-    if (aIncludeOwner)
-      parent = ::GetParent(mWnd);
-    else
-      parent = ::GetAncestor(mWnd, GA_PARENT);
-#endif
     if (parent) {
       widget = GetNSWindowPtr(parent);
       if (widget) {
@@ -4648,15 +4637,14 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
 
 #if defined(WINCE_HAVE_SOFTKB)
       {
-        // On Windows CE, we have a window that overlaps
-        // the ISP button.  In this case, we should always
-        // try to hide it when we are activated
+      // On Windows CE, we have a window that overlaps
+      // the ISP button.  In this case, we should always
+      // try to hide it when we are activated
       
-        // Get current input context
-        HIMC hC = ImmGetContext(mWnd);
-        // Open the IME 
-        ImmSetOpenStatus(hC, TRUE);
-        ImmReleaseContext(mWnd, hC);
+      // Get current input context
+      HIMC hC = ImmGetContext(mWnd);
+      // Open the IME 
+      ImmSetOpenStatus(hC, TRUE);
       }
 #endif
       break;
@@ -4666,7 +4654,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
       {
         HIMC hC = ImmGetContext(mWnd);
         ImmSetOpenStatus(hC, FALSE);
-        ImmReleaseContext(mWnd, hC);
       }
 #endif
       WCHAR className[kMaxClassNameLength];
@@ -8427,8 +8414,7 @@ nsWindow* nsWindow::GetTopLevelWindow(PRBool aStopOnDialogOrPopup)
       }
     }
 
-    // Retrieve the top level parent or owner window
-    nsWindow* parentWindow = curWindow->GetParentWindow(PR_TRUE);
+    nsWindow* parentWindow = curWindow->GetParentWindow();
 
     if (!parentWindow)
       return curWindow;

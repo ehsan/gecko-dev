@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -37,30 +36,26 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef _mozStorageArgValueArray_h_
-#define _mozStorageArgValueArray_h_
+#ifndef _MOZSTORAGEVALUEARRAY_H_
+#define _MOZSTORAGEVALUEARRAY_H_
 
 #include "mozIStorageValueArray.h"
 
 #include <sqlite3.h>
 
-namespace mozilla {
-namespace storage {
-
-class ArgValueArray : public mozIStorageValueArray
+class mozStorageArgvValueArray : public mozIStorageValueArray
 {
 public:
-  ArgValueArray(PRInt32 aArgc, sqlite3_value **aArgv);
+    mozStorageArgvValueArray (PRInt32 aArgc, sqlite3_value **aArgv);
+    ~mozStorageArgvValueArray();
 
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGEVALUEARRAY
+    // interfaces
+    NS_DECL_ISUPPORTS
+    NS_DECL_MOZISTORAGEVALUEARRAY
 
 private:
-  PRUint32 mArgc;
-  sqlite3_value **mArgv;
+    PRUint32 mArgc;
+    sqlite3_value **mArgv;
 };
 
-} // namespace storage
-} // namespace mozilla
-
-#endif // _mozStorageArgValueArray_h_
+#endif /* _MOZSTORAGEVALUEARRAY_H_ */

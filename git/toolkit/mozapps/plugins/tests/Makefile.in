@@ -66,14 +66,11 @@ PROGRAMS = $(SIMPLE_PROGRAMS:%$(BIN_SUFFIX)=$(TESTROOT)/%)
 
 include $(topsrcdir)/config/rules.mk
 
-$(PROGRAMS) $(_BROWSER_FILES): $(TESTROOT)
-$(TESTROOT):
-	$(NSINSTALL) -D $@
-
 $(PROGRAMS): $(TESTROOT)/% : %$(BIN_SUFFIX)
-	cp $< $@
+	$(NSINSTALL) -D $(TESTROOT)
+	cp $^ $@
 
-libs::
-	$(INSTALL) $(foreach f,$(_BROWSER_FILES),"$(srcdir)/$f") $(TESTROOT)
+libs:: $(_BROWSER_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(TESTROOT)
 
 libs:: $(PROGRAMS)
