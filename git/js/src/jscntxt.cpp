@@ -821,7 +821,7 @@ js_ReportOutOfMemory(JSContext *cx)
     }
 
     if (onError) {
-        AutoAtomicIncrement incr(&cx->runtime->inOOMReport);
+        AutoScopedAssign<bool> ss(&cx->runtime->inOOMReport, true);
         onError(cx, msg, &report);
     }
 }
