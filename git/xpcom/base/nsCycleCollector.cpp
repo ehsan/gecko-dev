@@ -613,9 +613,7 @@ public:
 class NodePool
 {
 private:
-  // The -2 allows us to use |BlockSize + 1| for |mEntries|, and fit |mNext|,
-  // all without causing slop.
-  enum { BlockSize = 8 * 1024 - 2 };
+  enum { BlockSize = 8 * 1024 }; // could be int template parameter
 
   struct Block
   {
@@ -625,13 +623,6 @@ private:
     Block()
     {
       NS_NOTREACHED("should never be called");
-
-      // Ensure Block is the right size (see the comment on BlockSize above).
-      static_assert(
-        sizeof(Block) == 163824 ||      // 32-bit; equals 39.997 pages
-        sizeof(Block) == 262120,        // 64-bit; equals 63.994 pages
-        "ill-sized NodePool::Block"
-      );
     }
     ~Block()
     {
