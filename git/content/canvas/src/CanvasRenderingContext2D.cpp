@@ -888,8 +888,8 @@ CanvasRenderingContext2D::CheckSizeForSkiaGL(IntSize size) {
     }
   }
 
-  int32_t threshold = gDefaultScale > 0 ? ceil(gDefaultScale * gScreenPixels)
-                                        : gScreenPixels;
+  double scale = gDefaultScale > 0 ? gDefaultScale : 1.0;
+  int32_t threshold = ceil(scale * scale * gScreenPixels);
 
   // screen size acts as max threshold
   return threshold < 0 || (size.width * size.height) <= threshold;
@@ -1490,7 +1490,13 @@ CanvasRenderingContext2D::CreatePattern(const HTMLImageOrCanvasOrVideoElement& e
       return pat.forget();
     }
   } else if (element.IsHTMLImageElement()) {
-    htmlElement = &element.GetAsHTMLImageElement();
+    HTMLImageElement* img = &element.GetAsHTMLImageElement();
+    if (img->IntrinsicState().HasState(NS_EVENT_STATE_BROKEN)) {
+      error.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
+      return nullptr;
+    }
+
+    htmlElement = img;
   } else {
     htmlElement = &element.GetAsHTMLVideoElement();
   }
