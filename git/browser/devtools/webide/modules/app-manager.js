@@ -365,10 +365,7 @@ let AppManager = exports.AppManager = {
       try {
         // Reset the connection's state to defaults
         this.connection.resetOptions();
-        // Only watch for errors here.  Final resolution occurs above, once
-        // we've reached the CONNECTED state.
-        this.selectedRuntime.connect(this.connection)
-                            .then(null, e => deferred.reject(e));
+        deferred.resolve(this.selectedRuntime.connect(this.connection));
       } catch(e) {
         deferred.reject(e);
       }

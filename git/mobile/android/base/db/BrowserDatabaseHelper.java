@@ -24,7 +24,6 @@ import android.database.Cursor;
 import android.database.DatabaseUtils;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
-import android.database.sqlite.SQLiteException;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.net.Uri;
 import android.os.Build;
@@ -768,18 +767,12 @@ final class BrowserDatabaseHelper extends SQLiteOpenHelper {
     private void upgradeDatabaseFrom21to22(SQLiteDatabase db) {
         debug("Adding CONTENT_STATUS column to reading list table.");
 
-        try {
-            db.execSQL("ALTER TABLE " + TABLE_READING_LIST +
-                       " ADD COLUMN " + ReadingListItems.CONTENT_STATUS +
-                       " TINYINT DEFAULT " + ReadingListItems.STATUS_UNFETCHED);
+        db.execSQL("ALTER TABLE " + TABLE_READING_LIST +
+                   " ADD COLUMN " + ReadingListItems.CONTENT_STATUS +
+                   " TINYINT DEFAULT " + ReadingListItems.STATUS_UNFETCHED);
 
-            db.execSQL("CREATE INDEX reading_list_content_status ON " + TABLE_READING_LIST + "("
-                    + ReadingListItems.CONTENT_STATUS + ")");
-        } catch (SQLiteException e) {
-            // We're betting that an error here means that the table already has the column,
-            // so we're failing due to the duplicate column name.
-            Log.e(LOGTAG, "Error upgrading database from 21 to 22", e);
-        }
+        db.execSQL("CREATE INDEX reading_list_content_status ON " + TABLE_READING_LIST + "("
+                + ReadingListItems.CONTENT_STATUS + ")");
     }
 
     private void createV19CombinedView(SQLiteDatabase db) {
@@ -847,11 +840,7 @@ final class BrowserDatabaseHelper extends SQLiteOpenHelper {
                     break;
 
                 case 22:
-                    if (oldVersion <= 17) {
-                         // We just created the right table in 17to18. Do nothing here.
-                    } else {
-                         upgradeDatabaseFrom21to22(db);
-                    }
+                    upgradeDatabaseFrom21to22(db);
                     break;
             }
         }

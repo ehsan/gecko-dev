@@ -8,9 +8,7 @@
  */
 let MemoryCallTreeView = Heritage.extend(DetailsSubview, {
 
-  rerenderPrefs: [
-    "invert-call-tree"
-  ],
+  rerenderPrefs: ["invert-call-tree", "show-platform-data"],
 
   rangeChangeDebounceTime: 100, // ms
 
@@ -62,10 +60,11 @@ let MemoryCallTreeView = Heritage.extend(DetailsSubview, {
    */
   _prepareCallTree: function (allocations, { startTime, endTime }, options) {
     let samples = RecordingUtils.getSamplesFromAllocations(allocations);
+    let contentOnly = !PerformanceController.getPref("show-platform-data");
     let invertTree = PerformanceController.getPref("invert-call-tree");
 
     let threadNode = new ThreadNode(samples,
-      { startTime, endTime, invertTree });
+      { startTime, endTime, contentOnly, invertTree });
 
     // If we have an empty profile (no samples), then don't invert the tree, as
     // it would hide the root node and a completely blank call tree space can be
@@ -102,4 +101,5 @@ let MemoryCallTreeView = Heritage.extend(DetailsSubview, {
     // Memory allocation samples don't contain cateogry labels.
     root.toggleCategories(false);
   }
+
 });

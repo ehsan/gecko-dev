@@ -105,8 +105,6 @@ class DecisionTask(object):
     @CommandArgument('--revision',
         required=True,
         help='Revision for this project')
-    @CommandArgument('--revision-hash',
-        help='Treeherder revision hash')
     @CommandArgument('--comment',
         required=True,
         help='Commit message for this revision')
@@ -123,7 +121,6 @@ class DecisionTask(object):
             'comment': params['comment'],
             'url': params['url'],
             'revision': params['revision'],
-            'revision_hash': params.get('revision_hash', ''),
             'owner': params['owner'],
             'as_slugid': SlugidJar(),
             'from_now': json_time_from_now,

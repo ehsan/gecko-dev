@@ -8,7 +8,7 @@ function spawnTest () {
   let { panel } = yield initPerformance(SIMPLE_URL);
   let { EVENTS, DetailsView, JsFlameGraphView } = panel.panelWin;
 
-  yield DetailsView.selectView("js-flamegraph");
+  DetailsView.selectView("js-flamegraph");
   ok(DetailsView.isViewSelected(JsFlameGraphView), "The flamegraph is now selected.");
 
   yield startRecording(panel);
