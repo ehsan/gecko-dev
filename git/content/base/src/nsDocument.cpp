@@ -3156,9 +3156,8 @@ nsDocument::ElementFromPointHelper(float aX, float aY,
     return nullptr; // return null to premature XUL callers as a reminder to wait
   }
 
-  nsIFrame *ptFrame = nsLayoutUtils::GetFrameForPoint(rootFrame, pt,
-    nsLayoutUtils::IGNORE_PAINT_SUPPRESSION |
-    (aIgnoreRootScrollFrame ? nsLayoutUtils::IGNORE_ROOT_SCROLL_FRAME : 0));
+  nsIFrame *ptFrame = nsLayoutUtils::GetFrameForPoint(rootFrame, pt, true,
+                                                      aIgnoreRootScrollFrame);
   if (!ptFrame) {
     return nullptr;
   }
@@ -3212,8 +3211,7 @@ nsDocument::NodesFromRectHelper(float aX, float aY,
 
   nsAutoTArray<nsIFrame*,8> outFrames;
   nsLayoutUtils::GetFramesForArea(rootFrame, rect, outFrames,
-    nsLayoutUtils::IGNORE_PAINT_SUPPRESSION |
-    (aIgnoreRootScrollFrame ? nsLayoutUtils::IGNORE_ROOT_SCROLL_FRAME : 0));
+                                  true, aIgnoreRootScrollFrame);
 
   // Used to filter out repeated elements in sequence.
   nsIContent* lastAdded = nullptr;
@@ -9352,8 +9350,8 @@ nsIDocument::CaretPositionFromPoint(float aX, float aY)
     return nullptr;
   }
 
-  nsIFrame *ptFrame = nsLayoutUtils::GetFrameForPoint(rootFrame, pt,
-      nsLayoutUtils::IGNORE_PAINT_SUPPRESSION);
+  nsIFrame *ptFrame = nsLayoutUtils::GetFrameForPoint(rootFrame, pt, true,
+                                                      false);
   if (!ptFrame) {
     return nullptr;
   }

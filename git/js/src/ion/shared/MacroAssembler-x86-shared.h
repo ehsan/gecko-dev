@@ -14,9 +14,9 @@
 
 #include "ion/IonCaches.h"
 #include "ion/IonFrames.h"
-#if defined(JS_CPU_X86)
+#ifdef JS_CPU_X86
 # include "ion/x86/Assembler-x86.h"
-#elif defined(JS_CPU_X64)
+#elif JS_CPU_X64
 # include "ion/x64/Assembler-x64.h"
 #endif
 
