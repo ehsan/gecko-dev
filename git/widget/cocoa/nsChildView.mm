@@ -32,7 +32,6 @@
 #include "nsNPAPIPluginInstance.h"
 #include "nsThemeConstants.h"
 #include "nsIWidgetListener.h"
-#include "nsIPresShell.h"
 
 #include "nsDragService.h"
 #include "nsClipboard.h"

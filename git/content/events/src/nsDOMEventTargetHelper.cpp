@@ -47,7 +47,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsDOMEventTargetHelper)
   if (tmp->IsBlack()) {
     if (tmp->mListenerManager) {
-      tmp->mListenerManager->MarkForCC();
+      tmp->mListenerManager->UnmarkGrayJSListeners();
     }
     return true;
   }

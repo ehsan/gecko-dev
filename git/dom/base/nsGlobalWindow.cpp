@@ -1269,7 +1269,7 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsGlobalWindow)
     }
     nsEventListenerManager* elm = tmp->GetListenerManager(false);
     if (elm) {
-      elm->MarkForCC();
+      elm->UnmarkGrayJSListeners();
     }
     tmp->UnmarkGrayTimers();
     return true;

@@ -1237,7 +1237,7 @@ FragmentOrElement::MarkNodeChildren(nsINode* aNode)
 
   nsEventListenerManager* elm = aNode->GetListenerManager(false);
   if (elm) {
-    elm->MarkForCC();
+    elm->UnmarkGrayJSListeners();
   }
 
   if (aNode->HasProperties()) {
