@@ -367,18 +367,11 @@ DirectShowReader::HasVideo()
   return false;
 }
 
-void
+nsresult
 DirectShowReader::Seek(int64_t aTargetUs,
                        int64_t aStartTime,
                        int64_t aEndTime,
                        int64_t aCurrentTime)
-{
-  nsresult res = SeekInternal(aTargetUs);
-  GetCallback()->OnSeekCompleted(res);
-}
-
-nsresult
-DirectShowReader::SeekInternal(int64_t aTargetUs)
 {
   HRESULT hr;
   MOZ_ASSERT(mDecoder->OnDecodeThread(), "Should be on decode thread.");\

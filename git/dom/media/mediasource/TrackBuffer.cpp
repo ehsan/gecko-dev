@@ -59,7 +59,6 @@ public:
   }
 
   NS_IMETHOD Run() MOZ_OVERRIDE MOZ_FINAL {
-    mDecoder->GetReader()->BreakCycles();
     mDecoder = nullptr;
     return NS_OK;
   }
@@ -156,7 +155,6 @@ bool
 TrackBuffer::EvictData(uint32_t aThreshold)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
 
   int64_t totalSize = 0;
   for (uint32_t i = 0; i < mDecoders.Length(); ++i) {
@@ -168,14 +166,10 @@ TrackBuffer::EvictData(uint32_t aThreshold)
     return false;
   }
 
-  for (uint32_t i = 0; i < mInitializedDecoders.Length(); ++i) {
+  for (uint32_t i = 0; i < mDecoders.Length(); ++i) {
     MSE_DEBUG("TrackBuffer(%p)::EvictData decoder=%u threshold=%u toEvict=%lld",
               this, i, aThreshold, toEvict);
-    toEvict -= mInitializedDecoders[i]->GetResource()->EvictData(toEvict);
-    if (!mInitializedDecoders[i]->GetResource()->GetSize() &&
-        mInitializedDecoders[i] != mCurrentDecoder) {
-      RemoveDecoder(mInitializedDecoders[i]);
-    }
+    toEvict -= mDecoders[i]->GetResource()->EvictData(toEvict);
   }
   return toEvict < (totalSize - aThreshold);
 }
@@ -184,16 +178,11 @@ void
 TrackBuffer::EvictBefore(double aTime)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
-  for (uint32_t i = 0; i < mInitializedDecoders.Length(); ++i) {
-    int64_t endOffset = mInitializedDecoders[i]->ConvertToByteOffset(aTime);
+  for (uint32_t i = 0; i < mDecoders.Length(); ++i) {
+    int64_t endOffset = mDecoders[i]->ConvertToByteOffset(aTime);
     if (endOffset > 0) {
       MSE_DEBUG("TrackBuffer(%p)::EvictBefore decoder=%u offset=%lld", this, i, endOffset);
-      mInitializedDecoders[i]->GetResource()->EvictBefore(endOffset);
-      if (!mInitializedDecoders[i]->GetResource()->GetSize() &&
-          mInitializedDecoders[i] != mCurrentDecoder) {
-        RemoveDecoder(mInitializedDecoders[i]);
-      }
+      mDecoders[i]->GetResource()->EvictBefore(endOffset);
     }
   }
 }
@@ -469,58 +458,20 @@ TrackBuffer::Dump(const char* aPath)
 }
 #endif
 
-class DelayedDispatchToMainThread : public nsRunnable {
-public:
-  explicit DelayedDispatchToMainThread(SourceBufferDecoder* aDecoder)
-    : mDecoder(aDecoder)
-  {
-  }
-
-  NS_IMETHOD Run() MOZ_OVERRIDE MOZ_FINAL {
-    // Shutdown the reader, and remove its reference to the decoder
-    // so that it can't accidentally read it after the decoder
-    // is destroyed.
-    mDecoder->GetReader()->Shutdown();
-    mDecoder->GetReader()->ClearDecoder();
-    RefPtr<nsIRunnable> task = new ReleaseDecoderTask(mDecoder);
-    mDecoder = nullptr;
-    // task now holds the only ref to the decoder.
-    NS_DispatchToMainThread(task);
-    return NS_OK;
-  }
-
-private:
-  RefPtr<SourceBufferDecoder> mDecoder;
-};
-
 void
 TrackBuffer::RemoveDecoder(SourceBufferDecoder* aDecoder)
 {
-  RefPtr<nsIRunnable> task;
-  nsRefPtr<MediaTaskQueue> taskQueue;
+  RefPtr<nsIRunnable> task = new ReleaseDecoderTask(aDecoder);
   {
     ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
-    if (mInitializedDecoders.RemoveElement(aDecoder)) {
-      taskQueue = aDecoder->GetReader()->GetTaskQueue();
-      task = new DelayedDispatchToMainThread(aDecoder);
-    } else {
-      task = new ReleaseDecoderTask(aDecoder);
-    }
+    MOZ_ASSERT(!mInitializedDecoders.Contains(aDecoder));
     mDecoders.RemoveElement(aDecoder);
-
     if (mCurrentDecoder == aDecoder) {
       DiscardDecoder();
     }
   }
   // At this point, task should be holding the only reference to aDecoder.
-  if (taskQueue) {
-    // If we were initialized, post the task via the reader's
-    // task queue to ensure that the reader isn't in the middle
-    // of an existing task.
-    taskQueue->Dispatch(task);
-  } else {
-    NS_DispatchToMainThread(task);
-  }
+  NS_DispatchToMainThread(task);
 }
 
 } // namespace mozilla

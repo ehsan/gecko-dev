@@ -91,7 +91,6 @@ if CONFIG['ENABLE_ION']:
         'testJitGVN.cpp',
         'testJitMoveEmitterCycles-mips.cpp',
         'testJitMoveEmitterCycles.cpp',
-        'testJitRangeAnalysis.cpp',
         'testJitRValueAlloc.cpp',
     ]
 

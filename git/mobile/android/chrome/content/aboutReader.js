@@ -130,7 +130,13 @@ let AboutReader = function(doc, win) {
 
   let url = queryArgs.url;
   let tabId = queryArgs.tabId;
-  this._loadArticle(url, tabId);
+  if (tabId) {
+    dump("Loading from tab with ID: " + tabId + ", URL: " + url);
+    this._loadFromTab(tabId, url);
+  } else {
+    dump("Fetching page with URL: " + url);
+    this._loadFromURL(url);
+  }
 }
 
 AboutReader.prototype = {
@@ -509,16 +515,27 @@ AboutReader.prototype = {
     });
   },
 
-  _loadArticle: Task.async(function* (url, tabId) {
+  _loadFromURL: function Reader_loadFromURL(url) {
     this._showProgressDelayed();
 
-    try {
-      let article = yield gChromeWin.Reader.getArticle(url, tabId);
-      this._showContent(article);
-    } catch (e) {
-      this._win.location.href = url;
-    }
-  }),
+    gChromeWin.Reader.parseDocumentFromURL(url, function(article) {
+      if (article)
+        this._showContent(article);
+      else
+        this._win.location.href = url;
+    }.bind(this));
+  },
+
+  _loadFromTab: function Reader_loadFromTab(tabId, url) {
+    this._showProgressDelayed();
+
+    gChromeWin.Reader.getArticleForTab(tabId, url, function(article) {
+      if (article)
+        this._showContent(article);
+      else
+        this._showError(gStrings.GetStringFromName("aboutReader.loadError"));
+    }.bind(this));
+  },
 
   _requestFavicon: function Reader_requestFavicon() {
     Messaging.sendRequest({

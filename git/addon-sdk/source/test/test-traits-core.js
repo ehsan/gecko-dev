@@ -6,13 +6,9 @@
 const ERR_CONFLICT = 'Remaining conflicting property: ',
       ERR_REQUIRED = 'Missing required property: ';
 
-const getOwnIdentifiers = x => [...Object.getOwnPropertyNames(x),
-                                ...Object.getOwnPropertySymbols(x)];
-
-
 function assertSametrait(assert, trait1, trait2) {
-  let names1 = getOwnIdentifiers(trait1),
-      names2 = getOwnIdentifiers(trait2);
+  let names1 = Object.getOwnPropertyNames(trait1),
+      names2 = Object.getOwnPropertyNames(trait2);
 
   assert.equal(
     names1.length,
@@ -742,7 +738,7 @@ exports['test:create simple'] = function(assert) {
   assert.equal(1, o1.b(), 'o1.b()');
   assert.equal(
     2,
-    getOwnIdentifiers(o1).length,
+    Object.getOwnPropertyNames(o1).length,
     'Object.keys(o1).length === 2'
   );
 };

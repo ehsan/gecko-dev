@@ -16,16 +16,10 @@ const { open, focus, close } = require('sdk/window/helpers');
 const { setTimeout } = require('sdk/timers');
 const { getMostRecentBrowserWindow } = require('sdk/window/utils');
 const { partial } = require('sdk/lang/functional');
-const { wait } = require('./event/helpers');
-const { gc } = require('sdk/test/memory');
 
 const openBrowserWindow = partial(open, null, {features: {toolbar: true}});
 const openPrivateBrowserWindow = partial(open, null,
   {features: {toolbar: true, private: true}});
-
-const badgeNodeFor = (node) =>
-  node.ownerDocument.getAnonymousElementByAttribute(node,
-                                      'class', 'toolbarbutton-badge');
 
 function getWidget(buttonId, window = getMostRecentBrowserWindow()) {
   const { CustomizableUI } = Cu.import('resource:///modules/CustomizableUI.jsm', {});
@@ -113,15 +107,12 @@ exports['test basic constructor validation'] = function(assert) {
     /^The option "icon"/,
     'throws on no valid icon given');
 
+  // Test wrong checked
   assert.throws(
-    () => ToggleButton({ id: 'my-button', label: 'button', icon: './i.png', badge: true}),
-    /^The option "badge"/,
-    'throws on no valid badge given');
-
-  assert.throws(
-    () => ToggleButton({ id: 'my-button', label: 'button', icon: './i.png', badgeColor: true}),
-    /^The option "badgeColor"/,
-    'throws on no valid badge given');
+    () => ToggleButton({
+      id: 'my-button', label: 'my button', icon: './icon.png', checked: 'yes'}),
+    /^The option "checked"/,
+    'throws on no valid checked value given');
 
   loader.unload();
 };
@@ -137,6 +128,9 @@ exports['test button added'] = function(assert) {
   });
 
   // check defaults
+  assert.equal(button.checked, false,
+    'checked is set to default `false` value');
+
   assert.equal(button.disabled, false,
     'disabled is set to default `false` value');
 
@@ -152,9 +146,6 @@ exports['test button added'] = function(assert) {
 
   assert.equal(data.url(button.icon.substr(2)), node.getAttribute('image'),
     'icon is set');
-
-  assert.equal("", node.getAttribute('badge'),
-    'badge attribute is empty');
 
   loader.unload();
 }
@@ -261,7 +252,7 @@ exports['test button global state updated'] = function(assert) {
   let button = ToggleButton({
     id: 'my-button-4',
     label: 'my button',
-    icon: './icon.png',
+    icon: './icon.png'
   });
 
   // Tried to use `getWidgetIdsInArea` but seems undefined, not sure if it
@@ -302,25 +293,13 @@ exports['test button global state updated'] = function(assert) {
   assert.equal(node.getAttribute('disabled'), 'true',
     'node disabled is updated');
 
-  button.badge = '+2';
-  button.badgeColor = 'blue';
-
-  assert.equal(button.badge, '+2',
-    'badge is updated');
-  assert.equal(node.getAttribute('bagde'), '',
-    'node badge is updated');
-
-  assert.equal(button.badgeColor, 'blue',
-    'badgeColor is updated');
-  assert.equal(badgeNodeFor(node).style.backgroundColor, 'blue',
-    'badge color is updated');
-
   // TODO: test validation on update
 
   loader.unload();
 }
 
 exports['test button global state set and get with state method'] = function(assert) {
+  let state;
   let loader = Loader(module);
   let { ToggleButton } = loader.require('sdk/ui');
 
@@ -331,7 +310,7 @@ exports['test button global state set and get with state method'] = function(ass
   });
 
   // read the button's state
-  let state = button.state(button);
+  state = button.state(button);
 
   assert.equal(state.label, 'my button',
     'label is correct');
@@ -344,9 +323,7 @@ exports['test button global state set and get with state method'] = function(ass
   button.state(button, {
     label: 'New label',
     icon: './new-icon.png',
-    disabled: true,
-    badge: '+2',
-    badgeColor: 'blue'
+    disabled: true
   });
 
   assert.equal(button.label, 'New label',
@@ -355,15 +332,11 @@ exports['test button global state set and get with state method'] = function(ass
     'icon is updated');
   assert.equal(button.disabled, true,
     'disabled is updated');
-  assert.equal(button.badge, '+2',
-    'badge is updated');
-  assert.equal(button.badgeColor, 'blue',
-    'badgeColor is updated');
 
   loader.unload();
-}
+};
 
-exports['test button global state updated on multiple windows'] = function*(assert) {
+exports['test button global state updated on multiple windows'] = function(assert, done) {
   let loader = Loader(module);
   let { ToggleButton } = loader.require('sdk/ui');
 
@@ -375,48 +348,39 @@ exports['test button global state updated on multiple windows'] = function*(asse
 
   let nodes = [getWidget(button.id).node];
 
-  let window = yield openBrowserWindow();
+  openBrowserWindow().then(window => {
+    nodes.push(getWidget(button.id, window).node);
 
-  nodes.push(getWidget(button.id, window).node);
+    button.label = 'New label';
+    button.icon = './new-icon.png';
+    button.disabled = true;
 
-  button.label = 'New label';
-  button.icon = './new-icon.png';
-  button.disabled = true;
-  button.badge = '+10';
-  button.badgeColor = 'green';
+    for (let node of nodes) {
+      assert.equal(node.getAttribute('label'), 'New label',
+        'node label is updated');
+      assert.equal(node.getAttribute('tooltiptext'), 'New label',
+        'node tooltip is updated');
 
-  for (let node of nodes) {
-    assert.equal(node.getAttribute('label'), 'New label',
-      'node label is updated');
-    assert.equal(node.getAttribute('tooltiptext'), 'New label',
-      'node tooltip is updated');
+      assert.equal(button.icon, './new-icon.png',
+        'icon is updated');
+      assert.equal(node.getAttribute('image'), data.url('new-icon.png'),
+        'node image is updated');
 
-    assert.equal(button.icon, './new-icon.png',
-      'icon is updated');
-    assert.equal(node.getAttribute('image'), data.url('new-icon.png'),
-      'node image is updated');
+      assert.equal(button.disabled, true,
+        'disabled is updated');
+      assert.equal(node.getAttribute('disabled'), 'true',
+        'node disabled is updated');
+    };
 
-    assert.equal(button.disabled, true,
-      'disabled is updated');
-    assert.equal(node.getAttribute('disabled'), 'true',
-      'node disabled is updated');
-
-    assert.equal(button.badge, '+10',
-      'badge is updated')
-    assert.equal(button.badgeColor, 'green',
-      'badgeColor is updated')
-    assert.equal(node.getAttribute('badge'), '+10',
-      'node badge is updated')
-    assert.equal(badgeNodeFor(node).style.backgroundColor, 'green',
-      'node badge color is updated')
-  };
-
-  yield close(window);
-
-  loader.unload();
+    return window;
+  }).
+  then(close).
+  then(loader.unload).
+  then(done, assert.fail);
 };
 
-exports['test button window state'] = function*(assert) {
+exports['test button window state'] = function(assert, done) {
+  let state;
   let loader = Loader(module);
   let { ToggleButton } = loader.require('sdk/ui');
   let { browserWindows } = loader.require('sdk/windows');
@@ -424,145 +388,104 @@ exports['test button window state'] = function*(assert) {
   let button = ToggleButton({
     id: 'my-button-6',
     label: 'my button',
-    icon: './icon.png',
-    badge: '+1',
-    badgeColor: 'red'
+    icon: './icon.png'
   });
 
   let mainWindow = browserWindows.activeWindow;
   let nodes = [getWidget(button.id).node];
 
-  let window = yield openBrowserWindow().then(focus);
+  openBrowserWindow().then(focus).then(window => {
+    nodes.push(getWidget(button.id, window).node);
 
-  nodes.push(getWidget(button.id, window).node);
+    let { activeWindow } = browserWindows;
 
-  let { activeWindow } = browserWindows;
+    button.state(activeWindow, {
+      label: 'New label',
+      icon: './new-icon.png',
+      disabled: true
+    });
 
-  button.state(activeWindow, {
-    label: 'New label',
-    icon: './new-icon.png',
-    disabled: true,
-    badge: '+2',
-    badgeColor : 'green'
-  });
+    // check the states
 
-  // check the states
+    assert.equal(button.label, 'my button',
+      'global label unchanged');
+    assert.equal(button.icon, './icon.png',
+      'global icon unchanged');
+    assert.equal(button.disabled, false,
+      'global disabled unchanged');
 
-  assert.equal(button.label, 'my button',
-    'global label unchanged');
-  assert.equal(button.icon, './icon.png',
-    'global icon unchanged');
-  assert.equal(button.disabled, false,
-    'global disabled unchanged');
-  assert.equal(button.badge, '+1',
-    'global badge unchanged');
-  assert.equal(button.badgeColor, 'red',
-    'global badgeColor unchanged');
+    state = button.state(mainWindow);
 
-  let state = button.state(mainWindow);
+    assert.equal(state.label, 'my button',
+      'previous window label unchanged');
+    assert.equal(state.icon, './icon.png',
+      'previous window icon unchanged');
+    assert.equal(state.disabled, false,
+      'previous window disabled unchanged');
 
-  assert.equal(state.label, 'my button',
-    'previous window label unchanged');
-  assert.equal(state.icon, './icon.png',
-    'previous window icon unchanged');
-  assert.equal(state.disabled, false,
-    'previous window disabled unchanged');
-  assert.deepEqual(button.badge, '+1',
-    'previouswindow badge unchanged');
-  assert.deepEqual(button.badgeColor, 'red',
-    'previous window badgeColor unchanged');
+    state = button.state(activeWindow);
 
-  state = button.state(activeWindow);
+    assert.equal(state.label, 'New label',
+      'active window label updated');
+    assert.equal(state.icon, './new-icon.png',
+      'active window icon updated');
+    assert.equal(state.disabled, true,
+      'active disabled updated');
 
-  assert.equal(state.label, 'New label',
-    'active window label updated');
-  assert.equal(state.icon, './new-icon.png',
-    'active window icon updated');
-  assert.equal(state.disabled, true,
-    'active disabled updated');
-  assert.equal(state.badge, '+2',
-    'active badge updated');
-  assert.equal(state.badgeColor, 'green',
-    'active badgeColor updated');
+    // change the global state, only the windows without a state are affected
 
-  // change the global state, only the windows without a state are affected
+    button.label = 'A good label';
 
-  button.label = 'A good label';
-  button.badge = '+3';
+    assert.equal(button.label, 'A good label',
+      'global label updated');
+    assert.equal(button.state(mainWindow).label, 'A good label',
+      'previous window label updated');
+    assert.equal(button.state(activeWindow).label, 'New label',
+      'active window label unchanged');
 
-  assert.equal(button.label, 'A good label',
-    'global label updated');
-  assert.equal(button.state(mainWindow).label, 'A good label',
-    'previous window label updated');
-  assert.equal(button.state(activeWindow).label, 'New label',
-    'active window label unchanged');
-  assert.equal(button.state(activeWindow).badge, '+2',
-    'active badge unchanged');
-  assert.equal(button.state(activeWindow).badgeColor, 'green',
-    'active badgeColor unchanged');
-  assert.equal(button.state(mainWindow).badge, '+3',
-    'previous window badge updated');
-  assert.equal(button.state(mainWindow).badgeColor, 'red',
-    'previous window badgeColor unchanged');
+    // delete the window state will inherits the global state again
 
-  // delete the window state will inherits the global state again
+    button.state(activeWindow, null);
 
-  button.state(activeWindow, null);
+    assert.equal(button.state(activeWindow).label, 'A good label',
+      'active window label inherited');
 
-  state = button.state(activeWindow);
+    // check the nodes properties
+    let node = nodes[0];
+    state = button.state(mainWindow);
 
-  assert.equal(state.label, 'A good label',
-    'active window label inherited');
-  assert.equal(state.badge, '+3',
-    'previous window badge inherited');
-  assert.equal(button.badgeColor, 'red',
-    'previous window badgeColor inherited');
+    assert.equal(node.getAttribute('label'), state.label,
+      'node label is correct');
+    assert.equal(node.getAttribute('tooltiptext'), state.label,
+      'node tooltip is correct');
 
-  // check the nodes properties
-  let node = nodes[0];
+    assert.equal(node.getAttribute('image'), data.url(state.icon.substr(2)),
+      'node image is correct');
+    assert.equal(node.hasAttribute('disabled'), state.disabled,
+      'disabled is correct');
 
-  state = button.state(mainWindow);
+    node = nodes[1];
+    state = button.state(activeWindow);
 
-  assert.equal(node.getAttribute('label'), state.label,
-    'node label is correct');
-  assert.equal(node.getAttribute('tooltiptext'), state.label,
-    'node tooltip is correct');
+    assert.equal(node.getAttribute('label'), state.label,
+      'node label is correct');
+    assert.equal(node.getAttribute('tooltiptext'), state.label,
+      'node tooltip is correct');
 
-  assert.equal(node.getAttribute('image'), data.url(state.icon.substr(2)),
-    'node image is correct');
-  assert.equal(node.hasAttribute('disabled'), state.disabled,
-    'disabled is correct');
-  assert.equal(node.getAttribute("badge"), state.badge,
-    'badge is correct');
+    assert.equal(node.getAttribute('image'), data.url(state.icon.substr(2)),
+      'node image is correct');
+    assert.equal(node.hasAttribute('disabled'), state.disabled,
+      'disabled is correct');
 
-  assert.equal(badgeNodeFor(node).style.backgroundColor, state.badgeColor,
-    'badge color is correct');
-
-  node = nodes[1];
-  state = button.state(activeWindow);
-
-  assert.equal(node.getAttribute('label'), state.label,
-    'node label is correct');
-  assert.equal(node.getAttribute('tooltiptext'), state.label,
-    'node tooltip is correct');
-
-  assert.equal(node.getAttribute('image'), data.url(state.icon.substr(2)),
-    'node image is correct');
-  assert.equal(node.hasAttribute('disabled'), state.disabled,
-    'disabled is correct');
-  assert.equal(node.getAttribute('badge'), state.badge,
-    'badge is correct');
-
-  assert.equal(badgeNodeFor(node).style.backgroundColor, state.badgeColor,
-    'badge color is correct');
-
-  yield close(window);
-
-  loader.unload();
+    return window;
+  }).
+  then(close).
+  then(loader.unload).
+  then(done, assert.fail);
 };
 
 
-exports['test button tab state'] = function*(assert) {
+exports['test button tab state'] = function(assert, done) {
   let loader = Loader(module);
   let { ToggleButton } = loader.require('sdk/ui');
   let { browserWindows } = loader.require('sdk/windows');
@@ -577,149 +500,122 @@ exports['test button tab state'] = function*(assert) {
   let mainTab = tabs.activeTab;
   let node = getWidget(button.id).node;
 
-  tabs.open('about:blank');
+  tabs.open({
+    url: 'about:blank',
+    onActivate: function onActivate(tab) {
+      tab.removeListener('activate', onActivate);
 
-  yield wait(tabs, 'ready');
+      let { activeWindow } = browserWindows;
+      // set window state
+      button.state(activeWindow, {
+        label: 'Window label',
+        icon: './window-icon.png'
+      });
 
-  let tab = tabs.activeTab;
-  let { activeWindow } = browserWindows;
+      // set previous active tab state
+      button.state(mainTab, {
+        label: 'Tab label',
+        icon: './tab-icon.png',
+      });
 
-  // set window state
-  button.state(activeWindow, {
-    label: 'Window label',
-    icon: './window-icon.png',
-    badge: 'win',
-    badgeColor: 'blue'
+      // set current active tab state
+      button.state(tab, {
+        icon: './another-tab-icon.png',
+        disabled: true
+      });
+
+      // check the states
+
+      Cu.schedulePreciseGC(() => {
+        let state;
+
+        assert.equal(button.label, 'my button',
+          'global label unchanged');
+        assert.equal(button.icon, './icon.png',
+          'global icon unchanged');
+        assert.equal(button.disabled, false,
+          'global disabled unchanged');
+
+        state = button.state(mainTab);
+
+        assert.equal(state.label, 'Tab label',
+          'previous tab label updated');
+        assert.equal(state.icon, './tab-icon.png',
+          'previous tab icon updated');
+        assert.equal(state.disabled, false,
+          'previous tab disabled unchanged');
+
+        state = button.state(tab);
+
+        assert.equal(state.label, 'Window label',
+          'active tab inherited from window state');
+        assert.equal(state.icon, './another-tab-icon.png',
+          'active tab icon updated');
+        assert.equal(state.disabled, true,
+          'active disabled updated');
+
+        // change the global state
+        button.icon = './good-icon.png';
+
+        // delete the tab state
+        button.state(tab, null);
+
+        assert.equal(button.icon, './good-icon.png',
+          'global icon updated');
+        assert.equal(button.state(mainTab).icon, './tab-icon.png',
+          'previous tab icon unchanged');
+        assert.equal(button.state(tab).icon, './window-icon.png',
+          'tab icon inherited from window');
+
+        // delete the window state
+        button.state(activeWindow, null);
+
+        assert.equal(button.state(tab).icon, './good-icon.png',
+          'tab icon inherited from global');
+
+        // check the node properties
+
+        state = button.state(tabs.activeTab);
+
+        assert.equal(node.getAttribute('label'), state.label,
+          'node label is correct');
+        assert.equal(node.getAttribute('tooltiptext'), state.label,
+          'node tooltip is correct');
+        assert.equal(node.getAttribute('image'), data.url(state.icon.substr(2)),
+          'node image is correct');
+        assert.equal(node.hasAttribute('disabled'), state.disabled,
+          'disabled is correct');
+
+        tabs.once('activate', () => {
+          // This is made in order to avoid to check the node before it
+          // is updated, need a better check
+          setTimeout(() => {
+            let state = button.state(mainTab);
+
+            assert.equal(node.getAttribute('label'), state.label,
+              'node label is correct');
+            assert.equal(node.getAttribute('tooltiptext'), state.label,
+              'node tooltip is correct');
+            assert.equal(node.getAttribute('image'), data.url(state.icon.substr(2)),
+              'node image is correct');
+            assert.equal(node.hasAttribute('disabled'), state.disabled,
+              'disabled is correct');
+
+            tab.close(() => {
+              loader.unload();
+              done();
+            });
+          }, 500);
+        });
+
+        mainTab.activate();
+      });
+    }
   });
 
-  // set previous active tab state
-  button.state(mainTab, {
-    label: 'Tab label',
-    icon: './tab-icon.png',
-    badge: 'tab',
-    badgeColor: 'red'
-  });
-
-  // set current active tab state
-  button.state(tab, {
-    icon: './another-tab-icon.png',
-    disabled: true,
-    badge: 't1',
-    badgeColor: 'green'
-  });
-
-  // check the states, be sure they won't be gc'ed
-  yield gc();
-
-  assert.equal(button.label, 'my button',
-    'global label unchanged');
-  assert.equal(button.icon, './icon.png',
-    'global icon unchanged');
-  assert.equal(button.disabled, false,
-    'global disabled unchanged');
-  assert.equal(button.badge, undefined,
-    'global badge unchanged')
-
-  let state = button.state(mainTab);
-
-  assert.equal(state.label, 'Tab label',
-    'previous tab label updated');
-  assert.equal(state.icon, './tab-icon.png',
-    'previous tab icon updated');
-  assert.equal(state.disabled, false,
-    'previous tab disabled unchanged');
-  assert.equal(state.badge, 'tab',
-    'previous tab badge unchanged')
-  assert.equal(state.badgeColor, 'red',
-    'previous tab badgeColor unchanged')
-
-  state = button.state(tab);
-
-  assert.equal(state.label, 'Window label',
-    'active tab inherited from window state');
-  assert.equal(state.icon, './another-tab-icon.png',
-    'active tab icon updated');
-  assert.equal(state.disabled, true,
-    'active disabled updated');
-  assert.equal(state.badge, 't1',
-    'active badge updated');
-  assert.equal(state.badgeColor, 'green',
-    'active badgeColor updated');
-
-  // change the global state
-  button.icon = './good-icon.png';
-
-  // delete the tab state
-  button.state(tab, null);
-
-  assert.equal(button.icon, './good-icon.png',
-    'global icon updated');
-  assert.equal(button.state(mainTab).icon, './tab-icon.png',
-    'previous tab icon unchanged');
-  assert.equal(button.state(tab).icon, './window-icon.png',
-    'tab icon inherited from window');
-  assert.equal(button.state(mainTab).badge, 'tab',
-    'previous tab badge is unchaged');
-  assert.equal(button.state(tab).badge, 'win',
-    'tab badge is inherited from window');
-
-  // delete the window state
-  button.state(activeWindow, null);
-
-  state = button.state(tab);
-
-  assert.equal(state.icon, './good-icon.png',
-    'tab icon inherited from global');
-  assert.equal(state.badge, undefined,
-    'tab badge inherited from global');
-  assert.equal(state.badgeColor, undefined,
-    'tab badgeColor inherited from global');
-
-  // check the node properties
-  yield wait();
-
-  assert.equal(node.getAttribute('label'), state.label,
-    'node label is correct');
-  assert.equal(node.getAttribute('tooltiptext'), state.label,
-    'node tooltip is correct');
-  assert.equal(node.getAttribute('image'), data.url(state.icon.substr(2)),
-    'node image is correct');
-  assert.equal(node.hasAttribute('disabled'), state.disabled,
-    'node disabled is correct');
-  assert.equal(node.getAttribute('badge'), '',
-    'badge text is correct');
-  assert.equal(badgeNodeFor(node).style.backgroundColor, '',
-    'badge color is correct');
-
-  mainTab.activate();
-
-  yield wait(tabs, 'activate');
-
-  // This is made in order to avoid to check the node before it
-  // is updated, need a better check
-  yield wait();
-
-  state = button.state(mainTab);
-
-  assert.equal(node.getAttribute('label'), state.label,
-    'node label is correct');
-  assert.equal(node.getAttribute('tooltiptext'), state.label,
-    'node tooltip is correct');
-  assert.equal(node.getAttribute('image'), data.url(state.icon.substr(2)),
-    'node image is correct');
-  assert.equal(node.hasAttribute('disabled'), state.disabled,
-    'disabled is correct');
-  assert.equal(node.getAttribute('badge'), state.badge,
-    'badge text is correct');
-  assert.equal(badgeNodeFor(node).style.backgroundColor, state.badgeColor,
-    'badge color is correct');
-
-  tab.close(loader.unload);
-
-  loader.unload();
 };
 
-exports['test button click'] = function*(assert) {
+exports['test button click'] = function(assert, done) {
   let loader = Loader(module);
   let { ToggleButton } = loader.require('sdk/ui');
   let { browserWindows } = loader.require('sdk/windows');
@@ -736,24 +632,24 @@ exports['test button click'] = function*(assert) {
   let mainWindow = browserWindows.activeWindow;
   let chromeWindow = getMostRecentBrowserWindow();
 
-  let window = yield openBrowserWindow().then(focus);
+  openBrowserWindow().then(focus).then(window => {
+    button.state(mainWindow, { label: 'nothing' });
+    button.state(mainWindow.tabs.activeTab, { label: 'foo'})
+    button.state(browserWindows.activeWindow, { label: 'bar' });
 
-  button.state(mainWindow, { label: 'nothing' });
-  button.state(mainWindow.tabs.activeTab, { label: 'foo'})
-  button.state(browserWindows.activeWindow, { label: 'bar' });
+    button.click();
 
-  button.click();
+    focus(chromeWindow).then(() => {
+      button.click();
 
-  yield focus(chromeWindow);
+      assert.deepEqual(labels, ['bar', 'foo'],
+        'button click works');
 
-  button.click();
-
-  assert.deepEqual(labels, ['bar', 'foo'],
-    'button click works');
-
-  yield close(window);
-
-  loader.unload();
+      close(window).
+        then(loader.unload).
+        then(done, assert.fail);
+    });
+  }).then(null, assert.fail);
 }
 
 exports['test button icon set'] = function(assert) {
@@ -809,7 +705,7 @@ exports['test button icon set'] = function(assert) {
   loader.unload();
 }
 
-exports['test button icon set with only one option'] = function(assert) {
+exports['test button icon se with only one option'] = function(assert) {
   const { CustomizableUI } = Cu.import('resource:///modules/CustomizableUI.jsm', {});
   let loader = Loader(module);
   let { ToggleButton } = loader.require('sdk/ui');
@@ -871,11 +767,6 @@ exports['test button state validation'] = function(assert) {
     () => button.state(button, { icon: 'http://www.mozilla.org/favicon.ico' }),
     /^The option "icon"/,
     'throws on remote icon given');
-
-  assert.throws(
-    () => button.state(button, { badge: true } ),
-    /^The option "badge"/,
-    'throws on wrong badge value given');
 
   loader.unload();
 };
@@ -1056,79 +947,6 @@ exports['test button after destroy'] = function(assert) {
   loader.unload();
 };
 
-exports['test button badge property'] = function(assert) {
-  let loader = Loader(module);
-  let { ToggleButton } = loader.require('sdk/ui');
-
-  let button = ToggleButton({
-    id: 'my-button-18',
-    label: 'my button',
-    icon: './icon.png',
-    badge: 123456
-  });
-
-  assert.equal(button.badge, 123456,
-    'badge is set');
-
-  assert.equal(button.badgeColor, undefined,
-    'badge color is not set');
-
-  let { node } = getWidget(button.id);
-  let { getComputedStyle } = node.ownerDocument.defaultView;
-  let badgeNode = badgeNodeFor(node);
-
-  assert.equal('1234', node.getAttribute('badge'),
-    'badge text is displayed up to four characters');
-
-  assert.equal(getComputedStyle(badgeNode).backgroundColor, 'rgb(217, 0, 0)',
-    'badge color is the default one');
-
-  button.badge = '危機';
-
-  assert.equal(button.badge, '危機',
-    'badge is properly set');
-
-  assert.equal('危機', node.getAttribute('badge'),
-    'badge text is displayed');
-
-  button.badge = '🐶🐰🐹';
-
-  assert.equal(button.badge, '🐶🐰🐹',
-    'badge is properly set');
-
-  assert.equal('🐶🐰🐹', node.getAttribute('badge'),
-    'badge text is displayed');
-
-  loader.unload();
-}
-exports['test button badge color'] = function(assert) {
-  let loader = Loader(module);
-  let { ToggleButton } = loader.require('sdk/ui');
-
-  let button = ToggleButton({
-    id: 'my-button-19',
-    label: 'my button',
-    icon: './icon.png',
-    badge: '+1',
-    badgeColor: 'blue'
-  });
-
-  assert.equal(button.badgeColor, 'blue',
-    'badge color is set');
-
-  let { node } = getWidget(button.id);
-  let { getComputedStyle } = node.ownerDocument.defaultView;
-  let badgeNode = badgeNodeFor(node);
-
-  assert.equal(badgeNodeFor(node).style.backgroundColor, 'blue',
-    'badge color is displayed properly');
-  assert.equal(getComputedStyle(badgeNode).backgroundColor, 'rgb(0, 0, 255)',
-    'badge color overrides the default one');
-
-  loader.unload();
-}
-
-// toggle button only
 exports['test button checked'] = function(assert, done) {
   let loader = Loader(module);
   let { ToggleButton } = loader.require('sdk/ui');

@@ -24,8 +24,6 @@ let msgHandler = function(msg) {
 add_test(function test_busy_2guest_calls() {
   actionReceived = false;
 
-  mockPushHandler.registrationPushURL = kEndPointUrl;
-
   MozLoopService.promiseRegisteredWithServers().then(() => {
     let opened = 0;
     let windowId;

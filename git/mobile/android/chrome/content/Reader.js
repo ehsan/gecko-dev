@@ -25,7 +25,7 @@ let Reader = {
     // Listen for future pref changes.
     Services.prefs.addObserver("reader.parse-on-load.", this, false);
 
-    return this.isEnabledForParseOnLoad = this._getStateForParseOnLoad();
+    return this.isEnabledForParseOnLoad = this.getStateForParseOnLoad();
   },
 
   pageAction: {
@@ -37,7 +37,7 @@ let Reader = {
     },
 
     readerModeActiveCallback: function(tabID) {
-      Reader._addTabToReadingList(tabID).catch(e => Cu.reportError("Error adding tab to reading list: " + e));
+      Reader._addTabToReadingList(tabID);
       UITelemetry.addEvent("save.1", "pageaction", null, "reader");
     },
   },
@@ -86,31 +86,43 @@ let Reader = {
 
       case "nsPref:changed": {
         if (aData.startsWith("reader.parse-on-load.")) {
-          this.isEnabledForParseOnLoad = this._getStateForParseOnLoad();
+          this.isEnabledForParseOnLoad = this.getStateForParseOnLoad();
         }
         break;
       }
     }
   },
 
-  _addTabToReadingList: Task.async(function* (tabID) {
+  _addTabToReadingList: function(tabID) {
     let tab = BrowserApp.getTabForId(tabID);
     if (!tab) {
-      throw new Error("Can't add tab to reading list because no tab found for ID: " + tabID);
+      Cu.reportError("Can't add tab to reading list because no tab found for ID: " + tabID);
+      return;
     }
-
     let uri = tab.browser.currentURI;
-    let urlWithoutRef = uri.specIgnoringRef;
 
-    let article = yield this.getArticle(urlWithoutRef, tabID);
-    if (!article) {
-      // If there was a problem getting the article, just store the
-      // URL and title from the tab.
-      article = { url: urlWithoutRef, title: tab.browser.contentDocument.title };
-    }
+    this.getArticleFromCache(uri).then(article => {
+      // If the article is already in the cache, just use that.
+      if (article) {
+        this.addArticleToReadingList(article);
+        return;
+      }
 
-    this.addArticleToReadingList(article);
-  }),
+      // Otherwise, get the article data from the tab.
+      this.getArticleForTab(tabID, uri.specIgnoringRef, article => {
+        if (article) {
+          this.addArticleToReadingList(article);
+        } else {
+          // If there was a problem getting the article, just store the
+          // URL and title from the tab.
+          this.addArticleToReadingList({
+            url: urlWithoutRef,
+            title: tab.browser.contentDocument.title,
+          });
+        }
+      });
+    }, e => Cu.reportError("Error trying to get article from cache: " + e));
+  },
 
   addArticleToReadingList: function(article) {
     if (!article || !article.url) {
@@ -129,7 +141,7 @@ let Reader = {
     this.storeArticleInCache(article).catch(e => Cu.reportError("Error storing article in cache: " + e));
   },
 
-  _getStateForParseOnLoad: function () {
+  getStateForParseOnLoad: function Reader_getStateForParseOnLoad() {
     let isEnabled = Services.prefs.getBoolPref("reader.parse-on-load.enabled");
     let isForceEnabled = Services.prefs.getBoolPref("reader.parse-on-load.force-enabled");
     // For low-memory devices, don't allow reader mode since it takes up a lot of memory.
@@ -137,71 +149,92 @@ let Reader = {
     return isForceEnabled || (isEnabled && !BrowserApp.isOnLowMemoryPlatform);
   },
 
-  /**
-   * Gets an article for a given URL. This method will download and parse a document
-   * if it does not find the article in the tab data or the cache.
-   *
-   * @param url The article URL.
-   * @param tabId (optional) The id of the tab where we can look for a saved article.
-   * @return {Promise}
-   * @resolves JS object representing the article, or null if no article is found.
-   */
-  getArticle: Task.async(function* (url, tabId) {
-    // First, look for an article object stored on the tab.
+  parseDocumentFromURL: function Reader_parseDocumentFromURL(url, callback) {
+    // If there's an on-going request for the same URL, simply append one
+    // more callback to it to be called when the request is done.
+    if (url in this._requests) {
+      let request = this._requests[url];
+      request.callbacks.push(callback);
+      return;
+    }
+
+    let request = { url: url, callbacks: [callback] };
+    this._requests[url] = request;
+
+    let uri = Services.io.newURI(url, null, null);
+
+    // First, try to find a parsed article in the cache.
+    this.getArticleFromCache(uri).then(article => {
+      if (article) {
+        this.log("Page found in cache, return article immediately");
+        this._runCallbacksAndFinish(request, article);
+        return;
+      }
+
+      if (!this._requests) {
+        this.log("Reader has been destroyed, abort");
+        return;
+      }
+
+      // Article hasn't been found in the cache, we need to
+      // download the page and parse the article out of it.
+      this._downloadAndParseDocument(url, request);
+    }, e => {
+      Cu.reportError("Error trying to get article from cache: " + e);
+      this._runCallbacksAndFinish(request, null);
+    });
+  },
+
+  getArticleForTab: function Reader_getArticleForTab(tabId, url, callback) {
     let tab = BrowserApp.getTabForId(tabId);
     if (tab) {
       let article = tab.savedArticle;
       if (article && article.url == url) {
         this.log("Saved article found in tab");
-        return article;
+        callback(article);
+        return;
       }
     }
 
-    // Next, try to find a parsed article in the cache.
-    let uri = Services.io.newURI(url, null, null);
-    let article = yield this.getArticleFromCache(uri);
-    if (article) {
-      this.log("Saved article found in cache");
-      return article;
-    }
+    this.parseDocumentFromURL(url, callback);
+  },
 
-    // Article hasn't been found in the cache, we need to
-    // download the page and parse the article out of it.
-    return yield this._downloadAndParseDocument(url);
-  }),
-
-  /**
-   * Gets an article from a loaded tab's document. This method will parse the document
-   * if it does not find the article in the tab data or the cache.
-   *
-   * @param tab The loaded tab.
-   * @return {Promise}
-   * @resolves JS object representing the article, or null if no article is found.
-   */
-  parseDocumentFromTab: Task.async(function* (tab) {
+  parseDocumentFromTab: function (tab, callback) {
     let uri = tab.browser.currentURI;
     if (!this._shouldCheckUri(uri)) {
-      this.log("Reader mode disabled for URI");
-      return null;
+      callback(null);
+      return;
     }
 
     // First, try to find a parsed article in the cache.
-    let article = yield this.getArticleFromCache(uri);
-    if (article) {
-      this.log("Page found in cache, return article immediately");
-      return article;
-    }
+    this.getArticleFromCache(uri).then(article => {
+      if (article) {
+        this.log("Page found in cache, return article immediately");
+        callback(article);
+        return;
+      }
 
-    let doc = tab.browser.contentWindow.document;
-    return yield this._readerParse(uri, doc);
-  }),
+      let doc = tab.browser.contentWindow.document;
+      this._readerParse(uri, doc, article => {
+        if (!article) {
+          this.log("Failed to parse page");
+          callback(null);
+          return;
+        }
+        callback(article);
+      });
+    }, e => {
+      Cu.reportError("Error trying to get article from cache: " + e);
+      callback(null);
+    });
+  },
 
   /**
    * Retrieves an article from the cache given an article URI.
    *
    * @param uri The article URI.
-   * @return {Promise}
-   * @resolves JS object representing the article, or null if no article is found.
+   * @return Promise
+   * @resolve JS object representing the article, or null if no article is found.
    * @rejects OS.File.Error
    */
   getArticleFromCache: Task.async(function* (uri) {
@@ -218,8 +251,8 @@ let Reader = {
    * Stores an article in the cache.
    *
    * @param article JS object representing article.
-   * @return {Promise}
-   * @resolves When the article is stored.
+   * @return Promise
+   * @resolve When the article is stored.
    * @rejects OS.File.Error
    */
   storeArticleInCache: Task.async(function* (article) {
@@ -233,8 +266,8 @@ let Reader = {
    * Removes an article from the cache given an article URI.
    *
    * @param uri The article URI.
-   * @return {Promise}
-   * @resolves When the article is removed.
+   * @return Promise
+   * @resolve When the article is removed.
    * @rejects OS.File.Error
    */
   removeArticleFromCache: Task.async(function* (uri) {
@@ -242,12 +275,28 @@ let Reader = {
     yield OS.File.remove(path);
   }),
 
+  uninit: function Reader_uninit() {
+    Services.prefs.removeObserver("reader.parse-on-load.", this);
+
+    Services.obs.removeObserver(this, "Reader:Removed");
+
+    let requests = this._requests;
+    for (let url in requests) {
+      let request = requests[url];
+      if (request.browser) {
+        let browser = request.browser;
+        browser.parentNode.removeChild(browser);
+      }
+    }
+    delete this._requests;
+  },
+
   log: function(msg) {
     if (this.DEBUG)
       dump("Reader: " + msg);
   },
 
-  _shouldCheckUri: function (uri) {
+  _shouldCheckUri: function Reader_shouldCheckUri(uri) {
     if ((uri.prePath + "/") === uri.spec) {
       this.log("Not parsing home page: " + uri.spec);
       return false;
@@ -261,108 +310,138 @@ let Reader = {
     return true;
   },
 
-  _readerParse: function (uri, doc) {
-    return new Promise((resolve, reject) => {
-      let numTags = doc.getElementsByTagName("*").length;
-      if (numTags > this.MAX_ELEMS_TO_PARSE) {
-        reject("Aborting parse for " + uri.spec + "; " + numTags + " elements found");
-        return;
-      }
+  _readerParse: function Reader_readerParse(uri, doc, callback) {
+    let numTags = doc.getElementsByTagName("*").length;
+    if (numTags > this.MAX_ELEMS_TO_PARSE) {
+      this.log("Aborting parse for " + uri.spec + "; " + numTags + " elements found");
+      callback(null);
+      return;
+    }
 
-      let worker = new ChromeWorker("readerWorker.js");
-      worker.onmessage = function (evt) {
-        let article = evt.data;
+    let worker = new ChromeWorker("readerWorker.js");
+    worker.onmessage = function (evt) {
+      let article = evt.data;
 
-        if (!article) {
-          reject("Worker did not return an article");
-          return;
-        }
-
-        // Append URL to the article data. specIgnoringRef will ignore any hash
-        // in the URL.
+      // Append URL to the article data. specIgnoringRef will ignore any hash
+      // in the URL.
+      if (article) {
         article.url = uri.specIgnoringRef;
         let flags = Ci.nsIDocumentEncoder.OutputSelectionOnly | Ci.nsIDocumentEncoder.OutputAbsoluteLinks;
         article.title = Cc["@mozilla.org/parserutils;1"].getService(Ci.nsIParserUtils)
                                                         .convertToPlainText(article.title, flags, 0);
-        resolve(article);
-      };
-
-      try {
-        worker.postMessage({
-          uri: {
-            spec: uri.spec,
-            host: uri.host,
-            prePath: uri.prePath,
-            scheme: uri.scheme,
-            pathBase: Services.io.newURI(".", null, uri).spec
-          },
-          doc: new XMLSerializer().serializeToString(doc)
-        });
-      } catch (e) {
-        reject("Reader: could not build Readability arguments: " + e);
       }
-    });
-  },
 
-  _downloadDocument: function (url) {
-    return new Promise((resolve, reject) => {
-      // We want to parse those arbitrary pages safely, outside the privileged
-      // context of chrome. We create a hidden browser element to fetch the
-      // loaded page's document object then discard the browser element.
-      let browser = document.createElement("browser");
-      browser.setAttribute("type", "content");
-      browser.setAttribute("collapsed", "true");
-      browser.setAttribute("disablehistory", "true");
-
-      document.documentElement.appendChild(browser);
-      browser.stop();
-
-      browser.webNavigation.allowAuth = false;
-      browser.webNavigation.allowImages = false;
-      browser.webNavigation.allowJavascript = false;
-      browser.webNavigation.allowMetaRedirects = true;
-      browser.webNavigation.allowPlugins = false;
-
-      browser.addEventListener("DOMContentLoaded", event => {
-        let doc = event.originalTarget;
-
-        // ignore on frames and other documents
-        if (doc != browser.contentDocument) {
-          return;
-        }
-
-        this.log("Done loading: " + doc);
-        if (doc.location.href == "about:blank") {
-          reject("about:blank loaded; aborting");
-
-          // Request has finished with error, remove browser element
-          browser.parentNode.removeChild(browser);
-          return;
-        }
-
-        resolve({ browser, doc });
-      });
-
-      browser.loadURIWithFlags(url, Ci.nsIWebNavigation.LOAD_FLAGS_NONE,
-                               null, null, null);
-    });
-  },
-
-  _downloadAndParseDocument: Task.async(function* (url) {
-    this.log("Needs to fetch page, creating request: " + url);
-    let { browser, doc } = yield this._downloadDocument(url);
-    this.log("Finished loading page: " + doc);
+      callback(article);
+    };
 
     try {
-      this.log("Parsing response with Readability");
-      let uri = Services.io.newURI(url, null, null);
-      let article = yield this._readerParse(uri, doc);
-      this.log("Document parsed successfully");
-      return article;
-    } finally {
-      browser.parentNode.removeChild(browser);
+      worker.postMessage({
+        uri: {
+          spec: uri.spec,
+          host: uri.host,
+          prePath: uri.prePath,
+          scheme: uri.scheme,
+          pathBase: Services.io.newURI(".", null, uri).spec
+        },
+        doc: new XMLSerializer().serializeToString(doc)
+      });
+    } catch (e) {
+      Cu.reportError("Reader: could not build Readability arguments: " + e);
+      callback(null);
     }
-  }),
+  },
+
+  _runCallbacksAndFinish: function Reader_runCallbacksAndFinish(request, result) {
+    delete this._requests[request.url];
+
+    request.callbacks.forEach(function(callback) {
+      callback(result);
+    });
+  },
+
+  _downloadDocument: function Reader_downloadDocument(url, callback) {
+    // We want to parse those arbitrary pages safely, outside the privileged
+    // context of chrome. We create a hidden browser element to fetch the
+    // loaded page's document object then discard the browser element.
+
+    let browser = document.createElement("browser");
+    browser.setAttribute("type", "content");
+    browser.setAttribute("collapsed", "true");
+    browser.setAttribute("disablehistory", "true");
+
+    document.documentElement.appendChild(browser);
+    browser.stop();
+
+    browser.webNavigation.allowAuth = false;
+    browser.webNavigation.allowImages = false;
+    browser.webNavigation.allowJavascript = false;
+    browser.webNavigation.allowMetaRedirects = true;
+    browser.webNavigation.allowPlugins = false;
+
+    browser.addEventListener("DOMContentLoaded", event => {
+      let doc = event.originalTarget;
+
+      // ignore on frames and other documents
+      if (doc != browser.contentDocument)
+        return;
+
+      this.log("Done loading: " + doc);
+      if (doc.location.href == "about:blank") {
+        callback(null);
+
+        // Request has finished with error, remove browser element
+        browser.parentNode.removeChild(browser);
+        return;
+      }
+
+      callback(doc);
+    });
+
+    browser.loadURIWithFlags(url, Ci.nsIWebNavigation.LOAD_FLAGS_NONE,
+                             null, null, null);
+
+    return browser;
+  },
+
+  _downloadAndParseDocument: function Reader_downloadAndParseDocument(url, request) {
+    try {
+      this.log("Needs to fetch page, creating request: " + url);
+
+      request.browser = this._downloadDocument(url, doc => {
+        this.log("Finished loading page: " + doc);
+
+        if (!doc) {
+          this.log("Error loading page");
+          this._runCallbacksAndFinish(request, null);
+          return;
+        }
+
+        this.log("Parsing response with Readability");
+
+        let uri = Services.io.newURI(url, null, null);
+        this._readerParse(uri, doc, article => {
+          // Delete reference to the browser element as we've finished parsing.
+          let browser = request.browser;
+          if (browser) {
+            browser.parentNode.removeChild(browser);
+            delete request.browser;
+          }
+
+          if (!article) {
+            this.log("Failed to parse page");
+            this._runCallbacksAndFinish(request, null);
+            return;
+          }
+
+          this.log("Parsing has been successful");
+          this._runCallbacksAndFinish(request, article);
+        });
+      });
+    } catch (e) {
+      this.log("Error downloading and parsing document: " + e);
+      this._runCallbacksAndFinish(request, null);
+    }
+  },
 
   get _cryptoHash() {
     delete this._cryptoHash;

@@ -500,7 +500,7 @@ this.SocialService = {
     }
   },
 
-  _manifestFromData: function(type, data, installOrigin) {
+  _manifestFromData: function(type, data, principal) {
     let featureURLs = ['workerURL', 'sidebarURL', 'shareURL', 'statusURL', 'markURL'];
     let resolveURLs = featureURLs.concat(['postActivationURL']);
 
@@ -510,11 +510,10 @@ this.SocialService = {
         Cu.reportError("SocialService.manifestFromData directory service provided manifest without origin.");
         return null;
       }
-      installOrigin = data.origin;
+      let URI = Services.io.newURI(data.origin, null, null);
+      principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(URI);
     }
     // force/fixup origin
-    let URI = Services.io.newURI(installOrigin, null, null);
-    principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(URI);
     data.origin = principal.origin;
 
     // iconURL and name are required
@@ -545,13 +544,26 @@ this.SocialService = {
     return data;
   },
 
-  _showInstallNotification: function(data, aAddonInstaller) {
+  _getChromeWindow: function(aWindow) {
+    var chromeWin = aWindow
+      .QueryInterface(Ci.nsIInterfaceRequestor)
+      .getInterface(Ci.nsIWebNavigation)
+      .QueryInterface(Ci.nsIDocShellTreeItem)
+      .rootTreeItem
+      .QueryInterface(Ci.nsIInterfaceRequestor)
+      .getInterface(Ci.nsIDOMWindow)
+      .QueryInterface(Ci.nsIDOMChromeWindow);
+    return chromeWin;
+  },
+
+  _showInstallNotification: function(aDOMDocument, aAddonInstaller) {
     let brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
     let browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
+    let requestingWindow = aDOMDocument.defaultView.top;
+    let chromeWin = this._getChromeWindow(requestingWindow).wrappedJSObject;
+    let browser = chromeWin.gBrowser.getBrowserForDocument(aDOMDocument);
+    let requestingURI =  Services.io.newURI(aAddonInstaller.addon.manifest.origin, null, null);
 
-    // internal activation does not have a host, use the manifest origin in that case
-    let requestingURI =  Services.io.newURI(data.installType == "internal" ?
-                                            data.manifest.origin : data.url, null, null);
     let productName = brandBundle.GetStringFromName("brandShortName");
 
     let message = browserBundle.formatStringFromName("service.install.description",
@@ -570,34 +582,37 @@ this.SocialService = {
                   };
     let anchor = "servicesInstall-notification-icon";
     let notificationid = "servicesInstall";
-    data.window.PopupNotifications.show(data.window.gBrowser.selectedBrowser,
-                                        notificationid, message, anchor,
-                                        action, [], options);
+    chromeWin.PopupNotifications.show(browser, notificationid, message, anchor,
+                                      action, [], options);
   },
 
-  installProvider: function(data, installCallback, options={}) {
-    data.installType = getOriginActivationType(data.origin);
+  installProvider: function(aDOMDocument, data, installCallback, options={}) {
+    let manifest;
+    let installOrigin = aDOMDocument.nodePrincipal.origin;
+
+    let installType = getOriginActivationType(installOrigin);
     // if we get data, we MUST have a valid manifest generated from the data
-    let manifest = this._manifestFromData(data.installType, data.manifest, data.origin);
+    manifest = this._manifestFromData(installType, data, aDOMDocument.nodePrincipal);
     if (!manifest)
-      throw new Error("SocialService.installProvider: service configuration is invalid from " + data.url);
+      throw new Error("SocialService.installProvider: service configuration is invalid from " + aDOMDocument.location.href);
 
     let addon = new AddonWrapper(manifest);
     if (addon && addon.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED)
       throw new Error("installProvider: provider with origin [" +
-                      data.origin + "] is blocklisted");
+                      installOrigin + "] is blocklisted");
     // manifestFromData call above will enforce correct origin. To support
     // activation from about: uris, we need to be sure to use the updated
     // origin on the manifest.
-    data.manifest = manifest;
-    let id = getAddonIDFromOrigin(manifest.origin);
+    installOrigin = manifest.origin;
+
+    let id = getAddonIDFromOrigin(installOrigin);
     AddonManager.getAddonByID(id, function(aAddon) {
       if (aAddon && aAddon.userDisabled) {
         aAddon.cancelUninstall();
         aAddon.userDisabled = false;
       }
       schedule(function () {
-        this._installProvider(data, options, aManifest => {
+        this._installProvider(aDOMDocument, manifest, options, aManifest => {
           this._notifyProviderListeners("provider-installed", aManifest.origin);
           installCallback(aManifest);
         });
@@ -605,20 +620,21 @@ this.SocialService = {
     }.bind(this));
   },
 
-  _installProvider: function(data, options, installCallback) {
-    if (!data.manifest)
+  _installProvider: function(aDOMDocument, manifest, options, installCallback) {
+    if (!manifest)
       throw new Error("Cannot install provider without manifest data");
 
-    if (data.installType == "foreign" && !Services.prefs.getBoolPref("social.remote-install.enabled"))
+    let installType = getOriginActivationType(aDOMDocument.nodePrincipal.origin);
+    if (installType == "foreign" && !Services.prefs.getBoolPref("social.remote-install.enabled"))
       throw new Error("Remote install of services is disabled");
 
-    let installer = new AddonInstaller(data.url, data.manifest, installCallback);
+    let installer = new AddonInstaller(aDOMDocument.location.href, manifest, installCallback);
     let bypassPanel = options.bypassInstallPanel ||
-                      (data.installType == "internal" && data.manifest.oneclick);
+                      (installType == "internal" && manifest.oneclick);
     if (bypassPanel)
       installer.install();
     else
-      this._showInstallNotification(data, installer);
+      this._showInstallNotification(aDOMDocument, installer);
   },
 
   createWrapper: function(manifest) {
@@ -631,9 +647,11 @@ this.SocialService = {
    * the front end to deal with any reload.
    */
   updateProvider: function(aUpdateOrigin, aManifest) {
+    let originUri = Services.io.newURI(aUpdateOrigin, null, null);
+    let principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(originUri);
     let installType = this.getOriginActivationType(aUpdateOrigin);
     // if we get data, we MUST have a valid manifest generated from the data
-    let manifest = this._manifestFromData(installType, aManifest, aUpdateOrigin);
+    let manifest = this._manifestFromData(installType, aManifest, principal);
     if (!manifest)
       throw new Error("SocialService.installProvider: service configuration is invalid from " + aUpdateOrigin);
 

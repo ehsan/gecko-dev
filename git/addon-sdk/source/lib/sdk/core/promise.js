@@ -58,9 +58,9 @@ let promised = (function() {
     promise.then(console.log) // => [ 1, 2, 3 ]
     **/
 
-    return function promised(...args) {
+    return function promised() {
       // create array of [ f, this, args... ]
-      return [f, this, ...args].
+      return concat.apply([ f, this ], arguments).
         // reduce it via `promisedConcat` to get promised array of fulfillments
         reduce(promisedConcat, resolve([], prototype)).
         // finally map that to promise of `f.apply(this, args...)`

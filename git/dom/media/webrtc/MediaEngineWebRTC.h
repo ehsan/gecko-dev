@@ -126,6 +126,7 @@ private:
   webrtc::ViEBase* mViEBase;
   webrtc::ViECapture* mViECapture;
   webrtc::ViERender* mViERender;
+  webrtc::CaptureCapability mCapability; // Doesn't work on OS X.
 
   int mMinFps; // Min rate we want to accept
   MediaSourceType mMediaSource; // source of media (camera | application | screen)

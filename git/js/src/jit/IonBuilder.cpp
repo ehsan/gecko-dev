@@ -7263,11 +7263,7 @@ IonBuilder::getElemTryTypedObject(bool *emitted, MDefinition *obj, MDefinition *
                                                  elemSize);
 
       case type::Reference:
-        return getElemTryReferenceElemOfTypedObject(emitted,
-                                                    obj,
-                                                    index,
-                                                    objPrediction,
-                                                    elemPrediction);
+        return true;
 
       case type::UnsizedArray:
         MOZ_CRASH("Unsized arrays cannot be element types");
@@ -7344,34 +7340,12 @@ IonBuilder::getElemTryScalarElemOfTypedObject(bool *emitted,
     if (!checkTypedObjectIndexInBounds(elemSize, obj, index, objPrediction, &indexAsByteOffset))
         return true;
 
-    *emitted = true;
-
-    return pushScalarLoadFromTypedObject(obj, indexAsByteOffset, elemType);
+    return pushScalarLoadFromTypedObject(emitted, obj, indexAsByteOffset, elemType);
 }
 
 bool
-IonBuilder::getElemTryReferenceElemOfTypedObject(bool *emitted,
-                                                 MDefinition *obj,
-                                                 MDefinition *index,
-                                                 TypedObjectPrediction objPrediction,
-                                                 TypedObjectPrediction elemPrediction)
-{
-    MOZ_ASSERT(objPrediction.ofArrayKind());
-
-    ReferenceTypeDescr::Type elemType = elemPrediction.referenceType();
-    size_t elemSize = ReferenceTypeDescr::size(elemType);
-
-    MDefinition *indexAsByteOffset;
-    if (!checkTypedObjectIndexInBounds(elemSize, obj, index, objPrediction, &indexAsByteOffset))
-        return true;
-
-    *emitted = true;
-
-    return pushReferenceLoadFromTypedObject(obj, indexAsByteOffset, elemType);
-}
-
-bool
-IonBuilder::pushScalarLoadFromTypedObject(MDefinition *obj,
+IonBuilder::pushScalarLoadFromTypedObject(bool *emitted,
+                                          MDefinition *obj,
                                           MDefinition *offset,
                                           ScalarTypeDescr::Type elemType)
 {
@@ -7404,44 +7378,8 @@ IonBuilder::pushScalarLoadFromTypedObject(MDefinition *obj,
     // no useful additional info.
     load->setResultType(knownType);
 
+    *emitted = true;
     return true;
-}
-
-bool
-IonBuilder::pushReferenceLoadFromTypedObject(MDefinition *typedObj,
-                                             MDefinition *byteOffset,
-                                             ReferenceTypeDescr::Type type)
-{
-    // Find location within the owner object.
-    MDefinition *elements, *scaledOffset;
-    size_t alignment = ReferenceTypeDescr::alignment(type);
-    loadTypedObjectElements(typedObj, byteOffset, alignment, &elements, &scaledOffset);
-
-    types::TemporaryTypeSet *observedTypes = bytecodeTypes(pc);
-
-    MInstruction *load;
-    BarrierKind barrier = BarrierKind::NoBarrier;
-    switch (type) {
-      case ReferenceTypeDescr::TYPE_ANY:
-        load = MLoadElement::New(alloc(), elements, scaledOffset, false, false);
-        if (!observedTypes->unknown())
-            barrier = BarrierKind::TypeSet;
-        break;
-      case ReferenceTypeDescr::TYPE_OBJECT:
-        load = MLoadUnboxedObjectOrNull::New(alloc(), elements, scaledOffset);
-        if (!observedTypes->unknownObject() || !observedTypes->hasType(types::Type::NullType()))
-            barrier = BarrierKind::TypeSet;
-        break;
-      case ReferenceTypeDescr::TYPE_STRING:
-        load = MLoadUnboxedString::New(alloc(), elements, scaledOffset);
-        observedTypes->addType(types::Type::StringType(), alloc().lifoAlloc());
-        break;
-    }
-
-    current->add(load);
-    current->push(load);
-
-    return pushTypeBarrier(load, observedTypes, barrier);
 }
 
 bool
@@ -9444,6 +9382,9 @@ IonBuilder::getPropTryTypedObject(bool *emitted,
         return true;
 
     switch (fieldPrediction.kind()) {
+      case type::Reference:
+        return true;
+
       case type::Simd:
         // FIXME (bug 894104): load into a MIRType_float32x4 etc
         return true;
@@ -9456,13 +9397,6 @@ IonBuilder::getPropTryTypedObject(bool *emitted,
                                                   fieldPrediction,
                                                   fieldIndex,
                                                   resultTypes);
-
-      case type::Reference:
-        return getPropTryReferencePropOfTypedObject(emitted,
-                                                    obj,
-                                                    fieldOffset,
-                                                    fieldPrediction,
-                                                    resultTypes);
 
       case type::Scalar:
         return getPropTryScalarPropOfTypedObject(emitted,
@@ -9492,26 +9426,8 @@ IonBuilder::getPropTryScalarPropOfTypedObject(bool *emitted, MDefinition *typedO
     if (globalType->hasFlags(constraints(), types::OBJECT_FLAG_TYPED_OBJECT_NEUTERED))
         return true;
 
-    *emitted = true;
-
-    return pushScalarLoadFromTypedObject(typedObj, constantInt(fieldOffset), fieldType);
-}
-
-bool
-IonBuilder::getPropTryReferencePropOfTypedObject(bool *emitted, MDefinition *typedObj,
-                                                 int32_t fieldOffset,
-                                                 TypedObjectPrediction fieldPrediction,
-                                                 types::TemporaryTypeSet *resultTypes)
-{
-    ReferenceTypeDescr::Type fieldType = fieldPrediction.referenceType();
-
-    types::TypeObjectKey *globalType = types::TypeObjectKey::get(&script()->global());
-    if (globalType->hasFlags(constraints(), types::OBJECT_FLAG_TYPED_OBJECT_NEUTERED))
-        return true;
-
-    *emitted = true;
-
-    return pushReferenceLoadFromTypedObject(typedObj, constantInt(fieldOffset), fieldType);
+    // OK, perform the optimization.
+    return pushScalarLoadFromTypedObject(emitted, typedObj, constantInt(fieldOffset), fieldType);
 }
 
 bool

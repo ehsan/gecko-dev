@@ -113,13 +113,7 @@ var tests = {
         try {
           // expecting an exception when attempting to install a hard blocked
           // provider
-          let data = {
-            origin: doc.nodePrincipal.origin,
-            url: doc.location.href,
-            manifest: manifest_bad,
-            window: window
-          }
-          Social.installProvider(data, function(addonManifest) {
+          Social.installProvider(doc, manifest_bad, function(addonManifest) {
             gBrowser.removeTab(tab);
             finishTest(false);
           });

@@ -10,8 +10,6 @@ let openChatOrig = Chat.open;
 add_test(function test_openChatWindow_on_notification() {
   Services.prefs.setCharPref("loop.seenToS", "unseen");
 
-  mockPushHandler.registrationPushURL = kEndPointUrl;
-
   MozLoopService.promiseRegisteredWithServers().then(() => {
     let opened = false;
     Chat.open = function() {

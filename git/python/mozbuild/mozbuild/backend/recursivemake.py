@@ -319,7 +319,6 @@ class RecursiveMakeBackend(CommonBackend):
             'libs': set(),
         }
         self._no_skip = {
-            'misc': set(),
             'tools': set(),
         }
 
@@ -498,17 +497,11 @@ class RecursiveMakeBackend(CommonBackend):
                 'number': len(no_skip), 'tier': tier
                 }, 'Using {number} directories during {tier}')
 
-        def should_skip(tier, dir):
-            if tier in self._may_skip:
-                return dir in self._may_skip[tier]
-            if tier in self._no_skip:
-                return dir not in self._no_skip[tier]
-            return False
-
         # Traverse directories in parallel, and skip static dirs
         def parallel_filter(current, subdirs):
             all_subdirs = subdirs.dirs + subdirs.tests
-            if should_skip(tier, current) or current.startswith('subtiers/'):
+            if current in self._may_skip[tier] \
+                    or current.startswith('subtiers/'):
                 current = None
             return current, all_subdirs, []
 
@@ -516,7 +509,8 @@ class RecursiveMakeBackend(CommonBackend):
         # Because of bug 925236 and possible other unknown race conditions,
         # don't parallelize the libs tier.
         def libs_filter(current, subdirs):
-            if should_skip('libs', current) or current.startswith('subtiers/'):
+            if current in self._may_skip['libs'] \
+                    or current.startswith('subtiers/'):
                 current = None
             return current, [], subdirs.dirs + subdirs.tests
 
@@ -524,14 +518,14 @@ class RecursiveMakeBackend(CommonBackend):
         # don't parallelize the tools tier. There aren't many directories for
         # this tier anyways.
         def tools_filter(current, subdirs):
-            if should_skip('tools', current) or current.startswith('subtiers/'):
+            if current not in self._no_skip['tools'] \
+                    or current.startswith('subtiers/'):
                 current = None
             return current, [], subdirs.dirs + subdirs.tests
 
         filters = [
             ('export', parallel_filter),
             ('libs', libs_filter),
-            ('misc', parallel_filter),
             ('tools', tools_filter),
         ]
 
@@ -812,9 +806,6 @@ class RecursiveMakeBackend(CommonBackend):
 
         for tier in set(self._may_skip.keys()) - affected_tiers:
             self._may_skip[tier].add(backend_file.relobjdir)
-
-        for tier in set(self._no_skip.keys()) & affected_tiers:
-            self._no_skip[tier].add(backend_file.relobjdir)
 
     def _walk_hierarchy(self, obj, element, namespace=''):
         """Walks the ``HierarchicalStringList`` ``element`` in the context of

@@ -1061,7 +1061,7 @@ class GCHelperState
     void work();
 
     /* Must be called with the GC lock taken. */
-    void startBackgroundSweep();
+    void startBackgroundSweep(bool shouldShrink);
 
     /* Must be called with the GC lock taken. */
     void startBackgroundShrink();

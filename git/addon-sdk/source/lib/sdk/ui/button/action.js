@@ -108,5 +108,4 @@ on(actionButtonStateEvents, 'data', ({target, window, state}) => {
   view.setIcon(id, window, state.icon);
   view.setLabel(id, window, state.label);
   view.setDisabled(id, window, state.disabled);
-  view.setBadge(id, window, state.badge, state.badgeColor);
 });

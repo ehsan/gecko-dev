@@ -120,7 +120,7 @@ function* resetFxA() {
   global.gHawkClient = null;
   global.gFxAOAuthClientPromise = null;
   global.gFxAOAuthClient = null;
-  MozLoopServiceInternal.deferredRegistrations.delete(LOOP_SESSION_TYPE.FXA);
+  global.gRegisteredDeferred = null;
   MozLoopServiceInternal.fxAOAuthProfile = null;
   MozLoopServiceInternal.fxAOAuthTokenData = null;
   const fxASessionPref = MozLoopServiceInternal.getSessionTokenPrefName(LOOP_SESSION_TYPE.FXA);

@@ -10,7 +10,6 @@
 #include "jit/IonAnalysis.h"
 #include "jit/MIRGenerator.h"
 #include "jit/MIRGraph.h"
-#include "jit/RangeAnalysis.h"
 #include "jit/ValueNumbering.h"
 
 namespace js {
@@ -79,28 +78,6 @@ struct MinimalFunc
         if (!gvn.init())
             return false;
         if (!gvn.run(ValueNumberer::DontUpdateAliasAnalysis))
-            return false;
-        return true;
-    }
-
-    bool runRangeAnalysis()
-    {
-        if (!SplitCriticalEdges(graph))
-            return false;
-        if (!RenumberBlocks(graph))
-            return false;
-        if (!BuildDominatorTree(graph))
-            return false;
-        if (!BuildPhiReverseMapping(graph))
-            return false;
-        RangeAnalysis rangeAnalysis(&mir, graph);
-        if (!rangeAnalysis.addBetaNodes())
-            return false;
-        if (!rangeAnalysis.analyze())
-            return false;
-        if (!rangeAnalysis.addRangeAssertions())
-            return false;
-        if (!rangeAnalysis.removeBetaNodes())
             return false;
         return true;
     }
