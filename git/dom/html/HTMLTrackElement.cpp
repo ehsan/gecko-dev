@@ -153,12 +153,13 @@ HTMLTrackElement::CreateTextTrack()
     kind = TextTrackKind::Subtitles;
   }
 
-  nsISupports* parentObject =
-    OwnerDoc()->GetParentObject();
+  bool hasHadScriptObject = true;
+  nsIScriptGlobalObject* scriptObject =
+    OwnerDoc()->GetScriptHandlingObject(hasHadScriptObject);
 
-  NS_ENSURE_TRUE_VOID(parentObject);
+  NS_ENSURE_TRUE_VOID(scriptObject || !hasHadScriptObject);
 
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(parentObject);
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(scriptObject);
   mTrack = new TextTrack(window, kind, label, srcLang,
                          TextTrackMode::Disabled,
                          TextTrackReadyState::NotLoaded,

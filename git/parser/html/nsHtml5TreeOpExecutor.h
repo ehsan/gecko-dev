@@ -109,42 +109,42 @@ class nsHtml5TreeOpExecutor MOZ_FINAL : public nsHtml5DocumentBuilder,
     /**
      * Unimplemented. For interface compat only.
      */
-    NS_IMETHOD WillParse() MOZ_OVERRIDE;
+    NS_IMETHOD WillParse();
 
     /**
      * 
      */
-    NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode) MOZ_OVERRIDE;
+    NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode);
 
     /**
      * Emits EOF.
      */
-    NS_IMETHOD DidBuildModel(bool aTerminated) MOZ_OVERRIDE;
+    NS_IMETHOD DidBuildModel(bool aTerminated);
 
     /**
      * Forwards to nsContentSink
      */
-    NS_IMETHOD WillInterrupt() MOZ_OVERRIDE;
+    NS_IMETHOD WillInterrupt();
 
     /**
      * Unimplemented. For interface compat only.
      */
-    NS_IMETHOD WillResume() MOZ_OVERRIDE;
+    NS_IMETHOD WillResume();
 
     /**
      * Sets the parser.
      */
-    NS_IMETHOD SetParser(nsParserBase* aParser) MOZ_OVERRIDE;
+    NS_IMETHOD SetParser(nsParserBase* aParser);
 
     /**
      * No-op for backwards compat.
      */
-    virtual void FlushPendingNotifications(mozFlushType aType) MOZ_OVERRIDE;
+    virtual void FlushPendingNotifications(mozFlushType aType);
 
     /**
      * Don't call. For interface compat only.
      */
-    NS_IMETHOD SetDocumentCharset(nsACString& aCharset) MOZ_OVERRIDE {
+    NS_IMETHOD SetDocumentCharset(nsACString& aCharset) {
     	NS_NOTREACHED("No one should call this.");
     	return NS_ERROR_NOT_IMPLEMENTED;
     }
@@ -152,11 +152,17 @@ class nsHtml5TreeOpExecutor MOZ_FINAL : public nsHtml5DocumentBuilder,
     /**
      * Returns the document.
      */
-    virtual nsISupports *GetTarget() MOZ_OVERRIDE;
+    virtual nsISupports *GetTarget();
   
-    virtual void ContinueInterruptedParsingAsync() MOZ_OVERRIDE;
+    virtual void ContinueInterruptedParsingAsync();
+ 
+    // XXX Does anyone need this?
+    nsIDocShell* GetDocShell()
+    {
+      return mDocShell;
+    }
 
-    bool IsScriptExecuting() MOZ_OVERRIDE
+    bool IsScriptExecuting()
     {
       return IsScriptExecutingImpl();
     }
@@ -172,7 +178,7 @@ class nsHtml5TreeOpExecutor MOZ_FINAL : public nsHtml5DocumentBuilder,
 
     bool IsScriptEnabled();
 
-    virtual nsresult MarkAsBroken(nsresult aReason) MOZ_OVERRIDE;
+    virtual nsresult MarkAsBroken(nsresult aReason);
 
     void StartLayout();
     
@@ -224,7 +230,7 @@ class nsHtml5TreeOpExecutor MOZ_FINAL : public nsHtml5DocumentBuilder,
      * Flush the operations from the tree operations from the argument
      * queue unconditionally. (This is for the main thread case.)
      */
-    virtual void MoveOpsFrom(nsTArray<nsHtml5TreeOperation>& aOpQueue) MOZ_OVERRIDE;
+    virtual void MoveOpsFrom(nsTArray<nsHtml5TreeOperation>& aOpQueue);
     
     nsHtml5TreeOpStage* GetStage()
     {

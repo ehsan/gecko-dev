@@ -2,46 +2,79 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef __ClearKeyDecryptionManager_h__
-#define __ClearKeyDecryptionManager_h__
+#ifndef __ClearKeyDecryptor_h__
+#define __ClearKeyDecryptor_h__
 
 #include <map>
+#include <string>
+#include <vector>
 
+#include "ClearKeySession.h"
 #include "ClearKeyUtils.h"
+#include "gmp-api/gmp-decryption.h"
+#include "ScopedNSSTypes.h"
 #include "RefCounted.h"
 
 class ClearKeyDecryptor;
-
-class ClearKeyDecryptionManager : public RefCounted
+class ClearKeyDecryptionManager MOZ_FINAL : public GMPDecryptor
+                                          , public RefCounted
 {
-private:
+public:
   ClearKeyDecryptionManager();
+
+  virtual void Init(GMPDecryptorCallback* aCallback) MOZ_OVERRIDE;
+
+  virtual void CreateSession(uint32_t aCreateSessionToken,
+                             uint32_t aPromiseId,
+                             const char* aInitDataType,
+                             uint32_t aInitDataTypeSize,
+                             const uint8_t* aInitData,
+                             uint32_t aInitDataSize,
+                             GMPSessionType aSessionType) MOZ_OVERRIDE;
+
+  virtual void LoadSession(uint32_t aPromiseId,
+                           const char* aSessionId,
+                           uint32_t aSessionIdLength) MOZ_OVERRIDE;
+
+  virtual void UpdateSession(uint32_t aPromiseId,
+                             const char* aSessionId,
+                             uint32_t aSessionIdLength,
+                             const uint8_t* aResponse,
+                             uint32_t aResponseSize) MOZ_OVERRIDE;
+
+  virtual void CloseSession(uint32_t aPromiseId,
+                            const char* aSessionId,
+                            uint32_t aSessionIdLength) MOZ_OVERRIDE;
+
+  virtual void RemoveSession(uint32_t aPromiseId,
+                             const char* aSessionId,
+                             uint32_t aSessionIdLength) MOZ_OVERRIDE;
+
+  virtual void SetServerCertificate(uint32_t aPromiseId,
+                                    const uint8_t* aServerCert,
+                                    uint32_t aServerCertSize) MOZ_OVERRIDE;
+
+  virtual void Decrypt(GMPBuffer* aBuffer,
+                       GMPEncryptedBufferMetadata* aMetadata) MOZ_OVERRIDE;
+
+  virtual void DecryptingComplete() MOZ_OVERRIDE;
+
+  void PersistentSessionDataLoaded(GMPErr aStatus,
+                                   uint32_t aPromiseId,
+                                   const std::string& aSessionId,
+                                   const uint8_t* aKeyData,
+                                   uint32_t aKeyDataSize);
+
+private:
   ~ClearKeyDecryptionManager();
 
-  static ClearKeyDecryptionManager* sInstance;
+  void ClearInMemorySessionData(ClearKeySession* aSession);
+  void Serialize(const ClearKeySession* aSession, std::vector<uint8_t>& aOutKeyData);
 
-public:
-  static ClearKeyDecryptionManager* Get();
-
-  bool HasSeenKeyId(const KeyId& aKeyId) const;
-  bool HasKeyForKeyId(const KeyId& aKeyId) const;
-
-  const Key& GetDecryptionKey(const KeyId& aKeyId);
-
-  // Create a decryptor for the given KeyId if one does not already exist.
-  void InitKey(KeyId aKeyId, Key aKey);
-  void ExpectKeyId(KeyId aKeyId);
-  void ReleaseKeyId(KeyId aKeyId);
-
-  GMPErr Decrypt(uint8_t* aBuffer, uint32_t aBufferSize,
-                 GMPEncryptedBufferMetadata* aMetadata);
-
-  void Shutdown();
-
-private:
-  bool IsExpectingKeyForKeyId(const KeyId& aKeyId) const;
+  GMPDecryptorCallback* mCallback;
 
   std::map<KeyId, ClearKeyDecryptor*> mDecryptors;
+  std::map<std::string, ClearKeySession*> mSessions;
 };
 
-#endif // __ClearKeyDecryptionManager_h__
+#endif // __ClearKeyDecryptor_h__

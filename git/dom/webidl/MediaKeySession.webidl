@@ -23,22 +23,22 @@ interface MediaKeySession : EventTarget {
 
   readonly attribute Promise<void> closed;
 
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> generateRequest(DOMString initDataType, (ArrayBufferView or ArrayBuffer) initData);
 
-  [NewObject]
+  [NewObject, Throws]
   Promise<boolean> load(DOMString sessionId);
 
   // session operations
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> update((ArrayBufferView or ArrayBuffer) response);
 
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> close();
 
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> remove();
 
-  [NewObject]
+  [NewObject, Throws]
   Promise<sequence<ArrayBuffer>> getUsableKeyIds();
 };

@@ -12,7 +12,6 @@ UNIFIED_SOURCES += [
     'ClearKeyDecryptionManager.cpp',
     'ClearKeyPersistence.cpp',
     'ClearKeySession.cpp',
-    'ClearKeySessionManager.cpp',
     'ClearKeyStorage.cpp',
     'ClearKeyUtils.cpp',
     'gmp-clearkey.cpp',

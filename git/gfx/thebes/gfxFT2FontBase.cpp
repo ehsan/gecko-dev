@@ -20,8 +20,6 @@ gfxFT2FontBase::gfxFT2FontBase(cairo_scaled_font_t *aScaledFont,
       mHasMetrics(false)
 {
     cairo_scaled_font_reference(mScaledFont);
-    gfxFT2LockedFace face(this);
-    mFUnitsConvFactor = face.XScale();
 }
 
 gfxFT2FontBase::~gfxFT2FontBase()
@@ -119,6 +117,7 @@ gfxFT2FontBase::GetHorizontalMetrics()
         mSpaceGlyph = 0;
     } else {
         gfxFT2LockedFace face(this);
+        mFUnitsConvFactor = face.XScale();
         face.GetMetrics(&mMetrics, &mSpaceGlyph);
     }
 

@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "ClearKeySessionManager.h"
+#include "ClearKeyDecryptionManager.h"
 
 #include "gmp-api/gmp-decryption.h"
 #include "gmp-api/gmp-platform.h"
@@ -34,7 +34,7 @@ GMPGetAPI(const char* aApiName, void* aHostAPI, void** aPluginAPI)
     return GMPNotImplementedErr;
   }
 
-  *aPluginAPI = new ClearKeySessionManager();
+  *aPluginAPI = new ClearKeyDecryptionManager();
 
   return GMPNoErr;
 }
