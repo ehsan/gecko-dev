@@ -1,6 +1,6 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -13,20 +13,19 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Communicator client code, released
- * March 31, 1998.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2002
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   John Bandhauer <jband@netscape.com> (original author)
+ *   Trevor Saunders <trev.saunders@gmail.com> (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -38,30 +37,21 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsISupports.idl"
-#include "nsIInterfaceInfoManager.idl"
+#ifndef A11Y_STATISTICS_H_
+#define A11Y_STATISTICS_H_
 
-/**
-* Interface used as Components.interfaces (and elsewhere)
-* (interesting stuff only reflected into JavaScript)
-*/
-[scriptable, uuid(01c78c65-31da-456b-90bf-da39d09fdcbf)]
-interface nsIScriptableInterfaces : nsISupports
-{
-    [noscript] attribute nsIInterfaceInfoManager manager;
-};
+#include "mozilla/Telemetry.h"
 
-%{C++
-// The contractID for the implementation built into xpconnect
-#define NS_SCRIPTABLE_INTERFACES_CONTRACTID "@mozilla.org/scriptableinterfaces;1"
-%}
+namespace mozilla {
+namespace a11y {
+namespace statistics {
 
+  inline void A11yInitialized()
+    { Telemetry::Accumulate(Telemetry::A11Y_INSTANTIATED, true); }
 
-/**
-* interface of Components.interfacesByID
-* (interesting stuff only reflected into JavaScript)
-*/
-[scriptable, uuid(c99cffac-5aed-4267-ad2f-f4a4c9d4a081)]
-interface nsIScriptableInterfacesByID : nsISupports
-{
-};
+} // namespace statistics
+} // namespace a11y
+} // namespace mozilla
+
+#endif
+

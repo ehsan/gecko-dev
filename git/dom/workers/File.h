@@ -1,3 +1,5 @@
+/* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,15 +13,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Communicator.
+ * The Original Code is Web Workers.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2002
+ *   The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Kai Engert <kaie@netscape.com>
+ *   William Chen <wchen@mozilla.com> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,30 +37,37 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsICipherInfo.h"
-#include "nsString.h"
-#include "sslt.h"
+#ifndef mozilla_dom_workers_file_h__
+#define mozilla_dom_workers_file_h__
 
-class nsCipherInfoService : public nsICipherInfoService
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSICIPHERINFOSERVICE
+#include "Workers.h"
 
-  nsCipherInfoService();
-  virtual ~nsCipherInfoService();
-};
+#include "jspubtd.h"
 
-class nsCipherInfo : public nsICipherInfo
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSICIPHERINFO
+class nsIDOMFile;
+class nsIDOMBlob;
 
-  nsCipherInfo(PRUint16 aCipherId);
-  virtual ~nsCipherInfo();
+BEGIN_WORKERS_NAMESPACE
 
-private:
-  PRBool mHaveInfo;
-  SSLCipherSuiteInfo mInfo;
-};
+namespace file {
+
+bool
+InitClasses(JSContext* aCx, JSObject* aGlobal);
+
+JSObject*
+CreateBlob(JSContext* aCx, nsIDOMBlob* aBlob);
+
+nsIDOMBlob*
+GetDOMBlobFromJSObject(JSContext* aCx, JSObject* aObj);
+
+JSObject*
+CreateFile(JSContext* aCx, nsIDOMFile* aFile);
+
+nsIDOMFile*
+GetDOMFileFromJSObject(JSContext* aCx, JSObject* aObj);
+
+} // namespace file
+
+END_WORKERS_NAMESPACE
+
+#endif /* mozilla_dom_workers_file_h__ */

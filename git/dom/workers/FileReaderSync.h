@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -13,19 +13,19 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is Web Workers.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2000
+ *   The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Stuart Parmenter <pavlov@netscape.com>
+ *   William Chen <wchen@mozilla.com> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -37,32 +37,22 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/**
- * gfx idl declarations to be used by all gfx interfaces.
- * @file gfxidltypes.idl
- */
+#ifndef mozilla_dom_workers_filereadersync_h__
+#define mozilla_dom_workers_filereadersync_h__
 
-#include "nsrootidl.idl"
+#include "Workers.h"
 
-/**
- * A color is a 32 bit unsigned integer with
- * four components: R, G, B and A.
- *
- * @var typedef PRUint32 gfx_color
- */
-typedef PRUint32            gfx_color;
+#include "jspubtd.h"
 
-/**
- * typedef that should be used for bit depths
- * @var typedef unsigned short gfx_depth
- */
-typedef unsigned short      gfx_depth; // is short ok?
+BEGIN_WORKERS_NAMESPACE
 
-/**
- * typedef that should be used for image formats
- * @var typedef long gfx_format
- * @see gfxIFormats
- */
-typedef long                gfx_format;
+namespace filereadersync {
 
-[ptr] native nsIntRect(nsIntRect);
+bool
+InitClass(JSContext* aCx, JSObject* aGlobal);
+
+} // namespace filereadersync
+
+END_WORKERS_NAMESPACE
+
+#endif // mozilla_dom_workers_filereadersync_h__

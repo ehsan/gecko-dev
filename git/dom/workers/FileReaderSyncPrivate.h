@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim:expandtab:shiftwidth=4:tabstop=4:
- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -16,11 +15,13 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Christopher Blizzard
- * <blizzard@mozilla.org>.  Portions created by the Initial Developer
- * are Copyright (C) 2004 the Initial Developer. All Rights Reserved.
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   William Chen <wchen@mozilla.com> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,37 +37,44 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef _MOZILLA_DECODER_H
-#define _MOZILLA_DECODER_H
+#ifndef nsDOMFileReaderSyncPrivate_h
+#define nsDOMFileReaderSyncPrivate_h
 
-#include <pango/pangofc-decoder.h>
+#include "Workers.h"
 
-G_BEGIN_DECLS
+#include "nsICharsetDetectionObserver.h"
+#include "nsStringGlue.h"
 
-#define MOZILLA_TYPE_DECODER (mozilla_decoder_get_type())
-#define MOZILLA_DECODER(object) (G_TYPE_CHECK_INSTANCE_CAST ((object), MOZILLA_TYPE_DECODER, MozillaDecoder))
-#define MOZILLA_IS_DECODER(object) (G_TYPE_CHECK_INSTANCE_TYPE ((object), MOZILLA_TYPE_DECODER))
+class nsIInputStream;
+class nsIDOMBlob;
 
-typedef struct _MozillaDecoder      MozillaDecoder;
-typedef struct _MozillaDecoderClass MozillaDecoderClass;
+BEGIN_WORKERS_NAMESPACE
 
-#define MOZILLA_DECODER_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass), MOZILLA_TYPE_DECODER, MozillaDecoderClass))
-#define MOZILLA_IS_DECODER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), MOZILLA_TYPE_DECODER))
-#define MOZILLA_DECODER_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS ((obj), MOZILLA_TYPE_DECODER, MozillaDecoderClass))
-
-struct _MozillaDecoder
+class FileReaderSyncPrivate : public PrivatizableBase,
+                              public nsICharsetDetectionObserver
 {
-  PangoFcDecoder parent_instance;
+  nsCString mCharset;
+  nsresult ConvertStream(nsIInputStream *aStream, const char *aCharset,
+                         nsAString &aResult);
+  nsresult GuessCharset(nsIInputStream *aStream, nsACString &aCharset);
+
+public:
+  NS_DECL_ISUPPORTS
+
+  FileReaderSyncPrivate();
+  ~FileReaderSyncPrivate();
+
+  nsresult ReadAsArrayBuffer(nsIDOMBlob* aBlob, PRUint32 aLength,
+                             uint8* aBuffer);
+  nsresult ReadAsBinaryString(nsIDOMBlob* aBlob, nsAString& aResult);
+  nsresult ReadAsText(nsIDOMBlob* aBlob, const nsAString& aEncoding,
+                      nsAString& aResult);
+  nsresult ReadAsDataURL(nsIDOMBlob* aBlob, nsAString& aResult);
+
+  // From nsICharsetDetectionObserver
+  NS_IMETHOD Notify(const char *aCharset, nsDetectionConfident aConf);
 };
 
-struct _MozillaDecoderClass
-{
-  PangoFcDecoderClass parent_class;
-};
+END_WORKERS_NAMESPACE
 
-GType           mozilla_decoder_get_type (void);
-int             mozilla_decoders_init    (void);
-
-G_END_DECLS
-
-#endif /*_MOZILLA_DECODER_H */
+#endif
