@@ -472,7 +472,8 @@ js_TraceSharpMap(JSTracer *trc, JSSharpObjectMap *map)
 static JSBool
 obj_toSource(JSContext *cx, uintN argc, Value *vp)
 {
-    JSBool ok;
+    JSBool ok, outermost;
+    JSObject *obj;
     JSHashEntry *he;
     JSIdArray *ida;
     jschar *chars, *ochars, *vsharp;
@@ -493,13 +494,9 @@ obj_toSource(JSContext *cx, uintN argc, Value *vp)
     AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(localroot), localroot);
 
     /* If outermost, we need parentheses to be an expression, not a block. */
-    JSBool outermost = (cx->sharpObjectMap.depth == 0);
-
-    JSObject *obj = ToObject(cx, &vp[1]);
-    if (!obj)
-        return false;
-
-    if (!(he = js_EnterSharpObject(cx, obj, &ida, &chars))) {
+    outermost = (cx->sharpObjectMap.depth == 0);
+    obj = ComputeThisFromVp(cx, vp);
+    if (!obj || !(he = js_EnterSharpObject(cx, obj, &ida, &chars))) {
         ok = JS_FALSE;
         goto out;
     }
@@ -853,25 +850,24 @@ obj_toString(JSContext *cx, uintN argc, Value *vp)
 {
     Value &thisv = vp[1];
 
-    /* Step 1. */
+    /* ES5 15.2.4.2 step 1. */
     if (thisv.isUndefined()) {
         vp->setString(ATOM_TO_STRING(cx->runtime->atomState.objectUndefinedAtom));
         return true;
     }
 
-    /* Step 2. */
+    /* ES5 15.2.4.2 step 2. */
     if (thisv.isNull()) {
         vp->setString(ATOM_TO_STRING(cx->runtime->atomState.objectNullAtom));
         return true;
     }
 
-    /* Step 3. */
-    JSObject *obj = ToObject(cx, &thisv);
-    if (!obj)
+    /* ES5 15.2.4.2 step 3. */
+    if (!thisv.isObject() && !js_PrimitiveToObject(cx, &thisv))
         return false;
 
-    /* Steps 4-5. */
-    JSString *str = js::obj_toStringHelper(cx, obj);
+    /* ES5 15.2.4.2 steps 4-5. */
+    JSString *str = js::obj_toStringHelper(cx, &thisv.toObject());
     if (!str)
         return false;
     vp->setString(str);
@@ -881,11 +877,10 @@ obj_toString(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 obj_toLocaleString(JSContext *cx, uintN argc, Value *vp)
 {
-    JSObject *obj = ToObject(cx, &vp[1]);
-    if (!obj)
-        return false;
+    if (!ComputeThisFromVp(cx, vp))
+        return JS_FALSE;
 
-    JSString *str = js_ValueToString(cx, ObjectValue(*obj));
+    JSString *str = js_ValueToString(cx, vp[1]);
     if (!str)
         return JS_FALSE;
 
@@ -896,11 +891,10 @@ obj_toLocaleString(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 obj_valueOf(JSContext *cx, uintN argc, Value *vp)
 {
-    JSObject *obj = ToObject(cx, &vp[1]);
-    if (!obj)
-        return false;
-    vp->setObject(*obj);
-    return true;
+    if (!ComputeThisFromVp(cx, vp))
+        return JS_FALSE;
+    *vp = vp[1];
+    return JS_TRUE;
 }
 
 /*
@@ -1346,8 +1340,7 @@ obj_watch_handler(JSContext *cx, JSObject *obj, jsid id, jsval old,
     argv[0] = IdToValue(id);
     argv[1] = Valueify(old);
     argv[2] = Valueify(*nvp);
-    ok = ExternalInvoke(cx, ObjectValue(*obj), ObjectOrNullValue(callable), 3, argv,
-                        Valueify(nvp));
+    ok = ExternalInvoke(cx, obj, ObjectOrNullValue(callable), 3, argv, Valueify(nvp));
     js_StopResolving(cx, &key, JSRESFLAG_WATCH, entry, generation);
     return ok;
 }
@@ -1369,13 +1362,10 @@ obj_watch(JSContext *cx, uintN argc, Value *vp)
     if (!ValueToId(cx, vp[2], &propid))
         return JS_FALSE;
 
-    JSObject *obj = ToObject(cx, &vp[1]);
-    if (!obj)
-        return false;
-
+    JSObject *obj = ComputeThisFromVp(cx, vp);
     Value tmp;
     uintN attrs;
-    if (!CheckAccess(cx, obj, propid, JSACC_WATCH, &tmp, &attrs))
+    if (!obj || !CheckAccess(cx, obj, propid, JSACC_WATCH, &tmp, &attrs))
         return JS_FALSE;
 
     vp->setUndefined();
@@ -1390,9 +1380,9 @@ obj_watch(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 obj_unwatch(JSContext *cx, uintN argc, Value *vp)
 {
-    JSObject *obj = ToObject(cx, &vp[1]);
+    JSObject *obj = ComputeThisFromVp(cx, vp);
     if (!obj)
-        return false;
+        return JS_FALSE;
     vp->setUndefined();
     jsid id;
     if (argc != 0) {
@@ -1415,10 +1405,9 @@ obj_unwatch(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 obj_hasOwnProperty(JSContext *cx, uintN argc, Value *vp)
 {
-    JSObject *obj = ToObject(cx, &vp[1]);
-    if (!obj)
-        return false;
-    return js_HasOwnPropertyHelper(cx, obj->getOps()->lookupProperty, argc, vp);
+    JSObject *obj = ComputeThisFromVp(cx, vp);
+    return obj &&
+           js_HasOwnPropertyHelper(cx, obj->getOps()->lookupProperty, argc, vp);
 }
 
 JSBool
@@ -1429,11 +1418,11 @@ js_HasOwnPropertyHelper(JSContext *cx, LookupPropOp lookup, uintN argc,
     if (!ValueToId(cx, argc != 0 ? vp[2] : UndefinedValue(), &id))
         return JS_FALSE;
 
-    JSObject *obj = ToObject(cx, &vp[1]);
-    if (!obj)
-        return false;
+    JSObject *obj = ComputeThisFromVp(cx, vp);
     JSObject *obj2;
     JSProperty *prop;
+    if (!obj)
+        return false;
     if (obj->isProxy()) {
         bool has;
         if (!JSProxy::hasOwn(cx, obj, id, &has))
@@ -1495,42 +1484,28 @@ js_HasOwnProperty(JSContext *cx, LookupPropOp lookup, JSObject *obj, jsid id,
     return true;
 }
 
-/* ES5 15.2.4.6. */
+/* Proposed ECMA 15.2.4.6. */
 static JSBool
 obj_isPrototypeOf(JSContext *cx, uintN argc, Value *vp)
 {
-    /* Step 1. */
-    if (argc < 1 || !vp[2].isObject()) {
-        vp->setBoolean(false);
-        return true;
-    }
-
-    /* Step 2. */
-    JSObject *obj = ToObject(cx, &vp[1]);
+    JSObject *obj = ComputeThisFromVp(cx, vp);
     if (!obj)
-        return false;
-
-    /* Step 3. */
-    vp->setBoolean(js_IsDelegate(cx, obj, vp[2]));
-    return true;
+        return JS_FALSE;
+    const Value &v = argc != 0 ? vp[2] : UndefinedValue();
+    vp->setBoolean(js_IsDelegate(cx, obj, v));
+    return JS_TRUE;
 }
 
-/* ES5 15.2.4.7. */
+/* Proposed ECMA 15.2.4.7. */
 static JSBool
 obj_propertyIsEnumerable(JSContext *cx, uintN argc, Value *vp)
 {
-    /* Step 1. */
     jsid id;
     if (!ValueToId(cx, argc != 0 ? vp[2] : UndefinedValue(), &id))
-        return false;
+        return JS_FALSE;
 
-    /* Step 2. */
-    JSObject *obj = ToObject(cx, &vp[1]);
-    if (!obj)
-        return false;
-
-    /* Steps 3-5. */
-    return js_PropertyIsEnumerable(cx, obj, id, vp);
+    JSObject *obj = ComputeThisFromVp(cx, vp);
+    return obj && js_PropertyIsEnumerable(cx, obj, id, vp);
 }
 
 JSBool
@@ -1586,10 +1561,6 @@ const char js_lookupSetter_str[] = "__lookupSetter__";
 JS_FRIEND_API(JSBool)
 js_obj_defineGetter(JSContext *cx, uintN argc, Value *vp)
 {
-    if (!BoxThisForVp(cx, vp))
-        return false;
-    JSObject *obj = &vp[1].toObject();
-
     if (argc <= 1 || !js_IsCallable(vp[3])) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_BAD_GETTER_OR_SETTER,
@@ -1601,7 +1572,8 @@ js_obj_defineGetter(JSContext *cx, uintN argc, Value *vp)
     jsid id;
     if (!ValueToId(cx, vp[2], &id))
         return JS_FALSE;
-    if (!CheckRedeclaration(cx, obj, id, JSPROP_GETTER, NULL, NULL))
+    JSObject *obj = ComputeThisFromVp(cx, vp);
+    if (!obj || !CheckRedeclaration(cx, obj, id, JSPROP_GETTER, NULL, NULL))
         return JS_FALSE;
     /*
      * Getters and setters are just like watchpoints from an access
@@ -1619,10 +1591,6 @@ js_obj_defineGetter(JSContext *cx, uintN argc, Value *vp)
 JS_FRIEND_API(JSBool)
 js_obj_defineSetter(JSContext *cx, uintN argc, Value *vp)
 {
-    if (!BoxThisForVp(cx, vp))
-        return false;
-    JSObject *obj = &vp[1].toObject();
-
     if (argc <= 1 || !js_IsCallable(vp[3])) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_BAD_GETTER_OR_SETTER,
@@ -1634,7 +1602,8 @@ js_obj_defineSetter(JSContext *cx, uintN argc, Value *vp)
     jsid id;
     if (!ValueToId(cx, vp[2], &id))
         return JS_FALSE;
-    if (!CheckRedeclaration(cx, obj, id, JSPROP_SETTER, NULL, NULL))
+    JSObject *obj = ComputeThisFromVp(cx, vp);
+    if (!obj || !CheckRedeclaration(cx, obj, id, JSPROP_SETTER, NULL, NULL))
         return JS_FALSE;
     /*
      * Getters and setters are just like watchpoints from an access
@@ -1655,12 +1624,10 @@ obj_lookupGetter(JSContext *cx, uintN argc, Value *vp)
     jsid id;
     if (!ValueToId(cx, argc != 0 ? vp[2] : UndefinedValue(), &id))
         return JS_FALSE;
-    JSObject *obj = ToObject(cx, &vp[1]);
-    if (!obj)
-        return JS_FALSE;
+    JSObject *obj = ComputeThisFromVp(cx, vp);
     JSObject *pobj;
     JSProperty *prop;
-    if (!obj->lookupProperty(cx, id, &pobj, &prop))
+    if (!obj || !obj->lookupProperty(cx, id, &pobj, &prop))
         return JS_FALSE;
     vp->setUndefined();
     if (prop) {
@@ -1679,12 +1646,10 @@ obj_lookupSetter(JSContext *cx, uintN argc, Value *vp)
     jsid id;
     if (!ValueToId(cx, argc != 0 ? vp[2] : UndefinedValue(), &id))
         return JS_FALSE;
-    JSObject *obj = ToObject(cx, &vp[1]);
-    if (!obj)
-        return JS_FALSE;
+    JSObject *obj = ComputeThisFromVp(cx, vp);
     JSObject *pobj;
     JSProperty *prop;
-    if (!obj->lookupProperty(cx, id, &pobj, &prop))
+    if (!obj || !obj->lookupProperty(cx, id, &pobj, &prop))
         return JS_FALSE;
     vp->setUndefined();
     if (prop) {
@@ -5898,6 +5863,28 @@ HasNativeMethod(JSObject *obj, jsid methodid, Native native)
     return funobj;
 }
 
+/*
+ * When we have an object of a builtin class, we don't quite know what its
+ * valueOf/toString methods are, since these methods may have been overwritten
+ * or shadowed. However, we can still do better than js_TryMethod by
+ * hard-coding the necessary properties for us to find the native we expect.
+ *
+ * TODO: a per-thread shape-based cache would be faster and simpler.
+ */
+static JS_ALWAYS_INLINE bool
+ClassMethodIsNative(JSContext *cx, JSObject *obj, Class *clasp, jsid methodid,
+                    Native native)
+{
+    JS_ASSERT(obj->getClass() == clasp);
+
+    if (HasNativeMethod(obj, methodid, native))
+        return true;
+
+    JSObject *pobj = obj->getProto();
+    return pobj && pobj->getClass() == clasp &&
+           HasNativeMethod(pobj, methodid, native);
+}
+
 bool
 DefaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp)
 {
@@ -6180,9 +6167,10 @@ js_SetClassPrototype(JSContext *cx, JSObject *ctor, JSObject *proto, uintN attrs
                                  ObjectOrNullValue(ctor), PropertyStub, PropertyStub, 0);
 }
 
-JSObject *
-PrimitiveToObject(JSContext *cx, const Value &v)
+JSBool
+js_PrimitiveToObject(JSContext *cx, Value *vp)
 {
+    Value v = *vp;
     JS_ASSERT(v.isPrimitive());
 
     Class *clasp;
@@ -6197,21 +6185,11 @@ PrimitiveToObject(JSContext *cx, const Value &v)
 
     JSObject *obj = NewBuiltinClassInstance(cx, clasp);
     if (!obj)
-        return NULL;
+        return JS_FALSE;
 
     obj->setPrimitiveThis(v);
-    return obj;
-}
-
-JSBool
-js_PrimitiveToObject(JSContext *cx, Value *vp)
-{
-    JSObject *obj = PrimitiveToObject(cx, *vp);
-    if (!obj)
-        return false;
-
     vp->setObject(*obj);
-    return true;
+    return JS_TRUE;
 }
 
 JSBool
@@ -6224,35 +6202,13 @@ js_ValueToObjectOrNull(JSContext *cx, const Value &v, JSObject **objp)
     } else if (v.isUndefined()) {
         obj = NULL;
     } else {
-        obj = PrimitiveToObject(cx, v);
-        if (!obj)
-            return false;
+        Value tmp = v;
+        if (!js_PrimitiveToObject(cx, &tmp))
+            return JS_FALSE;
+        obj = &tmp.toObject();
     }
     *objp = obj;
-    return true;
-}
-
-namespace js {
-
-/* Callers must handle the already-object case . */
-JSObject *
-ToObjectSlow(JSContext *cx, Value *vp)
-{
-    JS_ASSERT(!vp->isMagic());
-    JS_ASSERT(!vp->isObject());
-
-    if (vp->isNullOrUndefined()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_CONVERT_TO,
-                            vp->isNull() ? "null" : "undefined", "object");
-        return NULL;
-    }
-
-    JSObject *obj = PrimitiveToObject(cx, *vp);
-    if (obj)
-        vp->setObject(*obj);
-    return obj;
-}
-
+    return JS_TRUE;
 }
 
 JSObject *
@@ -6298,7 +6254,7 @@ js_TryMethod(JSContext *cx, JSObject *obj, JSAtom *atom,
 
     if (fval.isPrimitive())
         return JS_TRUE;
-    return ExternalInvoke(cx, ObjectValue(*obj), fval, argc, argv, rval);
+    return ExternalInvoke(cx, obj, fval, argc, argv, rval);
 }
 
 #if JS_HAS_XDR

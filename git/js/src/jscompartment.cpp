@@ -64,19 +64,10 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     data(NULL),
     marked(false),
     active(false),
-#ifdef JS_METHODJIT
-    jaegerCompartment(NULL),
-#endif
     debugMode(rt->debugMode),
-#if ENABLE_YARR_JIT
-    regExpAllocator(NULL),
-#endif
     mathCache(NULL)
 {
     JS_INIT_CLIST(&scripts);
-
-    // InitJIT expects this area to be zero'd
-    PodZero(&traceMonitor);
 
     PodArrayZero(scriptsToGC);
 }
@@ -90,7 +81,6 @@ JSCompartment::~JSCompartment()
 #if defined JS_TRACER
     FinishJIT(&traceMonitor);
 #endif
-
 #ifdef JS_METHODJIT
     js_delete(jaegerCompartment);
 #endif
@@ -134,6 +124,9 @@ JSCompartment::init()
 
 #ifdef JS_METHODJIT
     if (!(jaegerCompartment = js_new<mjit::JaegerCompartment>())) {
+#ifdef JS_TRACER
+        FinishJIT(&traceMonitor);
+#endif
         return false;
     }
     return jaegerCompartment->Initialize();

@@ -7659,6 +7659,9 @@ SetMaxCodeCacheBytes(JSContext* cx, uint32 bytes)
 bool
 InitJIT(TraceMonitor *tm)
 {
+    // InitJIT expects this area to be zero'd
+    memset(tm, 0, sizeof(*tm));
+
 #if defined JS_JIT_SPEW
     tm->profAlloc = NULL;
     /* Set up debug logging. */
@@ -7669,8 +7672,7 @@ InitJIT(TraceMonitor *tm)
     /* Set up fragprofiling, if required. */
     if (LogController.lcbits & LC_FragProfile) {
         tm->profAlloc = js_new<VMAllocator>((char*)NULL, 0); /* no reserve needed in debug builds */
-        if (!tm->profAlloc)
-            goto error;
+        JS_ASSERT(tm->profAlloc);
         tm->profTab = new (*tm->profAlloc) FragStatsMap(*tm->profAlloc);
     }
     tm->lastFragID = 0;
@@ -7705,7 +7707,7 @@ InitJIT(TraceMonitor *tm)
     }
 
     #define CHECK_ALLOC(lhs, rhs) \
-        do { lhs = (rhs); if (!lhs) goto error; } while (0)
+        do { lhs = (rhs); if (!lhs) return false; } while (0)
 
     CHECK_ALLOC(tm->oracle, js_new<Oracle>());
 
@@ -7713,11 +7715,11 @@ InitJIT(TraceMonitor *tm)
     
     CHECK_ALLOC(tm->recordAttempts, js_new<RecordAttemptMap>());
     if (!tm->recordAttempts->init(PC_HASH_COUNT))
-        goto error;
+        return false;
 
     CHECK_ALLOC(tm->loopProfiles, js_new<LoopProfileMap>());
     if (!tm->loopProfiles->init(PC_HASH_COUNT))
-        goto error;
+        return false;
 
     tm->flushEpoch = 0;
     
@@ -7767,19 +7769,10 @@ InitJIT(TraceMonitor *tm)
 #endif
 
     if (!tm->tracedScripts.init())
-        goto error;
+        return false;
     return true;
-
-error:
-    /* On error, don't rely on the compartment destructor being called. */
-    FinishJIT(tm);
-    return false;
 }
 
-/*
- * NB: FinishJIT needs to work even when InitJIT fails. Each pointer must be
- * checked before it's dereferenced, as it may not have been allocated.
- */
 void
 FinishJIT(TraceMonitor *tm)
 {
@@ -7822,10 +7815,9 @@ FinishJIT(TraceMonitor *tm)
     // Recover profiling data from expiring Fragments, and display
     // final results.
     if (LogController.lcbits & LC_FragProfile) {
-
-        for (Seq<Fragment*>* f = tm->branches; f; f = f->tail)
+        for (Seq<Fragment*>* f = tm->branches; f; f = f->tail) {
             FragProfiling_FragFinalizer(f->head, tm);
-
+        }
         for (size_t i = 0; i < FRAGMENT_TABLE_SIZE; ++i) {
             for (TreeFragment *f = tm->vmfragments[i]; f; f = f->next) {
                 JS_ASSERT(f->root == f);
@@ -7833,9 +7825,7 @@ FinishJIT(TraceMonitor *tm)
                     FragProfiling_FragFinalizer(p, tm);
             }
         }
-
-        if (tm->profTab)
-            FragProfiling_showResults(tm);
+        FragProfiling_showResults(tm);
         js_delete(tm->profAlloc);
 
     } else {
@@ -7866,9 +7856,6 @@ FinishJIT(TraceMonitor *tm)
 
     js_delete(tm->cachedTempTypeMap);
     tm->cachedTempTypeMap = NULL;
-
-    /* FinishJIT may be called more than once. Make sure we don't double-free. */
-    PodZero(tm);
 }
 
 JS_REQUIRES_STACK void

@@ -1,3 +1,3 @@
-this.__defineGetter__('x', Float32Array);
+__defineGetter__('x', Float32Array);
 with(this)
     x;
