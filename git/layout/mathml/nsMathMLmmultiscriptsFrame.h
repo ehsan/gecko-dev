@@ -43,7 +43,7 @@ public:
   ScriptIncrement(nsIFrame* aFrame) MOZ_OVERRIDE;
 
 protected:
-  explicit nsMathMLmmultiscriptsFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
+  nsMathMLmmultiscriptsFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmmultiscriptsFrame();
   
 

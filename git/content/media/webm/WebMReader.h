@@ -104,7 +104,7 @@ class WebMPacketQueue : private nsDeque {
 class WebMReader : public MediaDecoderReader
 {
 public:
-  explicit WebMReader(AbstractMediaDecoder* aDecoder);
+  WebMReader(AbstractMediaDecoder* aDecoder);
 
 protected:
   ~WebMReader();

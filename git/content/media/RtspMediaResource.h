@@ -206,7 +206,7 @@ public:
   {
     ~Listener() {}
   public:
-    explicit Listener(RtspMediaResource* aResource) : mResource(aResource) {}
+    Listener(RtspMediaResource* aResource) : mResource(aResource) {}
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIINTERFACEREQUESTOR

@@ -13,7 +13,7 @@ class nsGfxCheckboxControlFrame : public nsFormControlFrame
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsGfxCheckboxControlFrame(nsStyleContext* aContext);
+  nsGfxCheckboxControlFrame(nsStyleContext* aContext);
   virtual ~nsGfxCheckboxControlFrame();
 
 #ifdef DEBUG_FRAME_DUMP

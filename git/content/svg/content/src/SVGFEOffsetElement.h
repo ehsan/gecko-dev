@@ -23,7 +23,7 @@ class SVGFEOffsetElement : public SVGFEOffsetElementBase
   friend nsresult (::NS_NewSVGFEOffsetElement(nsIContent **aResult,
                                               already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
 protected:
-  explicit SVGFEOffsetElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEOffsetElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGFEOffsetElementBase(aNodeInfo)
   {
   }

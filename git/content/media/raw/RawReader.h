@@ -14,7 +14,7 @@ namespace mozilla {
 class RawReader : public MediaDecoderReader
 {
 public:
-  explicit RawReader(AbstractMediaDecoder* aDecoder);
+  RawReader(AbstractMediaDecoder* aDecoder);
 
 protected:
   ~RawReader();

@@ -24,7 +24,7 @@ class nsSVGOuterSVGFrame MOZ_FINAL : public nsSVGOuterSVGFrameBase,
   friend nsContainerFrame*
   NS_NewSVGOuterSVGFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  explicit nsSVGOuterSVGFrame(nsStyleContext* aContext);
+  nsSVGOuterSVGFrame(nsStyleContext* aContext);
 
 public:
   NS_DECL_QUERYFRAME
@@ -241,7 +241,7 @@ class nsSVGOuterSVGAnonChildFrame
   NS_NewSVGOuterSVGAnonChildFrame(nsIPresShell* aPresShell,
                                   nsStyleContext* aContext);
 
-  explicit nsSVGOuterSVGAnonChildFrame(nsStyleContext* aContext)
+  nsSVGOuterSVGAnonChildFrame(nsStyleContext* aContext)
     : nsSVGOuterSVGAnonChildFrameBase(aContext)
   {}
 

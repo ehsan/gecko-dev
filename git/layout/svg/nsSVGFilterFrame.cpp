@@ -31,7 +31,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGFilterFrame)
 class MOZ_STACK_CLASS nsSVGFilterFrame::AutoFilterReferencer
 {
 public:
-  explicit AutoFilterReferencer(nsSVGFilterFrame *aFrame MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+  AutoFilterReferencer(nsSVGFilterFrame *aFrame MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
     : mFrame(aFrame)
   {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;

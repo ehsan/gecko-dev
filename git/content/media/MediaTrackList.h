@@ -28,7 +28,7 @@ class MediaTrackList;
 class MediaTrackListListener
 {
 public:
-  explicit MediaTrackListListener(MediaTrackList* aMediaTrackList)
+  MediaTrackListListener(MediaTrackList* aMediaTrackList)
     : mMediaTrackList(aMediaTrackList) {};
 
   ~MediaTrackListListener()

@@ -454,7 +454,7 @@ struct NodeMatchContext;
 
 class RuleHash {
 public:
-  explicit RuleHash(bool aQuirksMode);
+  RuleHash(bool aQuirksMode);
   ~RuleHash();
   void AppendRule(const RuleSelectorPair &aRuleInfo);
   void EnumerateAllRules(Element* aElement, ElementDependentRuleProcessorData* aData,
@@ -2720,7 +2720,7 @@ nsCSSRuleProcessor::HasDocumentStateDependentStyle(StateRuleProcessorData* aData
 }
 
 struct AttributeEnumData {
-  explicit AttributeEnumData(AttributeRuleProcessorData *aData)
+  AttributeEnumData(AttributeRuleProcessorData *aData)
     : data(aData), change(nsRestyleHint(0)) {}
 
   AttributeRuleProcessorData *data;
@@ -3425,7 +3425,7 @@ static int CompareWeightData(const void* aArg1, const void* aArg2,
 
 
 struct FillWeightArrayData {
-  explicit FillWeightArrayData(PerWeightData* aArrayData) :
+  FillWeightArrayData(PerWeightData* aArrayData) :
     mIndex(0),
     mWeightArray(aArrayData)
   {

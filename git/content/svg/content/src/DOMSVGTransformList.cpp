@@ -83,7 +83,7 @@ DOMSVGTransformList::WrapObject(JSContext *cx)
 class MOZ_STACK_CLASS AutoChangeTransformListNotifier
 {
 public:
-  explicit AutoChangeTransformListNotifier(DOMSVGTransformList* aTransformList MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+  AutoChangeTransformListNotifier(DOMSVGTransformList* aTransformList MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
     : mTransformList(aTransformList)
   {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;

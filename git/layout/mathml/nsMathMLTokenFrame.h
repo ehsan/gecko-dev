@@ -59,7 +59,7 @@ public:
         nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
 
 protected:
-  explicit nsMathMLTokenFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
+  nsMathMLTokenFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLTokenFrame();
 
   void MarkTextFramesAsTokenMathML();

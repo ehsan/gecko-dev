@@ -1486,7 +1486,7 @@ public:
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
 
-  explicit AsyncScroll(nsPoint aStartPos)
+  AsyncScroll(nsPoint aStartPos)
     : mIsFirstIteration(true)
     , mStartPos(aStartPos)
     , mCallee(nullptr)

@@ -27,7 +27,7 @@ class SpeechSynthesis MOZ_FINAL : public nsISupports,
                                   public nsWrapperCache
 {
 public:
-  explicit SpeechSynthesis(nsPIDOMWindow* aParent);
+  SpeechSynthesis(nsPIDOMWindow* aParent);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(SpeechSynthesis)

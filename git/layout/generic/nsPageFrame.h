@@ -57,7 +57,7 @@ public:
                          nsPoint aPt);
 
 protected:
-  explicit nsPageFrame(nsStyleContext* aContext);
+  nsPageFrame(nsStyleContext* aContext);
   virtual ~nsPageFrame();
 
   typedef enum {
@@ -101,7 +101,7 @@ class nsPageBreakFrame : public nsLeafFrame
 {
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsPageBreakFrame(nsStyleContext* aContext);
+  nsPageBreakFrame(nsStyleContext* aContext);
   ~nsPageBreakFrame();
 
   virtual void Reflow(nsPresContext*          aPresContext,

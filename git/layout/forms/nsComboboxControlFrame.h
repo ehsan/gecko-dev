@@ -51,7 +51,7 @@ public:
                                                       nsFrameState aFlags);
   friend class nsComboboxDisplayFrame;
 
-  explicit nsComboboxControlFrame(nsStyleContext* aContext);
+  nsComboboxControlFrame(nsStyleContext* aContext);
   ~nsComboboxControlFrame();
 
   NS_DECL_QUERYFRAME
@@ -223,7 +223,7 @@ protected:
   class RedisplayTextEvent : public nsRunnable {
   public:
     NS_DECL_NSIRUNNABLE
-    explicit RedisplayTextEvent(nsComboboxControlFrame *c) : mControlFrame(c) {}
+    RedisplayTextEvent(nsComboboxControlFrame *c) : mControlFrame(c) {}
     void Revoke() { mControlFrame = nullptr; }
   private:
     nsComboboxControlFrame *mControlFrame;

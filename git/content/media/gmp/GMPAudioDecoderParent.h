@@ -24,7 +24,7 @@ class GMPAudioDecoderParent MOZ_FINAL : public GMPAudioDecoderProxy
 public:
   NS_INLINE_DECL_REFCOUNTING(GMPAudioDecoderParent)
 
-  explicit GMPAudioDecoderParent(GMPParent *aPlugin);
+  GMPAudioDecoderParent(GMPParent *aPlugin);
 
   nsresult Shutdown();
 

@@ -50,7 +50,7 @@ class UpdateDictionnaryHolder {
   private:
     nsEditorSpellCheck* mSpellCheck;
   public:
-    explicit UpdateDictionnaryHolder(nsEditorSpellCheck* esc): mSpellCheck(esc) {
+    UpdateDictionnaryHolder(nsEditorSpellCheck* esc): mSpellCheck(esc) {
       if (mSpellCheck) {
         mSpellCheck->BeginUpdateDictionary();
       }

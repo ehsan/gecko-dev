@@ -321,7 +321,7 @@ ExtendModeToTileMode(ExtendMode aMode)
 template <typename T> class RefPtrSkia {
 public:
   RefPtrSkia() : fObj(NULL) {}
-  explicit RefPtrSkia(T* obj) : fObj(obj) { SkSafeRef(fObj); }
+  RefPtrSkia(T* obj) : fObj(obj) { SkSafeRef(fObj); }
   RefPtrSkia(const RefPtrSkia& o) : fObj(o.fObj) { SkSafeRef(fObj); }
   ~RefPtrSkia() { SkSafeUnref(fObj); }
 

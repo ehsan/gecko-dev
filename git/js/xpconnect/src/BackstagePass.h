@@ -42,7 +42,7 @@ public:
     mGlobal = global;
   }
 
-  explicit BackstagePass(nsIPrincipal *prin) :
+  BackstagePass(nsIPrincipal *prin) :
     mPrincipal(prin)
   {
   }

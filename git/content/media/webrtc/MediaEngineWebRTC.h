@@ -390,7 +390,7 @@ private:
 class MediaEngineWebRTC : public MediaEngine
 {
 public:
-  explicit MediaEngineWebRTC(MediaEnginePrefs &aPrefs);
+  MediaEngineWebRTC(MediaEnginePrefs &aPrefs);
 
   // Clients should ensure to clean-up sources video/audio sources
   // before invoking Shutdown on this class.

@@ -129,7 +129,7 @@ class nsBRNodeFunctor : public nsBoolDomIterFunctor
 class nsEmptyEditableFunctor : public nsBoolDomIterFunctor
 {
   public:
-    explicit nsEmptyEditableFunctor(nsHTMLEditor* editor) : mHTMLEditor(editor) {}
+    nsEmptyEditableFunctor(nsHTMLEditor* editor) : mHTMLEditor(editor) {}
     virtual bool operator()(nsIDOMNode* aNode)  
     {
       if (mHTMLEditor->IsEditable(aNode) &&
@@ -151,7 +151,7 @@ class nsEmptyEditableFunctor : public nsBoolDomIterFunctor
 class nsEditableTextFunctor : public nsBoolDomIterFunctor
 {
   public:
-    explicit nsEditableTextFunctor(nsHTMLEditor* editor) : mHTMLEditor(editor) {}
+    nsEditableTextFunctor(nsHTMLEditor* editor) : mHTMLEditor(editor) {}
     virtual bool operator()(nsIDOMNode* aNode)  
     {
       if (nsEditor::IsTextNode(aNode) && mHTMLEditor->IsEditable(aNode)) 
@@ -5932,7 +5932,7 @@ nsHTMLEditRules::PromoteRange(nsIDOMRange *inRange,
 class nsUniqueFunctor : public nsBoolDomIterFunctor
 {
 public:
-  explicit nsUniqueFunctor(nsCOMArray<nsIDOMNode> &aArray) : mArray(aArray)
+  nsUniqueFunctor(nsCOMArray<nsIDOMNode> &aArray) : mArray(aArray)
   {
   }
   virtual bool operator()(nsIDOMNode* aNode)  // used to build list of all nodes iterator covers

@@ -98,7 +98,7 @@ private:
   };
 
 public:
-  explicit SharedBuffers(float aSampleRate)
+  SharedBuffers(float aSampleRate)
     : mOutputQueue("SharedBuffers::outputQueue")
     , mDelaySoFar(TRACK_TICKS_MAX)
     , mSampleRate(aSampleRate)

@@ -38,8 +38,8 @@ using namespace mozilla;
 
 class MOZ_STACK_CLASS LoadSubScriptOptions : public OptionsBase {
 public:
-    explicit LoadSubScriptOptions(JSContext *cx = xpc_GetSafeJSContext(),
-                                  JSObject *options = nullptr)
+    LoadSubScriptOptions(JSContext *cx = xpc_GetSafeJSContext(),
+                         JSObject *options = nullptr)
         : OptionsBase(cx, options)
         , target(cx)
         , charset(NullString())
@@ -413,7 +413,7 @@ class NotifyPrecompilationCompleteRunnable : public nsRunnable
 public:
     NS_DECL_NSIRUNNABLE
 
-    explicit NotifyPrecompilationCompleteRunnable(ScriptPrecompiler* aPrecompiler)
+    NotifyPrecompilationCompleteRunnable(ScriptPrecompiler* aPrecompiler)
         : mPrecompiler(aPrecompiler)
         , mToken(nullptr)
     {}
@@ -431,7 +431,7 @@ protected:
 /* RAII helper class to send observer notifications */
 class AutoSendObserverNotification {
 public:
-    explicit AutoSendObserverNotification(ScriptPrecompiler* aPrecompiler)
+    AutoSendObserverNotification(ScriptPrecompiler* aPrecompiler)
         : mPrecompiler(aPrecompiler)
     {}
 

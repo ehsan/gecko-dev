@@ -15,7 +15,7 @@ namespace CSF
     class CC_SIPCCDeviceInfo : public CC_DeviceInfo
     {
     private:
-        explicit CC_SIPCCDeviceInfo (cc_deviceinfo_ref_t aDeviceInfo);
+        CC_SIPCCDeviceInfo (cc_deviceinfo_ref_t aDeviceInfo);
         cc_deviceinfo_ref_t deviceinfo_ref;
 
         CSF_DECLARE_WRAP(CC_SIPCCDeviceInfo, cc_deviceinfo_ref_t);

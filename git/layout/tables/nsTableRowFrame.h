@@ -237,7 +237,7 @@ protected:
   /** protected constructor.
     * @see NewFrame
     */
-  explicit nsTableRowFrame(nsStyleContext *aContext);
+  nsTableRowFrame(nsStyleContext *aContext);
 
   void InitChildReflowState(nsPresContext&         aPresContext,
                             const nsSize&           aAvailSize,

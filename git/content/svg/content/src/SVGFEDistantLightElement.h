@@ -22,7 +22,7 @@ class SVGFEDistantLightElement : public SVGFEDistantLightElementBase
   friend nsresult (::NS_NewSVGFEDistantLightElement(nsIContent **aResult,
                                                     already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
 protected:
-  explicit SVGFEDistantLightElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEDistantLightElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGFEDistantLightElementBase(aNodeInfo)
   {
   }

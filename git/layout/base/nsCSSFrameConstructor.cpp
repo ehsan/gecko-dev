@@ -672,7 +672,7 @@ struct nsAbsoluteItems : nsFrameItems {
   // containing block for absolutely positioned elements
   nsContainerFrame* containingBlock;
 
-  explicit nsAbsoluteItems(nsContainerFrame* aContainingBlock);
+  nsAbsoluteItems(nsContainerFrame* aContainingBlock);
 #ifdef DEBUG
   // XXXbz Does this need a debug-only assignment operator that nulls out the
   // childList in the nsAbsoluteItems we're copying?  Introducing a difference

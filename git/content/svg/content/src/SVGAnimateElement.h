@@ -19,7 +19,7 @@ namespace dom {
 class SVGAnimateElement MOZ_FINAL : public SVGAnimationElement
 {
 protected:
-  explicit SVGAnimateElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  SVGAnimateElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
   nsSMILAnimationFunction mAnimationFunction;
   friend nsresult

@@ -273,7 +273,7 @@ class MOZ_STACK_CLASS nsAutoInsertContainerSelNotify
     nsRangeUpdater &mRU;
 
   public:
-    explicit nsAutoInsertContainerSelNotify(nsRangeUpdater &aRangeUpdater) :
+    nsAutoInsertContainerSelNotify(nsRangeUpdater &aRangeUpdater) :
     mRU(aRangeUpdater)
     {
       mRU.WillInsertContainer();

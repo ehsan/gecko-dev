@@ -36,7 +36,7 @@ namespace WebCore {
 
 class DirectConvolver {
 public:
-    explicit DirectConvolver(size_t inputBlockSize);
+    DirectConvolver(size_t inputBlockSize);
 
     void process(const nsTArray<float>* convolutionKernel, const float* sourceP, float* destP, size_t framesToProcess);
 

@@ -26,7 +26,7 @@ namespace mozilla {
             "Arg count/array size out of sync")
 
 #define IMPL_SVGPATHSEG_SUBCLASS_COMMON(segName, segType)                     \
-  explicit DOMSVGPathSeg##segName(const float *aArgs)                         \
+  DOMSVGPathSeg##segName(const float *aArgs)                                  \
     : DOMSVGPathSeg()                                                         \
   {                                                                           \
     CHECK_ARG_COUNT_IN_SYNC(segType);                                         \
@@ -546,7 +546,7 @@ class DOMSVGPathSegLinetoHorizontalAbs
   : public DOMSVGPathSeg
 {
 public:
-  explicit DOMSVGPathSegLinetoHorizontalAbs(float x)
+  DOMSVGPathSegLinetoHorizontalAbs(float x)
     : DOMSVGPathSeg()
   {
     mArgs[0] = x;
@@ -565,7 +565,7 @@ class DOMSVGPathSegLinetoHorizontalRel
   : public DOMSVGPathSeg
 {
 public:
-  explicit DOMSVGPathSegLinetoHorizontalRel(float x)
+  DOMSVGPathSegLinetoHorizontalRel(float x)
     : DOMSVGPathSeg()
   {
     mArgs[0] = x;
@@ -584,7 +584,7 @@ class DOMSVGPathSegLinetoVerticalAbs
   : public DOMSVGPathSeg
 {
 public:
-  explicit DOMSVGPathSegLinetoVerticalAbs(float y)
+  DOMSVGPathSegLinetoVerticalAbs(float y)
     : DOMSVGPathSeg()
   {
     mArgs[0] = y;
@@ -603,7 +603,7 @@ class DOMSVGPathSegLinetoVerticalRel
   : public DOMSVGPathSeg
 {
 public:
-  explicit DOMSVGPathSegLinetoVerticalRel(float y)
+  DOMSVGPathSegLinetoVerticalRel(float y)
     : DOMSVGPathSeg()
   {
     mArgs[0] = y;

@@ -125,7 +125,7 @@ private:
   /** constructor.
     * @param aOrigCell  the table cell frame which will be stored in mOrigCell.
     */
-  explicit CellData(nsTableCellFrame* aOrigCell);  // implemented in nsCellMap.cpp
+  CellData(nsTableCellFrame* aOrigCell);  // implemented in nsCellMap.cpp
 
   /** destructor */
   ~CellData(); // implemented in nsCellMap.cpp
@@ -240,7 +240,7 @@ protected:
 class BCCellData : public CellData
 {
 public:
-  explicit BCCellData(nsTableCellFrame* aOrigCell);
+  BCCellData(nsTableCellFrame* aOrigCell);
   ~BCCellData();
 
   BCData mData;

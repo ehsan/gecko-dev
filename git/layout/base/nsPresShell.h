@@ -440,7 +440,7 @@ protected:
   friend struct RenderingState;
 
   struct RenderingState {
-    explicit RenderingState(PresShell* aPresShell)
+    RenderingState(PresShell* aPresShell)
       : mXResolution(aPresShell->mXResolution)
       , mYResolution(aPresShell->mYResolution)
       , mRenderFlags(aPresShell->mRenderFlags)
@@ -451,7 +451,7 @@ protected:
   };
 
   struct AutoSaveRestoreRenderingState {
-    explicit AutoSaveRestoreRenderingState(PresShell* aPresShell)
+    AutoSaveRestoreRenderingState(PresShell* aPresShell)
       : mPresShell(aPresShell)
       , mOldState(aPresShell)
     {}
@@ -583,13 +583,13 @@ protected:
   class DelayedMouseEvent : public DelayedInputEvent
   {
   public:
-    explicit DelayedMouseEvent(mozilla::WidgetMouseEvent* aEvent);
+    DelayedMouseEvent(mozilla::WidgetMouseEvent* aEvent);
   };
 
   class DelayedKeyEvent : public DelayedInputEvent
   {
   public:
-    explicit DelayedKeyEvent(mozilla::WidgetKeyboardEvent* aEvent);
+    DelayedKeyEvent(mozilla::WidgetKeyboardEvent* aEvent);
   };
 
   // Check if aEvent is a mouse event and record the mouse location for later

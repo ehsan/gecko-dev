@@ -24,7 +24,7 @@ namespace mozilla {
  */
 class TrackUnionStream : public ProcessedMediaStream {
 public:
-  explicit TrackUnionStream(DOMMediaStream* aWrapper) :
+  TrackUnionStream(DOMMediaStream* aWrapper) :
     ProcessedMediaStream(aWrapper),
     mFilterCallback(nullptr)
   {}

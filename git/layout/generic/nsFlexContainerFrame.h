@@ -61,7 +61,7 @@ public:
 
 protected:
   // Protected constructor & destructor
-  explicit nsFlexContainerFrame(nsStyleContext* aContext) :
+  nsFlexContainerFrame(nsStyleContext* aContext) :
     nsFlexContainerFrameSuper(aContext)
   {}
   virtual ~nsFlexContainerFrame();

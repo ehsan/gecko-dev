@@ -752,7 +752,7 @@ nsXPCWrappedJSClass::CleanupPointerTypeObject(const nsXPTType& type,
 class AutoClearPendingException
 {
 public:
-  explicit AutoClearPendingException(JSContext *cx) : mCx(cx) { }
+  AutoClearPendingException(JSContext *cx) : mCx(cx) { }
   ~AutoClearPendingException() { JS_ClearPendingException(mCx); }
 private:
   JSContext* mCx;

@@ -13,7 +13,6 @@
 #include "nsWindowBase.h"
 #include "WinUtils.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/StaticPtr.h"
 #include "mozilla/TextRange.h"
 #include "mozilla/WindowsVersion.h"
 
@@ -134,8 +133,8 @@ public:
 
   static void     CommitComposition(bool aDiscard)
   {
-    NS_ENSURE_TRUE_VOID(sEnabledTextStore);
-    sEnabledTextStore->CommitCompositionInternal(aDiscard);
+    NS_ENSURE_TRUE_VOID(sTsfTextStore);
+    sTsfTextStore->CommitCompositionInternal(aDiscard);
   }
 
   static void SetInputContext(nsWindowBase* aWidget,
@@ -147,28 +146,28 @@ public:
                                 const IMEState& aIMEState);
   static nsresult OnTextChange(const IMENotification& aIMENotification)
   {
-    NS_ENSURE_TRUE(sEnabledTextStore, NS_ERROR_NOT_AVAILABLE);
-    return sEnabledTextStore->OnTextChangeInternal(aIMENotification);
+    NS_ENSURE_TRUE(sTsfTextStore, NS_ERROR_NOT_AVAILABLE);
+    return sTsfTextStore->OnTextChangeInternal(aIMENotification);
   }
 
   static nsresult OnSelectionChange(void)
   {
-    NS_ENSURE_TRUE(sEnabledTextStore, NS_ERROR_NOT_AVAILABLE);
-    return sEnabledTextStore->OnSelectionChangeInternal();
+    NS_ENSURE_TRUE(sTsfTextStore, NS_ERROR_NOT_AVAILABLE);
+    return sTsfTextStore->OnSelectionChangeInternal();
   }
 
   static nsresult OnLayoutChange()
   {
-    NS_ENSURE_TRUE(sEnabledTextStore, NS_ERROR_NOT_AVAILABLE);
-    return sEnabledTextStore->OnLayoutChangeInternal();
+    NS_ENSURE_TRUE(sTsfTextStore, NS_ERROR_NOT_AVAILABLE);
+    return sTsfTextStore->OnLayoutChangeInternal();
   }
 
   static nsresult OnMouseButtonEvent(const IMENotification& aIMENotification)
   {
-    if (NS_WARN_IF(!sEnabledTextStore)) {
+    if (NS_WARN_IF(!sTsfTextStore)) {
       return NS_ERROR_NOT_AVAILABLE;
     }
-    return sEnabledTextStore->OnMouseButtonEventInternal(aIMENotification);
+    return sTsfTextStore->OnMouseButtonEventInternal(aIMENotification);
   }
 
   static nsIMEUpdatePreference GetIMEUpdatePreference();
@@ -197,12 +196,12 @@ public:
 
   static void*    GetTextStore()
   {
-    return static_cast<void*>(sEnabledTextStore);
+    return static_cast<void*>(sTsfTextStore);
   }
 
   static bool     ThinksHavingFocus()
   {
-    return (sEnabledTextStore && sEnabledTextStore->mContext);
+    return (sTsfTextStore && sTsfTextStore->mContext);
   }
 
   static bool     IsInTSFMode()
@@ -212,21 +211,20 @@ public:
 
   static bool     IsComposing()
   {
-    return (sEnabledTextStore && sEnabledTextStore->mComposition.IsComposing());
+    return (sTsfTextStore && sTsfTextStore->mComposition.IsComposing());
   }
 
   static bool     IsComposingOn(nsWindowBase* aWidget)
   {
-    return (IsComposing() && sEnabledTextStore->mWidget == aWidget);
+    return (IsComposing() && sTsfTextStore->mWidget == aWidget);
   }
 
   static bool     IsIMM_IME()
   {
-    if (!sEnabledTextStore ||
-        !sEnabledTextStore->EnsureInitActiveTIPKeyboard()) {
+    if (!sTsfTextStore || !sTsfTextStore->EnsureInitActiveTIPKeyboard()) {
       return IsIMM_IME(::GetKeyboardLayout(0));
     }
-    return sEnabledTextStore->mIsIMM_IME;
+    return sTsfTextStore->mIsIMM_IME;
   }
 
   static bool     IsIMM_IME(HKL aHKL)
@@ -785,11 +783,10 @@ protected:
 
   // TSF client ID for the current application
   static DWORD          sTsfClientId;
-  // Current text store which is managing a keyboard enabled editor (i.e.,
-  // editable editor).  Currently only ONE nsTextStore instance is ever used,
+  // Current text store. Currently only ONE nsTextStore instance is ever used,
   // although Create is called when an editor is focused and Destroy called
   // when the focused editor is blurred.
-  static mozilla::StaticRefPtr<nsTextStore> sEnabledTextStore;
+  static nsTextStore*   sTsfTextStore;
 
   // For IME (keyboard) disabled state:
   static ITfDocumentMgr* sTsfDisabledDocumentMgr;

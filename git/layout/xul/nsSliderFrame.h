@@ -28,7 +28,7 @@ public:
 
   nsSliderFrame* mSlider;
 
-  explicit nsSliderMediator(nsSliderFrame* aSlider) {  mSlider = aSlider; }
+  nsSliderMediator(nsSliderFrame* aSlider) {  mSlider = aSlider; }
 
   virtual void SetSlider(nsSliderFrame* aSlider) { mSlider = aSlider; }
 

@@ -43,7 +43,7 @@ public:
   virtual nsQueryFrame::FrameIID GetFrameId() = 0;
 
 protected:
-  explicit nsMathMLSelectedFrame(nsStyleContext* aContext) :
+  nsMathMLSelectedFrame(nsStyleContext* aContext) :
     nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLSelectedFrame();
   

@@ -24,7 +24,7 @@ struct SVGBoundingBoxOptions;
 class SVGTransformableElement : public nsSVGElement
 {
 public:
-  explicit SVGTransformableElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGTransformableElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : nsSVGElement(aNodeInfo) {}
   virtual ~SVGTransformableElement() {}
 

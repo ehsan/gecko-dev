@@ -117,7 +117,7 @@ class FakeEncoderTask : public GMPTask {
 
 class FakeVideoEncoder : public GMPVideoEncoder {
  public:
-  explicit FakeVideoEncoder (GMPVideoHost* hostAPI) :
+  FakeVideoEncoder (GMPVideoHost* hostAPI) :
     host_ (hostAPI),
     callback_ (NULL) {}
 
@@ -271,7 +271,7 @@ class FakeDecoderTask : public GMPTask {
 
 class FakeVideoDecoder : public GMPVideoDecoder {
  public:
-  explicit FakeVideoDecoder (GMPVideoHost* hostAPI) :
+  FakeVideoDecoder (GMPVideoHost* hostAPI) :
     host_ (hostAPI),
     callback_ (NULL) {}
 

@@ -46,7 +46,7 @@ public:
 #endif
 
 protected:
-  explicit nsXULLabelFrame(nsStyleContext *aContext) : nsBlockFrame(aContext) {}
+  nsXULLabelFrame(nsStyleContext *aContext) : nsBlockFrame(aContext) {}
 
   nsresult RegUnregAccessKey(bool aDoReg);
 };

@@ -25,7 +25,7 @@ class nsTransactionItem MOZ_FINAL
 
 public:
 
-  explicit nsTransactionItem(nsITransaction *aTransaction);
+  nsTransactionItem(nsITransaction *aTransaction);
   NS_METHOD_(MozExternalRefCountType) AddRef();
   NS_METHOD_(MozExternalRefCountType) Release();
 

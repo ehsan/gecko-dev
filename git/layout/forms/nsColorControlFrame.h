@@ -53,7 +53,7 @@ public:
   nsresult UpdateColor();
 
 private:
-  explicit nsColorControlFrame(nsStyleContext* aContext);
+  nsColorControlFrame(nsStyleContext* aContext);
 
   nsCOMPtr<Element> mColorContent;
 };

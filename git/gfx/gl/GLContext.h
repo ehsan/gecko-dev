@@ -624,7 +624,7 @@ public:
         bool mHasBeenChecked;
 
     public:
-        explicit ScopedLocalErrorCheck(GLContext* gl)
+        ScopedLocalErrorCheck(GLContext* gl)
             : mGL(gl)
             , mHasBeenChecked(false)
         {

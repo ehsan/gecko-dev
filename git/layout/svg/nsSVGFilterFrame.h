@@ -36,7 +36,7 @@ class nsSVGFilterFrame : public nsSVGFilterFrameBase
   friend nsIFrame*
   NS_NewSVGFilterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  explicit nsSVGFilterFrame(nsStyleContext* aContext)
+  nsSVGFilterFrame(nsStyleContext* aContext)
     : nsSVGFilterFrameBase(aContext),
       mLoopFlag(false),
       mNoHRefURI(false)

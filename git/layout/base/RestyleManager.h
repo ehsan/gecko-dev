@@ -37,7 +37,7 @@ public:
 
   typedef mozilla::dom::Element Element;
 
-  explicit RestyleManager(nsPresContext* aPresContext);
+  RestyleManager(nsPresContext* aPresContext);
 
 private:
   // Private destructor, to discourage deletion outside of Release():

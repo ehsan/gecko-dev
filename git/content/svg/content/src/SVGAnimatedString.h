@@ -15,7 +15,7 @@ class SVGAnimatedString : public nsISupports,
                           public nsWrapperCache
 {
 public:
-  explicit SVGAnimatedString(nsSVGElement* aSVGElement)
+  SVGAnimatedString(nsSVGElement* aSVGElement)
     : mSVGElement(aSVGElement)
   {
     SetIsDOMBinding();

@@ -12,7 +12,7 @@
 class inSearchLoop
 {
 public:
-  explicit inSearchLoop(inISearchProcess* aSearchProcess);
+  inSearchLoop(inISearchProcess* aSearchProcess);
   virtual ~inSearchLoop();
 
   nsresult Start();

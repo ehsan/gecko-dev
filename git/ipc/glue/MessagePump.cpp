@@ -45,7 +45,7 @@ class DoWorkRunnable MOZ_FINAL : public nsICancelableRunnable,
                                  public nsITimerCallback
 {
 public:
-  explicit DoWorkRunnable(MessagePump* aPump)
+  DoWorkRunnable(MessagePump* aPump)
   : mPump(aPump)
   {
     MOZ_ASSERT(aPump);

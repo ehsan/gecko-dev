@@ -65,7 +65,7 @@ public:
 
 protected:
 
-  explicit nsGridLayout2(nsIPresShell* aShell);
+  nsGridLayout2(nsIPresShell* aShell);
   virtual ~nsGridLayout2();
   nsGrid mGrid;
 

@@ -57,7 +57,7 @@ class Fake_AudioGenerator {
  public:
   typedef mozilla::DOMMediaStream DOMMediaStream;
 
-  explicit Fake_AudioGenerator(DOMMediaStream* aStream) : mStream(aStream), mCount(0) {
+Fake_AudioGenerator(DOMMediaStream* aStream) : mStream(aStream), mCount(0) {
     mTimer = do_CreateInstance("@mozilla.org/timer;1");
     MOZ_ASSERT(mTimer);
 
@@ -99,7 +99,7 @@ class Fake_VideoGenerator {
   typedef mozilla::DOMMediaStream DOMMediaStream;
   typedef mozilla::gfx::IntSize IntSize;
 
-  explicit Fake_VideoGenerator(DOMMediaStream* aStream) {
+  Fake_VideoGenerator(DOMMediaStream* aStream) {
     mStream = aStream;
     mCount = 0;
     mTimer = do_CreateInstance("@mozilla.org/timer;1");
@@ -289,7 +289,7 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
   ~PeerConnectionMedia() {}
 
  public:
-  explicit PeerConnectionMedia(PeerConnectionImpl *parent);
+  PeerConnectionMedia(PeerConnectionImpl *parent);
 
   nsresult Init(const std::vector<mozilla::NrIceStunServer>& stun_servers,
                 const std::vector<mozilla::NrIceTurnServer>& turn_servers);

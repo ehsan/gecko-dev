@@ -23,7 +23,7 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsProgressFrame(nsStyleContext* aContext);
+  nsProgressFrame(nsStyleContext* aContext);
   virtual ~nsProgressFrame();
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;

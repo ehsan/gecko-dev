@@ -92,7 +92,7 @@ public:
   }
 
 protected:
-  explicit nsMathMLmfencedFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
+  nsMathMLmfencedFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmfencedFrame();
   
   nsMathMLChar* mOpenChar;

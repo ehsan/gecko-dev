@@ -34,7 +34,7 @@ namespace mozilla { class WritingMode; }
  */
 struct nsFrameContinuationState : public nsVoidPtrHashKey
 {
-  explicit nsFrameContinuationState(const void *aFrame) : nsVoidPtrHashKey(aFrame) {}
+  nsFrameContinuationState(const void *aFrame) : nsVoidPtrHashKey(aFrame) {}
 
   /**
    * The first visual frame in the continuation chain containing this frame, or

@@ -71,7 +71,7 @@ class nsCertOverrideEntry MOZ_FINAL : public PLDHashEntryHdr
     typedef const char* KeyTypePointer;
 
     // do nothing with aHost - we require mHead to be set before we're live!
-    explicit nsCertOverrideEntry(KeyTypePointer aHostWithPortUTF8)
+    nsCertOverrideEntry(KeyTypePointer aHostWithPortUTF8)
     {
     }
 

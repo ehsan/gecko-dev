@@ -213,7 +213,7 @@ protected:
 
 class VorbisState : public OggCodecState {
 public:
-  explicit VorbisState(ogg_page* aBosPage);
+  VorbisState(ogg_page* aBosPage);
   virtual ~VorbisState();
 
   CodecType GetType() { return TYPE_VORBIS; }
@@ -286,7 +286,7 @@ int TheoraVersion(th_info* info,
 
 class TheoraState : public OggCodecState {
 public:
-  explicit TheoraState(ogg_page* aBosPage);
+  TheoraState(ogg_page* aBosPage);
   virtual ~TheoraState();
 
   CodecType GetType() { return TYPE_THEORA; }
@@ -325,7 +325,7 @@ private:
 class OpusState : public OggCodecState {
 #ifdef MOZ_OPUS
 public:
-  explicit OpusState(ogg_page* aBosPage);
+  OpusState(ogg_page* aBosPage);
   virtual ~OpusState();
 
   CodecType GetType() { return TYPE_OPUS; }
@@ -384,7 +384,7 @@ private:
 
 class SkeletonState : public OggCodecState {
 public:
-  explicit SkeletonState(ogg_page* aBosPage);
+  SkeletonState(ogg_page* aBosPage);
   ~SkeletonState();
   CodecType GetType() { return TYPE_SKELETON; }
   bool DecodeHeader(ogg_packet* aPacket);

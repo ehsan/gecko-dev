@@ -583,7 +583,7 @@ protected:
   /** protected constructor. 
     * @see NewFrame
     */
-  explicit nsTableFrame(nsStyleContext* aContext);
+  nsTableFrame(nsStyleContext* aContext);
 
   /** destructor, responsible for mColumnLayoutData */
   virtual ~nsTableFrame();
@@ -983,8 +983,8 @@ inline void nsTableFrame::SetContinuousLeftBCBorderWidth(nscoord aValue)
 class nsTableIterator
 {
 public:
-  explicit nsTableIterator(nsIFrame& aSource);
-  explicit nsTableIterator(nsFrameList& aSource);
+  nsTableIterator(nsIFrame& aSource);
+  nsTableIterator(nsFrameList& aSource);
   nsIFrame* First();
   nsIFrame* Next();
   bool      IsLeftToRight();
