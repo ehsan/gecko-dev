@@ -708,6 +708,8 @@ pref("wap.UAProf.url", "");
 pref("wap.UAProf.tagname", "x-wap-profile");
 
 pref("layout.imagevisibility.enabled", false);
+pref("layout.imagevisibility.numscrollportwidths", 1);
+pref("layout.imagevisibility.numscrollportheights", 1);
 
 // Enable native identity (persona/browserid)
 pref("dom.identity.enabled", true);
