@@ -64,6 +64,9 @@
         role: ROLE_PAGETABLIST,
         children: [
           {
+            role: ROLE_MENUPOPUP
+          },
+          {
             role: ROLE_PAGETAB,
             children: [
               {

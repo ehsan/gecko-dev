@@ -1581,11 +1581,11 @@ MoveableWrapperFinder(JSDHashTable *table, JSDHashEntryHdr *hdr,
     return JS_DHASH_NEXT;
 }
 
-/* void moveWrappers(in JSContextPtr aJSContext, in JSObjectPtr  aOldScope, in JSObjectPtr  aNewScope); */
+/* void reparentScopeAwareWrappers(in JSContextPtr aJSContext, in JSObjectPtr  aOldScope, in JSObjectPtr  aNewScope); */
 NS_IMETHODIMP
-nsXPConnect::MoveWrappers(JSContext *aJSContext,
-                          JSObject *aOldScope,
-                          JSObject *aNewScope)
+nsXPConnect::ReparentScopeAwareWrappers(JSContext *aJSContext,
+                                        JSObject *aOldScope,
+                                        JSObject *aNewScope)
 {
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if(!ccx.IsValid())
@@ -1653,29 +1653,24 @@ nsXPConnect::MoveWrappers(JSContext *aJSContext,
         if(NS_FAILED(rv))
             return rv;
 
-        if(newParent == aOldScope)
+        if(newParent != aOldScope)
         {
-            // The old scope still works for this wrapper. We have to assume
-            // that the wrapper will continue to return the old scope from
-            // PreCreate, so don't move it.
-            continue;
-        }
+            // The wrapper returned a new parent. If the new parent is in
+            // a different scope, then we need to reparent it, otherwise,
+            // the old scope is fine.
 
-        // The wrapper returned a new parent. If the new parent is in
-        // a different scope, then we need to reparent it, otherwise,
-        // the old scope is fine.
+            XPCWrappedNativeScope *betterScope =
+                XPCWrappedNativeScope::FindInJSObjectScope(ccx, newParent);
+            if(betterScope == oldScope)
+                continue;
 
-        XPCWrappedNativeScope *betterScope =
-            XPCWrappedNativeScope::FindInJSObjectScope(ccx, newParent);
-        if(betterScope == oldScope)
-        {
-            // The wrapper asked for a different object, but that object
-            // was in the same scope. We assume here that the new parent
-            // simply hasn't been reparented yet.
-            newParent = nsnull;
+            NS_ASSERTION(betterScope == newScope, "Weird scope returned");
         }
         else
-            NS_ASSERTION(betterScope == newScope, "Weird scope returned");
+        {
+            // The old scope still works for this wrapper.
+            continue;
+        }
 
         // Now, reparent the wrapper, since we know that it wants to be
         // reparented.

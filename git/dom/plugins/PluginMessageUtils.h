@@ -53,9 +53,6 @@
 #include "nsThreadUtils.h"
 #include "prlog.h"
 #include "nsHashKeys.h"
-#ifdef MOZ_CRASHREPORTER
-#  include "nsExceptionHandler.h"
-#endif
 
 namespace mozilla {
 
@@ -129,13 +126,6 @@ typedef XID NativeWindowHandle;
 typedef intptr_t NativeWindowHandle; // never actually used, will always be 0
 #else
 #error Need NativeWindowHandle for this platform
-#endif
-
-#ifdef MOZ_CRASHREPORTER
-typedef CrashReporter::ThreadId NativeThreadId;
-#else
-// unused in this case
-typedef int32 NativeThreadId;
 #endif
 
 // XXX maybe not the best place for these. better one?

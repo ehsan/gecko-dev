@@ -375,23 +375,11 @@ bool ExceptionHandler::DoDump(pid_t crashing_process, const void* context,
 bool ExceptionHandler::WriteMinidump(const std::string &dump_path,
                                      MinidumpCallback callback,
                                      void* callback_context) {
-  return WriteMinidump(dump_path, false, callback, callback_context);
-}
-
-// static
-bool ExceptionHandler::WriteMinidump(const std::string &dump_path,
-                                     bool write_exception_stream,
-                                     MinidumpCallback callback,
-                                     void* callback_context) {
   ExceptionHandler eh(dump_path, NULL, callback, callback_context, false);
-  return eh.WriteMinidump(write_exception_stream);
+  return eh.WriteMinidump();
 }
 
 bool ExceptionHandler::WriteMinidump() {
-  return WriteMinidump(false);
-}
-
-bool ExceptionHandler::WriteMinidump(bool write_exception_stream) {
 #if !defined(__ARM_EABI__)
   // Allow ourselves to be dumped.
   sys_prctl(PR_SET_DUMPABLE, 1);
@@ -404,21 +392,6 @@ bool ExceptionHandler::WriteMinidump(bool write_exception_stream) {
          sizeof(context.float_state));
   context.tid = sys_gettid();
 
-  if (write_exception_stream) {
-    memset(&context.siginfo, 0, sizeof(context.siginfo));
-    context.siginfo.si_signo = SIGSTOP;
-#if defined(__i386)
-    context.siginfo.si_addr =
-      reinterpret_cast<void*>(context.context.uc_mcontext.gregs[REG_EIP]);
-#elif defined(__x86_64)
-    context.siginfo.si_addr =
-      reinterpret_cast<void*>(context.context.uc_mcontext.gregs[REG_RIP]);
-#elif defined(__ARMEL__)
-    context.siginfo.si_addr =
-      reinterpret_cast<void*>(context.context.uc_mcontext.arm_ip);
-#endif
-  }
-
   bool success = GenerateDump(&context);
   UpdateNextID();
   return success;
@@ -429,16 +402,13 @@ bool ExceptionHandler::WriteMinidump(bool write_exception_stream) {
 
 // static
 bool ExceptionHandler::WriteMinidumpForChild(pid_t child,
-                                             pid_t child_blamed_thread,
                                              const std::string &dump_path,
                                              MinidumpCallback callback,
                                              void *callback_context)
 {
   // This function is not run in a compromised context.
   ExceptionHandler eh(dump_path, NULL, NULL, NULL, false);
-  if (!google_breakpad::WriteMinidump(eh.next_minidump_path_c_,
-                                      child,
-                                      child_blamed_thread))
+  if (!google_breakpad::WriteMinidump(eh.next_minidump_path_c_, child))
       return false;
 
   return callback ? callback(eh.dump_path_c_, eh.next_minidump_id_c_,

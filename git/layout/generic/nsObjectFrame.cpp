@@ -3749,7 +3749,7 @@ void nsPluginInstanceOwner::ScrollPositionDidChange(nscoord aX, nscoord aY)
 #endif
 }
 
-/*=============== nsIDOMFocusListener ======================*/
+/*=============== nsIFocusListener ======================*/
 nsresult nsPluginInstanceOwner::Focus(nsIDOMEvent * aFocusEvent)
 {
   mContentFocused = PR_TRUE;

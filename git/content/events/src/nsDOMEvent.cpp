@@ -259,11 +259,12 @@ NS_METHOD nsDOMEvent::GetType(nsAString& aType)
 }
 
 static nsresult
-GetDOMEventTarget(nsPIDOMEventTarget* aTarget,
+GetDOMEventTarget(nsISupports* aTarget,
                   nsIDOMEventTarget** aDOMTarget)
 {
-  nsPIDOMEventTarget* realTarget =
-    aTarget ? aTarget->GetTargetForDOMEvent() : aTarget;
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = do_QueryInterface(aTarget);
+  nsISupports* realTarget =
+    piTarget ? piTarget->GetTargetForDOMEvent() : aTarget;
   if (realTarget) {
     return CallQueryInterface(realTarget, aDOMTarget);
   }
@@ -1065,7 +1066,7 @@ NS_METHOD nsDOMEvent::SetTarget(nsIDOMEventTarget* aTarget)
   }
 #endif
 
-  mEvent->target = do_QueryInterface(aTarget);
+  mEvent->target = aTarget;
   return NS_OK;
 }
 

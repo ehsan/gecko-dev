@@ -122,12 +122,13 @@ bool LinuxDumper::Init() {
          EnumerateMappings(&mappings_);
 }
 
-bool LinuxDumper::ThreadsAttach() {
+bool LinuxDumper::ThreadsAttach(pid_t except) {
   if (threads_suspended_)
     return true;
   bool good = true;
   for (size_t i = 0; i < threads_.size(); ++i)
-    good &= AttachThread(threads_[i]);
+    if (except != threads_[i])
+      good &= AttachThread(threads_[i]);
   threads_suspended_ = true;
   return good;
 }
