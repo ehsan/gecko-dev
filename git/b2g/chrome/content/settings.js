@@ -123,11 +123,6 @@ SettingsListener.observe('language.current', 'en-US', function(value) {
       }
     });
   });
-
-  // Debug flag
-  SettingsListener.observe('ril.debugging.enabled', false, function(value) {
-    Services.prefs.setBoolPref('ril.debugging.enabled', value);
-  });
 })();
 
 //=================== DeviceInfo ====================
@@ -622,3 +617,4 @@ for (let key in settingsToObserve) {
     setPref(prefName, value);
   });
 };
+

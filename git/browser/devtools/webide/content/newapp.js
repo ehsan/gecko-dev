@@ -153,11 +153,11 @@ function doOK() {
     target.remove(false);
     AppProjects.addPackaged(folder).then((project) => {
       window.arguments[0].location = project.location;
-      AppManager.validateAndUpdateProject(project).then(() => {
+      AppManager.validateProject(project).then(() => {
         if (project.manifest) {
           project.manifest.name = projectName;
           AppManager.writeManifest(project).then(() => {
-            AppManager.validateAndUpdateProject(project).then(
+            AppManager.validateProject(project).then(
               () => {window.close()}, bail)
           }, bail)
         } else {

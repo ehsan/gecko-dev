@@ -22,7 +22,8 @@ var viewerPlayerglobalInfo = {
   catalog: SHUMWAY_ROOT + "playerglobal/playerglobal.json"
 };
 
-var builtinPath = SHUMWAY_ROOT + "libs/builtin.abc";
+var avm2Root = SHUMWAY_ROOT + "avm2/";
+var builtinPath = avm2Root + "generated/builtin/builtin.abc";
 
 window.print = function(msg) {
   console.log(msg);
