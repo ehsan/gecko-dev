@@ -7100,7 +7100,7 @@ var Telemetry = {
       return;
     }
 
-    message = Strings.browser.formatStringFromName("telemetry.optout.message2",
+    message = Strings.browser.formatStringFromName("telemetry.optout.message",
                                                     [brandShortName, serverOwner, brandShortName], 3);
     buttons = [
       {
