@@ -1247,7 +1247,7 @@ nsHttpConnection::OnSocketWritable()
         else {
             if (!mReportedSpdy) {
                 mReportedSpdy = true;
-                gHttpHandler->ConnMgr()->ReportSpdyConnection(this, mEverUsedSpdy);
+                gHttpHandler->ConnMgr()->ReportSpdyConnection(this, mUsingSpdyVersion);
             }
 
             LOG(("  writing transaction request stream\n"));

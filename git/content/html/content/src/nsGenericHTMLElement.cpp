@@ -800,6 +800,7 @@ nsGenericHTMLElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
           dir = dirValue;
           SetDirectionality(dir, aNotify);
           ClearHasDirAuto();
+          ClearHasDirAutoSet();
           SetHasFixedDir();
         }
       } else {
@@ -809,6 +810,7 @@ nsGenericHTMLElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
           SetHasDirAuto();
         } else {
           ClearHasDirAuto();
+          ClearHasDirAutoSet();
           dir = RecomputeDirectionality(this, aNotify);
         }
       }

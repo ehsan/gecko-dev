@@ -15,10 +15,6 @@ interface DummyInterface {
   USSDReceivedEventDict ussdReceivedEvent();
   InspectorRGBTriple rgbTriple();
   Function getFunction();
-  void funcSocketsDict(optional SocketsDict arg);
-  void funcHttpConnDict(optional HttpConnDict arg);
-  void funcWebSocketDict(optional WebSocketDict arg);
-  void funcDNSCacheDict(optional DNSCacheDict arg);
 };
 
 interface DummyInterfaceWorkers {

@@ -163,10 +163,6 @@ private:
   virtual nsresult
   StopInternal() MOZ_OVERRIDE;
 
-  // This method should never be called.
-  virtual bool
-  IsEnabledInternal() MOZ_OVERRIDE;
-
   // Should never be called from the child
   virtual nsresult
   GetDevicePropertiesInternal(const BluetoothSignal& aSignal) MOZ_OVERRIDE;

@@ -17,6 +17,7 @@ FAIL_ON_WARNINGS	= 1
 CPPSRCS		= \
 		DOMSVGAnimatedLengthList.cpp \
 		DOMSVGAnimatedNumberList.cpp \
+		DOMSVGAnimatedTransformList.cpp \
 		DOMSVGLength.cpp \
 		DOMSVGLengthList.cpp \
 		DOMSVGNumber.cpp \
@@ -30,7 +31,6 @@ CPPSRCS		= \
 		nsDOMSVGZoomEvent.cpp \
 		nsISVGPoint.cpp \
 		nsSVGAngle.cpp \
-		nsSVGAnimatedTransformList.cpp \
 		nsSVGBoolean.cpp \
 		nsSVGClass.cpp \
 		nsSVGDataParser.cpp \
@@ -172,14 +172,12 @@ EXPORTS =  			\
 EXPORTS_NAMESPACES = mozilla/dom
 
 EXPORTS_mozilla/dom = \
-	nsSVGAnimatedTransformList.h \
 	SVGAElement.h \
 	SVGAltGlyphElement.h \
 	SVGAngle.h \
 	SVGAnimatedAngle.h \
 	SVGAnimatedBoolean.h \
 	SVGAnimatedLength.h \
-	SVGAnimatedTransformList.h \
 	SVGAnimateElement.h \
 	SVGAnimateTransformElement.h \
 	SVGAnimateMotionElement.h \

@@ -36,7 +36,6 @@
 #include "nsCategoryManager.h"
 #include "nsCategoryManagerUtils.h"
 #include "xptiprivate.h"
-#include "mozilla/XPTInterfaceInfoManager.h"
 #include "nsIConsoleService.h"
 #include "nsIMemoryReporter.h"
 #include "nsIObserverService.h"
@@ -614,7 +613,8 @@ nsComponentManagerImpl::ManifestXPT(ManifestProcessingContext& cx, int lineno, c
         rv = data.Copy(buf, len);
     }
     if (NS_SUCCEEDED(rv)) {
-        XPTInterfaceInfoManager::GetSingleton()->RegisterBuffer(buf, len);
+        xptiInterfaceInfoManager::GetSingleton()
+            ->RegisterBuffer(buf, len);
     } else {
         nsCString uri;
         f.GetURIString(uri);

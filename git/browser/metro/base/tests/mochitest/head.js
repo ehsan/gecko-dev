@@ -474,21 +474,19 @@ function runTests() {
   waitForExplicitFinish();
   Task.spawn(function() {
     while((gCurrentTest = gTests.shift())){
-      info("START " + gCurrentTest.desc);
+      info(gCurrentTest.desc);
       try {
         if ('function' == typeof gCurrentTest.setUp) {
-          info("SETUP " + gCurrentTest.desc);
           yield Task.spawn(gCurrentTest.setUp.bind(gCurrentTest));
         }
         yield Task.spawn(gCurrentTest.run.bind(gCurrentTest));
         if ('function' == typeof gCurrentTest.tearDown) {
-          info("TEARDOWN " + gCurrentTest.desc);
           yield Task.spawn(gCurrentTest.tearDown.bind(gCurrentTest));
         }
       } catch (ex) {
         ok(false, "runTests: Task failed - " + ex);
       } finally {
-        info("END " + gCurrentTest.desc);
+        info("END "+gCurrentTest.desc);
       }
     }
     finish();

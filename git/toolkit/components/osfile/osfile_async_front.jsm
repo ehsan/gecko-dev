@@ -549,14 +549,13 @@ File.makeDir = function makeDir(path, options) {
  * @param {string} path The path to the file.
  * @param {number=} bytes Optionally, an upper bound to the number of bytes
  * to read.
- * @param {JSON} options Additional options.
  *
  * @resolves {Uint8Array} A buffer holding the bytes
  * read from the file.
  */
-File.read = function read(path, bytes, options) {
+File.read = function read(path, bytes) {
   let promise = Scheduler.post("read",
-    [Type.path.toMsg(path), bytes, options], path);
+    [Type.path.toMsg(path), bytes], path);
   return promise.then(
     function onSuccess(data) {
       return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);

@@ -2948,36 +2948,41 @@ proxy_SetSpecialAttributes(JSContext *cx, HandleObject obj, HandleSpecialId sid,
 }
 
 static JSBool
-proxy_DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, JSBool *succeeded)
+proxy_DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id,
+                    MutableHandleValue rval, JSBool strict)
 {
+    // TODO: throwing away strict
     bool deleted;
-    if (!Proxy::delete_(cx, obj, id, &deleted))
+    if (!Proxy::delete_(cx, obj, id, &deleted) || !js_SuppressDeletedProperty(cx, obj, id))
         return false;
-    *succeeded = deleted;
-    return js_SuppressDeletedProperty(cx, obj, id);
+    rval.setBoolean(deleted);
+    return true;
 }
 
 static JSBool
-proxy_DeleteProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, JSBool *succeeded)
+proxy_DeleteProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
+                     MutableHandleValue rval, JSBool strict)
 {
     Rooted<jsid> id(cx, NameToId(name));
-    return proxy_DeleteGeneric(cx, obj, id, succeeded);
+    return proxy_DeleteGeneric(cx, obj, id, rval, strict);
 }
 
 static JSBool
-proxy_DeleteElement(JSContext *cx, HandleObject obj, uint32_t index, JSBool *succeeded)
+proxy_DeleteElement(JSContext *cx, HandleObject obj, uint32_t index,
+                    MutableHandleValue rval, JSBool strict)
 {
     RootedId id(cx);
     if (!IndexToId(cx, index, &id))
         return false;
-    return proxy_DeleteGeneric(cx, obj, id, succeeded);
+    return proxy_DeleteGeneric(cx, obj, id, rval, strict);
 }
 
 static JSBool
-proxy_DeleteSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid, JSBool *succeeded)
+proxy_DeleteSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
+                    MutableHandleValue rval, JSBool strict)
 {
     Rooted<jsid> id(cx, SPECIALID_TO_JSID(sid));
-    return proxy_DeleteGeneric(cx, obj, id, succeeded);
+    return proxy_DeleteGeneric(cx, obj, id, rval, strict);
 }
 
 static void
@@ -3065,7 +3070,7 @@ JS_FRIEND_DATA(Class) js::ObjectProxyClass = {
     "Proxy",
     Class::NON_NATIVE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_RESERVED_SLOTS(4),
     JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
+    JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -3116,7 +3121,7 @@ JS_FRIEND_DATA(Class) js::OuterWindowProxyClass = {
     "Proxy",
     Class::NON_NATIVE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_RESERVED_SLOTS(4),
     JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
+    JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -3191,7 +3196,7 @@ JS_FRIEND_DATA(Class) js::FunctionProxyClass = {
     "Proxy",
     Class::NON_NATIVE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_RESERVED_SLOTS(6),
     JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
+    JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -3363,7 +3368,7 @@ Class js::ProxyClass = {
     "Proxy",
     JSCLASS_HAS_CACHED_PROTO(JSProto_Proxy),
     JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
+    JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,

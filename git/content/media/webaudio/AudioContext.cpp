@@ -6,6 +6,7 @@
 
 #include "AudioContext.h"
 #include "nsContentUtils.h"
+#include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "mozilla/ErrorResult.h"
 #include "MediaStreamGraph.h"
@@ -32,7 +33,7 @@ NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(AudioContext, Release)
 
 static uint8_t gWebAudioOutputKey;
 
-AudioContext::AudioContext(nsPIDOMWindow* aWindow)
+AudioContext::AudioContext(nsIDOMWindow* aWindow)
   : mWindow(aWindow)
   , mDestination(new AudioDestinationNode(this, MediaStreamGraph::GetInstance()))
 {
@@ -232,33 +233,13 @@ AudioContext::CurrentTime() const
 void
 AudioContext::Suspend()
 {
-  MediaStream* ds = DestinationStream();
-  if (ds) {
-    ds->ChangeExplicitBlockerCount(1);
-  }
+  DestinationStream()->ChangeExplicitBlockerCount(1);
 }
 
 void
 AudioContext::Resume()
 {
-  MediaStream* ds = DestinationStream();
-  if (ds) {
-    ds->ChangeExplicitBlockerCount(-1);
-  }
-}
-
-JSContext*
-AudioContext::GetJSContext() const
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  nsCOMPtr<nsIScriptGlobalObject> scriptGlobal =
-    do_QueryInterface(GetParentObject());
-  nsIScriptContext* scriptContext = scriptGlobal->GetContext();
-  if (!scriptContext) {
-    return nullptr;
-  }
-  return scriptContext->GetNativeContext();
+  DestinationStream()->ChangeExplicitBlockerCount(-1);
 }
 
 }

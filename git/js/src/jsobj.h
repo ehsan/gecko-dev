@@ -192,16 +192,16 @@ extern JSBool
 SetElementAttributes(JSContext *cx, HandleObject obj, uint32_t index, unsigned *attrsp);
 
 extern JSBool
-DeleteProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, JSBool *succeeded);
+DeleteProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, MutableHandleValue rval, JSBool strict);
 
 extern JSBool
-DeleteElement(JSContext *cx, HandleObject obj, uint32_t index, JSBool *succeeded);
+DeleteElement(JSContext *cx, HandleObject obj, uint32_t index, MutableHandleValue rval, JSBool strict);
 
 extern JSBool
-DeleteSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid, JSBool *succeeded);
+DeleteSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid, MutableHandleValue rval, JSBool strict);
 
 extern JSBool
-DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, JSBool *succeeded);
+DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue rval, JSBool strict);
 
 } /* namespace js::baseops */
 
@@ -892,13 +892,15 @@ class JSObject : public js::ObjectImpl
 
     static inline bool deleteProperty(JSContext *cx, js::HandleObject obj,
                                       js::HandlePropertyName name,
-                                      JSBool *succeeded);
+                                      js::MutableHandleValue rval, bool strict);
     static inline bool deleteElement(JSContext *cx, js::HandleObject obj,
-                                     uint32_t index, JSBool *succeeded);
+                                     uint32_t index,
+                                     js::MutableHandleValue rval, bool strict);
     static inline bool deleteSpecial(JSContext *cx, js::HandleObject obj,
-                                     js::HandleSpecialId sid, JSBool *succeeded);
+                                     js::HandleSpecialId sid,
+                                     js::MutableHandleValue rval, bool strict);
     static bool deleteByValue(JSContext *cx, js::HandleObject obj,
-                              const js::Value &property, JSBool *succeeded);
+                              const js::Value &property, js::MutableHandleValue rval, bool strict);
 
     static inline bool enumerate(JSContext *cx, JS::HandleObject obj, JSIterateOp iterop,
                                  JS::MutableHandleValue statep, JS::MutableHandleId idp);

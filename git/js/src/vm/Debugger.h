@@ -388,7 +388,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
      */
     static void markCrossCompartmentDebuggerObjectReferents(JSTracer *tracer);
     static bool markAllIteratively(GCMarker *trc);
-    static void markAll(JSTracer *trc);
     static void sweepAll(FreeOp *fop);
     static void detachAllDebuggersFromGlobal(FreeOp *fop, GlobalObject *global,
                                              GlobalObjectSet::Enum *compartmentEnum);
@@ -568,8 +567,7 @@ class Breakpoint {
     Debugger * const debugger;
     BreakpointSite * const site;
   private:
-    /* |handler| is marked unconditionally during minor GC. */
-    js::EncapsulatedPtrObject handler;
+    js::HeapPtrObject handler;
     JSCList debuggerLinks;
     JSCList siteLinks;
 
@@ -580,8 +578,8 @@ class Breakpoint {
     void destroy(FreeOp *fop);
     Breakpoint *nextInDebugger();
     Breakpoint *nextInSite();
-    const EncapsulatedPtrObject &getHandler() const { return handler; }
-    EncapsulatedPtrObject &getHandlerRef() { return handler; }
+    const HeapPtrObject &getHandler() const { return handler; }
+    HeapPtrObject &getHandlerRef() { return handler; }
 };
 
 Breakpoint *

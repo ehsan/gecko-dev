@@ -79,7 +79,6 @@ CPPSRCS		= \
 		ProxyAutoConfig.cpp \
 		Dashboard.cpp \
 		NetworkActivityMonitor.cpp \
-		EventTokenBucket.cpp \
 		$(NULL)
 
 LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/base
