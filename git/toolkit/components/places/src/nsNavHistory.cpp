@@ -2464,8 +2464,7 @@ nsNavHistory::CanAddURI(nsIURI* aURI, PRBool* canAdd)
       scheme.EqualsLiteral("moz-anno") ||
       scheme.EqualsLiteral("view-source") ||
       scheme.EqualsLiteral("chrome") ||
-      scheme.EqualsLiteral("data") ||
-      scheme.EqualsLiteral("wyciwyg")) {
+      scheme.EqualsLiteral("data")) {
     *canAdd = PR_FALSE;
     return NS_OK;
   }

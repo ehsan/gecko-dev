@@ -49,6 +49,10 @@
 #include "gfxWindowsSurface.h"
 #include "gfxWindowsPlatform.h"
 
+#ifdef MOZ_ENABLE_GLITZ
+#include "gfxGlitzSurface.h"
+#endif
+
 #include "gfxFontTest.h"
 
 #include "cairo.h"
