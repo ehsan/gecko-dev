@@ -1014,6 +1014,9 @@ struct JSRuntime : public JS::shadow::Runtime,
     js::AssertOnScriptEntryHook assertOnScriptEntryHook_;
 #endif
 
+    /* If true, new compartments are initially in debug mode. */
+    bool                debugMode;
+
     /* SPS profiling metadata */
     js::SPSProfiler     spsProfiler;
 

@@ -87,19 +87,19 @@ BEGIN_TEST(testStringToPropertyName)
 {
     uint32_t index;
 
-    static const char16_t hiChars[] = { 'h', 'i' };
+    static const jschar hiChars[] = { 'h', 'i' };
     JSFlatString *hiStr = NewString(cx, hiChars);
     CHECK(hiStr);
     CHECK(!hiStr->isIndex(&index));
     CHECK(hiStr->toPropertyName(cx) != nullptr);
 
-    static const char16_t maxChars[] = { '4', '2', '9', '4', '9', '6', '7', '2', '9', '5' };
+    static const jschar maxChars[] = { '4', '2', '9', '4', '9', '6', '7', '2', '9', '5' };
     JSFlatString *maxStr = NewString(cx, maxChars);
     CHECK(maxStr);
     CHECK(maxStr->isIndex(&index));
     CHECK(index == UINT32_MAX);
 
-    static const char16_t maxPlusOneChars[] = { '4', '2', '9', '4', '9', '6', '7', '2', '9', '6' };
+    static const jschar maxPlusOneChars[] = { '4', '2', '9', '4', '9', '6', '7', '2', '9', '6' };
     JSFlatString *maxPlusOneStr = NewString(cx, maxPlusOneChars);
     CHECK(maxPlusOneStr);
     CHECK(!maxPlusOneStr->isIndex(&index));
@@ -109,7 +109,7 @@ BEGIN_TEST(testStringToPropertyName)
 }
 
 template<size_t N> static JSFlatString *
-NewString(JSContext *cx, const char16_t (&chars)[N])
+NewString(JSContext *cx, const jschar (&chars)[N])
 {
     return js::NewStringCopyN<js::CanGC>(cx, chars, N);
 }

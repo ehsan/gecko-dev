@@ -1177,21 +1177,23 @@ Debugger::slowPathOnNewScript(JSContext *cx, HandleScript script, GlobalObject *
     JS_ASSERT(script->compileAndGo() == !!compileAndGoGlobal);
 
     /*
-     * Build the list of recipients based on the debuggers observing the
-     * script's compartment.
-     *
-     * TODO bug 1064079 will simplify this logic. The meaning of
-     * compile-and-go has changed over the years and is no longer relevant to
-     * Debugger.
+     * Build the list of recipients. For compile-and-go scripts, this is the
+     * same as the generic Debugger::dispatchHook code, but non-compile-and-go
+     * scripts are not tied to particular globals. We deliver them to every
+     * debugger observing any global in the script's compartment.
      */
     AutoValueVector triggered(cx);
-    GlobalObject::DebuggerVector *debuggers =
-        (script->compileAndGo()
-         ? compileAndGoGlobal->getDebuggers()
-         : script->compartment()->maybeGlobal()->getDebuggers());
-    if (debuggers) {
-        if (!AddNewScriptRecipients(debuggers, script, &triggered))
-            return;
+    if (script->compileAndGo()) {
+        if (GlobalObject::DebuggerVector *debuggers = compileAndGoGlobal->getDebuggers()) {
+            if (!AddNewScriptRecipients(debuggers, script, &triggered))
+                return;
+        }
+    } else {
+        GlobalObjectSet &debuggees = script->compartment()->getDebuggees();
+        for (GlobalObjectSet::Range r = debuggees.all(); !r.empty(); r.popFront()) {
+            if (!AddNewScriptRecipients(r.front()->getDebuggers(), script, &triggered))
+                return;
+        }
     }
 
     /*
@@ -1591,10 +1593,13 @@ Debugger::markAllIteratively(GCMarker *trc)
      */
     JSRuntime *rt = trc->runtime();
     for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next()) {
-        if (c->debugMode()) {
-            GlobalObject *global = c->maybeGlobal();
+        GlobalObjectSet &debuggees = c->getDebuggees();
+        for (GlobalObjectSet::Enum e(debuggees); !e.empty(); e.popFront()) {
+            GlobalObject *global = e.front();
             if (!IsObjectMarked(&global))
                 continue;
+            else if (global != e.front())
+                e.rekeyFront(global);
 
             /*
              * Every debuggee has at least one debugger, so in this case
@@ -1745,19 +1750,20 @@ Debugger::sweepAll(FreeOp *fop)
                 // We can't recompile on-stack scripts here, and we
                 // can only toggle debug mode to off, so we use an
                 // infallible variant of removeDebuggeeGlobal.
-                dbg->removeDebuggeeGlobalUnderGC(fop, e.front(), &e);
+                dbg->removeDebuggeeGlobalUnderGC(fop, e.front(), nullptr, &e);
             }
         }
     }
 }
 
 void
-Debugger::detachAllDebuggersFromGlobal(FreeOp *fop, GlobalObject *global)
+Debugger::detachAllDebuggersFromGlobal(FreeOp *fop, GlobalObject *global,
+                                       GlobalObjectSet::Enum *compartmentEnum)
 {
     const GlobalObject::DebuggerVector *debuggers = global->getDebuggers();
     JS_ASSERT(!debuggers->empty());
     while (!debuggers->empty())
-        debuggers->back()->removeDebuggeeGlobalUnderGC(fop, global, nullptr);
+        debuggers->back()->removeDebuggeeGlobalUnderGC(fop, global, compartmentEnum, nullptr);
 }
 
 /* static */ void
@@ -2138,7 +2144,7 @@ Debugger::removeDebuggee(JSContext *cx, unsigned argc, Value *vp)
     if (!global)
         return false;
     if (dbg->debuggees.has(global)) {
-        if (!dbg->removeDebuggeeGlobal(cx, global, nullptr))
+        if (!dbg->removeDebuggeeGlobal(cx, global, nullptr, nullptr))
             return false;
     }
     args.rval().setUndefined();
@@ -2152,7 +2158,7 @@ Debugger::removeAllDebuggees(JSContext *cx, unsigned argc, Value *vp)
 
     for (GlobalObjectSet::Enum e(dbg->debuggees); !e.empty(); e.popFront()) {
         Rooted<GlobalObject *> global(cx, e.front());
-        if (!dbg->removeDebuggeeGlobal(cx, global, &e))
+        if (!dbg->removeDebuggeeGlobal(cx, global, nullptr, &e))
             return false;
     }
 
@@ -2326,11 +2332,11 @@ Debugger::addDebuggeeGlobal(JSContext *cx,
         }
 
         /*
-         * Find all compartments containing debuggers debugging c's global
-         * object. Add those compartments to visited.
+         * Find all compartments containing debuggers debugging global objects
+         * in c. Add those compartments to visited.
          */
-        if (c->debugMode()) {
-            GlobalObject::DebuggerVector *v = c->maybeGlobal()->getDebuggers();
+        for (GlobalObjectSet::Range r = c->getDebuggees().all(); !r.empty(); r.popFront()) {
+            GlobalObject::DebuggerVector *v = r.front()->getDebuggers();
             for (Debugger **p = v->begin(); p != v->end(); p++) {
                 JSCompartment *next = (*p)->object->compartment();
                 if (Find(visited, next) == visited.end() && !visited.append(next))
@@ -2369,7 +2375,7 @@ Debugger::addDebuggeeGlobal(JSContext *cx,
         } else {
             if (global->getDebuggers()->length() > 1)
                 return true;
-            if (debuggeeCompartment->enterDebugMode(cx, invalidate))
+            if (debuggeeCompartment->addDebuggee(cx, global, invalidate))
                 return true;
 
             /* Maintain consistency on error. */
@@ -2388,13 +2394,18 @@ Debugger::addDebuggeeGlobal(JSContext *cx,
 
 void
 Debugger::cleanupDebuggeeGlobalBeforeRemoval(FreeOp *fop, GlobalObject *global,
+                                             AutoDebugModeInvalidation &invalidate,
+                                             GlobalObjectSet::Enum *compartmentEnum,
                                              GlobalObjectSet::Enum *debugEnum)
 {
     /*
-     * The caller might have found global by enumerating this->debuggees; if
-     * so, use HashSet::Enum::removeFront rather than HashSet::remove below,
-     * to avoid invalidating the live enumerator.
+     * Each debuggee is in two HashSets: one for its compartment and one for
+     * its debugger (this). The caller might be enumerating either set; if so,
+     * use HashSet::Enum::removeFront rather than HashSet::remove below, to
+     * avoid invalidating the live enumerator.
      */
+    JS_ASSERT(global->compartment()->getDebuggees().has(global));
+    JS_ASSERT_IF(compartmentEnum, compartmentEnum->front() == global);
     JS_ASSERT(debuggees.has(global));
     JS_ASSERT_IF(debugEnum, debugEnum->front() == global);
 
@@ -2454,31 +2465,45 @@ Debugger::cleanupDebuggeeGlobalBeforeRemoval(FreeOp *fop, GlobalObject *global,
 
 bool
 Debugger::removeDebuggeeGlobal(JSContext *cx, Handle<GlobalObject *> global,
+                               GlobalObjectSet::Enum *compartmentEnum,
                                GlobalObjectSet::Enum *debugEnum)
 {
     AutoDebugModeInvalidation invalidate(global->compartment());
-    return removeDebuggeeGlobal(cx, global, invalidate, debugEnum);
+    return removeDebuggeeGlobal(cx, global, invalidate, compartmentEnum, debugEnum);
 }
 
 bool
 Debugger::removeDebuggeeGlobal(JSContext *cx, Handle<GlobalObject *> global,
                                AutoDebugModeInvalidation &invalidate,
+                               GlobalObjectSet::Enum *compartmentEnum,
                                GlobalObjectSet::Enum *debugEnum)
 {
-    cleanupDebuggeeGlobalBeforeRemoval(cx->runtime()->defaultFreeOp(), global, debugEnum);
+    cleanupDebuggeeGlobalBeforeRemoval(cx->runtime()->defaultFreeOp(), global,
+                                       invalidate, compartmentEnum, debugEnum);
 
     // The debuggee needs to be removed from the compartment last to save a root.
     if (global->getDebuggers()->empty())
-        return global->compartment()->leaveDebugMode(cx, invalidate);
+        return global->compartment()->removeDebuggee(cx, global, invalidate, compartmentEnum);
 
     return true;
 }
 
 void
 Debugger::removeDebuggeeGlobalUnderGC(FreeOp *fop, GlobalObject *global,
+                                      GlobalObjectSet::Enum *compartmentEnum,
                                       GlobalObjectSet::Enum *debugEnum)
 {
-    cleanupDebuggeeGlobalBeforeRemoval(fop, global, debugEnum);
+    AutoDebugModeInvalidation invalidate(global->compartment());
+    removeDebuggeeGlobalUnderGC(fop, global, invalidate, compartmentEnum, debugEnum);
+}
+
+void
+Debugger::removeDebuggeeGlobalUnderGC(FreeOp *fop, GlobalObject *global,
+                                      AutoDebugModeInvalidation &invalidate,
+                                      GlobalObjectSet::Enum *compartmentEnum,
+                                      GlobalObjectSet::Enum *debugEnum)
+{
+    cleanupDebuggeeGlobalBeforeRemoval(fop, global, invalidate, compartmentEnum, debugEnum);
 
     /*
      * The debuggee needs to be removed from the compartment last, as this can
@@ -2486,7 +2511,7 @@ Debugger::removeDebuggeeGlobalUnderGC(FreeOp *fop, GlobalObject *global,
      * global cannot be rooted on the stack without a cx.
      */
     if (global->getDebuggers()->empty())
-        global->compartment()->leaveDebugModeUnderGC();
+        global->compartment()->removeDebuggeeUnderGC(fop, global, invalidate, compartmentEnum);
 }
 
 static inline ScriptSourceObject *GetSourceReferent(JSObject *obj);
@@ -2837,7 +2862,7 @@ class MOZ_STACK_CLASS Debugger::ScriptQuery
             if (!script->scriptSource() || !script->scriptSource()->hasDisplayURL())
                 return;
 
-            const char16_t *s = script->scriptSource()->displayURL();
+            const jschar *s = script->scriptSource()->displayURL();
             if (CompareChars(s, js_strlen(s), displayURLString) != 0)
                 return;
         }
@@ -3265,9 +3290,6 @@ DebuggerScript_getChildScripts(JSContext *cx, unsigned argc, Value *vp)
             obj = objects->vector[i];
             if (obj->is<JSFunction>()) {
                 fun = &obj->as<JSFunction>();
-                // The inner function could be an asm.js native.
-                if (fun->isNative())
-                    continue;
                 funScript = GetOrCreateFunctionScript(cx, fun);
                 if (!funScript)
                     return false;
@@ -4783,7 +4805,7 @@ DebuggerFrame_setOnPop(JSContext *cx, unsigned argc, Value *vp)
  */
 bool
 js::EvaluateInEnv(JSContext *cx, Handle<Env*> env, HandleValue thisv, AbstractFramePtr frame,
-                  mozilla::Range<const char16_t> chars, const char *filename, unsigned lineno,
+                  mozilla::Range<const jschar> chars, const char *filename, unsigned lineno,
                   MutableHandleValue rval)
 {
     assertSameCompartment(cx, env, frame);
@@ -4949,7 +4971,7 @@ DebuggerGenericEval(JSContext *cx, const char *fullMethodName, const Value &code
     if (!stableChars.initTwoByte(cx, flat))
         return false;
 
-    mozilla::Range<const char16_t> chars = stableChars.twoByteRange();
+    mozilla::Range<const jschar> chars = stableChars.twoByteRange();
     bool ok = EvaluateInEnv(cx, env, thisv, frame, chars, url ? url : "debugger eval code",
                             lineNumber, &rval);
     return dbg->receiveCompletionValue(ac, ok, rval, vp);

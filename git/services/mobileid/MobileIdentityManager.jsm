@@ -865,13 +865,13 @@ this.MobileIdentityManager = {
 
         if (!simChanged &&
             creds.deviceIccIds != null &&
-            this.iccIds != null) {
+            this.IccIds != null) {
           simChanged = creds.deviceIccIds.length != this.iccIds.length;
         }
 
         if (!simChanged &&
             creds.deviceIccIds != null &&
-            this.iccIds != null) {
+            this.IccIds != null) {
           let intersection = creds.deviceIccIds.filter((n) => {
             return this.iccIds.indexOf(n) != -1;
           });

@@ -64,8 +64,8 @@ struct CharFlag {
     };
 };
 
-const char16_t BYTE_ORDER_MARK2 = 0xFFFE;
-const char16_t NO_BREAK_SPACE  = 0x00A0;
+const jschar BYTE_ORDER_MARK2 = 0xFFFE;
+const jschar NO_BREAK_SPACE  = 0x00A0;
 
 class CharacterInfo {
     /*
@@ -107,7 +107,7 @@ extern const uint8_t index2[];
 extern const CharacterInfo js_charinfo[];
 
 inline const CharacterInfo&
-CharInfo(char16_t code)
+CharInfo(jschar code)
 {
     const size_t shift = 5;
     size_t index = index1[code >> shift];
@@ -117,7 +117,7 @@ CharInfo(char16_t code)
 }
 
 inline bool
-IsIdentifierStart(char16_t ch)
+IsIdentifierStart(jschar ch)
 {
     /*
      * ES5 7.6 IdentifierStart
@@ -135,7 +135,7 @@ IsIdentifierStart(char16_t ch)
 }
 
 inline bool
-IsIdentifierPart(char16_t ch)
+IsIdentifierPart(jschar ch)
 {
     /* Matches ES5 7.6 IdentifierPart. */
 
@@ -146,13 +146,13 @@ IsIdentifierPart(char16_t ch)
 }
 
 inline bool
-IsLetter(char16_t ch)
+IsLetter(jschar ch)
 {
     return CharInfo(ch).isLetter();
 }
 
 inline bool
-IsSpace(char16_t ch)
+IsSpace(jschar ch)
 {
     /*
      * IsSpace checks if some character is included in the merged set
@@ -176,7 +176,7 @@ IsSpace(char16_t ch)
 }
 
 inline bool
-IsSpaceOrBOM2(char16_t ch)
+IsSpaceOrBOM2(jschar ch)
 {
     if (ch < 128)
         return js_isspace[ch];
@@ -188,16 +188,16 @@ IsSpaceOrBOM2(char16_t ch)
     return CharInfo(ch).isSpace();
 }
 
-inline char16_t
-ToUpperCase(char16_t ch)
+inline jschar
+ToUpperCase(jschar ch)
 {
     const CharacterInfo &info = CharInfo(ch);
 
     return uint16_t(ch) + info.upperCase;
 }
 
-inline char16_t
-ToLowerCase(char16_t ch)
+inline jschar
+ToLowerCase(jschar ch)
 {
     const CharacterInfo &info = CharInfo(ch);
 

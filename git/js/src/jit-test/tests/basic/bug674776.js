@@ -1,4 +1,4 @@
-// |jit-test| slow
+// |jit-test| slow; debug
 
 /* Make a lot of functions of the form:
 function x1(){x1();}
@@ -6,9 +6,6 @@ function x2(){x2();}
 function x3(){x3();}
 ...
 */
-
-var g = newGlobal();
-var dbg = new g.Debugger(this);
 
 var s = '';
 for (var i = 0; i < 70000; i++) {

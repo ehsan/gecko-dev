@@ -361,7 +361,7 @@ public:
         : mEnv(env)
         , mJNIString(str)
         , mJSString(!str ? nullptr :
-            reinterpret_cast<const char16_t*>(env->GetStringChars(str, nullptr)))
+            reinterpret_cast<const jschar*>(env->GetStringChars(str, nullptr)))
     {
     }
     ~JSJNIString() {
@@ -370,7 +370,7 @@ public:
                 reinterpret_cast<const jchar*>(mJSString));
         }
     }
-    operator const char16_t*() const {
+    operator const jschar*() const {
         return mJSString;
     }
     size_t Length() const {
@@ -379,7 +379,7 @@ public:
 private:
     JNIEnv* const mEnv;
     const jstring mJNIString;
-    const char16_t* const mJSString;
+    const jschar* const mJSString;
 };
 
 bool
@@ -415,7 +415,7 @@ CheckProperty(JNIEnv* env, JSContext* cx, JS::HandleValue val) {
 }
 
 bool
-AppendJSON(const char16_t* buf, uint32_t len, void* data)
+AppendJSON(const jschar* buf, uint32_t len, void* data)
 {
     static_cast<nsAutoString*>(data)->Append(buf, len);
     return true;

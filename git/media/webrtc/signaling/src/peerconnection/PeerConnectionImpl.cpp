@@ -727,12 +727,10 @@ PeerConnectionImpl::ConvertRTCConfiguration(const RTCConfiguration& aSrc,
       NS_ConvertUTF16toUTF8 credential(server.mCredential);
       NS_ConvertUTF16toUTF8 username(server.mUsername);
 
-      // Bug 1039655 - TURN TCP is not e10s ready
-      if ((transport == kNrIceTransportTcp) &&
-          (XRE_GetProcessType() != GeckoProcessType_Default)) {
-        continue;
-      }
-
+#ifdef MOZ_WIDGET_GONK
+      if (transport == kNrIceTransportTcp)
+          continue;
+#endif
       if (!aDst->addTurnServer(host.get(), port,
                                username.get(),
                                credential.get(),

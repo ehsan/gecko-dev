@@ -168,9 +168,9 @@ private:
   void SendLine(const char* aMessage);
   void SendResponse(BluetoothHandsfreeAtResponse aResponseCode);
 
-  BluetoothHandsfreeConnectionState mConnectionState;
-  BluetoothHandsfreeConnectionState mPrevConnectionState;
-  BluetoothHandsfreeAudioState mAudioState;
+  int mConnectionState;
+  int mPrevConnectionState;
+  int mAudioState;
   // Device CIND
   int mBattChg;
   BluetoothHandsfreeNetworkState mService;

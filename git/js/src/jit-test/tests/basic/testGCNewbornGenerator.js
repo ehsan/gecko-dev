@@ -1,6 +1,4 @@
-var g = newGlobal();
-var dbg = new g.Debugger(this);
-
+// |jit-test| debug
 try {
     function f() {}
     (1 for (x in []))

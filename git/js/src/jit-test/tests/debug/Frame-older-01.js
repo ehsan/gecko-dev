@@ -1,3 +1,4 @@
+// |jit-test| debug
 // Basic call chain.
 
 var g = newGlobal();

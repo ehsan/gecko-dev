@@ -78,6 +78,7 @@ EXPORTS.mozilla += [
     'Mutex.h',
     'Observer.h',
     'ReentrantMonitor.h',
+    'unused.h',
 ]
 
 EXPORTS.mozilla.threads += [

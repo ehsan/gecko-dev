@@ -35,7 +35,7 @@ class FinalizationEvent MOZ_FINAL: public nsRunnable
 {
 public:
   FinalizationEvent(const char* aTopic,
-                  const char16_t* aValue)
+                  const jschar* aValue)
     : mTopic(aTopic)
     , mValue(aValue)
   { }

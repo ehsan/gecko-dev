@@ -634,6 +634,8 @@ class GlobalObject : public JSObject
         return &forOfPIC.toObject();
     }
     static JSObject *getOrCreateForOfPICObject(JSContext *cx, Handle<GlobalObject*> global);
+
+    static bool addDebugger(JSContext *cx, Handle<GlobalObject*> global, Debugger *dbg);
 };
 
 template<>

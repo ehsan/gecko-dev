@@ -406,7 +406,7 @@ APZCTreeManager::UpdatePanZoomControllerTree(TreeBuildingState& aState,
   mApzcTreeLog << '\n';
 
   // Accumulate the CSS transform between layers that have an APZC.
-  // In the terminology of the big comment above APZCTreeManager::GetScreenToApzcTransform, if
+  // In the terminology of the big comment above APZCTreeManager::GetInputTransforms, if
   // we are at layer M, then aAncestorTransform is NC * OC * PC, and we left-multiply MC and
   // compute ancestorTransform to be MC * NC * OC * PC. This gets passed down as the ancestor
   // transform to layer L when we recurse into the children below. If we are at a layer
@@ -495,8 +495,8 @@ ApplyTransform(nsIntPoint* aPoint, const Matrix4x4& aMatrix)
 /*static*/ template<class T> void
 TransformScreenToGecko(T* aPoint, AsyncPanZoomController* aApzc, APZCTreeManager* aApzcTm)
 {
-  Matrix4x4 transformToApzc = aApzcTm->GetScreenToApzcTransform(aApzc);
-  Matrix4x4 transformToGecko = aApzcTm->GetApzcToGeckoTransform(aApzc);
+  Matrix4x4 transformToApzc, transformToGecko;
+  aApzcTm->GetInputTransforms(aApzc, transformToApzc, transformToGecko);
   ApplyTransform(aPoint, transformToApzc * transformToGecko);
 }
 
@@ -506,6 +506,7 @@ APZCTreeManager::ReceiveInputEvent(InputData& aEvent,
 {
   nsEventStatus result = nsEventStatus_eIgnore;
   Matrix4x4 transformToApzc;
+  Matrix4x4 transformToGecko;
   bool inOverscrolledApzc = false;
   switch (aEvent.mInputType) {
     case MULTITOUCH_INPUT: {
@@ -521,7 +522,7 @@ APZCTreeManager::ReceiveInputEvent(InputData& aEvent,
         // transform than the one in TransformScreenToGecko, so we need to
         // make a copy of the event.
         PanGestureInput inputForApzc(panInput);
-        transformToApzc = GetScreenToApzcTransform(apzc);
+        GetInputTransforms(apzc, transformToApzc, transformToGecko);
         ApplyTransform(&(inputForApzc.mPanStartPoint), transformToApzc);
         result = apzc->ReceiveInputEvent(inputForApzc);
 
@@ -539,7 +540,7 @@ APZCTreeManager::ReceiveInputEvent(InputData& aEvent,
         // transform than the one in TransformScreenToGecko, so we need to
         // make a copy of the event.
         PinchGestureInput inputForApzc(pinchInput);
-        transformToApzc = GetScreenToApzcTransform(apzc);
+        GetInputTransforms(apzc, transformToApzc, transformToGecko);
         ApplyTransform(&(inputForApzc.mFocusPoint), transformToApzc);
         result = apzc->ReceiveInputEvent(inputForApzc);
 
@@ -557,7 +558,7 @@ APZCTreeManager::ReceiveInputEvent(InputData& aEvent,
         // transform than the one in TransformScreenToGecko, so we need to
         // make a copy of the event.
         TapGestureInput inputForApzc(tapInput);
-        transformToApzc = GetScreenToApzcTransform(apzc);
+        GetInputTransforms(apzc, transformToApzc, transformToGecko);
         ApplyTransform(&(inputForApzc.mPoint), transformToApzc);
         result = apzc->ReceiveInputEvent(inputForApzc);
 
@@ -631,7 +632,8 @@ APZCTreeManager::ProcessTouchInput(MultiTouchInput& aInput,
 
     if (mApzcForInputBlock) {
       // Cache apz transform so it can be used for future events in this block.
-      mCachedTransformToApzcForInputBlock = GetScreenToApzcTransform(mApzcForInputBlock);
+      Matrix4x4 transformToGecko;
+      GetInputTransforms(mApzcForInputBlock, mCachedTransformToApzcForInputBlock, transformToGecko);
     } else {
       // Reset the cached apz transform
       mCachedTransformToApzcForInputBlock = Matrix4x4();
@@ -678,8 +680,8 @@ APZCTreeManager::ProcessTouchInput(MultiTouchInput& aInput,
     // For computing the event to pass back to Gecko, use the up-to-date transforms.
     // This ensures that transformToApzc and transformToGecko are in sync
     // (note that transformToGecko isn't cached).
-    transformToApzc = GetScreenToApzcTransform(mApzcForInputBlock);
-    Matrix4x4 transformToGecko = GetApzcToGeckoTransform(mApzcForInputBlock);
+    Matrix4x4 transformToGecko;
+    GetInputTransforms(mApzcForInputBlock, transformToApzc, transformToGecko);
     Matrix4x4 outTransform = transformToApzc * transformToGecko;
     for (size_t i = 0; i < aInput.mTouches.Length(); i++) {
       ApplyTransform(&(aInput.mTouches[i].mScreenPoint), outTransform);
@@ -719,8 +721,9 @@ APZCTreeManager::TransformCoordinateToGecko(const ScreenIntPoint& aPoint,
   MOZ_ASSERT(aOutTransformedPoint);
   nsRefPtr<AsyncPanZoomController> apzc = GetTargetAPZC(aPoint, nullptr);
   if (apzc && aOutTransformedPoint) {
-    Matrix4x4 transformToApzc = GetScreenToApzcTransform(apzc);
-    Matrix4x4 transformToGecko = GetApzcToGeckoTransform(apzc);
+    Matrix4x4 transformToApzc;
+    Matrix4x4 transformToGecko;
+    GetInputTransforms(apzc, transformToApzc, transformToGecko);
     Matrix4x4 outTransform = transformToApzc * transformToGecko;
     *aOutTransformedPoint = TransformTo<LayoutDevicePixel>(outTransform, aPoint);
   }
@@ -740,8 +743,9 @@ APZCTreeManager::ProcessEvent(WidgetInputEvent& aEvent,
                                                         &inOverscrolledApzc);
   if (apzc) {
     apzc->GetGuid(aOutTargetGuid);
-    Matrix4x4 transformToApzc = GetScreenToApzcTransform(apzc);
-    Matrix4x4 transformToGecko = GetApzcToGeckoTransform(apzc);
+    Matrix4x4 transformToApzc;
+    Matrix4x4 transformToGecko;
+    GetInputTransforms(apzc, transformToApzc, transformToGecko);
     Matrix4x4 outTransform = transformToApzc * transformToGecko;
     ApplyTransform(&(aEvent.refPoint), outTransform);
   }
@@ -873,16 +877,17 @@ TransformDisplacement(APZCTreeManager* aTreeManager,
                       ScreenPoint& aStartPoint,
                       ScreenPoint& aEndPoint) {
   Matrix4x4 transformToApzc;
+  Matrix4x4 transformToGecko;  // ignored
 
   // Convert start and end points to untransformed screen coordinates.
-  transformToApzc = aTreeManager->GetScreenToApzcTransform(aSource);
+  aTreeManager->GetInputTransforms(aSource, transformToApzc, transformToGecko);
   Matrix4x4 untransformToApzc = transformToApzc;
   untransformToApzc.Invert();
   ApplyTransform(&aStartPoint, untransformToApzc);
   ApplyTransform(&aEndPoint, untransformToApzc);
 
   // Convert start and end points to aTarget's transformed screen coordinates.
-  transformToApzc = aTreeManager->GetScreenToApzcTransform(aTarget);
+  aTreeManager->GetInputTransforms(aTarget, transformToApzc, transformToGecko);
   ApplyTransform(&aStartPoint, transformToApzc);
   ApplyTransform(&aEndPoint, transformToApzc);
 }
@@ -1154,7 +1159,7 @@ APZCTreeManager::GetAPZCAtPoint(AsyncPanZoomController* aApzc,
   mTreeLock.AssertCurrentThreadOwns();
 
   // The comments below assume there is a chain of layers L..R with L and P having APZC instances as
-  // explained in the comment above GetScreenToApzcTransform. This function will recurse with aApzc at L and P, and the
+  // explained in the comment on GetInputTransforms. This function will recurse with aApzc at L and P, and the
   // comments explain what values are stored in the variables at these two levels. All the comments
   // use standard matrix notation where the leftmost matrix in a multiplication is applied first.
 
@@ -1219,8 +1224,8 @@ APZCTreeManager::GetAPZCAtPoint(AsyncPanZoomController* aApzc,
   return result;
 }
 
-/* The methods GetScreenToApzcTransform() and GetApzcToGeckoTransform() return
-   some useful transformations that input events may need applied. This is best
+/* This function sets the aTransformToApzcOut and aTransformToGeckoOut out-parameters
+   to some useful transformations that input events may need applied. This is best
    illustrated with an example. Consider a chain of layers, L, M, N, O, P, Q, R. Layer L
    is the layer that corresponds to the argument |aApzc|, and layer R is the root
    of the layer tree. Layer M is the parent of L, N is the parent of M, and so on.
@@ -1253,7 +1258,7 @@ APZCTreeManager::GetAPZCAtPoint(AsyncPanZoomController* aApzc,
         MT.Inverse()
         MN.Inverse()
         MC.Inverse()
-   This combined transformation is returned by GetScreenToApzcTransform().
+   This combined transformation is returned in the aTransformToApzcOut out-parameter.
 
    Next, if we want user inputs sent to gecko for event-dispatching, we will need to strip
    out all of the async transforms that are involved in this chain. This is because async
@@ -1285,7 +1290,7 @@ APZCTreeManager::GetAPZCAtPoint(AsyncPanZoomController* aApzc,
         RC
         RD
    This sequence can be simplified and refactored to the following:
-        GetScreenToApzcTransform()
+        aTransformToApzcOut
         LA.Inverse()
         LD
         MC
@@ -1293,9 +1298,9 @@ APZCTreeManager::GetAPZCAtPoint(AsyncPanZoomController* aApzc,
         ...
         RC
         RD
-   Since GetScreenToApzcTransform() can be obtained by calling that function, GetApzcToGeckoTransform()
-   returns the remaining transforms (LA.Inverse() * LD * ... * RD), so that the caller code can
-   combine it with GetScreenToApzcTransform() to get the final transform required in this case.
+   Since aTransformToApzcOut is already one of the out-parameters, we set aTransformToGeckoOut
+   to the remaining transforms (LA.Inverse() * LD * ... * RD), so that the caller code can
+   combine it with aTransformToApzcOut to get the final transform required in this case.
 
    Note that for many of these layers, there will be no AsyncPanZoomController attached, and
    so the async transform will be the identity transform. So, in the example above, if layers
@@ -1309,14 +1314,10 @@ APZCTreeManager::GetAPZCAtPoint(AsyncPanZoomController* aApzc,
    The APZCs also obviously have LT, LN, PT, and PN, so all of the above transformation combinations
    required can be generated.
  */
-
-/*
- * See the long comment above for a detailed explanation of this function.
- */
-Matrix4x4
-APZCTreeManager::GetScreenToApzcTransform(const AsyncPanZoomController *aApzc) const
+void
+APZCTreeManager::GetInputTransforms(AsyncPanZoomController *aApzc, Matrix4x4& aTransformToApzcOut,
+                                    Matrix4x4& aTransformToGeckoOut)
 {
-  Matrix4x4 result;
   MonitorAutoLock lock(mTreeLock);
 
   // The comments below assume there is a chain of layers L..R with L and P having APZC instances as
@@ -1328,64 +1329,34 @@ APZCTreeManager::GetScreenToApzcTransform(const AsyncPanZoomController *aApzc) c
   // ancestorUntransform is PC.Inverse() * OC.Inverse() * NC.Inverse() * MC.Inverse()
   Matrix4x4 ancestorUntransform = aApzc->GetAncestorTransform();
   ancestorUntransform.Invert();
+  // asyncUntransform is LA.Inverse()
+  Matrix4x4 asyncUntransform = aApzc->GetCurrentAsyncTransform();
+  asyncUntransform.Invert();
 
-  // result is initialized to PC.Inverse() * OC.Inverse() * NC.Inverse() * MC.Inverse()
-  result = ancestorUntransform;
+  // aTransformToApzcOut is initialized to PC.Inverse() * OC.Inverse() * NC.Inverse() * MC.Inverse()
+  aTransformToApzcOut = ancestorUntransform;
+  // aTransformToGeckoOut is initialized to LA.Inverse() * LD * MC * NC * OC * PC
+  aTransformToGeckoOut = asyncUntransform * aApzc->GetTransformToLastDispatchedPaint() * aApzc->GetAncestorTransform();
 
   for (AsyncPanZoomController* parent = aApzc->GetParent(); parent; parent = parent->GetParent()) {
     // ancestorUntransform is updated to RC.Inverse() * QC.Inverse() when parent == P
     ancestorUntransform = parent->GetAncestorTransform();
     ancestorUntransform.Invert();
     // asyncUntransform is updated to PA.Inverse() when parent == P
-    Matrix4x4 asyncUntransform = parent->GetCurrentAsyncTransform();
+    asyncUntransform = parent->GetCurrentAsyncTransform();
     asyncUntransform.Invert();
     // untransformSinceLastApzc is RC.Inverse() * QC.Inverse() * PA.Inverse()
     Matrix4x4 untransformSinceLastApzc = ancestorUntransform * asyncUntransform;
 
-    // result is RC.Inverse() * QC.Inverse() * PA.Inverse() * PC.Inverse() * OC.Inverse() * NC.Inverse() * MC.Inverse()
-    result = untransformSinceLastApzc * result;
-
-    // The above value for result when parent == P matches the required output
-    // as explained in the comment above this method. Note that any missing
-    // terms are guaranteed to be identity transforms.
-  }
-
-  return result;
-}
-
-/*
- * See the long comment above GetScreenToApzcTransform() for a detailed
- * explanation of this function.
- */
-Matrix4x4
-APZCTreeManager::GetApzcToGeckoTransform(const AsyncPanZoomController *aApzc) const
-{
-  Matrix4x4 result;
-  MonitorAutoLock lock(mTreeLock);
-
-  // The comments below assume there is a chain of layers L..R with L and P having APZC instances as
-  // explained in the comment above. This function is called with aApzc at L, and the loop
-  // below performs one iteration, where parent is at P. The comments explain what values are stored
-  // in the variables at these two levels. All the comments use standard matrix notation where the
-  // leftmost matrix in a multiplication is applied first.
-
-  // asyncUntransform is LA.Inverse()
-  Matrix4x4 asyncUntransform = aApzc->GetCurrentAsyncTransform();
-  asyncUntransform.Invert();
-
-  // aTransformToGeckoOut is initialized to LA.Inverse() * LD * MC * NC * OC * PC
-  result = asyncUntransform * aApzc->GetTransformToLastDispatchedPaint() * aApzc->GetAncestorTransform();
-
-  for (AsyncPanZoomController* parent = aApzc->GetParent(); parent; parent = parent->GetParent()) {
+    // aTransformToApzcOut is RC.Inverse() * QC.Inverse() * PA.Inverse() * PC.Inverse() * OC.Inverse() * NC.Inverse() * MC.Inverse()
+    aTransformToApzcOut = untransformSinceLastApzc * aTransformToApzcOut;
     // aTransformToGeckoOut is LA.Inverse() * LD * MC * NC * OC * PC * PD * QC * RC
-    result = result * parent->GetTransformToLastDispatchedPaint() * parent->GetAncestorTransform();
+    aTransformToGeckoOut = aTransformToGeckoOut * parent->GetTransformToLastDispatchedPaint() * parent->GetAncestorTransform();
 
-    // The above value for result when parent == P matches the required output
-    // as explained in the comment above this method. Note that any missing
+    // The above values for aTransformToApzcOut and aTransformToGeckoOut when parent == P match
+    // the required output as explained in the comment above this method. Note that any missing
     // terms are guaranteed to be identity transforms.
   }
-
-  return result;
 }
 
 already_AddRefed<AsyncPanZoomController>

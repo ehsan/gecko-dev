@@ -124,13 +124,13 @@ class gcstats::StatisticsSerializer
         needComma_ = true;
     }
 
-    char16_t *finishJSString() {
+    jschar *finishJSString() {
         char *buf = finishCString();
         if (!buf)
             return nullptr;
 
         size_t nchars = strlen(buf);
-        char16_t *out = js_pod_malloc<char16_t>(nchars + 1);
+        jschar *out = js_pod_malloc<jschar>(nchars + 1);
         if (!out) {
             oom_ = true;
             js_free(buf);
@@ -424,7 +424,7 @@ Statistics::formatData(StatisticsSerializer &ss, uint64_t timestamp)
     return !ss.isOOM();
 }
 
-char16_t *
+jschar *
 Statistics::formatMessage()
 {
     StatisticsSerializer ss(StatisticsSerializer::AsText);
@@ -432,7 +432,7 @@ Statistics::formatMessage()
     return ss.finishJSString();
 }
 
-char16_t *
+jschar *
 Statistics::formatJSON(uint64_t timestamp)
 {
     StatisticsSerializer ss(StatisticsSerializer::AsJSON);

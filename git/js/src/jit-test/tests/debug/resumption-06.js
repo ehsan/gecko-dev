@@ -1,3 +1,4 @@
+// |jit-test| debug
 // Forced return from a star generator frame.
 
 load(libdir + 'asserts.js')

@@ -71,7 +71,7 @@ StatementRow::GetProperty(nsIXPConnectWrappedNative *aWrapper,
     }
     else if (type == mozIStorageValueArray::VALUE_TYPE_TEXT) {
       uint32_t bytes;
-      const char16_t *sval = reinterpret_cast<const char16_t *>(
+      const jschar *sval = reinterpret_cast<const jschar *>(
         static_cast<mozIStorageStatement *>(mStatement)->
           AsSharedWString(idx, &bytes)
       );

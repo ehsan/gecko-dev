@@ -119,22 +119,17 @@ public:
   void ClearOverscroll();
 
   /**
-   * Gets the starting position of the touch supplied in StartTouch().
+   * Gets the distance between the starting position of the touch supplied in
+   * startTouch() and the current touch from the last
+   * updateWithTouchAtDevicePoint().
    */
-  ScreenCoord PanStart() const;
+  float PanDistance();
 
   /**
    * Gets the distance between the starting position of the touch supplied in
-   * StartTouch() and the current touch from the last
-   * UpdateWithTouchAtDevicePoint().
+   * startTouch() and the supplied position.
    */
-  ScreenCoord PanDistance() const;
-
-  /**
-   * Gets the distance between the starting position of the touch supplied in
-   * StartTouch() and the supplied position.
-   */
-  ScreenCoord PanDistance(ScreenCoord aPos) const;
+  float PanDistance(ScreenCoord aPos);
 
   /**
    * Applies friction during a fling, or cancels the fling if the velocity is
@@ -222,8 +217,6 @@ public:
   virtual CSSCoord GetRectLength(const CSSRect& aRect) const = 0;
   virtual CSSCoord GetRectOffset(const CSSRect& aRect) const = 0;
 
-  virtual ScreenPoint MakePoint(ScreenCoord aCoord) const = 0;
-
 protected:
   ScreenCoord mPos;
   uint32_t mPosTimeMs;
@@ -257,7 +250,6 @@ public:
   virtual CSSCoord GetPointOffset(const CSSPoint& aPoint) const;
   virtual CSSCoord GetRectLength(const CSSRect& aRect) const;
   virtual CSSCoord GetRectOffset(const CSSRect& aRect) const;
-  virtual ScreenPoint MakePoint(ScreenCoord aCoord) const;
 };
 
 class AxisY : public Axis {
@@ -266,7 +258,6 @@ public:
   virtual CSSCoord GetPointOffset(const CSSPoint& aPoint) const;
   virtual CSSCoord GetRectLength(const CSSRect& aRect) const;
   virtual CSSCoord GetRectOffset(const CSSRect& aRect) const;
-  virtual ScreenPoint MakePoint(ScreenCoord aCoord) const;
 };
 
 }

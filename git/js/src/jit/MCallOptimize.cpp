@@ -1291,7 +1291,7 @@ IonBuilder::inlineConstantCharCodeAt(CallInfo &callInfo)
     callInfo.setImplicitlyUsedUnchecked();
 
     JSLinearString &linstr = str->asLinear();
-    char16_t ch = linstr.latin1OrTwoByteChar(idx);
+    jschar ch = linstr.latin1OrTwoByteChar(idx);
     MConstant *result = MConstant::New(alloc(), Int32Value(ch));
     current->add(result);
     current->push(result);

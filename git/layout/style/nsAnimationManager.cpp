@@ -457,7 +457,7 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
     dest->mStartTime = now;
     dest->mPlayState = src.GetPlayState();
     if (dest->IsPaused()) {
-      dest->mHoldTime.SetValue(TimeDuration(0));
+      dest->mHoldTime = now;
     }
 
     // While current drafts of css3-animations say that later keyframes

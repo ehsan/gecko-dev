@@ -737,8 +737,8 @@ GetPrincipalForAsmJSCacheOp()
 
 static bool
 AsmJSCacheOpenEntryForRead(JS::Handle<JSObject*> aGlobal,
-                           const char16_t* aBegin,
-                           const char16_t* aLimit,
+                           const jschar* aBegin,
+                           const jschar* aLimit,
                            size_t* aSize,
                            const uint8_t** aMemory,
                            intptr_t *aHandle)
@@ -755,8 +755,8 @@ AsmJSCacheOpenEntryForRead(JS::Handle<JSObject*> aGlobal,
 static bool
 AsmJSCacheOpenEntryForWrite(JS::Handle<JSObject*> aGlobal,
                             bool aInstalled,
-                            const char16_t* aBegin,
-                            const char16_t* aEnd,
+                            const jschar* aBegin,
+                            const jschar* aEnd,
                             size_t aSize,
                             uint8_t** aMemory,
                             intptr_t* aHandle)

@@ -1,3 +1,4 @@
+// |jit-test| debug
 // Ensure the correct frame is passed to exception unwind hooks.
 var g = newGlobal();
 g.debuggeeGlobal = this;
