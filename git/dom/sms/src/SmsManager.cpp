@@ -92,9 +92,11 @@ NS_IMPL_ADDREF_INHERITED(SmsManager, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(SmsManager, nsDOMEventTargetHelper)
 
 void
-SmsManager::Init(nsPIDOMWindow *aWindow)
+SmsManager::Init(nsPIDOMWindow *aWindow, nsIScriptContext* aScriptContext)
 {
-  BindToOwner(aWindow);
+  // Those vars come from nsDOMEventTargetHelper.
+  mOwner = aWindow;
+  mScriptContext = aScriptContext;
 
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   // GetObserverService() can return null is some situations like shutdown.
@@ -147,7 +149,8 @@ SmsManager::Send(JSContext* aCx, JSObject* aGlobal, JSString* aNumber,
   nsCOMPtr<nsISmsRequestManager> requestManager = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
 
   PRInt32 requestId;
-  nsresult rv = requestManager->CreateRequest(this, getter_AddRefs(request),
+  nsresult rv = requestManager->CreateRequest(mOwner, mScriptContext,
+                                              getter_AddRefs(request),
                                               &requestId);
   if (NS_FAILED(rv)) {
     NS_ERROR("Failed to create the request!");
@@ -171,10 +174,7 @@ SmsManager::Send(JSContext* aCx, JSObject* aGlobal, JSString* aNumber,
 NS_IMETHODIMP
 SmsManager::Send(const jsval& aNumber, const nsAString& aMessage, jsval* aReturn)
 {
-  nsresult rv;
-  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
-  NS_ENSURE_STATE(sc);
-  JSContext* cx = sc->GetNativeContext();
+  JSContext* cx = mScriptContext->GetNativeContext();
   NS_ASSERTION(cx, "Failed to get a context!");
 
   if (!aNumber.isString() &&
@@ -182,7 +182,7 @@ SmsManager::Send(const jsval& aNumber, const nsAString& aMessage, jsval* aReturn
     return NS_ERROR_INVALID_ARG;
   }
 
-  JSObject* global = sc->GetNativeGlobal();
+  JSObject* global = mScriptContext->GetNativeGlobal();
   NS_ASSERTION(global, "Failed to get global object!");
 
   JSAutoRequest ar(cx);
@@ -226,7 +226,8 @@ SmsManager::GetMessageMoz(PRInt32 aId, nsIDOMMozSmsRequest** aRequest)
   nsCOMPtr<nsISmsRequestManager> requestManager = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
 
   PRInt32 requestId;
-  nsresult rv = requestManager->CreateRequest(this, aRequest, &requestId);
+  nsresult rv = requestManager->CreateRequest(mOwner, mScriptContext, aRequest,
+                                              &requestId);
   if (NS_FAILED(rv)) {
     NS_ERROR("Failed to create the request!");
     return rv;
@@ -247,7 +248,8 @@ SmsManager::Delete(PRInt32 aId, nsIDOMMozSmsRequest** aRequest)
   nsCOMPtr<nsISmsRequestManager> requestManager = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
 
   PRInt32 requestId;
-  nsresult rv = requestManager->CreateRequest(this, aRequest, &requestId);
+  nsresult rv = requestManager->CreateRequest(mOwner, mScriptContext, aRequest,
+                                              &requestId);
   if (NS_FAILED(rv)) {
     NS_ERROR("Failed to create the request!");
     return rv;
@@ -273,12 +275,9 @@ SmsManager::Delete(const jsval& aParam, nsIDOMMozSmsRequest** aRequest)
     return NS_ERROR_INVALID_ARG;
   }
 
-  nsresult rv;
-  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
-  NS_ENSURE_STATE(sc);
   nsCOMPtr<nsIDOMMozSmsMessage> message =
     do_QueryInterface(nsContentUtils::XPConnect()->GetNativeOfWrapper(
-          sc->GetNativeContext(), &aParam.toObject()));
+          mScriptContext->GetNativeContext(), &aParam.toObject()));
   NS_ENSURE_TRUE(message, NS_ERROR_INVALID_ARG);
 
   PRInt32 id;
@@ -300,7 +299,7 @@ SmsManager::GetMessages(nsIDOMMozSmsFilter* aFilter, bool aReverse,
   nsCOMPtr<nsISmsRequestManager> requestManager = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
 
   PRInt32 requestId;
-  nsresult rv = requestManager->CreateRequest(this, aRequest,
+  nsresult rv = requestManager->CreateRequest(mOwner, mScriptContext, aRequest,
                                               &requestId);
   if (NS_FAILED(rv)) {
     NS_ERROR("Failed to create the request!");

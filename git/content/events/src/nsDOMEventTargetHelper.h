@@ -62,7 +62,6 @@ public:
   NS_DECL_NSIDOMEVENTLISTENER
 
   nsIDOMEventListener* GetInner() { return mListener; }
-  void Disconnect() { mListener = nsnull; }
 protected:
   nsCOMPtr<nsIDOMEventListener> mListener;
 };
@@ -71,7 +70,7 @@ class nsDOMEventTargetHelper : public nsIDOMEventTarget,
                                public nsWrapperCache
 {
 public:
-  nsDOMEventTargetHelper() : mOwner(nsnull), mHasOrHasHadOwner(false) {}
+  nsDOMEventTargetHelper() {}
   virtual ~nsDOMEventTargetHelper();
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMEventTargetHelper)
@@ -122,7 +121,6 @@ public:
 
   nsresult CheckInnerWindowCorrectness()
   {
-    NS_ENSURE_STATE(!mHasOrHasHadOwner || mOwner);
     if (mOwner) {
       NS_ASSERTION(mOwner->IsInnerWindow(), "Should have inner window here!\n");
       nsPIDOMWindow* outer = mOwner->GetOuterWindow();
@@ -132,18 +130,11 @@ public:
     }
     return NS_OK;
   }
-
-  void BindToOwner(nsPIDOMWindow* aOwner);
-  void BindToOwner(nsDOMEventTargetHelper* aOther);
-  virtual void DisconnectFromOwner();                   
-  nsPIDOMWindow* GetOwner() { return mOwner; }
-  bool HasOrHasHadOwner() { return mHasOrHasHadOwner; }
 protected:
   nsRefPtr<nsEventListenerManager> mListenerManager;
-private:
   // These may be null (native callers or xpcshell).
-  nsPIDOMWindow*             mOwner; // Inner window.
-  bool                       mHasOrHasHadOwner;
+  nsCOMPtr<nsIScriptContext> mScriptContext;
+  nsCOMPtr<nsPIDOMWindow>    mOwner; // Inner window.
 };
 
 #define NS_DECL_EVENT_HANDLER(_event)                                         \
@@ -195,9 +186,6 @@ private:
 
 #define NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(_event)                      \
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOn##_event##Listener)
-
-#define NS_DISCONNECT_EVENT_HANDLER(_event)                                   \
-  if (mOn##_event##Listener) { mOn##_event##Listener->Disconnect(); }
 
 #define NS_UNMARK_LISTENER_WRAPPER(_event)                       \
   if (tmp->mOn##_event##Listener) {                              \

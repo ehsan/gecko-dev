@@ -2779,7 +2779,9 @@
 
           Services.prefs.addObserver("browser.tabs.", this._prefObserver, false);
           window.addEventListener("resize", this, false);
-          window.addEventListener("load", this, false);
+
+          this.updateVisibility();
+          this._propagateVisibility();
         ]]>
       </constructor>
 
@@ -2839,19 +2841,15 @@
         this.parentNode && this.parentNode.localName == "toolbar" ? this.parentNode : this;
       ]]></field>
 
-      <field name="_propagatedVisibilityOnce">false</field>
-
       <property name="visible"
                 onget="return !this._container.collapsed;">
         <setter><![CDATA[
-          if (val == this.visible &&
-              this._propagatedVisibilityOnce)
+          if (val == this.visible)
             return val;
 
           this._container.collapsed = !val;
 
           this._propagateVisibility();
-          this._propagatedVisibilityOnce = true;
 
           return val;
         ]]></setter>
@@ -3082,9 +3080,6 @@
         <parameter name="aEvent"/>
         <body><![CDATA[
           switch (aEvent.type) {
-            case "load":
-              this.updateVisibility();
-              break;
             case "resize":
               if (aEvent.target != window)
                 break;

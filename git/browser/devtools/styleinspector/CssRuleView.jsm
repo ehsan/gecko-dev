@@ -23,7 +23,6 @@
  * Contributor(s):
  *   Dave Camp <dcamp@mozilla.com> (Original Author)
  *   Rob Campbell <rcampbell@mozilla.com>
- *   Mike Ratcliffe <mratcliffe@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -808,7 +807,7 @@ CssRuleView.prototype = {
     for each (let rule in this._elementStyle.rules) {
       // Don't hold a reference to this editor beyond the one held
       // by the node.
-      let editor = new RuleEditor(this, rule);
+      let editor = new RuleEditor(this.doc, rule);
       this.element.appendChild(editor.element);
     }
   },
@@ -817,17 +816,15 @@ CssRuleView.prototype = {
 /**
  * Create a RuleEditor.
  *
- * @param CssRuleView aRuleView
- *        The CssRuleView containg the document holding this rule editor and the
- *        _selectionMode flag.
+ * @param object aDoc
+ *        The document holding this rule editor.
  * @param Rule aRule
  *        The Rule object we're editing.
  * @constructor
  */
-function RuleEditor(aRuleView, aRule)
+function RuleEditor(aDoc, aRule)
 {
-  this.ruleView = aRuleView;
-  this.doc = this.ruleView.doc;
+  this.doc = aDoc;
   this.rule = aRule;
 
   this._onNewProperty = this._onNewProperty.bind(this);
@@ -896,16 +893,8 @@ RuleEditor.prototype = {
 
     // We made the close brace focusable, tabbing to it
     // or clicking on it should start the new property editor.
-    this.closeBrace.addEventListener("focus", function(aEvent) {
-      if (!this.ruleView._selectionMode) {
-        this.newProperty();
-      }
-    }.bind(this), true);
-    this.closeBrace.addEventListener("mousedown", function(aEvent) {
-      aEvent.preventDefault();
-    }.bind(this), true);
-    this.closeBrace.addEventListener("click", function(aEvent) {
-      this.closeBrace.focus();
+    this.closeBrace.addEventListener("focus", function() {
+      this.newProperty();
     }.bind(this), true);
   },
 
@@ -1271,21 +1260,6 @@ function editableField(aOptions)
 {
   aOptions.element.addEventListener("focus", function() {
     new InplaceEditor(aOptions);
-  }, false);
-
-  // In order to allow selection on the element, prevent focus on
-  // mousedown.  Focus on click instead.
-  aOptions.element.addEventListener("mousedown", function(evt) {
-    evt.preventDefault();
-  }, false);
-  aOptions.element.addEventListener("click", function(evt) {
-    let win = this.ownerDocument.defaultView;
-    let selection = win.getSelection();
-    if (selection.isCollapsed) {
-      aOptions.element.focus();
-    } else {
-      selection.removeAllRanges();
-    }
   }, false);
 }
 var _editableField = editableField;

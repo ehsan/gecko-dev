@@ -83,7 +83,6 @@ public:
   NS_DECL_NSIXMLHTTPREQUESTEVENTTARGET
   NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
-  virtual void DisconnectFromOwner();
 protected:
   nsRefPtr<nsDOMEventListenerWrapper> mOnLoadListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
@@ -98,10 +97,12 @@ class nsXMLHttpRequestUpload : public nsXHREventTarget,
                                public nsIXMLHttpRequestUpload
 {
 public:
-  nsXMLHttpRequestUpload(nsDOMEventTargetHelper* aOwner)
+  nsXMLHttpRequestUpload(nsPIDOMWindow* aOwner,
+                         nsIScriptContext* aScriptContext)
   {
-    BindToOwner(aOwner);
-  }                                         
+    mOwner = aOwner;
+    mScriptContext = aScriptContext;
+  }
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_NSIXMLHTTPREQUESTEVENTTARGET(nsXHREventTarget::)
   NS_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget::)
@@ -205,8 +206,7 @@ public:
                                                                    nsXHREventTarget)
   bool AllowUploadProgress();
   void RootResultArrayBuffer();
-
-  virtual void DisconnectFromOwner();
+  
 protected:
   friend class nsMultipartProxyListener;
 

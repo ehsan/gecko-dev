@@ -72,9 +72,11 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMDESKTOPNOTIFICATIONCENTER
 
-  nsDesktopNotificationCenter(nsPIDOMWindow *aWindow)
+  nsDesktopNotificationCenter(nsPIDOMWindow *aWindow,
+                              nsIScriptContext* aScriptContext)
   {
     mOwner = aWindow;
+    mScriptContext = aScriptContext;
 
     // Grab the uri of the document
     nsCOMPtr<nsIDOMDocument> domdoc;
@@ -89,10 +91,12 @@ public:
 
   void Shutdown() {
     mOwner = nsnull;
+    mScriptContext = nsnull;
   }
 
 private:
   nsCOMPtr<nsPIDOMWindow> mOwner;
+  nsCOMPtr<nsIScriptContext> mScriptContext;
   nsCOMPtr<nsIURI> mURI;
 };
 
@@ -111,6 +115,7 @@ public:
                            const nsAString & description,
                            const nsAString & iconURL,
                            nsPIDOMWindow *aWindow,
+                           nsIScriptContext* aScriptContext,
                            nsIURI* uri);
 
   virtual ~nsDOMDesktopNotification();

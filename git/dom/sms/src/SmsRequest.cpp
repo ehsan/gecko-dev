@@ -42,7 +42,6 @@
 #include "nsIDOMSmsMessage.h"
 #include "nsIDOMSmsCursor.h"
 #include "nsISmsRequestManager.h"
-#include "SmsManager.h"
 
 DOMCI_DATA(MozSmsRequest, mozilla::dom::sms::SmsRequest)
 
@@ -91,13 +90,15 @@ NS_IMPL_RELEASE_INHERITED(SmsRequest, nsDOMEventTargetHelper)
 NS_IMPL_EVENT_HANDLER(SmsRequest, success)
 NS_IMPL_EVENT_HANDLER(SmsRequest, error)
 
-SmsRequest::SmsRequest(SmsManager* aManager)
+SmsRequest::SmsRequest(nsPIDOMWindow* aWindow, nsIScriptContext* aScriptContext)
   : mResult(JSVAL_VOID)
   , mResultRooted(false)
   , mError(nsISmsRequestManager::SUCCESS_NO_ERROR)
   , mDone(false)
 {
-  BindToOwner(aManager);
+  // Those vars come from nsDOMEventTargetHelper.
+  mOwner = aWindow;
+  mScriptContext = aScriptContext;
 }
 
 SmsRequest::~SmsRequest()
@@ -180,17 +181,10 @@ SmsRequest::SetSuccessInternal(nsISupports* aObject)
                   "mError shouldn't have been set!");
   NS_PRECONDITION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
 
-  nsresult rv;
-  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
-  if (!sc) {
-    SetError(nsISmsRequestManager::INTERNAL_ERROR);
-    return false;
-  }
-
-  JSContext* cx = sc->GetNativeContext();    
+  JSContext* cx = mScriptContext->GetNativeContext();
   NS_ASSERTION(cx, "Failed to get a context!");
 
-  JSObject* global = sc->GetNativeGlobal();
+  JSObject* global = mScriptContext->GetNativeGlobal();
   NS_ASSERTION(global, "Failed to get global object!");
 
   JSAutoRequest ar(cx);

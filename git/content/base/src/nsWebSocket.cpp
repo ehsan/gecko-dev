@@ -419,9 +419,8 @@ nsWebSocket::GetInterface(const nsIID &aIID, void **aResult)
       aIID.Equals(NS_GET_IID(nsIAuthPrompt2))) {
     nsresult rv;
 
-    nsIScriptContext* sc = GetContextForEventHandlers(&rv);
     nsCOMPtr<nsIDocument> doc =
-      nsContentUtils::GetDocumentFromScriptContext(sc);
+      nsContentUtils::GetDocumentFromScriptContext(mScriptContext);
     if (!doc)
       return NS_ERROR_NOT_AVAILABLE;
 
@@ -535,18 +534,6 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 NS_IMPL_ADDREF_INHERITED(nsWebSocket, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(nsWebSocket, nsDOMEventTargetHelper)
-
-void
-nsWebSocket::DisconnectFromOwner()
-{
-  nsDOMEventTargetHelper::DisconnectFromOwner();
-  NS_DISCONNECT_EVENT_HANDLER(Open)
-  NS_DISCONNECT_EVENT_HANDLER(Message)
-  NS_DISCONNECT_EVENT_HANDLER(Close)
-  NS_DISCONNECT_EVENT_HANDLER(Error)
-  FailConnectionQuietly();
-  DontKeepAliveAnyMore();
-}
 
 //-----------------------------------------------------------------------------
 // nsWebSocket::nsIJSNativeInitializer methods:
@@ -803,7 +790,7 @@ nsWebSocket::CreateAndDispatchMessageEvent(const nsACString& aData,
     return NS_OK;
 
   // Get the JSContext
-  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(GetOwner());
+  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(mOwner);
   NS_ENSURE_TRUE(sgo, NS_ERROR_FAILURE);
 
   nsIScriptContext* scriptContext = sgo->GetContext();
@@ -1538,11 +1525,12 @@ nsWebSocket::Init(nsIPrincipal* aPrincipal,
   }
 
   mPrincipal = aPrincipal;
+  mScriptContext = aScriptContext;
   if (aOwnerWindow) {
-    BindToOwner(aOwnerWindow->IsOuterWindow() ?
-                aOwnerWindow->GetCurrentInnerWindow() : aOwnerWindow);
+    mOwner = aOwnerWindow->IsOuterWindow() ?
+      aOwnerWindow->GetCurrentInnerWindow() : aOwnerWindow;
   } else {
-    BindToOwner(aOwnerWindow);
+    mOwner = nsnull;
   }
 
   // Attempt to kill "ghost" websocket: but usually too early for check to fail
@@ -1582,9 +1570,8 @@ nsWebSocket::Init(nsIPrincipal* aPrincipal,
   rv = ParseURL(PromiseFlatString(aURL));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
   nsCOMPtr<nsIDocument> originDoc =
-    nsContentUtils::GetDocumentFromScriptContext(sc);
+    nsContentUtils::GetDocumentFromScriptContext(mScriptContext);
 
   // Don't allow https:// to open ws://
   if (!mSecure &&
@@ -1649,7 +1636,7 @@ nsWebSocket::Observe(nsISupports* aSubject,
   }
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aSubject);
-  if (!GetOwner() || window != GetOwner()) {
+  if (!mOwner || window != mOwner) {
     return NS_OK;
   }
 
@@ -1718,10 +1705,8 @@ nsWebSocket::GetLoadGroup(nsILoadGroup **aLoadGroup)
 {
   *aLoadGroup = nsnull;
 
-  nsresult rv;
-  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
   nsCOMPtr<nsIDocument> doc =
-    nsContentUtils::GetDocumentFromScriptContext(sc);
+    nsContentUtils::GetDocumentFromScriptContext(mScriptContext);
 
   if (doc) {
     *aLoadGroup = doc->GetDocumentLoadGroup().get();  // already_AddRefed

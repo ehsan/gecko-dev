@@ -265,15 +265,3 @@ function simulateDrop(aDropTarget, aDragSource) {
   if (aDragSource)
     cw.gDrag.end(aDragSource.site);
 }
-
-/**
- * Resumes testing when all pages have been updated.
- */
-function whenPagesUpdated() {
-  NewTabUtils.allPages.register({
-    update: function () {
-      NewTabUtils.allPages.unregister(this);
-      executeSoon(TestRunner.next);
-    }
-  });
-}

@@ -253,7 +253,6 @@
 #include "mozilla/Telemetry.h"
 #include "nsLocation.h"
 #include "nsWrapperCacheInlines.h"
-#include "nsDOMEventTargetHelper.h"
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -968,8 +967,6 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
   NS_ASSERTION(!sWindowsById->Get(mWindowID),
                "This window shouldn't be in the hash table yet!");
   sWindowsById->Put(mWindowID, this);
-
-  mEventTargetObjects.Init();
 }
 
 /* static */
@@ -996,20 +993,8 @@ nsGlobalWindow::Init()
 #endif
 }
 
-static PLDHashOperator
-DisconnectEventTargetObjects(nsPtrHashKey<nsDOMEventTargetHelper>* aKey,
-                             void* aClosure)
-{
-  nsRefPtr<nsDOMEventTargetHelper> target = aKey->GetKey();
-  target->DisconnectFromOwner();
-  return PL_DHASH_NEXT;
-}
-
 nsGlobalWindow::~nsGlobalWindow()
 {
-  mEventTargetObjects.EnumerateEntries(DisconnectEventTargetObjects, nsnull);
-  mEventTargetObjects.Clear();
-
   // We have to check if sWindowsById isn't null because ::Shutdown might have
   // been called.
   if (sWindowsById) {
@@ -1097,18 +1082,6 @@ nsGlobalWindow::~nsGlobalWindow()
   nsLayoutStatics::Release();
 }
 
-void
-nsGlobalWindow::AddEventTargetObject(nsDOMEventTargetHelper* aObject)
-{
-  mEventTargetObjects.PutEntry(aObject);
-}
-
-void
-nsGlobalWindow::RemoveEventTargetObject(nsDOMEventTargetHelper* aObject)
-{
-  mEventTargetObjects.RemoveEntry(aObject);
-}
-
 // static
 void
 nsGlobalWindow::ShutDown()
@@ -1173,9 +1146,6 @@ nsGlobalWindow::CleanUp(bool aIgnoreModalDialog)
   if (mCleanedUp)
     return;
   mCleanedUp = true;
-  
-  mEventTargetObjects.EnumerateEntries(DisconnectEventTargetObjects, nsnull);
-  mEventTargetObjects.Clear();
 
   if (mObserver) {
     nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
@@ -3363,8 +3333,11 @@ nsGlobalWindow::GetApplicationCache(nsIDOMOfflineResourceList **aApplicationCach
     nsCOMPtr<nsIURI> manifestURI;
     nsContentUtils::GetOfflineAppManifest(doc, getter_AddRefs(manifestURI));
 
+    nsIScriptContext* scriptContext = GetContext();
+    NS_ENSURE_STATE(scriptContext);
+
     nsRefPtr<nsDOMOfflineResourceList> applicationCache =
-      new nsDOMOfflineResourceList(manifestURI, uri, this);
+      new nsDOMOfflineResourceList(manifestURI, uri, this, scriptContext);
     NS_ENSURE_TRUE(applicationCache, NS_ERROR_OUT_OF_MEMORY);
 
     applicationCache->Init();

@@ -86,7 +86,8 @@ IDBRequest::Create(nsISupports* aSource,
 
   request->mSource = aSource;
   request->mTransaction = aTransaction;
-  request->BindToOwner(aOwnerCache);
+  request->mScriptContext = aOwnerCache->GetScriptContext();
+  request->mOwner = aOwnerCache->GetOwner();
   if (!request->SetScriptOwner(aOwnerCache->GetScriptOwner())) {
     return nsnull;
   }
@@ -142,9 +143,7 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
     }
   }
   else {
-    nsIScriptContext* sc = GetContextForEventHandlers(&rv);
-    NS_ENSURE_STATE(sc);
-    cx = sc->GetNativeContext();
+    cx = mScriptContext->GetNativeContext();
     NS_ASSERTION(cx, "Failed to get a context!");
   } 
 
@@ -190,16 +189,13 @@ IDBRequest::UnrootResultValInternal()
 }
 
 NS_IMETHODIMP
-IDBRequest::GetReadyState(nsAString& aReadyState)
+IDBRequest::GetReadyState(PRUint16* aReadyState)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (mHaveResultOrErrorCode) {
-    aReadyState.AssignLiteral("done");
-  }
-  else {
-    aReadyState.AssignLiteral("pending");
-  }
+  *aReadyState = mHaveResultOrErrorCode ?
+                 nsIIDBRequest::DONE :
+                 nsIIDBRequest::LOADING;
 
   return NS_OK;
 }
@@ -314,13 +310,15 @@ IDBOpenDBRequest::~IDBOpenDBRequest()
 
 // static
 already_AddRefed<IDBOpenDBRequest>
-IDBOpenDBRequest::Create(nsPIDOMWindow* aOwner,
+IDBOpenDBRequest::Create(nsIScriptContext* aScriptContext,
+                         nsPIDOMWindow* aOwner,
                          JSObject* aScriptOwner)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   nsRefPtr<IDBOpenDBRequest> request(new IDBOpenDBRequest());
 
-  request->BindToOwner(aOwner);
+  request->mScriptContext = aScriptContext;
+  request->mOwner = aOwner;
   if (!request->SetScriptOwner(aScriptOwner)) {
     return nsnull;
   }

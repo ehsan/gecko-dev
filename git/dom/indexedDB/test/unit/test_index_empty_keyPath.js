@@ -43,7 +43,7 @@ function testSteps()
   objectStore.createIndex("set", "", { unique: true });
   yield; // success
 
-  let trans = db.transaction("data", "readwrite");
+  let trans = db.transaction("data", IDBTransaction.READ_WRITE);
   objectStore = trans.objectStore("data");
   index = objectStore.index("set");
 
