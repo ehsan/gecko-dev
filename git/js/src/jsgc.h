@@ -1118,6 +1118,7 @@ struct GCMarker : public JSTracer {
     uint32 color;
 
   public:
+    jsuword stackLimit;
     /* See comments before delayMarkingChildren is jsgc.cpp. */
     js::gc::Arena<js::gc::Cell> *unmarkedArenaStackTop;
 #ifdef DEBUG
