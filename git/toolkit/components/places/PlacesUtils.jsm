@@ -66,6 +66,7 @@ function QI_node(aNode, aIID) {
   return result;
 }
 function asVisit(aNode) QI_node(aNode, Ci.nsINavHistoryVisitResultNode);
+function asFullVisit(aNode) QI_node(aNode, Ci.nsINavHistoryFullVisitResultNode);
 function asContainer(aNode) QI_node(aNode, Ci.nsINavHistoryContainerResultNode);
 function asQuery(aNode) QI_node(aNode, Ci.nsINavHistoryQueryResultNode);
 
@@ -103,6 +104,7 @@ this.PlacesUtils = {
   TOPIC_BOOKMARKS_RESTORE_FAILED: "bookmarks-restore-failed",
 
   asVisit: function(aNode) asVisit(aNode),
+  asFullVisit: function(aNode) asFullVisit(aNode),
   asContainer: function(aNode) asContainer(aNode),
   asQuery: function(aNode) asQuery(aNode),
 
@@ -180,7 +182,8 @@ this.PlacesUtils = {
    */
   nodeIsVisit: function PU_nodeIsVisit(aNode) {
     var type = aNode.type;
-    return type == Ci.nsINavHistoryResultNode.RESULT_TYPE_VISIT;
+    return type == Ci.nsINavHistoryResultNode.RESULT_TYPE_VISIT ||
+           type == Ci.nsINavHistoryResultNode.RESULT_TYPE_FULL_VISIT;
   },
 
   /**
@@ -190,7 +193,8 @@ this.PlacesUtils = {
    * @returns true if the node is a URL item, false otherwise
    */
   uriTypes: [Ci.nsINavHistoryResultNode.RESULT_TYPE_URI,
-             Ci.nsINavHistoryResultNode.RESULT_TYPE_VISIT],
+             Ci.nsINavHistoryResultNode.RESULT_TYPE_VISIT,
+             Ci.nsINavHistoryResultNode.RESULT_TYPE_FULL_VISIT],
   nodeIsURI: function PU_nodeIsURI(aNode) {
     return this.uriTypes.indexOf(aNode.type) != -1;
   },

@@ -26,10 +26,8 @@ interface Element : Node {
   readonly attribute DOMString localName;
 */
   // Not [Constant] because it depends on which document we're in
-  [Pure]
   readonly attribute DOMString tagName;
 
-  [Pure]
            attribute DOMString id;
 /*
   FIXME Bug 810677 Move className from HTMLElement to Element
@@ -59,15 +57,10 @@ interface Element : Node {
 
   [Constant]
   readonly attribute HTMLCollection children;
-  [Pure]
   readonly attribute Element? firstElementChild;
-  [Pure]
   readonly attribute Element? lastElementChild;
-  [Pure]
   readonly attribute Element? previousElementSibling;
-  [Pure]
   readonly attribute Element? nextElementSibling;
-  [Pure]
   readonly attribute unsigned long childElementCount;
 
   // NEW
@@ -155,7 +148,6 @@ partial interface Element {
 
   // scrolling
   void scrollIntoView(optional boolean top = true);
-  // None of the CSSOM attributes are [Pure], because they flush
            attribute long scrollTop;   // scroll on setting
            attribute long scrollLeft;  // scroll on setting
   readonly attribute long scrollWidth;

@@ -24,7 +24,7 @@
         req.send(null);
 
         // Change should be immediate, the request was sent synchronously
-        isSecurityState("broken", "security broken after insecure XHR");
+        todoSecurityState("broken", "security broken after insecure XHR");
       }
       catch (ex)
       {

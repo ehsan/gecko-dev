@@ -44,13 +44,13 @@ this.FreeSpaceWatcher = {
         try {
           let deviceStorage = Services.wm.getMostRecentWindow("navigator:browser")
                                          .navigator.getDeviceStorage("apps");
-          let req = deviceStorage.freeSpace();
+          let req = deviceStorage.stat();
           req.onsuccess = req.onerror = function statResult(e) {
             if (!e.target.result) {
               return;
             }
 
-            let freeBytes = e.target.result;
+            let freeBytes = e.target.result.freeBytes;
             debug("Free bytes: " + freeBytes);
             let newStatus = freeBytes > aThreshold;
             if (newStatus != callback.currentStatus) {

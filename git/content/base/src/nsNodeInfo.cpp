@@ -208,20 +208,19 @@ NS_INTERFACE_MAP_END
 
 // nsINodeInfo
 
-void
+nsresult
 nsNodeInfo::GetNamespaceURI(nsAString& aNameSpaceURI) const
 {
+  nsresult rv = NS_OK;
+
   if (mInner.mNamespaceID > 0) {
-    nsresult rv =
-      nsContentUtils::NameSpaceManager()->GetNameSpaceURI(mInner.mNamespaceID,
-                                                          aNameSpaceURI);
-    // How can we possibly end up with a bogus namespace ID here?
-    if (NS_FAILED(rv)) {
-      MOZ_CRASH();
-    }
+    rv = nsContentUtils::NameSpaceManager()->GetNameSpaceURI(mInner.mNamespaceID,
+                                                             aNameSpaceURI);
   } else {
     SetDOMStringToNull(aNameSpaceURI);
   }
+
+  return rv;
 }
 
 

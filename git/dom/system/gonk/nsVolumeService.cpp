@@ -130,7 +130,7 @@ NS_IMETHODIMP nsVolumeService::BroadcastVolume(const nsAString& aVolName)
   NS_ENSURE_TRUE(obs, NS_NOINTERFACE);
 
   DBG("nsVolumeService::BroadcastVolume for '%s'", vol->NameStr().get());
-  NS_ConvertUTF8toUTF16 stateStr(vol->StateStr());
+  nsString stateStr(NS_ConvertUTF8toUTF16(vol->StateStr()));
   obs->NotifyObservers(vol, NS_VOLUME_STATE_CHANGED, stateStr.get());
   return NS_OK;
 }
@@ -269,7 +269,7 @@ void nsVolumeService::UpdateVolume(const nsVolume* aVolume)
   if (!obs) {
     return;
   }
-  NS_ConvertUTF8toUTF16 stateStr(vol->StateStr());
+  nsString stateStr(NS_ConvertUTF8toUTF16(vol->StateStr()));
   obs->NotifyObservers(vol, NS_VOLUME_STATE_CHANGED, stateStr.get());
 }
 

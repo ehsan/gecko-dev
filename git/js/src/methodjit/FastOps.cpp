@@ -858,21 +858,13 @@ IsCacheableSetElem(FrameEntry *obj, FrameEntry *id, FrameEntry *value)
 }
 
 void
-mjit::Compiler::jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion)
+mjit::Compiler::jsop_setelem_dense()
 {
     FrameEntry *obj = frame.peek(-3);
     FrameEntry *id = frame.peek(-2);
     FrameEntry *value = frame.peek(-1);
 
     frame.forgetMismatchedObject(obj);
-
-    // If the array being written to might need integer elements converted to
-    // doubles, make the conversion before writing.
-    if (conversion == types::StackTypeSet::AlwaysConvertToDoubles ||
-        conversion == types::StackTypeSet::MaybeConvertToDoubles)
-    {
-        frame.ensureDouble(value);
-    }
 
     // We might not know whether this is an object, but if it is an object we
     // know it is a dense array.
@@ -1348,18 +1340,13 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
     if (cx->typeInferenceEnabled()) {
         types::StackTypeSet *types = analysis->poppedTypes(PC, 2);
 
-        types::StackTypeSet::DoubleConversion conversion = types->convertDoubleElements(cx);
         if (types->getKnownClass() == &ArrayClass &&
             !types->hasObjectFlags(cx, types::OBJECT_FLAG_SPARSE_INDEXES |
                                    types::OBJECT_FLAG_LENGTH_OVERFLOW) &&
-            !types::ArrayPrototypeHasIndexedProperty(cx, outerScript) &&
-            conversion != types::StackTypeSet::AmbiguousDoubleConversion &&
-            (conversion == types::StackTypeSet::DontConvertToDoubles ||
-             value->isType(JSVAL_TYPE_DOUBLE) ||
-             popGuaranteed))
+            !types::ArrayPrototypeHasIndexedProperty(cx, outerScript))
         {
             // Inline dense array path.
-            jsop_setelem_dense(conversion);
+            jsop_setelem_dense();
             return true;
         }
 
@@ -2527,13 +2514,6 @@ mjit::Compiler::jsop_initelem_array()
 {
     FrameEntry *obj = frame.peek(-2);
     FrameEntry *fe = frame.peek(-1);
-
-    if (cx->typeInferenceEnabled()) {
-        types::StackTypeSet::DoubleConversion conversion =
-            script_->analysis()->poppedTypes(PC, 1)->convertDoubleElements(cx);
-        if (conversion == types::StackTypeSet::AlwaysConvertToDoubles)
-            frame.ensureDouble(fe);
-    }
 
     uint32_t index = GET_UINT24(PC);
 

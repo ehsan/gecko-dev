@@ -4005,7 +4005,6 @@ PresShell::DocumentStatesChanged(nsIDocument* aDocument,
       if (root->HasView()) {
         root->GetView()->SetForcedRepaint(true);
       }
-      root->SchedulePaint();
     }
   }
 }

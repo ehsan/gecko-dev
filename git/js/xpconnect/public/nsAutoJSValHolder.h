@@ -69,7 +69,7 @@ public:
       mRt = nullptr;
     }
 
-    if (!mRt && JS_AddNamedValueRootRT(aRt, &mVal, "nsAutoJSValHolder")) {
+    if (!mRt && js_AddRootRT(aRt, &mVal, "nsAutoJSValHolder")) {
       mRt = aRt;
     }
 
@@ -84,7 +84,7 @@ public:
     jsval oldval = mVal;
 
     if (mRt) {
-      JS_RemoveValueRootRT(mRt, &mVal); // infallible
+      js_RemoveRoot(mRt, &mVal); // infallible
       mRt = nullptr;
     }
 

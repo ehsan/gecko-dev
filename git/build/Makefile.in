@@ -103,6 +103,7 @@ GDBINIT_DEST = $(FINAL_TARGET)
 INSTALL_TARGETS += GDBINIT
 
 PYTHON_UNIT_TESTS := \
+  tests/unit-ConfigStatus.py \
   tests/test.py \
   $(NULL)
 

@@ -289,10 +289,10 @@ struct PropDesc {
     bool checkGetter(JSContext *cx);
     bool checkSetter(JSContext *cx);
 
-    bool unwrapDebuggerObjectsInto(JSContext *cx, Debugger *dbg, HandleObject obj,
+    bool unwrapDebuggerObjectsInto(JSContext *cx, Debugger *dbg, JSObject *obj,
                                    PropDesc *unwrapped) const;
 
-    bool wrapInto(JSContext *cx, HandleObject obj, const jsid &id, jsid *wrappedId,
+    bool wrapInto(JSContext *cx, JSObject *obj, const jsid &id, jsid *wrappedId,
                   PropDesc *wrappedDesc) const;
 
     class AutoRooter : private AutoGCRooter
@@ -935,8 +935,8 @@ class ObjectElements
     /* 'length' property of array objects, unused for other objects. */
     uint32_t length;
 
-    /* If non-zero, integer elements should be converted to doubles. */
-    uint32_t convertDoubleElements;
+    /* :XXX: bug 586842 store state about sparse slots. */
+    uint32_t unused;
 
     void staticAsserts() {
         MOZ_STATIC_ASSERT(sizeof(ObjectElements) == VALUES_PER_HEADER * sizeof(Value),
@@ -946,7 +946,7 @@ class ObjectElements
   public:
 
     ObjectElements(uint32_t capacity, uint32_t length)
-      : capacity(capacity), initializedLength(0), length(length), convertDoubleElements(0)
+      : capacity(capacity), initializedLength(0), length(length)
     {}
 
     HeapSlot *elements() { return (HeapSlot *)(uintptr_t(this) + sizeof(ObjectElements)); }
@@ -963,11 +963,6 @@ class ObjectElements
     static int offsetOfLength() {
         return (int)offsetof(ObjectElements, length) - (int)sizeof(ObjectElements);
     }
-    static int offsetOfConvertDoubleElements() {
-        return (int)offsetof(ObjectElements, convertDoubleElements) - (int)sizeof(ObjectElements);
-    }
-
-    static bool ConvertElementsToDoubles(JSContext *cx, uintptr_t elements);
 
     static const size_t VALUES_PER_HEADER = 2;
 };

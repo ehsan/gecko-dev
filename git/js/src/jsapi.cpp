@@ -2322,7 +2322,7 @@ JS_AddValueRoot(JSContext *cx, jsval *vp)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return AddValueRoot(cx, vp, NULL);
+    return js_AddRoot(cx, vp, NULL);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -2330,7 +2330,7 @@ JS_AddStringRoot(JSContext *cx, JSString **rp)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return AddStringRoot(cx, rp, NULL);
+    return js_AddGCThingRoot(cx, (void **)rp, NULL);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -2338,7 +2338,15 @@ JS_AddObjectRoot(JSContext *cx, JSObject **rp)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return AddObjectRoot(cx, rp, NULL);
+    return js_AddGCThingRoot(cx, (void **)rp, NULL);
+}
+
+JS_PUBLIC_API(JSBool)
+JS_AddGCThingRoot(JSContext *cx, void **rp)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    return js_AddGCThingRoot(cx, (void **)rp, NULL);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -2346,13 +2354,7 @@ JS_AddNamedValueRoot(JSContext *cx, jsval *vp, const char *name)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return AddValueRoot(cx, vp, name);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_AddNamedValueRootRT(JSRuntime *rt, jsval *vp, const char *name)
-{
-    return AddValueRootRT(rt, vp, name);
+    return js_AddRoot(cx, vp, name);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -2360,7 +2362,7 @@ JS_AddNamedStringRoot(JSContext *cx, JSString **rp, const char *name)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return AddStringRoot(cx, rp, name);
+    return js_AddGCThingRoot(cx, (void **)rp, name);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -2368,7 +2370,7 @@ JS_AddNamedObjectRoot(JSContext *cx, JSObject **rp, const char *name)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return AddObjectRoot(cx, rp, name);
+    return js_AddGCThingRoot(cx, (void **)rp, name);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -2376,7 +2378,15 @@ JS_AddNamedScriptRoot(JSContext *cx, JSScript **rp, const char *name)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return AddScriptRoot(cx, rp, name);
+    return js_AddGCThingRoot(cx, (void **)rp, name);
+}
+
+JS_PUBLIC_API(JSBool)
+JS_AddNamedGCThingRoot(JSContext *cx, void **rp, const char *name)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    return js_AddGCThingRoot(cx, (void **)rp, name);
 }
 
 /* We allow unrooting from finalizers within the GC */
@@ -2404,6 +2414,13 @@ JS_RemoveObjectRoot(JSContext *cx, JSObject **rp)
 
 JS_PUBLIC_API(void)
 JS_RemoveScriptRoot(JSContext *cx, JSScript **rp)
+{
+    CHECK_REQUEST(cx);
+    js_RemoveRoot(cx->runtime, (void *)rp);
+}
+
+JS_PUBLIC_API(void)
+JS_RemoveGCThingRoot(JSContext *cx, void **rp)
 {
     CHECK_REQUEST(cx);
     js_RemoveRoot(cx->runtime, (void *)rp);
@@ -2439,15 +2456,37 @@ JS_AnchorPtr(void *p)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_LockGCThingRT(JSRuntime *rt, void *gcthing)
+JS_LockGCThing(JSContext *cx, void *thing)
 {
-    return js_LockThing(rt, gcthing);
+    JSBool ok;
+
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    ok = js_LockGCThingRT(cx->runtime, thing);
+    if (!ok)
+        JS_ReportOutOfMemory(cx);
+    return ok;
 }
 
 JS_PUBLIC_API(JSBool)
-JS_UnlockGCThingRT(JSRuntime *rt, void *gcthing)
+JS_LockGCThingRT(JSRuntime *rt, void *thing)
 {
-    js_UnlockThing(rt, gcthing);
+    return js_LockGCThingRT(rt, thing);
+}
+
+JS_PUBLIC_API(JSBool)
+JS_UnlockGCThing(JSContext *cx, void *thing)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    js_UnlockGCThingRT(cx->runtime, thing);
+    return true;
+}
+
+JS_PUBLIC_API(JSBool)
+JS_UnlockGCThingRT(JSRuntime *rt, void *thing)
+{
+    js_UnlockGCThingRT(rt, thing);
     return true;
 }
 
@@ -6883,7 +6922,7 @@ JS_SaveExceptionState(JSContext *cx)
     if (state) {
         state->throwing = JS_GetPendingException(cx, &state->exception);
         if (state->throwing && JSVAL_IS_GCTHING(state->exception))
-            AddValueRoot(cx, &state->exception, "JSExceptionState.exception");
+            js_AddRoot(cx, &state->exception, "JSExceptionState.exception");
     }
     return state;
 }

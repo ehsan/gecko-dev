@@ -11,7 +11,6 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsfriendapi.h"
-#include "jsgc.h"
 #include "jswrapper.h"
 #include "jsweakmap.h"
 #include "jswatchpoint.h"
@@ -872,41 +871,27 @@ JS::IsIncrementalBarrierNeeded(JSContext *cx)
 }
 
 JS_FRIEND_API(void)
-JS::IncrementalObjectBarrier(JSObject *obj)
-{
-    if (!obj)
-        return;
-
-    JS_ASSERT(!obj->compartment()->rt->isHeapBusy());
-
-    AutoMarkInDeadCompartment amn(obj->compartment());
-
-    JSObject::writeBarrierPre(obj);
-}
-
-JS_FRIEND_API(void)
-JS::IncrementalReferenceBarrier(void *ptr, JSGCTraceKind kind)
+JS::IncrementalReferenceBarrier(void *ptr)
 {
     if (!ptr)
         return;
 
     gc::Cell *cell = static_cast<gc::Cell *>(ptr);
-    JSCompartment *comp = cell->compartment();
+    JS_ASSERT(!cell->compartment()->rt->isHeapBusy());
 
-    JS_ASSERT(!comp->rt->isHeapBusy());
+    AutoMarkInDeadCompartment amn(cell->compartment());
 
-    AutoMarkInDeadCompartment amn(comp);
-
+    uint32_t kind = gc::GetGCThingTraceKind(ptr);
     if (kind == JSTRACE_OBJECT)
-        JSObject::writeBarrierPre(static_cast<JSObject*>(cell));
+        JSObject::writeBarrierPre(reinterpret_cast<RawObject>(ptr));
     else if (kind == JSTRACE_STRING)
-        JSString::writeBarrierPre(static_cast<JSString*>(cell));
+        JSString::writeBarrierPre(reinterpret_cast<RawString>(ptr));
     else if (kind == JSTRACE_SCRIPT)
-        JSScript::writeBarrierPre(static_cast<JSScript*>(cell));
+        JSScript::writeBarrierPre(reinterpret_cast<RawScript>(ptr));
     else if (kind == JSTRACE_SHAPE)
-        Shape::writeBarrierPre(static_cast<Shape*>(cell));
+        Shape::writeBarrierPre(reinterpret_cast<RawShape>(ptr));
     else if (kind == JSTRACE_BASE_SHAPE)
-        BaseShape::writeBarrierPre(static_cast<BaseShape*>(cell));
+        BaseShape::writeBarrierPre(reinterpret_cast<RawBaseShape>(ptr));
     else if (kind == JSTRACE_TYPE_OBJECT)
         types::TypeObject::writeBarrierPre((types::TypeObject *) ptr);
     else

@@ -1476,7 +1476,6 @@ NS_INTERFACE_TABLE_HEAD(nsDocument)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMDocumentXBL)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIScriptObjectPrincipal)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMEventTarget)
-    NS_INTERFACE_TABLE_ENTRY(nsDocument, mozilla::dom::EventTarget)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsISupportsWeakReference)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIRadioGroupContainer)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIMutationObserver)
@@ -1848,12 +1847,6 @@ nsDocument::Init()
   mPlugins.Init();
 
   return NS_OK;
-}
-
-nsHTMLDocument*
-nsIDocument::AsHTMLDocument()
-{
-  return IsHTML() ? static_cast<nsHTMLDocument*>(this) : nullptr;
 }
 
 void

@@ -48,7 +48,7 @@ SetJsObject(JSContext* aContext,
             JS_NewStringCopyN(aContext,
                               NS_ConvertUTF16toUTF8(v.get_nsString()).get(),
                               v.get_nsString().Length());
-          NS_ENSURE_TRUE(JsData, false);
+          NS_ENSURE_TRUE(JsData, NS_ERROR_FAILURE);
           val = STRING_TO_JSVAL(JsData);
           break;
         case BluetoothValue::Tuint32_t:
@@ -66,7 +66,7 @@ SetJsObject(JSContext* aContext,
                           NS_ConvertUTF16toUTF8(arr[i].name()).get(),
                           &val)) {
         NS_WARNING("Failed to set property");
-        return false;
+        return NS_ERROR_FAILURE;
       }
     }
   } else {

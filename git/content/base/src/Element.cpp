@@ -698,7 +698,7 @@ Element::GetClientRects(ErrorResult& aError)
 
 
 void
-Element::GetAttribute(const nsAString& aName, DOMString& aReturn)
+Element::GetAttribute(const nsAString& aName, nsString& aReturn)
 {
   const nsAttrValue* val =
     mAttrsAndChildren.GetAttr(aName,
@@ -710,9 +710,9 @@ Element::GetAttribute(const nsAString& aName, DOMString& aReturn)
     if (IsXUL()) {
       // XXX should be SetDOMStringToNull(aReturn);
       // See bug 232598
-      // aReturn is already empty
+      aReturn.Truncate();
     } else {
-      aReturn.SetNull();
+      SetDOMStringToNull(aReturn);
     }
   }
 }
@@ -1961,10 +1961,23 @@ bool
 Element::GetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                  nsAString& aResult) const
 {
-  DOMString str;
-  bool haveAttr = GetAttr(aNameSpaceID, aName, str);
-  str.ToString(aResult);
-  return haveAttr;
+  NS_ASSERTION(nullptr != aName, "must have attribute name");
+  NS_ASSERTION(aNameSpaceID != kNameSpaceID_Unknown,
+               "must have a real namespace ID!");
+
+  const nsAttrValue* val = mAttrsAndChildren.GetAttr(aName, aNameSpaceID);
+  if (!val) {
+    // Since we are returning a success code we'd better do
+    // something about the out parameters (someone may have
+    // given us a non-empty string).
+    aResult.Truncate();
+    
+    return false;
+  }
+
+  val->ToString(aResult);
+
+  return true;
 }
 
 bool

@@ -465,7 +465,6 @@ bool OperatorIn(JSContext *cx, HandleValue key, HandleObject obj, JSBool *out);
 bool GetIntrinsicValue(JSContext *cx, HandlePropertyName name, MutableHandleValue rval);
 
 bool CreateThis(JSContext *cx, HandleObject callee, MutableHandleValue rval);
-
 } // namespace ion
 } // namespace js
 

@@ -30,12 +30,16 @@ SVGAnimatedAngle::WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWra
 already_AddRefed<SVGAngle>
 SVGAnimatedAngle::BaseVal()
 {
-  return mVal->ToDOMBaseVal(mSVGElement);
+  nsRefPtr<SVGAngle> angle;
+  mVal->ToDOMBaseVal(getter_AddRefs(angle), mSVGElement);
+  return angle.forget();
 }
 
 already_AddRefed<SVGAngle>
 SVGAnimatedAngle::AnimVal()
 {
-  return mVal->ToDOMAnimVal(mSVGElement);
+  nsRefPtr<SVGAngle> angle;
+  mVal->ToDOMAnimVal(getter_AddRefs(angle), mSVGElement);
+  return angle.forget();
 }
 
