@@ -402,10 +402,7 @@ Parser<ParseHandler>::Parser(ExclusiveContext *cx, LifoAlloc *alloc,
     isUnexpectedEOF_(false),
     handler(cx, *alloc, tokenStream, foldConstants, syntaxParser, lazyOuterFunction)
 {
-    {
-        AutoLockForExclusiveAccess lock(cx);
-        cx->perThreadData->addActiveCompilation();
-    }
+    cx->perThreadData->activeCompilations++;
 
     // The Mozilla specific JSOPTION_EXTRA_WARNINGS option adds extra warnings
     // which are not generated if functions are parsed lazily. Note that the
@@ -419,6 +416,8 @@ Parser<ParseHandler>::Parser(ExclusiveContext *cx, LifoAlloc *alloc,
 template <typename ParseHandler>
 Parser<ParseHandler>::~Parser()
 {
+    context->perThreadData->activeCompilations--;
+
     alloc.release(tempPoolMark);
 
     /*
@@ -427,11 +426,6 @@ Parser<ParseHandler>::~Parser()
      * next GC) to avoid unnecessary OOMs.
      */
     alloc.freeAllIfHugeAndUnused();
-
-    {
-        AutoLockForExclusiveAccess lock(context);
-        context->perThreadData->removeActiveCompilation();
-    }
 }
 
 template <typename ParseHandler>
@@ -2250,6 +2244,8 @@ Parser<ParseHandler>::functionArgsAndBodyGeneric(Node pn, HandleFunction fun, Fu
     // Given a properly initialized parse context, try to parse an actual
     // function without concern for conversion to strict mode, use of lazy
     // parsing and such.
+
+    context->maybePause();
 
     Node prelude = null();
     bool hasRest;

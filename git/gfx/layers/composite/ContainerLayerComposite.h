@@ -9,6 +9,7 @@
 #include "Layers.h"                     // for Layer (ptr only), etc
 #include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
 #include "mozilla/layers/LayerManagerComposite.h"
+#include "mozilla/layers/LayersTypes.h"  // for MOZ_LAYERS_HAVE_LOG
 
 class gfx3DMatrix;
 struct nsIntPoint;
@@ -52,7 +53,9 @@ public:
   // container layers don't use a compositable
   CompositableHost* GetCompositableHost() MOZ_OVERRIDE { return nullptr; }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() const MOZ_OVERRIDE { return "ContainerLayerComposite"; }
+#endif
 };
 
 class RefLayerComposite : public RefLayer,
@@ -87,7 +90,9 @@ public:
   // ref layers don't use a compositable
   CompositableHost* GetCompositableHost() MOZ_OVERRIDE { return nullptr; }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() const MOZ_OVERRIDE { return "RefLayerComposite"; }
+#endif
 };
 
 } /* layers */

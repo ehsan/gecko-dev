@@ -110,7 +110,9 @@ public:
 
   bool IsValid() const;
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() MOZ_OVERRIDE { return "GrallocTextureHostOGL"; }
+#endif
 
 private:
   GrallocBufferActor* mGrallocActor;

@@ -189,6 +189,7 @@ ThebesLayerComposite::GetEffectiveResolution()
   return resolution;
 }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
 nsACString&
 ThebesLayerComposite::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
@@ -201,6 +202,7 @@ ThebesLayerComposite::PrintInfo(nsACString& aTo, const char* aPrefix)
   }
   return aTo;
 }
+#endif
 
 } /* layers */
 } /* mozilla */

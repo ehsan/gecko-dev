@@ -7,19 +7,16 @@
 #include "nsSVGTextPathFrame.h"
 
 // Keep others in (case-insensitive) order:
-#include "gfx2DGlue.h"
 #include "gfxPath.h"
 #include "nsContentUtils.h"
 #include "nsSVGEffects.h"
 #include "nsSVGLength2.h"
 #include "mozilla/dom/SVGPathElement.h"
 #include "mozilla/dom/SVGTextPathElement.h"
-#include "mozilla/gfx/2D.h"
 #include "SVGLengthList.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
-using namespace mozilla::gfx;
 
 //----------------------------------------------------------------------
 // Implementation
@@ -114,25 +111,16 @@ nsSVGTextPathFrame::GetPathFrame()
   return frame && frame->GetContent()->Tag() == nsGkAtoms::path ? frame : nullptr;
 }
 
-TemporaryRef<Path>
+already_AddRefed<gfxPath>
 nsSVGTextPathFrame::GetPath()
 {
-  nsIFrame *pathFrame = GetPathFrame();
+  nsIFrame *path = GetPathFrame();
 
-  if (pathFrame) {
+  if (path) {
     nsSVGPathGeometryElement *element =
-      static_cast<nsSVGPathGeometryElement*>(pathFrame->GetContent());
+      static_cast<nsSVGPathGeometryElement*>(path->GetContent());
 
-    RefPtr<Path> path = element->GetPathForLengthOrPositionMeasuring();
-
-    gfxMatrix matrix = element->PrependLocalTransformsTo(gfxMatrix());
-    if (!matrix.IsIdentity()) {
-      RefPtr<PathBuilder> builder =
-        path->TransformedCopyToBuilder(ToMatrix(matrix));
-      path = builder->Finish();
-    }
-
-    return path.forget();
+    return element->GetPath(element->PrependLocalTransformsTo(gfxMatrix()));
   }
   return nullptr;
 }
@@ -144,8 +132,8 @@ nsSVGTextPathFrame::GetStartOffset()
   nsSVGLength2 *length = &tp->mLengthAttributes[SVGTextPathElement::STARTOFFSET];
 
   if (length->IsPercentage()) {
-    RefPtr<Path> path = GetPath();
-    return path ? (length->GetAnimValInSpecifiedUnits() * path->ComputeLength() / 100.0) : 0.0;
+    nsRefPtr<gfxPath> data = GetPath();
+    return data ? (length->GetAnimValInSpecifiedUnits() * data->GetLength() / 100.0) : 0.0;
   }
   return length->GetAnimValue(tp) * GetOffsetScale();
 }

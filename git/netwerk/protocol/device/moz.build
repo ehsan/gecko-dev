@@ -10,12 +10,12 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
     EXPORTS.mozilla.net += [
         'CameraStreamImpl.h',
     ]
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'AndroidCaptureProvider.cpp',
         'CameraStreamImpl.cpp',
     ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'nsDeviceChannel.cpp',
     'nsDeviceProtocolHandler.cpp',
 ]

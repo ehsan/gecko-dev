@@ -55,7 +55,6 @@ namespace js {
 
 class PerThreadData;
 class ThreadSafeContext;
-class AutoKeepAtoms;
 
 /* Thread Local Storage slot for storing the runtime for a thread. */
 extern mozilla::ThreadLocal<PerThreadData*> TlsPerThreadData;
@@ -572,7 +571,16 @@ class PerThreadData : public PerThreadDataFriendFields,
      */
     int32_t suppressGC;
 
-    // Whether there is an active compilation on this thread.
+    /*
+     * Count of AutoKeepAtoms instances on the stack. When any instances exist,
+     * atoms in the runtime will not be collected.
+     */
+    unsigned gcKeepAtoms;
+
+    /*
+     * Count of currently active compilations. When any compilations exist,
+     * the runtime's parseMapPool will not be purged.
+     */
     unsigned activeCompilations;
 
     PerThreadData(JSRuntime *runtime);
@@ -585,10 +593,6 @@ class PerThreadData : public PerThreadDataFriendFields,
     bool associatedWith(const JSRuntime *rt) { return runtime_ == rt; }
     inline JSRuntime *runtimeFromMainThread();
     inline JSRuntime *runtimeIfOnOwnerThread();
-
-    inline bool exclusiveThreadsPresent();
-    inline void addActiveCompilation();
-    inline void removeActiveCompilation();
 };
 
 template<class Client>
@@ -672,6 +676,8 @@ class MarkingValidator;
 typedef Vector<JS::Zone *, 4, SystemAllocPolicy> ZoneVector;
 
 class AutoLockForExclusiveAccess;
+class AutoPauseWorkersForTracing;
+class ThreadDataIter;
 
 void RecomputeStackLimit(JSRuntime *rt, StackKind kind);
 
@@ -714,21 +720,6 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* Branch callback */
     JSOperationCallback operationCallback;
 
-    // There are several per-runtime locks indicated by the enum below. When
-    // acquiring multiple of these locks, the acquisition must be done in the
-    // order below to avoid deadlocks.
-    enum RuntimeLock {
-        ExclusiveAccessLock,
-        WorkerThreadStateLock,
-        OperationCallbackLock,
-        GCLock
-    };
-#ifdef DEBUG
-    void assertCanLock(RuntimeLock which);
-#else
-    void assertCanLock(RuntimeLock which) {}
-#endif
-
   private:
     /*
      * Lock taken when triggering the operation callback from another thread.
@@ -747,7 +738,7 @@ struct JSRuntime : public JS::shadow::Runtime,
       public:
         AutoLockForOperationCallback(JSRuntime *rt MOZ_GUARD_OBJECT_NOTIFIER_PARAM) : rt(rt) {
             MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-            rt->assertCanLock(JSRuntime::OperationCallbackLock);
+            JS_ASSERT(!rt->currentThreadOwnsOperationCallbackLock());
 #ifdef JS_THREADSAFE
             PR_Lock(rt->operationCallbackLock);
             rt->operationCallbackOwner = PR_GetCurrentThread();
@@ -793,11 +784,14 @@ struct JSRuntime : public JS::shadow::Runtime,
     PRLock *exclusiveAccessLock;
     mozilla::DebugOnly<PRThread *> exclusiveAccessOwner;
     mozilla::DebugOnly<bool> mainThreadHasExclusiveAccess;
+    mozilla::DebugOnly<bool> exclusiveThreadsPaused;
 
     /* Number of non-main threads with an ExclusiveContext. */
     size_t numExclusiveThreads;
 
     friend class js::AutoLockForExclusiveAccess;
+    friend class js::AutoPauseWorkersForTracing;
+    friend class js::ThreadDataIter;
 
   public:
     void setUsedByExclusiveThread(JS::Zone *zone);
@@ -808,6 +802,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     bool currentThreadHasExclusiveAccess() {
 #if defined(JS_WORKER_THREADS) && defined(DEBUG)
         return (!numExclusiveThreads && mainThreadHasExclusiveAccess) ||
+            exclusiveThreadsPaused ||
             exclusiveAccessOwner == PR_GetCurrentThread();
 #else
         return true;
@@ -1337,32 +1332,8 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* Client opaque pointers */
     void                *data;
 
-  private:
     /* Synchronize GC heap access between main thread and GCHelperThread. */
-    PRLock *gcLock;
-    mozilla::DebugOnly<PRThread *> gcLockOwner;
-
-    friend class js::GCHelperThread;
-  public:
-
-    void lockGC() {
-#ifdef JS_THREADSAFE
-        assertCanLock(GCLock);
-        PR_Lock(gcLock);
-        JS_ASSERT(!gcLockOwner);
-#ifdef DEBUG
-        gcLockOwner = PR_GetCurrentThread();
-#endif
-#endif
-    }
-
-    void unlockGC() {
-#ifdef JS_THREADSAFE
-        JS_ASSERT(gcLockOwner == PR_GetCurrentThread());
-        gcLockOwner = nullptr;
-        PR_Unlock(gcLock);
-#endif
-    }
+    PRLock              *gcLock;
 
     js::GCHelperThread  gcHelperThread;
 
@@ -1439,44 +1410,13 @@ struct JSRuntime : public JS::shadow::Runtime,
     js::ConservativeGCData conservativeGC;
 
     // Pool of maps used during parse/emit. This may be modified by threads
-    // with an ExclusiveContext and requires a lock. Active compilations
-    // prevent the pool from being purged during GCs.
+    // with an ExclusiveContext and requires a lock.
   private:
     js::frontend::ParseMapPool parseMapPool_;
-    unsigned activeCompilations_;
   public:
     js::frontend::ParseMapPool &parseMapPool() {
         JS_ASSERT(currentThreadHasExclusiveAccess());
         return parseMapPool_;
-    }
-    bool hasActiveCompilations() {
-        return activeCompilations_ != 0;
-    }
-    void addActiveCompilation() {
-        JS_ASSERT(currentThreadHasExclusiveAccess());
-        activeCompilations_++;
-    }
-    void removeActiveCompilation() {
-        JS_ASSERT(currentThreadHasExclusiveAccess());
-        activeCompilations_--;
-    }
-
-    // Count of AutoKeepAtoms instances on the main thread's stack. When any
-    // instances exist, atoms in the runtime will not be collected. Threads
-    // with an ExclusiveContext do not increment this value, but the presence
-    // of any such threads also inhibits collection of atoms. We don't scan the
-    // stacks of exclusive threads, so we need to avoid collecting their
-    // objects in another way. The only GC thing pointers they have are to
-    // their exclusive compartment (which is not collected) or to the atoms
-    // compartment. Therefore, we avoid collecting the atoms compartment when
-    // exclusive threads are running.
-  private:
-    unsigned keepAtoms_;
-    friend class js::AutoKeepAtoms;
-  public:
-    bool keepAtoms() {
-        JS_ASSERT(CurrentThreadCanAccessRuntime(this));
-        return keepAtoms_ != 0 || exclusiveThreadsPresent();
     }
 
   private:
@@ -1782,6 +1722,14 @@ FreeOp::free_(void *p)
     js_free(p);
 }
 
+#ifdef JS_THREADSAFE
+# define JS_LOCK_GC(rt)    PR_Lock((rt)->gcLock)
+# define JS_UNLOCK_GC(rt)  PR_Unlock((rt)->gcLock)
+#else
+# define JS_LOCK_GC(rt)    do { } while (0)
+# define JS_UNLOCK_GC(rt)  do { } while (0)
+#endif
+
 class AutoLockGC
 {
   public:
@@ -1792,13 +1740,13 @@ class AutoLockGC
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         // Avoid MSVC warning C4390 for non-threadsafe builds.
         if (rt)
-            rt->lockGC();
+            JS_LOCK_GC(rt);
     }
 
     ~AutoLockGC()
     {
         if (runtime)
-            runtime->unlockGC();
+            JS_UNLOCK_GC(runtime);
     }
 
     bool locked() const {
@@ -1809,7 +1757,7 @@ class AutoLockGC
         JS_ASSERT(rt);
         JS_ASSERT(!runtime);
         runtime = rt;
-        rt->lockGC();
+        JS_LOCK_GC(rt);
     }
 
   private:
@@ -1820,18 +1768,22 @@ class AutoLockGC
 class AutoUnlockGC
 {
   private:
+#ifdef JS_THREADSAFE
     JSRuntime *rt;
+#endif
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
   public:
     explicit AutoUnlockGC(JSRuntime *rt
                           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+#ifdef JS_THREADSAFE
       : rt(rt)
+#endif
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        rt->unlockGC();
+        JS_UNLOCK_GC(rt);
     }
-    ~AutoUnlockGC() { rt->lockGC(); }
+    ~AutoUnlockGC() { JS_LOCK_GC(rt); }
 };
 
 class MOZ_STACK_CLASS AutoKeepAtoms
@@ -1845,19 +1797,10 @@ class MOZ_STACK_CLASS AutoKeepAtoms
       : pt(pt)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        if (JSRuntime *rt = pt->runtimeIfOnOwnerThread()) {
-            rt->keepAtoms_++;
-        } else {
-            // This should be a thread with an exclusive context, which will
-            // always inhibit collection of atoms.
-            JS_ASSERT(pt->exclusiveThreadsPresent());
-        }
+        pt->gcKeepAtoms++;
     }
     ~AutoKeepAtoms() {
-        if (JSRuntime *rt = pt->runtimeIfOnOwnerThread()) {
-            JS_ASSERT(rt->keepAtoms_);
-            rt->keepAtoms_--;
-        }
+        pt->gcKeepAtoms--;
     }
 };
 
@@ -1871,35 +1814,14 @@ PerThreadData::setIonStackLimit(uintptr_t limit)
 inline JSRuntime *
 PerThreadData::runtimeFromMainThread()
 {
-    JS_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
+    JS_ASSERT(js::CurrentThreadCanAccessRuntime(runtime_));
     return runtime_;
 }
 
 inline JSRuntime *
 PerThreadData::runtimeIfOnOwnerThread()
 {
-    return CurrentThreadCanAccessRuntime(runtime_) ? runtime_ : nullptr;
-}
-
-inline bool
-PerThreadData::exclusiveThreadsPresent()
-{
-    return runtime_->exclusiveThreadsPresent();
-}
-
-inline void
-PerThreadData::addActiveCompilation()
-{
-    activeCompilations++;
-    runtime_->addActiveCompilation();
-}
-
-inline void
-PerThreadData::removeActiveCompilation()
-{
-    JS_ASSERT(activeCompilations);
-    activeCompilations--;
-    runtime_->removeActiveCompilation();
+    return js::CurrentThreadCanAccessRuntime(runtime_) ? runtime_ : nullptr;
 }
 
 /************************************************************************/
@@ -1989,6 +1911,45 @@ class RuntimeAllocPolicy
     void *realloc_(void *p, size_t bytes) { return runtime->realloc_(p, bytes); }
     void free_(void *p) { js_free(p); }
     void reportAllocOverflow() const {}
+};
+
+/*
+ * Enumerate all the per thread data in a runtime.
+ */
+class ThreadDataIter {
+    PerThreadData *iter;
+
+public:
+    explicit ThreadDataIter(JSRuntime *rt) {
+#ifdef JS_WORKER_THREADS
+        // Only allow iteration over a runtime's threads when those threads are
+        // paused, to avoid racing when reading data from the PerThreadData.
+        JS_ASSERT(rt->exclusiveThreadsPaused);
+#endif
+        iter = rt->threadList.getFirst();
+    }
+
+    bool done() const {
+        return !iter;
+    }
+
+    void next() {
+        JS_ASSERT(!done());
+        iter = iter->getNext();
+    }
+
+    PerThreadData *get() const {
+        JS_ASSERT(!done());
+        return iter;
+    }
+
+    operator PerThreadData *() const {
+        return get();
+    }
+
+    PerThreadData *operator ->() const {
+        return get();
+    }
 };
 
 extern const JSSecurityCallbacks NullSecurityCallbacks;

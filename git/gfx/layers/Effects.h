@@ -13,7 +13,7 @@
 #include "mozilla/gfx/Rect.h"           // for Rect
 #include "mozilla/gfx/Types.h"          // for Filter, etc
 #include "mozilla/layers/CompositorTypes.h"  // for EffectTypes, etc
-#include "mozilla/layers/LayersTypes.h"
+#include "mozilla/layers/LayersTypes.h"  // for MOZ_LAYERS_HAVE_LOG
 #include "mozilla/layers/TextureHost.h"  // for CompositingRenderTarget, etc
 #include "mozilla/mozalloc.h"           // for operator delete, etc
 #include "nscore.h"                     // for nsACString
@@ -44,7 +44,9 @@ struct Effect : public RefCounted<Effect>
   EffectTypes mType;
 
   virtual ~Effect() {}
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix) =0;
+#endif
 };
 
 // Render from a texture
@@ -61,8 +63,10 @@ struct TexturedEffect : public Effect
      , mFilter(aFilter)
   {}
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() = 0;
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
+#endif
 
   gfx::Rect mTextureCoords;
   TextureSource* mTexture;
@@ -83,7 +87,9 @@ struct EffectMask : public Effect
     , mMaskTransform(aMaskTransform)
   {}
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
+#endif
 
   TextureSource* mMaskTexture;
   bool mIs3D;
@@ -99,8 +105,10 @@ struct EffectRenderTarget : public TexturedEffect
     , mRenderTarget(aRenderTarget)
   {}
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "EffectRenderTarget"; }
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
+#endif
 
   RefPtr<CompositingRenderTarget> mRenderTarget;
 };
@@ -114,7 +122,9 @@ struct EffectBGRX : public TexturedEffect
     : TexturedEffect(EFFECT_BGRX, aBGRXTexture, aPremultiplied, aFilter)
   {}
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "EffectBGRX"; }
+#endif
 };
 
 struct EffectRGBX : public TexturedEffect
@@ -125,7 +135,9 @@ struct EffectRGBX : public TexturedEffect
     : TexturedEffect(EFFECT_RGBX, aRGBXTexture, aPremultiplied, aFilter)
   {}
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "EffectRGBX"; }
+#endif
 };
 
 struct EffectBGRA : public TexturedEffect
@@ -136,7 +148,9 @@ struct EffectBGRA : public TexturedEffect
     : TexturedEffect(EFFECT_BGRA, aBGRATexture, aPremultiplied, aFilter)
   {}
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "EffectBGRA"; }
+#endif
 };
 
 struct EffectRGBA : public TexturedEffect
@@ -147,7 +161,9 @@ struct EffectRGBA : public TexturedEffect
     : TexturedEffect(EFFECT_RGBA, aRGBATexture, aPremultiplied, aFilter)
   {}
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "EffectRGBA"; }
+#endif
 };
 
 struct EffectYCbCr : public TexturedEffect
@@ -156,7 +172,9 @@ struct EffectYCbCr : public TexturedEffect
     : TexturedEffect(EFFECT_YCBCR, aSource, false, aFilter)
   {}
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "EffectYCbCr"; }
+#endif
 };
 
 struct EffectComponentAlpha : public TexturedEffect
@@ -169,7 +187,9 @@ struct EffectComponentAlpha : public TexturedEffect
     , mOnWhite(aOnWhite)
   {}
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "EffectComponentAlpha"; }
+#endif
 
   TextureSource* mOnBlack;
   TextureSource* mOnWhite;
@@ -182,7 +202,9 @@ struct EffectSolidColor : public Effect
     , mColor(aColor)
   {}
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
+#endif
 
   gfx::Color mColor;
 };

@@ -8,12 +8,6 @@
 #include "nsSpeechTask.h"
 #include "SpeechSynthesis.h"
 
-// GetCurrentTime is defined in winbase.h as zero argument macro forwarding to
-// GetTickCount() and conflicts with nsSpeechTask::GetCurrentTime().
-#ifdef GetCurrentTime
-#undef GetCurrentTime
-#endif
-
 #undef LOG
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* GetSpeechSynthLog();

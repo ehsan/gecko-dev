@@ -7,7 +7,6 @@
 #include "mozilla/dom/SVGAnimationElement.h"
 #include "mozilla/dom/SVGPathElement.h" // for nsSVGPathList
 #include "mozilla/dom/SVGMPathElement.h"
-#include "mozilla/gfx/2D.h"
 #include "nsAttrValue.h"
 #include "nsAttrValueInlines.h"
 #include "nsSMILParserUtils.h"
@@ -16,10 +15,9 @@
 #include "SVGMotionSMILType.h"
 #include "SVGMotionSMILPathUtils.h"
 
-using namespace mozilla::dom;
-using namespace mozilla::gfx;
-
 namespace mozilla {
+
+using namespace dom;
 
 SVGMotionSMILAnimationFunction::SVGMotionSMILAnimationFunction()
   : mRotateType(eRotateType_Explicit),
@@ -229,7 +227,7 @@ SVGMotionSMILAnimationFunction::
       bool ok =
         path.GetDistancesFromOriginToEndsOfVisibleSegments(&mPathVertices);
       if (ok && mPathVertices.Length()) {
-        mPath = pathElem->GetPathForLengthOrPositionMeasuring();
+        mPath = pathElem->GetPath(gfxMatrix());
       }
     }
   }
@@ -241,7 +239,7 @@ SVGMotionSMILAnimationFunction::RebuildPathAndVerticesFromPathAttr()
   const nsAString& pathSpec = GetAttr(nsGkAtoms::path)->GetStringValue();
   mPathSourceType = ePathSourceType_PathAttr;
 
-  // Generate Path from |path| attr
+  // Generate gfxPath from |path| attr
   SVGPathData path;
   nsSVGPathDataParser pathParser(pathSpec, &path);
 
@@ -254,7 +252,7 @@ SVGMotionSMILAnimationFunction::RebuildPathAndVerticesFromPathAttr()
     return;
   }
 
-  mPath = path.ToPathForLengthOrPositionMeasuring();
+  mPath = path.ToPath(gfxMatrix());
   bool ok = path.GetDistancesFromOriginToEndsOfVisibleSegments(&mPathVertices);
   if (!ok || !mPathVertices.Length()) {
     mPath = nullptr;
@@ -294,7 +292,7 @@ SVGMotionSMILAnimationFunction::
 
 bool
 SVGMotionSMILAnimationFunction::
-  GenerateValuesForPathAndPoints(Path* aPath,
+  GenerateValuesForPathAndPoints(gfxPath* aPath,
                                  bool aIsKeyPoints,
                                  nsTArray<double>& aPointDistances,
                                  nsTArray<nsSMILValue>& aResult)
@@ -303,7 +301,7 @@ SVGMotionSMILAnimationFunction::
 
   // If we're using "keyPoints" as our list of input distances, then we need
   // to de-normalize from the [0, 1] scale to the [0, totalPathLen] scale.
-  double distanceMultiplier = aIsKeyPoints ? aPath->ComputeLength() : 1.0;
+  double distanceMultiplier = aIsKeyPoints ? aPath->GetLength() : 1.0;
   const uint32_t numPoints = aPointDistances.Length();
   for (uint32_t i = 0; i < numPoints; ++i) {
     double curDist = aPointDistances[i] * distanceMultiplier;

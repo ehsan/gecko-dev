@@ -393,7 +393,7 @@ RtspMediaResource::Listener::OnConnected(uint8_t aTrackIdx,
 }
 
 nsresult
-RtspMediaResource::Listener::OnDisconnected(uint8_t aTrackIdx, nsresult reason)
+RtspMediaResource::Listener::OnDisconnected(uint8_t aTrackIdx, uint32_t reason)
 {
   if (!mResource)
     return NS_OK;
@@ -514,7 +514,7 @@ RtspMediaResource::OnConnected(uint8_t aTrackIdx,
 }
 
 nsresult
-RtspMediaResource::OnDisconnected(uint8_t aTrackIdx, nsresult aReason)
+RtspMediaResource::OnDisconnected(uint8_t aTrackIdx, uint32_t aReason)
 {
   NS_ASSERTION(NS_IsMainThread(), "Don't call on non-main thread");
 
@@ -523,7 +523,7 @@ RtspMediaResource::OnDisconnected(uint8_t aTrackIdx, nsresult aReason)
     mTrackBuffer[i]->Reset();
   }
 
-  if (aReason == NS_ERROR_CONNECTION_REFUSED) {
+  if (aReason == (uint32_t)NS_ERROR_CONNECTION_REFUSED) {
     mDecoder->NetworkError();
   }
   return NS_OK;

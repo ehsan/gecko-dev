@@ -17,10 +17,10 @@ using namespace js;
 using namespace js::jit;
 
 MIRGenerator::MIRGenerator(JSCompartment *compartment,
-                           TempAllocator *alloc, MIRGraph *graph, CompileInfo *info)
+                           TempAllocator *temp, MIRGraph *graph, CompileInfo *info)
   : compartment(compartment),
     info_(info),
-    alloc_(alloc),
+    temp_(temp),
     graph_(graph),
     error_(false),
     cancelBuild_(0),
@@ -149,7 +149,7 @@ MIRGraph::forkJoinSlice()
     }
     JS_ASSERT(start);
 
-    MForkJoinSlice *slice = MForkJoinSlice::New(alloc());
+    MForkJoinSlice *slice = new MForkJoinSlice();
     entry->insertAfter(start, slice);
     return slice;
 }
@@ -164,7 +164,7 @@ MBasicBlock::New(MIRGraph &graph, BytecodeAnalysis *analysis, CompileInfo &info,
     if (!block->init())
         return nullptr;
 
-    if (!block->inherit(graph.alloc(), analysis, pred, 0))
+    if (!block->inherit(analysis, pred, 0))
         return nullptr;
 
     return block;
@@ -178,7 +178,7 @@ MBasicBlock::NewPopN(MIRGraph &graph, CompileInfo &info,
     if (!block->init())
         return nullptr;
 
-    if (!block->inherit(graph.alloc(), nullptr, pred, popped))
+    if (!block->inherit(nullptr, pred, popped))
         return nullptr;
 
     return block;
@@ -234,7 +234,7 @@ MBasicBlock::NewAbortPar(MIRGraph &graph, CompileInfo &info,
     if (!block->addPredecessorWithoutPhis(pred))
         return nullptr;
 
-    block->end(MAbortPar::New(graph.alloc()));
+    block->end(new MAbortPar());
     return block;
 }
 
@@ -253,7 +253,7 @@ MBasicBlock::NewAsmJS(MIRGraph &graph, CompileInfo &info, MBasicBlock *pred, Kin
                 MDefinition *predSlot = pred->getSlot(i);
 
                 JS_ASSERT(predSlot->type() != MIRType_Value);
-                MPhi *phi = MPhi::New(graph.alloc(), i, predSlot->type());
+                MPhi *phi = MPhi::New(i, predSlot->type());
 
                 JS_ALWAYS_TRUE(phi->reserveLength(2));
                 phi->addInput(predSlot);
@@ -320,8 +320,7 @@ MBasicBlock::copySlots(MBasicBlock *from)
 }
 
 bool
-MBasicBlock::inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlock *pred,
-                     uint32_t popped)
+MBasicBlock::inherit(BytecodeAnalysis *analysis, MBasicBlock *pred, uint32_t popped)
 {
     if (pred) {
         stackPosition_ = pred->stackPosition_;
@@ -343,7 +342,7 @@ MBasicBlock::inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlo
     MResumePoint *callerResumePoint = pred ? pred->callerResumePoint() : nullptr;
 
     // Create a resume point using our initial stack state.
-    entryResumePoint_ = new(alloc) MResumePoint(this, pc(), callerResumePoint, MResumePoint::ResumeAt);
+    entryResumePoint_ = new MResumePoint(this, pc(), callerResumePoint, MResumePoint::ResumeAt);
     if (!entryResumePoint_->init())
         return false;
 
@@ -353,7 +352,7 @@ MBasicBlock::inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlo
 
         if (kind_ == PENDING_LOOP_HEADER) {
             for (size_t i = 0; i < stackDepth(); i++) {
-                MPhi *phi = MPhi::New(alloc, i);
+                MPhi *phi = MPhi::New(i);
                 if (!phi->addInputSlow(pred->getSlot(i)))
                     return false;
                 addPhi(phi);
@@ -402,11 +401,10 @@ MBasicBlock::inheritSlots(MBasicBlock *parent)
 }
 
 bool
-MBasicBlock::initEntrySlots(TempAllocator &alloc)
+MBasicBlock::initEntrySlots()
 {
     // Create a resume point using our initial stack state.
-    entryResumePoint_ = MResumePoint::New(alloc, this, pc(), callerResumePoint(),
-                                          MResumePoint::ResumeAt);
+    entryResumePoint_ = MResumePoint::New(this, pc(), callerResumePoint(), MResumePoint::ResumeAt);
     if (!entryResumePoint_)
         return false;
     return true;
@@ -819,13 +817,13 @@ MBasicBlock::discardPhiAt(MPhiIterator &at)
 }
 
 bool
-MBasicBlock::addPredecessor(TempAllocator &alloc, MBasicBlock *pred)
+MBasicBlock::addPredecessor(MBasicBlock *pred)
 {
-    return addPredecessorPopN(alloc, pred, 0);
+    return addPredecessorPopN(pred, 0);
 }
 
 bool
-MBasicBlock::addPredecessorPopN(TempAllocator &alloc, MBasicBlock *pred, uint32_t popped)
+MBasicBlock::addPredecessorPopN(MBasicBlock *pred, uint32_t popped)
 {
     JS_ASSERT(pred);
     JS_ASSERT(predecessors_.length() > 0);
@@ -850,9 +848,9 @@ MBasicBlock::addPredecessorPopN(TempAllocator &alloc, MBasicBlock *pred, uint32_
                 // Otherwise, create a new phi node.
                 MPhi *phi;
                 if (mine->type() == other->type())
-                    phi = MPhi::New(alloc, i, mine->type());
+                    phi = MPhi::New(i, mine->type());
                 else
-                    phi = MPhi::New(alloc, i);
+                    phi = MPhi::New(i);
                 addPhi(phi);
 
                 // Prime the phi for each predecessor, so input(x) comes from

@@ -18,7 +18,6 @@
 #include "mozilla/layers/ImageBridgeChild.h"  // for ImageBridgeChild
 #include "mozilla/mozalloc.h"           // for operator delete
 #include "nsISupportsImpl.h"            // for Image::AddRef
-#include "mozilla/ipc/Shmem.h"
 
 class gfxASurface;
 
@@ -340,7 +339,7 @@ DeprecatedSharedPlanarYCbCrImage::DropToSurfaceDescriptor(SurfaceDescriptor& aDe
     return false;
   }
   aDesc = YCbCrImage(mShmem, 0);
-  mShmem = mozilla::ipc::Shmem();
+  mShmem = Shmem();
   mAllocated = false;
   return true;
 }
