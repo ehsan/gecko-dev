@@ -40,24 +40,21 @@ const EXPORTED_SYMBOLS = ["WEAVE_VERSION", "COMPATIBLE_VERSION",
 			  'MODE_CREATE', 'MODE_APPEND', 'MODE_TRUNCATE',
 			  'PERMS_FILE', 'PERMS_PASSFILE', 'PERMS_DIRECTORY',
 			  'ONE_BYTE', 'ONE_KILOBYTE', 'ONE_MEGABYTE',
-        'CONNECTION_TIMEOUT', 'MAX_UPLOAD_RECORDS',
-        'SYNC_SUCCEEDED', 'LOGIN_SUCCEEDED', 'ENGINE_SUCCEEDED',
-        'STATUS_OK', 'LOGIN_FAILED', 'SYNC_FAILED',
-        'SYNC_FAILED_PARTIAL', 'STATUS_DISABLED', 'SERVER_LOW_QUOTA',
-        'SERVER_DOWNTIME', 'SERVER_UNREACHABLE',
-        'LOGIN_FAILED_NO_USERNAME', 'LOGIN_FAILED_NO_PASSWORD',
-        'LOGIN_FAILED_NETWORK_ERROR','LOGIN_FAILED_INVALID_PASSPHRASE', 
-        'LOGIN_FAILED_LOGIN_REJECTED', 'METARECORD_DOWNLOAD_FAIL',
-        'VERSION_OUT_OF_DATE', 'DESKTOP_VERSION_OUT_OF_DATE',
-        'KEYS_DOWNLOAD_FAIL', 'NO_KEYS_NO_KEYGEN', 'KEYS_UPLOAD_FAIL',
-        'ENGINE_UPLOAD_FAIL', 'ENGINE_DOWNLOAD_FAIL', 'ENGINE_UNKNOWN_FAIL',
-        'ENGINE_METARECORD_UPLOAD_FAIL',
-        'SETUP_FAILED_NO_PASSPHRASE', 'ABORT_SYNC_COMMAND',
-        'kSyncWeaveDisabled', 'kSyncNotLoggedIn',
-        'kSyncNetworkOffline', 'kSyncInPrivateBrowsing',
-        'kSyncNotScheduled', 'kSyncBackoffNotMet',
-        'FIREFOX_ID', 'THUNDERBIRD_ID', 'FENNEC_ID', 'SEAMONKEY_ID',
-        'UI_DATA_TYPES_PER_ROW'];
+                          'CONNECTION_TIMEOUT', 'MAX_UPLOAD_RECORDS',
+                          'WEAVE_STATUS_OK', 'WEAVE_STATUS_FAILED',
+                          'WEAVE_STATUS_PARTIAL', 'SERVER_LOW_QUOTA',
+                          'SERVER_DOWNTIME', 'SERVER_UNREACHABLE',
+                          'LOGIN_FAILED_NO_USERNAME', 'LOGIN_FAILED_NO_PASSWORD',
+                          'LOGIN_FAILED_NETWORK_ERROR','LOGIN_FAILED_INVALID_PASSPHRASE',
+                          'LOGIN_FAILED_LOGIN_REJECTED', 'METARECORD_DOWNLOAD_FAIL',
+                          'VERSION_OUT_OF_DATE', 'DESKTOP_VERSION_OUT_OF_DATE',
+                          'KEYS_DOWNLOAD_FAIL', 'NO_KEYS_NO_KEYGEN', 'KEYS_UPLOAD_FAIL',
+                          'SETUP_FAILED_NO_PASSPHRASE', 'ABORT_SYNC_COMMAND',
+                          'kSyncWeaveDisabled', 'kSyncNotLoggedIn',
+                          'kSyncNetworkOffline', 'kSyncInPrivateBrowsing',
+                          'kSyncNotScheduled',
+                          'FIREFOX_ID', 'THUNDERBIRD_ID', 'FENNEC_ID', 'SEAMONKEY_ID',
+                          'UI_DATA_TYPES_PER_ROW'];
 
 const WEAVE_VERSION = "@weave_version@";
 
@@ -93,43 +90,28 @@ const CONNECTION_TIMEOUT = 30000;
 const MAX_UPLOAD_RECORDS = 100;
 
 // Top-level statuses:
-const STATUS_OK =                         "success.status_ok";
-const SYNC_FAILED =                       "error.sync.failed";
-const LOGIN_FAILED =                      "error.login.failed";
-const SYNC_FAILED_PARTIAL =               "error.sync.failed_partial";
-const STATUS_DISABLED =                   "service.disabled";
-
-// success states
-const LOGIN_SUCCEEDED =                   "success.login";
-const SYNC_SUCCEEDED =                    "success.sync";
-const ENGINE_SUCCEEDED =                  "success.engine";
-
-// login failure status codes:
-const LOGIN_FAILED_NO_USERNAME =          "error.login.reason.no_username";
-const LOGIN_FAILED_NO_PASSWORD =          "error.login.reason.no_password";
-const LOGIN_FAILED_NETWORK_ERROR =        "error.login.reason.network";
-const LOGIN_FAILED_INVALID_PASSPHRASE =   "error.login.reason.passphrase.";
-const LOGIN_FAILED_LOGIN_REJECTED =       "error.login.reason.password";
-
-// sync failure status codes
-const METARECORD_DOWNLOAD_FAIL =          "error.sync.reason.metarecord_download_fail";
-const VERSION_OUT_OF_DATE =               "error.sync.reason.version_out_of_date";
-const DESKTOP_VERSION_OUT_OF_DATE =       "error.sync.reason.desktop_version_out_of_date";
-const KEYS_DOWNLOAD_FAIL =                "error.sync.reason.keys_download_fail";
-const NO_KEYS_NO_KEYGEN =                 "error.sync.reason.no_keys_no_keygen";
-const KEYS_UPLOAD_FAIL =                  "error.sync.reason.keys_upload_fail";
-const SETUP_FAILED_NO_PASSPHRASE =        "error.sync.reason.setup_failed_no_passphrase";
-
-// engine failure status codes
-const ENGINE_UPLOAD_FAIL =                "error.engine.reason.record_upload_fail";
-const ENGINE_DOWNLOAD_FAIL =              "error.engine.reason.record_download_fail";
-const ENGINE_UNKNOWN_FAIL =               "error.engine.reason.unknown_fail";
-const ENGINE_METARECORD_UPLOAD_FAIL =     "error.engine.reason.metarecord_upload_fail";
+const WEAVE_STATUS_OK = "Sync succeeded.";
+const WEAVE_STATUS_FAILED = "Sync failed.";
+const WEAVE_STATUS_PARTIAL = "Sync partially succeeded, some data failed to sync.";
 
 // Server statuses (Not mutually exclusive):
 const SERVER_LOW_QUOTA = "Getting close to your Weave server storage quota.";
 const SERVER_DOWNTIME = "Weave server is overloaded, try agian in 30 sec.";
 const SERVER_UNREACHABLE = "Weave server is unreachable.";
+
+// Ways that a sync can fail during setup or login:
+const LOGIN_FAILED_NO_USERNAME = "No username set, login failed.";
+const LOGIN_FAILED_NO_PASSWORD = "No password set, login failed.";
+const LOGIN_FAILED_NETWORK_ERROR = "Weave failed to connect to the server.";
+const LOGIN_FAILED_INVALID_PASSPHRASE = "Incorrect passphrase given.";
+const LOGIN_FAILED_LOGIN_REJECTED = "Incorrect username or password.";
+const METARECORD_DOWNLOAD_FAIL = "Can't download metadata record, HTTP error.";
+const VERSION_OUT_OF_DATE = "This copy of Weave needs to be updated.";
+const DESKTOP_VERSION_OUT_OF_DATE = "Weave needs updating on your desktop browser.";
+const KEYS_DOWNLOAD_FAIL = "Can't download keys from server, HTTP error.";
+const NO_KEYS_NO_KEYGEN = "Key generation disabled. Sync from the desktop first.";
+const KEYS_UPLOAD_FAIL = "Could not upload keys.";
+const SETUP_FAILED_NO_PASSPHRASE = "Could not get encryption passphrase.";
 
 // Ways that a sync can be disabled
 const kSyncWeaveDisabled = "Weave is disabled";
@@ -137,8 +119,7 @@ const kSyncNotLoggedIn = "User is not logged in";
 const kSyncNetworkOffline = "Network is offline";
 const kSyncInPrivateBrowsing = "Private browsing is enabled";
 const kSyncNotScheduled = "Not scheduled to do sync";
-const kSyncBackoffNotMet = "Trying to sync before the server said it's okay";
-
+// If one of these happens, leave the top-level status the same!
 
 // Ways that a sync can be aborted:
 const ABORT_SYNC_COMMAND = "aborting sync, process commands said so";
