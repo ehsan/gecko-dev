@@ -38,6 +38,9 @@
 #include "js/RootingAPI.h"
 #include "js/Value.h"
 
+struct JSContext;
+class JSObject;
+
 /* Typedef for native functions called by the JS VM. */
 typedef bool
 (* JSNative)(JSContext *cx, unsigned argc, JS::Value *vp);

@@ -25,8 +25,6 @@
 
 #include "mozilla/Attributes.h"
 
-#include "js/TypeDecls.h"
-
 class nsIRDFResource;
 class nsIRDFService;
 class nsPIWindowRoot;
@@ -42,6 +40,7 @@ class nsIXULPrototypeScript;
 #include "nsURIHashKey.h"
 #include "nsInterfaceHashtable.h"
 
+class JSObject;
 struct JSTracer;
 struct PRLogModuleInfo;
 

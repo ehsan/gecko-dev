@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
+class JSScript;
+
 namespace JS {
 class CompileOptions;
 }

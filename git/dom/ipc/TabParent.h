@@ -22,9 +22,10 @@
 #include "nsITabParent.h"
 #include "nsWeakReference.h"
 #include "Units.h"
-#include "js/TypeDecls.h"
 
 struct gfxMatrix;
+struct JSContext;
+class JSObject;
 class mozIApplication;
 class nsFrameLoader;
 class nsIURI;

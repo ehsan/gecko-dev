@@ -21,9 +21,10 @@
 #  error Unknown toolkit
 #endif 
 
-#include <string.h>                     // for memset
-#include "gfxCore.h"                    // for NS_GFX
-#include "mozilla/Scoped.h"             // for SCOPED_TEMPLATE
+#include "mozilla/Scoped.h"
+
+#include "gfxCore.h"
+#include "nsDebug.h"
 
 namespace mozilla {
 

@@ -90,6 +90,7 @@ using namespace mozilla::widget;
 #include "nsImageToPixbuf.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsAutoPtr.h"
+#include "BasicLayers.h"
 #include "ClientLayerManager.h"
 
 extern "C" {
@@ -6127,7 +6128,8 @@ nsWindow::ClearCachedResources()
 {
     if (mLayerManager &&
         mLayerManager->GetBackendType() == mozilla::layers::LAYERS_BASIC) {
-        mLayerManager->ClearCachedResources();
+        static_cast<mozilla::layers::BasicLayerManager*> (mLayerManager.get())->
+            ClearCachedResources();
     }
 
     GList* children = gdk_window_peek_children(mGdkWindow);

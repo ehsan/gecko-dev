@@ -4637,6 +4637,7 @@ using JS::CallNonGenericMethod;
 
 using JS::Rooted;
 using JS::RootedObject;
+using JS::RootedModule;
 using JS::RootedFunction;
 using JS::RootedScript;
 using JS::RootedString;
@@ -4645,6 +4646,7 @@ using JS::RootedValue;
 
 using JS::Handle;
 using JS::HandleObject;
+using JS::HandleModule;
 using JS::HandleFunction;
 using JS::HandleScript;
 using JS::HandleString;

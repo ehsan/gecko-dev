@@ -164,12 +164,11 @@ class MozbuildObject(ProcessExecutionMixin):
         # not another one. This prevents accidental usage of the wrong objdir
         # when the current objdir is ambiguous.
         if topobjdir and config_topobjdir \
-            and not samepath(topobjdir, config_topobjdir) \
-            and not samepath(topobjdir, os.path.join(config_topobjdir, "mozilla")):
+            and not samepath(topobjdir, config_topobjdir):
 
             raise ObjdirMismatchException(topobjdir, config_topobjdir)
 
-        topobjdir = topobjdir or config_topobjdir
+        topobjdir = config_topobjdir or topobjdir
         if topobjdir:
             topobjdir = os.path.normpath(topobjdir)
 

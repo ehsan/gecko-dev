@@ -13,6 +13,8 @@
 #include "js/RootingAPI.h"
 
 struct JSTracer;
+class JSObject;
+struct JSContext;
 class XPCWrappedNativeScope;
 
 namespace mozilla {

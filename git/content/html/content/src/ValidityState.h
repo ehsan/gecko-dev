@@ -9,7 +9,9 @@
 #include "nsIDOMValidityState.h"
 #include "nsIConstraintValidation.h"
 #include "nsWrapperCache.h"
-#include "js/TypeDecls.h"
+
+class JSObject;
+struct JSContext;
 
 namespace mozilla {
 namespace dom {
