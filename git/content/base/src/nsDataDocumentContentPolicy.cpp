@@ -30,9 +30,6 @@ HasFlags(nsIURI* aURI, uint32_t aURIFlags)
   return NS_SUCCEEDED(rv) && hasFlags;
 }
 
-// If you change DataDocumentContentPolicy, make sure to check that
-// CHECK_PRINCIPAL_AND_DATA in nsContentPolicyUtils is still valid.
-// nsContentPolicyUtils may not pass all the parameters to ShouldLoad.
 NS_IMETHODIMP
 nsDataDocumentContentPolicy::ShouldLoad(uint32_t aContentType,
                                         nsIURI *aContentLocation,
@@ -125,10 +122,6 @@ nsDataDocumentContentPolicy::ShouldLoad(uint32_t aContentType,
       aContentType == nsIContentPolicy::TYPE_SCRIPT) {
     *aDecision = nsIContentPolicy::REJECT_TYPE;
   }
-
-  // If you add more restrictions here, make sure to check that
-  // CHECK_PRINCIPAL_AND_DATA in nsContentPolicyUtils is still valid.
-  // nsContentPolicyUtils may not pass all the parameters to ShouldLoad
 
   return NS_OK;
 }
