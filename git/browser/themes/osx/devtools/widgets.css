@@ -476,11 +476,11 @@
 }
 
 .variable-or-property:not(:focus) > .title > .token-boolean {
-  color: #10c;
+  color: #1c00cf;
 }
 
 .variable-or-property:not(:focus) > .title > .token-number {
-  color: #c00;
+  color: #c40a16;
 }
 
 .variable-or-property:not(:focus) > .title > .token-string {
@@ -524,11 +524,6 @@
 .variable-or-property-sealed-label,
 .variable-or-property-non-extensible-label {
   -moz-padding-end: 4px;
-}
-
-.variable-or-property:not(:focus) > .title > .variable-or-property-frozen-label,
-.variable-or-property:not(:focus) > .title > .variable-or-property-sealed-label,
-.variable-or-property:not(:focus) > .title > .variable-or-property-non-extensible-label {
   color: #666;
 }
 
@@ -571,8 +566,7 @@
 /* Variables and properties editing */
 
 .variables-view-delete {
-  list-style-image: url("chrome://browser/skin/devtools/toolbarbutton-close.png");
-  -moz-image-region: rect(0,32px,16px,16px);
+  list-style-image: url("chrome://browser/skin/devtools/close-dark.png");
   opacity: 0;
 }
 

@@ -20,8 +20,6 @@ var gSearchBox = null;
 
 function test()
 {
-  requestLongerTimeout(3);
-
   let scriptShown = false;
   let framesAdded = false;
 

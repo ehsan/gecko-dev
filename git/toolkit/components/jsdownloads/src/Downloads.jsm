@@ -174,7 +174,7 @@ this.Downloads = {
   getPublicDownloadList: function D_getPublicDownloadList()
   {
     if (!this._publicDownloadList) {
-      this._publicDownloadList = new DownloadList(true);
+      this._publicDownloadList = new DownloadList();
     }
     return Promise.resolve(this._publicDownloadList);
   },
@@ -193,7 +193,7 @@ this.Downloads = {
   getPrivateDownloadList: function D_getPrivateDownloadList()
   {
     if (!this._privateDownloadList) {
-      this._privateDownloadList = new DownloadList(false);
+      this._privateDownloadList = new DownloadList();
     }
     return Promise.resolve(this._privateDownloadList);
   },

@@ -58,10 +58,6 @@ class Linker
             return fail(cx);
         code->copyFrom(masm);
         masm.link(code);
-#ifdef JSGC_GENERATIONAL
-        if (masm.embedsNurseryPointers())
-            cx->runtime()->gcStoreBuffer.putWholeCell(code);
-#endif
         return code;
     }
 

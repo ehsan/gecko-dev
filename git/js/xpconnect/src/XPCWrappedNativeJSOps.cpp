@@ -651,7 +651,8 @@ XPC_WN_OuterObject(JSContext *cx, HandleObject objArg)
 {
     JSObject *obj = objArg;
 
-    XPCWrappedNative *wrapper = XPCWrappedNative::Get(obj);
+    XPCWrappedNative *wrapper =
+        static_cast<XPCWrappedNative *>(js::GetObjectPrivate(obj));
     if (!wrapper) {
         Throw(NS_ERROR_XPC_BAD_OP_ON_WN_PROTO, cx);
 

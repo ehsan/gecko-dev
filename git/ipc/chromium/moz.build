@@ -56,6 +56,7 @@ CPP_SOURCES += [
     'ipc_channel_proxy.cc',
     'ipc_logging.cc',
     'ipc_message.cc',
+    'ipc_message_utils.cc',
     'ipc_sync_channel.cc',
     'ipc_sync_message.cc',
     'lazy_instance.cc',

@@ -275,7 +275,7 @@ AccessCheck::needsSystemOnlyWrapper(JSObject *obj)
     if (!IS_WN_REFLECTOR(obj))
         return false;
 
-    XPCWrappedNative *wn = XPCWrappedNative::Get(obj);
+    XPCWrappedNative *wn = static_cast<XPCWrappedNative *>(js::GetObjectPrivate(obj));
     return wn->NeedsSOW();
 }
 

@@ -41,6 +41,11 @@ const Cu = Components.utils;
 this.ForgetAboutSite = {
   removeDataFromDomain: function CRH_removeDataFromDomain(aDomain)
   {
+    // clear any and all network geolocation provider sessions
+    try {
+        Services.prefs.deleteBranch("geo.wifi.access_token.");
+    } catch (e) {}
+
     PlacesUtils.history.removePagesFromHost(aDomain, true);
 
     // Cache

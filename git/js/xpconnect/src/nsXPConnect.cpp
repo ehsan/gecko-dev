@@ -1309,7 +1309,8 @@ nsXPConnect::GetPrincipal(JSObject* obj, bool allowShortCircuit) const
 {
     NS_ASSERTION(IS_WN_REFLECTOR(obj), "What kind of wrapper is this?");
 
-    XPCWrappedNative *xpcWrapper = XPCWrappedNative::Get(obj);
+    XPCWrappedNative *xpcWrapper =
+        (XPCWrappedNative *)xpc_GetJSPrivate(obj);
     if (xpcWrapper) {
         if (allowShortCircuit) {
             nsIPrincipal *result = xpcWrapper->GetObjectPrincipal();

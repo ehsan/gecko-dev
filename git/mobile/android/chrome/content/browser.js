@@ -613,13 +613,6 @@ var BrowserApp = {
     // initialize the form history and passwords databases on upgrades
     Services.obs.notifyObservers(null, "FormHistory:Init", "");
     Services.obs.notifyObservers(null, "Passwords:Init", "");
-
-    // Migrate user-set "plugins.click_to_play" pref. See bug 884694.
-    // Because the default value is true, a user-set pref means that the pref was set to false.
-    if (Services.prefs.prefHasUserValue("plugins.click_to_play")) {
-      Services.prefs.setIntPref("plugin.default.state", Ci.nsIPluginTag.STATE_ENABLED);
-      Services.prefs.clearUserPref("plugins.click_to_play");
-    }
   },
 
   shutdown: function shutdown() {
@@ -1316,18 +1309,11 @@ var BrowserApp = {
         browser.goForward();
         break;
 
-      case "Session:Reload": {
-        let allowMixedContent = false;
-        if (aData) {
-            let data = JSON.parse(aData);
-            allowMixedContent = data.allowMixedContent;
-        }
-
+      case "Session:Reload":
         // Try to use the session history to reload so that framesets are
         // handled properly. If the window has no session history, fall back
         // to using the web navigation's reload method.
-        let flags = allowMixedContent ? Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_MIXED_CONTENT :
-                    Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_PROXY | Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
+        let flags = Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_PROXY | Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
         let webNav = browser.webNavigation;
         try {
           let sh = webNav.sessionHistory;
@@ -1336,17 +1322,15 @@ var BrowserApp = {
         } catch (e) {}
         webNav.reload(flags);
         break;
-      }
 
       case "Session:Stop":
         browser.stop();
         break;
 
-      case "Session:ShowHistory": {
+      case "Session:ShowHistory":
         let data = JSON.parse(aData);
         this.showHistory(data.fromIndex, data.toIndex, data.selIndex);
         break;
-      }
 
       case "Tab:Load": {
         let data = JSON.parse(aData);
@@ -6043,24 +6027,10 @@ var CharacterEncoding = {
 };
 
 var IdentityHandler = {
-  // No trusted identity information. No site identity icon is shown.
-  IDENTITY_MODE_UNKNOWN: "unknown",
-
-  // Minimal SSL CA-signed domain verification. Blue lock icon is shown.
-  IDENTITY_MODE_DOMAIN_VERIFIED: "verified",
-
-  // High-quality identity information. Green lock icon is shown.
-  IDENTITY_MODE_IDENTIFIED: "identified",
-
-  // The following mixed content modes are only used if "security.mixed_content.block_active_content"
-  // is enabled. Even though the mixed content state and identitity state are orthogonal,
-  // our Java frontend coalesces them into one indicator.
-
-  // Blocked active mixed content. Shield icon is shown, with a popup option to load content.
-  IDENTITY_MODE_MIXED_CONTENT_BLOCKED: "mixed_content_blocked",
-
-  // Loaded active mixed content. Yellow triangle icon is shown.
-  IDENTITY_MODE_MIXED_CONTENT_LOADED: "mixed_content_loaded",
+  // Mode strings used to control CSS display
+  IDENTITY_MODE_IDENTIFIED       : "identified", // High-quality identity information
+  IDENTITY_MODE_DOMAIN_VERIFIED  : "verified",   // Minimal SSL CA-signed domain verification
+  IDENTITY_MODE_UNKNOWN          : "unknown",  // No trusted identity information
 
   // Cache the most recent SSLStatus and Location seen in getIdentityStrings
   _lastStatus : null,
@@ -6100,14 +6070,6 @@ var IdentityHandler = {
   },
 
   getIdentityMode: function getIdentityMode(aState) {
-    if (aState & Ci.nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT)
-      return this.IDENTITY_MODE_MIXED_CONTENT_BLOCKED;
-
-    // Only show an indicator for loaded mixed content if the pref to block it is enabled
-    if ((aState & Ci.nsIWebProgressListener.STATE_LOADED_MIXED_ACTIVE_CONTENT) &&
-         Services.prefs.getBoolPref("security.mixed_content.block_active_content"))
-      return this.IDENTITY_MODE_MIXED_CONTENT_LOADED;
-
     if (aState & Ci.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL)
       return this.IDENTITY_MODE_IDENTIFIED;
 
@@ -6157,7 +6119,7 @@ var IdentityHandler = {
     result.verifier = Strings.browser.formatStringFromName("identity.identified.verifier", [iData.caOrg], 1);
 
     // If the cert is identified, then we can populate the results with credentials
-    if (aState & Ci.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL) {
+    if (mode == this.IDENTITY_MODE_IDENTIFIED) {
       result.owner = iData.subjectOrg;
 
       // Build an appropriate supplemental block out of whatever location data we have
@@ -6176,7 +6138,7 @@ var IdentityHandler = {
     }
     
     // Otherwise, we don't know the cert owner
-    result.owner = Strings.browser.GetStringFromName("identity.ownerUnknown3");
+    result.owner = Strings.browser.GetStringFromName("identity.ownerUnknown2");
 
     // Cache the override service the first time we need to check it
     if (!this._overrideService)

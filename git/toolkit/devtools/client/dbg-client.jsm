@@ -31,7 +31,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "WebConsoleClient",
                                   "resource://gre/modules/devtools/WebConsoleClient.jsm");
 
 Components.utils.import("resource://gre/modules/devtools/DevToolsUtils.jsm");
-this.makeInfallible = DevToolsUtils.makeInfallible;
+var { makeInfallible } = DevToolsUtils;
 
 let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
 

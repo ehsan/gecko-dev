@@ -381,37 +381,6 @@ MarionetteServerConnection.prototype = {
   },
 
   /**
-   * Creates an error message for a JavaScript exception thrown during
-   * execute_(async_)script.
-   *
-   * This will generate a [msg, trace] pair like:
-   *
-   * ['ReferenceError: foo is not defined',
-   *  'execute_script @test_foo.py, line 10
-   *   inline javascript, line 2
-   *   src: "return foo;"']
-   *
-   * @param error An Error object passed to a catch() clause.
-            fnName The name of the function to use in the stack trace message
-                   (e.g., 'execute_script').
-            pythonFile The filename of the test file containing the Marionette
-                    command that caused this exception to occur.
-            pythonLine The line number of the above test file.
-            script The JS script being executed in text form.
-   */
-  createStackMessage: function MDA_createStackMessage(error, fnName, pythonFile,
-      pythonLine, script) {
-    let python_stack = fnName + " @" + pythonFile + ", line " + pythonLine;
-    let stack = error.stack.split("\n");
-    let line = stack[0].substr(stack[0].lastIndexOf(':') + 1);
-    let msg = error.name + ": " + error.message;
-    let trace = python_stack +
-                "\ninline javascript, line " + line +
-                "\nsrc: \"" + script.split("\n")[line] + "\"";
-    return [msg, trace];
-  },
-
-  /**
    * Gets the current active window
    * 
    * @return nsIDOMWindow
@@ -768,7 +737,7 @@ MarionetteServerConnection.prototype = {
       script = data + script;
     }
 
-    let res = Cu.evalInSandbox(script, sandbox, "1.8", "dummy file", 0);
+    let res = Cu.evalInSandbox(script, sandbox, "1.8");
 
     if (directInject && !async &&
         (res == undefined || res.passed == undefined)) {
@@ -796,7 +765,6 @@ MarionetteServerConnection.prototype = {
   execute: function MDA_execute(aRequest, directInject) {
     let timeout = aRequest.scriptTimeout ? aRequest.scriptTimeout : this.scriptTimeout;
     let command_id = this.command_id = this.getCommandId();
-    let script;
     this.logRequest("execute", aRequest);
     if (aRequest.newSandbox == undefined) {
       //if client does not send a value in newSandbox, 
@@ -810,9 +778,7 @@ MarionetteServerConnection.prototype = {
                        args: aRequest.args,
                        newSandbox: aRequest.newSandbox,
                        timeout: timeout,
-                       specialPowers: aRequest.specialPowers,
-                       filename: aRequest.filename,
-                       line: aRequest.line
+                       specialPowers: aRequest.specialPowers
                      },
                      command_id);
       return;
@@ -835,6 +801,7 @@ MarionetteServerConnection.prototype = {
         return marionette.generate_results();
       };
 
+      let script;
       if (directInject) {
         script = aRequest.value;
       }
@@ -848,12 +815,7 @@ MarionetteServerConnection.prototype = {
                                   false, command_id, timeout);
     }
     catch (e) {
-      let error = this.createStackMessage(e,
-                                          "execute_script",
-                                          aRequest.filename,
-                                          aRequest.line,
-                                          script);
-      this.sendError(error[0], 17, error[1], command_id);
+      this.sendError(e.name + ': ' + e.message, 17, e.stack, command_id);
     }
   },
 
@@ -932,7 +894,6 @@ MarionetteServerConnection.prototype = {
   executeWithCallback: function MDA_executeWithCallback(aRequest, directInject) {
     let timeout = aRequest.scriptTimeout ? aRequest.scriptTimeout : this.scriptTimeout;
     let command_id = this.command_id = this.getCommandId();
-    let script;
     this.logRequest("executeWithCallback", aRequest);
     if (aRequest.newSandbox == undefined) {
       //if client does not send a value in newSandbox, 
@@ -948,9 +909,7 @@ MarionetteServerConnection.prototype = {
                        id: this.command_id,
                        newSandbox: aRequest.newSandbox,
                        timeout: timeout,
-                       specialPowers: aRequest.specialPowers,
-                       filename: aRequest.filename,
-                       line: aRequest.line
+                       specialPowers: aRequest.specialPowers
                      },
                      command_id);
       return;
@@ -965,7 +924,7 @@ MarionetteServerConnection.prototype = {
                                     timeout, this.testName);
     marionette.command_id = this.command_id;
 
-    function chromeAsyncReturnFunc(value, status, stacktrace) {
+    function chromeAsyncReturnFunc(value, status) {
       if (that._emu_cbs && Object.keys(that._emu_cbs).length) {
         value = "Emulator callback still pending when finish() called";
         status = 500;
@@ -987,7 +946,7 @@ MarionetteServerConnection.prototype = {
                             marionette.command_id);
         }
         else {
-          let error_msg = {message: value, status: status, stacktrace: stacktrace};
+          let error_msg = {message: value, status: status, stacktrace: null};
           that.sendToClient({from: that.actorID, error: error_msg},
                             marionette.command_id);
         }
@@ -1023,6 +982,7 @@ MarionetteServerConnection.prototype = {
       _chromeSandbox.returnFunc = chromeAsyncReturnFunc;
       _chromeSandbox.finish = chromeAsyncFinish;
 
+      let script;
       if (directInject) {
         script = aRequest.value;
       }
@@ -1036,12 +996,7 @@ MarionetteServerConnection.prototype = {
       this.executeScriptInSandbox(_chromeSandbox, script, directInject,
                                   true, command_id, timeout);
     } catch (e) {
-      let error = this.createStackMessage(e,
-                                          "execute_async_script",
-                                          aRequest.filename,
-                                          aRequest.line,
-                                          script);
-      chromeAsyncReturnFunc(error[0], 17, error[1]);
+      chromeAsyncReturnFunc(e.name + ": " + e.message, 17);
     }
   },
 

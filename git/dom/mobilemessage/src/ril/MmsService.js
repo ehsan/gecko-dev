@@ -1392,10 +1392,7 @@ MmsService.prototype = {
             "content-type": {
               "media": "application/smil",
               "params": {
-                "name": "smil.xml",
-                "charset": {
-                  "charset": "utf-8"
-                }
+                "name": "smil.xml"
               }
             },
             "content-length": smil.length,
@@ -1412,22 +1409,13 @@ MmsService.prototype = {
         let attachment = attachments[i];
         let content = attachment.content;
         let location = attachment.location;
-
-        let params = {
-          "name": location
-        };
-
-        if (content.type && content.type.indexOf("text/") == 0) {
-          params.charset = {
-            "charset": "utf-8"
-          };
-        }
-
         let part = {
           "headers": {
             "content-type": {
               "media": content.type,
-              "params": params
+              "params": {
+                "name": location
+              }
             },
             "content-length": content.size,
             "content-location": location,
