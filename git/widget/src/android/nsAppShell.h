@@ -82,7 +82,9 @@ protected:
     int mNumDraws;
     PRLock *mQueueLock;
     PRLock *mCondLock;
+    PRLock *mPausedLock;
     PRCondVar *mQueueCond;
+    PRCondVar *mPaused;
     nsTArray<mozilla::AndroidGeckoEvent *> mEventQueue;
     nsInterfaceHashtable<nsStringHashKey, nsIObserver> mObserversHash;
 

@@ -506,7 +506,7 @@ nsDOMFileReader::ReadFileContent(nsIDOMFile* aFile,
     // Hold the internal URL alive only as long as necessary
     // After the channel is created it will own whatever is backing
     // the DOMFile.
-    nsDOMFileInternalUrlHolder urlHolder(mFile, mPrincipal);
+    nsDOMFileInternalUrlHolder urlHolder(mFile);
 
     nsCOMPtr<nsIURI> uri;
     rv = NS_NewURI(getter_AddRefs(uri), urlHolder.mUrl);

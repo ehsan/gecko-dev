@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  * Raymond Lee <raymond@appcoast.com>
- * Sean Dunn <seanedunn@yahoo.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -118,11 +117,6 @@ function searchTest(contentWindow) {
       searchBox.getAttribute("value")).matched().length == 2,
      "Match something when a part of title exists");
 
-  cleanup(contentWindow);
-}
-
-function cleanup(contentWindow) {       
-  contentWindow.hideSearch(null);     
   let onTabViewHidden = function() {
     window.removeEventListener("tabviewhidden", onTabViewHidden, false);
     ok(!TabView.isVisible(), "Tab View is hidden");

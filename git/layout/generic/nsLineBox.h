@@ -1226,16 +1226,6 @@ class nsLineList {
       return rv;
     }
 
-    reverse_iterator rbegin(nsLineBox* aLine)
-    {
-      reverse_iterator rv;
-      rv.mCurrent = aLine;
-#ifdef DEBUG
-      rv.mListLink = &mLink;
-#endif
-      return rv;
-    }
-
     const_reverse_iterator rend() const
     {
       const_reverse_iterator rv;

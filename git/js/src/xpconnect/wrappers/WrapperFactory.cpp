@@ -67,8 +67,7 @@ JSCrossCompartmentWrapper XrayWrapperWaivedWrapper(WrapperFactory::WAIVE_XRAY_WR
 JSObject *
 WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, uintN flags)
 {
-    NS_ASSERTION(!obj->isWrapper() || obj->getClass()->ext.innerObject,
-                 "wrapped object passed to rewrap");
+    NS_ASSERTION(!obj->isWrapper(), "wrapped object passed to rewrap");
 
     JSCompartment *origin = obj->getCompartment(cx);
     JSCompartment *target = cx->compartment;

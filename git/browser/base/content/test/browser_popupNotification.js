@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Gavin Sharp <gavin@gavinsharp.com>
- *   Sylvain Pasche <sylvain.pasche@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -143,25 +142,6 @@ function basicNotification() {
       }
     }
   ];
-  this.options = {
-    eventCallback: function (eventName) {
-      switch (eventName) {
-        case "dismissed":
-          self.dismissalCallbackTriggered = true;
-          break;
-        case "shown":
-          self.shownCallbackTriggered = true;
-          break;
-        case "removed":
-          self.removedCallbackTriggered = true;
-          break;
-      }
-    }
-  };
-  this.addOptions = function(options) {
-    for (let [name, value] in Iterator(options))
-      self.options[name] = value;
-  }
 }
 
 var wrongBrowserNotificationObject = new basicNotification();
@@ -204,9 +184,7 @@ var tests = [
       dismissNotification(popup);
     },
     onHidden: function (popup) {
-      ok(this.notifyObj.dismissalCallbackTriggered, "dismissal callback triggered");
       this.notification.remove();
-      ok(this.notifyObj.removedCallbackTriggered, "removed callback triggered");
     }
   },
   // test opening a notification for a background browser
@@ -221,7 +199,6 @@ var tests = [
       is(PopupNotifications.isPanelOpen, false, "panel isn't open");
       ok(!wrongBrowserNotificationObject.mainActionClicked, "main action wasn't clicked");
       ok(!wrongBrowserNotificationObject.secondaryActionClicked, "secondary action wasn't clicked");
-      ok(!wrongBrowserNotificationObject.dismissalCallbackTriggered, "dismissal callback wasn't called");
     }
   },
   // now select that browser and test to see that the notification appeared
@@ -240,10 +217,7 @@ var tests = [
     },
     onHidden: function (popup) {
       // actually remove the notification to prevent it from reappearing
-      ok(!wrongBrowserNotificationObject.dismissalCallbackTriggered, "dismissal callback wasn't called");
       wrongBrowserNotification.remove();
-      ok(!wrongBrowserNotificationObject.dismissalCallbackTriggered, "dismissal callback wasn't called after remove()");
-      ok(wrongBrowserNotificationObject.removedCallbackTriggered, "removed callback triggered");
       wrongBrowserNotification = null;
     }
   },
@@ -296,11 +270,9 @@ var tests = [
     onHidden: function (popup) {
       ok(this.testNotif1.mainActionClicked, "main action #1 was clicked");
       ok(!this.testNotif1.secondaryActionClicked, "secondary action #1 wasn't clicked");
-      ok(!this.testNotif1.dismissalCallbackTriggered, "dismissal callback #1 wasn't called");
 
       ok(!this.testNotif2.mainActionClicked, "main action #2 wasn't clicked");
       ok(this.testNotif2.secondaryActionClicked, "secondary action #2 was clicked");
-      ok(!this.testNotif2.dismissalCallbackTriggered, "dismissal callback #2 wasn't called");
     }
   },
   // Test notification without mainAction
@@ -338,7 +310,6 @@ var tests = [
     onHidden: function (popup) {
       // Remove the first notification
       this.firstNotification.remove();
-      ok(this.notifyObj.removedCallbackTriggered, "removed callback triggered");
     }
   },
   // Test optional params
@@ -353,9 +324,7 @@ var tests = [
       dismissNotification(popup);
     },
     onHidden: function (popup) {
-      ok(this.notifyObj.dismissalCallbackTriggered, "dismissal callback triggered");
       this.notification.remove();
-      ok(this.notifyObj.removedCallbackTriggered, "removed callback triggered");
     }
   },
   // Test that icons appear
@@ -385,9 +354,9 @@ var tests = [
       let self = this;
       loadURI("http://example.com/", function() {
         self.notifyObj = new basicNotification();
-        self.notifyObj.addOptions({
+        self.notifyObj.options = {
           persistence: 2
-        });
+        };
         self.notification = showNotification(self.notifyObj);
       });
     },
@@ -422,9 +391,9 @@ var tests = [
       loadURI("http://example.com/", function() {
         self.notifyObj = new basicNotification();
         // Set a timeout of 10 minutes that should never be hit
-        self.notifyObj.addOptions({
+        self.notifyObj.options = {
           timeout: Date.now() + 600000
-        });
+        };
         self.notification = showNotification(self.notifyObj);
       });
     },
@@ -464,7 +433,7 @@ var tests = [
       // The notification should open up on the box
       this.notifyObj = new basicNotification();
       this.notifyObj.anchorID = this.box.id = "nested-box";
-      this.notifyObj.addOptions({dismissed: true});
+      this.notifyObj.options = {dismissed: true};
       this.notification = showNotification(this.notifyObj);
 
       EventUtils.synthesizeMouse(button, 1, 1, {});
@@ -483,7 +452,7 @@ var tests = [
     run: function() {
       let notifyObj = new basicNotification();
       notifyObj.anchorID = "geo-notification-icon";
-      notifyObj.addOptions({neverShow: true});
+      notifyObj.options = {neverShow: true};
       showNotification(notifyObj);
     },
     updateNotShowing: function() {
@@ -505,10 +474,8 @@ function showNotification(notifyObj) {
 
 function checkPopup(popup, notificationObj) {
   info("[Test #" + gTestIndex + "] checking popup");
-
-  ok(notificationObj.shownCallbackTriggered, "shown callback was triggered");
-
   let notifications = popup.childNodes;
+
   is(notifications.length, 1, "only one notification displayed");
   let notification = notifications[0];
   let icon = document.getAnonymousElementByAttribute(notification, "class", "popup-notification-icon");

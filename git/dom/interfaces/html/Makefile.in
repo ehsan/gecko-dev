@@ -55,7 +55,6 @@ SDK_XPIDLSRCS =					\
 	nsIDOMHTMLBodyElement.idl		\
 	nsIDOMHTMLButtonElement.idl		\
 	nsIDOMHTMLCollection.idl		\
-	nsIDOMHTMLDataListElement.idl		\
 	nsIDOMHTMLDListElement.idl		\
 	nsIDOMHTMLDirectoryElement.idl		\
 	nsIDOMHTMLDivElement.idl		\
@@ -112,6 +111,7 @@ SDK_XPIDLSRCS =					\
 	nsIDOMHTMLSourceElement.idl		\
 	nsIDOMHTMLVideoElement.idl		\
 	nsIDOMHTMLAudioElement.idl		\
+	nsIDOMHTMLVoidCallback.idl		\
 	nsIDOMValidityState.idl		\
 	$(NULL)
 

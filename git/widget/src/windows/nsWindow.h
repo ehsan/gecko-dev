@@ -272,7 +272,6 @@ public:
   void SetTaskbarPreview(nsITaskbarWindowPreview *preview) { mTaskbarPreview = do_GetWeakReference(preview); }
 #endif
 
-  NS_IMETHOD              ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
 
   /**
@@ -479,6 +478,7 @@ protected:
   PRPackedBool          mIsRTL;
   PRPackedBool          mFullscreenMode;
   PRUint32              mBlurSuppressLevel;
+  nsContentType         mContentType;
   DWORD_PTR             mOldStyle;
   DWORD_PTR             mOldExStyle;
   HIMC                  mOldIMC;

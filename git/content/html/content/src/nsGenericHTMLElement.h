@@ -508,26 +508,6 @@ public:
    */
   NS_HIDDEN_(nsresult) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& aResult);
 
-  /**
-   * Helper method for NS_IMPL_ENUM_ATTR_DEFAULT_VALUE.
-   * Gets the enum value string of an attribute and using a default value if
-   * the attribute is missing or the string is an invalid enum value.
-   *
-   * @param aType     the name of the attribute.
-   * @param aDefault  the default value if the attribute is missing or invalid.
-   * @param aResult   string corresponding to the value [out].
-   */
-  NS_HIDDEN_(nsresult) GetEnumAttr(nsIAtom* aAttr,
-                                   const char* aDefault,
-                                   nsAString& aResult);
-
-  /**
-   * Returns the current disabled state of the element.
-   */
-  virtual bool IsDisabled() const {
-    return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
-  }
-
 protected:
   /**
    * Add/remove this element to the documents name cache
@@ -715,6 +695,19 @@ protected:
   NS_HIDDEN_(nsresult) GetURIListAttr(nsIAtom* aAttr, nsAString& aResult);
 
   /**
+   * Helper method for NS_IMPL_ENUM_ATTR_DEFAULT_VALUE.
+   * Gets the enum value string of an attribute and using a default value if
+   * the attribute is missing or the string is an invalid enum value.
+   *
+   * @param aType     the name of the attribute.
+   * @param aDefault  the default value if the attribute is missing or invalid.
+   * @param aResult   string corresponding to the value [out].
+   */
+  NS_HIDDEN_(nsresult) GetEnumAttr(nsIAtom* aAttr,
+                                   const char* aDefault,
+                                   nsAString& aResult);
+
+  /**
    * Locates the nsIEditor associated with this node.  In general this is
    * equivalent to GetEditorInternal(), but for designmode or contenteditable,
    * this may need to get an editor that's not actually on this element's
@@ -850,30 +843,6 @@ public:
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
-  virtual bool IsDisabled() const {
-    return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) ||
-           (mFieldSet && mFieldSet->IsDisabled());
-  }
-
-  /**
-   * This callback is called by a fieldest on all it's elements whenever it's
-   * disabled attribute is changed so the element knows it's disabled state
-   * might have changed.
-   *
-   * @param aStates States for which a change should be notified.
-   * @note Classes redefining this method should not call ContentStatesChanged
-   * but they should pass aStates instead.
-   */
-  virtual void FieldSetDisabledChanged(PRInt32 aStates);
-
-  void FieldSetFirstLegendChanged() {
-    UpdateFieldSet();
-
-    // The disabled state may have change because the element might not be in
-    // the first legend anymore.
-    FieldSetDisabledChanged(0);
-  }
-
   /**
    * Returns if the control can be disabled.
    */
@@ -912,11 +881,6 @@ protected:
   void UpdateFormOwner(bool aBindToTree, Element* aFormIdElement);
 
   /**
-   * This method will update mFieldset and set it to the first fieldset parent.
-   */
-  void UpdateFieldSet();
-
-  /**
    * Add a form id observer which will observe when the element with the id in
    * @form will change.
    *
@@ -952,9 +916,6 @@ protected:
 
   /** The form that contains this control */
   nsHTMLFormElement* mForm;
-
-  /* This is a pointer to our closest fieldset parent if any */
-  nsGenericHTMLFormElement* mFieldSet;
 };
 
 // If this flag is set on an nsGenericHTMLFormElement, that means that we have
@@ -1444,7 +1405,6 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Body)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Button)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Canvas)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Mod)
-NS_DECLARE_NS_NEW_HTML_ELEMENT(DataList)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Div)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(FieldSet)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Font)

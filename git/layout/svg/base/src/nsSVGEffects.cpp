@@ -392,9 +392,6 @@ GetEffectPropertyForURI(nsIURI *aURI, nsIFrame *aFrame,
                         const FramePropertyDescriptor *aProperty,
                         nsSVGRenderingObserver * (* aCreate)(nsIURI *, nsIFrame *, PRBool))
 {
-  if (!aURI)
-    return nsnull;
-
   FrameProperties props = aFrame->Properties();
   nsSVGEffects::URIObserverHashtable *hashtable =
     static_cast<nsSVGEffects::URIObserverHashtable*>(props.Get(aProperty));

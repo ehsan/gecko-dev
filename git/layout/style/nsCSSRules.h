@@ -74,15 +74,7 @@ class nsCSSGroupRule : public nsCSSRule, public nsICSSGroupRule
 protected:
   nsCSSGroupRule();
   nsCSSGroupRule(const nsCSSGroupRule& aCopy);
-  virtual ~nsCSSGroupRule();
-
-  // Implement part of nsISupports.
-  NS_IMETHOD_(nsrefcnt) AddRef();
-  NS_IMETHOD_(nsrefcnt) Release();
-protected:
-  nsAutoRefCnt mRefCnt;
-  NS_DECL_OWNINGTHREAD
-public:
+  ~nsCSSGroupRule();
 
   // implement part of nsIStyleRule and nsICSSRule
   DECL_STYLE_RULE_INHERIT_NO_DOMRULE
@@ -121,8 +113,8 @@ protected:
   CSSGroupRuleRuleListImpl* mRuleCollection;
 };
 
-class NS_FINAL_CLASS nsCSSMediaRule : public nsCSSGroupRule,
-                                      public nsIDOMCSSMediaRule
+class nsCSSMediaRule : public nsCSSGroupRule,
+                       public nsIDOMCSSMediaRule
 {
 public:
   nsCSSMediaRule();
@@ -163,8 +155,8 @@ protected:
   nsRefPtr<nsMediaList> mMedia;
 };
 
-class NS_FINAL_CLASS nsCSSDocumentRule : public nsCSSGroupRule,
-                                         public nsIDOMCSSMozDocumentRule
+class nsCSSDocumentRule : public nsCSSGroupRule,
+                          public nsIDOMCSSMozDocumentRule
 {
 public:
   nsCSSDocumentRule(void);
@@ -257,12 +249,12 @@ private:
   void* operator new(size_t size) CPP_THROW_NEW;
 };
 
-class NS_FINAL_CLASS nsCSSFontFaceRule : public nsCSSRule,
-                                         public nsICSSRule,
-                                         public nsIDOMCSSFontFaceRule
+class nsCSSFontFaceRule : public nsCSSRule,
+                          public nsICSSRule,
+                          public nsIDOMCSSFontFaceRule
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_ISUPPORTS_INHERITED
 
   // nsIStyleRule methods
 #ifdef DEBUG

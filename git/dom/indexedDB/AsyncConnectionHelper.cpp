@@ -179,6 +179,8 @@ AsyncConnectionHelper::Run()
     }
   }
 
+  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "GetOrCreateConnection failed!");
+
   if (connection) {
     rv = connection->SetProgressHandler(kProgressHandlerGranularity, this,
                                         getter_AddRefs(mOldProgressHandler));
@@ -198,11 +200,7 @@ AsyncConnectionHelper::Run()
     }
   }
   else {
-    // NS_ERROR_NOT_AVAILABLE is our special code for "database is invalidated"
-    // and we should fail with RECOVERABLE_ERR.
-    mErrorCode = rv == NS_ERROR_NOT_AVAILABLE ?
-                 nsIIDBDatabaseException::RECOVERABLE_ERR :
-                 nsIIDBDatabaseException::UNKNOWN_ERR;
+    mErrorCode = nsIIDBDatabaseException::UNKNOWN_ERR;
   }
 
   if (!mStartTime.IsNull()) {
@@ -228,12 +226,6 @@ NS_IMETHODIMP
 AsyncConnectionHelper::OnProgress(mozIStorageConnection* aConnection,
                                   PRBool* _retval)
 {
-  if (mDatabase && mDatabase->IsInvalidated()) {
-    // Someone is trying to delete the database file. Exit lightningfast!
-    *_retval = PR_TRUE;
-    return NS_OK;
-  }
-
   TimeDuration elapsed = TimeStamp::Now() - mStartTime;
   if (elapsed >= mTimeoutDuration) {
     *_retval = PR_TRUE;

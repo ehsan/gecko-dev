@@ -298,7 +298,6 @@ public:
 
     void SetPopupWindowLevel();
 
-    NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
 
   nsresult             CreateNativeWindow(const NSRect &aRect,

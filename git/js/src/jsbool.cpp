@@ -60,8 +60,7 @@ using namespace js;
 
 Class js_BooleanClass = {
     "Boolean",
-    JSCLASS_HAS_RESERVED_SLOTS(1) |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
+    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
     PropertyStub,   /* addProperty */
     PropertyStub,   /* delProperty */
     PropertyStub,   /* getProperty */
@@ -127,20 +126,18 @@ static JSFunctionSpec boolean_methods[] = {
 };
 
 static JSBool
-Boolean(JSContext *cx, uintN argc, Value *vp)
+Boolean(JSContext *cx, JSObject *obj, uintN argc, Value *argv, Value *rval)
 {
-    Value *argv = vp + 2;
-    bool b = argc != 0 ? js_ValueToBoolean(argv[0]) : false;
+    Value bval;
 
-    if (IsConstructing(vp)) {
-        JSObject *obj = NewBuiltinClassInstance(cx, &js_BooleanClass);
-        if (!obj)
-            return false;
-        obj->setPrimitiveThis(BooleanValue(b));
-        vp->setObject(*obj);
-    } else {
-        vp->setBoolean(b);
-    }
+    if (argc != 0)
+        bval.setBoolean(!!js_ValueToBoolean(argv[0]));
+    else
+        bval.setBoolean(false);
+    if (!JS_IsConstructing(cx))
+        *rval = bval;
+    else
+        obj->setPrimitiveThis(bval);
     return true;
 }
 
@@ -173,14 +170,14 @@ js_BooleanToCharBuffer(JSContext *cx, JSBool b, JSCharBuffer &cb)
 JSBool
 js_ValueToBoolean(const Value &v)
 {
-    if (v.isInt32())
-        return v.toInt32() != 0;
-    if (v.isString())
-        return v.toString()->length() != 0;
-    if (v.isObject())
-        return JS_TRUE;
     if (v.isNullOrUndefined())
         return JS_FALSE;
+    if (v.isObject())
+        return JS_TRUE;
+    if (v.isString())
+        return v.toString()->length() != 0;
+    if (v.isInt32())
+        return v.toInt32() != 0;
     if (v.isDouble()) {
         jsdouble d;
 

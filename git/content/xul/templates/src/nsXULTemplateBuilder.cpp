@@ -528,9 +528,6 @@ nsXULTemplateBuilder::UpdateResult(nsIXULTemplateResult* aOldResult,
            ("nsXULTemplateBuilder::UpdateResult %p %p %p",
            aOldResult, aNewResult, aQueryNode));
 
-    if (!mRoot || !mQueriesCompiled)
-      return NS_OK;
-
     // get the containers where content may be inserted. If
     // GetInsertionLocations returns false, no container has generated
     // any content yet so new content should not be generated either. This
@@ -1026,9 +1023,6 @@ nsXULTemplateBuilder::ResultBindingChanged(nsIXULTemplateResult* aResult)
     // changed, so the same rule still applies. Just synchronize the content.
     // The new result will have the new values.
     NS_ENSURE_ARG_POINTER(aResult);
-
-    if (!mRoot || !mQueriesCompiled)
-      return NS_OK;
 
     return SynchronizeResult(aResult);
 }

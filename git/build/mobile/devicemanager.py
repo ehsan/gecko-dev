@@ -58,7 +58,7 @@ class FileError(Exception):
 class DeviceManager:
   host = ''
   port = 0
-  debug = 2
+  debug = 3
   _redo = False
   deviceRoot = None
   tempRoot = os.getcwd()
@@ -166,7 +166,6 @@ class DeviceManager:
         # TODO: We had an old sleep here but we don't need it
 
         while (found == False and (loopguard < recvGuard)):
-          temp = ''
           if (self.debug >= 4): print "recv'ing..."
 
           # Get our response
@@ -194,9 +193,8 @@ class DeviceManager:
 
           # If we violently lose the connection to the device, this loop tends to spin,
           # this guard prevents that
-          if (temp == ''):
-            loopguard += 1
-            
+          loopguard = loopguard + 1
+
     # TODO: We had an old sleep here but we don't need it
     if (shouldCloseSocket == True):
       try:
@@ -230,16 +228,16 @@ class DeviceManager:
   
 
   def pushFile(self, localname, destname):
-    if (self.debug >= 3): print "in push file with: " + localname + ", and: " + destname
+    if (self.debug >= 2): print "in push file with: " + localname + ", and: " + destname
     if (self.validateFile(destname, localname) == True):
-      if (self.debug >= 3): print "files are validated"
+      if (self.debug >= 2): print "files are validated"
       return ''
 
     if self.mkDirs(destname) == None:
       print "unable to make dirs: " + destname
       return None
 
-    if (self.debug >= 3): print "sending: push " + destname
+    if (self.debug >= 2): print "sending: push " + destname
     
     filesize = os.path.getsize(localname)
     f = open(localname, 'rb')
@@ -265,7 +263,7 @@ class DeviceManager:
       validated = self.validateFile(destname, localname)
 
     if (validated):
-      if (self.debug >= 3): print "Push File Validated!"
+      if (self.debug >= 2): print "Push File Validated!"
       return True
     else:
       if (self.debug >= 2): print "Push File Failed to Validate!"
@@ -390,13 +388,14 @@ class DeviceManager:
     if (self.debug >= 4): print "got pid: " + str(self.process) + " for process: " + str(appname)
 
   def launchProcess(self, cmd, outputFile = "process.txt", cwd = ''):
-    cmdline = subprocess.list2cmdline(cmd)
-    if (outputFile == "process.txt" or outputFile == None):
+    if (outputFile == "process.txt"):
       outputFile = self.getDeviceRoot() + '/' + "process.txt"
-      cmdline += " > " + outputFile
 
-    self.fireProcess(cmdline)
-    return outputFile
+    cmdline = subprocess.list2cmdline(cmd)
+    self.fireProcess(cmdline + " > " + outputFile)
+    handle = outputFile
+
+    return handle
   
   #hardcoded: sleep interval of 5 seconds, timeout of 10 minutes
   def communicate(self, process, timeout = 600):
@@ -716,13 +715,4 @@ class DeviceManager:
       cmd += ' ' + installPath
     self.sendCMD([cmd])
     return True
-
-  """
-    return the current time on the device
-  """
-  def getCurrentTime(self):
-    data = self.sendCMD(['clok'])
-    if (data == None):
-      return None
-    return self.stripPrompt(data).strip('\n')
 

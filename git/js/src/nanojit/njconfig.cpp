@@ -44,7 +44,7 @@
 namespace nanojit
 {
 #ifdef NANOJIT_IA32
-    static int getCpuFeatures()
+    static bool CheckForSSE2()
     {
         int features = 0;
     #if defined _MSC_VER
@@ -76,7 +76,7 @@ namespace nanojit
             : "%eax", "%ecx"
            );
     #endif
-        return features;
+        return (features & (1<<26)) != 0;
     }
 #endif
 
@@ -87,9 +87,8 @@ namespace nanojit
         cseopt = true;
 
 #ifdef NANOJIT_IA32
-        int const features = getCpuFeatures();
-        i386_sse2 = (features & (1<<26)) != 0;
-        i386_use_cmov = (features & (1<<15)) != 0;
+        i386_sse2 = CheckForSSE2();
+        i386_use_cmov = true;
         i386_fixed_esp = false;
 #endif
 

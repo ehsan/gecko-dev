@@ -74,15 +74,7 @@ public:
     Element* elem = GetTarget();
     if (elem) {
       nsSVGEffects::AddRenderingObserver(elem, this);
-      mInObserverList = PR_TRUE;
     }
-#ifdef DEBUG
-    else {
-      NS_ABORT_IF_FALSE(!mInObserverList,
-                        "Have no target, so we can't be in "
-                        "target's observer list...");
-    }
-#endif
   }
 
   virtual ~SVGRootRenderingObserver()
@@ -229,7 +221,6 @@ VectorImage::~VectorImage()
 nsresult
 VectorImage::Init(imgIDecoderObserver* aObserver,
                   const char* aMimeType,
-                  const char* aURIString,
                   PRUint32 aFlags)
 {
   // We don't support re-initialization

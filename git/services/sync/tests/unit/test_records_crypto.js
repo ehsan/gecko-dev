@@ -8,28 +8,28 @@ Cu.import("resource://services-sync/util.js");
 let keys, cryptoMeta, cryptoWrap;
 
 function pubkey_handler(metadata, response) {
-  let obj = {id: "pubkey",
+  let obj = {id: "ignore-me",
              modified: keys.pubkey.modified,
              payload: JSON.stringify(keys.pubkey.payload)};
   return httpd_basic_auth_handler(JSON.stringify(obj), metadata, response);
 }
 
 function privkey_handler(metadata, response) {
-  let obj = {id: "privkey",
+  let obj = {id: "ignore-me-2",
              modified: keys.privkey.modified,
              payload: JSON.stringify(keys.privkey.payload)};
   return httpd_basic_auth_handler(JSON.stringify(obj), metadata, response);
 }
 
 function crypted_resource_handler(metadata, response) {
-  let obj = {id: "resource",
+  let obj = {id: "ignore-me-3",
              modified: cryptoWrap.modified,
              payload: JSON.stringify(cryptoWrap.payload)};
   return httpd_basic_auth_handler(JSON.stringify(obj), metadata, response);
 }
 
 function crypto_meta_handler(metadata, response) {
-  let obj = {id: "steam",
+  let obj = {id: "ignore-me-4",
              modified: cryptoMeta.modified,
              payload: JSON.stringify(cryptoMeta.payload)};
   return httpd_basic_auth_handler(JSON.stringify(obj), metadata, response);
@@ -48,39 +48,34 @@ function run_test() {
 
     log.info("Setting up server and authenticator");
 
-    server = httpd_setup({"/keys/pubkey": pubkey_handler,
-                          "/keys/privkey": privkey_handler,
-                          "/steam/resource": crypted_resource_handler,
-                          "/crypto/steam": crypto_meta_handler});
+    server = httpd_setup({"/pubkey": pubkey_handler,
+                          "/privkey": privkey_handler,
+                          "/crypted-resource": crypted_resource_handler,
+                          "/crypto-meta": crypto_meta_handler});
 
     let auth = new BasicAuthenticator(new Identity("secret", "guest", "guest"));
     Auth.defaultAuthenticator = auth;
 
     log.info("Generating keypair + symmetric key");
 
-    PubKeys.defaultKeyUri = "http://localhost:8080/keys/pubkey";
+    PubKeys.defaultKeyUri = "http://localhost:8080/pubkey";
     keys = PubKeys.createKeypair(passphrase,
-                                 "http://localhost:8080/keys/pubkey",
-                                 "http://localhost:8080/keys/privkey");
+                                 "http://localhost:8080/pubkey",
+                                 "http://localhost:8080/privkey");
     let crypto = Svc.Crypto;
     keys.symkey = crypto.generateRandomKey();
     keys.wrappedkey = crypto.wrapSymmetricKey(keys.symkey, keys.pubkey.keyData);
 
     log.info("Setting up keyring");
 
-    cryptoMeta = new CryptoMeta("http://localhost:8080/crypto/steam", auth);
+    cryptoMeta = new CryptoMeta("http://localhost:8080/crypto-meta", auth);
     cryptoMeta.addUnwrappedKey(keys.pubkey, keys.symkey);
     CryptoMetas.set(cryptoMeta.uri, cryptoMeta);
 
-    log.info("Creating a record");
+    log.info("Creating and encrypting a record");
 
-    cryptoWrap = new CryptoWrapper("http://localhost:8080/steam/resource");
-    cryptoWrap.encryption = "http://localhost:8080/crypto/steam";
-    do_check_eq(cryptoWrap.encryption, "http://localhost:8080/crypto/steam");
-    do_check_eq(cryptoWrap.payload.encryption, "../crypto/steam");
-
-    log.info("Encrypting a record");
-
+    cryptoWrap = new CryptoWrapper("http://localhost:8080/crypted-resource", auth);
+    cryptoWrap.encryption = "http://localhost:8080/crypto-meta";
     cryptoWrap.cleartext.stuff = "my payload here";
     cryptoWrap.encrypt(passphrase);
     let firstIV = cryptoWrap.IV;
@@ -112,7 +107,7 @@ function run_test() {
     catch(ex) {
       error = ex;
     }
-    do_check_eq(error, "Record id mismatch: resource,other");
+    do_check_eq(error, "Record id mismatch: crypted-resource,other");
 
     log.info("Make sure wrong hmacs cause failures");
     cryptoWrap.encrypt(passphrase);

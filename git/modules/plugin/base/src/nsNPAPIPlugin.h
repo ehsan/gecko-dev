@@ -86,7 +86,8 @@ public:
 
   // Constructs and initializes an nsNPAPIPlugin object. A NULL file path
   // will prevent this from calling NP_Initialize.
-  static nsresult CreatePlugin(nsPluginTag *aPluginTag, nsIPlugin** aResult);
+  static nsresult CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
+                               nsIPlugin** aResult);
 
   PluginLibrary* GetLibrary();
   // PluginFuncs() can't fail but results are only valid if GetLibrary() succeeds
@@ -104,7 +105,7 @@ public:
   void PluginCrashed(const nsAString& pluginDumpID,
                      const nsAString& browserDumpID);
   
-  static PRBool RunPluginOOP(const nsPluginTag *aPluginTag);
+  static PRBool RunPluginOOP(const char* aFilePath, const nsPluginTag *aPluginTag);
 #endif
 
 protected:

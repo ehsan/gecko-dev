@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *   Henrik Skupin <hskupin@mozilla.com>
- *   Aaron Train <aaron.train@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -46,14 +45,11 @@ var MODULE_NAME = 'SessionStoreAPI';
 
 // Include necessary modules
 var RELATIVE_ROOT = '.';
-var MODULE_REQUIRES = ['PrefsAPI', 'UtilsAPI', 'WidgetsAPI'];
+var MODULE_REQUIRES = ['WidgetsAPI'];
 
 // Session Store service
 var sessionStoreService = Cc["@mozilla.org/browser/sessionstore;1"]
                              .getService(Ci.nsISessionStore);
-
-// Preference for indicating the amount of restorable tabs
-const SESSIONSTORE_MAXTABS_PREF = 'browser.sessionstore.max_tabs_undo';
 
 const gTimeout = 5000;
 
@@ -66,7 +62,7 @@ const gTimeout = 5000;
 function aboutSessionRestore(controller)
 {
   this._controller = controller;
-  this._utilsApi = collector.getModule('UtilsAPI');
+
   this._WidgetsAPI = collector.getModule('WidgetsAPI');
 }
 
@@ -95,18 +91,6 @@ aboutSessionRestore.prototype = {
   },
 
   /**
-   * Gets all the needed external DTD urls as an array
-   *
-   * @returns Array of external DTD urls
-   * @type [string]
-   */
-  getDtds : function aboutSessionRestore_getDtds() {
-    var dtds = ["chrome://browser/locale/browser.dtd",
-                "chrome://browser/locale/aboutSessionRestore.dtd"];
-    return dtds;
-  },
-
-  /**
    * Retrieve an UI element based on the given spec
    *
    * @param {object} spec
@@ -121,6 +105,9 @@ aboutSessionRestore.prototype = {
     var elem = null;
 
     switch(spec.type) {
+      case "button_newSession":
+        elem = new elementslib.ID(this._controller.tabs.activeTab, "errorCancel");
+        break;
       case "button_restoreSession":
         elem = new elementslib.ID(this._controller.tabs.activeTab, "errorTryAgain");
         break;
@@ -231,29 +218,6 @@ aboutSessionRestore.prototype = {
 }
 
 /**
- * Resets the list of recently closed tabs by setting and clearing the user preference
- */
-function resetRecentlyClosedTabs()
-{
-  var prefs = collector.getModule('PrefsAPI').preferences;
-
-  prefs.setPref(SESSIONSTORE_MAXTABS_PREF, 0);
-  prefs.clearUserPref(SESSIONSTORE_MAXTABS_PREF);
-}
-
-/**
- * Returns the number of restorable tabs for a given window
- * 
- * @param {MozMillController} controller
- *        MozMillController of the window to operate on
- * @returns The number of restorable tabs in the window
- */
-function getClosedTabCount(controller)
-{
-  return sessionStoreService.getClosedTabCount(controller.window);
-}
-
-/**
  * Restores the tab which has been recently closed
  * 
  * @param {MozMillController} controller
@@ -270,8 +234,7 @@ function undoClosedTab(controller, event)
       throw new Error("Menu gets build dynamically and cannot be accessed.");
       break;
     case "shortcut":
-      var cmdKey = this._utilsApi.getEntity(this.getDtds(), "tabCmd.commandkey");
-      controller.keypress(null, cmdKey, {accelKey: true, shiftKey: true});
+      controller.keypress(null, "t", {accelKey: true, shiftKey: true});
       break;
   }
 
@@ -300,8 +263,7 @@ function undoClosedWindow(controller, event)
       throw new Error("Menu gets build dynamically and cannot be accessed.");
       break;
     case "shortcut":
-      var cmdKey = this._utilsApi.getEntity(this.getDtds(), "newNavigatorCmd.key");
-      controller.keypress(null, cmdKey, {accelKey: true, shiftKey: true});
+      controller.keypress(null, "n", {accelKey: true, shiftKey: true});
       break;
   }
 

@@ -123,7 +123,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 
   BOOL mIsPluginView;
   NPEventModel mPluginEventModel;
-  NPDrawingModel mPluginDrawingModel;
 
   // The following variables are only valid during key down event processing.
   // Their current usage needs to be fixed to avoid problems with nested event
@@ -228,8 +227,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 
 - (BOOL)isPluginView;
 
-- (BOOL)isUsingOpenGL;
-
 // Simple gestures support
 //
 // XXX - The swipeWithEvent, beginGestureWithEvent, magnifyWithEvent,
@@ -302,6 +299,8 @@ public:
   virtual nsIWidget*      GetParent(void);
   virtual float           GetDPI();
 
+  LayerManager*           GetLayerManager();
+
   NS_IMETHOD              ConstrainPosition(PRBool aAllowSlop,
                                             PRInt32 *aX, PRInt32 *aY);
   NS_IMETHOD              Move(PRInt32 aX, PRInt32 aY);
@@ -325,7 +324,6 @@ public:
   NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
 
   NS_IMETHOD              Update();
-  virtual PRBool          GetShouldAccelerate();
 
   NS_IMETHOD        SetCursor(nsCursor aCursor);
   NS_IMETHOD        SetCursor(imgIContainer* aCursor, PRUint32 aHotspotX, PRUint32 aHotspotY);
@@ -359,7 +357,6 @@ public:
 
   NS_IMETHOD        SetPluginEventModel(int inEventModel);
   NS_IMETHOD        GetPluginEventModel(int* outEventModel);
-  NS_IMETHOD        SetPluginDrawingModel(int inDrawingModel);
 
   NS_IMETHOD        StartComplexTextInputForCurrentEvent();
 
@@ -407,9 +404,6 @@ public:
 
   PRBool IsPluginView() { return (mWindowType == eWindowType_plugin); }
 
-  void PaintQD();
-
-  NS_IMETHOD        ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
 
   PRBool            ReportDestroyEvent();
@@ -449,6 +443,7 @@ protected:
   PRPackedBool          mVisible;
   PRPackedBool          mDrawing;
   PRPackedBool          mPluginDrawing;
+  PRPackedBool          mPluginIsCG; // true if this is a CoreGraphics plugin
   PRPackedBool          mIsDispatchPaint; // Is a paint event being dispatched
 
   NP_CGContext          mPluginCGContext;

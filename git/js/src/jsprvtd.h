@@ -74,6 +74,19 @@ typedef uint8  jsbytecode;
 typedef uint8  jssrcnote;
 typedef uint32 jsatomid;
 
+#ifdef __cplusplus
+
+/* Class and struct forward declarations in namespace js. */
+extern "C++" {
+namespace js {
+struct Parser;
+struct Compiler;
+class RegExp;
+}
+}
+
+#endif
+
 /* Struct typedefs. */
 typedef struct JSArgumentFormatMap  JSArgumentFormatMap;
 typedef struct JSCodeGenerator      JSCodeGenerator;
@@ -85,6 +98,7 @@ typedef struct JSObjectBox          JSObjectBox;
 typedef struct JSParseNode          JSParseNode;
 typedef struct JSProperty           JSProperty;
 typedef struct JSSharpObjectMap     JSSharpObjectMap;
+typedef struct JSEmptyScope         JSEmptyScope;
 typedef struct JSThread             JSThread;
 typedef struct JSThreadData         JSThreadData;
 typedef struct JSTreeContext        JSTreeContext;
@@ -99,6 +113,9 @@ typedef struct JSAtomState          JSAtomState;
 typedef struct JSCodeSpec           JSCodeSpec;
 typedef struct JSPrinter            JSPrinter;
 typedef struct JSRegExpStatics      JSRegExpStatics;
+typedef struct JSScope              JSScope;
+typedef struct JSScopeOps           JSScopeOps;
+typedef struct JSScopeProperty      JSScopeProperty;
 typedef struct JSStackHeader        JSStackHeader;
 typedef struct JSSubString          JSSubString;
 typedef struct JSNativeTraceInfo    JSNativeTraceInfo;
@@ -119,8 +136,6 @@ extern "C++" {
 
 namespace js {
 
-struct ArgumentsData;
-
 class RegExp;
 class RegExpStatics;
 class AutoStringRooter;
@@ -131,10 +146,7 @@ class TraceRecorder;
 struct TraceMonitor;
 class StackSpace;
 class StackSegment;
-class FrameRegsIter;
 
-struct Compiler;
-struct Parser;
 class TokenStream;
 struct Token;
 struct TokenPos;
@@ -167,8 +179,6 @@ class DeflatedStringCache;
 class PropertyCache;
 struct PropertyCacheEntry;
 
-struct Shape;
-struct EmptyShape;
 
 } /* namespace js */
 
@@ -280,7 +290,7 @@ typedef struct JSDebugHooks {
     void                *debugErrorHookData;
 } JSDebugHooks;
 
-/* js::ObjectOps function pointer typedefs. */
+/* JSObjectOps function pointer typedefs. */
 
 /*
  * Look for id in obj and its prototype chain, returning false on error or
@@ -304,11 +314,38 @@ typedef JSBool
                    JSProperty **propp);
 
 /*
+ * Define obj[id], a direct property of obj named id, having the given initial
+ * value, with the specified getter, setter, and attributes.
+ */
+typedef JSBool
+(* JSDefinePropOp)(JSContext *cx, JSObject *obj, jsid id, const jsval *value,
+                   JSPropertyOp getter, JSPropertyOp setter, uintN attrs);
+
+/*
+ * Get, set, or delete obj[id], returning false on error or exception, true
+ * on success.  If getting or setting, the new value is returned in *vp on
+ * success.  If deleting without error, *vp will be JSVAL_FALSE if obj[id] is
+ * permanent, and JSVAL_TRUE if id named a direct property of obj that was in
+ * fact deleted, or if id names no direct property of obj (id could name a
+ * prototype property, or no property in obj or its prototype chain).
+ */
+typedef JSBool
+(* JSPropertyIdOp)(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+
+/*
  * Get or set attributes of the property obj[id]. Return false on error or
  * exception, true with current attributes in *attrsp.
  */
 typedef JSBool
 (* JSAttributesOp)(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
+
+/*
+ * The type of ops->call. Same argument types as JSFastNative, but a different
+ * contract. A JSCallOp expects a dummy stack frame with the caller's
+ * scopeChain.
+ */
+typedef JSBool
+(* JSCallOp)(JSContext *cx, uintN argc, jsval *vp);
 
 /*
  * A generic type for functions mapping an object to another object, or null

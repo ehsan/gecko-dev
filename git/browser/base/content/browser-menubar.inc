@@ -113,7 +113,6 @@
                           label="&goOfflineCmd.label;"
                           accesskey="&goOfflineCmd.accesskey;"
                           type="checkbox"
-                          observes="workOfflineMenuitemState"
                           oncommand="BrowserOffline.toggleOfflineStatus();"/>
                 <menuitem id="menu_FileQuitItem"
 #ifdef XP_WIN
@@ -210,9 +209,8 @@
                   accesskey="&viewMenu.accesskey;">
               <menupopup id="menu_viewPopup">
                 <menuitem id="menu_tabview"
-                          key="key_tabview"
-                          label="&viewTabGroups.label;"
-                          accesskey="&viewTabGroups.accesskey;"
+                          label="&showTabView2.label;"
+                          accesskey="&showTabView2.accesskey;"
                           command="Browser:ToggleTabView"/>
                 <menu id="viewToolbarsMenu"
                       label="&viewToolbarsMenu.label;"
@@ -231,6 +229,16 @@
                               command="cmd_CustomizeToolbars"/>
                   </menupopup>
                 </menu>
+                <menuitem id="toggle_taskbar"
+                          label="&taskbarCmd.label;"
+                          accesskey="&taskbarCmd.accesskey;"
+                          type="checkbox"
+                          command="cmd_toggleTaskbar"
+#ifndef WINCE
+                          checked="true" />
+#else
+                          checked="false" />
+#endif
                 <menu id="viewSidebarMenuMenu"
                       label="&viewSidebarMenu.label;"
                       accesskey="&viewSidebarMenu.accesskey;">
@@ -389,11 +397,6 @@
                           oncommand="BrowserOpenSyncTabs();"
                           disabled="true"/>
 #endif
-                <menuitem id="historyRestoreLastSession"
-                          class="restoreLastSession"
-                          label="&historyRestoreLastSession.label;"
-                          oncommand="restoreLastSession();"
-                          disabled="true"/>
                 <menu id="historyUndoMenu"
                       class="recentlyClosedTabsMenu"
                       label="&historyUndoMenu.label;"
@@ -505,13 +508,29 @@
               <menuitem id="sync-setup"
                         label="&syncSetup.label;"
                         accesskey="&syncSetup.accesskey;"
-                        observes="sync-setup-state"
                         oncommand="gSyncUI.openSetup()"/>
-              <menuitem id="sync-syncnowitem"
-                        label="&syncSyncNowItem.label;"
-                        accesskey="&syncSyncNowItem.accesskey;"
-                        observes="sync-syncnow-state"
-                        oncommand="gSyncUI.doSync(event);"/>
+              <menu id="sync-menu"
+                    label="&syncMenu.label;"
+                    accesskey="&syncMenu.accesskey;">
+                <menupopup id="sync-menu-popup"
+                           onpopupshowing="if (event.target == this) gSyncUI.doUpdateMenu(event);">
+                  <menuitem id="sync-loginitem"
+                            label="&syncLogInItem.label;"
+                            accesskey="&syncLogInItem.accesskey;"
+                            oncommand="gSyncUI.doLogin();"/>
+                  <menuitem id="sync-logoutitem"
+                            label="&syncLogOutItem.label;"
+                            accesskey="&syncLogOutItem.accesskey;"
+                            oncommand="gSyncUI.doLogout();"/>
+                  <menuitem id="sync-syncnowitem"
+                            label="&syncSyncNowItem.label;"
+                            accesskey="&syncSyncNowItem.accesskey;"
+                            oncommand="gSyncUI.doSync(event);"/>
+                  <menuseparator id="sync-lastsyncsep" hidden="true"/>
+                  <menuitem id="sync-lastsyncitem"
+                            disabled="true" hidden="true"/>
+                </menupopup>
+              </menu>
 #endif
               <menuseparator id="devToolsSeparator"/>
               <menuitem id="menu_pageinspect"

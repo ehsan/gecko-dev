@@ -160,6 +160,9 @@ protected:
     nsCOMPtr<nsIAtom> mLocaleLanguage; // XXX temp fix for performance bug
     nsHashtable*      mFontAliasTable;
     nsIWidget*        mWidget;
+#ifdef NS_DEBUG
+    PRBool            mInitialized;
+#endif
 
 private:
     nsCOMPtr<nsIScreenManager> mScreenManager;

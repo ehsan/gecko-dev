@@ -132,12 +132,10 @@ ClientEngine.prototype = {
                Svc.Prefs.get("username");
     let brand = new StringBundle("chrome://branding/locale/brand.properties");
     let app = brand.get("brandShortName");
+    let os = Cc["@mozilla.org/network/protocol;1?name=http"].
+             getService(Ci.nsIHttpProtocolHandler).oscpu;
 
-    let system = Svc.SysInfo.get("device") ||
-                 Cc["@mozilla.org/network/protocol;1?name=http"]
-                   .getService(Ci.nsIHttpProtocolHandler).oscpu;
-
-    return this.localName = Str.sync.get("client.name2", [user, app, system]);
+    return this.localName = Str.sync.get("client.name2", [user, app, os]);
   },
   set localName(value) Svc.Prefs.set("client.name", value),
 
@@ -180,8 +178,8 @@ ClientStore.prototype = {
       this._remoteClients[record.id] = record.cleartext;
   },
 
-  createRecord: function createRecord(guid, uri) {
-    let record = new ClientsRec(uri);
+  createRecord: function createRecord(guid) {
+    let record = new ClientsRec();
 
     // Package the individual components into a record for the local client
     if (guid == Clients.localID) {

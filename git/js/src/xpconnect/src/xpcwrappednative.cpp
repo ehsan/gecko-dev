@@ -427,8 +427,6 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
     JSBool needsCOW = JS_FALSE;
     JSBool needsXOW = JS_FALSE;
 
-    JSAutoEnterCompartment ac;
-
     if(sciWrapper.GetFlags().WantPreCreate())
     {
         JSObject* plannedParent = parent;
@@ -456,9 +454,6 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
 
             newParentVal = OBJECT_TO_JSVAL(parent);
         }
-
-        if(!ac.enter(ccx, parent))
-            return NS_ERROR_FAILURE;
 
         // Take the performance hit of checking the hashtable again in case
         // the preCreate call caused the wrapper to get created through some
@@ -508,9 +503,6 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
     }
     else
     {
-        if(!ac.enter(ccx, parent))
-            return NS_ERROR_FAILURE;
-
         nsISupports *Object = helper.Object();
         if(nsXPCWrappedJSClass::IsWrappedJS(Object))
         {

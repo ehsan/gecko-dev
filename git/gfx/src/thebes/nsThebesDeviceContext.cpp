@@ -288,6 +288,10 @@ nsThebesDeviceContext::nsThebesDeviceContext()
     mWidget = nsnull;
     mFontAliasTable = nsnull;
 
+#ifdef NS_DEBUG
+    mInitialized = PR_FALSE;
+#endif
+
     mDepth = 0;
     mWidth = 0;
     mHeight = 0;
@@ -690,14 +694,14 @@ nsThebesDeviceContext::SetDPI()
 NS_IMETHODIMP
 nsThebesDeviceContext::Init(nsIWidget *aWidget)
 {
-    if (mScreenManager && mWidget == aWidget)
-        return NS_OK;
-
     mWidget = aWidget;
+
     SetDPI();
 
-    if (mScreenManager)
-        return NS_OK;
+#ifdef NS_DEBUG
+    NS_ASSERTION(!mInitialized, "device context is initialized twice!");
+    mInitialized = PR_TRUE;
+#endif
 
     // register as a memory-pressure observer to free font resources
     // in low-memory situations.

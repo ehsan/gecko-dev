@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=78:
+ * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -298,45 +298,6 @@ typedef enum JSParseNodeArity {
 
 struct JSDefinition;
 
-namespace js {
-
-struct GlobalScope {
-    GlobalScope(JSContext *cx, JSObject *globalObj, JSCodeGenerator *cg)
-      : globalObj(globalObj), cg(cg), defs(ContextAllocPolicy(cx))
-    { }
-
-    struct GlobalDef {
-        JSAtom        *atom;        // If non-NULL, specifies the property name to add.
-        JSFunctionBox *funbox;      // If non-NULL, function value for the property.
-                                    // This value is only set/used if atom is non-NULL.
-        uint32        knownSlot;    // If atom is NULL, this is the known shape slot.
-
-        GlobalDef() { }
-        GlobalDef(uint32 knownSlot)
-          : atom(NULL), knownSlot(knownSlot)
-        { }
-        GlobalDef(JSAtom *atom, JSFunctionBox *box) :
-          atom(atom), funbox(box)
-        { }
-    };
-
-    JSObject        *globalObj;
-    JSCodeGenerator *cg;
-
-    /*
-     * This is the table of global names encountered during parsing. Each
-     * global name appears in the list only once, and the |names| table
-     * maps back into |defs| for fast lookup.
-     *
-     * A definition may either specify an existing global property, or a new
-     * one that must be added after compilation succeeds.
-     */
-    Vector<GlobalDef, 16, ContextAllocPolicy> defs;
-    JSAtomList      names;
-};
-
-} /* namespace js */
-
 struct JSParseNode {
     uint32              pn_type:16,     /* TOK_* type, see jsscan.h */
                         pn_op:8,        /* see JSOp enum and jsopcode.tbl */
@@ -489,10 +450,9 @@ public:
 #define PND_DEOPTIMIZED 0x400           /* former pn_used name node, pn_lexdef
                                            still valid, but this use no longer
                                            optimizable via an upvar opcode */
-#define PND_CLOSED      0x800           /* variable is closed over */
 
 /* Flags to propagate from uses to definition. */
-#define PND_USE2DEF_FLAGS (PND_ASSIGNED | PND_FUNARG | PND_CLOSED)
+#define PND_USE2DEF_FLAGS (PND_ASSIGNED | PND_FUNARG)
 
 /* PN_LIST pn_xflags bits. */
 #define PNX_STRCAT      0x01            /* TOK_PLUS list has string term */
@@ -941,9 +901,9 @@ struct JSFunctionBox : public JSObjectBox
      * be joined to one compiler-created null closure shared among N different
      * closure environments.
      *
-     * We despecialize from caching function objects, caching slots or shapes
+     * We despecialize from caching function objects, caching slots or sprops
      * instead, because an unbranded object may still have joined methods (for
-     * which shape->isMethod), since PropertyCache::fill gives precedence to
+     * which sprop->isMethod), since PropertyCache::fill gives precedence to
      * joined methods over branded methods.
      */
     bool shouldUnbrand(uintN methods, uintN slowMethods) const;
@@ -1006,12 +966,22 @@ struct Parser : private js::AutoGCRooter
     uint32              functionCount;  /* number of functions in current unit */
     JSObjectBox         *traceListHead; /* list of parsed object for GC tracing */
     JSTreeContext       *tc;            /* innermost tree context (stack-allocated) */
-    JSVersion           version;        /* cached version to avoid repeated lookups */
 
     /* Root atoms and objects allocated for the parsed tree. */
     js::AutoKeepAtoms   keepAtoms;
 
-    Parser(JSContext *cx, JSPrincipals *prin = NULL, JSStackFrame *cfp = NULL);
+    Parser(JSContext *cx, JSPrincipals *prin = NULL, JSStackFrame *cfp = NULL)
+      : js::AutoGCRooter(cx, PARSER), context(cx),
+        aleFreeList(NULL), tokenStream(cx), principals(NULL), callerFrame(cfp),
+        callerVarObj(cfp ? cfp->varobj(cx->containingSegment(cfp)) : NULL),
+        nodeList(NULL), functionCount(0), traceListHead(NULL), tc(NULL),
+        keepAtoms(cx->runtime)
+    {
+        js::PodArrayZero(tempFreeList);
+        setPrincipals(prin);
+        JS_ASSERT_IF(cfp, cfp->hasScript());
+    }
+
     ~Parser();
 
     friend void js::AutoGCRooter::trace(JSTracer *trc);
@@ -1155,9 +1125,11 @@ Parser::reportErrorNumber(JSParseNode *pn, uintN flags, uintN errorNumber, ...)
 struct Compiler
 {
     Parser parser;
-    GlobalScope *globalScope;
 
-    Compiler(JSContext *cx, JSPrincipals *prin = NULL, JSStackFrame *cfp = NULL);
+    Compiler(JSContext *cx, JSPrincipals *prin = NULL, JSStackFrame *cfp = NULL)
+      : parser(cx, prin, cfp)
+    {
+    }
 
     /*
      * Initialize a compiler. Parameters are passed on to init parser.
@@ -1180,11 +1152,7 @@ struct Compiler
                   const jschar *chars, size_t length,
                   FILE *file, const char *filename, uintN lineno,
                   JSString *source = NULL,
-                  uintN staticLevel = 0);
-
-  private:
-    static bool
-    defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *script);
+                  unsigned staticLevel = 0);
 };
 
 } /* namespace js */

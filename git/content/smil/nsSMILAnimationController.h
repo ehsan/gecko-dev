@@ -70,9 +70,8 @@ class nsIDocument;
 class nsSMILAnimationController : public nsSMILTimeContainer,
                                   public nsARefreshObserver
 {
-protected:
-  nsSMILAnimationController();
 public:
+  nsSMILAnimationController();
   ~nsSMILAnimationController();
 
   // nsSMILContainer
@@ -191,15 +190,11 @@ protected:
   nsAutoRefCnt mRefCnt;
   NS_DECL_OWNINGTHREAD
 
+  static const PRUint32      kTimerInterval;
   AnimationElementHashtable  mAnimationElementTable;
   TimeContainerHashtable     mChildContainerTable;
-  mozilla::TimeStamp         mCurrentSampleTime;
-  mozilla::TimeStamp         mStartTime;
   PRPackedBool               mResampleNeeded;
   PRPackedBool               mDeferredStartSampling;
-#ifdef DEBUG
-  PRPackedBool               mRunningSample;
-#endif
 
   // Store raw ptr to mDocument.  It owns the controller, so controller
   // shouldn't outlive it

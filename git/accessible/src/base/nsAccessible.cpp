@@ -2158,18 +2158,9 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
 
   case nsIAccessibleRelation::RELATION_CONTROLLER_FOR:
     {
-      nsresult rv = nsRelUtils::
+      return nsRelUtils::
         AddTargetFromIDRefsAttr(aRelationType, aRelation, mContent,
                                 nsAccessibilityAtoms::aria_controls);
-      NS_ENSURE_SUCCESS(rv,rv);
-
-      if (rv != NS_OK_NO_RELATION_TARGET)
-        return NS_OK; // XXX bug 381599, avoid performance problems      
-
-      return nsRelUtils::
-        AddTargetFromNeighbour(aRelationType, aRelation, mContent,
-                               nsAccessibilityAtoms::_for,
-                               nsAccessibilityAtoms::output);
     }
 
   case nsIAccessibleRelation::RELATION_FLOWS_TO:

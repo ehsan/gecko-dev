@@ -65,7 +65,8 @@
 #include "jsobjinlines.h"
 
 using namespace js;
-using namespace js::gc;
+
+using namespace js;
 
 /*
  * ATOM_HASH assumes that JSHashNumber is 32-bit even on 64-bit systems.
@@ -175,7 +176,6 @@ const char *const js_common_atom_names[] = {
     js_configurable_str,        /* configurableAtom             */
     js_writable_str,            /* writableAtom                 */
     js_value_str,               /* valueAtom                    */
-    js_test_str,                /* testAtom                     */
     "use strict",               /* useStrictAtom                */
 
 #if JS_HAS_XML_SUPPORT
@@ -189,7 +189,6 @@ const char *const js_common_atom_names[] = {
     js_starQualifier_str,       /* starQualifierAtom            */
     js_tagc_str,                /* tagcAtom                     */
     js_xml_str,                 /* xmlAtom                      */
-    "@mozilla.org/js/function", /* functionNamespaceURIAtom     */
 #endif
 
     "Proxy",                    /* ProxyAtom                    */
@@ -266,7 +265,6 @@ const char js_enumerable_str[]      = "enumerable";
 const char js_configurable_str[]    = "configurable";
 const char js_writable_str[]        = "writable";
 const char js_value_str[]           = "value";
-const char js_test_str[]            = "test";
 
 #if JS_HAS_XML_SUPPORT
 const char js_etago_str[]           = "</";
@@ -443,8 +441,8 @@ js_SweepAtomState(JSContext *cx)
         AtomEntryType entry = e.front();
         if (AtomEntryFlags(entry) & (ATOM_PINNED | ATOM_INTERNED)) {
             /* Pinned or interned key cannot be finalized. */
-            JS_ASSERT(!IsAboutToBeFinalized(AtomEntryToKey(entry)));
-        } else if (IsAboutToBeFinalized(AtomEntryToKey(entry))) {
+            JS_ASSERT(!js_IsAboutToBeFinalized(AtomEntryToKey(entry)));
+        } else if (js_IsAboutToBeFinalized(AtomEntryToKey(entry))) {
             e.removeFront();
         }
     }
@@ -499,7 +497,7 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
     JSAtomState *state = &cx->runtime->atomState;
     AtomSet &atoms = state->atoms;
 
-    AutoLockDefaultCompartment lock(cx);
+    JS_LOCK(cx, &state->lock);
     AtomSet::AddPtr p = atoms.lookupForAdd(str);
 
     /* Hashing the string should have flattened it if it was a rope. */
@@ -520,9 +518,9 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
             key = str;
             atoms.add(p, StringToInitialAtomEntry(key));
         } else {
-            if (flags & ATOM_TMPSTR) {
-                SwitchToCompartment sc(cx, cx->runtime->defaultCompartment);
+            JS_UNLOCK(cx, &state->lock);
 
+            if (flags & ATOM_TMPSTR) {
                 if (flags & ATOM_NOCOPY) {
                     key = js_NewString(cx, str->flatChars(), str->flatLength());
                     if (!key)
@@ -542,7 +540,9 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
                 key = str;
             }
 
+            JS_LOCK(cx, &state->lock);
             if (!atoms.relookupOrAdd(p, key, StringToInitialAtomEntry(key))) {
+                JS_UNLOCK(cx, &state->lock);
                 JS_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report */
                 return NULL;
             }
@@ -554,6 +554,7 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
 
     JS_ASSERT(key->isAtomized());
     JSAtom *atom = STRING_TO_ATOM(key);
+    JS_UNLOCK(cx, &state->lock);
     return atom;
 }
 

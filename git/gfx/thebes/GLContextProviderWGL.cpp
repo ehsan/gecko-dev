@@ -44,8 +44,6 @@
 #include "gfxPlatform.h"
 #include "gfxWindowsSurface.h"
 
-#include "prenv.h"
-
 namespace mozilla {
 namespace gl {
 
@@ -55,8 +53,6 @@ static HWND gSharedWindow = 0;
 static HDC gSharedWindowDC = 0;
 static HGLRC gSharedWindowGLContext = 0;
 static int gSharedWindowPixelFormat = 0;
-
-static PRBool gUseDoubleBufferedWindows = PR_FALSE;
 
 static HWND
 CreateDummyWindow(HDC *aWindowDC = nsnull)
@@ -89,8 +85,6 @@ CreateDummyWindow(HDC *aWindowDC = nsnull)
         pfd.nSize = sizeof(PIXELFORMATDESCRIPTOR);
         pfd.nVersion = 1;
         pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL;
-        if (gUseDoubleBufferedWindows)
-            pfd.dwFlags |= PFD_DOUBLEBUFFER;
         pfd.iPixelType = PFD_TYPE_RGBA;
         pfd.cColorBits = 24;
         pfd.cRedBits = 8;
@@ -129,8 +123,6 @@ WGLLibrary::EnsureInitialized()
             return PR_FALSE;
         }
     }
-
-    gUseDoubleBufferedWindows = PR_GetEnv("MOZ_WGL_DB") != nsnull;
 
     LibrarySymbolLoader::SymLoadStruct earlySymbols[] = {
         { (PRFuncPtr*) &fCreateContext, { "wglCreateContext", NULL } },
@@ -227,8 +219,7 @@ public:
           mContext(aContext),
           mWnd(aWindow),
           mPBuffer(NULL),
-          mPixelFormat(0),
-          mIsDoubleBuffered(PR_FALSE)
+          mPixelFormat(0)
     {
     }
 
@@ -243,14 +234,16 @@ public:
           mContext(aContext),
           mWnd(NULL),
           mPBuffer(aPbuffer),
-          mPixelFormat(aPixelFormat),
-          mIsDoubleBuffered(PR_FALSE)
+          mPixelFormat(aPixelFormat)
     {
     }
 
     ~GLContextWGL()
     {
-        MarkDestroyed();
+        if (mOffscreenFBO) {
+            MakeCurrent();
+            DeleteOffscreenFBO();
+        }
 
         sWGLLibrary.fDeleteContext(mContext);
 
@@ -274,7 +267,7 @@ public:
         return InitWithPrefix("gl", PR_TRUE);
     }
 
-    PRBool MakeCurrent(PRBool aForce = PR_FALSE)
+    PRBool MakeCurrent()
     {
         BOOL succeeded = PR_TRUE;
 
@@ -282,26 +275,12 @@ public:
         // of its TLS slot, so no need to do our own tls slot.
         // You would think that wglMakeCurrent would avoid doing
         // work if mContext was already current, but not so much..
-        if (aForce || sWGLLibrary.fGetCurrentContext() != mContext) {
+        if (sWGLLibrary.fGetCurrentContext() != mContext) {
             succeeded = sWGLLibrary.fMakeCurrent(mDC, mContext);
             NS_ASSERTION(succeeded, "Failed to make GL context current!");
         }
 
         return succeeded;
-    }
-
-    void SetIsDoubleBuffered(PRBool aIsDB) {
-        mIsDoubleBuffered = aIsDB;
-    }
-
-    virtual PRBool IsDoubleBuffered() {
-        return mIsDoubleBuffered;
-    }
-
-    virtual PRBool SwapBuffers() {
-        if (!mIsDoubleBuffered)
-            return PR_FALSE;
-        return ::SwapBuffers(mDC);
     }
 
     PRBool SetupLookupFunction()
@@ -341,8 +320,6 @@ protected:
     HWND mWnd;
     HANDLE mPBuffer;
     int mPixelFormat;
-
-    PRPackedBool mIsDoubleBuffered;
 };
 
 PRBool
@@ -456,28 +433,17 @@ protected:
     virtual already_AddRefed<gfxASurface>
     CreateUpdateSurface(const gfxIntSize& aSize, ImageFormat aFmt)
     {
-        mUpdateSize = aSize;
-        mUpdateFormat = aFmt;
-
-        return gfxPlatform::GetPlatform()->CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFmt));
+        return gfxPlatform::GetPlatform()->CreateOffscreenSurface(aSize, aFmt);
     }
 
     virtual already_AddRefed<gfxImageSurface>
     GetImageForUpload(gfxASurface* aUpdateSurface)
     {
-        nsRefPtr<gfxImageSurface> uploadImage;
-
-        if (aUpdateSurface->GetType() == gfxASurface::SurfaceTypeWin32) {
-            gfxWindowsSurface* ws = static_cast<gfxWindowsSurface*>(aUpdateSurface);
-            uploadImage = ws->GetImageSurface();
-        } else {
-            uploadImage = new gfxImageSurface(mUpdateSize, mUpdateFormat);
-            nsRefPtr<gfxContext> cx(new gfxContext(uploadImage));
-            cx->SetSource(aUpdateSurface);
-            cx->SetOperator(gfxContext::OPERATOR_SOURCE);
-            cx->Paint();
-        }
-
+        NS_ASSERTION(gfxASurface::SurfaceTypeWin32 == aUpdateSurface->GetType(),
+                     "unexpected surface type");
+        nsRefPtr<gfxImageSurface> uploadImage(
+            static_cast<gfxWindowsSurface*>(aUpdateSurface)->
+            GetImageSurface());
         return uploadImage.forget();
     }
 
@@ -488,9 +454,6 @@ private:
                     GLContext* aContext)
         : BasicTextureImage(aTexture, aSize, aContentType, aContext)
     {}
-
-    gfxIntSize mUpdateSize;
-    ImageFormat mUpdateFormat;
 };
 
 already_AddRefed<TextureImage>
@@ -537,8 +500,6 @@ GLContextProviderWGL::CreateForWindow(nsIWidget *aWidget)
     if (!glContext->Init()) {
         return nsnull;
     }
-
-    glContext->SetIsDoubleBuffered(gUseDoubleBufferedWindows);
 
     return glContext.forget();
 }
@@ -741,7 +702,6 @@ GLContextProviderWGL::GetGlobalContext()
 void
 GLContextProviderWGL::Shutdown()
 {
-    gGlobalContext = nsnull;
 }
 
 } /* namespace gl */

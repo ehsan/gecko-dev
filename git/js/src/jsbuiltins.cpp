@@ -183,53 +183,73 @@ JS_DEFINE_CALLINFO_2(extern, INT32, js_StringToInt32, CONTEXT, STRING, 1, ACCSET
 
 /* Nb: it's always safe to set isDefinitelyAtom to false if you're unsure or don't know. */
 static inline JSBool
-AddPropertyHelper(JSContext* cx, JSObject* obj, Shape* shape, bool isDefinitelyAtom)
+AddPropertyHelper(JSContext* cx, JSObject* obj, JSScopeProperty* sprop, bool isDefinitelyAtom)
 {
     JS_LOCK_OBJ(cx, obj);
-    JS_ASSERT(shape->previous() == obj->lastProperty());
 
-    if (obj->nativeEmpty()) {
-        if (!obj->ensureClassReservedSlotsForEmptyObject(cx))
-            goto exit_trace;
-    }
+    uint32 slot = sprop->slot;
+    JSScope* scope = obj->scope();
+    if (slot != scope->freeslot)
+        return false;
+    JS_ASSERT(sprop->parent == scope->lastProperty());
 
-    uint32 slot;
-    slot = shape->slot;
-    JS_ASSERT(slot == obj->slotSpan());
-
-    if (slot < obj->numSlots()) {
-        JS_ASSERT(obj->getSlot(slot).isUndefined());
+    if (scope->isSharedEmpty()) {
+        scope = js_GetMutableScope(cx, obj);
+        if (!scope)
+            return false;
     } else {
-        if (!obj->allocSlot(cx, &slot))
-            goto exit_trace;
-        JS_ASSERT(slot == shape->slot);
+        JS_ASSERT(!scope->hasProperty(sprop));
     }
 
-    obj->extend(cx, shape, isDefinitelyAtom);
+    if (!scope->table) {
+        if (slot < obj->numSlots()) {
+            JS_ASSERT(obj->getSlot(scope->freeslot).isUndefined());
+            ++scope->freeslot;
+        } else {
+            if (!js_AllocSlot(cx, obj, &slot))
+                goto exit_trace;
+
+            if (slot != sprop->slot) {
+                js_FreeSlot(cx, obj, slot);
+                goto exit_trace;
+            }
+        }
+
+        scope->extend(cx, sprop, isDefinitelyAtom);
+    } else {
+        JSScopeProperty *sprop2 =
+            scope->addProperty(cx, sprop->id, sprop->getter(), sprop->setter(),
+                               SPROP_INVALID_SLOT, sprop->attributes(), sprop->getFlags(),
+                               sprop->shortid);
+        if (sprop2 != sprop)
+            goto exit_trace;
+    }
+
     if (js_IsPropertyCacheDisabled(cx))
         goto exit_trace;
 
-    JS_UNLOCK_OBJ(cx, obj);
+    JS_UNLOCK_SCOPE(cx, scope);
     return true;
 
   exit_trace:
-    JS_UNLOCK_OBJ(cx, obj);
+    JS_UNLOCK_SCOPE(cx, scope);
     return false;
 }
 
 JSBool FASTCALL
-js_AddProperty(JSContext* cx, JSObject* obj, Shape* shape)
+js_AddProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
 {
-    return AddPropertyHelper(cx, obj, shape, /* isDefinitelyAtom = */false);
+    return AddPropertyHelper(cx, obj, sprop, /* isDefinitelyAtom = */false);
 }
-JS_DEFINE_CALLINFO_3(extern, BOOL, js_AddProperty, CONTEXT, OBJECT, SHAPE, 0, ACCSET_STORE_ANY)
+JS_DEFINE_CALLINFO_3(extern, BOOL, js_AddProperty, CONTEXT, OBJECT, SCOPEPROP, 0, ACCSET_STORE_ANY)
 
 JSBool FASTCALL
-js_AddAtomProperty(JSContext* cx, JSObject* obj, Shape* shape)
+js_AddAtomProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
 {
-    return AddPropertyHelper(cx, obj, shape, /* isDefinitelyAtom = */true);
+    return AddPropertyHelper(cx, obj, sprop, /* isDefinitelyAtom = */true);
 }
-JS_DEFINE_CALLINFO_3(extern, BOOL, js_AddAtomProperty, CONTEXT, OBJECT, SHAPE, 0, ACCSET_STORE_ANY)
+JS_DEFINE_CALLINFO_3(extern, BOOL, js_AddAtomProperty, CONTEXT, OBJECT, SCOPEPROP,
+                     0, ACCSET_STORE_ANY)
 
 static JSBool
 HasProperty(JSContext* cx, JSObject* obj, jsid id)
@@ -306,9 +326,41 @@ js_NewNullClosure(JSContext* cx, JSObject* funobj, JSObject* proto, JSObject* pa
     if (!closure)
         return NULL;
 
-    closure->initSharingEmptyShape(&js_FunctionClass, proto, parent, fun, cx);
+    closure->initSharingEmptyScope(&js_FunctionClass, proto, parent, PrivateValue(fun));
     return closure;
 }
 JS_DEFINE_CALLINFO_4(extern, OBJECT, js_NewNullClosure, CONTEXT, OBJECT, OBJECT, OBJECT,
                      0, ACCSET_STORE_ANY)
 
+JS_REQUIRES_STACK JSBool FASTCALL
+js_PopInterpFrame(JSContext* cx, TracerState* state)
+{
+    JS_ASSERT(cx->hasfp() && cx->fp()->down);
+    JSStackFrame* const fp = cx->fp();
+
+    /*
+     * Mirror frame popping code from inline_return in js_Interpret. There are
+     * some things we just don't want to handle. In those cases, the trace will
+     * MISMATCH_EXIT.
+     */
+    if (fp->hasHookData())
+        return JS_FALSE;
+    if (cx->version != fp->getCallerVersion())
+        return JS_FALSE;
+    if (fp->flags & JSFRAME_CONSTRUCTING)
+        return JS_FALSE;
+    if (fp->hasIMacroPC())
+        return JS_FALSE;
+    if (fp->hasBlockChain())
+        return JS_FALSE;
+
+    fp->putActivationObjects(cx);
+    
+    /* Pop the frame and its memory. */
+    cx->stack().popInlineFrame(cx, fp, fp->down);
+
+    /* Update the inline call count. */
+    *state->inlineCallCountp = *state->inlineCallCountp - 1;
+    return JS_TRUE;
+}
+JS_DEFINE_CALLINFO_2(extern, BOOL, js_PopInterpFrame, CONTEXT, TRACERSTATE, 0, ACCSET_STORE_ANY)

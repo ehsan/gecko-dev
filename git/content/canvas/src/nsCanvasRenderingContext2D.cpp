@@ -550,19 +550,6 @@ protected:
     static const PRUint32 kCanvasMaxInvalidateCount = 100;
 
     /**
-     * Returns true iff the the given operator should affect areas of the
-     * destination where the source is transparent. Among other things, this
-     * implies that a fully transparent source would still affect the canvas.
-     */
-    PRBool OperatorAffectsUncoveredAreas(gfxContext::GraphicsOperator op) const
-    {
-        return op == gfxContext::OPERATOR_IN ||
-               op == gfxContext::OPERATOR_OUT ||
-               op == gfxContext::OPERATOR_DEST_IN ||
-               op == gfxContext::OPERATOR_DEST_ATOP;
-    }
-
-    /**
      * Returns true iff a shadow should be drawn along with a
      * drawing operation.
      */
@@ -575,22 +562,6 @@ protected:
         return state.StyleIsColor(STYLE_SHADOW) &&
                NS_GET_A(state.colorStyles[STYLE_SHADOW]) > 0 &&
                (state.shadowOffset != gfxPoint(0, 0) || state.shadowBlur != 0);
-    }
-
-    /**
-     * Checks the current state to determine if an intermediate surface would
-     * be necessary to complete a drawing operation. Does not check the
-     * condition pertaining to global alpha and patterns since that does not
-     * pertain to all drawing operations.
-     */
-    PRBool NeedToUseIntermediateSurface()
-    {
-        // certain operators always need an intermediate surface, except
-        // with quartz since quartz does compositing differently than cairo
-        return OperatorAffectsUncoveredAreas(mThebes->CurrentOperator());
-
-        // XXX there are other unhandled cases but they should be investigated
-        // first to ensure we aren't using an intermediate surface unecessarily
     }
 
     /**
@@ -1138,7 +1109,7 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
               surface = layerManager->CreateOptimalSurface(gfxIntSize(width, height), format);
             } else {
               surface = gfxPlatform::GetPlatform()->
-                CreateOffscreenSurface(gfxIntSize(width, height), gfxASurface::ContentFromFormat(format));
+                CreateOffscreenSurface(gfxIntSize(width, height), format);
             }
         }
 
@@ -1150,7 +1121,7 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
 #ifdef MOZ_X11
             if (surface->GetType() == gfxASurface::SurfaceTypeXlib) {
                 mBackSurface =
-                    gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, gfxASurface::ContentFromFormat(format));
+                    gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, format);
                 NS_ABORT_IF_FALSE(mBackSurface->GetType() ==
                                   gfxASurface::SurfaceTypeXlib, "need xlib surface");
                 mIsBackSurfaceReadable = PR_TRUE;
@@ -1910,8 +1881,7 @@ nsCanvasRenderingContext2D::ShadowInitialize(const gfxRect& extents, gfxAlphaBox
 {
     gfxIntSize blurRadius;
 
-    float shadowBlur = CurrentState().shadowBlur;
-    gfxFloat sigma = shadowBlur > 8 ? sqrt(shadowBlur * 2) : (shadowBlur / 2);
+    gfxFloat sigma = CurrentState().shadowBlur > 8 ? sqrt(CurrentState().shadowBlur) : CurrentState().shadowBlur / 2;
     // limit to avoid overly huge temp images
     if (sigma > SIGMA_MAX)
         sigma = SIGMA_MAX;
@@ -1961,8 +1931,7 @@ nsCanvasRenderingContext2D::DrawPath(Style style, gfxRect *dirtyRect)
      * - globalAlpha != 1 and gradients/patterns are used (need to paint_with_alpha)
      * - certain operators are used
      */
-    PRBool doUseIntermediateSurface = NeedToUseIntermediateSurface() ||
-                                      NeedIntermediateSurfaceToHandleGlobalAlpha(style);
+    PRBool doUseIntermediateSurface = NeedIntermediateSurfaceToHandleGlobalAlpha(style);
 
     PRBool doDrawShadow = NeedToDrawShadow();
 
@@ -2781,7 +2750,7 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     // don't need to take care of these with stroke since Stroke() does that
     PRBool doDrawShadow = aOp == TEXT_DRAW_OPERATION_FILL && NeedToDrawShadow();
     PRBool doUseIntermediateSurface = aOp == TEXT_DRAW_OPERATION_FILL &&
-        (NeedToUseIntermediateSurface() || NeedIntermediateSurfaceToHandleGlobalAlpha(STYLE_FILL));
+        NeedIntermediateSurfaceToHandleGlobalAlpha(STYLE_FILL);
 
     // Clear the surface if we need to simulate unbounded SOURCE operator
     ClearSurfaceForUnboundedSource();
@@ -3589,25 +3558,11 @@ nsCanvasRenderingContext2D::DrawImage(nsIDOMElement *imgElt, float a1,
             }
         }
 
-        PRBool doUseIntermediateSurface = NeedToUseIntermediateSurface();
-
         mThebes->SetPattern(pattern);
         DirtyAllStyles();
 
-        if (doUseIntermediateSurface) {
-            // draw onto a pushed group
-            mThebes->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-            mThebes->Clip(clip);
-
-            // don't want operators to be applied twice
-            mThebes->SetOperator(gfxContext::OPERATOR_SOURCE);
-
-            mThebes->Paint();
-            mThebes->PopGroupToSource();
-            mThebes->Paint(CurrentState().globalAlpha);
-        } else if (CurrentState().globalAlpha == 1.0f &&
-                   mThebes->CurrentOperator() == gfxContext::OPERATOR_OVER) {
-            /* Direct2D isn't very good at clipping so use Fill() when we can */
+        /* Direct2D isn't very good at clipping so use Fill() when we can */
+        if (CurrentState().globalAlpha == 1.0f && mThebes->CurrentOperator() == gfxContext::OPERATOR_OVER) {
             mThebes->NewPath();
             mThebes->Rectangle(clip);
             mThebes->Fill();
@@ -3618,6 +3573,17 @@ nsCanvasRenderingContext2D::DrawImage(nsIDOMElement *imgElt, float a1,
         }
         dirty = mThebes->UserToDevice(clip);
     }
+
+#if 1
+    // XXX cairo bug workaround; force a clip update on mThebes.
+    // Otherwise, a pixman clip gets left around somewhere, and pixman
+    // (Render) does source clipping as well -- so we end up
+    // compositing with an incorrect clip.  This only seems to affect
+    // fallback cases, which happen when we have CSS scaling going on.
+    // This will blow away the current path, but we already blew it
+    // away in this function earlier.
+    mThebes->UpdateSurfaceClip();
+#endif
 
 FINISH:
     if (NS_SUCCEEDED(rv))
@@ -3778,14 +3744,12 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
              nsPresContext::CSSPixelsToAppUnits(aY),
              nsPresContext::CSSPixelsToAppUnits(aW),
              nsPresContext::CSSPixelsToAppUnits(aH));
-    PRUint32 renderDocFlags = (nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING |
-                               nsIPresShell::RENDER_DOCUMENT_RELATIVE);
+    PRUint32 renderDocFlags = nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING;
     if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DRAW_CARET) {
         renderDocFlags |= nsIPresShell::RENDER_CARET;
     }
     if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DRAW_VIEW) {
-        renderDocFlags &= ~(nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING |
-                            nsIPresShell::RENDER_DOCUMENT_RELATIVE);
+        renderDocFlags &= ~nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING;
     }
     if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_USE_WIDGET_LAYERS) {
         renderDocFlags |= nsIPresShell::RENDER_USE_WIDGET_LAYERS;

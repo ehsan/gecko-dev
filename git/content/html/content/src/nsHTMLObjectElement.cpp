@@ -62,8 +62,6 @@ class nsHTMLObjectElement : public nsGenericHTMLFormElement,
 #endif
 {
 public:
-  using nsIConstraintValidation::GetValidationMessage;
-
   nsHTMLObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                       PRUint32 aFromParser = 0);
   virtual ~nsHTMLObjectElement();
@@ -111,8 +109,6 @@ public:
   NS_IMETHOD Reset();
   NS_IMETHOD SubmitNamesValues(nsFormSubmission *aFormSubmission);
 
-  virtual bool IsDisabled() const { return PR_FALSE; }
-
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
   virtual PRBool IsDoneAddingChildren();
 
@@ -133,6 +129,9 @@ public:
   nsresult CopyInnerTo(nsGenericElement* aDest) const;
 
   void StartObjectLoad() { StartObjectLoad(PR_TRUE); }
+
+  // nsIConstraintValidation
+  PRBool IsBarredFromConstraintValidation() const { return PR_TRUE; }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLObjectElement,
                                                      nsGenericHTMLFormElement)
@@ -158,9 +157,6 @@ nsHTMLObjectElement::nsHTMLObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo
 {
   RegisterFreezableElement();
   SetIsNetworkCreated(aFromParser == NS_FROM_PARSER_NETWORK);
-
-  // <object> is always barred from constraint validation.
-  SetBarredFromConstraintValidation(PR_TRUE);
 }
 
 nsHTMLObjectElement::~nsHTMLObjectElement()

@@ -50,7 +50,6 @@
 #include "nsNetUtil.h"
 #include "nsIPrefService.h"
 #include "nsIPermissionManager.h"
-#include "nsIDOMGeoPositionCallback.h"
 
 namespace mozilla {
 
@@ -65,7 +64,6 @@ class TabParent;
 class ContentParent : public PContentParent
                     , public nsIObserver
                     , public nsIThreadObserver
-                    , public nsIDOMGeoPositionCallback
 {
 private:
     typedef mozilla::ipc::GeckoChildProcessHost GeckoChildProcessHost;
@@ -82,7 +80,6 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
     NS_DECL_NSITHREADOBSERVER
-    NS_DECL_NSIDOMGEOPOSITIONCALLBACK
 
     TabParent* CreateTab(PRUint32 aChromeFlags);
 
@@ -117,15 +114,29 @@ private:
     virtual PNeckoParent* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoParent* necko);
 
-    virtual PExternalHelperAppParent* AllocPExternalHelperApp(
-            const IPC::URI& uri,
-            const nsCString& aMimeContentType,
-            const nsCString& aContentDisposition,
-            const bool& aForceSave,
-            const PRInt64& aContentLength);
-    virtual bool DeallocPExternalHelperApp(PExternalHelperAppParent* aService);
+    virtual bool RecvGetPrefType(const nsCString& prefName,
+            PRInt32* retValue, nsresult* rv);
 
-    virtual bool RecvReadPrefs(nsCString* prefs);
+    virtual bool RecvGetBoolPref(const nsCString& prefName,
+            PRBool* retValue, nsresult* rv);
+
+    virtual bool RecvGetIntPref(const nsCString& prefName,
+            PRInt32* retValue, nsresult* rv);
+
+    virtual bool RecvGetCharPref(const nsCString& prefName,
+            nsCString* retValue, nsresult* rv);
+
+    virtual bool RecvGetPrefLocalizedString(const nsCString& prefName,
+            nsString* retValue, nsresult* rv);
+
+    virtual bool RecvPrefHasUserValue(const nsCString& prefName,
+            PRBool* retValue, nsresult* rv);
+
+    virtual bool RecvPrefIsLocked(const nsCString& prefName,
+            PRBool* retValue, nsresult* rv);
+
+    virtual bool RecvGetChildList(const nsCString& domain,
+            nsTArray<nsCString>* list, nsresult* rv);
 
     virtual bool RecvTestPermission(const IPC::URI&  aUri,
                                     const nsCString& aType,
@@ -143,10 +154,13 @@ private:
 
     virtual bool RecvSetURITitle(const IPC::URI& uri,
                                  const nsString& title);
+    
+    virtual bool RecvNotifyIME(const int&, const int&);
 
-    virtual bool RecvShowAlertNotification(const nsString& aImageUrl, const nsString& aTitle,
-                                           const nsString& aText, const PRBool& aTextClickable,
-                                           const nsString& aCookie, const nsString& aName);
+    virtual bool RecvNotifyIMEChange(const nsString&, const PRUint32&, const int&, 
+                               const int&, const int&)
+;
+
 
     virtual bool RecvLoadURIExternal(const IPC::URI& uri);
 
@@ -154,20 +168,16 @@ private:
                                  nsTArray<nsString>* aRetvals);
     virtual bool RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON);
 
-    virtual bool RecvGeolocationStart();
-    virtual bool RecvGeolocationStop();
-
     mozilla::Monitor mMonitor;
 
     GeckoChildProcessHost* mSubprocess;
 
-    PRInt32 mGeolocationWatchID;
     int mRunToCompletionDepth;
     bool mShouldCallUnblockChild;
     nsCOMPtr<nsIThreadObserver> mOldObserver;
 
     bool mIsAlive;
-    nsCOMPtr<nsIPrefServiceInternal> mPrefService; 
+    nsCOMPtr<nsIPrefBranch> mPrefService; 
     nsCOMPtr<nsIPermissionManager> mPermissionService; 
 };
 

@@ -1815,10 +1815,10 @@ PRBool nsStyleBackground::IsTransparent() const
 void
 nsStyleBackground::Position::SetInitialValues()
 {
-  mXPosition.mPercent = 0.0f;
-  mXPosition.mLength = 0;
-  mYPosition.mPercent = 0.0f;
-  mYPosition.mLength = 0;
+  mXPosition.mFloat = 0.0f;
+  mYPosition.mFloat = 0.0f;
+  mXIsPercent = PR_TRUE;
+  mYIsPercent = PR_TRUE;
 }
 
 void
@@ -1827,7 +1827,7 @@ nsStyleBackground::Size::SetInitialValues()
   mWidthType = mHeightType = eAuto;
 }
 
-bool
+PRBool
 nsStyleBackground::Size::operator==(const Size& aOther) const
 {
   NS_ABORT_IF_FALSE(mWidthType < eDimensionType_COUNT,
@@ -1839,10 +1839,26 @@ nsStyleBackground::Size::operator==(const Size& aOther) const
   NS_ABORT_IF_FALSE(aOther.mHeightType < eDimensionType_COUNT,
                     "bad mHeightType for aOther");
 
-  return mWidthType == aOther.mWidthType &&
-         mHeightType == aOther.mHeightType &&
-         (mWidthType != eLengthPercentage || mWidth == aOther.mWidth) &&
-         (mHeightType != eLengthPercentage || mHeight == aOther.mHeight);
+  if (mWidthType != aOther.mWidthType || mHeightType != aOther.mHeightType)
+    return PR_FALSE;
+
+  if (mWidthType == ePercentage) {
+    if (mWidth.mFloat != aOther.mWidth.mFloat)
+      return PR_FALSE;
+  } else if (mWidthType == eLength) {
+    if (mWidth.mCoord != aOther.mWidth.mCoord)
+      return PR_FALSE;
+  }
+
+  if (mHeightType == ePercentage) {
+    if (mHeight.mFloat != aOther.mHeight.mFloat)
+      return PR_FALSE;
+  } else if (mHeightType == eLength) {
+    if (mHeight.mCoord != aOther.mHeight.mCoord)
+      return PR_FALSE;
+  }
+
+  return PR_TRUE;
 }
 
 nsStyleBackground::Layer::Layer()

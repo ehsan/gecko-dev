@@ -212,7 +212,6 @@ public:
     virtual PRInt32 GetDefaultContextFlags() const { return 0; }
 
     static gfxContentType ContentFromFormat(gfxImageFormat format);
-    static gfxImageFormat FormatFromContent(gfxContentType format);
 
     /**
      * Record number of bytes for given surface type.  Use positive bytes

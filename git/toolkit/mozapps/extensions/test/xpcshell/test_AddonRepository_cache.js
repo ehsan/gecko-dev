@@ -50,7 +50,10 @@ const REPOSITORY_UPDATEDATE = 9;
 function get_subfile_uri(aId, aFilename) {
   let file = gProfD.clone();
   file.append("extensions");
-  return do_get_addon_root_uri(file, aId) + aFilename;
+  file.append(aId);
+  if (aFilename)
+    file.append(aFilename);
+  return NetUtil.newURI(file).spec;
 }
 
 
@@ -71,9 +74,9 @@ const REPOSITORY_ADDONS = [{
                             name: "Repo Add-on 1 - Second Developer",
                             url:  BASE_URL + "/repo/1/secondDeveloper.html"
                           }],
-  description:            "Repo Add-on 1 - Description\nSecond line",
-  fullDescription:        "Repo Add-on 1 - Full Description & some extra",
-  developerComments:      "Repo Add-on 1\nDeveloper Comments",
+  description:            "Repo Add-on 1 - Description",
+  fullDescription:        "Repo Add-on 1 - Full Description",
+  developerComments:      "Repo Add-on 1 - Developer Comments",
   eula:                   "Repo Add-on 1 - EULA",
   iconURL:                BASE_URL + "/repo/1/icon.png",
   homepageURL:            BASE_URL + "/repo/1/homepage.html",
@@ -177,10 +180,8 @@ const WITHOUT_CACHE = [{
   type:                   "theme",
   name:                   "XPI Add-on 3",
   version:                "1.3",
-  get iconURL () {
-    return get_subfile_uri(ADDON_IDS[2], "icon.png");
-  },
-  screenshots:            [{ get url () { return get_subfile_uri(ADDON_IDS[2], "preview.png"); } }],
+  iconURL:                get_subfile_uri(ADDON_IDS[2], "icon.png"),
+  screenshots:            [{ url: get_subfile_uri(ADDON_IDS[2], "preview.png") }],
   sourceURI:              NetUtil.newURI(ADDON_FILES[2]).spec
 }];
 
@@ -202,8 +203,8 @@ const WITH_CACHE = [{
   contributors:           [{ name: "XPI Add-on 1 - First Contributor" },
                            { name: "XPI Add-on 1 - Second Contributor" }],
   description:            "XPI Add-on 1 - Description",
-  fullDescription:        "Repo Add-on 1 - Full Description & some extra",
-  developerComments:      "Repo Add-on 1\nDeveloper Comments",
+  fullDescription:        "Repo Add-on 1 - Full Description",
+  developerComments:      "Repo Add-on 1 - Developer Comments",
   eula:                   "Repo Add-on 1 - EULA",
   iconURL:                BASE_URL + "/xpi/1/icon.png",
   homepageURL:            BASE_URL + "/xpi/1/homepage.html",
@@ -267,9 +268,7 @@ const WITH_CACHE = [{
   type:                   "theme",
   name:                   "XPI Add-on 3",
   version:                "1.3",
-  get iconURL () {
-    return get_subfile_uri(ADDON_IDS[2], "icon.png");
-  },
+  iconURL:                get_subfile_uri(ADDON_IDS[2], "icon.png"),
   screenshots:            [{
                             url:          BASE_URL + "/repo/3/firstFull.png",
                             thumbnailURL: BASE_URL + "/repo/3/firstThumbnail.png",

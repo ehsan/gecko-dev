@@ -921,8 +921,12 @@ nsHTMLSelectElement::SetOptionsSelectedByIndex(PRInt32 aStartIndex,
   nsresult rv;
 
   // Don't bother if the select is disabled
-  if (!aSetDisabled && IsDisabled()) {
-    return NS_OK;
+  if (!aSetDisabled) {
+    PRBool selectIsDisabled = PR_FALSE;
+    rv = GetDisabled(&selectIsDisabled);
+    if (NS_SUCCEEDED(rv) && selectIsDisabled) {
+      return NS_OK;
+    }
   }
 
   // Don't bother if there are no options
@@ -1251,7 +1255,7 @@ nsHTMLSelectElement::IsHTMLFocusable(PRBool aWithMouse,
     return PR_TRUE;
   }
 
-  *aIsFocusable = !IsDisabled();
+  *aIsFocusable = !HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
 
   return PR_FALSE;
 }
@@ -1305,23 +1309,6 @@ nsHTMLSelectElement::SelectSomething()
 }
 
 nsresult
-nsHTMLSelectElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                                nsIContent* aBindingParent,
-                                PRBool aCompileEventHandlers)
-{
-  nsresult rv = nsGenericHTMLFormElement::BindToTree(aDocument, aParent,
-                                                     aBindingParent,
-                                                     aCompileEventHandlers);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // If there is a disabled fieldset in the parent chain, the element is now
-  // barred from constraint validation.
-  UpdateBarredFromConstraintValidation();
-
-  return rv;
-}
-
-nsresult
 nsHTMLSelectElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                    const nsAString* aValue, PRBool aNotify)
 {
@@ -1332,26 +1319,6 @@ nsHTMLSelectElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
   return nsGenericHTMLFormElement::BeforeSetAttr(aNameSpaceID, aName,
                                                  aValue, aNotify);
-}
-
-nsresult
-nsHTMLSelectElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                  const nsAString* aValue, PRBool aNotify)
-{
-  if (aName == nsGkAtoms::disabled && aNameSpaceID == kNameSpaceID_None) {
-    UpdateBarredFromConstraintValidation();
-    if (aNotify) {
-      nsIDocument* doc = GetCurrentDoc();
-      if (doc) {
-        MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-        doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_VALID |
-                                                NS_EVENT_STATE_INVALID);
-      }
-    }
-  }
-
-  return nsGenericHTMLFormElement::AfterSetAttr(aNameSpaceID, aName,
-                                                aValue, aNotify);
 }
 
 nsresult
@@ -1480,8 +1447,10 @@ nsHTMLSelectElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   aVisitor.mCanHandle = PR_FALSE;
   // Do not process any DOM events if the element is disabled
   // XXXsmaug This is not the right thing to do. But what is?
-  if (IsDisabled()) {
-    return NS_OK;
+  PRBool disabled;
+  nsresult rv = GetDisabled(&disabled);
+  if (NS_FAILED(rv) || disabled) {
+    return rv;
   }
 
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_FALSE);
@@ -1544,9 +1513,9 @@ nsHTMLSelectElement::SaveState()
     presState->SetStateProperty(state);
 
     if (mDisabledChanged) {
-      // We do not want to save the real disabled state but the disabled
-      // attribute.
-      presState->SetDisabled(HasAttr(kNameSpaceID_None, nsGkAtoms::disabled));
+      PRBool disabled;
+      GetDisabled(&disabled);
+      presState->SetDisabled(disabled);
     }
   }
 
@@ -1663,9 +1632,13 @@ nsHTMLSelectElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 {
   nsresult rv = NS_OK;
 
+  //
   // Disabled elements don't submit
-  if (IsDisabled()) {
-    return NS_OK;
+  //
+  PRBool disabled;
+  rv = GetDisabled(&disabled);
+  if (NS_FAILED(rv) || disabled) {
+    return rv;
   }
 
   //
@@ -2100,19 +2073,3 @@ nsHTMLOptionCollection::Remove(PRInt32 aIndex)
 
   return mSelect->Remove(aIndex);
 }
-
-void
-nsHTMLSelectElement::UpdateBarredFromConstraintValidation()
-{
-  SetBarredFromConstraintValidation(IsDisabled());
-}
-
-void
-nsHTMLSelectElement::FieldSetDisabledChanged(PRInt32 aStates)
-{
-  UpdateBarredFromConstraintValidation();
-
-  aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
-  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates);
-}
-

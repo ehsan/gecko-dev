@@ -155,26 +155,19 @@ ContainerLayerOGL::RenderLayer(int aPreviousFrameBuffer,
   GLuint frameBuffer;
 
   nsIntPoint childOffset(aOffset);
+  bool needsFramebuffer = false;
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
 
-  gl()->PushScissorRect();
-
   float opacity = GetOpacity();
-  bool needsFramebuffer = (opacity != 1.0) || !mTransform.IsIdentity();
-  if (needsFramebuffer) {
+  if (opacity != 1.0 || !mTransform.IsIdentity()) {
     mOGLManager->CreateFBOWithTexture(visibleRect.width,
                                       visibleRect.height,
                                       &frameBuffer,
                                       &containerSurface);
     childOffset.x = visibleRect.x;
     childOffset.y = visibleRect.y;
-
-    gl()->PushViewportRect();
-    mOGLManager->SetupPipeline(visibleRect.width, visibleRect.height);
-
-    gl()->fScissor(0, 0, visibleRect.width, visibleRect.height);
-    gl()->fClearColor(0.0, 0.0, 0.0, 0.0);
-    gl()->fClear(LOCAL_GL_COLOR_BUFFER_BIT);
+    mOGLManager->gl()->fClearColor(0, 0, 0, 0);
+    mOGLManager->gl()->fClear(LOCAL_GL_COLOR_BUFFER_BIT);
   } else {
     frameBuffer = aPreviousFrameBuffer;
   }
@@ -184,22 +177,15 @@ ContainerLayerOGL::RenderLayer(int aPreviousFrameBuffer,
    */
   LayerOGL *layerToRender = GetFirstChildOGL();
   while (layerToRender) {
-    nsIntRect scissorRect(visibleRect);
-
     const nsIntRect *clipRect = layerToRender->GetLayer()->GetClipRect();
     if (clipRect) {
-      scissorRect = *clipRect;
+      gl()->fScissor(clipRect->x - visibleRect.x,
+                     clipRect->y - visibleRect.y,
+                     clipRect->width,
+                     clipRect->height);
+    } else {
+      gl()->fScissor(0, 0, visibleRect.width, visibleRect.height);
     }
-
-    if (needsFramebuffer) {
-      scissorRect.MoveBy(- visibleRect.TopLeft());
-    }
-
-    if (aPreviousFrameBuffer == 0) {
-      gl()->FixWindowCoordinateRect(scissorRect, mOGLManager->GetWigetSize().height);
-    }
-
-    gl()->fScissor(scissorRect.x, scissorRect.y, scissorRect.width, scissorRect.height);
 
     layerToRender->RenderLayer(frameBuffer, childOffset);
 
@@ -209,16 +195,8 @@ ContainerLayerOGL::RenderLayer(int aPreviousFrameBuffer,
                                 : nsnull;
   }
 
-  gl()->PopScissorRect();
-
-  if (needsFramebuffer) {
+  if (opacity != 1.0 || !mTransform.IsIdentity()) {
     // Unbind the current framebuffer and rebind the previous one.
-    
-    // Restore the viewport
-    gl()->PopViewportRect();
-    nsIntRect viewport = gl()->ViewportRect();
-    mOGLManager->SetupPipeline(viewport.width, viewport.height);
-
     gl()->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, aPreviousFrameBuffer);
     gl()->fDeleteFramebuffers(1, &frameBuffer);
 

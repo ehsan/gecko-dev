@@ -200,7 +200,7 @@ AllowedToAct(JSContext *cx, jsid id)
     // Some code is running, we can't make the assumption, as above, but we
     // can't use a native frame, so clear fp.
     fp = nsnull;
-  } else if (!JS_IsScriptFrame(cx, fp)) {
+  } else if (!fp->hasScript()) {
     fp = nsnull;
   }
 
@@ -215,7 +215,7 @@ AllowedToAct(JSContext *cx, jsid id)
   // if they've been cloned into less privileged contexts.
   const char *filename;
   if (fp &&
-      (filename = JS_GetFrameScript(cx, fp)->filename) &&
+      (filename = fp->getScript()->filename) &&
       !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
     return JS_TRUE;
   }
@@ -246,7 +246,7 @@ CheckFilename(JSContext *cx, jsid id, JSStackFrame *fp)
 {
   const char *filename;
   if (fp &&
-      (filename = JS_GetFrameScript(cx, fp)->filename) &&
+      (filename = fp->getScript()->filename) &&
       !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
     return JS_TRUE;
   }
@@ -302,12 +302,9 @@ GetWrappedObject(JSContext *cx, JSObject *wrapper)
 }
 
 static JSBool
-XPC_SOW_FunctionWrapper(JSContext *cx, uintN argc, jsval *vp)
+XPC_SOW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                        jsval *rval)
 {
-  JSObject *obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-
   if (!AllowedToAct(cx, JSID_VOID)) {
     return JS_FALSE;
   }
@@ -329,13 +326,13 @@ XPC_SOW_FunctionWrapper(JSContext *cx, uintN argc, jsval *vp)
     wrappedObj = obj;
   }
 
-  JSObject *funObj = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
+  JSObject *funObj = JSVAL_TO_OBJECT(argv[-2]);
   jsval funToCall;
   if (!JS_GetReservedSlot(cx, funObj, eWrappedFunctionSlot, &funToCall)) {
     return JS_FALSE;
   }
 
-  return JS_CallFunctionValue(cx, wrappedObj, funToCall, argc, JS_ARGV(cx, vp), vp);
+  return JS_CallFunctionValue(cx, wrappedObj, funToCall, argc, argv, rval);
 }
 
 JSBool
