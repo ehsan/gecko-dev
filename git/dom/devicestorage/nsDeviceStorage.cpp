@@ -1893,9 +1893,7 @@ public:
       return NS_OK;
     }
 
-    nsString compositePath;
-    mFile->GetCompositePath(compositePath);
-    nsCOMPtr<PostResultEvent> event = new PostResultEvent(mRequest.forget(), compositePath);
+    nsCOMPtr<PostResultEvent> event = new PostResultEvent(mRequest.forget(), mFile->mPath);
     NS_DispatchToMainThread(event);
     return NS_OK;
   }
@@ -1974,9 +1972,7 @@ public:
       r = new PostErrorEvent(mRequest.forget(), POST_ERROR_EVENT_FILE_DOES_NOT_EXIST);
     }
     else {
-      nsString compositePath;
-      mFile->GetCompositePath(compositePath);
-      r = new PostResultEvent(mRequest.forget(), compositePath);
+      r = new PostResultEvent(mRequest.forget(), mFile->mPath);
     }
     NS_DispatchToMainThread(r);
     return NS_OK;

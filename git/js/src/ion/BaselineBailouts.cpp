@@ -11,6 +11,8 @@
 #include "ion/IonSpewer.h"
 #include "ion/IonFrames-inl.h"
 
+#include "vm/Stack-inl.h"
+
 #include "jsfuninlines.h"
 
 using namespace js;

@@ -234,15 +234,13 @@ BookmarksView.prototype = {
     if (!aIconUri) {
       return;
     }
-    let successAction = function(foregroundColor, backgroundColor) {
+    ColorUtils.getForegroundAndBackgroundIconColors(aIconUri, function(foregroundColor, backgroundColor) {
       aItem.style.color = foregroundColor; //color text
       aItem.setAttribute("customColor", backgroundColor); //set background
       if (aItem.refresh) {
         aItem.refresh();
       }
-    };
-    let failureAction = function() {};
-    ColorUtils.getForegroundAndBackgroundIconColors(aIconUri, successAction, failureAction);
+    });
   },
 
   _sendNeedsRefresh: function bv__sendNeedsRefresh(){

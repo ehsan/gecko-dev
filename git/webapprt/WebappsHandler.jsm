@@ -28,7 +28,7 @@ this.WebappsHandler = {
 
     switch (topic) {
       case "webapps-ask-install":
-        let chromeWin = Services.wm.getOuterWindowWithId(data.oid);
+        let chromeWin = Services.wm.getOuterWindowById(data.oid);
         if (chromeWin)
           this.doInstall(data, chromeWin);
         break;

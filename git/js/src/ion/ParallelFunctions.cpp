@@ -7,12 +7,9 @@
 #include "ion/ParallelFunctions.h"
 
 #include "ion/IonSpewer.h"
-#include "vm/ArrayObject.h"
 #include "vm/Interpreter.h"
 
-#include "jsfuninlines.h"
-#include "jsgcinlines.h"
-#include "jsobjinlines.h"
+#include "vm/Interpreter-inl.h"
 
 using namespace js;
 using namespace ion;
