@@ -10,7 +10,6 @@
 
 #include "jsscriptinlines.h"
 
-#include "mozilla/DebugOnly.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
@@ -24,7 +23,6 @@
 #include "jsgc.h"
 #include "jsobj.h"
 #include "jsopcode.h"
-#include "jsprf.h"
 #include "jstypes.h"
 #include "jsutil.h"
 #include "jswrapper.h"
@@ -433,9 +431,8 @@ SaveSharedScriptData(ExclusiveContext *, Handle<JSScript *>, SharedScriptData *,
 
 enum XDRClassKind {
     CK_BlockObject = 0,
-    CK_WithObject  = 1,
-    CK_JSFunction  = 2,
-    CK_JSObject    = 3
+    CK_JSFunction  = 1,
+    CK_JSObject    = 2
 };
 
 template<XDRMode mode>
@@ -767,8 +764,6 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
             JSObject *obj = *objp;
             if (obj->is<BlockObject>())
                 classk = CK_BlockObject;
-            else if (obj->is<StaticWithObject>())
-                classk = CK_WithObject;
             else if (obj->is<JSFunction>())
                 classk = CK_JSFunction;
             else if (obj->is<JSObject>() || obj->is<ArrayObject>())
@@ -781,40 +776,32 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
             return false;
 
         switch (classk) {
-          case CK_BlockObject:
-          case CK_WithObject: {
+          case CK_BlockObject: {
             /* Code the nested block's enclosing scope. */
-            uint32_t enclosingStaticScopeIndex = 0;
+            uint32_t blockEnclosingScopeIndex = 0;
             if (mode == XDR_ENCODE) {
                 NestedScopeObject &scope = (*objp)->as<NestedScopeObject>();
                 if (NestedScopeObject *enclosing = scope.enclosingNestedScope())
-                    enclosingStaticScopeIndex = FindScopeObjectIndex(script, *enclosing);
+                    blockEnclosingScopeIndex = FindScopeObjectIndex(script, *enclosing);
                 else
-                    enclosingStaticScopeIndex = UINT32_MAX;
+                    blockEnclosingScopeIndex = UINT32_MAX;
             }
-            if (!xdr->codeUint32(&enclosingStaticScopeIndex))
+            if (!xdr->codeUint32(&blockEnclosingScopeIndex))
                 return false;
-            Rooted<JSObject*> enclosingStaticScope(cx);
+            Rooted<JSObject*> blockEnclosingScope(cx);
             if (mode == XDR_DECODE) {
-                if (enclosingStaticScopeIndex != UINT32_MAX) {
-                    JS_ASSERT(enclosingStaticScopeIndex < i);
-                    enclosingStaticScope = script->objects()->vector[enclosingStaticScopeIndex];
+                if (blockEnclosingScopeIndex != UINT32_MAX) {
+                    JS_ASSERT(blockEnclosingScopeIndex < i);
+                    blockEnclosingScope = script->objects()->vector[blockEnclosingScopeIndex];
                 } else {
-                    enclosingStaticScope = fun;
+                    blockEnclosingScope = fun;
                 }
             }
 
-            if (classk == CK_BlockObject) {
-                Rooted<StaticBlockObject*> tmp(cx, static_cast<StaticBlockObject *>(objp->get()));
-                if (!XDRStaticBlockObject(xdr, enclosingStaticScope, tmp.address()))
-                    return false;
-                *objp = tmp;
-            } else {
-                Rooted<StaticWithObject*> tmp(cx, static_cast<StaticWithObject *>(objp->get()));
-                if (!XDRStaticWithObject(xdr, enclosingStaticScope, tmp.address()))
-                    return false;
-                *objp = tmp;
-            }
+            Rooted<StaticBlockObject*> tmp(cx, static_cast<StaticBlockObject *>(objp->get()));
+            if (!XDRStaticBlockObject(xdr, blockEnclosingScope, tmp.address()))
+                return false;
+            *objp = tmp;
             break;
           }
 
@@ -1415,8 +1402,6 @@ ScriptSource::destroy()
 {
     JS_ASSERT(ready());
     adjustDataSize(0);
-    if (introducerFilename_ != filename_)
-        js_free(introducerFilename_);
     js_free(filename_);
     js_free(displayURL_);
     js_free(sourceMapURL_);
@@ -1556,9 +1541,13 @@ bool
 ScriptSource::setFilename(ExclusiveContext *cx, const char *filename)
 {
     JS_ASSERT(!filename_);
-    filename_ = js_strdup(cx, filename);
+    size_t len = strlen(filename) + 1;
+    if (len == 1)
+        return true;
+    filename_ = cx->pod_malloc<char>(len);
     if (!filename_)
         return false;
+    js_memcpy(filename_, filename, len);
     return true;
 }
 
@@ -1590,48 +1579,6 @@ ScriptSource::displayURL()
 {
     JS_ASSERT(hasDisplayURL());
     return displayURL_;
-}
-
-bool
-ScriptSource::setIntroducedFilename(ExclusiveContext *cx,
-                                    const char *callerFilename, unsigned callerLineno,
-                                    const char *introducer, const char *introducerFilename)
-{
-    JS_ASSERT(!filename_);
-    JS_ASSERT(!introducerFilename_);
-
-    introducerType_ = introducer;
-
-    if (introducerFilename) {
-        introducerFilename_ = js_strdup(cx, introducerFilename);
-        if (!introducerFilename_)
-            return false;
-    }
-
-    // Final format:  "{callerFilename} line {callerLineno} > {introducer}"
-    // Len = strlen(callerFilename) + strlen(" line ") +
-    //       strlen(toStr(callerLineno)) + strlen(" > ") + strlen(introducer);
-    char linenoBuf[15];
-    size_t filenameLen = strlen(callerFilename);
-    size_t linenoLen = JS_snprintf(linenoBuf, 15, "%u", callerLineno);
-    size_t introducerLen = strlen(introducer);
-    size_t len = filenameLen                    +
-                 6 /* == strlen(" line ") */    +
-                 linenoLen                      +
-                 3 /* == strlen(" > ") */       +
-                 introducerLen                  +
-                 1 /* \0 */;
-    filename_ = cx->pod_malloc<char>(len);
-    if (!filename_)
-        return false;
-    mozilla::DebugOnly<int> checkLen = JS_snprintf(filename_, len, "%s line %s > %s",
-                                                   callerFilename, linenoBuf, introducer);
-    JS_ASSERT(checkLen == len - 1);
-
-    if (!introducerFilename_)
-        introducerFilename_ = filename_;
-
-    return true;
 }
 
 bool
@@ -2470,40 +2417,35 @@ js_GetScriptLineExtent(JSScript *script)
 }
 
 void
-js::CurrentScriptFileLineOrigin(JSContext *cx, JSScript **script,
-                                const char **file, unsigned *linenop,
-                                uint32_t *pcOffset, JSPrincipals **origin, LineOption opt)
+js::CurrentScriptFileLineOrigin(JSContext *cx, const char **file, unsigned *linenop,
+                                JSPrincipals **origin, LineOption opt)
 {
     if (opt == CALLED_FROM_JSOP_EVAL) {
         jsbytecode *pc = nullptr;
-        *script = cx->currentScript(&pc);
+        JSScript *script = cx->currentScript(&pc);
         JS_ASSERT(JSOp(*pc) == JSOP_EVAL || JSOp(*pc) == JSOP_SPREADEVAL);
         JS_ASSERT(*(pc + (JSOp(*pc) == JSOP_EVAL ? JSOP_EVAL_LENGTH
                                                  : JSOP_SPREADEVAL_LENGTH)) == JSOP_LINENO);
-        *file = (*script)->filename();
+        *file = script->filename();
         *linenop = GET_UINT16(pc + (JSOp(*pc) == JSOP_EVAL ? JSOP_EVAL_LENGTH
                                                            : JSOP_SPREADEVAL_LENGTH));
-        *pcOffset = pc - (*script)->code();
-        *origin = (*script)->originPrincipals();
+        *origin = script->originPrincipals();
         return;
     }
 
     NonBuiltinScriptFrameIter iter(cx);
 
     if (iter.done()) {
-        *script = nullptr;
         *file = nullptr;
         *linenop = 0;
-        *pcOffset = 0;
         *origin = cx->compartment()->principals;
         return;
     }
 
-    *script = iter.script();
-    *file = (*script)->filename();
-    *linenop = PCToLineNumber(*script, iter.pc());
-    *pcOffset = iter.pc() - (*script)->code();
-    *origin = (*script)->originPrincipals();
+    JSScript *script = iter.script();
+    *file = script->filename();
+    *linenop = PCToLineNumber(iter.script(), iter.pc());
+    *origin = script->originPrincipals();
 }
 
 template <class T>

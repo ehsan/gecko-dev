@@ -23,7 +23,6 @@ FilePicker.prototype = {
   _filePath: null,
   _promptActive: false,
   _filterIndex: 0,
-  _addToRecentDocs: false,
 
   init: function(aParent, aTitle, aMode) {
     this._domWin = aParent;
@@ -151,11 +150,11 @@ FilePicker.prototype = {
   },
 
   get addToRecentDocs() {
-    return this._addToRecentDocs;
+    throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
   },
 
   set addToRecentDocs(val) {
-    this._addToRecentDocs = val;
+    throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
   },
 
   get mode() {

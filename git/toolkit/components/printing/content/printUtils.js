@@ -243,7 +243,6 @@ var PrintUtils = {
     document.documentElement.setAttribute("onclose", "PrintUtils.exitPrintPreview(); return false;");
 
     // disable chrome shortcuts...
-    window.addEventListener("keydown", this.onKeyDownPP, true);
     window.addEventListener("keypress", this.onKeyPressPP, true);
 
     var browser = this._callback.getPrintPreviewBrowser();
@@ -256,7 +255,6 @@ var PrintUtils = {
 
   exitPrintPreview: function ()
   {
-    window.removeEventListener("keydown", this.onKeyDownPP, true);
     window.removeEventListener("keypress", this.onKeyPressPP, true);
 
     // restore the old close handler
@@ -281,14 +279,6 @@ var PrintUtils = {
     this._callback.onExit();
   },
 
-  onKeyDownPP: function (aEvent)
-  {
-    // Esc exits the PP
-    if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE) {
-      PrintUtils.exitPrintPreview();
-    }
-  },
-
   onKeyPressPP: function (aEvent)
   {
     var closeKey;
@@ -298,8 +288,8 @@ var PrintUtils = {
       closeKey = aEvent["DOM_VK_"+closeKey];
     } catch (e) {}
     var isModif = aEvent.ctrlKey || aEvent.metaKey;
-    // Ctrl-W exits the PP
-    if (isModif &&
+    // ESC and Ctrl-W exits the PP
+    if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE || isModif &&
         (aEvent.charCode == closeKey || aEvent.charCode == closeKey + 32)) {
       PrintUtils.exitPrintPreview();
     }

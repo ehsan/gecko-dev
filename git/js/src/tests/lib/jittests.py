@@ -416,11 +416,10 @@ def run_tests_parallel(tests, prefix, options):
 
     # This queue will contain the return value of the function
     # processing the test results.
-    total_tests = len(tests) * options.repeat
     result_process_return_queue = queue_manager.Queue()
     result_process = Process(target=process_test_results_parallel,
                              args=(async_test_result_queue, result_process_return_queue,
-                                   notify_queue, total_tests, options))
+                                   notify_queue, len(tests), options))
     result_process.start()
 
     # Ensure that a SIGTERM is handled the same way as SIGINT
@@ -442,16 +441,15 @@ def run_tests_parallel(tests, prefix, options):
     try:
         testcnt = 0
         # Initially start as many jobs as allowed to run parallel
-        for i in range(min(options.max_jobs,total_tests)):
+        for i in range(min(options.max_jobs,len(tests))):
             notify_queue.put(True)
 
         # For every item in the notify queue, start one new worker.
         # Every completed worker adds a new item to this queue.
         while notify_queue.get():
-            if (testcnt < total_tests):
+            if (testcnt < len(tests)):
                 # Start one new worker
-                test = tests[testcnt % len(tests)]
-                worker_process = Process(target=wrap_parallel_run_test, args=(test, prefix, async_test_result_queue, options))
+                worker_process = Process(target=wrap_parallel_run_test, args=(tests[testcnt], prefix, async_test_result_queue, options))
                 worker_processes.append(worker_process)
                 worker_process.start()
                 testcnt += 1
@@ -606,19 +604,17 @@ def process_test_results(results, num_tests, options):
     return print_test_summary(num_tests, failures, complete, doing, options)
 
 def get_serial_results(tests, prefix, options):
-    for i in xrange(0, options.repeat):
-        for test in tests:
-            yield run_test(test, prefix, options)
+    for test in tests:
+        yield run_test(test, prefix, options)
 
 def run_tests(tests, prefix, options):
     gen = get_serial_results(tests, prefix, options)
-    ok = process_test_results(gen, len(tests) * options.repeat, options)
+    ok = process_test_results(gen, len(tests), options)
     return ok
 
 def get_remote_results(tests, device, prefix, options):
-    for i in xrange(0, options.repeat):
-        for test in tests:
-            yield run_test_remote(test, device, prefix, options)
+    for test in tests:
+        yield run_test_remote(test, device, prefix, options)
 
 def push_libs(options, device):
     # This saves considerable time in pushing unnecessary libraries
@@ -672,7 +668,7 @@ def run_tests_remote(tests, prefix, options):
 
     # Run all tests.
     gen = get_remote_results(tests, dm, prefix, options)
-    ok = process_test_results(gen, len(tests) * options.repeat, options)
+    ok = process_test_results(gen, len(tests), options)
     return ok
 
 def parse_jitflags(options):

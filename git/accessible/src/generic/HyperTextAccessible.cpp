@@ -10,7 +10,6 @@
 #include "nsAccessibilityService.h"
 #include "nsIAccessibleTypes.h"
 #include "DocAccessible.h"
-#include "HTMLListAccessible.h"
 #include "Role.h"
 #include "States.h"
 #include "TextAttrs.h"
@@ -239,7 +238,7 @@ HyperTextAccessible::DOMPointToOffset(nsINode* aNode, int32_t aNodeOffset,
   if (!aNode)
     return 0;
 
-  uint32_t offset = 0;
+  uint32_t addTextOffset = 0;
   nsINode* findNode = nullptr;
 
   if (aNodeOffset == -1) {
@@ -252,7 +251,7 @@ HyperTextAccessible::DOMPointToOffset(nsINode* aNode, int32_t aNodeOffset,
     nsIFrame* frame = aNode->AsContent()->GetPrimaryFrame();
     NS_ENSURE_TRUE(frame, 0);
 
-    nsresult rv = ContentToRenderedOffset(frame, aNodeOffset, &offset);
+    nsresult rv = ContentToRenderedOffset(frame, aNodeOffset, &addTextOffset);
     NS_ENSURE_SUCCESS(rv, 0);
     // Get the child node and 
     findNode = aNode;
@@ -305,20 +304,14 @@ HyperTextAccessible::DOMPointToOffset(nsINode* aNode, int32_t aNodeOffset,
     descendant = GetFirstAvailableAccessible(findNode);
   }
 
-  return TransformOffset(descendant, offset, aIsEndOffset);
-}
-
-int32_t
-HyperTextAccessible::TransformOffset(Accessible* aDescendant,
-                                     int32_t aOffset, bool aIsEndOffset) const
-{
-  // From the descendant, go up and get the immediate child of this hypertext.
-  int32_t offset = aOffset;
-  Accessible* descendant = aDescendant;
+  // From the descendant, go up and get the immediate child of this hypertext
+  Accessible* childAtOffset = nullptr;
   while (descendant) {
     Accessible* parent = descendant->Parent();
-    if (parent == this)
-      return GetChildOffset(descendant) + offset;
+    if (parent == this) {
+      childAtOffset = descendant;
+      break;
+    }
 
     // This offset no longer applies because the passed-in text object is not
     // a child of the hypertext. This happens when there are nested hypertexts,
@@ -328,16 +321,17 @@ HyperTextAccessible::TransformOffset(Accessible* aDescendant,
     // is not at 0 offset then the returned offset should be after an embedded
     // character the original point belongs to.
     if (aIsEndOffset)
-      offset = (offset > 0 || descendant->IndexInParent() > 0) ? 1 : 0;
+      addTextOffset = (addTextOffset > 0 || descendant->IndexInParent() > 0) ? 1 : 0;
     else
-      offset = 0;
+      addTextOffset = 0;
 
     descendant = parent;
   }
 
-  // If the given a11y point cannot be mapped into offset relative this hypertext
+  // If the given DOM point cannot be mapped into offset relative this hypertext
   // offset then return length as fallback value.
-  return CharacterCount();
+  return childAtOffset ?
+    GetChildOffset(childAtOffset) + addTextOffset : CharacterCount();
 }
 
 bool
@@ -426,31 +420,6 @@ HyperTextAccessible::FindOffset(int32_t aOffset, nsDirection aDirection,
       return -1;
 
     child = text->GetChildAt(childIdx);
-
-    // HTML list items may need special processing because PeekOffset doesn't
-    // work with list bullets.
-    if (text->IsHTMLListItem()) {
-      HTMLLIAccessible* li = text->AsHTMLListItem();
-      if (child == li->Bullet()) {
-        // It works only when the bullet is one single char.
-        if (aDirection == eDirPrevious)
-          return text != this ? TransformOffset(text, 0, false) : 0;
-
-        if (aAmount == eSelectEndLine || aAmount == eSelectLine) {
-          if (text != this)
-            return TransformOffset(text, 1, true);
-
-          // Ask a text leaf next (if not empty) to the bullet for an offset
-          // since list item may be multiline.
-          return aOffset + 1 < CharacterCount() ?
-            FindOffset(aOffset + 1, aDirection, aAmount, aWordMovementType) : 1;
-        }
-
-        // Case of word and char boundaries.
-        return text != this ? TransformOffset(text, 1, true) : 1;
-      }
-    }
-
     innerOffset -= text->GetChildOffset(childIdx);
 
     text = child->AsHyperText();
@@ -494,16 +463,10 @@ HyperTextAccessible::FindOffset(int32_t aOffset, nsDirection aDirection,
                                              pos.mContentOffset,
                                              aDirection == eDirNext);
 
-  if (aDirection == eDirPrevious) {
-    // If we reached the end during search, this means we didn't find the DOM point
-    // and we're actually at the start of the paragraph
-    if (hyperTextOffset == CharacterCount())
-      return 0;
-
-    // PeekOffset stops right before bullet so return 0 to workaround it.
-    if (IsHTMLListItem() && aAmount == eSelectBeginLine && hyperTextOffset == 1)
-      return 0;
-  }
+  // If we reached the end during search, this means we didn't find the DOM point
+  // and we're actually at the start of the paragraph
+  if (hyperTextOffset == CharacterCount() && aDirection == eDirPrevious)
+    return 0;
 
   return hyperTextOffset;
 }

@@ -23,7 +23,7 @@ function test() {
     gSearchView = gDebugger.DebuggerView.GlobalSearch;
     gSearchBox = gDebugger.DebuggerView.Filtering._searchbox;
 
-    waitForSourceAndCaretAndScopes(gPanel, "-02.js", 1)
+    waitForSourceAndCaretAndScopes(gPanel, "-02.js", 6)
       .then(doSearch)
       .then(testExpandCollapse)
       .then(testClickLineToJump)
@@ -47,7 +47,7 @@ function doSearch() {
       info("Current source url:\n" + gSources.selectedValue);
       info("Debugger editor text:\n" + gEditor.getText());
 
-      ok(isCaretPos(gPanel, 1),
+      ok(isCaretPos(gPanel, 6),
         "The editor shouldn't have jumped to a matching line yet.");
       ok(gSources.selectedValue.contains("-02.js"),
         "The current source shouldn't have changed after a global search.");
@@ -94,13 +94,13 @@ function testClickLineToJump() {
   let firstHeader = sourceResults[0].querySelector(".dbg-results-header");
   let firstLine = sourceResults[0].querySelector(".dbg-results-line-contents");
 
-  waitForSourceAndCaret(gPanel, "-01.js", 1, 1).then(() => {
+  waitForSourceAndCaret(gPanel, "-01.js", 1, 5).then(() => {
     info("Current source url:\n" + gSources.selectedValue);
     info("Debugger editor text:\n" + gEditor.getText());
 
-    ok(isCaretPos(gPanel, 1, 1),
+    ok(isCaretPos(gPanel, 1, 5),
       "The editor didn't jump to the correct line (1).");
-    is(gEditor.getSelection(), "",
+    is(gEditor.getSelection(), "A",
       "The editor didn't select the correct text (1).");
     ok(gSources.selectedValue.contains("-01.js"),
       "The currently shown source is incorrect (1).");
@@ -123,13 +123,13 @@ function testClickMatchToJump() {
   let secondMatches = sourceResults[1].querySelectorAll(".dbg-results-line-contents-string[match=true]");
   let lastMatch = Array.slice(secondMatches).pop();
 
-  waitForSourceAndCaret(gPanel, "-02.js", 1, 1).then(() => {
+  waitForSourceAndCaret(gPanel, "-02.js", 6, 6).then(() => {
     info("Current source url:\n" + gSources.selectedValue);
     info("Debugger editor text:\n" + gEditor.getText());
 
-    ok(isCaretPos(gPanel, 1, 1),
+    ok(isCaretPos(gPanel, 6, 6),
       "The editor didn't jump to the correct line (2).");
-    is(gEditor.getSelection(), "",
+    is(gEditor.getSelection(), "a",
       "The editor didn't select the correct text (2).");
     ok(gSources.selectedValue.contains("-02.js"),
       "The currently shown source is incorrect (2).");

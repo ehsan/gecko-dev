@@ -81,31 +81,6 @@ public:
 class TextureClientDrawTarget
 {
 public:
-  /**
-   * Returns a DrawTarget to draw into the TextureClient.
-   *
-   * This must never be called on a TextureClient that is not sucessfully locked.
-   * When called several times within one Lock/Unlock pair, this method should
-   * return the same DrawTarget.
-   * The DrawTarget is automatically flushed by the TextureClient when the latter
-   * is unlocked, and the DrawTarget that will be returned within the next
-   * lock/unlock pair may or may not be the same object.
-   * Do not keep references to the DrawTarget outside of the lock/unlock pair.
-   *
-   * This is typically used as follows:
-   *
-   * if (!texture->Lock(OPEN_READ_WRITE)) {
-   *   return false;
-   * }
-   * {
-   *   // Restrict this code's scope to ensure all references to dt are gone
-   *   // when Unlock is called.
-   *   RefPtr<DrawTarget> dt = texture->AsTextureClientDrawTarget()->GetAsDrawTarget();
-   *   // use the draw target ...
-   * }
-   * texture->Unlock();
-   *
-   */
   virtual TemporaryRef<gfx::DrawTarget> GetAsDrawTarget() = 0;
   virtual gfx::SurfaceFormat GetFormat() const = 0;
   /**
@@ -125,20 +100,7 @@ public:
 class TextureClientYCbCr
 {
 public:
-  /**
-   * Copy aData into this texture client.
-   *
-   * This must never be called on a TextureClient that is not sucessfully locked.
-   */
   virtual bool UpdateYCbCr(const PlanarYCbCrData& aData) = 0;
-
-  /**
-   * Allocates for a given surface size, taking into account the pixel format
-   * which is part of the state of the TextureClient.
-   *
-   * Does not clear the surface, since we consider that the surface
-   * be painted entirely with opaque content.
-   */
   virtual bool AllocateForYCbCr(gfx::IntSize aYSize,
                                 gfx::IntSize aCbCrSize,
                                 StereoMode aStereoMode) = 0;
@@ -237,6 +199,16 @@ public:
   virtual gfx::IntSize GetSize() const = 0;
 
   /**
+   * Drop the shared data into a TextureClientData object and mark this
+   * TextureClient as invalid.
+   *
+   * The TextureClient must not hold any reference to the shared data
+   * after this method has been called.
+   * The TextureClientData is owned by the caller.
+   */
+  virtual TextureClientData* DropTextureData() = 0;
+
+  /**
    * TextureFlags contain important information about various aspects
    * of the texture, like how its liferime is managed, and how it
    * should be displayed.
@@ -264,6 +236,12 @@ public:
   bool IsValid() const { return mValid; }
 
   /**
+   * An invalid TextureClient cannot provide access to its shared data
+   * anymore. This usually means it will soon be destroyed.
+   */
+  void MarkInvalid() { mValid = false; }
+
+  /**
    * Create and init the TextureChild/Parent IPDL actor pair.
    *
    * Should be called only once per TextureClient.
@@ -279,11 +257,7 @@ public:
   PTextureChild* GetIPDLActor();
 
   /**
-   * Triggers the destruction of the shared data and the corresponding TextureHost.
-   *
-   * If the texture flags contain TEXTURE_DEALLOCATE_CLIENT, the destruction
-   * will be synchronously coordinated with the compositor side, otherwise it
-   * will be done asynchronously.
+   * TODO[nical] doc!
    */
   void ForceRemove();
 
@@ -299,22 +273,6 @@ private:
   friend class AtomicRefCountedWithFinalize<TextureClient>;
 
 protected:
-  /**
-   * An invalid TextureClient cannot provide access to its shared data
-   * anymore. This usually means it will soon be destroyed.
-   */
-  void MarkInvalid() { mValid = false; }
-
-  /**
-   * Drop the shared data into a TextureClientData object and mark this
-   * TextureClient as invalid.
-   *
-   * The TextureClient must not hold any reference to the shared data
-   * after this method has been called.
-   * The TextureClientData is owned by the caller.
-   */
-  virtual TextureClientData* DropTextureData() = 0;
-
   void AddFlags(TextureFlags  aFlags)
   {
     MOZ_ASSERT(!IsSharedWithCompositor());

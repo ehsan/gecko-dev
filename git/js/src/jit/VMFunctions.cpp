@@ -735,7 +735,7 @@ DebugEpilogue(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool ok)
 {
     // Unwind scope chain to stack depth 0.
     ScopeIter si(frame, pc, cx);
-    UnwindScope(cx, si, frame->script()->main());
+    UnwindScope(cx, si, 0);
 
     // If ScriptDebugEpilogue returns |true| we have to return the frame's
     // return value. If it returns |false|, the debugger threw an exception.
@@ -932,32 +932,15 @@ DebugLeaveBlock(JSContext *cx, BaselineFrame *frame, jsbytecode *pc)
 }
 
 bool
-EnterWith(JSContext *cx, BaselineFrame *frame, HandleValue val, Handle<StaticWithObject *> templ)
-{
-    return EnterWithOperation(cx, frame, val, templ);
-}
-
-bool
-LeaveWith(JSContext *cx, BaselineFrame *frame)
-{
-    frame->popWith(cx);
-    return true;
-}
-
-bool
 InitBaselineFrameForOsr(BaselineFrame *frame, StackFrame *interpFrame, uint32_t numStackValues)
 {
     return frame->initForOsr(interpFrame, numStackValues);
 }
 
-JSObject *CreateDerivedTypedObj(JSContext *cx, HandleObject descr,
+JSObject *CreateDerivedTypedObj(JSContext *cx, HandleObject type,
                                 HandleObject owner, int32_t offset)
 {
-    JS_ASSERT(descr->is<SizedTypeDescr>());
-    JS_ASSERT(owner->is<TypedDatum>());
-    Rooted<SizedTypeDescr*> descr1(cx, &descr->as<SizedTypeDescr>());
-    Rooted<TypedDatum*> owner1(cx, &owner->as<TypedDatum>());
-    return TypedObject::createDerived(cx, descr1, owner1, offset);
+    return TypedObject::createDerived(cx, type, owner, offset);
 }
 
 JSString *

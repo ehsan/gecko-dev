@@ -385,10 +385,8 @@ class FullParseHandler
         return new_<UnaryNode>(PNK_RETURN, JSOP_RETURN, pos, expr);
     }
 
-    ParseNode *newWithStatement(uint32_t begin, ParseNode *expr, ParseNode *body,
-                                ObjectBox *staticWith) {
-        return new_<BinaryObjNode>(PNK_WITH, JSOP_NOP, TokenPos(begin, body->pn_pos.end),
-                                   expr, body, staticWith);
+    ParseNode *newWithStatement(uint32_t begin, ParseNode *expr, ParseNode *body) {
+        return new_<BinaryNode>(PNK_WITH, JSOP_NOP, TokenPos(begin, body->pn_pos.end), expr, body);
     }
 
     ParseNode *newLabeledStatement(PropertyName *label, ParseNode *stmt, uint32_t begin) {

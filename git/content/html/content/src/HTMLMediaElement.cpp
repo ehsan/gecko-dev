@@ -3359,8 +3359,7 @@ void HTMLMediaElement::NotifyDecoderPrincipalChanged()
 
   bool subsumes;
   mDecoder->UpdateSameOriginStatus(
-    !principal ||
-    (NS_SUCCEEDED(NodePrincipal()->Subsumes(principal, &subsumes)) && subsumes));
+    NS_SUCCEEDED(NodePrincipal()->Subsumes(principal, &subsumes)) && subsumes);
 
   for (uint32_t i = 0; i < mOutputStreams.Length(); ++i) {
     OutputMediaStream* ms = &mOutputStreams[i];

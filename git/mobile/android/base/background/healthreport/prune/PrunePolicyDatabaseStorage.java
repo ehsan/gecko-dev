@@ -43,11 +43,6 @@ public class PrunePolicyDatabaseStorage implements PrunePolicyStorage {
 
   public void pruneEnvironments(final int count) {
     getStorage().pruneEnvironments(count);
-
-    // Re-populate the DB and environment cache with the current environment in the unlikely event
-    // that it was deleted.
-    this.currentEnvironmentID = -1;
-    getCurrentEnvironmentID();
   }
 
   /**
