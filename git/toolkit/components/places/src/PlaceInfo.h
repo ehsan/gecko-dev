@@ -1,5 +1,3 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:set ts=2 sw=2 sts=2 et: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -13,14 +11,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Places unit test code.
+ * The Original Code is PlaceInfo object.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Marco Bonardo <mak77bonardo.net> (Original Author)
+ *   Shawn Wilsher <me@shawnwilsher.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,47 +35,42 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
- /**
-  * Test preventive maintenance checkAndFixDatabase.
-  */
+#ifndef mozilla_places_PlaceInfo_h__
+#define mozilla_places_PlaceInfo_h__
 
-// Include PlacesDBUtils module.
-Components.utils.import("resource://gre/modules/PlacesDBUtils.jsm");
+#include "mozIAsyncHistory.h"
+#include "nsString.h"
+#include "nsAutoPtr.h"
 
-function run_test() {
-  do_test_pending();
-  PlacesDBUtils.checkAndFixDatabase(function(aLog) {
-    let sections = [];
-    let positives = [];
-    let negatives = [];
-    let infos = [];
+class nsIURI;
+class mozIVisitInfo;
 
-    aLog.forEach(function (aMsg) {
-      print (aMsg);
-      switch (aMsg.substr(0, 1)) {
-        case "+":
-          positives.push(aMsg);
-          break;
-        case "-":
-          negatives.push(aMsg);
-          break;
-        case ">":
-          sections.push(aMsg);
-          break;
-        default:
-          infos.push(aMsg);
-      }
-    });
+namespace mozilla {
+namespace places {
 
-    print("Check that we have run all sections.");
-    do_check_eq(sections.length, 5);
-    print("Check that we have no negatives.");
-    do_check_false(!!negatives.length);
-    print("Check that we have positives.");
-    do_check_true(!!positives.length);
-    print("Check that we have info.");
-    do_check_true(!!infos.length);
 
-    do_test_finished();
-  });
-}
+class PlaceInfo : public mozIPlaceInfo
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_MOZIPLACEINFO
+
+  typedef nsTArray< nsCOMPtr<mozIVisitInfo> > VisitsArray;
+
+  PlaceInfo(PRInt64 aId, const nsCString& aGUID, already_AddRefed<nsIURI> aURI,
+            const nsString& aTitle, PRInt64 aFrecency,
+            const VisitsArray& aVisits);
+
+private:
+  const PRInt64 mId;
+  const nsCString mGUID;
+  nsCOMPtr<nsIURI> mURI;
+  const nsString mTitle;
+  const PRInt64 mFrecency;
+  const VisitsArray mVisits;
+};
+
+} // namespace places
+} // namespace mozilla
+
+#endif // mozilla_places_PlaceInfo_h__
