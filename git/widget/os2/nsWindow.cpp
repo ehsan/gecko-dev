@@ -2489,8 +2489,6 @@ bool nsWindow::ImeResultString(HIMI himi)
   }
 
   if (!mIsComposing) {
-    mLastDispatchedCompositionString.Truncate();
-
     nsCompositionEvent start(true, NS_COMPOSITION_START, this);
     InitEvent(start);
     DispatchWindowEvent(&start);
@@ -2504,27 +2502,16 @@ bool nsWindow::ImeResultString(HIMI himi)
 
   delete pBuf;
 
-  nsAutoString compositionString(outBuf.Elements());
-
-  if (mLastDispatchedCompositionString != compositionString) {
-    nsCompositionEvent update(true, NS_COMPOSITION_UPDATE, this);
-    InitEvent(update);
-    update.data = compositionString;
-    mLastDispatchedCompositionString = compositionString;
-    DispatchWindowEvent(&update);
-  }
-
   nsTextEvent text(true, NS_TEXT_TEXT, this);
   InitEvent(text);
-  text.theText = compositionString;
+  text.theText = outBuf.Elements();
   DispatchWindowEvent(&text);
 
   nsCompositionEvent end(true, NS_COMPOSITION_END, this);
   InitEvent(end);
-  end.data = compositionString;
+  end.data = text.theText;
   DispatchWindowEvent(&end);
   mIsComposing = false;
-  mLastDispatchedCompositionString.Truncate();
 
   return true;
 }
@@ -2552,8 +2539,6 @@ bool nsWindow::ImeConversionString(HIMI himi)
   }
 
   if (!mIsComposing) {
-    mLastDispatchedCompositionString.Truncate();
-
     nsCompositionEvent start(true, NS_COMPOSITION_START, this);
     InitEvent(start);
     DispatchWindowEvent(&start);
@@ -2567,27 +2552,17 @@ bool nsWindow::ImeConversionString(HIMI himi)
 
   delete pBuf;
 
-  nsAutoString compositionString(outBuf.Elements());
-
-  // Is a conversion string changed ?
-  if (mLastDispatchedCompositionString != compositionString) {
-    nsCompositionEvent update(true, NS_COMPOSITION_UPDATE, this);
-    InitEvent(update);
-    update.data = compositionString;
-    mLastDispatchedCompositionString = compositionString;
-    DispatchWindowEvent(&update);
-  }
-
   nsAutoTArray<nsTextRange, 4> textRanges;
 
-  if (!compositionString.IsEmpty()) {
+  // Is there a conversion string ?
+  if (outBufLen) {
     nsTextRange newRange;
     newRange.mStartOffset = 0;
-    newRange.mEndOffset = compositionString.Length();
+    newRange.mEndOffset = outBufLen;
     newRange.mRangeType = NS_TEXTRANGE_SELECTEDRAWTEXT;
     textRanges.AppendElement(newRange);
 
-    newRange.mStartOffset = compositionString.Length();
+    newRange.mStartOffset = outBufLen;
     newRange.mEndOffset = newRange.mStartOffset;
     newRange.mRangeType = NS_TEXTRANGE_CARETPOSITION;
     textRanges.AppendElement(newRange);
@@ -2595,19 +2570,23 @@ bool nsWindow::ImeConversionString(HIMI himi)
 
   nsTextEvent text(true, NS_TEXT_TEXT, this);
   InitEvent(text);
-  text.theText = compositionString;
+  text.theText = outBuf.Elements();
   text.rangeArray = textRanges.Elements();
   text.rangeCount = textRanges.Length();
   DispatchWindowEvent(&text);
 
-  if (compositionString.IsEmpty()) { // IME conversion was canceled ?
+  if (outBufLen) {
+    nsCompositionEvent update(true, NS_COMPOSITION_UPDATE, this);
+    InitEvent(update);
+    update.data = text.theText;
+    DispatchWindowEvent(&update);
+  } else {  // IME conversion was canceled ?
     nsCompositionEvent end(true, NS_COMPOSITION_END, this);
     InitEvent(end);
-    end.data = compositionString;
+    end.data = text.theText;
     DispatchWindowEvent(&end);
 
     mIsComposing = false;
-    mLastDispatchedCompositionString.Truncate();
   }
 
   return true;
