@@ -191,11 +191,7 @@ InlineSpellChecker.prototype = {
       if (curlang == sortedList[i].id) {
         item.setAttribute("checked", "true");
       } else {
-        var callback = function(me, val) {
-          return function(evt) {
-            me.selectDictionary(val, menu.ownerDocument.defaultView);
-          }
-        };
+        var callback = function(me, val) { return function(evt) { me.selectDictionary(val, me.menu.ownerDocument.defaultView); } };
         item.addEventListener("command", callback(this, i), true);
       }
       if (insertBefore)

@@ -60,12 +60,12 @@ var tests = {
       try {
         SocialService.addProvider(manifest, function(provider) {
           try {
-            SocialService.disableProvider(provider.origin, function() {
+            SocialService.removeProvider(provider.origin, function() {
               ok(true, "added and removed provider");
               finishTest(true);
             });
           } catch(e) {
-            ok(false, "SocialService.disableProvider threw exception: " + e);
+            ok(false, "SocialService.removeProvider threw exception: " + e);
             finishTest(false);
           }
         });
@@ -85,7 +85,7 @@ var tests = {
     setAndUpdateBlocklist(blocklistURL, function() {
       try {
         SocialService.addProvider(manifest_bad, function(provider) {
-          SocialService.disableProvider(provider.origin, function() {
+          SocialService.removeProvider(provider.origin, function() {
             ok(false, "SocialService.addProvider should throw blocklist exception");
             finishTest(false);
           });
