@@ -492,7 +492,6 @@ do_list_certs(const char *progName, int log)
    CERTCertList *list;
    CERTCertList *sorted;
    CERTCertListNode *node;
-   CERTCertTrust trust;
    int i;
 
    list = PK11_ListCerts(PK11CertListUnique, NULL);
@@ -544,10 +543,10 @@ do_list_certs(const char *progName, int log)
 	commonName = CERT_GetCommonName(&cert->subject);
 	appendString(commonName?commonName:"*NoName*");
 	PORT_Free(commonName);
-	if (CERT_GetCertTrust(cert, &trust) == SECSuccess) {
-	    appendFlags(trust.sslFlags);
-	    appendFlags(trust.emailFlags);
-	    appendFlags(trust.objectSigningFlags);
+	if (cert->trust) {
+	    appendFlags(cert->trust->sslFlags);
+	    appendFlags(cert->trust->emailFlags);
+	    appendFlags(cert->trust->objectSigningFlags);
 	}
    }
    CERT_DestroyCertList(list);

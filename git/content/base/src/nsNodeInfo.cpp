@@ -28,7 +28,6 @@
 #include "prprf.h"
 #include "nsIDocument.h"
 #include "nsGkAtoms.h"
-#include "nsCCUncollectableMarker.h"
 
 using namespace mozilla;
 
@@ -186,19 +185,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsNodeInfo)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mOwnerManager)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsNodeInfo)
-  return nsCCUncollectableMarker::sGeneration && tmp->CanSkip();
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsNodeInfo)
-  return nsCCUncollectableMarker::sGeneration && tmp->CanSkip();
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsNodeInfo)
-  return nsCCUncollectableMarker::sGeneration && tmp->CanSkip();
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
-
-
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsNodeInfo)
 NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(nsNodeInfo, LastRelease())
 NS_INTERFACE_TABLE_HEAD(nsNodeInfo)
@@ -255,11 +241,4 @@ nsNodeInfo::LastRelease()
 
   NS_ASSERTION(sNodeInfoPool, "No NodeInfoPool when deleting NodeInfo!!!");
   sNodeInfoPool->Free(this, sizeof(nsNodeInfo));
-}
-
-bool
-nsNodeInfo::CanSkip()
-{
-  return mDocument &&
-    nsCCUncollectableMarker::InGeneration(mDocument->GetMarkedCCGeneration());
 }

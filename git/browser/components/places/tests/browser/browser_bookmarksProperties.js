@@ -40,6 +40,17 @@ var win = wm.getMostRecentWindow("navigator:browser");
 var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
          getService(Ci.nsIWindowWatcher);
 
+function add_visit(aURI, aDate) {
+  var visitId = PlacesUtils.history
+                           .addVisit(aURI,
+                                     aDate,
+                                     null, // no referrer
+                                     PlacesUtils.history.TRANSITION_TYPED,
+                                     false, // not redirect
+                                     0);
+  return visitId;
+}
+
 function add_bookmark(aURI) {
   var bId = PlacesUtils.bookmarks
                        .insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
@@ -64,9 +75,8 @@ gTests.push({
   historyView: SIDEBAR_HISTORY_BYLASTVISITED_VIEW, // See constants above, only for History sidebar.
   window: null, // Will contain handle of dialog window
 
-  setup: function(aCallback) {
+  setup: function() {
     // Setup everything needed for this test, runs before everything else.
-    aCallback();
   },
 
   selectNode: function(tree) {
@@ -100,9 +110,8 @@ gTests.push({
   itemType: null,
   window: null,
 
-  setup: function(aCallback) {
+  setup: function() {
     // Nothing to do.
-    aCallback();
   },
 
   selectNode: function(tree) {
@@ -160,7 +169,7 @@ gTests.push({
   _itemId: null,
   _cleanShutdown: false,
 
-  setup: function(aCallback) {
+  setup: function() {
     // Add a bookmark in unsorted bookmarks folder.
     this._itemId = add_bookmark(PlacesUtils._uri(TEST_URL));
     ok(this._itemId > 0, "Correctly added a bookmark");
@@ -169,7 +178,6 @@ gTests.push({
                                ["testTag"]);
     var tags = PlacesUtils.tagging.getTagsForURI(PlacesUtils._uri(TEST_URL));
     is(tags[0], "testTag", "Correctly added a tag");
-    aCallback();
   },
 
   selectNode: function(tree) {
@@ -257,9 +265,8 @@ gTests.push({
   window: null,
   _itemId: null,
 
-  setup: function(aCallback) {
+  setup: function() {
     // Nothing to do.
-    aCallback();
   },
 
   selectNode: function(tree) {
@@ -316,7 +323,7 @@ gTests.push({
   _itemId: null,
   _cleanShutdown: false,
 
-  setup: function(aCallback) {
+  setup: function() {
     // Add a bookmark in unsorted bookmarks folder.
     this._itemId = add_bookmark(PlacesUtils._uri(TEST_URL));
     ok(this._itemId > 0, "Correctly added a bookmark");
@@ -325,7 +332,6 @@ gTests.push({
                                ["testTag"]);
     var tags = PlacesUtils.tagging.getTagsForURI(PlacesUtils._uri(TEST_URL));
     is(tags[0], "testTag", "Correctly added a tag");
-    aCallback();
   },
 
   selectNode: function(tree) {
@@ -413,13 +419,12 @@ gTests.push({
   historyView: SIDEBAR_HISTORY_BYLASTVISITED_VIEW,
   window: null,
 
-  setup: function(aCallback) {
+  setup: function() {
     // Add a visit.
-    addVisits(
-      {uri: PlacesUtils._uri(TEST_URL),
-        transition: PlacesUtils.history.TRANSITION_TYPED},
-      window,
-      aCallback);
+    add_visit(PlacesUtils._uri(TEST_URL), Date.now() * 1000);
+    // Sanity check.
+    var gh = PlacesUtils.history.QueryInterface(Ci.nsIGlobalHistory2);
+    ok(gh.isVisited(PlacesUtils._uri(TEST_URL)), TEST_URL + " is a visited url.");
   },
 
   selectNode: function(tree) {
@@ -506,9 +511,8 @@ function runNextTest() {
     // Goto next tests.
     gCurrentTest = gTests.shift();
     info("Start of test: " + gCurrentTest.desc);
-    gCurrentTest.setup(function() {
-      execute_test_in_sidebar();
-    });
+    gCurrentTest.setup();
+    execute_test_in_sidebar();
   }
   else {
     // Finished all tests.

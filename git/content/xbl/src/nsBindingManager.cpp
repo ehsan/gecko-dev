@@ -835,7 +835,29 @@ nsBindingManager::GetSingleInsertionPoint(nsIContent* aParent,
 }
 
 nsresult
-nsBindingManager::ClearBinding(nsIContent* aContent)
+nsBindingManager::AddLayeredBinding(nsIContent* aContent, nsIURI* aURL,
+                                    nsIPrincipal* aOriginPrincipal)
+{
+  // First we need to load our binding.
+  nsXBLService* xblService = nsXBLService::GetInstance();
+  if (!xblService)
+    return NS_ERROR_FAILURE;
+
+  // Load the bindings.
+  nsRefPtr<nsXBLBinding> binding;
+  bool dummy;
+  xblService->LoadBindings(aContent, aURL, aOriginPrincipal, true,
+                           getter_AddRefs(binding), &dummy);
+  if (binding) {
+    AddToAttachedQueue(binding);
+    ProcessAttachedQueue();
+  }
+
+  return NS_OK;
+}
+
+nsresult
+nsBindingManager::RemoveLayeredBinding(nsIContent* aContent, nsIURI* aURL)
 {
   // Hold a ref to the binding so it won't die when we remove it from our table
   nsRefPtr<nsXBLBinding> binding = GetBinding(aContent);
@@ -846,6 +868,11 @@ nsBindingManager::ClearBinding(nsIContent* aContent)
 
   // For now we can only handle removing a binding if it's the only one
   NS_ENSURE_FALSE(binding->GetBaseBinding(), NS_ERROR_FAILURE);
+
+  // Make sure that the binding has the URI that is requested to be removed
+  if (!binding->PrototypeBinding()->CompareBindingURI(aURL)) {
+    return NS_OK;
+  }
 
   // Make sure it isn't a style binding
   if (binding->IsStyleBinding()) {

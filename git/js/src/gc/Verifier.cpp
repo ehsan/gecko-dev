@@ -509,7 +509,7 @@ gc::StartVerifyPreBarriers(JSRuntime *rt)
     for (CompartmentsIter c(rt); !c.done(); c.next()) {
         PurgeJITCaches(c);
         c->setNeedsBarrier(true, JSCompartment::UpdateIon);
-        c->allocator.arenas.purge();
+        c->arenas.purge();
     }
 
     return;

@@ -2,7 +2,7 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 var MockFilePicker = SpecialPowers.MockFilePicker;
-MockFilePicker.init(window);
+MockFilePicker.init();
 
 let tempScope = {};
 Cu.import("resource://gre/modules/NetUtil.jsm", tempScope);

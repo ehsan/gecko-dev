@@ -11,7 +11,7 @@ var gProvider;
 const SETTINGS_ROWS = 8;
 
 var MockFilePicker = SpecialPowers.MockFilePicker;
-MockFilePicker.init(window);
+MockFilePicker.init();
 
 var observer = {
   lastDisplayed: null,

@@ -7,7 +7,8 @@
 #ifndef MAR_H__
 #define MAR_H__
 
-#include "mozilla/Assertions.h"
+/* We use NSPR here just to import the definition of uint32_t */
+#include "prtypes.h"
 #include "mozilla/StandardInteger.h"
 
 #ifdef __cplusplus
@@ -21,7 +22,7 @@ extern "C" {
  * code in tool/mar.c.
 */
 #define MAX_SIGNATURES 8
-MOZ_STATIC_ASSERT(MAX_SIGNATURES <= 9, "too many signatures");
+PR_STATIC_ASSERT(MAX_SIGNATURES <= 9);
 
 struct ProductInformationBlock {
   const char *MARChannelID;
@@ -66,7 +67,7 @@ typedef int (* MarItemCallback)(MarFile *mar, const MarItem *item, void *data);
 MarFile *mar_open(const char *path);
 
 #ifdef XP_WIN
-MarFile *mar_wopen(const wchar_t *path);
+MarFile *mar_wopen(const PRUnichar *path);
 #endif
 
 /**

@@ -9,6 +9,7 @@
 #include "mozilla/FloatingPoint.h"
 
 #include "jscntxt.h"
+#include "jsscope.h"
 #include "jsobj.h"
 #include "jslibmath.h"
 #include "jsiter.h"
@@ -21,7 +22,6 @@
 #include "gc/Marking.h"
 #include "vm/Debugger.h"
 #include "vm/NumericConversions.h"
-#include "vm/Shape.h"
 #include "vm/String.h"
 #include "methodjit/Compiler.h"
 #include "methodjit/StubCalls.h"
@@ -34,12 +34,12 @@
 #include "jsinterpinlines.h"
 #include "jsnuminlines.h"
 #include "jsobjinlines.h"
+#include "jsscopeinlines.h"
 #include "jsscriptinlines.h"
 #include "jstypedarray.h"
 
 #include "StubCalls-inl.h"
 #include "vm/RegExpObject-inl.h"
-#include "vm/Shape-inl.h"
 #include "vm/String-inl.h"
 
 #ifdef JS_ION
@@ -472,8 +472,9 @@ StubEqualityOp(VMFrame &f)
     JSContext *cx = f.cx;
     FrameRegs &regs = f.regs;
 
-    Value &rval = regs.sp[-1];
-    Value &lval = regs.sp[-2];
+    RootedValue rval_(cx, regs.sp[-1]);
+    RootedValue lval_(cx, regs.sp[-2]);
+    Value &rval = rval_.get(), &lval = lval_.get();
 
     bool cond;
 
@@ -605,7 +606,8 @@ stubs::Add(VMFrame &f)
             THROW();
         regs.sp[-2] = rval;
         regs.sp--;
-        TypeScript::MonitorUnknown(cx, f.script(), f.pc());
+        RootedScript fscript(cx, f.script());
+        TypeScript::MonitorUnknown(cx, fscript, f.pc());
     } else
 #endif
     {
@@ -618,7 +620,7 @@ stubs::Add(VMFrame &f)
             if (lIsString) {
                 lstr = lval.toString();
             } else {
-                lstr = ToString<CanGC>(cx, lval);
+                lstr = ToString(cx, lval);
                 if (!lstr)
                     THROW();
             }
@@ -627,13 +629,15 @@ stubs::Add(VMFrame &f)
             } else {
                 // Save/restore lstr in case of GC activity under ToString.
                 regs.sp[-2].setString(lstr);
-                rstr = ToString<CanGC>(cx, rval);
+                rstr = ToString(cx, rval);
                 if (!rstr)
                     THROW();
                 lstr = regs.sp[-2].toString();
             }
-            if (lIsObject || rIsObject)
-                TypeScript::MonitorString(cx, f.script(), f.pc());
+            if (lIsObject || rIsObject) {
+                RootedScript fscript(cx, f.script());
+                TypeScript::MonitorString(cx, fscript, f.pc());
+            }
             goto string_concat;
 
         } else {
@@ -643,9 +647,9 @@ stubs::Add(VMFrame &f)
             l += r;
             Value nres = NumberValue(l);
             if (nres.isDouble() &&
-                (lIsObject || rIsObject || (!lval.isDouble() && !rval.isDouble())))
-            {
-                TypeScript::MonitorOverflow(cx, f.script(), f.pc());
+                (lIsObject || rIsObject || (!lval.isDouble() && !rval.isDouble()))) {
+                RootedScript fscript(cx, f.script());
+                TypeScript::MonitorOverflow(cx, fscript, f.pc());
             }
             regs.sp[-2] = nres;
         }
@@ -653,10 +657,10 @@ stubs::Add(VMFrame &f)
     return;
 
   string_concat:
-    JSString *str = ConcatStrings<NoGC>(cx, lstr, rstr);
+    JSString *str = ConcatStringsNoGC(cx, lstr, rstr);
     if (!str) {
         RootedString nlstr(cx, lstr), nrstr(cx, rstr);
-        str = ConcatStrings<CanGC>(cx, nlstr, nrstr);
+        str = js_ConcatStrings(cx, nlstr, nrstr);
         if (!str)
             THROW();
     }
@@ -1054,9 +1058,17 @@ stubs::Lambda(VMFrame &f, JSFunction *fun_)
 void JS_FASTCALL
 stubs::GetProp(VMFrame &f, PropertyName *name)
 {
+    JSContext *cx = f.cx;
+    FrameRegs &regs = f.regs;
+
     MutableHandleValue objval = MutableHandleValue::fromMarkedLocation(&f.regs.sp[-1]);
-    if (!GetPropertyOperation(f.cx, f.script(), f.pc(), objval, objval))
+
+    RootedValue rval(cx);
+    RootedScript fscript(cx, f.script());
+    if (!GetPropertyOperation(cx, fscript, f.pc(), objval, &rval))
         THROW();
+
+    regs.sp[-1] = rval;
 }
 
 void JS_FASTCALL

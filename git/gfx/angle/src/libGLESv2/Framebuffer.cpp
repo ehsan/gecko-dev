@@ -301,24 +301,24 @@ GLenum Framebuffer::completeness()
         }
         else if (IsInternalTextureTarget(mColorbufferType))
         {
-            GLint internalformat = colorbuffer->getInternalFormat();
-            GLenum format = gl::ExtractFormat(internalformat);
+            GLenum internalformat = colorbuffer->getInternalFormat();
+            D3DFORMAT d3dformat = colorbuffer->getD3DFormat();
 
-            if (IsCompressed(format) ||
-                format == GL_ALPHA ||
-                format == GL_LUMINANCE ||
-                format == GL_LUMINANCE_ALPHA)
+            if (IsCompressed(internalformat) ||
+                internalformat == GL_ALPHA ||
+                internalformat == GL_LUMINANCE ||
+                internalformat == GL_LUMINANCE_ALPHA)
             {
                 return GL_FRAMEBUFFER_UNSUPPORTED;
             }
 
-            if ((gl::IsFloat32Format(internalformat) && !context->supportsFloat32RenderableTextures()) ||
-                (gl::IsFloat16Format(internalformat) && !context->supportsFloat16RenderableTextures()))
+            if ((dx2es::IsFloat32Format(d3dformat) && !context->supportsFloat32RenderableTextures()) ||
+                (dx2es::IsFloat16Format(d3dformat) && !context->supportsFloat16RenderableTextures()))
             {
                 return GL_FRAMEBUFFER_UNSUPPORTED;
             }
 
-            if (gl::IsDepthTexture(internalformat) || gl::IsStencilTexture(internalformat))
+            if (dx2es::IsDepthTextureFormat(d3dformat) || dx2es::IsStencilTextureFormat(d3dformat))
             {
                 return GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
             }
@@ -361,7 +361,7 @@ GLenum Framebuffer::completeness()
         }
         else if (IsInternalTextureTarget(mDepthbufferType))
         {
-            GLint internalformat = depthbuffer->getInternalFormat();
+            D3DFORMAT d3dformat = depthbuffer->getD3DFormat();
 
             // depth texture attachments require OES/ANGLE_depth_texture
             if (!context->supportsDepthTextures())
@@ -369,7 +369,7 @@ GLenum Framebuffer::completeness()
                 return GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
             }
 
-            if (!gl::IsDepthTexture(internalformat))
+            if (!dx2es::IsDepthTextureFormat(d3dformat))
             {
                 return GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
             }
@@ -420,7 +420,7 @@ GLenum Framebuffer::completeness()
         }
         else if (IsInternalTextureTarget(mStencilbufferType))
         {
-            GLint internalformat = stencilbuffer->getInternalFormat();
+            D3DFORMAT d3dformat = stencilbuffer->getD3DFormat();
 
             // texture stencil attachments come along as part
             // of OES_packed_depth_stencil + OES/ANGLE_depth_texture
@@ -429,7 +429,7 @@ GLenum Framebuffer::completeness()
                 return GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
             }
 
-            if (!gl::IsStencilTexture(internalformat))
+            if (!dx2es::IsStencilTextureFormat(d3dformat))
             {
                 return GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
             }

@@ -9,7 +9,7 @@
 
 #include "compiler/ExtensionBehavior.h"
 #include "compiler/Pragma.h"
-#include "compiler/preprocessor/DirectiveHandler.h"
+#include "compiler/preprocessor/new/DirectiveHandler.h"
 
 class TDiagnostics;
 

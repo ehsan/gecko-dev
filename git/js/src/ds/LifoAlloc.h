@@ -182,6 +182,8 @@ class LifoAlloc
         last = end;
     }
 
+    bool ensureUnusedApproximateSlow(size_t n);
+
   public:
     explicit LifoAlloc(size_t defaultChunkSize) { reset(defaultChunkSize); }
 
@@ -244,12 +246,7 @@ class LifoAlloc
                 return true;
             chunk = chunk->next();
         }
-        BumpChunk *latestBefore = latest;
-        if (!getOrCreateChunk(n))
-            return false;
-        if (latestBefore)
-            latest = latestBefore;
-        return true;
+        return ensureUnusedApproximateSlow(n);
     }
 
     template <typename T>

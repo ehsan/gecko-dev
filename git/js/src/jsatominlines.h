@@ -28,16 +28,15 @@ js::AtomStateEntry::asPtr() const
 
 namespace js {
 
-template <AllowGC allowGC>
 inline JSAtom *
 ToAtom(JSContext *cx, const js::Value &v)
 {
     if (!v.isString()) {
-        JSString *str = js::ToStringSlow<allowGC>(cx, v);
+        JSString *str = js::ToStringSlow(cx, v);
         if (!str)
             return NULL;
         JS::Anchor<JSString *> anchor(str);
-        return AtomizeString<allowGC>(cx, str);
+        return AtomizeString(cx, str);
     }
 
     JSString *str = v.toString();
@@ -45,13 +44,11 @@ ToAtom(JSContext *cx, const js::Value &v)
         return &str->asAtom();
 
     JS::Anchor<JSString *> anchor(str);
-    return AtomizeString<allowGC>(cx, str);
+    return AtomizeString(cx, str);
 }
 
-template <AllowGC allowGC>
 inline bool
-ValueToId(JSContext* cx, JSObject *obj, const Value &v,
-          typename MaybeRooted<jsid, allowGC>::MutableHandleType idp)
+ValueToId(JSContext* cx, JSObject *obj, const Value &v, MutableHandleId idp)
 {
     int32_t i;
     if (ValueFitsInInt32(v, &i) && INT_FITS_IN_JSID(i)) {
@@ -59,15 +56,13 @@ ValueToId(JSContext* cx, JSObject *obj, const Value &v,
         return true;
     }
 
-    return InternNonIntElementId<allowGC>(cx, obj, v, idp);
+    return InternNonIntElementId(cx, obj, v, idp);
 }
 
-template <AllowGC allowGC>
 inline bool
-ValueToId(JSContext* cx, const Value &v,
-          typename MaybeRooted<jsid, allowGC>::MutableHandleType idp)
+ValueToId(JSContext* cx, const Value &v, MutableHandleId idp)
 {
-    return ValueToId<allowGC>(cx, NULL, v, idp);
+    return ValueToId(cx, NULL, v, idp);
 }
 
 /*
@@ -99,10 +94,8 @@ BackfillIndexInCharBuffer(uint32_t index, mozilla::RangedPtr<T> end)
     return end;
 }
 
-template <AllowGC allowGC>
 bool
-IndexToIdSlow(JSContext *cx, uint32_t index,
-              typename MaybeRooted<jsid, allowGC>::MutableHandleType idp);
+IndexToIdSlow(JSContext *cx, uint32_t index, MutableHandleId idp);
 
 inline bool
 IndexToId(JSContext *cx, uint32_t index, MutableHandleId idp)
@@ -114,18 +107,7 @@ IndexToId(JSContext *cx, uint32_t index, MutableHandleId idp)
         return true;
     }
 
-    return IndexToIdSlow<CanGC>(cx, index, idp);
-}
-
-inline bool
-IndexToIdNoGC(JSContext *cx, uint32_t index, jsid *idp)
-{
-    if (index <= JSID_INT_MAX) {
-        *idp = INT_TO_JSID(index);
-        return true;
-    }
-
-    return IndexToIdSlow<NoGC>(cx, index, idp);
+    return IndexToIdSlow(cx, index, idp);
 }
 
 inline jsid
@@ -147,9 +129,9 @@ IdToString(JSContext *cx, jsid id)
         return JSID_TO_ATOM(id);
 
     if (JS_LIKELY(JSID_IS_INT(id)))
-        return Int32ToString<CanGC>(cx, JSID_TO_INT(id));
+        return Int32ToString(cx, JSID_TO_INT(id));
 
-    JSString *str = ToStringSlow<CanGC>(cx, IdToValue(id));
+    JSString *str = ToStringSlow(cx, IdToValue(id));
     if (!str)
         return NULL;
 

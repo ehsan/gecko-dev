@@ -5,7 +5,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: ssl3con.c,v 1.197 2013/01/18 19:31:42 bsmith%mozilla.com Exp $ */
+/* $Id: ssl3con.c,v 1.195 2012/11/15 18:49:01 wtc%google.com Exp $ */
 
 /* TODO(ekr): Implement HelloVerifyRequest on server side. OK for now. */
 
@@ -8342,6 +8342,7 @@ ssl3_HandleCertificate(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
     PRInt32          size;
     SECStatus        rv;
     PRBool           isServer	= (PRBool)(!!ss->sec.isServer);
+    PRBool           trusted 	= PR_FALSE;
     PRBool           isTLS;
     SSL3AlertDescription desc;
     int              errCode    = SSL_ERROR_RX_MALFORMED_CERTIFICATE;
@@ -8384,10 +8385,8 @@ ssl3_HandleCertificate(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
     }
 
     if (!remaining) {
-	if (!(isTLS && isServer)) {
-	    desc = bad_certificate;
+	if (!(isTLS && isServer))
 	    goto alert_loser;
-	}
     	/* This is TLS's version of a no_certificate alert. */
     	/* I'm a server. I've requested a client cert. He hasn't got one. */
 	rv = ssl3_HandleNoCertificate(ss);
@@ -8459,6 +8458,9 @@ ssl3_HandleCertificate(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
 	if (c->cert == NULL) {
 	    goto ambiguous_err;
 	}
+
+	if (c->cert->trust)
+	    trusted = PR_TRUE;
 
 	c->next = NULL;
 	if (lastCert) {

@@ -118,8 +118,7 @@ OS_LIBS		+= -lc_r
 endif
 endif
 
-# Linux, GNU/Hurd, and GNU/kFreeBSD systems
-ifneq (,$(filter Linux GNU%,$(OS_ARCH)))
+ifeq ($(OS_ARCH),Linux)
 ifeq ($(USE_PTHREADS), 1)
 ifeq ($(OS_TARGET),Android)
 # Android has no libpthread.so in NDK
@@ -130,10 +129,7 @@ endif
 else
 OS_LIBS		= -ldl
 endif
-ifneq ($(OS_TARGET),Android)
-# Android has no librt - realtime functions are in libc
 OS_LIBS		+= -lrt
-endif
 endif
 
 ifeq ($(OS_ARCH),HP-UX)

@@ -327,6 +327,7 @@ DOMCI_CLASS(MessageEvent)
 
 DOMCI_CLASS(DeviceStorage)
 DOMCI_CLASS(DeviceStorageCursor)
+DOMCI_CLASS(DeviceStorageStat)
 
 // Geolocation
 DOMCI_CLASS(GeoGeolocation)
@@ -351,7 +352,6 @@ DOMCI_CLASS(MozConnection)
 #ifdef MOZ_B2G_RIL
 DOMCI_CLASS(MozMobileConnection)
 DOMCI_CLASS(MozCellBroadcast)
-DOMCI_CLASS(CFStateChangeEvent)
 #endif
 
 DOMCI_CLASS(USSDReceivedEvent)

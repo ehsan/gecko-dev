@@ -116,7 +116,7 @@ function test() {
     });
   });
 
-  MockFilePicker.init(window);
+  MockFilePicker.init();
   // then test when on private mode
   testOnWindow({private: true}, function(aWin) {
     doTest(true, aWin, finish);

@@ -577,15 +577,10 @@ WebappsApplication.prototype = {
             this._fireEvent("downloadapplied", this._ondownloadapplied);
             break;
           case "downloaded":
-            // We don't update the packaged apps manifests until they
-            // are installed or until the update is unstaged.
-            if (msg.manifest) {
-              this._manifest = msg.manifest;
-            }
+            this._manifest = msg.manifest;
             this._fireEvent("downloadsuccess", this._ondownloadsuccess);
             break;
           case "applied":
-            this._manifest = msg.manifest;
             this._fireEvent("downloadapplied", this._ondownloadapplied);
             break;
         }
@@ -654,7 +649,6 @@ WebappsApplicationMgmt.prototype = {
   },
 
   uninstall: function(aApp) {
-    dump("-- webapps.js uninstall " + aApp.manifestURL + "\n");
     let request = this.createRequest();
     cpmm.sendAsyncMessage("Webapps:Uninstall", { origin: aApp.origin,
                                                  oid: this._id,

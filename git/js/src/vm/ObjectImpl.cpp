@@ -8,13 +8,17 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 
-#include "gc/Barrier-inl.h"
-#include "js/TemplateLib.h"
-#include "vm/Debugger.h"
-#include "vm/ObjectImpl.h"
+#include "jsscope.h"
+#include "jsobjinlines.h"
 
-#include "vm/ObjectImpl-inl.h"
-#include "vm/Shape-inl.h"
+#include "js/TemplateLib.h"
+
+#include "Debugger.h"
+#include "ObjectImpl.h"
+
+#include "gc/Barrier-inl.h"
+
+#include "ObjectImpl-inl.h"
 
 using namespace js;
 

@@ -66,12 +66,14 @@
 #  if __has_extension(cxx_constexpr)
 #    define MOZ_HAVE_CXX11_CONSTEXPR
 #  endif
-#  if __has_extension(cxx_deleted_functions)
-#    define MOZ_HAVE_CXX11_DELETE
-#  endif
-#  if __has_extension(cxx_override_control)
-#    define MOZ_HAVE_CXX11_OVERRIDE
-#    define MOZ_HAVE_CXX11_FINAL         final
+#  if __cplusplus >= 201103L
+#    if __has_extension(cxx_deleted_functions)
+#      define MOZ_HAVE_CXX11_DELETE
+#    endif
+#    if __has_extension(cxx_override_control)
+#      define MOZ_HAVE_CXX11_OVERRIDE
+#      define MOZ_HAVE_CXX11_FINAL         final
+#    endif
 #  endif
 #  if __has_extension(cxx_strong_enums)
 #    define MOZ_HAVE_CXX11_ENUM_TYPE

@@ -2248,10 +2248,30 @@ nsFrameLoader::DoSendAsyncMessage(const nsAString& aMessage,
   PBrowserParent* tabParent = GetRemoteBrowser();
   if (tabParent) {
     ClonedMessageData data;
-    ContentParent* cp = static_cast<ContentParent*>(tabParent->Manager());
-    if (!BuildClonedMessageDataForParent(cp, aData, data)) {
-      return false;
+
+    SerializedStructuredCloneBuffer& buffer = data.data();
+    buffer.data = aData.mData;
+    buffer.dataLength = aData.mDataLength;
+
+    const nsTArray<nsCOMPtr<nsIDOMBlob> >& blobs = aData.mClosure.mBlobs;
+    if (!blobs.IsEmpty()) {
+      InfallibleTArray<PBlobParent*>& blobParents = data.blobsParent();
+
+      uint32_t length = blobs.Length();
+      blobParents.SetCapacity(length);
+
+      ContentParent* cp = static_cast<ContentParent*>(tabParent->Manager());
+
+      for (uint32_t i = 0; i < length; ++i) {
+        BlobParent* blobParent = cp->GetOrCreateActorForBlob(blobs[i]);
+        if (!blobParent) {
+          return false;
+        }
+
+        blobParents.AppendElement(blobParent);
+      }
     }
+
     return tabParent->SendAsyncMessage(nsString(aMessage), data);
   }
 

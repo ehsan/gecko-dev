@@ -7,6 +7,8 @@
 
 #include "mozilla/DebugOnly.h"
 
+#include "jsscope.h"
+
 #include "CodeGenerator.h"
 #include "Ion.h"
 #include "IonCaches.h"
@@ -14,10 +16,9 @@
 #include "IonSpewer.h"
 #include "VMFunctions.h"
 
-#include "vm/Shape.h"
-
 #include "jsinterpinlines.h"
 
+#include "vm/Stack.h"
 #include "IonFrames-inl.h"
 
 using namespace js;
@@ -879,13 +880,10 @@ TryAttachNativeGetPropStub(JSContext *cx, IonScript *ion,
     jsbytecode *pc;
     cache.getScriptedLocation(&script, &pc);
 
-    if (IsCacheableGetPropReadSlot(obj, holder, shape) ||
-        IsCacheableNoProperty(obj, holder, shape, pc, cache.output()))
+    if (IsCacheableGetPropReadSlot(checkObj, holder, shape) ||
+        IsCacheableNoProperty(checkObj, holder, shape, pc, cache.output()))
     {
-        // With Proxies, we cannot garantee any property access as the proxy can
-        // mask any property from the prototype chain.
-        if (!obj->isProxy())
-            readSlot = true;
+        readSlot = true;
     } else if (IsCacheableGetPropCallNative(checkObj, holder, shape) ||
                IsCacheableGetPropCallPropertyOp(checkObj, holder, shape))
     {
@@ -1711,7 +1709,7 @@ js::ion::GetElementCache(JSContext *cx, size_t cacheIndex, HandleObject obj, Han
     RootedValue lval(cx, ObjectValue(*obj));
 
     if (cache.isDisabled()) {
-        if (!GetElementOperation(cx, JSOp(*pc), &lval, idval, res))
+        if (!GetElementOperation(cx, JSOp(*pc), lval, idval, res))
             return false;
         types::TypeScript::Monitor(cx, script, pc, res);
         return true;
@@ -1746,7 +1744,7 @@ js::ion::GetElementCache(JSContext *cx, size_t cacheIndex, HandleObject obj, Han
         }
     }
 
-    if (!GetElementOperation(cx, JSOp(*pc), &lval, idval, res))
+    if (!GetElementOperation(cx, JSOp(*pc), lval, idval, res))
         return false;
 
     // If no new attach was done, and we've reached maximum number of stubs, then

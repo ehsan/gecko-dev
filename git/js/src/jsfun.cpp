@@ -31,6 +31,7 @@
 #include "jsopcode.h"
 #include "jspropertytree.h"
 #include "jsproxy.h"
+#include "jsscope.h"
 #include "jsscript.h"
 #include "jsstr.h"
 
@@ -40,7 +41,6 @@
 #include "gc/Marking.h"
 #include "vm/Debugger.h"
 #include "vm/ScopeObject.h"
-#include "vm/Shape.h"
 #include "vm/StringBuffer.h"
 #include "vm/Xdr.h"
 
@@ -98,7 +98,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
      * check any calls that were inlined.
      */
     if (fun->isInterpreted()) {
-        fun->getOrCreateScript(cx)->uninlineable = true;
+        JSFunction::getOrCreateScript(cx, fun)->uninlineable = true;
         MarkTypeObjectFlags(cx, fun, OBJECT_FLAG_UNINLINEABLE);
     }
 
@@ -348,7 +348,7 @@ fun_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             PropertyOp getter;
             StrictPropertyOp setter;
             unsigned attrs = JSPROP_PERMANENT;
-            if (fun->isInterpretedLazy() && !fun->getOrCreateScript(cx))
+            if (fun->isInterpretedLazy() && !JSFunction::getOrCreateScript(cx, fun))
                 return false;
             if (fun->isInterpreted() ? fun->strict() : fun->isBoundFunction()) {
                 JSObject *throwTypeError = fun->global().getThrowTypeError();
@@ -1263,7 +1263,7 @@ js::Function(JSContext *cx, unsigned argc, Value *vp)
         size_t args_length = 0;
         for (unsigned i = 0; i < n; i++) {
             /* Collect the lengths for all the function-argument arguments. */
-            arg = ToString<CanGC>(cx, args[i]);
+            arg = ToString(cx, args[i]);
             if (!arg)
                 return false;
             args[i].setString(arg);
@@ -1382,7 +1382,7 @@ js::Function(JSContext *cx, unsigned argc, Value *vp)
     if (!args.length())
         str = cx->runtime->emptyString;
     else
-        str = ToString<CanGC>(cx, args[args.length() - 1]);
+        str = ToString(cx, args[args.length() - 1]);
     if (!str)
         return false;
     JSStableString *stable = str->ensureStable(cx);
@@ -1463,29 +1463,28 @@ js_NewFunction(JSContext *cx, HandleObject funobjArg, Native native, unsigned na
     return fun;
 }
 
-JSFunction *
-js::CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
-                        gc::AllocKind kind)
+JSFunction * JS_FASTCALL
+js_CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
+                       HandleObject proto, gc::AllocKind kind)
 {
     AssertCanGC();
     JS_ASSERT(parent);
+    JS_ASSERT(proto);
     JS_ASSERT(!fun->isBoundFunction());
 
-    JSObject *cloneobj =
+    RawObject cloneobj =
         NewObjectWithClassProto(cx, &FunctionClass, NULL, SkipScopeParent(parent), kind);
     if (!cloneobj)
         return NULL;
-    JSFunction *clone = cloneobj->toFunction();
+    RootedFunction clone(cx, cloneobj->toFunction());
 
     clone->nargs = fun->nargs;
     clone->flags = fun->flags & ~JSFunction::EXTENDED;
     if (fun->isInterpreted()) {
         if (fun->isInterpretedLazy()) {
-            RootedFunction cloneRoot(cx, clone);
             AutoCompartment ac(cx, fun);
-            if (!fun->getOrCreateScript(cx))
+            if (!JSFunction::getOrCreateScript(cx, fun))
                 return NULL;
-            clone = cloneRoot;
         }
         clone->initScript(fun->nonLazyScript());
         clone->initEnvironment(parent);
@@ -1507,26 +1506,22 @@ js::CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
          * Clone the function, reusing its script. We can use the same type as
          * the original function provided that its prototype is correct.
          */
-        if (fun->getProto() == clone->getProto())
+        if (fun->getProto() == proto)
             clone->setType(fun->type());
-        return clone;
+    } else {
+        if (!JSObject::setSingletonType(cx, clone))
+            return NULL;
+
+        /*
+         * Across compartments we have to clone the script for interpreted
+         * functions. Cross-compartment cloning only happens via JSAPI
+         * (JS_CloneFunctionObject) which dynamically ensures that 'script' has
+         * no enclosing lexical scope (only the global scope).
+         */
+        if (clone->isInterpreted() && !CloneFunctionScript(cx, fun, clone))
+            return NULL;
     }
-
-    RootedFunction cloneRoot(cx, clone);
-
-    if (!JSObject::setSingletonType(cx, cloneRoot))
-        return NULL;
-
-    /*
-     * Across compartments we have to clone the script for interpreted
-     * functions. Cross-compartment cloning only happens via JSAPI
-     * (JS_CloneFunctionObject) which dynamically ensures that 'script' has
-     * no enclosing lexical scope (only the global scope).
-     */
-    if (cloneRoot->isInterpreted() && !CloneFunctionScript(cx, fun, cloneRoot))
-        return NULL;
-
-    return cloneRoot;
+    return clone;
 }
 
 JSFunction *

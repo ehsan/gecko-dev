@@ -55,7 +55,7 @@ FileDescriptor::DuplicateInCurrentProcess(PlatformHandleType aHandle)
       mHandle = newHandle;
       return;
     }
-    NS_WARNING("Failed to duplicate file handle for current process!");
+    NS_WARNING("Failed to duplicate file descriptor!");
   }
 
   mHandle = INVALID_HANDLE;
@@ -75,7 +75,7 @@ FileDescriptor::CloseCurrentProcessHandle()
   if (IsValid()) {
 #ifdef XP_WIN
     if (!CloseHandle(mHandle)) {
-      NS_WARNING("Failed to close file handle for current process!");
+      NS_WARNING("Failed to close file handle!");
     }
 #else // XP_WIN
     HANDLE_EINTR(close(mHandle));
@@ -95,16 +95,13 @@ FileDescriptor::ShareTo(const FileDescriptor::IPDLPrivate&,
                         &newHandle, 0, FALSE, DUPLICATE_SAME_ACCESS)) {
       return newHandle;
     }
-    NS_WARNING("Failed to duplicate file handle for other process!");
+    NS_WARNING("Failed to duplicate file handle!");
   }
   return INVALID_HANDLE;
 #else // XP_WIN
   if (IsValid()) {
     newHandle = dup(mHandle);
-    if (IsValid(newHandle)) {
-      return base::FileDescriptor(newHandle, /* auto_close */ true);
-    }
-    NS_WARNING("Failed to duplicate file handle for other process!");
+    return base::FileDescriptor(newHandle, /* auto_close */ true);
   }
   return base::FileDescriptor();
 #endif

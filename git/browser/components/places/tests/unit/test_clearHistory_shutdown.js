@@ -73,10 +73,6 @@ let notificationsObserver = {
 let timeInMicroseconds = Date.now() * 1000;
 
 function run_test() {
-  run_next_test();
-}
-
-add_task(function test_execute() {
   do_test_pending();
 
   print("Initialize browserglue before Places");
@@ -100,13 +96,14 @@ add_task(function test_execute() {
   Services.prefs.setBoolPref("privacy.sanitize.sanitizeOnShutdown", true);
 
   print("Add visits.");
-  for (let aUrl of URIS) {
-    yield promiseAddVisits({uri: uri(aUrl), visitDate: timeInMicroseconds++,
-                            transition: PlacesUtils.history.TRANSITION_TYPED})
-  }
+  URIS.forEach(function(aUrl) {
+    PlacesUtils.history.addVisit(uri(aUrl), timeInMicroseconds++, null,
+                                 PlacesUtils.history.TRANSITION_TYPED,
+                                 false, 0);
+  });
   print("Add cache.");
   storeCache(URL, "testData");
-});
+}
 
 function run_test_continue()
 {

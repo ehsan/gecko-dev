@@ -32,34 +32,10 @@ function test() {
   // Add a history entry.
   const TEST_URI = "http://www.mozilla.org/privatebrowsing";
   ok(PlacesUtils, "checking PlacesUtils, running in chrome context?");
-
-  let place = {
-    uri: PlacesUtils._uri(TEST_URI),
-    visits: [{
-      visitDate: Date.now() * 1000,
-      transitionType: PlacesUtils.history.TRANSITION_TYPED
-    }]
-  }
-  PlacesUtils.asyncHistory.updatePlaces(place, {
-    handleError: function () ok(false, "couldn't add visit"),
-    handleResult: function () {},
-    handleCompletion: function () {
-      ok(true, TEST_URI + " successfully marked visited");
-
-      testForgetThisSiteVisibility(true, function() {
-        // Enter private browsing mode
-        pb.privateBrowsingEnabled = true;
-        testForgetThisSiteVisibility(false, function() {
-          // Leave private browsing mode
-          pb.privateBrowsingEnabled = false;
-          testForgetThisSiteVisibility(true, function() {
-            // Cleanup
-            waitForClearHistory(finish);
-          });
-        });
-      });
-    }
-  });
+  let history = PlacesUtils.history;
+  let visitId = history.addVisit(PlacesUtils._uri(TEST_URI), Date.now() * 1000,
+                                 null, PlacesUtils.history.TRANSITION_TYPED, false, 0);
+  ok(visitId > 0, TEST_URI + " successfully marked visited");
 
   function testForgetThisSiteVisibility(expected, funcNext) {
     function observer(aSubject, aTopic, aData) {
@@ -126,4 +102,17 @@ function test() {
                            "chrome,toolbar=yes,dialog=no,resizable",
                            null);
   }
+
+  testForgetThisSiteVisibility(true, function() {
+    // Enter private browsing mode
+    pb.privateBrowsingEnabled = true;
+    testForgetThisSiteVisibility(false, function() {
+      // Leave private browsing mode
+      pb.privateBrowsingEnabled = false;
+      testForgetThisSiteVisibility(true, function() {
+        // Cleanup
+        waitForClearHistory(finish);
+      });
+    });
+  });
 }

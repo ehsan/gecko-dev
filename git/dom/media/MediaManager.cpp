@@ -29,10 +29,6 @@
 
 namespace mozilla {
 
-#ifdef LOG
-#undef LOG
-#endif
-
 #ifdef PR_LOGGING
 PRLogModuleInfo*
 GetMediaManagerLog()

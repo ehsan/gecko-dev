@@ -21,15 +21,14 @@
 
 namespace js {
 
-template <AllowGC allowGC>
 static JS_ALWAYS_INLINE JSInlineString *
 NewShortString(JSContext *cx, Latin1Chars chars)
 {
     size_t len = chars.length();
     JS_ASSERT(JSShortString::lengthFits(len));
     UnrootedInlineString str = JSInlineString::lengthFits(len)
-                               ? JSInlineString::new_<allowGC>(cx)
-                               : JSShortString::new_<allowGC>(cx);
+                               ? JSInlineString::new_<ALLOW_GC>(cx)
+                               : JSShortString::new_<ALLOW_GC>(cx);
     if (!str)
         return NULL;
 
@@ -41,7 +40,6 @@ NewShortString(JSContext *cx, Latin1Chars chars)
     return str;
 }
 
-template <AllowGC allowGC>
 static JS_ALWAYS_INLINE JSInlineString *
 NewShortString(JSContext *cx, StableTwoByteChars chars)
 {
@@ -53,8 +51,8 @@ NewShortString(JSContext *cx, StableTwoByteChars chars)
      */
     JS_ASSERT(JSShortString::lengthFits(len));
     JSInlineString *str = JSInlineString::lengthFits(len)
-                          ? JSInlineString::new_<allowGC>(cx)
-                          : JSShortString::new_<allowGC>(cx);
+                          ? JSInlineString::new_<ALLOW_GC>(cx)
+                          : JSShortString::new_<ALLOW_GC>(cx);
     if (!str)
         return NULL;
 
@@ -65,7 +63,6 @@ NewShortString(JSContext *cx, StableTwoByteChars chars)
     return str;
 }
 
-template <AllowGC allowGC>
 static JS_ALWAYS_INLINE JSInlineString *
 NewShortString(JSContext *cx, TwoByteChars chars)
 {
@@ -77,14 +74,12 @@ NewShortString(JSContext *cx, TwoByteChars chars)
      */
     JS_ASSERT(JSShortString::lengthFits(len));
     JSInlineString *str = JSInlineString::lengthFits(len)
-                          ? JSInlineString::new_<NoGC>(cx)
-                          : JSShortString::new_<NoGC>(cx);
+                          ? JSInlineString::new_<DONT_ALLOW_GC>(cx)
+                          : JSShortString::new_<DONT_ALLOW_GC>(cx);
     if (!str) {
-        if (!allowGC)
-            return NULL;
         jschar tmp[JSShortString::MAX_SHORT_LENGTH];
         PodCopy(tmp, chars.start().get(), len);
-        return NewShortString<CanGC>(cx, StableTwoByteChars(tmp, len));
+        return NewShortString(cx, StableTwoByteChars(tmp, len));
     }
 
     jschar *storage = str->init(len);
@@ -184,10 +179,10 @@ JSRope::init(JSString *left, JSString *right, size_t length)
 
 template <js::AllowGC allowGC>
 JS_ALWAYS_INLINE JSRope *
-JSRope::new_(JSContext *cx,
-             typename js::MaybeRooted<JSString*, allowGC>::HandleType left,
-             typename js::MaybeRooted<JSString*, allowGC>::HandleType right,
-             size_t length)
+JSRope::newStringMaybeAllowGC(JSContext *cx,
+                              typename js::MaybeRooted<JSString*, allowGC>::HandleType left,
+                              typename js::MaybeRooted<JSString*, allowGC>::HandleType right,
+                              size_t length)
 {
     if (!validateLength(cx, length))
         return NULL;
@@ -218,18 +213,20 @@ JSDependentString::init(JSLinearString *base, const jschar *chars, size_t length
 JS_ALWAYS_INLINE JSLinearString *
 JSDependentString::new_(JSContext *cx, JSLinearString *baseArg, const jschar *chars, size_t length)
 {
-    /* Try to avoid long chains of dependent strings. */
-    while (baseArg->isDependent())
-        baseArg = baseArg->asDependent().base();
+    js::Rooted<JSLinearString*> base(cx, baseArg);
 
-    JS_ASSERT(baseArg->isFlat());
+    /* Try to avoid long chains of dependent strings. */
+    while (base->isDependent())
+        base = base->asDependent().base();
+
+    JS_ASSERT(base->isFlat());
 
     /*
      * The chars we are pointing into must be owned by something in the chain
      * of dependent or undepended strings kept alive by our base pointer.
      */
 #ifdef DEBUG
-    for (JSLinearString *b = baseArg; ; b = b->base()) {
+    for (JSLinearString *b = base; ; b = b->base()) {
         if (chars >= b->chars() && chars < b->chars() + b->length() &&
             length <= b->length() - (chars - b->chars()))
         {
@@ -244,17 +241,9 @@ JSDependentString::new_(JSContext *cx, JSLinearString *baseArg, const jschar *ch
      * is more efficient to immediately undepend here.
      */
     if (JSShortString::lengthFits(length))
-        return js::NewShortString<js::CanGC>(cx, js::TwoByteChars(chars, length));
+        return js::NewShortString(cx, js::TwoByteChars(chars, length));
 
-    JSDependentString *str = (JSDependentString *)js_NewGCString<js::NoGC>(cx);
-    if (str) {
-        str->init(baseArg, chars, length);
-        return str;
-    }
-
-    js::Rooted<JSLinearString*> base(cx, baseArg);
-
-    str = (JSDependentString *)js_NewGCString<js::CanGC>(cx);
+    JSDependentString *str = (JSDependentString *)js_NewGCString<js::ALLOW_GC>(cx);
     if (!str)
         return NULL;
     str->init(base, chars, length);
@@ -277,7 +266,7 @@ JSFlatString::toPropertyName(JSContext *cx)
 #endif
     if (isAtom())
         return asAtom().asPropertyName();
-    JSAtom *atom = js::AtomizeString<js::CanGC>(cx, this);
+    JSAtom *atom = js::AtomizeString(cx, this);
     if (!atom)
         return NULL;
     return atom->asPropertyName();
@@ -297,7 +286,6 @@ JSStableString::init(const jschar *chars, size_t length)
     d.u1.chars = chars;
 }
 
-template <js::AllowGC allowGC>
 JS_ALWAYS_INLINE JSStableString *
 JSStableString::new_(JSContext *cx, const jschar *chars, size_t length)
 {
@@ -305,7 +293,7 @@ JSStableString::new_(JSContext *cx, const jschar *chars, size_t length)
 
     if (!validateLength(cx, length))
         return NULL;
-    JSStableString *str = (JSStableString *)js_NewGCString<allowGC>(cx);
+    JSStableString *str = (JSStableString *)js_NewGCString<js::ALLOW_GC>(cx);
     if (!str)
         return NULL;
     str->init(chars, length);
@@ -364,7 +352,7 @@ JSExternalString::new_(JSContext *cx, const jschar *chars, size_t length,
     if (!str)
         return NULL;
     str->init(chars, length, fin);
-    cx->runtime->updateMallocCounter(cx->compartment, (length + 1) * sizeof(jschar));
+    cx->runtime->updateMallocCounter(cx, (length + 1) * sizeof(jschar));
     return str;
 }
 

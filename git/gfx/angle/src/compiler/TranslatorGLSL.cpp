@@ -36,6 +36,6 @@ void TranslatorGLSL::translate(TIntermNode* root) {
         sink, false);
 
     // Write translated shader.
-    TOutputGLSL outputGLSL(sink, getHashFunction(), getNameMap(), getSymbolTable());
+    TOutputGLSL outputGLSL(sink);
     root->traverse(&outputGLSL);
 }

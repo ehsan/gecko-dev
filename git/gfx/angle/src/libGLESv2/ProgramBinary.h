@@ -14,14 +14,13 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 
+#include <d3dx9.h>
 #include <d3dcompiler.h>
 #include <string>
 #include <vector>
 
-#include "libGLESv2/Context.h"
-#include "libGLESv2/D3DConstantTable.h"
-#include "libGLESv2/mathutil.h"
 #include "libGLESv2/Shader.h"
+#include "libGLESv2/Context.h"
 
 namespace gl
 {
@@ -55,18 +54,18 @@ struct Uniform
             registerCount = 0;
         }
 
-        void set(const D3DConstant *constant)
+        void set(const D3DXCONSTANT_DESC &constantDescription)
         {
-            switch(constant->registerSet)
+            switch(constantDescription.RegisterSet)
             {
-              case D3DConstant::RS_BOOL:    boolIndex = constant->registerIndex;    break;
-              case D3DConstant::RS_FLOAT4:  float4Index = constant->registerIndex;  break;
-              case D3DConstant::RS_SAMPLER: samplerIndex = constant->registerIndex; break;
+              case D3DXRS_BOOL:    boolIndex = constantDescription.RegisterIndex;    break;
+              case D3DXRS_FLOAT4:  float4Index = constantDescription.RegisterIndex;  break;
+              case D3DXRS_SAMPLER: samplerIndex = constantDescription.RegisterIndex; break;
               default: UNREACHABLE();
             }
             
-            ASSERT(registerCount == 0 || registerCount == (int)constant->registerCount);
-            registerCount = constant->registerCount;
+            ASSERT(registerCount == 0 || registerCount == (int)constantDescription.RegisterCount);
+            registerCount = constantDescription.RegisterCount;
         }
 
         int float4Index;
@@ -110,7 +109,6 @@ class ProgramBinary : public RefCountObject
     GLint getSamplerMapping(SamplerType type, unsigned int samplerIndex);
     TextureType getSamplerTextureType(SamplerType type, unsigned int samplerIndex);
     GLint getUsedSamplerRange(SamplerType type);
-    bool usesPointSize() const;
 
     GLint getUniformLocation(std::string name);
     bool setUniform1fv(GLint location, GLsizei count, const GLfloat *v);
@@ -165,23 +163,23 @@ class ProgramBinary : public RefCountObject
   private:
     DISALLOW_COPY_AND_ASSIGN(ProgramBinary);
 
-    ID3D10Blob *compileToBinary(InfoLog &infoLog, const char *hlsl, const char *profile, D3DConstantTable **constantTable);
+    ID3D10Blob *compileToBinary(InfoLog &infoLog, const char *hlsl, const char *profile, ID3DXConstantTable **constantTable);
 
     int packVaryings(InfoLog &infoLog, const Varying *packing[][4], FragmentShader *fragmentShader);
     bool linkVaryings(InfoLog &infoLog, std::string& pixelHLSL, std::string& vertexHLSL, FragmentShader *fragmentShader, VertexShader *vertexShader);
 
     bool linkAttributes(InfoLog &infoLog, const AttributeBindings &attributeBindings, FragmentShader *fragmentShader, VertexShader *vertexShader);
 
-    bool linkUniforms(InfoLog &infoLog, GLenum shader, D3DConstantTable *constantTable);
-    bool defineUniform(InfoLog &infoLog, GLenum shader, const D3DConstant *constant, std::string name = "");
-    bool defineUniform(GLenum shader, const D3DConstant *constant, const std::string &name);
-    Uniform *createUniform( const D3DConstant *constant, const std::string &name);
+    bool linkUniforms(InfoLog &infoLog, GLenum shader, ID3DXConstantTable *constantTable);
+    bool defineUniform(InfoLog &infoLog, GLenum shader, const D3DXHANDLE &constantHandle, const D3DXCONSTANT_DESC &constantDescription, std::string name = "");
+    bool defineUniform(GLenum shader, const D3DXCONSTANT_DESC &constantDescription, const std::string &name);
+    Uniform *createUniform(const D3DXCONSTANT_DESC &constantDescription, const std::string &name);
     bool applyUniformnfv(Uniform *targetUniform, const GLfloat *v);
     bool applyUniform1iv(Uniform *targetUniform, GLsizei count, const GLint *v);
     bool applyUniform2iv(Uniform *targetUniform, GLsizei count, const GLint *v);
     bool applyUniform3iv(Uniform *targetUniform, GLsizei count, const GLint *v);
     bool applyUniform4iv(Uniform *targetUniform, GLsizei count, const GLint *v);
-    void applyUniformniv(Uniform *targetUniform, GLsizei count, const Vector4 *vector);
+    void applyUniformniv(Uniform *targetUniform, GLsizei count, const D3DXVECTOR4 *vector);
     void applyUniformnbv(Uniform *targetUniform, GLsizei count, int width, const GLboolean *v);
 
     IDirect3DDevice9 *mDevice;
@@ -190,8 +188,8 @@ class ProgramBinary : public RefCountObject
     IDirect3DVertexShader9 *mVertexExecutable;
 
     // These are only used during linking.
-    D3DConstantTable *mConstantTablePS;
-    D3DConstantTable *mConstantTableVS;
+    ID3DXConstantTable *mConstantTablePS;
+    ID3DXConstantTable *mConstantTableVS;
 
     Attribute mLinkedAttribute[MAX_VERTEX_ATTRIBS];
     int mSemanticIndex[MAX_VERTEX_ATTRIBS];
@@ -209,7 +207,6 @@ class ProgramBinary : public RefCountObject
     Sampler mSamplersVS[MAX_VERTEX_TEXTURE_IMAGE_UNITS_VTF];
     GLuint mUsedVertexSamplerRange;
     GLuint mUsedPixelSamplerRange;
-    bool mUsesPointSize;
 
     typedef std::vector<Uniform*> UniformArray;
     UniformArray mUniforms;

@@ -358,12 +358,10 @@ GetHighResClock(void *buf, size_t maxbytes)
 static void
 GiveSystemInfo(void)
 {
-#ifndef NO_SYSINFO
     struct sysinfo si;
     if (sysinfo(&si) == 0) {
 	RNG_RandomUpdate(&si, sizeof(si));
     }
-#endif
 }
 #endif /* LINUX */
 

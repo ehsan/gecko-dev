@@ -16,7 +16,7 @@ function test() {
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
 
-  MockFilePicker.init(window);
+  MockFilePicker.init();
   MockFilePicker.returnValue = Ci.nsIFilePicker.returnOK;
 
   //let stringBundleToRestore = ContentAreaUtils.stringBundle;

@@ -309,9 +309,9 @@ ion::HandleException(ResumeFromException *rfe)
 
     // Immediately remove any bailout frame guard that might be left over from
     // an error in between ConvertFrames and ThunkToInterpreter.
-    js_delete(cx->mainThread().ionActivation->maybeTakeBailout());
+    js_delete(cx->runtime->ionActivation->maybeTakeBailout());
 
-    IonFrameIterator iter(cx->mainThread().ionTop);
+    IonFrameIterator iter(cx->runtime->ionTop);
     while (!iter.isEntry()) {
         if (iter.isScripted()) {
             // Search each inlined frame for live iterator objects, and close
@@ -359,15 +359,15 @@ IonActivationIterator::settle()
 }
 
 IonActivationIterator::IonActivationIterator(JSContext *cx)
-  : top_(cx->mainThread().ionTop),
-    activation_(cx->mainThread().ionActivation)
+  : top_(cx->runtime->ionTop),
+    activation_(cx->runtime->ionActivation)
 {
     settle();
 }
 
 IonActivationIterator::IonActivationIterator(JSRuntime *rt)
-  : top_(rt->mainThread.ionTop),
-    activation_(rt->mainThread.ionActivation)
+  : top_(rt->ionTop),
+    activation_(rt->ionActivation)
 {
     settle();
 }
@@ -675,7 +675,7 @@ ion::GetPcScript(JSContext *cx, JSScript **scriptRes, jsbytecode **pcRes)
     JSRuntime *rt = cx->runtime;
 
     // Recover the return address.
-    IonFrameIterator it(rt->mainThread.ionTop);
+    IonFrameIterator it(rt->ionTop);
     uint8_t *retAddr = it.returnAddress();
     uint32_t hash = PcScriptCache::Hash(retAddr);
     JS_ASSERT(retAddr != NULL);
