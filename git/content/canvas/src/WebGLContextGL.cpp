@@ -44,7 +44,6 @@
 
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/ImageData.h"
-#include "mozilla/Endian.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -2556,7 +2555,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
                 uint8_t *row = static_cast<uint8_t*>(data);
                 for (GLint j = 0; j < height; ++j) {
                     uint8_t *rowp = row;
-#if MOZ_LITTLE_ENDIAN
+#ifdef IS_LITTLE_ENDIAN
                     // offset to get the alpha byte; we're always going to
                     // move by 4 bytes
                     rowp += 3;

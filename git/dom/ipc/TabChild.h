@@ -24,6 +24,7 @@
 #include "nsFrameMessageManager.h"
 #include "nsIWebProgressListener.h"
 #include "nsDOMEventTargetHelper.h"
+#include "nsIDialogCreator.h"
 #include "nsIPresShell.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsWeakReference.h"
@@ -45,6 +46,7 @@ class RenderFrameChild;
 namespace dom {
 
 class TabChild;
+class PContentDialogChild;
 class ClonedMessageData;
 
 class TabChildGlobal : public nsDOMEventTargetHelper,
@@ -152,6 +154,7 @@ class TabChild : public PBrowserChild,
                  public nsIDOMEventListener,
                  public nsIWebProgressListener,
                  public nsSupportsWeakReference,
+                 public nsIDialogCreator,
                  public nsITabChild,
                  public nsIObserver,
                  public ipc::MessageManagerCallback,
@@ -187,6 +190,7 @@ public:
     NS_DECL_NSIWINDOWPROVIDER
     NS_DECL_NSIDOMEVENTLISTENER
     NS_DECL_NSIWEBPROGRESSLISTENER
+    NS_DECL_NSIDIALOGCREATOR
     NS_DECL_NSITABCHILD
     NS_DECL_NSIOBSERVER
     NS_DECL_NSITOOLTIPLISTENER
@@ -277,6 +281,22 @@ public:
     virtual PColorPickerChild*
     AllocPColorPickerChild(const nsString& title, const nsString& initialColor) MOZ_OVERRIDE;
     virtual bool DeallocPColorPickerChild(PColorPickerChild* actor) MOZ_OVERRIDE;
+
+
+    virtual PContentDialogChild* AllocPContentDialogChild(const uint32_t&,
+                                                          const nsCString&,
+                                                          const nsCString&,
+                                                          const InfallibleTArray<int>&,
+                                                          const InfallibleTArray<nsString>&)
+                                                          MOZ_OVERRIDE;
+    virtual bool DeallocPContentDialogChild(PContentDialogChild* aDialog) MOZ_OVERRIDE;
+
+    static void ParamsToArrays(nsIDialogParamBlock* aParams,
+                               InfallibleTArray<int>& aIntParams,
+                               InfallibleTArray<nsString>& aStringParams);
+    static void ArraysToParams(const InfallibleTArray<int>& aIntParams,
+                               const InfallibleTArray<nsString>& aStringParams,
+                               nsIDialogParamBlock* aParams);
 
 #ifdef DEBUG
     virtual PContentPermissionRequestChild*

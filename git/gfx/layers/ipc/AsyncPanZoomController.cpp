@@ -1571,8 +1571,7 @@ ViewTransform AsyncPanZoomController::GetCurrentAsyncTransform() {
     lastPaintScrollOffset = mLastContentPaintMetrics.mScrollOffset;
   }
 
-  CSSPoint currentScrollOffset = mFrameMetrics.mScrollOffset +
-    mTestAsyncScrollOffset;
+  CSSPoint currentScrollOffset = mFrameMetrics.mScrollOffset;
 
   // If checkerboarding has been disallowed, clamp the scroll position to stay
   // within rendered content.

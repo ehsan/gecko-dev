@@ -194,7 +194,7 @@ struct IonScript
     bool hasSPSInstrumentation_;
 
     // Flag for if this script is getting recompiled.
-    uint32_t recompiling_;
+    bool recompiling_;
 
     // Any kind of data needed by the runtime, these can be either cache
     // information or profiling info.
@@ -346,9 +346,6 @@ struct IonScript
     }
     static inline size_t offsetOfRefcount() {
         return offsetof(IonScript, refcount_);
-    }
-    static inline size_t offsetOfRecompiling() {
-        return offsetof(IonScript, recompiling_);
     }
 
   public:

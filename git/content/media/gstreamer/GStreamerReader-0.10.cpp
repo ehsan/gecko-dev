@@ -7,7 +7,6 @@
 #include "GStreamerFormatHelper.h"
 #include "VideoUtils.h"
 #include "mozilla/dom/TimeRanges.h"
-#include "mozilla/Endian.h"
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;
@@ -163,7 +162,7 @@ void GStreamerReader::CopyIntoImageBuffer(GstBuffer* aBuffer,
 GstCaps* GStreamerReader::BuildAudioSinkCaps()
 {
   GstCaps* caps;
-#if MOZ_LITTLE_ENDIAN
+#ifdef IS_LITTLE_ENDIAN
   int endianness = 1234;
 #else
   int endianness = 4321;
