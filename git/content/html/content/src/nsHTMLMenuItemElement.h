@@ -100,8 +100,6 @@ public:
   PRBool IsChecked() const { return mChecked; }
   PRBool IsCheckedDirty() const { return mCheckedDirty; }
 
-  void GetText(nsAString& aText);
-
 protected:
   virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                 const nsAString* aValue, PRBool aNotify);
