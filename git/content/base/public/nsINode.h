@@ -55,7 +55,6 @@ class nsIContent;
 class nsIDocument;
 class nsIDOMEvent;
 class nsIDOMNode;
-class nsIDOMElement;
 class nsIDOMNodeList;
 class nsINodeList;
 class nsIPresShell;
@@ -708,15 +707,6 @@ public:
   {
     return mParent;
   }
-  
-  /**
-   * Get the parent nsINode for this node if it is an Element.
-   * @return the parent node
-   */
-  nsINode* GetElementParent() const
-  {
-    return mParent && mParent->IsElement() ? mParent : nsnull;
-  }
 
   /**
    * See nsIDOMEventTarget
@@ -1293,7 +1283,6 @@ protected:
 #endif
 
   nsresult GetParentNode(nsIDOMNode** aParentNode);
-  nsresult GetParentElement(nsIDOMElement** aParentElement);
   nsresult GetChildNodes(nsIDOMNodeList** aChildNodes);
   nsresult GetFirstChild(nsIDOMNode** aFirstChild);
   nsresult GetLastChild(nsIDOMNode** aLastChild);

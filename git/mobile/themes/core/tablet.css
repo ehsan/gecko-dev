@@ -14,56 +14,53 @@
 }
 %endif
 
-#toolbar-main[tablet] > .spacer-actionbar,
-#toolbar-main[tablet] > .button-actionbar {
+#toolbar-main[tablet="true"] > .spacer-actionbar,
+#toolbar-main[tablet="true"] > .button-actionbar {
   visibility: visible;
 }
-#toolbar-main[tablet] > #tool-tabs {
+#toolbar-main[tablet="true"] > #tool-tabs {
   visibility: collapse;
 }
 
-#controls-scrollbox[tablet] > #controls-sidebar {
+#controls-scrollbox[tablet="true"] > #controls-sidebar {
   visibility: collapse;
 }
 
-#tabs-spacer[tablet]  {
+#tabs-spacer[tablet="true"]  {
   visibility: collapse;
 }
 
-#tabs-container[tablet] {
-  -moz-border-end: @border_width_xxlarge@ solid #eaeaea;
+#tabs-container[tablet="true"] {
+  -moz-border-end: 0px;
   background: #000;
 }
 
-#tabs[tablet] > .tabs-scrollbox {
+#tabs[tablet="true"] > scrollbox {
   max-width: 200px;
-  -moz-box-orient: vertical;
 }
 
-#tabs[tablet] .tabs-list {
-  width: 200px;
-  -moz-column-width: auto;
+#tabs[tablet="true"] .tabs-list {
+  -moz-column-width: 200px;
   -moz-padding-end: 0px;
   -moz-padding-start: 0px;
 }
 
-#tabs[tablet] documenttab {
-  /* Use px instead of mozmm because tab bar items have hard-coded pixel sizes */
+documenttab[tablet="true"] {
   width: 200px;
-  padding: 12px;
+  padding: @padding_xxnormal@;
   -moz-margin-start: 0px;
   background: none;
 }
 
-#tabs[tablet] documenttab[selected="true"] {
+documenttab[tablet="true"][selected="true"] {
   background: none;
 }
 
-.documenttab-thumbnail[tablet] {
+.documenttab-thumbnail[tablet="true"] {
   border-radius: @border_radius_tiny@;
 }
 
-.documenttab-close-container[tablet] {
+.documenttab-close-container[tablet="true"] {
   left: 0px;
   -moz-margin-end: 0px;
   -moz-margin-start: 135px;
@@ -71,42 +68,38 @@
   -moz-box-align: center;
 }
 
-documenttab[selected="true"] > stack > .documenttab-close-container[tablet] {
+documenttab[selected="true"] > stack > .documenttab-close-container[tablet="true"] {
   background: url("chrome://browser/skin/images/close-background-hdpi.png");
   background-repeat: no-repeat;
   background-position: right;
-  -moz-margin-end: -12px;
+  -moz-margin-end: -@padding_xxnormal@;
   padding-right: 2px;
 }
 
-.documenttab-close[tablet] {
+.documenttab-close[tablet="true"] {
   width: 30px;
   height: 44px;
   list-style-image: url("chrome://browser/skin/images/close-inactive-tab-tablet-hdpi.png");
 }
 
-documenttab[selected="true"] > stack > hbox > .documenttab-close[tablet] {
+documenttab[selected="true"] > stack > hbox > .documenttab-close[tablet="true"] {
   list-style-image: url("chrome://browser/skin/images/close-default-tablet-hdpi.png");
 }
 
-.documenttab-close-container:hover:active > .documenttab-close[tablet] {
+.documenttab-close-container:hover:active > .documenttab-close[tablet="true"] {
   list-style-image: url("chrome://browser/skin/images/close-active-tablet-hdpi.png");
 }
 
-.documenttab-reload[tablet] {
-  background: url("chrome://browser/skin/images/tab-reopen-tablet-hdpi.png");
-}
-
-#newtab-button[tablet] {
+#newtab-button[tablet="true"] {
   list-style-image: url("images/newtab-default-tablet-hdpi.png");
 }
 
 @media (@orientation@: portrait) {
-  #toolbar-main[tablet] > #tool-tabs {
+  #toolbar-main[tablet="true"] > #tool-tabs {
     visibility: visible;
   }
 
-  #controls-scrollbox[tablet] > #tabs-sidebar {
+  #controls-scrollbox[tablet="true"] > #tabs-sidebar {
     border: none;
 %ifdef honeycomb
     top: @touch_button_xlarge@;
@@ -116,27 +109,17 @@ documenttab[selected="true"] > stack > hbox > .documenttab-close[tablet] {
     visibility: collapse;
   }
 
-  #controls-scrollbox[tablet] > #tabs-sidebar:-moz-locale-dir(ltr) {
+  #controls-scrollbox[tablet="true"] > #tabs-sidebar:-moz-locale-dir(ltr) {
     left: 0;
   }
-  #controls-scrollbox[tablet] > #tabs-sidebar:-moz-locale-dir(rtl) {
+  #controls-scrollbox[tablet="true"] > #tabs-sidebar:-moz-locale-dir(rtl) {
     right: 0;
   }
 
-  #controls-scrollbox[tablet] > #tabs-sidebar[open] {
+  #controls-scrollbox[tablet="true"] > #tabs-sidebar[open] {
     position: fixed;
     visibility: visible;
   }
-}
-
-#identity-container[tablet] #identity-popup-container {
-  -moz-stack-sizing: ignore;
-  max-width: -moz-calc(0.75 * @urlbar_max_width@);
-  min-width: -moz-calc(0.75 * @urlbar_max_width@);
-}
-
-#identity-container[tablet] pageaction {
-  width: 100%;
 }
 
 %ifndef honeycomb

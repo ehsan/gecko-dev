@@ -1968,11 +1968,6 @@ main(int argc, char **argv, char **envp)
                 return 1;
             }
 
-            if (!JS_InitReflect(cx, glob)) {
-                JS_EndRequest(cx);
-                return 1;
-            }
-
             if (!JS_DefineFunctions(cx, glob, glob_functions) ||
                 !JS_DefineProfilingFunctions(cx, glob)) {
                 JS_EndRequest(cx);

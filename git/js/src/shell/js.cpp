@@ -4069,12 +4069,6 @@ MJitCodeStats(JSContext *cx, uintN argc, jsval *vp)
 
 #ifdef JS_METHODJIT
 
-static size_t
-zero_usable_size(void *p)
-{
-    return 0;
-}
-
 static void
 SumJitDataSizeCallback(JSContext *cx, void *data, void *thing,
                        JSGCTraceKind traceKind, size_t thingSize)
@@ -4082,11 +4076,7 @@ SumJitDataSizeCallback(JSContext *cx, void *data, void *thing,
     size_t *sump = static_cast<size_t *>(data);
     JS_ASSERT(traceKind == JSTRACE_SCRIPT);
     JSScript *script = static_cast<JSScript *>(thing);
-    /*
-     * Passing in zero_usable_size causes jitDataSize to fall back to its
-     * secondary size computation.
-     */
-    *sump += script->jitDataSize(zero_usable_size);
+    *sump += script->jitDataSize(NULL);
 }
 
 #endif
@@ -4526,9 +4516,6 @@ Help(JSContext *cx, uintN argc, jsval *vp)
                     const char *msg = shell_help_messages[j];
                     const char *p = strchr(msg, '(');
                     JS_ASSERT(p);
-
-                    if (size_t(p - msg) != str->length())
-                        continue;
 
                     if (strncmp(funcName.ptr(), msg, p - msg) == 0) {
                         if (!did_header) {

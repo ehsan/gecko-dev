@@ -662,6 +662,8 @@ mjit::Compiler::jsop_binary_full(FrameEntry *lhs, FrameEntry *rhs, JSOp op,
 
       case JSOP_MUL:
       {
+        JS_ASSERT(reg.isSet());
+
         MaybeJump storeNegZero;
         bool maybeNegZero = !ignoreOverflow;
         bool hasConstant = (lhs->isConstant() || rhs->isConstant());
@@ -678,19 +680,10 @@ mjit::Compiler::jsop_binary_full(FrameEntry *lhs, FrameEntry *rhs, JSOp op,
                 storeNegZero = masm.branch32(Assembler::LessThan, nonConstReg, Imm32(0));
         }
 
-        if (cannotOverflow) {
-            if (reg.isSet())
-                masm.mul32(reg.reg(), regs.result);
-            else
-                masm.mul32(Imm32(value), regs.result, regs.result);
-        } else {
-            if (reg.isSet()) {
-                overflow = masm.branchMul32(Assembler::Overflow, reg.reg(), regs.result);
-            } else {
-                overflow = masm.branchMul32(Assembler::Overflow, Imm32(value), regs.result,
-                                            regs.result);
-            }
-        }
+        if (cannotOverflow)
+            masm.mul32(reg.reg(), regs.result);
+        else
+            overflow = masm.branchMul32(Assembler::Overflow, reg.reg(), regs.result);
 
         if (maybeNegZero) {
             if (hasConstant) {

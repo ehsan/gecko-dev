@@ -54,14 +54,15 @@
 #include "nsIDOMWindow.h"
 #include "nsIWindowWatcher.h"
 #include "nsPromiseFlatString.h"
+#include "nsWidgetsCID.h"
+#include "nsILookAndFeel.h"
 #include "nsToolkitCompsCID.h"
-#include "mozilla/LookAndFeel.h"
+
+static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 #define ALERT_CHROME_URL "chrome://global/content/alerts/alert.xul"
 
 #endif // !ANDROID
-
-using namespace mozilla;
 
 using mozilla::dom::ContentChild;
 
@@ -155,11 +156,14 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
 
   nsCOMPtr<nsISupportsPRInt32> scriptableOrigin (do_CreateInstance(NS_SUPPORTS_PRINT32_CONTRACTID));
   NS_ENSURE_TRUE(scriptableOrigin, NS_ERROR_FAILURE);
-
-  PRInt32 origin =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_AlertNotificationOrigin);
-  scriptableOrigin->SetData(origin);
-
+  nsCOMPtr<nsILookAndFeel> lookAndFeel = do_GetService("@mozilla.org/widget/lookandfeel;1");
+  if (lookAndFeel)
+  {
+    PRInt32 origin;
+    lookAndFeel->GetMetric(nsILookAndFeel::eMetric_AlertNotificationOrigin,
+                           origin);
+    scriptableOrigin->SetData(origin);
+  }
   rv = argsArray->AppendElement(scriptableOrigin);
   NS_ENSURE_SUCCESS(rv, rv);
 

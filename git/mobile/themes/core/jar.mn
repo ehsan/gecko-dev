@@ -95,7 +95,6 @@ chrome.jar:
   skin/images/tab-inactive-hdpi.png         (images/tab-inactive-hdpi.png)
   skin/images/tab-closed-hdpi.png           (images/tab-closed-hdpi.png)
   skin/images/tab-reopen-hdpi.png           (images/tab-reopen-hdpi.png)
-  skin/images/tab-reopen-tablet-hdpi.png    (images/tab-reopen-tablet-hdpi.png)
   skin/images/remotetabs-48.png             (images/remotetabs-48.png)
   skin/images/remotetabs-32.png             (images/remotetabs-32.png)
   skin/images/mozilla-32.png                (images/mozilla-32.png)
@@ -139,9 +138,6 @@ chrome.jar:
   skin/images/handle-end.png                (images/handle-end.png)
   skin/images/homescreen-blank-hdpi.png     (images/homescreen-blank-hdpi.png)
   skin/images/homescreen-default-hdpi.png   (images/homescreen-default-hdpi.png)
-  skin/images/aurora-lightbox-bg.jpg        (images/aurora-lightbox-bg.jpg)
-  skin/images/aurora-lightbox-logo.png      (images/aurora-lightbox-logo.png)
-  skin/images/aurora-lightbox-close.png     (images/aurora-lightbox-close.png)
 
 chrome.jar:
 % skin browser classic/1.0 %skin/gingerbread/ os=Android osversion=2.3 osversion=2.3.3 osversion=2.3.4 osversion=2.3.5 osversion=2.3.6 osversion=2.3.7
@@ -228,7 +224,6 @@ chrome.jar:
   skin/gingerbread/images/tab-inactive-hdpi.png         (gingerbread/images/tab-inactive-hdpi.png)
   skin/gingerbread/images/tab-closed-hdpi.png           (gingerbread/images/tab-closed-hdpi.png)
   skin/gingerbread/images/tab-reopen-hdpi.png           (gingerbread/images/tab-reopen-hdpi.png)
-  skin/gingerbread/images/tab-reopen-tablet-hdpi.png    (gingerbread/images/tab-reopen-tablet-hdpi.png)
   skin/gingerbread/images/remotetabs-48.png             (gingerbread/images/remotetabs-48.png)
   skin/gingerbread/images/remotetabs-32.png             (gingerbread/images/remotetabs-32.png)
   skin/gingerbread/images/mozilla-32.png                (images/mozilla-32.png)
@@ -276,9 +271,6 @@ chrome.jar:
   skin/gingerbread/images/errorpage-larry-black.png     (images/errorpage-larry-black.png)
   skin/gingerbread/images/homescreen-blank-hdpi.png     (images/homescreen-blank-hdpi.png)
   skin/gingerbread/images/homescreen-default-hdpi.png   (images/homescreen-default-hdpi.png)
-  skin/gingerbread/images/aurora-lightbox-bg.jpg        (images/aurora-lightbox-bg.jpg)
-  skin/gingerbread/images/aurora-lightbox-logo.png      (images/aurora-lightbox-logo.png)
-  skin/gingerbread/images/aurora-lightbox-close.png     (images/aurora-lightbox-close.png)
 
 chrome.jar:
 % skin browser classic/1.0 %skin/honeycomb/ os=Android osversion>=3.0
@@ -362,7 +354,6 @@ chrome.jar:
   skin/honeycomb/images/tab-inactive-hdpi.png         (honeycomb/images/tab-inactive-hdpi.png)
   skin/honeycomb/images/tab-closed-hdpi.png           (honeycomb/images/tab-closed-hdpi.png)
   skin/honeycomb/images/tab-reopen-hdpi.png           (honeycomb/images/tab-reopen-hdpi.png)
-  skin/honeycomb/images/tab-reopen-tablet-hdpi.png    (honeycomb/images/tab-reopen-tablet-hdpi.png)
   skin/honeycomb/images/remotetabs-48.png             (honeycomb/images/remotetabs-48.png)
   skin/honeycomb/images/remotetabs-32.png             (honeycomb/images/remotetabs-32.png)
   skin/honeycomb/images/mozilla-32.png                (images/mozilla-32.png)
@@ -423,10 +414,4 @@ chrome.jar:
   skin/honeycomb/images/urlbar-border-bottom.png      (honeycomb/images/urlbar-border-bottom.png)
   skin/honeycomb/images/urlbar-border-side-active.png (honeycomb/images/urlbar-border-side-active.png)
   skin/honeycomb/images/urlbar-border-bottom-active.png (honeycomb/images/urlbar-border-bottom-active.png)
-  skin/honeycomb/images/aurora-lightbox-bg.jpg        (images/aurora-lightbox-bg.jpg)
-  skin/honeycomb/images/aurora-lightbox-logo.png      (images/aurora-lightbox-logo.png)
-  skin/honeycomb/images/aurora-lightbox-close.png     (images/aurora-lightbox-close.png)
-  
   skin/honeycomb/images/menu-top-insideglow.png       (honeycomb/images/menu-top-insideglow.png)
-  skin/honeycomb/images/menu-top-insideglow-green.png (honeycomb/images/menu-top-insideglow-green.png)
-  skin/honeycomb/images/menu-top-insideglow-grey.png  (honeycomb/images/menu-top-insideglow-grey.png)

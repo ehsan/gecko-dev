@@ -54,8 +54,6 @@
 #include "jsinterpinlines.h"
 #include "jsautooplen.h"
 
-#include "vm/CallObject-inl.h"
-
 #if defined JS_POLYIC
 
 using namespace js;
@@ -423,7 +421,7 @@ class SetPropCompiler : public PICStubCompiler
             //    \\     V     and getters, and
             //      \===/    2. arguments and locals have different getters
             //              then we can rely on fun->nargs remaining invariant.
-            JSFunction *fun = obj->asCall().getCalleeFunction();
+            JSFunction *fun = obj->getCallObjCalleeFunction();
             uint16 slot = uint16(shape->shortid);
 
             /* Guard that the call object has a frame. */
@@ -443,7 +441,7 @@ class SetPropCompiler : public PICStubCompiler
                 if (shape->setterOp() == SetCallVar)
                     slot += fun->nargs;
 
-                slot += CallObject::RESERVED_SLOTS;
+                slot += JSObject::CALL_RESERVED_SLOTS;
                 Address address = masm.objPropAddress(obj, pic.objReg, slot);
 
                 masm.storeValue(pic.u.vr, address);
@@ -693,7 +691,7 @@ class SetPropCompiler : public PICStubCompiler
                  * objects may differ due to eval(), DEFFUN, etc.).
                  */
                 RecompilationMonitor monitor(cx);
-                JSFunction *fun = obj->asCall().getCalleeFunction();
+                JSFunction *fun = obj->getCallObjCalleeFunction();
                 JSScript *script = fun->script();
                 uint16 slot = uint16(shape->shortid);
                 if (!script->ensureHasTypes(cx, fun))
@@ -1506,7 +1504,7 @@ class ScopeNameCompiler : public PICStubCompiler
         /* Get callobj's stack frame. */
         masm.loadObjPrivate(pic.objReg, pic.shapeReg);
 
-        JSFunction *fun = getprop.holder->asCall().getCalleeFunction();
+        JSFunction *fun = getprop.holder->getCallObjCalleeFunction();
         uint16 slot = uint16(shape->shortid);
 
         Jump skipOver;
@@ -1527,7 +1525,7 @@ class ScopeNameCompiler : public PICStubCompiler
             if (kind == VAR)
                 slot += fun->nargs;
 
-            slot += CallObject::RESERVED_SLOTS;
+            slot += JSObject::CALL_RESERVED_SLOTS;
             Address address = masm.objPropAddress(obj, pic.objReg, slot);
 
             /* Safe because type is loaded first. */
@@ -2224,14 +2222,13 @@ inline uint32 frameCountersOffset(JSContext *cx)
 LookupStatus
 BaseIC::disable(JSContext *cx, const char *reason, void *stub)
 {
-    JITScript *jit = cx->fp()->jit();
-    if (jit->pcLengths) {
+    if (cx->hasRunOption(JSOPTION_PCCOUNT)) {
         uint32 offset = frameCountersOffset(cx);
-        jit->pcLengths[offset].picsLength = 0;
+        cx->fp()->jit()->pcLengths[offset].picsLength = 0;
     }
 
     spew(cx, "disabled", reason);
-    Repatcher repatcher(jit);
+    Repatcher repatcher(cx->fp()->jit());
     repatcher.relink(slowPathCall, FunctionPtr(stub));
     return Lookup_Uncacheable;
 }
@@ -2239,10 +2236,9 @@ BaseIC::disable(JSContext *cx, const char *reason, void *stub)
 void
 BaseIC::updatePCCounters(JSContext *cx, Assembler &masm)
 {
-    JITScript *jit = cx->fp()->jit();
-    if (jit->pcLengths) {
+    if (cx->hasRunOption(JSOPTION_PCCOUNT)) {
         uint32 offset = frameCountersOffset(cx);
-        jit->pcLengths[offset].picsLength += masm.size();
+        cx->fp()->jit()->pcLengths[offset].picsLength += masm.size();
     }
 }
 

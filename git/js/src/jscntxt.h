@@ -1092,7 +1092,7 @@ struct JSContext
      * Return:
      * - The override version, if there is an override version.
      * - The newest scripted frame's version, if there is such a frame.
-     * - The default version.
+     * - The default verion.
      *
      * Note: if this ever shows up in a profile, just add caching!
      */

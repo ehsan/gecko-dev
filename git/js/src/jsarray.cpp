@@ -347,7 +347,7 @@ JSObject::arrayGetOwnDataElement(JSContext *cx, size_t i, Value *vp)
     if (!IndexToId(cx, this, i, &hole, &id))
         return false;
 
-    const Shape *shape = nativeLookup(cx, id);
+    const Shape *shape = nativeLookup(id);
     if (!shape || !shape->isDataDescriptor())
         vp->setMagic(JS_ARRAY_HOLE);
     else
@@ -723,16 +723,6 @@ array_lookupProperty(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
     return proto->lookupProperty(cx, id, objp, propp);
 }
 
-static JSBool
-array_lookupElement(JSContext *cx, JSObject *obj, uint32 index, JSObject **objp,
-                    JSProperty **propp)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return array_lookupProperty(cx, obj, id, objp, propp);
-}
-
 JSBool
 js_GetDenseArrayElementValue(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
@@ -800,15 +790,6 @@ array_getProperty(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Val
 }
 
 static JSBool
-array_getElement(JSContext *cx, JSObject *obj, JSObject *receiver, uint32 index, Value *vp)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return array_getProperty(cx, obj, receiver, id, vp);
-}
-
-static JSBool
 slowarray_addProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     jsuint index, length;
@@ -863,15 +844,6 @@ array_setProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool stric
     return js_SetPropertyHelper(cx, obj, id, 0, vp, strict);
 }
 
-static JSBool
-array_setElement(JSContext *cx, JSObject *obj, uint32 index, Value *vp, JSBool strict)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return array_setProperty(cx, obj, id, vp, strict);
-}
-
 JSBool
 js_PrototypeHasIndexedProperties(JSContext *cx, JSObject *obj)
 {
@@ -896,7 +868,6 @@ js_PrototypeHasIndexedProperties(JSContext *cx, JSObject *obj)
 
 namespace js {
 
-/* non-static for direct definition of array elements within the engine */
 JSBool
 array_defineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *value,
                      PropertyOp getter, StrictPropertyOp setter, uintN attrs)
@@ -932,17 +903,6 @@ array_defineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *value,
     return js_DefineProperty(cx, obj, id, value, getter, setter, attrs);
 }
 
-/* non-static for direct definition of array elements within the engine */
-JSBool
-array_defineElement(JSContext *cx, JSObject *obj, uint32 index, const Value *value,
-                    PropertyOp getter, StrictPropertyOp setter, uintN attrs)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return array_defineProperty(cx, obj, id, value, getter, setter, attrs);
-}
-
 } // namespace js
 
 static JSBool
@@ -954,15 +914,6 @@ array_getAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 }
 
 static JSBool
-array_getElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return array_getAttributes(cx, obj, id, attrsp);
-}
-
-static JSBool
 array_setAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
@@ -970,18 +921,8 @@ array_setAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
     return JS_FALSE;
 }
 
-static JSBool
-array_setElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return array_setAttributes(cx, obj, id, attrsp);
-}
-
 namespace js {
 
-/* non-static for direct deletion of array elements within the engine */
 JSBool
 array_deleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict)
 {
@@ -1005,16 +946,6 @@ array_deleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool 
 
     rval->setBoolean(true);
     return JS_TRUE;
-}
-
-/* non-static for direct deletion of array elements within the engine */
-JSBool
-array_deleteElement(JSContext *cx, JSObject *obj, uint32 index, Value *rval, JSBool strict)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return array_deleteProperty(cx, obj, id, rval, strict);
 }
 
 } // namespace js
@@ -1066,19 +997,12 @@ Class js::ArrayClass = {
     JS_NULL_CLASS_EXT,
     {
         array_lookupProperty,
-        array_lookupElement,
         array_defineProperty,
-        array_defineElement,
         array_getProperty,
-        array_getElement,
         array_setProperty,
-        array_setElement,
         array_getAttributes,
-        array_getElementAttributes,
         array_setAttributes,
-        array_setElementAttributes,
         array_deleteProperty,
-        array_deleteElement,
         NULL,       /* enumerate      */
         array_typeOf,
         array_fix,
@@ -1104,7 +1028,7 @@ static bool
 AddLengthProperty(JSContext *cx, JSObject *obj)
 {
     const jsid lengthId = ATOM_TO_JSID(cx->runtime->atomState.lengthAtom);
-    JS_ASSERT(!obj->nativeLookup(cx, lengthId));
+    JS_ASSERT(!obj->nativeLookup(lengthId));
 
     return obj->addProperty(cx, lengthId, array_length_getter, array_length_setter,
                             SHAPE_INVALID_SLOT, JSPROP_PERMANENT | JSPROP_SHARED, 0, 0);

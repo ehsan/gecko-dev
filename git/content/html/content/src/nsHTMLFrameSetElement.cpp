@@ -322,7 +322,7 @@ nsHTMLFrameSetElement::ParseRowCol(const nsAString & aValue,
         }
       }
         
-      // Catch zero and negative frame sizes for Nav compatibility
+      // Catch zero and negative frame sizes for Nav compatability
       // Nav resized absolute and relative frames to "1" and
       // percent frames to an even percentage of the width
       //

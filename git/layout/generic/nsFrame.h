@@ -268,18 +268,9 @@ public:
   virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
 
-  virtual nsIFrame* GetParentStyleContextFrame() {
-    return DoGetParentStyleContextFrame();
-  }
-
-  /**
-   * Do the work for getting the parent style context frame so that
-   * other frame's |GetParentStyleContextFrame| methods can call this
-   * method on *another* frame.  (This function handles out-of-flow
-   * frames by using the frame manager's placeholder map and it also
-   * handles block-within-inline and generated content wrappers.)
-   */
-  nsIFrame* DoGetParentStyleContextFrame();
+  NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
+                                        nsIFrame**      aProviderFrame,
+                                        PRBool*         aIsChild);
 
   virtual PRBool IsEmpty();
   virtual PRBool IsSelfEmpty();
@@ -407,6 +398,15 @@ public:
   PRBool IsFrameTreeTooDeep(const nsHTMLReflowState& aReflowState,
                             nsHTMLReflowMetrics& aMetrics,
                             nsReflowStatus& aStatus);
+
+  // Do the work for getting the parent style context frame so that
+  // other frame's |GetParentStyleContextFrame| methods can call this
+  // method on *another* frame.  (This function handles out-of-flow
+  // frames by using the frame manager's placeholder map and it also
+  // handles block-within-inline and generated content wrappers.)
+  nsresult DoGetParentStyleContextFrame(nsPresContext* aPresContext,
+                                        nsIFrame**      aProviderFrame,
+                                        PRBool*         aIsChild);
 
   // Incorporate the child overflow areas into aOverflowAreas.
   // If the child does not have a overflow, use the child area.

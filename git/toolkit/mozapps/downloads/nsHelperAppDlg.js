@@ -616,7 +616,7 @@ nsUnknownContentTypeDialog.prototype = {
       let [size, unit] = DownloadUtils.
                          convertByteUnits(this.mLauncher.contentLength);
       type.value = this.dialogElement("strings")
-                       .getFormattedString("orderedFileSizeWithType", 
+                       .getFormattedString("fileSizeWithType", 
                                            [typeString, size, unit]);
     }
     else {

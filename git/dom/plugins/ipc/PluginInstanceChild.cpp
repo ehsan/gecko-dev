@@ -359,18 +359,6 @@ PluginInstanceChild::NPN_GetValue(NPNVariable aVar,
         return result;
     }
 
-    case NPNVdocumentOrigin: {
-        nsCString v;
-        NPError result;
-        if (!CallNPN_GetValue_NPNVdocumentOrigin(&v, &result)) {
-            return NPERR_GENERIC_ERROR;
-        }
-        if (result == NPERR_NO_ERROR) {
-            *static_cast<char**>(aValue) = ToNewCString(v);
-        }
-        return result;
-    }
-
     case NPNVWindowNPObject: // Intentional fall-through
     case NPNVPluginElementNPObject: {
         NPObject* object;
@@ -2861,7 +2849,6 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
         exposeEvent.major_code = 0;
         exposeEvent.minor_code = 0;
         mPluginIface->event(&mData, reinterpret_cast<void*>(&exposeEvent));
-        aSurface->MarkDirty(gfxRect(aRect.x, aRect.y, aRect.width, aRect.height));
     } else
 #endif
     {
@@ -2939,7 +2926,7 @@ PluginInstanceChild::PaintRectToSurface(const nsIntRect& aRect,
     }
 #endif
 
-    if (mIsTransparent && !CanPaintOnBackground()) {
+    if (aColor.a > 0.0) {
        // Clear surface content for transparent rendering
        nsRefPtr<gfxContext> ctx = new gfxContext(renderSurface);
        ctx->SetColor(aColor);

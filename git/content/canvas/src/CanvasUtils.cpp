@@ -65,8 +65,7 @@ namespace CanvasUtils {
 void
 DoDrawImageSecurityCheck(nsHTMLCanvasElement *aCanvasElement,
                          nsIPrincipal *aPrincipal,
-                         PRBool forceWriteOnly,
-                         PRBool CORSUsed)
+                         PRBool forceWriteOnly)
 {
     // Callers should ensure that mCanvasElement is non-null before calling this
     if (!aCanvasElement) {
@@ -84,10 +83,6 @@ DoDrawImageSecurityCheck(nsHTMLCanvasElement *aCanvasElement,
     }
 
     if (aPrincipal == nsnull)
-        return;
-
-    // No need to do a security check if the image used CORS for the load
-    if (CORSUsed)
         return;
 
     PRBool subsumes;

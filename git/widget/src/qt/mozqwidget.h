@@ -91,12 +91,12 @@ public:
     /**
      * VirtualKeyboardIntegration
      */
-    static void requestVKB(int aTimeout = 0, QObject* aWidget = 0);
-    static void hideVKB();
-    static bool isVKBOpen();
+    void requestVKB(int aTimeout);
+    void hideVKB();
+    bool isVKBOpen();
 
 public slots:
-    static void showVKB();
+    void showVKB();
 
 #ifdef MOZ_ENABLE_QTMOBILITY
     void orientationChanged();

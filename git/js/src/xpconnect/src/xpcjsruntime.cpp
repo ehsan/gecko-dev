@@ -105,8 +105,8 @@ WrappedJSDyingJSObjectFinder(JSDHashTable *table, JSDHashEntryHdr *hdr,
     {
         if(wrapper->IsSubjectToFinalization())
         {
-            JS::AutoSwitchCompartment sc(data->cx,
-                                         wrapper->GetJSObjectPreserveColor());
+            js::SwitchToCompartment sc(data->cx,
+                                       wrapper->GetJSObjectPreserveColor());
             if(JS_IsAboutToBeFinalized(data->cx,
                                        wrapper->GetJSObjectPreserveColor()))
                 data->array->AppendElement(wrapper);
@@ -1268,7 +1268,7 @@ PRInt64
 GetCompartmentTjitDataAllocatorsMainSize(JSCompartment *c)
 {
     return c->hasTraceMonitor()
-         ? c->traceMonitor()->getVMAllocatorsMainSize(moz_malloc_usable_size)
+         ? c->traceMonitor()->getVMAllocatorsMainSize()
          : 0;
 }
 
@@ -1276,7 +1276,7 @@ PRInt64
 GetCompartmentTjitDataAllocatorsReserveSize(JSCompartment *c)
 {
     return c->hasTraceMonitor()
-         ? c->traceMonitor()->getVMAllocatorsReserveSize(moz_malloc_usable_size)
+         ? c->traceMonitor()->getVMAllocatorsReserveSize()
          : 0;
 }
 
@@ -1284,7 +1284,7 @@ PRInt64
 GetCompartmentTjitDataTraceMonitorSize(JSCompartment *c)
 {
     return c->hasTraceMonitor()
-         ? c->traceMonitor()->getTraceMonitorSize(moz_malloc_usable_size)
+         ? c->traceMonitor()->getTraceMonitorSize()
          : 0;
 }
 
@@ -1352,20 +1352,27 @@ CellCallback(JSContext *cx, void *vdata, void *thing, JSGCTraceKind traceKind,
         case JSTRACE_STRING:
         {
             JSString *str = static_cast<JSString *>(thing);
-            curr->stringChars += str->charsHeapSize(moz_malloc_usable_size);
+            curr->stringChars += str->charsHeapSize();
             break;
         }
         case JSTRACE_SHAPE:
         {
             js::Shape *shape = static_cast<js::Shape *>(thing);
-            curr->propertyTables += shape->sizeOfPropertyTable(moz_malloc_usable_size);
-            curr->shapeKids += shape->sizeOfKids(moz_malloc_usable_size);
+            if(shape->hasTable())
+                curr->propertyTables +=
+                    shape->getTable()->sizeOf(moz_malloc_usable_size);
             break;
         }
         case JSTRACE_SCRIPT:
         {
             JSScript *script = static_cast<JSScript *>(thing);
-            curr->scriptData += script->dataSize(moz_malloc_usable_size);
+#if JS_SCRIPT_INLINE_DATA_LIMIT
+            if (script->data != script->inlineData)
+#endif
+            {
+                size_t usable = moz_malloc_usable_size(script->data);
+                curr->scriptData += usable ? usable : script->dataSize();
+            }
 #ifdef JS_METHODJIT
             curr->mjitData += script->jitDataSize(moz_malloc_usable_size);
 #endif
@@ -1595,12 +1602,8 @@ CollectCompartmentStatsForRuntime(JSRuntime *rt, IterateData *data)
             data->stackSize += i.threadData()->stackSpace.committedSize();
 
         size_t usable = moz_malloc_usable_size(rt);
-        data->runtimeObjectSize = usable ? usable : sizeof(JSRuntime);
-
-        // Nb: |countMe| is false because atomState.atoms is within JSRuntime,
-        // and so counted when JSRuntime is counted.
-        data->atomsTableSize =
-            rt->atomState.atoms.sizeOf(moz_malloc_usable_size, /* countMe */false);
+        data->runtimeObjectSize += usable ? usable : sizeof(JSRuntime);
+        data->atomsTableSize += rt->atomState.atoms.tableSize();
     }
 
     JS_DestroyContextNoGC(cx);
@@ -1757,14 +1760,6 @@ ReportCompartmentStats(const CompartmentStats &stats,
                        nsIMemoryReporter::KIND_HEAP,
                        stats.typeInferenceMemory.emptyShapes,
     "Arrays attached to prototype JS objects managing shape information.",
-                       callback, closure);
-
-    ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "shape-kids"),
-                       nsIMemoryReporter::KIND_HEAP, stats.shapeKids,
-    "Memory allocated for the compartment's shape kids.  A shape kid "
-    "is an internal data structure that makes JavaScript property accesses "
-    "fast.",
                        callback, closure);
 
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,

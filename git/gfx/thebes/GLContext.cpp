@@ -1848,14 +1848,8 @@ GLContext::TexImage2D(GLenum target, GLint level, GLint internalformat,
     bool useUnpackRowLength = IsExtensionSupported(EXT_unpack_subimage);
 #endif
 
-    // Don't use UNPACK_ROW_LENGTH if the length would be greater than the
-    // maximum texture size
-    int rowLength = stride/pixelsize;
-    if (rowLength > mMaxTextureSize)
-      useUnpackRowLength = false;
-
     if (useUnpackRowLength)
-        fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, rowLength);
+        fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, stride/pixelsize);
     else if (stride != width * pixelsize) {
         // Not using the whole row of texture data and GLES doesn't 
         // support GL_UNPACK_ROW_LENGTH. We need to upload each row

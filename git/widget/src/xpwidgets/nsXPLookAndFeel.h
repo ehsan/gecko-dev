@@ -38,43 +38,57 @@
 #ifndef __nsXPLookAndFeel
 #define __nsXPLookAndFeel
 
-#include "mozilla/LookAndFeel.h"
+#include "nsILookAndFeel.h"
+#include "nsCOMPtr.h"
+#include "nsIObserver.h"
 
-class nsLookAndFeel;
+#ifdef NS_DEBUG
+struct nsSize;
+#endif
+
+typedef enum {
+  nsLookAndFeelTypeInt,
+  nsLookAndFeelTypeFloat,
+  nsLookAndFeelTypeColor
+} nsLookAndFeelType;
 
 struct nsLookAndFeelIntPref
 {
   const char* name;
-  mozilla::LookAndFeel::IntID id;
+  nsILookAndFeel::nsMetricID id;
   PRPackedBool isSet;
+  nsLookAndFeelType type;
   PRInt32 intVar;
 };
 
 struct nsLookAndFeelFloatPref
 {
   const char* name;
-  mozilla::LookAndFeel::FloatID id;
+  nsILookAndFeel::nsMetricFloatID id;
   PRPackedBool isSet;
+  nsLookAndFeelType type;
   float floatVar;
 };
 
 #define CACHE_BLOCK(x)     ((x) >> 5)
 #define CACHE_BIT(x)       (1 << ((x) & 31))
 
-#define COLOR_CACHE_SIZE   (CACHE_BLOCK(LookAndFeel::eColorID_LAST_COLOR) + 1)
+#define COLOR_CACHE_SIZE   (CACHE_BLOCK(nsILookAndFeel::eColor_LAST_COLOR) + 1)
 #define IS_COLOR_CACHED(x) (CACHE_BIT(x) & nsXPLookAndFeel::sCachedColorBits[CACHE_BLOCK(x)])
 #define CLEAR_COLOR_CACHE(x) nsXPLookAndFeel::sCachedColors[(x)] =0; \
               nsXPLookAndFeel::sCachedColorBits[CACHE_BLOCK(x)] &= ~(CACHE_BIT(x));
 #define CACHE_COLOR(x, y)  nsXPLookAndFeel::sCachedColors[(x)] = y; \
               nsXPLookAndFeel::sCachedColorBits[CACHE_BLOCK(x)] |= CACHE_BIT(x);
 
-class nsXPLookAndFeel: public mozilla::LookAndFeel
+class nsXPLookAndFeel: public nsILookAndFeel, public nsIObserver
 {
 public:
+  nsXPLookAndFeel();
   virtual ~nsXPLookAndFeel();
 
-  static nsLookAndFeel* GetInstance();
-  static void Shutdown();
+  NS_DECL_ISUPPORTS
+
+  NS_DECL_NSIOBSERVER
 
   void Init();
 
@@ -84,39 +98,28 @@ public:
   // otherwise we'll return NS_ERROR_NOT_AVAILABLE, in which case, the
   // platform-specific nsLookAndFeel should use its own values instead.
   //
-  nsresult GetColorImpl(ColorID aID, nscolor &aResult);
-  virtual nsresult GetIntImpl(IntID aID, PRInt32 &aResult);
-  virtual nsresult GetFloatImpl(FloatID aID, float &aResult);
+  NS_IMETHOD GetColor(const nsColorID aID, nscolor &aColor);
+  NS_IMETHOD GetMetric(const nsMetricID aID, PRInt32 & aMetric);
+  NS_IMETHOD GetMetric(const nsMetricFloatID aID, float & aMetric);
 
-  virtual void RefreshImpl();
+  NS_IMETHOD LookAndFeelChanged();
 
-  virtual PRUnichar GetPasswordCharacterImpl()
-  {
-    return PRUnichar('*');
-  }
-
-  virtual PRBool GetEchoPasswordImpl()
-  {
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    return PR_TRUE;
-#else
-    return PR_FALSE;
+#ifdef NS_DEBUG
+  NS_IMETHOD GetNavSize(const nsMetricNavWidgetID aWidgetID,
+                        const nsMetricNavFontID   aFontID, 
+                        const PRInt32             aFontSize, 
+                        nsSize &aSize);
 #endif
-  }
 
 protected:
-  nsXPLookAndFeel();
-
-  static void IntPrefChanged(nsLookAndFeelIntPref *data);
-  static void FloatPrefChanged(nsLookAndFeelFloatPref *data);
-  static void ColorPrefChanged(unsigned int index, const char *prefName);
+  void IntPrefChanged(nsLookAndFeelIntPref *data);
+  void FloatPrefChanged(nsLookAndFeelFloatPref *data);
+  void ColorPrefChanged(unsigned int index, const char *prefName);
   void InitFromPref(nsLookAndFeelIntPref* aPref);
   void InitFromPref(nsLookAndFeelFloatPref* aPref);
   void InitColorFromPref(PRInt32 aIndex);
-  virtual nsresult NativeGetColor(ColorID aID, nscolor &aResult) = 0;
-  PRBool IsSpecialColor(ColorID aID, nscolor &aColor);
-
-  static int OnPrefChanged(const char* aPref, void* aClosure);
+  virtual nsresult NativeGetColor(const nsColorID aID, nscolor& aColor) = 0;
+  PRBool IsSpecialColor(const nsColorID aID, nscolor &aColor);
 
   static PRBool sInitialized;
   static nsLookAndFeelIntPref sIntPrefs[];
@@ -125,12 +128,11 @@ protected:
    * see nsXPLookAndFeel.cpp
    */
   static const char sColorPrefs[][38];
-  static PRInt32 sCachedColors[LookAndFeel::eColorID_LAST_COLOR];
+  static PRInt32 sCachedColors[nsILookAndFeel::eColor_LAST_COLOR];
   static PRInt32 sCachedColorBits[COLOR_CACHE_SIZE];
   static PRBool sUseNativeColors;
-
-  static nsLookAndFeel* sInstance;
-  static PRBool sShutdown;
 };
+
+extern nsresult NS_NewXPLookAndFeel(nsILookAndFeel**);
 
 #endif

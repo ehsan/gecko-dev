@@ -683,7 +683,7 @@ struct JSScript : public js::gc::Cell {
     }
 
     /* Size of the JITScript and all sections.  (This method is implemented in MethodJIT.h.) */
-    JS_FRIEND_API(size_t) jitDataSize(JSUsableSizeFun usf);
+    JS_FRIEND_API(size_t) jitDataSize(size_t(*mus)(void *));
     
 #endif
 
@@ -691,13 +691,7 @@ struct JSScript : public js::gc::Cell {
         return code + mainOffset;
     }
 
-    /*
-     * The first dataSize() is the in-use size of all the data sections, the
-     * second is the size of the block allocated to hold all the data sections
-     * (which can be larger than the in-use size).
-     */
-    JS_FRIEND_API(size_t) dataSize();                       /* Size of all data sections */
-    JS_FRIEND_API(size_t) dataSize(JSUsableSizeFun usf);    /* Size of all data sections */
+    JS_FRIEND_API(size_t) dataSize();   /* Size of all data sections */
     uint32 numNotes();                  /* Number of srcnote slots in the srcnotes section */
 
     /* Script notes are allocated right after the code. */
