@@ -1817,6 +1817,13 @@ nsGenericHTMLElement::FindAncestorForm(nsHTMLFormElement* aCurrentForm)
   return nullptr;
 }
 
+static bool
+IsArea(nsIContent *aContent)
+{
+  return (aContent->Tag() == nsGkAtoms::area &&
+          aContent->IsHTML());
+}
+
 bool
 nsGenericHTMLElement::CheckHandleEventForAnchorsPreconditions(nsEventChainVisitor& aVisitor)
 {
@@ -1836,7 +1843,7 @@ nsGenericHTMLElement::CheckHandleEventForAnchorsPreconditions(nsEventChainVisito
   nsCOMPtr<nsIContent> target = aVisitor.mPresContext->EventStateManager()->
     GetEventTargetContent(aVisitor.mEvent);
 
-  return !target || !target->IsHTML(nsGkAtoms::area) || IsHTML(nsGkAtoms::area);
+  return !target || !IsArea(target) || IsArea(this);
 }
 
 nsresult
