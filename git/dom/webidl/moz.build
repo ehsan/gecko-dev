@@ -193,7 +193,6 @@ WEBIDL_FILES = [
     'InterAppMessagePort.webidl',
     'KeyboardEvent.webidl',
     'KeyEvent.webidl',
-    'LegacyQueryInterface.webidl',
     'LinkStyle.webidl',
     'LocalMediaStream.webidl',
     'Location.webidl',
@@ -522,14 +521,12 @@ if CONFIG['MOZ_B2G_FM']:
 
 if CONFIG['ENABLE_TESTS']:
     TEST_WEBIDL_FILES += [
-        'TestDictionary.webidl',
-        'TestJSImplInheritanceGen.webidl',
-        'TestTypedef.webidl',
-    ]
-    PREPROCESSED_TEST_WEBIDL_FILES += [
         'TestCodeGen.webidl',
+        'TestDictionary.webidl',
         'TestExampleGen.webidl',
         'TestJSImplGen.webidl',
+        'TestJSImplInheritanceGen.webidl',
+        'TestTypedef.webidl',
     ]
 
 if CONFIG['MOZ_B2G']:

@@ -60,7 +60,7 @@ LOCAL_OBJDIR = $(OBJDIR)/editline
 # Default IEEE libm
 #
 CFLAGS          += -DXP_UNIX $(OPTIMIZER) $(OS_CFLAGS) $(DEFINES) $(INCLUDES) \
-		  $(XCFLAGS) $(DEFS)
+		  -DJSFILE $(XCFLAGS) $(DEFS)
 
 INCFILES = editline.h
 .INIT: $(INCFILES)

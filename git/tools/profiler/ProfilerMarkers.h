@@ -8,7 +8,6 @@
 
 #include "JSCustomObjectBuilder.h"
 #include "JSObjectBuilder.h"
-#include "mozilla/TimeStamp.h"
 #include "nsAutoPtr.h"
 
 /**
@@ -23,21 +22,14 @@
  * on a particular thread but 'preparePayload' and the destructor
  * is called from the main thread.
  */
-class ProfilerMarkerPayload
-{
+class ProfilerMarkerPayload {
 public:
-  /**
-   * ProfilerMarkerPayload takes ownership of aStack
-   */
-  ProfilerMarkerPayload(ProfilerBacktrace* aStack = nullptr);
-  ProfilerMarkerPayload(const mozilla::TimeStamp& aStartTime,
-                        const mozilla::TimeStamp& aEndTime,
-                        ProfilerBacktrace* aStack = nullptr);
+  ProfilerMarkerPayload() {}
 
   /**
    * Called from the main thread
    */
-  virtual ~ProfilerMarkerPayload();
+  virtual ~ProfilerMarkerPayload() {}
 
   /**
    * Called from the main thread
@@ -52,13 +44,6 @@ protected:
   /**
    * Called from the main thread
    */
-  template<typename Builder>
-  void prepareCommonProps(const char* aMarkerType, Builder& aBuilder,
-                          typename Builder::ObjectHandle aObject);
-
-  /**
-   * Called from the main thread
-   */
   virtual JSCustomObjectBuilder::Object
   preparePayload(JSCustomObjectBuilder& b) = 0;
 
@@ -67,16 +52,10 @@ protected:
    */
   virtual JSObjectBuilder::Object
   preparePayload(JSObjectBuilder& b) = 0;
-
-private:
-  mozilla::TimeStamp  mStartTime;
-  mozilla::TimeStamp  mEndTime;
-  ProfilerBacktrace*  mStack;
 };
 
 class gfxASurface;
-class ProfilerMarkerImagePayload : public ProfilerMarkerPayload
-{
+class ProfilerMarkerImagePayload : public ProfilerMarkerPayload {
 public:
   ProfilerMarkerImagePayload(gfxASurface *aImg);
 
@@ -91,26 +70,6 @@ private:
   typename Builder::Object preparePayloadImp(Builder& b);
   
   nsRefPtr<gfxASurface> mImg;
-};
-
-class IOMarkerPayload : public ProfilerMarkerPayload
-{
-public:
-  IOMarkerPayload(const char* aSource, const mozilla::TimeStamp& aStartTime,
-                  const mozilla::TimeStamp& aEndTime,
-                  ProfilerBacktrace* aStack);
-
-protected:
-  virtual JSCustomObjectBuilder::Object
-  preparePayload(JSCustomObjectBuilder& b) { return preparePayloadImp(b); }
-  virtual JSObjectBuilder::Object
-  preparePayload(JSObjectBuilder& b) { return preparePayloadImp(b); }
-
-private:
-  template<typename Builder>
-  typename Builder::Object preparePayloadImp(Builder& b);
-  
-  const char* mSource;
 };
 
 #endif // PROFILER_MARKERS_H

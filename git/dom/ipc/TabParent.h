@@ -145,7 +145,6 @@ public:
                                      const nsString& aActionHint,
                                      const int32_t& aCause,
                                      const int32_t& aFocusChange);
-    virtual bool RecvRequestFocus(const bool& aCanRaise);
     virtual bool RecvSetCursor(const uint32_t& aValue);
     virtual bool RecvSetBackgroundColor(const nscolor& aValue);
     virtual bool RecvSetStatus(const uint32_t& aType, const nsString& aStatus);

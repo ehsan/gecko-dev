@@ -572,7 +572,7 @@ struct IonBlockCounts
         offset_ = offset;
         numSuccessors_ = numSuccessors;
         if (numSuccessors) {
-            successors_ = js_pod_calloc<uint32_t>(numSuccessors);
+            successors_ = (uint32_t *) js_calloc(numSuccessors * sizeof(uint32_t));
             if (!successors_)
                 return false;
         }
@@ -670,7 +670,7 @@ struct IonScriptCounts
 
     bool init(size_t numBlocks) {
         numBlocks_ = numBlocks;
-        blocks_ = js_pod_calloc<IonBlockCounts>(numBlocks);
+        blocks_ = (IonBlockCounts *) js_calloc(numBlocks * sizeof(IonBlockCounts));
         return blocks_ != NULL;
     }
 

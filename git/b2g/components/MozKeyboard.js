@@ -377,9 +377,7 @@ MozInputMethod.prototype = {
         }
         break;
       case 'Keyboard:SelectionChange':
-        if (this.inputcontext) {
-          this._inputcontext.updateSelectionContext(json);
-        }
+        this._inputcontext.updateSelectionContext(json);
         break;
       case 'Keyboard:GetContext:Result:OK':
         this.setInputContext(json);

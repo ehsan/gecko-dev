@@ -336,20 +336,15 @@ interface TestExampleInterface {
 
   // Union types
   void passUnion((object or long) arg);
-  // Some union tests are debug-only to avoid creating all those
-  // unused union types in opt builds.
-#ifdef DEBUG
-  void passUnion2((long or boolean) arg);
+  // Commented out tests 2-9 to avoid creating all those unused union types
+  /* void passUnion2((long or boolean) arg);
   void passUnion3((object or long or boolean) arg);
   void passUnion4((Node or long or boolean) arg);
   void passUnion5((object or boolean) arg);
   void passUnion6((object or DOMString) arg);
   void passUnion7((object or DOMString or long) arg);
   void passUnion8((object or DOMString or boolean) arg);
-  void passUnion9((object or DOMString or long or boolean) arg);
-  void passUnion10(optional (EventInit or long) arg);
-  void passUnion11(optional (CustomEventInit or long) arg);
-#endif
+  void passUnion9((object or DOMString or long or boolean) arg); */
   void passUnionWithNullable((object? or long) arg);
   void passNullableUnion((object or long)? arg);
   void passOptionalUnion(optional (object or long) arg);

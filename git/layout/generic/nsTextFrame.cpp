@@ -3902,25 +3902,27 @@ public:
   virtual nsIFrame* GetPrevContinuation() const {
     return mPrevContinuation;
   }
-  virtual void SetPrevContinuation(nsIFrame* aPrevContinuation) {
+  NS_IMETHOD SetPrevContinuation(nsIFrame* aPrevContinuation) {
     NS_ASSERTION (!aPrevContinuation || GetType() == aPrevContinuation->GetType(),
                   "setting a prev continuation with incorrect type!");
     NS_ASSERTION (!nsSplittableFrame::IsInPrevContinuationChain(aPrevContinuation, this),
                   "creating a loop in continuation chain!");
     mPrevContinuation = aPrevContinuation;
     RemoveStateBits(NS_FRAME_IS_FLUID_CONTINUATION);
+    return NS_OK;
   }
   virtual nsIFrame* GetPrevInFlowVirtual() const { return GetPrevInFlow(); }
   nsIFrame* GetPrevInFlow() const {
     return (GetStateBits() & NS_FRAME_IS_FLUID_CONTINUATION) ? mPrevContinuation : nullptr;
   }
-  virtual void SetPrevInFlow(nsIFrame* aPrevInFlow) MOZ_OVERRIDE {
+  NS_IMETHOD SetPrevInFlow(nsIFrame* aPrevInFlow) {
     NS_ASSERTION (!aPrevInFlow || GetType() == aPrevInFlow->GetType(),
                   "setting a prev in flow with incorrect type!");
     NS_ASSERTION (!nsSplittableFrame::IsInPrevContinuationChain(aPrevInFlow, this),
                   "creating a loop in continuation chain!");
     mPrevContinuation = aPrevInFlow;
     AddStateBits(NS_FRAME_IS_FLUID_CONTINUATION);
+    return NS_OK;
   }
   virtual nsIFrame* FirstInFlow() const MOZ_OVERRIDE;
   virtual nsIFrame* FirstContinuation() const MOZ_OVERRIDE;

@@ -945,13 +945,6 @@ public:
   FirstContinuationOrSpecialSibling(nsIFrame *aFrame);
 
   /**
-   * Is FirstContinuationOrSpecialSibling(aFrame) going to return
-   * aFrame?
-   */
-  static bool
-  IsFirstContinuationOrSpecialSibling(nsIFrame *aFrame);
-
-  /**
    * Check whether aFrame is a part of the scrollbar or scrollcorner of
    * the root content.
    * @param aFrame the checking frame
