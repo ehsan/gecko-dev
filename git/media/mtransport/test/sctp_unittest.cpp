@@ -33,6 +33,7 @@
 
 
 using namespace mozilla;
+MOZ_MTLOG_MODULE("mtransport");
 
 MtransportTestUtils *test_utils;
 static bool sctp_logging = false;

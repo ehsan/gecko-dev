@@ -172,7 +172,7 @@ RemoveFromAgentSheets(nsCOMArray<nsIStyleSheet> &aAgentSheets, const nsAString& 
 }
 
 nsresult
-NS_NewHTMLDocument(nsIDocument** aInstancePtrResult, bool aLoadedAsData)
+NS_NewHTMLDocument(nsIDocument** aInstancePtrResult)
 {
   nsHTMLDocument* doc = new nsHTMLDocument();
   NS_ENSURE_TRUE(doc, NS_ERROR_OUT_OF_MEMORY);
@@ -185,7 +185,6 @@ NS_NewHTMLDocument(nsIDocument** aInstancePtrResult, bool aLoadedAsData)
   }
 
   *aInstancePtrResult = doc;
-  doc->SetLoadedAsData(aLoadedAsData);
 
   return rv;
 }
@@ -1516,9 +1515,11 @@ nsHTMLDocument::Open(const nsAString& aContentTypeOrUrl,
     nsCOMPtr<nsIScriptGlobalObject> newScope(do_QueryReferent(mScopeObject));
     if (oldScope && newScope != oldScope) {
       nsIXPConnect *xpc = nsContentUtils::XPConnect();
+      nsCOMPtr<nsIXPConnectJSObjectHolder> ignored;
       rv = xpc->ReparentWrappedNativeIfFound(cx, oldScope->GetGlobalJSObject(),
                                              newScope->GetGlobalJSObject(),
-                                             static_cast<nsINode*>(this));
+                                             static_cast<nsINode*>(this),
+                                             getter_AddRefs(ignored));
       NS_ENSURE_SUCCESS(rv, rv);
       rv = xpc->RescueOrphansInScope(cx, oldScope->GetGlobalJSObject());
       NS_ENSURE_SUCCESS(rv, rv);

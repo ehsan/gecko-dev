@@ -10,7 +10,6 @@
 #include "mozilla/dom/DOMJSClass.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/Attributes.h"
-#include "XPCWrapper.h"
 
 /***************************************************************************/
 // nsJSID
@@ -480,27 +479,24 @@ nsJSIID::HasInstance(nsIXPConnectWrappedNative *wrapper,
 #endif
             if (!MorphSlimWrapper(cx, obj))
                 return NS_ERROR_FAILURE;
-        } else {
-            JSObject* unsafeObj =
-                XPCWrapper::Unwrap(cx, obj, /* stopAtOuter = */ false);
-            JSObject* cur = unsafeObj ? unsafeObj : obj;
-            nsISupports *identity;
-            if (mozilla::dom::UnwrapDOMObjectToISupports(cur, identity)) {
-                nsCOMPtr<nsIClassInfo> ci = do_QueryInterface(identity);
-                if (!ci) {
-                    // No classinfo means we're not implementing interfaces and all
-                    return NS_OK;
-                }
+        }
 
-                XPCCallContext ccx(JS_CALLER, cx);
-
-                AutoMarkingNativeSetPtr set(ccx);
-                set = XPCNativeSet::GetNewOrUsed(ccx, ci);
-                if (!set)
-                    return NS_ERROR_FAILURE;
-                *bp = set->HasInterfaceWithAncestor(iid);
+        nsISupports *identity;
+        if (mozilla::dom::UnwrapDOMObjectToISupports(obj, identity)) {
+            nsCOMPtr<nsIClassInfo> ci = do_QueryInterface(identity);
+            if (!ci) {
+                // No classinfo means we're not implementing interfaces and all
                 return NS_OK;
             }
+
+            XPCCallContext ccx(JS_CALLER, cx);
+
+            AutoMarkingNativeSetPtr set(ccx);
+            set = XPCNativeSet::GetNewOrUsed(ccx, ci);
+            if (!set)
+                return NS_ERROR_FAILURE;
+            *bp = set->HasInterfaceWithAncestor(iid);
+            return NS_OK;
         }
 
         XPCWrappedNative* other_wrapper =

@@ -2780,7 +2780,8 @@ public:
                            XPCWrappedNativeScope* aOldScope,
                            XPCWrappedNativeScope* aNewScope,
                            JSObject* aNewParent,
-                           nsISupports* aCOMObj);
+                           nsISupports* aCOMObj,
+                           XPCWrappedNative** aWrapper);
 
     bool IsOrphan();
     nsresult RescueOrphans(XPCCallContext& ccx);

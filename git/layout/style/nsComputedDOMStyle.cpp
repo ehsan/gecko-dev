@@ -2915,7 +2915,7 @@ nsComputedDOMStyle::DoGetBorderImageSlice()
   NS_FOR_CSS_SIDES (side) {
     nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
     valueList->AppendCSSValue(val);
-    SetValueToCoord(val, border->mBorderImageSlice.Get(side), true, nullptr);
+    SetValueToCoord(val, border->mBorderImageSlice.Get(side), false, nullptr);
   }
 
   // Fill keyword.
@@ -2937,7 +2937,7 @@ nsComputedDOMStyle::DoGetBorderImageWidth()
     nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
     valueList->AppendCSSValue(val);
     SetValueToCoord(val, border->mBorderImageWidth.Get(side),
-                    true, nullptr);
+                    false, nullptr);
   }
 
   return valueList;
@@ -2954,7 +2954,7 @@ nsComputedDOMStyle::DoGetBorderImageOutset()
     nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
     valueList->AppendCSSValue(val);
     SetValueToCoord(val, border->mBorderImageOutset.Get(side),
-                    true, nullptr);
+                    false, nullptr);
   }
 
   return valueList;

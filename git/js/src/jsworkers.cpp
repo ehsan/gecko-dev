@@ -143,7 +143,7 @@ WorkerThreadState::init(JSRuntime *rt)
     if (!helperWakeup)
         return false;
 
-    numThreads = rt->helperThreadCount();
+    numThreads = GetCPUCount() - 1;
 
     threads = (WorkerThread*) rt->calloc_(sizeof(WorkerThread) * numThreads);
     if (!threads) {
@@ -250,22 +250,6 @@ WorkerThreadState::notifyAll(CondVar which)
     PR_NotifyAllCondVar((which == MAIN) ? mainWakeup : helperWakeup);
 }
 
-bool
-WorkerThreadState::canStartIonCompile()
-{
-    // A worker thread can begin an Ion compilation if (a) there is some script
-    // which is waiting to be compiled, and (b) no other worker thread is
-    // currently compiling a script. The latter condition ensures that two
-    // compilations cannot simultaneously occur.
-    if (ionWorklist.empty())
-        return false;
-    for (size_t i = 0; i < numThreads; i++) {
-        if (threads[i].ionBuilder)
-            return false;
-    }
-    return true;
-}
-
 void
 WorkerThread::destroy()
 {
@@ -305,7 +289,7 @@ WorkerThread::threadLoop()
     while (true) {
         JS_ASSERT(!ionBuilder);
 
-        while (!state.canStartIonCompile()) {
+        while (state.ionWorklist.empty()) {
             if (terminate) {
                 state.unlock();
                 return;

@@ -11,8 +11,8 @@
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothScoManager.h"
 #include "BluetoothService.h"
+#include "BluetoothServiceUuid.h"
 #include "BluetoothUtils.h"
-#include "BluetoothUuid.h"
 
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "mozilla/Services.h"
@@ -27,6 +27,8 @@
 
 #define MOZSETTINGS_CHANGED_ID "mozsettings-changed"
 #define AUDIO_VOLUME_BT_SCO "audio.volume.bt_sco"
+#define HANDSFREE_UUID mozilla::dom::bluetooth::BluetoothServiceUuidStr::Handsfree
+#define HEADSET_UUID mozilla::dom::bluetooth::BluetoothServiceUuidStr::Headset
 
 using namespace mozilla;
 using namespace mozilla::ipc;
@@ -621,17 +623,17 @@ BluetoothHfpManager::Connect(const nsAString& aDevicePath,
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE(bs, false);
 
-  nsString uuid;
+  nsString serviceUuidStr;
   if (aIsHandsfree) {
-    BluetoothUuidHelper::GetString(BluetoothServiceClass::HANDSFREE, uuid);
+    serviceUuidStr = NS_ConvertUTF8toUTF16(HANDSFREE_UUID);
   } else {
-    BluetoothUuidHelper::GetString(BluetoothServiceClass::HEADSET, uuid);
+    serviceUuidStr = NS_ConvertUTF8toUTF16(HEADSET_UUID);
   }
 
   mRunnable = aRunnable;
 
   nsresult rv = bs->GetSocketViaService(aDevicePath,
-                                        uuid,
+                                        serviceUuidStr,
                                         BluetoothSocketType::RFCOMM,
                                         true,
                                         true,
@@ -656,12 +658,11 @@ BluetoothHfpManager::Listen()
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE(bs, false);
 
-  nsresult rv =
-    bs->ListenSocketViaService(BluetoothReservedChannels::CHANNEL_HANDSFREE_AG,
-                               BluetoothSocketType::RFCOMM,
-                               true,
-                               true,
-                               this);
+  nsresult rv = bs->ListenSocketViaService(BluetoothReservedChannels::HANDSFREE_AG,
+                                           BluetoothSocketType::RFCOMM,
+                                           true,
+                                           true,
+                                           this);
 
   mSocketStatus = GetConnectionStatus();
 
@@ -822,7 +823,6 @@ BluetoothHfpManager::SetupCIND(int aCallIndex, int aCallState, bool aInitial)
       if (!aInitial) {
         switch (currentCallState) {
           case nsIRadioInterfaceLayer::CALL_STATE_INCOMING:
-          case nsIRadioInterfaceLayer::CALL_STATE_BUSY:
             // Incoming call, no break
             sStopSendingRingFlag = true;
           case nsIRadioInterfaceLayer::CALL_STATE_DIALING:
@@ -979,7 +979,6 @@ BluetoothHfpManager::OnDisconnect()
     NotifySettings();
   }
 
-  sStopSendingRingFlag = true;
   sCINDItems[CINDType::CALL].value = CallState::NO_CALL;
   sCINDItems[CINDType::CALLSETUP].value = CallSetupState::NO_CALLSETUP;
   sCINDItems[CINDType::CALLHELD].value = CallHeldState::NO_CALLHELD;

@@ -54,7 +54,6 @@ public class LayerView extends FrameLayout {
     private int mPaintState;
     private int mCheckerboardColor;
     private boolean mCheckerboardShouldShowChecks;
-    private boolean mFullScreen;
 
     private SurfaceView mSurfaceView;
     private TextureView mTextureView;
@@ -426,13 +425,5 @@ public class LayerView extends FrameLayout {
     public void onFocusChanged (boolean gainFocus, int direction, Rect previouslyFocusedRect) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect);
         GeckoAccessibility.onLayerViewFocusChanged(this, gainFocus);
-    }
-
-    public void setFullScreen(boolean fullScreen) {
-        mFullScreen = fullScreen;
-    }
-
-    public boolean isFullScreen() {
-        return mFullScreen;
     }
 }

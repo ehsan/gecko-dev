@@ -71,8 +71,8 @@ this.Social = {
     return Services.prefs.getBoolPref("social.active");
   },
   set active(val) {
-    this.enabled = !!val;
     Services.prefs.setBoolPref("social.active", !!val);
+    this.enabled = !!val;
   },
 
   toggle: function Social_toggle() {

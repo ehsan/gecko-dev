@@ -1898,7 +1898,6 @@ CanvasRenderingContext2D::EnsureWritablePath()
     mDSPathBuilder =
       mPath->TransformedCopyToBuilder(mPathToDS, fillRule);
     mPathTransformWillUpdate = false;
-    mPath = nullptr;
   }
 }
 

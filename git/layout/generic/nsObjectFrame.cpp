@@ -1250,15 +1250,10 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
         nsDisplayGeneric(aBuilder, this, PaintPrintPlugin, "PrintPlugin",
                          nsDisplayItem::TYPE_PRINT_PLUGIN));
   } else {
-    LayerState state = GetLayerState(aBuilder, nullptr);
-    if (state == LAYER_INACTIVE &&
-        nsDisplayItem::ForceActiveLayers()) {
-      state = LAYER_ACTIVE;
-    }
     // We don't need this on Android, and it just confuses things
 #if !MOZ_WIDGET_ANDROID
     if (aBuilder->IsPaintingToWindow() &&
-        state == LAYER_ACTIVE &&
+        GetLayerState(aBuilder, nullptr) == LAYER_ACTIVE &&
         IsTransparentMode()) {
       rv = replacedContent.AppendNewToTop(new (aBuilder)
           nsDisplayPluginReadback(aBuilder, this));
@@ -1268,7 +1263,7 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 #if MOZ_WIDGET_ANDROID
     if (aBuilder->IsPaintingToWindow() &&
-        state == LAYER_ACTIVE) {
+        GetLayerState(aBuilder, nullptr) == LAYER_ACTIVE) {
 
       nsTArray<nsNPAPIPluginInstance::VideoInfo*> videos;
       mInstanceOwner->GetVideos(videos);

@@ -7,8 +7,6 @@
 #include "nsNSSComponent.h"
 #include "nsNSSIOLayer.h"
 
-#include "mozilla/Telemetry.h"
-
 #include "prlog.h"
 #include "prnetdb.h"
 #include "nsIPrefService.h"
@@ -80,8 +78,7 @@ nsNSSSocketInfo::nsNSSSocketInfo(uint32_t providerFlags)
     mHandshakeCompleted(false),
     mJoined(false),
     mSentClientCert(false),
-    mProviderFlags(providerFlags),
-    mSocketCreationTimestamp(TimeStamp::Now())
+    mProviderFlags(providerFlags)
 {
 }
 
@@ -182,17 +179,6 @@ getSecureBrowserUI(nsIInterfaceRequestor * callbacks,
     if (docShell) {
       (void) docShell->GetSecurityUI(result);
     }
-  }
-}
-
-void
-nsNSSSocketInfo::SetHandshakeCompleted()
-{
-  if (!mHandshakeCompleted) {
-    // This will include TCP and proxy tunnel wait time
-    Telemetry::AccumulateTimeDelta(Telemetry::SSL_TIME_UNTIL_READY,
-                                   mSocketCreationTimestamp, TimeStamp::Now());
-    mHandshakeCompleted = true;
   }
 }
 
@@ -2362,11 +2348,6 @@ nsSSLIOLayerImportFD(PRFileDesc *fd,
     NS_NOTREACHED("SSL_SetURL failed");
     goto loser;
   }
-
-  // This is an optimization to make sure the identity info dataset is parsed
-  // and loaded on a separate thread and can be overlapped with network latency.
-  EnsureServerVerificationInitialized();
-
   return sslSock;
 loser:
   if (sslSock) {

@@ -393,22 +393,22 @@ NS_IMETHODIMP GfxInfo::SpoofOSVersion(uint32_t aVersion)
 
 #endif
 
-nsString GfxInfo::Model() const
+const nsAString& GfxInfo::Model() const
 {
   return mModel;
 }
 
-nsString GfxInfo::Hardware() const
+const nsAString& GfxInfo::Hardware() const
 {
   return mHardware;
 }
 
-nsString GfxInfo::Product() const
+const nsAString& GfxInfo::Product() const
 {
   return mProduct;
 }
 
-nsString GfxInfo::Manufacturer() const
+const nsAString& GfxInfo::Manufacturer() const
 {
   return mManufacturer;
 }

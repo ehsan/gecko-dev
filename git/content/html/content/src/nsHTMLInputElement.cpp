@@ -1204,19 +1204,6 @@ nsHTMLInputElement::GetStepBase() const
 {
   double stepBase = GetMinAsDouble();
 
-  // If @min is not a double, we should use defaultValue.
-  if (MOZ_DOUBLE_IS_NaN(stepBase)) {
-    nsAutoString stringValue;
-    GetAttr(kNameSpaceID_None, nsGkAtoms::value, stringValue);
-
-    nsresult ec;
-    stepBase = stringValue.ToDouble(&ec);
-
-    if (NS_FAILED(ec)) {
-      stepBase = MOZ_DOUBLE_NaN();
-    }
-  }
-
   return MOZ_DOUBLE_IS_NaN(stepBase) ? kDefaultStepBase : stepBase;
 }
 

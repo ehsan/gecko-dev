@@ -394,6 +394,9 @@ T* DowncastCCParticipant(void *p)
     nsISupports *s = static_cast<nsISupports*>(p);                             \
     NS_CYCLE_COLLECTION_CLASSNAME(_base_class)::UnlinkImpl(s);
 
+#define NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(_class)                   \
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(_class)
+
 #define NS_IMPL_CYCLE_COLLECTION_UNLINK(_field)                                \
     ImplCycleCollectionUnlink(tmp->_field);
 
@@ -403,8 +406,20 @@ T* DowncastCCParticipant(void *p)
   }
 
 #define NS_IMPL_CYCLE_COLLECTION_UNLINK_0(_class)                              \
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(_class)                                \
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+  NS_METHOD                                                                    \
+  NS_CYCLE_COLLECTION_CLASSNAME(_class)::UnlinkImpl(void *p)                   \
+  {                                                                            \
+    MOZ_ASSERT(CheckForRightISupports(static_cast<nsISupports*>(p)),           \
+               "not the nsISupports pointer we expect");                       \
+    return NS_OK;                                                              \
+  }
+
+#define NS_IMPL_CYCLE_COLLECTION_UNLINK_NATIVE_0(_class)                       \
+  NS_METHOD                                                                    \
+  NS_CYCLE_COLLECTION_CLASSNAME(_class)::UnlinkImpl(void *p)                   \
+  {                                                                            \
+    return NS_OK;                                                              \
+  }
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -438,6 +453,9 @@ T* DowncastCCParticipant(void *p)
       return NS_SUCCESS_INTERRUPTED_TRAVERSE;                                  \
     }
 
+#define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(_class)                 \
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(_class)
+
 #define NS_IMPL_CYCLE_COLLECTION_TRAVERSE(_field)                              \
   ImplCycleCollectionTraverse(cb, tmp->_field, #_field, 0);
 
@@ -470,6 +488,9 @@ T* DowncastCCParticipant(void *p)
     NS_CYCLE_COLLECTION_CLASSNAME(_base_class)::TraceImpl(s,                   \
                                                           aCallback,           \
                                                           aClosure);
+
+#define NS_IMPL_CYCLE_COLLECTION_TRACE_NATIVE_BEGIN(_class)                    \
+  NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(_class)
 
 #define NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(_object, _name)             \
   if (_object)                                                                 \

@@ -85,7 +85,7 @@ GetBailedJSScript(JSContext *cx)
     switch (GetCalleeTokenTag(frame->calleeToken())) {
       case CalleeToken_Function: {
         JSFunction *fun = CalleeTokenToFunction(frame->calleeToken());
-        return fun->nonLazyScript().get(nogc);
+        return fun->script().get(nogc);
       }
       case CalleeToken_Script:
         return CalleeTokenToScript(frame->calleeToken());
@@ -197,7 +197,7 @@ PushInlinedFrame(JSContext *cx, StackFrame *callerFrame)
     const Value &calleeVal = regs.sp[-callerArgc - 2];
 
     RootedFunction fun(cx, calleeVal.toObject().toFunction());
-    RootedScript script(cx, fun->nonLazyScript());
+    RootedScript script(cx, fun->script());
     CallArgs inlineArgs = CallArgsFromSp(callerArgc, regs.sp);
 
     // Bump the stack pointer to make it look like the inline args have been pushed, but they will

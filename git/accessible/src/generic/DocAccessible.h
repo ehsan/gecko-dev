@@ -79,8 +79,8 @@ public:
   virtual void Init();
   virtual void Shutdown();
   virtual nsIFrame* GetFrame() const;
-  virtual nsINode* GetNode() const { return mDocumentNode; }
-  nsIDocument* DocumentNode() const { return mDocumentNode; }
+  virtual nsINode* GetNode() const { return mDocument; }
+  nsIDocument* DocumentNode() const { return mDocument; }
 
   // Accessible
   virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
@@ -122,8 +122,8 @@ public:
     // eDOMLoaded flag check is used for error pages as workaround to make this
     // method return correct result since error pages do not receive 'pageshow'
     // event and as consequence nsIDocument::IsShowing() returns false.
-    return mDocumentNode && mDocumentNode->IsVisible() &&
-      (mDocumentNode->IsShowing() || HasLoadState(eDOMLoaded));
+    return mDocument && mDocument->IsVisible() &&
+      (mDocument->IsShowing() || HasLoadState(eDOMLoaded));
   }
 
   /**
@@ -489,7 +489,7 @@ protected:
   nsDataHashtable<nsPtrHashKey<const nsINode>, Accessible*>
     mNodeToAccessibleMap;
 
-    nsCOMPtr<nsIDocument> mDocumentNode;
+    nsCOMPtr<nsIDocument> mDocument;
     nsCOMPtr<nsITimer> mScrollWatchTimer;
     uint16_t mScrollPositionChangedTicks; // Used for tracking scroll events
 

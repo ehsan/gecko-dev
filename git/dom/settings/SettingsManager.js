@@ -342,7 +342,6 @@ SettingsManager.prototype = {
 
     if (!this.hasReadPrivileges && !this.hasWritePrivileges) {
       Cu.reportError("NO SETTINGS PERMISSION FOR: " + aWindow.document.nodePrincipal.origin + "\n");
-      return null;
     }
   },
 

@@ -119,7 +119,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     // Emits a test of a value against all types in a TypeSet. A scratch
     // register is required.
     template <typename T>
-    void guardTypeSet(const T &address, const types::TypeSet *types, Register scratch,
+    void guardTypeSet(const T &address, types::TypeSet *types, Register scratch,
                       Label *mismatched);
 
     void loadObjShape(Register objReg, Register dest) {
@@ -385,10 +385,7 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     template <typename T>
     void callPreBarrier(const T &address, MIRType type) {
-        JS_ASSERT(type == MIRType_Value ||
-                  type == MIRType_String ||
-                  type == MIRType_Object ||
-                  type == MIRType_Shape);
+        JS_ASSERT(type == MIRType_Value || type == MIRType_String || type == MIRType_Object);
         Label done;
 
         if (type == MIRType_Value)
@@ -398,9 +395,7 @@ class MacroAssembler : public MacroAssemblerSpecific
         computeEffectiveAddress(address, PreBarrierReg);
 
         JSCompartment *compartment = GetIonContext()->compartment;
-        IonCode *preBarrier = (type == MIRType_Shape)
-                              ? compartment->ionCompartment()->shapePreBarrier()
-                              : compartment->ionCompartment()->valuePreBarrier();
+        IonCode *preBarrier = compartment->ionCompartment()->preBarrier();
 
         call(preBarrier);
         Pop(PreBarrierReg);

@@ -133,7 +133,7 @@ MediaConduitErrorCode WebrtcVideoConduit::Init()
   }
 
 
-  CSFLogDebug(logTag, "%s Engine Created: Init'ng the interfaces ",__FUNCTION__);
+  CSFLogDebug(logTag, "%sEngine Created: Init'ng the interfaces ",__FUNCTION__);
 
   if(mPtrViEBase->Init() == -1)
   {
@@ -184,7 +184,7 @@ MediaConduitErrorCode WebrtcVideoConduit::Init()
   }
 
 
-  CSFLogError(logTag, "%s Initialization Done", __FUNCTION__);
+  CSFLogError(logTag, "Initialization Done");
   return kMediaConduitNoError;
 }
 

@@ -171,7 +171,6 @@
     _(InArray)                      \
     _(InstanceOfO)                  \
     _(InstanceOfV)                  \
-    _(CallInstanceOf)               \
     _(InterruptCheck)               \
     _(FunctionBoundary)             \
     _(GetDOMProperty)               \

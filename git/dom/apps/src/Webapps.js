@@ -540,7 +540,6 @@ WebappsApplication.prototype = {
           this.installState = msg.installState;
           if (this.installState == "installed") {
             this._downloadError = null;
-            this.downloading = false;
             this._fireEvent("downloadsuccess", this._ondownloadsuccess);
             this._fireEvent("downloadapplied", this._ondownloadapplied);
           } else {
@@ -608,7 +607,6 @@ WebappsApplication.prototype = {
               this.downloadAvailable = app.downloadAvailable;
               this.readyToApplyDownload = app.readyToApplyDownload;
               this.updateTime = app.updateTime;
-              this._manifest = msg.manifest;
               this._fireEvent("downloadsuccess", this._ondownloadsuccess);
               break;
             case "applied":

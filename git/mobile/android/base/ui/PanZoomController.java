@@ -315,8 +315,7 @@ public class PanZoomController
             return false;
 
         case TOUCHING:
-            // Don't allow panning if there is an element in full-screen mode. See bug 775511.
-            if (mTarget.isFullScreen() || panDistance(event) < PAN_THRESHOLD) {
+            if (panDistance(event) < PAN_THRESHOLD) {
                 return false;
             }
             cancelTouch();
@@ -832,7 +831,7 @@ public class PanZoomController
 
     @Override
     public boolean onScale(SimpleScaleGestureDetector detector) {
-        if (mTarget.isFullScreen())
+        if (GeckoApp.mAppContext == null || GeckoApp.mAppContext.mDOMFullScreen)
             return false;
 
         if (mState != PanZoomState.PINCHING)

@@ -393,11 +393,7 @@ class GlobalObject : public JSObject
         if (HasDataProperty(cx, holder, id, value.address()))
             return true;
         Rooted<PropertyName*> rootedName(cx, name);
-        if (!cx->runtime->cloneSelfHostedValue(cx, rootedName, value))
-            return false;
-        mozilla::DebugOnly<bool> ok = JS_DefinePropertyById(cx, holder, id, value, NULL, NULL, 0);
-        JS_ASSERT(ok);
-        return true;
+        return cx->runtime->cloneSelfHostedValue(cx, rootedName, holder, value);
     }
 
     inline RegExpStatics *getRegExpStatics() const;

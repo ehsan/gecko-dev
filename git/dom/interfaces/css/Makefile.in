@@ -27,9 +27,7 @@ SDK_XPIDLSRCS = 				\
 
 XPIDLSRCS =					\
 	nsIDOMCSSCharsetRule.idl		\
-	nsIDOMCSSConditionRule.idl		\
 	nsIDOMCSSFontFaceRule.idl		\
-	nsIDOMCSSGroupingRule.idl		\
 	nsIDOMCSSImportRule.idl			\
 	nsIDOMCSSMediaRule.idl			\
 	nsIDOMCSSMozDocumentRule.idl		\

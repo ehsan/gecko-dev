@@ -442,7 +442,7 @@ protected:
     // Amount of time that we've wanted to play silence because of the stream
     // blocking.
     MediaTime mBlockedAudioTime;
-    nsAutoPtr<AudioStream> mStream;
+    nsRefPtr<AudioStream> mStream;
     TrackID mTrackID;
   };
   nsTArray<AudioOutputStream> mAudioOutputStreams;

@@ -358,7 +358,7 @@ var FullScreen = {
                            Services.perms.ALLOW_ACTION,
                            Services.perms.EXPIRE_SESSION);
         let host = uri.host;
-        var onFullscreenchange = function onFullscreenchange(event) {
+        function onFullscreenchange(event) {
           if (event.target == document && document.mozFullScreenElement == null) {
             // The chrome document has left fullscreen. Remove the temporary permission grant.
             Services.perms.remove(host, "fullscreen");
@@ -545,7 +545,7 @@ var FullScreen = {
           el.setAttribute("inFullscreen", true);
         }
         else {
-          var restoreAttr = function restoreAttr(attrName) {
+          function restoreAttr(attrName) {
             var savedAttr = "saved-" + attrName;
             if (el.hasAttribute(savedAttr)) {
               el.setAttribute(attrName, el.getAttribute(savedAttr));

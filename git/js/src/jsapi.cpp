@@ -703,12 +703,6 @@ JS::InNoGCScope()
 }
 
 JS_FRIEND_API(bool)
-JS::isGCEnabled()
-{
-    return !TlsPerThreadData.get()->suppressGC;
-}
-
-JS_FRIEND_API(bool)
 JS::NeedRelaxedRootChecks()
 {
     return TlsPerThreadData.get()->gcRelaxRootChecks;
@@ -717,19 +711,17 @@ JS::NeedRelaxedRootChecks()
 JS_FRIEND_API(void) JS::EnterAssertNoGCScope() {}
 JS_FRIEND_API(void) JS::LeaveAssertNoGCScope() {}
 JS_FRIEND_API(bool) JS::InNoGCScope() { return false; }
-JS_FRIEND_API(bool) JS::isGCEnabled() { return true; }
 JS_FRIEND_API(bool) JS::NeedRelaxedRootChecks() { return false; }
 #endif
 
 static const JSSecurityCallbacks NullSecurityCallbacks = { };
 
 PerThreadData::PerThreadData(JSRuntime *runtime)
-  : runtime_(runtime),
+  : runtime_(runtime)
 #ifdef DEBUG
-    gcRelaxRootChecks(false),
-    gcAssertNoGCDepth(0),
+  , gcRelaxRootChecks(false)
+  , gcAssertNoGCDepth(0)
 #endif
-    suppressGC(0)
 {}
 
 JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
@@ -873,6 +865,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
 #ifdef DEBUG
     noGCOrAllocationCheck(0),
 #endif
+    inOOMReport(0),
     jitHardening(false),
     ionTop(NULL),
     ionJSContext(NULL),
@@ -881,8 +874,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     ionPcScriptCache(NULL),
     threadPool(this),
     ionReturnOverride_(MagicValue(JS_ARG_POISON)),
-    useHelperThreads_(useHelperThreads),
-    requestedHelperThreadCount(-1)
+    useHelperThreads_(useHelperThreads)
 {
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
     JS_INIT_CLIST(&debuggerList);
@@ -4879,8 +4871,8 @@ JS_CloneFunctionObject(JSContext *cx, JSObject *funobjArg, JSRawObject parentArg
      * script, we cannot clone it without breaking the compiler's assumptions.
      */
     RootedFunction fun(cx, funobj->toFunction());
-    if (fun->isInterpreted() && (fun->nonLazyScript()->enclosingStaticScope() ||
-        (fun->nonLazyScript()->compileAndGo && !parent->isGlobal())))
+    if (fun->isInterpreted() && (fun->script()->enclosingStaticScope() ||
+        (fun->script()->compileAndGo && !parent->isGlobal())))
     {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_CLONE_FUNOBJ_SCOPE);
         return NULL;
@@ -7044,14 +7036,6 @@ JS_ScheduleGC(JSContext *cx, uint32_t count)
     cx->runtime->gcNextScheduled = count;
 }
 #endif
-
-JS_PUBLIC_API(void)
-JS_SetParallelCompilationEnabled(JSContext *cx, bool enabled)
-{
-#ifdef JS_ION
-    ion::js_IonOptions.parallelCompilation = enabled;
-#endif
-}
 
 /************************************************************************/
 

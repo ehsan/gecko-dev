@@ -32,7 +32,7 @@ namespace ion {
     _(Range)                                \
     /* Information during LICM */           \
     _(LICM)                                 \
-    /* Information during regalloc */       \
+    /* Information during LSRA */           \
     _(RegAlloc)                             \
     /* Information during inlining */       \
     _(Inlining)                             \

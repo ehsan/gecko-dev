@@ -612,7 +612,7 @@ class StackFrame
         return isFunctionFrame()
                ? isEvalFrame()
                  ? u.evalScript
-                 : (JSScript*)fun()->nonLazyScript().unsafeGet()
+                 : (JSScript*)fun()->script().unsafeGet()
                : exec.script;
     }
 

@@ -2518,12 +2518,7 @@ ParseSelectorList(nsINode* aNode,
                                            doc->GetDocumentURI(),
                                            0, // XXXbz get the line number!
                                            &selectorList);
-  if (NS_FAILED(rv)) {
-    // We hit this for syntax errors, which are quite common, so don't
-    // use NS_ENSURE_SUCCESS.  (For example, jQuery has an extended set
-    // of selectors, but it sees if we can parse them first.)
-    return rv;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Filter out pseudo-element selectors from selectorList
   nsCSSSelectorList** slot = &selectorList;

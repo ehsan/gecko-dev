@@ -279,9 +279,9 @@ let Activities = {
       // For any incoming property.
       for (let prop in aMsg.options.data) {
 
-        // If this is unknown for the app, let's continue.
+        // If this is unknown for the app, this app must be excluded.
         if (!(prop in aResult.description.filters)) {
-          continue;
+          return false;
         }
 
         // Otherwise, let's check the value against the filter.

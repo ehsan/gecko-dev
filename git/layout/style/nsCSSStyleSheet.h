@@ -25,6 +25,7 @@
 
 class nsXMLNameSpaceMap;
 class nsCSSRuleProcessor;
+class nsMediaList;
 class nsIPrincipal;
 class nsIURI;
 class nsMediaList;

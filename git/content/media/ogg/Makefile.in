@@ -18,7 +18,6 @@ LIBXUL_LIBRARY 	= 1
 EXPORTS		+= \
 		OggDecoder.h \
 		OggCodecState.h \
-		OggReader.h \
 		$(NULL)
 
 CPPSRCS		= \

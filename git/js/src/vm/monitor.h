@@ -11,7 +11,8 @@
 #include <stdlib.h>
 #include "mozilla/Util.h"
 #include "js/Utility.h"
-#include "jslock.h"
+#include "prlock.h"
+#include "prcvar.h"
 
 namespace js {
 
@@ -44,35 +45,25 @@ private:
 
 public:
     AutoLockMonitor(Monitor &monitor) : monitor(monitor) {
-#ifdef JS_THREADSAFE
         PR_Lock(monitor.lock_);
-#endif
     }
 
     ~AutoLockMonitor() {
-#ifdef JS_THREADSAFE
         PR_Unlock(monitor.lock_);
-#endif
     }
 
     void wait() {
-#ifdef JS_THREADSAFE
         mozilla::DebugOnly<PRStatus> status =
           PR_WaitCondVar(monitor.condVar_, PR_INTERVAL_NO_TIMEOUT);
         JS_ASSERT(status == PR_SUCCESS);
-#endif
     }
 
     void notify() {
-#ifdef JS_THREADSAFE
         PR_NotifyCondVar(monitor.condVar_);
-#endif
     }
 
     void notifyAll() {
-#ifdef JS_THREADSAFE
         PR_NotifyAllCondVar(monitor.condVar_);
-#endif
     }
 };
 
@@ -82,16 +73,8 @@ class AutoUnlockMonitor
     Monitor &monitor;
 
   public:
-    AutoUnlockMonitor(Monitor &monitor) : monitor(monitor) {
-#ifdef JS_THREADSAFE
-        PR_Unlock(monitor.lock_);
-#endif
-    }
-    ~AutoUnlockMonitor() {
-#ifdef JS_THREADSAFE
-        PR_Lock(monitor.lock_);
-#endif
-    }
+    AutoUnlockMonitor(Monitor &monitor) : monitor(monitor) { PR_Unlock(monitor.lock_); }
+    ~AutoUnlockMonitor() { PR_Lock(monitor.lock_); }
 };
 
 }

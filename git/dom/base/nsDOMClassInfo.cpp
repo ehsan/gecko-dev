@@ -757,8 +757,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            WINDOW_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(Location, nsLocationSH,
-                           ((DOM_DEFAULT_SCRIPTABLE_FLAGS |
-                             nsIXPCScriptable::WANT_ADDPROPERTY) &
+                           (DOM_DEFAULT_SCRIPTABLE_FLAGS &
                             ~nsIXPCScriptable::ALLOW_PROP_MODS_TO_PROTOTYPE))
 
   NS_DEFINE_CLASSINFO_DATA(Navigator, nsNavigatorSH,
@@ -6637,13 +6636,8 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
       }
     } else {
       JSAutoCompartment ac(cx, winobj);
-      if (!proto) {
-        proto = JS_GetObjectPrototype(cx, winobj);
-      }
-      dot_prototype = ::JS_NewObjectWithUniqueType(cx,
-                                                   &sDOMConstructorProtoClass,
-                                                   proto,
-                                                   winobj);
+      dot_prototype = ::JS_NewObject(cx, &sDOMConstructorProtoClass, proto,
+                                     winobj);
       NS_ENSURE_TRUE(dot_prototype, NS_ERROR_OUT_OF_MEMORY);
     }
   }
@@ -7614,20 +7608,6 @@ nsLocationSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 
   *parentObj = sgo->GetGlobalJSObject();
   return *parentObj ? NS_OK : NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-nsLocationSH::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                          JSObject *obj, jsid id, jsval *vp, bool *_retval)
-{
-  // Shadowing protection. This will go away when nsLocation moves to the new
-  // bindings.
-  if (wrapper->HasNativeMember(id)) {
-    JS_ReportError(cx, "Permission denied to shadow native property");
-    return NS_ERROR_FAILURE;
-  }
-
-  return NS_OK;
 }
 
 // DOM Navigator helper

@@ -31,17 +31,6 @@ Nv3DVUtils::~Nv3DVUtils()
   UnInitialize();
 }
 
-
-// Silence spurious warnings!
-#if defined(WARNING) || defined WARN_IF_FALSE
-#error We shouldn't be redefining these!
-#endif
-// Uncomment these to enable spurious warnings.
-//#define WARNING(str) NS_WARNING(str)
-//#define WARN_IF_FALSE(b, str) NS_WARN_IF_FALSE(b, str)
-#define WARNING(str)
-#define WARN_IF_FALSE(b, str)
-
 /**
  * Initializes the Nv3DVUtils object.
  */
@@ -52,7 +41,7 @@ Nv3DVUtils::Initialize()
    * Detect if 3D Streaming object is already loaded. Do nothing in that case.
    */
   if (m3DVStreaming) {
-    WARNING("Nv3DVStreaming COM object already instantiated.\n");
+    NS_WARNING("Nv3DVStreaming COM object already instantiated.\n");
     return;
   }
 
@@ -61,7 +50,7 @@ Nv3DVUtils::Initialize()
    */
   HRESULT hr = CoCreateInstance(CLSID_NV3DVStreaming, NULL, CLSCTX_INPROC_SERVER, IID_INV3DVStreaming, (void**)(getter_AddRefs(m3DVStreaming)));
   if (FAILED(hr) || !m3DVStreaming) {
-    WARNING("Nv3DVStreaming CoCreateInstance failed (disabled).");
+    NS_WARNING("Nv3DVStreaming CoCreateInstance failed (disabled).");
     return;
   }
 
@@ -71,7 +60,7 @@ Nv3DVUtils::Initialize()
   bool bRetVal = m3DVStreaming->Nv3DVInitialize();
 
   if (!bRetVal) {
-    WARNING("Nv3DVStreaming Nv3DVInitialize failed!");
+    NS_WARNING("Nv3DVStreaming Nv3DVInitialize failed!");
     return;
   }
 }
@@ -97,7 +86,7 @@ void
 Nv3DVUtils::SetDeviceInfo(IUnknown *devUnknown)
 {
   if (!devUnknown) {
-    WARNING("D3D Device Pointer (IUnknown) is NULL.\n");
+    NS_WARNING("D3D Device Pointer (IUnknown) is NULL.\n");
     return;
   }
 
@@ -107,12 +96,12 @@ Nv3DVUtils::SetDeviceInfo(IUnknown *devUnknown)
 
   bool rv = m3DVStreaming->Nv3DVSetDevice(devUnknown);
   if (!rv) {
-      WARNING("Nv3DVStreaming Nv3DVControl failed!");
+      NS_WARNING("Nv3DVStreaming Nv3DVControl failed!");
       return;
   }
 
   rv = m3DVStreaming->Nv3DVControl(NV_STEREO_MODE_RIGHT_LEFT, true, FIREFOX_3DV_APP_HANDLE);
-  WARN_IF_FALSE(rv, "Nv3DVStreaming Nv3DVControl failed!");
+  NS_WARN_IF_FALSE(rv, "Nv3DVStreaming Nv3DVControl failed!");
 }
 
 /*
@@ -126,7 +115,7 @@ Nv3DVUtils::SendNv3DVControl(Nv_Stereo_Mode eStereoMode, bool bEnableStereo, DWO
       return;
 
   DebugOnly<bool> rv = m3DVStreaming->Nv3DVControl(eStereoMode, bEnableStereo, dw3DVAppHandle);
-  WARN_IF_FALSE(rv, "Nv3DVStreaming Nv3DVControl failed!");
+  NS_WARN_IF_FALSE(rv, "Nv3DVStreaming Nv3DVControl failed!");
 }
 
 /*
@@ -140,7 +129,7 @@ Nv3DVUtils::SendNv3DVMetaData(unsigned int dwWidth, unsigned int dwHeight, HANDL
       return;
 
   DebugOnly<bool> rv = m3DVStreaming->Nv3DVMetaData((DWORD)dwWidth, (DWORD)dwHeight, hSrcLuma, hDst);
-  WARN_IF_FALSE(rv, "Nv3DVStreaming Nv3DVMetaData failed!");
+  NS_WARN_IF_FALSE(rv, "Nv3DVStreaming Nv3DVMetaData failed!");
 }
 
 } /* namespace layers */

@@ -437,8 +437,6 @@ class IonBuilder : public MIRGenerator
                            MBasicBlock *bottom,
                            Vector<MDefinition *, 8, IonAllocPolicy> &retvalDefns);
 
-    const types::TypeSet *cloneTypeSet(const types::TypeSet *types);
-
     // A builder is inextricably tied to a particular script.
     HeapPtrScript script_;
 

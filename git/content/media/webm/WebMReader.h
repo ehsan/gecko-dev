@@ -62,13 +62,13 @@ class PacketQueueDeallocator : public nsDequeFunctor {
 // Typesafe queue for holding nestegg packets. It has
 // ownership of the items in the queue and will free them
 // when destroyed.
-class WebMPacketQueue : private nsDeque {
+class PacketQueue : private nsDeque {
  public:
-   WebMPacketQueue()
+   PacketQueue()
      : nsDeque(new PacketQueueDeallocator())
    {}
   
-  ~WebMPacketQueue() {
+  ~PacketQueue() {
     Reset();
   }
 
@@ -77,12 +77,12 @@ class WebMPacketQueue : private nsDeque {
   }
   
   inline void Push(NesteggPacketHolder* aItem) {
-    NS_ASSERTION(aItem, "NULL pushed to WebMPacketQueue");
+    NS_ASSERTION(aItem, "NULL pushed to PacketQueue");
     nsDeque::Push(aItem);
   }
   
   inline void PushFront(NesteggPacketHolder* aItem) {
-    NS_ASSERTION(aItem, "NULL pushed to WebMPacketQueue");
+    NS_ASSERTION(aItem, "NULL pushed to PacketQueue");
     nsDeque::PushFront(aItem);
   }
 
@@ -199,8 +199,8 @@ private:
 
   // Queue of video and audio packets that have been read but not decoded. These
   // must only be accessed from the state machine thread.
-  WebMPacketQueue mVideoPackets;
-  WebMPacketQueue mAudioPackets;
+  PacketQueue mVideoPackets;
+  PacketQueue mAudioPackets;
 
   // Index of video and audio track to play
   uint32_t mVideoTrack;

@@ -143,8 +143,7 @@ public:
 
   nsHTMLCanvasElement* GetCanvas() const
   {
-    // corresponds to changes to the old bindings made in bug 745025
-    return mCanvasElement->GetOriginalCanvas();
+    return mCanvasElement;
   }
 
   void Save();

@@ -194,8 +194,6 @@ function RadioInterfaceLayer() {
     radioState:     RIL.GECKO_RADIOSTATE_UNAVAILABLE,
     cardState:      RIL.GECKO_CARDSTATE_UNAVAILABLE,
     icc:            null,
-    voicemail:      {number: null,
-                     displayName: null},
 
     // These objects implement the nsIDOMMozMobileConnectionInfo interface,
     // although the actual implementation lives in the content process. So are
@@ -570,7 +568,7 @@ RadioInterfaceLayer.prototype = {
         }
         break;
       case "iccmbdn":
-        this.handleICCMbdn(message);
+        this._sendTargetMessage("voicemail", "RIL:VoicemailNumberChanged", message);
         break;
       case "USSDReceived":
         debug("USSDReceived " + JSON.stringify(message));
@@ -1477,15 +1475,6 @@ RadioInterfaceLayer.prototype = {
     if (this._nitzAutomaticUpdateEnabled) {
       this.setNitzTime(message);
     }
-  },
-
-  handleICCMbdn: function handleICCMbdn(message) {
-    let voicemail = this.rilContext.voicemail;
-
-    voicemail.number = message.number;
-    voicemail.displayName = message.alphaId;
-
-    this._sendTargetMessage("voicemail", "RIL:VoicemailInfoChanged", voicemail);
   },
 
   handleICCInfoChange: function handleICCInfoChange(message) {

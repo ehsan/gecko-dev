@@ -59,8 +59,6 @@ class WorkerThreadState
     void notify(CondVar which);
     void notifyAll(CondVar which);
 
-    bool canStartIonCompile();
-
   private:
 
     /*

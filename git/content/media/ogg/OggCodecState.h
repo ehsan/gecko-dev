@@ -38,7 +38,7 @@
 
 namespace mozilla {
 
-// Deallocates a packet, used in OggPacketQueue below.
+// Deallocates a packet, used in PacketQueue below.
 class OggPacketDeallocator : public nsDequeFunctor {
   virtual void* operator() (void* aPacket) {
     ogg_packet* p = static_cast<ogg_packet*>(aPacket);
@@ -58,10 +58,10 @@ class OggPacketDeallocator : public nsDequeFunctor {
 // frames/samples, reducing the amount of frames/samples we must decode to
 // determine start-time at a particular offset, and gives us finer control
 // over memory usage.
-class OggPacketQueue : private nsDeque {
+class PacketQueue : private nsDeque {
 public:
-  OggPacketQueue() : nsDeque(new OggPacketDeallocator()) {}
-  ~OggPacketQueue() { Erase(); }
+  PacketQueue() : nsDeque(new OggPacketDeallocator()) {}
+  ~PacketQueue() { Erase(); }
   bool IsEmpty() { return nsDeque::GetSize() == 0; }
   void Append(ogg_packet* aPacket);
   ogg_packet* PopFront() { return static_cast<ogg_packet*>(nsDeque::PopFront()); }
@@ -167,7 +167,7 @@ public:
 
   // Queue of as yet undecoded packets. Packets are guaranteed to have
   // a valid granulepos.
-  OggPacketQueue mPackets;
+  PacketQueue mPackets;
 
   // Is the bitstream active; whether we're decoding and playing this bitstream.
   bool mActive;

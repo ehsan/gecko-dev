@@ -1020,6 +1020,7 @@ IonCacheSetProperty::attachSetterCall(JSContext *cx, IonScript *ion,
 
     // Ensure stack is aligned.
     DebugOnly<uint32> initialStack = masm.framePushed();
+    masm.checkStackAlignment();
 
     Label success, exception;
 
@@ -1172,10 +1173,7 @@ IonCacheSetProperty::attachNativeAdding(JSContext *cx, IonScript *ion, JSObject 
     masm.pop(object());     // restore object reg
 
     /* Changing object shape.  Write the object's new shape. */
-    Address shapeAddr(object(), JSObject::offsetOfShape());
-    if (cx->compartment->needsBarrier())
-        masm.callPreBarrier(shapeAddr, MIRType_Shape);
-    masm.storePtr(ImmGCPtr(newShape), shapeAddr);
+    masm.storePtr(ImmGCPtr(newShape), Address(object(), JSObject::offsetOfShape()));
 
     /* Set the value on the object. */
     if (obj->isFixedSlot(propShape->slot())) {
@@ -1626,7 +1624,7 @@ GenerateScopeChainGuard(MacroAssembler &masm, JSObject *scopeObj,
         CallObject *callObj = &scopeObj->asCall();
         if (!callObj->isForEval()) {
             RawFunction fun = &callObj->callee();
-            RawScript script = fun->nonLazyScript().get(nogc);
+            RawScript script = fun->script().get(nogc);
             if (!script->funHasExtensibleScope)
                 return;
         }
@@ -1927,3 +1925,4 @@ js::ion::GetNameCache(JSContext *cx, size_t cacheIndex, HandleObject scopeChain,
 
     return true;
 }
+

@@ -58,7 +58,6 @@ abstract public class BrowserApp extends GeckoApp
     public static BrowserToolbar mBrowserToolbar;
     private AboutHomeContent mAboutHomeContent;
     private Boolean mAboutHomeShowing = null;
-    protected Telemetry.Timer mAboutHomeStartupTimer = null;
 
     private static final int ADDON_MENU_OFFSET = 1000;
     private class MenuItemInfo {
@@ -203,8 +202,6 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        mAboutHomeStartupTimer = new Telemetry.Timer("FENNEC_STARTUP_TIME_ABOUTHOME");
-
         super.onCreate(savedInstanceState);
 
         LinearLayout actionBar = (LinearLayout) getActionBarLayout();
@@ -274,12 +271,10 @@ abstract public class BrowserApp extends GeckoApp
                 Tab tab = Tabs.getInstance().loadUrl("about:home", Tabs.LOADURL_NEW_TAB);
             } else {
                 hideAboutHome();
-                mAboutHomeStartupTimer.cancel();
             }
         } else {
             int flags = Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_USER_ENTERED;
             Tabs.getInstance().loadUrl(uri, flags);
-            mAboutHomeStartupTimer.cancel();
         }
     }
 
@@ -301,7 +296,7 @@ abstract public class BrowserApp extends GeckoApp
     void focusChrome() {
         mMainHandler.post(new Runnable() {
             public void run() {
-                mBrowserToolbar.show();
+                mBrowserToolbar.setVisibility(View.VISIBLE);
                 mBrowserToolbar.requestFocusFromTouch();
             }
         });
@@ -675,9 +670,9 @@ abstract public class BrowserApp extends GeckoApp
                         }
                     });
                     mAboutHomeContent.setLoadCompleteCallback(new AboutHomeContent.VoidCallback() {
-                        public void callback() {
-                            mAboutHomeStartupTimer.stop();
-                        }
+                         public void callback() {
+                             mAboutHomeStartupTimer.stop();
+                         }
                     });
                 } else {
                     mAboutHomeContent.update(EnumSet.of(AboutHomeContent.UpdateFlags.TOP_SITES,

@@ -68,10 +68,10 @@ public:
   static nsTArray<GfxDriverInfo>* mDriverInfo;
   static bool mDriverInfoObserverInitialized;
 
-  virtual nsString Model() const { return EmptyString(); }
-  virtual nsString Hardware() const { return EmptyString(); }
-  virtual nsString Product() const { return EmptyString(); }
-  virtual nsString Manufacturer() const { return EmptyString(); }
+  virtual const nsAString& Model() const { return nsString(); }
+  virtual const nsAString& Hardware() const { return nsString(); }
+  virtual const nsAString& Product() const { return nsString(); }
+  virtual const nsAString& Manufacturer() const { return nsString(); }
   virtual uint32_t OperatingSystemVersion() const { return 0; }
 
 protected:

@@ -527,7 +527,10 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
     if (aCx && wrapper) {
       nsIXPConnect *xpc = nsContentUtils::XPConnect();
       if (xpc) {
-        rv = xpc->ReparentWrappedNativeIfFound(aCx, wrapper, aNewScope, aNode);
+        nsCOMPtr<nsIXPConnectJSObjectHolder> oldWrapper;
+        rv = xpc->ReparentWrappedNativeIfFound(aCx, wrapper, aNewScope, aNode,
+                                               getter_AddRefs(oldWrapper));
+
         if (NS_FAILED(rv)) {
           aNode->mNodeInfo.swap(nodeInfo);
 

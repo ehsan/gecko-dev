@@ -444,7 +444,7 @@ class TypeSet
     inline void sweep(JSCompartment *compartment);
 
     /* Whether this set contains a specific type. */
-    inline bool hasType(Type type) const;
+    inline bool hasType(Type type);
 
     TypeFlags baseFlags() const { return flags & TYPE_FLAG_BASE_MASK; }
     bool unknown() const { return !!(flags & TYPE_FLAG_UNKNOWN); }
@@ -467,12 +467,6 @@ class TypeSet
     }
 
     /*
-     * Clone a type set into an arbitrary allocator. The result should not be
-     * modified further.
-     */
-    const TypeSet *clone(LifoAlloc *alloc) const;
-
-    /*
      * Add a type to this set, calling any constraint handlers if this is a new
      * possible type.
      */
@@ -486,10 +480,10 @@ class TypeSet
      * in the hash case (see SET_ARRAY_SIZE in jsinferinlines.h), and getObject
      * may return NULL.
      */
-    inline unsigned getObjectCount() const;
-    inline TypeObjectKey *getObject(unsigned i) const;
-    inline RawObject getSingleObject(unsigned i) const;
-    inline TypeObject *getTypeObject(unsigned i) const;
+    inline unsigned getObjectCount();
+    inline TypeObjectKey *getObject(unsigned i);
+    inline RawObject getSingleObject(unsigned i);
+    inline TypeObject *getTypeObject(unsigned i);
 
     void setOwnProperty(bool configurable) {
         flags |= TYPE_FLAG_OWN_PROPERTY;

@@ -559,7 +559,7 @@ nsRange::ContentAppended(nsIDocument* aDocument,
   if (mStartOffsetWasIncremented || mEndOffsetWasIncremented) {
     MOZ_ASSERT(mAssertNextInsertOrAppendIndex == aNewIndexInContainer);
     MOZ_ASSERT(mAssertNextInsertOrAppendNode == aFirstNewContent);
-    MOZ_ASSERT(aFirstNewContent->IsNodeOfType(nsINode::eDATA_NODE));
+    MOZ_ASSERT(aFirstNewContent->IsNodeOfType(nsINode::eTEXT));
     mStartOffsetWasIncremented = mEndOffsetWasIncremented = false;
 #ifdef DEBUG
     mAssertNextInsertOrAppendIndex = -1;
@@ -596,7 +596,7 @@ nsRange::ContentInserted(nsIDocument* aDocument,
   if (mStartOffsetWasIncremented || mEndOffsetWasIncremented) {
     MOZ_ASSERT(mAssertNextInsertOrAppendIndex == aIndexInContainer);
     MOZ_ASSERT(mAssertNextInsertOrAppendNode == aChild);
-    MOZ_ASSERT(aChild->IsNodeOfType(nsINode::eDATA_NODE));
+    MOZ_ASSERT(aChild->IsNodeOfType(nsINode::eTEXT));
     mStartOffsetWasIncremented = mEndOffsetWasIncremented = false;
 #ifdef DEBUG
     mAssertNextInsertOrAppendIndex = -1;

@@ -51,8 +51,7 @@ class IonRuntime
     IonCode *invalidator_;
 
     // Thunk that calls the GC pre barrier.
-    IonCode *valuePreBarrier_;
-    IonCode *shapePreBarrier_;
+    IonCode *preBarrier_;
 
     // Map VMFunction addresses to the IonCode of the wrapper.
     typedef WeakCache<const VMFunction *, IonCode *> VMWrapperMap;
@@ -64,7 +63,7 @@ class IonRuntime
     IonCode *generateBailoutTable(JSContext *cx, uint32 frameClass);
     IonCode *generateBailoutHandler(JSContext *cx);
     IonCode *generateInvalidator(JSContext *cx);
-    IonCode *generatePreBarrier(JSContext *cx, MIRType type);
+    IonCode *generatePreBarrier(JSContext *cx);
     IonCode *generateVMWrapper(JSContext *cx, const VMFunction &f);
 
   public:
@@ -128,12 +127,8 @@ class IonCompartment
         return rt->enterJIT_->as<EnterIonCode>();
     }
 
-    IonCode *valuePreBarrier() {
-        return rt->valuePreBarrier_;
-    }
-    
-    IonCode *shapePreBarrier() {
-        return rt->shapePreBarrier_;
+    IonCode *preBarrier() {
+        return rt->preBarrier_;
     }
 
     AutoFlushCache *flusher() {

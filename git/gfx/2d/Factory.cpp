@@ -441,12 +441,6 @@ Factory::GetD2DVRAMUsageSourceSurface()
   return DrawTargetD2D::mVRAMUsageSS;
 }
 
-void
-Factory::D2DCleanup()
-{
-  DrawTargetD2D::CleanupD2D();
-}
-
 #endif // XP_WIN
 
 TemporaryRef<DrawTarget>

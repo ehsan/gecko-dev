@@ -454,9 +454,9 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
 
             Layer rootLayer = mView.getLayerClient().getRoot();
 
-            if (!mPageContext.fuzzyEquals(mLastPageContext) && !mView.isFullScreen()) {
-                // The viewport or page changed, so show the scrollbars again
-                // as per UX decision. Don't do this if we're in full-screen mode though.
+            if (!mPageContext.fuzzyEquals(mLastPageContext)) {
+                // the viewport or page changed, so show the scrollbars again
+                // as per UX decision
                 mVertScrollLayer.unfade();
                 mHorizScrollLayer.unfade();
                 mFadeRunnable.scheduleStartFade(ScrollbarLayer.FADE_DELAY);

@@ -169,7 +169,6 @@
 #include "nsSandboxFlags.h"
 #include "nsSVGFeatures.h"
 #include "MediaDecoder.h"
-#include "DecoderTraits.h"
 
 #include "nsWrapperCacheInlines.h"
 
@@ -6592,7 +6591,7 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
 
 #ifdef MOZ_MEDIA
 #ifdef MOZ_OGG
-  if (DecoderTraits::IsOggType(nsDependentCString(aType))) {
+  if (nsHTMLMediaElement::IsOggType(nsDependentCString(aType))) {
     docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
     if (docFactory && aLoaderType) {
       *aLoaderType = TYPE_CONTENT;
@@ -6602,7 +6601,7 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
 #endif
 
 #ifdef MOZ_WEBM
-  if (DecoderTraits::IsWebMType(nsDependentCString(aType))) {
+  if (nsHTMLMediaElement::IsWebMType(nsDependentCString(aType))) {
     docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
     if (docFactory && aLoaderType) {
       *aLoaderType = TYPE_CONTENT;
@@ -6612,7 +6611,7 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
 #endif
 
 #ifdef MOZ_GSTREAMER
-  if (DecoderTraits::IsGStreamerSupportedType(nsDependentCString(aType))) {
+  if (nsHTMLMediaElement::IsGStreamerSupportedType(nsDependentCString(aType))) {
     docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
     if (docFactory && aLoaderType) {
       *aLoaderType = TYPE_CONTENT;
@@ -6623,7 +6622,7 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
 
 #ifdef MOZ_MEDIA_PLUGINS
   if (mozilla::MediaDecoder::IsMediaPluginsEnabled() &&
-      DecoderTraits::IsMediaPluginsType(nsDependentCString(aType))) {
+      nsHTMLMediaElement::IsMediaPluginsType(nsDependentCString(aType))) {
     docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
     if (docFactory && aLoaderType) {
       *aLoaderType = TYPE_CONTENT;

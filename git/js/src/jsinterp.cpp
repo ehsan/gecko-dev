@@ -368,8 +368,7 @@ js::InvokeKernel(JSContext *cx, CallArgs args, MaybeConstruct construct)
     if (fun->isNative())
         return CallJSNative(cx, fun->native(), args);
 
-    RootedScript script(cx, fun->getOrCreateScript(cx));
-    if (!script)
+    if (fun->isInterpretedLazy() && !InitializeLazyFunctionScript(cx, fun))
         return false;
 
     if (!TypeMonitorCall(cx, args, construct))
@@ -381,6 +380,7 @@ js::InvokeKernel(JSContext *cx, CallArgs args, MaybeConstruct construct)
         return false;
 
     /* Run function until JSOP_STOP, JSOP_RETURN or error. */
+    RootedScript script(cx, fun->script());
     JSBool ok = RunScript(cx, script, ifg.fp());
 
     /* Propagate the return value out. */
@@ -2346,9 +2346,9 @@ BEGIN_CASE(JSOP_FUNCALL)
 
     InitialFrameFlags initial = construct ? INITIAL_CONSTRUCT : INITIAL_NONE;
     bool newType = cx->typeInferenceEnabled() && UseNewType(cx, script, regs.pc);
-    RawScript funScript = fun->getOrCreateScript(cx).unsafeGet();
-    if (!funScript)
+    if (fun->isInterpretedLazy() && !InitializeLazyFunctionScript(cx, fun))
         goto error;
+    RawScript funScript = fun->script().unsafeGet();
     if (!cx->stack.pushInlineFrame(cx, regs, args, *fun, funScript, initial))
         goto error;
 

@@ -4,8 +4,6 @@
 
 #include "ReusableTileStoreOGL.h"
 
-#include "GLContext.h"
-
 namespace mozilla {
 namespace layers {
 
@@ -138,9 +136,6 @@ ReusableTileStoreOGL::HarvestTiles(TiledThebesLayerOGL* aLayer,
                                    const gfxSize& aOldResolution,
                                    const gfxSize& aNewResolution)
 {
-  NS_ASSERTION(aVideoMemoryTiledBuffer->GetResolution() == 1.0f,
-               "ReusableTileStoreOGL cannot harvest scaled tiles!");
-
   gfxSize scaleFactor = gfxSize(aNewResolution.width / aOldResolution.width,
                                 aNewResolution.height / aOldResolution.height);
 

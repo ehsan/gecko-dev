@@ -532,7 +532,7 @@ TypeMonitorCall(JSContext *cx, const js::CallArgs &args, bool constructing)
     if (callee->isFunction()) {
         JSFunction *fun = callee->toFunction();
         if (fun->isInterpreted()) {
-            js::RootedScript script(cx, fun->nonLazyScript());
+            js::RootedScript script(cx, fun->script());
             if (!script->ensureRanAnalysis(cx))
                 return false;
             if (cx->typeInferenceEnabled())
@@ -703,7 +703,7 @@ UseNewTypeForClone(JSFunction *fun)
      * instance a singleton type and clone the underlying script.
      */
 
-    RawScript script = fun->nonLazyScript().get(nogc);
+    RawScript script = fun->script().get(nogc);
 
     if (script->length >= 50)
         return false;
@@ -1294,7 +1294,7 @@ Type::typeObject() const
 }
 
 inline bool
-TypeSet::hasType(Type type) const
+TypeSet::hasType(Type type)
 {
     if (unknown())
         return true;
@@ -1431,7 +1431,7 @@ TypeSet::setOwnProperty(JSContext *cx, bool configured)
 }
 
 inline unsigned
-TypeSet::getObjectCount() const
+TypeSet::getObjectCount()
 {
     JS_ASSERT(!unknownObject());
     uint32_t count = baseObjectCount();
@@ -1441,7 +1441,7 @@ TypeSet::getObjectCount() const
 }
 
 inline TypeObjectKey *
-TypeSet::getObject(unsigned i) const
+TypeSet::getObject(unsigned i)
 {
     JS_ASSERT(i < getObjectCount());
     if (baseObjectCount() == 1) {
@@ -1452,14 +1452,14 @@ TypeSet::getObject(unsigned i) const
 }
 
 inline RawObject
-TypeSet::getSingleObject(unsigned i) const
+TypeSet::getSingleObject(unsigned i)
 {
     TypeObjectKey *key = getObject(i);
     return (uintptr_t(key) & 1) ? (JSObject *)(uintptr_t(key) ^ 1) : NULL;
 }
 
 inline TypeObject *
-TypeSet::getTypeObject(unsigned i) const
+TypeSet::getTypeObject(unsigned i)
 {
     TypeObjectKey *key = getObject(i);
     return (key && !(uintptr_t(key) & 1)) ? (TypeObject *) key : NULL;

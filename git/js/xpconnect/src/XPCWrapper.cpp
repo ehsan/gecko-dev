@@ -39,7 +39,7 @@ UnwrapNW(JSContext *cx, unsigned argc, jsval *vp)
     return true;
   }
 
-  if (WrapperFactory::IsXrayWrapper(obj) && AccessCheck::wrapperSubsumes(obj)) {
+  if (WrapperFactory::IsXrayWrapper(obj) && AccessCheck::isChrome(obj)) {
     return JS_GetProperty(cx, obj, "wrappedJSObject", vp);
   }
 

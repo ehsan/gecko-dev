@@ -2369,7 +2369,7 @@ LambdaIsGetElem(JSObject &lambda)
     if (!fun->hasScript())
         return NULL;
 
-    RawScript script = fun->nonLazyScript().get(nogc);
+    RawScript script = fun->script().get(nogc);
     jsbytecode *pc = script->code;
 
     /*

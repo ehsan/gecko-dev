@@ -116,7 +116,7 @@ var gPluginHandler = {
   // Helper to get the binding handler type from a plugin object
   _getBindingType : function(plugin) {
     if (!(plugin instanceof Ci.nsIObjectLoadingContent))
-      return null;
+      return;
 
     switch (plugin.pluginFallbackType) {
       case Ci.nsIObjectLoadingContent.PLUGIN_UNSUPPORTED:
@@ -137,7 +137,7 @@ var gPluginHandler = {
         return "PluginPlayPreview";
       default:
         // Not all states map to a handler
-        return null;
+        return;
     }
   },
 
@@ -416,7 +416,11 @@ var gPluginHandler = {
   },
 
   reshowClickToPlayNotification: function PH_reshowClickToPlayNotification() {
+    if (!Services.prefs.getBoolPref("plugins.click_to_play"))
+      return;
+
     let browser = gBrowser.selectedBrowser;
+
     let pluginsPermission = Services.perms.testPermission(browser.currentURI, "plugins");
     if (pluginsPermission == Ci.nsIPermissionManager.DENY_ACTION)
       return;

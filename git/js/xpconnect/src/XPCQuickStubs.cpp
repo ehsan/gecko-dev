@@ -320,9 +320,6 @@ xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, unsigned flags,
                         return false;
                 }
 
-                if (entry->newBindingProperties) {
-                    mozilla::dom::DefineWebIDLBindingPropertiesOnXPCProto(cx, proto, entry->newBindingProperties);
-                }
                 // Next.
                 size_t j = entry->parentInterface;
                 if (j == XPC_QS_NULL_INDEX)

@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include "nsCache.h"
 #include "nspr.h"
 #include "nsCacheEntry.h"
 #include "nsCacheEntryDescriptor.h"
@@ -14,6 +13,7 @@
 #include "nsThreadUtils.h"
 #include "nsError.h"
 #include "nsICacheService.h"
+#include "nsCache.h"
 #include "nsCacheService.h"
 #include "nsCacheDevice.h"
 #include "nsHashKeys.h"
