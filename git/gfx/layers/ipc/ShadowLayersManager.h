@@ -22,7 +22,7 @@ public:
                                      bool aIsFirstPaint,
                                      bool aScheduleComposite) = 0;
 
-    virtual AsyncCompositionManager* GetCompositionManager(LayerTransactionParent* aLayerTree) { return nullptr; }
+    virtual AsyncCompositionManager* GetCompositionManager() { return nullptr; }
 };
 
 } // layers

@@ -53,7 +53,14 @@ bool AutoScriptEvaluate::StartEvaluating(HandleObject scope, JSErrorReporter err
     // http://bugzilla.mozilla.org/show_bug.cgi?id=88130 but presumably could
     // show up in any situation where a script calls into a wrapped js component
     // on the same context, while the context has a nonzero exception state.
-    mState.construct(mJSContext);
+    // Because JS_SaveExceptionState/JS_RestoreExceptionState use malloc
+    // and addroot, we avoid them if possible by returning null (as opposed to
+    // a JSExceptionState with no information) when there is no pending
+    // exception.
+    if (JS_IsExceptionPending(mJSContext)) {
+        mState = JS_SaveExceptionState(mJSContext);
+        JS_ClearPendingException(mJSContext);
+    }
 
     return true;
 }
@@ -62,7 +69,10 @@ AutoScriptEvaluate::~AutoScriptEvaluate()
 {
     if (!mJSContext || !mEvaluated)
         return;
-    mState.ref().restore();
+    if (mState)
+        JS_RestoreExceptionState(mJSContext, mState);
+    else
+        JS_ClearPendingException(mJSContext);
 
     JS_EndRequest(mJSContext);
 

@@ -3171,21 +3171,18 @@ nsTextStore::OnFocusChange(bool aGotFocus,
 nsIMEUpdatePreference
 nsTextStore::GetIMEUpdatePreference()
 {
+  nsIMEUpdatePreference::Notifications notifications =
+    nsIMEUpdatePreference::NOTIFY_NOTHING;
   if (sTsfThreadMgr && sTsfTextStore && sTsfTextStore->mDocumentMgr) {
     nsRefPtr<ITfDocumentMgr> docMgr;
     sTsfThreadMgr->GetFocus(getter_AddRefs(docMgr));
     if (docMgr == sTsfTextStore->mDocumentMgr) {
-      nsIMEUpdatePreference updatePreference(
-        nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE |
-        nsIMEUpdatePreference::NOTIFY_TEXT_CHANGE |
-        nsIMEUpdatePreference::NOTIFY_DURING_DEACTIVE);
-      // nsTextStore shouldn't notify TSF of selection change and text change
-      // which are caused by composition.
-      updatePreference.DontNotifyChangesCausedByComposition();
-      return updatePreference;
+      notifications = (nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE |
+                       nsIMEUpdatePreference::NOTIFY_TEXT_CHANGE |
+                       nsIMEUpdatePreference::NOTIFY_DURING_DEACTIVE);
     }
   }
-  return nsIMEUpdatePreference();
+  return nsIMEUpdatePreference(notifications);
 }
 
 nsresult

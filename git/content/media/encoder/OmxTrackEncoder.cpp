@@ -26,14 +26,11 @@ namespace mozilla {
 #define GET_ENCODED_VIDEO_FRAME_TIMEOUT 100000 // microseconds
 
 nsresult
-OmxVideoTrackEncoder::Init(int aWidth, int aHeight, int aDisplayWidth,
-                           int aDisplayHeight, TrackRate aTrackRate)
+OmxVideoTrackEncoder::Init(int aWidth, int aHeight, TrackRate aTrackRate)
 {
   mFrameWidth = aWidth;
   mFrameHeight = aHeight;
   mTrackRate = aTrackRate;
-  mDisplayWidth = aDisplayWidth;
-  mDisplayHeight = aDisplayHeight;
 
   mEncoder = OMXCodecWrapper::CreateAVCEncoder();
   NS_ENSURE_TRUE(mEncoder, NS_ERROR_FAILURE);

@@ -15,44 +15,24 @@ using namespace mozilla::layers;
 using namespace mozilla::gfx;
 
 X11TextureSourceOGL::X11TextureSourceOGL(CompositorOGL* aCompositor, gfxXlibSurface* aSurface)
-  : mCompositor(aCompositor)
-  , mSurface(aSurface)
-  , mTexture(0)
+  : mCompositor(aCompositor),
+    mSurface(aSurface)
 {
-}
-
-X11TextureSourceOGL::~X11TextureSourceOGL()
-{
-  DeallocateDeviceData();
-}
-
-void
-X11TextureSourceOGL::DeallocateDeviceData()
-{
-  if (mTexture) {
-    if (gl() && gl()->MakeCurrent()) {
-      gl::sGLXLibrary.ReleaseTexImage(mSurface->XDisplay(), mSurface->GetGLXPixmap());
-      gl()->fDeleteTextures(1, &mTexture);
-      mTexture = 0;
-    }
-  }
 }
 
 void
 X11TextureSourceOGL::BindTexture(GLenum aTextureUnit)
 {
+  GLuint tex = mCompositor->GetTemporaryTexture(aTextureUnit);
+
   gl()->fActiveTexture(aTextureUnit);
+  gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, tex);
 
-  if (!mTexture) {
-    gl()->fGenTextures(1, &mTexture);
+  gl::sGLXLibrary.xBindTexImage(mSurface->XDisplay(), mSurface->GetGLXPixmap(),
+                                LOCAL_GLX_FRONT_LEFT_EXT, NULL);
 
-    gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
-
-    gl::sGLXLibrary.BindTexImage(mSurface->XDisplay(), mSurface->GetGLXPixmap());
-  } else {
-    gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
-    gl::sGLXLibrary.UpdateTexImage(mSurface->XDisplay(), mSurface->GetGLXPixmap());
-  }
+  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
+  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
 
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 }
@@ -72,11 +52,7 @@ X11TextureSourceOGL::GetFormat() const {
 void
 X11TextureSourceOGL::SetCompositor(Compositor* aCompositor)
 {
-  MOZ_ASSERT(!aCompositor || aCompositor->GetBackendType() == LayersBackend::LAYERS_OPENGL);
-  if (mCompositor == aCompositor) {
-    return;
-  }
-  DeallocateDeviceData();
+  MOZ_ASSERT(aCompositor->GetBackendType() == LayersBackend::LAYERS_OPENGL);
   mCompositor = static_cast<CompositorOGL*>(aCompositor);
 }
 
