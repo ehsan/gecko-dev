@@ -41,7 +41,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "nsINodeList.h"
+#include "nsIDOMNodeList.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsClassHashtable.h"
 #include "nsTArray.h"
@@ -144,8 +144,6 @@ public:
 
   nsInsertionPointList* GetExistingInsertionPointsFor(nsIContent* aParent);
 
-  // XXXbz this aIndex has nothing to do with an index into the child
-  // list of the insertion parent or anything.
   nsIContent* GetInsertionPoint(nsIContent* aChild, PRUint32* aIndex);
 
   nsIContent* GetSingleInsertionPoint(PRUint32* aIndex,
@@ -158,7 +156,7 @@ public:
 
   void WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc, void* aData);
 
-  nsINodeList* GetAnonymousNodes();
+  already_AddRefed<nsIDOMNodeList> GetAnonymousNodes();
 
   static nsresult DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
                                 const nsAFlatCString& aClassName,

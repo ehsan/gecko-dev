@@ -123,9 +123,6 @@
 #include "nsNameSpaceMap.h"
 #include "nsCRT.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsIScriptSecurityManager.h"
-#include "nsIChannelEventSink.h"
-#include "nsNetUtil.h"
 
 #include "rdfIDataSource.h"
 
@@ -148,9 +145,7 @@ class RDFXMLDataSourceImpl : public nsIRDFDataSource,
                              public nsIRDFXMLSink,
                              public nsIRDFXMLSource,
                              public nsIStreamListener,
-                             public rdfIDataSource,
-                             public nsIInterfaceRequestor,
-                             public nsIChannelEventSink
+                             public rdfIDataSource
 {
 protected:
     enum LoadState {
@@ -323,12 +318,6 @@ public:
     // nsIStreamListener
     NS_DECL_NSISTREAMLISTENER
 
-    // nsIInterfaceRequestor
-    NS_DECL_NSIINTERFACEREQUESTOR
-
-    // nsIChannelEventSink
-    NS_DECL_NSICHANNELEVENTSINK
-
     // rdfIDataSource
     NS_IMETHOD VisitAllSubjects(rdfITripleVisitor *aVisitor) {
         nsresult rv;
@@ -492,17 +481,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(RDFXMLDataSourceImpl)
     NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
     NS_INTERFACE_MAP_ENTRY(nsIStreamListener)
     NS_INTERFACE_MAP_ENTRY(rdfIDataSource)
-    NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
-    NS_INTERFACE_MAP_ENTRY(nsIChannelEventSink)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIRDFDataSource)
 NS_INTERFACE_MAP_END
 
-// nsIInterfaceRequestor
-NS_IMETHODIMP
-RDFXMLDataSourceImpl::GetInterface(const nsIID& aIID, void** aSink)
-{
-  return QueryInterface(aIID, aSink);
-}
 
 nsresult
 RDFXMLDataSourceImpl::BlockingParse(nsIURI* aURL, nsIStreamListener* aConsumer)
@@ -896,39 +877,6 @@ RDFXMLDataSourceImpl::SetReadOnly(PRBool aIsReadOnly)
 
 #include "nsITimelineService.h"
 
-// nsIChannelEventSink
-
-// This code is copied from nsSameOriginChecker::OnChannelRedirect. See
-// bug 475940 on providing this code in a shared location.
-NS_IMETHODIMP
-RDFXMLDataSourceImpl::OnChannelRedirect(nsIChannel *aOldChannel,
-                                        nsIChannel *aNewChannel,
-                                        PRUint32 aFlags)
-{
-  NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
-
-  nsresult rv;
-  nsCOMPtr<nsIScriptSecurityManager> secMan =
-      do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIPrincipal> oldPrincipal;
-  secMan->GetChannelPrincipal(aOldChannel, getter_AddRefs(oldPrincipal));
-
-  nsCOMPtr<nsIURI> newURI;
-  aNewChannel->GetURI(getter_AddRefs(newURI));
-  nsCOMPtr<nsIURI> newOriginalURI;
-  aNewChannel->GetOriginalURI(getter_AddRefs(newOriginalURI));
-
-  NS_ENSURE_STATE(oldPrincipal && newURI && newOriginalURI);
-
-  rv = oldPrincipal->CheckMayLoad(newURI, PR_FALSE);
-  if (NS_SUCCEEDED(rv) && newOriginalURI != newURI) {
-    rv = oldPrincipal->CheckMayLoad(newOriginalURI, PR_FALSE);
-  }
-  return rv;
-}
-
 NS_IMETHODIMP
 RDFXMLDataSourceImpl::Refresh(PRBool aBlocking)
 {
@@ -977,7 +925,7 @@ RDFXMLDataSourceImpl::Refresh(PRBool aBlocking)
     }
     else {
         // Null LoadGroup ?
-        rv = NS_OpenURI(this, nsnull, mURL, nsnull, nsnull, this);
+        rv = NS_OpenURI(this, nsnull, mURL, nsnull);
         if (NS_FAILED(rv)) return rv;
 
         // So we don't try to issue two asynchronous loads at once.

@@ -183,9 +183,9 @@ int main(int argc, char **argv)
         }
     }
 
-#endif /* CROSS_COMPILE */
-
     printf("#define JS_STACK_GROWTH_DIRECTION (%d)\n", StackGrowthDirection(&dummy1));
+
+#endif /* CROSS_COMPILE */
 
     printf("#endif /* js_cpucfg___ */\n");
 

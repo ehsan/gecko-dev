@@ -5,7 +5,3 @@
      visibility: hidden;
      opacity: 0.0;
 }
-
-.scrubber {
-    -moz-binding: url("chrome://global/content/bindings/videocontrols.xml#suppressChangeEvent");
-}

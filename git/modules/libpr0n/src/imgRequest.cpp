@@ -83,8 +83,8 @@ NS_IMPL_ISUPPORTS8(imgRequest, imgILoad,
 
 imgRequest::imgRequest() : 
   mLoading(PR_FALSE), mProcessing(PR_FALSE), mHadLastPart(PR_FALSE),
-  mImageStatus(imgIRequest::STATUS_NONE), mState(0), mCacheId(0),
-  mValidator(nsnull), mIsMultiPartChannel(PR_FALSE),
+  mNetworkStatus(0), mImageStatus(imgIRequest::STATUS_NONE), mState(0),
+  mCacheId(0), mValidator(nsnull), mIsMultiPartChannel(PR_FALSE),
   mImageSniffers("image-sniffing-services") 
 {
   /* member initializers and constructor code */
@@ -308,8 +308,8 @@ void imgRequest::Cancel(nsresult aStatus)
     RemoveFromCache();
   }
 
-  if (mRequest && mLoading)
-    mRequest->Cancel(aStatus);
+  if (mChannel && mLoading)
+    mChannel->Cancel(aStatus);
 }
 
 void imgRequest::CancelAndAbort(nsresult aStatus)
@@ -781,6 +781,7 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
   // save the last status that we saw so that the
   // imgRequestProxy will have access to it.
   if (mRequest) {
+    mRequest->GetStatus(&mNetworkStatus);
     mRequest = nsnull;  // we no longer need the request
   }
 
@@ -989,6 +990,18 @@ imgRequest::SniffMimeType(const char *buf, PRUint32 len)
       return;
     }
   }
+}
+
+nsresult 
+imgRequest::GetNetworkStatus()
+{
+  nsresult status;
+  if (mRequest)
+    mRequest->GetStatus(&status);
+  else
+    status = mNetworkStatus;
+
+  return status;
 }
 
 /** nsIInterfaceRequestor methods **/

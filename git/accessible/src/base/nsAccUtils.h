@@ -152,11 +152,6 @@ public:
                                PRBool aIsAsynch = PR_FALSE);
 
   /**
-   * Return true if the given DOM node contains accessible children.
-   */
-  static PRBool HasAccessibleChildren(nsIDOMNode *aNode);
-
-  /**
     * If an ancestor in this document exists with the given role, return it
     * @param aDescendant Descendant to start search with
     * @param aRole Role to find matching ancestor for

@@ -247,17 +247,12 @@
         ]]></body>
       </method>
 
-      <method name="_getScrollableElements">
-        <body><![CDATA[
-          return this.hasChildNodes() ?
-                   this.childNodes : document.getBindingParent(this).childNodes;
-        ]]></body>
-      </method>
-
       <method name="_elementFromPoint">
         <parameter name="aX"/>
         <body><![CDATA[
-          var elements = this._getScrollableElements();
+          var elements = this.hasChildNodes() ?
+                         this.childNodes :
+                         document.getBindingParent(this).childNodes;
           if (!this._isLTRScrollbox) {
             elements = Array.slice(elements);
             elements.reverse();
@@ -625,10 +620,10 @@
 
           if (!targetElement) {
             // scroll to the first resp. last element
-            var elements = this._getScrollableElements();
+            var container = this.hasChildNodes() ? this : document.getBindingParent(this);
             targetElement = (this._isLTRScrollbox ? scrollLeft : !scrollLeft) ?
-                            elements.item(0) :
-                            elements.item(elements.length-1);
+                            container.firstChild :
+                            container.lastChild;
           }
 
           this.ensureElementIsVisible(targetElement);

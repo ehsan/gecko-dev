@@ -67,7 +67,7 @@
 #include "nsIRenderingContext.h"
 #include "nsIPresShell.h"
 #include "nsITimer.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsIDOMText.h"
 #include "nsIDocument.h"
 #include "nsIDeviceContext.h"
@@ -1463,15 +1463,14 @@ GetHyphenTextRun(gfxTextRun* aTextRun, gfxContext* aContext, nsTextFrame* aTextF
   gfxFontGroup* fontGroup = aTextRun->GetFontGroup();
   PRUint32 flags = gfxFontGroup::TEXT_IS_PERSISTENT;
 
-  // only use U+2010 if it is supported by the first font in the group;
-  // it's better to use ASCII '-' from the primary font than to fall back to U+2010
-  // from some other, possibly poorly-matching face
   static const PRUnichar unicodeHyphen = 0x2010;
-  gfxFont *font = fontGroup->GetFontAt(0);
-  if (font && font->HasCharacter(unicodeHyphen)) {
-    return gfxTextRunCache::MakeTextRun(&unicodeHyphen, 1, fontGroup, ctx,
-                                        aTextRun->GetAppUnitsPerDevUnit(), flags);
-  }
+  gfxTextRun* textRun =
+    gfxTextRunCache::MakeTextRun(&unicodeHyphen, 1, fontGroup, ctx,
+                                 aTextRun->GetAppUnitsPerDevUnit(), flags);
+  if (textRun && textRun->CountMissingGlyphs() == 0)
+    return textRun;
+
+  gfxTextRunCache::ReleaseTextRun(textRun);
 
   static const PRUint8 dash = '-';
   return gfxTextRunCache::MakeTextRun(&dash, 1, fontGroup, ctx,
@@ -2748,7 +2747,7 @@ protected:
   };
 
   nsCOMPtr<nsITimer> mTimer;
-  nsTArray<FrameData*> mFrames;
+  nsVoidArray     mFrames;
   nsPresContext* mPresContext;
 
 protected:
@@ -2797,31 +2796,32 @@ NS_IMPL_ISUPPORTS1(nsBlinkTimer, nsITimerCallback)
 void nsBlinkTimer::AddFrame(nsPresContext* aPresContext, nsIFrame* aFrame) {
   FrameData* frameData = new FrameData(aPresContext, aFrame);
   mFrames.AppendElement(frameData);
-  if (1 == mFrames.Length()) {
+  if (1 == mFrames.Count()) {
     Start();
   }
 }
 
 PRBool nsBlinkTimer::RemoveFrame(nsIFrame* aFrame) {
-  PRUint32 i, n = mFrames.Length();
+  PRInt32 i, n = mFrames.Count();
+  PRBool rv = PR_FALSE;
   for (i = 0; i < n; i++) {
-    FrameData* frameData = mFrames.ElementAt(i);
+    FrameData* frameData = (FrameData*) mFrames.ElementAt(i);
 
     if (frameData->mFrame == aFrame) {
-      mFrames.RemoveElementAt(i);
+      rv = mFrames.RemoveElementAt(i);
       delete frameData;
       break;
     }
   }
   
-  if (0 == mFrames.Length()) {
+  if (0 == mFrames.Count()) {
     Stop();
   }
-  return PR_TRUE;
+  return rv;
 }
 
 PRInt32 nsBlinkTimer::FrameCount() {
-  return PRInt32(mFrames.Length());
+  return mFrames.Count();
 }
 
 NS_IMETHODIMP nsBlinkTimer::Notify(nsITimer *timer)
@@ -2844,9 +2844,9 @@ NS_IMETHODIMP nsBlinkTimer::Notify(nsITimer *timer)
   printf("%s\n", buf);
 #endif
 
-  PRUint32 i, n = mFrames.Length();
+  PRInt32 i, n = mFrames.Count();
   for (i = 0; i < n; i++) {
-    FrameData* frameData = mFrames.ElementAt(i);
+    FrameData* frameData = (FrameData*) mFrames.ElementAt(i);
 
     // Determine damaged area and tell view manager to redraw it
     // blink doesn't blink outline ... I hope

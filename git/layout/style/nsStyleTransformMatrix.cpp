@@ -236,10 +236,9 @@ nsStyleTransformMatrix::operator *(const nsStyleTransformMatrix &aOther) const
 static void SetCoordToValue(const nsCSSValue &aValue,
                             nsStyleContext* aContext,
                             nsPresContext* aPresContext,
-                            PRBool &aCanStoreInRuleTree, nscoord &aOut)
+                            PRBool &aInherited, nscoord &aOut)
 {
-  aOut = nsRuleNode::CalcLength(aValue, aContext, aPresContext,
-                                aCanStoreInRuleTree);
+  aOut = nsRuleNode::CalcLength(aValue, aContext, aPresContext, aInherited);
 }
 
 /* Helper function to process a matrix entry. */
@@ -248,7 +247,7 @@ static void ProcessMatrix(float aMain[4], nscoord aDelta[2],
                           const nsCSSValue::Array* aData,
                           nsStyleContext* aContext,
                           nsPresContext* aPresContext,
-                          PRBool& aCanStoreInRuleTree)
+                          PRBool& aInherited)
 {
   NS_PRECONDITION(aData->Count() == 7, "Invalid array!");
 
@@ -264,7 +263,7 @@ static void ProcessMatrix(float aMain[4], nscoord aDelta[2],
   if (aData->Item(5).GetUnit() == eCSSUnit_Percent)
     aX[0] = aData->Item(5).GetPercentValue();
   else
-    SetCoordToValue(aData->Item(5), aContext, aPresContext, aCanStoreInRuleTree,
+    SetCoordToValue(aData->Item(5), aContext, aPresContext, aInherited,
                     aDelta[0]);
 
   /* For the final element, if it's a percentage, store it in aY[1].
@@ -273,7 +272,7 @@ static void ProcessMatrix(float aMain[4], nscoord aDelta[2],
   if (aData->Item(6).GetUnit() == eCSSUnit_Percent)
     aY[1] = aData->Item(6).GetPercentValue();
   else
-    SetCoordToValue(aData->Item(6), aContext, aPresContext, aCanStoreInRuleTree,
+    SetCoordToValue(aData->Item(6), aContext, aPresContext, aInherited,
                     aDelta[1]);
 }
 
@@ -282,7 +281,7 @@ static void ProcessTranslateX(nscoord aDelta[2], float aX[2],
                               const nsCSSValue::Array* aData,
                               nsStyleContext* aContext,
                               nsPresContext* aPresContext,
-                              PRBool& aCanStoreInRuleTree)
+                              PRBool& aInherited)
 {
   NS_PRECONDITION(aData->Count() == 2, "Invalid array!");
 
@@ -298,7 +297,7 @@ static void ProcessTranslateX(nscoord aDelta[2], float aX[2],
    * to the percent.
    */
   if (aData->Item(1).GetUnit() != eCSSUnit_Percent)
-    SetCoordToValue(aData->Item(1), aContext, aPresContext, aCanStoreInRuleTree,
+    SetCoordToValue(aData->Item(1), aContext, aPresContext, aInherited,
                     aDelta[0]);
   else
     aX[0] = aData->Item(1).GetPercentValue();
@@ -309,7 +308,7 @@ static void ProcessTranslateY(nscoord aDelta[2], float aY[2],
                               const nsCSSValue::Array* aData,
                               nsStyleContext* aContext,
                               nsPresContext* aPresContext,
-                              PRBool& aCanStoreInRuleTree)
+                              PRBool& aInherited)
 {
   NS_PRECONDITION(aData->Count() == 2, "Invalid array!");
 
@@ -325,7 +324,7 @@ static void ProcessTranslateY(nscoord aDelta[2], float aY[2],
    * to the percent.
    */
   if (aData->Item(1).GetUnit() != eCSSUnit_Percent)
-    SetCoordToValue(aData->Item(1), aContext, aPresContext, aCanStoreInRuleTree,
+    SetCoordToValue(aData->Item(1), aContext, aPresContext, aInherited,
                     aDelta[1]);
   else
     aY[1] = aData->Item(1).GetPercentValue();
@@ -336,7 +335,7 @@ static void ProcessTranslate(nscoord aDelta[2], float aX[2], float aY[2],
                              const nsCSSValue::Array* aData,
                              nsStyleContext* aContext,
                              nsPresContext* aPresContext,
-                             PRBool& aCanStoreInRuleTree)
+                             PRBool& aInherited)
 {
   NS_PRECONDITION(aData->Count() == 2 || aData->Count() == 3, "Invalid array!");
 
@@ -352,7 +351,7 @@ static void ProcessTranslate(nscoord aDelta[2], float aX[2], float aY[2],
   if (dx.GetUnit() == eCSSUnit_Percent)
     aX[0] = dx.GetPercentValue();
   else
-    SetCoordToValue(dx, aContext, aPresContext, aCanStoreInRuleTree, aDelta[0]);
+    SetCoordToValue(dx, aContext, aPresContext, aInherited, aDelta[0]);
 
   /* If we read in a Y component, set it appropriately */
   if (aData->Count() == 3) {
@@ -360,8 +359,7 @@ static void ProcessTranslate(nscoord aDelta[2], float aX[2], float aY[2],
     if (dy.GetUnit() == eCSSUnit_Percent)
       aY[1] = dy.GetPercentValue();
     else
-      SetCoordToValue(dy, aContext, aPresContext, aCanStoreInRuleTree,
-                      aDelta[1]); 
+      SetCoordToValue(dy, aContext, aPresContext, aInherited, aDelta[1]); 
   }
 }
 
@@ -477,7 +475,7 @@ void
 nsStyleTransformMatrix::SetToTransformFunction(const nsCSSValue::Array * aData,
                                                nsStyleContext* aContext,
                                                nsPresContext* aPresContext,
-                                               PRBool& aCanStoreInRuleTree)
+                                               PRBool& aInherited)
 {
   NS_PRECONDITION(aData, "Why did you want to get data from a null array?");
   NS_PRECONDITION(aContext, "Need a context for unit conversion!");
@@ -493,16 +491,14 @@ nsStyleTransformMatrix::SetToTransformFunction(const nsCSSValue::Array * aData,
   aData->Item(0).GetStringValue(keyword);
   switch (nsCSSKeywords::LookupKeyword(keyword)) {
   case eCSSKeyword_translatex:
-    ProcessTranslateX(mDelta, mX, aData, aContext, aPresContext,
-                      aCanStoreInRuleTree);
+    ProcessTranslateX(mDelta, mX, aData, aContext, aPresContext, aInherited);
     break;
   case eCSSKeyword_translatey:
-    ProcessTranslateY(mDelta, mY, aData, aContext, aPresContext,
-                      aCanStoreInRuleTree);
+    ProcessTranslateY(mDelta, mY, aData, aContext, aPresContext, aInherited);
     break;
   case eCSSKeyword_translate:
     ProcessTranslate(mDelta, mX, mY, aData, aContext, aPresContext,
-                     aCanStoreInRuleTree);
+                     aInherited);
     break;
   case eCSSKeyword_scalex:
     ProcessScaleX(mMain, aData);
@@ -527,7 +523,7 @@ nsStyleTransformMatrix::SetToTransformFunction(const nsCSSValue::Array * aData,
     break;
   case eCSSKeyword_matrix:
     ProcessMatrix(mMain, mDelta, mX, mY, aData, aContext, aPresContext,
-                  aCanStoreInRuleTree);
+                  aInherited);
     break;
   default:
     NS_NOTREACHED("Unknown transform function!");

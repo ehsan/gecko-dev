@@ -524,14 +524,6 @@ nsNavHistory::Init()
   observerService->AddObserver(this, gXpcomShutdown, PR_FALSE);
   observerService->AddObserver(this, gAutoCompleteFeedback, PR_FALSE);
   observerService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
-  // In case we've either imported or done a migration from a pre-frecency
-  // build, we will calculate the first cutoff period's frecencies once the rest
-  // of the places infrastructure has been initialized.
-  if (mDatabaseStatus == DATABASE_STATUS_CREATE ||
-      mDatabaseStatus == DATABASE_STATUS_UPGRADED) {
-    (void)observerService->AddObserver(this, PLACES_INIT_COMPLETE_EVENT_TOPIC,
-                                       PR_FALSE);
-  }
 
   /*****************************************************************************
    *** IMPORTANT NOTICE!
@@ -549,6 +541,14 @@ nsNavHistory::Init()
       ImportHistory(historyFile);
     }
   }
+
+  // In case we've either imported or done a migration from a pre-frecency build,
+  // calculate the first cutoff period's frecencies now.
+  // Swallow errors here to not block initialization.
+  if (mDatabaseStatus == DATABASE_STATUS_CREATE ||
+      mDatabaseStatus == DATABASE_STATUS_UPGRADED)
+    (void)RecalculateFrecencies(mNumCalculateFrecencyOnMigrate,
+                                PR_FALSE /* don't recalculate old */);
 
   // Don't add code that can fail here! Do it up above, before we add our
   // observers.
@@ -1311,6 +1311,12 @@ nsNavHistory::InitStatements()
     getter_AddRefs(mDBGetPlaceVisitStats));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+      "SELECT b.parent FROM moz_bookmarks b "
+      "WHERE b.type = 1 AND b.fk = ?1"),
+    getter_AddRefs(mDBGetBookmarkParentsForPlace));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   // when calculating frecency, we want the visit count to be 
   // all the visits.
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
@@ -1600,26 +1606,21 @@ nsNavHistory::MigrateV7Up(mozIStorageConnection* aDBConn)
   }
 
   // Temporary migration code for bug 396300
+  nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
+  NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
+  PRInt64 unfiledFolder, rootFolder;
+  bookmarks->GetUnfiledBookmarksFolder(&unfiledFolder);
+  bookmarks->GetPlacesRoot(&rootFolder);
+
   nsCOMPtr<mozIStorageStatement> moveUnfiledBookmarks;
   rv = aDBConn->CreateStatement(NS_LITERAL_CSTRING(
-      "UPDATE moz_bookmarks "
-      "SET parent = ("
-        "SELECT folder_id "
-        "FROM moz_bookmarks_roots "
-        "WHERE root_name = ?1 "
-      ") "
-      "WHERE type = ?2 "
-      "AND parent = ("
-        "SELECT folder_id "
-        "FROM moz_bookmarks_roots "
-        "WHERE root_name = ?3 "
-      ")"),
+      "UPDATE moz_bookmarks SET parent = ?1 WHERE type = ?2 AND parent=?3"),
     getter_AddRefs(moveUnfiledBookmarks));
-  rv = moveUnfiledBookmarks->BindUTF8StringParameter(0, NS_LITERAL_CSTRING("unfiled"));
+  rv = moveUnfiledBookmarks->BindInt64Parameter(0, unfiledFolder);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = moveUnfiledBookmarks->BindInt32Parameter(1, nsINavBookmarksService::TYPE_BOOKMARK);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = moveUnfiledBookmarks->BindUTF8StringParameter(2, NS_LITERAL_CSTRING("places"));
+  rv = moveUnfiledBookmarks->BindInt64Parameter(2, rootFolder);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = moveUnfiledBookmarks->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2759,8 +2760,7 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
   // Update frecency (*after* the visit info is in the db)
   // Swallow errors here, since if we've gotten this far, it's more
   // important to notify the observers below.
-  nsNavBookmarks *bs = nsNavBookmarks::GetBookmarksService();
-  (void)UpdateFrecency(pageID, bs->IsRealBookmark(pageID));
+  (void)UpdateFrecency(pageID, PR_FALSE);
 
   // Notify observers: The hidden detection code must match that in
   // GetQueryResults to maintain consistency.
@@ -5149,10 +5149,6 @@ nsNavHistory::AddDocumentRedirect(nsIChannel *aOldChannel,
 {
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
 
-  // ignore internal redirects
-  if (aFlags & nsIChannelEventSink::REDIRECT_INTERNAL)
-    return NS_OK;
-
   nsresult rv;
   nsCOMPtr<nsIURI> oldURI, newURI;
   rv = aOldChannel->GetURI(getter_AddRefs(oldURI));
@@ -5313,7 +5309,7 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
 {
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
 
-  if (strcmp(aTopic, gQuitApplicationMessage) == 0) {
+  if (nsCRT::strcmp(aTopic, gQuitApplicationMessage) == 0) {
     if (mIdleTimer) {
       mIdleTimer->Cancel();
       mIdleTimer = nsnull;
@@ -5335,8 +5331,7 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
     nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
     NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
     (void)bookmarks->OnQuit();
-  }
-  else if (strcmp(aTopic, gXpcomShutdown) == 0) {
+  } else if (nsCRT::strcmp(aTopic, gXpcomShutdown) == 0) {
     nsresult rv;
     nsCOMPtr<nsIObserverService> observerService =
       do_GetService("@mozilla.org/observer-service;1", &rv);
@@ -5345,9 +5340,8 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
     observerService->RemoveObserver(this, gAutoCompleteFeedback);
     observerService->RemoveObserver(this, gXpcomShutdown);
     observerService->RemoveObserver(this, gQuitApplicationMessage);
-  }
+  } else if (nsCRT::strcmp(aTopic, gAutoCompleteFeedback) == 0) {
 #ifdef MOZ_XUL
-  else if (strcmp(aTopic, gAutoCompleteFeedback) == 0) {
     nsCOMPtr<nsIAutoCompleteInput> input = do_QueryInterface(aSubject);
     if (!input)
       return NS_OK;
@@ -5378,9 +5372,8 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
 
     rv = AutoCompleteFeedback(selectedIndex, controller);
     NS_ENSURE_SUCCESS(rv, rv);
-  }
 #endif
-  else if (strcmp(aTopic, "nsPref:changed") == 0) {
+  } else if (nsCRT::strcmp(aTopic, "nsPref:changed") == 0) {
     PRInt32 oldDaysMin = mExpireDaysMin;
     PRInt32 oldDaysMax = mExpireDaysMax;
     PRInt32 oldVisits = mExpireSites;
@@ -5388,25 +5381,12 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
     if (oldDaysMin != mExpireDaysMin || oldDaysMax != mExpireDaysMax ||
         oldVisits != mExpireSites)
       mExpire.OnExpirationChanged();
-  }
-  else if (strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC) == 0) {
+  } else if (nsCRT::strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC) == 0) {
     if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(aData)) {
       mInPrivateBrowsing = PR_TRUE;
     } else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData)) {
       mInPrivateBrowsing = PR_FALSE;
     }
-  }
-  else if (strcmp(aTopic, PLACES_INIT_COMPLETE_EVENT_TOPIC) == 0) {
-    nsCOMPtr<nsIObserverService> os =
-      do_GetService("@mozilla.org/observer-service;1");
-    NS_ENSURE_TRUE(os, NS_ERROR_FAILURE);
-    (void)os->RemoveObserver(this, PLACES_INIT_COMPLETE_EVENT_TOPIC);
-
-    // This code is only called if we've either imported or done a migration
-    // from a pre-frecency build, so we will calculate the first cutoff period's
-    // frecencies now.
-    (void)RecalculateFrecencies(mNumCalculateFrecencyOnMigrate,
-                                PR_FALSE /* don't recalculate old */);
   }
 
   return NS_OK;
@@ -7109,14 +7089,6 @@ nsNavHistory::CalculateFrecencyInternal(PRInt64 aPlaceId,
           break;
       }
 
-      // Always add the bookmark visit bonus.
-      if (aIsBookmarked)
-        bonus += mBookmarkVisitBonus;
-
-#ifdef DEBUG_FRECENCY
-      printf("CalculateFrecency() for place %lld has a bonus of %d\n", aPlaceId, bonus);
-#endif
-
       // if bonus was zero, we can skip the work to determine the weight
       if (bonus) {
         PRTime visitDate = mDBVisitsForFrecency->AsInt64(0);
@@ -7210,7 +7182,7 @@ nsNavHistory::CalculateFrecencyInternal(PRInt64 aPlaceId,
   return NS_OK;
 }
 
-nsresult
+nsresult 
 nsNavHistory::CalculateFrecency(PRInt64 aPlaceId,
                                 PRInt32 aTyped,
                                 PRInt32 aVisitCount,
@@ -7219,17 +7191,46 @@ nsNavHistory::CalculateFrecency(PRInt64 aPlaceId,
 {
   *aFrecency = 0;
 
+  nsresult rv;
+
+  nsCOMPtr<nsILivemarkService> lms = 
+    do_GetService(NS_LIVEMARKSERVICE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   PRBool isBookmark = PR_FALSE;
 
   // determine if the place is a (non-livemark item) bookmark and prevent
   // place: queries from showing up in the URL bar autocomplete results
   if (!IsQueryURI(aURL) && aPlaceId != -1) {
-    nsNavBookmarks *bs = nsNavBookmarks::GetBookmarksService();
-    isBookmark = bs->IsRealBookmark(aPlaceId);
+    mozStorageStatementScoper scope(mDBGetBookmarkParentsForPlace);
+
+    rv = mDBGetBookmarkParentsForPlace->BindInt64Parameter(0, aPlaceId);
+    NS_ENSURE_SUCCESS(rv, rv);
+   
+    // this query can return multiple parent folders because
+    // it is possible for the user to bookmark something that
+    // is also a livemark item
+    PRBool hasMore = PR_FALSE;
+    while (NS_SUCCEEDED(mDBGetBookmarkParentsForPlace->ExecuteStep(&hasMore)) 
+           && hasMore) {
+      PRInt64 folderId;
+      rv = mDBGetBookmarkParentsForPlace->GetInt64(0, &folderId);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      PRBool parentIsLivemark;
+      rv = lms->IsLivemark(folderId, &parentIsLivemark);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      // we found one parent that is not a livemark feed, so we can stop
+      if (!parentIsLivemark) {
+        isBookmark = PR_TRUE;
+        break;
+      }
+    }
   }
 
-  nsresult rv = CalculateFrecencyInternal(aPlaceId, aTyped, aVisitCount,
-                                          isBookmark, aFrecency);
+  rv = CalculateFrecencyInternal(aPlaceId, aTyped, aVisitCount,
+                                 isBookmark, aFrecency);
   NS_ENSURE_SUCCESS(rv, rv);
   return NS_OK;
 }
@@ -7549,6 +7550,7 @@ nsNavHistory::FinalizeStatements() {
     mDBVisitsForFrecency,
     mDBUpdateFrecencyAndHidden,
     mDBGetPlaceVisitStats,
+    mDBGetBookmarkParentsForPlace,
     mDBFullVisitCount,
     mDBInvalidFrecencies,
     mDBOldFrecencies,

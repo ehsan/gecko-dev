@@ -60,8 +60,6 @@ _TEST_FILES = \
 
 ifdef MOZ_OGG
 _TEST_FILES += \
-		test_access_control.html \
-		file_access_controls.html \
 		test_bug448534.html \
 		test_bug461281.html \
 		test_can_play_type_ogg.html \
@@ -70,22 +68,6 @@ _TEST_FILES += \
 		test_ended2.html \
 		test_onloadedmetadata.html \
 		test_progress3.html \
-		test_standalone.html \
-		test_timeupdate1.html \
-		test_timeupdate2.html \
-		320x240.ogv \
-		test_videoDocumentTitle.html \
-		320x240.allow-origin.ogv \
-		320x240.allow-origin.ogv^headers^ \
- 		bug461281.ogg \
-		redirect.sjs \
-		seek.ogv \
-		$(NULL)
-
-ifneq ($(OS_ARCH),WINNT)
-# These tests are disabled on windows until we
-# figure out the random failures. See bug 475369.
-_TEST_FILES += \
 		test_seek1.html \
 		test_seek3.html \
 		test_seek4.html \
@@ -93,9 +75,15 @@ _TEST_FILES += \
 		test_seek6.html \
 		test_seek7.html \
 		test_seek8.html \
+		test_standalone.html \
+		test_timeupdate1.html \
+		test_timeupdate2.html \
 		test_timeupdate3.html \
+		320x240.ogv \
+		test_videoDocumentTitle.html \
+		bug461281.ogg \
+		seek.ogv \
 		$(NULL)
-endif
 #		test_progress1.html    disabled while we figure out the random failure
 else
 _TEST_FILES += \

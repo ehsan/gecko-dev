@@ -424,7 +424,7 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
   return doc->GetRootContent();
 }
 
-nsINodeList*
+nsIDOMNodeList*
 nsINode::GetChildNodesList()
 {
   nsSlots *slots = GetSlots();
@@ -589,7 +589,7 @@ nsChildContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
   return CallQueryInterface(node, aReturn);
 }
 
-nsIContent*
+nsINode*
 nsChildContentList::GetNodeAt(PRUint32 aIndex)
 {
   if (mNode) {
@@ -597,16 +597,6 @@ nsChildContentList::GetNodeAt(PRUint32 aIndex)
   }
 
   return nsnull;
-}
-
-PRInt32
-nsChildContentList::IndexOf(nsIContent* aContent)
-{
-  if (mNode) {
-    return mNode->IndexOf(aContent);
-  }
-
-  return -1;
 }
 
 //----------------------------------------------------------------------
@@ -2658,9 +2648,6 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   // Make sure to unbind this node before doing the kids
   nsIDocument *document =
     HasFlag(NODE_FORCE_XBL_BINDINGS) ? GetOwnerDoc() : GetCurrentDoc();
-
-  mParentPtrBits = aNullParent ? 0 : mParentPtrBits & ~PARENT_BIT_INDOCUMENT;
-
   if (document) {
     // Notify XBL- & nsIAnonymousContentCreator-generated
     // anonymous content that the document is changing.
@@ -2672,6 +2659,9 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 
     document->ClearBoxObjectFor(this);
   }
+
+  // Unset things in the reverse order from how we set them in BindToTree
+  mParentPtrBits = aNullParent ? 0 : mParentPtrBits & ~PARENT_BIT_INDOCUMENT;
 
   // Unset this since that's what the old code effectively did.
   UnsetFlags(NODE_FORCE_XBL_BINDINGS);

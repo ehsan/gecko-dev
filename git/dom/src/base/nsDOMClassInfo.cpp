@@ -10623,7 +10623,7 @@ nsOfflineResourceListSH::GetStringAt(nsISupports *aNative, PRInt32 aIndex,
   nsCOMPtr<nsIDOMOfflineResourceList> list(do_QueryInterface(aNative));
   NS_ENSURE_TRUE(list, NS_ERROR_UNEXPECTED);
 
-  return list->MozItem(aIndex, aResult);
+  return list->Item(aIndex, aResult);
 }
 
 // nsFileListSH

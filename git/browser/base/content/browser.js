@@ -1274,6 +1274,25 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     Components.utils.reportError("Failed to init content pref service:\n" + ex);
   }
 
+#ifdef XP_WIN
+  // For Vista, flip the default download folder pref once from Desktop to Downloads
+  // on new profiles.
+  try {
+    var sysInfo = Cc["@mozilla.org/system-info;1"].
+                  getService(Ci.nsIPropertyBag2);
+    if (parseFloat(sysInfo.getProperty("version")) >= 6 &&
+        !gPrefService.getPrefType("browser.download.dir") &&
+        gPrefService.getIntPref("browser.download.folderList") == 0) {
+      var dnldMgr = Cc["@mozilla.org/download-manager;1"]
+                              .getService(Ci.nsIDownloadManager);
+      gPrefService.setCharPref("browser.download.dir", 
+        dnldMgr.defaultDownloadsDirectory.path);
+      gPrefService.setIntPref("browser.download.folderList", 1);
+    }
+  } catch (ex) {
+  }
+#endif
+
   // initialize the session-restore service (in case it's not already running)
   if (document.documentElement.getAttribute("windowtype") == "navigator:browser") {
     try {
@@ -4919,10 +4938,9 @@ var contentAreaDNDObserver = {
         if (dragData instanceof XULElement && dragData.localName == "tab" &&
             dragData.ownerDocument.defaultView == window) {
           // Detach only if the mouse pointer was released a little
-          // bit down in the content area (to be precise, by half the height
-          // of a tab)
+          // bit down in the content area (to be precise, by tab-height)
           if (aEvent.screenY > gBrowser.mPanelContainer.boxObject.screenY +
-                               dragData.boxObject.height / 2) {
+                               dragData.boxObject.height) {
             gBrowser.replaceTabWithWindow(dragData);
             aEvent.dataTransfer.dropEffect = "move";
             return;

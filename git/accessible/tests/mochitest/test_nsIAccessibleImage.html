@@ -7,55 +7,62 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=429659
   <title>nsIAccessibleImage chrome tests</title>
   <link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
-  <script type="application/javascript"
-          src="chrome://mochikit/content/MochiKit/packed.js"></script>
-  <script type="application/javascript"
-          src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
-
-  <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/common.js"></script>
-  <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/role.js"></script>
-  <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/attributes.js"></script>
+  <script type="application/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript">
+    const nsIAccessibleImage = Components.interfaces.nsIAccessibleImage;
+    const nsIAccessibleCoordinateType = 
+          Components.interfaces.nsIAccessibleCoordinateType;
+
+    var gAccRetrieval;
+
     function testCoordinates(aID, aAcc, aWidth, aHeight)
     {
       var screenX = {}, screenY = {}, windowX = {}, windowY = {}, parentX = {},
           parentY = {};
 
+      var imageAcc = null;
+      try {
+        imageAcc = aAcc.QueryInterface(nsIAccessibleImage);
+      } catch(e) {}
+      ok(imageAcc, "no image interface for " + aID + "!");
+
+      if (!imageAcc)
+        return;
+
       // get screen coordinates.
-      aAcc.getImagePosition(
+      imageAcc.getImagePosition(
                nsIAccessibleCoordinateType.COORDTYPE_SCREEN_RELATIVE,
                screenX, screenY);
       // get window coordinates.
-      aAcc.getImagePosition(
+      imageAcc.getImagePosition(
                nsIAccessibleCoordinateType.COORDTYPE_WINDOW_RELATIVE,
                windowX, windowY);
       // get parent related coordinates.
-      aAcc.getImagePosition(
+      imageAcc.getImagePosition(
                nsIAccessibleCoordinateType.COORDTYPE_PARENT_RELATIVE,
                parentX, parentY);
       // XXX For linked images, a negative parentY value is returned, and the
       // screenY coordinate is the link's screenY coordinate minus 1.
       // Until this is fixed, set parentY to -1 if it's negative.
-      if (parentY.value < 0)
+      if (parentY.value < 0) {
         parentY.value = -1;
+      }
 
       // See if asking image for child at image's screen coordinates gives
       // correct accessible. getChildAtPoint operates on screen coordinates.
       var tempAcc = null;
       try {
-        tempAcc = aAcc.getChildAtPoint(screenX.value, screenY.value);
+        tempAcc = imageAcc.getChildAtPoint(screenX.value, screenY.value);
       } catch(e) {}
-      is(tempAcc, aAcc,
+      is(tempAcc, imageAcc,
          "Wrong accessible returned for position of " + aID + "!");
 
       // get image's parent.
       var imageParentAcc = null;
       try {
-        imageParentAcc = aAcc.parent;
+        imageParentAcc = imageAcc.parent;
       } catch(e) {}
       ok(imageParentAcc, "no parent accessible for " + aID + "!");
 
@@ -73,7 +80,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=429659
       }
 
       var width = {}, height = {};
-      aAcc.getImageSize(width, height);
+      imageAcc.getImageSize(width, height);
       is(width.value, aWidth, "Wrong width for " + aID + "!");
       is(height.value, aHeight, "wrong height for " + aID + "!");
     }
@@ -81,34 +88,46 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=429659
     function testThis(aID, aName, aSRC, aWidth, aHeight,
                       aNumActions, aActionNames)
     {
-      var acc = getAccessible(aID, [nsIAccessibleImage]);
+      var elem = document.getElementById(aID);
+      var acc;
+      try {
+        acc = gAccRetrieval.getAccessibleFor(elem);
+      } catch(e) {}
+      ok(acc, "No accessible for " + aID + "!");
+
       if (!acc)
         return;
 
       is(acc.name, aName, "wrong name for " + aID + "!");
 
-      // Test role
-      testRole(aID, ROLE_GRAPHIC);
-
       // test coordinates and size
       testCoordinates(aID, acc, aWidth, aHeight);
 
       // bug 429659: Make sure the SRC attribute is set for any image
-      var attributes = {"src": aSRC};
-      testAttrs(acc, attributes, true);
+      var attributes;
+      try {
+        attributes = acc.attributes;
+      } catch(e) {}
+      ok(attributes, "no attributes on " + aID + "!");
+      is(attributes.getStringProperty("src"), aSRC,
+         "no correct src attribute for " + aID + "!");
 
       if (aNumActions) {
         is(acc.numActions, aNumActions,
            "Wrong number of actions for " + aID + "!");
 
-        for (index = 0; index < aActionNames.length; index++)
+        for (index = 0; index < aActionNames.length; index++) {
           is(acc.getActionName(index), aActionNames[index],
              "Wrong action name for " + aID + ", index " + index +"!");
+        }
       }
     }
 
     function doTest()
     {
+      gAccRetrieval = Components.classes["@mozilla.org/accessibleRetrieval;1"].
+                       getService(Components.interfaces.nsIAccessibleRetrieval);
+
       // Test non-linked image
       testThis("nonLinkedImage", null, "moz.png", 89, 38);
 

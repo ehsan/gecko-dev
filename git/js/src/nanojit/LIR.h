@@ -140,7 +140,7 @@ namespace nanojit
 	};
 
     inline bool isGuard(LOpcode op) {
-        return op == LIR_x || op == LIR_xf || op == LIR_xt || op == LIR_loop || op == LIR_xbarrier;
+        return op==LIR_x || op==LIR_xf || op==LIR_xt || op==LIR_loop;
     }
 
     inline bool isCall(LOpcode op) {
@@ -490,7 +490,6 @@ namespace nanojit
 		const char *dup(const char *);
 		const char *format(const void *p);
 		void promoteAll(const void *newbase);
-		void clear();
     };
 
 	class LirNameMap MMGC_SUBCLASS_DECL

@@ -202,8 +202,8 @@ public:
   nsSpeculativeScriptThread()
     : mLock(nsAutoLock::DestroyLock),
       mCVar(PR_DestroyCondVar),
-      mKeepParsing(PR_FALSE),
-      mCurrentlyParsing(PR_FALSE),
+      mKeepParsing(0),
+      mCurrentlyParsing(0),
       mNumURIs(0),
       mNumConsumed(0),
       mContext(nsnull),
@@ -272,8 +272,8 @@ private:
   Holder<PRLock> mLock;
   Holder<PRCondVar> mCVar;
 
-  volatile PRBool mKeepParsing;
-  volatile PRBool mCurrentlyParsing;
+  volatile PRUint32 mKeepParsing;
+  volatile PRUint32 mCurrentlyParsing;
   nsRefPtr<nsHTMLTokenizer> mTokenizer;
   nsAutoPtr<nsScanner> mScanner;
 
@@ -398,7 +398,7 @@ nsSpeculativeScriptThread::Run()
   {
     nsAutoLock al(mLock.get());
 
-    mCurrentlyParsing = PR_FALSE;
+    mCurrentlyParsing = 0;
     PR_NotifyCondVar(mCVar.get());
   }
   return NS_OK;
@@ -491,8 +491,8 @@ nsSpeculativeScriptThread::StartParsing(nsParser *aParser)
   }
 
   mDocument.swap(doc);
-  mKeepParsing = PR_TRUE;
-  mCurrentlyParsing = PR_TRUE;
+  mKeepParsing = 1;
+  mCurrentlyParsing = 1;
   mContext = context;
   return aParser->ThreadPool()->Dispatch(this, NS_DISPATCH_NORMAL);
 }
@@ -510,7 +510,7 @@ nsSpeculativeScriptThread::StopParsing(PRBool /*aFromDocWrite*/)
   {
     nsAutoLock al(mLock.get());
 
-    mKeepParsing = PR_FALSE;
+    mKeepParsing = 0;
     if (mCurrentlyParsing) {
       PR_WaitCondVar(mCVar.get(), PR_INTERVAL_NO_TIMEOUT);
       NS_ASSERTION(!mCurrentlyParsing, "Didn't actually stop parsing?");
@@ -552,7 +552,7 @@ nsSpeculativeScriptThread::ProcessToken(CToken *aToken)
         nsAutoString src;
         nsAutoString elementType;
         nsAutoString charset;
-        PrefetchType ptype = SCRIPT;
+        PrefetchType ptype;
 
         switch (tag) {
 #if 0 // TODO Support stylesheet and image preloading.
@@ -588,11 +588,9 @@ nsSpeculativeScriptThread::ProcessToken(CToken *aToken)
 
           case eHTMLTag_style:
             ptype = STYLESHEET;
-            /* FALL THROUGH */
           case eHTMLTag_img:
             if (tag == eHTMLTag_img)
               ptype = IMAGE;
-            /* FALL THROUGH */
 #endif
           case eHTMLTag_script:
             if (tag == eHTMLTag_script)
@@ -1527,11 +1525,7 @@ nsParser::DidBuildModel(nsresult anErrorCode)
 
   if (IsComplete()) {
     if (mParserContext && !mParserContext->mPrevContext) {
-      // Let sink know if we're about to end load because we've been terminated.
-      // In that case we don't want it to run deferred scripts.
-      PRBool terminated = mInternalState == NS_ERROR_HTMLPARSER_STOPPARSING;
-      if (mParserContext->mDTD && mSink &&
-          mSink->ReadyToCallDidBuildModel(terminated)) {
+      if (mParserContext->mDTD) {
         result = mParserContext->mDTD->DidBuildModel(anErrorCode,PR_TRUE,this,mSink);
       }
 

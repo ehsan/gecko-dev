@@ -126,8 +126,3 @@
 /* Define to `unsigned int' if <sys/types.h> does not define. */
 /* #undef size_t */
 #undef DEBUG
-
-#include "prcpucfg.h"
-#ifdef IS_BIG_ENDIAN
-#define WORDS_BIGENDIAN
-#endif

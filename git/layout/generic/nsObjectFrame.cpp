@@ -73,7 +73,6 @@
 #include "nsIURL.h"
 #include "nsNetUtil.h"
 #include "nsIPluginInstanceOwner.h"
-#include "nsIPluginInstancePeer2.h"
 #include "plstr.h"
 #include "nsILinkHandler.h"
 #ifdef OJI
@@ -423,13 +422,27 @@ public:
     return mLastEventloopNestingLevel; 
   }
 
-  static PRUint32 GetEventloopNestingLevel();
-      
   void ConsiderNewEventloopNestingLevel() {
-    PRUint32 currentLevel = GetEventloopNestingLevel();
-
-    if (currentLevel < mLastEventloopNestingLevel) {
-      mLastEventloopNestingLevel = currentLevel;
+    nsCOMPtr<nsIAppShell> appShell = do_GetService(kAppShellCID);
+    if (appShell) {
+      PRUint32 currentLevel = 0;
+      appShell->GetEventloopNestingLevel(&currentLevel);
+#ifdef XP_MACOSX
+      // Cocoa widget code doesn't process UI events through the normal appshell
+      // event loop, so it needs an additional count here.
+      currentLevel++;
+#else
+      // No idea how this happens... but Linux doesn't consistently process UI
+      // events through the appshell event loop. If we get a 0 here on any
+      // platform we increment the level just in case so that we make sure we
+      // always tear the plugin down eventually.
+      if (!currentLevel) {
+        currentLevel++;
+      }
+#endif
+      if (currentLevel < mLastEventloopNestingLevel) {
+        mLastEventloopNestingLevel = currentLevel;
+      }
     }
   }
 
@@ -824,7 +837,8 @@ nsObjectFrame::Reflow(nsPresContext*           aPresContext,
 
   // Get our desired size
   GetDesiredSize(aPresContext, aReflowState, aMetrics);
-  FinishAndStoreOverflow(&aMetrics);
+  aMetrics.mOverflowArea = nsRect(0, 0,
+                                  aMetrics.width, aMetrics.height);
 
   // delay plugin instantiation until all children have
   // arrived. Otherwise there may be PARAMs or other stuff that the
@@ -2263,18 +2277,6 @@ nsPluginInstanceOwner::~nsPluginInstanceOwner()
     pph->DeletePluginNativeWindow(mPluginWindow);
     mPluginWindow = nsnull;
   }
-
-  if (mInstance) {
-    nsCOMPtr<nsIPluginInstancePeer> peer;
-    mInstance->GetPeer(getter_AddRefs(peer));
-
-    nsCOMPtr<nsIPluginInstancePeer2> peer2(do_QueryInterface(peer));
-
-    if (peer2) {
-      // Tell the peer that its owner is going away.
-      peer2->InvalidateOwner();
-    }
-  }
 }
 
 /*
@@ -2304,20 +2306,6 @@ NS_INTERFACE_MAP_END
 
 NS_IMETHODIMP nsPluginInstanceOwner::SetInstance(nsIPluginInstance *aInstance)
 {
-  // XXX: We should probably never already have an instance when we
-  // get here, but in case we do... At some point we should remove
-  // this code and ensure elsewhere that it's not needed.
-  if (mInstance && mInstance != aInstance) {
-    nsCOMPtr<nsIPluginInstancePeer> peer;
-    mInstance->GetPeer(getter_AddRefs(peer));
-
-    nsCOMPtr<nsIPluginInstancePeer2> peer2(do_QueryInterface(peer));
-
-    if (peer2) {
-      peer2->InvalidateOwner();
-    }
-  }
-
   mInstance = aInstance;
 
   return NS_OK;
@@ -3336,32 +3324,6 @@ void nsPluginInstanceOwner::EndCGPaint()
 }
 
 #endif
-
-// static
-PRUint32
-nsPluginInstanceOwner::GetEventloopNestingLevel()
-{
-  nsCOMPtr<nsIAppShell> appShell = do_GetService(kAppShellCID);
-  PRUint32 currentLevel = 0;
-  if (appShell) {
-    appShell->GetEventloopNestingLevel(&currentLevel);
-#ifdef XP_MACOSX
-    // Cocoa widget code doesn't process UI events through the normal
-    // appshell event loop, so it needs an additional count here.
-    currentLevel++;
-#endif
-  }
-
-  // No idea how this happens... but Linux doesn't consistently
-  // process UI events through the appshell event loop. If we get a 0
-  // here on any platform we increment the level just in case so that
-  // we make sure we always tear the plugin down eventually.
-  if (!currentLevel) {
-    currentLevel++;
-  }
-
-  return currentLevel;
-}
 
 nsresult nsPluginInstanceOwner::ScrollPositionWillChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY)
 {
@@ -4454,7 +4416,11 @@ nsresult nsPluginInstanceOwner::Init(nsPresContext* aPresContext,
                                      nsObjectFrame* aFrame,
                                      nsIContent*    aContent)
 {
-  mLastEventloopNestingLevel = GetEventloopNestingLevel();
+  mLastEventloopNestingLevel = 0;
+  nsCOMPtr<nsIAppShell> appShell = do_GetService(kAppShellCID);
+  if (appShell) {
+    appShell->GetEventloopNestingLevel(&mLastEventloopNestingLevel);
+  }
 
   PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
          ("nsPluginInstanceOwner::Init() called on %p for frame %p\n", this,

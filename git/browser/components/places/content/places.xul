@@ -389,7 +389,6 @@
       <textbox id="searchFilter"
                clickSelectsAll="true"
                type="search"
-               aria-controls="placeContent"
                oncommand="PlacesSearchBox.search(this.value);"
                collection="bookmarks">
       </textbox>
@@ -513,6 +512,9 @@
 
                     <button type="image" id="infoBoxExpander"
                             class="expander-down"
+                            lessaccesskey="&detailsPane.less.accesskey;"
+                            moreaccesskey="&detailsPane.more.accesskey;"
+                            accesskey="&detailsPane.more.accesskey;"
                             oncommand="PlacesOrganizer.toggleAdditionalInfoFields();"
                             observes="paneElementsBroadcaster"/>
 

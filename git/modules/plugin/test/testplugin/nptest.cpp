@@ -55,16 +55,12 @@ static NPClass sNPClass;
 // identifiers
 //
 
-#define IDENTIFIER_TO_STRING_TEST_METHOD        0
-#define QUERY_PRIVATE_MODE_STATE_METHOD         1
-#define LAST_REPORTED_PRIVATE_MODE_STATE_METHOD 2
-#define NUM_METHOD_IDENTIFIERS                  3
+#define IDENTIFIER_TO_STRING_TEST_METHOD 0
+#define NUM_METHOD_IDENTIFIERS           1
 
 static NPIdentifier sPluginMethodIdentifiers[NUM_METHOD_IDENTIFIERS];
 static const NPUTF8 *sPluginMethodIdentifierNames[NUM_METHOD_IDENTIFIERS] = {
   "identifierToStringTest",
-  "queryPrivateModeState",
-  "lastReportedPrivateModeState",
 };
 
 static bool sIdentifiersInitialized = false;
@@ -87,9 +83,7 @@ static void clearIdentifiers()
 // function signatures
 //
 
-bool identifierToStringTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-bool queryPrivateModeState(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-bool lastReportedPrivateModeState(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
+bool identifierToStringTest(const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 NPObject* scriptableAllocate(NPP npp, NPClass* aClass);
 void scriptableDeallocate(NPObject* npobj);
@@ -255,8 +249,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
     }
   }
 
-  instanceData->lastReportedPrivateModeState = false;
-
   // do platform-specific initialization
   NPError err = pluginInstanceInit(instanceData);
   if (err != NPERR_NO_ERROR)
@@ -345,11 +337,6 @@ NPP_GetValue(NPP instance, NPPVariable variable, void* value)
 NPError
 NPP_SetValue(NPP instance, NPNVariable variable, void* value)
 {
-  if (variable == NPNVprivateModeBool) {
-    InstanceData* instanceData = (InstanceData*)(instance->pdata);
-    instanceData->lastReportedPrivateModeState = *static_cast<NPBool*>(value);
-    return NPERR_NO_ERROR;
-  }
   return NPERR_GENERIC_ERROR;
 }
 
@@ -486,11 +473,7 @@ bool
 scriptableInvoke(NPObject* npobj, NPIdentifier name, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
   if (name == sPluginMethodIdentifiers[IDENTIFIER_TO_STRING_TEST_METHOD])
-    return identifierToStringTest(npobj, args, argCount, result);
-  else if (name == sPluginMethodIdentifiers[QUERY_PRIVATE_MODE_STATE_METHOD])
-    return queryPrivateModeState(npobj, args, argCount, result);
-  else if (name == sPluginMethodIdentifiers[LAST_REPORTED_PRIVATE_MODE_STATE_METHOD])
-    return lastReportedPrivateModeState(npobj, args, argCount, result);
+    return identifierToStringTest(args, argCount, result);
   return false;
 }
 
@@ -541,7 +524,7 @@ scriptableConstruct(NPObject* npobj, const NPVariant* args, uint32_t argCount, N
 //
 
 bool
-identifierToStringTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
+identifierToStringTest(const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
   if (argCount != 1)
     return false;
@@ -552,23 +535,5 @@ identifierToStringTest(NPObject* npobj, const NPVariant* args, uint32_t argCount
   if (!utf8String)
     return false;
   STRINGZ_TO_NPVARIANT(utf8String, *result);
-  return true;
-}
-
-bool
-queryPrivateModeState(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  NPBool pms = false;
-  NPN_GetValue(static_cast<TestNPObject*>(npobj)->npp, NPNVprivateModeBool, &pms);
-  BOOLEAN_TO_NPVARIANT(pms, *result);
-  return true;
-}
-
-bool
-lastReportedPrivateModeState(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  InstanceData* id = static_cast<InstanceData*>(static_cast<TestNPObject*>(npobj)->npp->pdata);
-  NPBool pms = id->lastReportedPrivateModeState;
-  BOOLEAN_TO_NPVARIANT(pms, *result);
   return true;
 }

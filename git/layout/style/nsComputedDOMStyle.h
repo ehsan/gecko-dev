@@ -76,6 +76,8 @@ public:
   static void Shutdown();
 
 private:
+  nsresult GetPropertyCSSValueInternal(const nsAString& aPropertyName,
+                                       nsIDOMCSSValue** aReturn);
   void FlushPendingReflows();
   
 #define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)                  \
@@ -144,10 +146,9 @@ private:
   /* Font properties */
   nsresult GetColor(nsIDOMCSSValue** aValue);
   nsresult GetFontFamily(nsIDOMCSSValue** aValue);
+  nsresult GetFontStyle(nsIDOMCSSValue** aValue);
   nsresult GetFontSize(nsIDOMCSSValue** aValue);
   nsresult GetFontSizeAdjust(nsIDOMCSSValue** aValue);
-  nsresult GetFontStretch(nsIDOMCSSValue** aValue);
-  nsresult GetFontStyle(nsIDOMCSSValue** aValue);
   nsresult GetFontWeight(nsIDOMCSSValue** aValue);
   nsresult GetFontVariant(nsIDOMCSSValue** aValue);
 

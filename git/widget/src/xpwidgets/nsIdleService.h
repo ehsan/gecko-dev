@@ -77,8 +77,6 @@ protected:
     ~nsIdleService();
 
 private:
-    void StartTimer(PRUint32 aDelay);
-    void StopTimer();
     nsCOMPtr<nsITimer> mTimer;
     nsTArray<IdleListener> mArrayListeners;
 };

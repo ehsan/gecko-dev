@@ -215,13 +215,9 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // the background/border display item won't do anything, and if it isn't empty,
   // we need to paint the outline
   if (IsVisibleForPainting(aBuilder)) {
-    nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-        nsDisplayBoxShadow(this));
-    NS_ENSURE_SUCCESS(rv, rv);
-
     // don't bother checking to see if we really have a border or background.
     // we usually will have a border.
-    rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+    nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
         nsDisplayFieldSetBorderBackground(this));
     NS_ENSURE_SUCCESS(rv, rv);
   

@@ -105,12 +105,10 @@ public:
   // cancel the load and remove its reference to mFontSet
   void Cancel();
 
-  void DropChannel() { mChannel = nsnull; }
-
   static nsresult CheckLoadAllowed(nsIPrincipal* aSourcePrincipal,
                                    nsIURI* aTargetURI,
                                    nsISupports* aContext);
-
+  
 private:
   nsRefPtr<gfxFontEntry>  mFontEntry;
   nsCOMPtr<nsIURI>        mFontURI;
