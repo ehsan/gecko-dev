@@ -90,7 +90,8 @@ protected:
 
     virtual PPluginIdentifierParent*
     AllocPPluginIdentifier(const nsCString& aString,
-                           const int32_t& aInt);
+                           const int32_t& aInt,
+                           const bool& aTemporary);
 
     virtual bool
     DeallocPPluginIdentifier(PPluginIdentifierParent* aActor);
@@ -136,8 +137,14 @@ public:
         return !IsOnCxxStack();
     }
 
-    PPluginIdentifierParent*
-    GetIdentifierForNPIdentifier(NPIdentifier aIdentifier);
+    /**
+     * Get an identifier actor for this NPIdentifier. If this is a temporary
+     * identifier, the temporary refcount is increased by one. This method
+     * is intended only for use by StackIdentifier and the scriptable
+     * Enumerate hook.
+     */
+    PluginIdentifierParent*
+    GetIdentifierForNPIdentifier(NPP npp, NPIdentifier aIdentifier);
 
     void ProcessRemoteNativeEventsInRPCCall();
 
@@ -281,6 +288,10 @@ private:
     virtual nsresult NPP_ClearSiteData(const char* site, uint64_t flags,
                                        uint64_t maxAge);
     virtual nsresult NPP_GetSitesWithData(InfallibleTArray<nsCString>& result);
+
+#if defined(XP_MACOSX)
+    virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing);
+#endif
 
 private:
     void WritePluginExtraDataForMinidump(const nsAString& id);

@@ -405,9 +405,7 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext)
      mStylePosition->mMaxHeight.GetUnit() != eStyleUnit_Auto) ||
     mStylePosition->OffsetHasPercent(NS_SIDE_TOP) ||
     mStylePosition->mOffset.GetBottomUnit() != eStyleUnit_Auto ||
-    frame->IsBoxFrame() ||
-    (mStylePosition->mHeight.GetUnit() == eStyleUnit_Auto &&
-     frame->GetIntrinsicSize().height.GetUnit() == eStyleUnit_Percent);
+    frame->IsBoxFrame();
 
   if (mStyleText->mLineHeight.GetUnit() == eStyleUnit_Enumerated) {
     NS_ASSERTION(mStyleText->mLineHeight.GetIntValue() ==
@@ -1575,7 +1573,7 @@ nsHTMLReflowState::ComputeContainingBlockRectangle(nsPresContext*          aPres
     if (NS_FRAME_GET_TYPE(aContainingBlockRS->mFrameType) == NS_CSS_FRAME_TYPE_INLINE) {
       // Base our size on the actual size of the frame.  In cases when this is
       // completely bogus (eg initial reflow), this code shouldn't even be
-      // called, since the code in nsInlineFrame::Reflow will pass in
+      // called, since the code in nsPositionedInlineFrame::Reflow will pass in
       // the containing block dimensions to our constructor.
       // XXXbz we should be taking the in-flows into account too, but
       // that's very hard.

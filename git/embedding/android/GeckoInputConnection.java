@@ -273,7 +273,7 @@ public class GeckoInputConnection
 
             // 2. Make a guess about what the text actually is
             if (mComposing && extract.selectionEnd > extract.text.length())
-                extract.text = extract.text.subSequence(0, mCompositionStart) + mComposingText;
+                extract.text = extract.text.subSequence(0, Math.min(extract.text.length(), mCompositionStart)) + mComposingText;
 
             // 3. If all else fails, make sure our selection indexes make sense
             extract.selectionStart = Math.min(extract.selectionStart, extract.text.length());
@@ -341,6 +341,14 @@ public class GeckoInputConnection
         mComposingText = text != null ? text.toString() : "";
 
         if (!mComposing) {
+            if (mComposingText.length() == 0) {
+                // Some IMEs such as iWnn sometimes call with empty composing 
+                // text.  (See bug 664364)
+                // If composing text is empty, ignore this and don't start
+                // compositing.
+                return true;
+            }
+
             // Get current selection
             GeckoAppShell.sendEventToGecko(
                 new GeckoEvent(GeckoEvent.IME_GET_SELECTION, 0, 0));

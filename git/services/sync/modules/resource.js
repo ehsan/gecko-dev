@@ -143,7 +143,7 @@ function AsyncResource(uri) {
   this._onComplete = Utils.bind2(this, this._onComplete);
 }
 AsyncResource.prototype = {
-  _logName: "Net.Resource",
+  _logName: "Sync.AsyncResource",
 
   // ** {{{ AsyncResource.serverTime }}} **
   //
@@ -389,25 +389,6 @@ AsyncResource.prototype = {
     // actual fetch, so be warned!
     XPCOMUtils.defineLazyGetter(ret, "obj", function() JSON.parse(ret));
 
-    // Notify if we get a 401 to maybe try again with a new URI.
-    // TODO: more retry logic.
-    if (status == 401) {
-      // Create an object to allow observers to decide if we should try again.
-      let subject = {
-        newUri: "",
-        resource: this,
-        response: ret
-      }
-      Observers.notify("weave:resource:status:401", subject);
-
-      // Do the same type of request but with the new URI.
-      if (subject.newUri != "") {
-        this.uri = subject.newUri;
-        this._doRequest(action, this._data, this._callback);
-        return;
-      }
-    }
-
     this._callback(null, ret);
   },
 
@@ -446,6 +427,8 @@ function Resource(uri) {
 Resource.prototype = {
 
   __proto__: AsyncResource.prototype,
+
+  _logName: "Sync.Resource",
 
   // ** {{{ Resource._request }}} **
   //
@@ -599,7 +582,7 @@ ChannelListener.prototype = {
    * Create or push back the abort timer that kills this request
    */
   delayAbort: function delayAbort() {
-    Utils.delay(this.abortRequest, this._timeout, this, "abortTimer");
+    Utils.namedTimer(this.abortRequest, this._timeout, this, "abortTimer");
   },
 
   abortRequest: function abortRequest() {
@@ -636,7 +619,7 @@ BadCertListener.prototype = {
 
   notifyCertProblem: function certProblem(socketInfo, sslStatus, targetHost) {
     // Silently ignore?
-    let log = Log4Moz.repository.getLogger("Service.CertListener");
+    let log = Log4Moz.repository.getLogger("Sync.CertListener");
     log.level =
       Log4Moz.Level[Svc.Prefs.get("log.logger.network.resources")];
     log.debug("Invalid HTTPS certificate encountered, ignoring!");

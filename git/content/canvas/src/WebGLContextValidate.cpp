@@ -93,12 +93,12 @@ PRBool
 WebGLContext::ValidateBuffers(PRInt32 *maxAllowedCount, const char *info)
 {
 #ifdef DEBUG
-    GLuint currentProgram = 0;
+    GLint currentProgram = 0;
     MakeContextCurrent();
-    gl->fGetIntegerv(LOCAL_GL_CURRENT_PROGRAM, (GLint*) &currentProgram);
-    NS_ASSERTION(currentProgram == mCurrentProgram->GLName(),
+    gl->fGetIntegerv(LOCAL_GL_CURRENT_PROGRAM, &currentProgram);
+    NS_ASSERTION(GLuint(currentProgram) == mCurrentProgram->GLName(),
                  "WebGL: current program doesn't agree with GL state");
-    if (currentProgram != mCurrentProgram->GLName())
+    if (GLuint(currentProgram) != mCurrentProgram->GLName())
         return PR_FALSE;
 #endif
 
@@ -437,6 +437,17 @@ PRBool WebGLContext::ValidateStencilParamsForDrawCall()
   return PR_TRUE;
 }
 
+bool WebGLContext::ValidateGLSLIdentifier(const nsAString& name, const char *info)
+{
+    const PRUint32 maxSize = 4095;
+    if (name.Length() > maxSize) {
+        ErrorInvalidValue("%s: identifier is %d characters long, exceeds the maximum allowed length of %d characters",
+                          info, name.Length(), maxSize);
+        return false;
+    }
+    return true;
+}
+
 PRBool
 WebGLContext::InitAndValidateGL()
 {
@@ -471,9 +482,6 @@ WebGLContext::InitAndValidateGL()
     mMapFramebuffers.Clear();
     mMapRenderbuffers.Clear();
 
-    // make sure that the opengl stuff that we need is supported
-    GLint val = 0;
-
     MakeContextCurrent();
 
     // on desktop OpenGL, we always keep vertex attrib 0 array enabled
@@ -481,7 +489,7 @@ WebGLContext::InitAndValidateGL()
         gl->fEnableVertexAttribArray(0);
     }
 
-    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_ATTRIBS, (GLint*) &mGLMaxVertexAttribs);
+    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_ATTRIBS, &mGLMaxVertexAttribs);
     if (mGLMaxVertexAttribs < 8) {
         LogMessage("GL_MAX_VERTEX_ATTRIBS: %d is < 8!", mGLMaxVertexAttribs);
         return PR_FALSE;
@@ -492,7 +500,7 @@ WebGLContext::InitAndValidateGL()
     // Note: GL_MAX_TEXTURE_UNITS is fixed at 4 for most desktop hardware,
     // even though the hardware supports much more.  The
     // GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS value is the accurate value.
-    gl->fGetIntegerv(LOCAL_GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxTextureUnits);
+    gl->fGetIntegerv(LOCAL_GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &mGLMaxTextureUnits);
     if (mGLMaxTextureUnits < 8) {
         LogMessage("GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS: %d is < 8!", mGLMaxTextureUnits);
         return PR_FALSE;
@@ -501,20 +509,20 @@ WebGLContext::InitAndValidateGL()
     mBound2DTextures.SetLength(mGLMaxTextureUnits);
     mBoundCubeMapTextures.SetLength(mGLMaxTextureUnits);
 
-    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, (GLint*) &mGLMaxTextureSize);
-    gl->fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, (GLint*) &mGLMaxCubeMapTextureSize);
+    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mGLMaxTextureSize);
+    gl->fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mGLMaxCubeMapTextureSize);
 
-    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxTextureImageUnits);
-    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, (GLint*) &mGLMaxVertexTextureImageUnits);
+    gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, &mGLMaxTextureImageUnits);
+    gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &mGLMaxVertexTextureImageUnits);
 
     if (gl->HasES2Compatibility()) {
-        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_VECTORS, (GLint*) &mGLMaxFragmentUniformVectors);
-        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS, (GLint*) &mGLMaxVertexUniformVectors);
-        gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_VECTORS, (GLint*) &mGLMaxVaryingVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_VECTORS, &mGLMaxFragmentUniformVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS, &mGLMaxVertexUniformVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_VECTORS, &mGLMaxVaryingVectors);
     } else {
-        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, (GLint*) &mGLMaxFragmentUniformVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, &mGLMaxFragmentUniformVectors);
         mGLMaxFragmentUniformVectors /= 4;
-        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_COMPONENTS, (GLint*) &mGLMaxVertexUniformVectors);
+        gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_COMPONENTS, &mGLMaxVertexUniformVectors);
         mGLMaxVertexUniformVectors /= 4;
 
         // we are now going to try to read GL_MAX_VERTEX_OUTPUT_COMPONENTS and GL_MAX_FRAGMENT_INPUT_COMPONENTS,
@@ -549,23 +557,8 @@ WebGLContext::InitAndValidateGL()
         }
     }
 
-#if 0
-    // Leaving this code in here, even though it's ifdef'd out, for
-    // when we support more than 1 color attachment.
-    gl->fGetIntegerv(LOCAL_GL_MAX_COLOR_ATTACHMENTS, (GLint*) &val);
-#else
     // Always 1 for GLES2
-    val = 1;
-#endif
-    mMaxFramebufferColorAttachments = val;
-
-#if defined(DEBUG_vladimir) && defined(USE_GLES2)
-    gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_FORMAT, (GLint*) &val);
-    fprintf(stderr, "GL_IMPLEMENTATION_COLOR_READ_FORMAT: 0x%04x\n", val);
-
-    gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_TYPE, (GLint*) &val);
-    fprintf(stderr, "GL_IMPLEMENTATION_COLOR_READ_TYPE: 0x%04x\n", val);
-#endif
+    mMaxFramebufferColorAttachments = 1;
 
     if (!gl->IsGLES2()) {
         // gl_PointSize is always available in ES2 GLSL, but has to be
@@ -588,9 +581,6 @@ WebGLContext::InitAndValidateGL()
             gl->fEnable(LOCAL_GL_POINT_SPRITE);
         }
     }
-
-    gl->fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT,   (GLint*) &mPixelStorePackAlignment);
-    gl->fGetIntegerv(LOCAL_GL_UNPACK_ALIGNMENT, (GLint*) &mPixelStoreUnpackAlignment);
 
     // Check the shader validator pref
     nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);

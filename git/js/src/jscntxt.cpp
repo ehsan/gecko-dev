@@ -62,6 +62,7 @@
 #include "jscntxt.h"
 #include "jsversion.h"
 #include "jsdbgapi.h"
+#include "jsdtoa.h"
 #include "jsexn.h"
 #include "jsfun.h"
 #include "jsgc.h"
@@ -84,7 +85,9 @@
 #ifdef JS_METHODJIT
 # include "assembler/assembler/MacroAssembler.h"
 #endif
+#include "frontend/ParseMaps.h"
 
+#include "jsatominlines.h"
 #include "jscntxtinlines.h"
 #include "jscompartment.h"
 #include "jsobjinlines.h"
@@ -300,7 +303,7 @@ JSContext *
 js_NewContext(JSRuntime *rt, size_t stackChunkSize)
 {
     JSContext *cx;
-    JSBool ok, first;
+    JSBool first;
     JSContextCallback cxCallback;
 
     /*
@@ -317,6 +320,7 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
 #if JS_STACK_GROWTH_DIRECTION > 0
     cx->stackLimit = (jsuword) -1;
 #endif
+    cx->iterValue.setMagic(JS_NO_ITER_VALUE);
     JS_STATIC_ASSERT(JSVERSION_DEFAULT == 0);
     JS_ASSERT(cx->findVersion() == JSVERSION_DEFAULT);
     VOUCH_DOES_NOT_REQUIRE_STACK();
@@ -382,17 +386,7 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
 #ifdef JS_THREADSAFE
         JS_BeginRequest(cx);
 #endif
-        ok = js_InitCommonAtoms(cx);
-
-        /*
-         * scriptFilenameTable may be left over from a previous episode of
-         * non-zero contexts alive in rt, so don't re-init the table if it's
-         * not necessary.
-         */
-        if (ok && !rt->scriptFilenameTable)
-            ok = js_InitRuntimeScriptState(rt);
-        if (ok)
-            ok = js_InitRuntimeNumberState(cx);
+        JSBool ok = js_InitCommonAtoms(cx);
 
 #ifdef JS_THREADSAFE
         JS_EndRequest(cx);
@@ -415,121 +409,6 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
 
     return cx;
 }
-
-#if defined DEBUG && defined XP_UNIX
-# include <stdio.h>
-
-class JSAutoFile {
-public:
-    JSAutoFile() : mFile(NULL) {}
-
-    ~JSAutoFile() {
-        if (mFile)
-            fclose(mFile);
-    }
-
-    FILE *open(const char *fname, const char *mode) {
-        return mFile = fopen(fname, mode);
-    }
-    operator FILE *() {
-        return mFile;
-    }
-
-private:
-    FILE *mFile;
-};
-
-static void
-DumpEvalCacheMeter(JSContext *cx)
-{
-    if (const char *filename = getenv("JS_EVALCACHE_STATFILE")) {
-        struct {
-            const char *name;
-            ptrdiff_t  offset;
-        } table[] = {
-#define frob(x) { #x, offsetof(JSEvalCacheMeter, x) }
-            EVAL_CACHE_METER_LIST(frob)
-#undef frob
-        };
-        JSEvalCacheMeter *ecm = &cx->compartment->evalCacheMeter;
-
-        static JSAutoFile fp;
-        if (!fp && !fp.open(filename, "w"))
-            return;
-
-        fprintf(fp, "eval cache meter (%p):\n",
-#ifdef JS_THREADSAFE
-                (void *) cx->thread()
-#else
-                (void *) cx->runtime
-#endif
-                );
-        for (uintN i = 0; i < JS_ARRAY_LENGTH(table); ++i) {
-            fprintf(fp, "%-8.8s  %llu\n",
-                    table[i].name,
-                    (unsigned long long int) *(uint64 *)((uint8 *)ecm + table[i].offset));
-        }
-        fprintf(fp, "hit ratio %g%%\n", ecm->hit * 100. / ecm->probe);
-        fprintf(fp, "avg steps %g\n", double(ecm->step) / ecm->probe);
-        fflush(fp);
-    }
-}
-# define DUMP_EVAL_CACHE_METER(cx) DumpEvalCacheMeter(cx)
-
-static void
-DumpFunctionCountMap(const char *title, JSRuntime::FunctionCountMap &map, FILE *fp)
-{
-    fprintf(fp, "\n%s count map:\n", title);
-
-    for (JSRuntime::FunctionCountMap::Range r = map.all(); !r.empty(); r.popFront()) {
-        JSFunction *fun = r.front().key;
-        int32 count = r.front().value;
-
-        fprintf(fp, "%10d %s:%u\n", count, fun->script()->filename, fun->script()->lineno);
-    }
-}
-
-static void
-DumpFunctionMeter(JSContext *cx)
-{
-    if (const char *filename = cx->runtime->functionMeterFilename) {
-        struct {
-            const char *name;
-            ptrdiff_t  offset;
-        } table[] = {
-#define frob(x) { #x, offsetof(JSFunctionMeter, x) }
-            FUNCTION_KIND_METER_LIST(frob)
-#undef frob
-        };
-        JSFunctionMeter *fm = &cx->runtime->functionMeter;
-
-        static JSAutoFile fp;
-        if (!fp && !fp.open(filename, "w"))
-            return;
-
-        fprintf(fp, "function meter (%s):\n", cx->runtime->lastScriptFilename);
-        for (uintN i = 0; i < JS_ARRAY_LENGTH(table); ++i)
-            fprintf(fp, "%-19.19s %d\n", table[i].name, *(int32 *)((uint8 *)fm + table[i].offset));
-
-        DumpFunctionCountMap("method read barrier", cx->runtime->methodReadBarrierCountMap, fp);
-        DumpFunctionCountMap("unjoined function", cx->runtime->unjoinedFunctionCountMap, fp);
-
-        putc('\n', fp);
-        fflush(fp);
-    }
-}
-
-# define DUMP_FUNCTION_METER(cx)   DumpFunctionMeter(cx)
-
-#endif /* DEBUG && XP_UNIX */
-
-#ifndef DUMP_EVAL_CACHE_METER
-# define DUMP_EVAL_CACHE_METER(cx) ((void) 0)
-#endif
-
-#ifndef DUMP_FUNCTION_METER
-# define DUMP_FUNCTION_METER(cx)   ((void) 0)
-#endif
 
 void
 js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
@@ -614,8 +493,6 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
                 JS_BeginRequest(cx);
 #endif
 
-            js_FinishRuntimeNumberState(cx);
-
             /* Unpin all common atoms before final GC. */
             js_FinishCommonAtoms(cx);
 
@@ -639,8 +516,6 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
         if (last) {
             GCREASON(LASTCONTEXT);
             js_GC(cx, NULL, GC_LAST_CONTEXT);
-            DUMP_EVAL_CACHE_METER(cx);
-            DUMP_FUNCTION_METER(cx);
 
             /* Take the runtime down, now that it has no contexts or atoms. */
             JS_LOCK_GC(rt);
@@ -665,9 +540,6 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
     js_ClearContextThread(cx);
     JS_ASSERT_IF(JS_CLIST_IS_EMPTY(&t->contextList), !t->data.requestDepth);
 #endif
-#ifdef JS_METER_DST_OFFSET_CACHING
-    cx->dstOffsetCache.dumpStats();
-#endif
     JS_UNLOCK_GC(rt);
 #ifdef JS_THREADSAFE
     rt->gcHelperThread.waitBackgroundSweepEnd(rt);
@@ -681,7 +553,7 @@ js_ContextIterator(JSRuntime *rt, JSBool unlocked, JSContext **iterp)
     JSContext *cx = *iterp;
 
     Maybe<AutoLockGC> lockIf;
-    if (unlocked) 
+    if (unlocked)
         lockIf.construct(rt);
     cx = js_ContextFromLinkField(cx ? cx->link.next : rt->contextList.next);
     if (&cx->link == &rt->contextList)
@@ -1228,12 +1100,6 @@ js_ReportValueErrorFlags(JSContext *cx, uintN flags, const uintN errorNumber,
     return ok;
 }
 
-#if defined DEBUG && defined XP_UNIX
-/* For gdb usage. */
-void js_logon(JSContext *cx)  { cx->logfp = stderr; cx->logPrevPc = NULL; }
-void js_logoff(JSContext *cx) { cx->logfp = NULL; }
-#endif
-
 JSErrorFormatString js_ErrorFormatString[JSErr_Limit] = {
 #define MSG_DEF(name, number, count, exception, format) \
     { format, count, exception } ,
@@ -1392,7 +1258,7 @@ js_GetCurrentBytecodePC(JSContext* cx)
 #endif
     {
         JS_ASSERT_NOT_ON_TRACE(cx);  /* for static analysis */
-        pc = cx->running() ? cx->regs().pc : NULL;
+        pc = cx->hasfp() ? cx->regs().pc : NULL;
         if (!pc)
             return NULL;
         imacpc = cx->fp()->maybeImacropc();
@@ -1432,15 +1298,6 @@ DSTOffsetCache::purge()
     oldOffsetMilliseconds = 0;
     oldRangeStartSeconds = oldRangeEndSeconds = INT64_MIN;
 
-#ifdef JS_METER_DST_OFFSET_CACHING
-    totalCalculations = 0;
-    hit = 0;
-    missIncreasing = missDecreasing = 0;
-    missIncreasingOffsetChangeExpand = missIncreasingOffsetChangeUpper = 0;
-    missDecreasingOffsetChangeExpand = missDecreasingOffsetChangeLower = 0;
-    missLargeIncrease = missLargeDecrease = 0;
-#endif
-
     sanityCheck();
 }
 
@@ -1461,6 +1318,9 @@ JSContext::JSContext(JSRuntime *rt)
     compartment(NULL),
     stack(thisDuringConstruction()),
     busyArrays()
+#ifdef DEBUG
+    , stackIterAssertionEnabled(true)
+#endif
 {}
 
 JSContext::~JSContext()
@@ -1471,8 +1331,11 @@ JSContext::~JSContext()
 
     /* Free the stuff hanging off of cx. */
     VOUCH_DOES_NOT_REQUIRE_STACK();
-    JS_FinishArenaPool(&tempPool);
+    if (parseMapPool_)
+        Foreground::delete_<ParseMapPool>(parseMapPool_);
+
     JS_FinishArenaPool(&regExpPool);
+    JS_FinishArenaPool(&tempPool);
 
     if (lastMessage)
         Foreground::free_(lastMessage);
@@ -1492,7 +1355,7 @@ void
 JSContext::resetCompartment()
 {
     JSObject *scopeobj;
-    if (stack.running()) {
+    if (stack.hasfp()) {
         scopeobj = &fp()->scopeChain();
     } else {
         scopeobj = globalObject;
@@ -1540,7 +1403,8 @@ JSContext::wrapPendingException()
 JSGenerator *
 JSContext::generatorFor(StackFrame *fp) const
 {
-    JS_ASSERT(stack.contains(fp) && fp->isGeneratorFrame());
+    JS_ASSERT(stack.containsSlow(fp));
+    JS_ASSERT(fp->isGeneratorFrame());
     JS_ASSERT(!fp->isFloatingGenerator());
     JS_ASSERT(!genStack.empty());
 
@@ -1595,7 +1459,7 @@ JSRuntime::onOutOfMemory(void *p, size_t nbytes, JSContext *cx)
  * Release pool's arenas if the stackPool has existed for longer than the
  * limit specified by gcEmptyArenaPoolLifespan.
  */
-inline void
+static void
 FreeOldArenas(JSRuntime *rt, JSArenaPool *pool)
 {
     JSArena *a = pool->current;
@@ -1610,6 +1474,10 @@ void
 JSContext::purge()
 {
     FreeOldArenas(runtime, &regExpPool);
+    if (!activeCompilations) {
+        Foreground::delete_<ParseMapPool>(parseMapPool_);
+        parseMapPool_ = NULL;
+    }
 }
 
 #if defined(JS_TRACER) || defined(JS_METHODJIT)
@@ -1717,6 +1585,17 @@ LeaveTrace(JSContext *cx)
 #ifdef JS_TRACER
     if (JS_ON_TRACE(cx))
         DeepBail(cx);
+#endif
+}
+
+bool
+CanLeaveTrace(JSContext *cx)
+{
+    JS_ASSERT(JS_ON_TRACE(cx));
+#ifdef JS_TRACER
+    return JS_TRACE_MONITOR_ON_TRACE(cx)->bailExit != NULL;
+#else
+    return false;
 #endif
 }
 
