@@ -250,8 +250,6 @@ struct EvalCacheHashPolicy
 
 typedef HashSet<EvalCacheEntry, EvalCacheHashPolicy, SystemAllocPolicy> EvalCache;
 
-class PropertyIteratorObject;
-
 class NativeIterCache
 {
     static const size_t SIZE = size_t(1) << 8;

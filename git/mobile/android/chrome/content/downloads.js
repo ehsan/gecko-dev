@@ -197,14 +197,11 @@ AlertDownloadProgressListener.prototype = {
             this._privateDownloads.splice(index, 1);
           }
         }
-        // Checking existance of MimeInfo and if there is at least one application handler in addition
-        // to default one.
-        let existsAvailableHandler = (aDownload.MIMEInfo && aDownload.MIMEInfo.possibleApplicationHandlers.length > 1);
 
         // We want to show the download finished notification only if it is not automatically opened.
         // A download is automatically opened if it has a default handler and fennec is in foreground.
         if (state == Ci.nsIDownloadManager.DOWNLOAD_FINISHED &&
-            !(existsAvailableHandler && Downloads.isForeground)) {
+            !(aDownload.MIMEInfo.hasDefaultHandler && Downloads.isForeground)) {
           Downloads.showAlert(aDownload, Strings.browser.GetStringFromName("alertDownloadsDone2"),
                               aDownload.displayName);
         }

@@ -89,8 +89,7 @@ setting[type="menulist"] {
   -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-multi");
 }
 
-#chrome-selection-overlay,
-#content-selection-overlay {
+#selection-overlay {
   -moz-binding: url("chrome://browser/content/bindings/selectionoverlay.xml#selection-binding");
 }
 

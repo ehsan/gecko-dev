@@ -2649,7 +2649,7 @@ ASTSerializer::literal(ParseNode *pn, MutableHandleValue dst)
       case PNK_REGEXP:
       {
         RootedObject re1(cx, pn->pn_objbox ? pn->pn_objbox->object : NULL);
-        LOCAL_ASSERT(re1 && re1->is<RegExpObject>());
+        LOCAL_ASSERT(re1 && re1->isRegExp());
 
         RootedObject proto(cx);
         if (!js_GetClassPrototype(cx, JSProto_RegExp, &proto))

@@ -235,11 +235,7 @@
         <deck id="browsers" flex="1" observes="bcast_preciseInput"/>
         <box id="vertical-scroller" class="scroller" orient="vertical" end="0" top="0"/>
         <box id="horizontal-scroller" class="scroller" orient="horizontal" left="0" bottom="0"/>
-
-        <!-- Content touch selection overlay -->
-        <!-- onclick addresses dom bug 835175 -->
-        <box onclick="false" class="selection-overlay-hidden" id="content-selection-overlay"/>
-  </stack>
+      </stack>
     </vbox>
 
     <!-- popup for content navigator helper -->
@@ -364,9 +360,9 @@
       </toolbar>
     </appbar>
 
-    <!-- Chrome touch selection overlay -->
-    <!-- onclick addresses dom bug 835175 -->
-    <box onclick="false" class="selection-overlay-hidden" id="chrome-selection-overlay"/>
+    <!-- Selection overlay - this should be below any content that can have selectable text -->
+    <!-- onclick addresses dom bug 835175, str in bug 832957 -->
+    <box onclick="false" class="selection-overlay-hidden" id="selection-overlay"/>
 
     <autoscroller class="autoscroller" id="autoscrollerid"/>
 

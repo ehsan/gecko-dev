@@ -27,6 +27,3 @@ class MintBootstrapper(BaseBootstrapper):
             'mesa-common-dev',
             'uuid',
             'yasm')
-
-    def upgrade_mercurial(self):
-        self.apt_install('mercurial')

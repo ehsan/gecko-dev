@@ -476,9 +476,8 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
 
     if (!JSVAL_IS_PRIMITIVE(v)) {
         JSObject *obj = JSVAL_TO_OBJECT(v);
-        if (obj->is<BlockObject>()) {
-            char *source = JS_sprintf_append(NULL, "depth %d {",
-                                             obj->as<BlockObject>().stackDepth());
+        if (obj->isBlock()) {
+            char *source = JS_sprintf_append(NULL, "depth %d {", obj->asBlock().stackDepth());
             if (!source)
                 return false;
 
@@ -516,8 +515,8 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
             return bytes->encodeLatin1(cx, str);
         }
 
-        if (obj->is<RegExpObject>()) {
-            JSString *source = obj->as<RegExpObject>().toString(cx);
+        if (obj->isRegExp()) {
+            JSString *source = obj->asRegExp().toString(cx);
             if (!source)
                 return false;
             JS::Anchor<JSString *> anchor(source);
@@ -1090,8 +1089,7 @@ GetBlockChainAtPC(JSContext *cx, JSScript *script, jsbytecode *pc)
           case JSOP_ENTERLET0:
           case JSOP_ENTERLET1: {
             JSObject *child = script->getObject(p);
-            JS_ASSERT_IF(blockChain, child->as<BlockObject>().stackDepth() >=
-                                     blockChain->as<BlockObject>().stackDepth());
+            JS_ASSERT_IF(blockChain, child->asBlock().stackDepth() >= blockChain->asBlock().stackDepth());
             blockChain = child;
             break;
           }
@@ -1106,7 +1104,7 @@ GetBlockChainAtPC(JSContext *cx, JSScript *script, jsbytecode *pc)
             if (!(sn && SN_TYPE(sn) == SRC_HIDDEN)) {
                 JS_ASSERT(blockChain);
                 blockChain = blockChain->asStaticBlock().enclosingBlock();
-                JS_ASSERT_IF(blockChain, blockChain->is<BlockObject>());
+                JS_ASSERT_IF(blockChain, blockChain->isBlock());
             }
             break;
           }
@@ -1406,9 +1404,9 @@ ExpressionDecompiler::findLetVar(jsbytecode *pc, unsigned depth)
         JSObject *chain = GetBlockChainAtPC(cx, script, pc);
         if (!chain)
             return NULL;
-        JS_ASSERT(chain->is<BlockObject>());
+        JS_ASSERT(chain->isBlock());
         do {
-            BlockObject &block = chain->as<BlockObject>();
+            BlockObject &block = chain->asBlock();
             uint32_t blockDepth = block.stackDepth();
             uint32_t blockCount = block.slotCount();
             if (uint32_t(depth - blockDepth) < uint32_t(blockCount)) {
@@ -1419,7 +1417,7 @@ ExpressionDecompiler::findLetVar(jsbytecode *pc, unsigned depth)
                 }
             }
             chain = chain->getParent();
-        } while (chain && chain->is<BlockObject>());
+        } while (chain && chain->isBlock());
     }
     return NULL;
 }

@@ -7,7 +7,6 @@
 #include "mozilla/dom/CallbackInterface.h"
 #include "jsapi.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "nsPrintfCString.h"
 
 namespace mozilla {
 namespace dom {
@@ -21,8 +20,7 @@ CallbackInterface::GetCallableProperty(JSContext* cx, const char* aPropName,
   }
   if (!aCallable.isObject() ||
       !JS_ObjectIsCallable(cx, &aCallable.toObject())) {
-    nsPrintfCString description("Property '%s'", aPropName);
-    ThrowErrorMessage(cx, MSG_NOT_CALLABLE, description.get());
+    ThrowErrorMessage(cx, MSG_NOT_CALLABLE);
     return false;
   }
 

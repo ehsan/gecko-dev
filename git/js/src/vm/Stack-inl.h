@@ -31,7 +31,7 @@ namespace js {
 static inline bool
 IsCacheableNonGlobalScope(JSObject *obj)
 {
-    bool cacheable = (obj->is<CallObject>() || obj->is<BlockObject>() || obj->is<DeclEnvObject>());
+    bool cacheable = (obj->isCall() || obj->isBlock() || obj->isDeclEnv());
 
     JS_ASSERT_IF(cacheable, !obj->getOps()->lookupProperty);
     return cacheable;
@@ -209,7 +209,7 @@ inline void
 StackFrame::pushOnScopeChain(ScopeObject &scope)
 {
     JS_ASSERT(*scopeChain() == scope.enclosingScope() ||
-              *scopeChain() == scope.as<CallObject>().enclosingScope().as<DeclEnvObject>().enclosingScope());
+              *scopeChain() == scope.asCall().enclosingScope().asDeclEnv().enclosingScope());
     scopeChain_ = &scope;
     flags_ |= HAS_SCOPECHAIN;
 }
@@ -227,9 +227,9 @@ StackFrame::callObj() const
     JS_ASSERT(fun()->isHeavyweight());
 
     JSObject *pobj = scopeChain();
-    while (JS_UNLIKELY(!pobj->is<CallObject>()))
+    while (JS_UNLIKELY(!pobj->isCall()))
         pobj = pobj->enclosingScope();
-    return pobj->as<CallObject>();
+    return pobj->asCall();
 }
 
 /*****************************************************************************/

@@ -620,8 +620,8 @@ CloneObject(JSContext *cx, HandleObject srcObj, CloneMemory &clonedObjects)
             RootedFunction fun(cx, srcObj->toFunction());
             clone = CloneFunctionObject(cx, fun, cx->global(), fun->getAllocKind(), TenuredObject);
         }
-    } else if (srcObj->is<RegExpObject>()) {
-        RegExpObject &reobj = srcObj->as<RegExpObject>();
+    } else if (srcObj->isRegExp()) {
+        RegExpObject &reobj = srcObj->asRegExp();
         RootedAtom source(cx, reobj.getSource());
         clone = RegExpObject::createNoStatics(cx, source, reobj.getFlags(), NULL);
     } else if (srcObj->isDate()) {

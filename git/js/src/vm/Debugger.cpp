@@ -5234,10 +5234,10 @@ DebuggerEnv_getCallee(JSContext *cx, unsigned argc, Value *vp)
         return true;
 
     JSObject &scope = env->asDebugScope().scope();
-    if (!scope.is<CallObject>())
+    if (!scope.isCall())
         return true;
 
-    CallObject &callobj = scope.as<CallObject>();
+    CallObject &callobj = scope.asCall();
     if (callobj.isForEval())
         return true;
 

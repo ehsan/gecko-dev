@@ -811,7 +811,7 @@ ObjectBox::ObjectBox(Module *module, ObjectBox* traceLink)
     traceLink(traceLink),
     emitLink(NULL)
 {
-    JS_ASSERT(object->is<Module>());
+    JS_ASSERT(object->isModule());
 }
 
 void

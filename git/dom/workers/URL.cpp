@@ -206,9 +206,8 @@ URL::CreateObjectURL(const WorkerGlobalObject& aGlobal, JSObject* aBlob,
   if (!blob) {
     SetDOMStringToNull(aResult);
 
-    NS_NAMED_LITERAL_STRING(argStr, "Argument 1 of URL.createObjectURL");
     NS_NAMED_LITERAL_STRING(blobStr, "Blob");
-    aRv.ThrowTypeError(MSG_DOES_NOT_IMPLEMENT_INTERFACE, &argStr, &blobStr);
+    aRv.ThrowTypeError(MSG_DOES_NOT_IMPLEMENT_INTERFACE, &blobStr);
     return;
   }
 

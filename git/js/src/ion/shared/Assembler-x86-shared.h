@@ -580,27 +580,25 @@ class AssemblerX86Shared
     void cmpEAX(Label *label) { cmpSrc(label); }
     void bind(Label *label) {
         JSC::MacroAssembler::Label jsclabel;
-        JSC::X86Assembler::JmpDst dst(masm.label());
         if (label->used()) {
             bool more;
             JSC::X86Assembler::JmpSrc jmp(label->offset());
             do {
                 JSC::X86Assembler::JmpSrc next;
                 more = masm.nextJump(jmp, &next);
-                masm.linkJump(jmp, dst);
+                masm.linkJump(jmp, masm.label());
                 jmp = next;
             } while (more);
         }
-        label->bind(dst.offset());
+        label->bind(masm.label().offset());
     }
     void bind(RepatchLabel *label) {
         JSC::MacroAssembler::Label jsclabel;
-        JSC::X86Assembler::JmpDst dst(masm.label());
         if (label->used()) {
             JSC::X86Assembler::JmpSrc jmp(label->offset());
-            masm.linkJump(jmp, dst);
+            masm.linkJump(jmp, masm.label());
         }
-        label->bind(dst.offset());
+        label->bind(masm.label().offset());
     }
     uint32_t currentOffset() {
         return masm.label().offset();
