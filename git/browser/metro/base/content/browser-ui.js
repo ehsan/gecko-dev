@@ -143,8 +143,6 @@ var BrowserUI = {
 
       // Login Manager and Form History initialization
       Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
-      Cc["@mozilla.org/satchel/form-history;1"].getService(Ci.nsIFormHistory2);
-
       messageManager.addMessageListener("Browser:MozApplicationManifest", OfflineApps);
 
       try {
@@ -425,23 +423,16 @@ var BrowserUI = {
     });
   },
 
-  onAboutPolicyClick: function() {
-    FlyoutPanelsUI.hide();
-    let linkStr = Services.urlFormatter.formatURLPref("app.privacyURL");
-    BrowserUI.newTab(linkStr, Browser.selectedTab, true);
-  },
-
   /*********************************
    * Tab management
    */
 
-  newTab: function newTab(aURI, aOwner, aPeekTabs) {
-    aURI = aURI || kStartURI;
-    if (aPeekTabs) {
-      ContextUI.peekTabs(kNewTabAnimationDelayMsec);
-    }
-    let tab = Browser.addTab(aURI, true, aOwner);
-    return tab;
+  /**
+   * Open a new tab in the foreground in response to a user action.
+   */
+  addAndShowTab: function (aURI, aOwner) {
+    ContextUI.peekTabs(kNewTabAnimationDelayMsec);
+    return Browser.addTab(aURI || kStartURI, true, aOwner);
   },
 
   setOnTabAnimationEnd: function setOnTabAnimationEnd(aCallback) {
@@ -601,10 +592,6 @@ var BrowserUI = {
         this._adjustDOMforViewState(aData);
         if (aData == "snapped") {
           FlyoutPanelsUI.hide();
-          Elements.autocomplete.setAttribute("orient", "vertical");
-        }
-        else {
-          Elements.autocomplete.setAttribute("orient", "horizontal");
         }
 
         break;
@@ -1079,7 +1066,7 @@ var BrowserUI = {
         this._closeOrQuit();
         break;
       case "cmd_newTab":
-        this.newTab(null, null, true);
+        this.addAndShowTab();
         // Make sure navbar is displayed before setting focus on url bar. Bug 907244
         ContextUI.displayNavbar();
         this._edit.beginEditing(false);
@@ -1317,7 +1304,7 @@ var SettingsCharm = {
         label: Strings.browser.GetStringFromName("helpOnlineCharm"),
         onselected: function() {
           let url = Services.urlFormatter.formatURLPref("app.support.baseURL");
-          BrowserUI.newTab(url, Browser.selectedTab, true);
+          BrowserUI.addAndShowTab(url, Browser.selectedTab);
         }
     });
   },

@@ -17,7 +17,6 @@
  * and create derivative works of this document.
  */
 
-interface MozPowerManager;
 interface MozWakeLock;
 
 // http://www.whatwg.org/specs/web-apps/current-work/#the-navigator-object
@@ -269,8 +268,6 @@ partial interface Navigator {
   readonly attribute MozCellBroadcast mozCellBroadcast;
 };
 
-// nsIMozNavigatorVoicemail
-interface MozVoicemail;
 partial interface Navigator {
   [Throws, Func="Navigator::HasVoicemailSupport"]
   readonly attribute MozVoicemail mozVoicemail;
@@ -298,6 +295,13 @@ partial interface Navigator {
   readonly attribute BluetoothManager mozBluetooth;
 };
 #endif // MOZ_B2G_BT
+
+#ifdef MOZ_B2G_FM
+partial interface Navigator {
+  [Throws, Func="Navigator::HasFMRadioSupport"]
+  readonly attribute FMRadio mozFMRadio;
+};
+#endif // MOZ_B2G_FM
 
 #ifdef MOZ_TIME_MANAGER
 // nsIDOMMozNavigatorTime

@@ -2,14 +2,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DEPTH		= @DEPTH@
-topsrcdir	= @top_srcdir@
-srcdir		= @srcdir@
-VPATH		= @srcdir@
-relativesrcdir	= @relativesrcdir@
-
-include $(DEPTH)/config/autoconf.mk
-
 # Media tests should be backend independent, i.e., not conditioned on
 # MOZ_OGG, MOZ_WAVE etc. (The only exception is the can_play_type tests,
 # which necessarily depend on the backend(s) configured.) As far as possible,
@@ -137,6 +129,9 @@ MOCHITEST_FILES = \
 		test_streams_srcObject.html \
 		test_reset_src.html \
 		test_streams_autoplay.html \
+		test_streams_element_capture.html \
+		test_streams_element_capture_reset.html \
+		test_streams_element_capture_createObjectURL.html \
 		test_streams_gc.html \
 		test_streams_tracks.html \
 		$(filter disabled-for-intermittent-failures--bug-608634, test_error_in_video_document.html) \
@@ -150,18 +145,6 @@ MOCHITEST_FILES = \
 		test_playback_rate_playpause.html \
 		test_bug895305.html \
 		$(NULL)
-
-# Disabled on Windows for frequent intermittent failures
-ifneq ($(OS_ARCH), WINNT)
-MOCHITEST_FILES += \
-		test_streams_element_capture.html \
-		test_streams_element_capture_reset.html \
-		test_streams_element_capture_createObjectURL.html \
-		$(NULL)
-else
-$(filter disabled-on-windows-for-timeouts--bug-752796, test_streams_element_capture.html)
-$(filter disabled-on-windows-for-timeouts--bug-752796, test_streams_element_capture_reset.html)
-endif
 
 # Don't run in suite
 ifndef MOZ_SUITE
@@ -247,6 +230,7 @@ MOCHITEST_FILES += \
 		multiple-bos.ogg \
 		no-cues.webm \
 		owl.mp3 \
+		owl-funnier-id3.mp3 \
 		owl-funny-id3.mp3 \
 		split.webm \
 		seek.ogv \
@@ -402,5 +386,3 @@ MOCHITEST_FILES += \
 		test_can_play_type_no_wave.html \
 		$(NULL)
 endif
-
-include $(topsrcdir)/config/rules.mk

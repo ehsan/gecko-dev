@@ -99,10 +99,8 @@
 #include "nsBidiUtils.h"
 
 #include "nsIDOMUserDataHandler.h"
-#include "nsIDOMXPathEvaluator.h"
 #include "nsIDOMXPathExpression.h"
 #include "nsIDOMXPathNSResolver.h"
-#include "nsIXPathEvaluatorInternal.h"
 #include "nsIParserService.h"
 #include "nsContentCreatorFunctions.h"
 
@@ -192,11 +190,12 @@
 #include "nsIAppsService.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/DocumentFragment.h"
-#include "mozilla/dom/WebComponentsBinding.h"
 #include "mozilla/dom/HTMLBodyElement.h"
 #include "mozilla/dom/HTMLInputElement.h"
 #include "mozilla/dom/NodeFilterBinding.h"
+#include "mozilla/dom/OwningNonNull.h"
 #include "mozilla/dom/UndoManager.h"
+#include "mozilla/dom/WebComponentsBinding.h"
 #include "nsFrame.h"
 #include "nsDOMCaretPosition.h"
 #include "nsIDOMHTMLTextAreaElement.h"
@@ -213,6 +212,7 @@
 #include "nsIHttpChannelInternal.h"
 #include "nsISecurityConsoleMessage.h"
 #include "nsCharSeparatedTokenizer.h"
+#include "mozilla/dom/XPathEvaluator.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -283,7 +283,6 @@ nsIdentifierMapEntry::AddContentChangeCallback(nsIDocument::IDTargetObserver aCa
     mChangeCallbacks = new nsTHashtable<ChangeCallbackEntry>;
     if (!mChangeCallbacks)
       return;
-    mChangeCallbacks->Init();
   }
 
   ChangeCallback cc = { aCallback, aData, aForImage };
@@ -698,8 +697,6 @@ nsOnloadBlocker::SetLoadFlags(nsLoadFlags aLoadFlags)
 nsExternalResourceMap::nsExternalResourceMap()
   : mHaveShutDown(false)
 {
-  mMap.Init();
-  mPendingLoads.Init();
 }
 
 nsIDocument*
@@ -1395,8 +1392,6 @@ nsDocument::nsDocument(const char* aContentType)
 
   // Start out mLastStyleSheetSet as null, per spec
   SetDOMStringToNull(mLastStyleSheetSet);
-
-  mLinksToUpdate.Init();
 }
 
 static PLDHashOperator
@@ -1437,6 +1432,9 @@ nsDocument::~nsDocument()
     }
 
     if (!isAboutScheme) {
+      // Record the page load
+      uint32_t pageLoaded = 1;
+      Accumulate(Telemetry::MIXED_CONTENT_UNBLOCK_COUNTER, pageLoaded);
       // Record the mixed content status of the docshell in Telemetry
       enum {
         NO_MIXED_CONTENT = 0, // There is no Mixed Content on the page
@@ -1471,10 +1469,7 @@ nsDocument::~nsDocument()
 
   mCustomPrototypes.Clear();
 
-  nsISupports* supports;
-  QueryInterface(NS_GET_IID(nsCycleCollectionISupports), reinterpret_cast<void**>(&supports));
-  NS_ASSERTION(supports, "Failed to QI to nsCycleCollectionISupports?!");
-  nsContentUtils::DropJSObjects(supports);
+  mozilla::DropJSObjects(this);
 
   // Clear mObservers to keep it in sync with the mutationobserver list
   mObservers.Clear();
@@ -1582,23 +1577,11 @@ NS_INTERFACE_TABLE_HEAD(nsDocument)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIMutationObserver)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIApplicationCacheContainer)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIObserver)
+    NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMXPathEvaluator)
   NS_INTERFACE_TABLE_END
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsDocument)
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
                                  new nsNode3Tearoff(this))
-  if (aIID.Equals(NS_GET_IID(nsIDOMXPathEvaluator)) ||
-      aIID.Equals(NS_GET_IID(nsIXPathEvaluatorInternal))) {
-    if (!mXPathEvaluatorTearoff) {
-      nsresult rv;
-      mXPathEvaluatorTearoff =
-        do_CreateInstance(NS_XPATH_EVALUATOR_CONTRACTID,
-                          static_cast<nsIDocument *>(this), &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    return mXPathEvaluatorTearoff->QueryInterface(aIID, aInstancePtr);
-  }
-  else
 NS_INTERFACE_MAP_END
 
 
@@ -1784,7 +1767,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChannel)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mStyleAttrStyleSheet)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mXPathEvaluatorTearoff)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mXPathEvaluator)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLayoutHistoryState)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOnloadBlocker)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFirstBaseNodeWithHref)
@@ -1871,7 +1854,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   }
   tmp->mFirstChild = nullptr;
 
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mXPathEvaluatorTearoff)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mXPathEvaluator)
   tmp->mCachedRootElement = nullptr; // Avoid a dangling pointer
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDisplayDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mFirstBaseNodeWithHref)
@@ -1950,11 +1933,6 @@ nsDocument::Init()
     Preferences::AddUintVarCache(&sOnloadDecodeLimit, "image.onload.decode.limit", 0);
   }
 
-  mIdentifierMap.Init();
-  mStyledLinks.Init();
-  mRadioGroups.Init();
-  mCustomPrototypes.Init();
-
   // Force initialization.
   nsINode::nsSlots* slots = Slots();
 
@@ -1996,17 +1974,7 @@ nsDocument::Init()
 
   mScriptLoader = new nsScriptLoader(this);
 
-  mImageTracker.Init();
-  mPlugins.Init();
-
-  nsXPCOMCycleCollectionParticipant* participant;
-  CallQueryInterface(this, &participant);
-  NS_ASSERTION(participant, "Failed to QI to nsXPCOMCycleCollectionParticipant!");
-
-  nsISupports* thisSupports;
-  QueryInterface(NS_GET_IID(nsCycleCollectionISupports), reinterpret_cast<void**>(&thisSupports));
-  NS_ASSERTION(thisSupports, "Failed to QI to nsCycleCollectionISupports!");
-  nsContentUtils::HoldJSObjects(thisSupports, participant);
+  mozilla::HoldJSObjects(this);
 
   return NS_OK;
 }
@@ -6167,8 +6135,7 @@ nsDocument::GetBoxObjectFor(Element* aElement, ErrorResult& aRv)
   }
 
   if (!mBoxObjectTable) {
-    mBoxObjectTable = new nsInterfaceHashtable<nsPtrHashKey<nsIContent>, nsPIBoxObject>;
-    mBoxObjectTable->Init(12);
+    mBoxObjectTable = new nsInterfaceHashtable<nsPtrHashKey<nsIContent>, nsPIBoxObject>(12);
   } else {
     nsCOMPtr<nsPIBoxObject> boxObject = mBoxObjectTable->Get(aElement);
     if (boxObject) {
@@ -6805,12 +6772,11 @@ nsIDocument::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv)
 }
 
 nsViewportInfo
-nsDocument::GetViewportInfo(uint32_t aDisplayWidth,
-                            uint32_t aDisplayHeight)
+nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
 {
   switch (mViewportType) {
   case DisplayWidthHeight:
-    return nsViewportInfo(aDisplayWidth, aDisplayHeight);
+    return nsViewportInfo(aDisplaySize);
   case Unknown:
   {
     nsAutoString viewport;
@@ -6830,8 +6796,7 @@ nsDocument::GetViewportInfo(uint32_t aDisplayWidth,
           {
             // We're making an assumption that the docType can't change here
             mViewportType = DisplayWidthHeight;
-            nsViewportInfo ret(aDisplayWidth, aDisplayHeight);
-            return ret;
+            return nsViewportInfo(aDisplaySize);
           }
         }
       }
@@ -6840,8 +6805,7 @@ nsDocument::GetViewportInfo(uint32_t aDisplayWidth,
       GetHeaderData(nsGkAtoms::handheldFriendly, handheldFriendly);
       if (handheldFriendly.EqualsLiteral("true")) {
         mViewportType = DisplayWidthHeight;
-        nsViewportInfo ret(aDisplayWidth, aDisplayHeight);
-        return ret;
+        return nsViewportInfo(aDisplaySize);
       }
     }
 
@@ -6849,14 +6813,14 @@ nsDocument::GetViewportInfo(uint32_t aDisplayWidth,
     GetHeaderData(nsGkAtoms::viewport_minimum_scale, minScaleStr);
 
     nsresult errorCode;
-    mScaleMinFloat = minScaleStr.ToFloat(&errorCode);
+    mScaleMinFloat = LayoutDeviceToScreenScale(minScaleStr.ToFloat(&errorCode));
 
     if (NS_FAILED(errorCode)) {
       mScaleMinFloat = kViewportMinScale;
     }
 
-    mScaleMinFloat = std::min((double)mScaleMinFloat, kViewportMaxScale);
-    mScaleMinFloat = std::max((double)mScaleMinFloat, kViewportMinScale);
+    mScaleMinFloat = mozilla::clamped(
+        mScaleMinFloat, kViewportMinScale, kViewportMaxScale);
 
     nsAutoString maxScaleStr;
     GetHeaderData(nsGkAtoms::viewport_maximum_scale, maxScaleStr);
@@ -6864,20 +6828,20 @@ nsDocument::GetViewportInfo(uint32_t aDisplayWidth,
     // We define a special error code variable for the scale and max scale,
     // because they are used later (see the width calculations).
     nsresult scaleMaxErrorCode;
-    mScaleMaxFloat = maxScaleStr.ToFloat(&scaleMaxErrorCode);
+    mScaleMaxFloat = LayoutDeviceToScreenScale(maxScaleStr.ToFloat(&scaleMaxErrorCode));
 
     if (NS_FAILED(scaleMaxErrorCode)) {
       mScaleMaxFloat = kViewportMaxScale;
     }
 
-    mScaleMaxFloat = std::min((double)mScaleMaxFloat, kViewportMaxScale);
-    mScaleMaxFloat = std::max((double)mScaleMaxFloat, kViewportMinScale);
+    mScaleMaxFloat = mozilla::clamped(
+        mScaleMaxFloat, kViewportMinScale, kViewportMaxScale);
 
     nsAutoString scaleStr;
     GetHeaderData(nsGkAtoms::viewport_initial_scale, scaleStr);
 
     nsresult scaleErrorCode;
-    mScaleFloat = scaleStr.ToFloat(&scaleErrorCode);
+    mScaleFloat = LayoutDeviceToScreenScale(scaleStr.ToFloat(&scaleErrorCode));
 
     nsAutoString widthStr, heightStr;
 
@@ -6892,20 +6856,19 @@ nsDocument::GetViewportInfo(uint32_t aDisplayWidth,
 
     if (widthStr.IsEmpty() &&
         (heightStr.EqualsLiteral("device-height") ||
-         (mScaleFloat /* not adjusted for pixel ratio */ == 1.0)))
+         (mScaleFloat.scale == 1.0)))
     {
       mAutoSize = true;
     }
 
     nsresult widthErrorCode, heightErrorCode;
-    mViewportWidth = widthStr.ToInteger(&widthErrorCode);
-    mViewportHeight = heightStr.ToInteger(&heightErrorCode);
+    mViewportSize.width = widthStr.ToInteger(&widthErrorCode);
+    mViewportSize.height = heightStr.ToInteger(&heightErrorCode);
 
     // If width or height has not been set to a valid number by this point,
     // fall back to a default value.
-    mValidWidth = (!widthStr.IsEmpty() && NS_SUCCEEDED(widthErrorCode) && mViewportWidth > 0);
-    mValidHeight = (!heightStr.IsEmpty() && NS_SUCCEEDED(heightErrorCode) && mViewportHeight > 0);
-
+    mValidWidth = (!widthStr.IsEmpty() && NS_SUCCEEDED(widthErrorCode) && mViewportSize.width > 0);
+    mValidHeight = (!heightStr.IsEmpty() && NS_SUCCEEDED(heightErrorCode) && mViewportSize.height > 0);
 
     mAllowZoom = true;
     nsAutoString userScalable;
@@ -6926,63 +6889,62 @@ nsDocument::GetViewportInfo(uint32_t aDisplayWidth,
   }
   case Specified:
   default:
-    uint32_t width = mViewportWidth, height = mViewportHeight;
+    CSSIntSize size = mViewportSize;
 
     if (!mValidWidth) {
-      if (mValidHeight && aDisplayWidth > 0 && aDisplayHeight > 0) {
-        width = uint32_t((height * aDisplayWidth) / aDisplayHeight);
+      if (mValidHeight && !aDisplaySize.IsEmpty()) {
+        size.width = int32_t(size.height * aDisplaySize.width / aDisplaySize.height);
       } else {
-        width = Preferences::GetInt("browser.viewport.desktopWidth",
-                                             kViewportDefaultScreenWidth);
+        size.width = Preferences::GetInt("browser.viewport.desktopWidth",
+                                         kViewportDefaultScreenWidth);
       }
     }
 
     if (!mValidHeight) {
-      if (aDisplayWidth > 0 && aDisplayHeight > 0) {
-        height = uint32_t((width * aDisplayHeight) / aDisplayWidth);
+      if (!aDisplaySize.IsEmpty()) {
+        size.height = int32_t(size.width * aDisplaySize.height / aDisplaySize.width);
       } else {
-        height = width;
+        size.height = size.width;
       }
     }
     // Now convert the scale into device pixels per CSS pixel.
     nsIWidget *widget = nsContentUtils::WidgetForDocument(this);
-    double pixelRatio = widget ? widget->GetDefaultScale() : 1.0;
-    float scaleFloat = mScaleFloat * pixelRatio;
-    float scaleMinFloat= mScaleMinFloat * pixelRatio;
-    float scaleMaxFloat = mScaleMaxFloat * pixelRatio;
+    CSSToLayoutDeviceScale pixelRatio(widget ? widget->GetDefaultScale() : 1.0f);
+    CSSToScreenScale scaleFloat = mScaleFloat * pixelRatio;
+    CSSToScreenScale scaleMinFloat = mScaleMinFloat * pixelRatio;
+    CSSToScreenScale scaleMaxFloat = mScaleMaxFloat * pixelRatio;
 
     if (mAutoSize) {
-      // aDisplayWidth and aDisplayHeight are in device pixels; convert them to
-      // CSS pixels for the viewport size.
-      width = aDisplayWidth / pixelRatio;
-      height = aDisplayHeight / pixelRatio;
+      // aDisplaySize is in screen pixels; convert them to CSS pixels for the viewport size.
+      CSSToScreenScale defaultPixelScale = pixelRatio * LayoutDeviceToScreenScale(1.0f);
+      size = mozilla::gfx::RoundedToInt(ScreenSize(aDisplaySize) / defaultPixelScale);
     }
 
-    width = std::min(width, kViewportMaxWidth);
-    width = std::max(width, kViewportMinWidth);
+    size.width = clamped(size.width, kViewportMinSize.width, kViewportMaxSize.width);
 
     // Also recalculate the default zoom, if it wasn't specified in the metadata,
     // and the width is specified.
     if (mScaleStrEmpty && !mWidthStrEmpty) {
-      scaleFloat = std::max(scaleFloat, float(aDisplayWidth) / float(width));
+      CSSToScreenScale defaultScale(float(aDisplaySize.width) / float(size.width));
+      scaleFloat = (scaleFloat > defaultScale) ? scaleFloat : defaultScale;
     }
 
-    height = std::min(height, kViewportMaxHeight);
-    height = std::max(height, kViewportMinHeight);
+    size.height = clamped(size.height, kViewportMinSize.height, kViewportMaxSize.height);
 
     // We need to perform a conversion, but only if the initial or maximum
     // scale were set explicitly by the user.
     if (mValidScaleFloat) {
-      width = std::max(width, (uint32_t)(aDisplayWidth / scaleFloat));
-      height = std::max(height, (uint32_t)(aDisplayHeight / scaleFloat));
+      CSSIntSize displaySize = RoundedToInt(ScreenSize(aDisplaySize) / scaleFloat);
+      size.width = std::max(size.width, displaySize.width);
+      size.height = std::max(size.height, displaySize.height);
     } else if (mValidMaxScale) {
-      width = std::max(width, (uint32_t)(aDisplayWidth / scaleMaxFloat));
-      height = std::max(height, (uint32_t)(aDisplayHeight / scaleMaxFloat));
+      CSSIntSize displaySize = RoundedToInt(ScreenSize(aDisplaySize) / scaleMaxFloat);
+      size.width = std::max(size.width, displaySize.width);
+      size.height = std::max(size.height, displaySize.height);
     }
 
-    nsViewportInfo ret(scaleFloat, scaleMinFloat, scaleMaxFloat, width, height,
-                       mAutoSize, mAllowZoom);
-    return ret;
+    return nsViewportInfo(scaleFloat, scaleMinFloat, scaleMaxFloat, size,
+                          mAutoSize, mAllowZoom);
   }
 }
 
@@ -8791,7 +8753,6 @@ nsIDocument::RegisterFreezableElement(nsIContent* aContent)
     mFreezableElements = new nsTHashtable<nsPtrHashKey<nsIContent> >();
     if (!mFreezableElements)
       return;
-    mFreezableElements->Init();
   }
   mFreezableElements->PutEntry(aContent);
 }
@@ -11290,31 +11251,14 @@ nsIDocument::CreateExpression(const nsAString& aExpression,
                               nsIDOMXPathNSResolver* aResolver,
                               ErrorResult& rv)
 {
-  nsCOMPtr<nsIDOMXPathEvaluator> evaluator = do_QueryInterface(this);
-  if (!evaluator) {
-    rv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIDOMXPathExpression> expr;
-  rv = evaluator->CreateExpression(aExpression, aResolver, getter_AddRefs(expr));
-  return expr.forget();
+  return XPathEvaluator()->CreateExpression(aExpression, aResolver, rv);
 }
 
 already_AddRefed<nsIDOMXPathNSResolver>
 nsIDocument::CreateNSResolver(nsINode* aNodeResolver,
                               ErrorResult& rv)
 {
-  nsCOMPtr<nsIDOMXPathEvaluator> evaluator = do_QueryInterface(this);
-  if (!evaluator) {
-    rv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIDOMNode> nodeResolver = do_QueryInterface(aNodeResolver);
-  nsCOMPtr<nsIDOMXPathNSResolver> res;
-  rv = evaluator->CreateNSResolver(nodeResolver, getter_AddRefs(res));
-  return res.forget();
+  return XPathEvaluator()->CreateNSResolver(aNodeResolver, rv);
 }
 
 already_AddRefed<nsISupports>
@@ -11322,18 +11266,33 @@ nsIDocument::Evaluate(const nsAString& aExpression, nsINode* aContextNode,
                       nsIDOMXPathNSResolver* aResolver, uint16_t aType,
                       nsISupports* aResult, ErrorResult& rv)
 {
-  nsCOMPtr<nsIDOMXPathEvaluator> evaluator = do_QueryInterface(this);
-  if (!evaluator) {
-    rv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIDOMNode> contextNode = do_QueryInterface(aContextNode);
-  nsCOMPtr<nsISupports> res;
-  rv = evaluator->Evaluate(aExpression, contextNode, aResolver, aType,
-                           aResult, getter_AddRefs(res));
-  return res.forget();
+  return XPathEvaluator()->Evaluate(aExpression, aContextNode, aResolver, aType,
+                                    aResult, rv);
 }
+
+NS_IMETHODIMP
+nsDocument::CreateExpression(const nsAString& aExpression,
+                             nsIDOMXPathNSResolver* aResolver,
+                             nsIDOMXPathExpression** aResult)
+{
+  return XPathEvaluator()->CreateExpression(aExpression, aResolver, aResult);
+}
+
+NS_IMETHODIMP
+nsDocument::CreateNSResolver(nsIDOMNode* aNodeResolver,
+                             nsIDOMXPathNSResolver** aResult)
+{
+  return XPathEvaluator()->CreateNSResolver(aNodeResolver, aResult);
+}
+
+NS_IMETHODIMP
+nsDocument::Evaluate(const nsAString& aExpression, nsIDOMNode* aContextNode,
+                     nsIDOMXPathNSResolver* aResolver, uint16_t aType,
+                     nsISupports* aInResult, nsISupports** aResult)
+{
+  return XPathEvaluator()->Evaluate(aExpression, aContextNode, aResolver, aType,
+                                    aInResult, aResult);
+} 
 
 // This is just a hack around the fact that window.document is not
 // [Unforgeable] yet.
@@ -11368,7 +11327,7 @@ nsIDocument::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
                                            getter_AddRefs(holder),
                                            false);
   if (NS_FAILED(rv)) {
-    Throw<true>(aCx, rv);
+    Throw(aCx, rv);
     return nullptr;
   }
 
@@ -11384,6 +11343,15 @@ nsIDocument::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
   }
 
   return obj;
+}
+
+XPathEvaluator*
+nsIDocument::XPathEvaluator()
+{
+  if (!mXPathEvaluator) {
+    mXPathEvaluator = new dom::XPathEvaluator(this);
+  }
+  return mXPathEvaluator;
 }
 
 bool

@@ -6,7 +6,6 @@
 
 #include "base/basictypes.h"
 #include "GeneratedEvents.h"
-#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "nsDOMClassInfo.h"
 #include "nsIDOMBluetoothDeviceEvent.h"
@@ -205,7 +204,7 @@ BluetoothAdapter::Unroot()
   }
   mJsUuids = nullptr;
   mJsDeviceAddresses = nullptr;
-  NS_DROP_JS_OBJECTS(this, BluetoothAdapter);
+  mozilla::DropJSObjects(this);
   mIsRooted = false;
 }
 
@@ -215,7 +214,7 @@ BluetoothAdapter::Root()
   if (mIsRooted) {
     return;
   }
-  NS_HOLD_JS_OBJECTS(this, BluetoothAdapter);
+  mozilla::HoldJSObjects(this);
   mIsRooted = true;
 }
 
@@ -346,6 +345,15 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     e->InitBluetoothStatusChangedEvent(aData.name(), false, false,
                                        address, status);
     DispatchTrustedEvent(event);
+  } else if (aData.name().EqualsLiteral(REQUEST_MEDIA_PLAYSTATUS_ID)) {
+    nsCOMPtr<nsIDOMEvent> event;
+    nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), this, nullptr, nullptr);
+    NS_ENSURE_SUCCESS_VOID(rv);
+
+    rv = event->InitEvent(aData.name(), false, false);
+    NS_ENSURE_SUCCESS_VOID(rv);
+
+    DispatchTrustedEvent(event);
   } else {
 #ifdef DEBUG
     nsCString warningMsg;
@@ -413,7 +421,8 @@ BluetoothAdapter::GetDevices(JSContext* aContext, ErrorResult& aRv)
     return JS::NullValue();
   }
 
-  return JS::ObjectValue(*xpc_UnmarkGrayObject(mJsDeviceAddresses));
+  JS::ExposeObjectToActiveJS(mJsDeviceAddresses);
+  return JS::ObjectValue(*mJsDeviceAddresses);
 }
 
 JS::Value
@@ -425,7 +434,8 @@ BluetoothAdapter::GetUuids(JSContext* aContext, ErrorResult& aRv)
     return JS::NullValue();
   }
 
-  return JS::ObjectValue(*xpc_UnmarkGrayObject(mJsUuids));
+  JS::ExposeObjectToActiveJS(mJsUuids);
+  return JS::ObjectValue(*mJsUuids);
 }
 
 already_AddRefed<DOMRequest>
@@ -463,7 +473,7 @@ BluetoothAdapter::SetDiscoverableTimeout(uint32_t aDiscoverableTimeout, ErrorRes
 }
 
 already_AddRefed<DOMRequest>
-BluetoothAdapter::GetConnectedDevices(uint16_t aProfileId, ErrorResult& aRv)
+BluetoothAdapter::GetConnectedDevices(uint16_t aServiceUuid, ErrorResult& aRv)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -482,7 +492,7 @@ BluetoothAdapter::GetConnectedDevices(uint16_t aProfileId, ErrorResult& aRv)
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-  nsresult rv = bs->GetConnectedDevicePropertiesInternal(aProfileId, results);
+  nsresult rv = bs->GetConnectedDevicePropertiesInternal(aServiceUuid, results);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return nullptr;
@@ -656,8 +666,9 @@ BluetoothAdapter::SetPairingConfirmation(const nsAString& aDeviceAddress,
 }
 
 already_AddRefed<DOMRequest>
-BluetoothAdapter::Connect(const nsAString& aDeviceAddress,
-                          uint16_t aProfileId, ErrorResult& aRv)
+BluetoothAdapter::Connect(BluetoothDevice& aDevice,
+                          const Optional<short unsigned int>& aServiceUuid,
+                          ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
   if (!win) {
@@ -669,18 +680,28 @@ BluetoothAdapter::Connect(const nsAString& aDeviceAddress,
   nsRefPtr<BluetoothVoidReplyRunnable> results =
     new BluetoothVoidReplyRunnable(request);
 
+  nsAutoString address;
+  aDevice.GetAddress(address);
+  uint32_t deviceClass = aDevice.Class();
+  uint16_t serviceUuid = 0;
+  if (aServiceUuid.WasPassed()) {
+    serviceUuid = aServiceUuid.Value();
+  }
+
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-  bs->Connect(aDeviceAddress, aProfileId, results);
+  bs->Connect(address, deviceClass, serviceUuid, results);
 
   return request.forget();
 }
 
 already_AddRefed<DOMRequest>
-BluetoothAdapter::Disconnect(uint16_t aProfileId, ErrorResult& aRv)
+BluetoothAdapter::Disconnect(BluetoothDevice& aDevice,
+                             const Optional<short unsigned int>& aServiceUuid,
+                             ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
   if (!win) {
@@ -692,12 +713,19 @@ BluetoothAdapter::Disconnect(uint16_t aProfileId, ErrorResult& aRv)
   nsRefPtr<BluetoothVoidReplyRunnable> results =
     new BluetoothVoidReplyRunnable(request);
 
+  nsAutoString address;
+  aDevice.GetAddress(address);
+  uint16_t serviceUuid = 0;
+  if (aServiceUuid.WasPassed()) {
+    serviceUuid = aServiceUuid.Value();
+  }
+
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-  bs->Disconnect(aProfileId, results);
+  bs->Disconnect(address, serviceUuid, results);
 
   return request.forget();
 }

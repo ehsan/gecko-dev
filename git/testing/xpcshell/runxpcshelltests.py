@@ -135,6 +135,7 @@ class XPCShellTestThread(Thread):
 
         # event from main thread to signal work done
         self.event = event
+        self.done = False # explicitly set flag so we don't rely on thread.isAlive
 
     def run(self):
         try:
@@ -148,6 +149,7 @@ class XPCShellTestThread(Thread):
         if self.retry:
             self.log.info("TEST-INFO | %s | Test failed or timed out, will retry."
                           % self.test_object['name'])
+        self.done = True
         self.event.set()
 
     def kill(self, proc):
@@ -218,6 +220,7 @@ class XPCShellTestThread(Thread):
     def testTimeout(self, test_file, processPID):
         if not self.retry:
             self.log.error("TEST-UNEXPECTED-FAIL | %s | Test timed out" % test_file)
+        self.done = True
         Automation().killAndGetStackNoScreenshot(processPID, self.appPath, self.debuggerInfo)
 
     def buildCmdTestFile(self, name):
@@ -376,29 +379,8 @@ class XPCShellTestThread(Thread):
                 # removed fine
                 return
 
-        # we try again later at the end of the run for plugin dirs (because windows!)
-        if directory == self.pluginsDir:
-            self.cleanup_dir_list.append(directory)
-            return
-
-        # we couldn't clean up the directory, and it's not the plugins dir,
-        # which means that something wrong has probably happened
-        if self.retry:
-            return
-
-        with LOG_MUTEX:
-            message = "TEST-UNEXPECTED-FAIL | %s | Failed to clean up directory: %s" % (name, sys.exc_info()[1])
-            self.log.error(message)
-            self.log_output(self.output_lines)
-            self.log_output(traceback.format_exc())
-
-        self.failCount += 1
-        xunit_result["passed"] = False
-        xunit_result["failure"] = {
-            "type": "TEST-UNEXPECTED-FAIL",
-            "message": message,
-            "text": "%s\n%s" % ("\n".join(self.output_lines), traceback.format_exc())
-        }
+        # we try cleaning up again later at the end of the run
+        self.cleanup_dir_list.append(directory)
 
     def clean_temp_dirs(self, name, stdout):
         # We don't want to delete the profile when running check-interactive
@@ -807,8 +789,9 @@ class XPCShellTests(object):
         """
         # Make assertions fatal
         self.env["XPCOM_DEBUG_BREAK"] = "stack-and-abort"
-        # Enable crash reporting
-        self.env["MOZ_CRASHREPORTER"] = "1"
+        # Crash reporting interferes with debugging
+        if not self.debuggerInfo:
+            self.env["MOZ_CRASHREPORTER"] = "1"
         # Don't launch the crash reporter client
         self.env["MOZ_CRASHREPORTER_NO_REPORT"] = "1"
         # Capturing backtraces is very slow on some platforms, and it's
@@ -1347,12 +1330,13 @@ class XPCShellTests(object):
             # find what tests are done (might be more than 1)
             done_tests = set()
             for test in running_tests:
-                if not test.is_alive():
+                if test.done:
                     done_tests.add(test)
-                    test.join()
+                    test.join(1) # join with timeout so we don't hang on blocked threads
                     # if the test had trouble, we will try running it again
                     # at the end of the run
-                    if test.retry:
+                    if test.retry or test.is_alive():
+                        # if the join call timed out, test.is_alive => True
                         self.try_again_list.append(test.test_object)
                         continue
                     # did the test encounter any exception?
@@ -1411,7 +1395,7 @@ class XPCShellTests(object):
         signal.signal(signal.SIGINT, signal.SIG_DFL)
 
         self.shutdownNode()
-        # Clean up any slacker directories that might be lying around (Windows).
+        # Clean up any slacker directories that might be lying around
         # Some might fail because of windows taking too long to unlock them.
         # We don't do anything if this fails because the test slaves will have
         # their $TEMP dirs cleaned up on reboot anyway.

@@ -25,6 +25,7 @@
 #include "mozilla/TimeStamp.h"
 #include "nsContentListDeclarations.h"
 #include "nsMathUtils.h"
+#include "Units.h"
 
 class imgICache;
 class imgIContainer;
@@ -88,6 +89,7 @@ class nsNodeInfoManager;
 class nsPIDOMWindow;
 class nsPresContext;
 class nsScriptObjectTracer;
+class nsStringBuffer;
 class nsStringHashKey;
 class nsTextFragment;
 class nsViewportInfo;
@@ -1245,28 +1247,6 @@ public:
    */
   static void DestroyAnonymousContent(nsCOMPtr<nsIContent>* aContent);
 
-  /**
-   * Keep the JS objects held by aScriptObjectHolder alive.
-   *
-   * @param aScriptObjectHolder the object that holds JS objects that we want to
-   *                            keep alive
-   * @param aTracer the tracer for aScriptObject
-   */
-  static void HoldJSObjects(void* aScriptObjectHolder,
-                            nsScriptObjectTracer* aTracer);
-
-  /**
-   * Drop the JS objects held by aScriptObjectHolder.
-   *
-   * @param aScriptObjectHolder the object that holds JS objects that we want to
-   *                            drop
-   */
-  static void DropJSObjects(void* aScriptObjectHolder);
-
-#ifdef DEBUG
-  static bool AreJSObjectsHeld(void* aScriptObjectHolder); 
-#endif
-
   static void DeferredFinalize(nsISupports* aSupports);
   static void DeferredFinalize(mozilla::DeferredFinalizeAppendFunction aAppendFunc,
                                mozilla::DeferredFinalizeFunction aFunc,
@@ -1530,8 +1510,7 @@ public:
    * will return viewport information that specifies default information.
    */
   static nsViewportInfo GetViewportInfo(nsIDocument* aDocument,
-                                        uint32_t aDisplayWidth,
-                                        uint32_t aDisplayHeight);
+                                        const mozilla::ScreenIntSize& aDisplaySize);
 
   // Call EnterMicroTask when you're entering JS execution.
   // Usually the best way to do this is to use nsAutoMicroTask.
@@ -1556,6 +1535,7 @@ public:
 
   static JSContext *GetCurrentJSContext();
   static JSContext *GetSafeJSContext();
+  static JSContext *GetDefaultJSContextForThread();
 
   /**
    * Case insensitive comparison between two strings. However it only ignores
@@ -1612,6 +1592,7 @@ public:
   static nsresult GetUTFOrigin(nsIPrincipal* aPrincipal,
                                nsString& aOrigin);
   static nsresult GetUTFOrigin(nsIURI* aURI, nsString& aOrigin);
+  static void GetUTFNonNullOrigin(nsIURI* aURI, nsString& aOrigin);
 
   /**
    * This method creates and dispatches "command" event, which implements
@@ -1705,6 +1686,14 @@ public:
    * @param aString the string to convert the newlines inside [in/out]
    */
   static void PlatformToDOMLineBreaks(nsString &aString);
+
+  /**
+   * Populates aResultString with the contents of the string-buffer aBuf, up
+   * to aBuf's null-terminator.  aBuf must not be null. Ownership of the string
+   * is not transferred.
+   */
+  static void PopulateStringFromStringBuffer(nsStringBuffer* aBuf,
+                                             nsAString& aResultString);
 
   static bool IsHandlingKeyBoardEvent()
   {

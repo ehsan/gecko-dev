@@ -511,7 +511,7 @@ class ThreadLocalJSRuntime
   JSContext* mContext;
   JSObject* mGlobal;
 
-  static JSClass sGlobalClass;
+  static const JSClass sGlobalClass;
   static const unsigned sRuntimeHeapSize = 768 * 1024;
 
   ThreadLocalJSRuntime()
@@ -582,7 +582,7 @@ class ThreadLocalJSRuntime
   }
 };
 
-JSClass ThreadLocalJSRuntime::sGlobalClass = {
+const JSClass ThreadLocalJSRuntime::sGlobalClass = {
   "IndexedDBTransactionThreadGlobal",
   JSCLASS_GLOBAL_FLAGS,
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
@@ -852,7 +852,7 @@ public:
 
 } // anonymous namespace
 
-JSClass IDBObjectStore::sDummyPropJSClass = {
+const JSClass IDBObjectStore::sDummyPropJSClass = {
   "dummy", 0,
   JS_PropertyStub,  JS_DeletePropertyStub,
   JS_PropertyStub,  JS_StrictPropertyStub,
@@ -1749,7 +1749,7 @@ IDBObjectStore::~IDBObjectStore()
 
   if (mRooted) {
     mCachedKeyPath = JSVAL_VOID;
-    NS_DROP_JS_OBJECTS(this, IDBObjectStore);
+    mozilla::DropJSObjects(this);
   }
 }
 
@@ -2418,7 +2418,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBObjectStore)
   tmp->mCachedKeyPath = JSVAL_VOID;
 
   if (tmp->mRooted) {
-    NS_DROP_JS_OBJECTS(tmp, IDBObjectStore);
+    mozilla::DropJSObjects(tmp);
     tmp->mRooted = false;
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -2450,7 +2450,7 @@ IDBObjectStore::GetKeyPath(JSContext* aCx, ErrorResult& aRv)
   ENSURE_SUCCESS(aRv, JSVAL_VOID);
 
   if (JSVAL_IS_GCTHING(mCachedKeyPath)) {
-    NS_HOLD_JS_OBJECTS(this, IDBObjectStore);
+    mozilla::HoldJSObjects(this);
     mRooted = true;
   }
 
@@ -3015,8 +3015,10 @@ AddHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
         nativeFile = fileManager->GetFileForId(directory, id);
         NS_ENSURE_TRUE(nativeFile, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-        nsRefPtr<FileOutputStream> outputStream = FileOutputStream::Create(
-          mObjectStore->Transaction()->Database()->Origin(), nativeFile);
+        IDBDatabase* database = mObjectStore->Transaction()->Database();
+        nsRefPtr<FileOutputStream> outputStream =
+          FileOutputStream::Create(database->Type(), database->Group(),
+                                   database->Origin(), nativeFile);
         NS_ENSURE_TRUE(outputStream, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
         rv = CopyData(inputStream, outputStream);

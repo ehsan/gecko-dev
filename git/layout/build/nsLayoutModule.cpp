@@ -54,7 +54,7 @@
 #include "nsIMessageManager.h"
 
 // Transformiix stuff
-#include "nsXPathEvaluator.h"
+#include "mozilla/dom/XPathEvaluator.h"
 #include "txMozillaXSLTProcessor.h"
 #include "txNodeSetAdaptor.h"
 
@@ -68,7 +68,6 @@
 
 // DOM includes
 #include "nsDOMBlobBuilder.h"
-#include "nsDOMException.h"
 #include "nsDOMFileReader.h"
 
 #include "nsFormData.h"
@@ -82,9 +81,11 @@
 #include "nsDOMScriptObjectFactory.h"
 #include "DOMStorageManager.h"
 #include "nsJSON.h"
+#include "nsZipArchive.h"
 #include "mozIApplicationClearPrivateDataParams.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/Activity.h"
+#include "mozilla/dom/DOMException.h"
 #include "mozilla/dom/DOMRequest.h"
 #include "mozilla/dom/EventSource.h"
 #include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
@@ -123,11 +124,6 @@ using mozilla::dom::bluetooth::BluetoothService;
 using mozilla::dom::gonk::AudioManager;
 #include "nsVolumeService.h"
 using mozilla::system::nsVolumeService;
-#endif
-
-#ifdef MOZ_B2G_FM
-#include "FMRadio.h"
-using mozilla::dom::fm::FMRadio;
 #endif
 
 #include "AudioChannelAgent.h"
@@ -235,6 +231,9 @@ static void Shutdown();
 #include "mozilla/dom/alarm/AlarmHalService.h"
 #include "mozilla/dom/time/TimeService.h"
 
+#include "mozilla/dom/telephony/TelephonyFactory.h"
+#include "nsITelephonyProvider.h"
+
 #ifdef MOZ_WIDGET_GONK
 #include "GonkGPSGeolocationProvider.h"
 #endif
@@ -243,6 +242,7 @@ static void Shutdown();
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::dom::mobilemessage;
+using namespace mozilla::dom::telephony;
 using mozilla::dom::alarm::AlarmHalService;
 using mozilla::dom::indexedDB::IndexedDatabaseManager;
 using mozilla::dom::power::PowerManagerService;
@@ -262,7 +262,7 @@ using mozilla::dom::time::TimeService;
 
 // Factory Constructor
 NS_GENERIC_FACTORY_CONSTRUCTOR(txMozillaXSLTProcessor)
-NS_GENERIC_AGGREGATED_CONSTRUCTOR_INIT(nsXPathEvaluator, Init)
+NS_GENERIC_FACTORY_CONSTRUCTOR(XPathEvaluator)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(txNodeSetAdaptor, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMSerializer)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsXMLHttpRequest, Init)
@@ -276,6 +276,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsMediaSourceProtocolHandler)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFontTableProtocolHandler)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHostObjectURI)
 NS_GENERIC_FACTORY_CONSTRUCTOR(DOMParser)
+NS_GENERIC_FACTORY_CONSTRUCTOR(Exception)
 NS_GENERIC_FACTORY_CONSTRUCTOR(DOMSessionStorageManager)
 NS_GENERIC_FACTORY_CONSTRUCTOR(DOMLocalStorageManager)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsChannelPolicy)
@@ -301,10 +302,6 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsSynthVoiceRegistry,
 
 #ifdef MOZ_WIDGET_GONK
 NS_GENERIC_FACTORY_CONSTRUCTOR(AudioManager)
-#endif
-
-#ifdef MOZ_B2G_FM
-NS_GENERIC_FACTORY_CONSTRUCTOR(FMRadio)
 #endif
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(AudioChannelAgent)
@@ -347,6 +344,8 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsVolumeService,
 #endif
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIMediaManagerService,
                                          MediaManager::GetInstance)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsITelephonyProvider,
+                                         TelephonyFactory::CreateTelephonyProvider)
 
 //-----------------------------------------------------------------------------
 
@@ -761,10 +760,6 @@ NS_DEFINE_NAMED_CID(NS_AUDIOMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_VOLUMESERVICE_CID);
 #endif
 
-#ifdef MOZ_B2G_FM
-NS_DEFINE_NAMED_CID(NS_FMRADIO_CID);
-#endif
-
 NS_DEFINE_NAMED_CID(NS_AUDIOCHANNELAGENT_CID);
 
 NS_DEFINE_NAMED_CID(NS_HTMLEDITOR_CID);
@@ -824,6 +819,7 @@ NS_DEFINE_NAMED_CID(NS_SYNTHVOICEREGISTRY_CID);
 #ifdef ACCESSIBILITY
 NS_DEFINE_NAMED_CID(NS_ACCESSIBILITY_SERVICE_CID);
 #endif
+NS_DEFINE_NAMED_CID(TELEPHONY_PROVIDER_CID);
 
 static nsresult
 CreateWindowCommandTableConstructor(nsISupports *aOuter,
@@ -1019,7 +1015,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_VIDEODOCUMENT_CID, false, NULL, CreateVideoDocument },
   { &kNS_STYLESHEETSERVICE_CID, false, NULL, nsStyleSheetServiceConstructor },
   { &kTRANSFORMIIX_XSLT_PROCESSOR_CID, false, NULL, txMozillaXSLTProcessorConstructor },
-  { &kTRANSFORMIIX_XPATH_EVALUATOR_CID, false, NULL, nsXPathEvaluatorConstructor },
+  { &kTRANSFORMIIX_XPATH_EVALUATOR_CID, false, NULL, XPathEvaluatorConstructor },
   { &kTRANSFORMIIX_NODESET_CID, false, NULL, txNodeSetAdaptorConstructor },
   { &kNS_XMLSERIALIZER_CID, false, NULL, nsDOMSerializerConstructor },
   { &kNS_FILEREADER_CID, false, NULL, nsDOMFileReaderConstructor },
@@ -1033,6 +1029,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_EVENTSOURCE_CID, false, NULL, EventSourceConstructor },
   { &kNS_DOMACTIVITY_CID, false, NULL, ActivityConstructor },
   { &kNS_DOMPARSER_CID, false, NULL, DOMParserConstructor },
+  { &kNS_XPCEXCEPTION_CID, false, NULL, ExceptionConstructor },
   { &kNS_DOMSESSIONSTORAGEMANAGER_CID, false, NULL, DOMSessionStorageManagerConstructor },
   { &kNS_DOMLOCALSTORAGEMANAGER_CID, false, NULL, DOMLocalStorageManagerConstructor },
   { &kNS_DOMJSON_CID, false, NULL, NS_NewJSON },
@@ -1049,9 +1046,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
 #ifdef MOZ_WIDGET_GONK
   { &kNS_AUDIOMANAGER_CID, true, NULL, AudioManagerConstructor },
   { &kNS_VOLUMESERVICE_CID, true, NULL, nsVolumeServiceConstructor },
-#endif
-#ifdef MOZ_B2G_FM
-  { &kNS_FMRADIO_CID, true, NULL, FMRadioConstructor },
 #endif
   { &kNS_AUDIOCHANNELAGENT_CID, true, NULL, AudioChannelAgentConstructor },
   { &kNS_HTMLEDITOR_CID, false, NULL, nsHTMLEditorConstructor },
@@ -1109,6 +1103,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
 #ifdef ACCESSIBILITY
   { &kNS_ACCESSIBILITY_SERVICE_CID, false, NULL, CreateA11yService },
 #endif
+  { &kTELEPHONY_PROVIDER_CID, false, NULL, nsITelephonyProviderConstructor },
   { NULL }
 };
 
@@ -1189,6 +1184,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { NS_EVENTSOURCE_CONTRACTID, &kNS_EVENTSOURCE_CID },
   { NS_DOMACTIVITY_CONTRACTID, &kNS_DOMACTIVITY_CID },
   { NS_DOMPARSER_CONTRACTID, &kNS_DOMPARSER_CID },
+  { XPC_EXCEPTION_CONTRACTID, &kNS_XPCEXCEPTION_CID },
   { "@mozilla.org/dom/localStorage-manager;1", &kNS_DOMLOCALSTORAGEMANAGER_CID },
   // Keeping the old ContractID for backward compatibility
   { "@mozilla.org/dom/storagemanager;1", &kNS_DOMLOCALSTORAGEMANAGER_CID },
@@ -1207,9 +1203,6 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
 #ifdef MOZ_WIDGET_GONK
   { NS_AUDIOMANAGER_CONTRACTID, &kNS_AUDIOMANAGER_CID },
   { NS_VOLUMESERVICE_CONTRACTID, &kNS_VOLUMESERVICE_CID },
-#endif
-#ifdef MOZ_B2G_FM
-  { NS_FMRADIO_CONTRACTID, &kNS_FMRADIO_CID },
 #endif
   { NS_AUDIOCHANNELAGENT_CONTRACTID, &kNS_AUDIOCHANNELAGENT_CID },
   { "@mozilla.org/editor/htmleditor;1", &kNS_HTMLEDITOR_CID },
@@ -1267,6 +1260,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/accessibilityService;1", &kNS_ACCESSIBILITY_SERVICE_CID },
   { "@mozilla.org/accessibleRetrieval;1", &kNS_ACCESSIBILITY_SERVICE_CID },
 #endif
+  { TELEPHONY_PROVIDER_CONTRACTID, &kTELEPHONY_PROVIDER_CID },
   { NULL }
 };
 

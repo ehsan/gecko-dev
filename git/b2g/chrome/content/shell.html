@@ -3,7 +3,7 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this file,
    - You can obtain one at http://mozilla.org/MPL/2.0/.  -->
 
-<html xmlns="http://www.w3.org/1999/xhtml"
+<html xmlns="http://www.w3.org/1999/xhtml "
       id="shell"
       windowtype="navigator:browser"
 #ifdef ANDROID
@@ -19,6 +19,7 @@
           src="chrome://browser/content/shell.js"> </script>
 
 #ifndef MOZ_WIDGET_GONK
+
   <!-- this script handles the screen argument for desktop builds -->
   <script type="application/javascript;version=1.8"
           src="chrome://browser/content/screen.js"> </script>
@@ -28,6 +29,13 @@
 #endif
 </head>
   <body id="container" style="margin: 0px; width:100%; height:100%;">
+#ifdef MOZ_WIDGET_COCOA
+    <!--
+     If the document is empty at startup, we don't display the window
+     at all on Mac OS...
+    -->
+    <h1 id="placeholder">wtf mac os!</h1>
+#endif
     <!-- The html:iframe containing the UI is created here. -->
   </body>
 </html>

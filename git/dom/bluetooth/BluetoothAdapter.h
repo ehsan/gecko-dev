@@ -115,12 +115,14 @@ public:
                      ErrorResult& aRv);
 
   already_AddRefed<DOMRequest>
-    Connect(const nsAString& aDeviceAddress, uint16_t aProfile,
-            ErrorResult& aRv);
+    Connect(BluetoothDevice& aDevice,
+            const Optional<short unsigned int>& aServiceUuid, ErrorResult& aRv);
   already_AddRefed<DOMRequest>
-    Disconnect(uint16_t aProfile, ErrorResult& aRv);
+    Disconnect(BluetoothDevice& aDevice,
+               const Optional<short unsigned int>& aServiceUuid,
+               ErrorResult& aRv);
   already_AddRefed<DOMRequest>
-    GetConnectedDevices(uint16_t aProfile, ErrorResult& aRv);
+    GetConnectedDevices(uint16_t aServiceUuid, ErrorResult& aRv);
 
   already_AddRefed<DOMRequest>
     SendFile(const nsAString& aDeviceAddress, nsIDOMBlob* aBlob,
@@ -144,6 +146,7 @@ public:
   IMPL_EVENT_HANDLER(a2dpstatuschanged);
   IMPL_EVENT_HANDLER(hfpstatuschanged);
   IMPL_EVENT_HANDLER(pairedstatuschanged);
+  IMPL_EVENT_HANDLER(requestmediaplaystatus);
   IMPL_EVENT_HANDLER(scostatuschanged);
 
   nsPIDOMWindow* GetParentObject() const

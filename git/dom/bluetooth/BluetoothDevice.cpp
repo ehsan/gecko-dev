@@ -11,7 +11,6 @@
 #include "BluetoothUtils.h"
 
 #include "nsDOMClassInfo.h"
-#include "nsContentUtils.h"
 #include "nsTArrayHelpers.h"
 
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
@@ -85,7 +84,7 @@ void
 BluetoothDevice::Root()
 {
   if (!mIsRooted) {
-    NS_HOLD_JS_OBJECTS(this, BluetoothDevice);
+    mozilla::HoldJSObjects(this);
     mIsRooted = true;
   }
 }
@@ -96,7 +95,7 @@ BluetoothDevice::Unroot()
   if (mIsRooted) {
     mJsUuids = nullptr;
     mJsServices = nullptr;
-    NS_DROP_JS_OBJECTS(this, BluetoothDevice);
+    mozilla::DropJSObjects(this);
     mIsRooted = false;
   }
 }
@@ -207,7 +206,8 @@ BluetoothDevice::GetUuids(JSContext* aCx, ErrorResult& aRv)
     return JS::NullValue();
   }
 
-  return JS::ObjectValue(*xpc_UnmarkGrayObject(mJsUuids));
+  JS::ExposeObjectToActiveJS(mJsUuids);
+  return JS::ObjectValue(*mJsUuids);
 }
 
 JS::Value
@@ -219,7 +219,8 @@ BluetoothDevice::GetServices(JSContext* aCx, ErrorResult& aRv)
     return JS::Value(JSVAL_NULL);
   }
 
-  return JS::ObjectValue(*xpc_UnmarkGrayObject(mJsServices));
+  JS::ExposeObjectToActiveJS(mJsServices);
+  return JS::ObjectValue(*mJsServices);
 }
 
 JSObject*

@@ -149,6 +149,7 @@ if test "$JS_STANDALONE" = no; then
   JS_STANDALONE=
 else
   JS_STANDALONE=1
+  AC_DEFINE(JS_STANDALONE)
 fi
 AC_SUBST(JS_STANDALONE)
 
@@ -1358,6 +1359,16 @@ case "$host" in
     HOST_OPTIMIZE_FLAGS="${HOST_OPTIMIZE_FLAGS=-O2}"
     ;;
 esac
+
+dnl Check for using a custom <inttypes.h> implementation
+dnl ========================================================
+AC_MSG_CHECKING(for custom <inttypes.h> implementation)
+if test "$MOZ_CUSTOM_INTTYPES_H"; then
+  AC_DEFINE_UNQUOTED(MOZ_CUSTOM_INTTYPES_H, "$MOZ_CUSTOM_INTTYPES_H")
+  AC_MSG_RESULT(using $MOZ_CUSTOM_INTTYPES_H)
+else
+  AC_MSG_RESULT(none specified)
+fi
 
 MOZ_DOING_LTO(lto_is_enabled)
 
@@ -4295,6 +4306,9 @@ if test -n "$ENABLE_INTL_API" -a -z "$MOZ_NATIVE_ICU"; then
     fi
     if test -z "$MOZ_OPTIMIZE"; then
         ICU_BUILD_OPTS="$ICU_BUILD_OPTS --disable-release"
+    else
+        ICU_CFLAGS="$ICU_CFLAGS $MOZ_OPTIMIZE_FLAGS"
+        ICU_CXXFLAGS="$ICU_CXXFLAGS $MOZ_OPTIMIZE_FLAGS"
     fi
 
     abs_srcdir=`(cd $srcdir; pwd)`
@@ -4328,7 +4342,7 @@ AC_SUBST(ac_configure_args)
 dnl Spit out some output
 dnl ========================================================
 
-AC_OUTPUT([js-confdefs.h Makefile config/autoconf.mk config/emptyvars.mk])
+AC_OUTPUT([js-confdefs.h config/autoconf.mk config/emptyvars.mk])
 
 # Produce the js-config script at configure time; see the comments for
 # 'js*-config' in Makefile.in.

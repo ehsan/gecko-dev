@@ -26,6 +26,7 @@
 #include "nsPropertyTable.h"             // for member
 #include "nsTHashtable.h"                // for member
 #include "mozilla/dom/DocumentBinding.h"
+#include "Units.h"
 
 class imgIRequest;
 class nsAString;
@@ -108,6 +109,7 @@ class ProcessingInstruction;
 class Touch;
 class TreeWalker;
 class UndoManager;
+class XPathEvaluator;
 template<typename> class OwningNonNull;
 template<typename> class Sequence;
 
@@ -621,8 +623,7 @@ public:
    */
   Element* GetRootElement() const;
 
-  virtual nsViewportInfo GetViewportInfo(uint32_t aDisplayWidth,
-                                         uint32_t aDisplayHeight) = 0;
+  virtual nsViewportInfo GetViewportInfo(const mozilla::ScreenIntSize& aDisplaySize) = 0;
 
   /**
    * True iff this doc will ignore manual character encoding overrides.
@@ -2171,6 +2172,8 @@ protected:
     return mContentType;
   }
 
+  mozilla::dom::XPathEvaluator* XPathEvaluator();
+
   nsCString mReferrer;
   nsString mLastModified;
 
@@ -2426,6 +2429,8 @@ protected:
   uint8_t mDefaultElementType;
 
   uint32_t mInSyncOperationCount;
+
+  nsRefPtr<mozilla::dom::XPathEvaluator> mXPathEvaluator;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)

@@ -152,11 +152,17 @@ public:
     virtual PSmsChild* AllocPSmsChild();
     virtual bool DeallocPSmsChild(PSmsChild*);
 
+    virtual PTelephonyChild* AllocPTelephonyChild();
+    virtual bool DeallocPTelephonyChild(PTelephonyChild*);
+
     virtual PStorageChild* AllocPStorageChild();
     virtual bool DeallocPStorageChild(PStorageChild* aActor);
 
     virtual PBluetoothChild* AllocPBluetoothChild();
     virtual bool DeallocPBluetoothChild(PBluetoothChild* aActor);
+
+    virtual PFMRadioChild* AllocPFMRadioChild();
+    virtual bool DeallocPFMRadioChild(PFMRadioChild* aActor);
 
     virtual PSpeechSynthesisChild* AllocPSpeechSynthesisChild();
     virtual bool DeallocPSpeechSynthesisChild(PSpeechSynthesisChild* aActor);

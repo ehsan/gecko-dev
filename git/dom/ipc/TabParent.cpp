@@ -297,12 +297,16 @@ TabParent::ActorDestroy(ActorDestroyReason why)
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
   nsCOMPtr<nsIObserverService> os = services::GetObserverService();
   if (frameLoader) {
+    nsCOMPtr<Element> frameElement(mFrameElement);
     ReceiveMessage(CHILD_PROCESS_SHUTDOWN_MESSAGE, false, nullptr, nullptr);
     frameLoader->DestroyChild();
 
     if (why == AbnormalShutdown && os) {
       os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, frameLoader),
                           "oop-frameloader-crashed", nullptr);
+      nsContentUtils::DispatchTrustedEvent(frameElement->OwnerDoc(), frameElement,
+                                           NS_LITERAL_STRING("oop-browser-crashed"),
+                                           true, true);
     }
   }
 
@@ -1191,7 +1195,9 @@ TabParent::ReceiveMessage(const nsString& aMessage,
 }
 
 PIndexedDBParent*
-TabParent::AllocPIndexedDBParent(const nsCString& aASCIIOrigin, bool* /* aAllowed */)
+TabParent::AllocPIndexedDBParent(
+                            const nsCString& aGroup,
+                            const nsCString& aASCIIOrigin, bool* /* aAllowed */)
 {
   return new IndexedDBParent(this);
 }
@@ -1205,6 +1211,7 @@ TabParent::DeallocPIndexedDBParent(PIndexedDBParent* aActor)
 
 bool
 TabParent::RecvPIndexedDBConstructor(PIndexedDBParent* aActor,
+                                     const nsCString& aGroup,
                                      const nsCString& aASCIIOrigin,
                                      bool* aAllowed)
 {
@@ -1259,7 +1266,7 @@ TabParent::RecvPIndexedDBConstructor(PIndexedDBParent* aActor,
   NS_ASSERTION(contentParent, "Null manager?!");
 
   nsRefPtr<IDBFactory> factory;
-  rv = IDBFactory::Create(window, aASCIIOrigin, contentParent,
+  rv = IDBFactory::Create(window, aGroup, aASCIIOrigin, contentParent,
                           getter_AddRefs(factory));
   NS_ENSURE_SUCCESS(rv, false);
 
@@ -1520,9 +1527,10 @@ TabParent::RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
                                       const nsString& aFeatures,
                                       bool* aOutWindowOpened)
 {
-  *aOutWindowOpened =
+  BrowserElementParent::OpenWindowResult opened =
     BrowserElementParent::OpenWindowOOP(static_cast<TabParent*>(aOpener),
                                         this, aURL, aName, aFeatures);
+  *aOutWindowOpened = (opened != BrowserElementParent::OPEN_WINDOW_CANCELLED);
   return true;
 }
 

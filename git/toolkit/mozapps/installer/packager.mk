@@ -344,6 +344,14 @@ else
 INNER_ROBOCOP_PACKAGE=echo 'Testing is disabled - No Robocop for you'
 endif
 
+# Create geckoview_library/geckoview_{assets,library}.zip for third-party GeckoView consumers.
+ifndef MOZ_DISABLE_GECKOVIEW
+INNER_MAKE_GECKOVIEW_LIBRARY= \
+  $(MAKE) -C ../mobile/android/geckoview_library package ABI_DIR=$(ABI_DIR)
+else
+INNER_MAKE_GECKOVIEW_LIBRARY=echo 'GeckoView library packaging is disabled'
+endif
+
 ifdef MOZ_OMX_PLUGIN
 DIST_FILES += libomxplugin.so libomxplugingb.so libomxplugingb235.so libomxpluginhc.so libomxpluginfroyo.so
 endif
@@ -383,7 +391,7 @@ INNER_MAKE_PACKAGE	= \
     mv libmozglue.so $(MOZ_CHILD_PROCESS_NAME) lib/$(ABI_DIR) && \
     unzip -o $(_ABS_DIST)/gecko.ap_ && \
     rm $(_ABS_DIST)/gecko.ap_ && \
-    $(ZIP) -0 $(_ABS_DIST)/gecko.ap_ $(ASSET_SO_LIBRARIES) && \
+    $(ZIP) $(if $(MOZ_ENABLE_SZIP),-0 )$(_ABS_DIST)/gecko.ap_ $(ASSET_SO_LIBRARIES) && \
     $(ZIP) -r9D $(_ABS_DIST)/gecko.ap_ $(DIST_FILES) -x $(NON_DIST_FILES) $(SZIP_LIBRARIES) && \
     $(if $(filter-out ./,$(OMNIJAR_DIR)), \
       mkdir -p $(OMNIJAR_DIR) && mv $(OMNIJAR_NAME) $(OMNIJAR_DIR) && ) \
@@ -394,7 +402,8 @@ INNER_MAKE_PACKAGE	= \
   cp $(_ABS_DIST)/gecko.apk $(_ABS_DIST)/gecko-unsigned-unaligned.apk && \
   $(RELEASE_JARSIGNER) $(_ABS_DIST)/gecko.apk && \
   $(ZIPALIGN) -f -v 4 $(_ABS_DIST)/gecko.apk $(PACKAGE) && \
-  $(INNER_ROBOCOP_PACKAGE)
+  $(INNER_ROBOCOP_PACKAGE) && \
+  $(INNER_MAKE_GECKOVIEW_LIBRARY)
 
 # Language repacks root the resources contained in assets/omni.ja
 # under assets/, but the repacks expect them to be rooted at /.

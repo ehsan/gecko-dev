@@ -11,6 +11,7 @@ include protocol PCompositor;
 include protocol PCrashReporter;
 include protocol PExternalHelperApp;
 include protocol PDeviceStorageRequest;
+include protocol PFMRadio;
 include protocol PHal;
 include protocol PImageBridge;
 include protocol PIndexedDB;
@@ -19,6 +20,7 @@ include protocol PNecko;
 include protocol PSms;
 include protocol PSpeechSynthesis;
 include protocol PStorage;
+include protocol PTelephony;
 include protocol PTestShell;
 include protocol PJavaScript;
 include DOMTypes;
@@ -126,6 +128,40 @@ union DeviceStorageParams
   DeviceStorageAvailableParams;
 };
 
+struct FMRadioRequestEnableParams
+{
+  double frequency;
+};
+
+struct FMRadioRequestDisableParams
+{
+
+};
+
+struct FMRadioRequestSetFrequencyParams
+{
+  double frequency;
+};
+
+struct FMRadioRequestSeekParams
+{
+  bool upward;
+};
+
+struct FMRadioRequestCancelSeekParams
+{
+
+};
+
+union FMRadioRequestParams
+{
+  FMRadioRequestEnableParams;
+  FMRadioRequestDisableParams;
+  FMRadioRequestSetFrequencyParams;
+  FMRadioRequestSeekParams;
+  FMRadioRequestCancelSeekParams;
+};
+
 union PrefValue {
   nsCString;
   int32_t;
@@ -154,6 +190,7 @@ rpc protocol PContent
     manages PCrashReporter;
     manages PDeviceStorageRequest;
     manages PExternalHelperApp;
+    manages PFMRadio;
     manages PHal;
     manages PIndexedDB;
     manages PMemoryReportRequest;
@@ -161,6 +198,7 @@ rpc protocol PContent
     manages PSms;
     manages PSpeechSynthesis;
     manages PStorage;
+    manages PTelephony;
     manages PTestShell;
     manages PJavaScript;
 
@@ -317,7 +355,11 @@ parent:
 
     PStorage();
 
+    PTelephony();
+
     PBluetooth();
+
+    PFMRadio();
 
     // Services remoting
 

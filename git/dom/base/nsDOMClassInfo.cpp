@@ -77,7 +77,6 @@
 
 // DOM core includes
 #include "nsError.h"
-#include "nsIDOMDOMException.h"
 #include "nsIDOMDOMStringList.h"
 #include "nsIDOMUserDataHandler.h"
 #include "nsIDOMLoadStatus.h"
@@ -159,7 +158,6 @@
 #include "nsWrapperCacheInlines.h"
 #include "mozilla/dom/HTMLCollectionBinding.h"
 
-#include "nsIDOMPowerManager.h"
 #include "nsIDOMWakeLock.h"
 #include "nsIDOMMobileMessageManager.h"
 #include "nsIDOMMozSmsMessage.h"
@@ -170,7 +168,6 @@
 #include "nsIDOMConnection.h"
 
 #ifdef MOZ_B2G_RIL
-#include "nsIDOMMozVoicemail.h"
 #include "nsIDOMIccManager.h"
 #include "nsIDOMMobileConnection.h"
 #endif // MOZ_B2G_RIL
@@ -191,6 +188,7 @@
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/Likely.h"
 #include "WindowNamedPropertiesHandler.h"
+#include "nsIInterfaceInfoManager.h"
 
 #ifdef MOZ_TIME_MANAGER
 #include "TimeManager.h"
@@ -338,10 +336,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            nsIXPCScriptable::WANT_CONSTRUCT |
                            nsIXPCScriptable::DONT_ENUM_QUERY_INTERFACE)
 
-  // Core classes
-  NS_DEFINE_CLASSINFO_DATA(DOMException, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
   // Misc Core related classes
 
   NS_DEFINE_CLASSINFO_DATA(DeviceAcceleration, nsDOMGenericSH,
@@ -469,9 +463,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DEFAULT_SCRIPTABLE_FLAGS |
                            WINDOW_SCRIPTABLE_FLAGS)
 
-  NS_DEFINE_CLASSINFO_DATA(MozPowerManager, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
   NS_DEFINE_CLASSINFO_DATA(MozWakeLock, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
@@ -534,15 +525,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
 #ifdef MOZ_B2G_RIL
-  NS_DEFINE_CLASSINFO_DATA(MozVoicemail, nsEventTargetSH,
-                           EVENTTARGET_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(MozIccManager, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-#endif
-
-#ifdef MOZ_B2G_FM
-  NS_DEFINE_CLASSINFO_DATA(FMRadio, nsEventTargetSH,
-                           EVENTTARGET_SCRIPTABLE_FLAGS)
 #endif
 
 #ifdef MOZ_B2G_BT
@@ -869,7 +853,7 @@ NS_INTERFACE_MAP_BEGIN(nsDOMClassInfo)
 NS_INTERFACE_MAP_END
 
 
-static JSClass sDOMConstructorProtoClass = {
+static const JSClass sDOMConstructorProtoClass = {
   "DOM Constructor.prototype", 0,
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, nullptr
@@ -1117,11 +1101,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDOMConstructor)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(DOMException, nsIDOMDOMException)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDOMException)
-    DOM_CLASSINFO_MAP_ENTRY(nsIException)
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(DeviceAcceleration, nsIDOMDeviceAcceleration)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDeviceAcceleration)
   DOM_CLASSINFO_MAP_END
@@ -1297,10 +1276,6 @@ nsDOMClassInfo::Init()
 #endif
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(MozPowerManager, nsIDOMMozPowerManager)
-     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozPowerManager)
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(MozWakeLock, nsIDOMMozWakeLock)
      DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozWakeLock)
   DOM_CLASSINFO_MAP_END
@@ -1395,24 +1370,11 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_END
 
 #ifdef MOZ_B2G_RIL
-
-  DOM_CLASSINFO_MAP_BEGIN(MozVoicemail, nsIDOMMozVoicemail)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozVoicemail)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(MozIccManager, nsIDOMMozIccManager)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozIccManager)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
-#endif
-
-#ifdef MOZ_B2G_FM
-  DOM_CLASSINFO_MAP_BEGIN(FMRadio, nsIFMRadio)
-    DOM_CLASSINFO_MAP_ENTRY(nsIFMRadio)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-  DOM_CLASSINFO_MAP_END
 #endif
 
 #ifdef MOZ_B2G_BT
@@ -2661,7 +2623,7 @@ nsDOMConstructor::HasInstance(nsIXPConnectWrappedNative *wrapper,
   if (wrapped_obj)
       dom_obj = wrapped_obj;
 
-  JSClass *dom_class = JS_GetClass(dom_obj);
+  const JSClass *dom_class = JS_GetClass(dom_obj);
   if (!dom_class) {
     NS_ERROR("nsDOMConstructor::HasInstance can't get class.");
     return NS_ERROR_UNEXPECTED;
@@ -4201,7 +4163,7 @@ nsStringListSH::GetStringAt(nsISupports *aNative, int32_t aIndex,
 
 // HTMLAllCollection
 
-JSClass sHTMLDocumentAllClass = {
+const JSClass sHTMLDocumentAllClass = {
   "HTML document.all class",
   JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_NEW_RESOLVE |
   JSCLASS_EMULATES_UNDEFINED | JSCLASS_HAS_RESERVED_SLOTS(1),
