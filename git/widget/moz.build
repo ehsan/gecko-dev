@@ -97,8 +97,6 @@ EXPORTS += [
     'GfxInfoBase.h',
     'GfxInfoCollector.h',
     'InputData.h',
-    'nsBaseScreen.h',
-    'nsBaseWidget.h',
     'nsIDeviceContextSpec.h',
     'nsIPluginWidget.h',
     'nsIRollupListener.h',
@@ -107,8 +105,6 @@ EXPORTS += [
     'nsPrintOptionsImpl.h',
     'nsWidgetInitData.h',
     'nsWidgetsCID.h',
-    'PluginWidgetProxy.h',
-    'PuppetWidget.h',
 ]
 
 EXPORTS.mozilla += [
@@ -153,7 +149,6 @@ UNIFIED_SOURCES += [
     'nsShmImage.cpp',
     'nsTransferable.cpp',
     'nsXPLookAndFeel.cpp',
-    'PluginWidgetProxy.cpp',
     'PuppetWidget.cpp',
     'ScreenProxy.cpp',
     'SharedWidgetUtils.cpp',

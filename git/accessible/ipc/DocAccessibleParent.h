@@ -39,8 +39,10 @@ public:
    * Called when a message from a document in a child process notifies the main
    * process it is firing an event.
    */
-  virtual bool RecvEvent(const uint64_t& aID, const uint32_t& aType)
-    MOZ_OVERRIDE;
+  virtual bool RecvEvent(const uint32_t& aType) MOZ_OVERRIDE
+  {
+    return true;
+  }
 
   virtual bool RecvShowEvent(const ShowEventData& aData) MOZ_OVERRIDE;
   virtual bool RecvHideEvent(const uint64_t& aRootID) MOZ_OVERRIDE;

@@ -872,7 +872,7 @@ public:
   template<class T>
   void NS_ABORT_OOM(T)
   {
-    struct never {}; // a compiler-friendly way to do static_assert(false)
+    struct never {};
     static_assert(mozilla::IsSame<T, never>::value,
       "In string classes, use AllocFailed to account for sizeof(char_type). "
       "Use the global ::NS_ABORT_OOM if you really have a count of bytes.");

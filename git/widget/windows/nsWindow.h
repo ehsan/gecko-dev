@@ -446,8 +446,8 @@ protected:
    */
   void                    StopFlashing();
   static bool             IsTopLevelMouseExit(HWND aWnd);
-  virtual nsresult        SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
-                                              bool aIntersectWithExisting) MOZ_OVERRIDE;
+  nsresult                SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
+                                              bool aIntersectWithExisting);
   nsIntRegion             GetRegionToPaint(bool aForceFullRepaint, 
                                            PAINTSTRUCT ps, HDC aDC);
   static void             ActivateOtherWindowHelper(HWND aWnd);
