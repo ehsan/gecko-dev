@@ -108,6 +108,7 @@ members = [
     'nsIDOMDocument.createTextNode',
     'nsIDOMDocument.documentURI',
     'nsIDOMDocument.adoptNode',
+    'nsIDOMDocument.renameNode',
     'nsIDOMElement.removeAttributeNS',
     'nsIDOMElement.removeAttribute',
     'nsIDOMElement.getAttribute',
@@ -203,10 +204,6 @@ members = [
     'nsIDOMNSUIEvent.pageX',
     'nsIDOMNSUIEvent.pageY',
     'nsIDOMNSUIEvent.isChar',
-
-    'nsIDOMTouchPoint.*',
-    'nsIDOMTouchList.*',
-    'nsIDOMTouchEvent.*',
 
     # dom/interfaces/geolocation - None.
 
@@ -333,6 +330,8 @@ members = [
     'nsIDOMHTMLCanvasElement.height',
     'nsIDOMHTMLCanvasElement.getContext',
     'nsIDOMHTMLCanvasElement.toDataURL',
+    'nsIDOMNSHTMLDocument.width',
+    'nsIDOMNSHTMLDocument.height',
     'nsIDOMNSHTMLDocument.domain',
     'nsIDOMNSHTMLDocument.getSelection',
     'nsIDOMNSHTMLDocument.designMode',
@@ -507,9 +506,6 @@ irregularFilenames = {
     'nsIWebGLUniformLocation': 'nsIDOMWebGLRenderingContext',
 
     'nsIIndexedDatabaseUsageCallback': 'nsIIndexedDatabaseManager',
-
-    'nsIDOMTouchPoint': 'nsIDOMTouchEvent',
-    'nsIDOMTouchList': 'nsIDOMTouchEvent',
     }
 
 customIncludes = [

@@ -50,7 +50,7 @@
 #elif defined(XP_MACOSX) || defined(DARWIN) || defined(XP_UNIX)
 # include <pthread.h>
 
-# if defined(__FreeBSD__) || defined(__OpenBSD__)
+# if defined(__FreeBSD__)
 #  include <pthread_np.h>
 # endif
 

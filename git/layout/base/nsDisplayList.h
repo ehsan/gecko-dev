@@ -61,8 +61,8 @@
 
 class nsIPresShell;
 class nsIContent;
-class nsRenderingContext;
-class nsDeviceContext;
+class nsIRenderingContext;
+class nsIDeviceContext;
 class nsDisplayTableItem;
 class nsDisplayItem;
 
@@ -697,7 +697,7 @@ public:
    * Content outside mVisibleRect need not be painted.
    * aCtx must be set up as for nsDisplayList::Paint.
    */
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx) {}
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx) {}
   /**
    * Get the layer drawn by this display item. Call this only if
    * GetLayerState() returns something other than LAYER_NONE.
@@ -1076,13 +1076,13 @@ public:
     PAINT_FLUSH_LAYERS = 0x02,
     PAINT_EXISTING_TRANSACTION = 0x04
   };
-  void PaintRoot(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx,
+  void PaintRoot(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
                  PRUint32 aFlags) const;
   /**
    * Like PaintRoot, but used for internal display sublists.
    * aForFrame is the frame that the list is associated with.
    */
-  void PaintForFrame(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx,
+  void PaintForFrame(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
                      nsIFrame* aForFrame, PRUint32 aFlags) const;
   /**
    * Get the bounds. Takes the union of the bounds of all children.
@@ -1258,7 +1258,7 @@ private:
  */
 class nsDisplayGeneric : public nsDisplayItem {
 public:
-  typedef void (* PaintCallback)(nsIFrame* aFrame, nsRenderingContext* aCtx,
+  typedef void (* PaintCallback)(nsIFrame* aFrame, nsIRenderingContext* aCtx,
                                  const nsRect& aDirtyRect, nsPoint aFramePt);
 
   nsDisplayGeneric(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
@@ -1277,7 +1277,7 @@ public:
   }
 #endif
   
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx) {
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx) {
     mPaint(mFrame, aCtx, mVisibleRect, ToReferenceFrame());
   }
   NS_DISPLAY_DECL_NAME(mName, mType)
@@ -1325,12 +1325,13 @@ public:
     MOZ_COUNT_DTOR(nsDisplayReflowCount);
   }
 #endif
-
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx) {
+  
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx) {
+    nsPoint pt = ToReferenceFrame();
+    nsIRenderingContext::AutoPushTranslation translate(aCtx, pt.x, pt.y);
     mFrame->PresContext()->PresShell()->PaintCount(mFrameName, aCtx,
-                                                   mFrame->PresContext(),
-                                                   mFrame, ToReferenceFrame(),
-                                                   mColor);
+                                                      mFrame->PresContext(),
+                                                      mFrame, mColor);
   }
   NS_DISPLAY_DECL_NAME("nsDisplayReflowCount", TYPE_REFLOW_COUNT)
 protected:
@@ -1396,7 +1397,7 @@ public:
     // The caret returns a rect in the coordinates of mFrame.
     return mCaret->GetCaretRect() + ToReferenceFrame();
   }
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("Caret", TYPE_CARET)
 protected:
   nsRefPtr<nsCaret> mCaret;
@@ -1419,7 +1420,7 @@ public:
 #endif
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion,
@@ -1477,7 +1478,7 @@ public:
     return PR_TRUE;
   }
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
 
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
@@ -1521,7 +1522,7 @@ public:
   virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor);
   virtual PRBool ShouldFixToViewport(nsDisplayListBuilder* aBuilder);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("Background", TYPE_BACKGROUND)
 protected:
   nsRegion GetInsideClipRegion(nsPresContext* aPresContext, PRUint8 aClip,
@@ -1548,7 +1549,7 @@ public:
   }
 #endif
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
@@ -1575,7 +1576,7 @@ public:
   }
 #endif
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion,
@@ -1602,7 +1603,7 @@ public:
 #endif
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion,
@@ -1665,7 +1666,7 @@ public:
   virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor);
   virtual PRBool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder,
                                                 nsIFrame* aFrame);
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion,
@@ -1880,7 +1881,7 @@ public:
 #endif
   
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion,
@@ -1963,7 +1964,7 @@ public:
 #endif
   
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
@@ -2001,7 +2002,7 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
     return mBounds + aBuilder->ToReferenceFrame(mEffectsFrame);
   }
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion,

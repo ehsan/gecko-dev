@@ -1731,13 +1731,6 @@ nsXULPopupManager::CancelMenuTimer(nsMenuParent* aMenuParent)
   }
 }
 
-static nsGUIEvent* DOMKeyEventToGUIEvent(nsIDOMEvent* aEvent)
-{
-  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aEvent));
-  nsEvent* evt = privateEvent ? privateEvent->GetInternalNSEvent() : nsnull;
-  return (evt->eventStructType == NS_KEY_EVENT) ? static_cast<nsGUIEvent *>(evt) : nsnull;
-}
-
 PRBool
 nsXULPopupManager::HandleShortcutNavigation(nsIDOMKeyEvent* aKeyEvent,
                                             nsMenuPopupFrame* aFrame)
@@ -1752,8 +1745,7 @@ nsXULPopupManager::HandleShortcutNavigation(nsIDOMKeyEvent* aKeyEvent,
     if (result) {
       aFrame->ChangeMenuItem(result, PR_FALSE);
       if (action) {
-        nsGUIEvent* evt = DOMKeyEventToGUIEvent(aKeyEvent);
-        nsMenuFrame* menuToOpen = result->Enter(evt);
+        nsMenuFrame* menuToOpen = result->Enter();
         if (menuToOpen) {
           nsCOMPtr<nsIContent> content = menuToOpen->GetContent();
           ShowMenu(content, PR_TRUE, PR_FALSE);
@@ -2186,11 +2178,10 @@ nsXULPopupManager::KeyPress(nsIDOMEvent* aKeyEvent)
     // Enter method will return a menu if one needs to be opened as a result.
     nsMenuFrame* menuToOpen = nsnull;
     nsMenuChainItem* item = GetTopVisibleMenu();
-    nsGUIEvent* evt = DOMKeyEventToGUIEvent(aKeyEvent);
     if (item)
-      menuToOpen = item->Frame()->Enter(evt);
+      menuToOpen = item->Frame()->Enter();
     else if (mActiveMenuBar)
-      menuToOpen = mActiveMenuBar->Enter(evt);
+      menuToOpen = mActiveMenuBar->Enter();
     if (menuToOpen) {
       nsCOMPtr<nsIContent> content = menuToOpen->GetContent();
       ShowMenu(content, PR_TRUE, PR_FALSE);

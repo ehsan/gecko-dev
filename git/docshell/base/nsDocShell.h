@@ -57,6 +57,7 @@
 #include "nsITextScroll.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIContentViewerContainer.h"
+#include "nsIDeviceContext.h"
 
 #include "nsDocLoader.h"
 #include "nsIURILoader.h"
@@ -332,8 +333,8 @@ protected:
                                    nsIURILoader * aURILoader,
                                    PRBool aBypassClassifier);
 
-    nsresult ScrollToAnchor(nsACString & curHash, nsACString & newHash,
-                            PRUint32 aLoadType);
+    nsresult ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
+                            PRUint32 aLoadType, PRBool * aDoHashchange);
 
     // Tries to stringify a given variant by converting it to JSON.  This only
     // works if the variant is backed by a JSVal.

@@ -15,7 +15,6 @@ function queryPlaces(uri, options) {
   let results = [];
   for (let i = 0; i < res.root.childCount; i++)
     results.push(res.root.getChild(i));
-  res.root.containerOpen = false;
   return results;
 }
 

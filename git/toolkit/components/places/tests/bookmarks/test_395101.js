@@ -89,7 +89,6 @@ function run_test() {
 
   do_check_eq(rootNode.childCount, 1);
   do_check_eq(rootNode.getChild(0).itemId, b1);
-  rootNode.containerOpen = false;
 
   // partial matches are okay
   query.searchTerms = "wal";
@@ -97,7 +96,6 @@ function run_test() {
   var rootNode = result.root;
   rootNode.containerOpen = true;
   do_check_eq(rootNode.childCount, 1);
-  rootNode.containerOpen = false;
 
   // case insensitive search term
   query.searchTerms = "WALRUS";
@@ -106,7 +104,6 @@ function run_test() {
   rootNode.containerOpen = true;
   do_check_eq(rootNode.childCount, 1);
   do_check_eq(rootNode.getChild(0).itemId, b1);
-  rootNode.containerOpen = false;
 
   // case insensitive tag
   query.searchTerms = "baboon";
@@ -115,5 +112,4 @@ function run_test() {
   rootNode.containerOpen = true;
   do_check_eq(rootNode.childCount, 1);
   do_check_eq(rootNode.getChild(0).itemId, b1);
-  rootNode.containerOpen = false;
 }

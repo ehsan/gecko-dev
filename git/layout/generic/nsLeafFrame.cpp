@@ -50,7 +50,7 @@ nsLeafFrame::~nsLeafFrame()
 NS_IMPL_FRAMEARENA_HELPERS(nsLeafFrame)
 
 /* virtual */ nscoord
-nsLeafFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsLeafFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -60,7 +60,7 @@ nsLeafFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsLeafFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsLeafFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);
@@ -69,7 +69,7 @@ nsLeafFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nsSize
-nsLeafFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
+nsLeafFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder,
                              nsSize aPadding, PRBool aShrinkWrap)

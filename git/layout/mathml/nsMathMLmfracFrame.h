@@ -104,11 +104,11 @@ public:
        nsIFrame*        aPrevInFlow);
 
   virtual nsresult
-  MeasureForWidth(nsRenderingContext& aRenderingContext,
+  MeasureForWidth(nsIRenderingContext& aRenderingContext,
                   nsHTMLReflowMetrics& aDesiredSize);
 
   virtual nsresult
-  Place(nsRenderingContext& aRenderingContext,
+  Place(nsIRenderingContext& aRenderingContext,
         PRBool               aPlaceOrigin,
         nsHTMLReflowMetrics& aDesiredSize);
 
@@ -146,7 +146,7 @@ protected:
   PRBool
   IsBevelled();
 
-  nsresult PlaceInternal(nsRenderingContext& aRenderingContext,
+  nsresult PlaceInternal(nsIRenderingContext& aRenderingContext,
                          PRBool               aPlaceOrigin,
                          nsHTMLReflowMetrics& aDesiredSize,
                          PRBool               aWidthOnly);

@@ -9,14 +9,15 @@ const NS_ERROR_ALREADY_OPENED = 0x804b0049;
 var chan = null;
 var httpserv = null;
 
-[
+var test_index = 0;
+var test_array = [
   test_data_channel,
   test_http_channel,
   test_file_channel,
   // Commented by default as it relies on external ressources
   //test_ftp_channel,
   end
-].forEach(add_test);
+];
 
 // Utility functions
 
@@ -86,6 +87,10 @@ function after_channel_closed() {
   run_next_test();
 }
 
+function run_next_test() {
+  test_array[test_index++]();
+}
+
 function test_channel(createChanClosure) {
   // First, synchronous reopening test
   chan = createChanClosure();
@@ -135,5 +140,6 @@ function run_test() {
   httpserv = new nsHttpServer();
   httpserv.start(4444);
   
+  do_test_pending();
   run_next_test();
 }

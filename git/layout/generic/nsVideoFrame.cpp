@@ -47,6 +47,7 @@
 #include "nsHTMLVideoElement.h"
 #include "nsIDOMHTMLVideoElement.h"
 #include "nsDisplayList.h"
+#include "nsIRenderingContext.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
 #include "nsPresContext.h"
@@ -275,10 +276,9 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
 
   layer->SetContainer(container);
   layer->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
-  layer->SetContentFlags(Layer::CONTENT_OPAQUE);
   // Set a transform on the layer to draw the video in the right place
   gfxMatrix transform;
-  transform.Translate(r.TopLeft());
+  transform.Translate(r.pos);
   transform.Scale(r.Width()/frameSize.width, r.Height()/frameSize.height);
   layer->SetTransform(gfx3DMatrix::From2D(transform));
   layer->SetVisibleRegion(nsIntRect(0, 0, videoSize.width, videoSize.height));
@@ -490,7 +490,7 @@ nsVideoFrame::GetFrameName(nsAString& aResult) const
 }
 #endif
 
-nsSize nsVideoFrame::ComputeSize(nsRenderingContext *aRenderingContext,
+nsSize nsVideoFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                      nsSize aCBSize,
                                      nscoord aAvailableWidth,
                                      nsSize aMargin,
@@ -516,14 +516,14 @@ nsSize nsVideoFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                                                            aPadding);
 }
 
-nscoord nsVideoFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nscoord nsVideoFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = GetVideoIntrinsicSize(aRenderingContext).width;
   DISPLAY_MIN_WIDTH(this, result);
   return result;
 }
 
-nscoord nsVideoFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nscoord nsVideoFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = GetVideoIntrinsicSize(aRenderingContext).width;
   DISPLAY_PREF_WIDTH(this, result);
@@ -563,7 +563,7 @@ PRBool nsVideoFrame::ShouldDisplayPoster()
 }
 
 nsSize
-nsVideoFrame::GetVideoIntrinsicSize(nsRenderingContext *aRenderingContext)
+nsVideoFrame::GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext)
 {
   // Defaulting size to 300x150 if no size given.
   nsIntSize size(300, 150);

@@ -3290,37 +3290,21 @@ static JSFunctionSpec string_methods[] = {
       offsetof(JSString::Data, inlineStorage)) },                             \
     { {(c), 0x00} } }
 
-/*
- * For all the pragma pack usage in this file, the following logic applies:
- *          To apply:       To reset:
- * Sun CC:  pack(#)       / pack(0)
- * IBM xlC: pack(#)       / pack(pop)
- * HP aCC:  pack #        / pack
- * Others:  pack(push, #) / pack(pop)
- * The -Dlint case is explicitly excluded because GCC will error out when
- * pack pragmas are used on unsupported platforms. If GCC is being used
- * simply for error checking, these errors will be avoided.
- */
-
-#if defined(__SUNPRO_CC) || defined(__xlC__)
+#ifdef __SUNPRO_CC
 #pragma pack(8)
-#elif defined(__HP_aCC)
-#pragma pack 8
-#elif !defined(lint)
+#else
 #pragma pack(push, 8)
 #endif
 
 const JSString::Data JSAtom::unitStaticTable[]
-#if defined(__GNUC__) || defined(__xlC__)
+#ifdef __GNUC__
 __attribute__ ((aligned (8)))
 #endif
 = { R8(0) };
 
-#if defined(__SUNPRO_CC)
+#ifdef __SUNPRO_CC
 #pragma pack(0)
-#elif defined(__HP_aCC)
-#pragma pack
-#elif !defined(lint)
+#else
 #pragma pack(pop)
 #endif
 
@@ -3366,25 +3350,21 @@ const jschar JSAtom::fromSmallChar[] = { R6(0) };
       offsetof(JSString::Data, inlineStorage)) },                             \
     { {FROM_SMALL_CHAR((c) >> 6), FROM_SMALL_CHAR((c) & 0x3F), 0x00} } }
 
-#if defined(__SUNPRO_CC) || defined(__xlC__)
+#ifdef __SUNPRO_CC
 #pragma pack(8)
-#elif defined(__HP_aCC)
-#pragma pack 8
-#elif !defined(lint)
+#else
 #pragma pack(push, 8)
 #endif
 
 const JSString::Data JSAtom::length2StaticTable[]
-#if defined(__GNUC__) || defined(__xlC__)
+#ifdef __GNUC__
 __attribute__ ((aligned (8)))
 #endif
 = { R12(0) };
 
-#if defined(__SUNPRO_CC)
+#ifdef __SUNPRO_CC
 #pragma pack(0)
-#elif defined(__HP_aCC)
-#pragma pack
-#elif !defined(lint)
+#else
 #pragma pack(pop)
 #endif
 
@@ -3406,16 +3386,14 @@ __attribute__ ((aligned (8)))
 
 JS_STATIC_ASSERT(100 + (1 << 7) + (1 << 4) + (1 << 3) + (1 << 2) == 256);
 
-#if defined(__SUNPRO_CC) || defined(__xlC__)
+#ifdef __SUNPRO_CC
 #pragma pack(8)
-#elif defined(__HP_aCC)
-#pragma pack 8
-#elif !defined(lint)
+#else
 #pragma pack(push, 8)
 #endif
 
 const JSString::Data JSAtom::hundredStaticTable[]
-#if defined(__GNUC__) || defined(__xlC__)
+#ifdef __GNUC__
 __attribute__ ((aligned (8)))
 #endif
 = { R7(100), /* 100 through 227 */
@@ -3436,11 +3414,9 @@ const JSString::Data *const JSAtom::intStaticTable[] = { R8(0) };
 
 #undef R
 
-#if defined(__SUNPRO_CC)
+#ifdef __SUNPRO_CC
 #pragma pack(0)
-#elif defined(__HP_aCC)
-#pragma pack
-#elif !defined(lint)
+#else
 #pragma pack(pop)
 #endif
 

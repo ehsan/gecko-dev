@@ -117,6 +117,19 @@ nsXULColorPickerAccessible::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// nsXULColorPickerAccessible: nsAccessNode
+
+PRBool
+nsXULColorPickerAccessible::Init()
+{
+  if (!nsXULColorPickerTileAccessible::Init())
+    return PR_FALSE;
+
+  nsCoreUtils::GeneratePopupTree(mContent, PR_TRUE);
+  return PR_TRUE;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // nsXULColorPickerAccessible: nsAccessible
 
 PRUint64

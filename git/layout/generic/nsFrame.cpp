@@ -79,8 +79,9 @@
 #include "nsIDOMHTMLImageElement.h"
 #include "nsIDOMHTMLHRElement.h"
 #include "nsIDOMHTMLInputElement.h"
+#include "nsIDeviceContext.h"
 #include "nsIEditorDocShell.h"
-#include "nsEventStateManager.h"
+#include "nsIEventStateManager.h"
 #include "nsISelection.h"
 #include "nsISelectionPrivate.h"
 #include "nsFrameSelection.h"
@@ -710,19 +711,13 @@ nsIFrame::ApplySkipSides(nsMargin& aMargin) const
 }
 
 nsRect
-nsIFrame::GetPaddingRectRelativeToSelf() const
-{
-  nsMargin bp(GetUsedBorder());
-  ApplySkipSides(bp);
-  nsRect r(0, 0, mRect.width, mRect.height);
-  r.Deflate(bp);
-  return r;
-}
-
-nsRect
 nsIFrame::GetPaddingRect() const
 {
-  return GetPaddingRectRelativeToSelf() + GetPosition();
+  nsMargin b(GetUsedBorder());
+  ApplySkipSides(b);
+  nsRect r(mRect);
+  r.Deflate(b);
+  return r;
 }
 
 PRBool
@@ -733,19 +728,13 @@ nsIFrame::IsTransformed() const
 }
 
 nsRect
-nsIFrame::GetContentRectRelativeToSelf() const
+nsIFrame::GetContentRect() const
 {
   nsMargin bp(GetUsedBorderAndPadding());
   ApplySkipSides(bp);
-  nsRect r(0, 0, mRect.width, mRect.height);
+  nsRect r(mRect);
   r.Deflate(bp);
   return r;
-}
-
-nsRect
-nsIFrame::GetContentRect() const
-{
-  return GetContentRectRelativeToSelf() + GetPosition();
 }
 
 PRBool
@@ -831,7 +820,7 @@ nsIFrame::ComputeBorderRadii(const nsStyleCorners& aBorderRadius,
 nsIFrame::InsetBorderRadii(nscoord aRadii[8], const nsMargin &aOffsets)
 {
   NS_FOR_CSS_SIDES(side) {
-    nscoord offset = aOffsets.Side(side);
+    nscoord offset = aOffsets.side(side);
     PRUint32 hc1 = NS_SIDE_TO_HALF_CORNER(side, PR_FALSE, PR_FALSE);
     PRUint32 hc2 = NS_SIDE_TO_HALF_CORNER(side, PR_TRUE, PR_FALSE);
     aRadii[hc1] = NS_MAX(0, aRadii[hc1] - offset);
@@ -843,7 +832,7 @@ nsIFrame::InsetBorderRadii(nscoord aRadii[8], const nsMargin &aOffsets)
 nsIFrame::OutsetBorderRadii(nscoord aRadii[8], const nsMargin &aOffsets)
 {
   NS_FOR_CSS_SIDES(side) {
-    nscoord offset = aOffsets.Side(side);
+    nscoord offset = aOffsets.side(side);
     PRUint32 hc1 = NS_SIDE_TO_HALF_CORNER(side, PR_FALSE, PR_FALSE);
     PRUint32 hc2 = NS_SIDE_TO_HALF_CORNER(side, PR_TRUE, PR_FALSE);
     if (aRadii[hc1] > 0)
@@ -991,14 +980,14 @@ public:
 #endif
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("SelectionOverlay", TYPE_SELECTION_OVERLAY)
 private:
   PRInt16 mSelectionValue;
 };
 
 void nsDisplaySelectionOverlay::Paint(nsDisplayListBuilder* aBuilder,
-                                      nsRenderingContext* aCtx)
+                                      nsIRenderingContext* aCtx)
 {
   nscolor color = NS_RGB(255, 255, 255);
   
@@ -1374,7 +1363,7 @@ BuildDisplayListWithOverflowClip(nsDisplayListBuilder* aBuilder, nsIFrame* aFram
 }
 
 #ifdef NS_DEBUG
-static void PaintDebugBorder(nsIFrame* aFrame, nsRenderingContext* aCtx,
+static void PaintDebugBorder(nsIFrame* aFrame, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect, nsPoint aPt) {
   nsRect r(aPt, aFrame->GetSize());
   if (aFrame->HasView()) {
@@ -1385,7 +1374,7 @@ static void PaintDebugBorder(nsIFrame* aFrame, nsRenderingContext* aCtx,
   aCtx->DrawRect(r);
 }
 
-static void PaintEventTargetBorder(nsIFrame* aFrame, nsRenderingContext* aCtx,
+static void PaintEventTargetBorder(nsIFrame* aFrame, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect, nsPoint aPt) {
   nsRect r(aPt, aFrame->GetSize());
   aCtx->SetColor(NS_RGB(128,0,128));
@@ -1635,7 +1624,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
       // The out-of-flow frame did not intersect the dirty area. We may still
       // need to traverse into it, since it may contain placeholders we need
       // to enter to reach other out-of-flow frames that are visible.
-      dirty.SetEmpty();
+      dirty.Empty();
     }
     pseudoStackingContext = PR_TRUE;
   } else if (aBuilder->GetSelectedFramesOnly() &&
@@ -2076,7 +2065,9 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
   //We often get out of sync state issues with mousedown events that
   //get interrupted by alerts/dialogs.
   //Check with the ESM to see if we should process this one
-  if (!aPresContext->EventStateManager()->EventStatusOK(aEvent)) 
+  PRBool eventOK;
+  aPresContext->EventStateManager()->EventStatusOK(aEvent, &eventOK);
+  if (!eventOK) 
     return NS_OK;
 
   nsresult rv;
@@ -3127,7 +3118,7 @@ nsFrame::MarkIntrinsicWidthsDirty()
 }
 
 /* virtual */ nscoord
-nsFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_MIN_WIDTH(this, result);
@@ -3135,7 +3126,7 @@ nsFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_PREF_WIDTH(this, result);
@@ -3143,7 +3134,7 @@ nsFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ void
-nsFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+nsFrame::AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                            nsIFrame::InlineMinWidthData *aData)
 {
   NS_ASSERTION(GetParent(), "Must have a parent if we get here!");
@@ -3163,7 +3154,7 @@ nsFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
 }
 
 /* virtual */ void
-nsFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+nsFrame::AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                             nsIFrame::InlinePrefWidthData *aData)
 {
   aData->trailingWhitespace = 0;
@@ -3174,7 +3165,7 @@ nsFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
 }
 
 void
-nsIFrame::InlineMinWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
+nsIFrame::InlineMinWidthData::ForceBreak(nsIRenderingContext *aRenderingContext)
 {
   currentLine -= trailingWhitespace;
   prevLines = NS_MAX(prevLines, currentLine);
@@ -3194,7 +3185,7 @@ nsIFrame::InlineMinWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
 }
 
 void
-nsIFrame::InlineMinWidthData::OptionallyBreak(nsRenderingContext *aRenderingContext,
+nsIFrame::InlineMinWidthData::OptionallyBreak(nsIRenderingContext *aRenderingContext,
                                               nscoord aHyphenWidth)
 {
   trailingTextFrame = nsnull;
@@ -3211,7 +3202,7 @@ nsIFrame::InlineMinWidthData::OptionallyBreak(nsRenderingContext *aRenderingCont
 }
 
 void
-nsIFrame::InlinePrefWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
+nsIFrame::InlinePrefWidthData::ForceBreak(nsIRenderingContext *aRenderingContext)
 {
   if (floats.Length() != 0) {
             // preferred widths accumulated for floats that have already
@@ -3269,7 +3260,7 @@ nsIFrame::InlinePrefWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
 
 static void
 AddCoord(const nsStyleCoord& aStyle,
-         nsRenderingContext* aRenderingContext,
+         nsIRenderingContext* aRenderingContext,
          nsIFrame* aFrame,
          nscoord* aCoord, float* aPercent,
          PRBool aClampNegativeToZero)
@@ -3306,7 +3297,7 @@ AddCoord(const nsStyleCoord& aStyle,
 }
 
 /* virtual */ nsIFrame::IntrinsicWidthOffsetData
-nsFrame::IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext)
+nsFrame::IntrinsicWidthOffsets(nsIRenderingContext* aRenderingContext)
 {
   IntrinsicWidthOffsetData result;
 
@@ -3361,7 +3352,7 @@ nsFrame::GetIntrinsicRatio()
 }
 
 /* virtual */ nsSize
-nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
+nsFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                      nsSize aCBSize, nscoord aAvailableWidth,
                      nsSize aMargin, nsSize aBorder, nsSize aPadding,
                      PRBool aShrinkWrap)
@@ -3496,7 +3487,7 @@ nsFrame::ComputeSimpleTightBounds(gfxContext* aContext) const
 }
 
 /* virtual */ nsSize
-nsFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
+nsFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                          nsSize aCBSize, nscoord aAvailableWidth,
                          nsSize aMargin, nsSize aBorder, nsSize aPadding,
                          PRBool aShrinkWrap)
@@ -3514,7 +3505,7 @@ nsFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
 }
 
 nscoord
-nsFrame::ShrinkWidthToFit(nsRenderingContext *aRenderingContext,
+nsFrame::ShrinkWidthToFit(nsIRenderingContext *aRenderingContext,
                           nscoord aWidthInCB)
 {
   nscoord result;
@@ -6124,7 +6115,7 @@ nsIFrame::SetOverflowAreas(const nsOverflowAreas& aOverflowAreas)
            t = -vis.y, // top: positive is upwards
            r = vis.XMost() - mRect.width, // right: positive is rightwards
            b = vis.YMost() - mRect.height; // bottom: positive is downwards
-  if (aOverflowAreas.ScrollableOverflow().IsEqualEdges(nsRect(nsPoint(0, 0), GetSize())) &&
+  if (aOverflowAreas.ScrollableOverflow() == nsRect(nsPoint(0, 0), GetSize()) &&
       l <= NS_FRAME_OVERFLOW_DELTA_MAX &&
       t <= NS_FRAME_OVERFLOW_DELTA_MAX &&
       r <= NS_FRAME_OVERFLOW_DELTA_MAX &&
@@ -6199,7 +6190,7 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
   if (aNewSize.width != 0 || !IsInlineFrame(this)) {
     NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
       nsRect& o = aOverflowAreas.Overflow(otype);
-      o.UnionRectEdges(o, bounds);
+      o.UnionRectIncludeEmpty(o, bounds);
     }
   }
 
@@ -6213,7 +6204,7 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
                             disp->mAppearance, &r)) {
       NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
         nsRect& o = aOverflowAreas.Overflow(otype);
-        o.UnionRectEdges(o, r);
+        o.UnionRectIncludeEmpty(o, r);
       }
     }
   }
@@ -6257,7 +6248,7 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
   }
 
   PRBool visualOverflowChanged =
-    !GetVisualOverflowRect().IsEqualInterior(aOverflowAreas.VisualOverflow());
+    GetVisualOverflowRect() != aOverflowAreas.VisualOverflow();
 
   if (aOverflowAreas != nsOverflowAreas(bounds, bounds)) {
     SetOverflowAreas(aOverflowAreas);
@@ -6599,8 +6590,7 @@ nsIFrame::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
         // When clicked on, the selection position within the element 
         // will be enough to make them keyboard scrollable.
         nsIScrollableFrame *scrollFrame = do_QueryFrame(this);
-        if (scrollFrame &&
-            scrollFrame->GetActualScrollbarSizes() != nsMargin(0,0,0,0)) {
+        if (scrollFrame && !scrollFrame->GetActualScrollbarSizes().IsZero()) {
             // Scroll bars will be used for overflow
             isFocusable = PR_TRUE;
             tabIndex = 0;
@@ -6671,7 +6661,7 @@ nsFrame::RefreshSizeCache(nsBoxLayoutState& aState)
 
   // if we do have a rendering context
   nsresult rv = NS_OK;
-  nsRenderingContext* rendContext = aState.GetRenderingContext();
+  nsIRenderingContext* rendContext = aState.GetRenderingContext();
   if (rendContext) {
     nsPresContext* presContext = aState.PresContext();
 
@@ -6887,7 +6877,7 @@ nsFrame::DoLayout(nsBoxLayoutState& aState)
 {
   nsRect ourRect(mRect);
 
-  nsRenderingContext* rendContext = aState.GetRenderingContext();
+  nsIRenderingContext* rendContext = aState.GetRenderingContext();
   nsPresContext* presContext = aState.PresContext();
   nsHTMLReflowMetrics desiredSize;
   nsresult rv = NS_OK;
@@ -6943,7 +6933,7 @@ nsresult
 nsFrame::BoxReflow(nsBoxLayoutState&        aState,
                    nsPresContext*           aPresContext,
                    nsHTMLReflowMetrics&     aDesiredSize,
-                   nsRenderingContext*     aRenderingContext,
+                   nsIRenderingContext*     aRenderingContext,
                    nscoord                  aX,
                    nscoord                  aY,
                    nscoord                  aWidth,

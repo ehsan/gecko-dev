@@ -194,7 +194,7 @@ ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
   // doesn't fill the entire texture rect we need to make sure we draw all the
   // pixels in the texture rect anyway in case they get sampled.
   nsIntRegion neededRegion = mVisibleRegion;
-  if (!neededRegion.GetBounds().IsEqualInterior(newTextureRect) ||
+  if (neededRegion.GetBounds() != newTextureRect ||
       neededRegion.GetNumRects() > 1) {
     gfxMatrix transform2d;
     if (!GetEffectiveTransform().Is2D(&transform2d) ||
@@ -228,7 +228,7 @@ ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
   }
 
   if (mTexture) {
-    if (!mTextureRect.IsEqualInterior(newTextureRect)) {
+    if (mTextureRect != newTextureRect) {
       nsRefPtr<ID3D10Texture2D> oldTexture = mTexture;
       mTexture = nsnull;
       nsRefPtr<ID3D10Texture2D> oldTextureOnWhite = mTextureOnWhite;

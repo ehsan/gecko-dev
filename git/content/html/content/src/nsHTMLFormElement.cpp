@@ -81,6 +81,7 @@
 #include "nsIHTMLCollection.h"
 
 #include "nsIConstraintValidation.h"
+#include "nsIEventStateManager.h"
 
 #include "nsIDOMHTMLButtonElement.h"
 
@@ -121,15 +122,20 @@ public:
   // nsIDOMHTMLCollection interface
   NS_DECL_NSIDOMHTMLCOLLECTION
 
-  virtual nsIContent* GetNodeAt(PRUint32 aIndex)
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex, nsresult* aResult)
   {
     FlushPendingNotifications();
+
+    *aResult = NS_OK;
 
     return mElements.SafeElementAt(aIndex, nsnull);
   }
   virtual nsISupports* GetNamedItem(const nsAString& aName,
-                                    nsWrapperCache **aCache)
+                                    nsWrapperCache **aCache,
+                                    nsresult* aResult)
   {
+    *aResult = NS_OK;
+
     nsISupports *item = NamedItemInternal(aName, PR_TRUE);
     *aCache = nsnull;
     return item;
@@ -2300,11 +2306,12 @@ nsFormControlList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP
 nsFormControlList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  nsISupports* item = GetNodeAt(aIndex);
+  nsresult rv;
+  nsISupports* item = GetNodeAt(aIndex, &rv);
   if (!item) {
     *aReturn = nsnull;
 
-    return NS_OK;
+    return rv;
   }
 
   return CallQueryInterface(item, aReturn);

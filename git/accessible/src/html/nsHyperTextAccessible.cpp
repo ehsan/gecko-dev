@@ -58,6 +58,7 @@
 #include "nsIDOMXULDocument.h"
 #include "nsIEditingSession.h"
 #include "nsIEditor.h"
+#include "nsIFontMetrics.h"
 #include "nsIFrame.h"
 #include "nsFrameSelection.h"
 #include "nsILineIterator.h"
@@ -310,7 +311,7 @@ nsHyperTextAccessible::GetPosAndText(PRInt32& aStartOffset, PRInt32& aEndOffset,
     *aEndFrame = nsnull;
   }
   if (aBoundsRect) {
-    aBoundsRect->SetEmpty();
+    aBoundsRect->Empty();
   }
   if (aStartAcc)
     *aStartAcc = nsnull;

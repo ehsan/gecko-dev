@@ -59,7 +59,11 @@ const TESTS = [
     category: "DOM:HTML",
     matchString: "document.all",
   },
-  // #9 was a warning about document.width, for which support has been removed.
+  { // #9
+    file: "test-bug-595934-dom-events-external.html",
+    category: "DOM Events",
+    matchString: "clientWidth",
+  },
   { // #10
     file: "test-bug-595934-dom-events-external2.html",
     category: "DOM Events",
@@ -128,8 +132,6 @@ let TestObserver = {
       }
     }
     else {
-      ok(false, aSubject.sourceName + ':' + aSubject.lineNumber + '; ' +
-                aSubject.errorMessage);
       executeSoon(finish);
     }
   }
@@ -159,10 +161,9 @@ function testNext() {
   pos++;
   if (pos < TESTS.length) {
     if (TESTS[pos].onload) {
-      let position = pos;
       browser.addEventListener("load", function(aEvent) {
         browser.removeEventListener(aEvent.type, arguments.callee, true);
-        TESTS[position].onload(aEvent);
+        TESTS[pos].onload(aEvent);
       }, true);
     }
 

@@ -87,9 +87,10 @@ public:
   // nsIDOMHTMLCollection interface, all its methods are defined in
   // nsIDOMHTMLOptionsCollection
 
-  virtual nsIContent* GetNodeAt(PRUint32 aIndex);
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex, nsresult* aResult);
   virtual nsISupports* GetNamedItem(const nsAString& aName,
-                                    nsWrapperCache** aCache);
+                                    nsWrapperCache** aCache,
+                                    nsresult* aResult);
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsHTMLOptionCollection,
                                            nsIHTMLCollection)

@@ -179,5 +179,5 @@ function runTest() {
   is(count, gExpectedCookies, "total number of cookies");
   cs.removeAll();
 
-  finishTest();
+  setTimeout(finishTest, 5000);
 }

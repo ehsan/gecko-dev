@@ -56,9 +56,11 @@
 #include "nsIDOMNSHTMLOptionCollectn.h" 
 #include "nsPIDOMWindow.h"
 #include "nsIPresShell.h"
+#include "nsIDeviceContext.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsEventDispatcher.h"
+#include "nsIEventStateManager.h"
 #include "nsIEventListenerManager.h"
 #include "nsIDOMNode.h"
 #include "nsIPrivateDOMEvent.h"
@@ -89,7 +91,6 @@
 #include "nsITheme.h"
 #include "nsThemeConstants.h"
 #include "nsPLDOMEvent.h"
-#include "nsRenderingContext.h"
 
 namespace dom = mozilla::dom;
 
@@ -557,7 +558,7 @@ static void printSize(char * aDesc, nscoord aSize)
 //-------------------------------------------------------------------
 
 nscoord
-nsComboboxControlFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
+nsComboboxControlFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext,
                                           nsLayoutUtils::IntrinsicWidthType aType)
 {
   // get the scrollbar width, we'll use this later
@@ -601,7 +602,7 @@ nsComboboxControlFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
 }
 
 nscoord
-nsComboboxControlFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsComboboxControlFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord minWidth;
   DISPLAY_MIN_WIDTH(this, minWidth);
@@ -610,7 +611,7 @@ nsComboboxControlFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 nscoord
-nsComboboxControlFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsComboboxControlFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord prefWidth;
   DISPLAY_PREF_WIDTH(this, prefWidth);
@@ -1347,12 +1348,12 @@ public:
 #endif
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("ComboboxFocus", TYPE_COMBOBOX_FOCUS)
 };
 
 void nsDisplayComboboxFocus::Paint(nsDisplayListBuilder* aBuilder,
-                                   nsRenderingContext* aCtx)
+                                   nsIRenderingContext* aCtx)
 {
   static_cast<nsComboboxControlFrame*>(mFrame)
     ->PaintFocus(*aCtx, ToReferenceFrame());
@@ -1400,7 +1401,7 @@ nsComboboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   return DisplaySelectionOverlay(aBuilder, aLists.Content());
 }
 
-void nsComboboxControlFrame::PaintFocus(nsRenderingContext& aRenderingContext,
+void nsComboboxControlFrame::PaintFocus(nsIRenderingContext& aRenderingContext,
                                         nsPoint aPt)
 {
   /* Do we need to do anything? */
@@ -1410,7 +1411,7 @@ void nsComboboxControlFrame::PaintFocus(nsRenderingContext& aRenderingContext,
 
   aRenderingContext.PushState();
   nsRect clipRect = mDisplayFrame->GetRect() + aPt;
-  aRenderingContext.IntersectClip(clipRect);
+  aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
 
   // REVIEW: Why does the old code paint mDisplayFrame again? We've
   // already painted it in the children above. So clipping it here won't do
@@ -1427,10 +1428,16 @@ void nsComboboxControlFrame::PaintFocus(nsRenderingContext& aRenderingContext,
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
   clipRect.width -= onePixel;
   clipRect.height -= onePixel;
-  aRenderingContext.DrawLine(clipRect.TopLeft(), clipRect.TopRight());
-  aRenderingContext.DrawLine(clipRect.TopRight(), clipRect.BottomRight());
-  aRenderingContext.DrawLine(clipRect.BottomRight(), clipRect.BottomLeft());
-  aRenderingContext.DrawLine(clipRect.BottomLeft(), clipRect.TopLeft());
+  aRenderingContext.DrawLine(clipRect.x, clipRect.y, 
+                             clipRect.x+clipRect.width, clipRect.y);
+  aRenderingContext.DrawLine(clipRect.x+clipRect.width, clipRect.y, 
+                             clipRect.x+clipRect.width, clipRect.y+clipRect.height);
+  aRenderingContext.DrawLine(clipRect.x+clipRect.width, clipRect.y+clipRect.height, 
+                             clipRect.x, clipRect.y+clipRect.height);
+  aRenderingContext.DrawLine(clipRect.x, clipRect.y+clipRect.height, 
+                             clipRect.x, clipRect.y);
+  aRenderingContext.DrawLine(clipRect.x, clipRect.y+clipRect.height, 
+                             clipRect.x, clipRect.y);
 
   aRenderingContext.PopState();
 }

@@ -443,7 +443,7 @@ nsSVGImageFrame::GetType() const
 NS_IMETHODIMP
 nsSVGImageFrame::UpdateCoveredRegion()
 {
-  mRect.SetEmpty();
+  mRect.Empty();
 
   gfxContext context(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 

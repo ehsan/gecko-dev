@@ -88,7 +88,6 @@ protected:
     }
     PRBool RemoveObject(nsISupports *aObject);
     PRBool RemoveObjectAt(PRInt32 aIndex);
-    PRBool RemoveObjectsAt(PRInt32 aIndex, PRInt32 aCount);
 
 public:
     // override nsVoidArray stuff so that they can be accessed by
@@ -266,12 +265,6 @@ class nsCOMArray : public nsCOMArray_base
     // as necessary
     PRBool RemoveObjectAt(PRInt32 aIndex) {
         return nsCOMArray_base::RemoveObjectAt(aIndex);
-    }
-
-    // remove a range of elements at a specific position, shrinking the array
-    // as necessary
-    PRBool RemoveObjectsAt(PRInt32 aIndex, PRInt32 aCount) {
-        return nsCOMArray_base::RemoveObjectsAt(aIndex, aCount);
     }
 
 private:

@@ -897,9 +897,6 @@ IMPL_RUNNABLE_ON_MAIN_THREAD_METHOD_BEGIN(DoInitialRequest)
         buf->AppendLiteral("\r\n");
       }
       break;
-
-      case numberRequestHeaders:
-      break;
     }
 
     headersToSend.RemoveElementAt(headerPosToSendNow);
@@ -1736,9 +1733,10 @@ IMPL_RUNNABLE_ON_MAIN_THREAD_METHOD_BEGIN(AddWSConnecting)
   NS_ASSERTION(index == nsTArray<PRNetAddr>::NoIndex,
                "The ws connection shouldn't be already added in the "
                "serialization list.");
-  bool inserted = !!
 #endif
-  sWSsConnecting->InsertElementSorted(this, nsWSNetAddressComparator());
+
+  PRBool inserted =
+    !!(sWSsConnecting->InsertElementSorted(this, nsWSNetAddressComparator()));
   NS_ASSERTION(inserted, "Couldn't insert the ws connection into the "
                          "serialization list.");
 }

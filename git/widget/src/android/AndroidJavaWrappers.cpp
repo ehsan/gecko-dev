@@ -321,7 +321,7 @@ AndroidGeckoEvent::ReadRectField(JNIEnv *jenv)
                       r.Right() - r.Left(),
                       r.Bottom() - r.Top());
     } else {
-        mRect.SetEmpty();
+        mRect.Empty();
     }
 }
 
@@ -438,7 +438,7 @@ void
 AndroidGeckoEvent::Init(int x1, int y1, int x2, int y2)
 {
     mType = DRAW;
-    mRect.SetEmpty();
+    mRect.Empty();
 }
 
 void

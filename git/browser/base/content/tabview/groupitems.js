@@ -166,10 +166,8 @@ function GroupItem(listOfEls, options) {
   this.$titleShield = iQ('.title-shield', this.$titlebar);
   this.setTitle(options.title);
 
-  var handleKeyPress = function (e) {
-    if (e.keyCode == KeyEvent.DOM_VK_ESCAPE ||
-        e.keyCode == KeyEvent.DOM_VK_RETURN ||
-        e.keyCode == KeyEvent.DOM_VK_ENTER) {
+  var handleKeyDown = function(e) {
+    if (e.which == 13 || e.which == 27) { // return & escape
       (self.$title)[0].blur();
       self.$title
         .addClass("transparentBorder")
@@ -206,7 +204,7 @@ function GroupItem(listOfEls, options) {
     .mousedown(function(e) {
       e.stopPropagation();
     })
-    .keypress(handleKeyPress)
+    .keydown(handleKeyDown)
     .keyup(handleKeyUp);
 
   this.$titleShield
@@ -1149,9 +1147,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       let $icon = iQ(icon);
       if ($icon.data("xulTab") == event.target) {
         $icon.attr("src", Utils.defaultFaviconURL);
-        return false;
       }
-      return true;
     });
   },
 
@@ -1197,10 +1193,9 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     iQ(".appTabIcon", this.$appTabTray).each(function(icon) {
       let $icon = iQ(icon);
       if ($icon.data("xulTab") != xulTab)
-        return true;
+        return;
         
       $icon.remove();
-      return false;
     });
     
     // adjust the tray
@@ -1220,7 +1215,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     elements.each(function(icon) {
       let $icon = iQ(icon);
       if ($icon.data("xulTab") != xulTab)
-        return true;
+        return;
 
       let targetIndex = xulTab._tPos;
 
@@ -1231,7 +1226,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         iQ(".appTabIcon:nth-child(" + (targetIndex + 1) + ")", self.$appTabTray)[0]);
       else
         $icon.appendTo(self.$appTabTray);
-      return false;
     });
   },
 
@@ -1674,12 +1668,13 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     // Create new tab and zoom in on it after a double click
     container.mousedown(function(e) {
-      if (!Utils.isLeftClick(e) || self.$titlebar[0] == e.target || 
-          self.$titlebar.contains(e.target)) {
-        self._lastClick = 0;
-        self._lastClickPositions = null;
+      if (!Utils.isLeftClick(e))
         return;
-      }
+
+      // clicking in the title bar shouldn't create new tabs
+      if (self.$titlebar[0] == e.target || self.$titlebar.contains(e.target))
+        return;
+
       if (Date.now() - self._lastClick <= UI.DBLCLICK_INTERVAL &&
           (self._lastClickPositions.x - UI.DBLCLICK_OFFSET) <= e.clientX &&
           (self._lastClickPositions.x + UI.DBLCLICK_OFFSET) >= e.clientX &&
@@ -1793,12 +1788,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     this.resizeOptions.minWidth = GroupItems.minGroupWidth;
     this.resizeOptions.minHeight = GroupItems.minGroupHeight;
-
-    let start = this.resizeOptions.start;
-    this.resizeOptions.start = function (event) {
-      start.call(self, event);
-      self._unfreezeItemSize();
-    }
+    this.resizeOptions.start = function () self._unfreezeItemSize();
 
     if (value) {
       immediately ? this.$resizer.show() : this.$resizer.fadeIn();
@@ -2043,11 +2033,10 @@ let GroupItems = {
       iQ(".appTabIcon", groupItem.$appTabTray).each(function(icon) {
         let $icon = iQ(icon);
         if ($icon.data("xulTab") != xulTab)
-          return true;
+          return;
 
         if (iconUrl != $icon.attr("src"))
           $icon.attr("src", iconUrl);
-        return false;
       });
     });
   },  

@@ -65,13 +65,13 @@ public:
    * Both GetMinWidth and GetPrefWidth will return whatever GetIntrinsicWidth
    * returns.
    */
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
 
   /**
    * Our auto size is just intrinsic width and intrinsic height.
    */
-  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, PRBool aShrinkWrap);

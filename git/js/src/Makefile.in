@@ -60,7 +60,7 @@ DIRS += shell
 endif
 
 # FIXME: bug 530688 covers getting these working on Android
-ifneq ($(OS_ARCH),ANDROID)
+ifneq (,$(filter-out ANDROID,$(OS_ARCH)))
 ifdef ENABLE_TESTS
 DIRS += jsapi-tests
 endif
@@ -388,7 +388,7 @@ CPPSRCS += 	checks.cc \
 # END enclude sources for V8 dtoa
 #############################################
 
-ifeq (,$(filter arm %86 x86_64,$(TARGET_CPU)))
+ifeq (,$(filter-out powerpc sparc,$(TARGET_CPU)))
 
 VPATH +=	$(srcdir)/assembler \
 		$(srcdir)/assembler/wtf \
@@ -495,7 +495,7 @@ else
 CPPSRCS += pm_stub.cpp
 endif
 
-ifeq ($(OS_ARCH),WINNT)
+ifeq (,$(filter-out WINNT,$(OS_ARCH)))
 INSTALLED_HEADERS += jscpucfg.h
 endif
 
@@ -537,7 +537,7 @@ endif
 default::
 
 ifneq (,$(CROSS_COMPILE)$(filter-out WINNT OS2,$(OS_ARCH)))
-ifneq ($(OS_ARCH),SYMBIAN)
+ifneq (,$(filter-out SYMBIAN,$(OS_ARCH)))
 # nsinstall doesn't get built until we enter config/ in the exports phase,
 # so we'll have to manually ensure it gets built here if we want to use
 # $(EXPORTS)

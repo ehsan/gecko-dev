@@ -49,15 +49,16 @@
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
+#include "nsIEventStateManager.h"
 #include "nsIViewManager.h"
 #include "nsINameSpaceManager.h"
 #include "nsILookAndFeel.h"
+#include "nsIDeviceContext.h"
 #include "nsGfxCIID.h"
 #include "nsTransform2D.h"
 #include "nsIMenuFrame.h"
 #include "prlink.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsRenderingContext.h"
 #include "nsWidgetAtoms.h"
 #include "mozilla/Services.h"
 
@@ -755,7 +756,7 @@ nsNativeThemeGTK::GetExtraSizeForWidget(nsIFrame* aFrame, PRUint8 aWidgetType,
 }
 
 NS_IMETHODIMP
-nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
+nsNativeThemeGTK::DrawWidgetBackground(nsIRenderingContext* aContext,
                                        nsIFrame* aFrame,
                                        PRUint8 aWidgetType,
                                        const nsRect& aRect,
@@ -786,7 +787,7 @@ nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
   }
 
   // Translate the dirty rect so that it is wrt the widget top-left.
-  dirtyRect.MoveBy(-rect.TopLeft());
+  dirtyRect.MoveBy(-rect.pos);
   // Round out the dirty rect to gdk pixels to ensure that gtk draws
   // enough pixels for interpolation to device pixels.
   dirtyRect.RoundOut();
@@ -835,7 +836,7 @@ nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
     // Rects are in device coords.
     ctx->IdentityMatrix(); 
   }
-  ctx->Translate(rect.TopLeft() + gfxPoint(drawingRect.x, drawingRect.y));
+  ctx->Translate(rect.pos + gfxPoint(drawingRect.x, drawingRect.y));
 
   NS_ASSERTION(!IsWidgetTypeDisabled(mDisabledWidgetTypes, aWidgetType),
                "Trying to render an unsafe widget!");
@@ -877,7 +878,7 @@ nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
 }
 
 NS_IMETHODIMP
-nsNativeThemeGTK::GetWidgetBorder(nsDeviceContext* aContext, nsIFrame* aFrame,
+nsNativeThemeGTK::GetWidgetBorder(nsIDeviceContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType, nsIntMargin* aResult)
 {
   GtkTextDirection direction = GetTextDirection(aFrame);
@@ -928,7 +929,7 @@ nsNativeThemeGTK::GetWidgetBorder(nsDeviceContext* aContext, nsIFrame* aFrame,
 }
 
 PRBool
-nsNativeThemeGTK::GetWidgetPadding(nsDeviceContext* aContext,
+nsNativeThemeGTK::GetWidgetPadding(nsIDeviceContext* aContext,
                                    nsIFrame* aFrame, PRUint8 aWidgetType,
                                    nsIntMargin* aResult)
 {
@@ -957,7 +958,7 @@ nsNativeThemeGTK::GetWidgetPadding(nsDeviceContext* aContext,
 }
 
 PRBool
-nsNativeThemeGTK::GetWidgetOverflow(nsDeviceContext* aContext,
+nsNativeThemeGTK::GetWidgetOverflow(nsIDeviceContext* aContext,
                                     nsIFrame* aFrame, PRUint8 aWidgetType,
                                     nsRect* aOverflowRect)
 {
@@ -978,7 +979,7 @@ nsNativeThemeGTK::GetWidgetOverflow(nsDeviceContext* aContext,
 }
 
 NS_IMETHODIMP
-nsNativeThemeGTK::GetMinimumWidgetSize(nsRenderingContext* aContext,
+nsNativeThemeGTK::GetMinimumWidgetSize(nsIRenderingContext* aContext,
                                        nsIFrame* aFrame, PRUint8 aWidgetType,
                                        nsIntSize* aResult, PRBool* aIsOverridable)
 {
@@ -1134,9 +1135,12 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsRenderingContext* aContext,
   case NS_THEME_TREEVIEW_HEADER_CELL:
     {
       // Just include our border, and let the box code augment the size.
+
+      nsCOMPtr<nsIDeviceContext> dc;
+      aContext->GetDeviceContext(*getter_AddRefs(dc));
+
       nsIntMargin border;
-      nsNativeThemeGTK::GetWidgetBorder(aContext->DeviceContext(),
-                                        aFrame, aWidgetType, &border);
+      nsNativeThemeGTK::GetWidgetBorder(dc, aFrame, aWidgetType, &border);
       aResult->width = border.left + border.right;
       aResult->height = border.top + border.bottom;
     }
@@ -1244,7 +1248,11 @@ nsNativeThemeGTK::WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType,
 NS_IMETHODIMP
 nsNativeThemeGTK::ThemeChanged()
 {
-  nsDeviceContext::ClearCachedSystemFonts();
+  // this totally sucks.  this method is really supposed to be
+  // static, which is why we can call it without any initialization.
+  static NS_DEFINE_CID(kDeviceContextCID, NS_DEVICE_CONTEXT_CID);
+  nsCOMPtr<nsIDeviceContext> dctx = do_CreateInstance(kDeviceContextCID);
+  dctx->ClearCachedSystemFonts();
 
   memset(mDisabledWidgetTypes, 0, sizeof(mDisabledWidgetTypes));
   return NS_OK;

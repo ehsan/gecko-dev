@@ -308,7 +308,7 @@ public:
                                  nsNativeWidget aNativeParent,
                                  const nsIntRect &aRect,
                                  EVENT_CALLBACK aHandleEventFunction,
-                                 nsDeviceContext *aContext,
+                                 nsIDeviceContext *aContext,
                                  nsIAppShell *aAppShell = nsnull,
                                  nsIToolkit *aToolkit = nsnull,
                                  nsWidgetInitData *aInitData = nsnull);

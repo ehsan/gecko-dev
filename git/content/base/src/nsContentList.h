@@ -260,9 +260,10 @@ public:
   virtual PRInt32 IndexOf(nsIContent* aContent);
 
   // nsIHTMLCollection
-  // GetNodeAt already declared as part of nsINodeList
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex, nsresult* aResult);
   virtual nsISupports* GetNamedItem(const nsAString& aName,
-                                    nsWrapperCache** aCache);
+                                    nsWrapperCache** aCache,
+                                    nsresult* aResult);
 
   // nsContentList public methods
   NS_HIDDEN_(nsINode*) GetParentObject() { return mRootNode; }

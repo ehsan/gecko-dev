@@ -259,7 +259,7 @@ NS_IMPL_ISUPPORTS2(nsIsIndexFrame::KeyListener,
                    nsIDOMEventListener)
 
 nscoord
-nsIsIndexFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsIsIndexFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);

@@ -42,8 +42,7 @@ class nsIDOMElement;
 class nsHTMLCanvasElement;
 class imgIRequest;
 class gfxASurface;
-
-#include "gfxPoint.h"
+struct gfxIntSize;
 
 namespace mozilla {
 

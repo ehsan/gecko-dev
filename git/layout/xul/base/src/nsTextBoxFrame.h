@@ -84,7 +84,7 @@ public:
 
   virtual ~nsTextBoxFrame();
 
-  void PaintTitle(nsRenderingContext& aRenderingContext,
+  void PaintTitle(nsIRenderingContext& aRenderingContext,
                   const nsRect&        aDirtyRect,
                   nsPoint              aPt);
 
@@ -102,23 +102,23 @@ protected:
 
   // REVIEW: SORRY! Couldn't resist devirtualizing these
   void LayoutTitle(nsPresContext*      aPresContext,
-                   nsRenderingContext& aRenderingContext,
+                   nsIRenderingContext& aRenderingContext,
                    const nsRect&        aRect);
 
-  void CalculateUnderline(nsRenderingContext& aRenderingContext);
+  void CalculateUnderline(nsIRenderingContext& aRenderingContext);
 
   void CalcTextSize(nsBoxLayoutState& aBoxLayoutState);
 
-  void CalcDrawRect(nsRenderingContext &aRenderingContext);
+  void CalcDrawRect(nsIRenderingContext &aRenderingContext);
 
   nsTextBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
   nscoord CalculateTitleForWidth(nsPresContext*      aPresContext,
-                                 nsRenderingContext& aRenderingContext,
+                                 nsIRenderingContext& aRenderingContext,
                                  nscoord              aWidth);
 
   void GetTextSize(nsPresContext*      aPresContext,
-                   nsRenderingContext& aRenderingContext,
+                   nsIRenderingContext& aRenderingContext,
                    const nsString&      aString,
                    nsSize&              aSize,
                    nscoord&             aAscent);
@@ -130,7 +130,7 @@ private:
   PRBool AlwaysAppendAccessKey();
   PRBool InsertSeparatorBeforeAccessKey();
 
-  void DrawText(nsRenderingContext& aRenderingContext,
+  void DrawText(nsIRenderingContext& aRenderingContext,
                          const nsRect&        aTextRect,
                          const nscolor*       aOverrideColor);
 

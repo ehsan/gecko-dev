@@ -478,7 +478,6 @@ DOMCI_CLASS(PaintRequestList)
 
 DOMCI_CLASS(ScrollAreaEvent)
 DOMCI_CLASS(PopStateEvent)
-DOMCI_CLASS(HashChangeEvent)
 
 DOMCI_CLASS(EventListenerInfo)
 
@@ -513,13 +512,7 @@ DOMCI_CLASS(IDBDatabaseException)
 
 DOMCI_CLASS(EventException)
 
-DOMCI_CLASS(TouchPoint)
-DOMCI_CLASS(TouchList)
-DOMCI_CLASS(TouchEvent)
-
 #ifdef MOZ_CSS_ANIMATIONS
 DOMCI_CLASS(MozCSSKeyframeRule)
 DOMCI_CLASS(MozCSSKeyframesRule)
 #endif
-
-DOMCI_CLASS(MediaQueryList)

@@ -66,8 +66,7 @@ protected:
     : nsSVGGlyphFrameBase(aContext),
       mTextRun(nsnull),
       mStartIndex(0),
-      mWhitespaceHandling(COMPRESS_WHITESPACE),
-      mPropagateTransform(PR_TRUE)
+      mWhitespaceHandling(COMPRESS_WHITESPACE)
       {}
   ~nsSVGGlyphFrame()
   {
@@ -127,6 +126,8 @@ public:
   virtual void NotifySVGChanged(PRUint32 aFlags);
   NS_IMETHOD NotifyRedrawSuspended();
   NS_IMETHOD NotifyRedrawUnsuspended();
+  NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
+  virtual PRBool GetMatrixPropagation();
   NS_IMETHOD_(PRBool) IsDisplayContainer() { return PR_FALSE; }
   NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_TRUE; }
 
@@ -176,7 +177,7 @@ protected:
   friend class CharacterIterator;
 
   // Use a power of 2 here. It's not so important to match
-  // nsDeviceContext::AppUnitsPerDevPixel, but since we do a lot of
+  // nsIDeviceContext::AppUnitsPerDevPixel, but since we do a lot of
   // multiplying by 1/GetTextRunUnitsFactor, it's good for it to be a
   // power of 2 to avoid accuracy loss.
   static PRUint32 GetTextRunUnitsFactor() { return 64; }
@@ -228,7 +229,6 @@ protected:
   // The start index into the position and rotation data
   PRUint32 mStartIndex;
   PRUint8 mWhitespaceHandling;
-  PRPackedBool mPropagateTransform;
 };
 
 #endif

@@ -1060,7 +1060,7 @@ nsHttpConnectionMgr::OnMsgReclaimConnection(PRInt32, void *param)
             // The linear search is ok here because the number of idleconns
             // in a single entry is generally limited to a small number (i.e. 6)
 
-            PRUint32 idx;
+            PRInt32 idx;
             for (idx = 0; idx < ent->mIdleConns.Length(); idx++) {
                 nsHttpConnection *idleConn = ent->mIdleConns[idx];
                 if (idleConn->MaxBytesRead() < conn->MaxBytesRead())

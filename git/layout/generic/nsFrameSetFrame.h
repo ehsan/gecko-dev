@@ -50,7 +50,7 @@
 class  nsIContent;
 class  nsIFrame;
 class  nsPresContext;
-class  nsRenderingContext;
+class  nsIRenderingContext;
 struct nsRect;
 struct nsHTMLReflowState;
 struct nsSize;

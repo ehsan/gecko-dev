@@ -47,7 +47,8 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 #include "nsWhitespaceTokenizer.h"
 
 #include "nsMathMLmencloseFrame.h"
@@ -331,14 +332,14 @@ nsMathMLmencloseFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 /* virtual */ nsresult
-nsMathMLmencloseFrame::MeasureForWidth(nsRenderingContext& aRenderingContext,
+nsMathMLmencloseFrame::MeasureForWidth(nsIRenderingContext& aRenderingContext,
                                        nsHTMLReflowMetrics& aDesiredSize)
 {
   return PlaceInternal(aRenderingContext, PR_FALSE, aDesiredSize, PR_TRUE);
 }
 
 /* virtual */ nsresult
-nsMathMLmencloseFrame::Place(nsRenderingContext& aRenderingContext,
+nsMathMLmencloseFrame::Place(nsIRenderingContext& aRenderingContext,
                              PRBool               aPlaceOrigin,
                              nsHTMLReflowMetrics& aDesiredSize)
 {
@@ -346,7 +347,7 @@ nsMathMLmencloseFrame::Place(nsRenderingContext& aRenderingContext,
 }
 
 /* virtual */ nsresult
-nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
+nsMathMLmencloseFrame::PlaceInternal(nsIRenderingContext& aRenderingContext,
                                      PRBool               aPlaceOrigin,
                                      nsHTMLReflowMetrics& aDesiredSize,
                                      PRBool               aWidthOnly)
@@ -373,16 +374,16 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   ///////////////
   // Thickness of bars and font metrics
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
-
+  nsCOMPtr<nsIFontMetrics> fm;
   nscoord mEmHeight;
   aRenderingContext.SetFont(GetStyleFont()->mFont,
                             PresContext()->GetUserFontSet());
-  nsFontMetrics* fm = aRenderingContext.FontMetrics();
+  aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));
   GetRuleThickness(aRenderingContext, fm, mRuleThickness);
   GetEmHeight(fm, mEmHeight);
 
-  PRUnichar one = '1';
-  nsBoundingMetrics bmOne = aRenderingContext.GetBoundingMetrics(&one, 1);
+  nsBoundingMetrics bmOne;
+  aRenderingContext.GetBoundingMetrics(NS_LITERAL_STRING("1").get(), 1, bmOne);
 
   ///////////////
   // General rules: the menclose element takes the size of the enclosed content.
@@ -399,7 +400,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       // Rule 11, App. G, TeXbook
       // psi = clearance between rule and content
       if (NS_MATHML_IS_DISPLAYSTYLE(mPresentationData.flags))
-        phi = fm->XHeight();
+        fm->GetXHeight(phi);
       else
         phi = mRuleThickness;
       psi = mRuleThickness + phi / 4;
@@ -752,7 +753,7 @@ public:
 #endif
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("MathMLMencloseNotation", TYPE_MATHML_MENCLOSE_NOTATION)
 
 private:
@@ -762,7 +763,7 @@ private:
 };
 
 void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
-                              nsRenderingContext* aCtx)
+                              nsIRenderingContext* aCtx)
 {
   // get the gfxRect
   nsPresContext* presContext = mFrame->PresContext();
@@ -777,14 +778,14 @@ void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
   gfxFloat e = presContext->AppUnitsToGfxUnits(mThickness);
   gfxCtx->SetLineWidth(e);
 
-  rect.Deflate(e / 2.0);
+  rect.Inset(e / 2.0);
 
   gfxCtx->NewPath();
 
   switch(mType)
     {
     case NOTATION_CIRCLE:
-      gfxCtx->Ellipse(rect.Center(), rect.Size());
+      gfxCtx->Ellipse(rect.pos + rect.size / 2.0, rect.size);
       break;
 
     case NOTATION_ROUNDEDBOX:

@@ -62,7 +62,7 @@
 #include "mozilla/css/GroupRule.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
-#include "nsEventStateManager.h"
+#include "nsIEventStateManager.h"
 #include "nsGkAtoms.h"
 #include "nsString.h"
 #include "nsUnicharUtils.h"
@@ -726,62 +726,62 @@ static const PLDHashTableOps AttributeSelectorOps = {
 //--------------------------------
 
 // Class selectors hash table.
-struct AtomSelectorEntry : public PLDHashEntryHdr {
-  nsIAtom *mAtom;
+struct ClassSelectorEntry : public PLDHashEntryHdr {
+  nsIAtom *mClass;
   nsTArray<nsCSSSelector*> mSelectors;
 };
 
 static void
-AtomSelector_ClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
+ClassSelector_ClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
 {
-  (static_cast<AtomSelectorEntry*>(hdr))->~AtomSelectorEntry();
+  (static_cast<ClassSelectorEntry*>(hdr))->~ClassSelectorEntry();
 }
 
 static PRBool
-AtomSelector_InitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                       const void *key)
+ClassSelector_InitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
+                        const void *key)
 {
-  AtomSelectorEntry *entry = static_cast<AtomSelectorEntry*>(hdr);
-  new (entry) AtomSelectorEntry();
-  entry->mAtom = const_cast<nsIAtom*>(static_cast<const nsIAtom*>(key));
+  ClassSelectorEntry *entry = static_cast<ClassSelectorEntry*>(hdr);
+  new (entry) ClassSelectorEntry();
+  entry->mClass = const_cast<nsIAtom*>(static_cast<const nsIAtom*>(key));
   return PR_TRUE;
 }
 
 static nsIAtom*
-AtomSelector_GetKey(PLDHashTable *table, const PLDHashEntryHdr *hdr)
+ClassSelector_GetKey(PLDHashTable *table, const PLDHashEntryHdr *hdr)
 {
-  const AtomSelectorEntry *entry = static_cast<const AtomSelectorEntry*>(hdr);
-  return entry->mAtom;
+  const ClassSelectorEntry *entry = static_cast<const ClassSelectorEntry*>(hdr);
+  return entry->mClass;
 }
 
 // Case-sensitive ops.
-static const RuleHashTableOps AtomSelector_CSOps = {
+static const RuleHashTableOps ClassSelector_CSOps = {
   {
   PL_DHashAllocTable,
   PL_DHashFreeTable,
   PL_DHashVoidPtrKeyStub,
   RuleHash_CSMatchEntry,
   PL_DHashMoveEntryStub,
-  AtomSelector_ClearEntry,
+  ClassSelector_ClearEntry,
   PL_DHashFinalizeStub,
-  AtomSelector_InitEntry
+  ClassSelector_InitEntry
   },
-  AtomSelector_GetKey
+  ClassSelector_GetKey
 };
 
 // Case-insensitive ops.
-static const RuleHashTableOps AtomSelector_CIOps = {
+static const RuleHashTableOps ClassSelector_CIOps = {
   {
   PL_DHashAllocTable,
   PL_DHashFreeTable,
   RuleHash_CIHashKey,
   RuleHash_CIMatchEntry,
   PL_DHashMoveEntryStub,
-  AtomSelector_ClearEntry,
+  ClassSelector_ClearEntry,
   PL_DHashFinalizeStub,
-  AtomSelector_InitEntry
+  ClassSelector_InitEntry
   },
-  AtomSelector_GetKey
+  ClassSelector_GetKey
 };
 
 //--------------------------------
@@ -799,14 +799,10 @@ struct RuleCascadeData {
                       sizeof(AttributeSelectorEntry), 16);
     PL_DHashTableInit(&mAnonBoxRules, &RuleHash_TagTable_Ops, nsnull,
                       sizeof(RuleHashTagTableEntry), 16);
-    PL_DHashTableInit(&mIdSelectors,
-                      aQuirksMode ? &AtomSelector_CIOps.ops :
-                                    &AtomSelector_CSOps.ops,
-                      nsnull, sizeof(AtomSelectorEntry), 16);
     PL_DHashTableInit(&mClassSelectors,
-                      aQuirksMode ? &AtomSelector_CIOps.ops :
-                                    &AtomSelector_CSOps.ops,
-                      nsnull, sizeof(AtomSelectorEntry), 16);
+                      aQuirksMode ? &ClassSelector_CIOps.ops :
+                                    &ClassSelector_CSOps.ops,
+                      nsnull, sizeof(ClassSelectorEntry), 16);
     memset(mPseudoElementRuleHashes, 0, sizeof(mPseudoElementRuleHashes));
 #ifdef MOZ_XUL
     PL_DHashTableInit(&mXULTreeRules, &RuleHash_TagTable_Ops, nsnull,
@@ -818,7 +814,6 @@ struct RuleCascadeData {
   {
     PL_DHashTableFinish(&mAttributeSelectors);
     PL_DHashTableFinish(&mAnonBoxRules);
-    PL_DHashTableFinish(&mIdSelectors);
     PL_DHashTableFinish(&mClassSelectors);
 #ifdef MOZ_XUL
     PL_DHashTableFinish(&mXULTreeRules);
@@ -833,9 +828,8 @@ struct RuleCascadeData {
   nsTArray<nsCSSSelector*> mStateSelectors;
   nsEventStates            mSelectorDocumentStates;
   PLDHashTable             mClassSelectors;
-  PLDHashTable             mIdSelectors;
   nsTArray<nsCSSSelector*> mPossiblyNegatedClassSelectors;
-  nsTArray<nsCSSSelector*> mPossiblyNegatedIDSelectors;
+  nsTArray<nsCSSSelector*> mIDSelectors;
   PLDHashTable             mAttributeSelectors;
   PLDHashTable             mAnonBoxRules;
 #ifdef MOZ_XUL
@@ -1921,9 +1915,9 @@ static PRBool SelectorMatches(Element* aElement,
       // Bit-based pseudo-classes
       if (statesToCheck.HasAtLeastOneOfStates(NS_EVENT_STATE_HOVER | NS_EVENT_STATE_ACTIVE) &&
           aTreeMatchContext.mCompatMode == eCompatibility_NavQuirks &&
-          // global selector:
+          // global selector (but don't check .class):
           !aSelector->HasTagSelector() && !aSelector->mIDList && 
-          !aSelector->mClassList && !aSelector->mAttrList &&
+          !aSelector->mAttrList &&
           // This (or the other way around) both make :not() asymmetric
           // in quirks mode (and it's hard to work around since we're
           // testing the current mNegations, not the first
@@ -2380,23 +2374,8 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
   // ones we might have started matching.
   if (cascade) {
     if (aData->mAttribute == aData->mElement->GetIDAttributeName()) {
-      nsIAtom* id = aData->mElement->GetID();
-      if (id) {
-        AtomSelectorEntry *entry =
-          static_cast<AtomSelectorEntry*>
-                     (PL_DHashTableOperate(&cascade->mIdSelectors,
-                                           id, PL_DHASH_LOOKUP));
-        if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
-          nsCSSSelector **iter = entry->mSelectors.Elements(),
-                        **end = iter + entry->mSelectors.Length();
-          for(; iter != end; ++iter) {
-            AttributeEnumFunc(*iter, &data);
-          }
-        }
-      }
-
-      nsCSSSelector **iter = cascade->mPossiblyNegatedIDSelectors.Elements(),
-                    **end = iter + cascade->mPossiblyNegatedIDSelectors.Length();
+      nsCSSSelector **iter = cascade->mIDSelectors.Elements(),
+                    **end = iter + cascade->mIDSelectors.Length();
       for(; iter != end; ++iter) {
         AttributeEnumFunc(*iter, &data);
       }
@@ -2408,8 +2387,8 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
         PRInt32 atomCount = elementClasses->GetAtomCount();
         for (PRInt32 i = 0; i < atomCount; ++i) {
           nsIAtom* curClass = elementClasses->AtomAt(i);
-          AtomSelectorEntry *entry =
-            static_cast<AtomSelectorEntry*>
+          ClassSelectorEntry *entry =
+            static_cast<ClassSelectorEntry*>
                        (PL_DHashTableOperate(&cascade->mClassSelectors,
                                              curClass, PL_DHASH_LOOKUP));
           if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
@@ -2583,29 +2562,18 @@ AddSelector(RuleCascadeData* aCascade,
       aCascade->mStateSelectors.AppendElement(aSelectorInTopLevel);
 
     // Build mIDSelectors
-    if (negation == aSelectorInTopLevel) {
-      for (nsAtomList* curID = negation->mIDList; curID;
-           curID = curID->mNext) {
-        AtomSelectorEntry *entry =
-          static_cast<AtomSelectorEntry*>(PL_DHashTableOperate(&aCascade->mIdSelectors,
-                                                               curID->mAtom,
-                                                               PL_DHASH_ADD));
-        if (entry) {
-          entry->mSelectors.AppendElement(aSelectorInTopLevel);
-        }
-      }
-    } else if (negation->mIDList) {
-      aCascade->mPossiblyNegatedIDSelectors.AppendElement(aSelectorInTopLevel);
+    if (negation->mIDList) {
+      aCascade->mIDSelectors.AppendElement(aSelectorInTopLevel);
     }
 
     // Build mClassSelectors
     if (negation == aSelectorInTopLevel) {
       for (nsAtomList* curClass = negation->mClassList; curClass;
            curClass = curClass->mNext) {
-        AtomSelectorEntry *entry =
-          static_cast<AtomSelectorEntry*>(PL_DHashTableOperate(&aCascade->mClassSelectors,
-                                                               curClass->mAtom,
-                                                               PL_DHASH_ADD));
+        ClassSelectorEntry *entry =
+          static_cast<ClassSelectorEntry*>(PL_DHashTableOperate(&aCascade->mClassSelectors,
+                                                                curClass->mAtom,
+                                                                PL_DHASH_ADD));
         if (entry) {
           entry->mSelectors.AppendElement(aSelectorInTopLevel);
         }
