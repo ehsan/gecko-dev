@@ -40,8 +40,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-Components.utils.import("resource://gre/modules/MigrationUtils.jsm");
-
 var PlacesOrganizer = {
   _places: null,
   _content: null,
@@ -387,7 +385,20 @@ var PlacesOrganizer = {
    * cookies, history, preferences, and bookmarks.
    */
   importFromBrowser: function PO_importFromBrowser() {
-    MigrationUtils.showMigrationWizard(window);
+#ifdef XP_MACOSX
+    // On Mac, the window is not modal
+    let win = Services.wm.getMostRecentWindow("Browser:MigrationWizard");
+    if (win) {
+      win.focus();
+      return;
+    }
+
+    let features = "centerscreen,chrome,resizable=no";
+#else
+    let features = "modal,centerscreen,chrome,resizable=no";
+#endif
+    window.openDialog("chrome://browser/content/migration/migration.xul",
+                      "migration", features);
   },
 
   /**
