@@ -2441,20 +2441,6 @@ void nsWindow::SetTransparencyMode(nsTransparencyMode aMode)
   GetTopLevelWindow(PR_TRUE)->SetWindowTranslucencyInner(aMode);
 }
 
-namespace {
-  BOOL CALLBACK AddClientAreaToRegion(HWND hWnd, LPARAM lParam) {
-    nsIntRegion *region = reinterpret_cast<nsIntRegion*>(lParam);
-
-    RECT clientRect;
-    ::GetWindowRect(hWnd, &clientRect);
-    nsIntRect clientArea(clientRect.left, clientRect.top,
-                         clientRect.right - clientRect.left,
-                         clientRect.bottom - clientRect.top);
-    region->Or(*region, clientArea);
-    return TRUE;
-  }
-}
-
 void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
                                                const nsIntRegion &aPossiblyTransparentRegion) {
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
@@ -2470,24 +2456,10 @@ void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
   mPossiblyTransparentRegion.Sub(mPossiblyTransparentRegion, aDirtyRegion);
   mPossiblyTransparentRegion.Or(mPossiblyTransparentRegion, aPossiblyTransparentRegion);
 
-  nsIntRegion childWindowRegion;
-
-  ::EnumChildWindows(mWnd, AddClientAreaToRegion, reinterpret_cast<LPARAM>(&childWindowRegion));
-
-  nsIntPoint clientOffset = GetClientOffset();
-  childWindowRegion.MoveBy(-clientOffset);
-
-  RECT r;
-  ::GetWindowRect(mWnd, &r);
-  childWindowRegion.MoveBy(-r.left, -r.top);
-
   nsIntRect clientBounds;
   topWindow->GetClientBounds(clientBounds);
   nsIntRegion opaqueRegion;
   opaqueRegion.Sub(clientBounds, mPossiblyTransparentRegion);
-  opaqueRegion.Or(opaqueRegion, childWindowRegion);
-  // Sometimes child windows overlap our bounds
-  opaqueRegion.And(opaqueRegion, clientBounds);
  
   MARGINS margins = { 0, 0, 0, 0 };
   DWORD_PTR dwStyle = ::GetWindowLongPtrW(hWnd, GWL_STYLE);
@@ -6873,6 +6845,8 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
     // We put the region back just below, anyway.
     ::SetWindowRgn(w->mWnd, NULL, TRUE);
 #endif
+    nsresult rv = w->SetWindowClipRegion(configuration.mClipRegion, PR_TRUE);
+    NS_ENSURE_SUCCESS(rv, rv);
     nsIntRect bounds;
     w->GetBounds(bounds);
     if (bounds.Size() != configuration.mBounds.Size()) {
@@ -6882,7 +6856,7 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
     } else if (bounds.TopLeft() != configuration.mBounds.TopLeft()) {
       w->Move(configuration.mBounds.x, configuration.mBounds.y);
     }
-    nsresult rv = w->SetWindowClipRegion(configuration.mClipRegion, PR_FALSE);
+    rv = w->SetWindowClipRegion(configuration.mClipRegion, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   return NS_OK;
@@ -6917,6 +6891,14 @@ nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
   if (!aIntersectWithExisting) {
     if (!StoreWindowClipRegion(aRects))
       return NS_OK;
+  } else {
+    // In this case still early return if nothing changed.
+    if (mClipRects && mClipRectCount == aRects.Length() &&
+        memcmp(mClipRects,
+               aRects.Elements(),
+               sizeof(nsIntRect)*mClipRectCount) == 0) {
+      return NS_OK;
+    }
   }
 
   HRGN dest = CreateHRGNFromArray(aRects);
