@@ -7,9 +7,8 @@
 #define _NS_NSSVERSION_H_
 
 #include "nsINSSVersion.h"
-#include "mozilla/Attributes.h"
 
-class nsNSSVersion MOZ_FINAL : public nsINSSVersion
+class nsNSSVersion : public nsINSSVersion
 {
 public:
   NS_DECL_ISUPPORTS

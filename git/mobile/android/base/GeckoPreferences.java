@@ -5,13 +5,16 @@
 
 package org.mozilla.gecko;
 
+import java.lang.CharSequence;
 import java.util.ArrayList;
 
 import android.app.Dialog;
 import android.text.Editable;
 import android.app.AlertDialog;
+import android.os.Build;
 import android.os.Bundle;
 import android.content.res.Configuration;
+import android.content.res.Resources;
 import android.content.Context;
 import android.preference.*;
 import android.preference.Preference.*;
@@ -19,6 +22,7 @@ import android.text.InputType;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Toast;

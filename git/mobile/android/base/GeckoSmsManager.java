@@ -6,6 +6,7 @@
 package org.mozilla.gecko;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 
 import android.util.Log;
 

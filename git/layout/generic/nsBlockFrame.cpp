@@ -1429,9 +1429,11 @@ nsBlockFrame::ComputeFinalSize(const nsHTMLReflowState& aReflowState,
     aMetrics.mCarriedOutBottomMargin.Zero();
   }
   else if (NS_FRAME_IS_COMPLETE(aState.mReflowStatus)) {
-    nscoord contentHeight = bottomEdgeOfChildren - borderPadding.top;
-    nscoord autoHeight = aReflowState.ApplyMinMaxHeight(contentHeight);
-    if (autoHeight != contentHeight) {
+    nscoord autoHeight = bottomEdgeOfChildren;
+    autoHeight -= borderPadding.top;
+    nscoord oldAutoHeight = autoHeight;
+    aReflowState.ApplyMinMaxConstraints(nsnull, &autoHeight);
+    if (autoHeight != oldAutoHeight) {
       // Our min-height or max-height made our height change.  Don't carry out
       // our kids' bottom margins.
       aMetrics.mCarriedOutBottomMargin.Zero();
@@ -4928,7 +4930,7 @@ nsBlockFrame::AddFrames(nsFrameList& aFrameList, nsIFrame* aPrevSibling)
       // Mark prevSibLine dirty and as needing textrun invalidation, since
       // we may be breaking up text in the line. Its previous line may also
       // need to be invalidated because it may be able to pull some text up.
-      MarkLineDirty(prevSibLine, lineList);
+      MarkLineDirty(prevSibLine);
       // The new line will also need its textruns recomputed because of the
       // frame changes.
       line->MarkDirty();
@@ -4985,7 +4987,7 @@ nsBlockFrame::AddFrames(nsFrameList& aFrameList, nsIFrame* aPrevSibling)
       // We're adding inline content to prevSibLine, so we need to mark it
       // dirty, ensure its textruns are recomputed, and possibly do the same
       // to its previous line since that line may be able to pull content up.
-      MarkLineDirty(prevSibLine, lineList);
+      MarkLineDirty(prevSibLine);
     }
 
     aPrevSibling = newFrame;

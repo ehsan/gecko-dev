@@ -4,13 +4,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "BluetoothService.h"
+#ifndef mozilla_dom_bluetooth_bluetoothfirmware_h__
+#define mozilla_dom_bluetooth_bluetoothfirmware_h__
 
-USING_BLUETOOTH_NAMESPACE
+namespace mozilla {
+namespace dom {
+namespace bluetooth {
 
-BluetoothService*
-BluetoothService::Create()
-{
-  NS_WARNING("Bluetooth not implemented for this platform!");
-  return nsnull;
+bool EnsureBluetoothInit();
+int IsBluetoothEnabled();
+int EnableBluetooth();
+int DisableBluetooth();
+
 }
+}
+}
+
+#endif

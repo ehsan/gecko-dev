@@ -20,21 +20,6 @@
 
 #include "gc/Barrier.h"
 
-namespace js {
-
-struct Shape;
-
-namespace mjit {
-struct JITScript;
-class CallCompiler;
-}
-
-namespace analyze {
-class ScriptAnalysis;
-}
-
-}
-
 /*
  * Type of try note associated with each catch or finally block, and also with
  * for-in loops.
@@ -79,68 +64,16 @@ struct ClosedSlotArray {
     uint32_t        length;     /* count of closed slots */
 };
 
-/*
- * A "binding" is a formal, 'var' or 'const' declaration. A function's lexical
- * scope is composed of these three kinds of bindings.
- */
+struct Shape;
 
-enum BindingKind { ARGUMENT, VARIABLE, CONSTANT };
+enum BindingKind { NONE, ARGUMENT, VARIABLE, CONSTANT };
 
-struct Binding
-{
-    PropertyName *maybeName;  /* NULL for destructuring formals. */
+struct BindingName {
+    JSAtom *maybeAtom;
     BindingKind kind;
 };
 
-/*
- * Iterator over a script's bindings (formals and variables). Note: iteration
- * proceeds in reverse-frame-index order, vars before formals. For ascending
- * order, see GetOrderedBindings.
- */
-class BindingIter
-{
-    friend class Bindings;
-    BindingIter(JSContext *cx, const Bindings &bindings, Shape *shape);
-    void settle();
-
-    struct Init
-    {
-        Init(const Bindings *b, Shape::Range s) : bindings(b), shape(s) {}
-        const Bindings *bindings;
-        Shape::Range shape;
-    };
-
-  public:
-    BindingIter(JSContext *cx, Bindings &bindings);
-    BindingIter(JSContext *cx, Init init);
-
-    void operator=(Init init);
-
-    bool done() const { return shape_.empty(); }
-    operator bool() const { return !done(); }
-    void operator++(int) { shape_.popFront(); settle(); }
-
-    const Binding &operator*() const { JS_ASSERT(!done()); return binding_; }
-    const Binding *operator->() const { JS_ASSERT(!done()); return &binding_; }
-    unsigned frameIndex() const { JS_ASSERT(!done()); return shape_.front().shortid(); }
-
-  private:
-    const Bindings *bindings_;
-    Binding binding_;
-    Shape::Range shape_;
-    Shape::Range::AutoRooter rooter_;
-};
-
-/*
- * This function fills the given BindingVector in ascending frame-index order,
- * formals before variables. Thus, for function f(x) { var y; }, *vec will
- * contain [("x",ARGUMENT),("y",VARIABLE)].
- */
-
-typedef Vector<Binding, 32> BindingVector;
-
-extern bool
-GetOrderedBindings(JSContext *cx, Bindings &bindings, BindingVector *vec);
+typedef Vector<BindingName, 32> BindingNames;
 
 /*
  * Formal parameters and local variables are stored in a shape tree
@@ -150,9 +83,6 @@ GetOrderedBindings(JSContext *cx, Bindings &bindings, BindingVector *vec);
  */
 class Bindings
 {
-    friend class BindingIter;
-    friend class StaticScopeIter;
-
     HeapPtr<Shape> lastBinding;
     uint16_t nargs;
     uint16_t nvars;
@@ -184,6 +114,9 @@ class Bindings
 
     /* Ensure these bindings have a shape lineage. */
     inline bool ensureShape(JSContext *cx);
+
+    /* Return the shape lineage generated for these bindings. */
+    inline Shape *lastShape() const;
 
     /*
      * Return the shape to use to create a call object for these bindings.
@@ -244,16 +177,37 @@ class Bindings
      * exists, *indexp will receive the index of the corresponding argument or
      * variable.
      */
-    BindingIter::Init lookup(JSContext *cx, PropertyName *name) const;
+    BindingKind lookup(JSContext *cx, JSAtom *name, unsigned *indexp) const;
 
     /* Convenience method to check for any binding for a name. */
-    bool hasBinding(JSContext *cx, PropertyName *name) const {
-        Shape **_;
-        return lastBinding && Shape::search(cx, lastBinding, NameToId(name), &_) != NULL;
+    bool hasBinding(JSContext *cx, JSAtom *name) const {
+        return lookup(cx, name, NULL) != NONE;
     }
 
     /* Convenience method to get the var index of 'arguments'. */
-    unsigned argumentsVarIndex(JSContext *cx) const;
+    inline unsigned argumentsVarIndex(JSContext *cx) const;
+
+    /*
+     * This method returns the local variable, argument, etc. names used by a
+     * script.  This function must be called only when count() > 0.
+     *
+     * The elements of the vector with index less than nargs correspond to the
+     * the names of arguments. An index >= nargs addresses a var binding.
+     * The name at an element will be null when the element is for an argument
+     * corresponding to a destructuring pattern.
+     */
+    bool getLocalNameArray(JSContext *cx, BindingNames *namesp);
+
+    /*
+     * This method provides direct access to the shape path normally
+     * encapsulated by js::Bindings. This method may be used to make a
+     * Shape::Range for iterating over the relevant shapes from youngest to
+     * oldest (i.e., last or right-most to first or left-most in source order).
+     *
+     * Sometimes iteration order must be from oldest to youngest, however. For
+     * such cases, use js::Bindings::getLocalNameArray.
+     */
+    js::Shape *lastVariable() const;
 
     void trace(JSTracer *trc);
 
@@ -276,6 +230,26 @@ class Bindings
         JS_DECL_USE_GUARD_OBJECT_NOTIFIER
     };
 };
+
+} /* namespace js */
+
+#ifdef JS_METHODJIT
+namespace JSC {
+    class ExecutablePool;
+}
+
+namespace js {
+namespace mjit {
+    struct JITScript;
+    class CallCompiler;
+}
+}
+
+#endif
+
+namespace js {
+
+namespace analyze { class ScriptAnalysis; }
 
 class ScriptCounts
 {

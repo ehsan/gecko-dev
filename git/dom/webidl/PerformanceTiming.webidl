@@ -31,7 +31,6 @@ interface PerformanceTiming {
   readonly attribute unsigned long long connectStart;
   [Infallible]
   readonly attribute unsigned long long connectEnd;
-  // secureConnectionStart will be implemneted in bug 772589
   // [Infallible]
   // readonly attribute unsigned long long secureConnectionStart;
   [Infallible]

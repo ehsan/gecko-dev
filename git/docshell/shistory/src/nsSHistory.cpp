@@ -30,7 +30,6 @@
 #include "nsTArray.h"
 #include "nsCOMArray.h"
 #include "nsDocShell.h"
-#include "mozilla/Attributes.h"
 
 // For calculating max history entries and max cachable contentviewers
 #include "nspr.h"
@@ -107,7 +106,7 @@ enum HistCmd{
 //***      nsSHistoryObserver
 //*****************************************************************************
 
-class nsSHistoryObserver MOZ_FINAL : public nsIObserver
+class nsSHistoryObserver : public nsIObserver
 {
 
 public:

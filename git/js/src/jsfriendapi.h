@@ -809,59 +809,21 @@ CastToJSFreeOp(FreeOp *fop)
 /* Implemented in jsexn.cpp. */
 
 /*
- * Get an error type name from a JSExnType constant.
- * Returns NULL for invalid arguments and JSEXN_INTERNALERR
+ * Get an error type name from a number.
+ * If no exception is associated, return NULL.
  */
 extern JS_FRIEND_API(const jschar*)
-GetErrorTypeName(JSContext* cx, int16_t exnType);
+GetErrorTypeNameFromNumber(JSContext* cx, const unsigned errorNumber);
 
 /* Implemented in jswrapper.cpp. */
-typedef enum NukeReferencesToWindow {
-    NukeWindowReferences,
-    DontNukeWindowReferences
-} NukeReferencesToWindow;
-
-// These filters are designed to be ephemeral stack classes, and thus don't
-// do any rooting or holding of their members.
-struct CompartmentFilter {
-    virtual bool match(JSCompartment *c) const = 0;
-};
-
-struct AllCompartments : public CompartmentFilter {
-    virtual bool match(JSCompartment *c) const { return true; }
-};
-
-struct ContentCompartmentsOnly : public CompartmentFilter {
-    virtual bool match(JSCompartment *c) const {
-        return !IsSystemCompartment(c);
-    }
-};
-
-struct ChromeCompartmentsOnly : public CompartmentFilter {
-    virtual bool match(JSCompartment *c) const {
-        return IsSystemCompartment(c);
-    }
-};
-
-struct SingleCompartment : public CompartmentFilter {
-    JSCompartment *ours;
-    SingleCompartment(JSCompartment *c) : ours(c) {}
-    virtual bool match(JSCompartment *c) const { return c == ours; }
-};
-
-struct CompartmentsWithPrincipals : public CompartmentFilter {
-    JSPrincipals *principals;
-    CompartmentsWithPrincipals(JSPrincipals *p) : principals(p) {}
-    virtual bool match(JSCompartment *c) const {
-        return JS_GetCompartmentPrincipals(c) == principals;
-    }
-};
+typedef enum NukedGlobalHandling {
+    NukeForGlobalObject,
+    DontNukeForGlobalObject
+} NukedGlobalHandling;
 
 extern JS_FRIEND_API(JSBool)
-NukeCrossCompartmentWrappers(JSContext* cx,
-                             const CompartmentFilter& sourceFilter,
-                             const CompartmentFilter& targetFilter,
-                             NukeReferencesToWindow nukeReferencesToWindow);
+NukeChromeCrossCompartmentWrappersForGlobal(JSContext *cx, JSObject *obj,
+                                            NukedGlobalHandling nukeGlobal);
 
 } /* namespace js */
 

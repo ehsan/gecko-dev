@@ -4,61 +4,59 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
-
-#include "BasicLayers.h"
-#include "IndexedDBChild.h"
+#include "TabChild.h"
 #include "mozilla/IntentionalCrash.h"
-#include "mozilla/docshell/OfflineCacheUpdateChild.h"
 #include "mozilla/dom/PContentChild.h"
 #include "mozilla/dom/PContentDialogChild.h"
-#include "mozilla/ipc/DocumentRendererChild.h"
-#include "mozilla/layers/CompositorChild.h"
 #include "mozilla/layers/PLayersChild.h"
 #include "mozilla/layout/RenderFrameChild.h"
-#include "nsComponentManagerUtils.h"
-#include "nsComponentManagerUtils.h"
-#include "nsContentUtils.h"
+#include "mozilla/docshell/OfflineCacheUpdateChild.h"
+
+#include "BasicLayers.h"
+#include "nsIWebBrowser.h"
+#include "nsIWebBrowserSetup.h"
 #include "nsEmbedCID.h"
-#include "nsEventListenerManager.h"
+#include "nsComponentManagerUtils.h"
 #include "nsIBaseWindow.h"
-#include "nsIComponentManager.h"
-#include "nsIDOMClassInfo.h"
-#include "nsIDOMEvent.h"
 #include "nsIDOMWindow.h"
-#include "nsIDOMWindowUtils.h"
+#include "nsIWebProgress.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
-#include "nsIFrame.h"
+#include "nsThreadUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "mozilla/ipc/DocumentRendererChild.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsIJSContextStack.h"
-#include "nsIJSRuntimeService.h"
-#include "nsISSLStatusProvider.h"
-#include "nsIScriptContext.h"
-#include "nsIScriptGlobalObject.h"
-#include "nsIScriptSecurityManager.h"
-#include "nsISecureBrowserUI.h"
-#include "nsIServiceManager.h"
+#include "nsPIDOMWindow.h"
+#include "nsIDOMWindowUtils.h"
 #include "nsISupportsImpl.h"
 #include "nsIURI.h"
-#include "nsIView.h"
-#include "nsIWebBrowser.h"
 #include "nsIWebBrowserFocus.h"
-#include "nsIWebBrowserSetup.h"
-#include "nsIWebProgress.h"
+#include "nsIDOMEvent.h"
+#include "nsIComponentManager.h"
+#include "nsIServiceManager.h"
+#include "nsIJSRuntimeService.h"
+#include "nsContentUtils.h"
+#include "nsIDOMClassInfo.h"
 #include "nsIXPCSecurityManager.h"
-#include "nsInterfaceHashtable.h"
-#include "nsPIDOMWindow.h"
-#include "nsPIWindowRoot.h"
-#include "nsPresContext.h"
+#include "nsIJSContextStack.h"
+#include "nsComponentManagerUtils.h"
+#include "nsIScriptSecurityManager.h"
 #include "nsScriptLoader.h"
-#include "nsSerializationHelper.h"
-#include "nsThreadUtils.h"
+#include "nsPIWindowRoot.h"
+#include "nsIScriptContext.h"
+#include "nsInterfaceHashtable.h"
+#include "nsPresContext.h"
+#include "nsIScriptGlobalObject.h"
 #include "nsWeakReference.h"
+#include "nsISecureBrowserUI.h"
+#include "nsISSLStatusProvider.h"
+#include "nsSerializationHelper.h"
+#include "nsIFrame.h"
+#include "nsIView.h"
+#include "nsEventListenerManager.h"
 #include "PCOMContentPermissionRequestChild.h"
-#include "TabChild.h"
 #include "xpcpublic.h"
+#include "IndexedDBChild.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
@@ -498,12 +496,6 @@ TabChild::DestroyWindow()
     }
 }
 
-bool
-TabChild::UseDirectCompositor()
-{
-    return !!CompositorChild::Get();
-}
-
 void
 TabChild::ActorDestroy(ActorDestroyReason why)
 {
@@ -673,49 +665,6 @@ TabChild::RecvMouseScrollEvent(const nsMouseScrollEvent& event)
   return true;
 }
 
-bool
-TabChild::RecvRealTouchEvent(const nsTouchEvent& aEvent)
-{
-    nsTouchEvent localEvent(aEvent);
-    nsEventStatus status = DispatchWidgetEvent(localEvent);
-    if (status == nsEventStatus_eConsumeNoDefault) {
-        return true;
-    }
-
-    // Synthesize a phony mouse event.
-    PRUint32 msg;
-    switch (aEvent.message) {
-    case NS_TOUCH_START:
-        msg = NS_MOUSE_BUTTON_DOWN;
-        break;
-    case NS_TOUCH_MOVE:
-        msg = NS_MOUSE_MOVE;
-        break;
-    case NS_TOUCH_END:
-    case NS_TOUCH_CANCEL:
-        msg = NS_MOUSE_BUTTON_UP;
-        break;
-    default:
-        MOZ_NOT_REACHED("Unknown touch event message");
-    }
-
-    nsIntPoint refPoint(0, 0);
-    if (aEvent.touches.Length()) {
-        refPoint = aEvent.touches[0]->mRefPoint;
-    }
-
-    nsMouseEvent event(true, msg, NULL,
-                       nsMouseEvent::eReal, nsMouseEvent::eNormal);
-    event.refPoint = refPoint;
-    event.time = aEvent.time;
-    event.button = nsMouseEvent::eLeftButton;
-    if (msg != NS_MOUSE_MOVE) {
-        event.clickCount = 1;
-    }
-
-    DispatchWidgetEvent(event);
-    return true;
-}
 
 bool
 TabChild::RecvRealKeyEvent(const nsKeyEvent& event)
@@ -766,17 +715,16 @@ TabChild::RecvSelectionEvent(const nsSelectionEvent& event)
   return true;
 }
 
-nsEventStatus
+bool
 TabChild::DispatchWidgetEvent(nsGUIEvent& event)
 {
   if (!mWidget)
-    return nsEventStatus_eConsumeNoDefault;
+    return false;
 
   nsEventStatus status;
   event.widget = mWidget;
-  NS_ENSURE_SUCCESS(mWidget->DispatchEvent(&event, status),
-                    nsEventStatus_eConsumeNoDefault);
-  return status;
+  NS_ENSURE_SUCCESS(mWidget->DispatchEvent(&event, status), false);
+  return true;
 }
 
 PDocumentRendererChild*
@@ -962,9 +910,7 @@ TabChild::RecvDestroy()
 }
 
 PRenderFrameChild*
-TabChild::AllocPRenderFrame(LayersBackend* aBackend,
-                            int32_t* aMaxTextureSize,
-                            uint64_t* aLayersId)
+TabChild::AllocPRenderFrame()
 {
     return new RenderFrameChild();
 }
@@ -1030,30 +976,18 @@ TabChild::InitWidget(const nsIntSize& size)
         nsnull                  // nsDeviceContext
         );
 
-    LayersBackend be;
-    uint64_t id;
-    int32_t maxTextureSize;
     RenderFrameChild* remoteFrame =
-        static_cast<RenderFrameChild*>(SendPRenderFrameConstructor(
-                                           &be, &maxTextureSize, &id));
+        static_cast<RenderFrameChild*>(SendPRenderFrameConstructor());
     if (!remoteFrame) {
       NS_WARNING("failed to construct RenderFrame");
       return false;
     }
 
-    PLayersChild* shadowManager = nsnull;
-    if (id != 0) {
-        // Pushing layers transactions directly to a separate
-        // compositor context.
-        shadowManager =
-            CompositorChild::Get()->SendPLayersConstructor(be, id,
-                                                           &be,
-                                                           &maxTextureSize);
-    } else {
-        // Pushing transactions to the parent content.
-        shadowManager = remoteFrame->SendPLayersConstructor();
-    }
-
+    NS_ABORT_IF_FALSE(0 == remoteFrame->ManagedPLayersChild().Length(),
+                      "shouldn't have a shadow manager yet");
+    LayerManager::LayersBackend be;
+    PRInt32 maxTextureSize;
+    PLayersChild* shadowManager = remoteFrame->SendPLayersConstructor(&be, &maxTextureSize);
     if (!shadowManager) {
       NS_WARNING("failed to construct LayersChild");
       // This results in |remoteFrame| being deleted.
@@ -1079,23 +1013,6 @@ TabChild::SetBackgroundColor(const nscolor& aColor)
     mLastBackgroundColor = aColor;
     SendSetBackgroundColor(mLastBackgroundColor);
   }
-}
-
-void
-TabChild::NotifyPainted()
-{
-    if (UseDirectCompositor()) {
-        // FIXME/bug XXXXXX: in theory, we should only have to push a
-        // txn to our remote frame once, and the
-        // display-list/FrameLayerBuilder code there will manage the
-        // tree from there on.  But in practice, that doesn't work for
-        // some unknown reason.  So for now, always notify the content
-        // thread in the parent process.  It's wasteful but won't
-        // result in unnecessary repainting or even composites
-        // (usually, unless timing is unlucky), since they're
-        // throttled.
-        mRemoteFrame->SendNotifyCompositorTransaction();
-    }
 }
 
 NS_IMETHODIMP

@@ -13,7 +13,7 @@
 
 #include <map>
 #include "nsDisplayList.h"
-#include "LayersBackend.h"
+#include "Layers.h"
 
 class nsContentView;
 class nsFrameLoader;
@@ -40,10 +40,7 @@ class RenderFrameParent : public PRenderFrameParent,
 public:
   typedef std::map<ViewID, nsRefPtr<nsContentView> > ViewMap;
 
-  RenderFrameParent(nsFrameLoader* aFrameLoader,
-                    mozilla::layers::LayersBackend* aBackendType,
-                    int* aMaxTextureSize,
-                    uint64_t* aId);
+  RenderFrameParent(nsFrameLoader* aFrameLoader);
   virtual ~RenderFrameParent();
 
   void Destroy();
@@ -56,8 +53,7 @@ public:
 
   void ContentViewScaleChanged(nsContentView* aView);
 
-  virtual void ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
-                                   bool isFirstPaint) MOZ_OVERRIDE;
+  virtual void ShadowLayersUpdated(bool isFirstPaint) MOZ_OVERRIDE;
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder* aBuilder,
                               nsSubDocumentFrame* aFrame,
@@ -74,25 +70,17 @@ public:
   void SetBackgroundColor(nscolor aColor) { mBackgroundColor = gfxRGBA(aColor); };
 
 protected:
-  void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+  NS_OVERRIDE void ActorDestroy(ActorDestroyReason why);
 
-  virtual bool RecvNotifyCompositorTransaction() MOZ_OVERRIDE;
-
-  virtual PLayersParent* AllocPLayers() MOZ_OVERRIDE;
-  virtual bool DeallocPLayers(PLayersParent* aLayers) MOZ_OVERRIDE;
+  NS_OVERRIDE virtual PLayersParent* AllocPLayers(LayerManager::LayersBackend* aBackendType,
+                                                  int* aMaxTextureSize);
+  NS_OVERRIDE virtual bool DeallocPLayers(PLayersParent* aLayers);
 
 private:
   void BuildViewMap();
-  void TriggerRepaint();
 
   ShadowLayersParent* GetShadowLayers() const;
-  uint64_t GetLayerTreeId() const;
   ContainerLayer* GetRootLayer() const;
-
-  // When our child frame is pushing transactions directly to the
-  // compositor, this is the ID of its layer tree in the compositor's
-  // context.
-  uint64_t mLayersId;
 
   nsRefPtr<nsFrameLoader> mFrameLoader;
   nsRefPtr<ContainerLayer> mContainer;

@@ -25,7 +25,6 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/FileUtils.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Attributes.h"
 
 namespace {
 
@@ -86,7 +85,7 @@ AutoHashtable<EntryType>::ReflectIntoJS(ReflectEntryFunc entryFunc,
   return num == this->Count();
 }
 
-class TelemetryImpl MOZ_FINAL : public nsITelemetry
+class TelemetryImpl : public nsITelemetry
 {
   NS_DECL_ISUPPORTS
   NS_DECL_NSITELEMETRY

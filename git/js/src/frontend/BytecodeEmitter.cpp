@@ -873,7 +873,6 @@ EmitAliasedVarOp(JSContext *cx, JSOp op, ScopeCoordinate sc, BytecodeEmitter *bc
     SET_UINT16(pc, sc.slot);
     pc += sizeof(uint16_t);
     SET_UINT32_INDEX(pc, maybeBlockIndex);
-    CheckTypeSet(cx, bce, op);
     return true;
 }
 
@@ -892,48 +891,40 @@ ClonedBlockDepth(BytecodeEmitter *bce)
 static bool
 EmitAliasedVarOp(JSContext *cx, JSOp op, ParseNode *pn, BytecodeEmitter *bce)
 {
-    unsigned skippedScopes = 0;
-    BytecodeEmitter *bceOfDef = bce;
-    if (pn->isUsed()) {
-        /*
-         * As explained in BindNameToSlot, the 'level' of a use indicates how
-         * many function scopes (i.e., BytecodeEmitters) to skip to find the
-         * enclosing function scope of the definition being accessed.
-         */
-        for (unsigned i = pn->pn_cookie.level(); i; i--) {
-            skippedScopes += ClonedBlockDepth(bceOfDef);
-            if (bceOfDef->sc->funIsHeavyweight()) {
-                skippedScopes++;
-                if (bceOfDef->sc->fun()->isNamedLambda())
-                    skippedScopes++;
-            }
-            bceOfDef = bceOfDef->parent;
-        }
-    } else {
-        JS_ASSERT(pn->isDefn());
-        JS_ASSERT(pn->pn_cookie.level() == bce->script->staticLevel);
-    }
+    /* This restriction will be removed shortly by bug 753158. */
+    JS_ASSERT(pn->isUsed() || pn->isDefn());
+    JS_ASSERT_IF(pn->isUsed(), pn->pn_cookie.level() == 0);
+    JS_ASSERT_IF(pn->isDefn(), pn->pn_cookie.level() == bce->script->staticLevel);
 
+    /*
+     * The contents of the dynamic scope chain (fp->scopeChain) exactly reflect
+     * the needsClone-subset of the block chain. Use this to determine the
+     * number of ClonedBlockObjects on fp->scopeChain to skip to find the scope
+     * object containing the var to which pn is bound. ALIASEDVAR ops cannot
+     * reach across with scopes so ClonedBlockObjects is the only NestedScope
+     * on the scope chain.
+     */
     ScopeCoordinate sc;
     if (JOF_OPTYPE(pn->getOp()) == JOF_QARG) {
-        sc.hops = skippedScopes + ClonedBlockDepth(bceOfDef);
-        sc.slot = bceOfDef->sc->bindings.formalIndexToSlot(pn->pn_cookie.slot());
+        sc.hops = ClonedBlockDepth(bce);
+        sc.slot = bce->sc->bindings.formalIndexToSlot(pn->pn_cookie.slot());
     } else {
         JS_ASSERT(JOF_OPTYPE(pn->getOp()) == JOF_LOCAL || pn->isKind(PNK_FUNCTION));
         unsigned local = pn->pn_cookie.slot();
-        if (local < bceOfDef->sc->bindings.numVars()) {
-            sc.hops = skippedScopes + ClonedBlockDepth(bceOfDef);
-            sc.slot = bceOfDef->sc->bindings.varIndexToSlot(local);
+        if (local < bce->sc->bindings.numVars()) {
+            sc.hops = ClonedBlockDepth(bce);
+            sc.slot = bce->sc->bindings.varIndexToSlot(local);
         } else {
-            unsigned depth = local - bceOfDef->sc->bindings.numVars();
-            StaticBlockObject *b = bceOfDef->blockChain;
+            unsigned depth = local - bce->sc->bindings.numVars();
+            unsigned hops = 0;
+            StaticBlockObject *b = bce->blockChain;
             while (!b->containsVarAtDepth(depth)) {
                 if (b->needsClone())
-                    skippedScopes++;
+                    hops++;
                 b = b->enclosingBlock();
             }
-            sc.hops = skippedScopes;
-            sc.slot = b->localIndexToSlot(bceOfDef->sc->bindings, local);
+            sc.hops = hops;
+            sc.slot = b->localIndexToSlot(bce->sc->bindings, local);
         }
     }
 
@@ -1334,6 +1325,12 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     JS_ASSERT(pn->pn_lexdef);
     JS_ASSERT(pn->pn_cookie.isFree());
 
+    /* TODO: actually the comment lies; until bug 753158, y will stay a NAME. */
+    if (dn->pn_cookie.level() != bce->script->staticLevel) {
+        JS_ASSERT(dn->isClosed());
+        return true;
+    }
+
     /*
      * We are compiling a function body and may be able to optimize name
      * to stack slot. Look for an argument or variable in the function and
@@ -1359,14 +1356,6 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
       case Definition::VAR:
         if (dn->isOp(JSOP_CALLEE)) {
             JS_ASSERT(op != JSOP_CALLEE);
-
-            /*
-             * Currently, the ALIASEDVAR ops do not support accessing the
-             * callee of a DeclEnvObject, so use NAME.
-             */
-            if (dn->pn_cookie.level() != bce->script->staticLevel)
-                return true;
-
             JS_ASSERT(bce->sc->fun()->flags & JSFUN_LAMBDA);
             JS_ASSERT(pn->pn_atom == bce->sc->fun()->atom);
 
@@ -1425,34 +1414,9 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         JS_NOT_REACHED("unexpected dn->kind()");
     }
 
-    /*
-     * The difference between the current static level and the static level of
-     * the definition is the number of function scopes between the current
-     * scope and dn's scope.
-     */
-    unsigned skip = bce->script->staticLevel - dn->pn_cookie.level();
-    JS_ASSERT_IF(skip, dn->isClosed());
-
-    /*
-     * Explicitly disallow accessing var/let bindings in global scope from
-     * nested functions. The reason for this limitation is that, since the
-     * global script is not included in the static scope chain (1. because it
-     * has no object to stand in the static scope chain, 2. to minimize memory
-     * bloat where a single live function keeps its whole global script
-     * alive.), ScopeCoordinateToTypeSet is not able to find the var/let's
-     * associated types::TypeSet.
-     */
-    if (skip) {
-        BytecodeEmitter *bceSkipped = bce;
-        for (unsigned i = 0; i < skip; i++)
-            bceSkipped = bceSkipped->parent;
-        if (!bceSkipped->sc->inFunction())
-            return true;
-    }
-
     JS_ASSERT(!pn->isOp(op));
     pn->setOp(op);
-    if (!pn->pn_cookie.set(bce->sc->context, skip, dn->pn_cookie.slot()))
+    if (!pn->pn_cookie.set(bce->sc->context, 0, dn->pn_cookie.slot()))
         return false;
 
     pn->pn_dflags |= PND_BOUND;
@@ -2204,9 +2168,11 @@ MOZ_NEVER_INLINE static bool
 EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     JSOp switchOp;
-    bool hasDefault;
+    bool ok, hasDefault;
     ptrdiff_t top, off, defaultOffset;
     ParseNode *pn2, *pn3, *pn4;
+    uint32_t caseCount, tableLength;
+    ParseNode **table;
     int32_t i, low, high;
     int noteIndex;
     size_t switchSize, tableSize;
@@ -2215,6 +2181,7 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     /* Try for most optimal, fall back if not dense ints, and per ECMAv2. */
     switchOp = JSOP_TABLESWITCH;
+    ok = true;
     hasDefault = false;
     defaultOffset = -1;
 
@@ -2266,9 +2233,9 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     }
 #endif
 
-    uint32_t caseCount = pn2->pn_count;
-    uint32_t tableLength = 0;
-    js::ScopedFreePtr<ParseNode*> table(NULL);
+    caseCount = pn2->pn_count;
+    tableLength = 0;
+    table = NULL;
 
     if (caseCount == 0 ||
         (caseCount == 1 &&
@@ -2277,7 +2244,6 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         low = 0;
         high = -1;
     } else {
-        bool ok = true;
 #define INTMAP_LENGTH   256
         jsbitmap intmap_space[INTMAP_LENGTH];
         jsbitmap *intmap = NULL;
@@ -2508,7 +2474,8 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
             /*
              * Use malloc to avoid arena bloat for programs with many switches.
-             * ScopedFreePtr takes care of freeing it on exit.
+             * We free table if non-null at label out, so all control flow must
+             * exit this function through goto out or goto bad.
              */
             if (tableLength != 0) {
                 tableSize = (size_t)tableLength * sizeof *table;
@@ -2532,6 +2499,13 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             SET_UINT16(pc, caseCount);
             pc += UINT16_LEN;
         }
+
+        /*
+         * After this point, all control flow involving JSOP_TABLESWITCH
+         * must set ok and goto out to exit this function.  To keep things
+         * simple, all switchOp cases exit that way.
+         */
+        MUST_FLOW_THROUGH("out");
     }
 
     /* Emit code for each case's statements, copying pn_offset up to pn3. */
@@ -2539,8 +2513,9 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         if (switchOp == JSOP_CONDSWITCH && !pn3->isKind(PNK_DEFAULT))
             SetJumpOffsetAt(bce, pn3->pn_offset);
         pn4 = pn3->pn_right;
-        if (!EmitTree(cx, bce, pn4))
-            return false;
+        ok = EmitTree(cx, bce, pn4);
+        if (!ok)
+            goto out;
         pn3->pn_offset = pn4->pn_offset;
         if (pn3->isKind(PNK_DEFAULT))
             off = pn3->pn_offset - top;
@@ -2567,8 +2542,9 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     /* Set the SRC_SWITCH note's offset operand to tell end of switch. */
     off = bce->offset() - top;
-    if (!SetSrcNoteOffset(cx, bce, (unsigned)noteIndex, 0, off))
-        return false;
+    ok = SetSrcNoteOffset(cx, bce, (unsigned)noteIndex, 0, off);
+    if (!ok)
+        goto out;
 
     if (switchOp == JSOP_TABLESWITCH) {
         /* Skip over the already-initialized switch bounds. */
@@ -2589,7 +2565,7 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             if (pn3->isKind(PNK_DEFAULT))
                 continue;
             if (!bce->constList.append(*pn3->pn_pval))
-                return false;
+                goto bad;
             SET_UINT32_INDEX(pc, bce->constList.length() - 1);
             pc += UINT32_INDEX_LEN;
 
@@ -2599,15 +2575,22 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         }
     }
 
-    if (!PopStatementBCE(cx, bce))
-        return false;
+out:
+    if (table)
+        cx->free_(table);
+    if (ok) {
+        ok = PopStatementBCE(cx, bce);
 
 #if JS_HAS_BLOCK_SCOPE
-    if (pn->pn_right->isKind(PNK_LEXICALSCOPE))
-        EMIT_UINT16_IMM_OP(JSOP_LEAVEBLOCK, blockObjCount);
+        if (ok && pn->pn_right->isKind(PNK_LEXICALSCOPE))
+            EMIT_UINT16_IMM_OP(JSOP_LEAVEBLOCK, blockObjCount);
 #endif
+    }
+    return ok;
 
-    return true;
+bad:
+    ok = false;
+    goto out;
 }
 
 bool
@@ -4852,6 +4835,9 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         return EmitFunctionDefNop(cx, bce, pn->pn_index);
     }
 
+    JS_ASSERT_IF(pn->pn_funbox->funIsHeavyweight(),
+                 fun->kind() == JSFUN_INTERPRETED);
+
     {
         FunctionBox *funbox = pn->pn_funbox;
         SharedContext sc(cx, /* scopeChain = */ NULL, fun, funbox, funbox->strictModeState);
@@ -4922,11 +4908,10 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         if (!EmitFunctionDefNop(cx, bce, index))
             return false;
     } else {
-#ifdef DEBUG
-        BindingIter bi(cx, bce->sc->bindings.lookup(cx, fun->atom->asPropertyName()));
-        JS_ASSERT(bi->kind == VARIABLE || bi->kind == CONSTANT);
-        JS_ASSERT(bi.frameIndex() < JS_BIT(20));
-#endif
+        unsigned slot;
+        DebugOnly<BindingKind> kind = bce->sc->bindings.lookup(cx, fun->atom, &slot);
+        JS_ASSERT(kind == VARIABLE || kind == CONSTANT);
+        JS_ASSERT(index < JS_BIT(20));
         pn->pn_index = index;
         if (bce->shouldNoteClosedName(pn) && !bce->noteClosedVar(pn))
             return false;
@@ -5960,10 +5945,12 @@ EmitDefaults(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             if (EmitJump(cx, bce, JSOP_GOTO, 0) < 0)
                 return false;
 
+            unsigned slot;
+            bce->sc->bindings.lookup(cx, arg->pn_left->atom(), &slot);
+
             // It doesn't matter if this is correct with respect to aliasing or
             // not. Only the decompiler is going to see it.
-            BindingIter bi(cx, bce->sc->bindings.lookup(cx, arg->pn_left->atom()));
-            if (!EmitUnaliasedVarOp(cx, JSOP_SETLOCAL, bi.frameIndex(), bce))
+            if (!EmitUnaliasedVarOp(cx, JSOP_SETLOCAL, slot, bce))
                 return false;
             SET_JUMP_OFFSET(bce->code(hop), bce->offset() - hop);
         }

@@ -99,14 +99,6 @@ TabParent::Destroy()
   }
 }
 
-bool
-TabParent::Recv__delete__()
-{
-  ContentParent* cp = static_cast<ContentParent*>(Manager());
-  cp->NotifyTabDestroyed(this);
-  return true;
-}
-
 void
 TabParent::ActorDestroy(ActorDestroyReason why)
 {
@@ -313,11 +305,6 @@ bool TabParent::SendMouseScrollEvent(nsMouseScrollEvent& event)
 bool TabParent::SendRealKeyEvent(nsKeyEvent& event)
 {
   return PBrowserParent::SendRealKeyEvent(event);
-}
-
-bool TabParent::SendRealTouchEvent(nsTouchEvent& event)
-{
-  return PBrowserParent::SendRealTouchEvent(event);
 }
 
 bool
@@ -846,13 +833,10 @@ TabParent::HandleDelayedDialogs()
 }
 
 PRenderFrameParent*
-TabParent::AllocPRenderFrame(LayersBackend* aBackend,
-                             int32_t* aMaxTextureSize,
-                             uint64_t* aLayersId)
+TabParent::AllocPRenderFrame()
 {
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  return new RenderFrameParent(frameLoader,
-                               aBackend, aMaxTextureSize, aLayersId);
+  return new RenderFrameParent(frameLoader);
 }
 
 bool

@@ -97,34 +97,17 @@ js::UnwrapObject(JSObject *wrapped, bool stopAtOuter, unsigned *flagsp)
 JS_FRIEND_API(JSObject *)
 js::UnwrapObjectChecked(JSContext *cx, JSObject *obj)
 {
-    while (true) {
+    while (obj->isWrapper() &&
+           !JS_UNLIKELY(!!obj->getClass()->ext.innerObject)) {
         JSObject *wrapper = obj;
-        obj = UnwrapOneChecked(cx, obj);
-        if (!obj || obj == wrapper)
-            return obj;
+        Wrapper *handler = Wrapper::wrapperHandler(obj);
+        bool rvOnFailure;
+        if (!handler->enter(cx, wrapper, JSID_VOID,
+                            Wrapper::PUNCTURE, &rvOnFailure))
+            return rvOnFailure ? obj : NULL;
+        obj = Wrapper::wrappedObject(obj);
+        JS_ASSERT(obj);
     }
-}
-
-JS_FRIEND_API(JSObject *)
-js::UnwrapOneChecked(JSContext *cx, JSObject *obj)
-{
-    // Checked unwraps should never unwrap outer windows.
-    if (!obj->isWrapper() ||
-        JS_UNLIKELY(!!obj->getClass()->ext.innerObject))
-    {
-        return obj;
-    }
-
-    Wrapper *handler = Wrapper::wrapperHandler(obj);
-    bool rvOnFailure;
-    if (!handler->enter(cx, obj, JSID_VOID,
-                        Wrapper::PUNCTURE, &rvOnFailure))
-    {
-        return rvOnFailure ? obj : NULL;
-    }
-    obj = Wrapper::wrappedObject(obj);
-    JS_ASSERT(obj);
-
     return obj;
 }
 
@@ -1079,19 +1062,20 @@ js::NukeCrossCompartmentWrapper(JSObject *wrapper)
  * option of how to handle the global object.
  */
 JS_FRIEND_API(JSBool)
-js::NukeCrossCompartmentWrappers(JSContext* cx, 
-                                 const CompartmentFilter& sourceFilter,
-                                 const CompartmentFilter& targetFilter,
-                                 js::NukeReferencesToWindow nukeReferencesToWindow)
+js::NukeChromeCrossCompartmentWrappersForGlobal(JSContext *cx, JSObject *obj,
+                                                js::NukedGlobalHandling nukeGlobal)
 {
     CHECK_REQUEST(cx);
+
     JSRuntime *rt = cx->runtime;
+    JSObject *global = &obj->global();
 
     // Iterate through scopes looking for system cross compartment wrappers
     // that point to an object that shares a global with obj.
 
     for (CompartmentsIter c(rt); !c.done(); c.next()) {
-        if (!sourceFilter.match(c))
+        // Skip non-system compartments because this breaks the web.
+        if (!js::IsSystemCompartment(c))
             continue;
 
         // Iterate the wrappers looking for anything interesting.
@@ -1104,13 +1088,15 @@ js::NukeCrossCompartmentWrappers(JSContext* cx,
                 continue;
 
             JSObject *wobj = &e.front().value.get().toObject();
-            JSObject *wrapped = UnwrapObject(wobj);
+            JSObject *wrapped = UnwrapObject(wobj, false);
 
-            if (nukeReferencesToWindow == DontNukeWindowReferences &&
-                wrapped->getClass()->ext.innerObject)
+            if (js::IsSystemCompartment(wrapped->compartment()))
+                continue; // Not interested in chrome->chrome wrappers.
+
+            if (nukeGlobal == DontNukeForGlobalObject && wrapped == global)
                 continue;
 
-            if (targetFilter.match(wrapped->compartment())) {
+            if (&wrapped->global() == global) {
                 // We found a wrapper to nuke.
                 e.removeFront();
                 NukeCrossCompartmentWrapper(wobj);

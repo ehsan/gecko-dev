@@ -1029,9 +1029,6 @@ nsSVGUtils::GetCanvasTM(nsIFrame *aFrame, PRUint32 aFor)
   if (type == nsGkAtoms::svgForeignObjectFrame) {
     return static_cast<nsSVGForeignObjectFrame*>(aFrame)->GetCanvasTM(aFor);
   }
-  if (type == nsGkAtoms::svgOuterSVGFrame) {
-    return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(aFrame);
-  }
 
   nsSVGContainerFrame *containerFrame = do_QueryFrame(aFrame);
   if (containerFrame) {
@@ -1499,7 +1496,7 @@ nsSVGUtils::CompositeSurfaceMatrix(gfxContext *aContext,
     Matrix oldMat = dt->GetTransform();
     RefPtr<SourceSurface> surf =
       gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(dt, aSurface);
-    dt->SetTransform(ToMatrix(aCTM) * oldMat);
+    dt->SetTransform(oldMat * ToMatrix(aCTM));
 
     gfxSize size = aSurface->GetSize();
     NS_ASSERTION(size.width >= 0 && size.height >= 0, "Failure to get size for aSurface.");

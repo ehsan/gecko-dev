@@ -175,7 +175,6 @@ public:
     virtual bool RecvRealMouseEvent(const nsMouseEvent& event);
     virtual bool RecvRealKeyEvent(const nsKeyEvent& event);
     virtual bool RecvMouseScrollEvent(const nsMouseScrollEvent& event);
-    virtual bool RecvRealTouchEvent(const nsTouchEvent& event);
     virtual bool RecvKeyEvent(const nsString& aType,
                               const PRInt32&  aKeyCode,
                               const PRInt32&  aCharCode,
@@ -232,19 +231,15 @@ public:
     nsIPrincipal* GetPrincipal() { return mPrincipal; }
 
     void SetBackgroundColor(const nscolor& aColor);
-
-    void NotifyPainted();
 protected:
     NS_OVERRIDE
-    virtual PRenderFrameChild* AllocPRenderFrame(LayersBackend* aBackend,
-                                                 int32_t* aMaxTextureSize,
-                                                 uint64_t* aLayersId);
+    virtual PRenderFrameChild* AllocPRenderFrame();
     NS_OVERRIDE
     virtual bool DeallocPRenderFrame(PRenderFrameChild* aFrame);
     NS_OVERRIDE
     virtual bool RecvDestroy();
 
-    nsEventStatus DispatchWidgetEvent(nsGUIEvent& event);
+    bool DispatchWidgetEvent(nsGUIEvent& event);
 
     virtual PIndexedDBChild* AllocPIndexedDB(const nsCString& aASCIIOrigin,
                                              bool* /* aAllowed */);
@@ -252,8 +247,6 @@ protected:
     virtual bool DeallocPIndexedDB(PIndexedDBChild* aActor);
 
 private:
-    bool UseDirectCompositor();
-
     void ActorDestroy(ActorDestroyReason why);
 
     bool InitTabChildGlobal();

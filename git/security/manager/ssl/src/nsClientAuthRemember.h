@@ -15,7 +15,6 @@
 #include "nsNSSCertificate.h"
 #include "nsString.h"
 #include "nsWeakReference.h"
-#include "mozilla/Attributes.h"
 
 class nsClientAuthRemember
 {
@@ -45,7 +44,7 @@ public:
 
 
 // hash entry class
-class nsClientAuthRememberEntry MOZ_FINAL : public PLDHashEntryHdr
+class nsClientAuthRememberEntry : public PLDHashEntryHdr
 {
   public:
     // Hash methods
@@ -107,8 +106,8 @@ class nsClientAuthRememberEntry MOZ_FINAL : public PLDHashEntryHdr
     nsCString mHostWithCert;
 };
 
-class nsClientAuthRememberService MOZ_FINAL : public nsIObserver,
-                                              public nsSupportsWeakReference
+class nsClientAuthRememberService : public nsIObserver,
+                                    public nsSupportsWeakReference
 {
 public:
   NS_DECL_ISUPPORTS

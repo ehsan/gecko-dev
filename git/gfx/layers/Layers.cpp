@@ -532,13 +532,7 @@ ContainerLayer::DidInsertChild(Layer* aLayer)
     mMayHaveReadbackChild = true;
   }
 }
-
-void
-RefLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
-{
-  aAttrs = RefLayerAttributes(GetReferentId());
-}
-
+                        
 void
 LayerManager::StartFrameTimeRecording()
 {
@@ -758,16 +752,6 @@ ImageLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 }
 
 nsACString&
-RefLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
-{
-  ContainerLayer::PrintInfo(aTo, aPrefix);
-  if (-1 != mId) {
-    AppendToString(aTo, mId, " [id=", "]");
-  }
-  return aTo;
-}
-
-nsACString&
 ReadbackLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   Layer::PrintInfo(aTo, aPrefix);
@@ -915,10 +899,6 @@ CanvasLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 
 nsACString&
 ImageLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
-{ return aTo; }
-
-nsACString&
-RefLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 { return aTo; }
 
 nsACString&

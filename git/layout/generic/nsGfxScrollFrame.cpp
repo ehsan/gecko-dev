@@ -298,8 +298,7 @@ static nsSize ComputeInsideBorderSize(ScrollReflowState* aState,
       aState->mReflowState.mComputedPadding.TopBottom();
   }
 
-  contentWidth  = aState->mReflowState.ApplyMinMaxWidth(contentWidth);
-  contentHeight = aState->mReflowState.ApplyMinMaxHeight(contentHeight);
+  aState->mReflowState.ApplyMinMaxConstraints(&contentWidth, &contentHeight);
   return nsSize(contentWidth + aState->mReflowState.mComputedPadding.LeftRight(),
                 contentHeight + aState->mReflowState.mComputedPadding.TopBottom());
 }

@@ -10,14 +10,14 @@
 #include "BluetoothCommon.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsIDOMBluetoothManager.h"
+#include "nsWeakReference.h"
 #include "mozilla/Observer.h"
-#include "nsIEventTarget.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothManager : public nsDOMEventTargetHelper
                        , public nsIDOMBluetoothManager
-                       , public BluetoothSignalObserver
+                       , public BluetoothEventObserver
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -33,15 +33,17 @@ public:
 
   static already_AddRefed<BluetoothManager>
   Create(nsPIDOMWindow* aWindow);
-  void Notify(const BluetoothSignal& aData);
+  void Notify(const BluetoothEvent& aData);
 private:
   BluetoothManager() {}
   BluetoothManager(nsPIDOMWindow* aWindow);
   ~BluetoothManager();
   bool mEnabled;
-  nsString mName;
+  nsCString mName;
 
   NS_DECL_EVENT_HANDLER(enabled)
+
+  nsCOMPtr<nsIEventTarget> mToggleBtThread;
 };
 
 END_BLUETOOTH_NAMESPACE

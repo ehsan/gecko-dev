@@ -7,7 +7,6 @@
 #include "DirectedGraph.h"
 #include "limits.h"
 #include "gfxLineSegment.h"
-#include "Layers.h"
 
 namespace mozilla {
 namespace layers {

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import android.os.Handler;
 import android.view.animation.Interpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.view.View;

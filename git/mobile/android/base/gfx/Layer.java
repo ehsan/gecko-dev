@@ -8,6 +8,7 @@ package org.mozilla.gecko.gfx;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Region;
+import android.util.Log;
 import java.nio.FloatBuffer;
 import java.util.concurrent.locks.ReentrantLock;
 import org.mozilla.gecko.FloatUtils;

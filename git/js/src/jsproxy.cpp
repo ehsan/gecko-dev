@@ -557,7 +557,7 @@ bool
 DirectProxyHandler::hasOwn(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
 {
     JSObject *target = GetProxyTargetObject(proxy);
-    AutoPropertyDescriptorRooter desc(cx);
+    PropertyDescriptor desc;
     if (!JS_GetPropertyDescriptorById(cx, target, id, JSRESOLVE_QUALIFIED,
                                       &desc))
         return false;
@@ -751,8 +751,6 @@ class ScriptedProxyHandler : public IndirectProxyHandler {
     virtual bool keys(JSContext *cx, JSObject *proxy, AutoIdVector &props);
     virtual bool iterate(JSContext *cx, JSObject *proxy, unsigned flags, Value *vp);
 
-    /* Spidermonkey extensions. */
-    virtual bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args) MOZ_OVERRIDE;
     virtual JSType typeOf(JSContext *cx, JSObject *proxy);
     virtual bool defaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp);
 
@@ -961,14 +959,6 @@ ScriptedProxyHandler::iterate(JSContext *cx, JSObject *proxy_, unsigned flags, V
     return Trap(cx, handler, value, 0, NULL, vp) &&
            ReturnedValueMustNotBePrimitive(cx, proxy, ATOM(iterate), *vp);
 }
-
-bool
-ScriptedProxyHandler::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
-                                 CallArgs args)
-{
-    return BaseProxyHandler::nativeCall(cx, test, impl, args);
-}
-
 
 JSType
 ScriptedProxyHandler::typeOf(JSContext *cx, JSObject *proxy)

@@ -5,6 +5,7 @@
 
 package org.mozilla.gecko;
 
+import android.content.res.Resources;
 import android.widget.AdapterView;
 import android.os.AsyncTask;
 import android.content.Context;
@@ -18,11 +19,17 @@ import android.util.Log;
 import android.widget.SimpleCursorAdapter;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
+import android.content.Intent;
+import android.widget.LinearLayout;
+import android.os.SystemClock;
 import android.util.Pair;
 import android.widget.TabHost.TabContentFactory;
 import android.view.MenuInflater;
+import android.widget.TabHost;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
+
+import org.json.JSONArray;
 
 import java.util.LinkedList;
 

@@ -68,8 +68,7 @@ public:
   virtual bool RecvPause() MOZ_OVERRIDE;
   virtual bool RecvResume() MOZ_OVERRIDE;
 
-  virtual void ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
-                                   bool isFirstPaint) MOZ_OVERRIDE;
+  virtual void ShadowLayersUpdated(bool isFirstPaint) MOZ_OVERRIDE;
   void Destroy();
 
   LayerManager* GetLayerManager() { return mLayerManager; }
@@ -106,21 +105,8 @@ public:
    */
   static void ShutDown();
 
-  /** Must run on the content main thread. */
-  static uint64_t AllocateLayerTreeId();
-
-  /**
-   * A new child process has been configured to push transactions
-   * directly to us.  Transport is to its thread context.
-   */
-  static PCompositorParent*
-  Create(Transport* aTransport, ProcessId aOtherProcess);
-
 protected:
-  virtual PLayersParent* AllocPLayers(const LayersBackend& aBackendHint,
-                                      const uint64_t& aId,
-                                      LayersBackend* aBackend,
-                                      int32_t* aMaxTextureSize);
+  virtual PLayersParent* AllocPLayers(const LayersBackend& aBackendType, int* aMaxTextureSize);
   virtual bool DeallocPLayers(PLayersParent* aLayers);
   virtual void ScheduleTask(CancelableTask*, int);
   virtual void Composite();

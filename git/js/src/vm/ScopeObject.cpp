@@ -58,14 +58,6 @@ StaticScopeIter::hasDynamicScopeObject() const
            : obj->toFunction()->isHeavyweight();
 }
 
-Shape *
-StaticScopeIter::scopeShape() const
-{
-    JS_ASSERT(hasDynamicScopeObject());
-    JS_ASSERT(type() != NAMED_LAMBDA);
-    return type() == BLOCK ? block().lastProperty() : funScript()->bindings.lastBinding;
-}
-
 StaticScopeIter::Type
 StaticScopeIter::type() const
 {
@@ -90,45 +82,61 @@ StaticScopeIter::funScript() const
 
 /*****************************************************************************/
 
-StaticScopeIter
-js::ScopeCoordinateToStaticScope(JSScript *script, jsbytecode *pc)
+StaticBlockObject *
+js::ScopeCoordinateBlockChain(JSScript *script, jsbytecode *pc)
 {
-    JS_ASSERT(pc >= script->code && pc < script->code + script->length);
-    JS_ASSERT(JOF_OPTYPE(*pc) == JOF_SCOPECOORD);
+    ScopeCoordinate sc(pc);
 
     uint32_t blockIndex = GET_UINT32_INDEX(pc + 2 * sizeof(uint16_t));
-    JSObject *innermostStaticScope;
     if (blockIndex == UINT32_MAX)
-        innermostStaticScope = script->function();
-    else
-        innermostStaticScope = &script->getObject(blockIndex)->asStaticBlock();
+        return NULL;
 
-    StaticScopeIter ssi(innermostStaticScope);
-    ScopeCoordinate sc(pc);
+    StaticBlockObject *block = &script->getObject(blockIndex)->asStaticBlock();
+    unsigned i = 0;
     while (true) {
-        if (ssi.hasDynamicScopeObject()) {
-            if (!sc.hops)
-                break;
-            sc.hops--;
-        }
-        ssi++;
+        while (block && !block->needsClone())
+            block = block->enclosingBlock();
+        if (i++ == sc.hops)
+            break;
+        block = block->enclosingBlock();
     }
-    return ssi;
+    return block;
 }
 
 PropertyName *
 js::ScopeCoordinateName(JSRuntime *rt, JSScript *script, jsbytecode *pc)
 {
-    Shape::Range r = ScopeCoordinateToStaticScope(script, pc).scopeShape()->all();
+    StaticBlockObject *maybeBlock = ScopeCoordinateBlockChain(script, pc);
     ScopeCoordinate sc(pc);
+    Shape *shape = maybeBlock ? maybeBlock->lastProperty() : script->bindings.lastShape();
+    Shape::Range r = shape->all();
     while (r.front().slot() != sc.slot)
         r.popFront();
     jsid id = r.front().propid();
-
     /* Beware nameless destructuring formal. */
     if (!JSID_IS_ATOM(id))
         return rt->atomState.emptyAtom;
     return JSID_TO_ATOM(id)->asPropertyName();
+}
+
+FrameIndexType
+js::ScopeCoordinateToFrameIndex(JSScript *script, jsbytecode *pc, unsigned *index)
+{
+    ScopeCoordinate sc(pc);
+    if (StaticBlockObject *block = ScopeCoordinateBlockChain(script, pc)) {
+        *index = block->slotToLocalIndex(script->bindings, sc.slot);
+        return FrameIndex_Local;
+    }
+
+    unsigned i = sc.slot - CallObject::RESERVED_SLOTS;
+    if (i < script->bindings.numArgs()) {
+        *index = i;
+        return FrameIndex_Arg;
+    }
+
+    *index = i - script->bindings.numArgs();
+    JS_ASSERT(*index < script->bindings.numVars());
+    return FrameIndex_Local;
 }
 
 /*****************************************************************************/
@@ -207,12 +215,12 @@ CallObject::createForFunction(JSContext *cx, StackFrame *fp)
     if (script->bindingsAccessedDynamically) {
         Value *formals = fp->formals();
         for (unsigned slot = 0, n = fp->fun()->nargs; slot < n; ++slot)
-            callobj->setFormal(slot, formals[slot]);
+            callobj->setArg(slot, formals[slot]);
     } else if (unsigned n = script->numClosedArgs()) {
         Value *formals = fp->formals();
         for (unsigned i = 0; i < n; ++i) {
             uint32_t slot = script->getClosedArg(i);
-            callobj->setFormal(slot, formals[slot]);
+            callobj->setArg(slot, formals[slot]);
         }
     }
 
@@ -233,9 +241,9 @@ CallObject::copyUnaliasedValues(StackFrame *fp)
     for (unsigned i = 0; i < script->bindings.numArgs(); ++i) {
         if (!script->formalLivesInCallObject(i)) {
             if (script->argsObjAliasesFormals() && fp->hasArgsObj())
-                setFormal(i, fp->argsObj().arg(i), DONT_CHECK_ALIASING);
+                setArg(i, fp->argsObj().arg(i), DONT_CHECK_ALIASING);
             else
-                setFormal(i, fp->unaliasedFormal(i, DONT_CHECK_ALIASING), DONT_CHECK_ALIASING);
+                setArg(i, fp->unaliasedFormal(i, DONT_CHECK_ALIASING), DONT_CHECK_ALIASING);
         }
     }
 
@@ -255,6 +263,46 @@ CallObject::createForStrictEval(JSContext *cx, StackFrame *fp)
 
     Rooted<JSFunction*> callee(cx, NULL);
     return create(cx, fp->script(), fp->scopeChain(), callee);
+}
+
+JSBool
+CallObject::setArgOp(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Value *vp)
+{
+    CallObject &callobj = obj->asCall();
+
+    JS_ASSERT((int16_t) JSID_TO_INT(id) == JSID_TO_INT(id));
+    unsigned i = (uint16_t) JSID_TO_INT(id);
+
+    JSScript *script = callobj.callee().script();
+    JS_ASSERT(script->formalLivesInCallObject(i));
+
+    callobj.setArg(i, *vp);
+
+    if (!script->ensureHasTypes(cx))
+        return false;
+
+    TypeScript::SetArgument(cx, script, i, *vp);
+    return true;
+}
+
+JSBool
+CallObject::setVarOp(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Value *vp)
+{
+    CallObject &callobj = obj->asCall();
+
+    JS_ASSERT((int16_t) JSID_TO_INT(id) == JSID_TO_INT(id));
+    unsigned i = (uint16_t) JSID_TO_INT(id);
+
+    JSScript *script = callobj.callee().script();
+    JS_ASSERT(script->varIsAliased(i));
+
+    callobj.setVar(i, *vp);
+
+    if (!script->ensureHasTypes(cx))
+        return false;
+
+    TypeScript::SetLocal(cx, script, i, *vp);
+    return true;
 }
 
 JS_PUBLIC_DATA(Class) js::CallClass = {
@@ -1103,12 +1151,7 @@ class DebugScopeProxy : public BaseProxyHandler
             if (!script->ensureHasTypes(cx))
                 return false;
 
-            Bindings &bindings = script->bindings;
-            unsigned i = shape->slot() - CallObject::RESERVED_SLOTS;
-            bool isArg = i < bindings.numArgs();
-            bool isVar = !isArg && (i - bindings.numArgs()) < bindings.numVars();
-
-            if (isVar) {
+            if (shape->setterOp() == CallObject::setVarOp) {
                 unsigned i = shape->shortid();
                 if (script->varIsAliased(i))
                     return false;
@@ -1131,7 +1174,7 @@ class DebugScopeProxy : public BaseProxyHandler
                 return true;
             }
 
-            if (isArg) {
+            if (shape->setterOp() == CallObject::setArgOp) {
                 unsigned i = shape->shortid();
                 if (script->formalLivesInCallObject(i))
                     return false;
@@ -1150,9 +1193,9 @@ class DebugScopeProxy : public BaseProxyHandler
                     }
                 } else {
                     if (action == GET)
-                        *vp = callobj.formal(i, DONT_CHECK_ALIASING);
+                        *vp = callobj.arg(i, DONT_CHECK_ALIASING);
                     else
-                        callobj.setFormal(i, *vp, DONT_CHECK_ALIASING);
+                        callobj.setArg(i, *vp, DONT_CHECK_ALIASING);
                 }
 
                 if (action == SET)

@@ -189,7 +189,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
             }
         }
         // We're not in a function context, so we don't expect any bindings.
-        JS_ASSERT(!sc.bindings.hasBinding(cx, arguments));
+        JS_ASSERT(sc.bindings.lookup(cx, arguments, NULL) == NONE);
     }
 
     /*
@@ -270,12 +270,12 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
          * NB: do not use AutoLocalNameArray because it will release space
          * allocated from cx->tempLifoAlloc by DefineArg.
          */
-        BindingVector names(cx);
-        if (!GetOrderedBindings(cx, funsc.bindings, &names))
+        BindingNames names(cx);
+        if (!funsc.bindings.getLocalNameArray(cx, &names))
             return false;
 
         for (unsigned i = 0; i < nargs; i++) {
-            if (!DefineArg(fn, names[i].maybeName, i, &parser))
+            if (!DefineArg(fn, names[i].maybeAtom, i, &parser))
                 return false;
         }
     }

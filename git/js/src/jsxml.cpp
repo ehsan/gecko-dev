@@ -84,6 +84,27 @@ pointer_match(const T *a, const T *b)
  * - JSCLASS_DOCUMENT_OBSERVER support -- live two-way binding to Gecko's DOM!
  */
 
+static inline bool
+js_EnterLocalRootScope(JSContext *cx)
+{
+    return true;
+}
+
+static inline void
+js_LeaveLocalRootScope(JSContext *cx)
+{
+}
+
+static inline void
+js_LeaveLocalRootScopeWithResult(JSContext *cx, Value rval)
+{
+}
+
+static inline void
+js_LeaveLocalRootScopeWithResult(JSContext *cx, void *rval)
+{
+}
+
 /*
  * Random utilities and global functions.
  */
@@ -1322,6 +1343,8 @@ ParseNodeToXML(Parser *parser, ParseNode *pn,
      * garbage collection.
      */
     xml = NULL;
+    if (!js_EnterLocalRootScope(cx))
+        return NULL;
     switch (pn->getKind()) {
       case PNK_XMLELEM:
         length = inScopeNSes->length;
@@ -1615,9 +1638,11 @@ ParseNodeToXML(Parser *parser, ParseNode *pn,
         goto syntax;
     }
 
+    js_LeaveLocalRootScopeWithResult(cx, xml);
     return xml;
 
 skip_child:
+    js_LeaveLocalRootScope(cx);
     return PN2X_SKIP_CHILD;
 
 #undef PN2X_SKIP_CHILD
@@ -1625,6 +1650,7 @@ skip_child:
 syntax:
     parser->reportError(pn, JSMSG_BAD_XML_MARKUP);
 fail:
+    js_LeaveLocalRootScope(cx);
     return NULL;
 }
 
@@ -1951,9 +1977,13 @@ ToXMLList(JSContext *cx, jsval v)
         xml = NULL;
         length = 0;
     } else {
-        xml = ParseXMLSource(cx, str);
-        if (!xml)
+        if (!js_EnterLocalRootScope(cx))
             return NULL;
+        xml = ParseXMLSource(cx, str);
+        if (!xml) {
+            js_LeaveLocalRootScope(cx);
+            return NULL;
+        }
         length = JSXML_LENGTH(xml);
     }
 
@@ -1969,6 +1999,8 @@ ToXMLList(JSContext *cx, jsval v)
         }
     }
 
+    if (xml)
+        js_LeaveLocalRootScopeWithResult(cx, listobj);
     return listobj;
 
 bad:
@@ -2449,6 +2481,10 @@ XMLToXMLString(JSContext *cx, JSXML *xml, const JSXMLArray<JSObject> *ancestorNS
       default:;
     }
 
+    /* After this point, control must flow through label out: to exit. */
+    if (!js_EnterLocalRootScope(cx))
+        return NULL;
+
     /* ECMA-357 10.2.1 step 8 onward: handle ToXMLString on an XML element. */
     if (!ancestorNSes) {
         // Ensure a namespace with empty strings exists in the initial array,
@@ -2729,6 +2765,7 @@ XMLToXMLString(JSContext *cx, JSXML *xml, const JSXMLArray<JSObject> *ancestorNS
 
     str = sb.finishString();
 out:
+    js_LeaveLocalRootScopeWithResult(cx, str);
     return str;
 }
 
@@ -3029,6 +3066,9 @@ DeepCopy(JSContext *cx, JSXML *xml, JSObject *obj, unsigned flags)
 {
     JSXML *copy;
 
+    /* Our caller may not be protecting newborns with a local root scope. */
+    if (!js_EnterLocalRootScope(cx))
+        return NULL;
     copy = DeepCopyInLRS(cx, xml, flags);
     if (copy) {
         if (obj) {
@@ -3039,6 +3079,7 @@ DeepCopy(JSContext *cx, JSXML *xml, JSObject *obj, unsigned flags)
             copy = NULL;
         }
     }
+    js_LeaveLocalRootScopeWithResult(cx, copy);
     return copy;
 }
 
@@ -3275,6 +3316,8 @@ Descendants(JSContext *cx, JSXML *xml, jsval id)
      * occurring beneath DescendantsHelper use local roots.
      */
     list->name = nameqn;
+    if (!js_EnterLocalRootScope(cx))
+        return NULL;
     if (xml->xml_class == JSXML_CLASS_LIST) {
         ok = JS_TRUE;
         for (i = 0, n = xml->xml_kids.length; i < n; i++) {
@@ -3288,6 +3331,7 @@ Descendants(JSContext *cx, JSXML *xml, jsval id)
     } else {
         ok = DescendantsHelper(cx, xml, nameqn, list);
     }
+    js_LeaveLocalRootScopeWithResult(cx, list);
     if (!ok)
         return NULL;
     list->name = NULL;
@@ -3861,8 +3905,11 @@ PutProperty(JSContext *cx, HandleObject obj_, HandleId id_, JSBool strict, jsval
             vxml = (JSXML *) vobj->getPrivate();
     }
 
-    ok = JS_TRUE;
+    ok = js_EnterLocalRootScope(cx);
+    if (!ok)
+        return JS_FALSE;
 
+    MUST_FLOW_THROUGH("out");
     jsval roots[3];
     roots[OBJ_ROOT] = OBJECT_TO_JSVAL(obj);
     roots[ID_ROOT] = IdToJsval(id);
@@ -4456,6 +4503,7 @@ PutProperty(JSContext *cx, HandleObject obj_, HandleId id_, JSBool strict, jsval
     }
 
 out:
+    js_LeaveLocalRootScope(cx);
     return ok;
 
 type_error:
@@ -5194,7 +5242,7 @@ js_TestXMLEquality(JSContext *cx, const Value &v1, const Value &v2, JSBool *bp)
 {
     JSXML *xml, *vxml;
     JSObject *vobj;
-    JSBool ok = JS_TRUE;
+    JSBool ok;
     JSString *str, *vstr;
     double d, d2;
 
@@ -5229,47 +5277,54 @@ js_TestXMLEquality(JSContext *cx, const Value &v1, const Value &v2, JSBool *bp)
                  HasSimpleContent(vxml)) ||
                 ((vxml->xml_class == JSXML_CLASS_TEXT ||
                   vxml->xml_class == JSXML_CLASS_ATTRIBUTE) &&
-                 HasSimpleContent(xml)))
-            {
-                ok = (str = ToStringSlow(cx, ObjectValue(*obj))) &&
-                     (vstr = ToString(cx, v));
+                 HasSimpleContent(xml))) {
+                ok = js_EnterLocalRootScope(cx);
                 if (ok) {
-                    bool equal;
-                    ok = EqualStrings(cx, str, vstr, &equal);
-                    *bp = equal;
+                    ok = (str = ToStringSlow(cx, ObjectValue(*obj))) &&
+                         (vstr = ToString(cx, v));
+                    if (ok) {
+                        bool equal;
+                        ok = EqualStrings(cx, str, vstr, &equal);
+                        *bp = equal;
+                    }
+                    js_LeaveLocalRootScope(cx);
                 }
             } else {
                 ok = XMLEquals(cx, xml, vxml, bp);
             }
         }
     } else {
-        if (HasSimpleContent(xml)) {
-            ok = (str = ToString(cx, ObjectValue(*obj))) &&
-                 (vstr = ToString(cx, v));
-            if (ok) {
-                bool equal;
-                ok = EqualStrings(cx, str, vstr, &equal);
-                *bp = equal;
-            }
-        } else if (JSVAL_IS_STRING(v) || JSVAL_IS_NUMBER(v)) {
-            str = ToString(cx, ObjectValue(*obj));
-            if (!str) {
-                ok = JS_FALSE;
-            } else if (JSVAL_IS_STRING(v)) {
-                bool equal;
-                ok = EqualStrings(cx, str, JSVAL_TO_STRING(v), &equal);
-                if (ok)
-                    *bp = equal;
-            } else {
-                ok = JS_ValueToNumber(cx, STRING_TO_JSVAL(str), &d);
+        ok = js_EnterLocalRootScope(cx);
+        if (ok) {
+            if (HasSimpleContent(xml)) {
+                ok = (str = ToString(cx, ObjectValue(*obj))) &&
+                     (vstr = ToString(cx, v));
                 if (ok) {
-                    d2 = JSVAL_IS_INT(v) ? JSVAL_TO_INT(v)
-                                         : JSVAL_TO_DOUBLE(v);
-                    *bp = (d == d2);
+                    bool equal;
+                    ok = EqualStrings(cx, str, vstr, &equal);
+                    *bp = equal;
                 }
+            } else if (JSVAL_IS_STRING(v) || JSVAL_IS_NUMBER(v)) {
+                str = ToString(cx, ObjectValue(*obj));
+                if (!str) {
+                    ok = JS_FALSE;
+                } else if (JSVAL_IS_STRING(v)) {
+                    bool equal;
+                    ok = EqualStrings(cx, str, JSVAL_TO_STRING(v), &equal);
+                    if (ok)
+                        *bp = equal;
+                } else {
+                    ok = JS_ValueToNumber(cx, STRING_TO_JSVAL(str), &d);
+                    if (ok) {
+                        d2 = JSVAL_IS_INT(v) ? JSVAL_TO_INT(v)
+                                             : JSVAL_TO_DOUBLE(v);
+                        *bp = (d == d2);
+                    }
+                }
+            } else {
+                *bp = JS_FALSE;
             }
-        } else {
-            *bp = JS_FALSE;
+            js_LeaveLocalRootScope(cx);
         }
     }
     return ok;
@@ -5283,6 +5338,9 @@ js_ConcatenateXML(JSContext *cx, JSObject *obj, JSObject *robj, Value *vp)
     JSXML *list, *lxml, *rxml;
 
     JS_ASSERT(obj->isXML());
+    ok = js_EnterLocalRootScope(cx);
+    if (!ok)
+        return JS_FALSE;
 
     listobj = js_NewXMLObject(cx, JSXML_CLASS_LIST);
     if (!listobj) {
@@ -5304,6 +5362,7 @@ js_ConcatenateXML(JSContext *cx, JSObject *obj, JSObject *robj, Value *vp)
 
     vp->setObject(*listobj);
 out:
+    js_LeaveLocalRootScopeWithResult(cx, *vp);
     return ok;
 }
 
@@ -5703,6 +5762,9 @@ xml_comments_helper(JSContext *cx, JSObject *obj, JSXML *xml, jsval *vp)
         for (i = 0, n = JSXML_LENGTH(xml); i < n; i++) {
             kid = XMLARRAY_MEMBER(&xml->xml_kids, i, JSXML);
             if (kid && kid->xml_class == JSXML_CLASS_ELEMENT) {
+                ok = js_EnterLocalRootScope(cx);
+                if (!ok)
+                    break;
                 kidobj = js_GetXMLObject(cx, kid);
                 if (kidobj) {
                     ok = xml_comments_helper(cx, kidobj, kid, &v);
@@ -5710,6 +5772,7 @@ xml_comments_helper(JSContext *cx, JSObject *obj, JSXML *xml, jsval *vp)
                     ok = JS_FALSE;
                     v = JSVAL_NULL;
                 }
+                js_LeaveLocalRootScopeWithResult(cx, v);
                 if (!ok)
                     break;
                 vxml = (JSXML *) JSVAL_TO_OBJECT(v)->getPrivate();
@@ -5823,6 +5886,9 @@ xml_elements_helper(JSContext *cx, JSObject *obj, JSXML *xml,
         JSXMLArrayCursor<JSXML> cursor(&xml->xml_kids);
         while (JSXML *kid = cursor.getNext()) {
             if (kid->xml_class == JSXML_CLASS_ELEMENT) {
+                ok = js_EnterLocalRootScope(cx);
+                if (!ok)
+                    break;
                 kidobj = js_GetXMLObject(cx, kid);
                 if (kidobj) {
                     ok = xml_elements_helper(cx, kidobj, kid, nameqn, &v);
@@ -5830,6 +5896,7 @@ xml_elements_helper(JSContext *cx, JSObject *obj, JSXML *xml,
                     ok = JS_FALSE;
                     v = JSVAL_NULL;
                 }
+                js_LeaveLocalRootScopeWithResult(cx, v);
                 if (!ok)
                     break;
                 vxml = (JSXML *) JSVAL_TO_OBJECT(v)->getPrivate();
@@ -6367,6 +6434,9 @@ xml_processingInstructions_helper(JSContext *cx, JSObject *obj, JSXML *xml,
         JSXMLArrayCursor<JSXML> cursor(&xml->xml_kids);
         while (JSXML *kid = cursor.getNext()) {
             if (kid->xml_class == JSXML_CLASS_ELEMENT) {
+                ok = js_EnterLocalRootScope(cx);
+                if (!ok)
+                    break;
                 kidobj = js_GetXMLObject(cx, kid);
                 if (kidobj) {
                     ok = xml_processingInstructions_helper(cx, kidobj, kid,
@@ -6375,6 +6445,7 @@ xml_processingInstructions_helper(JSContext *cx, JSObject *obj, JSXML *xml,
                     ok = JS_FALSE;
                     v = JSVAL_NULL;
                 }
+                js_LeaveLocalRootScopeWithResult(cx, v);
                 if (!ok)
                     break;
                 vxml = (JSXML *) JSVAL_TO_OBJECT(v)->getPrivate();
@@ -6857,7 +6928,9 @@ xml_text_helper(JSContext *cx, JSObject *obj, JSXML *xml, jsval *vp)
         for (i = 0, n = xml->xml_kids.length; i < n; i++) {
             kid = XMLARRAY_MEMBER(&xml->xml_kids, i, JSXML);
             if (kid && kid->xml_class == JSXML_CLASS_ELEMENT) {
-                JSBool ok;
+                JSBool ok = js_EnterLocalRootScope(cx);
+                if (!ok)
+                    break;
                 kidobj = js_GetXMLObject(cx, kid);
                 if (kidobj) {
                     ok = xml_text_helper(cx, kidobj, kid, &v);
@@ -6865,6 +6938,7 @@ xml_text_helper(JSContext *cx, JSObject *obj, JSXML *xml, jsval *vp)
                     ok = JS_FALSE;
                     v = JSVAL_NULL;
                 }
+                js_LeaveLocalRootScopeWithResult(cx, v);
                 if (!ok)
                     return JS_FALSE;
                 vxml = (JSXML *) JSVAL_TO_OBJECT(v)->getPrivate();
@@ -6904,6 +6978,8 @@ xml_toString_helper(JSContext *cx, JSXML *xml)
         return ToXMLString(cx, OBJECT_TO_JSVAL(xml->object), 0);
 
     RootedString str(cx, cx->runtime->emptyString);
+    if (!js_EnterLocalRootScope(cx))
+        return NULL;
     JSXMLArrayCursor<JSXML> cursor(&xml->xml_kids);
     while (JSXML *kid = cursor.getNext()) {
         if (kid->xml_class != JSXML_CLASS_COMMENT &&
@@ -6918,6 +6994,7 @@ xml_toString_helper(JSContext *cx, JSXML *xml)
                 break;
         }
     }
+    js_LeaveLocalRootScopeWithResult(cx, str);
     return str;
 }
 

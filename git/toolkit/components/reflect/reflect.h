@@ -7,12 +7,11 @@
 #define COMPONENTS_REFLECT_H
 
 #include "nsIXPCScriptable.h"
-#include "mozilla/Attributes.h"
 
 namespace mozilla {
 namespace reflect {
 
-class Module MOZ_FINAL : public nsIXPCScriptable
+class Module : public nsIXPCScriptable
 {
 public:
   NS_DECL_ISUPPORTS

@@ -12,7 +12,6 @@
 #include "nsAutoPtr.h"
 #include "nsCOMArray.h"
 #include "nsString.h"
-#include "mozilla/Attributes.h"
 
 // Interfaces needed
 #include "nsIInputStream.h"
@@ -23,9 +22,9 @@
 
 class nsSHEntryShared;
 
-class nsSHEntry MOZ_FINAL : public nsISHEntry,
-                            public nsISHContainer,
-                            public nsISHEntryInternal
+class nsSHEntry : public nsISHEntry,
+                  public nsISHContainer,
+                  public nsISHEntryInternal
 {
 public: 
   nsSHEntry();

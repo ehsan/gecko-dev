@@ -17,9 +17,12 @@
 
 package org.mozilla.gecko.sqlite;
 
+import org.mozilla.gecko.sqlite.SQLiteBridgeException;
+
 import android.database.AbstractCursor;
 import android.database.CursorIndexOutOfBoundsException;
-
+import android.database.DatabaseUtils;
+import java.lang.UnsupportedOperationException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 

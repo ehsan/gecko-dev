@@ -20,12 +20,6 @@ class gfxContext;
 class nsRootPresContext;
 
 namespace mozilla {
-namespace layers {
-class ContainerLayer;
-class ThebesLayer;
-}
-
-class FrameLayerBuilder;
 
 enum LayerState {
   LAYER_NONE,
@@ -35,39 +29,8 @@ enum LayerState {
   // when the layer has rounded rect clips.
   LAYER_ACTIVE_FORCE,
   // Special layer that is metadata only.
-  LAYER_ACTIVE_EMPTY,
-  // Inactive style layer for rendering SVG effects.
-  LAYER_SVG_EFFECTS
+  LAYER_ACTIVE_EMPTY
 };
-
-class LayerManagerLayerBuilder : public layers::LayerUserData {
-public:
-  LayerManagerLayerBuilder(FrameLayerBuilder* aBuilder, bool aDelete = true)
-    : mLayerBuilder(aBuilder)
-    , mDelete(aDelete)
-  {
-    MOZ_COUNT_CTOR(LayerManagerLayerBuilder);
-  }
-  ~LayerManagerLayerBuilder();
-
-  FrameLayerBuilder* mLayerBuilder;
-  bool mDelete;
-};
-
-extern PRUint8 gLayerManagerLayerBuilder;
-
-class ContainerLayerPresContext : public layers::LayerUserData {
-public:
-  nsPresContext* mPresContext;
-};
-
-extern PRUint8 gContainerLayerPresContext;
-
-static inline FrameLayerBuilder *GetLayerBuilderForManager(layers::LayerManager* aManager)
-{
-  LayerManagerLayerBuilder *data = static_cast<LayerManagerLayerBuilder*>(aManager->GetUserData(&gLayerManagerLayerBuilder));
-  return data ? data->mLayerBuilder : nsnull;
-}
 
 class RefCountedRegion : public RefCounted<RefCountedRegion> {
 public:
@@ -125,13 +88,8 @@ public:
     mDetectedDOMModification(false),
     mInvalidateAllLayers(false)
   {
-    MOZ_COUNT_CTOR(FrameLayerBuilder);
     mNewDisplayItemData.Init();
     mThebesLayerItems.Init();
-  }
-  ~FrameLayerBuilder()
-  {
-    MOZ_COUNT_DTOR(FrameLayerBuilder);
   }
 
   static void Shutdown();
@@ -279,7 +237,7 @@ public:
    * Dumps this FrameLayerBuilder's retained layer manager's retained
    * layer tree to stderr.
    */
-  static void DumpRetainedLayerTree(LayerManager* aManager, FILE* aFile = stdout);
+  void DumpRetainedLayerTree(FILE* aFile = stdout);
 #endif
 
   /******* PRIVATE METHODS to FrameLayerBuilder.cpp ********/
@@ -316,7 +274,6 @@ public:
    */
   Layer* GetOldLayerFor(nsIFrame* aFrame, PRUint32 aDisplayItemKey);
 
-  static Layer* GetDebugOldLayerFor(nsIFrame* aFrame, PRUint32 aDisplayItemKey);
   /**
    * Try to determine whether the ThebesLayer aLayer paints an opaque
    * single color everywhere it's visible in aRect.

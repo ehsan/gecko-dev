@@ -8,11 +8,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.mozilla.gecko.db.BrowserContract.Clients;
+import org.mozilla.gecko.db.BrowserContract.Tabs;
 import org.mozilla.gecko.db.BrowserContract;
 
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
+import android.util.Log;
 
 public final class TabsAccessor {
     private static final String LOGTAG = "GeckoTabsAccessor";

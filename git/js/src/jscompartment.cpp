@@ -554,10 +554,6 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
         {
             gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_FREE_TI_ARENA);
             oldAlloc.freeAll();
-            if (types.constrainedOutputs) {
-                fop->delete_(types.constrainedOutputs);
-                types.constrainedOutputs = NULL;
-            }
         }
     }
 

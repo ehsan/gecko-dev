@@ -5,10 +5,14 @@
 
 package org.mozilla.gecko;
 
+import android.accounts.Account;
+import android.accounts.AccountManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.preference.Preference;
 import android.util.AttributeSet;
+import android.util.Log;
 
 import org.mozilla.gecko.sync.setup.activities.SetupSyncActivity;
 import org.mozilla.gecko.sync.setup.SyncAccounts;

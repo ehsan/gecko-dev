@@ -550,11 +550,11 @@ void nsBuiltinDecoderStateMachine::SendOutputStreamAudio(AudioData* aAudio,
   aStream->mAudioFramesWritten += aAudio->mFrames - PRInt32(offset);
 }
 
-static void WriteVideoToMediaStream(mozilla::layers::Image* aImage,
+static void WriteVideoToMediaStream(Image* aImage,
                                     PRInt64 aDuration, const gfxIntSize& aIntrinsicSize,
                                     VideoSegment* aOutput)
 {
-  nsRefPtr<mozilla::layers::Image> image = aImage;
+  nsRefPtr<Image> image = aImage;
   aOutput->AppendFrame(image.forget(), aDuration, aIntrinsicSize);
 }
 

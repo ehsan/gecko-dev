@@ -19,7 +19,6 @@
 #include "gc/Barrier.h"
 #include "gc/Heap.h"
 #include "js/HashTable.h"
-#include "js/Vector.h"
 
 namespace JS {
 struct TypeInferenceSizes;
@@ -28,13 +27,6 @@ struct TypeInferenceSizes;
 namespace js {
 
 class CallObject;
-
-
-#ifdef JS_METHODJIT
-namespace mjit {
-    struct JITScript;
-}
-#endif
 
 namespace types {
 
@@ -1002,41 +994,19 @@ typedef HashMap<ObjectTableKey,ObjectTableEntry,ObjectTableKey,SystemAllocPolicy
 struct AllocationSiteKey;
 typedef HashMap<AllocationSiteKey,ReadBarriered<TypeObject>,AllocationSiteKey,SystemAllocPolicy> AllocationSiteTable;
 
-/*
- * Information about the result of the compilation of a script.  This structure
- * stored in the TypeCompartment is indexed by the RecompileInfo. This
- * indirection enable the invalidation of all constraints related to the same
- * compilation. The compiler output is build by the AutoEnterCompilation.
- */
-struct CompilerOutput
+struct RecompileInfo
 {
     JSScript *script;
     bool constructing : 1;
     bool barriers : 1;
     uint32_t chunkIndex:30;
 
-#ifdef JS_METHODJIT
-    js::mjit::JITScript *mjit;       /* Information attached by JM */
-#endif
-
-    bool isValid() const;
-
-    void invalidate() {
-#ifdef JS_METHODJIT
-        mjit = NULL;
-#endif
-    }
-};
-
-struct RecompileInfo
-{
-    static const uint32_t NoCompilerRunning = uint32_t(-1);
-    uint32_t outputIndex;
-
     bool operator == (const RecompileInfo &o) const {
-        return outputIndex == o.outputIndex;
+        return script == o.script
+            && constructing == o.constructing
+            && barriers == o.barriers
+            && chunkIndex == o.chunkIndex;
     }
-    CompilerOutput *compilerOutput(JSContext *cx) const;
 };
 
 /* Type information for a compartment. */
@@ -1073,11 +1043,8 @@ struct TypeCompartment
     /* Number of scripts in this compartment. */
     unsigned scriptCount;
 
-    /* Valid & Invalid script referenced by type constraints. */
-    Vector<CompilerOutput> *constrainedOutputs;
-
     /* Pending recompilations to perform before execution of JIT code can resume. */
-    Vector<CompilerOutput> *pendingRecompiles;
+    Vector<RecompileInfo> *pendingRecompiles;
 
     /*
      * Number of recompilation events and inline frame expansions that have
@@ -1148,7 +1115,6 @@ struct TypeCompartment
     void setPendingNukeTypesNoReport();
 
     /* Mark a script as needing recompilation once inference has finished. */
-    void addPendingRecompile(JSContext *cx, CompilerOutput &co);
     void addPendingRecompile(JSContext *cx, const RecompileInfo &info);
     void addPendingRecompile(JSContext *cx, JSScript *script, jsbytecode *pc);
 

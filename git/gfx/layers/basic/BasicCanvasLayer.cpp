@@ -10,7 +10,6 @@
 
 #include "BasicLayersImpl.h"
 #include "nsXULAppAPI.h"
-#include "LayersBackend.h"
 
 using namespace mozilla::gfx;
 
@@ -182,12 +181,9 @@ BasicCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
     if (currentFramebuffer != mCanvasFramebuffer)
       mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mCanvasFramebuffer);
 
-    // We need to Flush() the surface before modifying it outside of cairo.
-    isurf->Flush();
     mGLContext->ReadPixelsIntoImageSurface(0, 0,
                                            mBounds.width, mBounds.height,
                                            isurf);
-    isurf->MarkDirty();
 
     // Put back the previous framebuffer binding.
     if (currentFramebuffer != mCanvasFramebuffer)
@@ -375,7 +371,7 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
   }
 
   if (mGLContext &&
-      BasicManager()->GetParentBackendType() == mozilla::layers::LAYERS_OPENGL) {
+      BasicManager()->GetParentBackendType() == LayerManager::LAYERS_OPENGL) {
     TextureImage::TextureShareType flags;
     // if process type is default, then it is single-process (non-e10s)
     if (XRE_GetProcessType() == GeckoProcessType_Default)

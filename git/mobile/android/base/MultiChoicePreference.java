@@ -5,7 +5,6 @@
 
 package org.mozilla.gecko;
 
-import android.app.AlertDialog;
 import android.app.AlertDialog.Builder;
 import android.content.res.TypedArray;
 import android.content.Context;
@@ -13,7 +12,7 @@ import android.content.DialogInterface;
 import android.preference.DialogPreference;
 import android.preference.PreferenceManager;
 import android.util.AttributeSet;
-import android.widget.Button;
+import android.util.Log;
 
 class MultiChoicePreference extends DialogPreference {
     private static final String LOGTAG = "GeckoMultiChoicePreference";
@@ -151,18 +150,6 @@ class MultiChoicePreference extends DialogPreference {
         builder.setMultiChoiceItems(mEntries, mValues, new DialogInterface.OnMultiChoiceClickListener() {
             public void onClick(DialogInterface dialog, int which, boolean val) {
                 // mValues is automatically updated when checkboxes are clicked
-
-                // enable positive button only if at least one item is checked
-                boolean enabled = false;
-                for (int i = 0; i < mValues.length; i++) {
-                    if (mValues[i]) {
-                        enabled = true;
-                        break;
-                    }
-                }
-                Button button = ((AlertDialog) dialog).getButton(DialogInterface.BUTTON_POSITIVE);
-                if (button.isEnabled() != enabled)
-                    button.setEnabled(enabled);
             }
         });
     }
