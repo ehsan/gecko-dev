@@ -719,7 +719,9 @@ nsPrincipal::GetHashValue(PRUint32* aValue)
     *aValue = nsCRT::HashCode(mCert->fingerprint.get());
   }
   else {
-    *aValue = nsScriptSecurityManager::HashPrincipalByOrigin(this);
+    nsCAutoString str;
+    mCodebase->GetSpec(str);
+    *aValue = nsCRT::HashCode(str.get());
   }
 
   return NS_OK;
