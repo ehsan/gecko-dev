@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 const EXPORTED_SYMBOLS = ['Tracker', 'BookmarksTracker', 'HistoryTracker',
-                          'FormsTracker'];
+                          'FormsTracker', 'CookieTracker', 'TabTracker'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -55,7 +55,7 @@ Function.prototype.async = Async.sugar;
  * listening for changes to their particular data type
  * and updating their 'score', indicating how urgently they
  * want to sync.
- *
+ * 
  * 'score's range from 0 (Nothing's changed)
  * to 100 (I need to sync now!)
  * -1 is also a valid score
@@ -93,7 +93,7 @@ Tracker.prototype = {
     this._score = 0;
   }
 };
-
+ 
 /*
  * Tracker objects for each engine may need to subclass the
  * getScore routine, which returns the current 'score' for that
@@ -121,7 +121,7 @@ BookmarksTracker.prototype = {
   onItemVisited: function BMT_onItemVisited() {
 
   },
-
+  
   /* Every add or remove is worth 4 points,
    * on the basis that adding or removing 20 bookmarks
    * means its time to sync?
@@ -140,14 +140,14 @@ BookmarksTracker.prototype = {
   _init: function BMT__init() {
     this._log = Log4Moz.Service.getLogger("Service." + this._logName);
     this._score = 0;
-
+     
     Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
     getService(Ci.nsINavBookmarksService).
     addObserver(this, false);
   }
 }
 BookmarksTracker.prototype.__proto__ = new Tracker();
-
+  
 function HistoryTracker() {
   this._init();
 }
@@ -167,7 +167,7 @@ HistoryTracker.prototype = {
   onTitleChanged: function HT_onTitleChanged() {
 
   },
-
+  
   /* Every add or remove is worth 1 point.
    * Clearing the whole history is worth 50 points,
    * to ensure we're above the cutoff for syncing
@@ -189,13 +189,48 @@ HistoryTracker.prototype = {
   _init: function HT__init() {
     this._log = Log4Moz.Service.getLogger("Service." + this._logName);
     this._score = 0;
-
+     
     Cc["@mozilla.org/browser/nav-history-service;1"].
     getService(Ci.nsINavHistoryService).
     addObserver(this, false);
   }
 }
 HistoryTracker.prototype.__proto__ = new Tracker();
+
+function CookieTracker() {
+  this._init();
+}
+CookieTracker.prototype = {
+  _logName: "CookieTracker",
+
+  _init: function CT__init() {
+    this._log = Log4Moz.Service.getLogger("Service." + this._logName);
+    this._score = 0;
+    /* cookieService can't register observers, but what we CAN do is
+       register a general observer with the global observerService
+       to watch for the 'cookie-changed' message. */
+    let observerService = Cc["@mozilla.org/observer-service;1"].
+            getService(Ci.nsIObserverService);
+    observerService.addObserver( this, 'cookie-changed', false );
+  },
+
+  // implement observe method to satisfy nsIObserver interface
+  observe: function ( aSubject, aTopic, aData ) {
+    /* This gets called when any cookie is added, changed, or removed.
+       aData will contain a string "added", "changed", etc. to tell us which,
+       but for now we can treat them all the same. aSubject is the new
+       cookie object itself. */
+    var newCookie = aSubject.QueryInterface( Ci.nsICookie2 );
+    if ( newCookie ) {
+      if ( !newCookie.isSession ) {
+	/* Any modification to a persistent cookie is worth
+	   10 points out of 100.  Ignore session cookies. */
+	this._score += 10;
+      }
+    }
+  }
+}
+CookieTracker.prototype.__proto__ = new Tracker();
 
 function FormsTracker() {
   this._init();
@@ -244,7 +279,7 @@ FormsTracker.prototype = {
       return 100;
     else
       return this._score;
-  },
+  }, 
 
   resetScore: function FormsTracker_resetScore() {
     var stmnt = this._formDB.createStatement("SELECT COUNT(fieldname) FROM moz_formhistory");
@@ -265,3 +300,96 @@ FormsTracker.prototype = {
   }
 }
 FormsTracker.prototype.__proto__ = new Tracker();
+
+function TabTracker(engine) {
+  this._engine = engine;
+  this._init();
+}
+TabTracker.prototype = {
+  __proto__: new Tracker(),
+
+  _logName: "TabTracker",
+
+  _engine: null,
+
+  get _json() {
+    let json = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
+    this.__defineGetter__("_json", function() json);
+    return this._json;
+  },
+
+  /**
+   * There are two ways we could calculate the score.  We could calculate it
+   * incrementally by using the window mediator to watch for windows opening/
+   * closing and FUEL (or some other API) to watch for tabs opening/closing
+   * and changing location.
+   *
+   * Or we could calculate it on demand by comparing the state of tabs
+   * according to the session store with the state according to the snapshot.
+   *
+   * It's hard to say which is better.  The incremental approach is less
+   * accurate if it simply increments the score whenever there's a change,
+   * but it might be more performant.  The on-demand approach is more accurate,
+   * but it might be less performant depending on how often it's called.
+   *
+   * In this case we've decided to go with the on-demand approach, and we
+   * calculate the score as the percent difference between the snapshot set
+   * and the current tab set, where tabs that only exist in one set are
+   * completely different, while tabs that exist in both sets but whose data
+   * doesn't match (f.e. because of variations in history) are considered
+   * "half different".
+   *
+   * So if the sets don't match at all, we return 100;
+   * if they completely match, we return 0;
+   * if half the tabs match, and their data is the same, we return 50;
+   * and if half the tabs match, but their data is all different, we return 75.
+   */
+  get score() {
+    // The snapshot data is a singleton that we can't modify, so we have to
+    // copy its unique items to a new hash.
+    let snapshotData = this._engine.snapshot.data;
+    let a = {};
+
+    // The wrapped current state is a unique instance we can munge all we want.
+    let b = this._engine.store.wrap();
+
+    // An array that counts the number of intersecting IDs between a and b
+    // (represented as the length of c) and whether or not their values match
+    // (represented by the boolean value of each item in c).
+    let c = [];
+
+    // Generate c and update a and b to contain only unique items.
+    for (id in snapshotData) {
+      if (id in b) {
+        c.push(this._json.encode(snapshotData[id]) == this._json.encode(b[id]));
+        delete b[id];
+      }
+      else {
+        a[id] = snapshotData[id];
+      }
+    }
+
+    let numShared = c.length;
+    let numUnique = [true for (id in a)].length + [true for (id in b)].length;
+    let numTotal = numShared + numUnique;
+
+    // We're going to divide by the total later, so make sure we don't try
+    // to divide by zero, even though we should never be in a state where there
+    // are no tabs in either set.
+    if (numTotal == 0)
+      return 0;
+
+    // The number of shared items whose data is different.
+    let numChanged = c.filter(function(v) v).length;
+
+    let fractionSimilar = (numShared - (numChanged / 2)) / numTotal;
+    let fractionDissimilar = 1 - fractionSimilar;
+    let percentDissimilar = Math.round(fractionDissimilar * 100);
+
+    return percentDissimilar;
+  },
+
+  resetScore: function FormsTracker_resetScore() {
+    // Not implemented, since we calculate the score on demand.
+  }
+}

@@ -51,7 +51,6 @@ Cu.import("resource://weave/engines.js");
 Cu.import("resource://weave/dav.js");
 Cu.import("resource://weave/identity.js");
 Cu.import("resource://weave/async.js");
-Cu.import("resource://weave/engines/cookies.js");
 
 Function.prototype.async = Async.sugar;
 
@@ -94,6 +93,7 @@ function WeaveSvc() {
   Engines.register(new CookieEngine());
   Engines.register(new PasswordEngine());
   Engines.register(new FormEngine());
+  Engines.register(new TabEngine());
 
   // Other misc startup
   Utils.prefs.addObserver("", this, false);

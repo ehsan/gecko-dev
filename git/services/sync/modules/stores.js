@@ -35,7 +35,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 const EXPORTED_SYMBOLS = ['Store', 'SnapshotStore', 'BookmarksStore',
-			  'HistoryStore', 'PasswordStore', 'FormStore'];
+			  'HistoryStore', 'CookieStore', 'PasswordStore', 'FormStore',
+			  'TabStore'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -369,8 +370,6 @@ BookmarksStore.prototype = {
 
       if (command.data.type == "microsummary") {
         this._log.debug("   \-> is a microsummary");
-        this._ans.setItemAnnotation(newId, "bookmarks/staticTitle",
-                                    command.data.staticTitle || "", 0, this._ans.EXPIRE_NEVER);
         let genURI = Utils.makeURI(command.data.generatorURI);
         try {
           let micsum = this._ms.createMicrosummary(URI, genURI);
@@ -580,7 +579,6 @@ BookmarksStore.prototype = {
         item.type = "microsummary";
         let micsum = this._ms.getMicrosummary(node.itemId);
         item.generatorURI = micsum.generator.uri.spec; // breaks local generators
-        item.staticTitle = this._ans.getItemAnnotation(node.itemId, "bookmarks/staticTitle");
       } else if (node.type == node.RESULT_TYPE_QUERY) {
         item.type = "query";
         item.title = node.title;
@@ -764,6 +762,191 @@ HistoryStore.prototype = {
 };
 HistoryStore.prototype.__proto__ = new Store();
 
+
+function CookieStore( cookieManagerStub ) {
+  /* If no argument is passed in, this store will query/write to the real
+     Mozilla cookie manager component.  This is the normal way to use this
+     class in production code.  But for unit-testing purposes, you can pass
+     in a stub object that will be used in place of the cookieManager. */
+  this._init();
+  this._cookieManagerStub = cookieManagerStub;
+}
+CookieStore.prototype = {
+  _logName: "CookieStore",
+
+
+  // Documentation of the nsICookie interface says:
+  // name 	ACString 	The name of the cookie. Read only.
+  // value 	ACString 	The cookie value. Read only.
+  // isDomain 	boolean 	True if the cookie is a domain cookie, false otherwise. Read only.
+  // host 	AUTF8String 	The host (possibly fully qualified) of the cookie. Read only.
+  // path 	AUTF8String 	The path pertaining to the cookie. Read only.
+  // isSecure 	boolean 	True if the cookie was transmitted over ssl, false otherwise. Read only.
+  // expires 	PRUint64 	Expiration time (local timezone) expressed as number of seconds since Jan 1, 1970. Read only.
+  // status 	nsCookieStatus 	Holds the P3P status of cookie. Read only.
+  // policy 	nsCookiePolicy 	Holds the site's compact policy value. Read only.
+  // nsICookie2 deprecates expires, status, and policy, and adds:
+  //rawHost 	AUTF8String 	The host (possibly fully qualified) of the cookie without a leading dot to represent if it is a domain cookie. Read only.
+  //isSession 	boolean 	True if the cookie is a session cookie. Read only.
+  //expiry 	PRInt64 	the actual expiry time of the cookie (where 0 does not represent a session cookie). Read only.
+  //isHttpOnly 	boolean 	True if the cookie is an http only cookie. Read only.
+
+  __cookieManager: null,
+  get _cookieManager() {
+    if ( this._cookieManagerStub != undefined ) {
+      return this._cookieManagerStub;
+    }
+    // otherwise, use the real one
+    if (!this.__cookieManager)
+      this.__cookieManager = Cc["@mozilla.org/cookiemanager;1"].
+                             getService(Ci.nsICookieManager2);
+    // need the 2nd revision of the ICookieManager interface
+    // because it supports add() and the 1st one doesn't.
+    return this.__cookieManager
+  },
+
+  _createCommand: function CookieStore__createCommand(command) {
+    /* we got a command to create a cookie in the local browser
+       in order to sync with the server. */
+
+    this._log.info("CookieStore got createCommand: " + command );
+    // this assumes command.data fits the nsICookie2 interface
+    if ( !command.data.isSession ) {
+      // Add only persistent cookies ( not session cookies )
+      this._cookieManager.add( command.data.host,
+			       command.data.path,
+			       command.data.name,
+			       command.data.value,
+			       command.data.isSecure,
+			       command.data.isHttpOnly,
+			       command.data.isSession,
+			       command.data.expiry );
+    }
+  },
+
+  _removeCommand: function CookieStore__removeCommand(command) {
+    /* we got a command to remove a cookie from the local browser
+       in order to sync with the server.
+       command.data appears to be equivalent to what wrap() puts in
+       the JSON dictionary. */
+
+    this._log.info("CookieStore got removeCommand: " + command );
+
+    /* I think it goes like this, according to
+      http://developer.mozilla.org/en/docs/nsICookieManager
+      the last argument is "always block cookies from this domain?"
+      and the answer is "no". */
+    this._cookieManager.remove( command.data.host,
+				command.data.name,
+				command.data.path,
+				false );
+  },
+
+  _editCommand: function CookieStore__editCommand(command) {
+    /* we got a command to change a cookie in the local browser
+       in order to sync with the server. */
+    this._log.info("CookieStore got editCommand: " + command );
+
+    /* Look up the cookie that matches the one in the command: */
+    var iter = this._cookieManager.enumerator;
+    var matchingCookie = null;
+    while (iter.hasMoreElements()){
+      let cookie = iter.getNext();
+      if (cookie.QueryInterface( Ci.nsICookie ) ){
+        // see if host:path:name of cookie matches GUID given in command
+	let key = cookie.host + ":" + cookie.path + ":" + cookie.name;
+	if (key == command.GUID) {
+	  matchingCookie = cookie;
+	  break;
+	}
+      }
+    }
+    // Update values in the cookie:
+    for (var key in command.data) {
+      // Whatever values command.data has, use them
+      matchingCookie[ key ] = command.data[ key ]
+    }
+    // Remove the old incorrect cookie from the manager:
+    this._cookieManager.remove( matchingCookie.host,
+				matchingCookie.name,
+				matchingCookie.path,
+				false );
+
+    // Re-add the new updated cookie:
+    if ( !command.data.isSession ) {
+      /* ignore single-session cookies, add only persistent cookies.  */
+      this._cookieManager.add( matchingCookie.host,
+			       matchingCookie.path,
+			       matchingCookie.name,
+			       matchingCookie.value,
+			       matchingCookie.isSecure,
+			       matchingCookie.isHttpOnly,
+			       matchingCookie.isSession,
+			       matchingCookie.expiry );
+    }
+
+    // Also, there's an exception raised because
+    // this._data[comand.GUID] is undefined
+  },
+
+  wrap: function CookieStore_wrap() {
+    /* Return contents of this store, as JSON.
+       A dictionary of cookies where the keys are GUIDs and the
+       values are sub-dictionaries containing all cookie fields. */
+
+    let items = {};
+    var iter = this._cookieManager.enumerator;
+    while (iter.hasMoreElements()){
+      var cookie = iter.getNext();
+      if (cookie.QueryInterface( Ci.nsICookie )){
+	// String used to identify cookies is
+	// host:path:name
+	if ( cookie.isSession ) {
+	  /* Skip session-only cookies, sync only persistent cookies. */
+	  continue;
+	}
+
+	let key = cookie.host + ":" + cookie.path + ":" + cookie.name;
+	items[ key ] = { parentGUID: '',
+			 name: cookie.name,
+			 value: cookie.value,
+			 isDomain: cookie.isDomain,
+			 host: cookie.host,
+			 path: cookie.path,
+			 isSecure: cookie.isSecure,
+			 // nsICookie2 values:
+			 rawHost: cookie.rawHost,
+			 isSession: cookie.isSession,
+			 expiry: cookie.expiry,
+			 isHttpOnly: cookie.isHttpOnly }
+
+	/* See http://developer.mozilla.org/en/docs/nsICookie
+	   Note: not syncing "expires", "status", or "policy"
+	   since they're deprecated. */
+
+      }
+    }
+    return items;
+  },
+
+  wipe: function CookieStore_wipe() {
+    /* Remove everything from the store.  Return nothing.
+       TODO are the semantics of this just wiping out an internal
+       buffer, or am I supposed to wipe out all cookies from
+       the browser itself for reals? */
+    this._cookieManager.removeAll()
+  },
+
+  resetGUIDs: function CookieStore_resetGUIDs() {
+    /* called in the case where remote/local sync GUIDs do not
+       match.  We do need to override this, but since we're deriving
+       GUIDs from the cookie data itself and not generating them,
+       there's basically no way they can get "out of sync" so there's
+       nothing to do here. */
+  }
+};
+CookieStore.prototype.__proto__ = new Store();
+
 function PasswordStore() {
   this._init();
 }
@@ -921,3 +1104,294 @@ FormStore.prototype = {
   }
 };
 FormStore.prototype.__proto__ = new Store();
+
+function TabStore() {
+  this._virtualTabs = {};
+  this._init();
+}
+TabStore.prototype = {
+  __proto__: new Store(),
+
+  _logName: "TabStore",
+
+  get _sessionStore() {
+    let sessionStore = Cc["@mozilla.org/browser/sessionstore;1"].
+		       getService(Ci.nsISessionStore);
+    this.__defineGetter__("_sessionStore", function() sessionStore);
+    return this._sessionStore;
+  },
+
+  get _windowMediator() {
+    let windowMediator = Cc["@mozilla.org/appshell/window-mediator;1"].
+			 getService(Ci.nsIWindowMediator);
+    this.__defineGetter__("_windowMediator", function() windowMediator);
+    return this._windowMediator;
+  },
+
+  get _os() {
+    let os = Cc["@mozilla.org/observer-service;1"].
+             getService(Ci.nsIObserverService);
+    this.__defineGetter__("_os", function() os);
+    return this._os;
+  },
+
+  get _dirSvc() {
+    let dirSvc = Cc["@mozilla.org/file/directory_service;1"].
+                 getService(Ci.nsIProperties);
+    this.__defineGetter__("_dirSvc", function() dirSvc);
+    return this._dirSvc;
+  },
+
+  /**
+   * A cache of "virtual" tabs from other devices synced to the server
+   * that the user hasn't opened locally.  Unlike other stores, we don't
+   * immediately apply create commands, which would be jarring to users.
+   * Instead, we store them in this cache and prompt the user to pick
+   * which ones she wants to open.
+   *
+   * We also persist this cache on disk and include it in the list of tabs
+   * we generate in this.wrap to reduce ping-pong updates between clients
+   * running simultaneously and to maintain a consistent state across restarts.
+   */
+  _virtualTabs: null,
+
+  get virtualTabs() {
+    // Make sure the list of virtual tabs is completely up-to-date (the user
+    // might have independently opened some of these virtual tabs since the last
+    // time we synced).
+    let realTabs = this._wrapRealTabs();
+    let virtualTabsChanged = false;
+    for (let id in this._virtualTabs) {
+      if (id in realTabs) {
+        this._log.warn("get virtualTabs: both real and virtual tabs exist for "
+                       + id + "; removing virtual one");
+        delete this._virtualTabs[id];
+        virtualTabsChanged = true;
+      }
+    }
+    if (virtualTabsChanged)
+      this._saveVirtualTabs();
+
+    return this._virtualTabs;
+  },
+
+  set virtualTabs(newValue) {
+    this._virtualTabs = newValue;
+    this._saveVirtualTabs();
+  },
+
+  // The file in which we store the state of virtual tabs.
+  get _file() {
+    let file = this._dirSvc.get("ProfD", Ci.nsILocalFile);
+    file.append("weave");
+    file.append("store");
+    file.append("tabs");
+    file.append("virtual.json");
+    this.__defineGetter__("_file", function() file);
+    return this._file;
+  },
+
+  _saveVirtualTabs: function TabStore__saveVirtualTabs() {
+    try {
+      if (!this._file.exists())
+        this._file.create(Ci.nsIFile.NORMAL_FILE_TYPE, PERMS_FILE);
+      let out = this._json.encode(this._virtualTabs);
+      let [fos] = Utils.open(this._file, ">");
+      fos.writeString(out);
+      fos.close();
+    }
+    catch(ex) {
+      this._log.warn("could not serialize virtual tabs to disk: " + ex);
+    }
+  },
+
+  _restoreVirtualTabs: function TabStore__restoreVirtualTabs() {
+    try {
+      if (this._file.exists()) {
+        let [is] = Utils.open(this._file, "<");
+        let json = Utils.readStream(is);
+        is.close();
+        this._virtualTabs = this._json.decode(json);
+      }
+    }
+    catch (ex) {
+      this._log.warn("could not parse virtual tabs from disk: " + ex);
+    }
+  },
+
+  _init: function TabStore__init() {
+    this._restoreVirtualTabs();
+
+    this.__proto__.__proto__._init();
+  },
+
+  /**
+   * Apply commands generated by a diff during a sync operation.  This method
+   * overrides the one in its superclass so it can save a copy of the latest set
+   * of virtual tabs to disk so they can be restored on startup.
+   */
+  applyCommands: function TabStore_applyCommands(commandList) {
+    let self = yield;
+
+    this.__proto__.__proto__.applyCommands.async(this, self.cb, commandList);
+    yield;
+
+    this._saveVirtualTabs();
+
+    self.done();
+  },
+
+  _createCommand: function TabStore__createCommand(command) {
+    this._log.debug("_createCommand: " + command.GUID);
+
+    if (command.GUID in this._virtualTabs || command.GUID in this._wrapRealTabs())
+      throw "trying to create a tab that already exists; id: " + command.GUID;
+
+    // Cache the tab and notify the UI to prompt the user to open it.
+    this._virtualTabs[command.GUID] = command.data;
+    this._os.notifyObservers(null, "weave:store:tabs:virtual:created", null);
+  },
+
+  _removeCommand: function TabStore__removeCommand(command) {
+    this._log.debug("_removeCommand: " + command.GUID);
+
+    // If this is a virtual tab, it's ok to remove it, since it was never really
+    // added to this session in the first place.  But we don't remove it if it's
+    // a real tab, since that would be unexpected, unpleasant, and unwanted.
+    if (command.GUID in this._virtualTabs) {
+      delete this._virtualTabs[command.GUID];
+      this._os.notifyObservers(null, "weave:store:tabs:virtual:removed", null);
+    }
+  },
+
+  _editCommand: function TabStore__editCommand(command) {
+    this._log.debug("_editCommand: " + command.GUID);
+
+    // We don't edit real tabs, because that isn't what the user would expect,
+    // but it's ok to edit virtual tabs, so that if users do open them, they get
+    // the most up-to-date version of them (and also to reduce sync churn).
+
+    if (this._virtualTabs[command.GUID])
+      this._virtualTabs[command.GUID] = command.data;
+  },
+
+  /**
+   * Serialize the current state of tabs.
+   *
+   * Note: the state includes both tabs on this device and those on others.
+   * We get the former from the session store.  The latter we retrieved from
+   * the Weave server and stored in this._virtualTabs.  Including virtual tabs
+   * in the serialized state prevents ping-pong deletes between two clients
+   * running at the same time.
+   */
+  wrap: function TabStore_wrap() {
+    let items;
+
+    let virtualTabs = this._wrapVirtualTabs();
+    let realTabs = this._wrapRealTabs();
+
+    // Real tabs override virtual ones, which means ping-pong edits when two
+    // clients have the same URL loaded with different history/attributes.
+    // We could fix that by overriding real tabs with virtual ones, but then
+    // we'd have stale tab metadata in same cases.
+    items = virtualTabs;
+    let virtualTabsChanged = false;
+    for (let id in realTabs) {
+      // Since virtual tabs can sometimes get out of sync with real tabs
+      // (the user could have independently opened a new tab that exists
+      // in the virtual tabs cache since the last time we updated the cache),
+      // we sync them up in the process of merging them here.
+      if (this._virtualTabs[id]) {
+        this._log.warn("wrap: both real and virtual tabs exist for " + id +
+                       "; removing virtual one");
+        delete this._virtualTabs[id];
+        virtualTabsChanged = true;
+      }
+
+      items[id] = realTabs[id];
+    }
+    if (virtualTabsChanged)
+      this._saveVirtualTabs();
+
+    return items;
+  },
+
+  _wrapVirtualTabs: function TabStore__wrapVirtualTabs() {
+    let items = {};
+
+    for (let id in this._virtualTabs) {
+      let virtualTab = this._virtualTabs[id];
+
+      // Copy the virtual tab without private properties (those that begin
+      // with an underscore character) so that we don't sync data private to
+      // this particular Weave client (like the _disposed flag).
+      let item = {};
+      for (let property in virtualTab)
+        if (property[0] != "_")
+          item[property] = virtualTab[property];
+
+      items[id] = item;
+    }
+
+    return items;
+  },
+
+  _wrapRealTabs: function TabStore__wrapRealTabs() {
+    let items = {};
+
+    let session = this._json.decode(this._sessionStore.getBrowserState());
+
+    for (let i = 0; i < session.windows.length; i++) {
+      let window = session.windows[i];
+      // For some reason, session store uses one-based array index references,
+      // (f.e. in the "selectedWindow" and each tab's "index" properties), so we
+      // convert them to and from JavaScript's zero-based indexes as needed.
+      let windowID = i + 1;
+      this._log.debug("_wrapRealTabs: window " + windowID);
+      for (let j = 0; j < window.tabs.length; j++) {
+        let tab = window.tabs[j];
+
+	// The session history entry for the page currently loaded in the tab.
+	// We use the URL of the current page as the ID for the tab.
+	let currentEntry = tab.entries[tab.index - 1];
+
+	if (!currentEntry || !currentEntry.url) {
+	  this._log.warn("_wrapRealTabs: no current entry or no URL, can't " +
+                         "identify " + this._json.encode(tab));
+	  continue;
+	}
+
+	let tabID = currentEntry.url;
+        this._log.debug("_wrapRealTabs: tab " + tabID);
+
+	items[tabID] = {
+          // Identify this item as a tab in case we start serializing windows
+          // in the future.
+	  type: "tab",
+
+          // The position of this tab relative to other tabs in the window.
+          // For consistency with session store data, we make this one-based.
+          position: j + 1,
+
+	  windowID: windowID,
+
+	  state: tab
+	};
+      }
+    }
+
+    return items;
+  },
+
+  wipe: function TabStore_wipe() {
+    // We're not going to close tabs, since that's probably not what
+    // the user wants, but we'll clear the cache of virtual tabs.
+    this._virtualTabs = {};
+    this._saveVirtualTabs();
+  },
+
+  resetGUIDs: function TabStore_resetGUIDs() {
+    // Not needed.
+  }
+
+};

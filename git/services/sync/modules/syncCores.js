@@ -35,7 +35,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 const EXPORTED_SYMBOLS = ['SyncCore', 'BookmarksSyncCore', 'HistorySyncCore',
-                          'PasswordSyncCore', 'FormSyncCore'];
+                          'CookieSyncCore', 'PasswordSyncCore', 'FormSyncCore',
+                          'TabSyncCore'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -431,6 +432,76 @@ HistorySyncCore.prototype = {
 };
 HistorySyncCore.prototype.__proto__ = new SyncCore();
 
+
+function CookieSyncCore() {
+  this._init();
+}
+CookieSyncCore.prototype = {
+  _logName: "CookieSync",
+
+  __cookieManager: null,
+  get _cookieManager() {
+    if (!this.__cookieManager)
+      this.__cookieManager = Cc["@mozilla.org/cookiemanager;1"].
+                             getService(Ci.nsICookieManager2);
+    /* need the 2nd revision of the ICookieManager interface
+       because it supports add() and the 1st one doesn't. */
+    return this.__cookieManager;
+  },
+
+
+  _itemExists: function CSC__itemExists(GUID) {
+    /* true if a cookie with the given GUID exists.
+       The GUID that we are passed should correspond to the keys
+       that we define in the JSON returned by CookieStore.wrap()
+       That is, it will be a string of the form
+       "host:path:name". */
+
+    /* TODO verify that colons can't normally appear in any of
+       the fields -- if they did it then we can't rely on .split(":")
+       to parse correctly.*/
+
+    let cookieArray = GUID.split( ":" );
+    let cookieHost = cookieArray[0];
+    let cookiePath = cookieArray[1];
+    let cookieName = cookieArray[2];
+
+    /* alternate implementation would be to instantiate a cookie from
+       cookieHost, cookiePath, and cookieName, then call
+       cookieManager.cookieExists(). Maybe that would have better
+       performance?  This implementation seems pretty slow.*/
+    let enumerator = this._cookieManager.enumerator;
+    while (enumerator.hasMoreElements())
+      {
+	let aCookie = enumerator.getNext();
+	if (aCookie.host == cookieHost &&
+	    aCookie.path == cookiePath &&
+	    aCookie.name == cookieName ) {
+	  return true;
+	}
+      }
+    return false;
+    /* Note: We can't just call cookieManager.cookieExists() with a generic
+       javascript object with .host, .path, and .name attributes attatched.
+       cookieExists is implemented in C and does a hard static_cast to an
+       nsCookie object, so duck typing doesn't work (and in fact makes
+       Firefox hard-crash as the static_cast returns null and is not checked.)
+    */
+  },
+
+  _commandLike: function CSC_commandLike(a, b) {
+    /* Method required to be overridden.
+       a and b each have a .data and a .GUID
+       If this function returns true, an editCommand will be
+       generated to try to resolve the thing.
+       but are a and b objects of the type in the Store or
+       are they "commands"?? */
+    return false;
+  }
+};
+CookieSyncCore.prototype.__proto__ = new SyncCore();
+
+
 function PasswordSyncCore() {
   this._init();
 }
@@ -512,3 +583,55 @@ FormSyncCore.prototype = {
   }
 };
 FormSyncCore.prototype.__proto__ = new SyncCore();
+
+function TabSyncCore(engine) {
+  this._engine = engine;
+  this._init();
+}
+TabSyncCore.prototype = {
+  __proto__: new SyncCore(),
+
+  _logName: "TabSync",
+
+  _engine: null,
+
+  get _sessionStore() {
+    let sessionStore = Cc["@mozilla.org/browser/sessionstore;1"].
+		       getService(Ci.nsISessionStore);
+    this.__defineGetter__("_sessionStore", function() sessionStore);
+    return this._sessionStore;
+  },
+
+  // XXX Should we put this into SyncCore so it's available to all subclasses?
+  get _json() {
+    let json = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
+    this.__defineGetter__("_json", function() json);
+    return this._json;
+  },
+
+  _itemExists: function TSC__itemExists(GUID) {
+    // Note: this method returns true if the tab exists in any window, not just
+    // the window from which the tab came.  In the future, if we care about
+    // windows, we might need to make this more specific, although in that case
+    // we'll have to identify tabs by something other than URL, since even
+    // window-specific tabs look the same when identified by URL.
+
+    // Get the set of all real and virtual tabs.
+    let tabs = this._engine.store.wrap();
+
+    // XXX Should we convert both to nsIURIs and then use nsIURI::equals
+    // to compare them?
+    if (GUID in tabs) {
+      this._log.debug("_itemExists: " + GUID + " exists");
+      return true;
+    }
+
+    this._log.debug("_itemExists: " + GUID + " doesn't exist");
+    return false;
+  },
+
+  _commandLike: function TSC_commandLike(a, b) {
+    // Not implemented.
+    return false;
+  }
+};

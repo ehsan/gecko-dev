@@ -19,6 +19,7 @@
  *
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
+ *  Myk Melez <myk@mozilla.org>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,8 +36,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 const EXPORTED_SYMBOLS = ['Engines', 'Engine',
-                          'BookmarksEngine', 'HistoryEngine',
-                          'PasswordEngine', 'FormEngine'];
+                          'BookmarksEngine', 'HistoryEngine', 'CookieEngine',
+                          'PasswordEngine', 'FormEngine', 'TabEngine'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -906,6 +907,37 @@ HistoryEngine.prototype = {
 };
 HistoryEngine.prototype.__proto__ = new Engine();
 
+function CookieEngine(pbeId) {
+  this._init(pbeId);
+}
+CookieEngine.prototype = {
+  get name() { return "cookies"; },
+  get logName() { return "CookieEngine"; },
+  get serverPrefix() { return "user-data/cookies/"; },
+
+  __core: null,
+  get _core() {
+    if (!this.__core)
+      this.__core = new CookieSyncCore();
+    return this.__core;
+  },
+
+  __store: null,
+  get _store() {
+    if (!this.__store)
+      this.__store = new CookieStore();
+    return this.__store;
+  },
+
+  __tracker: null,
+  get _tracker() {
+    if (!this.__tracker)
+      this.__tracker = new CookieTracker();
+    return this.__tracker;
+  }
+};
+CookieEngine.prototype.__proto__ = new Engine();
+
 function PasswordEngine(pbeId) {
   this._init(pbeId);
 }
@@ -985,3 +1017,34 @@ FormEngine.prototype = {
   }
 };
 FormEngine.prototype.__proto__ = new Engine();
+
+function TabEngine(pbeId) {
+  this._init(pbeId);
+}
+TabEngine.prototype = {
+  __proto__: new Engine(),
+
+  get name() "tabs",
+  get logName() "TabEngine",
+  get serverPrefix() "user-data/tabs/",
+  get store() this._store,
+
+  get _core() {
+    let core = new TabSyncCore(this);
+    this.__defineGetter__("_core", function() core);
+    return this._core;
+  },
+
+  get _store() {
+    let store = new TabStore();
+    this.__defineGetter__("_store", function() store);
+    return this._store;
+  },
+
+  get _tracker() {
+    let tracker = new TabTracker(this);
+    this.__defineGetter__("_tracker", function() tracker);
+    return this._tracker;
+  }
+
+};
