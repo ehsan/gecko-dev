@@ -26,6 +26,13 @@
 #include "pk11pub.h"
 #include "secder.h"
 
+#ifdef _MSC_VER
+// C4480: nonstandard extension used: specifying underlying type for enum
+#define ENUM_CLASS  __pragma(warning(disable: 4480)) enum
+#else
+#define ENUM_CLASS enum class
+#endif
+
 // TODO: use typed/qualified typedefs everywhere?
 // TODO: When should we return SEC_ERROR_OCSP_UNAUTHORIZED_RESPONSE?
 
@@ -36,7 +43,7 @@ static const PRTime ONE_DAY
 static const PRTime SLOP = ONE_DAY;
 
 // These values correspond to the tag values in the ASN.1 CertStatus
-MOZILLA_PKIX_ENUM_CLASS CertStatus : uint8_t {
+ENUM_CLASS CertStatus : uint8_t {
   Good = der::CONTEXT_SPECIFIC | 0,
   Revoked = der::CONTEXT_SPECIFIC | der::CONSTRUCTED | 1,
   Unknown = der::CONTEXT_SPECIFIC | 2
@@ -89,7 +96,7 @@ CheckOCSPResponseSignerCert(TrustDomain& trustDomain,
 {
   Result rv;
 
-  BackCert cert(&potentialSigner, nullptr, BackCert::IncludeCN::No);
+  BackCert cert(&potentialSigner, nullptr, BackCert::ExcludeCN);
   rv = cert.Init();
   if (rv != Success) {
     return rv;
@@ -119,7 +126,7 @@ CheckOCSPResponseSignerCert(TrustDomain& trustDomain,
   // TODO(bug 926261): If we're validating for a policy then the policy OID we
   // are validating for should be passed to CheckIssuerIndependentProperties.
   rv = CheckIssuerIndependentProperties(trustDomain, cert, time,
-                                        EndEntityOrCA::MustBeEndEntity, 0,
+                                        MustBeEndEntity, 0,
                                         SEC_OID_OCSP_RESPONDER,
                                         SEC_OID_X509_ANY_POLICY, 0);
   if (rv != Success) {
@@ -150,7 +157,12 @@ CheckOCSPResponseSignerCert(TrustDomain& trustDomain,
   return Success;
 }
 
-MOZILLA_PKIX_ENUM_CLASS ResponderIDType : uint8_t
+//typedef enum {
+//    ocspResponderID_byName = 1,
+//    ocspResponderID_byKey = 2
+//} ResponderIDType;
+
+ENUM_CLASS ResponderIDType : uint8_t
 {
   byName = der::CONTEXT_SPECIFIC | der::CONSTRUCTED | 1,
   byKey = der::CONTEXT_SPECIFIC | der::CONSTRUCTED | 2
@@ -568,7 +580,7 @@ ResponseData(der::Input& input, Context& context,
   // responder will never return an empty response, and handling the case of an
   // empty response makes things unnecessarily complicated.
   if (der::NestedOf(input, der::SEQUENCE, der::SEQUENCE,
-                    der::EmptyAllowed::No,
+                    der::MustNotBeEmpty,
                     bind(SingleResponse, _1, ref(context))) != der::Success) {
     return der::Failure;
   }
@@ -854,7 +866,7 @@ CheckExtensionsForCriticality(der::Input& input)
   // Extension, which is invalid (der::MayBeEmpty should really be
   // der::MustNotBeEmpty).
   return der::NestedOf(input, der::SEQUENCE, der::SEQUENCE,
-                       der::EmptyAllowed::Yes, CheckExtensionForCriticality);
+                       der::MayBeEmpty, CheckExtensionForCriticality);
 }
 
 //   1. The certificate identified in a received response corresponds to

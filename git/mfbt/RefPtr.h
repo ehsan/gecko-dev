@@ -179,17 +179,12 @@ class RefCounted : public detail::RefCounted<T, detail::NonAtomicRefCount>
     }
 };
 
-namespace external {
-
 /**
  * AtomicRefCounted<T> is like RefCounted<T>, with an atomically updated
  * reference counter.
- *
- * NOTE: Please do not use this class, use NS_INLINE_DECL_THREADSAFE_REFCOUNTING
- * instead.
  */
 template<typename T>
-class AtomicRefCounted : public mozilla::detail::RefCounted<T, mozilla::detail::AtomicRefCount>
+class AtomicRefCounted : public detail::RefCounted<T, detail::AtomicRefCount>
 {
   public:
     ~AtomicRefCounted() {
@@ -197,8 +192,6 @@ class AtomicRefCounted : public mozilla::detail::RefCounted<T, mozilla::detail::
                     "T must derive from AtomicRefCounted<T>");
     }
 };
-
-}
 
 /**
  * RefPtr points to a refcounted thing that has AddRef and Release

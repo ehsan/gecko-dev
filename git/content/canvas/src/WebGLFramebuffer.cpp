@@ -55,7 +55,7 @@ WebGLFramebuffer::Attachment::HasAlpha() const
 
     GLenum format = 0;
     if (Texture() && Texture()->HasImageInfoAt(mTexImageTarget, mTexImageLevel))
-        format = Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel).WebGLFormat();
+        format = Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel).InternalFormat();
     else if (Renderbuffer())
         format = Renderbuffer()->InternalFormat();
     return FormatHasAlpha(format);
@@ -65,7 +65,7 @@ bool
 WebGLFramebuffer::Attachment::IsReadableFloat() const
 {
     if (Texture() && Texture()->HasImageInfoAt(mTexImageTarget, mTexImageLevel)) {
-        GLenum type = Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel).WebGLType();
+        GLenum type = Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel).Type();
         switch (type) {
         case LOCAL_GL_FLOAT:
         case LOCAL_GL_HALF_FLOAT_OES:
@@ -282,19 +282,19 @@ WebGLFramebuffer::Attachment::IsComplete() const
         MOZ_ASSERT(Texture()->HasImageInfoAt(mTexImageTarget, mTexImageLevel));
         const WebGLTexture::ImageInfo& imageInfo =
             Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel);
-        GLenum webGLFormat = imageInfo.WebGLFormat();
+        GLenum internalFormat = imageInfo.InternalFormat();
 
         if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT)
-            return IsValidFBOTextureDepthFormat(webGLFormat);
+            return IsValidFBOTextureDepthFormat(internalFormat);
 
         if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
-            return IsValidFBOTextureDepthStencilFormat(webGLFormat);
+            return IsValidFBOTextureDepthStencilFormat(internalFormat);
 
         if (mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0 &&
             mAttachmentPoint < GLenum(LOCAL_GL_COLOR_ATTACHMENT0 +
                                       WebGLContext::kMaxColorAttachments))
         {
-            return IsValidFBOTextureColorFormat(webGLFormat);
+            return IsValidFBOTextureColorFormat(internalFormat);
         }
         MOZ_ASSERT(false, "Invalid WebGL attachment point?");
         return false;

@@ -88,7 +88,7 @@ template <> inline RefCounted<LibHandle, AtomicRefCount>::~RefCounted()
  * Abstract class for loaded libraries. Libraries may be loaded through the
  * system linker or this linker, both cases will be derived from this class.
  */
-class LibHandle: public mozilla::external::AtomicRefCounted<LibHandle>
+class LibHandle: public mozilla::AtomicRefCounted<LibHandle>
 {
 public:
   MOZ_DECLARE_REFCOUNTED_TYPENAME(LibHandle)
@@ -140,7 +140,7 @@ public:
   void AddDirectRef()
   {
     ++directRefCnt;
-    mozilla::external::AtomicRefCounted<LibHandle>::AddRef();
+    mozilla::AtomicRefCounted<LibHandle>::AddRef();
   }
 
   /**
@@ -152,10 +152,10 @@ public:
     bool ret = false;
     if (directRefCnt) {
       MOZ_ASSERT(directRefCnt <=
-                 mozilla::external::AtomicRefCounted<LibHandle>::refCount());
+                 mozilla::AtomicRefCounted<LibHandle>::refCount());
       if (--directRefCnt)
         ret = true;
-      mozilla::external::AtomicRefCounted<LibHandle>::Release();
+      mozilla::AtomicRefCounted<LibHandle>::Release();
     }
     return ret;
   }

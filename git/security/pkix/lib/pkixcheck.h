@@ -32,7 +32,7 @@ Result CheckIssuerIndependentProperties(
           SECOidTag requiredEKUIfPresent,
           SECOidTag requiredPolicy,
           unsigned int subCACount,
-          /*optional out*/ TrustLevel* trustLevel = nullptr);
+          /*optional out*/ TrustDomain::TrustLevel* trustLevel = nullptr);
 
 Result CheckNameConstraints(BackCert& cert);
 

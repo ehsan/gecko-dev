@@ -203,19 +203,17 @@ var commandsPeerConnection = [
     }
   ],
   [
-    'PC_LOCAL_CHECK_MEDIA_TRACKS',
+    'PC_LOCAL_CHECK_MEDIA_STREAMS',
     function (test) {
-      test.pcLocal.checkMediaTracks(test._remote_constraints, function () {
-        test.next();
-      });
+      test.pcLocal.checkMediaStreams(test._remote_constraints);
+      test.next();
     }
   ],
   [
-    'PC_REMOTE_CHECK_MEDIA_TRACKS',
+    'PC_REMOTE_CHECK_MEDIA_STREAMS',
     function (test) {
-      test.pcRemote.checkMediaTracks(test._local_constraints, function () {
-        test.next();
-      });
+      test.pcRemote.checkMediaStreams(test._local_constraints);
+      test.next();
     }
   ],
   [
@@ -376,19 +374,17 @@ var commandsDataChannel = [
     }
   ],
   [
-    'PC_LOCAL_CHECK_MEDIA_TRACKS',
+    'PC_LOCAL_CHECK_MEDIA_STREAMS',
     function (test) {
-      test.pcLocal.checkMediaTracks(test.pcRemote.constraints, function () {
-        test.next();
-      });
+      test.pcLocal.checkMediaStreams(test.pcRemote.constraints);
+      test.next();
     }
   ],
   [
-    'PC_REMOTE_CHECK_MEDIA_TRACKS',
+    'PC_REMOTE_CHECK_MEDIA_STREAMS',
     function (test) {
-      test.pcRemote.checkMediaTracks(test.pcLocal.constraints, function () {
-        test.next();
-      });
+      test.pcRemote.checkMediaStreams(test.pcLocal.constraints);
+      test.next();
     }
   ],
   [

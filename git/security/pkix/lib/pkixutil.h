@@ -18,7 +18,6 @@
 #ifndef mozilla_pkix__pkixutil_h
 #define mozilla_pkix__pkixutil_h
 
-#include "pkix/enumclass.h"
 #include "pkix/pkixtypes.h"
 #include "prerror.h"
 #include "seccomon.h"
@@ -82,13 +81,14 @@ MapSECStatus(SECStatus srv)
 class BackCert
 {
 public:
-  // IncludeCN::No means that GetConstrainedNames won't include the subject CN
-  // in its results. IncludeCN::Yes means that GetConstrainedNames will include
-  // the subject CN in its results.
-  MOZILLA_PKIX_ENUM_CLASS IncludeCN { No = 0, Yes = 1 };
+  // ExcludeCN means that GetConstrainedNames won't include the subject CN in
+  // its results. IncludeCN means that GetConstrainedNames will include the
+  // subject CN in its results.
+  enum ConstrainedNameOptions { ExcludeCN = 0, IncludeCN = 1 };
 
   // nssCert and childCert must be valid for the lifetime of BackCert
-  BackCert(CERTCertificate* nssCert, BackCert* childCert, IncludeCN includeCN)
+  BackCert(CERTCertificate* nssCert, BackCert* childCert,
+           ConstrainedNameOptions cnOptions)
     : encodedBasicConstraints(nullptr)
     , encodedCertificatePolicies(nullptr)
     , encodedExtendedKeyUsage(nullptr)
@@ -98,7 +98,7 @@ public:
     , childCert(childCert)
     , nssCert(nssCert)
     , constrainedNames(nullptr)
-    , includeCN(includeCN)
+    , cnOptions(cnOptions)
   {
   }
 
@@ -137,7 +137,7 @@ private:
 
   ScopedPLArenaPool arena;
   CERTGeneralName* constrainedNames;
-  IncludeCN includeCN;
+  ConstrainedNameOptions cnOptions;
 
   BackCert(const BackCert&) /* = delete */;
   void operator=(const BackCert&); /* = delete */;
