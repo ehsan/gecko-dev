@@ -59,6 +59,7 @@ namespace dom {
 namespace binding {
 
 
+static jsid s_constructor_id = JSID_VOID;
 static jsid s_prototype_id = JSID_VOID;
 
 static jsid s_length_id = JSID_VOID;
@@ -81,7 +82,8 @@ DefineStaticJSVals(JSContext *cx)
 {
     JSAutoRequest ar(cx);
 
-    return SET_JSID_TO_STRING(cx, prototype) &&
+    return SET_JSID_TO_STRING(cx, constructor) &&
+           SET_JSID_TO_STRING(cx, prototype) &&
            SET_JSID_TO_STRING(cx, length) &&
            DefinePropertyStaticJSVals(cx);
 }
@@ -450,10 +452,13 @@ ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope)
     }
 
     JSObject *interface = JS_NewObject(cx, Jsvalify(&sInterfaceClass), NULL, global);
-    if (!interface)
+    if (!interface ||
+        !JS_DefinePropertyById(cx, interface, s_prototype_id, OBJECT_TO_JSVAL(interfacePrototype),
+                               nsnull, nsnull, JSPROP_PERMANENT | JSPROP_READONLY))
         return NULL;
 
-    if (!JS_LinkConstructorAndPrototype(cx, interface, interfacePrototype))
+    if (!JS_DefinePropertyById(cx, interfacePrototype, s_constructor_id,
+                               OBJECT_TO_JSVAL(interface), nsnull, nsnull, 0))
         return NULL;
 
     if (!JS_DefineProperty(cx, global, sInterfaceClass.name, OBJECT_TO_JSVAL(interface), NULL,
