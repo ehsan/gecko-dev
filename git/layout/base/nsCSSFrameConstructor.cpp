@@ -129,7 +129,7 @@
 #include "nsIXULDocument.h"
 #endif
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 
 #include "nsInlineFrame.h"
@@ -6740,10 +6740,13 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
 #endif
 
 #ifdef ACCESSIBILITY
-  nsAccessibilityService* accService = nsIPresShell::AccService();
-  if (accService) {
-    accService->ContentRangeInserted(mPresShell, aContainer,
-                                     aFirstNewContent, nsnull);
+  if (mPresShell->IsAccessibilityActive()) {
+    nsCOMPtr<nsIAccessibilityService> accService =
+      do_GetService("@mozilla.org/accessibilityService;1");
+    if (accService) {
+      accService->ContentRangeInserted(mPresShell, aContainer,
+                                       aFirstNewContent, nsnull);
+    }
   }
 #endif
 
@@ -6928,10 +6931,13 @@ nsCSSFrameConstructor::ContentRangeInserted(nsIContent*            aContainer,
     }
 
 #ifdef ACCESSIBILITY
-    nsAccessibilityService* accService = nsIPresShell::AccService();
-    if (accService) {
-      accService->ContentRangeInserted(mPresShell, aContainer,
-                                       aStartChild, aEndChild);
+    if (mPresShell->IsAccessibilityActive()) {
+      nsCOMPtr<nsIAccessibilityService> accService =
+          do_GetService("@mozilla.org/accessibilityService;1");
+      if (accService) {
+        accService->ContentRangeInserted(mPresShell, aContainer,
+                                         aStartChild, aEndChild);
+      }
     }
 #endif
 
@@ -7338,10 +7344,13 @@ nsCSSFrameConstructor::ContentRangeInserted(nsIContent*            aContainer,
 #endif
 
 #ifdef ACCESSIBILITY
-  nsAccessibilityService* accService = nsIPresShell::AccService();
-  if (accService) {
-    accService->ContentRangeInserted(mPresShell, aContainer,
-                                     aStartChild, aEndChild);
+  if (mPresShell->IsAccessibilityActive()) {
+    nsCOMPtr<nsIAccessibilityService> accService =
+      do_GetService("@mozilla.org/accessibilityService;1");
+    if (accService) {
+      accService->ContentRangeInserted(mPresShell, aContainer,
+                                       aStartChild, aEndChild);
+    }
   }
 #endif
 
@@ -7478,9 +7487,12 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
     }
 
 #ifdef ACCESSIBILITY
-    nsAccessibilityService* accService = nsIPresShell::AccService();
-    if (accService) {
-      accService->ContentRemoved(mPresShell, aContainer, aChild);
+    if (mPresShell->IsAccessibilityActive()) {
+      nsCOMPtr<nsIAccessibilityService> accService =
+          do_GetService("@mozilla.org/accessibilityService;1");
+      if (accService) {
+        accService->ContentRemoved(mPresShell, aContainer, aChild);
+      }
     }
 #endif
 

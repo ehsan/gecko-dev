@@ -230,15 +230,7 @@ public:
    *
    * @return the accessible object
    */
-  nsAccessible* GetAccessible(nsINode* aNode) const;
-
-  /**
-   * Return whether the given DOM node has an accessible or not.
-   */
-  inline bool HasAccessible(nsINode* aNode)
-  {
-    return GetAccessible(aNode);
-  }
+  nsAccessible* GetCachedAccessible(nsINode* aNode);
 
   /**
    * Return the cached accessible by the given unique ID within this document.
@@ -247,7 +239,7 @@ public:
    *
    * @param  aUniqueID  [in] the unique ID used to cache the node.
    */
-  inline nsAccessible* GetAccessibleByUniqueID(void* aUniqueID)
+  nsAccessible* GetCachedAccessibleByUniqueID(void* aUniqueID)
   {
     return UniqueID() == aUniqueID ?
       this : mAccessibleCache.GetWeak(aUniqueID);
@@ -257,21 +249,7 @@ public:
    * Return the cached accessible by the given unique ID looking through
    * this and nested documents.
    */
-  nsAccessible* GetAccessibleByUniqueIDInSubtree(void* aUniqueID);
-
-  /**
-   * Return an accessible for the given DOM node or container accessible if
-   * the node is not accessible.
-   */
-  nsAccessible* GetAccessibleOrContainer(nsINode* aNode);
-
-  /**
-   * Return a container accessible for the given DOM node.
-   */
-  inline nsAccessible* GetContainerAccessible(nsINode* aNode)
-  {
-    return aNode ? GetAccessibleOrContainer(aNode->GetNodeParent()) : nsnull;
-  }
+  nsAccessible* GetCachedAccessibleByUniqueIDInSubtree(void* aUniqueID);
 
   /**
    * Return true if the given ID is referred by relation attribute.
@@ -310,20 +288,9 @@ public:
   void ContentRemoved(nsIContent* aContainerNode, nsIContent* aChildNode);
 
   /**
-   * Updates accessible tree when rendered text is changed.
-   */
-  inline void UpdateText(nsIContent* aTextNode)
-  {
-    NS_ASSERTION(mNotificationController, "The document was shut down!");
-
-    if (mNotificationController)
-      mNotificationController->ScheduleTextUpdate(aTextNode);
-  }
-
-  /**
    * Recreate an accessible, results in hide/show events pair.
    */
-  void RecreateAccessible(nsIContent* aContent);
+  void RecreateAccessible(nsINode* aNode);
 
   /**
    * Used to notify the document that the accessible caching is started or
@@ -415,6 +382,25 @@ protected:
      */
     void ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute);
 
+    /**
+     * Fire text changed event for character data changed. The method is used
+     * from nsIMutationObserver methods.
+     *
+     * @param aContent     the text node holding changed data
+     * @param aInfo        info structure describing how the data was changed
+     * @param aIsInserted  the flag pointed whether removed or inserted
+     *                     characters should be cause of event
+     */
+    void FireTextChangeEventForText(nsIContent *aContent,
+                                    CharacterDataChangeInfo* aInfo,
+                                    PRBool aIsInserted);
+
+  /**
+   * Fire a value change event for the the given accessible if it is a text
+   * field (has a ROLE_ENTRY).
+   */
+  void FireValueChangeForTextFields(nsAccessible *aAccessible);
+
   /**
    * Process the event when the queue of pending events is untwisted. Fire
    * accessible events as result of the processing.
@@ -448,7 +434,8 @@ protected:
     eAlertAccessible = 2
   };
 
-  PRUint32 UpdateTreeInternal(nsIContent* aStartNode,
+  PRUint32 UpdateTreeInternal(nsAccessible* aContainer,
+                              nsIContent* aStartNode,
                               nsIContent* aEndNode,
                               PRBool aIsInsert);
 

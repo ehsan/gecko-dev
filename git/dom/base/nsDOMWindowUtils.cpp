@@ -655,7 +655,7 @@ nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener)
   }
 #endif
 
-  nsJSContext::CC(aListener, PR_TRUE);
+  nsJSContext::CC(aListener);
 
   return NS_OK;
 }

@@ -100,7 +100,7 @@ using mozilla::layout::RenderFrameParent;
 
 // For Accessibility
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 
@@ -131,7 +131,7 @@ nsSubDocumentFrame::nsSubDocumentFrame(nsStyleContext* aContext)
 already_AddRefed<nsAccessible>
 nsSubDocumentFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
   return accService ?
     accService->CreateOuterDocAccessible(mContent, PresContext()->PresShell()) :
     nsnull;

@@ -164,7 +164,7 @@ public:
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual PRUint32 NativeRole();
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual PRInt32 GetIndexInParent() const;
+  virtual PRInt32 GetIndexInParent() { return GetColumnIndex(); }
 
   // nsXULTreeGridCellAccessible
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_XULTREEGRIDCELLACCESSIBLE_IMPL_CID)

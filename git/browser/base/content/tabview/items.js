@@ -55,6 +55,7 @@
 //
 // ... and this property:
 //   defaultSize - a Point
+//   locked - an object (see below)
 //
 // Make sure to call _init() from your subclass's constructor.
 function Item() {
@@ -83,6 +84,15 @@ function Item() {
   // Variable: container
   // The outermost DOM element that describes this item on screen.
   this.container = null;
+
+  // Variable: locked
+  // Affects whether an item can be pushed, closed, renamed, etc
+  //
+  // The object may have properties to specify what can't be changed:
+  //   .bounds - true if it can't be pushed, dragged, resized, etc
+  //   .close - true if it can't be closed
+  //   .title - true if it can't be renamed
+  this.locked = null;
 
   // Variable: parent
   // The groupItem that this item is a child of
@@ -148,6 +158,7 @@ Item.prototype = {
     Utils.assert(typeof this.close == 'function', 'Subclass must provide close');
     Utils.assert(typeof this.save == 'function', 'Subclass must provide save');
     Utils.assert(Utils.isPoint(this.defaultSize), 'Subclass must provide defaultSize');
+    Utils.assert(this.locked, 'Subclass must provide locked');
     Utils.assert(Utils.isRect(this.bounds), 'Subclass must provide bounds');
 
     this.container = container;
@@ -350,7 +361,7 @@ Item.prototype = {
       var bbc = bb.center();
 
       items.forEach(function Item_pushAway_pushOne_pushEach(item) {
-        if (item == baseItem)
+        if (item == baseItem || item.locked.bounds)
           return;
 
         var data = item.pushAwayData;
@@ -413,7 +424,7 @@ Item.prototype = {
     var pageBounds = Items.getSafeWindowBounds();
     items.forEach(function Item_pushAway_squish(item) {
       var data = item.pushAwayData;
-      if (data.generation == 0)
+      if (data.generation == 0 || item.locked.bounds)
         return;
 
       let apply = function Item_pushAway_squish_apply(item, posStep, posStep2, sizeStep) {
@@ -1052,7 +1063,7 @@ let Items = {
     var pageBounds = Items.getSafeWindowBounds();
     pairs.forEach(function(pair) {
       var item = pair.item;
-      if (item == ignore)
+      if (item.locked.bounds || item == ignore)
         return;
 
       var bounds = pair.bounds;

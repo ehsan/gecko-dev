@@ -62,7 +62,7 @@
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 
 using namespace mozilla;
@@ -468,7 +468,8 @@ nsVideoFrame::GetType() const
 already_AddRefed<nsAccessible>
 nsVideoFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService =
+    do_GetService("@mozilla.org/accessibilityService;1");
   return accService ?
     accService->CreateHTMLMediaAccessible(mContent, PresContext()->PresShell()) :
     nsnull;

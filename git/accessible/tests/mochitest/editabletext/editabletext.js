@@ -36,7 +36,7 @@ function editableTextTest(aID)
   /**
    * setTextContents test.
    */
-  this.setTextContents = function setTextContents(aStr, aResValue)
+  this.setTextContents = function setTextContents(aStr)
   {
     var testID = "setTextContents '" + aStr + "' for " + prettyName(aID);
 
@@ -46,15 +46,15 @@ function editableTextTest(aID)
       acc.setTextContents(aStr);
     }
 
-    this.scheduleTest(aID, null, [0, aStr.length, aStr],
-                      setTextContentsInvoke, getValueChecker(aID, aResValue),
-                      testID);
+    this.sheduleTest(aID, null, [0, aStr.length, aStr],
+                     setTextContentsInvoke, getValueChecker(aID, aResValue),
+                     testID);
   }
 
   /**
    * insertText test.
    */
-  this.insertText = function insertText(aStr, aPos, aResStr, aResPos)
+  this.insertText = function insertText(aStr, aPos, aResStr)
   {
     var testID = "insertText '" + aStr + "' at " + aPos + " for " +
       prettyName(aID);
@@ -65,8 +65,7 @@ function editableTextTest(aID)
       acc.insertText(aStr, aPos);
     }
 
-    var resPos = (aResPos != undefined) ? aResPos : aPos;
-    this.scheduleTest(aID, null, [resPos, resPos + aStr.length, aStr],
+    this.scheduleTest(aID, null, [aPos, aPos + aStr.length, aStr],
                       insertTextInvoke, getValueChecker(aID, aResStr), testID);
   }
 
@@ -111,8 +110,7 @@ function editableTextTest(aID)
   /**
    * cutText test.
    */
-  this.cutText = function cutText(aStartPos, aEndPos, aResStr,
-                                  aResStartPos, aResEndPos)
+  this.cutText = function cutText(aStartPos, aEndPos, aResStr)
   {
     var testID = "cutText from " + aStartPos + " to " + aEndPos + " for " +
       prettyName(aID);
@@ -123,9 +121,7 @@ function editableTextTest(aID)
       acc.cutText(aStartPos, aEndPos);
     }
 
-    var resStartPos = (aResStartPos != undefined) ? aResStartPos : aStartPos;
-    var resEndPos = (aResEndPos != undefined) ? aResEndPos : aEndPos;
-    this.scheduleTest(aID, [resStartPos, resEndPos, getTextFromClipboard], null,
+    this.scheduleTest(aID, [aStartPos, aEndPos, getTextFromClipboard], null,
                       cutTextInvoke, getValueChecker(aID, aResStr), testID);
   }
 

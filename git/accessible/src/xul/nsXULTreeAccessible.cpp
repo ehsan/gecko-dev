@@ -987,12 +987,6 @@ nsXULTreeItemAccessibleBase::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-PRInt32
-nsXULTreeItemAccessibleBase::GetIndexInParent() const
-{
-  return mParent ? mParent->GetCachedChildCount() + mRow : -1;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessibleBase: nsAccessible protected methods
 

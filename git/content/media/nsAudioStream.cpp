@@ -287,7 +287,7 @@ class AudioShutdownEvent : public nsRunnable
   NS_IMETHOD Run()
   {
     if (mAudioChild->IsIPCOpen())
-      mAudioChild->SendShutdown();
+      PAudioChild::Send__delete__(mAudioChild);
     return NS_OK;
   }
   

@@ -206,7 +206,7 @@ class AccTextChangeEvent: public AccEvent
 {
 public:
   AccTextChangeEvent(nsAccessible* aAccessible, PRInt32 aStart,
-                     const nsAString& aModifiedText, PRBool aIsInserted,
+                     nsAString& aModifiedText, PRBool aIsInserted,
                      EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
   // AccEvent
