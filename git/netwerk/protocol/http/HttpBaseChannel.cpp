@@ -604,17 +604,13 @@ HttpBaseChannel::SetApplyConversion(bool value)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-HttpBaseChannel::DoApplyContentConversions(nsIStreamListener* aNextListener,
-                                           nsIStreamListener** aNewNextListener,
-                                           nsISupports *aCtxt)
+nsresult
+HttpBaseChannel::ApplyContentConversions()
 {
-  *aNewNextListener = nullptr;
-  nsCOMPtr<nsIStreamListener> nextListener = aNextListener;
   if (!mResponseHead)
     return NS_OK;
 
-  LOG(("HttpBaseChannel::DoApplyContentConversions [this=%p]\n", this));
+  LOG(("HttpBaseChannel::ApplyContentConversions [this=%p]\n", this));
 
   if (!mApplyConversion) {
     LOG(("not applying conversion per mApplyConversion\n"));
@@ -663,8 +659,8 @@ HttpBaseChannel::DoApplyContentConversions(nsIStreamListener* aNextListener,
       ToLowerCase(from);
       rv = serv->AsyncConvertData(from.get(),
                                   "uncompressed",
-                                  nextListener,
-                                  aCtxt,
+                                  mListener,
+                                  mListenerContext,
                                   getter_AddRefs(converter));
       if (NS_FAILED(rv)) {
         LOG(("Unexpected failure of AsyncConvertData %s\n", val));
@@ -672,15 +668,14 @@ HttpBaseChannel::DoApplyContentConversions(nsIStreamListener* aNextListener,
       }
 
       LOG(("converter removed '%s' content-encoding\n", val));
-      nextListener = converter;
+      mListener = converter;
     }
     else {
       if (val)
         LOG(("Unknown content encoding '%s', ignoring\n", val));
     }
   }
-  *aNewNextListener = nextListener;
-  NS_ADDREF(*aNewNextListener);
+
   return NS_OK;
 }
 

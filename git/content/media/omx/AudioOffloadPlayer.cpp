@@ -21,7 +21,6 @@
 #include "nsComponentManagerUtils.h"
 #include "nsITimer.h"
 #include "mozilla/dom/HTMLMediaElement.h"
-#include "VideoUtils.h"
 
 #include <binder/IPCThreadState.h>
 #include <stagefright/foundation/ADebug.h>
@@ -52,7 +51,7 @@ PRLogModuleInfo* gAudioOffloadPlayerLog;
 // When elapsed, the AudioSink is destroyed to allow the audio DSP to power down.
 static const uint64_t OFFLOAD_PAUSE_MAX_MSECS = 60000ll;
 
-AudioOffloadPlayer::AudioOffloadPlayer(MediaOmxCommonDecoder* aObserver) :
+AudioOffloadPlayer::AudioOffloadPlayer(MediaOmxDecoder* aObserver) :
   mObserver(aObserver),
   mInputBuffer(nullptr),
   mSampleRate(0),
@@ -198,8 +197,7 @@ status_t AudioOffloadPlayer::ChangeState(MediaDecoder::PlayState aState)
     case MediaDecoder::PLAY_STATE_PAUSED:
     case MediaDecoder::PLAY_STATE_SHUTDOWN:
       // Just pause here during play state shutdown as well to stop playing
-      // offload track immediately. Resources will be freed by
-      // MediaOmxCommonDecoder
+      // offload track immediately. Resources will be freed by MediaOmxDecoder
       Pause();
       break;
 
@@ -423,14 +421,14 @@ void AudioOffloadPlayer::NotifyAudioEOS()
 void AudioOffloadPlayer::NotifyPositionChanged()
 {
   nsCOMPtr<nsIRunnable> nsEvent = NS_NewRunnableMethod(mObserver,
-      &MediaOmxCommonDecoder::PlaybackPositionChanged);
+      &MediaOmxDecoder::PlaybackPositionChanged);
   NS_DispatchToMainThread(nsEvent);
 }
 
 void AudioOffloadPlayer::NotifyAudioTearDown()
 {
   nsCOMPtr<nsIRunnable> nsEvent = NS_NewRunnableMethod(mObserver,
-      &MediaOmxCommonDecoder::AudioOffloadTearDown);
+      &MediaOmxDecoder::AudioOffloadTearDown);
   NS_DispatchToMainThread(nsEvent);
 }
 

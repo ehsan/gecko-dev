@@ -520,6 +520,19 @@ enum InitState { Uninitialized, Running, ShutDown };
 static InitState jsInitState = Uninitialized;
 
 #ifdef DEBUG
+static void
+CheckMessageNumbering()
+{
+    // Assert that the numbers associated with the error names in js.msg are
+    // monotonically increasing.  It's not a compile-time check, but it's
+    // better than nothing.
+    int errorNumber = 0;
+# define MSG_DEF(name, number, count, exception, format)                      \
+    JS_ASSERT(name == errorNumber++);
+# include "js.msg"
+# undef MSG_DEF
+}
+
 static unsigned
 MessageParameterCount(const char *format)
 {
@@ -536,8 +549,10 @@ CheckMessageParameterCounts()
 {
     // Assert that each message format has the correct number of braced
     // parameters.
-# define MSG_DEF(name, count, exception, format)           \
-        JS_ASSERT(MessageParameterCount(format) == count);
+# define MSG_DEF(name, number, count, exception, format)                      \
+    JS_BEGIN_MACRO                                                            \
+        JS_ASSERT(MessageParameterCount(format) == count);                    \
+    JS_END_MACRO;
 # include "js.msg"
 # undef MSG_DEF
 }
@@ -555,6 +570,7 @@ JS_Init(void)
     PRMJ_NowInit();
 
 #ifdef DEBUG
+    CheckMessageNumbering();
     CheckMessageParameterCounts();
 #endif
 

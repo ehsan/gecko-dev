@@ -758,9 +758,6 @@ public:
                      MediaInfo* aInfo,
                      MetadataTags* aTags);
 
-  int64_t GetSeekTime() { return mRequestedSeekTarget.mTime; }
-  void ResetSeekTime() { mRequestedSeekTarget.Reset(); }
-
   /******
    * The following methods must only be called on the main
    * thread.

@@ -735,7 +735,8 @@ const CustomizableWidgets = [{
     maybeDisableMenu: function(aDocument) {
       let window = aDocument.defaultView;
       return !(window.gBrowser &&
-               window.gBrowser.selectedBrowser.mayEnableCharacterEncodingMenu);
+               window.gBrowser.docShell &&
+               window.gBrowser.docShell.mayEnableCharacterEncodingMenu);
     },
     populateList: function(aDocument, aContainerId, aSection) {
       let containerElem = aDocument.getElementById(aContainerId);
@@ -755,7 +756,8 @@ const CustomizableWidgets = [{
       }
     },
     updateCurrentCharset: function(aDocument) {
-      let currentCharset = aDocument.defaultView.gBrowser.selectedBrowser.characterSet;
+      let content = aDocument.defaultView.content;
+      let currentCharset = content && content.document && content.document.characterSet;
       currentCharset = CharsetMenu.foldCharset(currentCharset);
 
       let pinnedContainer = aDocument.getElementById("PanelUI-characterEncodingView-pinned");

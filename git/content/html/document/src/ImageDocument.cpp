@@ -113,14 +113,12 @@ ImageListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
     return NS_OK;
   }
 
-  if (!imgDoc->mObservingImageLoader) {
-    nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(imgDoc->mImageContent);
-    NS_ENSURE_TRUE(imageLoader, NS_ERROR_UNEXPECTED);
+  nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(imgDoc->mImageContent);
+  NS_ENSURE_TRUE(imageLoader, NS_ERROR_UNEXPECTED);
 
-    imageLoader->AddObserver(imgDoc);
-    imgDoc->mObservingImageLoader = true;
-    imageLoader->LoadImageWithChannel(channel, getter_AddRefs(mNextStream));
-  }
+  imageLoader->AddObserver(imgDoc);
+  imgDoc->mObservingImageLoader = true;
+  imageLoader->LoadImageWithChannel(channel, getter_AddRefs(mNextStream));
 
   return MediaDocumentStreamListener::OnStartRequest(request, ctxt);
 }
@@ -386,14 +384,12 @@ ImageDocument::ScrollImageTo(int32_t aX, int32_t aY, bool restoreImage)
   }
 
   nsCOMPtr<nsIPresShell> shell = GetShell();
-  if (!shell) {
+  if (!shell)
     return;
-  }
 
   nsIScrollableFrame* sf = shell->GetRootScrollFrameAsScrollable();
-  if (!sf) {
+  if (!sf)
     return;
-  }
 
   nsRect portRect = sf->GetScrollPortRect();
   sf->ScrollTo(nsPoint(nsPresContext::CSSPixelsToAppUnits(aX/ratio) - portRect.width/2,

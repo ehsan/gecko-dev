@@ -106,8 +106,7 @@ MediaCodecReader::VideoResourceListener::codecCanceled()
   }
 }
 
-bool
-MediaCodecReader::TrackInputCopier::Copy(MediaBuffer* aSourceBuffer, sp<ABuffer> aCodecBuffer)
+bool MediaCodecReader::TrackInputCopier::Copy(MediaBuffer* aSourceBuffer, sp<ABuffer> aCodecBuffer)
 {
   if (aSourceBuffer == nullptr ||
       aCodecBuffer == nullptr ||
@@ -133,8 +132,7 @@ MediaCodecReader::Track::Track()
 // Append the value of |kKeyValidSamples| to the end of each vorbis buffer.
 // https://github.com/mozilla-b2g/platform_frameworks_av/blob/master/media/libstagefright/OMXCodec.cpp#L3128
 // https://github.com/mozilla-b2g/platform_frameworks_av/blob/master/media/libstagefright/NuMediaExtractor.cpp#L472
-bool
-MediaCodecReader::VorbisInputCopier::Copy(MediaBuffer* aSourceBuffer, sp<ABuffer> aCodecBuffer)
+bool MediaCodecReader::VorbisInputCopier::Copy(MediaBuffer* aSourceBuffer, sp<ABuffer> aCodecBuffer)
 {
   if (aSourceBuffer == nullptr ||
       aCodecBuffer == nullptr ||
@@ -178,7 +176,7 @@ MediaCodecReader::CodecBufferInfo::CodecBufferInfo()
 }
 
 MediaCodecReader::MediaCodecReader(AbstractMediaDecoder* aDecoder)
-  : MediaOmxCommonReader(aDecoder)
+  : MediaDecoderReader(aDecoder)
   , mColorConverterBufferSize(0)
 {
   mHandler = new MessageHandler(this);
@@ -429,10 +427,6 @@ MediaCodecReader::ReadMetadata(MediaInfo* aInfo,
     return NS_ERROR_FAILURE;
   }
 
-#ifdef MOZ_AUDIO_OFFLOAD
-  CheckAudioOffload();
-#endif
-
   if (IsWaitingMediaResources()) {
     return NS_OK;
   }
@@ -528,12 +522,6 @@ MediaCodecReader::IsMediaSeekable()
 {
   // Check the MediaExtract flag if the source is seekable.
   return (mExtractor != nullptr) && (mExtractor->flags() & MediaExtractor::CAN_SEEK);
-}
-
-android::sp<android::MediaSource>
-MediaCodecReader::GetAudioOffloadTrack()
-{
-  return mAudioOffloadTrack.mSource;
 }
 
 bool
@@ -687,8 +675,6 @@ MediaCodecReader::CreateMediaSources()
     if (audioSource != nullptr && audioSource->start() == OK) {
       mAudioTrack.mSource = audioSource;
     }
-    // Get one another track instance for audio offload playback.
-    mAudioOffloadTrack.mSource = mExtractor->getTrack(audioTrackIndex);
   }
 
   if (videoTrackIndex != invalidTrackIndex && mVideoTrack.mSource == nullptr) {
@@ -708,7 +694,6 @@ MediaCodecReader::DestroyMediaSources()
 {
   mAudioTrack.mSource = nullptr;
   mVideoTrack.mSource = nullptr;
-  mAudioOffloadTrack.mSource = nullptr;
 }
 
 bool
@@ -1241,6 +1226,8 @@ MediaCodecReader::onMessageReceived(const sp<AMessage> &aMessage)
       ReleaseCriticalResources();
       break;
     }
+
+    // TODO
 
     default:
       TRESPASS();
