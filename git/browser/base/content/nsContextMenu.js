@@ -418,7 +418,7 @@ nsContextMenu.prototype = {
     this.showItem("context-media-unmute", onMedia && this.target.muted);
     this.showItem("context-media-showcontrols", onMedia && !this.target.controls);
     this.showItem("context-media-hidecontrols", onMedia && this.target.controls);
-    this.showItem("context-video-fullscreen", this.onVideo && this.target.ownerDocument.mozFullScreenElement == null);
+    this.showItem("context-video-fullscreen", this.onVideo);
     var statsShowing = this.onVideo && this.target.wrappedJSObject.mozMediaStatisticsShowing;
     this.showItem("context-video-showstats", this.onVideo && this.target.controls && !statsShowing);
     this.showItem("context-video-hidestats", this.onVideo && this.target.controls && statsShowing);
@@ -859,15 +859,10 @@ nsContextMenu.prototype = {
   },
 
   fullScreenVideo: function () {
-    let video = this.target;
-    if (document.mozFullScreenEnabled)
-      video.mozRequestFullScreen();
-    else {
-      // Fallback for the legacy full-screen video implementation.
-      video.pause();
-      openDialog("chrome://browser/content/fullscreen-video.xhtml",
-                  "", "chrome,centerscreen,dialog=no", video);
-    }
+    this.target.pause();
+
+    openDialog("chrome://browser/content/fullscreen-video.xhtml",
+               "", "chrome,centerscreen,dialog=no", this.target);
   },
 
   // Change current window to the URL of the background image.

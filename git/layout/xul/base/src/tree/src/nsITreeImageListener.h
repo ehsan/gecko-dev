@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,18 +11,21 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Communicator client code.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
  * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
+ * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   Dave Hyatt <hyatt@mozilla.org> (Original Author)
+ *   Jan Varga <varga@ku.sk>
+ *   Scott Johnson <sjohnson@mozilla.com>, Mozilla Corporation
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -35,33 +37,28 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-//
-// Eric Vaughan
-// Netscape Communications
-//
-// See documentation in associated header file
-//
+#ifndef nsITreeImageListener_h__
+#define nsITreeImageListener_h__
 
-#include "nsBoxLayoutState.h"
+// The interface for our image listener.
+// {90586540-2D50-403e-8DCE-981CAA778444}
+#define NS_ITREEIMAGELISTENER_IID \
+{ 0x90586540, 0x2d50, 0x403e, { 0x8d, 0xce, 0x98, 0x1c, 0xaa, 0x77, 0x84, 0x44 } }
 
-nsBoxLayoutState::nsBoxLayoutState(nsPresContext* aPresContext,
-                                   nsRenderingContext* aRenderingContext,
-                                   PRUint16 aReflowDepth)
-  : mPresContext(aPresContext)
-  , mRenderingContext(aRenderingContext)
-  , mLayoutFlags(0)
-  , mReflowDepth(aReflowDepth)
-  , mPaintingDisabled(false)
+class nsITreeImageListener : public nsISupports
 {
-  NS_ASSERTION(mPresContext, "PresContext must be non-null");
-}
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ITREEIMAGELISTENER_IID)
 
-nsBoxLayoutState::nsBoxLayoutState(const nsBoxLayoutState& aState)
-  : mPresContext(aState.mPresContext)
-  , mRenderingContext(aState.mRenderingContext)
-  , mLayoutFlags(aState.mLayoutFlags)
-  , mReflowDepth(aState.mReflowDepth + 1)
-  , mPaintingDisabled(aState.mPaintingDisabled)
-{
-  NS_ASSERTION(mPresContext, "PresContext must be non-null");
-}
+  NS_IMETHOD AddCell(PRInt32 aIndex, nsITreeColumn* aCol) = 0;
+
+  /**
+   * Clear the internal frame pointer to prevent dereferencing an object
+   * that no longer exists.
+   */
+  NS_IMETHOD ClearFrame() = 0;
+};
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsITreeImageListener, NS_ITREEIMAGELISTENER_IID)
+
+#endif

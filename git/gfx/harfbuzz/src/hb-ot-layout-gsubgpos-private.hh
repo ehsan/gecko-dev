@@ -126,26 +126,25 @@ static inline bool match_input (hb_apply_context_t *c,
 				const void *match_data,
 				unsigned int *context_length_out)
 {
-  unsigned int i;
-  unsigned int j = c->buffer->i;
-  unsigned int end = MIN (c->buffer->len, j + c->context_length);
-  if (unlikely (j + count > end))
+  unsigned int i, j;
+  unsigned int end = MIN (c->buffer->len, c->buffer->i + c->context_length);
+  if (unlikely (c->buffer->i + count > end))
     return false;
 
-  for (i = 1; i < count; i++)
+  for (i = 1, j = c->buffer->i + 1; i < count; i++, j++)
   {
-    do
+    while (_hb_ot_layout_skip_mark (c->layout->face, &c->buffer->info[j], c->lookup_props, NULL))
     {
-      j++;
-      if (unlikely (j >= end))
+      if (unlikely (j + count - i == end))
 	return false;
-    } while (_hb_ot_layout_skip_mark (c->layout->face, &c->buffer->info[j], c->lookup_props, NULL));
+      j++;
+    }
 
     if (likely (!match_func (c->buffer->info[j].codepoint, input[i - 1], match_data)))
       return false;
   }
 
-  *context_length_out = j - c->buffer->i + 1;
+  *context_length_out = j - c->buffer->i;
 
   return true;
 }
@@ -156,16 +155,17 @@ static inline bool match_backtrack (hb_apply_context_t *c,
 				    match_func_t match_func,
 				    const void *match_data)
 {
-  unsigned int j = c->buffer->backtrack_len ();
+  if (unlikely (c->buffer->backtrack_len () < count))
+    return false;
 
-  for (unsigned int i = 0; i < count; i++)
+  for (unsigned int i = 0, j = c->buffer->backtrack_len () - 1; i < count; i++, j--)
   {
-    do
+    while (_hb_ot_layout_skip_mark (c->layout->face, &c->buffer->out_info[j], c->lookup_props, NULL))
     {
-      if (unlikely (!j))
+      if (unlikely (j + 1 == count - i))
 	return false;
       j--;
-    } while (_hb_ot_layout_skip_mark (c->layout->face, &c->buffer->out_info[j], c->lookup_props, NULL));
+    }
 
     if (likely (!match_func (c->buffer->out_info[j].codepoint, backtrack[i], match_data)))
       return false;
@@ -181,18 +181,19 @@ static inline bool match_lookahead (hb_apply_context_t *c,
 				    const void *match_data,
 				    unsigned int offset)
 {
-  unsigned int i;
-  unsigned int j = c->buffer->i + offset - 1;
+  unsigned int i, j;
   unsigned int end = MIN (c->buffer->len, c->buffer->i + c->context_length);
+  if (unlikely (c->buffer->i + offset + count > end))
+    return false;
 
-  for (i = 0; i < count; i++)
+  for (i = 0, j = c->buffer->i + offset; i < count; i++, j++)
   {
-    do
+    while (_hb_ot_layout_skip_mark (c->layout->face, &c->buffer->info[j], c->lookup_props, NULL))
     {
-      j++;
-      if (unlikely (j >= end))
+      if (unlikely (j + count - i == end))
 	return false;
-    } while (_hb_ot_layout_skip_mark (c->layout->face, &c->buffer->info[j], c->lookup_props, NULL));
+      j++;
+    }
 
     if (likely (!match_func (c->buffer->info[j].codepoint, lookahead[i], match_data)))
       return false;
