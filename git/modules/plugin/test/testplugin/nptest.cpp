@@ -38,7 +38,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #define PLUGIN_NAME        "Test Plug-in"
 #define PLUGIN_DESCRIPTION "Plug-in for testing purposes."
