@@ -10,13 +10,12 @@
 #include "nsIRadioInterfaceLayer.h"
 #include "nsTArray.h"
 #include "nsString.h"
-#include "mozilla/Attributes.h"
 
 namespace mozilla {
 namespace dom {
 namespace mobilemessage {
 
-class SmsService MOZ_FINAL : public nsISmsService
+class SmsService : public nsISmsService
 {
 public:
   NS_DECL_ISUPPORTS

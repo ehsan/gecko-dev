@@ -140,3 +140,6 @@ interface nsICache
     const unsigned long NO_EXPIRATION_TIME = 0xFFFFFFFF;
 };
 
+%{C++
+#include "nsError.h"
+%}

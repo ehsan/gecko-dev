@@ -9,9 +9,21 @@
 
 #include "HttpChannelParentListener.h"
 #include "mozilla/net/HttpChannelParent.h"
+#include "mozilla/dom/TabParent.h"
+#include "mozilla/net/NeckoParent.h"
 #include "mozilla/unused.h"
+#include "nsHttpChannel.h"
+#include "nsHttpHandler.h"
+#include "nsNetUtil.h"
+#include "nsISupportsPriority.h"
+#include "nsIAuthPromptProvider.h"
+#include "nsSerializationHelper.h"
+#include "nsISerializable.h"
+#include "nsIAssociatedContentSecurity.h"
+#include "nsISecureBrowserUI.h"
 #include "nsIRedirectChannelRegistrar.h"
-#include "nsIHttpEventSink.h"
+
+#include "nsIFTPChannel.h"
 
 using mozilla::unused;
 

@@ -13,7 +13,6 @@
 #include "SpdySession3.h"
 #include "nsHttpHandler.h"
 #include "nsIConsoleService.h"
-#include "nsHttpRequestHead.h"
 
 using namespace mozilla;
 using namespace mozilla::net;
