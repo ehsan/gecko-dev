@@ -136,12 +136,6 @@ typedef char*         NPMIMEType;
 /*                       Structures and definitions                     */
 /*----------------------------------------------------------------------*/
 
-#if !defined(__LP64__)
-#if defined(XP_MAC) || defined(XP_MACOSX)
-#pragma options align=mac68k
-#endif
-#endif /* __LP64__ */
-
 /*
  *  NPP is a plug-in's opaque instance handle
  */
@@ -516,11 +510,6 @@ enum NPEventType {
 
 #define NP_MAXREADY (((unsigned)(~0)<<1)>>1)
 
-#if !defined(__LP64__)
-#if defined(XP_MAC) || defined(XP_MACOSX)
-#pragma options align=reset
-#endif
-#endif /* __LP64__ */
 
 /*----------------------------------------------------------------------*/
 /*       Error and Reason Code definitions                              */

@@ -39,6 +39,7 @@
 
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
+#include "nsIImage.h"
 #include "nsIFrame.h"
 #include "nsPoint.h"
 #include "nsRect.h"
@@ -55,6 +56,7 @@
 #include "nsIScrollableFrame.h"
 #include "imgIRequest.h"
 #include "imgIContainer.h"
+#include "gfxIImageFrame.h"
 #include "nsCSSRendering.h"
 #include "nsCSSColorUtils.h"
 #include "nsITheme.h"

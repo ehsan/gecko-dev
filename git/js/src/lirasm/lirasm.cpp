@@ -58,28 +58,39 @@
 #include "nanojit/nanojit.h"
 #include "jstracer.h"
 
+using namespace avmplus;
 using namespace nanojit;
 using namespace std;
 
-static avmplus::GC gc;
-
-struct LasmSideExit : public SideExit {
-    size_t line;
-};
+static GC gc;
+static avmplus::AvmCore s_core;
+static avmplus::AvmCore* core = &s_core;
+Fragment *frag;
 
 typedef JS_FASTCALL int32_t (*RetInt)();
 typedef JS_FASTCALL double (*RetFloat)();
-typedef JS_FASTCALL GuardRecord* (*RetGuard)();
+
+struct Rfunc {
+    union {
+        RetFloat rfloat;
+        RetInt rint;
+    };
+    bool isFloat;
+    Fragment *fragptr;
+};
+typedef map<string, Rfunc> Fragments;
+
+struct Pipeline {
+    LirWriter *lir;
+    LirBufWriter *w;
+    LirWriter *cse_filter;
+    LirWriter *expr_filter;
+    LirWriter *verb;
+};
 
 struct Function {
     const char *name;
     struct nanojit::CallInfo callInfo;
-};
-
-enum ReturnType {
-    RT_INT32 = 1,
-    RT_FLOAT = 2,
-    RT_GUARD = 4
 };
 
 #ifdef DEBUG
@@ -105,80 +116,6 @@ const int PTRRET =
     nanojit::ARGSIZE_LO
 #endif
     ;
-
-class LirasmFragment {
-public:
-    union {
-        RetFloat rfloat;
-        RetInt rint;
-        RetGuard rguard;
-    };
-    ReturnType mReturnType;
-    Fragment *fragptr;
-    map<string, LIns*> mLabels;
-};
-
-typedef map<string, LirasmFragment> Fragments;
-
-class Lirasm {
-public:
-    Fragmento *mFragmento;
-    LirBuffer *mLirbuf;
-    LogControl mLogc;
-    bool mVerbose;
-    avmplus::AvmCore s_core;
-    Fragments mFragments;
-    vector<CallInfo*> mCallInfos;
-
-    Lirasm(bool verbose);
-    ~Lirasm();
-};
-
-class LirasmAssembler {
-private:
-    Lirasm *mParent;
-    Fragment *mFragment;
-    string mFragName;
-    map<string, LIns*> mLabels;
-    LirWriter *mLir;
-    LirBufWriter *mBufWriter;
-    LirWriter *mCseFilter;
-    LirWriter *mExprFilter;
-    LirWriter *mVerboseWriter;
-    multimap<string, LIns *> mFwdJumps;
-    map<string,pair<LOpcode,size_t> > op_map;
-
-    size_t mLineno;
-    LOpcode mOpcode;
-    size_t mOpcount;
-
-    bool mInFrag;
-
-    char mReturnTypeBits;
-    vector<string> mTokens;
-
-    void lookupFunction(const char*, CallInfo *&);
-    void need(size_t);
-    istream& read_and_tokenize_line(istream&);
-    void tokenize(string const &tok_sep);
-    LIns *ref(string const &);
-    LIns *do_skip(size_t);
-    LIns *assemble_call(string &);
-    LIns *assemble_general();
-    LIns *assemble_guard();
-    LIns *assemble_jump();
-    LIns *assemble_load();
-    void bad(string const &msg);
-    void beginFragment();
-    void endFragment();
-    void extract_any_label(string &op, string &lab, char lab_delim);
-    void patch();
-
-public:
-    LirasmAssembler(Lirasm &);
-    void assemble(istream &);
-};
-
 Function functions[] = {
     FN(puts, I32 | (PTRARG<<2)),
     FN(sin, F64 | (F64<<2)),
@@ -187,42 +124,46 @@ Function functions[] = {
 };
 
 void
-LirasmAssembler::lookupFunction(const char *name, CallInfo *&ci)
+lookupFunction(const char *name,
+               const Fragments &frags,
+               CallInfo *&ci)
 {
     const size_t nfuns = sizeof(functions) / sizeof(functions[0]);
+    Fragments::const_iterator func;
+
     for (size_t i = 0; i < nfuns; i++)
         if (strcmp(name, functions[i].name) == 0) {
             *ci = functions[i].callInfo;
             return;
         }
 
-    Fragments::const_iterator func = mParent->mFragments.find(name);
-    if (func != mParent->mFragments.end()) {
-        if (func->second.mReturnType == RT_FLOAT) {
-            CallInfo target = {(uintptr_t) func->second.rfloat, ARGSIZE_F, 0,
-                               0, nanojit::ABI_FASTCALL, func->first.c_str()};
-            *ci = target;
+    if ((func = frags.find(name)) != frags.end()) {
+        if (func->second.isFloat) {
+            CallInfo FragCall = {(uintptr_t) func->second.rfloat, ARGSIZE_F, 0,
+                                 0, nanojit::ABI_FASTCALL, func->first.c_str()};
+            *ci = FragCall;
 
         } else {
-            CallInfo target = {(uintptr_t) func->second.rint, ARGSIZE_LO, 0,
-                               0, nanojit::ABI_FASTCALL, func->first.c_str()};
-            *ci = target;
+            CallInfo FragCall = {(uintptr_t) func->second.rint, ARGSIZE_LO, 0,
+                                 0, nanojit::ABI_FASTCALL, func->first.c_str()};
+            *ci = FragCall;
         }
-    } else {
-    ci = NULL;
+
+        return;
     }
+    ci = NULL;
 }
 
 istream &
-LirasmAssembler::read_and_tokenize_line(istream &in)
+read_and_tokenize_line(istream &in, vector<string> &toks, size_t &linenum)
 {
     char buf[1024];
     string tok_sep(" \n\t");
 
-    mTokens.clear();
+    toks.clear();
 
     if (in.getline(buf,sizeof(buf))) {
-        ++mLineno;
+        ++linenum;
         string line(buf);
 
         size_t comment = line.find("//");
@@ -237,10 +178,10 @@ LirasmAssembler::read_and_tokenize_line(istream &in)
               (end = line.find_first_of(tok_sep, start)) != string::npos) {
             string ss = line.substr(start, (end-start));
             if (ss == "=") {
-                mTokens[mTokens.size()-1] += ss;
+                toks[toks.size()-1] += ss;
                 continue;
             }
-            mTokens.push_back(ss);
+            toks.push_back(ss);
         }
     }
     return in;
@@ -298,97 +239,125 @@ pop_front(vector<t> &vec)
 }
 
 void
-LirasmAssembler::bad(string const &msg)
+bad(string const &msg, size_t insn)
 {
-    cerr << "instruction " << mLineno << ": " <<  msg << endl;
+    cerr << "instruction " << insn << ": " <<  msg << endl;
     exit(1);
 }
 
 void
-LirasmAssembler::need(size_t n)
+need(vector<string> const &toks, size_t need, size_t line)
 {
-    if (mTokens.size() != n)
-        bad("need " + lexical_cast<string>(n)
-            + " tokens, have " + lexical_cast<string>(mTokens.size()));
+    if (toks.size() != need)
+        bad("need " + lexical_cast<string>(need)
+            + " tokens, have " + lexical_cast<string>(toks.size()), line);
 }
 
 LIns*
-LirasmAssembler::ref(string const &lab)
+ref(map<string,LIns*> const &labels,
+    string const &lab,
+    size_t line)
 {
-    if (mLabels.find(lab) == mLabels.end())
-        bad("unknown label '" + lab + "'");
-    return mLabels.find(lab)->second;
+    if (labels.find(lab) == labels.end())
+        bad("unknown label '" + lab + "'", line);
+    return labels.find(lab)->second;
 }
 
 LIns*
-LirasmAssembler::do_skip(size_t i)
+do_skip(LirWriter *lir,
+        size_t i)
 {
-    LIns *s = mLir->insSkip(i);
+    LIns *s = lir->insSkip(i);
     memset(s->payload(), 0xba, i);
     return s;
 }
 
 LIns*
-LirasmAssembler::assemble_jump()
+assemble_jump(LOpcode opcode,
+              vector<string> &toks,
+              LirWriter *lir,
+              map<string,LIns*> &labels,
+              multimap<string,LIns*> &fwd_jumps,
+              size_t line)
 {
     LIns *target = NULL;
     LIns *condition = NULL;
 
-    if (mOpcode == LIR_j) {
-        need(1);
+    if (opcode == LIR_j) {
+        need(toks, 1, line);
     } else {
-        need(2);
-        string cond = pop_front(mTokens);
-        condition = ref(cond);
+        need(toks, 2, line);
+        string cond = pop_front(toks);
+        condition = ref(labels, cond, line);
     }
-    string name = pop_front(mTokens);
-    if (mLabels.find(name) != mLabels.end()) {
-        target = ref(name);
-        return mLir->insBranch(mOpcode, condition, target);
+    string targ = pop_front(toks);
+    if (labels.find(targ) != labels.end()) {
+        target = ref(labels, targ, line);
+        return lir->insBranch(opcode, condition, target);
     } else {
-        LIns *ins = mLir->insBranch(mOpcode, condition, target);
-        mFwdJumps.insert(make_pair(name, ins));
+        LIns *ins = lir->insBranch(opcode, condition, target);
+        fwd_jumps.insert(make_pair(targ, ins));
         return ins;
     }
 }
 
 LIns*
-LirasmAssembler::assemble_load()
+assemble_load(LOpcode opcode,
+              vector<string> &toks,
+              LirWriter *lir,
+              map<string,LIns*> const &labels,
+              size_t line)
 {
     // Support implicit immediate-as-second-operand modes
     // since, unlike sti/stqi, no immediate-displacement
     // load opcodes were defined in LIR.
-    need(2);
-    if (mTokens[1].find("0x") == 0 ||
-        mTokens[1].find("0x") == 0 ||
-        mTokens[1].find_first_of("0123456789") == 0) {
-        return mLir->insLoad(mOpcode,
-                            ref(mTokens[0]),
-                            imm(mTokens[1]));
+    need(toks, 2, line);
+    if (toks[1].find("0x") == 0 ||
+        toks[1].find("0x") == 0 ||
+        toks[1].find_first_of("0123456789") == 0) {
+        return lir->insLoad(opcode,
+                            ref(labels, toks[0], line),
+                            imm(toks[1]));
+    } else {
+        return lir->insLoad(opcode,
+                            ref(labels, toks[0], line),
+                            ref(labels, toks[1], line));
     }
-    bad("immediate offset required for load");
-    return NULL;  // not reached
 }
 
 LIns*
-LirasmAssembler::assemble_call(string &op)
+assemble_call(string const &op,
+              LOpcode opcode,
+              vector<string> &toks,
+              LirWriter *lir,
+              map<string,LIns*> const &labels,
+              vector<CallInfo*> &callinfos,
+              size_t line,
+              const Fragments &frags)
 {
     CallInfo *ci = new CallInfo();
-    mParent->mCallInfos.push_back(ci);
+    callinfos.push_back(ci);
     LIns* args[MAXARGS];
 
-    // Assembler syntax for a call:
+    // Assembler synax for a call:
     //
     //   call 0x1234 fastcall a b c
     //
     // requires at least 2 args,
     // fn address immediate and ABI token.
+    //
+    // FIXME: This should eventually be changed to handle calls to
+    // real C runtime library functions registered with lirasm on
+    // startup, when and if there's a load-and-go execution mode for
+    // it. For the time being it only dumps out s-records for
+    // diagnostics, so we don't bother linking in real function
+    // pointers yet.
 
-    if (mTokens.size() < 2)
-        bad("need at least address and ABI code for " + op);
+    if (toks.size() < 2)
+        bad("need at least address and ABI code for " + op, line);
 
-    string func = pop_front(mTokens);
-    string abi = pop_front(mTokens);
+    string func = pop_front(toks);
+    string abi = pop_front(toks);
 
     AbiKind _abi;
     if (abi == "fastcall")
@@ -400,11 +369,11 @@ LirasmAssembler::assemble_call(string &op)
     else if (abi == "cdecl")
         _abi = ABI_CDECL;
     else
-        bad("call abi name '" + abi + "'");
+        bad("call abi name '" + abi + "'", line);
     ci->_abi = _abi;
 
-    if (mTokens.size() > MAXARGS)
-    bad("too many args to " + op);
+    if (toks.size() > MAXARGS)
+    bad("too many args to " + op, line);
 
     if (func.find("0x") == 0) {
         ci->_address = imm(func);
@@ -417,17 +386,17 @@ LirasmAssembler::assemble_call(string &op)
 #endif
 
     } else {
-        lookupFunction(func.c_str(), ci);
+        lookupFunction(func.c_str(), frags, ci);
         if (ci == NULL)
-            bad("invalid function reference " + func);
+            bad("invalid function reference " + func, line);
         if (_abi != ci->_abi)
-            bad("invalid calling convention for " + func);
+            bad("invalid calling convention for " + func, line);
     }
 
     ci->_argtypes = 0;
 
-    for (size_t i = 0; i < mTokens.size(); ++i) {
-        args[i] = ref(mTokens[mTokens.size() - (i+1)]);
+    for (size_t i = 0; i < toks.size(); ++i) {
+        args[i] = ref(labels, toks[toks.size() - (i+1)], line);
         ci->_argtypes |= args[i]->isQuad() ? ARGSIZE_F : ARGSIZE_LO;
         ci->_argtypes <<= 2;
     }
@@ -435,76 +404,43 @@ LirasmAssembler::assemble_call(string &op)
     // Select return type from opcode.
     // FIXME: callh needs special treatment currently
     // missing from here.
-    if (mOpcode == LIR_call)
+    if (opcode == LIR_call)
         ci->_argtypes |= ARGSIZE_LO;
     else
         ci->_argtypes |= ARGSIZE_F;
 
-    return mLir->insCall(ci, args);
+    return lir->insCall(ci, args);
 }
 
 LIns*
-LirasmAssembler::assemble_guard()
+assemble_general(size_t opcount,
+                 LOpcode opcode,
+                 vector<string> &toks,
+                 LirWriter *lir,
+                 map<string,LIns*> const &labels,
+                 size_t line)
 {
-    LIns *exitIns = do_skip(sizeof(LasmSideExit));
-    LasmSideExit* exit = (LasmSideExit*) exitIns->payload();
-    memset(exit, 0, sizeof(LasmSideExit));
-    exit->from = mFragment;
-    exit->target = NULL;
-    exit->line = mLineno;
-
-    LIns *guardRec = do_skip(sizeof(GuardRecord));
-    GuardRecord *rec = (GuardRecord*) guardRec->payload();
-    memset(rec, 0, sizeof(GuardRecord));
-    rec->exit = exit;
-    exit->addGuard(rec);
-
-    need(mOpcount);
-
-    if (mOpcode != LIR_loop)
-        mReturnTypeBits |= RT_GUARD;
-
-    LIns *ins_cond;
-    if (mOpcode == LIR_xt || mOpcode == LIR_xf)
-        ins_cond = ref(pop_front(mTokens));
-    else
-        ins_cond = mLir->insImm(1);
-
-    if (!mTokens.empty())
-        bad("too many arguments");
-
-    return mLir->insGuard(mOpcode, ins_cond, guardRec);
-}
-
-LIns*
-LirasmAssembler::assemble_general()
-{
-    if (mOpcount == 0) {
+    if (opcount == 0) {
         // 0-ary ops may, or may not, have an immediate
         // thing wedged in them; depends on the op. We
         // are lax and set it if it's provided.
-        LIns *ins = mLir->ins0(mOpcode);
-        if (mTokens.size() > 0) {
-            assert(mTokens.size() == 1);
-            ins->initLInsI(mOpcode, imm(mTokens[0]));
+        LIns *ins = lir->ins0(opcode);
+        if (toks.size() > 0) {
+            assert(toks.size() == 1);
+            ins->setImm(opcode, imm(toks[0]));
         }
         return ins;
     } else {
-        need(mOpcount);
-        if (mOpcount == 1) {
-            if (mOpcode == LIR_ret)
-                mReturnTypeBits |= RT_INT32;
-            if (mOpcode == LIR_fret)
-                mReturnTypeBits |= RT_FLOAT;
-
-            return mLir->ins1(mOpcode,
-                             ref(mTokens[0]));
-        } else if (mOpcount == 2) {
-            return mLir->ins2(mOpcode,
-                             ref(mTokens[0]),
-                             ref(mTokens[1]));
+        need(toks, opcount, line);
+        if (opcount == 1) {
+            return lir->ins1(opcode,
+                             ref(labels, toks[0], line));
+        } else if (opcount == 2) {
+            return lir->ins2(opcode,
+                             ref(labels, toks[0], line),
+                             ref(labels, toks[1], line));
         } else {
-            bad("too many operands");
+            bad("too many operands", line);
         }
     }
     // Never get here.
@@ -576,75 +512,86 @@ dump_srecords(ostream &out, Fragment *frag)
 }
 
 void
-LirasmAssembler::extract_any_label(string &op,
-                                   string &lab,
-                                   char lab_delim)
+extract_any_label(string &op,
+                  vector<string> &toks,
+                  string &lab,
+                  map<string,LIns*> const &labels,
+                  size_t line,
+                  char lab_delim)
 {
     if (op.size() > 1 &&
         op[op.size()-1] == lab_delim &&
-        !mTokens.empty()) {
+        !toks.empty()) {
 
         lab = op;
-        op = pop_front(mTokens);
+        op = pop_front(toks);
         lab.erase(lab.size()-1);
 
-        if (mLabels.find(lab) != mLabels.end())
-            bad("duplicate label");
+        if (labels.find(lab) != labels.end())
+            bad("duplicate label", line);
     }
 }
 
 void
-LirasmAssembler::beginFragment()
+beginFragment(Pipeline &writer,
+              LirBuffer *lirbuf,
+              Fragmento *fragmento,
+              LogControl *logc,
+              bool verbose,
+              bool &inFrag,
+              bool &isFloat)
 {
-    mFragment = new (&gc) Fragment(NULL);
-    mFragment->lirbuf = mParent->mLirbuf;
-    mFragment->anchor = mFragment;
-    mFragment->root = mFragment;
-    mParent->mFragments[mFragName].fragptr = mFragment;
+    frag = new (&gc) Fragment(NULL);
+    frag->lirbuf = lirbuf;
+    frag->anchor = frag;
+    frag->root = frag;
 
-    mBufWriter = new (&gc) LirBufWriter(mParent->mLirbuf);
-    mCseFilter = new (&gc) CseFilter(mBufWriter, &gc);
-    mExprFilter = new (&gc) ExprFilter(mCseFilter);
-    mVerboseWriter = NULL;
-    mLir = mExprFilter;
-
+    writer.w = new (&gc) LirBufWriter(lirbuf);
+    writer.cse_filter = new (&gc) CseFilter(writer.w, &gc);
+    writer.expr_filter = new (&gc) ExprFilter(writer.cse_filter);
 #ifdef DEBUG
-    if (mParent->mVerbose) {
-        mVerboseWriter = new (&gc) VerboseWriter(&gc, mExprFilter, mParent->mLirbuf->names, &mParent->mLogc);
-        mLir = mVerboseWriter;
-    }
+    writer.verb = new (&gc) VerboseWriter(&gc, writer.expr_filter, lirbuf->names, logc);
 #endif
 
-    mInFrag = true;
-    mReturnTypeBits = 0;
-    mLir->ins0(LIR_start);
+    writer.lir = writer.expr_filter;
+#ifdef DEBUG
+    if (verbose)
+        writer.lir = writer.verb;
+#endif
+    inFrag = true;
+    isFloat = false;
+    writer.lir->ins0(LIR_start);
 }
 
 void
-LirasmAssembler::endFragment()
+endFragment(const Pipeline &writer,
+            Fragmento *fragmento,
+            vector<CallInfo*> &callinfos,
+            bool isFloat,
+            map<string, LIns*> &labels,
+            Fragments &frags,
+            string fragname,
+            bool &inFrag)
 {
-    mInFrag = false;
 
-    if (mReturnTypeBits == 0)
-        cerr << "warning: no return type in fragment '"
-             << mFragName << "'" << endl;
-    if (mReturnTypeBits != RT_INT32 && mReturnTypeBits != RT_FLOAT
-        && mReturnTypeBits != RT_GUARD)
-        cerr << "warning: multiple return types in fragment '"
-             << mFragName << "'" << endl;
+    inFrag = false;
 
-    LIns *exitIns = do_skip(sizeof(SideExit));
-    SideExit* exit = (SideExit*) exitIns->payload();
-    memset(exit, 0, sizeof(SideExit));
+    LIns *exitIns = do_skip(writer.lir, sizeof(VMSideExit));
+    VMSideExit* exit = (VMSideExit*) exitIns->payload();
+    memset(exit, 0, sizeof(VMSideExit));
     exit->guards = NULL;
-    exit->from = exit->target = mFragment;
-    mFragment->lastIns = mLir->insGuard(LIR_loop, NULL, exitIns);
+    exit->from = exit->target = frag;
+    frag->lastIns = writer.lir->insGuard(LIR_loop, writer.lir->insImm(1), exitIns);
 
-    ::compile(mParent->mFragmento->assm(), mFragment);
+    ::compile(fragmento->assm(), frag);
 
-    if (mParent->mFragmento->assm()->error() != nanojit::None) {
+    for (size_t i = 0; i < callinfos.size(); ++i)
+        delete callinfos[i];
+    callinfos.clear();
+
+    if (fragmento->assm()->error() != nanojit::None) {
         cerr << "error during assembly: ";
-        switch (mParent->mFragmento->assm()->error()) {
+        switch (fragmento->assm()->error()) {
         case nanojit::OutOMem: cerr << "OutOMem"; break;
         case nanojit::StackFull: cerr << "StackFull"; break;
         case nanojit::RegionFull: cerr << "RegionFull"; break;
@@ -659,40 +606,43 @@ LirasmAssembler::endFragment()
         std::exit(1);
     }
 
-    LirasmFragment *f;
-    f = &mParent->mFragments[mFragName];
-
-    switch (mReturnTypeBits) {
-      case RT_FLOAT:
-      default:
-        f->rfloat = reinterpret_cast<RetFloat>(mFragment->code());
-        f->mReturnType = RT_FLOAT;
-        break;
-      case RT_INT32:
-        f->rint = reinterpret_cast<RetInt>(mFragment->code());
-        f->mReturnType = RT_INT32;
-        break;
-      case RT_GUARD:
-        f->rguard = reinterpret_cast<RetGuard>(mFragment->code());
-        f->mReturnType = RT_GUARD;
-        break;
+    Rfunc f;
+    if (isFloat) {
+        f.rfloat = reinterpret_cast<RetFloat>(frag->code());
+        f.isFloat = true;
+    } else {
+        f.rint = reinterpret_cast<RetInt>(frag->code());
+        f.isFloat = false;
     }
+    f.fragptr = frag;
 
-    delete mVerboseWriter;
-    delete mExprFilter;
-    delete mCseFilter;
-    delete mBufWriter;
-    for (size_t i = 0; i < mParent->mCallInfos.size(); ++i)
-        delete mParent->mCallInfos[i];
-    mParent->mCallInfos.clear();
+    if (fragname.empty())
+        fragname = "main";
+    frags[fragname] = f;
 
-    mParent->mFragments[mFragName].mLabels = mLabels;
-    mLabels.clear();
+    delete writer.expr_filter;
+    delete writer.cse_filter;
+    delete writer.w;
+    delete writer.verb;
+    labels.clear();
 }
 
 void
-LirasmAssembler::assemble(istream &in)
+assemble(istream &in,
+         LirBuffer *lirbuf,
+         Fragmento *fragmento,
+         LogControl *logc,
+         vector<CallInfo*> &callinfos,
+         Fragments &frags,
+         bool verbose)
 {
+
+    Pipeline writer;
+
+    multimap<string,LIns*> fwd_jumps;
+    map<string,LIns*> labels;
+    map<string,pair<LOpcode,size_t> > op_map;
+
 #define OPDEF(op, number, args, repkind) \
     op_map[#op] = make_pair(LIR_##op, args);
 #define OPDEF64(op, number, args, repkind) \
@@ -701,109 +651,110 @@ LirasmAssembler::assemble(istream &in)
 #undef OPDEF
 #undef OPDEF64
 
-    op_map["alloc"] = op_map["ialloc"];
-    op_map["param"] = op_map["iparam"];
+    vector<string> toks;
+    size_t line = 0;
 
-        bool singleFrag = false;
-        bool first = true;
-        while(read_and_tokenize_line(in)) {
+    bool isFloat = false;
+    bool inFrag = false;
+    bool singleFrag = false;
+    bool first = true;
+    string fragname;
 
-        if (mParent->mLirbuf->outOMem()) {
+    while(read_and_tokenize_line(in, toks, line)) {
+
+        if (lirbuf->outOMem()) {
             cerr << "lirbuf out of memory" << endl;
             exit(1);
         }
-
-        if (mTokens.empty())
+        if (toks.empty())
             continue;
 
-        string op = pop_front(mTokens);
-
-        if (op == ".patch") {
-            tokenize(".");
-            patch();
-            continue;
-        }
+        string op = pop_front(toks);
 
         if (!singleFrag) {
             if (op == ".begin") {
-                if (mTokens.size() != 1)
-                    bad("missing fragment name");
-                if (mInFrag)
-                    bad("nested fragments are not supported");
+                if (toks.size() != 1)
+                    bad("missing fragment name", line);
+                if (inFrag)
+                    bad("nested fragments are not supported", line);
 
-                mFragName = pop_front(mTokens);
+                fragname = pop_front(toks);
 
-                beginFragment();
+                beginFragment(writer, lirbuf, fragmento, logc,
+                              verbose, inFrag, isFloat);
                 first = false;
                 continue;
             } else if (op == ".end") {
-                if (!mInFrag)
-                    bad("expecting .begin before .end");
-                if (!mTokens.empty())
-                    bad("too many tokens");
-                endFragment();
+                if (!inFrag)
+                    bad("expecting .begin before .end", line);
+                if (!toks.empty())
+                    bad("too many tokens", line);
+                endFragment(writer, fragmento, callinfos, isFloat,
+                            labels, frags, fragname, inFrag);
                 continue;
             }
         }
         if (first) {
             first = false;
             singleFrag = true;
-            mFragName = "main";
 
-            beginFragment();
+            beginFragment(writer, lirbuf, fragmento, logc,
+                          verbose, inFrag, isFloat);
         }
 
+        LirWriter *lir = writer.lir;
         string lab;
         LIns *ins = NULL;
-        extract_any_label(op, lab, ':');
+        extract_any_label(op, toks, lab, labels, line, ':');
 
         /* Save label and do any back-patching of deferred forward-jumps. */
         if (!lab.empty()) {
-            ins = mLir->ins0(LIR_label);
+            ins = lir->ins0(LIR_label);
             typedef multimap<string,LIns*> mulmap;
             typedef mulmap::const_iterator ci;
-            pair<ci,ci> range = mFwdJumps.equal_range(lab);
+            pair<ci,ci> range = fwd_jumps.equal_range(lab);
             for (ci i = range.first; i != range.second; ++i) {
                 i->second->setTarget(ins);
             }
-            mFwdJumps.erase(lab);
+            fwd_jumps.erase(lab);
             lab.clear();
         }
-        extract_any_label(op, lab, '=');
+        extract_any_label(op, toks, lab, labels, line, '=');
 
         if (op_map.find(op) == op_map.end())
-            bad("unknown instruction '" + op + "'");
+            bad("unknown instruction '" + op + "'", line);
 
         pair<LOpcode,size_t> entry = op_map[op];
-        mOpcode = entry.first;
-        mOpcount = entry.second;
+        LOpcode opcode = entry.first;
+        size_t opcount = entry.second;
 
-        switch (mOpcode) {
+        switch (opcode) {
         // A few special opcode cases.
 
         case LIR_j:
         case LIR_jt:
         case LIR_jf:
         case LIR_ji:
-            ins = assemble_jump();
+            ins = assemble_jump(opcode, toks, lir,
+                                labels, fwd_jumps, line);
             break;
 
         case LIR_int:
-            need(1);
-            ins = mLir->insImm(imm(mTokens[0]));
+            need(toks, 1, line);
+            ins = lir->insImm(imm(toks[0]));
             break;
 
         case LIR_quad:
-            need(1);
-            ins = mLir->insImmq(quad(mTokens[0]));
+            need(toks, 1, line);
+            ins = lir->insImmq(quad(toks[0]));
             break;
 
         case LIR_sti:
         case LIR_stqi:
-            need(3);
-            ins = mLir->insStorei(ref(mTokens[0]),
-                                  ref(mTokens[1]),
-                                  imm(mTokens[2]));
+            need(toks, 3, line);
+            ins = lir->insStorei(ref(labels, toks[0], line),
+                                 ref(labels, toks[1], line),
+                                 imm(toks[2]));
             break;
 
         case LIR_ld:
@@ -812,58 +763,59 @@ LirasmAssembler::assemble(istream &in)
         case LIR_ldqc:
         case LIR_ldcb:
         case LIR_ldcs:
-            ins = assemble_load();
+            ins = assemble_load(opcode, toks, lir,
+                                labels, line);
             break;
 
         case LIR_iparam:
-            need(2);
-            ins = mLir->insParam(imm(mTokens[0]),
-                                 imm(mTokens[1]));
+            need(toks, 2, line);
+            ins = lir->insParam(imm(toks[0]),
+                                imm(toks[1]));
             break;
 
         case LIR_ialloc:
-            need(1);
-            ins = mLir->insAlloc(imm(mTokens[0]));
+            need(toks, 1, line);
+            ins = lir->insAlloc(imm(toks[0]));
             break;
 
         case LIR_skip:
-            need(1);
+            need(toks, 1, line);
             {
-                int32_t count = imm(mTokens[0]);
+                int32_t count = imm(toks[0]);
                 if (uint32_t(count) > NJ_MAX_SKIP_PAYLOAD_SZB)
-                    bad("oversize skip");
-                ins = do_skip(count);
+                    bad("oversize skip", line);
+                ins = do_skip(lir, count);
             }
-            break;
-
-        case LIR_xt:
-        case LIR_xf:
-        case LIR_x:
-        case LIR_xbarrier:
-        case LIR_loop:
-            ins = assemble_guard();
             break;
 
         case LIR_call:
         case LIR_callh:
         case LIR_fcall:
-            ins = assemble_call(op);
+            ins = assemble_call(op, opcode, toks, lir,
+                                labels, callinfos, line,
+                                frags);
             break;
+
+        case LIR_fret:
+            isFloat = true;
+            /* FALL THROUGH */
         default:
-            ins = assemble_general();
+            ins = assemble_general(opcount, opcode, toks,
+                                   lir, labels, line);
             break;
         }
 
         assert(ins);
         if (!lab.empty())
-            mLabels.insert(make_pair(lab, ins));
+            labels.insert(make_pair(lab, ins));
     }
-    if (mInFrag && singleFrag)
-        endFragment();
+    if (inFrag && singleFrag)
+        endFragment(writer, fragmento, callinfos, isFloat,
+                    labels, frags, fragname, inFrag);
 
-    if (mInFrag)
-        bad("unexpected EOF");
-    if (mParent->mLirbuf->outOMem()) {
+    if (inFrag)
+        bad("unexpected EOF", line);
+    if (lirbuf->outOMem()) {
         cerr << "lirbuf out of memory" << endl;
         exit(1);
     }
@@ -880,81 +832,6 @@ has_flag(vector<string> &args, string const &flag)
         }
     }
     return false;
-}
-
-
-Lirasm::Lirasm(bool verbose)
-{
-    mVerbose = verbose;
-    nanojit::AvmCore::config.tree_opt = true;
-    mLogc.lcbits = 0;
-    mFragmento = new (&gc) Fragmento(&s_core, &mLogc, 32);
-    mFragmento->labels = NULL;
-    mLirbuf = new (&gc) LirBuffer(mFragmento);
-#ifdef DEBUG
-    if (mVerbose) {
-        mLogc.lcbits = LC_Assembly;
-        mFragmento->labels = new (&gc) LabelMap(&s_core);
-        mLirbuf->names = new (&gc) LirNameMap(&gc, mFragmento->labels);
-    }
-#endif
-}
-
-Lirasm::~Lirasm()
-{
-    Fragments::iterator i;
-    for (i = mFragments.begin(); i != mFragments.end(); ++i) {
-        i->second.fragptr->releaseCode(mFragmento);
-        delete i->second.fragptr;
-    }
-    delete mLirbuf;
-    delete mFragmento->labels;
-    delete mFragmento;
-}
-
-LirasmAssembler::LirasmAssembler(Lirasm &lasm)
-{
-    mParent = &lasm;
-    mInFrag = false;
-    mLineno = 0;
-}
-
-void
-LirasmAssembler::tokenize(string const &tok_sep)
-{
-    vector<string>::iterator i;
-    for (i = mTokens.begin(); i < mTokens.end(); i++)
-    {
-        string line = *i;
-        size_t start = 0;
-        size_t end = 0;
-        while((start = line.find_first_not_of(tok_sep, end)) != string::npos &&
-              (end = line.find_first_of(tok_sep, start)) != string::npos) {
-            const string ss = line.substr(start, (end-start));
-            i->erase(start, end-start+1);
-            mTokens.insert(i++, ss);
-            mTokens.insert(i++, tok_sep);
-        }
-    }
-}
-
-void
-LirasmAssembler::patch()
-{
-    if (mTokens[1] != "." || mTokens[3] != "->")
-        bad("incorrect syntax");
-    Fragments::iterator i;
-    if ((i=mParent->mFragments.find(mTokens[0])) == mParent->mFragments.end())
-        bad("invalid fragment reference");
-    LirasmFragment *frag = &i->second;
-    if (frag->mLabels.find(mTokens[2]) == frag->mLabels.end())
-        bad("invalid guard reference");
-    LIns *ins = frag->mLabels.find(mTokens[2])->second;
-    if ((i=mParent->mFragments.find(mTokens[4])) == mParent->mFragments.end())
-        bad("invalid guard reference");
-    ins->record()->exit->target = i->second.fragptr;
-
-    mParent->mFragmento->assm()->patch(ins->record()->exit);
 }
 
 int
@@ -989,36 +866,62 @@ main(int argc, char **argv)
         exit(1);
     }
 
+    nanojit::AvmCore::config.tree_opt = true;
+
+    LogControl logc;
+    logc.lcbits = 0;
+#ifdef DEBUG
+    if (verbose)
+        logc.lcbits = LC_Assembly;
+#endif
+
+    Fragmento *fragmento = new (&gc) Fragmento(core, &logc, 32);
+    LirBuffer *lirbuf = new (&gc) LirBuffer(fragmento);
+#ifdef DEBUG
+    if (verbose) {
+        fragmento->labels = new (&gc) LabelMap(core);
+        lirbuf->names = new (&gc) LirNameMap(&gc, fragmento->labels);
+    }
+#endif
+
+    vector<CallInfo*> callinfos;
+
     ifstream in(args[0].c_str());
     if (!in) {
         cerr << prog << ": error: unable to open file " << args[0] << endl;
         exit(1);
     }
+    Fragments frags;
 
-    Lirasm lasm(verbose);
-    LirasmAssembler(lasm).assemble(in);
+    assemble(in, lirbuf, fragmento, &logc,
+             callinfos, frags, verbose);
 
-    Fragments::const_iterator i;
+    Fragments::iterator i;
     if (execute) {
-        i = lasm.mFragments.find("main");
-        if (i == lasm.mFragments.end()) {
+        i = frags.find("main");
+        if (i == frags.end()) {
             cerr << prog << ": error: atleast one fragment must be named main" << endl;
             exit(1);
         }
-        switch (i->second.mReturnType) {
-          case RT_FLOAT:
+        if (i->second.isFloat)
             cout << "Output is: " << i->second.rfloat() << endl;
-            break;
-          case RT_INT32:
+        else
             cout << "Output is: " << i->second.rint() << endl;
-            break;
-          case RT_GUARD:
-            LasmSideExit *ls = (LasmSideExit*) i->second.rguard()->exit;
-            cout << "Output is: " << ls->line << endl;
-            break;
-        }
     } else {
-        for (i = lasm.mFragments.begin(); i != lasm.mFragments.end(); i++)
+        Fragments::const_iterator i = frags.begin();
+        for ( i = frags.begin(); i != frags.end(); i++)
             dump_srecords(cout, i->second.fragptr);
     }
+
+    for (i = frags.begin(); i != frags.end(); ++i) {
+        i->second.fragptr->releaseCode(fragmento);
+        delete i->second.fragptr;
+    }
+
+    delete lirbuf;
+#ifdef DEBUG
+    if (verbose)
+        delete fragmento->labels;
+#endif
+    delete fragmento;
 }

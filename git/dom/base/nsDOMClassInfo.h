@@ -1423,9 +1423,6 @@ protected:
                                nsAString& aResult);
 
 public:
-  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
-                       JSObject *globalObj, JSObject **parentObj);
-
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsCSSStyleDeclSH(aData);

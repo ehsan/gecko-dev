@@ -46,8 +46,7 @@ sync:: clean \
   cd htmlparser ; make sync ; cd ..
 
 translate:: \
-; mkdir -p ../javasrc ; \
-  java -jar translator.jar htmlparser/src .. ../nsHtml5AtomList.h
+; java -jar translator.jar htmlparser/src .. ../nsHtml5AtomList.h
 
 clean:: \
 ; cd javaparser ; make clean ; cd .. ; \

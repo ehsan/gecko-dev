@@ -38,7 +38,7 @@ AuthPrompt2.prototype = {
   },
 
   asyncPromptAuth: function ap2_async(chan, cb, ctx, lvl, info) {
-    throw 0x80004001;
+    do_throw("not implemented yet")
   }
 };
 

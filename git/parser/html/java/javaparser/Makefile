@@ -45,8 +45,15 @@ libs:: \
   jar cf javaparser.jar -C bin .
 
 sync:: \
-; ../sync-src.sh $(SVN_BASE)/src && \
-  ../sync-files.sh $(SVN_BASE) COPYING COPYING.LESSER readme.txt
+; rm -rf src && \
+  svn co $(SVN_BASE)/src && \
+  find src -name .svn | xargs rm -rf ; \
+  \
+  for file in COPYING COPYING.LESSER readme.txt ; \
+  do \
+    rm -f $$file ; \
+    svn cat $(SVN_BASE)/$$file > $$file ; \
+  done
 
 clean:: \
 ; rm -rf bin javaparser.jar

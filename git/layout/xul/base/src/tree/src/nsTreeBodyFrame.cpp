@@ -2173,11 +2173,11 @@ nsTreeBodyFrame::GetImage(PRInt32 aRowIndex, nsTreeColumn* aCol, PRBool aUseCont
     imgIRequest *imgReq = entry.request;
     imgReq->GetImageStatus(&status);
     imgReq->GetImage(aResult); // We hand back the image here.  The GetImage call addrefs *aResult.
-    PRBool animated = PR_FALSE;
+    PRUint32 numFrames = 1;
     if (*aResult)
-      (*aResult)->GetAnimated(&animated);
+      (*aResult)->GetNumFrames(&numFrames);
 
-    if ((!(status & imgIRequest::STATUS_LOAD_COMPLETE)) || animated) {
+    if ((!(status & imgIRequest::STATUS_LOAD_COMPLETE)) || numFrames > 1) {
       // We either aren't done loading, or we're animating. Add our row as a listener for invalidations.
       nsCOMPtr<imgIDecoderObserver> obs;
       imgReq->GetDecoderObserver(getter_AddRefs(obs));

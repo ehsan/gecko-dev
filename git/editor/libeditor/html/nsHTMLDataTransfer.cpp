@@ -85,6 +85,7 @@
 #include "nsPresContext.h"
 #include "nsIParser.h"
 #include "nsParserCIID.h"
+#include "nsIImage.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsLinebreakConverter.h"

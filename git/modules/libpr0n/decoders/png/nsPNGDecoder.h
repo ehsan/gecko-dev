@@ -44,8 +44,9 @@
 
 #include "imgIContainer.h"
 #include "imgIDecoderObserver.h"
+#include "gfxIImageFrame.h"
 #include "imgILoad.h"
-#include "gfxASurface.h"
+
 
 #include "nsCOMPtr.h"
 
@@ -71,27 +72,25 @@ public:
   virtual ~nsPNGDecoder();
 
   void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset, 
-                   PRInt32 width, PRInt32 height, 
-                   gfxASurface::gfxImageFormat format);
+                   PRInt32 width, PRInt32 height, gfx_format format);
   void SetAnimFrameInfo();
   
   void EndImageFrame();
 
 public:
   nsCOMPtr<imgIContainer> mImage;
+  nsCOMPtr<gfxIImageFrame> mFrame;
   nsCOMPtr<imgILoad> mImageLoad;
   nsCOMPtr<imgIDecoderObserver> mObserver; // this is just qi'd from mRequest for speed
 
   png_structp mPNG;
   png_infop mInfo;
-  nsIntRect mFrameRect;
   PRUint8 *mCMSLine;
   PRUint8 *interlacebuf;
-  PRUint8 *mImageData;
   qcms_profile *mInProfile;
   qcms_transform *mTransform;
 
-  gfxASurface::gfxImageFormat format;
+  gfx_format format;
   PRUint8 mChannels;
   PRPackedBool mError;
   PRPackedBool mFrameHasNoAlpha;

@@ -2309,8 +2309,8 @@ class RegExpNativeCompiler {
         return pos;
     }
 
-#if defined(AVMPLUS_ARM) || defined(AVMPLUS_SPARC)
-/* We can't do this on ARM or SPARC, since it relies on doing a 32-bit load from
+#ifdef AVMPLUS_ARM
+/* We can't do this on ARM, since it relies on doing a 32-bit load from
  * a pointer which is only 2-byte aligned.
  */
 #undef USE_DOUBLE_CHAR_MATCH
@@ -3044,7 +3044,7 @@ class RegExpNativeCompiler {
         exit->re_flags = re->flags;
         exit->re_length = re_length;
         memcpy(exit->re_chars, re_chars, re_length * sizeof(jschar));
-        fragment->lastIns = lir->insGuard(LIR_loop, NULL, skip);
+        fragment->lastIns = lir->insGuard(LIR_loop, lir->insImm(1), skip);
         return guard;
     }
 

@@ -45,8 +45,15 @@ libs:: \
   jar cfm translator.jar manifest.txt -C bin .
 
 sync:: \
-; ../sync-src.sh $(SVN_BASE)/translator-src && \
-  ../sync-files.sh $(SVN_BASE) LICENSE.txt README.txt
+; rm -rf src && \
+  svn co $(SVN_BASE)/translator-src src && \
+  find src -name .svn | xargs rm -rf ; \
+  \
+  for file in LICENSE.txt README.txt ; \
+  do \
+    rm -f $$file ; \
+    svn cat $(SVN_BASE)/$$file > $$file ; \
+  done
 
 clean:: \
 ; rm -rf bin translator.jar

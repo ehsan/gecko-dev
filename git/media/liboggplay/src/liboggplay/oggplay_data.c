@@ -317,23 +317,6 @@ oggplay_data_handle_cmml_data(OggPlayDecode *decode, unsigned char *data,
 
 }
 
-static int
-get_uv_offset(OggPlayTheoraDecode *decode, yuv_buffer *buffer)
-{
-  int xo=0, yo = 0;
-  if (decode->y_width != 0 &&
-      decode->uv_width != 0 &&
-      decode->y_width/decode->uv_width != 0) {
-    xo = (decode->video_info.offset_x/(decode->y_width/decode->uv_width));
-  }
-  if (decode->y_height != 0 &&
-      decode->uv_height != 0 &&
-      decode->y_height/decode->uv_height != 0) {
-    yo = (buffer->uv_stride)*(decode->video_info.offset_y/(decode->y_height/decode->uv_height));
-  }
-  return xo + yo;
-}
-
 void
 oggplay_data_handle_theora_frame (OggPlayTheoraDecode *decode,
                                     yuv_buffer *buffer) {
@@ -384,7 +367,8 @@ oggplay_data_handle_theora_frame (OggPlayTheoraDecode *decode,
     q += buffer->y_stride;
   }
 
-  uv_offset = get_uv_offset(decode, buffer);
+  uv_offset = (decode->video_info.offset_x/(decode->y_width/decode->uv_width)) + 
+              (buffer->uv_stride) *(decode->video_info.offset_y/(decode->y_height/decode->uv_height));
 
   p = data->u;
   q = buffer->u + uv_offset;

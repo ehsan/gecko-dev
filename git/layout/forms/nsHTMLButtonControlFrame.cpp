@@ -52,6 +52,7 @@
 #include "nsISupports.h"
 #include "nsGkAtoms.h"
 #include "nsCSSAnonBoxes.h"
+#include "nsIImage.h"
 #include "nsStyleConsts.h"
 #include "nsIComponentManager.h"
 #include "nsIDocument.h"
