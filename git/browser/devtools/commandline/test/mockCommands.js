@@ -23,7 +23,6 @@
 // <INJECTED SOURCE:END>
 
 
-var Promise = require('gcli/util/promise').Promise;
 var mockCommands = {};
 
 // We use an alias for exports here because this module is used in Firefox
@@ -507,28 +506,29 @@ mockCommands.items = [
       }
     ],
     exec: function(args, context) {
+      var deferred;
       if (args.method === 'reject') {
-        return new Promise(function(resolve, reject) {
-          setTimeout(function() {
-            reject('rejected promise');
-          }, 10);
-        });
+        deferred = context.defer();
+        setTimeout(function() {
+          deferred.reject('rejected promise');
+        }, 10);
+        return deferred.promise;
       }
 
       if (args.method === 'rejecttyped') {
-        return new Promise(function(resolve, reject) {
-          setTimeout(function() {
-            reject(context.typedData('number', 54));
-          }, 10);
-        });
+        deferred = context.defer();
+        setTimeout(function() {
+          deferred.reject(context.typedData('number', 54));
+        }, 10);
+        return deferred.promise;
       }
 
       if (args.method === 'throwinpromise') {
-        return new Promise(function(resolve, reject) {
-          setTimeout(function() {
-            resolve('should be lost');
-          }, 10);
-        }).then(function() {
+        deferred = context.defer();
+        setTimeout(function() {
+          deferred.resolve('should be lost');
+        }, 10);
+        return deferred.promise.then(function() {
           var t = null;
           return t.foo;
         });
@@ -655,14 +655,17 @@ mockCommands.items = [
         type: {
           name: 'selection',
           data: function(context) {
-            return new Promise(function(resolve, reject) {
-              setTimeout(function() {
-                resolve([
-                  'Shalom', 'Namasté', 'Hallo', 'Dydd-da',
-                  'Chào', 'Hej', 'Saluton', 'Sawubona'
-                ]);
-              }, 10);
-            });
+            var deferred = context.defer();
+
+            var resolve = function() {
+              deferred.resolve([
+                'Shalom', 'Namasté', 'Hallo', 'Dydd-da',
+                'Chào', 'Hej', 'Saluton', 'Sawubona'
+              ]);
+            };
+
+            setTimeout(resolve, 10);
+            return deferred.promise;
           }
         }
       }

@@ -17,7 +17,7 @@
 'use strict';
 
 var util = require('../util/util');
-var Promise = require('../util/promise').Promise;
+var promise = require('../util/promise');
 
 /**
  * We record where in the input string an argument comes so we can report
@@ -814,7 +814,7 @@ Conversion.prototype.getPredictions = function(context) {
   if (typeof this.predictions === 'function') {
     return this.predictions(context);
   }
-  return Promise.resolve(this.predictions || []);
+  return promise.resolve(this.predictions || []);
 };
 
 /**
@@ -825,7 +825,7 @@ Conversion.prototype.getPredictions = function(context) {
  */
 Conversion.prototype.constrainPredictionIndex = function(context, index) {
   if (index == null) {
-    return Promise.resolve();
+    return promise.resolve();
   }
 
   return this.getPredictions(context).then(function(value) {

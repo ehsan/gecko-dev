@@ -16,7 +16,8 @@
 
 'use strict';
 
-var Promise = require('../util/promise').Promise;
+var promise = require('../util/promise');
+
 
 exports.clearResourceCache = function() {
   ResourceCache.clear();
@@ -71,7 +72,7 @@ function Resource(name, type, inline, element) {
  * Get the contents of the given resource as a string.
  * The base Resource leaves this unimplemented.
  */
-Resource.prototype.loadContents = function() {
+Resource.prototype.getContents = function() {
   throw new Error('not implemented');
 };
 
@@ -97,10 +98,8 @@ function CssResource(domSheet) {
 
 CssResource.prototype = Object.create(Resource.prototype);
 
-CssResource.prototype.loadContents = function() {
-  return new Promise(function(resolve, reject) {
-    resolve(this.element.ownerNode.innerHTML);
-  }.bind(this));
+CssResource.prototype.loadContents = function(callback) {
+  callback(this.element.ownerNode.innerHTML);
 };
 
 CssResource._getAllStyles = function() {
@@ -162,24 +161,22 @@ function ScriptResource(scriptNode) {
 
 ScriptResource.prototype = Object.create(Resource.prototype);
 
-ScriptResource.prototype.loadContents = function() {
-  return new Promise(function(resolve, reject) {
-    if (this.inline) {
-      resolve(this.element.innerHTML);
-    }
-    else {
-      // It would be good if there was a better way to get the script source
-      var xhr = new XMLHttpRequest();
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState !== xhr.DONE) {
-          return;
-        }
-        resolve(xhr.responseText);
-      };
-      xhr.open('GET', this.element.src, true);
-      xhr.send();
-    }
-  }.bind(this));
+ScriptResource.prototype.loadContents = function(callback) {
+  if (this.inline) {
+    callback(this.element.innerHTML);
+  }
+  else {
+    // It would be good if there was a better way to get the script source
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== xhr.DONE) {
+        return;
+      }
+      callback(xhr.responseText);
+    };
+    xhr.open('GET', this.element.src, true);
+    xhr.send();
+  }
 };
 
 ScriptResource._getAllScripts = function() {
@@ -292,11 +289,9 @@ exports.items = [
         Array.prototype.push.apply(resources, ScriptResource._getAllScripts());
       }
 
-      return new Promise(function(resolve, reject) {
-        resolve(resources.map(function(resource) {
-          return { name: resource.name, value: resource };
-        }));
-      }.bind(this));
+      return promise.resolve(resources.map(function(resource) {
+        return { name: resource.name, value: resource };
+      }));
     }
   }
 ];

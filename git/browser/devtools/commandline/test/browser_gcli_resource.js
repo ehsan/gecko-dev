@@ -42,7 +42,7 @@ function test() {
 
 // var assert = require('../testharness/assert');
 
-var Promise = require('gcli/util/promise').Promise;
+var promise = require('gcli/util/promise');
 var util = require('gcli/util/util');
 var resource = require('gcli/types/resource');
 var Status = require('gcli/types/types').Status;
@@ -162,7 +162,7 @@ function checkPrediction(res, prediction) {
     assert.is(typeof value.loadContents, 'function', 'resource for ' + name);
     assert.is(typeof value.element, 'object', 'resource for ' + name);
 
-    return Promise.resolve(res.stringify(value, context)).then(function(strung) {
+    return promise.resolve(res.stringify(value, context)).then(function(strung) {
       assert.is(strung, name, 'stringify for ' + name);
     });
   });

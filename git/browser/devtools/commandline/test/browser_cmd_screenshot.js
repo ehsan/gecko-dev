@@ -166,16 +166,18 @@ function addTabWithToolbarRunTests(win) {
 }
 
 function addWindow(windowOptions) {
-  return new Promise(resolve => {
-    let win = OpenBrowserWindow(windowOptions);
+  let deferred = promise.defer();
 
-    // This feels hacky, we should refactor it
-    whenDelayedStartupFinished(win, () => {
-      // Would like to get rid of this executeSoon, but without it the url
-      // (TEST_URI) provided in addTabWithToolbarRunTests hasn't loaded
-      executeSoon(() => {
-        resolve(win);
-      });
+  let win = OpenBrowserWindow(windowOptions);
+
+  // This feels hacky, we should refactor it
+  whenDelayedStartupFinished(win, function() {
+    // Would like to get rid of this executeSoon, but without it the url
+    // (TEST_URI) provided in addTabWithToolbarRunTests hasn't loaded
+    executeSoon(function() {
+      deferred.resolve(win);
     });
   });
+
+  return deferred.promise;
 }
