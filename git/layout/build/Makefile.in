@@ -58,6 +58,9 @@ MODULE_NAME	= nsLayoutModule
 GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
+PACKAGE_FILE = layout.pkg
+PACKAGE_VARS += MOZ_XUL
+
 ifndef MOZ_ENABLE_LIBXUL
 EXTRA_DSO_LIBS	= gkgfx
 endif
@@ -157,7 +160,6 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/media/libtheora/lib/$(LIB_PREFIX)theora.$(LIB_SUFFIX) \
 	$(DEPTH)/media/libvorbis/lib/$(LIB_PREFIX)vorbis.$(LIB_SUFFIX) \
 	$(NULL)
-LOCAL_INCLUDES += -I$(DEPTH)/content/html/content/src
 endif
 
 ifdef NS_PRINTING

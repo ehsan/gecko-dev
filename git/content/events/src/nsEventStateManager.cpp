@@ -149,14 +149,16 @@
 #include "nsDOMDataTransfer.h"
 #include "nsContentAreaDragDrop.h"
 #ifdef MOZ_XUL
-#include "nsTreeBodyFrame.h"
+#include "nsITreeBoxObject.h"
 #endif
 
 #ifdef XP_MACOSX
 #include <Events.h>
 #endif
 
+#if defined(DEBUG_rods) || defined(DEBUG_bryner)
 //#define DEBUG_DOCSHELL_FOCUS
+#endif
 
 #define NS_USER_INTERACTION_INTERVAL 5000 // ms
 
@@ -190,74 +192,6 @@ PRInt32 nsEventStateManager::sUserInputEventDepth = 0;
 static PRUint32 gMouseOrKeyboardEventCounter = 0;
 static nsITimer* gUserInteractionTimer = nsnull;
 static nsITimerCallback* gUserInteractionTimerCallback = nsnull;
-
-#ifdef DEBUG_DOCSHELL_FOCUS
-static void
-PrintDocTree(nsIDocShellTreeItem* aParentItem, int aLevel)
-{
-  for (PRInt32 i=0;i<aLevel;i++) printf("  ");
-
-  PRInt32 childWebshellCount;
-  aParentItem->GetChildCount(&childWebshellCount);
-  nsCOMPtr<nsIDocShell> parentAsDocShell(do_QueryInterface(aParentItem));
-  PRInt32 type;
-  aParentItem->GetItemType(&type);
-  nsCOMPtr<nsIPresShell> presShell;
-  parentAsDocShell->GetPresShell(getter_AddRefs(presShell));
-  nsCOMPtr<nsPresContext> presContext;
-  parentAsDocShell->GetPresContext(getter_AddRefs(presContext));
-  nsCOMPtr<nsIContentViewer> cv;
-  parentAsDocShell->GetContentViewer(getter_AddRefs(cv));
-  nsCOMPtr<nsIDOMDocument> domDoc;
-  if (cv)
-    cv->GetDOMDocument(getter_AddRefs(domDoc));
-  nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
-  nsCOMPtr<nsIDOMWindowInternal> domwin = doc ? doc->GetWindow() : nsnull;
-  nsIURI* uri = doc ? doc->GetDocumentURI() : nsnull;
-
-  nsCOMPtr<nsIWidget> widget;
-  nsIViewManager* vm = presShell ? presShell->GetViewManager() : nsnull;
-  if (vm) {
-    vm->GetWidget(getter_AddRefs(widget));
-  }
-
-  printf("DS %p  Type %s  Cnt %d  Doc %p  DW %p  EM %p%c",
-    static_cast<void*>(parentAsDocShell.get()),
-    type==nsIDocShellTreeItem::typeChrome?"Chrome":"Content",
-    childWebshellCount, static_cast<void*>(doc.get()),
-    static_cast<void*>(domwin.get()),
-    static_cast<void*>(presContext ? presContext->EventStateManager() : nsnull),
-    uri ? ' ' : '\n');
-  if (uri) {
-    nsCAutoString spec;
-    uri->GetSpec(spec);
-    printf("\"%s\"\n", spec.get());
-  }
-
-  if (childWebshellCount > 0) {
-    for (PRInt32 i = 0; i < childWebshellCount; i++) {
-      nsCOMPtr<nsIDocShellTreeItem> child;
-      aParentItem->GetChildAt(i, getter_AddRefs(child));
-      PrintDocTree(child, aLevel + 1);
-    }
-  }
-}
-
-static void
-PrintDocTreeAll(nsIDocShellTreeItem* aItem)
-{
-  nsCOMPtr<nsIDocShellTreeItem> item = aItem;
-  for(;;) {
-    nsCOMPtr<nsIDocShellTreeItem> parent;
-    item->GetParent(getter_AddRefs(parent));
-    if (!parent)
-      break;
-    item = parent;
-  }
-
-  PrintDocTree(item, 0);
-}
-#endif
 
 class nsUITimerCallback : public nsITimerCallback
 {
@@ -1472,8 +1406,8 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
            (msEvent->scrollFlags & nsMouseScrollEvent::kIsFullPage)) ||
           action == MOUSE_SCROLL_PAGE) {
           msEvent->delta = (msEvent->delta > 0)
-            ? PRInt32(nsIDOMNSUIEvent::SCROLL_PAGE_DOWN)
-            : PRInt32(nsIDOMNSUIEvent::SCROLL_PAGE_UP);
+            ? nsIDOMNSUIEvent::SCROLL_PAGE_DOWN
+            : nsIDOMNSUIEvent::SCROLL_PAGE_UP;
       }
     }
     break;
@@ -2370,9 +2304,9 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
           if (presShell) {
             nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
             if (frame) {
-              nsTreeBodyFrame* treeBody;
-              CallQueryInterface(frame, &treeBody);
-              treeBody->GetSelectionRegion(getter_AddRefs(region));
+              nsITreeBoxObject* treeBoxObject;
+              CallQueryInterface(frame, &treeBoxObject);
+              treeBoxObject->GetSelectionRegion(getter_AddRefs(region));
             }
           }
         }
@@ -2682,12 +2616,11 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
     }
     
     if (aScrollQuantity == eScrollByPage)
-      scrollView->ScrollByPages(scrollX, scrollY, NS_VMREFRESH_DEFERRED);
+      scrollView->ScrollByPages(scrollX, scrollY);
     else if (aScrollQuantity == eScrollByPixel)
-      scrollView->ScrollByPixels(scrollX, scrollY, NS_VMREFRESH_DEFERRED);
+      scrollView->ScrollByPixels(scrollX, scrollY);
     else
-      scrollView->ScrollByLines(scrollX, scrollY,
-                                NS_VMREFRESH_SMOOTHSCROLL | NS_VMREFRESH_DEFERRED);
+      scrollView->ScrollByLines(scrollX, scrollY);
 
     ForceViewUpdate(scrollView->View());
   }
@@ -3997,6 +3930,50 @@ nsEventStateManager::ChangeFocusWith(nsIContent* aFocusContent,
   return NS_OK;
 }
 
+//---------------------------------------------------------
+// Debug Helpers
+#ifdef DEBUG_DOCSHELL_FOCUS
+static void
+PrintDocTree(nsIDocShellTreeNode * aParentNode, int aLevel)
+{
+  for (PRInt32 i=0;i<aLevel;i++) printf("  ");
+
+  PRInt32 childWebshellCount;
+  aParentNode->GetChildCount(&childWebshellCount);
+  nsCOMPtr<nsIDocShell> parentAsDocShell(do_QueryInterface(aParentNode));
+  nsCOMPtr<nsIDocShellTreeItem> parentAsItem(do_QueryInterface(aParentNode));
+  PRInt32 type;
+  parentAsItem->GetItemType(&type);
+  nsCOMPtr<nsIPresShell> presShell;
+  parentAsDocShell->GetPresShell(getter_AddRefs(presShell));
+  nsCOMPtr<nsPresContext> presContext;
+  parentAsDocShell->GetPresContext(getter_AddRefs(presContext));
+  nsIDocument *doc = presShell->GetDocument();
+
+  nsCOMPtr<nsIDOMWindowInternal> domwin = doc->GetWindow();
+
+  nsCOMPtr<nsIWidget> widget;
+  nsIViewManager* vm = presShell->GetViewManager();
+  if (vm) {
+    vm->GetWidget(getter_AddRefs(widget));
+  }
+
+  printf("DS %p  Type %s  Cnt %d  Doc %p  DW %p  EM %p\n",
+    parentAsDocShell.get(),
+    type==nsIDocShellTreeItem::typeChrome?"Chrome":"Content",
+    childWebshellCount, doc, domwin.get(),
+    presContext->EventStateManager());
+
+  if (childWebshellCount > 0) {
+    for (PRInt32 i=0;i<childWebshellCount;i++) {
+      nsCOMPtr<nsIDocShellTreeItem> child;
+      aParentNode->GetChildAt(i, getter_AddRefs(child));
+      nsCOMPtr<nsIDocShellTreeNode> childAsNode(do_QueryInterface(child));
+      PrintDocTree(childAsNode, aLevel+1);
+    }
+  }
+}
+#endif // end debug helpers
 
 NS_IMETHODIMP
 nsEventStateManager::ShiftFocus(PRBool aForward, nsIContent* aStart)
@@ -4020,8 +3997,7 @@ nsEventStateManager::ShiftFocusInternal(PRBool aForward, nsIContent* aStart)
 {
 #ifdef DEBUG_DOCSHELL_FOCUS
   printf("[%p] ShiftFocusInternal: aForward=%d, aStart=%p, mCurrentFocus=%p\n",
-         static_cast<void*>(this), aForward, static_cast<void*>(aStart),
-         static_cast<void*>(mCurrentFocus.get()));
+         this, aForward, aStart, mCurrentFocus.get());
 #endif
   NS_ASSERTION(mPresContext, "no pres context");
   EnsureDocument(mPresContext);
@@ -4219,8 +4195,7 @@ nsEventStateManager::ShiftFocusInternal(PRBool aForward, nsIContent* aStart)
     } else {
       // there is no subshell, so just focus nextFocus
 #ifdef DEBUG_DOCSHELL_FOCUS
-      printf("focusing next focusable content: %p\n",
-             static_cast<void*>(nextFocus.get()));
+      printf("focusing next focusable content: %p\n", nextFocus.get());
 #endif
       mCurrentTarget = nextFocusFrame;
 
@@ -4387,7 +4362,7 @@ nsEventStateManager::GetNextTabbableContent(nsIContent* aRootContent,
   nsresult rv;
   nsCOMPtr<nsIFrameTraversal> trav(do_CreateInstance(kFrameTraversalCID, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIFrameEnumerator> frameTraversal;
+  nsCOMPtr<nsIBidirectionalEnumerator> frameTraversal;
 
   // --- Get frame to start with ---
   if (!aStartFrame) {
@@ -4406,7 +4381,7 @@ nsEventStateManager::GetNextTabbableContent(nsIContent* aRootContent,
                                 );
     NS_ENSURE_SUCCESS(rv, rv);
     if (!forward) {
-      frameTraversal->Last();
+      rv = frameTraversal->Last();
     }
   }
   else {
@@ -4422,16 +4397,15 @@ nsEventStateManager::GetNextTabbableContent(nsIContent* aRootContent,
         !aStartContent->IsNodeOfType(nsINode::eHTML)) {
       // Need to do special check in case we're in an imagemap which has multiple
       // content per frame, so don't skip over the starting frame.
-      if (forward)
-        frameTraversal->Next();
-      else
-        frameTraversal->Prev();
+      rv = forward ? frameTraversal->Next() : frameTraversal->Prev();
     }
   }
 
   // -- Walk frames to find something tabbable matching mCurrentTabIndex --
-  while (1) {
-    *aResultFrame = frameTraversal->CurrentItem();
+  while (NS_SUCCEEDED(rv)) {
+    nsISupports* currentItem;
+    frameTraversal->CurrentItem(&currentItem);
+    *aResultFrame = (nsIFrame*)currentItem;
     if (!*aResultFrame) {
       break;
     }
@@ -4463,10 +4437,7 @@ nsEventStateManager::GetNextTabbableContent(nsIContent* aRootContent,
         return NS_OK;
       }
     }
-    if (forward)
-      frameTraversal->Next();
-    else
-      frameTraversal->Prev();
+    rv = forward ? frameTraversal->Next() : frameTraversal->Prev();
   }
 
   // -- Reached end or beginning of document --
@@ -5573,7 +5544,7 @@ nsEventStateManager::GetDocSelectionLocation(nsIContent **aStartContent,
         if (nodeValue.Length() == *aStartOffset && !isFormControl &&
             startContent != mDocument->GetRootContent()) {
           // Yes, indeed we were at the end of the last node
-          nsCOMPtr<nsIFrameEnumerator> frameTraversal;
+          nsCOMPtr<nsIBidirectionalEnumerator> frameTraversal;
 
           nsCOMPtr<nsIFrameTraversal> trav(do_CreateInstance(kFrameTraversalCID,
                                                              &rv));
@@ -5595,8 +5566,9 @@ nsEventStateManager::GetDocSelectionLocation(nsIContent **aStartContent,
             // Continue getting the next frame until the primary content for the frame
             // we are on changes - we don't want to be stuck in the same place
             frameTraversal->Next();
-            newCaretFrame = frameTraversal->CurrentItem();
-            if (nsnull == newCaretFrame) {
+            nsISupports* currentItem;
+            frameTraversal->CurrentItem(&currentItem);
+            if (nsnull == (newCaretFrame = static_cast<nsIFrame*>(currentItem))) {
               break;
             }
             newCaretContent = newCaretFrame->GetContent();            

@@ -67,7 +67,7 @@ public:
   
   // These methods have the same thread calling requirements 
   // as those with the same name in nsMediaStream
-  virtual nsresult Open(nsIStreamListener** aStreamListener);
+  virtual nsresult Open();
   virtual nsresult Close();
   virtual nsresult Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes);
   virtual nsresult Seek(PRInt32 aWhence, PRInt64 aOffset);
@@ -89,26 +89,19 @@ private:
   nsCOMPtr<nsIInputStream>  mPipeInput;
 };
 
-nsresult nsDefaultStreamStrategy::Open(nsIStreamListener** aStreamListener)
+nsresult nsDefaultStreamStrategy::Open()
 {
-  if (aStreamListener) {
-    *aStreamListener = nsnull;
-  }
+  nsresult rv;
 
   mListener = new nsChannelToPipeListener(mDecoder);
   NS_ENSURE_TRUE(mListener, NS_ERROR_OUT_OF_MEMORY);
 
-  nsresult rv = mListener->Init();
+  rv = mListener->Init();
   NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aStreamListener) {
-    *aStreamListener = mListener;
-    NS_ADDREF(mListener);
-  } else {
-    rv = mChannel->AsyncOpen(mListener, nsnull);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
+  
+  rv = mChannel->AsyncOpen(mListener, nsnull);
+  NS_ENSURE_SUCCESS(rv, rv);
+  
   rv = mListener->GetInputStream(getter_AddRefs(mPipeInput));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -196,7 +189,7 @@ public:
   
   // These methods have the same thread calling requirements 
   // as those with the same name in nsMediaStream
-  virtual nsresult Open(nsIStreamListener** aStreamListener);
+  virtual nsresult Open();
   virtual nsresult Close();
   virtual nsresult Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes);
   virtual nsresult Seek(PRInt32 aWhence, PRInt64 aOffset);
@@ -218,54 +211,35 @@ private:
   nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
-nsresult nsFileStreamStrategy::Open(nsIStreamListener** aStreamListener)
+nsresult nsFileStreamStrategy::Open()
 {
-  if (aStreamListener) {
-    *aStreamListener = nsnull;
-  }
-
   nsresult rv;
-  if (aStreamListener) {
-    // The channel is already open. We need a synchronous stream that
-    // implements nsISeekableStream, so we have to find the underlying
-    // file and reopen it
-    nsCOMPtr<nsIFileChannel> fc(do_QueryInterface(mChannel));
-    if (!fc)
-      return NS_ERROR_UNEXPECTED;
 
-    nsCOMPtr<nsIFile> file; 
-    rv = fc->GetFile(getter_AddRefs(file));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = NS_NewLocalFileInputStream(getter_AddRefs(mInput), file);
-  } else {
-    rv = mChannel->Open(getter_AddRefs(mInput));
-  }
+  rv = mChannel->Open(getter_AddRefs(mInput));
   NS_ENSURE_SUCCESS(rv, rv);
 
   mSeekable = do_QueryInterface(mInput);
-  if (!mSeekable) {
-    // XXX The file may just be a .url or similar
-    // shortcut that points to a Web site. We need to fix this by
-    // doing an async open and waiting until we locate the real resource,
-    // then using that (if it's still a file!).
-    return NS_ERROR_FAILURE;
-  }
 
-  // Get the file size and inform the decoder. Only files up to 4GB are
-  // supported here.
-  PRUint32 size;
-  rv = mInput->Available(&size);
-  if (NS_SUCCEEDED(rv)) {
-    mDecoder->SetTotalBytes(size);
+  // Get the file size and inform the decoder
+  nsCOMPtr<nsIFileChannel> fc(do_QueryInterface(mChannel));
+  if (fc) {
+    nsCOMPtr<nsIFile> file;
+    rv = fc->GetFile(getter_AddRefs(file));
+    if (NS_SUCCEEDED(rv)) {
+      PRInt64 size = 0;
+      rv = file->GetFileSize(&size);
+      if (NS_SUCCEEDED(rv)) {
+        mDecoder->SetTotalBytes(size);
+      }
+    }
   }
 
   /* Get our principal */
   nsCOMPtr<nsIScriptSecurityManager> secMan =
     do_GetService("@mozilla.org/scriptsecuritymanager;1");
   if (secMan) {
-    rv = secMan->GetChannelPrincipal(mChannel,
-                                     getter_AddRefs(mPrincipal));
+    nsresult rv = secMan->GetChannelPrincipal(mChannel,
+                                              getter_AddRefs(mPrincipal));
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -277,7 +251,7 @@ nsresult nsFileStreamStrategy::Open(nsIStreamListener** aStreamListener)
     NS_NEW_RUNNABLE_METHOD(nsMediaDecoder, mDecoder, ResourceLoaded); 
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
   
-  return NS_OK;
+  return mSeekable ? NS_OK : NS_ERROR_FAILURE;
 }
 
 nsresult nsFileStreamStrategy::Close()
@@ -350,7 +324,7 @@ public:
   
   // These methods have the same thread calling requirements 
   // as those with the same name in nsMediaStream
-  virtual nsresult Open(nsIStreamListener** aListener);
+  virtual nsresult Open();
   virtual nsresult Close();
   virtual nsresult Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes);
   virtual nsresult Seek(PRInt32 aWhence, PRInt64 aOffset);
@@ -409,25 +383,18 @@ void nsHttpStreamStrategy::Reset(nsIChannel* aChannel,
   mPipeInput = aStream;
 }
 
-nsresult nsHttpStreamStrategy::Open(nsIStreamListener **aStreamListener)
+nsresult nsHttpStreamStrategy::Open()
 {
-  if (aStreamListener) {
-    *aStreamListener = nsnull;
-  }
+  nsresult rv;
 
   mListener = new nsChannelToPipeListener(mDecoder);
   NS_ENSURE_TRUE(mListener, NS_ERROR_OUT_OF_MEMORY);
 
-  nsresult rv = mListener->Init();
+  rv = mListener->Init();
   NS_ENSURE_SUCCESS(rv, rv);
   
-  if (aStreamListener) {
-    *aStreamListener = mListener;
-    NS_ADDREF(*aStreamListener);
-  } else {
-    rv = mChannel->AsyncOpen(mListener, nsnull);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  rv = mChannel->AsyncOpen(mListener, nsnull);
+  NS_ENSURE_SUCCESS(rv, rv);
   
   rv = mListener->GetInputStream(getter_AddRefs(mPipeInput));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -717,24 +684,21 @@ nsMediaStream::~nsMediaStream()
   MOZ_COUNT_DTOR(nsMediaStream);
 }
 
-nsresult nsMediaStream::Open(nsMediaDecoder* aDecoder, nsIURI* aURI,
-                             nsIChannel* aChannel, nsIStreamListener** aListener)
+nsresult nsMediaStream::Open(nsMediaDecoder* aDecoder, nsIURI* aURI)
 {
   NS_ASSERTION(NS_IsMainThread(), 
 	       "nsMediaStream::Open called on non-main thread");
 
+  nsresult rv;
+
   nsCOMPtr<nsIChannel> channel;
-  if (aChannel) {
-    channel = aChannel;
-  } else {
-    nsresult rv = NS_NewChannel(getter_AddRefs(channel), 
-                                aURI, 
-                                nsnull,
-                                nsnull,
-                                nsnull,
-                                nsIRequest::LOAD_NORMAL);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  rv = NS_NewChannel(getter_AddRefs(channel), 
+                     aURI, 
+                     nsnull,
+                     nsnull,
+                     nsnull,
+                     nsIRequest::LOAD_NORMAL);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIFileChannel> fc = do_QueryInterface(channel);
   nsCOMPtr<nsIHttpChannel> hc = do_QueryInterface(channel);
@@ -748,7 +712,7 @@ nsresult nsMediaStream::Open(nsMediaDecoder* aDecoder, nsIURI* aURI,
   mPlaybackRateCount = 0;
   mPlaybackRateStart = PR_IntervalNow();
 
-  return mStreamStrategy->Open(aListener);
+  return mStreamStrategy->Open();
 }
 
 nsresult nsMediaStream::Close()

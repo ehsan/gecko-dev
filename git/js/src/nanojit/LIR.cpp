@@ -2034,7 +2034,6 @@ namespace nanojit
 			// recompile the entire tree
 			root = triggerFrag->root;
 			root->fragEntry = 0;
-			root->loopEntry = 0;
 			root->releaseCode(frago);
 			
 			// do the tree branches
@@ -2075,7 +2074,6 @@ namespace nanojit
 
 		if (assm->error()) {
 			root->fragEntry = 0;
-			root->loopEntry = 0;
 		}
     }
 

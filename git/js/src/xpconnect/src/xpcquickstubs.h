@@ -78,53 +78,29 @@ xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, uintN extraFlags,
 JSBool
 xpc_qsThrow(JSContext *cx, nsresult rv);
 
-/**
- * Fail after an XPCOM getter or setter returned rv.
- *
- * NOTE: Here @a obj must be the JSObject whose private data field points to an
- * XPCWrappedNative, not merely an object that has an XPCWrappedNative
- * somewhere along the prototype chain!  The same applies to @a obj in
- * xpc_qsThrowBadSetterValue and <code>vp[1]</code> in xpc_qsThrowMethodFailed
- * and xpc_qsThrowBadArg.
- *
- * This is one reason the UnwrapThis functions below have an out parameter that
- * receives the wrapper JSObject.  (The other reason is to help the caller keep
- * that JSObject GC-reachable.)
- */
+/** Elaborately fail after an XPCOM method returned rv. */
 JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
-                              JSObject *obj, jsval memberId);
+                              XPCWrappedNative *wrapper, jsval memberId);
 
-/**
- * Fail after an XPCOM method returned rv.
- *
- * See NOTE at xpc_qsThrowGetterSetterFailed.
- */
 JSBool
-xpc_qsThrowMethodFailed(JSContext *cx, nsresult rv, jsval *vp);
+xpc_qsThrowMethodFailed(JSContext *cx, nsresult rv,
+                        XPCWrappedNative *wrapper, jsval *vp);
 
 JSBool
 xpc_qsThrowMethodFailedWithCcx(XPCCallContext &ccx, nsresult rv);
 
-/**
- * Fail after converting a method argument fails.
- *
- * See NOTE at xpc_qsThrowGetterSetterFailed.
- */
+/** Elaborately fail after converting an argument fails. */
 void
-xpc_qsThrowBadArg(JSContext *cx, nsresult rv, jsval *vp, uintN paramnum);
+xpc_qsThrowBadArg(JSContext *cx, nsresult rv,
+                  XPCWrappedNative *wrapper, jsval *vp, uintN paramnum);
 
 void
 xpc_qsThrowBadArgWithCcx(XPCCallContext &ccx, nsresult rv, uintN paramnum);
 
-/**
- * Fail after converting a setter argument fails.
- *
- * See NOTE at xpc_qsThrowGetterSetterFailed.
- */
 void
-xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv, JSObject *obj,
-                          jsval propId);
+xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv,
+                          XPCWrappedNative *wrapper, jsval propId);
 
 
 /* Functions for converting values between COM and JS. */
@@ -264,36 +240,6 @@ public:
     xpc_qsACString(JSContext *cx, jsval *pval);
 };
 
-struct xpc_qsSelfRef
-{
-    xpc_qsSelfRef() {}
-    explicit xpc_qsSelfRef(nsISupports *p) : ptr(p) {}
-    ~xpc_qsSelfRef() { NS_IF_RELEASE(ptr); }
-
-    nsISupports* ptr;
-};
-
-struct xpc_qsTempRoot
-{
-  public:
-    explicit xpc_qsTempRoot(JSContext *cx)
-        : mContext(cx) {
-        JS_PUSH_SINGLE_TEMP_ROOT(cx, JSVAL_NULL, &mTvr);
-    }
-
-    ~xpc_qsTempRoot() {
-        JS_POP_TEMP_ROOT(mContext, &mTvr);
-    }
-
-    jsval * addr() {
-        return &mTvr.u.value;
-    }
-
-  private:
-    JSContext *mContext;
-    JSTempValueRooter mTvr;
-};
-
 /**
  * Convert a jsval to char*, returning JS_TRUE on success.
  *
@@ -322,22 +268,18 @@ xpc_qsUnwrapThisImpl(JSContext *cx,
                      JSObject *obj,
                      const nsIID &iid,
                      void **ppThis,
-                     nsISupports **ppThisRef,
-                     jsval *vp);
+                     XPCWrappedNative **ppWrapper);
 
 /**
  * Search @a obj and its prototype chain for an XPCOM object that implements
  * the interface T.
  *
- * If an object implementing T is found, store a reference to the wrapper
- * JSObject in @a *pThisVal, store a pointer to the T in @a *ppThis, and return
+ * If an object implementing T is found, AddRef it, store the pointer in
+ * @a *ppThis, store a pointer to the wrapper in @a *ppWrapper, and return
  * JS_TRUE. Otherwise, raise an exception on @a cx and return JS_FALSE.
  *
- * @a *pThisRef receives the same pointer as *ppThis if the T was AddRefed.
- * Otherwise it receives null (even on error).
- *
- * This supports split objects and XPConnect tear-offs and it sees through
- * XOWs, XPCNativeWrappers, and SafeJSObjectWrappers.
+ * This does not consult inner objects. It does support XPConnect tear-offs
+ * and it sees through XOWs, XPCNativeWrappers, and SafeJSObjectWrappers.
  *
  * Requires a request on @a cx.
  */
@@ -346,23 +288,19 @@ inline JSBool
 xpc_qsUnwrapThis(JSContext *cx,
                  JSObject *obj,
                  T **ppThis,
-                 nsISupports **pThisRef,
-                 jsval *pThisVal)
+                 XPCWrappedNative **ppWrapper)
 {
     return xpc_qsUnwrapThisImpl(cx,
                                 obj,
                                 NS_GET_TEMPLATE_IID(T),
                                 reinterpret_cast<void **>(ppThis),
-                                pThisRef,
-                                pThisVal);
+                                ppWrapper);
 }
 
 JSBool
 xpc_qsUnwrapThisFromCcxImpl(XPCCallContext &ccx,
                             const nsIID &iid,
-                            void **ppThis,
-                            nsISupports **pThisRef,
-                            jsval *vp);
+                            void **ppThis);
 
 /**
  * Alternate implementation of xpc_qsUnwrapThis using information already
@@ -371,15 +309,10 @@ xpc_qsUnwrapThisFromCcxImpl(XPCCallContext &ccx,
 template <class T>
 inline JSBool
 xpc_qsUnwrapThisFromCcx(XPCCallContext &ccx,
-                        T **ppThis,
-                        nsISupports **pThisRef,
-                        jsval *pThisVal)
+                        T **ppThis)
 {
-    return xpc_qsUnwrapThisFromCcxImpl(ccx,
-                                       NS_GET_TEMPLATE_IID(T),
-                                       reinterpret_cast<void **>(ppThis),
-                                       pThisRef,
-                                       pThisVal);
+    return xpc_qsUnwrapThisFromCcxImpl(ccx, NS_GET_TEMPLATE_IID(T),
+                                       reinterpret_cast<void **>(ppThis));
 }
 
 nsresult

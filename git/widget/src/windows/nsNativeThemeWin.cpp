@@ -72,6 +72,16 @@
 
 NS_IMPL_ISUPPORTS1(nsNativeThemeWin, nsITheme)
 
+static inline bool IsCheckboxWidgetType(PRUint8 aWidgetType)
+{
+  return (aWidgetType == NS_THEME_CHECKBOX || aWidgetType == NS_THEME_CHECKBOX_SMALL);
+}
+
+static inline bool IsRadioWidgetType(PRUint8 aWidgetType)
+{
+  return (aWidgetType == NS_THEME_RADIO || aWidgetType == NS_THEME_RADIO_SMALL);
+}
+
 static inline bool IsHTMLContent(nsIFrame *frame)
 {
   nsIContent* content = frame->GetContent();
@@ -251,7 +261,9 @@ nsNativeThemeWin::GetTheme(PRUint8 aWidgetType)
   switch (aWidgetType) {
     case NS_THEME_BUTTON:
     case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
       return nsUXThemeData::GetTheme(eUXButton);
     case NS_THEME_TEXTFIELD:
     case NS_THEME_TEXTFIELD_MULTILINE:
@@ -391,8 +403,10 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
       return NS_OK;
     }
     case NS_THEME_CHECKBOX:
-    case NS_THEME_RADIO: {
-      bool isCheckbox = (aWidgetType == NS_THEME_CHECKBOX);
+    case NS_THEME_CHECKBOX_SMALL:
+    case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL: {
+      bool isCheckbox = IsCheckboxWidgetType(aWidgetType);
       aPart = isCheckbox ? BP_CHECKBOX : BP_RADIO;
 
       // XXXdwh This check will need to be more complicated, since HTML radio groups
@@ -1110,7 +1124,7 @@ RENDER_AGAIN:
 
   // Draw focus rectangles for XP HTML checkboxes and radio buttons
   // XXX it'd be nice to draw these outside of the frame
-  if ((aWidgetType == NS_THEME_CHECKBOX || aWidgetType == NS_THEME_RADIO) &&
+  if ((IsCheckboxWidgetType(aWidgetType) || IsRadioWidgetType(aWidgetType)) &&
       aFrame->GetContent()->IsNodeOfType(nsINode::eHTML) ||
       aWidgetType == NS_THEME_SCALE_HORIZONTAL ||
       aWidgetType == NS_THEME_SCALE_VERTICAL) {
@@ -1261,7 +1275,9 @@ nsNativeThemeWin::GetWidgetPadding(nsIDeviceContext* aContext,
     // and have a meaningful baseline, so they can't have
     // author-specified padding.
     case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
       aResult->SizeTo(0, 0, 0, 0);
       return PR_TRUE;
   }
@@ -1637,8 +1653,8 @@ nsNativeThemeWin::WidgetIsContainer(PRUint8 aWidgetType)
 {
   // XXXdwh At some point flesh all of this out.
   if (aWidgetType == NS_THEME_DROPDOWN_BUTTON || 
-      aWidgetType == NS_THEME_RADIO ||
-      aWidgetType == NS_THEME_CHECKBOX)
+      IsRadioWidgetType(aWidgetType) ||
+      IsCheckboxWidgetType(aWidgetType))
     return PR_FALSE;
   return PR_TRUE;
 }
@@ -1672,7 +1688,9 @@ nsNativeThemeWin::ClassicThemeSupportsWidget(nsPresContext* aPresContext,
     case NS_THEME_TEXTFIELD:
     case NS_THEME_TEXTFIELD_MULTILINE:
     case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_SCROLLBAR_BUTTON_UP:
     case NS_THEME_SCROLLBAR_BUTTON_DOWN:
     case NS_THEME_SCROLLBAR_BUTTON_LEFT:
@@ -1808,7 +1826,9 @@ nsNativeThemeWin::ClassicGetMinimumWidgetSize(nsIRenderingContext* aContext, nsI
   *aIsOverridable = PR_TRUE;
   switch (aWidgetType) {
     case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
       (*aResult).width = (*aResult).height = 13;
       break;
     case NS_THEME_MENUCHECKBOX:
@@ -1954,17 +1974,19 @@ nsresult nsNativeThemeWin::ClassicGetThemePartAndState(nsIFrame* aFrame, PRUint8
       return NS_OK;
     }
     case NS_THEME_CHECKBOX:
-    case NS_THEME_RADIO: {
+    case NS_THEME_CHECKBOX_SMALL:
+    case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL: {
       PRInt32 contentState ;
       aFocused = PR_FALSE;
 
       aPart = DFC_BUTTON;
-      aState = (aWidgetType == NS_THEME_CHECKBOX) ? DFCS_BUTTONCHECK : DFCS_BUTTONRADIO;
+      aState = (IsCheckboxWidgetType(aWidgetType)) ? DFCS_BUTTONCHECK : DFCS_BUTTONRADIO;
       nsIContent* content = aFrame->GetContent();
            
       if (content->IsNodeOfType(nsINode::eXUL)) {
         // XUL
-        if (aWidgetType == NS_THEME_CHECKBOX) {
+        if (IsCheckboxWidgetType(aWidgetType)) {
           if (IsChecked(aFrame))
             aState |= DFCS_CHECKED;
         }
@@ -2401,7 +2423,9 @@ RENDER_AGAIN:
     }
     // Draw controls supported by DrawFrameControl
     case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_SCROLLBAR_BUTTON_UP:
     case NS_THEME_SCROLLBAR_BUTTON_DOWN:
     case NS_THEME_SCROLLBAR_BUTTON_LEFT:
@@ -2418,7 +2442,7 @@ RENDER_AGAIN:
 
       // Draw focus rectangles for HTML checkboxes and radio buttons
       // XXX it'd be nice to draw these outside of the frame
-      if (focused && (aWidgetType == NS_THEME_CHECKBOX || aWidgetType == NS_THEME_RADIO)) {
+      if (focused && (IsCheckboxWidgetType(aWidgetType) || IsRadioWidgetType(aWidgetType))) {
         // setup DC to make DrawFocusRect draw correctly
         POINT vpOrg;
         ::GetViewportOrgEx(hdc, &vpOrg);
@@ -2717,7 +2741,9 @@ nsNativeThemeWin::GetWidgetNativeDrawingFlags(PRUint8 aWidgetType)
     case NS_THEME_DROPDOWN_BUTTON:
     // these are definitely no; they're all graphics that don't get scaled up
     case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_CHECKMENUITEM:
     case NS_THEME_RADIOMENUITEM:
     case NS_THEME_MENUCHECKBOX:

@@ -67,11 +67,10 @@ nsXULTextAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-nsresult
-nsXULTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXULTextAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
-                                                            aExtraState);
+  nsresult rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Labels and description have read only state
@@ -123,11 +122,10 @@ nsXULTooltipAccessible::GetNameInternal(nsAString& aName)
   return GetXULName(aName, PR_TRUE);
 }
 
-nsresult
-nsXULTooltipAccessible::GetStateInternal(PRUint32 *aState,
-                                         PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXULTooltipAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsLeafAccessible::GetStateInternal(aState, aExtraState);
+  nsresult rv = nsLeafAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;
@@ -191,11 +189,10 @@ nsXULLinkAccessible::GetRole(PRUint32 *aRole)
 }
 
 
-nsresult
-nsXULLinkAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXULLinkAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
-                                                            aExtraState);
+  nsresult rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aState |= nsIAccessibleStates::STATE_LINKED;

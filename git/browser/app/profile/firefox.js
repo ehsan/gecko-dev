@@ -80,9 +80,6 @@ pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LO
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
 pref("extensions.blocklist.interval", 86400);
-// Controls what level the blocklist switches from warning about items to forcibly
-// blocking them.
-pref("extensions.blocklist.level", 2);
 pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/2/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/");
 pref("extensions.blocklist.detailsURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/blocklist/");
 
@@ -419,17 +416,6 @@ pref("font.language.group", "chrome://global/locale/intl.properties");
 pref("intl.menuitems.alwaysappendaccesskeys","chrome://global/locale/intl.properties");
 pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://global/locale/intl.properties");
 
-pref("browser.gesture.swipe.left", "Browser:BackOrBackDuplicate");
-pref("browser.gesture.swipe.right", "Browser:ForwardOrForwardDuplicate");
-pref("browser.gesture.swipe.up", "cmd_scrollTop");
-pref("browser.gesture.swipe.down", "cmd_scrollBottom");
-pref("browser.gesture.pinch.out", "cmd_fullZoomEnlarge");
-pref("browser.gesture.pinch.in", "cmd_fullZoomReduce");
-pref("browser.gesture.pinch.out.shift", "cmd_fullZoomReset");
-pref("browser.gesture.pinch.in.shift", "cmd_fullZoomReset");
-pref("browser.gesture.twist.right", "Browser:NextTab");
-pref("browser.gesture.twist.left", "Browser:PrevTab");
-
 // 0=lines, 1=pages, 2=history , 3=text size
 #ifdef XP_MACOSX
 // On OS X, if the wheel has one axis only, shift+wheel comes through as a
@@ -678,21 +664,20 @@ pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.goog
 
 #endif
 
-pref("browser.EULA.version", 3);
-pref("browser.rights.version", 3);
-
-// defaults to true on Windows and Mac, because the installer shows a EULA
+// defaults to true on Windows and Mac, because the installer shows this
 #ifdef XP_MACOSX
-pref("browser.rights.3.shown", true);
+pref("browser.EULA.3.accepted", true);
 #elifdef XP_WIN
-pref("browser.rights.3.shown", true);
+pref("browser.EULA.3.accepted", true);
 #else
-pref("browser.rights.3.shown", false);
+pref("browser.EULA.3.accepted", false);
 #endif
 
+// if we rev the EULA again, we should bump this so users agree to the new EULA
+pref("browser.EULA.version", 3);
+
 #ifdef DEBUG
-// Don't show the about:rights notification in debug builds.
-pref("browser.rights.override", true);
+pref("browser.EULA.override", true);
 #endif
 
 pref("browser.sessionstore.resume_from_crash", true);
@@ -762,7 +747,7 @@ pref("places.frecency.unvisitedTypedBonus", 200);
 // 0 - don't pre-populate anything
 // 1 - pre-populate site URL, but don't fetch certificate
 // 2 - pre-populate site URL and pre-fetch certificate
-pref("browser.ssl_override_behavior", 2);
+pref("browser.ssl_override_behavior", 1);
 
 // Controls the display of domain in the identity box for SSL connections.
 // 0 - do not show domain
@@ -788,12 +773,3 @@ pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
 
 // base URL for web-based support pages
 pref("app.support.baseURL", "http://support.mozilla.com/1/%APP%/%VERSION%/%OS%/%LOCALE%/");
-
-// Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
-pref("security.alternate_certificate_error_page", "certerror");
-
-// Whether to start the private browsing mode at application startup
-pref("browser.privatebrowsing.autostart", false);
-
-// Whether we should skip prompting before starting the private browsing mode
-pref("browser.privatebrowsing.dont_prompt_on_enter", false);

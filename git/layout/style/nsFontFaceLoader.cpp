@@ -110,14 +110,69 @@ nsFontFaceLoader::~nsFontFaceLoader()
 
 }
 
-NS_IMPL_ISUPPORTS1(nsFontFaceLoader, nsIStreamLoaderObserver)
+NS_IMPL_ISUPPORTS1(nsFontFaceLoader, nsIDownloadObserver)
+
+static nsresult
+MakeTempFileName(nsIFile** tempFile)
+{
+  nsresult rv;
+
+  rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, tempFile);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // xxx - need something a little less lame here...
+  static PRUint16 count = 0;
+  PRTime now = PR_Now();
+  PRUint32 current = (PRUint32) now;
+
+  ++count;
+  char buf[256];
+  sprintf(buf, "mozfont_%8.8x%4.4x.ttf", current, count);
+
+  rv = (*tempFile)->AppendNative(nsDependentCString(buf));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return (*tempFile)->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+}
+
+// initiate the load
+nsresult 
+nsFontFaceLoader::Init()
+{
+#ifdef PR_LOGGING
+  if (LOG_ENABLED()) {
+    nsCAutoString fontURI;
+    mFontURI->GetSpec(fontURI);
+    LOG(("fontdownloader (%p) download start - font uri: (%s)\n", 
+         this, fontURI.get()));
+  }
+#endif  
+
+  nsresult rv;
+
+  nsCOMPtr<nsIFile> tempFile;
+  rv = MakeTempFileName(getter_AddRefs(tempFile));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = NS_NewDownloader(getter_AddRefs(mDownloader), this, tempFile);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIInterfaceRequestor> sameOriginChecker 
+                                       = nsContentUtils::GetSameOriginChecker();
+
+  rv = NS_OpenURI(mDownloader, nsnull, mFontURI, nsnull, nsnull, 
+                  sameOriginChecker);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
 
 NS_IMETHODIMP
-nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
-                                   nsISupports* aContext,
-                                   nsresult aStatus,
-                                   PRUint32 aStringLen,
-                                   const PRUint8* aString)
+nsFontFaceLoader::OnDownloadComplete(nsIDownloader *aDownloader,
+                                     nsIRequest   *aRequest,
+                                     nsISupports  *aContext,
+                                     nsresult     aStatus,
+                                     nsIFile      *aFile)
 {
 
 #ifdef PR_LOGGING
@@ -136,9 +191,16 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
 
   PRBool fontUpdate;
 
+  if (NS_SUCCEEDED(aStatus) && aFile) {
+    // font data download succeeded, try to load the font
+    mFaceData.mFormatFlags = 0;
+    mFaceData.mFontFile = aFile;
+    mFaceData.mDownloader = aDownloader;
+  }
+
   // whether an error occurred or not, notify the user font set of the completion
   fontUpdate = mLoaderContext->mUserFontSet->OnLoadComplete(mFontEntry, 
-                                                            aString, aStringLen,
+                                                            mFaceData, 
                                                             aStatus);
 
   // when new font loaded, need to reflow
@@ -154,7 +216,7 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
     }
   }
 
-  return aStatus;
+  return NS_OK;
 }
 
 PRBool
@@ -172,30 +234,12 @@ nsFontFaceLoader::CreateHandler(gfxFontEntry *aFontToLoad, nsIURI *aFontURI,
   if (!CheckMayLoad(ps->GetDocument(), aFontURI))
     return PR_FALSE;
 
-  nsRefPtr<nsFontFaceLoader> fontLoader = new nsFontFaceLoader(aFontToLoad, 
-                                                               aFontURI, 
-                                                               aContext);
-  if (!fontLoader)
+  nsRefPtr<nsFontFaceLoader> loader = new nsFontFaceLoader(aFontToLoad, 
+                                                           aFontURI, 
+                                                           aContext);
+  if (!loader)
     return PR_FALSE;
 
-#ifdef PR_LOGGING
-  if (LOG_ENABLED()) {
-    nsCAutoString fontURI;
-    aFontURI->GetSpec(fontURI);
-    LOG(("fontdownloader (%p) download start - font uri: (%s)\n", 
-         fontLoader.get(), fontURI.get()));
-  }
-#endif  
-
-  nsCOMPtr<nsIStreamLoader> streamLoader;
-  nsCOMPtr<nsILoadGroup> loadGroup(ps->GetDocument()->GetDocumentLoadGroup());
-  nsCOMPtr<nsIInterfaceRequestor> sameOriginChecker 
-                                       = nsContentUtils::GetSameOriginChecker();
-
-  nsresult rv = NS_NewStreamLoader(getter_AddRefs(streamLoader), aFontURI, 
-                                   fontLoader, nsnull, loadGroup, 
-                                   sameOriginChecker);
-
+  nsresult rv = loader->Init();
   return NS_SUCCEEDED(rv);
 }
-

@@ -71,8 +71,7 @@ nsAccessibleWrap(aDOMNode, aShell)
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsXULSelectableAccessible, nsAccessible, nsIAccessibleSelectable)
 
-nsresult
-nsXULSelectableAccessible::Shutdown()
+NS_IMETHODIMP nsXULSelectableAccessible::Shutdown()
 {
   mSelectControl = nsnull;
   return nsAccessibleWrap::Shutdown();
@@ -269,19 +268,17 @@ nsAccessibleWrap(aDOMNode, aShell)
 { 
 }
 
-nsresult
-nsXULMenuitemAccessible::Init()
+NS_IMETHODIMP nsXULMenuitemAccessible::Init()
 {
   nsresult rv = nsAccessibleWrap::Init();
   nsXULMenupopupAccessible::GenerateMenu(mDOMNode);
   return rv;
 }
 
-nsresult
-nsXULMenuitemAccessible::GetStateInternal(PRUint32 *aState,
-                                          PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXULMenuitemAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
+  nsresult rv = nsAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode) {
     return NS_OK;
@@ -357,7 +354,7 @@ nsXULMenuitemAccessible::GetStateInternal(PRUint32 *aState,
         NS_ASSERTION(nsAccUtils::Role(grandParentAcc) == nsIAccessibleRole::ROLE_COMBOBOX,
                      "grandparent of combobox listitem is not combobox");
         PRUint32 grandParentState, grandParentExtState;
-        grandParentAcc->GetState(&grandParentState, &grandParentExtState);
+        grandParentAcc->GetFinalState(&grandParentState, &grandParentExtState);
         *aState &= ~(nsIAccessibleStates::STATE_OFFSCREEN |
                      nsIAccessibleStates::STATE_INVISIBLE);
         *aState |= grandParentState & nsIAccessibleStates::STATE_OFFSCREEN |
@@ -560,12 +557,11 @@ nsXULMenuitemAccessible(aDOMNode, aShell)
 { 
 }
 
-nsresult
-nsXULMenuSeparatorAccessible::GetStateInternal(PRUint32 *aState,
-                                               PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXULMenuSeparatorAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // Isn't focusable, but can be offscreen/invisible -- only copy those states
-  nsresult rv = nsXULMenuitemAccessible::GetStateInternal(aState, aExtraState);
+  nsresult rv = nsXULMenuitemAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode) {
     return NS_OK;
@@ -614,11 +610,10 @@ nsXULMenupopupAccessible::nsXULMenupopupAccessible(nsIDOMNode* aDOMNode, nsIWeak
   mSelectControl = do_QueryInterface(parentNode);
 }
 
-nsresult
-nsXULMenupopupAccessible::GetStateInternal(PRUint32 *aState,
-                                           PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXULMenupopupAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
+  nsresult rv = nsAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode) {
     return NS_OK;
@@ -732,11 +727,10 @@ nsXULMenubarAccessible::nsXULMenubarAccessible(nsIDOMNode* aDOMNode, nsIWeakRefe
 { 
 }
 
-nsresult
-nsXULMenubarAccessible::GetStateInternal(PRUint32 *aState,
-                                         PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXULMenubarAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
+  nsresult rv = nsAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode) {
     return NS_OK;

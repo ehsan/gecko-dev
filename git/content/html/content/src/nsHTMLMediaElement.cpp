@@ -67,7 +67,6 @@
 #include "nsIDOMDocumentEvent.h"
 #include "nsIDOMProgressEvent.h"
 #include "nsHTMLMediaError.h"
-#include "nsICategoryManager.h"
 
 #ifdef MOZ_OGG
 #include "nsOggDecoder.h"
@@ -221,19 +220,6 @@ NS_IMETHODIMP nsHTMLMediaElement::GetTotalBytes(PRUint32 *aTotalBytes)
 /* void load (); */
 NS_IMETHODIMP nsHTMLMediaElement::Load()
 {
-  return LoadWithChannel(nsnull, nsnull);
-}
-
-nsresult nsHTMLMediaElement::LoadWithChannel(nsIChannel *aChannel,
-                                             nsIStreamListener **aListener)
-{
-  NS_ASSERTION((aChannel == nsnull) == (aListener == nsnull),
-               "channel and listener should both be null or both non-null");
-
-  if (aListener) {
-    *aListener = nsnull;
-  }
-
   if (mBegun) {
     mBegun = PR_FALSE;
     
@@ -259,12 +245,14 @@ nsresult nsHTMLMediaElement::LoadWithChannel(nsIChannel *aChannel,
     DispatchSimpleEvent(NS_LITERAL_STRING("emptied"));
   }
 
-  nsresult rv;
-  if (aChannel) {
-    rv = InitializeDecoderForChannel(aChannel, aListener);
-  } else {
-    rv = PickMediaElement();
-  }
+  nsAutoString chosenMediaResource;
+  nsresult rv = PickMediaElement(chosenMediaResource);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mNetworkState = nsIDOMHTMLMediaElement::LOADING;
+  
+  // This causes the currentSrc attribute to become valid
+  rv = InitializeDecoder(chosenMediaResource);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mBegun = PR_TRUE;
@@ -324,8 +312,8 @@ NS_IMETHODIMP nsHTMLMediaElement::GetDuration(float *aDuration)
   return NS_OK;
 }
 
-/* readonly attribute boolean paused; */
-NS_IMETHODIMP nsHTMLMediaElement::GetPaused(PRBool *aPaused)
+/* readonly attribute unsigned short paused; */
+NS_IMETHODIMP nsHTMLMediaElement::GetPaused(PRUint16 *aPaused)
 {
   *aPaused = mPaused;
 
@@ -576,8 +564,7 @@ nsresult nsHTMLMediaElement::BindToTree(nsIDocument* aDocument, nsIContent* aPar
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (mIsDoneAddingChildren &&
-      mNetworkState == nsIDOMHTMLMediaElement::EMPTY) {
+  if (mIsDoneAddingChildren && mNetworkState == nsIDOMHTMLMediaElement::EMPTY) {
     Load();
   }
 
@@ -593,98 +580,16 @@ void nsHTMLMediaElement::UnbindFromTree(PRBool aDeep,
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 }
 
-#ifdef MOZ_OGG
-static const char gOggTypes[][16] = {
-  "video/ogg",
-  "audio/ogg",
-  "application/ogg"
-};
 
-static PRBool IsOggType(const nsACString& aType)
-{
-  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gOggTypes); ++i) {
-    if (aType.EqualsASCII(gOggTypes[i]))
-      return PR_TRUE;
-  }
-  return PR_FALSE;
-}
-#endif
-
-/* static */
-PRBool nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType)
-{
-#ifdef MOZ_OGG
-  if (IsOggType(nsDependentCString(aMIMEType)))
-    return PR_TRUE;
-#endif
-  return PR_FALSE;
-}
-
-/* static */
-void nsHTMLMediaElement::InitMediaTypes()
-{
-  nsresult rv;
-  nsCOMPtr<nsICategoryManager> catMan(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
-  if (NS_SUCCEEDED(rv)) {
-#ifdef MOZ_OGG
-    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gOggTypes); i++) {
-      catMan->AddCategoryEntry("Gecko-Content-Viewers", gOggTypes[i],
-                               "@mozilla.org/content/document-loader-factory;1",
-                               PR_FALSE, PR_TRUE, nsnull);
-    }
-#endif
-  }
-}
-
-/* static */
-void nsHTMLMediaElement::ShutdownMediaTypes()
-{
-  nsresult rv;
-  nsCOMPtr<nsICategoryManager> catMan(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
-  if (NS_SUCCEEDED(rv)) {
-#ifdef MOZ_OGG
-    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gOggTypes); i++) {
-      catMan->DeleteCategoryEntry("Gecko-Content-Viewers", gOggTypes[i], PR_FALSE);
-    }
-#endif
-  }
-}
-
-PRBool nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
-{
-#ifdef MOZ_OGG
-  if (IsOggType(aType)) {
-    mDecoder = new nsOggDecoder();
-    if (mDecoder && !mDecoder->Init()) {
-      mDecoder = nsnull;
-    }
-  }
-#endif
-  return mDecoder != nsnull;
-}
-
-nsresult nsHTMLMediaElement::InitializeDecoderForChannel(nsIChannel *aChannel,
-                                                         nsIStreamListener **aListener)
-{
-  nsCAutoString mimeType;
-  aChannel->GetContentType(mimeType);
-
-  if (!CreateDecoder(mimeType))
-    return NS_ERROR_FAILURE;
-
-  mNetworkState = nsIDOMHTMLMediaElement::LOADING;
-  mDecoder->ElementAvailable(this);
-  
-  return mDecoder->Load(nsnull, aChannel, aListener);
-}
-
-nsresult nsHTMLMediaElement::PickMediaElement()
+nsresult nsHTMLMediaElement::PickMediaElement(nsAString& aChosenMediaResource)
 {
   // Implements:
   // http://www.whatwg.org/specs/web-apps/current-work/#pick-a
   nsAutoString src;
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
     if (GetAttr(kNameSpaceID_None, nsGkAtoms::src, src)) {
+      aChosenMediaResource = src;
+
 #ifdef MOZ_OGG
       // Currently assuming an Ogg file
       // TODO: Instantiate decoder based on type
@@ -699,7 +604,7 @@ nsresult nsHTMLMediaElement::PickMediaElement()
         mDecoder = nsnull;
       }
 #endif
-      return InitializeDecoder(src);
+      return NS_OK;
     }
   }
 
@@ -714,22 +619,31 @@ nsresult nsHTMLMediaElement::PickMediaElement()
     if (source) {
       if (source->HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
         nsAutoString type;
-        nsAutoString src;
-        if (source->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type) &&
-            source->GetAttr(kNameSpaceID_None, nsGkAtoms::src, src) &&
-            CreateDecoder(NS_ConvertUTF16toUTF8(type)))
-          return InitializeDecoder(src);
+
+        if (source->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type)) {
+#if MOZ_OGG
+          if (type.EqualsLiteral("video/ogg") || type.EqualsLiteral("application/ogg")) {
+            nsAutoString src;
+            if (source->GetAttr(kNameSpaceID_None, nsGkAtoms::src, src)) {
+              mDecoder = new nsOggDecoder();
+              if (mDecoder && !mDecoder->Init()) {
+                mDecoder = nsnull;
+              }
+              aChosenMediaResource = src;
+              return NS_OK;
+            }
+          }
+#endif
+        }
       }
-    }
-  }
+    }    
+  }        
 
   return NS_ERROR_DOM_INVALID_STATE_ERR;
 }
 
-nsresult nsHTMLMediaElement::InitializeDecoder(const nsAString& aURISpec)
+nsresult nsHTMLMediaElement::InitializeDecoder(nsAString& aChosenMediaResource)
 {
-  mNetworkState = nsIDOMHTMLMediaElement::LOADING;
-
   nsCOMPtr<nsIDocument> doc = GetOwnerDoc();
   if (!doc) {
     return NS_ERROR_DOM_INVALID_STATE_ERR;
@@ -739,15 +653,15 @@ nsresult nsHTMLMediaElement::InitializeDecoder(const nsAString& aURISpec)
   nsCOMPtr<nsIURI> uri;
   nsCOMPtr<nsIURI> baseURL = GetBaseURI();
   const nsAFlatCString &charset = doc->GetDocumentCharacterSet();
-  rv = NS_NewURI(getter_AddRefs(uri), aURISpec,
+  rv = NS_NewURI(getter_AddRefs(uri), 
+                 aChosenMediaResource, 
                  charset.IsEmpty() ? nsnull : charset.get(), 
                  baseURL, 
                  nsContentUtils::GetIOService());
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (mDecoder) {
-    mDecoder->ElementAvailable(this);
-    rv = mDecoder->Load(uri, nsnull, nsnull);
+    rv = mDecoder->Load(uri);
     if (NS_FAILED(rv)) {
       mDecoder = nsnull;
     }
@@ -972,19 +886,4 @@ void nsHTMLMediaElement::DestroyContent()
     mDecoder = nsnull;
   }
   nsGenericHTMLElement::DestroyContent();
-}
-
-void nsHTMLMediaElement::Freeze()
-{
-  mPausedBeforeFreeze = mPaused;
-  if (!mPaused) {
-    Pause();
-  }
-}
-
-void nsHTMLMediaElement::Thaw()
-{
-  if (!mPausedBeforeFreeze) {
-    Play();
-  }
 }

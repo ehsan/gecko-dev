@@ -210,10 +210,10 @@ PRUint32 nsRootAccessible::GetChromeFlags()
 }
 #endif
 
-nsresult
-nsRootAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsRootAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsDocAccessibleWrap::GetStateInternal(aState, aExtraState);
+  nsresult rv = nsDocAccessibleWrap::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;
@@ -630,11 +630,10 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     // create it just to destroy it.
     nsCOMPtr<nsIDocument> doc(do_QueryInterface(aTargetNode));
     nsCOMPtr<nsIAccessibleDocument> accDoc = GetDocAccessibleFor(doc);
-    if (accDoc) {
-      nsRefPtr<nsAccessNode> docAccNode = nsAccUtils::QueryAccessNode(accDoc);
-      docAccNode->Shutdown();
+    nsCOMPtr<nsPIAccessNode> privateAcc = do_QueryInterface(accDoc);
+    if (privateAcc) {
+      privateAcc->Shutdown();
     }
-
     return NS_OK;
   }
 
@@ -697,7 +696,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
 
     // radiogroup in prefWindow is exposed as a list,
     // and panebutton is exposed as XULListitem in A11y.
-    // nsXULListitemAccessible::GetStateInternal uses STATE_SELECTED in this case,
+    // nsXULListitemAccessible::GetState uses STATE_SELECTED in this case,
     // so we need to check nsIAccessibleStates::STATE_SELECTED also.
     PRBool isEnabled = (state & (nsIAccessibleStates::STATE_CHECKED |
                         nsIAccessibleStates::STATE_SELECTED)) != 0;
@@ -864,12 +863,10 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
         return NS_OK; // Tree with nothing selected
       }
 #endif
-      nsRefPtr<nsAccessNode> menuAccessNode =
-        nsAccUtils::QueryAccessNode(accessible);
-  
+      nsCOMPtr<nsPIAccessNode> menuAccessNode = do_QueryInterface(accessible);
+      NS_ENSURE_TRUE(menuAccessNode, NS_ERROR_FAILURE);
       nsIFrame* menuFrame = menuAccessNode->GetFrame();
       NS_ENSURE_TRUE(menuFrame, NS_ERROR_FAILURE);
-
       nsIMenuFrame* imenuFrame;
       CallQueryInterface(menuFrame, &imenuFrame);
       if (imenuFrame)
@@ -974,7 +971,7 @@ void nsRootAccessible::FireFocusCallback(nsITimer *aTimer, void *aClosure)
   rootAccessible->FireCurrentFocusEvent();
 }
 
-nsresult
+NS_IMETHODIMP
 nsRootAccessible::Init()
 {
   nsresult rv = nsDocAccessibleWrap::Init();
@@ -987,8 +984,7 @@ nsRootAccessible::Init()
   return NS_OK;
 }
 
-nsresult
-nsRootAccessible::Shutdown()
+NS_IMETHODIMP nsRootAccessible::Shutdown()
 {
   // Called manually or by nsAccessNode::LastRelease()
   if (!mWeakShell) {

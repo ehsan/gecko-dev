@@ -503,6 +503,7 @@ protected:
   nsresult MigrateV7Up(mozIStorageConnection *aDBConn);
   nsresult MigrateV8Up(mozIStorageConnection *aDBConn);
   nsresult EnsureCurrentSchema(mozIStorageConnection* aDBConn, PRBool *aMadeChanges);
+  nsresult CleanUpOnQuit();
 
   nsresult RemovePagesInternal(const nsCString& aPlaceIdsQueryString);
 

@@ -141,11 +141,14 @@ nsNativeThemeQt::DrawWidgetBackground(nsIRenderingContext* aContext,
 
     switch (aWidgetType) {
     case NS_THEME_RADIO:
-    case NS_THEME_CHECKBOX: {
+    case NS_THEME_RADIO_SMALL: 
+    case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL: {
         QStyleOptionButton opt;
         InitButtonStyle (aWidgetType, aFrame, r, opt);
 
-        if (aWidgetType == NS_THEME_CHECKBOX)
+        if (aWidgetType == NS_THEME_CHECKBOX ||
+            aWidgetType == NS_THEME_CHECKBOX_SMALL)
         {
             style->drawPrimitive (QStyle::PE_IndicatorCheckBox, &opt, qPainter);
         } else {
@@ -329,7 +332,9 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* a
     PRInt32 p2a = GetAppUnitsPerDevPixel(aContext);
 
     switch (aWidgetType) {
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_RADIO:
+    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_CHECKBOX: {
         nsRect frameRect = aFrame->GetRect();
 
@@ -340,7 +345,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* a
         InitButtonStyle(aWidgetType, aFrame, qRect, option);
 
         QRect rect = s->subElementRect(
-            (aWidgetType == NS_THEME_CHECKBOX) ?
+            (aWidgetType == NS_THEME_CHECKBOX || aWidgetType == NS_THEME_CHECKBOX_SMALL ) ?
                 QStyle::SE_CheckBoxIndicator :
                 QStyle::SE_RadioButtonIndicator,
             &option,
@@ -515,7 +520,9 @@ nsNativeThemeQt::ThemeSupportsWidget(nsPresContext* aPresContext,
     case NS_THEME_SCROLLBAR_TRACK_HORIZONTAL:
     case NS_THEME_SCROLLBAR_TRACK_VERTICAL:
     case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_BUTTON_BEVEL:
     case NS_THEME_BUTTON:
     case NS_THEME_DROPDOWN:
@@ -588,7 +595,9 @@ nsNativeThemeQt::InitButtonStyle(PRUint8 aWidgetType,
 
     switch (aWidgetType) {
     case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
         if (IsChecked(aFrame))
             opt.state |= QStyle::State_On;
         else

@@ -323,6 +323,8 @@ CNavDTD::BuildModel(nsIParser* aParser,
     }
   }
 
+  mSink->WillProcessTokens();
+
   while (NS_SUCCEEDED(result)) {
     if (!(mFlags & NS_DTD_FLAG_STOP_PARSING)) {
       CToken* theToken = mTokenizer->PopToken();

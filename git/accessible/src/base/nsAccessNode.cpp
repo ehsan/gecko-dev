@@ -117,7 +117,7 @@ NS_IMPL_CYCLE_COLLECTION_0(nsAccessNode)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsAccessNode)
   NS_INTERFACE_MAP_ENTRY(nsIAccessNode)
-  NS_INTERFACE_MAP_ENTRY(nsAccessNode)
+  NS_INTERFACE_MAP_ENTRY(nsPIAccessNode)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIAccessNode)
 NS_INTERFACE_MAP_END
  
@@ -155,8 +155,7 @@ void nsAccessNode::LastRelease()
   NS_DELETEXPCOM(this);
 }
 
-nsresult
-nsAccessNode::Init()
+NS_IMETHODIMP nsAccessNode::Init()
 {
   // We have to put this here, instead of constructor, otherwise
   // we don't have the virtual GetUniqueID() method for the hash key.
@@ -219,8 +218,7 @@ nsAccessNode::Init()
 }
 
 
-nsresult
-nsAccessNode::Shutdown()
+NS_IMETHODIMP nsAccessNode::Shutdown()
 {
   mDOMNode = nsnull;
   mWeakShell = nsnull;
@@ -402,8 +400,7 @@ already_AddRefed<nsRootAccessible> nsAccessNode::GetRootAccessible()
   return rootAccessible;
 }
 
-nsIFrame*
-nsAccessNode::GetFrame()
+nsIFrame* nsAccessNode::GetFrame()
 {
   nsCOMPtr<nsIPresShell> shell(do_QueryReferent(mWeakShell));
   if (!shell) 
@@ -744,9 +741,8 @@ PLDHashOperator nsAccessNode::ClearCacheEntry(const void* aKey, nsCOMPtr<nsIAcce
 {
   NS_ASSERTION(aAccessNode, "Calling ClearCacheEntry with a NULL pointer!");
   if (aAccessNode) {
-    nsRefPtr<nsAccessNode> accessNode =
-      nsAccUtils::QueryAccessNode(aAccessNode);
-    accessNode->Shutdown();
+    nsCOMPtr<nsPIAccessNode> privateAccessNode(do_QueryInterface(aAccessNode));
+    privateAccessNode->Shutdown();
   }
 
   return PL_DHASH_REMOVE;

@@ -481,15 +481,30 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  PRBool quirkyClip = HasPctOverHeight() &&
+    eCompatibility_NavQuirks == PresContext()->CompatibilityMode();
   nsIFrame* kid = mFrames.FirstChild();
   NS_ASSERTION(kid && !kid->GetNextSibling(), "Table cells should have just one child");
-  // The child's background will go in our BorderBackground() list.
-  // This isn't a problem since it won't have a real background except for
-  // event handling. We do not call BuildDisplayListForNonBlockChildren
-  // because that/ would put the child's background in the Content() list
-  // which isn't right (e.g., would end up on top of our child floats for
-  // event handling).
-  return BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+  if (!quirkyClip) {
+    // The child's background will go in our BorderBackground() list.
+    // This isn't a problem since it won't have a real background except for
+    // event handling. We do not call BuildDisplayListForNonBlockChildren
+    // because that/ would put the child's background in the Content() list
+    // which isn't right (e.g., would end up on top of our child floats for
+    // event handling).
+    return BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+  }
+    
+  // Unfortunately there is some wacky clipping to do
+  nsDisplayListCollection set;
+  rv = BuildDisplayListForChild(aBuilder, kid, aDirtyRect, set);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsRect clip = GetOverflowRect();
+  if (quirkyClip) {
+    clip = nsRect(nsPoint(0, 0), GetSize());
+  }
+  return OverflowClip(aBuilder, set, aLists, clip + aBuilder->ToReferenceFrame(this));
 }
 
 //null range means the whole thing

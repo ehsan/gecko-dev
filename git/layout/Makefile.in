@@ -44,43 +44,34 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= layout
 
-PARALLEL_DIRS = \
+DIRS		= \
 		style \
 		base \
 		generic \
 		forms \
 		tables \
-		xul/base/public \
-		xul/base/src \
+		xul \
 		$(NULL)
 
 ifdef NS_PRINTING
-PARALLEL_DIRS += printing
+DIRS           += printing
 endif
 
 ifdef MOZ_MATHML
-PARALLEL_DIRS += \
-  mathml/content/src \
-  mathml/base/src \
-  $(NULL)
+DIRS           += mathml
 endif
 
 ifdef MOZ_SVG
-PARALLEL_DIRS += svg/base/src
+DIRS           += svg
 endif
 
 ifndef MOZ_NO_INSPECTOR_APIS
-PARALLEL_DIRS += inspector/public inspector/src
+DIRS           += inspector
 endif
 
 DIRS           += build
 
 ifdef ENABLE_TESTS
-PARALLEL_DIRS += \
-  xul/test \
-  xul/base/test \
-  $(NULL)
-
 TOOL_DIRS      += tools/reftest
 DIRS           += tools/pageloader
 ifndef MOZ_ENABLE_LIBXUL
@@ -89,3 +80,4 @@ endif
 endif
 
 include $(topsrcdir)/config/rules.mk
+

@@ -166,6 +166,10 @@ MAKEFILES_intl="
   intl/strres/tests/Makefile
 "
 
+MAKEFILES_js="
+  js/src/Makefile
+"
+
 MAKEFILES_liveconnect="
   js/src/liveconnect/Makefile
   js/src/liveconnect/classes/Makefile
@@ -247,8 +251,11 @@ MAKEFILES_layout="
   layout/html/tests/Makefile
   layout/style/Makefile
   layout/printing/Makefile
+  layout/xul/Makefile
+  layout/xul/base/Makefile
   layout/xul/base/public/Makefile
   layout/xul/base/src/Makefile
+  layout/xul/base/src/tree/Makefile
   layout/xul/base/src/tree/src/Makefile
   layout/xul/base/src/tree/public/Makefile
 "
@@ -767,6 +774,7 @@ add_makefiles "
   $MAKEFILES_gfx
   $MAKEFILES_htmlparser
   $MAKEFILES_intl
+  $MAKEFILES_js
   $MAKEFILES_liveconnect
   $MAKEFILES_xpconnect
   $MAKEFILES_jsdebugger
@@ -1020,7 +1028,10 @@ fi
 if [ "$MOZ_MATHML" ]; then
   add_makefiles "
     intl/uconv/ucvmath/Makefile
+    layout/mathml/Makefile
+    layout/mathml/base/Makefile
     layout/mathml/base/src/Makefile
+    layout/mathml/content/Makefile
     layout/mathml/content/src/Makefile
   "
 fi
@@ -1033,6 +1044,8 @@ if [ "$MOZ_SVG" ]; then
     content/svg/content/Makefile
     content/svg/content/src/Makefile
     dom/public/idl/svg/Makefile
+    layout/svg/Makefile
+    layout/svg/base/Makefile
     layout/svg/base/src/Makefile
   "
 fi

@@ -188,8 +188,6 @@ namespace nanojit
 			void		releaseRegisters();
             void        patch(GuardRecord *lr);
             void        patch(SideExit *exit);
-			void        disconnectLoop(GuardRecord *lr);
-			void        reconnectLoop(GuardRecord *lr);
 			AssmError   error()	{ return _err; }
 			void		setError(AssmError e) { _err = e; }
 			void		setCallTable(const CallInfo *functions);
@@ -290,6 +288,7 @@ namespace nanojit
 			void		asm_spill(Register rr, int d, bool pop, bool quad);
 			void		asm_load64(LInsp i);
 			void		asm_pusharg(LInsp p);
+			NIns*		asm_adjustBranch(NIns* at, NIns* target);
 			void		asm_quad(LInsp i);
 			void		asm_loop(LInsp i, NInsList& loopJumps);
 			void		asm_fcond(LInsp i);
@@ -312,7 +311,7 @@ namespace nanojit
 			void		asm_call(LInsp);
             void        asm_arg(ArgSize, LInsp, Register);
 			Register	asm_binop_rhs_reg(LInsp ins);
-			NIns*		asm_branch(bool branchOnFalse, LInsp cond, NIns* targ, bool far);
+			NIns*		asm_branch(bool branchOnFalse, LInsp cond, NIns* targ);
             void        assignSavedRegs();
             void        reserveSavedRegs();
             void        assignParamRegs();
@@ -325,7 +324,7 @@ namespace nanojit
 			void		nRegisterResetAll(RegAlloc& a);
 			void		nMarkExecute(Page* page, int32_t count=1, bool enable=true);
 			void		nFrameRestore(RegisterMask rmask);
-			NIns*    	nPatchBranch(NIns* branch, NIns* location);
+			static void	nPatchBranch(NIns* branch, NIns* location);
 			void		nFragExit(LIns* guard);
 
 			// platform specific methods

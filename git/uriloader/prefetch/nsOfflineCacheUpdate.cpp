@@ -541,7 +541,9 @@ nsOfflineManifestItem::AddNamespace(PRUint32 namespaceType,
         do_CreateInstance(NS_APPLICATIONCACHENAMESPACE_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = ns->Init(namespaceType, namespaceSpec, data);
+    rv = ns->Init(nsIApplicationCacheNamespace::NAMESPACE_FALLBACK |
+                  nsIApplicationCacheNamespace::NAMESPACE_OPPORTUNISTIC,
+                  namespaceSpec, data);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = mNamespaces->AppendElement(ns, PR_FALSE);

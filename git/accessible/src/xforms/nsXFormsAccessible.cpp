@@ -171,8 +171,8 @@ nsXFormsAccessible::GetValue(nsAString& aValue)
   return sXFormsService->GetValue(mDOMNode, aValue);
 }
 
-nsresult
-nsXFormsAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXFormsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
   *aState = 0;
@@ -203,7 +203,7 @@ nsXFormsAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   rv = sXFormsService->IsValid(mDOMNode, &isValid);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = nsHyperTextAccessibleWrap::GetStateInternal(aState, aExtraState);
+  rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!isRelevant)
@@ -303,13 +303,12 @@ nsXFormsEditableAccessible::
 {
 }
 
-nsresult
-nsXFormsEditableAccessible::GetStateInternal(PRUint32 *aState,
-                                             PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXFormsEditableAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
 
-  nsresult rv = nsXFormsAccessible::GetStateInternal(aState, aExtraState);
+  nsresult rv = nsXFormsAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode || !aExtraState)
     return NS_OK;

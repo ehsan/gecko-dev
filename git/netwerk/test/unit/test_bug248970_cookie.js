@@ -43,6 +43,24 @@ function get_PBSvc() {
   try {
     _PBSvc = Components.classes["@mozilla.org/privatebrowsing;1"].
              getService(Components.interfaces.nsIPrivateBrowsingService);
+    if (_PBSvc) {
+      var observer = {
+        QueryInterface: function (iid) {
+          const interfaces = [Components.interfaces.nsIObserver,
+                              Components.interfaces.nsISupports];
+          if (!interfaces.some(function(v) iid.equals(v)))
+            throw Components.results.NS_ERROR_NO_INTERFACE;
+          return this;
+        },
+        observe: function (subject, topic, data) {
+          subject.QueryInterface(Components.interfaces.nsISupportsPRUint32);
+          subject.data = 0;
+        }
+      };
+      var os = Components.classes["@mozilla.org/observer-service;1"].
+               getService(Components.interfaces.nsIObserverService);
+      os.addObserver(observer, "private-browsing-enter", false);
+    }
     return _PBSvc;
   } catch (e) {}
   return null;
@@ -108,6 +126,7 @@ function is_cookie_available2(domain, path, name, value,
 var cc_observer = null;
 function setup_cookie_changed_observer() {
   cc_observer = {
+    gotCleared: false,
     gotReloaded: false,
     QueryInterface: function (iid) {
       const interfaces = [Components.interfaces.nsIObserver,
@@ -119,7 +138,9 @@ function setup_cookie_changed_observer() {
     observe: function (subject, topic, data) {
       if (topic == "cookie-changed") {
         if (!subject) {
-          if (data == "reload")
+          if (data == "cleared")
+            this.gotCleared = true;
+          else if (data == "reload")
             this.gotReloaded = true;
         }
       }
@@ -133,10 +154,6 @@ function setup_cookie_changed_observer() {
 function run_test() {
   var pb = get_PBSvc();
   if (pb) { // Private Browsing might not be available
-    var prefBranch = Components.classes["@mozilla.org/preferences-service;1"].
-                     getService(Components.interfaces.nsIPrefBranch);
-    prefBranch.setBoolPref("browser.privatebrowsing.keep_current_session", true);
-
     var cm = get_CookieManager();
     do_check_neq(cm, null);
 
@@ -153,8 +170,7 @@ function run_test() {
       // enter private browsing mode
       pb.privateBrowsingEnabled = true;
       // make sure the "cleared" notification was fired
-      do_check_true(cc_observer.gotReloaded);
-      cc_observer.gotReloaded = false;
+      do_check_true(cc_observer.gotCleared);
       // make sure Cookie-A is not retrievable
       do_check_false(is_cookie_available1("pbtest.example.com", "/", "C1", "V1", false, true, false, time));
       do_check_false(is_cookie_available2("pbtest.example.com", "/", "C1", "V1", false, true, false, time));
@@ -177,7 +193,6 @@ function run_test() {
     } catch (e) {
       do_throw("Unexpected exception while testing cookies: " + e);
     }
-
-    prefBranch.clearUserPref("browser.privatebrowsing.keep_current_session");
   }
+  do_test_finished();
 }

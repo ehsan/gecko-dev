@@ -96,11 +96,11 @@ NS_IMETHODIMP nsXULTabAccessible::GetRole(PRUint32 *_retval)
 /**
   * Possible states: focused, focusable, unavailable(disabled), offscreen
   */
-nsresult
-nsXULTabAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXULTabAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // get focus and disable status from base class
-  nsresult rv = nsLeafAccessible::GetStateInternal(aState, aExtraState);
+  nsresult rv = nsLeafAccessible::GetState(aState, aExtraState);
   if (!mDOMNode) {
     return NS_OK;
   }
