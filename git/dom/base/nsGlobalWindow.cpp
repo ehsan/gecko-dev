@@ -6130,7 +6130,7 @@ PostMessageReadStructuredClone(JSContext* cx,
     return runtimeCallbacks->read(cx, reader, tag, data, nullptr);
   }
 
-  return nullptr;
+  return JS_FALSE;
 }
 
 static JSBool

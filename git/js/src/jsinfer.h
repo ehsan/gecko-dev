@@ -880,7 +880,7 @@ struct TypeObject : gc::Cell
      * assignment, and the own types of the property will be used instead of
      * aggregate types.
      */
-    inline HeapTypeSet *getProperty(JSContext *cx, jsid id, bool own);
+    inline HeapTypeSet *getProperty(JSContext *cx, jsid id, bool assign);
 
     /* Get a property only if it already exists. */
     inline HeapTypeSet *maybeGetProperty(JSContext *cx, jsid id);

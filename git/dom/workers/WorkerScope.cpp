@@ -768,8 +768,7 @@ private:
   {
     JSClass* classPtr = JS_GetClass(aObj);
     if (classPtr == Class()) {
-      return UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj,
-                                                         eRegularDOMObject);
+      return UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj);
     }
 
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
@@ -804,7 +803,7 @@ private:
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
     DedicatedWorkerGlobalScope* scope =
-      UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj, eRegularDOMObject);
+      UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj);
     if (scope) {
       DestroyProtoOrIfaceCache(aObj);
       scope->_finalize(aFop);
@@ -816,7 +815,7 @@ private:
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
     DedicatedWorkerGlobalScope* scope =
-      UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj, eRegularDOMObject);
+      UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj);
     if (scope) {
       mozilla::dom::TraceProtoOrIfaceCache(aTrc, aObj);
       scope->_trace(aTrc);
@@ -860,13 +859,9 @@ DOMJSClass DedicatedWorkerGlobalScope::sClass = {
     JS_EnumerateStub, reinterpret_cast<JSResolveOp>(Resolve), JS_ConvertStub,
     Finalize, NULL, NULL, NULL, NULL, Trace
   },
-  {
-    { prototypes::id::EventTarget_workers, prototypes::id::_ID_Count,
-      prototypes::id::_ID_Count },
-    false,
-    &sNativePropertyHooks
-  },
-  -1
+  { prototypes::id::EventTarget_workers, prototypes::id::_ID_Count,
+    prototypes::id::_ID_Count },
+  -1, false, &sNativePropertyHooks
 };
 
 JSPropertySpec DedicatedWorkerGlobalScope::sProperties[] = {
@@ -895,7 +890,7 @@ WorkerGlobalScope::GetInstancePrivate(JSContext* aCx, JSObject* aObj,
   JS_ASSERT(classPtr != Class());
 
   if (classPtr == DedicatedWorkerGlobalScope::Class()) {
-    return UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj, eRegularDOMObject);
+    return UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj);
   }
 
   JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,

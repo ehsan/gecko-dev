@@ -11,12 +11,9 @@
 #include "mozilla/dom/ContentParent.h"
 #include "nsIBrowserDOMWindow.h"
 #include "nsStringStream.h"
-#include "mozilla/ipc/URIUtils.h"
 
 #include "mozilla/unused.h"
 #include "mozilla/Util.h" // for DebugOnly
-
-using namespace mozilla::ipc;
 
 namespace mozilla {
 namespace dom {
@@ -29,9 +26,9 @@ NS_IMPL_ISUPPORTS_INHERITED4(ExternalHelperAppParent,
                              nsIResumableChannel)
 
 ExternalHelperAppParent::ExternalHelperAppParent(
-    const OptionalURIParams& uri,
+    const IPC::URI& uri,
     const int64_t& aContentLength)
-  : mURI(DeserializeURI(uri))
+  : mURI(uri)
   , mPending(false)
   , mLoadFlags(0)
   , mStatus(NS_OK)
@@ -44,7 +41,7 @@ ExternalHelperAppParent::Init(ContentParent *parent,
                               const nsCString& aMimeContentType,
                               const nsCString& aContentDispositionHeader,
                               const bool& aForceSave,
-                              const OptionalURIParams& aReferrer)
+                              const IPC::URI& aReferrer)
 {
   nsHashPropertyBag::Init();
 
@@ -53,11 +50,8 @@ ExternalHelperAppParent::Init(ContentParent *parent,
   NS_ASSERTION(helperAppService, "No Helper App Service!");
 
   SetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH, mContentLength);
-
-  nsCOMPtr<nsIURI> referrer = DeserializeURI(aReferrer);
-  if (referrer)
-    SetPropertyAsInterface(NS_LITERAL_STRING("docshell.internalReferrer"), referrer);
-
+  if (aReferrer)
+    SetPropertyAsInterface(NS_LITERAL_STRING("docshell.internalReferrer"), aReferrer);
   mContentDispositionHeader = aContentDispositionHeader;
   NS_GetFilenameFromDisposition(mContentDispositionFilename, mContentDispositionHeader, mURI);
   mContentDisposition = NS_GetContentDispositionFromHeader(mContentDispositionHeader, this);

@@ -117,14 +117,3 @@ assertName(x, 'x</<');
 
 var a = {'b': function(){}};
 assertName(a.b, 'a.b');
-
-function g(f) {
-  assertName(f, '');
-}
-label: g(function () {});
-
-var z = [function() {}];
-assertName(z[0], 'z<');
-
-/* fuzz bug from 785089 */
-odeURIL:(function(){})

@@ -15,11 +15,6 @@ class URI;
 }
 
 namespace mozilla {
-
-namespace ipc {
-class OptionalURIParams;
-} // namespace ipc
-
 namespace dom {
 
 class ContentParent;
@@ -30,8 +25,6 @@ class ExternalHelperAppParent : public PExternalHelperAppParent
                               , public nsIMultiPartChannel
                               , public nsIResumableChannel
 {
-    typedef mozilla::ipc::OptionalURIParams OptionalURIParams;
-
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIREQUEST
@@ -42,13 +35,13 @@ public:
     bool RecvOnStartRequest(const nsCString& entityID);
     bool RecvOnDataAvailable(const nsCString& data, const uint32_t& offset, const uint32_t& count);
     bool RecvOnStopRequest(const nsresult& code);
-
-    ExternalHelperAppParent(const OptionalURIParams& uri, const int64_t& contentLength);
+    
+    ExternalHelperAppParent(const IPC::URI& uri, const int64_t& contentLength);
     void Init(ContentParent *parent,
               const nsCString& aMimeContentType,
               const nsCString& aContentDisposition,
               const bool& aForceSave,
-              const OptionalURIParams& aReferrer);
+              const IPC::URI& aReferrer);
     virtual ~ExternalHelperAppParent();
 
 private:

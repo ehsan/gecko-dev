@@ -522,7 +522,9 @@ JS_GetFrameAnnotation(JSContext *cx, JSStackFrame *fpArg)
 {
     StackFrame *fp = Valueify(fpArg);
     if (fp->annotation() && fp->isScriptFrame()) {
-        if (fp->scopeChain()->compartment()->principals) {
+        JSPrincipals *principals = fp->scopeChain()->principals(cx);
+
+        if (principals) {
             /*
              * Give out an annotation only if privileges have not been revoked
              * or disabled globally.

@@ -44,7 +44,9 @@ function runTest() {
     '</div>', '_blank', 'width=300,height=300');
   SimpleTest.waitForFocus(function () {
     var scrollbox = win.document.getElementById("scrollbox");
-    let winUtils = SpecialPowers.getDOMWindowUtils(win);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    let winUtils = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                      .getInterface(Components.interfaces.nsIDOMWindowUtils);
     let outstandingTests = [
       [false, false],
       [false, true],

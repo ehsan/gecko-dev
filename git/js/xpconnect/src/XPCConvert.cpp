@@ -75,7 +75,12 @@ XPCConvert::GetISupportsFromJSObject(JSObject* obj, nsISupports** iface)
         *iface = (nsISupports*) xpc_GetJSPrivate(obj);
         return true;
     }
-    return UnwrapDOMObjectToISupports(obj, *iface);
+    if (jsclass && IsDOMClass(jsclass) &&
+        DOMJSClass::FromJSClass(jsclass)->mDOMObjectIsISupports) {
+        *iface = UnwrapDOMObject<nsISupports>(obj);
+        return true;
+    }
+    return false;
 }
 
 /***************************************************************************/

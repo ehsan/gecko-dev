@@ -18,6 +18,7 @@
 #include "nsIFileStreams.h"
 #include "nsIInputStream.h"
 #include "nsIIPCSerializableInputStream.h"
+#include "nsIIPCSerializableObsolete.h"
 #include "nsIMIMEService.h"
 #include "nsIPlatformCharset.h"
 #include "nsISeekableStream.h"
@@ -47,6 +48,8 @@ using namespace mozilla::dom;
 // stream is.  We do that by passing back this class instead.
 class DataOwnerAdapter MOZ_FINAL : public nsIInputStream,
                                    public nsISeekableStream,
+                                   public nsIIPCSerializableObsolete,
+                                   public nsIClassInfo,
                                    public nsIIPCSerializableInputStream
 {
   typedef nsDOMMemoryFile::DataOwner DataOwner;
@@ -62,8 +65,10 @@ public:
   NS_FORWARD_NSIINPUTSTREAM(mStream->)
   NS_FORWARD_NSISEEKABLESTREAM(mSeekableStream->)
 
-  // This is optional. We use a conditional QI to keep it from being called
-  // if the underlying stream doesn't support it.
+  // These are optional. We use a conditional QI to keep them from being called
+  // if the underlying stream doesn't QI to either interface.
+  NS_FORWARD_NSIIPCSERIALIZABLEOBSOLETE(mSerializableObsolete->)
+  NS_FORWARD_NSICLASSINFO(mClassInfo->)
   NS_FORWARD_NSIIPCSERIALIZABLEINPUTSTREAM(mSerializableInputStream->)
 
 private:
@@ -71,6 +76,8 @@ private:
                    nsIInputStream* aStream)
     : mDataOwner(aDataOwner), mStream(aStream),
       mSeekableStream(do_QueryInterface(aStream)),
+      mSerializableObsolete(do_QueryInterface(aStream)),
+      mClassInfo(do_QueryInterface(aStream)),
       mSerializableInputStream(do_QueryInterface(aStream))
   {
     NS_ASSERTION(mSeekableStream, "Somebody gave us the wrong stream!");
@@ -79,6 +86,8 @@ private:
   nsRefPtr<DataOwner> mDataOwner;
   nsCOMPtr<nsIInputStream> mStream;
   nsCOMPtr<nsISeekableStream> mSeekableStream;
+  nsCOMPtr<nsIIPCSerializableObsolete> mSerializableObsolete;
+  nsCOMPtr<nsIClassInfo> mClassInfo;
   nsCOMPtr<nsIIPCSerializableInputStream> mSerializableInputStream;
 };
 
@@ -88,6 +97,9 @@ NS_IMPL_THREADSAFE_RELEASE(DataOwnerAdapter)
 NS_INTERFACE_MAP_BEGIN(DataOwnerAdapter)
   NS_INTERFACE_MAP_ENTRY(nsIInputStream)
   NS_INTERFACE_MAP_ENTRY(nsISeekableStream)
+  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIIPCSerializableObsolete,
+                                     mSerializableObsolete)
+  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIClassInfo, mClassInfo)
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIIPCSerializableInputStream,
                                      mSerializableInputStream)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIInputStream)
@@ -676,7 +688,7 @@ JSObject*
 nsDOMFileList::WrapObject(JSContext *cx, JSObject *scope,
                           bool *triedToWrap)
 {
-  return mozilla::dom::oldproxybindings::FileList::create(cx, scope, this, triedToWrap);
+  return mozilla::dom::binding::FileList::create(cx, scope, this, triedToWrap);
 }
 
 nsIDOMFile*

@@ -17,6 +17,8 @@
 #include "nsITabParent.h"
 #include "nsHttpChannel.h"
 
+using namespace mozilla::dom;
+
 class nsICacheEntryDescriptor;
 class nsIAssociatedContentSecurity;
 
@@ -39,18 +41,18 @@ public:
   NS_DECL_NSIPROGRESSEVENTSINK
   NS_DECL_NSIINTERFACEREQUESTOR
 
-  HttpChannelParent(mozilla::dom::PBrowserParent* iframeEmbedding);
+  HttpChannelParent(PBrowserParent* iframeEmbedding);
   virtual ~HttpChannelParent();
 
 protected:
-  virtual bool RecvAsyncOpen(const URIParams&           uri,
-                             const OptionalURIParams&   originalUri,
-                             const OptionalURIParams&   docUri,
-                             const OptionalURIParams&   referrerUri,
+  virtual bool RecvAsyncOpen(const IPC::URI&            uri,
+                             const IPC::URI&            originalUri,
+                             const IPC::URI&            docUri,
+                             const IPC::URI&            referrerUri,
                              const uint32_t&            loadFlags,
                              const RequestHeaderTuples& requestHeaders,
                              const nsHttpAtom&          requestMethod,
-                             const OptionalInputStreamParams& uploadStream,
+                             const IPC::InputStream&    uploadStream,
                              const bool&              uploadStreamHasHeaders,
                              const uint16_t&            priority,
                              const uint8_t&             redirectionLimit,

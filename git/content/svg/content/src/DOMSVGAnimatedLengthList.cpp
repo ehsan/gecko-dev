@@ -58,13 +58,14 @@ DOMSVGAnimatedLengthList::GetDOMWrapper(SVGAnimatedLengthList *aList,
                                         uint8_t aAttrEnum,
                                         uint8_t aAxis)
 {
-  nsRefPtr<DOMSVGAnimatedLengthList> wrapper =
+  DOMSVGAnimatedLengthList *wrapper =
     sSVGAnimatedLengthListTearoffTable.GetTearoff(aList);
   if (!wrapper) {
     wrapper = new DOMSVGAnimatedLengthList(aElement, aAttrEnum, aAxis);
     sSVGAnimatedLengthListTearoffTable.AddTearoff(aList, wrapper);
   }
-  return wrapper.forget();
+  NS_ADDREF(wrapper);
+  return wrapper;
 }
 
 /* static */ DOMSVGAnimatedLengthList*

@@ -6,6 +6,21 @@
 #include "jsdbgapi.h"
 #include "jsobjinlines.h"
 
+JSPrincipals *sCurrentGlobalPrincipals = NULL;
+
+JSPrincipals *
+ObjectPrincipalsFinder(JSObject *)
+{
+    return sCurrentGlobalPrincipals;
+}
+
+static const JSSecurityCallbacks seccb = {
+    NULL,
+    NULL,
+    ObjectPrincipalsFinder,
+    NULL
+};
+
 JSPrincipals *sOriginPrincipalsInErrorReporter = NULL;
 
 static void
@@ -19,6 +34,8 @@ JSPrincipals prin2 = { 1 };
 
 BEGIN_TEST(testOriginPrincipals)
 {
+    JS_SetSecurityCallbacks(rt, &seccb);
+
     /*
      * Currently, the only way to set a non-trivial originPrincipal is to use
      * JS_EvaluateUCScriptForPrincipalsVersionOrigin. This does not expose the
@@ -61,11 +78,7 @@ eval(const char *asciiChars, JSPrincipals *principals, JSPrincipals *originPrinc
         chars[i] = asciiChars[i];
     chars[len] = 0;
 
-    JS::RootedObject global(cx, JS_NewGlobalObject(cx, getGlobalClass(), principals));
-    CHECK(global);
-    JSAutoEnterCompartment ac;
-    CHECK(ac.enter(cx, global));
-    CHECK(JS_InitStandardClasses(cx, global));
+    JS::RootedObject global(cx, JS_GetGlobalObject(cx));
     bool ok = JS_EvaluateUCScriptForPrincipalsVersionOrigin(cx, global,
                                                             principals,
                                                             originPrincipals,
@@ -86,6 +99,8 @@ testOuter(const char *asciiChars)
 bool
 testInner(const char *asciiChars, JSPrincipals *principal, JSPrincipals *originPrincipal)
 {
+    sCurrentGlobalPrincipals = principal;
+
     jsval rval;
     CHECK(eval(asciiChars, principal, originPrincipal, &rval));
 
