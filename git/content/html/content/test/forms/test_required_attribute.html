@@ -164,8 +164,6 @@ function checkInputRequiredValidity(type)
     element.value = 'http://mozilla.org/';
   } else if (element.type == 'number') {
     element.value = '42';
-  } else if (element.type == 'date') {
-    element.value = '2010-10-10';
   } else {
     element.value = 'foo';
   }
@@ -354,9 +352,6 @@ function checkInputRequiredValidityForFile()
   checkNotSufferingFromBeingMissing(element);
 }
 
-SimpleTest.waitForExplicitFinish();
-SpecialPowers.pushPrefEnv({'set': [["dom.experimental_forms", true]]}, function() {
-
 checkTextareaRequiredValidity();
 
 // The require attribute behavior depend of the input type.
@@ -375,10 +370,10 @@ for (type of typeRequireNotApply) {
 }
 
 // Now, checking for all types which accept the required attribute.
-// TODO: check 'datetime', 'month', 'week', 'time' and 'datetime-local'
+// TODO: check 'datetime', 'date', 'month', 'week', 'time' and 'datetime-local'
 //       when they will be implemented.
 var typeRequireApply = ["text", "password", "search", "tel", "email", "url",
-                        "number", "date"];
+                        "number"];
 
 for (type of typeRequireApply) {
   checkInputRequiredValidity(type);
@@ -387,9 +382,6 @@ for (type of typeRequireApply) {
 checkInputRequiredValidityForCheckbox();
 checkInputRequiredValidityForRadio();
 checkInputRequiredValidityForFile();
-
-SimpleTest.finish();
-});
 
 </script>
 </pre>
