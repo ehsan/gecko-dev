@@ -1,13 +1,20 @@
-============
-Build System
-============
+==================================
+Mozilla Build System Documentation
+==================================
+
+Overview
+========
+
+.. toctree::
+   :maxdepth: 1
+
+   glossary
 
 Important Concepts
 ==================
 .. toctree::
    :maxdepth: 1
 
-   glossary
    build-overview
    supported-configurations
    Mozconfig Files <mozconfigs>
@@ -34,3 +41,24 @@ Mozilla build system.
 
    mozbuild/index
    mozbuild/dumbmake
+
+Python Packages
+===============
+
+.. toctree::
+   :maxdepth: 2
+
+   python/codegen
+   python/makeutils
+   python/mozbuild
+   python/mozpack
+   python/mozversioncontrol
+
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
+

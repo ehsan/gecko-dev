@@ -2113,12 +2113,10 @@ CmpInstructions(const void *a, const void *b)
 }
 
 bool
-jit::AnalyzeNewScriptProperties(JSContext *cx, JSFunction *fun,
+jit::AnalyzeNewScriptProperties(JSContext *cx, HandleFunction fun,
                                 types::TypeObject *type, HandleObject baseobj,
                                 Vector<types::TypeNewScript::Initializer> *initializerList)
 {
-    JS_ASSERT(cx->compartment()->activeAnalysis);
-
     // When invoking 'new' on the specified script, try to find some properties
     // which will definitely be added to the created object before it has a
     // chance to escape and be accessed elsewhere.
@@ -2137,6 +2135,8 @@ jit::AnalyzeNewScriptProperties(JSContext *cx, JSFunction *fun,
 
     TempAllocator temp(&alloc);
     IonContext ictx(cx, &temp);
+
+    types::AutoEnterAnalysis enter(cx);
 
     if (!cx->compartment()->ensureJitCompartmentExists(cx))
         return Method_Error;

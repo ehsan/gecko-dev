@@ -214,7 +214,7 @@ Layer::ClearAnimations()
   Mutated();
 }
 
-static nsCSSValueSharedList*
+static nsCSSValueList*
 CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
 {
   nsAutoPtr<nsCSSValueList> result;
@@ -337,7 +337,7 @@ CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
     result = new nsCSSValueList();
     result->mValue.SetNoneValue();
   }
-  return new nsCSSValueSharedList(result.forget());
+  return result.forget();
 }
 
 void
@@ -385,11 +385,13 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
       if (segment.endState().type() == Animatable::TArrayOfTransformFunction) {
         const InfallibleTArray<TransformFunction>& startFunctions =
           segment.startState().get_ArrayOfTransformFunction();
-        startValue->SetTransformValue(CreateCSSValueList(startFunctions));
+        startValue->SetAndAdoptCSSValueListValue(CreateCSSValueList(startFunctions),
+                                                 nsStyleAnimation::eUnit_Transform);
 
         const InfallibleTArray<TransformFunction>& endFunctions =
           segment.endState().get_ArrayOfTransformFunction();
-        endValue->SetTransformValue(CreateCSSValueList(endFunctions));
+        endValue->SetAndAdoptCSSValueListValue(CreateCSSValueList(endFunctions),
+                                               nsStyleAnimation::eUnit_Transform);
       } else {
         NS_ASSERTION(segment.endState().type() == Animatable::Tfloat,
                      "Unknown Animatable type");

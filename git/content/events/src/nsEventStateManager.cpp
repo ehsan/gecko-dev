@@ -2504,11 +2504,11 @@ void
 nsEventStateManager::DoScrollZoom(nsIFrame *aTargetFrame,
                                   int32_t adjustment)
 {
-  // Exclude form controls and content in chrome docshells.
+  // Exclude form controls and XUL content.
   nsIContent *content = aTargetFrame->GetContent();
   if (content &&
       !content->IsNodeOfType(nsINode::eHTML_FORM_CONTROL) &&
-      !nsContentUtils::IsInChromeDocshell(content->OwnerDoc()))
+      !content->OwnerDoc()->IsXUL())
     {
       // positive adjustment to decrease zoom, negative to increase
       int32_t change = (adjustment > 0) ? -1 : 1;

@@ -25,9 +25,8 @@ namespace dom {
 class CallbackFunction : public CallbackObject
 {
 public:
-  explicit CallbackFunction(JS::Handle<JSObject*> aCallable,
-                            nsIGlobalObject* aIncumbentGlobal)
-    : CallbackObject(aCallable, aIncumbentGlobal)
+  explicit CallbackFunction(JSObject* aCallable)
+    : CallbackObject(aCallable)
   {
     MOZ_ASSERT(JS_ObjectIsCallable(nullptr, mCallback));
   }

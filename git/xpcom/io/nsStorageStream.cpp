@@ -67,7 +67,8 @@ NS_IMPL_ISUPPORTS2(nsStorageStream,
                    nsIOutputStream)
 
 NS_IMETHODIMP
-nsStorageStream::Init(uint32_t segmentSize, uint32_t maxSize)
+nsStorageStream::Init(uint32_t segmentSize, uint32_t maxSize,
+                      nsIMemory *segmentAllocator)
 {
     mSegmentedBuffer = new nsSegmentedBuffer();
     if (!mSegmentedBuffer)
@@ -80,7 +81,7 @@ nsStorageStream::Init(uint32_t segmentSize, uint32_t maxSize)
     if (mSegmentSize != ((uint32_t)1 << mSegmentSizeLog2))
         return NS_ERROR_INVALID_ARG;
 
-    return mSegmentedBuffer->Init(segmentSize, maxSize);
+    return mSegmentedBuffer->Init(segmentSize, maxSize, segmentAllocator);
 }
 
 NS_IMETHODIMP
@@ -530,7 +531,7 @@ NS_NewStorageStream(uint32_t segmentSize, uint32_t maxSize, nsIStorageStream **r
     if (!storageStream) return NS_ERROR_OUT_OF_MEMORY;
     
     NS_ADDREF(storageStream);
-    nsresult rv = storageStream->Init(segmentSize, maxSize);
+    nsresult rv = storageStream->Init(segmentSize, maxSize, nullptr);
     if (NS_FAILED(rv)) {
         NS_RELEASE(storageStream);
         return rv;

@@ -14,10 +14,6 @@ function test() {
 
   function doTest(aIsPrivateMode, aShouldValueExist, aWindow, aCallback) {
     aWindow.gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
-      if (aWindow.content.location != testURI) {
-        aWindow.gBrowser.selectedBrowser.loadURI(testURI);
-        return;
-      }
       aWindow.gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
 
       let checks = 0;
