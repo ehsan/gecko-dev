@@ -123,9 +123,7 @@ class nsHtml5ExecutorFlusher : public nsRunnable
     {}
     NS_IMETHODIMP Run()
     {
-      if (!mExecutor->isInList()) {
-        mExecutor->RunFlushLoop();
-      }
+      mExecutor->RunFlushLoop();
       return NS_OK;
     }
 };

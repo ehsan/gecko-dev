@@ -769,22 +769,18 @@ function cleanUpUpdatesDir(aBackgroundUpdate) {
           }
         }
         f.moveTo(dir, FILE_LAST_LOG);
-        if (aBackgroundUpdate) {
-          // We're not going to delete any files, so we can just
-          // bail out of the loop right now.
-          break;
-        } else {
-          continue;
-        }
+        continue;
       }
       catch (e) {
         LOG("cleanUpUpdatesDir - failed to move file " + f.path + " to " +
             dir.path + " and rename it to " + FILE_LAST_LOG);
       }
-    } else if (aBackgroundUpdate) {
-      // Don't delete any files when an update has been staged, as
-      // we need to keep them around in case we would have to fall
-      // back to applying the update on application restart.
+    } else if (f.leafName == FILE_UPDATE_STATUS && aBackgroundUpdate) {
+      // Leave the update.status file alone when a background update
+      // has been performed.  We don't remove this file here because
+      // after the application directory gets replaced by the staged
+      // update, this will end up being the update.status file which
+      // represents the status of the update performed.
       continue;
     }
     // Now, recursively remove this file.  The recursive removal is really
@@ -1014,9 +1010,8 @@ function handleUpdateFailure(update, errorCode) {
  * Fall back to downloading a complete update in case an update has failed.
  *
  * @param update the update object that has failed to apply.
- * @param postStaging true if we have just attempted to stage an update.
  */
-function handleFallbackToCompleteUpdate(update, postStaging) {
+function handleFallbackToCompleteUpdate(update) {
   cleanupActiveUpdate();
 
   update.statusText = gUpdateBundle.GetStringFromName("patchApplyFailure");
@@ -1029,7 +1024,7 @@ function handleFallbackToCompleteUpdate(update, postStaging) {
         "failed, downloading complete patch");
     var status = Cc["@mozilla.org/updates/update-service;1"].
                  getService(Ci.nsIApplicationUpdateService).
-                 downloadUpdate(update, !postStaging);
+                 downloadUpdate(update, true);
     if (status == STATE_NONE)
       cleanupActiveUpdate();
   }
@@ -1622,7 +1617,7 @@ UpdateService.prototype = {
       }
 
       // Something went wrong with the patch application process.
-      handleFallbackToCompleteUpdate(update, false);
+      handleFallbackToCompleteUpdate(update);
 
       prompter.showUpdateError(update);
     }
@@ -2437,7 +2432,7 @@ UpdateManager.prototype = {
     if (update.state == STATE_FAILED && ary[1]) {
       updateSucceeded = false;
       if (!handleUpdateFailure(update, ary[1])) {
-        handleFallbackToCompleteUpdate(update, true);
+        handleFallbackToCompleteUpdate(update);
       }
     }
     if (update.state == STATE_APPLIED && shouldUseService()) {
