@@ -208,20 +208,16 @@ PlayerWidget.prototype = {
     titleHTML += L10N.getStr("player.animationDurationLabel");
     titleHTML += "<strong>" + L10N.getFormatStr("player.timeLabel",
       this.getFormattedTime(state.duration)) + "</strong>";
-
     if (state.delay) {
       titleHTML += L10N.getStr("player.animationDelayLabel");
       titleHTML += "<strong>" + L10N.getFormatStr("player.timeLabel",
         this.getFormattedTime(state.delay)) + "</strong>";
     }
+    titleHTML += L10N.getStr("player.animationIterationCountLabel");
+    let count = state.iterationCount || L10N.getStr("player.infiniteIterationCount");
+    titleHTML += "<strong>" + count + "</strong>";
+    titleHTML += "</span>"
 
-    if (state.iterationCount !== 1) {
-      titleHTML += L10N.getStr("player.animationIterationCountLabel");
-      let count = state.iterationCount || L10N.getStr("player.infiniteIterationCount");
-      titleHTML += "<strong>" + count + "</strong>";
-    }
-
-    titleHTML += "</span>";
     titleEl.innerHTML = titleHTML;
 
     // Timeline widget.
@@ -258,9 +254,9 @@ PlayerWidget.prototype = {
       }
     });
 
-    let max = state.duration;
+    let max = state.duration; // Infinite iterations.
     if (state.iterationCount) {
-      // If there's a finite nb of iterations.
+      // Finite iterations.
       max = state.iterationCount * state.duration;
     }
 
@@ -289,11 +285,10 @@ PlayerWidget.prototype = {
         "class": "time-display"
       }
     });
+    this.timeDisplayEl.textContent = L10N.getFormatStr("player.timeLabel",
+      this.getFormattedTime(0));
 
     this.containerEl.appendChild(this.el);
-
-    // Show the initial time.
-    this.displayTime(state.currentTime);
   },
 
   /**
@@ -328,13 +323,11 @@ PlayerWidget.prototype = {
    */
   onStateChanged: function() {
     let state = this.player.state;
-    this.updateWidgetState(state.playState);
+    this.updatePlayPauseButton(state.playState);
 
     switch (state.playState) {
       case "finished":
-        this.stopTimelineAnimation();
-        this.displayTime(this.player.state.duration);
-        this.stopListeners();
+        this.destroy();
         break;
       case "running":
         this.startTimelineAnimation();
@@ -354,7 +347,7 @@ PlayerWidget.prototype = {
   pause: function() {
     // Switch to the right className on the element right away to avoid waiting
     // for the next state update to change the playPause icon.
-    this.updateWidgetState("paused");
+    this.updatePlayPauseButton("paused");
     return this.player.pause().then(() => {
       this.stopTimelineAnimation();
     });
@@ -368,12 +361,12 @@ PlayerWidget.prototype = {
   play: function() {
     // Switch to the right className on the element right away to avoid waiting
     // for the next state update to change the playPause icon.
-    this.updateWidgetState("running");
+    this.updatePlayPauseButton("running");
     this.startTimelineAnimation();
     return this.player.play();
   },
 
-  updateWidgetState: function(playState) {
+  updatePlayPauseButton: function(playState) {
     this.el.className = "player-widget " + playState;
   },
 
@@ -384,12 +377,10 @@ PlayerWidget.prototype = {
   startTimelineAnimation: function() {
     this.stopTimelineAnimation();
 
-    let state = this.player.state;
-
     let start = performance.now();
     let loop = () => {
       this.rafID = requestAnimationFrame(loop);
-      let now = state.currentTime + performance.now() - start;
+      let now = this.player.state.currentTime + performance.now() - start;
       this.displayTime(now);
     };
 
@@ -408,22 +399,13 @@ PlayerWidget.prototype = {
       time = Math.max(0, time - state.delay);
     }
 
-    // For finite animations, make sure the displayed time does not go beyond
-    // the animation total duration (this may happen due to the local
-    // requestAnimationFrame loop).
-    if (state.iterationCount) {
-      time = Math.min(time, state.iterationCount * state.duration);
-    }
-
-    // Set the time label value.
     this.timeDisplayEl.textContent = L10N.getFormatStr("player.timeLabel",
       this.getFormattedTime(time));
-
-    // Set the timeline slider value.
     if (!state.iterationCount && time !== state.duration) {
-      time = time % state.duration;
+      this.currentTimeEl.value = time % state.duration;
+    } else {
+      this.currentTimeEl.value = time;
     }
-    this.currentTimeEl.value = time;
   },
 
   /**

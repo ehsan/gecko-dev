@@ -55,11 +55,12 @@ public:
   Unregister(ErrorResult& aRv);
 
   // Useful methods for ServiceWorkerManager:
-  void
-  InvalidateWorkerReference(WhichServiceWorker aWhichOnes);
+
+  nsIURI*
+  GetDocumentURI() const;
 
   void
-  QueueStateChangeEvent(WhichServiceWorker aWhichOne, ServiceWorkerState aState) const;
+  InvalidateWorkerReference(WhichServiceWorker aWhichOnes);
 
   // DOMEventTargethelper
   virtual void DisconnectFromOwner() MOZ_OVERRIDE;

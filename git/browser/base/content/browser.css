@@ -216,10 +216,6 @@ toolbar[customizing] > .overflow-button {
 
 #titlebar {
   -moz-binding: url("chrome://global/content/bindings/general.xml#windowdragbox");
-
-%ifdef XP_MACOSX
-  -moz-window-dragging: drag;
-%endif
 }
 
 #titlebar-spacer {
@@ -1173,9 +1169,7 @@ toolbarpaletteitem[dragover] {
 
 toolbarpaletteitem[place="palette"] {
   width: 10em;
-  /* icon (32) + margin (2 * 4) + button padding/border (2 * 4) + label margin (~2) + label
-   * line-height (1.5em): */
-  height: calc(50px + 1.5em);
+  height: calc(40px + 2em);
   margin-bottom: 5px;
   overflow: hidden;
   display: inline-block;

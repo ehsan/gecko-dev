@@ -24,7 +24,7 @@ public:
 
   static already_AddRefed<RequestSyncWifiService> GetInstance();
 
-  void Notify(const hal::NetworkInformation& aNetworkInfo) MOZ_OVERRIDE;
+  void Notify(const hal::NetworkInformation& aNetworkInfo);
 
 private:
   RequestSyncWifiService()

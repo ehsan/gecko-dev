@@ -11,13 +11,10 @@
 %define smw_itemLightTopBorder rgba(128,128,128,0.15)
 %define smw_itemLightBottomBorder transparent
 
-.splitview-nav-container .devtools-throbber {
-  display: none;
-  text-align: center;
-}
-
-.loading .splitview-nav-container .devtools-throbber {
-  display: block;
+.loading .splitview-nav-container {
+  background-image: url(chrome://global/skin/icons/loading_16.png);
+  background-repeat: no-repeat;
+  background-position: center center;
 }
 
 .theme-dark .splitview-nav-container {

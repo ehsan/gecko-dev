@@ -65,7 +65,6 @@ const wchar_t * kMozillaWindowClass = L"MozillaWindowClass";
 #endif
 
 namespace {
-// see PluginModuleChild::GetChrome()
 PluginModuleChild* gChromeInstance = nullptr;
 nsTArray<PluginModuleChild*>* gAllInstances;
 }
@@ -192,9 +191,6 @@ PluginModuleChild::~PluginModuleChild()
 PluginModuleChild*
 PluginModuleChild::GetChrome()
 {
-    // A special PluginModuleChild instance that talks to the chrome process
-    // during startup and shutdown. Synchronous messages to or from this actor
-    // should be avoided because they may lead to hangs.
     MOZ_ASSERT(gChromeInstance);
     return gChromeInstance;
 }
@@ -234,6 +230,7 @@ PluginModuleChild::InitForContent(base::ProcessHandle aParentProcessHandle,
     mTransport = aChannel;
 
     mLibrary = GetChrome()->mLibrary;
+    mQuirks = GetChrome()->mQuirks;
     mFunctions = GetChrome()->mFunctions;
 
     return true;
@@ -2065,13 +2062,7 @@ PluginModuleChild::AllocPPluginInstanceChild(const nsCString& aMimeType,
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
 
-    // In e10s, gChromeInstance hands out quirks to instances, but never
-    // allocates an instance on its own. Make sure it gets the latest copy
-    // of quirks once we have them. Also note, with process-per-tab, we may
-    // have multiple PluginModuleChilds in the same plugin process, so only
-    // initialize this once in gChromeInstance, which is a singleton.
-    GetChrome()->InitQuirksModes(aMimeType);
-    mQuirks = GetChrome()->mQuirks;
+    InitQuirksModes(aMimeType);
 
 #ifdef XP_WIN
     if ((mQuirks & QUIRK_FLASH_HOOK_GETWINDOWINFO) &&

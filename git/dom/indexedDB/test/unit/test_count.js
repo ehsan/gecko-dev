@@ -44,7 +44,7 @@ function testSteps()
   objectStore.createIndex(indexData.name, indexData.keyPath,
                           indexData.options);
 
-  for (let data of objectStoreData) {
+  for each (let data in objectStoreData) {
     objectStore.add(data.value, data.key);
   }
 

@@ -815,8 +815,7 @@ NetMonitorController.NetworkEventsHandler = new NetworkEventsHandler();
  */
 Object.defineProperties(window, {
   "gNetwork": {
-    get: function() NetMonitorController.NetworkEventsHandler,
-    configurable: true
+    get: function() NetMonitorController.NetworkEventsHandler
   }
 });
 
