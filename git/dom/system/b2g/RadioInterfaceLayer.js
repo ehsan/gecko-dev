@@ -69,10 +69,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "gSmsRequestManager",
                                    "@mozilla.org/sms/smsrequestmanager;1",
                                    "nsISmsRequestManager");
 
-XPCOMUtils.defineLazyServiceGetter(this, "gSmsDatabaseService",
-                                   "@mozilla.org/sms/rilsmsdatabaseservice;1",
-                                   "nsISmsDatabaseService");
-
 function convertRILCallState(state) {
   switch (state) {
     case RIL.CALL_STATE_ACTIVE:
@@ -312,11 +308,8 @@ RadioInterfaceLayer.prototype = {
   },
 
   handleSmsReceived: function handleSmsReceived(message) {
-    debug("handleSmsReceived: " + JSON.stringify(message));
-    let id = gSmsDatabaseService.saveReceivedMessage(message.sender || null,
-                                                     message.body || null,
-                                                     message.timestamp);
-    let sms = gSmsService.createSmsMessage(id,
+    //TODO: put the sms into a database, assign it a proper id, yada yada
+    let sms = gSmsService.createSmsMessage(-1,
                                            DOM_SMS_DELIVERY_RECEIVED,
                                            message.sender || null,
                                            message.receiver || null,
@@ -326,15 +319,13 @@ RadioInterfaceLayer.prototype = {
   },
 
   handleSmsSent: function handleSmsSent(message) {
-    debug("handleSmsSent: " + JSON.stringify(message));
-    let timestamp = Date.now();
-    let id = gSmsDatabaseService.saveSentMessage(message.number, message.body, timestamp);
-    let sms = gSmsService.createSmsMessage(id,
+    let sms = gSmsService.createSmsMessage(-1,
                                            DOM_SMS_DELIVERY_SENT,
                                            null,
                                            message.number,
                                            message.body,
-                                           timestamp);
+                                           Date.now());
+    //TODO At this point we should save the sms into the DB (bug 712809)
     //TODO handle errors (bug 727319)
     gSmsRequestManager.notifySmsSent(message.requestId, sms);
   },
