@@ -927,9 +927,7 @@ AddonInstallListener.prototype = {
     // otherwise, we are likely a bootstrapped addon
     if (needsRestart)
       ExtensionsView.showRestart(mode);
-
-    if (aAddon.type != "locale")
-      this._showInstallCompleteAlert(true, needsRestart);
+    this._showInstallCompleteAlert(true, needsRestart);
 
     // only do this if the view has already been inited
     if (!ExtensionsView._list)
