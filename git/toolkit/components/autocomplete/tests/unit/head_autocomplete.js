@@ -78,8 +78,7 @@ AutoCompleteResultBase.prototype = {
   _values: null,
   _comments: [],
   _styles: [],
-  _finalCompleteValues: [],
-
+  
   searchString: "",
   searchResult: null,
   
@@ -112,10 +111,6 @@ AutoCompleteResultBase.prototype = {
   
   getImageAt: function(aIndex) {
     return "";
-  },
-
-  getFinalCompleteValueAt: function(aIndex) {
-    return this._finalCompleteValues[aIndex] || this._values[aIndex];
   },
 
   removeValueAt: function (aRowIndex, aRemoveFromDb) {},

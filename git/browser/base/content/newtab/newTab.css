@@ -51,21 +51,16 @@ input[type=button] {
   -moz-box-orient: vertical;
 }
 
-#newtab-margin-undo-container {
+#newtab-margin-top {
   display: -moz-box;
+  height: 40px;
+  -moz-box-align: center;
   -moz-box-pack: center;
 }
 
 #newtab-horizontal-margin {
   display: -moz-box;
-  -moz-box-flex: 1;
-}
-
-#newtab-margin-top,
-#newtab-margin-bottom {
-  display: -moz-box;
-  -moz-box-flex: 1;
-  position: relative;
+  -moz-box-flex: 5;
 }
 
 .newtab-side-margin {
