@@ -99,7 +99,8 @@ extern PRLogModuleInfo *gWidgetDrawLog;
 class QEvent;
 
 class MozQWidget;
-class QGraphicsScene;
+
+class nsIdleService;
 
 class nsWindow : public nsBaseWidget,
                  public nsSupportsWeakReference
@@ -188,6 +189,9 @@ public:
     NS_IMETHOD         GetAttention(PRInt32 aCycleCount);
     NS_IMETHOD         BeginResizeDrag   (nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
 
+    NS_IMETHODIMP      SetIMEEnabled(PRUint32 aState);
+    NS_IMETHODIMP      GetIMEEnabled(PRUint32* aState);
+
     //
     // utility methods
     //
@@ -270,6 +274,13 @@ protected:
     virtual nsEventStatus showEvent(QShowEvent *);
     virtual nsEventStatus hideEvent(QHideEvent *);
 
+//Gestures are only supported in qt > 4.6
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+    virtual nsEventStatus OnTouchEvent(QTouchEvent *event, PRBool &handled);
+    virtual nsEventStatus OnGestureEvent(QGestureEvent *event, PRBool &handled);
+    double DistanceBetweenPoints(const QPointF &aFirstPoint, const QPointF &aSecondPoint);
+#endif
+
     void               NativeResize(PRInt32 aWidth,
                                     PRInt32 aHeight,
                                     PRBool  aRepaint);
@@ -313,6 +324,7 @@ private:
     PluginType         mPluginType;
 
     nsRefPtr<gfxASurface> mThebesSurface;
+    nsCOMPtr<nsIdleService> mIdleService;
 
     PRBool       mIsTransparent;
  
@@ -354,8 +366,23 @@ private:
     }
     PRInt32 mQCursor;
 
+    // Call this function when the users activity is the direct cause of an
+    // event (like a keypress or mouse click).
+    void UserActivity();
+
     // Remember dirty area caused by ::Scroll
     QRegion mDirtyScrollArea;
+
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+    double mTouchPointDistance;
+    double mLastPinchDistance;
+    PRBool mMouseEventsDisabled;
+#endif
+
+    PRPackedBool mNeedsResize;
+    PRPackedBool mNeedsMove;
+    PRPackedBool mListenForResizes;
+    PRPackedBool mNeedsShow;
 };
 
 class nsChildWindow : public nsWindow

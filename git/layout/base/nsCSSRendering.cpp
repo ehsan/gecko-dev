@@ -78,6 +78,7 @@
 #include "gfxImageSurface.h"
 #include "nsStyleStructInlines.h"
 #include "nsCSSFrameConstructor.h"
+#include "nsCSSProps.h"
 
 #include "nsCSSRenderingBorders.h"
 
@@ -263,16 +264,14 @@ protected:
   {
     nsIFrame* prevCont = aFrame->GetPrevContinuation();
     if (!prevCont && (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
-      nsIFrame* block =
-        static_cast<nsIFrame*>
-                   (aFrame->GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling));
+      nsIFrame* block = static_cast<nsIFrame*>
+        (aFrame->Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
       if (block) {
         // The {ib} properties are only stored on first continuations
         NS_ASSERTION(!block->GetPrevContinuation(),
                      "Incorrect value for IBSplitSpecialPrevSibling");
-        prevCont =
-          static_cast<nsIFrame*>
-                     (block->GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling));
+        prevCont = static_cast<nsIFrame*>
+          (block->Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
         NS_ASSERTION(prevCont, "How did that happen?");
       }
     }
@@ -285,13 +284,11 @@ protected:
     if (!nextCont && (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
       // The {ib} properties are only stored on first continuations
       aFrame = aFrame->GetFirstContinuation();
-      nsIFrame* block =
-        static_cast<nsIFrame*>
-                   (aFrame->GetProperty(nsGkAtoms::IBSplitSpecialSibling));
+      nsIFrame* block = static_cast<nsIFrame*>
+        (aFrame->Properties().Get(nsIFrame::IBSplitSpecialSibling()));
       if (block) {
-        nextCont =
-          static_cast<nsIFrame*>
-                     (block->GetProperty(nsGkAtoms::IBSplitSpecialSibling));
+        nextCont = static_cast<nsIFrame*>
+          (block->Properties().Get(nsIFrame::IBSplitSpecialSibling()));
         NS_ASSERTION(nextCont, "How did that happen?");
       }
     }
@@ -546,9 +543,40 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
                             nsIFrame* aForFrame,
                             const nsRect& aDirtyRect,
                             const nsRect& aBorderArea,
-                            const nsStyleBorder& aStyleBorder,
                             nsStyleContext* aStyleContext,
                             PRIntn aSkipSides)
+{
+  nsStyleContext *styleIfVisited = aStyleContext->GetStyleIfVisited();
+  const nsStyleBorder *styleBorder = aStyleContext->GetStyleBorder();
+  // Don't check RelevantLinkVisited here, since we want to take the
+  // same amount of time whether or not it's true.
+  if (!styleIfVisited) {
+    PaintBorderWithStyleBorder(aPresContext, aRenderingContext, aForFrame,
+                               aDirtyRect, aBorderArea, *styleBorder,
+                               aStyleContext, aSkipSides);
+    return;
+  }
+
+  nsStyleBorder newStyleBorder(*styleBorder);
+  NS_FOR_CSS_SIDES(side) {
+    newStyleBorder.SetBorderColor(side,
+      aStyleContext->GetVisitedDependentColor(
+        nsCSSProps::SubpropertyEntryFor(eCSSProperty_border_color)[side]));
+  }
+  PaintBorderWithStyleBorder(aPresContext, aRenderingContext, aForFrame,
+                             aDirtyRect, aBorderArea, newStyleBorder,
+                             aStyleContext, aSkipSides);
+}
+
+void
+nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
+                                           nsIRenderingContext& aRenderingContext,
+                                           nsIFrame* aForFrame,
+                                           const nsRect& aDirtyRect,
+                                           const nsRect& aBorderArea,
+                                           const nsStyleBorder& aStyleBorder,
+                                           nsStyleContext* aStyleContext,
+                                           PRIntn aSkipSides)
 {
   nsMargin            border;
   nscoord             twipsRadii[8];
@@ -577,9 +605,11 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
 
   // in NavQuirks mode we want to use the parent's context as a starting point
   // for determining the background color
-  nsStyleContext* bgContext = nsCSSRendering::FindNonTransparentBackground
-    (aStyleContext, compatMode == eCompatibility_NavQuirks ? PR_TRUE : PR_FALSE);
-  const nsStyleBackground* bgColor = bgContext->GetStyleBackground();
+  nsIFrame* bgFrame = nsCSSRendering::FindNonTransparentBackgroundFrame
+    (aForFrame, compatMode == eCompatibility_NavQuirks ? PR_TRUE : PR_FALSE);
+  nsStyleContext* bgContext = bgFrame->GetStyleContext();
+  nscolor bgColor =
+    bgContext->GetVisitedDependentColor(eCSSProperty_background_color);
 
   border = aStyleBorder.GetComputedBorder();
   if ((0 == border.left) && (0 == border.right) &&
@@ -663,7 +693,7 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
                          borderColors,
                          compositeColors,
                          aSkipSides,
-                         bgColor->mBackgroundColor);
+                         bgColor);
   br.DrawBorders();
 
   ctx->Restore();
@@ -675,7 +705,7 @@ static nsRect
 GetOutlineInnerRect(nsIFrame* aFrame)
 {
   nsRect* savedOutlineInnerRect = static_cast<nsRect*>
-    (aFrame->GetProperty(nsGkAtoms::outlineInnerRectProperty));
+    (aFrame->Properties().Get(nsIFrame::OutlineInnerRectProperty()));
   if (savedOutlineInnerRect)
     return *savedOutlineInnerRect;
   return aFrame->GetOverflowRect();
@@ -687,29 +717,30 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
                              nsIFrame* aForFrame,
                              const nsRect& aDirtyRect,
                              const nsRect& aBorderArea,
-                             const nsStyleBorder& aStyleBorder,
-                             const nsStyleOutline& aOutlineStyle,
                              nsStyleContext* aStyleContext)
 {
   nscoord             twipsRadii[8];
 
   // Get our style context's color struct.
   const nsStyleColor* ourColor = aStyleContext->GetStyleColor();
+  const nsStyleOutline* ourOutline = aStyleContext->GetStyleOutline();
 
   nscoord width;
-  aOutlineStyle.GetOutlineWidth(width);
+  ourOutline->GetOutlineWidth(width);
 
   if (width == 0) {
     // Empty outline
     return;
   }
 
-  nsStyleContext* bgContext = nsCSSRendering::FindNonTransparentBackground
-    (aStyleContext, PR_FALSE);
-  const nsStyleBackground* bgColor = bgContext->GetStyleBackground();
+  nsIFrame* bgFrame = nsCSSRendering::FindNonTransparentBackgroundFrame
+    (aForFrame, PR_FALSE);
+  nsStyleContext* bgContext = bgFrame->GetStyleContext();
+  nscolor bgColor =
+    bgContext->GetVisitedDependentColor(eCSSProperty_background_color);
 
   // get the radius for our outline
-  GetBorderRadiusTwips(aOutlineStyle.mOutlineRadius, aBorderArea.width,
+  GetBorderRadiusTwips(ourOutline->mOutlineRadius, aBorderArea.width,
                        twipsRadii);
 
   // When the outline property is set on :-moz-anonymous-block or
@@ -744,7 +775,7 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
   }
 
   innerRect += aBorderArea.TopLeft();
-  nscoord offset = aOutlineStyle.mOutlineOffset;
+  nscoord offset = ourOutline->mOutlineOffset;
   innerRect.Inflate(offset, offset);
   // If the dirty rect is completely inside the border area (e.g., only the
   // content is being painted), then we can skip out now
@@ -769,17 +800,16 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
   ComputePixelRadii(twipsRadii, outerRect, 0, twipsPerPixel,
                     &outlineRadii);
 
-  PRUint8 outlineStyle = aOutlineStyle.GetOutlineStyle();
+  PRUint8 outlineStyle = ourOutline->GetOutlineStyle();
   PRUint8 outlineStyles[4] = { outlineStyle,
                                outlineStyle,
                                outlineStyle,
                                outlineStyle };
 
-  nscolor outlineColor;
-  // PR_FALSE means use the initial color; PR_TRUE means a color was
-  // set.
-  if (!aOutlineStyle.GetOutlineColor(outlineColor))
-    outlineColor = ourColor->mColor;
+  // This handles treating the initial color as 'currentColor'; if we
+  // ever want 'invert' back we'll need to do a bit of work here too.
+  nscolor outlineColor =
+    aStyleContext->GetVisitedDependentColor(eCSSProperty_outline_color);
   nscolor outlineColors[4] = { outlineColor,
                                outlineColor,
                                outlineColor,
@@ -804,7 +834,7 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
                          outlineRadii,
                          outlineColors,
                          nsnull, 0,
-                         bgColor->mBackgroundColor);
+                         bgColor);
   br.DrawBorders();
 
   ctx->Restore();
@@ -914,36 +944,38 @@ ComputeBackgroundAnchorPoint(const nsStyleBackground::Layer& aLayer,
   }
 }
 
-nsStyleContext*
-nsCSSRendering::FindNonTransparentBackground(nsStyleContext* aContext,
-                                             PRBool aStartAtParent /*= PR_FALSE*/)
+nsIFrame*
+nsCSSRendering::FindNonTransparentBackgroundFrame(nsIFrame* aFrame,
+                                                  PRBool aStartAtParent /*= PR_FALSE*/)
 {
-  NS_ASSERTION(aContext, "Cannot find NonTransparentBackground in a null context" );
-  
-  nsStyleContext* context = nsnull;
+  NS_ASSERTION(aFrame, "Cannot find NonTransparentBackgroundFrame in a null frame");
+
+  nsIFrame* frame = nsnull;
   if (aStartAtParent) {
-    context = aContext->GetParent();
+    frame = nsLayoutUtils::GetParentOrPlaceholderFor(
+              aFrame->PresContext()->FrameManager(), aFrame);
   }
-  if (!context) {
-    context = aContext;
+  if (!frame) {
+    frame = aFrame;
   }
-  
-  while (context) {
-    const nsStyleBackground* bg = context->GetStyleBackground();
-    if (NS_GET_A(bg->mBackgroundColor) > 0)
+
+  while (frame) {
+    // No need to call GetVisitedDependentColor because it always uses
+    // this alpha component anyway.
+    if (NS_GET_A(frame->GetStyleBackground()->mBackgroundColor) > 0)
       break;
 
-    const nsStyleDisplay* display = context->GetStyleDisplay();
-    if (display->mAppearance)
+    if (frame->IsThemed())
       break;
 
-    nsStyleContext* parent = context->GetParent();
+    nsIFrame* parent = nsLayoutUtils::GetParentOrPlaceholderFor(
+                         frame->PresContext()->FrameManager(), frame);
     if (!parent)
       break;
 
-    context = parent;
+    frame = parent;
   }
-  return context;
+  return frame;
 }
 
 // Returns true if aFrame is a canvas frame.
@@ -1026,22 +1058,22 @@ nsCSSRendering::FindBackgroundStyleFrame(nsIFrame* aForFrame)
  * the resulting style context to use for the background information
  * will be filled in to |aBackground|.
  */
-const nsStyleBackground*
+nsStyleContext*
 nsCSSRendering::FindRootFrameBackground(nsIFrame* aForFrame)
 {
-  return FindBackgroundStyleFrame(aForFrame)->GetStyleBackground();
+  return FindBackgroundStyleFrame(aForFrame)->GetStyleContext();
 }
 
 inline PRBool
 FindElementBackground(nsIFrame* aForFrame, nsIFrame* aRootElementFrame,
-                      const nsStyleBackground** aBackground)
+                      nsStyleContext** aBackgroundSC)
 {
   if (aForFrame == aRootElementFrame) {
     // We must have propagated our background to the viewport or canvas. Abort.
     return PR_FALSE;
   }
 
-  *aBackground = aForFrame->GetStyleBackground();
+  *aBackgroundSC = aForFrame->GetStyleContext();
 
   // Return true unless the frame is for a BODY element whose background
   // was propagated to the viewport.
@@ -1078,15 +1110,15 @@ FindElementBackground(nsIFrame* aForFrame, nsIFrame* aRootElementFrame,
 PRBool
 nsCSSRendering::FindBackground(nsPresContext* aPresContext,
                                nsIFrame* aForFrame,
-                               const nsStyleBackground** aBackground)
+                               nsStyleContext** aBackgroundSC)
 {
   nsIFrame* rootElementFrame =
     aPresContext->PresShell()->FrameConstructor()->GetRootElementStyleFrame();
   if (IsCanvasFrame(aForFrame)) {
-    *aBackground = FindCanvasBackground(aForFrame, rootElementFrame);
+    *aBackgroundSC = FindCanvasBackground(aForFrame, rootElementFrame);
     return PR_TRUE;
   } else {
-    return FindElementBackground(aForFrame, rootElementFrame, aBackground);
+    return FindElementBackground(aForFrame, rootElementFrame, aBackgroundSC);
   }
 }
 
@@ -1391,8 +1423,8 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
   NS_PRECONDITION(aForFrame,
                   "Frame is expected to be provided to PaintBackground");
 
-  const nsStyleBackground *background;
-  if (!FindBackground(aPresContext, aForFrame, &background)) {
+  nsStyleContext *sc;
+  if (!FindBackground(aPresContext, aForFrame, &sc)) {
     // We don't want to bail out if moz-appearance is set on a root
     // node. If it has a parent content node, bail because it's not
     // a root, other wise keep going in order to let the theme stuff
@@ -1407,11 +1439,11 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
       return;
     }
 
-    background = aForFrame->GetStyleBackground();
+    sc = aForFrame->GetStyleContext();
   }
 
   PaintBackgroundWithSC(aPresContext, aRenderingContext, aForFrame,
-                        aDirtyRect, aBorderArea, *background,
+                        aDirtyRect, aBorderArea, sc,
                         *aForFrame->GetStyleBorder(), aFlags,
                         aBGClipRect);
 }
@@ -1552,7 +1584,7 @@ SetupBackgroundClip(gfxContext *aCtx, PRUint8 aBackgroundClip,
 
 static nscolor
 DetermineBackgroundColorInternal(nsPresContext* aPresContext,
-                                 const nsStyleBackground& aBackground,
+                                 nsStyleContext* aStyleContext,
                                  nsIFrame* aFrame,
                                  PRBool& aDrawBackgroundImage,
                                  PRBool& aDrawBackgroundColor)
@@ -1567,7 +1599,8 @@ DetermineBackgroundColorInternal(nsPresContext* aPresContext,
 
   nscolor bgColor;
   if (aDrawBackgroundColor) {
-    bgColor = aBackground.mBackgroundColor;
+    bgColor =
+      aStyleContext->GetVisitedDependentColor(eCSSProperty_background_color);
     if (NS_GET_A(bgColor) == 0)
       aDrawBackgroundColor = PR_FALSE;
   } else {
@@ -1576,7 +1609,8 @@ DetermineBackgroundColorInternal(nsPresContext* aPresContext,
     // transparent, but we are expected to use white instead of whatever
     // color was specified.
     bgColor = NS_RGB(255, 255, 255);
-    if (aDrawBackgroundImage || !aBackground.IsTransparent())
+    if (aDrawBackgroundImage ||
+        !aStyleContext->GetStyleBackground()->IsTransparent())
       aDrawBackgroundColor = PR_TRUE;
     else
       bgColor = NS_RGBA(0,0,0,0);
@@ -1587,13 +1621,13 @@ DetermineBackgroundColorInternal(nsPresContext* aPresContext,
 
 nscolor
 nsCSSRendering::DetermineBackgroundColor(nsPresContext* aPresContext,
-                                         const nsStyleBackground& aBackground,
+                                         nsStyleContext* aStyleContext,
                                          nsIFrame* aFrame)
 {
   PRBool drawBackgroundImage;
   PRBool drawBackgroundColor;
   return DetermineBackgroundColorInternal(aPresContext,
-                                          aBackground,
+                                          aStyleContext,
                                           aFrame,
                                           drawBackgroundImage,
                                           drawBackgroundColor);
@@ -2066,7 +2100,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
                                       nsIFrame* aForFrame,
                                       const nsRect& aDirtyRect,
                                       const nsRect& aBorderArea,
-                                      const nsStyleBackground& aBackground,
+                                      nsStyleContext* aBackgroundSC,
                                       const nsStyleBorder& aBorder,
                                       PRUint32 aFlags,
                                       nsRect* aBGClipRect)
@@ -2102,7 +2136,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   PRBool drawBackgroundColor;
 
   nscolor bgColor = DetermineBackgroundColorInternal(aPresContext,
-                                                     aBackground,
+                                                     aBackgroundSC,
                                                      aForFrame,
                                                      drawBackgroundImage,
                                                      drawBackgroundColor);
@@ -2136,6 +2170,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   // SetupCurrentBackgroundClip.  (Arguably it should be the
   // intersection, but that breaks the table painter -- in particular,
   // taking the intersection breaks reftests/bugs/403249-1[ab].)
+  const nsStyleBackground *bg = aBackgroundSC->GetStyleBackground();
   nsRect bgClipArea, dirtyRect;
   gfxRect dirtyRectGfx;
   PRUint8 currentBackgroundClip;
@@ -2154,7 +2189,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
     // radii as the border code will.
     // The background-color is drawn based on the bottom
     // background-clip.
-    currentBackgroundClip = aBackground.BottomLayer().mClip;
+    currentBackgroundClip = bg->BottomLayer().mClip;
     isSolidBorder =
       (aFlags & PAINTBG_WILL_PAINT_BORDER) && IsOpaqueBorder(aBorder);
     if (isSolidBorder)
@@ -2184,12 +2219,12 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   // Ensure we get invalidated for loads of the image.  We need to do
   // this here because this might be the only code that knows about the
   // association of the style data with the frame.
-  aPresContext->SetupBackgroundImageLoaders(aForFrame, &aBackground);
+  aPresContext->SetupBackgroundImageLoaders(aForFrame, bg);
 
   // We can skip painting the background color if a background image is opaque.
   if (drawBackgroundColor &&
-      aBackground.BottomLayer().mRepeat == NS_STYLE_BG_REPEAT_XY &&
-      aBackground.BottomLayer().mImage.IsOpaque())
+      bg->BottomLayer().mRepeat == NS_STYLE_BG_REPEAT_XY &&
+      bg->BottomLayer().mImage.IsOpaque())
     drawBackgroundColor = PR_FALSE;
 
   // The background color is rendered over the entire dirty area,
@@ -2203,8 +2238,8 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   }
 
   if (drawBackgroundImage) {
-    NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, &aBackground) {
-      const nsStyleBackground::Layer &layer = aBackground.mLayers[i];
+    NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, bg) {
+      const nsStyleBackground::Layer &layer = bg->mLayers[i];
       if (!aBGClipRect) {
         PRUint8 newBackgroundClip =
           isSolidBorder ? NS_STYLE_BG_CLIP_PADDING : layer.mClip;
@@ -2218,7 +2253,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
       }
       if (!dirtyRectGfx.IsEmpty()) {
         PaintBackgroundLayer(aPresContext, aRenderingContext, aForFrame, aFlags,
-                             dirtyRect, aBorderArea, bgClipArea, aBackground,
+                             dirtyRect, aBorderArea, bgClipArea, *bg,
                              layer);
       }
     }
@@ -3018,6 +3053,8 @@ nsCSSRendering::DrawTableBorderSegment(nsIRenderingContext&     aContext,
       nscoord endBevel =   (aEndBevelOffset > 0) 
                             ? RoundFloatToPixel(0.5f * (float)aEndBevelOffset, twipsPerPixel, PR_TRUE) : 0;
       PRUint8 ridgeGrooveSide = (horizontal) ? NS_SIDE_TOP : NS_SIDE_LEFT;
+      // FIXME: In theory, this should use the visited-dependent
+      // background color, but I don't care.
       aContext.SetColor ( 
         MakeBevelColor(ridgeGrooveSide, ridgeGroove, aBGColor->mBackgroundColor, aBorderColor));
       nsRect rect(aBorder);
@@ -3051,6 +3088,8 @@ nsCSSRendering::DrawTableBorderSegment(nsIRenderingContext&     aContext,
 
       rect = aBorder;
       ridgeGrooveSide = (NS_SIDE_TOP == ridgeGrooveSide) ? NS_SIDE_BOTTOM : NS_SIDE_RIGHT;
+      // FIXME: In theory, this should use the visited-dependent
+      // background color, but I don't care.
       aContext.SetColor ( 
         MakeBevelColor(ridgeGrooveSide, ridgeGroove, aBGColor->mBackgroundColor, aBorderColor));
       if (horizontal) {
@@ -3660,6 +3699,8 @@ ImageRenderer::Draw(nsPresContext*       aPresContext,
   }
 }
 
+#define MAX_BLUR_RADIUS 300
+
 // -----
 // nsContextBoxBlur
 // -----
@@ -3675,6 +3716,7 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aBlurRadius,
   }
 
   PRInt32 blurRadius = static_cast<PRInt32>(aBlurRadius / aAppUnitsPerDevPixel);
+  blurRadius = PR_MIN(blurRadius, MAX_BLUR_RADIUS);
   mDestinationCtx = aDestinationCtx;
 
   // If not blurring, draw directly onto the destination device
@@ -3685,7 +3727,6 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aBlurRadius,
 
   // Convert from app units to device pixels
   gfxRect rect = RectToGfxRect(aRect, aAppUnitsPerDevPixel);
-  rect.RoundOut();
 
   gfxRect dirtyRect = RectToGfxRect(aDirtyRect, aAppUnitsPerDevPixel);
   dirtyRect.RoundOut();

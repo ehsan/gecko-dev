@@ -21,7 +21,7 @@
  *
  * Contributor(s):
  *   Daniel Glazman <glazman@netscape.com>
- *   Mats Palmgren <mats.palmgren@bredband.net>
+ *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -166,30 +166,46 @@ NS_IMETHODIMP nsPlaintextEditor::Init(nsIDOMDocument *aDoc,
   return res;
 }
 
+static PRInt32 sNewlineHandlingPref = -1,
+               sCaretStylePref = -1;
+
+static int
+EditorPrefsChangedCallback(const char *aPrefName, void *)
+{
+  if (nsCRT::strcmp(aPrefName, "editor.singleLine.pasteNewlines") == 0) {
+    sNewlineHandlingPref = nsContentUtils::GetIntPref("editor.singleLine.pasteNewlines",
+                                                      nsIPlaintextEditor::eNewlinesPasteToFirst);
+  } else if (nsCRT::strcmp(aPrefName, "layout.selection.caret_style") == 0) {
+    sCaretStylePref = nsContentUtils::GetIntPref("layout.selection.caret_style",
+#ifdef XP_WIN
+                                                 1);
+    if (sCaretStylePref == 0)
+      sCaretStylePref = 1;
+#else
+                                                 0);
+#endif
+  }
+  return 0;
+}
+
 // static
 void
 nsPlaintextEditor::GetDefaultEditorPrefs(PRInt32 &aNewlineHandling,
                                          PRInt32 &aCaretStyle)
 {
-  // set default values
-  aNewlineHandling = nsIPlaintextEditor::eNewlinesPasteToFirst;
-#ifdef XP_WIN
-  aCaretStyle = 1;
-#else
-  aCaretStyle = 0;
-#endif
-
-  nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
-  if (prefBranch)
-  {
-    prefBranch->GetIntPref("editor.singleLine.pasteNewlines",
-                           &aNewlineHandling);
-    prefBranch->GetIntPref("layout.selection.caret_style", &aCaretStyle);
-#ifdef XP_WIN
-    if (aCaretStyle == 0)
-      aCaretStyle = 1;
-#endif
+  if (sNewlineHandlingPref == -1) {
+    nsContentUtils::RegisterPrefCallback("editor.singleLine.pasteNewlines",
+                                         EditorPrefsChangedCallback,
+                                         nsnull);
+    EditorPrefsChangedCallback("editor.singleLine.pasteNewlines", nsnull);
+    nsContentUtils::RegisterPrefCallback("layout.selection.caret_style",
+                                         EditorPrefsChangedCallback,
+                                         nsnull);
+    EditorPrefsChangedCallback("layout.selection.caret_style", nsnull);
   }
+
+  aNewlineHandling = sNewlineHandlingPref;
+  aCaretStyle = sCaretStylePref;
 }
 
 void 
@@ -305,21 +321,6 @@ nsPlaintextEditor::SetDocumentCharacterSet(const nsACString & characterSet)
   return result; 
 } 
 
-NS_IMETHODIMP 
-nsPlaintextEditor::GetFlags(PRUint32 *aFlags)
-{
-  if (!mRules || !aFlags) { return NS_ERROR_NULL_POINTER; }
-  return mRules->GetFlags(aFlags);
-}
-
-
-NS_IMETHODIMP 
-nsPlaintextEditor::SetFlags(PRUint32 aFlags)
-{
-  if (!mRules) { return NS_ERROR_NULL_POINTER; }
-  return mRules->SetFlags(aFlags);
-}
-
 
 NS_IMETHODIMP nsPlaintextEditor::InitRules()
 {
@@ -327,7 +328,7 @@ NS_IMETHODIMP nsPlaintextEditor::InitRules()
   nsresult res = NS_NewTextEditRules(getter_AddRefs(mRules));
   if (NS_FAILED(res)) return res;
   if (!mRules) return NS_ERROR_UNEXPECTED;
-  return mRules->Init(this, mFlags);
+  return mRules->Init(this);
 }
 
 
@@ -345,11 +346,7 @@ nsPlaintextEditor::GetIsDocumentEditable(PRBool *aIsDocumentEditable)
 
 PRBool nsPlaintextEditor::IsModifiable()
 {
-  PRUint32 flags;
-  if (NS_SUCCEEDED(GetFlags(&flags)))
-    return ((flags & eEditorReadonlyMask) == 0);
-
-  return PR_FALSE;
+  return !IsReadonly();
 }
 
 
@@ -867,11 +864,11 @@ NS_IMETHODIMP nsPlaintextEditor::InsertLineBreak()
 }
 
 NS_IMETHODIMP
-nsPlaintextEditor::BeginComposition(nsTextEventReply* aReply)
+nsPlaintextEditor::BeginComposition()
 {
   NS_ENSURE_TRUE(!mInIMEMode, NS_OK);
 
-  if(mFlags & nsIPlaintextEditor::eEditorPasswordMask)  {
+  if (IsPasswordEditor())  {
     if (mRules) {
       nsIEditRules *p = mRules.get();
       nsTextEditRules *textEditRules = static_cast<nsTextEditRules *>(p);
@@ -882,7 +879,7 @@ nsPlaintextEditor::BeginComposition(nsTextEventReply* aReply)
     }
   }
 
-  return nsEditor::BeginComposition(aReply);
+  return nsEditor::BeginComposition();
 }
 
 NS_IMETHODIMP
@@ -993,9 +990,7 @@ nsPlaintextEditor::SetWrapWidth(PRInt32 aWrapColumn)
 
   // Make sure we're a plaintext editor, otherwise we shouldn't
   // do the rest of this.
-  PRUint32 flags = 0;
-  GetFlags(&flags);
-  if (!(flags & eEditorPlaintextMask))
+  if (!IsPlaintextEditor())
     return NS_OK;
 
   // Ought to set a style sheet here ...
@@ -1026,14 +1021,14 @@ nsPlaintextEditor::SetWrapWidth(PRInt32 aWrapColumn)
   // Make sure we have fixed-width font.  This should be done for us,
   // but it isn't, see bug 22502, so we have to add "font: -moz-fixed;".
   // Only do this if we're wrapping.
-  if ((flags & eEditorEnableWrapHackMask) && aWrapColumn >= 0)
+  if (IsWrapHackEnabled() && aWrapColumn >= 0)
     styleValue.AppendLiteral("font-family: -moz-fixed; ");
 
   // If "mail.compose.wrap_to_window_width" is set, and we're a mail editor,
   // then remember our wrap width (for output purposes) but set the visual
   // wrapping to window width.
   // We may reset mWrapToWindow here, based on the pref's current value.
-  if (flags & eEditorMailMask)
+  if (IsMailEditor())
   {
     nsresult rv;
     nsCOMPtr<nsIPrefBranch> prefBranch =
@@ -1142,127 +1137,65 @@ nsPlaintextEditor::Redo(PRUint32 aCount)
   return result;
 }
 
-nsresult nsPlaintextEditor::GetClipboardEventTarget(nsIDOMNode** aEventTarget)
+PRBool
+nsPlaintextEditor::CanCutOrCopy()
 {
-  NS_ENSURE_ARG_POINTER(aEventTarget);
-  *aEventTarget = nsnull;
-
   nsCOMPtr<nsISelection> selection;
-  nsresult res = GetSelection(getter_AddRefs(selection));
-  if (NS_FAILED(res))
-    return res;
+  if (NS_FAILED(GetSelection(getter_AddRefs(selection))))
+    return PR_FALSE;
 
-  return nsCopySupport::GetClipboardEventTarget(selection, aEventTarget);
+  PRBool isCollapsed;
+  selection->GetIsCollapsed(&isCollapsed);
+  return !isCollapsed;
 }
 
-nsresult nsPlaintextEditor::FireClipboardEvent(PRUint32 msg,
-                                               PRBool* aPreventDefault)
+PRBool
+nsPlaintextEditor::FireClipboardEvent(PRInt32 aType)
 {
-  *aPreventDefault = PR_FALSE;
+  if (aType == NS_PASTE)
+    ForceCompositionEnd();
 
-  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
-  if (!ps)
-    return NS_ERROR_NOT_INITIALIZED;
+  nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShellWeak);
+  NS_ENSURE_TRUE(presShell, PR_FALSE);
 
-  // Unsafe to fire event during reflow (bug 396108)
-  PRBool isReflowing = PR_TRUE;
-  nsresult rv = ps->IsReflowLocked(&isReflowing);
-  if (NS_FAILED(rv) || isReflowing)
-    return NS_OK;
+  nsCOMPtr<nsISelection> selection;
+  if (NS_FAILED(GetSelection(getter_AddRefs(selection))))
+    return PR_FALSE;
 
-  nsCOMPtr<nsIDOMNode> eventTarget;
-  rv = GetClipboardEventTarget(getter_AddRefs(eventTarget));
-  if (NS_FAILED(rv))
-    // On failure to get event target, just forget about it and don't fire.
-    return NS_OK;
+  if (!nsCopySupport::FireClipboardEvent(aType, presShell, selection))
+    return PR_FALSE;
 
-  nsEventStatus status = nsEventStatus_eIgnore;
-  nsEvent evt(PR_TRUE, msg);
-  nsEventDispatcher::Dispatch(eventTarget, ps->GetPresContext(), &evt,
-                              nsnull, &status);
-  // if event handler return'd false (PreventDefault)
-  if (status == nsEventStatus_eConsumeNoDefault)
-    *aPreventDefault = PR_TRUE;
-
-  // Did the event handler cause the editor to be destroyed? (ie. the input
-  // element was removed from the document)  Don't proceed with command,
-  // could crash, definitely does during paste.
-  if (mDidPreDestroy)
-    return NS_ERROR_NOT_INITIALIZED;
-
-  return NS_OK;
+  // If the event handler caused the editor to be destroyed, return false.
+  // Otherwise return true to indicate that the event was not cancelled.
+  return !mDidPreDestroy;
 }
 
 NS_IMETHODIMP nsPlaintextEditor::Cut()
 {
-  PRBool preventDefault;
-  nsresult rv = FireClipboardEvent(NS_CUT, &preventDefault);
-  if (NS_FAILED(rv) || preventDefault)
-    return rv;
-
-  nsCOMPtr<nsISelection> selection;
-  rv = GetSelection(getter_AddRefs(selection));
-  if (NS_FAILED(rv))
-    return rv;
-
-  PRBool isCollapsed;
-  if (NS_SUCCEEDED(selection->GetIsCollapsed(&isCollapsed)) && isCollapsed)
-    return NS_OK;  // just return ok so no JS error is thrown
-
-  // ps should be guaranteed by FireClipboardEvent not failing
-  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
-  rv = ps->DoCopy();
-  if (NS_SUCCEEDED(rv))
-    rv = DeleteSelection(eNone);
-  return rv;
+  if (FireClipboardEvent(NS_CUT))
+    return DeleteSelection(eNone);
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsPlaintextEditor::CanCut(PRBool *aCanCut)
 {
   NS_ENSURE_ARG_POINTER(aCanCut);
-  *aCanCut = PR_FALSE;
-
-  nsCOMPtr<nsISelection> selection;
-  nsresult rv = GetSelection(getter_AddRefs(selection));
-  if (NS_FAILED(rv)) return rv;
-    
-  PRBool isCollapsed;
-  rv = selection->GetIsCollapsed(&isCollapsed);
-  if (NS_FAILED(rv)) return rv;
-
-  *aCanCut = !isCollapsed && IsModifiable();
+  *aCanCut = IsModifiable() && CanCutOrCopy();
   return NS_OK;
 }
 
 NS_IMETHODIMP nsPlaintextEditor::Copy()
 {
-  PRBool preventDefault;
-  nsresult rv = FireClipboardEvent(NS_COPY, &preventDefault);
-  if (NS_FAILED(rv) || preventDefault)
-    return rv;
-
-  // ps should be guaranteed by FireClipboardEvent not failing
-  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
-  return ps->DoCopy();
+  FireClipboardEvent(NS_COPY);
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsPlaintextEditor::CanCopy(PRBool *aCanCopy)
 {
   NS_ENSURE_ARG_POINTER(aCanCopy);
-  *aCanCopy = PR_FALSE;
-
-  nsCOMPtr<nsISelection> selection;
-  nsresult rv = GetSelection(getter_AddRefs(selection));
-  if (NS_FAILED(rv)) return rv;
-    
-  PRBool isCollapsed;
-  rv = selection->GetIsCollapsed(&isCollapsed);
-  if (NS_FAILED(rv)) return rv;
-
-  *aCanCopy = !isCollapsed;
+  *aCanCopy = CanCutOrCopy();
   return NS_OK;
 }
-
 
 // Shared between OutputToString and OutputToStream
 NS_IMETHODIMP
@@ -1622,7 +1555,8 @@ nsPlaintextEditor::GetEmbeddedObjects(nsISupportsArray** aNodeList)
 #endif
 
 NS_IMETHODIMP
-nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString, nsIPrivateTextRangeList* aTextRangeList,nsTextEventReply* aReply)
+nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString,
+                                        nsIPrivateTextRangeList* aTextRangeList)
 {
   if (!aTextRangeList && !aCompositionString.IsEmpty())
   {
@@ -1638,8 +1572,7 @@ nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString, nsI
   nsresult result = GetSelection(getter_AddRefs(selection));
   if (NS_FAILED(result)) return result;
 
-  nsRefPtr<nsCaret> caretP;
-  ps->GetCaret(getter_AddRefs(caretP));
+  nsRefPtr<nsCaret> caretP = ps->GetCaret();
 
   // We should return caret position if it is possible. Because this event
   // dispatcher always expects to be returned the correct caret position.
@@ -1660,75 +1593,20 @@ nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString, nsI
   {
     mIMETextRangeList = aTextRangeList;
 
-    // XXX_kin: BEGIN HACK! HACK! HACK!
-    // XXX_kin:
-    // XXX_kin: This is lame! The IME stuff needs caret coordinates
-    // XXX_kin: synchronously, but the editor could be using async
-    // XXX_kin: updates (reflows and paints) for performance reasons.
-    // XXX_kin: In order to give IME what it needs, we have to temporarily
-    // XXX_kin: switch to sync updating during this call so that the
-    // XXX_kin: nsAutoPlaceHolderBatch can force sync reflows, paints,
-    // XXX_kin: and selection scrolling, so that we get back accurate
-    // XXX_kin: caret coordinates.
+    SetIsIMEComposing(); // We set mIsIMEComposing properly.
 
-    PRUint32 flags = 0;
-    PRBool restoreFlags = PR_FALSE;
+    result = InsertText(aCompositionString);
 
-    if (NS_SUCCEEDED(GetFlags(&flags)) &&
-        (flags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask))
-    {
-      if (NS_SUCCEEDED(SetFlags(
-          flags & (~nsIPlaintextEditor::eEditorUseAsyncUpdatesMask))))
-        restoreFlags = PR_TRUE;
-    }
+    mIMEBufferLength = aCompositionString.Length();
 
-    // XXX_kin: END HACK! HACK! HACK!
+    if (caretP)
+      caretP->SetCaretDOMSelection(selection);
 
-    // we need the nsAutoPlaceHolderBatch destructor called before hitting
-    // GetCaretCoordinates so the states in Frame system sync with content
-    // therefore, we put the nsAutoPlaceHolderBatch into a inner block
-    {
-      nsAutoPlaceHolderBatch batch(this, nsGkAtoms::IMETxnName);
-
-      SetIsIMEComposing(); // We set mIsIMEComposing properly.
-
-      result = InsertText(aCompositionString);
-
-      mIMEBufferLength = aCompositionString.Length();
-
-      if (caretP)
-        caretP->SetCaretDOMSelection(selection);
-
-      // second part of 23558 fix:
-      if (aCompositionString.IsEmpty())
-        mIMETextNode = nsnull;
-    }
-
-    // XXX_kin: BEGIN HACK! HACK! HACK!
-    // XXX_kin:
-    // XXX_kin: Restore the previous set of flags!
-
-    if (restoreFlags)
-      SetFlags(flags);
-
-    // XXX_kin: END HACK! HACK! HACK!
+    // second part of 23558 fix:
+    if (aCompositionString.IsEmpty())
+      mIMETextNode = nsnull;
   }
 
-  if (caretP)
-  {
-    nsIView *view = nsnull;
-    nsRect rect;
-    result = caretP->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates,
-                                         selection,
-                                         &rect,
-                                         &(aReply->mCursorIsCollapsed),
-                                         &view);
-    aReply->mCursorPosition =
-       rect.ToOutsidePixels(ps->GetPresContext()->AppUnitsPerDevPixel());
-    NS_ASSERTION(NS_SUCCEEDED(result), "cannot get caret position");
-    if (NS_SUCCEEDED(result) && view)
-      aReply->mReferenceWidget = view->GetWidget();
-  }
 
   return result;
 }

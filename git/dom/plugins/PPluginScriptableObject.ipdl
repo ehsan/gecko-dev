@@ -38,12 +38,12 @@
  * ***** END LICENSE BLOCK ***** */
 
 include protocol "PPluginInstance.ipdl";
+include protocol "PPluginIdentifier.ipdl";
 
 include "npapi.h";
 include "npruntime.h";
 include "mozilla/plugins/PluginMessageUtils.h";
 
-using mozilla::ipc::NPRemoteIdentifier;
 using mozilla::void_t;
 using mozilla::null_t;
 
@@ -77,10 +77,10 @@ child:
 
 both:
   // NPClass methods
-  rpc HasMethod(NPRemoteIdentifier aId)
+  rpc HasMethod(PPluginIdentifier aId)
     returns (bool aHasMethod);
 
-  rpc Invoke(NPRemoteIdentifier aId,
+  rpc Invoke(PPluginIdentifier aId,
              Variant[] aArgs)
     returns (Variant aResult,
              bool aSuccess);
@@ -89,22 +89,18 @@ both:
     returns (Variant aResult,
              bool aSuccess);
 
-  rpc HasProperty(NPRemoteIdentifier aId)
+  rpc HasProperty(PPluginIdentifier aId)
     returns (bool aHasProperty);
 
-  rpc GetProperty(NPRemoteIdentifier aId)
-    returns (Variant aResult,
-             bool aSuccess);
-
-  rpc SetProperty(NPRemoteIdentifier aId,
+  rpc SetProperty(PPluginIdentifier aId,
                   Variant aValue)
     returns (bool aSuccess);
 
-  rpc RemoveProperty(NPRemoteIdentifier aId)
+  rpc RemoveProperty(PPluginIdentifier aId)
     returns (bool aSuccess);
 
   rpc Enumerate()
-    returns (NPRemoteIdentifier[] aProperties,
+    returns (PPluginIdentifier[] aProperties,
              bool aSuccess);
 
   rpc Construct(Variant[] aArgs)
@@ -120,6 +116,24 @@ both:
   // temporarily protects the protocol object again for the duration of the call.
   async Protect();
   async Unprotect();
+
+  /**
+   * GetProperty is slightly wonky due to the way we support NPObjects that have
+   * methods and properties with the same name. When child calls parent we
+   * simply return a property. When parent calls child, however, we need to do
+   * several checks at once and return all the results simultaneously.
+   */
+parent:
+  rpc GetParentProperty(PPluginIdentifier aId)
+    returns (Variant aResult,
+             bool aSuccess);
+
+child:
+  rpc GetChildProperty(PPluginIdentifier aId)
+    returns (bool aHasProperty,
+             bool aHasMethod,
+             Variant aResult,
+             bool aSuccess);
 };
 
 } // namespace plugins

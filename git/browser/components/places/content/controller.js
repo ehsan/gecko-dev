@@ -170,7 +170,7 @@ PlacesController.prototype = {
       return this._canInsert();
     case "placesCmd_new:separator":
       return this._canInsert() &&
-             !asQuery(this._view.getResultNode()).queryOptions.excludeItems &&
+             !PlacesUtils.asQuery(this._view.getResultNode()).queryOptions.excludeItems &&
              this._view.getResult().sortingMode ==
                  Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
     case "placesCmd_show:info":
@@ -183,7 +183,7 @@ PlacesController.prototype = {
     case "placesCmd_reloadMicrosummary":
       var selectedNode = this._view.selectedNode;
       return selectedNode && PlacesUtils.nodeIsBookmark(selectedNode) &&
-             PlacesUIUtils.microsummaries.hasMicrosummary(selectedNode.itemId);
+             PlacesUtils.microsummaries.hasMicrosummary(selectedNode.itemId);
     case "placesCmd_reload":
       // Livemark containers
       var selectedNode = this._view.selectedNode;
@@ -465,7 +465,7 @@ PlacesController.prototype = {
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY:
           nodeData["query"] = true;
           if (node.parent) {
-            switch (asQuery(node.parent).queryOptions.resultType) {
+            switch (PlacesUtils.asQuery(node.parent).queryOptions.resultType) {
               case Ci.nsINavHistoryQueryOptions.RESULTS_AS_SITE_QUERY:
                 nodeData["host"] = true;
                 break;
@@ -494,7 +494,7 @@ PlacesController.prototype = {
           if (PlacesUtils.nodeIsBookmark(node)) {
             nodeData["bookmark"] = true;
             PlacesUtils.nodeIsTagQuery(node.parent)
-            var mss = PlacesUIUtils.microsummaries;
+            var mss = PlacesUtils.microsummaries;
             if (mss.hasMicrosummary(node.itemId))
               nodeData["microsummary"] = true;
 
@@ -732,7 +732,7 @@ PlacesController.prototype = {
    */
   reloadSelectedMicrosummary: function PC_reloadSelectedMicrosummary() {
     var selectedNode = this._view.selectedNode;
-    var mss = PlacesUIUtils.microsummaries;
+    var mss = PlacesUtils.microsummaries;
     if (mss.hasMicrosummary(selectedNode.itemId))
       mss.refreshMicrosummary(selectedNode.itemId);
   },
@@ -940,7 +940,7 @@ PlacesController.prototype = {
       }
       else if (PlacesUtils.nodeIsTagQuery(node) && node.parent &&
                PlacesUtils.nodeIsQuery(node.parent) &&
-               asQuery(node.parent).queryOptions.resultType ==
+               PlacesUtils.asQuery(node.parent).queryOptions.resultType ==
                  Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_QUERY) {
         // This is a tag container.
         // Untag all URIs tagged with this tag only if the tag container is
@@ -953,7 +953,7 @@ PlacesController.prototype = {
       }
       else if (PlacesUtils.nodeIsURI(node) &&
                PlacesUtils.nodeIsQuery(node.parent) &&
-               asQuery(node.parent).queryOptions.queryType ==
+               PlacesUtils.asQuery(node.parent).queryOptions.queryType ==
                  Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY) {
         // This is a uri node inside an history query.
         var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
@@ -962,7 +962,7 @@ PlacesController.prototype = {
       }
       else if (node.itemId == -1 &&
                PlacesUtils.nodeIsQuery(node) &&
-               asQuery(node).queryOptions.queryType ==
+               PlacesUtils.asQuery(node).queryOptions.queryType ==
                  Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY) {
         // This is a dynamically generated history query, like queries
         // grouped by site, time or both.  Dynamically generated queries don't
@@ -1022,7 +1022,7 @@ PlacesController.prototype = {
         }
       }
       else if (PlacesUtils.nodeIsQuery(node) &&
-               asQuery(node).queryOptions.queryType ==
+               PlacesUtils.asQuery(node).queryOptions.queryType ==
                  Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY)
         this._removeHistoryContainer(node);
     }
@@ -1090,7 +1090,7 @@ PlacesController.prototype = {
     if (PlacesUtils.nodeIsFolder(root)) 
       this._removeRowsFromBookmarks(aTxnName);
     else if (PlacesUtils.nodeIsQuery(root)) {
-      var queryType = asQuery(root).queryOptions.queryType;
+      var queryType = PlacesUtils.asQuery(root).queryOptions.queryType;
       if (queryType == Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS)
         this._removeRowsFromBookmarks(aTxnName);
       else if (queryType == Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY)
@@ -1109,20 +1109,21 @@ PlacesController.prototype = {
    *          The dragstart event.
    */
   setDataTransfer: function PC_setDataTransfer(aEvent) {
-    var dt = aEvent.dataTransfer;
-    var doCopy = ["copyLink", "copy", "link"].indexOf(dt.effectAllowed) != -1;
+    let dt = aEvent.dataTransfer;
+    let doCopy = ["copyLink", "copy", "link"].indexOf(dt.effectAllowed) != -1;
 
-    var result = this._view.getResult();
-    var oldViewer = result.viewer;
+    let result = this._view.getResult();
+    let didSuppressNotifications = result.suppressNotifications;
+    if (!didSuppressNotifications)
+      result.suppressNotifications = true;
+
     try {
-      result.viewer = null;
-      var nodes = this._view.getDraggableSelection();
-
-      for (var i = 0; i < nodes.length; ++i) {
+      let nodes = this._view.getDraggableSelection();
+      for (let i = 0; i < nodes.length; ++i) {
         var node = nodes[i];
 
         function addData(type, index, overrideURI) {
-          var wrapNode = PlacesUtils.wrapNode(node, type, overrideURI, doCopy);
+          let wrapNode = PlacesUtils.wrapNode(node, type, overrideURI, doCopy);
           dt.mozSetDataAt(type, wrapNode, index);
         }
 
@@ -1144,8 +1145,8 @@ PlacesController.prototype = {
       }
     }
     finally {
-      if (oldViewer)
-        result.viewer = oldViewer;
+      if (!didSuppressNotifications)
+        result.suppressNotifications = false;
     }
   },
 
@@ -1153,29 +1154,32 @@ PlacesController.prototype = {
    * Copy Bookmarks and Folders to the clipboard
    */
   copy: function PC_copy() {
-    var result = this._view.getResult();
-    var oldViewer = result.viewer;
-    try {
-      result.viewer = null;
-      var nodes = this._view.getSelectionNodes();
+    let result = this._view.getResult();
 
-      var xferable =  Cc["@mozilla.org/widget/transferable;1"].
+    let didSuppressNotifications = result.suppressNotifications;
+    if (!didSuppressNotifications)
+      result.suppressNotifications = true;
+
+    try {
+      let nodes = this._view.getSelectionNodes();
+
+      let xferable =  Cc["@mozilla.org/widget/transferable;1"].
                       createInstance(Ci.nsITransferable);
-      var foundFolder = false, foundLink = false;
-      var copiedFolders = [];
-      var placeString, mozURLString, htmlString, unicodeString;
+      let foundFolder = false, foundLink = false;
+      let copiedFolders = [];
+      let placeString, mozURLString, htmlString, unicodeString;
       placeString = mozURLString = htmlString = unicodeString = "";
 
-      for (var i = 0; i < nodes.length; ++i) {
-        var node = nodes[i];
+      for (let i = 0; i < nodes.length; ++i) {
+        let node = nodes[i];
         if (this._shouldSkipNode(node, copiedFolders))
           continue;
         if (PlacesUtils.nodeIsFolder(node))
           copiedFolders.push(node);
         
         function generateChunk(type, overrideURI) {
-          var suffix = i < (nodes.length - 1) ? NEWLINE : "";
-          var uri = overrideURI;
+          let suffix = i < (nodes.length - 1) ? NEWLINE : "";
+          let uri = overrideURI;
         
           if (PlacesUtils.nodeIsLivemarkContainer(node))
             uri = PlacesUtils.livemarks.getFeedURI(node.itemId).spec
@@ -1216,8 +1220,8 @@ PlacesController.prototype = {
       }
     }
     finally {
-      if (oldViewer)
-        result.viewer = oldViewer;
+      if (!didSuppressNotifications)
+        result.suppressNotifications = false;
     }
   },
 

@@ -17,6 +17,9 @@ include abs-pos/reftest.list
 # backgrounds/
 include backgrounds/reftest.list
 
+# dom/
+include dom/reftest.list
+
 # bidi/
 include bidi/reftest.list
 
@@ -61,6 +64,10 @@ include css-transitions/reftest.list
 
 # css values and units
 include css-valuesandunits/reftest.list
+
+# Reftests in css-visited are run using
+# layout/style/test/test_visited_reftests instead of using the reftest
+# harness.
 
 # columns/
 include columns/reftest.list

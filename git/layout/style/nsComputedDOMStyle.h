@@ -48,13 +48,14 @@
 #include "nsDOMCSSValueList.h"
 #include "nsCSSProps.h"
 
-#include "nsIPresShell.h"
 #include "nsIContent.h"
 #include "nsIFrame.h"
 #include "nsCOMPtr.h"
 #include "nsWeakReference.h"
 #include "nsAutoPtr.h"
 #include "nsStyleStruct.h"
+
+class nsIPresShell;
 
 class nsComputedDOMStyle : public nsICSSDeclaration,
                            public nsWrapperCache
@@ -91,6 +92,12 @@ public:
 
   static nsIPresShell*
   GetPresShellForContent(nsIContent* aContent);
+
+  // Helper for nsDOMWindowUtils::GetVisitedDependentComputedStyle
+  void SetExposeVisitedStyle(PRBool aExpose) {
+    NS_ASSERTION(aExpose != mExposeVisitedStyle, "should always be changing");
+    mExposeVisitedStyle = aExpose;
+  }
 
 private:
   void AssertFlushedPendingReflows() {
@@ -308,6 +315,7 @@ private:
   nsresult GetOverflow(nsIDOMCSSValue** aValue);
   nsresult GetOverflowX(nsIDOMCSSValue** aValue);
   nsresult GetOverflowY(nsIDOMCSSValue** aValue);
+  nsresult GetResize(nsIDOMCSSValue** aValue);
   nsresult GetPageBreakAfter(nsIDOMCSSValue** aValue);
   nsresult GetPageBreakBefore(nsIDOMCSSValue** aValue);
   nsresult GetMozTransform(nsIDOMCSSValue** aValue);
@@ -470,6 +478,8 @@ private:
   nsIPresShell* mPresShell;
 
   PRInt32 mAppUnitsPerInch; /* For unit conversions */
+
+  PRPackedBool mExposeVisitedStyle;
 
 #ifdef DEBUG
   PRBool mFlushedPendingReflows;

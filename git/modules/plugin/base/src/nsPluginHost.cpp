@@ -143,7 +143,6 @@
 #include "nsIDOMHTMLObjectElement.h"
 #include "nsIDOMHTMLEmbedElement.h"
 #include "nsIPresShell.h"
-#include "nsPresContext.h"
 #include "nsIWebNavigation.h"
 #include "nsISupportsArray.h"
 #include "nsIDocShell.h"
@@ -402,7 +401,7 @@ public:
                              nsIPluginInstance* aInstance,
                              nsIPluginInstanceOwner *aOwner = nsnull);
 
-  nsresult InitializeFullPage(nsIPluginInstance *aInstance);
+  nsresult InitializeFullPage(nsIURI* aURL, nsIPluginInstance *aInstance);
 
   nsresult OnFileAvailable(nsIFile* aFile);
 
@@ -814,13 +813,15 @@ nsresult nsPluginStreamListenerPeer::InitializeEmbedded(nsIURI *aURL,
 
 
 // Called by NewFullPagePluginStream()
-nsresult nsPluginStreamListenerPeer::InitializeFullPage(nsIPluginInstance *aInstance)
+nsresult nsPluginStreamListenerPeer::InitializeFullPage(nsIURI* aURL, nsIPluginInstance *aInstance)
 {
   PLUGIN_LOG(PLUGIN_LOG_NORMAL,
   ("nsPluginStreamListenerPeer::InitializeFullPage instance=%p\n",aInstance));
 
   NS_ASSERTION(mInstance == nsnull, "nsPluginStreamListenerPeer::InitializeFullPage mInstance != nsnull");
   mInstance = aInstance;
+
+  mURL = aURL;
 
   mDataForwardToRequest = new nsHashtable(16, PR_FALSE);
   if (!mDataForwardToRequest)
@@ -2359,7 +2360,7 @@ NS_IMETHODIMP nsPluginHost::InstantiateFullPagePlugin(const char *aMimeType,
     aOwner->GetInstance(instance);
     nsPluginTag* pluginTag = FindPluginForType(aMimeType, PR_TRUE);
     if (!pluginTag || !pluginTag->mIsJavaPlugin)
-      NewFullPagePluginStream(aStreamListener, instance);
+      NewFullPagePluginStream(aStreamListener, aURI, instance);
     NS_IF_RELEASE(instance);
     return NS_OK;
   }
@@ -2382,7 +2383,7 @@ NS_IMETHODIMP nsPluginHost::InstantiateFullPagePlugin(const char *aMimeType,
       if (window->window)
         window->CallSetWindow(instance);
 
-      rv = NewFullPagePluginStream(aStreamListener, instance);
+      rv = NewFullPagePluginStream(aStreamListener, aURI, instance);
 
       // If we've got a native window, the let the plugin know about it.
       if (window->window)
@@ -2395,6 +2396,18 @@ NS_IMETHODIMP nsPluginHost::InstantiateFullPagePlugin(const char *aMimeType,
   aMimeType, rv, aOwner, urlSpec.get()));
 
   return rv;
+}
+
+nsPluginTag*
+nsPluginHost::FindTagForLibrary(PRLibrary* aLibrary)
+{
+  nsPluginTag* pluginTag;
+  for (pluginTag = mPlugins; pluginTag; pluginTag = pluginTag->mNext) {
+    if (pluginTag->mLibrary == aLibrary) {
+      return pluginTag;
+    }
+  }
+  return nsnull;
 }
 
 nsPluginTag*
@@ -3028,9 +3041,28 @@ static nsresult CreateNPAPIPlugin(const nsPluginTag *aPluginTag,
     fullPath = aPluginTag->mFullPath;
   }
 
-  return nsNPAPIPlugin::CreatePlugin(fullPath.get(),
-                                     aPluginTag->mLibrary,
-                                     aOutNPAPIPlugin);
+#if defined(XP_MACOSX) && !defined(__LP64__)
+  short appRefNum = ::CurResFile();
+  nsCOMPtr<nsILocalFile> pluginPath;
+  NS_NewNativeLocalFile(nsDependentCString(fullPath.get()), PR_TRUE,
+                        getter_AddRefs(pluginPath));
+  nsPluginFile pluginFile(pluginPath);
+  short pluginRefNum = pluginFile.OpenPluginResource();
+#endif
+
+  rv = nsNPAPIPlugin::CreatePlugin(fullPath.get(),
+                                   aPluginTag->mLibrary,
+                                   aOutNPAPIPlugin);
+
+#if defined(XP_MACOSX) && !defined(__LP64__)
+  if (NS_SUCCEEDED(rv))
+    static_cast<nsNPAPIPlugin*>(*aOutNPAPIPlugin)->SetPluginRefNum(pluginRefNum);
+  else if (pluginRefNum > 0)
+    ::CloseResFile(pluginRefNum);
+  ::UseResFile(appRefNum);
+#endif
+
+  return rv;
 }
 
 NS_IMETHODIMP nsPluginHost::GetPlugin(const char *aMimeType, nsIPlugin** aPlugin)
@@ -4494,6 +4526,7 @@ nsresult nsPluginHost::NewEmbeddedPluginStream(nsIURI* aURL,
 
 // Called by InstantiateFullPagePlugin()
 nsresult nsPluginHost::NewFullPagePluginStream(nsIStreamListener *&aStreamListener,
+                                               nsIURI* aURI,
                                                nsIPluginInstance *aInstance)
 {
   nsPluginStreamListenerPeer  *listener = new nsPluginStreamListenerPeer();
@@ -4502,7 +4535,7 @@ nsresult nsPluginHost::NewFullPagePluginStream(nsIStreamListener *&aStreamListen
 
   nsresult rv;
 
-  rv = listener->InitializeFullPage(aInstance);
+  rv = listener->InitializeFullPage(aURI, aInstance);
 
   aStreamListener = listener;
   NS_ADDREF(listener);
@@ -5021,7 +5054,9 @@ NS_IMETHODIMP nsPluginHost::Notify(nsITimer* timer)
 
 #ifdef MOZ_IPC
 void
-nsPluginHost::PluginCrashed(nsNPAPIPlugin* aPlugin, const nsAString& dumpID)
+nsPluginHost::PluginCrashed(nsNPAPIPlugin* aPlugin,
+                            const nsAString& pluginDumpID,
+                            const nsAString& browserDumpID)
 {
   nsPluginTag* pluginTag = FindTagForPlugin(aPlugin);
   if (!pluginTag) {
@@ -5029,15 +5064,24 @@ nsPluginHost::PluginCrashed(nsNPAPIPlugin* aPlugin, const nsAString& dumpID)
     return;
   }
 
-  // Notify the app's observer that a plugin crashed so it can submit a crashreport.
+  // Notify the app's observer that a plugin crashed so it can submit
+  // a crashreport.
   PRBool submittedCrashReport = PR_FALSE;
-  nsCOMPtr<nsIObserverService> obsService = do_GetService("@mozilla.org/observer-service;1");
-  nsCOMPtr<nsIWritablePropertyBag2> propbag = do_CreateInstance("@mozilla.org/hash-property-bag;1");
+  nsCOMPtr<nsIObserverService> obsService =
+    do_GetService("@mozilla.org/observer-service;1");
+  nsCOMPtr<nsIWritablePropertyBag2> propbag =
+    do_CreateInstance("@mozilla.org/hash-property-bag;1");
   if (obsService && propbag) {
-    propbag->SetPropertyAsAString(NS_LITERAL_STRING("minidumpID"), dumpID);
+    propbag->SetPropertyAsAString(NS_LITERAL_STRING("pluginDumpID"),
+                                  pluginDumpID);
+    propbag->SetPropertyAsAString(NS_LITERAL_STRING("browserDumpID"),
+                                  browserDumpID);
+    propbag->SetPropertyAsBool(NS_LITERAL_STRING("submittedCrashReport"),
+                               submittedCrashReport);
     obsService->NotifyObservers(propbag, "plugin-crashed", nsnull);
     // see if an observer submitted a crash report.
-    propbag->GetPropertyAsBool(NS_LITERAL_STRING("submittedCrashReport"), &submittedCrashReport);
+    propbag->GetPropertyAsBool(NS_LITERAL_STRING("submittedCrashReport"),
+                               &submittedCrashReport);
   }
 
   // Invalidate each nsPluginInstanceTag for the crashed plugin
@@ -5045,12 +5089,13 @@ nsPluginHost::PluginCrashed(nsNPAPIPlugin* aPlugin, const nsAString& dumpID)
   for (PRUint32 i = mInstanceTags.Length(); i > 0; i--) {
     nsPluginInstanceTag* instanceTag = mInstanceTags[i - 1];
     if (instanceTag->mPluginTag == pluginTag) {
-      // notify the content node (nsIObjectLoadingContent) that the plugin has crashed
+      // notify the content node (nsIObjectLoadingContent) that the
+      // plugin has crashed
       nsCOMPtr<nsIDOMElement> domElement;
       instanceTag->mInstance->GetDOMElement(getter_AddRefs(domElement));
       nsCOMPtr<nsIObjectLoadingContent> objectContent(do_QueryInterface(domElement));
       if (objectContent) {
-        objectContent->PluginCrashed(NS_ConvertUTF8toUTF16(pluginTag->mName),
+        objectContent->PluginCrashed(pluginTag, pluginDumpID, browserDumpID,
                                      submittedCrashReport);
       }
       

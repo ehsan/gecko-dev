@@ -100,9 +100,9 @@
         window.removeEventListener("resize", this, false);
 
         if (this._result) {
+          this._result.removeObserver(this._resultObserver);
           this._resultNode.containerOpen = false;
           this._resultNode = null;
-          this._result.viewer = null;
           this._result = null;
         }
       ]]></destructor>
@@ -250,7 +250,7 @@
               var popup = document.createElement("menupopup");
               popup.setAttribute("placespopup", "true");
               button.appendChild(popup);
-              popup._resultNode = asContainer(aChild);
+              popup._resultNode = PlacesUtils.asContainer(aChild);
 #ifndef XP_MACOSX
               popup.setAttribute("context", "placesContext");
 #endif
@@ -402,7 +402,7 @@
             var result =
               history.executeQueries(queries.value, queries.value.length,
                                      options.value);
-            result.viewer = this._viewer;
+            result.addObserver(this._resultObserver, false);
           }
           catch(ex) {
             // Invalid query, or had no results.
@@ -509,8 +509,8 @@
         ]]></body>
       </method>
 
-      <!-- nsINavHistoryResultViewer -->
-      <field name="_viewer"><![CDATA[({
+      <!-- nsINavHistoryResultObserver -->
+      <field name="_resultObserver"><![CDATA[({
         _self: this,
 
         get result() {
@@ -518,25 +518,22 @@
         },
 
         set result(val) {
-          // some methods (e.g. getURLsFromContainer) temporarily null out the
-          // viewer when they do temporary changes to the view, this does _not_
-          // call setResult(null), but then, we're called again with the result
-          // object which is already set for this viewer. At that point,
-          // we should do nothing.
-          if (this._self._result != val) {
-            if (this._self._result)
-              this._self._resultNode.containerOpen = false;
-
-            this._self._result = val;
-            if (val) {
-              this._self._resultNode = val.root;
-              this._self._resultNode._DOMElement = this._self;
-              // This calls _rebuild through invalidateContainer.
-              this._self._resultNode.containerOpen = true;
-            }
-            else
-              this._self._resultNode = null;
+          if (this._self._result) {
+            this._self._result.removeObserver(this);
+            this._self._resultNode.containerOpen = false;
           }
+
+          this._self._result = val;
+          if (val) {
+            this._self._resultNode = val.root;
+            this._self._resultNode._DOMElement = this._self;
+            // This calls _rebuild through invalidateContainer.
+            this._self._resultNode.containerOpen = true;
+          }
+          else {
+            this._self._resultNode = null;
+          }
+
           return val;
         },
 
@@ -739,6 +736,9 @@
           this.invalidateContainer(aContainer);
         },
 
+        containerStateChanged:
+        function TV_V_containerStateChanged(aNode, aOldState, aNewState) {},
+
         invalidateContainer: function TV_V_invalidateContainer(aContainer) {
           let containerNodeElt = aContainer._DOMElement;
           NS_ASSERT(containerNodeElt, "node must have _DOMElement set");
@@ -757,6 +757,14 @@
         },
 
         sortingChanged: function TV_V_sortingChanged(aSortingMode) {
+        },
+
+        QueryInterface: function PTV_QueryInterface(aIID) {
+          if (aIID.equals(Ci.nsINavHistoryResultObserver) ||
+              aIID.equals(Ci.nsISupportsWeakReference) ||
+              aIID.equals(Ci.nsISupports))
+            return this;
+          throw Cr.NS_ERROR_NO_INTERFACE;
         }
       })]]></field>
 

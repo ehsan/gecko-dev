@@ -50,7 +50,9 @@
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
 #include "nsIDOMKeyEvent.h"
+#include "nsIDOMNSMouseEvent.h"
 #include "nsIDOMDataTransfer.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsWeakPtr.h"
 #include "nsIWidget.h"
 #include "nsTArray.h"
@@ -524,11 +526,9 @@ public:
   // Additional type info for user defined events
   nsCOMPtr<nsIAtom>     userType;
   // Event targets, needed by DOM Events
-  // Using nsISupports, not nsIDOMEventTarget because in some cases
-  // nsIDOMEventTarget is implemented as a tearoff.
-  nsCOMPtr<nsISupports> target;
-  nsCOMPtr<nsISupports> currentTarget;
-  nsCOMPtr<nsISupports> originalTarget;
+  nsCOMPtr<nsPIDOMEventTarget> target;
+  nsCOMPtr<nsPIDOMEventTarget> currentTarget;
+  nsCOMPtr<nsPIDOMEventTarget> originalTarget;
 };
 
 /**
@@ -731,7 +731,8 @@ class nsMouseEvent_base : public nsInputEvent
 {
 public:
   nsMouseEvent_base(PRBool isTrusted, PRUint32 msg, nsIWidget *w, PRUint8 type)
-  : nsInputEvent(isTrusted, msg, w, type), button(0), pressure(0) {}
+  : nsInputEvent(isTrusted, msg, w, type), button(0), pressure(0),
+    inputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_MOUSE) {}
 
   /// The possible related target
   nsCOMPtr<nsISupports> relatedTarget;
@@ -741,6 +742,9 @@ public:
   // Finger or touch pressure of event
   // ranges between 0.0 and 1.0
   float                 pressure;
+
+  // Possible values at nsIDOMNSMouseEvent
+  PRUint16              inputSource;
 };
 
 class nsMouseEvent : public nsMouseEvent_base
@@ -994,22 +998,6 @@ struct nsTextRange
 
 typedef nsTextRange* nsTextRangeArray;
 
-// XXX We should drop this struct because the results are provided by query
-// content events now, so, this struct finished the role.
-struct nsTextEventReply
-{
-  nsTextEventReply()
-    : mCursorIsCollapsed(PR_FALSE), mReferenceWidget(nsnull)
-  {
-  }
-
-  nsIntRect mCursorPosition;
-  PRBool mCursorIsCollapsed;
-  nsIWidget* mReferenceWidget;
-};
-
-typedef struct nsTextEventReply nsTextEventReply;
-
 class nsTextEvent : public nsInputEvent
 {
 public:
@@ -1020,7 +1008,6 @@ public:
   }
 
   nsString          theText;
-  nsTextEventReply  theReply; // OBSOLETE
   PRUint32          rangeCount;
   // Note that the range array may not specify a caret position; in that
   // case there will be no range of type NS_TEXTRANGE_CARETPOSITION in the
@@ -1036,8 +1023,6 @@ public:
     : nsInputEvent(isTrusted, msg, w, NS_COMPOSITION_EVENT)
   {
   }
-
-  nsTextEventReply theReply; // OBSOLETE
 };
 
 /* Mouse Scroll Events: Line Scrolling, Pixel Scrolling and Common Event Flows
@@ -1217,13 +1202,14 @@ class nsSelectionEvent : public nsGUIEvent
 public:
   nsSelectionEvent(PRBool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget) :
     nsGUIEvent(aIsTrusted, aMsg, aWidget, NS_SELECTION_EVENT),
-    mSucceeded(PR_FALSE)
+    mExpandToClusterBoundary(PR_TRUE), mSucceeded(PR_FALSE)
   {
   }
 
   PRUint32 mOffset; // start offset of selection
   PRUint32 mLength; // length of selection
   PRPackedBool mReversed; // selection "anchor" should be in front
+  PRPackedBool mExpandToClusterBoundary; // cluster-based or character-based
   PRPackedBool mSucceeded;
 };
 

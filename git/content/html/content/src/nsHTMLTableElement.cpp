@@ -158,7 +158,7 @@ NS_INTERFACE_TABLE_HEAD(TableRowsCollection)
   NS_INTERFACE_TABLE2(TableRowsCollection, nsIHTMLCollection,
                       nsIDOMHTMLCollection)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(TableRowsCollection)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLGenericCollection)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(HTMLCollection)
 NS_INTERFACE_MAP_END
 
 nsresult
@@ -407,6 +407,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLTableElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLTableElement, nsGenericElement) 
 
+
+DOMCI_DATA(HTMLTableElement, nsHTMLTableElement)
 
 // QueryInterface implementation for nsHTMLTableElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLTableElement)

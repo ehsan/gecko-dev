@@ -57,7 +57,7 @@
 #include "nsITimer.h"
 #include "nsCRT.h"
 #include "nsIPrintSettings.h"
-#include "nsPropertyTable.h"
+#include "FramePropertyTable.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsRefPtrHashtable.h"
@@ -174,6 +174,8 @@ class nsRootPresContext;
 
 class nsPresContext : public nsIObserver {
 public:
+  typedef mozilla::FramePropertyTable FramePropertyTable;
+
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIOBSERVER
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
@@ -757,6 +759,8 @@ public:
 
   PRBool IsRenderingOnlySelection() const { return mIsRenderingOnlySelection; }
 
+  NS_HIDDEN_(PRBool) IsTopLevelWindowInactive();
+
   /*
    * Obtain a native them for rendering our widgets (both form controls and html)
    */
@@ -781,7 +785,7 @@ public:
   nsIPrintSettings* GetPrintSettings() { return mPrintSettings; }
 
   /* Accessor for table of frame properties */
-  nsPropertyTable* PropertyTable() { return &mPropertyTable; }
+  FramePropertyTable* PropertyTable() { return &mPropertyTable; }
 
   /* Helper function that ensures that this prescontext is shown in its
      docshell if it's the most recent prescontext for the docshell.  Returns
@@ -806,13 +810,26 @@ public:
                               mType == eContext_PrintPreview); }
 
   // Is this presentation in a chrome docshell?
-  PRBool IsChrome() const;
+  PRBool IsChrome()
+  {
+    return mIsChromeIsCached ? mIsChrome : IsChromeSlow();
+  }
+
+  virtual void InvalidateIsChromeCacheExternal();
+  void InvalidateIsChromeCacheInternal();
+#ifdef _IMPL_NS_LAYOUT
+  void InvalidateIsChromeCache()
+  { InvalidateIsChromeCacheInternal(); }
+#else
+  void InvalidateIsChromeCache()
+  { InvalidateIsChromeCacheExternal(); }
+#endif
 
   // Public API for native theme code to get style internals.
-  virtual PRBool HasAuthorSpecifiedRules(nsIFrame *aFrame, PRUint32 ruleTypeMask) const;
+  virtual PRBool HasAuthorSpecifiedRules(nsIFrame *aFrame, PRUint32 ruleTypeMask);
 
   // Is it OK to let the page specify colors and backgrounds?
-  PRBool UseDocumentColors() const {
+  PRBool UseDocumentColors() {
     return GetCachedBoolPref(kPresContext_UseDocumentColors) || IsChrome();
   }
 
@@ -976,6 +993,8 @@ protected:
   // Can't be inline because we can't include nsStyleSet.h.
   PRBool HasCachedStyleData();
 
+  PRBool IsChromeSlow();
+
   // IMPORTANT: The ownership implicit in the following member variables
   // has been explicitly checked.  If you add any members to this class,
   // please make the ownership explicit (pinkerton, scc).
@@ -1024,7 +1043,7 @@ protected:
   nsCOMPtr<nsIPrintSettings> mPrintSettings;
   nsCOMPtr<nsITimer>    mPrefChangedTimer;
 
-  nsPropertyTable       mPropertyTable;
+  FramePropertyTable    mPropertyTable;
 
   nsInvalidateRequestList mInvalidateRequests;
 
@@ -1110,6 +1129,12 @@ protected:
 
   unsigned              mProcessingRestyles : 1;
   unsigned              mProcessingAnimationStyleChange : 1;
+
+  // Cache whether we are chrome or not because it is expensive.  
+  // mIsChromeIsCached tells us if mIsChrome is valid or we need to get the
+  // value the slow way.
+  unsigned              mIsChromeIsCached : 1;
+  unsigned              mIsChrome : 1;
 
 #ifdef DEBUG
   PRBool                mInitialized;

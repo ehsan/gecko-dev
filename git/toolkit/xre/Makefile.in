@@ -92,6 +92,7 @@ endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 CPPSRCS += nsNativeAppSupportWin.cpp
 DEFINES += -DWIN32_LEAN_AND_MEAN -DUNICODE -D_UNICODE
+EXPORTS = nsWindowsDllInterceptor.h
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 CMMSRCS = nsNativeAppSupportCocoa.mm
@@ -105,7 +106,13 @@ else
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 CPPSRCS += nsNativeAppSupportUnix.cpp
 else
+ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+CPPSRCS += nsNativeAppSupportQt.cpp
+CPPSRCS += nsQAppInstance.cpp
+EXPORTS += nsQAppInstance.h
+else
 CPPSRCS += nsNativeAppSupportDefault.cpp
+endif
 endif
 endif
 endif
@@ -242,6 +249,13 @@ ifeq (http,$(patsubst http%,http,$(SOURCE_REPO)))
 INIARGS += --sourcerepo=$(SOURCE_REPO)
 endif
 endif
+
+GRE_MILESTONE := $(shell tail -n 1 $(topsrcdir)/config/milestone.txt)
+GRE_BUILDID := $(shell cat $(DEPTH)/config/buildid)
+ 
+DEFINES += -DGRE_MILESTONE=$(GRE_MILESTONE) -DGRE_BUILDID=$(GRE_BUILDID)
+
+$(srcdir)/nsAppRunner.cpp: $(DEPTH)/config/buildid $(topsrcdir)/config/milestone.txt
 
 platform.ini: FORCE
 	$(PYTHON) $(srcdir)/make-platformini.py --buildid=$(shell cat $(DEPTH)/config/buildid) $(INIARGS) $(topsrcdir)/config/milestone.txt > $@

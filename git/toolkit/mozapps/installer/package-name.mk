@@ -58,7 +58,11 @@ MOZ_PKG_PLATFORM := win32
 endif
 endif
 ifeq ($(OS_ARCH),Darwin)
+ifeq ($(TARGET_CPU),x86_64)
+MOZ_PKG_PLATFORM := mac64
+else
 MOZ_PKG_PLATFORM := mac
+endif
 endif
 ifeq ($(TARGET_OS),linux-gnu)
 MOZ_PKG_PLATFORM := linux-$(TARGET_CPU)
@@ -164,7 +168,7 @@ endif # MOZ_PKG_PRETTYNAMES
 SYMBOL_ARCHIVE_BASENAME = $(PKG_BASENAME).crashreporter-symbols
 
 # Test package naming
-TEST_PACKAGE = $(PKG_BASENAME).tests.tar.bz2
+TEST_PACKAGE = $(PKG_BASENAME).tests.zip
 
 ifneq (,$(wildcard $(DIST)/bin/application.ini))
 BUILDID = $(shell $(PYTHON) $(MOZILLA_DIR)/config/printconfigsetting.py $(DIST)/bin/application.ini App BuildID)
@@ -172,4 +176,4 @@ else
 BUILDID = $(shell $(PYTHON) $(MOZILLA_DIR)/config/printconfigsetting.py $(DIST)/bin/platform.ini Build BuildID)
 endif
 
-MOZ_SOURCE_STAMP = $(shell hg -R $(topsrcdir) parent --template="{node|short}\n" 2>/dev/null)
+MOZ_SOURCE_STAMP = $(firstword $(shell hg -R $(topsrcdir) parent --template="{node|short}\n" 2>/dev/null))

@@ -388,6 +388,14 @@ public:
                                                nsIFrame* aFrame);
 
   /**
+   * Get the popup frame of a given native mouse event.
+   * @param aEvent  the event.
+   * @return        Null, if there is no popup frame at the point, otherwise,
+   *                returns top-most popup frame at the point.
+   */
+  static nsIFrame* GetPopupFrameForEventCoordinates(const nsEvent* aEvent);
+
+/**
    * Translate from widget coordinates to the view's coordinates
    * @param aPresContext the PresContext for the view
    * @param aWidget the widget
@@ -426,6 +434,22 @@ public:
   static nsIFrame* GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
                                     PRBool aShouldIgnoreSuppression = PR_FALSE,
                                     PRBool aIgnoreRootScrollFrame = PR_FALSE);
+
+  /**
+   * Given aFrame, the root frame of a stacking context, find all descendant
+   * frames under the area of a rectangle that receives a mouse event,
+   * or nsnull if there is no such frame.
+   * @param aRect the rect, relative to the frame origin
+   * @param aOutFrames an array to add all the frames found
+   * @param aShouldIgnoreSuppression a boolean to control if the display
+   * list builder should ignore paint suppression or not
+   * @param aIgnoreRootScrollFrame whether or not the display list builder
+   * should ignore the root scroll frame.
+   */
+  static nsresult GetFramesForArea(nsIFrame* aFrame, const nsRect& aRect,
+                                   nsTArray<nsIFrame*> &aOutFrames,
+                                   PRBool aShouldIgnoreSuppression = PR_FALSE,
+                                   PRBool aIgnoreRootScrollFrame = PR_FALSE);
 
   /**
    * Given a point in the global coordinate space, returns that point expressed
@@ -474,6 +498,12 @@ public:
    */
   static nsRect RoundGfxRectToAppRect(const gfxRect &aRect, float aFactor);
 
+  /**
+   * If aIn can be represented exactly using an nsIntRect (i.e.
+   * integer-aligned edges and coordinates in the PRInt32 range) then we
+   * set aOut to that rectangle, otherwise return failure.
+   */
+  static nsresult GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut);
 
   enum {
     PAINT_IN_TRANSFORM = 0x01,
@@ -714,20 +744,6 @@ public:
    */
   static nsIFrame* GetParentOrPlaceholderFor(nsFrameManager* aFrameManager,
                                              nsIFrame* aFrame);
-
-  /**
-   * Find the closest common ancestor of aFrame1 and aFrame2, following
-   * out of flow frames to their placeholders instead of their parents. Returns
-   * nsnull if the frames are in different frame trees.
-   * 
-   * @param aKnownCommonAncestorHint a frame that is believed to be on the
-   * ancestor chain of both aFrame1 and aFrame2. If null, or a frame that is
-   * not in fact on both ancestor chains, then this function will still return
-   * the correct result, but it will be slower.
-   */
-  static nsIFrame*
-  GetClosestCommonAncestorViaPlaceholders(nsIFrame* aFrame1, nsIFrame* aFrame2,
-                                          nsIFrame* aKnownCommonAncestorHint);
 
   /**
    * Get a frame's next-in-flow, or, if it doesn't have one, its special sibling.
@@ -1087,7 +1103,7 @@ public:
   static PRBool FrameIsNonFirstInIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
       aFrame->GetFirstContinuation()->
-        GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling);
+        Properties().Get(nsIFrame::IBSplitSpecialPrevSibling());
   }
 
   /**
@@ -1097,7 +1113,7 @@ public:
   static PRBool FrameIsNonLastInIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
       aFrame->GetFirstContinuation()->
-        GetProperty(nsGkAtoms::IBSplitSpecialSibling);
+        Properties().Get(nsIFrame::IBSplitSpecialSibling());
   }
 
   /**

@@ -49,12 +49,14 @@ nsFormData::nsFormData()
 // -------------------------------------------------------------------------
 // nsISupports
 
+DOMCI_DATA(FormData, nsFormData)
+
 NS_IMPL_ADDREF(nsFormData)
 NS_IMPL_RELEASE(nsFormData)
 NS_INTERFACE_MAP_BEGIN(nsFormData)
   NS_INTERFACE_MAP_ENTRY(nsIDOMFormData)
   NS_INTERFACE_MAP_ENTRY(nsIXHRSendable)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(FormData)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(FormData)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMFormData)
 NS_INTERFACE_MAP_END
 

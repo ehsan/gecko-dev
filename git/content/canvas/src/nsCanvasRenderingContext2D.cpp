@@ -41,6 +41,9 @@
 #define _USE_MATH_DEFINES
 #endif
 #include <math.h>
+#if defined(XP_WIN) || defined(XP_OS2)
+#include <float.h>
+#endif
 
 #include "prmem.h"
 
@@ -78,8 +81,6 @@
 #include "nsGfxCIID.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIDocShell.h"
-#include "nsPresContext.h"
-#include "nsIPresShell.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDocShell.h"
@@ -87,7 +88,6 @@
 #include "nsIDocShellTreeNode.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
-#include "jsnum.h"
 
 #include "nsTArray.h"
 
@@ -116,7 +116,17 @@ using namespace mozilla;
 
 /* Float validation stuff */
 
-#define VALIDATE(_f)  if (!JSDOUBLE_IS_FINITE(_f)) return PR_FALSE
+static inline bool
+DoubleIsFinite(double d)
+{
+#ifdef WIN32
+    return _finite(d);
+#else
+    return finite(d);
+#endif
+}
+
+#define VALIDATE(_f)  if (!DoubleIsFinite(_f)) return PR_FALSE
 
 /* These must take doubles as args, because JSDOUBLE_IS_FINITE expects
  * to take the address of its argument; we can't cast/convert in the
@@ -208,10 +218,12 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsCanvasGradient, NS_CANVASGRADIENT_PRIVATE_IID)
 NS_IMPL_ADDREF(nsCanvasGradient)
 NS_IMPL_RELEASE(nsCanvasGradient)
 
+DOMCI_DATA(CanvasGradient, nsCanvasGradient)
+
 NS_INTERFACE_MAP_BEGIN(nsCanvasGradient)
   NS_INTERFACE_MAP_ENTRY(nsCanvasGradient)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasGradient)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CanvasGradient)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CanvasGradient)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -254,10 +266,12 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsCanvasPattern, NS_CANVASPATTERN_PRIVATE_IID)
 NS_IMPL_ADDREF(nsCanvasPattern)
 NS_IMPL_RELEASE(nsCanvasPattern)
 
+DOMCI_DATA(CanvasPattern, nsCanvasPattern)
+
 NS_INTERFACE_MAP_BEGIN(nsCanvasPattern)
   NS_INTERFACE_MAP_ENTRY(nsCanvasPattern)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasPattern)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CanvasPattern)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CanvasPattern)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -291,10 +305,12 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsTextMetrics, NS_TEXTMETRICS_PRIVATE_IID)
 NS_IMPL_ADDREF(nsTextMetrics)
 NS_IMPL_RELEASE(nsTextMetrics)
 
+DOMCI_DATA(TextMetrics, nsTextMetrics)
+
 NS_INTERFACE_MAP_BEGIN(nsTextMetrics)
   NS_INTERFACE_MAP_ENTRY(nsTextMetrics)
   NS_INTERFACE_MAP_ENTRY(nsIDOMTextMetrics)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(TextMetrics)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TextMetrics)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -652,11 +668,13 @@ protected:
 NS_IMPL_ADDREF(nsCanvasRenderingContext2D)
 NS_IMPL_RELEASE(nsCanvasRenderingContext2D)
 
+DOMCI_DATA(CanvasRenderingContext2D, nsCanvasRenderingContext2D)
+
 NS_INTERFACE_MAP_BEGIN(nsCanvasRenderingContext2D)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasRenderingContext2D)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMCanvasRenderingContext2D)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CanvasRenderingContext2D)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CanvasRenderingContext2D)
 NS_INTERFACE_MAP_END
 
 /**
@@ -1118,8 +1136,6 @@ nsCanvasRenderingContext2D::Restore()
 {
     if (mSaveCount == 0)
         return NS_OK;
-    if (mSaveCount < 0)
-        return NS_ERROR_DOM_INVALID_STATE_ERR;
 
     mStyleStack.RemoveElementAt(mSaveCount);
     mThebes->Restore();
@@ -2018,19 +2034,14 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
             return rv;
         nsCOMArray<nsIStyleRule> parentRules;
         parentRules.AppendObject(parentRule);
-        parentContext =
-            styleSet->ResolveStyleForRules(nsnull, nsnull,
-                                           nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                                           nsnull, parentRules);
+        parentContext = styleSet->ResolveStyleForRules(nsnull, parentRules);
     }
 
     if (!parentContext)
         return NS_ERROR_FAILURE;
 
     nsRefPtr<nsStyleContext> sc =
-        styleSet->ResolveStyleForRules(parentContext, nsnull,
-                                       nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                                       nsnull, rules);
+        styleSet->ResolveStyleForRules(parentContext, rules);
     if (!sc)
         return NS_ERROR_FAILURE;
     const nsStyleFont* fontStyle = sc->GetStyleFont();
@@ -3335,7 +3346,7 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
     if (!(flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DO_NOT_FLUSH))
         FlushLayoutForTree(aWindow);
 
-    nsCOMPtr<nsPresContext> presContext;
+    nsRefPtr<nsPresContext> presContext;
     nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aWindow);
     if (win) {
         nsIDocShell* docshell = win->GetDocShell();
@@ -3477,8 +3488,8 @@ nsCanvasRenderingContext2D::GetImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
     PRUint8 *src = aData;
     PRUint8 *dst = aData;
 
-    for (int j = 0; j < h; j++) {
-        for (int i = 0; i < w; i++) {
+    for (PRUint32 j = 0; j < h; j++) {
+        for (PRUint32 i = 0; i < w; i++) {
             // XXX Is there some useful swizzle MMX we can use here?
 #ifdef IS_LITTLE_ENDIAN
             PRUint8 b = *src++;
@@ -3533,8 +3544,6 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32 w, PRUint32 h,
                                                   unsigned char *aData, PRUint32 aDataLen)
 {
-    nsresult rv;
-
     if (!mValid)
         return NS_ERROR_FAILURE;
 
@@ -3556,8 +3565,8 @@ nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
     PRUint8 *src = aData;
     PRUint8 *dst = imgsurf->Data();
 
-    for (int j = 0; j < h; j++) {
-        for (int i = 0; i < w; i++) {
+    for (PRUint32 j = 0; j < h; j++) {
+        for (PRUint32 i = 0; i < w; i++) {
             PRUint8 r = *src++;
             PRUint8 g = *src++;
             PRUint8 b = *src++;

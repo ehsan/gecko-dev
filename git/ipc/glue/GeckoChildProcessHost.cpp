@@ -51,6 +51,9 @@
 #endif
 #include "nsExceptionHandler.h"
 
+#include "nsDirectoryServiceDefs.h"
+#include "nsIFile.h"
+
 #include "mozilla/ipc/BrowserProcessSubThread.h"
 
 using mozilla::MonitorAutoEnter;
@@ -179,8 +182,26 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
   // and passing wstrings from one config to the other is unsafe.  So
   // we split the logic here.
 
-  FilePath exePath = FilePath(CommandLine::ForCurrentProcess()->argv()[0]);
-  exePath = exePath.DirName();
+  FilePath exePath;
+#ifdef OS_LINUX
+  base::environment_map newEnvVars;
+#endif
+
+  nsCOMPtr<nsIProperties> directoryService(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
+  nsCOMPtr<nsIFile> greDir;
+  nsresult rv = directoryService->Get(NS_GRE_DIR, NS_GET_IID(nsIFile), getter_AddRefs(greDir));
+  if (NS_SUCCEEDED(rv)) {
+    nsCString path;
+    greDir->GetNativePath(path);
+    exePath = FilePath(path.get());
+#ifdef OS_LINUX
+    newEnvVars["LD_LIBRARY_PATH"] = path.get();
+#endif
+  }
+  else {
+    exePath = FilePath(CommandLine::ForCurrentProcess()->argv()[0]);
+    exePath = exePath.DirName();
+  }
   exePath = exePath.AppendASCII(MOZ_CHILD_PROCESS_NAME);
 
   // remap the IPC socket fd to a well-known int, as the OS does for
@@ -202,6 +223,7 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
   childArgv.push_back(childProcessType);
 
 #if defined(MOZ_CRASHREPORTER)
+#  if defined(OS_LINUX)
   int childCrashFd, childCrashRemapFd;
   if (!CrashReporter::CreateNotificationPipeForChild(
         &childCrashFd, &childCrashRemapFd))
@@ -215,9 +237,18 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
     // "false" == crash reporting disabled
     childArgv.push_back("false");
   }
+#  elif defined(XP_MACOSX)
+  // Call the stub for initialization side effects.  Eventually this
+  // code will be unified with that above.
+  CrashReporter::CreateNotificationPipeForChild();
+#  endif  // OS_LINUX
 #endif
 
-  base::LaunchApp(childArgv, mFileMap, false, &process);
+  base::LaunchApp(childArgv, mFileMap,
+#ifdef OS_LINUX
+                  newEnvVars,
+#endif
+                  false, &process);
 
 //--------------------------------------------------
 #elif defined(OS_WIN)
@@ -264,7 +295,7 @@ GeckoChildProcessHost::OnChannelConnected(int32 peer_pid)
   MonitorAutoEnter mon(mMonitor);
   mLaunched = true;
 
-  if (!base::OpenProcessHandle(peer_pid, &mChildProcessHandle))
+  if (!base::OpenPrivilegedProcessHandle(peer_pid, &mChildProcessHandle))
       NS_RUNTIMEABORT("can't open handle to child process");
 
   mon.Notify();

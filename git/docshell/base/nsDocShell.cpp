@@ -1606,7 +1606,7 @@ nsDocShell::GetPresShell(nsIPresShell ** aPresShell)
     NS_ENSURE_ARG_POINTER(aPresShell);
     *aPresShell = nsnull;
 
-    nsCOMPtr<nsPresContext> presContext;
+    nsRefPtr<nsPresContext> presContext;
     (void) GetPresContext(getter_AddRefs(presContext));
 
     if (presContext) {
@@ -1624,7 +1624,7 @@ nsDocShell::GetEldestPresShell(nsIPresShell** aPresShell)
     NS_ENSURE_ARG_POINTER(aPresShell);
     *aPresShell = nsnull;
 
-    nsCOMPtr<nsPresContext> presContext;
+    nsRefPtr<nsPresContext> presContext;
     (void) GetEldestPresContext(getter_AddRefs(presContext));
 
     if (presContext) {
@@ -2415,6 +2415,12 @@ nsDocShell::SetItemType(PRInt32 aItemType)
     // disable auth prompting for anything but content
     mAllowAuth = mItemType == typeContent; 
 
+    nsRefPtr<nsPresContext> presContext = nsnull;
+    GetPresContext(getter_AddRefs(presContext));
+    if (presContext) {
+        presContext->InvalidateIsChromeCache();
+    }
+
     return NS_OK;
 }
 
@@ -2814,7 +2820,7 @@ PrintDocTree(nsIDocShellTreeItem * aParentNode, int aLevel)
   aParentNode->GetItemType(&type);
   nsCOMPtr<nsIPresShell> presShell;
   parentAsDocShell->GetPresShell(getter_AddRefs(presShell));
-  nsCOMPtr<nsPresContext> presContext;
+  nsRefPtr<nsPresContext> presContext;
   parentAsDocShell->GetPresContext(getter_AddRefs(presContext));
   nsIDocument *doc = presShell->GetDocument();
 
@@ -7940,7 +7946,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             if (mOSHE) {
                 mOSHE->GetOwner(getter_AddRefs(owner));
             }
-            OnNewURI(aURI, nsnull, owner, mLoadType, PR_TRUE);
+            OnNewURI(aURI, nsnull, owner, mLoadType, PR_TRUE, PR_TRUE);
 
             nsCOMPtr<nsIInputStream> postData;
             PRUint32 pageIdent = PR_UINT32_MAX;
@@ -8023,6 +8029,12 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                 nsCOMPtr<nsISHEntry> shEntry(do_QueryInterface(hEntry));
                 if (shEntry)
                     shEntry->SetTitle(mTitle);
+            }
+
+            /* Set the title for the Global History entry for this anchor url.
+             */
+            if (mGlobalHistory) {
+                mGlobalHistory->SetPageTitle(aURI, mTitle);
             }
 
             if (sameDocIdent) {
@@ -10641,7 +10653,7 @@ PRBool
 nsDocShell::URIIsLocalFile(nsIURI *aURI)
 {
     PRBool isFile;
-    nsCOMPtr<nsINetUtil> util = do_GetIOService();
+    nsCOMPtr<nsINetUtil> util = do_GetNetUtil();
 
     return util && NS_SUCCEEDED(util->ProtocolHasFlags(aURI,
                                     nsIProtocolHandler::URI_IS_LOCAL_FILE,

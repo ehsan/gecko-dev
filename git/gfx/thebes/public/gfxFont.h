@@ -55,6 +55,7 @@
 #include "gfxFontConstants.h"
 #include "gfxPlatform.h"
 #include "nsIAtom.h"
+#include "nsISupportsImpl.h"
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -160,7 +161,7 @@ struct THEBES_API gfxFontStyle {
 
 class gfxFontEntry {
 public:
-    THEBES_INLINE_DECL_REFCOUNTING(gfxFontEntry)
+    NS_INLINE_DECL_REFCOUNTING(gfxFontEntry)
 
     gfxFontEntry(const nsAString& aName, gfxFontFamily *aFamily = nsnull,
                  PRBool aIsStandardFace = PR_FALSE) : 
@@ -289,7 +290,7 @@ struct FontSearch {
 
 class gfxFontFamily {
 public:
-    THEBES_INLINE_DECL_REFCOUNTING(gfxFontFamily)
+    NS_INLINE_DECL_REFCOUNTING(gfxFontFamily)
 
     gfxFontFamily(const nsAString& aName) :
         mName(aName),
@@ -660,11 +661,11 @@ public:
 
     virtual ~gfxFontShaper() { }
 
-    virtual void InitTextRun(gfxContext *aContext,
-                             gfxTextRun *aTextRun,
-                             const PRUnichar *aString,
-                             PRUint32 aRunStart,
-                             PRUint32 aRunLength) = 0;
+    virtual PRBool InitTextRun(gfxContext *aContext,
+                               gfxTextRun *aTextRun,
+                               const PRUnichar *aString,
+                               PRUint32 aRunStart,
+                               PRUint32 aRunLength) = 0;
 
 protected:
     // the font this shaper is working with
@@ -697,6 +698,14 @@ public:
 
     PRInt32 GetRefCount() { return mRefCnt; }
 
+    // options to specify the kind of AA to be used when creating a font
+    typedef enum {
+        kAntialiasDefault,
+        kAntialiasNone,
+        kAntialiasGrayscale,
+        kAntialiasSubpixel
+    } AntialiasOption;
+
 protected:
     nsAutoRefCnt mRefCnt;
 
@@ -712,7 +721,8 @@ protected:
         }
     }
 
-    gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle);
+    gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
+            AntialiasOption anAAOption = kAntialiasDefault);
 
 public:
     virtual ~gfxFont();
@@ -752,6 +762,11 @@ public:
     const gfxFontStyle *GetStyle() const { return &mStyle; }
 
     virtual nsString GetUniqueName() { return GetName(); }
+
+    virtual gfxFont* CopyWithAntialiasOption(AntialiasOption anAAOption) {
+        // platforms where this actually matters should override
+        return nsnull;
+    }
 
     // Font metrics
     struct Metrics {
@@ -910,17 +925,14 @@ public:
         return mFontEntry->HasCharacter(ch); 
     }
 
-    void InitTextRun(gfxContext *aContext,
-                     gfxTextRun *aTextRun,
-                     const PRUnichar *aString,
-                     PRUint32 aRunStart,
-                     PRUint32 aRunLength) {
-        NS_ASSERTION(mShaper != nsnull, "no shaper?!");
-        if (!mShaper) {
-            return;
-        }
-        mShaper->InitTextRun(aContext, aTextRun, aString, aRunStart, aRunLength);
-    }
+    // Default implementation simply calls mShaper->InitTextRun().
+    // Override if the font class wants to give special handling
+    // to shaper failure.
+    virtual void InitTextRun(gfxContext *aContext,
+                             gfxTextRun *aTextRun,
+                             const PRUnichar *aString,
+                             PRUint32 aRunStart,
+                             PRUint32 aRunLength);
 
 protected:
     nsRefPtr<gfxFontEntry> mFontEntry;
@@ -933,6 +945,9 @@ protected:
     // synthetic bolding for environments where this is not supported by the platform
     PRUint32                   mSyntheticBoldOffset;  // number of devunit pixels to offset double-strike, 0 ==> no bolding
 
+    // the AA setting requested for this font - may affect glyph bounds
+    AntialiasOption            mAntialiasOption;
+
     nsAutoPtr<gfxFontShaper>   mShaper;
 
     // some fonts have bad metrics, this method sanitize them.
@@ -941,7 +956,7 @@ protected:
 };
 
 class THEBES_API gfxTextRunFactory {
-    THEBES_INLINE_DECL_REFCOUNTING(gfxTextRunFactory)
+    NS_INLINE_DECL_REFCOUNTING(gfxTextRunFactory)
 
 public:
     // Flags in the mask 0xFFFF0000 are reserved for textrun clients

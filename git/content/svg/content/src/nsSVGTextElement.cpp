@@ -40,18 +40,16 @@
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGTextElement.h"
 #include "nsCOMPtr.h"
-#include "nsSVGAnimatedLengthList.h"
-#include "nsSVGLengthList.h"
 #include "nsSVGSVGElement.h"
-#include "nsSVGTextContentElement.h"
+#include "nsSVGTextPositioningElement.h"
 #include "nsIFrame.h"
 #include "nsDOMError.h"
 
 typedef nsSVGGraphicElement nsSVGTextElementBase;
 
 class nsSVGTextElement : public nsSVGTextElementBase,
-                         public nsIDOMSVGTextElement,   // : nsIDOMSVGTextPositioningElement
-                         public nsSVGTextContentElement // = nsIDOMSVGTextContentElement
+                         public nsIDOMSVGTextElement,
+                         public nsSVGTextPositioningElement // = nsIDOMSVGTextPositioningElement
 {
 protected:
   friend nsresult NS_NewSVGTextElement(nsIContent **aResult,
@@ -64,7 +62,6 @@ public:
   
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMSVGTEXTELEMENT
-  NS_DECL_NSIDOMSVGTEXTPOSITIONINGELEMENT
 
   // xxx If xpcom allowed virtual inheritance we wouldn't need to
   // forward here :-(
@@ -72,6 +69,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsSVGTextElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGTextElementBase::)
   NS_FORWARD_NSIDOMSVGTEXTCONTENTELEMENT(nsSVGTextContentElement::)
+  NS_FORWARD_NSIDOMSVGTEXTPOSITIONINGELEMENT(nsSVGTextPositioningElement::)
 
   // nsIContent interface
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
@@ -82,12 +80,6 @@ protected:
   virtual nsSVGTextContainerFrame* GetTextContainerFrame() {
     return do_QueryFrame(GetPrimaryFrame(Flush_Layout));
   }
-
-  // nsIDOMSVGTextPositioning properties:
-  nsCOMPtr<nsIDOMSVGAnimatedLengthList> mX;
-  nsCOMPtr<nsIDOMSVGAnimatedLengthList> mY;
-  nsCOMPtr<nsIDOMSVGAnimatedLengthList> mdX;
-  nsCOMPtr<nsIDOMSVGAnimatedLengthList> mdY;
 
 };
 
@@ -101,12 +93,14 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Text)
 NS_IMPL_ADDREF_INHERITED(nsSVGTextElement,nsSVGTextElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGTextElement,nsSVGTextElementBase)
 
+DOMCI_DATA(SVGTextElement, nsSVGTextElement)
+
 NS_INTERFACE_TABLE_HEAD(nsSVGTextElement)
   NS_NODE_INTERFACE_TABLE6(nsSVGTextElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGTextElement,
                            nsIDOMSVGTextPositioningElement,
                            nsIDOMSVGTextContentElement)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGTextElement)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGTextElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGTextElementBase)
 
 //----------------------------------------------------------------------
@@ -124,55 +118,8 @@ nsSVGTextElement::Init()
   nsresult rv = nsSVGTextElementBase::Init();
   NS_ENSURE_SUCCESS(rv,rv);
 
-  // Create mapped properties:
-
-  // DOM property: nsIDOMSVGTextPositioningElement::x, #IMPLIED attrib: x
-  {
-    nsCOMPtr<nsIDOMSVGLengthList> lengthList;
-    rv = NS_NewSVGLengthList(getter_AddRefs(lengthList), this, nsSVGUtils::X);
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = NS_NewSVGAnimatedLengthList(getter_AddRefs(mX),
-                                     lengthList);
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = AddMappedSVGValue(nsGkAtoms::x, mX);
-    NS_ENSURE_SUCCESS(rv,rv);
-  }
-  
-  // DOM property: nsIDOMSVGTextPositioningElement::y, #IMPLIED attrib: y
-  {
-    nsCOMPtr<nsIDOMSVGLengthList> lengthList;
-    rv = NS_NewSVGLengthList(getter_AddRefs(lengthList), this, nsSVGUtils::Y);
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = NS_NewSVGAnimatedLengthList(getter_AddRefs(mY),
-                                     lengthList);
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = AddMappedSVGValue(nsGkAtoms::y, mY);
-    NS_ENSURE_SUCCESS(rv,rv);
-  }
-
-  // DOM property: nsIDOMSVGTextPositioningElement::dx, #IMPLIED attrib: dx
-  {
-    nsCOMPtr<nsIDOMSVGLengthList> lengthList;
-    rv = NS_NewSVGLengthList(getter_AddRefs(lengthList), this, nsSVGUtils::X);
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = NS_NewSVGAnimatedLengthList(getter_AddRefs(mdX),
-                                     lengthList);
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = AddMappedSVGValue(nsGkAtoms::dx, mdX);
-    NS_ENSURE_SUCCESS(rv,rv);
-  }
-  
-  // DOM property: nsIDOMSVGTextPositioningElement::dy, #IMPLIED attrib: dy
-  {
-    nsCOMPtr<nsIDOMSVGLengthList> lengthList;
-    rv = NS_NewSVGLengthList(getter_AddRefs(lengthList), this, nsSVGUtils::Y);
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = NS_NewSVGAnimatedLengthList(getter_AddRefs(mdY),
-                                     lengthList);
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = AddMappedSVGValue(nsGkAtoms::dy, mdY);
-    NS_ENSURE_SUCCESS(rv,rv);
-  }
+  rv = Initialise(this);
+  NS_ENSURE_SUCCESS(rv,rv);
 
   return rv;
 }
@@ -188,48 +135,6 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGTextElement)
 // nsIDOMSVGTextElement methods
 
 // - no methods -
-
-//----------------------------------------------------------------------
-// nsIDOMSVGTextPositioningElement methods
-
-/* readonly attribute nsIDOMSVGAnimatedLengthList x; */
-NS_IMETHODIMP nsSVGTextElement::GetX(nsIDOMSVGAnimatedLengthList * *aX)
-{
-  *aX = mX;
-  NS_IF_ADDREF(*aX);
-  return NS_OK;
-}
-
-/* readonly attribute nsIDOMSVGAnimatedLengthList y; */
-NS_IMETHODIMP nsSVGTextElement::GetY(nsIDOMSVGAnimatedLengthList * *aY)
-{
-  *aY = mY;
-  NS_IF_ADDREF(*aY);
-  return NS_OK;
-}
-
-/* readonly attribute nsIDOMSVGAnimatedLengthList dx; */
-NS_IMETHODIMP nsSVGTextElement::GetDx(nsIDOMSVGAnimatedLengthList * *aDx)
-{
-  *aDx = mdX;
-  NS_IF_ADDREF(*aDx);
-  return NS_OK;
-}
-
-/* readonly attribute nsIDOMSVGAnimatedLengthList dy; */
-NS_IMETHODIMP nsSVGTextElement::GetDy(nsIDOMSVGAnimatedLengthList * *aDy)
-{
-  *aDy = mdY;
-  NS_IF_ADDREF(*aDy);
-  return NS_OK;
-}
-
-/* readonly attribute nsIDOMSVGAnimatedNumberList rotate; */
-NS_IMETHODIMP nsSVGTextElement::GetRotate(nsIDOMSVGAnimatedNumberList * *aRotate)
-{
-  NS_NOTYETIMPLEMENTED("nsSVGTextElement::GetRotate");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
 
 //----------------------------------------------------------------------
 // nsIContent methods

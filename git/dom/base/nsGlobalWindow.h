@@ -288,6 +288,7 @@ public:
   // nsPIDOMWindow
   virtual NS_HIDDEN_(nsPIDOMWindow*) GetPrivateRoot();
   virtual NS_HIDDEN_(void) ActivateOrDeactivate(PRBool aActivate);
+  virtual NS_HIDDEN_(void) SetActive(PRBool aActive);
   virtual NS_HIDDEN_(void) SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler);
 
   virtual NS_HIDDEN_(void) SetOpenerScriptPrincipal(nsIPrincipal* aPrincipal);
@@ -335,8 +336,7 @@ public:
 
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState,
-                                              PRBool aClearScopeHint);
+                                              nsISupports *aState);
   virtual NS_HIDDEN_(void) SetOpenerWindow(nsIDOMWindowInternal *aOpener,
                                            PRBool aOriginalOpener);
   virtual NS_HIDDEN_(void) EnsureSizeUpToDate();
@@ -453,20 +453,26 @@ public:
 
   static PRBool DOMWindowDumpEnabled();
 
+  void MaybeForgiveSpamCount();
+  PRBool IsClosedOrClosing() {
+    return (mIsClosed ||
+            mInClose ||
+            mHavePendingClose ||
+            mCleanedUp);
+  }
+
 protected:
   // Object Management
   virtual ~nsGlobalWindow();
-  void CleanUp();
+  void CleanUp(PRBool aIgnoreModalDialog);
   void ClearControllers();
   nsresult FinalClose();
 
   void FreeInnerObjects(PRBool aClearScope);
   nsGlobalWindow *CallerInnerWindow();
 
-  nsresult SetNewDocument(nsIDocument *aDocument,
-                          nsISupports *aState,
-                          PRBool aClearScopeHint,
-                          PRBool aIsInternalCall);
+  nsresult InnerSetNewDocument(nsIDocument* aDocument);
+
   nsresult DefineArgumentsProperty(nsIArray *aArguments);
 
   // Get the parent, returns null if this is a toplevel window
@@ -555,6 +561,7 @@ protected:
 
   // The timeout implementation functions.
   void RunTimeout(nsTimeout *aTimeout);
+  void RunTimeout() { RunTimeout(nsnull); }
 
   void ClearAllTimeouts();
   // Insert aTimeout into the list, before all timeouts that would
@@ -788,6 +795,8 @@ protected:
   nsCOMPtr<nsIURI> mLastOpenedURI;
 #endif
 
+  PRBool mCleanedUp, mCallCleanUpAfterModalDialogCloses;
+
   nsCOMPtr<nsIDOMOfflineResourceList> mApplicationCache;
 
   nsDataHashtable<nsVoidPtrHashKey, void*> mCachedXBLPrototypeHandlers;
@@ -848,8 +857,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalModalWindow, nsGlobalWindow)
 
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState,
-                                              PRBool aClearScopeHint);
+                                              nsISupports *aState);
 
 protected:
   nsCOMPtr<nsIVariant> mReturnValue;

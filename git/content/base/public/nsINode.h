@@ -46,6 +46,7 @@
 #include "nsCOMPtr.h"
 #include "nsWrapperCache.h"
 #include "nsIProgrammingLanguage.h" // for ::JAVASCRIPT
+#include "nsDOMError.h"
 
 class nsIContent;
 class nsIDocument;
@@ -54,7 +55,6 @@ class nsIDOMNode;
 class nsIDOMNodeList;
 class nsINodeList;
 class nsIPresShell;
-class nsPresContext;
 class nsEventChainVisitor;
 class nsEventChainPreVisitor;
 class nsEventChainPostVisitor;
@@ -145,8 +145,17 @@ enum {
   NODE_ATTACH_BINDING_ON_POSTCREATE
                                = 0x00040000U,
 
+  // This node needs to go through frame construction to get a frame (or
+  // undisplayed entry).
+  NODE_NEEDS_FRAME =             0x00080000U,
+
+  // At least one descendant in the flattened tree has NODE_NEEDS_FRAME set.
+  // This should be set on every node on the flattened tree path between the
+  // node(s) with NODE_NEEDS_FRAME and the root content.
+  NODE_DESCENDANTS_NEED_FRAMES = 0x00100000U,
+
   // Four bits for the script-type ID
-  NODE_SCRIPT_TYPE_OFFSET =               20,
+  NODE_SCRIPT_TYPE_OFFSET =               21,
 
   NODE_SCRIPT_TYPE_SIZE =                  4,
 
@@ -242,9 +251,9 @@ private:
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0x7244fd04, 0xa8e9, 0x4839, \
- { 0x92, 0x48, 0xb2, 0xe0, 0xd8, 0xd8, 0x85, 0x0d } }
- 
+{ 0xbc347b50, 0xa9b8, 0x419e, \
+ { 0xb1, 0x21, 0x76, 0x8f, 0x90, 0x05, 0x8d, 0xbf } } 
+
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
  * nsIContent and nsIDocument share.  An instance of this interface has a list
@@ -299,7 +308,9 @@ public:
      returns a non-null value for nsIContent::GetText() */
     eDATA_NODE           = 1 << 10,
     /** nsHTMLMediaElement */
-    eMEDIA               = 1 << 11
+    eMEDIA               = 1 << 11,
+    /** animation elements */
+    eANIMATION           = 1 << 12
   };
 
   /**
@@ -376,6 +387,38 @@ public:
   nsIDocument *GetCurrentDoc() const
   {
     return IsInDoc() ? GetOwnerDoc() : nsnull;
+  }
+
+  NS_IMETHOD GetNodeType(PRUint16* aNodeType) = 0;
+
+  nsINode*
+  InsertBefore(nsINode *aNewChild, nsINode *aRefChild, nsresult *aReturn)
+  {
+    return ReplaceOrInsertBefore(PR_FALSE, aNewChild, aRefChild, aReturn);
+  }
+  nsINode*
+  ReplaceChild(nsINode *aNewChild, nsINode *aOldChild, nsresult *aReturn)
+  {
+    return ReplaceOrInsertBefore(PR_TRUE, aNewChild, aOldChild, aReturn);
+  }
+  nsINode*
+  AppendChild(nsINode *aNewChild, nsresult *aReturn)
+  {
+    return InsertBefore(aNewChild, nsnull, aReturn);
+  }
+  nsresult RemoveChild(nsINode *aOldChild)
+  {
+    if (!aOldChild) {
+      return NS_ERROR_NULL_POINTER;
+    }
+
+    PRInt32 index = IndexOf(aOldChild);
+    if (index == -1) {
+      // aOldChild isn't one of our children.
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    return RemoveChildAt(index, PR_TRUE);
   }
 
   /**
@@ -731,7 +774,9 @@ public:
     NS_ASSERTION(!(aFlagsToSet & (NODE_IS_ANONYMOUS |
                                   NODE_IS_NATIVE_ANONYMOUS_ROOT |
                                   NODE_IS_IN_ANONYMOUS_SUBTREE |
-                                  NODE_ATTACH_BINDING_ON_POSTCREATE)) ||
+                                  NODE_ATTACH_BINDING_ON_POSTCREATE |
+                                  NODE_DESCENDANTS_NEED_FRAMES |
+                                  NODE_NEEDS_FRAME)) ||
                  IsNodeOfType(eCONTENT),
                  "Flag only permitted on nsIContent nodes");
     PtrBits* flags = HasSlots() ? &FlagsAsSlots()->mFlags :
@@ -937,6 +982,22 @@ protected:
   nsresult GetPreviousSibling(nsIDOMNode** aPrevSibling);
   nsresult GetNextSibling(nsIDOMNode** aNextSibling);
   nsresult GetOwnerDocument(nsIDOMDocument** aOwnerDocument);
+
+  nsresult ReplaceOrInsertBefore(PRBool aReplace, nsIDOMNode *aNewChild,
+                                 nsIDOMNode *aRefChild, nsIDOMNode **aReturn);
+  nsINode* ReplaceOrInsertBefore(PRBool aReplace, nsINode *aNewChild,
+                                 nsINode *aRefChild, nsresult *aReturn)
+  {
+    *aReturn = ReplaceOrInsertBefore(aReplace, aNewChild, aRefChild);
+    if (NS_FAILED(*aReturn)) {
+      return nsnull;
+    }
+
+    return aReplace ? aRefChild : aNewChild;
+  }
+  virtual nsresult ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
+                                         nsINode* aRefChild);
+  nsresult RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn);
 
   nsCOMPtr<nsINodeInfo> mNodeInfo;
 

@@ -65,7 +65,6 @@
 #include "nsFixedSizeAllocator.h"
 #include "xptinfo.h"
 #include "nsIInterfaceInfoManager.h"
-#include "nsIPresShell.h"
 #include "nsIDocumentObserver.h"
 #include "nsGkAtoms.h"
 #include "nsXBLProtoImpl.h"
@@ -207,27 +206,12 @@ public:
     nsXBLInsertionPointEntry::ReleasePool();
   }
 
-  nsrefcnt AddRef() {
-    ++mRefCnt;
-    NS_LOG_ADDREF(this, mRefCnt, "nsXBLInsertionPointEntry", sizeof(nsXBLInsertionPointEntry));
-    return mRefCnt;
-  }
-
-  nsrefcnt Release() {
-    --mRefCnt;
-    NS_LOG_RELEASE(this, mRefCnt, "nsXBLInsertionPointEntry");
-    if (mRefCnt == 0) {
-      Destroy(this);
-      return 0;
-    }
-    return mRefCnt;
-  }
+  NS_INLINE_DECL_REFCOUNTING(nsXBLInsertionPointEntry)
 
 protected:
   nsCOMPtr<nsIContent> mInsertionParent;
   nsCOMPtr<nsIContent> mDefaultContent;
   PRUint32 mInsertionIndex;
-  nsAutoRefCnt mRefCnt;
 
   nsXBLInsertionPointEntry(nsIContent* aParent)
     : mInsertionParent(aParent),
@@ -727,7 +711,7 @@ nsXBLPrototypeBinding::InstantiateInsertionPoints(nsXBLBinding* aBinding)
 nsIContent*
 nsXBLPrototypeBinding::GetInsertionPoint(nsIContent* aBoundElement,
                                          nsIContent* aCopyRoot,
-                                         nsIContent* aChild,
+                                         const nsIContent* aChild,
                                          PRUint32* aIndex)
 {
   if (!mInsertionPointTable)

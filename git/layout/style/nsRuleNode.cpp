@@ -684,7 +684,12 @@ static void SetStyleImage(nsStyleContext* aStyleContext,
     case eCSSUnit_None:
       break;
     default:
-      NS_NOTREACHED("unexpected unit; maybe nsCSSValue::Image::Image() failed?");
+      // We might have eCSSUnit_URL values for if-visited style
+      // contexts, which we can safely treat like 'none'.  Otherwise
+      // this is an unexpected unit.
+      NS_ASSERTION(aStyleContext->IsStyleIfVisited() &&
+                   aValue.GetUnit() == eCSSUnit_URL,
+                   "unexpected unit; maybe nsCSSValue::Image::Image() failed?");
       break;
   }
 }
@@ -2326,6 +2331,12 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
       if (RTLlogical)
         aValueRect.*(nsCSSRect::sides[aSide]) = aRTLLogicalValue;
     }
+  } else if (aLTRLogicalValue.GetUnit() == eCSSUnit_Inherit ||
+             aRTLLogicalValue.GetUnit() == eCSSUnit_Inherit) {
+    // It actually is valid to store this in the ruletree, since
+    // LTRlogical and RTLlogical are both false, but doing that will
+    // trigger asserts.  Silence those.
+    aCanStoreInRuleTree = PR_FALSE;
   }
 }
 
@@ -3983,6 +3994,10 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     if (display->mOverflowY == NS_STYLE_OVERFLOW_VISIBLE)
       display->mOverflowY = NS_STYLE_OVERFLOW_AUTO;
   }
+
+  SetDiscrete(displayData.mResize, display->mResize, canStoreInRuleTree,
+              SETDSC_ENUMERATED, parentDisplay->mResize,
+              NS_STYLE_RESIZE_NONE, 0, 0, 0, 0);
 
   // clip property: length, auto, inherit
   if (eCSSUnit_Inherit == displayData.mClip.mTop.GetUnit()) { // if one is inherit, they all are

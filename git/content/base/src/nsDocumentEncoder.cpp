@@ -77,6 +77,7 @@
 #include "nsUnicharUtils.h"
 #include "nsReadableUtils.h"
 #include "nsTArray.h"
+#include "nsIFrame.h"
 
 nsresult NS_NewDomSelection(nsISelection **aDomSelection);
 
@@ -363,6 +364,20 @@ nsDocumentEncoder::SerializeToStringRecursive(nsIDOMNode* aNode,
 
   if (!maybeFixedNode)
     maybeFixedNode = aNode;
+
+  if (mIsCopying) {
+    nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
+    if (content){
+      nsIFrame* frame = content->GetPrimaryFrame();
+      if (frame) {
+        PRBool isSelectable;
+        frame->IsSelectable(&isSelectable, nsnull);
+        if (!isSelectable){
+          aDontSerializeRoot = PR_TRUE;
+        }
+      }
+    }
+  }
 
   if (!aDontSerializeRoot) {
     rv = SerializeNodeStart(maybeFixedNode, 0, -1, aStr, aNode);
@@ -671,11 +686,11 @@ nsDocumentEncoder::SerializeRangeNodes(nsIDOMRange* aRange,
   // get start and end nodes for this recursion level
   nsCOMPtr<nsIContent> startNode, endNode;
   PRInt32 start = mStartRootIndex - aDepth;
-  if (start >= 0 && start <= mStartNodes.Length())
+  if (start >= 0 && (PRUint32)start <= mStartNodes.Length())
     startNode = mStartNodes[start];
 
   PRInt32 end = mEndRootIndex - aDepth;
-  if (end >= 0 && end <= mEndNodes.Length())
+  if (end >= 0 && (PRUint32)end <= mEndNodes.Length())
     endNode = mEndNodes[end];
 
   if ((startNode != content) && (endNode != content))

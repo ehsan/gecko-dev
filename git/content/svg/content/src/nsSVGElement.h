@@ -170,7 +170,7 @@ public:
   void GetAnimatedIntegerValues(PRInt32 *aFirst, ...);
 
 #ifdef MOZ_SMIL
-  virtual nsISMILAttr* GetAnimatedAttr(const nsIAtom* aName);
+  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* aName);
   void AnimationNeedsResample();
   void FlushAnimations();
 #endif
@@ -189,10 +189,16 @@ protected:
                                               nsIAtom* aAttribute,
                                               const nsAString& aValue);
 
+  friend class nsSVGTextPositioningElement;
   // Hooks for subclasses
   virtual PRBool IsEventName(nsIAtom* aName);
 
   void UpdateContentStyleRule();
+#ifdef MOZ_SMIL
+  void UpdateAnimatedContentStyleRule();
+  nsICSSStyleRule* GetAnimatedContentStyleRule();
+#endif // MOZ_SMIL
+
   nsISVGValue* GetMappedAttribute(PRInt32 aNamespaceID, nsIAtom* aName);
   nsresult AddMappedSVGValue(nsIAtom* aName, nsISupports* aValue,
                              PRInt32 aNamespaceID = kNameSpaceID_None);

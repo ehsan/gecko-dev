@@ -41,7 +41,6 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
-#include "nsPresContext.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 #include "nsIEventStateManager.h"
@@ -126,6 +125,8 @@ nsHTMLLegendElement::~nsHTMLLegendElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLLegendElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLLegendElement, nsGenericElement) 
 
+
+DOMCI_DATA(HTMLLegendElement, nsHTMLLegendElement)
 
 // QueryInterface implementation for nsHTMLLegendElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLLegendElement)

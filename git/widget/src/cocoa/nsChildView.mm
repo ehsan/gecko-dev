@@ -144,7 +144,7 @@ PRUint32 nsChildView::sLastInputEventCount = 0;
 - (id)initWithFrame:(NSRect)inFrame geckoChild:(nsChildView*)inChild;
 
 // sends gecko an ime composition event
-- (nsIntRect) sendCompositionEvent:(PRInt32)aEventType;
+- (void) sendCompositionEvent:(PRInt32)aEventType;
 
 // sends gecko an ime text event
 - (void) sendTextEvent:(PRUnichar*) aBuffer 
@@ -463,6 +463,7 @@ nsChildView::nsChildView() : nsBaseWidget()
 , mDrawing(PR_FALSE)
 , mPluginDrawing(PR_FALSE)
 , mPluginIsCG(PR_FALSE)
+, mPluginInstanceOwner(nsnull)
 {
 #ifdef PR_LOGGING
   if (!sCocoaLog) {
@@ -472,6 +473,9 @@ nsChildView::nsChildView() : nsBaseWidget()
 #endif // DEBUG
   }
 #endif // PR_LOGGING
+
+  memset(&mPluginCGContext, 0, sizeof(mPluginCGContext));
+  memset(&mPluginQDPort, 0, sizeof(mPluginQDPort));
 
   SetBackgroundColor(NS_RGB(255, 255, 255));
   SetForegroundColor(NS_RGB(0, 0, 0));
@@ -514,6 +518,11 @@ nsresult nsChildView::Create(nsIWidget *aParent,
                              nsWidgetInitData *aInitData)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  // Because the hidden window is created outside of an event loop,
+  // we need to provide an autorelease pool to avoid leaking cocoa objects
+  // (see bug 559075).
+  nsAutoreleasePool localPool;
 
   // See NSView (MethodSwizzling) below.
   if (!gChildViewMethodsSwizzled) {
@@ -878,6 +887,11 @@ NS_IMETHODIMP nsChildView::Show(PRBool aState)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   if (aState != mVisible) {
+    // Provide an autorelease pool because this gets called during startup
+    // on the "hidden window", resulting in cocoa object leakage if there's
+    // no pool in place.
+    nsAutoreleasePool localPool;
+
     [mView setHidden:!aState];
     mVisible = aState;
     if (!mVisible)
@@ -2173,7 +2187,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
     mLastMouseDownEvent = nil;
     mDragService = nsnull;
 
+#ifndef NP_NO_CARBON
     mPluginTSMDoc = nil;
+#endif
 
     mGestureState = eGestureState_None;
     mCumulativeMagnification = 0.0;
@@ -4410,20 +4426,19 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
 }
 #endif // NP_NO_CARBON
 
-- (nsIntRect)sendCompositionEvent:(PRInt32) aEventType
+- (void)sendCompositionEvent:(PRInt32) aEventType
 {
 #ifdef DEBUG_IME
   NSLog(@"****in sendCompositionEvent; type = %d", aEventType);
 #endif
 
   if (!mGeckoChild)
-    return nsIntRect(0, 0, 0, 0);
+    return;
 
   // static void init_composition_event( *aEvent, int aType)
   nsCompositionEvent event(PR_TRUE, aEventType, mGeckoChild);
   event.time = PR_IntervalNow();
   mGeckoChild->DispatchWindowEvent(event);
-  return event.theReply.mCursorPosition;
 }
 
 - (void)sendTextEvent:(PRUnichar*) aBuffer 
@@ -4506,6 +4521,7 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
 #ifndef NP_NO_CARBON
     EventRecord carbonEvent;
 #endif
+    NPCocoaEvent cocoaEvent;
     if (mCurKeyEvent) {
       // XXX The ASCII characters inputting mode of egbridge (Japanese IME)
       // might send the keyDown event with wrong keyboard layout if other
@@ -4515,11 +4531,13 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
       if (mPluginEventModel == NPEventModelCarbon) {
         ConvertCocoaKeyEventToCarbonEvent(mCurKeyEvent, carbonEvent);
         geckoEvent.pluginEvent = &carbonEvent;
-      } else
-#endif
-      {
-        geckoEvent.pluginEvent = NULL;
       }
+#endif
+      if (mPluginEventModel == NPEventModelCocoa) {
+        ConvertCocoaKeyEventToNPCocoaEvent(mCurKeyEvent, cocoaEvent);
+        geckoEvent.pluginEvent = &cocoaEvent;
+      }
+
       geckoEvent.isShift = ([mCurKeyEvent modifierFlags] & NSShiftKeyMask) != 0;
       if (!IsPrintableChar(geckoEvent.charCode)) {
         geckoEvent.keyCode = 
@@ -4909,6 +4927,9 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
 #endif
 
 // Returns PR_TRUE if Gecko claims to have handled the event, PR_FALSE otherwise.
+// We only send Carbon plugin events with NS_KEY_DOWN gecko events, and only send
+// Cocoa plugin events with NS_KEY_PRESS gecko events. This is because we want to
+// send repeat key down events to Cocoa plugins but not Carbon plugins.
 - (PRBool)processKeyDownEvent:(NSEvent*)theEvent keyEquiv:(BOOL)isKeyEquiv
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
@@ -4938,7 +4959,6 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
       nsKeyEvent geckoEvent(PR_TRUE, NS_KEY_DOWN, nsnull);
       [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoEvent];
 
-      // create event for use by plugins
 #ifndef NP_NO_CARBON
       EventRecord carbonEvent;
       if (mPluginEventModel == NPEventModelCarbon) {
@@ -4946,11 +4966,6 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
         geckoEvent.pluginEvent = &carbonEvent;
       }
 #endif
-      NPCocoaEvent cocoaEvent;
-      if (mPluginEventModel == NPEventModelCocoa) {
-        ConvertCocoaKeyEventToNPCocoaEvent(theEvent, cocoaEvent);
-        geckoEvent.pluginEvent = &cocoaEvent;
-      }
 
       mKeyDownHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
       if (!mGeckoChild)
@@ -4992,16 +5007,10 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
       if (mKeyDownHandled)
         geckoEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
 
-      // create event for use by plugins
-#ifndef NP_NO_CARBON
-      EventRecord carbonEvent;
-      if (mPluginEventModel == NPEventModelCarbon) {
-        ConvertCocoaKeyEventToCarbonEvent(theEvent, carbonEvent);
-        geckoEvent.pluginEvent = &carbonEvent;
-      } else
-#endif
-      {
-        geckoEvent.pluginEvent = NULL;
+      NPCocoaEvent cocoaEvent;
+      if (mPluginEventModel == NPEventModelCocoa) {
+        ConvertCocoaKeyEventToNPCocoaEvent(theEvent, cocoaEvent);
+        geckoEvent.pluginEvent = &cocoaEvent;
       }
 
       mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -5037,16 +5046,10 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
       if (mKeyDownHandled)
         geckoEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
 
-      // create event for use by plugins
-#ifndef NP_NO_CARBON
-      EventRecord carbonEvent;
-      if (mPluginEventModel == NPEventModelCarbon) {
-        ConvertCocoaKeyEventToCarbonEvent(theEvent, carbonEvent);
-        geckoEvent.pluginEvent = &carbonEvent;
-      } else
-#endif
-      {
-        geckoEvent.pluginEvent = NULL;
+      NPCocoaEvent cocoaEvent;
+      if (mPluginEventModel == NPEventModelCocoa) {
+        ConvertCocoaKeyEventToNPCocoaEvent(theEvent, cocoaEvent);
+        geckoEvent.pluginEvent = &cocoaEvent;
       }
 
       mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -5076,7 +5079,7 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
 // Firefox) create a TSM document that (somehow) makes the input window behave
 // badly when it contains more than one kind of input (say Hiragana and
 // Romaji).  (We can't just use the per-NSView TSM documents that Cocoa
-// provices (those created and managed by the NSTSMInputContext class) -- for
+// provides (those created and managed by the NSTSMInputContext class) -- for
 // some reason TSMProcessRawKeyEvent() doesn't work with them.)
 - (void)activatePluginTSMDoc
 {
@@ -5201,9 +5204,6 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
 
   nsKeyEvent geckoEvent(PR_TRUE, NS_KEY_UP, nsnull);
   [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoEvent];
-
-  // plugin case returned out early, we don't need a native event here
-  geckoEvent.pluginEvent = NULL;
 
   mGeckoChild->DispatchWindowEvent(geckoEvent);
 
@@ -6264,11 +6264,10 @@ ChildViewMouseTracker::WindowAcceptsEvent(NSWindow* aWindow, NSEvent* anEvent)
 OSStatus PluginKeyEventsHandler(EventHandlerCallRef inHandlerRef,
                                 EventRef inEvent, void *userData)
 {
-  id arp = [[NSAutoreleasePool alloc] init];
+  nsAutoreleasePool localPool;
 
   TSMDocumentID activeDoc = ::TSMGetActiveDocument();
   if (!activeDoc) {
-    [arp release];
     return eventNotHandledErr;
   }
 
@@ -6278,7 +6277,6 @@ OSStatus PluginKeyEventsHandler(EventHandlerCallRef inHandlerRef,
   if (status != noErr)
     target = nil;
   if (!target) {
-    [arp release];
     return eventNotHandledErr;
   }
 
@@ -6286,13 +6284,11 @@ OSStatus PluginKeyEventsHandler(EventHandlerCallRef inHandlerRef,
   status = ::GetEventParameter(inEvent, kEventParamTextInputSendKeyboardEvent,
                                typeEventRef, NULL, sizeof(EventRef), NULL, &keyEvent);
   if ((status != noErr) || !keyEvent) {
-    [arp release];
     return eventNotHandledErr;
   }
 
   [target processPluginKeyEvent:keyEvent];
 
-  [arp release];
   return noErr;
 }
 

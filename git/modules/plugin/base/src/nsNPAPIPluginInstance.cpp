@@ -895,10 +895,10 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(NPPluginFuncs* callbacks,
     mDrawingModel(NPDrawingModelQuickDraw),
 #endif
 #endif
+    mRunning(NOT_STARTED),
     mWindowless(PR_FALSE),
     mWindowlessLocal(PR_FALSE),
     mTransparent(PR_FALSE),
-    mRunning(NOT_STARTED),
     mCached(PR_FALSE),
     mWantsAllNetworkStreams(PR_FALSE),
     mInPluginInitCall(PR_FALSE),
@@ -1436,6 +1436,18 @@ nsresult nsNPAPIPluginInstance::GetCallbacks(const NPPluginFuncs ** aCallbacks)
 NPError nsNPAPIPluginInstance::SetWindowless(PRBool aWindowless)
 {
   mWindowless = aWindowless;
+
+  if (mMIMEType) {
+      // bug 558434 - Prior to 3.6.4, we assumed windowless was transparent.
+      // Silverlight apparently relied on this quirk, so we default to
+      // transparent unless they specify otherwise after setting the windowless
+      // property. (Last tested version: sl 3.0). 
+      NS_NAMED_LITERAL_CSTRING(silverlight, "application/x-silverlight");
+      if (!PL_strncasecmp(mMIMEType, silverlight.get(), silverlight.Length())) {
+          mTransparent = PR_TRUE;
+      }
+  }
+
   return NPERR_NO_ERROR;
 }
 
@@ -1677,7 +1689,8 @@ nsNPAPIPluginInstance::PrivateModeStateChanged()
         return rv;
 
       NPError error;
-      NS_TRY_SAFE_CALL_RETURN(error, (*mCallbacks->setvalue)(&mNPP, NPNVprivateModeBool, &pme), mLibrary, this);
+      NPBool value = static_cast<NPBool>(pme);
+      NS_TRY_SAFE_CALL_RETURN(error, (*mCallbacks->setvalue)(&mNPP, NPNVprivateModeBool, &value), mLibrary, this);
       return (error == NPERR_NO_ERROR) ? NS_OK : NS_ERROR_FAILURE;
     }
   }

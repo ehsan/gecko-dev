@@ -89,11 +89,13 @@ protected:
 
 // nsISupports implementation
 
+DOMCI_DATA(XMLStylesheetProcessingInstruction, nsXMLStylesheetPI)
+
 NS_INTERFACE_TABLE_HEAD(nsXMLStylesheetPI)
   NS_NODE_INTERFACE_TABLE4(nsXMLStylesheetPI, nsIDOMNode,
                            nsIDOMProcessingInstruction, nsIDOMLinkStyle,
                            nsIStyleSheetLinkingElement)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XMLStylesheetProcessingInstruction)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XMLStylesheetProcessingInstruction)
 NS_INTERFACE_MAP_END_INHERITING(nsXMLProcessingInstruction)
 
 NS_IMPL_ADDREF_INHERITED(nsXMLStylesheetPI, nsXMLProcessingInstruction)

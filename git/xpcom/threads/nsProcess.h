@@ -40,7 +40,7 @@
 #ifndef _nsPROCESSWIN_H_
 #define _nsPROCESSWIN_H_
 
-#if defined(XP_WIN) && !defined (WINCE) /* wince uses nspr */
+#if defined(XP_WIN)
 #define PROCESSMODEL_WINAPI
 #endif
 
@@ -77,15 +77,21 @@ private:
   ~nsProcess();
   static void PR_CALLBACK Monitor(void *arg);
   void ProcessComplete();
-  NS_IMETHOD RunProcess(PRBool blocking, const char **args, PRUint32 count,
-                        nsIObserver* observer, PRBool holdWeak);
+  NS_IMETHOD CopyArgsAndRunProcess(PRBool blocking, const char** args,
+                                   PRUint32 count, nsIObserver* observer,
+                                   PRBool holdWeak);
+  NS_IMETHOD CopyArgsAndRunProcessw(PRBool blocking, const PRUnichar** args,
+                                    PRUint32 count, nsIObserver* observer,
+                                    PRBool holdWeak);
+  NS_IMETHOD RunProcess(PRBool blocking, char **args, PRUint32 count,
+                        nsIObserver* observer, PRBool holdWeak, PRBool argsUTF8);
 
   PRThread* mThread;
   PRLock* mLock;
   PRBool mShutdown;
 
   nsCOMPtr<nsIFile> mExecutable;
-  nsCString mTargetPath;
+  nsString mTargetPath;
   PRInt32 mPid;
   nsCOMPtr<nsIObserver> mObserver;
   nsWeakPtr mWeakObserver;

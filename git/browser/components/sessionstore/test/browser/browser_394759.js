@@ -37,9 +37,7 @@
 
 function browserWindowsCount() {
   let count = 0;
-  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
-            .getService(Ci.nsIWindowMediator)
-            .getEnumerator("navigator:browser");
+  let e = Services.wm.getEnumerator("navigator:browser");
   while (e.hasMoreElements()) {
     if (!e.getNext().closed)
       ++count;
@@ -73,8 +71,8 @@ function test() {
   
     let newWin = openDialog(location, "", "chrome,all,dialog=no", testURL);
     newWin.addEventListener("load", function(aEvent) {
-      newWin.gBrowser.addEventListener("load", function(aEvent) {
-        newWin.gBrowser.removeEventListener("load", arguments.callee, true);
+      newWin.gBrowser.selectedBrowser.addEventListener("load", function(aEvent) {
+        newWin.gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
 
         executeSoon(function() {
           newWin.gBrowser.addTab().linkedBrowser.stop();
@@ -101,10 +99,10 @@ function test() {
                "The reopened window was removed from Recently Closed Windows");
 
             newWin2.addEventListener("load", function(aEvent) {
-              newWin2.gBrowser.addEventListener("SSTabRestored", function(aEvent) {
-                newWin2.gBrowser.removeEventListener("SSTabRestored", arguments.callee, true);
+              newWin2.gBrowser.tabContainer.addEventListener("SSTabRestored", function(aEvent) {
+                newWin2.gBrowser.tabContainer.removeEventListener("SSTabRestored", arguments.callee, true);
 
-                is(newWin2.gBrowser.tabContainer.childNodes.length, 2,
+                is(newWin2.gBrowser.tabs.length, 2,
                    "The window correctly restored 2 tabs");
                 is(newWin2.gBrowser.currentURI.spec, testURL,
                    "The window correctly restored the URL");
@@ -157,8 +155,8 @@ function test() {
       let url = "http://window" + windowsToOpen.length + ".example.com";
       let win = openDialog(location, "", settings, url);
       win.addEventListener("load", function(aEvent) {
-        win.gBrowser.addEventListener("load", function(aEvent) {
-          win.gBrowser.removeEventListener("load", arguments.callee, true);
+        win.gBrowser.selectedBrowser.addEventListener("DOMContentLoaded", function(aEvent) {
+          win.gBrowser.selectedBrowser.removeEventListener("DOMContentLoaded", arguments.callee, true);
           // the window _should_ have state with a tab of url, but it doesn't
           // always happend before window.close(). addTab ensure we don't treat
           // this window as a stateless window
@@ -206,7 +204,6 @@ function test() {
     let oldState_wins = JSON.parse(oldState).windows.length;
     if (oldState_wins != 1) {
       ok(false, "oldState in test_purge has " + oldState_wins + " windows instead of 1");
-      info(oldState);
     }
 
     // create a new state for testing

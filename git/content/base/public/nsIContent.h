@@ -46,7 +46,6 @@
 
 // Forward declarations
 class nsIAtom;
-class nsPresContext;
 class nsIDOMEvent;
 class nsIContent;
 class nsIEventListenerManager;
@@ -72,8 +71,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0xc19d6f16, 0xab13, 0x4dde, \
- { 0x99, 0x7a, 0x51, 0x04, 0xc3, 0x64, 0xd2, 0x51 } }
+{ 0x9d15dea4, 0xa112, 0x40f4, \
+ { 0xbd, 0xa9, 0x23, 0xc0, 0xed, 0xde, 0x08, 0x9c } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -644,6 +643,14 @@ public:
   virtual nsIContent *GetBindingParent() const = 0;
 
   /**
+   * Returns the content node that is the parent of this node in the flattened
+   * tree.
+   *
+   * @return the flattened tree parent
+   */
+  nsIContent *GetFlattenedTreeParent() const;
+
+  /**
    * Get the base URI for any relative URIs within this piece of
    * content. Generally, this is the document's base URI, but certain
    * content carries a local base for backward compatibility, and XML
@@ -894,7 +901,7 @@ public:
    *
    * The CALLER OWNS the result and is responsible for deleting it.
    */
-  virtual nsISMILAttr* GetAnimatedAttr(const nsIAtom* aName) = 0;
+  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* aName) = 0;
 
    /**
     * Get the SMIL override style for this content node.  This is a style

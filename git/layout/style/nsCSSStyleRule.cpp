@@ -52,7 +52,6 @@
 #include "nsICSSStyleSheet.h"
 #include "nsCSSLoader.h"
 #include "nsIURL.h"
-#include "nsPresContext.h"
 #include "nsIDocument.h"
 #include "nsIDeviceContext.h"
 #include "nsIAtom.h"
@@ -513,7 +512,7 @@ nsCSSSelector::ToString(nsAString& aString, nsICSSStyleSheet* aSheet,
   for (const nsCSSSelector *s = this; s; s = s->mNext) {
     stack.AppendElement(s);
   }
-   
+
   while (!stack.IsEmpty()) {
     PRUint32 index = stack.Length() - 1;
     const nsCSSSelector *s = stack.ElementAt(index);
@@ -524,10 +523,16 @@ nsCSSSelector::ToString(nsAString& aString, nsICSSStyleSheet* aSheet,
     // Append the combinator, if needed.
     if (!stack.IsEmpty()) {
       const nsCSSSelector *next = stack.ElementAt(index - 1);
-      if (!next->IsPseudoElement()) {
+      PRUnichar oper = s->mOperator;
+      if (next->IsPseudoElement()) {
+        NS_ASSERTION(oper == PRUnichar('>'),
+                     "improperly chained pseudo element");
+      } else {
+        NS_ASSERTION(oper != PRUnichar(0),
+                     "compound selector without combinator");
+
         aString.Append(PRUnichar(' '));
-        PRUnichar oper = s->mOperator;
-        if (oper != PRUnichar(0)) {
+        if (oper != PRUnichar(' ')) {
           aString.Append(oper);
           aString.Append(PRUnichar(' '));
         }
@@ -803,13 +808,21 @@ nsCSSSelectorList::~nsCSSSelectorList()
   NS_CSS_DELETE_LIST_MEMBER(nsCSSSelectorList, this, mNext);
 }
 
-void nsCSSSelectorList::AddSelector(nsAutoPtr<nsCSSSelector>& aSelector)
-{ // prepend to list
-  nsCSSSelector* newSel = aSelector.forget();
-  if (newSel) {
-    newSel->mNext = mSelectors;
-    mSelectors = newSel;
+nsCSSSelector*
+nsCSSSelectorList::AddSelector(PRUnichar aOperator)
+{
+  nsCSSSelector* newSel = new nsCSSSelector();
+
+  if (mSelectors) {
+    NS_ASSERTION(aOperator != PRUnichar(0), "chaining without combinator");
+    mSelectors->SetOperator(aOperator);
+  } else {
+    NS_ASSERTION(aOperator == PRUnichar(0), "combinator without chaining");
   }
+
+  newSel->mNext = mSelectors;
+  mSelectors = newSel;
+  return newSel;
 }
 
 void
@@ -1115,12 +1128,14 @@ DOMCSSStyleRuleImpl::~DOMCSSStyleRuleImpl()
 {
 }
 
+DOMCI_DATA(CSSStyleRule, DOMCSSStyleRuleImpl)
+
 NS_INTERFACE_MAP_BEGIN(DOMCSSStyleRuleImpl)
   NS_INTERFACE_MAP_ENTRY(nsICSSStyleRuleDOMWrapper)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSStyleRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSStyleRule)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSStyleRule)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(DOMCSSStyleRuleImpl)

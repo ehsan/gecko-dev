@@ -60,7 +60,8 @@ DIRS += shell
 endif
 
 # FIXME: bug 515383 covers getting these working on wince
-ifndef WINCE
+# bug 530688 covers Android
+ifneq (,$(filter-out WINCE ANDROID,$(OS_ARCH)))
 ifdef ENABLE_TESTS
 DIRS += jsapi-tests
 endif
@@ -88,6 +89,10 @@ MODULE_OPTIMIZE_FLAGS = -O2 -ip
 endif
 else # not INTEL_CXX
 MODULE_OPTIMIZE_FLAGS = -O3 -fstrict-aliasing $(MOZ_OPTIMIZE_SIZE_TWEAK)
+ifeq ($(OS_ARCH),Linux)
+#TODO: move this up a line when we fix OS X (bug 517832)
+MODULE_OPTIMIZE_FLAGS += -fomit-frame-pointer
+endif
 # Special optimization flags for jsinterp.c
 INTERP_OPTIMIZER = -O3 -fstrict-aliasing
 endif
@@ -134,6 +139,7 @@ CPPSRCS		= \
 		jsexn.cpp \
 		jsfun.cpp \
 		jsgc.cpp \
+		jsgcchunk.cpp \
 		jshash.cpp \
 		jsinterp.cpp \
 		jsinvoke.cpp \
@@ -147,6 +153,8 @@ CPPSRCS		= \
 		jsopcode.cpp \
 		jsparse.cpp \
 		jsprf.cpp \
+		jspropertycache.cpp \
+		jspropertytree.cpp \
 		jsregexp.cpp \
 		jsscan.cpp \
 		jsscope.cpp \
@@ -193,7 +201,6 @@ INSTALLED_HEADERS = \
 		jslock.h \
 		jslong.h \
 		jsmath.h \
-		jsnum.h \
 		jsobj.h \
 		jsobjinlines.h \
 		json.h \
@@ -202,6 +209,9 @@ INSTALLED_HEADERS = \
 		jsotypes.h \
 		jsparse.h \
 		jsprf.h \
+		jspropertycache.h \
+		jspropertycacheinlines.h \
+		jspropertytree.h \
 		jsproto.tbl \
 		jsprvtd.h \
 		jspubtd.h \
@@ -269,6 +279,28 @@ ASFILES += jswince.asm
 endif
 
 endif # ENABLE_TRACEJIT
+
+ifdef JS_HAS_CTYPES
+CPPSRCS += \
+    ctypes/CTypes.cpp \
+    ctypes/Library.cpp \
+    $(NULL)
+
+LOCAL_INCLUDES = \
+    -Ictypes/libffi/include \
+    $(NULL)
+
+ifeq ($(OS_ARCH),OS2)
+SHARED_LIBRARY_LIBS += \
+    ctypes/libffi/.libs/ffi.a \
+    $(NULL)
+else
+SHARED_LIBRARY_LIBS += \
+    ctypes/libffi/.libs/libffi.$(LIB_SUFFIX) \
+    $(NULL)
+endif
+
+endif # JS_HAS_CTYPES
 
 ifdef HAVE_DTRACE
 INSTALLED_HEADERS += \
@@ -339,6 +371,16 @@ endif
 
 include $(topsrcdir)/config/rules.mk
 
+ifdef JS_HAS_CTYPES
+# Build libffi proper as part of the 'exports' target, so things get built
+# in the right order.
+export::
+		$(call SUBMAKE,,ctypes/libffi)
+
+clean::
+		$(call SUBMAKE,clean,ctypes/libffi)
+endif
+
 ifdef MOZ_SYNC_BUILD_FILES
 # Because the SpiderMonkey can be distributed and built independently
 # of the Mozilla source tree, it contains its own copies of many of
@@ -377,6 +419,7 @@ endif
 endif
 
 DIST_GARBAGE = config.cache config.log config.status \
+   config/autoconf.mk \
    unallmakefiles js-config js-config.h js-confdefs.h
 
 distclean::
@@ -399,6 +442,10 @@ endif
 
 ifdef JS_THREADSAFE
 DEFINES		+= -DJS_THREADSAFE
+endif
+
+ifdef JS_HAS_CTYPES
+DEFINES		+= -DJS_HAS_CTYPES
 endif
 
 ifdef JS_NO_THIN_LOCKS

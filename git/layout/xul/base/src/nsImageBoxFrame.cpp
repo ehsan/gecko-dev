@@ -55,7 +55,6 @@
 #include "nsHTMLParts.h"
 #include "nsString.h"
 #include "nsLeafFrame.h"
-#include "nsPresContext.h"
 #include "nsIRenderingContext.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
@@ -117,7 +116,7 @@ nsImageBoxFrameEvent::Run()
     return NS_OK;
   }
 
-  nsCOMPtr<nsPresContext> pres_context = pres_shell->GetPresContext();
+  nsRefPtr<nsPresContext> pres_context = pres_shell->GetPresContext();
   if (!pres_context) {
     return NS_OK;
   }
@@ -457,7 +456,8 @@ nsImageBoxFrame::GetPrefSize(nsBoxLayoutState& aState)
   else
     size = mImageSize;
   AddBorderAndPadding(size);
-  nsIBox::AddCSSPrefSize(aState, this, size);
+  PRBool widthSet, heightSet;
+  nsIBox::AddCSSPrefSize(this, size, widthSet, heightSet);
 
   nsSize minSize = GetMinSize(aState);
   nsSize maxSize = GetMaxSize(aState);  
@@ -472,7 +472,8 @@ nsImageBoxFrame::GetMinSize(nsBoxLayoutState& aState)
   nsSize size(0,0);
   DISPLAY_MIN_SIZE(this, size);
   AddBorderAndPadding(size);
-  nsIBox::AddCSSMinSize(aState, this, size);
+  PRBool widthSet, heightSet;
+  nsIBox::AddCSSMinSize(aState, this, size, widthSet, heightSet);
   return size;
 }
 

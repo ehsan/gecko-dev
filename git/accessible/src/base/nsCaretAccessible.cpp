@@ -50,7 +50,6 @@
 #include "nsISelectionPrivate.h"
 #include "nsISelection2.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIViewManager.h"
 
 class nsIWidget;
 
@@ -323,37 +322,30 @@ nsCaretAccessible::GetCaretRect(nsIWidget **aOutWidget)
     nsCoreUtils::GetPresShellFor(lastNodeWithCaret);
   NS_ENSURE_TRUE(presShell, caretRect);
 
-  nsRefPtr<nsCaret> caret;
-  presShell->GetCaret(getter_AddRefs(caret));
+  nsRefPtr<nsCaret> caret = presShell->GetCaret();
   NS_ENSURE_TRUE(caret, caretRect);
 
-  PRBool isCollapsed;
-  nsIView *view;
   nsCOMPtr<nsISelection> caretSelection(do_QueryReferent(mLastUsedSelection));
   NS_ENSURE_TRUE(caretSelection, caretRect);
   
-  nsRect rect;
-  caret->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates, caretSelection,
-                             &rect, &isCollapsed, &view);
-  if (!view || rect.IsEmpty()) {
-    return nsIntRect(); // Return empty rect
-  }
-
   PRBool isVisible;
   caret->GetCaretVisible(&isVisible);
   if (!isVisible) {
     return nsIntRect();  // Return empty rect
   }
-  nsPoint offsetFromWidget;
-  *aOutWidget = view->GetNearestWidget(&offsetFromWidget);
+
+  nsRect rect;
+  nsIFrame* frame = caret->GetGeometry(caretSelection, &rect);
+  if (!frame || rect.IsEmpty()) {
+    return nsIntRect(); // Return empty rect
+  }
+
+  nsPoint offset;
+  *aOutWidget = frame->GetWindowOffset(offset);
   NS_ENSURE_TRUE(*aOutWidget, nsIntRect());
+  rect.MoveBy(offset);
 
-  nsPresContext *presContext = presShell->GetPresContext();
-  NS_ENSURE_TRUE(presContext, nsIntRect());
-
-  rect += offsetFromWidget;
-  caretRect = rect.ToOutsidePixels(presContext->AppUnitsPerDevPixel());
-
+  caretRect = rect.ToOutsidePixels(frame->PresContext()->AppUnitsPerDevPixel());
   caretRect.MoveBy((*aOutWidget)->WidgetToScreenOffset());
 
   // Correct for character size, so that caret always matches the size of the character

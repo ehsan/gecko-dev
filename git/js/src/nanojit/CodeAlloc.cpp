@@ -54,14 +54,15 @@ namespace nanojit
 #else
     static const int pagesPerAlloc = 16;
 #endif
-    static const int bytesPerPage = 4096;
-    static const int bytesPerAlloc = pagesPerAlloc * bytesPerPage;
 
     CodeAlloc::CodeAlloc()
         : heapblocks(0)
         , availblocks(0)
         , totalAllocated(0)
-    {}
+        , bytesPerPage(VMPI_getVMPageSize())
+        , bytesPerAlloc(pagesPerAlloc * bytesPerPage)
+    {
+    }
 
     CodeAlloc::~CodeAlloc() {
         reset();
@@ -153,7 +154,7 @@ namespace nanojit
         if (verbose)
             avmplus::AvmLog("free %p-%p %d\n", start, end, (int)blk->size());
 
-        AvmAssert(!blk->isFree);
+        NanoAssert(!blk->isFree);
 
         // coalesce adjacent blocks.
         bool already_on_avail_list;
@@ -275,7 +276,8 @@ extern  "C" int cacheflush(char *addr, int nbytes, int cache);
 #endif
 
 #ifdef AVMPLUS_SPARC
-#ifdef __linux__  // bugzilla 502369
+// Note: the linux #define provided by the compiler.
+#ifdef linux  // bugzilla 502369
 void sync_instruction_memory(caddr_t v, u_int len)
 {
     caddr_t end = v + len;

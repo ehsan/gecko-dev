@@ -57,9 +57,7 @@ function test() {
       dialogWin.document.documentElement.getButton("cancel").click();
   }
 
-  Cc["@mozilla.org/observer-service;1"]
-    .getService(Ci.nsIObserverService)
-    .addObserver(promptObserver, "common-dialog-loaded", false);
+  Services.obs.addObserver(promptObserver, "common-dialog-loaded", false);
 
   waitForExplicitFinish();
   let browser1 = gBrowser.getBrowserForTab(gBrowser.addTab());
@@ -75,7 +73,7 @@ function test() {
 
       ok(!pb.privateBrowsingEnabled, "Private browsing mode should not have been activated");
       is(confirmCalls, 1, "Only one confirm box should be shown");
-      is(gBrowser.tabContainer.childNodes.length, 3,
+      is(gBrowser.tabs.length, 3,
          "No tabs should be closed because private browsing mode transition was canceled");
       is(gBrowser.getBrowserForTab(gBrowser.tabContainer.firstChild).currentURI.spec, "about:blank",
          "The first tab should be a blank tab");
@@ -91,7 +89,7 @@ function test() {
 
       ok(pb.privateBrowsingEnabled, "Private browsing mode should have been activated");
       is(confirmCalls, 2, "Only two confirm boxes should be shown");
-      is(gBrowser.tabContainer.childNodes.length, 1,
+      is(gBrowser.tabs.length, 1,
          "Incorrect number of tabs after transition into private browsing");
       gBrowser.selectedBrowser.addEventListener("load", function() {
         gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
@@ -113,7 +111,7 @@ function test() {
 
             ok(pb.privateBrowsingEnabled, "Private browsing mode should not have been deactivated");
             is(confirmCalls, 1, "Only one confirm box should be shown");
-            is(gBrowser.tabContainer.childNodes.length, 2,
+            is(gBrowser.tabs.length, 2,
                "No tabs should be closed because private browsing mode transition was canceled");
             is(gBrowser.getBrowserForTab(gBrowser.tabContainer.firstChild).currentURI.spec, TEST_PAGE_1,
                "The first tab should be the same one we opened");
@@ -127,7 +125,7 @@ function test() {
 
             ok(!pb.privateBrowsingEnabled, "Private browsing mode should have been deactivated");
             is(confirmCalls, 2, "Only two confirm boxes should be shown");
-            is(gBrowser.tabContainer.childNodes.length, 3,
+            is(gBrowser.tabs.length, 3,
                "Incorrect number of tabs after transition into private browsing");
 
             let loads = 0;
@@ -150,9 +148,7 @@ function test() {
               gBrowser.removeTab(gBrowser.tabContainer.lastChild);
               gBrowser.removeTab(gBrowser.tabContainer.lastChild);
 
-              Cc["@mozilla.org/observer-service;1"]
-                .getService(Ci.nsIObserverService)
-                .removeObserver(promptObserver, "common-dialog-loaded", false);
+              Services.obs.removeObserver(promptObserver, "common-dialog-loaded", false);
               finish();
             }
             for (let i = 0; i < gBrowser.browsers.length; ++i)

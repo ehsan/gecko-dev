@@ -60,7 +60,6 @@
 #include "nsNetUtil.h"
 #include "nsPLDOMEvent.h"
 
-#include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIEventStateManager.h"
 #include "nsGUIEvent.h"
@@ -307,9 +306,7 @@ nsImageLoadingContent::OnStopDecode(imgIRequest* aRequest,
     // to be suppressed for reasons other than the initial paint delay (for
     // example - being in the bfcache), but we probably aren't loading images in
     // those situations.
-    PRBool isSuppressed = PR_FALSE;
-    nsresult rv = shell->IsPaintingSuppressed(&isSuppressed);
-    if (NS_SUCCEEDED(rv) && isSuppressed)
+    if (shell->IsPaintingSuppressed())
       doRequestDecode = PR_TRUE;
 
     // If we're requesting a decode, do it

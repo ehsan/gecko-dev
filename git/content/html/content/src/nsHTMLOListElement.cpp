@@ -41,7 +41,6 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
-#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 
@@ -102,6 +101,10 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLSharedListElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLSharedListElement, nsGenericElement) 
 
 
+DOMCI_DATA(HTMLOListElement, nsHTMLSharedListElement)
+DOMCI_DATA(HTMLDListElement, nsHTMLSharedListElement)
+DOMCI_DATA(HTMLUListElement, nsHTMLSharedListElement)
+
 // QueryInterface implementation for nsHTMLSharedListElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLSharedListElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_AMBIGUOUS_BEGIN(nsHTMLSharedListElement,
@@ -114,9 +117,9 @@ NS_INTERFACE_TABLE_HEAD(nsHTMLSharedListElement)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLDListElement, dl)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLUListElement, ul)
 
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLOListElement, ol)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLDListElement, dl)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLUListElement, ul)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLOListElement, ol)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLDListElement, dl)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLUListElement, ul)
 NS_HTML_CONTENT_INTERFACE_MAP_END
 
 

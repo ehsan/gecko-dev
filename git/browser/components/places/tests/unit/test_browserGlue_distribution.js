@@ -47,14 +47,20 @@ const PREF_BMPROCESSED = "distribution.516444.bookmarksProcessed";
 const PREF_DISTRIBUTION_ID = "distribution.id";
 
 const TOPIC_FINAL_UI_STARTUP = "final-ui-startup";
-const TOPIC_PLACES_INIT_COMPLETE = "places-init-complete";
 const TOPIC_CUSTOMIZATION_COMPLETE = "distribution-customization-complete";
 
 function run_test() {
+  // This is needed but we still have to investigate the reason, could just be
+  // we try to act too late in the game, moving our shutdown earlier will help.
+  let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
+         getService(Ci.nsINavHistoryService);
+  // TODO: re-enable when bug 523936 is fixed.
+  return;
+
   do_test_pending();
 
   // Copy distribution.ini file to our app dir.
-  let distroDir = dirSvc.get("XCurProcD", Ci.nsIFile);
+  let distroDir = Services.dirsvc.get("XCurProcD", Ci.nsIFile);
   distroDir.append("distribution");
   let iniFile = distroDir.clone();
   iniFile.append("distribution.ini");
@@ -97,13 +103,13 @@ function run_test() {
                                                 TOPIC_FINAL_UI_STARTUP,
                                                 null);
       // Test will continue on customization complete notification.
-      let observer = {
+      let cObserver = {
         observe: function(aSubject, aTopic, aData) {
           os.removeObserver(this, TOPIC_CUSTOMIZATION_COMPLETE);
-          continue_test();
+          do_execute_soon(continue_test);
         }
       }
-      os.addObserver(observer, TOPIC_CUSTOMIZATION_COMPLETE, false);
+      os.addObserver(cObserver, TOPIC_CUSTOMIZATION_COMPLETE, false);
     }
   }
   os.addObserver(observer, TOPIC_PLACES_INIT_COMPLETE, false);
@@ -145,9 +151,10 @@ function continue_test() {
 do_register_cleanup(function() {
   // Remove the distribution file, even if the test failed, otherwise all
   // next tests will import it.
-  let iniFile = dirSvc.get("XCurProcD", Ci.nsIFile);
+  let iniFile = Services.dirsvc.get("XCurProcD", Ci.nsIFile);
   iniFile.append("distribution");
   iniFile.append("distribution.ini");
-  iniFile.remove(false);
+  if (iniFile.exists())
+    iniFile.remove(false);
   do_check_false(iniFile.exists());
 });

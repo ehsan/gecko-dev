@@ -56,8 +56,10 @@ const NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX =
 const NS_XREAPPINFO_CONTRACTID =
           "@mozilla.org/xre/app-info;1";
 
-
 var gLoadTimeout = 0;
+var gRemote = false;
+var gTotalChunks = 0;
+var gThisChunk = 0;
 
 // "<!--CLEAR-->"
 const BLANK_URL_FOR_CLEARING = "data:text/html,%3C%21%2D%2DCLEAR%2D%2D%3E";
@@ -158,9 +160,21 @@ function OnRefTestLoad()
       var prefs = Components.classes["@mozilla.org/preferences-service;1"].
                   getService(Components.interfaces.nsIPrefBranch2);
       gLoadTimeout = prefs.getIntPref("reftest.timeout");
+      gRemote = prefs.getBoolPref("reftest.remote");
     }
     catch(e) {
       gLoadTimeout = 5 * 60 * 1000; //5 minutes as per bug 479518
+    }
+
+
+    /* Support for running a chunk (subset) of tests.  In separate try as this is optional */
+    try {
+      gTotalChunks = prefs.getIntPref("reftest.totalChunks");
+      gThisChunk = prefs.getIntPref("reftest.thisChunk");
+    }
+    catch(e) {
+      gTotalChunks = 0;
+      gThisChunk = 0;
     }
 
     gBrowser.addEventListener("load", OnDocumentLoad, true);
@@ -177,9 +191,13 @@ function OnRefTestLoad()
 
     gIOService = CC[IO_SERVICE_CONTRACTID].getService(CI.nsIIOService);
     gDebug = CC[DEBUG_CONTRACTID].getService(CI.nsIDebug2);
-    gServer = CC["@mozilla.org/server/jshttp;1"].
-                  createInstance(CI.nsIHttpServer);
-
+    
+    if (gRemote) {
+      gServer = null;
+    } else {
+      gServer = CC["@mozilla.org/server/jshttp;1"].
+                    createInstance(CI.nsIHttpServer);
+    }
     try {
         if (gServer)
             StartHTTPServer();
@@ -189,6 +207,9 @@ function OnRefTestLoad()
         dump("REFTEST TEST-UNEXPECTED-FAIL | | EXCEPTION: " + ex + "\n");
         DoneTests();
     }
+
+    // Focus the content browser
+    gBrowser.focus();
 
     StartTests();
 }
@@ -222,6 +243,15 @@ function StartTests()
 
         ReadTopManifest(args.uri);
         BuildUseCounts();
+
+        if (gTotalChunks > 0 && gThisChunk > 0) {
+          var testsPerChunk = gURLs.length / gTotalChunks;
+          var start = Math.round((gThisChunk-1) * testsPerChunk);
+          var end = Math.round(gThisChunk * testsPerChunk);
+          gURLs = gURLs.slice(start, end);
+          dump("REFTEST INFO | Running chunk " + gThisChunk + " out of " + gTotalChunks + " chunks.  ")
+          dump("tests " + (start+1) + "-" + end + "/" + gURLs.length + "\n");
+        }
         gTotalTests = gURLs.length;
 
         if (!gTotalTests)
@@ -247,12 +277,29 @@ function OnRefTestUnload()
     gBrowser.removeEventListener("load", OnDocumentLoad, true);
 }
 
+// Read all available data from an input stream and return it
+// as a string.
+function getStreamContent(inputStream)
+{
+  var streamBuf = "";
+  var sis = CC["@mozilla.org/scriptableinputstream;1"].
+                createInstance(CI.nsIScriptableInputStream);
+  sis.init(inputStream);
+
+  var available;
+  while ((available = sis.available()) != 0) {
+    streamBuf += sis.read(available);
+  }
+  
+  return streamBuf;
+}
+
 function ReadTopManifest(aFileURL)
 {
     gURLs = new Array();
     var url = gIOService.newURI(aFileURL, null, null);
-    if (!url || !url.schemeIs("file"))
-        throw "Expected a file URL for the manifest.";
+    if (!url)
+      throw "Expected a file or http URL for the manifest.";
     ReadManifest(url);
 }
 
@@ -260,15 +307,20 @@ function ReadTopManifest(aFileURL)
 // please keep the parser in print-manifest-dirs.py in sync.
 function ReadManifest(aURL)
 {
-    var listURL = aURL.QueryInterface(CI.nsIFileURL);
-
     var secMan = CC[NS_SCRIPTSECURITYMANAGER_CONTRACTID]
                      .getService(CI.nsIScriptSecurityManager);
 
-    var fis = CC[NS_LOCALFILEINPUTSTREAM_CONTRACTID].
-                  createInstance(CI.nsIFileInputStream);
-    fis.init(listURL.file, -1, -1, false);
-    var lis = fis.QueryInterface(CI.nsILineInputStream);
+    var listURL = aURL;
+    var channel = gIOService.newChannelFromURI(aURL);
+    var inputStream = channel.open();
+    if (channel instanceof Components.interfaces.nsIHttpChannel
+        && channel.responseStatus != 200) {
+      dump("REFTEST TEST-UNEXPECTED-FAIL | | HTTP ERROR : " + 
+        channel.responseStatus + "\n");
+    }
+    var streamBuf = getStreamContent(inputStream);
+    inputStream.close();
+    var lines = streamBuf.split(/(\n|\r|\r\n)/);
 
     // Build the sandbox for fails-if(), etc., condition evaluation.
     var sandbox = new Components.utils.Sandbox(aURL.spec);
@@ -320,13 +372,20 @@ function ReadManifest(aURL)
         sandbox.nativeThemePref = true;
     }
 
-    var line = {value:null};
+    new XPCSafeJSObjectWrapper(sandbox).prefs = {
+      __exposedProps__: {
+        getBoolPref: 'r',
+        getIntPref: 'r',
+      },
+      _prefs:      prefs,
+      getBoolPref: function(p) { return this._prefs.getBoolPref(p); },
+      getIntPref:  function(p) { return this._prefs.getIntPref(p) }
+    }
+
     var lineNo = 0;
     var urlprefix = "";
-    do {
-        var more = lis.readLine(line);
+    for each (var str in lines) {
         ++lineNo;
-        var str = line.value;
         if (str.charAt(0) == "#")
             continue; // entire line was a comment
         var i = str.search(/\s+#/);
@@ -395,12 +454,14 @@ function ReadManifest(aURL)
         var runHttp = false;
         var httpDepth;
         if (items[0] == "HTTP") {
-            runHttp = true;
+            runHttp = (aURL.scheme == "file"); // We can't yet run the local HTTP server
+                                               // for non-local reftests.
             httpDepth = 0;
             items.shift();
         } else if (items[0].match(/HTTP\(\.\.(\/\.\.)*\)/)) {
             // Accept HTTP(..), HTTP(../..), HTTP(../../..), etc.
-            runHttp = true;
+            runHttp = (aURL.scheme == "file"); // We can't yet run the local HTTP server
+                                               // for non-local reftests.
             httpDepth = (items[0].length - 5) / 3;
             items.shift();
         }
@@ -430,7 +491,7 @@ function ReadManifest(aURL)
                 throw "Error 3 in manifest file " + aURL.spec + " line " + lineNo;
             var [testURI] = runHttp
                             ? ServeFiles(aURL, httpDepth,
-                                         listURL.file.parent, [items[1]])
+                                         listURL, [items[1]])
                             : [gIOService.newURI(items[1], null, listURL)];
             var prettyPath = runHttp
                            ? gIOService.newURI(items[1], null, listURL).spec
@@ -449,7 +510,7 @@ function ReadManifest(aURL)
                 throw "Error 4 in manifest file " + aURL.spec + " line " + lineNo;
             var [testURI] = runHttp
                             ? ServeFiles(aURL, httpDepth,
-                                         listURL.file.parent, [items[1]])
+                                         listURL, [items[1]])
                             : [gIOService.newURI(items[1], null, listURL)];
             var prettyPath = runHttp
                            ? gIOService.newURI(items[1], null, listURL).spec
@@ -468,7 +529,7 @@ function ReadManifest(aURL)
                 throw "Error 5 in manifest file " + aURL.spec + " line " + lineNo;
             var [testURI, refURI] = runHttp
                                   ? ServeFiles(aURL, httpDepth,
-                                               listURL.file.parent, [items[1], items[2]])
+                                               listURL, [items[1], items[2]])
                                   : [gIOService.newURI(items[1], null, listURL),
                                      gIOService.newURI(items[2], null, listURL)];
             var prettyPath = runHttp
@@ -488,7 +549,7 @@ function ReadManifest(aURL)
         } else {
             throw "Error 6 in manifest file " + aURL.spec + " line " + lineNo;
         }
-    } while (more);
+    }
 }
 
 function AddURIUseCount(uri)
@@ -518,8 +579,11 @@ function BuildUseCounts()
     }
 }
 
-function ServeFiles(manifestURL, depth, directory, files)
+function ServeFiles(manifestURL, depth, aURL, files)
 {
+    var listURL = aURL.QueryInterface(CI.nsIFileURL);
+    var directory = listURL.file.parent;
+
     // Allow serving a tree that's an ancestor of the directory containing
     // the files so that they can use resources in ../ (etc.).
     var dirPath = "/";
@@ -714,13 +778,9 @@ function OnDocumentLoad(event)
        ps.footerStrRight = "";
        gBrowser.docShell.contentViewer.setPageMode(true, ps);
 
-       // WORKAROUND FOR ASSERTIONS IN BUG 534478:  Calling setPageMode
-       // above causes 2 assertions.  So that we don't have to annotate
-       // the manifests for every reftest-print reftest, bump the
-       // assertion count by two right here.
-       // And on Mac, it causes *three* assertions.
+       // WORKAROUND FOR AN ASSERTION ON MAC!
        var xr = CC[NS_XREAPPINFO_CONTRACTID].getService(CI.nsIXULRuntime);
-       var count = (xr.widgetToolkit == "cocoa") ? 3 : 2;
+       var count = (xr.widgetToolkit == "cocoa") ? 1 : 0;
        gURLs[0].minAsserts += count;
        gURLs[0].maxAsserts += count;
     }

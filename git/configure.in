@@ -132,7 +132,7 @@ GCONF_VERSION=1.2.1
 GIO_VERSION=2.0
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.6.22
+SQLITE_VERSION=3.6.23.1
 LIBNOTIFY_VERSION=0.4
 
 MSMANIFEST_TOOL=
@@ -759,6 +759,9 @@ EOF
     AC_DEFINE_UNQUOTED(MOZ_NTDDI_WS03, 0x05020000)
     AC_DEFINE_UNQUOTED(MOZ_NTDDI_LONGHORN, 0x06000000)
     AC_DEFINE_UNQUOTED(MOZ_NTDDI_WIN7, 0x06010000)
+
+    STL_FLAGS='-D_HAS_EXCEPTIONS=0 -I$(DIST)/stl_wrappers'
+    WRAP_STL_INCLUDES=1
     ;;
 esac
 
@@ -807,6 +810,9 @@ AC_SUBST(GNU_CXX)
 AC_SUBST(INTEL_CC)
 AC_SUBST(INTEL_CXX)
 
+AC_SUBST(STL_FLAGS)
+AC_SUBST(WRAP_STL_INCLUDES)
+
 dnl ========================================================
 dnl Checks for programs.
 dnl ========================================================
@@ -834,7 +840,7 @@ else
     AC_MSG_RESULT([yes])    
 fi
 
-MOZ_PATH_PROGS(PYTHON, $PYTHON python2.5 python2.4 python)
+MOZ_PATH_PROGS(PYTHON, $PYTHON python2.6 python2.5 python2.4 python)
 if test -z "$PYTHON"; then
     AC_MSG_ERROR([python was not found in \$PATH])
 fi
@@ -1130,6 +1136,9 @@ HOST_OS_ARCH=`echo $host_os | sed -e 's|/|_|g'`
 case "$HOST_OS_ARCH" in
 cygwin*|mingw*|mks*|msvc*)
     HOST_OS_ARCH=WINNT
+    ;;
+darwin*)
+    HOST_OS_ARCH=Darwin
     ;;
 linux*)
     HOST_OS_ARCH=Linux
@@ -2024,7 +2033,7 @@ case "$target" in
             # -Os is broken on gcc 4.1.x and 4.2.x, we need to tweak it to get good results.
             MOZ_OPTIMIZE_SIZE_TWEAK="-finline-limit=50"
         esac
-        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions $MOZ_OPTIMIZE_SIZE_TWEAK"
+        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fomit-frame-pointer $MOZ_OPTIMIZE_SIZE_TWEAK"
         MOZ_DEBUG_FLAGS="-g"
     fi
 
@@ -2637,6 +2646,8 @@ alpha*-*-osf*)
        AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
        CFLAGS="$CFLAGS -xlibmieee -xstrconst -xbuiltin=%all"
        CXXFLAGS="$CXXFLAGS -xlibmieee -xbuiltin=%all -features=tmplife,tmplrefstatic -norunpath"
+       _MOZ_EXCEPTIONS_FLAGS_ON='-features=except'
+       _MOZ_EXCEPTIONS_FLAGS_OFF='-features=no%except'
        LDFLAGS="-xildoff -z lazyload -z combreloc $LDFLAGS"
        if test -z "$CROSS_COMPILE" && test -f /usr/lib/ld/map.noexstk; then
            _SAVE_LDFLAGS=$LDFLAGS
@@ -3123,6 +3134,8 @@ EOF
                 "$ac_cv_have_visibility_class_bug" = "no"; then
           VISIBILITY_FLAGS='-I$(DIST)/system_wrappers -include $(topsrcdir)/config/gcc_hidden.h'
           WRAP_SYSTEM_INCLUDES=1
+          STL_FLAGS='-I$(DIST)/stl_wrappers'
+          WRAP_STL_INCLUDES=1
         else
           VISIBILITY_FLAGS='-fvisibility=hidden'
         fi # have visibility pragma bug
@@ -4712,8 +4725,8 @@ MOZ_JAVAXPCOM=
 MOZ_JSDEBUGGER=1
 MOZ_JSLOADER=1
 MOZ_MATHML=1
-MOZ_MORK=1
-MOZ_MORKREADER=
+MOZ_MORK=
+MOZ_MORKREADER=1
 MOZ_AUTH_EXTENSION=1
 MOZ_NO_ACTIVEX_SUPPORT=1
 MOZ_NO_INSPECTOR_APIS=
@@ -4724,7 +4737,7 @@ MOZ_WAVE=1
 MOZ_MEDIA=
 MOZ_PANGO=1
 MOZ_PERMISSIONS=1
-MOZ_PLACES=
+MOZ_PLACES=1
 MOZ_PLAINTEXT_EDITOR_ONLY=
 MOZ_PLUGINS=1
 MOZ_PREF_EXTENSIONS=1
@@ -4746,7 +4759,6 @@ MOZ_UNIVERSALCHARDET=1
 MOZ_URL_CLASSIFIER=
 MOZ_USE_NATIVE_UCONV=
 MOZ_VIEW_SOURCE=1
-MOZ_XPFE_COMPONENTS=1
 MOZ_XPINSTALL=1
 MOZ_XSLT_STANDALONE=
 MOZ_XTF=1
@@ -4758,6 +4770,7 @@ NECKO_COOKIES=1
 NECKO_DISK_CACHE=1
 NECKO_PROTOCOLS_DEFAULT="about data file ftp gopher http res viewsource"
 NECKO_SMALL_BUFFERS=
+BUILD_CTYPES=1
 XPC_IDISPATCH_SUPPORT=
 
 
@@ -4973,6 +4986,8 @@ cairo-qt)
     MOZ_WIDGET_TOOLKIT=qt
     MOZ_ENABLE_QT=1
     MOZ_ENABLE_XREMOTE=1
+    MOZ_WEBGL=1
+    MOZ_WEBGL_GLX=1
     USE_ELF_DYNSTR_GC=
     NS_PRINTING=
 
@@ -5004,7 +5019,7 @@ cairo-cocoa)
     AC_DEFINE(MOZ_WIDGET_COCOA)
     MOZ_USER_DIR="Mozilla"
     AC_DEFINE(XP_MACOSX)
-    TK_LIBS='-framework Carbon -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework AddressBook'
+    TK_LIBS='-framework QuartzCore -framework Carbon -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework AddressBook'
     TK_CFLAGS="-DNO_X11"
     LDFLAGS="$LDFLAGS -framework Cocoa -lobjc"
     CFLAGS="$CFLAGS $TK_CFLAGS"
@@ -5081,19 +5096,20 @@ then
     [ QTDIR=$withval])
 
     if test -z "$QTDIR"; then
-        PKG_CHECK_MODULES(MOZ_QT, QtGui QtNetwork QtCore)
+        PKG_CHECK_MODULES(MOZ_QT, QtGui QtNetwork QtCore QtOpenGL)
         AC_CHECK_PROGS(HOST_MOC, moc, "")
     else
-        MOZ_QT_LIBS="-L$QTDIR/qt/lib/ -lQtGui -lQtNetwork -lQtCore"
+        MOZ_QT_LIBS="-L$QTDIR/lib/ -lQtGui -lQtNetwork -lQtCore -lQtDBus -lQtXml -lQtOpenGL"
 
         MOZ_QT_CFLAGS="-DQT_SHARED"
-        MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/qt/include"
-        MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/qt/include/Qt"
-        MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/qt/include/QtGui"
-        MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/qt/include/QtCore"
-        MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/qt/include/QtNetwork"
-
-        HOST_MOC="$QTDIR/qt/bin/moc"
+        MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/include"
+        MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/include/Qt"
+        MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/include/QtGui"
+        MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/include/QtCore"
+        MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/include/QtNetwork"
+        MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/include/QtDBus"
+        MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/include/QtXml"
+        HOST_MOC="$QTDIR/bin/moc"
     fi
     if test -z "$HOST_MOC"; then
         AC_MSG_ERROR([No acceptable moc preprocessor found. Qt SDK is not installed or --with-qt is
@@ -5168,8 +5184,8 @@ if test -z "$REAL_BRANDING_DIRECTORY"; then
   REAL_BRANDING_DIRECTORY=${MOZ_BUILD_APP}/branding/nightly
 fi
 
-if test -f "$topsrcdir/$REAL_BRANDING_DIRECTORY/configure.sh"; then
-  . "$topsrcdir/$REAL_BRANDING_DIRECTORY/configure.sh"
+if test -f "${_topsrcdir}/$REAL_BRANDING_DIRECTORY/configure.sh"; then
+  . "${_topsrcdir}/$REAL_BRANDING_DIRECTORY/configure.sh"
 fi
 
 AC_SUBST(MOZ_BRANDING_DIRECTORY)
@@ -5468,7 +5484,7 @@ dnl ========================================================
 dnl = Disable IPC support for tabs and plugins
 dnl ========================================================
 case "${target}" in
-*-apple-darwin*)
+powerpc-apple-darwin*)
     MOZ_IPC=
     ;;
 *-wince*)
@@ -5558,15 +5574,6 @@ case "$target" in
     ;;
 esac
 fi
-
-dnl ========================================================
-dnl xpfe/components on by default
-dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(xpfe-components,
-[  --disable-xpfe-components
-                          Disable xpfe components],
-    MOZ_XPFE_COMPONENTS=,
-    MOZ_XPFE_COMPONENTS=1 )
 
 dnl ========================================================
 dnl xpinstall support on by default
@@ -5860,13 +5867,20 @@ dnl ========================================================
 dnl = Breakpad crash reporting (on by default on supported platforms)
 dnl ========================================================
 
-if (test "$OS_ARCH" = "WINNT" -a -z "$GNU_CC" \
-    || test "$OS_ARCH" = "Darwin" \
-    || test "$OS_ARCH" = "Linux" -a "$CPU_ARCH" = "x86" \
-    || test "$OS_ARCH" = "SunOS") \
-   && test -z "$HAVE_64BIT_OS"; then
-   MOZ_CRASHREPORTER=1
-fi
+case $target in
+i?86-*-mingw*)
+  MOZ_CRASHREPORTER=1
+  ;;
+i?86-apple-darwin*|powerpc-apple-darwin*)
+  MOZ_CRASHREPORTER=1
+  ;;
+i?86-*-linux*|x86_64-*-linux*|arm-*-linux*)
+  MOZ_CRASHREPORTER=1
+  ;;
+*solaris*)
+  MOZ_CRASHREPORTER=1
+  ;;
+esac
 
 MOZ_ARG_DISABLE_BOOL(crashreporter,
 [  --disable-crashreporter          Disable breakpad crash reporting],
@@ -6127,8 +6141,8 @@ if test -n "$MOZ_TREE_FREETYPE"; then
    FT_FONT_FEATURE="#define CAIRO_HAS_FT_FONT 1"
    FT2_CFLAGS='-I$(topsrcdir)/modules/freetype2/include'
    CAIRO_FT_CFLAGS='-I$(topsrcdir)/modules/freetype2/include'
-   FT2_LIBS='$(LIBXUL_DIST)/lib/freetype2.lib'
-   CAIRO_FT_LIBS='$(LIBXUL_DIST)/lib/freetype2.lib'
+   FT2_LIBS='$(call EXPAND_LIBNAME_PATH,freetype2,$(LIBXUL_DIST)/lib)'
+   CAIRO_FT_LIBS='$(call EXPAND_LIBNAME_PATH,freetype2,$(LIBXUL_DIST)/lib)'
    AC_DEFINE(HAVE_FT_BITMAP_SIZE_Y_PPEM)
    AC_DEFINE(HAVE_FT_GLYPHSLOT_EMBOLDEN)
    AC_DEFINE(HAVE_FT_LOAD_SFNT_TABLE)
@@ -6302,25 +6316,6 @@ dnl ========================================================
 MOZ_ARG_HEADER(Individual module options)
 
 dnl ========================================================
-dnl = Enable places (new history/bookmarks)
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(places,
-[  --enable-places        Enable 'places' bookmark/history implementation],
-    MOZ_PLACES=1,
-    MOZ_PLACES= )
-if test -n "$MOZ_PLACES"; then
-    AC_DEFINE(MOZ_PLACES)
-    if test -z "$MOZ_MAIL_NEWS"; then
-      MOZ_MORK=
-    fi
-    MOZ_MORKREADER=1
-else
-  if test "$MOZ_BUILD_APP" = "browser"; then
-    AC_MSG_ERROR([Cannot build Firefox with --disable-places.])
-  fi
-fi
-
-dnl ========================================================
 dnl = Disable feed handling components
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(feeds,
@@ -6362,13 +6357,18 @@ then
     SQLITE_CFLAGS=
     SQLITE_LIBS='$(call EXPAND_LIBNAME_PATH,mozsqlite3,$(DIST)/lib)'
 else
+    dnl ============================
+    dnl === SQLite Version check ===
+    dnl ============================
+    dnl Check to see if the system SQLite package is new enough.
     PKG_CHECK_MODULES(SQLITE, sqlite3 >= $SQLITE_VERSION)
-    dnl ===================================
-    dnl === SQLITE_SECURE_DELETE checks ===
-    dnl ===================================
-    dnl check to see if the system sqlite package is compiled with
+
+    dnl ==================================
+    dnl === SQLITE_SECURE_DELETE check ===
+    dnl ==================================
+    dnl Check to see if the system SQLite package is compiled with
     dnl SQLITE_SECURE_DELETE enabled.
-    AC_MSG_CHECKING(for SQLITE_SECURE_DELETE support in system sqlite)
+    AC_MSG_CHECKING(for SQLITE_SECURE_DELETE support in system SQLite)
     _SAVE_CFLAGS="$CFLAGS"
     CFLAGS="$CFLAGS $SQLITE_CFLAGS"
     _SAVE_LIBS="$LIBS"
@@ -6376,51 +6376,9 @@ else
     AC_CACHE_VAL(ac_cv_sqlite_secure_delete,[
         AC_TRY_RUN([
             #include "sqlite3.h"
-            #include <stdio.h>
-            #include <assert.h>
 
             int main(int argc, char **argv){
-              sqlite3 *db;
-              sqlite3_uint64 r;
-              char *zFilename;
-              FILE *in;
-              int i;
-              int rc;
-              char *zBuf;
-              const int bufSize = 1024*3;
-
-              zBuf = malloc(bufSize*sizeof(char));
-              assert( zBuf );
-              rc = sqlite3_open(":memory:", &db);
-              assert( rc==SQLITE_OK );
-              sqlite3_close(db);
-              sqlite3_randomness(sizeof(r), &r);
-              zFilename = sqlite3_mprintf("test_db_%llu.sqlite", r);
-              rc = sqlite3_open(zFilename, &db);
-              assert( rc==SQLITE_OK );
-              rc = sqlite3_exec(db, 
-                "BEGIN;"
-                "CREATE TABLE t1(x);"
-                "INSERT INTO t1 VALUES(zeroblob(1000)||'abcdefghijklmnopqrstuvwxyz');"
-                "COMMIT;"
-                "DELETE FROM t1;",
-                0, 0, 0
-              );
-              assert( rc==SQLITE_OK );
-              sqlite3_close(db);
-              in = fopen(zFilename, "r");
-              assert( in!=0 );
-              rc = fread(zBuf, 1, bufSize, in);
-              assert( rc==bufSize );
-              fclose(in);
-              unlink(zFilename);
-              free( zBuf );
-              for(i=0; i<bufSize-11; i++){
-                if( *(zBuf+i)=='h' && memcmp(zBuf+i, "hijklmnopq", 10)==0 ){
-                  return 1;
-                }
-              }
-              return 0;
+              return !sqlite3_compileoption_used("SQLITE_SECURE_DELETE");
             }],
             ac_cv_sqlite_secure_delete=yes,
             ac_cv_sqlite_secure_delete=no,
@@ -6431,26 +6389,69 @@ else
     CFLAGS="$_SAVE_CFLAGS"
     LIBS="$_SAVE_LIBS"
     if test "x$ac_cv_sqlite_secure_delete" = "xno"; then
-        AC_MSG_ERROR([System Sqlite library is not compiled with SQLITE_SECURE_DELETE.])
+        AC_MSG_ERROR([System SQLite library is not compiled with SQLITE_SECURE_DELETE.])
+    fi
+
+    dnl ===============================
+    dnl === SQLITE_THREADSAFE check ===
+    dnl ===============================
+    dnl Check to see if the system SQLite package is compiled with
+    dnl SQLITE_THREADSAFE enabled.
+    AC_MSG_CHECKING(for SQLITE_THREADSAFE support in system SQLite)
+    _SAVE_CFLAGS="$CFLAGS"
+    CFLAGS="$CFLAGS $SQLITE_CFLAGS"
+    _SAVE_LIBS="$LIBS"
+    LIBS="$LIBS $SQLITE_LIBS"
+    AC_CACHE_VAL(ac_cv_sqlite_threadsafe,[
+        AC_TRY_RUN([
+            #include "sqlite3.h"
+
+            int main(int argc, char **argv){
+              return !sqlite3_compileoption_used("SQLITE_THREADSAFE=1");
+            }],
+            ac_cv_sqlite_threadsafe=yes,
+            ac_cv_sqlite_threadsafe=no,
+            ac_cv_sqlite_threadsafe=no
+        )
+    ])
+    AC_MSG_RESULT($ac_cv_sqlite_threadsafe)
+    CFLAGS="$_SAVE_CFLAGS"
+    LIBS="$_SAVE_LIBS"
+    if test "x$ac_cv_sqlite_threadsafe" = "xno"; then
+        AC_MSG_ERROR([System SQLite library is not compiled with SQLITE_THREADSAFE.])
+    fi
+
+    dnl ================================
+    dnl === SQLITE_ENABLE_FTS3 check ===
+    dnl ================================
+    dnl check to see if the system SQLite package is compiled with
+    dnl SQLITE_THREADSAFE enabled.
+    AC_MSG_CHECKING(for SQLITE_ENABLE_FTS3 support in system SQLite)
+    _SAVE_CFLAGS="$CFLAGS"
+    CFLAGS="$CFLAGS $SQLITE_CFLAGS"
+    _SAVE_LIBS="$LIBS"
+    LIBS="$LIBS $SQLITE_LIBS"
+    AC_CACHE_VAL(ac_cv_sqlite_enable_fts3,[
+        AC_TRY_RUN([
+            #include "sqlite3.h"
+
+            int main(int argc, char **argv){
+              return !sqlite3_compileoption_used("SQLITE_ENABLE_FTS3");
+            }],
+            ac_cv_sqlite_enable_fts3=yes,
+            ac_cv_sqlite_enable_fts3=no,
+            ac_cv_sqlite_enable_fts3=no
+        )
+    ])
+    AC_MSG_RESULT($ac_cv_sqlite_enable_fts3)
+    CFLAGS="$_SAVE_CFLAGS"
+    LIBS="$_SAVE_LIBS"
+    if test "x$ac_cv_sqlite_enable_fts3" = "xno"; then
+        AC_MSG_ERROR([System SQLite library is not compiled with SQLITE_ENABLE_FTS3.])
     fi
 fi
 
 AC_SUBST(MOZ_NATIVE_SQLITE)
-
-dnl ========================================================
-dnl = Enable help viewer (off by default)
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(help-viewer,
-[  --enable-help-viewer        Enable help viewer],
-    MOZ_HELP_VIEWER=1,
-    MOZ_HELP_VIEWER= )
-if test -n "$MOZ_HELP_VIEWER"; then
-     AC_DEFINE(MOZ_HELP_VIEWER)
-fi
-AC_SUBST(MOZ_HELP_VIEWER)
-if test "$MOZ_BUILD_APP" = "browser" -a -n "$MOZ_HELP_VIEWER"; then
-    AC_MSG_ERROR([Cannot build Firefox with --enable-help-viewer.])
-fi
 
 dnl ========================================================
 dnl = Enable safe browsing (anti-phishing)
@@ -6557,9 +6558,10 @@ if test $MOZ_PLATFORM_MAEMO; then
    if test -z "$MOZ_ENABLE_DBUS"; then
        AC_MSG_ERROR([DBus is required when building for Maemo])
    fi
-   
+
    MOZ_GFX_OPTIMIZE_MOBILE=1
    MOZ_WEBGL_GLX=
+   MOZ_MAEMO_LIBLOCATION=
 
    if test $MOZ_PLATFORM_MAEMO = 5; then
       dnl if we have Xcomposite we should also have Xdamage and Xfixes
@@ -6591,7 +6593,19 @@ if test $MOZ_PLATFORM_MAEMO; then
       if test -z "$_LIB_FOUND"; then
          AC_MSG_ERROR([Hildon FM-2 is required when building for Maemo])
       fi
+
    fi
+
+   PKG_CHECK_MODULES(LIBLOCATION,liblocation, _LIB_FOUND=1, _LIB_FOUND=)
+   MOZ_PLATFORM_MAEMO_LIBS="$MOZ_PLATFORM_MAEMO_LIBS $LIBLOCATION_LIBS"
+   MOZ_PLATFORM_MAEMO_CFLAGS="$MOZ_PLATFORM_MAEMO_CFLAGS $LIBLOCATION_CFLAGS"
+   if test "$_LIB_FOUND"; then
+      MOZ_MAEMO_LIBLOCATION=1
+      AC_DEFINE(MOZ_MAEMO_LIBLOCATION)
+   else
+      AC_MSG_WARN([Cannot liblocation-dev. Disabling Maemo geolocation.])
+   fi
+   AC_SUBST(MOZ_MAEMO_LIBLOCATION)
 
    AC_SUBST(MOZ_PLATFORM_MAEMO_LIBS)
    AC_SUBST(MOZ_PLATFORM_MAEMO_CFLAGS)
@@ -6980,6 +6994,17 @@ if test -n "$MOZ_TRACEVIS"; then
 fi
 
 dnl ========================================================
+dnl = Use GCTimer
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(gctimer,
+[  --enable-gctimer       Enable GC timer (default=no)],
+    MOZ_GCTIMER=1,
+    MOZ_GCTIMER= )
+if test -n "$MOZ_GCTIMER"; then
+    AC_DEFINE(MOZ_GCTIMER)
+fi
+
+dnl ========================================================
 dnl = Use Valgrind
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(valgrind,
@@ -7135,27 +7160,6 @@ if test -n "$_ENABLE_CODESIGHS"; then
         AC_MSG_ERROR([Codesighs directory $srcdir/tools/codesighs required.])
     fi
 fi
-
-MOZ_ARG_ENABLE_BOOL(insure,
-[  --enable-insure         Enable insure++ instrumentation (linux only)],
-    _ENABLE_INSURE=1,
-    _ENABLE_INSURE= )
-if test -n "$_ENABLE_INSURE"; then
-    MOZ_INSURE="insure"
-    MOZ_INSURIFYING=1
-    MOZ_INSURE_DIRS="."
-    MOZ_INSURE_EXCLUDE_DIRS="config"
-fi
-
-MOZ_ARG_WITH_STRING(insure-dirs,
-[  --with-insure-dirs=DIRS
-                          Dirs to instrument with insure ],
-    MOZ_INSURE_DIRS=$withval )
-
-MOZ_ARG_WITH_STRING(insure-exclude-dirs,
-[  --with-insure-exclude-dirs=DIRS
-                          Dirs to not instrument with insure ],
-    MOZ_INSURE_EXCLUDE_DIRS="config $withval" )
 
 dnl ========================================================
 dnl = Support for Quantify (Windows)
@@ -7526,7 +7530,7 @@ fi
 AC_SUBST(_MOZ_RTTI_FLAGS_ON)
 
 dnl ========================================================
-dnl C++ exceptions (g++/egcs only - for now)
+dnl C++ exceptions (g++/VC/irix6/Sun only - for now)
 dnl Should be smarter and check that the compiler does indeed have exceptions
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(cpp-exceptions,
@@ -7536,6 +7540,7 @@ MOZ_ARG_ENABLE_BOOL(cpp-exceptions,
 
 if test "$_MOZ_CPP_EXCEPTIONS"; then
     _MOZ_EXCEPTIONS_FLAGS=$_MOZ_EXCEPTIONS_FLAGS_ON
+    AC_DEFINE(MOZ_CPP_EXCEPTIONS)
 else
     _MOZ_EXCEPTIONS_FLAGS=$_MOZ_EXCEPTIONS_FLAGS_OFF
 fi
@@ -8120,12 +8125,20 @@ if test "$NECKO_COOKIES"; then
 fi
 
 dnl
-dnl Build jsctypes on the platforms we can.
+dnl Build jsctypes on the platforms we can, unless it's explicitly disabled.
 dnl
+MOZ_ARG_DISABLE_BOOL(ctypes,
+[  --disable-ctypes        Disable js-ctypes],
+    BUILD_CTYPES=,
+    BUILD_CTYPES=1)
 AC_SUBST(BUILD_CTYPES)
-if test "$OS_ARCH" != "WINCE" -o `echo $OS_TEST | grep -ic arm` != 1; then
-  BUILD_CTYPES=1
-  AC_DEFINE(BUILD_CTYPES)
+if test "$BUILD_CTYPES"; then
+  if test "$OS_ARCH" = "WINCE" -a `echo $OS_TEST | grep -ic arm` = 1; then
+    # Disable ctypes for arm/wince.
+    BUILD_CTYPES=
+  else
+    AC_DEFINE(BUILD_CTYPES)
+  fi
 fi
 
 dnl NECKO_ configuration options are not global
@@ -8141,6 +8154,11 @@ dnl Build the lightweight Mork reader if required
 AC_SUBST(MOZ_MORKREADER)
 if test "$MOZ_MORKREADER"; then
   AC_DEFINE(MOZ_MORKREADER)
+fi
+
+dnl Build Places if required
+if test "$MOZ_PLACES"; then
+  AC_DEFINE(MOZ_PLACES)
 fi
 
 dnl ========================================================
@@ -8206,11 +8224,7 @@ AC_SUBST(MOZ_VTUNE)
 AC_SUBST(MOZ_XPCTOOLS)
 AC_SUBST(MOZ_JSLOADER)
 AC_SUBST(MOZ_USE_NATIVE_UCONV)
-AC_SUBST(MOZ_INSURE)
-AC_SUBST(MOZ_INSURE_DIRS)
-AC_SUBST(MOZ_INSURE_EXCLUDE_DIRS)
 AC_SUBST(MOZ_QUANTIFY)
-AC_SUBST(MOZ_INSURIFYING)
 AC_SUBST(LIBICONV)
 AC_SUBST(MOZ_PLACES)
 AC_SUBST(MOZ_PLACES_BOOKMARKS)
@@ -8219,6 +8233,7 @@ AC_SUBST(MOZ_TOOLKIT_SEARCH)
 AC_SUBST(MOZ_FEEDS)
 AC_SUBST(NS_PRINTING)
 AC_SUBST(MOZ_WEBGL)
+AC_SUBST(MOZ_HELP_VIEWER)
 
 AC_SUBST(MOZ_JAVAXPCOM)
 AC_SUBST(JAVA_INCLUDE_PATH)
@@ -8241,7 +8256,6 @@ AC_SUBST(ACCESSIBILITY)
 AC_SUBST(MOZ_XPINSTALL)
 AC_SUBST(MOZ_VIEW_SOURCE)
 AC_SUBST(MOZ_SPELLCHECK)
-AC_SUBST(MOZ_XPFE_COMPONENTS)
 AC_SUBST(MOZ_USER_DIR)
 AC_SUBST(MOZ_CRASHREPORTER)
 
@@ -8717,14 +8731,16 @@ fi
 dist=$MOZ_BUILD_ROOT/dist
 ac_configure_args="$_SUBDIR_CONFIG_ARGS"
 ac_configure_args="$ac_configure_args --enable-threadsafe"
+if test "$BUILD_CTYPES"; then
+    # Build js-ctypes on the platforms we can.
+    ac_configure_args="$ac_configure_args --enable-ctypes"
+fi
 if test -z "$MOZ_NATIVE_NSPR"; then
     ac_configure_args="$ac_configure_args --with-nspr-cflags='$NSPR_CFLAGS'"
     ac_configure_args="$ac_configure_args --with-nspr-libs='$NSPR_LIBS'"
 fi
 ac_configure_args="$ac_configure_args --with-dist-dir=../../dist"
-ac_configure_args="$ac_configure_args --includedir=$dist/include"
-ac_configure_args="$ac_configure_args --bindir=$dist/bin"
-ac_configure_args="$ac_configure_args --libdir=$dist/lib"
+ac_configure_args="$ac_configure_args --prefix=$dist"
 ac_configure_args="$ac_configure_args --with-sync-build-files=$_topsrcdir"
 if test "$MOZ_MEMORY"; then
    ac_configure_args="$ac_configure_args --enable-jemalloc"
@@ -8734,54 +8750,6 @@ if test "$MOZ_MEMORY"; then
 fi
 AC_OUTPUT_SUBDIRS(js/src)
 ac_configure_args="$_SUBDIR_CONFIG_ARGS"
-
-# Build jsctypes on the platforms we can.
-if test "$BUILD_CTYPES"; then
-  # Run the libffi 'configure' script.
-  ac_configure_args="--disable-shared --enable-static --disable-raw-api"
-  if test "$MOZ_DEBUG"; then
-    ac_configure_args="$ac_configure_args --enable-debug"
-  fi
-  if test "$DSO_PIC_CFLAGS"; then
-    ac_configure_args="$ac_configure_args --with-pic"
-  fi
-  if test "$CROSS_COMPILE"; then
-    case "$target" in
-    *-mingw*)
-      ac_configure_args="$ac_configure_args --build=$build --host=${target_cpu}-${target_os} HOST_CC=\"$HOST_CC\" CC=\"$CC\""
-      ;;
-    *)
-      ac_configure_args="$ac_configure_args --build=$build --host=$target HOST_CC=\"$HOST_CC\" CC=\"$CC\""
-      ;;
-    esac
-  fi
-  if test "$_MSC_VER"; then
-    # Use a wrapper script for cl and ml that looks more like gcc.
-    # autotools can't quite handle an MSVC build environment yet.
-    ac_configure_args="$ac_configure_args LD=link CPP=\"cl -nologo -EP\" SHELL=sh.exe"
-    case "${target_cpu}" in
-    x86_64)
-      # Need target since MSYS tools into mozilla-build may be 32bit
-      ac_configure_args="$ac_configure_args CC=\"$_topsrcdir/js/ctypes/libffi/msvcc.sh -m64\" --build=$build --host=$target"
-      ;;
-    *)
-      ac_configure_args="$ac_configure_args CC=$_topsrcdir/js/ctypes/libffi/msvcc.sh"
-      ;;
-    esac
-  fi
-  if test "$SOLARIS_SUNPRO_CC"; then
-    # Always use gcc for libffi on Solaris
-    ac_configure_args="$ac_configure_args CC=gcc"
-  fi
-
-  # Use a separate cache file for libffi, since it does things differently
-  # from our configure.
-  old_cache_file=$cache_file
-  cache_file=js/ctypes/libffi/config.cache
-  AC_OUTPUT_SUBDIRS(js/ctypes/libffi)
-  cache_file=$old_cache_file
-  ac_configure_args="$_SUBDIR_CONFIG_ARGS"
-fi
 
 fi # COMPILE_ENVIRONMENT && !LIBXUL_SDK_DIR
 

@@ -54,8 +54,11 @@
  * I.e., we don't #include <stdlib.h> or <new> on purpose.
  */
 
-#if defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
-#  define MOZALLOC_EXPORT __declspec(dllexport)
+#if defined(MOZALLOC_EXPORT)
+// do nothing: it's been defined to __declspec(dllexport) by
+// mozalloc*.cpp on platforms where that's required
+#elif defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
+#  define MOZALLOC_EXPORT __declspec(dllimport)
 #elif defined(HAVE_VISIBILITY_ATTRIBUTE)
 /* Make sure symbols are still exported even if we're wrapped in a
  * |visibility push(hidden)| blanket. */
@@ -73,6 +76,13 @@
 #  define MOZALLOC_INLINE inline
 #endif
 
+/* Workaround build problem with Sun Studio 12 */
+#if defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+#  undef NS_WARN_UNUSED_RESULT
+#  define NS_WARN_UNUSED_RESULT
+#  undef NS_ATTR_MALLOC
+#  define NS_ATTR_MALLOC
+#endif
 
 #if defined(__cplusplus)
 extern "C" {
@@ -210,16 +220,34 @@ MOZALLOC_EXPORT void* moz_valloc(size_t size)
 #  define MOZALLOC_EXPORT_NEW
 #endif
 
+#ifdef MOZ_CPP_EXCEPTIONS
+#define MOZALLOC_THROW_BAD_ALLOC throw(std::bad_alloc)
+#else
+#define MOZALLOC_THROW_BAD_ALLOC throw()
+#endif
+
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
-void* operator new(size_t size) throw()
+void* operator new(size_t size) MOZALLOC_THROW_BAD_ALLOC
 {
     return moz_xmalloc(size);
 }
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
-void* operator new[](size_t size) throw()
+void* operator new(size_t size, const std::nothrow_t&) throw()
+{
+    return moz_malloc(size);
+}
+
+MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
+void* operator new[](size_t size) MOZALLOC_THROW_BAD_ALLOC
 {
     return moz_xmalloc(size);
+}
+
+MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
+void* operator new[](size_t size, const std::nothrow_t&) throw()
+{
+    return moz_malloc(size);
 }
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
@@ -229,7 +257,19 @@ void operator delete(void* ptr) throw()
 }
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
+void operator delete(void* ptr, const std::nothrow_t&) throw()
+{
+    return moz_free(ptr);
+}
+
+MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
 void operator delete[](void* ptr) throw()
+{
+    return moz_free(ptr);
+}
+
+MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
+void operator delete[](void* ptr, const std::nothrow_t&) throw()
 {
     return moz_free(ptr);
 }
