@@ -49,7 +49,9 @@
 #include "nsICSSRule.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
+#include "nsCSSProps.h"
 #include "nsCSSValue.h"
+#include "nsIAtom.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSPseudoClasses.h"
 
@@ -287,11 +289,10 @@ private:
   nsCSSSelectorList& operator=(const nsCSSSelectorList& aCopy); 
 };
 
-// c6065b5e-4870-4dc5-9be3-747b6e317b25
+// 1aae9e9d-21c3-4993-90b1-66aa6809f597
 #define NS_ICSS_STYLE_RULE_IID \
-{ 0xc6065b5e, 0x4870, 0x4dc5, \
-  { 0x9b, 0xe3, 0x74, 0x7b, 0x6e, 0x31, 0x7b, 0x25 } }
-
+{ 0x1aae9e9d, 0x21c3, 0x4993, \
+  { 0x90, 0xb1, 0x66, 0xaa, 0x68, 0x09, 0xf5, 0x97 } }
 
 class nsICSSStyleRule : public nsICSSRule {
 public:

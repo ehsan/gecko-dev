@@ -74,7 +74,7 @@
 #define UNLIKELY(x)  (x)
 #endif
 
-#if defined(MOZ_MEMORY_ANDROID) || defined(WRAP_MALLOC_WITH_JEMALLOC)
+#if defined(MOZ_MEMORY_ANDROID) || defined(WRAP_MALLOC)
 #include "jemalloc.h"
 #define malloc(a)     je_malloc(a)
 #define valloc(a)     je_valloc(a)
@@ -83,7 +83,6 @@
 #define free(a)       je_free(a)
 #define strdup(a)     je_strdup(a)
 #define strndup(a, b) je_strndup(a, b)
-#define posix_memalign(a, b, c)  je_posix_memalign(a, b, c)
 #endif
 
 void

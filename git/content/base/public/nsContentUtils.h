@@ -1615,14 +1615,6 @@ public:
   static already_AddRefed<mozilla::layers::LayerManager>
   LayerManagerForDocument(nsIDocument *aDoc);
 
-  /**
-   * Determine whether a content node is focused or not,
-   *
-   * @param aContent the content node to check
-   * @return true if the content node is focused, false otherwise.
-   */
-  static PRBool IsFocusedContent(nsIContent *aContent);
-
 private:
 
   static PRBool InitializeEventTable();

@@ -112,8 +112,6 @@
 
 #include "nsTextEditRules.h"
 
-#include "nsTextEditorState.h"
-
 // XXX align=left, hspace, vspace, border? other nav4 attrs
 
 static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
@@ -310,30 +308,9 @@ public:
   virtual PRInt32 IntrinsicState() const;
 
   // nsITextControlElement
+  NS_IMETHOD TakeTextFrameValue(const nsAString& aValue);
   NS_IMETHOD SetValueChanged(PRBool aValueChanged);
-  NS_IMETHOD_(PRBool) IsSingleLineTextControl() const;
-  NS_IMETHOD_(PRBool) IsTextArea() const;
-  NS_IMETHOD_(PRBool) IsPlainTextControl() const;
-  NS_IMETHOD_(PRBool) IsPasswordTextControl() const;
-  NS_IMETHOD_(PRInt32) GetCols();
-  NS_IMETHOD_(PRInt32) GetWrapCols();
-  NS_IMETHOD_(PRInt32) GetRows();
-  NS_IMETHOD_(void) GetDefaultValueFromContent(nsAString& aValue);
-  NS_IMETHOD_(PRBool) ValueChanged() const;
-  NS_IMETHOD_(void) GetTextEditorValue(nsAString& aValue, PRBool aIgnoreWrap) const;
-  NS_IMETHOD_(void) SetTextEditorValue(const nsAString& aValue, PRBool aUserInput);
-  NS_IMETHOD_(nsIEditor*) GetTextEditor();
-  NS_IMETHOD_(nsISelectionController*) GetSelectionController();
-  NS_IMETHOD_(nsFrameSelection*) GetConstFrameSelection();
-  NS_IMETHOD BindToFrame(nsTextControlFrame* aFrame);
-  NS_IMETHOD_(void) UnbindFromFrame(nsTextControlFrame* aFrame);
-  NS_IMETHOD CreateEditor();
-  NS_IMETHOD_(nsIContent*) GetRootEditorNode();
-  NS_IMETHOD_(nsIContent*) GetPlaceholderNode();
-  NS_IMETHOD_(void) UpdatePlaceholderText(PRBool aNotify);
-  NS_IMETHOD_(void) SetPlaceholderClass(PRBool aVisible, PRBool aNotify);
-  NS_IMETHOD_(void) InitializeKeyboardEventListeners();
-
+  
   // nsIFileControlElement
   virtual void GetDisplayFileName(nsAString& aFileName);
   virtual void GetFileArray(nsCOMArray<nsIFile> &aFile);
@@ -364,12 +341,9 @@ public:
 
   void MaybeLoadImage();
 protected:
-  // Pull IsSingleLineTextControl into our scope, otherwise it'd be hidden
-  // by the nsITextControlElement version.
-  using nsGenericHTMLFormElement::IsSingleLineTextControl;
-
   // Helper method
   nsresult SetValueInternal(const nsAString& aValue,
+                            nsITextControlFrame* aFrame,
                             PRBool aUserInput);
 
   void ClearFileNames() {
@@ -481,9 +455,6 @@ protected:
    */
   PRBool NeedToInitializeEditorForEvent(nsEventChainPreVisitor& aVisitor) const;
 
-  void FreeData();
-  nsTextEditorState *GetEditorState() const;
-
   nsCOMPtr<nsIControllers> mControllers;
 
   /**
@@ -496,24 +467,10 @@ protected:
    * @see GET_BOOLBIT / SET_BOOLBIT macros and BF_* field identifiers
    */
   PRInt16                  mBitField;
-  /*
-   * In mInputData, the mState field is used if IsSingleLineTextControl returns
-   * true and mValue is used otherwise.  We have to be careful when handling it
-   * on a type change.
-   *
-   * Accessing the mState member should be done using the GetEditorState function,
-   * which returns null if the state is not present.
+  /**
+   * The current value of the input if it has been changed from the default
    */
-  union InputData {
-    /**
-     * The current value of the input if it has been changed from the default
-     */
-    char*                    mValue;
-    /**
-     * The state of the text editor associated with the text/password input
-     */
-    nsTextEditorState*       mState;
-  } mInputData;
+  char*                    mValue;
   /**
    * The value of the input if it is a file input. This is the list of filenames
    * used when uploading a file. It is vital that this is kept separate from
@@ -546,41 +503,18 @@ nsHTMLInputElement::nsHTMLInputElement(nsINodeInfo *aNodeInfo,
                                        PRBool aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mType(kInputDefaultType->value),
-    mBitField(0)
+    mBitField(0),
+    mValue(nsnull)
 {
   SET_BOOLBIT(mBitField, BF_PARSER_CREATING, aFromParser);
-  mInputData.mState = new nsTextEditorState(this);
-  NS_ADDREF(mInputData.mState);
 }
 
 nsHTMLInputElement::~nsHTMLInputElement()
 {
   DestroyImageLoadingContent();
-  FreeData();
-}
-
-void
-nsHTMLInputElement::FreeData()
-{
-  if (!IsSingleLineTextControl(PR_FALSE)) {
-    nsMemory::Free(mInputData.mValue);
-    mInputData.mValue = nsnull;
-  } else {
-    NS_IF_RELEASE(mInputData.mState);
+  if (mValue) {
+    nsMemory::Free(mValue);
   }
-}
-
-nsTextEditorState*
-nsHTMLInputElement::GetEditorState() const
-{
-  if (!IsSingleLineTextControl(PR_FALSE)) {
-    return nsnull;
-  }
-
-  NS_ASSERTION(mInputData.mState,
-    "Single line text controls need to have a state associated with them");
-
-  return mInputData.mState;
 }
 
 
@@ -590,9 +524,6 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLInputElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLInputElement,
                                                   nsGenericHTMLFormElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mControllers)
-  if (tmp->IsSingleLineTextControl(PR_FALSE)) {
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mInputData.mState, nsTextEditorState)
-  }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLInputElement, nsGenericElement) 
@@ -647,7 +578,7 @@ nsHTMLInputElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
         nsAutoString value;
         const_cast<nsHTMLInputElement*>(this)->GetValue(value);
         // SetValueInternal handles setting the VALUE_CHANGED bit for us
-        it->SetValueInternal(value, PR_FALSE);
+        it->SetValueInternal(value, nsnull, PR_FALSE);
       }
       break;
     case NS_FORM_INPUT_FILE:
@@ -776,17 +707,20 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
         mType = kInputDefaultType->value;
       }
     
-      // If we are changing type from File/Text/Tel/Passwd to other input types
-      // we need save the mValue into value attribute
-      if (mInputData.mValue &&
+      // If we are changing type from File/Text/Tel/Passwd
+      // to other input types we need save the mValue into value attribute
+      if (mValue &&
           mType != NS_FORM_INPUT_TEXT &&
           mType != NS_FORM_INPUT_SEARCH &&
           mType != NS_FORM_INPUT_PASSWORD &&
           mType != NS_FORM_INPUT_TEL &&
           mType != NS_FORM_INPUT_FILE) {
         SetAttr(kNameSpaceID_None, nsGkAtoms::value,
-                NS_ConvertUTF8toUTF16(mInputData.mValue), PR_FALSE);
-        FreeData();
+                NS_ConvertUTF8toUTF16(mValue), PR_FALSE);
+        if (mValue) {
+          nsMemory::Free(mValue);
+          mValue = nsnull;
+        }
       }
 
       if (mType != NS_FORM_INPUT_IMAGE) {
@@ -955,9 +889,40 @@ nsHTMLInputElement::SetSize(PRUint32 aValue)
 NS_IMETHODIMP 
 nsHTMLInputElement::GetValue(nsAString& aValue)
 {
-  nsTextEditorState* state = GetEditorState();
-  if (state) {
-    state->GetValue(aValue, PR_TRUE);
+  if (IsSingleLineTextControl(PR_FALSE)) {
+    // No need to flush here, if there's no frame created for this
+    // input yet, there won't be a value in it (that we don't already
+    // have) even if we force it to be created
+    nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_FALSE);
+
+    PRBool frameOwnsValue = PR_FALSE;
+    if (formControlFrame) {
+      nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
+      if (textControlFrame) {
+        textControlFrame->OwnsValue(&frameOwnsValue);
+      } else {
+        // We assume if it's not a text control frame that it owns the value
+        frameOwnsValue = PR_TRUE;
+      }
+    }
+
+    if (frameOwnsValue) {
+      formControlFrame->GetFormProperty(nsGkAtoms::value, aValue);
+    } else {
+      if (!GET_BOOLBIT(mBitField, BF_VALUE_CHANGED) || !mValue) {
+        GetDefaultValue(aValue);
+      } else {
+        CopyUTF8toUTF16(mValue, aValue);
+      }
+
+      // If the value is not owned by the frame, then we should handle any
+      // exiting newline characters inside it, instead of relying on the
+      // editor to do it for us.
+      nsString value(aValue);
+      nsTextEditRules::HandleNewLines(value, -1);
+      aValue.Assign(value);
+    }
+
     return NS_OK;
   }
 
@@ -1014,7 +979,7 @@ nsHTMLInputElement::SetValue(const nsAString& aValue)
     }
   }
   else {
-    SetValueInternal(aValue, PR_FALSE);
+    SetValueInternal(aValue, nsnull, PR_FALSE);
   }
 
   return NS_OK;
@@ -1080,106 +1045,21 @@ nsHTMLInputElement::SetUserInput(const nsAString& aValue)
   {
     SetSingleFileName(aValue);
   } else {
-    SetValueInternal(aValue, PR_TRUE);
+    SetValueInternal(aValue, nsnull, PR_TRUE);
   }
   return NS_OK;
 }
 
-NS_IMETHODIMP_(nsIEditor*)
-nsHTMLInputElement::GetTextEditor()
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    return state->GetEditor();
-  }
-  return nsnull;
-}
-
-NS_IMETHODIMP_(nsISelectionController*)
-nsHTMLInputElement::GetSelectionController()
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    return state->GetSelectionController();
-  }
-  return nsnull;
-}
-
-nsFrameSelection*
-nsHTMLInputElement::GetConstFrameSelection()
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    return state->GetConstFrameSelection();
-  }
-  return nsnull;
-}
-
 NS_IMETHODIMP
-nsHTMLInputElement::BindToFrame(nsTextControlFrame* aFrame)
+nsHTMLInputElement::TakeTextFrameValue(const nsAString& aValue)
 {
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    return state->BindToFrame(aFrame);
+  if (mValue) {
+    nsMemory::Free(mValue);
   }
-  return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP_(void)
-nsHTMLInputElement::UnbindFromFrame(nsTextControlFrame* aFrame)
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    state->UnbindFromFrame(aFrame);
-  }
-}
-
-NS_IMETHODIMP
-nsHTMLInputElement::CreateEditor()
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    return state->PrepareEditor();
-  }
-  return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP_(nsIContent*)
-nsHTMLInputElement::GetRootEditorNode()
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    return state->GetRootNode();
-  }
-  return nsnull;
-}
-
-NS_IMETHODIMP_(nsIContent*)
-nsHTMLInputElement::GetPlaceholderNode()
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    return state->GetPlaceholderNode();
-  }
-  return nsnull;
-}
-
-NS_IMETHODIMP_(void)
-nsHTMLInputElement::UpdatePlaceholderText(PRBool aNotify)
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    state->UpdatePlaceholderText(aNotify);
-  }
-}
-
-NS_IMETHODIMP_(void)
-nsHTMLInputElement::SetPlaceholderClass(PRBool aVisible, PRBool aNotify)
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    state->SetPlaceholderClass(aVisible, aNotify);
-  }
+  nsString value(aValue);
+  nsContentUtils::PlatformToDOMLineBreaks(value);
+  mValue = ToNewUTF8String(value);
+  return NS_OK;
 }
 
 void
@@ -1278,19 +1158,32 @@ nsHTMLInputElement::UpdateFileList()
 
 nsresult
 nsHTMLInputElement::SetValueInternal(const nsAString& aValue,
+                                     nsITextControlFrame* aFrame,
                                      PRBool aUserInput)
 {
   NS_PRECONDITION(mType != NS_FORM_INPUT_FILE,
                   "Don't call SetValueInternal for file inputs");
 
   if (IsSingleLineTextControl(PR_FALSE)) {
-    // Need to set the value changed flag here, so that
-    // nsTextControlFrame::UpdateValueDisplay retrieves the correct value
-    // if needed.
-    SetValueChanged(PR_TRUE);
-    mInputData.mState->SetValue(aValue, aUserInput);
+    nsIFormControlFrame* formControlFrame = aFrame;
+    if (!formControlFrame) {
+      // No need to flush here, if there's no frame at this point we
+      // don't need to force creation of one just to tell it about this
+      // new value.
+      formControlFrame = GetFormControlFrame(PR_FALSE);
+    }
 
-    return NS_OK;
+    if (formControlFrame) {
+      // Always set the value in the frame.  If the frame does not own the
+      // value yet (per OwnsValue()), it will turn around and call
+      // TakeTextFrameValue() on us, but will update its display with the new
+      // value if needed.
+      return formControlFrame->SetFormProperty(
+        aUserInput ? nsGkAtoms::userInput : nsGkAtoms::value, aValue);
+    }
+
+    SetValueChanged(PR_TRUE);
+    return TakeTextFrameValue(aValue);
   }
 
   if (mType == NS_FORM_INPUT_FILE) {
@@ -1317,8 +1210,9 @@ nsHTMLInputElement::SetValueChanged(PRBool aValueChanged)
 {
   SET_BOOLBIT(mBitField, BF_VALUE_CHANGED, aValueChanged);
   if (!aValueChanged) {
-    if (!IsSingleLineTextControl(PR_FALSE)) {
-      FreeData();
+    if (mValue) {
+      nsMemory::Free(mValue);
+      mValue = nsnull;
     }
   }
   return NS_OK;
@@ -2387,19 +2281,6 @@ nsHTMLInputElement::ParseAttribute(PRInt32 aNamespaceID,
           ClearFileNames();
         }
 
-        // Only single line text inputs have a text editor state.
-        PRBool isNewTypeSingleLine =
-          IsSingleLineTextControlInternal(PR_FALSE, newType);
-        PRBool isCurrentTypeSingleLine =
-          IsSingleLineTextControl(PR_FALSE);
-        if (isNewTypeSingleLine && !isCurrentTypeSingleLine) {
-          FreeData();
-          mInputData.mState = new nsTextEditorState(this);
-          NS_ADDREF(mInputData.mState);
-        } else if (isCurrentTypeSingleLine && !isNewTypeSingleLine) {
-          FreeData();
-        }
-
         mType = newType;
       }
 
@@ -3028,7 +2909,7 @@ nsHTMLInputElement::RestoreState(nsPresState* aState)
       case NS_FORM_INPUT_TEL:
       case NS_FORM_INPUT_HIDDEN:
         {
-          SetValueInternal(inputState->GetValue(), PR_FALSE);
+          SetValueInternal(inputState->GetValue(), nsnull, PR_FALSE);
           break;
         }
       case NS_FORM_INPUT_FILE:
@@ -3405,98 +3286,3 @@ NS_GetRadioGetCheckedChangedVisitor(PRBool* aCheckedChanged,
   return NS_OK;
 }
 
-NS_IMETHODIMP_(PRBool)
-nsHTMLInputElement::IsSingleLineTextControl() const
-{
-  return IsSingleLineTextControl(PR_FALSE);
-}
-
-NS_IMETHODIMP_(PRBool)
-nsHTMLInputElement::IsTextArea() const
-{
-  return PR_FALSE;
-}
-
-NS_IMETHODIMP_(PRBool)
-nsHTMLInputElement::IsPlainTextControl() const
-{
-  // need to check our HTML attribute and/or CSS.
-  return PR_TRUE;
-}
-
-NS_IMETHODIMP_(PRBool)
-nsHTMLInputElement::IsPasswordTextControl() const
-{
-  return mType == NS_FORM_INPUT_PASSWORD;
-}
-
-NS_IMETHODIMP_(PRInt32)
-nsHTMLInputElement::GetCols()
-{
-  // Else we know (assume) it is an input with size attr
-  const nsAttrValue* attr = GetParsedAttr(nsGkAtoms::size);
-  if (attr && attr->Type() == nsAttrValue::eInteger) {
-    PRInt32 cols = attr->GetIntegerValue();
-    if (cols > 0) {
-      return cols;
-    }
-  }
-
-  return DEFAULT_COLS;
-}
-
-NS_IMETHODIMP_(PRInt32)
-nsHTMLInputElement::GetWrapCols()
-{
-  return -1; // only textarea's can have wrap cols
-}
-
-NS_IMETHODIMP_(PRInt32)
-nsHTMLInputElement::GetRows()
-{
-  return DEFAULT_ROWS;
-}
-
-NS_IMETHODIMP_(void)
-nsHTMLInputElement::GetDefaultValueFromContent(nsAString& aValue)
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    GetDefaultValue(aValue);
-  }
-}
-
-NS_IMETHODIMP_(PRBool)
-nsHTMLInputElement::ValueChanged() const
-{
-  return GET_BOOLBIT(mBitField, BF_VALUE_CHANGED);
-}
-
-NS_IMETHODIMP_(void)
-nsHTMLInputElement::GetTextEditorValue(nsAString& aValue,
-                                       PRBool aIgnoreWrap) const
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    state->GetValue(aValue, aIgnoreWrap);
-  }
-}
-
-NS_IMETHODIMP_(void)
-nsHTMLInputElement::SetTextEditorValue(const nsAString& aValue,
-                                       PRBool aUserInput)
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    state->SetValue(aValue, aUserInput);
-  }
-}
-
-NS_IMETHODIMP_(void)
-nsHTMLInputElement::InitializeKeyboardEventListeners()
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    state->InitializeKeyboardEventListeners();
-  }
-}

@@ -68,7 +68,7 @@ public:
 
   // nsIStyleRule methods
   // The new mapping function.
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 
 protected:
   nsCSSStyleSheet*    mSheet;

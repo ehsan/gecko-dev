@@ -70,7 +70,6 @@ struct nsSVGEnumMapping;
 class nsSVGViewBox;
 class nsSVGPreserveAspectRatio;
 class nsSVGString;
-struct gfxMatrix;
 
 typedef nsStyledElement nsSVGElementBase;
 

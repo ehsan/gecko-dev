@@ -178,8 +178,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsLayoutUtils.h"
 #include "nsFrameManager.h"
 #include "BasicLayers.h"
-#include "nsFocusManager.h"
-#include "nsTextEditorState.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -1049,8 +1047,6 @@ nsContentUtils::Shutdown()
   NS_IF_RELEASE(sSameOriginChecker);
   
   nsAutoGCRoot::Shutdown();
-
-  nsTextEditorState::ShutDown();
 }
 
 // static
@@ -5955,15 +5951,6 @@ mozAutoRemovableBlockerRemover::~mozAutoRemovableBlockerRemover()
       mObserver->BeginUpdate(mDocument, UPDATE_CONTENT_MODEL);
     }
   }
-}
-
-// static
-PRBool
-nsContentUtils::IsFocusedContent(nsIContent* aContent)
-{
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-
-  return fm && fm->GetFocusedContent() == aContent;
 }
 
 void nsContentUtils::RemoveNewlines(nsString &aString)
