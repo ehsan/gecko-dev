@@ -31,7 +31,12 @@ interface mozAudioContext {
     [Creator]
     DelayNode createDelay(optional float maxDelayTime = 1);
     [Creator]
+    BiquadFilterNode createBiquadFilter();
+    [Creator]
     PannerNode createPanner();
+
+    [Creator]
+    DynamicsCompressorNode createDynamicsCompressor();
 
 };
 

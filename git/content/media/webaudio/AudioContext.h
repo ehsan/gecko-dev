@@ -27,7 +27,9 @@ class AudioBuffer;
 class AudioBufferSourceNode;
 class AudioDestinationNode;
 class AudioListener;
+class BiquadFilterNode;
 class DelayNode;
+class DynamicsCompressorNode;
 class GainNode;
 class PannerNode;
 
@@ -75,6 +77,12 @@ public:
 
   already_AddRefed<PannerNode>
   CreatePanner();
+
+  already_AddRefed<DynamicsCompressorNode>
+  CreateDynamicsCompressor();
+
+  already_AddRefed<BiquadFilterNode>
+  CreateBiquadFilter();
 
 private:
   nsCOMPtr<nsIDOMWindow> mWindow;
