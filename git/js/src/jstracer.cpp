@@ -5407,40 +5407,8 @@ ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
 
     JS_ASSERT(f->root == f && f->code() && f->vmprivate);
 
-    /*
-     * The JIT records and expects to execute with two scope-chain
-     * assumptions baked-in:
-     *
-     *   1. That the bottom of the scope chain is global, in the sense of
-     *      JSCLASS_IS_GLOBAL.
-     *
-     *   2. That the scope chain between fp and the global is free of
-     *      "unusual" native objects such as HTML forms or other funny
-     *      things.
-     *
-     * #2 is checked here while following the scope-chain links, via
-     * js_IsCacheableNonGlobalScope, which consults a whitelist of known
-     * class types; once a global is found, it's checked for #1. Failing
-     * either check causes an early return from execution.
-     */
-    JSObject* parent;
-    JSObject* child = cx->fp->scopeChain;
-    while ((parent = OBJ_GET_PARENT(cx, child)) != NULL) {
-        if (!js_IsCacheableNonGlobalScope(child)) {
-            debug_only_print0(LC_TMTracer,"Blacklist: non-cacheable object on scope chain.\n");
-            Blacklist((jsbytecode*) f->root->ip);
-            return NULL;
-        }
-        child = parent;
-    }
-    JSObject* globalObj = child;
-    if (!(OBJ_GET_CLASS(cx, globalObj)->flags & JSCLASS_IS_GLOBAL)) {
-        debug_only_print0(LC_TMTracer, "Blacklist: non-global at root of scope chain.\n");
-        Blacklist((jsbytecode*) f->root->ip);
-        return NULL;
-    }
-
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
+    JSObject* globalObj = JS_GetGlobalForObject(cx, cx->fp->scopeChain);
     TreeInfo* ti = (TreeInfo*)f->vmprivate;
     unsigned ngslots = ti->globalSlots->length();
     uint16* gslots = ti->globalSlots->data();
@@ -12801,24 +12769,29 @@ DumpPeerStability(JSTraceMonitor* tm, const void* ip, JSObject* globalObj, uint3
     for (f = getLoop(tm, ip, globalObj, globalShape, argc); f != NULL; f = f->peer) {
         if (!f->vmprivate)
             continue;
-        debug_only_printf(LC_TMStats, "fragment %p:\nENTRY: ", (void*)f);
+        debug_only_printf(LC_TMRecorder, "Stability of fragment %p:\nENTRY STACK=", (void*)f);
         ti = (TreeInfo*)f->vmprivate;
         if (looped)
             JS_ASSERT(ti->nStackTypes == length);
         for (unsigned i = 0; i < ti->nStackTypes; i++)
-            debug_only_printf(LC_TMStats, "S%d ", ti->stackTypeMap()[i]);
+            debug_only_printf(LC_TMRecorder, "%c", typeChar[ti->stackTypeMap()[i]]);
+        debug_only_print0(LC_TMRecorder, " GLOBALS=");
         for (unsigned i = 0; i < ti->nGlobalTypes(); i++)
-            debug_only_printf(LC_TMStats, "G%d ", ti->globalTypeMap()[i]);
-        debug_only_print0(LC_TMStats, "\n");
+            debug_only_printf(LC_TMRecorder, "%c", typeChar[ti->globalTypeMap()[i]]);
+        debug_only_print0(LC_TMRecorder, "\n");
         UnstableExit* uexit = ti->unstableExits;
         while (uexit != NULL) {
-            debug_only_print0(LC_TMStats, "EXIT:  ");
+            debug_only_print0(LC_TMRecorder, "EXIT  ");
             JSTraceType* m = GetFullTypeMap(uexit->exit);
+            debug_only_print0(LC_TMRecorder, "STACK=");
             for (unsigned i = 0; i < uexit->exit->numStackSlots; i++)
-                debug_only_printf(LC_TMStats, "S%d ", m[i]);
-            for (unsigned i = 0; i < uexit->exit->numGlobalSlots; i++)
-                debug_only_printf(LC_TMStats, "G%d ", m[uexit->exit->numStackSlots + i]);
-            debug_only_print0(LC_TMStats, "\n");
+                debug_only_printf(LC_TMRecorder, "%c", typeChar[m[i]]);
+            debug_only_print0(LC_TMRecorder, " GLOBALS=");
+            for (unsigned i = 0; i < uexit->exit->numGlobalSlots; i++) {
+                debug_only_printf(LC_TMRecorder, "%c",
+                                  typeChar[m[uexit->exit->numStackSlots + i]]);
+            }
+            debug_only_print0(LC_TMRecorder, "\n");
             uexit = uexit->next;
         }
         length = ti->nStackTypes;
