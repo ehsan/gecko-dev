@@ -15,7 +15,6 @@
 #include "jsgc.h"
 #include "jsonparser.h"
 #include "jsprf.h"
-#include "jstypes.h"
 #include "jswatchpoint.h"
 
 #include "builtin/MapObject.h"

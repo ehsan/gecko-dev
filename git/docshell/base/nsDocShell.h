@@ -846,7 +846,6 @@ protected:
     bool                       mInEnsureScriptEnv;
 #endif
     bool                       mAffectPrivateSessionLifetime;
-    bool                       mInvisible;
     uint64_t                   mHistoryID;
     uint32_t                   mDefaultLoadFlags;
 
@@ -870,10 +869,9 @@ protected:
 private:
     nsCString         mForcedCharset;
     nsCString         mParentCharset;
-    int32_t           mParentCharsetSource;
-    nsCOMPtr<nsIPrincipal> mParentCharsetPrincipal;
     nsTObserverArray<nsWeakPtr> mPrivacyObservers;
     nsTObserverArray<nsWeakPtr> mReflowObservers;
+    int32_t           mParentCharsetSource;
     nsCString         mOriginalUriString;
 
     // Separate function to do the actual name (i.e. not _top, _self etc.)

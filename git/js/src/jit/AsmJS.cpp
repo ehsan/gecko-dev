@@ -30,7 +30,6 @@
 #include "vm/Interpreter.h"
 
 #include "jsinferinlines.h"
-#include "jsobjinlines.h"
 
 #include "frontend/ParseNode-inl.h"
 #include "frontend/Parser-inl.h"

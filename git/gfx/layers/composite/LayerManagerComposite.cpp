@@ -726,7 +726,6 @@ LayerComposite::LayerComposite(LayerManagerComposite *aManager)
   , mUseShadowClipRect(false)
   , mShadowTransformSetByAnimation(false)
   , mDestroyed(false)
-  , mLayerComposited(false)
 { }
 
 LayerComposite::~LayerComposite()

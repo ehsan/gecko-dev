@@ -313,7 +313,7 @@ proxy_MaskIPv6Addr(PRIPv6Addr &addr, uint16_t mask_len)
 }
 
 static bool ConvertToIPV6Addr(const nsACString& aName,
-                                PRIPv6Addr* aAddr, int32_t* aMask)
+                                PRIPv6Addr* aAddr)
 {
   PRNetAddr addr;
   // try to convert hostname to IP
@@ -324,12 +324,6 @@ static bool ConvertToIPV6Addr(const nsACString& aName,
   if (addr.raw.family == PR_AF_INET) {
     // convert to IPv4-mapped address
     PR_ConvertIPv4AddrToIPv6(addr.inet.ip, aAddr);
-    if (aMask) {
-      if (*aMask <= 32)
-        *aMask += 96;
-      else
-        return false;
-    }
   } else if (addr.raw.family == PR_AF_INET6) {
     // copy the address
     memcpy(aAddr, &addr.ipv6.ip, sizeof(PRIPv6Addr));
@@ -374,8 +368,8 @@ static bool HostIgnoredByProxy(const nsACString& aIgnore,
 
   nsDependentCSubstring ignoreStripped(start, slash);
   PRIPv6Addr ignoreAddr, hostAddr;
-  if (!ConvertToIPV6Addr(ignoreStripped, &ignoreAddr, &mask) ||
-      !ConvertToIPV6Addr(aHost, &hostAddr, NULL))
+  if (!ConvertToIPV6Addr(ignoreStripped, &ignoreAddr) ||
+      !ConvertToIPV6Addr(aHost, &hostAddr))
     return false;
 
   proxy_MaskIPv6Addr(ignoreAddr, mask);

@@ -45,17 +45,15 @@
     }, cbError);
   }
 
-  var itemNumber = 60;
-
   function testStoreAdd() {
     var objects = [];
-    for (var i = 0; i < itemNumber; ++i) {
+    for (var i = 0; i < 300; ++i) {
       objects.push(i);
     }
 
     function testStoreAddInternal() {
       if (!objects.length) {
-        ok(true, "We inserted " + itemNumber + " items");
+        ok(true, "We inserted 300 items");
         runTest();
         return;
       }
@@ -72,7 +70,7 @@
 
   function testStoreGet() {
     var objects = [];
-    for (var i = 1; i <= itemNumber; ++i) {
+    for (var i = 1; i <= 300; ++i) {
       objects.push(i);
     }
 
