@@ -24,10 +24,15 @@ let WeaveGlue = {
 
     if (service.ready) {
       this._init();
-    } else {
-      Services.obs.addObserver(this, "weave:service:ready", false);
-      service.ensureLoaded();
+      return;
     }
+
+    Services.obs.addObserver(function onReady() {
+      Services.obs.removeObserver(onReady, "weave:service:ready");
+      this._init();
+    }.bind(this), "weave:service:ready", false);
+
+    service.ensureLoaded();
   },
 
   _init: function () {
@@ -420,12 +425,6 @@ let WeaveGlue = {
   },
 
   observe: function observe(aSubject, aTopic, aData) {
-    if (aTopic == "weave:service:ready") {
-      Services.obs.removeObserver(this, aTopic);
-      this._init();
-      return;
-    }
-
     // Make sure we're online when connecting/syncing
     Util.forceOnline();
 
