@@ -684,7 +684,7 @@ CalcAvailWidth(nsTableFrame&     aTableFrame,
     else {
       aColAvailWidth += colWidth;
     }
-    if ((spanX > 0) && aTableFrame.ColumnHasCellSpacingBefore(colIndex + spanX)) {
+    if ((spanX > 0) && (aTableFrame.GetNumCellsOriginatingInCol(colIndex + spanX) > 0)) {
       cellSpacing += aCellSpacingX;
     }
   }
@@ -723,7 +723,7 @@ GetSpaceBetween(PRInt32       aPrevColIndex,
         if (!isCollapsed)
           space += aTableFrame.GetColumnWidth(colX);
       }
-      if (!isCollapsed && aTableFrame.ColumnHasCellSpacingBefore(colX)) {
+      if (!isCollapsed && (aTableFrame.GetNumCellsOriginatingInCol(colX) > 0)) {
         space += aCellSpacingX;
       }
     }
@@ -747,7 +747,7 @@ GetSpaceBetween(PRInt32       aPrevColIndex,
         if (!isCollapsed)
           space += aTableFrame.GetColumnWidth(colX);
       }
-      if (!isCollapsed && aTableFrame.ColumnHasCellSpacingBefore(colX)) {
+      if (!isCollapsed && (aTableFrame.GetNumCellsOriginatingInCol(colX) > 0)) {
         space += aCellSpacingX;
       }
     }
@@ -1242,7 +1242,7 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
             const nsStyleVisibility* nextColVis =
               nextColFrame->GetStyleVisibility();
             if ( (NS_STYLE_VISIBILITY_COLLAPSE != nextColVis->mVisible) &&
-                tableFrame->ColumnHasCellSpacingBefore(colX + colIncrement)) {
+                (tableFrame->GetNumCellsOriginatingInCol(colX + colIncrement) > 0)) {
               cRect.width += cellSpacingX;
             }
           }

@@ -1679,7 +1679,7 @@ nsObjectLoadingContent::TryInstantiate(const nsACString& aMIMEType,
   }
 
   nsCOMPtr<nsIPluginInstance> instance;
-  frame->GetPluginInstance(*getter_AddRefs(instance));
+  nsresult rv = frame->GetPluginInstance(*getter_AddRefs(instance));
 
   if (!instance) {
     // The frame has no plugin instance yet. If the frame hasn't been

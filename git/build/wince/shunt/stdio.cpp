@@ -95,7 +95,9 @@ _getnewfd()
 
 MOZCE_SHUNT_API int _waccess(const wchar_t *path, int mode)
 {
-    WINCE_LOG_API_CALL("-- _waccess called\n");
+#ifdef API_LOGGING
+    mozce_printf("-- _waccess called\n");
+#endif
     
     return 0;
 }
@@ -103,14 +105,18 @@ MOZCE_SHUNT_API int _waccess(const wchar_t *path, int mode)
 
 MOZCE_SHUNT_API int access(const char *path, int mode)
 {
-    WINCE_LOG_API_CALL("-- access called\n");
+#ifdef API_LOGGING
+    mozce_printf("-- access called\n");
+#endif
     
     return 0;
 }
 
 MOZCE_SHUNT_API void rewind(FILE* inStream)
 {
-    WINCE_LOG_API_CALL("rewind called\n");
+#ifdef API_LOGGING
+        mozce_printf("rewind called\n");
+#endif
     
     fseek(inStream, 0, SEEK_SET);
 }
@@ -118,7 +124,10 @@ MOZCE_SHUNT_API void rewind(FILE* inStream)
 
 MOZCE_SHUNT_API FILE* fdopen(int fd, const char* inMode)
 {
-    WINCE_LOG_API_CALL("-- fdopen called (mode is ignored!) \n");
+#ifdef API_LOGGING
+        mozce_printf("-- fdopen called (mode is ignored!) \n");
+#endif
+    
     
     if(fd < 0 || fd >= MAXFDS || _fdtab[fd].fd == -1)
         return 0;
@@ -129,7 +138,9 @@ MOZCE_SHUNT_API FILE* fdopen(int fd, const char* inMode)
 
 MOZCE_SHUNT_API void perror(const char* inString)
 {
-    WINCE_LOG_API_CALL("perror called\n");
+#ifdef API_LOGGING
+        mozce_printf("perror called\n");
+#endif
     
     fprintf(stderr, "%s", inString);
 }
@@ -137,7 +148,9 @@ MOZCE_SHUNT_API void perror(const char* inString)
 
 MOZCE_SHUNT_API int remove(const char* inPath)
 {
-    WINCE_LOG_API_CALL_1("remove called on %s\n", inPath);
+#ifdef API_LOGGING
+        mozce_printf("remove called on %s\n", inPath);
+#endif
     
     int retval = -1;
     
@@ -160,8 +173,9 @@ MOZCE_SHUNT_API int remove(const char* inPath)
 
 MOZCE_SHUNT_API char* getcwd(char* buff, size_t size)
 {
-    WINCE_LOG_API_CALL("getcwd called.\n");
-
+#ifdef API_LOGGING
+        mozce_printf("getcwd called.\n");
+#endif
     int i;
     unsigned short dir[MAX_PATH];
     GetModuleFileName(GetModuleHandle (NULL), dir, MAX_PATH);
@@ -189,10 +203,6 @@ MOZCE_SHUNT_API int mozce_printf(const char * format, ...)
     mbstowcs(tBuf, buf, MAX_CHARS_IN_VARIABLE_STRING);
     
     OutputDebugString(tBuf);
-
-#ifdef SHUNT_LOG_ENABLED
-    mozce_DebugWriteToLog(buf);
-#endif
     
     return 1;
     //#endif
@@ -230,7 +240,9 @@ static void mode2binstr(int mode, char* buffer)
 
 MOZCE_SHUNT_API int open(const char *pathname, int flags, int mode)
 {
-    WINCE_LOG_API_CALL("open called\n");
+#ifdef API_LOGGING
+        mozce_printf("open called\n");
+#endif
     
     _initfds();
     
@@ -264,10 +276,16 @@ MOZCE_SHUNT_API int open(const char *pathname, int flags, int mode)
 
 MOZCE_SHUNT_API int close(int fd)
 {
-    WINCE_LOG_API_CALL("close called\n");
+#ifdef API_LOGGING
+        mozce_printf("close called\n");
+#endif
+    
+    
+    
     
     if(fd < 0 || fd >= MAXFDS || _fdtab[fd].fd == -1)
         return -1;
+    
     
     fclose(_fdtab[fd].file);
     _fdtab[fd].fd = -1;
@@ -277,7 +295,9 @@ MOZCE_SHUNT_API int close(int fd)
 
 MOZCE_SHUNT_API size_t read(int fd, void* buffer, size_t count)
 {
-    WINCE_LOG_API_CALL("read called\n");
+#ifdef API_LOGGING
+        mozce_printf("read called\n");
+#endif
     
     if(fd < 0 || fd >= MAXFDS || _fdtab[fd].fd == -1)
         return -1;
@@ -293,7 +313,9 @@ MOZCE_SHUNT_API size_t read(int fd, void* buffer, size_t count)
 
 MOZCE_SHUNT_API size_t write(int fd, const void* buffer, size_t count)
 {
-    WINCE_LOG_API_CALL("write called\n");
+#ifdef API_LOGGING
+        mozce_printf("write called\n");
+#endif
     
     if(fd < 0 || fd >= MAXFDS || _fdtab[fd].fd == -1)
         return -1;
@@ -308,14 +330,19 @@ MOZCE_SHUNT_API size_t write(int fd, const void* buffer, size_t count)
 
 MOZCE_SHUNT_API int unlink(const char *pathname)
 {
-    WINCE_LOG_API_CALL("unlink called\n");
+#ifdef API_LOGGING
+        mozce_printf("unlink called\n");
+#endif
     return remove(pathname);
 }
 
 
 MOZCE_SHUNT_API int lseek(int fd, int offset, int whence)
 {
-    WINCE_LOG_API_CALL("lseek called\n");
+#ifdef API_LOGGING
+        mozce_printf("lseek called\n");
+#endif
+    
     
     if(fd < 0 || fd >= MAXFDS || _fdtab[fd].fd == -1)
         return -1;
