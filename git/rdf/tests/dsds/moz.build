@@ -6,12 +6,10 @@
 
 MODULE = 'rdf'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsRDFDataSourceDS.cpp',
     'nsRDFDataSourceFactory.cpp',
 ]
 
 LIBRARY_NAME = 'rdfdsds'
-
-IS_COMPONENT = True
 

@@ -36,7 +36,7 @@
         'iLBC',
         'iSAC',
         'CNG',
-        '<(webrtc_root)/common_audio/common_audio.gyp:common_audio',
+        '<(webrtc_root)/common_audio/common_audio.gyp:vad',
       ],
       'defines': [
         'CODEC_ILBC',

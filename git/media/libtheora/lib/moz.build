@@ -8,22 +8,3 @@ MODULE = 'theora'
 
 LIBRARY_NAME = 'theora'
 
-SOURCES += [
-    'apiwrapper.c',
-    'bitpack.c',
-    'decapiwrapper.c',
-    'decinfo.c',
-    'decode.c',
-    'dequant.c',
-    'fragment.c',
-    'huffdec.c',
-    'idct.c',
-    'info.c',
-    'internal.c',
-    'quant.c',
-    'state.c',
-]
-
-MSVC_ENABLE_PGO = True
-
-FORCE_STATIC_LIB = True

@@ -14,12 +14,6 @@
 #include "mozilla/dom/Nullable.h"
 #include "mozilla/ErrorResult.h"
 
-namespace mozilla {
-namespace dom {
-class EventListener;
-class EventHandlerNonNull;
-} // namespace mozilla
-} // namespace dom
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -43,12 +37,12 @@ public:
   _finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
 
   void
-  AddEventListener(const nsAString& aType, EventListener* aListener,
+  AddEventListener(const nsAString& aType, JS::Handle<JSObject*> aListener,
                    bool aCapture, Nullable<bool> aWantsUntrusted,
                    ErrorResult& aRv);
 
   void
-  RemoveEventListener(const nsAString& aType, EventListener* aListener,
+  RemoveEventListener(const nsAString& aType, JS::Handle<JSObject*> aListener,
                       bool aCapture, ErrorResult& aRv);
 
   bool
@@ -57,11 +51,11 @@ public:
     return mListenerManager.DispatchEvent(GetJSContext(), *this, aEvent, aRv);
   }
 
-  already_AddRefed<EventHandlerNonNull>
+  JSObject*
   GetEventListener(const nsAString& aType, ErrorResult& aRv) const;
 
   void
-  SetEventListener(const nsAString& aType, EventHandlerNonNull* aListener,
+  SetEventListener(const nsAString& aType, JS::Handle<JSObject*> aListener,
                    ErrorResult& aRv);
 
   bool
@@ -70,14 +64,13 @@ public:
     return mListenerManager.HasListeners();
   }
 
-  void SetEventHandler(const nsAString& aType, EventHandlerNonNull* aHandler,
+  void SetEventHandler(JSContext*, const nsAString& aType, JSObject* aHandler,
                        ErrorResult& rv)
   {
     rv.Throw(NS_ERROR_NOT_IMPLEMENTED);
   }
 
-  EventHandlerNonNull*
-  GetEventHandler(const nsAString& aType)
+  JSObject* GetEventHandler(JSContext*, const nsAString& aType)
   {
     return nullptr;
   }

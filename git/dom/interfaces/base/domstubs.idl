@@ -37,6 +37,7 @@ interface DOMException;
 
 // Style Sheets
 interface nsIDOMStyleSheetList;
+interface nsIDOMLinkStyle;
 interface nsIDOMStyleSheet;
 interface nsIDOMMediaList;
 
@@ -45,6 +46,7 @@ interface nsIDOMWindow;
 interface nsIDOMWindowCollection;
 interface nsIDOMNavigator;
 interface nsIDOMScreen;
+interface nsIDOMHistory;
 
 // Events
 interface nsIDOMEvent;
@@ -85,4 +87,5 @@ interface nsIDOMFontFace;
 interface nsIDOMFontFaceList;
 
 // Power
+interface nsIDOMMozPowerManager;
 interface nsIDOMMozWakeLock;

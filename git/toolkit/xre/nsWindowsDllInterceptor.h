@@ -104,14 +104,14 @@ public:
 
       // I don't think this is actually necessary, but it can't hurt.
       FlushInstructionCache(GetCurrentProcess(),
-                            /* ignored */ nullptr,
+                            /* ignored */ NULL,
                             /* ignored */ 0);
     }
   }
 
   void Init(const char *modulename)
   {
-    mModule = LoadLibraryExA(modulename, nullptr, 0);
+    mModule = LoadLibraryExA(modulename, NULL, 0);
     if (!mModule) {
       //printf("LoadLibraryEx for '%s' failed\n", modulename);
       return;
@@ -194,7 +194,7 @@ public:
 
     // I think this routine is safe without this, but it can't hurt.
     FlushInstructionCache(GetCurrentProcess(),
-                          /* ignored */ nullptr,
+                          /* ignored */ NULL,
                           /* ignored */ 0);
 
     return true;
@@ -256,7 +256,7 @@ public:
     if (mModule)
       return;
 
-    mModule = LoadLibraryExA(modulename, nullptr, 0);
+    mModule = LoadLibraryExA(modulename, NULL, 0);
     if (!mModule) {
       //printf("LoadLibraryEx for '%s' failed\n", modulename);
       return;
@@ -268,8 +268,7 @@ public:
 
     mMaxHooks = nhooks + (hooksPerPage % nhooks);
 
-    mHookPage = (byteptr_t) VirtualAllocEx(GetCurrentProcess(), nullptr,
-             mMaxHooks * kHookSize,
+    mHookPage = (byteptr_t) VirtualAllocEx(GetCurrentProcess(), NULL, mMaxHooks * kHookSize,
              MEM_COMMIT | MEM_RESERVE,
              PAGE_EXECUTE_READWRITE);
 
@@ -328,7 +327,7 @@ protected:
                         intptr_t dest,
                         void **outTramp)
   {
-    *outTramp = nullptr;
+    *outTramp = NULL;
 
     byteptr_t tramp = FindTrampolineSpace();
     if (!tramp)
@@ -493,7 +492,7 @@ protected:
               (origBytes[nBytes+1] & 0x07) == 0x5) {
             // [rip+disp32]
             // convert JMP 32bit offset to JMP 64bit direct
-            directJmpAddr = (byteptr_t)*((uint64_t*)(origBytes + nBytes + 6 + (*((int32_t*)(origBytes + nBytes + 2)))));
+            directJmpAddr = (byteptr_t)*((uint64_t*)(origBytes + nBytes + 6 + (*((uint32_t*)(origBytes + nBytes + 2)))));
             nBytes += 6;
           } else {
             // not support yet!
@@ -518,7 +517,7 @@ protected:
       } else if (origBytes[nBytes] == 0xe9) {
         pJmp32 = nBytes;
         // convert JMP 32bit offset to JMP 64bit direct
-        directJmpAddr = origBytes + pJmp32 + 5 + (*((int32_t*)(origBytes + pJmp32 + 1)));
+        directJmpAddr = origBytes + pJmp32 + 5 + (*((uint32_t*)(origBytes + pJmp32 + 1)));
         // jmp 32bit offset
         nBytes += 5;
       } else if (origBytes[nBytes] == 0xff) {
@@ -643,7 +642,7 @@ class WindowsDllInterceptor
 
 public:
   WindowsDllInterceptor()
-    : mModuleName(nullptr)
+    : mModuleName(NULL)
     , mNHooks(0)
   {}
 

@@ -11,7 +11,6 @@
 // http://www.chromium.org/spdy/spdy-protocol/spdy-protocol-draft2
 
 #include "ASpdySession.h"
-#include "nsAHttpConnection.h"
 #include "nsClassHashtable.h"
 #include "nsDataHashtable.h"
 #include "nsDeque.h"
@@ -19,6 +18,7 @@
 #include "zlib.h"
 #include "mozilla/Attributes.h"
 
+class nsHttpConnection;
 class nsISocketTransport;
 
 namespace mozilla { namespace net {

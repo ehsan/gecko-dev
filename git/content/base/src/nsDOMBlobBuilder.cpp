@@ -15,7 +15,6 @@
 #include "nsJSUtils.h"
 #include "nsContentUtils.h"
 #include "nsIScriptError.h"
-#include "nsIXPConnect.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -187,12 +186,21 @@ nsDOMMultipartFile::InitBlob(JSContext* aCx,
 {
   bool nativeEOL = false;
   if (aArgc > 1) {
-    BlobPropertyBag d;
-    if (!d.Init(aCx, JS::Handle<JS::Value>::fromMarkedLocation(&aArgv[1]))) {
-      return NS_ERROR_TYPE_ERR;
+    if (NS_IsMainThread()) {
+      BlobPropertyBag d;
+      if (!d.Init(aCx, JS::Handle<JS::Value>::fromMarkedLocation(&aArgv[1]))) {
+        return NS_ERROR_TYPE_ERR;
+      }
+      mContentType = d.mType;
+      nativeEOL = d.mEndings == EndingTypes::Native;
+    } else {
+      BlobPropertyBagWorkers d;
+      if (!d.Init(aCx, JS::Handle<JS::Value>::fromMarkedLocation(&aArgv[1]))) {
+        return NS_ERROR_TYPE_ERR;
+      }
+      mContentType = d.mType;
+      nativeEOL = d.mEndings == EndingTypes::Native;
     }
-    mContentType = d.mType;
-    nativeEOL = d.mEndings == EndingTypes::Native;
   }
 
   if (aArgc > 0) {
@@ -211,7 +219,7 @@ nsDOMMultipartFile::InitBlob(JSContext* aCx,
     JS_ALWAYS_TRUE(JS_GetArrayLength(aCx, obj, &length));
     for (uint32_t i = 0; i < length; ++i) {
       JS::Rooted<JS::Value> element(aCx);
-      if (!JS_GetElement(aCx, obj, i, &element))
+      if (!JS_GetElement(aCx, obj, i, element.address()))
         return NS_ERROR_TYPE_ERR;
 
       if (element.isObject()) {
@@ -254,22 +262,6 @@ nsDOMMultipartFile::InitBlob(JSContext* aCx,
   }
 
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMMultipartFile::GetMozFullPathInternal(nsAString &aFilename)
-{
-  if (!mIsFromNsiFile || mBlobs.Length() == 0) {
-    return nsDOMFile::GetMozFullPathInternal(aFilename);
-  }
-
-  nsIDOMBlob* blob = mBlobs.ElementAt(0).get();
-  nsDOMFileFile* file = static_cast<nsDOMFileFile*>(blob);
-  if (!file) {
-    return nsDOMFile::GetMozFullPathInternal(aFilename);
-  }
-
-  return file->GetMozFullPathInternal(aFilename);
 }
 
 nsresult
@@ -321,8 +313,6 @@ nsDOMMultipartFile::InitFile(JSContext* aCx,
     if (!blob && !file) {
       return NS_ERROR_UNEXPECTED;
     }
-
-    mIsFromNsiFile = true;
   } else {
     // It's a string
     JSString* str = JS_ValueToString(aCx, aArgv[0]);

@@ -5,10 +5,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "AudioParam.h"
+#include "nsContentUtils.h"
+#include "nsIDOMWindow.h"
+#include "mozilla/ErrorResult.h"
 #include "mozilla/dom/AudioParamBinding.h"
 #include "AudioNodeEngine.h"
 #include "AudioNodeStream.h"
-#include "AudioContext.h"
 
 namespace mozilla {
 namespace dom {

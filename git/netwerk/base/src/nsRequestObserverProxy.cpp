@@ -8,7 +8,9 @@
 #include "nscore.h"
 #include "nsRequestObserverProxy.h"
 #include "nsIRequest.h"
+#include "nsIServiceManager.h"
 #include "nsAutoPtr.h"
+#include "nsString.h"
 #include "prlog.h"
 
 using namespace mozilla;

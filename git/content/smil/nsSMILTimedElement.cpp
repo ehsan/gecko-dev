@@ -5,7 +5,6 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "mozilla/BasicEvents.h"
 #include "mozilla/dom/SVGAnimationElement.h"
 #include "nsSMILTimedElement.h"
 #include "nsAttrValueInlines.h"
@@ -16,6 +15,7 @@
 #include "nsSMILParserUtils.h"
 #include "nsSMILTimeContainer.h"
 #include "nsGkAtoms.h"
+#include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsReadableUtils.h"
 #include "nsMathUtils.h"
@@ -92,7 +92,7 @@ namespace
 
     NS_IMETHOD Run()
     {
-      InternalUIEvent event(true, mMsg, mDetail);
+      nsUIEvent event(true, mMsg, mDetail);
       event.eventStructType = NS_SMIL_TIME_EVENT;
 
       nsPresContext* context = nullptr;
@@ -232,6 +232,7 @@ nsSMILTimedElement::nsSMILTimedElement()
   mSimpleDur.SetIndefinite();
   mMin.SetMillis(0L);
   mMax.SetIndefinite();
+  mTimeDependents.Init();
 }
 
 nsSMILTimedElement::~nsSMILTimedElement()

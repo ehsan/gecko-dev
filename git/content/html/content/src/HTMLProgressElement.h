@@ -16,11 +16,24 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLProgressElement MOZ_FINAL : public nsGenericHTMLElement
+class HTMLProgressElement MOZ_FINAL : public nsGenericHTMLElement,
+                                      public nsIDOMHTMLElement
 {
 public:
   HTMLProgressElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~HTMLProgressElement();
+
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
 
   nsEventStates IntrinsicState() const MOZ_OVERRIDE;
 
@@ -29,16 +42,18 @@ public:
   bool ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
                         const nsAString& aValue, nsAttrValue& aResult) MOZ_OVERRIDE;
 
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
+
   // WebIDL
   double Value() const;
   void SetValue(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::value, aValue, aRv);
+    aRv = SetDoubleAttr(nsGkAtoms::value, aValue);
   }
   double Max() const;
   void SetMax(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::max, aValue, aRv);
+    aRv = SetDoubleAttr(nsGkAtoms::max, aValue);
   }
   double Position() const;
 

@@ -6,11 +6,13 @@
 #include "nsAutoWindowStateHelper.h"
 
 #include "nsDOMEvent.h"
+#include "nsGUIEvent.h"
 #include "nsIDocument.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsString.h"
+#include "nsGUIEvent.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -26,7 +28,7 @@ nsAutoWindowStateHelper::nsAutoWindowStateHelper(nsIDOMWindow *aWindow)
   nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(aWindow));
 
   if (window) {
-    window->EnterModalState();
+    mCallerWindow = window->EnterModalState();
   }
 }
 
@@ -35,7 +37,7 @@ nsAutoWindowStateHelper::~nsAutoWindowStateHelper()
   nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mWindow));
 
   if (window) {
-    window->LeaveModalState();
+    window->LeaveModalState(mCallerWindow);
   }
 
   if (mDefaultEnabled) {

@@ -19,6 +19,7 @@ Login Manager test: XHR prompt
 <script class="testbody" type="text/javascript">
 
 /** Test for Login Manager: XHR prompts. **/
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 var pwmgr, login1, login2;
 
 function initLogins() {
@@ -48,6 +49,7 @@ function finishTest() {
 }
 
 function handleDialog(doc, testNum) {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   ok(true, "handleDialog running for test " + testNum);
 
   var clickOK = true;
@@ -100,6 +102,7 @@ function handleDialog(doc, testNum) {
 
 var newWin;
 function xhrLoad(xmlDoc) {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   ok(true, "xhrLoad running for test " + testNum);
 
   // The server echos back the user/pass it received.
@@ -165,8 +168,8 @@ initLogins();
 
 // clear plain HTTP auth sessions before the test, to allow
 // running them more than once.
-var authMgr = SpecialPowers.Cc['@mozilla.org/network/http-auth-manager;1']
-                        .getService(SpecialPowers.Ci.nsIHttpAuthManager);
+var authMgr = Components.classes['@mozilla.org/network/http-auth-manager;1']
+                        .getService(Components.interfaces.nsIHttpAuthManager);
 authMgr.clearAll();
 
 // start the tests

@@ -6,8 +6,10 @@
 #ifndef nsSaveAsCharset_h__
 #define nsSaveAsCharset_h__
 
-#include "nsStringFwd.h"
+#include "nsIFactory.h"
+#include "nsString.h"
 #include "nsTArray.h"
+#include "nsICharsetConverterManager.h"
 #include "nsISaveAsCharset.h"
 
 

@@ -1,4 +1,5 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* vim:ts=2:sts=2:sw=2:
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -7,9 +8,6 @@
 module.metadata = {
   'stability': 'unstable'
 };
-
-const { defer } = require('../core/promise');
-const { setInterval, clearInterval } = require('../timers');
 
 function getTestNames (exports)
   Object.keys(exports).filter(name => /^test/.test(name))
@@ -96,14 +94,3 @@ function after (exports, afterFn) {
   });
 }
 exports.after = after;
-
-function waitUntil (predicate, delay) {
-  let { promise, resolve } = defer();
-  let interval = setInterval(() => {
-    if (!predicate()) return;
-    clearInterval(interval);
-    resolve();
-  }, delay || 10);
-  return promise;
-}
-exports.waitUntil = waitUntil;

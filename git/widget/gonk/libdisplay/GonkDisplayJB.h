@@ -37,17 +37,11 @@ public:
 
     virtual void* GetHWCDevice();
 
-    virtual void* GetFBSurface();
-
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur);
 
     virtual ANativeWindowBuffer* DequeueBuffer();
 
     virtual bool QueueBuffer(ANativeWindowBuffer* buf);
-
-    virtual void UpdateFBSurface(EGLDisplay dpy, EGLSurface sur);
-
-    virtual void SetFBReleaseFd(int fd);
 
     bool Post(buffer_handle_t buf, int fence);
 

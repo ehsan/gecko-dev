@@ -34,14 +34,6 @@ from mozbuild.util import (
 )
 
 
-def alphabetical_sorted(iterable, cmp=None, key=lambda x: x.lower(),
-                        reverse=False):
-    """sorted() replacement for the sandbox, ordering alphabetically by
-    default.
-    """
-    return sorted(iterable, cmp, key, reverse)
-
-
 class GlobalNamespace(dict):
     """Represents the globals namespace in a sandbox.
 
@@ -82,7 +74,6 @@ class GlobalNamespace(dict):
         'None': None,
         'False': False,
         'True': True,
-        'sorted': alphabetical_sorted,
     })
 
     def __init__(self, allowed_variables=None, builtins=None):
@@ -123,14 +114,7 @@ class GlobalNamespace(dict):
             self.last_name_error = KeyError('global_ns', 'get_unknown', name)
             raise self.last_name_error
 
-        # If the default is specifically a lambda (or, rather, any function--but
-        # not a class that can be called), then it is actually a rule to
-        # generate the default that should be used.
-        default_rule = default[2]
-        if isinstance(default_rule, type(lambda: None)):
-            default_rule = default_rule(self)
-
-        dict.__setitem__(self, name, copy.deepcopy(default_rule))
+        dict.__setitem__(self, name, copy.deepcopy(default[2]))
         return dict.__getitem__(self, name)
 
     def __setitem__(self, name, value):
@@ -140,8 +124,8 @@ class GlobalNamespace(dict):
 
         # We don't need to check for name.isupper() here because LocalNamespace
         # only sends variables our way if isupper() is True.
-        stored_type, input_type, default, docs, tier = \
-            self._allowed_variables.get(name, (None, None, None, None, None))
+        stored_type, input_type, default, docs = \
+            self._allowed_variables.get(name, (None, None, None, None))
 
         # Variable is unknown.
         if stored_type is None:
@@ -283,7 +267,6 @@ class Sandbox(object):
         """
         self._globals = GlobalNamespace(allowed_variables=allowed_variables,
             builtins=builtins)
-        self._allowed_variables = allowed_variables
         self._locals = LocalNamespace(self._globals)
         self._execution_stack = []
         self.main_path = None
@@ -380,8 +363,3 @@ class Sandbox(object):
 
     def get(self, key, default=None):
         return self._globals.get(key, default)
-
-    def get_affected_tiers(self):
-        tiers = (self._allowed_variables[key][4] for key in self
-                 if key in self._allowed_variables)
-        return set(tier for tier in tiers if tier)

@@ -14,7 +14,9 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 
-#include "vm/ScopeObject.h"
+#include "jit/IonFrames.h"
+
+#include "vm/ScopeObject-inl.h"
 
 namespace js {
 namespace jit {

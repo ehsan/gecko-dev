@@ -14,10 +14,8 @@
 
 #include <stdlib.h>
 #include <string.h>
-
 #include "jstypes.h"
-
-#include "js/Utility.h"
+#include "jsutil.h"
 
 using namespace js;
 
@@ -64,7 +62,7 @@ DefaultFreeEntry(void *pool, JSHashEntry *he, unsigned flag)
         js_free(he);
 }
 
-static const JSHashAllocOps defaultHashAllocOps = {
+static JSHashAllocOps defaultHashAllocOps = {
     DefaultAllocTable, DefaultFreeTable,
     DefaultAllocEntry, DefaultFreeEntry
 };
@@ -72,7 +70,7 @@ static const JSHashAllocOps defaultHashAllocOps = {
 JSHashTable *
 JS_NewHashTable(uint32_t n, JSHashFunction keyHash,
                 JSHashComparator keyCompare, JSHashComparator valueCompare,
-                const JSHashAllocOps *allocOps, void *allocPriv)
+                JSHashAllocOps *allocOps, void *allocPriv)
 {
     JSHashTable *ht;
     size_t nb;
@@ -82,14 +80,14 @@ JS_NewHashTable(uint32_t n, JSHashFunction keyHash,
     } else {
         n = CeilingLog2Size(n);
         if (int32_t(n) < 0)
-            return nullptr;
+            return NULL;
     }
 
     if (!allocOps) allocOps = &defaultHashAllocOps;
 
     ht = (JSHashTable*) allocOps->allocTable(allocPriv, sizeof *ht);
     if (!ht)
-        return nullptr;
+        return NULL;
     memset(ht, 0, sizeof *ht);
     ht->shift = JS_HASH_BITS - n;
     n = JS_BIT(n);
@@ -97,7 +95,7 @@ JS_NewHashTable(uint32_t n, JSHashFunction keyHash,
     ht->buckets = (JSHashEntry**) allocOps->allocTable(allocPriv, nb);
     if (!ht->buckets) {
         allocOps->freeTable(allocPriv, ht, nb);
-        return nullptr;
+        return NULL;
     }
     memset(ht->buckets, 0, nb);
 
@@ -114,13 +112,13 @@ JS_HashTableDestroy(JSHashTable *ht)
 {
     uint32_t i, n;
     JSHashEntry *he, **hep;
-    const JSHashAllocOps *allocOps = ht->allocOps;
+    JSHashAllocOps *allocOps = ht->allocOps;
     void *allocPriv = ht->allocPriv;
 
     n = NBUCKETS(ht);
     for (i = 0; i < n; i++) {
         hep = &ht->buckets[i];
-        while ((he = *hep) != nullptr) {
+        while ((he = *hep) != NULL) {
             *hep = he->next;
             allocOps->freeEntry(allocPriv, he, HT_FREE_ENTRY);
         }
@@ -150,7 +148,7 @@ JS_HashTableRawLookup(JSHashTable *ht, JSHashNumber keyHash, const void *key)
     ht->nlookups++;
 #endif
     hep = hep0 = BUCKET_HEAD(ht, keyHash);
-    while ((he = *hep) != nullptr) {
+    while ((he = *hep) != NULL) {
         if (he->keyHash == keyHash && ht->keyCompare(key, he->key)) {
             /* Move to front of chain if not already there */
             if (hep != hep0) {
@@ -168,7 +166,7 @@ JS_HashTableRawLookup(JSHashTable *ht, JSHashNumber keyHash, const void *key)
     return hep;
 }
 
-static bool
+static JSBool
 Resize(JSHashTable *ht, uint32_t newshift)
 {
     size_t nb, nentries, i;
@@ -181,14 +179,14 @@ Resize(JSHashTable *ht, uint32_t newshift)
 
     /* Integer overflow protection. */
     if (nb > (size_t)-1 / sizeof(JSHashEntry*))
-        return false;
+        return JS_FALSE;
     nb *= sizeof(JSHashEntry*);
 
     oldbuckets = ht->buckets;
     ht->buckets = (JSHashEntry**)ht->allocOps->allocTable(ht->allocPriv, nb);
     if (!ht->buckets) {
         ht->buckets = oldbuckets;
-        return false;
+        return JS_FALSE;
     }
     memset(ht->buckets, 0, nb);
 
@@ -208,7 +206,7 @@ Resize(JSHashTable *ht, uint32_t newshift)
              */
             while (*hep)
                 hep = &(*hep)->next;
-            he->next = nullptr;
+            he->next = NULL;
             *hep = he;
         }
     }
@@ -217,7 +215,7 @@ Resize(JSHashTable *ht, uint32_t newshift)
 #endif
     ht->allocOps->freeTable(ht->allocPriv, oldbuckets,
                             nold * sizeof oldbuckets[0]);
-    return true;
+    return JS_TRUE;
 }
 
 JSHashEntry *
@@ -231,7 +229,7 @@ JS_HashTableRawAdd(JSHashTable *ht, JSHashEntry **&hep,
     n = NBUCKETS(ht);
     if (ht->nentries >= OVERLOADED(n)) {
         if (!Resize(ht, ht->shift - 1))
-            return nullptr;
+            return NULL;
 #ifdef JS_HASHMETER
         ht->ngrows++;
 #endif
@@ -241,7 +239,7 @@ JS_HashTableRawAdd(JSHashTable *ht, JSHashEntry **&hep,
     /* Make a new key value entry */
     he = ht->allocOps->allocEntry(ht->allocPriv, key);
     if (!he)
-        return nullptr;
+        return NULL;
     he->keyHash = keyHash;
     he->key = key;
     he->value = value;
@@ -259,7 +257,7 @@ JS_HashTableAdd(JSHashTable *ht, const void *key, void *value)
 
     keyHash = ht->keyHash(key);
     hep = JS_HashTableRawLookup(ht, keyHash, key);
-    if ((he = *hep) != nullptr) {
+    if ((he = *hep) != NULL) {
         /* Hit; see if values match */
         if (ht->valueCompare(he->value, value)) {
             /* key,value pair is already present in table */
@@ -291,7 +289,7 @@ JS_HashTableRawRemove(JSHashTable *ht, JSHashEntry **hep, JSHashEntry *he)
     }
 }
 
-bool
+JSBool
 JS_HashTableRemove(JSHashTable *ht, const void *key)
 {
     JSHashNumber keyHash;
@@ -299,12 +297,12 @@ JS_HashTableRemove(JSHashTable *ht, const void *key)
 
     keyHash = ht->keyHash(key);
     hep = JS_HashTableRawLookup(ht, keyHash, key);
-    if ((he = *hep) == nullptr)
-        return false;
+    if ((he = *hep) == NULL)
+        return JS_FALSE;
 
     /* Hit; remove element */
     JS_HashTableRawRemove(ht, hep, he);
-    return true;
+    return JS_TRUE;
 }
 
 void *
@@ -315,10 +313,10 @@ JS_HashTableLookup(JSHashTable *ht, const void *key)
 
     keyHash = ht->keyHash(key);
     hep = JS_HashTableRawLookup(ht, keyHash, key);
-    if ((he = *hep) != nullptr) {
+    if ((he = *hep) != NULL) {
         return he->value;
     }
-    return nullptr;
+    return NULL;
 }
 
 /*
@@ -337,7 +335,7 @@ JS_HashTableEnumerateEntries(JSHashTable *ht, JSHashEnumerator f, void *arg)
     n = 0;
     for (bucket = ht->buckets; n != nlimit; ++bucket) {
         hep = bucket;
-        while ((he = *hep) != nullptr) {
+        while ((he = *hep) != NULL) {
             JS_ASSERT(n < nlimit);
             rv = f(he, n, arg);
             n++;

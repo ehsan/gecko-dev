@@ -27,7 +27,6 @@
 #include "mozilla/Preferences.h"        // for Preferences
 #include "mozilla/Selection.h"          // for Selection, etc
 #include "mozilla/Services.h"           // for GetObserverService
-#include "mozilla/TextEvents.h"
 #include "mozilla/dom/Element.h"        // for Element, nsINode::AsElement
 #include "mozilla/mozalloc.h"           // for operator new, etc
 #include "nsAString.h"                  // for nsAString_internal::Length, etc
@@ -45,8 +44,10 @@
 #include "nsEditorEventListener.h"      // for nsEditorEventListener
 #include "nsEditorUtils.h"              // for nsAutoRules, etc
 #include "nsError.h"                    // for NS_OK, etc
+#include "nsEvent.h"                    // for nsEventStatus, etc
 #include "nsFocusManager.h"             // for nsFocusManager
 #include "nsFrameSelection.h"           // for nsFrameSelection
+#include "nsGUIEvent.h"                 // for nsKeyEvent, nsEvent, etc
 #include "nsGkAtoms.h"                  // for nsGkAtoms, nsGkAtoms::dir
 #include "nsIAbsorbingTransaction.h"    // for nsIAbsorbingTransaction
 #include "nsIAtom.h"                    // for nsIAtom
@@ -1844,7 +1845,7 @@ public:
 
     // Even if the change is caused by untrusted event, we need to dispatch
     // trusted input event since it's a fact.
-    WidgetEvent inputEvent(true, NS_FORM_INPUT);
+    nsEvent inputEvent(true, NS_FORM_INPUT);
     inputEvent.mFlags.mCancelable = false;
     inputEvent.time = static_cast<uint64_t>(PR_Now() / 1000);
     nsEventStatus status = nsEventStatus_eIgnore;
@@ -4809,8 +4810,7 @@ nsEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
   // And also when you add new key handling, you need to change the subclass's
   // HandleKeyPressEvent()'s switch statement.
 
-  WidgetKeyboardEvent* nativeKeyEvent =
-    aKeyEvent->GetInternalNSEvent()->AsKeyboardEvent();
+  nsKeyEvent* nativeKeyEvent = GetNativeKeyEvent(aKeyEvent);
   NS_ENSURE_TRUE(nativeKeyEvent, NS_ERROR_UNEXPECTED);
   NS_ASSERTION(nativeKeyEvent->message == NS_KEY_PRESS,
                "HandleKeyPressEvent gets non-keypress event");
@@ -5161,6 +5161,16 @@ bool
 nsEditor::IsModifiableNode(nsINode *aNode)
 {
   return true;
+}
+
+nsKeyEvent*
+nsEditor::GetNativeKeyEvent(nsIDOMKeyEvent* aDOMKeyEvent)
+{
+  NS_ENSURE_TRUE(aDOMKeyEvent, nullptr);
+  nsEvent* nativeEvent = aDOMKeyEvent->GetInternalNSEvent();
+  NS_ENSURE_TRUE(nativeEvent, nullptr);
+  NS_ENSURE_TRUE(nativeEvent->eventStructType == NS_KEY_EVENT, nullptr);
+  return static_cast<nsKeyEvent*>(nativeEvent);
 }
 
 already_AddRefed<nsIContent>

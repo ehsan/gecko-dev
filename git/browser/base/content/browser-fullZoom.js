@@ -233,15 +233,15 @@ var FullZoom = {
    *        (optional) browser object displaying the document
    */
   onLocationChange: function FullZoom_onLocationChange(aURI, aIsTabSwitch, aBrowser) {
-    // Bug 691614 - zooming support for electrolysis
-    if (gMultiProcessBrowser)
-      return;
-
     // Ignore all pending async zoom accesses in the browser.  Pending accesses
     // that started before the location change will be prevented from applying
     // to the new location.
     let browser = aBrowser || gBrowser.selectedBrowser;
     this._ignorePendingZoomAccesses(browser);
+
+    // Bug 691614 - zooming support for electrolysis
+    if (gMultiProcessBrowser)
+      return;
 
     if (!aURI || (aIsTabSwitch && !this.siteSpecific)) {
       this._notifyOnLocationChange();
@@ -542,14 +542,14 @@ var FullZoom = {
   },
 
   /**
-   * Asynchronously broadcasts "FullZoom:TESTS:location-change" so that tests
-   * can select tabs, load pages, etc. and be notified when the zoom levels on
-   * those pages change.  The notification is always asynchronous so that
-   * observers are guaranteed a consistent behavior.
+   * Asynchronously broadcasts a "browser-fullZoom:locationChange" notification
+   * so that tests can select tabs, load pages, etc. and be notified when the
+   * zoom levels on those pages change.  The notification is always asynchronous
+   * so that observers are guaranteed a consistent behavior.
    */
   _notifyOnLocationChange: function FullZoom__notifyOnLocationChange() {
     this._executeSoon(function () {
-      Services.obs.notifyObservers(null, "FullZoom:TESTS:location-change", "");
+      Services.obs.notifyObservers(null, "browser-fullZoom:locationChange", "");
     });
   },
 

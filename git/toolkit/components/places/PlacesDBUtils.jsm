@@ -965,16 +965,14 @@ this.PlacesDBUtils = {
     function reportResult(aProbe, aValue) {
       outstandingProbes--;
 
-      let value = aValue;
       try {
+        let value = aValue;
         if ("callback" in aProbe) {
           value = aProbe.callback(value);
         }
-        if (isFinite(value)) {
-          probeValues[aProbe.histogram] = value;
-          Services.telemetry.getHistogramById(aProbe.histogram)
-                            .add(value);
-        }
+        probeValues[aProbe.histogram] = value;
+        Services.telemetry.getHistogramById(aProbe.histogram)
+                          .add(value);
       } catch (ex) {
         Components.utils.reportError(ex);
       }

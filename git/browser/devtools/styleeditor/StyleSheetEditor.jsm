@@ -11,25 +11,20 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-const require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
-const Editor  = require("devtools/sourceeditor/editor");
-const promise = require("sdk/core/promise");
-
+let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
+Cu.import("resource:///modules/source-editor.jsm");
 Cu.import("resource:///modules/devtools/StyleEditorUtil.jsm");
+
 
 const SAVE_ERROR = "error-save";
 
 // max update frequency in ms (avoid potential typing lag and/or flicker)
 // @see StyleEditor.updateStylesheet
 const UPDATE_STYLESHEET_THROTTLE_DELAY = 500;
-
-function ctrl(k) {
-  return (Services.appinfo.OS == "Darwin" ? "Cmd-" : "Ctrl-") + k;
-}
 
 /**
  * StyleSheetEditor controls the editor linked to a particular StyleSheet
@@ -63,10 +58,7 @@ function StyleSheetEditor(styleSheet, win, file, isNew) {
 
   this._state = {   // state to use when inputElement attaches
     text: "",
-    selection: {
-      start: {line: 0, ch: 0},
-      end: {line: 0, ch: 0}
-    },
+    selection: {start: 0, end: 0},
     readOnly: false,
     topIndex: 0,              // the first visible line
   };
@@ -100,7 +92,7 @@ StyleSheetEditor.prototype = {
    * Whether there are unsaved changes in the editor
    */
   get unsaved() {
-    return this._sourceEditor && !this._sourceEditor.isClean();
+    return this._sourceEditor && this._sourceEditor.dirty;
   },
 
   /**
@@ -208,20 +200,21 @@ StyleSheetEditor.prototype = {
   load: function(inputElement) {
     this._inputElement = inputElement;
 
+    let sourceEditor = new SourceEditor();
     let config = {
-      value: this._state.text,
-      lineNumbers: true,
-      mode: Editor.modes.css,
+      initialText: this._state.text,
+      showLineNumbers: true,
+      mode: SourceEditor.MODES.CSS,
       readOnly: this._state.readOnly,
-      autoCloseBrackets: "{}()[]",
-      extraKeys: this._getKeyBindings()
+      keys: this._getKeyBindings()
     };
-    let sourceEditor = new Editor(config);
 
-    sourceEditor.appendTo(inputElement).then(() => {
-      sourceEditor.on("change", () => {
+    sourceEditor.init(inputElement, config, function onSourceEditorReady() {
+      setupBracketCompletion(sourceEditor);
+      sourceEditor.addEventListener(SourceEditor.EVENTS.TEXT_CHANGED,
+                                    function onTextChanged(event) {
         this.updateStyleSheet();
-      });
+      }.bind(this));
 
       this._sourceEditor = sourceEditor;
 
@@ -230,14 +223,15 @@ StyleSheetEditor.prototype = {
         sourceEditor.focus();
       }
 
-      sourceEditor.setFirstVisibleLine(this._state.topIndex);
+      sourceEditor.setTopIndex(this._state.topIndex);
       sourceEditor.setSelection(this._state.selection.start,
                                 this._state.selection.end);
 
       this.emit("source-editor-load");
-    });
+    }.bind(this));
 
-    sourceEditor.on("dirty-change", this._onPropertyChange);
+    sourceEditor.addEventListener(SourceEditor.EVENTS.DIRTY_CHANGED,
+                                  this._onPropertyChange);
   },
 
   /**
@@ -252,7 +246,7 @@ StyleSheetEditor.prototype = {
     if (this.sourceEditor) {
       return promise.resolve(this);
     }
-    this.on("source-editor-load", () => {
+    this.on("source-editor-load", (event) => {
       deferred.resolve(this);
     });
     return deferred.promise;
@@ -274,7 +268,7 @@ StyleSheetEditor.prototype = {
    */
   onShow: function() {
     if (this._sourceEditor) {
-      this._sourceEditor.setFirstVisibleLine(this._state.topIndex);
+      this._sourceEditor.setTopIndex(this._state.topIndex);
     }
     this.focus();
   },
@@ -376,7 +370,7 @@ StyleSheetEditor.prototype = {
         if (callback) {
           callback(returnFile);
         }
-        this.sourceEditor.setClean();
+        this.sourceEditor.dirty = false;
       }.bind(this));
     };
 
@@ -390,15 +384,28 @@ StyleSheetEditor.prototype = {
     * @return {array} key binding objects for the source editor
     */
   _getKeyBindings: function() {
-    let bindings = {};
+    let bindings = [];
 
-    bindings[ctrl(_("saveStyleSheet.commandkey"))] = () => {
-      this.saveToFile(this.savedFile);
-    };
+    bindings.push({
+      action: "StyleEditor.save",
+      code: _("saveStyleSheet.commandkey"),
+      accel: true,
+      callback: function save() {
+        this.saveToFile(this.savedFile);
+        return true;
+      }.bind(this)
+    });
 
-    bindings["Shift-" + ctrl(_("saveStyleSheet.commandkey"))] = () => {
-      this.saveToFile();
-    };
+    bindings.push({
+      action: "StyleEditor.saveAs",
+      code: _("saveStyleSheet.commandkey"),
+      accel: true,
+      shift: true,
+      callback: function saveAs() {
+        this.saveToFile();
+        return true;
+      }.bind(this)
+    });
 
     return bindings;
   },
@@ -418,6 +425,18 @@ const TAB_CHARS = "\t";
 
 const OS = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
 const LINE_SEPARATOR = OS === "WINNT" ? "\r\n" : "\n";
+
+/**
+  * Return string that repeats text for aCount times.
+  *
+  * @param string text
+  * @param number aCount
+  * @return string
+  */
+function repeat(text, aCount)
+{
+  return (new Array(aCount + 1)).join(text);
+}
 
 /**
  * Prettify minified CSS text.
@@ -450,7 +469,7 @@ function prettifyCSS(text)
           parts.push(indent + text.substring(partStart, i));
           partStart = i;
         }
-        indent = TAB_CHARS.repeat(--indentLevel);
+        indent = repeat(TAB_CHARS, --indentLevel);
         /* fallthrough */
       case ";":
       case "{":
@@ -474,9 +493,58 @@ function prettifyCSS(text)
     }
 
     if (c == "{") {
-      indent = TAB_CHARS.repeat(++indentLevel);
+      indent = repeat(TAB_CHARS, ++indentLevel);
     }
   }
   return parts.join(LINE_SEPARATOR);
+}
+
+
+/**
+ * Set up bracket completion on a given SourceEditor.
+ * This automatically closes the following CSS brackets: "{", "(", "["
+ *
+ * @param SourceEditor sourceEditor
+ */
+function setupBracketCompletion(sourceEditor)
+{
+  let editorElement = sourceEditor.editorElement;
+  let pairs = {
+    123: { // {
+      closeString: "}",
+      closeKeyCode: Ci.nsIDOMKeyEvent.DOM_VK_CLOSE_BRACKET
+    },
+    40: { // (
+      closeString: ")",
+      closeKeyCode: Ci.nsIDOMKeyEvent.DOM_VK_0
+    },
+    91: { // [
+      closeString: "]",
+      closeKeyCode: Ci.nsIDOMKeyEvent.DOM_VK_CLOSE_BRACKET
+    },
+  };
+
+  editorElement.addEventListener("keypress", function onKeyPress(event) {
+    let pair = pairs[event.charCode];
+    if (!pair || event.ctrlKey || event.metaKey ||
+        event.accelKey || event.altKey) {
+      return true;
+    }
+
+    // We detected an open bracket, sending closing character
+    let keyCode = pair.closeKeyCode;
+    let charCode = pair.closeString.charCodeAt(0);
+    let modifiers = 0;
+    let utils = editorElement.ownerDocument.defaultView.
+                  QueryInterface(Ci.nsIInterfaceRequestor).
+                  getInterface(Ci.nsIDOMWindowUtils);
+                  
+    if (utils.sendKeyEvent("keydown", keyCode, 0, modifiers)) {
+      utils.sendKeyEvent("keypress", 0, charCode, modifiers);
+    }
+    utils.sendKeyEvent("keyup", keyCode, 0, modifiers);
+    // and rewind caret
+    sourceEditor.setCaretOffset(sourceEditor.getCaretOffset() - 1);
+  }, false);
 }
 

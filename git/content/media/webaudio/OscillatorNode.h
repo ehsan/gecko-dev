@@ -77,10 +77,9 @@ public:
       // Shut up the compiler warning
       break;
     }
+
     if (aType == OscillatorType::Custom) {
-      // ::Custom can only be set by setPeriodicWave().
-      // https://github.com/WebAudio/web-audio-api/issues/105 for exception.
-      aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
+      aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
       return;
     }
     mType = aType;
@@ -109,7 +108,6 @@ public:
   void SetPeriodicWave(PeriodicWave& aPeriodicWave)
   {
     mPeriodicWave = &aPeriodicWave;
-    // SendTypeToStream will call SendPeriodicWaveToStream for us.
     mType = OscillatorType::Custom;
     SendTypeToStream();
   }
@@ -122,13 +120,13 @@ private:
   static void SendFrequencyToStream(AudioNode* aNode);
   static void SendDetuneToStream(AudioNode* aNode);
   void SendTypeToStream();
-  void SendPeriodicWaveToStream();
 
 private:
   OscillatorType mType;
   nsRefPtr<PeriodicWave> mPeriodicWave;
   nsRefPtr<AudioParam> mFrequency;
   nsRefPtr<AudioParam> mDetune;
+  SelfReference<OscillatorNode> mPlayingRef;
   bool mStartCalled;
   bool mStopped;
 };

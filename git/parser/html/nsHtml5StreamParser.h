@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsHtml5StreamParser_h
-#define nsHtml5StreamParser_h
+#ifndef nsHtml5StreamParser_h__
+#define nsHtml5StreamParser_h__
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
@@ -201,6 +201,8 @@ class nsHtml5StreamParser : public nsIStreamListener,
      * URL. data: URLs are shown with an ellipsis instead of the actual data.
      */
     void SetViewSourceTitle(nsIURI* aURL);
+
+    bool IsSrcdocDocument();
 
   private:
 
@@ -559,4 +561,4 @@ class nsHtml5StreamParser : public nsIStreamListener,
     static int32_t                sTimerSubsequentDelay;
 };
 
-#endif // nsHtml5StreamParser_h
+#endif // nsHtml5StreamParser_h__

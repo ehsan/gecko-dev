@@ -12,18 +12,11 @@ EXPORTS += [
     'nsMediaSniffer.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsMediaSniffer.cpp',
     'nsMediaSnifferModule.cpp',
 ]
 
-SOURCES += [
+CSRCS += [
     'mp3sniff.c',
 ]
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'mediasniffer'
-
-EXPORT_LIBRARY = True
-

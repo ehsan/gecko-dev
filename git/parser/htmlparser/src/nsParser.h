@@ -43,11 +43,13 @@
 
 #include "nsIParser.h"
 #include "nsDeque.h"
+#include "nsParserNode.h"
 #include "nsIURL.h"
 #include "CParserContext.h"
 #include "nsParserCIID.h"
 #include "nsITokenizer.h"
 #include "nsHTMLTags.h"
+#include "nsDTDUtils.h"
 #include "nsIContentSink.h"
 #include "nsCOMArray.h"
 #include "nsCycleCollectionParticipant.h"
@@ -56,7 +58,6 @@
 class nsICharsetConverterManager;
 class nsIDTD;
 class nsScanner;
-class nsIRunnable;
 
 #ifdef _MSC_VER
 #pragma warning( disable : 4275 )
@@ -367,6 +368,17 @@ private:
     nsresult Tokenize(bool aIsFinalChunk = false);
 
     /**
+     *  This is the tail-end of the code sandwich for the
+     *  tokenization process. It gets called once tokenziation
+     *  has completed.
+     *  
+     *  @update  gess 3/25/98
+     *  @param   
+     *  @return  TRUE if all went well
+     */
+    bool DidTokenize(bool aIsFinalChunk = false);
+
+    /**
      * Pushes XML fragment parsing data to expat without an input stream.
      */
     nsresult Parse(const nsAString& aSourceBuffer,
@@ -384,7 +396,9 @@ protected:
     nsCOMPtr<nsIRequestObserver> mObserver;
     nsCOMPtr<nsIContentSink>     mSink;
     nsIRunnable*                 mContinueEvent;  // weak ref
-
+   
+    nsTokenAllocator          mTokenAllocator;
+    
     eParserCommands     mCommand;
     nsresult            mInternalState;
     nsresult            mStreamStatus;

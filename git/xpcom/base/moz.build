@@ -13,6 +13,7 @@ XPIDL_SOURCES += [
     'nsIDebug2.idl',
     'nsIErrorService.idl',
     'nsIException.idl',
+    'nsIExceptionService.idl',
     'nsIGZFileWriter.idl',
     'nsIInterfaceRequestor.idl',
     'nsIMemory.idl',
@@ -42,25 +43,27 @@ MODULE = 'xpcom'
 
 EXPORTS += [
     'ErrorList.h',
+    'ErrorListCDefines.h',
+    'ErrorListCxxDefines.h',
     'nsAgg.h',
     'nsAutoPtr.h',
     'nsAutoRef.h',
     'nsCom.h',
-    'nscore.h',
     'nsCycleCollector.h',
     'nsDebugImpl.h',
     'nsError.h',
     'nsGZFileWriter.h',
     'nsIAllocator.h',
     'nsIID.h',
-    'nsInterfaceRequestorAgg.h',
     'nsISizeOf.h',
     'nsISupportsBase.h',
     'nsISupportsObsolete.h',
+    'nsInterfaceRequestorAgg.h',
     'nsObjCExceptions.h',
     'nsStackWalk.h',
     'nsTraceRefcntImpl.h',
     'nsWeakPtr.h',
+    'nscore.h',
 ]
 
 if CONFIG['MOZ_DEBUG']:
@@ -75,27 +78,26 @@ EXPORTS.mozilla += [
     'AvailableMemoryTracker.h',
     'ClearOnShutdown.h',
     'CycleCollectedJSRuntime.h',
-    'nsMemoryInfoDumper.h',
+    'MapsMemoryReporter.h',
     'StackWalk.h',
     'StaticMutex.h',
     'StaticPtr.h',
     'VisualEventTracer.h',
+    'nsMemoryInfoDumper.h',
 ]
 
-if CONFIG['OS_ARCH'] == 'WINNT':
-    EXPORTS.mozilla += [
-        'WindowsVersion.h',
-    ]
-
-SOURCES += [
+CPP_SOURCES += [
     'AvailableMemoryTracker.cpp',
     'ClearOnShutdown.cpp',
     'CycleCollectedJSRuntime.cpp',
+    'VisualEventTracer.cpp',
     'nsConsoleMessage.cpp',
     'nsConsoleService.cpp',
     'nsCycleCollector.cpp',
     'nsDebugImpl.cpp',
+    'nsErrorAsserts.cpp',
     'nsErrorService.cpp',
+    'nsExceptionService.cpp',
     'nsGZFileWriter.cpp',
     'nsInterfaceRequestorAgg.cpp',
     'nsMemoryImpl.cpp',
@@ -108,28 +110,18 @@ SOURCES += [
     'nsTraceRefcntImpl.cpp',
     'nsUUIDGenerator.cpp',
     'nsVersionComparatorImpl.cpp',
-    'VisualEventTracer.cpp',
 ]
 
+if CONFIG['OS_ARCH'] == 'Linux':
+    CPP_SOURCES += [
+        'MapsMemoryReporter.cpp',
+    ]
+
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsMacUtilsImpl.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsCrashOnException.cpp',
     ]
-
-SOURCES += [
-    'nsErrorAssertsC.c',
-]
-
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'xpcombase_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
-

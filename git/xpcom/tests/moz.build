@@ -4,7 +4,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-TEST_TOOL_DIRS += [
+DIRS += [
     'external',
     'component',
     'bug656331_component',
@@ -12,54 +12,43 @@ TEST_TOOL_DIRS += [
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
-    TEST_TOOL_DIRS += ['windows']
-
-if CONFIG['DEHYDRA_PATH']:
-    TEST_TOOL_DIRS += ['static-checker']
-
-FAIL_ON_WARNINGS = True
+    DIRS += ['windows']
 
 EXPORTS.testing += [
     'TestHarness.h',
 ]
 
-sources = [
-    'nsIFileEnumerator',
-    'TestArguments',
-    'TestBlockingProcess',
-    'TestCallTemplates',
-    'TestINIParser',
-    'TestPRIntN',
-    'TestQuickReturn',
-    'TestRacingServiceManager',
-    'TestRegistrationOrder',
-    'TestThreadPoolListener',
-    'TestTimers',
-    'TestUnicodeArguments',
-]
-
 if CONFIG['OS_TARGET'] == 'WINNT':
-    sources += [
-        'TestBase64',
+    CPP_SOURCES += [
+        'TestBase64.cpp',
     ]
 
 if CONFIG['WRAP_STL_INCLUDES']:
-    sources += [
-        'TestSTLWrappers',
+    CPP_SOURCES += [
+        'TestSTLWrappers.cpp',
     ]
 
-SOURCES += [
-    '%s.cpp' % s for s in sorted(sources)
-]
-
-bin_suffix = CONFIG['BIN_SUFFIX']
-SIMPLE_PROGRAMS += [
-    '%s%s' % (s, bin_suffix) for s in sorted(sources)
-]
+if CONFIG['DEHYDRA_PATH']:
+    DIRS += ['static-checker']
 
 MODULE = 'xpcom'
 
 XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']
+
+CPP_SOURCES += [
+    'TestArguments.cpp',
+    'TestBlockingProcess.cpp',
+    'TestCallTemplates.cpp',
+    'TestINIParser.cpp',
+    'TestPRIntN.cpp',
+    'TestQuickReturn.cpp',
+    'TestRacingServiceManager.cpp',
+    'TestRegistrationOrder.cpp',
+    'TestThreadPoolListener.cpp',
+    'TestTimers.cpp',
+    'TestUnicodeArguments.cpp',
+    'nsIFileEnumerator.cpp',
+]
 
 CPP_UNIT_TESTS += [
     'ShowAlignments.cpp',
@@ -75,11 +64,9 @@ CPP_UNIT_TESTS += [
     'TestObserverArray.cpp',
     'TestObserverService.cpp',
     'TestPipe.cpp',
-    'TestPLDHash.cpp',
     'TestRefPtr.cpp',
     'TestTArray.cpp',
     'TestTextFormatter.cpp',
-    'TestThreadUtils.cpp'
 ]
 
 if CONFIG['MOZ_MEMORY']:

@@ -12,22 +12,32 @@ TEST_DIRS += ['tests']
 MODULE = 'widget'
 
 EXPORTS += [
-    'nsdefs.h',
-    'WindowHook.h',
     'WinUtils.h',
+    'WindowHook.h',
+    'nsdefs.h',
 ]
 
 EXPORTS.mozilla.widget += [
     'AudioSession.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'AudioSession.cpp',
     'GfxInfo.cpp',
     'IEnumFE.cpp',
     'JumpListBuilder.cpp',
     'JumpListItem.cpp',
     'KeyboardLayout.cpp',
+    'TaskbarPreview.cpp',
+    'TaskbarPreviewButton.cpp',
+    'TaskbarTabPreview.cpp',
+    'TaskbarWindowPreview.cpp',
+    'WidgetTraceEvent.cpp',
+    'WinIMEHandler.cpp',
+    'WinMouseScrollHandler.cpp',
+    'WinTaskbar.cpp',
+    'WinUtils.cpp',
+    'WindowHook.cpp',
     'nsAppShell.cpp',
     'nsBidiKeyboard.cpp',
     'nsClipboard.cpp',
@@ -36,9 +46,9 @@ SOURCES += [
     'nsDataObjCollection.cpp',
     'nsDragService.cpp',
     'nsFilePicker.cpp',
+    'nsIMM32Handler.cpp',
     'nsIdleServiceWin.cpp',
     'nsImageClipboard.cpp',
-    'nsIMM32Handler.cpp',
     'nsLookAndFeel.cpp',
     'nsNativeDragSource.cpp',
     'nsNativeDragTarget.cpp',
@@ -49,47 +59,25 @@ SOURCES += [
     'nsToolkit.cpp',
     'nsUXThemeData.cpp',
     'nsWidgetFactory.cpp',
+    'nsWinGesture.cpp',
     'nsWindow.cpp',
-    'nsWindowBase.cpp',
     'nsWindowDbg.cpp',
     'nsWindowGfx.cpp',
-    'nsWinGesture.cpp',
-    'TaskbarPreview.cpp',
-    'TaskbarPreviewButton.cpp',
-    'TaskbarTabPreview.cpp',
-    'TaskbarWindowPreview.cpp',
-    'WidgetTraceEvent.cpp',
-    'WindowHook.cpp',
-    'WinIMEHandler.cpp',
-    'WinMouseScrollHandler.cpp',
-    'WinTaskbar.cpp',
-    'WinUtils.cpp',
 ]
 
 if CONFIG['MOZ_CRASHREPORTER']:
-    SOURCES += [
+    CPP_SOURCES += [
         'LSPAnnotator.cpp',
     ]
 
 if CONFIG['NS_PRINTING']:
-    SOURCES += [
-        'nsDeviceContextSpecWin.cpp',
+    CPP_SOURCES += [
         'nsPrintOptionsWin.cpp',
         'nsPrintSettingsWin.cpp',
+        'nsDeviceContextSpecWin.cpp',
     ]
 
 if CONFIG['NS_ENABLE_TSF']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsTextStore.cpp',
     ]
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'widget_windows'
-
-EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
-

@@ -5,7 +5,6 @@
 
 #include "nsISupports.idl"
 
-interface nsIDOMDOMStringList;
 interface nsIDOMWindow;
 interface nsIDocShell;
 interface nsIContent;
@@ -180,7 +179,7 @@ interface nsIMessageListener : nsISupports
   void receiveMessage();
 };
 
-[scriptable, builtinclass, uuid(aae827bd-acf1-45fe-a556-ea545d4c0804)]
+[scriptable, builtinclass, uuid(9c37a142-3de3-4902-a1a4-133f37d5980a)]
 interface nsIMessageListenerManager : nsISupports
 {
   /**
@@ -197,30 +196,11 @@ interface nsIMessageListenerManager : nsISupports
                           in nsIMessageListener listener);
 
   /**
-   * Undo an |addMessageListener| call -- that is, calling this causes us to no
-   * longer invoke |listener| when |messageName| is received.
-   *
-   * removeMessageListener does not remove a message listener added via
-   * addWeakMessageListener; use removeWeakMessageListener for that.
+   * No longer invoke |listener| when |messageName| is received, after
+   * the first time removeMessageListener() is called.
    */
   void removeMessageListener(in AString messageName,
                              in nsIMessageListener listener);
-
-  /**
-   * This is just like addMessageListener, except the message manager holds a
-   * weak ref to |listener|.
-   *
-   * If you have two weak message listeners for the same message, they may be
-   * called in any order.
-   */
-  void addWeakMessageListener(in AString messageName,
-                              in nsIMessageListener listener);
-
-  /**
-   * This undoes an |addWeakMessageListener| call.
-   */
-  void removeWeakMessageListener(in AString messageName,
-                                 in nsIMessageListener listener);
 
   [notxpcom] boolean markForCC();
 };
@@ -289,7 +269,7 @@ interface nsIMessageBroadcaster : nsIMessageListenerManager
   nsIMessageListenerManager getChildAt(in unsigned long aIndex);
 };
 
-[scriptable, builtinclass, uuid(79eeb70f-58e3-4d32-b46f-106f42ada12b)]
+[scriptable, builtinclass, uuid(83be5862-2996-4685-ae7d-ae25bd795d50)]
 interface nsISyncMessageSender : nsIMessageSender
 {
   /**
@@ -301,20 +281,6 @@ interface nsISyncMessageSender : nsIMessageSender
   jsval sendSyncMessage([optional] in AString messageName,
                         [optional] in jsval obj,
                         [optional] in jsval objects);
-
-  /**
-   * Like |sendSyncMessage()|, except re-entrant. New RPC messages may be
-   * issued even if, earlier on the call stack, we are waiting for a reply
-   * to an earlier sendRpcMessage() call.
-   *
-   * Both sendSyncMessage and sendRpcMessage will block until a reply is
-   * received, but they may be temporarily interrupted to process an urgent
-   * incoming message (such as a CPOW request).
-   */
-  [implicit_jscontext, optional_argc]
-  jsval sendRpcMessage([optional] in AString messageName,
-                       [optional] in jsval obj,
-                       [optional] in jsval objects);
 };
 
 [scriptable, builtinclass, uuid(894ff2d4-39a3-4df8-9d76-8ee329975488)]
@@ -354,7 +320,7 @@ interface nsIInProcessContentFrameMessageManager : nsIContentFrameMessageManager
   [notxpcom] nsIContent getOwnerContent();
 };
 
-[scriptable, builtinclass, uuid(ecebfb8c-ff51-11e2-9d65-7af553959281)]
+[scriptable, builtinclass, uuid(a54acd34-4141-46f5-b71b-e2ca32879b08)]
 interface nsIFrameScriptLoader : nsISupports
 {
   /**
@@ -370,12 +336,6 @@ interface nsIFrameScriptLoader : nsISupports
    * Removes aURL from the list of scripts which support delayed load.
    */
   void removeDelayedFrameScript(in AString aURL);
-
-  /**
-   * Returns a list of all delayed scripts that will be loaded once
-   * a (remote) frame becomes available.
-   */
-  nsIDOMDOMStringList getDelayedFrameScripts();
 };
 
 [scriptable, builtinclass, uuid(b37821ff-df79-44d4-821c-6d6ec4dfe1e9)]

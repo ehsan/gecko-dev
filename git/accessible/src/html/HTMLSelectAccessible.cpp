@@ -410,7 +410,8 @@ HTMLComboboxAccessible::CacheChildren()
       new HTMLComboboxListAccessible(mParent, mContent, mDoc);
 
     // Initialize and put into cache.
-    Document()->BindToDocument(mListAccessible, nullptr);
+    if (!Document()->BindToDocument(mListAccessible, nullptr))
+      return;
   }
 
   if (AppendChild(mListAccessible)) {

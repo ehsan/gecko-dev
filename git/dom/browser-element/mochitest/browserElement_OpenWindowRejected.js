@@ -21,7 +21,6 @@ function runTest() {
 
     // Don't add e.detail.frameElement to the DOM, so the window.open is
     // effectively blocked.
-    e.preventDefault();
   });
 
   iframe.addEventListener('mozbrowsershowmodalprompt', function(e) {

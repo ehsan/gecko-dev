@@ -15,17 +15,20 @@
 
 #include "mozilla/Assertions.h"
 
+#include "nsISupports.h"
 #include "jsapi.h"
 #include "nsString.h"
 
+class nsIDOMEventListener;
 class nsIScriptContext;
 class nsIScriptGlobalObject;
+class nsIPrincipal;
 
 class nsJSUtils
 {
 public:
-  static bool GetCallingLocation(JSContext* aContext, const char* *aFilename,
-                                 uint32_t* aLineno);
+  static JSBool GetCallingLocation(JSContext* aContext, const char* *aFilename,
+                                   uint32_t* aLineno);
 
   static nsIScriptGlobalObject *GetStaticScriptGlobal(JSObject* aObj);
 
@@ -60,33 +63,6 @@ public:
                                   const char** aArgArray,
                                   const nsAString& aBody,
                                   JSObject** aFunctionObject);
-
-  struct EvaluateOptions {
-    bool coerceToString;
-    bool reportUncaught;
-
-    explicit EvaluateOptions() : coerceToString(false)
-                               , reportUncaught(true)
-    {}
-
-    EvaluateOptions& setCoerceToString(bool aCoerce) {
-      coerceToString = aCoerce;
-      return *this;
-    }
-
-    EvaluateOptions& setReportUncaught(bool aReport) {
-      reportUncaught = aReport;
-      return *this;
-    }
-  };
-
-  static nsresult EvaluateString(JSContext* aCx,
-                                 const nsAString& aScript,
-                                 JS::Handle<JSObject*> aScopeObject,
-                                 JS::CompileOptions &aCompileOptions,
-                                 EvaluateOptions& aEvaluateOptions,
-                                 JS::Value* aRetValue,
-                                 void **aOffThreadToken = nullptr);
 
 };
 
@@ -123,20 +99,20 @@ public:
   {
   }
 
-  bool init(JSContext* aContext, JSString* str)
+  JSBool init(JSContext* aContext, JSString* str)
   {
       size_t length;
       const jschar* chars = JS_GetStringCharsZAndLength(aContext, str, &length);
       if (!chars)
-          return false;
+          return JS_FALSE;
 
       NS_ASSERTION(IsEmpty(), "init() on initialized string");
       nsDependentString* base = this;
       new(base) nsDependentString(chars, length);
-      return true;
+      return JS_TRUE;
   }
 
-  bool init(JSContext* aContext, const JS::Value &v)
+  JSBool init(JSContext* aContext, const JS::Value &v)
   {
       return init(aContext, JSVAL_TO_STRING(v));
   }

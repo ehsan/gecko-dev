@@ -84,6 +84,9 @@ NS_NewXMLContentSink(nsIXMLContentSink** aResult,
     return NS_ERROR_NULL_POINTER;
   }
   nsXMLContentSink* it = new nsXMLContentSink();
+  if (nullptr == it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   
   nsCOMPtr<nsIXMLContentSink> kungFuDeathGrip = it;
   nsresult rv = it->Init(aDoc, aURI, aContainer, aChannel);
@@ -722,7 +725,7 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
 
     // Do content policy check
     int16_t decision = nsIContentPolicy::ACCEPT;
-    rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_XSLT,
+    rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_STYLESHEET,
                                    url,
                                    mDocument->NodePrincipal(),
                                    aElement,

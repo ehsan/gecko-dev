@@ -36,14 +36,6 @@ let FlyoutPanelsUI = {
         return sandbox[name];
       });
     });
-
-    Services.obs.addObserver(this, "metro_viewstate_changed", false);
-    window.addEventListener("TabOpen", this, false);
-  },
-
-  uninit: function () {
-    Services.obs.removeObserver(this, "metro_viewstate_changed");
-    window.removeEventListener("TabOpen", this, false);
   },
 
   show: function(aToShow) {
@@ -60,7 +52,7 @@ let FlyoutPanelsUI = {
     }
 
     this._currentFlyout = this[aToShow];
-    if (this._currentFlyout._show) {
+    if (this._currentFlyout.show) {
       this._currentFlyout._show();
     } else {
       this._currentFlyout._topmostElement.show();
@@ -73,30 +65,12 @@ let FlyoutPanelsUI = {
       this._currentFlyout._onBackButton();
     } else {
       this.hide();
-      Services.metro.showSettingsFlyout();
+      MetroUtils.showSettingsFlyout();
     }
   },
 
   get isVisible() {
     return this._currentFlyout ? true : false;
-  },
-
-  handleEvent: function (aEvent) {
-    switch (aEvent.type) {
-      case "TabOpen":
-        this.hide()
-        break;
-    }
-  },
-
-  observe: function (aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "metro_viewstate_changed":
-        if (aData == "snapped") {
-          this.hide();
-        }
-        break;
-    }
   },
 
   dispatchEvent: function(aEvent) {

@@ -10,12 +10,12 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <map>
 #include <string>
+#include <map>
 #include <vector>
 
-#include "webrtc/tools/frame_analyzer/video_quality_analysis.h"
-#include "webrtc/tools/simple_command_line_parser.h"
+#include "tools/frame_analyzer/video_quality_analysis.h"
+#include "tools/simple_command_line_parser.h"
 
 /*
  * A command line tool running PSNR and SSIM on a reference video and a test

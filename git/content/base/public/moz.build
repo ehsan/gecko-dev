@@ -7,7 +7,6 @@
 XPIDL_SOURCES += [
     'nsIContentPolicy.idl',
     'nsIContentSecurityPolicy.idl',
-    'nsIDocumentEncoder.idl',
     'nsIDOMDataChannel.idl',
     'nsIDOMFile.idl',
     'nsIDOMFileList.idl',
@@ -15,6 +14,7 @@ XPIDL_SOURCES += [
     'nsIDOMFormData.idl',
     'nsIDOMParser.idl',
     'nsIDOMSerializer.idl',
+    'nsIDocumentEncoder.idl',
     'nsIDroppedLinkHandler.idl',
     'nsIFrameLoader.idl',
     'nsIImageLoadingContent.idl',
@@ -34,22 +34,19 @@ XPIDL_MODULE = 'content_base'
 MODULE = 'content'
 
 EXPORTS += [
-    'HTMLSplitOnSpacesTokenizer.h',
     'mozFlushType.h',
     'nsCaseTreatment.h',
     'nsContentCID.h',
     'nsContentCreatorFunctions.h',
     'nsContentPolicyUtils.h',
-    'nsContentTypeParser.h',
     'nsContentUtils.h',
     'nsCopySupport.h',
+    'nsDOMFile.h',
     'nsDeprecatedOperationList.h',
     'nsDocElementCreatedNotificationRunner.h',
-    'nsDOMFile.h',
     'nsHostObjectProtocolHandler.h',
     'nsIAttribute.h',
     'nsIContent.h',
-    'nsIContentInlines.h',
     'nsIContentIterator.h',
     'nsIContentSerializer.h',
     'nsIDocument.h',
@@ -62,6 +59,7 @@ EXPORTS += [
     'nsINodeList.h',
     'nsIScriptElement.h',
     'nsIStyleSheetLinkingElement.h',
+    'nsIXPathEvaluatorInternal.h',
     'nsLineBreaker.h',
     'nsReferencedElement.h',
     'nsTreeSanitizer.h',
@@ -72,7 +70,6 @@ EXPORTS += [
 EXPORTS.mozilla.dom += [
     'DirectionalityUtils.h',
     'Element.h',
-    'ElementInlines.h',
     'FragmentOrElement.h',
     'FromParser.h',
 ]

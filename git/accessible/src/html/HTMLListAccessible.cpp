@@ -7,7 +7,6 @@
 #include "HTMLListAccessible.h"
 
 #include "DocAccessible.h"
-#include "nsAccUtils.h"
 #include "Role.h"
 #include "States.h"
 
@@ -52,7 +51,8 @@ HTMLLIAccessible::
   nsBlockFrame* blockFrame = do_QueryFrame(GetFrame());
   if (blockFrame && blockFrame->HasBullet()) {
     mBullet = new HTMLListBulletAccessible(mContent, mDoc);
-    Document()->BindToDocument(mBullet, nullptr);
+    if (!Document()->BindToDocument(mBullet, nullptr))
+      mBullet = nullptr;
   }
 }
 
@@ -98,33 +98,6 @@ HTMLLIAccessible::GetBounds(int32_t* aX, int32_t* aY,
   return NS_OK;
 }
 
-int32_t
-HTMLLIAccessible::FindOffset(int32_t aOffset, nsDirection aDirection,
-                             nsSelectionAmount aAmount,
-                             EWordMovementType aWordMovementType)
-{
-  Accessible* child = GetChildAtOffset(aOffset);
-  if (!child)
-    return -1;
-
-  if (child != mBullet) {
-    if (aDirection == eDirPrevious &&
-        (aAmount == eSelectBeginLine || aAmount == eSelectLine))
-      return 0;
-
-    return HyperTextAccessible::FindOffset(aOffset, aDirection,
-                                           aAmount, aWordMovementType);
-  }
-
-  if (aDirection == eDirPrevious)
-    return 0;
-
-  if (aAmount == eSelectEndLine || aAmount == eSelectLine)
-    return CharacterCount();
-
-  return nsAccUtils::TextLength(child);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // HTMLLIAccessible: public
 
@@ -139,8 +112,9 @@ HTMLLIAccessible::UpdateBullet(bool aHasBullet)
   DocAccessible* document = Document();
   if (aHasBullet) {
     mBullet = new HTMLListBulletAccessible(mContent, mDoc);
-    document->BindToDocument(mBullet, nullptr);
-    InsertChildAt(0, mBullet);
+    if (document->BindToDocument(mBullet, nullptr)) {
+      InsertChildAt(0, mBullet);
+    }
   } else {
     RemoveChild(mBullet);
     document->UnbindFromDocument(mBullet);

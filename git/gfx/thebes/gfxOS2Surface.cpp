@@ -12,7 +12,7 @@
  **********************************************************************/
 
 gfxOS2Surface::gfxOS2Surface(const gfxIntSize& aSize,
-                             gfxImageFormat aImageFormat)
+                             gfxASurface::gfxImageFormat aImageFormat)
     : mWnd(0), mSize(aSize)
 {
 #ifdef DEBUG_thebes_2

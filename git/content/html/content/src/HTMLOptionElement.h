@@ -26,8 +26,7 @@ public:
   virtual ~HTMLOptionElement();
 
   static already_AddRefed<HTMLOptionElement>
-    Option(const GlobalObject& aGlobal,
-           const Optional<nsAString>& aText,
+    Option(const GlobalObject& aGlobal, const Optional<nsAString>& aText,
            const Optional<nsAString>& aValue,
            const Optional<bool>& aDefaultSelected,
            const Optional<bool>& aSelected, ErrorResult& aError);
@@ -36,6 +35,15 @@ public:
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
 
   // nsIDOMHTMLOptionElement
   using mozilla::dom::Element::SetText;
@@ -66,6 +74,8 @@ public:
   virtual nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const MOZ_OVERRIDE;
 
   nsresult CopyInnerTo(mozilla::dom::Element* aDest);
+
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
 
   virtual bool IsDisabled() const MOZ_OVERRIDE {
     return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
@@ -113,7 +123,12 @@ public:
     aRv = SetText(aValue);
   }
 
-  int32_t Index();
+  int32_t GetIndex(ErrorResult& aRv)
+  {
+    int32_t id = 0;
+    aRv = GetIndex(&id);
+    return id;
+  }
 
 protected:
   virtual JSObject* WrapNode(JSContext* aCx,

@@ -6,18 +6,3 @@
 
 NO_DIST_INSTALL = True
 DIRS += ['inject']
-
-SOURCES += [
-    'test-array.c',
-    'test-ctors.c',
-]
-
-if not CONFIG['CROSS_COMPILE']:
-    SOURCES += [
-        'dummy.c',
-    ]
-
-HOST_SOURCES += [
-    'elf.cpp',
-    'elfhack.cpp',
-]

@@ -11,7 +11,6 @@ import android.os.Handler;
 import android.view.Choreographer;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewTreeObserver;
 import android.view.animation.AnimationUtils;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
@@ -50,7 +49,7 @@ public class PropertyAnimator implements Runnable {
     private long mDuration;
     private float mDurationReciprocal;
     private List<ElementHolder> mElementsList;
-    private List<PropertyAnimationListener> mListeners;
+    private PropertyAnimationListener mListener;
     private FramePoster mFramePoster;
     private boolean mUseHardwareLayer;
 
@@ -65,7 +64,6 @@ public class PropertyAnimator implements Runnable {
         mElementsList = new ArrayList<ElementHolder>();
         mFramePoster = FramePoster.create(this);
         mUseHardwareLayer = true;
-        mListeners = null;
     }
 
     public void setUseHardwareLayer(boolean useHardwareLayer) {
@@ -83,12 +81,8 @@ public class PropertyAnimator implements Runnable {
         mElementsList.add(element);
     }
 
-    public void addPropertyAnimationListener(PropertyAnimationListener listener) {
-        if (mListeners == null) {
-            mListeners = new ArrayList<PropertyAnimationListener>();
-        }
-
-        mListeners.add(listener);
+    public void setPropertyAnimationListener(PropertyAnimationListener listener) {
+        mListener = listener;
     }
 
     public long getDuration() {
@@ -150,40 +144,10 @@ public class PropertyAnimator implements Runnable {
                 element.view.setDrawingCacheEnabled(true);
         }
 
-        // Get ViewTreeObserver from any of the participant views
-        // in the animation.
-        final ViewTreeObserver treeObserver;
-        if (mElementsList.size() > 0) {
-            treeObserver = mElementsList.get(0).view.getViewTreeObserver();
-        } else {
-            treeObserver = null;
-        }
+        mFramePoster.postFirstAnimationFrame();
 
-        // Try to start animation after any on-going layout round
-        // in the current view tree. OnPreDrawListener seems broken
-        // on pre-Honeycomb devices, start animation immediatelly
-        // in this case.
-        if (Build.VERSION.SDK_INT >= 11 && treeObserver != null && treeObserver.isAlive()) {
-            treeObserver.addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
-                @Override
-                public boolean onPreDraw() {
-                    if (treeObserver.isAlive()) {
-                        treeObserver.removeOnPreDrawListener(this);
-                    }
-
-                    mFramePoster.postFirstAnimationFrame();
-                    return true;
-                }
-            });
-        } else {
-            mFramePoster.postFirstAnimationFrame();
-        }
-
-        if (mListeners != null) {
-            for (PropertyAnimationListener listener : mListeners) {
-                listener.onPropertyAnimationStart();
-            }
-        }
+        if (mListener != null)
+            mListener.onPropertyAnimationStart();
     }
 
 
@@ -209,15 +173,10 @@ public class PropertyAnimator implements Runnable {
 
         mElementsList.clear();
 
-        if (mListeners != null) {
-            if (snapToEndPosition) {
-                for (PropertyAnimationListener listener : mListeners) {
-                    listener.onPropertyAnimationEnd();
-                }
-            }
-
-            mListeners.clear();
-            mListeners = null;
+        if (mListener != null) {
+            if (snapToEndPosition)
+                mListener.onPropertyAnimationEnd();
+            mListener = null;
         }
     }
 

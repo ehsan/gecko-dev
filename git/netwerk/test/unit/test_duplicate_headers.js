@@ -6,6 +6,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Test infrastructure
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 Cu.import("resource://testing-common/httpd.js");
 
 XPCOMUtils.defineLazyGetter(this, "URL", function() {

@@ -6,11 +6,14 @@
 /* rendering object for CSS display:inline objects */
 
 #include "nsInlineFrame.h"
+#include "nsCOMPtr.h"
 #include "nsLineLayout.h"
 #include "nsBlockFrame.h"
 #include "nsPlaceholderFrame.h"
 #include "nsGkAtoms.h"
+#include "nsHTMLParts.h"
 #include "nsStyleContext.h"
+#include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsRenderingContext.h"
 #include "nsCSSAnonBoxes.h"
@@ -130,10 +133,10 @@ nsInlineFrame::IsSelfEmpty()
 
       // Get the first continuation eagerly, as a performance optimization, to
       // avoid having to get it twice..
-      nsIFrame* firstCont = FirstContinuation();
+      nsIFrame* firstCont = GetFirstContinuation();
       return
-        (!haveStart || firstCont->FrameIsNonFirstInIBSplit()) &&
-        (!haveEnd || firstCont->FrameIsNonLastInIBSplit());
+        (!haveStart || nsLayoutUtils::FrameIsNonFirstInIBSplit(firstCont)) &&
+        (!haveEnd || nsLayoutUtils::FrameIsNonLastInIBSplit(firstCont));
     }
     return false;
   }
@@ -463,7 +466,8 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   nscoord leftEdge = 0;
   // Don't offset by our start borderpadding if we have a prev continuation or
   // if we're in a part of an {ib} split other than the first one.
-  if (!GetPrevContinuation() && !FrameIsNonFirstInIBSplit()) {
+  if (!GetPrevContinuation() &&
+      !nsLayoutUtils::FrameIsNonFirstInIBSplit(this)) {
     leftEdge = ltr ? aReflowState.mComputedBorderPadding.left
                    : aReflowState.mComputedBorderPadding.right;
   }
@@ -625,7 +629,8 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   // Make sure to not include our start border and padding if we have a prev
   // continuation or if we're in a part of an {ib} split other than the first
   // one.
-  if (!GetPrevContinuation() && !FrameIsNonFirstInIBSplit()) {
+  if (!GetPrevContinuation() &&
+      !nsLayoutUtils::FrameIsNonFirstInIBSplit(this)) {
     aMetrics.width += ltr ? aReflowState.mComputedBorderPadding.left
                           : aReflowState.mComputedBorderPadding.right;
   }
@@ -638,8 +643,8 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
    * chain.
    */
   if (NS_FRAME_IS_COMPLETE(aStatus) &&
-      !LastInFlow()->GetNextContinuation() &&
-      !FrameIsNonLastInIBSplit()) {
+      !GetLastInFlow()->GetNextContinuation() &&
+      !nsLayoutUtils::FrameIsNonLastInIBSplit(this)) {
     aMetrics.width += ltr ? aReflowState.mComputedBorderPadding.right
                           : aReflowState.mComputedBorderPadding.left;
   }
@@ -884,11 +889,11 @@ nsInlineFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
     if (((startBit | endBit) & skip) != (startBit | endBit)) {
       // We're missing one of the skip bits, so check whether we need to set it.
       // Only get the first continuation once, as an optimization.
-      nsIFrame* firstContinuation = FirstContinuation();
-      if (firstContinuation->FrameIsNonLastInIBSplit()) {
+      nsIFrame* firstContinuation = GetFirstContinuation();
+      if (nsLayoutUtils::FrameIsNonLastInIBSplit(firstContinuation)) {
         skip |= endBit;
       }
-      if (firstContinuation->FrameIsNonFirstInIBSplit()) {
+      if (nsLayoutUtils::FrameIsNonFirstInIBSplit(firstContinuation)) {
         skip |= startBit;
       }
     }
@@ -914,6 +919,8 @@ nsInlineFrame::AccessibleType()
     return a11y::eHTMLButtonType;
   if (tagAtom == nsGkAtoms::img)  // Create accessible for broken <img>
     return a11y::eHyperTextType;
+  if (tagAtom == nsGkAtoms::label)  // Creat accessible for <label>
+    return a11y::eHTMLLabelType;
 
   return a11y::eNoType;
 }
@@ -944,7 +951,7 @@ nsFirstLineFrame::Init(nsIContent* aContent, nsIFrame* aParent,
   // This frame is a continuation - fixup the style context if aPrevInFlow
   // is the first-in-flow (the only one with a ::first-line pseudo).
   if (aPrevInFlow->StyleContext()->GetPseudo() == nsCSSPseudoElements::firstLine) {
-    MOZ_ASSERT(FirstInFlow() == aPrevInFlow);
+    MOZ_ASSERT(GetFirstInFlow() == aPrevInFlow);
     // Create a new style context that is a child of the parent
     // style context thus removing the ::first-line style. This way
     // we behave as if an anonymous (unstyled) span was the child
@@ -954,7 +961,7 @@ nsFirstLineFrame::Init(nsIContent* aContent, nsIFrame* aParent,
       ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozLineFrame, parentContext);
     SetStyleContext(newSC);
   } else {
-    MOZ_ASSERT(FirstInFlow() != aPrevInFlow);
+    MOZ_ASSERT(GetFirstInFlow() != aPrevInFlow);
     MOZ_ASSERT(aPrevInFlow->StyleContext()->GetPseudo() ==
                  nsCSSAnonBoxes::mozLineFrame);
   }

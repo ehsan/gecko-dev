@@ -7,7 +7,8 @@
 #define ArrayBufferInputStream_h
 
 #include "nsIArrayBufferInputStream.h"
-#include "js/Value.h"
+#include "mozilla/Util.h"
+#include "jsapi.h"
 
 #define NS_ARRAYBUFFERINPUTSTREAM_CONTRACTID "@mozilla.org/io/arraybuffer-input-stream;1"
 #define NS_ARRAYBUFFERINPUTSTREAM_CID                \

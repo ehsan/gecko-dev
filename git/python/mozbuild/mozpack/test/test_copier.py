@@ -14,8 +14,9 @@ import mozpack.path
 import unittest
 import mozunit
 import os
-import stat
+import shutil
 from mozpack.errors import ErrorMessage
+from tempfile import mkdtemp
 from mozpack.test.test_files import (
     MockDest,
     MatchTestTemplate,
@@ -133,33 +134,6 @@ class TestFileCopier(TestWithTmpDir):
         self.assertEqual(result.removed_files, set(self.tmppath(p) for p in
             ('foo/bar', 'foo/qux', 'foo/deep/nested/directory/file')))
 
-    def test_symlink_directory(self):
-        """Directory symlinks in destination are deleted."""
-        if not self.symlink_supported:
-            return
-
-        dest = self.tmppath('dest')
-
-        copier = FileCopier()
-        copier.add('foo/bar/baz', GeneratedFile('foobarbaz'))
-
-        os.makedirs(self.tmppath('dest/foo'))
-        dummy = self.tmppath('dummy')
-        os.mkdir(dummy)
-        link = self.tmppath('dest/foo/bar')
-        os.symlink(dummy, link)
-
-        result = copier.copy(dest)
-
-        st = os.lstat(link)
-        self.assertFalse(stat.S_ISLNK(st.st_mode))
-        self.assertTrue(stat.S_ISDIR(st.st_mode))
-
-        self.assertEqual(self.all_files(dest), set(copier.paths()))
-
-        self.assertEqual(result.removed_directories, set())
-        self.assertEqual(len(result.updated_files), 1)
-
     def test_permissions(self):
         """Ensure files without write permission can be deleted."""
         with open(self.tmppath('dummy'), 'a'):
@@ -180,28 +154,6 @@ class TestFileCopier(TestWithTmpDir):
         result = copier.copy(self.tmpdir)
         self.assertEqual(result.removed_files_count, 1)
         self.assertFalse(os.path.exists(p))
-
-    def test_no_remove(self):
-        copier = FileCopier()
-        copier.add('foo', GeneratedFile('foo'))
-
-        with open(self.tmppath('bar'), 'a'):
-            pass
-
-        os.mkdir(self.tmppath('emptydir'))
-        d = self.tmppath('populateddir')
-        os.mkdir(d)
-
-        with open(self.tmppath('populateddir/foo'), 'a'):
-            pass
-
-        result = copier.copy(self.tmpdir, remove_unaccounted=False)
-
-        self.assertEqual(self.all_files(self.tmpdir), set(['foo', 'bar',
-            'populateddir/foo']))
-        self.assertEqual(result.removed_files, set())
-        self.assertEqual(result.removed_directories,
-            set([self.tmppath('emptydir')]))
 
 
 class TestFilePurger(TestWithTmpDir):

@@ -144,7 +144,7 @@ MarkMessageManagers()
           continue;
         }
         static_cast<nsInProcessTabChildGlobal*>(et)->MarkForCC();
-        nsEventListenerManager* elm = et->GetExistingListenerManager();
+        nsEventListenerManager* elm = et->GetListenerManager(false);
         if (elm) {
           elm->MarkForCC();
         }
@@ -188,13 +188,13 @@ MarkContentViewer(nsIContentViewer* aViewer, bool aCleanupJS,
       doc->GetMarkedCCGeneration() != nsCCUncollectableMarker::sGeneration) {
     doc->MarkUncollectableForCCGeneration(nsCCUncollectableMarker::sGeneration);
     if (aCleanupJS) {
-      nsEventListenerManager* elm = doc->GetExistingListenerManager();
+      nsEventListenerManager* elm = doc->GetListenerManager(false);
       if (elm) {
         elm->MarkForCC();
       }
       nsCOMPtr<EventTarget> win = do_QueryInterface(doc->GetInnerWindow());
       if (win) {
-        elm = win->GetExistingListenerManager();
+        elm = win->GetListenerManager(false);
         if (elm) {
           elm->MarkForCC();
         }
@@ -263,8 +263,9 @@ MarkDocShell(nsIDocShellTreeNode* aNode, bool aCleanupJS, bool aPrepareForCC)
     int32_t i, historyCount;
     history->GetCount(&historyCount);
     for (i = 0; i < historyCount; ++i) {
-      nsCOMPtr<nsISHEntry> shEntry;
-      history->GetEntryAtIndex(i, false, getter_AddRefs(shEntry));
+      nsCOMPtr<nsIHistoryEntry> historyEntry;
+      history->GetEntryAtIndex(i, false, getter_AddRefs(historyEntry));
+      nsCOMPtr<nsISHEntry> shEntry = do_QueryInterface(historyEntry);
 
       MarkSHEntry(shEntry, aCleanupJS, aPrepareForCC);
     }

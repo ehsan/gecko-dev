@@ -6,14 +6,10 @@
 
 MODULE = 'universalchardet'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsUdetXPCOMWrapper.cpp',
     'nsUniversalCharDetModule.cpp',
 ]
 
 LIBRARY_NAME = 'universalchardet'
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
 

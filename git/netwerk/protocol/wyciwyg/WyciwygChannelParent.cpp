@@ -7,6 +7,7 @@
 #include "mozilla/net/WyciwygChannelParent.h"
 #include "nsWyciwygChannel.h"
 #include "nsNetUtil.h"
+#include "nsISupportsPriority.h"
 #include "nsCharsetSource.h"
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
@@ -106,9 +107,7 @@ WyciwygChannelParent::SetupAppData(const IPC::SerializedLoadContext& loadContext
   if (!mChannel)
     return true;
 
-  const char* error = NeckoParent::CreateChannelLoadContext(aParent,
-                                                            Manager()->Manager(),
-                                                            loadContext,
+  const char* error = NeckoParent::CreateChannelLoadContext(aParent, loadContext,
                                                             mLoadContext);
   if (error) {
     printf_stderr(nsPrintfCString("WyciwygChannelParent::SetupAppData: FATAL ERROR: %s\n",

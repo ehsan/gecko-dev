@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/voice_engine/test/auto_test/fixtures/before_initialization_fixture.h"
+#include "voice_engine/test/auto_test/fixtures/before_initialization_fixture.h"
 
 #include <cstdlib>
 

@@ -8,7 +8,7 @@
 #include "mozqwidgetfast.h"
 #include "nsFastStartupQt.h"
 #include "nsIFile.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "BinaryPath.h"
 
 #define TOOLBAR_SPLASH "toolbar_splash.png"

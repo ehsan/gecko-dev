@@ -16,38 +16,33 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
 else:
     LIBRARY_NAME = 'xul'
 
-include('/rdf/util/src/objs.mozbuild')
-include('/intl/unicharutil/util/objs.mozbuild')
-
-SOURCES += intl_unicharutil_util_cppsrcs
-SOURCES += rdf_util_src_cppsrcs
-
-SOURCES += [
+CPP_SOURCES += [
+    '$(INTL_UNICHARUTIL_UTIL_LCPPSRCS)',
+    '$(RDF_UTIL_SRC_LCPPSRCS)',
     'nsStaticXULComponents.cpp',
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsDllMain.cpp',
     ]
     if not CONFIG['GNU_CC']:
-        SOURCES += [
+        CPP_SOURCES += [
             'dlldeps-xul.cpp',
             'nsGFXDeps.cpp',
         ]
         if not CONFIG['MOZ_NATIVE_ZLIB']:
-            SOURCES += [
+            CPP_SOURCES += [
                 'dlldeps-zlib.cpp',
             ]
 
 if CONFIG['OS_ARCH'] == 'OS2':
-    SOURCES += [
+    CPP_SOURCES += [
         'dlldeps-xul.cpp',
         'nsGFXDeps.cpp',
     ]
     if not CONFIG['MOZ_NATIVE_ZLIB']:
-        SOURCES += [
+        CPP_SOURCES += [
             'dlldeps-zlib.cpp',
         ]
 
-MSVC_ENABLE_PGO = True

@@ -2,11 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+
 #ifndef nsDOMJSUtils_h__
 #define nsDOMJSUtils_h__
 
-#include "nsIScriptContext.h"
 #include "jsapi.h"
+#include "nsIScriptContext.h"
 
 class nsIJSArgArray;
 
@@ -15,7 +16,7 @@ class nsIJSArgArray;
 inline nsIScriptContext *
 GetScriptContextFromJSContext(JSContext *cx)
 {
-  if (!(JS::ContextOptionsRef(cx).privateIsNSISupports())) {
+  if (!(::JS_GetOptions(cx) & JSOPTION_PRIVATE_IS_NSISUPPORTS)) {
     return nullptr;
   }
 
@@ -27,8 +28,6 @@ GetScriptContextFromJSContext(JSContext *cx)
   // released, but that's ok here.
   return scx;
 }
-
-JSObject* GetDefaultScopeFromJSContext(JSContext *cx);
 
 // A factory function for turning a JS::Value argv into an nsIArray
 // but also supports an effecient way of extracting the original argv.

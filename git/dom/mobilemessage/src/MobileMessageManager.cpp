@@ -11,7 +11,7 @@
 #include "nsIObserverService.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
-#include "mozilla/dom/mobilemessage/Constants.h" // For MessageType
+#include "Constants.h"
 #include "nsIDOMMozSmsEvent.h"
 #include "nsIDOMMozMmsEvent.h"
 #include "nsIDOMMozSmsMessage.h"
@@ -101,19 +101,12 @@ MobileMessageManager::Shutdown()
 
 NS_IMETHODIMP
 MobileMessageManager::GetSegmentInfoForText(const nsAString& aText,
-                                            nsIDOMDOMRequest** aRequest)
+                                            nsIDOMMozSmsSegmentInfo** aResult)
 {
   nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(smsService, NS_ERROR_FAILURE);
 
-  nsRefPtr<DOMRequest> request = new DOMRequest(GetOwner());
-  nsCOMPtr<nsIMobileMessageCallback> msgCallback =
-    new MobileMessageCallback(request);
-  nsresult rv = smsService->GetSegmentInfoForText(aText, msgCallback);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  request.forget(aRequest);
-  return NS_OK;
+  return smsService->GetSegmentInfoForText(aText, aResult);
 }
 
 nsresult
@@ -136,16 +129,14 @@ MobileMessageManager::Send(JSContext* aCx, JS::Handle<JSObject*> aGlobal,
   NS_ENSURE_SUCCESS(rv, rv);
 
   JS::Rooted<JSObject*> global(aCx, aGlobal);
-  JS::Rooted<JS::Value> rval(aCx);
   rv = nsContentUtils::WrapNative(aCx, global,
                                   static_cast<nsIDOMDOMRequest*>(request.get()),
-                                  &rval);
+                                  aRequest);
   if (NS_FAILED(rv)) {
     NS_ERROR("Failed to create the js value!");
     return rv;
   }
 
-  *aRequest = rval;
   return NS_OK;
 }
 
@@ -164,7 +155,7 @@ MobileMessageManager::Send(const JS::Value& aNumber_, const nsAString& aMessage,
     return NS_ERROR_INVALID_ARG;
   }
 
-  JS::Rooted<JSObject*> global(cx, sc->GetWindowProxy());
+  JS::Rooted<JSObject*> global(cx, sc->GetNativeGlobal());
   NS_ASSERTION(global, "Failed to get global object!");
 
   JSAutoCompartment ac(cx, global);
@@ -184,7 +175,7 @@ MobileMessageManager::Send(const JS::Value& aNumber_, const nsAString& aMessage,
 
   JS::Rooted<JS::Value> number(cx);
   for (uint32_t i=0; i<size; ++i) {
-    if (!JS_GetElement(cx, numbers, i, &number)) {
+    if (!JS_GetElement(cx, numbers, i, number.address())) {
       return NS_ERROR_INVALID_ARG;
     }
 
@@ -287,7 +278,7 @@ MobileMessageManager::Delete(const JS::Value& aParam, nsIDOMDOMRequest** aReques
 
     JS::Rooted<JS::Value> idJsValue(cx);
     for (uint32_t i = 0; i < size; i++) {
-      if (!JS_GetElement(cx, ids, i, &idJsValue)) {
+      if (!JS_GetElement(cx, ids, i, idJsValue.address())) {
         return NS_ERROR_INVALID_ARG;
       }
 

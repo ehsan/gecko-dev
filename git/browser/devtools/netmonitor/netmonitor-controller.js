@@ -7,68 +7,14 @@
 
 const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
-const NET_STRINGS_URI = "chrome://browser/locale/devtools/netmonitor.properties";
-const LISTENERS = [ "NetworkActivity" ];
-const NET_PREFS = { "NetworkMonitor.saveRequestAndResponseBodies": true };
-
-// The panel's window global is an EventEmitter firing the following events:
-const EVENTS = {
-  // When the monitored target begins and finishes navigating.
-  TARGET_WILL_NAVIGATE: "NetMonitor:TargetWillNavigate",
-  TARGET_DID_NAVIGATE: "NetMonitor:TargetNavigate",
-
-  // When a network event is received.
-  // See https://developer.mozilla.org/docs/Tools/Web_Console/remoting for
-  // more information about what each packet is supposed to deliver.
-  NETWORK_EVENT: "NetMonitor:NetworkEvent",
-
-  // When request headers begin and finish receiving.
-  UPDATING_REQUEST_HEADERS: "NetMonitor:NetworkEventUpdating:RequestHeaders",
-  RECEIVED_REQUEST_HEADERS: "NetMonitor:NetworkEventUpdated:RequestHeaders",
-
-  // When request cookies begin and finish receiving.
-  UPDATING_REQUEST_COOKIES: "NetMonitor:NetworkEventUpdating:RequestCookies",
-  RECEIVED_REQUEST_COOKIES: "NetMonitor:NetworkEventUpdated:RequestCookies",
-
-  // When request post data begins and finishes receiving.
-  UPDATING_REQUEST_POST_DATA: "NetMonitor:NetworkEventUpdating:RequestPostData",
-  RECEIVED_REQUEST_POST_DATA: "NetMonitor:NetworkEventUpdated:RequestPostData",
-
-  // When response headers begin and finish receiving.
-  UPDATING_RESPONSE_HEADERS: "NetMonitor:NetworkEventUpdating:ResponseHeaders",
-  RECEIVED_RESPONSE_HEADERS: "NetMonitor:NetworkEventUpdated:ResponseHeaders",
-
-  // When response cookies begin and finish receiving.
-  UPDATING_RESPONSE_COOKIES: "NetMonitor:NetworkEventUpdating:ResponseCookies",
-  RECEIVED_RESPONSE_COOKIES: "NetMonitor:NetworkEventUpdated:ResponseCookies",
-
-  // When event timings begin and finish receiving.
-  UPDATING_EVENT_TIMINGS: "NetMonitor:NetworkEventUpdating:EventTimings",
-  RECEIVED_EVENT_TIMINGS: "NetMonitor:NetworkEventUpdated:EventTimings",
-
-  // When response content begins, updates and finishes receiving.
-  STARTED_RECEIVING_RESPONSE: "NetMonitor:NetworkEventUpdating:ResponseStart",
-  UPDATING_RESPONSE_CONTENT: "NetMonitor:NetworkEventUpdating:ResponseContent",
-  RECEIVED_RESPONSE_CONTENT: "NetMonitor:NetworkEventUpdated:ResponseContent",
-
-  // When the request post params are displayed in the UI.
-  REQUEST_POST_PARAMS_DISPLAYED: "NetMonitor:RequestPostParamsAvailable",
-
-  // When the response body is displayed in the UI.
-  RESPONSE_BODY_DISPLAYED: "NetMonitor:ResponseBodyAvailable"
-}
-
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
+Cu.import("resource:///modules/source-editor.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 Cu.import("resource:///modules/devtools/SideMenuWidget.jsm");
 Cu.import("resource:///modules/devtools/VariablesView.jsm");
-Cu.import("resource:///modules/devtools/VariablesViewController.jsm");
 Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
-
-const require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
-const Editor = require("devtools/sourceeditor/editor");
 
 XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
   "resource://gre/modules/PluralForm.jsm");
@@ -86,6 +32,10 @@ Object.defineProperty(this, "NetworkHelper", {
 
 XPCOMUtils.defineLazyServiceGetter(this, "clipboardHelper",
   "@mozilla.org/widget/clipboardhelper;1", "nsIClipboardHelper");
+
+const NET_STRINGS_URI = "chrome://browser/locale/devtools/netmonitor.properties";
+const LISTENERS = [ "NetworkActivity" ];
+const NET_PREFS = { "NetworkMonitor.saveRequestAndResponseBodies": true };
 
 /**
  * Object defining the network monitor controller components.
@@ -301,11 +251,15 @@ TargetEventsHandler.prototype = {
         NetMonitorView.Sidebar.reset();
         NetMonitorView.NetworkDetails.reset();
 
-        window.emit(EVENTS.TARGET_WILL_NAVIGATE);
+        // Reset global helpers cache.
+        nsIURL.store.clear();
+        drain.store.clear();
+
+        window.emit("NetMonitor:TargetWillNavigate");
         break;
       }
       case "navigate": {
-        window.emit(EVENTS.TARGET_DID_NAVIGATE);
+        window.emit("NetMonitor:TargetNavigate");
         break;
       }
     }
@@ -371,7 +325,7 @@ NetworkEventsHandler.prototype = {
     let { actor, startedDateTime, method, url, isXHR } = aPacket.eventActor;
     NetMonitorView.RequestsMenu.addRequest(actor, startedDateTime, method, url, isXHR);
 
-    window.emit(EVENTS.NETWORK_EVENT);
+    window.emit("NetMonitor:NetworkEvent");
   },
 
   /**
@@ -388,23 +342,23 @@ NetworkEventsHandler.prototype = {
     switch (aPacket.updateType) {
       case "requestHeaders":
         this.webConsoleClient.getRequestHeaders(actor, this._onRequestHeaders);
-        window.emit(EVENTS.UPDATING_REQUEST_HEADERS);
+        window.emit("NetMonitor:NetworkEventUpdating:RequestHeaders");
         break;
       case "requestCookies":
         this.webConsoleClient.getRequestCookies(actor, this._onRequestCookies);
-        window.emit(EVENTS.UPDATING_REQUEST_COOKIES);
+        window.emit("NetMonitor:NetworkEventUpdating:RequestCookies");
         break;
       case "requestPostData":
         this.webConsoleClient.getRequestPostData(actor, this._onRequestPostData);
-        window.emit(EVENTS.UPDATING_REQUEST_POST_DATA);
+        window.emit("NetMonitor:NetworkEventUpdating:RequestPostData");
         break;
       case "responseHeaders":
         this.webConsoleClient.getResponseHeaders(actor, this._onResponseHeaders);
-        window.emit(EVENTS.UPDATING_RESPONSE_HEADERS);
+        window.emit("NetMonitor:NetworkEventUpdating:ResponseHeaders");
         break;
       case "responseCookies":
         this.webConsoleClient.getResponseCookies(actor, this._onResponseCookies);
-        window.emit(EVENTS.UPDATING_RESPONSE_COOKIES);
+        window.emit("NetMonitor:NetworkEventUpdating:ResponseCookies");
         break;
       case "responseStart":
         NetMonitorView.RequestsMenu.updateRequest(aPacket.from, {
@@ -413,7 +367,7 @@ NetworkEventsHandler.prototype = {
           statusText: aPacket.response.statusText,
           headersSize: aPacket.response.headersSize
         });
-        window.emit(EVENTS.STARTED_RECEIVING_RESPONSE);
+        window.emit("NetMonitor:NetworkEventUpdating:ResponseStart");
         break;
       case "responseContent":
         NetMonitorView.RequestsMenu.updateRequest(aPacket.from, {
@@ -421,14 +375,14 @@ NetworkEventsHandler.prototype = {
           mimeType: aPacket.mimeType
         });
         this.webConsoleClient.getResponseContent(actor, this._onResponseContent);
-        window.emit(EVENTS.UPDATING_RESPONSE_CONTENT);
+        window.emit("NetMonitor:NetworkEventUpdating:ResponseContent");
         break;
       case "eventTimings":
         NetMonitorView.RequestsMenu.updateRequest(aPacket.from, {
           totalTime: aPacket.totalTime
         });
         this.webConsoleClient.getEventTimings(actor, this._onEventTimings);
-        window.emit(EVENTS.UPDATING_EVENT_TIMINGS);
+        window.emit("NetMonitor:NetworkEventUpdating:EventTimings");
         break;
     }
   },
@@ -443,7 +397,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       requestHeaders: aResponse
     });
-    window.emit(EVENTS.RECEIVED_REQUEST_HEADERS);
+    window.emit("NetMonitor:NetworkEventUpdated:RequestHeaders");
   },
 
   /**
@@ -456,7 +410,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       requestCookies: aResponse
     });
-    window.emit(EVENTS.RECEIVED_REQUEST_COOKIES);
+    window.emit("NetMonitor:NetworkEventUpdated:RequestCookies");
   },
 
   /**
@@ -469,7 +423,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       requestPostData: aResponse
     });
-    window.emit(EVENTS.RECEIVED_REQUEST_POST_DATA);
+    window.emit("NetMonitor:NetworkEventUpdated:RequestPostData");
   },
 
   /**
@@ -482,7 +436,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       responseHeaders: aResponse
     });
-    window.emit(EVENTS.RECEIVED_RESPONSE_HEADERS);
+    window.emit("NetMonitor:NetworkEventUpdated:ResponseHeaders");
   },
 
   /**
@@ -495,7 +449,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       responseCookies: aResponse
     });
-    window.emit(EVENTS.RECEIVED_RESPONSE_COOKIES);
+    window.emit("NetMonitor:NetworkEventUpdated:ResponseCookies");
   },
 
   /**
@@ -508,7 +462,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       responseContent: aResponse
     });
-    window.emit(EVENTS.RECEIVED_RESPONSE_CONTENT);
+    window.emit("NetMonitor:NetworkEventUpdated:ResponseContent");
   },
 
   /**
@@ -521,7 +475,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       eventTimings: aResponse
     });
-    window.emit(EVENTS.RECEIVED_EVENT_TIMINGS);
+    window.emit("NetMonitor:NetworkEventUpdated:EventTimings");
   },
 
   /**

@@ -26,7 +26,6 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIWindowsRegKey.h"
-#include "gfxFontConstants.h"
 
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Telemetry.h"
@@ -414,11 +413,11 @@ GDIFontEntry::CreateFontEntry(const nsAString& aName,
 }
 
 void
-GDIFontEntry::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                     FontListSizes* aSizes) const
+GDIFontEntry::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+                                  FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }
 
 /***************************************************************
@@ -566,8 +565,8 @@ GDIFontFamily::FindStyleVariations()
  */
 
 gfxGDIFontList::gfxGDIFontList()
-    : mFontSubstitutes(50)
 {
+    mFontSubstitutes.Init(50);
 }
 
 static void
@@ -726,8 +725,8 @@ gfxGDIFontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
     }
 
     // lookup in name lookup tables, return null if not found
-    if (!(lookup = mExtraNames->mPostscriptNames.GetWeak(aFullname)) &&
-        !(lookup = mExtraNames->mFullnames.GetWeak(aFullname)))
+    if (!(lookup = mPostscriptNames.GetWeak(aFullname)) &&
+        !(lookup = mFullnames.GetWeak(aFullname))) 
     {
         return nullptr;
     }
@@ -888,10 +887,10 @@ gfxGDIFontList::ResolveFontName(const nsAString& aFontName, nsAString& aResolved
 }
 
 void
-gfxGDIFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                       FontListSizes* aSizes) const
+gfxGDIFontList::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+                                    FontListSizes*    aSizes) const
 {
-    gfxPlatformFontList::AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    gfxPlatformFontList::SizeOfExcludingThis(aMallocSizeOf, aSizes);
     aSizes->mFontListSize +=
         mFontSubstitutes.SizeOfExcludingThis(SizeOfFamilyNameEntryExcludingThis,
                                              aMallocSizeOf);
@@ -904,9 +903,9 @@ gfxGDIFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxGDIFontList::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                       FontListSizes* aSizes) const
+gfxGDIFontList::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+                                    FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }

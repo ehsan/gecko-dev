@@ -15,6 +15,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMStyleSheet.h"
+#include "nsILink.h"
 #include "nsIStyleSheet.h"
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsIURL.h"
@@ -57,11 +58,15 @@ NS_IMPL_RELEASE_INHERITED(HTMLLinkElement, Element)
 
 // QueryInterface implementation for HTMLLinkElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLLinkElement)
-  NS_INTERFACE_TABLE_INHERITED3(HTMLLinkElement,
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED5(HTMLLinkElement,
                                 nsIDOMHTMLLinkElement,
+                                nsIDOMLinkStyle,
+                                nsILink,
                                 nsIStyleSheetLinkingElement,
                                 Link)
-NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLLinkElement)
@@ -144,16 +149,18 @@ HTMLLinkElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   return rv;
 }
 
-void
+NS_IMETHODIMP
 HTMLLinkElement::LinkAdded()
 {
   CreateAndDispatchEvent(OwnerDoc(), NS_LITERAL_STRING("DOMLinkAdded"));
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 HTMLLinkElement::LinkRemoved()
 {
   CreateAndDispatchEvent(OwnerDoc(), NS_LITERAL_STRING("DOMLinkRemoved"));
+  return NS_OK;
 }
 
 void
@@ -329,8 +336,7 @@ HTMLLinkElement::GetStyleSheetURL(bool* aIsInline)
   if (href.IsEmpty()) {
     return nullptr;
   }
-  nsCOMPtr<nsIURI> uri = Link::GetURI();
-  return uri.forget();
+  return Link::GetURI();
 }
 
 void

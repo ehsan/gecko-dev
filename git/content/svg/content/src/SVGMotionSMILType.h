@@ -12,7 +12,7 @@
 #include "gfxMatrix.h"
 #include "nsISMILType.h"
 
-class gfxPath;
+class gfxFlattenedPath;
 class nsSMILValue;
 
 namespace mozilla {
@@ -65,14 +65,16 @@ public:
 
   // Used to generate a nsSMILValue for the point at the given distance along
   // the given path.
-  static nsSMILValue ConstructSMILValue(gfxPath* aPath,
+  static nsSMILValue ConstructSMILValue(gfxFlattenedPath* aPath,
                                         float aDist,
                                         RotateType aRotateType,
                                         float aRotateAngle);
 
 private:
-  // Private constructor: prevent instances beyond my singleton.
-  MOZ_CONSTEXPR SVGMotionSMILType() {}
+  // Private constructor & destructor: prevent instances beyond my singleton,
+  // and prevent others from deleting my singleton.
+  SVGMotionSMILType()  {}
+  ~SVGMotionSMILType() {}
 };
 
 } // namespace mozilla

@@ -6,7 +6,7 @@
 
 MODULE = 'unicharutil'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsCaseConversionImp2.cpp',
     'nsCategoryImp.cpp',
     'nsEntityConverter.cpp',
@@ -15,6 +15,4 @@ SOURCES += [
 ]
 
 LIBRARY_NAME = 'ucharucomp_s'
-
-LIBXUL_LIBRARY = True
 

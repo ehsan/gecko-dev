@@ -69,31 +69,56 @@
 
 #define DEFAULT_INITIAL_POLLFD_COUNT 8
 
+// Functions for converting between unix events in the poll struct,
+// and their dbus definitions
+
+enum DBusEventTypes {
+  DBUS_EVENT_LOOP_EXIT = 1,
+  DBUS_EVENT_LOOP_ADD = 2,
+  DBUS_EVENT_LOOP_REMOVE = 3,
+  DBUS_EVENT_LOOP_WAKEUP = 4
+};
+
+static unsigned int UnixEventsToDBusFlags(short events)
+{
+  return (events & DBUS_WATCH_READABLE ? POLLIN : 0) |
+    (events & DBUS_WATCH_WRITABLE ? POLLOUT : 0) |
+    (events & DBUS_WATCH_ERROR ? POLLERR : 0) |
+    (events & DBUS_WATCH_HANGUP ? POLLHUP : 0);
+}
+
+static short DBusFlagsToUnixEvents(unsigned int flags)
+{
+  return (flags & POLLIN ? DBUS_WATCH_READABLE : 0) |
+    (flags & POLLOUT ? DBUS_WATCH_WRITABLE : 0) |
+    (flags & POLLERR ? DBUS_WATCH_ERROR : 0) |
+    (flags & POLLHUP ? DBUS_WATCH_HANGUP : 0);
+}
+
 namespace mozilla {
 namespace ipc {
 
-class DBusWatcher : public RawDBusConnection
-{
-public:
-  DBusWatcher()
-  { }
+struct PollFdComparator {
+  bool Equals(const pollfd& a, const pollfd& b) const {
+    return ((a.fd == b.fd) &&
+            (a.events == b.events));
+  }
+  bool LessThan(const pollfd& a, const pollfd&b) const {
+    return false;
+  }
+};
 
-  ~DBusWatcher()
-  { }
+// DBus Thread Class prototype
+
+struct DBusThread : public RawDBusConnection
+{
+  DBusThread();
+  ~DBusThread();
 
   bool Initialize();
   void CleanUp();
 
   void WakeUp();
-  bool Stop();
-
-  bool Poll();
-
-  bool AddWatch(DBusWatch* aWatch);
-  void RemoveWatch(DBusWatch* aWatch);
-
-  void HandleWatchAdd();
-  void HandleWatchRemove();
 
   // Information about the sockets we're polling. Socket counts
   // increase/decrease depending on how many add/remove watch signals
@@ -106,302 +131,131 @@ public:
   ScopedClose mControlFdR;
   ScopedClose mControlFdW;
 
-private:
-  struct PollFdComparator {
-    bool Equals(const pollfd& a, const pollfd& b) const {
-      return ((a.fd == b.fd) && (a.events == b.events));
-    }
-    bool LessThan(const pollfd& a, const pollfd&b) const {
-      return false;
-    }
-  };
-
-  enum DBusEventTypes {
-    DBUS_EVENT_LOOP_EXIT = 1,
-    DBUS_EVENT_LOOP_ADD = 2,
-    DBUS_EVENT_LOOP_REMOVE = 3,
-    DBUS_EVENT_LOOP_WAKEUP = 4
-  };
-
-  static unsigned int UnixEventsToDBusFlags(short events);
-  static short        DBusFlagsToUnixEvents(unsigned int flags);
-
-  static dbus_bool_t AddWatchFunction(DBusWatch* aWatch, void* aData);
-  static void        RemoveWatchFunction(DBusWatch* aWatch, void* aData);
-  static void        ToggleWatchFunction(DBusWatch* aWatch, void* aData);
-  static void        DBusWakeupFunction(void* aData);
-
+protected:
   bool SetUp();
 };
 
-bool
-DBusWatcher::Initialize()
+// DBus utility functions
+// Free statics, as they're used as function pointers in dbus setup
+
+static dbus_bool_t
+AddWatch(DBusWatch *aWatch, void *aData)
 {
-  if (!SetUp()) {
-    CleanUp();
-    return false;
-  }
+  DBusThread *dbt = (DBusThread *)aData;
 
-  return true;
-}
-
-void
-DBusWatcher::CleanUp()
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-
-  dbus_connection_set_wakeup_main_function(mConnection, nullptr,
-                                           nullptr, nullptr);
-  dbus_bool_t success = dbus_connection_set_watch_functions(mConnection,
-                                                            nullptr, nullptr,
-                                                            nullptr, nullptr,
-                                                            nullptr);
-  if (success != TRUE) {
-    NS_WARNING("dbus_connection_set_watch_functions failed");
-  }
-
-#ifdef DEBUG
-  LOG("Removing DBus Sockets\n");
-#endif
-  if (mControlFdW.get()) {
-    mControlFdW.dispose();
-  }
-  if (mControlFdR.get()) {
-    mControlFdR.dispose();
-  }
-  mPollData.Clear();
-
-  // DBusWatch pointers are maintained by DBus, so we won't leak by
-  // clearing.
-  mWatchData.Clear();
-}
-
-void
-DBusWatcher::WakeUp()
-{
-  static const char control = DBUS_EVENT_LOOP_WAKEUP;
-
-  struct pollfd fds = {
-    mControlFdW.get(),
-    POLLOUT,
-    0
-  };
-
-  int nfds = TEMP_FAILURE_RETRY(poll(&fds, 1, 0));
-  NS_ENSURE_TRUE_VOID(nfds == 1);
-  NS_ENSURE_TRUE_VOID(fds.revents == POLLOUT);
-
-  ssize_t res = TEMP_FAILURE_RETRY(
-    write(mControlFdW.get(), &control, sizeof(control)));
-  if (res < 0) {
-    NS_WARNING("Cannot write wakeup bit to DBus controller!");
-  }
-}
-
-bool
-DBusWatcher::Stop()
-{
-  static const char data = DBUS_EVENT_LOOP_EXIT;
-
-  ssize_t res =
-    TEMP_FAILURE_RETRY(write(mControlFdW.get(), &data, sizeof(data)));
-  NS_ENSURE_TRUE(res == 1, false);
-
-  return true;
-}
-
-bool
-DBusWatcher::Poll()
-{
-  int res = TEMP_FAILURE_RETRY(poll(mPollData.Elements(),
-                                    mPollData.Length(), -1));
-  NS_ENSURE_TRUE(res > 0, false);
-
-  bool continueThread = true;
-
-  nsTArray<pollfd>::size_type i = 0;
-
-  while (i < mPollData.Length()) {
-    if (mPollData[i].revents == POLLIN) {
-      if (mPollData[i].fd == mControlFdR.get()) {
-        char data;
-        res = TEMP_FAILURE_RETRY(read(mControlFdR.get(), &data, sizeof(data)));
-        NS_ENSURE_TRUE(res > 0, NS_OK);
-
-        switch (data) {
-          case DBUS_EVENT_LOOP_EXIT:
-            continueThread = false;
-            break;
-          case DBUS_EVENT_LOOP_ADD:
-            HandleWatchAdd();
-            break;
-          case DBUS_EVENT_LOOP_REMOVE:
-            HandleWatchRemove();
-            // don't increment i, or we'll skip one element
-            continue;
-          case DBUS_EVENT_LOOP_WAKEUP:
-            NS_ProcessPendingEvents(NS_GetCurrentThread(),
-                                    PR_INTERVAL_NO_TIMEOUT);
-            break;
-          default:
-#if DEBUG
-            nsCString warning("unknown command ");
-            warning.AppendInt(data);
-            NS_WARNING(warning.get());
-#endif
-            break;
-        }
-      } else {
-        short events = mPollData[i].revents;
-        unsigned int flags = UnixEventsToDBusFlags(events);
-        dbus_watch_handle(mWatchData[i], flags);
-        mPollData[i].revents = 0;
-        // Break at this point since we don't know if the operation
-        // was destructive
-        break;
-      }
-
-      DBusDispatchStatus dbusDispatchStatus;
-      do {
-        dbusDispatchStatus = dbus_connection_dispatch(GetConnection());
-      } while (dbusDispatchStatus == DBUS_DISPATCH_DATA_REMAINS);
+  if (dbus_watch_get_enabled(aWatch)) {
+    // note that we can't just send the watch and inspect it later
+    // because we may get a removeWatch call before this data is reacted
+    // to by our eventloop and remove this watch..  reading the add first
+    // and then inspecting the recently deceased watch would be bad.
+    char control = DBUS_EVENT_LOOP_ADD;
+    if (write(dbt->mControlFdW.get(), &control, sizeof(char)) < 0) {
+      LOG("Cannot write DBus add watch control data to socket!\n");
+      return false;
     }
 
-    ++i;
+    int fd = dbus_watch_get_unix_fd(aWatch);
+    if (write(dbt->mControlFdW.get(), &fd, sizeof(int)) < 0) {
+      LOG("Cannot write DBus add watch descriptor data to socket!\n");
+      return false;
+    }
+
+    unsigned int flags = dbus_watch_get_flags(aWatch);
+    if (write(dbt->mControlFdW.get(), &flags, sizeof(unsigned int)) < 0) {
+      LOG("Cannot write DBus add watch flag data to socket!\n");
+      return false;
+    }
+
+    if (write(dbt->mControlFdW.get(), &aWatch, sizeof(DBusWatch*)) < 0) {
+      LOG("Cannot write DBus add watch struct data to socket!\n");
+      return false;
+    }
   }
-
-  return continueThread;
-}
-
-bool
-DBusWatcher::AddWatch(DBusWatch* aWatch)
-{
-  static const char control = DBUS_EVENT_LOOP_ADD;
-
-  if (dbus_watch_get_enabled(aWatch) == FALSE) {
-    return true;
-  }
-
-  // note that we can't just send the watch and inspect it later
-  // because we may get a removeWatch call before this data is reacted
-  // to by our eventloop and remove this watch..  reading the add first
-  // and then inspecting the recently deceased watch would be bad.
-  ssize_t res =
-    TEMP_FAILURE_RETRY(write(mControlFdW.get(),&control, sizeof(control)));
-  if (res < 0) {
-    LOG("Cannot write DBus add watch control data to socket!\n");
-    return false;
-  }
-
-  int fd = dbus_watch_get_unix_fd(aWatch);
-  res = TEMP_FAILURE_RETRY(write(mControlFdW.get(), &fd, sizeof(fd)));
-  if (res < 0) {
-    LOG("Cannot write DBus add watch descriptor data to socket!\n");
-    return false;
-  }
-
-  unsigned int flags = dbus_watch_get_flags(aWatch);
-  res = TEMP_FAILURE_RETRY(write(mControlFdW.get(), &flags, sizeof(flags)));
-  if (res < 0) {
-    LOG("Cannot write DBus add watch flag data to socket!\n");
-    return false;
-  }
-
-  res = TEMP_FAILURE_RETRY(write(mControlFdW.get(), &aWatch, sizeof(aWatch)));
-  if (res < 0) {
-    LOG("Cannot write DBus add watch struct data to socket!\n");
-    return false;
-  }
-
   return true;
 }
 
-void
-DBusWatcher::RemoveWatch(DBusWatch* aWatch)
+static void
+RemoveWatch(DBusWatch *aWatch, void *aData)
 {
-  static const char control = DBUS_EVENT_LOOP_REMOVE;
+  DBusThread *dbt = (DBusThread *)aData;
 
-  ssize_t res =
-    TEMP_FAILURE_RETRY(write(mControlFdW.get(), &control, sizeof(control)));
-  if (res < 0) {
+  char control = DBUS_EVENT_LOOP_REMOVE;
+  if (write(dbt->mControlFdW.get(), &control, sizeof(char)) < 0) {
     LOG("Cannot write DBus remove watch control data to socket!\n");
     return;
   }
 
   int fd = dbus_watch_get_unix_fd(aWatch);
-  res = TEMP_FAILURE_RETRY(write(mControlFdW.get(), &fd, sizeof(fd)));
-  if (res < 0) {
+  if (write(dbt->mControlFdW.get(), &fd, sizeof(int)) < 0) {
     LOG("Cannot write DBus remove watch descriptor data to socket!\n");
     return;
   }
 
   unsigned int flags = dbus_watch_get_flags(aWatch);
-  res = TEMP_FAILURE_RETRY(write(mControlFdW.get(), &flags, sizeof(flags)));
-  if (res < 0) {
+  if (write(dbt->mControlFdW.get(), &flags, sizeof(unsigned int)) < 0) {
     LOG("Cannot write DBus remove watch flag data to socket!\n");
     return;
   }
 }
 
-void
-DBusWatcher::HandleWatchAdd()
+static void
+ToggleWatch(DBusWatch *aWatch, void *aData)
 {
-  int fd;
-  ssize_t res = TEMP_FAILURE_RETRY(read(mControlFdR.get(), &fd, sizeof(fd)));
-  if (res < 0) {
+  if (dbus_watch_get_enabled(aWatch)) {
+    AddWatch(aWatch, aData);
+  } else {
+    RemoveWatch(aWatch, aData);
+  }
+}
+
+static void
+HandleWatchAdd(DBusThread* aDbt)
+{
+  DBusWatch *watch;
+  int newFD;
+  unsigned int flags;
+  if (read(aDbt->mControlFdR.get(), &newFD, sizeof(int)) < 0) {
     LOG("Cannot read DBus watch add descriptor data from socket!\n");
     return;
   }
-
-  unsigned int flags;
-  res = TEMP_FAILURE_RETRY(read(mControlFdR.get(), &flags, sizeof(flags)));
-  if (res < 0) {
+  if (read(aDbt->mControlFdR.get(), &flags, sizeof(unsigned int)) < 0) {
     LOG("Cannot read DBus watch add flag data from socket!\n");
     return;
   }
-
-  DBusWatch* watch;
-  res = TEMP_FAILURE_RETRY(read(mControlFdR.get(), &watch, sizeof(watch)));
-  if (res < 0) {
+  if (read(aDbt->mControlFdR.get(), &watch, sizeof(DBusWatch *)) < 0) {
     LOG("Cannot read DBus watch add watch data from socket!\n");
     return;
   }
+  short events = DBusFlagsToUnixEvents(flags);
 
-  struct pollfd p = {
-    fd, // .fd
-    DBusFlagsToUnixEvents(flags), // .events
-    0 // .revents
-  };
-  if (mPollData.Contains(p, PollFdComparator())) {
-    return;
-  }
-  mPollData.AppendElement(p);
-  mWatchData.AppendElement(watch);
+  pollfd p;
+  p.fd = newFD;
+  p.revents = 0;
+  p.events = events;
+  if (aDbt->mPollData.Contains(p, PollFdComparator())) return;
+  aDbt->mPollData.AppendElement(p);
+  aDbt->mWatchData.AppendElement(watch);
 }
 
-void
-DBusWatcher::HandleWatchRemove()
+static void
+HandleWatchRemove(DBusThread* aDbt)
 {
-  int fd;
-  ssize_t res = TEMP_FAILURE_RETRY(read(mControlFdR.get(), &fd, sizeof(fd)));
-  if (res < 0) {
+  int removeFD;
+  unsigned int flags;
+
+  if (read(aDbt->mControlFdR.get(), &removeFD, sizeof(int)) < 0) {
     LOG("Cannot read DBus watch remove descriptor data from socket!\n");
     return;
   }
-
-  unsigned int flags;
-  res = TEMP_FAILURE_RETRY(read(mControlFdR.get(), &flags, sizeof(flags)));
-  if (res < 0) {
+  if (read(aDbt->mControlFdR.get(), &flags, sizeof(unsigned int)) < 0) {
     LOG("Cannot read DBus watch remove flag data from socket!\n");
     return;
   }
-
-  struct pollfd p = {
-    fd, // .fd
-    DBusFlagsToUnixEvents(flags), // .events
-    0 // .revents
-  };
-  int index = mPollData.IndexOf(p, 0, PollFdComparator());
+  short events = DBusFlagsToUnixEvents(flags);
+  pollfd p;
+  p.fd = removeFD;
+  p.events = events;
+  int index = aDbt->mPollData.IndexOf(p, 0, PollFdComparator());
   // There are times where removes can be requested for watches that
   // haven't been added (for example, whenever gecko comes up after
   // adapters have already been enabled), so check to make sure we're
@@ -410,74 +264,34 @@ DBusWatcher::HandleWatchRemove()
     LOG("DBus requested watch removal of non-existant socket, ignoring...");
     return;
   }
-  mPollData.RemoveElementAt(index);
+  aDbt->mPollData.RemoveElementAt(index);
 
   // DBusWatch pointers are maintained by DBus, so we won't leak by
   // removing.
-  mWatchData.RemoveElementAt(index);
+  aDbt->mWatchData.RemoveElementAt(index);
 }
 
-// Flag conversion
-
-unsigned int
-DBusWatcher::UnixEventsToDBusFlags(short events)
-{
-  return (events & DBUS_WATCH_READABLE ? POLLIN : 0) |
-         (events & DBUS_WATCH_WRITABLE ? POLLOUT : 0) |
-         (events & DBUS_WATCH_ERROR ? POLLERR : 0) |
-         (events & DBUS_WATCH_HANGUP ? POLLHUP : 0);
-}
-
-short
-DBusWatcher::DBusFlagsToUnixEvents(unsigned int flags)
-{
-  return (flags & POLLIN ? DBUS_WATCH_READABLE : 0) |
-         (flags & POLLOUT ? DBUS_WATCH_WRITABLE : 0) |
-         (flags & POLLERR ? DBUS_WATCH_ERROR : 0) |
-         (flags & POLLHUP ? DBUS_WATCH_HANGUP : 0);
-}
-
-// DBus utility functions, used as function pointers in DBus setup
-
-dbus_bool_t
-DBusWatcher::AddWatchFunction(DBusWatch* aWatch, void* aData)
+static
+void DBusWakeup(void* aData)
 {
   MOZ_ASSERT(aData);
-  DBusWatcher* dbusWatcher = static_cast<DBusWatcher*>(aData);
-  return dbusWatcher->AddWatch(aWatch);
+  DBusThread* dbusThread = static_cast<DBusThread*>(aData);
+  dbusThread->WakeUp();
 }
 
-void
-DBusWatcher::RemoveWatchFunction(DBusWatch* aWatch, void* aData)
+// DBus Thread Implementation
+
+DBusThread::DBusThread()
 {
-  MOZ_ASSERT(aData);
-  DBusWatcher* dbusWatcher = static_cast<DBusWatcher*>(aData);
-  dbusWatcher->RemoveWatch(aWatch);
 }
 
-void
-DBusWatcher::ToggleWatchFunction(DBusWatch* aWatch, void* aData)
+DBusThread::~DBusThread()
 {
-  MOZ_ASSERT(aData);
-  DBusWatcher* dbusWatcher = static_cast<DBusWatcher*>(aData);
 
-  if (dbus_watch_get_enabled(aWatch)) {
-    dbusWatcher->AddWatch(aWatch);
-  } else {
-    dbusWatcher->RemoveWatch(aWatch);
-  }
-}
-
-void
-DBusWatcher::DBusWakeupFunction(void* aData)
-{
-  MOZ_ASSERT(aData);
-  DBusWatcher* dbusWatcher = static_cast<DBusWatcher*>(aData);
-  dbusWatcher->WakeUp();
 }
 
 bool
-DBusWatcher::SetUp()
+DBusThread::SetUp()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
@@ -501,7 +315,7 @@ DBusWatcher::SetUp()
   mControlFdR.rwget() = sockets[0];
   mControlFdW.rwget() = sockets[1];
 
-  pollfd* p = mPollData.AppendElement();
+  pollfd *p = mPollData.AppendElement();
 
   p->fd = mControlFdR.get();
   p->events = POLLIN;
@@ -521,14 +335,76 @@ DBusWatcher::SetUp()
   }
 
   dbus_bool_t success =
-    dbus_connection_set_watch_functions(mConnection, AddWatchFunction,
-                                        RemoveWatchFunction,
-                                        ToggleWatchFunction, this, nullptr);
+    dbus_connection_set_watch_functions(mConnection, AddWatch, RemoveWatch,
+                                        ToggleWatch, this, nullptr);
   NS_ENSURE_TRUE(success == TRUE, false);
 
-  dbus_connection_set_wakeup_main_function(mConnection, DBusWakeupFunction,
-                                           this, nullptr);
+  dbus_connection_set_wakeup_main_function(mConnection, DBusWakeup, this, nullptr);
+
   return true;
+}
+
+bool
+DBusThread::Initialize()
+{
+  if (!SetUp()) {
+    CleanUp();
+    return false;
+  }
+
+  return true;
+}
+
+void
+DBusThread::CleanUp()
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+
+  dbus_connection_set_wakeup_main_function(mConnection, nullptr, nullptr, nullptr);
+
+  dbus_bool_t success = dbus_connection_set_watch_functions(mConnection, nullptr,
+                                                            nullptr, nullptr,
+                                                            nullptr, nullptr);
+  if (success != TRUE) {
+    NS_WARNING("dbus_connection_set_watch_functions failed");
+  }
+
+#ifdef DEBUG
+  LOG("Removing DBus Sockets\n");
+#endif
+  if (mControlFdW.get()) {
+    mControlFdW.dispose();
+  }
+  if (mControlFdR.get()) {
+    mControlFdR.dispose();
+  }
+  mPollData.Clear();
+
+  // DBusWatch pointers are maintained by DBus, so we won't leak by
+  // clearing.
+  mWatchData.Clear();
+}
+
+void
+DBusThread::WakeUp()
+{
+  static const char control = DBUS_EVENT_LOOP_WAKEUP;
+
+  struct pollfd fds = {
+    mControlFdW.get(),
+    POLLOUT,
+    0
+  };
+
+  int nfds = TEMP_FAILURE_RETRY(poll(&fds, 1, 0));
+  NS_ENSURE_TRUE_VOID(nfds == 1);
+  NS_ENSURE_TRUE_VOID(fds.revents == POLLOUT);
+
+  ssize_t rv = TEMP_FAILURE_RETRY(write(mControlFdW.get(), &control, sizeof(control)));
+
+  if (rv < 0) {
+    NS_WARNING("Cannot write wakeup bit to DBus controller!");
+  }
 }
 
 // Main task for polling the DBus system
@@ -536,40 +412,82 @@ DBusWatcher::SetUp()
 class DBusPollTask : public nsRunnable
 {
 public:
-  DBusPollTask(DBusWatcher* aDBusWatcher)
-  : mDBusWatcher(aDBusWatcher)
+  DBusPollTask(DBusThread* aConnection)
+  : mConnection(aConnection)
   { }
 
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(!NS_IsMainThread());
 
-    bool continueThread;
+    bool exitThread = false;
 
-    do {
-      continueThread = mDBusWatcher->Poll();
-    } while (continueThread);
+    while (!exitThread) {
 
-    mDBusWatcher->CleanUp();
+      int res = TEMP_FAILURE_RETRY(poll(mConnection->mPollData.Elements(),
+                                        mConnection->mPollData.Length(),
+                                        -1));
+      NS_ENSURE_TRUE(res > 0, NS_OK);
 
-    nsIThread* thread;
-    nsresult rv = NS_GetCurrentThread(&thread);
-    NS_ENSURE_SUCCESS(rv, rv);
+      nsTArray<pollfd>::size_type i = 0;
 
-    nsRefPtr<nsIRunnable> runnable =
-      NS_NewRunnableMethod(thread, &nsIThread::Shutdown);
-    rv = NS_DispatchToMainThread(runnable);
-    NS_ENSURE_SUCCESS(rv, rv);
+      while (i < mConnection->mPollData.Length()) {
+        if (mConnection->mPollData[i].revents == POLLIN) {
+
+          if (mConnection->mPollData[i].fd == mConnection->mControlFdR.get()) {
+            char data;
+            res = TEMP_FAILURE_RETRY(read(mConnection->mControlFdR.get(), &data, sizeof(data)));
+            NS_ENSURE_TRUE(res > 0, NS_OK);
+
+            switch (data) {
+            case DBUS_EVENT_LOOP_EXIT:
+              exitThread = true;
+              break;
+            case DBUS_EVENT_LOOP_ADD:
+              HandleWatchAdd(mConnection);
+              break;
+            case DBUS_EVENT_LOOP_REMOVE:
+              HandleWatchRemove(mConnection);
+              // don't increment i, or we'll skip one element
+              continue;
+            case DBUS_EVENT_LOOP_WAKEUP:
+              NS_ProcessPendingEvents(NS_GetCurrentThread(),
+                                      PR_INTERVAL_NO_TIMEOUT);
+              break;
+            default:
+#if DEBUG
+              nsCString warning("unknown command ");
+              warning.AppendInt(data);
+              NS_WARNING(warning.get());
+#endif
+              break;
+            }
+          } else {
+            short events = mConnection->mPollData[i].revents;
+            unsigned int flags = UnixEventsToDBusFlags(events);
+            dbus_watch_handle(mConnection->mWatchData[i], flags);
+            mConnection->mPollData[i].revents = 0;
+            // Break at this point since we don't know if the operation
+            // was destructive
+            break;
+          }
+          while (dbus_connection_dispatch(mConnection->GetConnection()) ==
+                 DBUS_DISPATCH_DATA_REMAINS)
+          {}
+        }
+        ++i;
+      }
+    }
 
     return NS_OK;
   }
 
 private:
-  nsRefPtr<DBusWatcher> mDBusWatcher;
+  DBusThread* mConnection;
 };
 
-static StaticRefPtr<DBusWatcher> gDBusWatcher;
-static StaticRefPtr<nsIThread>   gDBusServiceThread;
+static StaticRefPtr<DBusThread> gDBusThread;
+static StaticRefPtr<nsIThread>  gDBusServiceThread;
 
 // Startup/Shutdown utility functions
 
@@ -577,11 +495,11 @@ bool
 StartDBus()
 {
   MOZ_ASSERT(!NS_IsMainThread());
-  NS_ENSURE_TRUE(!gDBusWatcher, true);
+  NS_ENSURE_TRUE(!gDBusThread, true);
 
-  nsRefPtr<DBusWatcher> dbusWatcher(new DBusWatcher());
+  nsRefPtr<DBusThread> dbusThread(new DBusThread());
 
-  bool eventLoopStarted = dbusWatcher->Initialize();
+  bool eventLoopStarted = dbusThread->Initialize();
   NS_ENSURE_TRUE(eventLoopStarted, false);
 
   nsresult rv;
@@ -597,13 +515,13 @@ StartDBus()
   LOG("DBus Thread Starting\n");
 #endif
 
-  nsRefPtr<nsIRunnable> pollTask(new DBusPollTask(dbusWatcher));
+  nsRefPtr<nsIRunnable> pollTask(new DBusPollTask(dbusThread));
   NS_ENSURE_TRUE(pollTask, false);
 
   rv = gDBusServiceThread->Dispatch(pollTask, NS_DISPATCH_NORMAL);
   NS_ENSURE_SUCCESS(rv, false);
 
-  gDBusWatcher = dbusWatcher;
+  gDBusThread = dbusThread;
 
   return true;
 }
@@ -614,14 +532,30 @@ StopDBus()
   MOZ_ASSERT(!NS_IsMainThread());
   NS_ENSURE_TRUE(gDBusServiceThread, true);
 
-  nsRefPtr<DBusWatcher> dbusWatcher(gDBusWatcher);
-  gDBusWatcher = nullptr;
-
-  if (dbusWatcher && !dbusWatcher->Stop()) {
-    return false;
+  if (gDBusThread) {
+    static const char data = DBUS_EVENT_LOOP_EXIT;
+    ssize_t wret = TEMP_FAILURE_RETRY(write(gDBusThread->mControlFdW.get(),
+                                            &data, sizeof(data)));
+    NS_ENSURE_TRUE(wret == 1, false);
   }
 
+#ifdef DEBUG
+  LOG("DBus Thread Joining\n");
+#endif
+
+  if (NS_FAILED(gDBusServiceThread->Shutdown())) {
+    NS_WARNING("DBus thread shutdown failed!");
+  }
   gDBusServiceThread = nullptr;
+
+#ifdef DEBUG
+  LOG("DBus Thread Joined\n");
+#endif
+
+  if (gDBusThread) {
+    gDBusThread->CleanUp();
+    gDBusThread = nullptr;
+  }
 
   return true;
 }
@@ -629,16 +563,13 @@ StopDBus()
 nsresult
 DispatchToDBusThread(nsIRunnable* event)
 {
-  nsRefPtr<nsIThread> dbusServiceThread(gDBusServiceThread);
-  nsRefPtr<DBusWatcher> dbusWatcher(gDBusWatcher);
+  MOZ_ASSERT(gDBusServiceThread);
+  MOZ_ASSERT(gDBusThread);
 
-  NS_ENSURE_TRUE(dbusServiceThread.get() && dbusWatcher.get(),
-                 NS_ERROR_NOT_INITIALIZED);
-
-  nsresult rv = dbusServiceThread->Dispatch(event, NS_DISPATCH_NORMAL);
+  nsresult rv = gDBusServiceThread->Dispatch(event, NS_DISPATCH_NORMAL);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  dbusWatcher->WakeUp();
+  gDBusThread->WakeUp();
 
   return NS_OK;
 }

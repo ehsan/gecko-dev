@@ -19,11 +19,12 @@
 function promiseResolve() {
   ok(Promise, "Promise object should exist");
 
-  var promise = new Promise(function(resolve, reject) {
-    ok(resolve, "Promise.resolve exists");
-    ok(reject, "Promise.reject exists");
+  var promise = new Promise(function(resolver) {
+    ok(resolver, "PromiseResolver exists");
+    ok("reject" in resolver, "PromiseResolver.reject exists");
+    ok("resolve" in resolver, "PromiseResolver.resolve exists");
 
-    resolve(42);
+    resolver.resolve(42);
   }).then(function(what) {
     ok(true, "Then - resolveCb has been called");
     is(what, 42, "ResolveCb received 42");
@@ -35,8 +36,8 @@ function promiseResolve() {
 }
 
 function promiseReject() {
-  var promise = new Promise(function(resolve, reject) {
-    reject(42);
+  var promise = new Promise(function(resolver) {
+    resolver.reject(42);
   }).then(function(what) {
     ok(false, "Then - resolveCb has been called");
     runTest();
@@ -48,7 +49,7 @@ function promiseReject() {
 }
 
 function promiseException() {
-  var promise = new Promise(function(resolve, reject) {
+  var promise = new Promise(function(resolver) {
     throw 42;
   }).then(function(what) {
     ok(false, "Then - resolveCb has been called");
@@ -61,9 +62,9 @@ function promiseException() {
 }
 
 function promiseGC() {
-  var resolve;
-  var promise = new Promise(function(r1, r2) {
-    resolve = r1;
+  var resolver;
+  var promise = new Promise(function(r) {
+    resolver = r;
   }).then(function(what) {
     ok(true, "Then - promise is still alive");
     runTest();
@@ -75,14 +76,14 @@ function promiseGC() {
   SpecialPowers.forceGC();
   SpecialPowers.forceCC();
 
-  resolve(42);
+  resolver.resolve(42);
 }
 
 function promiseAsync() {
   var global = "foo";
-  var f = new Promise(function(r1, r2) {
+  var f = new Promise(function(r) {
     is(global, "foo", "Global should be foo");
-    r1(42);
+    r.resolve(42);
     is(global, "foo", "Global should still be foo");
     setTimeout(function() {
       is(global, "bar", "Global should still be bar!");
@@ -96,8 +97,8 @@ function promiseAsync() {
 
 function promiseDoubleThen() {
   var steps = 0;
-  var promise = new Promise(function(r1, r2) {
-    r1(42);
+  var promise = new Promise(function(resolver) {
+    resolver.resolve(42);
   });
 
   promise.then(function(what) {
@@ -119,8 +120,8 @@ function promiseDoubleThen() {
 }
 
 function promiseThenException() {
-  var promise = new Promise(function(resolve, reject) {
-    resolve(42);
+  var promise = new Promise(function(resolver) {
+    resolver.resolve(42);
   });
 
   promise.then(function(what) {
@@ -133,8 +134,8 @@ function promiseThenException() {
 }
 
 function promiseThenCatchThen() {
-  var promise = new Promise(function(resolve, reject) {
-    resolve(42);
+  var promise = new Promise(function(resolver) {
+    resolver.resolve(42);
   });
 
   var promise2 = promise.then(function(what) {
@@ -165,8 +166,8 @@ function promiseThenCatchThen() {
 }
 
 function promiseRejectThenCatchThen() {
-  var promise = new Promise(function(resolve, reject) {
-    reject(42);
+  var promise = new Promise(function(resolver) {
+    resolver.reject(42);
   });
 
   var promise2 = promise.then(function(what) {
@@ -193,8 +194,8 @@ function promiseRejectThenCatchThen() {
 }
 
 function promiseRejectThenCatchThen2() {
-  var promise = new Promise(function(resolve, reject) {
-    reject(42);
+  var promise = new Promise(function(resolver) {
+    resolver.reject(42);
   });
 
   promise.then(function(what) {
@@ -213,8 +214,8 @@ function promiseRejectThenCatchThen2() {
 }
 
 function promiseRejectThenCatchExceptionThen() {
-  var promise = new Promise(function(resolve, reject) {
-    reject(42);
+  var promise = new Promise(function(resolver) {
+    resolver.reject(42);
   });
 
   promise.then(function(what) {
@@ -236,8 +237,8 @@ function promiseRejectThenCatchExceptionThen() {
 
 function promiseThenCatchOrderingResolve() {
   var global = 0;
-  var f = new Promise(function(r1, r2) {
-    r1(42);
+  var f = new Promise(function(r) {
+    r.resolve(42);
   });
 
   f.then(function() {
@@ -259,8 +260,8 @@ function promiseThenCatchOrderingResolve() {
 
 function promiseThenCatchOrderingReject() {
   var global = 0;
-  var f = new Promise(function(r1, r2) {
-    r2(42);
+  var f = new Promise(function(r) {
+    r.reject(42);
   })
 
   f.then(function() {}, function() {
@@ -281,10 +282,10 @@ function promiseThenCatchOrderingReject() {
 }
 
 function promiseNestedPromise() {
-  new Promise(function(resolve, reject) {
-    resolve(new Promise(function(resolve, reject) {
+  new Promise(function(resolver) {
+    resolver.resolve(new Promise(function(r) {
       ok(true, "Nested promise is executed");
-      resolve(42);
+      r.resolve(42);
     }));
   }).then(function(value) {
     is(value, 42, "Nested promise is executed and then == 42");
@@ -293,10 +294,10 @@ function promiseNestedPromise() {
 }
 
 function promiseNestedNestedPromise() {
-  new Promise(function(resolve, reject) {
-    resolve(new Promise(function(resolve, reject) {
+  new Promise(function(resolver) {
+    resolver.resolve(new Promise(function(r) {
       ok(true, "Nested promise is executed");
-      resolve(42);
+      r.resolve(42);
     }).then(function(what) { return what+1; }));
   }).then(function(value) {
     is(value, 43, "Nested promise is executed and then == 43");
@@ -305,12 +306,12 @@ function promiseNestedNestedPromise() {
 }
 
 function promiseWrongNestedPromise() {
-  new Promise(function(resolve, reject) {
-    resolve(new Promise(function(r, r2) {
+  new Promise(function(resolver) {
+    resolver.resolve(new Promise(function(r) {
       ok(true, "Nested promise is executed");
-      r(42);
+      r.resolve(42);
     }));
-    reject(42);
+    resolver.reject(42);
   }).then(function(value) {
     is(value, 42, "Nested promise is executed and then == 42");
     runTest();
@@ -320,12 +321,12 @@ function promiseWrongNestedPromise() {
 }
 
 function promiseLoop() {
-  new Promise(function(resolve, reject) {
-    resolve(new Promise(function(r1, r2) {
+  new Promise(function(resolver) {
+    resolver.resolve(new Promise(function(r) {
       ok(true, "Nested promise is executed");
-      r1(new Promise(function(r1, r2) {
+      r.resolve(new Promise(function(r) {
         ok(true, "Nested nested promise is executed");
-        r1(42);
+        r.resolve(42);
       }));
     }));
   }).then(function(value) {
@@ -336,7 +337,7 @@ function promiseLoop() {
   });
 }
 
-function promiseStaticReject() {
+function promiseReject() {
   var promise = Promise.reject(42).then(function(what) {
     ok(false, "This should not be called");
   }, function(what) {
@@ -345,7 +346,7 @@ function promiseStaticReject() {
   });
 }
 
-function promiseStaticResolve() {
+function promiseResolve() {
   var promise = Promise.resolve(42).then(function(what) {
     is(what, 42, "Value == 42");
     runTest();
@@ -355,9 +356,9 @@ function promiseStaticResolve() {
 }
 
 function promiseResolveNestedPromise() {
-  var promise = Promise.resolve(new Promise(function(r, r2) {
+  var promise = Promise.resolve(new Promise(function(r) {
     ok(true, "Nested promise is executed");
-    r(42);
+    r.resolve(42);
   }, function() {
     ok(false, "This should not be called");
   })).then(function(what) {
@@ -378,7 +379,7 @@ var tests = [ promiseResolve, promiseReject,
               promiseThenCatchOrderingReject,
               promiseNestedPromise, promiseNestedNestedPromise,
               promiseWrongNestedPromise, promiseLoop,
-              promiseStaticReject, promiseStaticResolve,
+              promiseReject, promiseResolve,
               promiseResolveNestedPromise,
             ];
 

@@ -5,35 +5,21 @@
 #ifndef SHAREDRGBIMAGE_H_
 #define SHAREDRGBIMAGE_H_
 
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uint8_t
-#include "ImageContainer.h"             // for ISharedImage, Image, etc
-#include "gfxTypes.h"
-#include "gfxPoint.h"                   // for gfxIntSize
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/RefPtr.h"             // for RefPtr
-#include "mozilla/gfx/Point.h"          // for IntSize
-#include "mozilla/gfx/Types.h"          // for SurfaceFormat
-#include "nsCOMPtr.h"                   // for already_AddRefed
-
-class gfxASurface;
+#include "ImageContainer.h"
+#include "ISurfaceAllocator.h"
 
 namespace mozilla {
 namespace ipc {
 class Shmem;
 }
-
 namespace layers {
-
 class BufferTextureClient;
-class ImageClient;
-class ISurfaceAllocator;
 class TextureClient;
-class SurfaceDescriptor;
+class ImageClient;
 
 already_AddRefed<Image> CreateSharedRGBImage(ImageContainer* aImageContainer,
                                              nsIntSize aSize,
-                                             gfxImageFormat aImageFormat);
+                                             gfxASurface::gfxImageFormat aImageFormat);
 
 /**
  * Stores RGB data in shared memory
@@ -44,8 +30,9 @@ class DeprecatedSharedRGBImage : public Image,
 {
 friend already_AddRefed<Image> CreateSharedRGBImage(ImageContainer* aImageContainer,
                                                     nsIntSize aSize,
-                                                    gfxImageFormat aImageFormat);
+                                                    gfxASurface::gfxImageFormat aImageFormat);
 public:
+  typedef gfxASurface::gfxImageFormat gfxImageFormat;
   struct Header {
     gfxImageFormat mImageFormat;
   };
@@ -104,6 +91,7 @@ protected:
 class SharedRGBImage : public Image
                      , public ISharedImage
 {
+  typedef gfxASurface::gfxImageFormat gfxImageFormat;
 public:
   SharedRGBImage(ImageClient* aCompositable);
   ~SharedRGBImage();

@@ -10,14 +10,14 @@
 
 #include "gfxUserFontSet.h"
 #include "gfxPlatform.h"
+#include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsNetUtil.h"
 #include "nsICacheService.h"
 #include "nsIProtocolHandler.h"
 #include "nsIPrincipal.h"
-#include "gfxFontConstants.h"
 #include "mozilla/Services.h"
-#include "mozilla/gfx/2D.h"
+#include "mozilla/Telemetry.h"
 
 #include "opentype-sanitiser.h"
 #include "ots-memory-stream.h"
@@ -44,7 +44,7 @@ static uint64_t sFontSetGeneration = 0;
 
 gfxProxyFontEntry::gfxProxyFontEntry(const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList,
              uint32_t aWeight,
-             int32_t aStretch,
+             uint32_t aStretch,
              uint32_t aItalicStyle,
              const nsTArray<gfxFontFeature>& aFeatureSettings,
              uint32_t aLanguageOverride,
@@ -59,8 +59,6 @@ gfxProxyFontEntry::gfxProxyFontEntry(const nsTArray<gfxFontFaceSrc>& aFontFaceSr
     mSrcIndex = 0;
     mWeight = aWeight;
     mStretch = aStretch;
-    // XXX Currently, we don't distinguish 'italic' and 'oblique' styles;
-    // we need to fix this. (Bug 543715)
     mItalic = (aItalicStyle & (NS_FONT_STYLE_ITALIC | NS_FONT_STYLE_OBLIQUE)) != 0;
     mFeatureSettings.AppendElements(aFeatureSettings);
     mLanguageOverride = aLanguageOverride;
@@ -71,29 +69,6 @@ gfxProxyFontEntry::~gfxProxyFontEntry()
 {
 }
 
-bool
-gfxProxyFontEntry::Matches(const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList,
-                           uint32_t aWeight,
-                           int32_t aStretch,
-                           uint32_t aItalicStyle,
-                           const nsTArray<gfxFontFeature>& aFeatureSettings,
-                           uint32_t aLanguageOverride,
-                           gfxSparseBitSet *aUnicodeRanges)
-{
-    // XXX font entries don't distinguish italic from oblique (bug 543715)
-    bool isItalic =
-        (aItalicStyle & (NS_FONT_STYLE_ITALIC | NS_FONT_STYLE_OBLIQUE)) != 0;
-
-    return mWeight == aWeight &&
-           mStretch == aStretch &&
-           mItalic == isItalic &&
-           mFeatureSettings == aFeatureSettings &&
-           mLanguageOverride == aLanguageOverride &&
-           mSrcList == aFontFaceSrcList;
-           // XXX once we support unicode-range (bug 475891),
-           // we'll need to compare that here as well
-}
-
 gfxFont*
 gfxProxyFontEntry::CreateFontInstance(const gfxFontStyle *aFontStyle, bool aNeedsBold)
 {
@@ -102,8 +77,8 @@ gfxProxyFontEntry::CreateFontInstance(const gfxFontStyle *aFontStyle, bool aNeed
 }
 
 gfxUserFontSet::gfxUserFontSet()
-    : mFontFamilies(5)
 {
+    mFontFamilies.Init(5);
     IncrementGeneration();
 }
 
@@ -115,12 +90,14 @@ gfxFontEntry*
 gfxUserFontSet::AddFontFace(const nsAString& aFamilyName,
                             const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList,
                             uint32_t aWeight,
-                            int32_t aStretch,
+                            uint32_t aStretch,
                             uint32_t aItalicStyle,
                             const nsTArray<gfxFontFeature>& aFeatureSettings,
                             const nsString& aLanguageOverride,
                             gfxSparseBitSet *aUnicodeRanges)
 {
+    gfxProxyFontEntry *proxyEntry = nullptr;
+
     nsAutoString key(aFamilyName);
     ToLowerCase(key);
 
@@ -137,39 +114,10 @@ gfxUserFontSet::AddFontFace(const nsAString& aFamilyName,
         mFontFamilies.Put(key, family);
     }
 
+    // construct a new face and add it into the family
     uint32_t languageOverride =
         gfxFontStyle::ParseFontLanguageOverride(aLanguageOverride);
-
-    // If there's already a proxy in the family whose descriptors all match,
-    // we can just move it to the end of the list instead of adding a new
-    // face that will always "shadow" the old one.
-    // Note that we can't do this for "real" (non-proxy) entries, even if the
-    // style descriptors match, as they might have had a different source list,
-    // but we no longer have the old source list available to check.
-    nsTArray<nsRefPtr<gfxFontEntry> >& fontList = family->GetFontList();
-    for (uint32_t i = 0, count = fontList.Length(); i < count; i++) {
-        if (!fontList[i]->mIsProxy) {
-            continue;
-        }
-
-        gfxProxyFontEntry *existingProxyEntry =
-            static_cast<gfxProxyFontEntry*>(fontList[i].get());
-        if (!existingProxyEntry->Matches(aFontFaceSrcList,
-                                         aWeight, aStretch, aItalicStyle,
-                                         aFeatureSettings, languageOverride,
-                                         aUnicodeRanges)) {
-            continue;
-        }
-
-        // We've found an entry that matches the new face exactly, so just add
-        // it to the end of the list. gfxMixedFontFamily::AddFontEntry() will
-        // automatically remove any earlier occurrence of the same proxy.
-        family->AddFontEntry(existingProxyEntry);
-        return existingProxyEntry;
-    }
-
-    // construct a new face and add it into the family
-    gfxProxyFontEntry *proxyEntry =
+    proxyEntry =
         new gfxProxyFontEntry(aFontFaceSrcList, aWeight, aStretch,
                               aItalicStyle,
                               aFeatureSettings,
@@ -810,22 +758,6 @@ gfxUserFontSet::UserFontCache::Entry::RemoveIfPrivate(Entry* aEntry,
     return aEntry->mPrivate ? PL_DHASH_REMOVE : PL_DHASH_NEXT;
 }
 
-PLDHashOperator
-gfxUserFontSet::UserFontCache::Entry::RemoveIfMatches(Entry* aEntry,
-                                                      void* aUserData)
-{
-    return aEntry->GetFontEntry() == static_cast<gfxFontEntry*>(aUserData) ?
-        PL_DHASH_REMOVE : PL_DHASH_NEXT;
-}
-
-PLDHashOperator
-gfxUserFontSet::UserFontCache::Entry::DisconnectSVG(Entry* aEntry,
-                                                    void* aUserData)
-{
-    aEntry->GetFontEntry()->DisconnectSVG();
-    return PL_DHASH_NEXT;
-}
-
 NS_IMETHODIMP
 gfxUserFontSet::UserFontCache::Flusher::Observe(nsISupports* aSubject,
                                                 const char* aTopic,
@@ -839,8 +771,6 @@ gfxUserFontSet::UserFontCache::Flusher::Observe(nsISupports* aSubject,
         sUserFonts->Clear();
     } else if (!strcmp(aTopic, "last-pb-context-exited")) {
         sUserFonts->EnumerateEntries(Entry::RemoveIfPrivate, nullptr);
-    } else if (!strcmp(aTopic, "xpcom-shutdown")) {
-        sUserFonts->EnumerateEntries(Entry::DisconnectSVG, nullptr);
     } else {
         NS_NOTREACHED("unexpected topic");
     }
@@ -884,6 +814,7 @@ gfxUserFontSet::UserFontCache::CacheFont(gfxFontEntry *aFontEntry)
                  "caching a font associated with no family yet");
     if (!sUserFonts) {
         sUserFonts = new nsTHashtable<Entry>;
+        sUserFonts->Init();
 
         nsCOMPtr<nsIObserverService> obs =
             mozilla::services::GetObserverService();
@@ -892,18 +823,12 @@ gfxUserFontSet::UserFontCache::CacheFont(gfxFontEntry *aFontEntry)
             obs->AddObserver(flusher, NS_CACHESERVICE_EMPTYCACHE_TOPIC_ID,
                              false);
             obs->AddObserver(flusher, "last-pb-context-exited", false);
-            obs->AddObserver(flusher, "xpcom-shutdown", false);
         }
     }
 
     gfxUserFontData *data = aFontEntry->mUserFontData;
     sUserFonts->PutEntry(Key(data->mURI, data->mPrincipal, aFontEntry,
                              data->mPrivate));
-
-#ifdef DEBUG_USERFONT_CACHE
-    printf("userfontcache added fontentry: %p\n", aFontEntry);
-    Dump();
-#endif
 }
 
 void
@@ -915,16 +840,11 @@ gfxUserFontSet::UserFontCache::ForgetFont(gfxFontEntry *aFontEntry)
         return;
     }
 
-    // We can't simply use RemoveEntry here because it's possible the principal
-    // may have changed since the font was cached, in which case the lookup
-    // would no longer find the entry (bug 838105).
-    sUserFonts->EnumerateEntries(
-        gfxUserFontSet::UserFontCache::Entry::RemoveIfMatches, aFontEntry);
-
-#ifdef DEBUG_USERFONT_CACHE
-    printf("userfontcache removed fontentry: %p\n", aFontEntry);
-    Dump();
-#endif
+    gfxUserFontData *data = aFontEntry->mUserFontData;
+    if (data) {
+        sUserFonts->RemoveEntry(Key(data->mURI, data->mPrincipal, aFontEntry,
+                                    data->mPrivate));
+    }
 }
 
 gfxFontEntry*
@@ -954,52 +874,3 @@ gfxUserFontSet::UserFontCache::Shutdown()
         sUserFonts = nullptr;
     }
 }
-
-#ifdef DEBUG_USERFONT_CACHE
-
-PLDHashOperator
-gfxUserFontSet::UserFontCache::Entry::DumpEntry(Entry* aEntry, void* aUserData)
-{
-    nsresult rv;
-
-    nsAutoCString principalURISpec;
-
-    nsCOMPtr<nsIURI> principalURI;
-    rv = aEntry->mPrincipal->GetURI(getter_AddRefs(principalURI));
-    if (NS_SUCCEEDED(rv)) {
-        principalURI->GetSpec(principalURISpec);
-    }
-
-    bool setDomain = false;
-    nsCOMPtr<nsIURI> domainURI;
-
-    aEntry->mPrincipal->GetDomain(getter_AddRefs(domainURI));
-    if (domainURI) {
-        setDomain = true;
-    }
-
-    NS_ASSERTION(aEntry->mURI, "null URI in userfont cache entry");
-
-    printf("userfontcache fontEntry: %p fonturihash: %8.8x family: %s domainset: %s principal: [%s]\n",
-            aEntry->mFontEntry,
-            nsURIHashKey::HashKey(aEntry->mURI),
-            NS_ConvertUTF16toUTF8(aEntry->mFontEntry->FamilyName()).get(),
-            (setDomain ? "true" : "false"),
-            principalURISpec.get()
-           );
-    return PL_DHASH_NEXT;
-}
-
-void
-gfxUserFontSet::UserFontCache::Dump()
-{
-    if (!sUserFonts) {
-        return;
-    }
-
-    printf("userfontcache dump count: %d ========\n", sUserFonts->Count());
-    sUserFonts->EnumerateEntries(Entry::DumpEntry, nullptr);
-    printf("userfontcache dump ==================\n");
-}
-
-#endif

@@ -6,10 +6,9 @@
 #include "gfxDrawable.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
+#include "mozilla/dom/SVGSVGElement.h"
 
 #include "ClippedImage.h"
-#include "Orientation.h"
-#include "SVGImageContext.h"
 
 using mozilla::layers::LayerManager;
 using mozilla::layers::ImageContainer;
@@ -83,7 +82,7 @@ public:
 
   virtual bool operator()(gfxContext* aContext,
                           const gfxRect& aFillRect,
-                          const GraphicsFilter& aFilter,
+                          const gfxPattern::GraphicsFilter& aFilter,
                           const gfxMatrix& aTransform)
   {
     // Draw the image. |gfxCallbackDrawable| always calls this function with
@@ -123,8 +122,6 @@ ClippedImage::ShouldClip()
   // available yet, in which case we'll try again later.
   if (mShouldClip.empty()) {
     int32_t width, height;
-    nsRefPtr<imgStatusTracker> innerImageStatusTracker =
-      InnerImage()->GetStatusTracker();
     if (InnerImage()->HasError()) {
       // If there's a problem with the inner image we'll let it handle everything.
       mShouldClip.construct(false);
@@ -136,8 +133,7 @@ ClippedImage::ShouldClip()
       // If the clipping region is the same size as the underlying image we
       // don't have to do anything.
       mShouldClip.construct(!mClip.IsEqualInterior(nsIntRect(0, 0, width, height)));
-    } else if (innerImageStatusTracker &&
-               innerImageStatusTracker->IsLoading()) {
+    } else if (InnerImage()->GetStatusTracker().IsLoading()) {
       // The image just hasn't finished loading yet. We don't yet know whether
       // clipping with be needed or not for now. Just return without memoizing
       // anything.
@@ -235,21 +231,11 @@ ClippedImage::GetFrameInternal(const nsIntSize& aViewportSize,
                                                   aFlags)) {
     // Create a surface to draw into.
     mozilla::RefPtr<mozilla::gfx::DrawTarget> target;
-    nsRefPtr<gfxContext> ctx;
-
-    if (gfxPlatform::GetPlatform()->SupportsAzureContent()) {
-      target = gfxPlatform::GetPlatform()->
-        CreateOffscreenContentDrawTarget(gfx::IntSize(mClip.width, mClip.height),
-                                        gfx::FORMAT_B8G8R8A8);
-      ctx = new gfxContext(target);
-    } else {
-      target = gfxPlatform::GetPlatform()->
-        CreateOffscreenCanvasDrawTarget(gfx::IntSize(mClip.width, mClip.height),
-                                        gfx::FORMAT_B8G8R8A8);
-      nsRefPtr<gfxASurface> surface = gfxPlatform::GetPlatform()->
-        GetThebesSurfaceForDrawTarget(target);
-      ctx = new gfxContext(surface);
-    }
+    target = gfxPlatform::GetPlatform()->
+      CreateOffscreenDrawTarget(gfx::IntSize(mClip.width, mClip.height),
+                                gfx::FORMAT_B8G8R8A8);
+    nsRefPtr<gfxASurface> surface = gfxPlatform::GetPlatform()->
+      GetThebesSurfaceForDrawTarget(target);
 
     // Create our callback.
     nsRefPtr<gfxDrawingCallback> drawTileCallback =
@@ -258,11 +244,12 @@ ClippedImage::GetFrameInternal(const nsIntSize& aViewportSize,
       new gfxCallbackDrawable(drawTileCallback, mClip.Size());
 
     // Actually draw. The callback will end up invoking DrawSingleTile.
+    nsRefPtr<gfxContext> ctx = new gfxContext(surface);
     gfxRect imageRect(0, 0, mClip.width, mClip.height);
     gfxUtils::DrawPixelSnapped(ctx, drawable, gfxMatrix(),
                                imageRect, imageRect, imageRect, imageRect,
-                               gfxImageFormatARGB32,
-                               GraphicsFilter::FILTER_FAST);
+                               gfxASurface::ImageFormatARGB32,
+                               gfxPattern::FILTER_FAST);
 
     // Cache the resulting surface.
     mCachedSurface = new ClippedImageCachedSurface(target,
@@ -314,7 +301,7 @@ ClippedImage::MustCreateSurface(gfxContext* aContext,
 
 NS_IMETHODIMP
 ClippedImage::Draw(gfxContext* aContext,
-                   GraphicsFilter aFilter,
+                   gfxPattern::GraphicsFilter aFilter,
                    const gfxMatrix& aUserSpaceToImageSpace,
                    const gfxRect& aFill,
                    const nsIntRect& aSubimage,
@@ -348,7 +335,7 @@ ClippedImage::Draw(gfxContext* aContext,
     gfxRect subimage(aSubimage.x, aSubimage.y, aSubimage.width, aSubimage.height);
     gfxUtils::DrawPixelSnapped(aContext, drawable, aUserSpaceToImageSpace,
                                subimage, sourceRect, imageRect, aFill,
-                               gfxImageFormatARGB32, aFilter);
+                               gfxASurface::ImageFormatARGB32, aFilter);
 
     return NS_OK;
   }
@@ -371,7 +358,7 @@ ClippedImage::ClampFactor(const gfxFloat aToClamp, const int aReference) const
 
 nsresult
 ClippedImage::DrawSingleTile(gfxContext* aContext,
-                             GraphicsFilter aFilter,
+                             gfxPattern::GraphicsFilter aFilter,
                              const gfxMatrix& aUserSpaceToImageSpace,
                              const gfxRect& aFill,
                              const nsIntRect& aSubimage,
@@ -422,14 +409,6 @@ ClippedImage::RequestDiscard()
   mCachedSurface = nullptr;
 
   return InnerImage()->RequestDiscard();
-}
-
-NS_IMETHODIMP_(Orientation)
-ClippedImage::GetOrientation()
-{
-  // XXX(seth): This should not actually be here; this is just to work around a
-  // what appears to be a bug in MSVC's linker.
-  return InnerImage()->GetOrientation();
 }
 
 } // namespace image

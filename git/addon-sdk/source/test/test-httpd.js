@@ -13,7 +13,7 @@ const httpd = loader.require("sdk/test/httpd");
 if (options.parseable || options.verbose)
   loader.sandbox("sdk/test/httpd").DEBUG = true;
 
-exports.testBasicHTTPServer = function(assert, done) {
+exports.testBasicHTTPServer = function(test) {
   // Use the profile directory for the temporary file as that will be deleted
   // when tests are complete
   let basePath = pathFor("ProfD");
@@ -25,18 +25,26 @@ exports.testBasicHTTPServer = function(assert, done) {
 
   let srv = httpd.startServerAsync(port, basePath);
 
+  test.waitUntilDone();
+
   // Request this very file.
   let Request = require('sdk/request').Request;
   Request({
     url: "http://localhost:" + port + "/test-httpd.txt",
     onComplete: function (response) {
-      assert.equal(response.text, content);
-      srv.stop(done);
+      test.assertEqual(response.text, content);
+      done();
     }
   }).get();
+
+  function done() {
+    srv.stop(function() {
+      test.done();
+    });
+  }
 };
 
-exports.testDynamicServer = function (assert, done) {
+exports.testDynamicServer = function (test) {
   let content = "This is the HTTPD test file.\n";
 
   let srv = httpd.startServerAsync(port);
@@ -50,24 +58,35 @@ exports.testDynamicServer = function (assert, done) {
     response.write(content);
   });
 
+  test.waitUntilDone();
+
   // Request this very file.
   let Request = require('sdk/request').Request;
   Request({
     url: "http://localhost:" + port + "/test-httpd.txt",
     onComplete: function (response) {
-      assert.equal(response.text, content);
-      srv.stop(done);
+      test.assertEqual(response.text, content);
+      done();
     }
   }).get();
-};
 
-exports.testAutomaticPortSelection = function (assert, done) {
+  function done() {
+    srv.stop(function() {
+      test.done();
+    });
+  }
+
+}
+
+exports.testAutomaticPortSelection = function (test) {
   const srv = httpd.startServerAsync(-1);
 
+  test.waitUntilDone();
+
   const port = srv.identity.primaryPort;
-  assert.ok(0 <= port && port <= 65535);
+  test.assert(0 <= port && port <= 65535);
 
-  srv.stop(done);
-};
-
-require('sdk/test').run(exports);
+  srv.stop(function() {
+    test.done();
+  });
+}

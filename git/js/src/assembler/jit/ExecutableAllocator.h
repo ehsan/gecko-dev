@@ -84,7 +84,7 @@ namespace JSC {
 
   class ExecutableAllocator;
 
-  enum CodeKind { ION_CODE, BASELINE_CODE, REGEXP_CODE, OTHER_CODE };
+  enum CodeKind { ION_CODE, BASELINE_CODE, REGEXP_CODE, ASMJS_CODE, OTHER_CODE };
 
   // These are reference-counted. A new one starts with a count of 1.
   class ExecutablePool {
@@ -110,6 +110,7 @@ private:
     // Number of bytes currently used for Method and Regexp JIT code.
     size_t m_ionCodeBytes;
     size_t m_baselineCodeBytes;
+    size_t m_asmJSCodeBytes;
     size_t m_regexpCodeBytes;
     size_t m_otherCodeBytes;
 
@@ -132,8 +133,9 @@ public:
 
     ExecutablePool(ExecutableAllocator* allocator, Allocation a)
       : m_allocator(allocator), m_freePtr(a.pages), m_end(m_freePtr + a.size), m_allocation(a),
-        m_refCount(1), m_ionCodeBytes(0), m_baselineCodeBytes(0), m_regexpCodeBytes(0),
-        m_otherCodeBytes(0), m_destroy(false), m_gcNumber(0)
+        m_refCount(1), m_ionCodeBytes(0), m_baselineCodeBytes(0),
+        m_asmJSCodeBytes(0), m_regexpCodeBytes(0), m_otherCodeBytes(0),
+        m_destroy(false), m_gcNumber(0)
     { }
 
     ~ExecutablePool();
@@ -157,6 +159,7 @@ private:
         switch (kind) {
           case ION_CODE:      m_ionCodeBytes      += n;        break;
           case BASELINE_CODE: m_baselineCodeBytes += n;        break;
+          case ASMJS_CODE:    m_asmJSCodeBytes    += n;        break;
           case REGEXP_CODE:   m_regexpCodeBytes   += n;        break;
           case OTHER_CODE:    m_otherCodeBytes    += n;        break;
           default:            MOZ_ASSUME_UNREACHABLE("bad code kind");
@@ -167,12 +170,6 @@ private:
     size_t available() const {
         JS_ASSERT(m_end >= m_freePtr);
         return m_end - m_freePtr;
-    }
-
-    void toggleAllCodeAsAccessible(bool accessible);
-
-    bool codeContains(char* address) {
-        return address >= m_allocation.pages && address < m_freePtr;
     }
 };
 
@@ -257,9 +254,7 @@ public:
         m_pools.remove(m_pools.lookup(pool));   // this asserts if |pool| is not in m_pools
     }
 
-    void addSizeOfCode(JS::CodeSizes *sizes) const;
-    void toggleAllCodeAsAccessible(bool accessible);
-    bool codeContains(char* address);
+    void sizeOfCode(JS::CodeSizes *sizes) const;
 
     void setDestroyCallback(DestroyCallback destroyCallback) {
         this->destroyCallback = destroyCallback;

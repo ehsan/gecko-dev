@@ -44,7 +44,9 @@ enum LineReflowStatus {
 class nsBlockReflowState;
 class nsBlockInFlowLineIterator;
 class nsBulletFrame;
+class nsLineBox;
 class nsFirstLineFrame;
+class nsIntervalSet;
 
 /**
  * Some invariants:
@@ -384,6 +386,7 @@ protected:
   virtual ~nsBlockFrame();
 
 #ifdef DEBUG
+#ifdef _IMPL_NS_LAYOUT
   already_AddRefed<nsStyleContext> GetFirstLetterStyle(nsPresContext* aPresContext)
   {
     return aPresContext->StyleSet()->
@@ -391,6 +394,7 @@ protected:
                               nsCSSPseudoElements::ePseudo_firstLetter,
                               mStyleContext);
   }
+#endif
 #endif
 
   NS_DECLARE_FRAME_PROPERTY(LineCursorProperty, nullptr)

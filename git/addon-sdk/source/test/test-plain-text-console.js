@@ -16,13 +16,13 @@ const ORIGINAL_ADDON_LOG_LEVEL = prefs.get(ADDON_LOG_LEVEL_PREF);
 const HAS_ORIGINAL_SDK_LOG_LEVEL = prefs.has(SDK_LOG_LEVEL_PREF);
 const ORIGINAL_SDK_LOG_LEVEL = prefs.get(SDK_LOG_LEVEL_PREF);
 
-exports.testPlainTextConsole = function(assert) {
-  let prints = [];
+exports.testPlainTextConsole = function(test) {
+  var prints = [];
   function print(message) {
     prints.push(message);
   }
   function lastPrint() {
-    let last = prints.slice(-1)[0];
+    var last = prints.slice(-1)[0];
     prints = [];
     return last;
   }
@@ -30,82 +30,82 @@ exports.testPlainTextConsole = function(assert) {
   prefs.set(SDK_LOG_LEVEL_PREF, "all");
   prefs.reset(ADDON_LOG_LEVEL_PREF);
 
-  let Console = require("sdk/console/plain-text").PlainTextConsole;
-  let con = new Console(print);
+  var Console = require("sdk/console/plain-text").PlainTextConsole;
+  var con = new Console(print);
 
-  assert.ok("PlainTextConsole instantiates");
+  test.pass("PlainTextConsole instantiates");
 
   con.log('testing', 1, [2, 3, 4]);
-  assert.equal(lastPrint(), "console.log: " + name + ": testing 1 Array [2,3,4]\n",
+  test.assertEqual(lastPrint(), "console.log: " + name + ": testing, 1, Array [2,3,4]\n",
                    "PlainTextConsole.log() must work.");
 
   con.info('testing', 1, [2, 3, 4]);
-  assert.equal(lastPrint(), "console.info: " + name + ": testing 1 Array [2,3,4]\n",
+  test.assertEqual(lastPrint(), "console.info: " + name + ": testing, 1, Array [2,3,4]\n",
                    "PlainTextConsole.info() must work.");
 
   con.warn('testing', 1, [2, 3, 4]);
-  assert.equal(lastPrint(), "console.warn: " + name + ": testing 1 Array [2,3,4]\n",
+  test.assertEqual(lastPrint(), "console.warn: " + name + ": testing, 1, Array [2,3,4]\n",
                    "PlainTextConsole.warn() must work.");
 
   con.error('testing', 1, [2, 3, 4]);
-  assert.equal(prints[0], "console.error: " + name + ": \n",
+  test.assertEqual(prints[0], "console.error: " + name + ": \n",
                    "PlainTextConsole.error() must work.");
-  assert.equal(prints[1], "  testing\n")
-  assert.equal(prints[2], "  1\n")
-  assert.equal(prints[3], "Array\n    - 0 = 2\n    - 1 = 3\n    - 2 = 4\n    - length = 3\n");
+  test.assertEqual(prints[1], "  testing\n")
+  test.assertEqual(prints[2], "  1\n")
+  test.assertEqual(prints[3], "Array\n    - 0 = 2\n    - 1 = 3\n    - 2 = 4\n    - length = 3\n");
   prints = [];
 
   con.debug('testing', 1, [2, 3, 4]);
-  assert.equal(prints[0], "console.debug: " + name + ": \n",
+  test.assertEqual(prints[0], "console.debug: " + name + ": \n",
                    "PlainTextConsole.debug() must work.");
-  assert.equal(prints[1], "  testing\n")
-  assert.equal(prints[2], "  1\n")
-  assert.equal(prints[3], "Array\n    - 0 = 2\n    - 1 = 3\n    - 2 = 4\n    - length = 3\n");
+  test.assertEqual(prints[1], "  testing\n")
+  test.assertEqual(prints[2], "  1\n")
+  test.assertEqual(prints[3], "Array\n    - 0 = 2\n    - 1 = 3\n    - 2 = 4\n    - length = 3\n");
   prints = [];
 
   con.log('testing', undefined);
-  assert.equal(lastPrint(), "console.log: " + name + ": testing undefined\n",
+  test.assertEqual(lastPrint(), "console.log: " + name + ": testing, undefined\n",
                    "PlainTextConsole.log() must stringify undefined.");
 
   con.log('testing', null);
-  assert.equal(lastPrint(), "console.log: " + name + ": testing null\n",
+  test.assertEqual(lastPrint(), "console.log: " + name + ": testing, null\n",
                    "PlainTextConsole.log() must stringify null.");
 
   // TODO: Fix console.jsm to detect custom toString.
   con.log("testing", { toString: function() "obj.toString()" });
-  assert.equal(lastPrint(), "console.log: " + name + ": testing {}\n",
+  test.assertEqual(lastPrint(), "console.log: " + name + ": testing, {}\n",
                    "PlainTextConsole.log() doesn't printify custom toString.");
 
   con.log("testing", { toString: function() { throw "fail!"; } });
-  assert.equal(lastPrint(), "console.log: " + name + ": testing {}\n",
+  test.assertEqual(lastPrint(), "console.log: " + name + ": testing, {}\n",
                    "PlainTextConsole.log() must stringify custom bad toString.");
 
-
+  
   con.exception(new Error("blah"));
 
-
-  assert.equal(prints[0], "console.error: " + name + ": \n");
+  
+  test.assertEqual(prints[0], "console.error: " + name + ": \n");
   let tbLines = prints[1].split("\n");
-  assert.equal(tbLines[0], "  Message: Error: blah");
-  assert.equal(tbLines[1], "  Stack:");
-  assert.ok(prints[1].indexOf(module.uri + ":84") !== -1);
+  test.assertEqual(tbLines[0], "  Message: Error: blah");
+  test.assertEqual(tbLines[1], "  Stack:");
+  test.assert(prints[1].indexOf(module.uri + ":84") !== -1);
   prints = []
 
   try {
     loadSubScript("invalid-url", {});
-    assert.fail("successed in calling loadSubScript with invalid-url");
+    test.fail("successed in calling loadSubScript with invalid-url");
   }
   catch(e) {
     con.exception(e);
   }
-  assert.equal(prints[0], "console.error: " + name + ": \n");
-  assert.equal(prints[1], "  Error creating URI (invalid URL scheme?)\n");
+  test.assertEqual(prints[0], "console.error: " + name + ": \n");
+  test.assertEqual(prints[1], "  Error creating URI (invalid URL scheme?)\n");
   prints = [];
 
   con.trace();
   let tbLines = prints[0].split("\n");
-  assert.equal(tbLines[0], "console.trace: " + name + ": ");
-  assert.ok(tbLines[1].indexOf("_ain-text-console.js 105") == 0);
+  test.assertEqual(tbLines[0], "console.trace: " + name + ": ");
+  test.assert(tbLines[1].indexOf("_ain-text-console.js 105") == 0);
   prints = [];
 
   // Whether or not console methods should print at the various log levels,
@@ -140,7 +140,7 @@ exports.testPlainTextConsole = function(assert) {
       prefs.set(SDK_LOG_LEVEL_PREF, level);
       con[method]("");
       prefs.set(SDK_LOG_LEVEL_PREF, "all");
-      assert.equal(prints.join(""),
+      test.assertEqual(prints.join(""), 
                        (methods[method] ? messages[method] : ""),
                        "at log level '" + level + "', " + method + "() " +
                        (methods[method] ? "prints" : "doesn't print"));
@@ -151,7 +151,7 @@ exports.testPlainTextConsole = function(assert) {
   prefs.set(SDK_LOG_LEVEL_PREF, "off");
   prefs.set(ADDON_LOG_LEVEL_PREF, "all");
   con.debug("");
-  assert.equal(prints.join(""), messages["debug"],
+  test.assertEqual(prints.join(""), messages["debug"],
                    "addon log level 'all' overrides SDK log level 'off'");
   prints = [];
 
@@ -159,78 +159,9 @@ exports.testPlainTextConsole = function(assert) {
   prefs.set(ADDON_LOG_LEVEL_PREF, "off");
   con.error("");
   prefs.reset(ADDON_LOG_LEVEL_PREF);
-  assert.equal(lastPrint(), null,
+  test.assertEqual(lastPrint(), null,
                    "addon log level 'off' overrides SDK log level 'all'");
 
-  restorePrefs();
-};
-
-exports.testPlainTextConsoleBoundMethods = function(assert) {
-  let prints = [];
-  function print(message) {
-    prints.push(message);
-  }
-  function lastPrint() {
-    let last = prints.slice(-1)[0];
-    prints = [];
-    return last;
-  }
-
-  prefs.set(SDK_LOG_LEVEL_PREF, "all");
-  prefs.reset(ADDON_LOG_LEVEL_PREF);
-
-  let Console = require("sdk/console/plain-text").PlainTextConsole;
-  let { log, info, warn, error, debug, exception, trace } = new Console(print);
-
-  assert.ok("PlainTextConsole instantiates");
-
-  log('testing', 1, [2, 3, 4]);
-  assert.equal(lastPrint(), "console.log: " + name + ": testing 1 Array [2,3,4]\n",
-                   "PlainTextConsole.log() must work.");
-
-  info('testing', 1, [2, 3, 4]);
-  assert.equal(lastPrint(), "console.info: " + name + ": testing 1 Array [2,3,4]\n",
-                   "PlainTextConsole.info() must work.");
-
-  warn('testing', 1, [2, 3, 4]);
-  assert.equal(lastPrint(), "console.warn: " + name + ": testing 1 Array [2,3,4]\n",
-                   "PlainTextConsole.warn() must work.");
-
-  error('testing', 1, [2, 3, 4]);
-  assert.equal(prints[0], "console.error: " + name + ": \n",
-                   "PlainTextConsole.error() must work.");
-  assert.equal(prints[1], "  testing\n")
-  assert.equal(prints[2], "  1\n")
-  assert.equal(prints[3], "Array\n    - 0 = 2\n    - 1 = 3\n    - 2 = 4\n    - length = 3\n");
-  prints = [];
-
-  debug('testing', 1, [2, 3, 4]);
-  assert.equal(prints[0], "console.debug: " + name + ": \n",
-                   "PlainTextConsole.debug() must work.");
-  assert.equal(prints[1], "  testing\n")
-  assert.equal(prints[2], "  1\n")
-  assert.equal(prints[3], "Array\n    - 0 = 2\n    - 1 = 3\n    - 2 = 4\n    - length = 3\n");
-  prints = [];
-
-  exception(new Error("blah"));
-
-  assert.equal(prints[0], "console.error: " + name + ": \n");
-  let tbLines = prints[1].split("\n");
-  assert.equal(tbLines[0], "  Message: Error: blah");
-  assert.equal(tbLines[1], "  Stack:");
-  assert.ok(prints[1].indexOf(module.uri + ":215") !== -1);
-  prints = []
-
-  trace();
-  let tbLines = prints[0].split("\n");
-  assert.equal(tbLines[0], "console.trace: " + name + ": ");
-  assert.ok(tbLines[1].indexOf("_ain-text-console.js 224") === 0);
-  prints = [];
-
-  restorePrefs();
-};
-
-function restorePrefs() {
   if (HAS_ORIGINAL_ADDON_LOG_LEVEL)
     prefs.set(ADDON_LOG_LEVEL_PREF, ORIGINAL_ADDON_LOG_LEVEL);
   else
@@ -240,6 +171,4 @@ function restorePrefs() {
     prefs.set(SDK_LOG_LEVEL_PREF, ORIGINAL_SDK_LOG_LEVEL);
   else
     prefs.reset(SDK_LOG_LEVEL_PREF);
-}
-
-require("test").run(exports);
+};

@@ -8,23 +8,36 @@
 #define WebSocket_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/TypedArray.h"
-#include "mozilla/dom/WebSocketBinding.h" // for BinaryType
-#include "mozilla/ErrorResult.h"
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDOMEventTargetHelper.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIObserver.h"
-#include "nsIRequest.h"
+#include "mozilla/Util.h"
+
+#include "nsWrapperCache.h"
+#include "nsIWebSocketListener.h"
 #include "nsISupports.h"
+
+#include "mozilla/ErrorResult.h"
+#include "mozilla/dom/TypedArray.h"
+#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/EventHandlerBinding.h"
+
+// Need this for BinaryType.
+#include "mozilla/dom/WebSocketBinding.h"
+
+#include "jsfriendapi.h"
 #include "nsISupportsUtils.h"
+#include "nsCOMPtr.h"
+#include "nsString.h"
+#include "nsIPrincipal.h"
+#include "nsCycleCollectionParticipant.h"
+#include "nsIDOMEventListener.h"
+#include "nsDOMEventTargetHelper.h"
+#include "nsAutoPtr.h"
+#include "nsIDOMDOMStringList.h"
+#include "nsIInterfaceRequestor.h"
 #include "nsIWebSocketChannel.h"
 #include "nsIWebSocketListener.h"
-#include "nsString.h"
+#include "nsIObserver.h"
+#include "nsIRequest.h"
 #include "nsWeakReference.h"
-#include "nsWrapperCache.h"
 
 #define DEFAULT_WS_SCHEME_PORT  80
 #define DEFAULT_WSS_SCHEME_PORT 443
@@ -80,15 +93,18 @@ public: // WebIDL interface:
 
   // Constructor:
   static already_AddRefed<WebSocket> Constructor(const GlobalObject& aGlobal,
+                                                 JSContext *aCx,
                                                  const nsAString& aUrl,
                                                  ErrorResult& rv);
 
   static already_AddRefed<WebSocket> Constructor(const GlobalObject& aGlobal,
+                                                 JSContext *aCx,
                                                  const nsAString& aUrl,
                                                  const nsAString& aProtocol,
                                                  ErrorResult& rv);
 
   static already_AddRefed<WebSocket> Constructor(const GlobalObject& aGlobal,
+                                                 JSContext *aCx,
                                                  const nsAString& aUrl,
                                                  const Sequence<nsString>& aProtocols,
                                                  ErrorResult& rv);
@@ -134,9 +150,9 @@ public: // WebIDL interface:
             ErrorResult& aRv);
   void Send(nsIDOMBlob* aData,
             ErrorResult& aRv);
-  void Send(const ArrayBuffer& aData,
+  void Send(ArrayBuffer& aData,
             ErrorResult& aRv);
-  void Send(const ArrayBufferView& aData,
+  void Send(ArrayBufferView& aData,
             ErrorResult& aRv);
 
 private: // constructor && distructor

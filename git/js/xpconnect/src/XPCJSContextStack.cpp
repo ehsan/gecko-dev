@@ -9,7 +9,9 @@
 
 #include "xpcprivate.h"
 #include "XPCWrapper.h"
+#include "mozilla/Mutex.h"
 #include "nsDOMJSUtils.h"
+#include "nsIScriptGlobalObject.h"
 #include "nsNullPrincipal.h"
 #include "mozilla/dom/BindingUtils.h"
 
@@ -22,9 +24,9 @@ using mozilla::dom::DestroyProtoAndIfaceCache;
 
 XPCJSContextStack::~XPCJSContextStack()
 {
-    if (mSafeJSContext) {
-        JS_DestroyContextNoGC(mSafeJSContext);
-        mSafeJSContext = nullptr;
+    if (mOwnSafeJSContext) {
+        JS_DestroyContext(mOwnSafeJSContext);
+        mOwnSafeJSContext = nullptr;
     }
 }
 
@@ -68,14 +70,10 @@ XPCJSContextStack::Push(JSContext *cx)
         // compartment that's same-origin with the current one, we can skip it.
         nsIScriptSecurityManager* ssm = XPCWrapper::GetSecurityManager();
         if ((e.cx == cx) && ssm) {
-            // DOM JSContexts don't store their default compartment object on
-            // the cx, so in those cases we need to fetch it via the scx
-            // instead.
-            RootedObject defaultScope(cx, GetDefaultScopeFromJSContext(cx));
-
+            RootedObject defaultGlobal(cx, js::DefaultObjectForContextOrNull(cx));
             nsIPrincipal *currentPrincipal =
               GetCompartmentPrincipal(js::GetContextCompartment(cx));
-            nsIPrincipal *defaultPrincipal = GetObjectPrincipal(defaultScope);
+            nsIPrincipal *defaultPrincipal = GetObjectPrincipal(defaultGlobal);
             bool equal = false;
             currentPrincipal->Equals(defaultPrincipal, &equal);
             if (equal) {
@@ -106,10 +104,10 @@ XPCJSContextStack::HasJSContext(JSContext *cx)
     return false;
 }
 
-static bool
+static JSBool
 SafeGlobalResolve(JSContext *cx, HandleObject obj, HandleId id)
 {
-    bool resolved;
+    JSBool resolved;
     return JS_ResolveStandardClass(cx, obj, id, &resolved);
 }
 
@@ -123,12 +121,12 @@ SafeFinalize(JSFreeOp *fop, JSObject* obj)
     DestroyProtoAndIfaceCache(obj);
 }
 
-const JSClass xpc::SafeJSContextGlobalClass = {
+static JSClass global_class = {
     "global_for_XPCJSContextStack_SafeJSContext",
     XPCONNECT_GLOBAL_FLAGS,
     JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, SafeGlobalResolve, JS_ConvertStub, SafeFinalize,
-    nullptr, nullptr, nullptr, nullptr, TraceXPCGlobal
+    NULL, NULL, NULL, NULL, TraceXPCGlobal
 };
 
 JSContext*
@@ -159,7 +157,7 @@ XPCJSContextStack::GetSafeJSContext()
 
     JS::CompartmentOptions options;
     options.setZone(JS::SystemZone);
-    glob = xpc::CreateGlobalObject(mSafeJSContext, &SafeJSContextGlobalClass, principal, options);
+    glob = xpc::CreateGlobalObject(mSafeJSContext, &global_class, principal, options);
     if (!glob)
         MOZ_CRASH();
 
@@ -169,8 +167,8 @@ XPCJSContextStack::GetSafeJSContext()
 
     // Note: make sure to set the private before calling
     // InitClasses
-    nsRefPtr<SandboxPrivate> sp = new SandboxPrivate(principal, glob);
-    JS_SetPrivate(glob, sp.forget().get());
+    nsCOMPtr<nsIScriptObjectPrincipal> sop = new SandboxPrivate(principal, glob);
+    JS_SetPrivate(glob, sop.forget().get());
 
     // After this point either glob is null and the
     // nsIScriptObjectPrincipal ownership is either handled by the
@@ -180,6 +178,9 @@ XPCJSContextStack::GetSafeJSContext()
         MOZ_CRASH();
 
     JS_FireOnNewGlobalObject(mSafeJSContext, glob);
+
+    // Save it off so we can destroy it later.
+    mOwnSafeJSContext = mSafeJSContext;
 
     return mSafeJSContext;
 }

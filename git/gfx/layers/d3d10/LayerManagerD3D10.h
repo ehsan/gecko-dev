@@ -111,7 +111,7 @@ public:
 
   virtual already_AddRefed<gfxASurface>
     CreateOptimalSurface(const gfxIntSize &aSize,
-                         gfxImageFormat imageFormat);
+                         gfxASurface::gfxImageFormat imageFormat);
 
   virtual already_AddRefed<gfxASurface>
     CreateOptimalMaskSurface(const gfxIntSize &aSize);
@@ -169,8 +169,6 @@ private:
   nsRefPtr<IDXGISwapChain> mSwapChain;
 
   nsIWidget *mWidget;
-
-  bool mDisableSequenceForNextFrame;
 
   CallbackInfo mCurrentCallbackInfo;
 

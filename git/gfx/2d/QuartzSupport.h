@@ -9,7 +9,6 @@
 #ifdef XP_MACOSX
 
 #import <OpenGL/OpenGL.h>
-#import <OpenGL/gl.h>
 #import "ApplicationServices/ApplicationServices.h"
 #include "gfxTypes.h"
 #include "mozilla/RefPtr.h"
@@ -87,8 +86,8 @@ private:
   mozilla::RefPtr<MacIOSurface> mIOSurface;
   uint32_t                  mFBO;
   uint32_t                  mIOTexture;
-  int                       mUnsupportedWidth;
-  int                       mUnsupportedHeight;
+  uint32_t                  mUnsupportedWidth;
+  uint32_t                  mUnsupportedHeight;
   AllowOfflineRendererEnum  mAllowOfflineRenderer;
   double                    mContentsScaleFactor;
 };

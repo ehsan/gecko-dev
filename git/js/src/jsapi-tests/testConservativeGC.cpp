@@ -9,6 +9,8 @@
 #include "jsapi-tests/tests.h"
 #include "vm/String.h"
 
+#include "jsobjinlines.h"
+
 BEGIN_TEST(testConservativeGC)
 {
     JS::RootedValue v2(cx);
@@ -72,7 +74,7 @@ BEGIN_TEST(testDerivedValues)
   JS::Anchor<JSString *> str_anchor(str);
   static const jschar expected[] = { 'o', 'n', 'c', 'e' };
   const jschar *ch = JS_GetStringCharsZ(cx, str);
-  str = nullptr;
+  str = NULL;
 
   /* Do a lot of allocation and collection. */
   for (int i = 0; i < 3; i++) {

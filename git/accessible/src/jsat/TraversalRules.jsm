@@ -31,14 +31,12 @@ const ROLE_CHECK_MENU_ITEM = Ci.nsIAccessibleRole.ROLE_CHECK_MENU_ITEM;
 const ROLE_PASSWORD_TEXT = Ci.nsIAccessibleRole.ROLE_PASSWORD_TEXT;
 const ROLE_RADIO_MENU_ITEM = Ci.nsIAccessibleRole.ROLE_RADIO_MENU_ITEM;
 const ROLE_TOGGLE_BUTTON = Ci.nsIAccessibleRole.ROLE_TOGGLE_BUTTON;
-const ROLE_KEY = Ci.nsIAccessibleRole.ROLE_KEY;
 const ROLE_ENTRY = Ci.nsIAccessibleRole.ROLE_ENTRY;
 const ROLE_LIST = Ci.nsIAccessibleRole.ROLE_LIST;
 const ROLE_DEFINITION_LIST = Ci.nsIAccessibleRole.ROLE_DEFINITION_LIST;
 const ROLE_LISTITEM = Ci.nsIAccessibleRole.ROLE_LISTITEM;
 const ROLE_BUTTONDROPDOWNGRID = Ci.nsIAccessibleRole.ROLE_BUTTONDROPDOWNGRID;
 const ROLE_LISTBOX = Ci.nsIAccessibleRole.ROLE_LISTBOX;
-const ROLE_OPTION = Ci.nsIAccessibleRole.ROLE_OPTION;
 const ROLE_SLIDER = Ci.nsIAccessibleRole.ROLE_SLIDER;
 const ROLE_HEADING = Ci.nsIAccessibleRole.ROLE_HEADING;
 const ROLE_HEADER = Ci.nsIAccessibleRole.ROLE_HEADER;
@@ -48,7 +46,6 @@ const ROLE_TABLE = Ci.nsIAccessibleRole.ROLE_TABLE;
 const ROLE_INTERNAL_FRAME = Ci.nsIAccessibleRole.ROLE_INTERNAL_FRAME;
 const ROLE_PARAGRAPH = Ci.nsIAccessibleRole.ROLE_PARAGRAPH;
 const ROLE_SECTION = Ci.nsIAccessibleRole.ROLE_SECTION;
-const ROLE_LABEL = Ci.nsIAccessibleRole.ROLE_LABEL;
 
 this.EXPORTED_SYMBOLS = ['TraversalRules'];
 
@@ -58,12 +55,8 @@ Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 let gSkipEmptyImages = new PrefCache('accessibility.accessfu.skip_empty_images');
 
 function BaseTraversalRule(aRoles, aMatchFunc) {
-  this._explicitMatchRoles = new Set(aRoles);
   this._matchRoles = aRoles;
-  if (aRoles.indexOf(ROLE_LABEL) < 0) {
-    this._matchRoles.push(ROLE_LABEL);
-  }
-  this._matchFunc = aMatchFunc || function (acc) { return FILTER_MATCH; };
+  this._matchFunc = aMatchFunc;
 }
 
 BaseTraversalRule.prototype = {
@@ -78,25 +71,15 @@ BaseTraversalRule.prototype = {
 
     match: function BaseTraversalRule_match(aAccessible)
     {
-      let role = aAccessible.role;
-      if (role == ROLE_INTERNAL_FRAME) {
+      if (aAccessible.role == ROLE_INTERNAL_FRAME) {
         return (Utils.getMessageManager(aAccessible.DOMNode)) ?
           FILTER_MATCH  | FILTER_IGNORE_SUBTREE : FILTER_IGNORE;
       }
 
-      let matchResult = this._explicitMatchRoles.has(role) ?
-          this._matchFunc(aAccessible) : FILTER_IGNORE;
+      if (this._matchFunc)
+        return this._matchFunc(aAccessible);
 
-      // If we are on a label that nests a checkbox/radio we should land on it.
-      // It is a bigger touch target, and it reduces clutter.
-      if (role == ROLE_LABEL && !(matchResult & FILTER_IGNORE_SUBTREE)) {
-        let control = Utils.getEmbeddedControl(aAccessible);
-        if (control && this._explicitMatchRoles.has(control.role)) {
-          matchResult = this._matchFunc(control) | FILTER_IGNORE_SUBTREE;
-        }
-      }
-
-      return matchResult;
+      return FILTER_MATCH;
     },
 
     QueryInterface: XPCOMUtils.generateQI([Ci.nsIAccessibleTraversalRule])
@@ -121,12 +104,8 @@ var gSimpleTraversalRoles =
    ROLE_RADIO_MENU_ITEM,
    ROLE_TOGGLE_BUTTON,
    ROLE_ENTRY,
-   ROLE_KEY,
    ROLE_HEADER,
    ROLE_HEADING,
-   ROLE_SLIDER,
-   ROLE_SPINBUTTON,
-   ROLE_OPTION,
    // Used for traversing in to child OOP frames.
    ROLE_INTERNAL_FRAME];
 

@@ -6,7 +6,7 @@
 
 MODULE = 'handler'
 
-SOURCES += [
+CPP_SOURCES += [
     'exception_handler.cc',
     'minidump_generator.cc',
     'solaris_lwp.cc',
@@ -14,7 +14,3 @@ SOURCES += [
 
 LIBRARY_NAME = 'exception_handler_s'
 
-XPI_NAME = 'crashreporter'
-
-# need static lib
-FORCE_STATIC_LIB = True

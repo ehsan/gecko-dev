@@ -6,14 +6,10 @@
 
 MODULE = 'permissions'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsContentBlocker.cpp',
     'nsModuleFactory.cpp',
 ]
 
 LIBRARY_NAME = 'permissions'
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
 

@@ -22,9 +22,7 @@
 #include "nsIFormControlFrame.h"
 #include "nsIDOMEvent.h"
 #include "nsIDocument.h"
-#include "mozilla/ContentEvents.h"
-#include "mozilla/MouseEvents.h"
-#include "mozilla/TextEvents.h"
+#include "nsGUIEvent.h"
 #include "nsUnicharUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsEventDispatcher.h"
@@ -85,10 +83,12 @@ NS_IMPL_RELEASE_INHERITED(HTMLButtonElement, Element)
 
 // QueryInterface implementation for HTMLButtonElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLButtonElement)
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLFormElementWithState)
   NS_INTERFACE_TABLE_INHERITED2(HTMLButtonElement,
                                 nsIDOMHTMLButtonElement,
                                 nsIConstraintValidation)
-NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLFormElementWithState)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 // nsIConstraintValidation
 NS_IMPL_NSICONSTRAINTVALIDATION(HTMLButtonElement)
@@ -198,9 +198,8 @@ HTMLButtonElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   // cause activation of the input.  That is, if we're a click event, or a
   // DOMActivate that was dispatched directly, this will be set, but if we're
   // a DOMActivate dispatched from click handling, it will not be set.
-  WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
   bool outerActivateEvent =
-    ((mouseEvent && mouseEvent->IsLeftClickEvent()) ||
+    (NS_IS_MOUSE_LEFT_CLICK(aVisitor.mEvent) ||
      (aVisitor.mEvent->message == NS_UI_ACTIVATE &&
       !mInInternalActivate));
 
@@ -226,25 +225,21 @@ HTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     return rv;
   }
 
-  if (aVisitor.mEventStatus != nsEventStatus_eConsumeNoDefault) {
-    WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
-    if (mouseEvent && mouseEvent->IsLeftClickEvent()) {
-      InternalUIEvent actEvent(aVisitor.mEvent->mFlags.mIsTrusted,
-                               NS_UI_ACTIVATE, 1);
+  if (aVisitor.mEventStatus != nsEventStatus_eConsumeNoDefault &&
+      NS_IS_MOUSE_LEFT_CLICK(aVisitor.mEvent)) {
+    nsUIEvent actEvent(aVisitor.mEvent->mFlags.mIsTrusted, NS_UI_ACTIVATE, 1);
 
-      nsCOMPtr<nsIPresShell> shell = aVisitor.mPresContext->GetPresShell();
-      if (shell) {
-        nsEventStatus status = nsEventStatus_eIgnore;
-        mInInternalActivate = true;
-        shell->HandleDOMEventWithTarget(this, &actEvent, &status);
-        mInInternalActivate = false;
+    nsCOMPtr<nsIPresShell> shell = aVisitor.mPresContext->GetPresShell();
+    if (shell) {
+      nsEventStatus status = nsEventStatus_eIgnore;
+      mInInternalActivate = true;
+      shell->HandleDOMEventWithTarget(this, &actEvent, &status);
+      mInInternalActivate = false;
 
-        // If activate is cancelled, we must do the same as when click is
-        // cancelled (revert the checkbox to its original value).
-        if (status == nsEventStatus_eConsumeNoDefault) {
-          aVisitor.mEventStatus = status;
-        }
-      }
+      // If activate is cancelled, we must do the same as when click is
+      // cancelled (revert the checkbox to its original value).
+      if (status == nsEventStatus_eConsumeNoDefault)
+        aVisitor.mEventStatus = status;
     }
   }
 
@@ -264,16 +259,16 @@ HTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
         {
           // For backwards compat, trigger buttons with space or enter
           // (bug 25300)
-          WidgetKeyboardEvent* keyEvent = aVisitor.mEvent->AsKeyboardEvent();
+          nsKeyEvent * keyEvent = (nsKeyEvent *)aVisitor.mEvent;
           if ((keyEvent->keyCode == NS_VK_RETURN &&
                NS_KEY_PRESS == aVisitor.mEvent->message) ||
               (keyEvent->keyCode == NS_VK_SPACE &&
                NS_KEY_UP == aVisitor.mEvent->message)) {
             nsEventStatus status = nsEventStatus_eIgnore;
 
-            WidgetMouseEvent event(aVisitor.mEvent->mFlags.mIsTrusted,
-                                   NS_MOUSE_CLICK, nullptr,
-                                   WidgetMouseEvent::eReal);
+            nsMouseEvent event(aVisitor.mEvent->mFlags.mIsTrusted,
+                               NS_MOUSE_CLICK, nullptr,
+                               nsMouseEvent::eReal);
             event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
             nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
                                         aVisitor.mPresContext, &event, nullptr,
@@ -285,25 +280,29 @@ HTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 
       case NS_MOUSE_BUTTON_DOWN:
         {
-          WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
-          if (mouseEvent->button == WidgetMouseEvent::eLeftButton) {
-            if (mouseEvent->mFlags.mIsTrusted) {
-              nsEventStateManager* esm =
-                aVisitor.mPresContext->EventStateManager();
-              nsEventStateManager::SetActiveManager(
-                static_cast<nsEventStateManager*>(esm), this);
-            }
-            nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-            if (fm)
-              fm->SetFocus(this, nsIFocusManager::FLAG_BYMOUSE |
-                                 nsIFocusManager::FLAG_NOSCROLL);
-            mouseEvent->mFlags.mMultipleActionsPrevented = true;
-          } else if (mouseEvent->button == WidgetMouseEvent::eMiddleButton ||
-                     mouseEvent->button == WidgetMouseEvent::eRightButton) {
-            // cancel all of these events for buttons
-            //XXXsmaug What to do with these events? Why these should be cancelled?
-            if (aVisitor.mDOMEvent) {
-              aVisitor.mDOMEvent->StopPropagation();
+          if (aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT) {
+            if (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+                  nsMouseEvent::eLeftButton) {
+              if (aVisitor.mEvent->mFlags.mIsTrusted) {
+                nsEventStateManager* esm =
+                  aVisitor.mPresContext->EventStateManager();
+                nsEventStateManager::SetActiveManager(
+                  static_cast<nsEventStateManager*>(esm), this);
+              }
+              nsIFocusManager* fm = nsFocusManager::GetFocusManager();
+              if (fm)
+                fm->SetFocus(this, nsIFocusManager::FLAG_BYMOUSE |
+                                   nsIFocusManager::FLAG_NOSCROLL);
+              aVisitor.mEvent->mFlags.mMultipleActionsPrevented = true;
+            } else if (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+                         nsMouseEvent::eMiddleButton ||
+                       static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+                         nsMouseEvent::eRightButton) {
+              // cancel all of these events for buttons
+              //XXXsmaug What to do with these events? Why these should be cancelled?
+              if (aVisitor.mDOMEvent) {
+                aVisitor.mDOMEvent->StopPropagation();
+              }
             }
           }
         }
@@ -314,10 +313,12 @@ HTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
       case NS_MOUSE_BUTTON_UP:
       case NS_MOUSE_DOUBLECLICK:
         {
-          WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
-          if (aVisitor.mDOMEvent &&
-              (mouseEvent->button == WidgetMouseEvent::eMiddleButton ||
-               mouseEvent->button == WidgetMouseEvent::eRightButton)) {
+          if (aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT &&
+              aVisitor.mDOMEvent &&
+              (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+                 nsMouseEvent::eMiddleButton ||
+               static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+                 nsMouseEvent::eRightButton)) {
             aVisitor.mDOMEvent->StopPropagation();
           }
         }
@@ -346,8 +347,9 @@ HTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     if (aVisitor.mItemFlags & NS_OUTER_ACTIVATE_EVENT) {
       if (mForm && (mType == NS_FORM_BUTTON_SUBMIT ||
                     mType == NS_FORM_BUTTON_RESET)) {
-        InternalFormEvent event(true,
-          (mType == NS_FORM_BUTTON_RESET) ? NS_FORM_RESET : NS_FORM_SUBMIT);
+        nsFormEvent event(true,
+                          (mType == NS_FORM_BUTTON_RESET)
+                          ? NS_FORM_RESET : NS_FORM_SUBMIT);
         event.originator     = this;
         nsEventStatus status = nsEventStatus_eIgnore;
 

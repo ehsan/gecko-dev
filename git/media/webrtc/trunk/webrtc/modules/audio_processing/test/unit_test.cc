@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <queue>
 
+#include "gtest/gtest.h"
+
 #include "webrtc/common_audio/signal_processing/include/signal_processing_library.h"
 #include "webrtc/modules/audio_processing/include/audio_processing.h"
 #include "webrtc/modules/interface/module_common_types.h"
@@ -22,10 +24,8 @@
 #include "webrtc/system_wrappers/interface/trace.h"
 #include "webrtc/test/testsupport/fileutils.h"
 #ifdef WEBRTC_ANDROID_PLATFORM_BUILD
-#include "gtest/gtest.h"
 #include "external/webrtc/webrtc/modules/audio_processing/test/unittest.pb.h"
 #else
-#include "testing/gtest/include/gtest/gtest.h"
 #include "webrtc/audio_processing/unittest.pb.h"
 #endif
 

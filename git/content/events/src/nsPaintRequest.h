@@ -10,19 +10,12 @@
 #include "nsPresContext.h"
 #include "nsIDOMEvent.h"
 #include "mozilla/Attributes.h"
+#include "nsClientRect.h"
 #include "nsWrapperCache.h"
-
-namespace mozilla {
-namespace dom {
-class DOMRect;
-}
-}
 
 class nsPaintRequest MOZ_FINAL : public nsIDOMPaintRequest
                                , public nsWrapperCache
 {
-  typedef mozilla::dom::DOMRect DOMRect;
-
 public:
   nsPaintRequest(nsIDOMEvent* aParent)
     : mParent(aParent)
@@ -43,7 +36,7 @@ public:
     return mParent;
   }
 
-  already_AddRefed<DOMRect> ClientRect();
+  already_AddRefed<nsClientRect> ClientRect();
   void GetReason(nsAString& aResult) const
   {
     aResult.AssignLiteral("repaint");

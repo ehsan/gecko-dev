@@ -29,7 +29,7 @@ let menu;
 function startTest()
 {
   gScratchpad = gScratchpadWindow.Scratchpad;
-  menu = gScratchpadWindow.document.getElementById("sp-cmd-revert");
+  menu = gScratchpadWindow.document.getElementById("sp-menu-revert");
   createAndLoadTemporaryFile();
 }
 
@@ -38,7 +38,7 @@ function testAfterSaved() {
   ok(menu.hasAttribute("disabled"), "The revert menu entry is disabled.");
 
   // chancging the text in the file
-  gScratchpad.setText(gScratchpad.getText() + "\nfoo();");
+  gScratchpad.setText("\nfoo();", gLength, gLength);
   // Checking the text got changed
   is(gScratchpad.getText(), gFileContent + "\nfoo();",
      "The text changed the first time.");
@@ -60,7 +60,7 @@ function testAfterRevert() {
      "The revert menu entry is disabled after reverting.");
 
   // chancging the text in the file again
-  gScratchpad.setText(gScratchpad.getText() + "\nalert(foo.toSource());");
+  gScratchpad.setText("\nalert(foo.toSource());", gLength, gLength);
   // Saving the file.
   gScratchpad.saveFile(testAfterSecondSave);
 }
@@ -71,7 +71,7 @@ function testAfterSecondSave() {
      "The revert menu entry is disabled after saving.");
 
   // changing the text.
-  gScratchpad.setText(gScratchpad.getText() + "\nfoo();");
+  gScratchpad.setText("\nfoo();", gLength + 23, gLength + 23);
 
   // revert menu entry should get enabled yet again.
   ok(!menu.hasAttribute("disabled"),
@@ -91,7 +91,6 @@ function testAfterSecondRevert() {
   gFile.remove(false);
   gFile = null;
   gScratchpad = null;
-  finish();
 }
 
 function createAndLoadTemporaryFile()
@@ -127,8 +126,6 @@ function tempFileSaved(aStatus)
 
 function test()
 {
-  waitForExplicitFinish();
-
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
     gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);

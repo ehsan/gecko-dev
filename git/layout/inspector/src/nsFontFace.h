@@ -6,10 +6,9 @@
 #define __nsFontFace_h__
 
 #include "nsIDOMFontFace.h"
-#include "nsAutoPtr.h"
 
-class gfxFontEntry;
-class gfxFontGroup;
+#include "gfxFont.h"
+
 class nsCSSFontFaceRule;
 
 class nsFontFace : public nsIDOMFontFace

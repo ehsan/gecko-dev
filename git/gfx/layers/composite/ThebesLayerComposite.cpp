@@ -3,37 +3,27 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ipc/AutoOpenSurface.h"
+#include "mozilla/layers/PLayerTransaction.h"
+#include "TiledLayerBuffer.h"
+
+// This must occur *after* layers/PLayerTransaction.h to avoid
+// typedefs conflicts.
+#include "mozilla/Util.h"
+
+#include "mozilla/layers/ShadowLayers.h"
+
+#include "ThebesLayerBuffer.h"
 #include "ThebesLayerComposite.h"
-#include "CompositableHost.h"           // for TiledLayerProperties, etc
-#include "FrameMetrics.h"               // for FrameMetrics
-#include "Units.h"                      // for CSSRect, LayerPixel, etc
-#include "gfx2DGlue.h"                  // for ToMatrix4x4
-#include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxImageSurface.h"            // for gfxImageSurface
-#include "gfxUtils.h"                   // for gfxUtils, etc
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/gfx/Matrix.h"         // for Matrix4x4
-#include "mozilla/gfx/Point.h"          // for Point
-#include "mozilla/gfx/Rect.h"           // for RoundedToInt, Rect
-#include "mozilla/gfx/Types.h"          // for Filter::FILTER_LINEAR
-#include "mozilla/layers/Compositor.h"  // for Compositor
-#include "mozilla/layers/ContentHost.h"  // for ContentHost
-#include "mozilla/layers/Effects.h"     // for EffectChain
-#include "mozilla/mozalloc.h"           // for operator delete
-#include "nsAString.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsMathUtils.h"                // for NS_lround
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsRect.h"                     // for nsIntRect
-#include "nsSize.h"                     // for nsIntSize
-#include "nsString.h"                   // for nsAutoCString
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
-#include "GeckoProfiler.h"
+#include "mozilla/layers/ContentHost.h"
+#include "gfxUtils.h"
+#include "gfx2DGlue.h"
+
+#include "mozilla/layers/CompositorTypes.h" // for TextureInfo
+#include "mozilla/layers/Effects.h"
 
 namespace mozilla {
 namespace layers {
-
-class TiledLayerComposer;
 
 ThebesLayerComposite::ThebesLayerComposite(LayerManagerComposite *aManager)
   : ThebesLayer(aManager, nullptr)
@@ -101,7 +91,6 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
   if (!mBuffer || !mBuffer->IsAttached()) {
     return;
   }
-  PROFILER_LABEL("ThebesLayerComposite", "RenderLayer");
 
   MOZ_ASSERT(mBuffer->GetCompositor() == mCompositeManager->GetCompositor() &&
              mBuffer->GetLayer() == this,
@@ -114,14 +103,12 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
     nsRefPtr<gfxImageSurface> surf = mBuffer->GetAsSurface();
-    if (surf) {
-      WriteSnapshotToDumpFile(this, surf);
-    }
+    WriteSnapshotToDumpFile(this, surf);
   }
 #endif
 
   EffectChain effectChain;
-  LayerManagerComposite::AutoAddMaskEffect autoMaskEffect(mMaskLayer, effectChain);
+  LayerManagerComposite::AddMaskEffect(mMaskLayer, effectChain);
 
   nsIntRegion visibleRegion = GetEffectiveVisibleRegion();
 
@@ -133,7 +120,7 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
     tiledLayerProps.mDisplayPort = GetDisplayPort();
     tiledLayerProps.mEffectiveResolution = GetEffectiveResolution();
     tiledLayerProps.mCompositionBounds = GetCompositionBounds();
-    tiledLayerProps.mRetainTiles = !(mIsFixedPosition || mStickyPositionData);
+    tiledLayerProps.mRetainTiles = !mIsFixedPosition;
     tiledLayerProps.mValidRegion = mValidRegion;
   }
 
@@ -154,13 +141,14 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
     mValidRegion = tiledLayerProps.mValidRegion;
   }
 
+  LayerManagerComposite::RemoveMaskEffect(mMaskLayer);
   mCompositeManager->GetCompositor()->MakeCurrent();
 }
 
 CompositableHost*
 ThebesLayerComposite::GetCompositableHost()
 {
-  if (mBuffer && mBuffer->IsAttached()) {
+  if (mBuffer->IsAttached()) {
     return mBuffer.get();
   }
 

@@ -23,8 +23,17 @@ HTMLFrameSetElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
   return HTMLFrameSetElementBinding::Wrap(aCx, aScope, this);
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLFrameSetElement, nsGenericHTMLElement,
-                             nsIDOMHTMLFrameSetElement)
+NS_IMPL_ADDREF_INHERITED(HTMLFrameSetElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLFrameSetElement, Element)
+
+// QueryInterface implementation for HTMLFrameSetElement
+NS_INTERFACE_TABLE_HEAD(HTMLFrameSetElement)
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(HTMLFrameSetElement,
+                                nsIDOMHTMLFrameSetElement)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
+
 
 NS_IMPL_ELEMENT_CLONE(HTMLFrameSetElement)
 
@@ -121,6 +130,10 @@ HTMLFrameSetElement::GetRowSpec(int32_t *aNumValues,
 
     if (!mRowSpecs) {  // we may not have had an attr or had an empty attr
       mRowSpecs = new nsFramesetSpec[1];
+      if (!mRowSpecs) {
+        mNumRows = 0;
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
       mNumRows = 1;
       mRowSpecs[0].mUnit  = eFramesetUnit_Relative;
       mRowSpecs[0].mValue = 1;
@@ -151,6 +164,10 @@ HTMLFrameSetElement::GetColSpec(int32_t *aNumValues,
 
     if (!mColSpecs) {  // we may not have had an attr or had an empty attr
       mColSpecs = new nsFramesetSpec[1];
+      if (!mColSpecs) {
+        mNumCols = 0;
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
       mNumCols = 1;
       mColSpecs[0].mUnit  = eFramesetUnit_Relative;
       mColSpecs[0].mValue = 1;
@@ -231,8 +248,7 @@ HTMLFrameSetElement::ParseRowCol(const nsAString & aValue,
     commaX = spec.FindChar(sComma, commaX + 1);
   }
 
-  static const fallible_t fallible = fallible_t();
-  nsFramesetSpec* specs = new (fallible) nsFramesetSpec[count];
+  nsFramesetSpec* specs = new nsFramesetSpec[count];
   if (!specs) {
     *aSpecs = nullptr;
     aNumSpecs = 0;
@@ -361,8 +377,9 @@ HTMLFrameSetElement::IsEventAttributeName(nsIAtom *aName)
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                   \
       handler = new type_(callable);                                           \
     }                                                                          \
-    forwardto_::SetOn##name_(handler);                                         \
-    return NS_OK;                                                              \
+    ErrorResult rv;                                                            \
+    forwardto_::SetOn##name_(handler, rv);                                     \
+    return rv.ErrorCode();                                                     \
   }
 #define FORWARDED_EVENT(name_, id_, type_, struct_)                            \
   FORWARDED_EVENT_HELPER(name_, nsGenericHTMLElement, EventHandlerNonNull,     \
@@ -383,7 +400,7 @@ HTMLFrameSetElement::IsEventAttributeName(nsIAtom *aName)
     return nullptr;                                                            \
   }                                                                            \
   void                                                                         \
-  HTMLFrameSetElement::SetOn##name_(type_* handler)                            \
+  HTMLFrameSetElement::SetOn##name_(type_* handler, ErrorResult& error)        \
   {                                                                            \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                         \
     if (!win) {                                                                \
@@ -392,14 +409,14 @@ HTMLFrameSetElement::IsEventAttributeName(nsIAtom *aName)
                                                                                \
     nsCOMPtr<nsISupports> supports = do_QueryInterface(win);                   \
     nsGlobalWindow* globalWin = nsGlobalWindow::FromSupports(supports);        \
-    return globalWin->SetOn##name_(handler);                                   \
+    return globalWin->SetOn##name_(handler, error);                            \
   }                                                                            \
   FORWARDED_EVENT_HELPER(name_, HTMLFrameSetElement, type_, type_*)
 #define WINDOW_EVENT(name_, id_, type_, struct_)                               \
   WINDOW_EVENT_HELPER(name_, EventHandlerNonNull)
 #define BEFOREUNLOAD_EVENT(name_, id_, type_, struct_)                         \
-  WINDOW_EVENT_HELPER(name_, OnBeforeUnloadEventHandlerNonNull)
-#include "nsEventNameList.h" // IWYU pragma: keep
+  WINDOW_EVENT_HELPER(name_, BeforeUnloadEventHandlerNonNull)
+#include "nsEventNameList.h"
 #undef BEFOREUNLOAD_EVENT
 #undef WINDOW_EVENT
 #undef WINDOW_EVENT_HELPER

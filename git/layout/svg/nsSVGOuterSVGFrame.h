@@ -10,7 +10,6 @@
 #include "gfxMatrix.h"
 #include "nsISVGSVGFrame.h"
 #include "nsSVGContainerFrame.h"
-#include "nsRegion.h"
 
 class nsSVGForeignObjectFrame;
 
@@ -33,7 +32,7 @@ public:
 
 #ifdef DEBUG
   ~nsSVGOuterSVGFrame() {
-    NS_ASSERTION(!mForeignObjectHash || mForeignObjectHash->Count() == 0,
+    NS_ASSERTION(mForeignObjectHash.Count() == 0,
                  "foreignObject(s) still registered!");
   }
 #endif
@@ -42,7 +41,7 @@ public:
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
 
-  virtual mozilla::IntrinsicSize GetIntrinsicSize() MOZ_OVERRIDE;
+  virtual IntrinsicSize GetIntrinsicSize() MOZ_OVERRIDE;
   virtual nsSize  GetIntrinsicRatio() MOZ_OVERRIDE;
 
   virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
@@ -111,15 +110,13 @@ public:
 
   // nsISVGChildFrame methods:
   NS_IMETHOD PaintSVG(nsRenderingContext* aContext,
-                      const nsIntRect *aDirtyRect,
-                      nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+                      const nsIntRect *aDirtyRect) MOZ_OVERRIDE;
 
   virtual SVGBBox GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                       uint32_t aFlags) MOZ_OVERRIDE;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
-                                nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor) MOZ_OVERRIDE;
 
   /* Methods to allow descendant nsSVGForeignObjectFrame frames to register and
    * unregister themselves with their nearest nsSVGOuterSVGFrame ancestor. This
@@ -191,7 +188,7 @@ protected:
   // A hash-set containing our nsSVGForeignObjectFrame descendants. Note we use
   // a hash-set to avoid the O(N^2) behavior we'd get tearing down an SVG frame
   // subtree if we were to use a list (see bug 381285 comment 20).
-  nsAutoPtr<nsTHashtable<nsPtrHashKey<nsSVGForeignObjectFrame> > > mForeignObjectHash;
+  nsTHashtable<nsPtrHashKey<nsSVGForeignObjectFrame> > mForeignObjectHash;
 
   nsAutoPtr<gfxMatrix> mCanvasTM;
 
@@ -263,12 +260,11 @@ public:
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
-                                nsIFrame* aTransformRoot) MOZ_OVERRIDE {
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor) MOZ_OVERRIDE {
     // GetCanvasTM returns the transform from an SVG frame to the frame's
     // nsSVGOuterSVGFrame's content box, so we do not include any x/y offset
     // set on us for any CSS border or padding on our nsSVGOuterSVGFrame.
-    return static_cast<nsSVGOuterSVGFrame*>(mParent)->GetCanvasTM(aFor, aTransformRoot);
+    return static_cast<nsSVGOuterSVGFrame*>(mParent)->GetCanvasTM(aFor);
   }
 
   virtual bool HasChildrenOnlyTransform(gfxMatrix *aTransform) const MOZ_OVERRIDE;

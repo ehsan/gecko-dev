@@ -30,16 +30,11 @@ TCPSocketParentIntermediary.prototype = {
     );
  },
 
-  open: function(aParentSide, aHost, aPort, aUseSSL, aBinaryType, aAppId) {
+  open: function(aParentSide, aHost, aPort, aUseSSL, aBinaryType) {
     let baseSocket = Cc["@mozilla.org/tcp-socket;1"].createInstance(Ci.nsIDOMTCPSocket);
-    let socket = baseSocket.open(aHost, aPort, {useSecureTransport: aUseSSL, binaryType: aBinaryType});
+    let socket = baseSocket.open(aHost, aPort, {useSSL: aUseSSL, binaryType: aBinaryType});
     if (!socket)
       return null;
-
-    let socketInternal = socket.QueryInterface(Ci.nsITCPSocketInternal);
-    if (socketInternal) {
-      socketInternal.setAppId(aAppId);
-    }
 
     // Handlers are set to the JS-implemented socket object on the parent side.
     this._setCallbacks(aParentSide, socket);

@@ -8,7 +8,6 @@
 
 #include "txCore.h"
 #include "txXPathNode.h"
-#include "nsIContentInlines.h"
 #include "nsINodeInfo.h"
 #include "nsTArray.h"
 

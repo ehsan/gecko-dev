@@ -51,7 +51,7 @@ class MediaEncoder : public MediaStreamListener
 {
 public :
   enum {
-    ENCODE_METADDATA,
+    ENCODE_HEADER,
     ENCODE_TRACK,
     ENCODE_DONE,
   };
@@ -64,7 +64,7 @@ public :
     , mAudioEncoder(aAudioEncoder)
     , mVideoEncoder(aVideoEncoder)
     , mMIMEType(aMIMEType)
-    , mState(MediaEncoder::ENCODE_METADDATA)
+    , mState(MediaEncoder::ENCODE_HEADER)
     , mShutdown(false)
   {}
 

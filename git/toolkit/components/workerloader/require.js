@@ -109,7 +109,7 @@
       substitute: function(source) {
         let map = this._map;
         return source.replace(this.regexp, function(url) {
-          return map.get(url) || url;
+          return map.get(url);
         }, "g");
       }
     };
@@ -172,17 +172,18 @@
       }
       modules.set(path, module);
 
+
+      // Load source of module, synchronously
+      let xhr = new XMLHttpRequest();
+      xhr.open("GET", uri, false);
+      xhr.responseType = "text";
+      xhr.send();
+
+
+      let source = xhr.responseText;
       let name = ":" + path;
       let objectURL;
       try {
-        // Load source of module, synchronously
-        let xhr = new XMLHttpRequest();
-        xhr.open("GET", uri, false);
-        xhr.responseType = "text";
-        xhr.send();
-
-
-        let source = xhr.responseText;
         if (source == "") {
           // There doesn't seem to be a better way to detect that the file couldn't be found
           throw new Error("Could not find module " + path);

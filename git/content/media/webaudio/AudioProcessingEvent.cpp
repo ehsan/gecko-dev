@@ -6,7 +6,6 @@
 
 #include "AudioProcessingEvent.h"
 #include "mozilla/dom/AudioProcessingEventBinding.h"
-#include "AudioContext.h"
 
 namespace mozilla {
 namespace dom {
@@ -22,7 +21,7 @@ NS_IMPL_RELEASE_INHERITED(AudioProcessingEvent, nsDOMEvent)
 
 AudioProcessingEvent::AudioProcessingEvent(ScriptProcessorNode* aOwner,
                                            nsPresContext* aPresContext,
-                                           WidgetEvent* aEvent)
+                                           nsEvent* aEvent)
   : nsDOMEvent(aOwner, aPresContext, aEvent)
   , mPlaybackTime(0.0)
   , mNode(aOwner)

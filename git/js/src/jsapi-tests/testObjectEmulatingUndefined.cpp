@@ -4,7 +4,7 @@
 
 #include "jsapi-tests/tests.h"
 
-static const JSClass ObjectEmulatingUndefinedClass = {
+static JSClass ObjectEmulatingUndefinedClass = {
     "ObjectEmulatingUndefined",
     JSCLASS_EMULATES_UNDEFINED,
     JS_PropertyStub,
@@ -16,7 +16,7 @@ static const JSClass ObjectEmulatingUndefinedClass = {
     JS_ConvertStub
 };
 
-static bool
+static JSBool
 ObjectEmulatingUndefinedConstructor(JSContext *cx, unsigned argc, jsval *vp)
 {
     JSObject *obj = JS_NewObjectForConstructor(cx, &ObjectEmulatingUndefinedClass, vp);
@@ -28,9 +28,8 @@ ObjectEmulatingUndefinedConstructor(JSContext *cx, unsigned argc, jsval *vp)
 
 BEGIN_TEST(testObjectEmulatingUndefined_truthy)
 {
-    CHECK(JS_InitClass(cx, global, nullptr, &ObjectEmulatingUndefinedClass,
-                       ObjectEmulatingUndefinedConstructor, 0,
-                       nullptr, nullptr, nullptr, nullptr));
+    CHECK(JS_InitClass(cx, global, NULL, &ObjectEmulatingUndefinedClass,
+                       ObjectEmulatingUndefinedConstructor, 0, NULL, NULL, NULL, NULL));
 
     JS::RootedValue result(cx);
 
@@ -54,9 +53,8 @@ END_TEST(testObjectEmulatingUndefined_truthy)
 
 BEGIN_TEST(testObjectEmulatingUndefined_equal)
 {
-    CHECK(JS_InitClass(cx, global, nullptr, &ObjectEmulatingUndefinedClass,
-                       ObjectEmulatingUndefinedConstructor, 0,
-                       nullptr, nullptr, nullptr, nullptr));
+    CHECK(JS_InitClass(cx, global, NULL, &ObjectEmulatingUndefinedClass,
+                       ObjectEmulatingUndefinedConstructor, 0, NULL, NULL, NULL, NULL));
 
     JS::RootedValue result(cx);
 

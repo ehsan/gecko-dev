@@ -20,11 +20,11 @@ CompileScriptForPrincipalsVersionOrigin(JSContext *cx, JS::HandleObject obj,
                                         JSVersion version)
 {
     size_t nchars;
-    if (!JS_DecodeBytes(cx, bytes, nbytes, nullptr, &nchars))
-        return nullptr;
+    if (!JS_DecodeBytes(cx, bytes, nbytes, NULL, &nchars))
+        return NULL;
     jschar *chars = static_cast<jschar *>(JS_malloc(cx, nchars * sizeof(jschar)));
     if (!chars)
-        return nullptr;
+        return NULL;
     JS_ALWAYS_TRUE(JS_DecodeBytes(cx, bytes, nbytes, chars, &nchars));
     JS::CompileOptions options(cx);
     options.setPrincipals(principals)
@@ -43,7 +43,7 @@ FreezeThaw(JSContext *cx, JS::HandleScript script)
     uint32_t nbytes;
     void *memory = JS_EncodeScript(cx, script, &nbytes);
     if (!memory)
-        return nullptr;
+        return NULL;
 
     // thaw
     JSScript *script2 = JS_DecodeScript(cx, memory, nbytes,
@@ -65,7 +65,7 @@ FreezeThaw(JSContext *cx, JS::HandleObject funobj)
     uint32_t nbytes;
     void *memory = JS_EncodeInterpretedFunction(cx, funobj, &nbytes);
     if (!memory)
-        return nullptr;
+        return NULL;
 
     // thaw
     JSScript *script = GetScript(cx, funobj);
@@ -89,7 +89,7 @@ BEGIN_TEST(testXDR_principals)
         // Appease the new JSAPI assertions. The stuff being tested here is
         // going away anyway.
         JS_SetCompartmentPrincipals(compartment, &testPrincipals[0]);
-        script = createScriptViaXDR(&testPrincipals[0], nullptr, i);
+        script = createScriptViaXDR(&testPrincipals[0], NULL, i);
         CHECK(script);
         CHECK(JS_GetScriptPrincipals(script) == &testPrincipals[0]);
         CHECK(JS_GetScriptOriginPrincipals(script) == &testPrincipals[0]);
@@ -127,25 +127,25 @@ JSScript *createScriptViaXDR(JSPrincipals *prin, JSPrincipals *orig, int testCas
                                                                         src, strlen(src), "test", 1,
                                                                         JSVERSION_DEFAULT));
     if (!script)
-        return nullptr;
+        return NULL;
 
     if (testCase == TEST_SCRIPT || testCase == TEST_SERIALIZED_FUNCTION) {
         script = FreezeThaw(cx, script);
         if (!script)
-            return nullptr;
+            return NULL;
         if (testCase == TEST_SCRIPT)
             return script;
     }
 
     JS::RootedValue v(cx);
-    bool ok = JS_ExecuteScript(cx, global, script, v.address());
+    JSBool ok = JS_ExecuteScript(cx, global, script, v.address());
     if (!ok || !v.isObject())
-        return nullptr;
+        return NULL;
     JS::RootedObject funobj(cx, &v.toObject());
     if (testCase == TEST_FUNCTION) {
         funobj = FreezeThaw(cx, funobj);
         if (!funobj)
-            return nullptr;
+            return NULL;
     }
     return GetScript(cx, funobj);
 }
@@ -194,7 +194,7 @@ BEGIN_TEST(testXDR_bug516827)
     CHECK(script);
 
     // execute with null result meaning no result wanted
-    CHECK(JS_ExecuteScript(cx, global, script, nullptr));
+    CHECK(JS_ExecuteScript(cx, global, script, NULL));
     return true;
 }
 END_TEST(testXDR_bug516827)
@@ -205,7 +205,7 @@ BEGIN_TEST(testXDR_source)
         // This can't possibly fail to compress well, can it?
         "function f(x) { return x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x }",
         "short",
-        nullptr
+        NULL
     };
     for (const char **s = samples; *s; s++) {
         JS::RootedScript script(cx, JS_CompileScript(cx, global, *s, strlen(*s), __FILE__, __LINE__));
@@ -214,7 +214,7 @@ BEGIN_TEST(testXDR_source)
         CHECK(script);
         JSString *out = JS_DecompileScript(cx, script, "testing", 0);
         CHECK(out);
-        bool equal;
+        JSBool equal;
         CHECK(JS_StringEqualsAscii(cx, out, *s, &equal));
         CHECK(equal);
     }
@@ -227,7 +227,7 @@ BEGIN_TEST(testXDR_sourceMap)
     const char *sourceMaps[] = {
         "http://example.com/source-map.json",
         "file:///var/source-map.json",
-        nullptr
+        NULL
     };
     JS::RootedScript script(cx);
     for (const char **sm = sourceMaps; *sm; sm++) {
@@ -239,13 +239,13 @@ BEGIN_TEST(testXDR_sourceMap)
         CHECK(expected);
 
         // The script source takes responsibility of free'ing |expected|.
-        CHECK(script->scriptSource()->setSourceMapURL(cx, expected));
+        CHECK(script->scriptSource()->setSourceMap(cx, expected));
         script = FreezeThaw(cx, script);
         CHECK(script);
         CHECK(script->scriptSource());
-        CHECK(script->scriptSource()->hasSourceMapURL());
+        CHECK(script->scriptSource()->hasSourceMap());
 
-        const jschar *actual = script->scriptSource()->sourceMapURL();
+        const jschar *actual = script->scriptSource()->sourceMap();
         CHECK(actual);
 
         while (*expected) {

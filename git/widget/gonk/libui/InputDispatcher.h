@@ -17,17 +17,17 @@
 #ifndef _UI_INPUT_DISPATCHER_H
 #define _UI_INPUT_DISPATCHER_H
 
+#include "cutils_log.h"
 #include "Input.h"
 #include "InputTransport.h"
 #include <utils/KeyedVector.h>
 #include <utils/Vector.h>
 #include <utils/threads.h>
-#include <utils/Timers.h>
+#include "Timers.h"
 #include <utils/RefBase.h>
-#include <utils/String8.h>
+#include "String8.h"
 #include <utils/Looper.h>
-#include <utils/BitSet.h>
-#include <cutils/atomic.h>
+#include "BitSet.h"
 
 #include <stddef.h>
 #include <unistd.h>
@@ -165,8 +165,6 @@ struct InputTarget {
  * Input dispatcher configuration.
  *
  * Specifies various options that modify the behavior of the input dispatcher.
- * The values provided here are merely defaults. The actual values will come from ViewConfiguration
- * and are passed into the dispatcher during initialization.
  */
 struct InputDispatcherConfiguration {
     // The key repeat initial timeout.
@@ -175,9 +173,15 @@ struct InputDispatcherConfiguration {
     // The key repeat inter-key delay.
     nsecs_t keyRepeatDelay;
 
+    // The maximum suggested event delivery rate per second.
+    // This value is used to throttle motion event movement actions on a per-device
+    // basis.  It is not intended to be a hard limit.
+    int32_t maxEventsPerSecond;
+
     InputDispatcherConfiguration() :
             keyRepeatTimeout(500 * 1000000LL),
-            keyRepeatDelay(50 * 1000000LL) { }
+            keyRepeatDelay(50 * 1000000LL),
+            maxEventsPerSecond(60) { }
 };
 
 
@@ -250,7 +254,7 @@ public:
     /* Notifies the policy about switch events.
      */
     virtual void notifySwitch(nsecs_t when,
-            uint32_t switchValues, uint32_t switchMask, uint32_t policyFlags) = 0;
+            int32_t switchCode, int32_t switchValue, uint32_t policyFlags) = 0;
 
     /* Poke user activity for an event dispatched to a window. */
     virtual void pokeUserActivity(nsecs_t eventTime, int32_t eventType) = 0;
@@ -401,9 +405,6 @@ private:
     struct Link {
         T* next;
         T* prev;
-
-    protected:
-        inline Link() : next(NULL), prev(NULL) { }
     };
 
     struct InjectionState {
@@ -442,8 +443,6 @@ private:
 
         void release();
 
-        virtual void appendDescription(String8& msg) const = 0;
-
     protected:
         EventEntry(int32_t type, nsecs_t eventTime, uint32_t policyFlags);
         virtual ~EventEntry();
@@ -452,7 +451,6 @@ private:
 
     struct ConfigurationChangedEntry : EventEntry {
         ConfigurationChangedEntry(nsecs_t eventTime);
-        virtual void appendDescription(String8& msg) const;
 
     protected:
         virtual ~ConfigurationChangedEntry();
@@ -462,7 +460,6 @@ private:
         int32_t deviceId;
 
         DeviceResetEntry(nsecs_t eventTime, int32_t deviceId);
-        virtual void appendDescription(String8& msg) const;
 
     protected:
         virtual ~DeviceResetEntry();
@@ -494,15 +491,24 @@ private:
                 int32_t deviceId, uint32_t source, uint32_t policyFlags, int32_t action,
                 int32_t flags, int32_t keyCode, int32_t scanCode, int32_t metaState,
                 int32_t repeatCount, nsecs_t downTime);
-        virtual void appendDescription(String8& msg) const;
         void recycle();
 
     protected:
         virtual ~KeyEntry();
     };
 
+    struct MotionSample {
+        MotionSample* next;
+
+        nsecs_t eventTime; // may be updated during coalescing
+        nsecs_t eventTimeBeforeCoalescing; // not updated during coalescing
+        PointerCoords pointerCoords[MAX_POINTERS];
+
+        MotionSample(nsecs_t eventTime, const PointerCoords* pointerCoords,
+                uint32_t pointerCount);
+    };
+
     struct MotionEntry : EventEntry {
-        nsecs_t eventTime;
         int32_t deviceId;
         uint32_t source;
         int32_t action;
@@ -513,19 +519,27 @@ private:
         float xPrecision;
         float yPrecision;
         nsecs_t downTime;
-        int32_t displayId;
         uint32_t pointerCount;
         PointerProperties pointerProperties[MAX_POINTERS];
-        PointerCoords pointerCoords[MAX_POINTERS];
+
+        // Linked list of motion samples associated with this motion event.
+        MotionSample firstSample;
+        MotionSample* lastSample;
 
         MotionEntry(nsecs_t eventTime,
-                int32_t deviceId, uint32_t source, uint32_t policyFlags,
-                int32_t action, int32_t flags,
-                int32_t metaState, int32_t buttonState, int32_t edgeFlags,
+                int32_t deviceId, uint32_t source, uint32_t policyFlags, int32_t action,
+                int32_t flags, int32_t metaState, int32_t buttonState, int32_t edgeFlags,
                 float xPrecision, float yPrecision,
-                nsecs_t downTime, int32_t displayId, uint32_t pointerCount,
+                nsecs_t downTime, uint32_t pointerCount,
                 const PointerProperties* pointerProperties, const PointerCoords* pointerCoords);
-        virtual void appendDescription(String8& msg) const;
+
+        uint32_t countSamples() const;
+
+        // Checks whether we can append samples, assuming the device id and source are the same.
+        bool canAppendSamples(int32_t action, uint32_t pointerCount,
+                const PointerProperties* pointerProperties) const;
+
+        void appendSample(nsecs_t eventTime, const PointerCoords* pointerCoords);
 
     protected:
         virtual ~MotionEntry();
@@ -533,18 +547,31 @@ private:
 
     // Tracks the progress of dispatching a particular event to a particular connection.
     struct DispatchEntry : Link<DispatchEntry> {
-        const uint32_t seq; // unique sequence number, never 0
-
         EventEntry* eventEntry; // the event to dispatch
         int32_t targetFlags;
         float xOffset;
         float yOffset;
         float scaleFactor;
-        nsecs_t deliveryTime; // time when the event was actually delivered
+
+        // True if dispatch has started.
+        bool inProgress;
 
         // Set to the resolved action and flags when the event is enqueued.
         int32_t resolvedAction;
         int32_t resolvedFlags;
+
+        // For motion events:
+        //   Pointer to the first motion sample to dispatch in this cycle.
+        //   Usually NULL to indicate that the list of motion samples begins at
+        //   MotionEntry::firstSample.  Otherwise, some samples were dispatched in a previous
+        //   cycle and this pointer indicates the location of the first remainining sample
+        //   to dispatch during the current cycle.
+        MotionSample* headMotionSample;
+        //   Pointer to a motion sample to dispatch in the next cycle if the dispatcher was
+        //   unable to send all motion samples during this cycle.  On the next cycle,
+        //   headMotionSample will be initialized to tailMotionSample and tailMotionSample
+        //   will be set to NULL.
+        MotionSample* tailMotionSample;
 
         DispatchEntry(EventEntry* eventEntry,
                 int32_t targetFlags, float xOffset, float yOffset, float scaleFactor);
@@ -557,11 +584,6 @@ private:
         inline bool isSplit() const {
             return targetFlags & InputTarget::FLAG_SPLIT;
         }
-
-    private:
-        static volatile int32_t sNextSeqAtomic;
-
-        static uint32_t nextSeq();
     };
 
     // A command entry captures state and behavior for an action to be performed in the
@@ -597,7 +619,6 @@ private:
         sp<InputApplicationHandle> inputApplicationHandle;
         sp<InputWindowHandle> inputWindowHandle;
         int32_t userActivityEventType;
-        uint32_t seq;
         bool handled;
     };
 
@@ -700,7 +721,7 @@ private:
 
         // Returns true if the specified source is known to have received a hover enter
         // motion event.
-        bool isHovering(int32_t deviceId, uint32_t source, int32_t displayId) const;
+        bool isHovering(int32_t deviceId, uint32_t source) const;
 
         // Records tracking information for a key event that has just been published.
         // Returns true if the event should be delivered, false if it is inconsistent
@@ -743,10 +764,8 @@ private:
             uint32_t source;
             int32_t keyCode;
             int32_t scanCode;
-            int32_t metaState;
             int32_t flags;
             nsecs_t downTime;
-            uint32_t policyFlags;
         };
 
         struct MotionMemento {
@@ -756,12 +775,10 @@ private:
             float xPrecision;
             float yPrecision;
             nsecs_t downTime;
-            int32_t displayId;
             uint32_t pointerCount;
             PointerProperties pointerProperties[MAX_POINTERS];
             PointerCoords pointerCoords[MAX_POINTERS];
             bool hovering;
-            uint32_t policyFlags;
 
             void setPointers(const MotionEntry* entry);
         };
@@ -803,27 +820,33 @@ private:
         bool monitor;
         InputPublisher inputPublisher;
         InputState inputState;
-
-        // True if the socket is full and no further events can be published until
-        // the application consumes some of the input.
-        bool inputPublisherBlocked;
-
-        // Queue of events that need to be published to the connection.
         Queue<DispatchEntry> outboundQueue;
 
-        // Queue of events that have been published to the connection but that have not
-        // yet received a "finished" response from the application.
-        Queue<DispatchEntry> waitQueue;
+        nsecs_t lastEventTime; // the time when the event was originally captured
+        nsecs_t lastDispatchTime; // the time when the last event was dispatched
 
         explicit Connection(const sp<InputChannel>& inputChannel,
                 const sp<InputWindowHandle>& inputWindowHandle, bool monitor);
 
         inline const char* getInputChannelName() const { return inputChannel->getName().string(); }
 
-        const char* getWindowName() const;
         const char* getStatusLabel() const;
 
-        DispatchEntry* findWaitQueueEntry(uint32_t seq);
+        // Finds a DispatchEntry in the outbound queue associated with the specified event.
+        // Returns NULL if not found.
+        DispatchEntry* findQueuedDispatchEntryForEvent(const EventEntry* eventEntry) const;
+
+        // Gets the time since the current event was originally obtained from the input driver.
+        inline double getEventLatencyMillis(nsecs_t currentTime) const {
+            return (currentTime - lastEventTime) / 1000000.0;
+        }
+
+        // Gets the time since the current event entered the outbound dispatch queue.
+        inline double getDispatchLatencyMillis(nsecs_t currentTime) const {
+            return (currentTime - lastDispatchTime) / 1000000.0;
+        }
+
+        status_t initialize();
     };
 
     enum DropReason {
@@ -840,15 +863,21 @@ private:
 
     Mutex mLock;
 
-    Condition mDispatcherIsAliveCondition;
-
     sp<Looper> mLooper;
 
     EventEntry* mPendingEvent;
     Queue<EventEntry> mInboundQueue;
     Queue<CommandEntry> mCommandQueue;
 
+    Vector<EventEntry*> mTempCancelationEvents;
+
     void dispatchOnceInnerLocked(nsecs_t* nextWakeupTime);
+    void dispatchIdleLocked();
+
+    // Batches a new sample onto a motion entry.
+    // Assumes that the we have already checked that we can append samples.
+    void batchMotionLocked(MotionEntry* entry, nsecs_t eventTime, int32_t metaState,
+            const PointerCoords* pointerCoords, const char* eventDescription);
 
     // Enqueues an inbound event.  Returns true if mLooper->wake() should be called.
     bool enqueueInboundEventLocked(EventEntry* entry);
@@ -872,12 +901,18 @@ private:
     // to transfer focus to a new application.
     EventEntry* mNextUnblockedEvent;
 
-    sp<InputWindowHandle> findTouchedWindowAtLocked(int32_t displayId, int32_t x, int32_t y);
+    sp<InputWindowHandle> findTouchedWindowAtLocked(int32_t x, int32_t y);
 
-    // All registered connections mapped by channel file descriptor.
-    KeyedVector<int, sp<Connection> > mConnectionsByFd;
+    // All registered connections mapped by receive pipe file descriptor.
+    KeyedVector<int, sp<Connection> > mConnectionsByReceiveFd;
 
     ssize_t getConnectionIndexLocked(const sp<InputChannel>& inputChannel);
+
+    // Active connections are connections that have a non-empty outbound queue.
+    // We don't use a ref-counted pointer here because we explicitly abort connections
+    // during unregistration which causes the connection's outbound queue to be cleared
+    // and the connection itself to be deactivated.
+    Vector<Connection*> mActiveConnections;
 
     // Input channels that will receive a copy of all input events.
     Vector<sp<InputChannel> > mMonitoringChannels;
@@ -891,6 +926,17 @@ private:
     void incrementPendingForegroundDispatchesLocked(EventEntry* entry);
     void decrementPendingForegroundDispatchesLocked(EventEntry* entry);
 
+    // Throttling state.
+    struct ThrottleState {
+        nsecs_t minTimeBetweenEvents;
+
+        nsecs_t lastEventTime;
+        int32_t lastDeviceId;
+        uint32_t lastSource;
+
+        uint32_t originalSampleCount; // only collected during debugging
+    } mThrottleState;
+
     // Key repeat tracking.
     struct KeyRepeatState {
         KeyEntry* lastKeyEntry; // or null if no repeat
@@ -901,13 +947,8 @@ private:
     KeyEntry* synthesizeKeyRepeatLocked(nsecs_t currentTime);
 
     // Deferred command processing.
-    bool haveCommandsLocked() const;
     bool runCommandsLockedInterruptible();
     CommandEntry* postCommandLocked(Command command);
-
-    // Input filter processing.
-    bool shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args);
-    bool shouldSendMotionToInputFilterLocked(const NotifyMotionArgs* args);
 
     // Inbound event processing.
     void drainInboundQueueLocked();
@@ -938,7 +979,6 @@ private:
         bool split;
         int32_t deviceId; // id of the device that is currently down, others are rejected
         uint32_t source;  // source of the device that is current down, others are rejected
-        int32_t displayId; // id to the display that currently has a touch, others are rejected
         Vector<TouchedWindow> windows;
 
         TouchState();
@@ -947,7 +987,6 @@ private:
         void copyFrom(const TouchState& other);
         void addOrUpdateWindow(const sp<InputWindowHandle>& windowHandle,
                 int32_t targetFlags, BitSet32 pointerIds);
-        void removeWindow(const sp<InputWindowHandle>& windowHandle);
         void filterNonAsIsTouchWindows();
         sp<InputWindowHandle> getFirstForegroundWindowHandle() const;
         bool isSlippery() const;
@@ -958,9 +997,6 @@ private:
 
     // Focused application.
     sp<InputApplicationHandle> mFocusedApplicationHandle;
-
-    // Dispatcher state at time of last ANR.
-    String8 mLastANRState;
 
     // Dispatch inbound events.
     bool dispatchConfigurationChangedLocked(
@@ -973,13 +1009,16 @@ private:
     bool dispatchMotionLocked(
             nsecs_t currentTime, MotionEntry* entry,
             DropReason* dropReason, nsecs_t* nextWakeupTime);
-    void dispatchEventLocked(nsecs_t currentTime, EventEntry* entry,
-            const Vector<InputTarget>& inputTargets);
+    void dispatchEventToCurrentInputTargetsLocked(
+            nsecs_t currentTime, EventEntry* entry, bool resumeWithAppendedMotionSample);
 
     void logOutboundKeyDetailsLocked(const char* prefix, const KeyEntry* entry);
     void logOutboundMotionDetailsLocked(const char* prefix, const MotionEntry* entry);
 
-    // Keeping track of ANR timeouts.
+    // The input targets that were most recently identified for dispatch.
+    bool mCurrentInputTargetsValid; // false while targets are being recomputed
+    Vector<InputTarget> mCurrentInputTargets;
+
     enum InputTargetWaitCause {
         INPUT_TARGET_WAIT_CAUSE_NONE,
         INPUT_TARGET_WAIT_CAUSE_SYSTEM_NOT_READY,
@@ -996,32 +1035,32 @@ private:
     sp<InputWindowHandle> mLastHoverWindowHandle;
 
     // Finding targets for input events.
+    void resetTargetsLocked();
+    void commitTargetsLocked();
     int32_t handleTargetsNotReadyLocked(nsecs_t currentTime, const EventEntry* entry,
             const sp<InputApplicationHandle>& applicationHandle,
             const sp<InputWindowHandle>& windowHandle,
-            nsecs_t* nextWakeupTime, const char* reason);
+            nsecs_t* nextWakeupTime);
     void resumeAfterTargetsNotReadyTimeoutLocked(nsecs_t newTimeout,
             const sp<InputChannel>& inputChannel);
     nsecs_t getTimeSpentWaitingForApplicationLocked(nsecs_t currentTime);
     void resetANRTimeoutsLocked();
 
     int32_t findFocusedWindowTargetsLocked(nsecs_t currentTime, const EventEntry* entry,
-            Vector<InputTarget>& inputTargets, nsecs_t* nextWakeupTime);
+            nsecs_t* nextWakeupTime);
     int32_t findTouchedWindowTargetsLocked(nsecs_t currentTime, const MotionEntry* entry,
-            Vector<InputTarget>& inputTargets, nsecs_t* nextWakeupTime,
-            bool* outConflictingPointerActions);
+            nsecs_t* nextWakeupTime, bool* outConflictingPointerActions,
+            const MotionSample** outSplitBatchAfterSample);
 
     void addWindowTargetLocked(const sp<InputWindowHandle>& windowHandle,
-            int32_t targetFlags, BitSet32 pointerIds, Vector<InputTarget>& inputTargets);
-    void addMonitoringTargetsLocked(Vector<InputTarget>& inputTargets);
-
+            int32_t targetFlags, BitSet32 pointerIds);
+    void addMonitoringTargetsLocked();
     void pokeUserActivityLocked(const EventEntry* eventEntry);
     bool checkInjectionPermission(const sp<InputWindowHandle>& windowHandle,
             const InjectionState* injectionState);
     bool isWindowObscuredAtPointLocked(const sp<InputWindowHandle>& windowHandle,
             int32_t x, int32_t y) const;
-    bool isWindowReadyForMoreInputLocked(nsecs_t currentTime,
-            const sp<InputWindowHandle>& windowHandle, const EventEntry* eventEntry);
+    bool isWindowFinishedWithPreviousInputLocked(const sp<InputWindowHandle>& windowHandle);
     String8 getApplicationWindowLabelLocked(const sp<InputApplicationHandle>& applicationHandle,
             const sp<InputWindowHandle>& windowHandle);
 
@@ -1030,19 +1069,19 @@ private:
     // with the mutex held makes it easier to ensure that connection invariants are maintained.
     // If needed, the methods post commands to run later once the critical bits are done.
     void prepareDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
-            EventEntry* eventEntry, const InputTarget* inputTarget);
-    void enqueueDispatchEntriesLocked(nsecs_t currentTime, const sp<Connection>& connection,
-            EventEntry* eventEntry, const InputTarget* inputTarget);
+            EventEntry* eventEntry, const InputTarget* inputTarget,
+            bool resumeWithAppendedMotionSample);
     void enqueueDispatchEntryLocked(const sp<Connection>& connection,
-            EventEntry* eventEntry, const InputTarget* inputTarget, int32_t dispatchMode);
+            EventEntry* eventEntry, const InputTarget* inputTarget,
+            bool resumeWithAppendedMotionSample, int32_t dispatchMode);
     void startDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection);
     void finishDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
-            uint32_t seq, bool handled);
+            bool handled);
+    void startNextDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection);
     void abortBrokenDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
             bool notify);
-    void drainDispatchQueueLocked(Queue<DispatchEntry>* queue);
-    void releaseDispatchEntryLocked(DispatchEntry* dispatchEntry);
-    static int handleReceiveCallback(int fd, int events, void* data);
+    void drainOutboundQueueLocked(Connection* connection);
+    static int handleReceiveCallback(int receiveFd, int events, void* data);
 
     void synthesizeCancelationEventsForAllConnectionsLocked(
             const CancelationOptions& options);
@@ -1070,14 +1109,16 @@ private:
     void deactivateConnectionLocked(Connection* connection);
 
     // Interesting events that we might like to log or tell the framework about.
+    void onDispatchCycleStartedLocked(
+            nsecs_t currentTime, const sp<Connection>& connection);
     void onDispatchCycleFinishedLocked(
-            nsecs_t currentTime, const sp<Connection>& connection, uint32_t seq, bool handled);
+            nsecs_t currentTime, const sp<Connection>& connection, bool handled);
     void onDispatchCycleBrokenLocked(
             nsecs_t currentTime, const sp<Connection>& connection);
     void onANRLocked(
             nsecs_t currentTime, const sp<InputApplicationHandle>& applicationHandle,
             const sp<InputWindowHandle>& windowHandle,
-            nsecs_t eventTime, nsecs_t waitStartTime, const char* reason);
+            nsecs_t eventTime, nsecs_t waitStartTime);
 
     // Outbound policy interactions.
     void doNotifyConfigurationChangedInterruptible(CommandEntry* commandEntry);
@@ -1095,9 +1136,6 @@ private:
     // Statistics gathering.
     void updateDispatchStatisticsLocked(nsecs_t currentTime, const EventEntry* entry,
             int32_t injectionResult, nsecs_t timeSpentWaitingForApplication);
-    void traceInboundQueueLengthLocked();
-    void traceOutboundQueueLengthLocked(const sp<Connection>& connection);
-    void traceWaitQueueLengthLocked(const sp<Connection>& connection);
 };
 
 /* Enqueues and dispatches input events, endlessly. */

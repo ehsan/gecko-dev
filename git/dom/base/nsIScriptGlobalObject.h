@@ -8,12 +8,13 @@
 #define nsIScriptGlobalObject_h__
 
 #include "nsISupports.h"
+#include "nsEvent.h"
 #include "nsIGlobalObject.h"
-#include "js/TypeDecls.h"
-#include "mozilla/EventForwards.h"
 
 class nsIScriptContext;
+class nsScriptErrorEvent;
 class nsIScriptGlobalObject;
+class JSObject;
 
 // A helper function for nsIScriptGlobalObject implementations to use
 // when handling a script error.  Generally called by the global when a context
@@ -22,13 +23,13 @@ class nsIScriptGlobalObject;
 // aStatus will be filled in with the status.
 bool
 NS_HandleScriptError(nsIScriptGlobalObject *aScriptGlobal,
-                     mozilla::InternalScriptErrorEvent *aErrorEvent,
+                     nsScriptErrorEvent *aErrorEvent,
                      nsEventStatus *aStatus);
 
 
 #define NS_ISCRIPTGLOBALOBJECT_IID \
-{ 0x214fa2f6, 0xcc0c, 0x42cf, \
-  { 0x98, 0x4b, 0x45, 0xf5, 0x73, 0x9c, 0x6b, 0x73 } }
+{ 0xde24b30a, 0x12c6, 0x4e5f, \
+  { 0xa8, 0x5e, 0x90, 0xcd, 0xfb, 0x6c, 0x54, 0x51 } }
 
 /**
  * The global object which keeps a script context for each supported script
@@ -78,9 +79,8 @@ public:
   /**
    * Handle a script error.  Generally called by a script context.
    */
-  virtual nsresult HandleScriptError(
-                     mozilla::InternalScriptErrorEvent *aErrorEvent,
-                     nsEventStatus *aEventStatus) {
+  virtual nsresult HandleScriptError(nsScriptErrorEvent *aErrorEvent,
+                                     nsEventStatus *aEventStatus) {
     NS_ENSURE_STATE(NS_HandleScriptError(this, aErrorEvent, aEventStatus));
     return NS_OK;
   }

@@ -9,19 +9,18 @@
 
 #include "nsDOMEvent.h"
 #include "AudioBuffer.h"
+#include "AudioContext.h"
 
 namespace mozilla {
 namespace dom {
-
-class AudioContext;
 
 class OfflineAudioCompletionEvent : public nsDOMEvent,
                                     public EnableWebAudioCheck
 {
 public:
   OfflineAudioCompletionEvent(AudioContext* aOwner,
-                              nsPresContext* aPresContext,
-                              WidgetEvent* aEvent);
+                              nsPresContext *aPresContext,
+                              nsEvent *aEvent);
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_TO_NSDOMEVENT

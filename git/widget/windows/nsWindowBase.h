@@ -6,14 +6,16 @@
 #ifndef nsWindowBase_h_
 #define nsWindowBase_h_
 
-#include "mozilla/EventForwards.h"
 #include "nsBaseWidget.h"
+#include "nsGUIEvent.h"
+#include "npapi.h"
 #include <windows.h>
 
 /*
  * nsWindowBase - Base class of common methods other classes need to access
  * in both win32 and winrt window classes.
  */
+
 class nsWindowBase : public nsBaseWidget
 {
 public:
@@ -25,47 +27,35 @@ public:
   }
 
   /*
-   * Return the parent window, if it exists.
-   */
-  virtual nsWindowBase* GetParentWindowBase(bool aIncludeOwner) = 0;
-
-  /*
-   * Return true if this is a top level widget.
-   */
-  virtual bool IsTopLevelWidget() = 0;
-
-  /*
    * Init a standard gecko event for this widget.
-   * @param aEvent the event to initialize.
-   * @param aPoint message position in physical coordinates.
    */
-  virtual void InitEvent(mozilla::WidgetGUIEvent& aEvent,
-                         nsIntPoint* aPoint = nullptr) = 0;
+  virtual void InitEvent(nsGUIEvent& aEvent, nsIntPoint* aPoint = nullptr) = 0;
 
   /*
    * Dispatch a gecko event for this widget.
    * Returns true if it's consumed.  Otherwise, false.
    */
-  virtual bool DispatchWindowEvent(mozilla::WidgetGUIEvent* aEvent) = 0;
+  virtual bool DispatchWindowEvent(nsGUIEvent* aEvent) = 0;
 
   /*
-   * Dispatch a gecko keyboard event for this widget. This
-   * is called by KeyboardLayout to dispatch gecko events.
-   * Returns true if it's consumed.  Otherwise, false.
+   * Dispatch a plugin event with the message.
    */
-  virtual bool DispatchKeyboardEvent(mozilla::WidgetGUIEvent* aEvent) = 0;
-
-  /*
-   * Dispatch a gecko scroll event for this widget. This
-   * is called by ScrollHandler to dispatch gecko events.
-   * Returns true if it's consumed.  Otherwise, false.
-   */
-  virtual bool DispatchScrollEvent(mozilla::WidgetGUIEvent* aEvent) = 0;
-
-  /*
-   * Default dispatch of a plugin event.
-   */
-  virtual bool DispatchPluginEvent(const MSG& aMsg);
+  virtual bool DispatchPluginEvent(const MSG &aMsg) MOZ_FINAL
+  {
+    if (!PluginHasFocus()) {
+      return false;
+    }
+    nsPluginEvent pluginEvent(true, NS_PLUGIN_INPUT_EVENT, this);
+    nsIntPoint point(0, 0);
+    InitEvent(pluginEvent, &point);
+    NPEvent npEvent;
+    npEvent.event = aMsg.message;
+    npEvent.wParam = aMsg.wParam;
+    npEvent.lParam = aMsg.lParam;
+    pluginEvent.pluginEvent = (void *)&npEvent;
+    pluginEvent.retargetToFocusedDocument = true;
+    return DispatchWindowEvent(&pluginEvent);
+  }
 
   /*
    * Returns true if a plugin has focus on this widget.  Otherwise, false.

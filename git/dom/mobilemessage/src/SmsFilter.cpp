@@ -4,14 +4,15 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SmsFilter.h"
+#include "nsIDOMClassInfo.h"
+#include "Constants.h"
+#include "nsError.h"
+#include "Constants.h"
 #include "jsapi.h"
 #include "jsfriendapi.h" // For js_DateGetMsecSinceEpoch.
 #include "js/Utility.h"
-#include "mozilla/dom/mobilemessage/Constants.h" // For MessageType
-#include "nsDOMString.h"
-#include "nsError.h"
-#include "nsIDOMClassInfo.h"
 #include "nsJSUtils.h"
+#include "nsDOMString.h"
 
 using namespace mozilla::dom::mobilemessage;
 
@@ -178,7 +179,7 @@ SmsFilter::SetNumbers(JSContext* aCx, const JS::Value& aNumbers)
 
   for (uint32_t i=0; i<size; ++i) {
     JS::Rooted<JS::Value> jsNumber(aCx);
-    if (!JS_GetElement(aCx, obj, i, &jsNumber)) {
+    if (!JS_GetElement(aCx, obj, i, jsNumber.address())) {
       return NS_ERROR_INVALID_ARG;
     }
 

@@ -16,7 +16,6 @@
 #include "nsAttrName.h"
 #include "nsContentUtils.h"
 #include "nsError.h"
-#include "nsIContentInlines.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsINameSpaceManager.h"
@@ -34,6 +33,7 @@ nsDOMAttributeMap::nsDOMAttributeMap(Element* aContent)
 {
   // We don't add a reference to our content. If it goes away,
   // we'll be told to drop our reference
+  mAttributeCache.Init();
   SetIsDOMBinding();
 }
 

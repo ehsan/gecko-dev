@@ -1,5 +1,4 @@
 #include "gdb-tests.h"
-#include "jsapi.h"
 
 FRAGMENT(jsval, simple) {
   JS::Rooted<jsval> fortytwo(cx, INT_TO_JSVAL(42));

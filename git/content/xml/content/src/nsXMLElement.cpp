@@ -5,7 +5,6 @@
 
 #include "nsXMLElement.h"
 #include "mozilla/dom/ElementBinding.h"
-#include "mozilla/dom/ElementInlines.h"
 #include "nsContentUtils.h" // nsAutoScriptBlocker
 
 using namespace mozilla::dom;
@@ -18,8 +17,14 @@ NS_NewXMLElement(nsIContent** aInstancePtrResult, already_AddRefed<nsINodeInfo> 
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS_INHERITED2(nsXMLElement, Element,
-                             nsIDOMNode, nsIDOMElement)
+// QueryInterface implementation for nsXMLElement
+NS_INTERFACE_TABLE_HEAD(nsXMLElement)
+  NS_INTERFACE_TABLE_INHERITED2(nsXMLElement, nsIDOMNode, nsIDOMElement)
+  NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
+
+NS_IMPL_ADDREF_INHERITED(nsXMLElement, Element)
+NS_IMPL_RELEASE_INHERITED(nsXMLElement, Element)
 
 JSObject*
 nsXMLElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)

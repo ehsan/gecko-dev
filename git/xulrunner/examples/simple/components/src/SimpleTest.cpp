@@ -35,13 +35,13 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(SimpleTest)
 NS_DEFINE_NAMED_CID(SIMPLETEST_CID);
 
 static const mozilla::Module::CIDEntry kSimpleCIDs[] = {
-  { &kSIMPLETEST_CID, false, nullptr, SimpleTestConstructor },
-  { nullptr }
+  { &kSIMPLETEST_CID, false, NULL, SimpleTestConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kSimpleContracts[] = {
   { "@test.mozilla.org/simple-test;1?impl=c++", &kSIMPLETEST_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kSimpleModule = {

@@ -6,7 +6,10 @@
 #ifndef GFX_HARFBUZZSHAPER_H
 #define GFX_HARFBUZZSHAPER_H
 
+#include "gfxTypes.h"
 #include "gfxFont.h"
+#include "nsDataHashtable.h"
+#include "nsPoint.h"
 
 #include "harfbuzz/hb.h"
 

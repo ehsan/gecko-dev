@@ -32,7 +32,6 @@
 #include "nsIFrame.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsINameSpaceManager.h"
-#include "nsIPersistentProperties2.h"
 #include "nsIPresShell.h"
 #include "nsIServiceManager.h"
 #include "nsViewManager.h"
@@ -74,11 +73,7 @@ DocAccessible::
   DocAccessible(nsIDocument* aDocument, nsIContent* aRootContent,
                   nsIPresShell* aPresShell) :
   HyperTextAccessibleWrap(aRootContent, this),
-  // XXX aaronl should we use an algorithm for the initial cache size?
-  mAccessibleCache(kDefaultCacheSize),
-  mNodeToAccessibleMap(kDefaultCacheSize),
-  mDocumentNode(aDocument),
-  mScrollPositionChangedTicks(0),
+  mDocumentNode(aDocument), mScrollPositionChangedTicks(0),
   mLoadState(eTreeConstructionPending), mDocFlags(0), mLoadEventType(0),
   mVirtualCursor(nullptr),
   mPresShell(aPresShell)
@@ -88,6 +83,11 @@ DocAccessible::
 
   MOZ_ASSERT(mPresShell, "should have been given a pres shell");
   mPresShell->SetDocAccessible(this);
+
+  mDependentIDsHash.Init();
+  // XXX aaronl should we use an algorithm for the initial cache size?
+  mAccessibleCache.Init(kDefaultCacheSize);
+  mNodeToAccessibleMap.Init(kDefaultCacheSize);
 
   // If this is a XUL Document, it should not implement nsHyperText
   if (mDocumentNode && mDocumentNode->IsXUL())
@@ -800,9 +800,6 @@ NS_IMETHODIMP
 DocAccessible::Observe(nsISupports* aSubject, const char* aTopic,
                        const PRUnichar* aData)
 {
-  if (IsDefunct())
-    return NS_OK;
-
   if (!nsCRT::strcmp(aTopic,"obs_documentCreated")) {    
     // State editable will now be set, readonly is now clear
     // Normally we only fire delayed events created from the node, not an
@@ -1313,10 +1310,13 @@ DocAccessible::GetAccessibleOrDescendant(nsINode* aNode) const
   return nullptr;
 }
 
-void
+bool
 DocAccessible::BindToDocument(Accessible* aAccessible,
                               nsRoleMapEntry* aRoleMapEntry)
 {
+  if (!aAccessible)
+    return false;
+
   // Put into DOM node cache.
   if (aAccessible->IsNodeMapEntry())
     mNodeToAccessibleMap.Put(aAccessible->GetNode(), aAccessible);
@@ -1329,6 +1329,8 @@ DocAccessible::BindToDocument(Accessible* aAccessible,
   nsIContent* content = aAccessible->GetContent();
   if (content && content->IsElement())
     AddDependentIDsFor(content->AsElement());
+
+  return true;
 }
 
 void
@@ -1786,14 +1788,6 @@ DocAccessible::UpdateTree(Accessible* aContainer, nsIContent* aChildNode,
       nsINode* containerNode = aContainer->GetNode();
       for (uint32_t idx = 0; idx < aContainer->ContentChildCount();) {
         Accessible* child = aContainer->ContentChildAt(idx);
-
-        // If accessible doesn't have its own content then we assume parent
-        // will handle its update.
-        if (!child->HasOwnContent()) {
-          idx++;
-          continue;
-        }
-
         nsINode* childNode = child->GetContent();
         while (childNode != aChildNode && childNode != containerNode &&
                (childNode = childNode->GetParentNode()));

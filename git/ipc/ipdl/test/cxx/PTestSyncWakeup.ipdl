@@ -1,9 +1,9 @@
 namespace mozilla {
 namespace _ipdltest {
 
-intr protocol PTestSyncWakeup {
+rpc protocol PTestSyncWakeup {
 both:
-    intr StackFrame();
+    rpc StackFrame();
 
 child:
     async Start();

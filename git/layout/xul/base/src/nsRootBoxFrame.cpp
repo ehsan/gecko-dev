@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsHTMLParts.h"
+#include "nsGUIEvent.h"
 #include "nsStyleConsts.h"
 #include "nsGkAtoms.h"
 #include "nsIPresShell.h"
@@ -13,9 +14,6 @@
 #include "nsIContent.h"
 #include "nsXULTooltipListener.h"
 #include "nsFrameManager.h"
-#include "mozilla/BasicEvents.h"
-
-using namespace mozilla;
 
 // Interface IDs
 
@@ -70,9 +68,9 @@ public:
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
-  NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                         WidgetGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus);
+  NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
+                         nsGUIEvent*     aEvent,
+                         nsEventStatus*  aEventStatus);
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
@@ -215,9 +213,9 @@ nsRootBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 NS_IMETHODIMP
-nsRootBoxFrame::HandleEvent(nsPresContext* aPresContext,
-                            WidgetGUIEvent* aEvent,
-                            nsEventStatus* aEventStatus)
+nsRootBoxFrame::HandleEvent(nsPresContext* aPresContext, 
+                       nsGUIEvent* aEvent,
+                       nsEventStatus* aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
   if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {

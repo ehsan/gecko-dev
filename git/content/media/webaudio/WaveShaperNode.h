@@ -8,8 +8,7 @@
 #define WaveShaperNode_h_
 
 #include "AudioNode.h"
-#include "mozilla/dom/WaveShaperNodeBinding.h"
-#include "mozilla/dom/TypedArray.h"
+#include "AudioParam.h"
 
 namespace mozilla {
 namespace dom {
@@ -32,20 +31,13 @@ public:
   {
     return mCurve;
   }
-  void SetCurve(const Nullable<Float32Array>& aData);
-
-  OverSampleType Oversample() const
-  {
-    return mType;
-  }
-  void SetOversample(OverSampleType aType);
+  void SetCurve(const Float32Array* aData);
 
 private:
   void ClearCurve();
 
 private:
   JS::Heap<JSObject*> mCurve;
-  OverSampleType mType;
 };
 
 }

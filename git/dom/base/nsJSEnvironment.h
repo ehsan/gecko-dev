@@ -6,21 +6,23 @@
 #define nsJSEnvironment_h
 
 #include "nsIScriptContext.h"
+#include "nsIScriptRuntime.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsCOMPtr.h"
+#include "jsapi.h"
+#include "jsfriendapi.h"
 #include "nsIObserver.h"
+#include "nsIXPCScriptNotify.h"
 #include "prtime.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIXPConnect.h"
 #include "nsIArray.h"
 #include "mozilla/Attributes.h"
-#include "nsThreadUtils.h"
 
 class nsICycleCollectorListener;
 class nsIXPConnectJSObjectHolder;
 class nsRootedJSValueArray;
 class nsScriptNameSpaceManager;
-class nsCycleCollectionNoteRootCallback;
 
 namespace mozilla {
 template <class> class Maybe;
@@ -30,10 +32,12 @@ template <class> class Maybe;
 // a page) and doing the actual GC.
 #define NS_GC_DELAY                 4000 // ms
 
-class nsJSContext : public nsIScriptContext
+class nsJSContext : public nsIScriptContext,
+                    public nsIXPCScriptNotify
 {
 public:
-  nsJSContext(bool aGCOnDestruction, nsIScriptGlobalObject* aGlobalObject);
+  nsJSContext(JSRuntime* aRuntime, bool aGCOnDestruction,
+              nsIScriptGlobalObject* aGlobalObject);
   virtual ~nsJSContext();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -44,8 +48,18 @@ public:
                                   JS::Handle<JSObject*> aScopeObject,
                                   JS::CompileOptions &aOptions,
                                   bool aCoerceToString,
-                                  JS::Value* aRetValue,
-                                  void **aOffThreadToken = nullptr) MOZ_OVERRIDE;
+                                  JS::Value* aRetValue) MOZ_OVERRIDE;
+
+  virtual nsresult CompileScript(const PRUnichar* aText,
+                                 int32_t aTextLength,
+                                 nsIPrincipal *principal,
+                                 const char *aURL,
+                                 uint32_t aLineNo,
+                                 uint32_t aVersion,
+                                 JS::MutableHandle<JSScript*> aScriptObject,
+                                 bool aSaveSource = false) MOZ_OVERRIDE;
+  virtual nsresult ExecuteScript(JSScript* aScriptObject,
+                                 JSObject* aScopeObject) MOZ_OVERRIDE;
 
   virtual nsresult BindCompiledEventHandler(nsISupports *aTarget,
                                             JS::Handle<JSObject*> aScope,
@@ -56,9 +70,11 @@ public:
   inline nsIScriptGlobalObject *GetGlobalObjectRef() { return mGlobalObjectRef; }
 
   virtual JSContext* GetNativeContext() MOZ_OVERRIDE;
+  virtual JSObject* GetNativeGlobal() MOZ_OVERRIDE;
   virtual nsresult InitContext() MOZ_OVERRIDE;
   virtual bool IsContextInitialized() MOZ_OVERRIDE;
 
+  virtual void ScriptEvaluated(bool aTerminated) MOZ_OVERRIDE;
   virtual bool GetScriptsEnabled() MOZ_OVERRIDE;
   virtual void SetScriptsEnabled(bool aEnabled, bool aFireTimeouts) MOZ_OVERRIDE;
 
@@ -67,14 +83,22 @@ public:
   virtual bool GetProcessingScriptTag() MOZ_OVERRIDE;
   virtual void SetProcessingScriptTag(bool aResult) MOZ_OVERRIDE;
 
+  virtual bool GetExecutingScript() MOZ_OVERRIDE;
+
   virtual nsresult InitClasses(JS::Handle<JSObject*> aGlobalObj) MOZ_OVERRIDE;
 
   virtual void WillInitializeContext() MOZ_OVERRIDE;
   virtual void DidInitializeContext() MOZ_OVERRIDE;
 
-  virtual void SetWindowProxy(JS::Handle<JSObject*> aWindowProxy) MOZ_OVERRIDE;
-  virtual JSObject* GetWindowProxy() MOZ_OVERRIDE;
-  virtual JSObject* GetWindowProxyPreserveColor() MOZ_OVERRIDE;
+  virtual nsresult Serialize(nsIObjectOutputStream* aStream,
+                             JS::Handle<JSScript*> aScriptObject) MOZ_OVERRIDE;
+  virtual nsresult Deserialize(nsIObjectInputStream* aStream,
+                               JS::MutableHandle<JSScript*> aResult) MOZ_OVERRIDE;
+
+  virtual void EnterModalState() MOZ_OVERRIDE;
+  virtual void LeaveModalState() MOZ_OVERRIDE;
+
+  NS_DECL_NSIXPCSCRIPTNOTIFY
 
   static void LoadStart();
   static void LoadEnd();
@@ -93,9 +117,6 @@ public:
     IncrementalGC,
     NonIncrementalGC
   };
-
-  // Setup all the statics etc - safe to call multiple times after Startup().
-  void EnsureStatics();
 
   static void GarbageCollectNow(JS::gcreason::Reason reason,
                                 IsIncremental aIncremental = NonIncrementalGC,
@@ -131,7 +152,7 @@ public:
   {
     // Verify that we have a global so that this
     // does always return a null when GetGlobalObject() is null.
-    JSObject* global = GetWindowProxy();
+    JSObject* global = GetNativeGlobal();
     return global ? mGlobalObjectRef.get() : nullptr;
   }
 protected:
@@ -156,20 +177,21 @@ protected:
   // function will set aside the frame chain on mContext before
   // reporting.
   void ReportPendingException();
-
 private:
   void DestroyJSContext();
 
   nsrefcnt GetCCRefcnt();
 
   JSContext *mContext;
-  JS::Heap<JSObject*> mWindowProxy;
+  bool mActive;
 
   bool mIsInitialized;
   bool mScriptsEnabled;
   bool mGCOnDestruction;
   bool mProcessingScriptTag;
 
+  uint32_t mExecuteDepth;
+  uint32_t mDefaultJSOptions;
   PRTime mOperationCallbackTime;
 
   PRTime mModalStateTime;
@@ -184,55 +206,32 @@ private:
 
   static int JSOptionChangedCallback(const char *pref, void *data);
 
-  static bool DOMOperationCallback(JSContext *cx);
+  static JSBool DOMOperationCallback(JSContext *cx);
 };
 
 class nsIJSRuntimeService;
-class nsIPrincipal;
-class nsPIDOMWindow;
 
-namespace mozilla {
-namespace dom {
-
-void StartupJSEnvironment();
-void ShutdownJSEnvironment();
-
-// Get the NameSpaceManager, creating if necessary
-nsScriptNameSpaceManager* GetNameSpaceManager();
-
-// Runnable that's used to do async error reporting
-class AsyncErrorReporter : public nsRunnable
+class nsJSRuntime MOZ_FINAL : public nsIScriptRuntime
 {
 public:
-  // aWindow may be null if this error report is not associated with a window
-  AsyncErrorReporter(JSRuntime* aRuntime,
-                     JSErrorReport* aErrorReport,
-                     const char* aFallbackMessage,
-                     nsIPrincipal* aGlobalPrincipal, // To determine category
-                     nsPIDOMWindow* aWindow);
+  // let people who can see us use our runtime for convenience.
+  static JSRuntime *sRuntime;
 
-  NS_IMETHOD Run()
-  {
-    ReportError();
-    return NS_OK;
-  }
+public:
+  // nsISupports
+  NS_DECL_ISUPPORTS
 
-protected:
-  // Do the actual error reporting
-  void ReportError();
+  virtual already_AddRefed<nsIScriptContext>
+  CreateContext(bool aGCOnDestruction,
+                nsIScriptGlobalObject* aGlobalObject) MOZ_OVERRIDE;
 
-  nsString mErrorMsg;
-  nsString mFileName;
-  nsString mSourceLine;
-  nsCString mCategory;
-  uint32_t mLineNumber;
-  uint32_t mColumn;
-  uint32_t mFlags;
-  uint64_t mInnerWindowID;
+  static void Startup();
+  static void Shutdown();
+  // Setup all the statics etc - safe to call multiple times after Startup()
+  static nsresult Init();
+  // Get the NameSpaceManager, creating if necessary
+  static nsScriptNameSpaceManager* GetNameSpaceManager();
 };
-
-} // namespace dom
-} // namespace mozilla
 
 // An interface for fast and native conversion to/from nsIArray. If an object
 // supports this interface, JS can reach directly in for the argv, and avoid
@@ -254,6 +253,9 @@ public:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIJSArgArray, NS_IJSARGARRAY_IID)
 
+/* factory functions */
+nsresult NS_CreateJSRuntime(nsIScriptRuntime **aRuntime);
+
 /* prototypes */
 void NS_ScriptErrorReporter(JSContext *cx, const char *message, JSErrorReport *report);
 
@@ -261,9 +263,9 @@ JSObject* NS_DOMReadStructuredClone(JSContext* cx,
                                     JSStructuredCloneReader* reader, uint32_t tag,
                                     uint32_t data, void* closure);
 
-bool NS_DOMWriteStructuredClone(JSContext* cx,
-                                JSStructuredCloneWriter* writer,
-                                JS::Handle<JSObject*> obj, void *closure);
+JSBool NS_DOMWriteStructuredClone(JSContext* cx,
+                                  JSStructuredCloneWriter* writer,
+                                  JS::Handle<JSObject*> obj, void *closure);
 
 void NS_DOMStructuredCloneError(JSContext* cx, uint32_t errorid);
 

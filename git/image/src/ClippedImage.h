@@ -7,7 +7,6 @@
 #define MOZILLA_IMAGELIB_CLIPPEDIMAGE_H_
 
 #include "ImageWrapper.h"
-#include "mozilla/Maybe.h"
 
 namespace mozilla {
 namespace image {
@@ -41,7 +40,7 @@ public:
   NS_IMETHOD GetImageContainer(mozilla::layers::LayerManager* aManager,
                                mozilla::layers::ImageContainer** _retval) MOZ_OVERRIDE;
   NS_IMETHOD Draw(gfxContext* aContext,
-                  GraphicsFilter aFilter,
+                  gfxPattern::GraphicsFilter aFilter,
                   const gfxMatrix& aUserSpaceToImageSpace,
                   const gfxRect& aFill,
                   const nsIntRect& aSubimage,
@@ -50,7 +49,6 @@ public:
                   uint32_t aWhichFrame,
                   uint32_t aFlags) MOZ_OVERRIDE;
   NS_IMETHOD RequestDiscard() MOZ_OVERRIDE;
-  NS_IMETHOD_(Orientation) GetOrientation() MOZ_OVERRIDE;
 
 protected:
   ClippedImage(Image* aImage, nsIntRect aClip);
@@ -69,7 +67,7 @@ private:
                          const uint32_t aFlags) const;
   gfxFloat ClampFactor(const gfxFloat aToClamp, const int aReference) const;
   nsresult DrawSingleTile(gfxContext* aContext,
-                          GraphicsFilter aFilter,
+                          gfxPattern::GraphicsFilter aFilter,
                           const gfxMatrix& aUserSpaceToImageSpace,
                           const gfxRect& aFill,
                           const nsIntRect& aSubimage,

@@ -2,56 +2,69 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 /**
- * Test that clicking the black box checkbox when paused doesn't re-select the
- * currently paused frame's source.
+ * Test that clicking the black box checkbox doesn't select that source.
  */
 
-const TAB_URL = EXAMPLE_URL + "doc_blackboxing.html";
+const TAB_URL = EXAMPLE_URL + "browser_dbg_blackboxing.html";
 
-let gTab, gDebuggee, gPanel, gDebugger;
-let gSources;
+var gPane = null;
+var gTab = null;
+var gDebuggee = null;
+var gDebugger = null;
 
-function test() {
-  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
+function test()
+{
+  let scriptShown = false;
+  let framesAdded = false;
+  let resumed = false;
+  let testStarted = false;
+
+  debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
+    resumed = true;
     gTab = aTab;
     gDebuggee = aDebuggee;
-    gPanel = aPanel;
-    gDebugger = gPanel.panelWin;
-    gSources = gDebugger.DebuggerView.Sources;
+    gPane = aPane;
+    gDebugger = gPane.panelWin;
 
-    waitForSourceAndCaretAndScopes(gPanel, ".html", 21)
-      .then(testBlackBox)
-      .then(() => resumeDebuggerThenCloseAndFinish(gPanel))
-      .then(null, aError => {
-        ok(false, "Got an error: " + aError.message + "\n" + aError.stack);
-      });
-
-    gDebuggee.runTest();
+    once(gDebugger, "Debugger:SourceShown", testBlackBox);
   });
 }
 
 function testBlackBox() {
-  const selectedUrl = gSources.selectedValue;
+  const sources = gDebugger.DebuggerView.Sources;
 
-  let finished = waitForSourceShown(gPanel, "blackboxme.js").then(() => {
-    const newSelectedUrl = gSources.selectedValue;
-    isnot(selectedUrl, newSelectedUrl,
-      "Should not have the same url selected.");
+  const selectedUrl = sources.selectedItem.attachment.source.url;
+  const checkbox = getDifferentBlackBoxCheckbox(selectedUrl);
+  ok(checkbox, "We should be able to grab a checkbox");
 
-    return toggleBlackBoxing(gPanel).then(() => {
-      is(gSources.selectedValue, newSelectedUrl,
-        "The selected source did not change.");
-    });
+  const { activeThread } = gDebugger.DebuggerController;
+  activeThread.addOneTimeListener("blackboxchange", function () {
+    is(selectedUrl,
+       sources.selectedItem.attachment.source.url,
+       "The same source should be selected");
+    closeDebuggerAndFinish();
   });
 
-  gSources.selectedIndex = 0;
-  return finished;
+  checkbox.click();
+}
+
+function getDifferentBlackBoxCheckbox(url) {
+  return gDebugger.document.querySelector(
+    ".side-menu-widget-item:not([tooltiptext=\""
+      + url + "\"]) .side-menu-widget-item-checkbox");
+}
+
+function once(target, event, callback) {
+  target.addEventListener(event, function _listener(...args) {
+    target.removeEventListener(event, _listener, false);
+    callback.apply(null, args);
+  }, false);
 }
 
 registerCleanupFunction(function() {
+  removeTab(gTab);
+  gPane = null;
   gTab = null;
   gDebuggee = null;
-  gPanel = null;
   gDebugger = null;
-  gSources = null;
 });

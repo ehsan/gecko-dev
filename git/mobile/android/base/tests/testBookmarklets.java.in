@@ -7,14 +7,14 @@ import android.database.Cursor;
 import android.widget.ListView;
 
 
-public class testBookmarklets extends AboutHomeTest {
+public class testBookmarklets extends PixelTest {
     @Override
     protected int getTestType() {
         return TEST_MOCHITEST;
     }
 
     public void testBookmarklets() {
-        final String url = getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_01_URL);
+        final String url = getAbsoluteUrl("/robocop/robocop_blank_01.html");
         final String title = "alertBookmarklet";
         final String js = "javascript:alert(12 + .34)";
         boolean alerted;
@@ -22,8 +22,7 @@ public class testBookmarklets extends AboutHomeTest {
         blockForGeckoReady();
 
         // load a standard page so bookmarklets work
-        inputAndLoadUrl(url);
-        verifyPageTitle(StringHelper.ROBOCOP_BLANK_PAGE_01_TITLE); // Waiting for page title to ensure the page is loaded
+        loadAndPaint(url);
 
         // verify that user-entered bookmarklets do *not* work
         enterUrl(js);
@@ -38,32 +37,25 @@ public class testBookmarklets extends AboutHomeTest {
 
         // add the bookmarklet to the database. there's currently no way to
         // add this using the UI, so we go through the content provider.
-        mDatabaseHelper.addOrUpdateMobileBookmark(title, js);
+        addOrUpdateBookmark(title, js, true);
 
-        // Open about:home in the Bookmarks page
-        openAboutHomeTab(AboutHomeTabs.BOOKMARKS);
+        // verify that bookmarklets clicked in awesomescreen work
+        ListView bookmarks = getBookmarksList(title);
 
-        ListView bookmarks = findListViewWithTag("bookmarks");
-        mAsserter.is(waitForNonEmptyListToLoad(bookmarks), true, "list is properly loaded");
-
-        int width = mDriver.getGeckoWidth();
-        int height = mDriver.getGeckoHeight();
-
-        // Scroll down so that the bookmarks list has more items on screen.
-        mActions.drag(width / 2, width / 2, height - 10, height / 2);
-
-        // Verify that bookmarklets clicked in awesomescreen work
-        boolean found = false;
-        for (int i = bookmarks.getHeaderViewsCount(); i < bookmarks.getAdapter().getCount(); i++) {
-            Cursor c = (Cursor)bookmarks.getItemAtPosition(i);
-            String aUrl = c.getString(c.getColumnIndexOrThrow("url"));
-            if (aUrl.equals(js)) {
-                found = true;
-                mAsserter.is(1, 1, "Found bookmarklet added to bookmarks: " + js);
-                mSolo.clickOnView(bookmarks.getChildAt(i));
+        Boolean found = false;
+        if (bookmarks == null) {
+            mAsserter.is(true, true, "Did not find the bookmarks section in the awesomebar");
+        } else {
+            for (int i = 0; i < bookmarks.getAdapter().getCount(); i++) {
+                Cursor c = (Cursor)bookmarks.getItemAtPosition(i);
+                String turl = c.getString(c.getColumnIndexOrThrow("url"));
+                if (turl.equals(js)) {
+                    found = true;
+                    mAsserter.is(1, 1, "Found bookmarklet added to bookmarks: " + js);
+                    mSolo.clickOnView(bookmarks.getChildAt(i));
+                }
             }
         }
-
         if (!found) {
             mAsserter.is(found, true, "Found the bookmark: " + js + " and clicked on it");
         }
@@ -77,6 +69,6 @@ public class testBookmarklets extends AboutHomeTest {
         mAsserter.is(alerted, true, "Alert was shown for clicked bookmarklet");
 
         // remove the bookmarklet
-        mDatabaseHelper.deleteBookmark(js);
+        deleteBookmark(js);
     }
 }

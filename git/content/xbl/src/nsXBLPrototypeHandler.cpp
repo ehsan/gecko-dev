@@ -35,6 +35,7 @@
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsGkAtoms.h"
+#include "nsGUIEvent.h"
 #include "nsIXPConnect.h"
 #include "nsIDOMScriptObjectFactory.h"
 #include "nsDOMCID.h"
@@ -44,12 +45,14 @@
 #include "nsXBLSerialize.h"
 #include "nsEventDispatcher.h"
 #include "nsJSUtils.h"
-#include "mozilla/BasicEvents.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/EventHandlerBinding.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
+                     NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
 uint32_t nsXBLPrototypeHandler::gRefCnt = 0;
 
@@ -299,7 +302,7 @@ nsXBLPrototypeHandler::ExecuteHandler(EventTarget* aTarget,
   // been compiled, above.
   JSAutoCompartment ac(cx, scopeObject);
   JS::Rooted<JSObject*> genericHandler(cx, handler.get());
-  bool ok = JS_WrapObject(cx, &genericHandler);
+  bool ok = JS_WrapObject(cx, genericHandler.address());
   NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
   MOZ_ASSERT(!js::IsCrossCompartmentWrapper(genericHandler));
 
@@ -307,7 +310,7 @@ nsXBLPrototypeHandler::ExecuteHandler(EventTarget* aTarget,
   // scope if one doesn't already exist, and potentially wraps it cross-
   // compartment into our scope (via aAllowWrapping=true).
   JS::Rooted<JS::Value> targetV(cx, JS::UndefinedValue());
-  rv = nsContentUtils::WrapNative(cx, scopeObject, scriptTarget, &targetV, nullptr,
+  rv = nsContentUtils::WrapNative(cx, scopeObject, scriptTarget, targetV.address(), nullptr,
                                   /* aAllowWrapping = */ true);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -317,7 +320,7 @@ nsXBLPrototypeHandler::ExecuteHandler(EventTarget* aTarget,
 
   // Now, wrap the bound handler into the content compartment and use it.
   JSAutoCompartment ac2(cx, globalObject);
-  if (!JS_WrapObject(cx, &bound)) {
+  if (!JS_WrapObject(cx, bound.address())) {
     return NS_ERROR_FAILURE;
   }
 
@@ -353,7 +356,7 @@ nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
   if (pWindow) {
     JS::Rooted<JSObject*> cachedHandler(cx, pWindow->GetCachedXBLPrototypeHandler(this));
     if (cachedHandler) {
-      JS::ExposeObjectToActiveJS(cachedHandler);
+      xpc_UnmarkGrayObject(cachedHandler);
       aHandler.set(cachedHandler);
       NS_ENSURE_TRUE(aHandler, NS_ERROR_FAILURE);
       return NS_OK;
@@ -393,7 +396,7 @@ nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
   // Wrap the handler into the content scope, since we're about to stash it
   // on the DOM window and such.
   JSAutoCompartment ac2(cx, globalObject);
-  bool ok = JS_WrapObject(cx, &handlerFun);
+  bool ok = JS_WrapObject(cx, handlerFun.address());
   NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
   aHandler.set(handlerFun);
   NS_ENSURE_TRUE(aHandler, NS_ERROR_FAILURE);
@@ -547,7 +550,7 @@ nsXBLPrototypeHandler::DispatchXULKeyCommand(nsIDOMEvent* aEvent)
     return NS_ERROR_FAILURE;
   }
 
-  // XXX We should use mozilla::Modifiers for supporting all modifiers.
+  // XXX We should use widget::Modifiers for supporting all modifiers.
 
   bool isAlt = false;
   bool isControl = false;
@@ -899,7 +902,7 @@ nsXBLPrototypeHandler::ReportKeyConflict(const PRUnichar* aKey, const PRUnichar*
 
   const PRUnichar* params[] = { aKey, aModifiers };
   nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  NS_LITERAL_CSTRING("XBL Prototype Handler"), doc,
+                                  "XBL Prototype Handler", doc,
                                   nsContentUtils::eXBL_PROPERTIES,
                                   aMessageName,
                                   params, ArrayLength(params),
@@ -910,8 +913,9 @@ bool
 nsXBLPrototypeHandler::ModifiersMatchMask(nsIDOMUIEvent* aEvent,
                                           bool aIgnoreShiftKey)
 {
-  WidgetInputEvent* inputEvent = aEvent->GetInternalNSEvent()->AsInputEvent();
-  NS_ENSURE_TRUE(inputEvent, false);
+  nsEvent* event = aEvent->GetInternalNSEvent();
+  NS_ENSURE_TRUE(event && NS_IS_INPUT_EVENT(event), false);
+  nsInputEvent* inputEvent = static_cast<nsInputEvent*>(event);
 
   if (mKeyMask & cMetaMask) {
     if (inputEvent->IsMeta() != ((mKeyMask & cMeta) != 0)) {
@@ -947,9 +951,8 @@ nsXBLPrototypeHandler::ModifiersMatchMask(nsIDOMUIEvent* aEvent,
 }
 
 nsresult
-nsXBLPrototypeHandler::Read(nsIObjectInputStream* aStream)
+nsXBLPrototypeHandler::Read(nsIScriptContext* aContext, nsIObjectInputStream* aStream)
 {
-  AssertInCompilationScope();
   nsresult rv = aStream->Read8(&mPhase);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = aStream->Read8(&mType);
@@ -982,9 +985,8 @@ nsXBLPrototypeHandler::Read(nsIObjectInputStream* aStream)
 }
 
 nsresult
-nsXBLPrototypeHandler::Write(nsIObjectOutputStream* aStream)
+nsXBLPrototypeHandler::Write(nsIScriptContext* aContext, nsIObjectOutputStream* aStream)
 {
-  AssertInCompilationScope();
   // Make sure we don't write out NS_HANDLER_TYPE_XUL types, as they are used
   // for <keyset> elements.
   if ((mType & NS_HANDLER_TYPE_XUL) || !mEventName)

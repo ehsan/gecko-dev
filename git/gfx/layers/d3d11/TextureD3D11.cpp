@@ -79,7 +79,7 @@ DeprecatedTextureClientD3D11::~DeprecatedTextureClientD3D11()
 
 bool
 DeprecatedTextureClientD3D11::EnsureAllocated(gfx::IntSize aSize,
-                                              gfxContentType aType)
+                                              gfxASurface::gfxContentType aType)
 {
   D3D10_TEXTURE2D_DESC desc;
 
@@ -120,11 +120,10 @@ DeprecatedTextureClientD3D11::EnsureAllocated(gfx::IntSize aSize,
 
   if (FAILED(hr)) {
     LOGD3D11("Error getting shared handle for texture.");
-    return false;
   }
 
   mDescriptor = SurfaceDescriptorD3D10((WindowsHandle)sharedHandle,
-                                       aType == GFX_CONTENT_COLOR_ALPHA);
+                                       aType == gfxASurface::CONTENT_COLOR_ALPHA);
 
   mContentType = aType;
   return true;
@@ -175,10 +174,9 @@ DeprecatedTextureClientD3D11::SetDescriptor(const SurfaceDescriptor& aDescriptor
   MOZ_ASSERT(aDescriptor.type() == SurfaceDescriptor::TSurfaceDescriptorD3D10);
   ID3D10Device* device = gfxWindowsPlatform::GetPlatform()->GetD3D10Device();
 
-  HRESULT hr = device->OpenSharedResource((HANDLE)aDescriptor.get_SurfaceDescriptorD3D10().handle(),
-                                          __uuidof(ID3D10Texture2D),
-                                          (void**)(ID3D10Texture2D**)byRef(mTexture));
-  NS_WARN_IF_FALSE(mTexture && SUCCEEDED(hr), "Could not open shared resource");
+  device->OpenSharedResource((HANDLE)aDescriptor.get_SurfaceDescriptorD3D10().handle(),
+                             __uuidof(ID3D10Texture2D),
+                             (void**)(ID3D10Texture2D**)byRef(mTexture));
 }
 
 void
@@ -204,13 +202,13 @@ DeprecatedTextureClientD3D11::EnsureDrawTarget()
 
   SurfaceFormat format;
   switch (mContentType) {
-  case GFX_CONTENT_ALPHA:
+  case gfxASurface::CONTENT_ALPHA:
     format = FORMAT_A8;
     break;
-  case GFX_CONTENT_COLOR:
+  case gfxASurface::CONTENT_COLOR:
     format = FORMAT_B8G8R8X8;
     break;
-  case GFX_CONTENT_COLOR_ALPHA:
+  case gfxASurface::CONTENT_COLOR_ALPHA:
     format = FORMAT_B8G8R8A8;
     break;
   default:
@@ -317,23 +315,21 @@ DeprecatedTextureHostShmemD3D11::UpdateImpl(const SurfaceDescriptor& aImage,
 
   DXGI_FORMAT dxgiFormat;
   switch (surf->Format()) {
-  case gfxImageFormatRGB24:
+  case gfxImageSurface::ImageFormatRGB24:
     mFormat = FORMAT_B8G8R8X8;
-    dxgiFormat = DXGI_FORMAT_B8G8R8X8_UNORM;
+    dxgiFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
     bpp = 4;
     break;
-  case gfxImageFormatARGB32:
+  case gfxImageSurface::ImageFormatARGB32:
     mFormat = FORMAT_B8G8R8A8;
     dxgiFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
     bpp = 4;
     break;
-  case gfxImageFormatA8:
+  case gfxImageSurface::ImageFormatA8:
     mFormat = FORMAT_A8;
     dxgiFormat = DXGI_FORMAT_A8_UNORM;
     bpp = 1;
     break;
-  default:
-    NS_ERROR("Bad image format");
   }
 
   mSize = IntSize(size.width, size.height);
@@ -423,15 +419,9 @@ DeprecatedTextureHostDXGID3D11::UpdateImpl(const SurfaceDescriptor& aImage,
 {
   MOZ_ASSERT(aImage.type() == SurfaceDescriptor::TSurfaceDescriptorD3D10);
 
-  HRESULT hr =mDevice->OpenSharedResource((HANDLE)aImage.get_SurfaceDescriptorD3D10().handle(),
-                                          __uuidof(ID3D11Texture2D),
-                                          (void**)(ID3D11Texture2D**)byRef(mTextures[0]));
-  if (!mTextures[0] || FAILED(hr)) {
-    NS_WARNING("Could not open shared resource");
-    mSize = IntSize(0, 0);
-    return;
-  }
-
+  mDevice->OpenSharedResource((HANDLE)aImage.get_SurfaceDescriptorD3D10().handle(),
+                              __uuidof(ID3D11Texture2D),
+                              (void**)(ID3D11Texture2D**)byRef(mTextures[0]));
   mFormat = aImage.get_SurfaceDescriptorD3D10().hasAlpha() ? FORMAT_B8G8R8A8 : FORMAT_B8G8R8X8;
 
   D3D11_TEXTURE2D_DESC desc;
@@ -443,9 +433,6 @@ DeprecatedTextureHostDXGID3D11::UpdateImpl(const SurfaceDescriptor& aImage,
 void
 DeprecatedTextureHostDXGID3D11::LockTexture()
 {
-  if (!mTextures[0]) {
-    return;
-  }
   RefPtr<IDXGIKeyedMutex> mutex;
   mTextures[0]->QueryInterface((IDXGIKeyedMutex**)byRef(mutex));
 
@@ -455,9 +442,6 @@ DeprecatedTextureHostDXGID3D11::LockTexture()
 void
 DeprecatedTextureHostDXGID3D11::ReleaseTexture()
 {
-  if (!mTextures[0]) {
-    return;
-  }
   RefPtr<IDXGIKeyedMutex> mutex;
   mTextures[0]->QueryInterface((IDXGIKeyedMutex**)byRef(mutex));
 

@@ -16,22 +16,21 @@ function test() {
 }
 
 function consoleOpened(hud) {
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "start",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    },
+  waitForSuccess({
+    name: "two nodes displayed",
+    validatorFn: function()
     {
-      text: "end",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    }],
-  }).then(() => {
-    let nodes = hud.outputNode.querySelectorAll(".message");
-    is(nodes.length, 2, "only two messages are displayed");
-    finishTest();
+      return hud.outputNode.querySelectorAll(".hud-msg-node").length == 2;
+    },
+    successFn: function()
+    {
+      let nodes = hud.outputNode.querySelectorAll(".hud-msg-node");
+      ok(/start/.test(nodes[0].textContent), "start found");
+      ok(/end/.test(nodes[1].textContent), "end found - complete!");
+
+      finishTest();
+    },
+    failureFn: finishTest,
   });
 
   let button = content.document.querySelector("button");

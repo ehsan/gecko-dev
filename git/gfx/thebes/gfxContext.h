@@ -9,13 +9,14 @@
 #include "gfxTypes.h"
 
 #include "gfxASurface.h"
+#include "gfxColor.h"
 #include "gfxPoint.h"
 #include "gfxRect.h"
 #include "gfxMatrix.h"
 #include "gfxPattern.h"
 #include "gfxPath.h"
+#include "nsISupportsImpl.h"
 #include "nsTArray.h"
-#include "nsAutoPtr.h"
 
 #include "mozilla/gfx/2D.h"
 
@@ -131,12 +132,12 @@ public:
     /**
      * Copies the current path and returns the copy.
      */
-    already_AddRefed<gfxPath> CopyPath();
+    already_AddRefed<gfxPath> CopyPath() const;
 
     /**
      * Appends the given path to the current path.
      */
-    void SetPath(gfxPath* path);
+    void AppendPath(gfxPath* path);
 
     /**
      * Moves the pen to a new point without drawing a line.
@@ -616,10 +617,10 @@ public:
     /**
      * Groups
      */
-    void PushGroup(gfxContentType content = GFX_CONTENT_COLOR);
+    void PushGroup(gfxASurface::gfxContentType content = gfxASurface::CONTENT_COLOR);
     /**
-     * Like PushGroup, but if the current surface is GFX_CONTENT_COLOR and
-     * content is GFX_CONTENT_COLOR_ALPHA, makes the pushed surface GFX_CONTENT_COLOR
+     * Like PushGroup, but if the current surface is CONTENT_COLOR and
+     * content is CONTENT_COLOR_ALPHA, makes the pushed surface CONTENT_COLOR
      * instead and copies the contents of the current surface to the pushed
      * surface. This is good for pushing opacity groups, since blending the
      * group back to the current surface with some alpha applied will give
@@ -628,7 +629,7 @@ public:
      * This API really only makes sense if you do a PopGroupToSource and
      * immediate Paint with OPERATOR_OVER.
      */
-    void PushGroupAndCopyBackground(gfxContentType content = GFX_CONTENT_COLOR);
+    void PushGroupAndCopyBackground(gfxASurface::gfxContentType content = gfxASurface::CONTENT_COLOR);
     already_AddRefed<gfxPattern> PopGroup();
     void PopGroupToSource();
 
@@ -644,6 +645,11 @@ public:
     gfxRect GetUserPathExtent();
     gfxRect GetUserFillExtent();
     gfxRect GetUserStrokeExtent();
+
+    /**
+     ** Obtaining a "flattened" path - path converted to all line segments
+     **/
+    already_AddRefed<gfxFlattenedPath> GetFlattenedPath();
 
     /**
      ** Flags
@@ -703,8 +709,6 @@ public:
     void CopyAsDataURL();
 #endif
 
-    static mozilla::gfx::UserDataKey sDontUseAsSourceKey;
-
 private:
   friend class GeneralPattern;
   friend struct GlyphBufferAzure;
@@ -737,7 +741,6 @@ private:
     nsRefPtr<gfxPattern> pattern;
     nsRefPtr<gfxASurface> sourceSurfCairo;
     mozilla::RefPtr<SourceSurface> sourceSurface;
-    mozilla::gfx::Point sourceSurfaceDeviceOffset;
     Matrix surfTransform;
     Matrix transform;
     struct PushedClip {
@@ -770,7 +773,7 @@ private:
   Rect GetAzureDeviceSpaceClipBounds();
   Matrix GetDeviceTransform() const;
   Matrix GetDTTransform() const;
-  void PushNewDT(gfxContentType content);
+  void PushNewDT(gfxASurface::gfxContentType content);
 
   bool mPathIsRect;
   bool mTransformChanged;
@@ -881,7 +884,8 @@ public:
     void Restore()
     {
         if (mPath) {
-            mContext->SetPath(mPath);
+            mContext->NewPath();
+            mContext->AppendPath(mPath);
             mPath = nullptr;
         }
     }
@@ -900,11 +904,6 @@ private:
 class gfxContextMatrixAutoSaveRestore
 {
 public:
-    gfxContextMatrixAutoSaveRestore() :
-        mContext(nullptr)
-    {
-    }
-
     gfxContextMatrixAutoSaveRestore(gfxContext *aContext) :
         mContext(aContext), mMatrix(aContext->CurrentMatrix())
     {
@@ -912,28 +911,11 @@ public:
 
     ~gfxContextMatrixAutoSaveRestore()
     {
-        if (mContext) {
-            mContext->SetMatrix(mMatrix);
-        }
-    }
-
-    void SetContext(gfxContext *aContext)
-    {
-        NS_ASSERTION(!mContext, "Not going to restore the matrix on some context!");
-        mContext = aContext;
-        mMatrix = aContext->CurrentMatrix();
-    }
-
-    void Restore()
-    {
-        if (mContext) {
-            mContext->SetMatrix(mMatrix);
-        }
+        mContext->SetMatrix(mMatrix);
     }
 
     const gfxMatrix& Matrix()
     {
-        MOZ_ASSERT(mContext, "mMatrix doesn't contain a useful matrix");
         return mMatrix;
     }
 

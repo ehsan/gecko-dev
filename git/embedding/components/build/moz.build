@@ -6,15 +6,9 @@
 
 MODULE = 'embedcomponents'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsEmbeddingModule.cpp',
 ]
 
 LIBRARY_NAME = 'embedcomponents'
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
 

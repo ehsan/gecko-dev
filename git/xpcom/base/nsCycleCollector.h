@@ -8,6 +8,7 @@
 
 class nsICycleCollectorListener;
 class nsISupports;
+class nsScriptObjectTracer;
 
 #include "nsError.h"
 #include "nsID.h"
@@ -40,7 +41,12 @@ public:
 
 bool nsCycleCollector_init();
 
-void nsCycleCollector_startup();
+enum CCThreadingModel {
+    CCSingleThread,
+    CCWithTraverseThread
+};
+
+nsresult nsCycleCollector_startup(CCThreadingModel aThreadingModel);
 
 typedef void (*CC_BeforeUnlinkCallback)(void);
 void nsCycleCollector_setBeforeUnlinkCallback(CC_BeforeUnlinkCallback aCB);
@@ -56,8 +62,9 @@ bool nsCycleCollector_doDeferredDeletion();
 
 void nsCycleCollector_collect(bool aManuallyTriggered,
                               nsCycleCollectorResults *aResults,
-                              nsICycleCollectorListener *aManualListener);
+                              nsICycleCollectorListener *aListener);
 uint32_t nsCycleCollector_suspectedCount();
+void nsCycleCollector_shutdownThreads();
 void nsCycleCollector_shutdown();
 
 // Helpers for interacting with JS
@@ -76,8 +83,10 @@ nsCycleCollectorLoggerConstructor(nsISupports* outer,
 namespace mozilla {
 namespace cyclecollector {
 
+void AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer);
+void RemoveJSHolder(void* aHolder);
 #ifdef DEBUG
-bool IsJSHolder(void* aHolder);
+bool TestJSHolder(void* aHolder);
 #endif
 
 void DeferredFinalize(DeferredFinalizeAppendFunction aAppendFunc,

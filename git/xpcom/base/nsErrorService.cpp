@@ -4,8 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsErrorService.h"
-#include "nsCRTGlue.h"
-#include "nsAutoPtr.h"
+#include "nsCRT.h"
 
 static void*
 CloneCString(nsHashKey *aKey, void *aData, void* closure)
@@ -66,8 +65,13 @@ nsresult
 nsErrorService::Create(nsISupports* outer, const nsIID& aIID, void* *aInstancePtr)
 {
     NS_ENSURE_NO_AGGREGATION(outer);
-    nsRefPtr<nsErrorService> serv = new nsErrorService();
-    return serv->QueryInterface(aIID, aInstancePtr);
+    nsErrorService* serv = new nsErrorService();
+    if (serv == nullptr)
+        return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(serv);
+    nsresult rv = serv->QueryInterface(aIID, aInstancePtr);
+    NS_RELEASE(serv);
+    return rv;
 }
 
 NS_IMETHODIMP

@@ -1,6 +1,6 @@
 // Bug 744731 - findScripts() finds active debugger evalInGlobal scripts.
 
-var g = newGlobal();
+var g = newGlobal('new-compartment');
 var dbg = new Debugger;
 var gw = dbg.addDebuggee(g);
 var hits = 0;

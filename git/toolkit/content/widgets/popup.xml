@@ -205,7 +205,7 @@
 
   </binding>
 
-  <binding id="popup" role="xul:menupopup"
+  <binding id="popup"
            extends="chrome://global/content/bindings/popup.xml#popup-base">
     
     <content>
@@ -214,6 +214,16 @@
         <children/>
       </xul:arrowscrollbox>
     </content>
+
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+              return Components.interfaces.nsIAccessibleProvider.XULMenupopup;
+            ]]>
+        </getter>
+      </property>
+    </implementation>
 
     <handlers>
       <handler event="popupshowing" phase="target">
@@ -237,9 +247,20 @@
     </handlers>
   </binding>
 
-  <binding id="panel" role="xul:panel"
+  <binding id="panel"
            extends="chrome://global/content/bindings/popup.xml#popup-base">
-    <implementation implements="nsIDOMXULPopupElement">
+    <!-- This separate binding for dialog-like panels - not menu, list or autocomplete popups
+         exposes the popup as an alert or a pane, depending on whether it is always intended
+         to get keyboard navigation when it opens -->
+    <implementation implements="nsIDOMXULPopupElement, nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+          return (this.getAttribute("noautofocus") == "true") ?
+                       Components.interfaces.nsIAccessibleProvider.XULAlert :
+                       Components.interfaces.nsIAccessibleProvider.XULPane;
+        ]]></getter>
+      </property>
       <field name="_prevFocus">0</field>
       <field name="_dragBindingAlive">true</field>
       <constructor>
@@ -466,15 +487,20 @@
     </handlers>
   </binding>
 
-  <binding id="tooltip" role="xul:tooltip"
-           extends="chrome://global/content/bindings/popup.xml#popup-base">
+  <binding id="tooltip" extends="chrome://global/content/bindings/popup.xml#popup-base">
     <content>
       <children>
         <xul:label class="tooltip-label" xbl:inherits="xbl:text=label" flex="1"/>
       </children>
     </content>
     
-    <implementation>
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          return Components.interfaces.nsIAccessibleProvider.XULTooltip;
+        </getter>
+      </property>
+
       <field name="_mouseOutCount">0</field>
       <field name="_isMouseOver">false</field>
       
@@ -541,38 +567,23 @@
               !tipElement.hasAttribute('title')) {
             let files = tipElement.files;
 
-            try {
-              var bundle = Components.classes['@mozilla.org/intl/stringbundle;1']
-                                     .getService(Components.interfaces.nsIStringBundleService)
-                                     .createBundle("chrome://global/locale/layout/HtmlForm.properties");
-              if (files.length == 0) {
+            if (files.length == 0) {
+              try {
+                var bundle = Components.classes['@mozilla.org/intl/stringbundle;1']
+                                       .getService(Components.interfaces.nsIStringBundleService)
+                                       .createBundle("chrome://global/locale/layout/HtmlForm.properties");
                 if (tipElement.multiple) {
                   titleText = bundle.GetStringFromName("NoFilesSelected");
                 } else {
                   titleText = bundle.GetStringFromName("NoFileSelected");
                 }
-              } else {
-                titleText = files[0].name;
-                // For UX and performance (jank) reasons we cap the number of
-                // files that we list in the tooltip to 20 plus a "and xxx more"
-                // line, or to 21 if exactly 21 files were picked.
-                const TRUNCATED_FILE_COUNT = 20;
-                let count = Math.min(files.length, TRUNCATED_FILE_COUNT);
-                for (let i = 1; i < count; ++i) {
-                  titleText += "\n" + files[i].name;
-                }
-                if (files.length == TRUNCATED_FILE_COUNT + 1) {
-                  titleText += "\n" + files[TRUNCATED_FILE_COUNT].name;
-                } else if (files.length > TRUNCATED_FILE_COUNT + 1) {
-                  let xmoreStr = bundle.GetStringFromName("AndNMoreFiles");
-                  let xmoreNum = files.length - TRUNCATED_FILE_COUNT;
-                  let tmp = {};
-                  Components.utils.import("resource://gre/modules/PluralForm.jsm", tmp);
-                  let andXMoreStr = tmp.PluralForm.get(xmoreNum, xmoreStr).replace("#1", xmoreNum);
-                  titleText += "\n" + andXMoreStr;
-                }
+              } catch(e) {}
+            } else {
+              titleText = files[0].name;
+              for (let i=1; i<files.length; ++i) {
+                titleText += "\n" + files[i].name;
               }
-            } catch(e) {}
+            }
           }
 
           while ((titleText == null) && (XLinkTitleText == null) &&

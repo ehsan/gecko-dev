@@ -8,10 +8,6 @@
   animation-name: alert-animation;
 }
 
-#alertBox[animate]:hover {
-  animation-play-state: paused;
-}
-
 .alertText {
   white-space: pre-wrap;
 }

@@ -7,17 +7,7 @@
 #ifndef TraceLogging_h
 #define TraceLogging_h
 
-#include <stdint.h>
-#include <stdio.h>
-
-#include "jsalloc.h"
-
-#include "js/HashTable.h"
-#include "js/TypeDecls.h"
-
-namespace JS {
-class CompileOptions;
-}
+#include "jsscript.h"
 
 namespace js {
 
@@ -35,84 +25,49 @@ class TraceLogging
         GC_STOP,
         MINOR_GC_START,
         MINOR_GC_STOP,
-        GC_SWEEPING_START,
-        GC_SWEEPING_STOP,
-        GC_ALLOCATING_START,
-        GC_ALLOCATING_STOP,
-        PARSER_COMPILE_SCRIPT_START,
-        PARSER_COMPILE_SCRIPT_STOP,
-        PARSER_COMPILE_LAZY_START,
-        PARSER_COMPILE_LAZY_STOP,
-        PARSER_COMPILE_FUNCTION_START,
-        PARSER_COMPILE_FUNCTION_STOP,
         INFO_ENGINE_INTERPRETER,
         INFO_ENGINE_BASELINE,
         INFO_ENGINE_IONMONKEY,
         INFO
     };
-    enum Logger {
-        DEFAULT,
-        ION_BACKGROUND_COMPILER,
-        GC_BACKGROUND,
-
-        LAST_LOGGER
-    };
 
   private:
     struct Entry {
         uint64_t tick_;
-        char* text_;
-        uint32_t textId_;
+        char* file_;
         uint32_t lineno_;
         uint8_t type_;
 
-        Entry(uint64_t tick, char* text, uint32_t textId, uint32_t lineno, Type type)
-            : tick_(tick),
-              text_(text),
-              textId_(textId),
-              lineno_(lineno),
-              type_((uint8_t)type) {}
+        Entry(uint64_t tick, char* file, uint32_t lineno, Type type)
+            : tick_(tick), file_(file), lineno_(lineno), type_((uint8_t)type) {}
 
         uint64_t tick() const { return tick_; }
-        char *text() const { return text_; }
-        uint32_t textId() const { return textId_; }
+        char *file() const { return file_; }
         uint32_t lineno() const { return lineno_; }
         Type type() const { return (Type) type_; }
     };
 
-    typedef HashMap<const char *,
-                        uint32_t,
-                        PointerHasher<const char *, 3>,
-                        SystemAllocPolicy> TextHashMap;
-
-    TextHashMap textMap;
-    uint32_t nextTextId;
+    uint64_t loggingTime;
     Entry *entries;
     unsigned int curEntry;
     unsigned int numEntries;
     int fileno;
     FILE *out;
-    Logger id;
 
-    static bool atexitSet;
-    static const char * const typeName[];
-    static TraceLogging* loggers[];
-    static uint64_t startupTime;
+    static const char * const type_name[];
+    static TraceLogging* _defaultLogger;
   public:
-    TraceLogging(Logger id);
+    TraceLogging();
     ~TraceLogging();
 
-    void log(Type type, const char* text = nullptr, unsigned int number = 0);
-    void log(Type type, const JS::CompileOptions &options);
+    void log(Type type, const char* filename, unsigned int line);
     void log(Type type, JSScript* script);
     void log(const char* log);
+    void log(Type type);
     void flush();
 
-    static TraceLogging* getLogger(Logger id);
-    static TraceLogging* defaultLogger() {
-        return getLogger(DEFAULT);
-    }
-    static void releaseLoggers();
+    static TraceLogging* defaultLogger();
+    static void releaseDefaultLogger();
 
   private:
     void grow();
@@ -129,16 +84,7 @@ class AutoTraceLog {
     TraceLogging::Type stop;
 
   public:
-    AutoTraceLog(TraceLogging* logger, TraceLogging::Type start, TraceLogging::Type stop,
-                 const JS::CompileOptions &options)
-      : logger(logger),
-        stop(stop)
-    {
-        logger->log(start, options);
-    }
-
-    AutoTraceLog(TraceLogging* logger, TraceLogging::Type start, TraceLogging::Type stop,
-                 JSScript* script)
+    AutoTraceLog(TraceLogging* logger, TraceLogging::Type start, TraceLogging::Type stop, JSScript* script)
       : logger(logger),
         stop(stop)
     {

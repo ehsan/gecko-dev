@@ -9,10 +9,8 @@
 
 #include "SerializedLoadContext.h"
 #include "mozilla/Attributes.h"
-#include "nsIWeakReferenceUtils.h"
+#include "nsWeakReference.h"
 #include "mozilla/dom/Element.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsILoadContext.h"
 
 class mozIApplication;
 
@@ -26,18 +24,13 @@ namespace mozilla {
  * typically provided by nsDocShell.  This is only used when the original
  * docshell is in a different process and we need to copy certain values from
  * it.
- *
- * Note: we also generate a new nsILoadContext using LoadContext(uint32_t aAppId)
- * to separate the safebrowsing cookie.
  */
 
-class LoadContext MOZ_FINAL : public nsILoadContext,
-                              public nsIInterfaceRequestor
+class LoadContext MOZ_FINAL : public nsILoadContext
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSILOADCONTEXT
-  NS_DECL_NSIINTERFACEREQUESTOR
 
   // AppId/inBrowser arguments override those in SerializedLoadContext provided
   // by child process.
@@ -51,18 +44,6 @@ public:
     , mIsInBrowserElement(aInBrowser)
 #ifdef DEBUG
     , mIsNotNull(aToCopy.mIsNotNull)
-#endif
-  {}
-
-  // Constructor taking reserved appId for the safebrowsing cookie.
-  LoadContext(uint32_t aAppId)
-    : mTopFrameElement(nullptr)
-    , mAppId(aAppId)
-    , mIsContent(false)
-    , mUsePrivateBrowsing(false)
-    , mIsInBrowserElement(false)
-#ifdef DEBUG
-    , mIsNotNull(true)
 #endif
   {}
 

@@ -7,13 +7,10 @@
 #ifndef jit_AsmJS_h
 #define jit_AsmJS_h
 
-#include <stddef.h>
-
-#include "js/TypeDecls.h"
+#include "jsapi.h"
 
 namespace js {
 
-class ExclusiveContext;
 class AsmJSModule;
 class SPSProfiler;
 namespace frontend {
@@ -32,8 +29,7 @@ typedef frontend::ParseContext<frontend::FullParseHandler> AsmJSParseContext;
 // In this case, the parser.tokenStream has been advanced an indeterminate
 // amount and the entire function should be reparsed from the beginning.
 extern bool
-CompileAsmJS(ExclusiveContext *cx, AsmJSParser &parser, frontend::ParseNode *stmtList,
-             bool *validated);
+CompileAsmJS(JSContext *cx, AsmJSParser &parser, frontend::ParseNode *stmtList, bool *validated);
 
 // The JSRuntime maintains a stack of AsmJSModule activations. An "activation"
 // of module A is an initial call from outside A into a function inside A,
@@ -60,7 +56,6 @@ class AsmJSActivation
 
     JSContext *cx() { return cx_; }
     AsmJSModule &module() const { return module_; }
-    AsmJSActivation *prev() const { return prev_; }
 
     // Read by JIT code:
     static unsigned offsetOfContext() { return offsetof(AsmJSActivation, cx_); }
@@ -79,13 +74,6 @@ const size_t AsmJSPageSize = 4096;
 // The asm.js spec requires that the ArrayBuffer's byteLength be a multiple of 4096.
 static const size_t AsmJSAllocationGranularity = 4096;
 
-// These functions define the valid heap lengths.
-extern uint32_t
-RoundUpToNextValidAsmJSHeapLength(uint32_t length);
-
-extern bool
-IsValidAsmJSHeapLength(uint32_t length);
-
 #ifdef JS_CPU_X64
 // On x64, the internal ArrayBuffer data array is inflated to 4GiB (only the
 // byteLength portion of which is accessible) so that out-of-bounds accesses
@@ -97,12 +85,12 @@ static const size_t AsmJSBufferProtectedSize = 4 * 1024ULL * 1024ULL * 1024ULL;
 
 // Return whether asm.js optimization is inhibitted by the platform or
 // dynamically disabled:
-extern bool
+extern JSBool
 IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, JS::Value *vp);
 
 #else // JS_ION
 
-inline bool
+inline JSBool
 IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);

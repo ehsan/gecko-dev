@@ -1,3 +1,5 @@
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10,7 +12,7 @@ module.metadata = {
 const { Class } = require('./core/heritage');
 const { on, emit, off, setListeners } = require('./event/core');
 const { filter, pipe, map, merge: streamMerge } = require('./event/utils');
-const { WorkerHost, Worker, detach, attach, destroy } = require('./worker/utils');
+const { WorkerHost, Worker, detach, attach } = require('./worker/utils');
 const { Disposable } = require('./core/disposable');
 const { EventTarget } = require('./event/target');
 const { unload } = require('./system/unload');
@@ -131,7 +133,7 @@ const Page = Class({
     let view = viewFor(this);
     if (view.parentNode) view.parentNode.removeChild(view);
     views.delete(this);
-    destroy(workers.get(this));
+    detach(workers.get(this));
   },
   toString: function () '[object Page]'
 });

@@ -21,6 +21,7 @@
 #include "nsCategoryCache.h"
 #include "nsNetCID.h"
 #include "nsToolkitCompsCID.h"
+#include "nsThreadUtils.h"
 #include "nsURIHashKey.h"
 #include "nsTHashtable.h"
 
@@ -96,7 +97,7 @@ public:
   /**
    * Used by other components in the places directory such as the annotation
    * service to get a reference to this history object. Returns a pointer to
-   * the service if it exists. Otherwise creates one. Returns nullptr on error.
+   * the service if it exists. Otherwise creates one. Returns NULL on error.
    */
   static nsNavHistory* GetHistoryService()
   {
@@ -114,7 +115,7 @@ public:
    * const version of this history object.
    *
    * @return A pointer to a const version of the service if it exists,
-   *         nullptr otherwise.
+   *         NULL otherwise.
    */
   static const nsNavHistory* GetConstHistoryService()
   {
@@ -216,7 +217,6 @@ public:
   static const int32_t kGetInfoIndex_ItemTags;
   static const int32_t kGetInfoIndex_Frecency;
   static const int32_t kGetInfoIndex_Hidden;
-  static const int32_t kGetInfoIndex_Guid;
 
   int64_t GetTagsFolder();
 
@@ -447,7 +447,7 @@ protected:
   /**
    * Loads all of the preferences that we use into member variables.
    *
-   * @note If mPrefBranch is nullptr, this does nothing.
+   * @note If mPrefBranch is NULL, this does nothing.
    */
   void LoadPrefs();
 

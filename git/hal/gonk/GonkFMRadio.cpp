@@ -203,7 +203,7 @@ runTavaruaRadio(void *)
   if (!sRadioEnabled) {
     NS_DispatchToMainThread(new RadioUpdate(hal::FM_RADIO_OPERATION_ENABLE,
                                             hal::FM_RADIO_OPERATION_STATUS_FAIL));
-    return nullptr;
+    return NULL;
   }
 
   uint8_t buf[128];
@@ -234,17 +234,13 @@ runTavaruaRadio(void *)
         NS_DispatchToMainThread(new RadioUpdate(hal::FM_RADIO_OPERATION_SEEK,
                                                 hal::FM_RADIO_OPERATION_STATUS_SUCCESS));
         break;
-      case TAVARUA_EVT_TUNE_SUCC:
-        NS_DispatchToMainThread(new RadioUpdate(hal::FM_RADIO_OPERATION_TUNE,
-                                                hal::FM_RADIO_OPERATION_STATUS_SUCCESS));
-        break;
       default:
         break;
       }
     }
   }
 
-  return nullptr;
+  return NULL;
 }
 
 /* This runs on the main thread but most of the
@@ -286,7 +282,7 @@ EnableFMRadio(const hal::FMRadioSettings& aInfo)
 
   // Tavarua specific start
   sTavaruaVersion = cap.version;
-  pthread_create(&sRadioThread, nullptr, runTavaruaRadio, nullptr);
+  pthread_create(&sRadioThread, NULL, runTavaruaRadio, NULL);
   // Tavarua specific end
 }
 
@@ -305,7 +301,7 @@ DisableFMRadio()
   }
   // Tavarua specific end
 
-  pthread_join(sRadioThread, nullptr);
+  pthread_join(sRadioThread, NULL);
 
   close(sRadioFD);
 

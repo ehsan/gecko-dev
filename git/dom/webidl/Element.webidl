@@ -35,7 +35,7 @@ interface Element : Node {
   [Constant]
   readonly attribute DOMTokenList? classList;
 
-  [SameObject]
+  [Constant]
   readonly attribute MozNamedAttrMap attributes;
   DOMString? getAttribute(DOMString name);
   DOMString? getAttributeNS(DOMString? namespace, DOMString localName);
@@ -71,6 +71,11 @@ interface Element : Node {
 
   // Mozilla specific stuff
 
+  [SetterThrows,LenientThis]
+           attribute EventHandler onmouseenter;
+  [SetterThrows,LenientThis]
+           attribute EventHandler onmouseleave;
+  [SetterThrows]
            attribute EventHandler onwheel;
 
   // Selectors API
@@ -126,19 +131,12 @@ interface Element : Node {
   Attr? getAttributeNodeNS(DOMString? namespaceURI, DOMString localName);
   [Throws]
   Attr? setAttributeNodeNS(Attr newAttr);
-
-  [ChromeOnly]
-  /**
-   * Scrolls the element by (dx, dy) CSS pixels without doing any
-   * layout flushing.
-   */
-  boolean scrollByNoFlush(long dx, long dy);
 };
 
 // http://dev.w3.org/csswg/cssom-view/#extensions-to-the-element-interface
 partial interface Element {
-  DOMRectList getClientRects();
-  DOMRect getBoundingClientRect();
+  ClientRectList getClientRects();
+  ClientRect getBoundingClientRect();
 
   // scrolling
   void scrollIntoView(optional boolean top = true);
@@ -171,9 +169,9 @@ partial interface Element {
 
 // http://domparsing.spec.whatwg.org/#extensions-to-the-element-interface
 partial interface Element {
-  [Pure,SetterThrows,TreatNullAs=EmptyString]
+  [Throws,TreatNullAs=EmptyString]
   attribute DOMString innerHTML;
-  [Pure,SetterThrows,TreatNullAs=EmptyString]
+  [Throws,TreatNullAs=EmptyString]
   attribute DOMString outerHTML;
   [Throws]
   void insertAdjacentHTML(DOMString position, DOMString text);
@@ -188,5 +186,4 @@ partial interface Element {
 };
 
 Element implements ChildNode;
-Element implements NonDocumentTypeChildNode;
 Element implements ParentNode;

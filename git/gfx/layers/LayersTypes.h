@@ -6,19 +6,13 @@
 #ifndef GFX_LAYERSTYPES_H
 #define GFX_LAYERSTYPES_H
 
-#include <stdint.h>                     // for uint32_t
-#include "nsPoint.h"                    // for nsIntPoint
-
-// Debugging define.
-// To dump a layer tree call LayerManager::Dump()
-// #define MOZ_LAYERS_HAVE_LOG
-
+#include "nsPoint.h"
 #ifdef MOZ_WIDGET_GONK
 #include <ui/GraphicBuffer.h>
 #endif
 #if defined(DEBUG) || defined(PR_LOGGING)
 #  include <stdio.h>            // FILE
-#  include "prlog.h"            // for PR_LOG
+#  include "prlog.h"
 #  ifndef MOZ_LAYERS_HAVE_LOG
 #    define MOZ_LAYERS_HAVE_LOG
 #  endif
@@ -56,12 +50,6 @@ enum LayersBackend {
 enum BufferMode {
   BUFFER_NONE,
   BUFFER_BUFFERED
-};
-
-enum DrawRegionClip {
-  CLIP_DRAW,
-  CLIP_DRAW_SNAPPED,
-  CLIP_NONE,
 };
 
 // LayerRenderState for Composer2D
@@ -121,13 +109,6 @@ struct LayerRenderState {
   nsIntPoint mOffset;
   // true if mOffset is applicable
   bool mHasOwnOffset;
-};
-
-enum ScaleMode {
-  SCALE_NONE,
-  SCALE_STRETCH,
-  SCALE_SENTINEL
-// Unimplemented - SCALE_PRESERVE_ASPECT_RATIO_CONTAIN
 };
 
 } // namespace

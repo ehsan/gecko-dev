@@ -26,14 +26,14 @@ __declspec(dllexport) DWORD Start(void* context)
 {
   // Because the remote DLL injector does not call DllMain, we have to
   // initialize the CRT manually
-  _CRT_INIT(nullptr, DLL_PROCESS_ATTACH, nullptr);
+  _CRT_INIT(NULL, DLL_PROCESS_ATTACH, NULL);
 
   HANDLE hCrashPipe = reinterpret_cast<HANDLE>(context);
 
   ExceptionHandler* e = new (std::nothrow)
-    ExceptionHandler(wstring(), nullptr, nullptr, nullptr,
+    ExceptionHandler(wstring(), NULL, NULL, NULL,
                      ExceptionHandler::HANDLER_ALL,
-                     MiniDumpNormal, hCrashPipe, nullptr);
+                     MiniDumpNormal, hCrashPipe, NULL);
   if (e)
     e->set_handle_debug_exceptions(true);
   return 1;

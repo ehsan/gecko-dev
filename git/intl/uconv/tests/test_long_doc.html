@@ -23,8 +23,9 @@ const inString = "Many years ago, I contracted an intimacy with a Mr. William Le
 
 const testContent = "<pre id='testPara'>" + inString;
 
-const Ci = SpecialPowers.Ci;
-const Cc = SpecialPowers.Cc;
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+const Ci = Components.interfaces;
+const Cc = Components.classes;
 var ccManager = Cc["@mozilla.org/charset-converter-manager;1"].getService(Ci.nsICharsetConverterManager);
 
 var decoderList = ccManager.getDecoderList();

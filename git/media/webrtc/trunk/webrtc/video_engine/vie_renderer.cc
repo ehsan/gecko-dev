@@ -8,12 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/video_engine/vie_renderer.h"
+#include "video_engine/vie_renderer.h"
 
-#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
+#include "common_video/libyuv/include/webrtc_libyuv.h"
 #include "webrtc/modules/video_render/include/video_render.h"
 #include "webrtc/modules/video_render/include/video_render_defines.h"
-#include "webrtc/video_engine/vie_render_manager.h"
+#include "video_engine/vie_render_manager.h"
 
 namespace webrtc {
 

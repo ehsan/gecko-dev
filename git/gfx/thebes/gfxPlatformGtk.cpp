@@ -92,7 +92,7 @@ gfxPlatformGtk::gfxPlatformGtk()
     UpdateFontList();
 #endif
     uint32_t canvasMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA);
-    uint32_t contentMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA);
+    uint32_t contentMask = 0;
     InitBackendPrefs(canvasMask, contentMask);
 }
 
@@ -135,11 +135,11 @@ gfxPlatformGtk::~gfxPlatformGtk()
 
 already_AddRefed<gfxASurface>
 gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
-                                       gfxContentType contentType)
+                                       gfxASurface::gfxContentType contentType)
 {
     nsRefPtr<gfxASurface> newSurface;
     bool needsClear = true;
-    gfxImageFormat imageFormat = OptimalFormatForContent(contentType);
+    gfxASurface::gfxImageFormat imageFormat = OptimalFormatForContent(contentType);
 #ifdef MOZ_X11
     // XXX we really need a different interface here, something that passes
     // in more context, including the display and/or target surface type that
@@ -475,10 +475,10 @@ gfxPlatformGtk::GetOffscreenFormat()
     // Make sure there is a screen
     GdkScreen *screen = gdk_screen_get_default();
     if (screen && gdk_visual_get_depth(gdk_visual_get_system()) == 16) {
-        return gfxImageFormatRGB16_565;
+        return gfxASurface::ImageFormatRGB16_565;
     }
 
-    return gfxImageFormatRGB24;
+    return gfxASurface::ImageFormatRGB24;
 }
 
 static int sDepth = 0;
@@ -502,8 +502,7 @@ gfxPlatformGtk::GetScreenDepth() const
 bool
 gfxPlatformGtk::SupportsOffMainThreadCompositing()
 {
-  // Nightly builds have OMTC support by default for Electrolysis testing.
-#if defined(MOZ_X11) && !defined(NIGHTLY_BUILD)
+#ifdef MOZ_X11
   return (PR_GetEnv("MOZ_USE_OMTC") != nullptr) ||
          (PR_GetEnv("MOZ_OMTC_ENABLED") != nullptr);
 #else
@@ -750,7 +749,7 @@ gfxPlatformGtk::GetGdkDrawable(gfxASurface *target)
         return result;
 
 #ifdef MOZ_X11
-    if (target->GetType() != gfxSurfaceTypeXlib)
+    if (target->GetType() != gfxASurface::SurfaceTypeXlib)
         return nullptr;
 
     gfxXlibSurface *xs = static_cast<gfxXlibSurface*>(target);

@@ -70,8 +70,6 @@ ParseNodeAllocator::freeNode(ParseNode *pn)
     freelist = pn;
 }
 
-namespace {
-
 /*
  * A work pool of ParseNodes. The work pool is a stack, chained together
  * by nodes' pn_next fields. We use this to avoid creating deep C++ stacks
@@ -83,8 +81,8 @@ namespace {
  */
 class NodeStack {
   public:
-    NodeStack() : top(nullptr) { }
-    bool empty() { return top == nullptr; }
+    NodeStack() : top(NULL) { }
+    bool empty() { return top == NULL; }
     void push(ParseNode *pn) {
         pn->pn_next = top;
         top = pn;
@@ -105,8 +103,6 @@ class NodeStack {
   private:
     ParseNode *top;
 };
-
-} /* anonymous namespace */
 
 /*
  * Push the children of |pn| on |stack|. Return true if |pn| itself could be
@@ -138,9 +134,9 @@ PushNodeChildren(ParseNode *pn, NodeStack *stack)
          * to them to avoid leaving dangling references where someone can find
          * them.
          */
-        pn->pn_funbox = nullptr;
+        pn->pn_funbox = NULL;
         stack->pushUnlessNull(pn->pn_body);
-        pn->pn_body = nullptr;
+        pn->pn_body = NULL;
         return false;
 
       case PN_NAME:
@@ -157,7 +153,7 @@ PushNodeChildren(ParseNode *pn, NodeStack *stack)
          */
         if (!pn->isUsed()) {
             stack->pushUnlessNull(pn->pn_expr);
-            pn->pn_expr = nullptr;
+            pn->pn_expr = NULL;
         }
         return !pn->isUsed() && !pn->isDefn();
 
@@ -219,7 +215,7 @@ ParseNode *
 ParseNodeAllocator::freeTree(ParseNode *pn)
 {
     if (!pn)
-        return nullptr;
+        return NULL;
 
     ParseNode *savedNext = pn->pn_next;
 
@@ -267,7 +263,7 @@ ParseNode::append(ParseNodeKind kind, JSOp op, ParseNode *left, ParseNode *right
                   FullParseHandler *handler)
 {
     if (!left || !right)
-        return nullptr;
+        return NULL;
 
     JS_ASSERT(left->isKind(kind) && left->isOp(op) && (js_CodeSpec[op].format & JOF_LEFTASSOC));
 
@@ -278,7 +274,7 @@ ParseNode::append(ParseNodeKind kind, JSOp op, ParseNode *left, ParseNode *right
         ParseNode *pn1 = left->pn_left, *pn2 = left->pn_right;
         list = handler->new_<ListNode>(kind, op, pn1);
         if (!list)
-            return nullptr;
+            return NULL;
         list->append(pn2);
         if (kind == PNK_ADD) {
             if (pn1->isKind(PNK_STRING))
@@ -310,7 +306,7 @@ ParseNode::newBinaryOrAppend(ParseNodeKind kind, JSOp op, ParseNode *left, Parse
                              bool foldConstants)
 {
     if (!left || !right)
-        return nullptr;
+        return NULL;
 
     /*
      * Ensure that the parse tree is faithful to the source when "use asm" (for
@@ -371,26 +367,26 @@ template <>
 ParseNode *
 Parser<FullParseHandler>::cloneParseTree(ParseNode *opn)
 {
-    JS_CHECK_RECURSION(context, return nullptr);
+    JS_CHECK_RECURSION(context, return NULL);
 
     ParseNode *pn = handler.new_<ParseNode>(opn->getKind(), opn->getOp(), opn->getArity(),
                                             opn->pn_pos);
     if (!pn)
-        return nullptr;
+        return NULL;
     pn->setInParens(opn->isInParens());
     pn->setDefn(opn->isDefn());
     pn->setUsed(opn->isUsed());
 
     switch (pn->getArity()) {
-#define NULLCHECK(e)    JS_BEGIN_MACRO if (!(e)) return nullptr; JS_END_MACRO
+#define NULLCHECK(e)    JS_BEGIN_MACRO if (!(e)) return NULL; JS_END_MACRO
 
       case PN_CODE:
         if (pn->getKind() == PNK_MODULE) {
             MOZ_ASSUME_UNREACHABLE("module nodes cannot be cloned");
         }
-        NULLCHECK(pn->pn_funbox = newFunctionBox(pn, opn->pn_funbox->function(), pc,
-                                                 Directives(/* strict = */ opn->pn_funbox->strict),
-                                                 opn->pn_funbox->generatorKind()));
+        NULLCHECK(pn->pn_funbox =
+                  newFunctionBox(pn, opn->pn_funbox->function(), pc,
+                                 Directives(/* strict = */ opn->pn_funbox->strict)));
         NULLCHECK(pn->pn_body = cloneParseTree(opn->pn_body));
         pn->pn_cookie = opn->pn_cookie;
         pn->pn_dflags = opn->pn_dflags;
@@ -481,7 +477,7 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode *opn)
     ParseNode *pn = handler.new_<ParseNode>(opn->getKind(), opn->getOp(), opn->getArity(),
                                             opn->pn_pos);
     if (!pn)
-        return nullptr;
+        return NULL;
     pn->setInParens(opn->isInParens());
     pn->setDefn(opn->isDefn());
     pn->setUsed(opn->isUsed());
@@ -498,10 +494,10 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode *opn)
 
                 ParseNode *tag = cloneParseTree(opn2->pn_left);
                 if (!tag)
-                    return nullptr;
+                    return NULL;
                 ParseNode *target = cloneLeftHandSide(opn2->pn_right);
                 if (!target)
-                    return nullptr;
+                    return NULL;
 
                 pn2 = handler.new_<BinaryNode>(PNK_COLON, JSOP_INITPROP, opn2->pn_pos, tag, target);
             } else if (opn2->isArity(PN_NULLARY)) {
@@ -512,7 +508,7 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode *opn)
             }
 
             if (!pn2)
-                return nullptr;
+                return NULL;
             pn->append(pn2);
         }
         pn->pn_xflags = opn->pn_xflags;
@@ -532,7 +528,7 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode *opn)
         pn->pn_link = dn->dn_uses;
         dn->dn_uses = pn;
     } else {
-        pn->pn_expr = nullptr;
+        pn->pn_expr = NULL;
         if (opn->isDefn()) {
             /* We copied some definition-specific state into pn. Clear it out. */
             pn->pn_cookie.makeFree();
@@ -559,7 +555,7 @@ static const char * const parseNodeNames[] = {
 void
 frontend::DumpParseTree(ParseNode *pn, int indent)
 {
-    if (pn == nullptr)
+    if (pn == NULL)
         fprintf(stderr, "#NULL");
     else
         pn->dump(indent);
@@ -622,7 +618,7 @@ NullaryNode::dump()
 
       case PNK_NUMBER: {
         ToCStringBuf cbuf;
-        const char *cstr = NumberToCString(nullptr, &cbuf, pn_dval);
+        const char *cstr = NumberToCString(NULL, &cbuf, pn_dval);
         if (!IsFinite(pn_dval))
             fputc('#', stderr);
         if (cstr)
@@ -692,11 +688,11 @@ ListNode::dump(int indent)
 {
     const char *name = parseNodeNames[getKind()];
     fprintf(stderr, "(%s [", name);
-    if (pn_head != nullptr) {
+    if (pn_head != NULL) {
         indent += strlen(name) + 3;
         DumpParseTree(pn_head, indent);
         ParseNode *pn = pn_head->pn_next;
-        while (pn != nullptr) {
+        while (pn != NULL) {
             IndentNewLine(indent);
             DumpParseTree(pn, indent);
             pn = pn->pn_next;
@@ -753,7 +749,7 @@ NameNode::dump(int indent)
 ObjectBox::ObjectBox(JSObject *object, ObjectBox* traceLink)
   : object(object),
     traceLink(traceLink),
-    emitLink(nullptr)
+    emitLink(NULL)
 {
     JS_ASSERT(!object->is<JSFunction>());
 }
@@ -761,7 +757,7 @@ ObjectBox::ObjectBox(JSObject *object, ObjectBox* traceLink)
 ObjectBox::ObjectBox(JSFunction *function, ObjectBox* traceLink)
   : object(function),
     traceLink(traceLink),
-    emitLink(nullptr)
+    emitLink(NULL)
 {
     JS_ASSERT(object->is<JSFunction>());
     JS_ASSERT(asFunctionBox()->function() == function);
@@ -784,7 +780,7 @@ ObjectBox::asFunctionBox()
 ObjectBox::ObjectBox(Module *module, ObjectBox* traceLink)
   : object(module),
     traceLink(traceLink),
-    emitLink(nullptr)
+    emitLink(NULL)
 {
     JS_ASSERT(object->is<Module>());
 }

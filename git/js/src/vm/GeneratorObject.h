@@ -11,18 +11,10 @@
 
 namespace js {
 
-class LegacyGeneratorObject : public JSObject
+class GeneratorObject : public JSObject
 {
   public:
-    static const Class class_;
-
-    JSGenerator *getGenerator() { return static_cast<JSGenerator*>(getPrivate()); }
-};
-
-class StarGeneratorObject : public JSObject
-{
-  public:
-    static const Class class_;
+    static Class class_;
 
     JSGenerator *getGenerator() { return static_cast<JSGenerator*>(getPrivate()); }
 };

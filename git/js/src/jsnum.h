@@ -9,18 +9,19 @@
 
 #include "mozilla/FloatingPoint.h"
 
-#include "NamespaceImports.h"
+#include "jscntxt.h"
 
 #include "vm/NumericConversions.h"
 
-namespace js {
+extern double js_PositiveInfinity;
+extern double js_NegativeInfinity;
 
-class StringBuffer;
+namespace js {
 
 extern bool
 InitRuntimeNumberState(JSRuntime *rt);
 
-#if !EXPOSE_INTL_API
+#if !ENABLE_INTL_API
 extern void
 FinishRuntimeNumberState(JSRuntime *rt);
 #endif
@@ -39,9 +40,7 @@ extern const char js_isFinite_str[];
 extern const char js_parseFloat_str[];
 extern const char js_parseInt_str[];
 
-class JSAtom;
-
-namespace js {
+class JSString;
 
 /*
  * When base == 10, this function implements ToString() as specified by
@@ -50,19 +49,13 @@ namespace js {
  */
 template <js::AllowGC allowGC>
 extern JSString *
-NumberToString(js::ThreadSafeContext *cx, double d);
+js_NumberToString(js::ThreadSafeContext *cx, double d);
 
-template <js::AllowGC allowGC>
-extern JSAtom *
-NumberToAtom(js::ExclusiveContext *cx, double d);
+namespace js {
 
 template <AllowGC allowGC>
 extern JSFlatString *
 Int32ToString(ThreadSafeContext *cx, int32_t i);
-
-template <AllowGC allowGC>
-extern JSAtom *
-Int32ToAtom(ExclusiveContext *cx, int32_t si);
 
 /*
  * Convert an integer or double (contained in the given value) to a string and
@@ -101,7 +94,7 @@ struct ToCStringBuf
 /*
  * Convert a number to a C string.  When base==10, this function implements
  * ToString() as specified by ECMA-262-5 section 9.8.1.  It handles integral
- * values cheaply.  Return nullptr if we ran out of memory.  See also
+ * values cheaply.  Return NULL if we ran out of memory.  See also
  * js_NumberToCString().
  */
 extern char *
@@ -160,7 +153,7 @@ ToNumber(JSContext *cx, JS::MutableHandleValue vp)
     if (vp.isNumber())
         return true;
     double d;
-    extern JS_PUBLIC_API(bool) ToNumberSlow(JSContext *cx, Value v, double *dp);
+    extern bool ToNumberSlow(JSContext *cx, Value v, double *dp);
     if (!ToNumberSlow(cx, vp, &d))
         return false;
 
@@ -168,7 +161,7 @@ ToNumber(JSContext *cx, JS::MutableHandleValue vp)
     return true;
 }
 
-bool
+JSBool
 num_parseInt(JSContext *cx, unsigned argc, Value *vp);
 
 }  /* namespace js */
@@ -183,14 +176,14 @@ num_parseInt(JSContext *cx, unsigned argc, Value *vp);
  * If the string does not contain a number, set *ep to s and return 0.0 in dp.
  * Return false if out of memory.
  */
-extern bool
+extern JSBool
 js_strtod(js::ThreadSafeContext *cx, const jschar *s, const jschar *send,
           const jschar **ep, double *dp);
 
-extern bool
+extern JSBool
 js_num_toString(JSContext *cx, unsigned argc, js::Value *vp);
 
-extern bool
+extern JSBool
 js_num_valueOf(JSContext *cx, unsigned argc, js::Value *vp);
 
 namespace js {
@@ -249,7 +242,7 @@ ToInteger(JSContext *cx, HandleValue v, double *dp)
     if (v.isDouble()) {
         *dp = v.toDouble();
     } else {
-        extern JS_PUBLIC_API(bool) ToNumberSlow(JSContext *cx, Value v, double *dp);
+        extern bool ToNumberSlow(JSContext *cx, Value v, double *dp);
         if (!ToNumberSlow(cx, v, dp))
             return false;
     }

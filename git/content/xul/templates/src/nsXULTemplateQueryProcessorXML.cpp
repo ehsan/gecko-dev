@@ -89,14 +89,18 @@ TraverseRuleToBindingsMap(nsISupports* aKey, nsXMLBindingSet* aMatch, void* aCon
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTemplateQueryProcessorXML)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULTemplateQueryProcessorXML)
-    tmp->mRuleToBindingsMap.Clear();
+    if (tmp->mRuleToBindingsMap.IsInitialized()) {
+        tmp->mRuleToBindingsMap.Clear();
+    }
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mRoot)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mEvaluator)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mTemplateBuilder)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mRequest)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULTemplateQueryProcessorXML)
-    tmp->mRuleToBindingsMap.EnumerateRead(TraverseRuleToBindingsMap, &cb);
+    if (tmp->mRuleToBindingsMap.IsInitialized()) {
+        tmp->mRuleToBindingsMap.EnumerateRead(TraverseRuleToBindingsMap, &cb);
+    }
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRoot)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mEvaluator)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTemplateBuilder)
@@ -219,6 +223,9 @@ nsXULTemplateQueryProcessorXML::InitializeForBuilding(nsISupports* aDatasource,
     mEvaluator = do_CreateInstance("@mozilla.org/dom/xpath-evaluator;1");
     NS_ENSURE_TRUE(mEvaluator, NS_ERROR_OUT_OF_MEMORY);
 
+    if (!mRuleToBindingsMap.IsInitialized())
+        mRuleToBindingsMap.Init();
+
     return NS_OK;
 }
 
@@ -227,7 +234,8 @@ nsXULTemplateQueryProcessorXML::Done()
 {
     mGenerationStarted = false;
 
-    mRuleToBindingsMap.Clear();
+    if (mRuleToBindingsMap.IsInitialized())
+        mRuleToBindingsMap.Clear();
 
     return NS_OK;
 }

@@ -36,8 +36,8 @@ PrepareAndDispatch(nsXPTCStubBase* self,
                    double *fprData)
 {
     nsXPTCMiniVariant paramBuffer[PARAM_BUFFER_COUNT];
-    nsXPTCMiniVariant* dispatchParams = nullptr;
-    const nsXPTMethodInfo* info = nullptr;
+    nsXPTCMiniVariant* dispatchParams = NULL;
+    const nsXPTMethodInfo* info = NULL;
     uint32_t paramCount;
     uint32_t i;
     nsresult result = NS_ERROR_FAILURE;

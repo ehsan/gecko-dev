@@ -57,18 +57,11 @@ public:
     // Gets the current sound card buffer size (playout delay).
     virtual int GetPlayoutBufferSize(int& buffer_ms) = 0;
 
-    // Sets a minimum target delay for the jitter buffer. This delay is
-    // maintained by the jitter buffer, unless channel condition (jitter in
-    // inter-arrival times) dictates a higher required delay. The overall
-    // jitter buffer delay is max of |delay_ms| and the latency that NetEq
-    // computes based on inter-arrival times and its playout mode.
+    // Sets an additional delay for the playout jitter buffer.
     virtual int SetMinimumPlayoutDelay(int channel, int delay_ms) = 0;
 
     // Sets an initial delay for the playout jitter buffer. The playout of the
-    // audio is delayed by |delay_ms| in milliseconds. Thereafter, the delay is
-    // maintained, unless NetEq's internal mechanism requires a higher latency.
-    // Such a latency is computed based on inter-arrival times and NetEq's
-    // playout mode.
+    // audio is delayed by |delay_ms| in millisecond.
     virtual int SetInitialPlayoutDelay(int channel, int delay_ms) = 0;
 
     // Gets the |jitter_buffer_delay_ms| (including the algorithmic delay), and
@@ -76,12 +69,6 @@ public:
     virtual int GetDelayEstimate(int channel,
                                  int* jitter_buffer_delay_ms,
                                  int* playout_buffer_delay_ms) = 0;
-
-    // Returns the least required jitter buffer delay. This is computed by the
-    // the jitter buffer based on the inter-arrival time of RTP packets and
-    // playout mode. NetEq maintains this latency unless a higher value is
-    // requested by calling SetMinimumPlayoutDelay().
-    virtual int GetLeastRequiredDelayMs(int channel) const = 0;
 
     // Manual initialization of the RTP timestamp.
     virtual int SetInitTimestamp(int channel, unsigned int timestamp) = 0;

@@ -7,17 +7,16 @@
 MODULE = 'widget'
 
 EXPORTS += [
-    'APZCCallbackHelper.h',
     'GfxInfoCollector.h',
 ]
 
-SOURCES += [
-    'APZCCallbackHelper.cpp',
+CPP_SOURCES += [
     'GfxDriverInfo.cpp',
     'GfxInfoBase.cpp',
-    'GfxInfoCollector.cpp',
     'GfxInfoWebGL.cpp',
     'InputData.cpp',
+    'PuppetWidget.cpp',
+    'WidgetUtils.cpp',
     'nsBaseAppShell.cpp',
     'nsBaseDragService.cpp',
     'nsBaseScreen.cpp',
@@ -27,43 +26,31 @@ SOURCES += [
     'nsFilePickerProxy.cpp',
     'nsHTMLFormatConverter.cpp',
     'nsIdleService.cpp',
-    'nsIWidgetListener.cpp',
     'nsPrimitiveHelpers.cpp',
     'nsPrintOptionsImpl.cpp',
     'nsPrintSession.cpp',
     'nsPrintSettingsImpl.cpp',
     'nsTransferable.cpp',
     'nsXPLookAndFeel.cpp',
-    'PuppetWidget.cpp',
-    'WidgetUtils.cpp',
 ]
 
 if CONFIG['MOZ_X11']:
-    SOURCES += [
+    CPP_SOURCES += [
         'GfxInfoX11.cpp'
     ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('os2', 'cocoa', 'windows'):
-    SOURCES += [
+    CPP_SOURCES += [
         'nsBaseClipboard.cpp',
     ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('qt', 'gtk2', 'gtk3', 'os2', 'cocoa', 'windows',
                                     'android', 'gonk'):
-    SOURCES += [
+    CPP_SOURCES += [
         'nsBaseFilePicker.cpp',
     ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('qt', 'gtk2', 'gtk3', 'windows', 'cocoa'):
-    SOURCES += [
+    CPP_SOURCES += [
         'nsNativeTheme.cpp',
     ]
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'xpwidgets_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
-

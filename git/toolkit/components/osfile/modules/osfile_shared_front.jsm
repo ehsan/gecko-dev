@@ -14,11 +14,9 @@ if (typeof Components != "undefined") {
 }
 (function(exports) {
 
-let SharedAll =
-  require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm");
+exports.OS = require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm").OS;
 
-let LOG = SharedAll.LOG.bind(SharedAll, "Shared front-end");
-let clone = SharedAll.clone;
+let LOG = exports.OS.Shared.LOG.bind(OS.Shared, "Shared front-end");
 
 /**
  * Code shared by implementations of File.
@@ -46,17 +44,17 @@ AbstractFile.prototype = {
    * Read bytes from this file to a new buffer.
    *
    * @param {number=} bytes If unspecified, read all the remaining bytes from
-   * this file. If specified, read |bytes| bytes, or less if the file does notclone
+   * this file. If specified, read |bytes| bytes, or less if the file does not
    * contain that many bytes.
-   * @param {JSON} options
    * @return {Uint8Array} An array containing the bytes read.
    */
-  read: function read(bytes, options = {}) {
-    options = clone(options);
-    options.bytes = bytes == null ? this.stat().size : bytes;
-    let buffer = new Uint8Array(options.bytes);
-    let size = this.readTo(buffer, options);
-    if (size == options.bytes) {
+  read: function read(bytes) {
+    if (bytes == null) {
+      bytes = this.stat().size;
+    }
+    let buffer = new Uint8Array(bytes);
+    let size = this.readTo(buffer, {bytes: bytes});
+    if (size == bytes) {
       return buffer;
     } else {
       return buffer.subarray(0, size);
@@ -90,7 +88,7 @@ AbstractFile.prototype = {
         break;
       }
       pos += chunkSize;
-      ptr = SharedAll.offsetBy(ptr, chunkSize);
+      ptr = exports.OS.Shared.offsetBy(ptr, chunkSize);
     }
 
     return pos;
@@ -115,74 +113,15 @@ AbstractFile.prototype = {
    */
   write: function write(buffer, options = {}) {
 
-    let {ptr, bytes} =
-      AbstractFile.normalizeToPointer(buffer, options.bytes || undefined);
+    let {ptr, bytes} = AbstractFile.normalizeToPointer(buffer, options.bytes);
 
     let pos = 0;
     while (pos < bytes) {
       let chunkSize = this._write(ptr, bytes - pos, options);
       pos += chunkSize;
-      ptr = SharedAll.offsetBy(ptr, chunkSize);
+      ptr = exports.OS.Shared.offsetBy(ptr, chunkSize);
     }
     return pos;
-  }
-};
-
-/**
- * Creates and opens a file with a unique name. By default, generate a random HEX number and use it to create a unique new file name.
- *
- * @param {string} path The path to the file.
- * @param {*=} options Additional options for file opening. This
- * implementation interprets the following fields:
- *
- * - {number} humanReadable If |true|, create a new filename appending a decimal number. ie: filename-1.ext, filename-2.ext.
- *  If |false| use HEX numbers ie: filename-A65BC0.ext
- * - {number} maxReadableNumber Used to limit the amount of tries after a failed
- *  file creation. Default is 20.
- *
- * @return {Object} contains A file object{file} and the path{path}.
- * @throws {OS.File.Error} If the file could not be opened.
- */
-AbstractFile.openUnique = function openUnique(path, options = {}) {
-  let mode = {
-    create : true
-  };
-
-  let dirName = OS.Path.dirname(path);
-  let leafName = OS.Path.basename(path);
-  let lastDotCharacter = leafName.lastIndexOf('.');
-  let fileName = leafName.substring(0, lastDotCharacter != -1 ? lastDotCharacter : leafName.length);
-  let suffix = (lastDotCharacter != -1 ? leafName.substring(lastDotCharacter) : "");
-  let uniquePath = "";
-  let maxAttempts = options.maxAttempts || 99;
-  let humanReadable = !!options.humanReadable;
-  const HEX_RADIX = 16;
-  // We produce HEX numbers between 0 and 2^24 - 1.
-  const MAX_HEX_NUMBER = 16777215;
-
-  try {
-    return {
-      path: path,
-      file: OS.File.open(path, mode)
-    };
-  } catch (ex if ex instanceof OS.File.Error && ex.becauseExists) {
-    for (let i = 0; i < maxAttempts; ++i) {
-      try {
-        if (humanReadable) {
-          uniquePath = OS.Path.join(dirName, fileName + "-" + (i + 1) + suffix);
-        } else {
-          let hexNumber = Math.floor(Math.random() * MAX_HEX_NUMBER).toString(HEX_RADIX);
-          uniquePath = OS.Path.join(dirName, fileName + "-" + hexNumber + suffix);
-        }
-        return {
-          path: uniquePath,
-          file: OS.File.open(uniquePath, mode)
-        };
-      } catch (ex if ex instanceof OS.File.Error && ex.becauseExists) {
-        // keep trying ...
-      }
-    }
-    throw OS.File.Error.exists("could not find an unused file name.");
   }
 };
 
@@ -209,13 +148,13 @@ AbstractFile.normalizeToPointer = function normalizeToPointer(candidate, bytes) 
     if (candidate.isNull()) {
       throw new TypeError("Expecting a non-null pointer");
     }
-    ptr = SharedAll.Type.uint8_t.out_ptr.cast(candidate);
+    ptr = exports.OS.Shared.Type.uint8_t.out_ptr.cast(candidate);
     if (bytes == null) {
       throw new TypeError("C pointer missing bytes indication.");
     }
-  } else if (SharedAll.isTypedArray(candidate)) {
+  } else if (exports.OS.Shared.isTypedArray(candidate)) {
     // Typed Array
-    ptr = SharedAll.Type.uint8_t.out_ptr.implementation(candidate.buffer);
+    ptr = exports.OS.Shared.Type.uint8_t.out_ptr.implementation(candidate.buffer);
     if (bytes == null) {
       bytes = candidate.byteLength;
     } else if (candidate.byteLength < bytes) {
@@ -304,33 +243,29 @@ AbstractFile.normalizeOpenMode = function normalizeOpenMode(mode) {
     write: false,
     trunc: false,
     create: false,
-    existing: false,
-    append: true
+    existing: false
   };
   for (let key in mode) {
-    let val = !!mode[key]; // bool cast.
+    if (!mode[key]) continue; // Only interpret true-ish keys
     switch (key) {
     case "read":
-      result.read = val;
+      result.read = true;
       break;
     case "write":
-      result.write = val;
+      result.write = true;
       break;
     case "truncate": // fallthrough
     case "trunc":
-      result.trunc = val;
-      result.write |= val;
+      result.trunc = true;
+      result.write = true;
       break;
     case "create":
-      result.create = val;
-      result.write |= val;
+      result.create = true;
+      result.write = true;
       break;
     case "existing": // fallthrough
     case "exist":
-      result.existing = val;
-      break;
-    case "append":
-      result.append = val;
+      result.existing = true;
       break;
     default:
       throw new TypeError("Mode " + key + " not understood");
@@ -356,15 +291,14 @@ AbstractFile.normalizeOpenMode = function normalizeOpenMode(mode) {
  * @param {string} path The path to the file.
  * @param {number=} bytes Optionally, an upper bound to the number of bytes
  * to read.
- * @param {JSON} options Optionally contains additional options.
  *
  * @return {Uint8Array} A buffer holding the bytes
  * and the number of bytes read from the file.
  */
-AbstractFile.read = function read(path, bytes, options = {}) {
+AbstractFile.read = function read(path, bytes) {
   let file = exports.OS.File.open(path);
   try {
-    return file.read(bytes, options);
+    return file.read(bytes);
   } finally {
     file.close();
   }
@@ -459,42 +393,5 @@ AbstractFile.writeAtomic =
   return bytesWritten;
 };
 
-/**
-  * Remove an existing directory and its contents.
-  *
-  * @param {string} path The name of the directory.
-  * @param {*=} options Additional options.
-  *   - {bool} ignoreAbsent If |false|, throw an error if the directory doesn't
-  *     exist. |true| by default.
-  *   - {boolean} ignorePermissions If |true|, remove the file even when lacking write
-  *     permission.
-  *
-  * @throws {OS.File.Error} In case of I/O error, in particular if |path| is
-            not a directory.
-  */
-AbstractFile.removeDir = function(path, options = {}) {
-  let iterator = new OS.File.DirectoryIterator(path);
-  if (!iterator.exists() && options.ignoreAbsent) {
-    return;
-  }
-
-  try {
-    for (let entry in iterator) {
-      if (entry.isDir) {
-        OS.File.removeDir(entry.path, options);
-      } else {
-        OS.File.remove(entry.path, options);
-      }
-    }
-  } finally {
-    iterator.close();
-  }
-
-  OS.File.removeEmptyDir(path);
-};
-
-if (!exports.OS.Shared) {
-  exports.OS.Shared = {};
-}
-exports.OS.Shared.AbstractFile = AbstractFile;
+   exports.OS.Shared.AbstractFile = AbstractFile;
 })(this);

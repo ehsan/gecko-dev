@@ -199,8 +199,15 @@ HTMLBodyElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
   return HTMLBodyElementBinding::Wrap(aCx, aScope, this);
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLBodyElement, nsGenericHTMLElement,
-                             nsIDOMHTMLBodyElement)
+NS_IMPL_ADDREF_INHERITED(HTMLBodyElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLBodyElement, Element)
+
+// QueryInterface implementation for HTMLBodyElement
+NS_INTERFACE_TABLE_HEAD(HTMLBodyElement)
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(HTMLBodyElement, nsIDOMHTMLBodyElement)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLBodyElement)
 
@@ -502,8 +509,9 @@ HTMLBodyElement::IsEventAttributeName(nsIAtom *aName)
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                   \
       handler = new type_(callable);                                           \
     }                                                                          \
-    forwardto_::SetOn##name_(handler);                                         \
-    return NS_OK;                                                              \
+    ErrorResult rv;                                                            \
+    forwardto_::SetOn##name_(handler, rv);                                     \
+    return rv.ErrorCode();                                                     \
   }
 #define FORWARDED_EVENT(name_, id_, type_, struct_)                            \
   FORWARDED_EVENT_HELPER(name_, nsGenericHTMLElement, EventHandlerNonNull,     \
@@ -524,7 +532,7 @@ HTMLBodyElement::IsEventAttributeName(nsIAtom *aName)
     return nullptr;                                                            \
   }                                                                            \
   void                                                                         \
-  HTMLBodyElement::SetOn##name_(type_* handler)                                \
+  HTMLBodyElement::SetOn##name_(type_* handler, ErrorResult& error)            \
   {                                                                            \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                         \
     if (!win) {                                                                \
@@ -533,14 +541,14 @@ HTMLBodyElement::IsEventAttributeName(nsIAtom *aName)
                                                                                \
     nsCOMPtr<nsISupports> supports = do_QueryInterface(win);                   \
     nsGlobalWindow* globalWin = nsGlobalWindow::FromSupports(supports);        \
-    return globalWin->SetOn##name_(handler);                                   \
+    return globalWin->SetOn##name_(handler, error);                            \
   }                                                                            \
   FORWARDED_EVENT_HELPER(name_, HTMLBodyElement, type_, type_*)
 #define WINDOW_EVENT(name_, id_, type_, struct_)                               \
   WINDOW_EVENT_HELPER(name_, EventHandlerNonNull)
 #define BEFOREUNLOAD_EVENT(name_, id_, type_, struct_)                         \
-  WINDOW_EVENT_HELPER(name_, OnBeforeUnloadEventHandlerNonNull)
-#include "nsEventNameList.h" // IWYU pragma: keep
+  WINDOW_EVENT_HELPER(name_, BeforeUnloadEventHandlerNonNull)
+#include "nsEventNameList.h"
 #undef BEFOREUNLOAD_EVENT
 #undef WINDOW_EVENT
 #undef WINDOW_EVENT_HELPER

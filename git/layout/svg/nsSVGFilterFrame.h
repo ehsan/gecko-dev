@@ -9,6 +9,7 @@
 #include "mozilla/Attributes.h"
 #include "nsFrame.h"
 #include "nsQueryFrame.h"
+#include "nsRect.h"
 #include "nsSVGContainerFrame.h"
 #include "nsSVGUtils.h"
 
@@ -21,8 +22,6 @@ class nsStyleContext;
 class nsSVGFilterPaintCallback;
 class nsSVGIntegerPair;
 class nsSVGLength2;
-
-struct nsRect;
 
 namespace mozilla {
 namespace dom {
@@ -66,8 +65,7 @@ public:
   nsresult PaintFilteredFrame(nsRenderingContext *aContext,
                               nsIFrame *aFilteredFrame,
                               nsSVGFilterPaintCallback *aPaintCallback,
-                              const nsRect* aDirtyArea,
-                              nsIFrame* aTransformRoot);
+                              const nsRect* aDirtyArea);
 
   /**
    * Returns the post-filter area that could be dirtied when the given

@@ -8,7 +8,6 @@
 
 #include "nsGenConList.h"
 #include "nsLayoutUtils.h"
-#include "nsIContent.h"
 
 void
 nsGenConList::Clear()

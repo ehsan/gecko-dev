@@ -80,11 +80,11 @@ class IonJSFrameLayout : public IonEntryFrameLayout
         return offsetof(IonJSFrameLayout, numActualArgs_);
     }
     static size_t offsetOfThis() {
-        IonJSFrameLayout *base = nullptr;
+        IonJSFrameLayout *base = NULL;
         return reinterpret_cast<size_t>(&base->argv()[0]);
     }
     static size_t offsetOfActualArgs() {
-        IonJSFrameLayout *base = nullptr;
+        IonJSFrameLayout *base = NULL;
         // +1 to skip |this|.
         return reinterpret_cast<size_t>(&base->argv()[1]);
     }
@@ -190,9 +190,9 @@ class IonBaselineStubFrameLayout : public IonCommonFrameLayout
 };
 
 class IonNativeExitFrameLayout;
-class IonOOLNativeExitFrameLayout;
+class IonOOLNativeGetterExitFrameLayout;
 class IonOOLPropertyOpExitFrameLayout;
-class IonOOLProxyExitFrameLayout;
+class IonOOLProxyGetExitFrameLayout;
 class IonDOMExitFrameLayout;
 
 // this is the frame layout when we are exiting ion code, and about to enter EABI code
@@ -219,24 +219,24 @@ class IonExitFrameLayout : public IonCommonFrameLayout
     // each wrapper are pushed before the exit frame.  This correspond exactly
     // to the value of the argBase register of the generateVMWrapper function.
     inline uint8_t *argBase() {
-        JS_ASSERT(footer()->ionCode() != nullptr);
+        JS_ASSERT(footer()->ionCode() != NULL);
         return top();
     }
 
     inline bool isWrapperExit() {
-        return footer()->function() != nullptr;
+        return footer()->function() != NULL;
     }
     inline bool isNativeExit() {
-        return footer()->ionCode() == nullptr;
+        return footer()->ionCode() == NULL;
     }
-    inline bool isOOLNativeExit() {
-        return footer()->ionCode() == ION_FRAME_OOL_NATIVE;
+    inline bool isOOLNativeGetterExit() {
+        return footer()->ionCode() == ION_FRAME_OOL_NATIVE_GETTER;
     }
     inline bool isOOLPropertyOpExit() {
         return footer()->ionCode() == ION_FRAME_OOL_PROPERTY_OP;
     }
-    inline bool isOOLProxyExit() {
-        return footer()->ionCode() == ION_FRAME_OOL_PROXY;
+    inline bool isOOLProxyGetExit() {
+        return footer()->ionCode() == ION_FRAME_OOL_PROXY_GET;
     }
     inline bool isDomExit() {
         IonCode *code = footer()->ionCode();
@@ -251,17 +251,17 @@ class IonExitFrameLayout : public IonCommonFrameLayout
         JS_ASSERT(isNativeExit());
         return reinterpret_cast<IonNativeExitFrameLayout *>(footer());
     }
-    inline IonOOLNativeExitFrameLayout *oolNativeExit() {
-        JS_ASSERT(isOOLNativeExit());
-        return reinterpret_cast<IonOOLNativeExitFrameLayout *>(footer());
+    inline IonOOLNativeGetterExitFrameLayout *oolNativeGetterExit() {
+        JS_ASSERT(isOOLNativeGetterExit());
+        return reinterpret_cast<IonOOLNativeGetterExitFrameLayout *>(footer());
     }
     inline IonOOLPropertyOpExitFrameLayout *oolPropertyOpExit() {
         JS_ASSERT(isOOLPropertyOpExit());
         return reinterpret_cast<IonOOLPropertyOpExitFrameLayout *>(footer());
     }
-    inline IonOOLProxyExitFrameLayout *oolProxyExit() {
-        JS_ASSERT(isOOLProxyExit());
-        return reinterpret_cast<IonOOLProxyExitFrameLayout *>(footer());
+    inline IonOOLProxyGetExitFrameLayout *oolProxyGetExit() {
+        JS_ASSERT(isOOLProxyGetExit());
+        return reinterpret_cast<IonOOLProxyGetExitFrameLayout *>(footer());
     }
     inline IonDOMExitFrameLayout *DOMExit() {
         JS_ASSERT(isDomExit());
@@ -298,33 +298,30 @@ class IonNativeExitFrameLayout
     }
 };
 
-class IonOOLNativeExitFrameLayout
+class IonOOLNativeGetterExitFrameLayout
 {
     IonExitFooterFrame footer_;
     IonExitFrameLayout exit_;
-
-    // pointer to root the stub's IonCode
-    IonCode *stubCode_;
-
-    uintptr_t argc_;
 
     // We need to split the Value into 2 fields of 32 bits, otherwise the C++
     // compiler may add some padding between the fields.
     uint32_t loCalleeResult_;
     uint32_t hiCalleeResult_;
 
-    // Split Value for |this| and args above.
+    // The frame includes the object argument.
     uint32_t loThis_;
     uint32_t hiThis_;
 
+    // pointer to root the stub's IonCode
+    IonCode *stubCode_;
+
   public:
-    static inline size_t Size(size_t argc) {
-        // The frame accounts for the callee/result and |this|, so we only need args.
-        return sizeof(IonOOLNativeExitFrameLayout) + (argc * sizeof(Value));
+    static inline size_t Size() {
+        return sizeof(IonOOLNativeGetterExitFrameLayout);
     }
 
     static size_t offsetOfResult() {
-        return offsetof(IonOOLNativeExitFrameLayout, loCalleeResult_);
+        return offsetof(IonOOLNativeGetterExitFrameLayout, loCalleeResult_);
     }
 
     inline IonCode **stubCode() {
@@ -337,7 +334,7 @@ class IonOOLNativeExitFrameLayout
         return reinterpret_cast<Value*>(&loThis_);
     }
     inline uintptr_t argc() const {
-        return argc_;
+        return 0;
     }
 };
 
@@ -385,9 +382,7 @@ class IonOOLPropertyOpExitFrameLayout
 
 // Proxy::get(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
 //            MutableHandleValue vp)
-// Proxy::set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
-//            bool strict, MutableHandleValue vp)
-class IonOOLProxyExitFrameLayout
+class IonOOLProxyGetExitFrameLayout
 {
   protected: // only to silence a clang warning about unused private fields
     IonExitFooterFrame footer_;
@@ -412,11 +407,11 @@ class IonOOLProxyExitFrameLayout
 
   public:
     static inline size_t Size() {
-        return sizeof(IonOOLProxyExitFrameLayout);
+        return sizeof(IonOOLProxyGetExitFrameLayout);
     }
 
     static size_t offsetOfResult() {
-        return offsetof(IonOOLProxyExitFrameLayout, vp0_);
+        return offsetof(IonOOLProxyGetExitFrameLayout, vp0_);
     }
 
     inline IonCode **stubCode() {

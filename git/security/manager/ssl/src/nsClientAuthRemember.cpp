@@ -49,6 +49,8 @@ nsClientAuthRememberService::Init()
     return NS_ERROR_NOT_SAME_THREAD;
   }
 
+  mSettingsTable.Init();
+
   nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();
   if (observerService) {

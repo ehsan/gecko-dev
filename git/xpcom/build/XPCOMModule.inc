@@ -4,6 +4,7 @@
 
     COMPONENT(CATEGORYMANAGER, nsCategoryManager::Create)
 
+    COMPONENT(BYTEBUFFER, ByteBufferImpl::Create)
     COMPONENT(SCRIPTABLEINPUTSTREAM, nsScriptableInputStream::Create)
     COMPONENT(BINARYINPUTSTREAM, nsBinaryInputStreamConstructor)
     COMPONENT(BINARYOUTPUTSTREAM, nsBinaryOutputStreamConstructor)
@@ -19,6 +20,7 @@
     COMPONENT(SUPPORTSARRAY, nsSupportsArray::Create)
     COMPONENT(ARRAY, nsArray::XPCOMConstructor)
     COMPONENT(CONSOLESERVICE, nsConsoleServiceConstructor)
+    COMPONENT(EXCEPTIONSERVICE, nsExceptionServiceConstructor)
     COMPONENT(ATOMSERVICE, nsAtomServiceConstructor)
     COMPONENT(OBSERVERSERVICE, nsObserverService::Create)
 #ifdef MOZ_VISUAL_EVENT_TRACER

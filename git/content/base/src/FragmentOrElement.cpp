@@ -51,8 +51,7 @@
 #include "nsDOMString.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIDOMMutationEvent.h"
-#include "mozilla/MouseEvents.h"
-#include "mozilla/MutationEvent.h"
+#include "nsMutationEvent.h"
 #include "nsNodeUtils.h"
 #include "nsDocument.h"
 #include "nsAttrValueOrString.h"
@@ -69,6 +68,7 @@
 #include "nsXBLBinding.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIBoxObject.h"
+#include "nsClientRect.h"
 #include "nsSVGUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
@@ -79,7 +79,7 @@
 #include "nsIBaseWindow.h"
 #include "nsIWidget.h"
 
-#include "js/GCAPI.h"
+#include "jsapi.h"
 
 #include "nsNodeInfoManager.h"
 #include "nsICategoryManager.h"
@@ -106,6 +106,7 @@
 #include "nsIXULDocument.h"
 #endif /* MOZ_XUL */
 
+#include "nsCycleCollectionParticipant.h"
 #include "nsCCUncollectableMarker.h"
 
 #include "mozAutoDocUpdate.h"
@@ -116,6 +117,7 @@
 #include "nsCycleCollector.h"
 #include "xpcpublic.h"
 #include "nsIScriptError.h"
+#include "nsLayoutStatics.h"
 #include "mozilla/Telemetry.h"
 
 #include "mozilla/CORSMode.h"
@@ -694,7 +696,8 @@ nsIContent::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
       ((this == aVisitor.mEvent->originalTarget &&
         !ChromeOnlyAccess()) || isAnonForEvents)) {
      nsCOMPtr<nsIContent> relatedTarget =
-       do_QueryInterface(aVisitor.mEvent->AsMouseEvent()->relatedTarget);
+       do_QueryInterface(static_cast<nsMouseEvent*>
+                                    (aVisitor.mEvent)->relatedTarget);
     if (relatedTarget &&
         relatedTarget->OwnerDoc() == OwnerDoc()) {
 
@@ -1019,7 +1022,7 @@ FragmentOrElement::FireNodeInserted(nsIDocument* aDoc,
 
     if (nsContentUtils::HasMutationListeners(childContent,
           NS_EVENT_BITS_MUTATION_NODEINSERTED, aParent)) {
-      InternalMutationEvent mutation(true, NS_MUTATION_NODEINSERTED);
+      nsMutationEvent mutation(true, NS_MUTATION_NODEINSERTED);
       mutation.mRelatedNode = do_QueryInterface(aParent);
 
       mozAutoSubtreeModified subtree(aDoc, aParent);
@@ -1039,19 +1042,21 @@ class ContentUnbinder : public nsRunnable
 public:
   ContentUnbinder()
   {
+    nsLayoutStatics::AddRef();
     mLast = this;
   }
 
   ~ContentUnbinder()
   {
     Run();
+    nsLayoutStatics::Release();
   }
 
   void UnbindSubtree(nsIContent* aNode)
   {
     if (aNode->NodeType() != nsIDOMNode::ELEMENT_NODE &&
         aNode->NodeType() != nsIDOMNode::DOCUMENT_FRAGMENT_NODE) {
-      return;
+      return;  
     }
     FragmentOrElement* container = static_cast<FragmentOrElement*>(aNode);
     uint32_t childCount = container->mAttrsAndChildren.ChildCount();
@@ -1220,11 +1225,9 @@ void
 FragmentOrElement::MarkNodeChildren(nsINode* aNode)
 {
   JSObject* o = GetJSObjectChild(aNode);
-  if (o) {
-    JS::ExposeObjectToActiveJS(o);
-  }
+  xpc_UnmarkGrayObject(o);
 
-  nsEventListenerManager* elm = aNode->GetExistingListenerManager();
+  nsEventListenerManager* elm = aNode->GetListenerManager(false);
   if (elm) {
     elm->MarkForCC();
   }
@@ -1746,6 +1749,13 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(FragmentOrElement)
 NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE(FragmentOrElement,
                                                    nsNodeUtils::LastRelease(this))
+
+nsresult
+FragmentOrElement::PostQueryInterface(REFNSIID aIID, void** aInstancePtr)
+{
+  return OwnerDoc()->BindingManager()->GetBindingImplementation(this, aIID,
+                                                                aInstancePtr);
+}
 
 //----------------------------------------------------------------------
 

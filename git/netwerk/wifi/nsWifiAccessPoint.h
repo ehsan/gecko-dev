@@ -8,7 +8,6 @@
 #include "nsString.h"
 #include "nsCOMArray.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Util.h" // ArrayLength
 
 #ifndef __nsWifiAccessPoint__
 #define __nsWifiAccessPoint__

@@ -1241,14 +1241,7 @@ function waitForCondition(condition, nextTest, errorMsg) {
       ok(false, errorMsg);
       moveOn();
     }
-    var conditionPassed;
-    try {
-      conditionPassed = condition();
-    } catch (e) {
-      ok(false, e + "\n" + e.stack);
-      conditionPassed = false;
-    }
-    if (conditionPassed) {
+    if (condition()) {
       moveOn();
     }
     tries++;

@@ -30,12 +30,12 @@ if CONFIG['WRAP_STL_INCLUDES']:
                 'msvc_throw_wrapper.h',
                 'throw_msvc.h',
             ]
-            SOURCES += [
+            CPP_SOURCES += [
                 'msvc_raise_wrappers.cpp',
                 'msvc_throw_wrapper.cpp',
             ]
 
-SOURCES += [
+CPP_SOURCES += [
     'mozalloc.cpp',
     'mozalloc_abort.cpp',
     'mozalloc_oom.cpp',
@@ -43,5 +43,3 @@ SOURCES += [
 
 LIBRARY_NAME = 'mozalloc'
 
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    FORCE_STATIC_LIB = True

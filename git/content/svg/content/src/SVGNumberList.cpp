@@ -7,8 +7,11 @@
 
 #include "SVGNumberList.h"
 #include "nsCharSeparatedTokenizer.h"
+#include "nsError.h"
+#include "nsMathUtils.h"
 #include "nsString.h"
 #include "nsTextFormatter.h"
+#include "prdtoa.h"
 #include "SVGContentUtils.h"
 
 namespace mozilla {
@@ -52,16 +55,24 @@ SVGNumberList::SetValueFromString(const nsAString& aValue)
   nsCharSeparatedTokenizerTemplate<IsSVGWhitespace>
     tokenizer(aValue, ',', nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
 
+  nsAutoCString str;  // outside loop to minimize memory churn
+
   while (tokenizer.hasMoreTokens()) {
-    float num;
-    if (!SVGContentUtils::ParseNumber(tokenizer.nextToken(), num)) {
+    CopyUTF16toUTF8(tokenizer.nextToken(), str); // NS_ConvertUTF16toUTF8
+    const char *token = str.get();
+    if (*token == '\0') {
+      return NS_ERROR_DOM_SYNTAX_ERR; // nothing between commas
+    }
+    char *end;
+    float num = float(PR_strtod(token, &end));
+    if (*end != '\0' || !NS_finite(num)) {
       return NS_ERROR_DOM_SYNTAX_ERR;
     }
     if (!temp.AppendItem(num)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
   }
-  if (tokenizer.separatorAfterCurrentToken()) {
+  if (tokenizer.lastTokenEndedWithSeparator()) {
     return NS_ERROR_DOM_SYNTAX_ERR; // trailing comma
   }
   return CopyFrom(temp);

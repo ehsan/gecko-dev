@@ -8,16 +8,16 @@ MODULE = 'pipnss'
 
 EXPORTS += [
     'CryptoTask.h',
+    'ScopedNSSTypes.h',
     'nsNSSShutDown.h',
     'nsRandomGenerator.h',
-    'ScopedNSSTypes.h',
 ]
 
 EXPORTS.mozilla += [
     'PublicSSL.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'CertVerifier.cpp',
     'CryptoTask.cpp',
     'JARSignatureVerification.cpp',
@@ -66,7 +66,7 @@ SOURCES += [
     'nsStreamCipher.cpp',
     'nsTLSSocketProvider.cpp',
     'nsUsageArrayHelper.cpp',
-    'PSMContentListener.cpp',
+	'PSMContentListener.cpp',
     'PSMRunnable.cpp',
     'SharedSSLState.cpp',
     'SSLServerCertVerification.cpp',
@@ -74,22 +74,14 @@ SOURCES += [
 ]
 
 if not CONFIG['MOZ_DISABLE_CRYPTOLEGACY']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsSmartCardMonitor.cpp',
     ]
 
 if CONFIG['MOZ_XUL']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsCertTree.cpp',
     ]
 
 LIBRARY_NAME = 'pipnss'
-
-SOURCES += [
-    'md4.c',
-]
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
 

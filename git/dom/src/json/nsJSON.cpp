@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jsapi.h"
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
 #include "nsIServiceManager.h"
 #include "nsJSON.h"
 #include "nsIXPConnect.h"
@@ -21,8 +21,9 @@
 #include "nsCRTGlue.h"
 #include "nsAutoPtr.h"
 #include "nsIScriptSecurityManager.h"
-#include "mozilla/Maybe.h"
 #include <algorithm>
+
+static const char kXPConnectServiceCID[] = "@mozilla.org/js/xpc/XPConnect;1";
 
 #define JSON_STREAM_BUFSIZE 4096
 
@@ -48,7 +49,7 @@ static nsresult
 WarnDeprecatedMethod(DeprecationWarning warning)
 {
   return nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                         NS_LITERAL_CSTRING("DOM Core"), nullptr,
+                                         "DOM Core", nullptr,
                                          nsContentUtils::eDOM_PROPERTIES,
                                          warning == EncodeWarning
                                          ? "nsIJSONEncodeDeprecatedWarning"
@@ -158,15 +159,15 @@ nsJSON::EncodeToStream(nsIOutputStream *aStream,
   return rv;
 }
 
-static bool
+static JSBool
 WriteCallback(const jschar *buf, uint32_t len, void *data)
 {
   nsJSONWriter *writer = static_cast<nsJSONWriter*>(data);
   nsresult rv =  writer->Write((const PRUnichar*)buf, (uint32_t)len);
   if (NS_FAILED(rv))
-    return false;
+    return JS_FALSE;
 
-  return true;
+  return JS_TRUE;
 }
 
 NS_IMETHODIMP
@@ -181,11 +182,9 @@ nsJSON::EncodeFromJSVal(JS::Value *value, JSContext *cx, nsAString &result)
   }
 
   nsJSONWriter writer;
-  JS::Rooted<JS::Value> vp(cx, *value);
-  if (!JS_Stringify(cx, &vp, JS::NullPtr(), JS::NullHandleValue, WriteCallback, &writer)) {
+  if (!JS_Stringify(cx, value, NULL, JSVAL_NULL, WriteCallback, &writer)) {
     return NS_ERROR_XPC_BAD_CONVERT_JS;
   }
-  *value = vp;
 
   NS_ENSURE_TRUE(writer.DidWrite(), NS_ERROR_UNEXPECTED);
   writer.FlushBuffer();
@@ -242,7 +241,7 @@ nsJSON::EncodeInternal(JSContext* cx, const JS::Value& aValue,
     return NS_ERROR_INVALID_ARG;
 
   // We're good now; try to stringify
-  if (!JS_Stringify(cx, &val, JS::NullPtr(), JS::NullHandleValue, WriteCallback, writer))
+  if (!JS_Stringify(cx, val.address(), NULL, JSVAL_NULL, WriteCallback, writer))
     return NS_ERROR_FAILURE;
 
   return NS_OK;
@@ -528,9 +527,9 @@ nsJSONListener::OnStopRequest(nsIRequest *aRequest, nsISupports *aContext,
 
   JS::StableCharPtr chars(reinterpret_cast<const jschar*>(mBufferedChars.Elements()),
                           mBufferedChars.Length());
-  bool ok = JS_ParseJSONWithReviver(mCx, chars.get(),
+  JSBool ok = JS_ParseJSONWithReviver(mCx, chars.get(),
                                       uint32_t(mBufferedChars.Length()),
-                                      reviver, &value);
+                                      reviver, value.address());
 
   *mRootVal = value;
   mBufferedChars.TruncateLength(0);

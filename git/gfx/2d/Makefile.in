@@ -3,7 +3,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
 VPATH		=  $(srcdir) $(srcdir)/unittest
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME	= gfx2d
+MSVC_ENABLE_PGO := 1
+LIBXUL_LIBRARY	= 1
+EXPORT_LIBRARY	= 1
 
 DEFINES += -DMOZ_GFX -DUSE_CAIRO -DGFX2D_INTERNAL
 
@@ -40,6 +50,7 @@ endif
 endif
 
 include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 # Due to bug 796023, we can't have -DUNICODE and -D_UNICODE; defining those
 # macros changes the type of LOGFONT to LOGFONTW instead of LOGFONTA. This

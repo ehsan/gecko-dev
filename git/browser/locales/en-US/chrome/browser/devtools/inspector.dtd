@@ -1,6 +1,3 @@
-<!ENTITY inspectorHTMLEdit.label       "Edit As HTML">
-<!ENTITY inspectorHTMLEdit.accesskey   "E">
-
 <!ENTITY inspectorHTMLCopyInner.label       "Copy Inner HTML">
 <!ENTITY inspectorHTMLCopyInner.accesskey   "I">
 

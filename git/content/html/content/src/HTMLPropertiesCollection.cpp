@@ -13,7 +13,6 @@
 #include "nsAttrValue.h"
 #include "nsWrapperCacheInlines.h"
 #include "mozilla/dom/HTMLPropertiesCollectionBinding.h"
-#include "jsapi.h"
 
 namespace mozilla {
 namespace dom {
@@ -51,6 +50,7 @@ HTMLPropertiesCollection::HTMLPropertiesCollection(nsGenericHTMLElement* aRoot)
   if (mDoc) {
     mDoc->AddMutationObserver(this);
   }
+  mNamedItemEntries.Init();
 }
 
 HTMLPropertiesCollection::~HTMLPropertiesCollection()

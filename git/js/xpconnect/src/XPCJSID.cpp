@@ -7,8 +7,10 @@
 /* An xpcom implementation of the JavaScript nsIID and nsCID objects. */
 
 #include "xpcprivate.h"
+#include "mozilla/dom/DOMJSClass.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/Attributes.h"
+#include "XPCWrapper.h"
 #include "JavaScriptParent.h"
 
 using namespace mozilla::dom;
@@ -49,8 +51,8 @@ void nsJSID::Reset()
 bool
 nsJSID::SetName(const char* name)
 {
-    MOZ_ASSERT(!mName || mName == gNoString ,"name already set");
-    MOZ_ASSERT(name,"null name");
+    NS_ASSERTION(!mName || mName == gNoString ,"name already set");
+    NS_ASSERTION(name,"null name");
     mName = NS_strdup(name);
     return mName ? true : false;
 }
@@ -63,7 +65,7 @@ nsJSID::GetName(char * *aName)
 
     if (!NameIsSet())
         SetNameToNoString();
-    MOZ_ASSERT(mName, "name not set");
+    NS_ASSERTION(mName, "name not set");
     *aName = NS_strdup(mName);
     return *aName ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
@@ -138,7 +140,7 @@ nsJSID::Initialize(const char *idString)
 bool
 nsJSID::InitWithName(const nsID& id, const char *nameString)
 {
-    MOZ_ASSERT(nameString, "no name");
+    NS_ASSERTION(nameString, "no name");
     Reset();
     mID = id;
     return SetName(nameString);
@@ -158,8 +160,8 @@ const nsID&
 nsJSID::GetInvalidIID() const
 {
     // {BB1F47B0-D137-11d2-9841-006008962422}
-    static const nsID invalid = {0xbb1f47b0, 0xd137, 0x11d2,
-                                  {0x98, 0x41, 0x0, 0x60, 0x8, 0x96, 0x24, 0x22}};
+    static nsID invalid = {0xbb1f47b0, 0xd137, 0x11d2,
+                            {0x98, 0x41, 0x0, 0x60, 0x8, 0x96, 0x24, 0x22}};
     return invalid;
 }
 
@@ -266,7 +268,7 @@ NS_IMPL_CLASSINFO(nsJSIID, GetSharedScriptableHelperForJSIID,
                   nsIClassInfo::THREADSAFE, NULL_CID)
 
 NS_DECL_CI_INTERFACE_GETTER(nsJSCID)
-NS_IMPL_CLASSINFO(nsJSCID, nullptr, nsIClassInfo::THREADSAFE, NULL_CID)
+NS_IMPL_CLASSINFO(nsJSCID, NULL, nsIClassInfo::THREADSAFE, NULL_CID)
 
 void xpc_DestroyJSxIDClassObjects()
 {
@@ -566,7 +568,7 @@ NS_IMETHODIMP
 nsJSIID::CanCreateWrapper(const nsIID * iid, char **_retval)
 {
     // We let anyone do this...
-    *_retval = xpc::CloneAllAccess();
+    *_retval = xpc_CloneAllAccess();
     return NS_OK;
 }
 
@@ -576,7 +578,7 @@ nsJSIID::CanCallMethod(const nsIID * iid, const PRUnichar *methodName, char **_r
 {
     static const char* const allowed[] = {"equals", "toString", nullptr};
 
-    *_retval = xpc::CheckAccessList(methodName, allowed);
+    *_retval = xpc_CheckAccessList(methodName, allowed);
     return NS_OK;
 }
 
@@ -585,7 +587,7 @@ NS_IMETHODIMP
 nsJSIID::CanGetProperty(const nsIID * iid, const PRUnichar *propertyName, char **_retval)
 {
     static const char* const allowed[] = {"name", "number", "valid", nullptr};
-    *_retval = xpc::CheckAccessList(propertyName, allowed);
+    *_retval = xpc_CheckAccessList(propertyName, allowed);
     return NS_OK;
 }
 
@@ -707,9 +709,9 @@ GetIIDArg(uint32_t argc, const JS::Value& val, JSContext* cx)
 static void
 GetWrapperObject(MutableHandleObject obj)
 {
-    obj.set(nullptr);
+    obj.set(NULL);
     nsXPConnect* xpc = nsXPConnect::XPConnect();
-    nsAXPCNativeCallContext *ccxp = nullptr;
+    nsAXPCNativeCallContext *ccxp = NULL;
     xpc->GetCurrentNativeCallContext(&ccxp);
     if (!ccxp)
         return;
@@ -751,7 +753,7 @@ nsJSCID::CreateInstance(const JS::Value& iidval, JSContext* cx,
 
     nsCOMPtr<nsISupports> inst;
     rv = compMgr->CreateInstance(mDetails.ID(), nullptr, *iid, getter_AddRefs(inst));
-    MOZ_ASSERT(NS_FAILED(rv) || inst, "component manager returned success, but instance is null!");
+    NS_ASSERTION(NS_FAILED(rv) || inst, "component manager returned success, but instance is null!");
 
     if (NS_FAILED(rv) || !inst)
         return NS_ERROR_XPC_CI_RETURNED_FAILURE;
@@ -779,8 +781,8 @@ nsJSCID::GetService(const JS::Value& iidval, JSContext* cx,
     nsIXPCSecurityManager* sm;
     sm = nsXPConnect::XPConnect()->GetDefaultSecurityManager();
     if (sm && NS_FAILED(sm->CanCreateInstance(cx, mDetails.ID()))) {
-        MOZ_ASSERT(JS_IsExceptionPending(cx),
-                   "security manager vetoed GetService without setting exception");
+        NS_ASSERTION(JS_IsExceptionPending(cx),
+                     "security manager vetoed GetService without setting exception");
         return NS_OK;
     }
 
@@ -796,7 +798,7 @@ nsJSCID::GetService(const JS::Value& iidval, JSContext* cx,
 
     nsCOMPtr<nsISupports> srvc;
     rv = svcMgr->GetService(mDetails.ID(), *iid, getter_AddRefs(srvc));
-    MOZ_ASSERT(NS_FAILED(rv) || srvc, "service manager returned success, but service is null!");
+    NS_ASSERTION(NS_FAILED(rv) || srvc, "service manager returned success, but service is null!");
     if (NS_FAILED(rv) || !srvc)
         return NS_ERROR_XPC_GS_RETURNED_FAILURE;
 
@@ -845,7 +847,7 @@ nsJSCID::HasInstance(nsIXPConnectWrappedNative *wrapper,
         // we have a JSObject
         RootedObject obj(cx, &val.toObject());
 
-        MOZ_ASSERT(obj, "when is an object not an object?");
+        NS_ASSERTION(obj, "when is an object not an object?");
 
         // is this really a native xpcom object with a wrapper?
         nsIClassInfo* ci = nullptr;
@@ -913,10 +915,10 @@ xpc_JSObjectToID(JSContext *cx, JSObject* obj)
     return nullptr;
 }
 
-bool
+JSBool
 xpc_JSObjectIsID(JSContext *cx, JSObject* obj)
 {
-    MOZ_ASSERT(cx && obj, "bad param");
+    NS_ASSERTION(cx && obj, "bad param");
     // NOTE: this call does NOT addref
     XPCWrappedNative* wrapper = nullptr;
     obj = js::CheckedUnwrap(obj);

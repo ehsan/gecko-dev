@@ -649,11 +649,7 @@ class ForEachFunction(Function):
             else:
                 fd.write(' ')
 
-            # The $(origin) of the local variable must be "automatic" to
-            # conform with GNU make. However, automatic variables have low
-            # priority. So, we must force its assignment to occur.
-            v.set(vname, data.Variables.FLAVOR_SIMPLE,
-                    data.Variables.SOURCE_AUTOMATIC, w, force=True)
+            v.set(vname, data.Variables.FLAVOR_SIMPLE, data.Variables.SOURCE_AUTOMATIC, w)
             e.resolve(makefile, v, fd, setting)
 
 class CallFunction(Function):

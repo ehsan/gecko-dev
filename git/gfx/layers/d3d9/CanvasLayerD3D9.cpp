@@ -12,7 +12,7 @@
 #include "gfxWindowsPlatform.h"
 #include "SurfaceStream.h"
 #include "SharedSurfaceGL.h"
-#include "GLContext.h"
+
 #include "CanvasLayerD3D9.h"
 
 using namespace mozilla::gfx;
@@ -20,17 +20,6 @@ using namespace mozilla::gl;
 
 namespace mozilla {
 namespace layers {
-
-CanvasLayerD3D9::CanvasLayerD3D9(LayerManagerD3D9 *aManager)
-  : CanvasLayer(aManager, nullptr)
-  , LayerD3D9(aManager)
-  , mDataIsPremultiplied(false)
-  , mNeedsYFlip(false)
-  , mHasAlpha(true)
-{
-    mImplData = static_cast<LayerD3D9*>(this);
-    aManager->deviceManager()->mLayersWithResources.AppendElement(this);
-}
 
 CanvasLayerD3D9::~CanvasLayerD3D9()
 {
@@ -108,7 +97,7 @@ CanvasLayerD3D9::UpdateSurface()
           new gfxImageSurface((uint8_t*)rect.pBits,
                               shareSurf->Size(),
                               rect.Pitch,
-                              gfxImageFormatARGB32);
+                              gfxASurface::ImageFormatARGB32);
 
       gfxContext ctx(mapSurf);
       ctx.SetOperator(gfxContext::OPERATOR_SOURCE);
@@ -134,18 +123,18 @@ CanvasLayerD3D9::UpdateSurface()
 
     nsRefPtr<gfxImageSurface> sourceSurface;
 
-    if (mSurface->GetType() == gfxSurfaceTypeWin32) {
+    if (mSurface->GetType() == gfxASurface::SurfaceTypeWin32) {
       sourceSurface = mSurface->GetAsImageSurface();
-    } else if (mSurface->GetType() == gfxSurfaceTypeImage) {
+    } else if (mSurface->GetType() == gfxASurface::SurfaceTypeImage) {
       sourceSurface = static_cast<gfxImageSurface*>(mSurface.get());
-      if (sourceSurface->Format() != gfxImageFormatARGB32 &&
-          sourceSurface->Format() != gfxImageFormatRGB24)
+      if (sourceSurface->Format() != gfxASurface::ImageFormatARGB32 &&
+          sourceSurface->Format() != gfxASurface::ImageFormatRGB24)
       {
         return;
       }
     } else {
       sourceSurface = new gfxImageSurface(gfxIntSize(mBounds.width, mBounds.height),
-                                          gfxImageFormatARGB32);
+                                          gfxASurface::ImageFormatARGB32);
       nsRefPtr<gfxContext> ctx = new gfxContext(sourceSurface);
       ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
       ctx->SetSource(mSurface);
@@ -155,7 +144,7 @@ CanvasLayerD3D9::UpdateSurface()
     uint8_t *startBits = sourceSurface->Data();
     uint32_t sourceStride = sourceSurface->Stride();
 
-    if (sourceSurface->Format() != gfxImageFormatARGB32) {
+    if (sourceSurface->Format() != gfxASurface::ImageFormatARGB32) {
       mHasAlpha = false;
     } else {
       mHasAlpha = true;
@@ -210,7 +199,7 @@ CanvasLayerD3D9::RenderLayer()
     mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBLAYER, GetMaskLayer());
   }
 
-  if (mFilter == GraphicsFilter::FILTER_NEAREST) {
+  if (mFilter == gfxPattern::FILTER_NEAREST) {
     device()->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
     device()->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
   }
@@ -224,7 +213,7 @@ CanvasLayerD3D9::RenderLayer()
     device()->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ONE);
     device()->SetRenderState(D3DRS_SEPARATEALPHABLENDENABLE, FALSE);
   }
-  if (mFilter == GraphicsFilter::FILTER_NEAREST) {
+  if (mFilter == gfxPattern::FILTER_NEAREST) {
     device()->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
     device()->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
   }

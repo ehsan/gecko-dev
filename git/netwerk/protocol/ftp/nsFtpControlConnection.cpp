@@ -4,15 +4,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIOService.h"
+#include "nsFTPChannel.h"
 #include "nsFtpControlConnection.h"
 #include "nsFtpProtocolHandler.h"
 #include "prlog.h"
+#include "nsIPipe.h"
 #include "nsIInputStream.h"
 #include "nsISocketTransportService.h"
 #include "nsISocketTransport.h"
+#include "nsNetUtil.h"
 #include "nsThreadUtils.h"
-#include "nsIOutputStream.h"
-#include "nsNetCID.h"
+#include "nsCRT.h"
 #include <algorithm>
 
 #if defined(PR_LOGGING)

@@ -1,8 +1,9 @@
-// |jit-test|
+// |jit-test| no-jm
+// (disable with JM, see bug 845276)
 
 // If a frame's onPop handler throws, we should not call the
 // onExceptionUnwind hook for that frame.
-var g = newGlobal();
+var g = newGlobal('new-compartment');
 var dbg = new Debugger(g);
 
 g.eval('function f() { var y; debugger; }');

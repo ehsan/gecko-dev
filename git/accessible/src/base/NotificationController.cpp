@@ -5,6 +5,7 @@
 
 #include "NotificationController.h"
 
+#include "Accessible-inl.h"
 #include "DocAccessible-inl.h"
 #include "TextLeafAccessible.h"
 #include "TextUpdater.h"
@@ -28,6 +29,8 @@ NotificationController::NotificationController(DocAccessible* aDocument,
   EventQueue(aDocument), mObservingState(eNotObservingRefresh),
   mPresShell(aPresShell)
 {
+  mTextHash.Init();
+
   // Schedule initial accessible tree construction.
   ScheduleProcessing();
 }

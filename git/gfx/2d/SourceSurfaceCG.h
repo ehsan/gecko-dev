@@ -53,7 +53,7 @@ public:
 
   virtual SurfaceType GetType() const { return SURFACE_DATA; }
   virtual IntSize GetSize() const;
-  virtual SurfaceFormat GetFormat() const { return mFormat; }
+  virtual SurfaceFormat GetFormat() const { return FORMAT_B8G8R8A8; }
 
   CGImageRef GetImage() { return mImage; }
 
@@ -70,7 +70,6 @@ public:
 private:
   CGContextRef mCg;
   CGImageRef mImage;
-  SurfaceFormat mFormat;
   //XXX: we don't need to store mData we can just get it from the CGContext
   void *mData;
   /* It might be better to just use the bitmap info from the CGImageRef to
@@ -93,21 +92,7 @@ public:
 
   virtual SurfaceType GetType() const { return SURFACE_COREGRAPHICS_CGCONTEXT; }
   virtual IntSize GetSize() const;
-  virtual SurfaceFormat GetFormat() const { return mFormat; }
-  virtual TemporaryRef<DataSourceSurface> GetDataSurface()
-  {
-    // This call to DrawTargetWillChange() is needed to make a local copy of
-    // the data from mDrawTarget.  If we don't do that, the data can end up
-    // getting deleted before the CGImageRef it belongs to.
-    //
-    // Another reason we need a local copy of the data is that the data in
-    // mDrawTarget could change when someone touches the original DrawTargetCG
-    // object.  But a SourceSurface object should be immutable.
-    //
-    // For more information see bug 925448.
-    DrawTargetWillChange();
-    return this;
-  }
+  virtual SurfaceFormat GetFormat() const { return FORMAT_B8G8R8A8; }
 
   CGImageRef GetImage() { EnsureImage(); return mImage; }
 
@@ -125,16 +110,12 @@ private:
   // The cycle is broken by DrawTargetWillChange
   DrawTargetCG *mDrawTarget;
   CGContextRef mCg;
-  SurfaceFormat mFormat;
 
   mutable CGImageRef mImage;
 
   // mData can be owned by three different things:
   // mImage, mCg or SourceSurfaceCGBitmapContext
   void *mData;
-
-  // The image buffer, if the buffer is owned by this class.
-  AlignedArray<uint8_t> mDataHolder;
 
   int32_t mStride;
   IntSize mSize;
@@ -148,7 +129,7 @@ public:
 
   virtual SurfaceType GetType() const { return SURFACE_COREGRAPHICS_CGCONTEXT; }
   virtual IntSize GetSize() const;
-  virtual SurfaceFormat GetFormat() const { return mFormat; }
+  virtual SurfaceFormat GetFormat() const { return FORMAT_B8G8R8A8; }
 
   CGImageRef GetImage() { EnsureImage(); return mImage; }
 
@@ -162,7 +143,6 @@ private:
   virtual void DrawTargetWillChange();
   void EnsureImage() const;
 
-  SurfaceFormat mFormat;
   mutable CGImageRef mImage;
   MacIOSurface* mIOSurface;
 

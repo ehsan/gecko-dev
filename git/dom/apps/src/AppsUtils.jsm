@@ -9,12 +9,9 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
-Cu.import("resource://gre/modules/FileUtils.jsm");
-Cu.import("resource://gre/modules/osfile.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/Task.jsm");
-Cu.import("resource://gre/modules/WebappOSUtils.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/FileUtils.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
   return Cc["@mozilla.org/network/util;1"]
@@ -55,7 +52,8 @@ mozIApplication.prototype = {
   },
 
   QueryInterface: function(aIID) {
-    if (aIID.equals(Ci.mozIApplication) ||
+    if (aIID.equals(Ci.mozIDOMApplication) ||
+        aIID.equals(Ci.mozIApplication) ||
         aIID.equals(Ci.nsISupports))
       return this;
     throw Cr.NS_ERROR_NO_INTERFACE;
@@ -95,7 +93,6 @@ this.AppsUtils = {
       installerIsBrowser: !!aApp.installerIsBrowser,
       storeId: aApp.storeId || "",
       storeVersion: aApp.storeVersion || 0,
-      role: aApp.role || "",
       redirects: aApp.redirects
     };
   },
@@ -189,9 +186,7 @@ this.AppsUtils = {
   },
 
   getAppInfo: function getAppInfo(aApps, aAppId) {
-    let app = aApps[aAppId];
-
-    if (!app) {
+    if (!aApps[aAppId]) {
       debug("No webapp for " + aAppId);
       return null;
     }
@@ -200,12 +195,12 @@ this.AppsUtils = {
     // so we can't use the 'removable' property for isCoreApp
     // Instead, we check if the app is installed under /system/b2g
     let isCoreApp = false;
-
+    let app = aApps[aAppId];
 #ifdef MOZ_WIDGET_GONK
     isCoreApp = app.basePath == this.getCoreAppsBasePath();
 #endif
-    debug(app.basePath + " isCoreApp: " + isCoreApp);
-    return { "path":  WebappOSUtils.getInstallPath(app),
+    debug(app.name + " isCoreApp: " + isCoreApp);
+    return { "basePath":  app.basePath + "/",
              "isCoreApp": isCoreApp };
   },
 
@@ -325,10 +320,6 @@ this.AppsUtils = {
       }
     }
 
-    // The 'role' field must be a string.
-    if (aManifest.role && (typeof aManifest.role !== "string")) {
-      return false;
-    }
     return true;
   },
 
@@ -493,32 +484,6 @@ this.AppsUtils = {
     return true;
   },
 
-  // Loads a JSON file using OS.file. aFile is a string representing the path
-  // of the file to be read.
-  // Returns a Promise resolved with the json payload or rejected with
-  // OS.File.Error
-  loadJSONAsync: function(aFile) {
-    debug("_loadJSONAsync: " + aFile);
-    return Task.spawn(function() {
-      let file = yield OS.File.open(aFile, { read: true });
-      let rawData = yield file.read();
-      // Read json file into a string
-      let data;
-      try {
-        // Obtain a converter to read from a UTF-8 encoded input stream.
-        let converter = new TextDecoder();
-        data = JSON.parse(converter.decode(rawData));
-        file.close();
-      } catch (ex) {
-        debug("Error parsing JSON: " + aFile + ". Error: " + ex);
-        Cu.reportError("OperatorApps: Could not parse JSON: " +
-                       aFile + " " + ex + "\n" + ex.stack);
-        throw ex;
-      }
-      throw new Task.Result(data);
-    });
-  },
-
   // Returns the MD5 hash of a string.
   computeHash: function(aString) {
     let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
@@ -579,10 +544,6 @@ ManifestHelper.prototype = {
 
   get description() {
     return this._localeProp("description");
-  },
-
-  get type() {
-    return this._localeProp("type");
   },
 
   get version() {
@@ -678,9 +639,5 @@ ManifestHelper.prototype = {
   fullPackagePath: function() {
     let packagePath = this._localeProp("package_path");
     return this._origin.resolve(packagePath ? packagePath : "");
-  },
-
-  get role() {
-    return this._manifest.role || "";
   }
 }

@@ -9,7 +9,6 @@
 #include "nsXREAppData.h"
 #include "nscore.h"
 #include "nsStringGlue.h"
-#include "nsISupportsUtils.h"
 
 namespace mozilla {
 

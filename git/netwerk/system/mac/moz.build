@@ -8,11 +8,6 @@ MODULE = 'necko'
 
 LIBRARY_NAME = 'neckosystem_s'
 
-SOURCES += [
+CMMSRCS += [
     'nsNetworkLinkService.mm',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-

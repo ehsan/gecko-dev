@@ -63,8 +63,6 @@ const ContentPanning = {
 
     addMessageListener("Viewport:Change", this._recvViewportChange.bind(this));
     addMessageListener("Gesture:DoubleTap", this._recvDoubleTap.bind(this));
-    addEventListener("visibilitychange", this._recvVisibilityChange.bind(this));
-    Services.obs.addObserver(this, "BEC:ShownModalPrompt", false);
   },
 
   handleEvent: function cp_handleEvent(evt) {
@@ -79,13 +77,6 @@ const ContentPanning = {
       }
       return;
     }
-
-    let start = Date.now();
-    let thread = Services.tm.currentThread;
-    while (this._delayEvents && (Date.now() - start) < this._activeDurationMs) {
-      thread.processNextEvent(true);
-    }
-    this._delayEvents = false;
 
     switch (evt.type) {
       case 'mousedown':
@@ -109,12 +100,6 @@ const ContentPanning = {
                                         : target;
         view.removeEventListener('click', this, true, true);
         break;
-    }
-  },
-
-  observe: function cp_observe(subject, topic, data) {
-    if (topic === 'BEC:ShownModalPrompt') {
-      this._resetHover();
     }
   },
 
@@ -198,12 +183,6 @@ const ContentPanning = {
 
     this.position.set(screenX, screenY);
     KineticPanning.record(new Point(0, 0), evt.timeStamp);
-
-    // We prevent start events to avoid sending a focus event at the end of this
-    // touch series. See bug 889717.
-    if (this.panning || this.preventNextClick) {
-      evt.preventDefault();
-    }
   },
 
   onTouchEnd: function cp_onTouchEnd(evt) {
@@ -235,25 +214,10 @@ const ContentPanning = {
     }
 
     if (this.target && click && (this.panning || this.preventNextClick)) {
-      if (this.hybridEvents) {
-        let target = this.target;
-        let view = target.ownerDocument ? target.ownerDocument.defaultView
-                                        : target;
-        view.addEventListener('click', this, true, true);
-      } else {
-        // We prevent end events to avoid sending a focus event. See bug 889717.
-        evt.preventDefault();
-      }
-    } else if (this.target && click && !this.panning) {
-      this.notify(this._activationTimer);
-
-      this._delayEvents = true;
-      let start = Date.now();
-      let thread = Services.tm.currentThread;
-      while (this._delayEvents && (Date.now() - start) < this._activeDurationMs) {
-        thread.processNextEvent(true);
-      }
-      this._delayEvents = false;
+      let target = this.target;
+      let view = target.ownerDocument ? target.ownerDocument.defaultView
+                                      : target;
+      view.addEventListener('click', this, true, true);
     }
 
     this._finishPanning();
@@ -410,15 +374,30 @@ const ContentPanning = {
     return null;
   },
 
-  _generateCallback: function cp_generateCallback(root) {
+  _generateCallback: function cp_generateCallback(content) {
     let firstScroll = true;
     let target;
-    let current;
+    let isScrolling = false;
+    let oldX, oldY, newX, newY;
     let win, doc, htmlNode, bodyNode;
+    let xScrollable;
+    let yScrollable;
 
     function doScroll(node, delta) {
+      // recalculate scrolling direction
+      xScrollable = node.scrollWidth > node.clientWidth;
+      yScrollable = node.scrollHeight > node.clientHeight;
       if (node instanceof Ci.nsIDOMHTMLElement) {
-        return node.scrollByNoFlush(delta.x, delta.y);
+        newX = oldX = node.scrollLeft, newY = oldY = node.scrollTop;
+        if (xScrollable) {
+           node.scrollLeft += delta.x;
+           newX = node.scrollLeft;
+        }
+        if (yScrollable) {
+           node.scrollTop += delta.y;
+           newY = node.scrollTop;
+        }
+        return (newX != oldX || newY != oldY);
       } else if (node instanceof Ci.nsIDOMWindow) {
         win = node;
         doc = win.document;
@@ -437,39 +416,41 @@ const ContentPanning = {
             delta.y = 0;
           }
         }
-        let oldX = node.scrollX;
-        let oldY = node.scrollY;
+        oldX = node.scrollX, oldY = node.scrollY;
         node.scrollBy(delta.x, delta.y);
-        return (node.scrollX != oldX || node.scrollY != oldY);
+        newX = node.scrollX, newY = node.scrollY;
+        return (newX != oldX || newY != oldY);
       }
       // If we get here, |node| isn't an HTML element and it's not a window,
       // but findPannable apparently thought it was scrollable... What is it?
       return false;
-    }
+    };
 
     function targetParent(node) {
-      return node.parentNode || node.frameElement || null;
+      if (node.parentNode) {
+        return node.parentNode;
+      }
+      if (node.frameElement) {
+        return node.frameElement;
+      }
+      return null;
     }
 
     function scroll(delta) {
-      current = root;
-      while (current) {
-        if (doScroll(current, delta)) {
-          firstScroll = false;
-          return true;
+      for (target = content; target;
+           target = ContentPanning._findPannable(targetParent(target))) {
+        isScrolling = doScroll(target, delta);
+        if (isScrolling || !firstScroll) {
+          break;
         }
-
-        // TODO The current code looks for possible scrolling regions only if
-        // this is the first scroll action but this should be more dynamic.
-        if (!firstScroll) {
-          return false;
-        }
-
-        current = ContentPanning._findPannable(targetParent(current));
       }
-
-      // There is nothing scrollable here.
-      return false;
+      if (isScrolling) {
+        if (firstScroll) {
+          content = target; // set scrolling target to the first scrolling region
+        }
+        firstScroll = false; // lockdown the scrolling target after a success scrolling
+      }
+      return isScrolling;
     }
     return scroll;
   },
@@ -492,22 +473,10 @@ const ContentPanning = {
     return this._activationDelayMs = delay;
   },
 
-  get _activeDurationMs() {
-    let duration = Services.prefs.getIntPref('ui.touch_activation.duration_ms');
-    delete this._activeDurationMs;
-    return this._activeDurationMs = duration;
-  },
-
   _resetActive: function cp_resetActive() {
     let elt = this.target || this.pointerDownTarget;
     let root = elt.ownerDocument || elt.document;
     this._setActive(root.documentElement);
-  },
-
-  _resetHover: function cp_resetHover() {
-    const kStateHover = 0x00000004;
-    let element = content.document.createElement('foo');
-    this._domUtils.setContentState(element, kStateHover);
   },
 
   _setActive: function cp_setActive(elt) {
@@ -593,13 +562,6 @@ const ContentPanning = {
       var os = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
       os.notifyObservers(docShell, 'browser-zoom-to-rect', JSON.stringify(rect));
     }
-  },
-
-  _recvVisibilityChange: function(evt) {
-    if (!evt.target.hidden)
-      return;
-
-    this._resetHover();
   },
 
   _shouldZoomToElement: function(aElement) {

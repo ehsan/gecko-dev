@@ -3,6 +3,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from datetime import datetime
+import imp
+import inspect
 import logging
 from optparse import OptionParser
 import os
@@ -11,114 +13,39 @@ import socket
 import sys
 import time
 import traceback
-import random
+import platform
 import moznetwork
 import xml.dom.minidom as dom
+from functools import wraps
 
 from manifestparser import TestManifest
 from mozhttpd import MozHttpd
 
 from marionette import Marionette
-from moztest.results import TestResultCollection
 from marionette_test import MarionetteJSTestCase, MarionetteTestCase
 
 
-class MarionetteTestResult(unittest._TextTestResult, TestResultCollection):
+class MarionetteTestResult(unittest._TextTestResult):
 
     def __init__(self, *args, **kwargs):
-        self.marionette = kwargs.pop('marionette')
-        TestResultCollection.__init__(self, 'MarionetteTest')
-        unittest._TextTestResult.__init__(self, *args, **kwargs)
+        self.marionette = kwargs['marionette']
+        del kwargs['marionette']
+        super(MarionetteTestResult, self).__init__(*args, **kwargs)
         self.passed = 0
-        self.testsRun = 0
-
-    @property
-    def skipped(self):
-        return [t for t in self if t.result == 'SKIPPED']
-
-    @skipped.setter
-    def skipped(self, value):
-        pass
-
-    @property
-    def expectedFailures(self):
-        return [t for t in self if t.result == 'KNOWN-FAIL']
-
-    @expectedFailures.setter
-    def expectedFailures(self, value):
-        pass
-
-    @property
-    def unexpectedSuccesses(self):
-        return [t for t in self if t.result == 'UNEXPECTED-PASS']
-
-    @unexpectedSuccesses.setter
-    def unexpectedSuccesses(self, value):
-        pass
-
-    @property
-    def tests_passed(self):
-        return [t for t in self if t.result == 'PASS']
-
-    @property
-    def errors(self):
-        return [t for t in self if t.result == 'ERROR']
-
-    @errors.setter
-    def errors(self, value):
-        pass
-
-    @property
-    def failures(self):
-        return [t for t in self if t.result == 'UNEXPECTED-FAIL']
-
-    @failures.setter
-    def failures(self, value):
-        pass
-
-    @property
-    def duration(self):
-        if self.stop_time:
-            return self.stop_time - self.start_time
-        else:
-            return 0
-
-    def add_test_result(self, test, *args, **kwargs):
-        self.add_result(test, *args, **kwargs)
-        self[-1].time_start = test.start_time
-        self[-1].time_end = time.time() if test.start_time else 0
-
-    def addError(self, test, err):
-        self.add_test_result(test, output=self._exc_info_to_string(err, test), result_actual='ERROR')
-        self._mirrorOutput = True
-        if self.showAll:
-            self.stream.writeln("ERROR")
-        elif self.dots:
-            self.stream.write('E')
-            self.stream.flush()
-
-    def addFailure(self, test, err):
-        self.add_test_result(test, output=self._exc_info_to_string(err, test), result_actual='UNEXPECTED-FAIL')
-        self._mirrorOutput = True
-        if self.showAll:
-            self.stream.writeln("FAIL")
-        elif self.dots:
-            self.stream.write('F')
-            self.stream.flush()
+        self.skipped = []
+        self.expectedFailures = []
+        self.unexpectedSuccesses = []
+        self.tests_passed = []
 
     def addSuccess(self, test):
+        super(MarionetteTestResult, self).addSuccess(test)
         self.passed += 1
-        self.add_test_result(test, result_actual='PASS')
-        if self.showAll:
-            self.stream.writeln("ok")
-        elif self.dots:
-            self.stream.write('.')
-            self.stream.flush()
+        self.tests_passed.append(test)
 
     def addExpectedFailure(self, test, err):
         """Called when an expected failure/error occured."""
-        self.add_test_result(test, output=self._exc_info_to_string(err, test),
-                        result_actual='KNOWN-FAIL')
+        self.expectedFailures.append(
+            (test, self._exc_info_to_string(err, test)))
         if self.showAll:
             self.stream.writeln("expected failure")
         elif self.dots:
@@ -127,7 +54,7 @@ class MarionetteTestResult(unittest._TextTestResult, TestResultCollection):
 
     def addUnexpectedSuccess(self, test):
         """Called when a test was expected to fail, but succeed."""
-        self.add_test_result(test, result_actual='UNEXPECTED-PASS')
+        self.unexpectedSuccesses.append(test)
         if self.showAll:
             self.stream.writeln("unexpected success")
         elif self.dots:
@@ -135,7 +62,7 @@ class MarionetteTestResult(unittest._TextTestResult, TestResultCollection):
             self.stream.flush()
 
     def addSkip(self, test, reason):
-        self.add_test_result(test, output=reason, result_actual='SKIPPED')
+        self.skipped.append((test, reason))
         if self.showAll:
             self.stream.writeln("skipped {0!r}".format(reason))
         elif self.dots:
@@ -168,30 +95,31 @@ class MarionetteTestResult(unittest._TextTestResult, TestResultCollection):
                         break
                 if skip_log:
                     return
-                self.stream.writeln('\nSTART LOG:')
+                self.stream.writeln('START LOG:')
                 for line in testcase.loglines:
                     self.stream.writeln(' '.join(line).encode('ascii', 'replace'))
                 self.stream.writeln('END LOG:')
 
     def printErrorList(self, flavour, errors):
         for error in errors:
-            err = error.output
+            test, err = error[:2]
             self.stream.writeln(self.separator1)
-            self.stream.writeln("%s: %s" % (flavour, error.description))
+            self.stream.writeln("%s: %s" % (flavour, self.getDescription(test)))
             self.stream.writeln(self.separator2)
+            errlines = err.strip().split('\n')
             lastline = None
             fail_present = None
-            for line in err:
+            for line in errlines:
                 if not line.startswith('\t'):
                     lastline = line
                 if 'TEST-UNEXPECTED-FAIL' in line:
                     fail_present = True
-            for line in err:
+            for line in errlines:
                 if line != lastline or fail_present:
                     self.stream.writeln("%s" % line)
                 else:
                     self.stream.writeln("TEST-UNEXPECTED-FAIL | %s | %s" %
-                                        (self.getInfo(error), line))
+                                        (self.getInfo(test), line))
 
     def stopTest(self, *args, **kwargs):
         unittest._TextTestResult.stopTest(self, *args, **kwargs)
@@ -233,15 +161,14 @@ class MarionetteTextTestRunner(unittest.TextTestRunner):
             if stopTestRun is not None:
                 stopTestRun()
         stopTime = time.time()
-        if hasattr(result, 'time_taken'):
-            result.time_taken = stopTime - startTime
-        result.printLogs(test)
+        timeTaken = stopTime - startTime
         result.printErrors()
+        result.printLogs(test)
         if hasattr(result, 'separator2'):
             self.stream.writeln(result.separator2)
         run = result.testsRun
         self.stream.writeln("Ran %d test%s in %.3fs" %
-                            (run, run != 1 and "s" or "", result.time_taken))
+                            (run, run != 1 and "s" or "", timeTaken))
         self.stream.writeln()
 
         expectedFails = unexpectedSuccesses = skipped = 0
@@ -283,12 +210,11 @@ class MarionetteTestRunner(object):
 
     def __init__(self, address=None, emulator=None, emulatorBinary=None,
                  emulatorImg=None, emulator_res='480x800', homedir=None,
-                 app=None, app_args=None, bin=None, profile=None, autolog=False,
-                 revision=None, logger=None, testgroup="marionette", noWindow=False,
+                 app=None, bin=None, profile=None, autolog=False, revision=None,
+                 logger=None, testgroup="marionette", noWindow=False,
                  logcat_dir=None, xml_output=None, repeat=0, gecko_path=None,
                  testvars=None, tree=None, type=None, device_serial=None,
-                 symbols_path=None, timeout=None, es_servers=None, shuffle=False,
-                 sdcard=None, **kwargs):
+                 symbols_path=None, timeout=None, es_servers=None, **kwargs):
         self.address = address
         self.emulator = emulator
         self.emulatorBinary = emulatorBinary
@@ -296,7 +222,6 @@ class MarionetteTestRunner(object):
         self.emulator_res = emulator_res
         self.homedir = homedir
         self.app = app
-        self.app_args = app_args or []
         self.bin = bin
         self.profile = profile
         self.autolog = autolog
@@ -322,8 +247,6 @@ class MarionetteTestRunner(object):
         self._capabilities = None
         self._appName = None
         self.es_servers = es_servers
-        self.shuffle = shuffle
-        self.sdcard = sdcard
 
         if testvars:
             if not os.path.exists(testvars):
@@ -404,12 +327,10 @@ class MarionetteTestRunner(object):
             self.marionette = Marionette(host=host,
                                          port=int(port),
                                          app=self.app,
-                                         app_args=self.app_args,
                                          bin=self.bin,
                                          profile=self.profile,
                                          baseurl=self.baseurl,
-                                         timeout=self.timeout,
-                                         device_serial=self.device_serial)
+                                         timeout=self.timeout)
         elif self.address:
             host, port = self.address.split(':')
             try:
@@ -446,8 +367,7 @@ class MarionetteTestRunner(object):
                                          logcat_dir=self.logcat_dir,
                                          gecko_path=self.gecko_path,
                                          symbols_path=self.symbols_path,
-                                         timeout=self.timeout,
-                                         sdcard=self.sdcard)
+                                         timeout=self.timeout)
         else:
             raise Exception("must specify binary, address or emulator")
 
@@ -499,9 +419,6 @@ class MarionetteTestRunner(object):
         self.reset_test_stats()
         starttime = datetime.utcnow()
         while self.repeat >=0:
-            self.logger.info('\nROUND %d\n-------' % self.repeat)
-            if self.shuffle:
-                random.shuffle(tests)
             for test in tests:
                 self.run_test(test)
             self.repeat -= 1
@@ -536,7 +453,7 @@ class MarionetteTestRunner(object):
             self.marionette.instance = None
         del self.marionette
 
-    def run_test(self, test, expected='pass'):
+    def run_test(self, test):
         if not self.httpd:
             print "starting httpd"
             self.start_httpd()
@@ -548,8 +465,6 @@ class MarionetteTestRunner(object):
 
         if os.path.isdir(filepath):
             for root, dirs, files in os.walk(filepath):
-                if self.shuffle:
-                    random.shuffle(files)
                 for filename in files:
                     if ((filename.startswith('test_') or filename.startswith('browser_')) and
                         (filename.endswith('.py') or filename.endswith('.js'))):
@@ -592,18 +507,14 @@ class MarionetteTestRunner(object):
                                   self.appName))
                 self.todo += 1
 
-            target_tests = manifest.get(tests=manifest_tests, **testargs)
-            if self.shuffle:
-                random.shuffle(target_tests)
-            for i in target_tests:
-                self.run_test(i["path"], i["expected"])
+            for i in manifest.get(tests=manifest_tests, **testargs):
+                self.run_test(i["path"])
                 if self.marionette.check_for_crash():
                     return
             return
 
         self.logger.info('TEST-START %s' % os.path.basename(test))
 
-        self.test_kwargs['expected'] = expected
         for handler in self.test_handlers:
             if handler.match(os.path.basename(test)):
                 handler.add_tests_to_suite(mod_name,
@@ -626,7 +537,7 @@ class MarionetteTestRunner(object):
                 self.todo += len(results.skipped)
             self.passed += results.passed
             for failure in results.failures + results.errors:
-                self.failures.append((results.getInfo(failure), failure.output, 'TEST-UNEXPECTED-FAIL'))
+                self.failures.append((results.getInfo(failure[0]), failure[1], 'TEST-UNEXPECTED-FAIL'))
             if hasattr(results, 'unexpectedSuccesses'):
                 self.failed += len(results.unexpectedSuccesses)
                 for failure in results.unexpectedSuccesses:
@@ -645,17 +556,19 @@ class MarionetteTestRunner(object):
 
     def generate_xml(self, results_list):
 
-        def _extract_xml(test, result='passed'):
+        def _extract_xml(test, text='', result='passed'):
+            cls_name = test.__class__.__name__
+
             testcase = doc.createElement('testcase')
-            testcase.setAttribute('classname', test.test_class)
-            testcase.setAttribute('name', unicode(test.name).split()[0])
+            testcase.setAttribute('classname', cls_name)
+            testcase.setAttribute('name', unicode(test).split()[0])
             testcase.setAttribute('time', str(test.duration))
             testsuite.appendChild(testcase)
 
             if result in ['failure', 'error', 'skipped']:
                 f = doc.createElement(result)
                 f.setAttribute('message', 'test %s' % result)
-                f.appendChild(doc.createTextNode(test.reason))
+                f.appendChild(doc.createTextNode(text))
                 testcase.appendChild(f)
 
         doc = dom.Document()
@@ -683,27 +596,27 @@ class MarionetteTestRunner(object):
 
         for results in results_list:
 
-            for result in results.errors:
-                _extract_xml(result, result='error')
+            for tup in results.errors:
+                _extract_xml(tup[0], text=tup[1], result='error')
 
-            for result in results.failures:
-                _extract_xml(result, result='failure')
+            for tup in results.failures:
+                _extract_xml(tup[0], text=tup[1], result='failure')
 
             if hasattr(results, 'unexpectedSuccesses'):
                 for test in results.unexpectedSuccesses:
                     # unexpectedSuccesses is a list of Testcases only, no tuples
-                    _extract_xml(test, result='failure')
+                    _extract_xml(test, text='TEST-UNEXPECTED-PASS', result='failure')
 
             if hasattr(results, 'skipped'):
-                for result in results.skipped:
-                    _extract_xml(result, result='skipped')
+                for tup in results.skipped:
+                    _extract_xml(tup[0], text=tup[1], result='skipped')
 
             if hasattr(results, 'expectedFailures'):
-                for result in results.expectedFailures:
-                    _extract_xml(result, result='skipped')
+                for tup in results.expectedFailures:
+                    _extract_xml(tup[0], text=tup[1], result='skipped')
 
-            for result in results.tests_passed:
-                _extract_xml(result)
+            for test in results.tests_passed:
+                _extract_xml(test)
 
         doc.appendChild(testsuite)
         return doc.toprettyxml(encoding='utf-8')
@@ -749,10 +662,6 @@ class MarionetteTestOptions(OptionParser):
                         type='str',
                         help='set a custom resolution for the emulator'
                              'Example: "480x800"')
-        self.add_option('--sdcard',
-                        action='store',
-                        dest='sdcard',
-                        help='size of sdcard to create for the emulator')
         self.add_option('--no-window',
                         action='store_true',
                         dest='noWindow',
@@ -787,11 +696,6 @@ class MarionetteTestOptions(OptionParser):
                         dest='app',
                         action='store',
                         help='application to use')
-        self.add_option('--app-arg',
-                        dest='app_args',
-                        action='append',
-                        default=[],
-                        help='specify a command line argument to be passed onto the application')
         self.add_option('--binary',
                         dest='bin',
                         action='store',
@@ -836,11 +740,6 @@ class MarionetteTestOptions(OptionParser):
                         dest='es_servers',
                         action='append',
                         help='the ElasticSearch server to use for autolog submission')
-        self.add_option('--shuffle',
-                        action='store_true',
-                        dest='shuffle',
-                        default=False,
-                        help='run tests in a random order')
 
     def verify_usage(self, options, tests):
         if not tests:

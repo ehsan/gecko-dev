@@ -31,7 +31,7 @@ public:
   virtual a11y::role NativeRole();
   virtual uint64_t NativeState();
   virtual uint64_t NativeInteractiveState() const;
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 
   // ActionAccessible
   virtual uint8_t ActionCount();
@@ -91,7 +91,7 @@ public:
 
   // Accessible
   virtual a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 };
 
 } // namespace a11y

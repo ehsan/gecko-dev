@@ -22,10 +22,7 @@
 #include "TextInputHandler.h"
 #include "nsCocoaUtils.h"
 #include "gfxQuartzSurface.h"
-#include "GLContextTypes.h"
-#include "mozilla/Mutex.h"
-#include "nsRegion.h"
-#include "mozilla/MouseEvents.h"
+#include "GLContext.h"
 
 #include "nsString.h"
 #include "nsIDragService.h"
@@ -205,12 +202,6 @@ typedef NSInteger NSEventGestureAxis;
 #endif // #ifdef __LP64__
 #endif // #if !defined(MAC_OS_X_VERSION_10_7) || MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7
 
-#if !defined(MAC_OS_X_VERSION_10_8) || MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_8
-enum {
-  NSEventPhaseMayBegin    = 0x1 << 5
-};
-#endif // #if !defined(MAC_OS_X_VERSION_10_8) || MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_8
-
 // Undocumented scrollPhase flag that lets us discern between real scrolls and
 // automatically firing momentum scroll events.
 @interface NSEvent (ScrollPhase)
@@ -258,11 +249,6 @@ enum {
   BOOL mPendingFullDisplay;
   BOOL mPendingDisplay;
 
-  // WheelStart/Stop events should always come in pairs. This BOOL records the
-  // last received event so that, when we receive one of the events, we make sure
-  // to send its pair event first, in case we didn't yet for any reason.
-  BOOL mExpectingWheelStop;
-
   // Holds our drag service across multiple drag calls. The reference to the
   // service is obtained when the mouse enters the view and is released when
   // the mouse exits or there is a drop. This prevents us from having to
@@ -300,8 +286,7 @@ enum {
 
 #ifdef __LP64__
   // Support for fluid swipe tracking.
-  BOOL* mCancelSwipeAnimation;
-  uint32_t mCurrentSwipeDir;
+  void (^mCancelSwipeAnimation)();
 #endif
 
   // Whether this uses off-main-thread compositing.
@@ -332,10 +317,11 @@ enum {
 
 - (void)sendMouseEnterOrExitEvent:(NSEvent*)aEvent
                             enter:(BOOL)aEnter
-                             type:(mozilla::WidgetMouseEvent::exitType)aType;
+                             type:(nsMouseEvent::exitType)aType;
 
-- (void)updateGLContext;
-- (void)_surfaceNeedsUpdate:(NSNotification*)notification;
+- (void)update;
+- (void)lockFocus;
+- (void) _surfaceNeedsUpdate:(NSNotification*)notification;
 
 - (BOOL)isPluginView;
 
@@ -344,8 +330,7 @@ enum {
 - (BOOL)isInFailingLeftClickThrough;
 
 - (void)setGLContext:(NSOpenGLContext *)aGLContext;
-- (bool)preRender:(NSOpenGLContext *)aGLContext;
-- (void)postRender:(NSOpenGLContext *)aGLContext;
+- (void)preRender:(NSOpenGLContext *)aGLContext;
 
 - (BOOL)isCoveringTitlebar;
 
@@ -366,17 +351,13 @@ enum {
 - (void)rotateWithEvent:(NSEvent *)anEvent;
 - (void)endGestureWithEvent:(NSEvent *)anEvent;
 
-- (void)scrollWheel:(NSEvent *)anEvent;
-
 // Helper function for Lion smart magnify events
 + (BOOL)isLionSmartMagnifyEvent:(NSEvent*)anEvent;
 
 // Support for fluid swipe tracking.
 #ifdef __LP64__
 - (void)maybeTrackScrollEventAsSwipe:(NSEvent *)anEvent
-                     scrollOverflowX:(double)anOverflowX
-                     scrollOverflowY:(double)anOverflowY
-              viewPortIsOverscrolled:(BOOL)aViewPortIsOverscrolled;
+                      scrollOverflow:(double)overflow;
 #endif
 
 - (void)setUsingOMTCompositor:(BOOL)aUseOMTC;
@@ -394,14 +375,9 @@ public:
                                  ChildView* aView, BOOL isClickThrough = NO);
   static void MouseExitedWindow(NSEvent* aEvent);
   static void MouseEnteredWindow(NSEvent* aEvent);
-  static void ReEvaluateMouseEnterState(NSEvent* aEvent = nil, ChildView* aOldView = nil);
+  static void ReEvaluateMouseEnterState(NSEvent* aEvent = nil);
   static void ResendLastMouseMoveEvent();
   static ChildView* ViewForEvent(NSEvent* aEvent);
-  static void AttachPluginEvent(mozilla::WidgetMouseEventBase& aMouseEvent,
-                                ChildView* aView,
-                                NSEvent* aNativeMouseEvent,
-                                int aPluginEventType,
-                                void* aPluginEventHolder);
 
   static ChildView* sLastMouseEventView;
   static NSEvent* sLastMouseMoveEvent;
@@ -482,8 +458,7 @@ public:
 
   static  bool            ConvertStatus(nsEventStatus aStatus)
                           { return aStatus == nsEventStatus_eConsumeNoDefault; }
-  NS_IMETHOD              DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
-                                        nsEventStatus& aStatus);
+  NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
 
   virtual bool            ComputeShouldAccelerate(bool aDefault);
   virtual bool            ShouldUseOffMainThreadCompositing() MOZ_OVERRIDE;
@@ -540,7 +515,7 @@ public:
 
   // Mac specific methods
   
-  virtual bool      DispatchWindowEvent(mozilla::WidgetGUIEvent& event);
+  virtual bool      DispatchWindowEvent(nsGUIEvent& event);
 
   void WillPaintWindow();
   bool PaintWindow(nsIntRegion aRegion);
@@ -553,8 +528,7 @@ public:
   virtual gfxASurface* GetThebesSurface();
   virtual void PrepareWindowEffects() MOZ_OVERRIDE;
   virtual void CleanupWindowEffects() MOZ_OVERRIDE;
-  virtual bool PreRender(LayerManager* aManager) MOZ_OVERRIDE;
-  virtual void PostRender(LayerManager* aManager) MOZ_OVERRIDE;
+  virtual void PreRender(LayerManager* aManager) MOZ_OVERRIDE;
   virtual void DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) MOZ_OVERRIDE;
 
   virtual void UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries);
@@ -655,10 +629,6 @@ protected:
 
 
   nsRefPtr<gfxASurface> mTempThebesSurface;
-
-  // Protects the view from being teared down while a composition is in
-  // progress on the compositor thread.
-  mozilla::Mutex mViewTearDownLock;
 
   mozilla::Mutex mEffectsLock;
 

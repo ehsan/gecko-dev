@@ -9,6 +9,7 @@
 
 #include "mozilla/Attributes.h"
 
+#include "jsapi.h"
 #include "jsproxy.h"
 
 namespace js {
@@ -37,9 +38,6 @@ class JS_FRIEND_API(Wrapper) : public DirectProxyHandler
         LAST_USED_FLAG = CROSS_COMPARTMENT
     };
 
-    virtual bool defaultValue(JSContext *cx, HandleObject obj, JSType hint,
-                              MutableHandleValue vp) MOZ_OVERRIDE;
-
     /*
      * Wrappers can explicitly specify that they are unsafe to unwrap from a
      * security perspective (as is the case for SecurityWrappers). If a wrapper
@@ -66,8 +64,6 @@ class JS_FRIEND_API(Wrapper) : public DirectProxyHandler
 
     virtual ~Wrapper();
 
-    virtual bool finalizeInBackground(Value priv) MOZ_OVERRIDE;
-
     static Wrapper singleton;
     static Wrapper singletonWithPrototype;
 };
@@ -80,16 +76,16 @@ class JS_FRIEND_API(CrossCompartmentWrapper) : public Wrapper
 
     virtual ~CrossCompartmentWrapper();
 
+    virtual bool finalizeInBackground(Value priv) MOZ_OVERRIDE;
+
     /* ES5 Harmony fundamental wrapper traps. */
     virtual bool preventExtensions(JSContext *cx, HandleObject wrapper) MOZ_OVERRIDE;
     virtual bool getPropertyDescriptor(JSContext *cx, HandleObject wrapper, HandleId id,
-                                       MutableHandle<JSPropertyDescriptor> desc,
-                                       unsigned flags) MOZ_OVERRIDE;
+                                       PropertyDescriptor *desc, unsigned flags) MOZ_OVERRIDE;
     virtual bool getOwnPropertyDescriptor(JSContext *cx, HandleObject wrapper, HandleId id,
-                                          MutableHandle<JSPropertyDescriptor> desc,
-                                          unsigned flags) MOZ_OVERRIDE;
+                                          PropertyDescriptor *desc, unsigned flags) MOZ_OVERRIDE;
     virtual bool defineProperty(JSContext *cx, HandleObject wrapper, HandleId id,
-                                MutableHandle<JSPropertyDescriptor> desc) MOZ_OVERRIDE;
+                                PropertyDescriptor *desc) MOZ_OVERRIDE;
     virtual bool getOwnPropertyNames(JSContext *cx, HandleObject wrapper,
                                      AutoIdVector &props) MOZ_OVERRIDE;
     virtual bool delete_(JSContext *cx, HandleObject wrapper, HandleId id, bool *bp) MOZ_OVERRIDE;
@@ -153,7 +149,7 @@ class JS_FRIEND_API(SecurityWrapper) : public Base
                                JSContext *cx) MOZ_OVERRIDE;
     virtual bool regexp_toShared(JSContext *cx, HandleObject proxy, RegExpGuard *g) MOZ_OVERRIDE;
     virtual bool defineProperty(JSContext *cx, HandleObject wrapper, HandleId id,
-                                MutableHandle<JSPropertyDescriptor> desc) MOZ_OVERRIDE;
+                                PropertyDescriptor *desc) MOZ_OVERRIDE;
 
     /*
      * Allow our subclasses to select the superclass behavior they want without
@@ -169,21 +165,18 @@ typedef SecurityWrapper<CrossCompartmentWrapper> CrossCompartmentSecurityWrapper
 class JS_FRIEND_API(DeadObjectProxy) : public BaseProxyHandler
 {
   public:
-    // This variable exists solely to provide a unique address for use as an identifier.
-    static const char sDeadObjectFamily;
+    static int sDeadObjectFamily;
 
     explicit DeadObjectProxy();
 
     /* ES5 Harmony fundamental wrapper traps. */
     virtual bool preventExtensions(JSContext *cx, HandleObject proxy) MOZ_OVERRIDE;
     virtual bool getPropertyDescriptor(JSContext *cx, HandleObject wrapper, HandleId id,
-                                       MutableHandle<JSPropertyDescriptor> desc,
-                                       unsigned flags) MOZ_OVERRIDE;
+                                       PropertyDescriptor *desc, unsigned flags) MOZ_OVERRIDE;
     virtual bool getOwnPropertyDescriptor(JSContext *cx, HandleObject wrapper, HandleId id,
-                                          MutableHandle<JSPropertyDescriptor> desc,
-                                          unsigned flags) MOZ_OVERRIDE;
+                                          PropertyDescriptor *desc, unsigned flags) MOZ_OVERRIDE;
     virtual bool defineProperty(JSContext *cx, HandleObject wrapper, HandleId id,
-                                MutableHandle<JSPropertyDescriptor> desc) MOZ_OVERRIDE;
+                                PropertyDescriptor *desc) MOZ_OVERRIDE;
     virtual bool getOwnPropertyNames(JSContext *cx, HandleObject wrapper,
                                      AutoIdVector &props) MOZ_OVERRIDE;
     virtual bool delete_(JSContext *cx, HandleObject wrapper, HandleId id, bool *bp) MOZ_OVERRIDE;
@@ -220,8 +213,7 @@ TransparentObjectWrapper(JSContext *cx, HandleObject existing, HandleObject obj,
 
 // Proxy family for wrappers. Public so that IsWrapper() can be fully inlined by
 // jsfriendapi users.
-// This variable exists solely to provide a unique address for use as an identifier.
-extern JS_FRIEND_DATA(const char) sWrapperFamily;
+extern JS_FRIEND_DATA(int) sWrapperFamily;
 
 inline bool
 IsWrapper(JSObject *obj)
@@ -234,7 +226,7 @@ IsWrapper(JSObject *obj)
 // previously wrapped. Otherwise, this returns the first object for
 // which JSObject::isWrapper returns false.
 JS_FRIEND_API(JSObject *)
-UncheckedUnwrap(JSObject *obj, bool stopAtOuter = true, unsigned *flagsp = nullptr);
+UncheckedUnwrap(JSObject *obj, bool stopAtOuter = true, unsigned *flagsp = NULL);
 
 // Given a JSObject, returns that object stripped of wrappers. At each stage,
 // the security wrapper has the opportunity to veto the unwrap. Since checked
@@ -255,8 +247,7 @@ bool
 IsDeadProxyObject(JSObject *obj);
 
 JSObject *
-NewDeadProxyObject(JSContext *cx, JSObject *parent,
-                   const ProxyOptions &options = ProxyOptions());
+NewDeadProxyObject(JSContext *cx, JSObject *parent);
 
 void
 NukeCrossCompartmentWrapper(JSContext *cx, JSObject *wrapper);

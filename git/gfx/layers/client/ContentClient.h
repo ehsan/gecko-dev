@@ -6,40 +6,19 @@
 #ifndef MOZILLA_GFX_CONTENTCLIENT_H
 #define MOZILLA_GFX_CONTENTCLIENT_H
 
-#include <stdint.h>                     // for uint32_t
-#include "ThebesLayerBuffer.h"          // for ThebesLayerBuffer, etc
-#include "gfxTypes.h"
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "mozilla/Assertions.h"         // for MOZ_CRASH
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/RefPtr.h"             // for RefPtr, TemporaryRef
-#include "mozilla/gfx/Point.h"          // for IntSize
-#include "mozilla/layers/CompositableClient.h"  // for CompositableClient
-#include "mozilla/layers/CompositableForwarder.h"
-#include "mozilla/layers/CompositorTypes.h"  // for TextureInfo, etc
-#include "mozilla/layers/ISurfaceAllocator.h"
-#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
-#include "mozilla/layers/TextureClient.h"  // for DeprecatedTextureClient
-#include "mozilla/mozalloc.h"           // for operator delete
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsRect.h"                     // for nsIntRect
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nsTArray.h"                   // for nsTArray
-
-class gfxContext;
-struct gfxMatrix;
-class gfxASurface;
+#include "mozilla/layers/LayersSurfaces.h"
+#include "mozilla/layers/CompositableClient.h"
+#include "gfxReusableSurfaceWrapper.h"
+#include "mozilla/layers/TextureClient.h"
+#include "ThebesLayerBuffer.h"
+#include "ipc/AutoOpenSurface.h"
+#include "ipc/ShadowLayerChild.h"
+#include "gfxPlatform.h"
 
 namespace mozilla {
-namespace gfx {
-class DrawTarget;
-}
-
 namespace layers {
 
 class BasicLayerManager;
-class ThebesLayer;
 
 /**
  * A compositable client for Thebes layers. These are different to Image/Canvas
@@ -153,10 +132,12 @@ public:
     ThebesLayerBuffer::DrawTo(aLayer, aTarget, aOpacity, aMask, aMaskTransform);
   }
 
-  virtual void CreateBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags,
-                            gfxASurface** aBlackSurface, gfxASurface** aWhiteSurface,
-                            RefPtr<gfx::DrawTarget>* aBlackDT, RefPtr<gfx::DrawTarget>* aWhiteDT) MOZ_OVERRIDE;
-  virtual bool SupportsAzureContent() const;
+  virtual already_AddRefed<gfxASurface> CreateBuffer(ContentType aType,
+                                                     const nsIntRect& aRect,
+                                                     uint32_t aFlags,
+                                                     gfxASurface**) MOZ_OVERRIDE;
+  virtual TemporaryRef<gfx::DrawTarget>
+    CreateDTBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags);
 
   virtual TextureInfo GetTextureInfo() const MOZ_OVERRIDE
   {
@@ -194,7 +175,7 @@ public:
     , mDeprecatedTextureClient(nullptr)
     , mIsNewBuffer(false)
     , mFrontAndBackBufferDiffer(false)
-    , mContentType(GFX_CONTENT_COLOR_ALPHA)
+    , mContentType(gfxASurface::CONTENT_COLOR_ALPHA)
   {}
 
   typedef ThebesLayerBuffer::PaintState PaintState;
@@ -234,11 +215,18 @@ public:
     return ThebesLayerBuffer::BufferRotation();
   }
 
-  virtual void CreateBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags,
-                            gfxASurface** aBlackSurface, gfxASurface** aWhiteSurface,
-                            RefPtr<gfx::DrawTarget>* aBlackDT, RefPtr<gfx::DrawTarget>* aWhiteDT) MOZ_OVERRIDE;
+  virtual already_AddRefed<gfxASurface> CreateBuffer(ContentType aType,
+                                                     const nsIntRect& aRect,
+                                                     uint32_t aFlags,
+                                                     gfxASurface** aWhiteSurface) MOZ_OVERRIDE;
+  virtual TemporaryRef<gfx::DrawTarget> CreateDTBuffer(ContentType aType,
+                                                       const nsIntRect& aRect,
+                                                       uint32_t aFlags) MOZ_OVERRIDE;
 
-  virtual bool SupportsAzureContent() const MOZ_OVERRIDE;
+  virtual bool SupportsAzureContent() const MOZ_OVERRIDE
+  {
+    return gfxPlatform::GetPlatform()->SupportsAzureContent();
+  }
 
   void DestroyBuffers();
 
@@ -356,7 +344,7 @@ class ContentClientIncremental : public ContentClientRemote
 public:
   ContentClientIncremental(CompositableForwarder* aFwd)
     : ContentClientRemote(aFwd)
-    , mContentType(GFX_CONTENT_COLOR_ALPHA)
+    , mContentType(gfxASurface::CONTENT_COLOR_ALPHA)
     , mHasBuffer(false)
     , mHasBufferOnWhite(false)
   {
@@ -404,7 +392,7 @@ private:
 
   void NotifyBufferCreated(ContentType aType, uint32_t aFlags)
   {
-    mTextureInfo.mTextureFlags = aFlags & ~TEXTURE_DEALLOCATE_CLIENT;
+    mTextureInfo.mTextureFlags = aFlags | TEXTURE_DEALLOCATE_HOST;
     mContentType = aType;
 
     mForwarder->CreatedIncrementalBuffer(this,

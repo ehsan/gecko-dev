@@ -41,8 +41,9 @@ function checkPseudoClass(aElement, aExpected)
      "mozMatchesSelector(':-moz-ui-invalid') should return " + aExpected + " for " + aElement);
 }
 
-var os = SpecialPowers.Cc['@mozilla.org/observer-service;1']
-                      .getService(SpecialPowers.Ci.nsIObserverService);
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+var os = Components.classes['@mozilla.org/observer-service;1']
+                   .getService(Components.interfaces.nsIObserverService);
 var observers = os.enumerateObservers("invalidformsubmit");
 
 if (observers.hasMoreElements()) {

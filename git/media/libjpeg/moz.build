@@ -18,7 +18,7 @@ EXPORTS += [
 ]
 
 if CONFIG['LIBJPEG_TURBO_X64_ASM']:
-    SOURCES += [
+    ASFILES += [
         'simd/jccolss2-64.asm',
         'simd/jcgrass2-64.asm',
         'simd/jcqnts2f-64.asm',
@@ -37,7 +37,7 @@ if CONFIG['LIBJPEG_TURBO_X64_ASM']:
 ]
 
 if CONFIG['LIBJPEG_TURBO_X86_ASM']:
-    SOURCES += [
+    ASFILES += [
         'simd/jccolmmx.asm',
         'simd/jccolss2.asm',
         'simd/jcgrammx.asm',
@@ -73,7 +73,7 @@ if CONFIG['LIBJPEG_TURBO_X86_ASM']:
         'simd/jsimdcpu.asm',
 ]
 
-SOURCES += [
+CSRCS += [
     'jcomapi.c',
     'jdapimin.c',
     'jdapistd.c',
@@ -108,7 +108,7 @@ SOURCES += [
 ]
 
 # These files enable support for writing JPEGs
-SOURCES += [
+CSRCS += [
     'jcapimin.c',
     'jcapistd.c',
     'jccoefct.c',
@@ -127,28 +127,24 @@ SOURCES += [
 ]
 
 if CONFIG['LIBJPEG_TURBO_ARM_ASM']:
-    SOURCES += [
+    CSRCS += [
         'simd/jsimd_arm.c',
     ]
-    SOURCES += [
+    SSRCS += [
         'simd/jsimd_arm_neon.S',
     ]
 elif CONFIG['LIBJPEG_TURBO_X64_ASM']:
-    SOURCES += [
+    CSRCS += [
         'simd/jsimd_x86_64.c',
     ]
 elif CONFIG['LIBJPEG_TURBO_X86_ASM']:
-    SOURCES += [
+    CSRCS += [
         'simd/jsimd_i386.c',
     ]
 else: # No SIMD support?
-    SOURCES += [
+    CSRCS += [
         'jsimd_none.c',
     ]
 
 LIBRARY_NAME = 'mozjpeg'
 
-MSVC_ENABLE_PGO = True
-
-# need static lib for some of the libimg componentry to link properly
-FORCE_STATIC_LIB = True

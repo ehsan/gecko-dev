@@ -14,11 +14,10 @@
 #ifndef WEBRTC_VIDEO_ENGINE_VIE_SHARED_DATA_H_
 #define WEBRTC_VIDEO_ENGINE_VIE_SHARED_DATA_H_
 
-#include "webrtc/system_wrappers/interface/scoped_ptr.h"
+#include "video_engine/vie_defines.h"
 
 namespace webrtc {
 
-class Config;
 class ProcessThread;
 class ViEChannelManager;
 class ViEInputManager;
@@ -26,25 +25,32 @@ class ViERenderManager;
 
 class ViESharedData {
  public:
-  explicit ViESharedData(const Config& config);
+  ViESharedData();
   ~ViESharedData();
 
+  bool Initialized() const;
+  int SetInitialized();
+  int SetUnInitialized();
   void SetLastError(const int error) const;
   int LastErrorInternal() const;
+  void SetOverUseDetectorOptions(const OverUseDetectorOptions& options);
   int NumberOfCores() const;
 
-  // TODO(mflodman) Remove all calls to 'instance_id()'.
-  int instance_id() { return 0;}
-  ViEChannelManager* channel_manager() { return channel_manager_.get(); }
-  ViEInputManager* input_manager() { return input_manager_.get(); }
-  ViERenderManager* render_manager() { return render_manager_.get(); }
+  int instance_id() { return instance_id_;}
+  ViEChannelManager* channel_manager() { return &channel_manager_; }
+  ViEInputManager* input_manager() { return &input_manager_; }
+  ViERenderManager* render_manager() { return &render_manager_; }
 
  private:
+  static int instance_counter_;
+  const int instance_id_;
+  bool initialized_;
   const int number_cores_;
 
-  scoped_ptr<ViEChannelManager> channel_manager_;
-  scoped_ptr<ViEInputManager> input_manager_;
-  scoped_ptr<ViERenderManager> render_manager_;
+  OverUseDetectorOptions over_use_detector_options_;
+  ViEChannelManager& channel_manager_;
+  ViEInputManager& input_manager_;
+  ViERenderManager& render_manager_;
   ProcessThread* module_process_thread_;
   mutable int last_error_;
 };

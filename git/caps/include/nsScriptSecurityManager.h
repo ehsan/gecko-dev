@@ -9,6 +9,8 @@
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
+#include "jsapi.h"
+#include "jsdbgapi.h"
 #include "nsIXPCSecurityManager.h"
 #include "nsInterfaceHashtable.h"
 #include "nsHashtable.h"
@@ -18,7 +20,6 @@
 #include "pldhash.h"
 #include "plstr.h"
 #include "nsIScriptExternalNameSet.h"
-#include "js/TypeDecls.h"
 
 #include <stdint.h>
 
@@ -370,21 +371,23 @@ private:
 
     bool SubjectIsPrivileged();
 
-    static bool
+    static JSBool
     CheckObjectAccess(JSContext *cx, JS::Handle<JSObject*> obj,
                       JS::Handle<jsid> id, JSAccessMode mode,
                       JS::MutableHandle<JS::Value> vp);
-
+    
     // Decides, based on CSP, whether or not eval() and stuff can be executed.
-    static bool
+    static JSBool
     ContentSecurityPolicyPermitsJSAction(JSContext *cx);
-
-    static bool
-    JSPrincipalsSubsume(JSPrincipals *first, JSPrincipals *second);
 
     // Returns null if a principal cannot be found; generally callers
     // should error out at that point.
     static nsIPrincipal* doGetObjectPrincipal(JS::Handle<JSObject*> obj);
+#ifdef DEBUG
+    static nsIPrincipal*
+    old_doGetObjectPrincipal(JS::Handle<JSObject*> obj,
+                             bool aAllowShortCircuit = true);
+#endif
 
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no JS running.
@@ -407,8 +410,7 @@ private:
 
     nsresult
     LookupPolicy(nsIPrincipal* principal,
-                 ClassInfoData& aClassData,
-                 JS::Handle<jsid> aProperty,
+                 ClassInfoData& aClassData, jsid aProperty,
                  uint32_t aAction,
                  ClassPolicy** aCachedClassPolicy,
                  SecurityLevel* result);
@@ -487,6 +489,9 @@ private:
     InitDomainPolicy(JSContext* cx, const char* aPolicyName,
                      DomainPolicy* aDomainPolicy);
 
+    // JS strings we need to clean up on shutdown
+    static jsid sEnabledID;
+
     inline void
     ScriptSecurityPrefChanged();
 
@@ -525,9 +530,9 @@ public:
 namespace mozilla {
 
 void
-GetJarPrefix(uint32_t aAppid,
-             bool aInMozBrowser,
-             nsACString& aJarPrefix);
+GetExtendedOrigin(nsIURI* aURI, uint32_t aAppid,
+                  bool aInMozBrowser,
+                  nsACString& aExtendedOrigin);
 
 } // namespace mozilla
 

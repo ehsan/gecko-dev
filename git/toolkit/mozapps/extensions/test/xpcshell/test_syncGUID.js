@@ -86,7 +86,7 @@ add_test(function test_error_on_duplicate_syncguid_insert() {
        do_execute_soon(function duplicate_syncguid_install_ended() {
         restartManager();
 
-        AddonManager.getAddonsByIDs(installIDs, callback_soon(function(addons) {
+        AddonManager.getAddonsByIDs(installIDs, function(addons) {
           let initialGUID = addons[1].syncGUID;
 
           try {
@@ -94,7 +94,8 @@ add_test(function test_error_on_duplicate_syncguid_insert() {
             do_throw("Should not get here.");
           }
           catch (e) {
-            do_check_true(e.message.startsWith("Addon sync GUID conflict"));
+            do_check_eq(e.result,
+                        Components.results.NS_ERROR_STORAGE_CONSTRAINT);
             restartManager();
 
             AddonManager.getAddonByID(installIDs[1], function(addon) {
@@ -102,7 +103,7 @@ add_test(function test_error_on_duplicate_syncguid_insert() {
               run_next_test();
             });
           }
-        }));
+        });
        });
       }
     }

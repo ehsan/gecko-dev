@@ -13,6 +13,12 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'dom_file'
 
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/base',
+    '-I$(topsrcdir)/dom/interfaces/base',
+    '-I$(topsrcdir)/dom/interfaces/events',
+]
+
 MODULE = 'dom'
 
 EXPORTS += [
@@ -35,7 +41,7 @@ EXPORTS.mozilla.dom.file += [
     'LockedFile.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'ArchiveEvent.cpp',
     'ArchiveReader.cpp',
     'ArchiveRequest.cpp',
@@ -55,12 +61,3 @@ SOURCES += [
     'MetadataHelper.cpp',
 ]
 
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'domfile_s'
-
-LOCAL_INCLUDES += [
-    '../base',
-]

@@ -77,10 +77,6 @@ function trigger_pb_cleanup(expected)
 }
 
 function run_test() {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   function finishTest() {
     // Cancel Download-G
     dlG.cancel();

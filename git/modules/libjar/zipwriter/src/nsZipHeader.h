@@ -47,15 +47,15 @@ public:
         mIAttr(0),
         mInited(false),
         mWriteOnClose(false),
-        mExtraField(nullptr),
-        mLocalExtraField(nullptr)
+        mExtraField(NULL),
+        mLocalExtraField(NULL)
     {
     }
 
     ~nsZipHeader()
     {
-        mExtraField = nullptr;
-        mLocalExtraField = nullptr;
+        mExtraField = NULL;
+        mLocalExtraField = NULL;
     }
 
     uint32_t mCRC;

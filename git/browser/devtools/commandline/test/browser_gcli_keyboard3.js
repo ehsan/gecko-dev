@@ -40,7 +40,7 @@ var javascript = require('gcli/types/javascript');
 // var mockCommands = require('gclitest/mockCommands');
 var canon = require('gcli/canon');
 
-var tempWindow;
+var tempWindow = undefined;
 
 exports.setup = function(options) {
   mockCommands.setup();

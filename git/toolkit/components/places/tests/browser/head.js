@@ -340,18 +340,12 @@ function DBConn(aForceNewConnection) {
   return gDBConn.connectionReady ? gDBConn : null;
 }
 
-function whenDelayedStartupFinished(aWindow, aCallback) {
-  Services.obs.addObserver(function observer(aSubject, aTopic) {
-    if (aWindow == aSubject) {
-      Services.obs.removeObserver(observer, aTopic);
-      executeSoon(function() { aCallback(aWindow); });
-    }
-  }, "browser-delayed-startup-finished", false);
-}
-
 function whenNewWindowLoaded(aOptions, aCallback) {
   let win = OpenBrowserWindow(aOptions);
-  whenDelayedStartupFinished(win, aCallback);
+  win.addEventListener("load", function onLoad() {
+    win.removeEventListener("load", onLoad, false);
+    aCallback(win);
+  }, false);
 }
 
 /**

@@ -23,7 +23,6 @@
 #include "nsISupportsPrimitives.h"
 #include "nsSupportsPrimitives.h"
 #include "mozilla/dom/Element.h"
-#include "nsComponentManagerUtils.h"
 
 using namespace mozilla::dom;
 
@@ -308,7 +307,9 @@ nsBoxObject::SetPropertyAsSupports(const PRUnichar* aPropertyName, nsISupports* 
   NS_ENSURE_ARG(aPropertyName && *aPropertyName);
   
   if (!mPropertyTable) {  
-    mPropertyTable = new nsInterfaceHashtable<nsStringHashKey,nsISupports>(8);
+    mPropertyTable = new nsInterfaceHashtable<nsStringHashKey,nsISupports>;  
+    if (!mPropertyTable) return NS_ERROR_OUT_OF_MEMORY;
+    mPropertyTable->Init(8);
   }
 
   nsDependentString propertyName(aPropertyName);

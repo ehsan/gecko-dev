@@ -10,8 +10,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/PluralForm.jsm");
 Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
-
 let gStrings = Services.strings.createBundle("chrome://browser/locale/aboutDownloads.properties");
 
 let downloadTemplate =
@@ -252,11 +250,11 @@ let Downloads = {
   },
 
   _getDownloadSize: function dl_getDownloadSize(aSize) {
-    if (aSize > 0) {
-      let displaySize = DownloadUtils.convertByteUnits(aSize);
-      return displaySize.join(""); // [0] is size, [1] is units
-    }
-    return gStrings.GetStringFromName("downloadState.unknownSize");
+    let displaySize = DownloadUtils.convertByteUnits(aSize);
+    if (displaySize[0] > 0) // [0] is size, [1] is units
+      return displaySize.join("");
+    else
+      return gStrings.GetStringFromName("downloadState.unknownSize");
   },
 
   // Not all states are displayed as-is on mobile, some are translated to a generic state
@@ -462,15 +460,20 @@ let Downloads = {
 
   removeDownload: function dl_removeDownload(aItem) {
     this._getDownloadForElement(aItem, function(aDownload) {
-      if (aDownload.targetFile) {
-        OS.File.remove(aDownload.targetFile.path).then(null, function onError(reason) {
-          if (!(reason instanceof OS.File.Error && reason.becauseNoSuchFile)) {
-            this.logError("removeDownload() " + reason, aDownload);
-          }
-        }.bind(this));
+      let f = null;
+      try {
+        f = aDownload.targetFile;
+      } catch (ex) {
+        // even if there is no file, pretend that there is so that we can remove
+        // it from the list
+        f = { leafName: "" };
       }
-
       aDownload.remove();
+      try {
+        if (f) f.remove(false);
+      } catch (ex) {
+        this.logError("removeDownload() " + ex, aDownload);
+      }
     }.bind(this));
   },
 
@@ -528,15 +531,17 @@ let Downloads = {
 
   cancelDownload: function dl_cancelDownload(aItem) {
     this._getDownloadForElement(aItem, function(aDownload) {
-      OS.File.remove(aDownload.targetFile.path).then(null, function onError(reason) {
-        if (!(reason instanceof OS.File.Error && reason.becauseNoSuchFile)) {
-          this.logError("cancelDownload() " + reason, aDownload);
-        }
-      }.bind(this));
+      try {
+        aDownload.cancel();
+        let f = aDownload.targetFile;
 
-      aDownload.cancel();
+        if (f.exists())
+          f.remove(false);
 
-      this._updateDownloadRow(aItem, aDownload);
+        this._updateDownloadRow(aItem, aDownload);
+      } catch (ex) {
+        this.logError("cancelDownload() " + ex, aDownload);
+      }
     }.bind(this));
   },
 

@@ -4,13 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 include LayersSurfaces;
-include LayersMessages;
+include LayerTransaction;
 include protocol PGrallocBuffer;
 include protocol PCompositable;
-include ProtocolTypes;
 
 include "mozilla/layers/CompositorTypes.h";
-include "mozilla/GfxMessageUtils.h";
 
 using ImageHandle;
 using mozilla::layers::TextureInfo;
@@ -23,7 +21,7 @@ namespace layers {
  * frames directly to the compositor thread/process without relying on the main thread
  * which might be too busy dealing with content script.
  */
-intr protocol PImageBridge
+/*FIXME: sync*/ rpc protocol PImageBridge
 {
   manages PCompositable;
   manages PGrallocBuffer;

@@ -12,7 +12,7 @@
 
 #include <cstdio>
 
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 
 using ::webrtc::DataLog;
 

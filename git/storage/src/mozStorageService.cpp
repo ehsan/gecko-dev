@@ -54,12 +54,23 @@ namespace storage {
 //// Memory Reporting
 
 static int64_t
-StorageSQLiteDistinguishedAmount()
+GetStorageSQLiteMemoryUsed()
 {
   return ::sqlite3_memory_used();
 }
 
-class StorageSQLiteReporter MOZ_FINAL : public nsIMemoryReporter
+// We don't need an "explicit" reporter for total SQLite memory usage, because
+// the multi-reporter provides reports that add up to the total.  But it's
+// useful to have the total in the "Other Measurements" list in about:memory,
+// and more importantly, we also gather the total via telemetry.
+NS_MEMORY_REPORTER_IMPLEMENT(StorageSQLite,
+    "storage-sqlite",
+    KIND_OTHER,
+    UNITS_BYTES,
+    GetStorageSQLiteMemoryUsed,
+    "Memory used by SQLite.")
+
+class StorageSQLiteMultiReporter MOZ_FINAL : public nsIMemoryMultiReporter
 {
 private:
   Service *mService;    // a weakref because Service contains a strongref to this
@@ -70,7 +81,7 @@ private:
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
 
-  StorageSQLiteReporter(Service *aService)
+  StorageSQLiteMultiReporter(Service *aService) 
   : mService(aService)
   {
     mStmtDesc = NS_LITERAL_CSTRING(
@@ -88,7 +99,7 @@ public:
 
   NS_IMETHOD GetName(nsACString &aName)
   {
-      aName.AssignLiteral("storage-sqlite-multi");
+      aName.AssignLiteral("storage-sqlite");
       return NS_OK;
   }
 
@@ -98,7 +109,7 @@ public:
   // main thread!  But at the time of writing this function is only called when
   // about:memory is loaded (not, for example, when telemetry pings occur) and
   // any delays in that case aren't so bad.
-  NS_IMETHOD CollectReports(nsIMemoryReporterCallback *aCb,
+  NS_IMETHOD CollectReports(nsIMemoryMultiReporterCallback *aCb,
                             nsISupports *aClosure)
   {
     nsresult rv;
@@ -155,7 +166,8 @@ public:
 
 private:
   /**
-   * Passes a single SQLite memory statistic to a memory reporter callback.
+   * Passes a single SQLite memory statistic to a memory multi-reporter
+   * callback.
    *
    * @param aCallback
    *        The callback.
@@ -175,7 +187,7 @@ private:
    * @param aTotal
    *        The accumulator for the measurement.
    */
-  nsresult reportConn(nsIMemoryReporterCallback *aCb,
+  nsresult reportConn(nsIMemoryMultiReporterCallback *aCb,
                       nsISupports *aClosure,
                       sqlite3 *aConn,
                       const nsACString &aPathHead,
@@ -205,8 +217,8 @@ private:
 };
 
 NS_IMPL_ISUPPORTS1(
-  StorageSQLiteReporter,
-  nsIMemoryReporter
+  StorageSQLiteMultiReporter,
+  nsIMemoryMultiReporter
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -293,13 +305,15 @@ Service::Service()
 , mSqliteVFS(nullptr)
 , mRegistrationMutex("Service::mRegistrationMutex")
 , mConnections()
+, mStorageSQLiteReporter(nullptr)
+, mStorageSQLiteMultiReporter(nullptr)
 {
 }
 
 Service::~Service()
 {
   (void)::NS_UnregisterMemoryReporter(mStorageSQLiteReporter);
-  mozilla::UnregisterStorageSQLiteDistinguishedAmount();
+  (void)::NS_UnregisterMemoryMultiReporter(mStorageSQLiteMultiReporter);
 
   int rc = sqlite3_vfs_unregister(mSqliteVFS);
   if (rc != SQLITE_OK)
@@ -529,12 +543,12 @@ Service::initialize()
   sDefaultPageSize =
       Preferences::GetInt(PREF_TS_PAGESIZE, PREF_TS_PAGESIZE_DEFAULT);
 
-  // Create and register our SQLite memory reporter and distinguished amount
-  // function.  Registration can only happen on the main thread (otherwise
-  // you'll get cryptic crashes).
-  mStorageSQLiteReporter = new StorageSQLiteReporter(this);
+  // Create and register our SQLite memory reporters.  Registration can only
+  // happen on the main thread (otherwise you'll get cryptic crashes).
+  mStorageSQLiteReporter = new NS_MEMORY_REPORTER_NAME(StorageSQLite);
+  mStorageSQLiteMultiReporter = new StorageSQLiteMultiReporter(this);
   (void)::NS_RegisterMemoryReporter(mStorageSQLiteReporter);
-  mozilla::RegisterStorageSQLiteDistinguishedAmount(StorageSQLiteDistinguishedAmount);
+  (void)::NS_RegisterMemoryMultiReporter(mStorageSQLiteMultiReporter);
 
   return NS_OK;
 }
@@ -892,7 +906,7 @@ Service::Observe(nsISupports *, const char *aTopic, const PRUnichar *)
 
         // While it would be nice to close all connections, we only
         // check async ones for now.
-        if (conn->isClosing()) {
+        if (conn->isAsyncClosing()) {
           anyOpen = true;
           break;
         }

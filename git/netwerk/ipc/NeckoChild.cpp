@@ -16,9 +16,6 @@
 #include "mozilla/net/RemoteOpenFileChild.h"
 #include "mozilla/dom/network/TCPSocketChild.h"
 #include "mozilla/dom/network/TCPServerSocketChild.h"
-#ifdef MOZ_RTSP
-#include "mozilla/net/RtspControllerChild.h"
-#endif
 
 using mozilla::dom::TCPSocketChild;
 using mozilla::dom::TCPServerSocketChild;
@@ -158,23 +155,6 @@ NeckoChild::DeallocPWebSocketChild(PWebSocketChild* child)
   return true;
 }
 
-PRtspControllerChild*
-NeckoChild::AllocPRtspControllerChild()
-{
-  NS_NOTREACHED("AllocPRtspController should not be called");
-  return nullptr;
-}
-
-bool
-NeckoChild::DeallocPRtspControllerChild(PRtspControllerChild* child)
-{
-#ifdef MOZ_RTSP
-  RtspControllerChild* p = static_cast<RtspControllerChild*>(child);
-  p->ReleaseIPDLReference();
-#endif
-  return true;
-}
-
 PTCPSocketChild*
 NeckoChild::AllocPTCPSocketChild()
 {
@@ -209,7 +189,7 @@ NeckoChild::DeallocPTCPServerSocketChild(PTCPServerSocketChild* child)
 }
 
 PRemoteOpenFileChild*
-NeckoChild::AllocPRemoteOpenFileChild(const URIParams&, const OptionalURIParams&)
+NeckoChild::AllocPRemoteOpenFileChild(const URIParams&, PBrowserChild*)
 {
   // We don't allocate here: instead we always use IPDL constructor that takes
   // an existing RemoteOpenFileChild

@@ -10,68 +10,21 @@
  * debugging global.
  */
 
-// |this.require| is used to test if this file was loaded via the devtools
-// loader (as it is in DebuggerProcess.jsm) or via loadSubScript (as it is from
-// dbg-server.jsm).  Note that testing |require| is not safe in either
-// situation, as it causes a ReferenceError.
-var Ci, Cc, CC, Cu, Cr, Components;
-if (this.require) {
-  ({ Ci, Cc, CC, Cu, Cr, components: Components }) = require("chrome");
-} else {
-  ({
-    interfaces: Ci,
-    classes: Cc,
-    Constructor: CC,
-    utils: Cu,
-    results: Cr
-  }) = Components;
-}
-
-// On B2G, if |this.require| is undefined at this point, it remains undefined
-// later on when |DebuggerServer.registerModule| is called.  On desktop (and
-// perhaps other places), if |this.require| starts out undefined, it ends up
-// being set to some native code by the time we get to |registerModule|.  Here
-// we perform a test early on, and then cache the correct require function for
-// later use.
-var localRequire;
-if (this.require) {
-  localRequire = id => require(id);
-} else {
-  let { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-  localRequire = id => devtools.require(id);
-}
-
+const Ci = Components.interfaces;
+const Cc = Components.classes;
+const CC = Components.Constructor;
+const Cu = Components.utils;
+const Cr = Components.results;
 const DBG_STRINGS_URI = "chrome://global/locale/devtools/debugger.properties";
 
-const nsFile = CC("@mozilla.org/file/local;1", "nsIFile", "initWithPath");
-Cu.import("resource://gre/modules/reflect.jsm");
-Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
-const promptConnections = Services.prefs.getBoolPref("devtools.debugger.prompt-connection");
 
 Cu.import("resource://gre/modules/jsdebugger.jsm");
 addDebuggerToGlobal(this);
 
-function loadSubScript(aURL)
-{
-  try {
-    let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"]
-      .getService(Ci.mozIJSSubScriptLoader);
-    loader.loadSubScript(aURL, this);
-  } catch(e) {
-    let errorStr = "Error loading: " + aURL + ": " + e + " - " + e.stack + "\n";
-    dump(errorStr);
-    Cu.reportError(errorStr);
-    throw e;
-  }
-}
-
-let loaderRequire = this.require;
-this.require = null;
 loadSubScript.call(this, "resource://gre/modules/commonjs/sdk/core/promise.js");
-this.require = loaderRequire;
 
 Cu.import("resource://gre/modules/devtools/SourceMap.jsm");
 
@@ -95,9 +48,6 @@ loadSubScript.call(this, "resource://gre/modules/devtools/server/transport.js");
 const ServerSocket = CC("@mozilla.org/network/server-socket;1",
                         "nsIServerSocket",
                         "initSpecialConnection");
-const UnixDomainServerSocket = CC("@mozilla.org/network/server-socket;1",
-                                  "nsIServerSocket",
-                                  "initWithFilename");
 
 var gRegisteredModules = Object.create(null);
 
@@ -182,19 +132,6 @@ var DebuggerServer = {
    * for example "navigator:browser".
    */
   chromeWindowType: null,
-
-  /**
-   * Set that to a function that will be called anytime a new connection
-   * is opened or one is closed.
-   */
-  onConnectionChange: null,
-
-  _fireConnectionChange: function(aWhat) {
-    if (this.onConnectionChange &&
-        typeof this.onConnectionChange === "function") {
-      this.onConnectionChange(aWhat);
-    }
-  },
 
   /**
    * Prompt the user to accept or decline the incoming connection. This is the
@@ -291,12 +228,9 @@ var DebuggerServer = {
     this.closeListener();
     this.globalActorFactories = {};
     this.tabActorFactories = {};
-    this._allowConnection = null;
+    delete this._allowConnection;
     this._transportInitialized = false;
     this._initialized = false;
-
-    this._fireConnectionChange("closed");
-
     dumpn("Debugger server is shut down.");
   },
 
@@ -324,7 +258,9 @@ var DebuggerServer = {
     }
 
     let moduleAPI = ModuleAPI();
-    let mod = localRequire(id);
+
+    let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
+    let mod = devtools.require(id);
     mod.register(moduleAPI);
     gRegisteredModules[id] = { module: mod, api: moduleAPI };
   },
@@ -352,8 +288,8 @@ var DebuggerServer = {
   /**
    * Install Firefox-specific actors.
    */
-  addBrowserActors: function(aWindowType) {
-    this.chromeWindowType = aWindowType ? aWindowType : "navigator:browser";
+  addBrowserActors: function DS_addBrowserActors() {
+    this.chromeWindowType = "navigator:browser";
     this.addActors("resource://gre/modules/devtools/server/actors/webbrowser.js");
     this.addActors("resource://gre/modules/devtools/server/actors/script.js");
     this.addGlobalActor(this.ChromeDebuggerActor, "chromeDebugger");
@@ -365,9 +301,7 @@ var DebuggerServer = {
     this.addActors("resource://gre/modules/devtools/server/actors/styleeditor.js");
     this.addActors("resource://gre/modules/devtools/server/actors/webapps.js");
     this.registerModule("devtools/server/actors/inspector");
-    this.registerModule("devtools/server/actors/webgl");
     this.registerModule("devtools/server/actors/tracer");
-    this.registerModule("devtools/server/actors/device");
   },
 
   /**
@@ -384,21 +318,19 @@ var DebuggerServer = {
       this.addActors("resource://gre/modules/devtools/server/actors/gcli.js");
       this.addActors("resource://gre/modules/devtools/server/actors/styleeditor.js");
       this.registerModule("devtools/server/actors/inspector");
-      this.registerModule("devtools/server/actors/webgl");
     }
-    if (!("ContentAppActor" in DebuggerServer)) {
+    if (!("ContentTabActor" in DebuggerServer)) {
       this.addActors("resource://gre/modules/devtools/server/actors/childtab.js");
     }
   },
 
   /**
-   * Listens on the given port or socket file for remote debugger connections.
+   * Listens on the given port for remote debugger connections.
    *
-   * @param aPortOrPath int, string
-   *        If given an integer, the port to listen on.
-   *        Otherwise, the path to the unix socket domain file to listen on.
+   * @param aPort int
+   *        The port to listen on.
    */
-  openListener: function DS_openListener(aPortOrPath) {
+  openListener: function DS_openListener(aPort) {
     if (!Services.prefs.getBoolPref("devtools.debugger.remote-enabled")) {
       return false;
     }
@@ -416,21 +348,11 @@ var DebuggerServer = {
     }
 
     try {
-      let backlog = 4;
-      let socket;
-      let port = Number(aPortOrPath);
-      if (port) {
-        socket = new ServerSocket(port, flags, backlog);
-      } else {
-        let file = nsFile(aPortOrPath);
-        if (file.exists())
-          file.remove(false);
-        socket = new UnixDomainServerSocket(file, parseInt("666", 8), backlog);
-      }
+      let socket = new ServerSocket(aPort, flags, 4);
       socket.asyncListen(this);
       this._listener = socket;
     } catch (e) {
-      dumpn("Could not start debugging listener on '" + aPortOrPath + "': " + e);
+      dumpn("Could not start debugging listener on port " + aPort + ": " + e);
       throw Cr.NS_ERROR_NOT_AVAILABLE;
     }
     this._socketConnections++;
@@ -521,7 +443,7 @@ var DebuggerServer = {
 
   onSocketAccepted:
   makeInfallible(function DS_onSocketAccepted(aSocket, aTransport) {
-    if (promptConnections && !this._allowConnection()) {
+    if (!this._allowConnection()) {
       return;
     }
     dumpn("New debugging connection on " + aTransport.host + ":" + aTransport.port);
@@ -581,7 +503,6 @@ var DebuggerServer = {
     }
     aTransport.ready();
 
-    this._fireConnectionChange("opened");
     return conn;
   },
 
@@ -590,7 +511,6 @@ var DebuggerServer = {
    */
   _connectionClosed: function DS_connectionClosed(aConnection) {
     delete this._connections[aConnection.prefix];
-    this._fireConnectionChange("closed");
   },
 
   // DebuggerServer extension API.
@@ -685,9 +605,6 @@ var DebuggerServer = {
   }
 };
 
-if (this.exports) {
-  exports.DebuggerServer = DebuggerServer;
-}
 
 /**
  * Construct an ActorPool.
@@ -701,10 +618,6 @@ function ActorPool(aConnection)
   this.conn = aConnection;
   this._cleanups = {};
   this._actors = {};
-}
-
-if (this.exports) {
-  exports.ActorPool = ActorPool;
 }
 
 ActorPool.prototype = {
@@ -801,15 +714,6 @@ function DebuggerServerConnection(aPrefix, aTransport)
 
   this._actorPool = new ActorPool(this);
   this._extraPools = [];
-
-  // Responses to a given actor must be returned the the client
-  // in the same order as the requests that they're replying to, but
-  // Implementations might finish serving requests in a different
-  // order.  To keep things in order we generate a promise for each
-  // request, chained to the promise for the request before it.
-  // This map stores the latest request promise in the chain, keyed
-  // by an actor ID string.
-  this._actorResponses = new Map;
 
   /*
    * We can forward packets to other servers, if the actors on that server
@@ -920,12 +824,13 @@ DebuggerServerConnection.prototype = {
   },
 
   _unknownError: function DSC__unknownError(aPrefix, aError) {
-    let errorString = aPrefix + ": " + safeErrorString(aError);
+    let errorString = safeErrorString(aError);
+    errorString += "\n" + aError.stack;
     Cu.reportError(errorString);
     dumpn(errorString);
     return {
       error: "unknownError",
-      message: errorString
+      message: (aPrefix + "': " + errorString)
     };
   },
 
@@ -987,8 +892,7 @@ DebuggerServerConnection.prototype = {
     let actor = this.getActor(aPacket.to);
     if (!actor) {
       this.transport.send({ from: aPacket.to ? aPacket.to : "root",
-                            error: "noSuchActor",
-                            message: "No such actor for ID: " + aPacket.to });
+                            error: "noSuchActor" });
       return;
     }
 
@@ -1022,7 +926,7 @@ DebuggerServerConnection.prototype = {
           "error occurred while processing '" + aPacket.type,
           e));
       } finally {
-        this.currentPacket = undefined;
+        delete this.currentPacket;
       }
     } else {
       ret = { error: "unrecognizedPacketType",
@@ -1037,23 +941,19 @@ DebuggerServerConnection.prototype = {
       return;
     }
 
-    let pendingResponse = this._actorResponses.get(actor.actorID) || resolve(null);
-    let response = pendingResponse.then(() => {
-      return ret;
-    }).then(aResponse => {
-      if (!aResponse.from) {
-        aResponse.from = aPacket.to;
-      }
-      this.transport.send(aResponse);
-    }).then(null, (e) => {
-      let errorPacket = this._unknownError(
-        "error occurred while processing '" + aPacket.type,
-        e);
-      errorPacket.from = aPacket.to;
-      this.transport.send(errorPacket);
-    });
-
-    this._actorResponses.set(actor.actorID, response);
+    resolve(ret)
+      .then(function (aResponse) {
+        if (!aResponse.from) {
+          aResponse.from = aPacket.to;
+        }
+        return aResponse;
+      })
+      .then(this.transport.send.bind(this.transport))
+      .then(null, (e) => {
+        return this._unknownError(
+          "error occurred while processing '" + aPacket.type,
+          e);
+      });
   },
 
   /**

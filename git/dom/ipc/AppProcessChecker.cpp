@@ -6,20 +6,17 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "AppProcessChecker.h"
-#ifdef MOZ_CHILD_PERMISSIONS
 #include "ContentParent.h"
 #include "mozIApplication.h"
 #include "mozilla/hal_sandbox/PHalParent.h"
+#include "nsIDOMApplicationRegistry.h"
 #include "TabParent.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::hal_sandbox;
 using namespace mozilla::services;
-#endif
 
 namespace mozilla {
-
-#ifdef MOZ_CHILD_PERMISSIONS
 
 bool
 AssertAppProcess(PBrowserParent* aActor,
@@ -125,48 +122,5 @@ AssertAppProcess(PHalParent* aActor,
 {
   return AssertAppProcess(aActor->Manager(), aType, aCapability);
 }
-
-#else
-
-bool
-AssertAppProcess(mozilla::dom::PBrowserParent* aActor,
-                 AssertAppProcessType aType,
-                 const char* aCapability)
-{
-  return true;
-}
-
-bool
-AssertAppStatus(mozilla::dom::PBrowserParent* aActor,
-                unsigned short aStatus)
-{
-  return true;
-}
-
-
-bool
-AssertAppProcess(mozilla::dom::PContentParent* aActor,
-                 AssertAppProcessType aType,
-                 const char* aCapability)
-{
-  return true;
-}
-
-bool
-AssertAppStatus(mozilla::dom::PContentParent* aActor,
-                unsigned short aStatus)
-{
-  return true;
-}
-
-bool
-AssertAppProcess(mozilla::hal_sandbox::PHalParent* aActor,
-                 AssertAppProcessType aType,
-                 const char* aCapability)
-{
-  return true;
-}
-
-#endif
 
 } // namespace mozilla

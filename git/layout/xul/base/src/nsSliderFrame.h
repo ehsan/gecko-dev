@@ -87,8 +87,8 @@ public:
                     nsIFrame*        asPrevInFlow) MOZ_OVERRIDE;
 
 
-  NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
+  NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
+                         nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
@@ -107,35 +107,29 @@ public:
   void EnsureOrient();
 
   NS_IMETHOD HandlePress(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                         nsGUIEvent *    aEvent,
+                         nsEventStatus*  aEventStatus) MOZ_OVERRIDE;
 
   NS_IMETHOD HandleMultiplePress(nsPresContext* aPresContext,
-                                 mozilla::WidgetGUIEvent* aEvent,
-                                 nsEventStatus* aEventStatus,
-                                 bool aControlHeld) MOZ_OVERRIDE
-  {
-    return NS_OK;
-  }
+                                 nsGUIEvent *    aEvent,
+                                 nsEventStatus*  aEventStatus,
+                                 bool aControlHeld) MOZ_OVERRIDE { return NS_OK; }
 
   NS_IMETHOD HandleDrag(nsPresContext* aPresContext,
-                        mozilla::WidgetGUIEvent* aEvent,
-                        nsEventStatus* aEventStatus) MOZ_OVERRIDE
-  {
-    return NS_OK;
-  }
+                        nsGUIEvent *    aEvent,
+                        nsEventStatus*  aEventStatus) MOZ_OVERRIDE { return NS_OK; }
 
   NS_IMETHOD HandleRelease(nsPresContext* aPresContext,
-                           mozilla::WidgetGUIEvent* aEvent,
-                           nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                           nsGUIEvent *    aEvent,
+                           nsEventStatus*  aEventStatus) MOZ_OVERRIDE;
 
 private:
 
   bool GetScrollToClick();
   nsIFrame* GetScrollbar();
-  bool ShouldScrollForEvent(mozilla::WidgetGUIEvent* aEvent);
-  bool ShouldScrollToClickForEvent(mozilla::WidgetGUIEvent* aEvent);
-  bool IsEventOverThumb(mozilla::WidgetGUIEvent* aEvent);
+  bool ShouldScrollForEvent(nsGUIEvent* aEvent);
+  bool ShouldScrollToClickForEvent(nsGUIEvent* aEvent);
+  bool IsEventOverThumb(nsGUIEvent* aEvent);
 
   void PageUpDown(nscoord change);
   void SetCurrentThumbPosition(nsIContent* aScrollbar, nscoord aNewPos, bool aIsSmooth,

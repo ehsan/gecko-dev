@@ -125,7 +125,7 @@ function test()
 
       hud.jsterm.on("variablesview-fetched", onFetch);
 
-      clickable.scrollIntoView(false);
+      scrollOutputToNode(clickable);
 
       info("wait for variablesview-fetched");
       executeSoon(() =>

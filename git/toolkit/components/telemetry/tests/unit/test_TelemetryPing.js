@@ -23,8 +23,7 @@ const IGNORE_HISTOGRAM_TO_CLONE = "MEMORY_HEAP_ALLOCATED";
 const IGNORE_CLONED_HISTOGRAM = "test::ignore_me_also";
 const ADDON_NAME = "Telemetry test addon";
 const ADDON_HISTOGRAM = "addon-histogram";
-// Add some unicode characters here to ensure that sending them works correctly.
-const FLASH_VERSION = "\u201c1.1.1.1\u201d";
+const FLASH_VERSION = "1.1.1.1";
 const SHUTDOWN_TIME = 10000;
 const FAILED_PROFILE_LOCK_ATTEMPTS = 2;
 
@@ -142,7 +141,7 @@ function decodeRequestPayload(request) {
     let observer = {
       buffer: "",
       onStreamComplete: function(loader, context, status, length, result) {
-        this.buffer = String.fromCharCode.apply(this, result);
+	this.buffer = String.fromCharCode.apply(this, result);
       }
     };
 
@@ -156,12 +155,7 @@ function decodeRequestPayload(request) {
     converter.onStartRequest(null, null);
     converter.onDataAvailable(null, null, s, 0, s.available());
     converter.onStopRequest(null, null, null);
-    let unicodeConverter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-                    .createInstance(Ci.nsIScriptableUnicodeConverter);
-    unicodeConverter.charset = "UTF-8";
-    let utf8string = unicodeConverter.ConvertToUnicode(observer.buffer);
-    utf8string += unicodeConverter.Finish();
-    payload = decoder.decode(utf8string);
+    payload = decoder.decode(observer.buffer);
   } else {
     payload = decoder.decodeFromStream(s, s.available());
   }
@@ -363,7 +357,7 @@ function runOldPingFileTest() {
   do_check_true(histogramsFile.exists());
 
   let mtime = histogramsFile.lastModifiedTime;
-  histogramsFile.lastModifiedTime = mtime - (14 * 24 * 60 * 60 * 1000 + 60000); // 14 days, 1m
+  histogramsFile.lastModifiedTime = mtime - 8 * 24 * 60 * 60 * 1000; // 8 days.
   TelemetryPing.testLoadHistograms(histogramsFile, true);
   do_check_false(histogramsFile.exists());
 }

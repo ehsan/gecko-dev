@@ -22,7 +22,6 @@
 #include "nsNullPrincipal.h"
 #include "nsContentUtils.h"
 #include "nsIParserUtils.h"
-#include "nsIDocument.h"
 
 using namespace mozilla;
 
@@ -1498,37 +1497,44 @@ nsTreeSanitizer::InitializeStatics()
 {
   NS_PRECONDITION(!sElementsHTML, "Initializing a second time.");
 
-  sElementsHTML = new nsTHashtable<nsISupportsHashKey>(ArrayLength(kElementsHTML));
+  sElementsHTML = new nsTHashtable<nsISupportsHashKey> ();
+  sElementsHTML->Init(ArrayLength(kElementsHTML));
   for (uint32_t i = 0; kElementsHTML[i]; i++) {
     sElementsHTML->PutEntry(*kElementsHTML[i]);
   }
 
-  sAttributesHTML = new nsTHashtable<nsISupportsHashKey>(ArrayLength(kAttributesHTML));
+  sAttributesHTML = new nsTHashtable<nsISupportsHashKey> ();
+  sAttributesHTML->Init(ArrayLength(kAttributesHTML));
   for (uint32_t i = 0; kAttributesHTML[i]; i++) {
     sAttributesHTML->PutEntry(*kAttributesHTML[i]);
   }
 
-  sPresAttributesHTML = new nsTHashtable<nsISupportsHashKey>(ArrayLength(kPresAttributesHTML));
+  sPresAttributesHTML = new nsTHashtable<nsISupportsHashKey> ();
+  sPresAttributesHTML->Init(ArrayLength(kPresAttributesHTML));
   for (uint32_t i = 0; kPresAttributesHTML[i]; i++) {
     sPresAttributesHTML->PutEntry(*kPresAttributesHTML[i]);
   }
 
-  sElementsSVG = new nsTHashtable<nsISupportsHashKey>(ArrayLength(kElementsSVG));
+  sElementsSVG = new nsTHashtable<nsISupportsHashKey> ();
+  sElementsSVG->Init(ArrayLength(kElementsSVG));
   for (uint32_t i = 0; kElementsSVG[i]; i++) {
     sElementsSVG->PutEntry(*kElementsSVG[i]);
   }
 
-  sAttributesSVG = new nsTHashtable<nsISupportsHashKey>(ArrayLength(kAttributesSVG));
+  sAttributesSVG = new nsTHashtable<nsISupportsHashKey> ();
+  sAttributesSVG->Init(ArrayLength(kAttributesSVG));
   for (uint32_t i = 0; kAttributesSVG[i]; i++) {
     sAttributesSVG->PutEntry(*kAttributesSVG[i]);
   }
 
-  sElementsMathML = new nsTHashtable<nsISupportsHashKey>(ArrayLength(kElementsMathML));
+  sElementsMathML = new nsTHashtable<nsISupportsHashKey> ();
+  sElementsMathML->Init(ArrayLength(kElementsMathML));
   for (uint32_t i = 0; kElementsMathML[i]; i++) {
     sElementsMathML->PutEntry(*kElementsMathML[i]);
   }
 
-  sAttributesMathML = new nsTHashtable<nsISupportsHashKey>(ArrayLength(kAttributesMathML));
+  sAttributesMathML = new nsTHashtable<nsISupportsHashKey> ();
+  sAttributesMathML->Init(ArrayLength(kAttributesMathML));
   for (uint32_t i = 0; kAttributesMathML[i]; i++) {
     sAttributesMathML->PutEntry(*kAttributesMathML[i]);
   }

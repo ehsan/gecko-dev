@@ -11,6 +11,7 @@
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
 #include "nsIObserverService.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "nsISettingsService.h"
 #include "nsJSUtils.h"
@@ -26,7 +27,6 @@
 #define ERR(args...)  __android_log_print(ANDROID_LOG_ERROR, "AutoMounterSetting" , ## args)
 
 #define UMS_MODE                  "ums.mode"
-#define UMS_STATUS                "ums.status"
 #define UMS_VOLUME_ENABLED_PREFIX "ums.volume."
 #define UMS_VOLUME_ENABLED_SUFFIX ".enabled"
 #define MOZSETTINGS_CHANGED       "mozsettings-changed"
@@ -88,10 +88,7 @@ private:
 NS_IMPL_ISUPPORTS1(CheckVolumeSettingsCallback, nsISettingsServiceCallback)
 
 AutoMounterSetting::AutoMounterSetting()
-  : mStatus(AUTOMOUNTER_STATUS_DISABLED)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   // Setup an observer to watch changes to the setting
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
@@ -120,7 +117,6 @@ AutoMounterSetting::AutoMounterSetting()
   settingsService->CreateLock(getter_AddRefs(lock));
   nsCOMPtr<nsISettingsServiceCallback> callback = new SettingsServiceCallback();
   lock->Set(UMS_MODE, INT_TO_JSVAL(AUTOMOUNTER_DISABLE), callback, nullptr);
-  lock->Set(UMS_STATUS, INT_TO_JSVAL(mStatus), nullptr, nullptr);
 }
 
 AutoMounterSetting::~AutoMounterSetting()
@@ -133,17 +129,6 @@ AutoMounterSetting::~AutoMounterSetting()
 }
 
 NS_IMPL_ISUPPORTS1(AutoMounterSetting, nsIObserver)
-
-const char *
-AutoMounterSetting::StatusStr(int32_t aStatus)
-{
-  switch (aStatus) {
-    case AUTOMOUNTER_STATUS_DISABLED:   return "Disabled";
-    case AUTOMOUNTER_STATUS_ENABLED:    return "Enabled";
-    case AUTOMOUNTER_STATUS_FILES_OPEN: return "FilesOpen";
-  }
-  return "??? Unknown ???";
-}
 
 class CheckVolumeSettingsRunnable : public nsRunnable
 {
@@ -176,39 +161,6 @@ void
 AutoMounterSetting::CheckVolumeSettings(const nsACString& aVolumeName)
 {
   NS_DispatchToMainThread(new CheckVolumeSettingsRunnable(aVolumeName));
-}
-
-class SetStatusRunnable : public nsRunnable
-{
-public:
-  SetStatusRunnable(int32_t aStatus) : mStatus(aStatus) {}
-
-  NS_IMETHOD Run()
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    nsCOMPtr<nsISettingsService> settingsService =
-      do_GetService("@mozilla.org/settingsService;1");
-    NS_ENSURE_TRUE(settingsService, NS_ERROR_FAILURE);
-    nsCOMPtr<nsISettingsServiceLock> lock;
-    settingsService->CreateLock(getter_AddRefs(lock));
-    lock->Set(UMS_STATUS, INT_TO_JSVAL(mStatus), nullptr, nullptr);
-    return NS_OK;
-  }
-
-private:
-  int32_t mStatus;
-};
-
-//static
-void
-AutoMounterSetting::SetStatus(int32_t aStatus)
-{
-  if (aStatus != mStatus) {
-    LOG("Changing status from '%s' to '%s'",
-        StatusStr(mStatus), StatusStr(aStatus));
-    mStatus = aStatus;
-    NS_DispatchToMainThread(new SetStatusRunnable(aStatus));
-  }
 }
 
 NS_IMETHODIMP

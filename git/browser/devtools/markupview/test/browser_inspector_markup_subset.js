@@ -140,7 +140,7 @@ function test() {
   }
 
   function finishUp() {
-    doc = inspector = markup = null;
+    doc = inspector = null;
     gBrowser.removeCurrentTab();
     finish();
   }

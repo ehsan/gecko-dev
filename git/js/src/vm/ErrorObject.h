@@ -16,7 +16,7 @@ namespace js {
 class ErrorObject : public JSObject
 {
   public:
-    static const Class class_;
+    static Class class_;
 
     JSExnPrivate *getExnPrivate() { return static_cast<JSExnPrivate*>(getPrivate()); }
 };

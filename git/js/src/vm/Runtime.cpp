@@ -22,16 +22,12 @@
 #include "jsnativestack.h"
 #include "jsobj.h"
 #include "jsscript.h"
-#include "jswatchpoint.h"
 #include "jswrapper.h"
 
-#if defined(JS_ION)
-# include "assembler/assembler/MacroAssembler.h"
-#endif
-#include "jit/AsmJSSignalHandlers.h"
-#include "jit/JitCompartment.h"
-#include "jit/PcScriptCache.h"
 #include "js/MemoryMetrics.h"
+#include "jit/AsmJSSignalHandlers.h"
+#include "jit/IonCompartment.h"
+#include "jit/PcScriptCache.h"
 #include "yarr/BumpPointerAllocator.h"
 
 #include "jscntxtinlines.h"
@@ -42,13 +38,8 @@ using namespace js::gc;
 
 using mozilla::Atomic;
 using mozilla::DebugOnly;
-using mozilla::NegativeInfinity;
 using mozilla::PodZero;
-using mozilla::PodArrayZero;
-using mozilla::PositiveInfinity;
 using mozilla::ThreadLocal;
-using JS::GenericNaN;
-using JS::DoubleNaNValue;
 
 /* static */ ThreadLocal<PerThreadData*> js::TlsPerThreadData;
 
@@ -59,12 +50,12 @@ const JSSecurityCallbacks js::NullSecurityCallbacks = { };
 PerThreadData::PerThreadData(JSRuntime *runtime)
   : PerThreadDataFriendFields(),
     runtime_(runtime),
-    ionTop(nullptr),
-    ionJSContext(nullptr),
+    ionTop(NULL),
+    ionJSContext(NULL),
     ionStackLimit(0),
-    activation_(nullptr),
-    asmJSActivationStack_(nullptr),
-    dtoaState(nullptr),
+    activation_(NULL),
+    asmJSActivationStack_(NULL),
+    dtoaState(NULL),
     suppressGC(0),
     gcKeepAtoms(0),
     activeCompilations(0)
@@ -94,78 +85,69 @@ PerThreadData::addToThreadList()
 {
     // PerThreadData which are created/destroyed off the main thread do not
     // show up in the runtime's thread list.
-    JS_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
+    runtime_->assertValidThread();
     runtime_->threadList.insertBack(this);
 }
 
 void
 PerThreadData::removeFromThreadList()
 {
-    JS_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
+    runtime_->assertValidThread();
     removeFrom(runtime_->threadList);
 }
 
 JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
-  : JS::shadow::Runtime(
-#ifdef JSGC_GENERATIONAL
-        &gcStoreBuffer
-#endif
-    ),
-    mainThread(this),
+  : mainThread(this),
     interrupt(0),
-    handlingSignal(false),
-    operationCallback(nullptr),
 #ifdef JS_THREADSAFE
-    operationCallbackLock(nullptr),
-    operationCallbackOwner(nullptr),
-#else
-    operationCallbackLockTaken(false),
+    operationCallbackLock(NULL),
+#ifdef DEBUG
+    operationCallbackOwner(NULL),
 #endif
-#ifdef JS_WORKER_THREADS
-    workerThreadState(nullptr),
-    exclusiveAccessLock(nullptr),
-    exclusiveAccessOwner(nullptr),
+    exclusiveAccessLock(NULL),
+    exclusiveAccessOwner(NULL),
     mainThreadHasExclusiveAccess(false),
-    exclusiveThreadsPaused(false),
     numExclusiveThreads(0),
 #endif
-    systemZone(nullptr),
+    atomsCompartment(NULL),
+    systemZone(NULL),
     numCompartments(0),
-    localeCallbacks(nullptr),
-    defaultLocale(nullptr),
+    localeCallbacks(NULL),
+    defaultLocale(NULL),
     defaultVersion_(JSVERSION_DEFAULT),
 #ifdef JS_THREADSAFE
-    ownerThread_(nullptr),
+    ownerThread_(NULL),
 #endif
     tempLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     freeLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
-    execAlloc_(nullptr),
-    bumpAlloc_(nullptr),
-    jitRuntime_(nullptr),
-    selfHostingGlobal_(nullptr),
+    execAlloc_(NULL),
+    bumpAlloc_(NULL),
+    ionRuntime_(NULL),
+    selfHostingGlobal_(NULL),
+    selfHostedClasses_(NULL),
     nativeStackBase(0),
-    cxCallback(nullptr),
-    destroyCompartmentCallback(nullptr),
-    destroyZoneCallback(nullptr),
-    sweepZoneCallback(nullptr),
-    compartmentNameCallback(nullptr),
-    activityCallback(nullptr),
-    activityCallbackArg(nullptr),
+    nativeStackQuota(0),
+    interpreterFrames(NULL),
+    cxCallback(NULL),
+    destroyCompartmentCallback(NULL),
+    compartmentNameCallback(NULL),
+    activityCallback(NULL),
+    activityCallbackArg(NULL),
 #ifdef JS_THREADSAFE
     requestDepth(0),
 # ifdef DEBUG
     checkRequestDepth(0),
 # endif
 #endif
-    gcSystemAvailableChunkListHead(nullptr),
-    gcUserAvailableChunkListHead(nullptr),
+    gcSystemAvailableChunkListHead(NULL),
+    gcUserAvailableChunkListHead(NULL),
     gcBytes(0),
     gcMaxBytes(0),
     gcMaxMallocBytes(0),
     gcNumArenasFreeCommitted(0),
     gcMarker(this),
-    gcVerifyPreData(nullptr),
-    gcVerifyPostData(nullptr),
+    gcVerifyPreData(NULL),
+    gcVerifyPostData(NULL),
     gcChunkAllocationSinceLastGC(false),
     gcNextFullGCTime(0),
     gcLastGCTime(0),
@@ -198,17 +180,17 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     gcLastMarkSlice(false),
     gcSweepOnBackgroundThread(false),
     gcFoundBlackGrayEdges(false),
-    gcSweepingZones(nullptr),
+    gcSweepingZones(NULL),
     gcZoneGroupIndex(0),
-    gcZoneGroups(nullptr),
-    gcCurrentZoneGroup(nullptr),
+    gcZoneGroups(NULL),
+    gcCurrentZoneGroup(NULL),
     gcSweepPhase(0),
-    gcSweepZone(nullptr),
+    gcSweepZone(NULL),
     gcSweepKindIndex(0),
     gcAbortSweepAfterCurrentGroup(false),
-    gcArenasAllocatedDuringSweep(nullptr),
+    gcArenasAllocatedDuringSweep(NULL),
 #ifdef DEBUG
-    gcMarkingValidator(nullptr),
+    gcMarkingValidator(NULL),
 #endif
     gcInterFrameGC(0),
     gcSliceBudget(SliceBudget::Unlimited),
@@ -231,63 +213,65 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
 #endif
     gcValidate(true),
     gcFullCompartmentChecks(false),
-    gcCallback(nullptr),
-    gcSliceCallback(nullptr),
-    gcFinalizeCallback(nullptr),
+    gcCallback(NULL),
+    gcSliceCallback(NULL),
+    gcFinalizeCallback(NULL),
+    analysisPurgeCallback(NULL),
+    analysisPurgeTriggerBytes(0),
     gcMallocBytes(0),
-    scriptAndCountsVector(nullptr),
-    NaNValue(DoubleNaNValue()),
-    negativeInfinityValue(DoubleValue(NegativeInfinity())),
-    positiveInfinityValue(DoubleValue(PositiveInfinity())),
-    emptyString(nullptr),
+    scriptAndCountsVector(NULL),
+    NaNValue(UndefinedValue()),
+    negativeInfinityValue(UndefinedValue()),
+    positiveInfinityValue(UndefinedValue()),
+    emptyString(NULL),
+    sourceHook(NULL),
     debugMode(false),
     spsProfiler(thisFromCtor()),
     profilingScripts(false),
     alwaysPreserveCode(false),
     hadOutOfMemory(false),
-    haveCreatedContext(false),
-    data(nullptr),
-    gcLock(nullptr),
+    data(NULL),
+    gcLock(NULL),
     gcHelperThread(thisFromCtor()),
-    signalHandlersInstalled_(false),
+#ifdef JS_THREADSAFE
+#ifdef JS_ION
+    workerThreadState(NULL),
+#endif
+    sourceCompressorThread(),
+#endif
     defaultFreeOp_(thisFromCtor(), false),
     debuggerMutations(0),
     securityCallbacks(const_cast<JSSecurityCallbacks *>(&NullSecurityCallbacks)),
-    DOMcallbacks(nullptr),
-    destroyPrincipals(nullptr),
-    structuredCloneCallbacks(nullptr),
-    telemetryCallback(nullptr),
+    DOMcallbacks(NULL),
+    destroyPrincipals(NULL),
+    structuredCloneCallbacks(NULL),
+    telemetryCallback(NULL),
     propertyRemovals(0),
-#if !EXPOSE_INTL_API
+#if !ENABLE_INTL_API
     thousandsSeparator(0),
     decimalSeparator(0),
     numGrouping(0),
 #endif
-    mathCache_(nullptr),
-    trustedPrincipals_(nullptr),
-    atomsCompartment_(nullptr),
-    beingDestroyed_(false),
+    mathCache_(NULL),
+    trustedPrincipals_(NULL),
     wrapObjectCallback(TransparentObjectWrapper),
-    sameCompartmentWrapObjectCallback(nullptr),
-    preWrapObjectCallback(nullptr),
-    preserveWrapperCallback(nullptr),
+    sameCompartmentWrapObjectCallback(NULL),
+    preWrapObjectCallback(NULL),
+    preserveWrapperCallback(NULL),
 #ifdef DEBUG
     noGCOrAllocationCheck(0),
 #endif
     jitHardening(false),
     jitSupportsFloatingPoint(false),
-    ionPcScriptCache(nullptr),
+    ionPcScriptCache(NULL),
     threadPool(this),
-    defaultJSContextCallback(nullptr),
-    ctypesActivityCallback(nullptr),
+    ctypesActivityCallback(NULL),
     parallelWarmup(0),
     ionReturnOverride_(MagicValue(JS_ARG_POISON)),
     useHelperThreads_(useHelperThreads),
-    requestedHelperThreadCount(-1),
-    useHelperThreadsForIonCompilation_(true),
-    useHelperThreadsForParsing_(true)
+    requestedHelperThreadCount(-1)
 #ifdef DEBUG
-    , enteredPolicy(nullptr)
+    , enteredPolicy(NULL)
 #endif
 {
     liveRuntimesCount++;
@@ -297,8 +281,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
 
     PodZero(&debugHooks);
     PodZero(&atomState);
-    PodArrayZero(nativeStackQuota);
-    PodZero(&asmJSCacheOps);
 
 #if JS_STACK_GROWTH_DIRECTION > 0
     nativeStackLimit = UINTPTR_MAX;
@@ -332,9 +314,7 @@ JSRuntime::init(uint32_t maxbytes)
     operationCallbackLock = PR_NewLock();
     if (!operationCallbackLock)
         return false;
-#endif
 
-#ifdef JS_WORKER_THREADS
     exclusiveAccessLock = PR_NewLock();
     if (!exclusiveAccessLock)
         return false;
@@ -362,7 +342,7 @@ JSRuntime::init(uint32_t maxbytes)
 
     JS::CompartmentOptions options;
     ScopedJSDeletePtr<JSCompartment> atomsCompartment(new_<JSCompartment>(atomsZone.get(), options));
-    if (!atomsCompartment || !atomsCompartment->init(nullptr))
+    if (!atomsCompartment || !atomsCompartment->init(NULL))
         return false;
 
     zones.append(atomsZone.get());
@@ -373,7 +353,7 @@ JSRuntime::init(uint32_t maxbytes)
     atomsZone->setGCLastBytes(8192, GC_NORMAL);
 
     atomsZone.forget();
-    this->atomsCompartment_ = atomsCompartment.forget();
+    this->atomsCompartment = atomsCompartment.forget();
 
     if (!InitAtoms(this))
         return false;
@@ -383,11 +363,16 @@ JSRuntime::init(uint32_t maxbytes)
 
     dateTimeInfo.updateTimeZoneAdjustment();
 
-    if (!scriptDataTable_.init())
+    if (!scriptDataTable.init())
         return false;
 
     if (!threadPool.init())
         return false;
+
+#ifdef JS_THREADSAFE
+    if (useHelperThreads() && !sourceCompressorThread.init())
+        return false;
+#endif
 
     if (!evalCache.init())
         return false;
@@ -395,80 +380,29 @@ JSRuntime::init(uint32_t maxbytes)
     nativeStackBase = GetNativeStackBase();
 
     jitSupportsFloatingPoint = JitSupportsFloatingPoint();
-
-#ifdef JS_ION
-    signalHandlersInstalled_ = EnsureAsmJSSignalHandlersInstalled(this);
-#endif
     return true;
 }
 
 JSRuntime::~JSRuntime()
 {
-    JS_ASSERT(!isHeapBusy());
-
-    /* Free source hook early, as its destructor may want to delete roots. */
-    sourceHook = nullptr;
-
-    /* Off thread compilation and parsing depend on atoms still existing. */
-    for (CompartmentsIter comp(this); !comp.done(); comp.next())
-        CancelOffThreadIonCompile(comp, nullptr);
-    WaitForOffThreadParsingToFinish(this);
-
-#ifdef JS_WORKER_THREADS
-    if (workerThreadState)
-        workerThreadState->cleanup(this);
-#endif
-
-    /* Poison common names before final GC. */
-    FinishCommonNames(this);
-
-    /* Clear debugging state to remove GC roots. */
-    for (CompartmentsIter comp(this); !comp.done(); comp.next()) {
-        comp->clearTraps(defaultFreeOp());
-        if (WatchpointMap *wpmap = comp->watchpointMap)
-            wpmap->clear();
-    }
-
-    /* Clear the statics table to remove GC roots. */
-    staticStrings.finish();
-
-    /*
-     * Flag us as being destroyed. This allows the GC to free things like
-     * interned atoms and Ion trampolines.
-     */
-    beingDestroyed_ = true;
-
-    /* Allow the GC to release scripts that were being profiled. */
-    profilingScripts = false;
-
-    JS::PrepareForFullGC(this);
-    GC(this, GC_NORMAL, JS::gcreason::DESTROY_RUNTIME);
-
-    /*
-     * Clear the self-hosted global and delete self-hosted classes *after*
-     * GC, as finalizers for objects check for clasp->finalize during GC.
-     */
-    finishSelfHosting();
-
     mainThread.removeFromThreadList();
 
-#ifdef JS_WORKER_THREADS
-    js_delete(workerThreadState);
+#ifdef JS_THREADSAFE
+# ifdef JS_ION
+    if (workerThreadState)
+        js_delete(workerThreadState);
+# endif
+    sourceCompressorThread.finish();
+
+    clearOwnerThread();
+
+    JS_ASSERT(!operationCallbackOwner);
+    if (operationCallbackLock)
+        PR_DestroyLock(operationCallbackLock);
 
     JS_ASSERT(!exclusiveAccessOwner);
     if (exclusiveAccessLock)
         PR_DestroyLock(exclusiveAccessLock);
-
-    JS_ASSERT(!numExclusiveThreads);
-
-    // Avoid bogus asserts during teardown.
-    exclusiveThreadsPaused = true;
-#endif
-
-#ifdef JS_THREADSAFE
-    JS_ASSERT(!operationCallbackOwner);
-    if (operationCallbackLock)
-        PR_DestroyLock(operationCallbackLock);
 #endif
 
     /*
@@ -493,28 +427,26 @@ JSRuntime::~JSRuntime()
     }
 #endif
 
-#if !EXPOSE_INTL_API
+#if !ENABLE_INTL_API
     FinishRuntimeNumberState(this);
 #endif
     FinishAtoms(this);
 
     js_FinishGC(this);
-    atomsCompartment_ = nullptr;
-
 #ifdef JS_THREADSAFE
     if (gcLock)
         PR_DestroyLock(gcLock);
 #endif
 
-    js_free(defaultLocale);
     js_delete(bumpAlloc_);
     js_delete(mathCache_);
 #ifdef JS_ION
-    js_delete(jitRuntime_);
+    js_delete(ionRuntime_);
 #endif
-    js_delete(execAlloc_);  /* Delete after jitRuntime_. */
+    js_delete(execAlloc_);  /* Delete after ionRuntime_. */
 
-    js_delete(ionPcScriptCache);
+    if (ionPcScriptCache)
+        js_delete(ionPcScriptCache);
 
 #ifdef JSGC_GENERATIONAL
     gcStoreBuffer.disable();
@@ -523,11 +455,61 @@ JSRuntime::~JSRuntime()
 
     DebugOnly<size_t> oldCount = liveRuntimesCount--;
     JS_ASSERT(oldCount > 0);
+}
 
 #ifdef JS_THREADSAFE
-    js::TlsPerThreadData.set(nullptr);
+void
+JSRuntime::setOwnerThread()
+{
+    JS_ASSERT(ownerThread_ == (void *)0xc1ea12);  /* "clear" */
+    JS_ASSERT(requestDepth == 0);
+    JS_ASSERT(js::TlsPerThreadData.get() == NULL);
+    ownerThread_ = PR_GetCurrentThread();
+    js::TlsPerThreadData.set(&mainThread);
+    nativeStackBase = GetNativeStackBase();
+    if (nativeStackQuota)
+        JS_SetNativeStackQuota(this, nativeStackQuota);
+#ifdef XP_MACOSX
+    asmJSMachExceptionHandler.setCurrentThread();
 #endif
 }
+
+void
+JSRuntime::clearOwnerThread()
+{
+    assertValidThread();
+    JS_ASSERT(requestDepth == 0);
+    ownerThread_ = (void *)0xc1ea12;  /* "clear" */
+    js::TlsPerThreadData.set(NULL);
+    nativeStackBase = 0;
+#if JS_STACK_GROWTH_DIRECTION > 0
+    mainThread.nativeStackLimit = UINTPTR_MAX;
+#else
+    mainThread.nativeStackLimit = 0;
+#endif
+#ifdef XP_MACOSX
+    asmJSMachExceptionHandler.clearCurrentThread();
+#endif
+}
+
+JS_FRIEND_API(void)
+JSRuntime::abortIfWrongThread() const
+{
+    if (ownerThread_ != PR_GetCurrentThread())
+        MOZ_CRASH();
+    if (!js::TlsPerThreadData.get()->associatedWith(this))
+        MOZ_CRASH();
+}
+
+#ifdef DEBUG
+JS_FRIEND_API(void)
+JSRuntime::assertValidThread() const
+{
+    JS_ASSERT(ownerThread_ == PR_GetCurrentThread());
+    JS_ASSERT(js::TlsPerThreadData.get()->associatedWith(this));
+}
+#endif  /* DEBUG */
+#endif  /* JS_THREADSAFE */
 
 void
 NewObjectCache::clearNurseryObjects(JSRuntime *rt)
@@ -545,50 +527,42 @@ NewObjectCache::clearNurseryObjects(JSRuntime *rt)
 }
 
 void
-JSRuntime::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::RuntimeSizes *rtSizes)
+JSRuntime::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::RuntimeSizes *rtSizes)
 {
     // Several tables in the runtime enumerated below can be used off thread.
     AutoLockForExclusiveAccess lock(this);
 
-    rtSizes->object += mallocSizeOf(this);
+    rtSizes->object = mallocSizeOf(this);
 
-    rtSizes->atomsTable += atoms().sizeOfExcludingThis(mallocSizeOf);
+    rtSizes->atomsTable = atoms.sizeOfExcludingThis(mallocSizeOf);
 
+    rtSizes->contexts = 0;
     for (ContextIter acx(this); !acx.done(); acx.next())
         rtSizes->contexts += acx->sizeOfIncludingThis(mallocSizeOf);
 
-    rtSizes->dtoa += mallocSizeOf(mainThread.dtoaState);
+    rtSizes->dtoa = mallocSizeOf(mainThread.dtoaState);
 
-    rtSizes->temporary += tempLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
+    rtSizes->temporary = tempLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
 
+    rtSizes->code = JS::CodeSizes();
     if (execAlloc_)
-        execAlloc_->addSizeOfCode(&rtSizes->code);
+        execAlloc_->sizeOfCode(&rtSizes->code);
 
-#ifdef JS_ION
-    {
-        AutoLockForOperationCallback lock(this);
-        if (jitRuntime()) {
-            if (JSC::ExecutableAllocator *ionAlloc = jitRuntime()->ionAlloc(this))
-                ionAlloc->addSizeOfCode(&rtSizes->code);
-        }
-    }
-#endif
+    rtSizes->regexpData = bumpAlloc_ ? bumpAlloc_->sizeOfNonHeapData() : 0;
 
-    rtSizes->regexpData += bumpAlloc_ ? bumpAlloc_->sizeOfNonHeapData() : 0;
+    rtSizes->interpreterStack = interpreterStack_.sizeOfExcludingThis(mallocSizeOf);
 
-    rtSizes->interpreterStack += interpreterStack_.sizeOfExcludingThis(mallocSizeOf);
+    rtSizes->gcMarker = gcMarker.sizeOfExcludingThis(mallocSizeOf);
 
-    rtSizes->gcMarker += gcMarker.sizeOfExcludingThis(mallocSizeOf);
+    rtSizes->mathCache = mathCache_ ? mathCache_->sizeOfIncludingThis(mallocSizeOf) : 0;
 
-    rtSizes->mathCache += mathCache_ ? mathCache_->sizeOfIncludingThis(mallocSizeOf) : 0;
-
-    rtSizes->scriptData += scriptDataTable().sizeOfExcludingThis(mallocSizeOf);
-    for (ScriptDataTable::Range r = scriptDataTable().all(); !r.empty(); r.popFront())
+    rtSizes->scriptData = scriptDataTable.sizeOfExcludingThis(mallocSizeOf);
+    for (ScriptDataTable::Range r = scriptDataTable.all(); !r.empty(); r.popFront())
         rtSizes->scriptData += mallocSizeOf(r.front());
 }
 
 void
-JSRuntime::triggerOperationCallback(OperationCallbackTrigger trigger)
+JSRuntime::triggerOperationCallback()
 {
     AutoLockForOperationCallback lock(this);
 
@@ -600,15 +574,15 @@ JSRuntime::triggerOperationCallback(OperationCallbackTrigger trigger)
      */
     mainThread.setIonStackLimit(-1);
 
-    interrupt = 1;
+    /*
+     * Use JS_ATOMIC_SET in the hope that it ensures the write will become
+     * immediately visible to other processors polling the flag.
+     */
+    JS_ATOMIC_SET(&interrupt, 1);
 
 #ifdef JS_ION
-    /*
-     * asm.js and, optionally, normal Ion code use memory protection and signal
-     * handlers to halt running code.
-     */
+    /* asm.js code uses a separate mechanism to halt running code. */
     TriggerOperationCallbackForAsmJSCode(this);
-    jit::TriggerOperationCallbackForIonCode(this, trigger);
 #endif
 }
 
@@ -655,7 +629,7 @@ JSRuntime::createMathCache(JSContext *cx)
     MathCache *newMathCache = js_new<MathCache>();
     if (!newMathCache) {
         js_ReportOutOfMemory(cx);
-        return nullptr;
+        return NULL;
     }
 
     mathCache_ = newMathCache;
@@ -669,14 +643,14 @@ JSRuntime::setDefaultLocale(const char *locale)
         return false;
     resetDefaultLocale();
     defaultLocale = JS_strdup(this, locale);
-    return defaultLocale != nullptr;
+    return defaultLocale != NULL;
 }
 
 void
 JSRuntime::resetDefaultLocale()
 {
     js_free(defaultLocale);
-    defaultLocale = nullptr;
+    defaultLocale = NULL;
 }
 
 const char *
@@ -687,7 +661,7 @@ JSRuntime::getDefaultLocale()
 
     char *locale, *lang, *p;
 #ifdef HAVE_SETLOCALE
-    locale = setlocale(LC_ALL, nullptr);
+    locale = setlocale(LC_ALL, NULL);
 #else
     locale = getenv("LANG");
 #endif
@@ -696,7 +670,7 @@ JSRuntime::getDefaultLocale()
         locale = const_cast<char*>("und");
     lang = JS_strdup(this, locale);
     if (!lang)
-        return nullptr;
+        return NULL;
     if ((p = strchr(lang, '.')))
         *p = '\0';
     while ((p = strchr(lang, '_')))
@@ -722,7 +696,7 @@ JSRuntime::setGCMaxMallocBytes(size_t value)
 void
 JSRuntime::updateMallocCounter(size_t nbytes)
 {
-    updateMallocCounter(nullptr, nbytes);
+    updateMallocCounter(NULL, nbytes);
 }
 
 void
@@ -741,21 +715,20 @@ JSRuntime::updateMallocCounter(JS::Zone *zone, size_t nbytes)
 JS_FRIEND_API(void)
 JSRuntime::onTooMuchMalloc()
 {
-    if (CurrentThreadCanAccessRuntime(this))
-        TriggerGC(this, JS::gcreason::TOO_MUCH_MALLOC);
+    TriggerGC(this, JS::gcreason::TOO_MUCH_MALLOC);
 }
 
 JS_FRIEND_API(void *)
 JSRuntime::onOutOfMemory(void *p, size_t nbytes)
 {
-    return onOutOfMemory(p, nbytes, nullptr);
+    return onOutOfMemory(p, nbytes, NULL);
 }
 
 JS_FRIEND_API(void *)
 JSRuntime::onOutOfMemory(void *p, size_t nbytes, JSContext *cx)
 {
     if (isHeapBusy())
-        return nullptr;
+        return NULL;
 
     /*
      * Retry when we are done with the background sweeping and have stopped
@@ -773,66 +746,6 @@ JSRuntime::onOutOfMemory(void *p, size_t nbytes, JSContext *cx)
         return p;
     if (cx)
         js_ReportOutOfMemory(cx);
-    return nullptr;
+    return NULL;
 }
 
-bool
-JSRuntime::activeGCInAtomsZone()
-{
-    Zone *zone = atomsCompartment_->zone();
-    return zone->needsBarrier() || zone->isGCScheduled() || zone->wasGCStarted();
-}
-
-#ifdef JS_WORKER_THREADS
-
-void
-JSRuntime::setUsedByExclusiveThread(Zone *zone)
-{
-    JS_ASSERT(!zone->usedByExclusiveThread);
-    zone->usedByExclusiveThread = true;
-    numExclusiveThreads++;
-}
-
-void
-JSRuntime::clearUsedByExclusiveThread(Zone *zone)
-{
-    JS_ASSERT(zone->usedByExclusiveThread);
-    zone->usedByExclusiveThread = false;
-    numExclusiveThreads--;
-}
-
-#endif // JS_WORKER_THREADS
-
-#ifdef JS_THREADSAFE
-
-bool
-js::CurrentThreadCanAccessRuntime(JSRuntime *rt)
-{
-    DebugOnly<PerThreadData *> pt = js::TlsPerThreadData.get();
-    JS_ASSERT(pt && pt->associatedWith(rt));
-    return rt->ownerThread_ == PR_GetCurrentThread() || InExclusiveParallelSection();
-}
-
-bool
-js::CurrentThreadCanAccessZone(Zone *zone)
-{
-    DebugOnly<PerThreadData *> pt = js::TlsPerThreadData.get();
-    JS_ASSERT(pt && pt->associatedWith(zone->runtime_));
-    return !InParallelSection() || InExclusiveParallelSection();
-}
-
-#else
-
-bool
-js::CurrentThreadCanAccessRuntime(JSRuntime *rt)
-{
-    return true;
-}
-
-bool
-js::CurrentThreadCanAccessZone(Zone *zone)
-{
-    return true;
-}
-
-#endif

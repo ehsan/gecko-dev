@@ -7,36 +7,21 @@
 #ifndef mozilla_dom_SourceBuffer_h_
 #define mozilla_dom_SourceBuffer_h_
 
-#include "MediaDecoderReader.h"
+#include "AsyncEventRunner.h"
 #include "MediaSource.h"
-#include "js/RootingAPI.h"
-#include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/SourceBufferBinding.h"
+#include "mozilla/dom/TimeRanges.h"
 #include "mozilla/dom/TypedArray.h"
-#include "mozilla/mozalloc.h"
-#include "nsAutoPtr.h"
+#include "mozilla/ErrorResult.h"
 #include "nsCOMPtr.h"
-#include "nsCycleCollectionNoteChild.h"
+#include "nscore.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsDOMEventTargetHelper.h"
-#include "nsISupports.h"
-#include "nsStringGlue.h"
-#include "nscore.h"
-
-class JSObject;
-struct JSContext;
+#include "nsWrapperCache.h"
 
 namespace mozilla {
-
-class ErrorResult;
-class SourceBufferResource;
-class SubBufferDecoder;
-template <typename T> class AsyncEventRunner;
-
 namespace dom {
-
-class TimeRanges;
 
 class SourceBuffer MOZ_FINAL : public nsDOMEventTargetHelper
 {
@@ -77,8 +62,8 @@ public:
 
   void SetAppendWindowEnd(double aAppendWindowEnd, ErrorResult& aRv);
 
-  void AppendBuffer(const ArrayBuffer& aData, ErrorResult& aRv);
-  void AppendBuffer(const ArrayBufferView& aData, ErrorResult& aRv);
+  void AppendBuffer(ArrayBuffer& aData, ErrorResult& aRv);
+  void AppendBuffer(ArrayBufferView& aData, ErrorResult& aRv);
 
   void Abort(ErrorResult& aRv);
 
@@ -88,25 +73,19 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(SourceBuffer, nsDOMEventTargetHelper)
 
-  explicit SourceBuffer(MediaSource* aMediaSource, const nsACString& aType);
-  ~SourceBuffer();
+  explicit SourceBuffer(MediaSource* aMediaSource);
 
   MediaSource* GetParentObject() const;
 
   JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
-  // Notify the SourceBuffer that it has been detached from the
-  // MediaSource's sourceBuffer list.
+  // Notify the SourceBuffer that it has been attached to or detached from
+  // the MediaSource's sourceBuffer list.
+  void Attach();
   void Detach();
-  bool IsAttached() const
-  {
-    return mMediaSource != nullptr;
-  }
-
-  void Ended();
 
 private:
-  friend class AsyncEventRunner<SourceBuffer>;
+  friend class AsyncEventRunnner<SourceBuffer>;
   void DispatchSimpleEvent(const char* aName);
   void QueueAsyncSimpleEvent(const char* aName);
 
@@ -120,8 +99,6 @@ private:
 
   nsRefPtr<MediaSource> mMediaSource;
 
-  nsRefPtr<SubBufferDecoder> mDecoder;
-
   double mAppendWindowStart;
   double mAppendWindowEnd;
 
@@ -129,9 +106,10 @@ private:
 
   SourceBufferAppendMode mAppendMode;
   bool mUpdating;
+
+  bool mAttached;
 };
 
 } // namespace dom
-
 } // namespace mozilla
 #endif /* mozilla_dom_SourceBuffer_h_ */

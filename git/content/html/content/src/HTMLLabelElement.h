@@ -32,8 +32,17 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
   // nsIDOMHTMLLabelElement
   NS_DECL_NSIDOMHTMLLABELELEMENT
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
 
   using nsGenericHTMLFormElement::GetForm;
   void GetHtmlFor(nsString& aHtmlFor)
@@ -49,7 +58,6 @@ public:
     return GetLabeledElement();
   }
 
-  using nsGenericHTMLElement::Focus;
   virtual void Focus(mozilla::ErrorResult& aError) MOZ_OVERRIDE;
 
   // nsIFormControl
@@ -64,6 +72,8 @@ public:
   virtual void PerformAccesskey(bool aKeyCausesActivation,
                                 bool aIsTrustedEvent) MOZ_OVERRIDE;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
 
   nsGenericHTMLElement* GetLabeledElement() const;
 protected:

@@ -9,5 +9,6 @@ interface LockedFile;
 interface FileRequest : DOMRequest {
   readonly attribute LockedFile? lockedFile;
 
+  [SetterThrows]
   attribute EventHandler onprogress;
 };

@@ -13,6 +13,7 @@
 class nsPIDOMWindow;
 class nsIControllers;
 class nsIController;
+struct JSContext;
 
 #define NS_IWINDOWROOT_IID \
 { 0x3f71f50c, 0xa7e0, 0x43bc, \

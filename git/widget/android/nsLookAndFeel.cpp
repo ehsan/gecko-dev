@@ -8,8 +8,6 @@
 #include "nsXULAppAPI.h"
 #include "nsLookAndFeel.h"
 #include "gfxFont.h"
-#include "gfxFontConstants.h"
-#include "mozilla/gfx/2D.h"
 
 using namespace mozilla;
 using mozilla::dom::ContentChild;
@@ -398,6 +396,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
             break;
 
         case eIntID_WindowsDefaultTheme:
+        case eIntID_MaemoClassic:
         case eIntID_WindowsThemeIdentifier:
         case eIntID_OperatingSystemVersionIdentifier:
             aResult = 0;

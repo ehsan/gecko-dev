@@ -88,8 +88,6 @@ namespace system {
 
 class AutoMounter;
 
-static void SetAutoMounterStatus(int32_t aStatus);
-
 /***************************************************************************/
 
 inline const char* SwitchStateStr(const SwitchEvent& aEvent)
@@ -316,37 +314,11 @@ AutoMounterResponseCallback::ResponseReceived(const VolumeCommand* aCommand)
   }
 }
 
-class AutoBool {
-public:
-    explicit AutoBool(bool &aBool) : mBool(aBool) {
-      mBool = true;
-    }
-
-    ~AutoBool() {
-      mBool = false;
-    }
-
-private:
-    bool &mBool;
-};
-
 /***************************************************************************/
 
 void
 AutoMounter::UpdateState()
 {
-  static bool inUpdateState = false;
-  if (inUpdateState) {
-    // When UpdateState calls SetISharing, this causes a volume state
-    // change to occur, which would normally cause UpdateState to be called
-    // again. We want the volume state change to go out (so that device
-    // storage will see the change in sharing state), but since we're
-    // already in UpdateState we just want to prevent recursion from screwing
-    // things up.
-    return;
-  }
-  AutoBool inUpdateStateDetector(inUpdateState);
-
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
 
   // If the following preconditions are met:
@@ -404,8 +376,6 @@ AutoMounter::UpdateState()
   LOG("UpdateState: umsAvail:%d umsEnabled:%d mode:%d usbCablePluggedIn:%d tryToShare:%d",
       umsAvail, umsEnabled, mMode, usbCablePluggedIn, tryToShare);
 
-  bool filesOpen = false;
-  static unsigned filesOpenDelayCount = 0;
   VolumeArray::index_type volIndex;
   VolumeArray::size_type  numVolumes = VolumeManager::NumVolumes();
   for (volIndex = 0; volIndex < numVolumes; volIndex++) {
@@ -440,12 +410,6 @@ AutoMounter::UpdateState()
             break;
           }
 
-          // Mark the volume as if we've started sharing. This will cause
-          // apps which watch device storage notifications to see the volume
-          // go into the shared state, and prompt them to close any open files
-          // that they might have.
-          vol->SetIsSharing(true);
-
           // Check to see if there are any open files on the volume and
           // don't initiate the unmount while there are open files.
           OpenFileFinder::Info fileInfo;
@@ -464,27 +428,15 @@ AutoMounter::UpdateState()
             LOGW("UpdateState: Mounted volume %s has open files, not sharing",
                  vol->NameStr());
 
-            // Check again in a few seconds to see if the files are closed.
-            // Since we're trying to share the volume, this implies that we're
+            // Check again in 5 seconds to see if the files are closed. Since
+            // we're trying to share the volume, this implies that we're
             // plugged into the PC via USB and this in turn implies that the
             // battery is charging, so we don't need to be too concerned about
             // wasting battery here.
-            //
-            // If we just detected that there were files open, then we use
-            // a short timer. We will have told the apps that we're trying
-            // trying to share, and they'll be closing their files. This makes
-            // the sharing more responsive. If after a few seconds, the apps
-            // haven't closed their files, then we back off.
-
-            int delay = 1000;
-            if (filesOpenDelayCount > 10) {
-              delay = 5000;
-            }
             MessageLoopForIO::current()->
               PostDelayedTask(FROM_HERE,
                               NewRunnableMethod(this, &AutoMounter::UpdateState),
-                              delay);
-            filesOpen = true;
+                              5000);
             break;
           }
 
@@ -528,16 +480,6 @@ AutoMounter::UpdateState()
       }
     }
   }
-
-  int32_t status = AUTOMOUNTER_STATUS_DISABLED;
-  if (filesOpen) {
-    filesOpenDelayCount++;
-    status = AUTOMOUNTER_STATUS_FILES_OPEN;
-  } else if (enabled) {
-    filesOpenDelayCount = 0;
-    status = AUTOMOUNTER_STATUS_ENABLED;
-  }
-  SetAutoMounterStatus(status);
 }
 
 /***************************************************************************/
@@ -652,7 +594,7 @@ InitVolumeConfig()
     return;
   }
   while(fgets(line, sizeof(line), fp)) {
-    const char *delim = " \t\n";
+    char *delim = " \t\n";
     n++;
 
     if (line[0] == '#')
@@ -699,24 +641,6 @@ InitAutoMounter()
   // start it here and have it send events to the AutoMounter running
   // on the IO Thread.
   sUsbCableObserver = new UsbCableObserver();
-}
-
-int32_t
-GetAutoMounterStatus()
-{
-  if (sAutoMounterSetting) {
-    return sAutoMounterSetting->GetStatus();
-  }
-  return AUTOMOUNTER_STATUS_DISABLED;
-}
-
-//static
-void
-SetAutoMounterStatus(int32_t aStatus)
-{
-  if (sAutoMounterSetting) {
-    sAutoMounterSetting->SetStatus(aStatus);
-  }
 }
 
 void

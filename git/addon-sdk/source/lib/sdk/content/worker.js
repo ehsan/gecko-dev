@@ -1,3 +1,5 @@
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -130,13 +132,13 @@ const WorkerSandbox = EventEmitter.compose({
     // Even if this principal is for a domain that is specified in the multiple
     // domain principal.
     let principals  = window;
-    let wantGlobalProperties = []
+    let wantXHRConstructor = false;
     if (EXPANDED_PRINCIPALS.length > 0 && !worker._injectInDocument) {
       principals = EXPANDED_PRINCIPALS.concat(window);
       // We have to replace XHR constructor of the content document
       // with a custom cross origin one, automagically added by platform code:
       delete proto.XMLHttpRequest;
-      wantGlobalProperties.push("XMLHttpRequest");
+      wantXHRConstructor = true;
     }
 
     // Instantiate trusted code in another Sandbox in order to prevent content
@@ -149,9 +151,8 @@ const WorkerSandbox = EventEmitter.compose({
     let content = this._sandbox = sandbox(principals, {
       sandboxPrototype: proto,
       wantXrays: true,
-      wantGlobalProperties: wantGlobalProperties,
-      sameZoneAs: window,
-      metadata: { SDKContentScript: true }
+      wantXHRConstructor: wantXHRConstructor,
+      sameZoneAs: window
     });
     // We have to ensure that window.top and window.parent are the exact same
     // object than window object, i.e. the sandbox global object. But not
@@ -368,7 +369,7 @@ const WorkerSandbox = EventEmitter.compose({
 /**
  * Message-passing facility for communication between code running
  * in the content and add-on process.
- * @see https://addons.mozilla.org/en-US/developers/docs/sdk/latest/modules/sdk/content/worker.html
+ * @see https://jetpack.mozillalabs.com/sdk/latest/docs/#module/api-utils/content/worker
  */
 const Worker = EventEmitter.compose({
   on: Trait.required,
@@ -555,7 +556,6 @@ const Worker = EventEmitter.compose({
    */
   destroy: function destroy() {
     this._workerCleanup();
-    this._inited = true;
     this._removeAllListeners();
   },
 
@@ -582,7 +582,6 @@ const Worker = EventEmitter.compose({
       this._earlyEvents.length = 0;
       this._emit("detach");
     }
-    this._inited = false;
   },
 
   /**

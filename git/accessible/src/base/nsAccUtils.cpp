@@ -15,10 +15,13 @@
 #include "Role.h"
 #include "States.h"
 #include "TextLeafAccessible.h"
+#include "nsIMutableArray.h"
 
 #include "nsIDOMXULContainerElement.h"
-#include "nsIPersistentProperties2.h"
-#include "mozilla/dom/Element.h"
+#include "nsIDOMXULSelectCntrlEl.h"
+#include "nsIDOMXULSelectCntrlItemEl.h"
+#include "nsWhitespaceTokenizer.h"
+#include "nsComponentManagerUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -252,15 +255,32 @@ nsAccUtils::IsARIASelected(Accessible* aAccessible)
 }
 
 HyperTextAccessible*
-nsAccUtils::GetTextContainer(nsINode* aNode)
+nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
 {
-  // Get text accessible containing the result node.
-  DocAccessible* doc =
-    GetAccService()->GetDocAccessible(aNode->OwnerDoc());
-  Accessible* accessible =
-    doc ? doc->GetAccessibleOrContainer(aNode) : nullptr;
-  if (!accessible)
+  // Get accessible from selection's focus DOM point (the DOM point where
+  // selection is ended).
+
+  nsCOMPtr<nsIDOMNode> focusDOMNode;
+  aSelection->GetFocusNode(getter_AddRefs(focusDOMNode));
+  if (!focusDOMNode)
     return nullptr;
+
+  int32_t focusOffset = 0;
+  aSelection->GetFocusOffset(&focusOffset);
+
+  nsCOMPtr<nsINode> focusNode(do_QueryInterface(focusDOMNode));
+  nsCOMPtr<nsINode> resultNode =
+    nsCoreUtils::GetDOMNodeFromDOMPoint(focusNode, focusOffset);
+
+  // Get text accessible containing the result node.
+  DocAccessible* doc = 
+    GetAccService()->GetDocAccessible(resultNode->OwnerDoc());
+  Accessible* accessible = doc ? 
+    doc->GetAccessibleOrContainer(resultNode) : nullptr;
+  if (!accessible) {
+    NS_NOTREACHED("No nsIAccessibleText for selection change event!");
+    return nullptr;
+  }
 
   do {
     HyperTextAccessible* textAcc = accessible->AsHyperText();
@@ -270,6 +290,7 @@ nsAccUtils::GetTextContainer(nsINode* aNode)
     accessible = accessible->Parent();
   } while (accessible);
 
+  NS_NOTREACHED("We must reach document accessible implementing nsIAccessibleText!");
   return nullptr;
 }
 

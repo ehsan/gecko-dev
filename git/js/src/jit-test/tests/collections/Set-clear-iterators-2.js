@@ -1,11 +1,11 @@
 // A Set iterator continues to visit entries added after a clear().
 
-load(libdir + "iteration.js");
+load(libdir + "asserts.js");
 
 var s = Set(["a"]);
-var it = s[std_iterator]();
-assertIteratorNext(it, "a");
+var it = s.iterator();
+assertEq(it.next(), "a");
 s.clear();
 s.add("b");
-assertIteratorNext(it, "b");
-assertIteratorDone(it, undefined);
+assertEq(it.next(), "b");
+assertThrowsValue(it.next.bind(it), StopIteration);

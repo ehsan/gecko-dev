@@ -16,8 +16,8 @@
 
 // This header is in EXPORTS because it's used in several places in content/,
 // but it's not really a public interface.
-#ifndef MOZILLA_INTERNAL_API
-#error "This file should only be included within libxul"
+#ifndef _IMPL_NS_LAYOUT
+#error "This file should only be included within the layout library"
 #endif
 
 #include "nsCSSDataBlock.h"

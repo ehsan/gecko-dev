@@ -14,8 +14,8 @@
 #ifndef VPM_BRIGHTNESS_DETECTION_H
 #define VPM_BRIGHTNESS_DETECTION_H
 
-#include "webrtc/modules/video_processing/main/interface/video_processing.h"
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
+#include "video_processing.h"
 
 namespace webrtc {
 

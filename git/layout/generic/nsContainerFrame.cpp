@@ -8,27 +8,36 @@
 #include "nsContainerFrame.h"
 
 #include "nsAbsoluteContainingBlock.h"
+#include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsRect.h"
 #include "nsPoint.h"
+#include "nsGUIEvent.h"
 #include "nsStyleConsts.h"
 #include "nsView.h"
+#include "nsFrameManager.h"
 #include "nsIPresShell.h"
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
+#include "nsCSSAnonBoxes.h"
 #include "nsViewManager.h"
 #include "nsIWidget.h"
+#include "nsGfxCIID.h"
+#include "nsIServiceManager.h"
 #include "nsCSSRendering.h"
+#include "nsTransform2D.h"
+#include "nsRegion.h"
 #include "nsError.h"
 #include "nsDisplayList.h"
+#include "nsListControlFrame.h"
 #include "nsIBaseWindow.h"
+#include "nsThemeConstants.h"
 #include "nsBoxLayoutState.h"
+#include "nsRenderingContext.h"
 #include "nsCSSFrameConstructor.h"
-#include "nsBlockFrame.h"
-#include "mozilla/AutoRestore.h"
-#include "nsIFrameInlines.h"
+#include "mozilla/dom/Element.h"
 #include <algorithm>
 
 #ifdef DEBUG
@@ -1393,7 +1402,10 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
   }
 
   // Take the next-in-flow out of the parent's child list
-  DebugOnly<nsresult> rv = StealFrame(aPresContext, aNextInFlow);
+#ifdef DEBUG
+  nsresult rv =
+#endif
+    StealFrame(aPresContext, aNextInFlow);
   NS_ASSERTION(NS_SUCCEEDED(rv), "StealFrame failure");
 
 #ifdef DEBUG

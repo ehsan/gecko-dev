@@ -7,10 +7,10 @@ const timer = require("sdk/timers");
 const { LoaderWithHookedConsole, deactivate, pb, pbUtils } = require("./helper");
 const tabs = require("sdk/tabs");
 const { getMostRecentBrowserWindow, isWindowPrivate } = require('sdk/window/utils');
-const { set: setPref } = require("sdk/preferences/service");
-const DEPRECATE_PREF = "devtools.errorconsole.deprecation_warnings";
 
-exports["test activate private mode via handler"] = function(assert, done) {
+exports["test activate private mode via handler"] = function(test) {
+  test.waitUntilDone();
+
   function onReady(tab) {
     if (tab.url == "about:robots")
       tab.close(function() pb.activate());
@@ -19,18 +19,18 @@ exports["test activate private mode via handler"] = function(assert, done) {
     if (tab.url == "about:") {
       tabs.removeListener("ready", cleanup);
       tab.close(function onClose() {
-        done();
+        test.done();
       });
     }
   }
 
   tabs.on("ready", onReady);
   pb.once("start", function onStart() {
-    assert.pass("private mode was activated");
+    test.pass("private mode was activated");
     pb.deactivate();
   });
   pb.once("stop", function onStop() {
-    assert.pass("private mode was deactivated");
+    test.pass("private mode was deactivated");
     tabs.removeListener("ready", onReady);
     tabs.on("ready", cleanup);
   });
@@ -42,16 +42,18 @@ exports["test activate private mode via handler"] = function(assert, done) {
 
 // tests that isActive has the same value as the private browsing service
 // expects
-exports.testGetIsActive = function (assert) {
-  assert.equal(pb.isActive, false,
+exports.testGetIsActive = function (test) {
+  test.waitUntilDone();
+
+  test.assertEqual(pb.isActive, false,
                    "private-browsing.isActive is correct without modifying PB service");
-  assert.equal(pb.isPrivate(), false,
+  test.assertEqual(pb.isPrivate(), false,
                    "private-browsing.sPrivate() is correct without modifying PB service");
 
   pb.once("start", function() {
-    assert.ok(pb.isActive,
+    test.assert(pb.isActive,
                   "private-browsing.isActive is correct after modifying PB service");
-    assert.ok(pb.isPrivate(),
+    test.assert(pb.isPrivate(),
                   "private-browsing.sPrivate() is correct after modifying PB service");
     // Switch back to normal mode.
     pb.deactivate();
@@ -59,39 +61,42 @@ exports.testGetIsActive = function (assert) {
   pb.activate();
 
   pb.once("stop", function() {
-    assert.ok(!pb.isActive,
+    test.assert(!pb.isActive,
                 "private-browsing.isActive is correct after modifying PB service");
-    assert.ok(!pb.isPrivate(),
+    test.assert(!pb.isPrivate(),
                 "private-browsing.sPrivate() is correct after modifying PB service");
     test.done();
   });
 };
 
-exports.testStart = function(assert, done) {
+exports.testStart = function(test) {
+  test.waitUntilDone();
+
   pb.on("start", function onStart() {
-    assert.equal(this, pb, "`this` should be private-browsing module");
-    assert.ok(pbUtils.getMode(),
+    test.assertEqual(this, pb, "`this` should be private-browsing module");
+    test.assert(pbUtils.getMode(),
                 'private mode is active when "start" event is emitted');
-    assert.ok(pb.isActive,
+    test.assert(pb.isActive,
                 '`isActive` is `true` when "start" event is emitted');
-    assert.ok(pb.isPrivate(),
+    test.assert(pb.isPrivate(),
                 '`isPrivate` is `true` when "start" event is emitted');
     pb.removeListener("start", onStart);
-    deactivate(done);
+    deactivate(function() test.done());
   });
   pb.activate();
 };
 
-exports.testStop = function(assert, done) {
+exports.testStop = function(test) {
+  test.waitUntilDone();
   pb.once("stop", function onStop() {
-    assert.equal(this, pb, "`this` should be private-browsing module");
-    assert.equal(pbUtils.getMode(), false,
+    test.assertEqual(this, pb, "`this` should be private-browsing module");
+    test.assertEqual(pbUtils.getMode(), false,
                      "private mode is disabled when stop event is emitted");
-    assert.equal(pb.isActive, false,
+    test.assertEqual(pb.isActive, false,
                      "`isActive` is `false` when stop event is emitted");
-    assert.equal(pb.isPrivate(), false,
+    test.assertEqual(pb.isPrivate(), false,
                      "`isPrivate()` is `false` when stop event is emitted");
-    done();
+    test.done();
   });
   pb.activate();
   pb.once("start", function() {
@@ -99,18 +104,19 @@ exports.testStop = function(assert, done) {
   });
 };
 
-exports.testBothListeners = function(assert, done) {
+exports.testBothListeners = function(test) {
+  test.waitUntilDone();
   let stop = false;
   let start = false;
 
   function onStop() {
-    assert.equal(stop, false,
+    test.assertEqual(stop, false,
                      "stop callback must be called only once");
-    assert.equal(pbUtils.getMode(), false,
+    test.assertEqual(pbUtils.getMode(), false,
                      "private mode is disabled when stop event is emitted");
-    assert.equal(pb.isActive, false,
+    test.assertEqual(pb.isActive, false,
                      "`isActive` is `false` when stop event is emitted");
-    assert.equal(pb.isPrivate(), false,
+    test.assertEqual(pb.isPrivate(), false,
                      "`isPrivate()` is `false` when stop event is emitted");
 
     pb.on("start", finish);
@@ -121,13 +127,13 @@ exports.testBothListeners = function(assert, done) {
   }
 
   function onStart() {
-    assert.equal(false, start,
+    test.assertEqual(false, start,
                      "stop callback must be called only once");
-    assert.ok(pbUtils.getMode(),
+    test.assert(pbUtils.getMode(),
                 "private mode is active when start event is emitted");
-    assert.ok(pb.isActive,
+    test.assert(pb.isActive,
                 "`isActive` is `true` when start event is emitted");
-    assert.ok(pb.isPrivate(),
+    test.assert(pb.isPrivate(),
                 "`isPrivate()` is `true` when start event is emitted");
 
     pb.on("stop", onStop);
@@ -136,16 +142,16 @@ exports.testBothListeners = function(assert, done) {
   }
 
   function onStart2() {
-    assert.ok(start, "start listener must be called already");
-    assert.equal(false, stop, "stop callback must not be called yet");
+    test.assert(start, "start listener must be called already");
+    test.assertEqual(false, stop, "stop callback must not be called yet");
   }
 
   function finish() {
-    assert.ok(pbUtils.getMode(), true,
+    test.assert(pbUtils.getMode(), true,
                 "private mode is active when start event is emitted");
-    assert.ok(pb.isActive,
+    test.assert(pb.isActive,
                 "`isActive` is `true` when start event is emitted");
-    assert.ok(pb.isPrivate(),
+    test.assert(pb.isPrivate(),
                 "`isPrivate()` is `true` when start event is emitted");
 
     pb.removeListener("start", finish);
@@ -153,11 +159,11 @@ exports.testBothListeners = function(assert, done) {
 
     pb.deactivate();
     pb.once("stop", function () {
-      assert.equal(pbUtils.getMode(), false);
-      assert.equal(pb.isActive, false);
-      assert.equal(pb.isPrivate(), false);
+      test.assertEqual(pbUtils.getMode(), false);
+      test.assertEqual(pb.isActive, false);
+      test.assertEqual(pb.isPrivate(), false);
 
-      done();
+      test.done();
     });
   }
 
@@ -166,8 +172,8 @@ exports.testBothListeners = function(assert, done) {
   pb.activate();
 };
 
-exports.testAutomaticUnload = function(assert, done) {
-  setPref(DEPRECATE_PREF, true);
+exports.testAutomaticUnload = function(test) {
+  test.waitUntilDone();
 
   // Create another private browsing instance and unload it
   let { loader, errors } = LoaderWithHookedConsole(module);
@@ -175,7 +181,7 @@ exports.testAutomaticUnload = function(assert, done) {
   let called = false;
   pb2.on("start", function onStart() {
     called = true;
-    assert.fail("should not be called:x");
+    test.fail("should not be called:x");
   });
   loader.unload();
 
@@ -183,12 +189,12 @@ exports.testAutomaticUnload = function(assert, done) {
   // is correctly destroyed
   pb.once("start", function onStart() {
     timer.setTimeout(function () {
-      assert.ok(!called, 
+      test.assert(!called, 
         "First private browsing instance is destroyed and inactive");
       // Must reset to normal mode, so that next test starts with it.
       deactivate(function() {
-        assert.ok(errors.length, 0, "should have been 1 deprecation error");
-        done();
+        test.assert(errors.length, 0, "should have been 1 deprecation error");
+        test.done();
       });
     }, 0);
   });
@@ -196,7 +202,9 @@ exports.testAutomaticUnload = function(assert, done) {
   pb.activate();
 };
 
-exports.testUnloadWhileActive = function(assert, done) {
+exports.testUnloadWhileActive = function(test) {
+  test.waitUntilDone();
+
   let called = false;
   let { loader, errors } = LoaderWithHookedConsole(module);
   let pb2 = loader.require("sdk/private-browsing");
@@ -214,25 +222,28 @@ exports.testUnloadWhileActive = function(assert, done) {
   });
   pb2.once("stop", function() {
     called = true;
-    assert.ok(unloadHappened, "the unload event should have already occurred.");
-    assert.fail("stop should not have been fired");
+    test.assert(unloadHappened, "the unload event should have already occurred.");
+    test.fail("stop should not have been fired");
   });
   pb.once("stop", function() {
-    assert.ok(!called, "stop was not called on unload");
-    assert.ok(errors.length, 2, "should have been 2 deprecation errors");
-    done();
+    test.assert(!called, "stop was not called on unload");
+    test.assert(errors.length, 2, "should have been 2 deprecation errors");
+    test.done();
   });
 
   pb.activate();
 };
 
-exports.testIgnoreWindow = function(assert, done) {
+exports.testIgnoreWindow = function(test) {
+  test.waitUntilDone();
   let window = getMostRecentBrowserWindow();
 
   pb.once('start', function() {
-    assert.ok(isWindowPrivate(window), 'window is private');
-    assert.ok(!pbUtils.ignoreWindow(window), 'window is not ignored');
-    pb.once('stop', done);
+    test.assert(isWindowPrivate(window), 'window is private');
+    test.assert(!pbUtils.ignoreWindow(window), 'window is not ignored');
+    pb.once('stop', function() {
+      test.done();
+    });
     pb.deactivate();
   });
   pb.activate();

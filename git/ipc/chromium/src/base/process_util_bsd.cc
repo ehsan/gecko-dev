@@ -371,4 +371,8 @@ const ProcessEntry* NamedProcessIterator::NextProcessEntry() {
   return &content[nextEntry++];
 }
 
+bool ProcessMetrics::GetIOCounters(IoCounters* io_counters) const {
+  return false;
+}
+
 }  // namespace base

@@ -46,22 +46,22 @@ public class testThumbnails extends BaseTest {
         blockForGeckoReady();
 
         // load sites; both will return HTTP 200 with a green background
-        inputAndLoadUrl(site1Url);
+        loadUrl(site1Url);
         mSolo.sleep(thumbnailDelay);
-        inputAndLoadUrl(site2Url);
+        loadUrl(site2Url);
         mSolo.sleep(thumbnailDelay);
-        inputAndLoadUrl("about:home");
+        loadUrl("about:home");
         waitForTest(new ThumbnailTest(site1Title, Color.GREEN), 5000);
         mAsserter.is(getTopSiteThumbnailColor(site1Title), Color.GREEN, "Top site thumbnail updated for HTTP 200");
         waitForTest(new ThumbnailTest(site2Title, Color.GREEN), 5000);
         mAsserter.is(getTopSiteThumbnailColor(site2Title), Color.GREEN, "Top site thumbnail updated for HTTP 200");
 
         // load sites again; both will have red background, and do404 will return HTTP 404
-        inputAndLoadUrl(site1Url);
+        loadUrl(site1Url);
         mSolo.sleep(thumbnailDelay);
-        inputAndLoadUrl(site2Url);
+        loadUrl(site2Url);
         mSolo.sleep(thumbnailDelay);
-        inputAndLoadUrl("about:home");
+        loadUrl("about:home");
         waitForTest(new ThumbnailTest(site1Title, Color.RED), 5000);
         mAsserter.is(getTopSiteThumbnailColor(site1Title), Color.RED, "Top site thumbnail updated for HTTP 200");
         waitForTest(new ThumbnailTest(site2Title, Color.GREEN), 5000);

@@ -21,11 +21,14 @@
 #include "nsIFormControlFrame.h"
 #include "nsIListControlFrame.h"
 #include "nsISelectControlFrame.h"
+#include "nsIDOMEventListener.h"
 #include "nsAutoPtr.h"
 #include "nsSelectsAreaFrame.h"
 
+class nsIContent;
 class nsIDOMHTMLSelectElement;
 class nsIDOMHTMLOptionsCollection;
+class nsIDOMHTMLOptionElement;
 class nsIComboboxControlFrame;
 class nsPresContext;
 class nsListEventListener;
@@ -54,7 +57,7 @@ public:
 
     // nsIFrame
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
+                         nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
   
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
@@ -104,7 +107,7 @@ public:
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue) MOZ_OVERRIDE;
   virtual void SetFocus(bool aOn = true, bool aRepaint = false) MOZ_OVERRIDE;
 
-  virtual mozilla::ScrollbarStyles GetScrollbarStyles() const MOZ_OVERRIDE;
+  virtual nsGfxScrollFrameInner::ScrollbarStyles GetScrollbarStyles() const MOZ_OVERRIDE;
   virtual bool ShouldPropagateComputedHeightToScrolledContent() const MOZ_OVERRIDE;
 
     // for accessibility purposes

@@ -12,7 +12,6 @@
 #include "nsICommandLineRunner.h"
 #include "FrameworkView.h"
 #include "nsAppDirectoryServiceDefs.h"
-#include "GeckoProfiler.h"
 #include <shellapi.h>
 
 using namespace ABI::Windows::ApplicationModel;
@@ -27,8 +26,6 @@ using namespace Microsoft::WRL::Wrappers;
 // appropriate thread.
 extern nsresult XRE_metroStartup(bool runXREMain);
 extern void XRE_metroShutdown();
-
-static const char* gGeckoThreadName = "GeckoMain";
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gWindowsLog;
@@ -63,18 +60,28 @@ MetroApp::CreateView(ABI::Windows::ApplicationModel::Core::IFrameworkView **aVie
 ////////////////////////////////////////////////////
 // MetroApp impl.
 
+// called after FrameworkView::Run() drops into the event dispatch loop
 void
-MetroApp::Run()
+MetroApp::Initialize()
 {
+  HRESULT hr;
   LogThread();
 
-  // Name this thread for debugging and register it with the profiler
-  // as the main gecko thread.
-  char aLocal;
-  PR_SetCurrentThreadName(gGeckoThreadName);
-  profiler_register_thread(gGeckoThreadName, &aLocal);
+  static bool xpcomInit;
+  if (!xpcomInit) {
+    xpcomInit = true;
+    Log("XPCOM startup initialization began");
+    nsresult rv = XRE_metroStartup(true);
+    Log("XPCOM startup initialization complete");
+    if (NS_FAILED(rv)) {
+      Log("XPCOM startup initialization failed, bailing. rv=%X", rv);
+      CoreExit();
+      return;
+    }
+  }
 
-  HRESULT hr;
+  sFrameworkView->SetupContracts();
+
   hr = sCoreApp->add_Suspending(Callback<__FIEventHandler_1_Windows__CApplicationModel__CSuspendingEventArgs_t>(
     this, &MetroApp::OnSuspending).Get(), &mSuspendEvent);
   AssertHRESULT(hr);
@@ -83,13 +90,7 @@ MetroApp::Run()
     this, &MetroApp::OnResuming).Get(), &mResumeEvent);
   AssertHRESULT(hr);
 
-  Log("XPCOM startup initialization began");
-  nsresult rv = XRE_metroStartup(true);
-  Log("XPCOM startup initialization complete");
-  if (NS_FAILED(rv)) {
-    Log("XPCOM startup initialization failed, bailing. rv=%X", rv);
-    CoreExit();
-  }
+  mozilla::widget::StartAudioSession();
 }
 
 // Free all xpcom related resources before calling the xre shutdown call.
@@ -98,6 +99,8 @@ void
 MetroApp::ShutdownXPCOM()
 {
   LogThread();
+
+  mozilla::widget::StopAudioSession();
 
   if (sCoreApp) {
     sCoreApp->remove_Suspending(mSuspendEvent);
@@ -110,16 +113,12 @@ MetroApp::ShutdownXPCOM()
 
   // Shut down xpcom
   XRE_metroShutdown();
-
-  // Unhook this thread from the profiler
-  profiler_unregister_thread();
 }
 
 // Request a shutdown of the application
 void
 MetroApp::CoreExit()
 {
-  LogFunction();
   HRESULT hr;
   ComPtr<ICoreApplicationExit> coreExit;
   HStringReference className(RuntimeClass_Windows_ApplicationModel_Core_CoreApplication);

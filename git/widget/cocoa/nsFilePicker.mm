@@ -92,7 +92,8 @@ static void SetShowHiddenFileState(NSSavePanel* panel)
 }
 
 nsFilePicker::nsFilePicker()
-: mSelectedTypeIndex(0)
+: mMode(0)
+, mSelectedTypeIndex(0)
 {
 }
 
@@ -101,9 +102,11 @@ nsFilePicker::~nsFilePicker()
 }
 
 void
-nsFilePicker::InitNative(nsIWidget *aParent, const nsAString& aTitle)
+nsFilePicker::InitNative(nsIWidget *aParent, const nsAString& aTitle,
+                         int16_t aMode)
 {
   mTitle = aTitle;
+  mMode = aMode;
 }
 
 NSView* nsFilePicker::GetAccessoryView()
@@ -124,8 +127,7 @@ NSView* nsFilePicker::GetAccessoryView()
     bundle->GetStringFromName(NS_LITERAL_STRING("formatLabel").get(),
 			      getter_Copies(locaLabel));
     if (locaLabel) {
-      label = [NSString stringWithCharacters:reinterpret_cast<const unichar*>(locaLabel.get())
-                                      length:locaLabel.Length()];
+      label = [NSString stringWithCharacters:locaLabel.get() length:locaLabel.Length()];
     }
   }
 
@@ -149,11 +151,11 @@ NSView* nsFilePicker::GetAccessoryView()
     NSString *titleString;
     if (currentTitle.IsEmpty()) {
       const nsString& currentFilter = mFilters[i];
-      titleString = [[NSString alloc] initWithCharacters:reinterpret_cast<const unichar*>(currentFilter.get())
+      titleString = [[NSString alloc] initWithCharacters:currentFilter.get()
                                                   length:currentFilter.Length()];
     }
     else {
-      titleString = [[NSString alloc] initWithCharacters:reinterpret_cast<const unichar*>(currentTitle.get())
+      titleString = [[NSString alloc] initWithCharacters:currentTitle.get()
                                                   length:currentTitle.Length()];
     }
     [popupButton addItemWithTitle:titleString];
@@ -319,7 +321,7 @@ nsFilePicker::GetLocalFiles(const nsString& inTitle, bool inAllowMultiple, nsCOM
   }
 
   if (theDir) {
-    [thePanel setDirectoryURL:[NSURL fileURLWithPath:theDir isDirectory:YES]];
+    [thePanel setDirectoryURL:[[NSURL alloc] initFileURLWithPath:theDir isDirectory:YES]];
   }
 
   int result;
@@ -412,7 +414,7 @@ nsFilePicker::GetLocalFolder(const nsString& inTitle, nsIFile** outFile)
   // set up default directory
   NSString *theDir = PanelDefaultDirectory();
   if (theDir) {
-    [thePanel setDirectoryURL:[NSURL fileURLWithPath:theDir isDirectory:YES]];
+    [thePanel setDirectoryURL:[[NSURL alloc] initFileURLWithPath:theDir isDirectory:YES]];
   }
   nsCocoaUtils::PrepareForNativeAppModalDialog();
   int result = [thePanel runModal];
@@ -463,7 +465,7 @@ nsFilePicker::PutLocalFile(const nsString& inTitle, const nsString& inDefaultNam
   // set up default directory
   NSString *theDir = PanelDefaultDirectory();
   if (theDir) {
-    [thePanel setDirectoryURL:[NSURL fileURLWithPath:theDir isDirectory:YES]];
+    [thePanel setDirectoryURL:[[NSURL alloc] initFileURLWithPath:theDir isDirectory:YES]];
   }
 
   // load the panel
@@ -528,8 +530,8 @@ nsFilePicker::GetFilterList()
   // The extensions in filterWide are in the format "*.ext" but are expected
   // in the format "ext" by NSOpenPanel. So we need to filter some characters.
   NSMutableString* filterString = [[[NSMutableString alloc] initWithString:
-                                    [NSString stringWithCharacters:reinterpret_cast<const unichar*>(filterWide.get())
-                                                            length:filterWide.Length()]] autorelease];
+                                    [NSString stringWithCharacters:filterWide.get()
+				              length:filterWide.Length()]] autorelease];
   NSCharacterSet *set = [NSCharacterSet characterSetWithCharactersInString:@". *"];
   NSRange range = [filterString rangeOfCharacterFromSet:set];
   while (range.length) {
@@ -566,8 +568,7 @@ nsFilePicker::PanelDefaultDirectory()
   if (mDisplayDirectory) {
     nsAutoString pathStr;
     mDisplayDirectory->GetPath(pathStr);
-    directory = [[[NSString alloc] initWithCharacters:reinterpret_cast<const unichar*>(pathStr.get())
-                                               length:pathStr.Length()] autorelease];
+    directory = [[[NSString alloc] initWithCharacters:pathStr.get() length:pathStr.Length()] autorelease];
   }
   return directory;
 

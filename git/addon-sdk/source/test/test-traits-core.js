@@ -1,16 +1,17 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-'use strict';
+
+"use strict";
 
 const ERR_CONFLICT = 'Remaining conflicting property: ',
       ERR_REQUIRED = 'Missing required property: ';
 
-function assertSametrait(assert, trait1, trait2) {
+function assertSametrait(test, trait1, trait2) {
   let names1 = Object.getOwnPropertyNames(trait1),
       names2 = Object.getOwnPropertyNames(trait2);
 
-  assert.equal(
+  test.assertEqual(
     names1.length,
     names2.length,
     'equal traits must have same amount of properties'
@@ -18,54 +19,52 @@ function assertSametrait(assert, trait1, trait2) {
 
   for (let i = 0; i < names1.length; i++) {
     let name = names1[i];
-    assert.notEqual(
+    test.assertNotEqual(
       -1,
       names2.indexOf(name),
       'equal traits must contain same named properties: ' + name
     );
-    assertSameDescriptor(assert, name, trait1[name], trait2[name]);
+    assertSameDescriptor(test, name, trait1[name], trait2[name]);
   }
 }
 
-function assertSameDescriptor(assert, name, desc1, desc2) {
+function assertSameDescriptor(test, name, desc1, desc2) {
   if (desc1.conflict || desc2.conflict) {
-    assert.equal(
+    test.assertEqual(
       desc1.conflict,
       desc2.conflict,
       'if one of same descriptors has `conflict` another must have it: '
         + name
     );
-  }
-  else if (desc1.required || desc2.required) {
-    assert.equal(
+  } else if (desc1.required || desc2.required) {
+    test.assertEqual(
       desc1.required,
       desc2.required,
       'if one of same descriptors is has `required` another must have it: '
         + name
     );
-  }
-  else {
-    assert.equal(
+  } else {
+    test.assertEqual(
       desc1.get,
       desc2.get,
       'get must be the same on both descriptors: ' + name
     );
-    assert.equal(
+    test.assertEqual(
       desc1.set,
       desc2.set,
       'set must be the same on both descriptors: ' + name
     );
-    assert.equal(
+    test.assertEqual(
       desc1.value,
       desc2.value,
       'value must be the same on both descriptors: ' + name
     );
-    assert.equal(
+    test.assertEqual(
       desc1.enumerable,
       desc2.enumerable,
       'enumerable must be the same on both descriptors: ' + name
     );
-    assert.equal(
+    test.assertEqual(
       desc1.required,
       desc2.required,
       'value must be the same on both descriptors: ' + name
@@ -124,17 +123,17 @@ const { trait, compose, resolve, required, override, create } =
   require('sdk/deprecated/traits/core');
 
 
-exports['test:empty trait'] = function(assert) {
+exports['test:empty trait'] = function(test) {
   assertSametrait(
-    assert,
+    test,
     trait({}),
     {}
   );
 };
 
-exports['test:simple trait'] = function(assert) {
+exports['test:simple trait'] = function(test) {
   assertSametrait(
-    assert,
+    test,
     trait({
       a: 0,
       b: testMethod
@@ -146,9 +145,9 @@ exports['test:simple trait'] = function(assert) {
   );
 };
 
-exports['test:simple trait with required prop'] = function(assert) {
+exports['test:simple trait with required prop'] = function(test) {
   assertSametrait(
-    assert,
+    test,
     trait({
       a: required,
       b: 1
@@ -160,27 +159,25 @@ exports['test:simple trait with required prop'] = function(assert) {
   );
 };
 
-exports['test:ordering of trait properties is irrelevant'] = function(assert) {
-  assertSametrait(
-    assert,
+exports['test:ordering of trait properties is irrelevant'] = function(test) {
+  assertSametrait(test,
     trait({ a: 0, b: 1, c: required }),
     trait({ b: 1, c: required, a: 0 })
   );
 };
 
-exports['test:trait with accessor property'] = function(assert) {
+exports['test:trait with accessor property'] = function(test) {
   let record = { get a() {}, set a(v) {} };
   let get = Object.getOwnPropertyDescriptor(record,'a').get;
   let set = Object.getOwnPropertyDescriptor(record,'a').set;
-  assertSametrait(assert,
+  assertSametrait(test,
     trait(record),
     { a: Accessor(get, set ) }
   );
 };
 
-exports['test:simple composition'] = function(assert) {
-  assertSametrait(
-    assert,
+exports['test:simple composition'] = function(test) {
+  assertSametrait(test,
     compose(
       trait({ a: 0, b: 1 }),
       trait({ c: 2, d: testMethod })
@@ -194,9 +191,8 @@ exports['test:simple composition'] = function(assert) {
   );
 };
 
-exports['test:composition with conflict'] = function(assert) {
-  assertSametrait(
-    assert,
+exports['test:composition with conflict'] = function(test) {
+  assertSametrait(test,
     compose(
       trait({ a: 0, b: 1 }),
       trait({ a: 2, c: testMethod })
@@ -210,8 +206,8 @@ exports['test:composition with conflict'] = function(assert) {
 };
 
 exports['test:composition of identical props does not cause conflict'] =
-function(assert) {
-  assertSametrait(assert,
+function(test) {
+  assertSametrait(test,
     compose(
       trait({ a: 0, b: 1 }),
       trait({ a: 0, c: testMethod })
@@ -224,8 +220,8 @@ function(assert) {
 };
 
 exports['test:composition with identical required props'] =
-function(assert) {
-  assertSametrait(assert,
+function(test) {
+  assertSametrait(test,
     compose(
       trait({ a: required, b: 1 }),
       trait({ a: required, c: testMethod })
@@ -238,8 +234,8 @@ function(assert) {
   );
 };
 
-exports['test:composition satisfying a required prop'] = function (assert) {
-  assertSametrait(assert,
+exports['test:composition satisfying a required prop'] = function (test) {
+  assertSametrait(test,
     compose(
       trait({ a: required, b: 1 }),
       trait({ a: testMethod })
@@ -251,8 +247,8 @@ exports['test:composition satisfying a required prop'] = function (assert) {
   );
 };
 
-exports['test:compose is neutral wrt conflicts'] = function (assert) {
-  assertSametrait(assert,
+exports['test:compose is neutral wrt conflicts'] = function (test) {
+  assertSametrait(test,
     compose(
       compose(
         trait({ a: 1 }),
@@ -267,8 +263,8 @@ exports['test:compose is neutral wrt conflicts'] = function (assert) {
   );
 };
 
-exports['test:conflicting prop overrides required prop'] = function (assert) {
-  assertSametrait(assert,
+exports['test:conflicting prop overrides required prop'] = function (test) {
+  assertSametrait(test,
     compose(
       compose(
         trait({ a: 1 }),
@@ -282,8 +278,8 @@ exports['test:conflicting prop overrides required prop'] = function (assert) {
   );
 };
 
-exports['test:compose is commutative'] = function (assert) {
-  assertSametrait(assert,
+exports['test:compose is commutative'] = function (test) {
+  assertSametrait(test,
     compose(
       trait({ a: 0, b: 1 }),
       trait({ c: 2, d: testMethod })
@@ -296,8 +292,8 @@ exports['test:compose is commutative'] = function (assert) {
 };
 
 exports['test:compose is commutative, also for required/conflicting props'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     compose(
       trait({ a: 0, b: 1, c: 3, e: required }),
       trait({ c: 2, d: testMethod })
@@ -308,8 +304,8 @@ function (assert) {
     )
   );
 };
-exports['test:compose is associative'] = function (assert) {
-  assertSametrait(assert,
+exports['test:compose is associative'] = function (test) {
+  assertSametrait(test,
     compose(
       trait({ a: 0, b: 1, c: 3, d: required }),
       compose(
@@ -328,8 +324,8 @@ exports['test:compose is associative'] = function (assert) {
 };
 
 exports['test:diamond import of same prop does not generate conflict'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     compose(
       compose(
         trait({ b: 2 }),
@@ -351,8 +347,8 @@ function (assert) {
 };
 
 exports['test:resolve with empty resolutions has no effect'] =
-function (assert) {
-  assertSametrait(assert, resolve({}, trait({
+function (test) {
+  assertSametrait(test, resolve({}, trait({
     a: 1,
     b: required,
     c: testMethod
@@ -363,8 +359,8 @@ function (assert) {
   });
 };
 
-exports['test:resolve: renaming'] = function (assert) {
-  assertSametrait(assert,
+exports['test:resolve: renaming'] = function (test) {
+  assertSametrait(test,
     resolve(
       { a: 'A', c: 'C' },
       trait({ a: 1, b: required, c: testMethod })
@@ -380,8 +376,8 @@ exports['test:resolve: renaming'] = function (assert) {
 };
 
 exports['test:resolve: renaming to conflicting name causes conflict, order 1']
-= function (assert) {
-  assertSametrait(assert,
+= function (test) {
+  assertSametrait(test,
     resolve(
       { a: 'b'},
       trait({ a: 1, b: 2 })
@@ -394,8 +390,8 @@ exports['test:resolve: renaming to conflicting name causes conflict, order 1']
 };
 
 exports['test:resolve: renaming to conflicting name causes conflict, order 2']
-= function (assert) {
-  assertSametrait(assert,
+= function (test) {
+  assertSametrait(test,
     resolve(
       { a: 'b' },
       trait({ b: 2, a: 1 })
@@ -407,8 +403,8 @@ exports['test:resolve: renaming to conflicting name causes conflict, order 2']
   );
 };
 
-exports['test:resolve: simple exclusion'] = function (assert) {
-  assertSametrait(assert,
+exports['test:resolve: simple exclusion'] = function (test) {
+  assertSametrait(test,
     resolve(
       { a: undefined },
       trait({ a: 1, b: 2 })
@@ -420,8 +416,8 @@ exports['test:resolve: simple exclusion'] = function (assert) {
   );
 };
 
-exports['test:resolve: exclusion to "empty" trait'] = function (assert) {
-  assertSametrait(assert,
+exports['test:resolve: exclusion to "empty" trait'] = function (test) {
+  assertSametrait(test,
     resolve(
       { a: undefined, b: undefined },
       trait({ a: 1, b: 2 })
@@ -434,8 +430,8 @@ exports['test:resolve: exclusion to "empty" trait'] = function (assert) {
 };
 
 exports['test:resolve: exclusion and renaming of disjoint props'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     resolve(
       { a: undefined, b: 'c' },
       trait({ a: 1, b: 2 })
@@ -449,8 +445,8 @@ function (assert) {
 };
 
 exports['test:resolve: exclusion and renaming of overlapping props'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     resolve(
       { a: undefined, b: 'a' },
       trait({ a: 1, b: 2 })
@@ -463,8 +459,8 @@ function (assert) {
 };
 
 exports['test:resolve: renaming to a common alias causes conflict'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     resolve(
       { a: 'c', b: 'c' },
       trait({ a: 1, b: 2 })
@@ -478,8 +474,8 @@ function (assert) {
 };
 
 exports['test:resolve: renaming overrides required target'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     resolve(
       { b: 'a' },
       trait({ a: required, b: 2 })
@@ -492,8 +488,8 @@ function (assert) {
 };
 
 exports['test:resolve: renaming required properties has no effect'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     resolve(
       { b: 'a' },
       trait({ a: 2, b: required })
@@ -506,8 +502,8 @@ function (assert) {
 };
 
 exports['test:resolve: renaming of non-existent props has no effect'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     resolve(
       { a: 'c', d: 'c' },
       trait({ a: 1, b: 2 })
@@ -521,8 +517,8 @@ function (assert) {
 };
 
 exports['test:resolve: exclusion of non-existent props has no effect'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     resolve(
       { b: undefined },
       trait({ a: 1 })
@@ -534,8 +530,8 @@ function (assert) {
 };
 
 exports['test:resolve is neutral w.r.t. required properties'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     resolve(
       { a: 'c', b: undefined },
       trait({ a: required, b: required, c: 'foo', d: 1 })
@@ -550,8 +546,8 @@ function (assert) {
 };
 
 exports['test:resolve supports swapping of property names, ordering 1'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     resolve(
       { a: 'b', b: 'a' },
       trait({ a: 1, b: 2 })
@@ -564,8 +560,8 @@ function (assert) {
 };
 
 exports['test:resolve supports swapping of property names, ordering 2'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     resolve(
       { b: 'a', a: 'b' },
       trait({ a: 1, b: 2 })
@@ -578,8 +574,8 @@ function (assert) {
 };
 
 exports['test:resolve supports swapping of property names, ordering 3'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     resolve(
       { b: 'a', a: 'b' },
       trait({ b: 2, a: 1 })
@@ -592,8 +588,8 @@ function (assert) {
 };
 
 exports['test:resolve supports swapping of property names, ordering 4'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     resolve(
       { a: 'b', b: 'a' },
       trait({ b: 2, a: 1 })
@@ -605,8 +601,8 @@ function (assert) {
   );
 };
 
-exports['test:override of mutually exclusive traits'] = function (assert) {
-  assertSametrait(assert,
+exports['test:override of mutually exclusive traits'] = function (test) {
+  assertSametrait(test,
     override(
       trait({ a: 1, b: 2 }),
       trait({ c: 3, d: testMethod })
@@ -621,8 +617,8 @@ exports['test:override of mutually exclusive traits'] = function (assert) {
 };
 
 exports['test:override of mutually exclusive traits is compose'] =
-function (assert) {
-  assertSametrait(assert,
+function (test) {
+  assertSametrait(test,
     override(
       trait({ a: 1, b: 2 }),
       trait({ c: 3, d: testMethod })
@@ -634,8 +630,8 @@ function (assert) {
   );
 };
 
-exports['test:override of overlapping traits'] = function (assert) {
-  assertSametrait(assert,
+exports['test:override of overlapping traits'] = function (test) {
+  assertSametrait(test,
     override(
       trait({ a: 1, b: 2 }),
       trait({ a: 3, c: testMethod })
@@ -648,8 +644,8 @@ exports['test:override of overlapping traits'] = function (assert) {
   );
 };
 
-exports['test:three-way override of overlapping traits'] = function (assert) {
-  assertSametrait(assert,
+exports['test:three-way override of overlapping traits'] = function (test) {
+  assertSametrait(test,
     override(
       trait({ a: 1, b: 2 }),
       trait({ b: 4, c: 3 }),
@@ -664,8 +660,8 @@ exports['test:three-way override of overlapping traits'] = function (assert) {
   );
 };
 
-exports['test:override replaces required properties'] = function (assert) {
-  assertSametrait(assert,
+exports['test:override replaces required properties'] = function (test) {
+  assertSametrait(test,
     override(
       trait({ a: required, b: 2 }),
       trait({ a: 1, c: testMethod })
@@ -678,8 +674,8 @@ exports['test:override replaces required properties'] = function (assert) {
   );
 };
 
-exports['test:override is not commutative'] = function (assert) {
-  assertSametrait(assert,
+exports['test:override is not commutative'] = function (test) {
+  assertSametrait(test,
     override(
       trait({ a: 1, b: 2 }),
       trait({ a: 3, c: 4 })
@@ -691,7 +687,7 @@ exports['test:override is not commutative'] = function (assert) {
     }
   );
 
-  assertSametrait(assert,
+  assertSametrait(test,
     override(
       trait({ a: 3, c: 4 }),
       trait({ a: 1, b: 2 })
@@ -704,8 +700,8 @@ exports['test:override is not commutative'] = function (assert) {
   );
 };
 
-exports['test:override is associative'] = function (assert) {
-  assertSametrait(assert,
+exports['test:override is associative'] = function (test) {
+  assertSametrait(test,
     override(
       override(
         trait({ a: 1, b: 2 }),
@@ -723,29 +719,29 @@ exports['test:override is associative'] = function (assert) {
   );
 };
 
-exports['test:create simple'] = function(assert) {
+exports['test:create simple'] = function(test) {
   let o1 = create(
     Object.prototype,
     trait({ a: 1, b: function() { return this.a; } })
   );
 
-  assert.equal(
+  test.assertEqual(
     Object.prototype,
     Object.getPrototypeOf(o1),
     'o1 prototype'
   );
-  assert.equal(1, o1.a, 'o1.a');
-  assert.equal(1, o1.b(), 'o1.b()');
-  assert.equal(
+  test.assertEqual(1, o1.a, 'o1.a');
+  test.assertEqual(1, o1.b(), 'o1.b()');
+  test.assertEqual(
     2,
     Object.getOwnPropertyNames(o1).length,
     'Object.keys(o1).length === 2'
   );
 };
 
-exports['test:create with Array.prototype'] = function(assert) {
+exports['test:create with Array.prototype'] = function(test) {
   let o2 = create(Array.prototype, trait({}));
-  assert.equal(
+  test.assertEqual(
     Array.prototype,
     Object.getPrototypeOf(o2),
     "o2 prototype"
@@ -753,13 +749,12 @@ exports['test:create with Array.prototype'] = function(assert) {
 };
 
 exports['test:exception for incomplete required properties'] =
-function(assert) {
+function(test) {
   try {
     create(Object.prototype, trait({ foo: required }));
-    assert.fail('expected create to complain about missing required props');
-  }
-  catch(e) {
-    assert.equal(
+    test.fail('expected create to complain about missing required props');
+  } catch(e) {
+    test.assertEqual(
       'Error: Missing required property: foo',
       e.toString(),
       'required prop error'
@@ -767,13 +762,12 @@ function(assert) {
   }
 };
 
-exports['test:exception for unresolved conflicts'] = function(assert) {
+exports['test:exception for unresolved conflicts'] = function(test) {
   try {
     create({}, compose(trait({ a: 0 }), trait({ a: 1 })));
-    assert.fail('expected create to complain about unresolved conflicts');
-  }
-  catch(e) {
-    assert.equal(
+    test.fail('expected create to complain about unresolved conflicts');
+  } catch(e) {
+    test.assertEqual(
       'Error: Remaining conflicting property: a',
       e.toString(),
       'conflicting prop error'
@@ -782,53 +776,49 @@ exports['test:exception for unresolved conflicts'] = function(assert) {
 };
 
 exports['test:verify that required properties are present but undefined'] =
-function(assert) {
+function(test) {
   try {
     let o4 = Object.create(Object.prototype, trait({ foo: required }));
-    assert.equal(true, 'foo' in o4, 'required property present');
+    test.assertEqual(true, 'foo' in o4, 'required property present');
     try {
       let foo = o4.foo;
-      assert.fail('access to required property must throw');
-    }
-    catch(e) {
-      assert.equal(
+      test.fail('access to required property must throw');
+    } catch(e) {
+      test.assertEqual(
         'Error: Missing required property: foo',
         e.toString(),
         'required prop error'
       )
     }
-  }
-  catch(e) {
-    assert.fail('did not expect create to complain about required props');
+  } catch(e) {
+    test.fail('did not expect create to complain about required props');
   }
 };
 
 exports['test:verify that conflicting properties are present'] =
-function(assert) {
+function(test) {
   try {
     let o5 = Object.create(
       Object.prototype,
       compose(trait({ a: 0 }), trait({ a: 1 }))
     );
-    assert.equal(true, 'a' in o5, 'conflicting property present');
+    test.assertEqual(true, 'a' in o5, 'conflicting property present');
     try {
       let a = o5.a; // accessors or data prop
-      assert.fail('expected conflicting prop to cause exception');
-    }
-    catch (e) {
-      assert.equal(
+      test.fail('expected conflicting prop to cause exception');
+    } catch (e) {
+      test.assertEqual(
         'Error: Remaining conflicting property: a',
         e.toString(),
         'conflicting prop access error'
       );
     }
-  }
-  catch(e) {
-    assert.fail('did not expect create to complain about conflicting props');
+  } catch(e) {
+    test.fail('did not expect create to complain about conflicting props');
   }
 };
 
-exports['test diamond with conflicts'] = function(assert) {
+exports['test diamond with conflicts'] = function(test) {
   function makeT1(x) trait({ m: function() { return x; } })
   function makeT2(x) compose(trait({ t2: 'foo' }), makeT1(x))
   function makeT3(x) compose(trait({ t3: 'bar' }), makeT1(x))
@@ -836,10 +826,9 @@ exports['test diamond with conflicts'] = function(assert) {
   let T4 = compose(makeT2(5), makeT3(5));
   try {
     let o = create(Object.prototype, T4);
-    assert.fail('expected diamond prop to cause exception');
-  }
-  catch(e) {
-    assert.equal(
+    test.fail('expected diamond prop to cause exception');
+  } catch(e) {
+    test.assertEqual(
       'Error: Remaining conflicting property: m',
       e.toString(),
       'diamond prop conflict'
@@ -847,4 +836,3 @@ exports['test diamond with conflicts'] = function(assert) {
   }
 };
 
-require('sdk/test').run(exports);

@@ -6,9 +6,9 @@
 
 #ifdef __APPLE__
 
+#include "jsapi.h"
 #include <dlfcn.h>
 #include <CoreFoundation/CoreFoundation.h>
-#include <unistd.h>
 
 // There are now 2 paths to the DTPerformanceSession framework. We try to load
 // the one contained in /Applications/Xcode.app first, falling back to the one
@@ -70,7 +70,7 @@ private:
   SYMBOL(DTPerformanceSessionSave)
 
 #define SYMBOL(_sym) \
-  _sym##Function _sym = nullptr;
+  _sym##Function _sym = NULL;
 
 DTPERFORMANCE_SYMBOLS
 
@@ -106,7 +106,7 @@ LoadDTPerformanceLibrary()
   _sym = reinterpret_cast<_sym##Function>(dlsym(DTPerformanceLibrary, #_sym)); \
   if (!_sym) { \
     dlclose(DTPerformanceLibrary); \
-    DTPerformanceLibrary = nullptr; \
+    DTPerformanceLibrary = NULL; \
     return false; \
   }
 
@@ -125,17 +125,16 @@ bool
 Error(CFErrorRef error)
 {
   if (gSession) {
-    CFErrorRef unused = nullptr;
-    DTPerformanceSessionStop(gSession, nullptr, &unused);
+    CFErrorRef unused = NULL;
+    DTPerformanceSessionStop(gSession, NULL, &unused);
     CFRelease(gSession);
-    gSession = nullptr;
+    gSession = NULL;
   }
 #ifdef DEBUG
   AutoReleased<CFDataRef> data =
-    CFStringCreateExternalRepresentation(nullptr,
-                                         CFErrorCopyDescription(error),
+    CFStringCreateExternalRepresentation(NULL, CFErrorCopyDescription(error),
                                          kCFStringEncodingUTF8, '?');
-  if (data != nullptr) {
+  if (data != NULL) {
     printf("%.*s\n\n", (int)CFDataGetLength(data), CFDataGetBytePtr(data));
   }
 #endif
@@ -154,13 +153,12 @@ Start()
   }
 
   AutoReleased<CFStringRef> process =
-    CFStringCreateWithFormat(kCFAllocatorDefault, nullptr, CFSTR("%d"),
-                             getpid());
+    CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("%d"), getpid());
   if (!process) {
     return false;
   }
-  CFErrorRef error = nullptr;
-  gSession = DTPerformanceSessionCreate(nullptr, process, nullptr, &error);
+  CFErrorRef error = NULL;
+  gSession = DTPerformanceSessionCreate(NULL, process, NULL, &error);
   if (!gSession) {
     return Error(error);
   }
@@ -182,7 +180,7 @@ Start()
 
   if (!DTPerformanceSessionAddInstrument(gSession,
                                          CFSTR(DTPerformanceSession_TimeProfiler),
-                                         options, nullptr, &error)) {
+                                         options, NULL, &error)) {
     return Error(error);
   }
 
@@ -193,8 +191,8 @@ void
 Pause()
 {
   if (gSession && DTPerformanceSessionIsRecording(gSession)) {
-    CFErrorRef error = nullptr;
-    if (!DTPerformanceSessionStop(gSession, nullptr, &error)) {
+    CFErrorRef error = NULL;
+    if (!DTPerformanceSessionStop(gSession, NULL, &error)) {
       Error(error);
     }
   }
@@ -207,8 +205,8 @@ Resume()
     return false;
   }
 
-  CFErrorRef error = nullptr;
-  return DTPerformanceSessionStart(gSession, nullptr, &error) ||
+  CFErrorRef error = NULL;
+  return DTPerformanceSessionStart(gSession, NULL, &error) ||
          Error(error);
 }
 
@@ -217,17 +215,17 @@ Stop(const char* profileName)
 {
   Pause();
 
-  CFErrorRef error = nullptr;
+  CFErrorRef error = NULL;
   AutoReleased<CFStringRef> name =
-    CFStringCreateWithFormat(kCFAllocatorDefault, nullptr, CFSTR("%s%s"),
-                             "/tmp/", profileName ? profileName : "mozilla");
+    CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("%s%s"), "/tmp/",
+                             profileName ? profileName : "mozilla");
   if (!DTPerformanceSessionSave(gSession, name, &error)) {
     Error(error);
     return;
   }
 
   CFRelease(gSession);
-  gSession = nullptr;
+  gSession = NULL;
 }
 
 } // namespace Instruments

@@ -65,8 +65,7 @@ public:
   }
 #endif
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
-                                nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor) MOZ_OVERRIDE;
   
   // nsISVGGlyphFragmentNode interface:
   virtual uint32_t GetNumberOfChars() MOZ_OVERRIDE;

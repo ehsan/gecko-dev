@@ -32,6 +32,7 @@
 #include "nsIPrincipal.h"
 #include "nsLayoutCID.h"
 #include "mozilla/dom/Attr.h"
+#include "nsGUIEvent.h"
 #include "nsCExternalHandlerService.h"
 #include "nsMimeTypes.h"
 #include "nsEventListenerManager.h"
@@ -49,7 +50,6 @@
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsIHTMLDocument.h"
-#include "mozilla/BasicEvents.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/XMLDocumentBinding.h"
 
@@ -279,7 +279,7 @@ static void
 ReportUseOfDeprecatedMethod(nsIDocument *aDoc, const char* aWarning)
 {
   nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  NS_LITERAL_CSTRING("DOM3 Load"), aDoc,
+                                  "DOM3 Load", aDoc,
                                   nsContentUtils::eDOM_PROPERTIES,
                                   aWarning);
 }
@@ -581,16 +581,16 @@ XMLDocument::EndLoad()
     // Generate a document load event for the case when an XML
     // document was loaded as pure data without any presentation
     // attached to it.
-    WidgetEvent event(true, NS_LOAD);
+    nsEvent event(true, NS_LOAD);
     nsEventDispatcher::Dispatch(static_cast<nsIDocument*>(this), nullptr,
                                 &event);
-  }
+  }    
 }
-
+ 
 /* virtual */ void
-XMLDocument::DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
+XMLDocument::DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
 {
-  nsDocument::DocAddSizeOfExcludingThis(aWindowSizes);
+  nsDocument::DocSizeOfExcludingThis(aWindowSizes);
 }
 
 // nsIDOMDocument interface
@@ -602,6 +602,7 @@ XMLDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
                "Can't import this document into another document!");
 
   nsRefPtr<XMLDocument> clone = new XMLDocument();
+  NS_ENSURE_TRUE(clone, NS_ERROR_OUT_OF_MEMORY);
   nsresult rv = CloneDocHelper(clone);
   NS_ENSURE_SUCCESS(rv, rv);
 

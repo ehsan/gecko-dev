@@ -7,13 +7,22 @@
 #include "imgRequestProxy.h"
 #include "imgIOnloadBlocker.h"
 
+#include "nsIInputStream.h"
+#include "nsIComponentManager.h"
+#include "nsIServiceManager.h"
+#include "nsIMultiPartChannel.h"
+
+#include "nsString.h"
+#include "nsXPIDLString.h"
+#include "nsReadableUtils.h"
+#include "nsCRT.h"
+
 #include "Image.h"
 #include "ImageOps.h"
 #include "nsError.h"
 #include "ImageLogging.h"
-#include "nsCRTGlue.h"
-#include "imgINotificationObserver.h"
-#include "nsNetUtil.h"
+
+#include "nspr.h"
 
 using namespace mozilla::image;
 
@@ -26,9 +35,8 @@ class ProxyBehaviour
  public:
   virtual ~ProxyBehaviour() {}
 
-  virtual already_AddRefed<mozilla::image::Image> GetImage() const = 0;
-  virtual bool HasImage() const = 0;
-  virtual already_AddRefed<imgStatusTracker> GetStatusTracker() const = 0;
+  virtual mozilla::image::Image* GetImage() const = 0;
+  virtual imgStatusTracker& GetStatusTracker() const = 0;
   virtual imgRequest* GetOwner() const = 0;
   virtual void SetOwner(imgRequest* aOwner) = 0;
 };
@@ -38,9 +46,8 @@ class RequestBehaviour : public ProxyBehaviour
  public:
   RequestBehaviour() : mOwner(nullptr), mOwnerHasImage(false) {}
 
-  virtual already_AddRefed<mozilla::image::Image> GetImage() const MOZ_OVERRIDE;
-  virtual bool HasImage() const MOZ_OVERRIDE;
-  virtual already_AddRefed<imgStatusTracker> GetStatusTracker() const MOZ_OVERRIDE;
+  virtual mozilla::image::Image* GetImage() const MOZ_OVERRIDE;
+  virtual imgStatusTracker& GetStatusTracker() const MOZ_OVERRIDE;
 
   virtual imgRequest* GetOwner() const MOZ_OVERRIDE {
     return mOwner;
@@ -50,8 +57,7 @@ class RequestBehaviour : public ProxyBehaviour
     mOwner = aOwner;
 
     if (mOwner) {
-      nsRefPtr<imgStatusTracker> ownerStatusTracker = GetStatusTracker();
-      mOwnerHasImage = ownerStatusTracker && ownerStatusTracker->HasImage();
+      mOwnerHasImage = !!aOwner->GetStatusTracker().GetImage();
     } else {
       mOwnerHasImage = false;
     }
@@ -69,16 +75,15 @@ class RequestBehaviour : public ProxyBehaviour
   bool mOwnerHasImage;
 };
 
-already_AddRefed<mozilla::image::Image>
+mozilla::image::Image*
 RequestBehaviour::GetImage() const
 {
   if (!mOwnerHasImage)
     return nullptr;
-  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
-  return statusTracker->GetImage();
+  return GetStatusTracker().GetImage();
 }
 
-already_AddRefed<imgStatusTracker>
+imgStatusTracker&
 RequestBehaviour::GetStatusTracker() const
 {
   // NOTE: It's possible that our mOwner has an Image that it didn't notify
@@ -151,7 +156,7 @@ imgRequestProxy::~imgRequestProxy()
 
 nsresult imgRequestProxy::Init(imgRequest* aOwner,
                                nsILoadGroup* aLoadGroup,
-                               ImageURL* aURI,
+                               nsIURI* aURI,
                                imgINotificationObserver* aObserver)
 {
   NS_PRECONDITION(!GetOwner() && !mListener, "imgRequestProxy is already initialized");
@@ -201,9 +206,8 @@ nsresult imgRequestProxy::ChangeOwner(imgRequest *aNewOwner)
 
   // Were we decoded before?
   bool wasDecoded = false;
-  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
-  if (statusTracker->HasImage() &&
-      statusTracker->GetImageStatus() & imgIRequest::STATUS_FRAME_COMPLETE) {
+  if (GetImage() &&
+      (GetStatusTracker().GetImageStatus() & imgIRequest::STATUS_FRAME_COMPLETE)) {
     wasDecoded = true;
   }
 
@@ -383,9 +387,8 @@ NS_IMETHODIMP
 imgRequestProxy::LockImage()
 {
   mLockCount++;
-  nsRefPtr<Image> image = GetImage();
-  if (image)
-    return image->LockImage();
+  if (GetImage())
+    return GetImage()->LockImage();
   return NS_OK;
 }
 
@@ -396,9 +399,8 @@ imgRequestProxy::UnlockImage()
   NS_ABORT_IF_FALSE(mLockCount > 0, "calling unlock but no locks!");
 
   mLockCount--;
-  nsRefPtr<Image> image = GetImage();
-  if (image)
-    return image->UnlockImage();
+  if (GetImage())
+    return GetImage()->UnlockImage();
   return NS_OK;
 }
 
@@ -406,9 +408,8 @@ imgRequestProxy::UnlockImage()
 NS_IMETHODIMP
 imgRequestProxy::RequestDiscard()
 {
-  nsRefPtr<Image> image = GetImage();
-  if (image)
-    return image->RequestDiscard();
+  if (GetImage())
+    return GetImage()->RequestDiscard();
   return NS_OK;
 }
 
@@ -416,9 +417,8 @@ NS_IMETHODIMP
 imgRequestProxy::IncrementAnimationConsumers()
 {
   mAnimationConsumers++;
-  nsRefPtr<Image> image = GetImage();
-  if (image)
-    image->IncrementAnimationConsumers();
+  if (GetImage())
+    GetImage()->IncrementAnimationConsumers();
   return NS_OK;
 }
 
@@ -433,9 +433,8 @@ imgRequestProxy::DecrementAnimationConsumers()
   // early, but not the observer.)
   if (mAnimationConsumers > 0) {
     mAnimationConsumers--;
-    nsRefPtr<Image> image = GetImage();
-    if (image)
-      image->DecrementAnimationConsumers();
+    if (GetImage())
+      GetImage()->DecrementAnimationConsumers();
   }
   return NS_OK;
 }
@@ -486,24 +485,20 @@ NS_IMETHODIMP imgRequestProxy::SetLoadFlags(nsLoadFlags flags)
 /**  imgIRequest methods **/
 
 /* attribute imgIContainer image; */
-NS_IMETHODIMP imgRequestProxy::GetImage(imgIContainer **aImage)
+NS_IMETHODIMP imgRequestProxy::GetImage(imgIContainer * *aImage)
 {
-  NS_ENSURE_TRUE(aImage, NS_ERROR_NULL_POINTER);
   // It's possible that our owner has an image but hasn't notified us of it -
   // that'll happen if we get Canceled before the owner instantiates its image
   // (because Canceling unregisters us as a listener on mOwner). If we're
   // in that situation, just grab the image off of mOwner.
-  nsRefPtr<Image> image = GetImage();
-  nsCOMPtr<imgIContainer> imageToReturn;
-  if (image)
-    imageToReturn = do_QueryInterface(image);
+  imgIContainer* imageToReturn = GetImage();
   if (!imageToReturn && GetOwner())
-    imageToReturn = GetOwner()->mImage;
+    imageToReturn = GetOwner()->mImage.get();
 
   if (!imageToReturn)
     return NS_ERROR_FAILURE;
 
-  imageToReturn.swap(*aImage);
+  NS_ADDREF(*aImage = imageToReturn);
 
   return NS_OK;
 }
@@ -511,22 +506,13 @@ NS_IMETHODIMP imgRequestProxy::GetImage(imgIContainer **aImage)
 /* readonly attribute unsigned long imageStatus; */
 NS_IMETHODIMP imgRequestProxy::GetImageStatus(uint32_t *aStatus)
 {
-  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
-  *aStatus = statusTracker->GetImageStatus();
+  *aStatus = GetStatusTracker().GetImageStatus();
 
   return NS_OK;
 }
 
 /* readonly attribute nsIURI URI; */
 NS_IMETHODIMP imgRequestProxy::GetURI(nsIURI **aURI)
-{
-  MOZ_ASSERT(NS_IsMainThread(), "Must be on main thread to convert URI");
-  nsCOMPtr<nsIURI> uri = mURI->ToIURI();
-  uri.forget(aURI);
-  return NS_OK;
-}
-
-nsresult imgRequestProxy::GetURI(ImageURL **aURI)
 {
   if (!mURI)
     return NS_ERROR_FAILURE;
@@ -568,8 +554,7 @@ imgRequestProxy* NewStaticProxy(imgRequestProxy* aThis)
 {
   nsCOMPtr<nsIPrincipal> currentPrincipal;
   aThis->GetImagePrincipal(getter_AddRefs(currentPrincipal));
-  nsRefPtr<Image> image = aThis->GetImage();
-  return new imgRequestProxyStatic(image, currentPrincipal);
+  return new imgRequestProxyStatic(aThis->GetImage(), currentPrincipal);
 }
 
 NS_IMETHODIMP imgRequestProxy::Clone(imgINotificationObserver* aObserver,
@@ -918,7 +903,7 @@ nsresult
 imgRequestProxy::GetStaticRequest(imgRequestProxy** aReturn)
 {
   *aReturn = nullptr;
-  nsRefPtr<Image> image = GetImage();
+  mozilla::image::Image* image = GetImage();
 
   bool animated;
   if (!image || (NS_SUCCEEDED(image->GetAnimated(&animated)) && !animated)) {
@@ -956,16 +941,15 @@ void imgRequestProxy::NotifyListener()
   // processing when we receive notifications (like OnStopRequest()), and we
   // need to check mCanceled everywhere too.
 
-  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
   if (GetOwner()) {
     // Send the notifications to our listener asynchronously.
-    statusTracker->Notify(this);
+    GetStatusTracker().Notify(this);
   } else {
     // We don't have an imgRequest, so we can only notify the clone of our
     // current state, but we still have to do that asynchronously.
-    NS_ABORT_IF_FALSE(HasImage(),
+    NS_ABORT_IF_FALSE(GetImage(),
                       "if we have no imgRequest, we should have an Image");
-    statusTracker->NotifyCurrentState(this);
+    GetStatusTracker().NotifyCurrentState(this);
   }
 }
 
@@ -976,17 +960,13 @@ void imgRequestProxy::SyncNotifyListener()
   // processing when we receive notifications (like OnStopRequest()), and we
   // need to check mCanceled everywhere too.
 
-  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
-  statusTracker->SyncNotify(this);
+  GetStatusTracker().SyncNotify(this);
 }
 
 void
 imgRequestProxy::SetHasImage()
 {
-  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
-  MOZ_ASSERT(statusTracker);
-  nsRefPtr<Image> image = statusTracker->GetImage();
-  MOZ_ASSERT(image);
+  Image* image = GetStatusTracker().GetImage();
 
   // Force any private status related to the owner to reflect
   // the presence of an image;
@@ -1001,31 +981,16 @@ imgRequestProxy::SetHasImage()
     image->IncrementAnimationConsumers();
 }
 
-already_AddRefed<imgStatusTracker>
+imgStatusTracker&
 imgRequestProxy::GetStatusTracker() const
 {
   return mBehaviour->GetStatusTracker();
 }
 
-already_AddRefed<mozilla::image::Image>
+mozilla::image::Image*
 imgRequestProxy::GetImage() const
 {
   return mBehaviour->GetImage();
-}
-
-bool
-RequestBehaviour::HasImage() const
-{
-  if (!mOwnerHasImage)
-    return false;
-  nsRefPtr<imgStatusTracker> statusTracker = GetStatusTracker();
-  return statusTracker ? statusTracker->HasImage() : false;
-}
-
-bool
-imgRequestProxy::HasImage() const
-{
-  return mBehaviour->HasImage();
 }
 
 imgRequest*
@@ -1041,17 +1006,11 @@ class StaticBehaviour : public ProxyBehaviour
 public:
   StaticBehaviour(mozilla::image::Image* aImage) : mImage(aImage) {}
 
-  virtual already_AddRefed<mozilla::image::Image>
-  GetImage() const MOZ_OVERRIDE {
-    nsRefPtr<mozilla::image::Image> image = mImage;
-    return image.forget();
-  }
-
-  virtual bool HasImage() const MOZ_OVERRIDE {
+  virtual mozilla::image::Image* GetImage() const MOZ_OVERRIDE {
     return mImage;
   }
 
-  virtual already_AddRefed<imgStatusTracker> GetStatusTracker() const MOZ_OVERRIDE  {
+  virtual imgStatusTracker& GetStatusTracker() const MOZ_OVERRIDE {
     return mImage->GetStatusTracker();
   }
 

@@ -6,27 +6,25 @@
 #ifndef nsHttpConnection_h__
 #define nsHttpConnection_h__
 
+#include "nsHttp.h"
 #include "nsHttpConnectionInfo.h"
 #include "nsAHttpTransaction.h"
+#include "nsXPIDLString.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsProxyRelease.h"
 #include "prinrval.h"
+#include "ASpdySession.h"
+#include "mozilla/TimeStamp.h"
 
+#include "nsIStreamListener.h"
+#include "nsISocketTransport.h"
 #include "nsIAsyncInputStream.h"
 #include "nsIAsyncOutputStream.h"
 #include "nsIInterfaceRequestor.h"
 
 class nsHttpRequestHead;
 class nsHttpResponseHead;
-class nsHttpHandler;
-class nsISocketTransport;
-
-namespace mozilla {
-namespace net {
-class ASpdySession;
-}
-}
 
 //-----------------------------------------------------------------------------
 // nsHttpConnection - represents a connection to a HTTP server (or proxy)
@@ -193,9 +191,6 @@ private:
     // Directly Add a transaction to an active connection for SPDY
     nsresult AddTransaction(nsAHttpTransaction *, int32_t);
 
-    // used to inform nsIHttpDataUsage of transfer
-    void ReportDataUsage(bool);
-
 private:
     nsCOMPtr<nsISocketTransport>    mSocketTransport;
     nsCOMPtr<nsIAsyncInputStream>   mSocketIn;
@@ -211,15 +206,12 @@ private:
     // transaction is open, otherwise it is null.
     nsRefPtr<nsAHttpTransaction>    mTransaction;
 
-    nsRefPtr<nsHttpHandler>         mHttpHandler; // keep gHttpHandler alive
-
     mozilla::Mutex                  mCallbacksLock;
     nsMainThreadPtrHandle<nsIInterfaceRequestor> mCallbacks;
 
     nsRefPtr<nsHttpConnectionInfo> mConnInfo;
 
     PRIntervalTime                  mLastReadTime;
-    PRIntervalTime                  mLastWriteTime;
     PRIntervalTime                  mMaxHangTime;    // max download time before dropping keep-alive status
     PRIntervalTime                  mIdleTimeout;    // value of keep-alive: timeout=
     PRIntervalTime                  mConsiderReusedAfterInterval;
@@ -228,10 +220,6 @@ private:
     int64_t                         mMaxBytesRead;       // max read in 1 activation
     int64_t                         mTotalBytesRead;     // total data read
     int64_t                         mTotalBytesWritten;  // does not include CONNECT tunnel
-
-    // for nsIHttpDataUsage
-    uint64_t                        mUnreportedBytesRead;     // subset of totalBytesRead
-    uint64_t                        mUnreportedBytesWritten;  // subset of totalBytesWritten
 
     nsRefPtr<nsIAsyncInputStream>   mInputOverflow;
 

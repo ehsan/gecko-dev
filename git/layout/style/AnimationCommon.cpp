@@ -6,6 +6,7 @@
 #include "gfxPlatform.h"
 #include "AnimationCommon.h"
 #include "nsRuleData.h"
+#include "nsCSSFrameConstructor.h"
 #include "nsCSSValue.h"
 #include "nsStyleContext.h"
 #include "nsIFrame.h"
@@ -15,7 +16,7 @@
 #include "FrameLayerBuilder.h"
 #include "nsDisplayList.h"
 #include "mozilla/MemoryReporting.h"
-#include "RestyleManager.h"
+#include "mozilla/Preferences.h"
 
 using namespace mozilla::layers;
 
@@ -288,13 +289,6 @@ CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *a
   return enabled && propertyAllowed;
 }
 
-/* static */ bool
-CommonElementAnimationData::IsCompositorAnimationDisabledForFrame(nsIFrame* aFrame)
-{
-  void* prop = aFrame->Properties().Get(nsIFrame::RefusedAsyncAnimation());
-  return bool(reinterpret_cast<intptr_t>(prop));
-}
-
 /* static */ void
 CommonElementAnimationData::LogAsyncAnimationFailure(nsCString& aMessage,
                                                      const nsIContent* aContent)
@@ -343,7 +337,7 @@ CommonElementAnimationData::CanThrottleTransformChanges(TimeStamp aTime)
     return true;
   }
 
-  ScrollbarStyles ss = scrollable->GetScrollbarStyles();
+  nsPresContext::ScrollbarStyles ss = scrollable->GetScrollbarStyles();
   if (ss.mVertical == NS_STYLE_OVERFLOW_HIDDEN &&
       ss.mHorizontal == NS_STYLE_OVERFLOW_HIDDEN &&
       scrollable->GetLogicalScrollPosition() == nsPoint(0, 0)) {

@@ -9,8 +9,9 @@
 
 #include "nsHttpResponseHead.h"
 #include "nsPrintfCString.h"
+#include "prprf.h"
 #include "prtime.h"
-#include "nsURLHelper.h"
+#include "nsCRT.h"
 #include <algorithm>
 
 //-----------------------------------------------------------------------------

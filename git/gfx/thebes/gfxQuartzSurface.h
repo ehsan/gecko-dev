@@ -7,13 +7,11 @@
 #define GFX_QUARTZSURFACE_H
 
 #include "gfxASurface.h"
-#include "nsSize.h"
-#include "gfxPoint.h"
+#include "gfxImageSurface.h"
 
 #include <Carbon/Carbon.h>
 
 class gfxContext;
-class gfxImageSurface;
 
 class gfxQuartzSurface : public gfxASurface {
 public:

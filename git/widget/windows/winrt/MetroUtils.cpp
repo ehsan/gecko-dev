@@ -21,7 +21,6 @@
 #include "nsIURI.h"
 #include "prlog.h"
 #include "nsIObserverService.h"
-#include "nsRect.h"
 
 #include <wrl/wrappers/corewrappers.h>
 #include <windows.ui.applicationsettings.h>
@@ -70,7 +69,7 @@ namespace {
 
 void LogW(const wchar_t *fmt, ...)
 {
-  va_list args = nullptr;
+  va_list args = NULL;
   if(!lstrlenW(fmt))
     return;
   va_start(args, fmt);
@@ -92,8 +91,8 @@ void LogW(const wchar_t *fmt, ...)
     char* utf8 = new char[len+1];
     memset(utf8, 0, sizeof(utf8));
     if (WideCharToMultiByte(CP_ACP, 0, buffer,
-                            -1, utf8, len+1, nullptr,
-                            nullptr) > 0) {
+                            -1, utf8, len+1, NULL,
+                            NULL) > 0) {
       // desktop console
       printf("%s\n", utf8);
 #ifdef PR_LOGGING
@@ -109,7 +108,7 @@ void LogW(const wchar_t *fmt, ...)
 
 void Log(const char *fmt, ...)
 {
-  va_list args = nullptr;
+  va_list args = NULL;
   if(!strlen(fmt))
     return;
   va_start(args, fmt);

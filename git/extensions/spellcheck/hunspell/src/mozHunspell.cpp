@@ -97,44 +97,35 @@ NS_IMPL_CYCLE_COLLECTION_3(mozHunspell,
                            mEncoder,
                            mDecoder)
 
-class SpellCheckReporter MOZ_FINAL : public mozilla::MemoryUniReporter
-{
-public:
-  SpellCheckReporter()
-    : MemoryUniReporter("explicit/spell-check", KIND_HEAP, UNITS_BYTES,
-"Memory used by the Hunspell spell checking engine's internal data structures.")
-  {
-#ifdef DEBUG
-    // There must be only one instance of this class, due to |sAmount|
-    // being static.
-    static bool hasRun = false;
-    MOZ_ASSERT(!hasRun);
-    hasRun = true;
-#endif
-  }
+// Memory reporting stuff.
+static int64_t gHunspellAllocatedSize = 0;
 
-  static void OnAlloc(void* ptr) { sAmount += MallocSizeOfOnAlloc(ptr); }
-  static void OnFree (void* ptr) { sAmount -= MallocSizeOfOnFree (ptr); }
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_ALLOC_FUN(HunspellMallocSizeOfOnAlloc)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_FREE_FUN(HunspellMallocSizeOfOnFree)
 
-private:
-  int64_t Amount() MOZ_OVERRIDE { return sAmount; }
-
-  static int64_t sAmount;
-};
-
-int64_t SpellCheckReporter::sAmount = 0;
-
-// WARNING: hunspell_alloc_hooks.h uses these two functions.
 void HunspellReportMemoryAllocation(void* ptr) {
-  SpellCheckReporter::OnAlloc(ptr);
+  gHunspellAllocatedSize += HunspellMallocSizeOfOnAlloc(ptr);
 }
 void HunspellReportMemoryDeallocation(void* ptr) {
-  SpellCheckReporter::OnFree(ptr);
+  gHunspellAllocatedSize -= HunspellMallocSizeOfOnFree(ptr);
 }
+static int64_t HunspellGetCurrentAllocatedSize() {
+  return gHunspellAllocatedSize;
+}
+
+NS_MEMORY_REPORTER_IMPLEMENT(Hunspell,
+  "explicit/spell-check",
+  KIND_HEAP,
+  UNITS_BYTES,
+  HunspellGetCurrentAllocatedSize,
+  "Memory used by the Hunspell spell checking engine.  This number accounts "
+  "for the memory in use by Hunspell's internal data structures."
+)
 
 nsresult
 mozHunspell::Init()
 {
+  mDictionaries.Init();
   LoadDictionaryList();
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -143,18 +134,18 @@ mozHunspell::Init()
     obs->AddObserver(this, "profile-after-change", true);
   }
 
-  mReporter = new SpellCheckReporter();
-  NS_RegisterMemoryReporter(mReporter);
+  mHunspellReporter = new NS_MEMORY_REPORTER_NAME(Hunspell);
+  NS_RegisterMemoryReporter(mHunspellReporter);
 
   return NS_OK;
 }
 
 mozHunspell::~mozHunspell()
 {
-  NS_UnregisterMemoryReporter(mReporter);
-
   mPersonalDictionary = nullptr;
   delete mHunspell;
+
+  NS_UnregisterMemoryReporter(mHunspellReporter);
 }
 
 /* attribute wstring dictionary; */

@@ -43,6 +43,9 @@ nsGTKRemoteService::Startup(const char* aAppName, const char* aProfileName)
   gtk_widget_realize(mServerWindow);
   HandleCommandsFor(mServerWindow, nullptr);
 
+  if (!mWindows.IsInitialized())
+    mWindows.Init();
+
   mWindows.EnumerateRead(StartupHandler, this);
 
   return NS_OK;
@@ -87,6 +90,9 @@ nsGTKRemoteService::RegisterWindow(nsIDOMWindow* aWindow)
 
   nsCOMPtr<nsIWeakReference> weak = do_GetWeakReference(aWindow);
   NS_ENSURE_TRUE(weak, NS_ERROR_FAILURE);
+
+  if (!mWindows.IsInitialized())
+    mWindows.Init();
 
   mWindows.Put(widget, weak);
 
@@ -176,13 +182,13 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsGTKRemoteService)
 NS_DEFINE_NAMED_CID(NS_REMOTESERVICE_CID);
 
 static const mozilla::Module::CIDEntry kRemoteCIDs[] = {
-  { &kNS_REMOTESERVICE_CID, false, nullptr, nsGTKRemoteServiceConstructor },
-  { nullptr }
+  { &kNS_REMOTESERVICE_CID, false, NULL, nsGTKRemoteServiceConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kRemoteContracts[] = {
   { "@mozilla.org/toolkit/remote-service;1", &kNS_REMOTESERVICE_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kRemoteModule = {

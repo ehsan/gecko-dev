@@ -13,7 +13,6 @@
 
 #include "jit/IonFrameIterator.h"
 #include "jit/LIR.h"
-#include "vm/ForkJoin.h"
 
 #include "jit/IonFrameIterator-inl.h"
 
@@ -70,25 +69,13 @@ IonFrameIterator::exitFrame() const
 inline BaselineFrame *
 GetTopBaselineFrame(JSContext *cx)
 {
-    IonFrameIterator iter(cx);
+    IonFrameIterator iter(cx->mainThread().ionTop);
     JS_ASSERT(iter.type() == IonFrame_Exit);
     ++iter;
     if (iter.isBaselineStub())
         ++iter;
     JS_ASSERT(iter.isBaselineJS());
     return iter.baselineFrame();
-}
-
-inline JSScript *
-GetTopIonJSScript(JSContext *cx, void **returnAddrOut = nullptr)
-{
-    return GetTopIonJSScript(cx->mainThread().ionTop, returnAddrOut, SequentialExecution);
-}
-
-inline JSScript *
-GetTopIonJSScript(ForkJoinSlice *slice, void **returnAddrOut = nullptr)
-{
-    return GetTopIonJSScript(slice->perThreadData->ionTop, returnAddrOut, ParallelExecution);
 }
 
 } // namespace jit

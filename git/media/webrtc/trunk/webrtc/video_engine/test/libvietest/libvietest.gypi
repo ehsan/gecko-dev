@@ -16,6 +16,15 @@
         '<(webrtc_root)/test/test.gyp:test_support',
         'video_engine_core',
       ],
+      'direct_dependent_settings': {
+        'include_dirs': [
+          'include/',
+        ]
+      },
+      'include_dirs': [
+        'include/',
+        'helpers/',
+      ],
       'sources': [
         # Helper classes
         'include/vie_external_render_filter.h',
@@ -59,6 +68,9 @@
             '<(DEPTH)/testing/gtest.gyp:gtest',
             '<(DEPTH)/testing/gmock.gyp:gmock',
             '<(webrtc_root)/test/test.gyp:test_support_main',
+          ],
+          'include_dirs': [
+            'include/',
           ],
           'sources': [
             'testbed/fake_network_pipe_unittest.cc',

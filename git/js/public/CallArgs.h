@@ -38,19 +38,22 @@
 #include "js/RootingAPI.h"
 #include "js/Value.h"
 
+struct JSContext;
+class JSObject;
+
 /* Typedef for native functions called by the JS VM. */
-typedef bool
+typedef JSBool
 (* JSNative)(JSContext *cx, unsigned argc, JS::Value *vp);
 
 /* Typedef for native functions that may be called in parallel. */
-typedef bool
+typedef js::ParallelResult
 (* JSParallelNative)(js::ForkJoinSlice *slice, unsigned argc, JS::Value *vp);
 
 /*
  * Typedef for native functions that may be called either in parallel or
  * sequential execution.
  */
-typedef bool
+typedef JSBool
 (* JSThreadSafeNative)(js::ThreadSafeContext *cx, unsigned argc, JS::Value *vp);
 
 /*
@@ -58,11 +61,11 @@ typedef bool
  * a JSNative or a JSParallelNative.
  */
 template <JSThreadSafeNative threadSafeNative>
-inline bool
+inline JSBool
 JSNativeThreadSafeWrapper(JSContext *cx, unsigned argc, JS::Value *vp);
 
 template <JSThreadSafeNative threadSafeNative>
-inline bool
+inline js::ParallelResult
 JSParallelNativeThreadSafeWrapper(js::ForkJoinSlice *slice, unsigned argc, JS::Value *vp);
 
 /*
@@ -86,7 +89,7 @@ extern JS_PUBLIC_DATA(const HandleValue) UndefinedHandleValue;
  * return value for a function call.  The principal way to create a
  * CallReceiver is using JS::CallReceiverFromVp:
  *
- *   static bool
+ *   static JSBool
  *   FunctionReturningThis(JSContext *cx, unsigned argc, JS::Value *vp)
  *   {
  *       JS::CallReceiver rec = JS::CallReceiverFromVp(vp);
@@ -279,7 +282,7 @@ CallReceiverFromVp(Value *vp)
  * the function call's arguments.  The principal way to create a CallArgs is
  * like so, using JS::CallArgsFromVp:
  *
- *   static bool
+ *   static JSBool
  *   FunctionReturningArgcTimesArg0(JSContext *cx, unsigned argc, JS::Value *vp)
  *   {
  *       JS::CallArgs args = JS::CallArgsFromVp(argc, vp);

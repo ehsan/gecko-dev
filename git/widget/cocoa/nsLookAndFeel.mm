@@ -10,8 +10,6 @@
 #include "nsStyleConsts.h"
 #include "nsCocoaFeatures.h"
 #include "gfxFont.h"
-#include "gfxFontConstants.h"
-#include "mozilla/gfx/2D.h"
 
 #import <Cocoa/Cocoa.h>
 
@@ -251,13 +249,16 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       aColor = GetColorFromNSColor([NSColor selectedMenuItemTextColor]);
       break;      
     case eColorID__moz_mac_disabledtoolbartext:
-      aColor = GetColorFromNSColor([NSColor disabledControlTextColor]);
+      aColor = NS_RGB(0x3F,0x3F,0x3F);
       break;
     case eColorID__moz_mac_menuselect:
       aColor = GetColorFromNSColor([NSColor alternateSelectedControlColor]);
       break;
     case eColorID__moz_buttondefault:
       aColor = NS_RGB(0xDC,0xDC,0xDC);
+      break;
+    case eColorID__moz_mac_alternateprimaryhighlight:
+      aColor = GetColorFromNSColor([NSColor alternateSelectedControlColor]);
       break;
     case eColorID__moz_cellhighlight:
     case eColorID__moz_html_cellhighlight:
@@ -385,6 +386,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
     case eIntID_WindowsClassic:
     case eIntID_WindowsDefaultTheme:
     case eIntID_TouchEnabled:
+    case eIntID_MaemoClassic:
     case eIntID_WindowsThemeIdentifier:
     case eIntID_OperatingSystemVersionIdentifier:
       aResult = 0;
@@ -499,7 +501,7 @@ bool nsLookAndFeel::AllowOverlayScrollbarsOverlap()
 static void GetStringForNSString(const NSString *aSrc, nsAString& aDest)
 {
     aDest.SetLength([aSrc length]);
-    [aSrc getCharacters:reinterpret_cast<unichar*>(aDest.BeginWriting())];
+    [aSrc getCharacters:aDest.BeginWriting()];
 }
 
 bool

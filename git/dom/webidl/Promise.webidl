@@ -7,30 +7,27 @@
  * http://dom.spec.whatwg.org/#promises
  */
 
-// TODO We use object instead Function.  There is an open issue on WebIDL to
-// have different types for "platform-provided function" and "user-provided
-// function"; for now, we just use "object".
-callback PromiseInit = void (object resolve, object reject);
+interface PromiseResolver {
+  // TODO bug 875289 - void fulfill(optional any value);
+  void resolve(optional any value);
+  void reject(optional any value);
+};
+
+callback PromiseInit = void (PromiseResolver resolver);
 callback AnyCallback = any (optional any value);
 
-[Func="mozilla::dom::Promise::EnabledForScope", Constructor(PromiseInit init)]
+[PrefControlled, Constructor(PromiseInit init)]
 interface Promise {
   // TODO bug 875289 - static Promise fulfill(any value);
-
-  // Disable the static methods when the interface object is supposed to be
-  // disabled, just in case some code decides to walk over to .constructor from
-  // the proto of a promise object or someone screws up and manages to create a
-  // Promise object in this scope without having resolved the interface object
-  // first.
-  [NewObject, Throws, Func="mozilla::dom::Promise::EnabledForScope"]
+  [Creator, Throws]
   static Promise resolve(any value); // same as any(value)
-  [NewObject, Throws, Func="mozilla::dom::Promise::EnabledForScope"]
+  [Creator, Throws]
   static Promise reject(any value);
 
-  [NewObject]
+  [Creator]
   Promise then([TreatUndefinedAs=Missing] optional AnyCallback fulfillCallback,
                [TreatUndefinedAs=Missing] optional AnyCallback rejectCallback);
 
-  [NewObject]
+  [Creator]
   Promise catch([TreatUndefinedAs=Missing] optional AnyCallback rejectCallback);
 };

@@ -105,8 +105,7 @@ nsIdleServiceDaily::Observe(nsISupports *,
                                          nullptr);
 
   // Notify the category observers.
-  nsCOMArray<nsIObserver> entries;
-  mCategoryObservers.GetEntries(entries);
+  const nsCOMArray<nsIObserver> &entries = mCategoryObservers.GetEntries();
   for (int32_t i = 0; i < entries.Count(); ++i) {
     (void)entries[i]->Observe(nullptr, OBSERVER_TOPIC_IDLE_DAILY, nullptr);
   }

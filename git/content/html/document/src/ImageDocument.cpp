@@ -15,7 +15,6 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMEventListener.h"
-#include "nsIFrame.h"
 #include "nsGkAtoms.h"
 #include "imgIRequest.h"
 #include "imgILoader.h"
@@ -210,7 +209,6 @@ ImageDocument::Destroy()
   if (mImageContent) {
     // Remove our event listener from the image content.
     nsCOMPtr<EventTarget> target = do_QueryInterface(mImageContent);
-    target->RemoveEventListener(NS_LITERAL_STRING("load"), this, false);
     target->RemoveEventListener(NS_LITERAL_STRING("click"), this, false);
 
     // Break reference cycle with mImageContent, if we have one
@@ -255,7 +253,6 @@ ImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject)
       NS_ASSERTION(NS_SUCCEEDED(rv), "failed to create synthetic document");
 
       target = do_QueryInterface(mImageContent);
-      target->AddEventListener(NS_LITERAL_STRING("load"), this, false);
       target->AddEventListener(NS_LITERAL_STRING("click"), this, false);
     }
 
@@ -512,11 +509,8 @@ ImageDocument::SetModeClass(eModeClasses mode)
 nsresult
 ImageDocument::OnStartContainer(imgIRequest* aRequest, imgIContainer* aImage)
 {
-  // Styles have not yet been applied, so we don't know the final size. For now,
-  // default to the image's intrinsic size.
   aImage->GetWidth(&mImageWidth);
   aImage->GetHeight(&mImageHeight);
-
   nsCOMPtr<nsIRunnable> runnable =
     NS_NewRunnableMethod(this, &ImageDocument::DefaultCheckOverflowing);
   nsContentUtils::AddScriptRunner(runnable);
@@ -579,42 +573,9 @@ ImageDocument::HandleEvent(nsIDOMEvent* aEvent)
     else if (mImageIsOverflowing) {
       ShrinkToFit();
     }
-  } else if (eventType.EqualsLiteral("load")) {
-    UpdateSizeFromLayout();
   }
 
   return NS_OK;
-}
-
-void
-ImageDocument::UpdateSizeFromLayout()
-{
-  // Pull an updated size from the content frame to account for any size
-  // change due to CSS properties like |image-orientation|.
-  Element* contentElement = mImageContent->AsElement();
-  if (!contentElement) {
-    return;
-  }
-
-  nsIFrame* contentFrame = contentElement->GetPrimaryFrame(Flush_Frames);
-  if (!contentFrame) {
-    return;
-  }
-
-  nsIntSize oldSize(mImageWidth, mImageHeight);
-  IntrinsicSize newSize = contentFrame->GetIntrinsicSize();
-
-  if (newSize.width.GetUnit() == eStyleUnit_Coord) {
-    mImageWidth = nsPresContext::AppUnitsToFloatCSSPixels(newSize.width.GetCoordValue());
-  }
-  if (newSize.height.GetUnit() == eStyleUnit_Coord) {
-    mImageHeight = nsPresContext::AppUnitsToFloatCSSPixels(newSize.height.GetCoordValue());
-  }
-
-  // Ensure that our information about overflow is up-to-date if needed.
-  if (mImageWidth != oldSize.width || mImageHeight != oldSize.height) {
-    CheckOverflowing(false);
-  }
 }
 
 nsresult
@@ -752,8 +713,8 @@ ImageDocument::UpdateTitleAndCharset()
   {
     "ImageTitleWithNeitherDimensionsNorFile",
     "ImageTitleWithoutDimensions",
-    "ImageTitleWithDimensions2",
-    "ImageTitleWithDimensions2AndFile",
+    "ImageTitleWithDimensions",
+    "ImageTitleWithDimensionsAndFile",
   };
 
   MediaDocument::UpdateTitleAndCharset(typeStr, formatNames,
@@ -796,6 +757,8 @@ ImageDocument::GetZoomLevel()
 
 } // namespace dom
 } // namespace mozilla
+
+DOMCI_DATA(ImageDocument, mozilla::dom::ImageDocument)
 
 nsresult
 NS_NewImageDocument(nsIDocument** aResult)

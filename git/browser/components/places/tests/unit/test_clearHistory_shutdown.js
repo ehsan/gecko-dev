@@ -134,15 +134,13 @@ function getDistinctNotifications() {
 }
 
 function storeCache(aURL, aContent) {
-  let cache = Services.cache2;
-  let storage = cache.diskCacheStorage(LoadContextInfo.default, false);
+  let cache = Cc["@mozilla.org/network/cache-service;1"].
+              getService(Ci.nsICacheService);
+  let session = cache.createSession("FTP", Ci.nsICache.STORE_ANYWHERE,
+                                    Ci.nsICache.STREAM_BASED);
 
   var storeCacheListener = {
-    onCacheEntryCheck: function (entry, appcache) {
-      return Ci.nsICacheEntryOpenCallback.ENTRY_WANTED;
-    },
-
-    onCacheEntryAvailable: function (entry, isnew, appcache, status) {
+    onCacheEntryAvailable: function (entry, access, status) {
       do_check_eq(status, Cr.NS_OK);
 
       entry.setMetaDataElement("servertype", "0");
@@ -160,24 +158,26 @@ function storeCache(aURL, aContent) {
     }
   };
 
-  storage.asyncOpenURI(Services.io.newURI(aURL, null, null), "",
-                       Ci.nsICacheStorage.OPEN_NORMALLY,
-                       storeCacheListener);
+  session.asyncOpenCacheEntry(aURL,
+                              Ci.nsICache.ACCESS_READ_WRITE,
+                              storeCacheListener);
 }
 
 
 function checkCache(aURL) {
-  let cache = Services.cache2;
-  let storage = cache.diskCacheStorage(LoadContextInfo.default, false);
+  let cache = Cc["@mozilla.org/network/cache-service;1"].
+              getService(Ci.nsICacheService);
+  let session = cache.createSession("FTP", Ci.nsICache.STORE_ANYWHERE,
+                                    Ci.nsICache.STREAM_BASED);
 
   var checkCacheListener = {
-    onCacheEntryAvailable: function (entry, isnew, appcache, status) {
+    onCacheEntryAvailable: function (entry, access, status) {
       do_check_eq(status, Cr.NS_ERROR_CACHE_KEY_NOT_FOUND);
       do_test_finished();
     }
   };
 
-  storage.asyncOpenURI(Services.io.newURI(aURL, null, null), "",
-                       Ci.nsICacheStorage.OPEN_READONLY,
-                       checkCacheListener);
+  session.asyncOpenCacheEntry(aURL,
+                              Ci.nsICache.ACCESS_READ,
+                              checkCacheListener);
 }

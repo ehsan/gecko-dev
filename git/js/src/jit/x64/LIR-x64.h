@@ -27,9 +27,6 @@ class LBox : public LInstructionHelper<1, 1, 0>
     MIRType type() const {
         return type_;
     }
-    const char *extraName() const {
-        return StringFromMIRType(type_);
-    }
 };
 
 // Given an untyped input, guards on whether it's a specific type and returns
@@ -57,43 +54,22 @@ class LUnbox : public LUnboxBase {
     { }
 };
 
-class LUnboxFloatingPoint : public LUnboxBase {
-    MIRType type_;
-
+class LUnboxDouble : public LUnboxBase {
   public:
-    LIR_HEADER(UnboxFloatingPoint)
+    LIR_HEADER(UnboxDouble)
 
-    LUnboxFloatingPoint(const LAllocation &input, MIRType type)
-      : LUnboxBase(input),
-        type_(type)
+    LUnboxDouble(const LAllocation &input)
+      : LUnboxBase(input)
     { }
-
-    MIRType type() const {
-        return type_;
-    }
-    const char *extraName() const {
-        return StringFromMIRType(type_);
-    }
 };
 
 // Convert a 32-bit unsigned integer to a double.
-class LAsmJSUInt32ToDouble : public LInstructionHelper<1, 1, 0>
+class LUInt32ToDouble : public LInstructionHelper<1, 1, 0>
 {
   public:
-    LIR_HEADER(AsmJSUInt32ToDouble)
+    LIR_HEADER(UInt32ToDouble)
 
-    LAsmJSUInt32ToDouble(const LAllocation &input) {
-        setOperand(0, input);
-    }
-};
-
-// Convert a 32-bit unsigned integer to a float32.
-class LAsmJSUInt32ToFloat32 : public LInstructionHelper<1, 1, 0>
-{
-  public:
-    LIR_HEADER(AsmJSUInt32ToFloat32)
-
-    LAsmJSUInt32ToFloat32(const LAllocation &input) {
+    LUInt32ToDouble(const LAllocation &input) {
         setOperand(0, input);
     }
 };

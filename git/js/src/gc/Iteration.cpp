@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jscompartment.h"
+#include "jsapi.h"
 #include "jsgc.h"
 
 #include "gc/GCInternals.h"
@@ -25,28 +25,6 @@ js::TraceRuntime(JSTracer *trc)
     MarkRuntime(trc);
 }
 
-static void
-IterateCompartmentsArenasCells(JSRuntime *rt, Zone *zone, void *data,
-                               JSIterateCompartmentCallback compartmentCallback,
-                               IterateArenaCallback arenaCallback,
-                               IterateCellCallback cellCallback)
-{
-    for (CompartmentsInZoneIter comp(zone); !comp.done(); comp.next())
-        (*compartmentCallback)(rt, data, comp);
-
-    for (size_t thingKind = 0; thingKind != FINALIZE_LIMIT; thingKind++) {
-        JSGCTraceKind traceKind = MapAllocToTraceKind(AllocKind(thingKind));
-        size_t thingSize = Arena::thingSize(AllocKind(thingKind));
-
-        for (ArenaIter aiter(zone, AllocKind(thingKind)); !aiter.done(); aiter.next()) {
-            ArenaHeader *aheader = aiter.get();
-            (*arenaCallback)(rt, data, aheader->getArena(), traceKind, thingSize);
-            for (CellIterUnderGC iter(aheader); !iter.done(); iter.next())
-                (*cellCallback)(rt, data, iter.getCell(), traceKind, thingSize);
-        }
-    }
-}
-
 void
 js::IterateZonesCompartmentsArenasCells(JSRuntime *rt, void *data,
                                         IterateZoneCallback zoneCallback,
@@ -58,23 +36,22 @@ js::IterateZonesCompartmentsArenasCells(JSRuntime *rt, void *data,
 
     for (ZonesIter zone(rt); !zone.done(); zone.next()) {
         (*zoneCallback)(rt, data, zone);
-        IterateCompartmentsArenasCells(rt, zone, data,
-                                       compartmentCallback, arenaCallback, cellCallback);
+
+        for (CompartmentsInZoneIter comp(zone); !comp.done(); comp.next())
+            (*compartmentCallback)(rt, data, comp);
+
+        for (size_t thingKind = 0; thingKind != FINALIZE_LIMIT; thingKind++) {
+            JSGCTraceKind traceKind = MapAllocToTraceKind(AllocKind(thingKind));
+            size_t thingSize = Arena::thingSize(AllocKind(thingKind));
+
+            for (ArenaIter aiter(zone, AllocKind(thingKind)); !aiter.done(); aiter.next()) {
+                ArenaHeader *aheader = aiter.get();
+                (*arenaCallback)(rt, data, aheader->getArena(), traceKind, thingSize);
+                for (CellIterUnderGC iter(aheader); !iter.done(); iter.next())
+                    (*cellCallback)(rt, data, iter.getCell(), traceKind, thingSize);
+            }
+        }
     }
-}
-
-void
-js::IterateZoneCompartmentsArenasCells(JSRuntime *rt, Zone *zone, void *data,
-                                       IterateZoneCallback zoneCallback,
-                                       JSIterateCompartmentCallback compartmentCallback,
-                                       IterateArenaCallback arenaCallback,
-                                       IterateCellCallback cellCallback)
-{
-    AutoPrepareForTracing prop(rt);
-
-    (*zoneCallback)(rt, data, zone);
-    IterateCompartmentsArenasCells(rt, zone, data,
-                                   compartmentCallback, arenaCallback, cellCallback);
 }
 
 void
@@ -109,7 +86,7 @@ js::IterateScripts(JSRuntime *rt, JSCompartment *compartment,
 void
 js::IterateGrayObjects(Zone *zone, GCThingCallback cellCallback, void *data)
 {
-    AutoPrepareForTracing prep(zone->runtimeFromMainThread());
+    AutoPrepareForTracing prep(zone->rt);
 
     for (size_t finalizeKind = 0; finalizeKind <= FINALIZE_OBJECT_LAST; finalizeKind++) {
         for (CellIterUnderGC i(zone, AllocKind(finalizeKind)); !i.done(); i.next()) {
@@ -126,8 +103,8 @@ JS_IterateCompartments(JSRuntime *rt, void *data,
 {
     JS_ASSERT(!rt->isHeapBusy());
 
-    AutoPauseWorkersForTracing pause(rt);
     AutoTraceSession session(rt);
+    rt->gcHelperThread.waitBackgroundSweepOrAllocEnd();
 
     for (CompartmentsIter c(rt); !c.done(); c.next())
         (*compartmentCallback)(rt, data, c);

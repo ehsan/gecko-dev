@@ -24,11 +24,7 @@ function test()
     ok(hud, "browser console opened");
 
     hud.jsterm.clearOutput();
-    hud.jsterm.execute("Cu = Components.utils;" +
-                       "Cu.import('resource://gre/modules/Services.jsm');" +
-                       "chromeWindow = Services.wm.getMostRecentWindow('navigator:browser');" +
-                       "foobarzTezt = chromeWindow.content.document;" +
-                       "delete chromeWindow", onAddVariable);
+    hud.jsterm.execute("foobarzTezt = content.document", onAddVariable);
   }
 
   function onAddVariable()
@@ -38,7 +34,7 @@ function test()
     hud.jsterm.execute("foobarzTezt", onReadVariable);
   }
 
-  function onReadVariable(msg)
+  function onReadVariable()
   {
     isnot(hud.outputNode.textContent.indexOf("[object DeadObject]"), -1,
           "dead object found");
@@ -49,16 +45,17 @@ function test()
       EventUtils.synthesizeKey(c, {}, hud.iframeWindow);
     }
 
-    hud.jsterm.execute(null, onReadProperty.bind(null, msg));
+    hud.jsterm.execute(null, onReadProperty);
   }
 
-  function onReadProperty(deadObjectMessage)
+  function onReadProperty()
   {
     isnot(hud.outputNode.textContent.indexOf("can't access dead object"), -1,
           "'cannot access dead object' message found");
 
     // Click the second execute output.
-    let clickable = deadObjectMessage.querySelector("a");
+    let clickable = hud.outputNode.querySelectorAll(".webconsole-msg-output")[1]
+                    .querySelector(".hud-clickable");
     ok(clickable, "clickable object found");
     isnot(clickable.textContent.indexOf("[object DeadObject]"), -1,
           "message text check");

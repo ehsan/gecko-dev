@@ -33,7 +33,7 @@
 #include "nsRuleProcessorData.h"
 #include "nsIWeakReference.h"
 
-#include "nsWrapperCacheInlines.h"
+#include "jsapi.h"
 #include "nsIXPConnect.h"
 #include "nsDOMCID.h"
 #include "nsIDOMScriptObjectFactory.h"
@@ -42,8 +42,6 @@
 
 #include "nsIScriptContext.h"
 #include "nsBindingManager.h"
-#include "xpcpublic.h"
-#include "jswrapper.h"
 #include "nsCxPusher.h"
 
 #include "nsThreadUtils.h"
@@ -192,14 +190,14 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsBindingManager)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsBindingManager)
   tmp->mDestroyed = true;
 
-  if (tmp->mBoundContentSet)
-    tmp->mBoundContentSet->Clear();
+  if (tmp->mBoundContentSet.IsInitialized())
+    tmp->mBoundContentSet.Clear();
 
-  if (tmp->mDocumentTable)
-    tmp->mDocumentTable->Clear();
+  if (tmp->mDocumentTable.IsInitialized())
+    tmp->mDocumentTable.Clear();
 
-  if (tmp->mLoadingDocTable)
-    tmp->mLoadingDocTable->Clear();
+  if (tmp->mLoadingDocTable.IsInitialized())
+    tmp->mLoadingDocTable.Clear();
 
   if (tmp->mWrapperTable.ops)
     PL_DHashTableFinish(&(tmp->mWrapperTable));
@@ -221,7 +219,7 @@ DocumentInfoHashtableTraverser(nsIURI* key,
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(userArg);
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mDocumentTable value");
-  cb->NoteXPCOMChild(di);
+  cb->NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(di));
   return PL_DHASH_NEXT;
 }
 
@@ -239,10 +237,10 @@ LoadingDocHashtableTraverser(nsIURI* key,
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsBindingManager)
   // The hashes keyed on nsIContent are traversed from the nsIContent itself.
-  if (tmp->mDocumentTable)
-      tmp->mDocumentTable->EnumerateRead(&DocumentInfoHashtableTraverser, &cb);
-  if (tmp->mLoadingDocTable)
-      tmp->mLoadingDocTable->EnumerateRead(&LoadingDocHashtableTraverser, &cb);
+  if (tmp->mDocumentTable.IsInitialized())
+      tmp->mDocumentTable.EnumerateRead(&DocumentInfoHashtableTraverser, &cb);
+  if (tmp->mLoadingDocTable.IsInitialized())
+      tmp->mLoadingDocTable.EnumerateRead(&LoadingDocHashtableTraverser, &cb);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAttachedStack)
   // No need to traverse mProcessAttachedQueueEvent, since it'll just
   // fire at some point or become revoke and drop its ref to us.
@@ -284,17 +282,18 @@ nsBindingManager::GetBindingWithContent(nsIContent* aContent)
 void
 nsBindingManager::AddBoundContent(nsIContent* aContent)
 {
-  if (!mBoundContentSet) {
-    mBoundContentSet = new nsTHashtable<nsRefPtrHashKey<nsIContent> >;
+  if (!mBoundContentSet.IsInitialized()) {
+    mBoundContentSet.Init();
   }
-  mBoundContentSet->PutEntry(aContent);
+
+  mBoundContentSet.PutEntry(aContent);
 }
 
 void
 nsBindingManager::RemoveBoundContent(nsIContent* aContent)
 {
-  if (mBoundContentSet) {
-    mBoundContentSet->RemoveEntry(aContent);
+  if (mBoundContentSet.IsInitialized()) {
+    mBoundContentSet.RemoveEntry(aContent);
   }
 
   // The death of the bindings means the death of the JS wrapper.
@@ -557,9 +556,9 @@ void
 nsBindingManager::ExecuteDetachedHandlers()
 {
   // Walk our hashtable of bindings.
-  if (mBoundContentSet) {
+  if (mBoundContentSet.IsInitialized()) {
     BindingTableReadClosure closure;
-    mBoundContentSet->EnumerateEntries(AccumulateBindingsToDetach, &closure);
+    mBoundContentSet.EnumerateEntries(AccumulateBindingsToDetach, &closure);
     uint32_t i, count = closure.mBindings.Length();
     for (i = 0; i < count; ++i) {
       closure.mBindings[i]->ExecuteDetachedHandler();
@@ -572,11 +571,11 @@ nsBindingManager::PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
 {
   NS_PRECONDITION(aDocumentInfo, "Must have a non-null documentinfo!");
   
-  if (!mDocumentTable) {
-    mDocumentTable = new nsRefPtrHashtable<nsURIHashKey,nsXBLDocumentInfo>(16);
-  }
+  if (!mDocumentTable.IsInitialized())
+    mDocumentTable.Init(16);
 
-  mDocumentTable->Put(aDocumentInfo->DocumentURI(), aDocumentInfo);
+  mDocumentTable.Put(aDocumentInfo->DocumentURI(),
+                     aDocumentInfo);
 
   return NS_OK;
 }
@@ -584,18 +583,18 @@ nsBindingManager::PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
 void
 nsBindingManager::RemoveXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
 {
-  if (mDocumentTable) {
-    mDocumentTable->Remove(aDocumentInfo->DocumentURI());
+  if (mDocumentTable.IsInitialized()) {
+    mDocumentTable.Remove(aDocumentInfo->DocumentURI());
   }
 }
 
 nsXBLDocumentInfo*
 nsBindingManager::GetXBLDocumentInfo(nsIURI* aURL)
 {
-  if (!mDocumentTable)
+  if (!mDocumentTable.IsInitialized())
     return nullptr;
 
-  return mDocumentTable->GetWeak(aURL);
+  return mDocumentTable.GetWeak(aURL);
 }
 
 nsresult
@@ -603,10 +602,10 @@ nsBindingManager::PutLoadingDocListener(nsIURI* aURL, nsIStreamListener* aListen
 {
   NS_PRECONDITION(aListener, "Must have a non-null listener!");
   
-  if (!mLoadingDocTable) {
-    mLoadingDocTable = new nsInterfaceHashtable<nsURIHashKey,nsIStreamListener>(16);
-  }
-  mLoadingDocTable->Put(aURL, aListener);
+  if (!mLoadingDocTable.IsInitialized())
+    mLoadingDocTable.Init(16);
+  
+  mLoadingDocTable.Put(aURL, aListener);
 
   return NS_OK;
 }
@@ -614,17 +613,17 @@ nsBindingManager::PutLoadingDocListener(nsIURI* aURL, nsIStreamListener* aListen
 nsIStreamListener*
 nsBindingManager::GetLoadingDocListener(nsIURI* aURL)
 {
-  if (!mLoadingDocTable)
+  if (!mLoadingDocTable.IsInitialized())
     return nullptr;
 
-  return mLoadingDocTable->GetWeak(aURL);
+  return mLoadingDocTable.GetWeak(aURL);
 }
 
 void
 nsBindingManager::RemoveLoadingDocListener(nsIURI* aURL)
 {
-  if (mLoadingDocTable) {
-    mLoadingDocTable->Remove(aURL);
+  if (mLoadingDocTable.IsInitialized()) {
+    mLoadingDocTable.Remove(aURL);
   }
 }
 
@@ -648,8 +647,8 @@ MarkForDeath(nsRefPtrHashKey<nsIContent> *aKey, void* aClosure)
 void
 nsBindingManager::FlushSkinBindings()
 {
-  if (mBoundContentSet) {
-    mBoundContentSet->EnumerateEntries(MarkForDeath, nullptr);
+  if (mBoundContentSet.IsInitialized()) {
+    mBoundContentSet.EnumerateEntries(MarkForDeath, nullptr);
   }
 }
 
@@ -733,29 +732,16 @@ nsBindingManager::GetBindingImplementation(nsIContent* aContent, REFNSIID aIID,
       if (!context)
         return NS_NOINTERFACE;
 
-      AutoPushJSContext cx(context->GetNativeContext());
-      if (!cx)
+      AutoPushJSContext jscontext(context->GetNativeContext());
+      if (!jscontext)
         return NS_NOINTERFACE;
 
       nsIXPConnect *xpConnect = nsContentUtils::XPConnect();
 
-      JS::Rooted<JSObject*> jsobj(cx, aContent->GetWrapper());
+      JSObject* jsobj = aContent->GetWrapper();
       NS_ENSURE_TRUE(jsobj, NS_NOINTERFACE);
 
-      // If we're using an XBL scope, we need to use the Xray view to the bound
-      // content in order to view the full array of methods defined in the
-      // binding, some of which may not be exposed on the prototype of
-      // untrusted content.
-      //
-      // If there's no separate XBL scope, we'll end up with the global of the
-      // reflector, and this will all be a no-op.
-      JS::Rooted<JSObject*> xblScope(cx, xpc::GetXBLScope(cx, jsobj));
-      JSAutoCompartment ac(cx, xblScope);
-      bool ok = JS_WrapObject(cx, &jsobj);
-      NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
-      MOZ_ASSERT_IF(js::IsWrapper(jsobj), xpc::IsXrayWrapper(jsobj));
-
-      nsresult rv = xpConnect->WrapJSAggregatedToNative(aContent, cx,
+      nsresult rv = xpConnect->WrapJSAggregatedToNative(aContent, jscontext,
                                                         jsobj, aIID, aResult);
       if (NS_FAILED(rv))
         return rv;
@@ -826,16 +812,16 @@ static PLDHashOperator
 EnumRuleProcessors(nsRefPtrHashKey<nsIContent> *aKey, void* aClosure)
 {
   nsIContent *boundContent = aKey->GetKey();
-  nsAutoPtr<RuleProcessorSet> *set = static_cast<nsAutoPtr<RuleProcessorSet>*>(aClosure);
+  RuleProcessorSet *set = static_cast<RuleProcessorSet*>(aClosure);
   for (nsXBLBinding *binding = boundContent->GetXBLBinding(); binding;
        binding = binding->GetBaseBinding()) {
     nsIStyleRuleProcessor *ruleProc =
       binding->PrototypeBinding()->GetRuleProcessor();
     if (ruleProc) {
-      if (!(*set)) {
-        *set = new RuleProcessorSet;
+      if (!set->IsInitialized()) {
+        set->Init(16);
       }
-      (*set)->PutEntry(ruleProc);
+      set->PutEntry(ruleProc);
     }
   }
   return PL_DHASH_NEXT;
@@ -862,17 +848,17 @@ void
 nsBindingManager::WalkAllRules(nsIStyleRuleProcessor::EnumFunc aFunc,
                                ElementDependentRuleProcessorData* aData)
 {
-  if (!mBoundContentSet) {
+  if (!mBoundContentSet.IsInitialized()) {
     return;
   }
 
-  nsAutoPtr<RuleProcessorSet> set;
-  mBoundContentSet->EnumerateEntries(EnumRuleProcessors, &set);
-  if (!set)
+  RuleProcessorSet set;
+  mBoundContentSet.EnumerateEntries(EnumRuleProcessors, &set);
+  if (!set.IsInitialized())
     return;
 
   WalkAllRulesData data = { aFunc, aData };
-  set->EnumerateEntries(EnumWalkAllRules, &data);
+  set.EnumerateEntries(EnumWalkAllRules, &data);
 }
 
 struct MediumFeaturesChangedData {
@@ -899,18 +885,17 @@ nsBindingManager::MediumFeaturesChanged(nsPresContext* aPresContext,
                                         bool* aRulesChanged)
 {
   *aRulesChanged = false;
-  if (!mBoundContentSet) {
+  if (!mBoundContentSet.IsInitialized()) {
     return NS_OK;
   }
 
-  nsAutoPtr<RuleProcessorSet> set;
-  mBoundContentSet->EnumerateEntries(EnumRuleProcessors, &set);
-  if (!set) {
+  RuleProcessorSet set;
+  mBoundContentSet.EnumerateEntries(EnumRuleProcessors, &set);
+  if (!set.IsInitialized())
     return NS_OK;
-  }
 
   MediumFeaturesChangedData data = { aPresContext, aRulesChanged };
-  set->EnumerateEntries(EnumMediumFeaturesChanged, &data);
+  set.EnumerateEntries(EnumMediumFeaturesChanged, &data);
   return NS_OK;
 }
 
@@ -936,8 +921,8 @@ EnumAppendAllSheets(nsRefPtrHashKey<nsIContent> *aKey, void* aClosure)
 void
 nsBindingManager::AppendAllSheets(nsTArray<nsCSSStyleSheet*>& aArray)
 {
-  if (mBoundContentSet) {
-    mBoundContentSet->EnumerateEntries(EnumAppendAllSheets, &aArray);
+  if (mBoundContentSet.IsInitialized()) {
+    mBoundContentSet.EnumerateEntries(EnumAppendAllSheets, &aArray);
   }
 }
 
@@ -1090,12 +1075,12 @@ void
 nsBindingManager::ClearInsertionPointsRecursively(nsIContent* aContent)
 {
   if (aContent->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
-    static_cast<XBLChildrenElement*>(aContent)->ClearInsertedChildren();
+    static_cast<XBLChildrenElement*>(aContent)->ClearInsertedChildrenAndInsertionParents();
   }
 
-  for (nsIContent* child = aContent->GetFirstChild(); child;
-       child = child->GetNextSibling()) {
-    ClearInsertionPointsRecursively(child);
+  uint32_t childCount = aContent->GetChildCount();
+  for (uint32_t c = 0; c < childCount; c++) {
+    ClearInsertionPointsRecursively(aContent->GetChildAt(c));
   }
 }
 
@@ -1110,8 +1095,8 @@ nsBindingManager::DropDocumentReference()
     mProcessAttachedQueueEvent->Revoke();
   }
 
-  if (mBoundContentSet) {
-    mBoundContentSet->Clear();
+  if (mBoundContentSet.IsInitialized()) {
+    mBoundContentSet.Clear();
   }
 
   mDocument = nullptr;
@@ -1131,7 +1116,7 @@ nsBindingManager::Traverse(nsIContent *aContent,
     return;
   }
 
-  if (mBoundContentSet && mBoundContentSet->Contains(aContent)) {
+  if (mBoundContentSet.IsInitialized() && mBoundContentSet.Contains(aContent)) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "[via binding manager] mBoundContentSet entry");
     cb.NoteXPCOMChild(aContent);
   }
@@ -1223,7 +1208,7 @@ nsBindingManager::FindNestedInsertionPoint(nsIContent* aContainer,
                   "Wrong container");
 
   nsIContent* parent = aContainer;
-  if (aContainer->IsActiveChildrenElement()) {
+  if (aContainer->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
     if (static_cast<XBLChildrenElement*>(aContainer)->
           HasInsertedChildren()) {
       return nullptr;
@@ -1259,7 +1244,7 @@ nsBindingManager::FindNestedSingleInsertionPoint(nsIContent* aContainer,
   *aMulti = false;
 
   nsIContent* parent = aContainer;
-  if (aContainer->IsActiveChildrenElement()) {
+  if (aContainer->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
     if (static_cast<XBLChildrenElement*>(aContainer)->
           HasInsertedChildren()) {
       return nullptr;

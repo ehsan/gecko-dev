@@ -4,18 +4,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMAnimationEvent.h"
+#include "nsGUIEvent.h"
 #include "prtime.h"
-#include "mozilla/ContentEvents.h"
-
-using namespace mozilla;
 
 nsDOMAnimationEvent::nsDOMAnimationEvent(mozilla::dom::EventTarget* aOwner,
                                          nsPresContext *aPresContext,
-                                         InternalAnimationEvent* aEvent)
+                                         nsAnimationEvent *aEvent)
   : nsDOMEvent(aOwner, aPresContext,
-               aEvent ? aEvent :
-                        new InternalAnimationEvent(false, 0, EmptyString(),
-                                                   0.0, EmptyString()))
+               aEvent ? aEvent : new nsAnimationEvent(false, 0,
+                                                      EmptyString(),
+                                                      0.0,
+                                                      EmptyString()))
 {
   if (aEvent) {
     mEventIsInternal = false;
@@ -23,6 +22,14 @@ nsDOMAnimationEvent::nsDOMAnimationEvent(mozilla::dom::EventTarget* aOwner,
   else {
     mEventIsInternal = true;
     mEvent->time = PR_Now();
+  }
+}
+
+nsDOMAnimationEvent::~nsDOMAnimationEvent()
+{
+  if (mEventIsInternal) {
+    delete AnimationEvent();
+    mEvent = nullptr;
   }
 }
 
@@ -40,16 +47,15 @@ nsDOMAnimationEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
                                  const mozilla::dom::AnimationEventInit& aParam,
                                  mozilla::ErrorResult& aRv)
 {
-  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.Get());
   nsRefPtr<nsDOMAnimationEvent> e = new nsDOMAnimationEvent(t, nullptr, nullptr);
   bool trusted = e->Init(t);
 
   aRv = e->InitEvent(aType, aParam.mBubbles, aParam.mCancelable);
 
-  InternalAnimationEvent* internalEvent = e->mEvent->AsAnimationEvent();
-  internalEvent->animationName = aParam.mAnimationName;
-  internalEvent->elapsedTime = aParam.mElapsedTime;
-  internalEvent->pseudoElement = aParam.mPseudoElement;
+  e->AnimationEvent()->animationName = aParam.mAnimationName;
+  e->AnimationEvent()->elapsedTime = aParam.mElapsedTime;
+  e->AnimationEvent()->pseudoElement = aParam.mPseudoElement;
 
   e->SetTrusted(trusted);
   return e.forget();
@@ -58,7 +64,7 @@ nsDOMAnimationEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
 NS_IMETHODIMP
 nsDOMAnimationEvent::GetAnimationName(nsAString & aAnimationName)
 {
-  aAnimationName = mEvent->AsAnimationEvent()->animationName;
+  aAnimationName = AnimationEvent()->animationName;
   return NS_OK;
 }
 
@@ -69,16 +75,10 @@ nsDOMAnimationEvent::GetElapsedTime(float *aElapsedTime)
   return NS_OK;
 }
 
-float
-nsDOMAnimationEvent::ElapsedTime()
-{
-  return mEvent->AsAnimationEvent()->elapsedTime;
-}
-
 NS_IMETHODIMP
 nsDOMAnimationEvent::GetPseudoElement(nsAString& aPseudoElement)
 {
-  aPseudoElement = mEvent->AsAnimationEvent()->pseudoElement;
+  aPseudoElement = AnimationEvent()->pseudoElement;
   return NS_OK;
 }
 
@@ -86,7 +86,7 @@ nsresult
 NS_NewDOMAnimationEvent(nsIDOMEvent **aInstancePtrResult,
                         mozilla::dom::EventTarget* aOwner,
                         nsPresContext *aPresContext,
-                        InternalAnimationEvent *aEvent)
+                        nsAnimationEvent *aEvent)
 {
   nsDOMAnimationEvent* it =
     new nsDOMAnimationEvent(aOwner, aPresContext, aEvent);

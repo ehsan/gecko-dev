@@ -4,11 +4,29 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Util.h"
+
+#include "nsAlgorithm.h"
+#include "nsString.h"
+#include "nsBidiUtils.h"
+
+#include "gfxTypes.h"
+
+#include "nsPromiseFlatString.h"
+
+#include "gfxContext.h"
+#include "gfxPlatform.h"
+#include "gfxPlatformMac.h"
 #include "gfxCoreTextShaper.h"
 #include "gfxMacFont.h"
-#include "gfxFontUtils.h"
-#include "mozilla/gfx/2D.h"
 
+#include "gfxFontTest.h"
+#include "gfxFontUtils.h"
+
+#include "gfxQuartzSurface.h"
+#include "gfxMacPlatformFontList.h"
+#include "gfxUserFontSet.h"
+
+#include "nsUnicodeRange.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -88,15 +106,15 @@ gfxCoreTextShaper::ShapeText(gfxContext      *aContext,
         ::CFStringAppendCharacters(mutableString,
                                    isRightToLeft ? beginRTL : beginLTR,
                                    startOffset);
-        ::CFStringAppendCharacters(mutableString, reinterpret_cast<const UniChar*>(aText), length);
+        ::CFStringAppendCharacters(mutableString, aText, length);
         ::CFStringAppendCharacters(mutableString,
                                    endBidiWrap, mozilla::ArrayLength(endBidiWrap));
         stringObj = mutableString;
     } else {
         startOffset = 0;
         stringObj = ::CFStringCreateWithCharactersNoCopy(kCFAllocatorDefault,
-                                                         reinterpret_cast<const UniChar*>(aText),
-                                                         length, kCFAllocatorNull);
+                                                         aText, length,
+                                                         kCFAllocatorNull);
     }
 
     CFDictionaryRef attrObj;

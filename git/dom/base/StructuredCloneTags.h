@@ -5,7 +5,7 @@
 #ifndef StructuredCloneTags_h__
 #define StructuredCloneTags_h__
 
-#include "js/StructuredClone.h"
+#include "jsapi.h"
 
 namespace mozilla {
 namespace dom {
@@ -28,7 +28,6 @@ enum StructuredCloneTags {
 
   // These tags are used for both main thread and workers.
   SCTAG_DOM_IMAGEDATA,
-  SCTAG_DOM_MESSAGEPORT,
 
   SCTAG_DOM_MAX
 };

@@ -39,7 +39,7 @@ GetThreadPoolLog()
 
 NS_IMPL_ADDREF(nsThreadPool)
 NS_IMPL_RELEASE(nsThreadPool)
-NS_IMPL_CLASSINFO(nsThreadPool, nullptr, nsIClassInfo::THREADSAFE,
+NS_IMPL_CLASSINFO(nsThreadPool, NULL, nsIClassInfo::THREADSAFE,
                   NS_THREADPOOL_CID)
 NS_IMPL_QUERY_INTERFACE3_CI(nsThreadPool, nsIThreadPool, nsIEventTarget,
                             nsIRunnable)
@@ -56,9 +56,7 @@ nsThreadPool::nsThreadPool()
 
 nsThreadPool::~nsThreadPool()
 {
-  // Threads keep a reference to the nsThreadPool until they return from Run()
-  // after removing themselves from mThreads.
-  MOZ_ASSERT(mThreads.IsEmpty());
+  Shutdown();
 }
 
 nsresult

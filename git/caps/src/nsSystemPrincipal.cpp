@@ -166,10 +166,9 @@ nsSystemPrincipal::SetSecurityPolicy(void* aSecurityPolicy)
 }
 
 NS_IMETHODIMP
-nsSystemPrincipal::GetJarPrefix(nsACString& aJarPrefix)
+nsSystemPrincipal::GetExtendedOrigin(nsACString& aExtendedOrigin)
 {
-  aJarPrefix.Truncate();
-  return NS_OK;
+  return GetOrigin(getter_Copies(aExtendedOrigin));
 }
 
 NS_IMETHODIMP

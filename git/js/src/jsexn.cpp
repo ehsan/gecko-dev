@@ -30,6 +30,7 @@
 #include "vm/GlobalObject.h"
 #include "vm/StringBuffer.h"
 
+#include "jsfuninlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
@@ -41,7 +42,7 @@ using mozilla::PodArrayZero;
 using mozilla::PodZero;
 
 /* Forward declarations for ErrorObject::class_'s initializer. */
-static bool
+static JSBool
 Exception(JSContext *cx, unsigned argc, Value *vp);
 
 static void
@@ -50,11 +51,11 @@ exn_trace(JSTracer *trc, JSObject *obj);
 static void
 exn_finalize(FreeOp *fop, JSObject *obj);
 
-static bool
+static JSBool
 exn_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             MutableHandleObject objp);
 
-const Class ErrorObject::class_ = {
+Class ErrorObject::class_ = {
     js_Error_str,
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_NEW_RESOLVE |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Error),
@@ -66,10 +67,10 @@ const Class ErrorObject::class_ = {
     (JSResolveOp)exn_resolve,
     JS_ConvertStub,
     exn_finalize,
-    nullptr,                 /* checkAccess */
-    nullptr,                 /* call        */
-    nullptr,                 /* hasInstance */
-    nullptr,                 /* construct   */
+    NULL,                 /* checkAccess */
+    NULL,                 /* call        */
+    NULL,                 /* hasInstance */
+    NULL,                 /* construct   */
     exn_trace
 };
 
@@ -156,7 +157,7 @@ CopyErrorReport(JSContext *cx, JSErrorReport *report)
                  ucmessageSize + uclinebufSize + linebufSize + filenameSize;
     cursor = cx->pod_malloc<uint8_t>(mallocSize);
     if (!cursor)
-        return nullptr;
+        return NULL;
 
     copy = (JSErrorReport *)cursor;
     memset(cursor, 0, sizeof(JSErrorReport));
@@ -171,7 +172,7 @@ CopyErrorReport(JSContext *cx, JSErrorReport *report)
             js_memcpy(cursor, report->messageArgs[i], argSize);
             cursor += argSize;
         }
-        copy->messageArgs[i] = nullptr;
+        copy->messageArgs[i] = NULL;
         JS_ASSERT(cursor == (uint8_t *)copy->messageArgs[0] + argsCopySize);
     }
 
@@ -231,7 +232,7 @@ struct SuppressErrorsGuard
 
     SuppressErrorsGuard(JSContext *cx)
       : cx(cx),
-        prevReporter(JS_SetErrorReporter(cx, nullptr)),
+        prevReporter(JS_SetErrorReporter(cx, NULL)),
         prevState(JS_SaveExceptionState(cx))
     {}
 
@@ -274,11 +275,11 @@ InitExnPrivate(JSContext *cx, HandleObject exnObject, HandleString message,
             JSStackTraceStackElem &frame = frames.back();
             if (i.isNonEvalFunctionFrame()) {
                 JSAtom *atom = i.callee()->displayAtom();
-                if (atom == nullptr)
+                if (atom == NULL)
                     atom = cx->runtime()->emptyString;
                 frame.funName = atom;
             } else {
-                frame.funName = nullptr;
+                frame.funName = NULL;
             }
             RootedScript script(cx, i.script());
             const char *cfilename = script->filename();
@@ -315,7 +316,7 @@ InitExnPrivate(JSContext *cx, HandleObject exnObject, HandleString message,
             return false;
         }
     } else {
-        priv->errorReport = nullptr;
+        priv->errorReport = NULL;
     }
 
     priv->message.init(message);
@@ -381,7 +382,7 @@ exn_finalize(FreeOp *fop, JSObject *obj)
     }
 }
 
-static bool
+static JSBool
 exn_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             MutableHandleObject objp)
 {
@@ -390,7 +391,7 @@ exn_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
     jsval v;
     unsigned attrs;
 
-    objp.set(nullptr);
+    objp.set(NULL);
     priv = obj->as<ErrorObject>().getExnPrivate();
     if (priv && JSID_IS_ATOM(id)) {
         RootedString str(cx, JSID_TO_STRING(id));
@@ -451,7 +452,7 @@ exn_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
     return true;
 
   define:
-    if (!JS_DefineProperty(cx, obj, prop, v, nullptr, nullptr, attrs))
+    if (!JS_DefineProperty(cx, obj, prop, v, NULL, NULL, attrs))
         return false;
     objp.set(obj);
     return true;
@@ -461,7 +462,7 @@ JSErrorReport *
 js_ErrorFromException(jsval exn)
 {
     if (JSVAL_IS_PRIMITIVE(exn))
-        return nullptr;
+        return NULL;
 
     // It's ok to UncheckedUnwrap here, since all we do is get the
     // JSErrorReport, and consumers are careful with the information they get
@@ -471,11 +472,11 @@ js_ErrorFromException(jsval exn)
     // will fail if they can't unwrap it.
     JSObject *obj = UncheckedUnwrap(JSVAL_TO_OBJECT(exn));
     if (!obj->is<ErrorObject>())
-        return nullptr;
+        return NULL;
 
     JSExnPrivate *priv = obj->as<ErrorObject>().getExnPrivate();
     if (!priv)
-        return nullptr;
+        return NULL;
 
     return priv->errorReport;
 }
@@ -497,18 +498,18 @@ StackTraceToString(JSContext *cx, JSExnPrivate *priv)
 
         if (element->funName) {
             if (!sb.append(element->funName))
-                return nullptr;
+                return NULL;
         }
         if (!sb.append('@'))
-            return nullptr;
+            return NULL;
         if (element->filename) {
             if (!sb.appendInflated(element->filename, strlen(element->filename)))
-                return nullptr;
+                return NULL;
         }
         if (!sb.append(':') || !NumberValueToStringBuffer(cx, NumberValue(element->ulineno), sb) || 
             !sb.append('\n'))
         {
-            return nullptr;
+            return NULL;
         }
     }
 
@@ -523,7 +524,7 @@ FilenameToString(JSContext *cx, const char *filename)
     return JS_NewStringCopyZ(cx, filename);
 }
 
-static bool
+static JSBool
 Exception(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -537,16 +538,16 @@ Exception(JSContext *cx, unsigned argc, Value *vp)
      */
     RootedObject callee(cx, &args.callee());
     RootedValue protov(cx);
-    if (!JSObject::getProperty(cx, callee, callee, cx->names().prototype, &protov))
+    if (!JSObject::getProperty(cx, callee, callee, cx->names().classPrototype, &protov))
         return false;
 
     if (!protov.isObject()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_PROTOTYPE, "Error");
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_PROTOTYPE, "Error");
         return false;
     }
 
     RootedObject obj(cx, NewObjectWithGivenProto(cx, &ErrorObject::class_, &protov.toObject(),
-                     nullptr));
+                     NULL));
     if (!obj)
         return false;
 
@@ -558,14 +559,14 @@ Exception(JSContext *cx, unsigned argc, Value *vp)
             return false;
         args[0].setString(message);
     } else {
-        message = nullptr;
+        message = NULL;
     }
 
     /* Find the scripted caller. */
     NonBuiltinScriptFrameIter iter(cx);
 
     /* Set the 'fileName' property. */
-    RootedScript script(cx, iter.done() ? nullptr : iter.script());
+    RootedScript script(cx, iter.done() ? NULL : iter.script());
     RootedString filename(cx);
     if (args.length() > 1) {
         filename = ToString<CanGC>(cx, args[1]);
@@ -593,7 +594,7 @@ Exception(JSContext *cx, unsigned argc, Value *vp)
     }
 
     int exnType = args.callee().as<JSFunction>().getExtendedSlot(0).toInt32();
-    if (!InitExnPrivate(cx, obj, message, filename, lineno, column, nullptr, exnType))
+    if (!InitExnPrivate(cx, obj, message, filename, lineno, column, NULL, exnType))
         return false;
 
     args.rval().setObject(*obj);
@@ -601,7 +602,7 @@ Exception(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES5 15.11.4.4 (NB: with subsequent errata). */
-static bool
+static JSBool
 exn_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     JS_CHECK_RECURSION(cx, return false);
@@ -609,7 +610,7 @@ exn_toString(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 2. */
     if (!args.thisv().isObject()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_PROTOTYPE, "Error");
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_PROTOTYPE, "Error");
         return false;
     }
 
@@ -680,7 +681,7 @@ exn_toString(JSContext *cx, unsigned argc, Value *vp)
 /*
  * Return a string that may eval to something similar to the original object.
  */
-static bool
+static JSBool
 exn_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     JS_CHECK_RECURSION(cx, return false);
@@ -782,7 +783,7 @@ InitErrorClass(JSContext *cx, Handle<GlobalObject*> global, int type, HandleObje
     RootedObject errorProto(cx, global->createBlankPrototypeInheriting(cx, &ErrorObject::class_,
                             *proto));
     if (!errorProto)
-        return nullptr;
+        return NULL;
 
     RootedValue nameValue(cx, StringValue(name));
     RootedValue zeroValue(cx, Int32Value(0));
@@ -803,21 +804,21 @@ InitErrorClass(JSContext *cx, Handle<GlobalObject*> global, int type, HandleObje
         !DefineNativeProperty(cx, errorProto, columnNumberId, zeroValue,
                               JS_PropertyStub, JS_StrictPropertyStub, JSPROP_ENUMERATE, 0, 0))
     {
-        return nullptr;
+        return NULL;
     }
 
     /* Create the corresponding constructor. */
     RootedFunction ctor(cx, global->createConstructor(cx, Exception, name, 1,
                                                       JSFunction::ExtendedFinalizeKind));
     if (!ctor)
-        return nullptr;
+        return NULL;
     ctor->setExtendedSlot(0, Int32Value(int32_t(type)));
 
     if (!LinkConstructorAndPrototype(cx, ctor, errorProto))
-        return nullptr;
+        return NULL;
 
     if (!DefineConstructorAndPrototype(cx, global, key, ctor, errorProto))
-        return nullptr;
+        return NULL;
 
     JS_ASSERT(!errorProto->getPrivate());
 
@@ -834,50 +835,43 @@ js_InitExceptionClasses(JSContext *cx, HandleObject obj)
 
     RootedObject objectProto(cx, global->getOrCreateObjectPrototype(cx));
     if (!objectProto)
-        return nullptr;
+        return NULL;
 
     /* Initialize the base Error class first. */
     RootedObject errorProto(cx, InitErrorClass(cx, global, JSEXN_ERR, objectProto));
     if (!errorProto)
-        return nullptr;
+        return NULL;
 
     /* |Error.prototype| alone has method properties. */
-    if (!DefinePropertiesAndBrand(cx, errorProto, nullptr, exception_methods))
-        return nullptr;
+    if (!DefinePropertiesAndBrand(cx, errorProto, NULL, exception_methods))
+        return NULL;
 
     /* Define all remaining *Error constructors. */
     for (int i = JSEXN_ERR + 1; i < JSEXN_LIMIT; i++) {
         if (!InitErrorClass(cx, global, i, errorProto))
-            return nullptr;
+            return NULL;
     }
 
     return errorProto;
 }
 
 const JSErrorFormatString*
-js_GetLocalizedErrorMessage(ExclusiveContext *cx, void *userRef, const char *locale,
+js_GetLocalizedErrorMessage(JSContext* cx, void *userRef, const char *locale,
                             const unsigned errorNumber)
 {
-    const JSErrorFormatString *errorString = nullptr;
+    const JSErrorFormatString *errorString = NULL;
 
-    // The locale callbacks might not be thread safe, so don't call them if
-    // we're not on the main thread. When used with XPConnect,
-    // |localeGetErrorMessage| will be nullptr anyways.
-    if (cx->isJSContext() &&
-        cx->asJSContext()->runtime()->localeCallbacks &&
-        cx->asJSContext()->runtime()->localeCallbacks->localeGetErrorMessage)
-    {
-        JSLocaleCallbacks *callbacks = cx->asJSContext()->runtime()->localeCallbacks;
-        errorString = callbacks->localeGetErrorMessage(userRef, locale, errorNumber);
+    if (cx->runtime()->localeCallbacks && cx->runtime()->localeCallbacks->localeGetErrorMessage) {
+        errorString = cx->runtime()->localeCallbacks
+                                   ->localeGetErrorMessage(userRef, locale, errorNumber);
     }
-
     if (!errorString)
         errorString = js_GetErrorMessage(userRef, locale, errorNumber);
     return errorString;
 }
 
 JS_FRIEND_API(const jschar*)
-js::GetErrorTypeName(JSRuntime* rt, int16_t exnType)
+js::GetErrorTypeName(JSContext* cx, int16_t exnType)
 {
     /*
      * JSEXN_INTERNALERR returns null to prevent that "InternalError: "
@@ -886,10 +880,10 @@ js::GetErrorTypeName(JSRuntime* rt, int16_t exnType)
     if (exnType <= JSEXN_NONE || exnType >= JSEXN_LIMIT ||
         exnType == JSEXN_INTERNALERR)
     {
-        return nullptr;
+        return NULL;
     }
     JSProtoKey key = GetExceptionProtoKey(exnType);
-    return ClassName(key, rt)->chars();
+    return ClassName(key, cx)->chars();
 }
 
 #if defined ( DEBUG_mccabe ) && defined ( PRINTNAMES )
@@ -902,7 +896,7 @@ static const struct exnname { char *name; char *exception; } errortoexnname[] = 
 };
 #endif /* DEBUG */
 
-bool
+JSBool
 js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
                     JSErrorCallback callback, void *userRef)
 {
@@ -921,9 +915,9 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
     /* Find the exception index associated with this error. */
     errorNumber = (JSErrNum) reportp->errorNumber;
     if (!callback || callback == js_GetErrorMessage)
-        errorString = js_GetLocalizedErrorMessage(cx, nullptr, nullptr, errorNumber);
+        errorString = js_GetLocalizedErrorMessage(cx, NULL, NULL, errorNumber);
     else
-        errorString = callback(userRef, nullptr, errorNumber);
+        errorString = callback(userRef, NULL, errorNumber);
     exn = errorString ? (JSExnType) errorString->exnType : JSEXN_NONE;
     JS_ASSERT(exn < JSEXN_LIMIT);
 
@@ -960,8 +954,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
         return false;
     tv[0] = OBJECT_TO_JSVAL(errProto);
 
-    RootedObject errObject(cx, NewObjectWithGivenProto(cx, &ErrorObject::class_,
-                                                       errProto, nullptr));
+    RootedObject errObject(cx, NewObjectWithGivenProto(cx, &ErrorObject::class_, errProto, NULL));
     if (!errObject)
         return false;
     tv[1] = OBJECT_TO_JSVAL(errObject);
@@ -982,8 +975,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
         return false;
     }
 
-    RootedValue errValue(cx, OBJECT_TO_JSVAL(errObject));
-    JS_SetPendingException(cx, errValue);
+    JS_SetPendingException(cx, OBJECT_TO_JSVAL(errObject));
 
     /* Flag the error report passed in to indicate an exception was raised. */
     reportp->flags |= JSREPORT_EXCEPTION;
@@ -993,7 +985,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
 static bool
 IsDuckTypedErrorObject(JSContext *cx, HandleObject exnObject, const char **filename_strp)
 {
-    bool found;
+    JSBool found;
     if (!JS_HasProperty(cx, exnObject, js_message_str, &found) || !found)
         return false;
 
@@ -1012,15 +1004,18 @@ IsDuckTypedErrorObject(JSContext *cx, HandleObject exnObject, const char **filen
     return true;
 }
 
-bool
+JSBool
 js_ReportUncaughtException(JSContext *cx)
 {
     JSErrorReport *reportp, report;
 
-    if (!cx->isExceptionPending())
+    if (!JS_IsExceptionPending(cx))
         return true;
 
-    RootedValue exn(cx, cx->getPendingException());
+    RootedValue exn(cx);
+    if (!JS_GetPendingException(cx, exn.address()))
+        return false;
+
     AutoValueVector roots(cx);
     roots.resize(6);
 
@@ -1032,7 +1027,7 @@ js_ReportUncaughtException(JSContext *cx)
      */
     RootedObject exnObject(cx);
     if (JSVAL_IS_PRIMITIVE(exn)) {
-        exnObject = nullptr;
+        exnObject = NULL;
     } else {
         exnObject = JSVAL_TO_OBJECT(exn);
         roots[0] = exn;
@@ -1108,14 +1103,14 @@ js_ReportUncaughtException(JSContext *cx)
     }
 
     JSAutoByteString bytesStorage;
-    const char *bytes = nullptr;
+    const char *bytes = NULL;
     if (str)
         bytes = bytesStorage.encodeLatin1(cx, str);
     if (!bytes)
         bytes = "unknown (can't convert to string)";
 
     if (!reportp) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_UNCAUGHT_EXCEPTION, bytes);
     } else {
         /* Flag the error as an exception. */
@@ -1124,9 +1119,9 @@ js_ReportUncaughtException(JSContext *cx)
         /* Pass the exception object. */
         JS_SetPendingException(cx, exn);
         js_ReportErrorAgain(cx, bytes, reportp);
+        JS_ClearPendingException(cx);
     }
 
-    JS_ClearPendingException(cx);
     return true;
 }
 
@@ -1141,24 +1136,24 @@ js_CopyErrorObject(JSContext *cx, HandleObject errobj, HandleObject scope)
 
     ScopedJSFreePtr<JSExnPrivate> copy(static_cast<JSExnPrivate *>(cx->malloc_(size)));
     if (!copy)
-        return nullptr;
+        return NULL;
 
     if (priv->errorReport) {
         copy->errorReport = CopyErrorReport(cx, priv->errorReport);
         if (!copy->errorReport)
-            return nullptr;
+            return NULL;
     } else {
-        copy->errorReport = nullptr;
+        copy->errorReport = NULL;
     }
     ScopedJSFreePtr<JSErrorReport> autoFreeErrorReport(copy->errorReport);
 
     copy->message.init(priv->message);
     if (!cx->compartment()->wrap(cx, &copy->message))
-        return nullptr;
+        return NULL;
     JS::Anchor<JSString *> messageAnchor(copy->message);
     copy->filename.init(priv->filename);
     if (!cx->compartment()->wrap(cx, &copy->filename))
-        return nullptr;
+        return NULL;
     JS::Anchor<JSString *> filenameAnchor(copy->filename);
     copy->lineno = priv->lineno;
     copy->column = priv->column;
@@ -1168,10 +1163,10 @@ js_CopyErrorObject(JSContext *cx, HandleObject errobj, HandleObject scope)
     // Create the Error object.
     RootedObject proto(cx, scope->global().getOrCreateCustomErrorPrototype(cx, copy->exnType));
     if (!proto)
-        return nullptr;
-    RootedObject copyobj(cx, NewObjectWithGivenProto(cx, &ErrorObject::class_, proto, nullptr));
+        return NULL;
+    RootedObject copyobj(cx, NewObjectWithGivenProto(cx, &ErrorObject::class_, proto, NULL));
     if (!copyobj)
-        return nullptr;
+        return NULL;
     SetExnPrivate(copyobj->as<ErrorObject>(), copy);
     copy.forget();
     autoFreeErrorReport.forget();

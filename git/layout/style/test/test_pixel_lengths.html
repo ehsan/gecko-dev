@@ -41,31 +41,24 @@ function checkPixelRelativeUnits() {
 
 checkPixelRelativeUnits();
 
-SimpleTest.waitForExplicitFinish();
+SpecialPowers.setIntPref("layout.css.dpi", dpi = 96);
 
-SpecialPowers.pushPrefEnv({'set': [['layout.css.dpi', dpi=96]]}, test1);
+var mozmm = document.getElementById("mozmm");
+var mozmmSize = mozmm.getBoundingClientRect().width;
+is(Math.round(mozmmSize), Math.round(mozmm.getBoundingClientRect().height),
+   "mozmm div should be square");
 
-var mozmmSize;
-function test1() {
-  var mozmm = document.getElementById("mozmm");
-  mozmmSize = mozmm.getBoundingClientRect().width;
-  is(Math.round(mozmmSize), Math.round(mozmm.getBoundingClientRect().height),
-     "mozmm div should be square");
+checkPixelRelativeUnits();
 
-  checkPixelRelativeUnits();
+SpecialPowers.setIntPref("layout.css.dpi", dpi = 192);
 
-  SpecialPowers.pushPrefEnv({'set': [['layout.css.dpi', dpi=192]]}, test2);
-}
+// At 192 dpi, a one-inch box should be twice the number of device pixels,
+// and since we haven't changed the device-pixels-per-CSS-pixel ratio, the
+// mozmm box should be twice the size in CSS pixels.
+check("mozmm", mozmmSize*2);
+checkPixelRelativeUnits();
 
-function test2() {
-  // At 192 dpi, a one-inch box should be twice the number of device pixels,
-  // and since we haven't changed the device-pixels-per-CSS-pixel ratio, the
-  // mozmm box should be twice the size in CSS pixels.
-  check("mozmm", mozmmSize*2);
-  checkPixelRelativeUnits();
-
-  SimpleTest.finish();
-}
+SpecialPowers.setIntPref("layout.css.dpi", oldDPI);
 
 </script>
 </pre>

@@ -132,7 +132,6 @@ public:
         : mService(aService)
         , mManifestURI(aManifestURI)
         , mDocumentURI(aDocumentURI)
-        , mDidReleaseThis(false)
         {
             mDocument = do_GetWeakReference(aDocument);
         }
@@ -142,7 +141,6 @@ private:
     nsCOMPtr<nsIURI> mManifestURI;
     nsCOMPtr<nsIURI> mDocumentURI;
     nsCOMPtr<nsIWeakReference> mDocument;
-    bool mDidReleaseThis;
 };
 
 NS_IMPL_ISUPPORTS2(nsOfflineCachePendingUpdate,
@@ -171,16 +169,11 @@ nsOfflineCachePendingUpdate::OnStateChange(nsIWebProgress* aWebProgress,
                                            uint32_t progressStateFlags,
                                            nsresult aStatus)
 {
-    if (mDidReleaseThis) {
-        return NS_OK;
-    }
     nsCOMPtr<nsIDOMDocument> updateDoc = do_QueryReferent(mDocument);
     if (!updateDoc) {
         // The document that scheduled this update has gone away,
         // we don't need to listen anymore.
         aWebProgress->RemoveProgressListener(this);
-        MOZ_ASSERT(!mDidReleaseThis);
-        mDidReleaseThis = true;
         NS_RELEASE_THIS();
         return NS_OK;
     }
@@ -216,14 +209,9 @@ nsOfflineCachePendingUpdate::OnStateChange(nsIWebProgress* aWebProgress,
         mService->Schedule(mManifestURI, mDocumentURI,
                            updateDoc, window, nullptr,
                            appId, isInBrowserElement, getter_AddRefs(update));
-        if (mDidReleaseThis) {
-            return NS_OK;
-        }
     }
 
     aWebProgress->RemoveProgressListener(this);
-    MOZ_ASSERT(!mDidReleaseThis);
-    mDidReleaseThis = true;
     NS_RELEASE_THIS();
 
     return NS_OK;
@@ -698,13 +686,21 @@ OfflineAppPermForURI(nsIURI *aURI,
     const char *permName = pinned ? "pin-app" : "offline-app";
     permissionManager->TestExactPermission(innerURI, permName, &perm);
 
+    if (perm == nsIPermissionManager::UNKNOWN_ACTION && !pinned) {
+        static const char kPrefName[] = "offline-apps.allow_by_default";
+        if (aPrefBranch) {
+            aPrefBranch->GetBoolPref(kPrefName, aAllowed);
+        } else {
+            *aAllowed = Preferences::GetBool(kPrefName, false);
+        }
+
+        return NS_OK;
+    }
+
     if (perm == nsIPermissionManager::ALLOW_ACTION ||
         perm == nsIOfflineCacheUpdateService::ALLOW_NO_WARN) {
         *aAllowed = true;
     }
-
-    // offline-apps.allow_by_default is now effective at the cache selection
-    // algorithm code (nsContentSink).
 
     return NS_OK;
 }

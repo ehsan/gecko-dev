@@ -7,16 +7,10 @@
 #ifndef MOZILLA_LAYERS_COMPOSITABLEFORWARDER
 #define MOZILLA_LAYERS_COMPOSITABLEFORWARDER
 
-#include <stdint.h>                     // for int32_t, uint64_t
-#include "gfxTypes.h"
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/layers/CompositorTypes.h"
-#include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator
-#include "mozilla/layers/LayersTypes.h"  // for LayersBackend
-#include "nsRegion.h"                   // for nsIntRegion
-
-struct nsIntPoint;
-struct nsIntRect;
+#include <stdint.h>
+#include "gfxASurface.h"
+#include "GLDefs.h"
+#include "mozilla/layers/ISurfaceAllocator.h"
 
 namespace mozilla {
 namespace layers {
@@ -24,7 +18,6 @@ namespace layers {
 class CompositableClient;
 class TextureFactoryIdentifier;
 class SurfaceDescriptor;
-class SurfaceDescriptorTiles;
 class ThebesBufferData;
 class DeprecatedTextureClient;
 class TextureClient;
@@ -45,6 +38,7 @@ class CompositableForwarder : public ISurfaceAllocator
   friend class AutoOpenSurface;
   friend class DeprecatedTextureClientShmem;
 public:
+  typedef gfxASurface::gfxContentType gfxContentType;
 
   CompositableForwarder()
     : mMultiProcess(false)
@@ -91,7 +85,7 @@ public:
   virtual void DestroyThebesBuffer(CompositableClient* aCompositable) = 0;
 
   virtual void PaintedTiledLayerBuffer(CompositableClient* aCompositable,
-                                       const SurfaceDescriptorTiles& aTiledDescriptor) = 0;
+                                       BasicTiledLayerBuffer* aTiledLayerBuffer) = 0;
 
   /**
    * Communicate to the compositor that the texture identified by aCompositable
@@ -153,7 +147,7 @@ public:
    * Tell the compositor side to create a TextureHost that corresponds to
    * aClient.
    */
-  virtual bool AddTexture(CompositableClient* aCompositable,
+  virtual void AddTexture(CompositableClient* aCompositable,
                           TextureClient* aClient) = 0;
 
   /**
@@ -168,7 +162,7 @@ public:
    */
   virtual void RemoveTexture(CompositableClient* aCompositable,
                              uint64_t aTextureID,
-                             TextureFlags aFlags) = 0;
+                             TextureFlags aFlags = TEXTURE_FLAGS_DEFAULT) = 0;
 
   /**
    * Tell the CompositableHost on the compositor side what texture to use for

@@ -48,7 +48,6 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Char16.h"
 #include "mozilla/Types.h"
 
 #include <stdint.h>
@@ -326,22 +325,6 @@ HashString(const uint16_t* str, size_t length)
 {
   return detail::HashKnownLength(str, length);
 }
-
-#ifdef MOZ_CHAR16_IS_NOT_WCHAR
-MOZ_WARN_UNUSED_RESULT
-inline uint32_t
-HashString(const char16_t* str)
-{
-  return detail::HashUntilZero(str);
-}
-
-MOZ_WARN_UNUSED_RESULT
-inline uint32_t
-HashString(const char16_t* str, size_t length)
-{
-  return detail::HashKnownLength(str, length);
-}
-#endif
 
 /*
  * On Windows, wchar_t (PRUnichar) is not the same as uint16_t, even though it's

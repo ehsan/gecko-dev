@@ -4,22 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SharedPlanarYCbCrImage.h"
-#include <stddef.h>                     // for size_t
-#include <stdio.h>                      // for printf
-#include "ISurfaceAllocator.h"          // for ISurfaceAllocator, etc
-#include "gfxPoint.h"                   // for gfxIntSize
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/gfx/Types.h"          // for SurfaceFormat::FORMAT_YUV
-#include "mozilla/ipc/SharedMemory.h"   // for SharedMemory, etc
-#include "mozilla/layers/ImageClient.h"  // for ImageClient
-#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor, etc
-#include "mozilla/layers/TextureClient.h"  // for BufferTextureClient, etc
 #include "mozilla/layers/YCbCrImageDataSerializer.h"
-#include "mozilla/layers/ImageBridgeChild.h"  // for ImageBridgeChild
-#include "mozilla/mozalloc.h"           // for operator delete
-#include "nsISupportsImpl.h"            // for Image::AddRef
-
-class gfxASurface;
+#include "ISurfaceAllocator.h"
+#include "mozilla/layers/LayersSurfaces.h"
+#include "mozilla/layers/TextureClient.h"
+#include "mozilla/layers/ImageClient.h"
 
 namespace mozilla {
 namespace layers {
@@ -28,7 +17,6 @@ using namespace mozilla::ipc;
 
 SharedPlanarYCbCrImage::SharedPlanarYCbCrImage(ImageClient* aCompositable)
 : PlanarYCbCrImage(nullptr)
-, mCompositable(aCompositable)
 {
   mTextureClient = aCompositable->CreateBufferTextureClient(gfx::FORMAT_YUV);
   MOZ_COUNT_CTOR(SharedPlanarYCbCrImage);
@@ -36,12 +24,6 @@ SharedPlanarYCbCrImage::SharedPlanarYCbCrImage(ImageClient* aCompositable)
 
 SharedPlanarYCbCrImage::~SharedPlanarYCbCrImage() {
   MOZ_COUNT_DTOR(SharedPlanarYCbCrImage);
-
-  if (mCompositable->GetAsyncID() != 0 &&
-      !InImageBridgeChildThread()) {
-    ImageBridgeChild::DispatchReleaseTextureClient(mTextureClient.forget().drop());
-    ImageBridgeChild::DispatchReleaseImageClient(mCompositable.forget().drop());
-  }
 }
 
 
@@ -78,7 +60,7 @@ SharedPlanarYCbCrImage::GetAsSurface()
 }
 
 void
-SharedPlanarYCbCrImage::SetData(const PlanarYCbCrData& aData)
+SharedPlanarYCbCrImage::SetData(const PlanarYCbCrImage::Data& aData)
 {
   // If mShmem has not been allocated (through Allocate(aData)), allocate it.
   // This code path is slower than the one used when Allocate has been called
@@ -86,7 +68,7 @@ SharedPlanarYCbCrImage::SetData(const PlanarYCbCrData& aData)
   if (!mTextureClient->IsAllocated()) {
     Data data = aData;
     if (!Allocate(data)) {
-      NS_WARNING("SharedPlanarYCbCrImage::SetData failed to allocate");
+      printf("SharedPlanarYCbCrImage::SetData failed to allocate :(\n");
       return;
     }
   }
@@ -158,7 +140,7 @@ SharedPlanarYCbCrImage::IsValid() {
 }
 
 bool
-SharedPlanarYCbCrImage::Allocate(PlanarYCbCrData& aData)
+SharedPlanarYCbCrImage::Allocate(PlanarYCbCrImage::Data& aData)
 {
   NS_ABORT_IF_FALSE(!mTextureClient->IsAllocated(),
                     "This image already has allocated data");
@@ -202,7 +184,7 @@ SharedPlanarYCbCrImage::Allocate(PlanarYCbCrData& aData)
 }
 
 void
-DeprecatedSharedPlanarYCbCrImage::SetData(const PlanarYCbCrData& aData)
+DeprecatedSharedPlanarYCbCrImage::SetData(const PlanarYCbCrImage::Data& aData)
 {
   // If mShmem has not been allocated (through Allocate(aData)), allocate it.
   // This code path is slower than the one used when Allocate has been called
@@ -277,7 +259,7 @@ DeprecatedSharedPlanarYCbCrImage::AllocateBuffer(uint32_t aSize)
 
 
 bool
-DeprecatedSharedPlanarYCbCrImage::Allocate(PlanarYCbCrData& aData)
+DeprecatedSharedPlanarYCbCrImage::Allocate(PlanarYCbCrImage::Data& aData)
 {
   NS_ABORT_IF_FALSE(!mAllocated, "This image already has allocated data");
 

@@ -299,7 +299,7 @@ typedef unsigned char uint8_t;
 typedef unsigned uint32_t;
 typedef unsigned long long uint64_t;
 typedef unsigned long long uintmax_t;
-#if defined(_WIN64)
+#if defined(MOZ_MEMORY_SIZEOF_PTR_2POW) && (MOZ_MEMORY_SIZEOF_PTR_2POW == 3)
 typedef long long ssize_t;
 #else
 typedef long ssize_t;
@@ -469,8 +469,8 @@ static const bool isthreaded = true;
 
 /* Minimum alignment of non-tiny allocations is 2^QUANTUM_2POW_MIN bytes. */
 #  define QUANTUM_2POW_MIN      4
-#if defined(_WIN64) || defined(__LP64__)
-#  define SIZEOF_PTR_2POW       3
+#ifdef MOZ_MEMORY_SIZEOF_PTR_2POW
+#  define SIZEOF_PTR_2POW		MOZ_MEMORY_SIZEOF_PTR_2POW
 #else
 #  define SIZEOF_PTR_2POW       2
 #endif
@@ -758,6 +758,22 @@ struct arena_stats_s {
 	/* Number of times this arena reassigned a thread due to contention. */
 	uint64_t	nbalance;
 #endif
+};
+
+typedef struct chunk_stats_s chunk_stats_t;
+struct chunk_stats_s {
+	/* Number of chunks that were allocated. */
+	uint64_t	nchunks;
+
+	/* High-water mark for number of chunks allocated. */
+	unsigned long	highchunks;
+
+	/*
+	 * Current number of chunks allocated.  This value isn't maintained for
+	 * any other purpose, so keep track of it in order to be able to set
+	 * highchunks.
+	 */
+	unsigned long	curchunks;
 };
 
 #endif /* #ifdef MALLOC_STATS */
@@ -1212,7 +1228,6 @@ static extent_tree_t	huge;
 static uint64_t		huge_nmalloc;
 static uint64_t		huge_ndalloc;
 static size_t		huge_allocated;
-static size_t		huge_mapped;
 #endif
 
 #ifdef MALLOC_PAGEFILE
@@ -1274,6 +1289,11 @@ static pthread_mutex_t arenas_lock; /* Protects arenas initialization. */
 #ifndef MOZ_MEMORY_WINDOWS
 static __thread arena_t	*arenas_map;
 #endif
+#endif
+
+#ifdef MALLOC_STATS
+/* Chunk statistics. */
+static chunk_stats_t	stats_chunks;
 #endif
 
 /*******************************/
@@ -2692,7 +2712,10 @@ RETURN:
 	if (pfd != -1)
 		pagefile_close(pfd);
 #endif
-
+#ifdef MALLOC_STATS
+	if (ret != NULL)
+		stats_chunks.nchunks += (size / chunksize);
+#endif
 	return (ret);
 }
 
@@ -2919,6 +2942,12 @@ chunk_alloc(size_t size, bool zero, bool pagefile)
 	/* All strategies for allocation failed. */
 	ret = NULL;
 RETURN:
+#ifdef MALLOC_STATS
+	if (ret != NULL)
+		stats_chunks.curchunks += (size / chunksize);
+	if (stats_chunks.curchunks > stats_chunks.highchunks)
+		stats_chunks.highchunks = stats_chunks.curchunks;
+#endif
 
 #ifdef MALLOC_VALIDATE
 	if (ret != NULL) {
@@ -2949,6 +2978,9 @@ chunk_dealloc(void *chunk, size_t size)
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
+#ifdef MALLOC_STATS
+	stats_chunks.curchunks -= (size / chunksize);
+#endif
 #ifdef MALLOC_VALIDATE
 	malloc_rtree_set(chunk_rtree, (uintptr_t)chunk, NULL);
 #endif
@@ -5052,7 +5084,6 @@ huge_malloc(size_t size, bool zero)
          * Thus those bytes won't take up space in physical memory, and we can
          * reasonably claim we never "allocated" them in the first place. */
 	huge_allocated += psize;
-	huge_mapped += csize;
 #endif
 	malloc_mutex_unlock(&huge_mtx);
 
@@ -5172,7 +5203,6 @@ huge_palloc(size_t alignment, size_t size)
         /* See note in huge_alloc() for why huge_allocated += psize is correct
          * here even when DECOMMIT is not defined. */
 	huge_allocated += psize;
-	huge_mapped += chunk_size;
 #endif
 	malloc_mutex_unlock(&huge_mtx);
 
@@ -5244,8 +5274,6 @@ huge_ralloc(void *ptr, size_t size, size_t oldsize)
 			assert(node->size == oldsize);
 #  ifdef MALLOC_STATS
 			huge_allocated -= oldsize - psize;
-			/* No need to change huge_mapped, because we didn't
-			 * (un)map anything. */
 #  endif
 			node->size = psize;
 			malloc_mutex_unlock(&huge_mtx);
@@ -5271,8 +5299,6 @@ huge_ralloc(void *ptr, size_t size, size_t oldsize)
                         assert(node->size == oldsize);
 #  ifdef MALLOC_STATS
                         huge_allocated += psize - oldsize;
-			/* No need to change huge_mapped, because we didn't
-			 * (un)map anything. */
 #  endif
                         node->size = psize;
                         malloc_mutex_unlock(&huge_mtx);
@@ -5324,7 +5350,6 @@ huge_dalloc(void *ptr)
 #ifdef MALLOC_STATS
 	huge_ndalloc++;
 	huge_allocated -= node->size;
-	huge_mapped -= CHUNK_CEILING(node->size);
 #endif
 
 	malloc_mutex_unlock(&huge_mtx);
@@ -5515,7 +5540,7 @@ malloc_print_stats(void)
 
 #ifdef MALLOC_STATS
 		{
-			size_t allocated, mapped = 0;
+			size_t allocated, mapped;
 #ifdef MALLOC_BALANCE
 			uint64_t nbalance = 0;
 #endif
@@ -5532,7 +5557,6 @@ malloc_print_stats(void)
 					    arenas[i]->stats.allocated_small;
 					allocated +=
 					    arenas[i]->stats.allocated_large;
-					mapped += arenas[i]->stats.mapped;
 #ifdef MALLOC_BALANCE
 					nbalance += arenas[i]->stats.nbalance;
 #endif
@@ -5543,7 +5567,7 @@ malloc_print_stats(void)
 			/* huge/base. */
 			malloc_mutex_lock(&huge_mtx);
 			allocated += huge_allocated;
-			mapped += huge_mapped;
+			mapped = stats_chunks.curchunks * chunksize;
 			malloc_mutex_unlock(&huge_mtx);
 
 			malloc_mutex_lock(&base_mtx);
@@ -5562,6 +5586,22 @@ malloc_print_stats(void)
 			malloc_printf("Arena balance reassignments: %llu\n",
 			    nbalance);
 #endif
+
+			/* Print chunk stats. */
+			{
+				chunk_stats_t chunks_stats;
+
+				malloc_mutex_lock(&huge_mtx);
+				chunks_stats = stats_chunks;
+				malloc_mutex_unlock(&huge_mtx);
+
+				malloc_printf("chunks: nchunks   "
+				    "highchunks    curchunks\n");
+				malloc_printf("  %13llu%13lu%13lu\n",
+				    chunks_stats.nchunks,
+				    chunks_stats.highchunks,
+				    chunks_stats.curchunks);
+			}
 
 			/* Print chunk stats. */
 			malloc_printf(
@@ -5992,6 +6032,10 @@ MALLOC_OUT:
 
 	UTRACE(0, 0, 0);
 
+#ifdef MALLOC_STATS
+	memset(&stats_chunks, 0, sizeof(chunk_stats_t));
+#endif
+
 	/* Various sanity checks that regard configuration. */
 	assert(quantum >= sizeof(void *));
 	assert(quantum <= pagesize);
@@ -6005,7 +6049,6 @@ MALLOC_OUT:
 	huge_nmalloc = 0;
 	huge_ndalloc = 0;
 	huge_allocated = 0;
-	huge_mapped = 0;
 #endif
 
 	/* Initialize base allocation data structures. */
@@ -6691,54 +6734,39 @@ jemalloc_stats_impl(jemalloc_stats_t *stats)
 
 	/* Get huge mapped/allocated. */
 	malloc_mutex_lock(&huge_mtx);
-	stats->mapped += huge_mapped;
+	stats->mapped += stats_chunks.curchunks * chunksize;
 	stats->allocated += huge_allocated;
-	assert(huge_mapped >= huge_allocated);
 	malloc_mutex_unlock(&huge_mtx);
 
-	/* Get base mapped/allocated. */
+	/* Get base mapped. */
 	malloc_mutex_lock(&base_mtx);
 	stats->mapped += base_mapped;
+	assert(base_committed <= base_mapped);
 	stats->bookkeeping += base_committed;
-	assert(base_mapped >= base_committed);
 	malloc_mutex_unlock(&base_mtx);
 
-	/* Iterate over arenas. */
+	/* Iterate over arenas and their chunks. */
 	for (i = 0; i < narenas; i++) {
 		arena_t *arena = arenas[i];
-		size_t arena_mapped, arena_allocated, arena_committed, arena_dirty;
+		if (arena != NULL) {
+                        size_t arena_allocated, arena_committed;
+			malloc_spin_lock(&arena->lock);
 
-		if (arena == NULL) {
-			continue;
+                        arena_allocated = arena->stats.allocated_small +
+                                          arena->stats.allocated_large;
+                        arena_committed = arena->stats.committed << pagesize_2pow;
+
+                        assert(arena_allocated <= arena_committed);
+
+			stats->allocated += arena_allocated;
+                        stats->waste += arena_committed - arena_allocated;
+			stats->page_cache += (arena->ndirty << pagesize_2pow);
+			malloc_spin_unlock(&arena->lock);
 		}
-
-		malloc_spin_lock(&arena->lock);
-
-		arena_mapped = arena->stats.mapped;
-
-		/* "committed" counts dirty and allocated memory. */
-		arena_committed = arena->stats.committed << pagesize_2pow;
-
-		arena_allocated = arena->stats.allocated_small +
-				  arena->stats.allocated_large;
-
-		arena_dirty = arena->ndirty << pagesize_2pow;
-
-		malloc_spin_unlock(&arena->lock);
-
-		assert(arena_mapped >= arena_committed);
-		assert(arena_committed >= arena_allocated + arena_dirty);
-
-		/* "waste" is committed memory that is neither dirty nor
-		 * allocated. */
-		stats->mapped += arena_mapped;
-		stats->allocated += arena_allocated;
-		stats->page_cache += arena_dirty;
-		stats->waste += arena_committed - arena_allocated - arena_dirty;
 	}
 
 	assert(stats->mapped >= stats->allocated + stats->waste +
-				stats->page_cache + stats->bookkeeping);
+                                stats->page_cache + stats->bookkeeping);
 }
 
 #ifdef MALLOC_DOUBLE_PURGE

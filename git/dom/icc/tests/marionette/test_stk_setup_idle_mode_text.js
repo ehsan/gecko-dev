@@ -195,7 +195,6 @@ let tests = [
             text: "80ル0"}},
 ];
 
-// TODO - Bug 843455: Import scripts for marionette tests.
 let pendingEmulatorCmdCount = 0;
 function sendStkPduToEmulator(command, func, expect) {
   ++pendingEmulatorCmdCount;

@@ -40,17 +40,17 @@ interface Document : Node {
   HTMLCollection getElementsByClassName(DOMString classNames);
   Element? getElementById(DOMString elementId);
 
-  [NewObject, Throws]
+  [Creator, Throws]
   Element createElement(DOMString localName);
-  [NewObject, Throws]
+  [Creator, Throws]
   Element createElementNS(DOMString? namespace, DOMString qualifiedName);
-  [NewObject]
+  [Creator]
   DocumentFragment createDocumentFragment();
-  [NewObject]
+  [Creator]
   Text createTextNode(DOMString data);
-  [NewObject]
+  [Creator]
   Comment createComment(DOMString data);
-  [NewObject, Throws]
+  [Creator, Throws]
   ProcessingInstruction createProcessingInstruction(DOMString target, DOMString data);
 
   [Throws]
@@ -58,16 +58,16 @@ interface Document : Node {
   [Throws]
   Node adoptNode(Node node);
 
-  [NewObject, Throws]
+  [Creator, Throws]
   Event createEvent(DOMString interface);
 
-  [NewObject, Throws]
+  [Creator, Throws]
   Range createRange();
 
   // NodeFilter.SHOW_ALL = 0xFFFFFFFF
-  [NewObject, Throws]
+  [Creator, Throws]
   NodeIterator createNodeIterator(Node root, optional unsigned long whatToShow = 0xFFFFFFFF, optional NodeFilter? filter = null);
-  [NewObject, Throws]
+  [Creator, Throws]
   TreeWalker createTreeWalker(Node root, optional unsigned long whatToShow = 0xFFFFFFFF, optional NodeFilter? filter = null);
 
   // NEW
@@ -77,11 +77,11 @@ interface Document : Node {
 
   // These are not in the spec, but leave them for now for backwards compat.
   // So sort of like Gecko extensions
-  [NewObject, Throws]
+  [Creator, Throws]
   CDATASection createCDATASection(DOMString data);
-  [NewObject, Throws]
+  [Creator, Throws]
   Attr createAttribute(DOMString name);
-  [NewObject, Throws]
+  [Creator, Throws]
   Attr createAttributeNS(DOMString? namespace, DOMString name);
   readonly attribute DOMString? inputEncoding;
 };
@@ -136,15 +136,17 @@ partial interface Document {
   //(Not implemented)readonly attribute HTMLCollection commands;
 
   // special event handler IDL attributes that only apply to Document objects
-  [LenientThis] attribute EventHandler onreadystatechange;
+  [LenientThis, SetterThrows] attribute EventHandler onreadystatechange;
 
   // Gecko extensions?
-                attribute EventHandler onwheel;
-                attribute EventHandler oncopy;
-                attribute EventHandler oncut;
-                attribute EventHandler onpaste;
-                attribute EventHandler onbeforescriptexecute;
-                attribute EventHandler onafterscriptexecute;
+  [LenientThis, SetterThrows] attribute EventHandler onmouseenter;
+  [LenientThis, SetterThrows] attribute EventHandler onmouseleave;
+  [SetterThrows] attribute EventHandler onwheel;
+  [SetterThrows] attribute EventHandler oncopy;
+  [SetterThrows] attribute EventHandler oncut;
+  [SetterThrows] attribute EventHandler onpaste;
+  [SetterThrows] attribute EventHandler onbeforescriptexecute;
+  [SetterThrows] attribute EventHandler onafterscriptexecute;
   /**
    * True if this document is synthetic : stand alone image, video, audio file,
    * etc.
@@ -275,20 +277,17 @@ partial interface Document {
 partial interface Document {
   // nsIDOMDocumentXBL.  Wish we could make these [ChromeOnly], but
   // that would likely break bindings running with the page principal.
-  [Func="IsChromeOrXBL"]
   NodeList? getAnonymousNodes(Element elt);
-  [Func="IsChromeOrXBL"]
   Element? getAnonymousElementByAttribute(Element elt, DOMString attrName,
                                           DOMString attrValue);
-  [Func="IsChromeOrXBL"]
   Element? getBindingParent(Node node);
-  [Throws, Func="IsChromeOrXBL"]
+  [Throws]
   void loadBindingDocument(DOMString documentURL);
 
   // nsIDOMDocumentTouch
   // XXXbz I can't find the sane spec for this stuff, so just cribbing
   // from our xpidl for now.
-  [NewObject, Func="nsGenericHTMLElement::TouchEventsEnabled"]
+  [Creator, Func="nsGenericHTMLElement::TouchEventsEnabled"]
   Touch createTouch(optional Window? view = null,
                     optional EventTarget? target = null,
                     optional long identifier = 0,
@@ -306,14 +305,14 @@ partial interface Document {
   // distinguishing arguments yet.  Once this hack is removed. we can also
   // remove the corresponding overload on nsIDocument, since Touch... and
   // sequence<Touch> look the same in the C++.
-  [NewObject, Func="nsGenericHTMLElement::TouchEventsEnabled"]
+  [Creator, Func="nsGenericHTMLElement::TouchEventsEnabled"]
   TouchList createTouchList(Touch touch, Touch... touches);
   // XXXbz and another hack for the fact that we can't usefully have optional
   // distinguishing arguments but need a working zero-arg form of
   // createTouchList().
-  [NewObject, Func="nsGenericHTMLElement::TouchEventsEnabled"]
+  [Creator, Func="nsGenericHTMLElement::TouchEventsEnabled"]
   TouchList createTouchList();
-  [NewObject, Func="nsGenericHTMLElement::TouchEventsEnabled"]
+  [Creator, Func="nsGenericHTMLElement::TouchEventsEnabled"]
   TouchList createTouchList(sequence<Touch> touches);
 
   [ChromeOnly]
@@ -333,6 +332,6 @@ partial interface Document {
 
 Document implements XPathEvaluator;
 Document implements GlobalEventHandlers;
+Document implements NodeEventHandlers;
 Document implements TouchEventHandlers;
 Document implements ParentNode;
-Document implements OnErrorEventHandlerForNodes;

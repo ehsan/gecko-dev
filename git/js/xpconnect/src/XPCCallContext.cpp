@@ -7,8 +7,10 @@
 
 /* Call context. */
 
+#include "mozilla/Util.h"
+#include "AccessCheck.h"
+
 #include "xpcprivate.h"
-#include "jswrapper.h"
 
 using namespace mozilla;
 using namespace xpc;
@@ -37,6 +39,7 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
 {
     MOZ_ASSERT(cx);
 
+    NS_ASSERTION(mJSContext, "No JSContext supplied to XPCCallContext");
     if (!mXPC)
         return;
 
@@ -68,7 +71,7 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
             return;
         }
     } else {
-        const js::Class *clasp = js::GetObjectClass(unwrapped);
+        js::Class *clasp = js::GetObjectClass(unwrapped);
         if (IS_WN_CLASS(clasp)) {
             mWrapper = XPCWrappedNative::Get(unwrapped);
         } else if (IS_TEAROFF_CLASS(clasp)) {
@@ -84,7 +87,7 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
         else
             mScriptableInfo = mWrapper->GetScriptableInfo();
     } else {
-        MOZ_ASSERT(!mFlattenedJSObject, "What object do we have?");
+        NS_ABORT_IF_FALSE(!mFlattenedJSObject, "What object do we have?");
     }
 
     if (!JSID_IS_VOID(name))
@@ -151,7 +154,7 @@ XPCCallContext::SetName(jsid name)
 
 void
 XPCCallContext::SetCallInfo(XPCNativeInterface* iface, XPCNativeMember* member,
-                            bool isSetter)
+                            JSBool isSetter)
 {
     CHECK_STATE(HAVE_CONTEXT);
 
@@ -237,7 +240,7 @@ XPCCallContext::~XPCCallContext()
         mXPCContext->SetCallingLangType(mPrevCallerLanguage);
 
         DebugOnly<XPCCallContext*> old = XPCJSRuntime::Get()->SetCallContext(mPrevCallContext);
-        MOZ_ASSERT(old == this, "bad pop from per thread data");
+        NS_ASSERTION(old == this, "bad pop from per thread data");
     }
 }
 

@@ -7,25 +7,17 @@
 #ifndef mozilla_dom_SourceBufferList_h_
 #define mozilla_dom_SourceBufferList_h_
 
+#include "AsyncEventRunner.h"
+#include "MediaSource.h"
 #include "SourceBuffer.h"
-#include "js/RootingAPI.h"
-#include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionNoteChild.h"
+#include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsDOMEventTargetHelper.h"
-#include "nsISupports.h"
-#include "nsTArray.h"
-
-struct JSContext;
-class JSObject;
+#include "nsWrapperCache.h"
+#include "nscore.h"
 
 namespace mozilla {
-
-class ErrorResult;
-template <typename T> class AsyncEventRunner;
-
 namespace dom {
 
 class MediaSource;
@@ -63,6 +55,9 @@ public:
   // True if list has zero entries.
   bool IsEmpty();
 
+  // Detach and remove all SourceBuffers and fire a single "removesourcebuffer" at the list.
+  void DetachAndClear();
+
   // Returns true if updating is true on any SourceBuffers in the list.
   bool AnyUpdating();
 
@@ -70,11 +65,8 @@ public:
   // first error, with result returned in aRv.
   void Remove(double aStart, double aEnd, ErrorResult& aRv);
 
-  // Mark all SourceBuffers input buffers as ended.
-  void Ended();
-
 private:
-  friend class AsyncEventRunner<SourceBufferList>;
+  friend class AsyncEventRunnner<SourceBufferList>;
   void DispatchSimpleEvent(const char* aName);
   void QueueAsyncSimpleEvent(const char* aName);
 
@@ -83,6 +75,5 @@ private:
 };
 
 } // namespace dom
-
 } // namespace mozilla
 #endif /* mozilla_dom_SourceBufferList_h_ */

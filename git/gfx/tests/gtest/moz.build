@@ -8,38 +8,27 @@ MODULE = 'gfxtest'
 
 LIBRARY_NAME = 'gfxtest'
 
-GTEST_SOURCES += [
-    'gfxSurfaceRefCountTest.cpp',
-    'gfxWordCacheTest.cpp',
-    'TestAsyncPanZoomController.cpp',
-    'TestBufferRotation.cpp',
-    'TestColorNames.cpp',
-    'TestLayers.cpp',
-    'TestRegion.cpp',
+GTEST_CPP_SOURCES += [
     # Hangs on linux in ApplyGdkScreenFontOptions
     #'gfxFontSelectionTest.cpp',
-    'TestTextures.cpp',
+    'gfxSurfaceRefCountTest.cpp',
     # Test works but it doesn't assert anything
     #'gfxTextRunPerfTest.cpp',
+    'gfxWordCacheTest.cpp',
+    'TestAsyncPanZoomController.cpp',
+    'TestLayers.cpp',
     'TestTiledLayerBuffer.cpp',
+    'TestRegion.cpp',
+    'TestColorNames.cpp',
 ]
 
 # Because of gkmedia on windows we wont find these
 # symbols in xul.dll.
 if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'windows':
-    GTEST_SOURCES += [ '%s/gfx/2d/unittest/%s' % (TOPSRCDIR, p) for p in [
+    GTEST_CPP_SOURCES += [
         'TestBase.cpp',
-        'TestPoint.cpp',
-        'TestScaling.cpp',
-    ]]
-    GTEST_SOURCES += [
         'TestMoz2D.cpp',
         'TestRect.cpp',
+        'TestPoint.cpp',
+        'TestScaling.cpp',
     ]
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
-

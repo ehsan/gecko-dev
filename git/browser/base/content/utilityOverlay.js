@@ -380,10 +380,11 @@ function gatherTextUnder ( root )
       // Add this text to our collection.
       text += " " + node.data;
     } else if ( node instanceof HTMLImageElement) {
-      // If it has an "alt" attribute, add that.
+      // If it has an alt= attribute, use that.
       var altText = node.getAttribute( "alt" );
       if ( altText && altText != "" ) {
-        text += " " + altText;
+        text = altText;
+        break;
       }
     }
     // Find next node to test.
@@ -403,8 +404,10 @@ function gatherTextUnder ( root )
       }
     }
   }
-  // Strip leading and tailing whitespace.
-  text = text.trim();
+  // Strip leading whitespace.
+  text = text.replace( /^\s+/, "" );
+  // Strip trailing whitespace.
+  text = text.replace( /\s+$/, "" );
   // Compress remaining whitespace.
   text = text.replace( /\s+/g, " " );
   return text;
@@ -454,9 +457,6 @@ function openAboutDialog() {
   while (enumerator.hasMoreElements()) {
     // Only open one about window (Bug 599573)
     let win = enumerator.getNext();
-    if (win.closed) {
-      continue;
-    }
     win.focus();
     return;
   }
@@ -656,16 +656,13 @@ function isValidFeed(aLink, aPrincipal, aIsFeed)
 }
 
 // aCalledFromModal is optional
-function openHelpLink(aHelpTopic, aCalledFromModal, aWhere) {
+function openHelpLink(aHelpTopic, aCalledFromModal) {
   var url = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
                       .getService(Components.interfaces.nsIURLFormatter)
                       .formatURLPref("app.support.baseURL");
   url += aHelpTopic;
 
-  var where = aWhere;
-  if (!aWhere)
-    where = aCalledFromModal ? "window" : "tab";
-
+  var where = aCalledFromModal ? "window" : "tab";
   openUILinkIn(url, where);
 }
 

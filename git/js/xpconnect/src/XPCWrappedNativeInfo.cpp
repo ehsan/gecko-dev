@@ -7,7 +7,6 @@
 /* Manage the shared info about interfaces for use by wrappedNatives. */
 
 #include "xpcprivate.h"
-#include "jswrapper.h"
 #include "nsCxPusher.h"
 
 #include "mozilla/MemoryReporting.h"
@@ -21,7 +20,7 @@ using namespace mozilla;
 // XPCNativeMember
 
 // static
-bool
+JSBool
 XPCNativeMember::GetCallInfo(JSObject* funobj,
                              XPCNativeInterface** pInterface,
                              XPCNativeMember**    pMember)
@@ -36,17 +35,18 @@ XPCNativeMember::GetCallInfo(JSObject* funobj,
     return true;
 }
 
-bool
+JSBool
 XPCNativeMember::NewFunctionObject(XPCCallContext& ccx,
                                    XPCNativeInterface* iface, HandleObject parent,
                                    jsval* pval)
 {
-    MOZ_ASSERT(!IsConstant(), "Only call this if you're sure this is not a constant!");
+    NS_ASSERTION(!IsConstant(),
+                 "Only call this if you're sure this is not a constant!");
 
     return Resolve(ccx, iface, parent, pval);
 }
 
-bool
+JSBool
 XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface,
                          HandleObject parent, jsval *vp)
 {
@@ -65,7 +65,8 @@ XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface,
 
         RootedValue resultVal(ccx);
 
-        if (!XPCConvert::NativeData2JS(&resultVal, &v.val, v.type, nullptr, nullptr))
+        if (!XPCConvert::NativeData2JS(resultVal.address(), &v.val, v.type,
+                                       nullptr, nullptr))
             return false;
 
         *vp = resultVal;
@@ -232,7 +233,7 @@ XPCNativeInterface::NewInstance(nsIInterfaceInfo* aInfo)
     XPCNativeMember* members = nullptr;
 
     int i;
-    bool failed = false;
+    JSBool failed = false;
     uint16_t constCount;
     uint16_t methodCount;
     uint16_t totalCount;
@@ -300,17 +301,17 @@ XPCNativeInterface::NewInstance(nsIInterfaceInfo* aInfo)
         jsid name = INTERNED_STRING_TO_JSID(cx, str);
 
         if (info->IsSetter()) {
-            MOZ_ASSERT(realTotalCount,"bad setter");
+            NS_ASSERTION(realTotalCount,"bad setter");
             // Note: ASSUMES Getter/Setter pairs are next to each other
             // This is a rule of the typelib spec.
             cur = &members[realTotalCount-1];
-            MOZ_ASSERT(cur->GetName() == name,"bad setter");
-            MOZ_ASSERT(cur->IsReadOnlyAttribute(),"bad setter");
-            MOZ_ASSERT(cur->GetIndex() == i-1,"bad setter");
+            NS_ASSERTION(cur->GetName() == name,"bad setter");
+            NS_ASSERTION(cur->IsReadOnlyAttribute(),"bad setter");
+            NS_ASSERTION(cur->GetIndex() == i-1,"bad setter");
             cur->SetWritableAttribute();
         } else {
             // XXX need better way to find dups
-            // MOZ_ASSERT(!LookupMemberByID(name),"duplicate method name");
+            // NS_ASSERTION(!LookupMemberByID(name),"duplicate method name");
             cur = &members[realTotalCount++];
             cur->SetName(name);
             if (info->IsGetter())
@@ -337,7 +338,7 @@ XPCNativeInterface::NewInstance(nsIInterfaceInfo* aInfo)
             jsid name = INTERNED_STRING_TO_JSID(cx, str);
 
             // XXX need better way to find dups
-            //MOZ_ASSERT(!LookupMemberByID(name),"duplicate method/constant name");
+            //NS_ASSERTION(!LookupMemberByID(name),"duplicate method/constant name");
 
             cur = &members[realTotalCount++];
             cur->SetName(name);
@@ -493,7 +494,7 @@ XPCNativeSet::GetNewOrUsed(nsIClassInfo* classInfo)
         iidCount = 0;
     }
 
-    MOZ_ASSERT((iidCount && iidArray) || !(iidCount || iidArray), "GetInterfaces returned bad array");
+    NS_ASSERTION((iidCount && iidArray) || !(iidCount || iidArray), "GetInterfaces returned bad array");
 
     // !!! from here on we only exit through the 'out' label !!!
 
@@ -565,8 +566,8 @@ XPCNativeSet::GetNewOrUsed(nsIClassInfo* classInfo)
         XPCNativeSet* set2 =
 #endif
           map->Add(classInfo, set);
-        MOZ_ASSERT(set2, "failed to add our set!");
-        MOZ_ASSERT(set2 == set, "hashtables inconsistent!");
+        NS_ASSERTION(set2, "failed to add our set!");
+        NS_ASSERTION(set2 == set, "hashtables inconsistent!");
     }
 
 out:

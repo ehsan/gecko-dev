@@ -41,15 +41,15 @@ IsValidKeyPathString(JSContext* aCx, const nsAString& aKeyPath)
       return false;
     }
 
-    JS::Rooted<JS::Value> stringVal(aCx);
+    jsval stringVal;
     if (!xpc::StringToJsval(aCx, token, &stringVal)) {
       return false;
     }
 
-    NS_ASSERTION(stringVal.toString(), "This should never happen");
-    JS::RootedString str(aCx, stringVal.toString());
+    NS_ASSERTION(JSVAL_IS_STRING(stringVal), "This should never happen");
+    JSString* str = JSVAL_TO_STRING(stringVal);
 
-    bool isIdentifier = false;
+    JSBool isIdentifier = JS_FALSE;
     if (!JS_IsIdentifier(aCx, str, &isIdentifier) || !isIdentifier) {
       return false;
     }
@@ -105,21 +105,21 @@ GetJSValFromKeyPathString(JSContext* aCx,
     const jschar* keyPathChars = token.BeginReading();
     const size_t keyPathLen = token.Length();
 
-    bool hasProp;
+    JSBool hasProp;
     if (!targetObject) {
       // We're still walking the chain of existing objects
       if (!obj) {
         return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
       }
 
-      bool ok = JS_HasUCProperty(aCx, obj, keyPathChars, keyPathLen,
-                                 &hasProp);
+      JSBool ok = JS_HasUCProperty(aCx, obj, keyPathChars, keyPathLen,
+                                   &hasProp);
       NS_ENSURE_TRUE(ok, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
       if (hasProp) {
         // Get if the property exists...
         JS::Rooted<JS::Value> intermediate(aCx);
-        bool ok = JS_GetUCProperty(aCx, obj, keyPathChars, keyPathLen, &intermediate);
+        JSBool ok = JS_GetUCProperty(aCx, obj, keyPathChars, keyPathLen, &intermediate);
         NS_ENSURE_TRUE(ok, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
         // Treat explicitly undefined as an error.
@@ -204,14 +204,16 @@ GetJSValFromKeyPathString(JSContext* aCx,
   if (targetObject) {
     // If this fails, we lose, and the web page sees a magical property
     // appear on the object :-(
-    bool succeeded;
+    JS::Rooted<JS::Value> succeeded(aCx);
     if (!JS_DeleteUCProperty2(aCx, targetObject,
                               targetObjectPropName.get(),
                               targetObjectPropName.Length(),
                               &succeeded)) {
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
-    NS_ENSURE_TRUE(succeeded, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    NS_ASSERTION(JSVAL_IS_BOOLEAN(succeeded), "Wtf?");
+    NS_ENSURE_TRUE(JSVAL_TO_BOOLEAN(succeeded),
+                   NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
 
   NS_ENSURE_SUCCESS(rv, rv);
@@ -282,7 +284,7 @@ KeyPath::Parse(JSContext* aCx, const JS::Value& aValue, KeyPath* aKeyPath)
       JS::Rooted<JS::Value> val(aCx);
       JSString* jsstr;
       nsDependentJSString str;
-      if (!JS_GetElement(aCx, obj, index, &val) ||
+      if (!JS_GetElement(aCx, obj, index, val.address()) ||
           !(jsstr = JS_ValueToString(aCx, val)) ||
           !str.init(aCx, jsstr)) {
         return NS_ERROR_FAILURE;
@@ -397,7 +399,7 @@ KeyPath::ExtractKeyAsJSVal(JSContext* aCx, const JS::Value& aValue,
       return rv;
     }
 
-    if (!JS_SetElement(aCx, arrayObj, i, &value)) {
+    if (!JS_SetElement(aCx, arrayObj, i, value.address())) {
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
   }
@@ -502,11 +504,11 @@ KeyPath::ToJSVal(JSContext* aCx, JS::MutableHandle<JS::Value> aValue) const
     for (uint32_t i = 0; i < len; ++i) {
       JS::Rooted<JS::Value> val(aCx);
       nsString tmp(mStrings[i]);
-      if (!xpc::StringToJsval(aCx, tmp, &val)) {
+      if (!xpc::StringToJsval(aCx, tmp, val.address())) {
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
 
-      if (!JS_SetElement(aCx, array, i, &val)) {
+      if (!JS_SetElement(aCx, array, i, val.address())) {
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
     }
@@ -517,7 +519,7 @@ KeyPath::ToJSVal(JSContext* aCx, JS::MutableHandle<JS::Value> aValue) const
 
   if (IsString()) {
     nsString tmp(mStrings[0]);
-    if (!xpc::StringToJsval(aCx, tmp, aValue)) {
+    if (!xpc::StringToJsval(aCx, tmp, aValue.address())) {
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
     return NS_OK;

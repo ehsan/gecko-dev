@@ -18,7 +18,6 @@ loader.lazyGetter(this, "HTMLBreadcrumbs", () => require("devtools/inspector/bre
 loader.lazyGetter(this, "Highlighter", () => require("devtools/inspector/highlighter").Highlighter);
 loader.lazyGetter(this, "ToolSidebar", () => require("devtools/framework/sidebar").ToolSidebar);
 loader.lazyGetter(this, "SelectorSearch", () => require("devtools/inspector/selector-search").SelectorSearch);
-loader.lazyGetter(this, "InspectorFront", () => require("devtools/server/actors/inspector").InspectorFront);
 
 const LAYOUT_CHANGE_TIMER = 250;
 
@@ -27,33 +26,6 @@ const LAYOUT_CHANGE_TIMER = 250;
  * The inspector controls the highlighter, the breadcrumbs,
  * the markup view, and the sidebar (computed view, rule view
  * and layout view).
- *
- * Events:
- * - ready
- *      Fired when the inspector panel is opened for the first time and ready to
- *      use
- * - new-root
- *      Fired after a new root (navigation to a new page) event was fired by
- *      the walker, and taken into account by the inspector (after the markup
- *      view has been reloaded)
- * - markuploaded
- *      Fired when the markup-view frame has loaded
- * - layout-change
- *      Fired when the layout of the inspector changes
- * - breadcrumbs-updated
- *      Fired when the breadcrumb widget updates to a new node
- * - layoutview-updated
- *      Fired when the layoutview (box model) updates to a new node
- * - markupmutation
- *      Fired after markup mutations have been processed by the markup-view
- * - computed-view-refreshed
- *      Fired when the computed rules view updates to a new node
- * - computed-view-property-expanded
- *      Fired when a property is expanded in the computed rules view
- * - computed-view-property-collapsed
- *      Fired when a property is collapsed in the computed rules view
- * - rule-view-refreshed
- *      Fired when the rule view updates to a new node
  */
 function InspectorPanel(iframeWindow, toolbox) {
   this._toolbox = toolbox;
@@ -61,10 +33,6 @@ function InspectorPanel(iframeWindow, toolbox) {
   this.panelDoc = iframeWindow.document;
   this.panelWin = iframeWindow;
   this.panelWin.inspector = this;
-  this._inspector = null;
-
-  this._onBeforeNavigate = this._onBeforeNavigate.bind(this);
-  this._target.on("will-navigate", this._onBeforeNavigate);
 
   EventEmitter.decorate(this);
 }
@@ -77,31 +45,23 @@ InspectorPanel.prototype = {
    */
   open: function InspectorPanel_open() {
     return this.target.makeRemote().then(() => {
-      return this._getWalker();
-    }).then(() => {
+      return this.target.inspector.getWalker();
+    }).then(walker => {
+      if (this._destroyPromise) {
+        walker.release().then(null, console.error);
+      }
+      this.walker = walker;
       return this._getDefaultNodeForSelection();
     }).then(defaultSelection => {
       return this._deferredOpen(defaultSelection);
     }).then(null, console.error);
   },
 
-  get inspector() {
-    if (!this._target.form) {
-      throw new Error("Target.inspector requires an initialized remote actor.");
-    }
-    if (!this._inspector) {
-      this._inspector = InspectorFront(this._target.client, this._target.form);
-    }
-    return this._inspector;
-  },
-
   _deferredOpen: function(defaultSelection) {
     let deferred = promise.defer();
 
-    this.outerHTMLEditable = this._target.client.traits.editOuterHTML;
-
-    this.onNewRoot = this.onNewRoot.bind(this);
-    this.walker.on("new-root", this.onNewRoot);
+    this.onNavigatedAway = this.onNavigatedAway.bind(this);
+    this.target.on("navigate", this.onNavigatedAway);
 
     this.nodemenu = this.panelDoc.getElementById("inspector-node-popup");
     this.lastNodemenuItem = this.nodemenu.lastChild;
@@ -125,6 +85,20 @@ InspectorPanel.prototype = {
       this.browser = this.target.tab.linkedBrowser;
       this.scheduleLayoutChange = this.scheduleLayoutChange.bind(this);
       this.browser.addEventListener("resize", this.scheduleLayoutChange, true);
+
+      this.highlighter = new Highlighter(this.target, this, this._toolbox);
+      let button = this.panelDoc.getElementById("inspector-inspect-toolbutton");
+      button.hidden = false;
+      this.onLockStateChanged = function() {
+        if (this.highlighter.locked) {
+          button.removeAttribute("checked");
+          this._toolbox.raise();
+        } else {
+          button.setAttribute("checked", "true");
+        }
+      }.bind(this);
+      this.highlighter.on("locked", this.onLockStateChanged);
+      this.highlighter.on("unlocked", this.onLockStateChanged);
 
       // Show a warning when the debugger is paused.
       // We show the warning only when the inspector
@@ -154,19 +128,6 @@ InspectorPanel.prototype = {
       this.updateDebuggerPausedWarning();
     }
 
-    this.highlighter = new Highlighter(this.target, this, this._toolbox);
-    let button = this.panelDoc.getElementById("inspector-inspect-toolbutton");
-    this.onLockStateChanged = function() {
-      if (this.highlighter.locked) {
-        button.removeAttribute("checked");
-        this._toolbox.raise();
-      } else {
-        button.setAttribute("checked", "true");
-      }
-    }.bind(this);
-    this.highlighter.on("locked", this.onLockStateChanged);
-    this.highlighter.on("unlocked", this.onLockStateChanged);
-
     this._initMarkup();
     this.isReady = false;
 
@@ -188,22 +149,6 @@ InspectorPanel.prototype = {
     return deferred.promise;
   },
 
-  _onBeforeNavigate: function() {
-    this._defaultNode = null;
-    this.selection.setNodeFront(null);
-    this._destroyMarkup();
-    this.isDirty = false;
-  },
-
-  _getWalker: function() {
-    return this.inspector.getWalker().then(walker => {
-      this.walker = walker;
-      return this.inspector.getPageStyle();
-    }).then(pageStyle => {
-      this.pageStyle = pageStyle;
-    });
-  },
-
   /**
    * Return a promise that will resolve to the default node for selection.
    */
@@ -212,17 +157,10 @@ InspectorPanel.prototype = {
       return this._defaultNode;
     }
     let walker = this.walker;
-    let rootNode = null;
 
-    // If available, set either the previously selected node or the body
-    // as default selected, else set documentElement
-    return walker.getRootNode().then(aRootNode => {
-      rootNode = aRootNode;
-      return walker.querySelector(rootNode, this.selectionCssSelector);
-    }).then(front => {
-      if (front) {
-        return front;
-      }
+    // if available set body node as default selected node
+    // else set documentElement
+    return walker.getRootNode().then(rootNode => {
       return walker.querySelector(rootNode, "body");
     }).then(front => {
       if (front) {
@@ -235,7 +173,7 @@ InspectorPanel.prototype = {
       }
       this._defaultNode = node;
       return node;
-    });
+    })
   },
 
   /**
@@ -324,7 +262,7 @@ InspectorPanel.prototype = {
                         "chrome://browser/content/devtools/computedview.xhtml",
                         "computedview" == defaultTab);
 
-    if (Services.prefs.getBoolPref("devtools.fontinspector.enabled") && !this.target.isRemote) {
+    if (Services.prefs.getBoolPref("devtools.fontinspector.enabled")) {
       this.sidebar.addTab("fontinspector",
                           "chrome://browser/content/devtools/fontinspector/font-inspector.xhtml",
                           "fontinspector" == defaultTab);
@@ -342,9 +280,10 @@ InspectorPanel.prototype = {
   },
 
   /**
-   * Reset the inspector on new root mutation.
+   * Reset the inspector on navigate away.
    */
-  onNewRoot: function InspectorPanel_onNewRoot() {
+  onNavigatedAway: function InspectorPanel_onNavigatedAway(event, payload) {
+    let newWindow = payload._navPayload || payload;
     this._defaultNode = null;
     this.selection.setNodeFront(null);
     this._destroyMarkup();
@@ -358,61 +297,21 @@ InspectorPanel.prototype = {
 
       this._initMarkup();
       this.once("markuploaded", () => {
-        if (this._destroyPromise) {
-          return;
-        }
         this.markup.expandNode(this.selection.nodeFront);
         this.setupSearchBox();
-        this.emit("new-root");
       });
     });
-  },
-
-  _selectionCssSelector: null,
-
-  /**
-   * Set the currently selected node unique css selector.
-   * Will store the current target url along with it to allow pre-selection at
-   * reload
-   */
-  set selectionCssSelector(cssSelector) {
-    this._selectionCssSelector = {
-      selector: cssSelector,
-      url: this._target.url
-    };
-  },
-
-  /**
-   * Get the current selection unique css selector if any, that is, if a node
-   * is actually selected and that node has been selected while on the same url
-   */
-  get selectionCssSelector() {
-    if (this._selectionCssSelector &&
-        this._selectionCssSelector.url === this._target.url) {
-      return this._selectionCssSelector.selector;
-    } else {
-      return null;
-    }
   },
 
   /**
    * When a new node is selected.
    */
-  onNewSelection: function InspectorPanel_onNewSelection(event, value, reason) {
+  onNewSelection: function InspectorPanel_onNewSelection() {
     this.cancelLayoutChange();
 
     // Wait for all the known tools to finish updating and then let the
     // client know.
     let selection = this.selection.nodeFront;
-
-    // On any new selection made by the user, store the unique css selector
-    // of the selected node so it can be restored after reload of the same page
-    if (reason !== "navigateaway" &&
-        this.selection.node &&
-        this.selection.isElementNode()) {
-      this.selectionCssSelector = CssLogic.findCssSelector(this.selection.node);
-    }
-
     let selfUpdate = this.updating("inspector-panel");
     Services.tm.mainThread.dispatch(() => {
       try {
@@ -453,9 +352,9 @@ InspectorPanel.prototype = {
           }
 
           self._updateProgress = null;
-          self.emit("inspector-updated", name);
+          self.emit("inspector-updated");
         },
-      };
+      }
     }
 
     let progress = this._updateProgress;
@@ -486,9 +385,7 @@ InspectorPanel.prototype = {
   },
 
   /**
-   * When a node is deleted, select its parent node or the defaultNode if no
-   * parent is found (may happen when deleting an iframe inside which the
-   * node was selected).
+   * When a node is deleted, select its parent node.
    */
   onDetached: function InspectorPanel_onDetached(event, parentNode) {
     this.cancelLayoutChange();
@@ -503,25 +400,9 @@ InspectorPanel.prototype = {
     if (this._destroyPromise) {
       return this._destroyPromise;
     }
-
-    if (this.highlighter) {
-      this.highlighter.off("locked", this.onLockStateChanged);
-      this.highlighter.off("unlocked", this.onLockStateChanged);
-      this.highlighter.destroy();
-    }
-
-    delete this.onLockStateChanged;
-
     if (this.walker) {
-      this.walker.off("new-root", this.onNewRoot);
-      this._destroyPromise = this.walker.release()
-        .then(() => this._inspector.destroy())
-        .then(() => {
-          this._inspector = null;
-        }, console.error);
-
+      this._destroyPromise = this.walker.release().then(null, console.error);
       delete this.walker;
-      delete this.pageStyle;
     } else {
       this._destroyPromise = promise.resolve(null);
     }
@@ -534,7 +415,13 @@ InspectorPanel.prototype = {
       this.browser = null;
     }
 
-    this.target.off("will-navigate", this._onBeforeNavigate);
+    this.target.off("navigate", this.onNavigatedAway);
+
+    if (this.highlighter) {
+      this.highlighter.off("locked", this.onLockStateChanged);
+      this.highlighter.off("unlocked", this.onLockStateChanged);
+      this.highlighter.destroy();
+    }
 
     this.target.off("thread-paused", this.updateDebuggerPausedWarning);
     this.target.off("thread-resumed", this.updateDebuggerPausedWarning);
@@ -550,7 +437,6 @@ InspectorPanel.prototype = {
     this.nodemenu.removeEventListener("popuphiding", this._resetNodeMenu, true);
     this.breadcrumbs.destroy();
     this.searchSuggestions.destroy();
-    delete this.searchBox;
     this.selection.off("new-node-front", this.onNewSelection);
     this.selection.off("before-new-node", this.onBeforeNewSelection);
     this.selection.off("before-new-node-front", this.onBeforeNewSelection);
@@ -617,8 +503,7 @@ InspectorPanel.prototype = {
     let unique = this.panelDoc.getElementById("node-menu-copyuniqueselector");
     let copyInnerHTML = this.panelDoc.getElementById("node-menu-copyinner");
     let copyOuterHTML = this.panelDoc.getElementById("node-menu-copyouter");
-    let selectionIsElement = this.selection.isElementNode();
-    if (selectionIsElement) {
+    if (this.selection.isElementNode()) {
       unique.removeAttribute("disabled");
       copyInnerHTML.removeAttribute("disabled");
       copyOuterHTML.removeAttribute("disabled");
@@ -626,13 +511,6 @@ InspectorPanel.prototype = {
       unique.setAttribute("disabled", "true");
       copyInnerHTML.setAttribute("disabled", "true");
       copyOuterHTML.setAttribute("disabled", "true");
-    }
-
-    let editHTML = this.panelDoc.getElementById("node-menu-edithtml");
-    if (this.outerHTMLEditable && selectionIsElement) {
-      editHTML.removeAttribute("disabled");
-    } else {
-      editHTML.setAttribute("disabled", "true");
     }
   },
 
@@ -694,8 +572,6 @@ InspectorPanel.prototype = {
       this._markupFrame.parentNode.removeChild(this._markupFrame);
       delete this._markupFrame;
     }
-
-    this._markupBox = null;
   },
 
   /**
@@ -736,19 +612,6 @@ InspectorPanel.prototype = {
     }
     else if (event.type == "mouseout") {
       this.highlighter.show();
-    }
-  },
-
-  /**
-   * Edit the outerHTML of the selected Node.
-   */
-  editHTML: function InspectorPanel_editHTML()
-  {
-    if (!this.selection.isNode()) {
-      return;
-    }
-    if (this.markup) {
-      this.markup.beginEditingOuterHTML(this.selection.nodeFront);
     }
   },
 
@@ -819,30 +682,18 @@ InspectorPanel.prototype = {
   },
 
   /**
-  * Trigger a high-priority layout change for things that need to be
-  * updated immediately
-  */
-  immediateLayoutChange: function Inspector_immediateLayoutChange()
-  {
-    this.emit("layout-change");
-  },
-
-  /**
    * Schedule a low-priority change event for things like paint
    * and resize.
    */
-  scheduleLayoutChange: function Inspector_scheduleLayoutChange(event)
+  scheduleLayoutChange: function Inspector_scheduleLayoutChange()
   {
-    // Filter out non browser window resize events (i.e. triggered by iframes)
-    if (this.browser.contentWindow === event.target) {
-      if (this._timer) {
-        return null;
-      }
-      this._timer = this.panelWin.setTimeout(function() {
-        this.emit("layout-change");
-        this._timer = null;
-      }.bind(this), LAYOUT_CHANGE_TIMER);
+    if (this._timer) {
+      return null;
     }
+    this._timer = this.panelWin.setTimeout(function() {
+      this.emit("layout-change");
+      this._timer = null;
+    }.bind(this), LAYOUT_CHANGE_TIMER);
   },
 
   /**
@@ -855,8 +706,9 @@ InspectorPanel.prototype = {
       this.panelWin.clearTimeout(this._timer);
       delete this._timer;
     }
-  }
-};
+  },
+
+}
 
 /////////////////////////////////////////////////////////////////////////
 //// Initializers

@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "CocoaFileUtils.h"
-#include "nsCocoaUtils.h"
 #include <Cocoa/Cocoa.h>
 #include "nsObjCExceptions.h"
 #include "nsDebug.h"
@@ -49,25 +48,18 @@ nsresult GetFileCreatorCode(CFURLRef url, OSType *creatorCode)
   NS_ENSURE_ARG_POINTER(url);
   NS_ENSURE_ARG_POINTER(creatorCode);
 
-  nsAutoreleasePool localPool;
+  nsresult rv = NS_ERROR_FAILURE;
 
-  NSString *resolvedPath = [[(NSURL*)url path] stringByResolvingSymlinksInPath];
-  if (!resolvedPath) {
-    return NS_ERROR_FAILURE;
-  }
-
-  NSDictionary* dict = [[NSFileManager defaultManager] attributesOfItemAtPath:resolvedPath error:nil];
-  if (!dict) {
-    return NS_ERROR_FAILURE;
-  }
-
+  NSAutoreleasePool* ap = [[NSAutoreleasePool alloc] init];
+  NSDictionary* dict = [[NSFileManager defaultManager] fileAttributesAtPath:[(NSURL*)url path] traverseLink:YES];
   NSNumber* creatorNum = (NSNumber*)[dict objectForKey:NSFileHFSCreatorCode];
-  if (!creatorNum) {
-    return NS_ERROR_FAILURE;
+  if (creatorNum) {
+    *creatorCode = [creatorNum unsignedLongValue];
+    rv = NS_OK;
   }
+  [ap release];
 
-  *creatorCode = [creatorNum unsignedLongValue];
-  return NS_OK;
+  return rv;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
@@ -94,25 +86,18 @@ nsresult GetFileTypeCode(CFURLRef url, OSType *typeCode)
   NS_ENSURE_ARG_POINTER(url);
   NS_ENSURE_ARG_POINTER(typeCode);
 
-  nsAutoreleasePool localPool;
+  nsresult rv = NS_ERROR_FAILURE;
 
-  NSString *resolvedPath = [[(NSURL*)url path] stringByResolvingSymlinksInPath];
-  if (!resolvedPath) {
-    return NS_ERROR_FAILURE;
-  }
-
-  NSDictionary* dict = [[NSFileManager defaultManager] attributesOfItemAtPath:resolvedPath error:nil];
-  if (!dict) {
-    return NS_ERROR_FAILURE;
-  }
-
+  NSAutoreleasePool* ap = [[NSAutoreleasePool alloc] init];
+  NSDictionary* dict = [[NSFileManager defaultManager] fileAttributesAtPath:[(NSURL*)url path] traverseLink:YES];
   NSNumber* typeNum = (NSNumber*)[dict objectForKey:NSFileHFSTypeCode];
-  if (!typeNum) {
-    return NS_ERROR_FAILURE;
+  if (typeNum) {
+    *typeCode = [typeNum unsignedLongValue];
+    rv = NS_OK;
   }
+  [ap release];
 
-  *typeCode = [typeNum unsignedLongValue];
-  return NS_OK;
+  return rv;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }

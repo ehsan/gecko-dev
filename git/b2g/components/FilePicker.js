@@ -55,7 +55,6 @@ FilePicker.prototype = {
 
   init: function(parent, title, mode) {
     this.mParent = parent;
-    this.mMode = mode;
 
     if (mode != Ci.nsIFilePicker.modeOpen &&
         mode != Ci.nsIFilePicker.modeOpenMultiple) {
@@ -73,10 +72,6 @@ FilePicker.prototype = {
 
   get domfile() {
     return this.mFilesEnumerator ? this.mFilesEnumerator.mFiles[0] : null;
-  },
-
-  get mode() {
-    return this.mMode;
   },
 
   appendFilters: function(filterMask) {

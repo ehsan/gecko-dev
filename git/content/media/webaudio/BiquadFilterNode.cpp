@@ -8,11 +8,9 @@
 #include "AudioNodeEngine.h"
 #include "AudioNodeStream.h"
 #include "AudioDestinationNode.h"
-#include "PlayingRefChangeHandler.h"
 #include "WebAudioUtils.h"
 #include "blink/Biquad.h"
 #include "mozilla/Preferences.h"
-#include "AudioParamTimeline.h"
 
 namespace mozilla {
 namespace dom {
@@ -26,14 +24,13 @@ NS_INTERFACE_MAP_END_INHERITING(AudioNode)
 NS_IMPL_ADDREF_INHERITED(BiquadFilterNode, AudioNode)
 NS_IMPL_RELEASE_INHERITED(BiquadFilterNode, AudioNode)
 
-static void
-SetParamsOnBiquad(WebCore::Biquad& aBiquad,
-                  float aSampleRate,
-                  BiquadFilterType aType,
-                  double aFrequency,
-                  double aQ,
-                  double aGain,
-                  double aDetune)
+void SetParamsOnBiquad(WebCore::Biquad& aBiquad,
+                       float aSampleRate,
+                       BiquadFilterType aType,
+                       double aFrequency,
+                       double aQ,
+                       double aGain,
+                       double aDetune)
 {
   const double nyquist = aSampleRate * 0.5;
   double normalizedFrequency = aFrequency / nyquist;
@@ -142,47 +139,15 @@ public:
                                  AudioChunk* aOutput,
                                  bool* aFinished) MOZ_OVERRIDE
   {
-    float inputBuffer[WEBAUDIO_BLOCK_SIZE];
-
     if (aInput.IsNull()) {
-      bool hasTail = false;
-      for (uint32_t i = 0; i < mBiquads.Length(); ++i) {
-        if (mBiquads[i].hasTail()) {
-          hasTail = true;
-          break;
-        }
-      }
-      if (!hasTail) {
-        if (!mBiquads.IsEmpty()) {
-          mBiquads.Clear();
-
-          nsRefPtr<PlayingRefChangeHandler> refchanged =
-            new PlayingRefChangeHandler(aStream, PlayingRefChangeHandler::RELEASE);
-          aStream->Graph()->
-            DispatchToMainThreadAfterStreamStateUpdate(refchanged.forget());
-        }
-
-        aOutput->SetNull(WEBAUDIO_BLOCK_SIZE);
-        return;
-      }
-
-      PodArrayZero(inputBuffer);
-
-    } else if(mBiquads.Length() != aInput.mChannelData.Length()){
-      if (mBiquads.IsEmpty()) {
-        nsRefPtr<PlayingRefChangeHandler> refchanged =
-          new PlayingRefChangeHandler(aStream, PlayingRefChangeHandler::ADDREF);
-        aStream->Graph()->
-          DispatchToMainThreadAfterStreamStateUpdate(refchanged.forget());
-      } else { // Help people diagnose bug 924718
-        NS_WARNING("BiquadFilterNode channel count changes may produce audio glitches");
-      }
-
-      // Adjust the number of biquads based on the number of channels
-      mBiquads.SetLength(aInput.mChannelData.Length());
+      aOutput->SetNull(WEBAUDIO_BLOCK_SIZE);
+      return;
     }
 
-    uint32_t numberOfChannels = mBiquads.Length();
+    // Adjust the number of biquads based on the number of channels
+    const uint32_t numberOfChannels = aInput.mChannelData.Length();
+    mBiquads.SetLength(numberOfChannels);
+
     AllocateAudioBlock(numberOfChannels, aOutput);
 
     TrackTicks pos = aStream->GetCurrentPosition();
@@ -193,19 +158,9 @@ public:
     double detune = mDetune.GetValueAtTime(pos);
 
     for (uint32_t i = 0; i < numberOfChannels; ++i) {
-      const float* input;
-      if (aInput.IsNull()) {
-        input = inputBuffer;
-      } else {
-        input = static_cast<const float*>(aInput.mChannelData[i]);
-        if (aInput.mVolume != 1.0) {
-          AudioBlockCopyChannelWithScale(input, aInput.mVolume, inputBuffer);
-          input = inputBuffer;
-        }
-      }
       SetParamsOnBiquad(mBiquads[i], aStream->SampleRate(), mType, freq, q, gain, detune);
 
-      mBiquads[i].process(input,
+      mBiquads[i].process(static_cast<const float*>(aInput.mChannelData[i]),
                           static_cast<float*>(const_cast<void*>(aOutput->mChannelData[i])),
                           aInput.GetDuration());
     }
@@ -293,8 +248,8 @@ BiquadFilterNode::SetType(BiquadFilterType aType)
 
 void
 BiquadFilterNode::GetFrequencyResponse(const Float32Array& aFrequencyHz,
-                                       const Float32Array& aMagResponse,
-                                       const Float32Array& aPhaseResponse)
+                                       Float32Array& aMagResponse,
+                                       Float32Array& aPhaseResponse)
 {
   uint32_t length = std::min(std::min(aFrequencyHz.Length(), aMagResponse.Length()),
                              aPhaseResponse.Length());

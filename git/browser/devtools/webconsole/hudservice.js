@@ -1,4 +1,4 @@
-/* -*- js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
+/* -*- Mode: js2; js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -254,14 +254,13 @@ HUD_SERVICE.prototype =
       return deferred.promise;
     }
 
-    connect().then(getTarget).then(openWindow).then((aWindow) => {
+    connect().then(getTarget).then(openWindow).then((aWindow) =>
       this.openBrowserConsole(target, aWindow, aWindow)
         .then((aBrowserConsole) => {
           this._browserConsoleID = aBrowserConsole.hudId;
           this._browserConsoleDefer.resolve(aBrowserConsole);
           this._browserConsoleDefer = null;
-        })
-    }, console.error);
+        }));
 
     return this._browserConsoleDefer.promise;
   },
@@ -475,68 +474,55 @@ WebConsole.prototype = {
   viewSourceInDebugger:
   function WC_viewSourceInDebugger(aSourceURL, aSourceLine)
   {
+    let self = this;
+    let panelWin = null;
+    let debuggerWasOpen = true;
     let toolbox = gDevTools.getToolbox(this.target);
     if (!toolbox) {
-      this.viewSource(aSourceURL, aSourceLine);
+      self.viewSource(aSourceURL, aSourceLine);
       return;
     }
 
-    let showSource = ({ DebuggerView }) => {
-      if (DebuggerView.Sources.containsValue(aSourceURL)) {
-        DebuggerView.setEditorLocation(aSourceURL, aSourceLine, { noDebug: true });
-        return;
-      }
-      toolbox.selectTool("webconsole");
-      this.viewSource(aSourceURL, aSourceLine);
+    if (!toolbox.getPanel("jsdebugger")) {
+      debuggerWasOpen = false;
+      let toolboxWin = toolbox.doc.defaultView;
+      toolboxWin.addEventListener("Debugger:AfterSourcesAdded",
+                                  function afterSourcesAdded() {
+        toolboxWin.removeEventListener("Debugger:AfterSourcesAdded",
+                                       afterSourcesAdded);
+        loadScript();
+      });
     }
 
-    // If the Debugger was already open, switch to it and try to show the
-    // source immediately. Otherwise, initialize it and wait for the sources
-    // to be added first.
-    let debuggerAlreadyOpen = toolbox.getPanel("jsdebugger");
-    toolbox.selectTool("jsdebugger").then(({ panelWin: dbg }) => {
-      if (debuggerAlreadyOpen) {
-        showSource(dbg);
-      } else {
-        dbg.once(dbg.EVENTS.SOURCES_ADDED, () => showSource(dbg));
+    toolbox.selectTool("jsdebugger").then(function onDebuggerOpen(dbg) {
+      panelWin = dbg.panelWin;
+      if (debuggerWasOpen) {
+        loadScript();
       }
     });
-  },
 
-
-  /**
-   * Tries to open a JavaScript file related to the web page for the web console
-   * instance in the corresponding Scratchpad.
-   *
-   * @param string aSourceURL
-   *        The URL of the file which corresponds to a Scratchpad id.
-   */
-  viewSourceInScratchpad: function WC_viewSourceInScratchpad(aSourceURL)
-  {
-    // Check for matching top level Scratchpad window.
-    let wins = Services.wm.getEnumerator("devtools:scratchpad");
-
-    while (wins.hasMoreElements()) {
-      let win = wins.getNext();
-
-      if (!win.closed && win.Scratchpad.uniqueName === aSourceURL) {
-        win.focus();
+    function loadScript() {
+      let debuggerView = panelWin.DebuggerView;
+      if (!debuggerView.Sources.containsValue(aSourceURL)) {
+        toolbox.selectTool("webconsole");
+        self.viewSource(aSourceURL, aSourceLine);
         return;
       }
+      if (debuggerWasOpen && debuggerView.Sources.selectedValue == aSourceURL) {
+        debuggerView.editor.setCaretPosition(aSourceLine - 1);
+        return;
+      }
+
+      panelWin.addEventListener("Debugger:SourceShown", onSource, false);
+      debuggerView.Sources.preferredSource = aSourceURL;
     }
 
-    // Check for matching Scratchpad toolbox tab.
-    for (let [, toolbox] of gDevTools) {
-      let scratchpadPanel = toolbox.getPanel("scratchpad");
-      if (scratchpadPanel) {
-        let { scratchpad } = scratchpadPanel;
-        if (scratchpad.uniqueName === aSourceURL) {
-          toolbox.selectTool("scratchpad");
-          toolbox.raise();
-          scratchpad.editor.focus();
-          return;
-        }
+    function onSource(aEvent) {
+      if (aEvent.detail.url != aSourceURL) {
+        return;
       }
+      panelWin.removeEventListener("Debugger:SourceShown", onSource, false);
+      panelWin.DebuggerView.editor.setCaretPosition(aSourceLine - 1);
     }
   },
 
@@ -563,12 +549,12 @@ WebConsole.prototype = {
     if (!panel) {
       return null;
     }
-    let framesController = panel.panelWin.DebuggerController.StackFrames;
+    let framesController = panel.panelWin.gStackFrames;
     let thread = framesController.activeThread;
     if (thread && thread.paused) {
       return {
         frames: thread.cachedFrames,
-        selected: framesController.currentFrameDepth,
+        selected: framesController.currentFrame,
       };
     }
     return null;

@@ -12,13 +12,16 @@
 #include "mozilla/PodOperations.h"
 
 #include "jscntxt.h"
+#include "jscompartment.h"
 
 #include "jit/BaselineFrame.h"
-#include "vm/ScopeObject.h"
 
-#include "jsobjinlines.h"
+#include "jsscriptinlines.h"
 
 #include "jit/BaselineFrame-inl.h"
+#include "jit/IonFrameIterator-inl.h"
+#include "vm/ArgumentsObject-inl.h"
+#include "vm/ScopeObject-inl.h"
 
 namespace js {
 
@@ -85,7 +88,7 @@ StackFrame::initCallFrame(JSContext *cx, StackFrame *prev, jsbytecode *prevpc, V
     prev_ = prev;
     prevpc_ = prevpc;
     prevsp_ = prevsp;
-    blockChain_= nullptr;
+    blockChain_= NULL;
     JS_ASSERT(!hasBlockChain());
     JS_ASSERT(!hasHookData());
 
@@ -237,12 +240,12 @@ InterpreterStack::allocateFrame(JSContext *cx, size_t size)
 
     if (JS_UNLIKELY(frameCount_ >= maxFrames)) {
         js_ReportOverRecursed(cx);
-        return nullptr;
+        return NULL;
     }
 
     uint8_t *buffer = reinterpret_cast<uint8_t *>(allocator_.alloc(size));
     if (!buffer)
-        return nullptr;
+        return NULL;
 
     frameCount_++;
     return buffer;
@@ -270,7 +273,7 @@ InterpreterStack::getCallFrame(JSContext *cx, const CallArgs &args, HandleScript
     nvals += nformal + 2; // Include callee, |this|.
     uint8_t *buffer = allocateFrame(cx, sizeof(StackFrame) + nvals * sizeof(Value));
     if (!buffer)
-        return nullptr;
+        return NULL;
 
     Value *argv = reinterpret_cast<Value *>(buffer);
     unsigned nmissing = nformal - args.length();
@@ -521,7 +524,7 @@ AbstractFramePtr::maybeSuspendedGenerator(JSRuntime *rt) const
 {
     if (isStackFrame())
         return asStackFrame()->maybeSuspendedGenerator(rt);
-    return nullptr;
+    return NULL;
 }
 
 inline StaticBlockObject *
@@ -840,12 +843,11 @@ Activation::~Activation()
     cx_->mainThread().activation_ = prev_;
 }
 
-InterpreterActivation::InterpreterActivation(JSContext *cx, StackFrame *entry, FrameRegs &regs,
-                                             jsbytecode *const switchMask)
+InterpreterActivation::InterpreterActivation(JSContext *cx, StackFrame *entry, FrameRegs &regs)
   : Activation(cx, Interpreter),
     entry_(entry),
-    regs_(regs),
-    switchMask_(switchMask)
+    current_(entry),
+    regs_(regs)
 #ifdef DEBUG
   , oldFrameCount_(cx_->runtime()->interpreterStack().frameCount_)
 #endif
@@ -854,8 +856,8 @@ InterpreterActivation::InterpreterActivation(JSContext *cx, StackFrame *entry, F
 InterpreterActivation::~InterpreterActivation()
 {
     // Pop all inline frames.
-    while (regs_.fp() != entry_)
-        popInlineFrame(regs_.fp());
+    while (current_ != entry_)
+        popInlineFrame(current_);
 
     JS_ASSERT(oldFrameCount_ == cx_->runtime()->interpreterStack().frameCount_);
     JS_ASSERT_IF(oldFrameCount_ == 0, cx_->runtime()->interpreterStack().allocator_.used() == 0);
@@ -868,15 +870,18 @@ InterpreterActivation::pushInlineFrame(const CallArgs &args, HandleScript script
     if (!cx_->runtime()->interpreterStack().pushInlineFrame(cx_, regs_, args, script, initial))
         return false;
     JS_ASSERT(regs_.fp()->script()->compartment() == compartment_);
+    current_ = regs_.fp();
     return true;
 }
 
 inline void
 InterpreterActivation::popInlineFrame(StackFrame *frame)
 {
-    (void)frame; // Quell compiler warning.
-    JS_ASSERT(regs_.fp() == frame);
-    JS_ASSERT(regs_.fp() != entry_);
+    JS_ASSERT(current_ == frame);
+    JS_ASSERT(current_ != entry_);
+
+    current_ = frame->prev();
+    JS_ASSERT(current_);
 
     cx_->runtime()->interpreterStack().popInlineFrame(regs_);
 }

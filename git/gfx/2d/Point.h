@@ -10,8 +10,6 @@
 #include "BasePoint.h"
 #include "BaseSize.h"
 
-#include <cmath>
-
 namespace mozilla {
 namespace gfx {
 
@@ -65,8 +63,8 @@ typedef PointTyped<UnknownUnits> Point;
 
 template<class units>
 IntPointTyped<units> RoundedToInt(const PointTyped<units>& aPoint) {
-  return IntPointTyped<units>(int32_t(floorf(aPoint.x + 0.5f)),
-                              int32_t(floorf(aPoint.y + 0.5f)));
+  return IntPointTyped<units>(NS_lround(aPoint.x),
+                              NS_lround(aPoint.y));
 }
 
 template<class units>
@@ -75,8 +73,8 @@ struct IntSizeTyped :
   public units {
   typedef BaseSize< int32_t, IntSizeTyped<units> > Super;
 
-  MOZ_CONSTEXPR IntSizeTyped() : Super() {}
-  MOZ_CONSTEXPR IntSizeTyped(int32_t aWidth, int32_t aHeight) : Super(aWidth, aHeight) {}
+  IntSizeTyped() : Super() {}
+  IntSizeTyped(int32_t aWidth, int32_t aHeight) : Super(aWidth, aHeight) {}
 
   // XXX When all of the code is ported, the following functions to convert to and from
   // unknown types should be removed.
@@ -114,12 +112,6 @@ struct SizeTyped :
   }
 };
 typedef SizeTyped<UnknownUnits> Size;
-
-template<class units>
-IntSizeTyped<units> RoundedToInt(const SizeTyped<units>& aSize) {
-  return IntSizeTyped<units>(int32_t(floorf(aSize.width + 0.5f)),
-                             int32_t(floorf(aSize.height + 0.5f)));
-}
 
 }
 }

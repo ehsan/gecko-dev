@@ -20,50 +20,42 @@ EXPORTS += [
     'OrientationObserver.h',
 ]
 
-DIRS += ['libdisplay', 'nativewindow']
+DIRS += ['libdisplay']
 
-# libui files
-SOURCES += ['libui/' + src for src in [
+CPP_SOURCES += [
     'EventHub.cpp',
+    'Framebuffer.cpp',
+    'GonkMemoryPressureMonitoring.cpp',
     'Input.cpp',
     'InputApplication.cpp',
-    'InputDevice.cpp',
     'InputDispatcher.cpp',
     'InputListener.cpp',
     'InputReader.cpp',
     'InputTransport.cpp',
     'InputWindow.cpp',
-    'Keyboard.cpp',
     'KeyCharacterMap.cpp',
     'KeyLayoutMap.cpp',
+    'Keyboard.cpp',
+    'OrientationObserver.cpp',
+    'PixelFormat.cpp',
     'PointerController.cpp',
+    'PropertyMap.cpp',
     'SpriteController.cpp',
+    'Static.cpp',
+    'String16.cpp',
+    'String8.cpp',
+    'Timers.cpp',
     'Tokenizer.cpp',
-    'VelocityControl.cpp',
-    'VelocityTracker.cpp',
+    'Unicode.cpp',
     'VirtualKeyMap.cpp',
-]]
-
-SOURCES += [
-    'Framebuffer.cpp',
-    'GfxInfo.cpp',
-    'GonkMemoryPressureMonitoring.cpp',
-    'HwcComposer2D.cpp',
-    'HwcUtils.cpp',
     'nsAppShell.cpp',
     'nsIdleServiceGonk.cpp',
     'nsLookAndFeel.cpp',
     'nsWidgetFactory.cpp',
     'nsWindow.cpp',
-    'OrientationObserver.cpp',
-    'ProcessOrientation.cpp'
 ]
 
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'widget_gonk'
-
-EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
-
+if CONFIG['ANDROID_VERSION'] == '15':
+    CPP_SOURCES += [
+        'HwcComposer2D.cpp'
+    ]

@@ -27,8 +27,6 @@
 #include "imgIContainer.h"
 
 #include "mozilla/Likely.h"
-#include "nsIURI.h"
-#include "nsIDocument.h"
 #include <algorithm>
 
 static_assert((((1 << nsStyleStructID_Length) - 1) &
@@ -943,21 +941,8 @@ nsChangeHint nsStyleSVG::CalcDifference(const nsStyleSVG& aOther) const
   }
 
   if (mFill != aOther.mFill ||
-      mStroke != aOther.mStroke ||
-      mFillOpacity != aOther.mFillOpacity ||
-      mStrokeOpacity != aOther.mStrokeOpacity) {
+      mStroke != aOther.mStroke) {
     NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
-    if (HasStroke() != aOther.HasStroke() ||
-        (!HasStroke() && HasFill() != aOther.HasFill())) {
-      // Frame bounds and overflow rects depend on whether we "have" fill or
-      // stroke. Whether we have stroke or not just changed, or else we have no
-      // stroke (in which case whether we have fill or not is significant to frame
-      // bounds) and whether we have fill or not just changed. In either case we
-      // need to reflow so the frame rect is updated.
-      // XXXperf this is a waste on non nsSVGPathGeometryFrames.
-      NS_UpdateHint(hint, nsChangeHint_NeedReflow);
-      NS_UpdateHint(hint, nsChangeHint_NeedDirtyReflow); // XXX remove me: bug 876085
-    }
     if (PaintURIChanged(mFill, aOther.mFill) ||
         PaintURIChanged(mStroke, aOther.mStroke)) {
       NS_UpdateHint(hint, nsChangeHint_UpdateEffects);
@@ -987,6 +972,8 @@ nsChangeHint nsStyleSVG::CalcDifference(const nsStyleSVG& aOther) const
   }
 
   if ( mStrokeDashoffset      != aOther.mStrokeDashoffset      ||
+       mFillOpacity           != aOther.mFillOpacity           ||
+       mStrokeOpacity         != aOther.mStrokeOpacity         ||
        mClipRule              != aOther.mClipRule              ||
        mColorInterpolation    != aOther.mColorInterpolation    ||
        mColorInterpolationFilters != aOther.mColorInterpolationFilters ||
@@ -1018,48 +1005,27 @@ nsChangeHint nsStyleSVG::CalcDifference(const nsStyleSVG& aOther) const
 // nsStyleFilter
 //
 nsStyleFilter::nsStyleFilter()
-  : mType(NS_STYLE_FILTER_NONE)
-  , mDropShadow(nullptr)
+  : mType(eNull)
 {
   MOZ_COUNT_CTOR(nsStyleFilter);
 }
 
 nsStyleFilter::nsStyleFilter(const nsStyleFilter& aSource)
-  : mType(NS_STYLE_FILTER_NONE)
-  , mDropShadow(nullptr)
+  : mType(aSource.mType)
 {
   MOZ_COUNT_CTOR(nsStyleFilter);
-  if (aSource.mType == NS_STYLE_FILTER_URL) {
-    SetURL(aSource.mURL);
-  } else if (aSource.mType == NS_STYLE_FILTER_DROP_SHADOW) {
-    SetDropShadow(aSource.mDropShadow);
-  } else if (aSource.mType != NS_STYLE_FILTER_NONE) {
-    SetFilterParameter(aSource.mFilterParameter, aSource.mType);
+
+  if (mType == eURL) {
+    mURL = aSource.mURL;
+  } else if (mType != eNull) {
+    mFilterParameter = aSource.mFilterParameter;
   }
 }
 
 nsStyleFilter::~nsStyleFilter()
 {
-  ReleaseRef();
   MOZ_COUNT_DTOR(nsStyleFilter);
 }
-
-nsStyleFilter&
-nsStyleFilter::operator=(const nsStyleFilter& aOther)
-{
-  if (this == &aOther)
-    return *this;
-
-  if (aOther.mType == NS_STYLE_FILTER_URL) {
-    SetURL(aOther.mURL);
-  } else if (aOther.mType == NS_STYLE_FILTER_DROP_SHADOW) {
-    SetDropShadow(aOther.mDropShadow);
-  } else if (aOther.mType != NS_STYLE_FILTER_NONE) {
-    SetFilterParameter(aOther.mFilterParameter, aOther.mType);
-  }
-  return *this;
-}
-
 
 bool
 nsStyleFilter::operator==(const nsStyleFilter& aOther) const
@@ -1068,56 +1034,13 @@ nsStyleFilter::operator==(const nsStyleFilter& aOther) const
       return false;
   }
 
-  if (mType == NS_STYLE_FILTER_URL) {
+  if (mType == eURL) {
     return EqualURIs(mURL, aOther.mURL);
-  } else if (mType == NS_STYLE_FILTER_DROP_SHADOW) {
-    return *mDropShadow == *aOther.mDropShadow;
-  } else if (mType != NS_STYLE_FILTER_NONE) {
+  } else if (mType != eNull) {
     return mFilterParameter == aOther.mFilterParameter;
   }
 
   return true;
-}
-
-void
-nsStyleFilter::ReleaseRef()
-{
-  if (mType == NS_STYLE_FILTER_DROP_SHADOW) {
-    NS_ASSERTION(mDropShadow, "expected pointer");
-    mDropShadow->Release();
-  } else if (mType == NS_STYLE_FILTER_URL) {
-    NS_ASSERTION(mURL, "expected pointer");
-    mURL->Release();
-  }
-}
-
-void
-nsStyleFilter::SetFilterParameter(const nsStyleCoord& aFilterParameter,
-                                  int32_t aType)
-{
-  ReleaseRef();
-  mFilterParameter = aFilterParameter;
-  mType = aType;
-}
-
-void
-nsStyleFilter::SetURL(nsIURI* aURL)
-{
-  NS_ASSERTION(aURL, "expected pointer");
-  ReleaseRef();
-  mURL = aURL;
-  mURL->AddRef();
-  mType = NS_STYLE_FILTER_URL;
-}
-
-void
-nsStyleFilter::SetDropShadow(nsCSSShadowArray* aDropShadow)
-{
-  NS_ASSERTION(aDropShadow, "expected pointer");
-  ReleaseRef();
-  mDropShadow = aDropShadow;
-  mDropShadow->AddRef();
-  mType = NS_STYLE_FILTER_DROP_SHADOW;
 }
 
 // --------------------
@@ -1163,15 +1086,9 @@ nsChangeHint nsStyleSVGReset::CalcDifference(const nsStyleSVGReset& aOther) cons
 {
   nsChangeHint hint = nsChangeHint(0);
 
-  bool equalFilters = (mFilters == aOther.mFilters);
-
-  if (!equalFilters) {
-    NS_UpdateHint(hint, nsChangeHint_UpdateOverflow);
-  }
-
   if (!EqualURIs(mClipPath, aOther.mClipPath) ||
       !EqualURIs(mMask, aOther.mMask) ||
-      !equalFilters) {
+      mFilters != aOther.mFilters) {
     NS_UpdateHint(hint, nsChangeHint_UpdateEffects);
     NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
   }
@@ -2288,7 +2205,6 @@ nsStyleDisplay::nsStyleDisplay()
   mBackfaceVisibility = NS_STYLE_BACKFACE_VISIBILITY_VISIBLE;
   mTransformStyle = NS_STYLE_TRANSFORM_STYLE_FLAT;
   mOrient = NS_STYLE_ORIENT_AUTO;
-  mMixBlendMode = NS_STYLE_BLEND_NORMAL;
 
   mTransitions.AppendElement();
   NS_ABORT_IF_FALSE(mTransitions.Length() == 1,
@@ -2332,7 +2248,6 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   , mResize(aSource.mResize)
   , mClipFlags(aSource.mClipFlags)
   , mOrient(aSource.mOrient)
-  , mMixBlendMode(aSource.mMixBlendMode)
   , mBackfaceVisibility(aSource.mBackfaceVisibility)
   , mTransformStyle(aSource.mTransformStyle)
   , mSpecifiedTransform(aSource.mSpecifiedTransform)
@@ -2484,7 +2399,6 @@ nsStyleVisibility::nsStyleVisibility(nsPresContext* aPresContext)
 nsStyleVisibility::nsStyleVisibility(const nsStyleVisibility& aSource)
 {
   MOZ_COUNT_CTOR(nsStyleVisibility);
-  mImageOrientation = aSource.mImageOrientation;
   mDirection = aSource.mDirection;
   mVisible = aSource.mVisible;
   mPointerEvents = aSource.mPointerEvents;
@@ -2498,9 +2412,6 @@ nsChangeHint nsStyleVisibility::CalcDifference(const nsStyleVisibility& aOther) 
   if (mDirection != aOther.mDirection || mWritingMode != aOther.mWritingMode) {
     NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
   } else {
-    if ((mImageOrientation != aOther.mImageOrientation)) {
-      NS_UpdateHint(hint, nsChangeHint_AllReflowHints);
-    }
     if (mVisible != aOther.mVisible) {
       if ((NS_STYLE_VISIBILITY_COLLAPSE == mVisible) ||
           (NS_STYLE_VISIBILITY_COLLAPSE == aOther.mVisible)) {
@@ -2585,7 +2496,7 @@ nsStyleContentData::TrackImage(nsPresContext* aContext)
   // Sanity
   NS_ABORT_IF_FALSE(!mImageTracked, "Already tracking image!");
   NS_ABORT_IF_FALSE(mType == eStyleContentType_Image,
-                    "Trying to do image tracking on non-image!");
+                    "Tryingto do image tracking on non-image!");
   NS_ABORT_IF_FALSE(mContent.mImage,
                     "Can't track image when there isn't one!");
 
@@ -2849,6 +2760,7 @@ nsStyleTextReset::nsStyleTextReset(void)
 { 
   MOZ_COUNT_CTOR(nsStyleTextReset);
   mVerticalAlign.SetIntValue(NS_STYLE_VERTICAL_ALIGN_BASELINE, eStyleUnit_Enumerated);
+  mTextBlink = NS_STYLE_TEXT_BLINK_NONE;
   mTextDecorationLine = NS_STYLE_TEXT_DECORATION_LINE_NONE;
   mTextDecorationColor = NS_RGB(0,0,0);
   mTextDecorationStyle =
@@ -2935,16 +2847,12 @@ nsStyleText::nsStyleText(void)
   MOZ_COUNT_CTOR(nsStyleText);
   mTextAlign = NS_STYLE_TEXT_ALIGN_DEFAULT;
   mTextAlignLast = NS_STYLE_TEXT_ALIGN_AUTO;
-  mTextAlignTrue = false;
-  mTextAlignLastTrue = false;
   mTextTransform = NS_STYLE_TEXT_TRANSFORM_NONE;
   mWhiteSpace = NS_STYLE_WHITESPACE_NORMAL;
   mWordBreak = NS_STYLE_WORDBREAK_NORMAL;
   mWordWrap = NS_STYLE_WORDWRAP_NORMAL;
   mHyphens = NS_STYLE_HYPHENS_MANUAL;
   mTextSizeAdjust = NS_STYLE_TEXT_SIZE_ADJUST_AUTO;
-  mTextOrientation = NS_STYLE_TEXT_ORIENTATION_AUTO;
-  mTextCombineHorizontal = NS_STYLE_TEXT_COMBINE_HORIZ_NONE;
 
   mLetterSpacing.SetNormalValue();
   mLineHeight.SetNormalValue();
@@ -2958,16 +2866,12 @@ nsStyleText::nsStyleText(void)
 nsStyleText::nsStyleText(const nsStyleText& aSource)
   : mTextAlign(aSource.mTextAlign),
     mTextAlignLast(aSource.mTextAlignLast),
-    mTextAlignTrue(false),
-    mTextAlignLastTrue(false),
     mTextTransform(aSource.mTextTransform),
     mWhiteSpace(aSource.mWhiteSpace),
     mWordBreak(aSource.mWordBreak),
     mWordWrap(aSource.mWordWrap),
     mHyphens(aSource.mHyphens),
     mTextSizeAdjust(aSource.mTextSizeAdjust),
-    mTextOrientation(aSource.mTextOrientation),
-    mTextCombineHorizontal(aSource.mTextCombineHorizontal),
     mTabSize(aSource.mTabSize),
     mWordSpacing(aSource.mWordSpacing),
     mLetterSpacing(aSource.mLetterSpacing),
@@ -2991,21 +2895,14 @@ nsChangeHint nsStyleText::CalcDifference(const nsStyleText& aOther) const
     return NS_STYLE_HINT_FRAMECHANGE;
   }
 
-  if (mTextCombineHorizontal != aOther.mTextCombineHorizontal) {
-    return nsChangeHint_ReconstructFrame;
-  }
-
   if ((mTextAlign != aOther.mTextAlign) ||
       (mTextAlignLast != aOther.mTextAlignLast) ||
-      (mTextAlignTrue != aOther.mTextAlignTrue) ||
-      (mTextAlignLastTrue != aOther.mTextAlignLastTrue) ||
       (mTextTransform != aOther.mTextTransform) ||
       (mWhiteSpace != aOther.mWhiteSpace) ||
       (mWordBreak != aOther.mWordBreak) ||
       (mWordWrap != aOther.mWordWrap) ||
       (mHyphens != aOther.mHyphens) ||
       (mTextSizeAdjust != aOther.mTextSizeAdjust) ||
-      (mTextOrientation != aOther.mTextOrientation) ||
       (mLetterSpacing != aOther.mLetterSpacing) ||
       (mLineHeight != aOther.mLineHeight) ||
       (mTextIndent != aOther.mTextIndent) ||

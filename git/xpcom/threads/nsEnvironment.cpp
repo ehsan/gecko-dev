@@ -53,9 +53,8 @@ nsEnvironment::Exists(const nsAString& aName, bool *aOutValue)
     nsAutoCString nativeVal;
 #if defined(XP_UNIX)
     /* For Unix/Linux platforms we follow the Unix definition:
-     * An environment variable exists when |getenv()| returns a non-nullptr
-     * value. An environment variable does not exist when |getenv()| returns
-     * nullptr.
+     * An environment variable exists when |getenv()| returns a non-NULL value.
+     * An environment variable does not exist when |getenv()| returns NULL.
      */
     const char *value = PR_GetEnv(nativeName.get());
     *aOutValue = value && *value;
@@ -112,6 +111,7 @@ EnsureEnvHash()
     if (!gEnvHash)
         return false;
 
+    gEnvHash->Init();
     return true;
 }
 

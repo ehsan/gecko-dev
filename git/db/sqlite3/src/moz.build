@@ -12,9 +12,3 @@ EXPORTS += [
 
 LIBRARY_NAME = 'mozsqlite3'
 
-SOURCES += [
-    'sqlite3.c',
-]
-
-if CONFIG['MOZ_FOLD_LIBS']:
-    FORCE_STATIC_LIB = True

@@ -3,7 +3,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-// Test that makes sure messages are not considered repeated when console.log()
+// Tests that makes sure messages are not considered repeated when console.log()
 // is invoked with different objects, see bug 865288.
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-repeated-messages.html";
@@ -41,8 +41,9 @@ function consoleOpened(aHud) {
   }).then(checkMessages);
 }
 
-function checkMessages([result])
+function checkMessages(aResults)
 {
+  let result = aResults[0];
   let msgs = [...result.matched];
   is(msgs.length, 3, "3 message elements");
   let m = -1;
@@ -53,10 +54,10 @@ function checkMessages([result])
     if (msg) {
       ok(msg, "message element #" + m);
 
-      let clickable = msg.querySelector(".body a");
+      let clickable = msg.querySelector(".hud-clickable");
       ok(clickable, "clickable object #" + m);
 
-      msg.scrollIntoView(false);
+      scrollOutputToNode(msg);
       clickObject(clickable);
     }
     else {

@@ -6,6 +6,7 @@
 #define nsChannelClassifier_h__
 
 #include "nsIURIClassifier.h"
+#include "nsIRunnable.h"
 #include "nsCOMPtr.h"
 #include "mozilla/Attributes.h"
 

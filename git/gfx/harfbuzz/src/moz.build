@@ -6,17 +6,10 @@
 
 MODULE = 'harfbuzz'
 
-if CONFIG['OS_ARCH'] == 'WINNT':
-    FORCE_STATIC_LIB = True
-else:
-    LIBXUL_LIBRARY = True
-
 EXPORTS.harfbuzz += [
     'hb-blob.h',
     'hb-buffer.h',
     'hb-common.h',
-    'hb-deprecated.h',
-    'hb-face.h',
     'hb-font.h',
     'hb-ot-layout.h',
     'hb-ot-tag.h',
@@ -29,11 +22,10 @@ EXPORTS.harfbuzz += [
     'hb.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'hb-blob.cc',
     'hb-buffer.cc',
     'hb-common.cc',
-    'hb-face.cc',
     'hb-fallback-shape.cc',
     'hb-font.cc',
     'hb-ot-layout.cc',
@@ -58,6 +50,4 @@ SOURCES += [
 ]
 
 LIBRARY_NAME = 'mozharfbuzz'
-
-MSVC_ENABLE_PGO = True
 

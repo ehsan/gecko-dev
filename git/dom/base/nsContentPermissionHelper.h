@@ -5,6 +5,8 @@
 #ifndef nsContentPermissionHelper_h
 #define nsContentPermissionHelper_h
 
+#include "base/basictypes.h"
+
 #include "nsIContentPermissionPrompt.h"
 #include "nsString.h"
 
@@ -26,8 +28,6 @@ class ContentPermissionRequestParent : public PContentPermissionRequestParent
                                  Element* element,
                                  const IPC::Principal& principal);
   virtual ~ContentPermissionRequestParent();
-
-  bool IsBeingDestroyed();
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsCOMPtr<Element> mElement;

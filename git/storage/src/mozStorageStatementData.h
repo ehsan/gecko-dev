@@ -13,7 +13,7 @@
 #include "nsTArray.h"
 #include "nsIEventTarget.h"
 #include "mozilla/Util.h"
-#include "MainThreadUtils.h"
+#include "nsThreadUtils.h"
 
 #include "mozStorageBindingParamsArray.h"
 #include "mozIStorageBaseStatement.h"
@@ -47,14 +47,6 @@ public:
   StatementData()
   {
   }
-  ~StatementData()
-  {
-    // We need to ensure that mParamsArray is released on the main thread,
-    // as the binding arguments may be XPConnect values, which are safe
-    // to release only on the main thread.
-    nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-    (void)NS_ProxyRelease(mainThread, mParamsArray);
-  }
 
   /**
    * Return the sqlite statement, fetching it from the storage statement.  In
@@ -85,7 +77,7 @@ public:
    * NULLs out our sqlite3_stmt (it is held by the owner) after reseting it and
    * clear all bindings to it.  This is expected to occur on the async thread.
    */
-  inline void reset()
+  inline void finalize()
   {
     NS_PRECONDITION(mStatementOwner, "Must have a statement owner!");
 #ifdef DEBUG

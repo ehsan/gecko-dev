@@ -84,15 +84,11 @@ nsFileResult::nsFileResult(const nsAString& aSearchString,
       nextFile->GetLeafName(fileName);
       if (StringBeginsWith(fileName, prefix)) {
         fileName.Insert(parent, 0);
+        mValues.AppendElement(fileName);
         if (mSearchResult == RESULT_NOMATCH && fileName.Equals(mSearchString))
           mSearchResult = RESULT_IGNORED;
         else
           mSearchResult = RESULT_SUCCESS;
-        bool isDirectory = false;
-        nextFile->IsDirectory(&isDirectory);
-        if (isDirectory)
-          fileName.Append('/');
-        mValues.AppendElement(fileName);
       }
     }
     mValues.Sort();
@@ -142,8 +138,6 @@ NS_IMETHODIMP nsFileResult::GetTypeAheadResult(bool *aTypeAheadResult)
 NS_IMETHODIMP nsFileResult::GetValueAt(int32_t index, nsAString & aValue)
 {
   aValue = mValues[index];
-  if (aValue.Last() == '/')
-    aValue.Truncate(aValue.Length() - 1);
   return NS_OK;
 }
 
@@ -160,10 +154,7 @@ NS_IMETHODIMP nsFileResult::GetCommentAt(int32_t index, nsAString & aComment)
 
 NS_IMETHODIMP nsFileResult::GetStyleAt(int32_t index, nsAString & aStyle)
 {
-  if (mValues[index].Last() == '/')
-    aStyle.AssignLiteral("directory");
-  else
-    aStyle.AssignLiteral("file");
+  aStyle.Truncate();
   return NS_OK;
 }
 
@@ -253,15 +244,15 @@ NS_DEFINE_NAMED_CID(NS_FILECOMPLETE_CID);
 NS_DEFINE_NAMED_CID(NS_FILEVIEW_CID);
 
 static const mozilla::Module::CIDEntry kFileViewCIDs[] = {
-  { &kNS_FILECOMPLETE_CID, false, nullptr, nsFileCompleteConstructor },
-  { &kNS_FILEVIEW_CID, false, nullptr, nsFileViewConstructor },
-  { nullptr }
+  { &kNS_FILECOMPLETE_CID, false, NULL, nsFileCompleteConstructor },
+  { &kNS_FILEVIEW_CID, false, NULL, nsFileViewConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kFileViewContracts[] = {
   { NS_FILECOMPLETE_CONTRACTID, &kNS_FILECOMPLETE_CID },
   { NS_FILEVIEW_CONTRACTID, &kNS_FILEVIEW_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kFileViewModule = {

@@ -14,20 +14,20 @@ if CONFIG['OS_ARCH'] == 'WINNT':
 MODULE = 'xpcom'
 
 EXPORTS += [
-    'MainThreadUtils.h',
     'nsArrayEnumerator.h',
     'nsArrayUtils.h',
     'nsBaseHashtable.h',
-    'nsCategoryCache.h',
-    'nsClassHashtable.h',
     'nsCOMArray.h',
-    'nsComponentManagerUtils.h',
     'nsCOMPtr.h',
     'nsCRTGlue.h',
+    'nsCategoryCache.h',
+    'nsClassHashtable.h',
+    'nsComponentManagerUtils.h',
     'nsCycleCollectionNoteChild.h',
     'nsCycleCollectionNoteRootCallback.h',
     'nsCycleCollectionParticipant.h',
     'nsCycleCollectionTraversalCallback.h',
+    'nsCycleCollectorUtils.h',
     'nsDataHashtable.h',
     'nsDebug.h',
     'nsDeque.h',
@@ -37,10 +37,10 @@ EXPORTS += [
     'nsID.h',
     'nsIInterfaceRequestorUtils.h',
     'nsINIParser.h',
-    'nsInterfaceHashtable.h',
     'nsISupportsImpl.h',
     'nsISupportsUtils.h',
     'nsIWeakReferenceUtils.h',
+    'nsInterfaceHashtable.h',
     'nsJSThingHashtable.h',
     'nsMemory.h',
     'nsProxyRelease.h',
@@ -52,13 +52,13 @@ EXPORTS += [
     'nsTArray-inl.h',
     'nsTArray.h',
     'nsTArrayForwardDeclare.h',
-    'nsTextFormatter.h',
     'nsTHashtable.h',
-    'nsThreadUtils.h',
     'nsTObserverArray.h',
     'nsTPriorityQueue.h',
-    'nsTraceRefcnt.h',
     'nsTWeakRef.h',
+    'nsTextFormatter.h',
+    'nsThreadUtils.h',
+    'nsTraceRefcnt.h',
     'nsVersionComparator.h',
     'nsVoidArray.h',
     'nsWeakReference.h',
@@ -74,7 +74,6 @@ EXPORTS.mozilla += [
     'DeadlockDetector.h',
     'FileUtils.h',
     'GenericFactory.h',
-    'HoldDropJSObjects.h',
     'IntentionalCrash.h',
     'Monitor.h',
     'Mutex.h',
@@ -87,20 +86,11 @@ EXPORTS.mozilla.threads += [
     'nsThreadIDs.h',
 ]
 
-include('objs.mozbuild')
-
-SOURCES += xpcom_gluens_src_cppsrcs
-SOURCES += xpcom_glue_src_cppsrcs
-
-SOURCES += [
+CPP_SOURCES += [
+    '$(XPCOM_GLUENS_SRC_LCPPSRCS)',
+    '$(XPCOM_GLUE_SRC_LCPPSRCS)',
     'GenericModule.cpp',
     'nsStringAPI.cpp',
 ]
 
 LIBRARY_NAME = 'xpcomglue_s'
-
-SDK_LIBRARY = [
-    "%s%s.%s" % (CONFIG['LIB_PREFIX'], 'xpcomglue_s', CONFIG['LIB_SUFFIX']),
-]
-
-FORCE_STATIC_LIB = True

@@ -13,7 +13,7 @@ using NPReason;
 namespace mozilla {
 namespace plugins {
 
-intr protocol PStreamNotify
+rpc protocol PStreamNotify
 {
   manager PPluginInstance;
 

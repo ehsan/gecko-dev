@@ -67,12 +67,12 @@ function addGCType(name)
 
     print("GCThing: " + name);
     if (name in structureParents) {
-        for (var holder of structureParents[name])
-            addGCType(holder);
+        for (var nested of structureParents[name])
+            addGCType(nested);
     }
     if (name in pointerParents) {
-        for (var holder of pointerParents[name])
-            addGCPointer(holder);
+        for (var nested of pointerParents[name])
+            addGCPointer(nested);
     }
 }
 
@@ -84,8 +84,8 @@ function addGCPointer(name)
 
     print("GCPointer: " + name);
     if (name in structureParents) {
-        for (var holder of structureParents[name])
-            addGCPointer(holder);
+        for (var nested of structureParents[name])
+            addGCPointer(nested);
     }
 }
 

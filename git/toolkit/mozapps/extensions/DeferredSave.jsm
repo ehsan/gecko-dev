@@ -11,9 +11,6 @@ const Ci = Components.interfaces;
 Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
 
-// Make it possible to mock out timers for testing
-let MakeTimer = () => Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-
 this.EXPORTED_SYMBOLS = ["DeferredSave"];
 
 // If delay parameter is not provided, default is 50 milliseconds.
@@ -41,7 +38,7 @@ const DEFAULT_SAVE_DELAY_MS = 50;
  *        that marks the data as needing to be saved, and when the DeferredSave
  *        begins writing the data to disk. Default 50 milliseconds.
  */
-this.DeferredSave = function (aPath, aDataProvider, aDelay) {
+function DeferredSave(aPath, aDataProvider, aDelay) {
   // Set up loggers for this instance of DeferredSave
   let leafName = OS.Path.basename(aPath);
   Cu.import("resource://gre/modules/AddonLogging.jsm");
@@ -76,13 +73,9 @@ this.DeferredSave = function (aPath, aDataProvider, aDelay) {
   // Some counters for telemetry
   // The total number of times the file was written
   this.totalSaves = 0;
-
   // The number of times the data became dirty while
   // another save was in progress
   this.overlappedSaves = 0;
-
-  // Error returned by the most recent write (if any)
-  this._lastError = null;
 
   if (aDelay && (aDelay > 0))
     this._delay = aDelay;
@@ -90,12 +83,12 @@ this.DeferredSave = function (aPath, aDataProvider, aDelay) {
     this._delay = DEFAULT_SAVE_DELAY_MS;
 }
 
-this.DeferredSave.prototype = {
+DeferredSave.prototype = {
   get dirty() {
     return this._pending || this.writeInProgress;
   },
 
-  get lastError() {
+  get error() {
     return this._lastError;
   },
 
@@ -107,7 +100,7 @@ this.DeferredSave.prototype = {
 
     this.LOG("Starting timer");
     if (!this._timer)
-      this._timer = MakeTimer();
+      this._timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
     this._timer.initWithCallback(() => this._deferredSave(),
                                  this._delay, Ci.nsITimer.TYPE_ONE_SHOT);
   },

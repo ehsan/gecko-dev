@@ -105,14 +105,19 @@ public class TabsPanel extends LinearLayout
             }
         });
 
+        ImageButton button;
+        Resources resources = getContext().getResources();
+
         mTabWidget = (IconTabWidget) findViewById(R.id.tab_widget);
 
-        mTabWidget.addTab(R.drawable.tabs_normal, R.string.tabs_normal);
-        mTabWidget.addTab(R.drawable.tabs_private, R.string.tabs_private);
+        button = mTabWidget.addTab(R.drawable.tabs_normal);
+        button.setContentDescription(resources.getString(R.string.tabs_normal));
 
-        if (!GeckoProfile.get(mContext).inGuestMode()) {
-            mTabWidget.addTab(R.drawable.tabs_synced, R.string.tabs_synced);
-        }
+        button = mTabWidget.addTab(R.drawable.tabs_private);
+        button.setContentDescription(resources.getString(R.string.tabs_private));
+
+        button = mTabWidget.addTab(R.drawable.tabs_synced);
+        button.setContentDescription(resources.getString(R.string.tabs_synced));
 
         mTabWidget.setTabSelectionListener(this);
     }

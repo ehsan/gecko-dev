@@ -7,12 +7,11 @@
 #define ctypes_CTypes_h
 
 #include "ffi.h"
-#include "jsalloc.h"
+#include "jsapi.h"
+#include "jscntxt.h"
 #include "prlink.h"
 
 #include "js/HashTable.h"
-#include "js/Vector.h"
-#include "vm/String.h"
 
 namespace js {
 namespace ctypes {
@@ -29,20 +28,20 @@ private:
   typedef AutoPtr<T> self_type;
 
 public:
-  AutoPtr() : mPtr(nullptr) { }
+  AutoPtr() : mPtr(NULL) { }
   explicit AutoPtr(T* ptr) : mPtr(ptr) { }
   ~AutoPtr() { js_delete(mPtr); }
 
   T*   operator->()         { return mPtr; }
-  bool operator!()          { return mPtr == nullptr; }
+  bool operator!()          { return mPtr == NULL; }
   T&   operator[](size_t i) { return *(mPtr + i); }
   // Note: we cannot safely provide an 'operator T*()', since this would allow
   // the compiler to perform implicit conversion from one AutoPtr to another
   // via the constructor AutoPtr(T*).
 
   T*   get()         { return mPtr; }
-  void set(T* other) { JS_ASSERT(mPtr == nullptr); mPtr = other; }
-  T*   forget()      { T* result = mPtr; mPtr = nullptr; return result; }
+  void set(T* other) { JS_ASSERT(mPtr == NULL); mPtr = other; }
+  T*   forget()      { T* result = mPtr; mPtr = NULL; return result; }
 
   self_type& operator=(T* rhs) { mPtr = rhs; return *this; }
 
@@ -58,8 +57,6 @@ private:
 template<class T, size_t N = 0>
 class Array : public Vector<T, N, SystemAllocPolicy>
 {
-  static_assert(!mozilla::IsSame<T, JS::Value>::value,
-                "use JS::AutoValueVector instead");
 };
 
 // String and AutoString classes, based on Vector.
@@ -95,7 +92,7 @@ void
 AppendString(Vector<jschar, N, AP> &v, JSString* str)
 {
   JS_ASSERT(str);
-  const jschar *chars = str->getChars(nullptr);
+  const jschar *chars = str->getChars(NULL);
   if (!chars)
     return;
   v.append(chars, str->length());
@@ -111,7 +108,7 @@ AppendString(Vector<char, N, AP> &v, JSString* str)
   if (!v.resize(vlen + alen))
     return;
 
-  const jschar *chars = str->getChars(nullptr);
+  const jschar *chars = str->getChars(NULL);
   if (!chars)
     return;
 
@@ -147,7 +144,7 @@ PrependString(Vector<jschar, N, AP> &v, JSString* str)
   if (!v.resize(vlen + alen))
     return;
 
-  const jschar *chars = str->getChars(nullptr);
+  const jschar *chars = str->getChars(NULL);
   if (!chars)
     return;
 
@@ -172,7 +169,7 @@ DeflateStringToUTF8Buffer(JSContext *maybecx, const jschar *src, size_t srclen,
 *******************************************************************************/
 
 JS_ALWAYS_INLINE void
-ASSERT_OK(bool ok)
+ASSERT_OK(JSBool ok)
 {
   JS_ASSERT(ok);
 }
@@ -220,7 +217,7 @@ struct FieldInfo
 };
 
 // Hash policy for FieldInfos.
-struct FieldHashPolicy : DefaultHasher<JSFlatString*>
+struct FieldHashPolicy
 {
   typedef JSFlatString* Key;
   typedef Key Lookup;
@@ -234,7 +231,7 @@ struct FieldHashPolicy : DefaultHasher<JSFlatString*>
     return hash;
   }
 
-  static bool match(const Key &k, const Lookup &l) {
+  static JSBool match(const Key &k, const Lookup &l) {
     if (k == l)
       return true;
 
@@ -291,21 +288,21 @@ struct ClosureInfo
   ffi_closure* closure;            // The C closure itself
 
   // Anything conditionally freed in the destructor should be initialized to
-  // nullptr here.
+  // NULL here.
   ClosureInfo(JSRuntime* runtime)
     : rt(runtime)
-    , errResult(nullptr)
-    , closure(nullptr)
+    , errResult(NULL)
+    , closure(NULL)
   {}
 
   ~ClosureInfo() {
     if (closure)
       ffi_closure_free(closure);
-    js_free(errResult);
+    if (errResult)
+      js_free(errResult);
   }
 };
 
-bool IsCTypesGlobal(HandleValue v);
 bool IsCTypesGlobal(JSObject* obj);
 
 JSCTypesCallbacks* GetCallbacks(JSObject* obj);
@@ -340,6 +337,7 @@ enum CTypeProtoSlot {
   SLOT_UINT64PROTO       = 10, // ctypes.UInt64.prototype object
   SLOT_CTYPES            = 11, // ctypes object
   SLOT_OURDATAPROTO      = 12, // the data prototype corresponding to this object
+  SLOT_CLOSURECX         = 13, // JSContext for use with FunctionType closures
   CTYPEPROTO_SLOTS
 };
 
@@ -445,7 +443,7 @@ namespace ArrayType {
 }
 
 namespace StructType {
-  bool DefineInternal(JSContext* cx, JSObject* typeObj, JSObject* fieldsObj);
+  JSBool DefineInternal(JSContext* cx, JSObject* typeObj, JSObject* fieldsObj);
 
   const FieldInfoHash* GetFieldInfo(JSObject* obj);
   const FieldInfo* LookupField(JSContext* cx, JSObject* obj, JSFlatString *name);
@@ -477,13 +475,12 @@ namespace CData {
   JSObject* GetCType(JSObject* dataObj);
   void* GetData(JSObject* dataObj);
   bool IsCData(JSObject* obj);
-  bool IsCData(HandleValue v);
   bool IsCDataProto(JSObject* obj);
 
   // Attached by JSAPI as the function 'ctypes.cast'
-  bool Cast(JSContext* cx, unsigned argc, jsval* vp);
+  JSBool Cast(JSContext* cx, unsigned argc, jsval* vp);
   // Attached by JSAPI as the function 'ctypes.getRuntime'
-  bool GetRuntime(JSContext* cx, unsigned argc, jsval* vp);
+  JSBool GetRuntime(JSContext* cx, unsigned argc, jsval* vp);
 }
 
 namespace Int64 {

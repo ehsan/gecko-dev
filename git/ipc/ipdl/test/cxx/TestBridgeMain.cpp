@@ -35,7 +35,7 @@ TestBridgeMainParent::AllocPTestBridgeMainSubParent(Transport* transport,
     }
 
     nsAutoPtr<TestBridgeMainSubParent> a(new TestBridgeMainSubParent(transport));
-    if (!a->Open(transport, h, XRE_GetIOMessageLoop(), ipc::ParentSide)) {
+    if (!a->Open(transport, h, XRE_GetIOMessageLoop(), AsyncChannel::Parent)) {
         return nullptr;
     }
     return a.forget();
@@ -186,7 +186,7 @@ TestBridgeSubChild::AllocPTestBridgeMainSubChild(Transport* transport,
     }
 
     nsAutoPtr<TestBridgeMainSubChild> a(new TestBridgeMainSubChild(transport));
-    if (!a->Open(transport, h, XRE_GetIOMessageLoop(), ipc::ChildSide)) {
+    if (!a->Open(transport, h, XRE_GetIOMessageLoop(), AsyncChannel::Child)) {
         return nullptr;
     }
 

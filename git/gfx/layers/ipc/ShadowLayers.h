@@ -8,55 +8,57 @@
 #ifndef mozilla_layers_ShadowLayers_h
 #define mozilla_layers_ShadowLayers_h 1
 
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uint64_t
-#include "gfxTypes.h"
-#include "gfxPoint.h"                   // for gfxIntSize
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/WidgetUtils.h"        // for ScreenRotation
-#include "mozilla/dom/ScreenOrientation.h"  // for ScreenOrientation
-#include "mozilla/ipc/SharedMemory.h"   // for SharedMemory, etc
+#include "gfxASurface.h"
+#include "GLDefs.h"
+
+#include "ImageLayers.h"
+#include "mozilla/layers/Compositor.h"
+#include "mozilla/ipc/SharedMemory.h"
+#include "mozilla/WidgetUtils.h"
+#include "mozilla/layers/ISurfaceAllocator.h"
+#include "mozilla/dom/ScreenOrientation.h"
 #include "mozilla/layers/CompositableForwarder.h"
-#include "mozilla/layers/CompositorTypes.h"  // for OpenMode, etc
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nsTArrayForwardDeclare.h"     // for InfallibleTArray
- 
-struct nsIntPoint;
-struct nsIntRect;
-class gfxASurface;
+#include "mozilla/layers/CompositorTypes.h"
+
+class gfxSharedImageSurface;
 
 namespace mozilla {
+
+namespace gl {
+class GLContext;
+class TextureImage;
+}
+
 namespace layers {
 
-class BasicTiledLayerBuffer;
-class CanvasClient;
-class CanvasLayerComposite;
-class CanvasSurface;
-class ColorLayerComposite;
-class CompositableChild;
-class ContainerLayerComposite;
-class ContentClient;
-class ContentClientRemote;
+class CompositableClient;
+class Edit;
 class EditReply;
-class ImageClient;
-class ImageLayerComposite;
-class Layer;
 class OptionalThebesBuffer;
 class PLayerChild;
 class PLayerTransactionChild;
 class PLayerTransactionParent;
-class RefLayerComposite;
 class ShadowableLayer;
-class Shmem;
-class ShmemTextureClient;
-class SurfaceDescriptor;
-class TextureClient;
 class ThebesLayerComposite;
+class ContainerLayerComposite;
+class ImageLayerComposite;
+class ColorLayerComposite;
+class CanvasLayerComposite;
+class RefLayerComposite;
+class SurfaceDescriptor;
 class ThebesBuffer;
-class ThebesBufferData;
 class TiledLayerComposer;
 class Transaction;
+class SurfaceDescriptor;
+class CanvasSurface;
+class DeprecatedTextureClientShmem;
+class ShmemTextureClient;
+class ContentClientRemote;
+class CompositableChild;
+class ImageClient;
+class CanvasClient;
+class ContentClient;
+class TextureClient;
 
 
 /**
@@ -137,6 +139,8 @@ class ShadowLayerForwarder : public CompositableForwarder
   friend class AutoOpenSurface;
   friend class DeprecatedTextureClientShmem;
   friend class ContentClientIncremental;
+
+  typedef gfxASurface::gfxImageFormat gfxImageFormat;
 
 public:
   virtual ~ShadowLayerForwarder();
@@ -258,7 +262,7 @@ public:
    * copy on write, tiling).
    */
   virtual void PaintedTiledLayerBuffer(CompositableClient* aCompositable,
-                                       const SurfaceDescriptorTiles& aTileLayerDescriptor) MOZ_OVERRIDE;
+                                       BasicTiledLayerBuffer* aTiledLayerBuffer) MOZ_OVERRIDE;
 
   /**
    * Notify the compositor that a compositable will be updated asynchronously
@@ -306,7 +310,7 @@ public:
   /**
    * See CompositableForwarder::AddTexture
    */
-  virtual bool AddTexture(CompositableClient* aCompositable,
+  virtual void AddTexture(CompositableClient* aCompositable,
                           TextureClient* aClient) MOZ_OVERRIDE;
 
   /**
@@ -334,7 +338,7 @@ public:
    * |aReplies| are directions from the LayerManagerComposite to the
    * caller of EndTransaction().
    */
-  bool EndTransaction(InfallibleTArray<EditReply>* aReplies, bool* aSent);
+  bool EndTransaction(InfallibleTArray<EditReply>* aReplies);
 
   /**
    * Set an actor through which layer updates will be pushed.
@@ -413,12 +417,6 @@ public:
 protected:
   ShadowLayerForwarder();
 
-#ifdef DEBUG
-  void CheckSurfaceDescriptor(const SurfaceDescriptor* aDescriptor) const;
-#else
-  void CheckSurfaceDescriptor(const SurfaceDescriptor* aDescriptor) const {}
-#endif
-
   PLayerTransactionChild* mShadowManager;
 
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
@@ -459,7 +457,7 @@ private:
                                    gfxIntSize* aSize,
                                    gfxASurface** aSurface);
   // And again, for the image format.
-  // This function will return gfxImageFormatUnknown only if |aDescriptor|
+  // This function will return ImageFormatUnknown only if |aDescriptor|
   // describes a non-ImageSurface.
   static gfxImageFormat
   GetDescriptorSurfaceImageFormat(const SurfaceDescriptor& aDescriptor,
@@ -487,8 +485,9 @@ private:
   bool PlatformDestroySharedSurface(SurfaceDescriptor* aSurface);
 
   Transaction* mTxn;
-  DiagnosticTypes mDiagnosticTypes;
+
   bool mIsFirstPaint;
+  bool mDrawColoredBorders;
   bool mWindowOverlayChanged;
 };
 

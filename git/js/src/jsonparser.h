@@ -9,7 +9,8 @@
 
 #include "mozilla/Attributes.h"
 
-#include "ds/IdValuePair.h"
+#include "jsapi.h"
+
 #include "vm/String.h"
 
 namespace js {

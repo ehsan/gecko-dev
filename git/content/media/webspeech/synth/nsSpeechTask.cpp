@@ -60,11 +60,6 @@ public:
     }
   }
 
-  virtual void NotifyRemoved(MediaStreamGraph* aGraph)
-  {
-    mSpeechTask = nullptr;
-  }
-
 private:
   // Raw pointer; if we exist, the stream exists,
   // and 'mSpeechTask' exclusively owns it and therefor exists as well.
@@ -75,7 +70,7 @@ private:
 
 // nsSpeechTask
 
-NS_IMPL_CYCLE_COLLECTION_2(nsSpeechTask, mSpeechSynthesis, mUtterance);
+NS_IMPL_CYCLE_COLLECTION_1(nsSpeechTask, mSpeechSynthesis);
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSpeechTask)
   NS_INTERFACE_MAP_ENTRY(nsISpeechTask)
@@ -167,7 +162,7 @@ nsSpeechTask::SendAudio(const JS::Value& aData, const JS::Value& aLandmarks,
   JS::Rooted<JSObject*> darray(aCx, &aData.toObject());
   JSAutoCompartment ac(aCx, darray);
 
-  JS::Rooted<JSObject*> tsrc(aCx, nullptr);
+  JS::Rooted<JSObject*> tsrc(aCx, NULL);
 
   // Allow either Int16Array or plain JS Array
   if (JS_IsInt16Array(darray)) {
@@ -180,54 +175,31 @@ nsSpeechTask::SendAudio(const JS::Value& aData, const JS::Value& aLandmarks,
     return NS_ERROR_DOM_TYPE_MISMATCH_ERR;
   }
 
-  SendAudioImpl(JS_GetInt16ArrayData(tsrc),
-                JS_GetTypedArrayLength(tsrc));
+  uint32_t dataLength = JS_GetTypedArrayLength(tsrc);
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSpeechTask::SendAudioNative(int16_t* aData, uint32_t aDataLen)
-{
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
-
-  NS_ENSURE_TRUE(mStream, NS_ERROR_NOT_AVAILABLE);
-  NS_ENSURE_FALSE(mStream->IsDestroyed(), NS_ERROR_NOT_AVAILABLE);
-  NS_ENSURE_TRUE(mChannels, NS_ERROR_FAILURE);
-
-  if (mIndirectAudio) {
-    NS_WARNING("Can't call SendAudio from an indirect audio speech service.");
-    return NS_ERROR_FAILURE;
-  }
-
-  SendAudioImpl(aData, aDataLen);
-
-  return NS_OK;
-}
-
-void
-nsSpeechTask::SendAudioImpl(int16_t* aData, uint32_t aDataLen)
-{
-  if (aDataLen == 0) {
+  if (dataLength == 0) {
     // XXX: We should end the track too, an undetermined bug does not allow that.
     mStream->Finish();
-    return;
+    return NS_OK;
   }
 
   nsRefPtr<mozilla::SharedBuffer> samples =
-    SharedBuffer::Create(aDataLen * sizeof(int16_t));
+    SharedBuffer::Create(dataLength * sizeof(int16_t));
   int16_t* frames = static_cast<int16_t*>(samples->Data());
+  int16_t* sframes = JS_GetInt16ArrayData(tsrc);
 
-  for (uint32_t i = 0; i < aDataLen; i++) {
-    frames[i] = aData[i];
+  for (uint32_t i = 0; i < dataLength; i++) {
+    frames[i] = sframes[i];
   }
 
   AudioSegment segment;
   nsAutoTArray<const int16_t*, 1> channelData;
   channelData.AppendElement(frames);
-  segment.AppendFrames(samples.forget(), channelData, aDataLen);
+  segment.AppendFrames(samples.forget(), channelData, dataLength);
   mStream->AppendToTrack(1, &segment);
   mStream->AdvanceKnownTracksTime(STREAM_TIME_MAX);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -288,15 +260,10 @@ nsSpeechTask::DispatchEndImpl(float aElapsedTime, uint32_t aCharIndex)
     mSpeechSynthesis->OnEnd(this);
   }
 
-  if (utterance->mState == SpeechSynthesisUtterance::STATE_PENDING) {
-    utterance->mState = SpeechSynthesisUtterance::STATE_NONE;
-  } else {
-    utterance->mState = SpeechSynthesisUtterance::STATE_ENDED;
-    utterance->DispatchSpeechSynthesisEvent(NS_LITERAL_STRING("end"),
-                                            aCharIndex, aElapsedTime,
-                                            EmptyString());
-  }
-
+  utterance->mState = SpeechSynthesisUtterance::STATE_ENDED;
+  utterance->DispatchSpeechSynthesisEvent(NS_LITERAL_STRING("end"),
+                                          aCharIndex, aElapsedTime,
+                                          NS_LITERAL_STRING(""));
   return NS_OK;
 }
 
@@ -393,7 +360,7 @@ nsSpeechTask::DispatchBoundary(const nsAString& aName,
 
 nsresult
 nsSpeechTask::DispatchBoundaryImpl(const nsAString& aName,
-                                   float aElapsedTime, uint32_t aCharIndex)
+                               float aElapsedTime, uint32_t aCharIndex)
 {
   MOZ_ASSERT(mUtterance);
   NS_ENSURE_TRUE(mUtterance->mState == SpeechSynthesisUtterance::STATE_SPEAKING,

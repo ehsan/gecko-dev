@@ -7,13 +7,12 @@
 #ifndef TestBindingHeader_h
 #define TestBindingHeader_h
 
-#include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/Date.h"
-#include "mozilla/dom/TypedArray.h"
-#include "mozilla/dom/UnionTypes.h"
-#include "mozilla/ErrorResult.h"
-#include "nsCOMPtr.h"
 #include "nsWrapperCache.h"
+#include "mozilla/ErrorResult.h"
+#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/TypedArray.h"
+#include "nsCOMPtr.h"
+#include "mozilla/dom/UnionTypes.h"
 
 // Forward declare this before we include TestCodeGenBinding.h, because that header relies on including
 // this one for it, for ParentDict. Hopefully it won't begin to rely on it in more fundamental ways.
@@ -385,25 +384,21 @@ public:
   void ReceiveSequenceOfSequences(nsTArray< nsTArray<int32_t> >&);
 
   // Typed array types
-  void PassArrayBuffer(const ArrayBuffer&);
-  void PassNullableArrayBuffer(const Nullable<ArrayBuffer>&);
+  void PassArrayBuffer(ArrayBuffer&);
+  void PassNullableArrayBuffer(ArrayBuffer*);
   void PassOptionalArrayBuffer(const Optional<ArrayBuffer>&);
-  void PassOptionalNullableArrayBuffer(const Optional<Nullable<ArrayBuffer> >&);
-  void PassOptionalNullableArrayBufferWithDefaultValue(const Nullable<ArrayBuffer>&);
-  void PassArrayBufferView(const ArrayBufferView&);
-  void PassInt8Array(const Int8Array&);
-  void PassInt16Array(const Int16Array&);
-  void PassInt32Array(const Int32Array&);
-  void PassUint8Array(const Uint8Array&);
-  void PassUint16Array(const Uint16Array&);
-  void PassUint32Array(const Uint32Array&);
-  void PassUint8ClampedArray(const Uint8ClampedArray&);
-  void PassFloat32Array(const Float32Array&);
-  void PassFloat64Array(const Float64Array&);
-  void PassSequenceOfArrayBuffers(const Sequence<ArrayBuffer>&);
-  void PassSequenceOfNullableArrayBuffers(const Sequence<Nullable<ArrayBuffer> >&);
-  void PassVariadicTypedArray(const Sequence<Float32Array>&);
-  void PassVariadicNullableTypedArray(const Sequence<Nullable<Float32Array> >&);
+  void PassOptionalNullableArrayBuffer(const Optional<ArrayBuffer*>&);
+  void PassOptionalNullableArrayBufferWithDefaultValue(ArrayBuffer*);
+  void PassArrayBufferView(ArrayBufferView&);
+  void PassInt8Array(Int8Array&);
+  void PassInt16Array(Int16Array&);
+  void PassInt32Array(Int32Array&);
+  void PassUint8Array(Uint8Array&);
+  void PassUint16Array(Uint16Array&);
+  void PassUint32Array(Uint32Array&);
+  void PassUint8ClampedArray(Uint8ClampedArray&);
+  void PassFloat32Array(Float32Array&);
+  void PassFloat64Array(Float64Array&);
   JSObject* ReceiveUint8Array(JSContext*);
 
   // DOMString types
@@ -480,7 +475,6 @@ public:
   void PassOptionalNullableObjectWithDefaultValue(JSContext*, JS::Handle<JSObject*>);
   void PassSequenceOfObject(JSContext*, const Sequence<JSObject*>&);
   void PassSequenceOfNullableObject(JSContext*, const Sequence<JSObject*>&);
-  void PassNullableSequenceOfObject(JSContext*, const Nullable<Sequence<JSObject*> >&);
   void PassOptionalNullableSequenceOfNullableSequenceOfObject(JSContext*, const Optional<Nullable<Sequence<Nullable<Sequence<JSObject*> > > > >&);
   void PassOptionalNullableSequenceOfNullableSequenceOfNullableObject(JSContext*, const Optional<Nullable<Sequence<Nullable<Sequence<JSObject*> > > > >&);
   JSObject* ReceiveObject(JSContext*);
@@ -490,33 +484,17 @@ public:
   void PassUnion(JSContext*, const ObjectOrLong& arg);
   void PassUnionWithNullable(JSContext* cx, const ObjectOrNullOrLong& arg)
   {
-    OwningObjectOrLong returnValue;
+    ObjectOrLong returnValue;
     if (arg.IsNull()) {
     } else if (arg.IsObject()) {
       JS::Rooted<JSObject*> obj(cx, arg.GetAsObject());
       JS_GetClass(obj);
-      returnValue.SetAsObject() = obj;
+      //returnValue.SetAsObject(&obj);
     } else {
       int32_t i = arg.GetAsLong();
       i += 1;
-      returnValue.SetAsLong() = i;
     }
   }
-#ifdef DEBUG
-  void PassUnion2(const LongOrBoolean& arg);
-  void PassUnion3(JSContext*, const ObjectOrLongOrBoolean& arg);
-  void PassUnion4(const NodeOrLongOrBoolean& arg);
-  void PassUnion5(JSContext*, const ObjectOrBoolean& arg);
-  void PassUnion6(JSContext*, const ObjectOrString& arg);
-  void PassUnion7(JSContext*, const ObjectOrStringOrLong& arg);
-  void PassUnion8(JSContext*, const ObjectOrStringOrBoolean& arg);
-  void PassUnion9(JSContext*, const ObjectOrStringOrLongOrBoolean& arg);
-  void PassUnion10(const EventInitOrLong& arg);
-  void PassUnion11(JSContext*, const CustomEventInitOrLong& arg);
-  void PassUnion12(const EventInitOrLong& arg);
-  void PassUnion13(JSContext*, const ObjectOrLongOrNull& arg);
-  void PassUnion14(JSContext*, const ObjectOrLongOrNull& arg);
-#endif
   void PassNullableUnion(JSContext*, const Nullable<ObjectOrLong>&);
   void PassOptionalUnion(JSContext*, const Optional<ObjectOrLong>&);
   void PassOptionalNullableUnion(JSContext*, const Optional<Nullable<ObjectOrLong> >&);
@@ -529,44 +507,14 @@ public:
   //void PassUnionWithCallback(JSContext*, const TestCallbackOrLong&);
   void PassUnionWithObject(JSContext*, const ObjectOrLong&);
 
-  void PassUnionWithDefaultValue1(const DoubleOrString& arg);
-  void PassUnionWithDefaultValue2(const DoubleOrString& arg);
-  void PassUnionWithDefaultValue3(const DoubleOrString& arg);
-  void PassUnionWithDefaultValue4(const FloatOrString& arg);
-  void PassUnionWithDefaultValue5(const FloatOrString& arg);
-  void PassUnionWithDefaultValue6(const FloatOrString& arg);
-  void PassUnionWithDefaultValue7(const UnrestrictedDoubleOrString& arg);
-  void PassUnionWithDefaultValue8(const UnrestrictedDoubleOrString& arg);
-  void PassUnionWithDefaultValue9(const UnrestrictedDoubleOrString& arg);
-  void PassUnionWithDefaultValue10(const UnrestrictedDoubleOrString& arg);
-  void PassUnionWithDefaultValue11(const UnrestrictedFloatOrString& arg);
-  void PassUnionWithDefaultValue12(const UnrestrictedFloatOrString& arg);
-  void PassUnionWithDefaultValue13(const UnrestrictedFloatOrString& arg);
-  void PassUnionWithDefaultValue14(const UnrestrictedFloatOrString& arg);
-
-  void PassNullableUnionWithDefaultValue1(const Nullable<DoubleOrString>& arg);
-  void PassNullableUnionWithDefaultValue2(const Nullable<DoubleOrString>& arg);
-  void PassNullableUnionWithDefaultValue3(const Nullable<DoubleOrString>& arg);
-  void PassNullableUnionWithDefaultValue4(const Nullable<FloatOrString>& arg);
-  void PassNullableUnionWithDefaultValue5(const Nullable<FloatOrString>& arg);
-  void PassNullableUnionWithDefaultValue6(const Nullable<FloatOrString>& arg);
-  void PassNullableUnionWithDefaultValue7(const Nullable<UnrestrictedDoubleOrString>& arg);
-  void PassNullableUnionWithDefaultValue8(const Nullable<UnrestrictedDoubleOrString>& arg);
-  void PassNullableUnionWithDefaultValue9(const Nullable<UnrestrictedDoubleOrString>& arg);
-  void PassNullableUnionWithDefaultValue10(const Nullable<UnrestrictedFloatOrString>& arg);
-  void PassNullableUnionWithDefaultValue11(const Nullable<UnrestrictedFloatOrString>& arg);
-  void PassNullableUnionWithDefaultValue12(const Nullable<UnrestrictedFloatOrString>& arg);
-
-  void ReceiveUnion(OwningCanvasPatternOrCanvasGradient&);
-  void ReceiveUnion2(JSContext*, OwningObjectOrLong&);
-  void ReceiveUnionContainingNull(OwningCanvasPatternOrNullOrCanvasGradient&);
-  void ReceiveNullableUnion(Nullable<OwningCanvasPatternOrCanvasGradient>&);
-  void ReceiveNullableUnion2(JSContext*, Nullable<OwningObjectOrLong>&);
-  void GetWritableUnion(OwningCanvasPatternOrCanvasGradient&);
+  void ReceiveUnion(const CanvasPatternOrCanvasGradientReturnValue&);
+  void ReceiveUnionContainingNull(const CanvasPatternOrNullOrCanvasGradientReturnValue&);
+  void ReceiveNullableUnion(const Nullable<CanvasPatternOrCanvasGradientReturnValue>&);
+  void GetWritableUnion(const CanvasPatternOrCanvasGradientReturnValue&);
   void SetWritableUnion(const CanvasPatternOrCanvasGradient&);
-  void GetWritableUnionContainingNull(OwningCanvasPatternOrNullOrCanvasGradient&);
+  void GetWritableUnionContainingNull(const CanvasPatternOrNullOrCanvasGradientReturnValue&);
   void SetWritableUnionContainingNull(const CanvasPatternOrNullOrCanvasGradient&);
-  void GetWritableNullableUnion(Nullable<OwningCanvasPatternOrCanvasGradient>&);
+  void GetWritableNullableUnion(const Nullable<CanvasPatternOrCanvasGradientReturnValue>&);
   void SetWritableNullableUnion(const Nullable<CanvasPatternOrCanvasGradient>&);
 
   // Date types
@@ -590,7 +538,7 @@ public:
   // Dictionary tests
   void PassDictionary(JSContext*, const Dict&);
   void ReceiveDictionary(JSContext*, Dict&);
-  void ReceiveNullableDictionary(JSContext*, Nullable<Dict>&);
+  void ReceiveNullableDictionary(JSContext*, Nullable<DictInitializer>&);
   void PassOtherDictionary(const GrandparentDict&);
   void PassSequenceOfDictionaries(JSContext*, const Sequence<Dict>&);
   void PassDictionaryOrLong(JSContext*, const Dict&);
@@ -704,10 +652,6 @@ public:
   void DontEnforceRangeOrClamp(int8_t);
   void DoEnforceRange(int8_t);
   void DoClamp(int8_t);
-  void SetEnforcedByte(int8_t);
-  int8_t EnforcedByte();
-  void SetClampedByte(int8_t);
-  int8_t ClampedByte();
 
 private:
   // We add signatures here that _could_ start matching if the codegen

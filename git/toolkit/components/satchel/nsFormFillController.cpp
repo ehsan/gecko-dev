@@ -35,7 +35,6 @@
 #include "mozilla/dom/Element.h"
 #include "nsContentUtils.h"
 #include "nsDOMEvent.h"
-#include "nsILoadContext.h"
 
 using namespace mozilla::dom;
 
@@ -61,6 +60,7 @@ nsFormFillController::nsFormFillController() :
   mSuppressOnInput(false)
 {
   mController = do_GetService("@mozilla.org/autocomplete/controller;1");
+  mPwmgrInputs.Init();
 }
 
 struct PwmgrInputsEnumData
@@ -302,10 +302,8 @@ nsFormFillController::SetPopupOpen(bool aPopupOpen)
                                          nsIPresShell::SCROLL_IF_NOT_VISIBLE),
                                        nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
       // mFocusedPopup can be destroyed after ScrollContentIntoView, see bug 420089
-      if (mFocusedPopup) {
-        nsCOMPtr<nsIDOMElement> element = do_QueryInterface(mFocusedInput);
-        mFocusedPopup->OpenAutocompletePopup(this, element);
-      }
+      if (mFocusedPopup)
+        mFocusedPopup->OpenAutocompletePopup(this, mFocusedInput);
     } else
       mFocusedPopup->ClosePopup();
   }
@@ -448,10 +446,8 @@ nsFormFillController::GetSearchParam(nsAString &aSearchParam)
   }
 
   mFocusedInput->GetName(aSearchParam);
-  if (aSearchParam.IsEmpty()) {
-    nsCOMPtr<nsIDOMHTMLElement> element = do_QueryInterface(mFocusedInput);
-    element->GetId(aSearchParam);
-  }
+  if (aSearchParam.IsEmpty())
+    mFocusedInput->GetId(aSearchParam);
 
   return NS_OK;
 }
@@ -536,8 +532,7 @@ nsFormFillController::OnTextEntered(bool* aPrevent)
   NS_ENSURE_TRUE(mFocusedInput, NS_OK);
   // Fire off a DOMAutoComplete event
   nsCOMPtr<nsIDOMDocument> domDoc;
-  nsCOMPtr<nsIDOMElement> element = do_QueryInterface(mFocusedInput);
-  element->GetOwnerDocument(getter_AddRefs(domDoc));
+  mFocusedInput->GetOwnerDocument(getter_AddRefs(domDoc));
   NS_ENSURE_STATE(domDoc);
 
   nsCOMPtr<nsIDOMEvent> event;
@@ -581,8 +576,7 @@ nsFormFillController::GetInPrivateContext(bool *aInPrivateContext)
   }
 
   nsCOMPtr<nsIDOMDocument> inputDoc;
-  nsCOMPtr<nsIDOMElement> element = do_QueryInterface(mFocusedInput);
-  element->GetOwnerDocument(getter_AddRefs(inputDoc));
+  mFocusedInput->GetOwnerDocument(getter_AddRefs(inputDoc));
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(inputDoc);
   nsCOMPtr<nsISupports> container = doc->GetContainer();
   nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
@@ -1150,8 +1144,7 @@ nsIDocShell *
 nsFormFillController::GetDocShellForInput(nsIDOMHTMLInputElement *aInput)
 {
   nsCOMPtr<nsIDOMDocument> domDoc;
-  nsCOMPtr<nsIDOMElement> element = do_QueryInterface(aInput);
-  element->GetOwnerDocument(getter_AddRefs(domDoc));
+  aInput->GetOwnerDocument(getter_AddRefs(domDoc));
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
   NS_ENSURE_TRUE(doc, nullptr);
   nsCOMPtr<nsIWebNavigation> webNav = do_GetInterface(doc->GetWindow());
@@ -1204,14 +1197,14 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsFormFillController)
 NS_DEFINE_NAMED_CID(NS_FORMFILLCONTROLLER_CID);
 
 static const mozilla::Module::CIDEntry kSatchelCIDs[] = {
-  { &kNS_FORMFILLCONTROLLER_CID, false, nullptr, nsFormFillControllerConstructor },
-  { nullptr }
+  { &kNS_FORMFILLCONTROLLER_CID, false, NULL, nsFormFillControllerConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kSatchelContracts[] = {
   { "@mozilla.org/satchel/form-fill-controller;1", &kNS_FORMFILLCONTROLLER_CID },
   { NS_FORMHISTORYAUTOCOMPLETE_CONTRACTID, &kNS_FORMFILLCONTROLLER_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kSatchelModule = {

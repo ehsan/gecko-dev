@@ -6,49 +6,46 @@
 
 MODULE = 'cubeb'
 
-SOURCES += [
+CSRCS += [
     'cubeb.c',
 ]
 
 if CONFIG['MOZ_ALSA']:
-    SOURCES += [
+    CSRCS += [
         'cubeb_alsa.c',
     ]
 
 if CONFIG['MOZ_PULSEAUDIO']:
-    SOURCES += [
+    CSRCS += [
         'cubeb_pulse.c',
     ]
 
 if CONFIG['OS_ARCH'] == 'OpenBSD':
-    SOURCES += [
+    CSRCS += [
         'cubeb_sndio.c',
     ]
 
 if CONFIG['OS_TARGET'] == 'Darwin':
-    SOURCES += [
+    CSRCS += [
         'cubeb_audiounit.c',
     ]
 
 if CONFIG['OS_TARGET'] == 'WINNT':
-    SOURCES += [
+    CSRCS += [
         'cubeb_winmm.c',
     ]
-    SOURCES += [
+    CPP_SOURCES += [
         'cubeb_wasapi.cpp'
     ]
 
 if CONFIG['OS_TARGET'] == 'Android':
-    SOURCES += [
+    CSRCS += [
         'cubeb_opensl.c',
     ]
     if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'gonk':
-        SOURCES += [
+        CSRCS += [
             'cubeb_audiotrack.c',
         ]
 
 LIBRARY_NAME = 'cubeb'
 
-MSVC_ENABLE_PGO = True
-
-FORCE_STATIC_LIB = True

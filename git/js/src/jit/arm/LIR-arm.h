@@ -26,30 +26,16 @@ class LBox : public LInstructionHelper<2, 1, 0>
     MIRType type() const {
         return type_;
     }
-    const char *extraName() const {
-        return StringFromMIRType(type_);
-    }
 };
 
-class LBoxFloatingPoint : public LInstructionHelper<2, 1, 1>
+class LBoxDouble : public LInstructionHelper<2, 1, 1>
 {
-    MIRType type_;
-
   public:
-    LIR_HEADER(BoxFloatingPoint);
+    LIR_HEADER(BoxDouble);
 
-    LBoxFloatingPoint(const LAllocation &in, const LDefinition &temp, MIRType type)
-      : type_(type)
-    {
+    LBoxDouble(const LAllocation &in, const LDefinition &temp) {
         setOperand(0, in);
         setTemp(0, temp);
-    }
-
-    MIRType type() const {
-        return type_;
-    }
-    const char *extraName() const {
-        return StringFromMIRType(type_);
     }
 };
 
@@ -69,49 +55,25 @@ class LUnbox : public LInstructionHelper<1, 2, 0>
     }
 };
 
-class LUnboxFloatingPoint : public LInstructionHelper<1, 2, 0>
+class LUnboxDouble : public LInstructionHelper<1, 2, 0>
 {
-    MIRType type_;
-
   public:
-    LIR_HEADER(UnboxFloatingPoint);
+    LIR_HEADER(UnboxDouble);
 
     static const size_t Input = 0;
-
-    LUnboxFloatingPoint(MIRType type)
-      : type_(type)
-    { }
 
     MUnbox *mir() const {
         return mir_->toUnbox();
     }
-
-    MIRType type() const {
-        return type_;
-    }
-    const char *extraName() const {
-        return StringFromMIRType(type_);
-    }
 };
 
 // Convert a 32-bit unsigned integer to a double.
-class LAsmJSUInt32ToDouble : public LInstructionHelper<1, 1, 0>
+class LUInt32ToDouble : public LInstructionHelper<1, 1, 0>
 {
   public:
-    LIR_HEADER(AsmJSUInt32ToDouble)
+    LIR_HEADER(UInt32ToDouble)
 
-    LAsmJSUInt32ToDouble(const LAllocation &input) {
-        setOperand(0, input);
-    }
-};
-
-// Convert a 32-bit unsigned integer to a float32.
-class LAsmJSUInt32ToFloat32 : public LInstructionHelper<1, 1, 0>
-{
-  public:
-    LIR_HEADER(AsmJSUInt32ToFloat32)
-
-    LAsmJSUInt32ToFloat32(const LAllocation &input) {
+    LUInt32ToDouble(const LAllocation &input) {
         setOperand(0, input);
     }
 };
@@ -307,12 +269,12 @@ class LTableSwitch : public LInstructionHelper<0, 1, 1>
     const LAllocation *index() {
         return getOperand(0);
     }
-    const LDefinition *tempInt() {
-        return getTemp(0);
+    const LAllocation *tempInt() {
+        return getTemp(0)->output();
     }
     // This is added to share the same CodeGenerator prefixes.
-    const LDefinition *tempPointer() {
-        return nullptr;
+    const LAllocation *tempPointer() {
+        return NULL;
     }
 };
 
@@ -336,14 +298,14 @@ class LTableSwitchV : public LInstructionHelper<0, BOX_PIECES, 2>
 
     static const size_t InputValue = 0;
 
-    const LDefinition *tempInt() {
-        return getTemp(0);
+    const LAllocation *tempInt() {
+        return getTemp(0)->output();
     }
-    const LDefinition *tempFloat() {
-        return getTemp(1);
+    const LAllocation *tempFloat() {
+        return getTemp(1)->output();
     }
-    const LDefinition *tempPointer() {
-        return nullptr;
+    const LAllocation *tempPointer() {
+        return NULL;
     }
 };
 
@@ -359,8 +321,8 @@ class LGuardShape : public LInstructionHelper<0, 1, 1>
     const MGuardShape *mir() const {
         return mir_->toGuardShape();
     }
-    const LDefinition *tempInt() {
-        return getTemp(0);
+    const LAllocation *tempInt() {
+        return getTemp(0)->output();
     }
 };
 
@@ -376,8 +338,8 @@ class LGuardObjectType : public LInstructionHelper<0, 1, 1>
     const MGuardObjectType *mir() const {
         return mir_->toGuardObjectType();
     }
-    const LDefinition *tempInt() {
-        return getTemp(0);
+    const LAllocation *tempInt() {
+        return getTemp(0)->output();
     }
 };
 

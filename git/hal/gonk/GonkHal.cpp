@@ -43,7 +43,6 @@
 #include "mozilla/dom/battery/Constants.h"
 #include "mozilla/FileUtils.h"
 #include "mozilla/Monitor.h"
-#include "mozilla/RefPtr.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/Preferences.h"
@@ -184,7 +183,7 @@ VibratorRunnable::Run()
       mMonitor.Wait();
     }
   }
-  sVibratorRunnable = nullptr;
+  sVibratorRunnable = NULL;
   return NS_OK;
 }
 
@@ -346,7 +345,7 @@ UnregisterBatteryObserverIOThread()
   MOZ_ASSERT(sBatteryObserver);
 
   UnregisterUeventListener(sBatteryObserver);
-  sBatteryObserver = nullptr;
+  sBatteryObserver = NULL;
 }
 
 void
@@ -594,7 +593,7 @@ SetCpuSleepAllowed(bool aAllowed)
   UpdateCpuSleepState();
 }
 
-static light_device_t* sLights[hal::eHalLightID_Count];	// will be initialized to nullptr
+static light_device_t* sLights[hal::eHalLightID_Count];	// will be initialized to NULL
 
 light_device_t* GetDevice(hw_module_t* module, char const* name)
 {
@@ -604,14 +603,14 @@ light_device_t* GetDevice(hw_module_t* module, char const* name)
   if (err == 0) {
     return (light_device_t*)device;
   } else {
-    return nullptr;
+    return NULL;
   }
 }
 
 void
 InitLights()
 {
-  // assume that if backlight is nullptr, nothing has been set yet
+  // assume that if backlight is NULL, nothing has been set yet
   // if this is not true, the initialization will occur everytime a light is read or set!
   if (!sLights[hal::eHalLightID_Backlight]) {
     int err;
@@ -652,8 +651,7 @@ SetLight(hal::LightType light, const hal::LightConfiguration& aConfig)
 
   InitLights();
 
-  if (light < 0 || light >= hal::eHalLightID_Count ||
-      sLights[light] == nullptr) {
+  if (light < 0 || light >= hal::eHalLightID_Count || sLights[light] == NULL) {
     return false;
   }
 
@@ -678,8 +676,7 @@ GetLight(hal::LightType light, hal::LightConfiguration* aConfig)
   InitLights();
 #endif
 
-  if (light < 0 || light >= hal::eHalLightID_Count ||
-      sLights[light] == nullptr) {
+  if (light < 0 || light >= hal::eHalLightID_Count || sLights[light] == NULL) {
     return false;
   }
 
@@ -742,7 +739,7 @@ AdjustSystemClock(int64_t aDeltaMilliseconds)
   hal::NotifySystemClockChange(aDeltaMilliseconds);
 }
 
-int32_t
+static int32_t
 GetTimezoneOffset()
 {
   PRExplodedTime prTime;
@@ -851,7 +848,7 @@ public:
 
 int AlarmData::sNextGeneration = 0;
 
-AlarmData* sAlarmData = nullptr;
+AlarmData* sAlarmData = NULL;
 
 class AlarmFiredEvent : public nsRunnable {
 public:
@@ -885,7 +882,7 @@ DestroyAlarmData(void* aData)
 // Runs on alarm-watcher thread.
 void ShutDownAlarm(int aSigno)
 {
-  if (aSigno == SIGUSR1 && sAlarmData) {
+  if (aSigno == SIGUSR1) {
     sAlarmData->mShuttingDown = true;
   }
   return;
@@ -923,7 +920,7 @@ WaitForAlarm(void* aData)
   }
 
   pthread_cleanup_pop(1);
-  return nullptr;
+  return NULL;
 }
 
 bool
@@ -944,7 +941,7 @@ EnableAlarm()
   sigemptyset(&actions.sa_mask);
   actions.sa_flags = 0;
   actions.sa_handler = ShutDownAlarm;
-  if (sigaction(SIGUSR1, &actions, nullptr)) {
+  if (sigaction(SIGUSR1, &actions, NULL)) {
     HAL_LOG(("Failed to set SIGUSR1 signal for alarm-watcher thread."));
     return false;
   }
@@ -959,7 +956,7 @@ EnableAlarm()
   int status = pthread_create(&sAlarmFireWatcherThread, &attr, WaitForAlarm,
                               alarmData.get());
   if (status) {
-    alarmData = nullptr;
+    alarmData = NULL;
     delete sInternalLockCpuMonitor;
     HAL_LOG(("Failed to create alarm-watcher thread. Status: %d.", status));
     return false;
@@ -978,7 +975,7 @@ DisableAlarm()
   MOZ_ASSERT(sAlarmData);
 
   // NB: this must happen-before the thread cancellation.
-  sAlarmData = nullptr;
+  sAlarmData = NULL;
 
   // The cancel will interrupt the thread and destroy it, freeing the
   // data pointed at by sAlarmData.
@@ -1030,15 +1027,6 @@ OomAdjOfOomScoreAdj(int aOomScoreAdj)
 }
 
 static void
-RoundOomScoreAdjUpWithBackroundLRU(int& aOomScoreAdj, uint32_t aBackgroundLRU)
-{
-  // We want to add minimum value to round OomScoreAdj up according to
-  // the steps by aBackgroundLRU.
-  aOomScoreAdj +=
-    ceil(((float)OOM_SCORE_ADJ_MAX / OOM_ADJUST_MAX) * aBackgroundLRU);
-}
-
-static void
 EnsureKernelLowMemKillerParamsSet()
 {
   static bool kernelLowMemKillerParamsSet;
@@ -1070,7 +1058,6 @@ EnsureKernelLowMemKillerParamsSet()
 
   int32_t lowerBoundOfNextOomScoreAdj = OOM_SCORE_ADJ_MIN - 1;
   int32_t lowerBoundOfNextKillUnderMB = 0;
-  int32_t countOfLowmemorykillerParametersSets = 0;
 
   for (int i = NUM_PROCESS_PRIORITY - 1; i >= 0; i--) {
     // The system doesn't function correctly if we're missing these prefs, so
@@ -1091,16 +1078,13 @@ EnsureKernelLowMemKillerParamsSet()
           nsPrintfCString("hal.processPriorityManager.gonk.%s.KillUnderMB",
                           ProcessPriorityToString(priority)).get(),
           &killUnderMB))) {
-      continue;
+      MOZ_CRASH();
     }
 
     // The LMK in kernel silently malfunctions if we assign the parameters
     // in non-increasing order, so we add this assertion here. See bug 887192.
     MOZ_ASSERT(oomScoreAdj > lowerBoundOfNextOomScoreAdj);
     MOZ_ASSERT(killUnderMB > lowerBoundOfNextKillUnderMB);
-
-    // The LMK in kernel only accept 6 sets of LMK parameters. See bug 914728.
-    MOZ_ASSERT(countOfLowmemorykillerParametersSets < 6);
 
     // adj is in oom_adj units.
     adjParams.AppendPrintf("%d,", OomAdjOfOomScoreAdj(oomScoreAdj));
@@ -1110,7 +1094,6 @@ EnsureKernelLowMemKillerParamsSet()
 
     lowerBoundOfNextOomScoreAdj = oomScoreAdj;
     lowerBoundOfNextKillUnderMB = killUnderMB;
-    countOfLowmemorykillerParametersSets++;
   }
 
   // Strip off trailing commas.
@@ -1213,11 +1196,10 @@ SetNiceForPid(int aPid, int aNice)
 void
 SetProcessPriority(int aPid,
                    ProcessPriority aPriority,
-                   ProcessCPUPriority aCPUPriority,
-                   uint32_t aBackgroundLRU)
+                   ProcessCPUPriority aCPUPriority)
 {
-  HAL_LOG(("SetProcessPriority(pid=%d, priority=%d, cpuPriority=%d, LRU=%u)",
-           aPid, aPriority, aCPUPriority, aBackgroundLRU));
+  HAL_LOG(("SetProcessPriority(pid=%d, priority=%d, cpuPriority=%d)",
+           aPid, aPriority, aCPUPriority));
 
   // If this is the first time SetProcessPriority was called, set the kernel's
   // OOM parameters according to our prefs.
@@ -1232,8 +1214,6 @@ SetProcessPriority(int aPid,
   nsresult rv = Preferences::GetInt(nsPrintfCString(
     "hal.processPriorityManager.gonk.%s.OomScoreAdjust",
     ProcessPriorityToString(aPriority)).get(), &oomScoreAdj);
-
-  RoundOomScoreAdjUpWithBackroundLRU(oomScoreAdj, aBackgroundLRU);
 
   if (NS_SUCCEEDED(rv)) {
     int clampedOomScoreAdj = clamped<int>(oomScoreAdj, OOM_SCORE_ADJ_MIN,

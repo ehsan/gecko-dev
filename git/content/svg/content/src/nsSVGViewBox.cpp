@@ -4,11 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSVGViewBox.h"
-#include "nsCharSeparatedTokenizer.h"
-#include "nsSMILValue.h"
+#include "prdtoa.h"
 #include "nsTextFormatter.h"
+#include "nsCharSeparatedTokenizer.h"
+#include "nsMathUtils.h"
+#include "nsSMILValue.h"
 #include "SVGContentUtils.h"
 #include "SVGViewBoxSMILType.h"
+#include "nsAttrValueInlines.h"
 
 #define NUM_VIEWBOX_COMPONENTS 4
 using namespace mozilla;
@@ -121,14 +124,22 @@ ToSVGViewBoxRect(const nsAString& aStr, nsSVGViewBoxRect *aViewBox)
   float vals[NUM_VIEWBOX_COMPONENTS];
   uint32_t i;
   for (i = 0; i < NUM_VIEWBOX_COMPONENTS && tokenizer.hasMoreTokens(); ++i) {
-    if (!SVGContentUtils::ParseNumber(tokenizer.nextToken(), vals[i])) {
-      return NS_ERROR_DOM_SYNTAX_ERR;
+    NS_ConvertUTF16toUTF8 utf8Token(tokenizer.nextToken());
+    const char *token = utf8Token.get();
+    if (*token == '\0') {
+      return NS_ERROR_DOM_SYNTAX_ERR; // empty string (e.g. two commas in a row)
+    }
+
+    char *end;
+    vals[i] = float(PR_strtod(token, &end));
+    if (*end != '\0' || !NS_finite(vals[i])) {
+      return NS_ERROR_DOM_SYNTAX_ERR; // parse error
     }
   }
 
   if (i != NUM_VIEWBOX_COMPONENTS ||              // Too few values.
       tokenizer.hasMoreTokens() ||                // Too many values.
-      tokenizer.separatorAfterCurrentToken()) {   // Trailing comma.
+      tokenizer.lastTokenEndedWithSeparator()) {  // Trailing comma.
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
 

@@ -13,8 +13,6 @@
 #include "nsIXPConnect.h"
 #include "nsServiceManagerUtils.h"
 #include "nsContentUtils.h"
-#include "jsapi.h"
-#include "js/StructuredClone.h"
 
 #include "mozilla/Base64.h"
 
@@ -39,22 +37,25 @@ nsStructuredCloneContainer::~nsStructuredCloneContainer()
 }
 
 nsresult
-nsStructuredCloneContainer::InitFromJSVal(const JS::Value & aData,
-                                          JSContext* aCx)
+nsStructuredCloneContainer::InitFromVariant(nsIVariant *aData, JSContext *aCx)
 {
   NS_ENSURE_STATE(!mData);
+  NS_ENSURE_ARG_POINTER(aData);
   NS_ENSURE_ARG_POINTER(aCx);
+
+  // First, try to extract a JS::Value from the variant |aData|.  This works only
+  // if the variant implements GetAsJSVal.
+  JS::Rooted<JS::Value> jsData(aCx);
+  nsresult rv = aData->GetAsJSVal(jsData.address());
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_UNEXPECTED);
 
   // Make sure that we serialize in the right context.
   MOZ_ASSERT(aCx == nsContentUtils::GetCurrentJSContext());
-  JS::Rooted<JS::Value> jsData(aCx, aData);
-  bool success = JS_WrapValue(aCx, &jsData);
-  NS_ENSURE_STATE(success);
+  JS_WrapValue(aCx, jsData.address());
 
   uint64_t* jsBytes = nullptr;
-  success = JS_WriteStructuredClone(aCx, jsData, &jsBytes, &mSize,
-                                    nullptr, nullptr,
-                                    JS::UndefinedHandleValue);
+  bool success = JS_WriteStructuredClone(aCx, jsData, &jsBytes, &mSize,
+                                           nullptr, nullptr, JSVAL_VOID);
   NS_ENSURE_STATE(success);
   NS_ENSURE_STATE(jsBytes);
 
@@ -111,9 +112,9 @@ nsStructuredCloneContainer::DeserializeToVariant(JSContext *aCx,
 
   // Deserialize to a JS::Value.
   JS::Rooted<JS::Value> jsStateObj(aCx);
-  bool hasTransferable = false;
+  JSBool hasTransferable = false;
   bool success = JS_ReadStructuredClone(aCx, mData, mSize, mVersion,
-                                        &jsStateObj, nullptr, nullptr) &&
+                                        jsStateObj.address(), nullptr, nullptr) &&
                  JS_StructuredCloneHasTransferables(mData, mSize,
                                                     &hasTransferable);
   // We want to be sure that mData doesn't contain transferable objects
@@ -124,11 +125,10 @@ nsStructuredCloneContainer::DeserializeToVariant(JSContext *aCx,
   nsCOMPtr<nsIVariant> varStateObj;
   nsCOMPtr<nsIXPConnect> xpconnect = do_GetService(nsIXPConnect::GetCID());
   NS_ENSURE_STATE(xpconnect);
-  xpconnect->JSValToVariant(aCx, jsStateObj.address(),
-                            getter_AddRefs(varStateObj));
+  xpconnect->JSValToVariant(aCx, jsStateObj.address(), getter_AddRefs(varStateObj));
   NS_ENSURE_STATE(varStateObj);
 
-  NS_ADDREF(*aData = varStateObj);
+  NS_IF_ADDREF(*aData = varStateObj);
   return NS_OK;
 }
 

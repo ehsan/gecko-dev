@@ -13,7 +13,6 @@
 #include "nsMappedAttributes.h"
 #include "nsSize.h"
 #include "nsIDocument.h"
-#include "nsIDOMMutationEvent.h"
 #include "nsIScriptContext.h"
 #include "nsIURL.h"
 #include "nsIIOService.h"
@@ -22,7 +21,7 @@
 #include "nsContentUtils.h"
 #include "nsIFrame.h"
 #include "nsNodeInfoManager.h"
-#include "mozilla/MouseEvents.h"
+#include "nsGUIEvent.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIDOMWindow.h"
 #include "nsFocusManager.h"
@@ -67,12 +66,14 @@ NS_IMPL_RELEASE_INHERITED(HTMLImageElement, Element)
 
 // QueryInterface implementation for HTMLImageElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLImageElement)
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
   NS_INTERFACE_TABLE_INHERITED4(HTMLImageElement,
                                 nsIDOMHTMLImageElement,
                                 nsIImageLoadingContent,
                                 imgIOnloadBlocker,
                                 imgINotificationObserver)
-NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLImageElement)
@@ -252,11 +253,6 @@ HTMLImageElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
   if (aAttribute == nsGkAtoms::usemap ||
       aAttribute == nsGkAtoms::ismap) {
     NS_UpdateHint(retval, NS_STYLE_HINT_FRAMECHANGE);
-  } else if (aAttribute == nsGkAtoms::alt) {
-    if (aModType == nsIDOMMutationEvent::ADDITION ||
-        aModType == nsIDOMMutationEvent::REMOVAL) {
-      NS_UpdateHint(retval, NS_STYLE_HINT_FRAMECHANGE);
-    }
   }
   return retval;
 }
@@ -318,49 +314,6 @@ HTMLImageElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
       nsDependentAtomString(aValue->GetAtomValue()));
   }
 
-  if (aNameSpaceID == kNameSpaceID_None &&
-      aName == nsGkAtoms::src &&
-      !aValue) {
-    CancelImageRequests(aNotify);
-  }
-
-  // If we plan to call LoadImage, we want to do it first so that the image load
-  // kicks off. But if aNotify is false, we are coming from the parser or some
-  // such place; we'll get bound after all the attributes have been set, so
-  // we'll do the image load from BindToTree. Skip the LoadImage call in that case.
-  if (aNotify &&
-      aNameSpaceID == kNameSpaceID_None &&
-      aName == nsGkAtoms::crossorigin) {
-    // We want aForce == true in this LoadImage call, because we want to force
-    // a new load of the image with the new cross origin policy.
-    nsAutoString uri;
-    GetAttr(kNameSpaceID_None, nsGkAtoms::src, uri);
-    LoadImage(uri, true, aNotify);
-  }
-
-  if (aNotify &&
-      aNameSpaceID == kNameSpaceID_None &&
-      aName == nsGkAtoms::src &&
-      aValue) {
-
-    // Prevent setting image.src by exiting early
-    if (nsContentUtils::IsImageSrcSetDisabled()) {
-      return NS_OK;
-    }
-
-    // A hack to get animations to reset. See bug 594771.
-    mNewRequestsWillNeedAnimationReset = true;
-
-    // Force image loading here, so that we'll try to load the image from
-    // network if it's set to be not cacheable...  If we change things so that
-    // the state gets in Element's attr-setting happen around this
-    // LoadImage call, we could start passing false instead of aNotify
-    // here.
-    LoadImage(aValue->GetStringValue(), true, aNotify);
-
-    mNewRequestsWillNeedAnimationReset = false;
-  }
-
   return nsGenericHTMLElement::AfterSetAttr(aNameSpaceID, aName,
                                             aValue, aNotify);
 }
@@ -373,8 +326,10 @@ HTMLImageElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   // the Generic Element as this could cause a click event to fire
   // twice, once by the image frame for the map and once by the Anchor
   // element. (bug 39723)
-  WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
-  if (mouseEvent && mouseEvent->IsLeftClickEvent()) {
+  if (aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT &&
+      aVisitor.mEvent->message == NS_MOUSE_CLICK &&
+      static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+        nsMouseEvent::eLeftButton) {
     bool isMap = false;
     GetIsMap(&isMap);
     if (isMap) {
@@ -428,6 +383,32 @@ HTMLImageElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                           nsIAtom* aPrefix, const nsAString& aValue,
                           bool aNotify)
 {
+  // If we plan to call LoadImage, we want to do it first so that the
+  // image load kicks off _before_ the reflow triggered by the SetAttr.  But if
+  // aNotify is false, we are coming from the parser or some such place; we'll
+  // get bound after all the attributes have been set, so we'll do the
+  // image load from BindToTree.  Skip the LoadImage call in that case.
+  if (aNotify &&
+      aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::src) {
+
+    // Prevent setting image.src by exiting early
+    if (nsContentUtils::IsImageSrcSetDisabled()) {
+      return NS_OK;
+    }
+
+    // A hack to get animations to reset. See bug 594771.
+    mNewRequestsWillNeedAnimationReset = true;
+
+    // Force image loading here, so that we'll try to load the image from
+    // network if it's set to be not cacheable...  If we change things so that
+    // the state gets in Element's attr-setting happen around this
+    // LoadImage call, we could start passing false instead of aNotify
+    // here.
+    LoadImage(aValue, true, aNotify);
+
+    mNewRequestsWillNeedAnimationReset = false;
+  }
+    
   return nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
                                        aNotify);
 }
@@ -436,6 +417,10 @@ nsresult
 HTMLImageElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
                             bool aNotify)
 {
+  if (aNameSpaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::src) {
+    CancelImageRequests(aNotify);
+  }
+
   return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 
@@ -540,10 +525,9 @@ HTMLImageElement::IntrinsicState() const
 already_AddRefed<HTMLImageElement>
 HTMLImageElement::Image(const GlobalObject& aGlobal,
                         const Optional<uint32_t>& aWidth,
-                        const Optional<uint32_t>& aHeight,
-                        ErrorResult& aError)
+                        const Optional<uint32_t>& aHeight, ErrorResult& aError)
 {
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.Get());
   nsIDocument* doc;
   if (!win || !(doc = win->GetExtantDoc())) {
     aError.Throw(NS_ERROR_FAILURE);

@@ -6,8 +6,14 @@
 #include "mozilla/chrome/RegistryMessageUtils.h"
 
 #include "nsResProtocolHandler.h"
+#include "nsIURL.h"
 #include "nsIIOService.h"
+#include "nsIServiceManager.h"
+#include "prenv.h"
+#include "prprf.h"
+#include "nsXPIDLString.h"
 #include "nsIFile.h"
+#include "nsDirectoryServiceDefs.h"
 #include "nsNetUtil.h"
 #include "nsURLHelper.h"
 #include "nsEscape.h"
@@ -97,7 +103,6 @@ nsResURL::GetClassIDNoAlloc(nsCID *aClassIDNoAlloc)
 //----------------------------------------------------------------------------
 
 nsResProtocolHandler::nsResProtocolHandler()
-    : mSubstitutions(32)
 {
 #if defined(PR_LOGGING)
     gResLog = PR_NewLogModule("nsResProtocol");
@@ -115,6 +120,8 @@ nsResProtocolHandler::~nsResProtocolHandler()
 nsresult
 nsResProtocolHandler::Init()
 {
+    mSubstitutions.Init(32);
+
     nsresult rv;
 
     mIOService = do_GetIOService(&rv);

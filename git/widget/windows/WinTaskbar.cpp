@@ -44,12 +44,12 @@ GetHWNDFromDocShell(nsIDocShell *aShell) {
   nsCOMPtr<nsIBaseWindow> baseWindow(do_QueryInterface(reinterpret_cast<nsISupports*>(aShell)));
 
   if (!baseWindow)
-    return nullptr;
+    return NULL;
 
   nsCOMPtr<nsIWidget> widget;
   baseWindow->GetMainWidget(getter_AddRefs(widget));
 
-  return widget ? (HWND)widget->GetNativeData(NS_NATIVE_WINDOW) : nullptr;
+  return widget ? (HWND)widget->GetNativeData(NS_NATIVE_WINDOW) : NULL;
 }
 
 HWND
@@ -58,7 +58,7 @@ GetHWNDFromDOMWindow(nsIDOMWindow *dw) {
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(dw);
   if (!window) 
-    return nullptr;
+    return NULL;
 
   return GetHWNDFromDocShell(window->GetDocShell());
 }
@@ -208,9 +208,9 @@ WinTaskbar::Initialize() {
   if (mTaskbar)
     return true;
 
-  ::CoInitialize(nullptr);
+  ::CoInitialize(NULL);
   HRESULT hr = ::CoCreateInstance(CLSID_TaskbarList,
-                                  nullptr,
+                                  NULL,
                                   CLSCTX_INPROC_SERVER,
                                   IID_ITaskbarList4,
                                   (void**)&mTaskbar);
@@ -219,7 +219,6 @@ WinTaskbar::Initialize() {
 
   hr = mTaskbar->HrInit();
   if (FAILED(hr)) {
-    // This may fail with shell extensions like blackbox installed.
     NS_WARNING("Unable to initialize taskbar");
     NS_RELEASE(mTaskbar);
     return false;
@@ -290,7 +289,7 @@ WinTaskbar::GetAppUserModelID(nsAString & aDefaultGroupId) {
   regKey.AppendLiteral("\\TaskBarIDs");
 
   WCHAR path[MAX_PATH];
-  if (GetModuleFileNameW(nullptr, path, MAX_PATH)) {
+  if (GetModuleFileNameW(NULL, path, MAX_PATH)) {
     PRUnichar* slash = wcsrchr(path, '\\');
     if (!slash)
       return false;
@@ -366,11 +365,9 @@ WinTaskbar::RegisterAppUserModelID() {
 
 NS_IMETHODIMP
 WinTaskbar::GetAvailable(bool *aAvailable) {
-  // ITaskbarList4::HrInit() may fail with shell extensions like blackbox
-  // installed. Initialize early to return available=false in those cases.
   *aAvailable = 
     WinUtils::GetWindowsVersion() < WinUtils::WIN7_VERSION ?
-    false : Initialize();
+    false : true;
 
   return NS_OK;
 }

@@ -205,7 +205,6 @@
   */
 
 #include "mozilla/dom/DirectionalityUtils.h"
-
 #include "nsINode.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
@@ -215,6 +214,7 @@
 #include "nsUnicodeProperties.h"
 #include "nsTextFragment.h"
 #include "nsAttrValue.h"
+#include "nsContentUtils.h"
 #include "nsTextNode.h"
 #include "nsCheapSets.h"
 

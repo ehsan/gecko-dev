@@ -87,8 +87,7 @@ public:
                       const nsIntRect& aTargetBounds,
                       const nsIntRect& aPostFilterDirtyRect,
                       const nsIntRect& aPreFilterDirtyRect,
-                      uint16_t aPrimitiveUnits,
-                      nsIFrame* aTransformRoot) :
+                      uint16_t aPrimitiveUnits) :
     mTargetFrame(aTargetFrame),
     mPaintCallback(aPaintCallback),
     mFilterElement(aFilterElement),
@@ -101,8 +100,7 @@ public:
     mTargetBounds(aTargetBounds),
     mPostFilterDirtyRect(aPostFilterDirtyRect),
     mPreFilterDirtyRect(aPreFilterDirtyRect),
-    mPrimitiveUnits(aPrimitiveUnits),
-    mTransformRoot(aTransformRoot) {
+    mPrimitiveUnits(aPrimitiveUnits) {
   }
 
   /**
@@ -437,7 +435,6 @@ private:
   PrimitiveInfo           mFillPaint;
   PrimitiveInfo           mStrokePaint;
   nsTArray<PrimitiveInfo> mPrimitives;
-  nsIFrame*               mTransformRoot;
 };
 
 #endif

@@ -76,7 +76,6 @@ public:
                           sockaddr_any& aAddr,
                           const char* aAddress);
   virtual bool SetUp(int aFd);
-  virtual bool SetUpListenSocket(int aFd);
   virtual void GetSocketAddr(const sockaddr_any& aAddr,
                              nsAString& aAddrStr);
 
@@ -153,13 +152,6 @@ RilConnector::SetUp(int aFd)
     return true;
 }
 
-bool
-RilConnector::SetUpListenSocket(int aFd)
-{
-    // Nothing to do here.
-    return true;
-}
-
 void
 RilConnector::GetSocketAddr(const sockaddr_any& aAddr,
                             nsAString& aAddrStr)
@@ -212,20 +204,20 @@ void
 RilConsumer::OnConnectSuccess()
 {
     // Nothing to do here.
-    LOG("RIL[%u]: %s\n", mClientId, __FUNCTION__);
+    LOG("Socket open for RIL\n");
 }
 
 void
 RilConsumer::OnConnectError()
 {
-    LOG("RIL[%u]: %s\n", mClientId, __FUNCTION__);
+    LOG("%s\n", __FUNCTION__);
     CloseSocket();
 }
 
 void
 RilConsumer::OnDisconnect()
 {
-    LOG("RIL[%u]: %s\n", mClientId, __FUNCTION__);
+    LOG("%s\n", __FUNCTION__);
     if (!mShutdown) {
         ConnectSocket(new RilConnector(mClientId), mAddress.get(), 1000);
     }

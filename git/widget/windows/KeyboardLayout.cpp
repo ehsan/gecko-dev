@@ -3,9 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-#include "mozilla/MouseEvents.h"
-#include "mozilla/TextEvents.h"
 #include "mozilla/Util.h"
 
 #include "KeyboardLayout.h"
@@ -15,6 +12,7 @@
 #include "nsToolkit.h"
 #include "nsQuickSort.h"
 #include "nsAlgorithm.h"
+#include "nsGUIEvent.h"
 #include "nsUnicharUtils.h"
 #include "WidgetUtils.h"
 #include "WinUtils.h"
@@ -41,11 +39,6 @@
 
 namespace mozilla {
 namespace widget {
-
-// Unique id counter associated with a keydown / keypress events. Used in
-// identifing keypress events for removal from async event dispatch queue
-// in metrofx after preventDefault is called on keydown events.
-static uint32_t sUniqueKeyEventId = 0;
 
 struct DeadKeyEntry
 {
@@ -95,38 +88,6 @@ public:
  * mozilla::widget::ModifierKeyState
  *****************************************************************************/
 
-ModifierKeyState::ModifierKeyState()
-{
-  Update();
-}
-
-ModifierKeyState::ModifierKeyState(bool aIsShiftDown,
-                                   bool aIsControlDown,
-                                   bool aIsAltDown)
-{
-  Update();
-  Unset(MODIFIER_SHIFT | MODIFIER_CONTROL | MODIFIER_ALT | MODIFIER_ALTGRAPH);
-  Modifiers modifiers = 0;
-  if (aIsShiftDown) {
-    modifiers |= MODIFIER_SHIFT;
-  }
-  if (aIsControlDown) {
-    modifiers |= MODIFIER_CONTROL;
-  }
-  if (aIsAltDown) {
-    modifiers |= MODIFIER_ALT;
-  }
-  if (modifiers) {
-    Set(modifiers);
-  }
-}
-
-ModifierKeyState::ModifierKeyState(Modifiers aModifiers) :
-  mModifiers(aModifiers)
-{
-  EnsureAltGr();
-}
-
 void
 ModifierKeyState::Update()
 {
@@ -157,23 +118,7 @@ ModifierKeyState::Update()
 }
 
 void
-ModifierKeyState::Unset(Modifiers aRemovingModifiers)
-{
-  mModifiers &= ~aRemovingModifiers;
-  // Note that we don't need to unset AltGr flag here automatically.
-  // For nsEditor, we need to remove Alt and Control flags but AltGr isn't
-  // checked in nsEditor, so, it can be kept.
-}
-
-void
-ModifierKeyState::Set(Modifiers aAddingModifiers)
-{
-  mModifiers |= aAddingModifiers;
-  EnsureAltGr();
-}
-
-void
-ModifierKeyState::InitInputEvent(WidgetInputEvent& aInputEvent) const
+ModifierKeyState::InitInputEvent(nsInputEvent& aInputEvent) const
 {
   aInputEvent.modifiers = mModifiers;
 
@@ -191,7 +136,7 @@ ModifierKeyState::InitInputEvent(WidgetInputEvent& aInputEvent) const
 }
 
 void
-ModifierKeyState::InitMouseEvent(WidgetInputEvent& aMouseEvent) const
+ModifierKeyState::InitMouseEvent(nsInputEvent& aMouseEvent) const
 {
   NS_ASSERTION(aMouseEvent.eventStructType == NS_MOUSE_EVENT ||
                aMouseEvent.eventStructType == NS_WHEEL_EVENT ||
@@ -199,88 +144,22 @@ ModifierKeyState::InitMouseEvent(WidgetInputEvent& aMouseEvent) const
                aMouseEvent.eventStructType == NS_SIMPLE_GESTURE_EVENT,
                "called with non-mouse event");
 
-  WidgetMouseEventBase& mouseEvent = *aMouseEvent.AsMouseEventBase();
+  nsMouseEvent_base& mouseEvent = static_cast<nsMouseEvent_base&>(aMouseEvent);
   mouseEvent.buttons = 0;
   if (::GetKeyState(VK_LBUTTON) < 0) {
-    mouseEvent.buttons |= WidgetMouseEvent::eLeftButtonFlag;
+    mouseEvent.buttons |= nsMouseEvent::eLeftButtonFlag;
   }
   if (::GetKeyState(VK_RBUTTON) < 0) {
-    mouseEvent.buttons |= WidgetMouseEvent::eRightButtonFlag;
+    mouseEvent.buttons |= nsMouseEvent::eRightButtonFlag;
   }
   if (::GetKeyState(VK_MBUTTON) < 0) {
-    mouseEvent.buttons |= WidgetMouseEvent::eMiddleButtonFlag;
+    mouseEvent.buttons |= nsMouseEvent::eMiddleButtonFlag;
   }
   if (::GetKeyState(VK_XBUTTON1) < 0) {
-    mouseEvent.buttons |= WidgetMouseEvent::e4thButtonFlag;
+    mouseEvent.buttons |= nsMouseEvent::e4thButtonFlag;
   }
   if (::GetKeyState(VK_XBUTTON2) < 0) {
-    mouseEvent.buttons |= WidgetMouseEvent::e5thButtonFlag;
-  }
-}
-
-bool
-ModifierKeyState::IsShift() const
-{
-  return (mModifiers & MODIFIER_SHIFT) != 0;
-}
-
-bool
-ModifierKeyState::IsControl() const
-{
-  return (mModifiers & MODIFIER_CONTROL) != 0;
-}
-
-bool
-ModifierKeyState::IsAlt() const
-{
-  return (mModifiers & MODIFIER_ALT) != 0;
-}
-
-bool
-ModifierKeyState::IsAltGr() const
-{
-  return IsControl() && IsAlt();
-}
-
-bool
-ModifierKeyState::IsWin() const
-{
-  return (mModifiers & MODIFIER_OS) != 0;
-}
-
-bool
-ModifierKeyState::IsCapsLocked() const
-{
-  return (mModifiers & MODIFIER_CAPSLOCK) != 0;
-}
-
-bool
-ModifierKeyState::IsNumLocked() const
-{
-  return (mModifiers & MODIFIER_NUMLOCK) != 0;
-}
-
-bool
-ModifierKeyState::IsScrollLocked() const
-{
-  return (mModifiers & MODIFIER_SCROLLLOCK) != 0;
-}
-
-Modifiers
-ModifierKeyState::GetModifiers() const
-{
-  return mModifiers;
-}
-
-void
-ModifierKeyState::EnsureAltGr()
-{
-  // If both Control key and Alt key are pressed, it means AltGr is pressed.
-  // Ideally, we should check whether the current keyboard layout has AltGr
-  // or not.  However, setting AltGr flags for keyboard which doesn't have
-  // AltGr must not be serious bug.  So, it should be OK for now.
-  if (IsAltGr()) {
-    mModifiers |= MODIFIER_ALTGRAPH;
+    mouseEvent.buttons |= nsMouseEvent::e5thButtonFlag;
   }
 }
 
@@ -349,50 +228,6 @@ UniCharsAndModifiers::operator+(const UniCharsAndModifiers& aOther) const
 /*****************************************************************************
  * mozilla::widget::VirtualKey
  *****************************************************************************/
-
-// static
-VirtualKey::ShiftState
-VirtualKey::ModifiersToShiftState(Modifiers aModifiers)
-{
-  ShiftState state = 0;
-  if (aModifiers & MODIFIER_SHIFT) {
-    state |= STATE_SHIFT;
-  }
-  if (aModifiers & MODIFIER_CONTROL) {
-    state |= STATE_CONTROL;
-  }
-  if (aModifiers & MODIFIER_ALT) {
-    state |= STATE_ALT;
-  }
-  if (aModifiers & MODIFIER_CAPSLOCK) {
-    state |= STATE_CAPSLOCK;
-  }
-  return state;
-}
-
-// static
-Modifiers
-VirtualKey::ShiftStateToModifiers(ShiftState aShiftState)
-{
-  Modifiers modifiers = 0;
-  if (aShiftState & STATE_SHIFT) {
-    modifiers |= MODIFIER_SHIFT;
-  }
-  if (aShiftState & STATE_CONTROL) {
-    modifiers |= MODIFIER_CONTROL;
-  }
-  if (aShiftState & STATE_ALT) {
-    modifiers |= MODIFIER_ALT;
-  }
-  if (aShiftState & STATE_CAPSLOCK) {
-    modifiers |= MODIFIER_CAPSLOCK;
-  }
-  if ((modifiers & (MODIFIER_ALT | MODIFIER_CONTROL)) ==
-         (MODIFIER_ALT | MODIFIER_CONTROL)) {
-    modifiers |= MODIFIER_ALTGRAPH;
-  }
-  return modifiers;
-}
 
 inline PRUnichar
 VirtualKey::GetCompositeChar(ShiftState aShiftState, PRUnichar aBaseChar) const
@@ -911,13 +746,7 @@ NativeKey::ComputeUnicharFromScanCode() const
 }
 
 void
-NativeKey::InitKeyEvent(WidgetKeyboardEvent& aKeyEvent) const
-{
-  InitKeyEvent(aKeyEvent, mModKeyState);
-}
-
-void
-NativeKey::InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
+NativeKey::InitKeyEvent(nsKeyEvent& aKeyEvent,
                         const ModifierKeyState& aModKeyState) const
 {
   nsIntPoint point(0, 0);
@@ -926,9 +755,6 @@ NativeKey::InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
   switch (aKeyEvent.message) {
     case NS_KEY_DOWN:
       aKeyEvent.keyCode = mDOMKeyCode;
-      // Unique id for this keydown event and its associated keypress.
-      sUniqueKeyEventId++;
-      aKeyEvent.mUniqueId = sUniqueKeyEventId;
       break;
     case NS_KEY_UP:
       aKeyEvent.keyCode = mDOMKeyCode;
@@ -941,7 +767,6 @@ NativeKey::InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
         (mOriginalVirtualKeyCode == VK_MENU && mMsg.message != WM_SYSKEYUP);
       break;
     case NS_KEY_PRESS:
-      aKeyEvent.mUniqueId = sUniqueKeyEventId;
       break;
     default:
       MOZ_CRASH("Invalid event message");
@@ -953,7 +778,7 @@ NativeKey::InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
 }
 
 bool
-NativeKey::DispatchKeyEvent(WidgetKeyboardEvent& aKeyEvent,
+NativeKey::DispatchKeyEvent(nsKeyEvent& aKeyEvent,
                             const MSG* aMsgSentToPlugin) const
 {
   if (mWidget->Destroyed()) {
@@ -971,7 +796,7 @@ NativeKey::DispatchKeyEvent(WidgetKeyboardEvent& aKeyEvent,
     aKeyEvent.pluginEvent = static_cast<void*>(&pluginEvent);
   }
 
-  return (mWidget->DispatchKeyboardEvent(&aKeyEvent) || mWidget->Destroyed());
+  return (mWidget->DispatchWindowEvent(&aKeyEvent) || mWidget->Destroyed());
 }
 
 bool
@@ -993,7 +818,7 @@ NativeKey::HandleKeyDownMessage(bool* aEventDispatched) const
     }
 
     bool isIMEEnabled = WinUtils::IsIMEEnabled(mWidget->GetInputContext());
-    WidgetKeyboardEvent keydownEvent(true, NS_KEY_DOWN, mWidget);
+    nsKeyEvent keydownEvent(true, NS_KEY_DOWN, mWidget);
     InitKeyEvent(keydownEvent, mModKeyState);
     if (aEventDispatched) {
       *aEventDispatched = true;
@@ -1133,7 +958,7 @@ NativeKey::HandleCharMessage(const MSG& aCharMsg,
       mModKeyState.IsAltGr() ||
       (mOriginalVirtualKeyCode &&
        !KeyboardLayout::IsPrintableCharKey(mOriginalVirtualKeyCode))) {
-    WidgetKeyboardEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
+    nsKeyEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
     if (aCharMsg.wParam >= U_SPACE) {
       keypressEvent.charCode = static_cast<uint32_t>(aCharMsg.wParam);
     } else {
@@ -1198,7 +1023,7 @@ NativeKey::HandleCharMessage(const MSG& aCharMsg,
     uniChar = towlower(uniChar);
   }
 
-  WidgetKeyboardEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
+  nsKeyEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
   keypressEvent.charCode = uniChar;
   if (!keypressEvent.charCode) {
     keypressEvent.keyCode = mDOMKeyCode;
@@ -1225,7 +1050,7 @@ NativeKey::HandleKeyUpMessage(bool* aEventDispatched) const
     return false;
   }
 
-  WidgetKeyboardEvent keyupEvent(true, NS_KEY_UP, mWidget);
+  nsKeyEvent keyupEvent(true, NS_KEY_UP, mWidget);
   InitKeyEvent(keyupEvent, mModKeyState);
   if (aEventDispatched) {
     *aEventDispatched = true;
@@ -1439,7 +1264,7 @@ NativeKey::DispatchKeyPressEventsWithKeyboardLayout() const
 
   if (inputtingChars.IsEmpty() &&
       shiftedChars.IsEmpty() && unshiftedChars.IsEmpty()) {
-    WidgetKeyboardEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
+    nsKeyEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
     keypressEvent.keyCode = mDOMKeyCode;
     InitKeyEvent(keypressEvent, mModKeyState);
     return DispatchKeyEvent(keypressEvent);
@@ -1475,15 +1300,15 @@ NativeKey::DispatchKeyPressEventsWithKeyboardLayout() const
       shiftedChar = shiftedChars.mChars[cnt - skipShiftedChars];
     if (skipUnshiftedChars <= cnt)
       unshiftedChar = unshiftedChars.mChars[cnt - skipUnshiftedChars];
-    nsAutoTArray<AlternativeCharCode, 5> altArray;
+    nsAutoTArray<nsAlternativeCharCode, 5> altArray;
 
     if (shiftedChar || unshiftedChar) {
-      AlternativeCharCode chars(unshiftedChar, shiftedChar);
+      nsAlternativeCharCode chars(unshiftedChar, shiftedChar);
       altArray.AppendElement(chars);
     }
     if (cnt == longestLength - 1) {
       if (unshiftedLatinChar || shiftedLatinChar) {
-        AlternativeCharCode chars(unshiftedLatinChar, shiftedLatinChar);
+        nsAlternativeCharCode chars(unshiftedLatinChar, shiftedLatinChar);
         altArray.AppendElement(chars);
       }
 
@@ -1505,12 +1330,12 @@ NativeKey::DispatchKeyPressEventsWithKeyboardLayout() const
           charForOEMKeyCode != shiftedChars.mChars[0] &&
           charForOEMKeyCode != unshiftedLatinChar &&
           charForOEMKeyCode != shiftedLatinChar) {
-        AlternativeCharCode OEMChars(charForOEMKeyCode, charForOEMKeyCode);
+        nsAlternativeCharCode OEMChars(charForOEMKeyCode, charForOEMKeyCode);
         altArray.AppendElement(OEMChars);
       }
     }
 
-    WidgetKeyboardEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
+    nsKeyEvent keypressEvent(true, NS_KEY_PRESS, mWidget);
     keypressEvent.charCode = uniChar;
     keypressEvent.alternativeCharCodes.AppendElements(altArray);
     InitKeyEvent(keypressEvent, modKeyState);
@@ -2397,7 +2222,7 @@ KeyboardLayout::SynthesizeNativeKeyEvent(nsWindowBase* aWidget,
                                          const nsAString& aCharacters,
                                          const nsAString& aUnmodifiedCharacters)
 {
-  UINT keyboardLayoutListCount = ::GetKeyboardLayoutList(0, nullptr);
+  UINT keyboardLayoutListCount = ::GetKeyboardLayoutList(0, NULL);
   NS_ASSERTION(keyboardLayoutListCount > 0,
                "One keyboard layout must be installed at least");
   HKL keyboardLayoutListBuff[50];
@@ -2411,7 +2236,7 @@ KeyboardLayout::SynthesizeNativeKeyEvent(nsWindowBase* aWidget,
 
   nsPrintfCString layoutName("%08x", aNativeKeyboardLayout);
   HKL loadedLayout = LoadKeyboardLayoutA(layoutName.get(), KLF_NOTELLSHELL);
-  if (loadedLayout == nullptr) {
+  if (loadedLayout == NULL) {
     if (keyboardLayoutListBuff != keyboardLayoutList) {
       delete [] keyboardLayoutList;
     }

@@ -7,11 +7,10 @@
 #include "nsStyleConsts.h"
 
 #include "nsIContent.h"
+#include "nsReadableUtils.h"
 #include "nsCSSProps.h"
 #include "nsRuleNode.h"
-#include "nsROCSSPrimitiveValue.h"
 #include "nsIContentSecurityPolicy.h"
-#include "nsIURI.h"
 
 using namespace mozilla;
 
@@ -155,29 +154,6 @@ nsStyleUtil::AppendBitmaskCSSValue(nsCSSProperty aProperty,
     }
   }
   NS_ABORT_IF_FALSE(aMaskedValue == 0, "unexpected bit remaining in bitfield");
-}
-
-/* static */ void
-nsStyleUtil::AppendAngleValue(const nsStyleCoord& aAngle, nsAString& aResult)
-{
-  MOZ_ASSERT(aAngle.IsAngleValue(), "Should have angle value");
-
-  nsROCSSPrimitiveValue tmpVal;
-  nsAutoString tokenString;
-
-  // Append number.
-  tmpVal.SetNumber(aAngle.GetAngleValue());
-  tmpVal.GetCssText(tokenString);
-  aResult.Append(tokenString);
-
-  // Append unit.
-  switch (aAngle.GetUnit()) {
-    case eStyleUnit_Degree: aResult.AppendLiteral("deg");  break;
-    case eStyleUnit_Grad:   aResult.AppendLiteral("grad"); break;
-    case eStyleUnit_Radian: aResult.AppendLiteral("rad");  break;
-    case eStyleUnit_Turn:   aResult.AppendLiteral("turn"); break;
-    default: NS_NOTREACHED("unrecognized angle unit");
-  }
 }
 
 /* static */ void
@@ -386,7 +362,6 @@ nsStyleUtil::ComputeFunctionalAlternates(const nsCSSValueList* aList,
                                  nsCSSProps::kFontVariantAlternatesFuncsKTable,
                                  alternate)) {
       NS_NOTREACHED("keyword not a font-variant-alternates value");
-      continue;
     }
     v.alternate = alternate;
 
@@ -464,7 +439,7 @@ nsStyleUtil::CSPAllowsInlineStyle(nsIPrincipal* aPrincipal,
 
   if (csp) {
     bool inlineOK = true;
-    bool reportViolation;
+    bool reportViolation = false;
     rv = csp->GetAllowsInlineStyle(&reportViolation, &inlineOK);
     if (NS_FAILED(rv)) {
       if (aRv)
@@ -485,9 +460,9 @@ nsStyleUtil::CSPAllowsInlineStyle(nsIPrincipal* aPrincipal,
       }
 
       csp->LogViolationDetails(nsIContentSecurityPolicy::VIOLATION_TYPE_INLINE_STYLE,
-                               NS_ConvertUTF8toUTF16(asciiSpec),
-                               aStyleText,
-                               aLineNumber);
+                              NS_ConvertUTF8toUTF16(asciiSpec),
+                              aStyleText,
+                              aLineNumber);
     }
 
     if (!inlineOK) {

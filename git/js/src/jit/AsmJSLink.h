@@ -7,7 +7,7 @@
 #ifndef jit_AsmJSLink_h
 #define jit_AsmJSLink_h
 
-#include "NamespaceImports.h"
+#include "jsapi.h"
 
 namespace js {
 
@@ -16,7 +16,7 @@ namespace js {
 // Create a new JSFunction to replace originalFun as the representation of the
 // function defining the succesfully-validated module 'moduleObj'.
 extern JSFunction *
-NewAsmJSModuleFunction(ExclusiveContext *cx, JSFunction *originalFun, HandleObject moduleObj);
+NewAsmJSModuleFunction(JSContext *cx, JSFunction *originalFun, HandleObject moduleObj);
 
 // Return whether this is the js::Native returned by NewAsmJSModuleFunction.
 extern bool
@@ -24,17 +24,12 @@ IsAsmJSModuleNative(JSNative native);
 
 // Return whether the given value is a function containing "use asm" that has
 // been validated according to the asm.js spec.
-extern bool
+extern JSBool
 IsAsmJSModule(JSContext *cx, unsigned argc, JS::Value *vp);
-
-// Return whether the given value is a function containing "use asm" that was
-// loaded directly from the cache (and hence was validated previously).
-extern bool
-IsAsmJSModuleLoadedFromCache(JSContext *cx, unsigned argc, Value *vp);
 
 // Return whether the given value is a nested function in an asm.js module that
 // has been both compile- and link-time validated.
-extern bool
+extern JSBool
 IsAsmJSFunction(JSContext *cx, unsigned argc, JS::Value *vp);
 
 #else // JS_ION
@@ -45,7 +40,7 @@ IsAsmJSModuleNative(JSNative native)
     return false;
 }
 
-inline bool
+inline JSBool
 IsAsmJSFunction(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -53,16 +48,8 @@ IsAsmJSFunction(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-inline bool
+inline JSBool
 IsAsmJSModule(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().set(BooleanValue(false));
-    return true;
-}
-
-inline bool
-IsAsmJSModuleLoadedFromCache(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     args.rval().set(BooleanValue(false));

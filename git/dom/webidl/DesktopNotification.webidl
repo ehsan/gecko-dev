@@ -9,7 +9,7 @@ interface MozObserver;
 [HeaderFile="mozilla/dom/DesktopNotification.h"]
 interface DesktopNotificationCenter
 {
-  [NewObject]
+  [Creator]
   DesktopNotification createNotification(DOMString title,
                                          DOMString description,
                                          optional DOMString iconURL = "");
@@ -20,7 +20,9 @@ interface DesktopNotification : EventTarget
   [Throws]
   void show();
 
+  [SetterThrows]
   attribute EventHandler onclick;
 
+  [SetterThrows]
   attribute EventHandler onclose;
 };

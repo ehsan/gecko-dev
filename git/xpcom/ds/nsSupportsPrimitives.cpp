@@ -4,10 +4,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSupportsPrimitives.h"
+#include "nsCRT.h"
 #include "nsMemory.h"
 #include "prprf.h"
-
-using mozilla::fallible_t;
+#include "nsIInterfaceInfoManager.h"
+#include "nsDependentString.h"
+#include "nsReadableUtils.h"
+#include "nsPromiseFlatString.h"
 
 /***************************************************************************/
 
@@ -100,9 +103,7 @@ NS_IMETHODIMP nsSupportsCStringImpl::ToString(char **_retval)
 
 NS_IMETHODIMP nsSupportsCStringImpl::SetData(const nsACString& aData)
 {
-    bool ok = mData.Assign(aData, fallible_t());
-    if (!ok)
-        return NS_ERROR_OUT_OF_MEMORY;
+    mData = aData;
     return NS_OK;
 }
 
@@ -139,9 +140,7 @@ NS_IMETHODIMP nsSupportsStringImpl::ToString(PRUnichar **_retval)
 
 NS_IMETHODIMP nsSupportsStringImpl::SetData(const nsAString& aData)
 {
-    bool ok = mData.Assign(aData, fallible_t());
-    if (!ok)
-        return NS_ERROR_OUT_OF_MEMORY;
+    mData = aData;
     return NS_OK;
 }
 

@@ -262,15 +262,6 @@ public:
    */
   int32_t CaretLineNumber();
 
-  /**
-   * Return the caret rect and the widget containing the caret within this
-   * text accessible.
-   *
-   * @param [out] the widget containing the caret
-   * @return      the caret rect
-   */
-  nsIntRect GetCaretRect(nsIWidget** aWidget);
-
   //////////////////////////////////////////////////////////////////////////////
   // EditableTextAccessible
 
@@ -282,7 +273,6 @@ public:
 protected:
   // Accessible
   virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
-  virtual void CacheChildren() MOZ_OVERRIDE;
 
   // HyperTextAccessible
 
@@ -366,9 +356,9 @@ protected:
    * Return an offset corresponding to the given direction and selection amount
    * relative the given offset. A helper used to find word or line boundaries.
    */
-  virtual int32_t FindOffset(int32_t aOffset, nsDirection aDirection,
-                             nsSelectionAmount aAmount,
-                             EWordMovementType aWordMovementType = eDefaultBehavior);
+  int32_t FindOffset(int32_t aOffset, nsDirection aDirection,
+                     nsSelectionAmount aAmount,
+                     EWordMovementType aWordMovementType = eDefaultBehavior);
 
   /**
     * Used by FindOffset() to move backward/forward from a given point

@@ -28,7 +28,6 @@
 #include "nsIDOMHTMLCollection.h"
 #include "nsIDocument.h"
 #include "nsIMutableArray.h"
-#include "nsIPersistentProperties2.h"
 #include "nsIPresShell.h"
 #include "nsITableCellLayout.h"
 #include "nsFrameSelection.h"
@@ -451,10 +450,10 @@ HTMLTableAccessible::NativeAttributes()
 // HTMLTableAccessible: nsIAccessible implementation
 
 Relation
-HTMLTableAccessible::RelationByType(RelationType aType)
+HTMLTableAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = AccessibleWrap::RelationByType(aType);
-  if (aType == RelationType::LABELLED_BY)
+  if (aType == nsIAccessibleRelation::RELATION_LABELLED_BY)
     rel.AppendTarget(Caption());
 
   return rel;
@@ -1118,10 +1117,10 @@ HTMLTableAccessible::IsProbablyLayoutTable()
 ////////////////////////////////////////////////////////////////////////////////
 
 Relation
-HTMLCaptionAccessible::RelationByType(RelationType aType)
+HTMLCaptionAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = HyperTextAccessible::RelationByType(aType);
-  if (aType == RelationType::LABEL_FOR)
+  if (aType == nsIAccessibleRelation::RELATION_LABEL_FOR)
     rel.AppendTarget(Parent());
 
   return rel;

@@ -22,9 +22,6 @@
     'build_libjpeg': 0,
     'build_libvpx': 0,
 
-    # turn off mandatory use of NEON and instead use NEON detection
-    'arm_neon': 0,
-
     #if "-D build_with_gonk=1", then set moz_widget_toolkit_gonk to 1
     'moz_widget_toolkit_gonk': 0,
     'variables': {
@@ -41,7 +38,7 @@
 #    'aec_debug_dump': 1,
 
     # codec enable/disables:
-    # Note: if you change one here, you must modify layout/media/webrtc/Makefile.in!
+    # Note: if you change one here, you must modify shared_libs.mk!
     'include_g711': 1,
     'include_opus': 1,
     'include_g722': 0,

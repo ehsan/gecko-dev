@@ -22,6 +22,8 @@ XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
                                    "nsIMessageListenerManager");
 
+let myGlobal = this;
+
 let ContactService = {
   init: function() {
     if (DEBUG) debug("Init");
@@ -36,8 +38,10 @@ let ContactService = {
       ppmm.addMessageListener(msgName, this);
     }.bind(this));
 
-    this._db = new ContactDB();
-    this._db.init();
+    var idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
+    idbManager.initWindowless(myGlobal);
+    this._db = new ContactDB(myGlobal);
+    this._db.init(myGlobal);
 
     this.configureSubstringMatching();
 
@@ -47,6 +51,7 @@ let ContactService = {
 
   observe: function(aSubject, aTopic, aData) {
     if (aTopic === 'profile-before-change') {
+      myGlobal = null;
       this._messages.forEach(function(msgName) {
         ppmm.removeMessageListener(msgName, this);
       }.bind(this));
@@ -138,7 +143,7 @@ let ContactService = {
               throw e;
             }
           }.bind(this),
-          function(aErrorMsg) { mm.sendAsyncMessage("Contacts:GetAll:Return:KO", { requestID: msg.cursorId, errorMsg: aErrorMsg }); },
+          function(aErrorMsg) { mm.sendAsyncMessage("Contacts:Find:Return:KO", { requestID: msg.cursorId, errorMsg: aErrorMsg }); },
           msg.findOptions, msg.cursorId);
         break;
       case "Contacts:GetAll:SendNow":
@@ -187,9 +192,7 @@ let ContactService = {
             mm.sendAsyncMessage("Contacts:Clear:Return:OK", { requestID: msg.requestID });
             this.broadcastMessage("Contact:Changed", { reason: "remove" });
           }.bind(this),
-          function(aErrorMsg) {
-            mm.sendAsyncMessage("Contacts:Clear:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg });
-          }.bind(this)
+          function(aErrorMsg) { mm.sendAsyncMessage("Contacts:Clear:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg }); }.bind(this)
         );
         break;
       case "Contacts:GetRevision":
@@ -203,9 +206,7 @@ let ContactService = {
               revision: revision
             });
           },
-          function(aErrorMsg) {
-            mm.sendAsyncMessage("Contacts:GetRevision:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg });
-          }.bind(this)
+          function(aErrorMsg) { mm.sendAsyncMessage("Contacts:GetRevision:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg }); }.bind(this)
         );
         break;
       case "Contacts:GetCount":
@@ -219,9 +220,7 @@ let ContactService = {
               count: count
             });
           },
-          function(aErrorMsg) {
-            mm.sendAsyncMessage("Contacts:Count:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg });
-          }.bind(this)
+          function(aErrorMsg) { mm.sendAsyncMessage("Contacts:Count:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg }); }.bind(this)
         );
         break;
       case "Contacts:RegisterForMessages":

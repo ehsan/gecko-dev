@@ -38,7 +38,6 @@
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
 #include "nsNetUtil.h"
-#include "mozilla/StaticPtr.h"
 #ifdef MOZ_PEERCONNECTION
 #include "mtransport/runnable_utils.h"
 #endif
@@ -79,7 +78,7 @@ static bool sctp_initialized;
 namespace mozilla {
 
 class DataChannelShutdown;
-StaticRefPtr<DataChannelShutdown> gDataChannelShutdown;
+nsRefPtr<DataChannelShutdown> gDataChannelShutdown;
 
 class DataChannelShutdown : public nsIObserver
 {
@@ -848,9 +847,9 @@ DataChannelConnection::Connect(const char *addr, unsigned short port)
 #endif
 
 DataChannel *
-DataChannelConnection::FindChannelByStream(uint16_t stream)
+DataChannelConnection::FindChannelByStream(uint16_t streamOut)
 {
-  return mStreams.SafeElementAt(stream);
+  return mStreams.SafeElementAt(streamOut);
 }
 
 uint16_t
@@ -932,17 +931,6 @@ DataChannelConnection::SendControlMessage(void *msg, uint32_t len, uint16_t stre
     return (0);
   }
   return (1);
-}
-
-int32_t
-DataChannelConnection::SendOpenAckMessage(uint16_t stream)
-{
-  struct rtcweb_datachannel_ack ack;
-
-  memset(&ack, 0, sizeof(struct rtcweb_datachannel_ack));
-  ack.msg_type = DATA_CHANNEL_ACK;
-
-  return SendControlMessage(&ack, sizeof(ack), stream);
 }
 
 int32_t
@@ -1046,23 +1034,6 @@ DataChannelConnection::SendDeferredMessages()
     if (still_blocked)
       break;
 
-    if (channel->mFlags & DATA_CHANNEL_FLAGS_SEND_ACK) {
-      if (SendOpenAckMessage(channel->mStream)) {
-        channel->mFlags &= ~DATA_CHANNEL_FLAGS_SEND_ACK;
-        sent = true;
-      } else {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-          still_blocked = true;
-        } else {
-          // Close the channel, inform the user
-          CloseInt(channel);
-          // XXX send error via DataChannelOnMessageAvailable (bug 843625)
-        }
-      }
-    }
-    if (still_blocked)
-      break;
-
     if (channel->mFlags & DATA_CHANNEL_FLAGS_SEND_DATA) {
       bool failed_send = false;
       int32_t result;
@@ -1133,13 +1104,11 @@ DataChannelConnection::HandleOpenRequestMessage(const struct rtcweb_datachannel_
   mLock.AssertCurrentThreadOwns();
 
   if (length != (sizeof(*req) - 1) + ntohs(req->label_length) + ntohs(req->protocol_length)) {
-    LOG(("%s: Inconsistent length: %u, should be %u", __FUNCTION__, length,
+    LOG(("Inconsistent length: %u, should be %u", length,
          (sizeof(*req) - 1) + ntohs(req->label_length) + ntohs(req->protocol_length)));
     if (length < (sizeof(*req) - 1) + ntohs(req->label_length) + ntohs(req->protocol_length))
       return;
   }
-
-  LOG(("%s: length %u, sizeof(*req) = %u", __FUNCTION__, length, sizeof(*req)));
 
   switch (req->channel_type) {
     case DATA_CHANNEL_RELIABLE:
@@ -1206,20 +1175,12 @@ DataChannelConnection::HandleOpenRequestMessage(const struct rtcweb_datachannel_
 
   LOG(("%s: deferring sending ON_CHANNEL_OPEN for %p", __FUNCTION__, channel.get()));
 
-  if (!SendOpenAckMessage(stream)) {
-    // XXX Only on EAGAIN!?  And if not, then close the channel??
-    channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_ACK;
-    StartDefer();
-  }
-
   // Now process any queued data messages for the channel (which will
   // themselves likely get queued until we leave WAITING_TO_OPEN, plus any
   // more that come in before that happens)
   DeliverQueuedData(stream);
 }
 
-// NOTE: the updated spec from the IETF says we should set in-order until we receive an ACK.
-// That would make this code moot.  Keep it for now for backwards compatibility.
 void
 DataChannelConnection::DeliverQueuedData(uint16_t stream)
 {
@@ -1243,23 +1204,6 @@ DataChannelConnection::DeliverQueuedData(uint16_t stream)
 }
 
 void
-DataChannelConnection::HandleOpenAckMessage(const struct rtcweb_datachannel_ack *ack,
-                                            size_t length, uint16_t stream)
-{
-  DataChannel *channel;
-
-  mLock.AssertCurrentThreadOwns();
-
-  channel = FindChannelByStream(stream);
-  NS_ENSURE_TRUE_VOID(channel);
-
-  LOG(("OpenAck received for stream %u, waiting=%d", stream,
-       (channel->mFlags & DATA_CHANNEL_FLAGS_WAITING_ACK) ? 1 : 0));
-
-  channel->mFlags &= ~DATA_CHANNEL_FLAGS_WAITING_ACK;
-}
-
-void
 DataChannelConnection::HandleUnknownMessage(uint32_t ppid, size_t length, uint16_t stream)
 {
   /* XXX: Send an error message? */
@@ -1280,8 +1224,6 @@ DataChannelConnection::HandleDataMessage(uint32_t ppid,
   channel = FindChannelByStream(stream);
 
   // XXX A closed channel may trip this... check
-  // NOTE: the updated spec from the IETF says we should set in-order until we receive an ACK.
-  // That would make this code moot.  Keep it for now for backwards compatibility.
   if (!channel) {
     // In the updated 0-RTT open case, the sender can send data immediately
     // after Open, and doesn't set the in-order bit (since we don't have a
@@ -1375,27 +1317,21 @@ void
 DataChannelConnection::HandleMessage(const void *buffer, size_t length, uint32_t ppid, uint16_t stream)
 {
   const struct rtcweb_datachannel_open_request *req;
-  const struct rtcweb_datachannel_ack *ack;
 
   mLock.AssertCurrentThreadOwns();
 
   switch (ppid) {
     case DATA_CHANNEL_PPID_CONTROL:
-      req = static_cast<const struct rtcweb_datachannel_open_request *>(buffer);
+      // structure includes a possibly-unused char label[1] (in a packed structure)
+      NS_ENSURE_TRUE_VOID(length >= sizeof(*req) - 1);
 
-      NS_ENSURE_TRUE_VOID(length >= sizeof(*ack)); // smallest message
+      req = static_cast<const struct rtcweb_datachannel_open_request *>(buffer);
       switch (req->msg_type) {
         case DATA_CHANNEL_OPEN_REQUEST:
-          // structure includes a possibly-unused char label[1] (in a packed structure)
-          NS_ENSURE_TRUE_VOID(length >= sizeof(*req) - 1);
+          LOG(("length %u, sizeof(*req) = %u", length, sizeof(*req)));
+          NS_ENSURE_TRUE_VOID(length >= sizeof(*req));
 
           HandleOpenRequestMessage(req, length, stream);
-          break;
-        case DATA_CHANNEL_ACK:
-          // >= sizeof(*ack) checked above
-
-          ack = static_cast<const struct rtcweb_datachannel_ack *>(buffer);
-          HandleOpenAckMessage(ack, length, stream);
           break;
         default:
           HandleUnknownMessage(ppid, length, stream);
@@ -1644,20 +1580,20 @@ DataChannelConnection::ClearResets()
 }
 
 void
-DataChannelConnection::ResetOutgoingStream(uint16_t stream)
+DataChannelConnection::ResetOutgoingStream(uint16_t streamOut)
 {
   uint32_t i;
 
   mLock.AssertCurrentThreadOwns();
   LOG(("Connection %p: Resetting outgoing stream %u",
-       (void *) this, stream));
+       (void *) this, streamOut));
   // Rarely has more than a couple items and only for a short time
   for (i = 0; i < mStreamsResetting.Length(); ++i) {
-    if (mStreamsResetting[i] == stream) {
+    if (mStreamsResetting[i] == streamOut) {
       return;
     }
   }
-  mStreamsResetting.AppendElement(stream);
+  mStreamsResetting.AppendElement(streamOut);
 }
 
 void
@@ -2073,11 +2009,6 @@ DataChannelConnection::OpenFinish(already_AddRefed<DataChannel> aChannel)
   SendMsgInternal(channel, "Help me!", 8, DATA_CHANNEL_PPID_DOMSTRING_LAST);
 #endif
 
-  if (channel->mFlags & DATA_CHANNEL_FLAGS_OUT_OF_ORDER_ALLOWED) {
-    // Don't send unordered until this gets cleared
-    channel->mFlags |= DATA_CHANNEL_FLAGS_WAITING_ACK;
-  }
-
   if (!(channel->mFlags & DATA_CHANNEL_FLAGS_EXTERNAL_NEGOTIATED)) {
     if (!SendOpenRequestMessage(channel->mLabel, channel->mProtocol,
                                 stream,
@@ -2146,16 +2077,14 @@ DataChannelConnection::SendMsgInternal(DataChannel *channel, const char *data,
   NS_ENSURE_TRUE(channel->mState == OPEN || channel->mState == CONNECTING, 0);
   NS_WARN_IF_FALSE(length > 0, "Length is 0?!");
 
-  // To avoid problems where an in-order OPEN is lost and an
+  flags = (channel->mFlags & DATA_CHANNEL_FLAGS_OUT_OF_ORDER_ALLOWED) ? SCTP_UNORDERED : 0;
+
+  // To avoid problems where an in-order OPEN_RESPONSE is lost and an
   // out-of-order data message "beats" it, require data to be in-order
   // until we get an ACK.
-  if ((channel->mFlags & DATA_CHANNEL_FLAGS_OUT_OF_ORDER_ALLOWED) &&
-      !(channel->mFlags & DATA_CHANNEL_FLAGS_WAITING_ACK)) {
-    flags = SCTP_UNORDERED;
-  } else {
-    flags = 0;
+  if (channel->mState == CONNECTING) {
+    flags &= ~SCTP_UNORDERED;
   }
-
   spa.sendv_sndinfo.snd_ppid = htonl(ppid);
   spa.sendv_sndinfo.snd_sid = channel->mStream;
   spa.sendv_sndinfo.snd_flags = flags;

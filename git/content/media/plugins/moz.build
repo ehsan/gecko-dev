@@ -7,14 +7,14 @@
 MODULE = 'content'
 
 EXPORTS += [
+    'MPAPI.h',
     'MediaPluginDecoder.h',
     'MediaPluginHost.h',
     'MediaPluginReader.h',
     'MediaResourceServer.h',
-    'MPAPI.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'MediaPluginDecoder.cpp',
     'MediaPluginHost.cpp',
     'MediaPluginReader.cpp',
@@ -23,9 +23,3 @@ SOURCES += [
 
 LIBRARY_NAME = 'gkconmediaplugins_s'
 
-LIBXUL_LIBRARY = True
-
-LOCAL_INCLUDES += [
-    '/content/base/src',
-    '/content/html/content/src',
-    ]

@@ -9,30 +9,13 @@
 
 "use strict";
 
+let _DEBUG = false;
+function _debug(s) { dump("== Payment flow == " + s + "\n"); }
+_debug("Frame script injected");
+
 let { classes: Cc, interfaces: Ci, utils: Cu }  = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-
-const PREF_DEBUG = "dom.payment.debug";
-
-let _debug;
-try {
-  _debug = Services.prefs.getPrefType(PREF_DEBUG) == Ci.nsIPrefBranch.PREF_BOOL
-           && Services.prefs.getBoolPref(PREF_DEBUG);
-} catch(e){
-  _debug = false;
-}
-
-function LOG(s) {
-  if (!_debug) {
-    return;
-  }
-  dump("== Payment flow == " + s + "\n");
-}
-
-if (_debug) {
-  LOG("Frame script injected");
-}
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
@@ -163,8 +146,8 @@ let PaymentProvider = {
   },
 
   paymentSuccess: function paymentSuccess(aResult) {
-    if (_debug) {
-      LOG("paymentSuccess " + aResult);
+    if (_DEBUG) {
+      _debug("paymentSuccess " + aResult);
     }
 
     PaymentProvider._closePaymentFlowDialog(function notifySuccess() {
@@ -177,8 +160,8 @@ let PaymentProvider = {
   },
 
   paymentFailed: function paymentFailed(aErrorMsg) {
-    if (_debug) {
-      LOG("paymentFailed " + aErrorMsg);
+    if (_DEBUG) {
+      _debug("paymentFailed " + aErrorMsg);
     }
 
     PaymentProvider._closePaymentFlowDialog(function notifyError() {
@@ -212,8 +195,8 @@ let PaymentProvider = {
   _silentSmsObservers: null,
 
   sendSilentSms: function sendSilentSms(aNumber, aMessage) {
-    if (_debug) {
-      LOG("Sending silent message " + aNumber + " - " + aMessage);
+    if (_DEBUG) {
+      _debug("Sending silent message " + aNumber + " - " + aMessage);
     }
 
     let request = new SilentSmsRequest();
@@ -222,8 +205,8 @@ let PaymentProvider = {
   },
 
   observeSilentSms: function observeSilentSms(aNumber, aCallback) {
-    if (_debug) {
-      LOG("observeSilentSms " + aNumber);
+    if (_DEBUG) {
+      _debug("observeSilentSms " + aNumber);
     }
 
     if (!this._silentSmsObservers) {
@@ -246,13 +229,13 @@ let PaymentProvider = {
   },
 
   removeSilentSmsObserver: function removeSilentSmsObserver(aNumber, aCallback) {
-    if (_debug) {
-      LOG("removeSilentSmsObserver " + aNumber);
+    if (_DEBUG) {
+      _debug("removeSilentSmsObserver " + aNumber);
     }
 
     if (!this._silentSmsObservers || !this._silentSmsObservers[aNumber]) {
-      if (_debug) {
-        LOG("No observers for " + aNumber);
+      if (_DEBUG) {
+        _debug("No observers for " + aNumber);
       }
       return;
     }
@@ -265,20 +248,20 @@ let PaymentProvider = {
         this._silentNumbers.splice(this._silentNumbers.indexOf(aNumber), 1);
         smsService.removeSilentNumber(aNumber);
       }
-    } else if (_debug) {
-      LOG("No callback found for " + aNumber);
+    } else if (_DEBUG) {
+      _debug("No callback found for " + aNumber);
     }
   },
 
   _onSilentSms: function _onSilentSms(aSubject, aTopic, aData) {
-    if (_debug) {
-      LOG("Got silent message! " + aSubject.sender + " - " + aSubject.body);
+    if (_DEBUG) {
+      _debug("Got silent message! " + aSubject.sender + " - " + aSubject.body);
     }
 
     let number = aSubject.sender;
     if (!number || this._silentNumbers.indexOf(number) == -1) {
-      if (_debug) {
-        LOG("No observers for " + number);
+      if (_DEBUG) {
+        _debug("No observers for " + number);
       }
       return;
     }
@@ -289,8 +272,8 @@ let PaymentProvider = {
   },
 
   _cleanUp: function _cleanUp() {
-    if (_debug) {
-      LOG("Cleaning up!");
+    if (_DEBUG) {
+      _debug("Cleaning up!");
     }
 
     if (!this._silentNumbers) {

@@ -50,6 +50,7 @@
 #include "nsXPCOMCID.h"
 #include "nsIDocument.h"
 #include "mozilla/Preferences.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 
 using namespace mozilla;
@@ -705,7 +706,7 @@ void nsHTTPIndex::GetDestination(nsIRDFResource* r, nsXPIDLCString& dest) {
   if (!url) {
      const char* temp;
      r->GetValueConst(&temp);
-     dest.Adopt(temp ? strdup(temp) : 0);
+     dest.Adopt(temp ? nsCRT::strdup(temp) : 0);
   } else {
     const PRUnichar* uri;
     url->GetValueConst(&uri);
@@ -756,7 +757,7 @@ nsHTTPIndex::GetURI(char * *uri)
 	if (! uri)
 		return(NS_ERROR_NULL_POINTER);
 
-	if ((*uri = strdup("rdf:httpindex")) == nullptr)
+	if ((*uri = nsCRT::strdup("rdf:httpindex")) == nullptr)
 		return(NS_ERROR_OUT_OF_MEMORY);
 
 	return(NS_OK);
@@ -1166,6 +1167,8 @@ nsHTTPIndex::ArcLabelsIn(nsIRDFNode *aNode, nsISimpleEnumerator **_retval)
 NS_IMETHODIMP
 nsHTTPIndex::ArcLabelsOut(nsIRDFResource *aSource, nsISimpleEnumerator **_retval)
 {
+	nsresult	rv = NS_ERROR_UNEXPECTED;
+
 	*_retval = nullptr;
 
 	nsCOMPtr<nsISimpleEnumerator> child, anonArcs;
@@ -1176,7 +1179,7 @@ nsHTTPIndex::ArcLabelsOut(nsIRDFResource *aSource, nsISimpleEnumerator **_retval
 
 	if (mInner)
 	{
-		mInner->ArcLabelsOut(aSource, getter_AddRefs(anonArcs));
+		rv = mInner->ArcLabelsOut(aSource, getter_AddRefs(anonArcs));
 	}
 
 	return NS_NewUnionEnumerator(_retval, child, anonArcs);

@@ -16,10 +16,8 @@
 #include "nsIServiceManager.h"
 #include "nsMenuUtilsX.h"
 #include "nsToolkit.h"
-#include "nsCRT.h"
-#include "mozilla/MiscEvents.h"
+#include "nsGUIEvent.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/TextEvents.h"
 
 using namespace mozilla;
 using namespace mozilla::widget;
@@ -352,7 +350,7 @@ nsCocoaUtils::GetStringForNSString(const NSString *aSrc, nsAString& aDist)
   }
 
   aDist.SetLength([aSrc length]);
-  [aSrc getCharacters: reinterpret_cast<unichar*>(aDist.BeginWriting())];
+  [aSrc getCharacters: aDist.BeginWriting()];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -364,7 +362,7 @@ nsCocoaUtils::ToNSString(const nsAString& aString)
   if (aString.IsEmpty()) {
     return [NSString string];
   }
-  return [NSString stringWithCharacters:reinterpret_cast<const unichar*>(aString.BeginReading())
+  return [NSString stringWithCharacters:aString.BeginReading()
                                  length:aString.Length()];
 }
 
@@ -421,7 +419,7 @@ nsCocoaUtils::InitNPCocoaEvent(NPCocoaEvent* aNPCocoaEvent)
 
 // static
 void
-nsCocoaUtils::InitPluginEvent(WidgetPluginEvent &aPluginEvent,
+nsCocoaUtils::InitPluginEvent(nsPluginEvent &aPluginEvent,
                               NPCocoaEvent &aCocoaEvent)
 {
   aPluginEvent.time = PR_IntervalNow();
@@ -431,7 +429,7 @@ nsCocoaUtils::InitPluginEvent(WidgetPluginEvent &aPluginEvent,
 
 // static
 void
-nsCocoaUtils::InitInputEvent(WidgetInputEvent& aInputEvent,
+nsCocoaUtils::InitInputEvent(nsInputEvent &aInputEvent,
                              NSEvent* aNativeEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -447,7 +445,7 @@ nsCocoaUtils::InitInputEvent(WidgetInputEvent& aInputEvent,
 
 // static
 void
-nsCocoaUtils::InitInputEvent(WidgetInputEvent& aInputEvent,
+nsCocoaUtils::InitInputEvent(nsInputEvent &aInputEvent,
                              NSUInteger aModifiers)
 {
   aInputEvent.modifiers = 0;

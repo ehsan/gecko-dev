@@ -13,15 +13,3 @@ EXPORTS += [
 
 LIBRARY_NAME = 'mozqcms'
 
-LIBXUL_LIBRARY = True
-
-SOURCES += [
-    'chain.c',
-    'iccread.c',
-    'matrix.c',
-    'transform.c',
-    'transform_util.c',
-]
-
-MSVC_ENABLE_PGO = True
-

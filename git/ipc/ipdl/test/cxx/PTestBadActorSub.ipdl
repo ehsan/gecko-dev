@@ -3,11 +3,11 @@ include protocol PTestBadActor;
 namespace mozilla {
 namespace _ipdltest {
 
-intr protocol PTestBadActorSub {
+rpc protocol PTestBadActorSub {
   manager PTestBadActor;
 
 child:
-  intr __delete__();
+  rpc __delete__();
 
 parent:
   Ping();

@@ -13,11 +13,12 @@
 #include "nsAutoJSValHolder.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsJSPrincipals.h"
 #include "nsContentUtils.h"
-#include "js/TypeDecls.h"
 
+struct JSContext;
+class JSObject;
 struct JSPrincipals;
 
 namespace mozilla {
@@ -30,7 +31,7 @@ public:
     ~XPCShellEnvironment();
 
     void ProcessFile(JSContext *cx, JS::Handle<JSObject*> obj,
-                     const char *filename, FILE *file, bool forceTTY);
+                     const char *filename, FILE *file, JSBool forceTTY);
     bool EvaluateString(const nsString& aString,
                         nsString* aResult = nullptr);
 
@@ -43,9 +44,9 @@ public:
     }
 
     void SetIsQuitting() {
-        mQuitting = true;
+        mQuitting = JS_TRUE;
     }
-    bool IsQuitting() {
+    JSBool IsQuitting() {
         return mQuitting;
     }
 
@@ -56,7 +57,7 @@ protected:
 private:
     nsAutoJSValHolder mGlobalHolder;
 
-    bool mQuitting;
+    JSBool mQuitting;
 };
 
 } /* namespace ipc */

@@ -3,6 +3,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 VISIBILITY_FLAGS=
 STL_FLAGS	=
 ifdef _MSC_VER
@@ -11,7 +18,9 @@ endif
 
 DIST_INSTALL 	= 1
 
-ifneq (gonk,$(MOZ_WIDGET_TOOLKIT))
+ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
+FORCE_STATIC_LIB= 1
+else
 FORCE_SHARED_LIB= 1
 endif
 
@@ -27,3 +36,5 @@ SDK_LIBRARY = $(SHARED_LIBRARY)
 endif
 
 LOCAL_INCLUDES += -I$(DEPTH)/xpcom
+
+include $(topsrcdir)/config/rules.mk

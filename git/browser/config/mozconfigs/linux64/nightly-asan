@@ -1,9 +1,12 @@
 # We still need to build with debug symbols
 ac_add_options --disable-debug
-ac_add_options --enable-optimize="-O2 -gline-tables-only"
+ac_add_options --enable-optimize="-O2 -g"
 
 # ASan specific options on Linux
 ac_add_options --enable-valgrind
+
+# Other options
+ac_add_options --enable-codesighs
 
 . $topsrcdir/build/unix/mozconfig.asan
 

@@ -12,5 +12,3 @@ CPP_UNIT_TESTS += [
     'TestAppShellSteadyState.cpp',
 ]
 
-FAIL_ON_WARNINGS = True
-

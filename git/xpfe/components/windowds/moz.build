@@ -12,13 +12,9 @@ XPIDL_MODULE = 'windowds'
 
 MODULE = 'appcomps'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsWindowDataSource.cpp',
 ]
 
 LIBRARY_NAME = 'windowds'
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
 

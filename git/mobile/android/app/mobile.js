@@ -64,8 +64,6 @@ pref("browser.cache.memory.enable", true);
 #endif
 pref("browser.cache.memory.capacity", 1024); // kilobytes
 
-pref("browser.cache.memory_limit", 5120); // 5 MB
-
 /* image cache prefs */
 pref("image.cache.size", 1048576); // bytes
 pref("image.high_quality_downscaling.enabled", false);
@@ -146,6 +144,7 @@ pref("browser.helperApps.deleteTempFileOnExit", false);
 /* password manager */
 pref("signon.rememberSignons", true);
 pref("signon.expireMasterPassword", false);
+pref("signon.SignonFileName", "signons.txt");
 pref("signon.debug", false);
 
 /* form helper (scroll to and optionally zoom into editable fields)  */
@@ -163,7 +162,6 @@ pref("layout.spellcheckDefault", 0);
 
 /* new html5 forms */
 pref("dom.experimental_forms", true);
-pref("dom.forms.number", true);
 
 /* extension manager and xpinstall */
 pref("xpinstall.whitelist.add", "addons.mozilla.org");
@@ -225,6 +223,7 @@ pref("accessibility.typeaheadfind.timeout", 5000);
 pref("accessibility.typeaheadfind.flashBar", 1);
 pref("accessibility.typeaheadfind.linksonly", false);
 pref("accessibility.typeaheadfind.casesensitive", 0);
+// zoom key(F7) conflicts with caret browsing on maemo
 pref("accessibility.browsewithcaret_shortcut.enabled", false);
 
 // Whether the character encoding menu is under the main Firefox button. This
@@ -244,7 +243,6 @@ pref("browser.search.log", false);
 // ordering of search engines in the engine list.
 pref("browser.search.order.1", "chrome://browser/locale/region.properties");
 pref("browser.search.order.2", "chrome://browser/locale/region.properties");
-pref("browser.search.order.3", "chrome://browser/locale/region.properties");
 
 // disable updating
 pref("browser.search.update", false);
@@ -397,6 +395,9 @@ pref("app.geo.reportdata", 0);
 //pref("content.sink.perf_deflect_count", 1000000);
 //pref("content.sink.perf_parse_time", 50000000);
 
+// Disable methodjit in chrome to save memory
+pref("javascript.options.methodjit.chrome",  false);
+
 // Disable the JS engine's gc on memory pressure, since we do one in the mobile
 // browser (bug 669346).
 pref("javascript.options.gc_on_memory_pressure", false);
@@ -436,10 +437,6 @@ pref("browser.ui.touch.weight.visited", 120); // percentage
 
 // The percentage of the screen that needs to be scrolled before margins are exposed.
 pref("browser.ui.show-margins-threshold", 20);
-
-// Maximum distance from the point where the user pressed where we still
-// look for text to select
-pref("browser.ui.selection.distance", 250);
 
 // plugins
 pref("plugin.disable", false);
@@ -547,18 +544,13 @@ pref("layers.async-video.enabled", true);
 pref("layers.progressive-paint", true);
 pref("layers.low-precision-buffer", true);
 pref("layers.low-precision-resolution", 250);
-// We want to limit layers for two reasons:
-// 1) We can't scroll smoothly if we have to many draw calls
-// 2) Pages that have too many layers consume too much memory and crash.
-// By limiting the number of layers on mobile we're making the main thread
-// work harder keep scrolling smooth and memory low.
-pref("layers.max-active", 20);
 
 pref("notification.feature.enabled", true);
 pref("dom.webnotifications.enabled", true);
 
 // prevent tooltips from showing up
 pref("browser.chrome.toolbar_tips", false);
+pref("indexedDB.feature.enabled", true);
 pref("dom.indexedDB.warningQuota", 5);
 
 // prevent video elements from preloading too much data
@@ -567,6 +559,7 @@ pref("media.preload.auto", 2);    // preload metadata if preload=auto
 
 // optimize images memory usage
 pref("image.mem.decodeondraw", true);
+pref("content.image.allow_locking", false);
 pref("image.mem.min_discard_timeout_ms", 10000);
 
 // enable touch events interfaces
@@ -587,6 +580,7 @@ pref("browser.safebrowsing.reportPhishURL", "http://%LOCALE%.phish-report.mozill
 pref("browser.safebrowsing.reportMalwareURL", "http://%LOCALE%.malware-report.mozilla.com/?hl=%LOCALE%");
 pref("browser.safebrowsing.reportMalwareErrorURL", "http://%LOCALE%.malware-error.mozilla.com/?hl=%LOCALE%");
 
+pref("browser.safebrowsing.warning.infoURL", "http://www.mozilla.com/%LOCALE%/firefox/phishing-protection/");
 pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/diagnostic?client=%NAME%&hl=%LOCALE%&site=");
 
 pref("browser.safebrowsing.id", @MOZ_APP_UA_NAME@);
@@ -597,6 +591,9 @@ pref("urlclassifier.alternate_error_page", "blocked");
 
 // The number of random entries to send with a gethash request.
 pref("urlclassifier.gethashnoise", 4);
+
+// The list of tables that use the gethash request to confirm partial results.
+pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 
 // If an urlclassifier table has not been updated in this number of seconds,
 // a gethash request will be forced to check that the result is still in
@@ -649,11 +646,6 @@ pref("ui.scrolling.overscroll_snap_limit", -1);
 pref("ui.scrolling.min_scrollable_distance", -1);
 // The axis lock mode for panning behaviour - set between standard, free and sticky
 pref("ui.scrolling.axis_lock_mode", "standard");
-// Negate scrollY, true will make the mouse scroll wheel move the screen the same direction as with most desktops or laptops.
-pref("ui.scrolling.negate_wheel_scrollY", true);
-// Determine the dead zone for gamepad joysticks. Higher values result in larger dead zones; use a negative value to
-// auto-detect based on reported hardware values
-pref("ui.scrolling.gamepad_dead_zone", 10);
 
 
 // Enable accessibility mode if platform accessibility is enabled.
@@ -714,11 +706,7 @@ pref("app.orientation.default", "");
 // back to the system.
 pref("memory.free_dirty_pages", true);
 
-pref("layout.imagevisibility.enabled", true);
-pref("layout.imagevisibility.numscrollportwidths", 1);
-pref("layout.imagevisibility.numscrollportheights", 1);
-
-pref("layers.force-tiles", true);
+pref("layout.imagevisibility.enabled", false);
 
 // Enable the dynamic toolbar
 pref("browser.chrome.dynamictoolbar", true);
@@ -727,9 +715,6 @@ pref("browser.chrome.dynamictoolbar", true);
 // 0: Show a current page title.
 // 1: Show a current page url.
 pref("browser.chrome.titlebarMode", 0);
-
-// Hide common parts of URLs like "www." or "http://"
-pref("browser.urlbar.trimURLs", true);
 
 #ifdef MOZ_PKG_SPECIAL
 // Disable webgl on ARMv6 because running the reftests takes
@@ -751,15 +736,19 @@ pref("browser.contentHandlers.types.3.title", "chrome://browser/locale/region.pr
 pref("browser.contentHandlers.types.3.uri", "chrome://browser/locale/region.properties");
 pref("browser.contentHandlers.types.3.type", "application/vnd.mozilla.maybe.feed");
 
-// WebPayment
-pref("dom.mozPay.enabled", true);
-
 #ifndef RELEASE_BUILD
 pref("dom.payment.provider.0.name", "Firefox Marketplace");
 pref("dom.payment.provider.0.description", "marketplace.firefox.com");
 pref("dom.payment.provider.0.uri", "https://marketplace.firefox.com/mozpay/?req=");
 pref("dom.payment.provider.0.type", "mozilla/payments/pay/v1");
 pref("dom.payment.provider.0.requestMethod", "GET");
+#endif
+
+#ifdef NIGHTLY_BUILD
+// Contacts API
+pref("dom.mozContacts.enabled", true);
+pref("dom.navigator-property.disable.mozContacts", false);
+pref("dom.global-constructor.disable.mozContact", false);
 #endif
 
 // Shortnumber matching needed for e.g. Brazil:
@@ -780,8 +769,3 @@ pref("gfx.canvas.azure.accelerated", true);
 
 pref("general.useragent.override.youtube.com", "Android; Tablet;#Android; Mobile;");
 
-// When true, phone number linkification is enabled.
-pref("browser.ui.linkify.phone", false);
-
-// Enables/disables Spatial Navigation
-pref("snav.enabled", true);

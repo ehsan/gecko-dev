@@ -8,12 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/common_audio/vad/vad_unittest.h"
-#include "webrtc/typedefs.h"
+#include "gtest/gtest.h"
+#include "typedefs.h"
+#include "vad_unittest.h"
 
 extern "C" {
-#include "webrtc/common_audio/vad/vad_gmm.h"
+#include "vad_gmm.h"
 }
 
 namespace {

@@ -60,7 +60,6 @@ static char *RCSSTRING __UNUSED__="$Id: ice_candidate.c,v 1.2 2008/04/28 17:59:0
 #include "ice_reg.h"
 #include "ice_util.h"
 #include "nr_socket_turn.h"
-#include "nr_socket.h"
 
 static int next_automatic_preference = 224;
 
@@ -164,7 +163,7 @@ int nr_ice_candidate_create(nr_ice_ctx *ctx,nr_ice_component *comp,nr_ice_socket
 
     TAILQ_FOREACH(tmp,&isock->candidates,entry_sock){
       if(cand->priority==tmp->priority){
-        r_log(LOG_ICE,LOG_ERR,"ICE(%s): duplicate priority %u candidate %s and candidate %s",
+        r_log(LOG_ICE,LOG_WARNING,"ICE(%s): duplicate priority %u candidate %s and candidate %s",
           ctx->label,cand->priority,cand->label,tmp->label);
       }
     }
@@ -211,8 +210,8 @@ int nr_ice_peer_peer_rflx_candidate_create(nr_ice_ctx *ctx,char *label, nr_ice_c
     cand->stream=comp->stream;
 
 
-    r_log(LOG_ICE,LOG_DEBUG,"ICE(%s)/CAND(%s): creating candidate with type %s",
-      ctx->label,label,nr_ctype_name(ctype));
+    r_log(LOG_ICE,LOG_DEBUG,"ICE(%s): creating candidate %s with type %d",
+      ctx->label,label,ctype);
 
     if(r=nr_transport_addr_copy(&cand->base,addr))
       ABORT(r);
@@ -359,41 +358,23 @@ int nr_ice_candidate_compute_priority(nr_ice_candidate *cand)
     if(type_preference > 126)
       r_log(LOG_ICE,LOG_ERR,"Illegal type preference %d",type_preference);
 
-    if(!cand->ctx->interface_prioritizer) {
-      /* Prioritizer is not set, read from registry */
-      if(r=NR_reg_get2_uchar(NR_ICE_REG_PREF_INTERFACE_PRFX,cand->base.ifname,
-        &interface_preference)) {
-        if (r==R_NOT_FOUND) {
-          if (next_automatic_preference == 1) {
-            r_log(LOG_ICE,LOG_ERR,"Out of preference values. Can't assign one for interface %s",cand->base.ifname);
-            ABORT(R_NOT_FOUND);
-          }
-          r_log(LOG_ICE,LOG_DEBUG,"Automatically assigning preference for interface %s->%d",cand->base.ifname,
-            next_automatic_preference);
-          if (r=NR_reg_set2_uchar(NR_ICE_REG_PREF_INTERFACE_PRFX,cand->base.ifname,next_automatic_preference)){
-            ABORT(r);
-          }
-          interface_preference=next_automatic_preference;
-          next_automatic_preference--;
+
+    if(r=NR_reg_get2_uchar(NR_ICE_REG_PREF_INTERFACE_PRFX,cand->base.ifname,
+      &interface_preference)) {
+      if (r==R_NOT_FOUND) {
+        if (next_automatic_preference == 1) {
+          r_log(LOG_ICE,LOG_DEBUG,"Out of preference values. Can't assign one for interface %s",cand->base.ifname);
+          ABORT(R_NOT_FOUND);
         }
-        else {
+        r_log(LOG_ICE,LOG_DEBUG,"Automatically assigning preference for interface %s->%d",cand->base.ifname,
+          next_automatic_preference);
+        if (r=NR_reg_set2_uchar(NR_ICE_REG_PREF_INTERFACE_PRFX,cand->base.ifname,next_automatic_preference)){
           ABORT(r);
         }
+        interface_preference=next_automatic_preference;
+        next_automatic_preference--;
       }
-    }
-    else {
-      char key_of_interface[MAXIFNAME + 41];
-      nr_transport_addr addr;
-
-      if(r=nr_socket_getaddr(cand->isock->sock, &addr))
-        ABORT(r);
-
-      if(r=nr_transport_addr_fmt_ifname_addr_string(&addr,key_of_interface,
-         sizeof(key_of_interface))) {
-        ABORT(r);
-      }
-      if(r=nr_interface_prioritizer_get_priority(cand->ctx->interface_prioritizer,
-         key_of_interface,&interface_preference)) {
+      else {
         ABORT(r);
       }
     }
@@ -416,8 +397,8 @@ static void nr_ice_candidate_fire_ready_cb(NR_SOCKET s, int how, void *cb_arg)
   {
     nr_ice_candidate *cand = cb_arg;
 
-    cand->ready_cb_timer = 0;
     cand->ready_cb(0, 0, cand->ready_cb_arg);
+    cand->ready_cb_timer = 0;
   }
 
 int nr_ice_candidate_initialize(nr_ice_candidate *cand, NR_async_cb ready_cb, void *cb_arg)
@@ -466,7 +447,7 @@ int nr_ice_candidate_initialize(nr_ice_candidate *cand, NR_async_cb ready_cb, vo
 
           /* Try to resolve */
           if(!cand->ctx->resolver) {
-            r_log(LOG_ICE, LOG_ERR, "ICE-CANDIDATE(%s): Can't use DNS names without a resolver", cand->label);
+            r_log(LOG_ICE, LOG_ERR, "Can't use DNS names without a resolver");
             ABORT(R_BAD_ARGS);
           }
 
@@ -475,7 +456,7 @@ int nr_ice_candidate_initialize(nr_ice_candidate *cand, NR_async_cb ready_cb, vo
                                    nr_ice_candidate_resolved_cb,
                                    (void *)cand,
                                    &cand->resolver_handle)){
-            r_log(LOG_ICE,LOG_ERR,"ICE-CANDIDATE(%s): Could not invoke DNS resolver",cand->label);
+            r_log(LOG_ICE,LOG_ERR,"ICE-CANDIDATE(%s): Could not resolve domain name",cand->label);
             ABORT(r);
           }
         }
@@ -504,7 +485,7 @@ static int nr_ice_candidate_resolved_cb(void *cb_arg, nr_transport_addr *addr)
             cand->ctx->label,cand->label,addr->as_string);
     }
     else {
-      r_log(LOG_ICE,LOG_WARNING,"ICE(%s): failed to resolve candidate %s.",
+      r_log(LOG_ICE,LOG_DEBUG,"ICE(%s): failed to resolve candidate %s.",
             cand->ctx->label,cand->label);
       ABORT(R_NOT_FOUND);
     }
@@ -663,7 +644,7 @@ static void nr_ice_srvrflx_stun_finished_cb(NR_SOCKET sock, int how, void *cb_ar
     int _status;
     nr_ice_candidate *cand=cb_arg;
 
-    r_log(LOG_ICE,LOG_DEBUG,"ICE(%s)/CAND(%s): %s",cand->ctx->label,cand->label,__FUNCTION__);
+    r_log(LOG_ICE,LOG_DEBUG,"ICE(%s): %s for %s",cand->ctx->label,__FUNCTION__,cand->label);
 
     /* Deregister to suppress duplicates */
     if(cand->u.srvrflx.stun_handle){ /* This test because we might have failed before CB registered */
@@ -716,7 +697,7 @@ static void nr_ice_turn_allocated_cb(NR_SOCKET s, int how, void *cb_arg)
                                relay_addr.as_string,")",NULL))
           ABORT(r);
 
-        r_log(LOG_ICE,LOG_DEBUG,"TURN-CLIENT(%s)/CAND(%s): Switching from TURN to RELAY (%s)",cand->u.relayed.turn->label,cand->label,label);
+        r_log(LOG_ICE,LOG_DEBUG,"ICE(%s): Switching from TURN (%s) to RELAY (%s)",cand->u.relayed.turn->label,cand->label,label);
 
         /* Copy the relayed address into the candidate addr and
            into the candidate base. Note that we need to keep the
@@ -726,11 +707,14 @@ static void nr_ice_turn_allocated_cb(NR_SOCKET s, int how, void *cb_arg)
         if (r=nr_transport_addr_copy_keep_ifname(&cand->base, &relay_addr))  /* Need to keep interface for priority calculation */
           ABORT(r);
 
-        r_log(LOG_ICE,LOG_DEBUG,"ICE(%s)/CAND(%s): new relay base=%s addr=%s", cand->ctx->label, cand->label, cand->base.as_string, cand->addr.as_string);
+        r_log(LOG_ICE,LOG_DEBUG,"ICE-CANDIDATE(%s): base=%s, candidate=%s", cand->label, cand->base.as_string, cand->addr.as_string);
 
         RFREE(cand->label);
         cand->label=label;
         cand->state=NR_ICE_CAND_STATE_INITIALIZED;
+
+        /* Execute the ready callback */
+        cand->done_cb(0,0,cand->cb_arg);
 
         /* We also need to activate the associated STUN candidate */
         if(cand->u.relayed.srvflx_candidate){
@@ -743,15 +727,11 @@ static void nr_ice_turn_allocated_cb(NR_SOCKET s, int how, void *cb_arg)
           cand2->done_cb(0,0,cand2->cb_arg);
         }
 
-        /* Execute the ready callback */
-        cand->done_cb(0,0,cand->cb_arg);
-        cand = 0;
-
         break;
 
     case NR_TURN_CLIENT_STATE_FAILED:
     case NR_TURN_CLIENT_STATE_CANCELLED:
-      r_log(NR_LOG_TURN, LOG_WARNING,
+      r_log(NR_LOG_TURN, LOG_ERR,
             "ICE-CANDIDATE(%s): nr_turn_allocated_cb called with state %d",
             cand->label, turn->state);
       /* This failed, so go to the next TURN server if there is one */
@@ -765,18 +745,16 @@ static void nr_ice_turn_allocated_cb(NR_SOCKET s, int how, void *cb_arg)
     _status=0;
   abort:
     if(_status){
-      if (cand) {
-        r_log(NR_LOG_TURN, LOG_WARNING,
-              "ICE-CANDIDATE(%s): nr_turn_allocated_cb failed", cand->label);
-        cand->state=NR_ICE_CAND_STATE_FAILED;
-        cand->done_cb(0,0,cand->cb_arg);
+      r_log(NR_LOG_TURN, LOG_ERR,
+            "ICE-CANDIDATE(%s): nr_turn_allocated_cb failed", cand->label);
+      cand->state=NR_ICE_CAND_STATE_FAILED;
+      cand->done_cb(0,0,cand->cb_arg);
 
-        if(cand->u.relayed.srvflx_candidate){
-          nr_ice_candidate *cand2=cand->u.relayed.srvflx_candidate;
+      if(cand->u.relayed.srvflx_candidate){
+        nr_ice_candidate *cand2=cand->u.relayed.srvflx_candidate;
 
-          cand2->state=NR_ICE_CAND_STATE_FAILED;
-          cand2->done_cb(0,0,cand2->cb_arg);
-        }
+        cand2->state=NR_ICE_CAND_STATE_FAILED;
+        cand2->done_cb(0,0,cand2->cb_arg);
       }
     }
   }

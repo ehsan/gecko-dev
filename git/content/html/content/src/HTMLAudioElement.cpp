@@ -17,21 +17,29 @@
 #include "AudioSampleFormat.h"
 #include "AudioChannelCommon.h"
 #include <algorithm>
-#include "nsComponentManagerUtils.h"
-#include "nsIHttpChannel.h"
-#include "mozilla/dom/TimeRanges.h"
-#include "AudioStream.h"
+#include "mozilla/Preferences.h"
+
+static bool
+IsAudioAPIEnabled()
+{
+  return mozilla::Preferences::GetBool("media.audio_data.enabled", true);
+}
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Audio)
 
 namespace mozilla {
 namespace dom {
 
-extern bool IsAudioAPIEnabled();
+NS_IMPL_ADDREF_INHERITED(HTMLAudioElement, HTMLMediaElement)
+NS_IMPL_RELEASE_INHERITED(HTMLAudioElement, HTMLMediaElement)
 
-NS_IMPL_ISUPPORTS_INHERITED4(HTMLAudioElement, HTMLMediaElement,
-                             nsIDOMHTMLMediaElement, nsIDOMHTMLAudioElement,
-                             nsITimerCallback, nsIAudioChannelAgentCallback)
+NS_INTERFACE_TABLE_HEAD(HTMLAudioElement)
+  NS_HTML_CONTENT_INTERFACES(HTMLMediaElement)
+  NS_INTERFACE_TABLE_INHERITED4(HTMLAudioElement, nsIDOMHTMLMediaElement,
+                                nsIDOMHTMLAudioElement, nsITimerCallback,
+                                nsIAudioChannelAgentCallback)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLAudioElement)
 
@@ -52,7 +60,7 @@ HTMLAudioElement::Audio(const GlobalObject& aGlobal,
                         const Optional<nsAString>& aSrc,
                         ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.Get());
   nsIDocument* doc;
   if (!win || !(doc = win->GetExtantDoc())) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -112,7 +120,7 @@ HTMLAudioElement::MozSetup(uint32_t aChannels, uint32_t aRate, ErrorResult& aRv)
 #endif
 
   mAudioStream = AudioStream::AllocateStream();
-  aRv = mAudioStream->Init(aChannels, aRate, mAudioChannelType, AudioStream::HighLatency);
+  aRv = mAudioStream->Init(aChannels, aRate, mAudioChannelType);
   if (aRv.Failed()) {
     mAudioStream->Shutdown();
     mAudioStream = nullptr;
@@ -230,7 +238,7 @@ HTMLAudioElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 
 /* void canPlayChanged (in boolean canPlay); */
 NS_IMETHODIMP
-HTMLAudioElement::CanPlayChanged(int32_t canPlay)
+HTMLAudioElement::CanPlayChanged(bool canPlay)
 {
   NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
   // Only Audio_Data API will initialize the mAudioStream, so we call the parent
@@ -239,7 +247,7 @@ HTMLAudioElement::CanPlayChanged(int32_t canPlay)
     return HTMLMediaElement::CanPlayChanged(canPlay);
   }
 #ifdef MOZ_B2G
-  if (canPlay != AUDIO_CHANNEL_STATE_MUTED) {
+  if (canPlay) {
     SetMutedInternal(mMuted & ~MUTED_BY_AUDIO_CHANNEL);
   } else {
     SetMutedInternal(mMuted | MUTED_BY_AUDIO_CHANNEL);
@@ -284,7 +292,7 @@ HTMLAudioElement::UpdateAudioChannelPlayingState()
     }
 
     if (mPlayingThroughTheAudioChannel) {
-      int32_t canPlay;
+      bool canPlay;
       mAudioChannelAgent->StartPlaying(&canPlay);
       CanPlayChanged(canPlay);
     } else {

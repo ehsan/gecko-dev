@@ -13,8 +13,8 @@ namespace dom {
 // nsISupports implementation
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(XMLStylesheetProcessingInstruction)
-  NS_INTERFACE_TABLE_INHERITED3(XMLStylesheetProcessingInstruction, nsIDOMNode,
-                                nsIDOMProcessingInstruction,
+  NS_INTERFACE_TABLE_INHERITED4(XMLStylesheetProcessingInstruction, nsIDOMNode,
+                                nsIDOMProcessingInstruction, nsIDOMLinkStyle,
                                 nsIStyleSheetLinkingElement)
 NS_INTERFACE_TABLE_TAIL_INHERITING(ProcessingInstruction)
 

@@ -1033,9 +1033,9 @@ formatOverridableCertErrorMessage(nsISSLStatus & sslStatus,
 RememberCertErrorsTable::sInstance = nullptr;
 
 RememberCertErrorsTable::RememberCertErrorsTable()
-  : mErrorHosts(16)
-  , mMutex("RememberCertErrorsTable::mMutex")
+  : mMutex("RememberCertErrorsTable::mMutex")
 {
+  mErrorHosts.Init(16);
 }
 
 static nsresult

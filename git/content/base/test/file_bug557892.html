@@ -12,8 +12,11 @@ function run() {
 }
 
 function forcegc(){
-  SpecialPowers.forceGC();
-  SpecialPowers.gc();
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  Components.utils.forceGC();
+  var wu =  window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                  .getInterface(Components.interfaces.nsIDOMWindowUtils);
+  wu.garbageCollect();
 }
 
     </script>

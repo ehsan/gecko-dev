@@ -312,7 +312,9 @@ nsCertTree::GetDispInfoAtIndex(int32_t index,
       RefPtr<nsCertTreeDispInfo> certdi(mDispInfo.SafeElementAt(certIndex,
                                                                 nullptr));
       if (certdi) {
-        return certdi.forget();
+        nsCertTreeDispInfo *raw = certdi.get();
+        NS_IF_ADDREF(raw);
+        return raw;
       }
       break;
     }
@@ -461,6 +463,7 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
     return NS_ERROR_FAILURE;
 
   nsTHashtable<nsCStringHashKey> allHostPortOverrideKeys;
+  allHostPortOverrideKeys.Init();
 
   if (aWantedType == nsIX509Cert::SERVER_CERT) {
     mOriginalOverrideService->

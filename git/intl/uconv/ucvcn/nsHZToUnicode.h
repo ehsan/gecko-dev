@@ -7,7 +7,7 @@
 #define nsHZToUnicode_h___
 
 #include "nsUCSupport.h"
-#include "nsGBKConvUtil.h"
+#include "gbku.h"
 
 //----------------------------------------------------------------------
 // Class nsHZToUnicode [declaration]

@@ -8,10 +8,10 @@
 #ifndef nsDOMCSSDeclaration_h___
 #define nsDOMCSSDeclaration_h___
 
-#include "nsICSSDeclaration.h"
-
 #include "mozilla/Attributes.h"
+#include "nsICSSDeclaration.h"
 #include "nsCOMPtr.h"
+#include "mozilla/dom/CSS2PropertiesBinding.h"
 
 class nsIPrincipal;
 class nsIDocument;
@@ -92,8 +92,11 @@ public:
 
   virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName) MOZ_OVERRIDE;
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx,
+                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE
+  {
+    return mozilla::dom::CSS2PropertiesBinding::Wrap(cx, scope, this);
+  }
 
 protected:
   // This method can return null regardless of the value of aAllocate;

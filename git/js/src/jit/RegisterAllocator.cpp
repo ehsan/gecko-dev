@@ -19,7 +19,7 @@ AllocationIntegrityState::record()
     if (!instructions.appendN(InstructionInfo(), graph.numInstructions()))
         return false;
 
-    if (!virtualRegisters.appendN((LDefinition *)nullptr, graph.numVirtualRegisters()))
+    if (!virtualRegisters.appendN((LDefinition *)NULL, graph.numVirtualRegisters()))
         return false;
 
     if (!blocks.reserve(graph.numBlocks()))
@@ -360,25 +360,25 @@ void
 AllocationIntegrityState::dump()
 {
 #ifdef DEBUG
-    fprintf(stderr, "Register Allocation:\n");
+    printf("Register Allocation:\n");
 
     for (size_t blockIndex = 0; blockIndex < graph.numBlocks(); blockIndex++) {
         LBlock *block = graph.getBlock(blockIndex);
         MBasicBlock *mir = block->mir();
 
-        fprintf(stderr, "\nBlock %lu", static_cast<unsigned long>(blockIndex));
+        printf("\nBlock %lu", blockIndex);
         for (size_t i = 0; i < mir->numSuccessors(); i++)
-            fprintf(stderr, " [successor %u]", mir->getSuccessor(i)->id());
-        fprintf(stderr, "\n");
+            printf(" [successor %u]", mir->getSuccessor(i)->id());
+        printf("\n");
 
         for (size_t i = 0; i < block->numPhis(); i++) {
             InstructionInfo &info = blocks[blockIndex].phis[i];
             LPhi *phi = block->getPhi(i);
 
-            fprintf(stderr, "Phi v%u <-", info.outputs[0].virtualRegister());
+            printf("Phi v%u <-", info.outputs[0].virtualRegister());
             for (size_t j = 0; j < phi->numOperands(); j++)
-                fprintf(stderr, " %s", info.inputs[j].toString());
-            fprintf(stderr, "\n");
+                printf(" %s", info.inputs[j].toString());
+            printf("\n");
         }
 
         for (LInstructionIterator iter = block->begin(); iter != block->end(); iter++) {
@@ -388,43 +388,43 @@ AllocationIntegrityState::dump()
             CodePosition input(ins->id(), CodePosition::INPUT);
             CodePosition output(ins->id(), CodePosition::OUTPUT);
 
-            fprintf(stderr, "[%u,%u %s]", input.pos(), output.pos(), ins->opName());
+            printf("[%u,%u %s]", input.pos(), output.pos(), ins->opName());
 
             if (ins->isMoveGroup()) {
                 LMoveGroup *group = ins->toMoveGroup();
                 for (int i = group->numMoves() - 1; i >= 0; i--) {
                     // Use two printfs, as LAllocation::toString is not reentant.
-                    fprintf(stderr, " [%s", group->getMove(i).from()->toString());
-                    fprintf(stderr, " -> %s]", group->getMove(i).to()->toString());
+                    printf(" [%s", group->getMove(i).from()->toString());
+                    printf(" -> %s]", group->getMove(i).to()->toString());
                 }
-                fprintf(stderr, "\n");
+                printf("\n");
                 continue;
             }
 
             for (size_t i = 0; i < ins->numTemps(); i++) {
                 LDefinition *temp = ins->getTemp(i);
                 if (!temp->isBogusTemp())
-                    fprintf(stderr, " [temp v%u %s]", info.temps[i].virtualRegister(),
+                    printf(" [temp v%u %s]", info.temps[i].virtualRegister(),
                            temp->output()->toString());
             }
 
             for (size_t i = 0; i < ins->numDefs(); i++) {
                 LDefinition *def = ins->getDef(i);
-                fprintf(stderr, " [def v%u %s]", info.outputs[i].virtualRegister(),
+                printf(" [def v%u %s]", info.outputs[i].virtualRegister(),
                        def->output()->toString());
             }
 
             size_t index = 0;
             for (LInstruction::InputIterator alloc(*ins); alloc.more(); alloc.next()) {
-                fprintf(stderr, " [use %s", info.inputs[index++].toString());
-                fprintf(stderr, " %s]", alloc->toString());
+                printf(" [use %s", info.inputs[index++].toString());
+                printf(" %s]", alloc->toString());
             }
 
-            fprintf(stderr, "\n");
+            printf("\n");
         }
     }
 
-    fprintf(stderr, "\nIntermediate Allocations:\n\n");
+    printf("\nIntermediate Allocations:\n\n");
 
     // Print discovered allocations at the ends of blocks, in the order they
     // were discovered.
@@ -439,11 +439,11 @@ AllocationIntegrityState::dump()
 
     for (size_t i = 0; i < seenOrdered.length(); i++) {
         IntegrityItem item = seenOrdered[i];
-        fprintf(stderr, "block %u reg v%u alloc %s\n",
+        printf("block %u reg v%u alloc %s\n",
                item.block->mir()->id(), item.vreg, item.alloc.toString());
     }
 
-    fprintf(stderr, "\n");
+    printf("\n");
 #endif
 }
 

@@ -6,11 +6,8 @@
 
 MODULE = 'transformiix'
 
-EXPORTS.mozilla.dom += [
-    'XPathEvaluator.h',
-]
-
-SOURCES += [
+CPP_SOURCES += [
+    'nsXPathEvaluator.cpp',
     'nsXPathExpression.cpp',
     'nsXPathNSResolver.cpp',
     'nsXPathResult.cpp',
@@ -27,8 +24,8 @@ SOURCES += [
     'txLiteralExpr.cpp',
     'txLocationStep.cpp',
     'txMozillaXPathTreeWalker.cpp',
-    'txNamedAttributeStep.cpp',
     'txNameTest.cpp',
+    'txNamedAttributeStep.cpp',
     'txNodeSet.cpp',
     'txNodeSetAdaptor.cpp',
     'txNodeSetContext.cpp',
@@ -36,8 +33,8 @@ SOURCES += [
     'txNumberExpr.cpp',
     'txNumberResult.cpp',
     'txPathExpr.cpp',
-    'txPredicatedNodeTest.cpp',
     'txPredicateList.cpp',
+    'txPredicatedNodeTest.cpp',
     'txRelationalExpr.cpp',
     'txResultRecycler.cpp',
     'txRootExpr.cpp',
@@ -46,19 +43,9 @@ SOURCES += [
     'txUnionExpr.cpp',
     'txUnionNodeTest.cpp',
     'txVariableRefExpr.cpp',
-    'txXPathOptimizer.cpp',
     'txXPCOMExtensionFunction.cpp',
-    'XPathEvaluator.cpp',
+    'txXPathOptimizer.cpp',
 ]
 
 LIBRARY_NAME = 'txxpath_s'
 
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LOCAL_INCLUDES += [
-    '../base',
-    '../xml',
-    '../xslt',
-]

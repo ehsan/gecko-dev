@@ -6,12 +6,13 @@
 #include "mozilla/Util.h"
 
 #include "SVGAnimatedPreserveAspectRatio.h"
-#include "mozilla/dom/SVGAnimatedPreserveAspectRatioBinding.h"
+#include "nsWhitespaceTokenizer.h"
 #include "nsSMILValue.h"
 #include "nsSVGAttrTearoffTable.h"
-#include "nsWhitespaceTokenizer.h"
 #include "SMILEnumType.h"
-#include "SVGContentUtils.h"
+#include "nsAttrValueInlines.h"
+#include "mozilla/dom/SVGAnimatedPreserveAspectRatioBinding.h"
+#include "nsContentUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -135,9 +136,12 @@ static nsresult
 ToPreserveAspectRatio(const nsAString &aString,
                       SVGPreserveAspectRatio *aValue)
 {
-  nsWhitespaceTokenizerTemplate<IsSVGWhitespace> tokenizer(aString);
-  if (tokenizer.whitespaceBeforeFirstToken() ||
-      !tokenizer.hasMoreTokens()) {
+  if (aString.IsEmpty() || NS_IsAsciiWhitespace(aString[0])) {
+    return NS_ERROR_DOM_SYNTAX_ERR;
+  }
+
+  nsWhitespaceTokenizer tokenizer(aString);
+  if (!tokenizer.hasMoreTokens()) {
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
   const nsAString &token = tokenizer.nextToken();
@@ -169,7 +173,7 @@ ToPreserveAspectRatio(const nsAString &aString,
     val.SetMeetOrSlice(SVG_MEETORSLICE_MEET);
   }
 
-  if (tokenizer.whitespaceAfterCurrentToken()) {
+  if (tokenizer.hasMoreTokens()) {
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
 

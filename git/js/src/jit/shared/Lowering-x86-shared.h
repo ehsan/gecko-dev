@@ -23,6 +23,7 @@ class LIRGeneratorX86Shared : public LIRGeneratorShared
                                   MTableSwitch *ins);
     LTableSwitchV *newLTableSwitchV(MTableSwitch *ins);
 
+    bool visitInterruptCheck(MInterruptCheck *ins);
     bool visitGuardShape(MGuardShape *ins);
     bool visitGuardObjectType(MGuardObjectType *ins);
     bool visitPowHalf(MPowHalf *ins);
@@ -46,9 +47,7 @@ class LIRGeneratorX86Shared : public LIRGeneratorShared
     bool lowerUMod(MInstruction *mod);
     bool lowerUrshD(MUrsh *mir);
     bool lowerConstantDouble(double d, MInstruction *ins);
-    bool lowerConstantFloat32(float d, MInstruction *ins);
     bool lowerTruncateDToInt32(MTruncateToInt32 *ins);
-    bool lowerTruncateFToInt32(MTruncateToInt32 *ins);
 };
 
 } // namespace jit

@@ -6,14 +6,17 @@
 #define nsAnimationManager_h_
 
 #include "mozilla/Attributes.h"
-#include "mozilla/ContentEvents.h"
 #include "AnimationCommon.h"
 #include "nsCSSPseudoElements.h"
+#include "nsStyleContext.h"
+#include "nsDataHashtable.h"
+#include "nsGUIEvent.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/TimeStamp.h"
+#include "mozilla/Preferences.h"
+#include "nsThreadUtils.h"
 
 class nsCSSKeyframesRule;
-class nsStyleContext;
 
 namespace mozilla {
 namespace css {
@@ -23,7 +26,7 @@ class Declaration;
 
 struct AnimationEventInfo {
   nsRefPtr<mozilla::dom::Element> mElement;
-  mozilla::InternalAnimationEvent mEvent;
+  nsAnimationEvent mEvent;
 
   AnimationEventInfo(mozilla::dom::Element *aElement,
                      const nsString& aAnimationName,
@@ -35,7 +38,7 @@ struct AnimationEventInfo {
   {
   }
 
-  // InternalAnimationEvent doesn't support copy-construction, so we need
+  // nsAnimationEvent doesn't support copy-construction, so we need
   // to ourselves in order to work with nsTArray
   AnimationEventInfo(const AnimationEventInfo &aOther)
     : mElement(aOther.mElement),

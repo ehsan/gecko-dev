@@ -136,11 +136,11 @@ int GrContext::GetThreadInstanceCount() {
 }
 
 GrContext::~GrContext() {
-    this->flush();
-
     for (int i = 0; i < fCleanUpData.count(); ++i) {
         (*fCleanUpData[i].fFunc)(this, fCleanUpData[i].fInfo);
     }
+
+    this->flush();
 
     // Since the gpu can hold scratch textures, give it a chance to let go
     // of them before freeing the texture cache
@@ -373,6 +373,7 @@ GrTexture* GrContext::createResizedTexture(const GrTextureDesc& desc,
             verts[1].setIRectFan(0, 0, 1, 1, 2 * sizeof(GrPoint));
             fGpu->drawNonIndexed(kTriangleFan_GrPrimitiveType, 0, 4);
         }
+        texture->releaseRenderTarget();
     } else {
         // TODO: Our CPU stretch doesn't filter. But we create separate
         // stretched textures when the texture params is either filtered or

@@ -12,12 +12,7 @@ pref("devtools.errorconsole.enabled", true);
 #endif
 
 // Automatically submit crash reports
-#ifdef RELEASE_BUILD
 pref("app.crashreporter.autosubmit", false);
-#else
-// For Nightly and Aurora we turn this on by default
-pref("app.crashreporter.autosubmit", true);
-#endif
 // Has the user been prompted about crash reporting?
 pref("app.crashreporter.prompted", false);
 
@@ -28,25 +23,9 @@ pref("metro.debug.selection.displayRanges", false);
 pref("metro.debug.selection.dumpRanges", false);
 pref("metro.debug.selection.dumpEvents", false);
 
-// Enable tab-modal prompts
-pref("prompts.tab_modal.enabled", true);
-
-
 // Enable off main thread compositing
 pref("layers.offmainthreadcomposition.enabled", true);
-pref("layers.async-pan-zoom.enabled", true);
-pref("layers.componentalpha.enabled", false);
-
-// Prefs to control the async pan/zoom behaviour
-pref("apz.touch_start_tolerance", "0.1"); // dpi * tolerance = pixel threshold
-pref("apz.pan_repaint_interval", "50");   // prefer 20 fps
-pref("apz.fling_repaint_interval", "50"); // prefer 20 fps
-pref("apz.fling_friction", "0.002");
-pref("apz.fling_stopped_threshold", "0.2");
-
-// 0 = free, 1 = standard, 2 = sticky
-pref("apz.axis_lock_mode", 2);
-pref("apz.cross_slide.enabled", true);
+pref("layers.async-pan-zoom.enabled", false);
 
 // Enable Microsoft TSF support by default for imes.
 pref("intl.enable_tsf_support", true);
@@ -188,6 +167,7 @@ pref("browser.helperApps.deleteTempFileOnExit", false);
 
 /* password manager */
 pref("signon.rememberSignons", true);
+pref("signon.SignonFileName", "signons.txt");
 
 /* find helper */
 pref("findhelper.autozoom", true);
@@ -220,9 +200,6 @@ pref("extensions.blocklist.detailsURL", "https://www.mozilla.org/%LOCALE%/blockl
 pref("dom.disable_open_during_load", true);
 pref("privacy.popups.showBrowserMessage", true);
 
-// Metro Firefox keeps this set to -1 when donottrackheader.enabled is false.
-pref("privacy.donottrackheader.value", -1);
-
 /* disable opening windows with the dialog feature */
 pref("dom.disable_window_open_dialog_feature", true);
 
@@ -243,7 +220,7 @@ pref("accessibility.browsewithcaret", false);
 pref("app.update.showInstalledUI", false);
 
 // pointer to the default engine name
-pref("browser.search.defaultenginename", "chrome://browser/locale/region.properties");
+pref("browser.search.defaultenginename", "chrome://browser/locale/browser.properties");
 
 // SSL error page behaviour
 pref("browser.ssl_override_behavior", 2);
@@ -253,9 +230,9 @@ pref("browser.xul.error_pages.expert_bad_cert", false);
 pref("browser.search.log", false);
 
 // ordering of search engines in the engine list.
-pref("browser.search.order.1", "chrome://browser/locale/region.properties");
-pref("browser.search.order.2", "chrome://browser/locale/region.properties");
-pref("browser.search.order.3", "chrome://browser/locale/region.properties");
+pref("browser.search.order.1", "chrome://browser/locale/browser.properties");
+pref("browser.search.order.2", "chrome://browser/locale/browser.properties");
+pref("browser.search.order.3", "chrome://browser/locale/browser.properties");
 
 // send ping to the server to update
 pref("browser.search.update", true);
@@ -386,15 +363,17 @@ pref("geo.wifi.uri", "https://www.googleapis.com/geolocation/v1/geolocate?key=%G
 // JS error console
 pref("devtools.errorconsole.enabled", false);
 
-// snapped view
-pref("browser.ui.snapped.maxWidth", 600);
-
 // kinetic tweakables
 pref("browser.ui.kinetic.updateInterval", 16);
 pref("browser.ui.kinetic.exponentialC", 1400);
 pref("browser.ui.kinetic.polynomialC", 100);
 pref("browser.ui.kinetic.swipeLength", 160);
 pref("browser.ui.zoom.animationDuration", 200); // ms duration of double-tap zoom animation
+
+// pinch gesture
+pref("browser.ui.pinch.maxGrowth", 150);     // max pinch distance growth
+pref("browser.ui.pinch.maxShrink", 200);     // max pinch distance shrinkage
+pref("browser.ui.pinch.scalingFactor", 500); // scaling factor for above pinch limits
 
 pref("ui.mouse.radius.enabled", true);
 pref("ui.touch.radius.enabled", true);
@@ -451,11 +430,7 @@ pref("app.update.silent", true);
 pref("app.update.staging.enabled", true);
 
 // Update service URL:
-#ifndef RELEASE_BUILD
-pref("app.update.url", "https://aus4.mozilla.org/update/3/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
-#else
 pref("app.update.url", "https://aus3.mozilla.org/update/3/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
-#endif
 
 // Show the Update Checking/Ready UI when the user was idle for x seconds
 pref("app.update.idletime", 60);
@@ -491,22 +466,42 @@ pref("app.update.log", false);
 // the failure.
 pref("app.update.backgroundMaxErrors", 10);
 
-// The aus update xml certificate checks for application update are disabled on
-// Windows since the mar signature check which is currently only implemented on
-// Windows is sufficient for preventing us from applying a mar that is not
-// valid.
-
 // When |app.update.cert.requireBuiltIn| is true or not specified the
 // final certificate and all certificates the connection is redirected to before
 // the final certificate for the url specified in the |app.update.url|
 // preference must be built-in.
-pref("app.update.cert.requireBuiltIn", false);
+pref("app.update.cert.requireBuiltIn", true);
 
 // When |app.update.cert.checkAttributes| is true or not specified the
 // certificate attributes specified in the |app.update.certs.| preference branch
 // are checked against the certificate for the url specified by the
 // |app.update.url| preference.
-pref("app.update.cert.checkAttributes", false);
+pref("app.update.cert.checkAttributes", true);
+
+// The number of certificate attribute check failures to allow for background
+// update checks before notifying the user of the failure. User initiated update
+// checks always notify the user of the certificate attribute check failure.
+pref("app.update.cert.maxErrors", 5);
+
+// The |app.update.certs.| preference branch contains branches that are
+// sequentially numbered starting at 1 that contain attribute name / value
+// pairs for the certificate used by the server that hosts the update xml file
+// as specified in the |app.update.url| preference. When these preferences are
+// present the following conditions apply for a successful update check:
+// 1. the uri scheme must be https
+// 2. the preference name must exist as an attribute name on the certificate and
+//    the value for the name must be the same as the value for the attribute name
+//    on the certificate.
+// If these conditions aren't met it will be treated the same as when there is
+// no update available. This validation will not be performed when the
+// |app.update.url.override| user preference has been set for testing updates or
+// when the |app.update.cert.checkAttributes| preference is set to false. Also,
+// the |app.update.url.override| preference should ONLY be used for testing.
+// IMPORTANT! firefox.js should also be updated for updates to certs.X.issuerName
+pref("app.update.certs.1.issuerName", "OU=Equifax Secure Certificate Authority,O=Equifax,C=US");
+pref("app.update.certs.1.commonName", "aus3.mozilla.org");
+pref("app.update.certs.2.issuerName", "CN=Thawte SSL CA,O=\"Thawte, Inc.\",C=US");
+pref("app.update.certs.2.commonName", "aus3.mozilla.org");
 
 // User-settable override to app.update.url for testing purposes.
 //pref("app.update.url.override", "");
@@ -540,10 +535,10 @@ pref("browser.chrome.toolbar_tips", false);
 // Completely disable pdf.js as an option to preview pdfs within firefox.
 // Note: if this is not disabled it does not necessarily mean pdf.js is the pdf
 // handler just that it is an option.
-pref("pdfjs.disabled", true);
+pref("pdfjs.disabled", false);
 // Used by pdf.js to know the first time firefox is run with it installed so it
 // can become the default pdf viewer.
-pref("pdfjs.firstRun", false);
+pref("pdfjs.firstRun", true);
 // The values of preferredAction and alwaysAskBeforeHandling before pdf.js
 // became the default.
 pref("pdfjs.previousHandler.preferredAction", 0);
@@ -585,6 +580,7 @@ pref("browser.safebrowsing.provider.0.reportMalwareURL", "http://{moz:locale}.ma
 pref("browser.safebrowsing.provider.0.reportMalwareErrorURL", "http://{moz:locale}.malware-error.mozilla.com/?hl={moz:locale}");
 
 // FAQ URLs
+pref("browser.safebrowsing.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/phishing-protection/");
 pref("browser.geolocation.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/geolocation/");
 
 // Name of the about: page contributed by safebrowsing to handle display of error
@@ -593,6 +589,9 @@ pref("urlclassifier.alternate_error_page", "blocked");
 
 // The number of random entries to send with a gethash request.
 pref("urlclassifier.gethashnoise", 4);
+
+// The list of tables that use the gethash request to confirm partial results.
+pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 
 // If an urlclassifier table has not been updated in this number of seconds,
 // a gethash request will be forced to check that the result is still in
@@ -641,10 +640,3 @@ pref("full-screen-api.content-only", true);
 // the window, the window size doesn't change. This pref has no effect when
 // running in actual Metro mode, as the widget will already be fullscreen then.
 pref("full-screen-api.ignore-widgets", true);
-
-// image visibility prefs.
-// image visibility tries to only keep images near the viewport decoded instead
-// of keeping all images decoded.
-pref("layout.imagevisibility.enabled", true);
-pref("layout.imagevisibility.numscrollportwidths", 1);
-pref("layout.imagevisibility.numscrollportheights", 1);

@@ -16,9 +16,9 @@
 
 #include <string.h>
 
-#include "mcu_dsp_common.h"
-#include "neteq_error_codes.h"
 #include "signal_processing_library.h"
+
+#include "neteq_error_codes.h"
 
 int WebRtcNetEQ_SplitAndInsertPayload(RTPPacket_t* packet,
                                       PacketBuf_t* Buffer_inst,
@@ -33,8 +33,6 @@ int WebRtcNetEQ_SplitAndInsertPayload(RTPPacket_t* packet,
     RTPPacket_t temp_packet;
     int16_t localFlushed = 0;
     const int16_t *pw16_startPayload;
-    const int is_sync_rtp = av_sync &&
-        WebRtcNetEQ_IsSyncPayload(packet->payload, packet->payloadLen);
     *flushed = 0;
 
     len = packet->payloadLen;
@@ -43,8 +41,7 @@ int WebRtcNetEQ_SplitAndInsertPayload(RTPPacket_t* packet,
 
     WEBRTC_SPL_MEMCPY_W8(&temp_packet,packet,sizeof(RTPPacket_t));
 
-    if (split_inst->deltaBytes == NO_SPLIT ||
-        is_sync_rtp) /* Don't split sync RTPs just insert. */
+    if (split_inst->deltaBytes == NO_SPLIT)
     {
         /* Not splittable codec */
         i_ok = WebRtcNetEQ_PacketBufferInsert(Buffer_inst, packet,

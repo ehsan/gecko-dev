@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -85,28 +84,25 @@ nsresult MediaPipeline::Init_s() {
     MOZ_MTLOG(ML_ERROR, "RTP transport is already in error state");
     TransportFailed_s(rtp_transport_);
     return NS_ERROR_FAILURE;
-  }
+  } else {
+    if (!muxed_) {
+      rtcp_transport_->SignalStateChange.connect(this,
+                                                 &MediaPipeline::StateChange);
 
-  // If rtcp_transport_ is the same as rtp_transport_ then we are muxing.
-  // Otherwise, set it up separately.
-  if (rtcp_transport_ != rtp_transport_) {
-    rtcp_transport_->SignalStateChange.connect(this,
-                                               &MediaPipeline::StateChange);
-
-    if (rtcp_transport_->state() == TransportLayer::TS_OPEN) {
-      res = TransportReady_s(rtcp_transport_);
-      if (NS_FAILED(res)) {
-        MOZ_MTLOG(ML_ERROR, "Error calling TransportReady(); res="
-                  << static_cast<uint32_t>(res) << " in " << __FUNCTION__);
-        return res;
+      if (rtcp_transport_->state() == TransportLayer::TS_OPEN) {
+        res = TransportReady_s(rtcp_transport_);
+        if (NS_FAILED(res)) {
+          MOZ_MTLOG(ML_ERROR, "Error calling TransportReady(); res="
+                    << static_cast<uint32_t>(res) << " in " << __FUNCTION__);
+          return res;
+        }
+      } else if (rtcp_transport_->state() == TransportLayer::TS_ERROR) {
+        MOZ_MTLOG(ML_ERROR, "RTCP transport is already in error state");
+        TransportFailed_s(rtcp_transport_);
+        return NS_ERROR_FAILURE;
       }
-    } else if (rtcp_transport_->state() == TransportLayer::TS_ERROR) {
-      MOZ_MTLOG(ML_ERROR, "RTCP transport is already in error state");
-      TransportFailed_s(rtcp_transport_);
-      return NS_ERROR_FAILURE;
     }
   }
-
   return NS_OK;
 }
 
@@ -125,12 +121,6 @@ void MediaPipeline::ShutdownTransport_s() {
 }
 
 void MediaPipeline::StateChange(TransportFlow *flow, TransportLayer::State state) {
-  // If rtcp_transport_ is the same as rtp_transport_ then we are muxing.
-  // So the only flow should be the RTP flow.
-  if (rtcp_transport_ == rtp_transport_) {
-    MOZ_ASSERT(flow == rtp_transport_);
-  }
-
   if (state == TransportLayer::TS_OPEN) {
     MOZ_MTLOG(ML_DEBUG, "Flow is ready");
     TransportReady_s(flow);
@@ -149,15 +139,15 @@ nsresult MediaPipeline::TransportReady_s(TransportFlow *flow) {
   // failure. bug 852665.
   if (*state != MP_CONNECTING) {
     MOZ_MTLOG(ML_ERROR, "Transport ready for flow in wrong state:" <<
-              description_ << ": " << (rtcp ? "rtcp" : "rtp"));
+	      description_ << ": " << (rtcp ? "rtcp" : "rtp"));
     return NS_ERROR_FAILURE;
   }
 
   nsresult res;
 
   MOZ_MTLOG(ML_DEBUG, "Transport ready for pipeline " <<
-            static_cast<void *>(this) << " flow " << description_ << ": " <<
-            (rtcp ? "rtcp" : "rtp"));
+	    static_cast<void *>(this) << " flow " << description_ << ": " <<
+	    (rtcp ? "rtcp" : "rtp"));
 
   // Now instantiate the SRTP objects
   TransportLayerDtls *dtls = static_cast<TransportLayerDtls *>(
@@ -226,8 +216,7 @@ nsresult MediaPipeline::TransportReady_s(TransportFlow *flow) {
     }
 
     // Start listening
-    // If rtcp_transport_ is the same as rtp_transport_ then we are muxing
-    if (rtcp_transport_ == rtp_transport_) {
+    if (muxed_) {
       MOZ_ASSERT(!rtcp_send_srtp_ && !rtcp_recv_srtp_);
       rtcp_send_srtp_ = rtp_send_srtp_;
       rtcp_recv_srtp_ = rtp_recv_srtp_;
@@ -238,7 +227,6 @@ nsresult MediaPipeline::TransportReady_s(TransportFlow *flow) {
       dtls->downward()->SignalPacketReceived.connect(this,
                                                      &MediaPipeline::
                                                      PacketReceived);
-      rtcp_state_ = MP_OPEN;
     } else {
       MOZ_MTLOG(ML_DEBUG, "Listening for RTP packets received on " <<
                 static_cast<void *>(dtls->downward()));
@@ -280,13 +268,6 @@ nsresult MediaPipeline::TransportFailed_s(TransportFlow *flow) {
   State *state = rtcp ? &rtcp_state_ : &rtp_state_;
 
   *state = MP_CLOSED;
-
-  // If rtcp_transport_ is the same as rtp_transport_ then we are muxing
-  if(rtcp_transport_ == rtp_transport_) {
-    MOZ_ASSERT(state != &rtcp_state_);
-    rtcp_state_ = MP_CLOSED;
-  }
-
 
   MOZ_MTLOG(ML_DEBUG, "Transport closed for flow " << (rtcp ? "rtcp" : "rtp"));
 
@@ -331,7 +312,7 @@ void MediaPipeline::increment_rtp_packets_sent() {
   ++rtp_packets_sent_;
 
   if (!(rtp_packets_sent_ % 100)) {
-    MOZ_MTLOG(ML_INFO, "RTP sent packet count for " << description_
+    MOZ_MTLOG(ML_DEBUG, "RTP sent packet count for " << description_
               << " Pipeline " << static_cast<void *>(this)
               << " Flow : " << static_cast<void *>(rtp_transport_)
               << ": " << rtp_packets_sent_);
@@ -341,7 +322,7 @@ void MediaPipeline::increment_rtp_packets_sent() {
 void MediaPipeline::increment_rtcp_packets_sent() {
   ++rtcp_packets_sent_;
   if (!(rtcp_packets_sent_ % 100)) {
-    MOZ_MTLOG(ML_INFO, "RTCP sent packet count for " << description_
+    MOZ_MTLOG(ML_DEBUG, "RTCP sent packet count for " << description_
               << " Pipeline " << static_cast<void *>(this)
               << " Flow : " << static_cast<void *>(rtcp_transport_)
               << ": " << rtcp_packets_sent_);
@@ -351,7 +332,7 @@ void MediaPipeline::increment_rtcp_packets_sent() {
 void MediaPipeline::increment_rtp_packets_received() {
   ++rtp_packets_received_;
   if (!(rtp_packets_received_ % 100)) {
-    MOZ_MTLOG(ML_INFO, "RTP received packet count for " << description_
+    MOZ_MTLOG(ML_DEBUG, "RTP received packet count for " << description_
               << " Pipeline " << static_cast<void *>(this)
               << " Flow : " << static_cast<void *>(rtp_transport_)
               << ": " << rtp_packets_received_);
@@ -361,7 +342,7 @@ void MediaPipeline::increment_rtp_packets_received() {
 void MediaPipeline::increment_rtcp_packets_received() {
   ++rtcp_packets_received_;
   if (!(rtcp_packets_received_ % 100)) {
-    MOZ_MTLOG(ML_INFO, "RTCP received packet count for " << description_
+    MOZ_MTLOG(ML_DEBUG, "RTCP received packet count for " << description_
               << " Pipeline " << static_cast<void *>(this)
               << " Flow : " << static_cast<void *>(rtcp_transport_)
               << ": " << rtcp_packets_received_);
@@ -372,7 +353,7 @@ void MediaPipeline::RtpPacketReceived(TransportLayer *layer,
                                       const unsigned char *data,
                                       size_t len) {
   if (!transport_->pipeline()) {
-    MOZ_MTLOG(ML_ERROR, "Discarding incoming packet; transport disconnected");
+    MOZ_MTLOG(ML_DEBUG, "Discarding incoming packet; transport disconnected");
     return;
   }
 
@@ -382,7 +363,7 @@ void MediaPipeline::RtpPacketReceived(TransportLayer *layer,
   }
 
   if (rtp_state_ != MP_OPEN) {
-    MOZ_MTLOG(ML_ERROR, "Discarding incoming packet; pipeline not open");
+    MOZ_MTLOG(ML_DEBUG, "Discarding incoming packet; pipeline not open");
     return;
   }
 
@@ -896,7 +877,7 @@ void MediaPipelineTransmit::PipelineListener::ProcessVideoChunk(
           static_cast<const layers::PlanarYCbCrImage *>(img));
     // Big-time assumption here that this is all contiguous data coming
     // from getUserMedia or other sources.
-    const layers::PlanarYCbCrData *data = yuv->GetData();
+    const layers::PlanarYCbCrImage::Data *data = yuv->GetData();
 
     uint8_t *y = data->mYChannel;
 #ifdef DEBUG
@@ -1146,7 +1127,7 @@ void MediaPipelineReceiveVideo::PipelineListener::RenderVideoFrame(
   const uint8_t lumaBpp = 8;
   const uint8_t chromaBpp = 4;
 
-  layers::PlanarYCbCrData data;
+  layers::PlanarYCbCrImage::Data data;
   data.mYChannel = frame;
   data.mYSize = gfxIntSize(width_, height_);
   data.mYStride = width_ * lumaBpp/ 8;

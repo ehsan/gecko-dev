@@ -5,21 +5,20 @@
 
 #include "InputData.h"
 
+#include "nsGUIEvent.h"
 #include "mozilla/dom/Touch.h"
 #include "nsDebug.h"
 #include "nsThreadUtils.h"
-#include "mozilla/MouseEvents.h"
-#include "mozilla/TouchEvents.h"
 
 namespace mozilla {
 
 using namespace dom;
 
-MultiTouchInput::MultiTouchInput(const WidgetTouchEvent& aTouchEvent)
+MultiTouchInput::MultiTouchInput(const nsTouchEvent& aTouchEvent)
   : InputData(MULTITOUCH_INPUT, aTouchEvent.time)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(),
-                    "Can only copy from WidgetTouchEvent on main thread");
+                    "Can only copy from nsTouchEvent on main thread");
 
   switch (aTouchEvent.message) {
     case NS_TOUCH_START:
@@ -67,17 +66,17 @@ MultiTouchInput::MultiTouchInput(const WidgetTouchEvent& aTouchEvent)
   }
 }
 
-// This conversion from WidgetMouseEvent to MultiTouchInput is needed because on
+// This conversion from nsMouseEvent to MultiTouchInput is needed because on
 // the B2G emulator we can only receive mouse events, but we need to be able
 // to pan correctly. To do this, we convert the events into a format that the
 // panning code can handle. This code is very limited and only supports
 // SingleTouchData. It also sends garbage for the identifier, radius, force
 // and rotation angle.
-MultiTouchInput::MultiTouchInput(const WidgetMouseEvent& aMouseEvent)
+MultiTouchInput::MultiTouchInput(const nsMouseEvent& aMouseEvent)
   : InputData(MULTITOUCH_INPUT, aMouseEvent.time)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(),
-                    "Can only copy from WidgetMouseEvent on main thread");
+                    "Can only copy from nsMouseEvent on main thread");
   switch (aMouseEvent.message) {
   case NS_MOUSE_BUTTON_DOWN:
     mType = MULTITOUCH_START;

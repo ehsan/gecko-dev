@@ -6,6 +6,7 @@
 
 #include "jit/BaselineFrame-inl.h"
 
+#include "jit/BaselineIC.h"
 #include "jit/BaselineJIT.h"
 #include "jit/Ion.h"
 #include "vm/Debugger.h"
@@ -30,9 +31,8 @@ BaselineFrame::trace(JSTracer *trc)
         gc::MarkValueRootRange(trc, numArgs, argv(), "baseline-args");
     }
 
-    // Mark scope chain, if it exists.
-    if (scopeChain_)
-        gc::MarkObjectRoot(trc, &scopeChain_, "baseline-scopechain");
+    // Mark scope chain.
+    gc::MarkObjectRoot(trc, &scopeChain_, "baseline-scopechain");
 
     // Mark return value.
     if (hasReturnValue())
@@ -157,8 +157,8 @@ BaselineFrame::initForOsr(StackFrame *fp, uint32_t numStackValues)
         // debugger, wants a valid return address, but it's okay to just pick one.
         // In debug mode there's always at least 1 ICEntry (since there are always
         // debug prologue/epilogue calls).
-        IonFrameIterator iter(cx);
-        JS_ASSERT(iter.returnAddress() == nullptr);
+        IonFrameIterator iter(cx->mainThread().ionTop);
+        JS_ASSERT(iter.returnAddress() == NULL);
         BaselineScript *baseline = fp->script()->baselineScript();
         iter.current()->setReturnAddress(baseline->returnAddressForIC(baseline->icEntry(0)));
 

@@ -2,21 +2,19 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from mozbuild.util import ensureParentDir
-
 from mozpack.errors import ErrorMessage
 from mozpack.files import (
     AbsoluteSymlinkFile,
-    DeflatedFile,
     Dest,
-    ExistingFile,
-    FileFinder,
     File,
     GeneratedFile,
-    JarFinder,
+    DeflatedFile,
     ManifestFile,
-    MinifiedProperties,
     XPTFile,
+    MinifiedProperties,
+    FileFinder,
+    JarFinder,
+    RequiredExistingFile,
 )
 from mozpack.mozjar import (
     JarReader,
@@ -32,9 +30,11 @@ import unittest
 import mozfile
 import mozunit
 import os
+import shutil
 import random
 import string
 import mozpack.path
+from mozpack.copier import ensure_parent_dir
 from tempfile import mkdtemp
 from io import BytesIO
 from xpt import Typelib
@@ -43,26 +43,6 @@ from xpt import Typelib
 class TestWithTmpDir(unittest.TestCase):
     def setUp(self):
         self.tmpdir = mkdtemp()
-
-        self.symlink_supported = False
-
-        if not hasattr(os, 'symlink'):
-            return
-
-        dummy_path = self.tmppath('dummy_file')
-        with open(dummy_path, 'a'):
-            pass
-
-        try:
-            os.symlink(dummy_path, self.tmppath('dummy_symlink'))
-            os.remove(self.tmppath('dummy_symlink'))
-        except EnvironmentError:
-            pass
-        finally:
-            os.remove(dummy_path)
-
-        self.symlink_supported = True
-
 
     def tearDown(self):
         mozfile.rmtree(self.tmpdir)
@@ -240,6 +220,26 @@ class TestFile(TestWithTmpDir):
 
 
 class TestAbsoluteSymlinkFile(TestWithTmpDir):
+    def setUp(self):
+        TestWithTmpDir.setUp(self)
+
+        self.symlink_supported = False
+
+        if not hasattr(os, 'symlink'):
+            return
+
+        dummy_path = self.tmppath('dummy_file')
+        with open(dummy_path, 'a'):
+            pass
+
+        try:
+            os.symlink(dummy_path, self.tmppath('dummy_symlink'))
+            os.remove(self.tmppath('dummy_symlink'))
+        except EnvironmentError:
+            pass
+        finally:
+            os.remove(dummy_path)
+
     def test_absolute_relative(self):
         AbsoluteSymlinkFile('/foo')
 
@@ -291,10 +291,7 @@ class TestAbsoluteSymlinkFile(TestWithTmpDir):
         if not self.symlink_supported:
             return
 
-        source = self.tmppath('source')
-        with open(source, 'a'):
-            pass
-
+        source= self.tmppath('source')
         dest = self.tmppath('dest')
 
         os.symlink(self.tmppath('bad'), dest)
@@ -328,30 +325,18 @@ class TestAbsoluteSymlinkFile(TestWithTmpDir):
         self.assertEqual(link, source)
 
 
-class TestExistingFile(TestWithTmpDir):
-    def test_required_missing_dest(self):
+class TestRequiredExistingFile(TestWithTmpDir):
+    def test_missing_dest(self):
         with self.assertRaisesRegexp(ErrorMessage, 'Required existing file'):
-            f = ExistingFile(required=True)
+            f = RequiredExistingFile()
             f.copy(self.tmppath('dest'))
 
-    def test_required_existing_dest(self):
+    def test_existing_dest(self):
         p = self.tmppath('dest')
         with open(p, 'a'):
             pass
 
-        f = ExistingFile(required=True)
-        f.copy(p)
-
-    def test_optional_missing_dest(self):
-        f = ExistingFile(required=False)
-        f.copy(self.tmppath('dest'))
-
-    def test_optional_existing_dest(self):
-        p = self.tmppath('dest')
-        with open(p, 'a'):
-            pass
-
-        f = ExistingFile(required=False)
+        f = RequiredExistingFile()
         f.copy(p)
 
 
@@ -712,7 +697,7 @@ def do_check(test, finder, pattern, result):
 
 class TestFileFinder(MatchTestTemplate, TestWithTmpDir):
     def add(self, path):
-        ensureParentDir(self.tmppath(path))
+        ensure_parent_dir(self.tmppath(path))
         open(self.tmppath(path), 'wb').write(path)
 
     def do_check(self, pattern, result):

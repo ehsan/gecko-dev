@@ -3,8 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsISupports.idl"
+#include "nsIArray.idl"
 
-interface nsIWifiAccessPoint;
+#include "nsIWifiAccessPoint.idl"
 
 [scriptable, uuid(BCD4BEDE-F4A5-4A62-9071-D7A60174E376)]
 interface nsIWifiListener : nsISupports

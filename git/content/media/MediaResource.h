@@ -7,19 +7,17 @@
 #define MediaResource_h_
 
 #include "mozilla/Mutex.h"
-#ifdef MOZ_DASH
+#include "mozilla/XPCOM.h"
 #include "mozilla/ReentrantMonitor.h"
-#endif
 #include "nsIChannel.h"
+#include "nsIHttpChannel.h"
+#include "nsIPrincipal.h"
 #include "nsIURI.h"
-#include "nsIStreamingProtocolController.h"
 #include "nsIStreamListener.h"
 #include "nsIChannelEventSink.h"
 #include "nsIInterfaceRequestor.h"
 #include "MediaCache.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/TimeStamp.h"
-#include "nsThreadUtils.h"
 
 // For HTTP seeking, if number of bytes needing to be
 // seeked forward is less than this value then a read is
@@ -32,9 +30,6 @@ static const uint32_t HTTP_REQUESTED_RANGE_NOT_SATISFIABLE_CODE = 416;
 // rate can be reliably calculated. 57 Segments at IW=3 allows slow start to
 // reach a CWND of 30 (See bug 831998)
 static const int64_t RELIABLE_DATA_THRESHOLD = 57 * 1460;
-
-class nsIHttpChannel;
-class nsIPrincipal;
 
 namespace mozilla {
 
@@ -183,7 +178,6 @@ inline MediaByteRange::MediaByteRange(TimestampedMediaByteRange& aByteRange)
   NS_ASSERTION(mStart < mEnd, "Range should end after start!");
 }
 
-class RtspMediaResource;
 
 /**
  * Provides a thread-safe, seek/read interface to resources
@@ -393,18 +387,6 @@ public:
   // nsIChannel when the MediaResource is created. Safe to call from
   // any thread.
   virtual const nsCString& GetContentType() const = 0;
-
-  // Get the RtspMediaResource pointer if this MediaResource really is a
-  // RtspMediaResource. For calling Rtsp specific functions.
-  virtual RtspMediaResource* GetRtspPointer() {
-    return nullptr;
-  }
-
-  // Return true if the stream is a live stream
-  virtual bool IsRealTime() {
-    return false;
-  }
-
 protected:
   virtual ~MediaResource() {};
 };
@@ -442,10 +424,6 @@ protected:
   // load group, the request is removed from the group, the flags are set, and
   // then the request is added back to the load group.
   void ModifyLoadFlags(nsLoadFlags aFlags);
-
-  // Dispatches an event to call MediaDecoder::NotifyBytesConsumed(aNumBytes, aOffset)
-  // on the main thread. This is called automatically after every read.
-  void DispatchBytesConsumed(int64_t aNumBytes, int64_t aOffset);
 
   // This is not an nsCOMPointer to prevent a circular reference
   // between the decoder to the media stream object. The stream never

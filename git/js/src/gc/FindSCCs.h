@@ -7,7 +7,6 @@
 #ifndef gc_FindSCCs_h
 #define gc_FindSCCs_h
 
-#include "jsfriendapi.h"
 #include "jsutil.h"
 
 namespace js {
@@ -22,8 +21,8 @@ struct GraphNodeBase
     unsigned       gcLowLink;
 
     GraphNodeBase()
-      : gcNextGraphNode(nullptr),
-        gcNextGraphComponent(nullptr),
+      : gcNextGraphNode(NULL),
+        gcNextGraphComponent(NULL),
         gcDiscoveryTime(0),
         gcLowLink(0) {}
 
@@ -32,7 +31,7 @@ struct GraphNodeBase
     Node *nextNodeInGroup() const {
         if (gcNextGraphNode && gcNextGraphNode->gcNextGraphComponent == gcNextGraphComponent)
             return gcNextGraphNode;
-        return nullptr;
+        return NULL;
     }
 
     Node *nextGroup() const {
@@ -66,9 +65,9 @@ class ComponentFinder
   public:
     ComponentFinder(uintptr_t sl)
       : clock(1),
-        stack(nullptr),
-        firstComponent(nullptr),
-        cur(nullptr),
+        stack(NULL),
+        firstComponent(NULL),
+        cur(NULL),
         stackLimit(sl),
         stackFull(false)
     {}
@@ -107,7 +106,7 @@ class ComponentFinder
         JS_ASSERT(!stack);
 
         Node *result = firstComponent;
-        firstComponent = nullptr;
+        firstComponent = NULL;
 
         for (Node *v = result; v; v = v->gcNextGraphNode) {
             v->gcDiscoveryTime = Undefined;
@@ -119,7 +118,7 @@ class ComponentFinder
 
     static void mergeGroups(Node *first) {
         for (Node *v = first; v; v = v->gcNextGraphNode)
-            v->gcNextGraphComponent = nullptr;
+            v->gcNextGraphComponent = NULL;
     }
 
   public:

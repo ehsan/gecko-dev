@@ -14,7 +14,7 @@
 
 BEGIN_TEST(testResolveRecursion)
 {
-    static const JSClass my_resolve_class = {
+    static JSClass my_resolve_class = {
         "MyResolve",
         JSCLASS_NEW_RESOLVE | JSCLASS_HAS_PRIVATE,
 
@@ -27,19 +27,19 @@ BEGIN_TEST(testResolveRecursion)
         JS_ConvertStub
     };
 
-    obj1 = obj2 = nullptr;
+    obj1 = obj2 = NULL;
     JS_AddObjectRoot(cx, &obj1);
     JS_AddObjectRoot(cx, &obj2);
 
-    obj1 = JS_NewObject(cx, &my_resolve_class, nullptr, nullptr);
+    obj1 = JS_NewObject(cx, &my_resolve_class, NULL, NULL);
     CHECK(obj1);
-    obj2 = JS_NewObject(cx, &my_resolve_class, nullptr, nullptr);
+    obj2 = JS_NewObject(cx, &my_resolve_class, NULL, NULL);
     CHECK(obj2);
     JS_SetPrivate(obj1, this);
     JS_SetPrivate(obj2, this);
 
-    CHECK(JS_DefineProperty(cx, global, "obj1", OBJECT_TO_JSVAL(obj1), nullptr, nullptr, 0));
-    CHECK(JS_DefineProperty(cx, global, "obj2", OBJECT_TO_JSVAL(obj2), nullptr, nullptr, 0));
+    CHECK(JS_DefineProperty(cx, global, "obj1", OBJECT_TO_JSVAL(obj1), NULL, NULL, 0));
+    CHECK(JS_DefineProperty(cx, global, "obj2", OBJECT_TO_JSVAL(obj2), NULL, NULL, 0));
 
     resolveEntryCount = 0;
     resolveExitCount = 0;
@@ -92,19 +92,19 @@ doResolve(JS::HandleObject obj, JS::HandleId id, unsigned flags, JS::MutableHand
             CHECK_EQUAL(resolveEntryCount, 1);
             EVAL("obj2.y = true", v.address());
             CHECK_SAME(v, JSVAL_TRUE);
-            CHECK(JS_DefinePropertyById(cx, obj, id, JSVAL_FALSE, nullptr, nullptr, 0));
+            CHECK(JS_DefinePropertyById(cx, obj, id, JSVAL_FALSE, NULL, NULL, 0));
             objp.set(obj);
             return true;
         }
         if (obj == obj2) {
             CHECK_EQUAL(resolveEntryCount, 4);
-            objp.set(nullptr);
+            objp.set(NULL);
             return true;
         }
     } else if (JS_FlatStringEqualsAscii(str, "y")) {
         if (obj == obj2) {
             CHECK_EQUAL(resolveEntryCount, 2);
-            CHECK(JS_DefinePropertyById(cx, obj, id, JSVAL_NULL, nullptr, nullptr, 0));
+            CHECK(JS_DefinePropertyById(cx, obj, id, JSVAL_NULL, NULL, NULL, 0));
             EVAL("obj1.x", v.address());
             CHECK(JSVAL_IS_VOID(v));
             EVAL("obj1.y", v.address());
@@ -132,7 +132,7 @@ doResolve(JS::HandleObject obj, JS::HandleId id, unsigned flags, JS::MutableHand
     return false;
 }
 
-static bool
+static JSBool
 my_resolve(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigned flags,
            JS::MutableHandleObject objp)
 {

@@ -12,7 +12,6 @@
 #include "nsISupports.h"
 #include "prlog.h"
 #include "nsXREAppData.h"
-#include "js/TypeDecls.h"
 
 #include "mozilla/Assertions.h"
 
@@ -427,15 +426,26 @@ XRE_API(void,
 XRE_API(MessageLoop*,
         XRE_GetIOMessageLoop, ())
 
+struct JSContext;
+class JSString;
+
 XRE_API(bool,
         XRE_SendTestShellCommand, (JSContext* aCx,
                                    JSString* aCommand,
                                    void* aCallback))
+class JSObject;
+
 XRE_API(bool,
         XRE_ShutdownTestShell, ())
 
 XRE_API(void,
         XRE_InstallX11ErrorHandler, ())
+
+#if defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
+#define XRE_HAS_DLL_BLOCKLIST
+XRE_API(void,
+        XRE_SetupDllBlocklist, ())
+#endif
 
 XRE_API(void,
         XRE_TelemetryAccumulate, (int aID, uint32_t aSample))
@@ -465,8 +475,5 @@ enum WindowsEnvironmentType {
 XRE_API(WindowsEnvironmentType,
         XRE_GetWindowsEnvironment, ())
 #endif // XP_WIN
-
-XRE_API(int,
-        XRE_XPCShellMain, (int argc, char** argv, char** envp))
 
 #endif // _nsXULAppAPI_h__

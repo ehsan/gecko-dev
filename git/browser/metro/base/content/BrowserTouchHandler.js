@@ -67,9 +67,6 @@ const BrowserTouchHandler = {
 
   handleEvent: function handleEvent(aEvent) {
     // ignore content events we generate
-    if (aEvent.target == document)
-      return;
-
     if (this._debugEvents)
       Util.dumpLn("BrowserTouchHandler:", aEvent.type);
 

@@ -13,6 +13,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
+#include "nsGUIEvent.h"
 #include "nsObjCExceptions.h"
 #include "nsHashtable.h"
 #include "nsThreadUtils.h"
@@ -34,6 +35,8 @@ nsMenuGroupOwnerX::nsMenuGroupOwnerX()
 : mCurrentCommandID(eCommand_ID_Last),
   mDocument(nullptr)
 {
+  mContentToObserverTable.Init();
+  mCommandToMenuObjectTable.Init();
 }
 
 

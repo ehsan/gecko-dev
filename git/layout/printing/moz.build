@@ -14,7 +14,7 @@ XPIDL_MODULE = 'layout_printing'
 
 MODULE = 'layout'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsPagePrintTimer.cpp',
     'nsPrintData.cpp',
     'nsPrintEngine.cpp',
@@ -23,8 +23,4 @@ SOURCES += [
 ]
 
 LIBRARY_NAME = 'gkprinting_s'
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
 

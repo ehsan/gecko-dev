@@ -32,7 +32,6 @@ richgrid {
   display: -moz-box;
   overflow: hidden;
 }
-
 richgrid > .richgrid-grid {
   -moz-column-width: @grid_double_column_width@; /* tile width (2x unit + gutter) */
   min-width: @grid_double_column_width@; /* min 1 column */
@@ -55,18 +54,19 @@ richgriditem {
   -moz-column-gap: 0;
   overflow:hidden;
   cursor: default;
+  transition: 300ms height ease-out,
+              150ms opacity ease-out,
+              100ms transform ease-out;
 }
 
 .tile-content {
   display: block;
   position: absolute;
-  /* background-color colors the tile-edge,
-     and will normally be overridden with a favicon-based color */
-  background-color: #ccc;
+  background-color: #fff;
   background-origin: padding-box;
   /* content positioning within the grid "cell"
      gives us the gutters/spacing between tiles */
-  top: 2px; right: @tile_side_margin@; bottom: 10px; left: @tile_side_margin@;
+  top: 2px; right: 6px; bottom: 10px; left: 6px;
   border: @metro_border_thin@ solid @tile_border_color@;
   box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.1);
   transition: 150ms transform ease-out;
@@ -77,9 +77,9 @@ richgriditem {
   top: 0;
   bottom: 0;
   right: 0;
-  left: 10px;
+  left: 20px;
+  background: hsla(0,2%,98%,.95);
   padding: 8px;
-  background-color: #fff;
 }
 
 richgriditem:not([tiletype="thumbnail"]) .tile-start-container {
@@ -87,60 +87,35 @@ richgriditem:not([tiletype="thumbnail"]) .tile-start-container {
 }
 
 .tile-icon-box {
-  position: absolute;
-  top: 50%;
-  margin-top: -17px;
-  padding: 8px;
-  /* default color, may be overriden by a favicon-based color */
-  background-color: white;
-  border: 1px solid #ccc;
-  border-radius: 1px;
+  display: inline-block;
+  padding: 4px;
+  background: #fff;
   opacity: 1.0;
 }
 
 .tile-icon-box > image {
-  display: block;
-  width: 16px;
-  height: 16px;
-  list-style-image: url("chrome://browser/skin/images/identity-icons-generic.png");
-}
-
-/* for larger favicons (which includes the fallback icon) */
-richgriditem:not([iconURI]) .tile-icon-box,
-richgriditem[iconURI=""] .tile-icon-box,
-richgriditem[iconsize="large"] .tile-icon-box {
-  border-color: transparent!important;
-  padding: 4px;
-}
-
-richgriditem[iconsize="large"] .tile-icon-box > image,
-.tile-icon-box > image[src=""] {
   width: 24px;
   height: 24px;
+  list-style-image: url("chrome://browser/skin/images/identity-icons-generic.png");
 }
 
 .tile-desc {
   display: block;
   position: absolute;
-  top: 6px;
-  left: 52px; /* label goes to the right of the favicon */
+  bottom: 0;
   right: 0;
-  padding: 1em 6px 6px 12px;
-  background: white;
+  left: 20px; /* the colored bar in the default tile is the background color peeking through */
+  z-index: 1;
+  padding: 4px 8px;
   color: #333;
   margin: 0;
   -moz-margin-start: 0;
   display: block;
-  font-size: 16px;
+  font-size: 20px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-
-richgriditem:not([tiletype="thumbnail"]) .tile-desc {
-  background-color: transparent!important;
-}
-
 
 richgriditem.collapsed {
   height: 0!important;
@@ -172,11 +147,9 @@ richgriditem[tiletype="thumbnail"] {
 }
 
 richgriditem[tiletype="thumbnail"] .tile-desc {
-  margin: 0;
-  top: auto;
-  bottom: 0;
+  background: transparent;
+  margin: 0px;
   left: 0;
-  padding: 4px 8px 4px 56px;
 }
 
 richgriditem[tiletype="thumbnail"] > .tile-content > .tile-desc {
@@ -184,24 +157,20 @@ richgriditem[tiletype="thumbnail"] > .tile-content > .tile-desc {
   color: inherit;
 }
 
-/* thumbnail tiles use a screenshot thumbnail as the background */
+/* put the image in place of the icon if there is an image background */
 richgriditem[tiletype="thumbnail"] > .tile-content > .tile-start-container {
   background-size: cover;
   background-position: top left;
   background-repeat: no-repeat;
   position: absolute;
   top: 0;
-  bottom: 0;
+  bottom: 32px; /* TODO: should be some em value? */;
   right: 0;
   left: 0;
+  background-color: hsla(0,2%,98%,.95);
 }
 richgriditem[tiletype="thumbnail"] .tile-icon-box {
-  top: auto;
-  left: 10px;
-  bottom: 6px;
-  margin-top: 0;
-  z-index: 1;
-  box-shadow: 0px 0px 2px 2px rgba(0, 0, 0, 0.05), 0px 2px 0px rgba(0, 0, 0, 0.1);
+  visibility: collapse;
 }
 
 /* selected tile indicator */
@@ -273,26 +242,6 @@ richgriditem[bending] > .tile-content {
   transform-origin: center center;
 }
 
-/* Empty/unused tiles */
-richgriditem:not([value]) {
-  visibility: hidden;
-}
-richgriditem[tiletype="thumbnail"]:not([value]) {
-  visibility: visible;
-}
-richgriditem:not([value]) > .tile-content {
-  padding: 10px 14px;
-}
-richgriditem[tiletype="thumbnail"]:not([value]) > .tile-content {
-  box-shadow: 0px 0px 0px 1px rgba(0, 0, 0, 0.05);
-  background-image: url("chrome://browser/skin/images/firefox-watermark.png");
-  background-origin: content-box;
-  background-repeat: no-repeat;
-  background-color: rgba(255,255,255, 0.2);
-  background-position: center center;
-  background-size: @grid_row_height@;
-}
-
 /* Snapped-view variation
    We use the compact, single-column grid treatment for <=320px */
 
@@ -313,15 +262,24 @@ richgriditem[tiletype="thumbnail"]:not([value]) > .tile-content {
   }
 
   .tile-desc {
-    padding: 0.5em 4px 4px 4px;
-  }
-
-  .tile-content {
-    left: 0;
+    top: 0;
+    left: 44px; /* label goes to the right of the favicon */
     right: 0;
+    padding: 8px;
   }
 
-  richgriditem {
-    width: auto;
+  .tile-start-container {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    left: 6px;
+    background: #fff;
+    padding: 8px;
+  }
+  .tile-icon-box {
+    padding: 2px;
+    background: #fff;
+    opacity: 1.0;
   }
 }

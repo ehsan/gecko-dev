@@ -17,12 +17,8 @@ public class AnimatedHeightLayout extends RelativeLayout {
     private static final int ANIMATION_DURATION = 100;
     private boolean mAnimating = false;
 
-    public AnimatedHeightLayout(Context context) {
-        super(context, null);
-    }
-
     public AnimatedHeightLayout(Context context, AttributeSet attrs) {
-        super(context, attrs, 0);
+        super(context, attrs);
     }
 
     public AnimatedHeightLayout(Context context, AttributeSet attrs, int defStyle) {

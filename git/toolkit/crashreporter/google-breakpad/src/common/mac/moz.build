@@ -6,7 +6,7 @@
 
 MODULE = 'breakpad_mac_common'
 
-SOURCES += [
+CPP_SOURCES += [
     'arch_utilities.cc',
     'bootstrap_compat.cc',
     'file_id.cc',
@@ -17,14 +17,10 @@ SOURCES += [
     'string_utilities.cc',
 ]
 
-HOST_SOURCES += SOURCES
-
 HOST_LIBRARY_NAME = 'host_breakpad_mac_common_s'
-SOURCES += [
+CMMSRCS += [
     'MachIPC.mm',
 ]
 
 LIBRARY_NAME = 'breakpad_mac_common_s'
 
-# need static lib
-FORCE_STATIC_LIB = True

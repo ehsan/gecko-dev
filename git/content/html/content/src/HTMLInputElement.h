@@ -11,13 +11,14 @@
 #include "nsImageLoadingContent.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsITextControlElement.h"
-#include "nsITimer.h"
 #include "nsIPhonetic.h"
 #include "nsIDOMNSEditableElement.h"
+#include "nsTextEditorState.h"
 #include "nsCOMPtr.h"
 #include "nsIConstraintValidation.h"
-#include "mozilla/dom/HTMLFormElement.h" // for HasEverTriedInvalidSubmit()
-#include "mozilla/dom/HTMLInputElementBinding.h"
+#include "nsDOMFile.h"
+#include "mozilla/dom/HTMLFormElement.h" // for ShouldShowInvalidUI()
+#include "nsIFile.h"
 #include "nsIFilePicker.h"
 #include "nsIContentPrefService2.h"
 #include "mozilla/Decimal.h"
@@ -26,13 +27,9 @@ class nsDOMFileList;
 class nsIRadioGroupContainer;
 class nsIRadioGroupVisitor;
 class nsIRadioVisitor;
-class nsTextEditorState;
 
 namespace mozilla {
 namespace dom {
-
-class Date;
-class DirPickerFileListBuilderTask;
 
 class UploadLastDir MOZ_FINAL : public nsIObserver, public nsSupportsWeakReference {
 public:
@@ -55,9 +52,10 @@ public:
    * Store the last used directory for this location using the
    * content pref service, if it is available
    * @param aURI URI of the current page
-   * @param aDir Parent directory of the file(s)/directory chosen by the user
+   * @param aDomFile file chosen by the user - the path to the parent of this
+   *        file will be stored
    */
-  nsresult StoreLastUsedDirectory(nsIDocument* aDoc, nsIFile* aDir);
+  nsresult StoreLastUsedDirectory(nsIDocument* aDoc, nsIDOMFile* aDomFile);
 
   class ContentPrefCallback MOZ_FINAL : public nsIContentPrefCallback2
   {
@@ -85,11 +83,8 @@ class HTMLInputElement MOZ_FINAL : public nsGenericHTMLFormElementWithState,
                                    public nsITextControlElement,
                                    public nsIPhonetic,
                                    public nsIDOMNSEditableElement,
-                                   public nsITimerCallback,
                                    public nsIConstraintValidation
 {
-  friend class DirPickerFileListBuilderTask;
-
 public:
   using nsIConstraintValidation::GetValidationMessage;
   using nsIConstraintValidation::CheckValidity;
@@ -106,8 +101,15 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
-  using nsGenericHTMLElement::Focus;
   virtual void Focus(ErrorResult& aError) MOZ_OVERRIDE;
 
   // nsIDOMHTMLInputElement
@@ -150,8 +152,8 @@ public:
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
   void PostHandleEventForRangeThumb(nsEventChainPostVisitor& aVisitor);
-  void StartRangeThumbDrag(WidgetGUIEvent* aEvent);
-  void FinishRangeThumbDrag(WidgetGUIEvent* aEvent = nullptr);
+  void StartRangeThumbDrag(nsGUIEvent* aEvent);
+  void FinishRangeThumbDrag(nsGUIEvent* aEvent = nullptr);
   void CancelRangeThumbDrag(bool aIsForUserEvent = true);
   void SetValueOfRangeForUserEvent(Decimal aValue);
 
@@ -194,12 +196,12 @@ public:
 
   void GetDisplayFileName(nsAString& aFileName) const;
 
-  const nsTArray<nsCOMPtr<nsIDOMFile> >& GetFilesInternal() const
+  const nsCOMArray<nsIDOMFile>& GetFilesInternal() const
   {
     return mFiles;
   }
 
-  void SetFiles(const nsTArray<nsCOMPtr<nsIDOMFile> >& aFiles, bool aSetValueChanged);
+  void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles, bool aSetValueChanged);
   void SetFiles(nsIDOMFileList* aFiles, bool aSetValueChanged);
 
   void SetCheckedChangedInternal(bool aCheckedChanged);
@@ -231,13 +233,7 @@ public:
 
   void MaybeLoadImage();
 
-  // nsITimerCallback
-  NS_DECL_NSITIMERCALLBACK
-
-  // Avoid warning about the implementation of nsITimerCallback::Notify hiding
-  // our nsImageLoadingContent base class' implementation of
-  // imgINotificationObserver::Notify:
-  using nsImageLoadingContent::Notify;
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
 
   // nsIConstraintValidation
   bool     IsTooLong();
@@ -403,15 +399,6 @@ public:
   // XPCOM GetForm() is OK
 
   nsDOMFileList* GetFiles();
-
-  void OpenDirectoryPicker(ErrorResult& aRv);
-  void CancelDirectoryPickerScanIfRunning();
-
-  void StartProgressEventTimer();
-  void MaybeDispatchProgressEvent(bool aFinalProgress);
-  void DispatchProgressEvent(const nsAString& aType,
-                             bool aLengthComputable,
-                             uint64_t aLoaded, uint64_t aTotal);
 
   // XPCOM GetFormAction() is OK
   void SetFormAction(const nsAString& aValue, ErrorResult& aRv)
@@ -641,13 +628,6 @@ public:
                          const Optional< nsAString >& direction,
                          ErrorResult& aRv);
 
-  void SetRangeText(const nsAString& aReplacement, ErrorResult& aRv);
-
-  void SetRangeText(const nsAString& aReplacement, uint32_t aStart,
-                    uint32_t aEnd, const SelectionMode& aSelectMode,
-                    ErrorResult& aRv, int32_t aSelectionStart = -1,
-                    int32_t aSelectionEnd = -1);
-
   // XPCOM GetAlign() is OK
   void SetAlign(const nsAString& aValue, ErrorResult& aRv)
   {
@@ -760,7 +740,10 @@ protected:
    */
   bool IsValueEmpty() const;
 
-  void ClearFiles(bool aSetValueChanged);
+  void ClearFiles(bool aSetValueChanged) {
+    nsCOMArray<nsIDOMFile> files;
+    SetFiles(files, aSetValueChanged);
+  }
 
   void SetIndeterminateInternal(bool aValue,
                                 bool aShouldInvalidate);
@@ -1104,11 +1087,7 @@ protected:
    */
   nsresult MaybeInitPickers(nsEventChainPostVisitor& aVisitor);
 
-  enum FilePickerType {
-    FILE_PICKER_FILE,
-    FILE_PICKER_DIRECTORY
-  };
-  nsresult InitFilePicker(FilePickerType aType);
+  nsresult InitFilePicker();
   nsresult InitColorPicker();
 
   /**
@@ -1150,11 +1129,9 @@ protected:
    * the frame. Whenever the frame wants to change the filename it has to call
    * SetFileNames to update this member.
    */
-  nsTArray<nsCOMPtr<nsIDOMFile> >   mFiles;
+  nsCOMArray<nsIDOMFile>   mFiles;
 
   nsRefPtr<nsDOMFileList>  mFileList;
-
-  nsRefPtr<DirPickerFileListBuilderTask> mDirPickerFileListBuilderTask;
 
   nsString mStaticDocFileList;
   
@@ -1173,13 +1150,6 @@ protected:
    * canceled.
    */
   Decimal mRangeThumbDragStartValue;
-
-  /**
-   * Timer that is used when mType == NS_FORM_INPUT_FILE and the user selects a
-   * directory. It is used to fire progress events while the list of files
-   * under that directory tree is built.
-   */
-  nsCOMPtr<nsITimer> mProgressTimer;
 
   // Step scale factor values, for input types that have one.
   static const Decimal kStepScaleFactorDate;
@@ -1216,7 +1186,6 @@ protected:
   bool                     mCanShowInvalidUI    : 1;
   bool                     mHasRange            : 1;
   bool                     mIsDraggingRange     : 1;
-  bool                     mProgressTimerIsActive : 1;
 
 private:
 
@@ -1226,15 +1195,6 @@ private:
    */
   bool MayFireChangeOnBlur() const {
     return MayFireChangeOnBlur(mType);
-  }
-
-  /**
-   * Returns true if setRangeText can be called on element
-   */
-  bool SupportsSetRangeText() const {
-    return mType == NS_FORM_INPUT_TEXT || mType == NS_FORM_INPUT_SEARCH ||
-           mType == NS_FORM_INPUT_URL || mType == NS_FORM_INPUT_TEL ||
-           mType == NS_FORM_INPUT_PASSWORD;
   }
 
   static bool MayFireChangeOnBlur(uint8_t aType) {
@@ -1291,7 +1251,8 @@ private:
   {
   public:
     nsFilePickerShownCallback(HTMLInputElement* aInput,
-                              nsIFilePicker* aFilePicker);
+                              nsIFilePicker* aFilePicker,
+                              bool aMulti);
     virtual ~nsFilePickerShownCallback()
     { }
 
@@ -1302,6 +1263,7 @@ private:
   private:
     nsCOMPtr<nsIFilePicker> mFilePicker;
     nsRefPtr<HTMLInputElement> mInput;
+    bool mMulti;
   };
 };
 

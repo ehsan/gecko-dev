@@ -10,5 +10,7 @@
 
 #include "ACMTest.h"
 
-ACMTest::~ACMTest() {}
+ACMTest::~ACMTest()
+{
+}
 

@@ -59,24 +59,9 @@ Volume::Volume(const nsCSubstring& aName)
     mMountGeneration(-1),
     mMountLocked(true),  // Needs to agree with nsVolume::nsVolume
     mSharingEnabled(false),
-    mCanBeShared(true),
-    mIsSharing(false)
+    mCanBeShared(true)
 {
   DBG("Volume %s: created", NameStr());
-}
-
-void
-Volume::SetIsSharing(bool aIsSharing)
-{
-  if (aIsSharing == mIsSharing) {
-    return;
-  }
-  mIsSharing = aIsSharing;
-  LOG("Volume %s: IsSharing set to %d state %s",
-      NameStr(), (int)mIsSharing, StateStr(mState));
-  if (mIsSharing) {
-    mEventObserverList.Broadcast(this);
-  }
 }
 
 void
@@ -148,29 +133,9 @@ Volume::SetState(Volume::STATE aNewState)
         StateStr(aNewState), mEventObserverList.Length());
   }
 
-  switch (aNewState) {
-     case nsIVolume::STATE_NOMEDIA:
-       // Cover the startup case where we don't get insertion/removal events
-       mMediaPresent = false;
-       mIsSharing = false;
-       break;
-
-     case nsIVolume::STATE_MOUNTED:
-     case nsIVolume::STATE_FORMATTING:
-       mIsSharing = false;
-       break;
-
-     case nsIVolume::STATE_SHARED:
-     case nsIVolume::STATE_SHAREDMNT:
-       // Covers startup cases. Normally, mIsSharing would be set to true
-       // when we issue the command to initiate the sharing process, but
-       // it's conceivable that a volume could already be in a shared state
-       // when b2g starts.
-       mIsSharing = true;
-       break;
-
-     default:
-       break;
+  if (aNewState == nsIVolume::STATE_NOMEDIA) {
+    // Cover the startup case where we don't get insertion/removal events
+    mMediaPresent = false;
   }
   mState = aNewState;
   mEventObserverList.Broadcast(this);

@@ -34,12 +34,9 @@ function audioavailable(e) {
 function startTest() {
   if (completed)
     return;
-  SpecialPowers.pushPrefEnv({"set": [["media.audio_data.enabled", true]]},
-                            function () {
-    var v = document.getElementById('v');
-    v.addEventListener('MozAudioAvailable', audioavailable, false);
-    v.play();
-  });
+  var v = document.getElementById('v');
+  v.addEventListener('MozAudioAvailable', audioavailable, false);
+  v.play();
 }
 
 SimpleTest.waitForExplicitFinish();

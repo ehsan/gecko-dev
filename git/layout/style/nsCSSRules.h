@@ -23,6 +23,7 @@
 #include "nsIDOMCSSSupportsRule.h"
 #include "nsIDOMMozCSSKeyframeRule.h"
 #include "nsIDOMMozCSSKeyframesRule.h"
+#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsAutoPtr.h"
 #include "nsCSSProperty.h"
 #include "nsCSSValue.h"
@@ -334,11 +335,7 @@ public:
 
   static bool PrefEnabled()
   {
-    // font-variant-alternates enabled ==> layout.css.font-features.enabled is true
-    bool fontFeaturesEnabled =
-      nsCSSProps::IsEnabled(eCSSProperty_font_variant_alternates);
-
-    return fontFeaturesEnabled;
+    return mozilla::Preferences::GetBool("layout.css.font-features.enabled");
   }
 
 protected:

@@ -12,23 +12,19 @@ import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.TouchEventInterceptor;
 import org.mozilla.gecko.ZoomConstraints;
-import org.mozilla.gecko.mozglue.GeneratableAndroidBridgeTarget;
 import org.mozilla.gecko.util.EventDispatcher;
 
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
-import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.os.Handler;
 import android.util.AttributeSet;
-import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -70,7 +66,6 @@ public class LayerView extends FrameLayout {
 
     /* This should only be modified on the Java UI thread. */
     private final ArrayList<TouchEventInterceptor> mTouchInterceptors;
-    private final Overscroll mOverscroll;
 
     /* Flags used to determine when to show the painted surface. */
     public static final int PAINT_START = 0;
@@ -108,13 +103,10 @@ public class LayerView extends FrameLayout {
         mBackgroundColor = Color.WHITE;
 
         mTouchInterceptors = new ArrayList<TouchEventInterceptor>();
-        mOverscroll = new Overscroll(this);
     }
 
     public void initializeView(EventDispatcher eventDispatcher) {
         mLayerClient = new GeckoLayerClient(getContext(), this, eventDispatcher);
-        mLayerClient.setOverscrollHandler(mOverscroll);
-
         mPanZoomController = mLayerClient.getPanZoomController();
         mMarginsAnimator = mLayerClient.getLayerMarginsAnimator();
 
@@ -125,18 +117,6 @@ public class LayerView extends FrameLayout {
         setFocusableInTouchMode(true);
 
         GeckoAccessibility.setDelegate(this);
-    }
-
-    private Point getEventRadius(MotionEvent event) {
-        if (Build.VERSION.SDK_INT >= 9) {
-            return new Point((int)event.getToolMajor()/2,
-                             (int)event.getToolMinor()/2);
-        }
-
-        float size = event.getSize();
-        DisplayMetrics displaymetrics = getContext().getResources().getDisplayMetrics();
-        size = size * Math.min(displaymetrics.heightPixels, displaymetrics.widthPixels);
-        return new Point((int)size, (int)size);
     }
 
     public void geckoConnected() {
@@ -171,10 +151,8 @@ public class LayerView extends FrameLayout {
                 }
 
                 if (mInitialTouchPoint != null && action == MotionEvent.ACTION_MOVE) {
-                    Point p = getEventRadius(event);
-
                     if (PointUtils.subtract(point, mInitialTouchPoint).length() <
-                        Math.max(PanZoomController.CLICK_THRESHOLD, Math.min(Math.min(p.x, p.y), PanZoomController.PAN_THRESHOLD))) {
+                        PanZoomController.PAN_THRESHOLD) {
                         // Don't send the touchmove event if if the users finger hasn't moved far.
                         // Necessary for Google Maps to work correctly. See bug 771099.
                         return true;
@@ -240,16 +218,6 @@ public class LayerView extends FrameLayout {
     }
 
     @Override
-    public void dispatchDraw(final Canvas canvas) {
-        super.dispatchDraw(canvas);
-
-        // We must have a layer client to get valid viewport metrics
-        if (mLayerClient != null) {
-            mOverscroll.draw(canvas, getViewportMetrics());
-        }
-    }
-
-    @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
             requestFocus();
@@ -297,7 +265,7 @@ public class LayerView extends FrameLayout {
             // created, and it will be shown immediately at startup. Shortly
             // after, the tab's background color will be used before any content
             // is shown.
-            mTextureView.setBackgroundColor(Color.WHITE);
+            mTextureView.setBackgroundResource(R.color.background_normal);
             addView(mTextureView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         } else {
             // This will stop PropertyAnimator from creating a drawing cache (i.e. a bitmap)
@@ -305,7 +273,7 @@ public class LayerView extends FrameLayout {
             setWillNotCacheDrawing(false);
 
             mSurfaceView = new LayerSurfaceView(getContext(), this);
-            mSurfaceView.setBackgroundColor(Color.WHITE);
+            mSurfaceView.setBackgroundResource(R.color.background_normal);
             addView(mSurfaceView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
 
             SurfaceHolder holder = mSurfaceView.getHolder();
@@ -433,14 +401,6 @@ public class LayerView extends FrameLayout {
         mRenderer.removeLayer(layer);
     }
 
-    public void postRenderTask(RenderTask task) {
-        mRenderer.postRenderTask(task);
-    }
-
-    public void removeRenderTask(RenderTask task) {
-        mRenderer.removeRenderTask(task);
-    }
-
     public int getMaxTextureSize() {
         return mRenderer.getMaxTextureSize();
     }
@@ -475,20 +435,18 @@ public class LayerView extends FrameLayout {
         return mGLController;
     }
 
-    private Bitmap getDrawable(String name) {
+    private Bitmap getDrawable(int resId) {
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inScaled = false;
-        Context context = getContext();
-        int resId = context.getResources().getIdentifier(name, "drawable", context.getPackageName());
-        return BitmapUtils.decodeResource(context, resId, options);
+        return BitmapUtils.decodeResource(getContext(), resId, options);
     }
 
     Bitmap getShadowPattern() {
-        return getDrawable("shadow");
+        return getDrawable(R.drawable.shadow);
     }
 
     Bitmap getScrollbarImage() {
-        return getDrawable("scrollbar");
+        return getDrawable(R.drawable.scrollbar);
     }
 
     /* When using a SurfaceView (mSurfaceView != null), resizing happens in two
@@ -518,8 +476,6 @@ public class LayerView extends FrameLayout {
         if (mListener != null) {
             mListener.sizeChanged(width, height);
         }
-
-        mOverscroll.setSize(width, height);
     }
 
     private void surfaceChanged(int width, int height) {
@@ -528,8 +484,6 @@ public class LayerView extends FrameLayout {
         if (mListener != null) {
             mListener.surfaceChanged(width, height);
         }
-
-        mOverscroll.setSize(width, height);
     }
 
     private void onDestroyed() {
@@ -543,7 +497,7 @@ public class LayerView extends FrameLayout {
         return mTextureView.getSurfaceTexture();
     }
 
-    @GeneratableAndroidBridgeTarget(allowMultithread = true, stubName = "RegisterCompositorWrapper")
+    /** This function is invoked by Gecko (compositor thread) via JNI; be careful when modifying signature. */
     public static GLController registerCxxCompositor() {
         try {
             LayerView layerView = GeckoAppShell.getLayerView();

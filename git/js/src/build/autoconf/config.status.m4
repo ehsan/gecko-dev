@@ -67,6 +67,7 @@ test "x$prefix" = xNONE && prefix=$ac_default_prefix
 test "x$exec_prefix" = xNONE && exec_prefix='${prefix}'
 
 trap 'rm -f $CONFIG_STATUS conftest*; exit 1' 1 2 15
+
 : ${CONFIG_STATUS=./config.status}
 
 dnl We're going to need [ ] for python syntax.
@@ -176,10 +177,5 @@ changequote([, ])
 chmod +x $CONFIG_STATUS
 rm -fr confdefs* $ac_clean_files
 dnl Execute config.status, unless --no-create was passed to configure.
-if test "$no_create" != yes && ! ${PYTHON} $CONFIG_STATUS; then
-    trap '' EXIT
-    exit 1
-fi
+test "$no_create" = yes || ${PYTHON} $CONFIG_STATUS || exit 1
 ])
-
-AC_SUBST([MOZ_PSEUDO_DERECURSE])

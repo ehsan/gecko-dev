@@ -5,29 +5,30 @@
 
 "use strict";
 
-let gStartView = null;
+let gStartView = HistoryStartView._view;
 
 function test() {
   runTests();
 }
 
 function scrollToEnd() {
-  getBrowser().contentWindow.scrollBy(50000, 0);
+  let startBox = document.getElementById("start-scrollbox");
+  let [, scrollInterface] = ScrollUtils.getScrollboxFromElement(startBox);
+
+  scrollInterface.scrollBy(50000, 0);
 }
 
 function setup() {
   PanelUI.hide();
+  HistoryTestHelper.setup();
 
-  if (!BrowserUI.isStartTabVisible) {
-    let tab = yield addTab("about:start");
-    gStartView = tab.browser.contentWindow.HistoryStartView._view;
+  if (!StartUI.isStartPageVisible) {
+    yield addTab("about:start");
 
-    yield waitForCondition(() => BrowserUI.isStartTabVisible);
+    yield waitForCondition(() => StartUI.isStartPageVisible);
 
     yield hideContextUI();
   }
-
-  HistoryTestHelper.setup();
 
   // Scroll to make sure all tiles are visible.
   scrollToEnd();
@@ -37,6 +38,92 @@ function tearDown() {
   PanelUI.hide();
   HistoryTestHelper.restore();
 }
+
+var HistoryTestHelper = {
+  _originalNavHistoryService: null,
+  MockNavHistoryService: {
+    getNewQueryOptions: function () {
+      return {};
+    },
+    getNewQuery: function () {
+      return {
+        setFolders: function(){}
+      };
+    },
+    executeQuery: function () {
+      return {
+        root: {
+          get childCount() {
+            return Object.keys(HistoryTestHelper._nodes).length;
+          },
+
+          getChild: function (aIndex) HistoryTestHelper._nodes[Object.keys(HistoryTestHelper._nodes)[aIndex]]
+        }
+      }
+    }
+  },
+
+  _originalHistoryService: null,
+  MockHistoryService: {
+    removePage: function (aURI) {
+      delete HistoryTestHelper._nodes[aURI.spec];
+
+      // Simulate observer notification
+      gStartView.onDeleteURI(aURI);
+    },
+  },
+
+  Node: function (aTitle, aURISpec) {
+    this.title = aTitle;
+    this.uri = aURISpec;
+    this.pinned = true
+  },
+
+  _nodes: null,
+  createNodes: function (aMany) {
+    this._nodes = {};
+    for (let i=0; i<aMany; i++) {
+      let title = "mock-history-" + i;
+      let uri = "http://" + title + ".com.br/";
+
+      this._nodes[uri] = new this.Node(title, uri);
+    }
+  },
+
+  _originalPinHelper: null,
+  MockPinHelper: {
+    isPinned: function (aItem) HistoryTestHelper._nodes[aItem].pinned,
+    setUnpinned: function (aItem) HistoryTestHelper._nodes[aItem].pinned = false,
+    setPinned: function (aItem) HistoryTestHelper._nodes[aItem].pinned = true,
+  },
+
+  setup: function setup() {
+    // Just enough items so that there will be one less then the limit
+    // after removing 4 items.
+    this.createNodes(gStartView._limit + 3);
+
+    this._originalNavHistoryService = gStartView._navHistoryService;
+    gStartView._navHistoryService = this.MockNavHistoryService;
+
+    this._originalHistoryService = gStartView._historyService;
+    gStartView._historyService= this.MockHistoryService;
+
+    this._originalPinHelper = gStartView._pinHelper;
+    gStartView._pinHelper = this.MockPinHelper;
+
+    gStartView._set.clearAll();
+    gStartView.populateGrid();
+  },
+
+  restore: function () {
+    gStartView._navHistoryService = this._originalNavHistoryService;
+    gStartView._historyService= this._originalHistoryService;
+    gStartView._pinHelper = this._originalPinHelper;
+
+    gStartView._set.clearAll();
+    gStartView.populateGrid();
+  }
+};
 
 function uriFromIndex(aIndex) {
   return "http://mock-history-" + aIndex + ".com.br/"
@@ -67,7 +154,7 @@ gTests.push({
 
     ok(!item, "Item not in grid");
     ok(!gStartView._pinHelper.isPinned(uriFromIndex(2)), "Item unpinned");
-    is(gStartView._set.itemCount, gStartView._limit, "Grid repopulated");
+    ok(gStartView._set.itemCount === gStartView._limit, "Grid repopulated");
 
     // --------- unpin multiple items
 
@@ -124,7 +211,7 @@ gTests.push({
     item = gStartView._set.getItemsByUrl(uriFromIndex(2))[0];
 
     ok(!item, "Item not in grid");
-    ok(HistoryTestHelper._nodes[uriFromIndex(2)], "Item not actually deleted yet");
+    ok(HistoryTestHelper._nodes[uriFromIndex(2)], "Item not deleted yet");
     ok(!restoreButton.hidden, "Restore button is visible.");
     ok(gStartView._set.itemCount === gStartView._limit, "Grid repopulated");
 
@@ -150,12 +237,8 @@ gTests.push({
     ok(!deleteButton.hidden, "Delete button is visible.");
 
     let promise = waitForCondition(() => !restoreButton.hidden);
-    let populateGridSpy = spyOnMethod(gStartView, "populateGrid");
-
     EventUtils.synthesizeMouse(deleteButton, 10, 10, {}, window);
     yield promise;
-
-    is(populateGridSpy.callCount, 1, "populateGrid was called in response to the deleting a tile");
 
     item = gStartView._set.getItemsByUrl(uriFromIndex(2))[0];
 
@@ -167,14 +250,11 @@ gTests.push({
     Elements.contextappbar.dismiss();
     yield promise;
 
-    is(populateGridSpy.callCount, 1, "populateGrid not called when a removed item is actually deleted");
-    populateGridSpy.restore();
-
     item = gStartView._set.getItemsByUrl(uriFromIndex(2))[0];
 
     ok(!item, "Item not in grid");
     ok(!HistoryTestHelper._nodes[uriFromIndex(2)], "Item RIP");
-    is(gStartView._set.itemCount, gStartView._limit, "Grid repopulated");
+    ok(gStartView._set.itemCount === gStartView._limit, "Grid repopulated");
 
     // --------- delete multiple items and restore
 

@@ -5,7 +5,7 @@
 #ifndef nsUnicodeEncodeHelper_h__
 #define nsUnicodeEncodeHelper_h__
 
-#include "nsError.h"
+#include "nsIUnicodeEncoder.h"
 #include "uconvutil.h"
 //----------------------------------------------------------------------
 // Class nsUnicodeEncodeHelper [declaration]

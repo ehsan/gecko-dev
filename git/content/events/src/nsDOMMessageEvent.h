@@ -9,14 +9,8 @@
 #include "nsIDOMMessageEvent.h"
 #include "nsDOMEvent.h"
 #include "nsCycleCollectionParticipant.h"
+#include "jsapi.h"
 #include "mozilla/dom/MessageEventBinding.h"
-
-namespace mozilla {
-namespace dom {
-class MessagePortList;
-class OwningWindowProxyOrMessagePort;
-}
-}
 
 /**
  * Implements the MessageEvent event, used for cross-document messaging and
@@ -30,8 +24,7 @@ class nsDOMMessageEvent : public nsDOMEvent,
 {
 public:
   nsDOMMessageEvent(mozilla::dom::EventTarget* aOwner,
-                    nsPresContext* aPresContext,
-                    mozilla::WidgetEvent* aEvent);
+                    nsPresContext* aPresContext, nsEvent* aEvent);
   ~nsDOMMessageEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -51,26 +44,31 @@ public:
 
   JS::Value GetData(JSContext* aCx, mozilla::ErrorResult& aRv);
 
-  void GetSource(Nullable<mozilla::dom::OwningWindowProxyOrMessagePort>& aValue) const;
-
-  mozilla::dom::MessagePortList* GetPorts()
+  already_AddRefed<nsIDOMWindow> GetSource()
   {
-    return mPorts;
+    nsCOMPtr<nsIDOMWindow> ret = mSource;
+    return ret.forget();
   }
 
-  static already_AddRefed<nsDOMMessageEvent>
-  Constructor(const mozilla::dom::GlobalObject& aGlobal, JSContext* aCx,
-              const nsAString& aType,
-              const mozilla::dom::MessageEventInit& aEventInit,
-              mozilla::ErrorResult& aRv);
+  void InitMessageEvent(JSContext* aCx,
+                        const nsAString& aType,
+                        bool aCanBubble,
+                        bool aCancelable,
+                        JS::Handle<JS::Value> aData,
+                        const nsAString& aOrigin,
+                        const nsAString& aLastEventId,
+                        nsIDOMWindow* aSource,
+                        mozilla::ErrorResult& aRv)
+  {
+    aRv = InitMessageEvent(aType, aCanBubble, aCancelable, aData,
+                           aOrigin, aLastEventId, aSource);
+  }
 
 private:
   JS::Heap<JS::Value> mData;
   nsString mOrigin;
   nsString mLastEventId;
-  nsCOMPtr<nsIDOMWindow> mWindowSource;
-  nsCOMPtr<mozilla::dom::MessagePort> mPortSource;
-  nsRefPtr<mozilla::dom::MessagePortList> mPorts;
+  nsCOMPtr<nsIDOMWindow> mSource;
 };
 
 #endif // nsDOMMessageEvent_h__

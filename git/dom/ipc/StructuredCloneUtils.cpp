@@ -13,9 +13,8 @@
 
 #include "nsContentUtils.h"
 #include "nsJSEnvironment.h"
-#include "MainThreadUtils.h"
+#include "nsThreadUtils.h"
 #include "StructuredCloneTags.h"
-#include "jsapi.h"
 
 using namespace mozilla::dom;
 
@@ -58,7 +57,7 @@ Read(JSContext* aCx, JSStructuredCloneReader* aReader, uint32_t aTag,
     JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
     nsresult rv = nsContentUtils::WrapNative(aCx, global, file,
                                              &NS_GET_IID(nsIDOMFile),
-                                             &wrappedFile);
+                                             wrappedFile.address());
     if (NS_FAILED(rv)) {
       Error(aCx, nsIDOMDOMException::DATA_CLONE_ERR);
       return nullptr;
@@ -87,7 +86,7 @@ Read(JSContext* aCx, JSStructuredCloneReader* aReader, uint32_t aTag,
     JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
     nsresult rv = nsContentUtils::WrapNative(aCx, global, blob,
                                              &NS_GET_IID(nsIDOMBlob),
-                                             &wrappedBlob);
+                                             wrappedBlob.address());
     if (NS_FAILED(rv)) {
       Error(aCx, nsIDOMDOMException::DATA_CLONE_ERR);
       return nullptr;
@@ -99,7 +98,7 @@ Read(JSContext* aCx, JSStructuredCloneReader* aReader, uint32_t aTag,
   return NS_DOMReadStructuredClone(aCx, aReader, aTag, aData, nullptr);
 }
 
-bool
+JSBool
 Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
       JS::Handle<JSObject*> aObj, void* aClosure)
 {
@@ -162,8 +161,7 @@ namespace dom {
 
 bool
 ReadStructuredClone(JSContext* aCx, uint64_t* aData, size_t aDataLength,
-                    const StructuredCloneClosure& aClosure,
-                    JS::MutableHandle<JS::Value> aClone)
+                    const StructuredCloneClosure& aClosure, JS::Value* aClone)
 {
   void* closure = &const_cast<StructuredCloneClosure&>(aClosure);
   return !!JS_ReadStructuredClone(aCx, aData, aDataLength,
@@ -172,7 +170,7 @@ ReadStructuredClone(JSContext* aCx, uint64_t* aData, size_t aDataLength,
 }
 
 bool
-WriteStructuredClone(JSContext* aCx, JS::Handle<JS::Value> aSource,
+WriteStructuredClone(JSContext* aCx, const JS::Value& aSource,
                      JSAutoStructuredCloneBuffer& aBuffer,
                      StructuredCloneClosure& aClosure)
 {

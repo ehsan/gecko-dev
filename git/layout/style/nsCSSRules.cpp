@@ -36,7 +36,6 @@
 #include "mozilla/dom/CSSStyleDeclarationBinding.h"
 #include "StyleRule.h"
 #include "nsFont.h"
-#include "nsIURI.h"
 
 using namespace mozilla;
 
@@ -161,12 +160,12 @@ GroupRuleRuleList::~GroupRuleRuleList()
 {
 }
 
-// QueryInterface implementation for GroupRuleRuleList
+// QueryInterface implementation for CSSGroupRuleRuleList
 NS_INTERFACE_MAP_BEGIN(GroupRuleRuleList)
   NS_INTERFACE_MAP_ENTRY(nsICSSRuleList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRuleList)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSRuleList)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSGroupRuleRuleList)
 NS_INTERFACE_MAP_END
 
 
@@ -201,6 +200,9 @@ GroupRuleRuleList::IndexedGetter(uint32_t aIndex, bool& aFound)
 
 } // namespace css
 } // namespace mozilla
+
+// Must be outside the namespace
+DOMCI_DATA(CSSGroupRuleRuleList, css::GroupRuleRuleList)
 
 // -------------------------------------------
 // CharsetRule

@@ -32,6 +32,12 @@ using namespace ABI::Windows::Foundation;
 using namespace Microsoft::WRL;
 using namespace Microsoft::WRL::Wrappers;
 
+/*
+ * Due to issues on older platforms with linking the winrt runtime lib we
+ * can't have ref new winrt variables in the global scope. Everything should
+ * be encapsulated in a class. See toolkit/library/nsDllMain for the details.
+ */
+
 namespace mozilla {
 namespace widget {
 namespace winrt {
@@ -51,6 +57,7 @@ FrameworkView::FrameworkView(MetroApp* aMetroApp) :
   mWinVisible(false),
   mWinActiveState(false)
 {
+  mPainting = false;
   memset(&sKeyboardRect, 0, sizeof(Rect));
   sSettingsArray = new nsTArray<nsString>();
   LogFunction();
@@ -77,6 +84,27 @@ FrameworkView::Initialize(ICoreApplicationView* aAppView)
 HRESULT
 FrameworkView::Uninitialize()
 {
+  LogFunction();
+  mShuttingDown = true;
+
+  if (mAutomationProvider) {
+    ComPtr<IUIABridge> provider;
+    mAutomationProvider.As(&provider);
+    if (provider) {
+      provider->Disconnect();
+    }
+  }
+  mAutomationProvider = nullptr;
+
+  mMetroInput = nullptr;
+  mD2DWindowSurface = nullptr;
+  delete sSettingsArray;
+  sSettingsArray = nullptr;
+  mWidget = nullptr;
+  mMetroApp = nullptr;
+  mDispatcher = nullptr;
+  mWindow = nullptr;
+
   return S_OK;
 }
 
@@ -86,40 +114,34 @@ FrameworkView::Load(HSTRING aEntryPoint)
   return S_OK;
 }
 
-// called by winrt on startup
 HRESULT
 FrameworkView::Run()
 {
   LogFunction();
 
-  // Initialize XPCOM, create mWidget and go! We get a
-  // callback in MetroAppShell::Run, in which we kick
-  // off normal browser execution / event dispatching.
-  mMetroApp->Run();
+  // XPCOM is initialized here. mWidget is also created.
+  mMetroApp->Initialize();
 
-  // Gecko is completely shut down at this point.
-  Log("Exiting FrameworkView::Run()");
+  ProcessLaunchArguments();
 
-  return S_OK;
-}
-
-HRESULT
-FrameworkView::ActivateView()
-{
-  LogFunction();
+  // Activate the window
+  mWindow->Activate();
 
   UpdateWidgetSizeAndPosition();
 
-  nsIntRegion region(nsIntRect(0, 0, mWindowBounds.width, mWindowBounds.height));
-  mWidget->Paint(region);
+  MetroUtils::GetViewState(mViewState);
 
-  // Activate the window, this kills the splash screen
-  mWindow->Activate();
+  // Get the metro event dispatcher
+  HRESULT hr = mWindow->get_Dispatcher(&mDispatcher);
+  AssertRetHRESULT(hr, hr);
 
-  ProcessLaunchArguments();
+  // Needs mDispatcher
   AddEventHandlers();
-  SetupContracts();
 
+  // Drop into the main metro event loop
+  mDispatcher->ProcessEvents(ABI::Windows::UI::Core::CoreProcessEventsOption::CoreProcessEventsOption_ProcessUntilQuit);
+
+  Log("Exiting FrameworkView::Run()");
   return S_OK;
 }
 
@@ -143,9 +165,12 @@ void
 FrameworkView::AddEventHandlers() {
   NS_ASSERTION(mWindow, "SetWindow must be called before AddEventHandlers!");
   NS_ASSERTION(mWidget, "SetWidget must be called before AddEventHAndlers!");
+  NS_ASSERTION(mDispatcher, "Must have a valid CoreDispatcher before "
+                            "calling AddEventHAndlers!");
 
   mMetroInput = Make<MetroInput>(mWidget.Get(),
-                                 mWindow.Get());
+                                 mWindow.Get(),
+                                 mDispatcher.Get());
 
   mWindow->add_VisibilityChanged(Callback<__FITypedEventHandler_2_Windows__CUI__CCore__CCoreWindow_Windows__CUI__CCore__CVisibilityChangedEventArgs>(
     this, &FrameworkView::OnWindowVisibilityChanged).Get(), &mWindowVisibilityChanged);
@@ -183,24 +208,7 @@ FrameworkView::AddEventHandlers() {
 void
 FrameworkView::ShutdownXPCOM()
 {
-  LogFunction();
-  mShuttingDown = true;
-
-  if (mAutomationProvider) {
-    ComPtr<IUIABridge> provider;
-    mAutomationProvider.As(&provider);
-    if (provider) {
-      provider->Disconnect();
-    }
-  }
-  mAutomationProvider = nullptr;
-
-  mMetroInput = nullptr;
-  delete sSettingsArray;
-  sSettingsArray = nullptr;
-  mWidget = nullptr;
-  mMetroApp = nullptr;
-  mWindow = nullptr;
+  Uninitialize();
 }
 
 void
@@ -281,8 +289,6 @@ FrameworkView::IsVisible() const
 void FrameworkView::SetDpi(float aDpi)
 {
   if (aDpi != mDPI) {
-    LogFunction();
-
     mDPI = aDpi;
     // Often a DPI change implies a window size change.
     NS_ASSERTION(mWindow, "SetWindow must be called before SetDpi!");
@@ -340,6 +346,8 @@ FrameworkView::OnActivated(ICoreApplicationView* aApplicationView,
                            IActivatedEventArgs* aArgs)
 {
   LogFunction();
+  // If we're on startup, we want to wait for FrameworkView::Run to run because
+  // XPCOM is not initialized yet and and we can't use nsICommandLineRunner
 
   ApplicationExecutionState state;
   aArgs->get_PreviousExecutionState(&state);
@@ -385,6 +393,36 @@ FrameworkView::OnWindowClosed(ICoreWindow* aSender, ICoreWindowEventArgs* aArgs)
   return S_OK;
 }
 
+void
+FrameworkView::FireViewStateObservers()
+{
+  ApplicationViewState state;
+  MetroUtils::GetViewState(state);
+  if (state == mViewState) {
+    return;
+  }
+  mViewState = state;
+  nsAutoString name;
+  switch (mViewState) {
+    case ApplicationViewState_FullScreenLandscape:
+      name.AssignLiteral("landscape");
+    break;
+    case ApplicationViewState_Filled:
+      name.AssignLiteral("filled");
+    break;
+    case ApplicationViewState_Snapped:
+      name.AssignLiteral("snapped");
+    break;
+    case ApplicationViewState_FullScreenPortrait:
+      name.AssignLiteral("portrait");
+    break;
+    default:
+      NS_WARNING("Unknown view state");
+    return;
+  };
+  MetroUtils::FireObserver("metro_viewstate_changed", name.get());
+}
+
 HRESULT
 FrameworkView::OnWindowSizeChanged(ICoreWindow* aSender, IWindowSizeChangedEventArgs* aArgs)
 {
@@ -400,6 +438,7 @@ FrameworkView::OnWindowSizeChanged(ICoreWindow* aSender, IWindowSizeChangedEvent
   mWindowBounds = MetroUtils::LogToPhys(logicalBounds);
 
   UpdateWidgetSizeAndPosition();
+  FireViewStateObservers();
   return S_OK;
 }
 
@@ -413,6 +452,11 @@ FrameworkView::OnWindowActivated(ICoreWindow* aSender, IWindowActivatedEventArgs
   aArgs->get_WindowActivationState(&state);
   mWinActiveState = !(state == CoreWindowActivationState::CoreWindowActivationState_Deactivated);
   SendActivationEvent();
+
+  // Flush out all remaining events so base widget doesn't process other stuff
+  // earlier which would lead to a white flash of a second at startup.
+  MetroAppShell::ProcessAllNativeEventsPresent();
+
   return S_OK;
 }
 
@@ -421,9 +465,7 @@ FrameworkView::OnLogicalDpiChanged(IInspectable* aSender)
 {
   LogFunction();
   UpdateLogicalDPI();
-  if (mWidget) {
-    mWidget->Invalidate();
-  }
+  Render();
   return S_OK;
 }
 

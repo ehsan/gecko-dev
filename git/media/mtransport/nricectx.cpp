@@ -82,7 +82,6 @@ extern "C" {
 #include "nricectx.h"
 #include "nricemediastream.h"
 #include "nr_socket_prsock.h"
-#include "nrinterfaceprioritizer.h"
 
 namespace mozilla {
 
@@ -252,7 +251,7 @@ int NrIceCtx::select_pair(void *obj,nr_ice_media_stream *stream,
 int NrIceCtx::stream_ready(void *obj, nr_ice_media_stream *stream) {
   MOZ_MTLOG(ML_DEBUG, "stream_ready called");
 
-  // Get the ICE ctx.
+  // Get the ICE ctx
   NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
 
   RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
@@ -306,30 +305,6 @@ int NrIceCtx::msg_recvd(void *obj, nr_ice_peer_ctx *pctx,
   return 0;
 }
 
-void NrIceCtx::trickle_cb(void *arg, nr_ice_ctx *ice_ctx,
-                          nr_ice_media_stream *stream,
-                          int component_id,
-                          nr_ice_candidate *candidate) {
-  // Get the ICE ctx
-  NrIceCtx *ctx = static_cast<NrIceCtx *>(arg);
-  RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
-
-  // Streams which do not exist shouldn't have candidates.
-  MOZ_ASSERT(s);
-
-  // Format the candidate.
-  char candidate_str[NR_ICE_MAX_ATTRIBUTE_SIZE];
-  int r = nr_ice_format_candidate_attribute(candidate, candidate_str,
-                                            sizeof(candidate_str));
-  MOZ_ASSERT(!r);
-  if (r)
-    return;
-
-  MOZ_MTLOG(ML_INFO, "NrIceCtx(" << ctx->name_ << "): trickling candidate "
-            << candidate_str);
-
-  s->SignalCandidate(s, candidate_str);
-}
 
 RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
                                   bool offerer,
@@ -391,28 +366,6 @@ RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
   if (r) {
     MOZ_MTLOG(ML_ERROR, "Couldn't create ICE ctx for '" << name << "'");
     return nullptr;
-  }
-
-#ifdef USE_INTERFACE_PRIORITIZER
-  nr_interface_prioritizer *prioritizer = CreateInterfacePrioritizer();
-  if (!prioritizer) {
-    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't create interface prioritizer.");
-    return nullptr;
-  }
-
-  r = nr_ice_ctx_set_interface_prioritizer(ctx->ctx_, prioritizer);
-  if (r) {
-    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't set interface prioritizer.");
-    return nullptr;
-  }
-#endif  // USE_INTERFACE_PRIORITIZER
-
-  if (ctx->generating_trickle()) {
-    r = nr_ice_ctx_set_trickle_cb(ctx->ctx_, &NrIceCtx::trickle_cb, ctx);
-    if (r) {
-      MOZ_MTLOG(ML_ERROR, "Couldn't set trickle cb for '" << name << "'");
-      return nullptr;
-    }
   }
 
   // Create the handler objects
@@ -567,6 +520,15 @@ nsresult NrIceCtx::StartGathering() {
   return NS_OK;
 }
 
+void NrIceCtx::EmitAllCandidates() {
+  MOZ_MTLOG(ML_NOTICE, "Gathered all ICE candidates for '"
+            << name_ << "'");
+
+  for(size_t i=0; i<streams_.size(); ++i) {
+    streams_[i]->EmitAllCandidates();
+  }
+}
+
 RefPtr<NrIceMediaStream> NrIceCtx::FindStream(
     nr_ice_media_stream *stream) {
   for (size_t i=0; i<streams_.size(); ++i) {
@@ -652,6 +614,8 @@ nsresult NrIceCtx::StartChecks() {
 
 void NrIceCtx::initialized_cb(NR_SOCKET s, int h, void *arg) {
   NrIceCtx *ctx = static_cast<NrIceCtx *>(arg);
+
+  ctx->EmitAllCandidates();
 
   ctx->SetState(ICE_CTX_GATHERED);
 }

@@ -2,5 +2,5 @@
 // Flags:
 //
 
-var g = newGlobal();
+var g = newGlobal('new-compartment');
 new Proxy(g, {});

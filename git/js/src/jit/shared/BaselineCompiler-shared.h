@@ -7,10 +7,13 @@
 #ifndef jit_shared_BaselineCompiler_shared_h
 #define jit_shared_BaselineCompiler_shared_h
 
+#include "jscntxt.h"
+
 #include "jit/BaselineFrameInfo.h"
 #include "jit/BaselineIC.h"
-#include "jit/BytecodeAnalysis.h"
+#include "jit/IonInstrumentation.h"
 #include "jit/IonMacroAssembler.h"
+#include "jit/IonSpewer.h"
 
 namespace js {
 namespace jit {
@@ -72,11 +75,11 @@ class BaselineCompilerShared
 
     ICEntry *allocateICEntry(ICStub *stub, bool isForOp) {
         if (!stub)
-            return nullptr;
+            return NULL;
 
         // Create the entry and add it to the vector.
         if (!icEntries_.append(ICEntry((uint32_t) (pc - script->code), isForOp)))
-            return nullptr;
+            return NULL;
         ICEntry &vecEntry = icEntries_[icEntries_.length() - 1];
 
         // Set the first stub for the IC entry to the fallback stub
@@ -127,7 +130,7 @@ class BaselineCompilerShared
         masm.Push(BaselineFrameReg);
     }
 
-    bool callVM(const VMFunction &fun, bool preInitialize=false);
+    bool callVM(const VMFunction &fun);
 
   public:
     BytecodeAnalysis &analysis() {

@@ -8,7 +8,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIXPConnect.h"
 #include "mozilla/Services.h"
-#include "jsapi.h"
 
 namespace mozilla {
 namespace places {
@@ -100,8 +99,7 @@ PlaceInfo::GetVisits(JSContext* aContext,
 
   // TODO bug 625913 when we use this in situations that have more than one
   // visit here, we will likely want to make this cache the value.
-  JS::Rooted<JSObject*> visits(aContext,
-                               JS_NewArrayObject(aContext, 0, nullptr));
+  JS::Rooted<JSObject*> visits(aContext, JS_NewArrayObject(aContext, 0, NULL));
   NS_ENSURE_TRUE(visits, NS_ERROR_OUT_OF_MEMORY);
 
   JS::Rooted<JSObject*> global(aContext, JS::CurrentGlobalOrNull(aContext));
@@ -120,7 +118,7 @@ PlaceInfo::GetVisits(JSContext* aContext,
     NS_ENSURE_STATE(jsobj);
     JS::Rooted<JS::Value> wrappedVisit(aContext, OBJECT_TO_JSVAL(jsobj));
 
-    bool rc = JS_SetElement(aContext, visits, idx, &wrappedVisit);
+    JSBool rc = JS_SetElement(aContext, visits, idx, wrappedVisit.address());
     NS_ENSURE_TRUE(rc, NS_ERROR_UNEXPECTED);
   }
 

@@ -10,14 +10,13 @@ EXPORTS += [
     'nsUCvKOCID.h',
 ]
 
-SOURCES += [
-    'UnifiedUCVKO.cpp',
+CPP_SOURCES += [
+    'nsCP949ToUnicode.cpp',
+    'nsISO2022KRToUnicode.cpp',
+    'nsJohabToUnicode.cpp',
+    'nsUnicodeToCP949.cpp',
+    'nsUnicodeToJohab.cpp',
 ]
 
 LIBRARY_NAME = 'ucvko_s'
 
-LIBXUL_LIBRARY = True
-
-LOCAL_INCLUDES += [
-    '../util',
-]

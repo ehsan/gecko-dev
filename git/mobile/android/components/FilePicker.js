@@ -26,7 +26,6 @@ FilePicker.prototype = {
 
   init: function(aParent, aTitle, aMode) {
     this._domWin = aParent;
-    this._mode = aMode;
     Services.obs.addObserver(this, "FilePicker:Result", false);
 
     let idService = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator); 
@@ -157,15 +156,11 @@ FilePicker.prototype = {
     throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
   },
 
-  get mode() {
-    return this._mode;
-  },
-
   show: function() {
     if (this._domWin) {
-      this.fireDialogEvent(this._domWin, "DOMWillOpenModalDialog");
+      PromptUtils.fireDialogEvent(this._domWin, "DOMWillOpenModalDialog");
       let winUtils = this._domWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      winUtils.enterModalState();
+      callerWin = winUtils.enterModalStateWithWindow();
     }
 
     this._promptActive = true;
@@ -175,12 +170,6 @@ FilePicker.prototype = {
     while (this._promptActive)
       thread.processNextEvent(true);
     delete this._promptActive;
-
-    if (this._domWin) {
-      let winUtils = this._domWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      winUtils.leaveModalState();
-      this.fireDialogEvent(this._domWin, "DOMModalDialogClosed");
-    }
 
     if (this._filePath)
       return Ci.nsIFilePicker.returnOK;
@@ -214,7 +203,7 @@ FilePicker.prototype = {
   },
 
   sendMessageToJava: function(aMsg) {
-    Services.androidBridge.handleGeckoMessage(JSON.stringify(aMsg));
+    Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge).handleGeckoMessage(JSON.stringify(aMsg));
   },
 
   observe: function(aSubject, aTopic, aData) {
@@ -249,20 +238,6 @@ FilePicker.prototype = {
         return mapFunction(this.mFiles[this.mIndex++]);
       }
     };
-  },
-
-  fireDialogEvent: function(aDomWin, aEventName) {
-    // accessing the document object can throw if this window no longer exists. See bug 789888.
-    try {
-      if (!aDomWin.document)
-        return;
-      let event = aDomWin.document.createEvent("Events");
-      event.initEvent(aEventName, true, true);
-      let winUtils = aDomWin.QueryInterface(Ci.nsIInterfaceRequestor)
-                           .getInterface(Ci.nsIDOMWindowUtils);
-      winUtils.dispatchEventToChromeOnly(aDomWin, event);
-    } catch(ex) {
-    }
   },
 
   classID: Components.ID("{18a4e042-7c7c-424b-a583-354e68553a7f}"),

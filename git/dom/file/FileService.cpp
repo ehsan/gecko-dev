@@ -40,6 +40,8 @@ FileService::~FileService()
 nsresult
 FileService::Init()
 {
+  mFileStorageInfos.Init();
+
   nsresult rv;
   mStreamTransportTarget =
     do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID, &rv);

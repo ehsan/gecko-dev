@@ -15,6 +15,7 @@
 #include "nsGkAtoms.h"
 #include "nsMenuFrame.h"
 #include "nsMenuPopupFrame.h"
+#include "nsGUIEvent.h"
 #include "nsUnicharUtils.h"
 #include "nsPIDOMWindow.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -25,9 +26,7 @@
 #endif
 #include "nsContentUtils.h"
 #include "nsUTF8Utils.h"
-#include "mozilla/TextEvents.h"
 
-using namespace mozilla;
 
 //
 // NS_NewMenuBarFrame
@@ -150,7 +149,7 @@ nsMenuBarFrame::ToggleMenuActiveState()
       // Activate the menu bar
       SetActive(true);
 
-#if (MOZ_WIDGET_GTK == 2)
+#ifdef MOZ_WIDGET_GTK2
       firstFrame->OpenMenu(true);
 #else
       firstFrame->SelectMenu(true);
@@ -182,8 +181,8 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
   aKeyEvent->GetCharCode(&charCode);
 
   nsAutoTArray<uint32_t, 10> accessKeys;
-  WidgetKeyboardEvent* nativeKeyEvent =
-    aKeyEvent->GetInternalNSEvent()->AsKeyboardEvent();
+  nsEvent* nativeEvent = nsContentUtils::GetNativeEvent(aKeyEvent);
+  nsKeyEvent* nativeKeyEvent = static_cast<nsKeyEvent*>(nativeEvent);
   if (nativeKeyEvent)
     nsContentUtils::GetAccessKeyCandidates(nativeKeyEvent, accessKeys);
   if (accessKeys.IsEmpty() && charCode)
@@ -378,7 +377,7 @@ nsMenuBarFrame::ChangeMenuItem(nsMenuFrame* aMenuItem,
 }
 
 nsMenuFrame*
-nsMenuBarFrame::Enter(WidgetGUIEvent* aEvent)
+nsMenuBarFrame::Enter(nsGUIEvent* aEvent)
 {
   if (!mCurrentMenu)
     return nullptr;

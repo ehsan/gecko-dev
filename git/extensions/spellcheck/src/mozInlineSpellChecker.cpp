@@ -59,6 +59,7 @@
 #include "nsUnicharUtils.h"
 #include "nsIContent.h"
 #include "nsEventListenerManager.h"
+#include "nsGUIEvent.h"
 #include "nsRange.h"
 #include "nsContentUtils.h"
 #include "nsEditor.h"
@@ -625,7 +626,6 @@ nsresult mozInlineSpellChecker::Cleanup(bool aDestroyingFrames)
   }
 
   mEditor = nullptr;
-  mFullSpellCheckScheduled = false;
 
   return rv;
 }
@@ -946,8 +946,7 @@ mozInlineSpellChecker::ReplaceWord(nsIDOMNode *aNode, int32_t aOffset,
     editor->DeleteSelection(nsIEditor::eNone, nsIEditor::eStrip);
 
     nsCOMPtr<nsIPlaintextEditor> textEditor(do_QueryReferent(mEditor));
-    if (textEditor)
-      textEditor->InsertText(newword);
+    textEditor->InsertText(newword);
 
     editor->EndTransaction();
   }

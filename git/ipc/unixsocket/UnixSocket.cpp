@@ -76,7 +76,7 @@ public:
     MOZ_ASSERT(NS_IsMainThread());
     return mConsumer == nullptr;
   }
-
+  
   void ShutdownOnMainThread()
   {
     MOZ_ASSERT(NS_IsMainThread());
@@ -134,17 +134,17 @@ public:
     ClearDelayedConnectTask();
   }
 
-  /**
+  /** 
    * Connect to a socket
    */
   void Connect();
 
-  /**
+  /** 
    * Run bind/listen to prepare for further runs of accept()
    */
   void Listen();
 
-  /**
+  /** 
    * Accept an incoming connection
    */
   void Accept();
@@ -217,7 +217,7 @@ private:
    */
   ScopedClose mFd;
 
-  /**
+  /** 
    * Connector object used to create the connection we are currently using.
    */
   nsAutoPtr<UnixSocketConnector> mConnector;
@@ -480,7 +480,7 @@ void ShutdownSocketTask::Run()
   NS_ENSURE_SUCCESS_VOID(rv);
 }
 
-void
+void  
 UnixSocketImpl::Accept()
 {
   MOZ_ASSERT(!NS_IsMainThread());
@@ -518,14 +518,6 @@ UnixSocketImpl::Accept()
 #ifdef DEBUG
       LOG("...listen(%d) gave errno %d", mFd.get(), errno);
 #endif
-      return;
-    }
-
-    if (!mConnector->SetUpListenSocket(mFd)) {
-      NS_WARNING("Could not set up listen socket!");
-      nsRefPtr<OnSocketEventTask> t =
-        new OnSocketEventTask(this, OnSocketEventTask::CONNECT_ERROR);
-      NS_DispatchToMainThread(t);
       return;
     }
 
@@ -575,7 +567,6 @@ UnixSocketImpl::Connect()
       int current_opts = fcntl(mFd.get(), F_GETFL, 0);
       if (-1 == current_opts) {
         NS_WARNING("Cannot get socket opts!");
-        mFd.reset(-1);
         nsRefPtr<OnSocketEventTask> t =
           new OnSocketEventTask(this, OnSocketEventTask::CONNECT_ERROR);
         NS_DispatchToMainThread(t);
@@ -583,7 +574,6 @@ UnixSocketImpl::Connect()
       }
       if (-1 == fcntl(mFd.get(), F_SETFL, current_opts & ~O_NONBLOCK)) {
         NS_WARNING("Cannot set socket opts to blocking!");
-        mFd.reset(-1);
         nsRefPtr<OnSocketEventTask> t =
           new OnSocketEventTask(this, OnSocketEventTask::CONNECT_ERROR);
         NS_DispatchToMainThread(t);
@@ -685,8 +675,8 @@ UnixSocketConsumer::SendSocketData(const nsACString& aStr)
   }
 
   MOZ_ASSERT(!mImpl->IsShutdownOnMainThread());
-  UnixSocketRawData* d = new UnixSocketRawData(aStr.BeginReading(),
-                                               aStr.Length());
+  UnixSocketRawData* d = new UnixSocketRawData(aStr.Length());
+  memcpy(d->mData, aStr.BeginReading(), aStr.Length());
   XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
                                    new SocketSendTask(this, mImpl, d));
   return true;
@@ -725,9 +715,8 @@ UnixSocketImpl::OnFileCanReadWithoutBlocking(int aFd)
   if (status == SOCKET_CONNECTED) {
     // Read all of the incoming data.
     while (true) {
-      nsAutoPtr<UnixSocketRawData> incoming(new UnixSocketRawData(MAX_READ_SIZE));
-
-      ssize_t ret = read(aFd, incoming->mData, incoming->mSize);
+      uint8_t data[MAX_READ_SIZE];
+      ssize_t ret = read(aFd, data, MAX_READ_SIZE);
       if (ret <= 0) {
         if (ret == -1) {
           if (errno == EINTR) {
@@ -752,13 +741,13 @@ UnixSocketImpl::OnFileCanReadWithoutBlocking(int aFd)
         return;
       }
 
-      incoming->mSize = ret;
-      nsRefPtr<SocketReceiveTask> t =
-        new SocketReceiveTask(this, incoming.forget());
+      UnixSocketRawData* incoming = new UnixSocketRawData(ret);
+      memcpy(incoming->mData, data, ret);
+      nsRefPtr<SocketReceiveTask> t = new SocketReceiveTask(this, incoming);
       NS_DispatchToMainThread(t);
 
-      // If ret is less than MAX_READ_SIZE, there's no
-      // more data in the socket for us to read now.
+      // If ret is less than MAX_READ_SIZE, there's no more data in the socket
+      // for us to read now.
       if (ret < ssize_t(MAX_READ_SIZE)) {
         return;
       }
@@ -853,7 +842,6 @@ UnixSocketImpl::OnFileCanWriteWithoutBlocking(int aFd)
 
     if (ret || error) {
       NS_WARNING("getsockopt failure on async socket connect!");
-      mFd.reset(-1);
       nsRefPtr<OnSocketEventTask> t =
         new OnSocketEventTask(this, OnSocketEventTask::CONNECT_ERROR);
       NS_DispatchToMainThread(t);
@@ -861,7 +849,6 @@ UnixSocketImpl::OnFileCanWriteWithoutBlocking(int aFd)
     }
 
     if (!SetSocketFlags()) {
-      mFd.reset(-1);
       nsRefPtr<OnSocketEventTask> t =
         new OnSocketEventTask(this, OnSocketEventTask::CONNECT_ERROR);
       NS_DispatchToMainThread(t);
@@ -870,7 +857,6 @@ UnixSocketImpl::OnFileCanWriteWithoutBlocking(int aFd)
 
     if (!mConnector->SetUp(mFd)) {
       NS_WARNING("Could not set up socket!");
-      mFd.reset(-1);
       nsRefPtr<OnSocketEventTask> t =
         new OnSocketEventTask(this, OnSocketEventTask::CONNECT_ERROR);
       NS_DispatchToMainThread(t);

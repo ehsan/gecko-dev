@@ -33,6 +33,7 @@
 #include "nsCExternalHandlerService.h"
 #include "nsIStreamConverterService.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsLayoutStatics.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsHostObjectProtocolHandler.h"
 #include "mozilla/Base64.h"
@@ -94,7 +95,7 @@ NS_IMPL_FORWARD_EVENT_HANDLER(nsDOMFileReader, error, FileIOObject)
 void
 nsDOMFileReader::RootResultArrayBuffer()
 {
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, nsDOMFileReader);
 }
 
 //nsDOMFileReader constructors/initializers
@@ -104,6 +105,7 @@ nsDOMFileReader::nsDOMFileReader()
     mDataLen(0), mDataFormat(FILE_AS_BINARY),
     mResultArrayBuffer(nullptr)
 {
+  nsLayoutStatics::AddRef();
   SetDOMStringToNull(mResult);
   SetIsDOMBinding();
 }
@@ -112,7 +114,8 @@ nsDOMFileReader::~nsDOMFileReader()
 {
   FreeFileData();
   mResultArrayBuffer = nullptr;
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, nsDOMFileReader);
+  nsLayoutStatics::Release();
 }
 
 
@@ -144,7 +147,7 @@ nsDOMFileReader::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
 {
   nsRefPtr<nsDOMFileReader> fileReader = new nsDOMFileReader();
 
-  nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(aGlobal.Get());
   if (!owner) {
     NS_WARNING("Unexpected nsIJSNativeInitializer owner");
     aRv.Throw(NS_ERROR_FAILURE);
@@ -184,7 +187,7 @@ nsDOMFileReader::GetReadyState(uint16_t *aReadyState)
 JS::Value
 nsDOMFileReader::GetResult(JSContext* aCx, ErrorResult& aRv)
 {
-  JS::Rooted<JS::Value> result(aCx);
+  JS::Rooted<JS::Value> result(aCx, JS::UndefinedValue());
   aRv = GetResult(aCx, result.address());
   return result;
 }
@@ -192,25 +195,23 @@ nsDOMFileReader::GetResult(JSContext* aCx, ErrorResult& aRv)
 NS_IMETHODIMP
 nsDOMFileReader::GetResult(JSContext* aCx, JS::Value* aResult)
 {
-  JS::Rooted<JS::Value> result(aCx);
   if (mDataFormat == FILE_AS_ARRAYBUFFER) {
     if (mReadyState == nsIDOMFileReader::DONE && mResultArrayBuffer) {
-      result.setObject(*mResultArrayBuffer);
+      JSObject* tmp = mResultArrayBuffer;
+      *aResult = OBJECT_TO_JSVAL(tmp);
     } else {
-      result.setNull();
+      *aResult = JSVAL_NULL;
     }
-    if (!JS_WrapValue(aCx, &result)) {
+    if (!JS_WrapValue(aCx, aResult)) {
       return NS_ERROR_FAILURE;
     }
-    *aResult = result;
     return NS_OK;
   }
-
+ 
   nsString tmpResult = mResult;
-  if (!xpc::StringToJsval(aCx, tmpResult, &result)) {
+  if (!xpc::StringToJsval(aCx, tmpResult, aResult)) {
     return NS_ERROR_FAILURE;
   }
-  *aResult = result;
   return NS_OK;
 }
 

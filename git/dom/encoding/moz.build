@@ -11,18 +11,14 @@ MODULE = 'dom'
 EXPORTS.mozilla.dom += [
     'EncodingUtils.h',
     'TextDecoder.h',
+    'TextDecoderBase.h',
     'TextEncoder.h',
+    'TextEncoderBase.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'EncodingUtils.cpp',
     'TextDecoder.cpp',
     'TextEncoder.cpp',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'domencoding_s'
 

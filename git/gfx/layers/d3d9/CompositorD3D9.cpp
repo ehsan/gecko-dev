@@ -65,7 +65,7 @@ CompositorD3D9::GetTextureFactoryIdentifier()
 }
 
 bool
-CompositorD3D9::CanUseCanvasLayerForSize(const IntSize &aSize)
+CompositorD3D9::CanUseCanvasLayerForSize(const gfxIntSize &aSize)
 {
   int32_t maxTextureSize = GetMaxTextureSize();
 
@@ -354,7 +354,6 @@ CompositorD3D9::DrawQuad(const gfx::Rect &aRect, const gfx::Rect &aClipRect,
     break;
   case EFFECT_COMPONENT_ALPHA:
     {
-      MOZ_ASSERT(gfxPlatform::ComponentAlphaEnabled());
       EffectComponentAlpha* effectComponentAlpha =
         static_cast<EffectComponentAlpha*>(aEffectChain.mPrimaryEffect.get());
       TextureSourceD3D9* sourceOnWhite = effectComponentAlpha->mOnWhite->AsSourceD3D9();
@@ -377,6 +376,7 @@ CompositorD3D9::DrawQuad(const gfx::Rect &aRect, const gfx::Rect &aClipRect,
       device()->SetTexture(1, sourceOnWhite->GetD3D9Texture());
       device()->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ZERO);
       device()->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
+      device()->SetRenderState(D3DRS_SEPARATEALPHABLENDENABLE, TRUE);
       device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
 
       maskTexture = mDeviceManager->SetShaderMode(DeviceManagerD3D9::COMPONENTLAYERPASS2, maskType);
@@ -387,6 +387,7 @@ CompositorD3D9::DrawQuad(const gfx::Rect &aRect, const gfx::Rect &aClipRect,
       // Restore defaults
       device()->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ONE);
       device()->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+      device()->SetRenderState(D3DRS_SEPARATEALPHABLENDENABLE, FALSE);
       device()->SetTexture(1, NULL);
     }
     return;
@@ -399,12 +400,14 @@ CompositorD3D9::DrawQuad(const gfx::Rect &aRect, const gfx::Rect &aClipRect,
 
   if (!isPremultiplied) {
     device()->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    device()->SetRenderState(D3DRS_SEPARATEALPHABLENDENABLE, TRUE);
   }
 
   HRESULT hr = device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
 
   if (!isPremultiplied) {
     device()->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ONE);
+    device()->SetRenderState(D3DRS_SEPARATEALPHABLENDENABLE, FALSE);
   }
 }
 
@@ -484,14 +487,10 @@ CompositorD3D9::EndFrame()
 {
   device()->EndScene();
 
-  nsIntSize oldSize = mSize;
-  EnsureSize();
-  if (oldSize == mSize) {
-    if (mTarget) {
-      PaintToTarget();
-    } else {
-      mSwapChain->Present();
-    }
+  if (!!mTarget) {
+    PaintToTarget();
+  } else {
+    mSwapChain->Present();
   }
 
   mCurrentRT = nullptr;
@@ -565,15 +564,14 @@ CompositorD3D9::PaintToTarget()
 
   D3DLOCKED_RECT rect;
   destSurf->LockRect(&rect, NULL, D3DLOCK_READONLY);
-  RefPtr<DataSourceSurface> sourceSurface =
-    Factory::CreateWrappingDataSourceSurface((uint8_t*)rect.pBits,
-                                             rect.Pitch,
-                                             IntSize(desc.Width, desc.Height),
-                                             FORMAT_B8G8R8A8);
-  mTarget->CopySurface(sourceSurface,
-                       IntRect(0, 0, desc.Width, desc.Height),
-                       IntPoint());
-  mTarget->Flush();
+  mTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
+  nsRefPtr<gfxImageSurface> imageSurface =
+    new gfxImageSurface((unsigned char*)rect.pBits,
+                        gfxIntSize(desc.Width, desc.Height),
+                        rect.Pitch,
+                        gfxASurface::ImageFormatARGB32);
+  mTarget->SetSource(imageSurface);
+  mTarget->Paint();
   destSurf->UnlockRect();
 }
 

@@ -9,7 +9,6 @@ include LayersSurfaces;
 include protocol PGrallocBuffer;
 include protocol PLayerTransaction;
 include "mozilla/layers/CompositorTypes.h";
-include "mozilla/GfxMessageUtils.h";
 
 using mozilla::null_t;
 using mozilla::layers::TextureFactoryIdentifier;
@@ -26,7 +25,7 @@ namespace layers {
  */
 // This should really be 'sync', but we're using 'rpc' as a workaround
 // for Bug 716631.
-intr protocol PCompositor
+rpc protocol PCompositor
 {
   // A Compositor manages a single Layer Manager (PLayerTransaction)
   manages PLayerTransaction;
@@ -60,10 +59,7 @@ parent:
   // block until they are completed.
   sync FlushRendering();
 
-  // layersBackendHints is an ordered list of preffered backends where
-  // layersBackendHints[0] is the best backend. If any hints are LAYERS_NONE
-  // that hint is ignored.
-  sync PLayerTransaction(LayersBackend[] layersBackendHints, uint64_t id)
+  sync PLayerTransaction(LayersBackend layersBackendHint, uint64_t id)
     returns (TextureFactoryIdentifier textureFactoryIdentifier, bool success);
 };
 

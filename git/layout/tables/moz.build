@@ -12,9 +12,10 @@ EXPORTS += [
     'nsITableCellLayout.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'BasicTableLayoutStrategy.cpp',
     'FixedTableLayoutStrategy.cpp',
+    'SpanningCellSorter.cpp',
     'nsCellMap.cpp',
     'nsTableCellFrame.cpp',
     'nsTableColFrame.cpp',
@@ -24,14 +25,7 @@ SOURCES += [
     'nsTablePainter.cpp',
     'nsTableRowFrame.cpp',
     'nsTableRowGroupFrame.cpp',
-    'SpanningCellSorter.cpp',
 ]
 
 LIBRARY_NAME = 'gktable_s'
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
 

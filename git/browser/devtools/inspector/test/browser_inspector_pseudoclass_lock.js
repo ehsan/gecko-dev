@@ -68,12 +68,14 @@ function performTests()
   // inspector has been told of the pseudoclass lock change.
   inspector.selection.once("pseudoclass", () => {
     // Give the rule view time to update.
-    inspector.once("rule-view-refreshed", () => {
+    executeSoon(() => {
       testAdded();
-      // Change the pseudo class and give the rule view time to update.
+
+      // toggle the lock off and wait for the pseudoclass event again.
       inspector.togglePseudoClass(pseudo);
       inspector.selection.once("pseudoclass", () => {
-        inspector.once("rule-view-refreshed", () => {
+        // Give the rule view time to update.
+        executeSoon(() => {
           testRemoved();
           testRemovedFromUI();
 

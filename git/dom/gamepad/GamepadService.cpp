@@ -12,6 +12,9 @@
 #include "nsAutoPtr.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMGamepadButtonEvent.h"
+#include "nsIDOMGamepadAxisMoveEvent.h"
+#include "nsIDOMGamepadEvent.h"
 #include "GeneratedEvents.h"
 #include "nsIDOMWindow.h"
 #include "nsIObserver.h"
@@ -20,10 +23,6 @@
 #include "nsITimer.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Services.h"
-
-#include "mozilla/dom/GamepadAxisMoveEvent.h"
-#include "mozilla/dom/GamepadButtonEvent.h"
-#include "mozilla/dom/GamepadEvent.h"
 
 #include <cstddef>
 
@@ -242,19 +241,18 @@ GamepadService::FireButtonEvent(EventTarget* aTarget,
                                 uint32_t aButton,
                                 double aValue)
 {
+  nsCOMPtr<nsIDOMEvent> event;
+  bool defaultActionEnabled = true;
+  NS_NewDOMGamepadButtonEvent(getter_AddRefs(event), aTarget, nullptr, nullptr);
+  nsCOMPtr<nsIDOMGamepadButtonEvent> je = do_QueryInterface(event);
+  MOZ_ASSERT(je, "QI should not fail");
+
+
   nsString name = aValue == 1.0L ? NS_LITERAL_STRING("gamepadbuttondown") :
                                    NS_LITERAL_STRING("gamepadbuttonup");
-  GamepadButtonEventInit init;
-  init.mBubbles = false;
-  init.mCancelable = false;
-  init.mGamepad = aGamepad;
-  init.mButton = aButton;
-  nsRefPtr<GamepadButtonEvent> event =
-    GamepadButtonEvent::Constructor(aTarget, name, init);
+  je->InitGamepadButtonEvent(name, false, false, aGamepad, aButton);
+  je->SetTrusted(true);
 
-  event->SetTrusted(true);
-
-  bool defaultActionEnabled = true;
   aTarget->DispatchEvent(event, &defaultActionEnabled);
 }
 
@@ -307,20 +305,17 @@ GamepadService::FireAxisMoveEvent(EventTarget* aTarget,
                                   uint32_t aAxis,
                                   double aValue)
 {
-  GamepadAxisMoveEventInit init;
-  init.mBubbles = false;
-  init.mCancelable = false;
-  init.mGamepad = aGamepad;
-  init.mAxis = aAxis;
-  init.mValue = aValue;
-  nsRefPtr<GamepadAxisMoveEvent> event =
-    GamepadAxisMoveEvent::Constructor(aTarget,
-                                      NS_LITERAL_STRING("gamepadaxismove"),
-                                      init);
-
-  event->SetTrusted(true);
-
+  nsCOMPtr<nsIDOMEvent> event;
   bool defaultActionEnabled = true;
+  NS_NewDOMGamepadAxisMoveEvent(getter_AddRefs(event), aTarget, nullptr,
+                                nullptr);
+  nsCOMPtr<nsIDOMGamepadAxisMoveEvent> je = do_QueryInterface(event);
+  MOZ_ASSERT(je, "QI should not fail");
+
+  je->InitGamepadAxisMoveEvent(NS_LITERAL_STRING("gamepadaxismove"),
+                               false, false, aGamepad, aAxis, aValue);
+  je->SetTrusted(true);
+
   aTarget->DispatchEvent(event, &defaultActionEnabled);
 }
 
@@ -386,18 +381,17 @@ GamepadService::FireConnectionEvent(EventTarget* aTarget,
                                     Gamepad* aGamepad,
                                     bool aConnected)
 {
+  nsCOMPtr<nsIDOMEvent> event;
+  bool defaultActionEnabled = true;
+  NS_NewDOMGamepadEvent(getter_AddRefs(event), aTarget, nullptr, nullptr);
+  nsCOMPtr<nsIDOMGamepadEvent> je = do_QueryInterface(event);
+  MOZ_ASSERT(je, "QI should not fail");
+
   nsString name = aConnected ? NS_LITERAL_STRING("gamepadconnected") :
                                NS_LITERAL_STRING("gamepaddisconnected");
-  GamepadEventInit init;
-  init.mBubbles = false;
-  init.mCancelable = false;
-  init.mGamepad = aGamepad;
-  nsRefPtr<GamepadEvent> event =
-    GamepadEvent::Constructor(aTarget, name, init);
+  je->InitGamepadEvent(name, false, false, aGamepad);
+  je->SetTrusted(true);
 
-  event->SetTrusted(true);
-
-  bool defaultActionEnabled = true;
   aTarget->DispatchEvent(event, &defaultActionEnabled);
 }
 
@@ -452,7 +446,7 @@ GamepadService::SetWindowHasSeenGamepad(nsGlobalWindow* aWindow,
 
   if (aHasSeen) {
     aWindow->SetHasSeenGamepadInput(true);
-    nsCOMPtr<nsISupports> window = ToSupports(aWindow);
+    nsCOMPtr<nsISupports> window = nsGlobalWindow::ToSupports(aWindow);
     nsRefPtr<Gamepad> gamepad = mGamepads[aIndex]->Clone(window);
     aWindow->AddGamepad(aIndex, gamepad);
   } else {

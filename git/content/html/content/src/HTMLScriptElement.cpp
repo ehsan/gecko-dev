@@ -11,6 +11,7 @@
 #include "nsNetUtil.h"
 #include "nsContentUtils.h"
 #include "nsUnicharUtils.h"  // for nsCaseInsensitiveStringComparator()
+#include "jsapi.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIXPConnect.h"
@@ -19,7 +20,6 @@
 #include "nsIArray.h"
 #include "nsTArray.h"
 #include "nsDOMJSUtils.h"
-#include "nsISupportsImpl.h"
 #include "mozilla/dom/HTMLScriptElement.h"
 #include "mozilla/dom/HTMLScriptElementBinding.h"
 
@@ -46,11 +46,21 @@ HTMLScriptElement::~HTMLScriptElement()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED4(HTMLScriptElement, nsGenericHTMLElement,
-                             nsIDOMHTMLScriptElement,
-                             nsIScriptLoaderObserver,
-                             nsIScriptElement,
-                             nsIMutationObserver)
+
+NS_IMPL_ADDREF_INHERITED(HTMLScriptElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLScriptElement, Element)
+
+// QueryInterface implementation for HTMLScriptElement
+NS_INTERFACE_TABLE_HEAD(HTMLScriptElement)
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED4(HTMLScriptElement,
+                                nsIDOMHTMLScriptElement,
+                                nsIScriptLoaderObserver,
+                                nsIScriptElement,
+                                nsIMutationObserver)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
+
 
 nsresult
 HTMLScriptElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -225,11 +235,10 @@ HTMLScriptElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
                                             aNotify);
 }
 
-NS_IMETHODIMP
-HTMLScriptElement::GetInnerHTML(nsAString& aInnerHTML)
+void
+HTMLScriptElement::GetInnerHTML(nsAString& aInnerHTML, ErrorResult& aError)
 {
   nsContentUtils::GetNodeTextContent(this, false, aInnerHTML);
-  return NS_OK;
 }
 
 void

@@ -9,6 +9,7 @@
 #include "nsError.h"
 #include "SVGAnimatedLengthList.h"
 #include "nsCOMPtr.h"
+#include "nsContentUtils.h"
 #include "mozilla/dom/SVGLengthListBinding.h"
 #include <algorithm>
 

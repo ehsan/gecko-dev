@@ -93,13 +93,13 @@ nsresult nsTestComFactory::CreateInstance(nsISupports *aOuter,
 					  const nsIID &aIID,
 					  void **aResult)
 {
-  if (aOuter != nullptr) {
+  if (aOuter != NULL) {
     return NS_ERROR_NO_AGGREGATION;
   }
 
   nsTestCom *t = new nsTestCom();
   
-  if (t == nullptr) {
+  if (t == NULL) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
   nsITestCom *iTestCom;
 
   iFactory->LockServer(TRUE);
-  iFactory->CreateInstance(nullptr, IID_IUnknown, (void **) &iUnknown);
+  iFactory->CreateInstance(NULL, IID_IUnknown, (void **) &iUnknown);
   iFactory->LockServer(FALSE);
 
   GUID testGUID = NS_ITEST_COM_IID;

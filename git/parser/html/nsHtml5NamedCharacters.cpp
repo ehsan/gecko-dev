@@ -21,6 +21,7 @@
  */
 
 #define nsHtml5NamedCharacters_cpp_
+#include "prtypes.h"
 #include "jArray.h"
 #include "nscore.h"
 #include "nsDebug.h"

@@ -3,16 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdint.h>                     // for uint8_t, uint32_t
-#include "ImageContainer.h"             // for PlanarYCbCrImage, etc
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/RefPtr.h"             // for RefPtr
-#include "mozilla/ipc/Shmem.h"          // for Shmem
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsDebug.h"                    // for NS_WARNING
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR
-
-class gfxASurface;
+#include "ImageContainer.h"
+#include "mozilla/ipc/Shmem.h"
+#include "mozilla/ipc/SharedMemory.h"
+#include "mozilla/layers/ISurfaceAllocator.h"
 
 #ifndef MOZILLA_LAYERS_DeprecatedSharedPlanarYCbCrImage_H
 #define MOZILLA_LAYERS_DeprecatedSharedPlanarYCbCrImage_H
@@ -20,11 +14,9 @@ class gfxASurface;
 namespace mozilla {
 namespace layers {
 
-class BufferTextureClient;
 class ImageClient;
-class ISurfaceAllocator;
-class SurfaceDescriptor;
 class TextureClient;
+class BufferTextureClient;
 
 // XXX - This class will be removed along with DeprecatedImageClient
 class DeprecatedSharedPlanarYCbCrImage : public PlanarYCbCrImage
@@ -53,10 +45,10 @@ public:
     return PlanarYCbCrImage::GetAsSurface();
   }
 
-  virtual void SetData(const PlanarYCbCrData& aData) MOZ_OVERRIDE;
+  virtual void SetData(const PlanarYCbCrImage::Data& aData) MOZ_OVERRIDE;
   virtual void SetDataNoCopy(const Data &aData) MOZ_OVERRIDE;
 
-  virtual bool Allocate(PlanarYCbCrData& aData);
+  virtual bool Allocate(PlanarYCbCrImage::Data& aData);
   virtual uint8_t* AllocateBuffer(uint32_t aSize) MOZ_OVERRIDE;
   // needs to be overriden because the parent class sets mBuffer which we
   // do not want to happen.
@@ -106,10 +98,10 @@ public:
   virtual uint8_t* GetBuffer() MOZ_OVERRIDE;
 
   virtual already_AddRefed<gfxASurface> GetAsSurface() MOZ_OVERRIDE;
-  virtual void SetData(const PlanarYCbCrData& aData) MOZ_OVERRIDE;
+  virtual void SetData(const PlanarYCbCrImage::Data& aData) MOZ_OVERRIDE;
   virtual void SetDataNoCopy(const Data &aData) MOZ_OVERRIDE;
 
-  virtual bool Allocate(PlanarYCbCrData& aData);
+  virtual bool Allocate(PlanarYCbCrImage::Data& aData);
   virtual uint8_t* AllocateBuffer(uint32_t aSize) MOZ_OVERRIDE;
   // needs to be overriden because the parent class sets mBuffer which we
   // do not want to happen.
@@ -119,7 +111,6 @@ public:
 
 private:
   RefPtr<BufferTextureClient> mTextureClient;
-  RefPtr<ImageClient> mCompositable;
 };
 
 } // namespace

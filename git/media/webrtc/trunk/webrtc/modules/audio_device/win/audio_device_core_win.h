@@ -8,13 +8,14 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_CORE_WIN_H_
-#define WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_CORE_WIN_H_
+#ifndef WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_CORE_WIN_H
+#define WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_CORE_WIN_H
 
 #if (_MSC_VER >= 1400)  // only include for VS 2005 and higher
 
 #include "audio_device_generic.h"
 
+#pragma once
 #include <wmcodecdsp.h>      // CLSID_CWMAudioAEC
                              // (must be before audioclient.h)
 #include <Audioclient.h>     // WASAPI
@@ -209,9 +210,6 @@ public:
 public:
     virtual void AttachAudioBuffer(AudioDeviceBuffer* audioBuffer);
 
-private:
-    bool KeyPressed() const;
-
 private:    // avrt function pointers
     PAvRevertMmThreadCharacteristics    _PAvRevertMmThreadCharacteristics;
     PAvSetMmThreadCharacteristicsA      _PAvSetMmThreadCharacteristicsA;
@@ -379,4 +377,5 @@ private:
 
 }  // namespace webrtc
 
-#endif  // WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_CORE_WIN_H_
+#endif  // WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_CORE_WIN_H
+
