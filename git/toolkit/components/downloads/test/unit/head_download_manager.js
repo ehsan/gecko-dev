@@ -195,11 +195,8 @@ function getDownloadListener()
         do_test_finished();
       }
 
-      if (gDownloadCount == 0 && typeof httpserv != "undefined" && httpserv)
-      {
-        do_test_pending();
-        httpserv.stop(do_test_finished);
-      }
+      if (gDownloadCount == 0)
+        httpserv.stop();
     },
     onStateChange: function(a, b, c, d, e) { },
     onProgressChange: function(a, b, c, d, e, f, g) { },

@@ -1525,9 +1525,7 @@ nsJSContext::EvaluateString(const nsAString& aScript,
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
 
   if (!mScriptsEnabled) {
-    if (aIsUndefined) {
-      *aIsUndefined = PR_TRUE;
-    }
+    *aIsUndefined = PR_TRUE;
 
     if (aRetValue) {
       aRetValue->Truncate();
@@ -1596,13 +1594,13 @@ nsJSContext::EvaluateString(const nsAString& aScript,
     nsJSVersionSetter setVersion(mContext, aVersion);
 
     ok = ::JS_EvaluateUCScriptForPrincipals(mContext,
-                                            (JSObject *)aScopeObject,
-                                            jsprin,
-                                            (jschar*)PromiseFlatString(aScript).get(),
-                                            aScript.Length(),
-                                            aURL,
-                                            aLineNo,
-                                            vp);
+                                              (JSObject *)aScopeObject,
+                                              jsprin,
+                                              (jschar*)PromiseFlatString(aScript).get(),
+                                              aScript.Length(),
+                                              aURL,
+                                              aLineNo,
+                                              vp);
 
     if (!ok) {
       // Tell XPConnect about any pending exceptions. This is needed
@@ -1959,14 +1957,12 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
     return NS_OK;
   }
 
-  jsval targetVal = JSVAL_VOID;
-  JSAutoTempValueRooter tvr(mContext, 1, &targetVal);
-
+  nsresult rv;
   JSObject* target = nsnull;
-  nsresult rv = JSObjectFromInterface(aTarget, aScope, &target);
+  nsAutoGCRoot root(&target, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  targetVal = OBJECT_TO_JSVAL(target);
+  rv = JSObjectFromInterface(aTarget, aScope, &target);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   jsval rval = JSVAL_VOID;
 

@@ -84,7 +84,7 @@ class nsIScrollableView;
 class nsContentList;
 struct nsRect;
 
-typedef PRUptrdiff PtrBits;
+typedef unsigned long PtrBits;
 
 /**
  * Class that implements the nsIDOMNodeList interface (a list of children of
@@ -249,7 +249,7 @@ private:
   // nsDOMEventRTTearoff::Create(). That's why the constructor and
   // destrucor of this class is private.
 
-  nsDOMEventRTTearoff(nsINode *aNode);
+  nsDOMEventRTTearoff(nsIContent *aContent);
 
   static nsDOMEventRTTearoff *mCachedEventTearoff[NS_EVENT_TEAROFF_CACHE_SIZE];
   static PRUint32 mCachedEventTearoffCount;
@@ -270,7 +270,7 @@ public:
    * Use this static method to create instances of nsDOMEventRTTearoff.
    * @param aContent the content to create a tearoff for
    */
-  static nsDOMEventRTTearoff *Create(nsINode *aNode);
+  static nsDOMEventRTTearoff *Create(nsIContent *aContent);
 
   /**
    * Call before shutdown to clear the cache and free memory for this class.
@@ -297,7 +297,7 @@ private:
    * Strong reference back to the content object from where an instance of this
    * class was 'torn off'
    */
-  nsCOMPtr<nsINode> mNode;
+  nsCOMPtr<nsIContent> mContent;
 };
 
 /**
@@ -366,9 +366,9 @@ public:
   virtual nsresult RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                             const nsIID& aIID);
   virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup);
-  virtual nsIScriptContext* GetContextForEventHandlers(nsresult* aRv)
+  virtual nsresult GetContextForEventHandlers(nsIScriptContext** aContext)
   {
-    return nsContentUtils::GetContextForEventHandlers(this, aRv);
+    return nsContentUtils::GetContextForEventHandlers(this, aContext);
   }
 
   // nsIContent interface methods
@@ -426,7 +426,7 @@ public:
   virtual PRBool MayHaveFrame() const;
 
   virtual PRUint32 GetScriptTypeID() const;
-  NS_IMETHOD SetScriptTypeID(PRUint32 aLang);
+  virtual nsresult SetScriptTypeID(PRUint32 aLang);
 
   virtual void DestroyContent();
   virtual void SaveSubtreeState();

@@ -150,15 +150,34 @@ var Harness = {
 
   // Install blocked handling
 
-  installBlocked: function(installInfo) {
+  installBlocked: function() {
+    // The browser should have a notification box animating now
+    var notificationBox = gBrowser.getNotificationBox(gBrowser.selectedBrowser);
+    var self = this;
+    this.waitForNotification(notificationBox, function() { self.notificationComplete() });
+  },
+
+  // This delays until a notification has finished animating it. It's a bit of a
+  // hack due to the timeout use but should be safe.
+  waitForNotification: function(notificationBox, callback) {
+    if (!notificationBox._timer) {
+      callback();
+      return;
+    }
+  
+    setTimeout(arguments.callee, 50, notificationBox, callback);
+  },
+
+  notificationComplete: function() {
     ok(!!this.installBlockedCallback, "Shouldn't have been blocked by the whitelist");
-    if (this.installBlockedCallback && this.installBlockedCallback(installInfo)) {
+    var notification = gBrowser.getNotificationBox(gBrowser.selectedBrowser)
+                               .getNotificationWithValue("xpinstall");
+    if (this.installBlockedCallback && this.installBlockedCallback()) {
       this.installBlockedCallback = null;
-      var mgr = Components.classes["@mozilla.org/xpinstall/install-manager;1"]
-                          .createInstance(Components.interfaces.nsIXPInstallManager);
-      mgr.initManagerWithInstallInfo(installInfo);
+      notification.firstChild.click();
     }
     else {
+      notification.close();
       this.endTest();
     }
   },
@@ -220,8 +239,10 @@ var Harness = {
   // nsIObserver
 
   observe: function(subject, topic, data) {
-    var installInfo = subject.QueryInterface(Components.interfaces.nsIXPIInstallInfo);
-    this.installBlocked(installInfo);
+    // Make sure the main UI has received the event too and so has started
+    // displaying the notification.
+    var self = this;
+    executeSoon(function() { self.installBlocked() });
   },
 
   QueryInterface: function(iid) {

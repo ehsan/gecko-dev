@@ -183,6 +183,7 @@ struct JSTreeContext {              /* tree context for semantic checks */
     };
 
     JSAtomList      lexdeps;        /* unresolved lexical name dependencies */
+    JSAtomList      upvars;         /* resolved lexical name dependencies */
     JSTreeContext   *parent;        /* enclosing function or global context */
     uintN           staticLevel;    /* static compilation unit nesting level */
 

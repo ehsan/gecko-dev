@@ -941,6 +941,36 @@ nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
 }
 
 /**
+ * A simple display item that just renders a solid color across the entire
+ * visible area.
+ */
+class nsDisplaySolidColor : public nsDisplayItem {
+public:
+  nsDisplaySolidColor(nsIFrame* aFrame, nscolor aColor)
+    : nsDisplayItem(aFrame), mColor(aColor) {
+    MOZ_COUNT_CTOR(nsDisplaySolidColor);
+  }
+#ifdef NS_BUILD_REFCNT_LOGGING
+  virtual ~nsDisplaySolidColor() {
+    MOZ_COUNT_DTOR(nsDisplaySolidColor);
+  }
+#endif
+
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
+  NS_DISPLAY_DECL_NAME("SolidColor")
+private:
+  nscolor   mColor;
+};
+
+void nsDisplaySolidColor::Paint(nsDisplayListBuilder* aBuilder,
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
+{
+  aCtx->SetColor(mColor);
+  aCtx->FillRect(aDirtyRect);
+}
+
+/**
  * Remove all leaf display items that are not for descendants of
  * aBuilder->GetReferenceFrame() from aList, and move all nsDisplayClip
  * wrappers to their correct locations.
@@ -1077,10 +1107,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
     // document (at least!) so this will be removed by the optimizer. In some
     // cases we might not have a root frame, so this will prevent garbage
     // from being drawn.
-    rv = list.AppendNewToBottom(new (&builder) nsDisplaySolidColor(
-           aFrame,
-           nsRect(builder.ToReferenceFrame(aFrame), aFrame->GetSize()),
-           aBackground));
+    rv = list.AppendNewToBottom(new (&builder) nsDisplaySolidColor(aFrame, aBackground));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -1390,7 +1417,7 @@ struct BoxToBorderRect : public nsLayoutUtils::BoxCallback {
   nsLayoutUtils::RectCallback* mCallback;
 
   BoxToBorderRect(nsIFrame* aRelativeTo, nsLayoutUtils::RectCallback* aCallback)
-    : mRelativeTo(aRelativeTo), mCallback(aCallback) {}
+    : mCallback(aCallback), mRelativeTo(aRelativeTo) {}
 
   virtual void AddBox(nsIFrame* aFrame) {
 #ifdef MOZ_SVG
@@ -1607,8 +1634,8 @@ nsLayoutUtils::GetNextContinuationOrSpecialSibling(nsIFrame *aFrame)
 
   if ((aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) != 0) {
     // We only store the "special sibling" annotation with the first
-    // frame in the continuation chain. Walk back to find that frame now.
-    aFrame = aFrame->GetFirstContinuation();
+    // frame in the flow. Walk back to find that frame now.
+    aFrame = aFrame->GetFirstInFlow();
 
     void* value = aFrame->GetProperty(nsGkAtoms::IBSplitSpecialSibling);
     return static_cast<nsIFrame*>(value);

@@ -538,7 +538,11 @@ function getIDFromResourceURI(aURI)
 
 function showProgressBar() {
   var progressBox = document.getElementById("progressBox");
-  progressBox.parentNode.selectedPanel = progressBox;
+  var height = document.defaultView.getComputedStyle(progressBox.parentNode, "")
+                       .getPropertyValue("height");
+  progressBox.parentNode.style.height = height;
+  document.getElementById("viewGroup").hidden = true;
+  progressBox.hidden = false;
 }
 
 function flushDataSource()
@@ -1443,8 +1447,9 @@ UpdateCheckListener.prototype = {
   onUpdateEnded: function() {
     if (!document)
       return;
-    var viewGroup = document.getElementById("viewGroup").parentNode;
-    viewGroup.parentNode.selectedPanel = viewGroup;
+    document.getElementById("progressBox").hidden = true;
+    var viewGroup = document.getElementById("viewGroup");
+    viewGroup.hidden = false;
     gExtensionsView.removeAttribute("update-operation");
     gExtensionsViewController.onCommandUpdate();
     updateOptionalViews();

@@ -45,7 +45,6 @@
 #   Dão Gottwald <dao@mozilla.com>
 #   Thomas K. Dyas <tdyas@zecador.org>
 #   Edward Lee <edward.lee@engineering.uiuc.edu>
-#   Paul O’Shannessy <paul@oshannessy.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -125,15 +124,6 @@ __defineGetter__("gPrefService", function() {
   delete this.gPrefService;
   return this.gPrefService = Cc["@mozilla.org/preferences-service;1"].
                              getService(Ci.nsIPrefBranch2);
-});
-
-__defineGetter__("PluralForm", function() {
-  Cu.import("resource://gre/modules/PluralForm.jsm");
-  return this.PluralForm;
-});
-__defineSetter__("PluralForm", function (val) {
-  delete this.PluralForm;
-  return this.PluralForm = val;
 });
 
 let gInitialPages = [
@@ -1228,7 +1218,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     focusElement(content);
 
   if (gURLBar)
-    gURLBar.setAttribute("emptytext", gURLBarEmptyText.value);
+    gURLBar.setAttribute("emptytext", gURLBar.getAttribute("delayedemptytext"));
 
   gNavToolbox.customizeDone = BrowserToolboxCustomizeDone;
   gNavToolbox.customizeChange = BrowserToolboxCustomizeChange;
@@ -1242,8 +1232,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
                            gAutoHideTabbarPrefListener, false);
 
   gPrefService.addObserver(gHomeButton.prefDomain, gHomeButton, false);
-
-  gPrefService.addObserver(gURLBarEmptyText.domain, gURLBarEmptyText, false);
 
   var homeButton = document.getElementById("home-button");
   gHomeButton.updateTooltip(homeButton);
@@ -1413,7 +1401,6 @@ function BrowserShutdown()
     gPrefService.removeObserver(gAutoHideTabbarPrefListener.domain,
                                 gAutoHideTabbarPrefListener);
     gPrefService.removeObserver(gHomeButton.prefDomain, gHomeButton);
-    gPrefService.removeObserver(gURLBarEmptyText.domain, gURLBarEmptyText);
   } catch (ex) {
     Components.utils.reportError(ex);
   }
@@ -3105,21 +3092,6 @@ const BrowserSearch = {
 }
 
 function FillHistoryMenu(aParent) {
-  // Lazily add the hover listeners on first showing and never remove them
-  if (!aParent.hasStatusListener) {
-    // Show history item's uri in the status bar when hovering, and clear on exit
-    aParent.addEventListener("DOMMenuItemActive", function(aEvent) {
-      // Only the current page should have the checked attribute, so skip it
-      if (!aEvent.target.hasAttribute("checked"))
-        XULBrowserWindow.setOverLink(aEvent.target.getAttribute("uri"));
-    }, false);
-    aParent.addEventListener("DOMMenuItemInactive", function() {
-      XULBrowserWindow.setOverLink("");
-    }, false);
-
-    aParent.hasStatusListener = true;
-  }
-
   // Remove old entries if any
   var children = aParent.childNodes;
   for (var i = children.length - 1; i >= 0; --i) {
@@ -3151,10 +3123,8 @@ function FillHistoryMenu(aParent) {
   for (var j = end - 1; j >= start; j--) {
     let item = document.createElement("menuitem");
     let entry = sessionHistory.getEntryAtIndex(j, false);
-    let uri = entry.URI.spec;
 
-    item.setAttribute("uri", uri);
-    item.setAttribute("label", entry.title || uri);
+    item.setAttribute("label", entry.title || entry.URI.spec);
     item.setAttribute("index", j);
 
     if (j != index) {
@@ -3320,7 +3290,7 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   if (aToolboxChanged) {
     gURLBar = document.getElementById("urlbar");
     if (gURLBar)
-      gURLBar.emptyText = gURLBarEmptyText.value;
+      gURLBar.emptyText = gURLBar.getAttribute("delayedemptytext");
 
     gProxyFavIcon = document.getElementById("page-proxy-favicon");
     gHomeButton.updateTooltip();
@@ -4965,6 +4935,24 @@ var contentAreaDNDObserver = {
 
       var dragType = aXferData.flavour.contentType;
       var dragData = aXferData.data;
+      if (dragType == TAB_DROP_TYPE) {
+        // If the tab was dragged from some other tab bar, its own dragend
+        // handler will take care of detaching the tab
+        if (dragData instanceof XULElement && dragData.localName == "tab" &&
+            dragData.ownerDocument.defaultView == window) {
+          // Detach only if the mouse pointer was released a little
+          // bit down in the content area (to be precise, by half the height
+          // of a tab)
+          if (aEvent.screenY > gBrowser.mPanelContainer.boxObject.screenY +
+                               dragData.boxObject.height / 2) {
+            gBrowser.replaceTabWithWindow(dragData);
+            aEvent.dataTransfer.dropEffect = "move";
+            return;
+          }
+        }
+        aEvent.dataTransfer.dropEffect = "none";
+        return;
+      }
 
       var url = transferUtils.retrieveURLFromData(dragData, dragType);
 
@@ -6197,8 +6185,11 @@ HistoryMenu.toggleRecentlyClosedTabs = function PHM_toggleRecentlyClosedTabs() {
   // enable/disable the Recently Closed Tabs sub menu
   var undoPopup = document.getElementById("historyUndoPopup");
 
+  // get closed-tabs from nsSessionStore
+  var ss = Cc["@mozilla.org/browser/sessionstore;1"].
+           getService(Ci.nsISessionStore);
   // no restorable tabs, so disable menu
-  if (this._ss.getClosedTabCount(window) == 0)
+  if (ss.getClosedTabCount(window) == 0)
     undoPopup.parentNode.setAttribute("disabled", true);
   else
     undoPopup.parentNode.removeAttribute("disabled");
@@ -6214,8 +6205,11 @@ HistoryMenu.populateUndoSubmenu = function PHM_populateUndoSubmenu() {
   while (undoPopup.hasChildNodes())
     undoPopup.removeChild(undoPopup.firstChild);
 
+  // get closed-tabs from nsSessionStore
+  var ss = Cc["@mozilla.org/browser/sessionstore;1"].
+           getService(Ci.nsISessionStore);
   // no restorable tabs, so make sure menu is disabled, and return
-  if (this._ss.getClosedTabCount(window) == 0) {
+  if (ss.getClosedTabCount(window) == 0) {
     undoPopup.parentNode.setAttribute("disabled", true);
     return;
   }
@@ -6224,7 +6218,7 @@ HistoryMenu.populateUndoSubmenu = function PHM_populateUndoSubmenu() {
   undoPopup.parentNode.removeAttribute("disabled");
 
   // populate menu
-  var undoItems = eval("(" + this._ss.getClosedTabData(window) + ")");
+  var undoItems = eval("(" + ss.getClosedTabData(window) + ")");
   for (var i = 0; i < undoItems.length; i++) {
     var m = document.createElement("menuitem");
     m.setAttribute("label", undoItems[i].title);
@@ -6254,74 +6248,6 @@ HistoryMenu.populateUndoSubmenu = function PHM_populateUndoSubmenu() {
     for (var i = 0; i < undoItems.length; i++)
       undoCloseTab();
   }, false);
-}
-
-HistoryMenu.toggleRecentlyClosedWindows = function PHM_toggleRecentlyClosedWindows() {
-  // enable/disable the Recently Closed Windows sub menu
-  let undoPopup = document.getElementById("historyUndoWindowPopup");
-
-  // no restorable windows, so disable menu
-  if (this._ss.getClosedWindowCount() == 0)
-    undoPopup.parentNode.setAttribute("disabled", true);
-  else
-    undoPopup.parentNode.removeAttribute("disabled");
-}
-
-/**
- * Populate when the history menu is opened
- */
-HistoryMenu.populateUndoWindowSubmenu = function PHM_populateUndoWindowSubmenu() {
-  let undoPopup = document.getElementById("historyUndoWindowPopup");
-  let menuLabelString = gNavigatorBundle.getString("menuUndoCloseWindowLabel");
-  let menuLabelStringSingleTab =
-    gNavigatorBundle.getString("menuUndoCloseWindowSingleTabLabel");
-
-  // remove existing menu items
-  while (undoPopup.hasChildNodes())
-    undoPopup.removeChild(undoPopup.firstChild);
-
-  // no restorable windows, so make sure menu is disabled, and return
-  if (this._ss.getClosedWindowCount() == 0) {
-    undoPopup.parentNode.setAttribute("disabled", true);
-    return;
-  }
-
-  // enable menu
-  undoPopup.parentNode.removeAttribute("disabled");
-
-  // populate menu
-  let undoItems = JSON.parse(this._ss.getClosedWindowData());
-  for (let i = 0; i < undoItems.length; i++) {
-    let undoItem = undoItems[i];
-    let otherTabsCount = undoItem.tabs.length - 1;
-    let label = (otherTabsCount == 0) ? menuLabelStringSingleTab
-                                      : PluralForm.get(otherTabsCount, menuLabelString);
-    let menuLabel = label.replace("#1", undoItem.title)
-                         .replace("#2", otherTabsCount);
-    let m = document.createElement("menuitem");
-    m.setAttribute("label", menuLabel);
-    let selectedTab = undoItem.tabs[undoItem.selected - 1];
-    if (selectedTab.attributes.image) {
-      let iconURL = selectedTab.attributes.image;
-      // don't initiate a connection just to fetch a favicon (see bug 467828)
-      if (/^https?:/.test(iconURL))
-        iconURL = "moz-anno:favicon:" + iconURL;
-      m.setAttribute("image", iconURL);
-    }
-    m.setAttribute("class", "menuitem-iconic bookmark-item");
-    m.setAttribute("oncommand", "undoCloseWindow(" + i + ");");
-    if (i == 0)
-      m.setAttribute("key", "key_undoCloseWindow");
-    undoPopup.appendChild(m);
-  }
-
-  // "Open All in Windows"
-  undoPopup.appendChild(document.createElement("menuseparator"));
-  let m = undoPopup.appendChild(document.createElement("menuitem"));
-  m.setAttribute("label", gNavigatorBundle.getString("menuRestoreAllWindows.label"));
-  m.setAttribute("accesskey", gNavigatorBundle.getString("menuRestoreAllWindows.accesskey"));
-  m.setAttribute("oncommand",
-    "for (var i = 0; i < " + undoItems.length + "; i++) undoCloseWindow();");
 }
 
 /**
@@ -6366,22 +6292,6 @@ function undoCloseTab(aIndex) {
   }
   
   return tab;
-}
-
-/**
- * Re-open a closed window.
- * @param aIndex
- *        The index of the window (via nsSessionStore.getClosedWindowData)
- * @returns a reference to the reopened window.
- */
-function undoCloseWindow(aIndex) {
-  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
-           getService(Ci.nsISessionStore);
-  let window = null;
-  if (ss.getClosedWindowCount() > (aIndex || 0))
-    window = ss.undoCloseWindow(aIndex || 0);
-
-  return window;
 }
 
 /**
@@ -6824,6 +6734,7 @@ let DownloadMonitorPanel = {
   init: function DMP_init() {
     // Load the modules to help display strings
     Cu.import("resource://gre/modules/DownloadUtils.jsm");
+    Cu.import("resource://gre/modules/PluralForm.jsm");
 
     // Initialize "private" member variables
     this._panel = document.getElementById("download-monitor");
@@ -7041,8 +6952,9 @@ let gPrivateBrowsingUI = {
 
     if (this._privateBrowsingAutoStarted) {
       // Disable the menu item in auto-start mode
-      document.getElementById("privateBrowsingItem")
-              .setAttribute("disabled", "true");
+      let pbMenuItem = document.getElementById("privateBrowsingItem");
+      if (pbMenuItem)
+        pbMenuItem.setAttribute("disabled", "true");
       document.getElementById("Tools:PrivateBrowsing")
               .setAttribute("disabled", "true");
     }
@@ -7082,19 +6994,15 @@ let gPrivateBrowsingUI = {
       docElement.setAttribute("browsingmode", "normal");
     }
 
-    // Enable the menu item in after exiting the auto-start mode
-    document.getElementById("privateBrowsingItem")
-            .removeAttribute("disabled");
-    document.getElementById("Tools:PrivateBrowsing")
-            .removeAttribute("disabled");
-
     this._privateBrowsingAutoStarted = false;
   },
 
   _setPBMenuTitle: function PBUI__setPBMenuTitle(aMode) {
     let pbMenuItem = document.getElementById("privateBrowsingItem");
-    pbMenuItem.setAttribute("label", pbMenuItem.getAttribute(aMode + "label"));
-    pbMenuItem.setAttribute("accesskey", pbMenuItem.getAttribute(aMode + "accesskey"));
+    if (pbMenuItem) {
+      pbMenuItem.setAttribute("label", pbMenuItem.getAttribute(aMode + "label"));
+      pbMenuItem.setAttribute("accesskey", pbMenuItem.getAttribute(aMode + "accesskey"));
+    }
   },
 
   toggleMode: function PBUI_toggleMode() {
@@ -7109,39 +7017,5 @@ let gPrivateBrowsingUI = {
 
   get privateBrowsingEnabled PBUI_get_privateBrowsingEnabled() {
     return this._privateBrowsingService.privateBrowsingEnabled;
-  }
-};
-
-let gURLBarEmptyText = {
-  domain: "browser.urlbar.",
-
-  observe: function UBET_observe(aSubject, aTopic, aPrefName) {
-    if (aTopic == "nsPref:changed") {
-      switch (aPrefName) {
-      case "browser.urlbar.autocomplete.enabled":
-      case "browser.urlbar.default.behavior":
-        gURLBar.emptyText = this.value;
-        break;
-      }
-    }
-  },
-
-  get value UBET_get_value() {
-    let type = "none";
-    if (gPrefService.getBoolPref("browser.urlbar.autocomplete.enabled")) {
-      // Bottom 2 bits of default.behavior specify history/bookmark
-      switch (gPrefService.getIntPref("browser.urlbar.default.behavior") & 3) {
-      case 0:
-        type = "bookmarkhistory";
-        break;
-      case 1:
-        type = "history";
-        break;
-      case 2:
-        type = "bookmark";
-        break;
-      }
-    }
-    return gURLBar.getAttribute(type + "emptytext");
   }
 };

@@ -843,12 +843,6 @@ nsXMLContentSink::GetTarget()
   return mDocument;
 }
 
-PRBool
-nsXMLContentSink::IsScriptExecuting()
-{
-  return IsScriptExecutingImpl();
-}
-
 nsresult
 nsXMLContentSink::FlushText(PRBool aReleaseTextNode)
 {
@@ -1653,7 +1647,7 @@ nsXMLContentSink::FlushPendingNotifications(mozFlushType aType)
     else {
       FlushText(PR_FALSE);
     }
-    if (aType >= Flush_InterruptibleLayout) {
+    if (aType >= Flush_Layout) {
       // Make sure that layout has started so that the reflow flush
       // will actually happen.
       MaybeStartLayout(PR_TRUE);

@@ -44,7 +44,7 @@
 #include "nsIObserverService.h"
 #include "nsISupportsArray.h"
 #include "nsStringAPI.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsINavHistoryService.h"
 
 class nsICookieManager2;
@@ -180,8 +180,8 @@ protected:
 private:
   nsCOMPtr<nsIBinaryInputStream> mStream;
 
-  nsTArray<char*> mDomainStack;
-  nsTArray<char*> mPathStack;
+  nsVoidArray mDomainStack;
+  nsVoidArray mPathStack;
 
   struct Cookie {
     nsCString id;

@@ -38,7 +38,6 @@
 #define __NS_SVGGEOMETRYFRAME_H__
 
 #include "nsFrame.h"
-#include "gfxMatrix.h"
 
 class nsSVGPaintServerFrame;
 class gfxContext;
@@ -68,7 +67,7 @@ public:
   }
 
   // nsSVGGeometryFrame methods:
-  virtual gfxMatrix GetCanvasTM() = 0;
+  NS_IMETHOD GetCanvasTM(nsIDOMSVGMatrix * *aCanvasTM) = 0;
   PRUint16 GetClipRule();
   PRBool IsClipChild(); 
 

@@ -689,9 +689,9 @@ namespace nanojit
                     rb = ra;
 
                 if (op == LIR_add || op == LIR_addp)
-                    ADDCC(rr, rb, rr);
+                    ADD(rr, rb, rr);
                 else if (op == LIR_sub)
-                    SUBCC(rr, rb, rr);
+                    SUB(rr, rb, rr);
                 else if (op == LIR_mul)
                     MULX(rr, rb, rr);
                 else if (op == LIR_and)
@@ -713,9 +713,9 @@ namespace nanojit
             {
                 int c = rhs->constval();
                 if (op == LIR_add || op == LIR_addp) {
-                    ADDCC(rr, L0, rr); 
+                    ADD(rr, L0, rr); 
                 } else if (op == LIR_sub) {
-                    SUBCC(rr, L0, rr); 
+                    SUB(rr, L0, rr); 
                 } else if (op == LIR_and)
                     AND(rr, L0, rr);
                 else if (op == LIR_or)

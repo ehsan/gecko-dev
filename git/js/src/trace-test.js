@@ -1664,6 +1664,11 @@ function testNestedExitStackOuter() {
   return counter;
 }
 testNestedExitStackOuter.expected = 81;
+testNestedExitStackOuter.jitstats = {
+    recorderStarted: 5,
+    recorderAborted: 1,
+    traceTriggered: 10
+};
 test(testNestedExitStackOuter);
 
 function testHOTLOOPSize() {
@@ -4990,94 +4995,6 @@ function testDeepPropertyShadowing()
     assertEq(h(tree), 2);
 }
 test(testDeepPropertyShadowing);
-
-// Complicated whitebox test for bug 487845.
-function testGlobalShapeChangeAfterDeepBail() {
-    function f(name) {
-        this[name] = 1;  // may change global shape
-        for (var i = 0; i < 4; i++)
-            ; // MonitorLoopEdge eventually triggers assertion
-    }
-
-    // When i==3, deep-bail, then change global shape enough times to exhaust
-    // the array of GlobalStates.
-    var arr = [[], [], [], ["bug0", "bug1", "bug2", "bug3", "bug4"]];
-    for (var i = 0; i < arr.length; i++)
-        arr[i].forEach(f);
-}
-test(testGlobalShapeChangeAfterDeepBail);
-for (let i = 0; i < 5; i++)
-    delete this["bug" + i];
-
-function testFunctionIdentityChange()
-{
-  function a() {}
-  function b() {}
-
-  var o = { a: a, b: b };
-
-  for (var prop in o)
-  {
-    for (var i = 0; i < 1000; i++)
-      o[prop]();
-  }
-
-  return true;
-}
-testFunctionIdentityChange.expected = true;
-testFunctionIdentityChange.jitstats = {
-  recorderStarted: 2,
-  traceCompleted: 2,
-  sideExitIntoInterpreter: 3
-};
-test(testFunctionIdentityChange);
-
-function testStringObjectLength() {
-    var x = new String("foo"), y = 0;
-    for (var i = 0; i < 10; ++i)
-        y = x.length;
-    return y;
-}
-testStringObjectLength.expected = 3;
-test(testStringObjectLength);
-
-var _quit;
-function testNestedDeepBail()
-{
-    _quit = false;
-    function loop() {
-        for (var i = 0; i < 4; i++)
-            ;
-    }
-    loop();
-
-    function f() {
-        loop();
-        _quit = true;
-    }
-    var stk = [[1], [], [], [], []];
-    while (!_quit)
-        stk.pop().forEach(f);
-}
-test(testNestedDeepBail);
-delete _quit;
-
-function testSlowNativeCtor() {
-    for (var i = 0; i < 4; i++)
-	new Date().valueOf();
-}
-test(testSlowNativeCtor);
-
-function testSlowNativeBail() {
-    var a = ['0', '1', '2', '3', '+'];
-    try {
-	for (var i = 0; i < a.length; i++)
-	    new RegExp(a[i]);
-    } catch (exc) {
-	assertEq(""+exc.stack.match(/^RegExp/), "RegExp");
-    }
-}
-test(testSlowNativeBail);
 
 /*****************************************************************************
  *                                                                           *

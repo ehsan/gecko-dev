@@ -451,10 +451,11 @@ NS_IMETHODIMP
 imgCacheObserver::Observe(nsISupports* aSubject, const char* aTopic, const PRUnichar* aSomeData)
 {
   if (strcmp(aTopic, "memory-pressure") == 0) {
-    mLoader.MinimizeCaches();
+    mLoader.ClearCache(PR_FALSE);
+    mLoader.ClearCache(PR_TRUE);
   } else if (strcmp(aTopic, "chrome-flush-skin-caches") == 0 ||
              strcmp(aTopic, "chrome-flush-caches") == 0) {
-    mLoader.ClearChromeImageCache();
+    mLoader.ClearCache(PR_TRUE);
   }
   return NS_OK;
 }
@@ -655,18 +656,12 @@ void imgLoader::Shutdown()
 
 nsresult imgLoader::ClearChromeImageCache()
 {
-  return EvictEntries(sChromeCache);
+  return EvictEntries(sChromeCache, sChromeCacheQueue);
 }
 
 nsresult imgLoader::ClearImageCache()
 {
-  return EvictEntries(sCache);
-}
-
-void imgLoader::MinimizeCaches()
-{
-  EvictEntries(sCacheQueue);
-  EvictEntries(sChromeCacheQueue);
+  return EvictEntries(sCache, sCacheQueue);
 }
 
 PRBool imgLoader::PutIntoCache(nsIURI *key, imgCacheEntry *entry)
@@ -1111,31 +1106,14 @@ static PLDHashOperator EnumEvictEntries(const nsACString&,
   return PL_DHASH_NEXT;
 }
 
-nsresult imgLoader::EvictEntries(imgCacheTable &aCacheToClear)
+nsresult imgLoader::EvictEntries(imgCacheTable &aCacheToClear, imgCacheQueue &aQueueToClear)
 {
-  LOG_STATIC_FUNC(gImgLog, "imgLoader::EvictEntries table");
+  LOG_STATIC_FUNC(gImgLog, "imgLoader::EvictEntries");
 
   // We have to make a temporary, since RemoveFromCache removes the element
   // from the queue, invalidating iterators.
   nsTArray<nsRefPtr<imgCacheEntry> > entries;
   aCacheToClear.Enumerate(EnumEvictEntries, &entries);
-
-  for (PRUint32 i = 0; i < entries.Length(); ++i)
-    if (!RemoveFromCache(entries[i]))
-      return NS_ERROR_FAILURE;
-
-  return NS_OK;
-}
-
-nsresult imgLoader::EvictEntries(imgCacheQueue &aQueueToClear)
-{
-  LOG_STATIC_FUNC(gImgLog, "imgLoader::EvictEntries queue");
-
-  // We have to make a temporary, since RemoveFromCache removes the element
-  // from the queue, invalidating iterators.
-  nsTArray<nsRefPtr<imgCacheEntry> > entries(aQueueToClear.GetNumElements());
-  for (imgCacheQueue::const_iterator i = aQueueToClear.begin(); i != aQueueToClear.end(); ++i)
-    entries.AppendElement(*i);
 
   for (PRUint32 i = 0; i < entries.Length(); ++i)
     if (!RemoveFromCache(entries[i]))

@@ -42,6 +42,9 @@
 
 #include "nsIFileStreams.h"       // New Necko file streams
 
+#ifdef XP_MAC
+#include "nsILocalFileMac.h"
+#endif
 #ifdef XP_OS2
 #include "nsILocalFileOS2.h"
 #endif
@@ -1857,20 +1860,21 @@ void nsWebBrowserPersist::CleanupLocalFiles()
                 // recursed through to ensure they are actually empty.
 
                 PRBool isEmptyDirectory = PR_TRUE;
-                nsCOMArray<nsISimpleEnumerator> dirStack;
-                PRInt32 stackSize = 0;
+                nsSupportsArray dirStack;
+                PRUint32 stackSize = 0;
 
                 // Push the top level enum onto the stack
                 nsCOMPtr<nsISimpleEnumerator> pos;
                 if (NS_SUCCEEDED(file->GetDirectoryEntries(getter_AddRefs(pos))))
-                    dirStack.AppendObject(pos);
+                    dirStack.AppendElement(pos);
 
-                while (isEmptyDirectory && (stackSize = dirStack.Count()))
+                while (isEmptyDirectory &&
+                    NS_SUCCEEDED(dirStack.Count(&stackSize)) && stackSize > 0)
                 {
                     // Pop the last element
                     nsCOMPtr<nsISimpleEnumerator> curPos;
-                    curPos = dirStack[stackSize-1];
-                    dirStack.RemoveObjectAt(stackSize - 1);
+                    dirStack.GetElementAt(stackSize - 1, getter_AddRefs(curPos));
+                    dirStack.RemoveElementAt(stackSize - 1);
                     
                     // Test if the enumerator has any more files in it
                     PRBool hasMoreElements = PR_FALSE;
@@ -1904,9 +1908,9 @@ void nsWebBrowserPersist::CleanupLocalFiles()
                     // Push parent enumerator followed by child enumerator
                     nsCOMPtr<nsISimpleEnumerator> childPos;
                     childAsFile->GetDirectoryEntries(getter_AddRefs(childPos));
-                    dirStack.AppendObject(curPos);
+                    dirStack.AppendElement(curPos);
                     if (childPos)
-                        dirStack.AppendObject(childPos);
+                        dirStack.AppendElement(childPos);
 
                 }
                 dirStack.Clear();
@@ -2243,6 +2247,15 @@ nsWebBrowserPersist::CalculateAndAppendFileExt(nsIURI *aURI, nsIChannel *aChanne
             }
 
         }
+
+#ifdef  XP_MAC
+        // Set appropriate Mac file type/creator for this mime type
+        nsCOMPtr<nsILocalFileMac> macFile(do_QueryInterface(localFile));
+        if (macFile)
+        {
+            macFile->SetFileTypeAndCreatorFromMIMEType(contentType.get());
+        }
+#endif            
     }
 
     return NS_OK;

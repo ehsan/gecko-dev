@@ -62,13 +62,14 @@
 {0x7b4eeb20, 0xd781, 0x11d4, \
    {0x8A, 0x83, 0x00, 0x10, 0xa4, 0xe0, 0xc9, 0xca}}
 
-class nsProcess : public nsIProcess,
+class nsProcess : public nsIProcess2,
                   public nsIObserver
 {
 public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPROCESS
+  NS_DECL_NSIPROCESS2
   NS_DECL_NSIOBSERVER
 
   nsProcess();

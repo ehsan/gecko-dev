@@ -62,6 +62,9 @@
 #include "nsEditProperty.h"
 #include "nsHTMLCSSUtils.h"
 
+#include "nsVoidArray.h"
+#include "nsTArray.h"
+
 #include "nsHTMLObjectResizer.h"
 #include "nsIHTMLAbsPosEditor.h"
 #include "nsIHTMLInlineTableEditor.h"
@@ -82,7 +85,6 @@ class nsIContentFilter;
 class nsIURL;
 class nsIRangeUtils;
 class nsILinkHandler;
-struct PropItem;
 
 /**
  * The HTML editor implementation.<br>
@@ -758,7 +760,7 @@ protected:
   nsCOMArray<nsICSSStyleSheet> mStyleSheets;
   
   // an array for holding default style settings
-  nsTArray<PropItem*> mDefaultStyles;
+  nsVoidArray mDefaultStyles;
 
    // for real-time spelling
    nsCOMPtr<nsITextServicesDocument> mTextServices;
@@ -782,8 +784,6 @@ protected:
   void     DeleteRefToAnonymousNode(nsIDOMElement* aElement,
                                     nsIContent * aParentContent,
                                     nsIPresShell* aShell);
-
-  nsresult ShowResizersInner(nsIDOMElement *aResizedElement);
 
   // Returns the offset of an element's frame to its absolute containing block.
   nsresult GetElementOrigin(nsIDOMElement * aElement, PRInt32 & aX, PRInt32 & aY);

@@ -280,9 +280,10 @@ void
 gfxWindowsPlatform::FindFonts()
 {
     nsTArray<nsString> searchPaths(2);
-    nsTArray<nsString> fontPatterns(3);
+    nsTArray<nsString> fontPatterns(4);
+    fontPatterns.AppendElement(NS_LITERAL_STRING("\\*.TTF"));
     fontPatterns.AppendElement(NS_LITERAL_STRING("\\*.ttf"));
-    fontPatterns.AppendElement(NS_LITERAL_STRING("\\*.ttc"));
+    fontPatterns.AppendElement(NS_LITERAL_STRING("\\*.OTF"));
     fontPatterns.AppendElement(NS_LITERAL_STRING("\\*.otf"));
     wchar_t pathBuf[256];
     SHGetSpecialFolderPathW(0, pathBuf, CSIDL_WINDOWS, 0);
@@ -295,12 +296,7 @@ gfxWindowsPlatform::FindFonts()
         for (PRUint32 j = 0; j < fontPatterns.Length(); j++) { 
             nsAutoString pattern(path);
             pattern.Append(fontPatterns[j]);
-            HANDLE handle = FindFirstFileExW(pattern.get(),
-                                             FindExInfoStandard,
-                                             &results,
-                                             FindExSearchNameMatch,
-                                             NULL,
-                                             0);
+            HANDLE handle = FindFirstFileW(pattern.get(), &results);
             PRBool moreFiles = handle != INVALID_HANDLE_VALUE;
             while (moreFiles) {
                 nsAutoString filePath(path);
@@ -309,8 +305,6 @@ gfxWindowsPlatform::FindFonts()
                 AppendFacesFromFontFile(static_cast<const PRUnichar*>(filePath.get()));
                 moreFiles = FindNextFile(handle, &results);
             }
-            if (handle != INVALID_HANDLE_VALUE)
-                FindClose(handle);
         }
     }
 }

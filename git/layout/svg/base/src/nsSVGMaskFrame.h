@@ -39,7 +39,6 @@
 
 #include "nsSVGContainerFrame.h"
 #include "gfxPattern.h"
-#include "gfxMatrix.h"
 
 class gfxContext;
 
@@ -108,7 +107,7 @@ private:
   PRPackedBool mInUse;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 };
 
 #endif

@@ -53,7 +53,9 @@ const checkListener = {
     do_check_eq(item.minAppVersion, 1);
     do_check_eq(item.maxAppVersion, 1);
 
-    testserver.stop(do_test_finished);
+    do_test_finished();
+
+    testserver.stop();
   },
 
   // nsIAddonUpdateCheckListener

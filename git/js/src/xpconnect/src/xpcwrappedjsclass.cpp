@@ -42,9 +42,6 @@
 /* Sharable code and data for wrapper around JSObjects. */
 
 #include "xpcprivate.h"
-#include "nsArrayEnumerator.h"
-#include "nsWrapperCache.h"
-#include "XPCWrapper.h"
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsXPCWrappedJSClass, nsIXPCWrappedJSClass)
 
@@ -404,6 +401,7 @@ nsXPCWrappedJSClass::BuildPropertyEnumerator(XPCCallContext& ccx,
     JSContext* cx = ccx.GetJSContext();
     nsresult retval = NS_ERROR_FAILURE;
     JSIdArray* idArray = nsnull;
+    xpcPropertyBagEnumerator* enumerator = nsnull;
     int i;
 
     // Saved state must be restored, all exits through 'out'...
@@ -412,9 +410,13 @@ nsXPCWrappedJSClass::BuildPropertyEnumerator(XPCCallContext& ccx,
 
     idArray = JS_Enumerate(cx, aJSObj);
     if(!idArray)
-        return retval;
+        goto out;
     
-    nsCOMArray<nsIProperty> propertyArray(idArray->length);
+    enumerator = new xpcPropertyBagEnumerator(idArray->length);
+    if(!enumerator)
+        goto out;
+    NS_ADDREF(enumerator);
+        
     for(i = 0; i < idArray->length; i++)
     {
         nsCOMPtr<nsIVariant> value;
@@ -444,14 +446,17 @@ nsXPCWrappedJSClass::BuildPropertyEnumerator(XPCCallContext& ccx,
         if(!property)
             goto out;
 
-        if(!propertyArray.AppendObject(property))
+        if(!enumerator->AppendElement(property))
             goto out;
     }
 
-    retval = NS_NewArrayEnumerator(aEnumerate, propertyArray);
+    NS_ADDREF(*aEnumerate = enumerator);
+    retval = NS_OK;
 
 out:
-    JS_DestroyIdArray(cx, idArray);
+    NS_IF_RELEASE(enumerator);
+    if(idArray)
+        JS_DestroyIdArray(cx, idArray);
 
     return retval;
 }
@@ -478,6 +483,44 @@ NS_IMETHODIMP xpcProperty::GetValue(nsIVariant * *aValue)
 {
     NS_ADDREF(*aValue = mValue);
     return NS_OK;
+}
+
+/***************************************************************************/
+
+NS_IMPL_ISUPPORTS1(xpcPropertyBagEnumerator, nsISimpleEnumerator)
+
+xpcPropertyBagEnumerator::xpcPropertyBagEnumerator(PRUint32 count)
+    : mIndex(0), mCount(0)
+{
+    mArray.SizeTo(count);
+}
+
+JSBool xpcPropertyBagEnumerator::AppendElement(nsISupports* element)
+{
+    if(!mArray.AppendElement(element))
+        return JS_FALSE;
+    mCount++;
+    return JS_TRUE;
+}
+
+/* boolean hasMoreElements (); */
+NS_IMETHODIMP xpcPropertyBagEnumerator::HasMoreElements(PRBool *_retval)
+{
+    *_retval = mIndex < mCount;
+    return NS_OK;
+}
+
+/* nsISupports getNext (); */
+NS_IMETHODIMP xpcPropertyBagEnumerator::GetNext(nsISupports **_retval)
+{
+    if(!(mIndex < mCount))
+    {
+        NS_ERROR("Bad nsISimpleEnumerator caller!");
+        return NS_ERROR_FAILURE;    
+    }
+    
+    *_retval = mArray.ElementAt(mIndex++);
+    return *_retval ? NS_OK : NS_ERROR_FAILURE;
 }
 
 /***************************************************************************/
@@ -598,12 +641,6 @@ nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
         return NS_OK;
     }
 
-    // We can't have a cached wrapper.
-    if(aIID.Equals(NS_GET_IID(nsWrapperCache)))
-    {
-        *aInstancePtr = nsnull;
-        return NS_NOINTERFACE;
-    }
 
     JSContext *context = GetContextFromObject(self->GetJSObject());
     XPCCallContext ccx(NATIVE_CALLER, context);
@@ -737,12 +774,7 @@ nsXPCWrappedJSClass::GetRootJSObject(XPCCallContext& ccx, JSObject* aJSObj)
 {
     JSObject* result = CallQueryInterfaceOnJSObject(ccx, aJSObj,
                                                     NS_GET_IID(nsISupports));
-    if(!result)
-        return aJSObj;
-    JSObject* inner = XPCWrapper::Unwrap(ccx, result);
-    if (inner)
-        return inner;
-    return result;
+    return result ? result : aJSObj;
 }
 
 void
@@ -1480,7 +1512,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
         if(param.IsOut())
         {
             // create an 'out' object
-            JSObject* out_obj = NewOutObject(cx, obj);
+            JSObject* out_obj = NewOutObject(cx);
             if(!out_obj)
             {
                 retval = NS_ERROR_OUT_OF_MEMORY;
@@ -1837,9 +1869,9 @@ nsXPCWrappedJSClass::GetInterfaceName()
 }
 
 JSObject*
-nsXPCWrappedJSClass::NewOutObject(JSContext* cx, JSObject* scope)
+nsXPCWrappedJSClass::NewOutObject(JSContext* cx)
 {
-    return JS_NewObject(cx, nsnull, nsnull, JS_GetGlobalForObject(cx, scope));
+    return JS_NewObject(cx, nsnull, nsnull, nsnull);
 }
 
 

@@ -217,10 +217,7 @@ public:
 
   nsresult CalculateFullVisitCount(PRInt64 aPlaceId, PRInt32 *aVisitCount);
 
-  nsresult UpdateFrecency(PRInt64 aPlaceId, PRBool aIsBookmark);
-  nsresult UpdateFrecencyInternal(PRInt64 aPlaceId, PRInt32 aTyped,
-                                  PRInt32 aHidden, PRInt32 aOldFrecency,
-                                  PRBool aIsBookmark);
+  nsresult UpdateFrecency(PRInt64 aPageID, PRBool isBookmark);
 
   /**
    * Calculate frecencies for places that don't have a valid value yet

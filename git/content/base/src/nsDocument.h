@@ -184,7 +184,7 @@ class nsUint32ToContentHashEntry : public PLDHashEntryHdr
     PRBool IsEmpty() { return mValOrHash == nsnull; }
 
   private:
-    typedef PRUptrdiff PtrBits;
+    typedef unsigned long PtrBits;
     typedef nsTHashtable<nsISupportsHashKey> HashSet;
     /** Get the hash pointer (or null if we're not a hash) */
     HashSet* GetHashSet()
@@ -821,9 +821,9 @@ public:
   virtual nsresult RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                             const nsIID& aIID);
   virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup);
-  virtual nsIScriptContext* GetContextForEventHandlers(nsresult* aRv)
+  virtual nsresult GetContextForEventHandlers(nsIScriptContext** aContext)
   {
-    return nsContentUtils::GetContextForEventHandlers(this, aRv);
+    return nsContentUtils::GetContextForEventHandlers(this, aContext);
   }
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   {
@@ -1258,8 +1258,7 @@ private:
   nsTArray<nsRefPtr<nsFrameLoader> > mFinalizableFrameLoaders;
   nsRefPtr<nsRunnableMethod<nsDocument> > mFrameLoaderRunner;
 
-  nsRevocableEventPtr<nsNonOwningRunnableMethod<nsDocument> >
-    mPendingTitleChangeEvent;
+  nsRevocableEventPtr<nsRunnableMethod<nsDocument> > mPendingTitleChangeEvent;
 
   nsExternalResourceMap mExternalResourceMap;
 

@@ -53,7 +53,8 @@
  *    dslots is non-NULL.
  *
  * In dense mode, holes in the array are represented by JSVAL_HOLE.  The final
- * slot in fslots is unused.
+ * slot in fslots (JSSLOT_ARRAY_LOOKUP_HOLDER) is used to store the single jsid
+ * "in use" by a lookupProperty caller.
  *
  * Arrays are converted to use js_SlowArrayClass when any of these conditions
  * are met:
@@ -102,12 +103,7 @@
 /* Small arrays are dense, no matter what. */
 #define MIN_SPARSE_INDEX 256
 
-static inline bool
-INDEX_TOO_BIG(jsuint index)
-{
-    return index > JS_BIT(29) - 1;
-}
-
+#define INDEX_TOO_BIG(index) ((index) > JS_BIT(29) - 1)
 #define INDEX_TOO_SPARSE(array, index)                                         \
     (INDEX_TOO_BIG(index) ||                                                   \
      ((index) > js_DenseArrayCapacity(array) && (index) >= MIN_SPARSE_INDEX && \
@@ -320,17 +316,13 @@ ResizeSlots(JSContext *cx, JSObject *obj, uint32 oldsize, uint32 size)
         return JS_TRUE;
     }
 
-    /*
-     * MAX_DSLOTS_LENGTH is the maximum net capacity supported. Since we allocate
-     * one additional slot to hold the array length, we have to use >= here.
-     */
-    if (size >= MAX_DSLOTS_LENGTH) {
+    if (size > ~(uint32)0 / sizeof(jsval)) {
         js_ReportAllocationOverflow(cx);
         return JS_FALSE;
     }
 
     slots = obj->dslots ? obj->dslots - 1 : NULL;
-    newslots = (jsval *) JS_realloc(cx, slots, (size + 1) * sizeof(jsval));
+    newslots = (jsval *) JS_realloc(cx, slots, sizeof (jsval) * (size + 1));
     if (!newslots)
         return JS_FALSE;
 
@@ -695,65 +687,72 @@ array_length_setter(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return JS_TRUE;
 }
 
-/*
- * We have only indexed properties up to capacity (excepting holes), plus the
- * length property. For all else, we delegate to the prototype.
- */
-static inline bool
-IsDenseArrayId(JSContext *cx, JSObject *obj, jsid id)
-{
-    JS_ASSERT(OBJ_IS_DENSE_ARRAY(cx, obj));
-
-    uint32 i;
-    return id == ATOM_TO_JSID(cx->runtime->atomState.lengthAtom) ||
-           (js_IdIsIndex(id, &i) &&
-            obj->fslots[JSSLOT_ARRAY_LENGTH] != 0 &&
-            i < js_DenseArrayCapacity(obj) &&
-            obj->dslots[i] != JSVAL_HOLE);
-}
-
 static JSBool
 array_lookupProperty(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
                      JSProperty **propp)
 {
+    uint32 i;
+    union { JSProperty *p; jsval *v; } u;
+
     if (!OBJ_IS_DENSE_ARRAY(cx, obj))
         return js_LookupProperty(cx, obj, id, objp, propp);
 
-    if (IsDenseArrayId(cx, obj, id)) {
-        *propp = (JSProperty *) id;
-        *objp = obj;
-        return JS_TRUE;
+    /*
+     * We have only indexed properties up to capacity (excepting holes), plus
+     * the length property. For all else, we delegate to the prototype.
+     */
+    if (id != ATOM_TO_JSID(cx->runtime->atomState.lengthAtom) &&
+        (!js_IdIsIndex(id, &i) ||
+         obj->fslots[JSSLOT_ARRAY_LENGTH] == 0 ||
+         i >= js_DenseArrayCapacity(obj) ||
+         obj->dslots[i] == JSVAL_HOLE))
+    {
+        JSObject *proto = STOBJ_GET_PROTO(obj);
+
+        if (!proto) {
+            *objp = NULL;
+            *propp = NULL;
+            return JS_TRUE;
+        }
+
+        return OBJ_LOOKUP_PROPERTY(cx, proto, id, objp, propp);
     }
 
-    JSObject *proto = STOBJ_GET_PROTO(obj);
-    if (!proto) {
-        *objp = NULL;
-        *propp = NULL;
-        return JS_TRUE;
-    }
-    return OBJ_LOOKUP_PROPERTY(cx, proto, id, objp, propp);
+    /* FIXME 417501: threadsafety: could race with a lookup on another thread.
+     * If we can only have a single lookup active per context, we could
+     * pigeonhole this on the context instead. */
+    JS_ASSERT(JSVAL_IS_VOID(obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER]));
+    obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER] = (jsval) id;
+    u.v = &(obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER]);
+    *propp = u.p;
+    *objp = obj;
+    return JS_TRUE;
 }
 
 static void
 array_dropProperty(JSContext *cx, JSObject *obj, JSProperty *prop)
 {
-    JS_ASSERT(IsDenseArrayId(cx, obj, (jsid) prop));
+    JS_ASSERT_IF(OBJ_IS_DENSE_ARRAY(cx, obj),
+                 !JSVAL_IS_VOID(obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER]));
+#ifdef DEBUG
+    obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER] = JSVAL_VOID;
+#endif
 }
 
-JSBool
-js_GetDenseArrayElementValue(JSContext *cx, JSObject *obj, JSProperty *prop,
-                             jsval *vp)
+jsval
+js_GetDenseArrayElementValue(JSObject *obj, JSProperty *prop)
 {
-    jsid id = (jsid) prop;
-    JS_ASSERT(IsDenseArrayId(cx, obj, id));
+    /* OBJ_IS_DENSE_ARRAY does not use the cx argument. */
+    JS_ASSERT(OBJ_IS_DENSE_ARRAY(cx, obj));
+    JS_ASSERT((void *) prop ==
+              (void *) &(obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER]));
+    JS_ASSERT(JSVAL_IS_INT(obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER]));
 
-    uint32 i;
-    if (!js_IdIsIndex(id, &i)) {
-        JS_ASSERT(id == ATOM_TO_JSID(cx->runtime->atomState.lengthAtom));
-        return IndexToValue(cx, obj->fslots[JSSLOT_ARRAY_LENGTH], vp);
-    }
-    *vp = obj->dslots[i];
-    return JS_TRUE;
+    jsint i = JSVAL_TO_INT(obj->fslots[JSSLOT_ARRAY_LOOKUP_HOLDER]);
+    JS_ASSERT(i >= 0);
+    jsval v = obj->dslots[i];
+    JS_ASSERT(v != JSVAL_HOLE);
+    return v;
 }
 
 static JSBool
@@ -900,15 +899,8 @@ js_Array_dense_setelem(JSContext* cx, JSObject* obj, jsint i, jsval v)
     /*
      * Let the interpreter worry about negative array indexes.
      */
-    JS_ASSERT((MAX_DSLOTS_LENGTH > JSVAL_INT_MAX) == (sizeof(jsval) != sizeof(uint32)));
-    if (MAX_DSLOTS_LENGTH > JSVAL_INT_MAX) {
-        /*
-         * Have to check for negative values bleeding through on 64-bit machines only,
-         * since we can't allocate large enough arrays for this on 32-bit machines.
-         */
-        if (i < 0)
-            return JS_FALSE;
-    }
+    if (i < 0)
+        return JS_FALSE;
 
     /*
      * If needed, grow the array as long it remains dense, otherwise fall off trace.
@@ -930,7 +922,6 @@ js_Array_dense_setelem(JSContext* cx, JSObject* obj, jsint i, jsval v)
     obj->dslots[u] = v;
     return JS_TRUE;
 }
-JS_DEFINE_CALLINFO_4(extern, BOOL, js_Array_dense_setelem, CONTEXT, OBJECT, INT32, JSVAL, 0, 0)
 #endif
 
 static JSBool
@@ -1641,7 +1632,7 @@ InitArrayElements(JSContext *cx, JSObject *obj, jsuint start, jsuint count, jsva
         return JS_TRUE;
 
     /* Finish out any remaining elements past the max array index. */
-    if (OBJ_IS_DENSE_ARRAY(cx, obj) && !ENSURE_SLOW_ARRAY(cx, obj))
+    if (!ENSURE_SLOW_ARRAY(cx, obj))
         return JS_FALSE;
 
     JS_ASSERT(start == MAXINDEX);
@@ -1655,7 +1646,7 @@ InitArrayElements(JSContext *cx, JSObject *obj, jsuint start, jsuint count, jsva
     do {
         tmp[1] = *vector++;
         if (!js_ValueToStringId(cx, tmp[0], idr.addr()) ||
-            !OBJ_SET_PROPERTY(cx, obj, idr.id(), &tmp[1])) {
+            !js_SetProperty(cx, obj, idr.id(), &tmp[1])) {
             return JS_FALSE;
         }
         *dp += 1;
@@ -2315,7 +2306,6 @@ js_ArrayCompPush(JSContext *cx, JSObject *obj, jsval v)
     obj->dslots[length] = v;
     return JS_TRUE;
 }
-JS_DEFINE_CALLINFO_3(extern, BOOL, js_ArrayCompPush, CONTEXT, OBJECT, JSVAL, 0, 0)
 
 #ifdef JS_TRACER
 static jsval FASTCALL
@@ -3246,7 +3236,7 @@ JS_STATIC_ASSERT(JSSLOT_ARRAY_LENGTH + 1 == JSSLOT_ARRAY_COUNT);
 #ifdef JS_TRACER
 
 JSObject* FASTCALL
-js_NewEmptyArray(JSContext* cx, JSObject* proto)
+js_FastNewArray(JSContext* cx, JSObject* proto)
 {
     JS_ASSERT(OBJ_IS_ARRAY(cx, proto));
 
@@ -3273,21 +3263,49 @@ js_NewEmptyArray(JSContext* cx, JSObject* proto)
     obj->dslots = NULL;
     return obj;
 }
-JS_DEFINE_CALLINFO_2(extern, OBJECT, js_NewEmptyArray, CONTEXT, OBJECT, 0, 0)
+
+JSObject* FASTCALL
+js_FastNewArrayWithLength(JSContext* cx, JSObject* proto, uint32 i)
+{
+    JS_ASSERT(JS_ON_TRACE(cx));
+    JSObject* obj = js_FastNewArray(cx, proto);
+    if (obj)
+        obj->fslots[JSSLOT_ARRAY_LENGTH] = i;
+    return obj;
+}
 
 JSObject* FASTCALL
 js_NewUninitializedArray(JSContext* cx, JSObject* proto, uint32 len)
 {
-    JS_ASSERT(JS_ON_TRACE(cx));
-    JSObject* obj = js_NewEmptyArray(cx, proto);
-    if (!obj)
-        return NULL;
-    obj->fslots[JSSLOT_ARRAY_LENGTH] = len;
-    if (!ResizeSlots(cx, obj, 0, JS_MAX(len, ARRAY_CAPACITY_MIN)))
+    JSObject* obj = js_FastNewArrayWithLength(cx, proto, len);
+    if (!obj || !ResizeSlots(cx, obj, 0, JS_MAX(len, ARRAY_CAPACITY_MIN)))
         return NULL;
     return obj;
 }
-JS_DEFINE_CALLINFO_3(extern, OBJECT, js_NewUninitializedArray, CONTEXT, OBJECT, UINT32, 0, 0)
+
+#define ARRAY_CTOR_GUTS(exact_len, newslots_code)                             \
+    JS_ASSERT(JS_ON_TRACE(cx));                                               \
+    JSObject* obj = js_FastNewArray(cx, proto);                               \
+    if (obj) {                                                                \
+        const uint32 len = ARRAY_CAPACITY_MIN;                                \
+        jsval* newslots = (jsval*) JS_malloc(cx, sizeof (jsval) * (len + 1)); \
+        if (newslots) {                                                       \
+            obj->dslots = newslots + 1;                                       \
+            js_SetDenseArrayCapacity(obj, len);                               \
+            {newslots_code}                                                   \
+            while (++newslots < obj->dslots + len)                            \
+                *newslots = JSVAL_HOLE;                                       \
+            obj->fslots[JSSLOT_ARRAY_LENGTH] = (exact_len);                   \
+            return obj;                                                       \
+        }                                                                     \
+    }                                                                         \
+    return NULL;
+
+JSObject* FASTCALL
+js_Array_1str(JSContext* cx, JSObject* proto, JSString *str)
+{
+    ARRAY_CTOR_GUTS(1, *++newslots = STRING_TO_JSVAL(str);)
+}
 
 #endif /* JS_TRACER */
 
@@ -3565,3 +3583,9 @@ js_ArrayToJSDoubleBuffer(JSContext *cx, JSObject *obj, jsuint offset, jsuint cou
     return JS_TRUE;
 }
 
+JS_DEFINE_CALLINFO_4(extern, BOOL,   js_Array_dense_setelem, CONTEXT, OBJECT, INT32, JSVAL,   0, 0)
+JS_DEFINE_CALLINFO_2(extern, OBJECT, js_FastNewArray, CONTEXT, OBJECT,                        0, 0)
+JS_DEFINE_CALLINFO_3(extern, OBJECT, js_NewUninitializedArray, CONTEXT, OBJECT, UINT32,       0, 0)
+JS_DEFINE_CALLINFO_3(extern, OBJECT, js_FastNewArrayWithLength, CONTEXT, OBJECT, UINT32,      0, 0)
+JS_DEFINE_CALLINFO_3(extern, OBJECT, js_Array_1str, CONTEXT, OBJECT, STRING,                  0, 0)
+JS_DEFINE_CALLINFO_3(extern, BOOL,   js_ArrayCompPush, CONTEXT, OBJECT, JSVAL,                0, 0)

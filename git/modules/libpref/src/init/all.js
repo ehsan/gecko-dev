@@ -519,7 +519,6 @@ pref("dom.popup_allowed_events", "change click dblclick mouseup reset submit");
 pref("dom.disable_open_click_delay", 1000);
 
 pref("dom.storage.enabled", true);
-pref("dom.storage.default_quota",      5120);
 
 // Disable popups from plugins by default
 //   0 = openAllowed
@@ -2717,6 +2716,3 @@ pref("network.tcp.sendbuffer", 131072);
 #ifdef WINCE
 pref("mozilla.widget.disable-native-theme", true);
 #endif
-
-// Enable/Disable the geolocation API for content
-pref("geo.enabled", true);

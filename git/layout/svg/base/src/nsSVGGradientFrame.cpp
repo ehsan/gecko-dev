@@ -190,7 +190,7 @@ nsSVGGradientFrame::GetGradientTransform(nsSVGGeometryFrame *aSource)
   if (!gradientTransform)
     return bboxMatrix;
 
-  return bboxMatrix.PreMultiply(nsSVGUtils::ConvertSVGMatrixToThebes(gradientTransform));
+  return nsSVGUtils::ConvertSVGMatrixToThebes(gradientTransform) * bboxMatrix;
 }
 
 PRUint16

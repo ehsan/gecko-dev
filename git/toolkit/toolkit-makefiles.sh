@@ -105,7 +105,6 @@ MAKEFILES_gfx="
   gfx/src/psshared/Makefile
   gfx/src/thebes/Makefile
   gfx/tests/Makefile
-  gfx/qcms/Makefile
 "
 
 MAKEFILES_htmlparser="
@@ -222,8 +221,6 @@ MAKEFILES_content="
   content/xul/document/src/Makefile
   content/xul/templates/public/Makefile
   content/xul/templates/src/Makefile
-  content/xul/templates/tests/Makefile
-  content/xul/templates/tests/chrome/Makefile
   content/xbl/Makefile
   content/xbl/public/Makefile
   content/xbl/src/Makefile
@@ -616,21 +613,14 @@ MAKEFILES_xulapp="
   toolkit/crashreporter/Makefile
   toolkit/crashreporter/client/Makefile
   toolkit/crashreporter/google-breakpad/src/client/Makefile
-  toolkit/crashreporter/google-breakpad/src/client/linux/handler/Makefile
   toolkit/crashreporter/google-breakpad/src/client/mac/handler/Makefile
-  toolkit/crashreporter/google-breakpad/src/client/solaris/handler/Makefile
-  toolkit/crashreporter/google-breakpad/src/client/windows/crash_generation/Makefile
+  toolkit/crashreporter/google-breakpad/src/client/windows/Makefile
   toolkit/crashreporter/google-breakpad/src/client/windows/handler/Makefile
   toolkit/crashreporter/google-breakpad/src/client/windows/sender/Makefile
   toolkit/crashreporter/google-breakpad/src/common/Makefile
-  toolkit/crashreporter/google-breakpad/src/common/linux/Makefile
   toolkit/crashreporter/google-breakpad/src/common/mac/Makefile
-  toolkit/crashreporter/google-breakpad/src/common/mac/dwarf/Makefile
-  toolkit/crashreporter/google-breakpad/src/common/solaris/Makefile
   toolkit/crashreporter/google-breakpad/src/common/windows/Makefile
-  toolkit/crashreporter/google-breakpad/src/tools/linux/dump_syms/Makefile
   toolkit/crashreporter/google-breakpad/src/tools/mac/dump_syms/Makefile
-  toolkit/crashreporter/google-breakpad/src/tools/solaris/dump_syms/Makefile
   toolkit/content/Makefile
   toolkit/obsolete/Makefile
   toolkit/components/alerts/Makefile
@@ -655,7 +645,6 @@ MAKEFILES_xulapp="
   toolkit/system/gnome/Makefile
   toolkit/system/unixproxy/Makefile
   toolkit/system/osxproxy/Makefile
-  toolkit/system/windowsproxy/Makefile
   toolkit/components/help/Makefile
   toolkit/components/passwordmgr/Makefile
   toolkit/components/passwordmgr/public/Makefile
@@ -752,6 +741,10 @@ MAKEFILES_libmar="
   modules/libmar/tool/Makefile
 "
 
+MAKEFILES_qcms="
+  modules/qcms/Makefile
+"
+
 add_makefiles "
   $MAKEFILES_db
   $MAKEFILES_dom
@@ -794,6 +787,7 @@ add_makefiles "
   $MAKEFILES_zlib
   $MAKEFILES_libmar
   $MAKEFILES_lcms
+  $MAKEFILES_qcms
 "
 
 #

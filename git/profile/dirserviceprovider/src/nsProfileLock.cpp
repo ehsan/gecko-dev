@@ -505,12 +505,8 @@ nsresult nsProfileLock::Lock(nsILocalFile* aProfileDir,
 
             if (ioBytes == sizeof(LockProcessInfo))
             {
-#ifdef __LP64__
-                processInfo.processAppRef = NULL;
-#else
-                processInfo.processAppSpec = NULL;
-#endif
-                processInfo.processName = NULL;
+                processInfo.processAppSpec = nsnull;
+                processInfo.processName = nsnull;
                 processInfo.processInfoLength = sizeof(ProcessInfoRec);
                 if (::GetProcessInformation(&lockProcessInfo.psn, &processInfo) == noErr &&
                     processInfo.processLaunchDate == lockProcessInfo.launchDate)
@@ -629,15 +625,15 @@ nsresult nsProfileLock::Lock(nsILocalFile* aProfileDir,
     mLockFileDesc = open_noshr(filePath.get(), O_CREAT, 0666);
     if (mLockFileDesc == -1)
     {
-        if ((errno == EVMSERR) && (vaxc$errno == RMS$_FLK))
-        {
-            return NS_ERROR_FILE_ACCESS_DENIED;
-        }
-        else
-        {
-            NS_ERROR("Failed to open lock file.");
-            return NS_ERROR_FAILURE;
-        }
+	if ((errno == EVMSERR) && (vaxc$errno == RMS$_FLK))
+	{
+	    return NS_ERROR_FILE_ACCESS_DENIED;
+	}
+	else
+	{
+	    NS_ERROR("Failed to open lock file.");
+	    return NS_ERROR_FAILURE;
+	}
     }
 #endif
 

@@ -4024,12 +4024,6 @@ public:
     return pluginPath->GetLeafName(aFilename);
   }
 
-  NS_METHOD GetVersion(nsAString& aVersion)
-  {
-    CopyUTF8toUTF16(mPluginTag.mVersion, aVersion);
-    return NS_OK;
-  }
-
   NS_METHOD GetName(nsAString& aName)
   {
     CopyUTF8toUTF16(mPluginTag.mName, aName);
@@ -5595,7 +5589,7 @@ NS_IMETHODIMP nsPluginHostImpl::NewPluginURLStream(const nsString& aURL,
       rv = NS_NewChannel(getter_AddRefs(channel), url, nsnull,
         nsnull, /* do not add this internal plugin's channel
                 on the load group otherwise this channel could be canceled
-                form |nsDocShell::OnLinkClickSync| bug 166613 */
+                form |nsWebShell::OnLinkClickSync| bug 166613 */
         callbacks);
       if (NS_FAILED(rv))
         return rv;

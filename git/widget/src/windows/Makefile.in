@@ -85,9 +85,6 @@ CPPSRCS		= \
 	nsUXThemeData.cpp \
 	nsNativeThemeWin.cpp \
 	nsWinGesture.cpp \
-	nsIdleServiceWin.cpp \
-	nsSound.cpp          \
-	nsIMM32Handler.cpp \
 	$(NULL)
 
 ifdef NS_PRINTING
@@ -98,11 +95,7 @@ CPPSRCS		+= \
 	$(NULL)
 endif
 
-ifeq ($(OS_ARCH), WINCE)
-CPPSRCS += \
-	nsClipboardCE.cpp \
-	$(NULL)
-else
+ifneq ($(OS_ARCH), WINCE)
 CPPSRCS += \
 	nsKeyboardLayout.cpp \
 	IEnumFE.cpp  \
@@ -114,6 +107,8 @@ CPPSRCS += \
 	nsClipboard.cpp      \
 	nsImageClipboard.cpp \
 	nsBidiKeyboard.cpp   \
+	nsSound.cpp          \
+	nsIdleServiceWin.cpp    \
 	nsTextStore.cpp \
 	$(NULL)
 endif
@@ -135,10 +130,6 @@ LOCAL_INCLUDES	= \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1
-
-ifdef WINCE
-EXTRA_DSO_LDOPTS += ddraw.lib
-endif
 
 ifndef WINCE
 ENABLE_CXX_EXCEPTIONS = 1

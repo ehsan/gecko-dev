@@ -39,7 +39,7 @@
 #define __selectionstate_h__
 
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMRange.h"
 
@@ -81,7 +81,7 @@ class nsSelectionState
     void     MakeEmpty();
     PRBool   IsEmpty();
   protected:    
-    nsTArray<nsRangeStore> mArray;
+    nsVoidArray mArray;
     
     friend class nsRangeUpdater;
 };
@@ -125,7 +125,7 @@ class nsRangeUpdater
     nsresult WillMoveNode();
     nsresult DidMoveNode(nsIDOMNode *aOldParent, PRInt32 aOldOffset, nsIDOMNode *aNewParent, PRInt32 aNewOffset);
   protected:    
-    nsTArray<nsRangeStore*> mArray;
+    nsVoidArray mArray;
     PRBool mLock;
 };
 

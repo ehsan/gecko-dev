@@ -159,7 +159,6 @@ namespace nanojit
 
 	void LirBufWriter::ensureRoom(uint32_t count)
 	{
-		NanoAssert(count <= NJ_PAGE_SIZE - (LIR_FAR_SLOTS + 1) * sizeof(LIns));
 		LInsp before = _buf->next();
 		LInsp after = before+count+LIR_FAR_SLOTS;
 		// transition to the next page?
@@ -181,8 +180,6 @@ namespace nanojit
 		NanoAssert(samepage(l,l+LIR_FAR_SLOTS)); // must have called ensureRoom()
         if (can24bReach(l,to))
 		{
-		    NanoStaticAssert(LIR_nearskip == LIR_skip - 1);
-		    NanoStaticAssert(LIR_neartramp == LIR_tramp - 1);
             l->initOpcode(LOpcode(op-1)); // nearskip or neartramp
             l->setimm24(to-l);
             _buf->commit(1);
@@ -805,7 +802,7 @@ namespace nanojit
 		return out->ins1(v, i);
 	}
 
-    LIns* ExprFilter::ins2(LOpcode v, LIns* oprnd1, LIns* oprnd2)
+	LIns* ExprFilter::ins2(LOpcode v, LIns* oprnd1, LIns* oprnd2)
 	{
 		NanoAssert(oprnd1 && oprnd2);
 		if (v == LIR_cmov || v == LIR_qcmov) {
@@ -832,92 +829,61 @@ namespace nanojit
 		}
 		if (oprnd1->isconst() && oprnd2->isconst())
 		{
-			int32_t c1 = oprnd1->constval();
-			int32_t c2 = oprnd2->constval();
-			double d;
-			int32_t r;
+			int c1 = oprnd1->constval();
+			int c2 = oprnd2->constval();
 			if (v == LIR_qjoin) {
 				uint64_t q = c1 | uint64_t(c2)<<32;
 				return insImmq(q);
 			}
-			switch (v) {
-			case LIR_eq:
+			if (v == LIR_eq)
 				return insImm(c1 == c2);
-			case LIR_ov:
+            if (v == LIR_ov)
                 return insImm((c2 != 0) && ((c1 + c2) <= c1)); 
-			case LIR_cs:
+            if (v == LIR_cs)
                 return insImm((c2 != 0) && ((uint32_t(c1) + uint32_t(c2)) <= uint32_t(c1)));
-			case LIR_lt:
+			if (v == LIR_lt)
 				return insImm(c1 < c2);
-			case LIR_gt:
+			if (v == LIR_gt)
 				return insImm(c1 > c2);
-			case LIR_le:
+			if (v == LIR_le)
 				return insImm(c1 <= c2);
-			case LIR_ge:
+			if (v == LIR_ge)
 				return insImm(c1 >= c2);
-			case LIR_ult:
+			if (v == LIR_ult)
 				return insImm(uint32_t(c1) < uint32_t(c2));
-			case LIR_ugt:
+			if (v == LIR_ugt)
 				return insImm(uint32_t(c1) > uint32_t(c2));
-			case LIR_ule:
+			if (v == LIR_ule)
 				return insImm(uint32_t(c1) <= uint32_t(c2));
-			case LIR_uge:
+			if (v == LIR_uge)
 				return insImm(uint32_t(c1) >= uint32_t(c2));
-			case LIR_rsh:
+			if (v == LIR_rsh)
 				return insImm(int32_t(c1) >> int32_t(c2));
-			case LIR_lsh:
+			if (v == LIR_lsh)
 				return insImm(int32_t(c1) << int32_t(c2));
-			case LIR_ush:
+			if (v == LIR_ush)
 				return insImm(uint32_t(c1) >> int32_t(c2));
-			case LIR_or:
+            if (v == LIR_or)
                 return insImm(uint32_t(c1) | int32_t(c2));
-			case LIR_and:
+            if (v == LIR_and)
                 return insImm(uint32_t(c1) & int32_t(c2));
-			case LIR_xor:
+            if (v == LIR_xor)
                 return insImm(uint32_t(c1) ^ int32_t(c2));
-			case LIR_add:
-			    d = double(c1) + double(c2);
-			fold:
-			    r = int32_t(d);
-			    if (r == d)
-                    return insImm(r);
-			    break;
-			case LIR_sub:
-			    d = double(c1) - double(c2);
-			    goto fold;
-			case LIR_mul:
-			    d = double(c1) * double(c2);
-			    goto fold;
-			default:
-			    ;
-			}
 		}
 		else if (oprnd1->isconstq() && oprnd2->isconstq())
 		{
 			double c1 = oprnd1->constvalf();
 			double c2 = oprnd2->constvalf();
-			switch (v) {
-			case LIR_feq:
+			if (v == LIR_feq)
 				return insImm(c1 == c2);
-			case LIR_flt:
+			if (v == LIR_flt)
 				return insImm(c1 < c2);
-			case LIR_fgt:
+			if (v == LIR_fgt)
 				return insImm(c1 > c2);
-			case LIR_fle:
+			if (v == LIR_fle)
 				return insImm(c1 <= c2);
-			case LIR_fge:
+			if (v == LIR_fge)
 				return insImm(c1 >= c2);
-            case LIR_fadd:
-                return insImmf(c1 + c2);
-            case LIR_fsub:
-                return insImmf(c1 - c2);
-            case LIR_fmul:
-                return insImmf(c1 * c2);
-            case LIR_fdiv:
-                return insImmf(c1 / c2);
-            default:
-                ;
-			}
 		}
 		else if (oprnd1->isconst() && !oprnd2->isconst())
 		{
