@@ -595,8 +595,7 @@ nsIOService::NewChannelFromURIWithProxyFlags(nsIURI *aURI,
         rv = pph->NewProxiedChannel(aURI, nullptr, aProxyFlags, aProxyURI, result);
     else
         rv = handler->NewChannel(aURI, result);
-    if (NS_FAILED(rv))
-        return rv;
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // Some extensions override the http protocol handler and provide their own
     // implementation. The channels returned from that implementation doesn't

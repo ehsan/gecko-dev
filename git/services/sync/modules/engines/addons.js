@@ -119,8 +119,6 @@ AddonsEngine.prototype = {
   _recordObj:             AddonRecord,
   version:                1,
 
-  syncPriority:           5,
-
   _reconciler:            null,
 
   /**

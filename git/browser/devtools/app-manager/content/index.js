@@ -2,15 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const {utils: Cu, interfaces: Ci} = Components;
+const Cu = Components.utils;
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
 const {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 const {require} = devtools;
 const {ConnectionManager, Connection} = require("devtools/client/connection-manager");
 const promise = require("devtools/toolkit/deprecated-sync-thenables");
-const prefs = require("sdk/preferences/service");
-const Services = require("Services");
-const Strings = Services.strings.createBundle("chrome://browser/locale/devtools/app-manager.properties");
+const prefs = require('sdk/preferences/service');
+
 
 let UI = {
   _toolboxTabCursor: 0,
@@ -35,7 +34,6 @@ let UI = {
     let defaultPanel = prefs.get("devtools.appmanager.lastTab");
     let panelExists = !!document.querySelector("." + defaultPanel  + "-panel");
     this.selectTab(panelExists ? defaultPanel : "projects");
-    this.showDeprecationNotice();
   },
 
   onUnload: function() {
@@ -180,33 +178,7 @@ let UI = {
     } else {
       return gDevTools.showToolbox(target, null, host);
     }
-  },
-
-  showDeprecationNotice: function() {
-    let message = Strings.GetStringFromName("index.deprecationNotice");
-
-    let buttons = [
-      {
-        label: Strings.GetStringFromName("index.launchWebIDE"),
-        callback: gDevToolsBrowser.openWebIDE
-      },
-      {
-        label: Strings.GetStringFromName("index.readMoreAboutWebIDE"),
-        callback: () => {
-          window.open("https://developer.mozilla.org/docs/Tools/WebIDE");
-        }
-      }
-    ];
-
-    let docShell = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                   .getInterface(Ci.nsIWebNavigation)
-                   .QueryInterface(Ci.nsIDocShell);
-    let browser = docShell.chromeEventHandler;
-    let nbox = browser.ownerDocument.defaultView.gBrowser
-               .getNotificationBox(browser);
-    nbox.appendNotification(message, "app-manager-deprecation", null,
-                            nbox.PRIORITY_WARNING_LOW, buttons);
   }
-};
+}
 
 UI.init();

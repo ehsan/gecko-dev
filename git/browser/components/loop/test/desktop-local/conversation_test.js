@@ -143,8 +143,7 @@ describe("loop.conversation", function() {
       dispatcher = new loop.Dispatcher();
       store = new loop.store.ConversationStore({}, {
         client: client,
-        dispatcher: dispatcher,
-        sdkDriver: {}
+        dispatcher: dispatcher
       });
     });
 

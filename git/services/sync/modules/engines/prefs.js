@@ -41,8 +41,6 @@ PrefsEngine.prototype = {
   _recordObj: PrefRec,
   version: 2,
 
-  syncPriority: 1,
-
   getChangedIDs: function getChangedIDs() {
     // No need for a proper timestamp (no conflict resolution needed).
     let changedIDs = {};
