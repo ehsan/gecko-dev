@@ -578,7 +578,7 @@ formatPlainErrorMessage(const nsXPIDLCString &host, int32_t port,
 
     hostWithPort.AssignASCII(host);
     if (!suppressPort443 || port != 443) {
-      hostWithPort.Append(':');
+      hostWithPort.AppendLiteral(":");
       hostWithPort.AppendInt(port);
     }
     params[0] = hostWithPort.get();
@@ -590,7 +590,7 @@ formatPlainErrorMessage(const nsXPIDLCString &host, int32_t port,
     if (NS_SUCCEEDED(rv))
     {
       returnedMessage.Append(formattedString);
-      returnedMessage.AppendLiteral("\n\n");
+      returnedMessage.Append(NS_LITERAL_STRING("\n\n"));
     }
   }
 
@@ -659,7 +659,7 @@ AppendErrorTextUntrusted(PRErrorCode errTrust,
   if (NS_SUCCEEDED(rv))
   {
     returnedMessage.Append(formattedString);
-    returnedMessage.Append('\n');
+    returnedMessage.Append(NS_LITERAL_STRING("\n"));
   }
 }
 
@@ -702,7 +702,7 @@ GetSubjectAltNames(CERTCertificate *nssCert,
       case certDNSName:
         name.AssignASCII((char*)current->name.other.data, current->name.other.len);
         if (!allNames.IsEmpty()) {
-          allNames.AppendLiteral(", ");
+          allNames.Append(NS_LITERAL_STRING(", "));
         }
         ++nameCount;
         allNames.Append(name);
@@ -727,7 +727,7 @@ GetSubjectAltNames(CERTCertificate *nssCert,
           }
           if (!name.IsEmpty()) {
             if (!allNames.IsEmpty()) {
-              allNames.AppendLiteral(", ");
+              allNames.Append(NS_LITERAL_STRING(", "));
             }
             ++nameCount;
             allNames.Append(name);
@@ -770,7 +770,7 @@ AppendErrorTextMismatch(const nsString &host,
                                                   formattedString);
     if (NS_SUCCEEDED(rv)) {
       returnedMessage.Append(formattedString);
-      returnedMessage.Append('\n');
+      returnedMessage.Append(NS_LITERAL_STRING("\n"));
     }
     return;
   }
@@ -803,9 +803,9 @@ AppendErrorTextMismatch(const nsString &host,
                                           message);
     if (NS_SUCCEEDED(rv)) {
       returnedMessage.Append(message);
-      returnedMessage.AppendLiteral("\n  ");
+      returnedMessage.Append(NS_LITERAL_STRING("\n  "));
       returnedMessage.Append(allNames);
-      returnedMessage.AppendLiteral("  \n");
+      returnedMessage.Append(NS_LITERAL_STRING("  \n"));
     }
   }
   else if (nameCount == 1) {
@@ -824,7 +824,7 @@ AppendErrorTextMismatch(const nsString &host,
                                                   formattedString);
     if (NS_SUCCEEDED(rv)) {
       returnedMessage.Append(formattedString);
-      returnedMessage.Append('\n');
+      returnedMessage.Append(NS_LITERAL_STRING("\n"));
     }
   }
   else { // nameCount == 0
@@ -833,7 +833,7 @@ AppendErrorTextMismatch(const nsString &host,
                                                    message);
     if (NS_SUCCEEDED(rv)) {
       returnedMessage.Append(message);
-      returnedMessage.Append('\n');
+      returnedMessage.Append(NS_LITERAL_STRING("\n"));
     }
   }
 }
@@ -908,7 +908,7 @@ AppendErrorTextTime(nsIX509Cert* ix509,
   if (NS_SUCCEEDED(rv))
   {
     returnedMessage.Append(formattedString);
-    returnedMessage.Append('\n');
+    returnedMessage.Append(NS_LITERAL_STRING("\n"));
   }
 }
 
@@ -933,14 +933,14 @@ AppendErrorTextCode(PRErrorCode errorCodeToReport,
                                                   params, 1, 
                                                   formattedString);
     if (NS_SUCCEEDED(rv)) {
-      returnedMessage.Append('\n');
+      returnedMessage.Append(NS_LITERAL_STRING("\n"));
       returnedMessage.Append(formattedString);
-      returnedMessage.Append('\n');
+      returnedMessage.Append(NS_LITERAL_STRING("\n"));
     }
     else {
-      returnedMessage.AppendLiteral(" (");
+      returnedMessage.Append(NS_LITERAL_STRING(" ("));
       returnedMessage.Append(idU);
-      returnedMessage.Append(')');
+      returnedMessage.Append(NS_LITERAL_STRING(")"));
     }
   }
 }
@@ -989,7 +989,7 @@ formatOverridableCertErrorMessage(nsISSLStatus & sslStatus,
                                                 returnedMessage);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  returnedMessage.AppendLiteral("\n\n");
+  returnedMessage.Append(NS_LITERAL_STRING("\n\n"));
 
   RefPtr<nsIX509Cert> ix509;
   rv = sslStatus.GetServerCert(byRef(ix509));

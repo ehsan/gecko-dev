@@ -61,28 +61,28 @@ nsMacUtilsImpl::GetArchString(nsAString& aArchString)
   // The order in the string must always be the same so
   // don't do this in the loop.
   if (foundPPC) {
-    mBinaryArchs.AppendLiteral("ppc");
+    mBinaryArchs.Append(NS_LITERAL_STRING("ppc"));
   }
 
   if (foundX86) {
     if (!mBinaryArchs.IsEmpty()) {
-      mBinaryArchs.Append('-');
+      mBinaryArchs.Append(NS_LITERAL_STRING("-"));
     }
-    mBinaryArchs.AppendLiteral("i386");
+    mBinaryArchs.Append(NS_LITERAL_STRING("i386"));
   }
 
   if (foundPPC64) {
     if (!mBinaryArchs.IsEmpty()) {
-      mBinaryArchs.Append('-');
+      mBinaryArchs.Append(NS_LITERAL_STRING("-"));
     }
-    mBinaryArchs.AppendLiteral("ppc64");
+    mBinaryArchs.Append(NS_LITERAL_STRING("ppc64"));
   }
 
   if (foundX86_64) {
     if (!mBinaryArchs.IsEmpty()) {
-      mBinaryArchs.Append('-');
+      mBinaryArchs.Append(NS_LITERAL_STRING("-"));
     }
-    mBinaryArchs.AppendLiteral("x86_64");
+    mBinaryArchs.Append(NS_LITERAL_STRING("x86_64"));
   }
 
   aArchString.Assign(mBinaryArchs);

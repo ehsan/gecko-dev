@@ -21,7 +21,7 @@
 #include <media/stagefright/foundation/ALooper.h>
 #include <utils/RefBase.h>
 
-namespace stagefright {
+namespace android {
 
 struct AMessage;
 
@@ -51,6 +51,6 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(AHandler);
 };
 
-}  // namespace stagefright
+}  // namespace android
 
 #endif  // A_HANDLER_H_

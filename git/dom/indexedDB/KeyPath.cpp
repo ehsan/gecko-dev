@@ -457,8 +457,7 @@ KeyPath::SerializeToString(nsAString& aString) const
     // It also makes serializing easier :-)
     uint32_t len = mStrings.Length();
     for (uint32_t i = 0; i < len; ++i) {
-      aString.Append(',');
-      aString.Append(mStrings[i]);
+      aString.Append(NS_LITERAL_STRING(",") + mStrings[i]);
     }
 
     return;

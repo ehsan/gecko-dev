@@ -565,9 +565,7 @@ void
 PeerConnectionMedia::ConnectDtlsListener_s(const RefPtr<TransportFlow>& aFlow)
 {
   TransportLayer* dtls = aFlow->GetLayer(TransportLayerDtls::ID());
-  if (dtls) {
-    dtls->SignalStateChange.connect(this, &PeerConnectionMedia::DtlsConnected);
-  }
+  dtls->SignalStateChange.connect(this, &PeerConnectionMedia::DtlsConnected);
 }
 
 #ifdef MOZILLA_INTERNAL_API

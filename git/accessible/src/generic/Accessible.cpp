@@ -76,7 +76,6 @@
 #endif
 
 #include "mozilla/Assertions.h"
-#include "mozilla/BasicEvents.h"
 #include "mozilla/EventStates.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/MouseEvents.h"
@@ -3265,25 +3264,6 @@ Accessible::StaticAsserts() const
 ////////////////////////////////////////////////////////////////////////////////
 // KeyBinding class
 
-// static
-uint32_t
-KeyBinding::AccelModifier()
-{
-  switch (WidgetInputEvent::AccelModifier()) {
-    case MODIFIER_ALT:
-      return kAlt;
-    case MODIFIER_CONTROL:
-      return kControl;
-    case MODIFIER_META:
-      return kMeta;
-    case MODIFIER_OS:
-      return kOS;
-    default:
-      MOZ_CRASH("Handle the new result of WidgetInputEvent::AccelModifier()");
-      return 0;
-  }
-}
-
 void
 KeyBinding::ToPlatformFormat(nsAString& aValue) const
 {
@@ -3343,16 +3323,16 @@ KeyBinding::ToAtkFormat(nsAString& aValue) const
 {
   nsAutoString modifierName;
   if (mModifierMask & kControl)
-    aValue.AppendLiteral("<Control>");
+    aValue.Append(NS_LITERAL_STRING("<Control>"));
 
   if (mModifierMask & kAlt)
-    aValue.AppendLiteral("<Alt>");
+    aValue.Append(NS_LITERAL_STRING("<Alt>"));
 
   if (mModifierMask & kShift)
-    aValue.AppendLiteral("<Shift>");
+    aValue.Append(NS_LITERAL_STRING("<Shift>"));
 
   if (mModifierMask & kMeta)
-      aValue.AppendLiteral("<Meta>");
+      aValue.Append(NS_LITERAL_STRING("<Meta>"));
 
   aValue.Append(mKey);
 }

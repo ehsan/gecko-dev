@@ -704,7 +704,7 @@ WebSocket::Init(JSContext* aCx,
     }
 
     if (!mRequestedProtocolList.IsEmpty()) {
-      mRequestedProtocolList.AppendLiteral(", ");
+      mRequestedProtocolList.Append(NS_LITERAL_CSTRING(", "));
     }
 
     AppendUTF16toUTF8(aProtocolArray[index], mRequestedProtocolList);
@@ -1019,7 +1019,7 @@ WebSocket::ParseURL(const nsString& aURL)
 
   mResource = filePath;
   if (!query.IsEmpty()) {
-    mResource.Append('?');
+    mResource.AppendLiteral("?");
     mResource.Append(query);
   }
   uint32_t length = mResource.Length();

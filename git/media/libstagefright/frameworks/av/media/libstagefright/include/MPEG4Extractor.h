@@ -27,7 +27,7 @@
 #include <utils/Vector.h>
 #include <utils/String8.h>
 
-namespace stagefright {
+namespace android {
 
 struct AMessage;
 class DataSource;
@@ -129,6 +129,6 @@ bool SniffMPEG4(
         const sp<DataSource> &source, String8 *mimeType, float *confidence,
         sp<AMessage> *);
 
-}  // namespace stagefright
+}  // namespace android
 
 #endif  // MPEG4_EXTRACTOR_H_

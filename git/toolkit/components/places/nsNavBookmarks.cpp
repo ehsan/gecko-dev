@@ -1174,7 +1174,7 @@ nsNavBookmarks::RemoveFolderChildren(int64_t aFolderId)
     BookmarkData& child = folderChildrenArray[i];
 
     if (child.type == TYPE_FOLDER) {
-      foldersToRemove.Append(',');
+      foldersToRemove.AppendLiteral(",");
       foldersToRemove.AppendInt(child.id);
     }
 

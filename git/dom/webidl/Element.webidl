@@ -201,12 +201,10 @@ partial interface Element {
   NodeList  querySelectorAll(DOMString selectors);
 };
 
-// http://w3c.github.io/webcomponents/spec/shadow/#extensions-to-element-interface
+// https://dvcs.w3.org/hg/webcomponents/raw-file/tip/spec/shadow/index.html#shadow-root-object
 partial interface Element {
   [Throws,Pref="dom.webcomponents.enabled"]
   ShadowRoot createShadowRoot();
-  [Pref="dom.webcomponents.enabled"]
-  NodeList getDestinationInsertionPoints();
   [Pref="dom.webcomponents.enabled"]
   readonly attribute ShadowRoot? shadowRoot;
 };

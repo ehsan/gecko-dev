@@ -24,7 +24,7 @@
 #include <utils/RefBase.h>
 #include <utils/Vector.h>
 
-namespace stagefright {
+namespace android {
 
 class MediaBuffer;
 class MetaData;
@@ -117,6 +117,6 @@ private:
     MediaSource &operator=(const MediaSource &);
 };
 
-}  // namespace stagefright
+}  // namespace android
 
 #endif  // MEDIA_SOURCE_H_

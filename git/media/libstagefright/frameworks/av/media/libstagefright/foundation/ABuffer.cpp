@@ -20,7 +20,7 @@
 #include "ALooper.h"
 #include "AMessage.h"
 
-namespace stagefright {
+namespace android {
 
 ABuffer::ABuffer(size_t capacity)
     : mData(malloc(capacity)),
@@ -72,5 +72,5 @@ sp<AMessage> ABuffer::meta() {
     return mMeta;
 }
 
-}  // namespace stagefright
+}  // namespace android
 

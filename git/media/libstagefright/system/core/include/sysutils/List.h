@@ -30,7 +30,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-namespace stagefright {
+namespace android {
 namespace sysutils {
 
 /*
@@ -329,6 +329,6 @@ List<T>& List<T>::operator=(const List<T>& right)
 }
 
 }; // namespace sysutils
-}; // namespace stagefright
+}; // namespace android
 
 #endif // _SYSUTILS_LIST_H

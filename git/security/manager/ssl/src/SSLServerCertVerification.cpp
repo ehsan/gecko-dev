@@ -405,7 +405,7 @@ CertErrorRunnable::CheckCertOverrides()
 
   nsCString hostWithPortString;
   hostWithPortString.AppendASCII(mInfoObject->GetHostNameRaw());
-  hostWithPortString.Append(':');
+  hostWithPortString.AppendLiteral(":");
   hostWithPortString.AppendInt(port);
 
   uint32_t remaining_display_errors = mCollectedErrors;

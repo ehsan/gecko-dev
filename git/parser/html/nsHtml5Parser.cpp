@@ -70,7 +70,7 @@ nsHtml5Parser::GetContentSink()
 NS_IMETHODIMP_(void)
 nsHtml5Parser::GetCommand(nsCString& aCommand)
 {
-  aCommand.AssignLiteral("view");
+  aCommand.Assign("view");
 }
 
 NS_IMETHODIMP_(void)

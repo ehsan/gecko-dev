@@ -5542,12 +5542,9 @@ nsFrame::MakeFrameName(const nsAString& aType, nsAString& aResult) const
     if (GetType() == nsGkAtoms::subDocumentFrame) {
       nsAutoString src;
       mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::src, src);
-      buf.AppendLiteral(" src=");
-      buf.Append(src);
+      buf.Append(NS_LITERAL_STRING(" src=") + src);
     }
-    aResult.Append('(');
-    aResult.Append(buf);
-    aResult.Append(')');
+    aResult.Append(NS_LITERAL_STRING("(") + buf + NS_LITERAL_STRING(")"));
   }
   char buf[40];
   PR_snprintf(buf, sizeof(buf), "(%d)", ContentIndexInContainer(this));

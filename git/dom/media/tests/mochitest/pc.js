@@ -1728,7 +1728,7 @@ PeerConnectionWrapper.prototype = {
     var addStreamTimeout = null;
 
     function _checkMediaTracks(constraintsRemote, onSuccess) {
-      if (self.addStreamTimeout !== null) {
+      if (self.addStreamTimeout === null) {
         clearTimeout(self.addStreamTimeout);
       }
 
@@ -1761,6 +1761,11 @@ PeerConnectionWrapper.prototype = {
       onSuccess();
     }
 
+    function __checkMediaTracksTimeout(onSuccess) {
+      ok(false, self + " checkMediaTracks() timed out waiting for onaddstream event to fire");
+      onSuccess();
+    }
+
     // we have to do this check as the onaddstream never fires if the remote
     // stream has no track at all!
     var expectedRemoteTracks =
@@ -1778,8 +1783,7 @@ PeerConnectionWrapper.prototype = {
         _checkMediaTracks(constraintsRemote, onSuccess);
       };
       addStreamTimeout = setTimeout(function () {
-        ok(false, self + " checkMediaTracks() timed out waiting for onaddstream event to fire");
-        onSuccess();
+        self._checkMediaTracksTimeout(onSuccess);
       }, 60000);
     }
   },

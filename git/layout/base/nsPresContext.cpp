@@ -496,10 +496,10 @@ nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
     Preferences::GetCString("font.size.unit");
 
   if (!cvalue.IsEmpty()) {
-    if (cvalue.EqualsLiteral("px")) {
+    if (cvalue.Equals("px")) {
       unit = eUnit_px;
     }
-    else if (cvalue.EqualsLiteral("pt")) {
+    else if (cvalue.Equals("pt")) {
       unit = eUnit_pt;
     }
     else {
@@ -768,11 +768,11 @@ nsPresContext::GetUserPreferences()
   // * image animation
   const nsAdoptingCString& animatePref =
     Preferences::GetCString("image.animation_mode");
-  if (animatePref.EqualsLiteral("normal"))
+  if (animatePref.Equals("normal"))
     mImageAnimationModePref = imgIContainer::kNormalAnimMode;
-  else if (animatePref.EqualsLiteral("none"))
+  else if (animatePref.Equals("none"))
     mImageAnimationModePref = imgIContainer::kDontAnimMode;
-  else if (animatePref.EqualsLiteral("once"))
+  else if (animatePref.Equals("once"))
     mImageAnimationModePref = imgIContainer::kLoopOnceAnimMode;
   else // dynamic change to invalid value should act like it does initially
     mImageAnimationModePref = imgIContainer::kNormalAnimMode;

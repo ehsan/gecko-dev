@@ -100,15 +100,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSScriptTimeoutHandler)
           name.AppendLiteral(" [");
           name.Append(funIdName);
           delete[] funIdName;
-          name.Append(']');
+          name.AppendLiteral("]");
         }
       }
     } else {
       name.AppendLiteral(" [");
       name.Append(tmp->mFileName);
-      name.Append(':');
+      name.AppendLiteral(":");
       name.AppendInt(tmp->mLineNo);
-      name.Append(']');
+      name.AppendLiteral("]");
     }
     cb.DescribeRefCountedNode(tmp->mRefCnt.get(), name.get());
   }

@@ -522,38 +522,38 @@ GetCacheSessionNameForStoragePolicy(
   MOZ_ASSERT(!isPrivate || storagePolicy == nsICache::STORE_IN_MEMORY);
 
   // HTTP
-  if (scheme.EqualsLiteral("http") ||
-      scheme.EqualsLiteral("https")) {
+  if (scheme.Equals(NS_LITERAL_CSTRING("http")) ||
+      scheme.Equals(NS_LITERAL_CSTRING("https"))) {
     switch (storagePolicy) {
     case nsICache::STORE_IN_MEMORY:
       if (isPrivate)
-        sessionName.AssignLiteral("HTTP-memory-only-PB");
+        sessionName.Assign(NS_LITERAL_CSTRING("HTTP-memory-only-PB"));
       else
-        sessionName.AssignLiteral("HTTP-memory-only");
+        sessionName.Assign(NS_LITERAL_CSTRING("HTTP-memory-only"));
       break;
     case nsICache::STORE_OFFLINE:
       // XXX This is actually never used, only added to prevent
       // any compatibility damage.
-      sessionName.AssignLiteral("HTTP-offline");
+      sessionName.Assign(NS_LITERAL_CSTRING("HTTP-offline"));
       break;
     default:
-      sessionName.AssignLiteral("HTTP");
+      sessionName.Assign(NS_LITERAL_CSTRING("HTTP"));
       break;
     }
   }
   // WYCIWYG
-  else if (scheme.EqualsLiteral("wyciwyg")) {
+  else if (scheme.Equals(NS_LITERAL_CSTRING("wyciwyg"))) {
     if (isPrivate)
-      sessionName.AssignLiteral("wyciwyg-private");
+      sessionName.Assign(NS_LITERAL_CSTRING("wyciwyg-private"));
     else
-      sessionName.AssignLiteral("wyciwyg");
+      sessionName.Assign(NS_LITERAL_CSTRING("wyciwyg"));
   }
   // FTP
-  else if (scheme.EqualsLiteral("ftp")) {
+  else if (scheme.Equals(NS_LITERAL_CSTRING("ftp"))) {
     if (isPrivate)
-      sessionName.AssignLiteral("FTP-private");
+      sessionName.Assign(NS_LITERAL_CSTRING("FTP-private"));
     else
-      sessionName.AssignLiteral("FTP");
+      sessionName.Assign(NS_LITERAL_CSTRING("FTP"));
   }
   // all remaining URL scheme
   else {
@@ -564,9 +564,9 @@ GetCacheSessionNameForStoragePolicy(
     // URL schemes.
     // Deliberately omitting |anonymous| since other session types don't
     // recognize it too.
-    sessionName.AssignLiteral("other");
+    sessionName.Assign(NS_LITERAL_CSTRING("other"));
     if (isPrivate)
-      sessionName.AppendLiteral("-private");
+      sessionName.Append(NS_LITERAL_CSTRING("-private"));
   }
 
   if (appId != nsILoadContextInfo::NO_APP_ID || inBrowser) {
@@ -1096,8 +1096,8 @@ nsresult _OldStorage::AssembleCacheKey(nsIURI *aURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsAutoCString uriSpec;
-  if (aScheme.EqualsLiteral("http") ||
-      aScheme.EqualsLiteral("https")) {
+  if (aScheme.Equals(NS_LITERAL_CSTRING("http")) ||
+      aScheme.Equals(NS_LITERAL_CSTRING("https"))) {
     if (mLoadInfo->IsAnonymous()) {
       aCacheKey.AssignLiteral("anon&");
     }
@@ -1117,7 +1117,7 @@ nsresult _OldStorage::AssembleCacheKey(nsIURI *aURI,
       aCacheKey.AppendLiteral("uri=");
     }
   }
-  else if (aScheme.EqualsLiteral("wyciwyg")) {
+  else if (aScheme.Equals(NS_LITERAL_CSTRING("wyciwyg"))) {
     rv = aURI->GetSpec(uriSpec);
     NS_ENSURE_SUCCESS(rv, rv);
   }

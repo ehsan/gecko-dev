@@ -603,17 +603,17 @@ NS_ScriptErrorReporter(JSContext *cx,
     // Print it to stderr as well, for the benefit of those invoking
     // mozilla with -console.
     nsAutoCString error;
-    error.AssignLiteral("JavaScript ");
+    error.Assign("JavaScript ");
     if (JSREPORT_IS_STRICT(report->flags))
-      error.AppendLiteral("strict ");
+      error.Append("strict ");
     if (JSREPORT_IS_WARNING(report->flags))
-      error.AppendLiteral("warning: ");
+      error.Append("warning: ");
     else
-      error.AppendLiteral("error: ");
+      error.Append("error: ");
     error.Append(report->filename);
-    error.AppendLiteral(", line ");
+    error.Append(", line ");
     error.AppendInt(report->lineno, 10);
-    error.AppendLiteral(": ");
+    error.Append(": ");
     if (report->ucmessage) {
       AppendUTF16toUTF8(reinterpret_cast<const char16_t*>(report->ucmessage),
                         error);
