@@ -123,6 +123,7 @@ loop.panel = (function(_, mozL10n) {
             </a>
           ),
         });
+        navigator.mozLoop.setLoopCharPref('seenToS', 'seen');
         return <p className="terms-service"
                   dangerouslySetInnerHTML={{__html: tosHTML}}></p>;
       } else {

@@ -9,7 +9,6 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.util.INIParser;
 import org.mozilla.gecko.util.INISection;
 
@@ -76,8 +75,11 @@ public class GeckoProfileDirectories {
         }
     };
 
-    @RobocopTarget
-    public static INIParser getProfilesINI(File mozillaDir) {
+    /**
+     * Package-scoped because GeckoProfile needs to dig into this in order to do writes.
+     * This will be fixed in Bug 975212.
+     */
+    static INIParser getProfilesINI(File mozillaDir) {
         return new INIParser(new File(mozillaDir, "profiles.ini"));
     }
 
@@ -114,8 +116,7 @@ public class GeckoProfileDirectories {
      * @throws NoMozillaDirectoryException
      *             if the directory did not exist and could not be created.
      */
-    @RobocopTarget
-    public static File getMozillaDirectory(Context context) throws NoMozillaDirectoryException {
+    static File getMozillaDirectory(Context context) throws NoMozillaDirectoryException {
         final File mozillaDir = new File(context.getFilesDir(), MOZILLA_DIR_NAME);
         if (mozillaDir.exists() || mozillaDir.mkdirs()) {
             return mozillaDir;

@@ -60,7 +60,6 @@ let gLocalizedStrings =  null;
 let gInitializeTimer = null;
 let gFxAOAuthClientPromise = null;
 let gFxAOAuthClient = null;
-let gFxAOAuthTokenData = null;
 
 /**
  * Internal helper methods and state
@@ -196,10 +195,7 @@ let MozLoopServiceInternal = {
                                           2 * 32, true);
     }
 
-    return gHawkClient.request(path, method, credentials, payloadObj).catch(error => {
-      console.error("Loop hawkRequest error:", error);
-      throw error;
-    });
+    return gHawkClient.request(path, method, credentials, payloadObj);
   },
 
   /**
@@ -294,11 +290,6 @@ let MozLoopServiceInternal = {
     if (this.doNotDisturb) {
       return;
     }
-
-    // We set this here as it is assumed that once the user receives an incoming
-    // call, they'll have had enough time to see the terms of service. See
-    // bug 1046039 for background.
-    Services.prefs.setCharPref("loop.seenToS", "seen");
 
     this.openChatWindow(null,
                         this.localizedStrings["incoming_call_title"].textContent,
@@ -501,7 +492,7 @@ let MozLoopServiceInternal = {
       },
       error => {
         gFxAOAuthClientPromise = null;
-        throw error;
+        return error;
       }
     );
 
@@ -509,9 +500,7 @@ let MozLoopServiceInternal = {
   }),
 
   /**
-   * Get the OAuth client and do the authorization web flow to get an OAuth code.
-   *
-   * @return {Promise}
+   * Params => web flow => code
    */
   promiseFxAOAuthAuthorization: function() {
     let deferred = Promise.defer();
@@ -521,36 +510,11 @@ let MozLoopServiceInternal = {
         client.launchWebFlow();
       },
       error => {
-        console.error(error);
+        Cu.reportError(error);
         deferred.reject(error);
       }
     );
     return deferred.promise;
-  },
-
-  /**
-   * Get the OAuth token using the OAuth code and state.
-   *
-   * The caller should approperiately handle 4xx errors (which should lead to a logout)
-   * and 5xx or connectivity issues with messaging to try again later.
-   *
-   * @param {String} code
-   * @param {String} state
-   *
-   * @return {Promise} resolving with OAuth token data.
-   */
-  promiseFxAOAuthToken: function(code, state) {
-    if (!code || !state) {
-      throw new Error("promiseFxAOAuthToken: code and state are required.");
-    }
-
-    let payload = {
-      code: code,
-      state: state,
-    };
-    return this.hawkRequest("/fxa-oauth/token", "POST", payload).then(response => {
-      return JSON.parse(response.body);
-    });
   },
 
   /**
@@ -594,14 +558,8 @@ this.MozLoopService = {
     return MozLoopServiceInternal;
   },
 
-  get gFxAOAuthTokenData() {
-    return gFxAOAuthTokenData;
-  },
-
   resetFxA: function() {
     gFxAOAuthClientPromise = null;
-    gFxAOAuthClient = null;
-    gFxAOAuthTokenData = null;
   },
 #endif
 
@@ -782,13 +740,6 @@ this.MozLoopService = {
   logInToFxA: function() {
     return MozLoopServiceInternal.promiseFxAOAuthAuthorization().then(response => {
       return MozLoopServiceInternal.promiseFxAOAuthToken(response.code, response.state);
-    }).then(tokenData => {
-      gFxAOAuthTokenData = tokenData;
-      return tokenData;
-    },
-    error => {
-      gFxAOAuthTokenData = null;
-      throw error;
     });
   },
 

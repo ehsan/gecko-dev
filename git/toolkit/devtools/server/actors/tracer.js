@@ -279,7 +279,7 @@ TracerActor.prototype = {
       // statement in the function).
       packet.location = {
         url: aFrame.script.url,
-        line: aFrame.script.startLine,
+        line: aFrame.script.getOffsetLine(aFrame.offset),
         column: getOffsetColumn(aFrame.offset, aFrame.script)
       };
     }

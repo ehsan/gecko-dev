@@ -123,6 +123,7 @@ loop.panel = (function(_, mozL10n) {
             )
           ),
         });
+        navigator.mozLoop.setLoopCharPref('seenToS', 'seen');
         return React.DOM.p({className: "terms-service", 
                   dangerouslySetInnerHTML: {__html: tosHTML}});
       } else {

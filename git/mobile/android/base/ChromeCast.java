@@ -157,10 +157,6 @@ class ChromeCast implements GeckoMediaPlayer {
         final JSONObject obj = new JSONObject();
         try {
             final CastDevice device = CastDevice.getFromBundle(route.getExtras());
-            if (device == null) {
-                return null;
-            }
-
             obj.put("uuid", route.getId());
             obj.put("version", device.getDeviceVersion());
             obj.put("friendlyName", device.getFriendlyName());
@@ -229,20 +225,15 @@ class ChromeCast implements GeckoMediaPlayer {
     }
 
     public boolean verifySession(final EventCallback callback) {
-        String msg = null;
         if (apiClient == null || !apiClient.isConnected()) {
-            msg = "Not connected";
+            debug("Can't play. No connection");
+            callback.sendError("Not connected");
+            return false;
         }
 
         if (mSessionId == null) {
-            msg = "No session";
-        }
-
-        if (msg != null) {
-            debug(msg);
-            if (callback != null) {
-                callback.sendError(msg);
-            }
+            debug("Can't play. No session");
+            callback.sendError("No session");
             return false;
         }
 
