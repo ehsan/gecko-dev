@@ -419,7 +419,12 @@ gfxWindowsPlatform::UpdateRenderMode()
         PRInt32 status;
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT2D, &status))) {
             if (status != nsIGfxInfo::FEATURE_NO_INFO) {
-                d2dBlocked = true;
+                d2dDisabled = true;
+                if (status == nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION ||
+                    status == nsIGfxInfo::FEATURE_BLOCKED_DEVICE)
+                {
+                    d2dBlocked = true;
+                }
             }
         }
     }

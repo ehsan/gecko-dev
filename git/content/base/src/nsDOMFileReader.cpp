@@ -255,7 +255,7 @@ nsDOMFileReader::GetResult(JSContext* aCx, jsval* aResult)
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::GetError(nsIDOMDOMError** aError)
+nsDOMFileReader::GetError(nsIDOMFileError** aError)
 {
   return FileIOObject::GetError(aError);
 }

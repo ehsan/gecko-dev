@@ -70,7 +70,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 static bool BaseTypeAndSizeFromUniformType(WebGLenum uType, WebGLenum *baseType, WebGLint *unitSize);
 static WebGLenum InternalFormatForFormatAndType(WebGLenum format, WebGLenum type, bool isGLES2);
@@ -3967,10 +3966,11 @@ WebGLContext::ConvertImage(size_t width, size_t height, size_t srcStride, size_t
 }
 
 nsresult
-WebGLContext::DOMElementToImageSurface(Element* imageOrCanvas,
+WebGLContext::DOMElementToImageSurface(nsIDOMElement *imageOrCanvas,
                                        gfxImageSurface **imageOut, int *format)
 {
-    if (!imageOrCanvas) {
+    nsCOMPtr<nsIContent> content = do_QueryInterface(imageOrCanvas);
+    if (!content) {
         return NS_ERROR_FAILURE;
     }        
 
@@ -3984,7 +3984,7 @@ WebGLContext::DOMElementToImageSurface(Element* imageOrCanvas,
         flags |= nsLayoutUtils::SFE_NO_PREMULTIPLY_ALPHA;
 
     nsLayoutUtils::SurfaceFromElementResult res =
-        nsLayoutUtils::SurfaceFromElement(imageOrCanvas, flags);
+        nsLayoutUtils::SurfaceFromElement(content->AsElement(), flags);
     if (!res.mSurface)
         return NS_ERROR_FAILURE;
     if (res.mSurface->GetType() != gfxASurface::SurfaceTypeImage) {
@@ -4016,7 +4016,7 @@ WebGLContext::DOMElementToImageSurface(Element* imageOrCanvas,
     // part 2: if the DOM element is a canvas, check that it's not write-only.
     // That would indicate a tainted canvas, i.e. a canvas that could contain
     // cross-domain image data.
-    if (nsHTMLCanvasElement* canvas = nsHTMLCanvasElement::FromContent(imageOrCanvas)) {
+    if (nsHTMLCanvasElement* canvas = nsHTMLCanvasElement::FromContent(content)) {
         if (canvas->IsWriteOnly()) {
             LogMessageIfVerbose("The canvas used as source for texImage2D here is tainted (write-only). It is forbidden "
                                 "to load a WebGL texture from a tainted canvas. A Canvas becomes tainted for example "
@@ -5082,7 +5082,7 @@ WebGLContext::TexImage2D_imageData(WebGLenum target, WebGLint level, WebGLenum i
 
 NS_IMETHODIMP
 WebGLContext::TexImage2D_dom(WebGLenum target, WebGLint level, WebGLenum internalformat,
-                             WebGLenum format, GLenum type, Element* elt)
+                             WebGLenum format, GLenum type, nsIDOMElement *elt)
 {
     if (!IsContextStable())
         return NS_OK;
@@ -5272,7 +5272,7 @@ NS_IMETHODIMP
 WebGLContext::TexSubImage2D_dom(WebGLenum target, WebGLint level,
                                 WebGLint xoffset, WebGLint yoffset,
                                 WebGLenum format, WebGLenum type,
-                                Element *elt)
+                                nsIDOMElement *elt)
 {
     if (!IsContextStable())
         return NS_OK;

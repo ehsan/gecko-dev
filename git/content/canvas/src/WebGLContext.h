@@ -815,7 +815,7 @@ protected:
                       int dstFormat, bool dstPremultiplied,
                       size_t dstTexelSize);
 
-    nsresult DOMElementToImageSurface(dom::Element* imageOrCanvas,
+    nsresult DOMElementToImageSurface(nsIDOMElement *imageOrCanvas,
                                       gfxImageSurface **imageOut,
                                       int *format);
 

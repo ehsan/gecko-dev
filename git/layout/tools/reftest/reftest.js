@@ -397,7 +397,6 @@ function StartHTTPServer()
 
 function StartTests()
 {
-    var uri;
 #if BOOTSTRAP
     /* These prefs are optional, so we don't need to spit an error to the log */
     try {

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -15,8 +15,8 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
+ * Mozilla Corporation
+ * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -35,44 +35,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMEventTarget.idl"
+#include "domstubs.idl"
 
-interface nsIDOMEventListener;
-interface nsIDOMBlob;
-interface nsIDOMFileError;
-
-[scriptable, builtinclass, uuid(d158de26-904e-4731-b42c-8b3a4d172703)]
-interface nsIDOMFileReader : nsIDOMEventTarget
+[scriptable, uuid(4BDAFB64-15E2-49C1-A090-4315A7884A56)]
+interface nsIDOMFileError : nsISupports
 {
-  [implicit_jscontext]
-  void readAsArrayBuffer(in nsIDOMBlob filedata);
-  void readAsBinaryString(in nsIDOMBlob filedata);
-  void readAsText(in nsIDOMBlob filedata, [optional] in DOMString encoding);
-  void readAsDataURL(in nsIDOMBlob file);
+  const unsigned short NOT_FOUND_ERR = 1;
+  const unsigned short SECURITY_ERR = 2;
+  const unsigned short ABORT_ERR = 3;
+  const unsigned short NOT_READABLE_ERR = 4;
+  const unsigned short ENCODING_ERR = 5;
 
-  void abort();
-
-  const unsigned short EMPTY = 0;
-  const unsigned short LOADING = 1;
-  const unsigned short DONE = 2;
-  readonly attribute unsigned short readyState;
-
-  [implicit_jscontext]
-  readonly attribute jsval result;
-  readonly attribute nsIDOMFileError error;
-
-  attribute nsIDOMEventListener onloadstart;
-  attribute nsIDOMEventListener onprogress;
-  attribute nsIDOMEventListener onload;
-  attribute nsIDOMEventListener onabort;
-  attribute nsIDOMEventListener onerror;
-  attribute nsIDOMEventListener onloadend;
+  readonly attribute unsigned short code;
 };
-
-%{ C++
-#define NS_FILEREADER_CID                            \
-{0x06aa7c21, 0xfe05, 0x4cf2,                         \
-{0xb1, 0xc4, 0x0c, 0x71, 0x26, 0xa4, 0xf7, 0x13}}
-#define NS_FILEREADER_CONTRACTID \
-"@mozilla.org/files/filereader;1"
-%}

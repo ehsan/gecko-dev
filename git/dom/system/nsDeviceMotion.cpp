@@ -235,7 +235,7 @@ nsDeviceMotion::DeviceMotionChanged(PRUint32 type, double x, double y, double z)
   }
 
   nsCOMArray<nsIDOMWindow> windowListeners;
-  for (PRUint32 i = 0; i < mWindowListeners.Length(); i++) {
+  for (PRUint32 i = windowListeners.Count(); i > 0 ; ) {
     windowListeners.AppendObject(mWindowListeners[i]);
   }
 

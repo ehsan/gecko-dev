@@ -2853,16 +2853,15 @@ nsGenericElement::GetAttributeNS(const nsAString& aNamespaceURI,
     nsContentUtils::NameSpaceManager()->GetNameSpaceID(aNamespaceURI);
 
   if (nsid == kNameSpaceID_Unknown) {
-    // Unknown namespace means no attribute.
-    SetDOMStringToNull(aReturn);
+    // Unknown namespace means no attr...
+
+    aReturn.Truncate();
+
     return NS_OK;
   }
 
   nsCOMPtr<nsIAtom> name = do_GetAtom(aLocalName);
-  bool hasAttr = GetAttr(nsid, name, aReturn);
-  if (!hasAttr) {
-    SetDOMStringToNull(aReturn);
-  }
+  GetAttr(nsid, name, aReturn);
 
   return NS_OK;
 }
