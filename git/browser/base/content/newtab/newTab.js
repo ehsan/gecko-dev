@@ -45,6 +45,3 @@ const THUMB_HEIGHT = 127;
 #include dropTargetShim.js
 #include dropPreview.js
 #include updater.js
-
-// Everything is loaded. Initialize the New Tab Page.
-gPage.init("#toolbar", "#grid");
