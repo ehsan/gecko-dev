@@ -163,7 +163,7 @@ public:
   /**
    * Returns the number of direct references
    */
-  MozRefCountType DirectRefCount()
+  int DirectRefCount()
   {
     return directRefCnt;
   }
@@ -210,7 +210,7 @@ protected:
   virtual bool IsSystemElf() const { return false; }
 
 private:
-  MozRefCountType directRefCnt;
+  int directRefCnt;
   char *path;
 
   /* Mappable object keeping the result of GetMappable() */

@@ -976,8 +976,11 @@ public:
    * user events at the docshell's parent.  This pointer allows us to do that.
    * It should not be used for any other purpose.
    */
-  void SetForwardingContainer(const mozilla::WeakPtr<nsDocShell> &aContainer);
-
+  void SetForwardingContainer(const mozilla::WeakPtr<nsDocShell> &aContainer)
+  {
+    mForwardingContainer = aContainer;
+  }
+  
   /**
    * Render the document into an arbitrary gfxContext
    * Designed for getting a picture of a document or a piece of a document

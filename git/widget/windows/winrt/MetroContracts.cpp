@@ -61,7 +61,7 @@ FrameworkView::SearchActivated(ComPtr<ISearchActivatedEventArgs>& aArgs, bool aS
   unsigned int length;
   WinUtils::LogW(L"SearchActivated text=%s", data.GetRawBuffer(&length));
   if (aStartup) {
-    WindowsDuplicateString(data.Get(), &sActivationURI);
+    mActivationURI = data.GetRawBuffer(&length);
   } else {
     PerformURILoadOrSearch(data);
   }
@@ -81,7 +81,8 @@ FrameworkView::FileActivated(ComPtr<IFileActivatedEventArgs>& aArgs, bool aStart
   AssertHRESULT(item->get_Path(filePath.GetAddressOf()));
 
   if (aStartup) {
-    WindowsDuplicateString(filePath.Get(), &sActivationURI);
+    unsigned int length;
+    mActivationURI = filePath.GetRawBuffer(&length);
   } else {
     PerformURILoad(filePath);
   }
@@ -98,13 +99,13 @@ FrameworkView::LaunchActivated(ComPtr<ILaunchActivatedEventArgs>& aArgs, bool aS
     return;
 
   // If we're being launched from a secondary tile then we have a 2nd command line param of -url
-  // and a third of the secondary tile.  We want it in sActivationURI so that browser.js will
+  // and a third of the secondary tile.  We want it in mActivationURI so that browser.js will
   // load it in without showing the start UI.
   int argc;
   unsigned int length;
   LPWSTR* argv = CommandLineToArgvW(data.GetRawBuffer(&length), &argc);
   if (aStartup && argc == 2 && !wcsicmp(argv[0], L"-url")) {
-    WindowsCreateString(argv[1], wcslen(argv[1]), &sActivationURI);
+    mActivationURI = argv[1];
   } else {
     // Some other command line or this is not a startup.
     // If it is startup we process it later when XPCOM is initialilzed.
@@ -176,7 +177,8 @@ FrameworkView::ProcessActivationArgs(IActivatedEventArgs* aArgs, bool aStartup)
       return;
 
     if (aStartup) {
-      WindowsDuplicateString(data.Get(), &sActivationURI);
+      unsigned int length;
+      mActivationURI = data.GetRawBuffer(&length);
     } else {
       PerformURILoad(data);
     }

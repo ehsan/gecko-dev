@@ -326,7 +326,7 @@ CallJSDeletePropertyOp(JSContext *cx, JSDeletePropertyOp op, HandleObject receiv
 
 inline bool
 CallSetter(JSContext *cx, HandleObject obj, HandleId id, StrictPropertyOp op, unsigned attrs,
-           bool strict, MutableHandleValue vp)
+           unsigned shortid, bool strict, MutableHandleValue vp)
 {
     if (attrs & JSPROP_SETTER) {
         RootedValue opv(cx, CastAsObjectJsval(op));
@@ -336,7 +336,12 @@ CallSetter(JSContext *cx, HandleObject obj, HandleId id, StrictPropertyOp op, un
     if (attrs & JSPROP_GETTER)
         return js_ReportGetterOnlyAssignment(cx, strict);
 
-    return CallJSPropertyOpSetter(cx, op, obj, id, strict, vp);
+    if (!(attrs & JSPROP_SHORTID))
+        return CallJSPropertyOpSetter(cx, op, obj, id, strict, vp);
+
+    RootedId nid(cx, INT_TO_JSID(shortid));
+
+    return CallJSPropertyOpSetter(cx, op, obj, nid, strict, vp);
 }
 
 inline uintptr_t

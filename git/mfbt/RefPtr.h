@@ -12,7 +12,6 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/RefCountType.h"
 #include "mozilla/TypeTraits.h"
 
 namespace mozilla {
@@ -50,7 +49,7 @@ template<typename T> OutParamRef<T> byRef(RefPtr<T>&);
  */
 namespace detail {
 #ifdef DEBUG
-static const MozRefCountType DEAD = 0xffffdead;
+static const int DEAD = 0xffffdead;
 #endif
 
 // This is used WeakPtr.h as well as this file.
@@ -74,12 +73,12 @@ class RefCounted
   public:
     // Compatibility with nsRefPtr.
     void AddRef() const {
-      MOZ_ASSERT(int32_t(refCnt) >= 0);
+      MOZ_ASSERT(refCnt >= 0);
       ++refCnt;
     }
 
     void Release() const {
-      MOZ_ASSERT(int32_t(refCnt) > 0);
+      MOZ_ASSERT(refCnt > 0);
       if (0 == --refCnt) {
 #ifdef DEBUG
         refCnt = detail::DEAD;
@@ -91,14 +90,14 @@ class RefCounted
     // Compatibility with wtf::RefPtr.
     void ref() { AddRef(); }
     void deref() { Release(); }
-    MozRefCountType refCount() const { return refCnt; }
+    int refCount() const { return refCnt; }
     bool hasOneRef() const {
       MOZ_ASSERT(refCnt > 0);
       return refCnt == 1;
     }
 
   private:
-    mutable typename Conditional<Atomicity == AtomicRefCount, Atomic<MozRefCountType>, MozRefCountType>::Type refCnt;
+    mutable typename Conditional<Atomicity == AtomicRefCount, Atomic<int>, int>::Type refCnt;
 };
 
 #define MOZ_DECLARE_REFCOUNTED_TYPENAME(T) \

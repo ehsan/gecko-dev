@@ -411,9 +411,6 @@ private:
 
     nsresult Init();
 
-    void InitializeRootMetrics();
-    bool HasValidInnerSize();
-
     // Notify others that our TabContext has been updated.  (At the moment, this
     // sets the appropriate app-id and is-browser flags on our docshell.)
     //

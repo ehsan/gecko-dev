@@ -22,9 +22,7 @@ public class testHomeBanner extends UITest {
 
         // These test methods depend on being run in this order.
         addBannerTest();
-        // TODO: API doesn't actually support this but it used to work due to how the banner was
-        // part of TopSitesPanel's lifecycle
-        // removeBannerTest();
+        removeBannerTest();
 
         // Make sure to test dismissing the banner after everything else, since dismissing
         // the banner will prevent it from showing up again.
@@ -43,8 +41,7 @@ public class testHomeBanner extends UITest {
         // Load about:home again, and make sure the onshown handler is called.
         Actions.EventExpecter eventExpecter = getActions().expectGeckoEvent("TestHomeBanner:MessageShown");
         NavigationHelper.enterAndLoadUrl("about:home");
-        // TODO: Add shown event passing from Java: bug 974723
-        // eventExpecter.blockForEvent();
+        eventExpecter.blockForEvent();
 
         // Verify that the banner is visible with the correct text.
         mAboutHome.assertBannerText(TEXT);
@@ -57,7 +54,10 @@ public class testHomeBanner extends UITest {
         // Verify that the banner isn't visible after navigating away from about:home.
         NavigationHelper.enterAndLoadUrl("about:firefox");
 
-        mAboutHome.assertBannerNotVisible();
+        // AboutHomeComponent calls mSolo.getView, which will fail an assertion if the
+        // view is not present, so we need to use findViewById in this case.
+        final View banner = getActivity().findViewById(R.id.home_banner);
+        assertTrue("The HomeBanner is not visible", banner == null || banner.getVisibility() != View.VISIBLE);
     }
 
 

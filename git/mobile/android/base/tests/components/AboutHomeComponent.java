@@ -59,10 +59,6 @@ public class AboutHomeComponent extends BaseComponent {
         super(testContext);
     }
 
-    private View getHomePagerContainer() {
-        return mSolo.getView(R.id.home_pager_container);
-    }
-
     private ViewPager getHomePagerView() {
         return (ViewPager) mSolo.getView(R.id.home_pager);
     }
@@ -81,32 +77,26 @@ public class AboutHomeComponent extends BaseComponent {
     }
 
     public AboutHomeComponent assertNotVisible() {
-        assertTrue("The HomePager is not visible",
-                    getHomePagerContainer().getVisibility() != View.VISIBLE ||
-                    getHomePagerView().getVisibility() != View.VISIBLE);
-        return this;
-    }
-
-    public AboutHomeComponent assertVisible() {
-        assertTrue("The HomePager is visible",
-                    getHomePagerContainer().getVisibility() == View.VISIBLE &&
+        assertFalse("The HomePager is not visible",
                     getHomePagerView().getVisibility() == View.VISIBLE);
         return this;
     }
 
+    public AboutHomeComponent assertVisible() {
+        assertEquals("The HomePager is visible",
+                     View.VISIBLE, getHomePagerView().getVisibility());
+        return this;
+    }
+
     public AboutHomeComponent assertBannerNotVisible() {
-        View banner = getHomeBannerView();
-        assertTrue("The HomeBanner is not visible",
-                    getHomePagerContainer().getVisibility() != View.VISIBLE ||
-                    banner.getVisibility() != View.VISIBLE ||
-                    banner.getTranslationY() == banner.getHeight());
+        assertFalse("The HomeBanner is not visible",
+                    getHomeBannerView().getVisibility() == View.VISIBLE);
         return this;
     }
 
     public AboutHomeComponent assertBannerVisible() {
-        assertTrue("The HomeBanner is visible",
-                    getHomePagerContainer().getVisibility() == View.VISIBLE &&
-                    getHomeBannerView().getVisibility() == View.VISIBLE);
+        assertEquals("The HomeBanner is visible",
+                     View.VISIBLE, getHomeBannerView().getVisibility());
         return this;
     }
 

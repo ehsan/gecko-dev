@@ -42,6 +42,7 @@ namespace mozilla {
 namespace widget {
 namespace winrt {
 extern ComPtr<MetroApp> sMetroApp;
+extern ComPtr<FrameworkView> sFrameworkView;
 } } }
 
 namespace mozilla {
@@ -241,7 +242,7 @@ MetroAppShell::Run(void)
       }
 
       mozilla::widget::StartAudioSession();
-      sMetroApp->ActivateBaseView();
+      sFrameworkView->ActivateView();
       rv = nsBaseAppShell::Run();
       mozilla::widget::StopAudioSession();
 

@@ -29,7 +29,6 @@
 #include "jsutil.h"
 #include "jswrapper.h"
 
-#include "frontend/BytecodeCompiler.h"
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/SharedContext.h"
 #include "gc/Marking.h"
@@ -40,7 +39,6 @@
 #include "vm/Compression.h"
 #include "vm/Debugger.h"
 #include "vm/Opcodes.h"
-#include "vm/SelfHosting.h"
 #include "vm/Shape.h"
 #include "vm/Xdr.h"
 
@@ -145,7 +143,7 @@ Bindings::initWithTemporaryStorage(ExclusiveContext *cx, InternalBindingsHandle 
         unsigned attrs = JSPROP_PERMANENT |
                          JSPROP_ENUMERATE |
                          (bi->kind() == CONSTANT ? JSPROP_READONLY : 0);
-        StackShape child(base, NameToId(bi->name()), slot, attrs, 0);
+        StackShape child(base, NameToId(bi->name()), slot, attrs, 0, 0);
 
         shape = cx->compartment()->propertyTree.getChild(cx, shape, child);
         if (!shape)
@@ -2787,28 +2785,10 @@ js::CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, 
         }
     }
 
-    /*
-     * Wrap the script source object as needed. Self-hosted scripts may be
-     * in another runtime, so lazily create a new script source object to
-     * use for them.
-     */
-    RootedObject sourceObject(cx);
-    if (cx->runtime()->isSelfHostingCompartment(src->compartment())) {
-        if (!cx->compartment()->selfHostingScriptSource) {
-            CompileOptions options(cx);
-            FillSelfHostingCompileOptions(options);
-
-            ScriptSourceObject *obj = frontend::CreateScriptSourceObject(cx, options);
-            if (!obj)
-                return nullptr;
-            cx->compartment()->selfHostingScriptSource = obj;
-        }
-        sourceObject = cx->compartment()->selfHostingScriptSource;
-    } else {
-        sourceObject = src->sourceObject();
-        if (!cx->compartment()->wrap(cx, &sourceObject))
-            return nullptr;
-    }
+    /* Wrap the script source object as needed. */
+    RootedObject sourceObject(cx, src->sourceObject());
+    if (!cx->compartment()->wrap(cx, &sourceObject))
+        return nullptr;
 
     /* Now that all fallible allocation is complete, create the GC thing. */
 

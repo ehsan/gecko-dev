@@ -18,7 +18,6 @@ LOCAL_INCLUDES += [
     '../verify',
 ]
 
-DEFINES['MAR_NSS'] = True
 
 if CONFIG['OS_ARCH'] == 'WINNT':
     USE_STATIC_LIBS = True

@@ -15,6 +15,7 @@
 #include "GLReadTexImageHelper.h"
 
 #include "gfxCrashReporterUtils.h"
+#include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "GLContextProvider.h"
 #include "GLTextureImage.h"
@@ -27,11 +28,11 @@
 #include "GfxTexturesReporter.h"
 #include "TextureGarbageBin.h"
 #include "gfx2DGlue.h"
-#include "gfxPrefs.h"
 
 #include "OGLShaderProgram.h" // for ShaderProgramType
 
 #include "mozilla/DebugOnly.h"
+#include "mozilla/Preferences.h"
 
 #ifdef XP_MACOSX
 #include <CoreServices/CoreServices.h>
@@ -307,7 +308,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         return true;
     }
 
-    mWorkAroundDriverBugs = gfxPrefs::WorkAroundDriverBugs();
+    mWorkAroundDriverBugs = gfxPlatform::GetPlatform()->WorkAroundDriverBugs();
 
     SymLoadStruct symbols[] = {
         { (PRFuncPtr*) &mSymbols.fActiveTexture, { "ActiveTexture", "ActiveTextureARB", nullptr } },
@@ -1332,7 +1333,7 @@ GLContext::ChooseGLFormats(const SurfaceCaps& caps) const
         }
     }
 
-    uint32_t msaaLevel = gfxPrefs::MSAALevel();
+    uint32_t msaaLevel = Preferences::GetUint("gl.msaa-level", 2);
     GLsizei samples = msaaLevel * msaaLevel;
     samples = std::min(samples, mMaxSamples);
 
