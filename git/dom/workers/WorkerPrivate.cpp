@@ -2037,12 +2037,6 @@ public:
     {
       MutexAutoLock lock(mMutex);
 
-      if (!mWorkerPrivate ||
-          !mWorkerPrivate->BlockAndCollectRuntimeStats(&rtStats, aAnonymize)) {
-        // Returning NS_OK here will effectively report 0 memory.
-        return NS_OK;
-      }
-
       path.AppendLiteral("explicit/workers/workers(");
       if (aAnonymize && !mWorkerPrivate->Domain().IsEmpty()) {
         path.AppendLiteral("<anonymized-domain>)/worker(<anonymized-url>");
@@ -2062,6 +2056,12 @@ public:
       path.AppendPrintf(", 0x%p)/", static_cast<void*>(mWorkerPrivate));
 
       TryToMapAddon(path);
+
+      if (!mWorkerPrivate ||
+          !mWorkerPrivate->BlockAndCollectRuntimeStats(&rtStats, aAnonymize)) {
+        // Returning NS_OK here will effectively report 0 memory.
+        return NS_OK;
+      }
     }
 
     return xpc::ReportJSRuntimeExplicitTreeStats(rtStats, path,

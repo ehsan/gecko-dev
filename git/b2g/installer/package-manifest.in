@@ -604,7 +604,6 @@
 
 @BINPATH@/components/Payment.js
 @BINPATH@/components/PaymentFlowInfo.js
-@BINPATH@/components/PaymentProvider.js
 @BINPATH@/components/Payment.manifest
 
 @BINPATH@/components/DownloadsAPI.js
@@ -855,7 +854,6 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/components/ProcessGlobal.js
 @BINPATH@/components/OMAContentHandler.js
 @BINPATH@/components/PaymentGlue.js
-@BINPATH@/components/PaymentProviderStrategy.js
 @BINPATH@/components/RecoveryService.js
 @BINPATH@/components/MailtoProtocolHandler.js
 @BINPATH@/components/SmsProtocolHandler.js

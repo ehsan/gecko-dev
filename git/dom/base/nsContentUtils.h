@@ -155,9 +155,7 @@ enum EventNameType {
 
 struct EventNameMapping
 {
-  // This holds pointers to nsGkAtoms members, and is therefore safe as a
-  // non-owning reference.
-  nsIAtom* MOZ_OWNING_REF mAtom;
+  nsIAtom* mAtom;
   uint32_t mId;
   int32_t  mType;
   mozilla::EventClassID mEventClassID;
@@ -362,6 +360,11 @@ public:
    * Is the HTML local name a block element?
    */
   static bool IsHTMLBlock(nsIAtom* aLocalName);
+
+  /**
+   * Is the HTML local name a void element?
+   */
+  static bool IsHTMLVoid(nsIAtom* aLocalName);
 
   enum ParseHTMLIntegerResultFlags {
     eParseHTMLInteger_NoFlags               = 0,
