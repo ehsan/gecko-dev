@@ -365,34 +365,22 @@ class ZonesIter {
 
 struct CompartmentsInZoneIter
 {
-    // This is for the benefit of CompartmentsIterT::comp.
-    friend class mozilla::Maybe<CompartmentsInZoneIter>;
   private:
     JSCompartment **it, **end;
 
-    CompartmentsInZoneIter()
-      : it(nullptr), end(nullptr)
-    {}
-
   public:
-    explicit CompartmentsInZoneIter(JS::Zone *zone) {
+    CompartmentsInZoneIter(JS::Zone *zone) {
         it = zone->compartments.begin();
         end = zone->compartments.end();
     }
 
-    bool done() const {
-        JS_ASSERT(it);
-        return it == end;
-    }
+    bool done() const { return it == end; }
     void next() {
         JS_ASSERT(!done());
         it++;
     }
 
-    JSCompartment *get() const {
-        JS_ASSERT(it);
-        return *it;
-    }
+    JSCompartment *get() const { return *it; }
 
     operator JSCompartment *() const { return get(); }
     JSCompartment *operator->() const { return get(); }
@@ -410,21 +398,17 @@ class CompartmentsIterT
     mozilla::Maybe<CompartmentsInZoneIter> comp;
 
   public:
-    explicit CompartmentsIterT(JSRuntime *rt)
+    CompartmentsIterT(JSRuntime *rt)
       : zone(rt)
     {
-        if (zone.done())
-            comp.construct();
-        else
+        if (!zone.done())
             comp.construct(zone);
     }
 
     CompartmentsIterT(JSRuntime *rt, ZoneSelector selector)
       : zone(rt, selector)
     {
-        if (zone.done())
-            comp.construct();
-        else
+        if (!zone.done())
             comp.construct(zone);
     }
 

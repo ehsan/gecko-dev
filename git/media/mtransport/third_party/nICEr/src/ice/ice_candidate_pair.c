@@ -576,16 +576,18 @@ static void nr_ice_candidate_pair_restart_stun_controlled_cb(NR_SOCKET s, int ho
 static void nr_ice_candidate_pair_compute_codeword(nr_ice_cand_pair *pair,
   nr_ice_candidate *lcand, nr_ice_candidate *rcand)
   {
-    char as_string[2048];
+    int r,_status;
+    char *as_string=0;
 
-    snprintf(as_string,
-             sizeof(as_string),
-             "%s|%s(%s|%s)",
-             lcand->addr.as_string,
-             rcand->addr.as_string,
-             lcand->label,
-             rcand->label);
+    if(r=nr_concat_strings(&as_string,lcand->addr.as_string,"|",
+      rcand->addr.as_string,"(",lcand->label,"|",rcand->label,")",NULL))
+      ABORT(r);
 
     nr_ice_compute_codeword(as_string,strlen(as_string),pair->codeword);
+
+    _status=0;
+      abort:
+    RFREE(as_string);
+return;
   }
 

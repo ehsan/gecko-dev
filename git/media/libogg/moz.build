@@ -14,7 +14,7 @@ EXPORTS.ogg += [
 
 LIBRARY_NAME = 'ogg'
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'src/ogg_bitwise.c',
     'src/ogg_framing.c',
 ]

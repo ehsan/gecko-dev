@@ -6,7 +6,7 @@
 
 MODULE = 'nestegg'
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'halloc.c',
     'nestegg.c',
 ]

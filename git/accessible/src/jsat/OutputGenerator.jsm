@@ -441,7 +441,6 @@ this.UtteranceGenerator = {
     check: 'checkAction',
     uncheck: 'uncheckAction',
     select: 'selectAction',
-    unselect: 'unselectAction',
     open: 'openAction',
     close: 'closeAction',
     switch: 'switchAction',

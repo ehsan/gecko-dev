@@ -44,12 +44,12 @@ class BitSet : private TempObject
         return RawLengthForBits(max_);
     }
 
-    bool init(TempAllocator &alloc);
+    bool init();
 
   public:
     class Iterator;
 
-    static BitSet *New(TempAllocator &alloc, unsigned int max);
+    static BitSet *New(unsigned int max);
 
     unsigned int getMax() const {
         return max_;
