@@ -526,7 +526,7 @@ jsd_GetValueProperty(JSDContext* jsdc, JSDValue* jsdval, JSString* nameStr)
         {
             if (JS_IsExceptionPending(cx))
             {
-                if (!JS_GetPendingException(cx, &propValue))
+                if (!JS_GetPendingException(cx, propValue.address()))
                 {
                     return NULL;
                 }

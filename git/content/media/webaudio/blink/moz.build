@@ -17,7 +17,6 @@ CPP_SOURCES += [
     'HRTFElevation.cpp',
     'HRTFKernel.cpp',
     'HRTFPanner.cpp',
-    'PeriodicWave.cpp',
     'Reverb.cpp',
     'ReverbAccumulationBuffer.cpp',
     'ReverbConvolver.cpp',

@@ -71,8 +71,7 @@ ThrowExceptionObject(JSContext* aCx, nsIException* aException)
     return false;
   }
 
-  JS::RootedValue exn(aCx, JS::ObjectOrNullValue(obj));
-  JS_SetPendingException(aCx, exn);
+  JS_SetPendingException(aCx, OBJECT_TO_JSVAL(obj));
 
   return true;
 }

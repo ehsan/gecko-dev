@@ -4,7 +4,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-TEST_TOOL_DIRS += [
+DIRS += [
     'external',
     'component',
     'bug656331_component',
@@ -12,10 +12,10 @@ TEST_TOOL_DIRS += [
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
-    TEST_TOOL_DIRS += ['windows']
+    DIRS += ['windows']
 
 if CONFIG['DEHYDRA_PATH']:
-    TEST_TOOL_DIRS += ['static-checker']
+    DIRS += ['static-checker']
 
 EXPORTS.testing += [
     'TestHarness.h',

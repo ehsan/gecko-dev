@@ -536,17 +536,17 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         // for now, assume that it'll be nearby?
         as_bl(label, Always);
     }
-    void call(ImmWord imm) {
-        call(ImmPtr((void*)imm.value));
+    void call(ImmWord word) {
+        BufferOffset bo = m_buffer.nextOffset();
+        addPendingJump(bo, (void*)word.value, Relocation::HARDCODED);
+        ma_call((void *) word.value);
     }
     void call(ImmPtr imm) {
-        BufferOffset bo = m_buffer.nextOffset();
-        addPendingJump(bo, imm, Relocation::HARDCODED);
-        ma_call(imm.value);
+        call(ImmWord(uintptr_t(imm.value)));
     }
     void call(IonCode *c) {
         BufferOffset bo = m_buffer.nextOffset();
-        addPendingJump(bo, ImmPtr(c->raw()), Relocation::IONCODE);
+        addPendingJump(bo, c->raw(), Relocation::IONCODE);
         RelocStyle rs;
         if (hasMOVWT())
             rs = L_MOVWT;
@@ -558,7 +558,7 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     }
     void branch(IonCode *c) {
         BufferOffset bo = m_buffer.nextOffset();
-        addPendingJump(bo, ImmPtr(c->raw()), Relocation::IONCODE);
+        addPendingJump(bo, c->raw(), Relocation::IONCODE);
         RelocStyle rs;
         if (hasMOVWT())
             rs = L_MOVWT;

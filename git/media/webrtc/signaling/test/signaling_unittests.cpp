@@ -2872,21 +2872,23 @@ TEST_F(SignalingTest, AudioCallGarbageSetup)
   ASSERT_GE(a2_.GetPacketsReceived(0), 40);
 }
 
-// In this test we will change the offer SDP to remove the
-// a=setup line.  Answer should respond with a=setup:active.
-TEST_F(SignalingTest, AudioCallOfferNoSetupOrConnection)
+// In this test we will change the offer SDP's a=connection value
+// from new to garbage.  It should ignore the garbage value
+// and respond with connection:new
+TEST_F(SignalingTest, AudioCallGarbageConnection)
 {
   sipcc::MediaConstraints constraints;
   size_t match;
 
   a1_.CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
 
-  // By default the offer should give setup:actpass
+  // By default the offer should give connection:new
   std::string offer(a1_.offer());
-  match = offer.find("\r\na=setup:actpass");
+  match = offer.find("\r\na=connection:new");
   ASSERT_NE(match, std::string::npos);
-  // Remove the a=setup line
-  offer.replace(match, strlen("\r\na=setup:actpass"), "");
+  // Now replace the 'new' with a garbage value
+  offer.replace(match, strlen("\r\na=connection:new"),
+    "\r\na=connection:G4rb4g3V4lu3");
   std::cout << "Modified SDP " << std::endl
             << indent(offer) << std::endl;
 
@@ -2894,9 +2896,62 @@ TEST_F(SignalingTest, AudioCallOfferNoSetupOrConnection)
   a2_.SetRemote(TestObserver::OFFER, offer.c_str(), false);
   a2_.CreateAnswer(constraints, offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
 
-  // Now the answer should contain a=setup:active
+  // Now the answer should contain a=connection:new
+  std::string answer(a2_.answer());
+  match = answer.find("\r\na=connection:new");
+  ASSERT_NE(match, std::string::npos);
+
+  // This should setup the DTLS with the same roles
+  // as the regular tests above.
+  a2_.SetLocal(TestObserver::ANSWER, a2_.answer(), false);
+  a1_.SetRemote(TestObserver::ANSWER, a2_.answer(), false);
+
+  ASSERT_TRUE_WAIT(a1_.IceCompleted() == true, kDefaultTimeout);
+  ASSERT_TRUE_WAIT(a2_.IceCompleted() == true, kDefaultTimeout);
+
+  // Wait for some data to get written
+  ASSERT_TRUE_WAIT(a1_.GetPacketsSent(0) >= 40 &&
+                   a2_.GetPacketsReceived(0) >= 40, kDefaultTimeout * 2);
+
+  a1_.CloseSendStreams();
+  a2_.CloseReceiveStreams();
+
+  ASSERT_GE(a1_.GetPacketsSent(0), 40);
+  ASSERT_GE(a2_.GetPacketsReceived(0), 40);
+}
+
+// In this test we will change the offer SDP to remove the
+// a=setup and a=connection lines.  Answer should respond with
+// a=setup:active and a=connection:new
+TEST_F(SignalingTest, AudioCallOfferNoSetupOrConnection)
+{
+  sipcc::MediaConstraints constraints;
+  size_t match;
+
+  a1_.CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
+
+  // By default the offer should give setup:actpass and connection:new
+  std::string offer(a1_.offer());
+  match = offer.find("\r\na=setup:actpass");
+  ASSERT_NE(match, std::string::npos);
+  // Remove the a=setup line
+  offer.replace(match, strlen("\r\na=setup:actpass"), "");
+  match = offer.find("\r\na=connection:new");
+  ASSERT_NE(match, std::string::npos);
+  // Remove the a=connection line
+  offer.replace(match, strlen("\r\na=connection:new"), "");
+  std::cout << "Modified SDP " << std::endl
+            << indent(offer) << std::endl;
+
+  a1_.SetLocal(TestObserver::OFFER, offer.c_str(), false);
+  a2_.SetRemote(TestObserver::OFFER, offer.c_str(), false);
+  a2_.CreateAnswer(constraints, offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
+
+  // Now the answer should contain a=setup:active and a=connection:new
   std::string answer(a2_.answer());
   match = answer.find("\r\na=setup:active");
+  ASSERT_NE(match, std::string::npos);
+  match = answer.find("\r\na=connection:new");
   ASSERT_NE(match, std::string::npos);
 
   // This should setup the DTLS with the same roles
@@ -2919,8 +2974,8 @@ TEST_F(SignalingTest, AudioCallOfferNoSetupOrConnection)
 }
 
 // In this test we will change the answer SDP to remove the
-// a=setup line.  ICE should still connect since active will
-// be assumed.
+// a=setup and a=connection lines.  ICE should still connect
+// since active will be assumed.
 TEST_F(SignalingTest, AudioCallAnswerNoSetupOrConnection)
 {
   sipcc::MediaConstraints constraints;
@@ -2928,28 +2983,34 @@ TEST_F(SignalingTest, AudioCallAnswerNoSetupOrConnection)
 
   a1_.CreateOffer(constraints, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
 
-  // By default the offer should give setup:actpass
+  // By default the offer should give setup:actpass and connection:new
   std::string offer(a1_.offer());
   match = offer.find("\r\na=setup:actpass");
+  ASSERT_NE(match, std::string::npos);
+  match = offer.find("\r\na=connection:new");
   ASSERT_NE(match, std::string::npos);
 
   a1_.SetLocal(TestObserver::OFFER, offer.c_str(), false);
   a2_.SetRemote(TestObserver::OFFER, offer.c_str(), false);
   a2_.CreateAnswer(constraints, offer.c_str(), OFFER_AUDIO | ANSWER_AUDIO);
 
-  // Now the answer should contain a=setup:active
+  // Now the answer should contain a=setup:active and a=connection:new
   std::string answer(a2_.answer());
   match = answer.find("\r\na=setup:active");
   ASSERT_NE(match, std::string::npos);
   // Remove the a=setup line
   answer.replace(match, strlen("\r\na=setup:active"), "");
+  match = answer.find("\r\na=connection:new");
+  ASSERT_NE(match, std::string::npos);
+  // Remove the a=connection line
+  answer.replace(match, strlen("\r\na=connection:new"), "");
   std::cout << "Modified SDP " << std::endl
             << indent(answer) << std::endl;
 
   // This should setup the DTLS with the same roles
   // as the regular tests above.
-  a2_.SetLocal(TestObserver::ANSWER, answer, false);
-  a1_.SetRemote(TestObserver::ANSWER, answer, false);
+  a2_.SetLocal(TestObserver::ANSWER, a2_.answer(), false);
+  a1_.SetRemote(TestObserver::ANSWER, a2_.answer(), false);
 
   ASSERT_TRUE_WAIT(a1_.IceCompleted() == true, kDefaultTimeout);
   ASSERT_TRUE_WAIT(a2_.IceCompleted() == true, kDefaultTimeout);

@@ -129,9 +129,6 @@ void
 StickyScrollContainer::ComputeStickyLimits(nsIFrame* aFrame, nsRect* aStick,
                                            nsRect* aContain) const
 {
-  NS_ASSERTION(!aFrame->GetPrevContinuation(),
-               "Can't sticky position individual continuations");
-
   aStick->SetRect(nscoord_MIN/2, nscoord_MIN/2, nscoord_MAX, nscoord_MAX);
   aContain->SetRect(nscoord_MIN/2, nscoord_MIN/2, nscoord_MAX, nscoord_MAX);
 
@@ -149,16 +146,17 @@ StickyScrollContainer::ComputeStickyLimits(nsIFrame* aFrame, nsRect* aStick,
     nsLayoutUtils::IsProperAncestorFrame(scrolledFrame, cbFrame),
     "Scroll frame should be an ancestor of the containing block");
 
-  nsRect rect =
-    nsLayoutUtils::GetAllInFlowRectsUnion(aFrame, aFrame->GetParent());
+  nsRect rect = aFrame->GetRect();
+  nsMargin margin = aFrame->GetUsedMargin();
 
   // Containing block limits
   if (cbFrame != scrolledFrame) {
-    *aContain = nsLayoutUtils::GetAllInFlowRectsUnion(cbFrame, cbFrame);
-    aContain->MoveBy(-aFrame->GetParent()->GetOffsetTo(cbFrame));
-    aContain->Deflate(cbFrame->GetUsedBorderAndPadding());
-    aContain->Deflate(aFrame->GetUsedMargin());
-    aContain->Deflate(nsMargin(0, rect.width, rect.height, 0));
+    nsMargin cbBorderPadding = cbFrame->GetUsedBorderAndPadding();
+    aContain->SetRect(nsPoint(cbBorderPadding.left, cbBorderPadding.top) -
+                      aFrame->GetParent()->GetOffsetTo(cbFrame),
+                      cbFrame->GetContentRectRelativeToSelf().Size() -
+                      rect.Size());
+    aContain->Deflate(margin);
   }
 
   nsMargin sfPadding = scrolledFrame->GetUsedPadding();
@@ -199,10 +197,6 @@ StickyScrollContainer::ComputeStickyLimits(nsIFrame* aFrame, nsRect* aStick,
     aStick->SetRightEdge(mScrollPosition.x + sfPadding.left + sfSize.width -
                          computedOffsets->right - rect.width - sfOffset.x);
   }
-
-  // These limits are for the bounding box of aFrame's continuations. Convert
-  // to limits for aFrame itself.
-  aStick->MoveBy(aFrame->GetPosition() - rect.TopLeft());
 }
 
 nsPoint
@@ -262,22 +256,6 @@ StickyScrollContainer::GetScrollRanges(nsIFrame* aFrame, nsRect* aOuter,
 }
 
 void
-StickyScrollContainer::PositionContinuations(nsIFrame* aFrame)
-{
-  NS_ASSERTION(!aFrame->GetPrevContinuation(),
-               "Should be starting from the first continuation");
-  nsPoint newPosition = ComputePosition(aFrame);
-  nsPoint translation = newPosition - aFrame->GetPosition();
-  aFrame->SetPosition(newPosition);
-
-  // Move all continuation frames by the same amount.
-  for (nsIFrame* cont = aFrame->GetNextContinuation(); cont;
-       cont = cont->GetNextContinuation()) {
-    cont->SetPosition(cont->GetPosition() + translation);
-  }
-}
-
-void
 StickyScrollContainer::UpdatePositions(nsPoint aScrollPosition,
                                        nsIFrame* aSubtreeRoot)
 {
@@ -294,18 +272,12 @@ StickyScrollContainer::UpdatePositions(nsPoint aScrollPosition,
   oct.SetSubtreeRoot(aSubtreeRoot);
   for (nsTArray<nsIFrame*>::size_type i = 0; i < mFrames.Length(); i++) {
     nsIFrame* f = mFrames[i];
-
     if (aSubtreeRoot) {
       // Reflowing the scroll frame, so recompute offsets.
       ComputeStickyOffsets(f);
     }
-    // mFrames will only contain first continuations, because we filter in
-    // nsIFrame::Init.
-    PositionContinuations(f);
-
-    for (nsIFrame* cont = f; cont; cont = cont->GetNextContinuation()) {
-      oct.AddFrame(cont);
-    }
+    f->SetPosition(ComputePosition(f));
+    oct.AddFrame(f);
   }
   oct.Flush();
 }
