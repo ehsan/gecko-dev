@@ -244,6 +244,7 @@ pref("lightweightThemes.update.enabled", true);
 
 // UI tour experience.
 pref("browser.uitour.enabled", true);
+pref("browser.uitour.requireSecure", true);
 pref("browser.uitour.themeOrigin", "https://addons.mozilla.org/%LOCALE%/firefox/themes/");
 pref("browser.uitour.pinnedTabUrl", "https://support.mozilla.org/%LOCALE%/kb/pinned-tabs-keep-favorite-websites-open");
 pref("browser.uitour.whitelist.add.260", "www.mozilla.org,support.mozilla.org");
@@ -574,11 +575,7 @@ pref("browser.gesture.twist.left", "cmd_gestureRotateLeft");
 pref("browser.gesture.twist.end", "cmd_gestureRotateEnd");
 pref("browser.gesture.tap", "cmd_fullZoomReset");
 
-#ifndef RELEASE_BUILD
-pref("browser.snapshots.limit", 5);
-#else
 pref("browser.snapshots.limit", 0);
-#endif
 
 // 0: Nothing happens
 // 1: Scrolling contents

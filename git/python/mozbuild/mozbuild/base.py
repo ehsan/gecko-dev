@@ -404,7 +404,7 @@ class MozbuildObject(ProcessExecutionMixin):
         args = self._make_path(force_pymake=force_pymake)
 
         if directory:
-            args.extend(['-C', directory.replace(os.sep, '/')])
+            args.extend(['-C', directory])
 
         if filename:
             args.extend(['-f', filename])

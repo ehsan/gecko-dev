@@ -80,7 +80,7 @@ public:
     {
     public:
         ImageInfo()
-            : mInternalFormat(0)
+            : mFormat(0)
             , mType(0)
             , mImageDataStatus(WebGLImageDataStatus::NoImageData)
         {}
@@ -88,7 +88,7 @@ public:
         ImageInfo(GLsizei width, GLsizei height,
                   GLenum format, GLenum type, WebGLImageDataStatus status)
             : WebGLRectangleObject(width, height)
-            , mInternalFormat(format)
+            , mFormat(format)
             , mType(type)
             , mImageDataStatus(status)
         {
@@ -100,7 +100,7 @@ public:
             return mImageDataStatus == a.mImageDataStatus &&
                    mWidth  == a.mWidth &&
                    mHeight == a.mHeight &&
-                   mInternalFormat == a.mInternalFormat &&
+                   mFormat == a.mFormat &&
                    mType   == a.mType;
         }
         bool operator!=(const ImageInfo& a) const {
@@ -120,10 +120,10 @@ public:
             return mImageDataStatus == WebGLImageDataStatus::UninitializedImageData;
         }
         int64_t MemoryUsage() const;
-        GLenum InternalFormat() const { return mInternalFormat; }
+        GLenum Format() const { return mFormat; }
         GLenum Type() const { return mType; }
     protected:
-        GLenum mInternalFormat, mType;
+        GLenum mFormat, mType;
         WebGLImageDataStatus mImageDataStatus;
 
         friend class WebGLTexture;

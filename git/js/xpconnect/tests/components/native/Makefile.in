@@ -6,11 +6,7 @@
 MODULE_NAME = xpconnect_test
 FORCE_SHARED_LIB = 1
 
-componentdir = js/xpconnect/tests/components/native
-
-MANIFEST = xpctest.manifest
-MANIFEST_PATH = $(testxpcobjdir)/$(componentdir)
-PP_TARGETS += MANIFEST
+MANIFEST_FILE = xpctest.manifest
 
 EXTRA_DSO_LDOPTS += \
   $(XPCOM_GLUE_LDOPTS) \
@@ -18,8 +14,15 @@ EXTRA_DSO_LDOPTS += \
   $(MOZ_JS_LIBS) \
   $(NULL)
 
+include $(topsrcdir)/config/rules.mk
+
+
 DEFINES += -DLIBRARY_FILENAME="$(SHARED_LIBRARY)"
 
-LIB_FILES = $(SHARED_LIBRARY)
-LIB_DEST = $(testxpcobjdir)/$(componentdir)
-INSTALL_TARGETS += LIB
+componentdir = js/xpconnect/tests/components/native
+
+libs:: $(SHARED_LIBRARY)
+	$(INSTALL) $^ $(testxpcobjdir)/$(componentdir)
+
+libs:: $(MANIFEST_FILE)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $< > $(testxpcobjdir)/$(componentdir)/$(<F)

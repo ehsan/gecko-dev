@@ -777,7 +777,11 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
                    "Unexpected parent");
 #endif // DEBUG
 
-      id = nsIFrame::kPopupList;
+      // XXX FIXME: Bug 350740
+      // Return here, because the postcondition for this function actually
+      // fails for this case, since the popups are not in a "real" frame list
+      // in the popup set.
+      return nsIFrame::kPopupList;
 #endif // MOZ_XUL
     } else {
       NS_ASSERTION(aChildFrame->IsFloating(), "not a floated frame");
@@ -788,24 +792,17 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
     nsIAtom* childType = aChildFrame->GetType();
     if (nsGkAtoms::menuPopupFrame == childType) {
       nsIFrame* parent = aChildFrame->GetParent();
-      MOZ_ASSERT(parent, "nsMenuPopupFrame can't be the root frame");
-      if (parent) {
-        if (parent->GetType() == nsGkAtoms::popupSetFrame) {
-          id = nsIFrame::kPopupList;
-        } else {
-          nsIFrame* firstPopup = parent->GetFirstChild(nsIFrame::kPopupList);
-          MOZ_ASSERT(!firstPopup || !firstPopup->GetNextSibling(),
-                     "We assume popupList only has one child, but it has more.");
-          id = firstPopup == aChildFrame
-                 ? nsIFrame::kPopupList
-                 : nsIFrame::kPrincipalList;
-        }
-      } else {
-        id = nsIFrame::kPrincipalList;
-      }
+      nsIFrame* firstPopup = (parent)
+                             ? parent->GetFirstChild(nsIFrame::kPopupList)
+                             : nullptr;
+      NS_ASSERTION(!firstPopup || !firstPopup->GetNextSibling(),
+                   "We assume popupList only has one child, but it has more.");
+      id = firstPopup == aChildFrame
+             ? nsIFrame::kPopupList
+             : nsIFrame::kPrincipalList;
     } else if (nsGkAtoms::tableColGroupFrame == childType) {
       id = nsIFrame::kColGroupList;
-    } else if (nsGkAtoms::tableCaptionFrame == childType) {
+    } else if (nsGkAtoms::tableCaptionFrame == aChildFrame->GetType()) {
       id = nsIFrame::kCaptionList;
     } else {
       id = nsIFrame::kPrincipalList;

@@ -503,11 +503,13 @@ private:
   void AudioLoop();
 
   // Sets internal state which causes playback of media to pause.
-  // The decoder monitor must be held.
+  // The decoder monitor must be held. Called on the state machine,
+  // and decode threads.
   void StopPlayback();
 
   // Sets internal state which causes playback of media to begin or resume.
-  // Must be called with the decode monitor held.
+  // Must be called with the decode monitor held. Called on the state machine
+  // and decode threads.
   void StartPlayback();
 
   // Moves the decoder into decoding state. Called on the state machine

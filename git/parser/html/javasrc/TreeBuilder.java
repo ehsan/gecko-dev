@@ -834,17 +834,9 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                             if (!"http://www.w3.org/TR/html4/strict.dtd".equals(systemIdentifier)) {
                                 warn("The doctype did not contain the system identifier prescribed by the HTML 4.01 specification. Expected \u201C<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">\u201D.");
                             }
-                        } else if ("-//W3C//DTD XHTML 1.0 Strict//EN".equals(publicIdentifier)) {
-                            if (!"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd".equals(systemIdentifier)) {
-                                warn("The doctype did not contain the system identifier prescribed by the XHTML 1.0 specification. Expected \u201C<!DOCTYPE HTML PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\u201D.");
-                            }
-                        } else if ("//W3C//DTD XHTML 1.1//EN".equals(publicIdentifier)) {
-                            if (!"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd".equals(systemIdentifier)) {
-                                warn("The doctype did not contain the system identifier prescribed by the XHTML 1.1 specification. Expected \u201C<!DOCTYPE HTML PUBLIC \"//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">\u201D.");
-                            }
                         } else if (!((systemIdentifier == null || Portability.literalEqualsString(
                                 "about:legacy-compat", systemIdentifier)) && publicIdentifier == null)) {
-                            err("Unexpected doctype. Expected, e.g., \u201C<!DOCTYPE html>\u201D.");
+                            err("Legacy doctype. Expected e.g. \u201C<!DOCTYPE html>\u201D.");
                         }
                         documentModeInternal(DocumentMode.STANDARDS_MODE,
                                 publicIdentifier, systemIdentifier, html4);
@@ -2909,15 +2901,16 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                             mode = IN_FRAMESET;
                             attributes = null; // CPP
                             break starttagloop;
-                        case TEMPLATE:
+                        case BASE:
                             errFooBetweenHeadAndBody(name);
                             pushHeadPointerOntoStack();
-                            StackNode<T> headOnStack = stack[currentPtr];
-                            startTagTemplateInHead(elementName, attributes);
-                            removeFromStack(headOnStack);
+                            appendVoidElementToCurrentMayFoster(
+                                    elementName,
+                                    attributes);
+                            selfClosing = false;
+                            pop(); // head
                             attributes = null; // CPP
                             break starttagloop;
-                        case BASE:
                         case LINK_OR_BASEFONT_OR_BGSOUND:
                             errFooBetweenHeadAndBody(name);
                             pushHeadPointerOntoStack();
@@ -3998,9 +3991,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                     }
                 case AFTER_HEAD:
                     switch (group) {
-                        case TEMPLATE:
-                            endTagTemplateInHead();
-                            break endtagloop;
                         case HTML:
                         case BODY:
                         case BR:
@@ -4327,11 +4317,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             ns = node.ns;
             if (i == 0) {
                 if (!(contextNamespace == "http://www.w3.org/1999/xhtml" && (contextName == "td" || contextName == "th"))) {
-                    if (fragment) {
-                        // Make sure we are parsing a fragment otherwise the context element doesn't make sense.
-                        name = contextName;
-                        ns = contextNamespace;
-                    }
+                    name = contextName;
+                    ns = contextNamespace;
                 } else {
                     mode = framesetOk ? FRAMESET_OK : IN_BODY; // XXX from Hixie's email
                     return;
@@ -4366,6 +4353,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                 mode = IN_CAPTION;
                 return;
             } else if ("colgroup" == name) {
+                // TODO: Fragment case. Add error reporting.
                 mode = IN_COLUMN_GROUP;
                 return;
             } else if ("table" == name) {
@@ -4380,6 +4368,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                 return;
             }  else if ("head" == name) {
                 if (name == contextName) {
+                    // TODO: Fragment case. Add error reporting.
                     mode = framesetOk ? FRAMESET_OK : IN_BODY; // really
                 } else {
                     mode = IN_HEAD;
