@@ -6,6 +6,8 @@
 #ifndef nsComposeTxtSrvFilter_h__
 #define nsComposeTxtSrvFilter_h__
 
+#include "nsCOMPtr.h"                   // for nsCOMPtr
+#include "nsIAtom.h"                    // for nsIAtom
 #include "nsISupportsImpl.h"            // for NS_DECL_ISUPPORTS
 #include "nsITextServicesFilter.h"
 
@@ -16,10 +18,11 @@
  * This filter is used to skip over various form control nodes and
  * mail's cite nodes
  */
-class nsComposeTxtSrvFilter MOZ_FINAL : public nsITextServicesFilter
+class nsComposeTxtSrvFilter : public nsITextServicesFilter
 {
 public:
   nsComposeTxtSrvFilter();
+  virtual ~nsComposeTxtSrvFilter() {}
 
   // nsISupports interface...
   NS_DECL_ISUPPORTS
@@ -30,8 +33,21 @@ public:
   // Helper - Intializer
   void Init(bool aIsForMail) { mIsForMail = aIsForMail; }
 
-private:
+protected:
   bool              mIsForMail;
+  nsCOMPtr<nsIAtom> mBlockQuoteAtom;
+  nsCOMPtr<nsIAtom> mSpanAtom;         // mail plain text quotes are wrapped in span tags
+  nsCOMPtr<nsIAtom> mMozQuoteAtom;     // _moz_quote_
+  nsCOMPtr<nsIAtom> mTableAtom;
+  nsCOMPtr<nsIAtom> mClassAtom;
+  nsCOMPtr<nsIAtom> mTypeAtom;
+  nsCOMPtr<nsIAtom> mScriptAtom;
+  nsCOMPtr<nsIAtom> mTextAreaAtom;
+  nsCOMPtr<nsIAtom> mSelectAreaAtom;
+  nsCOMPtr<nsIAtom> mMapAtom;
+  nsCOMPtr<nsIAtom> mCiteAtom;
+  nsCOMPtr<nsIAtom> mTrueAtom;
+  nsCOMPtr<nsIAtom> mMozSignatureAtom;
 };
 
 #define NS_COMPOSERTXTSRVFILTER_CID \

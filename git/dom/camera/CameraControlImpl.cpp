@@ -275,40 +275,19 @@ CameraControlImpl::OnShutter()
   }
 }
 
-class OnClosedTask : public nsRunnable
+void
+CameraControlImpl::OnClosedInternal()
 {
-public:
-  OnClosedTask(nsMainThreadPtrHandle<nsICameraClosedCallback> onClosed, uint64_t aWindowId)
-    : mOnClosedCb(onClosed)
-    , mWindowId(aWindowId)
-  {
-    DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
+  DOM_CAMERA_LOGI("Camera hardware was closed\n");
+  if (mOnClosedCb.get()) {
+    mOnClosedCb->HandleEvent();
   }
-
-  virtual ~OnClosedTask()
-  {
-    DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
-  }
-
-  NS_IMETHOD Run()
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-
-    if (mOnClosedCb.get() && nsDOMCameraManager::IsWindowStillActive(mWindowId)) {
-      mOnClosedCb->HandleEvent();
-    }
-    return NS_OK;
-  }
-
-protected:
-  nsMainThreadPtrHandle<nsICameraClosedCallback> mOnClosedCb;
-  uint64_t mWindowId;
-};
+}
 
 void
 CameraControlImpl::OnClosed()
 {
-  nsCOMPtr<nsIRunnable> onClosed = new OnClosedTask(mOnClosedCb, mWindowId);
+  nsCOMPtr<nsIRunnable> onClosed = NS_NewRunnableMethod(this, &CameraControlImpl::OnClosedInternal);
   nsresult rv = NS_DispatchToMainThread(onClosed);
   if (NS_FAILED(rv)) {
     DOM_CAMERA_LOGW("Failed to dispatch onClosed event to main thread (%d)\n", rv);

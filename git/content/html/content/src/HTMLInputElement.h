@@ -234,6 +234,8 @@ public:
 
   void MaybeLoadImage();
 
+  virtual nsXPCClassInfo* GetClassInfo();
+
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // nsIConstraintValidation
@@ -1070,7 +1072,7 @@ protected:
    * This is used in situations where the anonymous subtree should already have
    * sent a DOMActivate and prevents firing more than once.
    */
-  bool ShouldPreventDOMActivateDispatch(EventTarget* aOriginalTarget);
+  bool ShouldPreventDOMActivateDispatch(nsIDOMEventTarget* aOriginalTarget);
 
   nsCOMPtr<nsIControllers> mControllers;
 

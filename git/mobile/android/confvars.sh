@@ -22,9 +22,6 @@ MOZ_MEDIA_NAVIGATOR=1
 # Enable SET_WALLPAPER permission
 MOZ_ANDROID_WALLPAPER=1
 
-# Enable NFC permission
-MOZ_ANDROID_BEAM=1
-
 if test "$LIBXUL_SDK"; then
 MOZ_XULRUNNER=1
 else

@@ -192,36 +192,6 @@ nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
   return NS_OK;
 }
 
-void
-nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
-                                         nsIDOMEventListener* aListener,
-                                         bool aUseCapture,
-                                         const Nullable<bool>& aWantsUntrusted,
-                                         ErrorResult& aRv)
-{
-  bool wantsUntrusted;
-  if (aWantsUntrusted.IsNull()) {
-    nsresult rv;
-    nsIScriptContext* context = GetContextForEventHandlers(&rv);
-    if (NS_FAILED(rv)) {
-      aRv.Throw(rv);
-      return;
-    }
-    nsCOMPtr<nsIDocument> doc =
-      nsContentUtils::GetDocumentFromScriptContext(context);
-    wantsUntrusted = doc && !nsContentUtils::IsChromeDoc(doc);
-  } else {
-    wantsUntrusted = aWantsUntrusted.Value();
-  }
-
-  nsEventListenerManager* elm = GetListenerManager(true);
-  if (!elm) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return;
-  }
-  elm->AddEventListener(aType, aListener, aUseCapture, wantsUntrusted);
-}
-
 NS_IMETHODIMP
 nsDOMEventTargetHelper::AddSystemEventListener(const nsAString& aType,
                                                nsIDOMEventListener *aListener,
@@ -363,3 +333,27 @@ nsDOMEventTargetHelper::GetContextForEventHandlers(nsresult* aRv)
                : nullptr;
 }
 
+void
+nsDOMEventTargetHelper::Init(JSContext* aCx)
+{
+  JSContext* cx = aCx;
+  if (!cx) {
+    nsIJSContextStack* stack = nsContentUtils::ThreadJSContextStack();
+
+    if (!stack)
+      return;
+
+    if (NS_FAILED(stack->Peek(&cx)) || !cx)
+      return;
+  }
+
+  NS_ASSERTION(cx, "Should have returned earlier ...");
+  nsIScriptContext* context = GetScriptContextFromJSContext(cx);
+  if (context) {
+    nsCOMPtr<nsPIDOMWindow> window =
+      do_QueryInterface(context->GetGlobalObject());
+    if (window) {
+      BindToOwner(window->GetCurrentInnerWindow());
+    }
+  }
+}

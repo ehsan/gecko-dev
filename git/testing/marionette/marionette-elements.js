@@ -41,6 +41,7 @@ function ElementException(msg, num, stack) {
   this.stack = stack;
 }
 
+/* NOTE: Bug 736592 has been created to replace seenItems with a weakRef map */
 this.ElementManager = function ElementManager(notSupported) {
   this.searchTimeout = 0;
   this.seenItems = {};
@@ -71,15 +72,8 @@ ElementManager.prototype = {
   */
   addToKnownElements: function EM_addToKnownElements(element) {
     for (let i in this.seenItems) {
-      let foundEl = this.seenItems[i].get();
-      if (foundEl) {
-        if (XPCNativeWrapper(foundEl) == XPCNativeWrapper(element)) {
-          return i;
-        }
-      }
-      else {
-        //cleanup reference to GC'd element
-        delete this.seenItems[i];
+      if (XPCNativeWrapper(this.seenItems[i].get()) == XPCNativeWrapper(element)) {
+        return i;
       }
     }
     var id = uuidGen.generateUUID().toString();
@@ -105,7 +99,7 @@ ElementManager.prototype = {
     }
     el = el.get();
     // use XPCNativeWrapper to compare elements; see bug 834266
-    if (!el || !(XPCNativeWrapper(el).ownerDocument == XPCNativeWrapper(win).document)) {
+    if (!(XPCNativeWrapper(el).ownerDocument == XPCNativeWrapper(win).document)) {
       throw new ElementException("Stale element reference", 10, null);
     }
     return el;
@@ -143,6 +137,11 @@ ElementManager.prototype = {
           result = null;
         }
         else if (val.nodeType == 1) {
+          for(let i in this.seenItems) {
+            if (this.seenItems[i].get() == val) {
+              result = {'ELEMENT': i};
+            }
+          }
           result = {'ELEMENT': this.addToKnownElements(val)};
         }
         else {

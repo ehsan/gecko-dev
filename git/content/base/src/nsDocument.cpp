@@ -94,6 +94,7 @@
 #include "nsIFormControl.h"
 
 #include "nsBidiUtils.h"
+#include "mozilla/dom/DirectionalityUtils.h"
 
 #include "nsIDOMUserDataHandler.h"
 #include "nsIDOMXPathEvaluator.h"
@@ -1322,6 +1323,7 @@ nsIDocument::nsIDocument()
     mAllowDNSPrefetch(true),
     mIsBeingUsedAsImage(false),
     mHasLinksToUpdate(false),
+    mDirectionality(eDir_LTR),
     mPartID(0)
 {
   SetInDocument();
@@ -1904,6 +1906,12 @@ nsDocument::Init()
   return NS_OK;
 }
 
+nsHTMLDocument*
+nsIDocument::AsHTMLDocument()
+{
+  return IsHTML() ? static_cast<nsHTMLDocument*>(this) : nullptr;
+}
+
 void
 nsIDocument::DeleteAllProperties()
 {
@@ -2417,14 +2425,17 @@ nsDocument::InitCSP(nsIChannel* aChannel)
   NS_ConvertASCIItoUTF16 cspOldHeaderValue(tCspOldHeaderValue);
   NS_ConvertASCIItoUTF16 cspOldROHeaderValue(tCspOldROHeaderValue);
 
-  // Only use the CSP 1.0 spec compliant headers if a pref to do so
-  // is set. This lets us turn on the 1.0 parser per platform. This
-  // pref is also set by the tests for 1.0 spec compliant CSP.
-  bool specCompliantEnabled =
-    Preferences::GetBool("security.csp.speccompliant");
+  // Until we want to turn on our CSP 1.0 spec compliant support
+  // only use the 1.0 spec compliant headers if a pref to do so
+  // is set (this lets us land CSP 1.0 support with tests without
+  // having to turn it on before it's ready). When we turn on
+  // CSP 1.0 in the release, we should remove this pref check.
+  // This pref will never be set by default, it should only
+  // be created/set by the CSP tests.
+  if (!cspHeaderValue.IsEmpty() || !cspROHeaderValue.IsEmpty()) {
+    bool specCompliantEnabled =
+      Preferences::GetBool("security.csp.speccompliant");
 
-  if ((!cspHeaderValue.IsEmpty() || !cspROHeaderValue.IsEmpty()) &&
-       !specCompliantEnabled) {
     // If spec compliant pref isn't set, pretend we never got
     // these headers.
     if (!specCompliantEnabled) {
@@ -2519,8 +2530,7 @@ nsDocument::InitCSP(nsIChannel* aChannel)
     }
 
     if (appCSP)
-      // Use the 1.0 CSP parser for apps if the pref to do so is set.
-      csp->RefinePolicy(appCSP, chanURI, specCompliantEnabled);
+      csp->RefinePolicy(appCSP, chanURI, true);
   }
 
   // While we are supporting both CSP 1.0 and the x- headers, the 1.0 headers
@@ -2939,11 +2949,11 @@ nsIDocument::GetActiveElement()
   }
 
   // No focused element anywhere in this document.  Try to get the BODY.
-  nsRefPtr<nsHTMLDocument> htmlDoc = AsHTMLDocument();
+  nsCOMPtr<nsIDOMHTMLDocument> htmlDoc = do_QueryObject(this);
   if (htmlDoc) {
     // Because of IE compatibility, return null when html document doesn't have
     // a body.
-    return htmlDoc->GetBody();
+    return static_cast<nsHTMLDocument*>(htmlDoc.get())->GetBody();
   }
 
   // If we couldn't get a BODY, return the root element.
@@ -3113,7 +3123,7 @@ nsIDocument::ReleaseCapture() const
 {
   // only release the capture if the caller can access it. This prevents a
   // page from stopping a scrollbar grab for example.
-  nsCOMPtr<nsINode> node = nsIPresShell::GetCapturingContent();
+  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(nsIPresShell::GetCapturingContent());
   if (node && nsContentUtils::CanCallerAccess(node)) {
     nsIPresShell::SetCapturingContent(nullptr, 0);
   }
@@ -3757,7 +3767,7 @@ nsDocument::RemoveStyleSheet(nsIStyleSheet* aSheet)
   nsCOMPtr<nsIStyleSheet> sheet = aSheet; // hold ref so it won't die too soon
 
   if (!mStyleSheets.RemoveObject(aSheet)) {
-    NS_ASSERTION(mInUnlinkOrDeletion, "stylesheet not found");
+    NS_NOTREACHED("stylesheet not found");
     return;
   }
 
@@ -5003,7 +5013,7 @@ nsDocument::Register(const nsAString& aName, const JS::Value& aOptions,
     JSAutoCompartment ac(aCx, GetWrapper());
     NS_ENSURE_TRUE(JS_WrapValue(aCx, const_cast<JS::Value*>(&aOptions)),
                    NS_ERROR_UNEXPECTED);
-    NS_ENSURE_TRUE(options.Init(aCx, JS::NullPtr(), aOptions),
+    NS_ENSURE_TRUE(options.Init(aCx, nullptr, aOptions),
                    NS_ERROR_UNEXPECTED);
   }
 
@@ -5780,7 +5790,7 @@ nsIDocument::GetLocation() const
 }
 
 Element*
-nsIDocument::GetHtmlElement() const
+nsIDocument::GetHtmlElement()
 {
   Element* rootElement = GetRootElement();
   if (rootElement && rootElement->IsHTML(nsGkAtoms::html))
@@ -6239,7 +6249,16 @@ nsDocument::GetAnimationController()
   return mAnimationController;
 }
 
-static const char* dirAttributes[] = { "ltr", "rtl", "auto", 0 };
+struct DirTable {
+  const char* mName;
+  uint8_t     mValue;
+};
+
+static const DirTable dirAttributes[] = {
+  {"ltr", IBMBIDI_TEXTDIRECTION_LTR},
+  {"rtl", IBMBIDI_TEXTDIRECTION_RTL},
+  {0}
+};
 
 /**
  * Retrieve the "direction" property of the document.
@@ -6256,16 +6275,11 @@ nsDocument::GetDir(nsAString& aDirection)
 void
 nsIDocument::GetDir(nsAString& aDirection) const
 {
-  aDirection.Truncate();
-  Element* rootElement = GetHtmlElement();
-  if (rootElement) {
-    nsAutoString dir;
-    rootElement->GetAttr(kNameSpaceID_None, nsGkAtoms::dir, dir);
-    for (uint32_t i = 0; dirAttributes[i]; ++i) {
-      if (dir.LowerCaseEqualsASCII(dirAttributes[i])) {
-        aDirection.AssignASCII(dirAttributes[i]);
-        return;
-      }
+  uint32_t options = GetBidiOptions();
+  for (const DirTable* elt = dirAttributes; elt->mName; elt++) {
+    if (GET_BIDI_OPTION_DIRECTION(options) == elt->mValue) {
+      CopyASCIItoUTF16(elt->mName, aDirection);
+      return;
     }
   }
 }
@@ -6278,17 +6292,45 @@ nsIDocument::GetDir(nsAString& aDirection) const
 NS_IMETHODIMP
 nsDocument::SetDir(const nsAString& aDirection)
 {
-  nsIDocument::SetDir(aDirection);
-  return NS_OK;
+  ErrorResult rv;
+  nsIDocument::SetDir(aDirection, rv);
+  return rv.ErrorCode();
 }
 
 void
-nsIDocument::SetDir(const nsAString& aDirection)
+nsIDocument::SetDir(const nsAString& aDirection, ErrorResult& rv)
 {
-  Element* rootElement = GetHtmlElement();
-  if (rootElement) {
-    rootElement->SetAttr(kNameSpaceID_None, nsGkAtoms::dir,
-                         aDirection, true);
+  uint32_t options = GetBidiOptions();
+
+  for (const DirTable* elt = dirAttributes; elt->mName; elt++) {
+    if (aDirection == NS_ConvertASCIItoUTF16(elt->mName)) {
+      if (GET_BIDI_OPTION_DIRECTION(options) != elt->mValue) {
+        SET_BIDI_OPTION_DIRECTION(options, elt->mValue);
+        nsIPresShell *shell = GetShell();
+        if (shell) {
+          nsPresContext *context = shell->GetPresContext();
+          if (!context) {
+            rv.Throw(NS_ERROR_UNEXPECTED);
+            return;
+          }
+          context->SetBidi(options, true);
+        } else {
+          // No presentation; just set it on ourselves
+          SetBidiOptions(options);
+        }
+        Directionality dir = elt->mValue == IBMBIDI_TEXTDIRECTION_RTL ?
+                               eDir_RTL : eDir_LTR;
+        SetDocumentDirectionality(dir);
+        // Set the directionality of the root element and its descendants, if any
+        Element* rootElement = GetRootElement();
+        if (rootElement) {
+          rootElement->SetDirectionality(dir, true);
+          SetDirectionalityOnDescendants(rootElement, dir);
+        }
+      }
+
+      break;
+    }
   }
 }
 
@@ -7411,7 +7453,7 @@ nsDocument::IsSafeToFlush() const
   return shell->IsSafeToFlush();
 }
 
-void
+nsresult
 nsDocument::Sanitize()
 {
   // Sanitize the document by resetting all password fields and any form
@@ -7423,16 +7465,24 @@ nsDocument::Sanitize()
   // First locate all input elements, regardless of whether they are
   // in a form, and reset the password and autocomplete=off elements.
 
-  nsRefPtr<nsContentList> nodes = GetElementsByTagName(NS_LITERAL_STRING("input"));
+  nsCOMPtr<nsIDOMNodeList> nodes;
+  nsresult rv = GetElementsByTagName(NS_LITERAL_STRING("input"),
+                                     getter_AddRefs(nodes));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIContent> item;
+  uint32_t length = 0;
+  if (nodes)
+    nodes->GetLength(&length);
+
+  nsCOMPtr<nsIDOMNode> item;
   nsAutoString value;
+  uint32_t i;
 
-  uint32_t length = nodes->Length(true);
-  for (uint32_t i = 0; i < length; ++i) {
-    NS_ASSERTION(nodes->Item(i), "null item in node list!");
+  for (i = 0; i < length; ++i) {
+    nodes->Item(i, getter_AddRefs(item));
+    NS_ASSERTION(item, "null item in node list!");
 
-    nsCOMPtr<nsIDOMHTMLInputElement> input = do_QueryInterface(nodes->Item(i));
+    nsCOMPtr<nsIDOMHTMLInputElement> input = do_QueryInterface(item);
     if (!input)
       continue;
 
@@ -7454,13 +7504,18 @@ nsDocument::Sanitize()
   }
 
   // Now locate all _form_ elements that have autocomplete=off and reset them
-  nodes = GetElementsByTagName(NS_LITERAL_STRING("form"));
+  rv = GetElementsByTagName(NS_LITERAL_STRING("form"), getter_AddRefs(nodes));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  length = nodes->Length(true);
-  for (uint32_t i = 0; i < length; ++i) {
-    NS_ASSERTION(nodes->Item(i), "null item in nodelist");
+  length = 0;
+  if (nodes)
+    nodes->GetLength(&length);
 
-    nsCOMPtr<nsIDOMHTMLFormElement> form = do_QueryInterface(nodes->Item(i));
+  for (i = 0; i < length; ++i) {
+    nodes->Item(i, getter_AddRefs(item));
+    NS_ASSERTION(item, "null item in nodelist");
+
+    nsCOMPtr<nsIDOMHTMLFormElement> form = do_QueryInterface(item);
     if (!form)
       continue;
 
@@ -7468,6 +7523,8 @@ nsDocument::Sanitize()
     if (value.LowerCaseEqualsLiteral("off"))
       form->Reset();
   }
+
+  return NS_OK;
 }
 
 struct SubDocEnumArgs
@@ -9129,17 +9186,16 @@ nsDocument::CreateTouch(nsIDOMWindow* aView,
                         float aForce,
                         nsIDOMTouch** aRetVal)
 {
-  nsCOMPtr<EventTarget> target = do_QueryInterface(aTarget);
-  *aRetVal = nsIDocument::CreateTouch(aView, target, aIdentifier, aPageX,
+  *aRetVal = nsIDocument::CreateTouch(aView, aTarget, aIdentifier, aPageX,
                                       aPageY, aScreenX, aScreenY, aClientX,
                                       aClientY, aRadiusX, aRadiusY,
                                       aRotationAngle, aForce).get();
   return NS_OK;
 }
 
-already_AddRefed<Touch>
+already_AddRefed<nsIDOMTouch>
 nsIDocument::CreateTouch(nsIDOMWindow* aView,
-                         EventTarget* aTarget,
+                         nsISupports* aTarget,
                          int32_t aIdentifier,
                          int32_t aPageX, int32_t aPageY,
                          int32_t aScreenX, int32_t aScreenY,
@@ -9148,14 +9204,15 @@ nsIDocument::CreateTouch(nsIDOMWindow* aView,
                          float aRotationAngle,
                          float aForce)
 {
-  nsRefPtr<Touch> touch = new Touch(aTarget,
-                                    aIdentifier,
-                                    aPageX, aPageY,
-                                    aScreenX, aScreenY,
-                                    aClientX, aClientY,
-                                    aRadiusX, aRadiusY,
-                                    aRotationAngle,
-                                    aForce);
+  nsCOMPtr<EventTarget> target = do_QueryInterface(aTarget);
+  nsCOMPtr<nsIDOMTouch> touch = new Touch(target,
+                                          aIdentifier,
+                                          aPageX, aPageY,
+                                          aScreenX, aScreenY,
+                                          aClientX, aClientY,
+                                          aRadiusX, aRadiusY,
+                                          aRotationAngle,
+                                          aForce);
   return touch.forget();
 }
 
@@ -9208,23 +9265,23 @@ nsIDocument::CreateTouchList()
 }
 
 already_AddRefed<nsIDOMTouchList>
-nsIDocument::CreateTouchList(Touch& aTouch,
-                             const Sequence<OwningNonNull<Touch> >& aTouches)
+nsIDocument::CreateTouchList(nsIDOMTouch* aTouch,
+                             const Sequence<nsRefPtr<nsIDOMTouch> >& aTouches)
 {
   nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList();
-  retval->Append(&aTouch);
+  retval->Append(aTouch);
   for (uint32_t i = 0; i < aTouches.Length(); ++i) {
-    retval->Append(aTouches[i].get());
+    retval->Append(aTouches[i]);
   }
   return retval.forget();
 }
 
 already_AddRefed<nsIDOMTouchList>
-nsIDocument::CreateTouchList(const Sequence<OwningNonNull<Touch> >& aTouches)
+nsIDocument::CreateTouchList(const Sequence<nsRefPtr<nsIDOMTouch> >& aTouches)
 {
   nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList();
   for (uint32_t i = 0; i < aTouches.Length(); ++i) {
-    retval->Append(aTouches[i].get());
+    retval->Append(aTouches[i]);
   }
   return retval.forget();
 }
@@ -9275,13 +9332,6 @@ nsIDocument::CaretPositionFromPoint(float aX, float aY)
     if (textArea || (input &&
                      NS_SUCCEEDED(input->MozIsTextField(false, &isText)) &&
                      isText)) {
-      // If the anonymous content node has a child, then we need to make sure
-      // that we get the appropriate child, as otherwise the offset may not be
-      // correct when we construct a range for it.
-      nsCOMPtr<nsIContent> firstChild = anonNode->GetFirstChild();
-      if (firstChild) {
-        anonNode = firstChild;
-      }
       offset = nsContentUtils::GetAdjustedOffsetInTextControl(ptFrame, offset);
       node = nonanon;
     } else {
@@ -9291,9 +9341,6 @@ nsIDocument::CaretPositionFromPoint(float aX, float aY)
   }
 
   nsRefPtr<nsDOMCaretPosition> aCaretPos = new nsDOMCaretPosition(node, offset);
-  if (nodeIsAnonymous) {
-    aCaretPos->SetAnonymousContentNode(anonNode);
-  }
   return aCaretPos.forget();
 }
 

@@ -6,8 +6,3 @@
 
 MODULE = 'libmar'
 
-EXPORTS += [
-    'mar.h',
-    'mar_cmdline.h',
-]
-

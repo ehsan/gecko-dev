@@ -6,7 +6,3 @@
 
 MODULE = 'ucvibm'
 
-EXPORTS += [
-    'nsUCvIBMCID.h',
-]
-

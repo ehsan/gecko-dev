@@ -35,10 +35,10 @@ Cu.import("resource://gre/modules/Metrics.jsm");
 
 Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/osfile.jsm");
-Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://services-common/preferences.js");
 Cu.import("resource://services-common/utils.js");
 
 XPCOMUtils.defineLazyModuleGetter(this, "AddonManager",
@@ -189,11 +189,11 @@ AppInfoProvider.prototype = Object.freeze({
     xpcomabi: "XPCOMABI",
   },
 
-  postInit: function () {
-    return Task.spawn(this._postInit.bind(this));
+  onInit: function () {
+    return Task.spawn(this._onInit.bind(this));
   },
 
-  _postInit: function () {
+  _onInit: function () {
     let recordEmptyAppInfo = function () {
       this._setCurrentAppVersion("");
       this._setCurrentPlatformVersion("");
@@ -682,29 +682,6 @@ AddonCountsMeasurement.prototype = Object.freeze({
   __proto__: Metrics.Measurement.prototype,
 
   name: "counts",
-  version: 2,
-
-  fields: {
-    theme: DAILY_LAST_NUMERIC_FIELD,
-    lwtheme: DAILY_LAST_NUMERIC_FIELD,
-    plugin: DAILY_LAST_NUMERIC_FIELD,
-    extension: DAILY_LAST_NUMERIC_FIELD,
-    service: DAILY_LAST_NUMERIC_FIELD,
-  },
-});
-
-
-/**
- * Legacy version of addons counts before services was added.
- */
-function AddonCountsMeasurement1() {
-  Metrics.Measurement.call(this);
-}
-
-AddonCountsMeasurement1.prototype = Object.freeze({
-  __proto__: Metrics.Measurement.prototype,
-
-  name: "counts",
   version: 1,
 
   fields: {
@@ -742,18 +719,16 @@ AddonsProvider.prototype = Object.freeze({
   FULL_DETAIL_TYPES: [
     "plugin",
     "extension",
-    "service",
   ],
 
   name: "org.mozilla.addons",
 
   measurementTypes: [
     ActiveAddonsMeasurement,
-    AddonCountsMeasurement1,
     AddonCountsMeasurement,
   ],
 
-  postInit: function () {
+  onInit: function () {
     let listener = {};
 
     for (let method of this.ADDON_LISTENER_CALLBACKS) {
@@ -795,8 +770,7 @@ AddonsProvider.prototype = Object.freeze({
 
       let now = new Date();
       let active = this.getMeasurement("active", 1);
-      let counts = this.getMeasurement(AddonCountsMeasurement.prototype.name,
-                                       AddonCountsMeasurement.prototype.version);
+      let counts = this.getMeasurement("counts", 1);
 
       this.enqueueStorageOperation(function storageAddons() {
         for (let type in data.counts) {
@@ -1222,7 +1196,7 @@ SearchCountMeasurement2.prototype = Object.freeze({
    * data.
    */
   shouldIncludeField: function (name) {
-    return name.contains(".");
+    return name.indexOf(".") != -1;
   },
 
   /**
@@ -1353,18 +1327,6 @@ this.SearchesProvider.prototype = Object.freeze({
     SearchCountMeasurement1,
     SearchCountMeasurement2,
   ],
-
-  /**
-   * Initialize the search service before our measurements are touched.
-   */
-  preInit: function (storage) {
-    // Initialize search service.
-    let deferred = Promise.defer();
-    Services.search.init(function onInitComplete () {
-      deferred.resolve();
-    });
-    return deferred.promise;
-  },
 
   /**
    * Record that a search occurred.

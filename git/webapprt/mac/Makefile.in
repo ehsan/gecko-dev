@@ -34,8 +34,6 @@ LIBS = \
   $(XPCOM_STANDALONE_GLUE_LDOPTS) \
   $(NULL)
 
-PROGRAMS_DEST = $(DIST)/bin
-
 include $(topsrcdir)/config/rules.mk
 
 GRE_BUILDID := $(shell cat $(DEPTH)/config/buildid)

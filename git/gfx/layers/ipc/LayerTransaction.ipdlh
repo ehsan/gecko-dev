@@ -11,6 +11,7 @@ include protocol PCompositor;
 include protocol PGrallocBuffer;
 include protocol PLayer;
 include protocol PRenderFrame;
+include protocol PTexture;
 
 include "mozilla/WidgetUtils.h";
 include "mozilla/TimeStamp.h";
@@ -27,7 +28,7 @@ using mozilla::TimeStamp;
 using mozilla::ScreenRotation;
 using nsCSSProperty;
 using mozilla::dom::ScreenOrientation;
-using mozilla::layers::TextureInfo;
+using mozilla::layers::CompositableType;
 using mozilla::gfx::Margin;
 
 namespace mozilla {
@@ -235,17 +236,23 @@ struct OpRaiseToTopChild  { PLayer container; PLayer childLayer; };
 
 // Paint (buffer update)
 struct OpPaintTiledLayerBuffer {
-  PCompositable compositable;
+  PLayer layer;
   // Bug 747811
   // FIXME: We need to support sharing tile across process.
   uintptr_t tiledLayerBuffer;
 };
 
-struct OpCreatedTexture {
+struct OpCreatedSingleBuffer {
   PCompositable compositable;
-  uint32_t textureId;
+  PTexture buffer;
   SurfaceDescriptor descriptor;
-  TextureInfo textureInfo;
+};
+struct OpCreatedDoubleBuffer {
+  PCompositable compositable;
+  PTexture front;
+  SurfaceDescriptor frontDescriptor;
+  PTexture back;
+  SurfaceDescriptor backDescriptor;
 };
 
 struct OpDestroyThebesBuffer {
@@ -253,8 +260,7 @@ struct OpDestroyThebesBuffer {
 };
 
 struct OpPaintTexture {
-  PCompositable compositable;
-  uint32_t textureId;
+  PTexture texture;
   SurfaceDescriptor image;
 };
 
@@ -272,13 +278,12 @@ struct OpUpdatePictureRect {
 union CompositableOperation {
   OpUpdatePictureRect;
 
-  OpCreatedTexture;
+  OpCreatedSingleBuffer;
+  OpCreatedDoubleBuffer;
   OpDestroyThebesBuffer;
 
   OpPaintTexture;
   OpPaintTextureRegion;
-
-  OpPaintTiledLayerBuffer;
 };
 
 // A unit of a changeset; a set of these comprise a changeset
@@ -302,6 +307,7 @@ union Edit {
   OpAttachCompositable;
   OpAttachAsyncCompositable;
 
+  OpPaintTiledLayerBuffer;
   CompositableOperation;
 };
 
@@ -314,8 +320,7 @@ struct OpContentBufferSwap {
 };
 
 struct OpTextureSwap {
-  PCompositable compositable;
-  uint32_t textureId;
+  PTexture texture;
   SurfaceDescriptor image;
 };
 
@@ -325,6 +330,12 @@ union EditReply {
   OpContentBufferSwap;
   OpTextureSwap;
 };
+
+struct OpTextureReply {
+  PTexture texture;
+  SurfaceDescriptor image;
+};
+
 
 } // namespace
 } // namespace

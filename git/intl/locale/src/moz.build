@@ -15,7 +15,3 @@ else:
 
 MODULE = 'locale'
 
-EXPORTS += [
-    'nsCollation.h',
-]
-

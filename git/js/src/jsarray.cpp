@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set sw=4 ts=8 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -324,19 +325,20 @@ SetArrayElement(JSContext *cx, HandleObject obj, double index, HandleValue v)
 }
 
 /*
- * Attempt to delete the element |index| from |obj| as if by
- * |obj.[[Delete]](index)|.
+ * Delete the element |index| from |obj|. If |strict|, do a strict
+ * deletion: throw if the property is not configurable.
  *
- * If an error occurs while attempting to delete the element (that is, the call
- * to [[Delete]] threw), return false.
+ * - Return 1 if the deletion succeeds (that is, ES5's [[Delete]] would
+ *   return true)
  *
- * Otherwise set *succeeded to indicate whether the deletion attempt succeeded
- * (that is, whether the call to [[Delete]] returned true or false).  (Deletes
- * generally fail only when the property is non-configurable, but proxies may
- * implement different semantics.)
+ * - Return 0 if the deletion fails because the property is not
+ *   configurable (that is, [[Delete]] would return false). Note that if
+ *   |strict| is true we will throw, not return zero.
+ *
+ * - Return -1 if an exception occurs (that is, [[Delete]] would throw).
  */
-static bool
-DeleteArrayElement(JSContext *cx, HandleObject obj, double index, JSBool *succeeded)
+static int
+DeleteArrayElement(JSContext *cx, HandleObject obj, double index, bool strict)
 {
     JS_ASSERT(index >= 0);
     JS_ASSERT(floor(index) == index);
@@ -348,34 +350,37 @@ DeleteArrayElement(JSContext *cx, HandleObject obj, double index, JSBool *succee
                 obj->markDenseElementsNotPacked(cx);
                 obj->setDenseElement(idx, MagicValue(JS_ELEMENTS_HOLE));
                 if (!js_SuppressDeletedElement(cx, obj, idx))
-                    return false;
+                    return -1;
             }
         }
-
-        *succeeded = true;
-        return true;
+        return 1;
     }
 
-    if (index <= UINT32_MAX)
-        return JSObject::deleteElement(cx, obj, uint32_t(index), succeeded);
+    RootedValue v(cx);
+    if (index <= UINT32_MAX) {
+        if (!JSObject::deleteElement(cx, obj, uint32_t(index), &v, strict))
+            return -1;
+    } else {
+        if (!JSObject::deleteByValue(cx, obj, DoubleValue(index), &v, strict))
+            return -1;
+    }
 
-    return JSObject::deleteByValue(cx, obj, DoubleValue(index), succeeded);
+    return v.isTrue() ? 1 : 0;
 }
 
-/* ES6 20130308 draft 9.3.5 */
-static bool
-DeletePropertyOrThrow(JSContext *cx, HandleObject obj, double index)
+/*
+ * When hole is true, delete the property at the given index. Otherwise set
+ * its value to v assuming v is rooted.
+ */
+static JSBool
+SetOrDeleteArrayElement(JSContext *cx, HandleObject obj, double index,
+                        JSBool hole, HandleValue v)
 {
-    JSBool succeeded;
-    if (!DeleteArrayElement(cx, obj, index, &succeeded))
-        return false;
-    if (succeeded)
-        return true;
-
-    RootedId id(cx);
-    if (!ValueToId<CanGC>(cx, NumberValue(index), &id))
-        return false;
-    return obj->reportNotConfigurable(cx, id, JSREPORT_ERROR);
+    if (hole) {
+        JS_ASSERT(v.isUndefined());
+        return DeleteArrayElement(cx, obj, index, true) >= 0;
+    }
+    return SetArrayElement(cx, obj, index, v);
 }
 
 JSBool
@@ -470,20 +475,10 @@ array_length_setter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict,
                 JSObject::setArrayLength(cx, obj, oldlen + 1);
                 return false;
             }
-
-            JSBool succeeded;
-            if (!DeleteArrayElement(cx, obj, oldlen, &succeeded))
-                return false;
-            if (!succeeded) {
+            int deletion = DeleteArrayElement(cx, obj, oldlen, strict);
+            if (deletion <= 0) {
                 JSObject::setArrayLength(cx, obj, oldlen + 1);
-                if (!strict)
-                    return true;
-
-                RootedId id(cx);
-                if (!IndexToId(cx, oldlen, &id))
-                    return false;
-                obj->reportNotConfigurable(cx, id);
-                return false;
+                return deletion >= 0;
             }
         } while (oldlen != newlen);
     } else {
@@ -505,18 +500,10 @@ array_length_setter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict,
                 return false;
             if (JSID_IS_VOID(nid))
                 break;
-
-            // XXX Bug!  We should fail fast on the highest non-configurable
-            //     property we find, as we do in the simple-loop case above.
-            //     But since we're iterating in unknown order here, we don't
-            //     know if we're hitting the highest non-configurable property
-            //     when we hit a failure.  For now just drop unsuccessful
-            //     deletion on the floor, as the previous code here did.
             uint32_t index;
-            JSBool succeeded;
+            RootedValue junk(cx);
             if (js_IdIsIndex(nid, &index) && index - newlen < gap &&
-                !JSObject::deleteElement(cx, obj, index, &succeeded))
-            {
+                !JSObject::deleteElement(cx, obj, index, &junk, false)) {
                 return false;
             }
         }
@@ -580,7 +567,7 @@ Class js::ArrayClass = {
     "Array",
     JSCLASS_HAS_CACHED_PROTO(JSProto_Array),
     array_addProperty,
-    JS_DeletePropertyStub,   /* delProperty */
+    JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -1057,28 +1044,10 @@ array_reverse(JSContext *cx, unsigned argc, Value *vp)
         JSBool hole, hole2;
         if (!JS_CHECK_OPERATION_LIMIT(cx) ||
             !GetElement(cx, obj, i, &hole, &lowval) ||
-            !GetElement(cx, obj, len - i - 1, &hole2, &hival))
-        {
+            !GetElement(cx, obj, len - i - 1, &hole2, &hival) ||
+            !SetOrDeleteArrayElement(cx, obj, len - i - 1, hole, lowval) ||
+            !SetOrDeleteArrayElement(cx, obj, i, hole2, hival)) {
             return false;
-        }
-
-        if (!hole && !hole2) {
-            if (!SetArrayElement(cx, obj, i, hival))
-                return false;
-            if (!SetArrayElement(cx, obj, len - i - 1, lowval))
-                return false;
-        } else if (hole && !hole2) {
-            if (!SetArrayElement(cx, obj, i, hival))
-                return false;
-            if (!DeletePropertyOrThrow(cx, obj, len - i - 1))
-                return false;
-        } else if (!hole && hole2) {
-            if (!DeletePropertyOrThrow(cx, obj, i))
-                return false;
-            if (!SetArrayElement(cx, obj, len - i - 1, lowval))
-                return false;
-        } else {
-            // No action required.
         }
     }
     args.rval().setObject(*obj);
@@ -1688,7 +1657,7 @@ js::array_sort(JSContext *cx, unsigned argc, Value *vp)
 
     /* Re-create any holes that sorted to the end of the array. */
     while (len > n) {
-        if (!JS_CHECK_OPERATION_LIMIT(cx) || !DeletePropertyOrThrow(cx, obj, --len))
+        if (!JS_CHECK_OPERATION_LIMIT(cx) || DeleteArrayElement(cx, obj, --len, true) < 0)
             return false;
     }
     args.rval().setObject(*obj);
@@ -1791,7 +1760,7 @@ array_pop_slowly(JSContext *cx, HandleObject obj, CallArgs &args)
     if (!GetElement(cx, obj, index, &hole, &elt))
         return false;
 
-    if (!hole && !DeletePropertyOrThrow(cx, obj, index))
+    if (!hole && DeleteArrayElement(cx, obj, index, true) < 0)
         return false;
 
     args.rval().set(elt);
@@ -1814,7 +1783,7 @@ array_pop_dense(JSContext *cx, HandleObject obj, CallArgs &args)
     if (!GetElement(cx, obj, index, &hole, &elt))
         return false;
 
-    if (!hole && !DeletePropertyOrThrow(cx, obj, index))
+    if (!hole && DeleteArrayElement(cx, obj, index, true) < 0)
         return false;
 
     args.rval().set(elt);
@@ -1902,21 +1871,15 @@ js::array_shift(JSContext *cx, unsigned argc, Value *vp)
         /* Slide down the array above the first element. */
         RootedValue value(cx);
         for (uint32_t i = 0; i < length; i++) {
-            if (!JS_CHECK_OPERATION_LIMIT(cx))
-                return false;
-            if (!GetElement(cx, obj, i + 1, &hole, &value))
-                return false;
-            if (hole) {
-                if (!DeletePropertyOrThrow(cx, obj, i))
-                    return false;
-            } else {
-                if (!SetArrayElement(cx, obj, i, value))
-                    return false;
+            if (!JS_CHECK_OPERATION_LIMIT(cx) ||
+                !GetElement(cx, obj, i + 1, &hole, &value) ||
+                !SetOrDeleteArrayElement(cx, obj, i, hole, value)) {
+                return JS_FALSE;
             }
         }
 
         /* Delete the only or last element when it exists. */
-        if (!hole && !DeletePropertyOrThrow(cx, obj, length))
+        if (!hole && DeleteArrayElement(cx, obj, length, true) < 0)
             return JS_FALSE;
     }
     return SetLengthProperty(cx, obj, length);
@@ -1964,16 +1927,10 @@ array_unshift(JSContext *cx, unsigned argc, Value *vp)
                 do {
                     --last, --upperIndex;
                     JSBool hole;
-                    if (!JS_CHECK_OPERATION_LIMIT(cx))
-                        return false;
-                    if (!GetElement(cx, obj, last, &hole, &value))
-                        return false;
-                    if (hole) {
-                        if (!DeletePropertyOrThrow(cx, obj, upperIndex))
-                            return false;
-                    } else {
-                        if (!SetArrayElement(cx, obj, upperIndex, value))
-                            return false;
+                    if (!JS_CHECK_OPERATION_LIMIT(cx) ||
+                        !GetElement(cx, obj, last, &hole, &value) ||
+                        !SetOrDeleteArrayElement(cx, obj, upperIndex, hole, value)) {
+                        return JS_FALSE;
                     }
                 } while (last != 0);
             }
@@ -2158,24 +2115,18 @@ array_splice(JSContext *cx, unsigned argc, Value *vp)
             /* Steps 12(a)-(b). */
             RootedValue fromValue(cx);
             for (uint32_t from = sourceIndex, to = targetIndex; from < len; from++, to++) {
-                if (!JS_CHECK_OPERATION_LIMIT(cx))
-                    return false;
-
                 JSBool hole;
-                if (!GetElement(cx, obj, from, &hole, &fromValue))
+                if (!JS_CHECK_OPERATION_LIMIT(cx) ||
+                    !GetElement(cx, obj, from, &hole, &fromValue) ||
+                    !SetOrDeleteArrayElement(cx, obj, to, hole, fromValue))
+                {
                     return false;
-                if (hole) {
-                    if (!DeletePropertyOrThrow(cx, obj, to))
-                        return false;
-                } else {
-                    if (!SetArrayElement(cx, obj, to, fromValue))
-                        return false;
                 }
             }
 
             /* Steps 12(c)-(d). */
             for (uint32_t k = len; k > finalLength; k--) {
-                if (!DeletePropertyOrThrow(cx, obj, k - 1))
+                if (DeleteArrayElement(cx, obj, k - 1, true) < 0)
                     return false;
             }
         }
@@ -2204,22 +2155,15 @@ array_splice(JSContext *cx, unsigned argc, Value *vp)
         } else {
             RootedValue fromValue(cx);
             for (double k = len - actualDeleteCount; k > actualStart; k--) {
-                if (!JS_CHECK_OPERATION_LIMIT(cx))
-                    return false;
-
                 double from = k + actualDeleteCount - 1;
                 double to = k + itemCount - 1;
 
                 JSBool hole;
-                if (!GetElement(cx, obj, from, &hole, &fromValue))
+                if (!JS_CHECK_OPERATION_LIMIT(cx) ||
+                    !GetElement(cx, obj, from, &hole, &fromValue) ||
+                    !SetOrDeleteArrayElement(cx, obj, to, hole, fromValue))
+                {
                     return false;
-
-                if (hole) {
-                    if (!DeletePropertyOrThrow(cx, obj, to))
-                        return false;
-                } else {
-                    if (!SetArrayElement(cx, obj, to, fromValue))
-                        return false;
                 }
             }
         }
@@ -2535,7 +2479,7 @@ array_isArray(JSContext *cx, unsigned argc, Value *vp)
 
 #define GENERIC JSFUN_GENERIC_NATIVE
 
-static const JSFunctionSpec array_methods[] = {
+static JSFunctionSpec array_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,      array_toSource,     0,0),
 #endif
@@ -2570,7 +2514,7 @@ static const JSFunctionSpec array_methods[] = {
     JS_FS_END
 };
 
-static const JSFunctionSpec array_static_methods[] = {
+static JSFunctionSpec array_static_methods[] = {
     JS_FN("isArray",            array_isArray,      1,0),
          {"lastIndexOf",        {NULL, NULL},       2,0, "ArrayStaticLastIndexOf"},
          {"indexOf",            {NULL, NULL},       2,0, "ArrayStaticIndexOf"},

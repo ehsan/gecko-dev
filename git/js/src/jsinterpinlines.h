@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -892,7 +893,7 @@ SetObjectElementOperation(JSContext *cx, Handle<JSObject*> obj, HandleId id, con
     RootedScript script(cx, maybeScript);
     types::TypeScript::MonitorAssign(cx, obj, id);
 
-    if (obj->isArray() && JSID_IS_INT(id)) {
+    if (obj->isNative() && JSID_IS_INT(id)) {
         uint32_t length = obj->getDenseInitializedLength();
         int32_t i = JSID_TO_INT(id);
         if ((uint32_t)i >= length) {

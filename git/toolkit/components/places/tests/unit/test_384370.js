@@ -69,7 +69,7 @@ function run_test() {
       // 2. empty bookmarks db
       // 3. import bookmarks.exported.json
       try {
-        yield BookmarkJSONUtils.importFromFile(jsonFile, true);
+        PlacesUtils.restoreBookmarksFromJSONFile(jsonFile);
       } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
       LOG("imported json");
 

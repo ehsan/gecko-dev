@@ -6,8 +6,3 @@
 
 MODULE = 'dom'
 
-EXPORTS.mozilla.dom += [
-    'Notification.h',
-    'DesktopNotification.h',
-]
-

@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -819,9 +820,11 @@ typedef js::RawValue    JSRawValue;
 /* JSClass operation signatures. */
 
 /*
- * Add or get a property named by id in obj.  Note the jsid id type -- id may
- * be a string (Unicode property identifier) or an int (element index).  The
- * *vp out parameter, on success, is the new property value after the action.
+ * Add, delete, or get a property named by id in obj.  Note the jsid id
+ * type -- id may be a string (Unicode property identifier) or an int (element
+ * index).  The *vp out parameter, on success, is the new property value after
+ * an add or get.  After a successful delete, *vp is JSVAL_FALSE iff
+ * obj[id] can't be deleted (because it's permanent).
  */
 typedef JSBool
 (* JSPropertyOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp);
@@ -835,24 +838,6 @@ typedef JSBool
  */
 typedef JSBool
 (* JSStrictPropertyOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
-
-/*
- * Delete a property named by id in obj.
- *
- * If an error occurred, return false as per normal JSAPI error practice.
- *
- * If no error occurred, but the deletion attempt wasn't allowed (perhaps
- * because the property was non-configurable), set *succeeded to false and
- * return true.  This will cause |delete obj[id]| to evaluate to false in
- * non-strict mode code, and to throw a TypeError in strict mode code.
- *
- * If no error occurred and the deletion wasn't disallowed (this is *not* the
- * same as saying that a deletion actually occurred -- deleting a non-existent
- * property, or an inherited property, is allowed -- it's just pointless),
- * set *succeeded to true and return true.
- */
-typedef JSBool
-(* JSDeletePropertyOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool *succeeded);
 
 /*
  * This function type is used for callbacks that enumerate the properties of
@@ -1160,8 +1145,8 @@ typedef JSBool
  * wrap a function.
  */
 typedef JSObject *
-(* JSWrapObjectCallback)(JSContext *cx, JS::HandleObject existing, JS::HandleObject obj,
-                         JS::HandleObject proto, JS::HandleObject parent,
+(* JSWrapObjectCallback)(JSContext *cx, JSObject *existing, JSObject *obj,
+                         JSObject *proto, JSObject *parent,
                          unsigned flags);
 
 /*
@@ -1170,8 +1155,7 @@ typedef JSObject *
  * or even finding a more suitable object for the new compartment.
  */
 typedef JSObject *
-(* JSPreWrapCallback)(JSContext *cx, JS::HandleObject scope, JS::HandleObject obj,
-                      unsigned flags);
+(* JSPreWrapCallback)(JSContext *cx, JSObject *scope, JSObject *obj, unsigned flags);
 
 /*
  * Callback used when wrapping determines that the underlying object is already
@@ -1184,7 +1168,7 @@ typedef JSObject *
  * compartment wrapper that gets passed to wrap.
  */
 typedef JSObject *
-(* JSSameCompartmentWrapObjectCallback)(JSContext *cx, JS::HandleObject obj);
+(* JSSameCompartmentWrapObjectCallback)(JSContext *cx, JSObject *obj);
 
 typedef void
 (* JSDestroyCompartmentCallback)(JSFreeOp *fop, JSCompartment *compartment);
@@ -2826,7 +2810,7 @@ struct JSClass {
 
     /* Mandatory non-null function pointer members. */
     JSPropertyOp        addProperty;
-    JSDeletePropertyOp  delProperty;
+    JSPropertyOp        delProperty;
     JSPropertyOp        getProperty;
     JSStrictPropertyOp  setProperty;
     JSEnumerateOp       enumerate;
@@ -3016,9 +3000,6 @@ extern JS_PUBLIC_API(JSBool)
 JS_StrictPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_DeletePropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool *succeeded);
-
-extern JS_PUBLIC_API(JSBool)
 JS_EnumerateStub(JSContext *cx, JSHandleObject obj);
 
 extern JS_PUBLIC_API(JSBool)
@@ -3113,8 +3094,8 @@ struct JSFunctionSpec {
 extern JS_PUBLIC_API(JSObject *)
 JS_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
              JSClass *clasp, JSNative constructor, unsigned nargs,
-             const JSPropertySpec *ps, const JSFunctionSpec *fs,
-             const JSPropertySpec *static_ps, const JSFunctionSpec *static_fs);
+             JSPropertySpec *ps, JSFunctionSpec *fs,
+             JSPropertySpec *static_ps, JSFunctionSpec *static_fs);
 
 /*
  * Set up ctor.prototype = proto and proto.constructor = ctor with the
@@ -3326,114 +3307,12 @@ struct JSPropertyDescriptor {
     unsigned           shortid;
     JSPropertyOp       getter;
     JSStrictPropertyOp setter;
-    JS::Value          value;
+    jsval              value;
 
     JSPropertyDescriptor() : obj(NULL), attrs(0), shortid(0), getter(NULL),
                              setter(NULL), value(JSVAL_VOID)
     {}
-
-    void trace(JSTracer *trc);
 };
-
-namespace JS {
-
-template <typename Outer>
-class PropertyDescriptorOperations
-{
-    const JSPropertyDescriptor * desc() const { return static_cast<const Outer*>(this)->extract(); }
-    JSPropertyDescriptor * desc() { return static_cast<Outer*>(this)->extract(); }
-
-  public:
-    bool isEnumerable() const { return desc()->attrs & JSPROP_ENUMERATE; }
-    bool isReadonly() const { return desc()->attrs & JSPROP_READONLY; }
-    bool isPermanent() const { return desc()->attrs & JSPROP_PERMANENT; }
-    bool hasNativeAccessors() const { return desc()->attrs & JSPROP_NATIVE_ACCESSORS; }
-    bool hasGetterObject() const { return desc()->attrs & JSPROP_GETTER; }
-    bool hasSetterObject() const { return desc()->attrs & JSPROP_SETTER; }
-    bool isShared() const { return desc()->attrs & JSPROP_SHARED; }
-    bool isIndex() const { return desc()->attrs & JSPROP_INDEX; }
-    bool hasShortId() const { return desc()->attrs & JSPROP_SHORTID; }
-    bool hasAttributes(unsigned attrs) const { return desc()->attrs & attrs; }
-
-    JS::MutableHandleObject object() { return JS::MutableHandleObject::fromMarkedLocation(&desc()->obj); }
-    unsigned attributes() const { return desc()->attrs; }
-    unsigned shortid() const {
-        MOZ_ASSERT(hasShortId());
-        return desc()->shortid;
-    }
-    JSPropertyOp getter() const { MOZ_ASSERT(!hasGetterObject()); return desc()->getter; }
-    JSStrictPropertyOp setter() const { MOZ_ASSERT(!hasSetterObject()); return desc()->setter; }
-    JS::HandleObject getterObject() const {
-        MOZ_ASSERT(hasGetterObject());
-        return JS::HandleObject::fromMarkedLocation(reinterpret_cast<JSObject *const *>(&desc()->getter));
-    }
-    JS::HandleObject setterObject() const {
-        MOZ_ASSERT(hasSetterObject());
-        return JS::HandleObject::fromMarkedLocation(reinterpret_cast<JSObject *const *>(&desc()->setter));
-    }
-    JS::MutableHandleValue value() { return JS::MutableHandleValue::fromMarkedLocation(&desc()->value); }
-
-    void setAttributes(unsigned attrs) { desc()->attrs = attrs; }
-    void setShortId(unsigned id) { desc()->shortid = id; }
-    void setGetter(JSPropertyOp op) { desc()->getter = op; }
-    void setSetter(JSStrictPropertyOp op) { desc()->setter = op; }
-    void setGetterObject(JSObject *obj) { desc()->getter = reinterpret_cast<JSPropertyOp>(obj); }
-    void setSetterObject(JSObject *obj) { desc()->setter = reinterpret_cast<JSStrictPropertyOp>(obj); }
-};
-
-} /* namespace JS */
-
-namespace js {
-
-template <>
-struct RootMethods<JSPropertyDescriptor> {
-    static JSPropertyDescriptor initial() { return JSPropertyDescriptor(); }
-    static ThingRootKind kind() { return THING_ROOT_PROPERTY_DESCRIPTOR; }
-    static bool poisoned(const JSPropertyDescriptor &desc) {
-        return (desc.obj && JS::IsPoisonedPtr(desc.obj)) ||
-               (desc.attrs & JSPROP_GETTER && desc.getter && JS::IsPoisonedPtr(desc.getter)) ||
-               (desc.attrs & JSPROP_SETTER && desc.setter && JS::IsPoisonedPtr(desc.setter)) ||
-               (desc.value.isGCThing() && JS::IsPoisonedPtr(desc.value.toGCThing()));
-    }
-};
-
-template <>
-class RootedBase<JSPropertyDescriptor>
-  : public JS::PropertyDescriptorOperations<JS::Rooted<JSPropertyDescriptor> >
-{
-    friend class JS::PropertyDescriptorOperations<JS::Rooted<JSPropertyDescriptor> >;
-    const JSPropertyDescriptor *extract() const {
-        return static_cast<const JS::Rooted<JSPropertyDescriptor>*>(this)->address();
-    }
-    JSPropertyDescriptor *extract() {
-        return static_cast<JS::Rooted<JSPropertyDescriptor>*>(this)->address();
-    }
-};
-
-template <>
-class HandleBase<JSPropertyDescriptor>
-  : public JS::PropertyDescriptorOperations<JS::Handle<JSPropertyDescriptor> >
-{
-    friend class JS::PropertyDescriptorOperations<JS::Rooted<JSPropertyDescriptor> >;
-    const JSPropertyDescriptor *extract() const {
-        return static_cast<const JS::Handle<JSPropertyDescriptor>*>(this)->address();
-    }
-};
-
-template <>
-class MutableHandleBase<JSPropertyDescriptor>
-  : public JS::PropertyDescriptorOperations<JS::MutableHandle<JSPropertyDescriptor> >
-{
-    friend class JS::PropertyDescriptorOperations<JS::Rooted<JSPropertyDescriptor> >;
-    const JSPropertyDescriptor *extract() const {
-        return static_cast<const JS::MutableHandle<JSPropertyDescriptor>*>(this)->address();
-    }
-    JSPropertyDescriptor *extract() {
-        return static_cast<JS::MutableHandle<JSPropertyDescriptor>*>(this)->address();
-    }
-};
-
-} /* namespace js */
 
 /*
  * Like JS_GetPropertyAttrsGetterAndSetterById but will return a property on
@@ -4525,7 +4404,7 @@ JS_ParseJSONWithReviver(JSContext *cx, const jschar *chars, uint32_t len, jsval 
 /* API for the HTML5 internal structured cloning algorithm. */
 
 /* The maximum supported structured-clone serialization format version. */
-#define JS_STRUCTURED_CLONE_VERSION 2
+#define JS_STRUCTURED_CLONE_VERSION 1
 
 struct JSStructuredCloneCallbacks {
     ReadStructuredCloneOp read;

@@ -39,6 +39,7 @@ enum EffectTypes
   EFFECT_RGBX,
   EFFECT_BGRA,
   EFFECT_RGBA,
+  EFFECT_RGBA_EXTERNAL,
   EFFECT_YCBCR,
   EFFECT_COMPONENT_ALPHA,
   EFFECT_SOLID_COLOR,
@@ -175,6 +176,23 @@ struct EffectRGBA : public TexturedEffect
 #endif
 };
 
+struct EffectRGBAExternal : public TexturedEffect
+{
+  EffectRGBAExternal(TextureSource *aRGBATexture,
+                     const gfx::Matrix4x4 &aTextureTransform,
+                     bool aPremultiplied,
+                     gfx::Filter aFilter)
+    : TexturedEffect(EFFECT_RGBA_EXTERNAL, aRGBATexture, aPremultiplied, aFilter)
+    , mTextureTransform(aTextureTransform)
+  {}
+
+#ifdef MOZ_LAYERS_HAVE_LOG
+  virtual const char* Name() { return "EffectRGBAExternal"; }
+#endif
+
+  gfx::Matrix4x4 mTextureTransform;
+};
+
 struct EffectYCbCr : public TexturedEffect
 {
   EffectYCbCr(TextureSource *aSource, gfx::Filter aFilter)
@@ -188,20 +206,18 @@ struct EffectYCbCr : public TexturedEffect
 
 struct EffectComponentAlpha : public TexturedEffect
 {
-  EffectComponentAlpha(TextureSource *aOnBlack,
-                       TextureSource *aOnWhite,
-                       gfx::Filter aFilter)
-    : TexturedEffect(EFFECT_COMPONENT_ALPHA, nullptr, false, aFilter)
-    , mOnBlack(aOnBlack)
+  EffectComponentAlpha(TextureSource *aOnWhite, TextureSource *aOnBlack)
+    : TexturedEffect(EFFECT_COMPONENT_ALPHA, nullptr, false, gfx::FILTER_LINEAR)
     , mOnWhite(aOnWhite)
+    , mOnBlack(aOnBlack)
   {}
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "EffectComponentAlpha"; }
 #endif
 
-  TextureSource* mOnBlack;
   TextureSource* mOnWhite;
+  TextureSource* mOnBlack;
 };
 
 struct EffectSolidColor : public Effect
@@ -226,15 +242,8 @@ struct EffectChain
 
 inline TemporaryRef<TexturedEffect>
 CreateTexturedEffect(TextureHost *aTextureHost,
-                     TextureHost *aTextureHostOnWhite,
                      const gfx::Filter& aFilter)
 {
-  if (aTextureHostOnWhite) {
-    MOZ_ASSERT(aTextureHost->GetFormat() == gfx::FORMAT_R8G8B8X8 ||
-               aTextureHost->GetFormat() == gfx::FORMAT_B8G8R8X8);
-    return new EffectComponentAlpha(aTextureHost, aTextureHostOnWhite, aFilter);
-  }
-
   RefPtr<TexturedEffect> result;
   switch (aTextureHost->GetFormat()) {
   case gfx::FORMAT_B8G8R8A8:
@@ -260,13 +269,6 @@ CreateTexturedEffect(TextureHost *aTextureHost,
   }
 
   return result;
-}
-
-inline TemporaryRef<TexturedEffect>
-CreateTexturedEffect(TextureHost *aTextureHost,
-                     const gfx::Filter& aFilter)
-{
-  return CreateTexturedEffect(aTextureHost, nullptr, aFilter);
 }
 
 } // namespace layers

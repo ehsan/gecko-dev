@@ -33,7 +33,3 @@ XPIDL_MODULE = 'webBrowser_core'
 
 MODULE = 'webbrwsr'
 
-EXPORTS += [
-    'nsCTooltipTextProvider.h',
-]
-

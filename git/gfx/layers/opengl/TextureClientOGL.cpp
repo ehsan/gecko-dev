@@ -12,8 +12,8 @@ namespace mozilla {
 namespace layers {
 
 TextureClientSharedOGL::TextureClientSharedOGL(CompositableForwarder* aForwarder,
-                                               const TextureInfo& aTextureInfo)
-  : TextureClient(aForwarder, aTextureInfo)
+                                               CompositableType aCompositableType)
+  : TextureClient(aForwarder, aCompositableType)
   , mGL(nullptr)
 {
 }
@@ -25,9 +25,10 @@ TextureClientSharedOGL::ReleaseResources()
     return;
   }
   MOZ_ASSERT(mDescriptor.type() == SurfaceDescriptor::TSharedTextureDescriptor);
-  mDescriptor = SurfaceDescriptor();
-  // It's important our handle gets released! SharedTextureHostOGL will take
-  // care of this for us though.
+  SharedTextureDescriptor handle = mDescriptor.get_SharedTextureDescriptor();
+  if (mGL && handle.handle()) {
+    mGL->ReleaseSharedHandle(handle.shareType(), handle.handle());
+  }
 }
 
 void

@@ -1667,14 +1667,13 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder, nsD
 
   nsresult rv = NS_OK;
   while (nsDisplayItem *item = aList->RemoveBottom()) {
-    nsIFrame *childFrame = item->Frame();
+    nsIFrame *childFrame = item->GetUnderlyingFrame();
 
     // We accumulate sequential items that aren't transforms into the 'temp' list
     // and then flush this list into aOutput by wrapping the whole lot with a single
     // nsDisplayTransform.
 
-    if (childFrame->GetParent() &&
-        (childFrame->GetParent()->Preserves3DChildren() || childFrame == aFrame)) {
+    if (childFrame && (childFrame->GetParent()->Preserves3DChildren() || childFrame == aFrame)) {
       switch (item->GetType()) {
         case nsDisplayItem::TYPE_TRANSFORM: {
           if (!aTemp->IsEmpty()) {
@@ -1867,7 +1866,8 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   for (;;) {
     nsDisplayItem* item = set.PositionedDescendants()->GetBottom();
     if (item) {
-      nsIFrame* f = item->Frame();
+      nsIFrame* f = item->GetUnderlyingFrame();
+      NS_ASSERTION(f, "After sorting, every item in the list should have an underlying frame");
       if (nsLayoutUtils::GetZIndex(f) < 0) {
         set.PositionedDescendants()->RemoveBottom();
         resultList.AppendToTop(item);
@@ -1963,7 +1963,7 @@ WrapInWrapList(nsDisplayListBuilder* aBuilder,
                nsIFrame* aFrame, nsDisplayList* aList)
 {
   nsDisplayItem* item = aList->GetBottom();
-  if (!item || item->GetAbove() || item->Frame() != aFrame) {
+  if (!item || item->GetAbove() || item->GetUnderlyingFrame() != aFrame) {
     return new (aBuilder) nsDisplayWrapList(aBuilder, aFrame, aList);
   }
   aList->RemoveBottom();
@@ -2219,7 +2219,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
           nsDisplayList fixedPosDescendantList;
           fixedPosDescendantList.AppendToTop(item);
           aLists.PositionedDescendants()->AppendNewToTop(
-              new (aBuilder) nsDisplayFixedPosition(aBuilder, item->Frame(),
+              new (aBuilder) nsDisplayFixedPosition(aBuilder, item->GetUnderlyingFrame(),
                                                     child, &fixedPosDescendantList));
         }
       }
@@ -3095,7 +3095,7 @@ NS_IMETHODIMP nsFrame::HandleRelease(nsPresContext* aPresContext,
                            parentContent, aEvent, aEventStatus);
 }
 
-struct MOZ_STACK_CLASS FrameContentRange {
+struct NS_STACK_CLASS FrameContentRange {
   FrameContentRange(nsIContent* aContent, int32_t aStart, int32_t aEnd) :
     content(aContent), start(aStart), end(aEnd) { }
   nsCOMPtr<nsIContent> content;
@@ -4114,9 +4114,8 @@ nsFrame::ReflowAbsoluteFrames(nsPresContext*           aPresContext,
     nsContainerFrame* container = do_QueryFrame(this);
     NS_ASSERTION(container, "Abs-pos children only supported on container frames for now");
 
-    nsRect containingBlock(0, 0, containingBlockWidth, containingBlockHeight);
     absoluteContainer->Reflow(container, aPresContext, aReflowState, aStatus,
-                              containingBlock,
+                              containingBlockWidth, containingBlockHeight,
                               aConstrainHeight, true, true, // XXX could be optimized
                               &aDesiredSize.mOverflowAreas);
   }
@@ -4584,14 +4583,7 @@ nsIFrame::AreLayersMarkedActive(nsChangeHint aChangeHint)
 {
   LayerActivity* layerActivity =
     static_cast<LayerActivity*>(Properties().Get(LayerActivityProperty()));
-  if (layerActivity && (layerActivity->mChangeHint & aChangeHint)) {
-    return true;
-  }
-  if (aChangeHint & nsChangeHint_UpdateTransformLayer &&
-      Preserves3D()) {
-    return GetParent()->AreLayersMarkedActive(nsChangeHint_UpdateTransformLayer);
-  }
-  return false;
+  return layerActivity && (layerActivity->mChangeHint & aChangeHint);
 }
 
 /* static */ void

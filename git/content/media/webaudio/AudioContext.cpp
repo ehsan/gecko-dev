@@ -6,6 +6,7 @@
 
 #include "AudioContext.h"
 #include "nsContentUtils.h"
+#include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "mozilla/ErrorResult.h"
 #include "MediaStreamGraph.h"
@@ -19,12 +20,7 @@
 #include "AudioListener.h"
 #include "DynamicsCompressorNode.h"
 #include "BiquadFilterNode.h"
-#include "ScriptProcessorNode.h"
 #include "nsNetUtil.h"
-
-// Note that this number is an arbitrary large value to protect against OOM
-// attacks.
-const unsigned MAX_SCRIPT_PROCESSOR_CHANNELS = 10000;
 
 namespace mozilla {
 namespace dom {
@@ -37,7 +33,7 @@ NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(AudioContext, Release)
 
 static uint8_t gWebAudioOutputKey;
 
-AudioContext::AudioContext(nsPIDOMWindow* aWindow)
+AudioContext::AudioContext(nsIDOMWindow* aWindow)
   : mWindow(aWindow)
   , mDestination(new AudioDestinationNode(this, MediaStreamGraph::GetInstance()))
 {
@@ -75,7 +71,6 @@ AudioContext::CreateBufferSource()
 {
   nsRefPtr<AudioBufferSourceNode> bufferNode =
     new AudioBufferSourceNode(this);
-  mAudioBufferSourceNodes.AppendElement(bufferNode);
   return bufferNode.forget();
 }
 
@@ -102,46 +97,6 @@ AudioContext::CreateBuffer(JSContext* aJSContext, uint32_t aNumberOfChannels,
   }
 
   return buffer.forget();
-}
-
-namespace {
-
-bool IsValidBufferSize(uint32_t aBufferSize) {
-  switch (aBufferSize) {
-  case 0:       // let the implementation choose the buffer size
-  case 256:
-  case 512:
-  case 1024:
-  case 2048:
-  case 4096:
-  case 8192:
-  case 16384:
-    return true;
-  default:
-    return false;
-  }
-}
-
-}
-
-already_AddRefed<ScriptProcessorNode>
-AudioContext::CreateScriptProcessor(uint32_t aBufferSize,
-                                    uint32_t aNumberOfInputChannels,
-                                    uint32_t aNumberOfOutputChannels,
-                                    ErrorResult& aRv)
-{
-  if (aNumberOfInputChannels == 0 || aNumberOfOutputChannels == 0 ||
-      aNumberOfInputChannels > MAX_SCRIPT_PROCESSOR_CHANNELS ||
-      aNumberOfOutputChannels > MAX_SCRIPT_PROCESSOR_CHANNELS ||
-      !IsValidBufferSize(aBufferSize)) {
-    aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    return nullptr;
-  }
-
-  nsRefPtr<ScriptProcessorNode> scriptProcessor =
-    new ScriptProcessorNode(this, aBufferSize, aNumberOfInputChannels,
-                            aNumberOfOutputChannels);
-  return scriptProcessor.forget();
 }
 
 already_AddRefed<AnalyserNode>
@@ -173,7 +128,6 @@ already_AddRefed<PannerNode>
 AudioContext::CreatePanner()
 {
   nsRefPtr<PannerNode> pannerNode = new PannerNode(this);
-  mPannerNodes.AppendElement(pannerNode);
   return pannerNode.forget();
 }
 
@@ -233,29 +187,6 @@ AudioContext::RemoveFromDecodeQueue(WebAudioDecodeJob* aDecodeJob)
   mDecodeJobs.RemoveElement(aDecodeJob);
 }
 
-void
-AudioContext::UnregisterAudioBufferSourceNode(AudioBufferSourceNode* aNode)
-{
-  mAudioBufferSourceNodes.RemoveElement(aNode);
-}
-
-void
-AudioContext::UnregisterPannerNode(PannerNode* aNode)
-{
-  mPannerNodes.RemoveElement(aNode);
-}
-
-void
-AudioContext::UpdatePannerSource()
-{
-  for (unsigned i = 0; i < mAudioBufferSourceNodes.Length(); i++) {
-    mAudioBufferSourceNodes[i]->UnregisterPannerNode();
-  }
-  for (unsigned i = 0; i < mPannerNodes.Length(); i++) {
-    mPannerNodes[i]->FindConnectedSources();
-  }
-}
-
 MediaStreamGraph*
 AudioContext::Graph() const
 {
@@ -275,49 +206,15 @@ AudioContext::CurrentTime() const
 }
 
 void
-AudioContext::Shutdown()
-{
-  Suspend();
-  mDecoder.Shutdown();
-
-  // Stop all audio buffer source nodes, to make sure that they release
-  // their self-references.
-  for (uint32_t i = 0; i < mAudioBufferSourceNodes.Length(); ++i) {
-    ErrorResult rv;
-    mAudioBufferSourceNodes[i]->Stop(0.0, rv);
-  }
-}
-
-void
 AudioContext::Suspend()
 {
-  MediaStream* ds = DestinationStream();
-  if (ds) {
-    ds->ChangeExplicitBlockerCount(1);
-  }
+  DestinationStream()->ChangeExplicitBlockerCount(1);
 }
 
 void
 AudioContext::Resume()
 {
-  MediaStream* ds = DestinationStream();
-  if (ds) {
-    ds->ChangeExplicitBlockerCount(-1);
-  }
-}
-
-JSContext*
-AudioContext::GetJSContext() const
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  nsCOMPtr<nsIScriptGlobalObject> scriptGlobal =
-    do_QueryInterface(GetParentObject());
-  nsIScriptContext* scriptContext = scriptGlobal->GetContext();
-  if (!scriptContext) {
-    return nullptr;
-  }
-  return scriptContext->GetNativeContext();
+  DestinationStream()->ChangeExplicitBlockerCount(-1);
 }
 
 }

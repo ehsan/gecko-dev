@@ -332,7 +332,7 @@ public:
 
   // ThebesLayerBuffer interface
   virtual already_AddRefed<gfxASurface>
-  CreateBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags, gfxASurface**)
+  CreateBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags)
   {
     NS_ASSERTION(gfxASurface::CONTENT_ALPHA != aType,"ThebesBuffer has color");
 

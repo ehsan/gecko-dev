@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -36,7 +37,8 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
         NORMAL,
         PENDING_LOOP_HEADER,
         LOOP_HEADER,
-        SPLIT_EDGE
+        SPLIT_EDGE,
+        DEAD
     };
 
   private:
@@ -75,8 +77,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
                                              MBasicBlock *pred, jsbytecode *entryPc);
     static MBasicBlock *NewSplitEdge(MIRGraph &graph, CompileInfo &info, MBasicBlock *pred);
     static MBasicBlock *NewParBailout(MIRGraph &graph, CompileInfo &info,
-                                      MBasicBlock *pred, jsbytecode *entryPc,
-                                      MResumePoint *resumePoint);
+                                      MBasicBlock *pred, jsbytecode *entryPc);
 
     bool dominates(MBasicBlock *other);
 
@@ -183,8 +184,9 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     void clearDominatorInfo();
 
     // Sets a back edge. This places phi nodes and rewrites instructions within
-    // the current loop as necessary.
-    bool setBackedge(MBasicBlock *block);
+    // the current loop as necessary. If the backedge introduces new types for
+    // phis at the loop header, returns a disabling abort.
+    AbortReason setBackedge(MBasicBlock *block);
 
     // Resets a LOOP_HEADER block to a NORMAL block.  This is needed when
     // optimizations remove the backedge.
@@ -192,6 +194,9 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
 
     // Propagates phis placed in a loop header down to this successor block.
     void inheritPhis(MBasicBlock *header);
+
+    // Compute the types for phis in this block according to their inputs.
+    void specializePhis();
 
     void insertBefore(MInstruction *at, MInstruction *ins);
     void insertAfter(MInstruction *at, MInstruction *ins);
@@ -208,9 +213,16 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     MInstructionIterator discardAt(MInstructionIterator &iter);
     MInstructionReverseIterator discardAt(MInstructionReverseIterator &iter);
     MDefinitionIterator discardDefAt(MDefinitionIterator &iter);
+    void discardAllInstructions();
+    void discardAllPhis();
 
     // Discards a phi instruction and updates predecessor successorWithPhis.
     MPhiIterator discardPhiAt(MPhiIterator &at);
+
+    // Mark this block as having been removed from the graph.
+    void markAsDead() {
+        kind_ = DEAD;
+    }
 
     ///////////////////////////////////////////////////////
     /////////// END GRAPH BUILDING INSTRUCTIONS ///////////
@@ -301,6 +313,9 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     }
     bool isSplitEdge() const {
         return kind_ == SPLIT_EDGE;
+    }
+    bool isDead() const {
+        return kind_ == DEAD;
     }
 
     uint32_t stackDepth() const {
@@ -554,6 +569,7 @@ class MIRGraph
     ReversePostorderIterator rpoEnd() {
         return blocks_.end();
     }
+    void removeBlocksAfter(MBasicBlock *block);
     void removeBlock(MBasicBlock *block) {
         blocks_.remove(block);
         numBlocks_--;

@@ -70,6 +70,18 @@ interface Element : Node {
   [Pure]
   readonly attribute unsigned long childElementCount;
 
+  // NEW
+/*
+  FIXME We haven't implemented these yet.
+
+  void prepend((Node or DOMString)... nodes);
+  void append((Node or DOMString)... nodes);
+  void before((Node or DOMString)... nodes);
+  void after((Node or DOMString)... nodes);
+  void replace((Node or DOMString)... nodes);
+  void remove();
+*/
+
   // Mozilla specific stuff
 
   [SetterThrows,LenientThis]
@@ -185,5 +197,3 @@ partial interface Element {
   [Throws]
   NodeList  querySelectorAll(DOMString selectors);
 };
-
-Element implements ChildNode;

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -61,7 +62,7 @@ class AsmJSModule
                 uint32_t index_;
                 VarInitKind initKind_;
                 union {
-                    Value constant_; // will only contain int32/double
+                    Value constant_;
                     AsmJSCoercion coercion_;
                 } init;
             } var;
@@ -78,8 +79,6 @@ class AsmJSModule
         void trace(JSTracer *trc) {
             if (name_)
                 MarkString(trc, &name_, "asm.js global name");
-            JS_ASSERT_IF(which_ == Variable && u.var.initKind_ == InitConstant,
-                         !u.var.init.constant_.isMarkable());
         }
 
       public:
@@ -371,7 +370,6 @@ class AsmJSModule
     }
 
     bool addGlobalVarInitConstant(const Value &v, uint32_t *globalIndex) {
-        JS_ASSERT(!v.isMarkable());
         if (numGlobalVars_ == UINT32_MAX)
             return false;
         Global g(Global::Variable);
@@ -453,7 +451,7 @@ class AsmJSModule
     unsigned numGlobals() const {
         return globals_.length();
     }
-    Global &global(unsigned i) {
+    Global global(unsigned i) const {
         return globals_[i];
     }
     unsigned numFuncPtrTableElems() const {

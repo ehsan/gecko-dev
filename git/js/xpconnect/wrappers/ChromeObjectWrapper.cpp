@@ -1,7 +1,5 @@
 #include "ChromeObjectWrapper.h"
 
-using namespace JS;
-
 namespace xpc {
 
 // When creating wrappers for chrome objects in content, we detect if the
@@ -19,7 +17,7 @@ ChromeObjectWrapper ChromeObjectWrapper::singleton;
 using js::assertEnteredPolicy;
 
 static bool
-AllowedByBase(JSContext *cx, HandleObject wrapper, HandleId id,
+AllowedByBase(JSContext *cx, JS::Handle<JSObject*> wrapper, JS::Handle<jsid> id,
               js::Wrapper::Action act)
 {
     MOZ_ASSERT(js::Wrapper::wrapperHandler(wrapper) ==
@@ -33,7 +31,7 @@ static bool
 PropIsFromStandardPrototype(JSContext *cx, JSPropertyDescriptor *desc)
 {
     MOZ_ASSERT(desc->obj);
-    RootedObject unwrapped(cx, js::UncheckedUnwrap(desc->obj));
+    JSObject *unwrapped = js::UncheckedUnwrap(desc->obj);
     JSAutoCompartment ac(cx, unwrapped);
     return JS_IdentifyClassPrototype(cx, unwrapped) != JSProto_Null;
 }
@@ -43,26 +41,26 @@ PropIsFromStandardPrototype(JSContext *cx, JSPropertyDescriptor *desc)
 // This lets us determine whether the property we would have found (given a
 // transparent wrapper) would have come off a standard prototype.
 static bool
-PropIsFromStandardPrototype(JSContext *cx, HandleObject wrapper,
-                            HandleId id)
+PropIsFromStandardPrototype(JSContext *cx, JS::Handle<JSObject*> wrapper,
+                            JS::Handle<jsid> id)
 {
     MOZ_ASSERT(js::Wrapper::wrapperHandler(wrapper) ==
                &ChromeObjectWrapper::singleton);
-    Rooted<JSPropertyDescriptor> desc(cx);
+    JSPropertyDescriptor desc;
     ChromeObjectWrapper *handler = &ChromeObjectWrapper::singleton;
     if (!handler->ChromeObjectWrapperBase::getPropertyDescriptor(cx, wrapper, id,
-                                                                 desc.address(), 0) ||
-        !desc.object())
+                                                                 &desc, 0) ||
+        !desc.obj)
     {
         return false;
     }
-    return PropIsFromStandardPrototype(cx, desc.address());
+    return PropIsFromStandardPrototype(cx, &desc);
 }
 
 bool
 ChromeObjectWrapper::getPropertyDescriptor(JSContext *cx,
-                                           HandleObject wrapper,
-                                           HandleId id,
+                                           JS::Handle<JSObject*> wrapper,
+                                           JS::Handle<jsid> id,
                                            js::PropertyDescriptor *desc,
                                            unsigned flags)
 {
@@ -82,8 +80,8 @@ ChromeObjectWrapper::getPropertyDescriptor(JSContext *cx,
         desc->obj = NULL;
 
     // If we found something or have no proto, we're done.
-    RootedObject wrapperProto(cx);
-    if (!JS_GetPrototype(cx, wrapper, wrapperProto.address()))
+    JSObject *wrapperProto;
+    if (!JS_GetPrototype(cx, wrapper, &wrapperProto))
       return false;
     if (desc->obj || !wrapperProto)
         return true;
@@ -94,8 +92,8 @@ ChromeObjectWrapper::getPropertyDescriptor(JSContext *cx,
 }
 
 bool
-ChromeObjectWrapper::has(JSContext *cx, HandleObject wrapper,
-                         HandleId id, bool *bp)
+ChromeObjectWrapper::has(JSContext *cx, JS::Handle<JSObject*> wrapper,
+                         JS::Handle<jsid> id, bool *bp)
 {
     assertEnteredPolicy(cx, wrapper, id);
     // Try the lookup on the base wrapper if permitted.
@@ -106,25 +104,25 @@ ChromeObjectWrapper::has(JSContext *cx, HandleObject wrapper,
     }
 
     // If we found something or have no prototype, we're done.
-    RootedObject wrapperProto(cx);
-    if (!JS_GetPrototype(cx, wrapper, wrapperProto.address()))
+    JSObject *wrapperProto;
+    if (!JS_GetPrototype(cx, wrapper, &wrapperProto))
         return false;
     if (*bp || !wrapperProto)
         return true;
 
     // Try the prototype if that failed.
     MOZ_ASSERT(js::IsObjectInContextCompartment(wrapper, cx));
-    Rooted<JSPropertyDescriptor> desc(cx);
-    if (!JS_GetPropertyDescriptorById(cx, wrapperProto, id, 0, desc.address()))
+    JSPropertyDescriptor desc;
+    if (!JS_GetPropertyDescriptorById(cx, wrapperProto, id, 0, &desc))
         return false;
-    *bp = !!desc.object();
+    *bp = !!desc.obj;
     return true;
 }
 
 bool
-ChromeObjectWrapper::get(JSContext *cx, HandleObject wrapper,
-                         HandleObject receiver, HandleId id,
-                         MutableHandleValue vp)
+ChromeObjectWrapper::get(JSContext *cx, JS::Handle<JSObject*> wrapper,
+                         JS::Handle<JSObject*> receiver, JS::Handle<jsid> id,
+                         JS::MutableHandle<JS::Value> vp)
 {
     assertEnteredPolicy(cx, wrapper, id);
     vp.setUndefined();
@@ -144,8 +142,8 @@ ChromeObjectWrapper::get(JSContext *cx, HandleObject wrapper,
     }
 
     // If we have no proto, we're done.
-    RootedObject wrapperProto(cx);
-    if (!JS_GetPrototype(cx, wrapper, wrapperProto.address()))
+    JSObject *wrapperProto;
+    if (!JS_GetPrototype(cx, wrapper, &wrapperProto))
         return false;
     if (!wrapperProto)
         return true;
@@ -159,7 +157,7 @@ ChromeObjectWrapper::get(JSContext *cx, HandleObject wrapper,
 // contacts API depends on Array.isArray returning true for COW-implemented
 // contacts. This isn't really ideal, but make it work for now.
 bool
-ChromeObjectWrapper::objectClassIs(HandleObject obj, js::ESClassValue classValue,
+ChromeObjectWrapper::objectClassIs(JS::Handle<JSObject*> obj, js::ESClassValue classValue,
                                    JSContext *cx)
 {
   return CrossCompartmentWrapper::objectClassIs(obj, classValue, cx);
@@ -170,8 +168,8 @@ ChromeObjectWrapper::objectClassIs(HandleObject obj, js::ESClassValue classValue
 // enforcement or COWs isn't cheap. But it results in the cleanest code, and this
 // whole proto remapping thing for COWs is going to be phased out anyway.
 bool
-ChromeObjectWrapper::enter(JSContext *cx, HandleObject wrapper,
-                           HandleId id, js::Wrapper::Action act, bool *bp)
+ChromeObjectWrapper::enter(JSContext *cx, JS::Handle<JSObject*> wrapper,
+                           JS::Handle<jsid> id, js::Wrapper::Action act, bool *bp)
 {
     if (AllowedByBase(cx, wrapper, id, act))
         return true;
@@ -183,7 +181,9 @@ ChromeObjectWrapper::enter(JSContext *cx, HandleObject wrapper,
 
     // Note that PropIsFromStandardPrototype needs to invoke getPropertyDescriptor
     // before we've fully entered the policy. Waive our policy.
-    js::AutoWaivePolicy policy(cx, wrapper, id);
+    JS::RootedObject rootedWrapper(cx, wrapper);
+    JS::RootedId rootedId(cx, id);
+    js::AutoWaivePolicy policy(cx, rootedWrapper, rootedId);
     return PropIsFromStandardPrototype(cx, wrapper, id);
 }
 

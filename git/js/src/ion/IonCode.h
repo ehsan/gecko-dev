@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -236,10 +237,6 @@ struct IonScript
     // Identifier of the compilation which produced this code.
     types::RecompileInfo recompileInfo_;
 
-    // Number of times we tried to enter this script via OSR but failed due to
-    // a LOOPENTRY pc other than osrPc_.
-    uint32_t osrPcMismatchCounter_;
-
   private:
     inline uint8_t *bottomBuffer() {
         return reinterpret_cast<uint8_t *>(this);
@@ -464,12 +461,6 @@ struct IonScript
     }
     const types::RecompileInfo& recompileInfo() const {
         return recompileInfo_;
-    }
-    uint32_t incrOsrPcMismatchCounter() {
-        return ++osrPcMismatchCounter_;
-    }
-    void resetOsrPcMismatchCounter() {
-        osrPcMismatchCounter_ = 0;
     }
 };
 

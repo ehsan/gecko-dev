@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -193,25 +194,8 @@ IonFrameIterator::baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) 
     if (scriptRes)
         *scriptRes = script;
     uint8_t *retAddr = returnAddressToFp();
-    if (pcRes) {
-        // If the return address is into the prologue entry addr, then assume PC 0.
-        if (retAddr == script->baselineScript()->prologueEntryAddr()) {
-            *pcRes = 0;
-            return;
-        }
-
-        // The return address _may_ be a return from a callVM or IC chain call done for
-        // some op.
-        ICEntry *icEntry = script->baselineScript()->maybeICEntryFromReturnAddress(retAddr);
-        if (icEntry) {
-            *pcRes = icEntry->pc(script);
-            return;
-        }
-
-        // If not, the return address _must_ be the start address of an op, which can
-        // be computed from the pc mapping table.
-        *pcRes = script->baselineScript()->pcForReturnAddress(script, retAddr);
-    }
+    if (pcRes)
+        *pcRes = script->baselineScript()->icEntryFromReturnAddress(retAddr).pc(script);
 }
 
 Value *
@@ -1143,11 +1127,11 @@ IonFrameIterator::ionScript() const
     switch (GetCalleeTokenTag(calleeToken())) {
       case CalleeToken_Function:
       case CalleeToken_Script:
-        return script()->ionScript();
+		return script()->ionScript();
       case CalleeToken_ParallelFunction:
-        return script()->parallelIonScript();
+		return script()->parallelIonScript();
       default:
-        JS_NOT_REACHED("unknown callee token type");
+		JS_NOT_REACHED("unknown callee token type");
     }
 }
 

@@ -1119,8 +1119,7 @@ public:
     nsCOMPtr<nsIVariant> variant;
 
     if (mBody.data()) {
-      SafeAutoJSContext cx;
-      JSAutoRequest ar(cx);
+      RuntimeService::AutoSafeJSContext cx;
       nsIXPConnect* xpc = nsContentUtils::XPConnect();
       NS_ASSERTION(xpc, "This should never be null!");
 
@@ -1376,8 +1375,7 @@ Proxy::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   {
-    SafeAutoJSContext cx;
-    JSAutoRequest ar(cx);
+    RuntimeService::AutoSafeJSContext cx;
     runnable->Dispatch(cx);
   }
 

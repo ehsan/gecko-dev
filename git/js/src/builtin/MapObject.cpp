@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -847,7 +848,7 @@ class js::MapIteratorObject : public JSObject
 {
   public:
     enum { TargetSlot, KindSlot, RangeSlot, SlotCount };
-    static const JSFunctionSpec methods[];
+    static JSFunctionSpec methods[];
     static MapIteratorObject *create(JSContext *cx, HandleObject mapobj, ValueMap *data,
                                      MapObject::IteratorKind kind);
     static void finalize(FreeOp *fop, RawObject obj);
@@ -872,7 +873,7 @@ Class js::MapIteratorClass = {
     JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(MapIteratorObject::SlotCount),
     JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
+    JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -881,7 +882,7 @@ Class js::MapIteratorClass = {
     MapIteratorObject::finalize
 };
 
-const JSFunctionSpec MapIteratorObject::methods[] = {
+JSFunctionSpec MapIteratorObject::methods[] = {
     JS_FN("next", next, 0, 0),
     JS_FS_END
 };
@@ -1012,7 +1013,7 @@ Class MapObject::class_ = {
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Map),
     JS_PropertyStub,         // addProperty
-    JS_DeletePropertyStub,   // delProperty
+    JS_PropertyStub,         // delProperty
     JS_PropertyStub,         // getProperty
     JS_StrictPropertyStub,   // setProperty
     JS_EnumerateStub,
@@ -1026,12 +1027,12 @@ Class MapObject::class_ = {
     mark
 };
 
-const JSPropertySpec MapObject::properties[] = {
+JSPropertySpec MapObject::properties[] = {
     JS_PSG("size", size, 0),
     JS_PS_END
 };
 
-const JSFunctionSpec MapObject::methods[] = {
+JSFunctionSpec MapObject::methods[] = {
     JS_FN("get", get, 1, 0),
     JS_FN("has", has, 1, 0),
     JS_FN("set", set, 2, 0),
@@ -1046,7 +1047,7 @@ const JSFunctionSpec MapObject::methods[] = {
 
 static JSObject *
 InitClass(JSContext *cx, Handle<GlobalObject*> global, Class *clasp, JSProtoKey key, Native construct,
-          const JSPropertySpec *properties, const JSFunctionSpec *methods)
+          JSPropertySpec *properties, JSFunctionSpec *methods)
 {
     Rooted<JSObject*> proto(cx, global->createBlankPrototype(cx, clasp));
     if (!proto)
@@ -1422,7 +1423,7 @@ class js::SetIteratorObject : public JSObject
 {
   public:
     enum { TargetSlot, RangeSlot, SlotCount };
-    static const JSFunctionSpec methods[];
+    static JSFunctionSpec methods[];
     static SetIteratorObject *create(JSContext *cx, HandleObject setobj, ValueSet *data);
     static void finalize(FreeOp *fop, RawObject obj);
 
@@ -1445,7 +1446,7 @@ Class js::SetIteratorClass = {
     JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(SetIteratorObject::SlotCount),
     JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
+    JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -1454,7 +1455,7 @@ Class js::SetIteratorClass = {
     SetIteratorObject::finalize
 };
 
-const JSFunctionSpec SetIteratorObject::methods[] = {
+JSFunctionSpec SetIteratorObject::methods[] = {
     JS_FN("next", next, 0, 0),
     JS_FS_END
 };
@@ -1555,7 +1556,7 @@ Class SetObject::class_ = {
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Set),
     JS_PropertyStub,         // addProperty
-    JS_DeletePropertyStub,   // delProperty
+    JS_PropertyStub,         // delProperty
     JS_PropertyStub,         // getProperty
     JS_StrictPropertyStub,   // setProperty
     JS_EnumerateStub,
@@ -1569,12 +1570,12 @@ Class SetObject::class_ = {
     mark
 };
 
-const JSPropertySpec SetObject::properties[] = {
+JSPropertySpec SetObject::properties[] = {
     JS_PSG("size", size, 0),
     JS_PS_END
 };
 
-const JSFunctionSpec SetObject::methods[] = {
+JSFunctionSpec SetObject::methods[] = {
     JS_FN("has", has, 1, 0),
     JS_FN("add", add, 1, 0),
     JS_FN("delete", delete_, 1, 0),

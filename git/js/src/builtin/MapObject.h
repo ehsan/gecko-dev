@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -86,8 +87,8 @@ class MapObject : public JSObject {
     static JSObject *initClass(JSContext *cx, JSObject *obj);
     static Class class_;
   private:
-    static const JSPropertySpec properties[];
-    static const JSFunctionSpec methods[];
+    static JSPropertySpec properties[];
+    static JSFunctionSpec methods[];
     ValueMap *getData() { return static_cast<ValueMap *>(getPrivate()); }
     static ValueMap & extract(CallReceiver call);
     static void mark(JSTracer *trc, RawObject obj);
@@ -123,8 +124,8 @@ class SetObject : public JSObject {
     static JSObject *initClass(JSContext *cx, JSObject *obj);
     static Class class_;
   private:
-    static const JSPropertySpec properties[];
-    static const JSFunctionSpec methods[];
+    static JSPropertySpec properties[];
+    static JSFunctionSpec methods[];
     ValueSet *getData() { return static_cast<ValueSet *>(getPrivate()); }
     static ValueSet & extract(CallReceiver call);
     static void mark(JSTracer *trc, RawObject obj);

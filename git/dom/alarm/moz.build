@@ -19,7 +19,3 @@ XPIDL_FLAGS += [
 
 MODULE = 'dom'
 
-EXPORTS.mozilla.dom.alarm += [
-    'AlarmHalService.h',
-]
-

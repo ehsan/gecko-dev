@@ -12,6 +12,7 @@
 #include "mozilla/dom/SVGTests.h"
 #include "nsICSSDeclaration.h"
 #include "nsIDocument.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsMutationEvent.h"
 #include "nsError.h"
@@ -23,7 +24,6 @@
 #include "nsCSSProps.h"
 #include "nsCSSParser.h"
 #include "nsEventListenerManager.h"
-#include "nsSVGAnimatedTransformList.h"
 #include "nsSVGLength2.h"
 #include "nsSVGNumber2.h"
 #include "nsSVGNumberPair.h"
@@ -38,6 +38,7 @@
 #include "SVGAnimatedLengthList.h"
 #include "SVGAnimatedPointList.h"
 #include "SVGAnimatedPathSegList.h"
+#include "SVGAnimatedTransformList.h"
 #include "SVGContentUtils.h"
 #include "nsIFrame.h"
 #include <stdarg.h>
@@ -600,8 +601,8 @@ nsSVGElement::ParseAttribute(int32_t aNamespaceID,
       // Check for SVGAnimatedTransformList attribute
       } else if (GetTransformListAttrName() == aAttribute) {
         // The transform attribute is being set, so we must ensure that the
-        // nsSVGAnimatedTransformList is/has been allocated:
-        nsSVGAnimatedTransformList *transformList =
+        // SVGAnimatedTransformList is/has been allocated:
+        SVGAnimatedTransformList *transformList =
           GetAnimatedTransformList(DO_ALLOCATE);
         rv = transformList->SetBaseValueString(aValue);
         if (NS_FAILED(rv)) {
@@ -819,7 +820,7 @@ nsSVGElement::UnsetAttrInternal(int32_t aNamespaceID, nsIAtom* aName,
 
     // Check if this is a transform list attribute going away
     if (GetTransformListAttrName() == aName) {
-      nsSVGAnimatedTransformList *transformList = GetAnimatedTransformList();
+      SVGAnimatedTransformList *transformList = GetAnimatedTransformList();
       if (transformList) {
         MaybeSerializeAttrBeforeRemoval(aName, aNotify);
         transformList->ClearBaseValue();
@@ -1152,7 +1153,7 @@ nsSVGElement::ClassName()
 
 namespace {
 
-class MOZ_STACK_CLASS MappedAttrParser {
+class MappedAttrParser {
 public:
   MappedAttrParser(css::Loader* aLoader,
                    nsIURI* aDocURI,

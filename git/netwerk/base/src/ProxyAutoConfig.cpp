@@ -447,7 +447,7 @@ JSBool PACProxyAlert(JSContext *cx, unsigned int argc, JS::Value *vp)
   return true;
 }
 
-static const JSFunctionSpec PACGlobalFunctions[] = {
+static JSFunctionSpec PACGlobalFunctions[] = {
   JS_FS("dnsResolve", PACDnsResolve, 1, 0),
   JS_FS("myIpAddress", PACMyIpAddress, 0, 0),
   JS_FS("alert", PACProxyAlert, 1, 0),
@@ -549,7 +549,7 @@ private:
 JSClass JSRuntimeWrapper::sGlobalClass = {
   "PACResolutionThreadGlobal",
   JSCLASS_GLOBAL_FLAGS,
-  JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
 };
 

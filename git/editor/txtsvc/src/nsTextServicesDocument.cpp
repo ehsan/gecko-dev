@@ -2292,6 +2292,7 @@ nsTextServicesDocument::IsBlockNode(nsIContent *aContent)
   return (sAAtom       != atom &&
           sAddressAtom != atom &&
           sBigAtom     != atom &&
+          sBlinkAtom   != atom &&
           sBAtom       != atom &&
           sCiteAtom    != atom &&
           sCodeAtom    != atom &&

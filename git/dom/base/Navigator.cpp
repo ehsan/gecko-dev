@@ -660,10 +660,16 @@ StaticRefPtr<VibrateWindowListener> gVibrateWindowListener;
 NS_IMETHODIMP
 VibrateWindowListener::HandleEvent(nsIDOMEvent* aEvent)
 {
-  nsCOMPtr<nsIDocument> doc =
-    do_QueryInterface(aEvent->InternalDOMEvent()->GetTarget());
+  nsCOMPtr<nsIDOMEventTarget> target;
+  aEvent->GetTarget(getter_AddRefs(target));
+  nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(target);
 
-  if (!doc || doc->Hidden()) {
+  bool hidden = true;
+  if (doc) {
+    doc->GetHidden(&hidden);
+  }
+
+  if (hidden) {
     // It's important that we call CancelVibrate(), not Vibrate() with an
     // empty list, because Vibrate() will fail if we're no longer focused, but
     // CancelVibrate() will succeed, so long as nobody else has started a new
@@ -681,7 +687,7 @@ VibrateWindowListener::HandleEvent(nsIDOMEvent* aEvent)
 void
 VibrateWindowListener::RemoveListener()
 {
-  nsCOMPtr<EventTarget> target = do_QueryReferent(mDocument);
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryReferent(mDocument);
   if (!target) {
     return;
   }
@@ -691,13 +697,13 @@ VibrateWindowListener::RemoveListener()
 }
 
 /**
- * Converts a JS::Value into a vibration duration, checking that the duration is in
+ * Converts a jsval into a vibration duration, checking that the duration is in
  * bounds (non-negative and not larger than sMaxVibrateMS).
  *
  * Returns true on success, false on failure.
  */
 bool
-GetVibrationDurationFromJsval(const JS::Value& aJSVal, JSContext* cx,
+GetVibrationDurationFromJsval(const jsval& aJSVal, JSContext* cx,
                               int32_t* aOut)
 {
   return JS_ValueToInt32(cx, aJSVal, aOut) &&
@@ -749,7 +755,7 @@ Navigator::RemoveIdleObserver(nsIIdleObserver* aIdleObserver)
 }
 
 NS_IMETHODIMP
-Navigator::Vibrate(const JS::Value& aPattern, JSContext* cx)
+Navigator::Vibrate(const jsval& aPattern, JSContext* cx)
 {
   nsCOMPtr<nsPIDOMWindow> win = do_QueryReferent(mWindow);
   NS_ENSURE_TRUE(win, NS_OK);
@@ -789,7 +795,7 @@ Navigator::Vibrate(const JS::Value& aPattern, JSContext* cx)
     pattern.SetLength(length);
 
     for (uint32_t i = 0; i < length; ++i) {
-      JS::Value v;
+      jsval v;
       int32_t pv;
       if (JS_GetElement(cx, obj, i, &v) &&
           GetVibrationDurationFromJsval(v, cx, &pv)) {
@@ -1062,7 +1068,7 @@ NS_IMETHODIMP Navigator::GetGeolocation(nsIDOMGeoGeolocation** _retval)
     return NS_ERROR_FAILURE;
   }
 
-  mGeolocation = new Geolocation();
+  mGeolocation = new nsGeolocation();
   if (!mGeolocation) {
     return NS_ERROR_FAILURE;
   }
@@ -1435,7 +1441,7 @@ Navigator::EnsureMessagesManager()
   NS_ENSURE_TRUE(gpi, NS_ERROR_FAILURE);
 
   // We don't do anything with the return value.
-  JS::Value prop_val = JSVAL_VOID;
+  jsval prop_val = JSVAL_VOID;
   rv = gpi->Init(window, &prop_val);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1527,7 +1533,7 @@ Navigator::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 
   // TODO: add SizeOfIncludingThis() to nsMimeTypeArray, bug 674113.
   // TODO: add SizeOfIncludingThis() to nsPluginArray, bug 674114.
-  // TODO: add SizeOfIncludingThis() to Geolocation, bug 674115.
+  // TODO: add SizeOfIncludingThis() to nsGeolocation, bug 674115.
   // TODO: add SizeOfIncludingThis() to DesktopNotificationCenter, bug 674116.
 
   return n;

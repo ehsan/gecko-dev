@@ -8,6 +8,7 @@
 #include "mozilla/layers/PLayerChild.h"
 #include "mozilla/layers/PLayersChild.h"
 #include "mozilla/layers/PLayersParent.h"
+#include "mozilla/layers/TextureChild.h"
 
 #include "gfxSharedImageSurface.h"
 #include "gfxImageSurface.h"
@@ -873,16 +874,6 @@ BasicLayerManager::FlushGroup(PaintLayerContext& aPaintContext, bool aNeedsClipT
   }
 }
 
-static bool
-HasOpaqueAncestorLayer(Layer* aLayer)
-{
-  for (Layer* l = aLayer->GetParent(); l; l = l->GetParent()) {
-    if (l->GetContentFlags() & Layer::CONTENT_OPAQUE)
-      return true;
-    }
- return false;
-}
-
 void
 BasicLayerManager::PaintLayer(gfxContext* aTarget,
                               Layer* aLayer,
@@ -916,28 +907,6 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
   NS_ASSERTION(!aLayer->GetFirstChild() || !aLayer->GetMaskLayer() ||
                container->UseIntermediateSurface(),
                "ContainerLayer with mask layer should force UseIntermediateSurface");
-
-  // If we're a shadowable ContainerLayer, then setup mSupportsComponentAlphaChildren
-  // in the same way that ContainerLayerComposite will do. Otherwise leave it set to
-  // true.
-  ShadowableLayer* shadow = aLayer->AsShadowableLayer();
-  if (aLayer->GetFirstChild() && shadow && shadow->HasShadow()) {
-    if (needsGroup) {
-      if (container->GetEffectiveVisibleRegion().GetNumRects() != 1 ||
-          !(container->GetContentFlags() & Layer::CONTENT_OPAQUE))
-      {
-        const gfx3DMatrix& transform3D = container->GetEffectiveTransform();
-        gfxMatrix transform;
-        if (HasOpaqueAncestorLayer(container) &&
-            transform3D.Is2D(&transform) && !transform.HasNonIntegerTranslation()) {
-          container->SetSupportsComponentAlphaChildren(gfxPlatform::GetPlatform()->UsesSubpixelAATextRendering());
-        }
-      }
-    } else {
-      container->SetSupportsComponentAlphaChildren((container->GetContentFlags() & Layer::CONTENT_OPAQUE) ||
-        (container->GetParent() && container->GetParent()->SupportsComponentAlphaChildren()));
-    }
-  }
 
   gfxContextAutoSaveRestore contextSR;
   gfxMatrix transform;
@@ -1192,9 +1161,6 @@ BasicShadowLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
                                         void* aCallbackData,
                                         EndTransactionFlags aFlags)
 {
-  if (mWidget) {
-    mWidget->PrepareWindowEffects();
-  }
   BasicLayerManager::EndTransaction(aCallback, aCallbackData, aFlags);
   ForwardTransaction();
 
@@ -1278,12 +1244,13 @@ BasicShadowLayerManager::ForwardTransaction()
 
         const OpTextureSwap& ots = reply.get_OpTextureSwap();
 
-        CompositableChild* compositableChild =
-          static_cast<CompositableChild*>(ots.compositableChild());
-        MOZ_ASSERT(compositableChild);
+        PTextureChild* textureChild = ots.textureChild();
+        MOZ_ASSERT(textureChild);
 
-        compositableChild->GetCompositableClient()
-          ->SetDescriptorFromReply(ots.textureId(), ots.image());
+        TextureClient* texClient =
+          static_cast<TextureChild*>(textureChild)->GetTextureClient();
+
+        texClient->SetDescriptorFromReply(ots.image());
         break;
       }
 

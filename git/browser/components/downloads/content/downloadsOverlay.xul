@@ -101,8 +101,6 @@
                    class="plain"
                    flex="1"
                    context="downloadsContextMenu"
-                   onmouseover="DownloadsView.onDownloadMouseOver(event);"
-                   onmouseout="DownloadsView.onDownloadMouseOut(event);"
                    oncontextmenu="DownloadsView.onDownloadContextMenu(event);"
                    ondragstart="DownloadsView.onDownloadDragStart(event);"/>
 

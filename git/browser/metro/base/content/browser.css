@@ -118,12 +118,8 @@ placelabel {
   -moz-binding: url("chrome://browser/content/bindings/bindings.xml#place-label");
 }
 
-radio[type="toggle"] {
+radio {
   -moz-binding: url("chrome://global/content/bindings/radio.xml#radio");
-}
-
-radiogroup {
-  -moz-binding: url("chrome://global/content/bindings/radio.xml#radiogroup");
 }
 
 checkbox.toggleswitch {

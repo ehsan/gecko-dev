@@ -35,7 +35,7 @@ public:
   MediaStreamList(sipcc::PeerConnectionImpl* peerConnection, StreamType type);
   ~MediaStreamList();
 
-  JSObject* WrapObject(JSContext* cx, bool* aTookOwnership);
+  JSObject* WrapObject(JSContext* cx, ErrorResult& error);
 
   DOMMediaStream* IndexedGetter(uint32_t index, bool& found);
   uint32_t Length();

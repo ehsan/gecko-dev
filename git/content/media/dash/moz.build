@@ -6,10 +6,3 @@
 
 MODULE = 'content'
 
-EXPORTS += [
-    'DASHDecoder.h',
-    'DASHReader.h',
-    'DASHRepDecoder.h',
-    'DASHRepReader.h',
-]
-

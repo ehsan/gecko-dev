@@ -424,7 +424,6 @@ XRE_InitChildProcess(int aArgc,
 
   nsresult rv = XRE_InitCommandLine(aArgc, aArgv);
   if (NS_FAILED(rv)) {
-    profiler_shutdown();
     NS_LogTerm();
     return NS_ERROR_FAILURE;
   }
@@ -487,7 +486,6 @@ XRE_InitChildProcess(int aArgc,
       }
 
       if (!process->Init()) {
-        profiler_shutdown();
         NS_LogTerm();
         return NS_ERROR_FAILURE;
       }
@@ -502,7 +500,6 @@ XRE_InitChildProcess(int aArgc,
     }
   }
 
-  profiler_shutdown();
   NS_LogTerm();
   return XRE_DeinitCommandLine();
 }

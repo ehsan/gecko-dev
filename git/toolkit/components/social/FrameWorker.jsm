@@ -77,7 +77,6 @@ function FrameWorker(url, name, origin) {
   this.loaded = false;
   this.reloading = false;
   this.origin = origin;
-  this._injectController = null;
 
   this.frame = makeHiddenFrame();
   this.load();
@@ -85,27 +84,20 @@ function FrameWorker(url, name, origin) {
 
 FrameWorker.prototype = {
   load: function FrameWorker_loadWorker() {
-    this._injectController = function(doc, topic, data) {
-      if (!doc.defaultView || doc.defaultView != this.frame.contentWindow) {
+    var self = this;
+    Services.obs.addObserver(function injectController(doc, topic, data) {
+      if (!doc.defaultView || doc.defaultView != self.frame.contentWindow) {
         return;
       }
-      this._maybeRemoveInjectController();
+      Services.obs.removeObserver(injectController, "document-element-inserted");
       try {
-        this.createSandbox();
+        self.createSandbox();
       } catch (e) {
         Cu.reportError("FrameWorker: failed to create sandbox for " + url + ". " + e);
       }
-    }.bind(this);
+    }, "document-element-inserted", false);
 
-    Services.obs.addObserver(this._injectController, "document-element-inserted", false);
     this.frame.setAttribute("src", this.url);
-  },
-
-  _maybeRemoveInjectController: function() {
-    if (this._injectController) {
-      Services.obs.removeObserver(this._injectController, "document-element-inserted");
-      this._injectController = null;
-    }
   },
 
   reload: function FrameWorker_reloadWorker() {
@@ -316,7 +308,6 @@ FrameWorker.prototype = {
       // terminating an already terminated worker - ignore it
       return;
     }
-    this._maybeRemoveInjectController();
     // we want to "forget" about this worker now even though the termination
     // may not be complete for a little while...
     delete workerCache[this.url];

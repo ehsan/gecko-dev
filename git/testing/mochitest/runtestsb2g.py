@@ -130,18 +130,11 @@ container.src = '%s';
         for pref in prefs:
             prefs[pref] = Preferences.cast(prefs[pref])
 
-        kwargs = {
-            'addons': self.getExtensionsToInstall(options),
-            'apps': self.webapps,
-            'locations': self.locations,
-            'preferences': prefs,
-            'proxy': {"remote": options.webServer}
-        }
-
-        if options.profile:
-            self.profile = Profile.clone(options.profile, **kwargs)
-        else:
-            self.profile = Profile(**kwargs)
+        self.profile = Profile(addons=self.getExtensionsToInstall(options),
+                               apps=self.webapps,
+                               locations=self.locations,
+                               preferences=prefs,
+                               proxy={"remote": options.webServer})
 
         options.profilePath = self.profile.profile
         # TODO bug 839108 - mozprofile should probably handle this

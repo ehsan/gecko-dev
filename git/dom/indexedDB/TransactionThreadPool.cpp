@@ -418,7 +418,7 @@ TransactionThreadPool::AbortTransactionsForDatabase(IDBDatabase* aDatabase)
   }
 }
 
-struct MOZ_STACK_CLASS TransactionSearchInfo
+struct NS_STACK_CLASS TransactionSearchInfo
 {
   TransactionSearchInfo(nsIOfflineStorage* aDatabase)
     : db(aDatabase), found(false)
@@ -463,7 +463,7 @@ TransactionThreadPool::HasTransactionsForDatabase(IDBDatabase* aDatabase)
 }
 
 bool
-TransactionThreadPool::MaybeFireCallback(DatabasesCompleteCallback aCallback)
+TransactionThreadPool::MaybeFireCallback(DatabasesCompleteCallback& aCallback)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 

@@ -6,7 +6,3 @@
 
 MODULE = 'rdf'
 
-EXPORTS += [
-    'nsRDFCID.h',
-]
-

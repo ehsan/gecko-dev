@@ -26,17 +26,12 @@ MOZ_ARG_ENABLE_BOOL(android-libstdcxx,
     MOZ_ANDROID_LIBSTDCXX=1,
     MOZ_ANDROID_LIBSTDCXX= )
 
-define([MIN_ANDROID_VERSION], [9])
-android_version=MIN_ANDROID_VERSION
+android_version=9
 
 MOZ_ARG_WITH_STRING(android-version,
 [  --with-android-version=VER
-                          android platform version, default] MIN_ANDROID_VERSION,
+                          android platform version, default 9],
     android_version=$withval)
-
-if test $android_version -lt MIN_ANDROID_VERSION ; then
-    AC_MSG_ERROR([--with-android-version must be at least MIN_ANDROID_VERSION.])
-fi
 
 MOZ_ARG_WITH_STRING(android-platform,
 [  --with-android-platform=DIR
@@ -114,8 +109,6 @@ case "$target" in
         NSPR_CONFIGURE_ARGS="$NSPR_CONFIGURE_ARGS --with-android-toolchain=$android_toolchain"
     fi
 
-    NSPR_CONFIGURE_ARGS="$NSPR_CONFIGURE_ARGS --with-android-version=$android_version"
-
     if test -z "$android_platform" ; then
         AC_MSG_CHECKING([for android platform directory])
 
@@ -191,8 +184,11 @@ case "$target" in
     ANDROID_NDK="${android_ndk}"
     ANDROID_TOOLCHAIN="${android_toolchain}"
     ANDROID_PLATFORM="${android_platform}"
+    ANDROID_VERSION="${android_version}"
 
     AC_DEFINE(ANDROID)
+    AC_DEFINE_UNQUOTED(ANDROID_VERSION, $android_version)
+    AC_SUBST(ANDROID_VERSION)
     CROSS_COMPILE=1
     AC_SUBST(ANDROID_NDK)
     AC_SUBST(ANDROID_TOOLCHAIN)
@@ -254,7 +250,7 @@ if test "$OS_TARGET" = "Android" -a -z "$gonkdir"; then
             fi
             STLPORT_SOURCES="$android_ndk/sources/cxx-stl/stlport"
             STLPORT_CPPFLAGS="-I$_objdir/build/stlport -I$android_ndk/sources/cxx-stl/stlport/stlport"
-            STLPORT_LIBS="-lstlport_static -static-libstdc++"
+            STLPORT_LIBS="-lstlport_static"
         elif test "$target" != "arm-android-eabi"; then
             dnl fail if we're not building with NDKr4
             AC_MSG_ERROR([Couldn't find path to stlport in the android ndk])

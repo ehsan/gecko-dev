@@ -353,7 +353,7 @@ AddAnimationsAndTransitionsToLayer(Layer* aLayer, nsDisplayListBuilder* aBuilder
 {
   aLayer->ClearAnimations();
 
-  nsIFrame* frame = aItem->Frame();
+  nsIFrame* frame = aItem->GetUnderlyingFrame();
 
   nsIContent* content = frame->GetContent();
   if (!content) {
@@ -925,8 +925,8 @@ TreatAsOpaque(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder)
     // Non-leaf chrome items don't render contents of their own so shouldn't
     // be treated as opaque (and their bounds is just the union of their
     // children, which might be a large area their contents don't really cover).
-    nsIFrame* f = aItem->Frame();
-    if (f->PresContext()->IsChrome() && !aItem->GetChildren() &&
+    nsIFrame* f = aItem->GetUnderlyingFrame();
+    if (f && f->PresContext()->IsChrome() && !aItem->GetChildren() &&
         f->StyleDisplay()->mOpacity != 0.0) {
       opaque = aItem->GetBounds(aBuilder, &snap);
     }
@@ -950,7 +950,7 @@ GetDisplayPortBounds(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem)
   // transform into account, so there is no need to apply it here one more time.
   // Start TransformRectToBoundsInAncestor() calculations from aItem's frame
   // parent in this case.
-  nsIFrame* frame = aItem->Frame();
+  nsIFrame* frame = aItem->GetUnderlyingFrame();
   if (aItem->GetType() == nsDisplayItem::TYPE_TRANSFORM) {
     frame = nsLayoutUtils::GetCrossDocParentFrame(frame);
   }
@@ -1323,7 +1323,7 @@ void nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
       // so we can sort them later, otherwise we add them directly to the output list.
       nsTArray<nsIFrame*> *writeFrames = aOutFrames;
       if (item->GetType() == nsDisplayItem::TYPE_TRANSFORM &&
-          item->Frame()->Preserves3D()) {
+          item->GetUnderlyingFrame()->Preserves3D()) {
         if (outFrames.Length()) {
           nsDisplayTransform *transform = static_cast<nsDisplayTransform*>(item);
           nsPoint point = aRect.TopLeft();
@@ -1395,16 +1395,23 @@ static void Sort(nsDisplayList* aList, int32_t aCount, nsDisplayList::SortLEQ aC
   }
 }
 
-static nsIContent* FindContentInDocument(nsDisplayItem* aItem, nsIDocument* aDoc) {
-  nsIFrame* f = aItem->Frame();
-  while (f) {
-    nsPresContext* pc = f->PresContext();
-    if (pc->Document() == aDoc) {
-      return f->GetContent();
+static nsIContent* FindContentInDocument(nsIContent* aContent, nsIDocument* aDoc) {
+  nsIContent* c = aContent;
+  for (;;) {
+    nsIDocument* d = c->OwnerDoc();
+    if (d == aDoc) {
+      return c;
     }
-    f = nsLayoutUtils::GetCrossDocParentFrame(pc->PresShell()->GetRootFrame());
+    nsIDocument* parentDoc = d->GetParentDocument();
+    if (!parentDoc) {
+      return nullptr;
+    }
+    c = parentDoc->FindContentForSubDocument(d);
+    if (!c) {
+      NS_ERROR("No content for subdocument?");
+      return nullptr;
+    }
   }
-  return nullptr;
 }
 
 static bool IsContentLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
@@ -1415,8 +1422,10 @@ static bool IsContentLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
   // mixed into the same list. Ensure that we're looking at content
   // in commonAncestor's document.
   nsIDocument* commonAncestorDoc = commonAncestor->OwnerDoc();
-  nsIContent* content1 = FindContentInDocument(aItem1, commonAncestorDoc);
-  nsIContent* content2 = FindContentInDocument(aItem2, commonAncestorDoc);
+  nsIContent* content1 = FindContentInDocument(aItem1->GetUnderlyingFrame()->GetContent(),
+                                               commonAncestorDoc);
+  nsIContent* content2 = FindContentInDocument(aItem2->GetUnderlyingFrame()->GetContent(),
+                                               commonAncestorDoc);
   if (!content1 || !content2) {
     NS_ERROR("Document trees are mixed up!");
     // Something weird going on
@@ -1427,10 +1436,11 @@ static bool IsContentLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
 
 static bool IsZOrderLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
                         void* aClosure) {
-  // Note that we can't just take the difference of the two
+  // These GetUnderlyingFrame calls return non-null because we're only used
+  // in sorting.  Note that we can't just take the difference of the two
   // z-indices here, because that might overflow a 32-bit int.
-  int32_t index1 = nsLayoutUtils::GetZIndex(aItem1->Frame());
-  int32_t index2 = nsLayoutUtils::GetZIndex(aItem2->Frame());
+  int32_t index1 = nsLayoutUtils::GetZIndex(aItem1->GetUnderlyingFrame());
+  int32_t index2 = nsLayoutUtils::GetZIndex(aItem2->GetUnderlyingFrame());
   return index1 <= index2;
 }
 
@@ -1899,7 +1909,7 @@ nsDisplayBackgroundImage::GetInsideClipRegion(nsDisplayItem* aItem,
   if (aRect.IsEmpty())
     return result;
 
-  nsIFrame *frame = aItem->Frame();
+  nsIFrame *frame = aItem->GetUnderlyingFrame();
 
   nscoord radii[8];
   nsRect clipRect;
@@ -2056,7 +2066,7 @@ static void CheckForBorderItem(nsDisplayItem *aItem, uint32_t& aFlags)
     nextItem = nextItem->GetAbove();
   }
   if (nextItem && 
-      nextItem->Frame() == aItem->Frame() &&
+      nextItem->GetUnderlyingFrame() == aItem->GetUnderlyingFrame() &&
       nextItem->GetType() == nsDisplayItem::TYPE_BORDER) {
     aFlags |= nsCSSRendering::PAINTBG_WILL_PAINT_BORDER;
   }
@@ -2384,7 +2394,7 @@ void
 nsDisplayBoxShadowOuter::Paint(nsDisplayListBuilder* aBuilder,
                                nsRenderingContext* aCtx) {
   nsPoint offset = ToReferenceFrame();
-  nsRect borderRect = mFrame->VisualBorderRectRelativeToSelf() + offset;
+  nsRect borderRect = nsRect(offset, mFrame->GetSize());
   nsPresContext* presContext = mFrame->PresContext();
   nsAutoTArray<nsRect,10> rects;
   ComputeDisjointRectangles(mVisibleRegion, &rects);
@@ -2517,7 +2527,7 @@ nsDisplayWrapList::nsDisplayWrapList(nsDisplayListBuilder* aBuilder,
   // children.
   nsDisplayItem *i = mList.GetBottom();
   if (i && (!i->GetAbove() || i->GetType() == TYPE_TRANSFORM) && 
-      i->Frame() == mFrame) {
+      i->GetUnderlyingFrame() == mFrame) {
     mReferenceFrame = i->ReferenceFrame();
     mToReferenceFrame = i->ToReferenceFrame();
   }
@@ -2541,7 +2551,7 @@ nsDisplayWrapList::nsDisplayWrapList(nsDisplayListBuilder* aBuilder,
   }
 
   // See the previous nsDisplayWrapList constructor
-  if (aItem->Frame() == aFrame) {
+  if (aItem->GetUnderlyingFrame() == aFrame) {
     mReferenceFrame = aItem->ReferenceFrame();
     mToReferenceFrame = aItem->ToReferenceFrame();
   }
@@ -2634,11 +2644,12 @@ nsDisplayWrapList::RequiredLayerStateForChildren(nsDisplayListBuilder* aBuilder,
                                                  nsIFrame* aActiveScrolledRoot) {
   LayerState result = LAYER_INACTIVE;
   for (nsDisplayItem* i = aList.GetBottom(); i; i = i->GetAbove()) {
-    nsIFrame* f = i->Frame();
-    nsIFrame* activeScrolledRoot =
-      nsLayoutUtils::GetActiveScrolledRootFor(f, nullptr);
-    if (activeScrolledRoot != aActiveScrolledRoot && result == LAYER_INACTIVE) {
-      result = LAYER_ACTIVE;
+    nsIFrame* f = i->GetUnderlyingFrame();
+    if (f) {
+      nsIFrame* activeScrolledRoot =
+        nsLayoutUtils::GetActiveScrolledRootFor(f, nullptr);
+      if (activeScrolledRoot != aActiveScrolledRoot && result == LAYER_INACTIVE)
+        result = LAYER_ACTIVE;
     }
 
     LayerState state = i->GetLayerState(aBuilder, aManager, aParameters);
@@ -2787,7 +2798,7 @@ static bool
 IsItemTooSmallForActiveLayer(nsDisplayItem* aItem)
 {
   nsIntRect visibleDevPixels = aItem->GetVisibleRect().ToOutsidePixels(
-          aItem->Frame()->PresContext()->AppUnitsPerDevPixel());
+          aItem->GetUnderlyingFrame()->PresContext()->AppUnitsPerDevPixel());
   static const int MIN_ACTIVE_LAYER_SIZE_DEV_PIXELS = 16;
   return visibleDevPixels.Size() <
     nsIntSize(MIN_ACTIVE_LAYER_SIZE_DEV_PIXELS, MIN_ACTIVE_LAYER_SIZE_DEV_PIXELS);
@@ -2835,7 +2846,7 @@ bool nsDisplayOpacity::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* a
   // items for the same content element should be merged into a single
   // compositing group
   // aItem->GetUnderlyingFrame() returns non-null because it's nsDisplayOpacity
-  if (aItem->Frame()->GetContent() != mFrame->GetContent())
+  if (aItem->GetUnderlyingFrame()->GetContent() != mFrame->GetContent())
     return false;
   if (aItem->GetClip() != GetClip())
     return false;
@@ -2946,19 +2957,6 @@ nsDisplayFixedPosition::BuildLayer(nsDisplayListBuilder* aBuilder,
                                            aContainerParameters.mYScale,
                                          NSAppUnitsToFloatPixels(fixedMargins.left, factor) *
                                            aContainerParameters.mXScale);
-
-  // If the frame is auto-positioned on either axis, set the top/left layer
-  // margins to -1, to indicate to the compositor that this layer is
-  // unaffected by fixed margins.
-  if (position->mOffset.GetLeftUnit() == eStyleUnit_Auto &&
-      position->mOffset.GetRightUnit() == eStyleUnit_Auto) {
-    fixedLayerMargins.left = -1;
-  }
-  if (position->mOffset.GetTopUnit() == eStyleUnit_Auto &&
-      position->mOffset.GetBottomUnit() == eStyleUnit_Auto) {
-    fixedLayerMargins.top = -1;
-  }
-
   layer->SetFixedPositionMargins(fixedLayerMargins);
 
   return layer.forget();
@@ -3673,7 +3671,7 @@ nsDisplayTransform::GetResultingTransformMatrixInternal(const FrameTransformProp
 bool
 nsDisplayOpacity::CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder)
 {
-  if (Frame()->AreLayersMarkedActive(nsChangeHint_UpdateOpacityLayer)) {
+  if (GetUnderlyingFrame()->AreLayersMarkedActive(nsChangeHint_UpdateOpacityLayer)) {
     return true;
   }
 
@@ -3681,7 +3679,7 @@ nsDisplayOpacity::CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder)
     nsCString message;
     message.AppendLiteral("Performance warning: Async animation disabled because frame was not marked active for opacity animation");
     CommonElementAnimationData::LogAsyncAnimationFailure(message,
-                                                         Frame()->GetContent());
+                                                         GetUnderlyingFrame()->GetContent());
   }
   return false;
 }
@@ -3690,7 +3688,7 @@ bool
 nsDisplayTransform::CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder)
 {
   return ShouldPrerenderTransformedContent(aBuilder,
-                                           Frame(),
+                                           GetUnderlyingFrame(),
                                            nsLayoutUtils::IsAnimationLoggingEnabled());
 }
 
@@ -4095,7 +4093,7 @@ nsDisplayTransform::TryMerge(nsDisplayListBuilder *aBuilder,
     return false;
 
   /* Check to see that both frames are part of the same content. */
-  if (aItem->Frame()->GetContent() != mFrame->GetContent())
+  if (aItem->GetUnderlyingFrame()->GetContent() != mFrame->GetContent())
     return false;
 
   if (aItem->GetClip() != GetClip())
@@ -4307,7 +4305,7 @@ bool nsDisplaySVGEffects::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem
   // items for the same content element should be merged into a single
   // compositing group
   // aItem->GetUnderlyingFrame() returns non-null because it's nsDisplaySVGEffects
-  if (aItem->Frame()->GetContent() != mFrame->GetContent())
+  if (aItem->GetUnderlyingFrame()->GetContent() != mFrame->GetContent())
     return false;
   if (aItem->GetClip() != GetClip())
     return false;

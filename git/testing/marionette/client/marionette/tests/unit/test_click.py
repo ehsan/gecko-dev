@@ -5,8 +5,6 @@
 import time
 from marionette_test import MarionetteTestCase
 
-"""
-### Disabled due to bug 838607
 class TestClick(MarionetteTestCase):
     def test_click(self):
         test_html = self.marionette.absolute_url("test.html")
@@ -27,7 +25,6 @@ class TestClick(MarionetteTestCase):
                 self.fail("Element id=username not found after 30 seconds")
 
         self.assertEqual(self.marionette.title, "XHTML Test Page")
-"""
 
 class TestClickChrome(MarionetteTestCase):
     def setUp(self):

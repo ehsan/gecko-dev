@@ -174,6 +174,9 @@ public class GeckoAppShell
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
             @Override
             public void uncaughtException(Thread thread, Throwable e) {
+                Log.e(LOGTAG, ">>> REPORTING UNCAUGHT EXCEPTION FROM THREAD "
+                              + thread.getId() + " (\"" + thread.getName() + "\")", e);
+
                 // If the uncaught exception was rethrown, walk the exception `cause` chain to find
                 // the original exception so Socorro can correctly collate related crash reports.
                 Throwable cause;
@@ -181,20 +184,15 @@ public class GeckoAppShell
                     e = cause;
                 }
 
-                try {
-                    Log.e(LOGTAG, ">>> REPORTING UNCAUGHT EXCEPTION FROM THREAD "
-                                  + thread.getId() + " (\"" + thread.getName() + "\")", e);
-
-                    if (e instanceof OutOfMemoryError) {
-                        SharedPreferences prefs =
-                            GeckoApp.mAppContext.getSharedPreferences(GeckoApp.PREFS_NAME, 0);
-                        SharedPreferences.Editor editor = prefs.edit();
-                        editor.putBoolean(GeckoApp.PREFS_OOM_EXCEPTION, true);
-                        editor.commit();
-                    }
-                } finally {
-                    reportJavaCrash(getStackTraceString(e));
+                if (e instanceof java.lang.OutOfMemoryError) {
+                    SharedPreferences prefs =
+                        GeckoApp.mAppContext.getSharedPreferences(GeckoApp.PREFS_NAME, 0);
+                    SharedPreferences.Editor editor = prefs.edit();
+                    editor.putBoolean(GeckoApp.PREFS_OOM_EXCEPTION, true);
+                    editor.commit();
                 }
+
+                reportJavaCrash(getStackTraceString(e));
             }
         });
     }
@@ -584,7 +582,7 @@ public class GeckoAppShell
         intent.setAction(GeckoApp.ACTION_WEBAPP_PREFIX + aIndex);
         intent.setData(Uri.parse(aURI));
         intent.setClassName(AppConstants.ANDROID_PACKAGE_NAME,
-                            AppConstants.ANDROID_PACKAGE_NAME + ".WebApps$WebApp" + aIndex);
+                            "org.mozilla.gecko.WebApps$WebApp" + aIndex);
         return intent;
     }
 

@@ -81,7 +81,6 @@ const CATEGORY_JS = 2;
 const CATEGORY_WEBDEV = 3;
 const CATEGORY_INPUT = 4;   // always on
 const CATEGORY_OUTPUT = 5;  // always on
-const CATEGORY_SECURITY = 6;
 
 // The possible message severities. As before, we start at zero so we can use
 // these as indexes into MESSAGE_PREFERENCE_KEYS.
@@ -98,7 +97,6 @@ const CATEGORY_CLASS_FRAGMENTS = [
   "console",
   "input",
   "output",
-  "security",
 ];
 
 // The fragment of a CSS class name that identifies each severity.
@@ -122,7 +120,6 @@ const MESSAGE_PREFERENCE_KEYS = [
   [ "error",      "warn",       "info", "log",         ],  // Web Developer
   [ null,         null,         null,   null,          ],  // Input
   [ null,         null,         null,   null,          ],  // Output
-  [ "secerror",   "secwarn",    null,   null,          ],  // Security
 ];
 
 // A mapping from the console API log event levels to the Web Console
@@ -174,9 +171,6 @@ const FILTER_PREFS_PREFIX = "devtools.webconsole.filter.";
 // The minimum font size.
 const MIN_FONT_SIZE = 10;
 
-// The maximum length of strings to be displayed by the Web Console.
-const MAX_LONG_STRING_LENGTH = 200000;
-
 const PREF_CONNECTION_TIMEOUT = "devtools.debugger.remote-timeout";
 
 /**
@@ -195,7 +189,7 @@ function WebConsoleFrame(aWebConsoleOwner)
   this.owner = aWebConsoleOwner;
   this.hudId = this.owner.hudId;
 
-  this._repeatNodes = {};
+  this._cssNodes = {};
   this._outputQueue = [];
   this._pruneCategoriesQueue = {};
   this._networkRequests = {};
@@ -292,11 +286,11 @@ WebConsoleFrame.prototype = {
   _outputTimerInitialized: null,
 
   /**
-   * Store for tracking repeated nodes.
+   * Store for tracking repeated CSS nodes.
    * @private
    * @type object
    */
-  _repeatNodes: null,
+  _cssNodes: null,
 
   /**
    * Preferences for filtering messages by type.
@@ -512,8 +506,6 @@ WebConsoleFrame.prototype = {
       info: Services.prefs.getBoolPref(FILTER_PREFS_PREFIX + "info"),
       warn: Services.prefs.getBoolPref(FILTER_PREFS_PREFIX + "warn"),
       log: Services.prefs.getBoolPref(FILTER_PREFS_PREFIX + "log"),
-      secerror: Services.prefs.getBoolPref(FILTER_PREFS_PREFIX + "secerror"),
-      secwarn: Services.prefs.getBoolPref(FILTER_PREFS_PREFIX + "secwarn"),
     };
   },
 
@@ -903,11 +895,10 @@ WebConsoleFrame.prototype = {
     let uid = repeatNode._uid;
     let dupeNode = null;
 
-    if (aNode.classList.contains("webconsole-msg-cssparser") ||
-        aNode.classList.contains("webconsole-msg-security")) {
-      dupeNode = this._repeatNodes[uid];
+    if (aNode.classList.contains("webconsole-msg-cssparser")) {
+      dupeNode = this._cssNodes[uid];
       if (!dupeNode) {
-        this._repeatNodes[uid] = aNode;
+        this._cssNodes[uid] = aNode;
       }
     }
     else if (!aNode.classList.contains("webconsole-msg-network") &&
@@ -1328,23 +1319,13 @@ WebConsoleFrame.prototype = {
   },
 
   /**
-   * Inform user that the window.console API has been replaced by a script
+   * Inform user that the Web Console API has been replaced by a script
    * in a content page.
    */
   logWarningAboutReplacedAPI: function WCF_logWarningAboutReplacedAPI()
   {
     let node = this.createMessageNode(CATEGORY_JS, SEVERITY_WARNING,
                                       l10n.getStr("ConsoleAPIDisabled"));
-    this.outputMessage(CATEGORY_JS, node);
-  },
-
-  /**
-   * Inform user that the string he tries to view is too long.
-   */
-  logWarningAboutStringTooLong: function WCF_logWarningAboutStringTooLong()
-  {
-    let node = this.createMessageNode(CATEGORY_JS, SEVERITY_WARNING,
-                                      l10n.getStr("longStringTooLong"));
     this.outputMessage(CATEGORY_JS, node);
   },
 
@@ -1714,17 +1695,11 @@ WebConsoleFrame.prototype = {
     let hudIdSupportsString = WebConsoleUtils.supportsString(this.hudId);
 
     // Output the current batch of messages.
-    let newMessages = new Set();
-    let updatedMessages = new Set();
+    let newOrUpdatedNodes = new Set();
     for (let item of batch) {
       let result = this._outputMessageFromQueue(hudIdSupportsString, item);
       if (result) {
-        if (result.isRepeated) {
-          updatedMessages.add(result.isRepeated);
-        }
-        else {
-          newMessages.add(result.node);
-        }
+        newOrUpdatedNodes.add(result.isRepeated || result.node);
         if (result.visible && result.node == this.outputNode.lastChild) {
           lastVisibleNode = result.node;
         }
@@ -1768,12 +1743,7 @@ WebConsoleFrame.prototype = {
       scrollBox.scrollTop -= oldScrollHeight - scrollBox.scrollHeight;
     }
 
-    if (newMessages.size) {
-      this.emit("messages-added", newMessages);
-    }
-    if (updatedMessages.size) {
-      this.emit("messages-updated", updatedMessages);
-    }
+    this.emit("messages-added", newOrUpdatedNodes);
 
     // If the queue is not empty, schedule another flush.
     if (this._outputQueue.length > 0) {
@@ -1978,11 +1948,10 @@ WebConsoleFrame.prototype = {
       aNode._objectActors.clear();
     }
 
-    if (aNode.classList.contains("webconsole-msg-cssparser") ||
-        aNode.classList.contains("webconsole-msg-security")) {
+    if (aNode.classList.contains("webconsole-msg-cssparser")) {
       let repeatNode = aNode.getElementsByClassName("webconsole-msg-repeat")[0];
       if (repeatNode && repeatNode._uid) {
-        delete this._repeatNodes[repeatNode._uid];
+        delete this._cssNodes[repeatNode._uid];
       }
     }
     else if (aNode._connectionId &&
@@ -2286,8 +2255,7 @@ WebConsoleFrame.prototype = {
     }
 
     let longString = this.webConsoleClient.longString(aActor);
-    let toIndex = Math.min(longString.length, MAX_LONG_STRING_LENGTH);
-    longString.substring(longString.initial.length, toIndex,
+    longString.substring(longString.initial.length, longString.length,
       function WCF__onSubstring(aResponse) {
         if (aResponse.error) {
           Cu.reportError("WCF__longStringClick substring failure: " +
@@ -2303,13 +2271,7 @@ WebConsoleFrame.prototype = {
             aMessage.category == CATEGORY_OUTPUT) {
           aMessage.clipboardText = aMessage.textContent;
         }
-
-        this.emit("messages-updated", new Set([aMessage]));
-
-        if (toIndex != longString.length) {
-          this.logWarningAboutStringTooLong();
-        }
-      }.bind(this));
+      });
   },
 
   /**
@@ -2590,7 +2552,7 @@ WebConsoleFrame.prototype = {
 
     this._destroyer = Promise.defer();
 
-    this._repeatNodes = {};
+    this._cssNodes = {};
     this._outputQueue = [];
     this._pruneCategoriesQueue = {};
     this._networkRequests = {};
@@ -2667,6 +2629,13 @@ JSTerm.prototype = {
    * @see Sidebar.jsm
    */
   sidebar: null,
+
+  /**
+   * The Web Console splitter between output and the sidebar.
+   * @private
+   * @type nsIDOMElement
+   */
+  _splitter: null,
 
   /**
    * The Variables View instance shown in the sidebar.
@@ -2751,6 +2720,8 @@ JSTerm.prototype = {
     this.inputNode.addEventListener("keypress", this._keyPress, false);
     this.inputNode.addEventListener("input", this._inputEventHandler, false);
     this.inputNode.addEventListener("keyup", this._inputEventHandler, false);
+
+    this._splitter = doc.querySelector(".devtools-side-splitter");
 
     this.lastInputValue && this.setInputValue(this.lastInputValue);
   },
@@ -3068,6 +3039,7 @@ JSTerm.prototype = {
       this.sidebar = new ToolSidebar(tabbox, this);
     }
     this.sidebar.show();
+    this._splitter.setAttribute("state", "open");
   },
 
   /**
@@ -3505,8 +3477,7 @@ JSTerm.prototype = {
     }
 
     let client = this.webConsoleClient.longString(grip);
-    let toIndex = Math.min(grip.length, MAX_LONG_STRING_LENGTH);
-    client.substring(grip.initial.length, toIndex, (aResponse) => {
+    client.substring(grip.initial.length, grip.length, (aResponse) => {
       if (aResponse.error) {
         Cu.reportError("JST__fetchVarLongString substring failure: " +
                        aResponse.error + ": " + aResponse.message);
@@ -3517,10 +3488,6 @@ JSTerm.prototype = {
       aVar.setGrip(grip.initial + aResponse.substring);
       aVar.hideArrow();
       aVar._retrieved = true;
-
-      if (toIndex != grip.length) {
-        this.hud.logWarningAboutStringTooLong();
-      }
     });
   },
 
@@ -3605,7 +3572,7 @@ JSTerm.prototype = {
     hud._outputQueue.forEach(hud._pruneItemFromQueue, hud);
     hud._outputQueue = [];
     hud._networkRequests = {};
-    hud._repeatNodes = {};
+    hud._cssNodes = {};
 
     if (aClearStorage) {
       this.webConsoleClient.clearMessagesCache();
@@ -4266,9 +4233,9 @@ var Utils = {
    *
    * @param nsIScriptError aScriptError
    *        The script error you want to determine the category for.
-   * @return CATEGORY_JS|CATEGORY_CSS|CATEGORY_SECURITY
-   *         Depending on the script error CATEGORY_JS, CATEGORY_CSS, or
-   *         CATEGORY_SECURITY can be returned.
+   * @return CATEGORY_JS|CATEGORY_CSS
+   *         Depending on the script error CATEGORY_JS or CATEGORY_CSS can be
+   *         returned.
    */
   categoryForScriptError: function Utils_categoryForScriptError(aScriptError)
   {
@@ -4276,9 +4243,6 @@ var Utils = {
       case "CSS Parser":
       case "CSS Loader":
         return CATEGORY_CSS;
-
-      case "Mixed Content Blocker":
-        return CATEGORY_SECURITY;
 
       default:
         return CATEGORY_JS;
@@ -4724,16 +4688,16 @@ WebConsoleConnectionProxy.prototype = {
   },
 
   /**
-   * The "will-navigate" and "navigate" event handlers. We redirect any message
-   * to the UI for displaying.
+   * The "tabNavigated" message type handler. We redirect any message to
+   * the UI for displaying.
    *
    * @private
-   * @param string aEvent
-   *        Event type.
+   * @param string aType
+   *        Message type.
    * @param object aPacket
    *        The message received from the server.
    */
-  _onTabNavigated: function WCCP__onTabNavigated(aEvent, aPacket)
+  _onTabNavigated: function WCCP__onTabNavigated(aType, aPacket)
   {
     if (!this.owner) {
       return;
@@ -4743,7 +4707,7 @@ WebConsoleConnectionProxy.prototype = {
       this.owner.onLocationChange(aPacket.url, aPacket.title);
     }
 
-    if (aEvent == "navigate" && !aPacket.nativeConsoleAPI) {
+    if (aType == "navigate" && !aPacket.nativeConsoleAPI) {
       this.owner.logWarningAboutReplacedAPI();
     }
   },
@@ -4785,8 +4749,7 @@ WebConsoleConnectionProxy.prototype = {
     this.client.removeListener("networkEvent", this._onNetworkEvent);
     this.client.removeListener("networkEventUpdate", this._onNetworkEventUpdate);
     this.client.removeListener("fileActivity", this._onFileActivity);
-    this.target.off("will-navigate", this._onTabNavigated);
-    this.target.off("navigate", this._onTabNavigated);
+    this.client.removeListener("tabNavigated", this._onTabNavigated);
 
     this.client = null;
     this.webConsoleClient = null;

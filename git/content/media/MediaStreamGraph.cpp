@@ -2010,10 +2010,9 @@ MediaStreamGraph::CreateTrackUnionStream(DOMMediaStream* aWrapper)
 
 AudioNodeStream*
 MediaStreamGraph::CreateAudioNodeStream(AudioNodeEngine* aEngine,
-                                        AudioNodeStreamKind aKind,
-                                        uint32_t aNumberOfInputChannels)
+                                        AudioNodeStreamKind aKind)
 {
-  AudioNodeStream* stream = new AudioNodeStream(aEngine, aKind, aNumberOfInputChannels);
+  AudioNodeStream* stream = new AudioNodeStream(aEngine, aKind);
   NS_ADDREF(stream);
   MediaStreamGraphImpl* graph = static_cast<MediaStreamGraphImpl*>(this);
   stream->SetGraphImpl(graph);

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -528,7 +529,7 @@ TypeAnalyzer::adjustPhiInputs(MPhi *phi)
         if (in->type() == MIRType_Value)
             continue;
 
-        if (in->isUnbox()) {
+        if (in->isUnbox() && phi->typeIncludes(in->toUnbox()->input())) {
             // The input is being explicitly unboxed, so sneak past and grab
             // the original box.
             phi->replaceOperand(i, in->toUnbox()->input());
@@ -1271,8 +1272,8 @@ TryEliminateTypeBarrier(MTypeBarrier *barrier, bool *eliminated)
 {
     JS_ASSERT(!*eliminated);
 
-    const types::StackTypeSet *barrierTypes = barrier->typeSet();
-    const types::StackTypeSet *inputTypes = barrier->input()->typeSet();
+    const types::StackTypeSet *barrierTypes = barrier->resultTypeSet();
+    const types::StackTypeSet *inputTypes = barrier->input()->resultTypeSet();
 
     if (!barrierTypes || !inputTypes)
         return true;

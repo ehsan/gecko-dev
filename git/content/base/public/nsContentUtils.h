@@ -52,6 +52,7 @@ class nsIDocumentObserver;
 class nsIDOMDocument;
 class nsIDOMDocumentFragment;
 class nsIDOMEvent;
+class nsIDOMEventTarget;
 class nsIDOMHTMLFormElement;
 class nsIDOMHTMLInputElement;
 class nsIDOMKeyEvent;
@@ -509,7 +510,7 @@ public:
    * @return boolean indicating whether a BOM was detected.
    */
   static bool CheckForBOM(const unsigned char* aBuffer, uint32_t aLength,
-                          nsACString& aCharset);
+                          nsACString& aCharset, bool *bigEndian = nullptr);
 
   static nsresult GuessCharset(const char *aData, uint32_t aDataLen,
                                nsACString &aCharset);
@@ -795,7 +796,6 @@ public:
     eBRAND_PROPERTIES,
     eCOMMON_DIALOG_PROPERTIES,
     eMATHML_PROPERTIES,
-    eSECURITY_PROPERTIES,
     PropertiesFile_COUNT
   };
   static nsresult ReportToConsole(uint32_t aErrorFlags,
@@ -954,7 +954,7 @@ public:
                                        bool aCanBubble,
                                        bool aCancelable,
                                        bool *aDefaultAction = nullptr);
-
+                                       
   /**
    * This method creates and dispatches a untrusted event.
    * Works only with events which can be created by calling
@@ -2268,7 +2268,7 @@ typedef nsCharSeparatedTokenizerTemplate<nsContentUtils::IsHTMLWhitespace>
   nsContentUtils::DropJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz))
 
 
-class MOZ_STACK_CLASS nsCxPusher
+class NS_STACK_CLASS nsCxPusher
 {
 public:
   nsCxPusher();
@@ -2302,7 +2302,7 @@ private:
 #endif
 };
 
-class MOZ_STACK_CLASS nsAutoScriptBlocker {
+class NS_STACK_CLASS nsAutoScriptBlocker {
 public:
   nsAutoScriptBlocker(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -2315,7 +2315,7 @@ private:
   MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class MOZ_STACK_CLASS nsAutoScriptBlockerSuppressNodeRemoved :
+class NS_STACK_CLASS nsAutoScriptBlockerSuppressNodeRemoved :
                           public nsAutoScriptBlocker {
 public:
   nsAutoScriptBlockerSuppressNodeRemoved() {
@@ -2330,7 +2330,7 @@ public:
   }
 };
 
-class MOZ_STACK_CLASS nsAutoMicroTask
+class NS_STACK_CLASS nsAutoMicroTask
 {
 public:
   nsAutoMicroTask()
@@ -2350,7 +2350,7 @@ namespace mozilla {
  * passed as a parameter. AutoJSContext will take care of finding the most
  * appropriate JS context and release it when leaving the stack.
  */
-class MOZ_STACK_CLASS AutoJSContext {
+class NS_STACK_CLASS AutoJSContext {
 public:
   AutoJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM);
   operator JSContext*();
@@ -2373,7 +2373,7 @@ private:
  * SafeAutoJSContext is similar to AutoJSContext but will only return the safe
  * JS context. That means it will never call ::GetCurrentJSContext().
  */
-class MOZ_STACK_CLASS SafeAutoJSContext : public AutoJSContext {
+class NS_STACK_CLASS SafeAutoJSContext : public AutoJSContext {
 public:
   SafeAutoJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM);
 };
@@ -2392,7 +2392,7 @@ public:
  * NB: This will not push a null cx even if aCx is null. Make sure you know what
  * you're doing.
  */
-class MOZ_STACK_CLASS AutoPushJSContext {
+class NS_STACK_CLASS AutoPushJSContext {
   nsCxPusher mPusher;
   JSContext* mCx;
 

@@ -45,7 +45,7 @@ public:
   virtual bool RecvUpdate(const EditArray& aEdits, EditReplyArray* aReply);
   virtual bool RecvUpdateNoSwap(const EditArray& aEdits);
 
-  PCompositableParent* AllocPCompositable(const TextureInfo& aInfo,
+  PCompositableParent* AllocPCompositable(const CompositableType& aType,
                                           uint64_t*) MOZ_OVERRIDE;
   bool DeallocPCompositable(PCompositableParent* aActor) MOZ_OVERRIDE;
 

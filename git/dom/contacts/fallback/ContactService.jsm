@@ -4,7 +4,7 @@
 
 "use strict";
 
-let DEBUG = false;
+const DEBUG = false;
 function debug(s) { dump("-*- Fallback ContactService component: " + s + "\n"); }
 
 const Cu = Components.utils;
@@ -39,8 +39,7 @@ let myGlobal = this;
 let ContactService = {
   init: function() {
     if (DEBUG) debug("Init");
-    this._messages = ["Contacts:Find", "Contacts:GetAll", "Contacts:GetAll:SendNow",
-                      "Contacts:Clear", "Contact:Save",
+    this._messages = ["Contacts:Find", "Contacts:GetAll", "Contacts:Clear", "Contact:Save",
                       "Contact:Remove", "Contacts:GetSimContacts",
                       "Contacts:RegisterForMessages", "child-process-shutdown"];
     this._children = [];
@@ -91,7 +90,6 @@ let ContactService = {
 
     switch (aMessage.name) {
       case "Contacts:Find":
-        DEBUG = false;
         if (!this.assertPermission(aMessage, "contacts-read")) {
           return null;
         }
@@ -117,12 +115,7 @@ let ContactService = {
             mm.sendAsyncMessage("Contacts:GetAll:Next", {cursorId: msg.cursorId, contacts: aContacts});
           },
           function(aErrorMsg) { mm.sendAsyncMessage("Contacts:Find:Return:KO", { errorMsg: aErrorMsg }); },
-          msg.findOptions, msg.cursorId);
-        break;
-      case "Contacts:GetAll:SendNow":
-        // sendNow is a no op if there isn't an existing cursor in the DB, so we
-        // don't need to assert the permission again.
-        this._db.sendNow(msg.cursorId);
+          msg.findOptions);
         break;
       case "Contact:Save":
         if (msg.options.reason === "create") {
@@ -157,7 +150,6 @@ let ContactService = {
         );
         break;
       case "Contacts:Clear":
-        DEBUG = true;
         if (!this.assertPermission(aMessage, "contacts-write")) {
           return null;
         }

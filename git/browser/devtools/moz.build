@@ -22,6 +22,4 @@ DIRS += [
     'framework',
     'profiler',
     'fontinspector',
-
 ]
-

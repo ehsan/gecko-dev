@@ -6,7 +6,3 @@
 
 MODULE = 'dom'
 
-EXPORTS.mozilla.dom.indexedDB += [
-    'SerializationHelpers.h',
-]
-

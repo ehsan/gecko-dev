@@ -6,9 +6,3 @@
 
 MODULE = 'widget'
 
-EXPORTS += [
-    'mozcontainer.h',
-    'nsGTKToolkit.h',
-    'nsIImageToPixbuf.h',
-]
-

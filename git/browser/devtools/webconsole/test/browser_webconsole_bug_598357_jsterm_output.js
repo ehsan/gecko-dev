@@ -236,6 +236,8 @@ function testGen() {
     ok(showsPropertyPanel,
       "the property panel shown for inputValues[" + cpos + "]");
 
+    HUD.jsterm._splitter.state = "collapsed";
+
     popupShown[cpos] = true;
 
     if (showsPropertyPanel) {

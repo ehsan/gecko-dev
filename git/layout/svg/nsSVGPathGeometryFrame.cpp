@@ -152,9 +152,7 @@ nsSVGPathGeometryFrame::IsSVGTransformed(gfxMatrix *aOwnTransform,
   }
 
   nsSVGElement *content = static_cast<nsSVGElement*>(mContent);
-  nsSVGAnimatedTransformList* transformList =
-    content->GetAnimatedTransformList();
-  if ((transformList && transformList->HasTransform()) ||
+  if (content->GetAnimatedTransformList() ||
       content->GetAnimateMotionTransform()) {
     if (aOwnTransform) {
       *aOwnTransform = content->PrependLocalTransformsTo(gfxMatrix(),

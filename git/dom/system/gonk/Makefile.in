@@ -59,6 +59,10 @@ CPPSRCS += \
   VolumeServiceIOThread.cpp \
   VolumeServiceTest.cpp \
   $(NULL)
+EXPORTS = \
+  GonkGPSGeolocationProvider.h \
+  nsVolume.h \
+  $(NULL)
 endif
 
 EXTRA_COMPONENTS = \

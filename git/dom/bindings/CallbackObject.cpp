@@ -18,7 +18,6 @@ namespace mozilla {
 namespace dom {
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CallbackObject)
-  NS_INTERFACE_MAP_ENTRY(mozilla::dom::CallbackObject)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -98,7 +97,7 @@ CallbackObject::CallSetup::CallSetup(JSObject* const aCallback,
   // After this point we guarantee calling ScriptEvaluated() if we
   // have an nsIScriptContext.
   // XXXbz Why, if, say CheckFunctionAccess fails?  I know that's how
-  // nsJSContext::CallEventHandler used to work, but is it required?
+  // nsJSContext::CallEventHandler works, but is it required?
   // FIXME: Bug 807369.
   mCtx = ctx;
 
@@ -185,7 +184,7 @@ CallbackObject::CallSetup::~CallSetup()
 
 already_AddRefed<nsISupports>
 CallbackObjectHolderBase::ToXPCOMCallback(CallbackObject* aCallback,
-                                          const nsIID& aIID) const
+                                          const nsIID& aIID)
 {
   if (!aCallback) {
     return nullptr;

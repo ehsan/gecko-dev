@@ -99,6 +99,3 @@ exports.merge = merge;
 
 function expand(f, inputs) merge(map(f, inputs))
 exports.expand = expand;
-
-function pipe(from, to) on(from, "*", emit.bind(emit, to))
-exports.pipe = pipe;

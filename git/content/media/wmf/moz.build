@@ -6,9 +6,3 @@
 
 MODULE = 'content'
 
-EXPORTS += [
-    'WMF.h',
-    'WMFDecoder.h',
-    'WMFReader.h',
-]
-

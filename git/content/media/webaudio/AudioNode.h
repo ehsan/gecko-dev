@@ -7,7 +7,6 @@
 #ifndef AudioNode_h_
 #define AudioNode_h_
 
-#include "nsDOMEventTargetHelper.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Attributes.h"
 #include "EnableWebAudioCheck.h"
@@ -27,36 +26,6 @@ namespace dom {
 
 struct ThreeDPoint;
 
-template<class T>
-class SelfReference {
-public:
-  SelfReference() : mHeld(false) {}
-  ~SelfReference()
-  {
-    NS_ASSERTION(!mHeld, "Forgot to drop the self reference?");
-  }
-
-  void Take(T* t)
-  {
-    if (!mHeld) {
-      mHeld = true;
-      t->AddRef();
-    }
-  }
-  void Drop(T* t)
-  {
-    if (mHeld) {
-      mHeld = false;
-      t->Release();
-    }
-  }
-
-  operator bool() const { return mHeld; }
-
-private:
-  bool mHeld;
-};
-
 /**
  * The DOM object representing a Web Audio AudioNode.
  *
@@ -69,8 +38,14 @@ private:
  * in the future. If it isn't, then we break its connections to its inputs
  * and outputs, allowing nodes to be immediately disconnected. This
  * disconnection is done internally, invisible to DOM users.
+ *
+ * We say that a node cannot produce output in the future if it has no inputs
+ * that can, and it is not producing output itself without any inputs, and
+ * either it can never have any inputs or it has no JS wrapper. (If it has a
+ * JS wrapper and can accept inputs, then a new input could be added in
+ * the future.)
  */
-class AudioNode : public nsDOMEventTargetHelper,
+class AudioNode : public nsISupports,
                   public EnableWebAudioCheck
 {
 public:
@@ -78,7 +53,15 @@ public:
   virtual ~AudioNode();
 
   // This should be idempotent (safe to call multiple times).
-  virtual void DestroyMediaStream();
+  // This should be called in the destructor of every class that overrides
+  // this method.
+  virtual void DestroyMediaStream()
+  {
+    if (mStream) {
+      mStream->Destroy();
+      mStream = nullptr;
+    }
+  }
 
   // This method should be overridden to return true in nodes
   // which support being hooked up to the Media Stream graph.
@@ -88,11 +71,13 @@ public:
   }
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(AudioNode,
-                                           nsDOMEventTargetHelper)
+  NS_DECL_CYCLE_COLLECTION_CLASS(AudioNode)
 
-  virtual AudioBufferSourceNode* AsAudioBufferSourceNode() {
-    return nullptr;
+  void JSBindingFinalized()
+  {
+    NS_ASSERTION(!mJSBindingFinalized, "JS binding already finalized");
+    mJSBindingFinalized = true;
+    UpdateOutputEnded();
   }
 
   AudioContext* GetParentObject() const
@@ -116,6 +101,10 @@ public:
   virtual uint32_t NumberOfInputs() const { return 1; }
   virtual uint32_t NumberOfOutputs() const { return 1; }
 
+  // This could possibly delete 'this'.
+  void UpdateOutputEnded();
+  bool IsOutputEnded() const { return mOutputEnded; }
+
   struct InputNode {
     ~InputNode()
     {
@@ -124,8 +113,9 @@ public:
       }
     }
 
-    // Weak reference.
-    AudioNode* mInputNode;
+    // Strong reference.
+    // May be null if the source node has gone away.
+    nsRefPtr<AudioNode> mInputNode;
     nsRefPtr<MediaInputPort> mStreamPort;
     // The index of the input port this node feeds into.
     uint32_t mInputPort;
@@ -135,14 +125,15 @@ public:
 
   MediaStream* Stream() { return mStream; }
 
-  const nsTArray<InputNode>& InputNodes() const
+  // Set this to true when the node can produce its own output even if there
+  // are no inputs.
+  void SetProduceOwnOutput(bool aCanProduceOwnOutput)
   {
-    return mInputNodes;
+    mCanProduceOwnOutput = aCanProduceOwnOutput;
+    if (!aCanProduceOwnOutput) {
+      UpdateOutputEnded();
+    }
   }
-
-private:
-  // This could possibly delete 'this'.
-  void DisconnectFromGraph();
 
 protected:
   static void Callback(AudioNode* aNode) { /* not implemented */ }
@@ -171,6 +162,15 @@ private:
   // exact matching entry, since mOutputNodes doesn't include the port
   // identifiers and the same node could be connected on multiple ports.
   nsTArray<nsRefPtr<AudioNode> > mOutputNodes;
+  // True if the JS binding has been finalized (so script no longer has
+  // a reference to this node).
+  bool mJSBindingFinalized;
+  // True if this node can produce its own output even when all inputs
+  // have ended their output.
+  bool mCanProduceOwnOutput;
+  // True if this node can never produce anything except silence in the future.
+  // Updated by UpdateOutputEnded().
+  bool mOutputEnded;
 };
 
 }

@@ -16,7 +16,6 @@ OBJDIR = $(OBJDIR_ARCH_1)
 endif
 
 topsrcdir = $(TOPSRCDIR)
-DEPTH = $(OBJDIR)
 include $(OBJDIR)/config/autoconf.mk
 
 core_abspath = $(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1))

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -418,11 +419,16 @@ MacroAssembler::clampDoubleToUint8(FloatRegister input, Register output)
 }
 
 void
-MacroAssembler::newGCThing(const Register &result, gc::AllocKind allocKind, Label *fail)
+MacroAssembler::newGCThing(const Register &result,
+                           JSObject *templateObject, Label *fail)
 {
     // Inlined equivalent of js::gc::NewGCThing() without failure case handling.
 
-    int thingSize = int(gc::Arena::thingSize(allocKind));
+    gc::AllocKind allocKind = templateObject->tenuredGetAllocKind();
+    JS_ASSERT(allocKind >= gc::FINALIZE_OBJECT0 && allocKind <= gc::FINALIZE_OBJECT_LAST);
+    int thingSize = (int)gc::Arena::thingSize(allocKind);
+
+    JS_ASSERT(!templateObject->hasDynamicElements());
 
     Zone *zone = GetIonContext()->compartment->zone();
 
@@ -445,22 +451,6 @@ MacroAssembler::newGCThing(const Register &result, gc::AllocKind allocKind, Labe
     addPtr(Imm32(thingSize), result);
     storePtr(result, AbsoluteAddress(&list->first));
     subPtr(Imm32(thingSize), result);
-}
-
-void
-MacroAssembler::newGCThing(const Register &result, JSObject *templateObject, Label *fail)
-{
-    gc::AllocKind allocKind = templateObject->tenuredGetAllocKind();
-    JS_ASSERT(allocKind >= gc::FINALIZE_OBJECT0 && allocKind <= gc::FINALIZE_OBJECT_LAST);
-    JS_ASSERT(!templateObject->hasDynamicElements());
-
-    newGCThing(result, allocKind, fail);
-}
-
-void
-MacroAssembler::newGCString(const Register &result, Label *fail)
-{
-    newGCThing(result, js::gc::FINALIZE_STRING, fail);
 }
 
 void
@@ -847,8 +837,7 @@ MacroAssembler::generateBailoutTail(Register scratch, Register bailoutInfo)
         load32(Address(temp, BaselineFrame::reverseOffsetOfFrameSize()), temp);
         makeFrameDescriptor(temp, IonFrame_BaselineJS);
         push(temp);
-        loadPtr(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeAddr)), temp);
-        push(temp);
+        push(Imm32(0)); // Fake return address.
         enterFakeExitFrame();
 
         // If monitorStub is non-null, handle resumeAddr appropriately.

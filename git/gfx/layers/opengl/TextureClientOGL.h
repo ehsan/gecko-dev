@@ -15,7 +15,7 @@ namespace layers {
 class TextureClientSharedOGL : public TextureClient
 {
 public:
-  TextureClientSharedOGL(CompositableForwarder* aForwarder, const TextureInfo& aTextureInfo);
+  TextureClientSharedOGL(CompositableForwarder* aForwarder, CompositableType aCompositableType);
   ~TextureClientSharedOGL() { ReleaseResources(); }
 
   virtual bool SupportsType(TextureClientType aType) MOZ_OVERRIDE { return aType == TEXTURE_SHARED_GL; }
@@ -34,8 +34,8 @@ protected:
 class TextureClientSharedOGLExternal : public TextureClientSharedOGL
 {
 public:
-  TextureClientSharedOGLExternal(CompositableForwarder* aForwarder, const TextureInfo& aTextureInfo)
-    : TextureClientSharedOGL(aForwarder, aTextureInfo)
+  TextureClientSharedOGLExternal(CompositableForwarder* aForwarder, CompositableType aCompositableType)
+    : TextureClientSharedOGL(aForwarder, aCompositableType)
   {}
 
   virtual bool SupportsType(TextureClientType aType) MOZ_OVERRIDE { return aType == TEXTURE_SHARED_GL_EXTERNAL; }
@@ -45,8 +45,8 @@ public:
 class TextureClientStreamOGL : public TextureClient
 {
 public:
-  TextureClientStreamOGL(CompositableForwarder* aForwarder, const TextureInfo& aTextureInfo)
-    : TextureClient(aForwarder, aTextureInfo)
+  TextureClientStreamOGL(CompositableForwarder* aForwarder, CompositableType aCompositableType)
+    : TextureClient(aForwarder, aCompositableType)
   {}
   ~TextureClientStreamOGL() { ReleaseResources(); }
 

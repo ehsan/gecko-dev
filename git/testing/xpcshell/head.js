@@ -10,8 +10,6 @@
  * for more information.
  */
 
-const _XPCSHELL_TIMEOUT_MS = 5 * 60 * 1000;
-
 var _quit = false;
 var _passed = true;
 var _tests_pending = 0;
@@ -316,15 +314,6 @@ function _execute_test() {
   // Override idle service by default.
   // Call do_get_idle() to restore the factory and get the service.
   _fakeIdleService.activate();
-
-  // Terminate asynchronous tests when a global timeout occurs.
-  do_timeout(_XPCSHELL_TIMEOUT_MS, function _do_main_timeout() {
-    try {
-      do_throw("test timed out");
-    } catch (e if e == Components.results.NS_ERROR_ABORT) {
-      // We don't want do_timeout to report the do_throw exception again.
-    }
-  });
 
   // _HEAD_FILES is dynamically defined by <runxpcshelltests.py>.
   _load_files(_HEAD_FILES);
@@ -988,21 +977,28 @@ function do_load_child_test_harness()
   if (typeof do_load_child_test_harness.alreadyRun != "undefined")
     return;
   do_load_child_test_harness.alreadyRun = 1;
+  
+  function addQuotes (str)  { 
+    return '"' + str + '"'; 
+  }
+  var quoted_head_files = _HEAD_FILES.map(addQuotes);
+  var quoted_tail_files = _TAIL_FILES.map(addQuotes);
 
   _XPCSHELL_PROCESS = "parent";
 
   let command =
-        "const _HEAD_JS_PATH=" + uneval(_HEAD_JS_PATH) + "; "
-      + "const _HTTPD_JS_PATH=" + uneval(_HTTPD_JS_PATH) + "; "
-      + "const _HEAD_FILES=" + uneval(_HEAD_FILES) + "; "
-      + "const _TAIL_FILES=" + uneval(_TAIL_FILES) + "; "
+        "const _HEAD_JS_PATH='" + _HEAD_JS_PATH + "'; "
+      + "const _HTTPD_JS_PATH='" + _HTTPD_JS_PATH + "'; "
+      + "const _HEAD_FILES=[" + quoted_head_files.join() + "];"
+      + "const _TAIL_FILES=[" + quoted_tail_files.join() + "];"
       + "const _XPCSHELL_PROCESS='child';";
 
   if (this._TESTING_MODULES_DIR) {
-    command += " const _TESTING_MODULES_DIR=" + uneval(_TESTING_MODULES_DIR) + ";";
+    normalized = this._TESTING_MODULES_DIR.replace('\\', '\\\\', 'g');
+    command += "const _TESTING_MODULES_DIR='" + normalized + "'; ";
   }
 
-  command += " load(_HEAD_JS_PATH);";
+  command += "load(_HEAD_JS_PATH);";
 
   sendCommand(command);
 }

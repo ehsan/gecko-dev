@@ -36,7 +36,6 @@ SmsFilter::SmsFilter()
   mData.endDate() = 0;
   mData.delivery() = eDeliveryState_Unknown;
   mData.read() = eReadState_Unknown;
-  mData.threadId() = 0;
 }
 
 SmsFilter::SmsFilter(const SmsFilterData& aData)
@@ -234,7 +233,7 @@ NS_IMETHODIMP
 SmsFilter::GetRead(JSContext* aCx, JS::Value* aRead)
 {
   if (mData.read() == eReadState_Unknown) {
-    *aRead = JSVAL_NULL;
+    *aRead = JSVAL_VOID;
     return NS_OK;
   }
 
@@ -246,7 +245,7 @@ SmsFilter::GetRead(JSContext* aCx, JS::Value* aRead)
 NS_IMETHODIMP
 SmsFilter::SetRead(JSContext* aCx, const JS::Value& aRead)
 {
-  if (aRead == JSVAL_NULL) {
+  if (aRead == JSVAL_VOID) {
     mData.read() = eReadState_Unknown;
     return NS_OK;
   }
@@ -256,41 +255,6 @@ SmsFilter::SetRead(JSContext* aCx, const JS::Value& aRead)
   }
 
   mData.read() = aRead.toBoolean() ? eReadState_Read : eReadState_Unread;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-SmsFilter::GetThreadId(JSContext* aCx, JS::Value* aThreadId)
-{
-  if (!mData.threadId()) {
-    *aThreadId = JSVAL_NULL;
-    return NS_OK;
-  }
-
-  aThreadId->setNumber(static_cast<double>(mData.threadId()));
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-SmsFilter::SetThreadId(JSContext* aCx, const JS::Value& aThreadId)
-{
-  if (aThreadId == JSVAL_NULL) {
-    mData.threadId() = 0;
-    return NS_OK;
-  }
-
-  if (!aThreadId.isNumber()) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  double number = aThreadId.toNumber();
-  uint64_t integer = static_cast<uint64_t>(number);
-  if (integer == 0 || integer != number) {
-    return NS_ERROR_INVALID_ARG;
-  }
-  mData.threadId() = integer;
-
   return NS_OK;
 }
 

@@ -43,7 +43,7 @@ public:
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    bool* aSnap) {
     *aSnap = false;
-    nsIFrame* f = Frame();
+    nsIFrame* f = GetUnderlyingFrame();
     HTMLCanvasElement *canvas =
       HTMLCanvasElement::FromContent(f->GetContent());
     nsRegion result;
@@ -55,7 +55,7 @@ public:
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) {
     *aSnap = true;
-    nsHTMLCanvasFrame* f = static_cast<nsHTMLCanvasFrame*>(Frame());
+    nsHTMLCanvasFrame* f = static_cast<nsHTMLCanvasFrame*>(GetUnderlyingFrame());
     return f->GetInnerArea() + ToReferenceFrame();
   }
 

@@ -33,7 +33,7 @@ IDBTransaction* gCurrentTransaction = nullptr;
 
 const uint32_t kProgressHandlerGranularity = 1000;
 
-class MOZ_STACK_CLASS TransactionPoolEventTarget : public StackBasedEventTarget
+class TransactionPoolEventTarget : public StackBasedEventTarget
 {
 public:
   NS_DECL_NSIEVENTTARGET
@@ -102,7 +102,7 @@ HelperBase::~HelperBase()
       NS_WARN_IF_FALSE(mainThread, "Couldn't get the main thread!");
 
       if (mainThread) {
-        NS_ProxyRelease(mainThread, static_cast<EventTarget*>(request));
+        NS_ProxyRelease(mainThread, static_cast<nsIDOMEventTarget*>(request));
       }
     }
   }

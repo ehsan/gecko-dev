@@ -44,9 +44,9 @@ nsStructuredCloneContainer::InitFromVariant(nsIVariant *aData, JSContext *aCx)
   NS_ENSURE_ARG_POINTER(aData);
   NS_ENSURE_ARG_POINTER(aCx);
 
-  // First, try to extract a JS::Value from the variant |aData|.  This works only
+  // First, try to extract a jsval from the variant |aData|.  This works only
   // if the variant implements GetAsJSVal.
-  JS::Value jsData;
+  jsval jsData;
   nsresult rv = aData->GetAsJSVal(&jsData);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_UNEXPECTED);
 
@@ -113,8 +113,8 @@ nsStructuredCloneContainer::DeserializeToVariant(JSContext *aCx,
   NS_ENSURE_ARG_POINTER(aData);
   *aData = nullptr;
 
-  // Deserialize to a JS::Value.
-  JS::Value jsStateObj;
+  // Deserialize to a jsval.
+  jsval jsStateObj;
   JSBool hasTransferable = false;
   bool success = JS_ReadStructuredClone(aCx, mData, mSize, mVersion,
                                           &jsStateObj, nullptr, nullptr) &&
@@ -124,7 +124,7 @@ nsStructuredCloneContainer::DeserializeToVariant(JSContext *aCx,
   MOZ_ASSERT(!hasTransferable);
   NS_ENSURE_STATE(success && !hasTransferable);
 
-  // Now wrap the JS::Value as an nsIVariant.
+  // Now wrap the jsval as an nsIVariant.
   nsCOMPtr<nsIVariant> varStateObj;
   nsCOMPtr<nsIXPConnect> xpconnect = do_GetService(nsIXPConnect::GetCID());
   NS_ENSURE_STATE(xpconnect);

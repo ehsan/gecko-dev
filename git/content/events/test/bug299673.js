@@ -2,6 +2,7 @@ var popup;
 
 function OpenWindow()
 {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 log({},">>> OpenWindow");
 	popup = window.open("","Test");
 
@@ -49,6 +50,7 @@ document.onblur=function (event) { log(event,"top-doc") };
 document.onchange=function (event) { log(event,"top-doc") };
 
 function doTest1_rest2(expectedEventLog,focusAfterCloseId) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   try {
     is(document.activeElement, document.getElementById(focusAfterCloseId), "wrong element is focused after popup was closed");
     is(result, expectedEventLog, "unexpected events");
@@ -60,6 +62,7 @@ function doTest1_rest2(expectedEventLog,focusAfterCloseId) {
   }
 }
 function doTest1_rest1(expectedEventLog,focusAfterCloseId) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   try {
     synthesizeKey("V", {}, popup);
     synthesizeKey("A", {}, popup);
@@ -79,10 +82,13 @@ function doTest1_rest1(expectedEventLog,focusAfterCloseId) {
 }
 
 function doTest1(expectedEventLog,focusAfterCloseId) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   try {
     var select1 = document.getElementById('Select1');
     select1.focus();
     is(document.activeElement, select1, "select element should be focused");
+    var wu =  window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                  .getInterface(Components.interfaces.nsIDOMWindowUtils);
     synthesizeKey("VK_DOWN",{});
     synthesizeKey("VK_TAB", {});
     SimpleTest.waitForFocus(function () { doTest1_rest1(expectedEventLog,focusAfterCloseId); }, popup);
@@ -95,15 +101,18 @@ function doTest1(expectedEventLog,focusAfterCloseId) {
 }
 
 function setPrefAndDoTest(expectedEventLog,focusAfterCloseId,prefValue) {
-  var origPrefValue = SpecialPowers.getIntPref("browser.link.open_newwindow");
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"]
+              .getService(Components.interfaces.nsIPrefBranch);
+  var origPrefValue =  prefs.getIntPref("browser.link.open_newwindow");
   var select1 = document.getElementById('Select1');
   select1.blur();
   result = "";
   log({},"Test with browser.link.open_newwindow = "+prefValue);
   try {
-    SpecialPowers.setIntPref("browser.link.open_newwindow", prefValue);
+    prefs.setIntPref("browser.link.open_newwindow", prefValue);
     doTest1(expectedEventLog,focusAfterCloseId);
   } finally {
-    SpecialPowers.setIntPref("browser.link.open_newwindow", origPrefValue);
+    prefs.setIntPref("browser.link.open_newwindow", origPrefValue);
   }
 }

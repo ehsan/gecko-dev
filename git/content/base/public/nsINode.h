@@ -259,8 +259,8 @@ private:
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0x5daa9e95, 0xe49c, 0x4b41, \
-  { 0xb2, 0x02, 0xde, 0xa9, 0xd3, 0x06, 0x21, 0x17 } }
+{ 0xb3ee8053, 0x43b0, 0x44bc, \
+  { 0xa0, 0x97, 0x18, 0x24, 0xd2, 0xac, 0x65, 0xb6 } }
 
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -276,7 +276,7 @@ public:
   // measurement of the following members may be added later if DMD finds it is
   // worthwhile:
   // - nsGenericHTMLElement:  mForm, mFieldSet
-  // - nsGenericHTMLFrameElement: mFrameLoader (bug 672539)
+  // - nsGenericHTMLFrameElement: mFrameLoader (bug 672539), mTitleChangedListener
   // - HTMLBodyElement:       mContentStyleRule
   // - HTMLDataListElement:   mOptions
   // - HTMLFieldSetElement:   mElements, mDependentElements, mFirstLegend
@@ -805,13 +805,7 @@ public:
    * See nsIDOMEventTarget
    */
   NS_DECL_NSIDOMEVENTTARGET
-  using mozilla::dom::EventTarget::RemoveEventListener;
   using nsIDOMEventTarget::AddEventListener;
-  virtual void AddEventListener(const nsAString& aType,
-                                nsIDOMEventListener* aListener,
-                                bool aUseCapture,
-                                const mozilla::dom::Nullable<bool>& aWantsUntrusted,
-                                mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
   using nsIDOMEventTarget::AddSystemEventListener;
 
   /**
@@ -1597,11 +1591,6 @@ public:
     parent->RemoveChild(*this, rv);
     return rv.ErrorCode();
   }
-
-  /**
-   * Remove this node from its parent, if any.
-   */
-  void Remove();
 
 protected:
 

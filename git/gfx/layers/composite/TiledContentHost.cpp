@@ -6,7 +6,6 @@
 #include "TiledContentHost.h"
 #include "mozilla/layers/Effects.h"
 #include "nsPrintfCString.h"
-#include "ThebesLayerComposite.h"
 
 namespace mozilla {
 using namespace gfx;
@@ -58,13 +57,6 @@ TiledContentHost::~TiledContentHost()
 {
   mMainMemoryTiledBuffer.ReadUnlock();
   mLowPrecisionMainMemoryTiledBuffer.ReadUnlock();
-}
-
-void
-TiledContentHost::Attach(Layer* aLayer, Compositor* aCompositor)
-{
-  CompositableHost::Attach(aLayer, aCompositor);
-  static_cast<ThebesLayerComposite*>(aLayer)->EnsureTiled();
 }
 
 void
@@ -292,7 +284,7 @@ TiledTexture::Validate(gfxReusableSurfaceWrapper* aReusableSurface, Compositor* 
     // convert placeholder tile to a real tile
     mTextureHost = TextureHost::CreateTextureHost(SurfaceDescriptor::Tnull_t,
                                                   TEXTURE_HOST_TILED,
-                                                  flags);
+                                                  0);
     mTextureHost->SetCompositor(aCompositor);
     flags |= NewTile;
   }

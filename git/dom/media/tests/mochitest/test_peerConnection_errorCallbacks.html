@@ -24,7 +24,7 @@
 
   function successCallback(message) {
     return function () {
-      unexpectedCallbackAndFinish(new Error)(message);
+      unexpectedCallbackAndFinish(message);
     }
   };
 

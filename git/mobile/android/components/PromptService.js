@@ -38,7 +38,7 @@ PromptService.prototype = {
     let doc = this.getDocument();
     if (!doc) {
       let fallback = this._getFallbackService();
-      return fallback.QueryInterface(Ci.nsIPromptFactory).getPrompt(domWin, iid);
+      return fallback.getPrompt(domWin, iid);
     }
 
     let p = new Prompt(domWin, doc);

@@ -311,16 +311,6 @@ CompositorOGL::CleanupResources()
   mGLContext = nullptr;
 }
 
-// Impl of a a helper-runnable's "Run" method, used in Initialize()
-NS_IMETHODIMP
-CompositorOGL::ReadDrawFPSPref::Run()
-{
-  // NOTE: This must match the code in Initialize()'s NS_IsMainThread check.
-  Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
-  Preferences::AddBoolVarCache(&sFrameCounter, "layers.acceleration.frame-counter");
-  return NS_OK;
-}
-
 bool
 CompositorOGL::Initialize()
 {
@@ -491,11 +481,19 @@ CompositorOGL::Initialize()
   }
 
   if (NS_IsMainThread()) {
-    // NOTE: This must match the code in ReadDrawFPSPref::Run().
     Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
     Preferences::AddBoolVarCache(&sFrameCounter, "layers.acceleration.frame-counter");
   } else {
     // We have to dispatch an event to the main thread to read the pref.
+    class ReadDrawFPSPref : public nsRunnable {
+    public:
+      NS_IMETHOD Run()
+      {
+        Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
+        Preferences::AddBoolVarCache(&sFrameCounter, "layers.acceleration.frame-counter");
+        return NS_OK;
+      }
+    };
     NS_DispatchToMainThread(new ReadDrawFPSPref());
   }
 
@@ -640,6 +638,13 @@ CompositorOGL::SetLayerProgramProjectionMatrix(const gfx3DMatrix& aMatrix)
       }
     }
   }
+}
+
+void
+CompositorOGL::FallbackTextureInfo(TextureInfo& aId)
+{
+  // Try again without direct texturing enabled
+  aId.mTextureHostFlags &= ~TEXTURE_HOST_DIRECT;
 }
 
 TemporaryRef<CompositingRenderTarget>
@@ -929,6 +934,7 @@ CompositorOGL::GetProgramTypeForEffect(Effect *aEffect) const
   case EFFECT_SOLID_COLOR:
     return gl::ColorLayerProgramType;
   case EFFECT_RGBA:
+  case EFFECT_RGBA_EXTERNAL:
   case EFFECT_RGBX:
   case EFFECT_BGRA:
   case EFFECT_BGRX:
@@ -1039,7 +1045,8 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
   case EFFECT_BGRA:
   case EFFECT_BGRX:
   case EFFECT_RGBA:
-  case EFFECT_RGBX: {
+  case EFFECT_RGBX:
+  case EFFECT_RGBA_EXTERNAL: {
       TexturedEffect* texturedEffect =
           static_cast<TexturedEffect*>(aEffectChain.mPrimaryEffect.get());
       Rect textureCoords;
@@ -1051,8 +1058,10 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
       }
 
       source->AsSourceOGL()->BindTexture(LOCAL_GL_TEXTURE0);
-      if (programType == gl::RGBALayerExternalProgramType) {
-        program->SetTextureTransform(source->AsSourceOGL()->GetTextureTransform());
+      if (aEffectChain.mPrimaryEffect->mType == EFFECT_RGBA_EXTERNAL) {
+        EffectRGBAExternal* effectRGBAExternal =
+          static_cast<EffectRGBAExternal*>(aEffectChain.mPrimaryEffect.get());
+        program->SetTextureTransform(effectRGBAExternal->mTextureTransform);
       }
 
       mGLContext->ApplyFilterToBoundTexture(source->AsSourceOGL()->GetTextureTarget(),

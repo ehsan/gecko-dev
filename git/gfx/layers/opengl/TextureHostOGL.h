@@ -48,10 +48,8 @@ public:
   virtual gl::ShaderProgramType GetShaderProgram() const {
     MOZ_NOT_REACHED("unhandled shader type");
   }
-  // TODO: Noone's implementing this anymore, should see if we need this.
   virtual GLenum GetTextureTarget() const { return LOCAL_GL_TEXTURE_2D; }
   virtual GLenum GetWrapMode() const = 0;// { return LOCAL_GL_CLAMP_TO_EDGE; } // default
-  virtual gfx3DMatrix GetTextureTransform() const { return gfx3DMatrix(); }
 };
 
 inline gl::ShaderProgramType
@@ -322,7 +320,7 @@ public:
 
   virtual TextureSourceOGL* AsSourceOGL() MOZ_OVERRIDE { return this; }
 
-  bool IsValid() const MOZ_OVERRIDE { return !!mSharedHandle; }
+  bool IsValid() const MOZ_OVERRIDE { return GetFormat() != gfx::FORMAT_UNKNOWN; }
 
   // override from TextureHost, we support both buffered
   // and unbuffered operation.
@@ -345,11 +343,16 @@ public:
     return mSize;
   }
 
+  virtual GLenum GetTextureTarget() const MOZ_OVERRIDE
+  {
+    return mTextureTarget;
+  }
+
   void BindTexture(GLenum activetex) MOZ_OVERRIDE
   {
     MOZ_ASSERT(mGL);
-    // Lock already bound us!
-    MOZ_ASSERT(activetex == LOCAL_GL_TEXTURE0);
+    mGL->fActiveTexture(activetex);
+    mGL->fBindTexture(mTextureTarget, mTextureHandle);
   }
   void ReleaseTexture() {}
   GLuint GetTextureID() { return mTextureHandle; }
@@ -358,11 +361,6 @@ public:
     return (mFormat == gfx::FORMAT_B8G8R8A8) ?
              gfxASurface::CONTENT_COLOR_ALPHA :
              gfxASurface::CONTENT_COLOR;
-  }
-
-  virtual gfx3DMatrix GetTextureTransform() const MOZ_OVERRIDE
-  {
-    return mTextureTransform;
   }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
@@ -380,7 +378,6 @@ protected:
   gl::SharedTextureHandle mSharedHandle;
   gl::ShaderProgramType mShaderProgram;
   gl::GLContext::SharedTextureShareType mShareType;
-  gfx3DMatrix mTextureTransform;
 };
 
 class SurfaceStreamHostOGL : public TextureHost
@@ -547,7 +544,6 @@ class GrallocTextureHostOGL
 public:
   GrallocTextureHostOGL()
     : mGL(nullptr)
-    , mTextureTarget(0)
     , mGLTexture(0)
     , mEGLImage(0)
   {
@@ -576,10 +572,6 @@ public:
 
   gl::ShaderProgramType GetShaderProgram() const MOZ_OVERRIDE
   {
-    if (mTextureTarget == LOCAL_GL_TEXTURE_EXTERNAL) {
-      return gl::RGBAExternalLayerProgramType;
-    }
-    MOZ_ASSERT(mTextureTarget == LOCAL_GL_TEXTURE_2D);
     return mFormat == gfx::FORMAT_B8G8R8A8 || mFormat == gfx::FORMAT_B8G8R8X8
            ? gl::BGRALayerProgramType
            : gl::RGBALayerProgramType;
@@ -610,7 +602,6 @@ private:
 
   RefPtr<gl::GLContext> mGL;
   android::sp<android::GraphicBuffer> mGraphicBuffer;
-  GLenum mTextureTarget;
   GLuint mGLTexture;
   EGLImage mEGLImage;
 };

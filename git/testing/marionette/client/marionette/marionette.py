@@ -6,6 +6,7 @@ import datetime
 import socket
 import sys
 import time
+import traceback
 
 from client import MarionetteClient
 from application_cache import ApplicationCache
@@ -136,13 +137,6 @@ class Actions(object):
 
     def cancel(self):
         self.action_chain.append(['cancel'])
-        return self
-
-    def long_press(self, element, time_in_seconds):
-        element = element.id
-        self.action_chain.append(['press', element])
-        self.action_chain.append(['wait', time_in_seconds])
-        self.action_chain.append(['release'])
         return self
 
     def perform(self):
@@ -378,11 +372,7 @@ class Marionette(object):
                  or status == ErrorCodes.INVALID_XPATH_SELECTOR_RETURN_TYPER:
                 raise InvalidSelectorException(message=message, status=status, stacktrace=stacktrace)
             elif status == ErrorCodes.MOVE_TARGET_OUT_OF_BOUNDS:
-                raise MoveTargetOutOfBoundsException(message=message, status=status, stacktrace=stacktrace)
-            elif status == ErrorCodes.FRAME_SEND_NOT_INITIALIZED_ERROR:
-                raise FrameSendNotInitializedError(message=message, status=status, stacktrace=stacktrace)
-            elif status == ErrorCodes.FRAME_SEND_FAILURE_ERROR:
-                raise FrameSendFailureError(message=message, status=status, stacktrace=stacktrace)
+                MoveTargetOutOfBoundsException(message=message, status=status, stacktrace=stacktrace)
             else:
                 raise MarionetteException(message=message, status=status, stacktrace=stacktrace)
         raise MarionetteException(message=response, status=500)
@@ -419,9 +409,9 @@ class Marionette(object):
             # We are ignoring desired_capabilities, at least for now.
             self.session = self._send_message('newSession', 'value')
         except:
-            exc, val, tb = sys.exc_info()
+            traceback.print_exc()
             self.check_for_crash()
-            raise exc, val, tb
+            sys.exit()
 
         self.b2g = 'b2g' in self.session
         return self.session
@@ -453,10 +443,6 @@ class Marionette(object):
 
     def set_search_timeout(self, timeout):
         response = self._send_message('setSearchTimeout', 'ok', value=timeout)
-        return response
-
-    def send_mouse_event(self, send):
-        response = self._send_message('sendMouseEvent', 'ok', value=send)
         return response
 
     @property

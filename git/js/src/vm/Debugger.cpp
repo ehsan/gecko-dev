@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -651,7 +652,7 @@ Debugger::wrapEnvironment(JSContext *cx, Handle<Env*> env, MutableHandleValue rv
     } else {
         /* Create a new Debugger.Environment for env. */
         JSObject *proto = &object->getReservedSlot(JSSLOT_DEBUG_ENV_PROTO).toObject();
-        envobj = NewObjectWithGivenProto(cx, &DebuggerEnv_class, proto, NULL, TenuredObject);
+        envobj = NewObjectWithGivenProto(cx, &DebuggerEnv_class, proto, NULL);
         if (!envobj)
             return false;
         envobj->setPrivateGCThing(env);
@@ -688,7 +689,7 @@ Debugger::wrapDebuggeeValue(JSContext *cx, MutableHandleValue vp)
             /* Create a new Debugger.Object for obj. */
             JSObject *proto = &object->getReservedSlot(JSSLOT_DEBUG_OBJECT_PROTO).toObject();
             JSObject *dobj =
-                NewObjectWithGivenProto(cx, &DebuggerObject_class, proto, NULL, TenuredObject);
+                NewObjectWithGivenProto(cx, &DebuggerObject_class, proto, NULL);
             if (!dobj)
                 return false;
             dobj->setPrivateGCThing(obj);
@@ -1506,45 +1507,6 @@ Debugger::markAllIteratively(GCMarker *trc)
     return markedAny;
 }
 
-/*
- * Mark all debugger-owned GC things unconditionally. This is used by the minor
- * GC: the minor GC cannot apply the weak constraints of the full GC because it
- * visits only part of the heap.
- */
-void
-Debugger::markAll(JSTracer *trc)
-{
-    JSRuntime *rt = trc->runtime;
-    for (CompartmentsIter c(rt); !c.done(); c.next()) {
-        GlobalObjectSet &debuggees = c->getDebuggees();
-        for (GlobalObjectSet::Enum e(debuggees); !e.empty(); e.popFront()) {
-            GlobalObject *global = e.front();
-
-            MarkObjectUnbarriered(trc, &global, "Global Object");
-            if (global != e.front())
-                e.rekeyFront(global);
-
-            const GlobalObject::DebuggerVector *debuggers = global->getDebuggers();
-            JS_ASSERT(debuggers);
-            for (Debugger * const *p = debuggers->begin(); p != debuggers->end(); p++) {
-                Debugger *dbg = *p;
-
-                HeapPtrObject &dbgobj = dbg->toJSObjectRef();
-                MarkObject(trc, &dbgobj, "Debugger Object");
-
-                dbg->scripts.trace(trc);
-                dbg->objects.trace(trc);
-                dbg->environments.trace(trc);
-
-                for (Breakpoint *bp = dbg->firstBreakpoint(); bp; bp = bp->nextInDebugger()) {
-                    MarkScriptUnbarriered(trc, &bp->site->script, "breakpoint script");
-                    MarkObject(trc, &bp->getHandlerRef(), "breakpoint handler");
-                }
-            }
-        }
-    }
-}
-
 void
 Debugger::traceObject(JSTracer *trc, RawObject obj)
 {
@@ -1658,7 +1620,7 @@ Class Debugger::jsclass = {
     "Debugger",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUG_COUNT),
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Debugger::finalize,
     NULL,                 /* checkAccess */
     NULL,                 /* call        */
@@ -2636,7 +2598,7 @@ Debugger::findAllGlobals(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-const JSPropertySpec Debugger::properties[] = {
+JSPropertySpec Debugger::properties[] = {
     JS_PSGS("enabled", Debugger::getEnabled, Debugger::setEnabled, 0),
     JS_PSGS("onDebuggerStatement", Debugger::getOnDebuggerStatement,
             Debugger::setOnDebuggerStatement, 0),
@@ -2650,7 +2612,7 @@ const JSPropertySpec Debugger::properties[] = {
     JS_PS_END
 };
 
-const JSFunctionSpec Debugger::methods[] = {
+JSFunctionSpec Debugger::methods[] = {
     JS_FN("addDebuggee", Debugger::addDebuggee, 1, 0),
     JS_FN("addAllGlobalsAsDebuggees", Debugger::addAllGlobalsAsDebuggees, 0, 0),
     JS_FN("removeDebuggee", Debugger::removeDebuggee, 1, 0),
@@ -2695,7 +2657,7 @@ Class DebuggerScript_class = {
     "Script",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGSCRIPT_COUNT),
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, NULL,
     NULL,                 /* checkAccess */
     NULL,                 /* call        */
@@ -3456,7 +3418,7 @@ DebuggerScript_construct(JSContext *cx, unsigned argc, Value *vp)
     return false;
 }
 
-static const JSPropertySpec DebuggerScript_properties[] = {
+static JSPropertySpec DebuggerScript_properties[] = {
     JS_PSG("url", DebuggerScript_getUrl, 0),
     JS_PSG("startLine", DebuggerScript_getStartLine, 0),
     JS_PSG("lineCount", DebuggerScript_getLineCount, 0),
@@ -3465,7 +3427,7 @@ static const JSPropertySpec DebuggerScript_properties[] = {
     JS_PS_END
 };
 
-static const JSFunctionSpec DebuggerScript_methods[] = {
+static JSFunctionSpec DebuggerScript_methods[] = {
     JS_FN("getChildScripts", DebuggerScript_getChildScripts, 0, 0),
     JS_FN("getAllOffsets", DebuggerScript_getAllOffsets, 0, 0),
     JS_FN("getAllColumnOffsets", DebuggerScript_getAllColumnOffsets, 0, 0),
@@ -3496,7 +3458,7 @@ DebuggerFrame_finalize(FreeOp *fop, RawObject obj)
 
 Class DebuggerFrame_class = {
     "Frame", JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGFRAME_COUNT),
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, DebuggerFrame_finalize
 };
 
@@ -3641,7 +3603,7 @@ DebuggerFrame_getOlder(JSContext *cx, unsigned argc, Value *vp)
 
 Class DebuggerArguments_class = {
     "Arguments", JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGARGUMENTS_COUNT),
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
 };
 
@@ -4049,7 +4011,7 @@ DebuggerFrame_construct(JSContext *cx, unsigned argc, Value *vp)
     return false;
 }
 
-static const JSPropertySpec DebuggerFrame_properties[] = {
+static JSPropertySpec DebuggerFrame_properties[] = {
     JS_PSG("arguments", DebuggerFrame_getArguments, 0),
     JS_PSG("callee", DebuggerFrame_getCallee, 0),
     JS_PSG("constructing", DebuggerFrame_getConstructing, 0),
@@ -4066,7 +4028,7 @@ static const JSPropertySpec DebuggerFrame_properties[] = {
     JS_PS_END
 };
 
-static const JSFunctionSpec DebuggerFrame_methods[] = {
+static JSFunctionSpec DebuggerFrame_methods[] = {
     JS_FN("eval", DebuggerFrame_eval, 1, 0),
     JS_FN("evalWithBindings", DebuggerFrame_evalWithBindings, 1, 0),
     JS_FS_END
@@ -4092,7 +4054,7 @@ Class DebuggerObject_class = {
     "Object",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGOBJECT_COUNT),
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, NULL,
     NULL,                 /* checkAccess */
     NULL,                 /* call        */
@@ -4541,12 +4503,8 @@ DebuggerObject_deleteProperty(JSContext *cx, unsigned argc, Value *vp)
     if (!cx->compartment->wrap(cx, &nameArg))
         return false;
 
-    JSBool succeeded;
     ErrorCopier ec(ac, dbg->toJSObject());
-    if (!JSObject::deleteByValue(cx, obj, nameArg, &succeeded))
-        return false;
-    args.rval().setBoolean(succeeded);
-    return true;
+    return JSObject::deleteByValue(cx, obj, nameArg, args.rval(), false);
 }
 
 enum SealHelperOp { Seal, Freeze, PreventExtensions };
@@ -4829,7 +4787,7 @@ DebuggerObject_unsafeDereference(JSContext *cx, unsigned argc, Value *vp)
     return cx->compartment->wrap(cx, args.rval());
 }
 
-static const JSPropertySpec DebuggerObject_properties[] = {
+static JSPropertySpec DebuggerObject_properties[] = {
     JS_PSG("proto", DebuggerObject_getProto, 0),
     JS_PSG("class", DebuggerObject_getClass, 0),
     JS_PSG("callable", DebuggerObject_getCallable, 0),
@@ -4842,7 +4800,7 @@ static const JSPropertySpec DebuggerObject_properties[] = {
     JS_PS_END
 };
 
-static const JSFunctionSpec DebuggerObject_methods[] = {
+static JSFunctionSpec DebuggerObject_methods[] = {
     JS_FN("getOwnPropertyDescriptor", DebuggerObject_getOwnPropertyDescriptor, 1, 0),
     JS_FN("getOwnPropertyNames", DebuggerObject_getOwnPropertyNames, 0, 0),
     JS_FN("defineProperty", DebuggerObject_defineProperty, 2, 0),
@@ -4884,7 +4842,7 @@ Class DebuggerEnv_class = {
     "Environment",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_DEBUGENV_COUNT),
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, NULL,
     NULL,                 /* checkAccess */
     NULL,                 /* call        */
@@ -5167,7 +5125,7 @@ DebuggerEnv_setVariable(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static const JSPropertySpec DebuggerEnv_properties[] = {
+static JSPropertySpec DebuggerEnv_properties[] = {
     JS_PSG("type", DebuggerEnv_getType, 0),
     JS_PSG("object", DebuggerEnv_getObject, 0),
     JS_PSG("parent", DebuggerEnv_getParent, 0),
@@ -5175,7 +5133,7 @@ static const JSPropertySpec DebuggerEnv_properties[] = {
     JS_PS_END
 };
 
-static const JSFunctionSpec DebuggerEnv_methods[] = {
+static JSFunctionSpec DebuggerEnv_methods[] = {
     JS_FN("names", DebuggerEnv_names, 0, 0),
     JS_FN("find", DebuggerEnv_find, 1, 0),
     JS_FN("getVariable", DebuggerEnv_getVariable, 1, 0),

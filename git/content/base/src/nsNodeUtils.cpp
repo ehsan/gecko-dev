@@ -258,7 +258,7 @@ nsNodeUtils::LastRelease(nsINode* aNode)
   delete aNode;
 }
 
-struct MOZ_STACK_CLASS nsHandlerData
+struct NS_STACK_CLASS nsHandlerData
 {
   uint16_t mOperation;
   nsCOMPtr<nsIDOMNode> mSource;
@@ -400,7 +400,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
 
   AutoJSContext cx;
   nsresult rv;
-  JS::RootedObject wrapper(cx);
+  JSObject *wrapper;
   bool isDOMBinding;
   if (aReparentScope && (wrapper = aNode->GetWrapper()) &&
       !(isDOMBinding = IsDOMObject(wrapper))) {

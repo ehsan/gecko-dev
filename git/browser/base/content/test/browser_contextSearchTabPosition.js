@@ -29,7 +29,7 @@ function test() {
   try {
     let cm = Components.classes["@mozilla.org/categorymanager;1"]
                        .getService(Components.interfaces.nsICategoryManager);
-    cm.getCategoryEntry("healthreport-js-provider-default", "SearchesProvider");
+    cm.getCategoryEntry("healthreport-js-provider", "SearchesProvider");
   } catch (ex) {
     // Health Report disabled, or no SearchesProvider.
     finish();
@@ -47,13 +47,13 @@ function test() {
     let provider = reporter.getProvider("org.mozilla.searches");
     ok(provider, "Searches provider is available.");
 
-    let m = provider.getMeasurement("counts", 2);
+    let m = provider.getMeasurement("counts", 1);
     m.getValues().then(function onValues(data) {
       let now = new Date();
       ok(data.days.hasDay(now), "Have data for today.");
       let day = data.days.getDay(now);
 
-      // Will need to be changed if Google isn't the default search engine.
+      // Will need changed if Google isn't the default search engine.
       let field = "google.contextmenu";
       ok(day.has(field), "Have search recorded for context menu.");
 

@@ -39,7 +39,3 @@ XPIDL_SOURCES += [
 
 MODULE = 'accessibility'
 
-EXPORTS += [
-    'nsIAccessibilityService.h',
-]
-

@@ -473,15 +473,9 @@ nsTreeContentView::SetTree(nsITreeBoxObject* aTree)
 
   mBoxObject = aTree;
 
-  MOZ_ASSERT(!mRoot, "mRoot should have been cleared out by ClearRows");
-
-  if (aTree) {
+  if (aTree && !mRoot) {
     // Get our root element
     nsCOMPtr<nsIBoxObject> boxObject = do_QueryInterface(mBoxObject);
-    if (!boxObject) {
-      mBoxObject = nullptr;
-      return NS_ERROR_INVALID_ARG;
-    }
     nsCOMPtr<nsIDOMElement> element;
     boxObject->GetElement(getter_AddRefs(element));
 
@@ -1040,7 +1034,7 @@ nsTreeContentView::NodeWillBeDestroyed(const nsINode* aNode)
 // Recursively serialize content, starting with aContent.
 void
 nsTreeContentView::Serialize(nsIContent* aContent, int32_t aParentIndex,
-                             int32_t* aIndex, nsTArray<nsAutoPtr<Row> >& aRows)
+                             int32_t* aIndex, nsTArray<Row*>& aRows)
 {
   // Don't allow non-XUL nodes.
   if (!aContent->IsXUL())
@@ -1064,7 +1058,7 @@ nsTreeContentView::Serialize(nsIContent* aContent, int32_t aParentIndex,
 
 void
 nsTreeContentView::SerializeItem(nsIContent* aContent, int32_t aParentIndex,
-                                 int32_t* aIndex, nsTArray<nsAutoPtr<Row> >& aRows)
+                                 int32_t* aIndex, nsTArray<Row*>& aRows)
 {
   if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::hidden,
                             nsGkAtoms::_true, eCaseMatters))
@@ -1100,7 +1094,7 @@ nsTreeContentView::SerializeItem(nsIContent* aContent, int32_t aParentIndex,
 void
 nsTreeContentView::SerializeSeparator(nsIContent* aContent,
                                       int32_t aParentIndex, int32_t* aIndex,
-                                      nsTArray<nsAutoPtr<Row> >& aRows)
+                                      nsTArray<Row*>& aRows)
 {
   if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::hidden,
                             nsGkAtoms::_true, eCaseMatters))
@@ -1164,15 +1158,10 @@ nsTreeContentView::EnsureSubtree(int32_t aIndex)
     return 0;
   }
 
-  nsAutoTArray<nsAutoPtr<Row>, 8> rows;
+  nsAutoTArray<Row*, 8> rows;
   int32_t index = 0;
   Serialize(child, aIndex, &index, rows);
-  // We can't use InsertElementsAt since the destination can't steal
-  // ownership from its const source argument.
-  for (nsTArray<Row>::index_type i = 0; i < rows.Length(); i++) {
-    nsAutoPtr<Row>* newRow = mRows.InsertElementAt(aIndex + i + 1);
-    *newRow = rows[i];
-  }
+  mRows.InsertElementsAt(aIndex + 1, rows);
   int32_t count = rows.Length();
 
   row->mSubtreeSize += count;
@@ -1191,6 +1180,9 @@ nsTreeContentView::RemoveSubtree(int32_t aIndex)
   Row* row = mRows[aIndex];
   int32_t count = row->mSubtreeSize;
 
+  for (int32_t i = 0; i < count; i++) {
+    delete mRows[aIndex + i + 1];
+  }
   mRows.RemoveElementsAt(aIndex + 1, count);
 
   row->mSubtreeSize -= count;
@@ -1240,7 +1232,7 @@ nsTreeContentView::InsertRowFor(nsIContent* aParent, nsIContent* aChild)
 int32_t
 nsTreeContentView::InsertRow(int32_t aParentIndex, int32_t aIndex, nsIContent* aContent)
 {
-  nsAutoTArray<nsAutoPtr<Row>, 8> rows;
+  nsAutoTArray<Row*, 8> rows;
   nsIAtom *tag = aContent->Tag();
   if (aContent->IsXUL()) {
     if (tag == nsGkAtoms::treeitem)
@@ -1249,12 +1241,7 @@ nsTreeContentView::InsertRow(int32_t aParentIndex, int32_t aIndex, nsIContent* a
       SerializeSeparator(aContent, aParentIndex, &aIndex, rows);
   }
 
-  // We can't use InsertElementsAt since the destination can't steal
-  // ownership from its const source argument.
-  for (nsTArray<Row>::index_type i = 0; i < rows.Length(); i++) {
-    nsAutoPtr<Row>* newRow = mRows.InsertElementAt(aParentIndex + aIndex + i + 1);
-    *newRow = rows[i];
-  }
+  mRows.InsertElementsAt(aParentIndex + aIndex + 1, rows);
   int32_t count = rows.Length();
 
   UpdateSubtreeSizes(aParentIndex, count);
@@ -1273,6 +1260,10 @@ nsTreeContentView::RemoveRow(int32_t aIndex)
   int32_t count = row->mSubtreeSize + 1;
   int32_t parentIndex = row->mParentIndex;
 
+  delete row;
+  for(int32_t i = 1; i < count; i++) {
+    delete mRows[aIndex + i];
+  }
   mRows.RemoveElementsAt(aIndex, count);
 
   UpdateSubtreeSizes(parentIndex, -count);
@@ -1285,6 +1276,9 @@ nsTreeContentView::RemoveRow(int32_t aIndex)
 void
 nsTreeContentView::ClearRows()
 {
+  for (uint32_t i = 0; i < mRows.Length(); i++) {
+    delete mRows[i];
+  }
   mRows.Clear();
   mRoot = nullptr;
   mBody = nullptr;

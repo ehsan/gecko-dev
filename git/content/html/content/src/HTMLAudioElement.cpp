@@ -56,9 +56,7 @@ HTMLAudioElement::~HTMLAudioElement()
 
 
 already_AddRefed<HTMLAudioElement>
-HTMLAudioElement::Audio(const GlobalObject& aGlobal,
-                        const Optional<nsAString>& aSrc,
-                        ErrorResult& aRv)
+HTMLAudioElement::Audio(const GlobalObject& aGlobal, ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.Get());
   nsIDocument* doc;
@@ -78,8 +76,15 @@ HTMLAudioElement::Audio(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  if (aSrc.WasPassed()) {
-    aRv = audio->SetSrc(aSrc.Value());
+  return audio.forget();
+}
+
+already_AddRefed<HTMLAudioElement>
+HTMLAudioElement::Audio(const GlobalObject& aGlobal, const nsAString& aSrc, ErrorResult& aRv)
+{
+  nsRefPtr<HTMLAudioElement> audio = Audio(aGlobal, aRv);
+  if (audio) {
+    aRv = audio->SetSrc(aSrc);
   }
 
   return audio.forget();
@@ -125,9 +130,16 @@ HTMLAudioElement::MozSetup(uint32_t aChannels, uint32_t aRate, ErrorResult& aRv)
   mAudioStream->SetVolume(mVolume);
 }
 
+NS_IMETHODIMP
+HTMLAudioElement::MozSetup(uint32_t aChannels, uint32_t aRate)
+{
+  ErrorResult rv;
+  MozSetup(aChannels, aRate, rv);
+  return rv.ErrorCode();
+}
+
 uint32_t
-HTMLAudioElement::MozWriteAudio(const float* aData, uint32_t aLength,
-                                ErrorResult& aRv)
+HTMLAudioElement::MozWriteAudio(JSContext* aCx, JS::Value aData, ErrorResult& aRv)
 {
   if (!IsAudioAPIEnabled()) {
     aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
@@ -139,22 +151,50 @@ HTMLAudioElement::MozWriteAudio(const float* aData, uint32_t aLength,
     return 0;
   }
 
+  if (!aData.isObject()) {
+    aRv.Throw(NS_ERROR_DOM_TYPE_MISMATCH_ERR);
+    return 0;
+  }
+
+  JSObject* darray = &aData.toObject();
+  JS::AutoObjectRooter tvr(aCx);
+  JSObject* tsrc = nullptr;
+
+  // Allow either Float32Array or plain JS Array
+  if (JS_IsFloat32Array(darray)) {
+    tsrc = darray;
+  } else if (JS_IsArrayObject(aCx, darray)) {
+    JSObject* nobj = JS_NewFloat32ArrayFromArray(aCx, darray);
+    if (!nobj) {
+      aRv.Throw(NS_ERROR_DOM_TYPE_MISMATCH_ERR);
+      return 0;
+    }
+    tsrc = nobj;
+  } else {
+    aRv.Throw(NS_ERROR_DOM_TYPE_MISMATCH_ERR);
+    return 0;
+  }
+  tvr.setObject(tsrc);
+
+  uint32_t dataLength = JS_GetTypedArrayLength(tsrc);
+
   // Make sure that we are going to write the correct amount of data based
   // on number of channels.
-  if (aLength % mChannels != 0) {
+  if (dataLength % mChannels != 0) {
     aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return 0;
   }
 
   // Don't write more than can be written without blocking.
-  uint32_t writeLen = std::min(mAudioStream->Available(), aLength / mChannels);
+  uint32_t writeLen = std::min(mAudioStream->Available(), dataLength / mChannels);
 
+  float* frames = JS_GetFloat32ArrayData(tsrc);
   // Convert the samples back to integers as we are using fixed point audio in
   // the AudioStream.
   // This could be optimized to avoid allocation and memcpy when
   // AudioDataValue is 'float', but it's not worth it for this deprecated API.
   nsAutoArrayPtr<AudioDataValue> audioData(new AudioDataValue[writeLen * mChannels]);
-  ConvertAudioSamples(aData, audioData.get(), writeLen * mChannels);
+  ConvertAudioSamples(frames, audioData.get(), writeLen * mChannels);
   aRv = mAudioStream->Write(audioData.get(), writeLen);
   if (aRv.Failed()) {
     return 0;
@@ -163,6 +203,14 @@ HTMLAudioElement::MozWriteAudio(const float* aData, uint32_t aLength,
 
   // Return the actual amount written.
   return writeLen * mChannels;
+}
+
+NS_IMETHODIMP
+HTMLAudioElement::MozWriteAudio(const JS::Value& aData, JSContext* aCx, uint32_t* aRetVal)
+{
+  ErrorResult rv;
+  *aRetVal = MozWriteAudio(aCx, aData, rv);
+  return rv.ErrorCode();
 }
 
 uint64_t
@@ -184,6 +232,14 @@ HTMLAudioElement::MozCurrentSampleOffset(ErrorResult& aRv)
   }
 
   return position * mChannels;
+}
+
+NS_IMETHODIMP
+HTMLAudioElement::MozCurrentSampleOffset(uint64_t *aRetVal)
+{
+  ErrorResult rv;
+  *aRetVal = MozCurrentSampleOffset(rv);
+  return rv.ErrorCode();
 }
 
 nsresult HTMLAudioElement::SetAcceptHeader(nsIHttpChannel* aChannel)

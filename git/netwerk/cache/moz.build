@@ -17,8 +17,3 @@ XPIDL_MODULE = 'necko_cache'
 
 MODULE = 'nkcache'
 
-EXPORTS += [
-    'nsApplicationCacheService.h',
-    'nsCacheService.h',
-]
-

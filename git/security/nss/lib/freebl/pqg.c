@@ -5,7 +5,7 @@
 /*
  * PQG parameter generation/verification.  Based on FIPS 186-3.
  *
- * $Id$
+ * $Id: pqg.c,v 1.26 2012/12/13 22:47:15 wtc%google.com Exp $
  */
 #ifdef FREEBL_NO_DEPEND
 #include "stubs.h"

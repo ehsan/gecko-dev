@@ -50,6 +50,7 @@ class TiledLayerComposer;
 class Transaction;
 class SurfaceDescriptor;
 class CanvasSurface;
+class BasicTiledLayerBuffer;
 class TextureClientShmem;
 class ContentClientRemote;
 class CompositableChild;
@@ -154,15 +155,10 @@ public:
   void Connect(CompositableClient* aCompositable);
 
   virtual void CreatedSingleBuffer(CompositableClient* aCompositable,
-                                   const SurfaceDescriptor& aDescriptor,
-                                   const TextureInfo& aTextureInfo,
-                                   const SurfaceDescriptor* aDescriptorOnWhite = nullptr) MOZ_OVERRIDE;
+                                   TextureClient* aBuffer) MOZ_OVERRIDE;
   virtual void CreatedDoubleBuffer(CompositableClient* aCompositable,
-                                   const SurfaceDescriptor& aFrontDescriptor,
-                                   const SurfaceDescriptor& aBackDescriptor,
-                                   const TextureInfo& aTextureInfo,
-                                   const SurfaceDescriptor* aFrontDescriptorOnWhite = nullptr,
-                                   const SurfaceDescriptor* aBackDescriptorOnWhite = nullptr) MOZ_OVERRIDE;
+                                   TextureClient* aFront,
+                                   TextureClient* aBack) MOZ_OVERRIDE;
   virtual void DestroyThebesBuffer(CompositableClient* aCompositable) MOZ_OVERRIDE;
 
   /**
@@ -260,8 +256,8 @@ public:
    * and is free to choose it's own internal representation (double buffering,
    * copy on write, tiling).
    */
-  virtual void PaintedTiledLayerBuffer(CompositableClient* aCompositable,
-                                       BasicTiledLayerBuffer* aTiledLayerBuffer) MOZ_OVERRIDE;
+  void PaintedTiledLayerBuffer(ShadowableLayer* aThebes,
+                               BasicTiledLayerBuffer* aTiledLayerBuffer);
 
   /**
    * Notify the compositor that a compositable will be updated asynchronously
@@ -274,9 +270,8 @@ public:
    * Communicate to the compositor that the texture identified by aLayer
    * and aIdentifier has been updated to aImage.
    */
-  virtual void UpdateTexture(CompositableClient* aCompositable,
-                             TextureIdentifier aTextureId,
-                             SurfaceDescriptor* aDescriptor) MOZ_OVERRIDE;
+  void UpdateTexture(TextureClient* aTexture,
+                     const SurfaceDescriptor& aImage);
 
   /**
    * Communicate to the compositor that aRegion in the texture identified by aLayer
@@ -365,6 +360,17 @@ public:
    * Flag the next paint as the first for a document.
    */
   void SetIsFirstPaint() { mIsFirstPaint = true; }
+
+  /**
+   * Create compositable clients, see comments in CompositingFactory
+   */
+  TemporaryRef<ImageClient> CreateImageClientFor(const CompositableType& aCompositableType,
+                                                 ShadowableLayer* aLayer,
+                                                 TextureFlags aFlags);
+  TemporaryRef<CanvasClient> CreateCanvasClientFor(const CompositableType& aCompositableType,
+                                                   ShadowableLayer* aLayer,
+                                                   TextureFlags aFlags);
+  TemporaryRef<ContentClient> CreateContentClientFor(ShadowableLayer* aLayer);
 
   static void PlatformSyncBeforeUpdate();
 

@@ -22,7 +22,7 @@ class DOMRequest : public nsDOMEventTargetHelper,
                    public nsIDOMDOMRequest
 {
 protected:
-  JS::Value mResult;
+  jsval mResult;
   nsCOMPtr<nsIDOMDOMError> mError;
   bool mDone;
   bool mRooted;
@@ -30,7 +30,7 @@ protected:
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMDOMREQUEST
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(DOMRequest,
                                                          nsDOMEventTargetHelper)
@@ -69,7 +69,7 @@ public:
   IMPL_EVENT_HANDLER(error)
 
 
-  void FireSuccess(JS::Value aResult);
+  void FireSuccess(jsval aResult);
   void FireError(const nsAString& aError);
   void FireError(nsresult aError);
 

@@ -48,9 +48,8 @@ class SurfaceDescriptor;
 class CompositableHost : public RefCounted<CompositableHost>
 {
 public:
-  CompositableHost(const TextureInfo& aTextureInfo)
-    : mTextureInfo(aTextureInfo)
-    , mCompositor(nullptr)
+  CompositableHost(Compositor* aCompositor = nullptr)
+    : mCompositor(aCompositor)
     , mLayer(nullptr)
   {
     MOZ_COUNT_CTOR(CompositableHost);
@@ -61,7 +60,8 @@ public:
     MOZ_COUNT_DTOR(CompositableHost);
   }
 
-  static TemporaryRef<CompositableHost> Create(const TextureInfo& aTextureInfo);
+  static TemporaryRef<CompositableHost> Create(CompositableType aType,
+                                               Compositor* aCompositor = nullptr);
 
   virtual CompositableType GetType() = 0;
 
@@ -88,7 +88,11 @@ public:
 
   /**
    * Update the content host.
+   * aTextureInfo identifies the texture host which should be updated.
+   * aNewBack is the new data
    * aUpdated is the region which should be updated
+   * aNewfront may point to the old data in this content host after the call
+   * aNewBackResult may point to the updated data in this content host
    * aUpdatedRegionBack is the region in aNewBackResult which has been updated
    */
   virtual void UpdateThebes(const ThebesBufferData& aData,
@@ -99,26 +103,8 @@ public:
     MOZ_ASSERT(false, "should be implemented or not used");
   }
 
-  /**
-   * Ensure that a suitable texture host exists in this compositable. The
-   * compositable host may or may not create a new texture host. If a texture
-   * host is replaced, then the compositable is responsible for enusring it is
-   * destroyed correctly (without leaking resources).
-   * aTextureId - identifies the texture within the compositable, how the
-   * compositable chooses to use this is between the compositable client and
-   * host and will vary between types of compositable.
-   * aSurface - the new or existing texture host should support surface
-   * descriptors of the same type and, if necessary, this specific surface
-   * descriptor. Whether it is necessary or not depends on the protocol between
-   * the compositable client and host.
-   * aAllocator - the allocator used to allocate and de-allocate resources.
-   * aTextureInfo - contains flags for the texture.
-   */
-  virtual bool EnsureTextureHost(TextureIdentifier aTextureId,
-                                 const SurfaceDescriptor& aSurface,
-                                 ISurfaceAllocator* aAllocator,
-                                 const TextureInfo& aTextureInfo) = 0;
-
+  virtual void AddTextureHost(TextureHost* aTextureHost,
+                              ISurfaceAllocator* aAllocator = nullptr) = 0;
   virtual TextureHost* GetTextureHost() { return nullptr; }
 
   virtual LayerRenderState GetRenderState() = 0;
@@ -144,9 +130,7 @@ public:
   Layer* GetLayer() const { return mLayer; }
   void SetLayer(Layer* aLayer) { mLayer = aLayer; }
 
-  virtual TiledLayerComposer* AsTiledLayerComposer() { return nullptr; }
-
-  virtual void Attach(Layer* aLayer, Compositor* aCompositor)
+  void Attach(Layer* aLayer, Compositor* aCompositor)
   {
     SetCompositor(aCompositor);
     SetLayer(aLayer);
@@ -161,7 +145,6 @@ public:
 #endif
 
 protected:
-  TextureInfo mTextureInfo;
   Compositor* mCompositor;
   Layer* mLayer;
 };
@@ -172,9 +155,10 @@ class CompositableParent : public PCompositableParent
 {
 public:
   CompositableParent(CompositableParentManager* aMgr,
-                     const TextureInfo& aTextureInfo,
-                     uint64_t aID = 0);
+                     CompositableType aType, uint64_t aID = 0);
   ~CompositableParent();
+  PTextureParent* AllocPTexture(const TextureInfo& aInfo) MOZ_OVERRIDE;
+  bool DeallocPTexture(PTextureParent* aActor) MOZ_OVERRIDE;
 
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 

@@ -28,7 +28,7 @@ SVGTests::SVGTests()
   mStringListAttributes[LANGUAGE].SetIsCommaSeparated(true);
 }
 
-already_AddRefed<DOMSVGStringList>
+already_AddRefed<nsIDOMSVGStringList>
 SVGTests::RequiredFeatures()
 {
   nsCOMPtr<nsIDOMSVGElement> elem = do_QueryInterface(this);
@@ -37,7 +37,7 @@ SVGTests::RequiredFeatures()
            &mStringListAttributes[FEATURES], element, true, FEATURES).get();
 }
 
-already_AddRefed<DOMSVGStringList>
+already_AddRefed<nsIDOMSVGStringList>
 SVGTests::RequiredExtensions()
 {
   nsCOMPtr<nsIDOMSVGElement> elem = do_QueryInterface(this);
@@ -46,7 +46,7 @@ SVGTests::RequiredExtensions()
            &mStringListAttributes[EXTENSIONS], element, true, EXTENSIONS).get();
 }
 
-already_AddRefed<DOMSVGStringList>
+already_AddRefed<nsIDOMSVGStringList>
 SVGTests::SystemLanguage()
 {
   nsCOMPtr<nsIDOMSVGElement> elem = do_QueryInterface(this);

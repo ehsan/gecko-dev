@@ -132,7 +132,7 @@ public:
     return y;
   }
 
-  virtual uint32_t Which()
+  uint32_t Which()
   {
     uint32_t w;
     GetWhich(&w);

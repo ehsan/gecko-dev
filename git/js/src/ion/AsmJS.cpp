@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -2088,19 +2089,17 @@ class FunctionCompiler
 
     bool bindContinues(ParseNode *pn, const LabelVector *maybeLabels)
     {
-        bool createdJoinBlock = false;
         if (UnlabeledBlockMap::Ptr p = unlabeledContinues_.lookup(pn)) {
-            if (!bindBreaksOrContinues(&p->value, &createdJoinBlock))
+            if (!bindBreaksOrContinues(&p->value))
                 return false;
             unlabeledContinues_.remove(p);
         }
-        return bindLabeledBreaksOrContinues(maybeLabels, &labeledContinues_, &createdJoinBlock);
+        return bindLabeledBreaksOrContinues(maybeLabels, &labeledContinues_);
     }
 
     bool bindLabeledBreaks(const LabelVector *maybeLabels)
     {
-        bool createdJoinBlock = false;
-        return bindLabeledBreaksOrContinues(maybeLabels, &labeledBreaks_, &createdJoinBlock);
+        return bindLabeledBreaksOrContinues(maybeLabels, &labeledBreaks_);
     }
 
     bool addBreak(PropertyName *maybeLabel) {
@@ -2202,11 +2201,11 @@ class FunctionCompiler
         return newBlockWithDepth(pred, loopStack_.length(), block);
     }
 
-    bool bindBreaksOrContinues(BlockVector *preds, bool *createdJoinBlock)
+    bool bindBreaksOrContinues(BlockVector *preds)
     {
         for (unsigned i = 0; i < preds->length(); i++) {
             MBasicBlock *pred = (*preds)[i];
-            if (*createdJoinBlock) {
+            if (curBlock_ && curBlock_->begin() == curBlock_->end()) {
                 pred->end(MGoto::New(curBlock_));
                 curBlock_->addPredecessor(pred);
             } else {
@@ -2219,7 +2218,6 @@ class FunctionCompiler
                     next->addPredecessor(curBlock_);
                 }
                 curBlock_ = next;
-                *createdJoinBlock = true;
             }
             JS_ASSERT(curBlock_->begin() == curBlock_->end());
         }
@@ -2227,15 +2225,14 @@ class FunctionCompiler
         return true;
     }
 
-    bool bindLabeledBreaksOrContinues(const LabelVector *maybeLabels, LabeledBlockMap *map,
-                                      bool *createdJoinBlock)
+    bool bindLabeledBreaksOrContinues(const LabelVector *maybeLabels, LabeledBlockMap *map)
     {
         if (!maybeLabels)
             return true;
         const LabelVector &labels = *maybeLabels;
         for (unsigned i = 0; i < labels.length(); i++) {
             if (LabeledBlockMap::Ptr p = map->lookup(labels[i])) {
-                if (!bindBreaksOrContinues(&p->value, createdJoinBlock))
+                if (!bindBreaksOrContinues(&p->value))
                     return false;
                 map->remove(p);
             }
@@ -2262,9 +2259,8 @@ class FunctionCompiler
 
     bool bindUnlabeledBreaks(ParseNode *pn)
     {
-        bool createdJoinBlock = false;
         if (UnlabeledBlockMap::Ptr p = unlabeledBreaks_.lookup(pn)) {
-            if (!bindBreaksOrContinues(&p->value, &createdJoinBlock))
+            if (!bindBreaksOrContinues(&p->value))
                 return false;
             unlabeledBreaks_.remove(p);
         }
@@ -2290,7 +2286,7 @@ static Class AsmJSModuleClass = {
     JSCLASS_IS_ANONYMOUS | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(ASM_CODE_NUM_RESERVED_SLOTS),
     JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
+    JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -3496,38 +3492,23 @@ CheckNeg(FunctionCompiler &f, ParseNode *expr, MDefinition **def, Type *type)
 }
 
 static bool
-CheckCoerceToInt(FunctionCompiler &f, ParseNode *expr, MDefinition **def, Type *type)
-{
-    JS_ASSERT(expr->isKind(PNK_BITNOT));
-    ParseNode *operand = UnaryKid(expr);
-
-    MDefinition *operandDef;
-    Type operandType;
-    if (!CheckExpr(f, operand, Use::ToInt32, &operandDef, &operandType))
-        return false;
-
-    if (operandType.isDoublish()) {
-        *def = f.unary<MTruncateToInt32>(operandDef);
-        *type = Type::Signed;
-        return true;
-    }
-
-    if (!operandType.isIntish())
-        return f.fail("Operand to ~ must be intish or doublish", operand);
-
-    *def = operandDef;
-    *type = Type::Signed;
-    return true;
-}
-
-static bool
 CheckBitNot(FunctionCompiler &f, ParseNode *neg, MDefinition **def, Type *type)
 {
     JS_ASSERT(neg->isKind(PNK_BITNOT));
     ParseNode *operand = UnaryKid(neg);
 
-    if (operand->isKind(PNK_BITNOT))
-        return CheckCoerceToInt(f, operand, def, type);
+    if (operand->isKind(PNK_BITNOT)) {
+        MDefinition *operandDef;
+        Type operandType;
+        if (!CheckExpr(f, UnaryKid(operand), Use::NoCoercion, &operandDef, &operandType))
+            return false;
+
+        if (operandType.isDouble()) {
+            *def = f.unary<MTruncateToInt32>(operandDef);
+            *type = Type::Signed;
+            return true;
+        }
+    }
 
     MDefinition *operandDef;
     Type operandType;
@@ -4466,8 +4447,6 @@ CheckFunctionBodiesSequential(ModuleCompiler &m)
         if (!mirGen)
             return false;
 
-        IonSpewNewFunction(&mirGen->graph(), NullPtr());
-
         if (!OptimizeMIR(mirGen))
             return m.fail("Internal compiler failure (probably out of memory)", func.fn());
 
@@ -4477,8 +4456,6 @@ CheckFunctionBodiesSequential(ModuleCompiler &m)
 
         if (!GenerateAsmJSCode(m, func, *mirGen, *lir))
             return false;
-
-        IonSpewEndFunction();
     }
 
     return true;
@@ -4925,9 +4902,7 @@ GenerateEntry(ModuleCompiler &m, const AsmJSModule::ExportedFunction &exportedFu
         masm.storeValue(JSVAL_TYPE_INT32, ReturnReg, Address(argv, 0));
         break;
       case RetType::Double:
-#ifndef JS_CPU_ARM_HARDFP
         masm.ma_vxfer(r0, r1, d0);
-#endif
         masm.canonicalizeDouble(ReturnFloatReg);
         masm.storeDouble(ReturnFloatReg, Address(argv, 0));
         break;

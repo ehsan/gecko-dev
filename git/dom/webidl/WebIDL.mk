@@ -13,7 +13,6 @@ webidl_files = \
   AnimationEvent.webidl \
   ArchiveReader.webidl \
   ArchiveRequest.webidl \
-  Attr.webidl \
   AudioBuffer.webidl \
   AudioBufferSourceNode.webidl \
   AudioContext.webidl \
@@ -21,7 +20,7 @@ webidl_files = \
   AudioListener.webidl \
   AudioNode.webidl \
   AudioParam.webidl \
-  AudioProcessingEvent.webidl \
+  Attr.webidl \
   BatteryManager.webidl \
   BeforeUnloadEvent.webidl \
   BiquadFilterNode.webidl \
@@ -31,14 +30,12 @@ webidl_files = \
   CDATASection.webidl \
   CFStateChangeEvent.webidl \
   CharacterData.webidl \
-  ChildNode.webidl \
   ClientRect.webidl \
   ClientRectList.webidl \
   ClipboardEvent.webidl \
   CommandEvent.webidl \
   Comment.webidl \
   CompositionEvent.webidl \
-  Coordinates.webidl \
   CSS.webidl \
   CSSPrimitiveValue.webidl \
   CSSStyleDeclaration.webidl \
@@ -47,7 +44,6 @@ webidl_files = \
   CSSValueList.webidl \
   DelayNode.webidl \
   DesktopNotification.webidl \
-  DeviceMotionEvent.webidl \
   Document.webidl \
   DocumentFragment.webidl \
   DocumentType.webidl \
@@ -59,7 +55,6 @@ webidl_files = \
   DOMStringMap.webidl \
   DOMTokenList.webidl \
   DOMTransaction.webidl \
-  DragEvent.webidl \
   DummyBinding.webidl \
   DynamicsCompressorNode.webidl \
   Element.webidl \
@@ -71,13 +66,11 @@ webidl_files = \
   File.webidl \
   FileHandle.webidl \
   FileList.webidl \
-  FileReader.webidl \
   FileReaderSync.webidl \
   FileRequest.webidl \
   FormData.webidl \
   Function.webidl \
   GainNode.webidl \
-  Geolocation.webidl \
   HTMLAnchorElement.webidl \
   HTMLAppletElement.webidl \
   HTMLAreaElement.webidl \
@@ -86,7 +79,6 @@ webidl_files = \
   HTMLBodyElement.webidl \
   HTMLBRElement.webidl \
   HTMLButtonElement.webidl \
-  HTMLCanvasElement.webidl \
   HTMLCollection.webidl \
   HTMLDataElement.webidl \
   HTMLDataListElement.webidl \
@@ -131,7 +123,6 @@ webidl_files = \
   HTMLPropertiesCollection.webidl \
   HTMLQuoteElement.webidl \
   HTMLScriptElement.webidl \
-  HTMLSelectElement.webidl \
   HTMLSourceElement.webidl \
   HTMLSpanElement.webidl \
   HTMLStyleElement.webidl \
@@ -151,7 +142,6 @@ webidl_files = \
   IDBVersionChangeEvent.webidl \
   ImageData.webidl \
   InspectorUtils.webidl \
-  KeyEvent.webidl \
   LinkStyle.webidl \
   LocalMediaStream.webidl \
   Location.webidl \
@@ -159,32 +149,26 @@ webidl_files = \
   MediaStream.webidl \
   MessageEvent.webidl \
   MouseEvent.webidl \
-  MouseScrollEvent.webidl \
   MozActivity.webidl \
   MutationEvent.webidl \
   MutationObserver.webidl \
-  NetDashboard.webidl \
   Node.webidl \
   NodeFilter.webidl \
   NodeIterator.webidl \
   NodeList.webidl \
   Notification.webidl \
-  NotifyPaintEvent.webidl \
   PaintRequest.webidl \
   PaintRequestList.webidl \
   PannerNode.webidl \
   Performance.webidl \
   PerformanceNavigation.webidl \
   PerformanceTiming.webidl \
-  Position.webidl \
-  PositionError.webidl \
   ProcessingInstruction.webidl \
   Range.webidl \
   Rect.webidl \
   RGBColor.webidl \
   RTCConfiguration.webidl \
   Screen.webidl \
-  ScriptProcessorNode.webidl \
   ScrollAreaEvent.webidl \
   SimpleGestureEvent.webidl \
   StyleSheet.webidl \
@@ -268,7 +252,6 @@ webidl_files = \
   SVGScriptElement.webidl \
   SVGSetElement.webidl \
   SVGStopElement.webidl \
-  SVGStringList.webidl \
   SVGStyleElement.webidl \
   SVGSVGElement.webidl \
   SVGSwitchElement.webidl \
@@ -291,10 +274,7 @@ webidl_files = \
   TextDecoder.webidl \
   TextEncoder.webidl \
   TimeRanges.webidl \
-  Touch.webidl \
-  TouchEvent.webidl \
   TransitionEvent.webidl \
-  TreeColumns.webidl \
   TreeWalker.webidl \
   UIEvent.webidl \
   URL.webidl \

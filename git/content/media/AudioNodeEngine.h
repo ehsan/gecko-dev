@@ -12,7 +12,6 @@
 namespace mozilla {
 
 namespace dom {
-class AudioNode;
 struct ThreeDPoint;
 }
 
@@ -147,15 +146,12 @@ AudioBlockPanStereoToStereo(const float aInputL[WEBAUDIO_BLOCK_SIZE],
  */
 class AudioNodeEngine {
 public:
-  explicit AudioNodeEngine(dom::AudioNode* aNode)
-    : mNode(aNode)
+  AudioNodeEngine()
   {
-    MOZ_ASSERT(mNode, "The engine is constructed with a null node");
     MOZ_COUNT_CTOR(AudioNodeEngine);
   }
   virtual ~AudioNodeEngine()
   {
-    MOZ_ASSERT(!mNode, "The node reference must be already cleared");
     MOZ_COUNT_DTOR(AudioNodeEngine);
   }
 
@@ -203,16 +199,6 @@ public:
   {
     *aOutput = aInput;
   }
-
-  dom::AudioNode* Node() const
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    return mNode;
-  }
-
-protected:
-  friend class dom::AudioNode;
-  dom::AudioNode* mNode;
 };
 
 }

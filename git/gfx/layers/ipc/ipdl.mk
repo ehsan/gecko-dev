@@ -11,4 +11,5 @@ IPDLSRCS = \
   PImageBridge.ipdl \
   PLayer.ipdl \
   PLayers.ipdl \
+  PTexture.ipdl \
   $(NULL)

@@ -188,13 +188,8 @@ var ContextMenuUI = {
       return false;
     }
 
-    let coords = { x: aMessage.json.xPos, y: aMessage.json.yPos };
-
-    // chrome calls don't need to be translated and as such
-    // don't provide target.
-    if (aMessage.target) {
-      coords = aMessage.target.msgBrowserToClient(aMessage, true);
-    }
+    let coords =
+      aMessage.target.msgBrowserToClient(aMessage, true);
     this._menuPopup.show(Util.extend({}, this._defaultPositionOptions, {
       xPos: coords.x,
       yPos: coords.y,
@@ -382,16 +377,14 @@ MenuPopup.prototype = {
     let self = this;
     this._panel.addEventListener("transitionend", function () {
       self._panel.removeEventListener("transitionend", arguments.callee);
-      self._panel.removeAttribute("hiding");
       self._panel.hidden = true;
-
+      self._popupState = null;
       let event = document.createEvent("Events");
       event.initEvent("popuphidden", true, false);
       document.dispatchEvent(event);
     });
 
-    this._panel.setAttribute("hiding", "true");
-    setTimeout(()=>this._panel.removeAttribute("showing"), 0);
+    this._panel.removeAttribute("showing");
   },
 
   _position: function _position(aPositionOptions) {
@@ -410,6 +403,7 @@ MenuPopup.prototype = {
     let width = this._popup.boxObject.width;
     let height = this._popup.boxObject.height;
     let halfWidth = width / 2;
+    let halfHeight = height / 2;
     let screenWidth = ContentAreaObserver.width;
     let screenHeight = ContentAreaObserver.height;
 

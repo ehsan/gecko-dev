@@ -21,6 +21,7 @@
 #include "nsGUIEvent.h"
 #include "nsIComboboxControlFrame.h"
 #include "nsIDocument.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIFormControlFrame.h"
 #include "nsIForm.h"
@@ -357,7 +358,18 @@ HTMLOptionsCollection::Add(const HTMLOptionOrOptGroupElement& aElement,
                            const Nullable<HTMLElementOrLong>& aBefore,
                            ErrorResult& aError)
 {
-  mSelect->Add(aElement, aBefore, aError);
+  nsGenericHTMLElement& element =
+    aElement.IsHTMLOptionElement() ?
+    static_cast<nsGenericHTMLElement&>(aElement.GetAsHTMLOptionElement()) :
+    static_cast<nsGenericHTMLElement&>(aElement.GetAsHTMLOptGroupElement());
+
+  if (aBefore.IsNull()) {
+    mSelect->Add(element, (nsGenericHTMLElement*)nullptr, aError);
+  } else if (aBefore.Value().IsHTMLElement()) {
+    mSelect->Add(element, &aBefore.Value().GetAsHTMLElement(), aError);
+  } else {
+    mSelect->Add(element, aBefore.Value().GetAsLong(), aError);
+  }
 }
 
 void

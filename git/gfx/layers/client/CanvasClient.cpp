@@ -18,7 +18,8 @@ namespace mozilla {
 namespace layers {
 
 /* static */ TemporaryRef<CanvasClient>
-CanvasClient::CreateCanvasClient(CompositableType aCompositableHostType,
+CanvasClient::CreateCanvasClient(LayersBackend aParentBackend,
+                                 CompositableType aCompositableHostType,
                                  CompositableForwarder* aForwarder,
                                  TextureFlags aFlags)
 {
@@ -26,7 +27,7 @@ CanvasClient::CreateCanvasClient(CompositableType aCompositableHostType,
     return new CanvasClient2D(aForwarder, aFlags);
   }
   if (aCompositableHostType == BUFFER_IMAGE_BUFFERED) {
-    if (aForwarder->GetCompositorBackendType() == LAYERS_OPENGL) {
+    if (aParentBackend == LAYERS_OPENGL) {
       return new CanvasClientWebGL(aForwarder, aFlags);
     }
     return new CanvasClient2D(aForwarder, aFlags);
@@ -35,24 +36,23 @@ CanvasClient::CreateCanvasClient(CompositableType aCompositableHostType,
 }
 
 void
-CanvasClient::Updated()
+CanvasClient::SetBuffer(const TextureIdentifier& aTextureIdentifier,
+                        const SurfaceDescriptor& aBuffer)
 {
-  mForwarder->UpdateTexture(this, 1, mTextureClient->GetDescriptor());
+  mTextureClient->SetDescriptor(aBuffer);
 }
-
 
 CanvasClient2D::CanvasClient2D(CompositableForwarder* aFwd,
                                TextureFlags aFlags)
 : CanvasClient(aFwd, aFlags)
 {
-  mTextureInfo.mCompositableType = BUFFER_IMAGE_SINGLE;
 }
 
 void
 CanvasClient2D::Update(gfx::IntSize aSize, BasicCanvasLayer* aLayer)
 {
   if (!mTextureClient) {
-    mTextureClient = CreateTextureClient(TEXTURE_SHMEM);
+    mTextureClient = CreateTextureClient(TEXTURE_SHMEM, mFlags);
   }
 
   bool isOpaque = (aLayer->GetContentFlags() & Layer::CONTENT_OPAQUE);
@@ -70,14 +70,13 @@ CanvasClientWebGL::CanvasClientWebGL(CompositableForwarder* aFwd,
                                      TextureFlags aFlags)
 : CanvasClient(aFwd, aFlags)
 {
-  mTextureInfo.mCompositableType = BUFFER_IMAGE_BUFFERED;
 }
 
 void
 CanvasClientWebGL::Update(gfx::IntSize aSize, BasicCanvasLayer* aLayer)
 {
   if (!mTextureClient) {
-    mTextureClient = CreateTextureClient(TEXTURE_STREAM_GL);
+    mTextureClient = CreateTextureClient(TEXTURE_STREAM_GL, mFlags);
   }
 
   NS_ASSERTION(aLayer->mGLContext, "CanvasClientWebGL should only be used with GL canvases");

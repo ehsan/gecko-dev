@@ -71,10 +71,6 @@ void uwt__init()
 {
 }
 
-void uwt__stop()
-{
-}
-
 void uwt__deinit()
 {
 }
@@ -157,17 +153,13 @@ void uwt__init()
   MOZ_ALWAYS_TRUE(r==0);
 }
 
-void uwt__stop()
+void uwt__deinit()
 {
   // Shut down the unwinder thread.
   MOZ_ASSERT(unwind_thr_exit_now == 0);
   unwind_thr_exit_now = 1;
   do_MBAR();
   int r = pthread_join(unwind_thr, NULL); MOZ_ALWAYS_TRUE(r==0);
-}
-
-void uwt__deinit()
-{
   do_breakpad_unwind_Buffer_free_singletons();
 }
 
@@ -825,9 +817,14 @@ static void* unwind_thr_fn(void* exit_nowV)
     MOZ_ASSERT(buffers);
     int i;
     for (i = 0; i < N_UNW_THR_BUFFERS; i++) {
-      /* These calloc-ations are shared between the sampler and the unwinder.
-       * They must be free after both threads have terminated.
-       */
+      /* These calloc-ations are never freed, even when the unwinder
+         thread is shut down.  The reason is that sampler threads
+         might still be filling them up even after this thread is shut
+         down.  The buffers themselves are not protected by the
+         spinlock, so we have no way to stop them being accessed
+         whilst we free them.  It doesn't matter much since they will
+         not be reallocated if a new unwinder thread is restarted
+         later. */
       buffers[i] = (UnwinderThreadBuffer*)
                    calloc(sizeof(UnwinderThreadBuffer), 1);
       MOZ_ASSERT(buffers[i]);
@@ -869,16 +866,9 @@ static void* unwind_thr_fn(void* exit_nowV)
   */
   int* exit_now = (int*)exit_nowV;
   int ms_to_sleep_if_empty = 1;
-
-  const int longest_sleep_ms = 1000;
-  bool show_sleep_message = true;
-
   while (1) {
 
-    if (*exit_now != 0) {
-      *exit_now = 0;
-      break;
-    }
+    if (*exit_now != 0) break;
 
     spinLock_acquire(&g_spinLock);
 
@@ -899,21 +889,15 @@ static void* unwind_thr_fn(void* exit_nowV)
       MOZ_ASSERT(oldest_seqNo == ~0ULL);
       spinLock_release(&g_spinLock);
       if (ms_to_sleep_if_empty > 100 && LOGLEVEL >= 2) {
-        if (show_sleep_message)
-          LOGF("BPUnw: unwinder: sleep for %d ms", ms_to_sleep_if_empty);
-        /* If we've already shown the message for the longest sleep,
-           don't show it again, until the next round of sleeping
-           starts. */
-        if (ms_to_sleep_if_empty == longest_sleep_ms)
-          show_sleep_message = false;
+        LOGF("BPUnw: unwinder: sleep for %d ms", ms_to_sleep_if_empty);
       }
       sleep_ms(ms_to_sleep_if_empty);
       if (ms_to_sleep_if_empty < 20) {
         ms_to_sleep_if_empty += 2;
       } else {
         ms_to_sleep_if_empty = (15 * ms_to_sleep_if_empty) / 10;
-        if (ms_to_sleep_if_empty > longest_sleep_ms)
-          ms_to_sleep_if_empty = longest_sleep_ms;
+        if (ms_to_sleep_if_empty > 1000)
+          ms_to_sleep_if_empty = 1000;
       }
       continue;
     }
@@ -1262,7 +1246,6 @@ static void* unwind_thr_fn(void* exit_nowV)
     buff->state = S_EMPTY;
     spinLock_release(&g_spinLock);
     ms_to_sleep_if_empty = 1;
-    show_sleep_message = true;
   }
   return NULL;
 }
@@ -1534,11 +1517,6 @@ void do_breakpad_unwind_Buffer_free_singletons()
     delete sModules;
     sModules = NULL;
   }
-
-  g_stackLimitsUsed = 0;
-  g_seqNo = 0;
-  free(g_buffers);
-  g_buffers = NULL;
 }
 
 static
@@ -1646,12 +1624,6 @@ void do_breakpad_unwind_Buffer(/*OUT*/PCandSP** pairs,
 
   std::vector<const google_breakpad::CodeModule*>* modules_without_symbols
     = new std::vector<const google_breakpad::CodeModule*>();
-
-  // Set the max number of frames to a reasonably low level.  By
-  // default Breakpad's limit is 1024, which means it can wind up
-  // spending a lot of time looping on corrupted stacks.
-  sw->set_max_frames(256);
-
   bool b = sw->Walk(stack, modules_without_symbols);
   (void)b;
   delete modules_without_symbols;

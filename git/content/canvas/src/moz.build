@@ -6,10 +6,3 @@
 
 MODULE = 'content'
 
-EXPORTS.mozilla.dom += [
-    'CanvasRenderingContext2D.h',
-    'CanvasUtils.h',
-    'ImageData.h',
-    'TextMetrics.h',
-]
-

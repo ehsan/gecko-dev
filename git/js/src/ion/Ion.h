@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -114,12 +115,6 @@ struct IonOptions
     // Default: .125
     double usesBeforeInliningFactor;
 
-    // How many times we will try to enter a script via OSR before
-    // invalidating the script.
-    //
-    // Default: 6,000
-    uint32_t osrPcMismatchesBeforeRecompile;
-
     // How many actual arguments are accepted on the C stack.
     //
     // Default: 4,096
@@ -212,7 +207,6 @@ struct IonOptions
         usesBeforeCompile(1000),
         usesBeforeCompileNoJaeger(40),
         usesBeforeInliningFactor(.125),
-        osrPcMismatchesBeforeRecompile(6000),
         maxStackArgs(4096),
         maxInlineDepth(3),
         smallFunctionMaxInlineDepth(10),

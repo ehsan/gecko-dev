@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -462,8 +463,8 @@ js::NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, 
 JS_FRIEND_API(JSObject *)
 js::InitClassWithReserved(JSContext *cx, JSObject *objArg, JSObject *parent_protoArg,
                           JSClass *clasp, JSNative constructor, unsigned nargs,
-                          const JSPropertySpec *ps, const JSFunctionSpec *fs,
-                          const JSPropertySpec *static_ps, const JSFunctionSpec *static_fs)
+                          JSPropertySpec *ps, JSFunctionSpec *fs,
+                          JSPropertySpec *static_ps, JSFunctionSpec *static_fs)
 {
     RootedObject obj(cx, objArg);
     RootedObject parent_proto(cx, parent_protoArg);
@@ -869,7 +870,6 @@ JS::DisableGenerationalGC(JSRuntime *rt)
 {
     rt->gcGenerationalEnabled = false;
 #ifdef JSGC_GENERATIONAL
-    rt->gcNursery.disable();
     rt->gcStoreBuffer.disable();
 #endif
 }

@@ -26,7 +26,7 @@ template <class E> class nsCOMArray;
  * stack based helper class for batching a collection of txns inside a 
  * placeholder txn.
  */
-class MOZ_STACK_CLASS nsAutoPlaceHolderBatch
+class NS_STACK_CLASS nsAutoPlaceHolderBatch
 {
   private:
     nsCOMPtr<nsIEditor> mEd;
@@ -41,7 +41,7 @@ class MOZ_STACK_CLASS nsAutoPlaceHolderBatch
  * Note: I changed this to use placeholder batching so that we get
  * proper selection save/restore across undo/redo.
  */
-class MOZ_STACK_CLASS nsAutoEditBatch : public nsAutoPlaceHolderBatch
+class nsAutoEditBatch : public nsAutoPlaceHolderBatch
 {
   public:
     nsAutoEditBatch( nsIEditor *aEd) : nsAutoPlaceHolderBatch(aEd,nullptr)  {}
@@ -52,7 +52,7 @@ class MOZ_STACK_CLASS nsAutoEditBatch : public nsAutoPlaceHolderBatch
  * stack based helper class for saving/restoring selection.  Note that this
  * assumes that the nodes involved are still around afterwards!
  */
-class MOZ_STACK_CLASS nsAutoSelectionReset
+class NS_STACK_CLASS nsAutoSelectionReset
 {
   private:
     /** ref-counted reference to the selection that we are supposed to restore */
@@ -73,7 +73,7 @@ class MOZ_STACK_CLASS nsAutoSelectionReset
 /***************************************************************************
  * stack based helper class for StartOperation()/EndOperation() sandwich
  */
-class MOZ_STACK_CLASS nsAutoRules
+class NS_STACK_CLASS nsAutoRules
 {
   public:
   
@@ -105,7 +105,7 @@ class MOZ_STACK_CLASS nsAutoRules
  * stack based helper class for turning off active selection adjustment
  * by low level transactions
  */
-class MOZ_STACK_CLASS nsAutoTxnsConserveSelection
+class NS_STACK_CLASS nsAutoTxnsConserveSelection
 {
   public:
   
@@ -134,7 +134,7 @@ class MOZ_STACK_CLASS nsAutoTxnsConserveSelection
 /***************************************************************************
  * stack based helper class for batching reflow and paint requests.
  */
-class MOZ_STACK_CLASS nsAutoUpdateViewBatch
+class NS_STACK_CLASS nsAutoUpdateViewBatch
 {
   public:
   
@@ -166,7 +166,7 @@ class nsBoolDomIterFunctor
     virtual bool operator()(nsIDOMNode* aNode)=0;
 };
 
-class MOZ_STACK_CLASS nsDOMIterator
+class NS_STACK_CLASS nsDOMIterator
 {
   public:
     nsDOMIterator();
@@ -180,7 +180,7 @@ class MOZ_STACK_CLASS nsDOMIterator
     nsCOMPtr<nsIContentIterator> mIter;
 };
 
-class MOZ_STACK_CLASS nsDOMSubtreeIterator : public nsDOMIterator
+class nsDOMSubtreeIterator : public nsDOMIterator
 {
   public:
     nsDOMSubtreeIterator();
@@ -202,7 +202,7 @@ class nsTrivialFunctor : public nsBoolDomIterFunctor
 /******************************************************************************
  * general dom point utility struct
  *****************************************************************************/
-struct MOZ_STACK_CLASS DOMPoint
+struct NS_STACK_CLASS DOMPoint
 {
   nsCOMPtr<nsIDOMNode> node;
   int32_t offset;

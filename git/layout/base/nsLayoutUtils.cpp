@@ -1077,9 +1077,12 @@ nsLayoutUtils::GetActiveScrolledRootFor(nsDisplayItem* aItem,
                                         nsDisplayListBuilder* aBuilder,
                                         bool* aShouldFixToViewport)
 {
-  nsIFrame* f = aItem->Frame();
+  nsIFrame* f = aItem->GetUnderlyingFrame();
   if (aShouldFixToViewport) {
     *aShouldFixToViewport = false;
+  }
+  if (!f) {
+    return nullptr;
   }
   if (aItem->ShouldFixToViewport(aBuilder)) {
     if (aShouldFixToViewport) {

@@ -399,9 +399,6 @@ enum nsEventStructType {
 #define NS_SMIL_END                  (NS_SMIL_TIME_EVENT_START + 1)
 #define NS_SMIL_REPEAT               (NS_SMIL_TIME_EVENT_START + 2)
 
-#define NS_WEBAUDIO_EVENT_START      4350
-#define NS_AUDIO_PROCESS             (NS_WEBAUDIO_EVENT_START)
-
 // script notification events
 #define NS_NOTIFYSCRIPT_START        4500
 #define NS_BEFORE_SCRIPT_EXECUTE     (NS_NOTIFYSCRIPT_START)
@@ -1309,8 +1306,7 @@ public:
     deltaMode(nsIDOMWheelEvent::DOM_DELTA_PIXEL),
     customizedByUserPrefs(false), isMomentum(false), isPixelOnlyDevice(false),
     lineOrPageDeltaX(0), lineOrPageDeltaY(0), scrollType(SCROLL_DEFAULT),
-    overflowDeltaX(0.0), overflowDeltaY(0.0),
-    viewPortIsScrollTargetParent(false)
+    overflowDeltaX(0.0), overflowDeltaY(0.0)
   {
   }
 
@@ -1389,11 +1385,6 @@ public:
   //       it would need to check the deltaX and deltaY.
   double overflowDeltaX;
   double overflowDeltaY;
-
-  // Whether or not the parent of the currently scrolled frame is the ViewPort.
-  // This is false in situations when an element on the page is being scrolled
-  // (such as a text field), but true when the 'page' is being scrolled.
-  bool viewPortIsScrollTargetParent;
 };
 
 } // namespace widget

@@ -168,8 +168,6 @@ LayerManagerOGL::Destroy()
     mRoot = nullptr;
   }
 
-  mWidget->CleanupWindowEffects();
-
   if (!mGLContext)
     return;
 
@@ -851,7 +849,6 @@ LayerManagerOGL::Render()
 #endif
 
   // Allow widget to render a custom background.
-  mWidget->PrepareWindowEffects();
   mWidget->DrawWindowUnderlay(this, rect);
 
   // Reset some state that might of been clobbered by the underlay.

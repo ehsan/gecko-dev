@@ -269,18 +269,9 @@ ISurfaceAllocator::PlatformDestroySharedSurface(SurfaceDescriptor* aSurface)
     return false;
   }
 
-  // we should have either a bufferParent or bufferChild
-  // depending on whether we're on the parent or child side.
   PGrallocBufferParent* gbp =
     aSurface->get_SurfaceDescriptorGralloc().bufferParent();
-  if (gbp) {
-    unused << PGrallocBufferParent::Send__delete__(gbp);
-  } else {
-    PGrallocBufferChild* gbc =
-      aSurface->get_SurfaceDescriptorGralloc().bufferChild();
-    unused << PGrallocBufferChild::Send__delete__(gbc);
-  }
-
+  unused << PGrallocBufferParent::Send__delete__(gbp);
   *aSurface = SurfaceDescriptor();
   return true;
 }

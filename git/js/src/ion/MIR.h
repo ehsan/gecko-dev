@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -14,7 +15,6 @@
 #include "jslibmath.h"
 #include "jsinfer.h"
 #include "jsinferinlines.h"
-#include "TypeOracle.h"
 #include "TypePolicy.h"
 #include "IonAllocPolicy.h"
 #include "InlineList.h"
@@ -263,6 +263,7 @@ class MDefinition : public MNode
     ValueNumberData *valueNumber_; // The instruction's value number (see GVN for details in use)
     Range *range_;                 // Any computed range for this def.
     MIRType resultType_;           // Representation of result type.
+    types::StackTypeSet *resultTypeSet_; // Optional refinement of the result type.
     uint32_t flags_;                 // Bit flags.
     union {
         MDefinition *dependency_;  // Implicit dependency (store, call, etc.) of this instruction.
@@ -303,6 +304,7 @@ class MDefinition : public MNode
         valueNumber_(NULL),
         range_(NULL),
         resultType_(MIRType_None),
+        resultTypeSet_(NULL),
         flags_(0),
         dependency_(NULL),
         trackedPc_(NULL)
@@ -392,6 +394,22 @@ class MDefinition : public MNode
         return resultType_;
     }
 
+    types::StackTypeSet *resultTypeSet() const {
+        return resultTypeSet_;
+    }
+
+    bool mightBeType(MIRType type) const {
+        JS_ASSERT(type != MIRType_Value);
+
+        if (type == this->type())
+            return true;
+
+        if (MIRType_Value != this->type())
+            return false;
+
+        return !resultTypeSet() || resultTypeSet()->mightBeType(ValueTypeFromMIRType(type));
+    }
+
     // Returns the beginning of this definition's use chain.
     MUseIterator usesBegin() const {
         return uses_.begin();
@@ -469,14 +487,8 @@ class MDefinition : public MNode
     void setResultType(MIRType type) {
         resultType_ = type;
     }
-
-    virtual bool acceptsTypeSet() const {
-        return false;
-    }
-    virtual void setTypeSet(const types::StackTypeSet *types) {
-    }
-    virtual const types::StackTypeSet *typeSet() const {
-        return NULL;
+    void setResultTypeSet(types::StackTypeSet *types) {
+        resultTypeSet_ = types;
     }
 
     MDefinition *dependency() const {
@@ -716,27 +728,23 @@ class MConstant : public MNullaryInstruction
 class MParameter : public MNullaryInstruction
 {
     int32_t index_;
-    const types::StackTypeSet *typeSet_;
 
   public:
     static const int32_t THIS_SLOT = -1;
 
-    MParameter(int32_t index, const types::StackTypeSet *types)
-      : index_(index),
-        typeSet_(types)
+    MParameter(int32_t index, types::StackTypeSet *types)
+      : index_(index)
     {
         setResultType(MIRType_Value);
+        setResultTypeSet(types);
     }
 
   public:
     INSTRUCTION_HEADER(Parameter)
-    static MParameter *New(int32_t index, const types::StackTypeSet *types);
+    static MParameter *New(int32_t index, types::StackTypeSet *types);
 
     int32_t index() const {
         return index_;
-    }
-    const types::StackTypeSet *typeSet() const {
-        return typeSet_;
     }
     void printOpcode(FILE *fp);
 
@@ -1000,7 +1008,7 @@ class MTest
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-    void infer(const TypeOracle::UnaryTypes &u, JSContext *cx);
+    void infer(JSContext *cx);
     MDefinition *foldsTo(bool useValueNumbers);
 
     void markOperandCantEmulateUndefined() {
@@ -1085,6 +1093,14 @@ class MNewParallelArray : public MNullaryInstruction
     }
 };
 
+// Fabricate a type set containing only the type of the specified object.
+types::StackTypeSet *
+MakeSingletonTypeSet(JSObject *obj);
+
+void
+MergeTypes(MIRType *ptype, types::StackTypeSet **ptypeSet,
+           MIRType newType, types::StackTypeSet *newTypeSet);
+
 class MNewArray : public MNullaryInstruction
 {
   public:
@@ -1110,6 +1126,7 @@ class MNewArray : public MNullaryInstruction
         allocating_(allocating)
     {
         setResultType(MIRType_Object);
+        setResultTypeSet(MakeSingletonTypeSet(templateObject));
     }
 
     uint32_t count() const {
@@ -1147,6 +1164,7 @@ class MNewObject : public MNullaryInstruction
       : templateObject_(templateObject)
     {
         setResultType(MIRType_Object);
+        setResultTypeSet(MakeSingletonTypeSet(templateObject));
     }
 
   public:
@@ -1243,39 +1261,6 @@ class MInitProp
     }
 };
 
-class MInitElem
-  : public MAryInstruction<3>,
-    public Mix3Policy<ObjectPolicy<0>, BoxPolicy<1>, BoxPolicy<2> >
-{
-    MInitElem(MDefinition *obj, MDefinition *id, MDefinition *value)
-    {
-        setOperand(0, obj);
-        setOperand(1, id);
-        setOperand(2, value);
-        setResultType(MIRType_None);
-    }
-
-  public:
-    INSTRUCTION_HEADER(InitElem)
-
-    static MInitElem *New(MDefinition *obj, MDefinition *id, MDefinition *value) {
-        return new MInitElem(obj, id, value);
-    }
-
-    MDefinition *getObject() const {
-        return getOperand(0);
-    }
-    MDefinition *getId() const {
-        return getOperand(1);
-    }
-    MDefinition *getValue() const {
-        return getOperand(2);
-    }
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
 // Designates the start of call frame construction.
 // Generates code to adjust the stack pointer for the argument vector.
 // Argc is inferred by checking the use chain during lowering.
@@ -1342,24 +1327,19 @@ class MCall
     CompilerRootScript targetScript_;
     // Original value of argc from the bytecode.
     uint32_t numActualArgs_;
-    // The typeset of the callee, could be NULL.
-    types::StackTypeSet *calleeTypes_;
 
-    MCall(JSFunction *target, uint32_t numActualArgs, bool construct,
-          types::StackTypeSet *calleeTypes)
+    MCall(JSFunction *target, uint32_t numActualArgs, bool construct)
       : construct_(construct),
         target_(target),
         targetScript_(NULL),
-        numActualArgs_(numActualArgs),
-        calleeTypes_(calleeTypes)
+        numActualArgs_(numActualArgs)
     {
         setResultType(MIRType_Value);
     }
 
   public:
     INSTRUCTION_HEADER(Call)
-    static MCall *New(JSFunction *target, size_t maxArgc, size_t numActualArgs, bool construct,
-                      types::StackTypeSet *calleeTypes);
+    static MCall *New(JSFunction *target, size_t maxArgc, size_t numActualArgs, bool construct);
 
     void initPrepareCall(MDefinition *start) {
         JS_ASSERT(start->isPrepareCall());
@@ -1400,9 +1380,6 @@ class MCall
 
     bool isConstructing() const {
         return construct_;
-    }
-    types::StackTypeSet *calleeTypes() const {
-        return calleeTypes_;
     }
 
     // The number of stack arguments is the max between the number of formal
@@ -1687,57 +1664,6 @@ class MTernaryInstruction : public MAryInstruction<3>
     }
 };
 
-class MQuaternaryInstruction : public MAryInstruction<4>
-{
-  protected:
-    MQuaternaryInstruction(MDefinition *first, MDefinition *second,
-                           MDefinition *third, MDefinition *fourth)
-    {
-        setOperand(0, first);
-        setOperand(1, second);
-        setOperand(2, third);
-        setOperand(3, fourth);
-    }
-
-  protected:
-    HashNumber valueHash() const
-    {
-        MDefinition *first = getOperand(0);
-        MDefinition *second = getOperand(1);
-        MDefinition *third = getOperand(2);
-        MDefinition *fourth = getOperand(3);
-
-        return op() ^ first->valueNumber() ^ second->valueNumber() ^
-                      third->valueNumber() ^ fourth->valueNumber();
-    }
-
-    bool congruentTo(MDefinition *const &ins) const
-    {
-        if (op() != ins->op())
-            return false;
-
-        if (type() != ins->type())
-            return false;
-
-        if (isEffectful() || ins->isEffectful())
-            return false;
-
-        MDefinition *first = getOperand(0);
-        MDefinition *second = getOperand(1);
-        MDefinition *third = getOperand(2);
-        MDefinition *fourth = getOperand(3);
-        MDefinition *insFirst = ins->getOperand(0);
-        MDefinition *insSecond = ins->getOperand(1);
-        MDefinition *insThird = ins->getOperand(2);
-        MDefinition *insFourth = ins->getOperand(3);
-
-        return first->valueNumber() == insFirst->valueNumber() &&
-               second->valueNumber() == insSecond->valueNumber() &&
-               third->valueNumber() == insThird->valueNumber() &&
-               fourth->valueNumber() == insFourth->valueNumber();
-    }
-};
-
 class MCompare
   : public MBinaryInstruction,
     public ComparePolicy
@@ -1815,7 +1741,7 @@ class MCompare
     bool evaluateConstantOperands(bool *result);
     MDefinition *foldsTo(bool useValueNumbers);
 
-    void infer(const TypeOracle::BinaryTypes &b, JSContext *cx);
+    void infer(JSContext *cx);
     CompareType compareType() const {
         return compareType_;
     }
@@ -1862,6 +1788,14 @@ class MBox : public MUnaryInstruction
       : MUnaryInstruction(ins)
     {
         setResultType(MIRType_Value);
+        if (ins->resultTypeSet()) {
+            setResultTypeSet(ins->resultTypeSet());
+        } else if (ins->type() != MIRType_Value) {
+            types::Type ntype = ins->type() == MIRType_Object
+                                ? types::Type::AnyObjectType()
+                                : types::Type::PrimitiveType(ValueTypeFromMIRType(ins->type()));
+            setResultTypeSet(GetIonContext()->temp->lifoAlloc()->new_<types::StackTypeSet>(ntype));
+        }
         setMovable();
     }
 
@@ -1921,6 +1855,7 @@ class MUnbox : public MUnaryInstruction
                   type == MIRType_Object);
 
         setResultType(type);
+        setResultTypeSet(ins->resultTypeSet());
         setMovable();
 
         if (mode_ == TypeBarrier || mode_ == TypeGuard)
@@ -2033,6 +1968,7 @@ class MCreateThisWithTemplate
       : templateObject_(templateObject)
     {
         setResultType(MIRType_Object);
+        setResultTypeSet(MakeSingletonTypeSet(templateObject));
     }
 
   public:
@@ -2168,6 +2104,7 @@ class MPassArg : public MUnaryInstruction
       : MUnaryInstruction(def), argnum_(-1)
     {
         setResultType(def->type());
+        setResultTypeSet(def->resultTypeSet());
     }
 
   public:
@@ -2405,7 +2342,7 @@ class MBitNot
     }
 
     MDefinition *foldsTo(bool useValueNumbers);
-    void infer(const TypeOracle::UnaryTypes &u);
+    void infer();
 
     bool congruentTo(MDefinition *const &ins) const {
         return congruentIfOperandsEqual(ins);
@@ -2502,7 +2439,7 @@ class MBinaryBitwiseInstruction
     virtual MDefinition *foldIfZero(size_t operand) = 0;
     virtual MDefinition *foldIfNegOne(size_t operand) = 0;
     virtual MDefinition *foldIfEqual()  = 0;
-    virtual void infer(const TypeOracle::BinaryTypes &b);
+    virtual void infer();
 
     bool congruentTo(MDefinition *const &ins) const {
         return congruentIfOperandsEqual(ins);
@@ -2598,7 +2535,7 @@ class MShiftInstruction
     MDefinition *foldIfEqual() {
         return this;
     }
-    virtual void infer(const TypeOracle::BinaryTypes &b);
+    virtual void infer();
 };
 
 class MLsh : public MShiftInstruction
@@ -2662,7 +2599,7 @@ class MUrsh : public MShiftInstruction
         return this;
     }
 
-    void infer(const TypeOracle::BinaryTypes &b);
+    void infer();
 
     bool canOverflow() {
         // solution is only negative when lhs < 0 and rhs & 0x1f == 0
@@ -2722,7 +2659,7 @@ class MBinaryArithInstruction
 
     virtual double getIdentity() = 0;
 
-    void infer(const TypeOracle::BinaryTypes &b, JSContext *cx);
+    void infer(bool overflowed);
 
     void setInt32() {
         specialization_ = MIRType_Int32;
@@ -3028,10 +2965,8 @@ class MAdd : public MBinaryArithInstruction
         MAdd *add = new MAdd(left, right);
         add->specialization_ = type;
         add->setResultType(type);
-        if (type == MIRType_Int32) {
+        if (type == MIRType_Int32)
             add->setTruncated(true);
-            add->setCommutative();
-        }
         return add;
     }
     void analyzeTruncateBackward();
@@ -3103,7 +3038,6 @@ class MMul : public MBinaryArithInstruction
             // can never fail and always truncates its output to int32.
             canBeNegativeZero_ = false;
             setTruncated(true);
-            setCommutative();
         }
         JS_ASSERT_IF(mode != Integer, mode == Normal);
 
@@ -3332,18 +3266,22 @@ class MPhi : public MDefinition, public InlineForwardListNode<MPhi>
     js::Vector<MUse, 2, IonAllocPolicy> inputs_;
 
     uint32_t slot_;
+    bool hasBackedgeType_;
     bool triedToSpecialize_;
     bool isIterator_;
 
 #if DEBUG
+    bool specialized_;
     uint32_t capacity_;
 #endif
 
     MPhi(uint32_t slot)
       : slot_(slot),
+        hasBackedgeType_(false),
         triedToSpecialize_(false),
         isIterator_(false)
 #if DEBUG
+        , specialized_(false)
         , capacity_(0)
 #endif
     {
@@ -3360,6 +3298,10 @@ class MPhi : public MDefinition, public InlineForwardListNode<MPhi>
     static MPhi *New(uint32_t slot);
 
     void setOperand(size_t index, MDefinition *operand) {
+        // Note: after the initial IonBuilder pass, it is OK to rearrange phi
+        // operands such that they do not include the type sets of their
+        // operands. This can arise during e.g. value numbering, where
+        // definitions producing the same value may have different type sets.
         JS_ASSERT(index < numOperands());
         inputs_[index].set(operand, this, index);
         operand->addUse(&inputs_[index]);
@@ -3376,6 +3318,9 @@ class MPhi : public MDefinition, public InlineForwardListNode<MPhi>
     uint32_t slot() const {
         return slot_;
     }
+    bool hasBackedgeType() const {
+        return hasBackedgeType_;
+    }
     bool triedToSpecialize() const {
         return triedToSpecialize_;
     }
@@ -3383,6 +3328,14 @@ class MPhi : public MDefinition, public InlineForwardListNode<MPhi>
         triedToSpecialize_ = true;
         setResultType(type);
     }
+    void specializeType();
+
+    // Whether this phi's type already includes information for def.
+    bool typeIncludes(MDefinition *def);
+
+    // Add types for this phi which speculate about new inputs that may come in
+    // via a loop backedge.
+    void addBackedgeType(MIRType type, types::StackTypeSet *typeSet);
 
     // Initializes the operands vector to the given capacity,
     // permitting use of addInput() instead of addInputSlow().
@@ -3393,7 +3346,7 @@ class MPhi : public MDefinition, public InlineForwardListNode<MPhi>
 
     // Appends a new input to the input vector. May call realloc().
     // Prefer reserveLength() and addInput() instead, where possible.
-    bool addInputSlow(MDefinition *ins);
+    bool addInputSlow(MDefinition *ins, bool *ptypeChange = NULL);
 
     MDefinition *foldsTo(bool useValueNumbers);
 
@@ -3437,6 +3390,7 @@ class MBeta : public MUnaryInstruction
           val_(val)
     {
         setResultType(val->type());
+        setResultTypeSet(val->resultTypeSet());
     }
 
   public:
@@ -3641,6 +3595,9 @@ class MRegExp : public MNullaryInstruction
         prototype_(prototype)
     {
         setResultType(MIRType_Object);
+
+        JS_ASSERT(source->getProto() == prototype);
+        setResultTypeSet(MakeSingletonTypeSet(source));
     }
 
   public:
@@ -4110,7 +4067,7 @@ class MNot
 
     INSTRUCTION_HEADER(Not);
 
-    void infer(const TypeOracle::UnaryTypes &u, JSContext *cx);
+    void infer(JSContext *cx);
     MDefinition *foldsTo(bool useValueNumbers);
 
     void markOperandCantEmulateUndefined() {
@@ -4861,11 +4818,10 @@ class MLoadFixedSlot
     public SingleObjectPolicy
 {
     size_t slot_;
-    const types::StackTypeSet *types_;
 
   protected:
     MLoadFixedSlot(MDefinition *obj, size_t slot)
-      : MUnaryInstruction(obj), slot_(slot), types_(NULL)
+      : MUnaryInstruction(obj), slot_(slot)
     {
         setResultType(MIRType_Value);
         setMovable();
@@ -4880,16 +4836,6 @@ class MLoadFixedSlot
 
     TypePolicy *typePolicy() {
         return this;
-    }
-
-    virtual bool acceptsTypeSet() const {
-        return true;
-    }
-    virtual void setTypeSet(const types::StackTypeSet *types) {
-        types_ = types;
-    }
-    virtual const types::StackTypeSet *typeSet() const {
-        return types_;
     }
 
     MDefinition *object() const {
@@ -5013,6 +4959,7 @@ class InlinePropertyTable : public TempObject
     }
 
     bool hasFunction(JSFunction *func) const;
+    types::StackTypeSet *buildTypeSetForFunction(JSFunction *func) const;
 
     // Remove targets that vetoed inlining from the InlinePropertyTable.
     void trimTo(AutoObjectVector &targets, Vector<bool> &choiceSet);
@@ -5587,12 +5534,10 @@ class MLoadSlot
     public SingleObjectPolicy
 {
     uint32_t slot_;
-    const types::StackTypeSet *types_;
 
     MLoadSlot(MDefinition *slots, uint32_t slot)
       : MUnaryInstruction(slots),
-        slot_(slot),
-        types_(NULL)
+        slot_(slot)
     {
         setResultType(MIRType_Value);
         setMovable();
@@ -5614,16 +5559,6 @@ class MLoadSlot
     }
     uint32_t slot() const {
         return slot_;
-    }
-
-    virtual bool acceptsTypeSet() const {
-        return true;
-    }
-    virtual void setTypeSet(const types::StackTypeSet *types) {
-        types_ = types;
-    }
-    virtual const types::StackTypeSet *typeSet() const {
-        return types_;
     }
 
     bool congruentTo(MDefinition * const &ins) const {
@@ -5802,9 +5737,6 @@ class MCallGetIntrinsicValue : public MNullaryInstruction
     }
     PropertyName *name() const {
         return name_;
-    }
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
     }
 };
 
@@ -6046,6 +5978,44 @@ class MCallSetElement
     }
     MDefinition *value() const {
         return getOperand(2);
+    }
+};
+
+class MCallInitElementArray
+  : public MAryInstruction<2>,
+    public MixPolicy<ObjectPolicy<0>, BoxPolicy<1> >
+{
+    uint32_t index_;
+
+    MCallInitElementArray(MDefinition *obj, uint32_t index, MDefinition *val)
+      : index_(index)
+    {
+        setOperand(0, obj);
+        setOperand(1, val);
+    }
+
+  public:
+    INSTRUCTION_HEADER(CallInitElementArray)
+
+    static MCallInitElementArray *New(MDefinition *obj, uint32_t index, MDefinition *val)
+    {
+        return new MCallInitElementArray(obj, index, val);
+    }
+
+    MDefinition *object() const {
+        return getOperand(0);
+    }
+
+    uint32_t index() const {
+        return index_;
+    }
+
+    MDefinition *value() const {
+        return getOperand(1);
+    }
+
+    TypePolicy *typePolicy() {
+        return this;
     }
 };
 
@@ -6385,15 +6355,12 @@ class MIn
 
 // Test whether the index is in the array bounds or a hole.
 class MInArray
-  : public MQuaternaryInstruction,
-    public ObjectPolicy<3>
+  : public MTernaryInstruction
 {
     bool needsHoleCheck_;
 
-    MInArray(MDefinition *elements, MDefinition *index,
-             MDefinition *initLength, MDefinition *object,
-             bool needsHoleCheck)
-      : MQuaternaryInstruction(elements, index, initLength, object),
+    MInArray(MDefinition *elements, MDefinition *index, MDefinition *initLength, bool needsHoleCheck)
+      : MTernaryInstruction(elements, index, initLength),
         needsHoleCheck_(needsHoleCheck)
     {
         setResultType(MIRType_Boolean);
@@ -6407,10 +6374,8 @@ class MInArray
     INSTRUCTION_HEADER(InArray)
 
     static MInArray *New(MDefinition *elements, MDefinition *index,
-                         MDefinition *initLength, MDefinition *object,
-                         bool needsHoleCheck)
-    {
-        return new MInArray(elements, index, initLength, object, needsHoleCheck);
+                         MDefinition *initLength, bool needsHoleCheck) {
+        return new MInArray(elements, index, initLength, needsHoleCheck);
     }
 
     MDefinition *elements() const {
@@ -6422,18 +6387,11 @@ class MInArray
     MDefinition *initLength() const {
         return getOperand(2);
     }
-    MDefinition *object() const {
-        return getOperand(3);
-    }
     bool needsHoleCheck() const {
         return needsHoleCheck_;
     }
-    bool needsNegativeIntCheck() const;
     AliasSet getAliasSet() const {
         return AliasSet::Load(AliasSet::Element);
-    }
-    TypePolicy *typePolicy() {
-        return this;
     }
 };
 
@@ -6603,13 +6561,12 @@ class MTypeBarrier
     public BoxInputsPolicy
 {
     BailoutKind bailoutKind_;
-    const types::StackTypeSet *typeSet_;
 
-    MTypeBarrier(MDefinition *def, const types::StackTypeSet *types, BailoutKind bailoutKind)
-      : MUnaryInstruction(def),
-        typeSet_(types)
+    MTypeBarrier(MDefinition *def, types::StackTypeSet *types, BailoutKind bailoutKind)
+      : MUnaryInstruction(def)
     {
         setResultType(MIRType_Value);
+        setResultTypeSet(types);
         setGuard();
         setMovable();
         bailoutKind_ = bailoutKind;
@@ -6618,13 +6575,13 @@ class MTypeBarrier
   public:
     INSTRUCTION_HEADER(TypeBarrier)
 
-    static MTypeBarrier *New(MDefinition *def, const types::StackTypeSet *types) {
+    static MTypeBarrier *New(MDefinition *def, types::StackTypeSet *types) {
         BailoutKind bailoutKind = def->isEffectful()
                                   ? Bailout_TypeBarrier
                                   : Bailout_Normal;
         return new MTypeBarrier(def, types, bailoutKind);
     }
-    static MTypeBarrier *New(MDefinition *def, const types::StackTypeSet *types,
+    static MTypeBarrier *New(MDefinition *def, types::StackTypeSet *types,
                              BailoutKind bailoutKind) {
         return new MTypeBarrier(def, types, bailoutKind);
     }
@@ -6642,14 +6599,11 @@ class MTypeBarrier
     BailoutKind bailoutKind() const {
         return bailoutKind_;
     }
-    const types::StackTypeSet *typeSet() const {
-        return typeSet_;
-    }
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
     virtual bool neverHoist() const {
-        return typeSet()->empty();
+        return resultTypeSet()->empty();
     }
 };
 
@@ -7067,29 +7021,6 @@ class FlattenedMResumePointIter
 
     size_t numOperands() const {
         return numOperands_;
-    }
-};
-
-class MIsCallable
-  : public MUnaryInstruction,
-    public SingleObjectPolicy
-{
-    MIsCallable(MDefinition *object)
-      : MUnaryInstruction(object)
-    {
-        setResultType(MIRType_Boolean);
-        setMovable();
-    }
-
-  public:
-    INSTRUCTION_HEADER(IsCallable);
-
-    static MIsCallable *New(MDefinition *obj) {
-        return new MIsCallable(obj);
-    }
-
-    MDefinition *object() const {
-        return getOperand(0);
     }
 };
 

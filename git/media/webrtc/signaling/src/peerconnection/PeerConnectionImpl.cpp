@@ -277,7 +277,7 @@ PeerConnectionImpl::PeerConnectionImpl()
   , mWindow(NULL)
   , mIdentity(NULL)
   , mSTSThread(NULL)
-  , mMedia(NULL)
+  , mMedia(new PeerConnectionMedia(this))
   , mNumAudioStreams(0)
   , mNumVideoStreams(0)
   , mHaveDataStream(false) {
@@ -401,7 +401,7 @@ PeerConnectionImpl::ConvertRTCConfiguration(const JS::Value& aSrc,
   }
   JSAutoCompartment ac(aCx, &aSrc.toObject());
   RTCConfiguration config;
-  if (!(config.Init(aCx, JS::NullPtr(), aSrc) && config.mIceServers.WasPassed())) {
+  if (!(config.Init(aCx, nullptr, aSrc) && config.mIceServers.WasPassed())) {
     return NS_ERROR_FAILURE;
   }
   for (uint32_t i = 0; i < config.mIceServers.Value().Length(); i++) {
@@ -525,8 +525,6 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* aObserver,
     CSFLogError(logTag, "%s: Couldn't Create Call Object", __FUNCTION__);
     return NS_ERROR_FAILURE;
   }
-
-  mMedia = new PeerConnectionMedia(this);
 
   // Connect ICE slots.
   mMedia->SignalIceGatheringCompleted.connect(this, &PeerConnectionImpl::IceGatheringCompleted);
@@ -755,7 +753,7 @@ PeerConnectionImpl::NotifyConnection()
 {
   PC_AUTO_ENTER_API_CALL_NO_CHECK();
 
-  CSFLogDebug(logTag, "%s", __FUNCTION__);
+  CSFLogDebug(logTag, __FUNCTION__);
 
 #ifdef MOZILLA_INTERNAL_API
   nsCOMPtr<IPeerConnectionObserver> pco = do_QueryReferent(mPCObserver);
@@ -774,7 +772,7 @@ PeerConnectionImpl::NotifyClosedConnection()
 {
   PC_AUTO_ENTER_API_CALL_NO_CHECK();
 
-  CSFLogDebug(logTag, "%s", __FUNCTION__);
+  CSFLogDebug(logTag, __FUNCTION__);
 
 #ifdef MOZILLA_INTERNAL_API
   nsCOMPtr<IPeerConnectionObserver> pco = do_QueryReferent(mPCObserver);
@@ -1218,7 +1216,7 @@ PeerConnectionImpl::CheckApiState(bool assert_ice_ready) const
 NS_IMETHODIMP
 PeerConnectionImpl::Close(bool aIsSynchronous)
 {
-  CSFLogDebug(logTag, "%s", __FUNCTION__);
+  CSFLogDebug(logTag, __FUNCTION__);
   PC_AUTO_ENTER_API_CALL_NO_CHECK();
 
   return CloseInt(aIsSynchronous);
@@ -1413,7 +1411,7 @@ PeerConnectionImpl::IceStateChange_m(IceState aState)
 {
   PC_AUTO_ENTER_API_CALL(false);
 
-  CSFLogDebug(logTag, "%s", __FUNCTION__);
+  CSFLogDebug(logTag, __FUNCTION__);
 
   mIceState = aState;
 
@@ -1466,11 +1464,11 @@ GetStreams(JSContext* cx, PeerConnectionImpl* peerConnection,
 {
   nsAutoPtr<MediaStreamList> list(new MediaStreamList(peerConnection, type));
 
-  bool tookOwnership = false;
-  JSObject* obj = list->WrapObject(cx, &tookOwnership);
-  if (!tookOwnership) {
+  ErrorResult rv;
+  JSObject* obj = list->WrapObject(cx, rv);
+  if (rv.Failed()) {
     streams->setNull();
-    return NS_ERROR_FAILURE;
+    return rv.ErrorCode();
   }
 
   // Transfer ownership to the binding.

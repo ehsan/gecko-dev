@@ -13,9 +13,3 @@ XPIDL_SOURCES += [
 
 MODULE = 'telemetry'
 
-EXPORTS.mozilla += [
-    'ProcessedStack.h',
-    'Telemetry.h',
-    'TelemetryHistogramEnums.h',
-]
-

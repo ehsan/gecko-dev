@@ -19,6 +19,7 @@
 #include "MediaBufferDecoder.h"
 #include "StreamBuffer.h"
 #include "MediaStreamGraph.h"
+#include "nsIDOMWindow.h"
 
 // X11 has a #define for CurrentTime. Unbelievable :-(.
 // See content/media/DOMMediaStream.h for more fun!
@@ -28,7 +29,7 @@
 
 struct JSContext;
 class JSObject;
-class nsPIDOMWindow;
+class nsIDOMWindow;
 
 namespace mozilla {
 
@@ -48,24 +49,28 @@ class DynamicsCompressorNode;
 class GainNode;
 class GlobalObject;
 class PannerNode;
-class ScriptProcessorNode;
 
 class AudioContext MOZ_FINAL : public nsWrapperCache,
                                public EnableWebAudioCheck
 {
-  explicit AudioContext(nsPIDOMWindow* aParentWindow);
+  explicit AudioContext(nsIDOMWindow* aParentWindow);
   ~AudioContext();
 
 public:
   NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(AudioContext)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(AudioContext)
 
-  nsPIDOMWindow* GetParentObject() const
+  nsIDOMWindow* GetParentObject() const
   {
     return mWindow;
   }
 
-  void Shutdown();
+  void Shutdown()
+  {
+    Suspend();
+    mDecoder.Shutdown();
+  }
+
   void Suspend();
   void Resume();
 
@@ -95,42 +100,14 @@ public:
                uint32_t aLength, float aSampleRate,
                ErrorResult& aRv);
 
-  already_AddRefed<ScriptProcessorNode>
-  CreateScriptProcessor(uint32_t aBufferSize,
-                        uint32_t aNumberOfInputChannels,
-                        uint32_t aNumberOfOutputChannels,
-                        ErrorResult& aRv);
-
-  already_AddRefed<ScriptProcessorNode>
-  CreateJavaScriptNode(uint32_t aBufferSize,
-                       uint32_t aNumberOfInputChannels,
-                       uint32_t aNumberOfOutputChannels,
-                       ErrorResult& aRv)
-  {
-    return CreateScriptProcessor(aBufferSize, aNumberOfInputChannels,
-                                 aNumberOfOutputChannels, aRv);
-  }
-
   already_AddRefed<AnalyserNode>
   CreateAnalyser();
 
   already_AddRefed<GainNode>
   CreateGain();
 
-  already_AddRefed<GainNode>
-  CreateGainNode()
-  {
-    return CreateGain();
-  }
-
   already_AddRefed<DelayNode>
   CreateDelay(double aMaxDelayTime, ErrorResult& aRv);
-
-  already_AddRefed<DelayNode>
-  CreateDelayNode(double aMaxDelayTime, ErrorResult& aRv)
-  {
-    return CreateDelay(aMaxDelayTime, aRv);
-  }
 
   already_AddRefed<PannerNode>
   CreatePanner();
@@ -149,11 +126,6 @@ public:
 
   MediaStreamGraph* Graph() const;
   MediaStream* DestinationStream() const;
-  void UnregisterAudioBufferSourceNode(AudioBufferSourceNode* aNode);
-  void UnregisterPannerNode(PannerNode* aNode);
-  void UpdatePannerSource();
-
-  JSContext* GetJSContext() const;
 
 private:
   void RemoveFromDecodeQueue(WebAudioDecodeJob* aDecodeJob);
@@ -161,15 +133,11 @@ private:
   friend struct ::mozilla::WebAudioDecodeJob;
 
 private:
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsCOMPtr<nsIDOMWindow> mWindow;
   nsRefPtr<AudioDestinationNode> mDestination;
   nsRefPtr<AudioListener> mListener;
   MediaBufferDecoder mDecoder;
   nsTArray<nsAutoPtr<WebAudioDecodeJob> > mDecodeJobs;
-  // Two arrays containing all the PannerNodes and AudioBufferSourceNodes,
-  // to compute the doppler shift. Those are weak pointers.
-  nsTArray<PannerNode*> mPannerNodes;
-  nsTArray<AudioBufferSourceNode*> mAudioBufferSourceNodes;
 };
 
 }

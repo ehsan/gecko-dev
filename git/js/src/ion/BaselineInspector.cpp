@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -56,4 +57,34 @@ BaselineInspector::maybeMonomorphicShapeForPropertyOp(jsbytecode *pc)
     }
 
     return NULL;
+}
+
+MIRType
+BaselineInspector::expectedResultType(jsbytecode *pc)
+{
+    // Look at the IC entries for this op to guess what type it will produce,
+    // returning MIRType_None otherwise.
+    const ICEntry &entry = icEntryFromPC(pc);
+
+    ICStub *stub = entry.firstStub();
+    ICStub *next = stub->next();
+
+    if (!next || !next->isFallback())
+        return MIRType_None;
+
+    switch (stub->kind()) {
+      case ICStub::BinaryArith_Int32:
+      case ICStub::BinaryArith_BooleanWithInt32:
+      case ICStub::UnaryArith_Int32:
+        return MIRType_Int32;
+      case ICStub::BinaryArith_Double:
+      case ICStub::BinaryArith_DoubleWithInt32:
+      case ICStub::UnaryArith_Double:
+        return MIRType_Double;
+      case ICStub::BinaryArith_StringConcat:
+      case ICStub::BinaryArith_StringObjectConcat:
+        return MIRType_String;
+      default:
+        return MIRType_None;
+    }
 }

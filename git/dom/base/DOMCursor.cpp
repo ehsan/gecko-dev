@@ -5,8 +5,11 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "DOMCursor.h"
+#include "nsIDOMClassInfo.h"
 #include "nsError.h"
 #include "mozilla/dom/DOMCursorBinding.h"
+
+DOMCI_DATA(DOMCursor, mozilla::dom::DOMCursor)
 
 namespace mozilla {
 namespace dom {
@@ -23,6 +26,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(DOMCursor)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDOMCursor)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DOMCursor)
 NS_INTERFACE_MAP_END_INHERITING(DOMRequest)
 
 NS_IMPL_ADDREF_INHERITED(DOMCursor, DOMRequest)

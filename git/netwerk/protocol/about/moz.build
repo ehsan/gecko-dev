@@ -12,7 +12,3 @@ XPIDL_MODULE = 'necko_about'
 
 MODULE = 'necko'
 
-EXPORTS += [
-    'nsAboutProtocolUtils.h',
-]
-

@@ -1835,7 +1835,7 @@ nsXPCComponents_Exception::Construct(nsIXPConnectWrappedNative *wrapper, JSConte
     return CallOrConstruct(wrapper, cx, obj, argc, argv, vp, _retval);
 }
 
-struct MOZ_STACK_CLASS ExceptionArgParser
+struct NS_STACK_CLASS ExceptionArgParser
 {
     ExceptionArgParser(JSContext *context,
                        nsXPConnect *xpconnect)
@@ -2769,15 +2769,15 @@ nsXPCComponents_Utils::LookupMethod(const JS::Value& object,
 
         // Alright, now do the lookup.
         *retval = JSVAL_VOID;
-        Rooted<JSPropertyDescriptor> desc(cx);
-        if (!JS_GetPropertyDescriptorById(cx, xray, methodId, 0, desc.address()))
+        JSPropertyDescriptor desc;
+        if (!JS_GetPropertyDescriptorById(cx, xray, methodId, 0, &desc))
             return NS_ERROR_FAILURE;
 
         // First look for a method value. If that's not there, try a getter,
         // since historically lookupMethod also works for getters.
-        JSObject *methodObj = desc.value().isObject() ? &desc.value().toObject() : NULL;
-        if (!methodObj && desc.hasGetterObject())
-            methodObj = desc.getterObject();
+        JSObject *methodObj = desc.value.isObject() ? &desc.value.toObject() : NULL;
+        if (!methodObj && (desc.attrs & JSPROP_GETTER))
+            methodObj = JS_FUNC_TO_DATA_PTR(JSObject *, desc.getter);
 
         // Callers of this function seem to expect bound methods. Make it happen.
         // Note that this is unnecessary until bug 658909 is fixed.
@@ -2932,6 +2932,11 @@ SandboxImport(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
+    if (args.thisv().isPrimitive()) {
+        XPCThrower::Throw(NS_ERROR_UNEXPECTED, cx);
+        return false;
+    }
+
     if (args.length() < 1 || args[0].isPrimitive()) {
         XPCThrower::Throw(NS_ERROR_INVALID_ARG, cx);
         return false;
@@ -2970,14 +2975,7 @@ SandboxImport(JSContext *cx, unsigned argc, Value *vp)
     if (!JS_ValueToId(cx, StringValue(funname), id.address()))
         return false;
 
-    // We need to resolve the this object, because this function is used
-    // unbound and should still work and act on the original sandbox.
-    RootedObject thisObject(cx, JS_THIS_OBJECT(cx, vp));
-    if (!thisObject) {
-        XPCThrower::Throw(NS_ERROR_UNEXPECTED, cx);
-        return false;
-    }
-    if (!JS_SetPropertyById(cx, thisObject, id, &args[0]))
+    if (!JS_SetPropertyById(cx, &args.thisv().toObject(), id, &args[0]))
         return false;
 
     args.rval().setUndefined();
@@ -3052,12 +3050,12 @@ sandbox_convert(JSContext *cx, JSHandleObject obj, JSType type, JSMutableHandleV
 static JSClass SandboxClass = {
     "Sandbox",
     XPCONNECT_GLOBAL_FLAGS,
-    JS_PropertyStub,   JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_PropertyStub,   JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     sandbox_enumerate, sandbox_resolve, sandbox_convert,  sandbox_finalize,
     NULL, NULL, NULL, NULL, TraceXPCGlobal
 };
 
-static const JSFunctionSpec SandboxFunctions[] = {
+static JSFunctionSpec SandboxFunctions[] = {
     JS_FS("dump",    SandboxDump,    1,0),
     JS_FS("debug",   SandboxDebug,   1,0),
     JS_FS("importFunction", SandboxImport, 1,0),
@@ -3190,8 +3188,7 @@ bool BindPropertyOp(JSContext *cx, Op &op, PropertyDescriptor *desc, HandleId id
         // We have an actual property op.  For getters, we use 0
         // args, for setters we use 1 arg.
         uint32_t args = (attrFlag == JSPROP_GETTER) ? 0 : 1;
-        RootedObject obj(cx, desc->obj);
-        func = GeneratePropertyOp(cx, obj, id, args, op);
+        func = GeneratePropertyOp(cx, desc->obj, id, args, op);
         if (!func)
             return false;
     }
@@ -4451,12 +4448,12 @@ nsXPCComponents_Utils::GetComponentsForScope(const jsval &vscope, JSContext *cx,
 }
 
 NS_IMETHODIMP
-nsXPCComponents_Utils::Dispatch(const jsval &runnableArg, const jsval &scope,
+nsXPCComponents_Utils::Dispatch(const jsval &runnable_, const jsval &scope,
                                 JSContext *cx)
 {
     // Enter the given compartment, if any, and rewrap runnable.
     Maybe<JSAutoCompartment> ac;
-    RootedValue runnable(cx, runnableArg);
+    RootedValue runnable(cx, runnable_);
     if (scope.isObject()) {
         JSObject *scopeObj = js::UncheckedUnwrap(&scope.toObject());
         if (!scopeObj)
@@ -4585,19 +4582,6 @@ nsXPCComponents_Utils::IsXrayWrapper(const JS::Value &obj, bool* aRetval)
 {
     *aRetval =
         obj.isObject() && xpc::WrapperFactory::IsXrayWrapper(&obj.toObject());
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXPCComponents_Utils::GetClassName(const JS::Value &aObj, bool aUnwrap, JSContext *aCx, char **aRv)
-{
-    if (!aObj.isObject())
-        return NS_ERROR_INVALID_ARG;
-    RootedObject obj(aCx, &aObj.toObject());
-    if (aUnwrap)
-        obj = js::UncheckedUnwrap(obj, /* stopAtOuter = */ false);
-    *aRv = NS_strdup(js::GetObjectClass(obj)->name);
-    NS_ENSURE_TRUE(*aRv, NS_ERROR_OUT_OF_MEMORY);
     return NS_OK;
 }
 

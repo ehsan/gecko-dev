@@ -63,7 +63,7 @@ ShadowLayersChild::DeallocPLayer(PLayerChild* actor)
 }
 
 PCompositableChild*
-ShadowLayersChild::AllocPCompositable(const TextureInfo& aInfo)
+ShadowLayersChild::AllocPCompositable(const CompositableType& aType)
 {
   return new CompositableChild();
 }
@@ -73,14 +73,6 @@ ShadowLayersChild::DeallocPCompositable(PCompositableChild* actor)
 {
   delete actor;
   return true;
-}
-
-void
-ShadowLayersChild::ActorDestroy(ActorDestroyReason why)
-{
-  if (why == AbnormalShutdown) {
-    NS_RUNTIMEABORT("ActorDestroy by IPC channel failure at ShadowLayersChild");
-  }
 }
 
 }  // namespace layers

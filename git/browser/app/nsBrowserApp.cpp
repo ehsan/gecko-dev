@@ -108,24 +108,26 @@ static bool IsArg(const char* arg, const char* s)
 
 #ifdef XP_WIN
 /*
- * AttachToTestHarness - Windows helper for when we are running
+ * AttachToTestsConsole - Windows helper for when we are running
  * in the immersive environment. Firefox is launched by Windows in
  * response to a request by metrotestharness, which is launched by
  * runtests.py. As such stdout in fx doesn't point to the right
  * stream. This helper touches up stdout such that test output gets
- * routed to a named pipe metrotestharness creates and dumps to its
- * stdout.
+ * routed to the console the tests are run in.
  */
-static void AttachToTestHarness()
+static void AttachToTestsConsole(DWORD aProcessId)
 {
-  // attach to the metrotestharness named logging pipe
-  HANDLE winOut = CreateFileA("\\\\.\\pipe\\metrotestharness",
-                              GENERIC_WRITE,
+  if (!AttachConsole(aProcessId)) {
+    OutputDebugStringW(L"Could not attach to console.\n");
+    return;
+  }
+
+  HANDLE winOut = CreateFileA("CONOUT$",
+                              GENERIC_READ | GENERIC_WRITE,
                               FILE_SHARE_WRITE, 0,
                               OPEN_EXISTING, 0, 0);
-  
   if (winOut == INVALID_HANDLE_VALUE) {
-    OutputDebugStringW(L"Could not create named logging pipe.\n");
+    OutputDebugStringW(L"Could not attach to console.\n");
     return;
   }
 
@@ -353,6 +355,15 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
         if (isspace(*ptr)) {
           *ptr = '\0';
           ptr++;
+          // Check for the console id the metrotestharness passes in, we need
+          // to connect up to this so test output goes to the right place.
+          if (ptr && !strncmp(ptr, kMetroConsoleIdParam, strlen(kMetroConsoleIdParam))) {
+            DWORD processId = strtol(ptr + strlen(kMetroConsoleIdParam), nullptr, 10);
+            if (processId > 0) {
+              AttachToTestsConsole(processId);
+            }
+            continue;
+          }
           newArgv[newArgc] = ptr;
           newArgc++;
           continue;
@@ -361,10 +372,6 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
       }
       if (ptr == newArgv[newArgc-1])
         newArgc--;
-
-      // attach browser stdout to metrotestharness stdout
-      AttachToTestHarness();
-
       int result = XRE_main(newArgc, newArgv, appData, mainFlags);
       XRE_FreeAppData(appData);
       return result;

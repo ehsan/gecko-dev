@@ -6,7 +6,3 @@
 
 MODULE = 'accessibility'
 
-EXPORTS += [
-    'xpcAccEvents.h',
-]
-

@@ -6,7 +6,3 @@
 
 MODULE = 'caps'
 
-EXPORTS += [
-    'nsJSPrincipals.h',
-]
-

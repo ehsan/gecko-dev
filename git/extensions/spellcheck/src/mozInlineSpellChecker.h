@@ -11,6 +11,7 @@
 #include "nsIEditorSpellCheck.h"
 #include "nsIEditActionListener.h"
 #include "nsIInlineSpellChecker.h"
+#include "nsITextServicesDocument.h"
 #include "nsIDOMTreeWalker.h"
 #include "nsWeakReference.h"
 #include "nsEditor.h"
@@ -129,6 +130,7 @@ private:
 
   nsWeakPtr mEditor; 
   nsCOMPtr<nsIEditorSpellCheck> mSpellCheck;
+  nsCOMPtr<nsITextServicesDocument> mTextServicesDocument;
   nsCOMPtr<nsIDOMTreeWalker> mTreeWalker;
   nsCOMPtr<mozISpellI18NUtil> mConverter;
 

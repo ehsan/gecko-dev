@@ -81,7 +81,7 @@ static JSClass kFakeBackstagePassJSClass =
     "FakeBackstagePass",
     0,
     JS_PropertyStub,
-    JS_DeletePropertyStub,
+    JS_PropertyStub,
     JS_PropertyStub,
     JS_StrictPropertyStub,
     JS_EnumerateStub,
@@ -326,7 +326,7 @@ Blob(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static const JSFunctionSpec gGlobalFun[] = {
+static JSFunctionSpec gGlobalFun[] = {
     JS_FS("dump",    Dump,   1,0),
     JS_FS("debug",   Debug,  1,0),
     JS_FS("atob",    Atob,   1,0),

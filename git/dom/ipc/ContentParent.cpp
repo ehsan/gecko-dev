@@ -29,7 +29,7 @@
 #include "mozilla/dom/ExternalHelperAppParent.h"
 #include "mozilla/dom/PMemoryReportRequestParent.h"
 #include "mozilla/dom/power/PowerManagerService.h"
-#include "mozilla/dom/DOMStorageIPC.h"
+#include "mozilla/dom/StorageParent.h"
 #include "mozilla/dom/bluetooth/PBluetoothParent.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestParent.h"
 #include "SmsParent.h"
@@ -84,6 +84,7 @@
 #include "StructuredCloneUtils.h"
 #include "TabParent.h"
 #include "URIUtils.h"
+#include "nsGeolocation.h"
 
 #ifdef ANDROID
 # include "gfxAndroidPlatform.h"
@@ -1969,16 +1970,15 @@ ContentParent::DeallocPSms(PSmsParent* aSms)
 }
 
 PStorageParent*
-ContentParent::AllocPStorage()
+ContentParent::AllocPStorage(const StorageConstructData& aData)
 {
-    return new DOMStorageDBParent();
+    return new StorageParent(aData);
 }
 
 bool
 ContentParent::DeallocPStorage(PStorageParent* aActor)
 {
-    DOMStorageDBParent* child = static_cast<DOMStorageDBParent*>(aActor);
-    child->ReleaseIPDLReference();
+    delete aActor;
     return true;
 }
 
@@ -2370,7 +2370,7 @@ ContentParent::RecvFilePathUpdateNotify(const nsString& aType, const nsString& a
 static int32_t
 AddGeolocationListener(nsIDOMGeoPositionCallback* watcher, bool highAccuracy)
 {
-  nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
+  nsCOMPtr<nsIGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
   if (!geo) {
     return -1;
   }

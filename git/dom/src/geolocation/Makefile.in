@@ -28,6 +28,8 @@ LOCAL_INCLUDES = \
 		-I$(topsrcdir)/content/events/src \
 		$(NULL)
 
+EXPORTS        = nsGeoPosition.h
+
 ifdef MOZ_MAEMO_LIBLOCATION
 LOCAL_INCLUDES  += $(MOZ_PLATFORM_MAEMO_CFLAGS) \
                    -I$(topsrcdir)/dom/system/unix \
@@ -46,6 +48,8 @@ endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
 LOCAL_INCLUDES  += -I$(topsrcdir)/dom/system/gonk
 endif
+
+EXPORTS         += nsGeoPositionIPCSerialiser.h
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk

@@ -12,6 +12,7 @@
 #include "mozilla/layers/ShadowLayers.h"
 #include "mozilla/layers/SharedPlanarYCbCrImage.h"
 #include "GLContext.h"
+#include "mozilla/layers/TextureChild.h"
 #include "BasicLayers.h" // for PaintContext
 #include "ShmemYCbCrImage.h"
 #include "gfxReusableSurfaceWrapper.h"
@@ -23,23 +24,56 @@ namespace mozilla {
 namespace layers {
 
 TextureClient::TextureClient(CompositableForwarder* aForwarder,
-                             const TextureInfo& aTextureInfo)
+                             CompositableType aCompositableType)
   : mForwarder(aForwarder)
-  , mTextureInfo(aTextureInfo)
+  , mTextureChild(nullptr)
   , mAccessMode(ACCESS_READ_WRITE)
 {
   MOZ_COUNT_CTOR(TextureClient);
+  mTextureInfo.mCompositableType = aCompositableType;
 }
 
 TextureClient::~TextureClient()
 {
   MOZ_COUNT_DTOR(TextureClient);
   MOZ_ASSERT(mDescriptor.type() == SurfaceDescriptor::T__None, "Need to release surface!");
+
+  if (mTextureChild) {
+    static_cast<TextureChild*>(mTextureChild)->SetClient(nullptr);
+    static_cast<TextureChild*>(mTextureChild)->Destroy();
+    mTextureChild = nullptr;
+  }
 }
 
+void
+TextureClient::Destroyed()
+{
+  // The owning layer must be locked at some point in the chain of callers
+  // by calling Hold.
+  mForwarder->DestroyedThebesBuffer(mDescriptor);
+}
+
+void
+TextureClient::Updated()
+{
+  if (mDescriptor.type() != SurfaceDescriptor::T__None &&
+      mDescriptor.type() != SurfaceDescriptor::Tnull_t) {
+    mForwarder->UpdateTexture(this, SurfaceDescriptor(mDescriptor));
+    mDescriptor = SurfaceDescriptor();
+  } else {
+    NS_WARNING("Trying to send a null SurfaceDescriptor.");
+  }
+}
+
+void
+TextureClient::SetIPDLActor(PTextureChild* aChild) {
+  mTextureChild = aChild;
+}
+
+
 TextureClientShmem::TextureClientShmem(CompositableForwarder* aForwarder,
-                                       const TextureInfo& aTextureInfo)
-  : TextureClient(aForwarder, aTextureInfo)
+                                       CompositableType aCompositableType)
+  : TextureClient(aForwarder, aCompositableType)
   , mSurface(nullptr)
   , mSurfaceAsImage(nullptr)
 {
@@ -60,7 +94,6 @@ TextureClientShmem::ReleaseResources()
 
   if (IsSurfaceDescriptorValid(mDescriptor)) {
     mForwarder->DestroySharedSurface(&mDescriptor);
-    mDescriptor = SurfaceDescriptor();
   }
 }
 
@@ -177,16 +210,15 @@ TextureClientShmemYCbCr::EnsureAllocated(gfx::IntSize aSize,
 
 
 TextureClientTile::TextureClientTile(const TextureClientTile& aOther)
-  : TextureClient(aOther.mForwarder, aOther.mTextureInfo)
-  , mSurface(aOther.mSurface)
+: TextureClient(aOther.mForwarder, aOther.mTextureInfo.mCompositableType)
+, mSurface(aOther.mSurface)
 {}
 
 TextureClientTile::~TextureClientTile()
 {}
 
-TextureClientTile::TextureClientTile(CompositableForwarder* aForwarder,
-                                     const TextureInfo& aTextureInfo)
-  : TextureClient(aForwarder, aTextureInfo)
+TextureClientTile::TextureClientTile(CompositableForwarder* aForwarder, CompositableType aCompositableType)
+  : TextureClient(aForwarder, aCompositableType)
   , mSurface(nullptr)
 {
   mTextureInfo.mTextureHostFlags = TEXTURE_HOST_TILED;

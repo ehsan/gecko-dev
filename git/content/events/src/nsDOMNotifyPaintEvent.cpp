@@ -25,7 +25,6 @@ nsDOMNotifyPaintEvent::nsDOMNotifyPaintEvent(mozilla::dom::EventTarget* aOwner,
   if (aInvalidateRequests) {
     mInvalidateRequests.MoveElementsFrom(aInvalidateRequests->mRequests);
   }
-  SetIsDOMBinding();
 }
 
 DOMCI_DATA(NotifyPaintEvent, nsDOMNotifyPaintEvent)
@@ -55,31 +54,18 @@ nsDOMNotifyPaintEvent::GetRegion()
 NS_IMETHODIMP
 nsDOMNotifyPaintEvent::GetBoundingClientRect(nsIDOMClientRect** aResult)
 {
-  *aResult = BoundingClientRect().get();
-  return NS_OK;
-}
-
-already_AddRefed<nsClientRect>
-nsDOMNotifyPaintEvent::BoundingClientRect()
-{
   nsRefPtr<nsClientRect> rect = new nsClientRect(ToSupports(this));
 
   if (mPresContext) {
     rect->SetLayoutRect(GetRegion().GetBounds());
   }
 
-  return rect.forget();
+  rect.forget(aResult);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMNotifyPaintEvent::GetClientRects(nsIDOMClientRectList** aResult)
-{
-  *aResult = ClientRects().get();
-  return NS_OK;
-}
-
-already_AddRefed<nsClientRectList>
-nsDOMNotifyPaintEvent::ClientRects()
 {
   nsISupports* parent = ToSupports(this);
   nsRefPtr<nsClientRectList> rectList = new nsClientRectList(parent);
@@ -93,7 +79,8 @@ nsDOMNotifyPaintEvent::ClientRects()
     rectList->Append(rect);
   }
 
-  return rectList.forget();
+  rectList.forget(aResult);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -152,7 +152,7 @@ private:
     // Called on worker thread only
 
     RPCListener* Listener() const {
-        return static_cast<RPCListener*>(mListener.get());
+        return static_cast<RPCListener*>(mListener);
     }
 
     virtual bool ShouldDeferNotifyMaybeError() const MOZ_OVERRIDE {
@@ -238,7 +238,7 @@ private:
         const Message* mMsg;
     };
 
-    class MOZ_STACK_CLASS CxxStackFrame
+    class NS_STACK_CLASS CxxStackFrame
     {
     public:
 

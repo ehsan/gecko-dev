@@ -136,8 +136,6 @@ const kXLinkNamespace = "http://www.w3.org/1999/xlink";
 const kDefaultCSSViewportWidth = 980;
 const kDefaultCSSViewportHeight = 480;
 
-const kViewportRemeasureThrottle = 500;
-
 function dump(a) {
   Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService).logStringMessage(a);
 }
@@ -148,10 +146,6 @@ function getBridge() {
 
 function sendMessageToJava(aMessage) {
   return getBridge().handleGeckoMessage(JSON.stringify(aMessage));
-}
-
-function fuzzyEquals(a, b) {
-  return (Math.abs(a - b) < 1e-6);
 }
 
 #ifdef MOZ_CRASHREPORTER
@@ -212,12 +206,6 @@ var BrowserApp = {
     return this.isTablet = sysInfo.get("tablet");
   },
 
-  get isOnLowMemoryPlatform() {
-    let memory = Cc["@mozilla.org/xpcom/memory-service;1"].getService(Ci.nsIMemory);
-    delete this.isOnLowMemoryPlatform;
-    return this.isOnLowMemoryPlatform = memory.isLowMemoryPlatform();
-  },
-
   deck: null,
 
   startup: function startup() {
@@ -252,6 +240,7 @@ var BrowserApp = {
     Services.obs.addObserver(this, "Viewport:FixedMarginsChanged", false);
     Services.obs.addObserver(this, "Passwords:Init", false);
     Services.obs.addObserver(this, "FormHistory:Init", false);
+    Services.obs.addObserver(this, "ToggleProfiling", false);
     Services.obs.addObserver(this, "gather-telemetry", false);
     Services.obs.addObserver(this, "keyword-search", false);
 
@@ -390,13 +379,6 @@ var BrowserApp = {
         let newtabStrings = Strings.browser.GetStringFromName("newprivatetabpopup.opened");
         let label = PluralForm.get(1, newtabStrings).replace("#1", 1);
         NativeWindow.toast.show(label, "short");
-      });
-
-    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.addToReadingList"),
-      NativeWindow.contextmenus.linkOpenableContext,
-      function(aTarget) {
-        let url = NativeWindow.contextmenus._getLinkURL(aTarget);
-        Services.obs.notifyObservers(null, "Reader:Add", JSON.stringify({ url: url }));
       });
 
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.copyLink"),
@@ -641,8 +623,6 @@ var BrowserApp = {
     aTab.setResolution(aTab._zoom, true);
     this.displayedDocumentChanged();
     this.deck.selectedPanel = aTab.browser;
-    // Focus the browser so that things like selection will be styled correctly.
-    aTab.browser.focus();
   },
 
   get selectedBrowser() {
@@ -1304,6 +1284,8 @@ var BrowserApp = {
         let storage = Cc["@mozilla.org/login-manager/storage/mozStorage;1"].
                       getService(Ci.nsILoginManagerStorage);
         storage.init();
+
+        sendMessageToJava({ type: "Passwords:Init:Return" });
         Services.obs.removeObserver(this, "Passwords:Init");
         break;
       }
@@ -1312,6 +1294,7 @@ var BrowserApp = {
         let fh = Cc["@mozilla.org/satchel/form-history;1"].getService(Ci.nsIFormHistory2);
         // Force creation/upgrade of formhistory.sqlite
         let db = fh.DBConnection;
+        sendMessageToJava({ type: "FormHistory:Init:Return" });
         Services.obs.removeObserver(this, "FormHistory:Init");
         break;
       }
@@ -1319,6 +1302,17 @@ var BrowserApp = {
       case "sessionstore-state-purge-complete":
         sendMessageToJava({ type: "Session:StatePurged" });
         break;
+
+      case "ToggleProfiling": {
+        let profiler = Cc["@mozilla.org/tools/profiler;1"].
+                       getService(Ci.nsIProfiler);
+        if (profiler.IsActive()) {
+          profiler.StopProfiler();
+        } else {
+          profiler.StartProfiler(100000, 25, ["stackwalk"], 1);
+        }
+        break;
+      }
 
       case "gather-telemetry":
         sendMessageToJava({ type: "Telemetry:Gather" });
@@ -2107,7 +2101,7 @@ var LightWeightThemeWebInstaller = {
 
 var UserAgent = {
   DESKTOP_UA: null,
-  YOUTUBE_DOMAIN: /(^|\.)youtube\.com$/,
+  YOUTUBE_DOMAIN: /\.?youtube\.com$/,
 
   init: function ua_init() {
     Services.obs.addObserver(this, "DesktopMode:Change", false);
@@ -2145,18 +2139,15 @@ var UserAgent = {
   },
 
   getUserAgentForUriAndTab: function ua_getUserAgentForUriAndTab(aUri, aTab, defaultUA) {
-    // Send desktop UA if "Request Desktop Site" is enabled.
+    if (this.YOUTUBE_DOMAIN.test(aUri.host)) {
+      // Send the phone UA to youtube if this is a tablet
+      if (defaultUA.indexOf("Android; Mobile;") === -1)
+        return defaultUA.replace("Android;", "Android; Mobile;");
+    }
+
+    // Send desktop UA if "Request Desktop Site" is enabled
     if (aTab.desktopMode)
       return this.DESKTOP_UA;
-
-    // Not all schemes have a host member.
-    if (aUri.schemeIs("http") || aUri.schemeIs("https")) {
-      if (this.YOUTUBE_DOMAIN.test(aUri.host)) {
-        // Send the phone UA to Youtube if this is a tablet.
-        if (defaultUA.indexOf("Android; Mobile;") === -1)
-          return defaultUA.replace("Android;", "Android; Mobile;");
-      }
-    }
 
     return defaultUA;
   },
@@ -2322,8 +2313,7 @@ function Tab(aURL, aParams) {
   this.userScrollPos = { x: 0, y: 0 };
   this.viewportExcludesHorizontalMargins = true;
   this.viewportExcludesVerticalMargins = true;
-  this.viewportMeasureCallback = null;
-  this.lastPageSizeAfterViewportChange = { width: 0, height: 0 };
+  this.updatingViewportForPageSizeChange = false;
   this.contentDocumentIsDisplayed = true;
   this.pluginDoorhangerTimeout = null;
   this.shouldShowPluginDoorhanger = true;
@@ -2584,7 +2574,7 @@ Tab.prototype = {
   },
 
   getActive: function getActive() {
-    return this.browser.docShellIsActive;
+      return this.browser.docShellIsActive;
   },
 
   setDisplayPort: function(aDisplayPort) {
@@ -2617,7 +2607,7 @@ Tab.prototype = {
         this._drawZoom = resolution;
         cwu.setResolution(resolution, resolution);
       }
-    } else if (!fuzzyEquals(resolution, zoom)) {
+    } else if (Math.abs(resolution - zoom) >= 1e-6) {
       dump("Warning: setDisplayPort resolution did not match zoom for background tab! (" + resolution + " != " + zoom + ")");
     }
 
@@ -2639,11 +2629,12 @@ Tab.prototype = {
       height: (aDisplayPort.bottom - aDisplayPort.top) / resolution
     };
 
+    let epsilon = 0.001;
     if (this._oldDisplayPort == null ||
-        !fuzzyEquals(displayPort.x, this._oldDisplayPort.x) ||
-        !fuzzyEquals(displayPort.y, this._oldDisplayPort.y) ||
-        !fuzzyEquals(displayPort.width, this._oldDisplayPort.width) ||
-        !fuzzyEquals(displayPort.height, this._oldDisplayPort.height)) {
+        Math.abs(displayPort.x - this._oldDisplayPort.x) > epsilon ||
+        Math.abs(displayPort.y - this._oldDisplayPort.y) > epsilon ||
+        Math.abs(displayPort.width - this._oldDisplayPort.width) > epsilon ||
+        Math.abs(displayPort.height - this._oldDisplayPort.height) > epsilon) {
       if (BrowserApp.gUseLowPrecision) {
         // Set the display-port to be 4x the size of the critical display-port,
         // on each dimension, giving us a 0.25x lower precision buffer around the
@@ -2839,13 +2830,15 @@ Tab.prototype = {
 
     // Adjust the max line box width to be no more than the viewport width, but
     // only if the reflow-on-zoom preference is enabled.
-    let isZooming = Math.abs(aViewport.zoom - this._zoom) >= 1e-6;
-    if (isZooming &&
-        BrowserEventHandler.mReflozPref &&
-        BrowserApp.selectedTab._mReflozPoint &&
-        BrowserApp.selectedTab.probablyNeedRefloz) {
-      BrowserApp.selectedTab.performReflowOnZoom(aViewport);
-      BrowserApp.selectedTab.probablyNeedRefloz = false;
+    if (BrowserEventHandler.mReflozPref && BrowserEventHandler._mLastPinchData) {
+      let webNav = window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
+      let docShell = webNav.QueryInterface(Ci.nsIDocShell);
+      let docViewer = docShell.contentViewer.QueryInterface(Ci.nsIMarkupDocumentViewer);
+      let viewportWidth = gScreenWidth / aViewport.zoom;
+      // We add in a bit of fudge just so that the end characters don't accidentally
+      // get clipped. 15px is an arbitrary choice.
+      docViewer.changeMaxLineBoxWidth(viewportWidth - 15);
+      BrowserEventHandler._mLastPinchData = null;
     }
 
     let win = this.browser.contentWindow;
@@ -2876,7 +2869,7 @@ Tab.prototype = {
 
   setResolution: function(aZoom, aForce) {
     // Set zoom level
-    if (aForce || !fuzzyEquals(aZoom, this._zoom)) {
+    if (aForce || Math.abs(aZoom - this._zoom) >= 1e-6) {
       this._zoom = aZoom;
       if (BrowserApp.selectedTab == this) {
         let cwu = window.top.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
@@ -2959,48 +2952,30 @@ Tab.prototype = {
     return viewport;
   },
 
-  sendViewportUpdate: function(aPageSizeUpdate, aAfterViewportSizeChange) {
+  sendViewportUpdate: function(aPageSizeUpdate) {
     let viewport = this.getViewport();
     let displayPort = getBridge().getDisplayPort(aPageSizeUpdate, BrowserApp.isBrowserContentDocumentDisplayed(), this.id, viewport);
     if (displayPort != null)
       this.setDisplayPort(displayPort);
 
-    if (aAfterViewportSizeChange) {
-      // Store the page size that was used to calculate the viewport so that we
-      // can verify it's changed when we consider remeasuring.
-      this.lastPageSizeAfterViewportChange =
-        { width: viewport.pageRight - viewport.pageLeft,
-          height: viewport.pageBottom - viewport.pageTop };
-    } else if (aPageSizeUpdate &&
-               (gViewportMargins.top > 0 || gViewportMargins.right > 0
-                  || gViewportMargins.bottom > 0 || gViewportMargins.left > 0)) {
-      // If the page size has changed so that it might or might not fit on the
-      // screen with the margins included, run updateViewportSize to resize the
-      // browser accordingly.
-      // A page will receive the smaller viewport when its page size fits
-      // within the screen size, so remeasure when the page size remains within
-      // the threshold of screen + margins, in case it's sizing itself relative
-      // to the viewport.
+    // If the page size has changed so that it might or might not fit on the
+    // screen with the margins included, run updateViewportSize to resize the
+    // browser accordingly.
+    // A page will receive the smaller viewport when its page size fits
+    // within the screen size, so remeasure when the page size remains within
+    // the threshold of screen + margins, in case it's sizing itself relative
+    // to the viewport.
+    if (!this.updatingViewportForPageSizeChange && aPageSizeUpdate) {
+      this.updatingViewportForPageSizeChange = true;
       if (((Math.round(viewport.pageBottom - viewport.pageTop)
               <= gScreenHeight + gViewportMargins.top + gViewportMargins.bottom)
              != this.viewportExcludesVerticalMargins) ||
           ((Math.round(viewport.pageRight - viewport.pageLeft)
               <= gScreenWidth + gViewportMargins.left + gViewportMargins.right)
              != this.viewportExcludesHorizontalMargins)) {
-        if (!this.viewportMeasureCallback) {
-          this.viewportMeasureCallback = setTimeout(function() {
-            this.viewportMeasureCallback = null;
-
-            let viewport = this.getViewport();
-            if (Math.abs((viewport.pageRight - viewport.pageLeft)
-                           - this.lastPageSizeAfterViewportChange.width) >= 0.5 ||
-                Math.abs((viewport.pageBottom - viewport.pageTop)
-                           - this.lastPageSizeAfterViewportChange.height) >= 0.5) {
-              this.updateViewportSize(gScreenWidth);
-            }
-          }.bind(this), kViewportRemeasureThrottle);
-        }
+        this.updateViewportSize(gScreenWidth);
       }
+      this.updatingViewportForPageSizeChange = false;
     }
   },
 
@@ -3212,7 +3187,7 @@ Tab.prototype = {
 
         // For low-memory devices, don't allow reader mode since it takes up a lot of memory.
         // See https://bugzilla.mozilla.org/show_bug.cgi?id=792603 for details.
-        if (BrowserApp.isOnLowMemoryPlatform)
+        if (Cc["@mozilla.org/xpcom/memory-service;1"].getService(Ci.nsIMemory).isLowMemoryPlatform())
           return;
 
         // Once document is fully loaded, parse it
@@ -3451,11 +3426,6 @@ Tab.prototype = {
     // is not accidentally removed (the call to sendViewportUpdate() is
     // at the very end).
 
-    if (this.viewportMeasureCallback) {
-      clearTimeout(this.viewportMeasureCallback);
-      this.viewportMeasureCallback = null;
-    }
-
     let browser = this.browser;
     if (!browser)
       return;
@@ -3516,19 +3486,19 @@ Tab.prototype = {
       // has not yet loaded, so need to guard against a null document.
       let [pageWidth, pageHeight] = this.getPageSize(this.browser.contentDocument, viewportW, viewportH);
 
+      minScale = screenW / pageWidth;
+
       // In the situation the page size equals or exceeds the screen size,
       // lengthen the viewport on the corresponding axis to include the margins.
-      // The '- 0.5' is to account for rounding errors.
-      if (pageWidth * this._zoom > gScreenWidth - 0.5) {
+      // The -1 is to account for rounding errors.
+      if (pageWidth * this._zoom > gScreenWidth - 1) {
         screenW = gScreenWidth;
         this.viewportExcludesHorizontalMargins = false;
       }
-      if (pageHeight * this._zoom > gScreenHeight - 0.5) {
+      if (pageHeight * this._zoom > gScreenHeight - 1) {
         screenH = gScreenHeight;
         this.viewportExcludesVerticalMargins = false;
       }
-
-      minScale = screenW / pageWidth;
     }
     minScale = this.clampZoom(minScale);
     viewportH = Math.max(viewportH, screenH / minScale);
@@ -3555,7 +3525,7 @@ Tab.prototype = {
     let zoom = (aInitialLoad && metadata.defaultZoom) ? metadata.defaultZoom : this.clampZoom(this._zoom * zoomScale);
     this.setResolution(zoom, false);
     this.setScrollClampingSize(zoom);
-    this.sendViewportUpdate(false, true);
+    this.sendViewportUpdate();
   },
 
   sendViewportMetadata: function sendViewportMetadata() {
@@ -3571,12 +3541,7 @@ Tab.prototype = {
   },
 
   setBrowserSize: function(aWidth, aHeight) {
-    if (fuzzyEquals(this.browserWidth, aWidth) && fuzzyEquals(this.browserHeight, aHeight)) {
-      return;
-    }
-
     this.browserWidth = aWidth;
-    this.browserHeight = aHeight;
 
     if (!this.browser.contentWindow)
       return;
@@ -3891,9 +3856,7 @@ var BrowserEventHandler = {
         break;
 
       case "MozMagnifyGesture":
-        if (BrowserEventHandler.mReflozPref) {
-          this.onPinchFinish(aData, BrowserApp.selectedTab._mReflozPoint.x, BrowserApp.selectedTab._mReflozPoint.y);
-        }
+        this.onPinchFinish(aData, this._mLastPinchPoint.x, this._mLastPinchPoint.y);
         break;
 
       default:
@@ -3926,7 +3889,7 @@ var BrowserEventHandler = {
     let dw = (aRect.width - vRect.width);
     let dx = (aRect.x - vRect.x);
 
-    if (fuzzyEquals(aViewport.zoom, maxZoomAllowed) && overlap.width / aRect.width > 0.9) {
+    if (Math.abs(aViewport.zoom - maxZoomAllowed) < 1e-6 && overlap.width / aRect.width > 0.9) {
       // we're already at the max zoom and the block is not spilling off the side of the screen so that even
       // if the block isn't taking up most of the viewport we can't pan/zoom in any more. return true so that we zoom out
       return true;
@@ -4004,37 +3967,21 @@ var BrowserEventHandler = {
     sendMessageToJava(rect);
   },
 
-  _zoomInAndSnapToRange: function(aRange) {
-    if (!aRange) {
-      Cu.reportError("aRange is null in zoomInAndSnapToRange. Unable to maintain position.");
+  _zoomInAndSnapToElement: function(aX, aY, aElement) {
+    let viewport = BrowserApp.selectedTab.getViewport();
+    if (viewport.zoom < 1.0) {
+      // We don't want to do this on zoom out.
       return;
     }
 
-    let viewport = BrowserApp.selectedTab.getViewport();
     let fudge = 15; // Add a bit of fudge.
-    let boundingElement = aRange.offsetNode;
-    while (!boundingElement.getBoundingClientRect && boundingElement.parentNode) {
-      boundingElement = boundingElement.parentNode;
-    }
+    let win = BrowserApp.selectedBrowser.contentWindow;
 
-    let rect = ElementTouchHelper.getBoundingContentRect(boundingElement);
-    let drRect = aRange.getClientRect();
-    let scrollTop =
-      BrowserApp.selectedBrowser.contentDocument.documentElement.scrollTop ||
-      BrowserApp.selectedBrowser.contentDocument.body.scrollTop;
-
-    // We subtract half the height of the viewport so that we can (ideally)
-    // center the area of interest on the screen.
-    let topPos = scrollTop + drRect.top - (viewport.cssHeight / 2.0);
-
-    // Factor in the border and padding
-    let boundingStyle = window.getComputedStyle(boundingElement);
-    let leftAdjustment = parseInt(boundingStyle.paddingLeft) +
-                         parseInt(boundingStyle.borderLeftWidth);
+    let rect = ElementTouchHelper.getBoundingContentRect(aElement);
 
     rect.type = "Browser:ZoomToRect";
-    rect.x = Math.max(viewport.cssPageLeft, rect.x  - fudge + leftAdjustment);
-    rect.y = Math.max(topPos, viewport.cssPageTop);
+    rect.x = Math.max(viewport.cssPageLeft, rect.x  - fudge);
+    rect.y = viewport.cssY;
     rect.w = viewport.cssWidth;
     rect.h = viewport.cssHeight;
 
@@ -4042,25 +3989,18 @@ var BrowserEventHandler = {
    },
 
    onPinch: function(aData) {
-     // We only want to do this if reflow-on-zoom is enabled.
-     if (BrowserEventHandler.mReflozPref &&
-         !BrowserApp.selectedTab._mReflozPoint) {
-       let data = JSON.parse(aData);
-       let zoomPointX = data.x;
-       let zoomPointY = data.y;
-
-       BrowserApp.selectedTab._mReflozPoint = { x: zoomPointX, y: zoomPointY,
-         range: BrowserApp.selectedBrowser.contentDocument.caretPositionFromPoint(zoomPointX, zoomPointY) };
-         BrowserApp.selectedTab.probablyNeedRefloz = true;
-     }
+     let data = JSON.parse(aData);
+     this._mLastPinchPoint = {x: data.x, y: data.y};
    },
 
    onPinchFinish: function(aData, aX, aY) {
-     // We only want to do this if reflow-on-zoom is enabled.
-     if (BrowserEventHandler.mReflozPref) {
-       let range = BrowserApp.selectedTab._mReflozPoint.range;
-       this._zoomInAndSnapToRange(range);
-       BrowserApp.selectedTab._mReflozPoint = null;
+     if (this.mReflozPref) {
+       let data = JSON.parse(aData);
+       let pinchElement = ElementTouchHelper.anyElementFromPoint(aX, aY);
+       data.element = pinchElement;
+       BrowserApp.selectedTab._mLastPinchElement = pinchElement;
+       this._mLastPinchData = data;
+       this._zoomInAndSnapToElement(data.x, data.y, data.element);
      }
    },
 
@@ -4080,6 +4020,8 @@ var BrowserEventHandler = {
   _scrollableElement: null,
 
   _highlightElement: null,
+
+  _mLastPinchData: null,
 
   _doTapHighlight: function _doTapHighlight(aElement) {
     DOMUtils.setContentState(aElement, kStateActive);
@@ -6513,10 +6455,6 @@ let Reader = {
 
   DEBUG: 0,
 
-  READER_ADD_SUCCESS: 0,
-  READER_ADD_FAILED: 1,
-  READER_ADD_DUPLICATE: 2,
-
   // Don't try to parse the page if it has too many elements (for memory and
   // performance reasons)
   MAX_ELEMS_TO_PARSE: 3000,
@@ -6532,66 +6470,30 @@ let Reader = {
   observe: function(aMessage, aTopic, aData) {
     switch(aTopic) {
       case "Reader:Add": {
-        let args = JSON.parse(aData);
-        if ('fromAboutReader' in args) {
-          // Ignore adds initiated from aboutReader menu banner
-          break;
-        }
+        let tab = BrowserApp.getTabForId(aData);
+        let currentURI = tab.browser.currentURI;
+        let url = currentURI.spec;
 
-        let tabID = null;
-        let url, urlWithoutRef;
-
-        if ('tabID' in args) {
-          tabID = args.tabID;
-
-          let tab = BrowserApp.getTabForId(tabID);
-          let currentURI = tab.browser.currentURI;
-
-          url = currentURI.spec;
-          urlWithoutRef = currentURI.specIgnoringRef;
-        } else if ('url' in args) {
-          let uri = Services.io.newURI(args.url, null, null);
-          url = uri.spec;
-          urlWithoutRef = uri.specIgnoringRef;
-        } else {
-          throw new Error("Reader:Add requires a tabID or an URL as argument");
-        }
-
-        let sendResult = function(result, title) {
-          this.log("Reader:Add success=" + result + ", url=" + url + ", title=" + title);
+        let sendResult = function(success, title) {
+          this.log("Reader:Add success=" + success + ", url=" + url + ", title=" + title);
 
           sendMessageToJava({
             type: "Reader:Added",
-            result: result,
+            success: success,
             title: title,
             url: url,
           });
         }.bind(this);
 
-        let handleArticle = function(article) {
+        this.getArticleForTab(aData, currentURI.specIgnoringRef, function (article) {
           if (!article) {
-            sendResult(this.READER_ADD_FAILED, "");
+            sendResult(false, "");
             return;
           }
 
           this.storeArticleInCache(article, function(success) {
-            let result = (success ? this.READER_ADD_SUCCESS : this.READER_ADD_FAILED);
-            sendResult(result, article.title);
-          }.bind(this));
-        }.bind(this);
-
-        this.getArticleFromCache(urlWithoutRef, function (article) {
-          // If the article is already in reading list, bail
-          if (article) {
-            sendResult(this.READER_ADD_DUPLICATE, "");
-            return;
-          }
-
-          if (tabID != null) {
-            this.getArticleForTab(tabID, urlWithoutRef, handleArticle);
-          } else {
-            this.parseDocumentFromURL(urlWithoutRef, handleArticle);
-          }
+            sendResult(success, article.title);
+          });
         }.bind(this));
         break;
       }
@@ -7200,7 +7102,7 @@ var Tabs = {
   init: function() {
     // on low-memory platforms, always allow tab expiration. on high-mem
     // platforms, allow it to be turned on once we hit a low-mem situation
-    if (BrowserApp.isOnLowMemoryPlatform) {
+    if (Cc["@mozilla.org/xpcom/memory-service;1"].getService(Ci.nsIMemory).isLowMemoryPlatform()) {
       this._enableTabExpiration = true;
     } else {
       Services.obs.addObserver(this, "memory-pressure", false);

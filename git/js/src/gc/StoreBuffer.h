@@ -1,8 +1,9 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifdef JSGC_GENERATIONAL
 #ifndef jsgc_storebuffer_h___
@@ -29,7 +30,7 @@ class VerifierNursery
     HashSet<const void *, PointerHasher<const void *, 3>, SystemAllocPolicy> nursery;
 
   public:
-    explicit VerifierNursery() : nursery() {}
+    VerifierNursery() : nursery() {}
 
     bool enable() {
         if (!nursery.initialized())
@@ -53,6 +54,7 @@ class VerifierNursery
     }
 
     bool isInside(const void *cell) const {
+        JS_ASSERT((uintptr_t(cell) & 0x3) == 0);
         return nursery.initialized() && nursery.has(cell);
     }
 
@@ -86,7 +88,6 @@ class HashKeyRef : public BufferableRef
     Map *map;
     Key key;
 
-    typedef typename Map::Entry::ValueType ValueType;
     typedef typename Map::Ptr Ptr;
 
   public:
@@ -99,18 +100,7 @@ class HashKeyRef : public BufferableRef
         return &p->key == location;
     }
 
-    void mark(JSTracer *trc) {
-        Key prior = key;
-        typename Map::Ptr p = map->lookup(key);
-        if (!p)
-            return;
-        ValueType value = p->value;
-        Mark(trc, &key, "HashKeyRef");
-        if (prior != key) {
-            map->remove(prior);
-            map->put(key, value);
-        }
-    }
+    void mark(JSTracer *trc) {}
 };
 
 /*
@@ -119,6 +109,27 @@ class HashKeyRef : public BufferableRef
  */
 class StoreBuffer
 {
+#ifdef JS_GC_ZEAL
+    /* For verification, we approximate an infinitly large buffer. */
+    static const size_t ValueBufferSize = 1024 * 1024 * sizeof(Value *);
+    static const size_t CellBufferSize = 1024 * 1024 * sizeof(Cell **);
+    static const size_t SlotBufferSize = 1024 * 1024 * (sizeof(JSObject *) + 2 * sizeof(uint32_t));
+    static const size_t RelocValueBufferSize = 1 * 1024 * sizeof(Value *);
+    static const size_t RelocCellBufferSize = 1 * 1024 * sizeof(Cell **);
+    static const size_t GenericBufferSize = 1024 * 1024 * sizeof(int);
+#else
+    /* TODO: profile to find the ideal size for these. */
+    static const size_t ValueBufferSize = 1 * 1024 * sizeof(Value *);
+    static const size_t CellBufferSize = 2 * 1024 * sizeof(Cell **);
+    static const size_t SlotBufferSize = 2 * 1024 * (sizeof(JSObject *) + sizeof(uint32_t));
+    static const size_t RelocValueBufferSize = 1 * 1024 * sizeof(Value *);
+    static const size_t RelocCellBufferSize = 1 * 1024 * sizeof(Cell **);
+    static const size_t GenericBufferSize = 1 * 1024 * sizeof(int);
+#endif
+    static const size_t TotalSize = ValueBufferSize + CellBufferSize +
+                                    SlotBufferSize + RelocValueBufferSize + RelocCellBufferSize +
+                                    GenericBufferSize;
+
     typedef HashSet<void *, PointerHasher<void *, 3>, SystemAllocPolicy> EdgeSet;
 
     /*
@@ -145,7 +156,6 @@ class StoreBuffer
 
         bool enable(uint8_t *region, size_t len);
         void disable();
-        void clear();
 
         bool isEmpty() const { return pos == base; }
         bool isFull() const { JS_ASSERT(pos <= top); return pos == top; }
@@ -162,9 +172,6 @@ class StoreBuffer
 
         /* Add one item to the buffer. */
         void put(const T &v);
-
-        /* Mark the source of all edges in the store buffer. */
-        void mark(JSTracer *trc);
 
         /* For verification. */
         bool accumulateEdges(EdgeSet &edges);
@@ -209,10 +216,6 @@ class StoreBuffer
 
         bool enable(uint8_t *region, size_t len);
         void disable();
-        void clear();
-
-        /* Mark all generic edges. */
-        void mark(JSTracer *trc);
 
         /* Check if a pointer is present in the buffer. */
         bool containsEdge(void *location) const;
@@ -261,8 +264,6 @@ class StoreBuffer
             return !*edge;
         }
 
-        void mark(JSTracer *trc);
-
         CellPtrEdge tagged() const { return CellPtrEdge((Cell **)(uintptr_t(edge) | 1)); }
         CellPtrEdge untagged() const { return CellPtrEdge((Cell **)(uintptr_t(edge) & ~1)); }
         bool isTagged() const { return bool(uintptr_t(edge) & 1); }
@@ -291,8 +292,6 @@ class StoreBuffer
         bool isNullEdge() const {
             return !deref();
         }
-
-        void mark(JSTracer *trc);
 
         ValueEdge tagged() const { return ValueEdge((Value *)(uintptr_t(edge) | 1)); }
         ValueEdge untagged() const { return ValueEdge((Value *)(uintptr_t(edge) & ~1)); }
@@ -330,8 +329,6 @@ class StoreBuffer
         JS_ALWAYS_INLINE bool inRememberedSet(NurseryType *nursery) const;
 
         JS_ALWAYS_INLINE bool isNullEdge() const;
-
-        void mark(JSTracer *trc);
     };
 
     MonoTypeBuffer<ValueEdge> bufferVal;
@@ -351,32 +348,11 @@ class StoreBuffer
     /* For the verifier. */
     EdgeSet edgeSet;
 
-#ifdef JS_GC_ZEAL
-    /* For verification, we approximate an infinitly large buffer. */
-    static const size_t ValueBufferSize = 1024 * 1024 * sizeof(ValueEdge);
-    static const size_t CellBufferSize = 1024 * 1024 * sizeof(CellPtrEdge);
-    static const size_t SlotBufferSize = 1024 * 1024 * sizeof(SlotEdge);
-    static const size_t RelocValueBufferSize = 1 * 1024 * sizeof(ValueEdge);
-    static const size_t RelocCellBufferSize = 1 * 1024 * sizeof(CellPtrEdge);
-    static const size_t GenericBufferSize = 1024 * 1024 * sizeof(int);
-#else
-    /* TODO: profile to find the ideal size for these. */
-    static const size_t ValueBufferSize = 1 * 1024 * sizeof(ValueEdge);
-    static const size_t CellBufferSize = 2 * 1024 * sizeof(CellPtrEdge);
-    static const size_t SlotBufferSize = 2 * 1024 * sizeof(SlotEdge);
-    static const size_t RelocValueBufferSize = 1 * 1024 * sizeof(ValueEdge);
-    static const size_t RelocCellBufferSize = 1 * 1024 * sizeof(CellPtrEdge);
-    static const size_t GenericBufferSize = 1 * 1024 * sizeof(int);
-#endif
-    static const size_t TotalSize = ValueBufferSize + CellBufferSize +
-                                    SlotBufferSize + RelocValueBufferSize + RelocCellBufferSize +
-                                    GenericBufferSize;
-
     /* For use by our owned buffers. */
-    void setOverflowed();
+    void setOverflowed() { overflowed = true; }
 
   public:
-    explicit StoreBuffer(JSRuntime *rt)
+    StoreBuffer(JSRuntime *rt)
       : bufferVal(this), bufferCell(this), bufferSlot(this),
         bufferRelocVal(this), bufferRelocCell(this), bufferGeneric(this),
         runtime(rt), buffer(NULL), overflowed(false), enabled(false)
@@ -386,7 +362,10 @@ class StoreBuffer
     void disable();
     bool isEnabled() { return enabled; }
 
-    bool clear();
+    bool clear() {
+        disable();
+        return enable();
+    }
 
     /* Get the overflowed status. */
     bool hasOverflowed() const { return overflowed; }
@@ -421,9 +400,6 @@ class StoreBuffer
     void putGeneric(const T &t) {
         bufferGeneric.put(t);
     }
-
-    /* Mark the source of all edges in the store buffer. */
-    void mark(JSTracer *trc);
 
     /* For the verifier. */
     bool coalesceForVerification();

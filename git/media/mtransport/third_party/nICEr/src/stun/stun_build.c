@@ -287,10 +287,6 @@ nr_stun_build_req_ice(nr_stun_client_ice_binding_request_params *params, nr_stun
 
 #ifdef USE_TURN
 
-#ifndef __isascii
-#define __isascii(c) (((c) & ~0x7F) == 0)
-#endif
-
 /* Long-term passwords are computed over the key:
 
             key = MD5(username ":" realm ":" SASLprep(password))
@@ -311,7 +307,7 @@ nr_stun_compute_lt_message_integrity_password(const char *username, const char *
      TODO(ekr@rtfm.com): Add SASLprep for password.
  */
   for (i=0; i<password->len; i++) {
-    if (!__isascii(password->data[i]))
+    if (!isascii(password->data[i]))
       ABORT(R_BAD_DATA);
   }
 

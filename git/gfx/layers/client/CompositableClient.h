@@ -71,22 +71,17 @@ public:
 
   virtual ~CompositableClient();
 
-  virtual TextureInfo GetTextureInfo() const
+  virtual CompositableType GetType() const
   {
-    MOZ_NOT_REACHED("This method should be overridden");
-    return TextureInfo();
+    NS_WARNING("This method should be overridden");
+    return BUFFER_UNKNOWN;
   }
 
   LayersBackend GetCompositorBackendType() const;
 
   TemporaryRef<TextureClient>
-  CreateTextureClient(TextureClientType aTextureClientType);
-
-  virtual void SetDescriptorFromReply(TextureIdentifier aTextureId,
-                                      const SurfaceDescriptor& aDescriptor)
-  {
-    MOZ_NOT_REACHED("If you want to call this, you should have implemented it");
-  }
+  CreateTextureClient(TextureClientType aTextureClientType,
+                      TextureFlags aFlags);
 
   /**
    * Establishes the connection with compositor side through IPDL
@@ -135,6 +130,9 @@ public:
   {
     MOZ_COUNT_DTOR(CompositableChild);
   }
+
+  virtual PTextureChild* AllocPTexture(const TextureInfo& aInfo) MOZ_OVERRIDE;
+  virtual bool DeallocPTexture(PTextureChild* aActor) MOZ_OVERRIDE;
 
   void Destroy();
 

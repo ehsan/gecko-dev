@@ -6,8 +6,3 @@
 
 MODULE = 'inspector'
 
-EXPORTS += [
-    'nsFontFace.h',
-    'nsFontFaceList.h',
-]
-

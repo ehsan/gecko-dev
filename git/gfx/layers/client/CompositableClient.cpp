@@ -6,6 +6,7 @@
 #include "mozilla/layers/CompositableClient.h"
 #include "mozilla/layers/TextureClient.h"
 #include "mozilla/layers/TextureClientOGL.h"
+#include "mozilla/layers/TextureChild.h"
 #include "mozilla/layers/ShadowLayersChild.h"
 #include "mozilla/layers/CompositableForwarder.h"
 
@@ -69,11 +70,32 @@ CompositableClient::GetAsyncID() const
 void
 CompositableChild::Destroy()
 {
+  int numChildren = ManagedPTextureChild().Length();
+  for (int i = numChildren-1; i >= 0; --i) {
+    TextureChild* texture =
+      static_cast<TextureChild*>(
+        ManagedPTextureChild()[i]);
+    texture->Destroy();
+  }
   Send__delete__(this);
 }
 
+PTextureChild*
+CompositableChild::AllocPTexture(const TextureInfo& aInfo)
+{
+  return new TextureChild();
+}
+
+bool
+CompositableChild::DeallocPTexture(PTextureChild* aActor)
+{
+  delete aActor;
+  return true;
+}
+
 TemporaryRef<TextureClient>
-CompositableClient::CreateTextureClient(TextureClientType aTextureClientType)
+CompositableClient::CreateTextureClient(TextureClientType aTextureClientType,
+                                        TextureFlags aFlags)
 {
   MOZ_ASSERT(GetForwarder(), "Can't create a texture client if the compositable is not connected to the compositor.");
   LayersBackend parentBackend = GetForwarder()->GetCompositorBackendType();
@@ -82,27 +104,27 @@ CompositableClient::CreateTextureClient(TextureClientType aTextureClientType)
   switch (aTextureClientType) {
   case TEXTURE_SHARED_GL:
     if (parentBackend == LAYERS_OPENGL) {
-      result = new TextureClientSharedOGL(GetForwarder(), GetTextureInfo());
+      result = new TextureClientSharedOGL(GetForwarder(), GetType());
     }
      break;
   case TEXTURE_SHARED_GL_EXTERNAL:
     if (parentBackend == LAYERS_OPENGL) {
-      result = new TextureClientSharedOGLExternal(GetForwarder(), GetTextureInfo());
+      result = new TextureClientSharedOGLExternal(GetForwarder(), GetType());
     }
     break;
   case TEXTURE_STREAM_GL:
     if (parentBackend == LAYERS_OPENGL) {
-      result = new TextureClientStreamOGL(GetForwarder(), GetTextureInfo());
+      result = new TextureClientStreamOGL(GetForwarder(), GetType());
     }
     break;
   case TEXTURE_YCBCR:
-    result = new TextureClientShmemYCbCr(GetForwarder(), GetTextureInfo());
+    result = new TextureClientShmemYCbCr(GetForwarder(), GetType());
     break;
   case TEXTURE_CONTENT:
      // fall through to TEXTURE_SHMEM
   case TEXTURE_SHMEM:
     if (parentBackend == LAYERS_OPENGL) {
-      result = new TextureClientShmem(GetForwarder(), GetTextureInfo());
+      result = new TextureClientShmem(GetForwarder(), GetType());
     }
     break;
   default:
@@ -112,7 +134,12 @@ CompositableClient::CreateTextureClient(TextureClientType aTextureClientType)
   MOZ_ASSERT(result, "Failed to create TextureClient");
   MOZ_ASSERT(result->SupportsType(aTextureClientType),
              "Created the wrong texture client?");
-  result->SetFlags(GetTextureInfo().mTextureFlags);
+  result->SetFlags(aFlags);
+  TextureChild* textureChild = static_cast<TextureChild*>(
+    GetIPDLActor()->SendPTextureConstructor(result->GetTextureInfo()));
+
+  result->SetIPDLActor(textureChild);
+  textureChild->SetClient(result);
 
   return result.forget();
 }

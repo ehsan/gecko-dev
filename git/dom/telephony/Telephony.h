@@ -47,7 +47,7 @@ public:
   NS_DECL_NSIDOMTELEPHONY
   NS_DECL_NSITELEPHONYLISTENER
 
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(
                                                    Telephony,
                                                    nsDOMEventTargetHelper)
@@ -55,10 +55,17 @@ public:
   static already_AddRefed<Telephony>
   Create(nsPIDOMWindow* aOwner, nsITelephonyProvider* aProvider);
 
-  nsISupports*
-  ToISupports()
+  nsIDOMEventTarget*
+  ToIDOMEventTarget() const
   {
-    return static_cast<EventTarget*>(this);
+    return static_cast<nsDOMEventTargetHelper*>(
+             const_cast<Telephony*>(this));
+  }
+
+  nsISupports*
+  ToISupports() const
+  {
+    return ToIDOMEventTarget();
   }
 
   void

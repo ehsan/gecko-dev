@@ -50,6 +50,7 @@ struct WebAudioDecodeJob
   void OnFailure(ErrorCode aErrorCode);
 
   bool AllocateBuffer();
+  JSContext* GetJSContext() const;
   bool FinalizeBufferData();
 
   nsCString mContentType;
