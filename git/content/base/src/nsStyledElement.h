@@ -64,10 +64,9 @@ protected:
 
 public:
 
-  // nsIContent interface methods
+  // nsIContent interface methods for styling
   virtual nsIAtom* GetClassAttributeName() const;
   virtual nsIAtom* GetIDAttributeName() const;
-  virtual nsIAtom* DoGetID() const;
   virtual const nsAttrValue* DoGetClasses() const;
 
   virtual nsICSSStyleRule* GetInlineStyleRule();
@@ -76,10 +75,6 @@ public:
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
-  virtual void UnbindFromTree(PRBool aDeep, PRBool aNullParent);
-
-  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                             PRBool aNotify);
 
 protected:
 

@@ -436,7 +436,9 @@ nsHTMLLabelElement::GetControlContent()
     return nsnull;
   }
 
-  nsIContent* content = doc->GetElementById(elementId);
+  nsresult rv;
+  nsIContent* content = doc->GetElementById(elementId, &rv);
+  NS_ENSURE_SUCCESS(rv, nsnull);
   if (!content) {
     return nsnull;
   }
