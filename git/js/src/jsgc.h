@@ -481,11 +481,10 @@ const size_t GC_ARENA_ALLOCATION_TRIGGER = 30 * js::GC_CHUNK_SIZE;
 
 /*
  * A GC is triggered once the number of newly allocated arenas 
- * is GC_HEAP_GROWTH_FACTOR times the number of live arenas after
- * the last GC starting after the lower limit of
- * GC_ARENA_ALLOCATION_TRIGGER.
+ * is 1.5 times the number of live arenas after the last GC.
+ * (Starting after the lower limit of GC_ARENA_ALLOCATION_TRIGGER)
  */
-const float GC_HEAP_GROWTH_FACTOR = 3.0f;
+const float GC_HEAP_GROWTH_FACTOR = 3;
 
 static inline size_t
 GetFinalizableTraceKind(size_t thingKind)
@@ -828,7 +827,12 @@ typedef enum JSGCInvocationKind {
      * Called from js_DestroyContext for last JSContext in a JSRuntime, when
      * it is imperative that rt->gcPoke gets cleared early in js_GC.
      */
-    GC_LAST_CONTEXT     = 1
+    GC_LAST_CONTEXT     = 1,
+
+    /*
+     * Flag bit telling js_GC that the caller has already acquired rt->gcLock.
+     */
+    GC_LOCK_HELD        = 0x10
 } JSGCInvocationKind;
 
 extern void

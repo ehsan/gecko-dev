@@ -67,14 +67,6 @@ using namespace js::mjit::ic;
 
 #define ADD_CALLSITE(stub) if (debugMode) addCallSite(__LINE__, (stub))
 
-#define RETURN_IF_OOM(retval)                    \
-    JS_BEGIN_MACRO                               \
-        if (masm.oom() || stubcc.masm.oom()) {   \
-            js_ReportOutOfMemory(cx);            \
-            return retval;                       \
-        }                                        \
-    JS_END_MACRO
-
 #if defined(JS_METHODJIT_SPEW)
 static const char *OpcodeNames[] = {
 # define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format) #name,
@@ -327,8 +319,6 @@ mjit::Compiler::generateEpilogue()
 CompileStatus
 mjit::Compiler::finishThisUp(JITScript **jitp)
 {
-    RETURN_IF_OOM(Compile_Error);
-
     for (size_t i = 0; i < branchPatches.length(); i++) {
         Label label = labelOf(branchPatches[i].pc);
         branchPatches[i].jump.linkTo(label, &masm);
@@ -352,7 +342,7 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     JSC::ExecutableAllocator::makeWritable(result, totalSize);
     masm.executableCopy(result);
     stubcc.masm.executableCopy(result + masm.size());
-    
+
     JSC::LinkBuffer fullCode(result, totalSize);
     JSC::LinkBuffer stubCode(result + masm.size(), stubcc.size());
 
@@ -965,8 +955,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_VOID)
 
           BEGIN_CASE(JSOP_INCNAME)
-            if (!jsop_nameinc(op, STRICT_VARIANT(stubs::IncName), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_nameinc(op, STRICT_VARIANT(stubs::IncName), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_INCNAME)
 
@@ -976,8 +965,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_INCGNAME)
 
           BEGIN_CASE(JSOP_INCPROP)
-            if (!jsop_propinc(op, STRICT_VARIANT(stubs::IncProp), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_propinc(op, STRICT_VARIANT(stubs::IncProp), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_INCPROP)
 
@@ -986,8 +974,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_INCELEM)
 
           BEGIN_CASE(JSOP_DECNAME)
-            if (!jsop_nameinc(op, STRICT_VARIANT(stubs::DecName), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_nameinc(op, STRICT_VARIANT(stubs::DecName), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_DECNAME)
 
@@ -997,8 +984,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_DECGNAME)
 
           BEGIN_CASE(JSOP_DECPROP)
-            if (!jsop_propinc(op, STRICT_VARIANT(stubs::DecProp), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_propinc(op, STRICT_VARIANT(stubs::DecProp), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_DECPROP)
 
@@ -1007,8 +993,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_DECELEM)
 
           BEGIN_CASE(JSOP_NAMEINC)
-            if (!jsop_nameinc(op, STRICT_VARIANT(stubs::NameInc), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_nameinc(op, STRICT_VARIANT(stubs::NameInc), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_NAMEINC)
 
@@ -1018,8 +1003,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_GNAMEINC)
 
           BEGIN_CASE(JSOP_PROPINC)
-            if (!jsop_propinc(op, STRICT_VARIANT(stubs::PropInc), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_propinc(op, STRICT_VARIANT(stubs::PropInc), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_PROPINC)
 
@@ -1028,8 +1012,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_ELEMINC)
 
           BEGIN_CASE(JSOP_NAMEDEC)
-            if (!jsop_nameinc(op, STRICT_VARIANT(stubs::NameDec), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_nameinc(op, STRICT_VARIANT(stubs::NameDec), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_NAMEDEC)
 
@@ -1039,8 +1022,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_GNAMEDEC)
 
           BEGIN_CASE(JSOP_PROPDEC)
-            if (!jsop_propinc(op, STRICT_VARIANT(stubs::PropDec), fullAtomIndex(PC)))
-                return Compile_Error;
+            jsop_propinc(op, STRICT_VARIANT(stubs::PropDec), fullAtomIndex(PC));
             break;
           END_CASE(JSOP_PROPDEC)
 
@@ -1051,36 +1033,30 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_GETTHISPROP)
             /* Push thisv onto stack. */
             jsop_this();
-            if (!jsop_getprop(script->getAtom(fullAtomIndex(PC))))
-                return Compile_Error;
+            jsop_getprop(script->getAtom(fullAtomIndex(PC)));
           END_CASE(JSOP_GETTHISPROP);
 
           BEGIN_CASE(JSOP_GETARGPROP)
             /* Push arg onto stack. */
             jsop_getarg(GET_SLOTNO(PC));
-            if (!jsop_getprop(script->getAtom(fullAtomIndex(&PC[ARGNO_LEN]))))
-                return Compile_Error;
+            jsop_getprop(script->getAtom(fullAtomIndex(&PC[ARGNO_LEN])));
           END_CASE(JSOP_GETARGPROP)
 
           BEGIN_CASE(JSOP_GETLOCALPROP)
             frame.pushLocal(GET_SLOTNO(PC));
-            if (!jsop_getprop(script->getAtom(fullAtomIndex(&PC[SLOTNO_LEN]))))
-                return Compile_Error;
+            jsop_getprop(script->getAtom(fullAtomIndex(&PC[SLOTNO_LEN])));
           END_CASE(JSOP_GETLOCALPROP)
 
           BEGIN_CASE(JSOP_GETPROP)
-            if (!jsop_getprop(script->getAtom(fullAtomIndex(PC))))
-                return Compile_Error;
+            jsop_getprop(script->getAtom(fullAtomIndex(PC)));
           END_CASE(JSOP_GETPROP)
 
           BEGIN_CASE(JSOP_LENGTH)
-            if (!jsop_length())
-                return Compile_Error;
+            jsop_length();
           END_CASE(JSOP_LENGTH)
 
           BEGIN_CASE(JSOP_GETELEM)
-            if (!jsop_getelem())
-                return Compile_Error;
+            jsop_getelem();
           END_CASE(JSOP_GETELEM)
 
           BEGIN_CASE(JSOP_SETELEM)
@@ -1371,14 +1347,12 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_BINDNAME)
 
           BEGIN_CASE(JSOP_SETPROP)
-            if (!jsop_setprop(script->getAtom(fullAtomIndex(PC))))
-                return Compile_Error;
+            jsop_setprop(script->getAtom(fullAtomIndex(PC)));
           END_CASE(JSOP_SETPROP)
 
           BEGIN_CASE(JSOP_SETNAME)
           BEGIN_CASE(JSOP_SETMETHOD)
-            if (!jsop_setprop(script->getAtom(fullAtomIndex(PC))))
-                return Compile_Error;
+            jsop_setprop(script->getAtom(fullAtomIndex(PC)));
           END_CASE(JSOP_SETNAME)
 
           BEGIN_CASE(JSOP_THROW)
@@ -1396,8 +1370,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_IN)
 
           BEGIN_CASE(JSOP_INSTANCEOF)
-            if (!jsop_instanceof())
-                return Compile_Error;
+            jsop_instanceof();
           END_CASE(JSOP_INSTANCEOF)
 
           BEGIN_CASE(JSOP_EXCEPTION)
@@ -1625,8 +1598,7 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_STOP)
 
           BEGIN_CASE(JSOP_GETXPROP)
-            if (!jsop_xname(script->getAtom(fullAtomIndex(PC))))
-                return Compile_Error;
+            jsop_xname(script->getAtom(fullAtomIndex(PC)));
           END_CASE(JSOP_GETXPROP)
 
           BEGIN_CASE(JSOP_ENTERBLOCK)
@@ -1731,10 +1703,8 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_GLOBALINC)
 
           BEGIN_CASE(JSOP_BEGIN)
-            if (isConstructing) {
-                if (!constructThis())
-                    return Compile_Error;
-            }
+            if (isConstructing)
+                constructThis();
           END_CASE(JSOP_BEGIN)
 
           default:
@@ -2422,7 +2392,7 @@ mjit::Compiler::jsop_callprop_slow(JSAtom *atom)
     return true;
 }
 
-bool
+void
 mjit::Compiler::jsop_length()
 {
     FrameEntry *top = frame.peek(-1);
@@ -2441,17 +2411,16 @@ mjit::Compiler::jsop_length()
             frame.pop();
             frame.pushTypedPayload(JSVAL_TYPE_INT32, str);
         }
-        return true;
+        return;
     }
 
 #if defined JS_POLYIC
-    return jsop_getprop(cx->runtime->atomState.lengthAtom);
+    jsop_getprop(cx->runtime->atomState.lengthAtom);
 #else
     prepareStubCall(Uses(1));
     stubCall(stubs::Length);
     frame.pop();
     frame.pushSynced();
-    return true;
 #endif
 }
 
@@ -2470,7 +2439,7 @@ mjit::Compiler::passPICAddress(PICGenInfo &pic)
     pic.addrLabel = stubcc.masm.moveWithPatch(ImmPtr(NULL), Registers::ArgReg1);
 }
 
-bool
+void
 mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck)
 {
     FrameEntry *top = frame.peek(-1);
@@ -2480,7 +2449,7 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck)
         JS_ASSERT_IF(atom == cx->runtime->atomState.lengthAtom,
                      top->getKnownType() != JSVAL_TYPE_STRING);
         jsop_getprop_slow();
-        return true;
+        return;
     }
 
     /*
@@ -2508,7 +2477,6 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck)
         Jump j = masm.testObject(Assembler::NotEqual, reg);
 
         /* GETPROP_INLINE_TYPE_GUARD is used to patch the jmp, not cmp. */
-        RETURN_IF_OOM(false);
         JS_ASSERT(masm.differenceBetween(pic.fastPathStart, masm.label()) == GETPROP_INLINE_TYPE_GUARD);
 
         pic.typeCheck = stubcc.linkExit(j, Uses(1));
@@ -2568,8 +2536,8 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck)
 #endif
     pic.storeBack = masm.label();
 
+
     /* Assert correctness of hardcoded offsets. */
-    RETURN_IF_OOM(false);
 #if defined JS_NUNBOX32
     JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDslotsLoad) == GETPROP_DSLOTS_LOAD);
     JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgTypeLoad) == GETPROP_TYPE_LOAD);
@@ -2596,11 +2564,10 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck)
     stubcc.rejoin(Changes(1));
 
     pics.append(pic);
-    return true;
 }
 
 #ifdef JS_POLYIC
-bool
+void
 mjit::Compiler::jsop_getelem_pic(FrameEntry *obj, FrameEntry *id, RegisterID objReg,
                                  RegisterID idReg, RegisterID shapeReg)
 {
@@ -2670,7 +2637,6 @@ mjit::Compiler::jsop_getelem_pic(FrameEntry *obj, FrameEntry *id, RegisterID obj
     pic.objReg = objReg;
     pic.idReg = idReg;
 
-    RETURN_IF_OOM(false);
 #if defined JS_NUNBOX32
     JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDslotsLoad) == GETELEM_DSLOTS_LOAD);
     JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgTypeLoad) == GETELEM_TYPE_LOAD);
@@ -2702,7 +2668,6 @@ mjit::Compiler::jsop_getelem_pic(FrameEntry *obj, FrameEntry *id, RegisterID obj
     JS_ASSERT(pic.objReg != pic.shapeReg);
 
     pics.append(pic);
-    return true;
 }
 #endif
 
@@ -2803,7 +2768,6 @@ mjit::Compiler::jsop_callprop_generic(JSAtom *atom)
     pic.storeBack = masm.label();
 
     /* Assert correctness of hardcoded offsets. */
-    RETURN_IF_OOM(false);
     JS_ASSERT(masm.differenceBetween(pic.fastPathStart, dbgInlineTypeGuard) == GETPROP_INLINE_TYPE_GUARD);
 #if defined JS_NUNBOX32
     JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDslotsLoad) == GETPROP_DSLOTS_LOAD);
@@ -2850,8 +2814,7 @@ mjit::Compiler::jsop_callprop_str(JSAtom *atom)
     frame.pushTypedPayload(JSVAL_TYPE_OBJECT, reg);
 
     /* Get the property. */
-    if (!jsop_getprop(atom))
-        return false;
+    jsop_getprop(atom);
 
     /* Perform a swap. */
     frame.dup2();
@@ -2963,7 +2926,6 @@ mjit::Compiler::jsop_callprop_obj(JSAtom *atom)
      * Assert correctness of hardcoded offsets.
      * No type guard: type is asserted.
      */
-    RETURN_IF_OOM(false);
 #if defined JS_NUNBOX32
     JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgDslotsLoad) == GETPROP_DSLOTS_LOAD);
     JS_ASSERT(masm.differenceBetween(pic.storeBack, dbgTypeLoad) == GETPROP_TYPE_LOAD);
@@ -3006,7 +2968,7 @@ mjit::Compiler::jsop_callprop(JSAtom *atom)
     return jsop_callprop_generic(atom);
 }
 
-bool
+void
 mjit::Compiler::jsop_setprop(JSAtom *atom)
 {
     FrameEntry *lhs = frame.peek(-2);
@@ -3015,7 +2977,7 @@ mjit::Compiler::jsop_setprop(JSAtom *atom)
     /* If the incoming type will never PIC, take slow path. */
     if (lhs->isTypeKnown() && lhs->getKnownType() != JSVAL_TYPE_OBJECT) {
         jsop_setprop_slow(atom);
-        return true;
+        return;
     }
 
     JSOp op = JSOp(*PC);
@@ -3121,7 +3083,6 @@ mjit::Compiler::jsop_setprop(JSAtom *atom)
         stubcc.rejoin(Changes(1));
     }
 
-    RETURN_IF_OOM(false);
 #if defined JS_PUNBOX64
     pic.labels.setprop.dslotsLoadOffset = masm.differenceBetween(pic.storeBack, dslotsLoadLabel);
     pic.labels.setprop.inlineShapeOffset = masm.differenceBetween(pic.shapeGuard, inlineShapeOffsetLabel);
@@ -3147,7 +3108,6 @@ mjit::Compiler::jsop_setprop(JSAtom *atom)
 #endif
 
     pics.append(pic);
-    return true;
 }
 
 void
@@ -3182,14 +3142,15 @@ mjit::Compiler::jsop_name(JSAtom *atom)
     pics.append(pic);
 }
 
-bool
+void
 mjit::Compiler::jsop_xname(JSAtom *atom)
 {
     PICGenInfo pic(ic::PICInfo::XNAME);
 
     FrameEntry *fe = frame.peek(-1);
     if (fe->isNotType(JSVAL_TYPE_OBJECT)) {
-        return jsop_getprop(atom);
+        jsop_getprop(atom);
+        return;
     }
 
     if (!fe->isTypeKnown()) {
@@ -3223,7 +3184,6 @@ mjit::Compiler::jsop_xname(JSAtom *atom)
     stubcc.rejoin(Changes(1));
 
     pics.append(pic);
-    return true;
 }
 
 void
@@ -3283,17 +3243,16 @@ mjit::Compiler::jsop_name(JSAtom *atom)
     frame.pushSynced();
 }
 
-bool
+void
 mjit::Compiler::jsop_xname(JSAtom *atom)
 {
-    return jsop_getprop(atom);
+    jsop_getprop(atom);
 }
 
-bool
+void
 mjit::Compiler::jsop_getprop(JSAtom *atom, bool typecheck)
 {
     jsop_getprop_slow();
-    return true;
 }
 
 bool
@@ -3302,11 +3261,10 @@ mjit::Compiler::jsop_callprop(JSAtom *atom)
     return jsop_callprop_slow(atom);
 }
 
-bool
+void
 mjit::Compiler::jsop_setprop(JSAtom *atom)
 {
     jsop_setprop_slow(atom);
-    return true;
 }
 
 void
@@ -3443,7 +3401,7 @@ mjit::Compiler::jsop_gnameinc(JSOp op, VoidStubAtom stub, uint32 index)
     PC += JSOP_GNAMEINC_LENGTH;
 }
 
-bool
+void
 mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
 {
     JSAtom *atom = script->getAtom(index);
@@ -3477,8 +3435,7 @@ mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
         frame.shift(-1);
         // OBJ V+1
 
-        if (!jsop_setprop(atom))
-            return false;
+        jsop_setprop(atom);
         // V+1
 
         if (pop)
@@ -3513,8 +3470,7 @@ mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
         frame.shift(-1);
         // N OBJ N+1
 
-        if (!jsop_setprop(atom))
-            return false;
+        jsop_setprop(atom);
         // N N+1
 
         frame.pop();
@@ -3531,10 +3487,9 @@ mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
 #endif
 
     PC += JSOP_NAMEINC_LENGTH;
-    return true;
 }
 
-bool
+void
 mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
 {
     JSAtom *atom = script->getAtom(index);
@@ -3551,8 +3506,7 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
             frame.dup();
             // OBJ OBJ
 
-            if (!jsop_getprop(atom))
-                return false;
+            jsop_getprop(atom);
             // OBJ V
 
             frame.push(Int32Value(amt));
@@ -3562,8 +3516,7 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
             jsop_binary(JSOP_SUB, stubs::Sub);
             // OBJ V+1
 
-            if (!jsop_setprop(atom))
-                return false;
+            jsop_setprop(atom);
             // V+1
 
             if (pop)
@@ -3574,8 +3527,7 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
             frame.dup();
             // OBJ OBJ 
 
-            if (!jsop_getprop(atom))
-                return false;
+            jsop_getprop(atom);
             // OBJ V
 
             jsop_pos();
@@ -3596,8 +3548,7 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
             frame.dupAt(-2);
             // OBJ N N+1 OBJ N+1
 
-            if (!jsop_setprop(atom))
-                return false;
+            jsop_setprop(atom);
             // OBJ N N+1 N+1
 
             frame.popn(2);
@@ -3619,7 +3570,6 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
     }
 
     PC += JSOP_PROPINC_LENGTH;
-    return true;
 }
 
 void
@@ -4174,7 +4124,7 @@ mjit::Compiler::jsop_unbrand()
     stubCall(stubs::Unbrand);
 }
 
-bool
+void
 mjit::Compiler::jsop_instanceof()
 {
     FrameEntry *lhs = frame.peek(-2);
@@ -4187,7 +4137,7 @@ mjit::Compiler::jsop_instanceof()
         frame.popn(2);
         frame.takeReg(Registers::ReturnReg);
         frame.pushTypedPayload(JSVAL_TYPE_BOOLEAN, Registers::ReturnReg);
-        return true;
+        return;
     }
 
     MaybeJump firstSlow;
@@ -4214,8 +4164,7 @@ mjit::Compiler::jsop_instanceof()
     /* This is sadly necessary because the error case needs the object. */
     frame.dup();
 
-    if (!jsop_getprop(cx->runtime->atomState.classPrototypeAtom, false))
-        return false;
+    jsop_getprop(cx->runtime->atomState.classPrototypeAtom, false);
 
     /* Primitive prototypes are invalid. */
     rhs = frame.peek(-1);
@@ -4267,7 +4216,6 @@ mjit::Compiler::jsop_instanceof()
     if (firstSlow.isSet())
         firstSlow.getJump().linkTo(stubcc.masm.label(), &stubcc.masm);
     stubcc.rejoin(Changes(1));
-    return true;
 }
 
 /*
@@ -4393,7 +4341,7 @@ mjit::Compiler::leaveBlock()
 //       NULL
 //   call js_CreateThisFromFunctionWithProto(...)
 //
-bool
+void
 mjit::Compiler::constructThis()
 {
     JS_ASSERT(isConstructing);
@@ -4405,8 +4353,7 @@ mjit::Compiler::constructThis()
     frame.pushTypedPayload(JSVAL_TYPE_OBJECT, calleeReg);
 
     // Get callee.prototype.
-    if (!jsop_getprop(cx->runtime->atomState.classPrototypeAtom))
-        return false;
+    jsop_getprop(cx->runtime->atomState.classPrototypeAtom);
 
     // Reach into the proto Value and grab a register for its data.
     FrameEntry *protoFe = frame.peek(-1);
@@ -4426,6 +4373,5 @@ mjit::Compiler::constructThis()
         masm.move(protoReg, Registers::ArgReg1);
     stubCall(stubs::CreateThis);
     frame.freeReg(protoReg);
-    return true;
 }
 

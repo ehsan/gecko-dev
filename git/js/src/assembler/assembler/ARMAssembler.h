@@ -146,7 +146,6 @@ namespace JSC {
         typedef SegmentedVector<int, 64> Jumps;
 
         unsigned char *buffer() const { return m_buffer.buffer(); }
-        bool oom() const { return m_buffer.oom(); }
 
         // ARM conditional constants
         typedef enum {

@@ -1523,11 +1523,6 @@ public:
     {
         generate();
 
-        if (oom()) {
-            m_shouldFallBack = true;
-            return;
-        }
-
         ExecutablePool *executablePool = allocator.poolForSize(size());
         if (!executablePool) {
             m_shouldFallBack = true;

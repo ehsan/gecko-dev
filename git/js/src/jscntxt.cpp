@@ -2046,7 +2046,7 @@ JSContext::JSContext(JSRuntime *rt)
   : runtime(rt),
     compartment(rt->defaultCompartment),
     regs(NULL),
-    busyArrays(thisInInitializer())
+    busyArrays(this)
 {}
 
 void

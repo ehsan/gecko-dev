@@ -1398,7 +1398,7 @@ mjit::Compiler::jsop_getelem_dense(FrameEntry *obj, FrameEntry *id, RegisterID o
     /* Note: linkExits will be hooked up to a leave() after this method completes. */
 }
 
-bool
+void
 mjit::Compiler::jsop_getelem_known_type(FrameEntry *obj, FrameEntry *id, RegisterID tmpReg)
 {
     switch (id->getKnownType()) {
@@ -1421,7 +1421,7 @@ mjit::Compiler::jsop_getelem_known_type(FrameEntry *obj, FrameEntry *id, Registe
         frame.popn(2);
         frame.pushRegs(tmpReg, objReg);
         stubcc.rejoin(Changes(1));
-        break;
+        return;
       }
 #ifdef JS_POLYIC
       case JSVAL_TYPE_STRING:
@@ -1431,25 +1431,23 @@ mjit::Compiler::jsop_getelem_known_type(FrameEntry *obj, FrameEntry *id, Registe
         RegisterID idReg = frame.copyDataIntoReg(id);
 
         /* Meat. */
-        if (!jsop_getelem_pic(obj, id, objReg, idReg, tmpReg))
-            return false;
+        jsop_getelem_pic(obj, id, objReg, idReg, tmpReg);
 
         /* Epilogue. */
         frame.popn(2);
         frame.pushRegs(tmpReg, objReg);
         frame.freeReg(idReg);
         stubcc.rejoin(Changes(1));
-        break;
+        return;
       }
 #endif
       default:
         JS_NOT_REACHED("Invalid known id type.");
     }
-    return true;
 }
 
 #ifdef JS_POLYIC
-bool
+void
 mjit::Compiler::jsop_getelem_with_pic(FrameEntry *obj, FrameEntry *id, RegisterID tmpReg)
 {
     JS_ASSERT(!id->isTypeKnown());
@@ -1474,15 +1472,13 @@ mjit::Compiler::jsop_getelem_with_pic(FrameEntry *obj, FrameEntry *id, RegisterI
     stubcc.call(stubs::GetElem);
     Jump toFinalMerge = stubcc.masm.jump();
 
-    if (!jsop_getelem_pic(obj, id, objReg, idReg.reg(), tmpReg))
-        return false;
+    jsop_getelem_pic(obj, id, objReg, idReg.reg(), tmpReg);
     performedDense.linkTo(masm.label(), &masm);
     frame.popn(2);
     frame.pushRegs(tmpReg, objReg);
     frame.freeReg(idReg.reg());
     toFinalMerge.linkTo(stubcc.masm.label(), &stubcc.masm);
     stubcc.rejoin(Changes(1));
-    return true;
 }
 #endif
 
@@ -1508,7 +1504,7 @@ mjit::Compiler::jsop_getelem_nopic(FrameEntry *obj, FrameEntry *id, RegisterID t
     stubcc.rejoin(Changes(1));
 }
 
-bool
+void
 mjit::Compiler::jsop_getelem()
 {
     FrameEntry *obj = frame.peek(-2);
@@ -1516,7 +1512,7 @@ mjit::Compiler::jsop_getelem()
 
     if (obj->isTypeKnown() && obj->getKnownType() != JSVAL_TYPE_OBJECT) {
         jsop_getelem_slow();
-        return true;
+        return;
     }
 
     if (id->isTypeKnown() &&
@@ -1526,19 +1522,19 @@ mjit::Compiler::jsop_getelem()
 #endif
          )) {
         jsop_getelem_slow();
-        return true;
+        return;
     }
 
     if (id->isTypeKnown() && id->getKnownType() == JSVAL_TYPE_INT32 && id->isConstant() &&
         id->getValue().toInt32() < 0) {
         jsop_getelem_slow();
-        return true;
+        return;
     }
 
     if (id->isTypeKnown() && id->getKnownType() == JSVAL_TYPE_STRING && id->isConstant()) {
         /* Never happens, or I'd optimize it. */
         jsop_getelem_slow();
-        return true;
+        return;
     }
 
     RegisterID tmpReg;
@@ -1556,8 +1552,7 @@ mjit::Compiler::jsop_getelem()
 #ifdef JS_POLYIC
     return jsop_getelem_with_pic(obj, id, tmpReg);
 #else
-    jsop_getelem_nopic(obj, id, tmpReg);
-    return true;
+    return jsop_getelem_nopic(obj, id, tmpReg);
 #endif
 }
 
@@ -1648,11 +1643,13 @@ mjit::Compiler::jsop_stricteq(JSOp op)
             masm.set32(cond, frame.tempRegForType(test), Imm32(mask), result);
 #elif defined JS_CPU_X64
         RegisterID maskReg = frame.allocReg();
-        masm.move(ImmTag(known->getKnownTag()), maskReg);
+        frame.pinReg(maskReg);
 
+        masm.move(ImmTag(known->getKnownTag()), maskReg);
         RegisterID r = frame.tempRegForType(test);
         masm.setPtr(cond, r, maskReg, result);
 
+        frame.unpinReg(maskReg);
         frame.freeReg(maskReg);
 #endif
         frame.popn(2);
