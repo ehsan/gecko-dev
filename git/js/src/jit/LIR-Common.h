@@ -128,99 +128,6 @@ class LMoveGroup : public LInstructionHelper<0, 0, 0>
     }
 };
 
-// Constructs a SIMD value with 4 components (e.g. int32x4, float32x4).
-class LSimdValueX4 : public LInstructionHelper<1, 4, 0>
-{
-  public:
-    LIR_HEADER(SimdValueX4)
-    LSimdValueX4(const LAllocation &x, const LAllocation &y,
-                 const LAllocation &z, const LAllocation &w)
-    {
-        setOperand(0, x);
-        setOperand(1, y);
-        setOperand(2, z);
-        setOperand(3, w);
-    }
-
-    MSimdValueX4 *mir() const {
-        return mir_->toSimdValueX4();
-    }
-};
-
-// Extracts an element from a given SIMD int32x4 lane.
-class LSimdExtractElementI : public LInstructionHelper<1, 1, 0>
-{
-    SimdLane lane_;
-
-  public:
-    LIR_HEADER(SimdExtractElementI);
-
-    LSimdExtractElementI(const LAllocation &base, SimdLane lane) : lane_(lane) {
-        setOperand(0, base);
-    }
-    const LAllocation *getBase() {
-        return getOperand(0);
-    }
-    SimdLane lane() const {
-        return lane_;
-    }
-};
-
-// Extracts an element from a given SIMD float32x4 lane.
-class LSimdExtractElementF : public LInstructionHelper<1, 1, 0>
-{
-    SimdLane lane_;
-
-  public:
-    LIR_HEADER(SimdExtractElementF);
-
-    LSimdExtractElementF(const LAllocation &base, SimdLane lane) : lane_(lane) {
-        setOperand(0, base);
-    }
-    const LAllocation *getBase() {
-        return getOperand(0);
-    }
-    SimdLane lane() const {
-        return lane_;
-    }
-};
-
-// Binary SIMD arithmetic operation between two SIMD operands
-class LSimdBinaryArith : public LInstructionHelper<1, 2, 0>
-{
-  public:
-    LSimdBinaryArith() {}
-
-    const LAllocation *lhs() {
-        return getOperand(0);
-    }
-    const LAllocation *rhs() {
-        return getOperand(1);
-    }
-    MSimdBinaryArith::Operation operation() const {
-        return mir_->toSimdBinaryArith()->operation();
-    }
-    const char *extraName() const {
-        return MSimdBinaryArith::OperationName(operation());
-    }
-};
-
-// Binary SIMD arithmetic operation between two Int32x4 operands
-class LSimdBinaryArithIx4 : public LSimdBinaryArith
-{
-  public:
-    LIR_HEADER(SimdBinaryArithIx4);
-    LSimdBinaryArithIx4() : LSimdBinaryArith() {}
-};
-
-// Binary SIMD arithmetic operation between two Float32x4 operands
-class LSimdBinaryArithFx4 : public LSimdBinaryArith
-{
-  public:
-    LIR_HEADER(SimdBinaryArithFx4);
-    LSimdBinaryArithFx4() : LSimdBinaryArith() {}
-};
-
 // Constant 32-bit integer.
 class LInteger : public LInstructionHelper<1, 0, 0>
 {
@@ -306,26 +213,6 @@ class LFloat32 : public LInstructionHelper<1, 0, 0>
     float getFloat() const {
         return f_;
     }
-};
-
-// Constant SIMD int32x4
-class LInt32x4 : public LInstructionHelper<1, 0, 0>
-{
-  public:
-    LIR_HEADER(Int32x4);
-
-    explicit LInt32x4() {}
-    const SimdConstant &getValue() const { return mir_->toSimdConstant()->value(); }
-};
-
-// Constant SIMD float32x4
-class LFloat32x4 : public LInstructionHelper<1, 0, 0>
-{
-  public:
-    LIR_HEADER(Float32x4);
-
-    explicit LFloat32x4() {}
-    const SimdConstant &getValue() const { return mir_->toSimdConstant()->value(); }
 };
 
 // A constant Value.
@@ -800,10 +687,6 @@ class LCheckOverRecursed : public LInstructionHelper<0, 0, 0>
 
     LCheckOverRecursed()
     { }
-
-    MCheckOverRecursed *mir() const {
-        return mir_->toCheckOverRecursed();
-    }
 };
 
 class LCheckOverRecursedPar : public LInstructionHelper<0, 1, 1>
@@ -822,10 +705,6 @@ class LCheckOverRecursedPar : public LInstructionHelper<0, 1, 1>
 
     const LDefinition *getTempReg() {
         return getTemp(0);
-    }
-
-    MCheckOverRecursedPar *mir() const {
-        return mir_->toCheckOverRecursedPar();
     }
 };
 
@@ -887,9 +766,6 @@ class LInterruptCheckImplicit : public LInstructionHelper<0, 0, 0>
     void setOolEntry(Label *oolEntry) {
         oolEntry_ = oolEntry;
     }
-    MInterruptCheck *mir() const {
-        return mir_->toInterruptCheck();
-    }
 };
 
 class LInterruptCheckPar : public LInstructionHelper<0, 1, 1>
@@ -908,9 +784,6 @@ class LInterruptCheckPar : public LInstructionHelper<0, 1, 1>
 
     const LDefinition *getTempReg() {
         return getTemp(0);
-    }
-    MInterruptCheckPar *mir() const {
-        return mir_->toInterruptCheckPar();
     }
 };
 
@@ -2856,10 +2729,6 @@ class LAddI : public LBinaryMath<0>
     void setRecoversInput() {
         recoversInput_ = true;
     }
-
-    MAdd *mir() const {
-        return mir_->toAdd();
-    }
 };
 
 // Subtracts two integers, returning an integer value.
@@ -2883,9 +2752,6 @@ class LSubI : public LBinaryMath<0>
     }
     void setRecoversInput() {
         recoversInput_ = true;
-    }
-    MSub *mir() const {
-        return mir_->toSub();
     }
 };
 
@@ -3229,9 +3095,6 @@ class LValueToInt32 : public LInstructionHelper<1, BOX_PIECES, 2>
         JS_ASSERT(mode_ == TRUNCATE);
         return mir_->toTruncateToInt32();
     }
-    MInstruction *mir() const {
-        return mir_->toInstruction();
-    }
 };
 
 // Convert a double to an int32.
@@ -3286,10 +3149,6 @@ class LTruncateDToInt32 : public LInstructionHelper<1, 1, 1>
     const LDefinition *tempFloat() {
         return getTemp(0);
     }
-
-    MTruncateToInt32 *mir() const {
-        return mir_->toTruncateToInt32();
-    }
 };
 
 // Convert a float32 to a truncated int32.
@@ -3307,10 +3166,6 @@ class LTruncateFToInt32 : public LInstructionHelper<1, 1, 1>
 
     const LDefinition *tempFloat() {
         return getTemp(0);
-    }
-
-    MTruncateToInt32 *mir() const {
-        return mir_->toTruncateToInt32();
     }
 };
 
@@ -3392,17 +3247,6 @@ class LStart : public LInstructionHelper<0, 0, 0>
 {
   public:
     LIR_HEADER(Start)
-};
-
-// No-op instruction that prints nativeOffset, script, pcOffset during codegen.
-class LPcOffset : public LInstructionHelper<0, 0, 0>
-{
-  public:
-    LIR_HEADER(PcOffset)
-
-    const MPcOffset *mir() const {
-        return mir_->toPcOffset();
-    }
 };
 
 // Passed the BaselineFrame address in the OsrFrameReg by SideCannon().
@@ -4382,27 +4226,6 @@ class LArrayConcat : public LCallInstructionHelper<1, 2, 2>
     }
     const LDefinition *temp2() {
         return getTemp(1);
-    }
-};
-
-class LArrayJoin : public LCallInstructionHelper<1, 2, 0>
-{
-  public:
-    LIR_HEADER(ArrayJoin)
-
-    LArrayJoin(const LAllocation &array, const LAllocation &sep) {
-        setOperand(0, array);
-        setOperand(1, sep);
-    }
-
-    const MArrayJoin *mir() const {
-        return mir_->toArrayJoin();
-    }
-    const LAllocation *array() {
-        return getOperand(0);
-    }
-    const LAllocation *separator() {
-        return getOperand(1);
     }
 };
 

@@ -1386,8 +1386,7 @@ protected:
   // Inner windows only.
   already_AddRefed<mozilla::dom::StorageEvent>
   CloneStorageEvent(const nsAString& aType,
-                    const nsRefPtr<mozilla::dom::StorageEvent>& aEvent,
-                    mozilla::ErrorResult& aRv);
+                    const nsRefPtr<mozilla::dom::StorageEvent>& aEvent);
 
   // Outer windows only.
   nsDOMWindowList* GetWindowList();

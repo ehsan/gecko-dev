@@ -7,13 +7,13 @@
 
 #include "media/stagefright/MediaSource.h"
 #include "mp4_demuxer/mp4_demuxer.h"
-#include "MediaResource.h"
+
+namespace mozilla { class MediaByteRange; }
 
 namespace mp4_demuxer {
 
 class Stream;
 class Box;
-class Moof;
 
 class Tkhd
 {
@@ -54,9 +54,9 @@ public:
 class Trex
 {
 public:
-  Trex(uint32_t aTrackId)
+  Trex()
     : mFlags(0)
-    , mTrackId(aTrackId)
+    , mTrackId(0)
     , mDefaultSampleDescriptionIndex(0)
     , mDefaultSampleDuration(0)
     , mDefaultSampleSize(0)
@@ -92,24 +92,11 @@ public:
   uint64_t mBaseMediaDecodeTime;
 };
 
-class Moof
-{
-public:
-  Moof(Box& aBox, Trex& aTrex, Mdhd& aMdhd);
-  void ParseTraf(Box& aBox, Trex& aTrex, Mdhd& aMdhd);
-  void ParseTrun(Box& aBox, Tfhd& aTfhd, Tfdt& aTfdt, Mdhd& aMdhd);
-
-  mozilla::MediaByteRange mRange;
-  mozilla::MediaByteRange mMdatRange;
-  nsTArray<Interval<Microseconds>> mTimeRanges;
-  nsTArray<stagefright::MediaSource::Indice> mIndex;
-};
-
 class MoofParser
 {
 public:
   MoofParser(Stream* aSource, uint32_t aTrackId)
-    : mSource(aSource), mOffset(0), mTrex(aTrackId)
+    : mSource(aSource), mTrackId(aTrackId)
   {
   }
   void RebuildFragmentedIndex(
@@ -120,12 +107,12 @@ public:
   void ParseMvex(Box& aBox);
 
   nsRefPtr<Stream> mSource;
-  uint64_t mOffset;
+  uint32_t mTrackId;
   nsTArray<uint64_t> mMoofOffsets;
   Mdhd mMdhd;
   Trex mTrex;
   Tfdt mTfdt;
-  nsTArray<Moof> mMoofs;
+  nsTArray<stagefright::MediaSource::Indice> mIndex;
 };
 }
 

@@ -180,8 +180,7 @@ EMEAACDecoder::Decoded(const nsTArray<int16_t>& aPCM,
                                            duration.value(),
                                            numFrames,
                                            audioData.forget(),
-                                           aChannels,
-                                           aRate));
+                                           aChannels));
 
   #ifdef LOG_SAMPLE_DECODE
   LOG("Decoded audio sample! timestamp=%lld duration=%lld currentLength=%u",

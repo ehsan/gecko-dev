@@ -193,8 +193,7 @@ public:
                          aDuration,
                          uint32_t(frames.value()),
                          samples,
-                         mChannelCount,
-                         mSampleRate);
+                         mChannelCount);
   }
 
 private:

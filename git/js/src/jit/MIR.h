@@ -13,7 +13,6 @@
 #define jit_MIR_h
 
 #include "mozilla/Array.h"
-#include "mozilla/DebugOnly.h"
 
 #include "jit/CompilerRoot.h"
 #include "jit/FixedList.h"
@@ -1095,24 +1094,6 @@ class MStart : public MNullaryInstruction
     }
 };
 
-class MPcOffset : public MNullaryInstruction
-{
-  private:
-    MPcOffset() {
-        setGuard();
-    }
-
-  public:
-    INSTRUCTION_HEADER(PcOffset)
-    static MPcOffset *New(TempAllocator &alloc) {
-        return new(alloc) MPcOffset();
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-};
-
 // Instruction marking on entrypoint for on-stack replacement.
 // OSR may occur at loop headers (at JSOP_TRACE).
 // There is at most one MOsrEntry per MIRGraph.
@@ -1250,175 +1231,6 @@ class MConstant : public MNullaryInstruction
     bool canProduceFloat32() const;
 
     ALLOW_CLONE(MConstant)
-};
-
-// Generic constructor of SIMD valuesX4.
-class MSimdValueX4 : public MQuaternaryInstruction
-{
-  protected:
-    MSimdValueX4(MIRType type, MDefinition *x, MDefinition *y, MDefinition *z, MDefinition *w)
-      : MQuaternaryInstruction(x, y, z, w)
-    {
-        JS_ASSERT(IsSimdType(type));
-        mozilla::DebugOnly<MIRType> scalarType = SimdTypeToScalarType(type);
-        JS_ASSERT(scalarType == x->type());
-        JS_ASSERT(scalarType == y->type());
-        JS_ASSERT(scalarType == z->type());
-        JS_ASSERT(scalarType == w->type());
-
-        setMovable();
-        setResultType(type);
-    }
-
-  public:
-    INSTRUCTION_HEADER(SimdValueX4)
-
-    static MSimdValueX4 *New(TempAllocator &alloc, MIRType type, MDefinition *x,
-                             MDefinition *y, MDefinition *z, MDefinition *w)
-    {
-        return new(alloc) MSimdValueX4(type, x, y, z, w);
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-
-    bool congruentTo(const MDefinition *ins) const {
-        return congruentIfOperandsEqual(ins);
-    }
-
-    MDefinition *foldsTo(TempAllocator &alloc);
-};
-
-// A constant SIMD value.
-class MSimdConstant : public MNullaryInstruction
-{
-    SimdConstant value_;
-
-  protected:
-    MSimdConstant(const SimdConstant &v, MIRType type) : value_(v) {
-        JS_ASSERT(IsSimdType(type));
-        setResultType(type);
-        setMovable();
-    }
-
-  public:
-    INSTRUCTION_HEADER(SimdConstant);
-    static MSimdConstant *New(TempAllocator &alloc, const SimdConstant &v, MIRType type) {
-        return new(alloc) MSimdConstant(v, type);
-    }
-
-    bool congruentTo(const MDefinition *ins) const {
-        if (!ins->isSimdConstant())
-            return false;
-        return value() == ins->toSimdConstant()->value();
-    }
-
-    const SimdConstant &value() const {
-        return value_;
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-};
-
-// Extracts a lane element from a given vector type, given by its lane symbol.
-class MSimdExtractElement : public MUnaryInstruction
-{
-  protected:
-    SimdLane lane_;
-
-    MSimdExtractElement(MDefinition *obj, MIRType type, SimdLane lane)
-      : MUnaryInstruction(obj), lane_(lane)
-    {
-        JS_ASSERT(IsSimdType(obj->type()));
-        JS_ASSERT(uint32_t(lane) < SimdTypeToLength(obj->type()));
-        JS_ASSERT(!IsSimdType(type));
-        JS_ASSERT(SimdTypeToScalarType(obj->type()) == type);
-        setResultType(type);
-    }
-
-  public:
-    INSTRUCTION_HEADER(SimdExtractElement);
-    static MSimdExtractElement *NewAsmJS(TempAllocator &alloc, MDefinition *obj, MIRType type,
-                                         SimdLane lane)
-    {
-        return new(alloc) MSimdExtractElement(obj, type, lane);
-    }
-
-    SimdLane lane() const {
-        return lane_;
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-    bool congruentTo(const MDefinition *ins) const {
-        if (!ins->isSimdExtractElement())
-            return false;
-        const MSimdExtractElement *other = ins->toSimdExtractElement();
-        if (other->lane_ != lane_)
-            return false;
-        return congruentIfOperandsEqual(other);
-    }
-};
-
-class MSimdBinaryArith : public MBinaryInstruction
-{
-  public:
-    enum Operation {
-        Add,
-        Sub,
-        Mul,
-        Div
-    };
-
-    static const char* OperationName(Operation op) {
-        switch (op) {
-          case Add: return "Add";
-          case Sub: return "Sub";
-          case Mul: return "Mul";
-          case Div: return "Div";
-        }
-        MOZ_ASSUME_UNREACHABLE("unexpected operation");
-    }
-
-  private:
-    Operation operation_;
-
-    MSimdBinaryArith(MDefinition *left, MDefinition *right, Operation op, MIRType type)
-      : MBinaryInstruction(left, right), operation_(op)
-    {
-        JS_ASSERT_IF(type == MIRType_Int32x4, op == Add || op == Sub);
-        JS_ASSERT(IsSimdType(type));
-        JS_ASSERT(left->type() == right->type());
-        JS_ASSERT(left->type() == type);
-        setResultType(type);
-        setMovable();
-        if (op == Add || op == Mul)
-            setCommutative();
-    }
-
-  public:
-    INSTRUCTION_HEADER(SimdBinaryArith);
-    static MSimdBinaryArith *NewAsmJS(TempAllocator &alloc, MDefinition *left, MDefinition *right,
-                                      Operation op, MIRType t)
-    {
-        return new(alloc) MSimdBinaryArith(left, right, op, t);
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-
-    Operation operation() const { return operation_; }
-
-    bool congruentTo(const MDefinition *ins) const {
-        if (!binaryCongruentTo(ins))
-            return false;
-        return operation_ == ins->toSimdBinaryArith()->operation();
-    }
 };
 
 // Deep clone a constant JSObject.
@@ -7311,39 +7123,6 @@ class MArrayConcat
     bool possiblyCalls() const {
         return true;
     }
-};
-
-class MArrayJoin
-    : public MBinaryInstruction,
-      public MixPolicy<ObjectPolicy<0>, StringPolicy<1> >
-{
-    MArrayJoin(MDefinition *array, MDefinition *sep)
-        : MBinaryInstruction(array, sep)
-    {
-        setResultType(MIRType_String);
-    }
-  public:
-    INSTRUCTION_HEADER(ArrayJoin)
-    static MArrayJoin *New(TempAllocator &alloc, MDefinition *array, MDefinition *sep)
-    {
-        return new (alloc) MArrayJoin(array, sep);
-    }
-    TypePolicy *typePolicy() {
-        return this;
-    }
-    MDefinition *array() const {
-        return getOperand(0);
-    }
-    MDefinition *sep() const {
-        return getOperand(1);
-    }
-    bool possiblyCalls() const {
-        return true;
-    }
-    virtual AliasSet getAliasSet() const {
-        return AliasSet::Load(AliasSet::Element | AliasSet::ObjectFields);
-    }
-    MDefinition *foldsTo(TempAllocator &alloc);
 };
 
 class MLoadTypedArrayElement

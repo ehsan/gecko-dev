@@ -64,7 +64,7 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements) MOZ_OVERRIDE;
-  virtual void AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         uint32_t aFilter) MOZ_OVERRIDE;
 
 private:
@@ -243,12 +243,10 @@ nsSVGUseFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 }
 
 void
-nsSVGUseFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+nsSVGUseFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         uint32_t aFilter)
 {
   SVGUseElement *use = static_cast<SVGUseElement*>(mContent);
   nsIContent* clone = use->GetAnonymousContent();
-  if (clone) {
-    aElements.AppendElement(clone);
-  }
+  aElements.MaybeAppendElement(clone);
 }

@@ -71,12 +71,10 @@ public:
             int64_t aDuration,
             uint32_t aFrames,
             AudioDataValue* aData,
-            uint32_t aChannels,
-            uint32_t aRate)
+            uint32_t aChannels)
     : MediaData(AUDIO_SAMPLES, aOffset, aTime, aDuration)
     , mFrames(aFrames)
     , mChannels(aChannels)
-    , mRate(aRate)
     , mAudioData(aData)
   {
     MOZ_COUNT_CTOR(AudioData);
@@ -94,7 +92,6 @@ public:
 
   const uint32_t mFrames;
   const uint32_t mChannels;
-  const uint32_t mRate;
   // At least one of mAudioBuffer/mAudioData must be non-null.
   // mChannels channels, each with mFrames frames
   nsRefPtr<SharedBuffer> mAudioBuffer;

@@ -434,8 +434,7 @@ nsresult OggReader::DecodeVorbis(ogg_packet* aPacket) {
                                    duration,
                                    frames,
                                    buffer.forget(),
-                                   channels,
-                                   mVorbisState->mInfo.rate));
+                                   channels));
 
     mDecodedAudioFrames += frames;
 
@@ -551,8 +550,7 @@ nsresult OggReader::DecodeOpus(ogg_packet* aPacket) {
                                  endTime - startTime,
                                  frames,
                                  buffer.forget(),
-                                 channels,
-                                 mOpusState->mRate));
+                                 channels));
 
   mDecodedAudioFrames += frames;
 

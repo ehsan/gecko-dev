@@ -4,20 +4,10 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-enum SelectionChangeReason {
-  "drag",
-  "mousedown",
-  "mouseup",
-  "keypress",
-  "selectall",
-  "collapsetostart",
-  "collapsetoend"
-};
-
 dictionary SelectionChangeEventInit : EventInit {
   DOMString selectedText = "";
   DOMRectReadOnly? boundingClientRect = null;
-  sequence<SelectionChangeReason> reasons = [];
+  short reason = 0;
 };
 
 [Constructor(DOMString type, optional SelectionChangeEventInit eventInit),
@@ -25,5 +15,5 @@ dictionary SelectionChangeEventInit : EventInit {
 interface SelectionChangeEvent : Event {
   readonly attribute DOMString selectedText;
   readonly attribute DOMRectReadOnly? boundingClientRect;
-  [Cached, Pure] readonly attribute sequence<SelectionChangeReason> reasons;
+  readonly attribute short reason;
 };

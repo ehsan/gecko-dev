@@ -446,7 +446,6 @@ BaselineScript::Destroy(FreeOp *fop, BaselineScript *script)
      */
     JS_ASSERT(fop->runtime()->gc.nursery.isEmpty());
 #endif
-
     fop->delete_(script);
 }
 
@@ -692,27 +691,6 @@ BaselineScript::nativeCodeForPC(JSScript *script, jsbytecode *pc, PCMappingSlotI
 jsbytecode *
 BaselineScript::pcForReturnOffset(JSScript *script, uint32_t nativeOffset)
 {
-    return pcForNativeOffset(script, nativeOffset, true);
-}
-
-jsbytecode *
-BaselineScript::pcForReturnAddress(JSScript *script, uint8_t *nativeAddress)
-{
-    JS_ASSERT(script->baselineScript() == this);
-    JS_ASSERT(nativeAddress >= method_->raw());
-    JS_ASSERT(nativeAddress < method_->raw() + method_->instructionsSize());
-    return pcForReturnOffset(script, uint32_t(nativeAddress - method_->raw()));
-}
-
-jsbytecode *
-BaselineScript::pcForNativeOffset(JSScript *script, uint32_t nativeOffset)
-{
-    return pcForNativeOffset(script, nativeOffset, false);
-}
-
-jsbytecode *
-BaselineScript::pcForNativeOffset(JSScript *script, uint32_t nativeOffset, bool isReturn)
-{
     JS_ASSERT(script->baselineScript() == this);
     JS_ASSERT(nativeOffset < method_->instructionsSize());
 
@@ -729,19 +707,14 @@ BaselineScript::pcForNativeOffset(JSScript *script, uint32_t nativeOffset, bool 
     i--;
 
     PCMappingIndexEntry &entry = pcMappingIndexEntry(i);
-    JS_ASSERT_IF(isReturn, nativeOffset >= entry.nativeOffset);
+    JS_ASSERT(nativeOffset >= entry.nativeOffset);
 
     CompactBufferReader reader(pcMappingReader(i));
     jsbytecode *curPC = script->offsetToPC(entry.pcOffset);
     uint32_t curNativeOffset = entry.nativeOffset;
 
     JS_ASSERT(script->containsPC(curPC));
-    JS_ASSERT_IF(isReturn, nativeOffset >= curNativeOffset);
-
-    // In the raw native-lookup case, the native code address can occur
-    // before the start of ops.  Associate those with bytecode offset 0.
-    if (!isReturn && (curNativeOffset > nativeOffset))
-        return script->code();
+    JS_ASSERT(curNativeOffset <= nativeOffset);
 
     while (true) {
         // If the high bit is set, the native offset relative to the
@@ -750,28 +723,22 @@ BaselineScript::pcForNativeOffset(JSScript *script, uint32_t nativeOffset, bool 
         if (b & 0x80)
             curNativeOffset += reader.readUnsigned();
 
-        if (isReturn ? (nativeOffset == curNativeOffset) : (nativeOffset <= curNativeOffset))
-            return curPC;
-
-        // If this is a raw native lookup (not jsop return addresses), then
-        // the native address may lie in-between the last delta-entry in
-        // a pcMappingIndexEntry, and the next pcMappingIndexEntry.
-        if (!isReturn && !reader.more())
+        if (curNativeOffset == nativeOffset)
             return curPC;
 
         curPC += GetBytecodeLength(curPC);
     }
 
-    MOZ_ASSUME_UNREACHABLE("Bad baseline jitcode address");
+    MOZ_ASSUME_UNREACHABLE("Invalid pc");
 }
 
 jsbytecode *
-BaselineScript::pcForNativeAddress(JSScript *script, uint8_t *nativeAddress)
+BaselineScript::pcForReturnAddress(JSScript *script, uint8_t *nativeAddress)
 {
     JS_ASSERT(script->baselineScript() == this);
     JS_ASSERT(nativeAddress >= method_->raw());
     JS_ASSERT(nativeAddress < method_->raw() + method_->instructionsSize());
-    return pcForNativeOffset(script, uint32_t(nativeAddress - method_->raw()));
+    return pcForReturnOffset(script, uint32_t(nativeAddress - method_->raw()));
 }
 
 void

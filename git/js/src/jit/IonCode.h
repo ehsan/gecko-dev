@@ -44,8 +44,6 @@ class JitCode : public gc::BarrieredCell<JitCode>
     uint8_t kind_ : 3;                // jit::CodeKind, for the memory reporters.
     bool invalidated_ : 1;            // Whether the code object has been invalidated.
                                       // This is necessary to prevent GC tracing.
-    bool hasBytecodeMap_ : 1;         // Whether the code object has been registered with
-                                      // native=>bytecode mapping tables.
 
 #if JS_BITS_PER_WORD == 32
     // Ensure JitCode is gc::Cell aligned.
@@ -68,8 +66,7 @@ class JitCode : public gc::BarrieredCell<JitCode>
         preBarrierTableBytes_(0),
         headerSize_(headerSize),
         kind_(kind),
-        invalidated_(false),
-        hasBytecodeMap_(false)
+        invalidated_(false)
     {
         MOZ_ASSERT(CodeKind(kind_) == kind);
         MOZ_ASSERT(headerSize_ == headerSize);
@@ -92,9 +89,6 @@ class JitCode : public gc::BarrieredCell<JitCode>
     uint8_t *raw() const {
         return code_;
     }
-    uint8_t *rawEnd() const {
-        return code_ + insnSize_;
-    }
     size_t instructionsSize() const {
         return insnSize_;
     }
@@ -102,10 +96,6 @@ class JitCode : public gc::BarrieredCell<JitCode>
     void finalize(FreeOp *fop);
     void setInvalidated() {
         invalidated_ = true;
-    }
-
-    void setHasBytecodeMap() {
-        hasBytecodeMap_ = true;
     }
 
     void togglePreBarriers(bool enabled);

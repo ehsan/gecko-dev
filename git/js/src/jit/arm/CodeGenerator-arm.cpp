@@ -180,12 +180,8 @@ CodeGeneratorARM::bailoutIf(Assembler::Condition condition, LSnapshot *snapshot)
     // We could not use a jump table, either because all bailout IDs were
     // reserved, or a jump table is not optimal for this frame size or
     // platform. Whatever, we will generate a lazy bailout.
-    InlineScriptTree *tree = snapshot->mir()->block()->trackedTree();
     OutOfLineBailout *ool = new(alloc()) OutOfLineBailout(snapshot, masm.framePushed());
-
-    // All bailout code is associated with the bytecodeSite of the block we are
-    // bailing out from.
-    if (!addOutOfLineCode(ool, BytecodeSite(tree, tree->script()->code())))
+    if (!addOutOfLineCode(ool))
         return false;
 
     masm.ma_b(ool->entry(), condition);
@@ -210,13 +206,10 @@ CodeGeneratorARM::bailoutFrom(Label *label, LSnapshot *snapshot)
                  frameClass_.frameSize() == masm.framePushed());
 
     // On ARM we don't use a bailout table.
-    InlineScriptTree *tree = snapshot->mir()->block()->trackedTree();
     OutOfLineBailout *ool = new(alloc()) OutOfLineBailout(snapshot, masm.framePushed());
-
-    // All bailout code is associated with the bytecodeSite of the block we are
-    // bailing out from.
-    if (!addOutOfLineCode(ool, BytecodeSite(tree, tree->script()->code())))
+    if (!addOutOfLineCode(ool)) {
         return false;
+    }
 
     masm.retarget(label, ool->entry());
 
@@ -1111,7 +1104,7 @@ CodeGeneratorARM::emitTableSwitchDispatch(MTableSwitch *mir, Register index, Reg
         if (!ool->addCodeLabel(cl))
             return false;
     }
-    if (!addOutOfLineCode(ool, mir))
+    if (!addOutOfLineCode(ool))
         return false;
 
     return true;
@@ -1260,15 +1253,13 @@ CodeGeneratorARM::emitRoundDouble(FloatRegister src, Register dest, Label *fail)
 bool
 CodeGeneratorARM::visitTruncateDToInt32(LTruncateDToInt32 *ins)
 {
-    return emitTruncateDouble(ToFloatRegister(ins->input()), ToRegister(ins->output()),
-                              ins->mir());
+    return emitTruncateDouble(ToFloatRegister(ins->input()), ToRegister(ins->output()));
 }
 
 bool
 CodeGeneratorARM::visitTruncateFToInt32(LTruncateFToInt32 *ins)
 {
-    return emitTruncateFloat32(ToFloatRegister(ins->input()), ToRegister(ins->output()),
-                               ins->mir());
+    return emitTruncateFloat32(ToFloatRegister(ins->input()), ToRegister(ins->output()));
 }
 
 static const uint32_t FrameSizes[] = { 128, 256, 512, 1024 };

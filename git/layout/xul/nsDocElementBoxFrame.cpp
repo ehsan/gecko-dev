@@ -43,7 +43,7 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements) MOZ_OVERRIDE;
-  virtual void AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         uint32_t aFilter) MOZ_OVERRIDE;
 
   virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
@@ -123,16 +123,11 @@ nsDocElementBoxFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 }
 
 void
-nsDocElementBoxFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+nsDocElementBoxFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
                                                uint32_t aFilter)
 {
-  if (mPopupgroupContent) {
-    aElements.AppendElement(mPopupgroupContent);
-  }
-
-  if (mTooltipContent) {
-    aElements.AppendElement(mTooltipContent);
-  }
+  aElements.MaybeAppendElement(mPopupgroupContent);
+  aElements.MaybeAppendElement(mTooltipContent);
 }
 
 NS_QUERYFRAME_HEAD(nsDocElementBoxFrame)

@@ -19,7 +19,6 @@
 #include "jit/Ion.h"
 #include "jit/IonMacroAssembler.h"
 #include "jit/IonSpewer.h"
-#include "jit/JitcodeMap.h"
 #include "jit/JitCompartment.h"
 #include "jit/ParallelFunctions.h"
 #include "jit/PcScriptCache.h"
@@ -113,7 +112,6 @@ JitFrameIterator::JitFrameIterator(IonJSFrameLayout *fp, ExecutionMode mode)
     mode_(mode),
     kind_(Kind_FrameIterator)
 {
-    verifyReturnAddressUsingNativeToBytecodeMap();
 }
 
 IonBailoutIterator *
@@ -330,9 +328,6 @@ JitFrameIterator::operator++()
         type_ = JitFrame_BaselineStub;
     returnAddressToFp_ = current()->returnAddress();
     current_ = prev;
-
-    verifyReturnAddressUsingNativeToBytecodeMap();
-
     return *this;
 }
 
@@ -2233,80 +2228,6 @@ JitFrameIterator::dump() const
     };
     fputc('\n', stderr);
 }
-
-#ifdef DEBUG
-bool
-JitFrameIterator::verifyReturnAddressUsingNativeToBytecodeMap()
-{
-    JS_ASSERT(returnAddressToFp_ != nullptr);
-
-    // Only handle Ion frames for now.
-    if (type_ != JitFrame_IonJS && type_ != JitFrame_BaselineJS)
-        return true;
-
-    JSRuntime *rt = js::TlsPerThreadData.get()->runtimeIfOnOwnerThread();
-
-    // Don't verify on non-main-thread.
-    if (!rt)
-        return true;
-
-    // Don't verify if sampling is being suppressed.
-    if (!rt->isProfilerSamplingEnabled())
-        return true;
-
-    if (rt->isHeapMinorCollecting())
-        return true;
-
-    JitRuntime *jitrt = rt->jitRuntime();
-
-    // Look up and print bytecode info for the native address.
-    JitcodeGlobalEntry entry;
-    if (!jitrt->getJitcodeGlobalTable()->lookup(returnAddressToFp_, &entry))
-        return true;
-
-    IonSpew(IonSpew_Profiling, "Found nativeToBytecode entry for %p: %p - %p",
-            returnAddressToFp_, entry.nativeStartAddr(), entry.nativeEndAddr());
-
-    JitcodeGlobalEntry::BytecodeLocationVector location;
-    uint32_t depth = UINT32_MAX;
-    if (!entry.callStackAtAddr(rt, returnAddressToFp_, location, &depth))
-        return false;
-    JS_ASSERT(depth > 0 && depth != UINT32_MAX);
-    JS_ASSERT(location.length() == depth);
-
-    IonSpew(IonSpew_Profiling, "Found bytecode location of depth %d:", depth);
-    for (size_t i = 0; i < location.length(); i++) {
-        IonSpew(IonSpew_Profiling, "   %s:%d - %d",
-                location[i].script->filename(), location[i].script->lineno(),
-                (int) (location[i].pc - location[i].script->code()));
-    }
-
-    if (type_ == JitFrame_IonJS) {
-        // Create an InlineFrameIterator here and verify the mapped info against the iterator info.
-        InlineFrameIterator inlineFrames(GetJSContextFromJitCode(), this);
-        for (size_t idx = 0; idx < location.length(); idx++) {
-            JS_ASSERT(idx < location.length());
-            JS_ASSERT_IF(idx < location.length() - 1, inlineFrames.more());
-
-            IonSpew(IonSpew_Profiling, "Match %d: ION %s:%d(%d) vs N2B %s:%d(%d)",
-                    (int)idx,
-                    inlineFrames.script()->filename(),
-                    inlineFrames.script()->lineno(),
-                    inlineFrames.pc() - inlineFrames.script()->code(),
-                    location[idx].script->filename(),
-                    location[idx].script->lineno(),
-                    location[idx].pc - location[idx].script->code());
-
-            JS_ASSERT(inlineFrames.script() == location[idx].script);
-
-            if (inlineFrames.more())
-                ++inlineFrames;
-        }
-    }
-
-    return true;
-}
-#endif // DEBUG
 
 IonJSFrameLayout *
 InvalidationBailoutStack::fp() const

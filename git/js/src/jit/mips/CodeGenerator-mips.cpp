@@ -1365,15 +1365,13 @@ CodeGeneratorMIPS::visitRoundF(LRoundF *lir)
 bool
 CodeGeneratorMIPS::visitTruncateDToInt32(LTruncateDToInt32 *ins)
 {
-    return emitTruncateDouble(ToFloatRegister(ins->input()), ToRegister(ins->output()),
-                              ins->mir());
+    return emitTruncateDouble(ToFloatRegister(ins->input()), ToRegister(ins->output()));
 }
 
 bool
 CodeGeneratorMIPS::visitTruncateFToInt32(LTruncateFToInt32 *ins)
 {
-    return emitTruncateFloat32(ToFloatRegister(ins->input()), ToRegister(ins->output()),
-                               ins->mir());
+    return emitTruncateFloat32(ToFloatRegister(ins->input()), ToRegister(ins->output()));
 }
 
 static const uint32_t FrameSizes[] = { 128, 256, 512, 1024 };

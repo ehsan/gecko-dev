@@ -121,20 +121,12 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 }
 
 void
-nsVideoFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+nsVideoFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
                                        uint32_t aFliter)
 {
-  if (mPosterImage) {
-    aElements.AppendElement(mPosterImage);
-  }
-
-  if (mVideoControls) {
-    aElements.AppendElement(mVideoControls);
-  }
-
-  if (mCaptionDiv) {
-    aElements.AppendElement(mCaptionDiv);
-  }
+  aElements.MaybeAppendElement(mPosterImage);
+  aElements.MaybeAppendElement(mVideoControls);
+  aElements.MaybeAppendElement(mCaptionDiv);
 }
 
 void

@@ -676,13 +676,11 @@ nsNumberControlFrame::ShouldUseNativeStyleForSpinner() const
 }
 
 void
-nsNumberControlFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+nsNumberControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
                                                uint32_t aFilter)
 {
   // Only one direct anonymous child:
-  if (mOuterWrapper) {
-    aElements.AppendElement(mOuterWrapper);
-  }
+  aElements.MaybeAppendElement(mOuterWrapper);
 }
 
 void

@@ -12,10 +12,6 @@ namespace jit {
 
 #define MIR_OPCODE_LIST(_)                                                  \
     _(Constant)                                                             \
-    _(SimdValueX4)                                                          \
-    _(SimdConstant)                                                         \
-    _(SimdExtractElement)                                                   \
-    _(SimdBinaryArith)                                                      \
     _(CloneLiteral)                                                         \
     _(Parameter)                                                            \
     _(Callee)                                                               \
@@ -106,7 +102,6 @@ namespace jit {
     _(InitProp)                                                             \
     _(InitPropGetterSetter)                                                 \
     _(Start)                                                                \
-    _(PcOffset)                                                             \
     _(OsrEntry)                                                             \
     _(Nop)                                                                  \
     _(LimitedTruncate)                                                      \
@@ -161,7 +156,6 @@ namespace jit {
     _(ArrayPopShift)                                                        \
     _(ArrayPush)                                                            \
     _(ArrayConcat)                                                          \
-    _(ArrayJoin)                                                            \
     _(LoadTypedArrayElement)                                                \
     _(LoadTypedArrayElementHole)                                            \
     _(LoadTypedArrayElementStatic)                                          \

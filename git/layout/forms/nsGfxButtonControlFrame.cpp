@@ -69,12 +69,10 @@ nsGfxButtonControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements
 }
 
 void
-nsGfxButtonControlFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+nsGfxButtonControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
                                                   uint32_t aFilter)
 {
-  if (mTextContent) {
-    aElements.AppendElement(mTextContent);
-  }
+  aElements.MaybeAppendElement(mTextContent);
 }
 
 // Create the text content used as label for the button.
