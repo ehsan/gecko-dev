@@ -12,6 +12,7 @@
 #include "nsWrapperCache.h"
 #include "js/TypeDecls.h"
 
+#include "EnableSpeechSynthesisCheck.h"
 #include "nsISpeechService.h"
 
 namespace mozilla {
@@ -21,7 +22,8 @@ class nsSynthVoiceRegistry;
 class SpeechSynthesis;
 
 class SpeechSynthesisVoice MOZ_FINAL : public nsISupports,
-                                       public nsWrapperCache
+                                       public nsWrapperCache,
+                                       public EnableSpeechSynthesisCheck
 {
   friend class nsSynthVoiceRegistry;
   friend class SpeechSynthesis;

@@ -33,9 +33,9 @@ nsDOMTouchList::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 }
 
 /* static */ bool
-nsDOMTouchList::PrefEnabled(JSContext* aCx, JSObject* aGlobal)
+nsDOMTouchList::PrefEnabled()
 {
-  return nsDOMTouchEvent::PrefEnabled(aCx, aGlobal);
+  return nsDOMTouchEvent::PrefEnabled();
 }
 
 Touch*
@@ -183,7 +183,7 @@ extern int32_t IsTouchDeviceSupportPresent();
 #endif
 
 bool
-nsDOMTouchEvent::PrefEnabled(JSContext* aCx, JSObject* aGlobal)
+nsDOMTouchEvent::PrefEnabled()
 {
   bool prefValue = false;
   int32_t flag = 0;

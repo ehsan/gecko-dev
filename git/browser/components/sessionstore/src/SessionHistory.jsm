@@ -184,9 +184,6 @@ let SessionHistoryInternal = {
     if (shEntry.isSrcdocEntry)
       entry.isSrcdocEntry = shEntry.isSrcdocEntry;
 
-    if (shEntry.baseURI)
-      entry.baseURI = shEntry.baseURI;
-
     if (shEntry.contentType)
       entry.contentType = shEntry.contentType;
 
@@ -331,8 +328,6 @@ let SessionHistoryInternal = {
       shEntry.referrerURI = Utils.makeURI(entry.referrer);
     if (entry.isSrcdocEntry)
       shEntry.srcdocData = entry.srcdocData;
-    if (entry.baseURI)
-      shEntry.baseURI = entry.baseURI;
 
     if (entry.cacheKey) {
       var cacheKey = Cc["@mozilla.org/supports-PRUint32;1"].

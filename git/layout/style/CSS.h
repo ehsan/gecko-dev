@@ -32,6 +32,11 @@ public:
   static bool Supports(const GlobalObject& aGlobal,
                        const nsAString& aDeclaration,
                        ErrorResult& aRv);
+
+  static bool PrefEnabled()
+  {
+    return Preferences::GetBool("layout.css.supports-rule.enabled");
+  }
 };
 
 } // namespace dom

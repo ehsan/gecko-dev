@@ -20,13 +20,13 @@
 
 using namespace mozilla;
 
-static const nsCSSProps::KTableValue kOrientationKeywords[] = {
+static const int32_t kOrientationKeywords[] = {
   eCSSKeyword_portrait,                 NS_STYLE_ORIENTATION_PORTRAIT,
   eCSSKeyword_landscape,                NS_STYLE_ORIENTATION_LANDSCAPE,
   eCSSKeyword_UNKNOWN,                  -1
 };
 
-static const nsCSSProps::KTableValue kScanKeywords[] = {
+static const int32_t kScanKeywords[] = {
   eCSSKeyword_progressive,              NS_STYLE_SCAN_PROGRESSIVE,
   eCSSKeyword_interlace,                NS_STYLE_SCAN_INTERLACE,
   eCSSKeyword_UNKNOWN,                  -1

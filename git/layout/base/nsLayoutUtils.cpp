@@ -2505,7 +2505,7 @@ nsLayoutUtils::GetAllInFlowBoxes(nsIFrame* aFrame, BoxCallback* aCallback)
 {
   while (aFrame) {
     AddBoxesForFrame(aFrame, aCallback);
-    aFrame = nsLayoutUtils::GetNextContinuationOrIBSplitSibling(aFrame);
+    aFrame = nsLayoutUtils::GetNextContinuationOrSpecialSibling(aFrame);
   }
 }
 
@@ -2721,18 +2721,18 @@ nsLayoutUtils::GetParentOrPlaceholderForCrossDoc(nsIFrame* aFrame)
 }
 
 nsIFrame*
-nsLayoutUtils::GetNextContinuationOrIBSplitSibling(nsIFrame *aFrame)
+nsLayoutUtils::GetNextContinuationOrSpecialSibling(nsIFrame *aFrame)
 {
   nsIFrame *result = aFrame->GetNextContinuation();
   if (result)
     return result;
 
-  if ((aFrame->GetStateBits() & NS_FRAME_PART_OF_IBSPLIT) != 0) {
-    // We only store the ib-split sibling annotation with the first
+  if ((aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) != 0) {
+    // We only store the "special sibling" annotation with the first
     // frame in the continuation chain. Walk back to find that frame now.
     aFrame = aFrame->FirstContinuation();
 
-    void* value = aFrame->Properties().Get(nsIFrame::IBSplitSibling());
+    void* value = aFrame->Properties().Get(nsIFrame::IBSplitSpecialSibling());
     return static_cast<nsIFrame*>(value);
   }
 
@@ -2740,13 +2740,13 @@ nsLayoutUtils::GetNextContinuationOrIBSplitSibling(nsIFrame *aFrame)
 }
 
 nsIFrame*
-nsLayoutUtils::FirstContinuationOrIBSplitSibling(nsIFrame *aFrame)
+nsLayoutUtils::FirstContinuationOrSpecialSibling(nsIFrame *aFrame)
 {
   nsIFrame *result = aFrame->FirstContinuation();
-  if (result->GetStateBits() & NS_FRAME_PART_OF_IBSPLIT) {
+  if (result->GetStateBits() & NS_FRAME_IS_SPECIAL) {
     while (true) {
       nsIFrame *f = static_cast<nsIFrame*>
-        (result->Properties().Get(nsIFrame::IBSplitPrevSibling()));
+        (result->Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
       if (!f)
         break;
       result = f;
@@ -2757,13 +2757,13 @@ nsLayoutUtils::FirstContinuationOrIBSplitSibling(nsIFrame *aFrame)
 }
 
 bool
-nsLayoutUtils::IsFirstContinuationOrIBSplitSibling(nsIFrame *aFrame)
+nsLayoutUtils::IsFirstContinuationOrSpecialSibling(nsIFrame *aFrame)
 {
   if (aFrame->GetPrevContinuation()) {
     return false;
   }
-  if ((aFrame->GetStateBits() & NS_FRAME_PART_OF_IBSPLIT) &&
-      aFrame->Properties().Get(nsIFrame::IBSplitPrevSibling())) {
+  if ((aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
+      aFrame->Properties().Get(nsIFrame::IBSplitSpecialPrevSibling())) {
     return false;
   }
 
@@ -3030,7 +3030,7 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
     // -moz-fit-content and -moz-available enumerated widths compute intrinsic
     // widths just like auto.
     // For -moz-max-content and -moz-min-content, we handle them like
-    // specified widths, but ignore box-sizing.
+    // specified widths, but ignore -moz-box-sizing.
     boxSizing = NS_STYLE_BOX_SIZING_CONTENT;
   } else if (!styleWidth.ConvertsToLength() &&
              !(haveFixedMinWidth && haveFixedMaxWidth && maxw <= minw)) {
@@ -5160,7 +5160,7 @@ nsLayoutUtils::GetFontFacesForFrames(nsIFrame* aFrame,
 
   while (aFrame) {
     GetFontFacesForFramesInner(aFrame, aFontFaceList);
-    aFrame = GetNextContinuationOrIBSplitSibling(aFrame);
+    aFrame = GetNextContinuationOrSpecialSibling(aFrame);
   }
 
   return NS_OK;

@@ -296,7 +296,7 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
         // which detaches the placeholder from the float.
         nsOverflowContinuationTracker::AutoFinish fini(aState.mOverflowTracker, mFrame);
         static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
-          ->DeleteNextInFlowChild(kidNextInFlow, true);
+          ->DeleteNextInFlowChild(mPresContext, kidNextInFlow, true);
       }
     }
   }

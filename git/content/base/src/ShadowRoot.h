@@ -48,6 +48,7 @@ public:
 
   void AddToIdTable(Element* aElement, nsIAtom* aId);
   void RemoveFromIdTable(Element* aElement, nsIAtom* aId);
+  static bool PrefEnabled();
   void InsertSheet(nsCSSStyleSheet* aSheet, nsIContent* aLinkingContent);
   void RemoveSheet(nsCSSStyleSheet* aSheet);
   bool ApplyAuthorStyles();

@@ -3571,7 +3571,7 @@ nsGlobalWindow::GetSpeechSynthesis(nsISupports** aSpeechSynthesis)
 {
   ErrorResult rv;
   nsCOMPtr<nsISupports> speechSynthesis;
-  if (Preferences::GetBool("media.webspeech.synth.enabled")) {
+  if (SpeechSynthesis::PrefEnabled()) {
     speechSynthesis = GetSpeechSynthesis(rv);
   }
   speechSynthesis.forget(aSpeechSynthesis);

@@ -15,6 +15,7 @@
 
 #include "mozilla/Attributes.h"
 
+#include "EnableWebSpeechRecognitionCheck.h"
 #include "SpeechRecognitionResult.h"
 
 namespace mozilla {
@@ -23,7 +24,8 @@ namespace dom {
 class SpeechRecognition;
 
 class SpeechRecognitionResultList MOZ_FINAL : public nsISupports,
-                                              public nsWrapperCache
+                                              public nsWrapperCache,
+                                              public EnableWebSpeechRecognitionCheck
 {
 public:
   SpeechRecognitionResultList(SpeechRecognition* aParent);

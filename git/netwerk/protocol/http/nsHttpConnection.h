@@ -16,7 +16,6 @@
 #include "nsIAsyncInputStream.h"
 #include "nsIAsyncOutputStream.h"
 #include "nsIInterfaceRequestor.h"
-#include "nsITimer.h"
 
 class nsISocketTransport;
 
@@ -149,11 +148,6 @@ public:
     // other connections.
     uint32_t  ReadTimeoutTick(PRIntervalTime now);
 
-    // For Active and Idle connections, this will be called when
-    // mTCPKeepaliveTransitionTimer fires, to check if the TCP keepalive config
-    // should move from short-lived (fast-detect) to long-lived.
-    static void UpdateTCPKeepalive(nsITimer *aTimer, void *aClosure);
-
     nsAHttpTransaction::Classifier Classification() { return mClassification; }
     void Classify(nsAHttpTransaction::Classifier newclass)
     {
@@ -175,13 +169,6 @@ public:
     bool    IsExperienced() { return mExperienced; }
 
 private:
-    // Value (set in mTCPKeepaliveConfig) indicates which set of prefs to use.
-    enum TCPKeepaliveConfig {
-      kTCPKeepaliveDisabled = 0,
-      kTCPKeepaliveShortLivedConfig,
-      kTCPKeepaliveLongLivedConfig
-    };
-
     // called to cause the underlying socket to start speaking SSL
     nsresult ProxyStartSSL();
 
@@ -209,12 +196,7 @@ private:
     // used to inform nsIHttpDataUsage of transfer
     void ReportDataUsage(bool);
 
-    // Used to set TCP keepalives for fast detection of dead connections during
-    // an initial period, and slower detection for long-lived connections.
-    nsresult StartShortLivedTCPKeepalives();
-    nsresult StartLongLivedTCPKeepalives();
-    nsresult DisableTCPKeepalives();
-
+private:
     nsCOMPtr<nsISocketTransport>    mSocketTransport;
     nsCOMPtr<nsIAsyncInputStream>   mSocketIn;
     nsCOMPtr<nsIAsyncOutputStream>  mSocketOut;
@@ -298,10 +280,6 @@ private:
     uint32_t                        mTransactionCaps;
 
     bool                            mResponseTimeoutEnabled;
-
-    // Flag to indicate connection is in inital keepalive period (fast detect).
-    uint32_t                        mTCPKeepaliveConfig;
-    nsCOMPtr<nsITimer>              mTCPKeepaliveTransitionTimer;
 };
 
 }} // namespace mozilla::net

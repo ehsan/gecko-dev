@@ -10,7 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
-[Pref="media.webspeech.synth.enabled",
+[PrefControlled,
  Constructor,
  Constructor(DOMString text)]
 interface SpeechSynthesisUtterance : EventTarget {

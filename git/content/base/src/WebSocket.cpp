@@ -954,7 +954,7 @@ WebSocket::CreateAndDispatchCloseEvent(bool aWasClean,
 }
 
 bool
-WebSocket::PrefEnabled(JSContext* aCx, JSObject* aGlobal)
+WebSocket::PrefEnabled()
 {
   return Preferences::GetBool("network.websocket.enabled", true);
 }

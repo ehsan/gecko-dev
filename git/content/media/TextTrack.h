@@ -21,6 +21,7 @@ class TextTrackCue;
 class TextTrackCueList;
 class TextTrackRegion;
 class TextTrackRegionList;
+class HTMLMediaElement;
 
 class TextTrack MOZ_FINAL : public nsDOMEventTargetHelper
 {
@@ -30,11 +31,9 @@ public:
 
   TextTrack(nsISupports* aParent);
   TextTrack(nsISupports* aParent,
-            TextTrackKind aKind,
-            const nsAString& aLabel,
-            const nsAString& aLanguage);
+            HTMLMediaElement* aMediaElement);
   TextTrack(nsISupports* aParent,
-            TextTrackList* aTextTrackList,
+            HTMLMediaElement* aMediaElement,
             TextTrackKind aKind,
             const nsAString& aLabel,
             const nsAString& aLanguage);
@@ -115,6 +114,7 @@ private:
   void UpdateActiveCueList();
 
   nsCOMPtr<nsISupports> mParent;
+  nsRefPtr<HTMLMediaElement> mMediaElement;
   nsRefPtr<TextTrackList> mTextTrackList;
 
   TextTrackKind mKind;
