@@ -103,8 +103,8 @@ class RefCounted : public detail::RefCounted<T, detail::NonAtomicRefCount>
 {
   public:
     ~RefCounted() {
-      static_assert(IsBaseOf<RefCounted, T>::value,
-                    "T must derive from RefCounted<T>");
+      MOZ_STATIC_ASSERT((IsBaseOf<RefCounted, T>::value),
+                        "T must derive from RefCounted<T>");
     }
 };
 
@@ -117,8 +117,8 @@ class AtomicRefCounted : public detail::RefCounted<T, detail::AtomicRefCount>
 {
   public:
     ~AtomicRefCounted() {
-      static_assert(IsBaseOf<AtomicRefCounted, T>::value,
-                    "T must derive from AtomicRefCounted<T>");
+      MOZ_STATIC_ASSERT((IsBaseOf<AtomicRefCounted, T>::value),
+                        "T must derive from AtomicRefCounted<T>");
     }
 };
 

@@ -8,7 +8,7 @@
 #include "xptcprivate.h"
 #include "xptiprivate.h"
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 /*
  * This is for MIPS O32 ABI

@@ -162,11 +162,3 @@ DOMCI_CLASS(AsyncScrollEventDetail)
 DOMCI_CLASS(LockedFile)
 
 DOMCI_CLASS(CSSFontFeatureValuesRule)
-
-DOMCI_CLASS(UserDataHandler)
-DOMCI_CLASS(GeoPositionError)
-DOMCI_CLASS(LoadStatus)
-DOMCI_CLASS(XPathNamespace)
-DOMCI_CLASS(XULButtonElement)
-DOMCI_CLASS(XULCheckboxElement)
-DOMCI_CLASS(XULPopupElement)

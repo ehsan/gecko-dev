@@ -7,7 +7,7 @@
 #define PROFILER_FUNCS_H
 
 #include "mozilla/NullPtr.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "mozilla/TimeStamp.h"
 #include "jsfriendapi.h"
 

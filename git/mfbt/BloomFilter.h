@@ -16,9 +16,9 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Likely.h"
+#include "mozilla/StandardInteger.h"
 #include "mozilla/Util.h"
 
-#include <stdint.h>
 #include <string.h>
 
 namespace mozilla {
@@ -106,7 +106,7 @@ class BloomFilter
      */
   public:
     BloomFilter() {
-        static_assert(KeySize <= keyShift, "KeySize too big");
+        MOZ_STATIC_ASSERT(KeySize <= keyShift, "KeySize too big");
 
         // Should we have a custom operator new using calloc instead and
         // require that we're allocated via the operator?

@@ -221,6 +221,12 @@ class Nursery
     void setElementsForwardingPointer(ObjectElements *oldHeader, ObjectElements *newHeader,
                                       uint32_t nelems);
 
+    /* Handle fallback marking. See the comment in MarkStoreBuffer. */
+    void markFallback(gc::Cell *cell);
+    void moveFallbackToTenured(gc::MinorCollectionTracer *trc);
+
+    void markStoreBuffer(gc::MinorCollectionTracer *trc);
+
     /*
      * Frees all non-live nursery-allocated things at the end of a minor
      * collection. This operation takes time proportional to the number of
@@ -233,6 +239,8 @@ class Nursery
     void shrinkAllocableSpace();
 
     static void MinorGCCallback(JSTracer *trc, void **thingp, JSGCTraceKind kind);
+    static void MinorFallbackMarkingCallback(JSTracer *trc, void **thingp, JSGCTraceKind kind);
+    static void MinorFallbackFixupCallback(JSTracer *trc, void **thingp, JSGCTraceKind kind);
 
     friend class gc::MinorCollectionTracer;
     friend class ion::CodeGenerator;

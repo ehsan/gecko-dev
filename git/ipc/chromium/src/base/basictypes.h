@@ -12,7 +12,7 @@
 #include "base/port.h"    // Types that only need exist on certain systems
 
 #include "mozilla/Assertions.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 // A type to represent a Unicode code-point value. As of Unicode 4.0,
 // such values require up to 21 bits.

@@ -197,7 +197,6 @@ if CONFIG['ENABLE_ION']:
         'AliasAnalysis.cpp',
         'AsmJS.cpp',
         'AsmJSLink.cpp',
-        'AsmJSModule.cpp',
         'AsmJSSignalHandlers.cpp',
         'BacktrackingAllocator.cpp',
         'Bailouts.cpp',

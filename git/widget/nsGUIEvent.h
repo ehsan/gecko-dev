@@ -594,7 +594,7 @@ private:
 
   inline void SetRawFlags(RawFlags aRawFlags)
   {
-    static_assert(sizeof(BaseEventFlags) <= sizeof(RawFlags),
+    MOZ_STATIC_ASSERT(sizeof(BaseEventFlags) <= sizeof(RawFlags),
       "mozilla::widget::EventFlags must not be bigger than the RawFlags");
     memcpy(this, &aRawFlags, sizeof(BaseEventFlags));
   }

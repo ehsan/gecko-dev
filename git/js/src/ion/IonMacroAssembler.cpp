@@ -8,6 +8,7 @@
 
 #include "jsinfer.h"
 
+#include "ion/AsmJS.h"
 #include "ion/Bailouts.h"
 #include "ion/BaselineFrame.h"
 #include "ion/BaselineIC.h"

@@ -9,8 +9,7 @@
 
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/MathAlgorithms.h"
-
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 #include "vm/NumericConversions.h"
 

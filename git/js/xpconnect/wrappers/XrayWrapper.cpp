@@ -1278,13 +1278,7 @@ XrayToString(JSContext *cx, unsigned argc, jsval *vp)
 static void
 DEBUG_CheckXBLCallable(JSContext *cx, JSObject *obj)
 {
-    // In general, we shouldn't have cross-compartment wrappers here, because
-    // we should be running in an XBL scope, and the content prototype should
-    // contain wrappers to functions defined in the XBL scope. But if the node
-    // has been adopted into another compartment, those prototypes will now point
-    // to a different XBL scope (which is ok).
-    MOZ_ASSERT_IF(js::IsCrossCompartmentWrapper(obj),
-                  xpc::IsXBLScope(js::GetObjectCompartment(js::UncheckedUnwrap(obj))));
+    MOZ_ASSERT(!js::IsCrossCompartmentWrapper(obj));
     MOZ_ASSERT(JS_ObjectIsCallable(cx, obj));
 }
 
@@ -1449,10 +1443,8 @@ XrayWrapper<Base, Traits>::getPropertyDescriptor(JSContext *cx, HandleObject wra
     //
     // While we have to do some sketchy walking through content land, we should
     // be protected by read-only/non-configurable properties, and any functions
-    // we end up with should _always_ be living in an XBL scope (usually ours,
-    // but could be another if the node has been adopted).
-    //
-    // Make sure to assert this.
+    // we end up with should _always_ be living in our own scope (the XBL scope).
+    // Make sure to assert that.
     nsCOMPtr<nsIContent> content;
     if (!desc->obj &&
         EnsureCompartmentPrivate(wrapper)->scope->IsXBLScope() &&

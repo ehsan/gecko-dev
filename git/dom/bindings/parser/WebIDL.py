@@ -913,30 +913,16 @@ class IDLInterface(IDLObjectWithScope):
                     elif not newMethod in self.namedConstructors:
                         raise WebIDLError("NamedConstructor conflicts with a NamedConstructor of a different interface",
                                           [method.location, newMethod.location])
-            elif (identifier == "ArrayClass"):
-                if not attr.noArguments():
-                    raise WebIDLError("[ArrayClass] must take no arguments",
-                                      [attr.location])
-                if self.parent:
-                    raise WebIDLError("[ArrayClass] must not be specified on "
-                                      "an interface with inherited interfaces",
-                                      [attr.location, self.location])
             elif (identifier == "PrefControlled" or
+                  identifier == "Pref" or
                   identifier == "NeedNewResolve" or
-                  identifier == "OverrideBuiltins" or
-                  identifier == "ChromeOnly"):
-                # Known extended attributes that do not take values
-                if not attr.noArguments():
-                    raise WebIDLError("[%s] must take no arguments" % identifier,
-                                      [attr.location])
-            elif (identifier == "Pref" or
                   identifier == "JSImplementation" or
                   identifier == "HeaderFile" or
-                  identifier == "NavigatorProperty"):
-                # Known extended attributes that take a string value
-                if not attr.hasValue():
-                    raise WebIDLError("[%s] must have a value" % identifier,
-                                      [attr.location])
+                  identifier == "NavigatorProperty" or
+                  identifier == "OverrideBuiltins" or
+                  identifier == "ChromeOnly"):
+                # Known attributes that we don't need to do anything with here
+                pass
             else:
                 raise WebIDLError("Unknown extended attribute %s on interface" % identifier,
                                   [attr.location])
@@ -1271,12 +1257,6 @@ class IDLType(IDLObject):
     def isPrimitive(self):
         return False
 
-    def isBoolean(self):
-        return False
-
-    def isNumeric(self):
-        return False
-
     def isString(self):
         return False
 
@@ -1433,12 +1413,6 @@ class IDLNullableType(IDLType):
 
     def isPrimitive(self):
         return self.inner.isPrimitive()
-
-    def isBoolean(self):
-        return self.inner.isBoolean()
-
-    def isNumeric(self):
-        return self.inner.isNumeric()
 
     def isString(self):
         return self.inner.isString()
@@ -1843,12 +1817,6 @@ class IDLTypedefType(IDLType, IDLObjectWithIdentifier):
     def isPrimitive(self):
         return self.inner.isPrimitive()
 
-    def isBoolean(self):
-        return self.inner.isBoolean()
-
-    def isNumeric(self):
-        return self.inner.isNumeric()
-
     def isString(self):
         return self.inner.isString()
 
@@ -2012,7 +1980,7 @@ class IDLWrapperType(IDLType):
             return other.isDistinguishableFrom(self)
         assert self.isInterface() or self.isEnum() or self.isDictionary()
         if self.isEnum():
-            return (other.isPrimitive() or other.isInterface() or other.isObject() or
+            return (other.isInterface() or other.isObject() or
                     other.isCallback() or other.isDictionary() or
                     other.isSequence() or other.isArray() or
                     other.isDate())
@@ -2141,12 +2109,6 @@ class IDLBuiltinType(IDLType):
     def isPrimitive(self):
         return self._typeTag <= IDLBuiltinType.Types.double
 
-    def isBoolean(self):
-        return self._typeTag == IDLBuiltinType.Types.boolean
-
-    def isNumeric(self):
-        return self.isPrimitive() and not self.isBoolean()
-
     def isString(self):
         return self._typeTag == IDLBuiltinType.Types.domstring or \
                self._typeTag == IDLBuiltinType.Types.bytestring
@@ -2206,21 +2168,8 @@ class IDLBuiltinType(IDLType):
         if other.isUnion():
             # Just forward to the union; it'll deal
             return other.isDistinguishableFrom(self)
-        if self.isBoolean():
-            return (other.isNumeric() or other.isString() or other.isEnum() or
-                    other.isInterface() or other.isObject() or
-                    other.isCallback() or other.isDictionary() or
-                    other.isSequence() or other.isArray() or
-                    other.isDate())
-        if self.isNumeric():
-            return (other.isBoolean() or other.isString() or other.isEnum() or
-                    other.isInterface() or other.isObject() or
-                    other.isCallback() or other.isDictionary() or
-                    other.isSequence() or other.isArray() or
-                    other.isDate())
-        if self.isString():
-            return (other.isPrimitive() or other.isInterface() or
-                    other.isObject() or
+        if self.isPrimitive() or self.isString():
+            return (other.isInterface() or other.isObject() or
                     other.isCallback() or other.isDictionary() or
                     other.isSequence() or other.isArray() or
                     other.isDate())

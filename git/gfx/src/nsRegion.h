@@ -147,7 +147,6 @@ public:
   bool IsEqual (const nsRegion& aRegion) const;
   uint32_t GetNumRects () const { return mRectCount; }
   const nsRect& GetBounds () const { return mBoundRect; }
-  uint64_t Area () const;
   // Converts this region from aFromAPP, an appunits per pixel ratio, to
   // aToAPP. This applies nsRect::ConvertAppUnitsRoundOut/In to each rect of
   // the region.
@@ -410,7 +409,6 @@ public:
   }
   uint32_t GetNumRects () const { return mImpl.GetNumRects (); }
   nsIntRect GetBounds () const { return FromRect (mImpl.GetBounds ()); }
-  uint64_t Area () const { return mImpl.Area(); }
   nsRegion ToAppUnits (nscoord aAppUnitsPerPixel) const;
   nsIntRect GetLargestRectangle (const nsIntRect& aContainingRect = nsIntRect()) const
   {

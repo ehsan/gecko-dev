@@ -865,7 +865,7 @@ void
 nsXMLHttpRequest::StaticAssertions()
 {
 #define ASSERT_ENUM_EQUAL(_lc, _uc) \
-  static_assert(\
+  MOZ_STATIC_ASSERT(\
     static_cast<int>(XMLHttpRequestResponseType::_lc)  \
     == XML_HTTP_RESPONSE_TYPE_ ## _uc, \
     #_uc " should match")

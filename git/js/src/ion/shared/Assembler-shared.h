@@ -7,6 +7,7 @@
 #ifndef ion_shared_Assembler_shared_h
 #define ion_shared_Assembler_shared_h
 
+#include "mozilla/DebugOnly.h"
 #include "mozilla/PodOperations.h"
 
 #include <limits.h>
@@ -201,14 +202,17 @@ struct LabelBase
 
     // Disallow assignment.
     void operator =(const LabelBase &label);
+    static int id_count;
   public:
+    mozilla::DebugOnly <int> id;
     static const int32_t INVALID_OFFSET = -1;
 
-    LabelBase() : offset_(INVALID_OFFSET), bound_(false)
+    LabelBase() : offset_(INVALID_OFFSET), bound_(false), id(id_count++)
     { }
     LabelBase(const LabelBase &label)
       : offset_(label.offset_),
-        bound_(label.bound_)
+        bound_(label.bound_),
+        id(id_count++)
     { }
 
     // If the label is bound, all incoming edges have been patched and any

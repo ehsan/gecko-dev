@@ -6,6 +6,8 @@
 
 #include "ion/arm/Architecture-arm.h"
 
+#include "mozilla/StandardInteger.h"
+
 #include <elf.h>
 #include <fcntl.h>
 #include <sys/stat.h>

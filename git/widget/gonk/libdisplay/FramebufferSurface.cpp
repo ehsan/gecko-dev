@@ -29,6 +29,7 @@
 #include <EGL/egl.h>
 
 #include <hardware/hardware.h>
+#include <gui/SurfaceTextureClient.h>
 #include <ui/GraphicBuffer.h>
 
 #include "FramebufferSurface.h"

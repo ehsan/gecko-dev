@@ -7,7 +7,7 @@
 #ifndef MOZILLA_LAYERS_COMPOSITABLEFORWARDER
 #define MOZILLA_LAYERS_COMPOSITABLEFORWARDER
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "gfxASurface.h"
 #include "GLDefs.h"
 #include "mozilla/layers/ISurfaceAllocator.h"

@@ -5,7 +5,7 @@
 #ifndef mozilla_net_DashboardTypes_h_
 #define mozilla_net_DashboardTypes_h_
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 

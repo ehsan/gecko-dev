@@ -11,7 +11,7 @@
 
 #include "xptcprivate.h"
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 extern "C" uint32_t
 invoke_count_words(uint32_t paramCount, nsXPTCVariant* s)

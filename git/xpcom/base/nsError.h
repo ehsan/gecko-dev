@@ -7,9 +7,8 @@
 #define nsError_h__
 
 #include "mozilla/Likely.h"
+#include "mozilla/StandardInteger.h"
 #include "mozilla/TypedEnum.h"
-
-#include <stdint.h>
 
 /*
  * To add error code to your module, you need to do the following:

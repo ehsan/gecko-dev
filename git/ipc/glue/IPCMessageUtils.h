@@ -17,8 +17,7 @@
 #include "mozilla/Util.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/Point.h"
-
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 #include "nsID.h"
 #include "nsMemory.h"

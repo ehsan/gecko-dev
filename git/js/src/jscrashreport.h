@@ -8,8 +8,7 @@
 #define jscrashreport_h
 
 #include "mozilla/GuardObjects.h"
-
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 namespace js {
 namespace crash {

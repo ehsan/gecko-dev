@@ -174,7 +174,6 @@ AudioManager::HandleBluetoothStatusChanged(nsISupports* aSubject,
                                            const char* aTopic,
                                            const nsCString aAddress)
 {
-#ifdef MOZ_B2G_BT
   bool status;
   if (!strcmp(aTopic, BLUETOOTH_SCO_STATUS_CHANGED_ID)) {
     BluetoothHfpManager* hfp =
@@ -222,7 +221,6 @@ AudioManager::HandleBluetoothStatusChanged(nsISupports* aSubject,
     AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET,
                                           audioState, aAddress.get());
   }
-#endif
 }
 
 nsresult
