@@ -17,7 +17,6 @@
 #include "libGLESv2/renderer/d3d/d3d11/Image11.h"
 #include "libGLESv2/renderer/d3d/TextureD3D.h"
 #include "libGLESv2/main.h"
-#include "libGLESv2/ImageIndex.h"
 
 #include "common/utilities.h"
 
@@ -240,7 +239,7 @@ ID3D11ShaderResourceView *TextureStorage11::getSRVLevel(int mipLevel)
     }
 }
 
-gl::Error TextureStorage11::generateSwizzles(GLenum swizzleRed, GLenum swizzleGreen, GLenum swizzleBlue, GLenum swizzleAlpha)
+void TextureStorage11::generateSwizzles(GLenum swizzleRed, GLenum swizzleGreen, GLenum swizzleBlue, GLenum swizzleAlpha)
 {
     SwizzleCacheValue swizzleTarget(swizzleRed, swizzleGreen, swizzleBlue, swizzleAlpha);
     for (int level = 0; level < getLevelCount(); level++)
@@ -256,17 +255,16 @@ gl::Error TextureStorage11::generateSwizzles(GLenum swizzleRed, GLenum swizzleGr
 
             Blit11 *blitter = mRenderer->getBlitter();
 
-            gl::Error error = blitter->swizzleTexture(sourceSRV, destRTV, size, swizzleRed, swizzleGreen, swizzleBlue, swizzleAlpha);
-            if (error.isError())
+            if (blitter->swizzleTexture(sourceSRV, destRTV, size, swizzleRed, swizzleGreen, swizzleBlue, swizzleAlpha))
             {
-                return error;
+                mSwizzleCache[level] = swizzleTarget;
             }
-
-            mSwizzleCache[level] = swizzleTarget;
+            else
+            {
+                ERR("Failed to swizzle texture.");
+            }
         }
     }
-
-    return gl::Error(GL_NO_ERROR);
 }
 
 void TextureStorage11::invalidateSwizzleCacheLevel(int mipLevel)
@@ -287,57 +285,60 @@ void TextureStorage11::invalidateSwizzleCache()
     }
 }
 
-gl::Error TextureStorage11::updateSubresourceLevel(ID3D11Resource *srcTexture, unsigned int sourceSubresource,
-                                                   int level, int layerTarget, GLint xoffset, GLint yoffset, GLint zoffset,
-                                                   GLsizei width, GLsizei height, GLsizei depth)
+bool TextureStorage11::updateSubresourceLevel(ID3D11Resource *srcTexture, unsigned int sourceSubresource,
+                                              int level, int layerTarget, GLint xoffset, GLint yoffset, GLint zoffset,
+                                              GLsizei width, GLsizei height, GLsizei depth)
 {
-    ASSERT(srcTexture);
-
-    invalidateSwizzleCacheLevel(level);
-
-    gl::Extents texSize(getLevelWidth(level), getLevelHeight(level), getLevelDepth(level));
-    gl::Box copyArea(xoffset, yoffset, zoffset, width, height, depth);
-
-    bool fullCopy = copyArea.x == 0 &&
-                    copyArea.y == 0 &&
-                    copyArea.z == 0 &&
-                    copyArea.width  == texSize.width &&
-                    copyArea.height == texSize.height &&
-                    copyArea.depth  == texSize.depth;
-
-    ID3D11Resource *dstTexture = getResource();
-    unsigned int dstSubresource = getSubresourceIndex(level + mTopLevel, layerTarget);
-
-    ASSERT(dstTexture);
-
-    const d3d11::DXGIFormat &dxgiFormatInfo = d3d11::GetDXGIFormatInfo(mTextureFormat);
-    if (!fullCopy && (dxgiFormatInfo.depthBits > 0 || dxgiFormatInfo.stencilBits > 0))
+    if (srcTexture)
     {
-        // CopySubresourceRegion cannot copy partial depth stencils, use the blitter instead
-        Blit11 *blitter = mRenderer->getBlitter();
+        invalidateSwizzleCacheLevel(level);
 
-        return blitter->copyDepthStencil(srcTexture, sourceSubresource, copyArea, texSize,
-                                         dstTexture, dstSubresource, copyArea, texSize,
-                                         NULL);
-    }
-    else
-    {
+        gl::Extents texSize(getLevelWidth(level), getLevelHeight(level), getLevelDepth(level));
+        gl::Box copyArea(xoffset, yoffset, zoffset, width, height, depth);
+
+        bool fullCopy = copyArea.x == 0 &&
+                        copyArea.y == 0 &&
+                        copyArea.z == 0 &&
+                        copyArea.width  == texSize.width &&
+                        copyArea.height == texSize.height &&
+                        copyArea.depth  == texSize.depth;
+
+        ID3D11Resource *dstTexture = getResource();
+        unsigned int dstSubresource = getSubresourceIndex(level + mTopLevel, layerTarget);
+
+        ASSERT(dstTexture);
+
         const d3d11::DXGIFormat &dxgiFormatInfo = d3d11::GetDXGIFormatInfo(mTextureFormat);
+        if (!fullCopy && (dxgiFormatInfo.depthBits > 0 || dxgiFormatInfo.stencilBits > 0))
+        {
+            // CopySubresourceRegion cannot copy partial depth stencils, use the blitter instead
+            Blit11 *blitter = mRenderer->getBlitter();
 
-        D3D11_BOX srcBox;
-        srcBox.left = copyArea.x;
-        srcBox.top = copyArea.y;
-        srcBox.right = copyArea.x + roundUp((unsigned int)width, dxgiFormatInfo.blockWidth);
-        srcBox.bottom = copyArea.y + roundUp((unsigned int)height, dxgiFormatInfo.blockHeight);
-        srcBox.front = copyArea.z;
-        srcBox.back = copyArea.z + copyArea.depth;
+            return blitter->copyDepthStencil(srcTexture, sourceSubresource, copyArea, texSize,
+                                             dstTexture, dstSubresource, copyArea, texSize,
+                                             NULL);
+        }
+        else
+        {
+            const d3d11::DXGIFormat &dxgiFormatInfo = d3d11::GetDXGIFormatInfo(mTextureFormat);
 
-        ID3D11DeviceContext *context = mRenderer->getDeviceContext();
+            D3D11_BOX srcBox;
+            srcBox.left = copyArea.x;
+            srcBox.top = copyArea.y;
+            srcBox.right = copyArea.x + roundUp((unsigned int)width, dxgiFormatInfo.blockWidth);
+            srcBox.bottom = copyArea.y + roundUp((unsigned int)height, dxgiFormatInfo.blockHeight);
+            srcBox.front = copyArea.z;
+            srcBox.back = copyArea.z + copyArea.depth;
 
-        context->CopySubresourceRegion(dstTexture, dstSubresource, copyArea.x, copyArea.y, copyArea.z,
-                                       srcTexture, sourceSubresource, fullCopy ? NULL : &srcBox);
-        return gl::Error(GL_NO_ERROR);
+            ID3D11DeviceContext *context = mRenderer->getDeviceContext();
+
+            context->CopySubresourceRegion(dstTexture, dstSubresource, copyArea.x, copyArea.y, copyArea.z,
+                                           srcTexture, sourceSubresource, fullCopy ? NULL : &srcBox);
+            return true;
+        }
     }
+
+    return false;
 }
 
 bool TextureStorage11::copySubresourceLevel(ID3D11Resource* dstTexture, unsigned int dstSubresource,
@@ -361,15 +362,8 @@ bool TextureStorage11::copySubresourceLevel(ID3D11Resource* dstTexture, unsigned
     return false;
 }
 
-void TextureStorage11::generateMipmap(const gl::ImageIndex &sourceIndex, const gl::ImageIndex &destIndex)
+void TextureStorage11::generateMipmapLayer(RenderTarget11 *source, RenderTarget11 *dest)
 {
-    ASSERT(sourceIndex.layerIndex == destIndex.layerIndex);
-
-    invalidateSwizzleCacheLevel(destIndex.mipIndex);
-
-    RenderTarget11 *source = RenderTarget11::makeRenderTarget11(getRenderTarget(sourceIndex));
-    RenderTarget11 *dest = RenderTarget11::makeRenderTarget11(getRenderTarget(destIndex));
-
     if (source && dest)
     {
         ID3D11ShaderResourceView *sourceSRV = source->getShaderResourceView();
@@ -400,26 +394,12 @@ void TextureStorage11::verifySwizzleExists(GLenum swizzleRed, GLenum swizzleGree
     }
 }
 
-gl::Error TextureStorage11::copyToStorage(TextureStorage *destStorage)
-{
-    ASSERT(destStorage);
-
-    TextureStorage11 *dest11 = TextureStorage11::makeTextureStorage11(destStorage);
-
-    ID3D11DeviceContext *immediateContext = mRenderer->getDeviceContext();
-    immediateContext->CopyResource(dest11->getResource(), getResource());
-
-    dest11->invalidateSwizzleCache();
-
-    return gl::Error(GL_NO_ERROR);
-}
-
 TextureStorage11_2D::TextureStorage11_2D(Renderer *renderer, SwapChain11 *swapchain)
-    : TextureStorage11(renderer, D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE),
-      mTexture(swapchain->getOffscreenTexture()),
-      mSwizzleTexture(NULL)
+    : TextureStorage11(renderer, D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE)
 {
+    mTexture = swapchain->getOffscreenTexture();
     mTexture->AddRef();
+    mSwizzleTexture = NULL;
 
     for (unsigned int i = 0; i < gl::IMPLEMENTATION_MAX_TEXTURE_LEVELS; i++)
     {
@@ -453,15 +433,14 @@ TextureStorage11_2D::TextureStorage11_2D(Renderer *renderer, SwapChain11 *swapch
     mSwizzleRenderTargetFormat = formatInfo.swizzleRTVFormat;
 
     mDepthStencilFormat = DXGI_FORMAT_UNKNOWN;
-
-    initializeSerials(1, 1);
 }
 
 TextureStorage11_2D::TextureStorage11_2D(Renderer *renderer, GLenum internalformat, bool renderTarget, GLsizei width, GLsizei height, int levels)
-    : TextureStorage11(renderer, GetTextureBindFlags(internalformat, renderTarget)),
-      mTexture(NULL),
-      mSwizzleTexture(NULL)
+    : TextureStorage11(renderer, GetTextureBindFlags(internalformat, renderTarget))
 {
+    mTexture = NULL;
+    mSwizzleTexture = NULL;
+
     for (unsigned int i = 0; i < gl::IMPLEMENTATION_MAX_TEXTURE_LEVELS; i++)
     {
         mAssociatedImages[i] = NULL;
@@ -523,8 +502,6 @@ TextureStorage11_2D::TextureStorage11_2D(Renderer *renderer, GLenum internalform
             mTextureDepth = 1;
         }
     }
-
-    initializeSerials(getLevelCount(), 1);
 }
 
 TextureStorage11_2D::~TextureStorage11_2D()
@@ -628,12 +605,8 @@ ID3D11Resource *TextureStorage11_2D::getResource() const
     return mTexture;
 }
 
-RenderTarget *TextureStorage11_2D::getRenderTarget(const gl::ImageIndex &index)
+RenderTarget *TextureStorage11_2D::getRenderTarget(int level)
 {
-    ASSERT(!index.hasLayer());
-
-    int level = index.mipIndex;
-
     if (level >= 0 && level < getLevelCount())
     {
         if (!mRenderTarget[level])
@@ -728,6 +701,16 @@ ID3D11ShaderResourceView *TextureStorage11_2D::createSRV(int baseLevel, int mipL
     return SRV;
 }
 
+void TextureStorage11_2D::generateMipmap(int level)
+{
+    invalidateSwizzleCacheLevel(level);
+
+    RenderTarget11 *source = RenderTarget11::makeRenderTarget11(getRenderTarget(level - 1));
+    RenderTarget11 *dest = RenderTarget11::makeRenderTarget11(getRenderTarget(level));
+
+    generateMipmapLayer(source, dest);
+}
+
 ID3D11Resource *TextureStorage11_2D::getSwizzleTexture()
 {
     if (!mSwizzleTexture)
@@ -792,6 +775,11 @@ ID3D11RenderTargetView *TextureStorage11_2D::getSwizzleRenderTarget(int mipLevel
     {
         return NULL;
     }
+}
+
+unsigned int TextureStorage11_2D::getTextureLevelDepth(int mipLevel) const
+{
+    return 1;
 }
 
 TextureStorage11_Cube::TextureStorage11_Cube(Renderer *renderer, GLenum internalformat, bool renderTarget, int size, int levels)
@@ -859,10 +847,7 @@ TextureStorage11_Cube::TextureStorage11_Cube(Renderer *renderer, GLenum internal
             mTextureDepth = 1;
         }
     }
-
-    initializeSerials(getLevelCount() * 6, 6);
 }
-
 
 TextureStorage11_Cube::~TextureStorage11_Cube()
 {
@@ -986,13 +971,11 @@ ID3D11Resource *TextureStorage11_Cube::getResource() const
     return mTexture;
 }
 
-RenderTarget *TextureStorage11_Cube::getRenderTarget(const gl::ImageIndex &index)
+RenderTarget *TextureStorage11_Cube::getRenderTargetFace(GLenum faceTarget, int level)
 {
-    int faceIndex = index.layerIndex;
-    int level = index.mipIndex;
-
     if (level >= 0 && level < getLevelCount())
     {
+        int faceIndex = gl::TextureCubeMap::targetToLayerIndex(faceTarget);
         if (!mRenderTarget[faceIndex][level])
         {
             ID3D11Device *device = mRenderer->getDevice();
@@ -1116,6 +1099,16 @@ ID3D11ShaderResourceView *TextureStorage11_Cube::createSRV(int baseLevel, int mi
     return SRV;
 }
 
+void TextureStorage11_Cube::generateMipmap(int faceIndex, int level)
+{
+    invalidateSwizzleCacheLevel(level);
+
+    RenderTarget11 *source = RenderTarget11::makeRenderTarget11(getRenderTargetFace(GL_TEXTURE_CUBE_MAP_POSITIVE_X + faceIndex, level - 1));
+    RenderTarget11 *dest = RenderTarget11::makeRenderTarget11(getRenderTargetFace(GL_TEXTURE_CUBE_MAP_POSITIVE_X + faceIndex, level));
+
+    generateMipmapLayer(source, dest);
+}
+
 ID3D11Resource *TextureStorage11_Cube::getSwizzleTexture()
 {
     if (!mSwizzleTexture)
@@ -1185,6 +1178,11 @@ ID3D11RenderTargetView *TextureStorage11_Cube::getSwizzleRenderTarget(int mipLev
     }
 }
 
+unsigned int TextureStorage11_Cube::getTextureLevelDepth(int mipLevel) const
+{
+    return 6;
+}
+
 TextureStorage11_3D::TextureStorage11_3D(Renderer *renderer, GLenum internalformat, bool renderTarget,
                                          GLsizei width, GLsizei height, GLsizei depth, int levels)
     : TextureStorage11(renderer, GetTextureBindFlags(internalformat, renderTarget))
@@ -1251,8 +1249,6 @@ TextureStorage11_3D::TextureStorage11_3D(Renderer *renderer, GLenum internalform
             mTextureDepth = desc.Depth;
         }
     }
-
-    initializeSerials(getLevelCount() * depth, depth);
 }
 
 TextureStorage11_3D::~TextureStorage11_3D()
@@ -1384,24 +1380,20 @@ ID3D11ShaderResourceView *TextureStorage11_3D::createSRV(int baseLevel, int mipL
     return SRV;
 }
 
-RenderTarget *TextureStorage11_3D::getRenderTarget(const gl::ImageIndex &index)
+RenderTarget *TextureStorage11_3D::getRenderTarget(int mipLevel)
 {
-    int mipLevel = index.mipIndex;
-
     if (mipLevel >= 0 && mipLevel < getLevelCount())
     {
-        ASSERT(mRenderTargetFormat != DXGI_FORMAT_UNKNOWN);
-
-        if (!index.hasLayer())
+        if (!mLevelRenderTargets[mipLevel])
         {
-            if (!mLevelRenderTargets[mipLevel])
+            ID3D11ShaderResourceView *srv = getSRVLevel(mipLevel);
+            if (!srv)
             {
-                ID3D11ShaderResourceView *srv = getSRVLevel(mipLevel);
-                if (!srv)
-                {
-                    return NULL;
-                }
+                return NULL;
+            }
 
+            if (mRenderTargetFormat != DXGI_FORMAT_UNKNOWN)
+            {
                 ID3D11Device *device = mRenderer->getDevice();
 
                 D3D11_RENDER_TARGET_VIEW_DESC rtvDesc;
@@ -1426,22 +1418,35 @@ RenderTarget *TextureStorage11_3D::getRenderTarget(const gl::ImageIndex &index)
                 // RenderTarget will take ownership of these resources
                 SafeRelease(rtv);
             }
-
-            return mLevelRenderTargets[mipLevel];
-        }
-        else
-        {
-            int layer = index.layerIndex;
-
-            LevelLayerKey key(mipLevel, layer);
-            if (mLevelLayerRenderTargets.find(key) == mLevelLayerRenderTargets.end())
+            else
             {
-                ID3D11Device *device = mRenderer->getDevice();
-                HRESULT result;
+                UNREACHABLE();
+            }
+        }
 
-                // TODO, what kind of SRV is expected here?
-                ID3D11ShaderResourceView *srv = NULL;
+        return mLevelRenderTargets[mipLevel];
+    }
+    else
+    {
+        return NULL;
+    }
+}
 
+RenderTarget *TextureStorage11_3D::getRenderTargetLayer(int mipLevel, int layer)
+{
+    if (mipLevel >= 0 && mipLevel < getLevelCount())
+    {
+        LevelLayerKey key(mipLevel, layer);
+        if (mLevelLayerRenderTargets.find(key) == mLevelLayerRenderTargets.end())
+        {
+            ID3D11Device *device = mRenderer->getDevice();
+            HRESULT result;
+
+            // TODO, what kind of SRV is expected here?
+            ID3D11ShaderResourceView *srv = NULL;
+
+            if (mRenderTargetFormat != DXGI_FORMAT_UNKNOWN)
+            {
                 D3D11_RENDER_TARGET_VIEW_DESC rtvDesc;
                 rtvDesc.Format = mRenderTargetFormat;
                 rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE3D;
@@ -1465,12 +1470,28 @@ RenderTarget *TextureStorage11_3D::getRenderTarget(const gl::ImageIndex &index)
                 SafeRelease(rtv);
                 SafeRelease(srv);
             }
-
-            return mLevelLayerRenderTargets[key];
+            else
+            {
+                UNREACHABLE();
+            }
         }
-    }
 
-    return NULL;
+        return mLevelLayerRenderTargets[key];
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
+void TextureStorage11_3D::generateMipmap(int level)
+{
+    invalidateSwizzleCacheLevel(level);
+
+    RenderTarget11 *source = RenderTarget11::makeRenderTarget11(getRenderTarget(level - 1));
+    RenderTarget11 *dest = RenderTarget11::makeRenderTarget11(getRenderTarget(level));
+
+    generateMipmapLayer(source, dest);
 }
 
 ID3D11Resource *TextureStorage11_3D::getSwizzleTexture()
@@ -1540,6 +1561,12 @@ ID3D11RenderTargetView *TextureStorage11_3D::getSwizzleRenderTarget(int mipLevel
     }
 }
 
+unsigned int TextureStorage11_3D::getTextureLevelDepth(int mipLevel) const
+{
+    return std::max(mTextureDepth >> mipLevel, 1U);
+}
+
+
 TextureStorage11_2DArray::TextureStorage11_2DArray(Renderer *renderer, GLenum internalformat, bool renderTarget,
                                                    GLsizei width, GLsizei height, GLsizei depth, int levels)
     : TextureStorage11(renderer, GetTextureBindFlags(internalformat, renderTarget))
@@ -1606,8 +1633,6 @@ TextureStorage11_2DArray::TextureStorage11_2DArray(Renderer *renderer, GLenum in
             mTextureDepth = desc.ArraySize;
         }
     }
-
-    initializeSerials(getLevelCount() * depth, depth);
 }
 
 TextureStorage11_2DArray::~TextureStorage11_2DArray()
@@ -1735,13 +1760,8 @@ ID3D11ShaderResourceView *TextureStorage11_2DArray::createSRV(int baseLevel, int
     return SRV;
 }
 
-RenderTarget *TextureStorage11_2DArray::getRenderTarget(const gl::ImageIndex &index)
+RenderTarget *TextureStorage11_2DArray::getRenderTargetLayer(int mipLevel, int layer)
 {
-    ASSERT(index.hasLayer());
-
-    int mipLevel = index.mipIndex;
-    int layer = index.layerIndex;
-
     if (mipLevel >= 0 && mipLevel < getLevelCount())
     {
         LevelLayerKey key(mipLevel, layer);
@@ -1803,6 +1823,18 @@ RenderTarget *TextureStorage11_2DArray::getRenderTarget(const gl::ImageIndex &in
     else
     {
         return NULL;
+    }
+}
+
+void TextureStorage11_2DArray::generateMipmap(int level)
+{
+    invalidateSwizzleCacheLevel(level);
+    for (unsigned int layer = 0; layer < mTextureDepth; layer++)
+    {
+        RenderTarget11 *source = RenderTarget11::makeRenderTarget11(getRenderTargetLayer(level - 1, layer));
+        RenderTarget11 *dest = RenderTarget11::makeRenderTarget11(getRenderTargetLayer(level, layer));
+
+        generateMipmapLayer(source, dest);
     }
 }
 
@@ -1873,6 +1905,11 @@ ID3D11RenderTargetView *TextureStorage11_2DArray::getSwizzleRenderTarget(int mip
     {
         return NULL;
     }
+}
+
+unsigned int TextureStorage11_2DArray::getTextureLevelDepth(int mipLevel) const
+{
+    return mTextureDepth;
 }
 
 }

@@ -82,12 +82,12 @@ VertexDataManager::~VertexDataManager()
     }
 }
 
-gl::Error VertexDataManager::prepareVertexData(const gl::VertexAttribute attribs[], const gl::VertexAttribCurrentValueData currentValues[],
-                                               gl::ProgramBinary *programBinary, GLint start, GLsizei count, TranslatedAttribute *translated, GLsizei instances)
+GLenum VertexDataManager::prepareVertexData(const gl::VertexAttribute attribs[], const gl::VertexAttribCurrentValueData currentValues[],
+                                            gl::ProgramBinary *programBinary, GLint start, GLsizei count, TranslatedAttribute *translated, GLsizei instances)
 {
     if (!mStreamingBuffer)
     {
-        return gl::Error(GL_OUT_OF_MEMORY, "Internal streaming vertex buffer is unexpectedly NULL.");
+        return GL_OUT_OF_MEMORY;
     }
 
     // Invalidate static buffers that don't contain matching attributes
@@ -106,10 +106,9 @@ gl::Error VertexDataManager::prepareVertexData(const gl::VertexAttribute attribs
     {
         if (translated[i].active && attribs[i].enabled)
         {
-            gl::Error error = reserveSpaceForAttrib(attribs[i], currentValues[i], count, instances);
-            if (error.isError())
+            if (!reserveSpaceForAttrib(attribs[i], currentValues[i], count, instances))
             {
-                return error;
+                return GL_OUT_OF_MEMORY;
             }
         }
     }
@@ -119,14 +118,12 @@ gl::Error VertexDataManager::prepareVertexData(const gl::VertexAttribute attribs
     {
         if (translated[i].active)
         {
+            GLenum result;
+
             if (attribs[i].enabled)
             {
-                gl::Error error = storeAttribute(attribs[i], currentValues[i], &translated[i],
-                                                 start, count, instances);
-                if (error.isError())
-                {
-                    return error;
-                }
+                result = storeAttribute(attribs[i], currentValues[i], &translated[i],
+                                        start, count, instances);
             }
             else
             {
@@ -135,13 +132,14 @@ gl::Error VertexDataManager::prepareVertexData(const gl::VertexAttribute attribs
                     mCurrentValueBuffer[i] = new StreamingVertexBufferInterface(mRenderer, CONSTANT_VERTEX_BUFFER_SIZE);
                 }
 
-                gl::Error error = storeCurrentValue(attribs[i], currentValues[i], &translated[i],
-                                                    &mCurrentValue[i], &mCurrentValueOffsets[i],
-                                                    mCurrentValueBuffer[i]);
-                if (error.isError())
-                {
-                    return error;
-                }
+                result = storeCurrentValue(attribs[i], currentValues[i], &translated[i],
+                                           &mCurrentValue[i], &mCurrentValueOffsets[i],
+                                           mCurrentValueBuffer[i]);
+            }
+
+            if (result != GL_NO_ERROR)
+            {
+                return result;
             }
         }
     }
@@ -160,7 +158,7 @@ gl::Error VertexDataManager::prepareVertexData(const gl::VertexAttribute attribs
         }
     }
 
-    return gl::Error(GL_NO_ERROR);
+    return GL_NO_ERROR;
 }
 
 void VertexDataManager::invalidateMatchingStaticData(const gl::VertexAttribute &attrib,
@@ -183,10 +181,10 @@ void VertexDataManager::invalidateMatchingStaticData(const gl::VertexAttribute &
     }
 }
 
-gl::Error VertexDataManager::reserveSpaceForAttrib(const gl::VertexAttribute &attrib,
-                                                   const gl::VertexAttribCurrentValueData &currentValue,
-                                                   GLsizei count,
-                                                   GLsizei instances) const
+bool VertexDataManager::reserveSpaceForAttrib(const gl::VertexAttribute &attrib,
+                                              const gl::VertexAttribCurrentValueData &currentValue,
+                                              GLsizei count,
+                                              GLsizei instances) const
 {
     gl::Buffer *buffer = attrib.buffer.get();
     BufferD3D *bufferImpl = buffer ? BufferD3D::makeBufferD3D(buffer->getImplementation()) : NULL;
@@ -200,10 +198,9 @@ gl::Error VertexDataManager::reserveSpaceForAttrib(const gl::VertexAttribute &at
             if (staticBuffer->getBufferSize() == 0)
             {
                 int totalCount = ElementsInBuffer(attrib, bufferImpl->getSize());
-                gl::Error error = staticBuffer->reserveVertexSpace(attrib, totalCount, 0);
-                if (error.isError())
+                if (!staticBuffer->reserveVertexSpace(attrib, totalCount, 0))
                 {
-                    return error;
+                    return false;
                 }
             }
         }
@@ -212,23 +209,22 @@ gl::Error VertexDataManager::reserveSpaceForAttrib(const gl::VertexAttribute &at
             int totalCount = StreamingBufferElementCount(attrib, count, instances);
             ASSERT(!bufferImpl || ElementsInBuffer(attrib, bufferImpl->getSize()) >= totalCount);
 
-            gl::Error error = mStreamingBuffer->reserveVertexSpace(attrib, totalCount, instances);
-            if (error.isError())
+            if (!mStreamingBuffer->reserveVertexSpace(attrib, totalCount, instances))
             {
-                return error;
+                return false;
             }
         }
     }
 
-    return gl::Error(GL_NO_ERROR);
+    return true;
 }
 
-gl::Error VertexDataManager::storeAttribute(const gl::VertexAttribute &attrib,
-                                            const gl::VertexAttribCurrentValueData &currentValue,
-                                            TranslatedAttribute *translated,
-                                            GLint start,
-                                            GLsizei count,
-                                            GLsizei instances)
+GLenum VertexDataManager::storeAttribute(const gl::VertexAttribute &attrib,
+                                         const gl::VertexAttribCurrentValueData &currentValue,
+                                         TranslatedAttribute *translated,
+                                         GLint start,
+                                         GLsizei count,
+                                         GLsizei instances)
 {
     gl::Buffer *buffer = attrib.buffer.get();
     ASSERT(buffer || attrib.pointer);
@@ -248,10 +244,9 @@ gl::Error VertexDataManager::storeAttribute(const gl::VertexAttribute &attrib,
     }
     else if (staticBuffer)
     {
-        gl::Error error = staticBuffer->getVertexBuffer()->getSpaceRequired(attrib, 1, 0, &outputElementSize);
-        if (error.isError())
+        if (!staticBuffer->getVertexBuffer()->getSpaceRequired(attrib, 1, 0, &outputElementSize))
         {
-            return error;
+            return GL_OUT_OF_MEMORY;
         }
 
         if (!staticBuffer->lookupAttribute(attrib, &streamOffset))
@@ -260,11 +255,10 @@ gl::Error VertexDataManager::storeAttribute(const gl::VertexAttribute &attrib,
             int totalCount = ElementsInBuffer(attrib, storage->getSize());
             int startIndex = attrib.offset / ComputeVertexAttributeStride(attrib);
 
-            gl::Error error = staticBuffer->storeVertexAttributes(attrib, currentValue, -startIndex, totalCount,
-                                                                  0, &streamOffset);
-            if (error.isError())
+            if (!staticBuffer->storeVertexAttributes(attrib, currentValue, -startIndex, totalCount,
+                0, &streamOffset))
             {
-                return error;
+                return GL_OUT_OF_MEMORY;
             }
         }
 
@@ -272,7 +266,7 @@ gl::Error VertexDataManager::storeAttribute(const gl::VertexAttribute &attrib,
         unsigned int startOffset = (instances == 0 || attrib.divisor == 0) ? start * outputElementSize : 0;
         if (streamOffset + firstElementOffset + startOffset < streamOffset)
         {
-            return gl::Error(GL_OUT_OF_MEMORY);
+            return GL_OUT_OF_MEMORY;
         }
 
         streamOffset += firstElementOffset + startOffset;
@@ -280,16 +274,11 @@ gl::Error VertexDataManager::storeAttribute(const gl::VertexAttribute &attrib,
     else
     {
         int totalCount = StreamingBufferElementCount(attrib, count, instances);
-        gl::Error error = mStreamingBuffer->getVertexBuffer()->getSpaceRequired(attrib, 1, 0, &outputElementSize);
-        if (error.isError())
+        if (!mStreamingBuffer->getVertexBuffer()->getSpaceRequired(attrib, 1, 0, &outputElementSize) ||
+            !mStreamingBuffer->storeVertexAttributes(attrib, currentValue, start, totalCount, instances,
+            &streamOffset))
         {
-            return error;
-        }
-
-        error = mStreamingBuffer->storeVertexAttributes(attrib, currentValue, start, totalCount, instances, &streamOffset);
-        if (error.isError())
-        {
-            return error;
+            return GL_OUT_OF_MEMORY;
         }
     }
 
@@ -303,29 +292,27 @@ gl::Error VertexDataManager::storeAttribute(const gl::VertexAttribute &attrib,
     translated->stride = outputElementSize;
     translated->offset = streamOffset;
 
-    return gl::Error(GL_NO_ERROR);
+    return GL_NO_ERROR;
 }
 
-gl::Error VertexDataManager::storeCurrentValue(const gl::VertexAttribute &attrib,
-                                               const gl::VertexAttribCurrentValueData &currentValue,
-                                               TranslatedAttribute *translated,
-                                               gl::VertexAttribCurrentValueData *cachedValue,
-                                               size_t *cachedOffset,
-                                               StreamingVertexBufferInterface *buffer)
+GLenum VertexDataManager::storeCurrentValue(const gl::VertexAttribute &attrib,
+                                            const gl::VertexAttribCurrentValueData &currentValue,
+                                            TranslatedAttribute *translated,
+                                            gl::VertexAttribCurrentValueData *cachedValue,
+                                            size_t *cachedOffset,
+                                            StreamingVertexBufferInterface *buffer)
 {
     if (*cachedValue != currentValue)
     {
-        gl::Error error = buffer->reserveVertexSpace(attrib, 1, 0);
-        if (error.isError())
+        if (!buffer->reserveVertexSpace(attrib, 1, 0))
         {
-            return error;
+            return GL_OUT_OF_MEMORY;
         }
 
         unsigned int streamOffset;
-        error = buffer->storeVertexAttributes(attrib, currentValue, 0, 1, 0, &streamOffset);
-        if (error.isError())
+        if (!buffer->storeVertexAttributes(attrib, currentValue, 0, 1, 0, &streamOffset))
         {
-            return error;
+            return GL_OUT_OF_MEMORY;
         }
 
         *cachedValue = currentValue;
@@ -342,7 +329,7 @@ gl::Error VertexDataManager::storeCurrentValue(const gl::VertexAttribute &attrib
     translated->stride = 0;
     translated->offset = *cachedOffset;
 
-    return gl::Error(GL_NO_ERROR);
+    return GL_NO_ERROR;
 }
 
 }

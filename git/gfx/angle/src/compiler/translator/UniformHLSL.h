@@ -19,7 +19,7 @@ class StructureHLSL;
 class UniformHLSL
 {
   public:
-    UniformHLSL(StructureHLSL *structureHLSL, TranslatorHLSL *translator);
+    UniformHLSL(StructureHLSL *structureHLSL, ShShaderOutput outputType);
 
     void reserveUniformRegisters(unsigned int registerCount);
     void reserveInterfaceBlockRegisters(unsigned int registerCount);
@@ -29,6 +29,8 @@ class UniformHLSL
     // Used for direct index references
     static TString interfaceBlockInstanceString(const TInterfaceBlock& interfaceBlock, unsigned int arrayIndex);
 
+    const std::vector<Uniform> &getUniforms() const { return mActiveUniforms; }
+    const std::vector<InterfaceBlock> &getInterfaceBlocks() const { return mActiveInterfaceBlocks; }
     const std::map<std::string, unsigned int> &getInterfaceBlockRegisterMap() const
     {
         return mInterfaceBlockRegisterMap;
@@ -42,7 +44,6 @@ class UniformHLSL
     TString interfaceBlockString(const TInterfaceBlock &interfaceBlock, unsigned int registerIndex, unsigned int arrayIndex);
     TString interfaceBlockMembersString(const TInterfaceBlock &interfaceBlock, TLayoutBlockStorage blockStorage);
     TString interfaceBlockStructString(const TInterfaceBlock &interfaceBlock);
-    const Uniform *findUniformByName(const TString &name) const;
 
     // Returns the uniform's register index
     unsigned int declareUniformAndAssignRegister(const TType &type, const TString &name);
@@ -53,7 +54,8 @@ class UniformHLSL
     StructureHLSL *mStructureHLSL;
     ShShaderOutput mOutputType;
 
-    const std::vector<Uniform> &mUniforms;
+    std::vector<Uniform> mActiveUniforms;
+    std::vector<InterfaceBlock> mActiveInterfaceBlocks;
     std::map<std::string, unsigned int> mInterfaceBlockRegisterMap;
     std::map<std::string, unsigned int> mUniformRegisterMap;
 };

@@ -21,18 +21,18 @@ class IndexBuffer9 : public IndexBuffer
     explicit IndexBuffer9(Renderer9 *const renderer);
     virtual ~IndexBuffer9();
 
-    virtual gl::Error initialize(unsigned int bufferSize, GLenum indexType, bool dynamic);
+    virtual bool initialize(unsigned int bufferSize, GLenum indexType, bool dynamic);
 
     static IndexBuffer9 *makeIndexBuffer9(IndexBuffer *indexBuffer);
 
-    virtual gl::Error mapBuffer(unsigned int offset, unsigned int size, void** outMappedMemory);
-    virtual gl::Error unmapBuffer();
+    virtual bool mapBuffer(unsigned int offset, unsigned int size, void** outMappedMemory);
+    virtual bool unmapBuffer();
 
     virtual GLenum getIndexType() const;
     virtual unsigned int getBufferSize() const;
-    virtual gl::Error setSize(unsigned int bufferSize, GLenum indexType);
+    virtual bool setSize(unsigned int bufferSize, GLenum indexType);
 
-    virtual gl::Error discard();
+    virtual bool discard();
 
     D3DFORMAT getIndexFormat() const;
     IDirect3DIndexBuffer9 *getBuffer() const;

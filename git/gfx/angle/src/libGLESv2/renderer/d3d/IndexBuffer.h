@@ -11,7 +11,6 @@
 #define LIBGLESV2_RENDERER_INDEXBUFFER_H_
 
 #include "common/angleutils.h"
-#include "libGLESv2/Error.h"
 #include "libGLESv2/renderer/IndexRangeCache.h"
 
 namespace rx
@@ -24,16 +23,16 @@ class IndexBuffer
     IndexBuffer();
     virtual ~IndexBuffer();
 
-    virtual gl::Error initialize(unsigned int bufferSize, GLenum indexType, bool dynamic) = 0;
+    virtual bool initialize(unsigned int bufferSize, GLenum indexType, bool dynamic) = 0;
 
-    virtual gl::Error mapBuffer(unsigned int offset, unsigned int size, void** outMappedMemory) = 0;
-    virtual gl::Error unmapBuffer() = 0;
+    virtual bool mapBuffer(unsigned int offset, unsigned int size, void** outMappedMemory) = 0;
+    virtual bool unmapBuffer() = 0;
 
-    virtual gl::Error discard() = 0;
+    virtual bool discard() = 0;
 
     virtual GLenum getIndexType() const = 0;
     virtual unsigned int getBufferSize() const = 0;
-    virtual gl::Error setSize(unsigned int bufferSize, GLenum indexType) = 0;
+    virtual bool setSize(unsigned int bufferSize, GLenum indexType) = 0;
 
     unsigned int getSerial() const;
 
@@ -53,15 +52,15 @@ class IndexBufferInterface
     IndexBufferInterface(Renderer *renderer, bool dynamic);
     virtual ~IndexBufferInterface();
 
-    virtual gl::Error reserveBufferSpace(unsigned int size, GLenum indexType) = 0;
+    virtual bool reserveBufferSpace(unsigned int size, GLenum indexType) = 0;
 
     GLenum getIndexType() const;
     unsigned int getBufferSize() const;
 
     unsigned int getSerial() const;
 
-    gl::Error mapBuffer(unsigned int size, void** outMappedMemory, unsigned int *streamOffset);
-    gl::Error unmapBuffer();
+    bool mapBuffer(unsigned int size, void** outMappedMemory, unsigned int *streamOffset);
+    bool unmapBuffer();
 
     IndexBuffer *getIndexBuffer() const;
 
@@ -69,9 +68,9 @@ class IndexBufferInterface
     unsigned int getWritePosition() const;
     void setWritePosition(unsigned int writePosition);
 
-    gl::Error discard();
+    bool discard();
 
-    gl::Error setBufferSize(unsigned int bufferSize, GLenum indexType);
+    bool setBufferSize(unsigned int bufferSize, GLenum indexType);
 
   private:
     DISALLOW_COPY_AND_ASSIGN(IndexBufferInterface);
@@ -90,7 +89,7 @@ class StreamingIndexBufferInterface : public IndexBufferInterface
     StreamingIndexBufferInterface(Renderer *renderer);
     ~StreamingIndexBufferInterface();
 
-    virtual gl::Error reserveBufferSpace(unsigned int size, GLenum indexType);
+    virtual bool reserveBufferSpace(unsigned int size, GLenum indexType);
 };
 
 class StaticIndexBufferInterface : public IndexBufferInterface
@@ -99,7 +98,7 @@ class StaticIndexBufferInterface : public IndexBufferInterface
     explicit StaticIndexBufferInterface(Renderer *renderer);
     ~StaticIndexBufferInterface();
 
-    virtual gl::Error reserveBufferSpace(unsigned int size, GLenum indexType);
+    virtual bool reserveBufferSpace(unsigned int size, GLenum indexType);
 
     IndexRangeCache *getIndexRangeCache();
 

@@ -53,9 +53,10 @@ component("translator") {
     "//build/config/compiler:no_chromium_code",
   ]
 
-  public_deps = [
+  deps = [
     ":translator_lib",
   ]
+  forward_dependent_configs_from = [ ":translator_lib" ]
 }
 
 # Holds the shared includes so we only need to list them once.
@@ -98,7 +99,7 @@ static_library("translator_lib") {
     ":translator_static_config",
     "//build/config/compiler:no_chromium_code",
   ]
-  public_configs = [ ":external_config" ]
+  direct_dependent_configs = [ ":external_config" ]
 
   deps = [
     ":includes",
@@ -117,11 +118,12 @@ static_library("translator_static") {
     ":internal_config",
     "//build/config/compiler:no_chromium_code",
   ]
-  public_configs = [ ":translator_static_config" ]
+  direct_dependent_configs = [ ":translator_static_config" ]
 
-  public_deps = [
+  deps = [
     ":translator_lib",
   ]
+  forward_dependent_configs_from = [ ":translator_lib" ]
 }
 
 config("commit_id_config") {
@@ -140,7 +142,7 @@ action("commit_id") {
     rebase_path(output_file, root_build_dir),
   ]
 
-  public_configs = [ ":commit_id_config" ]
+  direct_dependent_configs = [ ":commit_id_config" ]
 }
 
 if (is_win) {
@@ -148,12 +150,7 @@ if (is_win) {
   angle_enable_d3d11 = true
 
   shared_library("libGLESv2") {
-    sources = rebase_path(gles_gypi.angle_libangle_sources, ".", "src")
-    sources += [
-      "src/libGLESv2/libGLESv2.cpp",
-      "src/libGLESv2/libGLESv2.def",
-      "src/libGLESv2/libGLESv2.rc",
-    ]
+    sources = rebase_path(gles_gypi.angle_libglesv2_sources, ".", "src")
 
     defines = [
       "ANGLE_PRELOADED_D3DCOMPILER_MODULE_NAMES={ " +

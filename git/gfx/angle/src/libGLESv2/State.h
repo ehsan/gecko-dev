@@ -24,16 +24,12 @@ namespace gl
 class Query;
 class VertexArray;
 class Context;
-struct Caps;
 
 class State
 {
   public:
     State();
     ~State();
-
-    void initialize(const Caps& caps, GLuint clientVersion);
-    void reset();
 
     void setContext(Context *context) { mContext = context; }
 
@@ -130,9 +126,9 @@ class State
     // Texture binding & active texture unit manipulation
     void setActiveSampler(unsigned int active);
     unsigned int getActiveSampler() const;
-    void setSamplerTexture(GLenum type, Texture *texture);
-    Texture *getSamplerTexture(unsigned int sampler, GLenum type) const;
-    GLuint getSamplerTextureId(unsigned int sampler, GLenum type) const;
+    void setSamplerTexture(TextureType type, Texture *texture);
+    Texture *getSamplerTexture(unsigned int sampler, TextureType type) const;
+    GLuint getSamplerTextureId(unsigned int sampler, TextureType type) const;
     void detachTexture(GLuint texture);
 
     // Sampler object binding manipulation
@@ -276,6 +272,7 @@ class State
     float mNearZ;
     float mFarZ;
 
+    unsigned int mActiveSampler;   // Active texture unit selector - GL_TEXTURE0
     BindingPointer<Buffer> mArrayBuffer;
     Framebuffer *mReadFramebuffer;
     Framebuffer *mDrawFramebuffer;
@@ -286,15 +283,8 @@ class State
     VertexAttribCurrentValueData mVertexAttribCurrentValues[MAX_VERTEX_ATTRIBS]; // From glVertexAttrib
     VertexArray *mVertexArray;
 
-    // Texture and sampler bindings
-    size_t mActiveSampler;   // Active texture unit selector - GL_TEXTURE0
-
-    typedef std::vector< BindingPointer<Texture> > TextureBindingVector;
-    typedef std::map<GLenum, TextureBindingVector> TextureBindingMap;
-    TextureBindingMap mSamplerTextures;
-
-    typedef std::vector< BindingPointer<Sampler> > SamplerBindingVector;
-    SamplerBindingVector mSamplers;
+    BindingPointer<Texture> mSamplerTexture[TEXTURE_TYPE_COUNT][IMPLEMENTATION_MAX_COMBINED_TEXTURE_IMAGE_UNITS];
+    BindingPointer<Sampler> mSamplers[IMPLEMENTATION_MAX_COMBINED_TEXTURE_IMAGE_UNITS];
 
     typedef std::map< GLenum, BindingPointer<Query> > ActiveQueryMap;
     ActiveQueryMap mActiveQueries;

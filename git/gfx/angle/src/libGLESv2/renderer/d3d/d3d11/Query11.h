@@ -21,19 +21,18 @@ class Query11 : public QueryImpl
     Query11(rx::Renderer11 *renderer, GLenum type);
     virtual ~Query11();
 
-    virtual gl::Error begin();
-    virtual gl::Error end();
-    virtual gl::Error getResult(GLuint *params);
-    virtual gl::Error isResultAvailable(GLuint *available);
+    virtual bool begin();
+    virtual void end();
+    virtual GLuint getResult();
+    virtual GLboolean isResultAvailable();
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Query11);
 
-    gl::Error testQuery();
+    GLboolean testQuery();
 
     GLuint mResult;
-
-    bool mQueryFinished;
+    GLboolean mStatus;
 
     rx::Renderer11 *mRenderer;
     ID3D11Query *mQuery;

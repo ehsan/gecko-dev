@@ -71,6 +71,7 @@ class RenderbufferStorage
     virtual ~RenderbufferStorage() = 0;
 
     virtual rx::RenderTarget *getRenderTarget();
+    virtual rx::RenderTarget *getDepthStencil();
 
     virtual GLsizei getWidth() const;
     virtual GLsizei getHeight() const;
@@ -83,7 +84,7 @@ class RenderbufferStorage
     virtual bool isTexture() const;
     virtual unsigned int getTextureSerial() const;
 
-    static unsigned int issueSerials(unsigned int count);
+    static unsigned int issueSerials(GLuint count);
 
   protected:
     GLsizei mWidth;

@@ -33,38 +33,12 @@ namespace rx
 
 PixelTransfer11::PixelTransfer11(Renderer11 *renderer)
     : mRenderer(renderer),
-      mResourcesLoaded(false),
       mBufferToTextureVS(NULL),
       mBufferToTextureGS(NULL),
       mParamsConstantBuffer(NULL),
       mCopyRasterizerState(NULL),
       mCopyDepthStencilState(NULL)
 {
-}
-
-PixelTransfer11::~PixelTransfer11()
-{
-    for (auto shaderMapIt = mBufferToTexturePSMap.begin(); shaderMapIt != mBufferToTexturePSMap.end(); shaderMapIt++)
-    {
-        SafeRelease(shaderMapIt->second);
-    }
-
-    mBufferToTexturePSMap.clear();
-
-    SafeRelease(mBufferToTextureVS);
-    SafeRelease(mBufferToTextureGS);
-    SafeRelease(mParamsConstantBuffer);
-    SafeRelease(mCopyRasterizerState);
-    SafeRelease(mCopyDepthStencilState);
-}
-
-gl::Error PixelTransfer11::loadResources()
-{
-    if (mResourcesLoaded)
-    {
-        return gl::Error(GL_NO_ERROR);
-    }
-
     HRESULT result = S_OK;
     ID3D11Device *device = mRenderer->getDevice();
 
@@ -82,10 +56,6 @@ gl::Error PixelTransfer11::loadResources()
 
     result = device->CreateRasterizerState(&rasterDesc, &mCopyRasterizerState);
     ASSERT(SUCCEEDED(result));
-    if (FAILED(result))
-    {
-        return gl::Error(GL_OUT_OF_MEMORY, "Failed to create internal pixel transfer rasterizer state, result: 0x%X.", result);
-    }
 
     D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
     depthStencilDesc.DepthEnable = true;
@@ -105,10 +75,6 @@ gl::Error PixelTransfer11::loadResources()
 
     result = device->CreateDepthStencilState(&depthStencilDesc, &mCopyDepthStencilState);
     ASSERT(SUCCEEDED(result));
-    if (FAILED(result))
-    {
-        return gl::Error(GL_OUT_OF_MEMORY, "Failed to create internal pixel transfer depth stencil state, result: 0x%X.", result);
-    }
 
     D3D11_BUFFER_DESC constantBufferDesc = { 0 };
     constantBufferDesc.ByteWidth = rx::roundUp<UINT>(sizeof(CopyShaderParams), 32u);
@@ -120,36 +86,31 @@ gl::Error PixelTransfer11::loadResources()
 
     result = device->CreateBuffer(&constantBufferDesc, NULL, &mParamsConstantBuffer);
     ASSERT(SUCCEEDED(result));
-    if (FAILED(result))
-    {
-        return gl::Error(GL_OUT_OF_MEMORY, "Failed to create internal pixel transfer constant buffer, result: 0x%X.", result);
-    }
     d3d11::SetDebugName(mParamsConstantBuffer, "PixelTransfer11 constant buffer");
 
     // init shaders
     mBufferToTextureVS = d3d11::CompileVS(device, g_VS_BufferToTexture, "BufferToTexture VS");
-    if (!mBufferToTextureVS)
-    {
-        return gl::Error(GL_OUT_OF_MEMORY, "Failed to create internal buffer to texture vertex shader.");
-    }
-
     mBufferToTextureGS = d3d11::CompileGS(device, g_GS_BufferToTexture, "BufferToTexture GS");
-    if (!mBufferToTextureGS)
-    {
-        return gl::Error(GL_OUT_OF_MEMORY, "Failed to create internal buffer to texture geometry shader.");
-    }
 
-    gl::Error error = buildShaderMap();
-    if (error.isError())
-    {
-        return error;
-    }
+    buildShaderMap();
 
     StructZero(&mParamsData);
+}
 
-    mResourcesLoaded = true;
+PixelTransfer11::~PixelTransfer11()
+{
+    for (auto shaderMapIt = mBufferToTexturePSMap.begin(); shaderMapIt != mBufferToTexturePSMap.end(); shaderMapIt++)
+    {
+        SafeRelease(shaderMapIt->second);
+    }
 
-    return gl::Error(GL_NO_ERROR);
+    mBufferToTexturePSMap.clear();
+
+    SafeRelease(mBufferToTextureVS);
+    SafeRelease(mBufferToTextureGS);
+    SafeRelease(mParamsConstantBuffer);
+    SafeRelease(mCopyRasterizerState);
+    SafeRelease(mCopyDepthStencilState);
 }
 
 void PixelTransfer11::setBufferToTextureCopyParams(const gl::Box &destArea, const gl::Extents &destSize, GLenum internalFormat,
@@ -174,20 +135,17 @@ void PixelTransfer11::setBufferToTextureCopyParams(const gl::Box &destArea, cons
     parametersOut->PositionScale[1]     = -2.0f / static_cast<float>(destSize.height);
 }
 
-gl::Error PixelTransfer11::copyBufferToTexture(const gl::PixelUnpackState &unpack, unsigned int offset, RenderTarget *destRenderTarget,
-                                               GLenum destinationFormat, GLenum sourcePixelsType, const gl::Box &destArea)
+bool PixelTransfer11::copyBufferToTexture(const gl::PixelUnpackState &unpack, unsigned int offset, RenderTarget *destRenderTarget,
+                                          GLenum destinationFormat, GLenum sourcePixelsType, const gl::Box &destArea)
 {
-    gl::Error error = loadResources();
-    if (error.isError())
-    {
-        return error;
-    }
-
     gl::Extents destSize = destRenderTarget->getExtents();
 
-    ASSERT(destArea.x >= 0 && destArea.x + destArea.width  <= destSize.width  &&
-           destArea.y >= 0 && destArea.y + destArea.height <= destSize.height &&
-           destArea.z >= 0 && destArea.z + destArea.depth  <= destSize.depth  );
+    if (destArea.x   < 0 || destArea.x   + destArea.width    > destSize.width    ||
+        destArea.y   < 0 || destArea.y   + destArea.height   > destSize.height   ||
+        destArea.z   < 0 || destArea.z   + destArea.depth    > destSize.depth    )
+    {
+        return false;
+    }
 
     const gl::Buffer &sourceBuffer = *unpack.pixelBuffer.get();
 
@@ -264,27 +222,16 @@ gl::Error PixelTransfer11::copyBufferToTexture(const gl::PixelUnpackState &unpac
 
     mRenderer->markAllStateDirty();
 
-    return gl::Error(GL_NO_ERROR);
+    return true;
 }
 
-gl::Error PixelTransfer11::buildShaderMap()
+void PixelTransfer11::buildShaderMap()
 {
     ID3D11Device *device = mRenderer->getDevice();
 
     mBufferToTexturePSMap[GL_FLOAT]        = d3d11::CompilePS(device, g_PS_BufferToTexture_4F,  "BufferToTexture RGBA ps");
     mBufferToTexturePSMap[GL_INT]          = d3d11::CompilePS(device, g_PS_BufferToTexture_4I,  "BufferToTexture RGBA-I ps");
     mBufferToTexturePSMap[GL_UNSIGNED_INT] = d3d11::CompilePS(device, g_PS_BufferToTexture_4UI, "BufferToTexture RGBA-UI ps");
-
-    // Check that all the shaders were created successfully
-    for (auto shaderMapIt = mBufferToTexturePSMap.begin(); shaderMapIt != mBufferToTexturePSMap.end(); shaderMapIt++)
-    {
-        if (shaderMapIt->second == NULL)
-        {
-            return gl::Error(GL_OUT_OF_MEMORY, "Failed to create internal buffer to texture pixel shader.");
-        }
-    }
-
-    return gl::Error(GL_NO_ERROR);
 }
 
 ID3D11PixelShader *PixelTransfer11::findBufferToTexturePS(GLenum internalFormat) const

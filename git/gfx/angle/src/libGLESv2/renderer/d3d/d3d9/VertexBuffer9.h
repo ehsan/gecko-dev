@@ -21,18 +21,18 @@ class VertexBuffer9 : public VertexBuffer
     explicit VertexBuffer9(rx::Renderer9 *renderer);
     virtual ~VertexBuffer9();
 
-    virtual gl::Error initialize(unsigned int size, bool dynamicUsage);
+    virtual bool initialize(unsigned int size, bool dynamicUsage);
 
     static VertexBuffer9 *makeVertexBuffer9(VertexBuffer *vertexBuffer);
 
-    virtual gl::Error storeVertexAttributes(const gl::VertexAttribute &attrib, const gl::VertexAttribCurrentValueData &currentValue,
-                                            GLint start, GLsizei count, GLsizei instances, unsigned int offset);
+    virtual bool storeVertexAttributes(const gl::VertexAttribute &attrib, const gl::VertexAttribCurrentValueData &currentValue,
+                                       GLint start, GLsizei count, GLsizei instances, unsigned int offset);
 
-    virtual gl::Error getSpaceRequired(const gl::VertexAttribute &attrib, GLsizei count, GLsizei instances, unsigned int *outSpaceRequired) const;
+    virtual bool getSpaceRequired(const gl::VertexAttribute &attrib, GLsizei count, GLsizei instances, unsigned int *outSpaceRequired) const;
 
     virtual unsigned int getBufferSize() const;
-    virtual gl::Error setBufferSize(unsigned int size);
-    virtual gl::Error discard();
+    virtual bool setBufferSize(unsigned int size);
+    virtual bool discard();
 
     IDirect3DVertexBuffer9 *getBuffer() const;
 
@@ -45,8 +45,8 @@ class VertexBuffer9 : public VertexBuffer
     unsigned int mBufferSize;
     bool mDynamicUsage;
 
-    gl::Error spaceRequired(const gl::VertexAttribute &attrib, std::size_t count, GLsizei instances,
-                            unsigned int *outSpaceRequired) const;
+    bool spaceRequired(const gl::VertexAttribute &attrib, std::size_t count, GLsizei instances,
+                       unsigned int *outSpaceRequired) const;
 };
 
 }

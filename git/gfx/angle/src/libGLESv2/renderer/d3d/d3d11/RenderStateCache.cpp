@@ -79,37 +79,39 @@ bool RenderStateCache::compareBlendStates(const BlendStateKey &a, const BlendSta
     return memcmp(&a, &b, sizeof(BlendStateKey)) == 0;
 }
 
-gl::Error RenderStateCache::getBlendState(const gl::Framebuffer *framebuffer, const gl::BlendState &blendState,
-                                          ID3D11BlendState **outBlendState)
+ID3D11BlendState *RenderStateCache::getBlendState(const gl::Framebuffer *framebuffer, const gl::BlendState &blendState)
 {
     if (!mDevice)
     {
-        return gl::Error(GL_OUT_OF_MEMORY, "Internal error, RenderStateCache is not initialized.");
+        ERR("RenderStateCache is not initialized.");
+        return NULL;
     }
 
     bool mrt = false;
 
-    const gl::ColorbufferInfo &colorbuffers = framebuffer->getColorbuffersForRender();
-
     BlendStateKey key = { 0 };
     key.blendState = blendState;
-    for (size_t colorAttachment = 0; colorAttachment < colorbuffers.size(); ++colorAttachment)
+    for (unsigned int i = 0; i < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT; i++)
     {
-        const gl::FramebufferAttachment *attachment = colorbuffers[colorAttachment];
-
-        auto rtChannels = key.rtChannels[colorAttachment];
-
+        const gl::FramebufferAttachment *attachment = framebuffer->getColorbuffer(i);
         if (attachment)
         {
-            if (colorAttachment > 0)
+            if (i > 0)
             {
                 mrt = true;
             }
 
-            rtChannels[0] = attachment->getRedSize()   > 0;
-            rtChannels[1] = attachment->getGreenSize() > 0;
-            rtChannels[2] = attachment->getBlueSize()  > 0;
-            rtChannels[3] = attachment->getAlphaSize() > 0;
+            key.rtChannels[i][0] = attachment->getRedSize()   > 0;
+            key.rtChannels[i][1] = attachment->getGreenSize() > 0;
+            key.rtChannels[i][2] = attachment->getBlueSize()  > 0;
+            key.rtChannels[i][3] = attachment->getAlphaSize() > 0;
+        }
+        else
+        {
+            key.rtChannels[i][0] = false;
+            key.rtChannels[i][1] = false;
+            key.rtChannels[i][2] = false;
+            key.rtChannels[i][3] = false;
         }
     }
 
@@ -118,8 +120,7 @@ gl::Error RenderStateCache::getBlendState(const gl::Framebuffer *framebuffer, co
     {
         BlendStateCounterPair &state = keyIter->second;
         state.second = mCounter++;
-        *outBlendState = state.first;
-        return gl::Error(GL_NO_ERROR);
+        return state.first;
     }
     else
     {
@@ -171,13 +172,13 @@ gl::Error RenderStateCache::getBlendState(const gl::Framebuffer *framebuffer, co
         HRESULT result = mDevice->CreateBlendState(&blendDesc, &dx11BlendState);
         if (FAILED(result) || !dx11BlendState)
         {
-            return gl::Error(GL_OUT_OF_MEMORY, "Unable to create a ID3D11BlendState, HRESULT: 0x%X.", result);
+            ERR("Unable to create a ID3D11BlendState, HRESULT: 0x%X.", result);
+            return NULL;
         }
 
         mBlendStateCache.insert(std::make_pair(key, std::make_pair(dx11BlendState, mCounter++)));
 
-        *outBlendState = dx11BlendState;
-        return gl::Error(GL_NO_ERROR);
+        return dx11BlendState;
     }
 }
 
@@ -195,12 +196,12 @@ bool RenderStateCache::compareRasterizerStates(const RasterizerStateKey &a, cons
     return memcmp(&a, &b, sizeof(RasterizerStateKey)) == 0;
 }
 
-gl::Error RenderStateCache::getRasterizerState(const gl::RasterizerState &rasterState, bool scissorEnabled,
-                                               ID3D11RasterizerState **outRasterizerState)
+ID3D11RasterizerState *RenderStateCache::getRasterizerState(const gl::RasterizerState &rasterState, bool scissorEnabled)
 {
     if (!mDevice)
     {
-        return gl::Error(GL_OUT_OF_MEMORY, "Internal error, RenderStateCache is not initialized.");
+        ERR("RenderStateCache is not initialized.");
+        return NULL;
     }
 
     RasterizerStateKey key = { 0 };
@@ -212,8 +213,7 @@ gl::Error RenderStateCache::getRasterizerState(const gl::RasterizerState &raster
     {
         RasterizerStateCounterPair &state = keyIter->second;
         state.second = mCounter++;
-        *outRasterizerState = state.first;
-        return gl::Error(GL_NO_ERROR);
+        return state.first;
     }
     else
     {
@@ -267,13 +267,13 @@ gl::Error RenderStateCache::getRasterizerState(const gl::RasterizerState &raster
         HRESULT result = mDevice->CreateRasterizerState(&rasterDesc, &dx11RasterizerState);
         if (FAILED(result) || !dx11RasterizerState)
         {
-            return gl::Error(GL_OUT_OF_MEMORY, "Unable to create a ID3D11RasterizerState, HRESULT: 0x%X.", result);
+            ERR("Unable to create a ID3D11RasterizerState, HRESULT: 0x%X.", result);
+            return NULL;
         }
 
         mRasterizerStateCache.insert(std::make_pair(key, std::make_pair(dx11RasterizerState, mCounter++)));
 
-        *outRasterizerState = dx11RasterizerState;
-        return gl::Error(GL_NO_ERROR);
+        return dx11RasterizerState;
     }
 }
 
@@ -291,11 +291,12 @@ bool RenderStateCache::compareDepthStencilStates(const gl::DepthStencilState &a,
     return memcmp(&a, &b, sizeof(gl::DepthStencilState)) == 0;
 }
 
-gl::Error RenderStateCache::getDepthStencilState(const gl::DepthStencilState &dsState, ID3D11DepthStencilState **outDSState)
+ID3D11DepthStencilState *RenderStateCache::getDepthStencilState(const gl::DepthStencilState &dsState)
 {
     if (!mDevice)
     {
-        return gl::Error(GL_OUT_OF_MEMORY, "Internal error, RenderStateCache is not initialized.");
+        ERR("RenderStateCache is not initialized.");
+        return NULL;
     }
 
     DepthStencilStateMap::iterator keyIter = mDepthStencilStateCache.find(dsState);
@@ -303,8 +304,7 @@ gl::Error RenderStateCache::getDepthStencilState(const gl::DepthStencilState &ds
     {
         DepthStencilStateCounterPair &state = keyIter->second;
         state.second = mCounter++;
-        *outDSState = state.first;
-        return gl::Error(GL_NO_ERROR);
+        return state.first;
     }
     else
     {
@@ -345,13 +345,13 @@ gl::Error RenderStateCache::getDepthStencilState(const gl::DepthStencilState &ds
         HRESULT result = mDevice->CreateDepthStencilState(&dsDesc, &dx11DepthStencilState);
         if (FAILED(result) || !dx11DepthStencilState)
         {
-            return gl::Error(GL_OUT_OF_MEMORY, "Unable to create a ID3D11DepthStencilState, HRESULT: 0x%X.", result);
+            ERR("Unable to create a ID3D11DepthStencilState, HRESULT: 0x%X.", result);
+            return NULL;
         }
 
         mDepthStencilStateCache.insert(std::make_pair(dsState, std::make_pair(dx11DepthStencilState, mCounter++)));
 
-        *outDSState = dx11DepthStencilState;
-        return gl::Error(GL_NO_ERROR);
+        return dx11DepthStencilState;
     }
 }
 
@@ -369,11 +369,12 @@ bool RenderStateCache::compareSamplerStates(const gl::SamplerState &a, const gl:
     return memcmp(&a, &b, sizeof(gl::SamplerState)) == 0;
 }
 
-gl::Error RenderStateCache::getSamplerState(const gl::SamplerState &samplerState, ID3D11SamplerState **outSamplerState)
+ID3D11SamplerState *RenderStateCache::getSamplerState(const gl::SamplerState &samplerState)
 {
     if (!mDevice)
     {
-        return gl::Error(GL_OUT_OF_MEMORY, "Internal error, RenderStateCache is not initialized.");
+        ERR("RenderStateCache is not initialized.");
+        return NULL;
     }
 
     SamplerStateMap::iterator keyIter = mSamplerStateCache.find(samplerState);
@@ -381,8 +382,7 @@ gl::Error RenderStateCache::getSamplerState(const gl::SamplerState &samplerState
     {
         SamplerStateCounterPair &state = keyIter->second;
         state.second = mCounter++;
-        *outSamplerState = state.first;
-        return gl::Error(GL_NO_ERROR);
+        return state.first;
     }
     else
     {
@@ -423,13 +423,13 @@ gl::Error RenderStateCache::getSamplerState(const gl::SamplerState &samplerState
         HRESULT result = mDevice->CreateSamplerState(&samplerDesc, &dx11SamplerState);
         if (FAILED(result) || !dx11SamplerState)
         {
-            return gl::Error(GL_OUT_OF_MEMORY, "Unable to create a ID3D11SamplerState, HRESULT: 0x%X.", result);
+            ERR("Unable to create a ID3D11DepthStencilState, HRESULT: 0x%X.", result);
+            return NULL;
         }
 
         mSamplerStateCache.insert(std::make_pair(samplerState, std::make_pair(dx11SamplerState, mCounter++)));
 
-        *outSamplerState = dx11SamplerState;
-        return gl::Error(GL_NO_ERROR);
+        return dx11SamplerState;
     }
 }
 

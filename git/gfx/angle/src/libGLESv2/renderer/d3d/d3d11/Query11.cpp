@@ -16,13 +16,24 @@
 namespace rx
 {
 
-Query11::Query11(rx::Renderer11 *renderer, GLenum type)
-    : QueryImpl(type),
-      mResult(0),
-      mQueryFinished(false),
-      mRenderer(renderer),
-      mQuery(NULL)
+static bool checkOcclusionQuery(ID3D11DeviceContext *context, ID3D11Query *query, UINT64 *numPixels)
 {
+    HRESULT result = context->GetData(query, numPixels, sizeof(UINT64), 0);
+    return (result == S_OK);
+}
+
+static bool checkStreamOutPrimitivesWritten(ID3D11DeviceContext *context, ID3D11Query *query, UINT64 *numPrimitives)
+{
+    D3D11_QUERY_DATA_SO_STATISTICS soStats = { 0 };
+    HRESULT result = context->GetData(query, &soStats, sizeof(D3D11_QUERY_DATA_SO_STATISTICS), 0);
+    *numPrimitives = soStats.NumPrimitivesWritten;
+    return (result == S_OK);
+}
+
+Query11::Query11(rx::Renderer11 *renderer, GLenum type) : QueryImpl(type), mStatus(GL_FALSE), mResult(0)
+{
+    mRenderer = renderer;
+    mQuery = NULL;
 }
 
 Query11::~Query11()
@@ -30,7 +41,7 @@ Query11::~Query11()
     SafeRelease(mQuery);
 }
 
-gl::Error Query11::begin()
+bool Query11::begin()
 {
     if (mQuery == NULL)
     {
@@ -38,85 +49,70 @@ gl::Error Query11::begin()
         queryDesc.Query = gl_d3d11::ConvertQueryType(getType());
         queryDesc.MiscFlags = 0;
 
-        HRESULT result = mRenderer->getDevice()->CreateQuery(&queryDesc, &mQuery);
-        if (FAILED(result))
+        if (FAILED(mRenderer->getDevice()->CreateQuery(&queryDesc, &mQuery)))
         {
-            return gl::Error(GL_OUT_OF_MEMORY, "Internal query creation failed, result: 0x%X.", result);
+            return gl::error(GL_OUT_OF_MEMORY, false);
         }
     }
 
     mRenderer->getDeviceContext()->Begin(mQuery);
-    return gl::Error(GL_NO_ERROR);
+    return true;
 }
 
-gl::Error Query11::end()
+void Query11::end()
 {
     ASSERT(mQuery);
     mRenderer->getDeviceContext()->End(mQuery);
 
-    mQueryFinished = false;
+    mStatus = GL_FALSE;
     mResult = GL_FALSE;
-
-    return gl::Error(GL_NO_ERROR);
 }
 
-gl::Error Query11::getResult(GLuint *params)
+GLuint Query11::getResult()
 {
-    while (!mQueryFinished)
+    if (mQuery != NULL)
     {
-        gl::Error error = testQuery();
-        if (error.isError())
-        {
-            return error;
-        }
-
-        if (!mQueryFinished)
+        while (!testQuery())
         {
             Sleep(0);
+            // explicitly check for device loss, some drivers seem to return S_FALSE
+            // if the device is lost
+            if (mRenderer->testDeviceLost(true))
+            {
+                return gl::error(GL_OUT_OF_MEMORY, 0);
+            }
         }
     }
 
-    ASSERT(mQueryFinished);
-    *params = mResult;
-
-    return gl::Error(GL_NO_ERROR);
+    return mResult;
 }
 
-gl::Error Query11::isResultAvailable(GLuint *available)
+GLboolean Query11::isResultAvailable()
 {
-    gl::Error error = testQuery();
-    if (error.isError())
+    if (mQuery != NULL)
     {
-        return error;
+        testQuery();
     }
 
-    *available = (mQueryFinished ? GL_TRUE : GL_FALSE);
-
-    return gl::Error(GL_NO_ERROR);
+    return mStatus;
 }
 
-gl::Error Query11::testQuery()
+GLboolean Query11::testQuery()
 {
-    if (!mQueryFinished)
+    if (mQuery != NULL && mStatus != GL_TRUE)
     {
-        ASSERT(mQuery);
-
         ID3D11DeviceContext *context = mRenderer->getDeviceContext();
+
+        bool queryFinished = false;
         switch (getType())
         {
           case GL_ANY_SAMPLES_PASSED_EXT:
           case GL_ANY_SAMPLES_PASSED_CONSERVATIVE_EXT:
             {
                 UINT64 numPixels = 0;
-                HRESULT result = context->GetData(mQuery, &numPixels, sizeof(numPixels), 0);
-                if (FAILED(result))
+                queryFinished = checkOcclusionQuery(context, mQuery, &numPixels);
+                if (queryFinished)
                 {
-                    return gl::Error(GL_OUT_OF_MEMORY, "Failed to get the data of an internal query, result: 0x%X.", result);
-                }
-
-                if (result == S_OK)
-                {
-                    mQueryFinished = true;
                     mResult = (numPixels > 0) ? GL_TRUE : GL_FALSE;
                 }
             }
@@ -124,17 +120,11 @@ gl::Error Query11::testQuery()
 
           case GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN:
             {
-                D3D11_QUERY_DATA_SO_STATISTICS soStats = { 0 };
-                HRESULT result = context->GetData(mQuery, &soStats, sizeof(soStats), 0);
-                if (FAILED(result))
+                UINT64 numPrimitives = 0;
+                queryFinished = checkStreamOutPrimitivesWritten(context, mQuery, &numPrimitives);
+                if (queryFinished)
                 {
-                    return gl::Error(GL_OUT_OF_MEMORY, "Failed to get the data of an internal query, result: 0x%X.", result);
-                }
-
-                if (result == S_OK)
-                {
-                    mQueryFinished = true;
-                    mResult = static_cast<GLuint>(soStats.NumPrimitivesWritten);
+                    mResult = static_cast<GLuint>(numPrimitives);
                 }
             }
             break;
@@ -144,13 +134,19 @@ gl::Error Query11::testQuery()
             break;
         }
 
-        if (!mQueryFinished && mRenderer->testDeviceLost(true))
+        if (queryFinished)
         {
-            return gl::Error(GL_OUT_OF_MEMORY, "Failed to test get query result, device is lost.");
+            mStatus = GL_TRUE;
         }
+        else if (mRenderer->testDeviceLost(true))
+        {
+            return gl::error(GL_OUT_OF_MEMORY, GL_TRUE);
+        }
+
+        return mStatus;
     }
 
-    return gl::Error(GL_NO_ERROR);
+    return GL_TRUE; // prevent blocking when query is null
 }
 
 }

@@ -56,9 +56,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "HawkClient",
 XPCOMUtils.defineLazyModuleGetter(this, "deriveHawkCredentials",
                                   "resource://services-common/hawkrequest.js");
 
-XPCOMUtils.defineLazyModuleGetter(this, "LoopStorage",
-                                  "resource:///modules/loop/LoopStorage.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "MozLoopPushHandler",
                                   "resource:///modules/loop/MozLoopPushHandler.jsm");
 
@@ -370,8 +367,6 @@ let MozLoopServiceInternal = {
 
   notifyStatusChanged: function(aReason = null) {
     log.debug("notifyStatusChanged with reason:", aReason);
-    let profile = MozLoopService.userProfile;
-    LoopStorage.switchDatabase(profile ? profile.uid : null);
     Services.obs.notifyObservers(null, "loop-status-changed", aReason);
   },
 
@@ -1353,7 +1348,7 @@ this.MozLoopService = {
   getStrings: function(key) {
       var stringData = MozLoopServiceInternal.localizedStrings;
       if (!(key in stringData)) {
-        log.error("No string found for key: ", key);
+        Cu.reportError('No string for key: ' + key + 'found');
         return "";
       }
 

@@ -76,7 +76,6 @@ public:
   void AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
                            const nsRect&           aDirtyRect,
                            const nsDisplayListSet& aLists,
-                           bool                    aUsingDisplayPort,
                            bool                    aCreateLayer,
                            bool                    aPositioned);
 

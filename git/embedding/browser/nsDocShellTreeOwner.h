@@ -166,8 +166,7 @@ private:
 
     // various delays for tooltips
   enum {
-    kTooltipAutoHideTime = 5000,       // 5000ms = 5 seconds
-    kTooltipMouseMoveTolerance = 7     // 7 pixel tolerance for mousemove event
+    kTooltipAutoHideTime = 5000        // 5000ms = 5 seconds
   };
 
   NS_IMETHOD AddTooltipListener();
@@ -193,7 +192,11 @@ private:
   int32_t mMouseClientX, mMouseClientY;       // mouse coordinates for last mousemove event we saw
   int32_t mMouseScreenX, mMouseScreenY;       // mouse coordinates for tooltip event
   bool mShowingTooltip;
-  bool mTooltipShownOnce;
+
+    // a timer for auto-hiding the tooltip after a certain delay
+  nsCOMPtr<nsITimer> mAutoHideTimer;
+  static void sAutoHideCallback ( nsITimer* aTimer, void* aListener ) ;
+  void CreateAutoHideTimer ( ) ;
 
     // The node hovered over that fired the timer. This may turn into the node that
     // triggered the tooltip, but only if the timer ever gets around to firing.

@@ -15,7 +15,6 @@
 #include <cstddef>
 #include <string>
 #include <vector>
-#include <stdint.h>
 
 namespace gl
 {
@@ -27,7 +26,7 @@ class BinaryInputStream
     {
         mError = false;
         mOffset = 0;
-        mData = static_cast<const uint8_t*>(data);
+        mData = static_cast<const char*>(data);
         mLength = length;
     }
 
@@ -86,7 +85,7 @@ class BinaryInputStream
             return;
         }
 
-        v->assign(reinterpret_cast<const char *>(mData) + mOffset, length);
+        v->assign(mData + mOffset, length);
         mOffset += length;
     }
 
@@ -116,16 +115,11 @@ class BinaryInputStream
         return mOffset == mLength;
     }
 
-    const uint8_t *data()
-    {
-        return mData;
-    }
-
   private:
     DISALLOW_COPY_AND_ASSIGN(BinaryInputStream);
     bool mError;
     size_t mOffset;
-    const uint8_t *mData;
+    const char *mData;
     size_t mLength;
 
     template <typename T>

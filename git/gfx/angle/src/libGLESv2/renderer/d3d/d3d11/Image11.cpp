@@ -99,31 +99,31 @@ bool Image11::isDirty() const
     return mDirty;
 }
 
-gl::Error Image11::copyToStorage2D(TextureStorage *storage, int level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height)
+bool Image11::copyToStorage(TextureStorageInterface2D *storage, int level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height)
 {
-    TextureStorage11_2D *storage11 = TextureStorage11_2D::makeTextureStorage11_2D(storage);
+    TextureStorage11_2D *storage11 = TextureStorage11_2D::makeTextureStorage11_2D(storage->getStorageInstance());
     return copyToStorageImpl(storage11, level, 0, xoffset, yoffset, width, height);
 }
 
-gl::Error Image11::copyToStorageCube(TextureStorage *storage, int face, int level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height)
+bool Image11::copyToStorage(TextureStorageInterfaceCube *storage, int face, int level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height)
 {
-    TextureStorage11_Cube *storage11 = TextureStorage11_Cube::makeTextureStorage11_Cube(storage);
+    TextureStorage11_Cube *storage11 = TextureStorage11_Cube::makeTextureStorage11_Cube(storage->getStorageInstance());
     return copyToStorageImpl(storage11, level, face, xoffset, yoffset, width, height);
 }
 
-gl::Error Image11::copyToStorage3D(TextureStorage *storage, int level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth)
+bool Image11::copyToStorage(TextureStorageInterface3D *storage, int level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth)
 {
-    TextureStorage11_3D *storage11 = TextureStorage11_3D::makeTextureStorage11_3D(storage);
+    TextureStorage11_3D *storage11 = TextureStorage11_3D::makeTextureStorage11_3D(storage->getStorageInstance());
     return copyToStorageImpl(storage11, level, 0, xoffset, yoffset, width, height);
 }
 
-gl::Error Image11::copyToStorage2DArray(TextureStorage *storage, int level, GLint xoffset, GLint yoffset, GLint arrayLayer, GLsizei width, GLsizei height)
+bool Image11::copyToStorage(TextureStorageInterface2DArray *storage, int level, GLint xoffset, GLint yoffset, GLint arrayLayer, GLsizei width, GLsizei height)
 {
-    TextureStorage11_2DArray *storage11 = TextureStorage11_2DArray::makeTextureStorage11_2DArray(storage);
+    TextureStorage11_2DArray *storage11 = TextureStorage11_2DArray::makeTextureStorage11_2DArray(storage->getStorageInstance());
     return copyToStorageImpl(storage11, level, arrayLayer, xoffset, yoffset, width, height);
 }
 
-gl::Error Image11::copyToStorageImpl(TextureStorage11 *storage11, int level, int layerTarget, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height)
+bool Image11::copyToStorageImpl(TextureStorage11 *storage11, int level, int layerTarget, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height)
 {
     // If an app's behavior results in an Image11 copying its data to/from to a TextureStorage multiple times,
     // then we should just keep the staging texture around to prevent the copying from impacting perf.
@@ -137,15 +137,10 @@ gl::Error Image11::copyToStorageImpl(TextureStorage11 *storage11, int level, int
         storage11->releaseAssociatedImage(level, layerTarget, this);
     }
 
-    gl::Error error = storage11->updateSubresourceLevel(getStagingTexture(), getStagingSubresource(), level, layerTarget,
-                                                        xoffset, yoffset, 0, width, height, 1);
-    if (error.isError())
-    {
-        return error;
-    }
+    bool updateSubresourceSuccess = storage11->updateSubresourceLevel(getStagingTexture(), getStagingSubresource(), level, layerTarget, xoffset, yoffset, 0, width, height, 1);
 
     // Once the image data has been copied into the Storage, we can release it locally.
-    if (attemptToReleaseStagingTexture)
+    if (attemptToReleaseStagingTexture && updateSubresourceSuccess)
     {
         storage11->associateImage(this, level, layerTarget);
         releaseStagingTexture();
@@ -155,7 +150,7 @@ gl::Error Image11::copyToStorageImpl(TextureStorage11 *storage11, int level, int
         mAssociatedStorageLayerTarget = layerTarget;
     }
 
-    return gl::Error(GL_NO_ERROR);
+    return updateSubresourceSuccess;
 }
 
 bool Image11::isAssociatedStorageValid(TextureStorage11* textureStorage) const
@@ -252,8 +247,8 @@ DXGI_FORMAT Image11::getDXGIFormat() const
 
 // Store the pixel rectangle designated by xoffset,yoffset,width,height with pixels stored as format/type at input
 // into the target pixel rectangle.
-gl::Error Image11::loadData(GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth,
-                            GLint unpackAlignment, GLenum type, const void *input)
+void Image11::loadData(GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth,
+                       GLint unpackAlignment, GLenum type, const void *input)
 {
     const gl::InternalFormat &formatInfo = gl::GetInternalFormatInfo(mInternalFormat);
     GLsizei inputRowPitch = formatInfo.computeRowPitch(type, width, unpackAlignment);
@@ -269,7 +264,8 @@ gl::Error Image11::loadData(GLint xoffset, GLint yoffset, GLint zoffset, GLsizei
     HRESULT result = map(D3D11_MAP_WRITE, &mappedImage);
     if (FAILED(result))
     {
-        return gl::Error(GL_OUT_OF_MEMORY, "Could not map internal image for loading texture data, result: 0x%X.", result);
+        ERR("Could not map image for loading.");
+        return;
     }
 
     uint8_t* offsetMappedData = (reinterpret_cast<uint8_t*>(mappedImage.pData) + (yoffset * mappedImage.RowPitch + xoffset * outputPixelSize + zoffset * mappedImage.DepthPitch));
@@ -278,12 +274,10 @@ gl::Error Image11::loadData(GLint xoffset, GLint yoffset, GLint zoffset, GLsizei
                  offsetMappedData, mappedImage.RowPitch, mappedImage.DepthPitch);
 
     unmap();
-
-    return gl::Error(GL_NO_ERROR);
 }
 
-gl::Error Image11::loadCompressedData(GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth,
-                                      const void *input)
+void Image11::loadCompressedData(GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth,
+                                 const void *input)
 {
     const gl::InternalFormat &formatInfo = gl::GetInternalFormatInfo(mInternalFormat);
     GLsizei inputRowPitch = formatInfo.computeRowPitch(GL_UNSIGNED_BYTE, width, 1);
@@ -304,7 +298,8 @@ gl::Error Image11::loadCompressedData(GLint xoffset, GLint yoffset, GLint zoffse
     HRESULT result = map(D3D11_MAP_WRITE, &mappedImage);
     if (FAILED(result))
     {
-        return gl::Error(GL_OUT_OF_MEMORY, "Could not map internal image for loading texture data, result: 0x%X.", result);
+        ERR("Could not map image for loading.");
+        return;
     }
 
     uint8_t* offsetMappedData = reinterpret_cast<uint8_t*>(mappedImage.pData) + ((yoffset / outputBlockHeight) * mappedImage.RowPitch +
@@ -316,8 +311,6 @@ gl::Error Image11::loadCompressedData(GLint xoffset, GLint yoffset, GLint zoffse
                  offsetMappedData, mappedImage.RowPitch, mappedImage.DepthPitch);
 
     unmap();
-
-    return gl::Error(GL_NO_ERROR);
 }
 
 void Image11::copy(GLint xoffset, GLint yoffset, GLint zoffset, GLint x, GLint y, GLsizei width, GLsizei height, gl::Framebuffer *source)

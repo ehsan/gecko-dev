@@ -11,7 +11,6 @@ import android.text.TextUtils;
 import android.util.Log;
 
 public class StringUtils {
-    private static final String LOGTAG = "GeckoStringUtils";
 
     private static final String FILTER_URL_PREFIX = "filter://";
     private static final String USER_ENTERED_URL_PREFIX = "user-entered:";
@@ -194,10 +193,7 @@ public class StringUtils {
         try {
             return intent.getStringExtra(name);
         } catch (android.os.BadParcelableException ex) {
-            Log.w(LOGTAG, "Couldn't get string extra: malformed intent.");
-            return null;
-        } catch (RuntimeException re) {
-            Log.w(LOGTAG, "Couldn't get string extra.", re);
+            Log.w("GeckoUtils", "Couldn't get string extra: malformed intent.");
             return null;
         }
     }

@@ -14,10 +14,9 @@
 namespace rx
 {
 
-SwapChain9::SwapChain9(Renderer9 *renderer, rx::NativeWindow nativeWindow, HANDLE shareHandle,
+SwapChain9::SwapChain9(Renderer9 *renderer, HWND window, HANDLE shareHandle,
                        GLenum backBufferFormat, GLenum depthBufferFormat)
-    : mRenderer(renderer),
-      SwapChain(nativeWindow, shareHandle, backBufferFormat, depthBufferFormat)
+    : mRenderer(renderer), SwapChain(window, shareHandle, backBufferFormat, depthBufferFormat)
 {
     mSwapChain = NULL;
     mBackBuffer = NULL;
@@ -42,7 +41,7 @@ void SwapChain9::release()
     SafeRelease(mRenderTarget);
     SafeRelease(mOffscreenTexture);
 
-    if (mNativeWindow.getNativeWindow())
+    if (mWindow)
     {
         mShareHandle = NULL;
     }
@@ -96,7 +95,7 @@ EGLint SwapChain9::reset(int backbufferWidth, int backbufferHeight, EGLint swapI
     SafeRelease(mDepthStencil);
 
     HANDLE *pShareHandle = NULL;
-    if (!mNativeWindow.getNativeWindow() && mRenderer->getShareHandleSupport())
+    if (!mWindow && mRenderer->getShareHandleSupport())
     {
         pShareHandle = &mShareHandle;
     }
@@ -153,8 +152,7 @@ EGLint SwapChain9::reset(int backbufferWidth, int backbufferHeight, EGLint swapI
 
     const d3d9::TextureFormat &depthBufferd3dFormatInfo = d3d9::GetTextureFormatInfo(mDepthBufferFormat);
 
-    EGLNativeWindowType window = mNativeWindow.getNativeWindow();
-    if (window)
+    if (mWindow)
     {
         D3DPRESENT_PARAMETERS presentParameters = {0};
         presentParameters.AutoDepthStencilFormat = depthBufferd3dFormatInfo.renderFormat;
@@ -162,7 +160,7 @@ EGLint SwapChain9::reset(int backbufferWidth, int backbufferHeight, EGLint swapI
         presentParameters.BackBufferFormat = backBufferd3dFormatInfo.renderFormat;
         presentParameters.EnableAutoDepthStencil = FALSE;
         presentParameters.Flags = 0;
-        presentParameters.hDeviceWindow = window;
+        presentParameters.hDeviceWindow = mWindow;
         presentParameters.MultiSampleQuality = 0;                  // FIXME: Unimplemented
         presentParameters.MultiSampleType = D3DMULTISAMPLE_NONE;   // FIXME: Unimplemented
         presentParameters.PresentationInterval = convertInterval(swapInterval);
@@ -205,7 +203,7 @@ EGLint SwapChain9::reset(int backbufferWidth, int backbufferHeight, EGLint swapI
 
         result = mSwapChain->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &mBackBuffer);
         ASSERT(SUCCEEDED(result));
-        InvalidateRect(window, NULL, FALSE);
+        InvalidateRect(mWindow, NULL, FALSE);
     }
 
     if (mDepthBufferFormat != GL_NONE)

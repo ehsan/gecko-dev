@@ -207,6 +207,7 @@ let CustomizableUIInternal = {
         "downloads-button",
         "home-button",
         "loop-call-button",
+        "social-share-button",
       ],
       defaultCollapsed: false,
     }, true);
