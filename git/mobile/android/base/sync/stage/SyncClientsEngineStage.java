@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.mozilla.gecko.AppConstants;
+import org.mozilla.gecko.background.common.GlobalConstants;
 import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.CommandProcessor;
 import org.mozilla.gecko.sync.CommandProcessor.Command;
@@ -38,7 +39,9 @@ import org.mozilla.gecko.sync.repositories.android.RepoUtils;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecordFactory;
 import org.mozilla.gecko.sync.repositories.domain.VersionConstants;
+import org.mozilla.gecko.util.HardwareUtils;
 
+import android.content.Context;
 import ch.boye.httpclientandroidlib.HttpStatus;
 
 public class SyncClientsEngineStage extends AbstractSessionManagingSyncStage {
@@ -359,7 +362,7 @@ public class SyncClientsEngineStage extends AbstractSessionManagingSyncStage {
   }
 
   protected String getLocalClientVersion() {
-    return AppConstants.MOZ_APP_VERSION;
+    return GlobalConstants.MOZ_APP_VERSION;
   }
 
   @SuppressWarnings("unchecked")
@@ -380,7 +383,7 @@ public class SyncClientsEngineStage extends AbstractSessionManagingSyncStage {
     r.protocols = getLocalClientProtocols();
 
     r.os = "Android";
-    r.application = AppConstants.MOZ_APP_DISPLAYNAME;
+    r.application = GlobalConstants.MOZ_APP_DISPLAYNAME;
     r.appPackage = AppConstants.ANDROID_PACKAGE_NAME;
     r.device = android.os.Build.MODEL;
     r.formfactor = delegate.getFormFactor();
