@@ -262,13 +262,6 @@ window.Groups = {
 function scaleTab( el, factor ){  
   var $el = $(el);
 
-  // This is for actual tabs. Need a better solution.
-  // One that doesn't require special casing to find the linked info.
-  // If I just animate the tab element, the rest should happen automatically!
-  if( $("canvas", el)[0] != null ){
-    $("canvas", el).data('link').animate({height:$el.height()*factor}, 250);
-  }
-
   $el.animate({
     width: $el.width()*factor,
     height: $el.height()*factor,
