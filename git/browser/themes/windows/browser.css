@@ -224,10 +224,6 @@ toolbarbutton.bookmark-item[open="true"] {
   height: 16px;
 }
 
-#PlacesToolbarItems > .bookmark-item:not([image]):not([label=""]):not([container]) > .toolbarbutton-icon {
-  display: none;
-}
-
 /* Force the display of the label for bookmarks */
 .bookmark-item > .toolbarbutton-text {
   display: -moz-box !important;
