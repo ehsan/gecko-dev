@@ -297,7 +297,6 @@ function windows(type, options) {
     let window = winEnum.getNext().QueryInterface(Ci.nsIDOMWindow);
     // Only add non-private windows when pb permission isn't set,
     // unless an option forces the addition of them.
-    // XXXbz should this be checking window.closed?
     if (options.includePrivate || !isWindowPrivate(window)) {
       list.push(window);
     }

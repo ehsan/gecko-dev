@@ -345,7 +345,7 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
         // already forgotten its permissions so we need to unregister the target
         // for every permission.
         this._unregisterMessageTarget(null, msg.target);
-        return null;
+        return;
       }
 
       if (RIL_IPC_MOBILECONNECTION_MSG_NAMES.indexOf(msg.name) != -1) {
@@ -388,16 +388,16 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
       switch (msg.name) {
         case "RIL:RegisterMobileConnectionMsg":
           this._registerMessageTarget("mobileconnection", msg.target);
-          return null;
+          return;
         case "RIL:RegisterIccMsg":
           this._registerMessageTarget("icc", msg.target);
-          return null;
+          return;
         case "RIL:RegisterVoicemailMsg":
           this._registerMessageTarget("voicemail", msg.target);
-          return null;
+          return;
         case "RIL:RegisterCellBroadcastMsg":
           this._registerMessageTarget("cellbroadcast", msg.target);
-          return null;
+          return;
       }
 
       let clientId = msg.json.clientId || 0;
@@ -914,7 +914,6 @@ RadioInterface.prototype = {
         this.workerMessenger.sendWithIPCMessage(msg, "queryVoicePrivacyMode");
         break;
     }
-    return null;
   },
 
   handleUnsolicitedWorkerMessage: function handleUnsolicitedWorkerMessage(message) {

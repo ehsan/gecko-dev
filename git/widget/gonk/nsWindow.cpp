@@ -44,7 +44,9 @@
 #include "libdisplay/GonkDisplay.h"
 #include "pixelflinger/format.h"
 
+#if ANDROID_VERSION == 15
 #include "HwcComposer2D.h"
+#endif
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
 #define LOGW(args...) __android_log_print(ANDROID_LOG_WARN, "Gonk", ## args)
@@ -701,9 +703,11 @@ nsWindow::GetComposer2D()
         return nullptr;
     }
 
+#if ANDROID_VERSION == 15
     if (HwcComposer2D* hwc = HwcComposer2D::GetInstance()) {
         return hwc->Initialized() ? hwc : nullptr;
     }
+#endif
 
     return nullptr;
 }

@@ -41,7 +41,7 @@ BluetoothPropertyContainer::SetProperty(nsIDOMWindow* aOwner,
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
-    BT_WARNING("Bluetooth service not available!");
+    NS_WARNING("Bluetooth service not available!");
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }

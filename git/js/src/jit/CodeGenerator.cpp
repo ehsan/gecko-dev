@@ -5512,8 +5512,6 @@ CodeGenerator::visitRestPar(LRestPar *lir)
 bool
 CodeGenerator::generateAsmJS()
 {
-    IonSpew(IonSpew_Codegen, "# Emitting asm.js code");
-
     // The caller (either another asm.js function or the external-entry
     // trampoline) has placed all arguments in registers and on the stack
     // according to the system ABI. The MAsmJSParameters which represent these
@@ -5554,10 +5552,6 @@ CodeGenerator::generateAsmJS()
 bool
 CodeGenerator::generate()
 {
-    IonSpew(IonSpew_Codegen, "# Emitting code for script %s:%d",
-            gen->info().script()->filename(),
-            gen->info().script()->lineno);
-
     if (!safepoints_.init(graph.totalSlotCount()))
         return false;
 

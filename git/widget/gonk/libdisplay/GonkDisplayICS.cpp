@@ -160,12 +160,6 @@ GonkDisplayICS::GetHWCDevice()
     return mHwc;
 }
 
-void*
-GonkDisplayICS::GetFBSurface()
-{
-    return mFBSurface.get();
-}
-
 bool
 GonkDisplayICS::SwapBuffers(EGLDisplay dpy, EGLSurface sur)
 {

@@ -27,10 +27,6 @@
 #include "mozilla/StaticPtr.h"
 #include "cutils/properties.h"
 
-#if ANDROID_VERSION >= 18
-#include "libdisplay/FramebufferSurface.h"
-#endif
-
 #define LOG_TAG "HWComposer"
 
 #if (LOG_NDEBUG == 0)
@@ -66,7 +62,7 @@ HwcComposer2D::Init(hwc_display_t dpy, hwc_surface_t sur)
 {
     MOZ_ASSERT(!Initialized());
 
-    mHwc = (HwcDevice*)GetGonkDisplay()->GetHWCDevice();
+    mHwc = (hwc_composer_device_t*)GetGonkDisplay()->GetHWCDevice();
     if (!mHwc) {
         LOGE("Failed to initialize hwc");
         return -1;
@@ -100,10 +96,10 @@ HwcComposer2D::GetInstance()
 bool
 HwcComposer2D::ReallocLayerList()
 {
-    int size = sizeof(HwcList) +
-        ((mMaxLayerCount + LAYER_COUNT_INCREMENTS) * sizeof(HwcLayer));
+    int size = sizeof(hwc_layer_list_t) +
+        ((mMaxLayerCount + LAYER_COUNT_INCREMENTS) * sizeof(hwc_layer_t));
 
-    HwcList* listrealloc = (HwcList*)realloc(mList, size);
+    hwc_layer_list_t* listrealloc = (hwc_layer_list_t*)realloc(mList, size);
 
     if (!listrealloc) {
         return false;
@@ -155,8 +151,8 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
 
     // HWC supports only the following 2D transformations:
     //
-    // Scaling via the sourceCrop and displayFrame in HwcLayer
-    // Translation via the sourceCrop and displayFrame in HwcLayer
+    // Scaling via the sourceCrop and displayFrame in hwc_layer_t
+    // Translation via the sourceCrop and displayFrame in hwc_layer_t
     // Rotation (in square angles only) via the HWC_TRANSFORM_ROT_* flags
     // Reflection (horizontal and vertical) via the HWC_TRANSFORM_FLIP_* flags
     //
@@ -233,7 +229,7 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         }
     }
 
-    HwcLayer& hwcLayer = mList->hwLayers[current];
+    hwc_layer_t& hwcLayer = mList->hwLayers[current];
 
     if(!HwcUtils::PrepareLayerRects(visibleRect,
                           transform * aGLWorldTransform,
@@ -251,15 +247,7 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
     hwcLayer.flags = 0;
     hwcLayer.hints = 0;
     hwcLayer.blending = HWC_BLENDING_PREMULT;
-#if ANDROID_VERSION >= 18
-    hwcLayer.compositionType = HWC_FRAMEBUFFER;
-
-    hwcLayer.acquireFenceFd = -1;
-    hwcLayer.releaseFenceFd = -1;
-    hwcLayer.planeAlpha = 0xFF; // Until plane alpha is enabled
-#else
     hwcLayer.compositionType = HwcUtils::HWC_USE_COPYBIT;
-#endif
 
     if (!fillColor) {
         if (state.FormatRBSwapped()) {
@@ -414,93 +402,6 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
     return true;
 }
 
-
-#if ANDROID_VERSION >= 18
-bool
-HwcComposer2D::TryHwComposition()
-{
-    FramebufferSurface* fbsurface = (FramebufferSurface*)(GetGonkDisplay()->GetFBSurface());
-
-    if (!fbsurface) {
-        LOGE("H/W Composition failed. FBSurface not initialized.");
-        return false;
-    }
-
-    hwc_display_contents_1_t *displays[HWC_NUM_DISPLAY_TYPES] = {NULL};
-    const hwc_rect_t r = {0, 0, mScreenRect.width, mScreenRect.height};
-    int idx = mList->numHwLayers;
-
-    displays[HWC_DISPLAY_PRIMARY] = mList;
-    mList->flags = HWC_GEOMETRY_CHANGED;
-    mList->retireFenceFd = -1;
-
-    mList->hwLayers[idx].hints = 0;
-    mList->hwLayers[idx].flags = 0;
-    mList->hwLayers[idx].transform = 0;
-    mList->hwLayers[idx].handle = fbsurface->lastHandle;
-    mList->hwLayers[idx].blending = HWC_BLENDING_PREMULT;
-    mList->hwLayers[idx].compositionType = HWC_FRAMEBUFFER_TARGET;
-    mList->hwLayers[idx].sourceCrop = r;
-    mList->hwLayers[idx].displayFrame = r;
-    mList->hwLayers[idx].visibleRegionScreen.numRects = 1;
-    mList->hwLayers[idx].visibleRegionScreen.rects = &mList->hwLayers[idx].sourceCrop;
-    mList->hwLayers[idx].acquireFenceFd = -1;
-    mList->hwLayers[idx].releaseFenceFd = -1;
-    mList->hwLayers[idx].planeAlpha = 0xFF;
-    mList->numHwLayers++;
-
-    mHwc->prepare(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
-
-    for (int j = 0; j < idx; j++) {
-        if (mList->hwLayers[j].compositionType == HWC_FRAMEBUFFER) {
-            LOGD("GPU or Partial MDP Composition");
-            return false;
-        }
-    }
-
-    // Full MDP Composition
-    mHwc->set(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
-
-    for (int i = 0; i <= MAX_HWC_LAYERS; i++) {
-        if (mPrevRelFd[i] <= 0) {
-            break;
-        }
-        if (!i) {
-            // Wait for previous retire Fence to signal.
-            // Denotes contents on display have been replaced.
-            // For buffer-sync, framework should not over-write
-            // prev buffers until we close prev releaseFenceFds
-            sp<Fence> fence = new Fence(mPrevRelFd[i]);
-            if (fence->wait(1000) == -ETIME) {
-                LOGE("Wait timed-out for retireFenceFd %d", mPrevRelFd[i]);
-            }
-        }
-        close(mPrevRelFd[i]);
-        mPrevRelFd[i] = -1;
-    }
-
-    mPrevRelFd[0] = mList->retireFenceFd;
-    for (uint32_t j = 0; j < idx; j++) {
-        if (mList->hwLayers[j].compositionType == HWC_OVERLAY) {
-            mPrevRelFd[j + 1] = mList->hwLayers[j].releaseFenceFd;
-            mList->hwLayers[j].releaseFenceFd = -1;
-        }
-    }
-
-    close(mList->hwLayers[idx].releaseFenceFd);
-    mList->hwLayers[idx].releaseFenceFd = -1;
-    mList->retireFenceFd = -1;
-    mList->numHwLayers = 0;
-    return true;
-}
-#else
-bool
-HwcComposer2D::TryHwComposition()
-{
-    return !mHwc->set(mHwc, mDpy, mSur, mList);
-}
-#endif
-
 bool
 HwcComposer2D::TryRender(Layer* aRoot,
                          const gfxMatrix& aGLWorldTransform)
@@ -528,10 +429,9 @@ HwcComposer2D::TryRender(Layer* aRoot,
         return false;
     }
 
-    if (!TryHwComposition()) {
-      // Full MDP Composition
-      LOGE("H/W Composition failed");
-      return false;
+    if (mHwc->set(mHwc, mDpy, mSur, mList)) {
+        LOGE("Hardware device failed to render");
+        return false;
     }
 
     LOGD("Frame rendered");

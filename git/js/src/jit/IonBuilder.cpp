@@ -3748,6 +3748,8 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
             MTypeBarrier *barrier = MTypeBarrier::New(callInfo.thisArg(), cloneTypeSet(types), Bailout_Normal);
             current->add(barrier);
             callInfo.setThis(barrier);
+            // object or missing
+            JS_ASSERT(barrier->type() == MIRType_Object || barrier->type() == MIRType_Value);
         }
     }
 

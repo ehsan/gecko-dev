@@ -276,7 +276,7 @@ public:
 #ifdef DEBUG
         printf_stderr("Initializing context %p surface %p on display %p\n", mContext, mSurface, EGL_DISPLAY());
 #endif
-#if defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION <= 15
         if (!mIsOffscreen) {
             mHwc = HwcComposer2D::GetInstance();
             MOZ_ASSERT(!mHwc->Initialized());

@@ -236,7 +236,7 @@ BluetoothHidManager::NotifyStatusChanged()
     BluetoothNamedValue(NS_LITERAL_STRING("address"), v));
 
   if (!BroadcastSystemMessage(type, parameters)) {
-    BT_WARNING("Failed to broadcast system message to settings");
+    NS_WARNING("Failed to broadcast system message to settings");
     return;
   }
 }

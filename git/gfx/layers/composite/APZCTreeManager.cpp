@@ -105,7 +105,7 @@ APZCTreeManager::UpdatePanZoomControllerTree(CompositorParent* aCompositor,
                                              nsTArray< nsRefPtr<AsyncPanZoomController> >* aApzcsToDestroy)
 {
   ContainerLayer* container = aLayer->AsContainerLayer();
-  AsyncPanZoomController* apzc = nullptr;
+  AsyncPanZoomController* controller = nullptr;
   if (container) {
     if (container->GetFrameMetrics().IsScrollable()) {
       const CompositorParent::LayerTreeState* state = CompositorParent::GetIndirectShadowTree(aLayersId);
@@ -114,65 +114,52 @@ APZCTreeManager::UpdatePanZoomControllerTree(CompositorParent* aCompositor,
         // has registered a GeckoContentController for it, so we need to ensure
         // it has an APZC instance to manage its scrolling.
 
-        apzc = container->GetAsyncPanZoomController();
-
-        bool newApzc = (apzc == nullptr);
-        if (newApzc) {
-          apzc = new AsyncPanZoomController(aLayersId, state->mController,
-                                            AsyncPanZoomController::USE_GESTURE_DETECTOR);
-          apzc->SetCompositorParent(aCompositor);
+        controller = container->GetAsyncPanZoomController();
+        if (!controller) {
+          controller = new AsyncPanZoomController(aLayersId, state->mController,
+                                                  AsyncPanZoomController::USE_GESTURE_DETECTOR);
+          controller->SetCompositorParent(aCompositor);
         } else {
           // If there was already an APZC for the layer clear the tree pointers
           // so that it doesn't continue pointing to APZCs that should no longer
           // be in the tree. These pointers will get reset properly as we continue
           // building the tree. Also remove it from the set of APZCs that are going
           // to be destroyed, because it's going to remain active.
-          aApzcsToDestroy->RemoveElement(apzc);
-          apzc->SetPrevSibling(nullptr);
-          apzc->SetLastChild(nullptr);
+          aApzcsToDestroy->RemoveElement(controller);
+          controller->SetPrevSibling(nullptr);
+          controller->SetLastChild(nullptr);
         }
-        APZC_LOG("Using APZC %p for layer %p with identifiers %lld %lld\n", apzc, aLayer, aLayersId, container->GetFrameMetrics().mScrollId);
+        APZC_LOG("Using APZC %p for layer %p with identifiers %lld %lld\n", controller, aLayer, aLayersId, container->GetFrameMetrics().mScrollId);
 
-        apzc->NotifyLayersUpdated(container->GetFrameMetrics(),
+        controller->NotifyLayersUpdated(container->GetFrameMetrics(),
                                         aIsFirstPaint && (aLayersId == aFirstPaintLayersId));
 
         LayerRect visible = ScreenRect(container->GetFrameMetrics().mCompositionBounds) * ScreenToLayerScale(1.0);
-        apzc->SetLayerHitTestData(visible, aTransform, aLayer->GetTransform());
+        controller->SetLayerHitTestData(visible, aTransform, aLayer->GetTransform());
         APZC_LOG("Setting rect(%f %f %f %f) as visible region for APZC %p\n", visible.x, visible.y,
                                                                               visible.width, visible.height,
-                                                                              apzc);
+                                                                              controller);
 
         // Bind the APZC instance into the tree of APZCs
         if (aNextSibling) {
-          aNextSibling->SetPrevSibling(apzc);
+          aNextSibling->SetPrevSibling(controller);
         } else if (aParent) {
-          aParent->SetLastChild(apzc);
+          aParent->SetLastChild(controller);
         } else {
-          mRootApzc = apzc;
+          mRootApzc = controller;
         }
 
-        // Let this apzc be the parent of other controllers when we recurse downwards
-        aParent = apzc;
-
-        if (newApzc && apzc->IsRootForLayersId()) {
-          // If we just created a new apzc that is the root for its layers ID, then
-          // we need to update its zoom constraints which might have arrived before this
-          // was created
-          bool allowZoom;
-          CSSToScreenScale minZoom, maxZoom;
-          if (state->mController->GetZoomConstraints(&allowZoom, &minZoom, &maxZoom)) {
-            apzc->UpdateZoomConstraints(allowZoom, minZoom, maxZoom);
-          }
-        }
+        // Let this controller be the parent of other controllers when we recurse downwards
+        aParent = controller;
       }
     }
 
-    container->SetAsyncPanZoomController(apzc);
+    container->SetAsyncPanZoomController(controller);
   }
 
   // Accumulate the CSS transform between layers that have an APZC, but exclude any
   // any layers that do have an APZC, and reset the accumulation at those layers.
-  if (apzc) {
+  if (controller) {
     aTransform = gfx3DMatrix();
   } else {
     // Multiply child layer transforms on the left so they get applied first
@@ -188,10 +175,10 @@ APZCTreeManager::UpdatePanZoomControllerTree(CompositorParent* aCompositor,
 
   // Return the APZC that should be the sibling of other APZCs as we continue
   // moving towards the first child at this depth in the layer tree.
-  // If this layer doesn't have an APZC, we promote any APZCs in the subtree
+  // If this layer doesn't have a controller, we promote any APZCs in the subtree
   // upwards. Otherwise we fall back to the aNextSibling that was passed in.
-  if (apzc) {
-    return apzc;
+  if (controller) {
+    return controller;
   }
   if (next) {
     return next;

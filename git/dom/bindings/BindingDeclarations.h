@@ -258,13 +258,6 @@ public:
     mImpl.construct(t1, t2);
   }
 
-  void Reset()
-  {
-    if (WasPassed()) {
-      mImpl.destroy();
-    }
-  }
-
   const T& Value() const
   {
     return mImpl.ref();

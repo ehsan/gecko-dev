@@ -481,8 +481,6 @@ pref("devtools.debugger.force-local", true);
 pref("devtools.debugger.prompt-connection", true);
 // Temporary setting to enable webapps actors
 pref("devtools.debugger.enable-content-actors", true);
-// Block tools from seeing / interacting with certified apps
-pref("devtools.debugger.forbid-certified-apps", true);
 
 // view source
 pref("view_source.syntax_highlight", true);

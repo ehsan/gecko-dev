@@ -6,8 +6,6 @@
 #ifndef MOZILLA_GFX_SCALEFACTOR_H_
 #define MOZILLA_GFX_SCALEFACTOR_H_
 
-#include "mozilla/Attributes.h"
-
 #include "gfxPoint.h"
 
 namespace mozilla {
@@ -28,9 +26,9 @@ template<class src, class dst>
 struct ScaleFactor {
   float scale;
 
-  MOZ_CONSTEXPR ScaleFactor() : scale(1.0) {}
-  MOZ_CONSTEXPR ScaleFactor(const ScaleFactor<src, dst>& aCopy) : scale(aCopy.scale) {}
-  explicit MOZ_CONSTEXPR ScaleFactor(float aScale) : scale(aScale) {}
+  ScaleFactor() : scale(1.0) {}
+  ScaleFactor(const ScaleFactor<src, dst>& aCopy) : scale(aCopy.scale) {}
+  explicit ScaleFactor(float aScale) : scale(aScale) {}
 
   explicit ScaleFactor(float aX, float aY) : scale(aX) {
     MOZ_ASSERT(fabs(aX - aY) < 1e-6);
