@@ -11,13 +11,13 @@
 <style>
 div {
   color: orange;
-  --a: green;
-  color: var(--a);
+  var-a: green;
+  color: var(a);
 }
 p {
-  --b: İnitial;
-  --c: ınitial;
-  color: var(--b,var(--c,red));
+  var-b: İnitial;
+  var-c: ınitial;
+  color: var(b,var(c,red));
 }
 </style>
 <div><p>This text must be green.</p></div>

@@ -15,8 +15,6 @@
 #include "nsAString.h"
 #include "nsPrintfCString.h"            // for nsPrintfCString
 #include "nsString.h"                   // for nsAutoCString
-#include "ipc/AutoOpenSurface.h"        // for AutoOpenSurface
-#include "mozilla/layers/TextureHostOGL.h"  // for TextureHostOGL
 
 namespace mozilla {
 namespace gfx {
@@ -36,26 +34,11 @@ ContentHostBase::~ContentHostBase()
 {
 }
 
-struct AutoLockContentHost
+TextureHost*
+ContentHostBase::GetAsTextureHost()
 {
-  AutoLockContentHost(ContentHostBase* aHost)
-    : mHost(aHost)
-  {
-    mSucceeded = mHost->Lock();
-  }
-
-  ~AutoLockContentHost()
-  {
-    if (mSucceeded) {
-      mHost->Unlock();
-    }
-  }
-
-  bool Failed() { return !mSucceeded; }
-
-  ContentHostBase* mHost;
-  bool mSucceeded;
-};
+  return mTextureHost;
+}
 
 void
 ContentHostBase::Composite(EffectChain& aEffectChain,
@@ -68,14 +51,22 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
 {
   NS_ASSERTION(aVisibleRegion, "Requires a visible region");
 
-  AutoLockContentHost lock(this);
-  if (lock.Failed()) {
+  if (!mTextureHost) {
+    NS_WARNING("Missing TextureHost");
     return;
   }
 
-  RefPtr<NewTextureSource> source = GetTextureSource();
-  RefPtr<NewTextureSource> sourceOnWhite = GetTextureSourceOnWhite();
+  AutoLockTextureHost lock(mTextureHost);
+  AutoLockTextureHost lockOnWhite(mTextureHostOnWhite);
 
+  if (lock.Failed() || lockOnWhite.Failed()) {
+    return;
+  }
+
+  RefPtr<NewTextureSource> source = mTextureHost->GetTextureSources();
+  RefPtr<NewTextureSource> sourceOnWhite = mTextureHostOnWhite
+                                             ? mTextureHostOnWhite->GetTextureSources()
+                                             : nullptr;
   if (!source) {
     return;
   }
@@ -228,26 +219,26 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
 
 
 void
-ContentHostTexture::UseTextureHost(TextureHost* aTexture)
+ContentHostBase::UseTextureHost(TextureHost* aTexture)
 {
-  ContentHostBase::UseTextureHost(aTexture);
+  CompositableHost::UseTextureHost(aTexture);
   mTextureHost = aTexture;
   mTextureHostOnWhite = nullptr;
 }
 
 void
-ContentHostTexture::UseComponentAlphaTextures(TextureHost* aTextureOnBlack,
-                                              TextureHost* aTextureOnWhite)
+ContentHostBase::UseComponentAlphaTextures(TextureHost* aTextureOnBlack,
+                                           TextureHost* aTextureOnWhite)
 {
-  ContentHostBase::UseComponentAlphaTextures(aTextureOnBlack, aTextureOnWhite);
+  CompositableHost::UseComponentAlphaTextures(aTextureOnBlack, aTextureOnWhite);
   mTextureHost = aTextureOnBlack;
   mTextureHostOnWhite = aTextureOnWhite;
 }
 
 void
-ContentHostTexture::SetCompositor(Compositor* aCompositor)
+ContentHostBase::SetCompositor(Compositor* aCompositor)
 {
-  ContentHostBase::SetCompositor(aCompositor);
+  CompositableHost::SetCompositor(aCompositor);
   if (mTextureHost) {
     mTextureHost->SetCompositor(aCompositor);
   }
@@ -258,9 +249,9 @@ ContentHostTexture::SetCompositor(Compositor* aCompositor)
 
 #ifdef MOZ_DUMP_PAINTING
 void
-ContentHostTexture::Dump(FILE* aFile,
-                         const char* aPrefix,
-                         bool aDumpHtml)
+ContentHostBase::Dump(FILE* aFile,
+                      const char* aPrefix,
+                      bool aDumpHtml)
 {
   if (!aDumpHtml) {
     return;
@@ -606,29 +597,10 @@ ContentHostDoubleBuffered::UpdateThebes(const ThebesBufferData& aData,
   return true;
 }
 
-ContentHostIncremental::ContentHostIncremental(const TextureInfo& aTextureInfo)
-  : ContentHostBase(aTextureInfo)
-  , mDeAllocator(nullptr)
-  , mLocked(false)
-{
-}
-
-ContentHostIncremental::~ContentHostIncremental()
-{
-}
-
 void
-ContentHostIncremental::DestroyTextures()
-{
-  mSource = nullptr;
-  mSourceOnWhite = nullptr;
-  mUpdateList.Clear();
-}
-
-void
-ContentHostIncremental::CreatedIncrementalTexture(ISurfaceAllocator* aAllocator,
-                                                  const TextureInfo& aTextureInfo,
-                                                  const nsIntRect& aBufferRect)
+ContentHostIncremental::EnsureDeprecatedTextureHostIncremental(ISurfaceAllocator* aAllocator,
+                                                     const TextureInfo& aTextureInfo,
+                                                     const nsIntRect& aBufferRect)
 {
   mUpdateList.AppendElement(new TextureCreationRequest(aTextureInfo,
                                                        aBufferRect));
@@ -674,40 +646,29 @@ ContentHostIncremental::ProcessTextureUpdates()
   mUpdateList.Clear();
 }
 
-NewTextureSource*
-ContentHostIncremental::GetTextureSource()
-{
-  MOZ_ASSERT(mLocked);
-  return mSource;
-}
-
-NewTextureSource*
-ContentHostIncremental::GetTextureSourceOnWhite()
-{
-  MOZ_ASSERT(mLocked);
-  return mSourceOnWhite;
-}
-
 void
 ContentHostIncremental::TextureCreationRequest::Execute(ContentHostIncremental* aHost)
 {
+  RefPtr<DeprecatedTextureHost> newHost =
+    DeprecatedTextureHost::CreateDeprecatedTextureHost(SurfaceDescriptor::TShmem,
+                                   mTextureInfo.mDeprecatedTextureHostFlags,
+                                   mTextureInfo.mTextureFlags,
+                                   nullptr);
   Compositor* compositor = aHost->GetCompositor();
-  MOZ_ASSERT(compositor);
-
-  RefPtr<DataTextureSource> temp =
-    compositor->CreateDataTextureSource(mTextureInfo.mTextureFlags);
-  MOZ_ASSERT(temp->AsSourceOGL() &&
-             temp->AsSourceOGL()->AsTextureImageTextureSource());
-  RefPtr<TextureImageTextureSourceOGL> newSource =
-    temp->AsSourceOGL()->AsTextureImageTextureSource();
-
-  RefPtr<TextureImageTextureSourceOGL> newSourceOnWhite;
+  if (compositor) {
+    newHost->SetCompositor(compositor);
+  }
+  RefPtr<DeprecatedTextureHost> newHostOnWhite;
   if (mTextureInfo.mTextureFlags & TEXTURE_COMPONENT_ALPHA) {
-    temp =
-      compositor->CreateDataTextureSource(mTextureInfo.mTextureFlags);
-    MOZ_ASSERT(temp->AsSourceOGL() &&
-               temp->AsSourceOGL()->AsTextureImageTextureSource());
-    newSourceOnWhite = temp->AsSourceOGL()->AsTextureImageTextureSource();
+    newHostOnWhite =
+      DeprecatedTextureHost::CreateDeprecatedTextureHost(SurfaceDescriptor::TShmem,
+                                     mTextureInfo.mDeprecatedTextureHostFlags,
+                                     mTextureInfo.mTextureFlags,
+                                     nullptr);
+    Compositor* compositor = aHost->GetCompositor();
+    if (compositor) {
+      newHostOnWhite->SetCompositor(compositor);
+    }
   }
 
   if (mTextureInfo.mDeprecatedTextureHostFlags & TEXTURE_HOST_COPY_PREVIOUS) {
@@ -780,47 +741,47 @@ ContentHostIncremental::TextureCreationRequest::Execute(ContentHostIncremental* 
     dstRectDrawTopLeft   .MoveBy(-mBufferRect.TopLeft());
     dstRectDrawBottomLeft.MoveBy(-mBufferRect.TopLeft());
 
-    newSource->EnsureBuffer(mBufferRect.Size(),
-                           ContentForFormat(aHost->mSource->GetFormat()));
+    newHost->EnsureBuffer(mBufferRect.Size(),
+                          ContentForFormat(aHost->mDeprecatedTextureHost->GetFormat()));
 
-    aHost->mSource->CopyTo(srcRect, newSource, dstRect);
+    aHost->mDeprecatedTextureHost->CopyTo(srcRect, newHost, dstRect);
     if (bufferRotation != nsIntPoint(0, 0)) {
       // Draw the remaining quadrants. We call BlitTextureImage 3 extra
       // times instead of doing a single draw call because supporting that
       // with a tiled source is quite tricky.
 
       if (!srcRectDrawTopRight.IsEmpty())
-        aHost->mSource->CopyTo(srcRectDrawTopRight,
-                               newSource, dstRectDrawTopRight);
+        aHost->mDeprecatedTextureHost->CopyTo(srcRectDrawTopRight,
+                                          newHost, dstRectDrawTopRight);
       if (!srcRectDrawTopLeft.IsEmpty())
-        aHost->mSource->CopyTo(srcRectDrawTopLeft,
-                               newSource, dstRectDrawTopLeft);
+        aHost->mDeprecatedTextureHost->CopyTo(srcRectDrawTopLeft,
+                                          newHost, dstRectDrawTopLeft);
       if (!srcRectDrawBottomLeft.IsEmpty())
-        aHost->mSource->CopyTo(srcRectDrawBottomLeft,
-                               newSource, dstRectDrawBottomLeft);
+        aHost->mDeprecatedTextureHost->CopyTo(srcRectDrawBottomLeft,
+                                          newHost, dstRectDrawBottomLeft);
     }
 
-    if (newSourceOnWhite) {
-      newSourceOnWhite->EnsureBuffer(mBufferRect.Size(),
-                                    ContentForFormat(aHost->mSourceOnWhite->GetFormat()));
-      aHost->mSourceOnWhite->CopyTo(srcRect, newSourceOnWhite, dstRect);
+    if (newHostOnWhite) {
+      newHostOnWhite->EnsureBuffer(mBufferRect.Size(),
+                                   ContentForFormat(aHost->mDeprecatedTextureHostOnWhite->GetFormat()));
+      aHost->mDeprecatedTextureHostOnWhite->CopyTo(srcRect, newHostOnWhite, dstRect);
       if (bufferRotation != nsIntPoint(0, 0)) {
         // draw the remaining quadrants
         if (!srcRectDrawTopRight.IsEmpty())
-          aHost->mSourceOnWhite->CopyTo(srcRectDrawTopRight,
-                                        newSourceOnWhite, dstRectDrawTopRight);
+          aHost->mDeprecatedTextureHostOnWhite->CopyTo(srcRectDrawTopRight,
+                                                   newHostOnWhite, dstRectDrawTopRight);
         if (!srcRectDrawTopLeft.IsEmpty())
-          aHost->mSourceOnWhite->CopyTo(srcRectDrawTopLeft,
-                                        newSourceOnWhite, dstRectDrawTopLeft);
+          aHost->mDeprecatedTextureHostOnWhite->CopyTo(srcRectDrawTopLeft,
+                                                   newHostOnWhite, dstRectDrawTopLeft);
         if (!srcRectDrawBottomLeft.IsEmpty())
-          aHost->mSourceOnWhite->CopyTo(srcRectDrawBottomLeft,
-                                        newSourceOnWhite, dstRectDrawBottomLeft);
+          aHost->mDeprecatedTextureHostOnWhite->CopyTo(srcRectDrawBottomLeft,
+                                                   newHostOnWhite, dstRectDrawBottomLeft);
       }
     }
   }
 
-  aHost->mSource = newSource;
-  aHost->mSourceOnWhite = newSourceOnWhite;
+  aHost->mDeprecatedTextureHost = newHost;
+  aHost->mDeprecatedTextureHostOnWhite = newHostOnWhite;
 
   aHost->mBufferRect = mBufferRect;
   aHost->mBufferRotation = nsIntPoint();
@@ -856,26 +817,17 @@ ContentHostIncremental::TextureUpdateRequest::Execute(ContentHostIncremental* aH
 
   mUpdated.MoveBy(-nsIntPoint(quadrantRect.x, quadrantRect.y));
 
-  IntPoint offset = ToIntPoint(-mUpdated.GetBounds().TopLeft());
-
-  AutoOpenSurface surf(OPEN_READ_ONLY, mDescriptor);
-
-  nsRefPtr<gfxImageSurface> thebesSurf = surf.GetAsImage();
-  RefPtr<DataSourceSurface> sourceSurf =
-    gfx::Factory::CreateWrappingDataSourceSurface(thebesSurf->Data(),
-                                                  thebesSurf->Stride(),
-                                                  ToIntSize(thebesSurf->GetSize()),
-                                                  ImageFormatToSurfaceFormat(thebesSurf->Format()));
+  nsIntPoint offset = -mUpdated.GetBounds().TopLeft();
 
   if (mTextureId == TextureFront) {
-    aHost->mSource->Update(sourceSurf, &mUpdated, &offset);
+    aHost->mDeprecatedTextureHost->Update(mDescriptor, &mUpdated, &offset);
   } else {
-    aHost->mSourceOnWhite->Update(sourceSurf, &mUpdated, &offset);
+    aHost->mDeprecatedTextureHostOnWhite->Update(mDescriptor, &mUpdated, &offset);
   }
 }
 
 void
-ContentHostTexture::PrintInfo(nsACString& aTo, const char* aPrefix)
+ContentHostBase::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   aTo += aPrefix;
   aTo += nsPrintfCString("ContentHost (0x%p)", this);
@@ -897,7 +849,7 @@ ContentHostTexture::PrintInfo(nsACString& aTo, const char* aPrefix)
 
 
 LayerRenderState
-ContentHostTexture::GetRenderState()
+ContentHostBase::GetRenderState()
 {
   if (!mTextureHost) {
     return LayerRenderState();
@@ -926,7 +878,7 @@ DeprecatedContentHostBase::GetRenderState()
 
 #ifdef MOZ_DUMP_PAINTING
 TemporaryRef<gfx::DataSourceSurface>
-ContentHostTexture::GetAsSurface()
+ContentHostBase::GetAsSurface()
 {
   if (!mTextureHost) {
     return nullptr;

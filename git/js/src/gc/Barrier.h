@@ -907,8 +907,8 @@ class HeapSlot : public BarrieredValue
 {
   public:
     enum Kind {
-        Slot = 0,
-        Element = 1
+        Slot,
+        Element
     };
 
     explicit HeapSlot() MOZ_DELETE;
@@ -982,7 +982,7 @@ class HeapSlot : public BarrieredValue
 #ifdef JSGC_GENERATIONAL
         if (target.isObject()) {
             JS::shadow::Runtime *shadowRuntime = JS::shadow::Runtime::asShadowRuntime(rt);
-            shadowRuntime->gcStoreBufferPtr()->putSlot(obj, kind, slot, 1);
+            shadowRuntime->gcStoreBufferPtr()->putSlot(obj, kind, slot, &target.toObject());
         }
 #endif
     }

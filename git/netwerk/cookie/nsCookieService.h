@@ -66,13 +66,13 @@ public:
     , mInBrowserElement(inBrowser)
   {}
 
-  nsCookieKey(KeyTypePointer other)
+  nsCookieKey(const KeyTypePointer other)
     : mBaseDomain(other->mBaseDomain)
     , mAppId(other->mAppId)
     , mInBrowserElement(other->mInBrowserElement)
   {}
 
-  nsCookieKey(KeyType other)
+  nsCookieKey(const KeyType other)
     : mBaseDomain(other.mBaseDomain)
     , mAppId(other.mAppId)
     , mInBrowserElement(other.mInBrowserElement)

@@ -61,11 +61,9 @@ private:
  * a collection of <binding> descriptors. This object is refcounted by
  * nsBindingValues objects and the query processor.
  */
-class RDFBindingSet MOZ_FINAL
+class RDFBindingSet
 {
-private:
-    // Private destructor, to discourage deletion outside of Release():
-    ~RDFBindingSet();
+protected:
 
     // the number of bindings
     int32_t mCount;
@@ -81,6 +79,8 @@ public:
     {
         MOZ_COUNT_CTOR(RDFBindingSet);
     }
+
+    ~RDFBindingSet();
 
     NS_INLINE_DECL_REFCOUNTING(RDFBindingSet)
 

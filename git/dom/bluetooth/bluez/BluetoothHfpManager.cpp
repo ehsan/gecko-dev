@@ -754,15 +754,7 @@ BluetoothHfpManager::ReceiveSocketData(BluetoothSocket* aSocket,
     }
 
     mCMER = atCommandValues[3].EqualsLiteral("1");
-
-    /**
-     * SLC is connected once the "indicator status update" is enabled by
-     * AT+CMER command. See 4.2.1 in Bluetooth hands-free profile 1.6
-     * for more details.
-     */
-    if (mCMER) {
-      mSlcConnected = true;
-    }
+    mSlcConnected = mCMER;
 
     // If we get internal request for SCO connection,
     // setup SCO after Service Level Connection established.
