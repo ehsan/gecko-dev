@@ -1233,16 +1233,7 @@ struct JSRuntime : public JS::shadow::Runtime,
      * Malloc counter to measure memory pressure for GC scheduling. It runs
      * from gcMaxMallocBytes down to zero.
      */
-    mozilla::Atomic<ptrdiff_t, mozilla::ReleaseAcquire> gcMallocBytes;
-
-    /*
-     * Whether a GC has been triggered as a result of gcMallocBytes falling
-     * below zero.
-     *
-     * This should be a bool, but Atomic only supports 32-bit and pointer-sized
-     * types.
-     */
-    mozilla::Atomic<uint32_t, mozilla::ReleaseAcquire> gcMallocGCTriggered;
+    volatile ptrdiff_t  gcMallocBytes;
 
   public:
     void setNeedsBarrier(bool needs) {
@@ -1557,10 +1548,7 @@ struct JSRuntime : public JS::shadow::Runtime,
 
     void setGCMaxMallocBytes(size_t value);
 
-    void resetGCMallocBytes() {
-        gcMallocBytes = ptrdiff_t(gcMaxMallocBytes);
-        gcMallocGCTriggered = false;
-    }
+    void resetGCMallocBytes() { gcMallocBytes = ptrdiff_t(gcMaxMallocBytes); }
 
     /*
      * Call this after allocating memory held by GC things, to update memory

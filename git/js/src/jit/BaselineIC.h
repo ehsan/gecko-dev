@@ -5873,7 +5873,7 @@ class ICRest_Fallback : public ICFallbackStub
         return space->allocate<ICRest_Fallback>(code, templateObject);
     }
 
-    HeapPtrObject &templateObject() {
+    JSObject *templateObject() {
         return templateObject_;
     }
 

@@ -9905,19 +9905,20 @@ let StkCommandParamsFactory = {
 
   processSetupCall: function processSetupCall(cmdDetails, ctlvs) {
     let call = {};
-    let iter = Iterator(ctlvs);
 
-    let ctlv = StkProactiveCmdHelper.searchForNextTag(COMPREHENSIONTLV_TAG_ALPHA_ID, iter);
-    if (ctlv) {
-      call.confirmMessage = ctlv.value.identifier;
+    for (let i = 0; i < ctlvs.length; i++) {
+      let ctlv = ctlvs[i];
+      if (ctlv.tag == COMPREHENSIONTLV_TAG_ALPHA_ID) {
+        if (!call.confirmMessage) {
+          call.confirmMessage = ctlv.value.identifier;
+        } else {
+          call.callMessage = ctlv.value.identifier;
+          break;
+        }
+      }
     }
 
-    ctlv = StkProactiveCmdHelper.searchForNextTag(COMPREHENSIONTLV_TAG_ALPHA_ID, iter);
-    if (ctlv) {
-      call.callMessage = ctlv.value.identifier;
-    }
-
-    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ADDRESS, ctlvs);
+    let ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ADDRESS, ctlvs);
     if (!ctlv) {
       RIL.sendStkTerminalResponse({
         command: cmdDetails,
@@ -10429,12 +10430,8 @@ let StkProactiveCmdHelper = {
   },
 
   searchForTag: function searchForTag(tag, ctlvs) {
-    let iter = Iterator(ctlvs);
-    return this.searchForNextTag(tag, iter);
-  },
-
-  searchForNextTag: function searchForNextTag(tag, iter) {
-    for (let [index, ctlv] in iter) {
+    for (let i = 0; i < ctlvs.length; i++) {
+      let ctlv = ctlvs[i];
       if ((ctlv.tag & ~COMPREHENSIONTLV_FLAG_CR) == tag) {
         return ctlv;
       }

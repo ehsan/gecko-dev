@@ -450,7 +450,7 @@ function RILContentHelper() {
   this.updateDebugFlag();
 
   this.numClients = gNumRadioInterfaces;
-  if (DEBUG) debug("Number of clients: " + this.numClients);
+  debug("Number of clients: " + this.numClients);
 
   this.rilContexts = [];
   this.voicemailInfos = [];
@@ -605,7 +605,7 @@ RILContentHelper.prototype = {
       let rilContext =
         cpmm.sendSyncMessage("RIL:GetRilContext", {clientId: cId})[0];
       if (!rilContext) {
-        if (DEBUG) debug("Received null rilContext from chrome process.");
+        debug("Received null rilContext from chrome process.");
         continue;
       }
       this.rilContexts[cId].cardState = rilContext.cardState;
@@ -910,7 +910,7 @@ RILContentHelper.prototype = {
   },
 
   sendMMI: function sendMMI(clientId, window, mmi) {
-    if (DEBUG) debug("Sending MMI " + mmi);
+    debug("Sending MMI " + mmi);
     if (!window) {
       throw Components.Exception("Can't get window object",
                                  Cr.NS_ERROR_UNEXPECTED);
@@ -932,7 +932,7 @@ RILContentHelper.prototype = {
   },
 
   cancelMMI: function cancelMMI(clientId, window) {
-    if (DEBUG) debug("Cancel MMI");
+    debug("Cancel MMI");
     if (!window) {
       throw Components.Exception("Can't get window object",
                                  Cr.NS_ERROR_UNEXPECTED);
@@ -1443,7 +1443,7 @@ RILContentHelper.prototype = {
   },
 
   registerMobileConnectionMsg: function registerMobileConnectionMsg(clientId, listener) {
-    if (DEBUG) debug("Registering for mobile connection related messages");
+    debug("Registering for mobile connection related messages");
     this.registerListener("_mobileConnectionListeners", clientId, listener);
     cpmm.sendAsyncMessage("RIL:RegisterMobileConnectionMsg");
   },
@@ -1453,7 +1453,7 @@ RILContentHelper.prototype = {
   },
 
   registerVoicemailMsg: function registerVoicemailMsg(listener) {
-    if (DEBUG) debug("Registering for voicemail-related messages");
+    debug("Registering for voicemail-related messages");
     // To follow the listener registration scheme, we add a dummy clientId 0.
     // All voicemail events are routed to listener for client id 0.
     // See |handleVoicemailNotification|.
@@ -1469,7 +1469,7 @@ RILContentHelper.prototype = {
   },
 
   registerCellBroadcastMsg: function registerCellBroadcastMsg(listener) {
-    if (DEBUG) debug("Registering for Cell Broadcast related messages");
+    debug("Registering for Cell Broadcast related messages");
     //TODO: Bug 921326 - Cellbroadcast API: support multiple sim cards
     this.registerListener("_cellBroadcastListeners", 0, listener);
     cpmm.sendAsyncMessage("RIL:RegisterCellBroadcastMsg");
@@ -1481,7 +1481,7 @@ RILContentHelper.prototype = {
   },
 
   registerIccMsg: function registerIccMsg(clientId, listener) {
-    if (DEBUG) debug("Registering for ICC related messages");
+    debug("Registering for ICC related messages");
     this.registerListener("_iccListeners", clientId, listener);
     cpmm.sendAsyncMessage("RIL:RegisterIccMsg");
   },
@@ -1574,9 +1574,7 @@ RILContentHelper.prototype = {
 
   receiveMessage: function receiveMessage(msg) {
     let request;
-    if (DEBUG) {
-      debug("Received message '" + msg.name + "': " + JSON.stringify(msg.json));
-    }
+    debug("Received message '" + msg.name + "': " + JSON.stringify(msg.json));
 
     let data = msg.json.data;
     let clientId = msg.json.clientId;
@@ -1785,11 +1783,9 @@ RILContentHelper.prototype = {
   },
 
   handleGetAvailableNetworks: function handleGetAvailableNetworks(message) {
-    if (DEBUG) debug("handleGetAvailableNetworks: " + JSON.stringify(message));
+    debug("handleGetAvailableNetworks: " + JSON.stringify(message));
     if (message.errorMsg) {
-      if (DEBUG) {
-        debug("Received error from getAvailableNetworks: " + message.errorMsg);
-      }
+      debug("Received error from getAvailableNetworks: " + message.errorMsg);
       this.fireRequestError(message.requestId, message.errorMsg);
       return;
     }
@@ -1950,7 +1946,7 @@ RILContentHelper.prototype = {
   },
 
   handleSendCancelMMI: function handleSendCancelMMI(message) {
-    if (DEBUG) debug("handleSendCancelMMI " + JSON.stringify(message));
+    debug("handleSendCancelMMI " + JSON.stringify(message));
     let request = this.takeRequest(message.requestId);
     let requestWindow = this._windowsMap[message.requestId];
     delete this._windowsMap[message.requestId];
@@ -2017,7 +2013,7 @@ RILContentHelper.prototype = {
       try {
         handler.apply(listener, args);
       } catch (e) {
-        if (DEBUG) debug("listener for " + name + " threw an exception: " + e);
+        debug("listener for " + name + " threw an exception: " + e);
       }
     }
   },

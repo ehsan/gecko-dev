@@ -780,8 +780,7 @@ class RemakeTargetParallel(object):
             return
 
         self.currunning = True
-        rule = self.rlist.pop(0)
-        self.makefile.context.defer(rule.runcommands, self.indent, self.commandscb)
+        self.rlist.pop(0).runcommands(self.indent, self.commandscb)
 
     def commandscb(self, error):
         assert error in (True, False)
@@ -845,15 +844,11 @@ class RemakeRuleContext(object):
         self._depfinishedserial(False, False)
 
     def _startdepparallel(self, d):
-        dep, weak = d
-        if weak:
-            depfinished = self._weakdepfinishedparallel
-        else:
-            depfinished = self._depfinishedparallel
         if self.makefile.error:
             depfinished(True, False)
         else:
-            dep.make(self.makefile, self.targetstack, depfinished)
+            dep, weak = d
+            dep.make(self.makefile, self.targetstack, weak and self._weakdepfinishedparallel or self._depfinishedparallel)
 
     def _weakdepfinishedparallel(self, error, didanything):
         if error:

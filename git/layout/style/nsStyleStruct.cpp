@@ -1904,7 +1904,6 @@ nsStyleBackground::nsStyleBackground()
   , mPositionCount(1)
   , mImageCount(1)
   , mSizeCount(1)
-  , mBlendModeCount(1)
   , mBackgroundColor(NS_RGBA(0, 0, 0, 0))
   , mBackgroundInlinePolicy(NS_STYLE_BG_INLINE_POLICY_CONTINUOUS)
 {
@@ -1922,7 +1921,6 @@ nsStyleBackground::nsStyleBackground(const nsStyleBackground& aSource)
   , mPositionCount(aSource.mPositionCount)
   , mImageCount(aSource.mImageCount)
   , mSizeCount(aSource.mSizeCount)
-  , mBlendModeCount(aSource.mBlendModeCount)
   , mLayers(aSource.mLayers) // deep copy
   , mBackgroundColor(aSource.mBackgroundColor)
   , mBackgroundInlinePolicy(aSource.mBackgroundInlinePolicy)
@@ -1939,7 +1937,6 @@ nsStyleBackground::nsStyleBackground(const nsStyleBackground& aSource)
     mPositionCount = std::max(mPositionCount, count);
     mImageCount = std::max(mImageCount, count);
     mSizeCount = std::max(mSizeCount, count);
-    mBlendModeCount = std::max(mSizeCount, count);
   }
 }
 
@@ -2147,7 +2144,6 @@ nsStyleBackground::Layer::SetInitialValues()
   mClip = NS_STYLE_BG_CLIP_BORDER;
   mOrigin = NS_STYLE_BG_ORIGIN_PADDING;
   mRepeat.SetInitialValues();
-  mBlendMode = NS_STYLE_BLEND_NORMAL;
   mPosition.SetInitialValues();
   mSize.SetInitialValues();
   mImage.SetNull();
@@ -2172,7 +2168,6 @@ nsStyleBackground::Layer::operator==(const Layer& aOther) const
          mClip == aOther.mClip &&
          mOrigin == aOther.mOrigin &&
          mRepeat == aOther.mRepeat &&
-         mBlendMode == aOther.mBlendMode &&
          mPosition == aOther.mPosition &&
          mSize == aOther.mSize &&
          mImage == aOther.mImage;

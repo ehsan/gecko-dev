@@ -415,10 +415,6 @@ class PythonJob(Job):
         finally:
             os.environ.clear()
             os.environ.update(oldenv)
-            # multiprocessing exits via os._exit, make sure that all output
-            # from command gets written out before that happens.
-            sys.stdout.flush()
-            sys.stderr.flush()
         return 0
 
 def job_runner(job):
