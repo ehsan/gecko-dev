@@ -321,18 +321,16 @@ GeckoPointerController::getBounds(float* outMinX,
 {
     int32_t width, height, orientation;
 
-    DisplayViewport viewport;
-
-    mConfig->getDisplayInfo(false, &viewport);
+    mConfig->getDisplayInfo(0, false, &width, &height, &orientation);
 
     *outMinX = *outMinY = 0;
     if (orientation == DISPLAY_ORIENTATION_90 ||
         orientation == DISPLAY_ORIENTATION_270) {
-        *outMaxX = viewport.deviceHeight;
-        *outMaxY = viewport.deviceWidth;
+        *outMaxX = height;
+        *outMaxY = width;
     } else {
-        *outMaxX = viewport.deviceWidth;
-        *outMaxY = viewport.deviceHeight;
+        *outMaxX = width;
+        *outMaxY = height;
     }
     return true;
 }
@@ -384,16 +382,6 @@ deviceId)
     {
         return new GeckoPointerController(&mConfig);
     };
-    virtual void notifyInputDevicesChanged(const android::Vector<InputDeviceInfo>& inputDevices) {};
-    virtual sp<KeyCharacterMap> getKeyboardLayoutOverlay(const String8& inputDeviceDescriptor)
-    {
-        return NULL;
-    };
-    virtual String8 getDeviceAlias(const InputDeviceIdentifier& identifier)
-    {
-        return String8::empty();
-    };
-
     void setDisplayInfo();
 
 protected:
@@ -466,11 +454,7 @@ GeckoInputReaderPolicy::setDisplayInfo()
                   DISPLAY_ORIENTATION_270,
                   "Orientation enums not matched!");
 
-    DisplayViewport viewport;
-    viewport.setNonDisplayViewport(gScreenBounds.width, gScreenBounds.height);
-    viewport.displayId = 0;
-    viewport.orientation = nsScreenGonk::GetRotation();
-    mConfig.setDisplayInfo(false, viewport);
+    mConfig.setDisplayInfo(0, false, gScreenBounds.width, gScreenBounds.height, nsScreenGonk::GetRotation());
 }
 
 void GeckoInputReaderPolicy::getReaderConfiguration(InputReaderConfiguration* outConfig)
@@ -612,22 +596,16 @@ void GeckoInputDispatcher::notifySwitch(const NotifySwitchArgs* args)
     if (!sDevInputAudioJack)
         return;
 
-    bool needSwitchUpdate = false;
-
-    if (args->switchMask & (1 << SW_HEADPHONE_INSERT)) {
-        sHeadphoneState = (args->switchValues & (1 << SW_HEADPHONE_INSERT)) ?
-                          AKEY_STATE_DOWN : AKEY_STATE_UP;
-        needSwitchUpdate = true;
-    }
-
-    if (args->switchMask & (1 << SW_MICROPHONE_INSERT)) {
-        sMicrophoneState = (args->switchValues & (1 << SW_MICROPHONE_INSERT)) ?
-                           AKEY_STATE_DOWN : AKEY_STATE_UP;
-        needSwitchUpdate = true;
-    }
-
-    if (needSwitchUpdate)
+    switch (args->switchCode) {
+    case SW_HEADPHONE_INSERT:
+        sHeadphoneState = args->switchValue;
         updateHeadphoneSwitch();
+        break;
+    case SW_MICROPHONE_INSERT:
+        sMicrophoneState = args->switchValue;
+        updateHeadphoneSwitch();
+        break;
+    }
 }
 
 void GeckoInputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args)

@@ -1142,7 +1142,7 @@ AbstractHealthReporter.prototype = Object.freeze({
  * @param policy
  *        (HealthReportPolicy) Policy driving execution of HealthReporter.
  */
-this.HealthReporter = function (branch, policy, sessionRecorder, stateLeaf=null) {
+function HealthReporter(branch, policy, sessionRecorder, stateLeaf=null) {
   this._stateLeaf = stateLeaf;
 
   AbstractHealthReporter.call(this, branch, policy, sessionRecorder);
@@ -1158,7 +1158,7 @@ this.HealthReporter = function (branch, policy, sessionRecorder, stateLeaf=null)
   this._state = new HealthReporterState(this);
 }
 
-this.HealthReporter.prototype = Object.freeze({
+HealthReporter.prototype = Object.freeze({
   __proto__: AbstractHealthReporter.prototype,
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),

@@ -24,6 +24,7 @@ const TEST_ID = "0202_svc";
 // launching a post update executable.
 const FILE_UPDATER_INI_BAK = "updater.ini.bak";
 
+let gActiveUpdate;
 let gTimeoutRuns = 0;
 
 function run_test() {
@@ -111,18 +112,19 @@ function run_test() {
   writeFile(updateSettingsIni, UPDATE_SETTINGS_CONTENTS);
 
   reloadUpdateManagerData();
-  do_check_true(!!gUpdateManager.activeUpdate);
-
-  Services.obs.addObserver(gUpdateStagedObserver, "update-staged", false);
+  gActiveUpdate = gUpdateManager.activeUpdate;
+  do_check_true(!!gActiveUpdate);
 
   setEnvironment();
 
   // Initiate a background update.
   AUS_Cc["@mozilla.org/updates/update-processor;1"].
     createInstance(AUS_Ci.nsIUpdateProcessor).
-    processUpdate(gUpdateManager.activeUpdate);
+    processUpdate(gActiveUpdate);
 
   resetEnvironment();
+
+  checkUpdateApplied();
 }
 
 function end_test() {

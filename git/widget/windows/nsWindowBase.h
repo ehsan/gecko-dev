@@ -49,16 +49,9 @@ public:
   virtual bool DispatchWindowEvent(nsGUIEvent* aEvent) = 0;
 
   /*
-   * Dispatch a gecko keyboard event for this widget. This
-   * is called by KeyboardLayout to dispatch gecko events.
-   * Returns true if it's consumed.  Otherwise, false.
+   * Dispatch a plugin event with the message.
    */
-  virtual bool DispatchKeyboardEvent(nsGUIEvent* aEvent) = 0;
-
-  /*
-   * Default dispatch of a plugin event.
-   */
-  virtual bool DispatchPluginEvent(const MSG &aMsg)
+  virtual bool DispatchPluginEvent(const MSG &aMsg) MOZ_FINAL
   {
     if (!PluginHasFocus()) {
       return false;

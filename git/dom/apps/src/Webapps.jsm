@@ -993,7 +993,6 @@ this.DOMApplicationRegistry = {
     this.launch(
       aData.manifestURL,
       aData.startPoint,
-      aData.timestamp,
       function onsuccess() {
         aMm.sendAsyncMessage("Webapps:Launch:Return:OK", aData);
       },
@@ -1003,7 +1002,7 @@ this.DOMApplicationRegistry = {
     );
   },
 
-  launch: function launch(aManifestURL, aStartPoint, aTimeStamp, aOnSuccess, aOnFailure) {
+  launch: function launch(aManifestURL, aStartPoint, aOnSuccess, aOnFailure) {
     let app = this.getAppByManifestURL(aManifestURL);
     if (!app) {
       aOnFailure("NO_SUCH_APP");
@@ -1021,7 +1020,6 @@ this.DOMApplicationRegistry = {
     // stringified as an empty object. (see bug 830376)
     let appClone = AppsUtils.cloneAppObject(app);
     appClone.startPoint = aStartPoint;
-    appClone.timestamp = aTimeStamp;
     Services.obs.notifyObservers(null, "webapps-launch", JSON.stringify(appClone));
     aOnSuccess();
   },
@@ -1949,15 +1947,10 @@ this.DOMApplicationRegistry = {
           tmpDir.remove(true);
         } catch(e) { }
 
-        // Save the manifest and clear the manifest cache, since it may contain
-        // the update manifest.
+        // Save the manifest
         let manFile = dir.clone();
         manFile.append("manifest.webapp");
         this._writeFile(manFile, JSON.stringify(aManifest), function() { });
-        if (this._manifestCache[aId]) {
-          delete this._manifestCache[aId];
-        }
-
         // Set state and fire events.
         app.installState = "installed";
         app.downloading = false;
