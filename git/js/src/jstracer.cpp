@@ -3653,7 +3653,6 @@ TraceRecorder::getThis(LIns*& this_ins)
         this_ins = get(&cx->fp->argv[-1]);
         guard(false, lir->ins_eq0(this_ins), MISMATCH_EXIT);
     } else { /* in global code */
-        JS_ASSERT(!JSVAL_IS_NULL(cx->fp->argv[-1]));
         this_ins = scopeChain();
     }
     return true;
@@ -3743,7 +3742,7 @@ TraceRecorder::record_EnterFrame()
     LIns* void_ins = INS_CONST(JSVAL_TO_BOOLEAN(JSVAL_VOID));
 
     jsval* vp = &fp->argv[fp->argc];
-    jsval* vpstop = vp + ptrdiff_t(fp->fun->nargs) - ptrdiff_t(fp->argc);
+    jsval* vpstop = vp + (fp->fun->nargs - fp->argc);
     if (applyingArguments) {
         applyingArguments = false;
         while (vp < vpstop) {
