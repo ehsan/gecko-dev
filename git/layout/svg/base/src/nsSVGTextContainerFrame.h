@@ -39,8 +39,6 @@
 
 #include "nsSVGContainerFrame.h"
 
-class nsIDOMSVGPoint;
-class nsIDOMSVGRect;
 class nsISVGGlyphFragmentNode;
 class nsSVGTextFrame;
 class nsSVGGlyphFrame;

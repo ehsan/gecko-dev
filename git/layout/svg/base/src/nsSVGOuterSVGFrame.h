@@ -81,7 +81,7 @@ public:
   virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                             PRUint32 aFlags) MOZ_OVERRIDE;
+                             bool aShrinkWrap);
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -149,12 +149,6 @@ public:
     mEnableBitmapFallback = aVal;
   }
 #endif
-
-  /**
-   * Return true only if the height is unspecified (defaulting to 100%) or else
-   * the height is explicitly set to a percentage value no greater than 100%.
-   */
-  bool VerticalScrollbarNotNeeded() const;
 
 protected:
 

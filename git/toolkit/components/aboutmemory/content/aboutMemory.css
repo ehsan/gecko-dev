@@ -97,10 +97,6 @@ h2 {
   -moz-user-select: none;  /* no need to include this when cutting+pasting */
 }
 
-.debug {
-  font-size: 80%;
-}
-
 .hidden {
   display: none;
 }

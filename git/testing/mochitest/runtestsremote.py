@@ -409,14 +409,15 @@ class MochiRemote(Mochitest):
         
 def main():
     scriptdir = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))
-    auto = RemoteAutomation(None, "fennec")
+    dm_none = devicemanagerADB.DeviceManagerADB()
+    auto = RemoteAutomation(dm_none, "fennec")
     parser = RemoteOptions(auto, scriptdir)
     options, args = parser.parse_args()
     if (options.dm_trans == "adb"):
         if (options.deviceIP):
             dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort)
         else:
-            dm = devicemanagerADB.DeviceManagerADB()
+            dm = dm_none
     else:
          dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort)
     auto.setDeviceManager(dm)

@@ -8248,10 +8248,10 @@ void
 nsIDocument::WarnOnceAbout(DeprecatedOperations aOperation)
 {
   PR_STATIC_ASSERT(eDeprecatedOperationCount <= 64);
-  if (mWarnedAbout & (1ull << aOperation)) {
+  if (mWarnedAbout & (1 << aOperation)) {
     return;
   }
-  mWarnedAbout |= (1ull << aOperation);
+  mWarnedAbout |= (1 << aOperation);
   nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
                                   "DOM Core", this,
                                   nsContentUtils::eDOM_PROPERTIES,

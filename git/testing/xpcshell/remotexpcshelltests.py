@@ -302,6 +302,7 @@ class PathMapping:
 
 def main():
 
+    dm_none = devicemanagerADB.DeviceManagerADB(None, None)
     parser = RemoteXPCShellOptions()
     options, args = parser.parse_args()
 
@@ -314,7 +315,7 @@ def main():
       if (options.deviceIP):
         dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort)
       else:
-        dm = devicemanagerADB.DeviceManagerADB()
+        dm = dm_none
     else:
       dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort)
       if (options.deviceIP == None):

@@ -1238,11 +1238,7 @@ nsHTMLReflowState::InitAbsoluteConstraints(nsPresContext* aPresContext,
   bool widthIsAuto = eStyleUnit_Auto == mStylePosition->mWidth.GetUnit();
   bool heightIsAuto = eStyleUnit_Auto == mStylePosition->mHeight.GetUnit();
 
-  PRUint32 computeSizeFlags = 0;
-  if (leftIsAuto || rightIsAuto) {
-    computeSizeFlags |= nsIFrame::eShrinkWrap;
-  }
-
+  bool shrinkWrap = leftIsAuto || rightIsAuto;
   {
     AutoMaybeNullInflationContainer an(frame);
 
@@ -1261,7 +1257,7 @@ nsHTMLReflowState::InitAbsoluteConstraints(nsPresContext* aPresContext,
                                   mComputedPadding.TopBottom()),
                          nsSize(mComputedPadding.LeftRight(),
                                 mComputedPadding.TopBottom()),
-                         computeSizeFlags);
+                         shrinkWrap);
     mComputedWidth = size.width;
     mComputedHeight = size.height;
   }
@@ -1872,12 +1868,7 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
         NS_CSS_FRAME_TYPE_BLOCK == NS_FRAME_GET_TYPE(mFrameType);
       // make sure legend frames with display:block and width:auto still
       // shrink-wrap
-
-      PRUint32 computeSizeFlags = 0;
-      if (!isBlock || aFrameType == nsGkAtoms::legendFrame) {
-        computeSizeFlags |= nsIFrame::eShrinkWrap;
-      }
-
+      bool shrinkWrap = !isBlock || aFrameType == nsGkAtoms::legendFrame;
       nsSize size =
         frame->ComputeSize(rendContext,
                            nsSize(aContainingBlockWidth,
@@ -1891,7 +1882,7 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
                                     mComputedPadding.TopBottom()),
                            nsSize(mComputedPadding.LeftRight(),
                                   mComputedPadding.TopBottom()),
-                           computeSizeFlags);
+                           shrinkWrap);
 
       mComputedWidth = size.width;
       mComputedHeight = size.height;

@@ -1916,7 +1916,7 @@ GCGraphBuilder::NoteRoot(PRUint32 langID, void *root,
         return;
     }
 
-    if (!participant->CanSkipInCC(root) || WantAllTraces()) {
+    if (!participant->CanSkipThis(root) || WantAllTraces()) {
         AddNode(root, participant, langID);
     }
 }

@@ -35,7 +35,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGContainerFrame.h"
-#include "nsSVGElement.h"
 #include "nsSVGUtils.h"
 #include "nsSVGOuterSVGFrame.h"
 

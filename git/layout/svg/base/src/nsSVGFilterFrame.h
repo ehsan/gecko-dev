@@ -39,7 +39,6 @@
 
 #include "nsRect.h"
 #include "nsSVGContainerFrame.h"
-#include "nsSVGUtils.h"
 
 class nsRenderingContext;
 class nsSVGFilterPaintCallback;

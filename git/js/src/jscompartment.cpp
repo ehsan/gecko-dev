@@ -540,8 +540,6 @@ JSCompartment::sweep(JSContext *cx, bool releaseTypes)
          * enabled in the compartment.
          */
         if (types.inferenceEnabled) {
-            gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_DISCARD_TI);
-
             for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
                 JSScript *script = i.get<JSScript>();
                 if (script->types) {
@@ -556,17 +554,11 @@ JSCompartment::sweep(JSContext *cx, bool releaseTypes)
             }
         }
 
-        {
-            gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_SWEEP_TYPES);
-            types.sweep(cx);
-        }
+        types.sweep(cx);
 
-        {
-            gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_CLEAR_SCRIPT_ANALYSIS);
-            for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
-                JSScript *script = i.get<JSScript>();
-                script->clearAnalysis();
-            }
+        for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
+            JSScript *script = i.get<JSScript>();
+            script->clearAnalysis();
         }
     }
 

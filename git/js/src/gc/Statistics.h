@@ -52,28 +52,19 @@ namespace js {
 namespace gcstats {
 
 enum Phase {
-    PHASE_GC_BEGIN,
-    PHASE_WAIT_BACKGROUND_THREAD,
-    PHASE_PURGE,
     PHASE_MARK,
     PHASE_MARK_ROOTS,
     PHASE_MARK_DELAYED,
     PHASE_MARK_OTHER,
-    PHASE_FINALIZE_START,
     PHASE_SWEEP,
-    PHASE_SWEEP_COMPARTMENTS,
     PHASE_SWEEP_OBJECT,
     PHASE_SWEEP_STRING,
     PHASE_SWEEP_SCRIPT,
     PHASE_SWEEP_SHAPE,
     PHASE_DISCARD_CODE,
     PHASE_DISCARD_ANALYSIS,
-    PHASE_DISCARD_TI,
-    PHASE_SWEEP_TYPES,
-    PHASE_CLEAR_SCRIPT_ANALYSIS,
-    PHASE_FINALIZE_END,
+    PHASE_XPCONNECT,
     PHASE_DESTROY,
-    PHASE_GC_END,
 
     PHASE_LIMIT
 };
@@ -106,7 +97,7 @@ struct Statistics {
     }
 
     jschar *formatMessage();
-    jschar *formatJSON(uint64_t timestamp);
+    jschar *formatJSON();
 
   private:
     JSRuntime *runtime;
@@ -148,15 +139,12 @@ struct Statistics {
     /* Number of events of this type for this GC. */
     unsigned int counts[STAT_LIMIT];
 
-    /* Allocated space before the GC started. */
-    size_t preBytes;
-
     void beginGC();
     void endGC();
 
     int64_t gcDuration();
     void printStats();
-    bool formatData(StatisticsSerializer &ss, uint64_t timestamp);
+    bool formatData(StatisticsSerializer &ss);
 
     double computeMMU(int64_t resolution);
 };

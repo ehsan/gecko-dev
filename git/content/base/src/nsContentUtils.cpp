@@ -1249,9 +1249,7 @@ nsContentUtils::IsHTMLVoid(nsIAtom* aLocalName)
     (aLocalName == nsGkAtoms::link) ||
     (aLocalName == nsGkAtoms::meta) ||
     (aLocalName == nsGkAtoms::param) ||
-#ifdef MOZ_MEDIA
     (aLocalName == nsGkAtoms::source) ||
-#endif
     (aLocalName == nsGkAtoms::track) ||
     (aLocalName == nsGkAtoms::wbr);
 }
@@ -3660,9 +3658,9 @@ nsContentUtils::MaybeFireNodeRemoved(nsINode* aChild, nsINode* aParent,
   // that is a know case when we'd normally fire a mutation event, but can't
   // make that safe and so we suppress it at this time. Ideally this should
   // go away eventually.
-  NS_ASSERTION((aChild->IsNodeOfType(nsINode::eCONTENT) &&
+  NS_ASSERTION(aChild->IsNodeOfType(nsINode::eCONTENT) &&
                static_cast<nsIContent*>(aChild)->
-                 IsInNativeAnonymousSubtree()) ||
+                 IsInNativeAnonymousSubtree() ||
                IsSafeToRunScript() ||
                sDOMNodeRemovedSuppressCount,
                "Want to fire DOMNodeRemoved event, but it's not safe");
@@ -6543,19 +6541,11 @@ nsContentUtils::ReleaseWrapper(nsISupports* aScriptObjectHolder,
                                nsWrapperCache* aCache)
 {
   if (aCache->PreservingWrapper()) {
-    JSObject* obj = aCache->GetWrapperPreserveColor();
-    if (aCache->IsProxy()) {
-      JSCompartment *compartment = js::GetObjectCompartment(obj);
-      xpc::CompartmentPrivate *priv =
-        static_cast<xpc::CompartmentPrivate *>(JS_GetCompartmentPrivate(compartment));
-      priv->RemoveDOMExpandoObject(obj);
-    }
-    else {
-      DropJSObjects(aScriptObjectHolder);
-    }
-
+    DropJSObjects(aScriptObjectHolder);
     aCache->SetPreservingWrapper(false);
   }
+
+  aCache->ClearWrapperIfProxy();
 }
 
 // static
@@ -6568,6 +6558,13 @@ nsContentUtils::TraceWrapper(nsWrapperCache* aCache, TraceCallback aCallback,
     if (wrapper) {
       aCallback(nsIProgrammingLanguage::JAVASCRIPT, wrapper,
                 "Preserved wrapper", aClosure);
+    }
+  }
+  else {
+    JSObject *expando = aCache->GetExpandoObjectPreserveColor();
+    if (expando) {
+      aCallback(nsIProgrammingLanguage::JAVASCRIPT, expando, "Expando object",
+                aClosure);
     }
   }
 }

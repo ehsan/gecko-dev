@@ -309,7 +309,7 @@ nsSVGOuterSVGFrame::GetIntrinsicRatio()
 nsSVGOuterSVGFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                                 nsSize aCBSize, nscoord aAvailableWidth,
                                 nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                                PRUint32 aFlags)
+                                bool aShrinkWrap)
 {
   nsSVGSVGElement* content = static_cast<nsSVGSVGElement*>(mContent);
 
@@ -836,12 +836,4 @@ nsSVGOuterSVGFrame::IsRootOfImage()
   }
 
   return false;
-}
-
-bool
-nsSVGOuterSVGFrame::VerticalScrollbarNotNeeded() const
-{
-  nsSVGLength2 &height = static_cast<nsSVGSVGElement*>(mContent)->
-                           mLengthAttributes[nsSVGSVGElement::HEIGHT];
-  return height.IsPercentage() && height.GetBaseValInSpecifiedUnits() <= 100;
 }

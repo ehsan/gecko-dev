@@ -246,7 +246,7 @@ public:
 
   nsDirection  GetDirection(){return mDirection;}
   void         SetDirection(nsDirection aDir){mDirection = aDir;}
-  nsresult     SetAnchorFocusToRange(nsRange *aRange);
+  nsresult     CopyRangeToAnchorFocus(nsRange *aRange);
   void         ReplaceAnchorFocusRange(nsRange *aRange);
 
   //  NS_IMETHOD   GetPrimaryFrameForRangeEndpoint(nsIDOMNode *aNode, PRInt32 aOffset, bool aIsEndNode, nsIFrame **aResultFrame);
@@ -5002,20 +5002,26 @@ nsTypedSelection::GetRangeAt(PRInt32 aIndex)
 utility function
 */
 nsresult
-nsTypedSelection::SetAnchorFocusToRange(nsRange *aRange)
+nsTypedSelection::CopyRangeToAnchorFocus(nsRange *aRange)
 {
+  // XXXbz could we just clone into mAnchorFocusRange, or do consumers
+  // expect that pointer to not change across this call?
   NS_ENSURE_STATE(mAnchorFocusRange);
-
-  nsresult res = RemoveItem(mAnchorFocusRange);
-  if (NS_FAILED(res))
-    return res;
-
-  PRInt32 aOutIndex = -1;
-  res = AddItem(aRange, &aOutIndex);
-  if (NS_FAILED(res))
-    return res;
-  setAnchorFocusRange(aOutIndex);
-
+  
+  nsINode* startNode = aRange->GetStartParent();
+  nsINode* endNode = aRange->GetEndParent();
+  PRInt32 startOffset = aRange->StartOffset();
+  PRInt32 endOffset = aRange->EndOffset();;
+  if (NS_FAILED(mAnchorFocusRange->SetStart(startNode,startOffset)))
+  {
+    // XXXbz what is this doing exactly?
+    if (NS_FAILED(mAnchorFocusRange->SetEnd(endNode,endOffset)))
+      return NS_ERROR_FAILURE;//???
+    if (NS_FAILED(mAnchorFocusRange->SetStart(startNode,startOffset)))
+      return NS_ERROR_FAILURE;//???
+  }
+  else if (NS_FAILED(mAnchorFocusRange->SetEnd(endNode,endOffset)))
+    return NS_ERROR_FAILURE;//???
   return NS_OK;
 }
 
@@ -5026,7 +5032,7 @@ nsTypedSelection::ReplaceAnchorFocusRange(nsRange *aRange)
   GetPresContext(getter_AddRefs(presContext));
   if (presContext) {
     selectFrames(presContext, mAnchorFocusRange, false);
-    SetAnchorFocusToRange(aRange);
+    CopyRangeToAnchorFocus(aRange);
     selectFrames(presContext, mAnchorFocusRange, true);
   }
 }
@@ -5091,6 +5097,9 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
   PRInt32 anchorOffset = GetAnchorOffset();
   PRInt32 focusOffset = GetFocusOffset();
 
+  if (focusNode == aParentNode && focusOffset == aOffset)
+    return NS_OK; //same node nothing to do!
+
   nsRefPtr<nsRange> range;
   res = mAnchorFocusRange->CloneRange(getter_AddRefs(range));
   if (NS_FAILED(res))
@@ -5100,12 +5109,14 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
   nsINode* startNode = range->GetStartParent();
   nsINode* endNode = range->GetEndParent();
   PRInt32 startOffset = range->StartOffset();
-  PRInt32 endOffset = range->EndOffset();
+  PRInt32 endOffset = range->EndOffset();;
 
   nsDirection dir = GetDirection();
 
   //compare anchor to old cursor.
 
+  if (NS_FAILED(res))
+    return res;
   // We pass |disconnected| to the following ComparePoints calls in order
   // to avoid assertions, and there is no special handling required, since
   // ComparePoints returns 1 in the disconnected case.
@@ -5122,6 +5133,9 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
                                                   aParentNode, aOffset,
                                                   &disconnected);
 
+  if (result2 == 0) //not selecting anywhere
+    return NS_OK;
+
   nsRefPtr<nsPresContext>  presContext;
   GetPresContext(getter_AddRefs(presContext));
   nsRefPtr<nsRange> difRange = new nsRange();
@@ -5136,7 +5150,7 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
     if (NS_FAILED(res))
       return res;
     selectFrames(presContext, difRange , true);
-    res = SetAnchorFocusToRange(range);
+    res = CopyRangeToAnchorFocus(range);
     if (NS_FAILED(res))
       return res;
   }
@@ -5147,7 +5161,7 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
     if (NS_FAILED(res))
       return res;
     selectFrames(presContext, range, true);
-    res = SetAnchorFocusToRange(range);
+    res = CopyRangeToAnchorFocus(range);
     if (NS_FAILED(res))
       return res;
   }
@@ -5161,7 +5175,7 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
     res = range->SetEnd(aParentNode, aOffset);
     if (NS_FAILED(res))
       return res;
-    res = SetAnchorFocusToRange(range);
+    res = CopyRangeToAnchorFocus(range);
     if (NS_FAILED(res))
       return res;
     selectFrames(presContext, difRange, false); // deselect now
@@ -5183,7 +5197,7 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
       res |= difRange->SetEnd(anchorNode, anchorOffset);
       if (NS_FAILED(res))
         return res;
-      res = SetAnchorFocusToRange(range);
+      res = CopyRangeToAnchorFocus(range);
       if (NS_FAILED(res))
         return res;
       //deselect from 1 to a
@@ -5191,7 +5205,7 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
     }
     else
     {
-      res = SetAnchorFocusToRange(range);
+      res = CopyRangeToAnchorFocus(range);
       if (NS_FAILED(res))
         return res;
     }
@@ -5209,7 +5223,7 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
     if (NS_FAILED(res))
       return res;
 
-    res = SetAnchorFocusToRange(range);
+    res = CopyRangeToAnchorFocus(range);
     if (NS_FAILED(res))
       return res;
     selectFrames(presContext, difRange , false);
@@ -5228,14 +5242,14 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
     if (focusNode != anchorNode || focusOffset!= anchorOffset) {//if collapsed diff dont do anything
       res = difRange->SetStart(anchorNode, anchorOffset);
       res |= difRange->SetEnd(focusNode, focusOffset);
-      res |= SetAnchorFocusToRange(range);
+      res |= CopyRangeToAnchorFocus(range);
       if (NS_FAILED(res))
         return res;
       selectFrames(presContext, difRange, false);
     }
     else
     {
-      res = SetAnchorFocusToRange(range);
+      res = CopyRangeToAnchorFocus(range);
       if (NS_FAILED(res))
         return res;
     }
@@ -5254,7 +5268,7 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
       return res;
 
     selectFrames(presContext, difRange, true);
-    res = SetAnchorFocusToRange(range);
+    res = CopyRangeToAnchorFocus(range);
     if (NS_FAILED(res))
       return res;
   }
@@ -5283,25 +5297,47 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
   return mFrameSelection->NotifySelectionListeners(GetType());
 }
 
+static nsresult
+GetChildOffset(nsIDOMNode *aChild, nsIDOMNode *aParent, PRInt32 &aOffset)
+{
+  NS_ASSERTION((aChild && aParent), "bad args");
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aParent);
+  nsCOMPtr<nsIContent> cChild = do_QueryInterface(aChild);
+
+  if (!cChild || !content)
+    return NS_ERROR_NULL_POINTER;
+
+  aOffset = content->IndexOf(cChild);
+
+  return NS_OK;
+}
+
 NS_IMETHODIMP
 nsTypedSelection::SelectAllChildren(nsIDOMNode* aParentNode)
 {
   NS_ENSURE_ARG_POINTER(aParentNode);
-  nsCOMPtr<nsINode> node = do_QueryInterface(aParentNode);
-
-  if (mFrameSelection)
+  
+  if (mFrameSelection) 
   {
     mFrameSelection->PostReason(nsISelectionListener::SELECTALL_REASON);
   }
-  nsresult result = Collapse(node, 0);
-  if (NS_FAILED(result))
-    return result;
-
-  if (mFrameSelection)
+  nsresult result = Collapse(aParentNode, 0);
+  if (NS_SUCCEEDED(result))
   {
-    mFrameSelection->PostReason(nsISelectionListener::SELECTALL_REASON);
+    nsCOMPtr<nsIDOMNode>lastChild;
+    result = aParentNode->GetLastChild(getter_AddRefs(lastChild));
+    if ((NS_SUCCEEDED(result)) && lastChild)
+    {
+      PRInt32 numBodyChildren=0;
+      GetChildOffset(lastChild, aParentNode, numBodyChildren);
+      if (mFrameSelection) 
+      {
+        mFrameSelection->PostReason(nsISelectionListener::SELECTALL_REASON);
+      }
+      result = Extend(aParentNode, numBodyChildren+1);
+    }
   }
-  return Extend(node, node->GetChildCount());
+  return result;
 }
 
 NS_IMETHODIMP

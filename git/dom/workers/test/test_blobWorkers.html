@@ -18,7 +18,10 @@
         "  postMessage(event.data);" +
         "};";
 
-      var worker = new Worker(URL.createObjectURL(new Blob([workerScript])));
+      var bb = new MozBlobBuilder();
+      bb.append(workerScript);
+
+      var worker = new Worker(URL.createObjectURL(bb.getBlob()));
       worker.onmessage = function(event) {
         is(event.data, message, "Got correct message");
         SimpleTest.finish();
