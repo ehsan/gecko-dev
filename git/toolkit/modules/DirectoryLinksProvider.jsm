@@ -156,11 +156,7 @@ let DirectoryLinksProvider = {
    */
   _extractSite: function DirectoryLinksProvider_extractSite(url) {
     let linkURI = Services.io.newURI(url, null, null);
-    try {
-      return Services.eTLD.getBaseDomain(linkURI);
-    }
-    catch(ex) {}
-    return linkURI.asciiHost;
+    return Services.eTLD.getBaseDomain(linkURI);
   },
 
   _fetchAndCacheLinks: function DirectoryLinksProvider_fetchAndCacheLinks(uri) {

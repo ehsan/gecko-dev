@@ -644,15 +644,15 @@ BrowserElementChild.prototype = {
       isCollapsed: (e.selectedText.length == 0),
     };
 
-    // Get correct geometry information if we have nested iframe.
+    // Get correct geometry information if we have nested <iframe mozbrowser>
     let currentWindow = e.target.defaultView;
-    while (currentWindow.top != currentWindow) {
-      let currentRect = currentWindow.frameElement.getBoundingClientRect();
+    while (currentWindow.realFrameElement) {
+      let currentRect = currentWindow.realFrameElement.getBoundingClientRect();
       detail.rect.top += currentRect.top;
       detail.rect.bottom += currentRect.top;
       detail.rect.left += currentRect.left;
       detail.rect.right += currentRect.left;
-      currentWindow = currentWindow.parent;
+      currentWindow = currentWindow.realFrameElement.ownerDocument.defaultView;
     }
 
     sendAsyncMsg("selectionchange", detail);
