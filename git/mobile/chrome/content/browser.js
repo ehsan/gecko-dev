@@ -96,6 +96,7 @@ var Browser = {
 
     BrowserUI.init();
 
+    this._content.addEventListener("command", this._handleContentCommand, false);
     this._content.addEventListener("DOMUpdatePageReport", gPopupBlockerObserver.onUpdatePageReport, false);
     this._content.tabList = document.getElementById("tab-list");
     this._content.newTab(true);
@@ -163,26 +164,30 @@ var Browser = {
         var bundle_browser = document.getElementById("bundle_browser");
         var buttons = [{
             label: bundle_browser.getString("gelocation.exactLocation"),
+            subLabel: bundle_browser.getString("gelocation.exactLocation.subLabel"),
             accessKey: bundle_browser.getString("gelocation.exactLocationKey"),
             callback: function(){request.allow()}
           },
           {
             label: bundle_browser.getString("gelocation.neighborhoodLocation"),
+            subLabel: bundle_browser.getString("gelocation.neighborhoodLocation.subLabel"),
             accessKey: bundle_browser.getString("gelocation.neighborhoodLocationKey"),
             callback: function(){request.allowButFuzz()}
           },
           {
             label: bundle_browser.getString("gelocation.nothingLocation"),
+            subLabel: "",
             accessKey: bundle_browser.getString("gelocation.nothingLocationKey"),
             callback: function(){request.cancel()}
           }];
 
         var message = bundle_browser.getFormattedString("geolocation.requestMessage", [request.requestingURI.spec]);
-        notificationBox.appendNotification(message,
-                                           "geolocation",
-                                           null, // todo "chrome://browser/skin/Info.png",
-                                           notificationBox.PRIORITY_INFO_HIGH,
-                                           buttons);
+        var notification = notificationBox.appendNotification(message,
+                             "geolocation", null, // todo "chrome://browser/skin/Info.png",
+                             notificationBox.PRIORITY_INFO_HIGH, buttons);
+        var children = notification.childNodes;
+        for (var b = 0; b < children.length; b++)
+          children[b].setAttribute("sublabel", children[b].buttonInfo.subLabel);
         return 1;
       }
     }
@@ -224,9 +229,6 @@ var Browser = {
     switch (cmd) {
       case "cmd_fullscreen":
         window.fullScreen = !window.fullScreen;
-        break;
-      case "cmd_downloads":
-        Cc["@mozilla.org/download-manager-ui;1"].getService(Ci.nsIDownloadManagerUI).show(window);
         break;
     }
   },
@@ -285,6 +287,61 @@ var Browser = {
         }
       }
     }
+  },
+  
+  /**
+   * Handle command event bubbling up from content.  This allows us to do chrome-
+   * privileged things based on buttons in, e.g., unprivileged error pages.
+   * Obviously, care should be taken not to trust events that web pages could have
+   * synthesized.
+   */
+  _handleContentCommand: function (aEvent) {
+    // Don't trust synthetic events
+    if (!aEvent.isTrusted)
+      return;
+
+    var ot = aEvent.originalTarget;
+    var errorDoc = ot.ownerDocument;
+
+    // If the event came from an ssl error page, it is probably either the "Add
+    // Exception…" or "Get me out of here!" button
+    if (/^about:neterror\?e=nssBadCert/.test(errorDoc.documentURI)) {
+      if (ot == errorDoc.getElementById('exceptionDialogButton')) {
+        var params = { exceptionAdded : false };
+        
+        try {
+          switch (gPrefService.getIntPref("browser.ssl_override_behavior")) {
+            case 2 : // Pre-fetch & pre-populate
+              params.prefetchCert = true;
+            case 1 : // Pre-populate
+              params.location = errorDoc.location.href;
+          }
+        } catch (e) {
+          Components.utils.reportError("Couldn't get ssl_override pref: " + e);
+        }
+        
+        window.openDialog('chrome://pippki/content/exceptionDialog.xul',
+                          '','chrome,centerscreen,modal', params);
+        
+        // If the user added the exception cert, attempt to reload the page
+        if (params.exceptionAdded)
+          errorDoc.location.reload();
+      }
+      else if (ot == errorDoc.getElementById('getMeOutOfHereButton')) {
+        // Get the start page from the *default* pref branch, not the user's
+        var defaultPrefs = Cc["@mozilla.org/preferences-service;1"]
+                          .getService(Ci.nsIPrefService).getDefaultBranch(null);
+        var url = "about:blank";
+        try {
+          url = defaultPrefs.getCharPref("browser.startup.homepage");
+          // If url is a pipe-delimited set of pages, just take the first one.
+          if (url.indexOf("|") != -1)
+            url = url.split("|")[0];
+        } catch (e) { /* Fall back on about blank */ }
+        
+        Browser.currentBrowser.loadURI(url, null, null, false);
+      }
+    }
   }
 };
 
@@ -298,12 +355,6 @@ ProgressController.prototype = {
 
   init : function(aBrowser) {
     this._browser = aBrowser;
-
-    // FIXME: until we can get proper canvas repainting hooked up, update the canvas every 300ms
-    var tabbrowser = this._tabbrowser;
-    this._refreshInterval = setInterval(function () {
-      tabbrowser.updateCanvasState();
-    }, 400);
   },
 
   onStateChange : function(aWebProgress, aRequest, aStateFlags, aStatus) {
@@ -311,11 +362,9 @@ ProgressController.prototype = {
       if (aRequest && aWebProgress.DOMWindow == this._browser.contentWindow) {
         if (aStateFlags & Ci.nsIWebProgressListener.STATE_START) {
           BrowserUI.update(TOOLBARSTATE_LOADING, this._browser);
-          this._tabbrowser.updateCanvasState();
         }
         else if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP) {
           BrowserUI.update(TOOLBARSTATE_LOADED, this._browser);
-          this._tabbrowser.updateCanvasState();
         }
       }
     }
@@ -325,7 +374,7 @@ ProgressController.prototype = {
         aWebProgress.DOMWindow.focus();
         Browser.translatePhoneNumbers();
         this._tabbrowser.updateBrowser(this._browser, true);
-        this._tabbrowser.updateCanvasState(true);
+        this._tabbrowser.updateCanvasState();
         //aWebProgress.DOMWindow.scrollbars.visible = false;
       }
     }
@@ -373,14 +422,12 @@ ProgressController.prototype = {
     if (aWebProgress.DOMWindow == this._browser.contentWindow) {
       BrowserUI.setURI();
       this._tabbrowser.updateBrowser(this._browser, false);
-      this._tabbrowser.updateCanvasState();
     }
   },
 
   // This method is called to indicate a status changes for the currently
   // loading page.  The message is already formatted for display.
   onStatusChange : function(aWebProgress, aRequest, aStatus, aMessage) {
-    this._tabbrowser.updateCanvasState();
   },
 
  // Properties used to cache security state used to update the UI

@@ -42,6 +42,7 @@ pref("browser.chromeURL", "chrome://browser/content/");
 
 pref("browser.startup.homepage", "http://www.mozilla.org/");
 pref("browser.ui.cursor", false);
+pref("browser.ui.panning.kinetic", false);
 
 /* cache prefs */
 pref("browser.cache.disk.enable", false);
@@ -64,12 +65,10 @@ pref("network.http.max-persistent-connections-per-proxy", 4);
 pref("browser.sessionhistory.max_total_viewers", 0);
 pref("browser.sessionhistory.max_entries", 50);
 
-/* debugging prefs */
-pref("browser.dom.window.dump.enabled", true);
-pref("javascript.options.showInConsole", true);
-pref("javascript.options.strict", true);
-pref("nglayout.debug.disable_xul_cache", false);
-pref("nglayout.debug.disable_xul_fastload", false);
+/* these should help performance */
+pref("mozilla.widget.force-24bpp", true);
+pref("mozilla.widget.use-buffer-pixmap", true);
+pref("mozilla.widget.disable-native-theme", true);
 
 /* download manager (don't show the window or alert) */
 pref("browser.download.useDownloadDir", true);
@@ -161,6 +160,9 @@ pref("accessibility.typeaheadfind.casesensitive", 0);
 
 // pointer to the default engine name
 pref("browser.search.defaultenginename",      "chrome://browser/locale/region.properties");
+// SSL error page behaviour
+pref("browser.ssl_override_behavior", 2);
+pref("browser.xul.error_pages.expert_bad_cert", false);
 
 // disable logging for the search service by default
 pref("browser.search.log", false);
@@ -228,6 +230,12 @@ pref("places.frecency.tempRedirectVisitBonus", 0);
 pref("places.frecency.defaultVisitBonus", 0);
 pref("places.frecency.unvisitedBookmarkBonus", 140);
 pref("places.frecency.unvisitedTypedBonus", 200);
+
+// disable color management
+pref("gfx.color_management.mode", 0);
+
+// don't allow JS to move and resize existing windows
+pref("dom.disable_window_move_resize", true);
 
 // controls which bits of private data to clear. by default we clear them all.
 pref("privacy.sanitize.promptOnSanitize", false);
