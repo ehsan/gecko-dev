@@ -41,6 +41,7 @@
 #define jstypedarrayinlines_h
 
 #include "jsapi.h"
+#include "jsvalue.h"
 #include "jsobj.h"
 
 inline uint32

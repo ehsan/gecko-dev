@@ -725,9 +725,6 @@ public:
         IDX_ITERATOR                ,
         IDX_EXPOSEDPROPS            ,
         IDX_SCRIPTONLY              ,
-        IDX_BASEURIOBJECT           ,
-        IDX_NODEPRINCIPAL           ,
-        IDX_DOCUMENTURIOBJECT       ,
         IDX_TOTAL_COUNT // just a count of the above
     };
 
@@ -1405,7 +1402,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
         nsnull, /* setElementAttributes  */                                   \
         nsnull, /* deleteProperty */                                          \
         nsnull, /* deleteElement */                                           \
-        XPC_WN_JSOp_Enumerate,                                                \
+        js::Valueify(XPC_WN_JSOp_Enumerate),                                  \
         XPC_WN_JSOp_TypeOf_Function,                                          \
         nsnull, /* fix            */                                          \
         XPC_WN_JSOp_ThisObject,                                               \
@@ -1428,7 +1425,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
         nsnull, /* setElementAttributes  */                                   \
         nsnull, /* deleteProperty */                                          \
         nsnull, /* deleteElement */                                           \
-        XPC_WN_JSOp_Enumerate,                                                \
+        js::Valueify(XPC_WN_JSOp_Enumerate),                                  \
         XPC_WN_JSOp_TypeOf_Object,                                            \
         nsnull, /* fix            */                                          \
         XPC_WN_JSOp_ThisObject,                                               \
@@ -1997,7 +1994,7 @@ public:
     PRUint32                        GetInterfacesBitmap() const
         {return mJSClass.interfacesBitmap;}
     JSClass*                        GetJSClass()
-        {return Jsvalify(&mJSClass.base);}
+        {return js::Jsvalify(&mJSClass.base);}
     JSClass*                        GetSlimJSClass()
         {if(mCanBeSlim) return GetJSClass(); return nsnull;}
 

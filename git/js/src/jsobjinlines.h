@@ -635,7 +635,7 @@ JSObject::setFlatClosureUpvars(js::Value *upvars)
 {
     JS_ASSERT(isFunction());
     JS_ASSERT(getFunctionPrivate()->isFlatClosure());
-    setFixedSlot(JSSLOT_FLAT_CLOSURE_UPVARS, js::PrivateValue(upvars));
+    setFixedSlot(JSSLOT_FLAT_CLOSURE_UPVARS, PrivateValue(upvars));
 }
 
 inline bool
@@ -676,7 +676,7 @@ inline jsval
 JSObject::getNamePrefixVal() const
 {
     JS_ASSERT(isNamespace() || isQName());
-    return getSlot(JSSLOT_NAME_PREFIX);
+    return js::Jsvalify(getSlot(JSSLOT_NAME_PREFIX));
 }
 
 inline void
@@ -705,7 +705,7 @@ inline jsval
 JSObject::getNameURIVal() const
 {
     JS_ASSERT(isNamespace() || isQName());
-    return getSlot(JSSLOT_NAME_URI);
+    return js::Jsvalify(getSlot(JSSLOT_NAME_URI));
 }
 
 inline void
@@ -719,14 +719,14 @@ inline jsval
 JSObject::getNamespaceDeclared() const
 {
     JS_ASSERT(isNamespace());
-    return getSlot(JSSLOT_NAMESPACE_DECLARED);
+    return js::Jsvalify(getSlot(JSSLOT_NAMESPACE_DECLARED));
 }
 
 inline void
 JSObject::setNamespaceDeclared(jsval decl)
 {
     JS_ASSERT(isNamespace());
-    setSlot(JSSLOT_NAMESPACE_DECLARED, decl);
+    setSlot(JSSLOT_NAMESPACE_DECLARED, js::Valueify(decl));
 }
 
 inline JSAtom *
@@ -741,7 +741,7 @@ inline jsval
 JSObject::getQNameLocalNameVal() const
 {
     JS_ASSERT(isQName());
-    return getSlot(JSSLOT_QNAME_LOCAL_NAME);
+    return js::Jsvalify(getSlot(JSSLOT_QNAME_LOCAL_NAME));
 }
 
 inline void
@@ -864,7 +864,7 @@ JSObject::init(JSContext *cx, js::Class *aclasp, js::types::TypeObject *type,
         slots = fixedSlots();
         flags |= PACKED_ARRAY;
     } else {
-        js::ClearValueRange(fixedSlots(), capacity, denseArray);
+        ClearValueRange(fixedSlots(), capacity, denseArray);
     }
 
     newType = NULL;

@@ -538,7 +538,7 @@ class SetPropCompiler : public PICStubCompiler
 
         Class *clasp = obj->getClass();
 
-        if (clasp->setProperty != JS_StrictPropertyStub)
+        if (clasp->setProperty != StrictPropertyStub)
             return disable("set property hook");
         if (clasp->ops.lookupProperty)
             return disable("ops lookup property hook");
@@ -583,7 +583,7 @@ class SetPropCompiler : public PICStubCompiler
             if (!obj->isExtensible())
                 return disable("not extensible");
 
-            if (clasp->addProperty != JS_PropertyStub)
+            if (clasp->addProperty != PropertyStub)
                 return disable("add property hook");
             if (clasp->ops.defineProperty)
                 return disable("ops define property hook");

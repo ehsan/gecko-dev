@@ -41,7 +41,7 @@
 #define jstypedarray_h
 
 #include "jsapi.h"
-#include "jsclass.h"
+#include "jsvalue.h"
 
 typedef struct JSProperty JSProperty;
 

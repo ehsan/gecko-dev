@@ -50,13 +50,14 @@
 #include "jsobj.h"
 #include "jsprf.h"
 #include "jsutil.h"
+#include "jsvalue.h"
 #include "jsvector.h"
 
 using namespace js;
 
 #ifdef DEBUG
 
-
+
 /*** class HeapReverser **************************************************************************/
 
 /*
@@ -466,7 +467,7 @@ ReferenceFinder::Path::computeName(JSContext *cx)
 bool
 ReferenceFinder::addReferrer(jsval referrer, Path *path)
 {
-    if (!context->compartment->wrap(context, &referrer))
+    if (!context->compartment->wrap(context, Valueify(&referrer)))
         return NULL;
 
     char *pathName = path->computeName(context);

@@ -42,7 +42,6 @@
 #include "nsIDOMMessageEvent.h"
 #include "nsDOMEvent.h"
 #include "nsCycleCollectionParticipant.h"
-#include "jsapi.h"
 
 /**
  * Implements the MessageEvent event, used for cross-document messaging and

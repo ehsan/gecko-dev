@@ -48,6 +48,7 @@
 #include "jspubtd.h"
 #include "jsstr.h"
 #include "jslock.h"
+#include "jsvalue.h"
 
 #include "vm/String.h"
 
@@ -126,7 +127,7 @@ IdToValue(jsid id)
 static JS_ALWAYS_INLINE jsval
 IdToJsval(jsid id)
 {
-    return IdToValue(id);
+    return Jsvalify(IdToValue(id));
 }
 
 template<>

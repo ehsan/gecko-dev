@@ -50,6 +50,7 @@
 #include "jshashtable.h"
 #include "jsweakmap.h"
 #include "jswrapper.h"
+#include "jsvalue.h"
 #include "vm/GlobalObject.h"
 
 namespace js {

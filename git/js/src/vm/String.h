@@ -41,7 +41,6 @@
 #ifndef String_h_
 #define String_h_
 
-#include "jsapi.h"
 #include "jscell.h"
 
 class JSString;

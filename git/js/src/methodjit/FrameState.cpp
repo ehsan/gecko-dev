@@ -1827,7 +1827,7 @@ FrameState::ensureDouble(FrameEntry *fe)
     if (fe->isConstant()) {
         JS_ASSERT(fe->getValue().isInt32());
         Value newValue = DoubleValue(double(fe->getValue().toInt32()));
-        fe->setConstant(newValue);
+        fe->setConstant(Jsvalify(newValue));
         return;
     }
 
@@ -1878,7 +1878,7 @@ FrameState::ensureInteger(FrameEntry *fe)
 
     if (fe->isConstant()) {
         Value newValue = Int32Value(int32(fe->getValue().toDouble()));
-        fe->setConstant(newValue);
+        fe->setConstant(Jsvalify(newValue));
         return;
     }
 
@@ -1933,7 +1933,7 @@ FrameState::pushCopyOf(FrameEntry *backing)
     FrameEntry *fe = rawPush();
     fe->resetUnsynced();
     if (backing->isConstant()) {
-        fe->setConstant(backing->getValue());
+        fe->setConstant(Jsvalify(backing->getValue()));
     } else {
         if (backing->isCopy())
             backing = backing->copyOf();
@@ -2221,7 +2221,7 @@ FrameState::storeTop(FrameEntry *target)
     /* Constants are easy to propagate. */
     if (top->isConstant()) {
         target->clear();
-        target->setConstant(top->getValue());
+        target->setConstant(Jsvalify(top->getValue()));
         if (trySyncType && target->isType(oldType))
             target->type.sync();
         return;

@@ -38,6 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jsobj.h"
+#include "jsvalue.h"
 
 #include "WrapperFactory.h"
 #include "CrossOriginWrapper.h"
