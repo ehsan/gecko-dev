@@ -49,9 +49,6 @@ gcli.addCommand({
   params: [],
 
   exec: function (args, context) {
-    if (!getPanel(context, "jsprofiler"))
-      return;
-
     return gDevTools.closeToolbox(context.environment.target)
       .then(function () null);
   }

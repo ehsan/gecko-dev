@@ -274,9 +274,6 @@ gcli.addCommand({
   description: gcli.lookup("dbgClose"),
   params: [],
   exec: function(args, context) {
-    if (!getPanel(context, "jsdebugger"))
-      return;
-
     return gDevTools.closeToolbox(context.environment.target)
                     .then(() => null);
   }
