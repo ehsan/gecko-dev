@@ -209,7 +209,6 @@
 # include "jit/BaselineJIT.h"
 #endif
 #include "jit/IonCode.h"
-#include "js/SliceBudget.h"
 #include "vm/Debugger.h"
 #include "vm/ForkJoin.h"
 #include "vm/ProxyObject.h"
@@ -2881,7 +2880,7 @@ InCrossCompartmentMap(JSObject *src, Cell *dst, JSGCTraceKind dstKind)
     if (dstKind == JSTRACE_OBJECT) {
         Value key = ObjectValue(*static_cast<JSObject *>(dst));
         if (WrapperMap::Ptr p = srccomp->lookupWrapper(key)) {
-            if (*p->value().unsafeGet() == ObjectValue(*src))
+            if (*p->value.unsafeGet() == ObjectValue(*src))
                 return true;
         }
     }
@@ -2891,7 +2890,7 @@ InCrossCompartmentMap(JSObject *src, Cell *dst, JSGCTraceKind dstKind)
      * know the right hashtable key, so we have to iterate.
      */
     for (JSCompartment::WrapperEnum e(srccomp); !e.empty(); e.popFront()) {
-        if (e.front().key().wrapped == dst && ToMarkable(e.front().value()) == src)
+        if (e.front().key.wrapped == dst && ToMarkable(e.front().value) == src)
             return true;
     }
 
@@ -3124,7 +3123,7 @@ BeginMarkPhase(JSRuntime *rt)
     /* Set the maybeAlive flag based on cross-compartment edges. */
     for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next()) {
         for (JSCompartment::WrapperEnum e(c); !e.empty(); e.popFront()) {
-            Cell *dst = e.front().key().wrapped;
+            Cell *dst = e.front().key.wrapped;
             dst->tenuredZone()->maybeAlive = true;
         }
     }
@@ -3252,7 +3251,7 @@ js::gc::MarkingValidator::~MarkingValidator()
         return;
 
     for (BitmapMap::Range r(map.all()); !r.empty(); r.popFront())
-        js_delete(r.front().value());
+        js_delete(r.front().value);
 }
 
 void
@@ -3358,7 +3357,7 @@ js::gc::MarkingValidator::nonIncrementalMark()
     for (GCChunkSet::Range r(runtime->gcChunkSet.all()); !r.empty(); r.popFront()) {
         Chunk *chunk = r.front();
         ChunkBitmap *bitmap = &chunk->bitmap;
-        ChunkBitmap *entry = map.lookup(chunk)->value();
+        ChunkBitmap *entry = map.lookup(chunk)->value;
         Swap(*entry, *bitmap);
     }
 
@@ -3390,7 +3389,7 @@ js::gc::MarkingValidator::validate()
         if (!ptr)
             continue;  /* Allocated after we did the non-incremental mark. */
 
-        ChunkBitmap *bitmap = ptr->value();
+        ChunkBitmap *bitmap = ptr->value;
         ChunkBitmap *incBitmap = &chunk->bitmap;
 
         for (size_t i = 0; i < ArenasPerChunk; i++) {
@@ -3482,7 +3481,7 @@ DropStringWrappers(JSRuntime *rt)
      */
     for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next()) {
         for (JSCompartment::WrapperEnum e(c); !e.empty(); e.popFront()) {
-            if (e.front().key().kind == CrossCompartmentKey::StringWrapper)
+            if (e.front().key.kind == CrossCompartmentKey::StringWrapper)
                 e.removeFront();
         }
     }
@@ -3507,9 +3506,9 @@ void
 JSCompartment::findOutgoingEdges(ComponentFinder<JS::Zone> &finder)
 {
     for (js::WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
-        CrossCompartmentKey::Kind kind = e.front().key().kind;
+        CrossCompartmentKey::Kind kind = e.front().key.kind;
         JS_ASSERT(kind != CrossCompartmentKey::StringWrapper);
-        Cell *other = e.front().key().wrapped;
+        Cell *other = e.front().key.wrapped;
         if (kind == CrossCompartmentKey::ObjectWrapper) {
             /*
              * Add edge to wrapped object compartment if wrapped object is not
@@ -4033,8 +4032,8 @@ BeginSweepPhase(JSRuntime *rt, bool lastGC)
     for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next()) {
         JS_ASSERT(!c->gcIncomingGrayPointers);
         for (JSCompartment::WrapperEnum e(c); !e.empty(); e.popFront()) {
-            if (e.front().key().kind != CrossCompartmentKey::StringWrapper)
-                AssertNotOnGrayList(&e.front().value().get().toObject());
+            if (e.front().key.kind != CrossCompartmentKey::StringWrapper)
+                AssertNotOnGrayList(&e.front().value.get().toObject());
         }
     }
 #endif
@@ -4256,8 +4255,8 @@ EndSweepPhase(JSRuntime *rt, JSGCInvocationKind gckind, bool lastGC)
         JS_ASSERT(!c->gcLiveArrayBuffers);
 
         for (JSCompartment::WrapperEnum e(c); !e.empty(); e.popFront()) {
-            if (e.front().key().kind != CrossCompartmentKey::StringWrapper)
-                AssertNotOnGrayList(&e.front().value().get().toObject());
+            if (e.front().key.kind != CrossCompartmentKey::StringWrapper)
+                AssertNotOnGrayList(&e.front().value.get().toObject());
         }
     }
 #endif

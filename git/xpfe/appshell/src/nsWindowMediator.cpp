@@ -27,6 +27,9 @@
 
 using namespace mozilla;
 
+static nsresult GetDOMWindow(nsIXULWindow* inWindow,
+                             nsCOMPtr< nsIDOMWindow>& outDOMWindow);
+
 static bool notifyOpenWindow(nsIWindowMediatorListener *aElement, void* aData);
 static bool notifyCloseWindow(nsIWindowMediatorListener *aElement, void* aData);
 static bool notifyWindowTitleChange(nsIWindowMediatorListener *aElement, void* aData);
@@ -38,8 +41,7 @@ struct WindowTitleData {
 };
 
 nsresult
-nsWindowMediator::GetDOMWindow(nsIXULWindow* inWindow,
-                               nsCOMPtr<nsIDOMWindow>& outDOMWindow)
+GetDOMWindow(nsIXULWindow* inWindow, nsCOMPtr<nsIDOMWindow>& outDOMWindow)
 {
   nsCOMPtr<nsIDocShell> docShell;
 

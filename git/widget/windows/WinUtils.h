@@ -319,8 +319,6 @@ public:
 
   static void Initialize();
 
-  static bool ShouldHideScrollbars();
-
 private:
   typedef HRESULT (WINAPI * SHCreateItemFromParsingNamePtr)(PCWSTR pszPath,
                                                             IBindCtx *pbc,
