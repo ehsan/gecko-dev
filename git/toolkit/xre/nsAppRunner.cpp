@@ -248,7 +248,6 @@ extern void InstallSignalHandlers(const char *ProgramName);
 #include "nsX11ErrorHandler.h"
 
 #define FILE_COMPATIBILITY_INFO NS_LITERAL_CSTRING("compatibility.ini")
-#define FILE_INVALIDATE_CACHES NS_LITERAL_CSTRING(".purgecaches")
 
 int    gArgc;
 char **gArgv;
@@ -2310,10 +2309,9 @@ SelectProfile(nsIProfileLock* *aResult, nsINativeAppSupport* aNative,
 static PRBool
 CheckCompatibility(nsIFile* aProfileDir, const nsCString& aVersion,
                    const nsCString& aOSABI, nsIFile* aXULRunnerDir,
-                   nsIFile* aAppDir, nsILocalFile* aFlagFile, 
-                   PRBool* aCachesOK)
+                   nsIFile* aAppDir, PRBool* aCachesOK)
 {
-  *aCachesOK = PR_FALSE;
+  *aCachesOK = false;
   nsCOMPtr<nsIFile> file;
   aProfileDir->Clone(getter_AddRefs(file));
   if (!file)
@@ -2365,18 +2363,10 @@ CheckCompatibility(nsIFile* aProfileDir, const nsCString& aVersion,
       return PR_FALSE;
   }
 
-  // If we see this flag, caches are invalid.
   rv = parser.GetString("Compatibility", "InvalidateCaches", buf);
-  *aCachesOK = (NS_FAILED(rv) || !buf.EqualsLiteral("1"));
   
-#ifdef DEBUG
-  PRBool purgeCaches = PR_FALSE;
-  if (aFlagFile) {
-    aFlagFile->Exists(&purgeCaches);
-  }
-
-  *aCachesOK = !purgeCaches && *aCachesOK;
-#endif
+  // If we see this flag, caches are invalid.
+  *aCachesOK = (NS_FAILED(rv) || !buf.EqualsLiteral("1"));
   return PR_TRUE;
 }
 
@@ -3277,34 +3267,11 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     // by the BuildVersion function.
     // Also check to see if something has happened to invalidate our
     // fastload caches, like an extension upgrade or installation.
- 
-     // If we see .purgecaches, that means someone did a make. 
-     // Re-register components to catch potential changes.
-     // We only offer this in debug builds, though.
-     nsCOMPtr<nsILocalFile> flagFile;
-#ifdef DEBUG
-     rv = NS_ERROR_FILE_NOT_FOUND;
-     nsCOMPtr<nsIFile> fFlagFile;
-     if (gAppData->directory) {
-       rv = gAppData->directory->Clone(getter_AddRefs(fFlagFile));
-     }
-     flagFile = do_QueryInterface(fFlagFile);
-     if (flagFile) {
-       flagFile->SetNativeLeafName(FILE_INVALIDATE_CACHES);
-     }
- #endif
     PRBool cachesOK;
     PRBool versionOK = CheckCompatibility(profD, version, osABI, 
                                           dirProvider.GetGREDir(),
-                                          gAppData->directory, flagFile,
-                                          &cachesOK);
-     if (CheckArg("purgecaches")) {
-       cachesOK = PR_FALSE;
-     }
-     if (PR_GetEnv("MOZ_PURGE_CACHES")) {
-       cachesOK = PR_FALSE;
-     }
- 
+                                          gAppData->directory, &cachesOK);
+
     // Every time a profile is loaded by a build with a different version,
     // it updates the compatibility.ini file saying what version last wrote
     // the fastload caches.  On subsequent launches if the version matches, 
@@ -3346,11 +3313,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
                    dirProvider.GetGREDir(), gAppData->directory);
     }
 
-#ifdef DEBUG
-    if (flagFile) {
-      flagFile->Remove(PR_TRUE);
-    }
-#endif
     PRBool needsRestart = PR_FALSE;
     PRBool appInitiatedRestart = PR_FALSE;
 
