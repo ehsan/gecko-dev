@@ -2633,11 +2633,6 @@ var WalkerActor = protocol.ActorClass({
    * webconsole and variablesView, return the corresponding inspector's NodeActor
    */
   getNodeActorFromObjectActor: method(function(objectActorID) {
-    let actor = this.conn.getActor(objectActorID);
-    if (!actor) {
-      return null;
-    }
-
     let debuggerObject = this.conn.getActor(objectActorID).obj;
     let rawNode = debuggerObject.unsafeDereference();
 

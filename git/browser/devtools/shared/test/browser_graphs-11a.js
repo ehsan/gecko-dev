@@ -4,7 +4,9 @@
 // Tests that bar graph create a legend as expected.
 
 let {BarGraphWidget} = Cu.import("resource:///modules/devtools/Graphs.jsm", {});
+let {DOMHelpers} = Cu.import("resource:///modules/devtools/DOMHelpers.jsm", {});
 let {Promise} = devtools.require("resource://gre/modules/Promise.jsm");
+let {Hosts} = devtools.require("devtools/framework/toolbox-hosts");
 
 const CATEGORIES = [
   { color: "#46afe3", label: "Foo" },
@@ -12,10 +14,11 @@ const CATEGORIES = [
   { color: "#70bf53", label: "Baz" }
 ];
 
-add_task(function*() {
+let test = Task.async(function*() {
   yield promiseTab("about:blank");
   yield performTest();
   gBrowser.removeCurrentTab();
+  finish();
 });
 
 function* performTest() {

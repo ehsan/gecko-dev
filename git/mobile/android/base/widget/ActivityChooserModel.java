@@ -1049,13 +1049,15 @@ public class ActivityChooserModel extends DataSetObservable {
             readHistoricalDataFromStream(new FileInputStream(f));
         } catch (FileNotFoundException fnfe) {
             final Distribution dist = Distribution.getInstance(mContext);
-            dist.addOnDistributionReadyCallback(new Distribution.ReadyCallback() {
+            dist.addOnDistributionReadyCallback(new Runnable() {
                 @Override
-                public void distributionNotFound() {
-                }
+                public void run() {
+                    Log.d(LOGTAG, "Running post-distribution task: quickshare.");
 
-                @Override
-                public void distributionFound(Distribution distribution) {
+                    if (!dist.exists()) {
+                        return;
+                    }
+
                     try {
                         File distFile = dist.getDistributionFile("quickshare/" + mHistoryFileName);
                         if (distFile == null) {
@@ -1071,11 +1073,6 @@ public class ActivityChooserModel extends DataSetObservable {
                         }
                         return;
                     }
-                }
-
-                @Override
-                public void distributionArrivedLate(Distribution distribution) {
-                    distributionFound(distribution);
                 }
             });
         }

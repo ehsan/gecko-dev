@@ -10,12 +10,15 @@ let TEST_HEIGHT = 100;
 let TEST_DPI_DENSITIY = 2;
 
 let {FlameGraph} = Cu.import("resource:///modules/devtools/FlameGraph.jsm", {});
+let {DOMHelpers} = Cu.import("resource:///modules/devtools/DOMHelpers.jsm", {});
 let {Promise} = devtools.require("resource://gre/modules/Promise.jsm");
+let {Hosts} = devtools.require("devtools/framework/toolbox-hosts");
 
-add_task(function*() {
+let test = Task.async(function*() {
   yield promiseTab("about:blank");
   yield performTest();
   gBrowser.removeCurrentTab();
+  finish();
 });
 
 function* performTest() {

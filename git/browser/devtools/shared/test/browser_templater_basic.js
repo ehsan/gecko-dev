@@ -9,23 +9,23 @@
  * We should endevour to keep the source in sync.
  */
 
-const template = Cu.import("resource://gre/modules/devtools/Templater.jsm", {}).template;
+var promise = Cu.import("resource://gre/modules/devtools/deprecated-sync-thenables.js", {}).Promise;
+var template = Cu.import("resource://gre/modules/devtools/Templater.jsm", {}).template;
 
 const TEST_URI = TEST_URI_ROOT + "browser_templater_basic.html";
 
-let test = Task.async(function*() {
-  yield promiseTab("about:blank");
-  let [host, win, doc] = yield createHost("bottom", TEST_URI);
+function test() {
+  addTab(TEST_URI, function() {
+    info("Starting DOM Templater Tests");
+    runTest(0);
+  });
+}
 
-  info("Starting DOM Templater Tests");
-  runTest(0, host, doc);
-});
-
-function runTest(index, host, doc) {
+function runTest(index) {
   var options = tests[index] = tests[index]();
-  var holder = doc.createElement('div');
+  var holder = content.document.createElement('div');
   holder.id = options.name;
-  var body = doc.body;
+  var body = content.document.body;
   body.appendChild(holder);
   holder.innerHTML = options.template;
 
@@ -47,10 +47,10 @@ function runTest(index, host, doc) {
   function runNextTest() {
     index++;
     if (index < tests.length) {
-      runTest(index, host, doc);
+      runTest(index);
     }
     else {
-      finished(host);
+      finished();
     }
   }
 
@@ -71,8 +71,7 @@ function runTest(index, host, doc) {
   }
 }
 
-function finished(host) {
-  host.destroy();
+function finished() {
   gBrowser.removeCurrentTab();
   info("Finishing DOM Templater Tests");
   tests = null;
@@ -281,5 +280,9 @@ var tests = [
 ];
 
 function delayReply(data) {
-  return new Promise(resolve => resolve(data));
+  var d = promise.defer();
+  executeSoon(function() {
+    d.resolve(data);
+  });
+  return d.promise;
 }

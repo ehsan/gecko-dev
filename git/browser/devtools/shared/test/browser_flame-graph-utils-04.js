@@ -6,10 +6,11 @@
 let {FlameGraphUtils} = Cu.import("resource:///modules/devtools/FlameGraph.jsm", {});
 let {FrameNode} = devtools.require("devtools/profiler/tree-model");
 
-add_task(function*() {
+let test = Task.async(function*() {
   yield promiseTab("about:blank");
   yield performTest();
   gBrowser.removeCurrentTab();
+  finish();
 });
 
 function* performTest() {

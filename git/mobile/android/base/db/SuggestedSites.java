@@ -288,16 +288,17 @@ public class SuggestedSites {
             return;
         }
 
-        distribution.addOnDistributionReadyCallback(new Distribution.ReadyCallback() {
+        distribution.addOnDistributionReadyCallback(new Runnable() {
             @Override
-            public void distributionNotFound() {
+            public void run() {
+                Log.d(LOGTAG, "Running post-distribution task: suggested sites.");
+
                 // If distribution doesn't exist, simply continue to load
                 // suggested sites directly from resources. See refresh().
-            }
+                if (!distribution.exists()) {
+                    return;
+                }
 
-            @Override
-            public void distributionFound(Distribution distribution) {
-                Log.d(LOGTAG, "Running post-distribution task: suggested sites.");
                 // Merge suggested sites from distribution with the
                 // default ones. Distribution takes precedence.
                 Map<String, Site> sites = loadFromDistribution(distribution);
@@ -318,11 +319,6 @@ public class SuggestedSites {
                 // Then notify any active loaders about the changes.
                 final ContentResolver cr = context.getContentResolver();
                 cr.notifyChange(BrowserContract.SuggestedSites.CONTENT_URI, null);
-            }
-
-            @Override
-            public void distributionArrivedLate(Distribution distribution) {
-                distributionFound(distribution);
             }
         });
     }

@@ -173,22 +173,7 @@ public class testDistribution extends ContentProviderTest {
         BrowserLocaleManager.storeAndNotifyOSLocale(GeckoSharedPrefs.forProfile(mActivity), locale);
     }
 
-    private abstract class ExpectNoDistributionCallback implements Distribution.ReadyCallback {
-            @Override
-            public void distributionFound(final Distribution distribution) {
-                mAsserter.ok(false, "No distributionFound.", "Wasn't expecting a distribution!");
-                synchronized (distribution) {
-                    distribution.notifyAll();
-                }
-            }
-
-            @Override
-            public void distributionArrivedLate(final Distribution distribution) {
-                mAsserter.ok(false, "No distributionArrivedLate.", "Wasn't expecting a late distribution!");
-            }
-    }
-
-    private void doReferrerTest(String ref, final TestableDistribution distribution, final Distribution.ReadyCallback distributionReady) throws InterruptedException {
+    private void doReferrerTest(String ref, final TestableDistribution distribution, final Runnable distributionReady) throws InterruptedException {
         final Intent intent = new Intent(ACTION_INSTALL_REFERRER);
         intent.setClassName(AppConstants.ANDROID_PACKAGE_NAME, CLASS_REFERRER_RECEIVER);
         intent.putExtra("referrer", ref);
@@ -230,10 +215,10 @@ public class testDistribution extends ContentProviderTest {
         //              --es "referrer" "utm_source=mozilla&utm_medium=testmedium&utm_term=testterm&utm_content=testcontent&utm_campaign=distribution"
         final String ref = "utm_source=mozilla&utm_medium=testmedium&utm_term=testterm&utm_content=testcontent&utm_campaign=distribution";
         final TestableDistribution distribution = new TestableDistribution(mActivity);
-        final Distribution.ReadyCallback distributionReady = new ExpectNoDistributionCallback() {
+        final Runnable distributionReady = new Runnable() {
             @Override
-            public void distributionNotFound() {
-                Log.i(LOGTAG, "Test told distribution processing is done.");
+            public void run() {
+                Log.i(LOGTAG, "Test told distribution is ready.");
                 mAsserter.ok(!distribution.exists(), "Not processed.", "No download because we're offline.");
                 ReferrerDescriptor referrerValue = TestableDistribution.getReferrerDescriptorForTesting();
                 mAsserter.dumpLog("Referrer was " + referrerValue);
@@ -261,9 +246,9 @@ public class testDistribution extends ContentProviderTest {
         //              --es "referrer" "utm_source=mozilla&utm_medium=testmedium&utm_term=testterm&utm_content=testcontent&utm_campaign=testname"
         final String ref = "utm_source=mozilla&utm_medium=testmedium&utm_term=testterm&utm_content=testcontent&utm_campaign=testname";
         final TestableDistribution distribution = new TestableDistribution(mActivity);
-        final Distribution.ReadyCallback distributionReady = new ExpectNoDistributionCallback() {
+        final Runnable distributionReady = new Runnable() {
             @Override
-            public void distributionNotFound() {
+            public void run() {
                 mAsserter.ok(!distribution.exists(), "Not processed.", "No download because campaign was wrong.");
                 ReferrerDescriptor referrerValue = TestableDistribution.getReferrerDescriptorForTesting();
                 mAsserter.is(referrerValue, null, "No referrer.");

@@ -7,33 +7,45 @@ const TEST_URI = "data:text/html;charset=utf-8,<p>browser_telemetry_sidebar.js</
 // opened we make use of setTimeout() to create tool active times.
 const TOOL_DELAY = 200;
 
-add_task(function*() {
-  yield promiseTab(TEST_URI);
-  let Telemetry = loadTelemetryAndRecordLogs();
+let {Promise: promise} = Cu.import("resource://gre/modules/devtools/deprecated-sync-thenables.js", {});
+let {Services} = Cu.import("resource://gre/modules/Services.jsm", {});
 
-  let target = TargetFactory.forTab(gBrowser.selectedTab);
-  let toolbox = yield gDevTools.showToolbox(target, "inspector");
-  info("inspector opened");
+let require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
+let Telemetry = require("devtools/shared/telemetry");
 
-  yield testSidebar(toolbox);
-  checkResults(Telemetry);
+function init() {
+  Telemetry.prototype.telemetryInfo = {};
+  Telemetry.prototype._oldlog = Telemetry.prototype.log;
+  Telemetry.prototype.log = function(histogramId, value) {
+    if (!this.telemetryInfo) {
+      // Can be removed when Bug 992911 lands (see Bug 1011652 Comment 10)
+      return;
+    }
+    if (histogramId) {
+      if (!this.telemetryInfo[histogramId]) {
+        this.telemetryInfo[histogramId] = [];
+      }
 
-  stopRecordingTelemetryLogs(Telemetry);
-  yield gDevTools.closeToolbox(target);
-  gBrowser.removeCurrentTab();
-});
+      this.telemetryInfo[histogramId].push(value);
+    }
+  };
 
-function* testSidebar(toolbox) {
+  testSidebar();
+}
+
+function testSidebar() {
   info("Testing sidebar");
 
-  let inspector = toolbox.getCurrentPanel();
-  let sidebarTools = ["ruleview", "computedview", "fontinspector",
-                      "layoutview", "animationinspector"];
+  let target = TargetFactory.forTab(gBrowser.selectedTab);
 
-  // Concatenate the array with itself so that we can open each tool twice.
-  sidebarTools.push.apply(sidebarTools, sidebarTools);
+  gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
+    let inspector = toolbox.getCurrentPanel();
+    let sidebarTools = ["ruleview", "computedview", "fontinspector",
+                        "layoutview", "animationinspector"];
 
-  return new Promise(resolve => {
+    // Concatenate the array with itself so that we can open each tool twice.
+    sidebarTools.push.apply(sidebarTools, sidebarTools);
+
     // See TOOL_DELAY for why we need setTimeout here
     setTimeout(function selectSidebarTab() {
       let tool = sidebarTools.pop();
@@ -43,13 +55,13 @@ function* testSidebar(toolbox) {
           setTimeout(selectSidebarTab, TOOL_DELAY);
         }, TOOL_DELAY);
       } else {
-        resolve();
+        checkResults();
       }
     }, TOOL_DELAY);
   });
 }
 
-function checkResults(Telemetry) {
+function checkResults() {
   let result = Telemetry.prototype.telemetryInfo;
 
   for (let [histId, value] of Iterator(result)) {
@@ -82,4 +94,29 @@ function checkResults(Telemetry) {
       ok(okay, "All " + histId + " entries have time > 0");
     }
   }
+
+  finishUp();
+}
+
+function finishUp() {
+  gBrowser.removeCurrentTab();
+
+  Telemetry.prototype.log = Telemetry.prototype._oldlog;
+  delete Telemetry.prototype._oldlog;
+  delete Telemetry.prototype.telemetryInfo;
+
+  TargetFactory = Services = promise = require = null;
+
+  finish();
+}
+
+function test() {
+  waitForExplicitFinish();
+  gBrowser.selectedTab = gBrowser.addTab();
+  gBrowser.selectedBrowser.addEventListener("load", function() {
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
+    waitForFocus(init, content);
+  }, true);
+
+  content.location = TEST_URI;
 }

@@ -6,10 +6,11 @@
 
 let {FlameGraphUtils} = Cu.import("resource:///modules/devtools/FlameGraph.jsm", {});
 
-add_task(function*() {
+let test = Task.async(function*() {
   yield promiseTab("about:blank");
   yield performTest();
   gBrowser.removeCurrentTab();
+  finish();
 });
 
 function* performTest() {

@@ -9,25 +9,36 @@ const TEST_URI = "data:text/html;charset=utf-8,<head><link rel='stylesheet' " +
   "rel='stylesheet' type='text/css' href='chrome://browser/skin/devtools/widg" +
   "ets.css'></head><body><div></div><span></span></body>";
 const {TreeWidget} = devtools.require("devtools/shared/widgets/TreeWidget");
-const {Promise} = devtools.require("resource://gre/modules/Promise.jsm");
+let {Task} = devtools.require("resource://gre/modules/Task.jsm");
+let {Promise} = devtools.require("resource://gre/modules/Promise.jsm");
 
-add_task(function*() {
-  yield promiseTab("about:blank");
-  let [host, win, doc] = yield createHost("bottom", TEST_URI);
+let doc, tree;
 
-  let tree = new TreeWidget(doc.querySelector("div"), {
-    defaultType: "store"
+function test() {
+  waitForExplicitFinish();
+  addTab(TEST_URI, () => {
+    doc = content.document;
+    tree = new TreeWidget(doc.querySelector("div"), {
+      defaultType: "store"
+    });
+    startTests();
   });
+}
 
-  populateTree(tree, doc);
-  yield testKeyboardInteraction(tree, win);
-
+function endTests() {
   tree.destroy();
-  host.destroy();
+  doc = tree = null;
   gBrowser.removeCurrentTab();
+  finish();
+}
+
+let startTests = Task.async(function*() {
+  populateTree();
+  yield testKeyboardInteraction();
+  endTests();
 });
 
-function populateTree(tree, doc) {
+function populateTree() {
   tree.add([{
     id: "level1",
     label: "Level 1"
@@ -76,14 +87,13 @@ function populateTree(tree, doc) {
 
 // Sends a click event on the passed DOM node in an async manner
 function click(node) {
-  let win = node.ownerDocument.defaultView;
-  executeSoon(() => EventUtils.synthesizeMouseAtCenter(node, {}, win));
+  executeSoon(() => EventUtils.synthesizeMouseAtCenter(node, {}, content));
 }
 
 /**
  * Tests if pressing navigation keys on the tree items does the expected behavior
  */
-function* testKeyboardInteraction(tree, win) {
+let testKeyboardInteraction = Task.async(function*() {
   info("Testing keyboard interaction with the tree");
   let event;
   let pass = (e, d, a) => event.resolve([e, d, a]);
@@ -102,7 +112,7 @@ function* testKeyboardInteraction(tree, win) {
   info("Pressing down key to select next item");
   event = Promise.defer();
   tree.once("select", pass);
-  EventUtils.sendKey("DOWN", win);
+  EventUtils.sendKey("DOWN", content);
   let [name, data, attachment] = yield event.promise;
   is(name, "select", "Select event was fired after pressing down");
   is(data[0], "level1", "Correct item was selected after pressing down");
@@ -113,7 +123,7 @@ function* testKeyboardInteraction(tree, win) {
   info("Pressing down key again to select next item");
   event = Promise.defer();
   tree.once("select", pass);
-  EventUtils.sendKey("DOWN", win);
+  EventUtils.sendKey("DOWN", content);
   [name, data, attachment] = yield event.promise;
   is(data.length, 2, "Correct level item was selected after second down keypress");
   is(data[0], "level1", "Correct parent level");
@@ -122,7 +132,7 @@ function* testKeyboardInteraction(tree, win) {
   info("Pressing down key again to select next item");
   event = Promise.defer();
   tree.once("select", pass);
-  EventUtils.sendKey("DOWN", win);
+  EventUtils.sendKey("DOWN", content);
   [name, data, attachment] = yield event.promise;
   is(data.length, 3, "Correct level item was selected after third down keypress");
   is(data[0], "level1", "Correct parent level");
@@ -132,7 +142,7 @@ function* testKeyboardInteraction(tree, win) {
   info("Pressing down key again to select next item");
   event = Promise.defer();
   tree.once("select", pass);
-  EventUtils.sendKey("DOWN", win);
+  EventUtils.sendKey("DOWN", content);
   [name, data, attachment] = yield event.promise;
   is(data.length, 2, "Correct level item was selected after fourth down keypress");
   is(data[0], "level1", "Correct parent level");
@@ -149,7 +159,7 @@ function* testKeyboardInteraction(tree, win) {
   event = Promise.defer();
   node = tree._selectedLabel;
   ok(node.hasAttribute("expanded"), "Item is expanded before left keypress");
-  EventUtils.sendKey("LEFT", win);
+  EventUtils.sendKey("LEFT", content);
   yield event.promise;
 
   ok(!node.hasAttribute("expanded"), "Item is not expanded after left keypress");
@@ -162,7 +172,7 @@ function* testKeyboardInteraction(tree, win) {
   // parent node should have no effect of this keypress
   node = tree.root.children.firstChild.nextSibling.firstChild;
   ok(node.hasAttribute("expanded"), "Parent is expanded");
-  EventUtils.sendKey("LEFT", win);
+  EventUtils.sendKey("LEFT", content);
   [name, data] = yield event.promise;
   is(data.length, 3, "Correct level item was selected after second left keypress");
   is(data[0], "level1", "Correct parent level");
@@ -175,7 +185,7 @@ function* testKeyboardInteraction(tree, win) {
   info("Pressing down key to select next item");
   event = Promise.defer();
   tree.once("select", pass);
-  EventUtils.sendKey("DOWN", win);
+  EventUtils.sendKey("DOWN", content);
   [name, data, attachment] = yield event.promise;
   is(data.length, 2, "Correct level item was selected after fifth down keypress");
   is(data[0], "level1", "Correct parent level");
@@ -191,7 +201,7 @@ function* testKeyboardInteraction(tree, win) {
   event = Promise.defer();
   node = tree._selectedLabel;
   ok(node.hasAttribute("expanded"), "Item is expanded before left keypress");
-  EventUtils.sendKey("LEFT", win);
+  EventUtils.sendKey("LEFT", content);
   yield event.promise;
   ok(!node.hasAttribute("expanded"), "Item is collapsed after left keypress");
 
@@ -205,7 +215,7 @@ function* testKeyboardInteraction(tree, win) {
   event = Promise.defer();
   node = tree._selectedLabel;
   ok(!node.hasAttribute("expanded"), "Item is collapsed before right keypress");
-  EventUtils.sendKey("RIGHT", win);
+  EventUtils.sendKey("RIGHT", content);
   yield event.promise;
   ok(node.hasAttribute("expanded"), "Item is expanded after right keypress");
 
@@ -220,9 +230,9 @@ function* testKeyboardInteraction(tree, win) {
     executeSoon(() => event.resolve(null));
   });
   info("Pressing down key on last item of the tree");
-  EventUtils.sendKey("DOWN", win);
+  EventUtils.sendKey("DOWN", content);
   yield event.promise;
 
   ok(tree.isSelected(["level1.1", "level2", "level3"]),
      "Last item is still selected after pressing down on last item of the tree");
-}
+});

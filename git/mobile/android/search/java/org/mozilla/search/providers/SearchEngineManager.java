@@ -67,9 +67,9 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
     /**
      * Sets a callback to be called when the default engine changes.
      *
-     * @param changeCallback SearchEngineCallback to be called after the search engine
-     *                       changed. This will run on the UI thread.
-     *                       Note: callback may be called with null engine.
+     * @param callback SearchEngineCallback to be called after the search engine
+     *                 changed. This will run on the UI thread.
+     *                 Note: callback may be called with null engine.
      */
     public void setChangeCallback(SearchEngineCallback changeCallback) {
         this.changeCallback = changeCallback;
@@ -141,41 +141,9 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
      */
     private void getDefaultEngine(final SearchEngineCallback callback) {
         // This runnable is posted to the background thread.
-        distribution.addOnDistributionReadyCallback(new Distribution.ReadyCallback() {
+        distribution.addOnDistributionReadyCallback(new Runnable() {
             @Override
-            public void distributionNotFound() {
-                defaultBehavior();
-            }
-
-            @Override
-            public void distributionFound(Distribution distribution) {
-                defaultBehavior();
-            }
-
-            @Override
-            public void distributionArrivedLate(Distribution distribution) {
-                // Let's see if there's a name in the distro.
-                // If so, just this once we'll override the saved value.
-                final String name = getDefaultEngineNameFromDistribution();
-
-                if (name == null) {
-                    return;
-                }
-
-                // Store the default engine name for the future.
-                // Increment an 'ignore' counter so that this preference change
-                // won't cause getDefaultEngine to be called again.
-                ignorePreferenceChange++;
-                GeckoSharedPrefs.forApp(context)
-                        .edit()
-                        .putString(PREF_DEFAULT_ENGINE_KEY, name)
-                        .apply();
-
-                final SearchEngine engine = createEngineFromName(name);
-                runCallback(engine, callback);
-            }
-
-            private void defaultBehavior() {
+            public void run() {
                 // First look for a default name stored in shared preferences.
                 String name = GeckoSharedPrefs.forApp(context).getString(PREF_DEFAULT_ENGINE_KEY, null);
 
@@ -191,7 +159,7 @@ public class SearchEngineManager implements SharedPreferences.OnSharedPreference
 
                     // Store the default engine name for the future.
                     // Increment an 'ignore' counter so that this preference change
-                    // won't cause getDefaultEngine to be called again.
+                    // won'tcause getDefaultEngine to be called again.
                     ignorePreferenceChange++;
                     GeckoSharedPrefs.forApp(context)
                                     .edit()

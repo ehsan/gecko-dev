@@ -10,26 +10,36 @@ const TEST_URI = "data:text/html;charset=utf-8,<head><link rel='stylesheet' " +
   "ets.css'></head><body><div></div><span></span></body>";
 const {TreeWidget} = devtools.require("devtools/shared/widgets/TreeWidget");
 
-add_task(function*() {
-  yield promiseTab("about:blank");
-  let [host, win, doc] = yield createHost("bottom", TEST_URI);
+let doc, tree;
 
-  let tree = new TreeWidget(doc.querySelector("div"), {
-    defaultType: "store"
+function test() {
+  waitForExplicitFinish();
+  addTab(TEST_URI, () => {
+    doc = content.document;
+    tree = new TreeWidget(doc.querySelector("div"), {
+      defaultType: "store"
+    });
+    startTests();
   });
+}
 
-  populateTree(tree, doc);
-  testTreeItemInsertedCorrectly(tree, doc);
-  testAPI(tree, doc);
-  populateUnsortedTree(tree, doc);
-  testUnsortedTreeItemInsertedCorrectly(tree, doc);
-
+function endTests() {
   tree.destroy();
-  host.destroy();
+  doc = tree = null;
   gBrowser.removeCurrentTab();
-});
+  finish();
+}
 
-function populateTree(tree, doc) {
+function startTests() {
+  populateTree();
+  testTreeItemInsertedCorrectly();
+  testAPI();
+  populateUnsortedTree();
+  testUnsortedTreeItemInsertedCorrectly();
+  endTests();
+}
+
+function populateTree() {
   tree.add([{
     id: "level1",
     label: "Level 1"
@@ -67,7 +77,7 @@ function populateTree(tree, doc) {
 /**
  * Test if the nodes are inserted correctly in the tree.
  */
-function testTreeItemInsertedCorrectly(tree, doc) {
+function testTreeItemInsertedCorrectly() {
   is(tree.root.children.children.length, 2, "Number of top level elements match");
   is(tree.root.children.firstChild.lastChild.children.length, 3,
      "Number of first second level elements match");
@@ -114,7 +124,7 @@ function testTreeItemInsertedCorrectly(tree, doc) {
 /**
  * Populate the unsorted tree.
  */
-function populateUnsortedTree(tree, doc) {
+function populateUnsortedTree() {
   tree.sorted = false;
 
   tree.add([{ id: "g-1", label: "g-1"}])
@@ -126,7 +136,7 @@ function populateUnsortedTree(tree, doc) {
 /**
  * Test if the nodes are inserted correctly in the unsorted tree.
  */
-function testUnsortedTreeItemInsertedCorrectly(tree, doc) {
+function testUnsortedTreeItemInsertedCorrectly() {
   ok(tree.root.items.has("g-1"), "g-1 top level element exists");
 
   is(tree.root.children.firstChild.lastChild.children.length, 3,
@@ -149,7 +159,7 @@ function testUnsortedTreeItemInsertedCorrectly(tree, doc) {
 /**
  * Tests if the API exposed by TreeWidget works properly
  */
-function testAPI(tree, doc) {
+function testAPI() {
   info("Testing TreeWidget API");
   // Check if selectItem and selectedItem setter works as expected
   // Nothing should be selected beforehand
