@@ -23,15 +23,15 @@
 # define MAX_BIG_SEEKS  20
 
 static struct {
-    uint32_t            mSeeksWithinBuffer;
-    uint32_t            mSeeksOutsideBuffer;
-    uint32_t            mBufferReadUponSeek;
-    uint32_t            mBufferUnreadUponSeek;
-    uint32_t            mBytesReadFromBuffer;
-    uint32_t            mBigSeekIndex;
+    PRUint32            mSeeksWithinBuffer;
+    PRUint32            mSeeksOutsideBuffer;
+    PRUint32            mBufferReadUponSeek;
+    PRUint32            mBufferUnreadUponSeek;
+    PRUint32            mBytesReadFromBuffer;
+    PRUint32            mBigSeekIndex;
     struct {
-        int64_t         mOldOffset;
-        int64_t         mNewOffset;
+        PRInt64         mOldOffset;
+        PRInt64         mNewOffset;
     } mBigSeek[MAX_BIG_SEEKS];
 } bufstats;
 #else
@@ -61,7 +61,7 @@ nsBufferedStream::~nsBufferedStream()
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsBufferedStream, nsISeekableStream)
 
 nsresult
-nsBufferedStream::Init(nsISupports* stream, uint32_t bufferSize)
+nsBufferedStream::Init(nsISupports* stream, PRUint32 bufferSize)
 {
     NS_ASSERTION(stream, "need to supply a stream");
     NS_ASSERTION(mStream == nullptr, "already inited");
@@ -107,7 +107,7 @@ nsBufferedStream::Close()
                     bufstats.mBufferUnreadUponSeek);
             fprintf(tfp, "bytes read from buffer: %u\n",
                     bufstats.mBytesReadFromBuffer);
-            for (uint32_t i = 0; i < bufstats.mBigSeekIndex; i++) {
+            for (PRUint32 i = 0; i < bufstats.mBigSeekIndex; i++) {
                 fprintf(tfp, "bigseek[%u] = {old: %u, new: %u}\n",
                         i,
                         bufstats.mBigSeek[i].mOldOffset,
@@ -120,7 +120,7 @@ nsBufferedStream::Close()
 }
 
 NS_IMETHODIMP
-nsBufferedStream::Seek(int32_t whence, int64_t offset)
+nsBufferedStream::Seek(PRInt32 whence, PRInt64 offset)
 {
     if (mStream == nullptr)
         return NS_BASE_STREAM_CLOSED;
@@ -133,7 +133,7 @@ nsBufferedStream::Seek(int32_t whence, int64_t offset)
     nsCOMPtr<nsISeekableStream> ras = do_QueryInterface(mStream, &rv);
     if (NS_FAILED(rv)) return rv;
 
-    int64_t absPos = 0;
+    PRInt64 absPos = 0;
     switch (whence) {
       case nsISeekableStream::NS_SEEK_SET:
         absPos = offset;
@@ -158,7 +158,7 @@ nsBufferedStream::Seek(int32_t whence, int64_t offset)
     // But if we're at EOF, make sure to pass the seek through to the
     // underlying stream, because it may have auto-closed itself and
     // needs to reopen.
-    uint32_t offsetInBuffer = uint32_t(absPos - mBufferStartOffset);
+    PRUint32 offsetInBuffer = PRUint32(absPos - mBufferStartOffset);
     if (offsetInBuffer <= mFillPoint && !mEOF) {
         METER(bufstats.mSeeksWithinBuffer++);
         mCursor = offsetInBuffer;
@@ -179,7 +179,7 @@ nsBufferedStream::Seek(int32_t whence, int64_t offset)
     // Recompute whether the offset we're seeking to is in our buffer.
     // Note that we need to recompute because Flush() might have
     // changed mBufferStartOffset.
-    offsetInBuffer = uint32_t(absPos - mBufferStartOffset);
+    offsetInBuffer = PRUint32(absPos - mBufferStartOffset);
     if (offsetInBuffer <= mFillPoint) {
         // It's safe to just set mCursor to offsetInBuffer.  In particular, we
         // want to avoid calling Fill() here since we already have the data that
@@ -191,11 +191,11 @@ nsBufferedStream::Seek(int32_t whence, int64_t offset)
 
     METER(if (bufstats.mBigSeekIndex < MAX_BIG_SEEKS)
               bufstats.mBigSeek[bufstats.mBigSeekIndex].mOldOffset =
-                  mBufferStartOffset + int64_t(mCursor));
-    const int64_t minus1 = -1;
+                  mBufferStartOffset + PRInt64(mCursor));
+    const PRInt64 minus1 = -1;
     if (absPos == minus1) {
         // then we had the SEEK_END case, above
-        int64_t tellPos;
+        PRInt64 tellPos;
         rv = ras->Tell(&tellPos);
         mBufferStartOffset = tellPos;
         if (NS_FAILED(rv)) return rv;
@@ -212,12 +212,12 @@ nsBufferedStream::Seek(int32_t whence, int64_t offset)
 }
 
 NS_IMETHODIMP
-nsBufferedStream::Tell(int64_t *result)
+nsBufferedStream::Tell(PRInt64 *result)
 {
     if (mStream == nullptr)
         return NS_BASE_STREAM_CLOSED;
     
-    int64_t result64 = mBufferStartOffset;
+    PRInt64 result64 = mBufferStartOffset;
     result64 += mCursor;
     *result = result64;
     return NS_OK;
@@ -278,7 +278,7 @@ nsBufferedInputStream::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult
 }
 
 NS_IMETHODIMP
-nsBufferedInputStream::Init(nsIInputStream* stream, uint32_t bufferSize)
+nsBufferedInputStream::Init(nsIInputStream* stream, PRUint32 bufferSize)
 {
     return nsBufferedStream::Init(stream, bufferSize);
 }
@@ -297,7 +297,7 @@ nsBufferedInputStream::Close()
 }
 
 NS_IMETHODIMP
-nsBufferedInputStream::Available(uint64_t *result)
+nsBufferedInputStream::Available(PRUint64 *result)
 {
     nsresult rv = NS_OK;
     *result = 0;
@@ -309,7 +309,7 @@ nsBufferedInputStream::Available(uint64_t *result)
 }
 
 NS_IMETHODIMP
-nsBufferedInputStream::Read(char * buf, uint32_t count, uint32_t *result)
+nsBufferedInputStream::Read(char * buf, PRUint32 count, PRUint32 *result)
 {
     if (mBufferDisabled) {
         if (!mStream) {
@@ -331,7 +331,7 @@ nsBufferedInputStream::Read(char * buf, uint32_t count, uint32_t *result)
 
 NS_IMETHODIMP
 nsBufferedInputStream::ReadSegments(nsWriteSegmentFun writer, void *closure,
-                                    uint32_t count, uint32_t *result)
+                                    PRUint32 count, PRUint32 *result)
 {
     *result = 0;
 
@@ -340,9 +340,9 @@ nsBufferedInputStream::ReadSegments(nsWriteSegmentFun writer, void *closure,
 
     nsresult rv = NS_OK;
     while (count > 0) {
-        uint32_t amt = NS_MIN(count, mFillPoint - mCursor);
+        PRUint32 amt = NS_MIN(count, mFillPoint - mCursor);
         if (amt > 0) {
-            uint32_t read = 0;
+            PRUint32 read = 0;
             rv = writer(this, closure, mBuffer + mCursor, *result, amt, &read);
             if (NS_FAILED(rv)) {
                 // errors returned from the writer end here!
@@ -378,7 +378,7 @@ nsBufferedInputStream::Fill()
     NS_ENSURE_TRUE(mStream, NS_ERROR_NOT_INITIALIZED);
 
     nsresult rv;
-    int32_t rem = int32_t(mFillPoint - mCursor);
+    PRInt32 rem = PRInt32(mFillPoint - mCursor);
     if (rem > 0) {
         // slide the remainder down to the start of the buffer
         // |<------------->|<--rem-->|<--->|
@@ -389,7 +389,7 @@ nsBufferedInputStream::Fill()
     mFillPoint = rem;
     mCursor = 0;
 
-    uint32_t amt;
+    PRUint32 amt;
     rv = Source()->Read(mBuffer + mFillPoint, mBufferSize - mFillPoint, &amt);
     if (NS_FAILED(rv)) return rv;
 
@@ -401,7 +401,7 @@ nsBufferedInputStream::Fill()
 }
 
 NS_IMETHODIMP_(char*)
-nsBufferedInputStream::GetBuffer(uint32_t aLength, uint32_t aAlignMask)
+nsBufferedInputStream::GetBuffer(PRUint32 aLength, PRUint32 aAlignMask)
 {
     NS_ASSERTION(mGetBufferCount == 0, "nested GetBuffer!");
     if (mGetBufferCount != 0)
@@ -411,7 +411,7 @@ nsBufferedInputStream::GetBuffer(uint32_t aLength, uint32_t aAlignMask)
         return nullptr;
 
     char* buf = mBuffer + mCursor;
-    uint32_t rem = mFillPoint - mCursor;
+    PRUint32 rem = mFillPoint - mCursor;
     if (rem == 0) {
         if (NS_FAILED(Fill()))
             return nullptr;
@@ -419,9 +419,9 @@ nsBufferedInputStream::GetBuffer(uint32_t aLength, uint32_t aAlignMask)
         rem = mFillPoint - mCursor;
     }
 
-    uint32_t mod = (NS_PTR_TO_INT32(buf) & aAlignMask);
+    PRUint32 mod = (NS_PTR_TO_INT32(buf) & aAlignMask);
     if (mod) {
-        uint32_t pad = aAlignMask + 1 - mod;
+        PRUint32 pad = aAlignMask + 1 - mod;
         if (pad > rem)
             return nullptr;
 
@@ -438,7 +438,7 @@ nsBufferedInputStream::GetBuffer(uint32_t aLength, uint32_t aAlignMask)
 }
 
 NS_IMETHODIMP_(void)
-nsBufferedInputStream::PutBuffer(char* aBuffer, uint32_t aLength)
+nsBufferedInputStream::PutBuffer(char* aBuffer, PRUint32 aLength)
 {
     NS_ASSERTION(mGetBufferCount == 1, "stray PutBuffer!");
     if (--mGetBufferCount != 0)
@@ -489,7 +489,7 @@ nsBufferedInputStream::Read(const IPC::Message *aMsg, void **aIter)
 {
     using IPC::ReadParam;
 
-    uint32_t bufferSize;
+    PRUint32 bufferSize;
     IPC::InputStream inputStream;
     if (!ReadParam(aMsg, aIter, &bufferSize) ||
         !ReadParam(aMsg, aIter, &inputStream))
@@ -543,7 +543,7 @@ nsBufferedOutputStream::Create(nsISupports *aOuter, REFNSIID aIID, void **aResul
 }
 
 NS_IMETHODIMP
-nsBufferedOutputStream::Init(nsIOutputStream* stream, uint32_t bufferSize)
+nsBufferedOutputStream::Init(nsIOutputStream* stream, PRUint32 bufferSize)
 {
     // QI stream to an nsISafeOutputStream, to see if we should support it
     mSafeStream = do_QueryInterface(stream);
@@ -570,12 +570,12 @@ nsBufferedOutputStream::Close()
 }
 
 NS_IMETHODIMP
-nsBufferedOutputStream::Write(const char *buf, uint32_t count, uint32_t *result)
+nsBufferedOutputStream::Write(const char *buf, PRUint32 count, PRUint32 *result)
 {
     nsresult rv = NS_OK;
-    uint32_t written = 0;
+    PRUint32 written = 0;
     while (count > 0) {
-        uint32_t amt = NS_MIN(count, mBufferSize - mCursor);
+        PRUint32 amt = NS_MIN(count, mBufferSize - mCursor);
         if (amt > 0) {
             memcpy(mBuffer + mCursor, buf + written, amt);
             written += amt;
@@ -598,7 +598,7 @@ NS_IMETHODIMP
 nsBufferedOutputStream::Flush()
 {
     nsresult rv;
-    uint32_t amt;
+    PRUint32 amt;
     if (!mStream) {
         // Stream already cancelled/flushed; probably because of error.
         return NS_OK;
@@ -614,7 +614,7 @@ nsBufferedOutputStream::Flush()
     // slide the remainder down to the start of the buffer
     // |<-------------->|<---|----->|
     // b                a    c      s
-    uint32_t rem = mFillPoint - amt;
+    PRUint32 rem = mFillPoint - amt;
     memcpy(mBuffer, mBuffer + amt, rem);
     mFillPoint = mCursor = rem;
     return NS_ERROR_FAILURE;        // didn't flush all
@@ -646,27 +646,27 @@ static NS_METHOD
 nsReadFromInputStream(nsIOutputStream* outStr,
                       void* closure,
                       char* toRawSegment, 
-                      uint32_t offset,
-                      uint32_t count,
-                      uint32_t *readCount)
+                      PRUint32 offset,
+                      PRUint32 count,
+                      PRUint32 *readCount)
 {
     nsIInputStream* fromStream = (nsIInputStream*)closure;
     return fromStream->Read(toRawSegment, count, readCount);
 }
 
 NS_IMETHODIMP
-nsBufferedOutputStream::WriteFrom(nsIInputStream *inStr, uint32_t count, uint32_t *_retval)
+nsBufferedOutputStream::WriteFrom(nsIInputStream *inStr, PRUint32 count, PRUint32 *_retval)
 {
     return WriteSegments(nsReadFromInputStream, inStr, count, _retval);
 }
 
 NS_IMETHODIMP
-nsBufferedOutputStream::WriteSegments(nsReadSegmentFun reader, void * closure, uint32_t count, uint32_t *_retval)
+nsBufferedOutputStream::WriteSegments(nsReadSegmentFun reader, void * closure, PRUint32 count, PRUint32 *_retval)
 {
     *_retval = 0;
     nsresult rv;
     while (count > 0) {
-        uint32_t left = NS_MIN(count, mBufferSize - mCursor);
+        PRUint32 left = NS_MIN(count, mBufferSize - mCursor);
         if (left == 0) {
             rv = Flush();
             if (NS_FAILED(rv))
@@ -675,7 +675,7 @@ nsBufferedOutputStream::WriteSegments(nsReadSegmentFun reader, void * closure, u
             continue;
         }
 
-        uint32_t read = 0;
+        PRUint32 read = 0;
         rv = reader(this, closure, mBuffer + mCursor, *_retval, left, &read);
 
         if (NS_FAILED(rv)) // If we have written some data, return ok
@@ -697,7 +697,7 @@ nsBufferedOutputStream::IsNonBlocking(bool *aNonBlocking)
 }
 
 NS_IMETHODIMP_(char*)
-nsBufferedOutputStream::GetBuffer(uint32_t aLength, uint32_t aAlignMask)
+nsBufferedOutputStream::GetBuffer(PRUint32 aLength, PRUint32 aAlignMask)
 {
     NS_ASSERTION(mGetBufferCount == 0, "nested GetBuffer!");
     if (mGetBufferCount != 0)
@@ -707,7 +707,7 @@ nsBufferedOutputStream::GetBuffer(uint32_t aLength, uint32_t aAlignMask)
         return nullptr;
 
     char* buf = mBuffer + mCursor;
-    uint32_t rem = mBufferSize - mCursor;
+    PRUint32 rem = mBufferSize - mCursor;
     if (rem == 0) {
         if (NS_FAILED(Flush()))
             return nullptr;
@@ -715,9 +715,9 @@ nsBufferedOutputStream::GetBuffer(uint32_t aLength, uint32_t aAlignMask)
         rem = mBufferSize - mCursor;
     }
 
-    uint32_t mod = (NS_PTR_TO_INT32(buf) & aAlignMask);
+    PRUint32 mod = (NS_PTR_TO_INT32(buf) & aAlignMask);
     if (mod) {
-        uint32_t pad = aAlignMask + 1 - mod;
+        PRUint32 pad = aAlignMask + 1 - mod;
         if (pad > rem)
             return nullptr;
 
@@ -734,7 +734,7 @@ nsBufferedOutputStream::GetBuffer(uint32_t aLength, uint32_t aAlignMask)
 }
 
 NS_IMETHODIMP_(void)
-nsBufferedOutputStream::PutBuffer(char* aBuffer, uint32_t aLength)
+nsBufferedOutputStream::PutBuffer(char* aBuffer, PRUint32 aLength)
 {
     NS_ASSERTION(mGetBufferCount == 1, "stray PutBuffer!");
     if (--mGetBufferCount != 0)

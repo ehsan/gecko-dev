@@ -74,9 +74,9 @@ private:
   bool mDiscovering;
   bool mPairable;
   bool mPowered;
-  uint32_t mPairableTimeout;
-  uint32_t mDiscoverableTimeout;
-  uint32_t mClass;
+  PRUint32 mPairableTimeout;
+  PRUint32 mDiscoverableTimeout;
+  PRUint32 mClass;
   nsTArray<nsString> mDeviceAddresses;
   nsTArray<nsString> mUuids;
   JSObject* mJsUuids;

@@ -40,10 +40,10 @@ public:
   NS_IMETHOD Click() {
     return nsGenericHTMLElement::Click();
   }
-  NS_IMETHOD GetTabIndex(int32_t* aTabIndex) {
+  NS_IMETHOD GetTabIndex(PRInt32* aTabIndex) {
     return nsGenericHTMLElement::GetTabIndex(aTabIndex);
   }
-  NS_IMETHOD SetTabIndex(int32_t aTabIndex) {
+  NS_IMETHOD SetTabIndex(PRInt32 aTabIndex) {
     return nsGenericHTMLElement::SetTabIndex(aTabIndex);
   }
   NS_IMETHOD Focus() {
@@ -63,15 +63,15 @@ public:
                               bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true);
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
     return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
   }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            bool aNotify);
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
@@ -173,7 +173,7 @@ void
 nsHTMLStyleElement::ContentAppended(nsIDocument* aDocument,
                                     nsIContent* aContainer,
                                     nsIContent* aFirstNewContent,
-                                    int32_t aNewIndexInContainer)
+                                    PRInt32 aNewIndexInContainer)
 {
   ContentChanged(aContainer);
 }
@@ -182,7 +182,7 @@ void
 nsHTMLStyleElement::ContentInserted(nsIDocument* aDocument,
                                     nsIContent* aContainer,
                                     nsIContent* aChild,
-                                    int32_t aIndexInContainer)
+                                    PRInt32 aIndexInContainer)
 {
   ContentChanged(aChild);
 }
@@ -191,7 +191,7 @@ void
 nsHTMLStyleElement::ContentRemoved(nsIDocument* aDocument,
                                    nsIContent* aContainer,
                                    nsIContent* aChild,
-                                   int32_t aIndexInContainer,
+                                   PRInt32 aIndexInContainer,
                                    nsIContent* aPreviousSibling)
 {
   ContentChanged(aChild);
@@ -231,7 +231,7 @@ nsHTMLStyleElement::UnbindFromTree(bool aDeep, bool aNullParent)
 }
 
 nsresult
-nsHTMLStyleElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsHTMLStyleElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                             nsIAtom* aPrefix, const nsAString& aValue,
                             bool aNotify)
 {
@@ -248,7 +248,7 @@ nsHTMLStyleElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsHTMLStyleElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+nsHTMLStyleElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                               bool aNotify)
 {
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,

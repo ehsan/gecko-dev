@@ -40,7 +40,7 @@ HashNativeKey(JSDHashTable *table, const void *key)
 
     XPCNativeSet*       Set;
     XPCNativeInterface* Addition;
-    uint16_t            Position;
+    PRUint16            Position;
 
     if (Key->IsAKey()) {
         Set      = Key->GetBaseSet();
@@ -59,17 +59,17 @@ HashNativeKey(JSDHashTable *table, const void *key)
         h = (js::HashNumber) NS_PTR_TO_INT32(Addition) >> 2;
     } else {
         XPCNativeInterface** Current = Set->GetInterfaceArray();
-        uint16_t count = Set->GetInterfaceCount();
+        PRUint16 count = Set->GetInterfaceCount();
         if (Addition) {
             count++;
-            for (uint16_t i = 0; i < count; i++) {
+            for (PRUint16 i = 0; i < count; i++) {
                 if (i == Position)
                     h ^= (js::HashNumber) NS_PTR_TO_INT32(Addition) >> 2;
                 else
                     h ^= (js::HashNumber) NS_PTR_TO_INT32(*(Current++)) >> 2;
             }
         } else {
-            for (uint16_t i = 0; i < count; i++)
+            for (PRUint16 i = 0; i < count; i++)
                 h ^= (js::HashNumber) NS_PTR_TO_INT32(*(Current++)) >> 2;
         }
     }
@@ -345,13 +345,13 @@ NativeSetMap::Entry::Match(JSDHashTable *table,
         if (Set1 == Set2)
             return true;
 
-        uint16_t count = Set1->GetInterfaceCount();
+        PRUint16 count = Set1->GetInterfaceCount();
         if (count != Set2->GetInterfaceCount())
             return false;
 
         XPCNativeInterface** Current1 = Set1->GetInterfaceArray();
         XPCNativeInterface** Current2 = Set2->GetInterfaceArray();
-        for (uint16_t i = 0; i < count; i++) {
+        for (PRUint16 i = 0; i < count; i++) {
             if (*(Current1++) != *(Current2++))
                 return false;
         }
@@ -382,14 +382,14 @@ NativeSetMap::Entry::Match(JSDHashTable *table,
     if (!Addition && Set == SetInTable)
         return true;
 
-    uint16_t count = Set->GetInterfaceCount() + (Addition ? 1 : 0);
+    PRUint16 count = Set->GetInterfaceCount() + (Addition ? 1 : 0);
     if (count != SetInTable->GetInterfaceCount())
         return false;
 
-    uint16_t Position = Key->GetPosition();
+    PRUint16 Position = Key->GetPosition();
     XPCNativeInterface** CurrentInTable = SetInTable->GetInterfaceArray();
     XPCNativeInterface** Current = Set->GetInterfaceArray();
-    for (uint16_t i = 0; i < count; i++) {
+    for (PRUint16 i = 0; i < count; i++) {
         if (Addition && i == Position) {
             if (Addition != *(CurrentInTable++))
                 return false;
@@ -586,7 +586,7 @@ XPCNativeScriptableSharedMap::~XPCNativeScriptableSharedMap()
 JSBool
 XPCNativeScriptableSharedMap::GetNewOrUsed(uint32_t flags,
                                            char* name,
-                                           uint32_t interfacesBitmap,
+                                           PRUint32 interfacesBitmap,
                                            XPCNativeScriptableInfo* si)
 {
     NS_PRECONDITION(name,"bad param");

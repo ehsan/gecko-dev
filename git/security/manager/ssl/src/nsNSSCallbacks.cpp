@@ -152,7 +152,7 @@ struct nsCancelHTTPDownloadEvent : nsRunnable {
 };
 
 SECStatus nsNSSHttpServerSession::createSessionFcn(const char *host,
-                                                   uint16_t portnum,
+                                                   PRUint16 portnum,
                                                    SEC_HTTP_SERVER_SESSION *pSession)
 {
   if (!host || !pSession)
@@ -192,7 +192,7 @@ SECStatus nsNSSHttpRequestSession::createFcn(SEC_HTTP_SERVER_SESSION session,
 
   // Use a maximum timeout value of 10 seconds because of bug 404059.
   // FIXME: Use a better approach once 406120 is ready.
-  uint32_t maxBug404059Timeout = PR_TicksPerSecond() * 10;
+  PRUint32 maxBug404059Timeout = PR_TicksPerSecond() * 10;
   if (timeout > maxBug404059Timeout) {
     rs->mTimeoutInterval = maxBug404059Timeout;
   }
@@ -211,7 +211,7 @@ SECStatus nsNSSHttpRequestSession::createFcn(SEC_HTTP_SERVER_SESSION session,
 }
 
 SECStatus nsNSSHttpRequestSession::setPostDataFcn(const char *http_data, 
-                                                  const uint32_t http_data_len,
+                                                  const PRUint32 http_data_len,
                                                   const char *http_content_type)
 {
   mHasPostData = true;
@@ -238,11 +238,11 @@ SECStatus nsNSSHttpRequestSession::addHeaderFcn(const char *http_header_name,
 }
 
 SECStatus nsNSSHttpRequestSession::trySendAndReceiveFcn(PRPollDesc **pPollDesc,
-                                                        uint16_t *http_response_code, 
+                                                        PRUint16 *http_response_code, 
                                                         const char **http_response_content_type, 
                                                         const char **http_response_headers, 
                                                         const char **http_response_data, 
-                                                        uint32_t *http_response_data_len)
+                                                        PRUint32 *http_response_data_len)
 {
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
          ("nsNSSHttpRequestSession::trySendAndReceiveFcn to %s\n", mURL.get()));
@@ -302,7 +302,7 @@ nsNSSHttpRequestSession::AddRef()
 void
 nsNSSHttpRequestSession::Release()
 {
-  int32_t newRefCount = NS_AtomicDecrementRefcnt(mRefCount);
+  PRInt32 newRefCount = NS_AtomicDecrementRefcnt(mRefCount);
   if (!newRefCount) {
     delete this;
   }
@@ -311,11 +311,11 @@ nsNSSHttpRequestSession::Release()
 SECStatus
 nsNSSHttpRequestSession::internal_send_receive_attempt(bool &retryable_error,
                                                        PRPollDesc **pPollDesc,
-                                                       uint16_t *http_response_code,
+                                                       PRUint16 *http_response_code,
                                                        const char **http_response_content_type,
                                                        const char **http_response_headers,
                                                        const char **http_response_data,
-                                                       uint32_t *http_response_data_len)
+                                                       PRUint32 *http_response_data_len)
 {
   if (pPollDesc) *pPollDesc = nullptr;
   if (http_response_code) *http_response_code = 0;
@@ -323,7 +323,7 @@ nsNSSHttpRequestSession::internal_send_receive_attempt(bool &retryable_error,
   if (http_response_headers) *http_response_headers = 0;
   if (http_response_data) *http_response_data = 0;
 
-  uint32_t acceptableResultSize = 0;
+  PRUint32 acceptableResultSize = 0;
 
   if (http_response_data_len)
   {
@@ -566,8 +566,8 @@ NS_IMETHODIMP
 nsHTTPListener::OnStreamComplete(nsIStreamLoader* aLoader,
                                  nsISupports* aContext,
                                  nsresult aStatus,
-                                 uint32_t stringLen,
-                                 const uint8_t* string)
+                                 PRUint32 stringLen,
+                                 const PRUint8* string)
 {
   mResultCode = aStatus;
 
@@ -785,12 +785,12 @@ PK11PasswordPrompt(PK11SlotInfo* slot, PRBool retry, void* arg)
 
 void PR_CALLBACK HandshakeCallback(PRFileDesc* fd, void* client_data) {
   nsNSSShutDownPreventionLock locker;
-  int32_t sslStatus;
+  PRInt32 sslStatus;
   char* signer = nullptr;
   char* cipherName = nullptr;
-  int32_t keyLength;
+  PRInt32 keyLength;
   nsresult rv;
-  int32_t encryptBits;
+  PRInt32 encryptBits;
 
   nsNSSSocketInfo* infoObject = (nsNSSSocketInfo*) fd->higher->secret;
 
@@ -808,7 +808,7 @@ void PR_CALLBACK HandshakeCallback(PRFileDesc* fd, void* client_data) {
     return;
   }
 
-  int32_t secStatus;
+  PRInt32 secStatus;
   if (sslStatus == SSL_SECURITY_STATUS_OFF)
     secStatus = nsIWebProgressListener::STATE_IS_BROKEN;
   else if (encryptBits >= 90)
@@ -1084,7 +1084,7 @@ SECStatus RegisterMyOCSPAIAInfoCallback() {
     // Create a SECItem from the Base64 authority key identifier keyID.
     myDefaultOCSPResponders[i].issuerKeyID = NSSBase64_DecodeBuffer(nullptr,
           nullptr, myDefaultOCSPResponders[i].issuerKeyID_base64,
-          (uint32_t)PORT_Strlen(myDefaultOCSPResponders[i].issuerKeyID_base64));
+          (PRUint32)PORT_Strlen(myDefaultOCSPResponders[i].issuerKeyID_base64));
     if (!(myDefaultOCSPResponders[i].issuerKeyID))
       goto loser;
   }

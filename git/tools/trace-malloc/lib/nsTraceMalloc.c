@@ -537,7 +537,7 @@ static void log_tmstats(logfile *fp)
     log_uint32(fp, calltree_maxstack_top ? calltree_maxstack_top->serial : 0);
 }
 
-static void *generic_alloctable(void *pool, size_t size)
+static void *generic_alloctable(void *pool, PRSize size)
 {
     return __libc_malloc(size);
 }
@@ -560,7 +560,7 @@ static PLHashEntry *lfdset_allocentry(void *pool, const void *key)
     return &le->base;
 }
 
-static void lfdset_freeentry(void *pool, PLHashEntry *he, unsigned flag)
+static void lfdset_freeentry(void *pool, PLHashEntry *he, PRUintn flag)
 {
     lfdset_entry *le;
 
@@ -1046,7 +1046,7 @@ static PLHashEntry *alloc_allocentry(void *pool, const void *key)
     return &alloc->entry;
 }
 
-static void alloc_freeentry(void *pool, PLHashEntry *he, unsigned flag)
+static void alloc_freeentry(void *pool, PLHashEntry *he, PRUintn flag)
 {
     allocation *alloc;
 
@@ -1149,7 +1149,7 @@ ShutdownHooker(void)
 NS_EXTERNAL_VIS_(__ptr_t)
 malloc(size_t size)
 {
-    uint32_t start, end;
+    PRUint32 start, end;
     __ptr_t ptr;
     tm_thread *t;
 
@@ -1172,7 +1172,7 @@ malloc(size_t size)
 NS_EXTERNAL_VIS_(__ptr_t)
 calloc(size_t count, size_t size)
 {
-    uint32_t start, end;
+    PRUint32 start, end;
     __ptr_t ptr;
     tm_thread *t;
 
@@ -1195,7 +1195,7 @@ calloc(size_t count, size_t size)
 NS_EXTERNAL_VIS_(__ptr_t)
 realloc(__ptr_t oldptr, size_t size)
 {
-    uint32_t start, end;
+    PRUint32 start, end;
     __ptr_t ptr;
     tm_thread *t;
 
@@ -1219,7 +1219,7 @@ realloc(__ptr_t oldptr, size_t size)
 NS_EXTERNAL_VIS_(void*)
 valloc(size_t size)
 {
-    uint32_t start, end;
+    PRUint32 start, end;
     __ptr_t ptr;
     tm_thread *t;
 
@@ -1242,7 +1242,7 @@ valloc(size_t size)
 NS_EXTERNAL_VIS_(void*)
 memalign(size_t boundary, size_t size)
 {
-    uint32_t start, end;
+    PRUint32 start, end;
     __ptr_t ptr;
     tm_thread *t;
 
@@ -1275,7 +1275,7 @@ posix_memalign(void **memptr, size_t alignment, size_t size)
 NS_EXTERNAL_VIS_(void)
 free(__ptr_t ptr)
 {
-    uint32_t start, end;
+    PRUint32 start, end;
     tm_thread *t;
 
     if (!tracing_enabled || !PR_Initialized() ||
@@ -1610,8 +1610,8 @@ NS_TraceMallocChangeLogFD(int fd)
     return oldfp->fd;
 }
 
-static int
-lfd_clr_enumerator(PLHashEntry *he, int i, void *arg)
+static PRIntn
+lfd_clr_enumerator(PLHashEntry *he, PRIntn i, void *arg)
 {
     lfdset_entry *le = (lfdset_entry*) he;
     logfile *fp = (logfile*) arg;
@@ -1716,8 +1716,8 @@ print_stack(FILE *ofp, callsite *site)
     }
 }
 
-static int
-allocation_enumerator(PLHashEntry *he, int i, void *arg)
+static PRIntn
+allocation_enumerator(PLHashEntry *he, PRIntn i, void *arg)
 {
     allocation *alloc = (allocation*) he;
     FILE *ofp = (FILE*) arg;
@@ -1826,7 +1826,7 @@ NS_TrackAllocation(void* ptr, FILE *ofp)
 }
 
 PR_IMPLEMENT(void)
-MallocCallback(void *ptr, size_t size, uint32_t start, uint32_t end, tm_thread *t)
+MallocCallback(void *ptr, size_t size, PRUint32 start, PRUint32 end, tm_thread *t)
 {
     callsite *site;
     PLHashEntry *he;
@@ -1863,7 +1863,7 @@ MallocCallback(void *ptr, size_t size, uint32_t start, uint32_t end, tm_thread *
 }
 
 PR_IMPLEMENT(void)
-CallocCallback(void *ptr, size_t count, size_t size, uint32_t start, uint32_t end, tm_thread *t)
+CallocCallback(void *ptr, size_t count, size_t size, PRUint32 start, PRUint32 end, tm_thread *t)
 {
     callsite *site;
     PLHashEntry *he;
@@ -1902,7 +1902,7 @@ CallocCallback(void *ptr, size_t count, size_t size, uint32_t start, uint32_t en
 
 PR_IMPLEMENT(void)
 ReallocCallback(void * oldptr, void *ptr, size_t size,
-                uint32_t start, uint32_t end, tm_thread *t)
+                PRUint32 start, PRUint32 end, tm_thread *t)
 {
     callsite *oldsite, *site;
     size_t oldsize;
@@ -1987,7 +1987,7 @@ ReallocCallback(void * oldptr, void *ptr, size_t size,
 }
 
 PR_IMPLEMENT(void)
-FreeCallback(void * ptr, uint32_t start, uint32_t end, tm_thread *t)
+FreeCallback(void * ptr, PRUint32 start, PRUint32 end, tm_thread *t)
 {
     PLHashEntry **hep, *he;
     callsite *site;

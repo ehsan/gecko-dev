@@ -71,11 +71,15 @@ NewDenseCopiedArray(JSContext *cx, uint32_t length, const Value *vp, RawObject p
 extern JSObject *
 NewSlowEmptyArray(JSContext *cx);
 
-extern JSBool
-GetLengthProperty(JSContext *cx, HandleObject obj, uint32_t *lengthp);
+} /* namespace js */
 
 extern JSBool
-SetLengthProperty(JSContext *cx, HandleObject obj, double length);
+js_GetLengthProperty(JSContext *cx, JSObject *obj, uint32_t *lengthp);
+
+extern JSBool
+js_SetLengthProperty(JSContext *cx, js::HandleObject obj, double length);
+
+namespace js {
 
 extern JSBool
 array_defineElement(JSContext *cx, HandleObject obj, uint32_t index, HandleValue value,

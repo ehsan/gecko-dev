@@ -45,8 +45,8 @@ public:
   NS_IMETHOD Click() {
     return nsGenericHTMLElement::Click();
   }
-  NS_IMETHOD GetTabIndex(int32_t* aTabIndex);
-  NS_IMETHOD SetTabIndex(int32_t aTabIndex);
+  NS_IMETHOD GetTabIndex(PRInt32* aTabIndex);
+  NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
   NS_IMETHOD Focus() {
     return nsGenericHTMLElement::Focus();
   }
@@ -73,7 +73,7 @@ public:
                               bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true);
-  virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, int32_t *aTabIndex);
+  virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, PRInt32 *aTabIndex);
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
@@ -82,17 +82,17 @@ public:
   virtual nsLinkState GetLinkState() const;
   virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
     return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
   }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            bool aNotify);
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -270,7 +270,7 @@ nsHTMLAnchorElement::UnbindFromTree(bool aDeep, bool aNullParent)
 
 bool
 nsHTMLAnchorElement::IsHTMLFocusable(bool aWithMouse,
-                                     bool *aIsFocusable, int32_t *aTabIndex)
+                                     bool *aIsFocusable, PRInt32 *aTabIndex)
 {
   if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
     return true;
@@ -437,7 +437,7 @@ nsHTMLAnchorElement::GetHrefURI() const
 }
 
 nsresult
-nsHTMLAnchorElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsHTMLAnchorElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              nsIAtom* aPrefix, const nsAString& aValue,
                              bool aNotify)
 {
@@ -474,7 +474,7 @@ nsHTMLAnchorElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsHTMLAnchorElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+nsHTMLAnchorElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                bool aNotify)
 {
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
@@ -493,7 +493,7 @@ nsHTMLAnchorElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
 }
 
 bool
-nsHTMLAnchorElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLAnchorElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsIAtom* aAttribute,
                                     const nsAString& aValue,
                                     nsAttrValue& aResult)

@@ -35,38 +35,38 @@ public:
 
     virtual nsresult OpenInputStreamForEntry(nsCacheEntry *    entry,
                                              nsCacheAccessMode mode,
-                                             uint32_t          offset,
+                                             PRUint32          offset,
                                              nsIInputStream ** result);
 
     virtual nsresult OpenOutputStreamForEntry(nsCacheEntry *     entry,
                                               nsCacheAccessMode  mode,
-                                              uint32_t           offset,
+                                              PRUint32           offset,
                                               nsIOutputStream ** result);
 
     virtual nsresult        GetFileForEntry(nsCacheEntry *    entry,
                                             nsIFile **        result);
 
-    virtual nsresult        OnDataSizeChange(nsCacheEntry * entry, int32_t deltaSize);
+    virtual nsresult        OnDataSizeChange(nsCacheEntry * entry, PRInt32 deltaSize);
     
     virtual nsresult        Visit(nsICacheVisitor * visitor);
 
     virtual nsresult        EvictEntries(const char * clientID);
 
-    bool                    EntryIsTooBig(int64_t entrySize);
+    bool                    EntryIsTooBig(PRInt64 entrySize);
 
     /**
      * Preference accessors
      */
     void                    SetCacheParentDirectory(nsIFile * parentDir);
-    void                    SetCapacity(uint32_t  capacity);
-    void                    SetMaxEntrySize(int32_t  maxSizeInKilobytes);
+    void                    SetCapacity(PRUint32  capacity);
+    void                    SetMaxEntrySize(PRInt32  maxSizeInKilobytes);
 
 /* private: */
 
     void                    getCacheDirectory(nsIFile ** result);
-    uint32_t                getCacheCapacity();
-    uint32_t                getCacheSize();
-    uint32_t                getEntryCount();
+    PRUint32                getCacheCapacity();
+    PRUint32                getCacheSize();
+    PRUint32                getEntryCount();
     
     nsDiskCacheMap *        CacheMap()    { return &mCacheMap; }
     
@@ -94,15 +94,15 @@ private:
     nsresult                OpenDiskCache();
     nsresult                ClearDiskCache();
 
-    nsresult                EvictDiskCacheEntries(uint32_t  targetCapacity);
+    nsresult                EvictDiskCacheEntries(PRUint32  targetCapacity);
     
     /**
      *  Member variables
      */
     nsCOMPtr<nsIFile>       mCacheDirectory;
     nsDiskCacheBindery      mBindery;
-    uint32_t                mCacheCapacity;     // Unit is KiB's
-    int32_t                 mMaxEntrySize;      // Unit is bytes internally
+    PRUint32                mCacheCapacity;     // Unit is KiB's
+    PRInt32                 mMaxEntrySize;      // Unit is bytes internally
     // XXX need soft/hard limits, currentTotal
     nsDiskCacheMap          mCacheMap;
     bool                    mInitialized;

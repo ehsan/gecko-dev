@@ -45,21 +45,21 @@ nsBinaryOutputStream::Close()
 }
 
 NS_IMETHODIMP
-nsBinaryOutputStream::Write(const char *aBuf, uint32_t aCount, uint32_t *aActualBytes)
+nsBinaryOutputStream::Write(const char *aBuf, PRUint32 aCount, PRUint32 *aActualBytes)
 {
     NS_ENSURE_STATE(mOutputStream);
     return mOutputStream->Write(aBuf, aCount, aActualBytes);
 }
 
 NS_IMETHODIMP
-nsBinaryOutputStream::WriteFrom(nsIInputStream *inStr, uint32_t count, uint32_t *_retval)
+nsBinaryOutputStream::WriteFrom(nsIInputStream *inStr, PRUint32 count, PRUint32 *_retval)
 {
     NS_NOTREACHED("WriteFrom");
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsBinaryOutputStream::WriteSegments(nsReadSegmentFun reader, void * closure, uint32_t count, uint32_t *_retval)
+nsBinaryOutputStream::WriteSegments(nsReadSegmentFun reader, void * closure, PRUint32 count, PRUint32 *_retval)
 {
     NS_NOTREACHED("WriteSegments");
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -73,12 +73,12 @@ nsBinaryOutputStream::IsNonBlocking(bool *aNonBlocking)
 }
 
 nsresult
-nsBinaryOutputStream::WriteFully(const char *aBuf, uint32_t aCount)
+nsBinaryOutputStream::WriteFully(const char *aBuf, PRUint32 aCount)
 {
     NS_ENSURE_STATE(mOutputStream);
 
     nsresult rv;
-    uint32_t bytesWritten;
+    PRUint32 bytesWritten;
 
     rv = mOutputStream->Write(aBuf, aCount, &bytesWritten);
     if (NS_FAILED(rv)) return rv;
@@ -103,30 +103,30 @@ nsBinaryOutputStream::WriteBoolean(bool aBoolean)
 }
 
 NS_IMETHODIMP
-nsBinaryOutputStream::Write8(uint8_t aByte)
+nsBinaryOutputStream::Write8(PRUint8 aByte)
 {
     return WriteFully((const char*)&aByte, sizeof aByte);
 }
 
 NS_IMETHODIMP
-nsBinaryOutputStream::Write16(uint16_t a16)
+nsBinaryOutputStream::Write16(PRUint16 a16)
 {
     a16 = NS_SWAP16(a16);
     return WriteFully((const char*)&a16, sizeof a16);
 }
 
 NS_IMETHODIMP
-nsBinaryOutputStream::Write32(uint32_t a32)
+nsBinaryOutputStream::Write32(PRUint32 a32)
 {
     a32 = NS_SWAP32(a32);
     return WriteFully((const char*)&a32, sizeof a32);
 }
 
 NS_IMETHODIMP
-nsBinaryOutputStream::Write64(uint64_t a64)
+nsBinaryOutputStream::Write64(PRUint64 a64)
 {
     nsresult rv;
-    uint32_t bytesWritten;
+    PRUint32 bytesWritten;
 
     a64 = NS_SWAP64(a64);
     rv = Write(reinterpret_cast<char*>(&a64), sizeof a64, &bytesWritten);
@@ -139,23 +139,23 @@ nsBinaryOutputStream::Write64(uint64_t a64)
 NS_IMETHODIMP
 nsBinaryOutputStream::WriteFloat(float aFloat)
 {
-    NS_ASSERTION(sizeof(float) == sizeof (uint32_t),
+    NS_ASSERTION(sizeof(float) == sizeof (PRUint32),
                  "False assumption about sizeof(float)");
-    return Write32(*reinterpret_cast<uint32_t*>(&aFloat));
+    return Write32(*reinterpret_cast<PRUint32*>(&aFloat));
 }
 
 NS_IMETHODIMP
 nsBinaryOutputStream::WriteDouble(double aDouble)
 {
-    NS_ASSERTION(sizeof(double) == sizeof(uint64_t),
+    NS_ASSERTION(sizeof(double) == sizeof(PRUint64),
                  "False assumption about sizeof(double)");
-    return Write64(*reinterpret_cast<uint64_t*>(&aDouble));
+    return Write64(*reinterpret_cast<PRUint64*>(&aDouble));
 }
 
 NS_IMETHODIMP
 nsBinaryOutputStream::WriteStringZ(const char *aString)
 {
-    uint32_t length;
+    PRUint32 length;
     nsresult rv;
 
     length = strlen(aString);
@@ -167,7 +167,7 @@ nsBinaryOutputStream::WriteStringZ(const char *aString)
 NS_IMETHODIMP
 nsBinaryOutputStream::WriteWStringZ(const PRUnichar* aString)
 {
-    uint32_t length, byteCount;
+    PRUint32 length, byteCount;
     nsresult rv;
 
     length = NS_strlen(aString);
@@ -191,7 +191,7 @@ nsBinaryOutputStream::WriteWStringZ(const PRUnichar* aString)
             return NS_ERROR_OUT_OF_MEMORY;
     }
     NS_ASSERTION((PRUptrdiff(aString) & 0x1) == 0, "aString not properly aligned");
-    for (uint32_t i = 0; i < length; i++)
+    for (PRUint32 i = 0; i < length; i++)
         copy[i] = NS_SWAP16(aString[i]);
     rv = WriteBytes(reinterpret_cast<const char*>(copy), byteCount);
     if (copy != temp)
@@ -208,10 +208,10 @@ nsBinaryOutputStream::WriteUtf8Z(const PRUnichar* aString)
 }
 
 NS_IMETHODIMP
-nsBinaryOutputStream::WriteBytes(const char *aString, uint32_t aLength)
+nsBinaryOutputStream::WriteBytes(const char *aString, PRUint32 aLength)
 {
     nsresult rv;
-    uint32_t bytesWritten;
+    PRUint32 bytesWritten;
 
     rv = Write(aString, aLength, &bytesWritten);
     if (NS_FAILED(rv)) return rv;
@@ -221,7 +221,7 @@ nsBinaryOutputStream::WriteBytes(const char *aString, uint32_t aLength)
 }
 
 NS_IMETHODIMP
-nsBinaryOutputStream::WriteByteArray(uint8_t *aBytes, uint32_t aLength)
+nsBinaryOutputStream::WriteByteArray(PRUint8 *aBytes, PRUint32 aLength)
 {
     return WriteBytes(reinterpret_cast<char *>(aBytes), aLength);
 }
@@ -287,7 +287,7 @@ nsBinaryOutputStream::WriteID(const nsIID& aIID)
 }
 
 NS_IMETHODIMP_(char*)
-nsBinaryOutputStream::GetBuffer(uint32_t aLength, uint32_t aAlignMask)
+nsBinaryOutputStream::GetBuffer(PRUint32 aLength, PRUint32 aAlignMask)
 {
     if (mBufferAccess)
         return mBufferAccess->GetBuffer(aLength, aAlignMask);
@@ -295,7 +295,7 @@ nsBinaryOutputStream::GetBuffer(uint32_t aLength, uint32_t aAlignMask)
 }
 
 NS_IMETHODIMP_(void)
-nsBinaryOutputStream::PutBuffer(char* aBuffer, uint32_t aLength)
+nsBinaryOutputStream::PutBuffer(char* aBuffer, PRUint32 aLength)
 {
     if (mBufferAccess)
         mBufferAccess->PutBuffer(aBuffer, aLength);
@@ -304,21 +304,21 @@ nsBinaryOutputStream::PutBuffer(char* aBuffer, uint32_t aLength)
 NS_IMPL_ISUPPORTS3(nsBinaryInputStream, nsIObjectInputStream, nsIBinaryInputStream, nsIInputStream)
 
 NS_IMETHODIMP
-nsBinaryInputStream::Available(uint64_t* aResult)
+nsBinaryInputStream::Available(PRUint64* aResult)
 {
     NS_ENSURE_STATE(mInputStream);
     return mInputStream->Available(aResult);
 }
 
 NS_IMETHODIMP
-nsBinaryInputStream::Read(char* aBuffer, uint32_t aCount, uint32_t *aNumRead)
+nsBinaryInputStream::Read(char* aBuffer, PRUint32 aCount, PRUint32 *aNumRead)
 {
     NS_ENSURE_STATE(mInputStream);
 
     // mInputStream might give us short reads, so deal with that.
-    uint32_t totalRead = 0;
+    PRUint32 totalRead = 0;
 
-    uint32_t bytesRead;
+    PRUint32 bytesRead;
     do {
         nsresult rv = mInputStream->Read(aBuffer, aCount, &bytesRead);
         if (rv == NS_BASE_STREAM_WOULD_BLOCK && totalRead != 0) {
@@ -351,7 +351,7 @@ struct ReadSegmentsClosure {
     void* mRealClosure;
     nsWriteSegmentFun mRealWriter;
     nsresult mRealResult;
-    uint32_t mBytesRead;  // to properly implement aToOffset
+    PRUint32 mBytesRead;  // to properly implement aToOffset
 };
 
 // the thunking function
@@ -359,9 +359,9 @@ static NS_METHOD
 ReadSegmentForwardingThunk(nsIInputStream* aStream,
                            void *aClosure,
                            const char* aFromSegment,
-                           uint32_t aToOffset,
-                           uint32_t aCount,
-                           uint32_t *aWriteCount)
+                           PRUint32 aToOffset,
+                           PRUint32 aCount,
+                           PRUint32 *aWriteCount)
 {
     ReadSegmentsClosure* thunkClosure =
         reinterpret_cast<ReadSegmentsClosure*>(aClosure);
@@ -381,14 +381,14 @@ ReadSegmentForwardingThunk(nsIInputStream* aStream,
 
 
 NS_IMETHODIMP
-nsBinaryInputStream::ReadSegments(nsWriteSegmentFun writer, void * closure, uint32_t count, uint32_t *_retval)
+nsBinaryInputStream::ReadSegments(nsWriteSegmentFun writer, void * closure, PRUint32 count, PRUint32 *_retval)
 {
     NS_ENSURE_STATE(mInputStream);
 
     ReadSegmentsClosure thunkClosure = { this, closure, writer, NS_OK, 0 };
     
     // mInputStream might give us short reads, so deal with that.
-    uint32_t bytesRead;
+    PRUint32 bytesRead;
     do {
         nsresult rv = mInputStream->ReadSegments(ReadSegmentForwardingThunk,
                                                  &thunkClosure,
@@ -439,7 +439,7 @@ nsBinaryInputStream::SetInputStream(nsIInputStream *aInputStream)
 NS_IMETHODIMP
 nsBinaryInputStream::ReadBoolean(bool* aBoolean)
 {
-    uint8_t byteResult;
+    PRUint8 byteResult;
     nsresult rv = Read8(&byteResult);
     if (NS_FAILED(rv)) return rv;
     *aBoolean = !!byteResult;
@@ -447,10 +447,10 @@ nsBinaryInputStream::ReadBoolean(bool* aBoolean)
 }
 
 NS_IMETHODIMP
-nsBinaryInputStream::Read8(uint8_t* aByte)
+nsBinaryInputStream::Read8(PRUint8* aByte)
 {
     nsresult rv;
-    uint32_t bytesRead;
+    PRUint32 bytesRead;
 
     rv = Read(reinterpret_cast<char*>(aByte), sizeof(*aByte), &bytesRead);
     if (NS_FAILED(rv)) return rv;
@@ -460,10 +460,10 @@ nsBinaryInputStream::Read8(uint8_t* aByte)
 }
 
 NS_IMETHODIMP
-nsBinaryInputStream::Read16(uint16_t* a16)
+nsBinaryInputStream::Read16(PRUint16* a16)
 {
     nsresult rv;
-    uint32_t bytesRead;
+    PRUint32 bytesRead;
 
     rv = Read(reinterpret_cast<char*>(a16), sizeof *a16, &bytesRead);
     if (NS_FAILED(rv)) return rv;
@@ -474,10 +474,10 @@ nsBinaryInputStream::Read16(uint16_t* a16)
 }
 
 NS_IMETHODIMP
-nsBinaryInputStream::Read32(uint32_t* a32)
+nsBinaryInputStream::Read32(PRUint32* a32)
 {
     nsresult rv;
-    uint32_t bytesRead;
+    PRUint32 bytesRead;
 
     rv = Read(reinterpret_cast<char*>(a32), sizeof *a32, &bytesRead);
     if (NS_FAILED(rv)) return rv;
@@ -488,10 +488,10 @@ nsBinaryInputStream::Read32(uint32_t* a32)
 }
 
 NS_IMETHODIMP
-nsBinaryInputStream::Read64(uint64_t* a64)
+nsBinaryInputStream::Read64(PRUint64* a64)
 {
     nsresult rv;
-    uint32_t bytesRead;
+    PRUint32 bytesRead;
 
     rv = Read(reinterpret_cast<char*>(a64), sizeof *a64, &bytesRead);
     if (NS_FAILED(rv)) return rv;
@@ -504,26 +504,26 @@ nsBinaryInputStream::Read64(uint64_t* a64)
 NS_IMETHODIMP
 nsBinaryInputStream::ReadFloat(float* aFloat)
 {
-    NS_ASSERTION(sizeof(float) == sizeof (uint32_t),
+    NS_ASSERTION(sizeof(float) == sizeof (PRUint32),
                  "False assumption about sizeof(float)");
-    return Read32(reinterpret_cast<uint32_t*>(aFloat));
+    return Read32(reinterpret_cast<PRUint32*>(aFloat));
 }
 
 NS_IMETHODIMP
 nsBinaryInputStream::ReadDouble(double* aDouble)
 {
-    NS_ASSERTION(sizeof(double) == sizeof(uint64_t),
+    NS_ASSERTION(sizeof(double) == sizeof(PRUint64),
                  "False assumption about sizeof(double)");
-    return Read64(reinterpret_cast<uint64_t*>(aDouble));
+    return Read64(reinterpret_cast<PRUint64*>(aDouble));
 }
 
 static NS_METHOD
 WriteSegmentToCString(nsIInputStream* aStream,
                       void *aClosure,
                       const char* aFromSegment,
-                      uint32_t aToOffset,
-                      uint32_t aCount,
-                      uint32_t *aWriteCount)
+                      PRUint32 aToOffset,
+                      PRUint32 aCount,
+                      PRUint32 *aWriteCount)
 {
     nsACString* outString = static_cast<nsACString*>(aClosure);
 
@@ -538,7 +538,7 @@ NS_IMETHODIMP
 nsBinaryInputStream::ReadCString(nsACString& aString)
 {
     nsresult rv;
-    uint32_t length, bytesRead;
+    PRUint32 length, bytesRead;
 
     rv = Read32(&length);
     if (NS_FAILED(rv)) return rv;
@@ -582,9 +582,9 @@ static NS_METHOD
 WriteSegmentToString(nsIInputStream* aStream,
                      void *aClosure,
                      const char* aFromSegment,
-                     uint32_t aToOffset,
-                     uint32_t aCount,
-                     uint32_t *aWriteCount)
+                     PRUint32 aToOffset,
+                     PRUint32 aCount,
+                     PRUint32 *aWriteCount)
 {
     NS_PRECONDITION(aCount > 0, "Why are we being told to write 0 bytes?");
     NS_PRECONDITION(sizeof(PRUnichar) == 2, "We can't handle other sizes!");
@@ -622,7 +622,7 @@ WriteSegmentToString(nsIInputStream* aStream,
         reinterpret_cast<const PRUnichar*>(aFromSegment);
 
     // calculate number of full characters in segment (aCount could be odd!)
-    uint32_t segmentLength = aCount / sizeof(PRUnichar);
+    PRUint32 segmentLength = aCount / sizeof(PRUnichar);
 
     // copy all data into our aligned buffer.  byte swap if necessary.
     memcpy(cursor, unicodeSegment, segmentLength * sizeof(PRUnichar));
@@ -651,7 +651,7 @@ NS_IMETHODIMP
 nsBinaryInputStream::ReadString(nsAString& aString)
 {
     nsresult rv;
-    uint32_t length, bytesRead;
+    PRUint32 length, bytesRead;
 
     rv = Read32(&length);
     if (NS_FAILED(rv)) return rv;
@@ -685,10 +685,10 @@ nsBinaryInputStream::ReadString(nsAString& aString)
 }
 
 NS_IMETHODIMP
-nsBinaryInputStream::ReadBytes(uint32_t aLength, char* *_rval)
+nsBinaryInputStream::ReadBytes(PRUint32 aLength, char* *_rval)
 {
     nsresult rv;
-    uint32_t bytesRead;
+    PRUint32 bytesRead;
     char* s;
 
     s = reinterpret_cast<char*>(moz_malloc(aLength));
@@ -710,7 +710,7 @@ nsBinaryInputStream::ReadBytes(uint32_t aLength, char* *_rval)
 }
 
 NS_IMETHODIMP
-nsBinaryInputStream::ReadByteArray(uint32_t aLength, uint8_t* *_rval)
+nsBinaryInputStream::ReadByteArray(PRUint32 aLength, PRUint8* *_rval)
 {
     return ReadBytes(aLength, reinterpret_cast<char **>(_rval));
 }
@@ -785,7 +785,7 @@ nsBinaryInputStream::ReadID(nsID *aResult)
 }
 
 NS_IMETHODIMP_(char*)
-nsBinaryInputStream::GetBuffer(uint32_t aLength, uint32_t aAlignMask)
+nsBinaryInputStream::GetBuffer(PRUint32 aLength, PRUint32 aAlignMask)
 {
     if (mBufferAccess)
         return mBufferAccess->GetBuffer(aLength, aAlignMask);
@@ -793,7 +793,7 @@ nsBinaryInputStream::GetBuffer(uint32_t aLength, uint32_t aAlignMask)
 }
 
 NS_IMETHODIMP_(void)
-nsBinaryInputStream::PutBuffer(char* aBuffer, uint32_t aLength)
+nsBinaryInputStream::PutBuffer(char* aBuffer, PRUint32 aLength)
 {
     if (mBufferAccess)
         mBufferAccess->PutBuffer(aBuffer, aLength);

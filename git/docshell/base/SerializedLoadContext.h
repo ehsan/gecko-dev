@@ -46,7 +46,7 @@ public:
   bool          mIsContent;
   bool          mUsePrivateBrowsing;
   bool          mIsInBrowserElement;
-  uint32_t      mAppId;
+  PRUint32      mAppId;
 };
 
 // Function to serialize over IPDL

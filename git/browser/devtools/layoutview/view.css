@@ -22,7 +22,7 @@ body {
   vertical-align: top;
 }
 
-#header:dir(rtl) {
+body[dir=rtl] > #header {
   -moz-box-direction: reverse;
 }
 
@@ -34,7 +34,7 @@ body {
   -moz-box-flex: 1;
 }
 
-#element-size:dir(rtl) {
+body[dir=rtl] > #header > #element-size {
   -moz-box-pack: end;
 }
 

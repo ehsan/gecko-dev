@@ -18,7 +18,7 @@ nsAlertsImageLoadListener::nsAlertsImageLoadListener(const nsAString &aName,
                                                      const nsAString& aAlertTitle,
                                                      const nsAString& aAlertText,
                                                      const nsAString& aAlertCookie,
-                                                     uint32_t aAlertListenerKey) :
+                                                     PRUint32 aAlertListenerKey) :
   mName(aName), mAlertTitle(aAlertTitle), mAlertText(aAlertText),
   mAlertCookie(aAlertCookie), mAlertListenerKey(aAlertListenerKey)
 {
@@ -28,8 +28,8 @@ NS_IMETHODIMP
 nsAlertsImageLoadListener::OnStreamComplete(nsIStreamLoader* aLoader,
                                             nsISupports* aContext,
                                             nsresult aStatus,
-                                            uint32_t aLength,
-                                            const uint8_t* aResult)
+                                            PRUint32 aLength,
+                                            const PRUint8* aResult)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 

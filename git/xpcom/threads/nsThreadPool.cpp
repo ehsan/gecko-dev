@@ -63,10 +63,10 @@ nsThreadPool::PutEvent(nsIRunnable *event)
 
     LOG(("THRD-P(%p) put [%d %d %d]\n", this, mIdleCount, mThreads.Count(),
          mThreadLimit));
-    NS_ASSERTION(mIdleCount <= (uint32_t) mThreads.Count(), "oops");
+    NS_ASSERTION(mIdleCount <= (PRUint32) mThreads.Count(), "oops");
 
     // Make sure we have a thread to service this event.
-    if (mIdleCount == 0 && mThreads.Count() < (int32_t) mThreadLimit)
+    if (mIdleCount == 0 && mThreads.Count() < (PRInt32) mThreadLimit)
       spawnThread = true;
 
     mEvents.PutEvent(event);
@@ -85,7 +85,7 @@ nsThreadPool::PutEvent(nsIRunnable *event)
   bool killThread = false;
   {
     ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
-    if (mThreads.Count() < (int32_t) mThreadLimit) {
+    if (mThreads.Count() < (PRInt32) mThreadLimit) {
       mThreads.AppendObject(thread);
     } else {
       killThread = true;  // okay, we don't need this thread anymore
@@ -201,7 +201,7 @@ nsThreadPool::Run()
 }
 
 NS_IMETHODIMP
-nsThreadPool::Dispatch(nsIRunnable *event, uint32_t flags)
+nsThreadPool::Dispatch(nsIRunnable *event, PRUint32 flags)
 {
   LOG(("THRD-P(%p) dispatch [%p %x]\n", this, event, flags));
 
@@ -258,21 +258,21 @@ nsThreadPool::Shutdown()
   // It's important that we shutdown the threads while outside the event queue
   // monitor.  Otherwise, we could end up dead-locking.
 
-  for (int32_t i = 0; i < threads.Count(); ++i)
+  for (PRInt32 i = 0; i < threads.Count(); ++i)
     threads[i]->Shutdown();
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsThreadPool::GetThreadLimit(uint32_t *value)
+nsThreadPool::GetThreadLimit(PRUint32 *value)
 {
   *value = mThreadLimit;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsThreadPool::SetThreadLimit(uint32_t value)
+nsThreadPool::SetThreadLimit(PRUint32 value)
 {
   ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
   mThreadLimit = value;
@@ -283,14 +283,14 @@ nsThreadPool::SetThreadLimit(uint32_t value)
 }
 
 NS_IMETHODIMP
-nsThreadPool::GetIdleThreadLimit(uint32_t *value)
+nsThreadPool::GetIdleThreadLimit(PRUint32 *value)
 {
   *value = mIdleThreadLimit;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsThreadPool::SetIdleThreadLimit(uint32_t value)
+nsThreadPool::SetIdleThreadLimit(PRUint32 value)
 {
   ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
   mIdleThreadLimit = value;
@@ -301,14 +301,14 @@ nsThreadPool::SetIdleThreadLimit(uint32_t value)
 }
 
 NS_IMETHODIMP
-nsThreadPool::GetIdleThreadTimeout(uint32_t *value)
+nsThreadPool::GetIdleThreadTimeout(PRUint32 *value)
 {
   *value = mIdleThreadTimeout;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsThreadPool::SetIdleThreadTimeout(uint32_t value)
+nsThreadPool::SetIdleThreadTimeout(PRUint32 value)
 {
   ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
   mIdleThreadTimeout = value;

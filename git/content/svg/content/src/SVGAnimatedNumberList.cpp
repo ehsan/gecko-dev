@@ -47,7 +47,7 @@ SVGAnimatedNumberList::SetBaseValueString(const nsAString& aValue)
 }
 
 void
-SVGAnimatedNumberList::ClearBaseValue(uint32_t aAttrEnum)
+SVGAnimatedNumberList::ClearBaseValue(PRUint32 aAttrEnum)
 {
   DOMSVGAnimatedNumberList *domWrapper =
     DOMSVGAnimatedNumberList::GetDOMWrapperIfExists(this);
@@ -63,7 +63,7 @@ SVGAnimatedNumberList::ClearBaseValue(uint32_t aAttrEnum)
 nsresult
 SVGAnimatedNumberList::SetAnimValue(const SVGNumberList& aNewAnimValue,
                                     nsSVGElement *aElement,
-                                    uint32_t aAttrEnum)
+                                    PRUint32 aAttrEnum)
 {
   DOMSVGAnimatedNumberList *domWrapper =
     DOMSVGAnimatedNumberList::GetDOMWrapperIfExists(this);
@@ -102,7 +102,7 @@ SVGAnimatedNumberList::SetAnimValue(const SVGNumberList& aNewAnimValue,
 
 void
 SVGAnimatedNumberList::ClearAnimValue(nsSVGElement *aElement,
-                                      uint32_t aAttrEnum)
+                                      PRUint32 aAttrEnum)
 {
   DOMSVGAnimatedNumberList *domWrapper =
     DOMSVGAnimatedNumberList::GetDOMWrapperIfExists(this);
@@ -120,7 +120,7 @@ SVGAnimatedNumberList::ClearAnimValue(nsSVGElement *aElement,
 
 nsISMILAttr*
 SVGAnimatedNumberList::ToSMILAttr(nsSVGElement *aSVGElement,
-                                  uint8_t aAttrEnum)
+                                  PRUint8 aAttrEnum)
 {
   return new SMILAnimatedNumberList(this, aSVGElement, aAttrEnum);
 }

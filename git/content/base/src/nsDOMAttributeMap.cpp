@@ -104,14 +104,14 @@ SetOwnerDocumentFunc(nsAttrHashKey::KeyType aKey,
 nsresult
 nsDOMAttributeMap::SetOwnerDocument(nsIDocument* aDocument)
 {
-  uint32_t n = mAttributeCache.Enumerate(SetOwnerDocumentFunc, aDocument);
+  PRUint32 n = mAttributeCache.Enumerate(SetOwnerDocumentFunc, aDocument);
   NS_ENSURE_TRUE(n == mAttributeCache.Count(), NS_ERROR_FAILURE);
 
   return NS_OK;
 }
 
 void
-nsDOMAttributeMap::DropAttribute(int32_t aNamespaceID, nsIAtom* aLocalName)
+nsDOMAttributeMap::DropAttribute(PRInt32 aNamespaceID, nsIAtom* aLocalName)
 {
   nsAttrKey attr(aNamespaceID, aLocalName);
   nsDOMAttribute *node = mAttributeCache.GetWeak(attr);
@@ -353,7 +353,7 @@ nsDOMAttributeMap::RemoveNamedItem(const nsAString& aName,
 
 
 nsDOMAttribute*
-nsDOMAttributeMap::GetItemAt(uint32_t aIndex, nsresult *aResult)
+nsDOMAttributeMap::GetItemAt(PRUint32 aIndex, nsresult *aResult)
 {
   *aResult = NS_OK;
 
@@ -379,7 +379,7 @@ nsDOMAttributeMap::GetItemAt(uint32_t aIndex, nsresult *aResult)
 }
 
 NS_IMETHODIMP
-nsDOMAttributeMap::Item(uint32_t aIndex, nsIDOMNode** aReturn)
+nsDOMAttributeMap::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
   nsresult rv;
   NS_IF_ADDREF(*aReturn = GetItemAt(aIndex, &rv));
@@ -387,7 +387,7 @@ nsDOMAttributeMap::Item(uint32_t aIndex, nsIDOMNode** aReturn)
 }
 
 nsresult
-nsDOMAttributeMap::GetLength(uint32_t *aLength)
+nsDOMAttributeMap::GetLength(PRUint32 *aLength)
 {
   NS_ENSURE_ARG_POINTER(aLength);
 
@@ -422,7 +422,7 @@ nsDOMAttributeMap::GetNamedItemNSInternal(const nsAString& aNamespaceURI,
     return NS_OK;
   }
 
-  int32_t nameSpaceID = kNameSpaceID_None;
+  PRInt32 nameSpaceID = kNameSpaceID_None;
 
   if (!aNamespaceURI.IsEmpty()) {
     nameSpaceID =
@@ -433,10 +433,10 @@ nsDOMAttributeMap::GetNamedItemNSInternal(const nsAString& aNamespaceURI,
     }
   }
 
-  uint32_t i, count = mContent->GetAttrCount();
+  PRUint32 i, count = mContent->GetAttrCount();
   for (i = 0; i < count; ++i) {
     const nsAttrName* name = mContent->GetAttrNameAt(i);
-    int32_t attrNS = name->NamespaceID();
+    PRInt32 attrNS = name->NamespaceID();
     nsIAtom* nameAtom = name->LocalName();
 
     if (nameSpaceID == attrNS &&
@@ -489,13 +489,13 @@ nsDOMAttributeMap::RemoveNamedItemNS(const nsAString& aNamespaceURI,
   return NS_OK;
 }
 
-uint32_t
+PRUint32
 nsDOMAttributeMap::Count() const
 {
   return mAttributeCache.Count();
 }
 
-uint32_t
+PRUint32
 nsDOMAttributeMap::Enumerate(AttrCache::EnumReadFunction aFunc,
                              void *aUserArg) const
 {

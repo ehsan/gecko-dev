@@ -29,7 +29,7 @@
 
 JSBool
 nsJSUtils::GetCallingLocation(JSContext* aContext, const char* *aFilename,
-                              uint32_t* aLineno)
+                              PRUint32* aLineno)
 {
   JSScript* script = nullptr;
   unsigned lineno = 0;
@@ -112,13 +112,13 @@ nsJSUtils::GetDynamicScriptContext(JSContext *aContext)
   return GetScriptContextFromJSContext(aContext);
 }
 
-uint64_t
+PRUint64
 nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(JSContext *aContext)
 {
   if (!aContext)
     return 0;
 
-  uint64_t innerWindowID = 0;
+  PRUint64 innerWindowID = 0;
 
   JSObject *jsGlobal = JS_GetGlobalForScopeChain(aContext);
   if (jsGlobal) {

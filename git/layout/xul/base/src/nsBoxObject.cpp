@@ -230,7 +230,7 @@ nsBoxObject::GetScreenPosition(nsIntPoint& aPoint)
 }
 
 NS_IMETHODIMP
-nsBoxObject::GetX(int32_t* aResult)
+nsBoxObject::GetX(PRInt32* aResult)
 {
   nsIntRect rect;
   GetOffsetRect(rect);
@@ -239,7 +239,7 @@ nsBoxObject::GetX(int32_t* aResult)
 }
 
 NS_IMETHODIMP 
-nsBoxObject::GetY(int32_t* aResult)
+nsBoxObject::GetY(PRInt32* aResult)
 {
   nsIntRect rect;
   GetOffsetRect(rect);
@@ -248,7 +248,7 @@ nsBoxObject::GetY(int32_t* aResult)
 }
 
 NS_IMETHODIMP
-nsBoxObject::GetWidth(int32_t* aResult)
+nsBoxObject::GetWidth(PRInt32* aResult)
 {
   nsIntRect rect;
   GetOffsetRect(rect);
@@ -257,7 +257,7 @@ nsBoxObject::GetWidth(int32_t* aResult)
 }
 
 NS_IMETHODIMP 
-nsBoxObject::GetHeight(int32_t* aResult)
+nsBoxObject::GetHeight(PRInt32* aResult)
 {
   nsIntRect rect;
   GetOffsetRect(rect);
@@ -266,7 +266,7 @@ nsBoxObject::GetHeight(int32_t* aResult)
 }
 
 NS_IMETHODIMP
-nsBoxObject::GetScreenX(int32_t *_retval)
+nsBoxObject::GetScreenX(PRInt32 *_retval)
 {
   nsIntPoint position;
   nsresult rv = GetScreenPosition(position);
@@ -278,7 +278,7 @@ nsBoxObject::GetScreenX(int32_t *_retval)
 }
 
 NS_IMETHODIMP
-nsBoxObject::GetScreenY(int32_t *_retval)
+nsBoxObject::GetScreenY(PRInt32 *_retval)
 {
   nsIntPoint position;
   nsresult rv = GetScreenPosition(position);

@@ -851,10 +851,6 @@ TRY_AGAIN_NO_SHARING:
         return succeeded;
     }
 
-    virtual bool IsCurrent() {
-        return sGLXLibrary.xGetCurrentContext() == mContext;
-    }
-
     bool SetupLookupFunction()
     {
         mLookupFunc = (PlatformLookupFunction)&GLXLibrary::xGetProcAddress;

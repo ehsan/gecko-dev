@@ -13,11 +13,11 @@ using mozilla::ReentrantMonitorAutoEnter;
 
 static const double NS_PER_S = 1e9;
 
-static uint32_t
-VIntLength(unsigned char aFirstByte, uint32_t* aMask)
+static PRUint32
+VIntLength(unsigned char aFirstByte, PRUint32* aMask)
 {
-  uint32_t count = 1;
-  uint32_t mask = 1 << 7;
+  PRUint32 count = 1;
+  PRUint32 mask = 1 << 7;
   while (count < 8) {
     if ((aFirstByte & mask) != 0) {
       break;
@@ -32,7 +32,7 @@ VIntLength(unsigned char aFirstByte, uint32_t* aMask)
   return count;
 }
 
-void nsWebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength,
+void nsWebMBufferedParser::Append(const unsigned char* aBuffer, PRUint32 aLength,
                                   nsTArray<nsWebMTimeDataOffset>& aMapping,
                                   ReentrantMonitor& aReentrantMonitor)
 {
@@ -67,7 +67,7 @@ void nsWebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength
       break;
     case READ_VINT: {
       unsigned char c = *p++;
-      uint32_t mask;
+      PRUint32 mask;
       mVIntLength = VIntLength(c, &mask);
       mVIntLeft = mVIntLength - 1;
       mVInt = c & ~mask;
@@ -112,7 +112,7 @@ void nsWebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength
         mState = READ_VINT;
         mNextState = READ_BLOCK;
       } else {
-        uint32_t length = VIntLength(c, nullptr);
+        PRUint32 length = VIntLength(c, nullptr);
         if (length == 4) {
           p -= 1;
           mState = CLUSTER_SYNC;
@@ -140,7 +140,7 @@ void nsWebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength
         // duplicate nsWebMTimeDataOffset entries.
         {
           ReentrantMonitorAutoEnter mon(aReentrantMonitor);
-          uint32_t idx;
+          PRUint32 idx;
           if (!aMapping.GreatestIndexLtEq(mBlockOffset, idx)) {
             nsWebMTimeDataOffset entry(mBlockOffset, mClusterTimecode + mBlockTimecode);
             aMapping.InsertElementAt(idx, entry);
@@ -150,14 +150,14 @@ void nsWebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength
         // Skip rest of block header and the block's payload.
         mBlockSize -= mVIntLength;
         mBlockSize -= 2;
-        mSkipBytes = uint32_t(mBlockSize);
+        mSkipBytes = PRUint32(mBlockSize);
         mState = SKIP_DATA;
         mNextState = ANY_BLOCK_SYNC;
       }
       break;
     case SKIP_DATA:
       if (mSkipBytes) {
-        uint32_t left = aLength - (p - aBuffer);
+        PRUint32 left = aLength - (p - aBuffer);
         left = NS_MIN(left, mSkipBytes);
         p += left;
         mSkipBytes -= left;
@@ -166,7 +166,7 @@ void nsWebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength
       }
       break;
     case SKIP_ELEMENT:
-      mSkipBytes = uint32_t(mVInt);
+      mSkipBytes = PRUint32(mVInt);
       mState = SKIP_DATA;
       mNextState = ANY_BLOCK_SYNC;
       break;
@@ -177,20 +177,20 @@ void nsWebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength
   mCurrentOffset += aLength;
 }
 
-bool nsWebMBufferedState::CalculateBufferedForRange(int64_t aStartOffset, int64_t aEndOffset,
-                                                    uint64_t* aStartTime, uint64_t* aEndTime)
+bool nsWebMBufferedState::CalculateBufferedForRange(PRInt64 aStartOffset, PRInt64 aEndOffset,
+                                                    PRUint64* aStartTime, PRUint64* aEndTime)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
   // Find the first nsWebMTimeDataOffset at or after aStartOffset.
-  uint32_t start;
+  PRUint32 start;
   mTimeMapping.GreatestIndexLtEq(aStartOffset, start);
   if (start == mTimeMapping.Length()) {
     return false;
   }
 
   // Find the first nsWebMTimeDataOffset at or before aEndOffset.
-  uint32_t end;
+  PRUint32 end;
   if (!mTimeMapping.GreatestIndexLtEq(aEndOffset, end) && end > 0) {
     // No exact match, so adjust end to be the first entry before
     // aEndOffset.
@@ -223,10 +223,10 @@ bool nsWebMBufferedState::CalculateBufferedForRange(int64_t aStartOffset, int64_
   return true;
 }
 
-void nsWebMBufferedState::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset)
+void nsWebMBufferedState::NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRInt64 aOffset)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  uint32_t idx;
+  PRUint32 idx;
   if (!mRangeParsers.GreatestIndexLtEq(aOffset, idx)) {
     // If the incoming data overlaps an already parsed range, adjust the
     // buffer so that we only reparse the new data.  It's also possible to
@@ -240,10 +240,10 @@ void nsWebMBufferedState::NotifyDataArrived(const char* aBuffer, uint32_t aLengt
       }
 
       // Partial overlap, adjust the buffer to parse only the new data.
-      int64_t adjust = mRangeParsers[idx].mCurrentOffset - aOffset;
+      PRInt64 adjust = mRangeParsers[idx].mCurrentOffset - aOffset;
       NS_ASSERTION(adjust >= 0, "Overlap detection bug.");
       aBuffer += adjust;
-      aLength -= uint32_t(adjust);
+      aLength -= PRUint32(adjust);
     } else {
       mRangeParsers.InsertElementAt(idx, nsWebMBufferedParser(aOffset));
     }
@@ -255,7 +255,7 @@ void nsWebMBufferedState::NotifyDataArrived(const char* aBuffer, uint32_t aLengt
                             mReentrantMonitor);
 
   // Merge parsers with overlapping regions and clean up the remnants.
-  uint32_t i = 0;
+  PRUint32 i = 0;
   while (i + 1 < mRangeParsers.Length()) {
     if (mRangeParsers[i].mCurrentOffset >= mRangeParsers[i + 1].mStartOffset) {
       mRangeParsers[i + 1].mStartOffset = mRangeParsers[i].mStartOffset;

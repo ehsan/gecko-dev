@@ -31,7 +31,7 @@ nsUsageArrayHelper::nsUsageArrayHelper(CERTCertificate *aCert)
 void
 nsUsageArrayHelper::check(const char *suffix,
                         SECCertificateUsage aCertUsage,
-                        uint32_t &aCounter,
+                        PRUint32 &aCounter,
                         PRUnichar **outUsages)
 {
   if (!aCertUsage) return;
@@ -87,7 +87,7 @@ nsUsageArrayHelper::check(const char *suffix,
 }
 
 void
-nsUsageArrayHelper::verifyFailed(uint32_t *_verified, int err)
+nsUsageArrayHelper::verifyFailed(PRUint32 *_verified, int err)
 {
   switch (err) {
   /* For these cases, verify only failed for the particular usage */
@@ -122,9 +122,9 @@ nsUsageArrayHelper::verifyFailed(uint32_t *_verified, int err)
 nsresult
 nsUsageArrayHelper::GetUsagesArray(const char *suffix,
                       bool localOnly,
-                      uint32_t outArraySize,
-                      uint32_t *_verified,
-                      uint32_t *_count,
+                      PRUint32 outArraySize,
+                      PRUint32 *_verified,
+                      PRUint32 *_count,
                       PRUnichar **outUsages)
 {
   nsNSSShutDownPreventionLock locker;
@@ -147,7 +147,7 @@ nsUsageArrayHelper::GetUsagesArray(const char *suffix,
     }
   }
   
-  uint32_t &count = *_count;
+  PRUint32 &count = *_count;
   count = 0;
   SECCertificateUsage usages = 0;
   int err = 0;

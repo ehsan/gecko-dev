@@ -49,7 +49,7 @@ nsresult txXSLTNumber::createNumber(Expr* aValueExpr, txPattern* aCountPattern,
     txListIterator valueIter(&values);
     txListIterator counterIter(&counters);
     valueIter.resetToEnd();
-    int32_t value;
+    PRInt32 value;
     txFormattedCounter* counter = 0;
     while ((value = NS_PTR_TO_INT32(valueIter.previous()))) {
         if (counterIter.hasNext()) {
@@ -97,7 +97,7 @@ txXSLTNumber::getValueList(Expr* aValueExpr, txPattern* aCountPattern,
             return NS_OK;
         }
         
-        aValues.add(NS_INT32_TO_PTR((int32_t)floor(value + 0.5)));
+        aValues.add(NS_INT32_TO_PTR((PRInt32)floor(value + 0.5)));
         return NS_OK;
     }
 
@@ -113,13 +113,13 @@ txXSLTNumber::getValueList(Expr* aValueExpr, txPattern* aCountPattern,
     if (!aCountPattern) {
         ownsCountPattern = true;
         txNodeTest* nodeTest;
-        uint16_t nodeType = txXPathNodeUtils::getNodeType(currNode);
+        PRUint16 nodeType = txXPathNodeUtils::getNodeType(currNode);
         switch (nodeType) {
             case txXPathNodeType::ELEMENT_NODE:
             {
                 nsCOMPtr<nsIAtom> localName =
                     txXPathNodeUtils::getLocalName(currNode);
-                int32_t namespaceID = txXPathNodeUtils::getNamespaceID(currNode);
+                PRInt32 namespaceID = txXPathNodeUtils::getNamespaceID(currNode);
                 nodeTest = new txNameTest(0, localName, namespaceID,
                                           txXPathNodeType::ELEMENT_NODE);
                 break;
@@ -232,7 +232,7 @@ txXSLTNumber::getValueList(Expr* aValueExpr, txPattern* aCountPattern,
     }
     // level = "any"
     else if (aLevel == eLevelAny) {
-        int32_t value = 0;
+        PRInt32 value = 0;
         bool matchedFrom = false;
 
         txXPathTreeWalker walker(currNode);
@@ -281,14 +281,14 @@ txXSLTNumber::getCounters(Expr* aGroupSize, Expr* aGroupSeparator,
     nsresult rv = NS_OK;
 
     nsAutoString groupSeparator;
-    int32_t groupSize = 0;
+    PRInt32 groupSize = 0;
     if (aGroupSize && aGroupSeparator) {
         nsAutoString sizeStr;
         rv = aGroupSize->evaluateToString(aContext, sizeStr);
         NS_ENSURE_SUCCESS(rv, rv);
 
         double size = txDouble::toDouble(sizeStr);
-        groupSize = (int32_t)size;
+        groupSize = (PRInt32)size;
         if ((double)groupSize != size) {
             groupSize = 0;
         }
@@ -303,8 +303,8 @@ txXSLTNumber::getCounters(Expr* aGroupSize, Expr* aGroupSeparator,
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    uint32_t formatLen = format.Length();
-    uint32_t formatPos = 0;
+    PRUint32 formatLen = format.Length();
+    PRUint32 formatPos = 0;
     PRUnichar ch = 0;
 
     // start with header
@@ -393,12 +393,12 @@ txXSLTNumber::getCounters(Expr* aGroupSize, Expr* aGroupSeparator,
     return NS_OK;
 }
 
-int32_t
+PRInt32
 txXSLTNumber::getSiblingCount(txXPathTreeWalker& aWalker,
                               txPattern* aCountPattern,
                               txIMatchContext* aContext)
 {
-    int32_t value = 1;
+    PRInt32 value = 1;
     while (aWalker.moveToPreviousSibling()) {
         if (aCountPattern->matches(aWalker.getCurrentPosition(), aContext)) {
             ++value;

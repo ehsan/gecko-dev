@@ -57,11 +57,11 @@ public:
 private:
   bool mAutoOrientationEnabled;
   PRTime mLastUpdate;
-  uint32_t mAllowedOrientations;
+  PRUint32 mAllowedOrientations;
 
   // 200 ms, the latency which is barely perceptible by human.
   static const PRTime sMinUpdateInterval = 200 * PR_USEC_PER_MSEC;
-  static const uint32_t sDefaultOrientations =
+  static const PRUint32 sDefaultOrientations =
       mozilla::dom::eScreenOrientation_Portrait |
       mozilla::dom::eScreenOrientation_Landscape;
 };

@@ -29,30 +29,30 @@ public:
     nsresult Close();
 
 protected:
-    nsresult Init(nsISupports* stream, uint32_t bufferSize);
+    nsresult Init(nsISupports* stream, PRUint32 bufferSize);
     NS_IMETHOD Fill() = 0;
     NS_IMETHOD Flush() = 0;
 
-    uint32_t                    mBufferSize;
+    PRUint32                    mBufferSize;
     char*                       mBuffer;
 
     // mBufferStartOffset is the offset relative to the start of mStream.
-    int64_t                     mBufferStartOffset;
+    PRInt64                     mBufferStartOffset;
 
     // mCursor is the read cursor for input streams, or write cursor for
     // output streams, and is relative to mBufferStartOffset.
-    uint32_t                    mCursor;
+    PRUint32                    mCursor;
 
     // mFillPoint is the amount available in the buffer for input streams,
     // or the high watermark of bytes written into the buffer, and therefore
     // is relative to mBufferStartOffset.
-    uint32_t                    mFillPoint;
+    PRUint32                    mFillPoint;
 
     nsISupports*                mStream;        // cast to appropriate subclass
 
     bool                        mBufferDisabled;
     bool                        mEOF;  // True if mStream is at EOF
-    uint8_t                     mGetBufferCount;
+    PRUint8                     mGetBufferCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

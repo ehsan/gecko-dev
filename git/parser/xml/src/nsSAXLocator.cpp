@@ -9,8 +9,8 @@ NS_IMPL_ISUPPORTS1(nsSAXLocator, nsISAXLocator)
 
 nsSAXLocator::nsSAXLocator(nsString& aPublicId,
                            nsString& aSystemId,
-                           int32_t aLineNumber,
-                           int32_t aColumnNumber) :
+                           PRInt32 aLineNumber,
+                           PRInt32 aColumnNumber) :
   mPublicId(aPublicId),
   mSystemId(aSystemId),
   mLineNumber(aLineNumber),
@@ -19,14 +19,14 @@ nsSAXLocator::nsSAXLocator(nsString& aPublicId,
 }
 
 NS_IMETHODIMP
-nsSAXLocator::GetColumnNumber(int32_t *aColumnNumber)
+nsSAXLocator::GetColumnNumber(PRInt32 *aColumnNumber)
 {
   *aColumnNumber = mColumnNumber;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSAXLocator::GetLineNumber(int32_t *aLineNumber)
+nsSAXLocator::GetLineNumber(PRInt32 *aLineNumber)
 {
   *aLineNumber = mLineNumber;
   return NS_OK;

@@ -67,20 +67,20 @@ public:
   NS_DECL_NSIDOMHTMLHTMLELEMENT
 
   // nsIContent
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
     return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
   }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            bool aNotify);
 
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              bool aNotify);
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -230,7 +230,7 @@ nsHTMLSharedElement::SetHref(const nsAString& aValue)
 
 
 bool
-nsHTMLSharedElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLSharedElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsIAtom* aAttribute,
                                     const nsAString& aValue,
                                     nsAttrValue& aResult)
@@ -351,7 +351,7 @@ SetBaseTargetUsingFirstBaseWithTarget(nsIDocument* aDocument,
 }
 
 nsresult
-nsHTMLSharedElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsHTMLSharedElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              nsIAtom* aPrefix, const nsAString& aValue,
                              bool aNotify)
 {
@@ -377,7 +377,7 @@ nsHTMLSharedElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsHTMLSharedElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsHTMLSharedElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                bool aNotify)
 {
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aName, aNotify);

@@ -12,7 +12,7 @@
 #include "nsIDOMNode.h"                 // for nsIDOMNode
 #include "nsISupportsImpl.h"            // for NS_DECL_ISUPPORTS_INHERITED
 #include "nscore.h"                     // for NS_IMETHOD
-#include "prtypes.h"                    // for int32_t
+#include "prtypes.h"                    // for PRInt32
 
 class nsEditor;
 
@@ -32,7 +32,7 @@ public:
     */
   NS_IMETHOD Init (nsEditor   *aEditor,
                    nsIDOMNode *aNode,
-                   int32_t     aOffset);
+                   PRInt32     aOffset);
 
   SplitElementTxn();
 
@@ -54,7 +54,7 @@ protected:
     * mOffset is the index of the first child in the right node. 
     * -1 means the new node gets no children.
     */
-  int32_t  mOffset;
+  PRInt32  mOffset;
 
   /** the element we create when splitting mElement */
   nsCOMPtr<nsIDOMNode> mNewLeftNode;

@@ -28,9 +28,9 @@ interface nsIParentRedirectingChannel : nsIParentChannel
    *    redirect result callback, usage is compatible with how
    *    nsIChannelEventSink defines it
    */
-  void startRedirect(in uint32_t newChannelId,
+  void startRedirect(in PRUint32 newChannelId,
                      in nsIChannel newChannel,
-                     in uint32_t redirectFlags,
+                     in PRUint32 redirectFlags,
                      in nsIAsyncVerifyRedirectCallback callback);
 
   /**

@@ -184,7 +184,7 @@ class SetPropCompiler : public PICStubCompiler
         repatcher.relink(labels.getInlineShapeJump(pic.fastPathStart.labelAtOffset(pic.shapeGuard)),
                          pic.slowPathStart);
 
-        FunctionPtr target(JS_FUNC_TO_DATA_PTR(void *, ic::SetPropOrName));
+        FunctionPtr target(JS_FUNC_TO_DATA_PTR(void *, ic::SetProp));
         repatcher.relink(pic.slowPathCall, target);
     }
 
@@ -441,7 +441,7 @@ class SetPropCompiler : public PICStubCompiler
 
         /* lookupProperty can trigger recompilations. */
         RecompilationMonitor monitor(cx);
-        if (!JSObject::lookupProperty(cx, obj, name, &holder, &shape))
+        if (!obj->lookupProperty(cx, name, &holder, &shape))
             return error();
         if (monitor.recompiled())
             return Lookup_Uncacheable;
@@ -641,7 +641,7 @@ struct GetPropHelper {
         RootedObject scopeChain(cx, cx->stack.currentScriptedScopeChain());
         if (js_CodeSpec[*f.pc()].format & JOF_GNAME)
             scopeChain = &scopeChain->global();
-        if (!LookupName(cx, name, scopeChain, &obj, &holder, &prop))
+        if (!FindProperty(cx, name, scopeChain, &obj, &holder, &prop))
             return ic.error(cx);
         if (monitor.recompiled())
             return Lookup_Uncacheable;
@@ -656,7 +656,7 @@ struct GetPropHelper {
     }
 
     LookupStatus lookup() {
-        RootedObject aobj(cx, obj);
+        JSObject *aobj = obj;
         if (obj->isDenseArray())
             aobj = obj->getProto();
         else if (IsCacheableListBase(obj))
@@ -666,7 +666,7 @@ struct GetPropHelper {
             return ic.disable(f, "non-native");
 
         RecompilationMonitor monitor(cx);
-        if (!JSObject::lookupProperty(cx, aobj, name, &holder, &prop))
+        if (!aobj->lookupProperty(cx, name, &holder, &prop))
             return ic.error(cx);
         if (monitor.recompiled())
             return Lookup_Uncacheable;
@@ -1741,8 +1741,8 @@ class ScopeNameCompiler : public PICStubCompiler
 
     bool retrieve(MutableHandleValue vp, PICInfo::Kind kind)
     {
-        RootedObject obj(cx, getprop.obj);
-        RootedObject holder(cx, getprop.holder);
+        JSObject *obj = getprop.obj;
+        Rooted<JSObject*> holder(cx, getprop.holder);
         RootedShape prop(cx, getprop.prop);
 
         if (!prop) {
@@ -1761,7 +1761,7 @@ class ScopeNameCompiler : public PICStubCompiler
         // If the property was found, but we decided not to cache it, then
         // take a slow path and do a full property fetch.
         if (!getprop.shape) {
-            if (!JSObject::getProperty(cx, obj, obj, name, vp))
+            if (!obj->getProperty(cx, name, vp))
                 return false;
             return true;
         }
@@ -1893,24 +1893,21 @@ class BindNameCompiler : public PICStubCompiler
     {
         RecompilationMonitor monitor(cx);
 
-        RootedObject scope(cx);
-        if (!LookupNameForSet(cx, name, scopeChain, &scope))
-            return NULL;
-
-        if (monitor.recompiled())
-            return scope;
+        JSObject *obj = FindIdentifierBase(cx, scopeChain, name);
+        if (!obj || monitor.recompiled())
+            return obj;
 
         if (!pic.hit) {
             spew("first hit", "nop");
             pic.hit = true;
-            return scope;
+            return obj;
         }
 
-        LookupStatus status = generateStub(scope);
+        LookupStatus status = generateStub(obj);
         if (status == Lookup_Error)
             return NULL;
 
-        return scope;
+        return obj;
     }
 };
 
@@ -1973,11 +1970,10 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
             LookupStatus status = cc.generateStringPropertyStub();
             if (status == Lookup_Error)
                 THROW();
-            RootedObject obj(f.cx, ToObjectFromStack(f.cx, objval));
+            JSObject *obj = ToObjectFromStack(f.cx, objval);
             if (!obj)
                 THROW();
-            MutableHandleValue vp = MutableHandleValue::fromMarkedLocation(&f.regs.sp[-1]);
-            if (!JSObject::getProperty(f.cx, obj, obj, name, vp))
+            if (!obj->getProperty(f.cx, name, MutableHandleValue::fromMarkedLocation(&f.regs.sp[-1])))
                 THROW();
         }
         return;
@@ -2000,33 +1996,30 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
         if (!GetPropertyOperation(f.cx, f.pc(), &objval, &v))
             THROW();
     } else {
-        if (!JSObject::getProperty(f.cx, obj, obj, name, &v))
+        if (!obj->getProperty(f.cx, name, &v))
             THROW();
     }
 
     f.regs.sp[-1] = v;
 }
 
+template <JSBool strict>
 static void JS_FASTCALL
 DisabledSetPropIC(VMFrame &f, ic::PICInfo *pic)
 {
-    stubs::SetProp(f, pic->name);
-}
-
-static void JS_FASTCALL
-DisabledSetNameIC(VMFrame &f, ic::PICInfo *pic)
-{
-    stubs::SetName(f, pic->name);
+    stubs::SetName<strict>(f, pic->name);
 }
 
 void JS_FASTCALL
-ic::SetPropOrName(VMFrame &f, ic::PICInfo *pic)
+ic::SetProp(VMFrame &f, ic::PICInfo *pic)
 {
     JS_ASSERT(pic->isSet());
-    JS_ASSERT(*f.pc() == JSOP_SETPROP || *f.pc() == JSOP_SETNAME);
+
+    VoidStubPIC stub = STRICT_VARIANT(f.script(), DisabledSetPropIC);
 
     // Save this in case the compiler triggers a recompilation of this script.
     RootedPropertyName name(f.cx, pic->name);
+    VoidStubName nstub = STRICT_VARIANT(f.script(), stubs::SetName);
 
     RecompilationMonitor monitor(f.cx);
 
@@ -2035,20 +2028,16 @@ ic::SetPropOrName(VMFrame &f, ic::PICInfo *pic)
     if (!obj)
         THROW();
 
-    // Note, we can't use SetProp/Name for PROPINC PICs because the property
+    // Note, we can't use SetName for PROPINC PICs because the property
     // cache can't handle a GET and SET from the same scripted PC.
     if (!monitor.recompiled() && pic->shouldUpdate(f)) {
-        VoidStubPIC disabled = *f.pc() == JSOP_SETPROP ? DisabledSetPropIC : DisabledSetNameIC;
-        SetPropCompiler cc(f, obj, *pic, name, disabled);
+        SetPropCompiler cc(f, obj, *pic, name, stub);
         LookupStatus status = cc.update();
         if (status == Lookup_Error)
             THROW();
     }
 
-    if (*f.pc() == JSOP_SETPROP)
-        stubs::SetProp(f, name);
-    else
-        stubs::SetName(f, name);
+    nstub(f, name);
 }
 
 static void JS_FASTCALL
@@ -2521,7 +2510,7 @@ GetElementIC::attachTypedArray(VMFrame &f, HandleObject obj, HandleValue v, Hand
 
     // Fetch the value as expected of Lookup_Cacheable for GetElement.
     Rooted<jsid> idRoot(cx, id);
-    if (!JSObject::getGeneric(cx, obj, obj, idRoot, vp))
+    if (!obj->getGeneric(cx, idRoot, vp))
         return Lookup_Error;
 
     return Lookup_Cacheable;
@@ -2616,7 +2605,7 @@ ic::GetElement(VMFrame &f, ic::GetElementIC *ic)
         }
     }
 
-    if (!JSObject::getGeneric(cx, obj, obj, id, res))
+    if (!obj->getGeneric(cx, id, res))
         THROW();
 
 #if JS_HAS_NO_SUCH_METHOD

@@ -38,7 +38,7 @@ public:
 protected:
   void UnsuppressInvalidation() { mInvalidationSuppressed = false; }
   void Invalidate();
-  void AddCell(int32_t aIndex, nsITreeColumn* aCol);
+  void AddCell(PRInt32 aIndex, nsITreeColumn* aCol);
 
 private:
   nsTreeBodyFrame* mTreeFrame;
@@ -54,17 +54,17 @@ private:
       friend class nsTreeImageListener;
 
     protected:
-      void AddRow(int32_t aIndex);
+      void AddRow(PRInt32 aIndex);
       nsITreeColumn* GetCol() { return mCol.get(); }
-      int32_t GetMin() { return mMin; }
-      int32_t GetMax() { return mMax; }
+      PRInt32 GetMin() { return mMin; }
+      PRInt32 GetMax() { return mMax; }
       InvalidationArea* GetNext() { return mNext; }
       void SetNext(InvalidationArea* aNext) { mNext = aNext; }
 
     private:
       nsCOMPtr<nsITreeColumn> mCol;
-      int32_t                 mMin;
-      int32_t                 mMax;
+      PRInt32                 mMin;
+      PRInt32                 mMax;
       InvalidationArea*       mNext;
   };
 

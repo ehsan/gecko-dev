@@ -53,18 +53,18 @@ HTMLCheckboxAccessible::NativeRole()
   return roles::CHECKBUTTON;
 }
 
-uint8_t
+PRUint8
 HTMLCheckboxAccessible::ActionCount()
 {
   return 1;
 }
 
 NS_IMETHODIMP
-HTMLCheckboxAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
+HTMLCheckboxAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 {
   if (aIndex == eAction_Click) {    // 0 is the magic value for default action
     // cycle, check or uncheck
-    uint64_t state = NativeState();
+    PRUint64 state = NativeState();
 
     if (state & states::CHECKED)
       aName.AssignLiteral("uncheck"); 
@@ -79,7 +79,7 @@ HTMLCheckboxAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 }
 
 NS_IMETHODIMP
-HTMLCheckboxAccessible::DoAction(uint8_t aIndex)
+HTMLCheckboxAccessible::DoAction(PRUint8 aIndex)
 {
   if (aIndex != 0)
     return NS_ERROR_INVALID_ARG;
@@ -88,10 +88,10 @@ HTMLCheckboxAccessible::DoAction(uint8_t aIndex)
   return NS_OK;
 }
 
-uint64_t
+PRUint64
 HTMLCheckboxAccessible::NativeState()
 {
-  uint64_t state = LeafAccessible::NativeState();
+  PRUint64 state = LeafAccessible::NativeState();
 
   state |= states::CHECKABLE;
   bool checkState = false;   // Radio buttons and check boxes can be checked or mixed
@@ -134,10 +134,10 @@ HTMLRadioButtonAccessible::
 {
 }
 
-uint64_t
+PRUint64
 HTMLRadioButtonAccessible::NativeState()
 {
-  uint64_t state = AccessibleWrap::NativeState();
+  PRUint64 state = AccessibleWrap::NativeState();
 
   state |= states::CHECKABLE;
 
@@ -154,10 +154,10 @@ HTMLRadioButtonAccessible::NativeState()
 }
 
 void
-HTMLRadioButtonAccessible::GetPositionAndSizeInternal(int32_t* aPosInSet,
-                                                      int32_t* aSetSize)
+HTMLRadioButtonAccessible::GetPositionAndSizeInternal(PRInt32* aPosInSet,
+                                                      PRInt32* aSetSize)
 {
-  int32_t namespaceId = mContent->NodeInfo()->NamespaceID();
+  PRInt32 namespaceId = mContent->NodeInfo()->NamespaceID();
   nsAutoString tagName;
   mContent->NodeInfo()->GetName(tagName);
 
@@ -176,13 +176,13 @@ HTMLRadioButtonAccessible::GetPositionAndSizeInternal(int32_t* aPosInSet,
     inputElms = NS_GetContentList(mContent->OwnerDoc(), namespaceId, tagName);
   NS_ENSURE_TRUE(inputElms, );
 
-  uint32_t inputCount = inputElms->Length(false);
+  PRUint32 inputCount = inputElms->Length(false);
 
   // Compute posinset and setsize.
-  int32_t indexOf = 0;
-  int32_t count = 0;
+  PRInt32 indexOf = 0;
+  PRInt32 count = 0;
 
-  for (uint32_t index = 0; index < inputCount; index++) {
+  for (PRUint32 index = 0; index < inputCount; index++) {
     nsIContent* inputElm = inputElms->Item(index, false);
     if (inputElm->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                               type, eCaseMatters) &&
@@ -208,14 +208,14 @@ HTMLButtonAccessible::
 {
 }
 
-uint8_t
+PRUint8
 HTMLButtonAccessible::ActionCount()
 {
   return 1;
 }
 
 NS_IMETHODIMP
-HTMLButtonAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
+HTMLButtonAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 {
   if (aIndex == eAction_Click) {
     aName.AssignLiteral("press"); 
@@ -225,7 +225,7 @@ HTMLButtonAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 }
 
 NS_IMETHODIMP
-HTMLButtonAccessible::DoAction(uint8_t aIndex)
+HTMLButtonAccessible::DoAction(PRUint8 aIndex)
 {
   if (aIndex != eAction_Click)
     return NS_ERROR_INVALID_ARG;
@@ -234,10 +234,10 @@ HTMLButtonAccessible::DoAction(uint8_t aIndex)
   return NS_OK;
 }
 
-uint64_t
+PRUint64
 HTMLButtonAccessible::State()
 {
-  uint64_t state = HyperTextAccessibleWrap::State();
+  PRUint64 state = HyperTextAccessibleWrap::State();
   if (state == states::DEFUNCT)
     return state;
 
@@ -245,7 +245,7 @@ HTMLButtonAccessible::State()
   // no special processing for unavailable state since inheritance is supplied
   // other code paths.
   if (mParent && mParent->IsHTMLFileInput()) {
-    uint64_t parentState = mParent->State();
+    PRUint64 parentState = mParent->State();
     state |= parentState & (states::BUSY | states::REQUIRED |
                             states::HASPOPUP | states::INVALID);
   }
@@ -253,10 +253,10 @@ HTMLButtonAccessible::State()
   return state;
 }
 
-uint64_t
+PRUint64
 HTMLButtonAccessible::NativeState()
 {
-  uint64_t state = HyperTextAccessibleWrap::NativeState();
+  PRUint64 state = HyperTextAccessibleWrap::NativeState();
 
   nsEventStates elmState = mContent->AsElement()->State();
   if (elmState.HasState(NS_EVENT_STATE_DEFAULT))
@@ -390,17 +390,17 @@ HTMLTextFieldAccessible::Value(nsString& aValue)
 }
 
 void
-HTMLTextFieldAccessible::ApplyARIAState(uint64_t* aState) const
+HTMLTextFieldAccessible::ApplyARIAState(PRUint64* aState) const
 {
   HyperTextAccessibleWrap::ApplyARIAState(aState);
 
   aria::MapToState(aria::eARIAAutoComplete, mContent->AsElement(), aState);
 }
 
-uint64_t
+PRUint64
 HTMLTextFieldAccessible::State()
 {
-  uint64_t state = HyperTextAccessibleWrap::State();
+  PRUint64 state = HyperTextAccessibleWrap::State();
   if (state & states::DEFUNCT)
     return state;
 
@@ -408,7 +408,7 @@ HTMLTextFieldAccessible::State()
   // no special processing for unavailable state since inheritance is supplied
   // by other code paths.
   if (mParent && mParent->IsHTMLFileInput()) {
-    uint64_t parentState = mParent->State();
+    PRUint64 parentState = mParent->State();
     state |= parentState & (states::BUSY | states::REQUIRED |
       states::HASPOPUP | states::INVALID);
   }
@@ -416,10 +416,10 @@ HTMLTextFieldAccessible::State()
   return state;
 }
 
-uint64_t
+PRUint64
 HTMLTextFieldAccessible::NativeState()
 {
-  uint64_t state = HyperTextAccessibleWrap::NativeState();
+  PRUint64 state = HyperTextAccessibleWrap::NativeState();
 
   // can be focusable, focused, protected. readonly, unavailable, selected
   if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
@@ -479,14 +479,14 @@ HTMLTextFieldAccessible::NativeState()
   return state;
 }
 
-uint8_t
+PRUint8
 HTMLTextFieldAccessible::ActionCount()
 {
   return 1;
 }
 
 NS_IMETHODIMP
-HTMLTextFieldAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
+HTMLTextFieldAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 {
   if (aIndex == eAction_Click) {
     aName.AssignLiteral("activate");
@@ -496,7 +496,7 @@ HTMLTextFieldAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 }
 
 NS_IMETHODIMP
-HTMLTextFieldAccessible::DoAction(uint8_t aIndex)
+HTMLTextFieldAccessible::DoAction(PRUint8 aIndex)
 {
   if (aIndex == 0) {
     nsCOMPtr<nsIDOMHTMLElement> element(do_QueryInterface(mContent));
@@ -655,7 +655,7 @@ HTMLGroupboxAccessible::GetNameInternal(nsAString& aName)
 }
 
 Relation
-HTMLGroupboxAccessible::RelationByType(uint32_t aType)
+HTMLGroupboxAccessible::RelationByType(PRUint32 aType)
 {
   Relation rel = HyperTextAccessibleWrap::RelationByType(aType);
     // No override for label, so use <legend> for this <fieldset>
@@ -676,7 +676,7 @@ HTMLLegendAccessible::
 }
 
 Relation
-HTMLLegendAccessible::RelationByType(uint32_t aType)
+HTMLLegendAccessible::RelationByType(PRUint32 aType)
 {
   Relation rel = HyperTextAccessibleWrap::RelationByType(aType);
   if (aType != nsIAccessibleRelation::RELATION_LABEL_FOR)
@@ -742,7 +742,7 @@ HTMLFigureAccessible::GetNameInternal(nsAString& aName)
 }
 
 Relation
-HTMLFigureAccessible::RelationByType(uint32_t aType)
+HTMLFigureAccessible::RelationByType(PRUint32 aType)
 {
   Relation rel = HyperTextAccessibleWrap::RelationByType(aType);
   if (aType == nsIAccessibleRelation::RELATION_LABELLED_BY)
@@ -782,7 +782,7 @@ HTMLFigcaptionAccessible::NativeRole()
 }
 
 Relation
-HTMLFigcaptionAccessible::RelationByType(uint32_t aType)
+HTMLFigcaptionAccessible::RelationByType(PRUint32 aType)
 {
   Relation rel = HyperTextAccessibleWrap::RelationByType(aType);
   if (aType != nsIAccessibleRelation::RELATION_LABEL_FOR)

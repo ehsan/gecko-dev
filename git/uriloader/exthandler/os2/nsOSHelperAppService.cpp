@@ -1320,7 +1320,7 @@ GetNLSString(const PRUnichar *aKey, nsAString& result)
 // if RWS isn't being used or there's no association, returns zero;
 // also constructs a description of the handler based on available info
 
-static uint32_t
+static PRUint32
 WpsGetDefaultHandler(const char *aFileExt, nsAString& aDescription)
 {
   aDescription.Truncate();
@@ -1330,7 +1330,7 @@ WpsGetDefaultHandler(const char *aFileExt, nsAString& aDescription)
     if (!rwsSvc)
       sUseRws = false;
     else {
-      uint32_t handle;
+      PRUint32 handle;
       // the handle may be zero if the WPS class provides the default handler
       if (NS_SUCCEEDED(rwsSvc->HandlerFromExtension(aFileExt, &handle, aDescription)))
         return handle;
@@ -1361,7 +1361,7 @@ WpsMimeInfoFromExtension(const char *aFileExt, nsMIMEInfoOS2 *aMI)
 
   // get the default app's description and WPS handle (if any)
   nsAutoString ustr;
-  uint32_t handle = WpsGetDefaultHandler(aFileExt, ustr);
+  PRUint32 handle = WpsGetDefaultHandler(aFileExt, ustr);
   aMI->SetDefaultDescription(ustr);
   aMI->SetDefaultAppHandle(handle);
 
@@ -1483,7 +1483,7 @@ nsOSHelperAppService::GetFromTypeAndExtension(const nsACString& aMIMEType,
   }
 
   // use the WPS default as the system default handler
-  uint32_t handle = WpsGetDefaultHandler(ext.get(), description);
+  PRUint32 handle = WpsGetDefaultHandler(ext.get(), description);
   mi->SetDefaultDescription(description);
   mi->SetDefaultApplication(0);
   mi->SetDefaultAppHandle(handle);

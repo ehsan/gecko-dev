@@ -196,8 +196,8 @@ NS_IMETHODIMP nsContentTreeOwner::FindItemWithName(const PRUnichar* aName,
                     "Bogus aRequestor");
 #endif
 
-       int32_t count = mXULWindow->mTargetableShells.Count();
-       for (int32_t i = 0; i < count; ++i) {
+       PRInt32 count = mXULWindow->mTargetableShells.Count();
+       for (PRInt32 i = 0; i < count; ++i) {
          nsCOMPtr<nsIDocShellTreeItem> item =
            do_QueryReferent(mXULWindow->mTargetableShells[i]);
          if (SameCOMIdentity(item, aRequestor)) {
@@ -236,8 +236,8 @@ NS_IMETHODIMP nsContentTreeOwner::FindItemWithName(const PRUnichar* aName,
        nsRefPtr<nsXULWindow> win;
        xulWindow->QueryInterface(NS_GET_IID(nsXULWindow), getter_AddRefs(win));
        if (win) {
-         int32_t count = win->mTargetableShells.Count();
-         int32_t i;
+         PRInt32 count = win->mTargetableShells.Count();
+         PRInt32 i;
          for (i = 0; i < count && !*aFoundItem; ++i) {
            nsCOMPtr<nsIDocShellTreeItem> shellAsTreeItem =
              do_QueryReferent(win->mTargetableShells[i]);
@@ -300,7 +300,7 @@ NS_IMETHODIMP nsContentTreeOwner::GetPrimaryContentShell(nsIDocShellTreeItem** a
 }
 
 NS_IMETHODIMP nsContentTreeOwner::SizeShellTo(nsIDocShellTreeItem* aShellItem,
-   int32_t aCX, int32_t aCY)
+   PRInt32 aCX, PRInt32 aCY)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->SizeShellTo(aShellItem, aCX, aCY);
@@ -321,7 +321,7 @@ nsContentTreeOwner::SetPersistence(bool aPersistPosition,
   docShellElement->GetAttribute(NS_LITERAL_STRING("persist"), persistString);
 
   bool saveString = false;
-  int32_t index;
+  PRInt32 index;
 
   // Set X
   index = persistString.Find("screenX");
@@ -402,7 +402,7 @@ nsContentTreeOwner::GetPersistence(bool* aPersistPosition,
 }
 
 NS_IMETHODIMP
-nsContentTreeOwner::GetTargetableShellCount(uint32_t* aResult)
+nsContentTreeOwner::GetTargetableShellCount(PRUint32* aResult)
 {
   NS_ENSURE_STATE(mXULWindow);
   *aResult = mXULWindow->mTargetableShells.Count();
@@ -436,7 +436,7 @@ NS_IMETHODIMP nsContentTreeOwner::OnBeforeLinkTraversal(const nsAString &origina
 // nsContentTreeOwner::nsIWebBrowserChrome2
 //*****************************************************************************   
 
-NS_IMETHODIMP nsContentTreeOwner::SetStatusWithContext(uint32_t aStatusType,
+NS_IMETHODIMP nsContentTreeOwner::SetStatusWithContext(PRUint32 aStatusType,
                                                        const nsAString &aStatusText,
                                                        nsISupports *aStatusContext)
 {
@@ -475,7 +475,7 @@ NS_IMETHODIMP nsContentTreeOwner::SetStatusWithContext(uint32_t aStatusType,
 // nsContentTreeOwner::nsIWebBrowserChrome
 //*****************************************************************************   
 
-NS_IMETHODIMP nsContentTreeOwner::SetStatus(uint32_t aStatusType,
+NS_IMETHODIMP nsContentTreeOwner::SetStatus(PRUint32 aStatusType,
                                             const PRUnichar* aStatus)
 {
   return SetStatusWithContext(aStatusType,
@@ -499,13 +499,13 @@ NS_IMETHODIMP nsContentTreeOwner::GetWebBrowser(nsIWebBrowser** aWebBrowser)
   return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP nsContentTreeOwner::SetChromeFlags(uint32_t aChromeFlags)
+NS_IMETHODIMP nsContentTreeOwner::SetChromeFlags(PRUint32 aChromeFlags)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->SetChromeFlags(aChromeFlags);
 }
 
-NS_IMETHODIMP nsContentTreeOwner::GetChromeFlags(uint32_t* aChromeFlags)
+NS_IMETHODIMP nsContentTreeOwner::GetChromeFlags(PRUint32* aChromeFlags)
 {
   NS_ENSURE_STATE(mXULWindow);
   return mXULWindow->GetChromeFlags(aChromeFlags);
@@ -517,7 +517,7 @@ NS_IMETHODIMP nsContentTreeOwner::DestroyBrowserWindow()
    return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP nsContentTreeOwner::SizeBrowserTo(int32_t aCX, int32_t aCY)
+NS_IMETHODIMP nsContentTreeOwner::SizeBrowserTo(PRInt32 aCX, PRInt32 aCY)
 {
    NS_ERROR("Haven't Implemented this yet");
    return NS_ERROR_FAILURE;
@@ -547,7 +547,7 @@ NS_IMETHODIMP nsContentTreeOwner::ExitModalEventLoop(nsresult aStatus)
 //*****************************************************************************   
 
 NS_IMETHODIMP nsContentTreeOwner::InitWindow(nativeWindow aParentNativeWindow,
-   nsIWidget* parentWidget, int32_t x, int32_t y, int32_t cx, int32_t cy)   
+   nsIWidget* parentWidget, PRInt32 x, PRInt32 y, PRInt32 cx, PRInt32 cy)   
 {
    // Ignore wigdet parents for now.  Don't think those are a vaild thing to call.
    NS_ENSURE_SUCCESS(SetPositionAndSize(x, y, cx, cy, false), NS_ERROR_FAILURE);
@@ -567,39 +567,39 @@ NS_IMETHODIMP nsContentTreeOwner::Destroy()
    return mXULWindow->Destroy();
 }
 
-NS_IMETHODIMP nsContentTreeOwner::SetPosition(int32_t aX, int32_t aY)
+NS_IMETHODIMP nsContentTreeOwner::SetPosition(PRInt32 aX, PRInt32 aY)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->SetPosition(aX, aY);
 }
 
-NS_IMETHODIMP nsContentTreeOwner::GetPosition(int32_t* aX, int32_t* aY)
+NS_IMETHODIMP nsContentTreeOwner::GetPosition(PRInt32* aX, PRInt32* aY)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->GetPosition(aX, aY);
 }
 
-NS_IMETHODIMP nsContentTreeOwner::SetSize(int32_t aCX, int32_t aCY, bool aRepaint)
+NS_IMETHODIMP nsContentTreeOwner::SetSize(PRInt32 aCX, PRInt32 aCY, bool aRepaint)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->SetSize(aCX, aCY, aRepaint);
 }
 
-NS_IMETHODIMP nsContentTreeOwner::GetSize(int32_t* aCX, int32_t* aCY)
+NS_IMETHODIMP nsContentTreeOwner::GetSize(PRInt32* aCX, PRInt32* aCY)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->GetSize(aCX, aCY);
 }
 
-NS_IMETHODIMP nsContentTreeOwner::SetPositionAndSize(int32_t aX, int32_t aY,
-   int32_t aCX, int32_t aCY, bool aRepaint)
+NS_IMETHODIMP nsContentTreeOwner::SetPositionAndSize(PRInt32 aX, PRInt32 aY,
+   PRInt32 aCX, PRInt32 aCY, bool aRepaint)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->SetPositionAndSize(aX, aY, aCX, aCY, aRepaint);
 }
 
-NS_IMETHODIMP nsContentTreeOwner::GetPositionAndSize(int32_t* aX, int32_t* aY,
-   int32_t* aCX, int32_t* aCY)
+NS_IMETHODIMP nsContentTreeOwner::GetPositionAndSize(PRInt32* aX, PRInt32* aY,
+   PRInt32* aCX, PRInt32* aCY)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->GetPositionAndSize(aX, aY, aCX, aCY); 
@@ -817,7 +817,7 @@ private:
 //*****************************************************************************   
 NS_IMETHODIMP
 nsContentTreeOwner::ProvideWindow(nsIDOMWindow* aParent,
-                                  uint32_t aChromeFlags,
+                                  PRUint32 aChromeFlags,
                                   bool aCalledFromJS,
                                   bool aPositionSpecified,
                                   bool aSizeSpecified,
@@ -868,7 +868,7 @@ nsContentTreeOwner::ProvideWindow(nsIDOMWindow* aParent,
   }
 
   // Where should we open this?
-  int32_t containerPref;
+  PRInt32 containerPref;
   if (NS_FAILED(Preferences::GetInt("browser.link.open_newwindow",
                                     &containerPref))) {
     return NS_OK;
@@ -887,7 +887,7 @@ nsContentTreeOwner::ProvideWindow(nsIDOMWindow* aParent,
        1: don't divert window.open at all
        2: don't divert window.open with features
     */
-    int32_t restrictionPref =
+    PRInt32 restrictionPref =
       Preferences::GetInt("browser.link.open_newwindow.restriction", 2);
     if (restrictionPref < 0 || restrictionPref > 2) {
       restrictionPref = 2; // Sane default behavior
@@ -1028,16 +1028,16 @@ NS_INTERFACE_MAP_BEGIN(nsSiteWindow)
 NS_INTERFACE_MAP_END_AGGREGATED(mAggregator)
 
 NS_IMETHODIMP
-nsSiteWindow::SetDimensions(uint32_t aFlags,
-                    int32_t aX, int32_t aY, int32_t aCX, int32_t aCY)
+nsSiteWindow::SetDimensions(PRUint32 aFlags,
+                    PRInt32 aX, PRInt32 aY, PRInt32 aCX, PRInt32 aCY)
 {
   // XXX we're ignoring aFlags
   return mAggregator->SetPositionAndSize(aX, aY, aCX, aCY, true);
 }
 
 NS_IMETHODIMP
-nsSiteWindow::GetDimensions(uint32_t aFlags,
-                    int32_t *aX, int32_t *aY, int32_t *aCX, int32_t *aCY)
+nsSiteWindow::GetDimensions(PRUint32 aFlags,
+                    PRInt32 *aX, PRInt32 *aY, PRInt32 *aCX, PRInt32 *aCY)
 {
   // XXX we're ignoring aFlags
   return mAggregator->GetPositionAndSize(aX, aY, aCX, aCY);

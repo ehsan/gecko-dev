@@ -18,7 +18,7 @@
 nsScannerBufferList::Buffer*
 nsScannerBufferList::AllocBufferFromString( const nsAString& aString )
   {
-    uint32_t len = aString.Length();
+    PRUint32 len = aString.Length();
 
     if (len > MAX_CAPACITY)
       return nullptr;
@@ -43,7 +43,7 @@ nsScannerBufferList::AllocBufferFromString( const nsAString& aString )
   }
 
 nsScannerBufferList::Buffer*
-nsScannerBufferList::AllocBuffer( uint32_t capacity )
+nsScannerBufferList::AllocBuffer( PRUint32 capacity )
   {
     if (capacity > MAX_CAPACITY)
       return nullptr;
@@ -84,12 +84,12 @@ nsScannerBufferList::SplitBuffer( const Position& pos )
     Buffer* bufferToSplit = pos.mBuffer;
     NS_ASSERTION(bufferToSplit, "null pointer");
 
-    uint32_t splitOffset = pos.mPosition - bufferToSplit->DataStart();
+    PRUint32 splitOffset = pos.mPosition - bufferToSplit->DataStart();
     NS_ASSERTION(pos.mPosition >= bufferToSplit->DataStart() &&
                  splitOffset <= bufferToSplit->DataLength(),
                  "split offset is outside buffer");
     
-    uint32_t len = bufferToSplit->DataLength() - splitOffset;
+    PRUint32 len = bufferToSplit->DataLength() - splitOffset;
     Buffer* new_buffer = AllocBuffer(len);
     if (new_buffer)
       {
@@ -159,7 +159,7 @@ nsScannerSubstring::~nsScannerSubstring()
     release_ownership_of_buffer_list();
   }
 
-int32_t
+PRInt32
 nsScannerSubstring::CountChar( PRUnichar c ) const
   {
       /*
@@ -172,7 +172,7 @@ nsScannerSubstring::CountChar( PRUnichar c ) const
     nsScannerIterator iter;
     for ( BeginReading(iter); ; )
       {
-        int32_t lengthToExamineInThisFragment = iter.size_forward();
+        PRInt32 lengthToExamineInThisFragment = iter.size_forward();
         const PRUnichar* fromBegin = iter.get();
         result += size_type(NS_COUNT(fromBegin, fromBegin+lengthToExamineInThisFragment, c));
         if ( !(lengthToExamine -= lengthToExamineInThisFragment) )
@@ -470,7 +470,7 @@ copy_multifragment_string( nsScannerIterator& first, const nsScannerIterator& la
 
     while ( first != last )
       {
-        uint32_t distance = source_traits::readable_distance(first, last);
+        PRUint32 distance = source_traits::readable_distance(first, last);
         sink_traits::write(result, source_traits::read(first), distance);
         NS_ASSERTION(distance > 0, "|copy_multifragment_string| will never terminate");
         source_traits::advance(first, distance);
@@ -517,7 +517,7 @@ AppendUnicodeTo( const nsScannerIterator& aSrcStart,
                  nsAString& aDest )
   {
     nsAString::iterator writer;
-    uint32_t oldLength = aDest.Length();
+    PRUint32 oldLength = aDest.Length();
     if (!EnsureStringLength(aDest, oldLength + Distance(aSrcStart, aSrcEnd)))
       return; // out of memory
     aDest.BeginWriting(writer).advance(oldLength);
@@ -533,7 +533,7 @@ FindCharInReadable( PRUnichar aChar,
   {
     while ( aSearchStart != aSearchEnd )
       {
-        int32_t fragmentLength;
+        PRInt32 fragmentLength;
         if ( SameFragment(aSearchStart, aSearchEnd) ) 
           fragmentLength = aSearchEnd.get() - aSearchStart.get();
         else

@@ -127,7 +127,7 @@ nsFileProtocolHandler::ReadURLFile(nsIFile* aFile, nsIURI** aURI)
     if (NS_FAILED(rv))
         return NS_ERROR_NOT_AVAILABLE;
 
-    int64_t fileSize;
+    PRInt64 fileSize;
     os2File->GetFileSize(&fileSize);
     rv = NS_ERROR_NOT_AVAILABLE;
 
@@ -135,7 +135,7 @@ nsFileProtocolHandler::ReadURLFile(nsIFile* aFile, nsIURI** aURI)
     // an nsURI;  we assume the string is already escaped
     char * buffer = (char*)NS_Alloc(fileSize+1);
     if (buffer) {
-        int32_t cnt = PR_Read(file, buffer, fileSize);
+        PRInt32 cnt = PR_Read(file, buffer, fileSize);
         if (cnt > 0) {
             buffer[cnt] = '\0';
             if (NS_SUCCEEDED(NS_NewURI(aURI, nsDependentCString(buffer))))
@@ -194,14 +194,14 @@ nsFileProtocolHandler::GetScheme(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsFileProtocolHandler::GetDefaultPort(int32_t *result)
+nsFileProtocolHandler::GetDefaultPort(PRInt32 *result)
 {
     *result = -1;        // no port for file: URLs
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsFileProtocolHandler::GetProtocolFlags(uint32_t *result)
+nsFileProtocolHandler::GetProtocolFlags(PRUint32 *result)
 {
     *result = URI_NOAUTH | URI_IS_LOCAL_FILE | URI_IS_LOCAL_RESOURCE;
     return NS_OK;
@@ -251,7 +251,7 @@ nsFileProtocolHandler::NewChannel(nsIURI *uri, nsIChannel **result)
 }
 
 NS_IMETHODIMP 
-nsFileProtocolHandler::AllowPort(int32_t port, const char *scheme, bool *result)
+nsFileProtocolHandler::AllowPort(PRInt32 port, const char *scheme, bool *result)
 {
     // don't override anything.  
     *result = false;

@@ -54,7 +54,7 @@ private:
 
     nsCOMPtr<nsISimpleEnumerator>   mCurrent;
     nsCOMPtr<nsIRDFNode>            mResult;
-    int32_t mNextIndex;
+    PRInt32 mNextIndex;
 
 public:
     ContainerEnumeratorImpl(nsIRDFDataSource* ds, nsIRDFResource* container);
@@ -137,7 +137,7 @@ ContainerEnumeratorImpl::HasMoreElements(bool* aResult)
     // Remember that since nextVal is the next index that we'd assign
     // to an element in a container, it's *one more* than count of
     // elements in the container.
-    int32_t max = 0;
+    PRInt32 max = 0;
 
     nsCOMPtr<nsISimpleEnumerator> targets;
     rv = mDataSource->GetTargets(mContainer, kRDF_nextVal, true, getter_AddRefs(targets));
@@ -160,7 +160,7 @@ ContainerEnumeratorImpl::HasMoreElements(bool* aResult)
          nextValLiteral->GetValueConst(&nextValStr);
 		 
          nsresult err;
-         int32_t nextVal = nsAutoString(nextValStr).ToInteger(&err);
+         PRInt32 nextVal = nsAutoString(nextValStr).ToInteger(&err);
 
          if (nextVal > max)
              max = nextVal;

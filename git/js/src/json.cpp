@@ -415,7 +415,7 @@ JO(JSContext *cx, HandleObject obj, StringifyContext *scx)
          */
         id = propertyList[i];
         RootedValue outputValue(cx);
-        if (!JSObject::getGeneric(cx, obj, obj, id, &outputValue))
+        if (!obj->getGeneric(cx, id, &outputValue))
             return false;
         if (!PreprocessValue(cx, obj, HandleId(id), &outputValue, scx))
             return false;
@@ -473,7 +473,7 @@ JA(JSContext *cx, HandleObject obj, StringifyContext *scx)
 
     /* Step 6. */
     uint32_t length;
-    if (!GetLengthProperty(cx, obj, &length))
+    if (!js_GetLengthProperty(cx, obj, &length))
         return JS_FALSE;
 
     /* Steps 7-10. */
@@ -491,7 +491,7 @@ JA(JSContext *cx, HandleObject obj, StringifyContext *scx)
              * and the replacer and maybe unboxing, and interpreting some
              * values as |null| in separate steps.
              */
-            if (!JSObject::getElement(cx, obj, obj, i, &outputValue))
+            if (!obj->getElement(cx, i, &outputValue))
                 return JS_FALSE;
             if (!PreprocessValue(cx, obj, i, &outputValue, scx))
                 return JS_FALSE;
@@ -627,7 +627,7 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
 
             /* Step 4b(ii). */
             uint32_t len;
-            JS_ALWAYS_TRUE(GetLengthProperty(cx, replacer, &len));
+            JS_ALWAYS_TRUE(js_GetLengthProperty(cx, replacer, &len));
             if (replacer->isDenseArray())
                 len = Min(len, replacer->getDenseArrayCapacity());
 
@@ -642,7 +642,7 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
             RootedValue v(cx);
             for (; i < len; i++) {
                 /* Step 4b(iv)(2). */
-                if (!JSObject::getElement(cx, replacer, replacer, i, &v))
+                if (!replacer->getElement(cx, i, &v))
                     return false;
 
                 jsid id;
@@ -753,7 +753,7 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
 
     /* Step 1. */
     RootedValue val(cx);
-    if (!JSObject::getGeneric(cx, holder, holder, name, &val))
+    if (!holder->getGeneric(cx, name, &val))
         return false;
 
     /* Step 2. */
@@ -814,7 +814,7 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
 
                 if (newElement.isUndefined()) {
                     /* Step 2b(ii)(2). */
-                    if (!JSObject::deleteByValue(cx, obj, IdToValue(id), &newElement, false))
+                    if (!obj->deleteByValue(cx, IdToValue(id), &newElement, false))
                         return false;
                 } else {
                     /* Step 2b(ii)(3). */
@@ -856,7 +856,7 @@ Revive(JSContext *cx, HandleValue reviver, MutableHandleValue vp)
     if (!obj)
         return false;
 
-    if (!JSObject::defineProperty(cx, obj, cx->runtime->atomState.emptyAtom, vp))
+    if (!obj->defineProperty(cx, cx->runtime->atomState.emptyAtom, vp))
         return false;
 
     Rooted<jsid> id(cx, NameToId(cx->runtime->atomState.emptyAtom));
@@ -915,7 +915,7 @@ js_InitJSONClass(JSContext *cx, JSObject *obj)
         return NULL;
 
     RootedObject JSON(cx, NewObjectWithClassProto(cx, &JSONClass, NULL, global));
-    if (!JSON || !JSObject::setSingletonType(cx, JSON))
+    if (!JSON || !JSON->setSingletonType(cx))
         return NULL;
 
     if (!JS_DefineProperty(cx, global, js_JSON_str, OBJECT_TO_JSVAL(JSON),

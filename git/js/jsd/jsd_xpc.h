@@ -27,7 +27,7 @@ struct LiveEphemeral {
 };
 
 struct PCMapEntry {
-    uint32_t pc, line;
+    PRUint32 pc, line;
 };
     
 /*******************************************************************************
@@ -134,27 +134,27 @@ class jsdScript : public jsdIScript
     static void InvalidateAll();
 
   private:
-    static uint32_t LastTag;
+    static PRUint32 LastTag;
     
     jsdScript(); /* no implementation */
     jsdScript (const jsdScript&); /* no implementation */
     PCMapEntry* CreatePPLineMap();
-    uint32_t    PPPcToLine(uint32_t aPC);
-    uint32_t    PPLineToPc(uint32_t aLine);
+    PRUint32    PPPcToLine(PRUint32 aPC);
+    PRUint32    PPLineToPc(PRUint32 aLine);
     
     bool        mValid;
-    uint32_t    mTag;
+    PRUint32    mTag;
     JSDContext *mCx;
     JSDScript  *mScript;
     nsCString  *mFileName;
     nsCString  *mFunctionName;
-    uint32_t    mBaseLineNumber, mLineExtent;
+    PRUint32    mBaseLineNumber, mLineExtent;
     PCMapEntry *mPPLineMap;
-    uint32_t    mPCMapSize;
+    PRUint32    mPCMapSize;
     uintptr_t   mFirstPC;
 };
 
-uint32_t jsdScript::LastTag = 0;
+PRUint32 jsdScript::LastTag = 0;
 
 class jsdContext : public jsdIContext
 {
@@ -169,20 +169,20 @@ class jsdContext : public jsdIContext
     static void InvalidateAll();
     static jsdIContext *FromPtr (JSDContext *aJSDCx, JSContext *aJSCx);
   private:
-    static uint32_t LastTag;
+    static PRUint32 LastTag;
 
     jsdContext (); /* no implementation */
     jsdContext (const jsdContext&); /* no implementation */
 
     bool                   mValid;
     LiveEphemeral          mLiveListEntry;
-    uint32_t               mTag;
+    PRUint32               mTag;
     JSDContext            *mJSDCx;
     JSContext             *mJSCx;
     nsCOMPtr<nsISupports>  mISCx;
 };
 
-uint32_t jsdContext::LastTag = 0;
+PRUint32 jsdContext::LastTag = 0;
 
 class jsdStackFrame : public jsdIStackFrame
 {
@@ -262,13 +262,13 @@ class jsdService : public jsdIDebuggerService
 
     bool CheckInterruptHook() { return !!mInterruptHook; }
     
-    nsresult DoPause(uint32_t *_rval, bool internalCall);
-    nsresult DoUnPause(uint32_t *_rval, bool internalCall);
+    nsresult DoPause(PRUint32 *_rval, bool internalCall);
+    nsresult DoUnPause(PRUint32 *_rval, bool internalCall);
 
   private:
     bool        mOn;
-    uint32_t    mPauseLevel;
-    uint32_t    mNestedLoopLevel;
+    PRUint32    mPauseLevel;
+    PRUint32    mNestedLoopLevel;
     JSDContext *mCx;
     JSRuntime  *mRuntime;
 

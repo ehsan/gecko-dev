@@ -142,7 +142,7 @@ convertJSValToVariant(
 
     double msecd = ::js_DateGetMsecSinceEpoch(aCtx, obj);
     msecd *= 1000.0;
-    int64_t msec;
+    PRInt64 msec;
     LL_D2L(msec, msecd);
 
     return new IntegerVariant(msec);

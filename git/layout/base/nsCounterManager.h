@@ -27,7 +27,7 @@ struct nsCounterNode : public nsGenConNode {
     Type mType;
 
     // Counter value after this node
-    int32_t mValueAfter;
+    PRInt32 mValueAfter;
 
     // mScopeStart points to the node (usually a RESET, but not in the
     // case of an implied 'counter-reset') that created the scope for
@@ -60,7 +60,7 @@ struct nsCounterNode : public nsGenConNode {
     // the 'content' property but offset to ensure that (reset,
     // increment, use) sort in that order.  (This slight weirdness
     // allows sharing a lot of code with 'quotes'.)
-    nsCounterNode(int32_t aContentIndex, Type aType)
+    nsCounterNode(PRInt32 aContentIndex, Type aType)
         : nsGenConNode(aContentIndex)
         , mType(aType)
         , mValueAfter(0)
@@ -84,7 +84,7 @@ struct nsCounterUseNode : public nsCounterNode {
 
     // args go directly to member variables here and of nsGenConNode
     nsCounterUseNode(nsCSSValue::Array* aCounterStyle,
-                     uint32_t aContentIndex, bool aAllCounters)
+                     PRUint32 aContentIndex, bool aAllCounters)
         : nsCounterNode(aContentIndex, USE)
         , mCounterStyle(aCounterStyle)
         , mAllCounters(aAllCounters)
@@ -104,7 +104,7 @@ struct nsCounterUseNode : public nsCounterNode {
 };
 
 struct nsCounterChangeNode : public nsCounterNode {
-    int32_t mChangeValue; // the numeric value of the increment or reset
+    PRInt32 mChangeValue; // the numeric value of the increment or reset
 
     // |aPseudoFrame| is not necessarily a pseudo-element's frame, but
     // since it is for every other subclass of nsGenConNode, we follow
@@ -113,8 +113,8 @@ struct nsCounterChangeNode : public nsCounterNode {
     // 'counter-increment' or 'counter-reset' property.
     nsCounterChangeNode(nsIFrame* aPseudoFrame,
                         nsCounterNode::Type aChangeType,
-                        int32_t aChangeValue,
-                        int32_t aPropIndex)
+                        PRInt32 aChangeValue,
+                        PRInt32 aPropIndex)
         : nsCounterNode(// Fake a content index for resets and increments
                         // that comes before all the real content, with
                         // the resets first, in order, and then the increments.
@@ -182,7 +182,7 @@ public:
         return static_cast<nsCounterNode*>(nsGenConList::Prev(aNode));
     }
 
-    static int32_t ValueBefore(nsCounterNode* aNode) {
+    static PRInt32 ValueBefore(nsCounterNode* aNode) {
         return aNode->mScopePrev ? aNode->mScopePrev->mValueAfter : 0;
     }
 
@@ -230,7 +230,7 @@ public:
 
 private:
     // for |AddCounterResetsAndIncrements| only
-    bool AddResetOrIncrement(nsIFrame *aFrame, int32_t aIndex,
+    bool AddResetOrIncrement(nsIFrame *aFrame, PRInt32 aIndex,
                                const nsStyleCounterData *aCounterData,
                                nsCounterNode::Type aType);
 

@@ -34,7 +34,7 @@ using mozilla::MutexAutoLock;
 namespace {
 
 inline
-uint32_t
+PRUint32
 GetQuotaPermissions(nsIDOMWindow* aWindow)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -50,7 +50,7 @@ GetQuotaPermissions(nsIDOMWindow* aWindow)
     do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(permissionManager, nsIPermissionManager::DENY_ACTION);
 
-  uint32_t permission;
+  PRUint32 permission;
   nsresult rv =
     permissionManager->TestPermissionFromPrincipal(sop->GetPrincipal(),
                                                    PERMISSION_INDEXEDDB_UNLIMITED,
@@ -166,7 +166,7 @@ CheckQuotaHelper::Run()
       }
     }
     else if (mPromptResult == nsIPermissionManager::UNKNOWN_ACTION) {
-      uint32_t quota = IndexedDatabaseManager::GetIndexedDBQuotaMB();
+      PRUint32 quota = IndexedDatabaseManager::GetIndexedDBQuotaMB();
 
       nsString quotaString;
       quotaString.AppendInt(quota);

@@ -110,7 +110,7 @@ public:
   /**
    * Returns an InputContextAction cause for aFlags.
    */
-  static InputContextAction::Cause GetFocusMoveActionCause(uint32_t aFlags);
+  static InputContextAction::Cause GetFocusMoveActionCause(PRUint32 aFlags);
 
   static bool sMouseFocusesFormControl;
 
@@ -136,7 +136,7 @@ protected:
    * All actual focus changes must use this method to do so. (as opposed
    * to those that update the focus in an inactive window for instance).
    */
-  void SetFocusInner(nsIContent* aNewContent, int32_t aFlags,
+  void SetFocusInner(nsIContent* aNewContent, PRInt32 aFlags,
                      bool aFocusChanged, bool aAdjustWidget);
 
   /**
@@ -187,7 +187,7 @@ protected:
    * frame, so only the IsFocusable method on the content node must be
    * true.
    */
-  nsIContent* CheckIfFocusable(nsIContent* aContent, uint32_t aFlags);
+  nsIContent* CheckIfFocusable(nsIContent* aContent, PRUint32 aFlags);
 
   /**
    * Blurs the currently focused element. Returns false if another element was
@@ -243,7 +243,7 @@ protected:
    */
   void Focus(nsPIDOMWindow* aWindow,
              nsIContent* aContent,
-             uint32_t aFlags,
+             PRUint32 aFlags,
              bool aIsNewDocument,
              bool aFocusChanged,
              bool aWindowRaised,
@@ -257,11 +257,11 @@ protected:
    *
    * aWindowRaised should only be true if called from WindowRaised.
    */
-  void SendFocusOrBlurEvent(uint32_t aType,
+  void SendFocusOrBlurEvent(PRUint32 aType,
                             nsIPresShell* aPresShell,
                             nsIDocument* aDocument,
                             nsISupports* aTarget,
-                            uint32_t aFocusMethod,
+                            PRUint32 aFocusMethod,
                             bool aWindowRaised,
                             bool aIsRefocus = false);
 
@@ -270,7 +270,7 @@ protected:
    */
   void ScrollIntoView(nsIPresShell* aPresShell,
                       nsIContent* aContent,
-                      uint32_t aFlags);
+                      PRUint32 aFlags);
 
   /**
    * Raises the top-level window aWindow at the widget level.
@@ -327,7 +327,7 @@ protected:
    */
   nsresult DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
                                        nsIContent* aStart,
-                                       int32_t aType, bool aNoParentTraversal,
+                                       PRInt32 aType, bool aNoParentTraversal,
                                        nsIContent** aNextContent);
 
   /**
@@ -363,7 +363,7 @@ protected:
                                   nsIContent* aOriginalStartContent,
                                   nsIContent* aStartContent,
                                   bool aForward,
-                                  int32_t aCurrentTabIndex,
+                                  PRInt32 aCurrentTabIndex,
                                   bool aIgnoreTabIndex,
                                   nsIContent** aResultContent);
 
@@ -380,7 +380,7 @@ protected:
    * aStartContent is the current image map area.
    */
   nsIContent* GetNextTabbableMapArea(bool aForward,
-                                     int32_t aCurrentTabIndex,
+                                     PRInt32 aCurrentTabIndex,
                                      nsIContent* aImageContent,
                                      nsIContent* aStartContent);
 
@@ -389,8 +389,8 @@ protected:
    * is true, or the previous tabindex value if aForward is false. aParent is
    * the node from which to start looking for tab indicies.
    */
-  int32_t GetNextTabIndex(nsIContent* aParent,
-                          int32_t aCurrentTabIndex,
+  PRInt32 GetNextTabIndex(nsIContent* aParent,
+                          PRInt32 aCurrentTabIndex,
                           bool aForward);
 
   /**

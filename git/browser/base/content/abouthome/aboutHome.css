@@ -81,7 +81,7 @@ a {
   border-radius: 2.5px 0 0 2.5px;
 }
 
-#searchText:dir(rtl) {
+body[dir=rtl] #searchText {
   border-radius: 0 2.5px 2.5px 0;
 }
 
@@ -105,7 +105,7 @@ a {
   transition-duration: 150ms;
 }
 
-#searchSubmit:dir(rtl) {
+body[dir=rtl] #searchSubmit {
   border-radius: 2.5px 0 0 2.5px;
 }
 
@@ -147,8 +147,8 @@ a {
   -moz-padding-start: 79px;
 }
 
-#defaultSnippet1:dir(rtl),
-#defaultSnippet2:dir(rtl) {
+body[dir=rtl] #defaultSnippet1,
+body[dir=rtl] #defaultSnippet2 {
   background-position: right 30px center;
 }
 
@@ -312,7 +312,7 @@ body[narrow] #restorePreviousSession {
   -moz-margin-end: 8px;
 }
 
-#restorePreviousSession:dir(rtl)::before {
+body[dir=rtl] #restorePreviousSession::before {
   transform: scaleX(-1);
 }
 

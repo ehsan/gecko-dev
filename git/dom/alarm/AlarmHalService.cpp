@@ -41,7 +41,7 @@ AlarmHalService::GetInstance()
 }
 
 NS_IMETHODIMP
-AlarmHalService::SetAlarm(int32_t aSeconds, int32_t aNanoseconds, bool* aStatus)
+AlarmHalService::SetAlarm(PRInt32 aSeconds, PRInt32 aNanoseconds, bool* aStatus)
 {
   if (!mAlarmEnabled) {
     return NS_ERROR_FAILURE;
@@ -79,13 +79,13 @@ AlarmHalService::Notify(const mozilla::void_t& aVoid)
   }
 }
 
-int32_t
+PRInt32
 AlarmHalService::GetTimezoneOffset(bool aIgnoreDST)
 {
   PRExplodedTime prTime;
   PR_ExplodeTime(PR_Now(), PR_LocalTimeParameters, &prTime);
 
-  int32_t offset = prTime.tm_params.tp_gmt_offset;
+  PRInt32 offset = prTime.tm_params.tp_gmt_offset;
   if (!aIgnoreDST) {
     offset += prTime.tm_params.tp_dst_offset;
   }

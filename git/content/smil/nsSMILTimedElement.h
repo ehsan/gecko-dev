@@ -477,16 +477,16 @@ protected:
                                     nsSMILInterval& aResult) const;
   nsSMILInstanceTime* GetNextGreater(const InstanceTimeList& aList,
                                      const nsSMILTimeValue& aBase,
-                                     int32_t& aPosition) const;
+                                     PRInt32& aPosition) const;
   nsSMILInstanceTime* GetNextGreaterOrEqual(const InstanceTimeList& aList,
                                             const nsSMILTimeValue& aBase,
-                                            int32_t& aPosition) const;
+                                            PRInt32& aPosition) const;
   nsSMILTimeValue   CalcActiveEnd(const nsSMILTimeValue& aBegin,
                                   const nsSMILTimeValue& aEnd) const;
   nsSMILTimeValue   GetRepeatDuration() const;
   nsSMILTimeValue   ApplyMinAndMax(const nsSMILTimeValue& aDuration) const;
   nsSMILTime        ActiveTimeToSimpleTime(nsSMILTime aActiveTime,
-                                           uint32_t& aRepeatIteration);
+                                           PRUint32& aRepeatIteration);
   nsSMILInstanceTime* CheckForEarlyEnd(
                         const nsSMILTimeValue& aContainerTime) const;
   void              UpdateCurrentInterval(bool aForceChangeNotice = false);
@@ -508,7 +508,7 @@ protected:
                                           bool aBeginObjectChanged,
                                           bool aEndObjectChanged);
 
-  void              FireTimeEventAsync(uint32_t aMsg, int32_t aDetail);
+  void              FireTimeEventAsync(PRUint32 aMsg, PRInt32 aDetail);
   const nsSMILInstanceTime* GetEffectiveBeginInstance() const;
   const nsSMILInterval* GetPreviousInterval() const;
   bool              HasPlayed() const { return !mOldIntervals.IsEmpty(); }
@@ -567,16 +567,16 @@ protected:
 
   InstanceTimeList                mBeginInstances;
   InstanceTimeList                mEndInstances;
-  uint32_t                        mInstanceSerialIndex;
+  PRUint32                        mInstanceSerialIndex;
 
   nsSMILAnimationFunction*        mClient;
   nsAutoPtr<nsSMILInterval>       mCurrentInterval;
   IntervalList                    mOldIntervals;
-  uint32_t                        mCurrentRepeatIteration;
+  PRUint32                        mCurrentRepeatIteration;
   nsSMILMilestone                 mPrevRegisteredMilestone;
   static const nsSMILMilestone    sMaxMilestone;
-  static const uint8_t            sMaxNumIntervals;
-  static const uint8_t            sMaxNumInstanceTimes;
+  static const PRUint8            sMaxNumIntervals;
+  static const PRUint8            sMaxNumInstanceTimes;
 
   // Set of dependent time value specs to be notified when establishing a new
   // current interval. Change notifications and delete notifications are handled
@@ -616,9 +616,9 @@ protected:
                           // requested while mDeferIntervalUpdates was set
 
   // Recursion depth checking
-  uint8_t              mDeleteCount;
-  uint8_t              mUpdateIntervalRecursionDepth;
-  static const uint8_t sMaxUpdateIntervalRecursionDepth;
+  PRUint8              mDeleteCount;
+  PRUint8              mUpdateIntervalRecursionDepth;
+  static const PRUint8 sMaxUpdateIntervalRecursionDepth;
 };
 
 #endif // NS_SMILTIMEDELEMENT_H_

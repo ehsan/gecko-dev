@@ -35,7 +35,7 @@ nsDOMTextEvent::nsDOMTextEvent(nsPresContext* aPresContext,
   //
   mTextRange = new nsPrivateTextRangeList(te->rangeCount);
   if (mTextRange) {
-    uint16_t i;
+    PRUint16 i;
 
     for(i = 0; i < te->rangeCount; i++) {
       nsRefPtr<nsPrivateTextRange> tempPrivateTextRange = new

@@ -53,21 +53,21 @@ public:
 protected:
     // pseudo-constants
     PRUnichar* mText;
-    int32_t mTextLength;
-    int32_t mTextSize;
+    PRInt32 mTextLength;
+    PRInt32 mTextSize;
     bool mConstrainSize;
 
     nsresult AddAttributes(const PRUnichar** aAttributes,
-                           const uint32_t aAttrLen,
+                           const PRUint32 aAttrLen,
                            nsXULPrototypeElement* aElement);
 
     nsresult OpenRoot(const PRUnichar** aAttributes,
-                      const uint32_t aAttrLen,
+                      const PRUint32 aAttrLen,
                       nsINodeInfo *aNodeInfo);
 
     nsresult OpenTag(const PRUnichar** aAttributes,
-                     const uint32_t aAttrLen,
-                     const uint32_t aLineNumber,
+                     const PRUint32 aAttrLen,
+                     const PRUint32 aLineNumber,
                      nsINodeInfo *aNodeInfo);
 
     // If OpenScript returns NS_OK and after it returns our state is eInScript,
@@ -77,13 +77,13 @@ protected:
     // script had an unknown type), and the caller should create a prototype
     // element.
     nsresult OpenScript(const PRUnichar** aAttributes,
-                        const uint32_t aLineNumber);
+                        const PRUint32 aLineNumber);
 
-    static bool IsDataInBuffer(PRUnichar* aBuffer, int32_t aLength);
+    static bool IsDataInBuffer(PRUnichar* aBuffer, PRInt32 aLength);
 
     // Text management
     nsresult FlushText(bool aCreateTextNode = true);
-    nsresult AddText(const PRUnichar* aText, int32_t aLength);
+    nsresult AddText(const PRUnichar* aText, PRInt32 aLength);
 
 
     nsRefPtr<nsNodeInfoManager> mNodeInfoManager;
@@ -113,13 +113,13 @@ protected:
         };
 
         Entry* mTop;
-        int32_t mDepth;
+        PRInt32 mDepth;
 
     public:
         ContextStack();
         ~ContextStack();
 
-        int32_t Depth() { return mDepth; }
+        PRInt32 Depth() { return mDepth; }
 
         nsresult Push(nsXULPrototypeNode* aNode, State aState);
         nsresult Pop(State* aState);

@@ -21,7 +21,7 @@ gfxGDIShaper::ShapeWord(gfxContext *aContext,
     DCFromContext dc(aContext);
     AutoSelectFont selectFont(dc, static_cast<gfxGDIFont*>(mFont)->GetHFONT());
 
-    uint32_t length = aShapedWord->Length();
+    PRUint32 length = aShapedWord->Length();
     nsAutoTArray<WORD,500> glyphArray;
     if (!glyphArray.SetLength(length)) {
         return false;
@@ -57,14 +57,14 @@ gfxGDIShaper::ShapeWord(gfxContext *aContext,
     }
 
     gfxTextRun::CompressedGlyph g;
-    uint32_t i;
-    int32_t lastWidth = 0;
-    uint32_t appUnitsPerDevPixel = aShapedWord->AppUnitsPerDevUnit();
+    PRUint32 i;
+    PRInt32 lastWidth = 0;
+    PRUint32 appUnitsPerDevPixel = aShapedWord->AppUnitsPerDevUnit();
     for (i = 0; i < length; ++i) {
-        uint32_t offset = i;
-        int32_t advancePixels = partialWidthArray[i] - lastWidth;
+        PRUint32 offset = i;
+        PRInt32 advancePixels = partialWidthArray[i] - lastWidth;
         lastWidth = partialWidthArray[i];
-        int32_t advanceAppUnits = advancePixels * appUnitsPerDevPixel;
+        PRInt32 advanceAppUnits = advancePixels * appUnitsPerDevPixel;
         WCHAR glyph = glyphs[i];
         NS_ASSERTION(!gfxFontGroup::IsInvalidChar(aShapedWord->GetCharAt(offset)),
                      "Invalid character detected!");

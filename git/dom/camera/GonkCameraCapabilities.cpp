@@ -42,7 +42,7 @@ nsCameraCapabilities::~nsCameraCapabilities()
 }
 
 static nsresult
-ParseZoomRatioItemAndAdd(JSContext* aCx, JSObject* aArray, uint32_t aIndex, const char* aStart, char** aEnd)
+ParseZoomRatioItemAndAdd(JSContext* aCx, JSObject* aArray, PRUint32 aIndex, const char* aStart, char** aEnd)
 {
   if (!*aEnd) {
     // make 'aEnd' follow the same semantics as strchr().
@@ -62,7 +62,7 @@ ParseZoomRatioItemAndAdd(JSContext* aCx, JSObject* aArray, uint32_t aIndex, cons
 }
 
 static nsresult
-ParseStringItemAndAdd(JSContext* aCx, JSObject* aArray, uint32_t aIndex, const char* aStart, char** aEnd)
+ParseStringItemAndAdd(JSContext* aCx, JSObject* aArray, PRUint32 aIndex, const char* aStart, char** aEnd)
 {
   JSString* s;
 
@@ -84,7 +84,7 @@ ParseStringItemAndAdd(JSContext* aCx, JSObject* aArray, uint32_t aIndex, const c
 }
 
 static nsresult
-ParseDimensionItemAndAdd(JSContext* aCx, JSObject* aArray, uint32_t aIndex, const char* aStart, char** aEnd)
+ParseDimensionItemAndAdd(JSContext* aCx, JSObject* aArray, PRUint32 aIndex, const char* aStart, char** aEnd)
 {
   char* x;
 
@@ -117,7 +117,7 @@ ParseDimensionItemAndAdd(JSContext* aCx, JSObject* aArray, uint32_t aIndex, cons
 }
 
 nsresult
-nsCameraCapabilities::ParameterListToNewArray(JSContext* aCx, JSObject** aArray, uint32_t aKey, ParseItemAndAddFunc aParseItemAndAdd)
+nsCameraCapabilities::ParameterListToNewArray(JSContext* aCx, JSObject** aArray, PRUint32 aKey, ParseItemAndAddFunc aParseItemAndAdd)
 {
   NS_ENSURE_TRUE(mCamera, NS_ERROR_NOT_AVAILABLE);
 
@@ -134,7 +134,7 @@ nsCameraCapabilities::ParameterListToNewArray(JSContext* aCx, JSObject** aArray,
   }
 
   const char* p = value;
-  uint32_t index = 0;
+  PRUint32 index = 0;
   nsresult rv;
   char* q;
 
@@ -155,7 +155,7 @@ nsCameraCapabilities::ParameterListToNewArray(JSContext* aCx, JSObject** aArray,
 }
 
 nsresult
-nsCameraCapabilities::StringListToNewObject(JSContext* aCx, JS::Value* aArray, uint32_t aKey)
+nsCameraCapabilities::StringListToNewObject(JSContext* aCx, JS::Value* aArray, PRUint32 aKey)
 {
   JSObject* array;
 
@@ -167,7 +167,7 @@ nsCameraCapabilities::StringListToNewObject(JSContext* aCx, JS::Value* aArray, u
 }
 
 nsresult
-nsCameraCapabilities::DimensionListToNewObject(JSContext* aCx, JS::Value* aArray, uint32_t aKey)
+nsCameraCapabilities::DimensionListToNewObject(JSContext* aCx, JS::Value* aArray, PRUint32 aKey)
 {
   JSObject* array;
   nsresult rv;
@@ -237,7 +237,7 @@ nsCameraCapabilities::GetFocusModes(JSContext* cx, JS::Value* aFocusModes)
 
 /* readonly attribute long maxFocusAreas; */
 NS_IMETHODIMP
-nsCameraCapabilities::GetMaxFocusAreas(JSContext* cx, int32_t* aMaxFocusAreas)
+nsCameraCapabilities::GetMaxFocusAreas(JSContext* cx, PRInt32* aMaxFocusAreas)
 {
   NS_ENSURE_TRUE(mCamera, NS_ERROR_NOT_AVAILABLE);
 
@@ -305,7 +305,7 @@ nsCameraCapabilities::GetStepExposureCompensation(JSContext* cx, double* aStepEx
 
 /* readonly attribute long maxMeteringAreas; */
 NS_IMETHODIMP
-nsCameraCapabilities::GetMaxMeteringAreas(JSContext* cx, int32_t* aMaxMeteringAreas)
+nsCameraCapabilities::GetMaxMeteringAreas(JSContext* cx, PRInt32* aMaxMeteringAreas)
 {
   NS_ENSURE_TRUE(mCamera, NS_ERROR_NOT_AVAILABLE);
 

@@ -101,7 +101,7 @@ const int MaxRecursionDepth = 256;
 
 nsresult
 Key::EncodeJSValInternal(JSContext* aCx, const jsval aVal,
-                         uint8_t aTypeOffset, uint16_t aRecursionDepth)
+                         PRUint8 aTypeOffset, PRUint16 aRecursionDepth)
 {
   NS_ENSURE_TRUE(aRecursionDepth < MaxRecursionDepth, NS_ERROR_DOM_INDEXEDDB_DATA_ERR);
 
@@ -184,8 +184,8 @@ Key::EncodeJSValInternal(JSContext* aCx, const jsval aVal,
 // static
 nsresult
 Key::DecodeJSValInternal(const unsigned char*& aPos, const unsigned char* aEnd,
-                         JSContext* aCx, uint8_t aTypeOffset, jsval* aVal,
-                         uint16_t aRecursionDepth)
+                         JSContext* aCx, PRUint8 aTypeOffset, jsval* aVal,
+                         PRUint16 aRecursionDepth)
 {
   NS_ENSURE_TRUE(aRecursionDepth < MaxRecursionDepth, NS_ERROR_DOM_INDEXEDDB_DATA_ERR);
 
@@ -259,13 +259,13 @@ Key::DecodeJSValInternal(const unsigned char*& aPos, const unsigned char* aEnd,
 #define THREE_BYTE_SHIFT 6
 
 void
-Key::EncodeString(const nsAString& aString, uint8_t aTypeOffset)
+Key::EncodeString(const nsAString& aString, PRUint8 aTypeOffset)
 {
   // First measure how long the encoded string will be.
 
   // The +2 is for initial 3 and trailing 0. We'll compensate for multi-byte
   // chars below.
-  uint32_t size = aString.Length() + 2;
+  PRUint32 size = aString.Length() + 2;
   
   const PRUnichar* start = aString.BeginReading();
   const PRUnichar* end = aString.EndReading();
@@ -276,7 +276,7 @@ Key::EncodeString(const nsAString& aString, uint8_t aTypeOffset)
   }
 
   // Allocate memory for the new size
-  uint32_t oldLen = mBuffer.Length();
+  PRUint32 oldLen = mBuffer.Length();
   char* buffer;
   if (!mBuffer.GetMutableData(&buffer, oldLen + size)) {
     return;
@@ -297,7 +297,7 @@ Key::EncodeString(const nsAString& aString, uint8_t aTypeOffset)
       *(buffer++) = (char)(c & 0xFF);
     }
     else {
-      uint32_t c = (uint32_t(*iter) << THREE_BYTE_SHIFT) | 0x00C00000;
+      PRUint32 c = (PRUint32(*iter) << THREE_BYTE_SHIFT) | 0x00C00000;
       *(buffer++) = (char)(c >> 16);
       *(buffer++) = (char)(c >> 8);
       *(buffer++) = (char)c;
@@ -320,7 +320,7 @@ Key::DecodeString(const unsigned char*& aPos, const unsigned char* aEnd,
   const unsigned char* buffer = aPos + 1;
 
   // First measure how big the decoded string will be.
-  uint32_t size = 0;
+  PRUint32 size = 0;
   const unsigned char* iter; 
   for (iter = buffer; iter < aEnd && *iter != eTerminator; ++iter) {
     if (*iter & 0x80) {
@@ -352,9 +352,9 @@ Key::DecodeString(const unsigned char*& aPos, const unsigned char* aEnd,
       *out = c - TWO_BYTE_ADJUST - 0x8000;
     }
     else {
-      uint32_t c = uint32_t(*(iter++)) << (16 - THREE_BYTE_SHIFT);
+      PRUint32 c = PRUint32(*(iter++)) << (16 - THREE_BYTE_SHIFT);
       if (iter < aEnd) {
-        c |= uint32_t(*(iter++)) << (8 - THREE_BYTE_SHIFT);
+        c |= PRUint32(*(iter++)) << (8 - THREE_BYTE_SHIFT);
       }
       if (iter < aEnd) {
         c |= *(iter++) >> THREE_BYTE_SHIFT;
@@ -373,14 +373,14 @@ Key::DecodeString(const unsigned char*& aPos, const unsigned char* aEnd,
 
 union Float64Union {
   double d;
-  uint64_t u;
+  PRUint64 u;
 }; 
 
 void
-Key::EncodeNumber(double aFloat, uint8_t aType)
+Key::EncodeNumber(double aFloat, PRUint8 aType)
 {
   // Allocate memory for the new size
-  uint32_t oldLen = mBuffer.Length();
+  PRUint32 oldLen = mBuffer.Length();
   char* buffer;
   if (!mBuffer.GetMutableData(&buffer, oldLen + 1 + sizeof(double))) {
     return;
@@ -391,7 +391,7 @@ Key::EncodeNumber(double aFloat, uint8_t aType)
 
   Float64Union pun;
   pun.d = aFloat;
-  uint64_t number = pun.u & PR_UINT64(0x8000000000000000) ?
+  PRUint64 number = pun.u & PR_UINT64(0x8000000000000000) ?
                     -pun.u :
                     (pun.u | PR_UINT64(0x8000000000000000));
 
@@ -408,7 +408,7 @@ Key::DecodeNumber(const unsigned char*& aPos, const unsigned char* aEnd)
 
   ++aPos;
 
-  uint64_t number = 0;
+  PRUint64 number = 0;
   memcpy(&number, aPos, NS_MIN<size_t>(sizeof(number), aEnd - aPos));
   number = NS_SWAP64(number);
 

@@ -49,7 +49,7 @@ nsSVGGFrame::GetType() const
 // nsISVGChildFrame methods
 
 void
-nsSVGGFrame::NotifySVGChanged(uint32_t aFlags)
+nsSVGGFrame::NotifySVGChanged(PRUint32 aFlags)
 {
   NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
                     "Invalidation logic may need adjusting");
@@ -63,7 +63,7 @@ nsSVGGFrame::NotifySVGChanged(uint32_t aFlags)
 }
 
 gfxMatrix
-nsSVGGFrame::GetCanvasTM(uint32_t aFor)
+nsSVGGFrame::GetCanvasTM(PRUint32 aFor)
 {
   if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
@@ -85,9 +85,9 @@ nsSVGGFrame::GetCanvasTM(uint32_t aFor)
 }
 
 NS_IMETHODIMP
-nsSVGGFrame::AttributeChanged(int32_t         aNameSpaceID,
+nsSVGGFrame::AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType)
+                              PRInt32         aModType)
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       aAttribute == nsGkAtoms::transform) {

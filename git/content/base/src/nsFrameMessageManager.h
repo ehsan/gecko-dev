@@ -83,7 +83,7 @@ public:
 
   ~nsFrameMessageManager()
   {
-    for (int32_t i = mChildManagers.Count(); i > 0; --i) {
+    for (PRInt32 i = mChildManagers.Count(); i > 0; --i) {
       static_cast<nsFrameMessageManager*>(mChildManagers[i - 1])->
         Disconnect(false);
     }
@@ -212,7 +212,7 @@ protected:
                        nsCycleCollectionTraversalCallback &cb);
   nsCOMPtr<nsIXPConnectJSObjectHolder> mGlobal;
   JSContext* mCx;
-  uint32_t mCxStackRefCnt;
+  PRUint32 mCxStackRefCnt;
   bool mDelayedCxDestroy;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   static nsDataHashtable<nsStringHashKey, nsFrameJSScriptExecutorHolder*>* sCachedScripts;

@@ -24,10 +24,10 @@
 class IdleListener {
 public:
   nsCOMPtr<nsIObserver> observer;
-  uint32_t reqIdleTime;
+  PRUint32 reqIdleTime;
   bool isIdle;
 
-  IdleListener(nsIObserver* obs, uint32_t reqIT, bool aIsIdle = false) :
+  IdleListener(nsIObserver* obs, PRUint32 reqIT, bool aIsIdle = false) :
     observer(obs), reqIdleTime(reqIT), isIdle(aIsIdle) {}
   ~IdleListener() {}
 };
@@ -121,7 +121,7 @@ protected:
    *       returned by GetIdleTime, as that is corrected by any calls to
    *       ResetIdleTimeOut(), unless you overwrite that function too...
    */
-  virtual bool PollIdleTime(uint32_t* aIdleTime);
+  virtual bool PollIdleTime(PRUint32* aIdleTime);
 
   /**
    * Function that determines if we are in poll mode or not.
@@ -175,7 +175,7 @@ private:
    *
    * If this value is 0 it means there are no active observers
    */
-  uint32_t mDeltaToNextIdleSwitchInS;
+  PRUint32 mDeltaToNextIdleSwitchInS;
 
   /**
    * Absolute value for when the last user interaction took place.

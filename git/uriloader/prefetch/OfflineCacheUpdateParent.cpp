@@ -102,14 +102,14 @@ OfflineCacheUpdateParent::Schedule(const URI& aManifestURI,
 }
 
 NS_IMETHODIMP
-OfflineCacheUpdateParent::UpdateStateChanged(nsIOfflineCacheUpdate *aUpdate, uint32_t state)
+OfflineCacheUpdateParent::UpdateStateChanged(nsIOfflineCacheUpdate *aUpdate, PRUint32 state)
 {
     if (mIPCClosed)
         return NS_ERROR_UNEXPECTED;
 
     LOG(("OfflineCacheUpdateParent::StateEvent [%p]", this));
 
-    uint64_t byteProgress;
+    PRUint64 byteProgress;
     aUpdate->GetByteProgress(&byteProgress);
     SendNotifyStateEvent(state, byteProgress);
 

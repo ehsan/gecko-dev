@@ -334,15 +334,13 @@ LoginManagerPrompter.prototype = {
      */
     _showChangeLoginNotification : function (aNativeWindow, aOldLogin, aNewPassword) {
         var notificationText;
-        if (aOldLogin.username) {
-            let displayUser = this._sanitizeUsername(aOldLogin.username);
+        if (aOldLogin.username)
             notificationText  = this._getLocalizedString(
                                           "passwordChangeText",
-                                          [displayUser]);
-        } else {
+                                          [aOldLogin.username]);
+        else
             notificationText  = this._getLocalizedString(
                                           "passwordChangeTextNoUser");
-        }
 
         var changeButtonText =
               this._getLocalizedString("notifyBarChangeButtonText");
@@ -394,15 +392,13 @@ LoginManagerPrompter.prototype = {
         const buttonFlags = Ci.nsIPrompt.STD_YES_NO_BUTTONS;
 
         var dialogText;
-        if (aOldLogin.username) {
-            let displayUser = this._sanitizeUsername(aOldLogin.username);
+        if (aOldLogin.username)
             dialogText  = this._getLocalizedString(
                                     "passwordChangeText",
-                                    [displayUser]);
-        } else {
+                                    [aOldLogin.username]);
+        else
             dialogText  = this._getLocalizedString(
                                     "passwordChangeTextNoUser");
-        }
 
         var dialogTitle = this._getLocalizedString(
                                     "passwordChangeTitle");

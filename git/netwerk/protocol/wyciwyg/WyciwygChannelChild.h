@@ -53,22 +53,22 @@ public:
 
 protected:
   bool RecvOnStartRequest(const nsresult& statusCode,
-                          const int32_t& contentLength,
-                          const int32_t& source,
+                          const PRInt32& contentLength,
+                          const PRInt32& source,
                           const nsCString& charset,
                           const nsCString& securityInfo);
   bool RecvOnDataAvailable(const nsCString& data,
-                           const uint32_t& offset);
+                           const PRUint32& offset);
   bool RecvOnStopRequest(const nsresult& statusCode);
   bool RecvCancelEarly(const nsresult& statusCode);
 
   void OnStartRequest(const nsresult& statusCode,
-                      const int32_t& contentLength,
-                      const int32_t& source,
+                      const PRInt32& contentLength,
+                      const PRInt32& source,
                       const nsCString& charset,
                       const nsCString& securityInfo);
   void OnDataAvailable(const nsCString& data,
-                       const uint32_t& offset);
+                       const PRUint32& offset);
   void OnStopRequest(const nsresult& statusCode);
   void CancelEarly(const nsresult& statusCode);
 
@@ -76,9 +76,9 @@ private:
   nsresult                          mStatus;
   bool                              mIsPending;
   bool                              mCanceled;
-  uint32_t                          mLoadFlags;
-  int32_t                           mContentLength;
-  int32_t                           mCharsetSource;
+  PRUint32                          mLoadFlags;
+  PRInt32                           mContentLength;
+  PRInt32                           mCharsetSource;
   nsCString                         mCharset;
   nsCOMPtr<nsIURI>                  mURI;
   nsCOMPtr<nsIURI>                  mOriginalURI;

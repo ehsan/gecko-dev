@@ -77,7 +77,7 @@ CanvasLayerD3D10::Initialize(const Data& aData)
   mUsingSharedTexture = false;
 
   HANDLE shareHandle = mGLContext ? mGLContext->GetD3DShareHandle() : nullptr;
-  if (shareHandle && !mForceReadback) {
+  if (shareHandle) {
     HRESULT hr = device()->OpenSharedResource(shareHandle, __uuidof(ID3D10Texture2D), getter_AddRefs(mTexture));
     if (SUCCEEDED(hr))
       mUsingSharedTexture = true;
@@ -133,12 +133,12 @@ CanvasLayerD3D10::UpdateSurface()
 
     const bool stridesMatch = map.RowPitch == mBounds.width * 4;
 
-    uint8_t *destination;
+    PRUint8 *destination;
     if (!stridesMatch) {
       destination = GetTempBlob(mBounds.width * mBounds.height * 4);
     } else {
       DiscardTempBlob();
-      destination = (uint8_t*)map.pData;
+      destination = (PRUint8*)map.pData;
     }
 
     mGLContext->MakeCurrent();
@@ -153,7 +153,7 @@ CanvasLayerD3D10::UpdateSurface()
 
     if (!stridesMatch) {
       for (int y = 0; y < mBounds.height; y++) {
-        memcpy((uint8_t*)map.pData + map.RowPitch * y,
+        memcpy((PRUint8*)map.pData + map.RowPitch * y,
                destination + mBounds.width * 4 * y,
                mBounds.width * 4);
       }
@@ -208,7 +208,7 @@ CanvasLayerD3D10::RenderLayer()
 
   SetEffectTransformAndOpacity();
 
-  uint8_t shaderFlags = 0;
+  PRUint8 shaderFlags = 0;
   shaderFlags |= LoadMaskTexture();
   shaderFlags |= mDataIsPremultiplied
                 ? SHADER_PREMUL : SHADER_NON_PREMUL | SHADER_RGBA;

@@ -43,12 +43,12 @@ nsNthIndexCache::IndexDeterminedFromPreviousSibling(nsIContent* aSibling,
                                                     bool aIsOfType,
                                                     bool aIsFromEnd,
                                                     const Cache& aCache,
-                                                    int32_t& aResult)
+                                                    PRInt32& aResult)
 {
   if (SiblingMatchesElement(aSibling, aChild, aIsOfType)) {
     Cache::Ptr siblingEntry = aCache.lookup(aSibling);
     if (siblingEntry) {
-      int32_t siblingIndex = siblingEntry->value;
+      PRInt32 siblingIndex = siblingEntry->value;
       NS_ASSERTION(siblingIndex != 0,
                    "How can a non-anonymous node have an anonymous sibling?");
       if (siblingIndex > 0) {
@@ -70,7 +70,7 @@ nsNthIndexCache::IndexDeterminedFromPreviousSibling(nsIContent* aSibling,
   return false;
 }
 
-int32_t
+PRInt32
 nsNthIndexCache::GetNthIndex(Element* aChild, bool aIsOfType,
                              bool aIsFromEnd, bool aCheckEdgeOnly)
 {
@@ -95,12 +95,12 @@ nsNthIndexCache::GetNthIndex(Element* aChild, bool aIsOfType,
     return 0;
   }
 
-  int32_t &slot = entry->value;
+  PRInt32 &slot = entry->value;
   if (slot != -2 && (slot != -1 || aCheckEdgeOnly)) {
     return slot;
   }
   
-  int32_t result = 1;
+  PRInt32 result = 1;
   if (aCheckEdgeOnly) {
     // The caller only cares whether or not the result is 1, so we can
     // stop as soon as we see any other elements that match us.

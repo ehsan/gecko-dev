@@ -125,7 +125,7 @@ public:
                const PRUnichar* aShowAgainName,
                nsIPrefBranch*   aPrefBranch,
                nsIStringBundle* aStringBundle,
-               uint32_t         aBucket)
+               PRUint32         aBucket)
   : mPrompt(aPrompt), mPrefName(aPrefName),
     mDialogMessageName(aDialogMessageName),
     mShowAgainName(aShowAgainName), mPrefBranch(aPrefBranch),
@@ -140,7 +140,7 @@ protected:
   nsString                  mShowAgainName;
   nsCOMPtr<nsIPrefBranch>   mPrefBranch;
   nsCOMPtr<nsIStringBundle> mStringBundle;
-  uint32_t                  mBucket;
+  PRUint32                  mBucket;
 };
 
 NS_IMETHODIMP
@@ -201,7 +201,7 @@ nsSecurityWarningDialogs::AlertDialog(nsIInterfaceRequestor* aCtx,
                                       const PRUnichar* aDialogMessageName,
                                       const PRUnichar* aShowAgainName,
                                       bool aAsync,
-                                      const uint32_t aBucket)
+                                      const PRUint32 aBucket)
 {
   // Get Prompt to use
   nsCOMPtr<nsIPrompt> prompt = do_GetInterface(aCtx);
@@ -255,7 +255,7 @@ nsresult
 nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *prefName,
                             const PRUnichar *messageName, 
                             const PRUnichar *showAgainName, 
-                            const uint32_t aBucket,
+                            const PRUint32 aBucket,
                             bool* _result)
 {
   nsresult rv;
@@ -310,14 +310,14 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
   // Replace # characters with newlines to lay out the dialog.
   PRUnichar* msgchars = message.BeginWriting();
   
-  uint32_t i = 0;
+  PRUint32 i = 0;
   for (i = 0; msgchars[i] != '\0'; i++) {
     if (msgchars[i] == '#') {
       msgchars[i] = '\n';
     }
   }  
 
-  int32_t buttonPressed;
+  PRInt32 buttonPressed;
 
   rv  = prompt->ConfirmEx(windowTitle, 
                           message, 

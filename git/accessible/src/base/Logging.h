@@ -48,13 +48,13 @@ enum EModules {
 /**
  * Return true if any of the given modules is logged.
  */
-bool IsEnabled(uint32_t aModules);
+bool IsEnabled(PRUint32 aModules);
 
 /**
  * Log the document loading progress.
  */
 void DocLoad(const char* aMsg, nsIWebProgress* aWebProgress,
-             nsIRequest* aRequest, uint32_t aStateFlags);
+             nsIRequest* aRequest, PRUint32 aStateFlags);
 void DocLoad(const char* aMsg, nsIDocument* aDocumentNode);
 
 /**

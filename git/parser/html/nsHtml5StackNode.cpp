@@ -55,7 +55,7 @@
 
 #include "nsHtml5StackNode.h"
 
-int32_t 
+PRInt32 
 nsHtml5StackNode::getGroup()
 {
   return flags & NS_HTML5ELEMENT_NAME_GROUP_MASK;
@@ -86,7 +86,7 @@ nsHtml5StackNode::isHtmlIntegrationPoint()
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(int32_t flags, int32_t ns, nsIAtom* name, nsIContent** node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes)
+nsHtml5StackNode::nsHtml5StackNode(PRInt32 flags, PRInt32 ns, nsIAtom* name, nsIContent** node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes)
   : flags(flags),
     name(name),
     popName(popName),
@@ -165,8 +165,8 @@ nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent**
   MOZ_COUNT_CTOR(nsHtml5StackNode);
 }
 
-int32_t 
-nsHtml5StackNode::prepareSvgFlags(int32_t flags)
+PRInt32 
+nsHtml5StackNode::prepareSvgFlags(PRInt32 flags)
 {
   flags &= ~(NS_HTML5ELEMENT_NAME_FOSTER_PARENTING | NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_OPTIONAL_END_TAG);
   if ((flags & NS_HTML5ELEMENT_NAME_SCOPING_AS_SVG)) {
@@ -175,8 +175,8 @@ nsHtml5StackNode::prepareSvgFlags(int32_t flags)
   return flags;
 }
 
-int32_t 
-nsHtml5StackNode::prepareMathFlags(int32_t flags, bool markAsIntegrationPoint)
+PRInt32 
+nsHtml5StackNode::prepareMathFlags(PRInt32 flags, bool markAsIntegrationPoint)
 {
   flags &= ~(NS_HTML5ELEMENT_NAME_FOSTER_PARENTING | NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_OPTIONAL_END_TAG);
   if ((flags & NS_HTML5ELEMENT_NAME_SCOPING_AS_MATHML)) {

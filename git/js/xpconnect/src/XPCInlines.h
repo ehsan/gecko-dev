@@ -279,7 +279,7 @@ XPCCallContext::SetResolvingWrapper(XPCWrappedNative* w)
     return XPCJSRuntime::Get()->SetResolvingWrapper(w);
 }
 
-inline uint16_t
+inline PRUint16
 XPCCallContext::GetMethodIndex() const
 {
     CHECK_STATE(HAVE_OBJECT);
@@ -287,7 +287,7 @@ XPCCallContext::GetMethodIndex() const
 }
 
 inline void
-XPCCallContext::SetMethodIndex(uint16_t index)
+XPCCallContext::SetMethodIndex(PRUint16 index)
 {
     CHECK_STATE(HAVE_OBJECT);
     mMethodIndex = index;
@@ -345,7 +345,7 @@ XPCNativeInterface::HasAncestor(const nsIID* iid) const
 
 inline JSBool
 XPCNativeSet::FindMember(jsid name, XPCNativeMember** pMember,
-                         uint16_t* pInterfaceIndex) const
+                         PRUint16* pInterfaceIndex) const
 {
     XPCNativeInterface* const * iface;
     int count = (int) mInterfaceCount;
@@ -358,7 +358,7 @@ XPCNativeSet::FindMember(jsid name, XPCNativeMember** pMember,
             if (pMember)
                 *pMember = nullptr;
             if (pInterfaceIndex)
-                *pInterfaceIndex = (uint16_t) i;
+                *pInterfaceIndex = (PRUint16) i;
             return true;
         }
     }
@@ -370,7 +370,7 @@ XPCNativeSet::FindMember(jsid name, XPCNativeMember** pMember,
             if (pMember)
                 *pMember = member;
             if (pInterfaceIndex)
-                *pInterfaceIndex = (uint16_t) i;
+                *pInterfaceIndex = (PRUint16) i;
             return true;
         }
     }
@@ -381,7 +381,7 @@ inline JSBool
 XPCNativeSet::FindMember(jsid name, XPCNativeMember** pMember,
                          XPCNativeInterface** pInterface) const
 {
-    uint16_t index;
+    PRUint16 index;
     if (!FindMember(name, pMember, &index))
         return false;
     *pInterface = mInterfaces[index];
@@ -410,7 +410,7 @@ XPCNativeSet::FindMember(jsid name,
         !protoSet ||
         (protoSet != this &&
          !protoSet->MatchesSetUpToInterface(this, Interface) &&
-         (!protoSet->FindMember(name, &protoMember, (uint16_t*)nullptr) ||
+         (!protoSet->FindMember(name, &protoMember, (PRUint16*)nullptr) ||
           protoMember != Member));
 
     return true;

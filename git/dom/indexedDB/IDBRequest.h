@@ -103,7 +103,7 @@ protected:
   bool mHaveResultOrErrorCode;
 
   nsString mFilename;
-  uint32_t mLineNo;
+  PRUint32 mLineNo;
 };
 
 class IDBOpenDBRequest : public IDBRequest,

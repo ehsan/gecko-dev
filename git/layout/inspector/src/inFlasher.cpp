@@ -67,7 +67,7 @@ inFlasher::SetColor(const nsAString& aColor)
 }
 
 NS_IMETHODIMP
-inFlasher::GetThickness(uint16_t *aThickness)
+inFlasher::GetThickness(PRUint16 *aThickness)
 {
   NS_PRECONDITION(aThickness, "Null pointer");
   *aThickness = mThickness;
@@ -75,7 +75,7 @@ inFlasher::GetThickness(uint16_t *aThickness)
 }
 
 NS_IMETHODIMP
-inFlasher::SetThickness(uint16_t aThickness)
+inFlasher::SetThickness(PRUint16 aThickness)
 {
   mThickness = aThickness;
   return NS_OK;

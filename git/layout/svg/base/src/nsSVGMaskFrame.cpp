@@ -41,7 +41,7 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
 
   nsSVGMaskElement *mask = static_cast<nsSVGMaskElement*>(mContent);
 
-  uint16_t units =
+  PRUint16 units =
     mask->mEnumAttributes[nsSVGMaskElement::MASKUNITS].GetAnimValue();
   gfxRect bbox;
   if (units == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
@@ -109,8 +109,8 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
     nsSVGUtils::PaintFrameWithEffects(&tmpCtx, nullptr, kid);
   }
 
-  uint8_t *data   = image->Data();
-  int32_t  stride = image->Stride();
+  PRUint8 *data   = image->Data();
+  PRInt32  stride = image->Stride();
 
   nsIntRect rect(0, 0, surfaceSize.width, surfaceSize.height);
   nsSVGUtils::UnPremultiplyImageDataAlpha(data, stride, rect);
@@ -119,13 +119,13 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
     nsSVGUtils::ConvertImageDataToLinearRGB(data, stride, rect);
   }
 
-  for (int32_t y = 0; y < surfaceSize.height; y++)
-    for (int32_t x = 0; x < surfaceSize.width; x++) {
-      uint8_t *pixel = data + stride * y + 4 * x;
+  for (PRInt32 y = 0; y < surfaceSize.height; y++)
+    for (PRInt32 x = 0; x < surfaceSize.width; x++) {
+      PRUint8 *pixel = data + stride * y + 4 * x;
 
       /* linearRGB -> intensity */
-      uint8_t alpha =
-        static_cast<uint8_t>
+      PRUint8 alpha =
+        static_cast<PRUint8>
                    ((pixel[GFX_ARGB32_OFFSET_R] * 0.2125 +
                         pixel[GFX_ARGB32_OFFSET_G] * 0.7154 +
                         pixel[GFX_ARGB32_OFFSET_B] * 0.0721) *
@@ -148,9 +148,9 @@ nsSVGMaskFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 }
 
 NS_IMETHODIMP
-nsSVGMaskFrame::AttributeChanged(int32_t  aNameSpaceID,
+nsSVGMaskFrame::AttributeChanged(PRInt32  aNameSpaceID,
                                  nsIAtom* aAttribute,
-                                 int32_t  aModType)
+                                 PRInt32  aModType)
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       (aAttribute == nsGkAtoms::x ||
@@ -186,7 +186,7 @@ nsSVGMaskFrame::GetType() const
 }
 
 gfxMatrix
-nsSVGMaskFrame::GetCanvasTM(uint32_t aFor)
+nsSVGMaskFrame::GetCanvasTM(PRUint32 aFor)
 {
   NS_ASSERTION(mMaskParentMatrix, "null parent matrix");
 

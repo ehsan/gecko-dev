@@ -34,9 +34,9 @@ public:
                    nsIFrame*   aParent,
                    nsIFrame*   aPrevInFlow);
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
-  NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
+  NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
-                               int32_t         aModType);
+                               PRInt32         aModType);
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
 
@@ -60,7 +60,7 @@ public:
    */
   virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsSVGForeignObjectFrameBase::IsFrameOfType(aFlags &
       ~(nsIFrame::eSVG | nsIFrame::eSVGForeignObject));
@@ -68,7 +68,7 @@ public:
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  uint32_t aFlags);
+                                  PRUint32 aFlags);
 
   virtual bool IsSVGTransformed(gfxMatrix *aOwnTransform,
                                 gfxMatrix *aFromParentTransform) const;
@@ -86,21 +86,21 @@ public:
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   virtual void ReflowSVG();
-  virtual void NotifySVGChanged(uint32_t aFlags);
+  virtual void NotifySVGChanged(PRUint32 aFlags);
   virtual SVGBBox GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
-                                      uint32_t aFlags);
+                                      PRUint32 aFlags);
   NS_IMETHOD_(bool) IsDisplayContainer() { return true; }
 
-  gfxMatrix GetCanvasTM(uint32_t aFor);
+  gfxMatrix GetCanvasTM(PRUint32 aFor);
 
 protected:
   // implementation helpers:
   void DoReflow();
   void RequestReflow(nsIPresShell::IntrinsicDirty aType);
 
-  void InvalidateDirtyRect(const nsRect& aRect, uint32_t aFlags,
+  void InvalidateDirtyRect(const nsRect& aRect, PRUint32 aFlags,
                            bool aDuringReflowSVG);
-  void FlushDirtyRegion(uint32_t aFlags, bool aDuringReflowSVG);
+  void FlushDirtyRegion(PRUint32 aFlags, bool aDuringReflowSVG);
 
   // If width or height is less than or equal to zero we must disable rendering
   bool IsDisabled() const { return mRect.width <= 0 || mRect.height <= 0; }

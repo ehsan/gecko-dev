@@ -39,7 +39,7 @@ FetchObserver::OnStartRequest(nsIRequest *request, nsISupports *context)
 
 NS_IMETHODIMP
 FetchObserver::OnProgress(nsIRequest *request, nsISupports *context,
-                          uint64_t progress, uint64_t progressMax)
+                          PRUint64 progress, PRUint64 progressMax)
 {
   printf("FetchObserver::OnProgress [%lu/%lu]\n",
          (unsigned long)progress, (unsigned long)progressMax);
@@ -66,8 +66,8 @@ FetchObserver::OnStopRequest(nsIRequest *request, nsISupports *context,
 //-----------------------------------------------------------------------------
 
 static nsresult
-DoIncrementalFetch(const char *uriSpec, const char *resultPath, int32_t chunkSize,
-                   int32_t interval)
+DoIncrementalFetch(const char *uriSpec, const char *resultPath, PRInt32 chunkSize,
+                   PRInt32 interval)
 {
   nsCOMPtr<nsIFile> resultFile;
   nsresult rv = NS_NewNativeLocalFile(nsDependentCString(resultPath),
@@ -116,8 +116,8 @@ main(int argc, char **argv)
   if (NS_FAILED(rv))
     return -1;
 
-  int32_t chunkSize = atoi(argv[3]);
-  int32_t interval = atoi(argv[4]);
+  PRInt32 chunkSize = atoi(argv[3]);
+  PRInt32 interval = atoi(argv[4]);
 
   rv = DoIncrementalFetch(argv[1], argv[2], chunkSize, interval);
   if (NS_FAILED(rv))

@@ -39,7 +39,7 @@ nsLDAPSyncQuery::~nsLDAPSyncQuery()
 NS_IMETHODIMP 
 nsLDAPSyncQuery::OnLDAPMessage(nsILDAPMessage *aMessage)
 {
-    int32_t messageType;
+    PRInt32 messageType;
 
     // just in case.
     //
@@ -143,7 +143,7 @@ nsresult
 nsLDAPSyncQuery::OnLDAPBind(nsILDAPMessage *aMessage)
 {
 
-    int32_t errCode;
+    PRInt32 errCode;
 
     mOperation = 0;  // done with bind op; make nsCOMPtr release it
 
@@ -179,10 +179,10 @@ nsLDAPSyncQuery::OnLDAPSearchEntry(nsILDAPMessage *aMessage)
     // Attributes are retrieved in StartLDAPSearch
     // iterate through them
     //
-    for (uint32_t i = 0; i < mAttrCount; i++) {
+    for (PRUint32 i = 0; i < mAttrCount; i++) {
 
         PRUnichar **vals;
-        uint32_t valueCount;
+        PRUint32 valueCount;
 
         // get the values of this attribute
         // XXX better failure handling
@@ -197,7 +197,7 @@ nsLDAPSyncQuery::OnLDAPSearchEntry(nsILDAPMessage *aMessage)
 
         // store  all values of this attribute in the mResults.
         //
-        for (uint32_t j = 0; j < valueCount; j++) {
+        for (PRUint32 j = 0; j < valueCount; j++) {
             mResults.Append(PRUnichar('\n'));
             mResults.AppendASCII(mAttrs[i]);
             mResults.Append(PRUnichar('='));
@@ -291,7 +291,7 @@ nsLDAPSyncQuery::StartLDAPSearch()
 
     // and the scope
     //
-    int32_t scope;
+    PRInt32 scope;
     rv = mServerURL->GetScope(&scope);
     if (NS_FAILED(rv)) {
         FinishLDAPQuery();
@@ -388,7 +388,7 @@ nsLDAPSyncQuery::FinishLDAPQuery()
 
 /* wstring getQueryResults (in nsILDAPURL aServerURL, in unsigned long aVersion); */
 NS_IMETHODIMP nsLDAPSyncQuery::GetQueryResults(nsILDAPURL *aServerURL,
-                                               uint32_t aProtocolVersion,
+                                               PRUint32 aProtocolVersion,
                                                PRUnichar **_retval)
 {
     nsresult rv;

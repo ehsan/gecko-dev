@@ -45,7 +45,7 @@ TraverseCommandObservers(const char* aKey,
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(aClosure);
 
-  int32_t i, numItems = aObservers->Length();
+  PRInt32 i, numItems = aObservers->Length();
   for (i = 0; i < numItems; ++i) {
     cb->NoteXPCOMChild(aObservers->ElementAt(i));
   }
@@ -97,7 +97,7 @@ nsCommandManager::CommandStatusChanged(const char * aCommandName)
   if (commandObservers)
   {
     // XXX Should we worry about observers removing themselves from Observe()?
-    int32_t i, numItems = commandObservers->Length();
+    PRInt32 i, numItems = commandObservers->Length();
     for (i = 0; i < numItems;  ++i)
     {
       nsCOMPtr<nsIObserver> observer = commandObservers->ElementAt(i);
@@ -132,7 +132,7 @@ nsCommandManager::AddCommandObserver(nsIObserver *aCommandObserver, const char *
   }
 
   // need to check that this command observer hasn't already been registered
-  int32_t existingIndex = commandObservers->IndexOf(aCommandObserver);
+  PRInt32 existingIndex = commandObservers->IndexOf(aCommandObserver);
   if (existingIndex == -1)
     commandObservers->AppendElement(aCommandObserver);
   else

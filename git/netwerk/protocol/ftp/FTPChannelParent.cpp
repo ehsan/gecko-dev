@@ -56,7 +56,7 @@ NS_IMPL_ISUPPORTS4(FTPChannelParent,
 
 bool
 FTPChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
-                                const uint64_t& aStartPos,
+                                const PRUint64& aStartPos,
                                 const nsCString& aEntityID,
                                 const IPC::InputStream& aUploadStream,
                                 const IPC::SerializedLoadContext& loadContext)
@@ -105,7 +105,7 @@ FTPChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
 }
 
 bool
-FTPChannelParent::RecvConnectChannel(const uint32_t& channelId)
+FTPChannelParent::RecvConnectChannel(const PRUint32& channelId)
 {
   nsresult rv;
 
@@ -155,7 +155,7 @@ FTPChannelParent::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   LOG(("FTPChannelParent::OnStartRequest [this=%x]\n", this));
 
   nsFtpChannel* chan = static_cast<nsFtpChannel*>(aRequest);
-  int32_t aContentLength;
+  PRInt32 aContentLength;
   chan->GetContentLength(&aContentLength);
   nsCString contentType;
   chan->GetContentType(contentType);
@@ -195,8 +195,8 @@ NS_IMETHODIMP
 FTPChannelParent::OnDataAvailable(nsIRequest* aRequest,
                                   nsISupports* aContext,
                                   nsIInputStream* aInputStream,
-                                  uint32_t aOffset,
-                                  uint32_t aCount)
+                                  PRUint32 aOffset,
+                                  PRUint32 aCount)
 {
   LOG(("FTPChannelParent::OnDataAvailable [this=%x]\n", this));
   

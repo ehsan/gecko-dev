@@ -32,24 +32,24 @@ class nsXMLContentSerializer : public nsIContentSerializer {
 
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD Init(uint32_t flags, uint32_t aWrapColumn,
+  NS_IMETHOD Init(PRUint32 flags, PRUint32 aWrapColumn,
                   const char* aCharSet, bool aIsCopying,
                   bool aRewriteEncodingDeclaration);
 
-  NS_IMETHOD AppendText(nsIContent* aText, int32_t aStartOffset,
-                        int32_t aEndOffset, nsAString& aStr);
+  NS_IMETHOD AppendText(nsIContent* aText, PRInt32 aStartOffset,
+                        PRInt32 aEndOffset, nsAString& aStr);
 
   NS_IMETHOD AppendCDATASection(nsIContent* aCDATASection,
-                                int32_t aStartOffset, int32_t aEndOffset,
+                                PRInt32 aStartOffset, PRInt32 aEndOffset,
                                 nsAString& aStr);
 
   NS_IMETHOD AppendProcessingInstruction(nsIContent* aPI,
-                                         int32_t aStartOffset,
-                                         int32_t aEndOffset,
+                                         PRInt32 aStartOffset,
+                                         PRInt32 aEndOffset,
                                          nsAString& aStr);
 
-  NS_IMETHOD AppendComment(nsIContent* aComment, int32_t aStartOffset,
-                           int32_t aEndOffset, nsAString& aStr);
+  NS_IMETHOD AppendComment(nsIContent* aComment, PRInt32 aStartOffset,
+                           PRInt32 aEndOffset, nsAString& aStr);
   
   NS_IMETHOD AppendDoctype(nsIContent *aDoctype,
                            nsAString& aStr);
@@ -145,8 +145,8 @@ class nsXMLContentSerializer : public nsIContentSerializer {
    * It doesn't increment the column position
    */
   nsresult AppendTextData(nsIContent* aNode,
-                          int32_t aStartOffset,
-                          int32_t aEndOffset,
+                          PRInt32 aStartOffset,
+                          PRInt32 aEndOffset,
                           nsAString& aStr,
                           bool aTranslateEntities);
 
@@ -182,7 +182,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
    */
   void GenerateNewPrefix(nsAString& aPrefix);
 
-  uint32_t ScanNamespaceDeclarations(nsIContent* aContent,
+  PRUint32 ScanNamespaceDeclarations(nsIContent* aContent,
                                      nsIContent *aOriginalElement,
                                      const nsAString& aTagNamespaceURI);
 
@@ -192,7 +192,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
                                    const nsAString& aTagNamespaceURI,
                                    nsIAtom* aTagName,
                                    nsAString& aStr,
-                                   uint32_t aSkipAttr,
+                                   PRUint32 aSkipAttr,
                                    bool aAddNSAttr);
 
   void SerializeAttr(const nsAString& aPrefix,
@@ -203,7 +203,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
 
   bool IsJavaScript(nsIContent * aContent,
                       nsIAtom* aAttrNameAtom,
-                      int32_t aAttrNamespaceID,
+                      PRInt32 aAttrNamespaceID,
                       const nsAString& aValueString);
 
   /**
@@ -224,7 +224,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
    */
   virtual void AppendEndOfElementStart(nsIContent *aOriginalElement,
                                        nsIAtom * aName,
-                                       int32_t aNamespaceID,
+                                       PRInt32 aNamespaceID,
                                        nsAString& aStr);
 
   /**
@@ -259,22 +259,22 @@ class nsXMLContentSerializer : public nsIContentSerializer {
   /**
    * Returns true if a line break should be inserted before an element open tag
    */
-  virtual bool LineBreakBeforeOpen(int32_t aNamespaceID, nsIAtom* aName);
+  virtual bool LineBreakBeforeOpen(PRInt32 aNamespaceID, nsIAtom* aName);
 
   /**
    * Returns true if a line break should be inserted after an element open tag
    */
-  virtual bool LineBreakAfterOpen(int32_t aNamespaceID, nsIAtom* aName);
+  virtual bool LineBreakAfterOpen(PRInt32 aNamespaceID, nsIAtom* aName);
 
   /**
    * Returns true if a line break should be inserted after an element close tag
    */
-  virtual bool LineBreakBeforeClose(int32_t aNamespaceID, nsIAtom* aName);
+  virtual bool LineBreakBeforeClose(PRInt32 aNamespaceID, nsIAtom* aName);
 
   /**
    * Returns true if a line break should be inserted after an element close tag
    */
-  virtual bool LineBreakAfterClose(int32_t aNamespaceID, nsIAtom* aName);
+  virtual bool LineBreakAfterClose(PRInt32 aNamespaceID, nsIAtom* aName);
 
   /**
    * add intendation. Call only in the case of formating and if the current
@@ -293,7 +293,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
   virtual void MaybeEnterInPreContent(nsIContent* aNode);
   virtual void MaybeLeaveFromPreContent(nsIContent* aNode);
 
-  int32_t mPrefixIndex;
+  PRInt32 mPrefixIndex;
 
   struct NameSpaceDecl {
     nsString mPrefix;
@@ -304,7 +304,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
   nsTArray<NameSpaceDecl> mNameSpaceStack;
 
   // nsIDocumentEncoder flags
-  uint32_t  mFlags;
+  PRUint32  mFlags;
 
   // characters to use for line break
   nsString  mLineBreak;
@@ -313,7 +313,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
   nsCString mCharset;
   
   // current column position on the current line
-  uint32_t   mColPos;
+  PRUint32   mColPos;
 
   // true = pretty formating should be done (OutputFormated flag)
   bool mDoFormat;
@@ -326,14 +326,14 @@ class nsXMLContentSerializer : public nsIContentSerializer {
   bool mDoWrap;
 
   // number of maximum column in a line, in the wrap mode
-  uint32_t   mMaxColumn;
+  PRUint32   mMaxColumn;
 
   // current indent value
   nsString   mIndent;
 
   // this is the indentation level after the indentation reached
   // the maximum length of indentation
-  int32_t    mIndentOverflow;
+  PRInt32    mIndentOverflow;
 
   // says if the indentation has been already added on the current line
   bool mIsIndentationAddedOnCurrentLine;
@@ -358,10 +358,10 @@ class nsXMLContentSerializer : public nsIContentSerializer {
   bool          mMayIgnoreLineBreakSequence;
 
   bool          mBodyOnly;
-  int32_t       mInBody;
+  PRInt32       mInBody;
 
   // number of nested elements which have preformated content
-  int32_t       mPreLevel;
+  PRInt32       mPreLevel;
 };
 
 nsresult

@@ -42,11 +42,11 @@ CacheLogPrintPath(PRLogModuleLevel level, const char * format, nsIFile * item)
 #endif
 
 
-uint32_t
+PRUint32
 SecondsFromPRTime(PRTime prTime)
 {
-  int64_t  microSecondsPerSecond, intermediateResult;
-  uint32_t seconds;
+  PRInt64  microSecondsPerSecond, intermediateResult;
+  PRUint32 seconds;
 
   LL_I2L(microSecondsPerSecond, PR_USEC_PER_SEC);
   LL_DIV(intermediateResult, prTime, microSecondsPerSecond);
@@ -56,9 +56,9 @@ SecondsFromPRTime(PRTime prTime)
 
 
 PRTime
-PRTimeFromSeconds(uint32_t seconds)
+PRTimeFromSeconds(PRUint32 seconds)
 {
-  int64_t microSecondsPerSecond, intermediateResult;
+  PRInt64 microSecondsPerSecond, intermediateResult;
   PRTime  prTime;
 
   LL_I2L(microSecondsPerSecond, PR_USEC_PER_SEC);

@@ -247,8 +247,8 @@ public:
         passed("StableStateRunnable state correct (false)");
       }
 
-      int32_t layout = 0x409; // US
-      int32_t keyCode = 0x41; // VK_A
+      PRInt32 layout = 0x409; // US
+      PRInt32 keyCode = 0x41; // VK_A
       NS_NAMED_LITERAL_STRING(a, "a");
 
       if (NS_FAILED(utils->SendNativeKeyEvent(layout, keyCode, 0, a, a))) {
@@ -404,7 +404,7 @@ Test4Internal(nsIAppShell* aAppShell)
     return false;
   }
 
-  uint32_t flags = nsIWebBrowserChrome::CHROME_DEFAULT;
+  PRUint32 flags = nsIWebBrowserChrome::CHROME_DEFAULT;
 
   nsCOMPtr<nsIXULWindow> xulWindow;
   if (NS_FAILED(appService->CreateTopLevelWindow(NULL, uri, flags, 100, 100,

@@ -145,7 +145,7 @@ int main(int argc, const char** argv)
       fout = stdout;
     }
     
-    int32_t insize,medsize,outsize;
+    PRInt32 insize,medsize,outsize;
     while((insize=fread(inbuffer, 1,INBUFSIZE, fin)) > 0)
     {
       medsize=MEDBUFSIZE;

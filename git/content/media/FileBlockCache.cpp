@@ -75,7 +75,7 @@ void FileBlockCache::Close()
   }
 }
 
-nsresult FileBlockCache::WriteBlock(uint32_t aBlockIndex, const uint8_t* aData)
+nsresult FileBlockCache::WriteBlock(PRUint32 aBlockIndex, const PRUint8* aData)
 {
   MonitorAutoLock mon(mDataMonitor);
 
@@ -113,12 +113,12 @@ void FileBlockCache::EnsureWriteScheduled()
   }
 }
 
-nsresult FileBlockCache::Seek(int64_t aOffset)
+nsresult FileBlockCache::Seek(PRInt64 aOffset)
 {
   mFileMonitor.AssertCurrentThreadOwns();
 
   if (mFDCurrentPos != aOffset) {
-    int64_t result = PR_Seek64(mFD, aOffset, PR_SEEK_SET);
+    PROffset64 result = PR_Seek64(mFD, aOffset, PR_SEEK_SET);
     if (result != aOffset) {
       NS_WARNING("Failed to seek media cache file");
       return NS_ERROR_FAILURE;
@@ -128,10 +128,10 @@ nsresult FileBlockCache::Seek(int64_t aOffset)
   return NS_OK;
 }
 
-nsresult FileBlockCache::ReadFromFile(int32_t aOffset,
-                                      uint8_t* aDest,
-                                      int32_t aBytesToRead,
-                                      int32_t& aBytesRead)
+nsresult FileBlockCache::ReadFromFile(PRInt32 aOffset,
+                                      PRUint8* aDest,
+                                      PRInt32 aBytesToRead,
+                                      PRInt32& aBytesRead)
 {
   mFileMonitor.AssertCurrentThreadOwns();
 
@@ -146,15 +146,15 @@ nsresult FileBlockCache::ReadFromFile(int32_t aOffset,
   return NS_OK;
 }
 
-nsresult FileBlockCache::WriteBlockToFile(int32_t aBlockIndex,
-                                          const uint8_t* aBlockData)
+nsresult FileBlockCache::WriteBlockToFile(PRInt32 aBlockIndex,
+                                          const PRUint8* aBlockData)
 {
   mFileMonitor.AssertCurrentThreadOwns();
 
   nsresult rv = Seek(aBlockIndex * BLOCK_SIZE);
   if (NS_FAILED(rv)) return rv;
 
-  int32_t amount = PR_Write(mFD, aBlockData, BLOCK_SIZE);
+  PRInt32 amount = PR_Write(mFD, aBlockData, BLOCK_SIZE);
   if (amount < BLOCK_SIZE) {
     NS_WARNING("Failed to write media cache block!");
     return NS_ERROR_FAILURE;
@@ -164,13 +164,13 @@ nsresult FileBlockCache::WriteBlockToFile(int32_t aBlockIndex,
   return NS_OK;
 }
 
-nsresult FileBlockCache::MoveBlockInFile(int32_t aSourceBlockIndex,
-                                         int32_t aDestBlockIndex)
+nsresult FileBlockCache::MoveBlockInFile(PRInt32 aSourceBlockIndex,
+                                         PRInt32 aDestBlockIndex)
 {
   mFileMonitor.AssertCurrentThreadOwns();
 
-  uint8_t buf[BLOCK_SIZE];
-  int32_t bytesRead = 0;
+  PRUint8 buf[BLOCK_SIZE];
+  PRInt32 bytesRead = 0;
   if (NS_FAILED(ReadFromFile(aSourceBlockIndex * BLOCK_SIZE,
                              buf,
                              BLOCK_SIZE,
@@ -205,7 +205,7 @@ nsresult FileBlockCache::Run()
     // Hold a reference to the change, in case another change
     // overwrites the mBlockChanges entry for this block while we drop
     // mDataMonitor to take mFileMonitor.
-    int32_t blockIndex = mChangeIndexList.PopFront();
+    PRInt32 blockIndex = mChangeIndexList.PopFront();
     nsRefPtr<BlockChange> change = mBlockChanges[blockIndex];
     NS_ABORT_IF_FALSE(change,
       "Change index list should only contain entries for blocks with changes");
@@ -231,31 +231,31 @@ nsresult FileBlockCache::Run()
   return NS_OK;
 }
 
-nsresult FileBlockCache::Read(int64_t aOffset,
-                              uint8_t* aData,
-                              int32_t aLength,
-                              int32_t* aBytes)
+nsresult FileBlockCache::Read(PRInt64 aOffset,
+                              PRUint8* aData,
+                              PRInt32 aLength,
+                              PRInt32* aBytes)
 {
   MonitorAutoLock mon(mDataMonitor);
 
   if (!mFD || (aOffset / BLOCK_SIZE) > PR_INT32_MAX)
     return NS_ERROR_FAILURE;
 
-  int32_t bytesToRead = aLength;
-  int64_t offset = aOffset;
-  uint8_t* dst = aData;
+  PRInt32 bytesToRead = aLength;
+  PRInt64 offset = aOffset;
+  PRUint8* dst = aData;
   while (bytesToRead > 0) {
-    int32_t blockIndex = static_cast<int32_t>(offset / BLOCK_SIZE);
-    int32_t start = offset % BLOCK_SIZE;
-    int32_t amount = NS_MIN(BLOCK_SIZE - start, bytesToRead);
+    PRInt32 blockIndex = static_cast<PRInt32>(offset / BLOCK_SIZE);
+    PRInt32 start = offset % BLOCK_SIZE;
+    PRInt32 amount = NS_MIN(BLOCK_SIZE - start, bytesToRead);
 
     // If the block is not yet written to file, we can just read from
     // the memory buffer, otherwise we need to read from file.
-    int32_t bytesRead = 0;
+    PRInt32 bytesRead = 0;
     nsRefPtr<BlockChange> change = mBlockChanges[blockIndex];
     if (change && change->IsWrite()) {
       // Block isn't yet written to file. Read from memory buffer.
-      const uint8_t* blockData = change->mData.get();
+      const PRUint8* blockData = change->mData.get();
       memcpy(dst, blockData + start, amount);
       bytesRead = amount;
     } else {
@@ -290,7 +290,7 @@ nsresult FileBlockCache::Read(int64_t aOffset,
   return NS_OK;
 }
 
-nsresult FileBlockCache::MoveBlock(int32_t aSourceBlockIndex, int32_t aDestBlockIndex)
+nsresult FileBlockCache::MoveBlock(PRInt32 aSourceBlockIndex, PRInt32 aDestBlockIndex)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
   MonitorAutoLock mon(mDataMonitor);
@@ -305,7 +305,7 @@ nsresult FileBlockCache::MoveBlock(int32_t aSourceBlockIndex, int32_t aDestBlock
   // etc. Resolve the final source block, so that if one of the blocks in
   // the chain of moves is overwritten, we don't lose the reference to the
   // contents of the destination block.
-  int32_t sourceIndex = aSourceBlockIndex;
+  PRInt32 sourceIndex = aSourceBlockIndex;
   BlockChange* sourceBlock = nullptr;
   while ((sourceBlock = mBlockChanges[sourceIndex]) &&
           sourceBlock->IsMove()) {

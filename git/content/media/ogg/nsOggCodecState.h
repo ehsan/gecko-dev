@@ -99,10 +99,10 @@ public:
   }
 
   // Returns the end time that a granulepos represents.
-  virtual int64_t Time(int64_t granulepos) { return -1; }
+  virtual PRInt64 Time(PRInt64 granulepos) { return -1; }
 
   // Returns the start time that a granulepos represents.
-  virtual int64_t StartTime(int64_t granulepos) { return -1; }
+  virtual PRInt64 StartTime(PRInt64 granulepos) { return -1; }
 
   // Initializes the codec state.
   virtual bool Init();
@@ -150,10 +150,10 @@ public:
   virtual nsresult PageIn(ogg_page* aPage);
 
   // Number of packets read.  
-  uint64_t mPacketCount;
+  PRUint64 mPacketCount;
 
   // Serial number of the bitstream.
-  uint32_t mSerial;
+  PRUint32 mSerial;
 
   // Ogg specific state.
   ogg_stream_state mState;
@@ -198,14 +198,14 @@ public:
 
   CodecType GetType() { return TYPE_VORBIS; }
   bool DecodeHeader(ogg_packet* aPacket);
-  int64_t Time(int64_t granulepos);
+  PRInt64 Time(PRInt64 granulepos);
   bool Init();
   nsresult Reset();
   bool IsHeader(ogg_packet* aPacket);
   nsresult PageIn(ogg_page* aPage); 
 
   // Returns the end time that a granulepos represents.
-  static int64_t Time(vorbis_info* aInfo, int64_t aGranulePos); 
+  static PRInt64 Time(vorbis_info* aInfo, PRInt64 aGranulePos); 
 
   vorbis_info mInfo;
   vorbis_comment mComment;
@@ -227,7 +227,7 @@ private:
   // Granulepos (end sample) of the last decoded Vorbis packet. This is used
   // to calculate the Vorbis granulepos when we don't find a granulepos to
   // back-propagate from.
-  int64_t mGranulepos;
+  PRInt64 mGranulepos;
 
 #ifdef VALIDATE_VORBIS_SAMPLE_CALCULATION
   // When validating that we've correctly predicted Vorbis packets' number
@@ -268,18 +268,18 @@ public:
 
   CodecType GetType() { return TYPE_THEORA; }
   bool DecodeHeader(ogg_packet* aPacket);
-  int64_t Time(int64_t granulepos);
-  int64_t StartTime(int64_t granulepos);
+  PRInt64 Time(PRInt64 granulepos);
+  PRInt64 StartTime(PRInt64 granulepos);
   bool Init();
   bool IsHeader(ogg_packet* aPacket);
   nsresult PageIn(ogg_page* aPage); 
 
   // Returns the maximum number of microseconds which a keyframe can be offset
   // from any given interframe.
-  int64_t MaxKeyframeOffset();
+  PRInt64 MaxKeyframeOffset();
 
   // Returns the end time that a granulepos represents.
-  static int64_t Time(th_info* aInfo, int64_t aGranulePos); 
+  static PRInt64 Time(th_info* aInfo, PRInt64 aGranulePos); 
 
   th_info mInfo;
   th_comment mComment;
@@ -307,7 +307,7 @@ public:
 
   CodecType GetType() { return TYPE_OPUS; }
   bool DecodeHeader(ogg_packet* aPacket);
-  int64_t Time(int64_t aGranulepos);
+  PRInt64 Time(PRInt64 aGranulepos);
   bool Init();
   nsresult Reset();
   nsresult Reset(bool aStart);
@@ -315,17 +315,17 @@ public:
   nsresult PageIn(ogg_page* aPage);
 
   // Returns the end time that a granulepos represents.
-  static int64_t Time(int aPreSkip, int64_t aGranulepos);
+  static PRInt64 Time(int aPreSkip, PRInt64 aGranulepos);
 
   // Various fields from the Ogg Opus header.
   int mRate;        // Sample rate the decoder uses (always 48 kHz).
-  uint32_t mNominalRate; // Original sample rate of the data (informational).
+  PRUint32 mNominalRate; // Original sample rate of the data (informational).
   int mChannels;    // Number of channels the stream encodes.
-  uint16_t mPreSkip; // Number of samples to strip after decoder reset.
+  PRUint16 mPreSkip; // Number of samples to strip after decoder reset.
 #ifdef MOZ_SAMPLE_TYPE_FLOAT32
   float mGain;      // Gain to apply to decoder output.
 #else
-  int32_t mGain_Q16; // Gain to apply to the decoder output.
+  PRInt32 mGain_Q16; // Gain to apply to the decoder output.
 #endif
   int mChannelMapping; // Channel mapping family.
   int mStreams;     // Number of packed streams in each packet.
@@ -337,7 +337,7 @@ public:
   int mSkip;        // Number of samples left to trim before playback.
   // Granule position (end sample) of the last decoded Opus packet. This is
   // used to calculate the amount we should trim from the last packet.
-  int64_t mPrevPacketGranulepos;
+  PRInt64 mPrevPacketGranulepos;
 
 private:
 
@@ -351,7 +351,7 @@ private:
   // Granule position (end sample) of the last decoded Opus page. This is
   // used to calculate the Opus per-packet granule positions on the last page,
   // where we may need to trim some samples from the end.
-  int64_t mPrevPageGranulepos;
+  PRInt64 mPrevPageGranulepos;
 
 #endif /* MOZ_OPUS */
 };
@@ -366,13 +366,13 @@ public:
   ~nsSkeletonState();
   CodecType GetType() { return TYPE_SKELETON; }
   bool DecodeHeader(ogg_packet* aPacket);
-  int64_t Time(int64_t granulepos) { return -1; }
+  PRInt64 Time(PRInt64 granulepos) { return -1; }
   bool Init() { return true; }
   bool IsHeader(ogg_packet* aPacket) { return true; }
 
   // Return true if the given time (in milliseconds) is within
   // the presentation time defined in the skeleton track.
-  bool IsPresentable(int64_t aTime) { return aTime >= mPresentationTime; }
+  bool IsPresentable(PRInt64 aTime) { return aTime >= mPresentationTime; }
 
   // Stores the offset of the page on which a keyframe starts,
   // and its presentation time.
@@ -382,15 +382,15 @@ public:
       : mOffset(INT64_MAX),
         mTime(INT64_MAX) {}
 
-    nsKeyPoint(int64_t aOffset, int64_t aTime)
+    nsKeyPoint(PRInt64 aOffset, PRInt64 aTime)
       : mOffset(aOffset),
         mTime(aTime) {}
 
     // Offset from start of segment/link-in-the-chain in bytes.
-    int64_t mOffset;
+    PRInt64 mOffset;
 
     // Presentation time in usecs.
-    int64_t mTime;
+    PRInt64 mTime;
 
     bool IsNull() {
       return mOffset == INT64_MAX &&
@@ -404,7 +404,7 @@ public:
   public:
     nsSeekTarget() : mSerial(0) {}
     nsKeyPoint mKeyPoint;
-    uint32_t mSerial;
+    PRUint32 mSerial;
     bool IsNull() {
       return mKeyPoint.IsNull() &&
              mSerial == 0;
@@ -414,8 +414,8 @@ public:
   // Determines from the seek index the keyframe which you must seek back to
   // in order to get all keyframes required to render all streams with
   // serialnos in aTracks, at time aTarget.
-  nsresult IndexedSeekTarget(int64_t aTarget,
-                             nsTArray<uint32_t>& aTracks,
+  nsresult IndexedSeekTarget(PRInt64 aTarget,
+                             nsTArray<PRUint32>& aTracks,
                              nsSeekTarget& aResult);
 
   bool HasIndex() const {
@@ -426,7 +426,7 @@ public:
   // an index. aTracks must be filled with the serialnos of the active tracks.
   // The duration is calculated as the greatest end time of all active tracks,
   // minus the smalled start time of all the active tracks.
-  nsresult GetDuration(const nsTArray<uint32_t>& aTracks, int64_t& aDuration);
+  nsresult GetDuration(const nsTArray<PRUint32>& aTracks, PRInt64& aDuration);
 
 private:
 
@@ -435,25 +435,25 @@ private:
 
   // Gets the keypoint you must seek to in order to get the keyframe required
   // to render the stream at time aTarget on stream with serial aSerialno.
-  nsresult IndexedSeekTargetForTrack(uint32_t aSerialno,
-                                     int64_t aTarget,
+  nsresult IndexedSeekTargetForTrack(PRUint32 aSerialno,
+                                     PRInt64 aTarget,
                                      nsKeyPoint& aResult);
 
   // Version of the decoded skeleton track, as per the SKELETON_VERSION macro.
-  uint32_t mVersion;
+  PRUint32 mVersion;
 
   // Presentation time of the resource in milliseconds
-  int64_t mPresentationTime;
+  PRInt64 mPresentationTime;
 
   // Length of the resource in bytes.
-  int64_t mLength;
+  PRInt64 mLength;
 
   // Stores the keyframe index and duration information for a particular
   // stream.
   class nsKeyFrameIndex {
   public:
 
-    nsKeyFrameIndex(int64_t aStartTime, int64_t aEndTime) 
+    nsKeyFrameIndex(PRInt64 aStartTime, PRInt64 aEndTime) 
       : mStartTime(aStartTime),
         mEndTime(aEndTime)
     {
@@ -464,23 +464,23 @@ private:
       MOZ_COUNT_DTOR(nsKeyFrameIndex);
     }
 
-    void Add(int64_t aOffset, int64_t aTimeMs) {
+    void Add(PRInt64 aOffset, PRInt64 aTimeMs) {
       mKeyPoints.AppendElement(nsKeyPoint(aOffset, aTimeMs));
     }
 
-    const nsKeyPoint& Get(uint32_t aIndex) const {
+    const nsKeyPoint& Get(PRUint32 aIndex) const {
       return mKeyPoints[aIndex];
     }
 
-    uint32_t Length() const {
+    PRUint32 Length() const {
       return mKeyPoints.Length();
     }
 
     // Presentation time of the first sample in this stream in usecs.
-    const int64_t mStartTime;
+    const PRInt64 mStartTime;
 
     // End time of the last sample in this stream in usecs.
-    const int64_t mEndTime;
+    const PRInt64 mEndTime;
 
   private:
     nsTArray<nsKeyPoint> mKeyPoints;

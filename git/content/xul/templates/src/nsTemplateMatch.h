@@ -41,7 +41,7 @@ private:
     void operator delete(void*, size_t) {}
 
 public:
-    nsTemplateMatch(uint16_t aQuerySetPriority,
+    nsTemplateMatch(PRUint16 aQuerySetPriority,
                     nsIXULTemplateResult* aResult,
                     nsIContent* aContainer)
         : mRuleIndex(-1),
@@ -60,7 +60,7 @@ public:
 
     static nsTemplateMatch*
     Create(nsFixedSizeAllocator& aPool,
-           uint16_t aQuerySetPriority,
+           PRUint16 aQuerySetPriority,
            nsIXULTemplateResult* aResult,
            nsIContent* aContainer) {
         void* place = aPool.Alloc(sizeof(nsTemplateMatch));
@@ -84,12 +84,12 @@ public:
     }
 
     // return matching rule index
-    int16_t RuleIndex() {
+    PRInt16 RuleIndex() {
         return mRuleIndex;
     }
 
     // return priority of query set
-    uint16_t QuerySetPriority() {
+    PRUint16 QuerySetPriority() {
         return mQuerySetPriority;
     }
 
@@ -100,7 +100,7 @@ public:
 
     nsresult RuleMatched(nsTemplateQuerySet* aQuerySet,
                          nsTemplateRule* aRule,
-                         int16_t aRuleIndex,
+                         PRInt16 aRuleIndex,
                          nsIXULTemplateResult* aResult);
 
 private:
@@ -108,12 +108,12 @@ private:
     /**
      * The index of the rule that matched, or -1 if the match is not active.
      */
-    int16_t mRuleIndex;
+    PRInt16 mRuleIndex;
 
     /**
      * The priority of the queryset for this rule
      */
-    uint16_t mQuerySetPriority;
+    PRUint16 mQuerySetPriority;
 
     /**
      * The container the content generated for the match is inside.

@@ -59,11 +59,11 @@ public:
 
   nsresult Remove();
   nsresult Write(nsIInputStream* aInputStream);
-  nsresult Write(InfallibleTArray<uint8_t>& bits);
-  void CollectFiles(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, uint64_t aSince = 0);
-  void collectFilesInternal(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, uint64_t aSince, nsAString& aRootPath);
+  nsresult Write(InfallibleTArray<PRUint8>& bits);
+  void CollectFiles(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, PRUint64 aSince = 0);
+  void collectFilesInternal(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, PRUint64 aSince, nsAString& aRootPath);
 
-  static uint64_t DirectoryDiskUsage(nsIFile* aFile, uint64_t aSoFar = 0);
+  static PRUint64 DirectoryDiskUsage(nsIFile* aFile, PRUint64 aSoFar = 0);
 
 private:
   void NormalizeFilePath();
@@ -95,12 +95,12 @@ public:
   nsDOMDeviceStorageCursor(nsIDOMWindow* aWindow,
                            nsIPrincipal* aPrincipal,
                            DeviceStorageFile* aFile,
-                           uint64_t aSince);
+                           PRUint64 aSince);
 
 
   nsTArray<nsRefPtr<DeviceStorageFile> > mFiles;
   bool mOkToCallContinue;
-  uint64_t mSince;
+  PRUint64 mSince;
 
   virtual bool Recv__delete__(const bool& allow);
   virtual void IPDLRelease();
@@ -119,11 +119,11 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMDEVICESTORAGESTAT
 
-  nsDOMDeviceStorageStat(uint64_t aFreeBytes, uint64_t aTotalBytes, nsAString& aState);
+  nsDOMDeviceStorageStat(PRUint64 aFreeBytes, PRUint64 aTotalBytes, nsAString& aState);
 
 private:
   ~nsDOMDeviceStorageStat();
-  uint64_t mFreeBytes, mTotalBytes;
+  PRUint64 mFreeBytes, mTotalBytes;
   nsString mState;
 };
 

@@ -32,7 +32,7 @@ class nsHtml5PendingNotification {
       return !!(mParent == aNode);
     }
     
-    inline bool HaveNotifiedIndex(uint32_t index) {
+    inline bool HaveNotifiedIndex(PRUint32 index) {
       return index < mChildCount;
     }
 
@@ -45,7 +45,7 @@ class nsHtml5PendingNotification {
     /**
      * Child count at start of notification deferring
      */
-    uint32_t    mChildCount;
+    PRUint32    mChildCount;
 };
 
 #endif // nsHtml5PendingNotification_h__

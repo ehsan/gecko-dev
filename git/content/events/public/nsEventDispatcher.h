@@ -77,9 +77,9 @@ public:
    *       It is up to the Pre/PostHandleEvent implementation to decide how to
    *       use these bits.
    *
-   * @note Using uint16_t because that is used also in nsEventTargetChainItem.
+   * @note Using PRUint16 because that is used also in nsEventTargetChainItem.
    */
-  uint16_t              mItemFlags;
+  PRUint16              mItemFlags;
 
   /**
    * Data for items in the event target chain.

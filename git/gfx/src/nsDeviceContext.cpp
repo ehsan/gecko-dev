@@ -116,8 +116,8 @@ nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
     // start from the end, which is where we put the most-recent-used element
 
     nsFontMetrics* fm;
-    int32_t n = mFontMetrics.Length() - 1;
-    for (int32_t i = n; i >= 0; --i) {
+    PRInt32 n = mFontMetrics.Length() - 1;
+    for (PRInt32 i = n; i >= 0; --i) {
         fm = mFontMetrics[i];
         if (fm->Font().Equals(aFont) && fm->GetUserFontSet() == aUserFontSet &&
             fm->Language() == aLanguage) {
@@ -190,7 +190,7 @@ nsFontCache::Compact()
 {
     // Need to loop backward because the running element can be removed on
     // the way
-    for (int32_t i = mFontMetrics.Length()-1; i >= 0; --i) {
+    for (PRInt32 i = mFontMetrics.Length()-1; i >= 0; --i) {
         nsFontMetrics* fm = mFontMetrics[i];
         nsFontMetrics* oldfm = fm;
         // Destroy() isn't here because we want our device context to be
@@ -208,7 +208,7 @@ nsFontCache::Compact()
 void
 nsFontCache::Flush()
 {
-    for (int32_t i = mFontMetrics.Length()-1; i >= 0; --i) {
+    for (PRInt32 i = mFontMetrics.Length()-1; i >= 0; --i) {
         nsFontMetrics* fm = mFontMetrics[i];
         // Destroy() will unhook our device context from the fm so that we
         // won't waste time in triggering the notification of
@@ -295,7 +295,7 @@ nsDeviceContext::SetDPI()
         case gfxASurface::SurfaceTypeWin32:
         case gfxASurface::SurfaceTypeWin32Printing: {
             HDC dc = reinterpret_cast<gfxWindowsSurface*>(mPrintingSurface.get())->GetDC();
-            int32_t OSVal = GetDeviceCaps(dc, LOGPIXELSY);
+            PRInt32 OSVal = GetDeviceCaps(dc, LOGPIXELSY);
             dpi = 144.0f;
             mPrintingScale = float(OSVal) / dpi;
             break;
@@ -322,7 +322,7 @@ nsDeviceContext::SetDPI()
         // A value of 0 means use the system DPI. A positive value is used as the DPI.
         // This sets the physical size of a device pixel and thus controls the
         // interpretation of physical units.
-        int32_t prefDPI = Preferences::GetInt("layout.css.dpi", -1);
+        PRInt32 prefDPI = Preferences::GetInt("layout.css.dpi", -1);
 
         if (prefDPI > 0) {
             dpi = prefDPI;
@@ -397,12 +397,12 @@ nsDeviceContext::CreateRenderingContext(nsRenderingContext *&aContext)
 }
 
 nsresult
-nsDeviceContext::GetDepth(uint32_t& aDepth)
+nsDeviceContext::GetDepth(PRUint32& aDepth)
 {
     if (mDepth == 0) {
         nsCOMPtr<nsIScreen> primaryScreen;
         mScreenManager->GetPrimaryScreen(getter_AddRefs(primaryScreen));
-        primaryScreen->GetColorDepth(reinterpret_cast<int32_t *>(&mDepth));
+        primaryScreen->GetColorDepth(reinterpret_cast<PRInt32 *>(&mDepth));
     }
 
     aDepth = mDepth;
@@ -478,8 +478,8 @@ nsDeviceContext::InitForPrinting(nsIDeviceContextSpec *aDevice)
 nsresult
 nsDeviceContext::BeginDocument(PRUnichar*  aTitle,
                                PRUnichar*  aPrintToFileName,
-                               int32_t     aStartPage,
-                               int32_t     aEndPage)
+                               PRInt32     aStartPage,
+                               PRInt32     aEndPage)
 {
     static const PRUnichar kEmpty[] = { '\0' };
     nsresult rv;
@@ -568,7 +568,7 @@ nsDeviceContext::ComputeClientRectUsingScreen(nsRect* outRect)
     nsCOMPtr<nsIScreen> screen;
     FindScreen (getter_AddRefs(screen));
     if (screen) {
-        int32_t x, y, width, height;
+        PRInt32 x, y, width, height;
         screen->GetAvailRect(&x, &y, &width, &height);
 
         // convert to device units
@@ -589,7 +589,7 @@ nsDeviceContext::ComputeFullAreaUsingScreen(nsRect* outRect)
     nsCOMPtr<nsIScreen> screen;
     FindScreen ( getter_AddRefs(screen) );
     if ( screen ) {
-        int32_t x, y, width, height;
+        PRInt32 x, y, width, height;
         screen->GetRect ( &x, &y, &width, &height );
 
         // convert to device units
@@ -664,7 +664,7 @@ nsDeviceContext::CalcPrintingSize()
                 dc = GetDC((HWND)mWidget->GetNativeData(NS_NATIVE_WIDGET));
             size.width = NSFloatPixelsToAppUnits(::GetDeviceCaps(dc, HORZRES)/mPrintingScale, AppUnitsPerDevPixel());
             size.height = NSFloatPixelsToAppUnits(::GetDeviceCaps(dc, VERTRES)/mPrintingScale, AppUnitsPerDevPixel());
-            mDepth = (uint32_t)::GetDeviceCaps(dc, BITSPIXEL);
+            mDepth = (PRUint32)::GetDeviceCaps(dc, BITSPIXEL);
             if (dc != reinterpret_cast<gfxWindowsSurface*>(mPrintingSurface.get())->GetDC())
                 ReleaseDC((HWND)mWidget->GetNativeData(NS_NATIVE_WIDGET), dc);
             break;
@@ -707,8 +707,8 @@ nsDeviceContext::CalcPrintingSize()
 }
 
 bool nsDeviceContext::CheckDPIChange() {
-    int32_t oldDevPixels = mAppUnitsPerDevNotScaledPixel;
-    int32_t oldInches = mAppUnitsPerPhysicalInch;
+    PRInt32 oldDevPixels = mAppUnitsPerDevNotScaledPixel;
+    PRInt32 oldInches = mAppUnitsPerPhysicalInch;
 
     SetDPI();
 
@@ -723,7 +723,7 @@ nsDeviceContext::SetPixelScale(float aScale)
         NS_NOTREACHED("Invalid pixel scale value");
         return false;
     }
-    uint32_t oldAppUnitsPerDevPixel = mAppUnitsPerDevPixel;
+    PRUint32 oldAppUnitsPerDevPixel = mAppUnitsPerDevPixel;
     mPixelScale = aScale;
     UpdateScaledAppUnits();
     return oldAppUnitsPerDevPixel != mAppUnitsPerDevPixel;

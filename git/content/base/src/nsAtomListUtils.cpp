@@ -14,7 +14,7 @@
 /* static */ bool
 nsAtomListUtils::IsMember(nsIAtom *aAtom,
                           const nsStaticAtom* aInfo,
-                          uint32_t aInfoCount)
+                          PRUint32 aInfoCount)
 {
     for (const nsStaticAtom *info = aInfo, *info_end = aInfo + aInfoCount;
          info != info_end; ++info) {

@@ -61,9 +61,9 @@ public:
                                    paramValue));
   }
 
-  /* int32_t constructor */
+  /* PRInt32 constructor */
   LogScope(PRLogModuleInfo *aLog, void *from, const nsACString &fn,
-           const nsDependentCString &paramName, int32_t paramValue) :
+           const nsDependentCString &paramName, PRInt32 paramValue) :
     mLog(aLog), mFrom(from), mFunc(fn)
   {
     PR_LOG(mLog, PR_LOG_DEBUG, ("%d [this=%p] %s (%s=\"%d\") {ENTER}\n",
@@ -73,9 +73,9 @@ public:
                                    paramValue));
   }
 
-  /* uint32_t constructor */
+  /* PRUint32 constructor */
   LogScope(PRLogModuleInfo *aLog, void *from, const nsACString &fn,
-           const nsDependentCString &paramName, uint32_t paramValue) :
+           const nsDependentCString &paramName, PRUint32 paramValue) :
     mLog(aLog), mFrom(from), mFunc(fn)
   {
     PR_LOG(mLog, PR_LOG_DEBUG, ("%d [this=%p] %s (%s=\"%d\") {ENTER}\n",
@@ -128,7 +128,7 @@ public:
 
 
   LogFunc(PRLogModuleInfo *aLog, void *from, const nsDependentCString &fn,
-          const nsDependentCString &paramName, uint32_t paramValue)
+          const nsDependentCString &paramName, PRUint32 paramValue)
   {
     PR_LOG(aLog, PR_LOG_DEBUG, ("%d [this=%p] %s (%s=\"%d\")\n",
                                 GIVE_ME_MS_NOW(), from,

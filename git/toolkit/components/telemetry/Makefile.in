@@ -25,7 +25,6 @@ EXPORTS_NAMESPACES = mozilla
 
 EXPORTS_mozilla = \
   Telemetry.h \
-  ProcessedStack.h \
   TelemetryHistograms.h \
   $(NULL)
 

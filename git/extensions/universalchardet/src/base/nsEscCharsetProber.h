@@ -13,19 +13,19 @@
 
 class nsEscCharSetProber: public nsCharSetProber {
 public:
-  nsEscCharSetProber(uint32_t aLanguageFilter);
+  nsEscCharSetProber(PRUint32 aLanguageFilter);
   virtual ~nsEscCharSetProber(void);
-  nsProbingState HandleData(const char* aBuf, uint32_t aLen);
+  nsProbingState HandleData(const char* aBuf, PRUint32 aLen);
   const char* GetCharSetName() {return mDetectedCharset;}
   nsProbingState GetState(void) {return mState;}
   void      Reset(void);
   float     GetConfidence(void){return (float)0.99;}
 
 protected:
-  void      GetDistribution(uint32_t aCharLen, const char* aStr);
+  void      GetDistribution(PRUint32 aCharLen, const char* aStr);
   
   nsCodingStateMachine* mCodingSM[NUM_OF_ESC_CHARSETS] ;
-  uint32_t    mActiveSM;
+  PRUint32    mActiveSM;
   nsProbingState mState;
   const char *  mDetectedCharset;
 };

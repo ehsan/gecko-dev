@@ -10,7 +10,7 @@
 class nsMediaError MOZ_FINAL : public nsIDOMMediaError
 {
 public:
-  nsMediaError(uint16_t aCode);
+  nsMediaError(PRUint16 aCode);
 
   // nsISupports
   NS_DECL_ISUPPORTS
@@ -20,5 +20,5 @@ public:
 
 private:
   // Error code
-  uint16_t mCode;
+  PRUint16 mCode;
 };

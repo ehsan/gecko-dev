@@ -66,7 +66,7 @@ nsCSSPseudoClasses::PseudoTypeToString(Type aType, nsAString& aString)
 nsCSSPseudoClasses::Type
 nsCSSPseudoClasses::GetPseudoType(nsIAtom* aAtom)
 {
-  for (uint32_t i = 0; i < ArrayLength(CSSPseudoClasses_info); ++i) {
+  for (PRUint32 i = 0; i < ArrayLength(CSSPseudoClasses_info); ++i) {
     if (*CSSPseudoClasses_info[i].mAtom == aAtom) {
       return Type(i);
     }

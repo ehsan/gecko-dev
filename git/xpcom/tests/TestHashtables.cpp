@@ -21,7 +21,7 @@ namespace TestHashtables {
 class TestUniChar // for nsClassHashtable
 {
 public:
-  TestUniChar(uint32_t aWord)
+  TestUniChar(PRUint32 aWord)
   {
     printf("    TestUniChar::TestUniChar() %u\n", aWord);
     mWord = aWord;
@@ -32,15 +32,15 @@ public:
     printf("    TestUniChar::~TestUniChar() %u\n", mWord);
   }
 
-  uint32_t GetChar() const { return mWord; }
+  PRUint32 GetChar() const { return mWord; }
 
 private:
-  uint32_t mWord;
+  PRUint32 mWord;
 };
 
 struct EntityNode {
   const char*   mStr; // never owns buffer
-  uint32_t       mUnicode;
+  PRUint32       mUnicode;
 };
 
 EntityNode gEntities[] = {
@@ -99,10 +99,10 @@ nsTEnumStop(EntityToUnicodeEntry* aEntry, void* userArg) {
 }
 
 void
-testTHashtable(nsTHashtable<EntityToUnicodeEntry>& hash, uint32_t numEntries) {
+testTHashtable(nsTHashtable<EntityToUnicodeEntry>& hash, PRUint32 numEntries) {
   printf("Filling hash with %d entries.\n", numEntries);
 
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < numEntries; ++i) {
     printf("  Putting entry \"%s\"...", gEntities[i].mStr);
     EntityToUnicodeEntry* entry =
@@ -151,7 +151,7 @@ testTHashtable(nsTHashtable<EntityToUnicodeEntry>& hash, uint32_t numEntries) {
   printf("not found; good.\n");
 
   printf("Enumerating:\n");
-  uint32_t count = hash.EnumerateEntries(nsTEnumGo, nullptr);
+  PRUint32 count = hash.EnumerateEntries(nsTEnumGo, nullptr);
   if (count != numEntries) {
     printf("  Bad count!\n");
     exit (6);
@@ -159,13 +159,13 @@ testTHashtable(nsTHashtable<EntityToUnicodeEntry>& hash, uint32_t numEntries) {
 }
 
 PLDHashOperator
-nsDEnumRead(const uint32_t& aKey, const char* aData, void* userArg) {
+nsDEnumRead(const PRUint32& aKey, const char* aData, void* userArg) {
   printf("  enumerated %u = \"%s\"\n", aKey, aData);
   return PL_DHASH_NEXT;
 }
 
 PLDHashOperator
-nsDEnum(const uint32_t& aKey, const char*& aData, void* userArg) {
+nsDEnum(const PRUint32& aKey, const char*& aData, void* userArg) {
   printf("  enumerated %u = \"%s\"\n", aKey, aData);
   return PL_DHASH_NEXT;
 }
@@ -328,7 +328,7 @@ CreateIFoo( IFoo** result )
   }
 
 PLDHashOperator
-nsIEnumRead(const uint32_t& aKey, IFoo* aFoo, void* userArg) {
+nsIEnumRead(const PRUint32& aKey, IFoo* aFoo, void* userArg) {
   nsCAutoString str;
   aFoo->GetString(str);
 
@@ -337,7 +337,7 @@ nsIEnumRead(const uint32_t& aKey, IFoo* aFoo, void* userArg) {
 }
 
 PLDHashOperator
-nsIEnum(const uint32_t& aKey, nsCOMPtr<IFoo>& aData, void* userArg) {
+nsIEnum(const PRUint32& aKey, nsCOMPtr<IFoo>& aData, void* userArg) {
   nsCAutoString str;
   aData->GetString(str);
 
@@ -346,7 +346,7 @@ nsIEnum(const uint32_t& aKey, nsCOMPtr<IFoo>& aData, void* userArg) {
 }
 
 PLDHashOperator
-nsIEnum2Read(nsISupports* aKey, uint32_t aData, void* userArg) {
+nsIEnum2Read(nsISupports* aKey, PRUint32 aData, void* userArg) {
   nsCAutoString str;
   nsCOMPtr<IFoo> foo = do_QueryInterface(aKey);
   foo->GetString(str);
@@ -357,7 +357,7 @@ nsIEnum2Read(nsISupports* aKey, uint32_t aData, void* userArg) {
 }
 
 PLDHashOperator
-nsIEnum2(nsISupports* aKey, uint32_t& aData, void* userArg) {
+nsIEnum2(nsISupports* aKey, PRUint32& aData, void* userArg) {
   nsCAutoString str;
   nsCOMPtr<IFoo> foo = do_QueryInterface(aKey);
   foo->GetString(str);
@@ -383,7 +383,7 @@ main(void) {
   testTHashtable(EntityToUnicode, 5);
 
   printf("Enumerate-removing...\n");
-  uint32_t count = EntityToUnicode.EnumerateEntries(nsTEnumStop, nullptr);
+  PRUint32 count = EntityToUnicode.EnumerateEntries(nsTEnumStop, nullptr);
   if (count != 5) {
     printf("wrong count\n");
     exit (7);
@@ -425,7 +425,7 @@ main(void) {
 
   printf("Filling hash with %u entries.\n", ENTITY_COUNT);
 
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < ENTITY_COUNT; ++i) {
     printf("  Putting entry %u...", gEntities[i].mUnicode);
     UniToEntity.Put(gEntities[i].mUnicode, gEntities[i].mStr);
@@ -660,7 +660,7 @@ main(void) {
   // now check a data-hashtable with an interface key
   //
 
-  nsDataHashtable<nsISupportsHashKey,uint32_t> EntToUniClass2;
+  nsDataHashtable<nsISupportsHashKey,PRUint32> EntToUniClass2;
 
   printf("Initializing nsDataHashtable with interface key...");
   EntToUniClass2.Init(ENTITY_COUNT);
@@ -684,7 +684,7 @@ main(void) {
   }
 
   printf("Testing Get:\n");
-  uint32_t myChar2;
+  PRUint32 myChar2;
 
   for (i = 0; i < ENTITY_COUNT; ++i) {
     printf("  Getting entry %s...", gEntities[i].mStr);
@@ -727,7 +727,7 @@ main(void) {
   printf("OK\n");
 
   //
-  // now check an interface-hashtable with an uint32_t key
+  // now check an interface-hashtable with an PRUint32 key
   //
 
   nsInterfaceHashtable<nsUint32HashKey,IFoo> UniToEntClass2;

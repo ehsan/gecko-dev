@@ -66,7 +66,7 @@ private:
   nsRefPtr<gfxImageSurface>         mSurface;
   const gfxASurface::gfxImageFormat mFormat;
   const unsigned char*              mSurfaceData;
-  int32_t                           mReadCount;
+  PRInt32                           mReadCount;
 };
 
 #endif // GFXCOWSURFACEWRAPPER

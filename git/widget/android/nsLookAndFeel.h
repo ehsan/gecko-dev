@@ -15,11 +15,11 @@ public:
     virtual ~nsLookAndFeel();
 
     virtual nsresult NativeGetColor(ColorID aID, nscolor &aResult);
-    virtual nsresult GetIntImpl(IntID aID, int32_t &aResult);
+    virtual nsresult GetIntImpl(IntID aID, PRInt32 &aResult);
     virtual nsresult GetFloatImpl(FloatID aID, float &aResult);
     virtual bool GetFontImpl(FontID aID, nsString& aName, gfxFontStyle& aStyle);
     virtual bool GetEchoPasswordImpl();
-    virtual uint32_t GetPasswordMaskDelayImpl();
+    virtual PRUint32 GetPasswordMaskDelayImpl();
     virtual PRUnichar GetPasswordCharacterImpl();
 
 protected:

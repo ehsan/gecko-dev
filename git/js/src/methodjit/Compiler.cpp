@@ -4752,16 +4752,9 @@ mjit::Compiler::emitStubCmpOp(BoolStub stub, jsbytecode *target, JSOp fused)
 void
 mjit::Compiler::jsop_setprop_slow(PropertyName *name)
 {
-    JS_ASSERT(*PC == JSOP_SETPROP || *PC == JSOP_SETNAME);
-
     prepareStubCall(Uses(2));
     masm.move(ImmPtr(name), Registers::ArgReg1);
-
-    if (*PC == JSOP_SETPROP)
-        INLINE_STUBCALL(stubs::SetProp, REJOIN_FALLTHROUGH);
-    else
-        INLINE_STUBCALL(stubs::SetName, REJOIN_FALLTHROUGH);
-
+    INLINE_STUBCALL(STRICT_VARIANT(script, stubs::SetName), REJOIN_FALLTHROUGH);
     JS_STATIC_ASSERT(JSOP_SETNAME_LENGTH == JSOP_SETPROP_LENGTH);
     frame.shimmy(1);
     if (script->hasScriptCounts)
@@ -5185,7 +5178,7 @@ mjit::Compiler::testSingletonProperty(HandleObject obj, HandleId id)
 
     RootedObject holder(cx);
     RootedShape shape(cx);
-    if (!JSObject::lookupGeneric(cx, obj, id, &holder, &shape))
+    if (!obj->lookupGeneric(cx, id, &holder, &shape))
         return false;
     if (!shape)
         return false;
@@ -5435,8 +5428,7 @@ mjit::Compiler::jsop_setprop(PropertyName *name, bool popGuaranteed)
         types && !types->unknownObject() &&
         types->getObjectCount() == 1 &&
         types->getTypeObject(0) != NULL &&
-        !types->getTypeObject(0)->unknownProperties())
-    {
+        !types->getTypeObject(0)->unknownProperties()) {
         types::TypeObject *object = types->getTypeObject(0);
         types::TypeSet *propertyTypes = object->getProperty(cx, id, false);
         if (!propertyTypes)
@@ -5467,7 +5459,7 @@ mjit::Compiler::jsop_setprop(PropertyName *name, bool popGuaranteed)
                 stubcc.linkExit(notObject.get(), Uses(2));
                 stubcc.leave();
                 stubcc.masm.move(ImmPtr(name), Registers::ArgReg1);
-                OOL_STUBCALL(stubs::SetProp, REJOIN_FALLTHROUGH);
+                OOL_STUBCALL(STRICT_VARIANT(script, stubs::SetName), REJOIN_FALLTHROUGH);
             }
             frame.storeTo(rhs, Address(reg, JSObject::getFixedSlotOffset(slot)), popGuaranteed);
             frame.unpinReg(reg);
@@ -5529,11 +5521,7 @@ mjit::Compiler::jsop_setprop(PropertyName *name, bool popGuaranteed)
         stubcc.leave();
 
         stubcc.masm.move(ImmPtr(name), Registers::ArgReg1);
-
-        if (*PC == JSOP_SETPROP)
-            OOL_STUBCALL(stubs::SetProp, REJOIN_FALLTHROUGH);
-        else
-            OOL_STUBCALL(stubs::SetName, REJOIN_FALLTHROUGH);
+        OOL_STUBCALL(STRICT_VARIANT(script, stubs::SetName), REJOIN_FALLTHROUGH);
 
         typeCheck = stubcc.masm.jump();
         pic.hasTypeCheck = true;
@@ -5573,7 +5561,7 @@ mjit::Compiler::jsop_setprop(PropertyName *name, bool popGuaranteed)
 
         stubcc.leave();
         passICAddress(&pic);
-        pic.slowPathCall = OOL_STUBCALL(ic::SetPropOrName, REJOIN_FALLTHROUGH);
+        pic.slowPathCall = OOL_STUBCALL(ic::SetProp, REJOIN_FALLTHROUGH);
         CHECK_OOL_SPACE();
     }
 
@@ -6398,7 +6386,7 @@ mjit::Compiler::jsop_setgname_slow(PropertyName *name)
 {
     prepareStubCall(Uses(2));
     masm.move(ImmPtr(name), Registers::ArgReg1);
-    INLINE_STUBCALL(stubs::SetName, REJOIN_FALLTHROUGH);
+    INLINE_STUBCALL(STRICT_VARIANT(script, stubs::SetGlobalName), REJOIN_FALLTHROUGH);
     frame.popn(2);
     pushSyncedEntry(0);
 }

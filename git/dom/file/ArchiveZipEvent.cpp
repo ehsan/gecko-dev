@@ -55,19 +55,19 @@ ArchiveZipItem::File(ArchiveReader* aArchiveReader)
                             aArchiveReader);
 }
 
-uint32_t
-ArchiveZipItem::StrToInt32(const uint8_t* aStr)
+PRUint32
+ArchiveZipItem::StrToInt32(const PRUint8* aStr)
 {
-  return (uint32_t)( (aStr [0] <<  0) |
+  return (PRUint32)( (aStr [0] <<  0) |
                      (aStr [1] <<  8) |
                      (aStr [2] << 16) |
                      (aStr [3] << 24) );
 }
 
-uint16_t
-ArchiveZipItem::StrToInt16(const uint8_t* aStr)
+PRUint16
+ArchiveZipItem::StrToInt16(const PRUint8* aStr)
 {
-  return (uint16_t) ((aStr [0]) | (aStr [1] << 8));
+  return (PRUint16) ((aStr [0]) | (aStr [1] << 8));
 }
 
 // ArchiveReaderZipEvent
@@ -81,7 +81,7 @@ ArchiveReaderZipEvent::ArchiveReaderZipEvent(ArchiveReader* aArchiveReader)
 nsresult
 ArchiveReaderZipEvent::Exec()
 {
-  uint32_t centralOffset(0);
+  PRUint32 centralOffset(0);
   nsresult rv;
 
   nsCOMPtr<nsIInputStream> inputStream;
@@ -97,19 +97,19 @@ ArchiveReaderZipEvent::Exec()
     return RunShare(NS_ERROR_UNEXPECTED);
   }
 
-  uint64_t size;
+  PRUint64 size;
   rv = mArchiveReader->GetSize(&size);
   if (NS_FAILED(rv)) {
     return RunShare(NS_ERROR_UNEXPECTED);
   }
 
   // Reading backward.. looking for the ZipEnd signature
-  for (uint64_t curr = size - ZIPEND_SIZE; curr > 4; --curr)
+  for (PRUint64 curr = size - ZIPEND_SIZE; curr > 4; --curr)
   {
     seekableStream->Seek(nsISeekableStream::NS_SEEK_SET, curr);
 
-    uint8_t buffer[ZIPEND_SIZE];
-    uint32_t ret;
+    PRUint8 buffer[ZIPEND_SIZE];
+    PRUint32 ret;
 
     rv = inputStream->Read((char*)buffer, sizeof(buffer), &ret);
     if (NS_FAILED(rv) || ret != sizeof(buffer)) {
@@ -134,16 +134,16 @@ ArchiveReaderZipEvent::Exec()
   // For each central directory:
   while (centralOffset <= size - ZIPCENTRAL_SIZE) {
     ZipCentral centralStruct;
-    uint32_t ret;
+    PRUint32 ret;
     
     rv = inputStream->Read((char*)&centralStruct, ZIPCENTRAL_SIZE, &ret);
     if (NS_FAILED(rv) || ret != ZIPCENTRAL_SIZE) {
       return RunShare(NS_ERROR_UNEXPECTED);
     }
 
-    uint16_t filenameLen = ArchiveZipItem::StrToInt16(centralStruct.filename_len);
-    uint16_t extraLen = ArchiveZipItem::StrToInt16(centralStruct.extrafield_len);
-    uint16_t commentLen = ArchiveZipItem::StrToInt16(centralStruct.commentfield_len);
+    PRUint16 filenameLen = ArchiveZipItem::StrToInt16(centralStruct.filename_len);
+    PRUint16 extraLen = ArchiveZipItem::StrToInt16(centralStruct.extrafield_len);
+    PRUint16 commentLen = ArchiveZipItem::StrToInt16(centralStruct.commentfield_len);
 
     // Point to the next item at the top of loop
     centralOffset += ZIPCENTRAL_SIZE + filenameLen + extraLen + commentLen;

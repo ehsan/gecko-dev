@@ -245,7 +245,7 @@ IndexedDBDatabaseParent::HandleRequestEvent(nsIDOMEvent* aEvent,
     nsCOMPtr<nsIIDBVersionChangeEvent> changeEvent = do_QueryInterface(aEvent);
     NS_ENSURE_TRUE(changeEvent, NS_ERROR_FAILURE);
 
-    uint64_t oldVersion;
+    PRUint64 oldVersion;
     rv = changeEvent->GetOldVersion(&oldVersion);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -339,7 +339,7 @@ IndexedDBDatabaseParent::HandleRequestEvent(nsIDOMEvent* aEvent,
     nsCOMPtr<nsIIDBVersionChangeEvent> changeEvent = do_QueryInterface(aEvent);
     NS_ENSURE_TRUE(changeEvent, NS_ERROR_FAILURE);
 
-    uint64_t oldVersion;
+    PRUint64 oldVersion;
     rv = changeEvent->GetOldVersion(&oldVersion);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -389,7 +389,7 @@ IndexedDBDatabaseParent::HandleDatabaseEvent(nsIDOMEvent* aEvent,
     nsCOMPtr<nsIIDBVersionChangeEvent> changeEvent = do_QueryInterface(aEvent);
     NS_ENSURE_TRUE(changeEvent, NS_ERROR_FAILURE);
 
-    uint64_t oldVersion;
+    PRUint64 oldVersion;
     rv = changeEvent->GetOldVersion(&oldVersion);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1789,7 +1789,7 @@ IndexedDBDeleteDatabaseRequestParent::HandleEvent(nsIDOMEvent* aEvent)
     nsCOMPtr<nsIIDBVersionChangeEvent> event = do_QueryInterface(aEvent);
     MOZ_ASSERT(event);
 
-    uint64_t currentVersion;
+    PRUint64 currentVersion;
     rv = event->GetOldVersion(&currentVersion);
     NS_ENSURE_SUCCESS(rv, rv);
 

@@ -37,7 +37,7 @@ public:
   // nsIDOMHTMLTableCaptionElement
   NS_DECL_NSIDOMHTMLTABLECAPTIONELEMENT
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -95,7 +95,7 @@ static const nsAttrValue::EnumTable kCaptionAlignTable[] = {
 };
 
 bool
-nsHTMLTableCaptionElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLTableCaptionElement::ParseAttribute(PRInt32 aNamespaceID,
                                           nsIAtom* aAttribute,
                                           const nsAString& aValue,
                                           nsAttrValue& aResult)

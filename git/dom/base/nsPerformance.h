@@ -111,10 +111,10 @@ public:
   JSObject* WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap);
 
   // PerformanceNavigation WebIDL methods
-  uint16_t GetType() const {
+  PRUint16 GetType() const {
     return GetDOMTiming()->GetType();
   }
-  uint16_t GetRedirectCount() const {
+  PRUint16 GetRedirectCount() const {
     return GetDOMTiming()->GetRedirectCount();
   }
 

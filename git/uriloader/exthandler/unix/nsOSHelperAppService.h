@@ -49,7 +49,7 @@ protected:
 
   virtual void FixFilePermissions(nsIFile* aFile);
 private:
-  uint32_t mPermissions;
+  PRUint32 mPermissions;
 
   // Helper methods which have to access static members
   static nsresult UnescapeCommand(const nsAString& aEscapedCommand,

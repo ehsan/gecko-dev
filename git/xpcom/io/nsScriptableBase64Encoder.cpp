@@ -13,7 +13,7 @@ NS_IMPL_ISUPPORTS1(nsScriptableBase64Encoder, nsIScriptableBase64Encoder)
 /* ACString encodeToCString (in nsIInputStream stream, in unsigned long length); */
 NS_IMETHODIMP
 nsScriptableBase64Encoder::EncodeToCString(nsIInputStream *aStream,
-                                           uint32_t aLength,
+                                           PRUint32 aLength,
                                            nsACString & _retval)
 {
   Base64EncodeInputStream(aStream, _retval, aLength);
@@ -23,7 +23,7 @@ nsScriptableBase64Encoder::EncodeToCString(nsIInputStream *aStream,
 /* AString encodeToString (in nsIInputStream stream, in unsigned long length); */
 NS_IMETHODIMP
 nsScriptableBase64Encoder::EncodeToString(nsIInputStream *aStream,
-                                          uint32_t aLength,
+                                          PRUint32 aLength,
                                           nsAString & _retval)
 {
   Base64EncodeInputStream(aStream, _retval, aLength);

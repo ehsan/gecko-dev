@@ -36,7 +36,7 @@ public:
 class txCharacterTransaction : public txOutputTransaction
 {
 public:
-    txCharacterTransaction(txTransactionType aType, uint32_t aLength)
+    txCharacterTransaction(txTransactionType aType, PRUint32 aLength)
         : txOutputTransaction(aType),
           mLength(aLength)
     {
@@ -46,7 +46,7 @@ public:
     {
         MOZ_COUNT_DTOR_INHERITED(txCharacterTransaction, txOutputTransaction);
     }
-    uint32_t mLength;
+    PRUint32 mLength;
 };
 
 class txCommentTransaction : public txOutputTransaction
@@ -87,7 +87,7 @@ class txStartElementAtomTransaction : public txOutputTransaction
 {
 public:
     txStartElementAtomTransaction(nsIAtom* aPrefix, nsIAtom* aLocalName,
-                                  nsIAtom* aLowercaseLocalName, int32_t aNsID)
+                                  nsIAtom* aLowercaseLocalName, PRInt32 aNsID)
         : txOutputTransaction(eStartElementAtomTransaction),
           mPrefix(aPrefix),
           mLocalName(aLocalName),
@@ -103,14 +103,14 @@ public:
     nsCOMPtr<nsIAtom> mPrefix;
     nsCOMPtr<nsIAtom> mLocalName;
     nsCOMPtr<nsIAtom> mLowercaseLocalName;
-    int32_t mNsID;
+    PRInt32 mNsID;
 };
 
 class txStartElementTransaction : public txOutputTransaction
 {
 public:
     txStartElementTransaction(nsIAtom* aPrefix,
-                              const nsSubstring& aLocalName, int32_t aNsID)
+                              const nsSubstring& aLocalName, PRInt32 aNsID)
         : txOutputTransaction(eStartElementTransaction),
           mPrefix(aPrefix),
           mLocalName(aLocalName),
@@ -124,14 +124,14 @@ public:
     }
     nsCOMPtr<nsIAtom> mPrefix;
     nsString mLocalName;
-    int32_t mNsID;
+    PRInt32 mNsID;
 };
 
 class txAttributeTransaction : public txOutputTransaction
 {
 public:
     txAttributeTransaction(nsIAtom* aPrefix,
-                           const nsSubstring& aLocalName, int32_t aNsID,
+                           const nsSubstring& aLocalName, PRInt32 aNsID,
                            const nsString& aValue)
         : txOutputTransaction(eAttributeTransaction),
           mPrefix(aPrefix),
@@ -147,7 +147,7 @@ public:
     }
     nsCOMPtr<nsIAtom> mPrefix;
     nsString mLocalName;
-    int32_t mNsID;
+    PRInt32 mNsID;
     nsString mValue;
 };
 
@@ -156,7 +156,7 @@ class txAttributeAtomTransaction : public txOutputTransaction
 public:
     txAttributeAtomTransaction(nsIAtom* aPrefix, nsIAtom* aLocalName,
                                nsIAtom* aLowercaseLocalName,
-                               int32_t aNsID, const nsString& aValue)
+                               PRInt32 aNsID, const nsString& aValue)
         : txOutputTransaction(eAttributeAtomTransaction),
           mPrefix(aPrefix),
           mLocalName(aLocalName),
@@ -173,7 +173,7 @@ public:
     nsCOMPtr<nsIAtom> mPrefix;
     nsCOMPtr<nsIAtom> mLocalName;
     nsCOMPtr<nsIAtom> mLowercaseLocalName;
-    int32_t mNsID;
+    PRInt32 mNsID;
     nsString mValue;
 };
 
@@ -190,7 +190,7 @@ txBufferingHandler::~txBufferingHandler()
 
 nsresult
 txBufferingHandler::attribute(nsIAtom* aPrefix, nsIAtom* aLocalName,
-                              nsIAtom* aLowercaseLocalName, int32_t aNsID,
+                              nsIAtom* aLowercaseLocalName, PRInt32 aNsID,
                               const nsString& aValue)
 {
     NS_ENSURE_TRUE(mBuffer, NS_ERROR_OUT_OF_MEMORY);
@@ -211,7 +211,7 @@ txBufferingHandler::attribute(nsIAtom* aPrefix, nsIAtom* aLocalName,
 
 nsresult
 txBufferingHandler::attribute(nsIAtom* aPrefix, const nsSubstring& aLocalName,
-                              const int32_t aNsID, const nsString& aValue)
+                              const PRInt32 aNsID, const nsString& aValue)
 {
     NS_ENSURE_TRUE(mBuffer, NS_ERROR_OUT_OF_MEMORY);
 
@@ -322,7 +322,7 @@ txBufferingHandler::startDocument()
 nsresult
 txBufferingHandler::startElement(nsIAtom* aPrefix, nsIAtom* aLocalName,
                                  nsIAtom* aLowercaseLocalName,
-                                 int32_t aNsID)
+                                 PRInt32 aNsID)
 {
     NS_ENSURE_TRUE(mBuffer, NS_ERROR_OUT_OF_MEMORY);
 
@@ -339,7 +339,7 @@ txBufferingHandler::startElement(nsIAtom* aPrefix, nsIAtom* aLocalName,
 nsresult
 txBufferingHandler::startElement(nsIAtom* aPrefix,
                                  const nsSubstring& aLocalName,
-                                 const int32_t aNsID)
+                                 const PRInt32 aNsID)
 {
     NS_ENSURE_TRUE(mBuffer, NS_ERROR_OUT_OF_MEMORY);
 
@@ -360,7 +360,7 @@ txResultBuffer::txResultBuffer()
 txResultBuffer::~txResultBuffer()
 {
     MOZ_COUNT_DTOR(txResultBuffer);
-    for (uint32_t i = 0, len = mTransactions.Length(); i < len; ++i) {
+    for (PRUint32 i = 0, len = mTransactions.Length(); i < len; ++i) {
         delete mTransactions[i];
     }
 }
@@ -465,7 +465,7 @@ txResultBuffer::flushToHandler(txAXMLEventHandler* aHandler)
     nsAFlatString::const_char_iterator iter;
     mStringValue.BeginReading(iter);
 
-    for (uint32_t i = 0, len = mTransactions.Length(); i < len; ++i) {
+    for (PRUint32 i = 0, len = mTransactions.Length(); i < len; ++i) {
         nsresult rv = flushTransaction(mTransactions[i], aHandler, iter);
         NS_ENSURE_SUCCESS(rv, rv);
     }
@@ -476,7 +476,7 @@ txResultBuffer::flushToHandler(txAXMLEventHandler* aHandler)
 txOutputTransaction*
 txResultBuffer::getLastTransaction()
 {
-    int32_t last = mTransactions.Length() - 1;
+    PRInt32 last = mTransactions.Length() - 1;
     if (last < 0) {
         return nullptr;
     }

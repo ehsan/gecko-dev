@@ -24,7 +24,7 @@
 #ifndef mozilla_SHA1_h_
 #define mozilla_SHA1_h_
 
-#include "mozilla/StandardInteger.h"
+#include <stdint.h>
 namespace mozilla {
 class SHA1Sum {
   union {

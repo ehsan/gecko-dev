@@ -90,7 +90,7 @@ nsBaseDragService::GetOnlyChromeDrop(bool* aOnlyChrome)
 
 //---------------------------------------------------------
 NS_IMETHODIMP
-nsBaseDragService::SetDragAction(uint32_t anAction)
+nsBaseDragService::SetDragAction(PRUint32 anAction)
 {
   mDragAction = anAction;
   return NS_OK;
@@ -98,7 +98,7 @@ nsBaseDragService::SetDragAction(uint32_t anAction)
 
 //---------------------------------------------------------
 NS_IMETHODIMP
-nsBaseDragService::GetDragAction(uint32_t * anAction)
+nsBaseDragService::GetDragAction(PRUint32 * anAction)
 {
   *anAction = mDragAction;
   return NS_OK;
@@ -123,7 +123,7 @@ nsBaseDragService::GetTargetSize(nsSize * aDragTargetSize)
 //-------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsBaseDragService::GetNumDropItems(uint32_t * aNumItems)
+nsBaseDragService::GetNumDropItems(PRUint32 * aNumItems)
 {
   *aNumItems = 0;
   return NS_ERROR_FAILURE;
@@ -165,7 +165,7 @@ nsBaseDragService::GetSourceNode(nsIDOMNode** aSourceNode)
 
 NS_IMETHODIMP
 nsBaseDragService::GetData(nsITransferable * aTransferable,
-                           uint32_t aItemIndex)
+                           PRUint32 aItemIndex)
 {
   return NS_ERROR_FAILURE;
 }
@@ -198,7 +198,7 @@ NS_IMETHODIMP
 nsBaseDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
                                      nsISupportsArray* aTransferableArray,
                                      nsIScriptableRegion* aDragRgn,
-                                     uint32_t aActionType)
+                                     PRUint32 aActionType)
 {
   NS_ENSURE_TRUE(aDOMNode, NS_ERROR_INVALID_ARG);
   NS_ENSURE_TRUE(mSuppressLevel == 0, NS_ERROR_FAILURE);
@@ -221,9 +221,9 @@ NS_IMETHODIMP
 nsBaseDragService::InvokeDragSessionWithImage(nsIDOMNode* aDOMNode,
                                               nsISupportsArray* aTransferableArray,
                                               nsIScriptableRegion* aRegion,
-                                              uint32_t aActionType,
+                                              PRUint32 aActionType,
                                               nsIDOMNode* aImage,
-                                              int32_t aImageX, int32_t aImageY,
+                                              PRInt32 aImageX, PRInt32 aImageY,
                                               nsIDOMDragEvent* aDragEvent,
                                               nsIDOMDataTransfer* aDataTransfer)
 {
@@ -249,7 +249,7 @@ nsBaseDragService::InvokeDragSessionWithImage(nsIDOMNode* aDOMNode,
 NS_IMETHODIMP
 nsBaseDragService::InvokeDragSessionWithSelection(nsISelection* aSelection,
                                                   nsISupportsArray* aTransferableArray,
-                                                  uint32_t aActionType,
+                                                  PRUint32 aActionType,
                                                   nsIDOMDragEvent* aDragEvent,
                                                   nsIDOMDataTransfer* aDataTransfer)
 {
@@ -361,7 +361,7 @@ nsBaseDragService::EndDragSession(bool aDoneDrag)
 }
 
 NS_IMETHODIMP
-nsBaseDragService::FireDragEventAtSource(uint32_t aMsg)
+nsBaseDragService::FireDragEventAtSource(PRUint32 aMsg)
 {
   if (mSourceNode && !mSuppressLevel) {
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(mSourceDocument);
@@ -391,7 +391,7 @@ nsBaseDragService::FireDragEventAtSource(uint32_t aMsg)
  * the drag popup itself.
  */
 NS_IMETHODIMP
-nsBaseDragService::DragMoved(int32_t aX, int32_t aY)
+nsBaseDragService::DragMoved(PRInt32 aX, PRInt32 aY)
 {
   if (mDragPopup) {
     nsIFrame* frame = mDragPopup->GetPrimaryFrame();
@@ -423,7 +423,7 @@ GetPresShellForContent(nsIDOMNode* aDOMNode)
 nsresult
 nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
                             nsIScriptableRegion* aRegion,
-                            int32_t aScreenX, int32_t aScreenY,
+                            PRInt32 aScreenX, PRInt32 aScreenY,
                             nsIntRect* aScreenDragRect,
                             gfxASurface** aSurface,
                             nsPresContext** aPresContext)
@@ -554,7 +554,7 @@ nsresult
 nsBaseDragService::DrawDragForImage(nsPresContext* aPresContext,
                                     nsIImageLoadingContent* aImageLoader,
                                     nsICanvasElementExternal* aCanvas,
-                                    int32_t aScreenX, int32_t aScreenY,
+                                    PRInt32 aScreenX, PRInt32 aScreenY,
                                     nsIntRect* aScreenDragRect,
                                     gfxASurface** aSurface)
 {
@@ -640,9 +640,9 @@ nsBaseDragService::DrawDragForImage(nsPresContext* aPresContext,
 
 void
 nsBaseDragService::ConvertToUnscaledDevPixels(nsPresContext* aPresContext,
-                                              int32_t* aScreenX, int32_t* aScreenY)
+                                              PRInt32* aScreenX, PRInt32* aScreenY)
 {
-  int32_t adj = aPresContext->DeviceContext()->UnscaledAppUnitsPerDevPixel();
+  PRInt32 adj = aPresContext->DeviceContext()->UnscaledAppUnitsPerDevPixel();
   *aScreenX = nsPresContext::CSSPixelsToAppUnits(*aScreenX) / adj;
   *aScreenY = nsPresContext::CSSPixelsToAppUnits(*aScreenY) / adj;
 }

@@ -779,7 +779,7 @@ HWND WebBrowserChromeUI::CreateNativeWindow(nsIWebBrowserChrome* chrome)
 {
   // Load the browser dialog from resource
   HWND hwndDialog;
-  uint32_t chromeFlags;
+  PRUint32 chromeFlags;
 
   chrome->GetChromeFlags(&chromeFlags);
   if ((chromeFlags & nsIWebBrowserChrome::CHROME_ALL) == nsIWebBrowserChrome::CHROME_ALL)
@@ -969,7 +969,7 @@ void WebBrowserChromeUI::UpdateBusyState(nsIWebBrowserChrome *aChrome, bool aBus
 //
 //  PURPOSE: Refreshes the progress bar in the browser dialog
 //
-void WebBrowserChromeUI::UpdateProgress(nsIWebBrowserChrome *aChrome, int32_t aCurrent, int32_t aMax)
+void WebBrowserChromeUI::UpdateProgress(nsIWebBrowserChrome *aChrome, PRInt32 aCurrent, PRInt32 aMax)
 {
     HWND hwndDlg = GetBrowserDlgFromChrome(aChrome);
     HWND hwndProgress = GetDlgItem(hwndDlg, IDC_PROGRESS);
@@ -993,7 +993,7 @@ void WebBrowserChromeUI::UpdateProgress(nsIWebBrowserChrome *aChrome, int32_t aC
 //
 //  PURPOSE: Display a context menu for the given node
 //
-void WebBrowserChromeUI::ShowContextMenu(nsIWebBrowserChrome *aChrome, uint32_t aContextFlags, nsIDOMEvent *aEvent, nsIDOMNode *aNode)
+void WebBrowserChromeUI::ShowContextMenu(nsIWebBrowserChrome *aChrome, PRUint32 aContextFlags, nsIDOMEvent *aEvent, nsIDOMNode *aNode)
 {
     // TODO code to test context flags and display a popup menu should go here
 }
@@ -1003,7 +1003,7 @@ void WebBrowserChromeUI::ShowContextMenu(nsIWebBrowserChrome *aChrome, uint32_t 
 //
 //  PURPOSE: Show a tooltip
 //
-void WebBrowserChromeUI::ShowTooltip(nsIWebBrowserChrome *aChrome, int32_t aXCoords, int32_t aYCoords, const PRUnichar *aTipText)
+void WebBrowserChromeUI::ShowTooltip(nsIWebBrowserChrome *aChrome, PRInt32 aXCoords, PRInt32 aYCoords, const PRUnichar *aTipText)
 {
     // TODO code to show a tooltip should go here
 }
@@ -1024,7 +1024,7 @@ void WebBrowserChromeUI::ShowWindow(nsIWebBrowserChrome *aChrome, bool aShow)
   ::ShowWindow(win, aShow ? SW_RESTORE : SW_HIDE);
 }
 
-void WebBrowserChromeUI::SizeTo(nsIWebBrowserChrome *aChrome, int32_t aWidth, int32_t aHeight)
+void WebBrowserChromeUI::SizeTo(nsIWebBrowserChrome *aChrome, PRInt32 aWidth, PRInt32 aHeight)
 {
   HWND hchrome = GetBrowserDlgFromChrome(aChrome);
   HWND hbrowser = GetBrowserFromChrome(aChrome);
@@ -1033,9 +1033,9 @@ void WebBrowserChromeUI::SizeTo(nsIWebBrowserChrome *aChrome, int32_t aWidth, in
   ::GetWindowRect(hchrome,  &chromeRect);
   ::GetWindowRect(hbrowser, &browserRect);
 
-  int32_t decoration_x = (browserRect.left - chromeRect.left) + 
+  PRInt32 decoration_x = (browserRect.left - chromeRect.left) + 
                          (chromeRect.right - browserRect.right);
-  int32_t decoration_y = (browserRect.top - chromeRect.top) + 
+  PRInt32 decoration_y = (browserRect.top - chromeRect.top) + 
                          (chromeRect.bottom - browserRect.bottom);
 
   ::MoveWindow(hchrome, chromeRect.left, chromeRect.top,
@@ -1048,7 +1048,7 @@ void WebBrowserChromeUI::SizeTo(nsIWebBrowserChrome *aChrome, int32_t aWidth, in
 //
 //  PURPOSE: Get the resource string for the ID
 //
-void WebBrowserChromeUI::GetResourceStringById(int32_t aID, char ** aReturn)
+void WebBrowserChromeUI::GetResourceStringById(PRInt32 aID, char ** aReturn)
 {
     char resBuf[MAX_LOADSTRING];
     int retval = LoadString( ghInstanceApp, aID, (LPTSTR)resBuf, sizeof(resBuf) );
@@ -1066,7 +1066,7 @@ void WebBrowserChromeUI::GetResourceStringById(int32_t aID, char ** aReturn)
 // AppCallbacks
 //-----------------------------------------------------------------------------
 
-nsresult AppCallbacks::CreateBrowserWindow(uint32_t aChromeFlags,
+nsresult AppCallbacks::CreateBrowserWindow(PRUint32 aChromeFlags,
            nsIWebBrowserChrome *aParent,
            nsIWebBrowserChrome **aNewWindow)
 {
@@ -1108,7 +1108,7 @@ void AppCallbacks::EnableChromeWindow(nsIWebBrowserChrome *aWindow,
   ::EnableWindow(hwnd, aEnabled ? TRUE : FALSE);
 }
 
-uint32_t AppCallbacks::RunEventLoop(bool &aRunCondition)
+PRUint32 AppCallbacks::RunEventLoop(bool &aRunCondition)
 {
   MSG msg;
   HANDLE hFakeEvent = ::CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -1130,5 +1130,5 @@ uint32_t AppCallbacks::RunEventLoop(bool &aRunCondition)
     ::MsgWaitForMultipleObjects(1, &hFakeEvent, FALSE, 100, QS_ALLEVENTS);
   }
   ::CloseHandle(hFakeEvent);
-  return (uint32_t)msg.wParam;
+  return (PRUint32)msg.wParam;
 }

@@ -36,7 +36,7 @@ class nsCParserNode :  public nsIParserNode {
 
   protected:
 
-    int32_t mRefCnt;
+    PRInt32 mRefCnt;
 
   public:
 
@@ -139,14 +139,14 @@ class nsCParserNode :  public nsIParserNode {
      * @update	gess5/11/98
      * @return  node type.
      */
-    virtual int32_t GetNodeType()  const;
+    virtual PRInt32 GetNodeType()  const;
 
     /**
      * Retrieve token type of parser node
      * @update	gess5/11/98
      * @return  token type
      */
-    virtual int32_t GetTokenType()  const;
+    virtual PRInt32 GetTokenType()  const;
 
 
     //***************************************
@@ -158,7 +158,7 @@ class nsCParserNode :  public nsIParserNode {
      * @update	gess5/11/98
      * @return  count of attributes (may be 0)
      */
-    virtual int32_t GetAttributeCount(bool askToken=false) const;
+    virtual PRInt32 GetAttributeCount(bool askToken=false) const;
 
     /**
      * Retrieve the key (of key/value pair) at given index
@@ -166,7 +166,7 @@ class nsCParserNode :  public nsIParserNode {
      * @param   anIndex is the index of the key you want
      * @return  string containing key.
      */
-    virtual const nsAString& GetKeyAt(uint32_t anIndex) const;
+    virtual const nsAString& GetKeyAt(PRUint32 anIndex) const;
 
     /**
      * Retrieve the value (of key/value pair) at given index
@@ -174,7 +174,7 @@ class nsCParserNode :  public nsIParserNode {
      * @param   anIndex is the index of the value you want
      * @return  string containing value.
      */
-    virtual const nsAString& GetValueAt(uint32_t anIndex) const;
+    virtual const nsAString& GetValueAt(PRUint32 anIndex) const;
 
     /**
      * NOTE: When the node is an entity, this will translate the entity
@@ -183,7 +183,7 @@ class nsCParserNode :  public nsIParserNode {
      * @param   aString will contain the resulting unicode string value
      * @return  int (unicode char or unicode index from table)
      */
-    virtual int32_t TranslateToUnicodeStr(nsString& aString) const;
+    virtual PRInt32 TranslateToUnicodeStr(nsString& aString) const;
 
     /**
      * 
@@ -199,7 +199,7 @@ class nsCParserNode :  public nsIParserNode {
      * @update	gess7/24/98
      * @return  int containing the line number the token was found on
      */
-    virtual int32_t GetSourceLineNumber(void) const;
+    virtual PRInt32 GetSourceLineNumber(void) const;
 
     /** This method pop the attribute token from the given index
      * @update	harishd 03/25/99
@@ -231,7 +231,7 @@ class nsCParserNode :  public nsIParserNode {
     virtual nsresult ReleaseAll();
 
     bool mGenericState;  
-    int32_t      mUseCount;
+    PRInt32      mUseCount;
     CToken*      mToken;
    
     nsTokenAllocator* mTokenAllocator;
@@ -281,9 +281,9 @@ public:
                           nsTokenAllocator* aTokenAllocator,
                           nsNodeAllocator* aNodeAllocator = 0);
     virtual void     AddAttribute(CToken* aToken);
-    virtual int32_t  GetAttributeCount(bool askToken = false) const;
-    virtual const    nsAString& GetKeyAt(uint32_t anIndex) const;
-    virtual const    nsAString& GetValueAt(uint32_t anIndex) const;
+    virtual PRInt32  GetAttributeCount(bool askToken = false) const;
+    virtual const    nsAString& GetKeyAt(PRUint32 anIndex) const;
+    virtual const    nsAString& GetValueAt(PRUint32 anIndex) const;
     virtual CToken*  PopAttributeToken();
     virtual CToken*  PopAttributeTokenFront();
     virtual void     GetSource(nsString& aString) const;

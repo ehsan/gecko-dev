@@ -12,7 +12,7 @@
 #include "nsEscCharsetProber.h"
 #include "nsLatin1Prober.h"
 
-nsUniversalDetector::nsUniversalDetector(uint32_t aLanguageFilter)
+nsUniversalDetector::nsUniversalDetector(PRUint32 aLanguageFilter)
 {
   mDone = false;
   mBestGuess = -1;   //illegal value as signal
@@ -26,14 +26,14 @@ nsUniversalDetector::nsUniversalDetector(uint32_t aLanguageFilter)
   mLastChar = '\0';
   mLanguageFilter = aLanguageFilter;
 
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < NUM_OF_CHARSET_PROBERS; i++)
     mCharSetProbers[i] = nullptr;
 }
 
 nsUniversalDetector::~nsUniversalDetector() 
 {
-  for (int32_t i = 0; i < NUM_OF_CHARSET_PROBERS; i++)
+  for (PRInt32 i = 0; i < NUM_OF_CHARSET_PROBERS; i++)
     delete mCharSetProbers[i];
 
   delete mEscCharSetProber;
@@ -55,7 +55,7 @@ nsUniversalDetector::Reset()
   if (mEscCharSetProber)
     mEscCharSetProber->Reset();
 
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < NUM_OF_CHARSET_PROBERS; i++)
     if (mCharSetProbers[i])
       mCharSetProbers[i]->Reset();
@@ -65,7 +65,7 @@ nsUniversalDetector::Reset()
 #define SHORTCUT_THRESHOLD      (float)0.95
 #define MINIMUM_THRESHOLD      (float)0.20
 
-nsresult nsUniversalDetector::HandleData(const char* aBuf, uint32_t aLen)
+nsresult nsUniversalDetector::HandleData(const char* aBuf, PRUint32 aLen)
 {
   if(mDone) 
     return NS_OK;
@@ -104,7 +104,7 @@ nsresult nsUniversalDetector::HandleData(const char* aBuf, uint32_t aLen)
       }
   }
   
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < aLen; i++)
   {
     //other than 0xa0, if every othe character is ascii, the page is ascii
@@ -219,9 +219,9 @@ void nsUniversalDetector::DataEnd()
     {
       float proberConfidence;
       float maxProberConfidence = (float)0.0;
-      int32_t maxProber = 0;
+      PRInt32 maxProber = 0;
 
-      for (int32_t i = 0; i < NUM_OF_CHARSET_PROBERS; i++)
+      for (PRInt32 i = 0; i < NUM_OF_CHARSET_PROBERS; i++)
       {
         if (mCharSetProbers[i])
         {

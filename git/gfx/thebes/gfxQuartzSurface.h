@@ -32,7 +32,7 @@ public:
 
     CGContextRef GetCGContextWithClip(gfxContext *ctx);
 
-    virtual int32_t GetDefaultContextFlags() const;
+    virtual PRInt32 GetDefaultContextFlags() const;
 
     already_AddRefed<gfxImageSurface> GetAsImageSurface();
 

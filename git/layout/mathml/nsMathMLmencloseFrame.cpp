@@ -56,7 +56,7 @@ nsresult nsMathMLmencloseFrame::AllocateMathMLChar(nsMencloseNotation mask)
   // No need to track the style context given to our MathML chars.
   // The Style System will use Get/SetAdditionalStyleContext() to keep it
   // up-to-date if dynamic changes arise.
-  uint32_t i = mMathMLChar.Length();
+  PRUint32 i = mMathMLChar.Length();
   nsAutoString Char;
 
   if (!mMathMLChar.AppendElement())
@@ -651,7 +651,7 @@ nsMathMLmencloseFrame::FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize)
 
   // Move the MathML characters
   nsRect rect;
-  for (uint32_t i = 0; i < mMathMLChar.Length(); i++) {
+  for (PRUint32 i = 0; i < mMathMLChar.Length(); i++) {
     mMathMLChar[i].GetRect(rect);
     rect.MoveBy(gap, 0);
     mMathMLChar[i].SetRect(rect);
@@ -661,9 +661,9 @@ nsMathMLmencloseFrame::FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize)
 }
 
 NS_IMETHODIMP
-nsMathMLmencloseFrame::AttributeChanged(int32_t         aNameSpaceID,
+nsMathMLmencloseFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                         nsIAtom*        aAttribute,
-                                        int32_t         aModType)
+                                        PRInt32         aModType)
 {
   if (aAttribute == nsGkAtoms::notation_) {
     InitNotations();
@@ -677,9 +677,9 @@ nsMathMLmencloseFrame::AttributeChanged(int32_t         aNameSpaceID,
 // the Style System will use these to pass the proper style context to our
 // MathMLChar
 nsStyleContext*
-nsMathMLmencloseFrame::GetAdditionalStyleContext(int32_t aIndex) const
+nsMathMLmencloseFrame::GetAdditionalStyleContext(PRInt32 aIndex) const
 {
-  int32_t len = mMathMLChar.Length();
+  PRInt32 len = mMathMLChar.Length();
   if (aIndex >= 0 && aIndex < len)
     return mMathMLChar[aIndex].GetStyleContext();
   else
@@ -687,10 +687,10 @@ nsMathMLmencloseFrame::GetAdditionalStyleContext(int32_t aIndex) const
 }
 
 void
-nsMathMLmencloseFrame::SetAdditionalStyleContext(int32_t          aIndex, 
+nsMathMLmencloseFrame::SetAdditionalStyleContext(PRInt32          aIndex, 
                                                  nsStyleContext*  aStyleContext)
 {
-  int32_t len = mMathMLChar.Length();
+  PRInt32 len = mMathMLChar.Length();
   if (aIndex >= 0 && aIndex < len)
     mMathMLChar[aIndex].SetStyleContext(aStyleContext);
 }

@@ -118,7 +118,7 @@ public:
 
   void SpinUntilCompleted();
 
-  uint16_t completionReason;
+  PRUint16 completionReason;
 
 protected:
   virtual ~AsyncStatementSpinner() {}
@@ -144,7 +144,7 @@ AsyncStatementSpinner::HandleResult(mozIStorageResultSet *aResultSet)
 NS_IMETHODIMP
 AsyncStatementSpinner::HandleError(mozIStorageError *aError)
 {
-  int32_t result;
+  PRInt32 result;
   nsresult rv = aError->GetResult(&result);
   NS_ENSURE_SUCCESS(rv, rv);
   nsCAutoString message;
@@ -162,7 +162,7 @@ AsyncStatementSpinner::HandleError(mozIStorageError *aError)
 }
 
 NS_IMETHODIMP
-AsyncStatementSpinner::HandleCompletion(uint16_t aReason)
+AsyncStatementSpinner::HandleCompletion(PRUint16 aReason)
 {
   completionReason = aReason;
   mCompleted = true;

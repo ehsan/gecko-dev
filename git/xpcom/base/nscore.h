@@ -308,7 +308,7 @@ typedef size_t(*nsMallocSizeOfFun)(const void *p);
 /**
  * Generic XPCOM result data type
  */
-typedef uint32_t nsresult;
+typedef PRUint32 nsresult;
 
 /**
  * Reference count values
@@ -321,7 +321,7 @@ typedef uint32_t nsresult;
 #if defined(XP_WIN) && PR_BYTES_PER_LONG == 4
 typedef unsigned long nsrefcnt;
 #else
-typedef uint32_t nsrefcnt;
+typedef PRUint32 nsrefcnt;
 #endif
 
 /**
@@ -359,7 +359,7 @@ typedef uint32_t nsrefcnt;
   #if defined(HAVE_CPP_2BYTE_WCHAR_T) && defined(XP_WIN)
     typedef wchar_t PRUnichar;
   #else
-    typedef uint16_t PRUnichar;
+    typedef PRUint16 PRUnichar;
   #endif
 #endif
 
@@ -367,8 +367,8 @@ typedef uint32_t nsrefcnt;
  * Use these macros to do 64bit safe pointer conversions.
  */
 
-#define NS_PTR_TO_INT32(x)  ((int32_t)  (intptr_t) (x))
-#define NS_PTR_TO_UINT32(x) ((uint32_t) (intptr_t) (x))
+#define NS_PTR_TO_INT32(x)  ((PRInt32)  (intptr_t) (x))
+#define NS_PTR_TO_UINT32(x) ((PRUint32) (intptr_t) (x))
 #define NS_INT32_TO_PTR(x)  ((void *)   (intptr_t) (x))
 
 /*

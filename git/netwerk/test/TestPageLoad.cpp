@@ -42,7 +42,7 @@ static nsCOMArray<nsIURI> uriList;
 static int numStart=0;
 static int numFound=0;
 
-static int32_t gKeepRunning = 0;
+static PRInt32 gKeepRunning = 0;
 
 
 //--------writer fun----------------------
@@ -50,9 +50,9 @@ static int32_t gKeepRunning = 0;
 static NS_METHOD streamParse (nsIInputStream* in,
                               void* closure,
                               const char* fromRawSegment,
-                              uint32_t toOffset,
-                              uint32_t count,
-                              uint32_t *writeCount) {
+                              PRUint32 toOffset,
+                              PRUint32 count,
+                              PRUint32 *writeCount) {
 
   char parseBuf[2048], loc[2048], lineBuf[2048];
   char *loc_t, *loc_t2;
@@ -161,11 +161,11 @@ MyListener::OnStopRequest(nsIRequest *req, nsISupports *ctxt, nsresult status)
 NS_IMETHODIMP
 MyListener::OnDataAvailable(nsIRequest *req, nsISupports *ctxt,
                             nsIInputStream *stream,
-                            uint32_t offset, uint32_t count)
+                            PRUint32 offset, PRUint32 count)
 {
     //printf(">>> OnDataAvailable [count=%u]\n", count);
     nsresult rv = NS_ERROR_FAILURE;
-    uint32_t bytesRead=0;
+    PRUint32 bytesRead=0;
     char buf[1024];
 
     if(ctxt == nullptr) {
@@ -173,7 +173,7 @@ MyListener::OnDataAvailable(nsIRequest *req, nsISupports *ctxt,
       rv = stream->ReadSegments(streamParse, &offset, count, &bytesRead);
     } else {
       while (count) {
-        uint32_t amount = NS_MIN<uint32_t>(count, sizeof(buf));
+        PRUint32 amount = NS_MIN<PRUint32>(count, sizeof(buf));
         rv = stream->Read(buf, amount, &bytesRead);  
         count -= bytesRead;
       }
@@ -223,7 +223,7 @@ MyNotifications::OnStatus(nsIRequest *req, nsISupports *ctx,
 
 NS_IMETHODIMP
 MyNotifications::OnProgress(nsIRequest *req, nsISupports *ctx,
-                            uint64_t progress, uint64_t progressMax)
+                            PRUint64 progress, PRUint64 progressMax)
 {
     // char buf[100];
     // PR_snprintf(buf, sizeof(buf), "%llu/%llu\n", progress, progressMax);
@@ -286,7 +286,7 @@ nsresult auxLoad(char *uriBuf)
 
     //Compare to see if exists
     bool equal;
-    for(int32_t i = 0; i < uriList.Count(); i++) {
+    for(PRInt32 i = 0; i < uriList.Count(); i++) {
       uri->Equals(uriList[i], &equal);
       if(equal) {
         printf("(duplicate, canceling) %s\n",uriBuf); 
@@ -352,8 +352,8 @@ int main(int argc, char **argv)
         PumpEvents();
 
         finish = PR_Now();
-        uint32_t totalTime32;
-        uint64_t totalTime64;
+        PRUint32 totalTime32;
+        PRUint64 totalTime64;
         LL_SUB(totalTime64, finish, start);
         LL_L2UI(totalTime32, totalTime64);
 

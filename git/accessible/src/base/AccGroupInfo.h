@@ -17,8 +17,8 @@ public:
   AccGroupInfo(Accessible* aItem, mozilla::a11y::role aRole);
   ~AccGroupInfo() { MOZ_COUNT_DTOR(AccGroupInfo); }
 
-  int32_t PosInSet() const { return mPosInSet; }
-  uint32_t SetSize() const { return mSetSize; }
+  PRInt32 PosInSet() const { return mPosInSet; }
+  PRUint32 SetSize() const { return mSetSize; }
   Accessible* ConceptualParent() const { return mParent; }
 
   /**
@@ -71,8 +71,8 @@ private:
   static bool IsConceptualParent(mozilla::a11y::role aRole,
 				 mozilla::a11y::role aParentRole);
 
-  uint32_t mPosInSet;
-  uint32_t mSetSize;
+  PRUint32 mPosInSet;
+  PRUint32 mSetSize;
   Accessible* mParent;
 };
 

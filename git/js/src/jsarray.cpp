@@ -116,10 +116,8 @@ using namespace js;
 using namespace js::gc;
 using namespace js::types;
 
-namespace js {
-
 JSBool
-GetLengthProperty(JSContext *cx, HandleObject obj, uint32_t *lengthp)
+js_GetLengthProperty(JSContext *cx, JSObject *obj, uint32_t *lengthp)
 {
     if (obj->isArray()) {
         *lengthp = obj->getArrayLength();
@@ -135,7 +133,7 @@ GetLengthProperty(JSContext *cx, HandleObject obj, uint32_t *lengthp)
     }
 
     RootedValue value(cx);
-    if (!JSObject::getProperty(cx, obj, obj, cx->runtime->atomState.lengthAtom, &value))
+    if (!obj->getProperty(cx, cx->runtime->atomState.lengthAtom, &value))
         return false;
 
     if (value.isInt32()) {
@@ -145,6 +143,8 @@ GetLengthProperty(JSContext *cx, HandleObject obj, uint32_t *lengthp)
 
     return ToUint32(cx, value, (uint32_t *)lengthp);
 }
+
+namespace js {
 
 /*
  * Determine if the id represents an array index or an XML property index.
@@ -283,14 +283,14 @@ DoGetElement(JSContext *cx, HandleObject obj, double index, JSBool *hole, Mutabl
 
     RootedObject obj2(cx);
     RootedShape prop(cx);
-    if (!JSObject::lookupGeneric(cx, obj, id, &obj2, &prop))
+    if (!obj->lookupGeneric(cx, id, &obj2, &prop))
         return false;
 
     if (!prop) {
         vp.setUndefined();
         *hole = true;
     } else {
-        if (!JSObject::getGeneric(cx, obj, obj, id, vp))
+        if (!obj->getGeneric(cx, id, vp))
             return false;
         *hole = false;
     }
@@ -301,7 +301,7 @@ static inline bool
 DoGetElement(JSContext *cx, HandleObject obj, uint32_t index, JSBool *hole, MutableHandleValue vp)
 {
     bool present;
-    if (!JSObject::getElementIfPresent(cx, obj, obj, index, vp, &present))
+    if (!obj->getElementIfPresent(cx, obj, index, vp, &present))
         return false;
 
     *hole = !present;
@@ -353,7 +353,7 @@ static bool
 GetElementsSlow(JSContext *cx, HandleObject aobj, uint32_t length, Value *vp)
 {
     for (uint32_t i = 0; i < length; i++) {
-        if (!JSObject::getElement(cx, aobj, aobj, i, MutableHandleValue::fromMarkedLocation(&vp[i])))
+        if (!aobj->getElement(cx, i, MutableHandleValue::fromMarkedLocation(&vp[i])))
             return false;
     }
 
@@ -423,7 +423,7 @@ SetArrayElement(JSContext *cx, HandleObject obj, double index, HandleValue v)
         return false;
 
     RootedValue tmp(cx, v);
-    return JSObject::setGeneric(cx, obj, obj, id, &tmp, true);
+    return obj->setGeneric(cx, obj, id, &tmp, true);
 }
 
 /*
@@ -460,10 +460,10 @@ DeleteArrayElement(JSContext *cx, HandleObject obj, double index, bool strict)
 
     RootedValue v(cx);
     if (index <= UINT32_MAX) {
-        if (!JSObject::deleteElement(cx, obj, uint32_t(index), &v, strict))
+        if (!obj->deleteElement(cx, uint32_t(index), &v, strict))
             return -1;
     } else {
-        if (!JSObject::deleteByValue(cx, obj, DoubleValue(index), &v, strict))
+        if (!obj->deleteByValue(cx, DoubleValue(index), &v, strict))
             return -1;
     }
 
@@ -486,12 +486,12 @@ SetOrDeleteArrayElement(JSContext *cx, HandleObject obj, double index,
 }
 
 JSBool
-js::SetLengthProperty(JSContext *cx, HandleObject obj, double length)
+js_SetLengthProperty(JSContext *cx, HandleObject obj, double length)
 {
     RootedValue v(cx, NumberValue(length));
 
     /* We don't support read-only array length yet. */
-    return JSObject::setProperty(cx, obj, obj, cx->runtime->atomState.lengthAtom, &v, false);
+    return obj->setProperty(cx, obj, cx->runtime->atomState.lengthAtom, &v, false);
 }
 
 /*
@@ -518,8 +518,8 @@ static JSBool
 array_length_setter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp)
 {
     if (!obj->isArray()) {
-        return JSObject::defineProperty(cx, obj, cx->runtime->atomState.lengthAtom, vp,
-                                        NULL, NULL, JSPROP_ENUMERATE);
+        return obj->defineProperty(cx, cx->runtime->atomState.lengthAtom, vp,
+                                   NULL, NULL, JSPROP_ENUMERATE);
     }
 
     uint32_t newlen;
@@ -593,7 +593,7 @@ array_length_setter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict,
             uint32_t index;
             RootedValue junk(cx);
             if (js_IdIsIndex(nid, &index) && index - newlen < gap &&
-                !JSObject::deleteElement(cx, obj, index, &junk, false)) {
+                !obj->deleteElement(cx, index, &junk, false)) {
                 return false;
             }
         }
@@ -640,13 +640,13 @@ array_lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
         return JS_TRUE;
     }
 
-    RootedObject proto(cx, obj->getProto());
+    JSObject *proto = obj->getProto();
     if (!proto) {
         objp.set(NULL);
         propp.set(NULL);
         return JS_TRUE;
     }
-    return JSObject::lookupGeneric(cx, proto, id, objp, propp);
+    return proto->lookupGeneric(cx, id, objp, propp);
 }
 
 static JSBool
@@ -670,9 +670,8 @@ array_lookupElement(JSContext *cx, HandleObject obj, uint32_t index,
         return true;
     }
 
-    RootedObject proto(cx, obj->getProto());
-    if (proto)
-        return JSObject::lookupElement(cx, proto, index, objp, propp);
+    if (JSObject *proto = obj->getProto())
+        return proto->lookupElement(cx, index, objp, propp);
 
     objp.set(NULL);
     propp.set(NULL);
@@ -716,13 +715,13 @@ array_getProperty(JSContext *cx, HandleObject obj, HandleObject receiver, Handle
         return baseops::GetProperty(cx, obj, receiver, id, vp);
     }
 
-    RootedObject proto(cx, obj->getProto());
+    JSObject *proto = obj->getProto();
     if (!proto) {
         vp.setUndefined();
         return true;
     }
 
-    return JSObject::getProperty(cx, proto, receiver, name, vp);
+    return proto->getProperty(cx, receiver, name, vp);
 }
 
 static JSBool
@@ -743,13 +742,13 @@ array_getElement(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_
         }
     }
 
-    RootedObject proto(cx, obj->getProto());
+    JSObject *proto = obj->getProto();
     if (!proto) {
         vp.setUndefined();
         return true;
     }
 
-    return JSObject::getElement(cx, proto, receiver, index, vp);
+    return proto->getElement(cx, receiver, index, vp);
 }
 
 static JSBool
@@ -1428,7 +1427,7 @@ array_toSource_impl(JSContext *cx, CallArgs args)
         return false;
 
     uint32_t length;
-    if (!GetLengthProperty(cx, obj, &length))
+    if (!js_GetLengthProperty(cx, obj, &length))
         return false;
 
     for (uint32_t index = 0; index < length; index++) {
@@ -1551,7 +1550,7 @@ array_join_sub(JSContext *cx, CallArgs &args, bool locale)
 
     // Steps 2 and 3
     uint32_t length;
-    if (!GetLengthProperty(cx, obj, &length))
+    if (!js_GetLengthProperty(cx, obj, &length))
         return false;
 
 
@@ -1663,7 +1662,7 @@ array_toString(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     RootedValue join(cx, args.calleev());
-    if (!JSObject::getProperty(cx, obj, obj, cx->runtime->atomState.joinAtom, &join))
+    if (!obj->getProperty(cx, cx->runtime->atomState.joinAtom, &join))
         return false;
 
     if (!js_IsCallable(join)) {
@@ -1796,7 +1795,7 @@ InitArrayElements(JSContext *cx, HandleObject obj, uint32_t start, uint32_t coun
     do {
         value = *vector++;
         if (!ValueToId(cx, idval, id.address()) ||
-            !JSObject::setGeneric(cx, obj, obj, id, &value, true)) {
+            !obj->setGeneric(cx, obj, id, &value, true)) {
             return false;
         }
         idval.getDoubleRef() += 1;
@@ -1814,7 +1813,7 @@ array_reverse(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     uint32_t len;
-    if (!GetLengthProperty(cx, obj, &len))
+    if (!js_GetLengthProperty(cx, obj, &len))
         return false;
 
     do {
@@ -2124,7 +2123,7 @@ js::array_sort(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     uint32_t len;
-    if (!GetLengthProperty(cx, obj, &len))
+    if (!js_GetLengthProperty(cx, obj, &len))
         return false;
     if (len == 0) {
         args.rval().setObject(*obj);
@@ -2290,7 +2289,7 @@ array_push_slowly(JSContext *cx, HandleObject obj, CallArgs &args)
 {
     uint32_t length;
 
-    if (!GetLengthProperty(cx, obj, &length))
+    if (!js_GetLengthProperty(cx, obj, &length))
         return false;
     if (!InitArrayElements(cx, obj, length, args.length(), args.array(), UpdateTypes))
         return false;
@@ -2298,7 +2297,7 @@ array_push_slowly(JSContext *cx, HandleObject obj, CallArgs &args)
     /* Per ECMA-262, return the new array length. */
     double newlength = length + double(args.length());
     args.rval().setNumber(newlength);
-    return SetLengthProperty(cx, obj, newlength);
+    return js_SetLengthProperty(cx, obj, newlength);
 }
 
 static bool
@@ -2374,12 +2373,12 @@ static JSBool
 array_pop_slowly(JSContext *cx, HandleObject obj, CallArgs &args)
 {
     uint32_t index;
-    if (!GetLengthProperty(cx, obj, &index))
+    if (!js_GetLengthProperty(cx, obj, &index))
         return false;
 
     if (index == 0) {
         args.rval().setUndefined();
-        return SetLengthProperty(cx, obj, index);
+        return js_SetLengthProperty(cx, obj, index);
     }
 
     index--;
@@ -2393,7 +2392,7 @@ array_pop_slowly(JSContext *cx, HandleObject obj, CallArgs &args)
         return false;
 
     args.rval().set(elt);
-    return SetLengthProperty(cx, obj, index);
+    return js_SetLengthProperty(cx, obj, index);
 }
 
 static JSBool
@@ -2427,7 +2426,7 @@ array_pop_dense(JSContext *cx, HandleObject obj, CallArgs &args)
         return true;
     }
 
-    return SetLengthProperty(cx, obj, index);
+    return js_SetLengthProperty(cx, obj, index);
 }
 
 JSBool
@@ -2468,7 +2467,7 @@ js::array_shift(JSContext *cx, unsigned argc, Value *vp)
         return JS_FALSE;
 
     uint32_t length;
-    if (!GetLengthProperty(cx, obj, &length))
+    if (!js_GetLengthProperty(cx, obj, &length))
         return JS_FALSE;
 
     if (length == 0) {
@@ -2508,7 +2507,7 @@ js::array_shift(JSContext *cx, unsigned argc, Value *vp)
         if (!hole && DeleteArrayElement(cx, obj, length, true) < 0)
             return JS_FALSE;
     }
-    return SetLengthProperty(cx, obj, length);
+    return js_SetLengthProperty(cx, obj, length);
 }
 
 static JSBool
@@ -2520,7 +2519,7 @@ array_unshift(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     uint32_t length;
-    if (!GetLengthProperty(cx, obj, &length))
+    if (!js_GetLengthProperty(cx, obj, &length))
         return JS_FALSE;
 
     double newlen = length;
@@ -2568,7 +2567,7 @@ array_unshift(JSContext *cx, unsigned argc, Value *vp)
 
         newlen += args.length();
     }
-    if (!SetLengthProperty(cx, obj, newlen))
+    if (!js_SetLengthProperty(cx, obj, newlen))
         return JS_FALSE;
 
     /* Follow Perl by returning the new array length. */
@@ -2643,7 +2642,7 @@ array_splice(JSContext *cx, unsigned argc, Value *vp)
 
     /* Steps 3-4. */
     uint32_t len;
-    if (!GetLengthProperty(cx, obj, &len))
+    if (!js_GetLengthProperty(cx, obj, &len))
         return false;
 
     /* Step 5. */
@@ -2694,7 +2693,7 @@ array_splice(JSContext *cx, unsigned argc, Value *vp)
             JSBool hole;
             if (!JS_CHECK_OPERATION_LIMIT(cx) ||
                 !GetElement(cx, obj, actualStart + k, &hole, &fromValue) ||
-                (!hole && !JSObject::defineElement(cx, arr, k, fromValue)))
+                (!hole && !arr->defineElement(cx, k, fromValue)))
             {
                 return false;
             }
@@ -2810,7 +2809,7 @@ array_splice(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 16. */
     double finalLength = double(len) - actualDeleteCount + itemCount;
-    if (!SetLengthProperty(cx, obj, finalLength))
+    if (!js_SetLengthProperty(cx, obj, finalLength))
         return false;
 
     /* Step 17. */
@@ -2899,7 +2898,7 @@ js::array_concat(JSContext *cx, unsigned argc, Value *vp)
             RootedObject obj(cx, &v.toObject());
             if (ObjectClassIs(*obj, ESClass_Array, cx)) {
                 uint32_t alength;
-                if (!GetLengthProperty(cx, obj, &alength))
+                if (!js_GetLengthProperty(cx, obj, &alength))
                     return false;
                 RootedValue tmp(cx);
                 for (uint32_t slot = 0; slot < alength; slot++) {
@@ -2924,7 +2923,7 @@ js::array_concat(JSContext *cx, unsigned argc, Value *vp)
         length++;
     }
 
-    return SetLengthProperty(cx, nobj, length);
+    return js_SetLengthProperty(cx, nobj, length);
 }
 
 static JSBool
@@ -2939,7 +2938,7 @@ array_slice(JSContext *cx, unsigned argc, Value *vp)
     if (!obj)
         return false;
 
-    if (!GetLengthProperty(cx, obj, &length))
+    if (!js_GetLengthProperty(cx, obj, &length))
         return JS_FALSE;
     begin = 0;
     end = length;
@@ -3022,7 +3021,7 @@ array_indexOfHelper(JSContext *cx, IndexOfKind mode, CallArgs &args)
     RootedObject obj(cx, ToObject(cx, args.thisv()));
     if (!obj)
         return false;
-    if (!GetLengthProperty(cx, obj, &length))
+    if (!js_GetLengthProperty(cx, obj, &length))
         return JS_FALSE;
     if (length == 0)
         goto not_found;
@@ -3147,7 +3146,7 @@ array_readonlyCommon(JSContext *cx, CallArgs &args)
 
     /* Step 2-3. */
     uint32_t len;
-    if (!GetLengthProperty(cx, obj, &len))
+    if (!js_GetLengthProperty(cx, obj, &len))
         return false;
 
     /* Step 4. */
@@ -3239,7 +3238,7 @@ array_map(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 2-3. */
     uint32_t len;
-    if (!GetLengthProperty(cx, obj, &len))
+    if (!js_GetLengthProperty(cx, obj, &len))
         return false;
 
     /* Step 4. */
@@ -3316,7 +3315,7 @@ array_filter(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 2-3. */
     uint32_t len;
-    if (!GetLengthProperty(cx, obj, &len))
+    if (!js_GetLengthProperty(cx, obj, &len))
         return false;
 
     /* Step 4. */
@@ -3424,7 +3423,7 @@ array_reduceCommon(JSContext *cx, CallArgs &args)
 
     /* Step 2-3. */
     uint32_t len;
-    if (!GetLengthProperty(cx, obj, &len))
+    if (!js_GetLengthProperty(cx, obj, &len))
         return false;
 
     /* Step 4. */

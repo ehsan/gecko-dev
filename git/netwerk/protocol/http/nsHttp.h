@@ -69,7 +69,7 @@ extern PRLogModuleInfo *gHttpLog;
 #define NS_HTTP_VERSION_1_0     10
 #define NS_HTTP_VERSION_1_1     11
 
-typedef uint8_t nsHttpVersion;
+typedef PRUint8 nsHttpVersion;
 
 //-----------------------------------------------------------------------------
 // http connection capabilities
@@ -171,11 +171,11 @@ struct nsHttp
     // TODO(darin): Replace this with something generic.
     //
     static bool ParseInt64(const char *input, const char **next,
-                             int64_t *result);
+                             PRInt64 *result);
 
     // Variant on ParseInt64 that expects the input string to contain nothing
     // more than the value being parsed.
-    static inline bool ParseInt64(const char *input, int64_t *result) {
+    static inline bool ParseInt64(const char *input, PRInt64 *result) {
         const char *next;
         return ParseInt64(input, &next, result) && *next == '\0';
     }
@@ -195,10 +195,10 @@ struct nsHttp
 // utilities...
 //-----------------------------------------------------------------------------
 
-static inline uint32_t
+static inline PRUint32
 PRTimeToSeconds(PRTime t_usec)
 {
-    return uint32_t( t_usec / PR_USEC_PER_SEC );
+    return PRUint32( t_usec / PR_USEC_PER_SEC );
 }
 
 #define NowInSeconds() PRTimeToSeconds(PR_Now())

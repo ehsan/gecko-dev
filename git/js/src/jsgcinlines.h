@@ -82,11 +82,17 @@ GetGCObjectFixedSlotsKind(size_t numFixedSlots)
     return slotsToThingKind[numFixedSlots];
 }
 
+static inline bool
+IsBackgroundAllocKind(AllocKind kind)
+{
+    JS_ASSERT(kind <= FINALIZE_LAST);
+    return kind <= FINALIZE_OBJECT_LAST && kind % 2 == 1;
+}
+
 static inline AllocKind
 GetBackgroundAllocKind(AllocKind kind)
 {
-    JS_ASSERT(!IsBackgroundFinalized(kind));
-    JS_ASSERT(kind <= FINALIZE_OBJECT_LAST);
+    JS_ASSERT(!IsBackgroundAllocKind(kind));
     return (AllocKind) (kind + 1);
 }
 
@@ -338,7 +344,7 @@ class CellIter : public CellIterImpl
          * background finalization; make sure people aren't using CellIter to
          * walk such allocation kinds.
          */
-        JS_ASSERT(!IsBackgroundFinalized(kind));
+        JS_ASSERT(!IsBackgroundAllocKind(kind));
         if (lists->isSynchronizedFreeList(kind)) {
             lists = NULL;
         } else {

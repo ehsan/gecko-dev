@@ -28,13 +28,13 @@ extern PRThread *gSocketThread;
 class nsHttpPushBackWriter : public nsAHttpSegmentWriter
 {
 public:
-    nsHttpPushBackWriter(const char *buf, uint32_t bufLen)
+    nsHttpPushBackWriter(const char *buf, PRUint32 bufLen)
         : mBuf(buf)
         , mBufLen(bufLen)
         { }
     virtual ~nsHttpPushBackWriter() {}
 
-    nsresult OnWriteSegment(char *buf, uint32_t count, uint32_t *countWritten)
+    nsresult OnWriteSegment(char *buf, PRUint32 count, PRUint32 *countWritten)
     {
         if (mBufLen == 0)
             return NS_BASE_STREAM_CLOSED;
@@ -52,7 +52,7 @@ public:
 
 private:
     const char *mBuf;
-    uint32_t    mBufLen;
+    PRUint32    mBufLen;
 };
 
 //-----------------------------------------------------------------------------
@@ -97,7 +97,7 @@ nsHttpPipeline::AddTransaction(nsAHttpTransaction *trans)
 
     NS_ADDREF(trans);
     mRequestQ.AppendElement(trans);
-    uint32_t qlen = PipelineDepth();
+    PRUint32 qlen = PipelineDepth();
     
     if (qlen != 1) {
         trans->SetPipelinePosition(qlen);
@@ -118,14 +118,14 @@ nsHttpPipeline::AddTransaction(nsAHttpTransaction *trans)
     return NS_OK;
 }
 
-uint32_t
+PRUint32
 nsHttpPipeline::PipelineDepth()
 {
     return mRequestQ.Length() + mResponseQ.Length();
 }
 
 nsresult
-nsHttpPipeline::SetPipelinePosition(int32_t position)
+nsHttpPipeline::SetPipelinePosition(PRInt32 position)
 {
     nsAHttpTransaction *trans = Response(0);
     if (trans)
@@ -133,7 +133,7 @@ nsHttpPipeline::SetPipelinePosition(int32_t position)
     return NS_OK;
 }
 
-int32_t
+PRInt32
 nsHttpPipeline::PipelinePosition()
 {
     nsAHttpTransaction *trans = Response(0);
@@ -214,7 +214,7 @@ nsHttpPipeline::CloseTransaction(nsAHttpTransaction *trans, nsresult reason)
 
     // the specified transaction is to be closed with the given "reason"
     
-    int32_t index;
+    PRInt32 index;
     bool killPipeline = false;
 
     index = mRequestQ.IndexOf(trans);
@@ -238,7 +238,8 @@ nsHttpPipeline::CloseTransaction(nsAHttpTransaction *trans, nsresult reason)
     }
 
     // Marking this connection as non-reusable prevents other items from being
-    // added to it and causes it to be torn down soon.
+    // added to it and causes it to be torn down soon. Don't tear it down yet
+    // as that would prevent Response(0) from being processed.
     DontReuse();
 
     trans->Close(reason);
@@ -248,11 +249,6 @@ nsHttpPipeline::CloseTransaction(nsAHttpTransaction *trans, nsresult reason)
         // reschedule anything from this pipeline onto a different connection
         CancelPipeline(reason);
     }
-
-    // If all the transactions have been removed then we can close the connection
-    // right away.
-    if (!mRequestQ.Length() && !mResponseQ.Length() && mConnection)
-        mConnection->CloseTransaction(this, reason);
 }
 
 nsresult
@@ -285,7 +281,7 @@ nsHttpPipeline::DontReuse()
 }
 
 nsresult
-nsHttpPipeline::PushBack(const char *data, uint32_t length)
+nsHttpPipeline::PushBack(const char *data, PRUint32 length)
 {
     LOG(("nsHttpPipeline::PushBack [this=%x len=%u]\n", this, length));
     
@@ -367,7 +363,7 @@ nsHttpPipeline::RequestHead()
     return nullptr;
 }
 
-uint32_t
+PRUint32
 nsHttpPipeline::Http1xTransactionCount()
 {
   return mHttp1xTransactionCount;
@@ -382,7 +378,7 @@ nsHttpPipeline::TakeSubTransactions(
     if (mResponseQ.Length() || mRequestIsPartial)
         return NS_ERROR_ALREADY_OPENED;
 
-    int32_t i, count = mRequestQ.Length();
+    PRInt32 i, count = mRequestQ.Length();
     for (i = 0; i < count; ++i) {
         nsAHttpTransaction *trans = Request(i);
         // set the transaction conneciton object back to the underlying
@@ -445,7 +441,7 @@ nsHttpPipeline::GetSecurityCallbacks(nsIInterfaceRequestor **result,
 
 void
 nsHttpPipeline::OnTransportStatus(nsITransport* transport,
-                                  nsresult status, uint64_t progress)
+                                  nsresult status, PRUint64 progress)
 {
     LOG(("nsHttpPipeline::OnStatus [this=%x status=%x progress=%llu]\n",
         this, status, progress));
@@ -453,7 +449,7 @@ nsHttpPipeline::OnTransportStatus(nsITransport* transport,
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
     nsAHttpTransaction *trans;
-    int32_t i, count;
+    PRInt32 i, count;
 
     switch (status) {
 
@@ -536,7 +532,7 @@ nsHttpPipeline::IsDone()
 {
     bool done = true;
     
-    uint32_t i, count = mRequestQ.Length();
+    PRUint32 i, count = mRequestQ.Length();
     for (i = 0; done && (i < count); i++)
         done = Request(i)->IsDone();
 
@@ -553,7 +549,7 @@ nsHttpPipeline::Status()
     return mStatus;
 }
 
-uint8_t
+PRUint8
 nsHttpPipeline::Caps()
 {
     nsAHttpTransaction *trans = Request(0);
@@ -563,12 +559,12 @@ nsHttpPipeline::Caps()
     return trans ? trans->Caps() : 0;
 }
 
-uint64_t
+PRUint64
 nsHttpPipeline::Available()
 {
-    uint64_t result = 0;
+    PRUint64 result = 0;
 
-    int32_t i, count = mRequestQ.Length();
+    PRInt32 i, count = mRequestQ.Length();
     for (i=0; i<count; ++i)
         result += Request(i)->Available();
     return result;
@@ -578,9 +574,9 @@ NS_METHOD
 nsHttpPipeline::ReadFromPipe(nsIInputStream *stream,
                              void *closure,
                              const char *buf,
-                             uint32_t offset,
-                             uint32_t count,
-                             uint32_t *countRead)
+                             PRUint32 offset,
+                             PRUint32 count,
+                             PRUint32 *countRead)
 {
     nsHttpPipeline *self = (nsHttpPipeline *) closure;
     return self->mReader->OnReadSegment(buf, count, countRead);
@@ -588,8 +584,8 @@ nsHttpPipeline::ReadFromPipe(nsIInputStream *stream,
 
 nsresult
 nsHttpPipeline::ReadSegments(nsAHttpSegmentReader *reader,
-                             uint32_t count,
-                             uint32_t *countRead)
+                             PRUint32 count,
+                             PRUint32 *countRead)
 {
     LOG(("nsHttpPipeline::ReadSegments [this=%x count=%u]\n", this, count));
 
@@ -601,7 +597,7 @@ nsHttpPipeline::ReadSegments(nsAHttpSegmentReader *reader,
     }
 
     nsresult rv;
-    uint64_t avail = 0;
+    PRUint64 avail = 0;
     if (mSendBufIn) {
         rv = mSendBufIn->Available(&avail);
         if (NS_FAILED(rv)) return rv;
@@ -627,8 +623,8 @@ nsHttpPipeline::ReadSegments(nsAHttpSegmentReader *reader,
 
     mReader = reader;
 
-    // avail is under 4GB, so casting to uint32_t is safe
-    rv = mSendBufIn->ReadSegments(ReadFromPipe, this, (uint32_t)avail, countRead);
+    // avail is under 4GB, so casting to PRUint32 is safe
+    rv = mSendBufIn->ReadSegments(ReadFromPipe, this, (PRUint32)avail, countRead);
 
     mReader = nullptr;
     return rv;
@@ -636,8 +632,8 @@ nsHttpPipeline::ReadSegments(nsAHttpSegmentReader *reader,
 
 nsresult
 nsHttpPipeline::WriteSegments(nsAHttpSegmentWriter *writer,
-                              uint32_t count,
-                              uint32_t *countWritten)
+                              PRUint32 count,
+                              PRUint32 *countWritten)
 {
     LOG(("nsHttpPipeline::WriteSegments [this=%x count=%u]\n", this, count));
 
@@ -698,7 +694,7 @@ nsHttpPipeline::WriteSegments(nsAHttpSegmentWriter *writer,
 
     if (mPushBackLen) {
         nsHttpPushBackWriter writer(mPushBackBuf, mPushBackLen);
-        uint32_t len = mPushBackLen, n;
+        PRUint32 len = mPushBackLen, n;
         mPushBackLen = 0;
 
         // This progress notification has previously been sent from
@@ -718,10 +714,10 @@ nsHttpPipeline::WriteSegments(nsAHttpSegmentWriter *writer,
     return rv;
 }
 
-uint32_t
+PRUint32
 nsHttpPipeline::CancelPipeline(nsresult originalReason)
 {
-    uint32_t i, reqLen, respLen, total;
+    PRUint32 i, reqLen, respLen, total;
     nsAHttpTransaction *trans;
 
     reqLen = mRequestQ.Length();
@@ -782,7 +778,7 @@ nsHttpPipeline::Close(nsresult reason)
 
     nsRefPtr<nsHttpConnectionInfo> ci;
     GetConnectionInfo(getter_AddRefs(ci));
-    uint32_t numRescheduled = CancelPipeline(reason);
+    PRUint32 numRescheduled = CancelPipeline(reason);
 
     // numRescheduled can be 0 if there is just a single response in the
     // pipeline object. That isn't really a meaningful pipeline that
@@ -816,8 +812,8 @@ nsHttpPipeline::Close(nsresult reason)
 
 nsresult
 nsHttpPipeline::OnReadSegment(const char *segment,
-                              uint32_t count,
-                              uint32_t *countRead)
+                              PRUint32 count,
+                              PRUint32 *countRead)
 {
     return mSendBufOut->Write(segment, count, countRead);
 }
@@ -840,8 +836,8 @@ nsHttpPipeline::FillSendBuf()
         if (NS_FAILED(rv)) return rv;
     }
 
-    uint32_t n;
-    uint64_t avail;
+    PRUint32 n;
+    PRUint64 avail;
     nsAHttpTransaction *trans;
     nsITransport *transport = Transport();
 
@@ -855,7 +851,7 @@ nsHttpPipeline::FillSendBuf()
             nsAHttpTransaction *response = Response(0);
             if (response && !response->PipelinePosition())
                 response->SetPipelinePosition(1);
-            rv = trans->ReadSegments(this, (uint32_t)NS_MIN(avail, (uint64_t)PR_UINT32_MAX), &n);
+            rv = trans->ReadSegments(this, (PRUint32)NS_MIN(avail, (PRUint64)PR_UINT32_MAX), &n);
             if (NS_FAILED(rv)) return rv;
             
             if (n == 0) {

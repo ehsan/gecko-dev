@@ -29,8 +29,8 @@ NS_IMPL_ISUPPORTS1(nsFontFaceList, nsIDOMFontFaceList)
 
 /* nsIDOMFontFace item (in unsigned long index); */
 struct FindByIndexData {
-  uint32_t mTarget;
-  uint32_t mCurrent;
+  PRUint32 mTarget;
+  PRUint32 mCurrent;
   nsIDOMFontFace* mResult;
 };
 
@@ -47,7 +47,7 @@ FindByIndex(gfxFontEntry* aKey, nsIDOMFontFace* aData, void* aUserData)
 }
 
 NS_IMETHODIMP
-nsFontFaceList::Item(uint32_t index, nsIDOMFontFace **_retval)
+nsFontFaceList::Item(PRUint32 index, nsIDOMFontFace **_retval)
 {
   NS_ENSURE_TRUE(index < mFontFaces.Count(), NS_ERROR_INVALID_ARG);
   FindByIndexData userData;
@@ -62,7 +62,7 @@ nsFontFaceList::Item(uint32_t index, nsIDOMFontFace **_retval)
 
 /* readonly attribute unsigned long length; */
 NS_IMETHODIMP
-nsFontFaceList::GetLength(uint32_t *aLength)
+nsFontFaceList::GetLength(PRUint32 *aLength)
 {
   *aLength = mFontFaces.Count();
   return NS_OK;
@@ -73,7 +73,7 @@ nsFontFaceList::GetLength(uint32_t *aLength)
 
 nsresult
 nsFontFaceList::AddFontsFromTextRun(gfxTextRun* aTextRun,
-                                    uint32_t aOffset, uint32_t aLength,
+                                    PRUint32 aOffset, PRUint32 aLength,
                                     nsIFrame* aFrame)
 {
   gfxTextRun::GlyphRunIterator iter(aTextRun, aOffset, aLength);

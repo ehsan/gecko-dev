@@ -190,7 +190,7 @@ using mozilla::unused;
 #include "AndroidBridge.h"
 #endif
 
-extern uint32_t gRestartMode;
+extern PRUint32 gRestartMode;
 extern void InstallSignalHandlers(const char *ProgramName);
 #include "nsX11ErrorHandler.h"
 
@@ -536,7 +536,7 @@ ProcessDDE(nsINativeAppSupport* aNative, bool aWait)
       nsIThread *thread = NS_GetCurrentThread();
       // This is just a guesstimate based on testing different values.
       // If count is 8 or less windows will display an error dialog.
-      int32_t count = 20;
+      PRInt32 count = 20;
       while(--count >= 0) {
         NS_ProcessNextEvent(thread);
         PR_Sleep(PR_MillisecondsToInterval(1));
@@ -754,7 +754,7 @@ MOZ_STATIC_ASSERT(GeckoProcessType_IPDLUnitTest + 1 == GeckoProcessType_End,
                   "Did not find the final GeckoProcessType");
 
 NS_IMETHODIMP
-nsXULAppInfo::GetProcessType(uint32_t* aResult)
+nsXULAppInfo::GetProcessType(PRUint32* aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
   *aResult = XRE_GetProcessType();
@@ -810,7 +810,7 @@ nsXULAppInfo::InvalidateCachesOnRestart()
 }
 
 NS_IMETHODIMP
-nsXULAppInfo::GetReplacedLockTime(int64_t *aReplacedLockTime)
+nsXULAppInfo::GetReplacedLockTime(PRInt64 *aReplacedLockTime)
 {
   if (!gProfileLock)
     return NS_ERROR_NOT_AVAILABLE;
@@ -999,8 +999,8 @@ nsXULAppInfo::AppendAppNotesToCrashReport(const nsACString& data)
 }
 
 NS_IMETHODIMP
-nsXULAppInfo::RegisterAppMemory(uint64_t pointer,
-                                uint64_t len)
+nsXULAppInfo::RegisterAppMemory(PRUint64 pointer,
+                                PRUint64 len)
 {
   return CrashReporter::RegisterAppMemory((void *)pointer, len);
 }
@@ -1611,7 +1611,7 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 #else
 #if defined(XP_MACOSX)
   CommandLineServiceMac::SetupMacCommandLine(gRestartArgc, gRestartArgv, true);
-  uint32_t restartMode = 0;
+  PRUint32 restartMode = 0;
   restartMode = gRestartMode;
   LaunchChildMac(gRestartArgc, gRestartArgv, restartMode);
 #else
@@ -1650,7 +1650,7 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
                                         nullptr, nullptr);
   if (!process) return NS_ERROR_FAILURE;
 
-  int32_t exitCode;
+  PRInt32 exitCode;
   PRStatus failed = PR_WaitProcess(process, &exitCode);
   if (failed || exitCode)
     return NS_ERROR_FAILURE;
@@ -1715,14 +1715,14 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
     NS_ENSURE_TRUE(ps, NS_ERROR_FAILURE);
 
     if (aUnlocker) {
-      const uint32_t flags =
+      const PRUint32 flags =
         (nsIPromptService::BUTTON_TITLE_CANCEL * 
          nsIPromptService::BUTTON_POS_0) +
         (nsIPromptService::BUTTON_TITLE_IS_STRING * 
          nsIPromptService::BUTTON_POS_1) +
         nsIPromptService::BUTTON_POS_1_DEFAULT;
 
-      int32_t button;
+      PRInt32 button;
       // The actual value is irrelevant but we shouldn't be handing out
       // malformed JSBools to XPConnect.
       bool checkState = false;
@@ -1874,7 +1874,7 @@ ShowProfileManager(nsIToolkitProfileService* aProfileSvc,
 
       aProfileSvc->Flush();
 
-      int32_t dialogConfirmed;
+      PRInt32 dialogConfirmed;
       rv = ioParamBlock->GetInt(0, &dialogConfirmed);
       if (NS_FAILED(rv) || dialogConfirmed == 0) return NS_ERROR_ABORT;
 
@@ -2161,7 +2161,7 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
     return rv;
   }
 
-  uint32_t count;
+  PRUint32 count;
   rv = aProfileSvc->GetProfileCount(&count);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3947,7 +3947,7 @@ XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 }
 
 int
-XRE_main(int argc, char* argv[], const nsXREAppData* aAppData, uint32_t aFlags)
+XRE_main(int argc, char* argv[], const nsXREAppData* aAppData, PRUint32 aFlags)
 {
   XREMain main;
   int result = main.XRE_main(argc, argv, aAppData);

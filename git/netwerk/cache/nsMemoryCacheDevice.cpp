@@ -77,7 +77,7 @@ nsMemoryCacheDevice::Shutdown()
             PR_REMOVE_AND_INIT_LINK(entry);
         
             // update statistics
-            int32_t memoryRecovered = (int32_t)entry->DataSize();
+            PRInt32 memoryRecovered = (PRInt32)entry->DataSize();
             mTotalSize    -= memoryRecovered;
             mInactiveSize -= memoryRecovered;
             --mEntryCount;
@@ -198,7 +198,7 @@ nsMemoryCacheDevice::DoomEntry(nsCacheEntry * entry)
 nsresult
 nsMemoryCacheDevice::OpenInputStreamForEntry( nsCacheEntry *    entry,
                                               nsCacheAccessMode mode,
-                                              uint32_t          offset,
+                                              PRUint32          offset,
                                               nsIInputStream ** result)
 {
     NS_ENSURE_ARG_POINTER(entry);
@@ -214,7 +214,7 @@ nsMemoryCacheDevice::OpenInputStreamForEntry( nsCacheEntry *    entry,
             return rv;
     }
     else {
-        rv = NS_NewStorageStream(4096, uint32_t(-1), getter_AddRefs(storage));
+        rv = NS_NewStorageStream(4096, PRUint32(-1), getter_AddRefs(storage));
         if (NS_FAILED(rv))
             return rv;
         entry->SetData(storage);
@@ -227,7 +227,7 @@ nsMemoryCacheDevice::OpenInputStreamForEntry( nsCacheEntry *    entry,
 nsresult
 nsMemoryCacheDevice::OpenOutputStreamForEntry( nsCacheEntry *     entry,
                                                nsCacheAccessMode  mode,
-                                               uint32_t           offset,
+                                               PRUint32           offset,
                                                nsIOutputStream ** result)
 {
     NS_ENSURE_ARG_POINTER(entry);
@@ -243,7 +243,7 @@ nsMemoryCacheDevice::OpenOutputStreamForEntry( nsCacheEntry *     entry,
             return rv;
     }
     else {
-        rv = NS_NewStorageStream(4096, uint32_t(-1), getter_AddRefs(storage));
+        rv = NS_NewStorageStream(4096, PRUint32(-1), getter_AddRefs(storage));
         if (NS_FAILED(rv))
             return rv;
         entry->SetData(storage);
@@ -261,7 +261,7 @@ nsMemoryCacheDevice::GetFileForEntry( nsCacheEntry *    entry,
 }
 
 bool
-nsMemoryCacheDevice::EntryIsTooBig(int64_t entrySize)
+nsMemoryCacheDevice::EntryIsTooBig(PRInt64 entrySize)
 {
     CACHE_LOG_DEBUG(("nsMemoryCacheDevice::EntryIsTooBig "
                      "[size=%d max=%d soft=%d]\n",
@@ -279,11 +279,11 @@ nsMemoryCacheDevice::TotalSize()
 }
 
 nsresult
-nsMemoryCacheDevice::OnDataSizeChange( nsCacheEntry * entry, int32_t deltaSize)
+nsMemoryCacheDevice::OnDataSizeChange( nsCacheEntry * entry, PRInt32 deltaSize)
 {
     if (entry->IsStreamData()) {
         // we have the right to refuse or pre-evict
-        uint32_t  newSize = entry->DataSize() + deltaSize;
+        PRUint32  newSize = entry->DataSize() + deltaSize;
         if (EntryIsTooBig(newSize)) {
 #ifdef DEBUG
             nsresult rv =
@@ -309,7 +309,7 @@ nsMemoryCacheDevice::OnDataSizeChange( nsCacheEntry * entry, int32_t deltaSize)
 
 
 void
-nsMemoryCacheDevice::AdjustMemoryLimits(int32_t  softLimit, int32_t  hardLimit)
+nsMemoryCacheDevice::AdjustMemoryLimits(PRInt32  softLimit, PRInt32  hardLimit)
 {
     mSoftLimit = softLimit;
     mHardLimit = hardLimit;
@@ -331,7 +331,7 @@ nsMemoryCacheDevice::EvictEntry(nsCacheEntry * entry, bool deleteEntry)
     PR_REMOVE_AND_INIT_LINK(entry);
     
     // update statistics
-    int32_t memoryRecovered = (int32_t)entry->DataSize();
+    PRInt32 memoryRecovered = (PRInt32)entry->DataSize();
     mTotalSize    -= memoryRecovered;
     if (!entry->IsDoomed())
         mInactiveSize -= memoryRecovered;
@@ -353,9 +353,9 @@ nsMemoryCacheDevice::EvictEntriesIfNecessary(void)
     if ((mTotalSize < mHardLimit) && (mInactiveSize < mSoftLimit))
         return;
 
-    uint32_t now = SecondsFromPRTime(PR_Now());
-    uint64_t entryCost = 0;
-    uint64_t maxCost = 0;
+    PRUint32 now = SecondsFromPRTime(PR_Now());
+    PRUint64 entryCost = 0;
+    PRUint64 maxCost = 0;
     do {
         // LRU-SP eviction selection: Check the head of each segment (each
         // eviction list, kept in LRU order) and select the maximal-cost
@@ -371,7 +371,7 @@ nsMemoryCacheDevice::EvictEntriesIfNecessary(void)
             }
 
             if (entry != &mEvictionList[i]) {
-                entryCost = (uint64_t)
+                entryCost = (PRUint64)
                     (now - entry->LastFetched()) * entry->DataSize() / 
                     PR_MAX(1, entry->FetchCount());
                 if (!maxEntry || (entryCost > maxCost)) {
@@ -391,7 +391,7 @@ nsMemoryCacheDevice::EvictEntriesIfNecessary(void)
 
 
 int
-nsMemoryCacheDevice::EvictionList(nsCacheEntry * entry, int32_t  deltaSize)
+nsMemoryCacheDevice::EvictionList(nsCacheEntry * entry, PRInt32  deltaSize)
 {
     // favor items which never expire by putting them in the lowest-index queue
     if (entry->ExpirationTime() == nsICache::NO_EXPIRATION_TIME)
@@ -399,8 +399,8 @@ nsMemoryCacheDevice::EvictionList(nsCacheEntry * entry, int32_t  deltaSize)
 
     // compute which eviction queue this entry should go into,
     // based on floor(log2(size/nref))
-    int32_t  size       = deltaSize + (int32_t)entry->DataSize();
-    int32_t  fetchCount = NS_MAX(1, entry->FetchCount());
+    PRInt32  size       = deltaSize + (PRInt32)entry->DataSize();
+    PRInt32  fetchCount = NS_MAX(1, entry->FetchCount());
 
     return NS_MIN(PR_FloorLog2(size / fetchCount), kQueueCount - 1);
 }
@@ -450,14 +450,14 @@ IsEntryPrivate(nsCacheEntry* entry, void* args)
 
 struct ClientIDArgs {
     const char* clientID;
-    uint32_t prefixLength;
+    PRUint32 prefixLength;
 };
 
 static bool
 EntryMatchesClientID(nsCacheEntry* entry, void* args)
 {
     const char * clientID = static_cast<ClientIDArgs*>(args)->clientID;
-    uint32_t prefixLength = static_cast<ClientIDArgs*>(args)->prefixLength;
+    PRUint32 prefixLength = static_cast<ClientIDArgs*>(args)->prefixLength;
     const char * key = entry->Key()->get();
     return !clientID || nsCRT::strncmp(clientID, key, prefixLength) == 0;
 }
@@ -494,7 +494,7 @@ nsMemoryCacheDevice::DoEvictEntries(bool (*matchFn)(nsCacheEntry* entry, void* a
 nsresult
 nsMemoryCacheDevice::EvictEntries(const char * clientID)
 {
-    ClientIDArgs args = {clientID, clientID ? uint32_t(strlen(clientID)) : 0};
+    ClientIDArgs args = {clientID, clientID ? PRUint32(strlen(clientID)) : 0};
     return DoEvictEntries(&EntryMatchesClientID, &args);
 }
 
@@ -507,15 +507,15 @@ nsMemoryCacheDevice::EvictPrivateEntries()
 
 // WARNING: SetCapacity can get called before Init()
 void
-nsMemoryCacheDevice::SetCapacity(int32_t  capacity)
+nsMemoryCacheDevice::SetCapacity(PRInt32  capacity)
 {
-    int32_t hardLimit = capacity * 1024;  // convert k into bytes
-    int32_t softLimit = (hardLimit * 9) / 10;
+    PRInt32 hardLimit = capacity * 1024;  // convert k into bytes
+    PRInt32 softLimit = (hardLimit * 9) / 10;
     AdjustMemoryLimits(softLimit, hardLimit);
 }
 
 void
-nsMemoryCacheDevice::SetMaxEntrySize(int32_t maxSizeInKilobytes)
+nsMemoryCacheDevice::SetMaxEntrySize(PRInt32 maxSizeInKilobytes)
 {
     // Internal unit is bytes. Changing this only takes effect *after* the
     // change and has no consequences for existing cache-entries
@@ -527,9 +527,9 @@ nsMemoryCacheDevice::SetMaxEntrySize(int32_t maxSizeInKilobytes)
 
 #ifdef DEBUG
 static PLDHashOperator
-CountEntry(PLDHashTable * table, PLDHashEntryHdr * hdr, uint32_t number, void * arg)
+CountEntry(PLDHashTable * table, PLDHashEntryHdr * hdr, PRUint32 number, void * arg)
 {
-    int32_t *entryCount = (int32_t *)arg;
+    PRInt32 *entryCount = (PRInt32 *)arg;
     ++(*entryCount);
     return PL_DHASH_NEXT;
 }
@@ -539,7 +539,7 @@ nsMemoryCacheDevice::CheckEntryCount()
 {
     if (!mInitialized)  return;
 
-    int32_t evictionListCount = 0;
+    PRInt32 evictionListCount = 0;
     for (int i=0; i<kQueueCount; ++i) {
         PRCList * elem = PR_LIST_HEAD(&mEvictionList[i]);
         while (elem != &mEvictionList[i]) {
@@ -549,7 +549,7 @@ nsMemoryCacheDevice::CheckEntryCount()
     }
     NS_ASSERTION(mEntryCount == evictionListCount, "### mem cache badness");
 
-    int32_t entryCount = 0;
+    PRInt32 entryCount = 0;
     mMemCacheEntries.VisitEntries(CountEntry, &entryCount);
     NS_ASSERTION(mEntryCount == entryCount, "### mem cache badness");    
 }
@@ -593,28 +593,28 @@ nsMemoryCacheDeviceInfo::GetUsageReport(char ** result)
 
 
 NS_IMETHODIMP
-nsMemoryCacheDeviceInfo::GetEntryCount(uint32_t * result)
+nsMemoryCacheDeviceInfo::GetEntryCount(PRUint32 * result)
 {
     NS_ENSURE_ARG_POINTER(result);
     // XXX compare calculated count vs. mEntryCount
-    *result = (uint32_t)mDevice->mEntryCount;
+    *result = (PRUint32)mDevice->mEntryCount;
     return NS_OK;
 }
 
 
 NS_IMETHODIMP
-nsMemoryCacheDeviceInfo::GetTotalSize(uint32_t * result)
+nsMemoryCacheDeviceInfo::GetTotalSize(PRUint32 * result)
 {
     NS_ENSURE_ARG_POINTER(result);
-    *result = (uint32_t)mDevice->mTotalSize;
+    *result = (PRUint32)mDevice->mTotalSize;
     return NS_OK;
 }
 
 
 NS_IMETHODIMP
-nsMemoryCacheDeviceInfo::GetMaximumSize(uint32_t * result)
+nsMemoryCacheDeviceInfo::GetMaximumSize(PRUint32 * result)
 {
     NS_ENSURE_ARG_POINTER(result);
-    *result = (uint32_t)mDevice->mHardLimit;
+    *result = (PRUint32)mDevice->mHardLimit;
     return NS_OK;
 }

@@ -152,7 +152,7 @@ nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
                                          nsIDOMEventListener *aListener,
                                          bool aUseCapture,
                                          bool aWantsUntrusted,
-                                         uint8_t aOptionalArgc)
+                                         PRUint8 aOptionalArgc)
 {
   NS_ASSERTION(!aWantsUntrusted || aOptionalArgc > 1,
                "Won't check if this is chrome, you want to set "
@@ -179,7 +179,7 @@ nsDOMEventTargetHelper::AddSystemEventListener(const nsAString& aType,
                                                nsIDOMEventListener *aListener,
                                                bool aUseCapture,
                                                bool aWantsUntrusted,
-                                               uint8_t aOptionalArgc)
+                                               PRUint8 aOptionalArgc)
 {
   NS_ASSERTION(!aWantsUntrusted || aOptionalArgc > 1,
                "Won't check if this is chrome, you want to set "

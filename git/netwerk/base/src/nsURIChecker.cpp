@@ -73,7 +73,7 @@ nsURIChecker::CheckStatus()
     if (!httpChannel)
         return NS_BINDING_SUCCEEDED;
 
-    uint32_t responseStatus;
+    PRUint32 responseStatus;
     rv = httpChannel->GetResponseStatus(&responseStatus);
     if (NS_FAILED(rv))
         return NS_BINDING_FAILED;
@@ -95,7 +95,7 @@ nsURIChecker::CheckStatus()
             nsCOMPtr<nsIChannel> lastChannel = mChannel;
 
             nsCOMPtr<nsIURI> uri;
-            uint32_t loadFlags;
+            PRUint32 loadFlags;
 
             rv  = lastChannel->GetOriginalURI(getter_AddRefs(uri));
             nsresult tmp = lastChannel->GetLoadFlags(&loadFlags);
@@ -310,8 +310,8 @@ nsURIChecker::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
 
 NS_IMETHODIMP
 nsURIChecker::OnDataAvailable(nsIRequest *aRequest, nsISupports *aCtxt,
-                               nsIInputStream *aInput, uint32_t aOffset,
-                               uint32_t aCount)
+                               nsIInputStream *aInput, PRUint32 aOffset,
+                               PRUint32 aCount)
 {
     NS_NOTREACHED("nsURIChecker::OnDataAvailable");
     return NS_BINDING_ABORTED;
@@ -339,7 +339,7 @@ nsURIChecker::GetInterface(const nsIID & aIID, void **aResult)
 NS_IMETHODIMP
 nsURIChecker::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
                                      nsIChannel *aNewChannel,
-                                     uint32_t aFlags,
+                                     PRUint32 aFlags,
                                      nsIAsyncVerifyRedirectCallback *callback)
 {
     // We have a new channel

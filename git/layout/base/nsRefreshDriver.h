@@ -63,7 +63,7 @@ public:
    * Methods for testing, exposed via nsIDOMWindowUtils.  See
    * nsIDOMWindowUtils.advanceTimeAndRefresh for description.
    */
-  void AdvanceTimeAndRefresh(int64_t aMilliseconds);
+  void AdvanceTimeAndRefresh(PRInt64 aMilliseconds);
   void RestoreNormalRefresh();
 
   /**
@@ -77,7 +77,7 @@ public:
   /**
    * Same thing, but in microseconds since the epoch.
    */
-  int64_t MostRecentRefreshEpochTime() const;
+  PRInt64 MostRecentRefreshEpochTime() const;
 
   /**
    * Add / remove refresh observers.  Returns whether the operation
@@ -210,7 +210,7 @@ public:
   /**
    * Default interval the refresh driver uses, in ms.
    */
-  static int32_t DefaultInterval();
+  static PRInt32 DefaultInterval();
 
 private:
   typedef nsTObserverArray<nsARefreshObserver*> ObserverArray;
@@ -219,8 +219,8 @@ private:
   void EnsureTimerStarted(bool aAdjustingTimer);
   void StopTimer();
 
-  uint32_t ObserverCount() const;
-  uint32_t ImageRequestCount() const;
+  PRUint32 ObserverCount() const;
+  PRUint32 ImageRequestCount() const;
   static PLDHashOperator ImageRequestEnumerator(nsISupportsHashKey* aEntry,
                                           void* aUserArg);
   void UpdateMostRecentRefresh();
@@ -228,8 +228,8 @@ private:
   // Trigger a refresh immediately, if haven't been disconnected or frozen.
   void DoRefresh();
 
-  int32_t GetRefreshTimerInterval() const;
-  int32_t GetRefreshTimerType() const;
+  PRInt32 GetRefreshTimerInterval() const;
+  PRInt32 GetRefreshTimerType() const;
 
   bool HaveFrameRequestCallbacks() const {
     return mFrameRequestCallbackDocs.Length() != 0;
@@ -237,7 +237,7 @@ private:
 
   nsCOMPtr<nsITimer> mTimer;
   mozilla::TimeStamp mMostRecentRefresh; // only valid when mTimer non-null
-  int64_t mMostRecentRefreshEpochTime;   // same thing as mMostRecentRefresh,
+  PRInt64 mMostRecentRefreshEpochTime;   // same thing as mMostRecentRefresh,
                                          // but in microseconds since the epoch.
 
   nsPresContext *mPresContext; // weak; pres context passed in constructor
@@ -263,7 +263,7 @@ private:
 
   // This is the last interval we used for our timer.  May be 0 if we
   // haven't computed a timer interval yet.
-  mutable int32_t mLastTimerInterval;
+  mutable PRInt32 mLastTimerInterval;
 
   // Helper struct for processing image requests
   struct ImageRequestParameters {

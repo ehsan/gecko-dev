@@ -41,7 +41,7 @@ nsExternalSharingAppService::ShareWithDefault(const nsAString & data,
 
 NS_IMETHODIMP
 nsExternalSharingAppService::GetSharingApps(const nsAString & aMIMEType,
-                                            uint32_t *aLen,
+                                            PRUint32 *aLen,
                                             nsISharingHandlerApp ***aHandlers)
 {
   nsresult rv;

@@ -67,11 +67,11 @@ PRLogModuleInfo *gOfflineCacheUpdateLog;
 
 class AutoFreeArray {
 public:
-    AutoFreeArray(uint32_t count, char **values)
+    AutoFreeArray(PRUint32 count, char **values)
         : mCount(count), mValues(values) {};
     ~AutoFreeArray() { NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(mCount, mValues); }
 private:
-    uint32_t mCount;
+    PRUint32 mCount;
     char **mValues;
 };
 
@@ -115,10 +115,10 @@ NS_IMPL_ISUPPORTS2(nsOfflineCachePendingUpdate,
 NS_IMETHODIMP
 nsOfflineCachePendingUpdate::OnProgressChange(nsIWebProgress *aProgress,
                                               nsIRequest *aRequest,
-                                              int32_t curSelfProgress,
-                                              int32_t maxSelfProgress,
-                                              int32_t curTotalProgress,
-                                              int32_t maxTotalProgress)
+                                              PRInt32 curSelfProgress,
+                                              PRInt32 maxSelfProgress,
+                                              PRInt32 curTotalProgress,
+                                              PRInt32 maxTotalProgress)
 {
     NS_NOTREACHED("notification excluded in AddProgressListener(...)");
     return NS_OK;
@@ -127,7 +127,7 @@ nsOfflineCachePendingUpdate::OnProgressChange(nsIWebProgress *aProgress,
 NS_IMETHODIMP
 nsOfflineCachePendingUpdate::OnStateChange(nsIWebProgress* aWebProgress,
                                            nsIRequest *aRequest,
-                                           uint32_t progressStateFlags,
+                                           PRUint32 progressStateFlags,
                                            nsresult aStatus)
 {
     nsCOMPtr<nsIDOMDocument> updateDoc = do_QueryReferent(mDocument);
@@ -175,7 +175,7 @@ NS_IMETHODIMP
 nsOfflineCachePendingUpdate::OnLocationChange(nsIWebProgress* aWebProgress,
                                               nsIRequest* aRequest,
                                               nsIURI *location,
-                                              uint32_t aFlags)
+                                              PRUint32 aFlags)
 {
     NS_NOTREACHED("notification excluded in AddProgressListener(...)");
     return NS_OK;
@@ -194,7 +194,7 @@ nsOfflineCachePendingUpdate::OnStatusChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP
 nsOfflineCachePendingUpdate::OnSecurityChange(nsIWebProgress *aWebProgress,
                                               nsIRequest *aRequest,
-                                              uint32_t state)
+                                              PRUint32 state)
 {
     NS_NOTREACHED("notification excluded in AddProgressListener(...)");
     return NS_OK;
@@ -374,7 +374,7 @@ nsOfflineCacheUpdateService::ProcessNextUpdate()
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsOfflineCacheUpdateService::GetNumUpdates(uint32_t *aNumUpdates)
+nsOfflineCacheUpdateService::GetNumUpdates(PRUint32 *aNumUpdates)
 {
     LOG(("nsOfflineCacheUpdateService::GetNumUpdates [%p]", this));
 
@@ -383,7 +383,7 @@ nsOfflineCacheUpdateService::GetNumUpdates(uint32_t *aNumUpdates)
 }
 
 NS_IMETHODIMP
-nsOfflineCacheUpdateService::GetUpdate(uint32_t aIndex,
+nsOfflineCacheUpdateService::GetUpdate(PRUint32 aIndex,
                                        nsIOfflineCacheUpdate **aUpdate)
 {
     LOG(("nsOfflineCacheUpdateService::GetUpdate [%p, %d]", this, aIndex));
@@ -405,7 +405,7 @@ nsOfflineCacheUpdateService::FindUpdate(nsIURI *aManifestURI,
     nsresult rv;
 
     nsRefPtr<nsOfflineCacheUpdate> update;
-    for (uint32_t i = 0; i < mUpdates.Length(); i++) {
+    for (PRUint32 i = 0; i < mUpdates.Length(); i++) {
         update = mUpdates[i];
 
         bool partial;
@@ -549,7 +549,7 @@ OfflineAppPermForURI(nsIURI *aURI,
         return NS_OK;
     }
 
-    uint32_t perm;
+    PRUint32 perm;
     const char *permName = pinned ? "pin-app" : "offline-app";
     permissionManager->TestExactPermission(innerURI, permName, &perm);
 

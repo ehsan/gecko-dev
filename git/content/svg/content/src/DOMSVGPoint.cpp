@@ -136,7 +136,7 @@ DOMSVGPoint::MatrixTransform(nsIDOMSVGMatrix *matrix,
 
 void
 DOMSVGPoint::InsertingIntoList(DOMSVGPointList *aList,
-                               uint32_t aListIndex,
+                               PRUint32 aListIndex,
                                bool aIsAnimValItem)
 {
   NS_ABORT_IF_FALSE(!HasOwner(), "Inserting item that already has an owner");

@@ -9,7 +9,6 @@ import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.ZoomConstraints;
 import org.mozilla.gecko.util.EventDispatcher;
-import org.mozilla.gecko.GeckoAccessibility;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -114,8 +113,6 @@ public class LayerView extends FrameLayout {
 
         setFocusable(true);
         setFocusableInTouchMode(true);
-
-        GeckoAccessibility.setDelegate(this);
     }
 
     public void destroy() {

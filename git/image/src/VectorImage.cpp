@@ -97,7 +97,7 @@ class SVGDrawingCallback : public gfxDrawingCallback {
 public:
   SVGDrawingCallback(SVGDocumentWrapper* aSVGDocumentWrapper,
                      const nsIntRect& aViewport,
-                     uint32_t aImageFlags) :
+                     PRUint32 aImageFlags) :
     mSVGDocumentWrapper(aSVGDocumentWrapper),
     mViewport(aViewport),
     mImageFlags(aImageFlags)
@@ -109,7 +109,7 @@ public:
 private:
   nsRefPtr<SVGDocumentWrapper> mSVGDocumentWrapper;
   const nsIntRect mViewport;
-  uint32_t        mImageFlags;
+  PRUint32        mImageFlags;
 };
 
 // Based loosely on nsSVGIntegrationUtils' PaintFrameCallback::operator()
@@ -147,7 +147,7 @@ SVGDrawingCallback::operator()(gfxContext* aContext,
                  presContext->DevPixelsToAppUnits(mViewport.width),
                  presContext->DevPixelsToAppUnits(mViewport.height));
 
-  uint32_t renderDocFlags = nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING;
+  PRUint32 renderDocFlags = nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING;
   if (!(mImageFlags & imgIContainer::FLAG_SYNC_DECODE)) {
     renderDocFlags |= nsIPresShell::RENDER_ASYNC_DECODE_IMAGES;
   }
@@ -191,7 +191,7 @@ nsresult
 VectorImage::Init(imgIDecoderObserver* aObserver,
                   const char* aMimeType,
                   const char* aURIString,
-                  uint32_t aFlags)
+                  PRUint32 aFlags)
 {
   // We don't support re-initialization
   if (mIsInitialized)
@@ -278,9 +278,9 @@ VectorImage::ShouldAnimate()
 // imgIContainer methods
 
 //******************************************************************************
-/* readonly attribute int32_t width; */
+/* readonly attribute PRInt32 width; */
 NS_IMETHODIMP
-VectorImage::GetWidth(int32_t* aWidth)
+VectorImage::GetWidth(PRInt32* aWidth)
 {
   if (mError || !mIsFullyLoaded) {
     *aWidth = 0;
@@ -305,9 +305,9 @@ VectorImage::RequestRefresh(const mozilla::TimeStamp& aTime)
 }
 
 //******************************************************************************
-/* readonly attribute int32_t height; */
+/* readonly attribute PRInt32 height; */
 NS_IMETHODIMP
-VectorImage::GetHeight(int32_t* aHeight)
+VectorImage::GetHeight(PRInt32* aHeight)
 {
   if (mError || !mIsFullyLoaded) {
     *aHeight = 0;
@@ -326,7 +326,7 @@ VectorImage::GetHeight(int32_t* aHeight)
 //******************************************************************************
 /* readonly attribute unsigned short type; */
 NS_IMETHODIMP
-VectorImage::GetType(uint16_t* aType)
+VectorImage::GetType(PRUint16* aType)
 {
   NS_ENSURE_ARG_POINTER(aType);
 
@@ -335,8 +335,8 @@ VectorImage::GetType(uint16_t* aType)
 }
 
 //******************************************************************************
-/* [noscript, notxpcom] uint16_t GetType(); */
-NS_IMETHODIMP_(uint16_t)
+/* [noscript, notxpcom] PRUint16 GetType(); */
+NS_IMETHODIMP_(PRUint16)
 VectorImage::GetType()
 {
   return imgIContainer::TYPE_VECTOR;
@@ -365,11 +365,11 @@ VectorImage::GetCurrentFrameIsOpaque(bool* aIsOpaque)
 }
 
 //******************************************************************************
-/* [noscript] gfxASurface getFrame(in uint32_t aWhichFrame,
- *                                 in uint32_t aFlags; */
+/* [noscript] gfxASurface getFrame(in PRUint32 aWhichFrame,
+ *                                 in PRUint32 aFlags; */
 NS_IMETHODIMP
-VectorImage::GetFrame(uint32_t aWhichFrame,
-                      uint32_t aFlags,
+VectorImage::GetFrame(PRUint32 aWhichFrame,
+                      PRUint32 aFlags,
                       gfxASurface** _retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
@@ -382,11 +382,11 @@ VectorImage::GetFrame(uint32_t aWhichFrame,
 }
 
 //******************************************************************************
-/* [noscript] gfxImageSurface copyFrame(in uint32_t aWhichFrame,
- *                                      in uint32_t aFlags); */
+/* [noscript] gfxImageSurface copyFrame(in PRUint32 aWhichFrame,
+ *                                      in PRUint32 aFlags); */
 NS_IMETHODIMP
-VectorImage::CopyFrame(uint32_t aWhichFrame,
-                       uint32_t aFlags,
+VectorImage::CopyFrame(PRUint32 aWhichFrame,
+                       PRUint32 aFlags,
                        gfxImageSurface** _retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
@@ -442,13 +442,13 @@ VectorImage::CopyFrame(uint32_t aWhichFrame,
 }
 
 //******************************************************************************
-/* [noscript] imgIContainer extractFrame(uint32_t aWhichFrame,
+/* [noscript] imgIContainer extractFrame(PRUint32 aWhichFrame,
  *                                       [const] in nsIntRect aRegion,
- *                                       in uint32_t aFlags); */
+ *                                       in PRUint32 aFlags); */
 NS_IMETHODIMP
-VectorImage::ExtractFrame(uint32_t aWhichFrame,
+VectorImage::ExtractFrame(PRUint32 aWhichFrame,
                           const nsIntRect& aRegion,
-                          uint32_t aFlags,
+                          PRUint32 aFlags,
                           imgIContainer** _retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
@@ -497,7 +497,7 @@ VectorImage::ExtractFrame(uint32_t aWhichFrame,
  *                      [const] in gfxRect aFill,
  *                      [const] in nsIntRect aSubimage,
  *                      [const] in nsIntSize aViewportSize,
- *                      in uint32_t aFlags); */
+ *                      in PRUint32 aFlags); */
 NS_IMETHODIMP
 VectorImage::Draw(gfxContext* aContext,
                   gfxPattern::GraphicsFilter aFilter,
@@ -505,7 +505,7 @@ VectorImage::Draw(gfxContext* aContext,
                   const gfxRect& aFill,
                   const nsIntRect& aSubimage,
                   const nsIntSize& aViewportSize,
-                  uint32_t aFlags)
+                  PRUint32 aFlags)
 {
   NS_ENSURE_ARG_POINTER(aContext);
   if (mError || !mIsFullyLoaded)
@@ -693,8 +693,8 @@ VectorImage::OnStopRequest(nsIRequest* aRequest, nsISupports* aCtxt,
                         in unsigned long count); */
 NS_IMETHODIMP
 VectorImage::OnDataAvailable(nsIRequest* aRequest, nsISupports* aCtxt,
-                             nsIInputStream* aInStr, uint32_t aSourceOffset,
-                             uint32_t aCount)
+                             nsIInputStream* aInStr, PRUint32 aSourceOffset,
+                             PRUint32 aCount)
 {
   if (mError)
     return NS_ERROR_FAILURE;

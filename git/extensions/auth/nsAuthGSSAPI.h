@@ -55,7 +55,7 @@ private:
     gss_ctx_id_t mCtx;
     gss_OID      mMechOID;
     nsCString    mServiceName;
-    uint32_t     mServiceFlags;
+    PRUint32     mServiceFlags;
     nsString     mUsername;
     bool         mComplete;
 };

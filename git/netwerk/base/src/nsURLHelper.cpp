@@ -163,7 +163,7 @@ net_ParseFileURL(const nsACString &inURL,
     const nsPromiseFlatCString &flatURL = PromiseFlatCString(inURL);
     const char *url = flatURL.get();
     
-    uint32_t schemeBeg, schemeEnd;
+    PRUint32 schemeBeg, schemeEnd;
     rv = net_ExtractURLScheme(flatURL, &schemeBeg, &schemeEnd, nullptr);
     if (NS_FAILED(rv)) return rv;
 
@@ -175,8 +175,8 @@ net_ParseFileURL(const nsACString &inURL,
     nsIURLParser *parser = net_GetNoAuthURLParser();
     NS_ENSURE_TRUE(parser, NS_ERROR_UNEXPECTED);
 
-    uint32_t pathPos, filepathPos, directoryPos, basenamePos, extensionPos;
-    int32_t pathLen, filepathLen, directoryLen, basenameLen, extensionLen;
+    PRUint32 pathPos, filepathPos, directoryPos, basenamePos, extensionPos;
+    PRInt32 pathLen, filepathLen, directoryLen, basenameLen, extensionLen;
 
     // invoke the parser to extract the URL path
     rv = parser->ParseURL(url, flatURL.Length(),
@@ -231,8 +231,8 @@ net_CoalesceDirs(netCoalesceFlags flags, char* path)
     char *fwdPtr = path;
     char *urlPtr = path;
     char *lastslash = path;
-    uint32_t traversal = 0;
-    uint32_t special_ftp_len = 0;
+    PRUint32 traversal = 0;
+    PRUint32 special_ftp_len = 0;
 
     /* Remember if this url is a special ftp one: */
     if (flags & NET_COALESCE_DOUBLE_SLASH_IS_ROOT) 
@@ -426,11 +426,11 @@ net_ResolveRelativePath(const nsACString &relativePath,
                 // pop path
                 // If we already have the delim at end, then
                 //  skip over that when searching for next one to the left
-                int32_t offset = path.Length() - (needsDelim ? 1 : 2);
+                PRInt32 offset = path.Length() - (needsDelim ? 1 : 2);
                 // First check for errors
                 if (offset < 0 ) 
                     return NS_ERROR_MALFORMED_URI;
-                int32_t pos = path.RFind("/", false, offset);
+                PRInt32 pos = path.RFind("/", false, offset);
                 if (pos >= 0)
                     path.Truncate(pos + 1);
                 else
@@ -469,8 +469,8 @@ net_ResolveRelativePath(const nsACString &relativePath,
 /* Extract URI-Scheme if possible */
 nsresult
 net_ExtractURLScheme(const nsACString &inURI,
-                     uint32_t *startPos, 
-                     uint32_t *endPos,
+                     PRUint32 *startPos, 
+                     PRUint32 *endPos,
                      nsACString *scheme)
 {
     // search for something up to a colon, and call it the scheme
@@ -485,12 +485,12 @@ net_ExtractURLScheme(const nsACString &inURI,
     while (nsCRT::IsAsciiSpace(*uri))
         uri++;
 
-    uint32_t start = uri - uri_start;
+    PRUint32 start = uri - uri_start;
     if (startPos) {
         *startPos = start;
     }
 
-    uint32_t length = 0;
+    PRUint32 length = 0;
     char c;
     while ((c = *uri++) != '\0') {
         // First char must be Alpha
@@ -520,7 +520,7 @@ net_ExtractURLScheme(const nsACString &inURI,
 }
 
 bool
-net_IsValidScheme(const char *scheme, uint32_t schemeLen)
+net_IsValidScheme(const char *scheme, PRUint32 schemeLen)
 {
     // first char must be alpha
     if (!nsCRT::IsAsciiAlpha(*scheme))
@@ -664,7 +664,7 @@ void ToLower(char &c)
 }
 
 void
-net_ToLowerCase(char *str, uint32_t length)
+net_ToLowerCase(char *str, PRUint32 length)
 {
     for (char *end = str + length; str < end; ++str)
         ToLower(*str);
@@ -726,9 +726,9 @@ repeat:
 #define HTTP_LWS " \t"
 
 // Return the index of the closing quote of the string, if any
-static uint32_t
+static PRUint32
 net_FindStringEnd(const nsCString& flatStr,
-                  uint32_t stringStart,
+                  PRUint32 stringStart,
                   char stringDelim)
 {
     NS_ASSERTION(stringStart < flatStr.Length() &&
@@ -744,8 +744,8 @@ net_FindStringEnd(const nsCString& flatStr,
         // Write to searchStart here, so that when we get back to the
         // top of the loop right outside this one we search from the
         // right place.
-        uint32_t stringEnd = flatStr.FindCharInSet(set, stringStart + 1);
-        if (stringEnd == uint32_t(kNotFound))
+        PRUint32 stringEnd = flatStr.FindCharInSet(set, stringStart + 1);
+        if (stringEnd == PRUint32(kNotFound))
             return flatStr.Length();
 
         if (flatStr.CharAt(stringEnd) == '\\') {
@@ -767,17 +767,17 @@ net_FindStringEnd(const nsCString& flatStr,
 }
                   
 
-static uint32_t
+static PRUint32
 net_FindMediaDelimiter(const nsCString& flatStr,
-                       uint32_t searchStart,
+                       PRUint32 searchStart,
                        char delimiter)
 {
     do {
         // searchStart points to the spot from which we should start looking
         // for the delimiter.
         const char delimStr[] = { delimiter, '"', '\0' };
-        uint32_t curDelimPos = flatStr.FindCharInSet(delimStr, searchStart);
-        if (curDelimPos == uint32_t(kNotFound))
+        PRUint32 curDelimPos = flatStr.FindCharInSet(delimStr, searchStart);
+        if (curDelimPos == PRUint32(kNotFound))
             return flatStr.Length();
             
         char ch = flatStr.CharAt(curDelimPos);
@@ -808,10 +808,10 @@ static void
 net_ParseMediaType(const nsACString &aMediaTypeStr,
                    nsACString       &aContentType,
                    nsACString       &aContentCharset,
-                   int32_t          aOffset,
+                   PRInt32          aOffset,
                    bool             *aHadCharset,
-                   int32_t          *aCharsetStart,
-                   int32_t          *aCharsetEnd)
+                   PRInt32          *aCharsetStart,
+                   PRInt32          *aCharsetEnd)
 {
     const nsCString& flatStr = PromiseFlatCString(aMediaTypeStr);
     const char* start = flatStr.get();
@@ -825,17 +825,17 @@ net_ParseMediaType(const nsACString &aMediaTypeStr,
 
     const char* charset = "";
     const char* charsetEnd = charset;
-    int32_t charsetParamStart = 0;
-    int32_t charsetParamEnd = 0;
+    PRInt32 charsetParamStart = 0;
+    PRInt32 charsetParamEnd = 0;
 
     // Iterate over parameters
     bool typeHasCharset = false;
-    uint32_t paramStart = flatStr.FindChar(';', typeEnd - start);
-    if (paramStart != uint32_t(kNotFound)) {
+    PRUint32 paramStart = flatStr.FindChar(';', typeEnd - start);
+    if (paramStart != PRUint32(kNotFound)) {
         // We have parameters.  Iterate over them.
-        uint32_t curParamStart = paramStart + 1;
+        PRUint32 curParamStart = paramStart + 1;
         do {
-            uint32_t curParamEnd =
+            PRUint32 curParamEnd =
                 net_FindMediaDelimiter(flatStr, curParamStart, ';');
 
             const char* paramName = net_FindCharNotInSet(start + curParamStart,
@@ -918,7 +918,7 @@ net_ParseMediaType(const nsACString &aMediaTypeStr,
         // charset param.  If this is the same type, we probably want
         // to leave the charset position on its first occurrence.
         if (!eq && !typeHasCharset) {
-            int32_t charsetStart = int32_t(paramStart);
+            PRInt32 charsetStart = PRInt32(paramStart);
             if (charsetStart == kNotFound)
                 charsetStart =  flatStr.Length();
 
@@ -935,7 +935,7 @@ net_ParseContentType(const nsACString &aHeaderStr,
                      nsACString       &aContentCharset,
                      bool             *aHadCharset)
 {
-    int32_t dummy1, dummy2;
+    PRInt32 dummy1, dummy2;
     net_ParseContentType(aHeaderStr, aContentType, aContentCharset,
                          aHadCharset, &dummy1, &dummy2);
 }
@@ -945,8 +945,8 @@ net_ParseContentType(const nsACString &aHeaderStr,
                      nsACString       &aContentType,
                      nsACString       &aContentCharset,
                      bool             *aHadCharset,
-                     int32_t          *aCharsetStart,
-                     int32_t          *aCharsetEnd)
+                     PRInt32          *aCharsetStart,
+                     PRInt32          *aCharsetEnd)
 {
     //
     // Augmented BNF (from RFC 2616 section 3.7):
@@ -976,11 +976,11 @@ net_ParseContentType(const nsACString &aHeaderStr,
     
     // iterate over media-types.  Note that ',' characters can happen
     // inside quoted strings, so we need to watch out for that.
-    uint32_t curTypeStart = 0;
+    PRUint32 curTypeStart = 0;
     do {
         // curTypeStart points to the start of the current media-type.  We want
         // to look for its end.
-        uint32_t curTypeEnd =
+        PRUint32 curTypeEnd =
             net_FindMediaDelimiter(flatStr, curTypeStart, ',');
         
         // At this point curTypeEnd points to the spot where the media-type
@@ -1022,12 +1022,12 @@ net_IsValidHostName(const nsCSubstring &host)
 }
 
 bool
-net_IsValidIPv4Addr(const char *addr, int32_t addrLen)
+net_IsValidIPv4Addr(const char *addr, PRInt32 addrLen)
 {
     RangedPtr<const char> p(addr, addrLen);
 
-    int32_t octet = -1;   // means no digit yet
-    int32_t dotCount = 0; // number of dots in the address
+    PRInt32 octet = -1;   // means no digit yet
+    PRInt32 dotCount = 0; // number of dots in the address
 
     for (; addrLen; ++p, --addrLen) {
         if (*p == '.') {
@@ -1059,13 +1059,13 @@ net_IsValidIPv4Addr(const char *addr, int32_t addrLen)
 }
 
 bool
-net_IsValidIPv6Addr(const char *addr, int32_t addrLen)
+net_IsValidIPv6Addr(const char *addr, PRInt32 addrLen)
 {
     RangedPtr<const char> p(addr, addrLen);
 
-    int32_t digits = 0; // number of digits in current block
-    int32_t colons = 0; // number of colons in a row during parsing
-    int32_t blocks = 0; // number of hexadecimal blocks
+    PRInt32 digits = 0; // number of digits in current block
+    PRInt32 colons = 0; // number of colons in a row during parsing
+    PRInt32 blocks = 0; // number of hexadecimal blocks
     bool haveZeros = false; // true if double colon is present in the address
 
     for (; addrLen; ++p, --addrLen) {

@@ -38,7 +38,7 @@ nsPagePrintTimer::StartTimer(bool aUseDelay)
   if (NS_FAILED(result)) {
     NS_WARNING("unable to start the timer");
   } else {
-    uint32_t delay = 0;
+    PRUint32 delay = 0;
     if (aUseDelay) {
       if (mFiringCount < 10) {
         // Longer delay for the few first pages.
@@ -92,7 +92,7 @@ nsPagePrintTimer::Notify(nsITimer *timer)
 void 
 nsPagePrintTimer::Init(nsPrintEngine*          aPrintEngine,
                        nsIDocumentViewerPrint* aDocViewerPrint,
-                       uint32_t                aDelay)
+                       PRUint32                aDelay)
 {
   mPrintEngine     = aPrintEngine;
   mDocViewerPrint  = aDocViewerPrint;

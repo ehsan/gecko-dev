@@ -1389,7 +1389,7 @@ BluetoothDBusService::GetDeviceServiceChannelInternal(const nsAString& aObjectPa
 }
 
 static void
-ExtractHandles(DBusMessage *aReply, nsTArray<uint32_t>& aOutHandles)
+ExtractHandles(DBusMessage *aReply, nsTArray<PRUint32>& aOutHandles)
 {
   uint32_t* handles = NULL;
   int len;
@@ -1412,13 +1412,13 @@ ExtractHandles(DBusMessage *aReply, nsTArray<uint32_t>& aOutHandles)
   }
 }
 
-nsTArray<uint32_t>
+nsTArray<PRUint32>
 BluetoothDBusService::AddReservedServicesInternal(const nsAString& aAdapterPath,
-                                                  const nsTArray<uint32_t>& aServices)
+                                                  const nsTArray<PRUint32>& aServices)
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  nsTArray<uint32_t> ret;
+  nsTArray<PRUint32> ret;
 
   int length = aServices.Length();
   if (length == 0) return ret;
@@ -1442,7 +1442,7 @@ BluetoothDBusService::AddReservedServicesInternal(const nsAString& aAdapterPath,
 
 bool
 BluetoothDBusService::RemoveReservedServicesInternal(const nsAString& aAdapterPath,
-                                                     const nsTArray<uint32_t>& aServiceHandles)
+                                                     const nsTArray<PRUint32>& aServiceHandles)
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
@@ -1572,7 +1572,7 @@ BluetoothDBusService::SetPinCodeInternal(const nsAString& aDeviceAddress, const 
 }
 
 bool
-BluetoothDBusService::SetPasskeyInternal(const nsAString& aDeviceAddress, uint32_t aPasskey)
+BluetoothDBusService::SetPasskeyInternal(const nsAString& aDeviceAddress, PRUint32 aPasskey)
 {
   DBusMessage *msg;
   if (!sPairingReqTable.Get(aDeviceAddress, &msg)) {

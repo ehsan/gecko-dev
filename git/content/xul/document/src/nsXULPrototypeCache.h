@@ -121,7 +121,7 @@ public:
         NS_IF_RELEASE(sInstance);
     }
 
-    void MarkInCCGeneration(uint32_t aGeneration);
+    void MarkInCCGeneration(PRUint32 aGeneration);
 protected:
     friend nsresult
     NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult);
@@ -142,7 +142,7 @@ protected:
     ///////////////////////////////////////////////////////////////////////////
     // StartupCache
     // this is really a hash set, with a dummy data parameter
-    nsDataHashtable<nsURIHashKey,uint32_t> mCacheURITable;
+    nsDataHashtable<nsURIHashKey,PRUint32> mCacheURITable;
 
     static StartupCache* gStartupCache;
     nsInterfaceHashtable<nsURIHashKey, nsIStorageStream> mOutputStreamTable;

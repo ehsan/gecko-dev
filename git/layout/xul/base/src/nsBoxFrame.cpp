@@ -273,7 +273,7 @@ nsBoxFrame::GetInitialDebug(bool& aDebug)
 
   static nsIContent::AttrValuesArray strings[] =
     {&nsGkAtoms::_false, &nsGkAtoms::_true, nullptr};
-  int32_t index = GetContent()->FindAttrValueIn(kNameSpaceID_None,
+  PRInt32 index = GetContent()->FindAttrValueIn(kNameSpaceID_None,
       nsGkAtoms::debug, strings, eCaseMatters);
   if (index >= 0) {
     aDebug = index == 1;
@@ -294,7 +294,7 @@ nsBoxFrame::GetInitialHAlignment(nsBoxFrame::Halignment& aHalign)
   static nsIContent::AttrValuesArray alignStrings[] =
     {&nsGkAtoms::left, &nsGkAtoms::right, nullptr};
   static const Halignment alignValues[] = {hAlign_Left, hAlign_Right};
-  int32_t index = GetContent()->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::align,
+  PRInt32 index = GetContent()->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::align,
       alignStrings, eCaseMatters);
   if (index >= 0) {
     aHalign = alignValues[index];
@@ -369,7 +369,7 @@ nsBoxFrame::GetInitialVAlignment(nsBoxFrame::Valignment& aValign)
     {&nsGkAtoms::top, &nsGkAtoms::baseline, &nsGkAtoms::middle, &nsGkAtoms::bottom, nullptr};
   static const Valignment valignValues[] =
     {vAlign_Top, vAlign_BaseLine, vAlign_Middle, vAlign_Bottom};
-  int32_t index = GetContent()->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::valign,
+  PRInt32 index = GetContent()->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::valign,
       valignStrings, eCaseMatters);
   if (index >= 0) {
     aValign = valignValues[index];
@@ -455,7 +455,7 @@ nsBoxFrame::GetInitialOrientation(bool& aIsHorizontal)
   // the style system value.
   static nsIContent::AttrValuesArray strings[] =
     {&nsGkAtoms::vertical, &nsGkAtoms::horizontal, nullptr};
-  int32_t index = GetContent()->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::orient,
+  PRInt32 index = GetContent()->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::orient,
       strings, eCaseMatters);
   if (index >= 0) {
     aIsHorizontal = index == 1;
@@ -486,7 +486,7 @@ nsBoxFrame::GetInitialDirection(bool& aIsNormal)
   if (IsHorizontal()) {
     static nsIContent::AttrValuesArray strings[] =
       {&nsGkAtoms::reverse, &nsGkAtoms::ltr, &nsGkAtoms::rtl, nullptr};
-    int32_t index = GetContent()->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::dir,
+    PRInt32 index = GetContent()->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::dir,
         strings, eCaseMatters);
     if (index >= 0) {
       bool values[] = {!aIsNormal, true, false};
@@ -527,7 +527,7 @@ nsBoxFrame::GetInitialAutoStretch(bool& aStretch)
   // Check the align attribute.
   static nsIContent::AttrValuesArray strings[] =
     {&nsGkAtoms::_empty, &nsGkAtoms::stretch, nullptr};
-  int32_t index = GetContent()->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::align,
+  PRInt32 index = GetContent()->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::align,
       strings, eCaseMatters);
   if (index != nsIContent::ATTR_MISSING && index != 0) {
     aStretch = index == 1;
@@ -899,7 +899,7 @@ nsBoxFrame::GetFlex(nsBoxLayoutState& aBoxLayoutState)
 NS_IMETHODIMP
 nsBoxFrame::DoLayout(nsBoxLayoutState& aState)
 {
-  uint32_t oldFlags = aState.LayoutFlags();
+  PRUint32 oldFlags = aState.LayoutFlags();
   aState.SetLayoutFlags(0);
 
   nsresult rv = NS_OK;
@@ -1108,9 +1108,9 @@ nsBoxFrame::GetContentInsertionFrame()
 }
 
 NS_IMETHODIMP
-nsBoxFrame::AttributeChanged(int32_t aNameSpaceID,
+nsBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
                              nsIAtom* aAttribute,
-                             int32_t aModType)
+                             PRInt32 aModType)
 {
   nsresult rv = nsContainerFrame::AttributeChanged(aNameSpaceID, aAttribute,
                                                    aModType);
@@ -1609,7 +1609,7 @@ nsBoxFrame::FillRect(nsRenderingContext& aRenderingContext, bool aHorizontal, ns
 }
 
 void 
-nsBoxFrame::DrawSpacer(nsPresContext* aPresContext, nsRenderingContext& aRenderingContext, bool aHorizontal, int32_t flex, nscoord x, nscoord y, nscoord size, nscoord spacerSize)
+nsBoxFrame::DrawSpacer(nsPresContext* aPresContext, nsRenderingContext& aRenderingContext, bool aHorizontal, PRInt32 flex, nscoord x, nscoord y, nscoord size, nscoord spacerSize)
 {    
          nscoord onePixel = aPresContext->IntScaledPixelsToTwips(1);
 
@@ -1704,7 +1704,7 @@ nsBoxFrame::GetValue(nsPresContext* aPresContext, const nsSize& a, const nsSize&
 }
 
 void
-nsBoxFrame::GetValue(nsPresContext* aPresContext, int32_t a, int32_t b, char* ch) 
+nsBoxFrame::GetValue(nsPresContext* aPresContext, PRInt32 a, PRInt32 b, char* ch) 
 {
     if (a == NS_INTRINSICSIZE)
       sprintf(ch, "%d[SET]", b);             
@@ -1892,7 +1892,7 @@ nsBoxFrame::RegUnregAccessKey(bool aDoReg)
   // and register the access key
   nsEventStateManager *esm = PresContext()->EventStateManager();
 
-  uint32_t key = accessKey.First();
+  PRUint32 key = accessKey.First();
   if (aDoReg)
     esm->RegisterAccessKey(mContent, key);
   else
@@ -2007,10 +2007,10 @@ nsBoxFrame::CheckBoxOrder(nsBoxLayoutState& aState)
 
   // Run through our list of children and check whether we
   // need to sort them.
-  uint32_t maxOrdinal = child->GetOrdinal(aState);
+  PRUint32 maxOrdinal = child->GetOrdinal(aState);
   child = child->GetNextSibling();
   for ( ; child; child = child->GetNextSibling()) {
-    uint32_t ordinal = child->GetOrdinal(aState);
+    PRUint32 ordinal = child->GetOrdinal(aState);
     if (ordinal < maxOrdinal)
       break;
     maxOrdinal = ordinal;
@@ -2045,7 +2045,7 @@ nsBoxFrame::RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIFrame* aChild)
   if (!SupportsOrdinalsInChildren())
     return NS_OK;
 
-  uint32_t ord = aChild->GetOrdinal(aState);
+  PRUint32 ord = aChild->GetOrdinal(aState);
   
   nsIFrame* child = mFrames.FirstChild();
   nsIFrame* newPrevSib = nullptr;
@@ -2122,9 +2122,9 @@ void nsDisplayXULEventRedirector::HitTest(nsDisplayListBuilder* aBuilder,
   mList.HitTest(aBuilder, aRect, aState, &outFrames);
 
   bool topMostAdded = false;
-  uint32_t localLength = outFrames.Length();
+  PRUint32 localLength = outFrames.Length();
 
-  for (uint32_t i = 0; i < localLength; i++) {
+  for (PRUint32 i = 0; i < localLength; i++) {
 
     for (nsIContent* content = outFrames.ElementAt(i)->GetContent();
          content && content != mTargetFrame->GetContent();

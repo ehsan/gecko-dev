@@ -29,7 +29,7 @@
   if (!mGeckoAccessible || !mGeckoAccessible->IsHyperText())
     return nil;
 
-  uint32_t level = mGeckoAccessible->AsHyperText()->GetLevelInternal();
+  PRUint32 level = mGeckoAccessible->AsHyperText()->GetLevelInternal();
   return [NSNumber numberWithInt:level];
 }
 

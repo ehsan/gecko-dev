@@ -245,7 +245,7 @@ UrlClassifierUpdateObserverProxy::RekeyRequested()
 
 NS_IMETHODIMP
 UrlClassifierUpdateObserverProxy::StreamFinished(nsresult aStatus,
-                                                 uint32_t aDelay)
+                                                 PRUint32 aDelay)
 {
   nsCOMPtr<nsIRunnable> r =
     new StreamFinishedRunnable(mTarget, aStatus, aDelay);
@@ -275,7 +275,7 @@ UrlClassifierUpdateObserverProxy::UpdateErrorRunnable::Run()
 }
 
 NS_IMETHODIMP
-UrlClassifierUpdateObserverProxy::UpdateSuccess(uint32_t aRequestedTimeout)
+UrlClassifierUpdateObserverProxy::UpdateSuccess(PRUint32 aRequestedTimeout)
 {
   nsCOMPtr<nsIRunnable> r =
     new UpdateSuccessRunnable(mTarget, aRequestedTimeout);

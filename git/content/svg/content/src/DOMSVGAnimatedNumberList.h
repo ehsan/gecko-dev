@@ -57,7 +57,7 @@ public:
   static already_AddRefed<DOMSVGAnimatedNumberList>
     GetDOMWrapper(SVGAnimatedNumberList *aList,
                   nsSVGElement *aElement,
-                  uint8_t aAttrEnum);
+                  PRUint8 aAttrEnum);
 
   /**
    * This method returns the DOMSVGAnimatedNumberList wrapper for an internal
@@ -94,7 +94,7 @@ private:
    * Only our static GetDOMWrapper() factory method may create objects of our
    * type.
    */
-  DOMSVGAnimatedNumberList(nsSVGElement *aElement, uint8_t aAttrEnum)
+  DOMSVGAnimatedNumberList(nsSVGElement *aElement, PRUint8 aAttrEnum)
     : mBaseVal(nullptr)
     , mAnimVal(nullptr)
     , mElement(aElement)
@@ -117,7 +117,7 @@ private:
   // ourself, but also for our base/animVal and all of their items.
   nsRefPtr<nsSVGElement> mElement;
 
-  uint8_t mAttrEnum;
+  PRUint8 mAttrEnum;
 };
 
 } // namespace mozilla

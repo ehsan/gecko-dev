@@ -130,7 +130,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(bool *outDidFind)
     nsIDocShell *rootDocShell = GetDocShellFromWindow(rootFrame);
     if (!rootDocShell) return NS_ERROR_FAILURE;
     
-    int32_t enumDirection;
+    PRInt32 enumDirection;
     if (mFindBackwards)
         enumDirection = nsIDocShell::ENUMERATE_BACKWARDS;
     else
@@ -460,7 +460,7 @@ nsresult nsWebBrowserFind::SetRangeAroundDocument(nsIDOMRange* aSearchRange,
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_ARG_POINTER(bodyContent);
 
-    uint32_t childCount = bodyContent->GetChildCount();
+    PRUint32 childCount = bodyContent->GetChildCount();
 
     aSearchRange->SetStart(bodyNode, 0);
     aSearchRange->SetEnd(bodyNode, childCount);
@@ -497,7 +497,7 @@ nsWebBrowserFind::GetSearchLimits(nsIDOMRange* aSearchRange,
     NS_ENSURE_ARG_POINTER(aSel);
 
     // There is a selection.
-    int32_t count = -1;
+    PRInt32 count = -1;
     nsresult rv = aSel->GetRangeCount(&count);
     if (count < 1)
         return SetRangeAroundDocument(aSearchRange, aStartPt, aEndPt, aDoc);
@@ -508,14 +508,14 @@ nsWebBrowserFind::GetSearchLimits(nsIDOMRange* aSearchRange,
     nsCOMPtr<nsIContent> bodyContent (do_QueryInterface(bodyNode));
     NS_ENSURE_ARG_POINTER(bodyContent);
 
-    uint32_t childCount = bodyContent->GetChildCount();
+    PRUint32 childCount = bodyContent->GetChildCount();
 
     // There are four possible range endpoints we might use:
     // DocumentStart, SelectionStart, SelectionEnd, DocumentEnd.
 
     nsCOMPtr<nsIDOMRange> range;
     nsCOMPtr<nsIDOMNode> node;
-    int32_t offset;
+    PRInt32 offset;
 
     // Forward, not wrapping: SelEnd to DocEnd
     if (!mFindBackwards && !aWrap)
@@ -819,7 +819,7 @@ nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow,
         frame->GetSelectionController(presContext, getter_AddRefs(selCon));
         selCon->GetSelection(nsISelectionController::SELECTION_NORMAL, aSel);
         if (*aSel) {
-            int32_t count = -1;
+            PRInt32 count = -1;
             (*aSel)->GetRangeCount(&count);
             if (count > 0) {
                 return;

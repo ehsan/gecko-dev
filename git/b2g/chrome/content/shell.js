@@ -64,11 +64,8 @@ var shell = {
   },
 
   reportCrash: function shell_reportCrash() {
-    let crashID;
-    try {
-      crashID = Cc["@mozilla.org/xre/app-info;1"]
-                .getService(Ci.nsIXULRuntime).lastRunCrashID;
-    } catch(e) { }
+    let crashID = Cc["@mozilla.org/xre/app-info;1"]
+      .getService(Ci.nsIXULRuntime).lastRunCrashID;
     if (Services.prefs.getBoolPref('app.reportCrashes') &&
         crashID) {
       this.CrashSubmit().submit(crashID)
@@ -618,11 +615,7 @@ window.addEventListener('ContentStart', function ss_onContentStart() {
       context.drawWindow(window, 0, 0, width, height,
                          'rgb(255,255,255)', flags);
 
-      // I can't use sendChromeEvent() here because it doesn't wrap
-      // the blob in the detail object correctly. So I use __exposedProps__
-      // instead to safely send the chrome detail object to content.
-      shell.sendEvent(getContentWindow(), 'mozChromeEvent', {
-        __exposedProps__: { type: 'r', file: 'r' },
+      shell.sendChromeEvent({
         type: 'take-screenshot-success',
         file: canvas.mozGetAsFile('screenshot', 'image/png')
       });

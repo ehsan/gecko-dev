@@ -286,7 +286,7 @@ ViewportFrame::GetType() const
 void
 ViewportFrame::InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  uint32_t aFlags)
+                                  PRUint32 aFlags)
 {
   nsRect r = aDamageRect + nsPoint(aX, aY);
   nsPresContext* presContext = PresContext();
@@ -307,8 +307,8 @@ ViewportFrame::InvalidateInternal(const nsRect& aDamageRect,
     if (!presContext->PresShell()->IsActive())
       return;
     nsPoint pt = -parent->GetOffsetToCrossDoc(this);
-    int32_t ourAPD = presContext->AppUnitsPerDevPixel();
-    int32_t parentAPD = parent->PresContext()->AppUnitsPerDevPixel();
+    PRInt32 ourAPD = presContext->AppUnitsPerDevPixel();
+    PRInt32 parentAPD = parent->PresContext()->AppUnitsPerDevPixel();
     r = r.ConvertAppUnitsRoundOut(ourAPD, parentAPD);
     parent->InvalidateInternal(r, pt.x, pt.y, this,
                                aFlags | INVALIDATE_CROSS_DOC);

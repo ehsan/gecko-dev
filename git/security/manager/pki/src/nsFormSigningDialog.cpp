@@ -29,7 +29,7 @@ nsFormSigningDialog::ConfirmSignText(nsIInterfaceRequestor *aContext,
                                      const nsAString &aSignText,
                                      const PRUnichar **aCertNickList,
                                      const PRUnichar **aCertDetailsList,
-                                     uint32_t aCount, int32_t *aSelectedIndex,
+                                     PRUint32 aCount, PRInt32 *aSelectedIndex,
                                      nsAString &aPassword, bool *aCanceled) 
 {
   *aCanceled = true;
@@ -50,7 +50,7 @@ nsFormSigningDialog::ConfirmSignText(nsIInterfaceRequestor *aContext,
   rv = block->SetString(1, PromiseFlatString(aSignText).get());
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < aCount; ++i) {
     rv = block->SetString(2 + 2 * i, aCertNickList[i]);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -67,7 +67,7 @@ nsFormSigningDialog::ConfirmSignText(nsIInterfaceRequestor *aContext,
                                      block);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  int32_t status;
+  PRInt32 status;
   rv = block->GetInt(0, &status);
   NS_ENSURE_SUCCESS(rv, rv);
 

@@ -47,10 +47,10 @@ class nsWebBrowserInitInfo
 {
 public:
    //nsIBaseWindow Stuff
-   int32_t                 x;
-   int32_t                 y;
-   int32_t                 cx;
-   int32_t                 cy;
+   PRInt32                 x;
+   PRInt32                 y;
+   PRInt32                 cx;
+   PRInt32                 cy;
    bool                    visible;
    nsCOMPtr<nsISHistory>   sessionHistory;
    nsString                name;
@@ -138,7 +138,7 @@ protected:
    nsCOMPtr<nsIWidget>        mInternalWidget;
    nsCOMPtr<nsIWindowWatcher> mWWatch;
    nsWebBrowserInitInfo*      mInitInfo;
-   uint32_t                   mContentType;
+   PRUint32                   mContentType;
    bool                       mActivating;
    bool                       mShouldEnableHistory;
    bool                       mIsActive;
@@ -153,9 +153,9 @@ protected:
 
    // persistence object
    nsCOMPtr<nsIWebBrowserPersist> mPersist;
-   uint32_t                       mPersistCurrentState;
+   PRUint32                       mPersistCurrentState;
    nsresult                       mPersistResult;
-   uint32_t                       mPersistFlags;
+   PRUint32                       mPersistFlags;
 
    // stream
    nsEmbedStream                 *mStream;

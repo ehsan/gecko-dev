@@ -81,6 +81,7 @@ ParallelArrayObject::IndexInfo::initialize(uint32_t space)
 
     // Reserve indices.
     return indices.reserve(ndims) && indices.resize(space);
+
 }
 
 inline bool

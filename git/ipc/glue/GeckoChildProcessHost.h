@@ -117,7 +117,7 @@ protected:
     PROCESS_ERROR
   } mProcessState;
 
-  static int32_t mChildCounter;
+  static PRInt32 mChildCounter;
 
   void PrepareLaunch();
 

@@ -151,7 +151,7 @@ nsHTMLImageElement::GetComplete(bool* aComplete)
     return NS_OK;
   }
 
-  uint32_t status;
+  PRUint32 status;
   mCurrentRequest->GetImageStatus(&status);
   *aComplete =
     (status &
@@ -181,7 +181,7 @@ nsHTMLImageElement::GetXY()
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetX(int32_t* aX)
+nsHTMLImageElement::GetX(PRInt32* aX)
 {
   *aX = GetXY().x;
 
@@ -189,7 +189,7 @@ nsHTMLImageElement::GetX(int32_t* aX)
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetY(int32_t* aY)
+nsHTMLImageElement::GetY(PRInt32* aY)
 {
   *aY = GetXY().y;
 
@@ -197,7 +197,7 @@ nsHTMLImageElement::GetY(int32_t* aY)
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetHeight(uint32_t* aHeight)
+nsHTMLImageElement::GetHeight(PRUint32* aHeight)
 {
   *aHeight = GetWidthHeightForImage(mCurrentRequest).height;
 
@@ -205,13 +205,13 @@ nsHTMLImageElement::GetHeight(uint32_t* aHeight)
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::SetHeight(uint32_t aHeight)
+nsHTMLImageElement::SetHeight(PRUint32 aHeight)
 {
   return nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::height, aHeight);
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetWidth(uint32_t* aWidth)
+nsHTMLImageElement::GetWidth(PRUint32* aWidth)
 {
   *aWidth = GetWidthHeightForImage(mCurrentRequest).width;
 
@@ -219,13 +219,13 @@ nsHTMLImageElement::GetWidth(uint32_t* aWidth)
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::SetWidth(uint32_t aWidth)
+nsHTMLImageElement::SetWidth(PRUint32 aWidth)
 {
   return nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::width, aWidth);
 }
 
 bool
-nsHTMLImageElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLImageElement::ParseAttribute(PRInt32 aNamespaceID,
                                    nsIAtom* aAttribute,
                                    const nsAString& aValue,
                                    nsAttrValue& aResult)
@@ -260,7 +260,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
 
 nsChangeHint
 nsHTMLImageElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                           int32_t aModType) const
+                                           PRInt32 aModType) const
 {
   nsChangeHint retval =
     nsGenericHTMLElement::GetAttributeChangeHint(aAttribute, aModType);
@@ -314,9 +314,9 @@ nsHTMLImageElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 
 bool
 nsHTMLImageElement::IsHTMLFocusable(bool aWithMouse,
-                                    bool *aIsFocusable, int32_t *aTabIndex)
+                                    bool *aIsFocusable, PRInt32 *aTabIndex)
 {
-  int32_t tabIndex;
+  PRInt32 tabIndex;
   GetTabIndex(&tabIndex);
 
   if (IsInDoc()) {
@@ -353,7 +353,7 @@ nsHTMLImageElement::IsHTMLFocusable(bool aWithMouse,
 }
 
 nsresult
-nsHTMLImageElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsHTMLImageElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                             nsIAtom* aPrefix, const nsAString& aValue,
                             bool aNotify)
 {
@@ -388,7 +388,7 @@ nsHTMLImageElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsHTMLImageElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+nsHTMLImageElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                               bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::src) {
@@ -458,7 +458,7 @@ nsHTMLImageElement::IntrinsicState() const
 
 NS_IMETHODIMP
 nsHTMLImageElement::Initialize(nsISupports* aOwner, JSContext* aContext,
-                               JSObject *aObj, uint32_t argc, jsval *argv)
+                               JSObject *aObj, PRUint32 argc, jsval *argv)
 {
   if (argc <= 0) {
     // Nothing to do here if we don't get any arguments.
@@ -471,7 +471,7 @@ nsHTMLImageElement::Initialize(nsISupports* aOwner, JSContext* aContext,
   JSBool ret = JS_ValueToECMAUint32(aContext, argv[0], &width);
   NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 
-  nsresult rv = SetIntAttr(nsGkAtoms::width, static_cast<int32_t>(width));
+  nsresult rv = SetIntAttr(nsGkAtoms::width, static_cast<PRInt32>(width));
 
   if (NS_SUCCEEDED(rv) && (argc > 1)) {
     // The second (optional) argument is the height of the image
@@ -479,14 +479,14 @@ nsHTMLImageElement::Initialize(nsISupports* aOwner, JSContext* aContext,
     ret = JS_ValueToECMAUint32(aContext, argv[1], &height);
     NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 
-    rv = SetIntAttr(nsGkAtoms::height, static_cast<int32_t>(height));
+    rv = SetIntAttr(nsGkAtoms::height, static_cast<PRInt32>(height));
   }
 
   return rv;
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetNaturalHeight(uint32_t* aNaturalHeight)
+nsHTMLImageElement::GetNaturalHeight(PRUint32* aNaturalHeight)
 {
   NS_ENSURE_ARG_POINTER(aNaturalHeight);
 
@@ -502,7 +502,7 @@ nsHTMLImageElement::GetNaturalHeight(uint32_t* aNaturalHeight)
     return NS_OK;
   }
 
-  int32_t height;
+  PRInt32 height;
   if (NS_SUCCEEDED(image->GetHeight(&height))) {
     *aNaturalHeight = height;
   }
@@ -510,7 +510,7 @@ nsHTMLImageElement::GetNaturalHeight(uint32_t* aNaturalHeight)
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetNaturalWidth(uint32_t* aNaturalWidth)
+nsHTMLImageElement::GetNaturalWidth(PRUint32* aNaturalWidth)
 {
   NS_ENSURE_ARG_POINTER(aNaturalWidth);
 
@@ -526,7 +526,7 @@ nsHTMLImageElement::GetNaturalWidth(uint32_t* aNaturalWidth)
     return NS_OK;
   }
 
-  int32_t width;
+  PRInt32 width;
   if (NS_SUCCEEDED(image->GetWidth(&width))) {
     *aNaturalWidth = width;
   }

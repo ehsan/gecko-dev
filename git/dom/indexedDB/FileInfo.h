@@ -34,7 +34,7 @@ public:
   }
 
   static
-  FileInfo* Create(FileManager* aFileManager, int64_t aId);
+  FileInfo* Create(FileManager* aFileManager, PRInt64 aId);
 
   void AddRef()
   {
@@ -60,7 +60,7 @@ public:
     }
   }
 
-  void UpdateDBRefs(int32_t aDelta)
+  void UpdateDBRefs(PRInt32 aDelta)
   {
     UpdateReferences(mDBRefCnt, aDelta);
   }
@@ -70,23 +70,23 @@ public:
     UpdateReferences(mDBRefCnt, 0, true);
   }
 
-  void UpdateSliceRefs(int32_t aDelta)
+  void UpdateSliceRefs(PRInt32 aDelta)
   {
     UpdateReferences(mSliceRefCnt, aDelta);
   }
 
-  void GetReferences(int32_t* aRefCnt, int32_t* aDBRefCnt,
-                     int32_t* aSliceRefCnt);
+  void GetReferences(PRInt32* aRefCnt, PRInt32* aDBRefCnt,
+                     PRInt32* aSliceRefCnt);
 
   FileManager* Manager() const
   {
     return mFileManager;
   }
 
-  virtual int64_t Id() const = 0;
+  virtual PRInt64 Id() const = 0;
 
 private:
-  void UpdateReferences(nsAutoRefCnt& aRefCount, int32_t aDelta,
+  void UpdateReferences(nsAutoRefCnt& aRefCount, PRInt32 aDelta,
                         bool aClear = false);
   void Cleanup();
 
@@ -101,17 +101,17 @@ private:
 class FileInfo##_bits : public FileInfo                                       \
 {                                                                             \
 public:                                                                       \
-  FileInfo##_bits(FileManager* aFileManager, int##_bits##_t aId)              \
+  FileInfo##_bits(FileManager* aFileManager, PRInt##_bits aId)                \
   : FileInfo(aFileManager), mId(aId)                                          \
   { }                                                                         \
                                                                               \
-  virtual int64_t Id() const                                                  \
+  virtual PRInt64 Id() const                                                  \
   {                                                                           \
     return mId;                                                               \
   }                                                                           \
                                                                               \
 private:                                                                      \
-  int##_bits##_t mId;                                                         \
+  PRInt##_bits mId;                                                           \
 };
 
 FILEINFO_SUBCLASS(16)

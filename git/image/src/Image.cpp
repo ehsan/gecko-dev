@@ -25,7 +25,7 @@ Image::Image(imgStatusTracker* aStatusTracker) :
   }
 }
 
-uint32_t
+PRUint32
 Image::SizeOfData()
 {
   if (mError)
@@ -34,7 +34,7 @@ Image::SizeOfData()
   // This is not used by memory reporters, but for sizing the cache, which is
   // why it uses |moz_malloc_size_of| rather than an
   // |NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN|.
-  return uint32_t(HeapSizeOfSourceWithComputedFallback(moz_malloc_size_of) +
+  return PRUint32(HeapSizeOfSourceWithComputedFallback(moz_malloc_size_of) +
                   HeapSizeOfDecodedWithComputedFallback(moz_malloc_size_of) +
                   NonHeapSizeOfDecoded() +
                   OutOfProcessSizeOfDecoded());
@@ -104,7 +104,7 @@ Image::DecrementAnimationConsumers()
 //******************************************************************************
 /* attribute unsigned short animationMode; */
 NS_IMETHODIMP
-Image::GetAnimationMode(uint16_t* aAnimationMode)
+Image::GetAnimationMode(PRUint16* aAnimationMode)
 {
   if (mError)
     return NS_ERROR_FAILURE;
@@ -118,7 +118,7 @@ Image::GetAnimationMode(uint16_t* aAnimationMode)
 //******************************************************************************
 /* attribute unsigned short animationMode; */
 NS_IMETHODIMP
-Image::SetAnimationMode(uint16_t aAnimationMode)
+Image::SetAnimationMode(PRUint16 aAnimationMode)
 {
   if (mError)
     return NS_ERROR_FAILURE;

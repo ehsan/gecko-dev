@@ -48,7 +48,7 @@ class nsComboboxControlFrame : public nsBlockFrame,
                                public nsIStatefulFrame
 {
 public:
-  friend nsIFrame* NS_NewComboboxControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, uint32_t aFlags);
+  friend nsIFrame* NS_NewComboboxControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
   friend class nsComboboxDisplayFrame;
 
   nsComboboxControlFrame(nsStyleContext* aContext);
@@ -60,7 +60,7 @@ public:
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        uint32_t aFilter);
+                                        PRUint32 aFilter);
   virtual nsIFrame* CreateFrameFor(nsIContent* aContent);
 
 #ifdef ACCESSIBILITY
@@ -91,7 +91,7 @@ public:
   // things move to IsFrameOfType.
   virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsBlockFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
@@ -147,27 +147,27 @@ public:
   void GetAvailableDropdownSpace(nscoord* aAbove,
                                  nscoord* aBelow,
                                  nsPoint* aTranslation);
-  virtual int32_t GetIndexOfDisplayArea();
+  virtual PRInt32 GetIndexOfDisplayArea();
   /**
    * @note This method might destroy |this|.
    */
   NS_IMETHOD RedisplaySelectedText();
-  virtual int32_t UpdateRecentIndex(int32_t aIndex);
+  virtual PRInt32 UpdateRecentIndex(PRInt32 aIndex);
   virtual void OnContentReset();
 
   // nsISelectControlFrame
-  NS_IMETHOD AddOption(int32_t index);
-  NS_IMETHOD RemoveOption(int32_t index);
+  NS_IMETHOD AddOption(PRInt32 index);
+  NS_IMETHOD RemoveOption(PRInt32 index);
   NS_IMETHOD DoneAddingChildren(bool aIsDone);
-  NS_IMETHOD OnOptionSelected(int32_t aIndex, bool aSelected);
-  NS_IMETHOD OnSetSelectedIndex(int32_t aOldIndex, int32_t aNewIndex);
+  NS_IMETHOD OnOptionSelected(PRInt32 aIndex, bool aSelected);
+  NS_IMETHOD OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex);
 
   //nsIRollupListener
   /**
    * Hide the dropdown menu and stop capturing mouse events.
    * @note This method might destroy |this|.
    */
-  virtual nsIContent* Rollup(uint32_t aCount, bool aGetLastRolledUp = false);
+  virtual nsIContent* Rollup(PRUint32 aCount, bool aGetLastRolledUp = false);
   virtual void NotifyGeometryChange();
 
   /**
@@ -184,7 +184,7 @@ public:
   virtual bool ShouldRollupOnMouseActivate()
     { return false; }
 
-  virtual uint32_t GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain)
+  virtual PRUint32 GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain)
     { return 0; }
 
   //nsIStatefulFrame
@@ -240,7 +240,7 @@ protected:
   bool ShowList(bool aShowList);
   void CheckFireOnChange();
   void FireValueChangeEvent();
-  nsresult RedisplayText(int32_t aIndex);
+  nsresult RedisplayText(PRInt32 aIndex);
   void HandleRedisplayTextEvent();
   void ActuallyDisplayText(bool aNotify);
 
@@ -264,8 +264,8 @@ protected:
   
   nsRevocableEventPtr<RedisplayTextEvent> mRedisplayTextEvent;
 
-  int32_t               mRecentSelectedIndex;
-  int32_t               mDisplayedIndex;
+  PRInt32               mRecentSelectedIndex;
+  PRInt32               mDisplayedIndex;
   nsString              mDisplayedOptionText;
 
   // make someone to listen to the button. If its programmatically pressed by someone like Accessibility
@@ -284,7 +284,7 @@ protected:
   static nsComboboxControlFrame* sFocused;
 
 #ifdef DO_REFLOW_COUNTER
-  int32_t mReflowId;
+  PRInt32 mReflowId;
 #endif
 };
 

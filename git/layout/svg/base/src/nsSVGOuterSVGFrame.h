@@ -46,7 +46,7 @@ public:
   virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                             uint32_t aFlags) MOZ_OVERRIDE;
+                             PRUint32 aFlags) MOZ_OVERRIDE;
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -81,9 +81,9 @@ public:
   }
 #endif
 
-  NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
+  NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
-                               int32_t         aModType);
+                               PRInt32         aModType);
 
   virtual nsIFrame* GetContentInsertionFrame() {
     // Any children must be added to our single anonymous inner frame kid.
@@ -102,17 +102,17 @@ public:
   }
 
   // nsISVGSVGFrame interface:
-  virtual void NotifyViewportOrTransformChanged(uint32_t aFlags);
+  virtual void NotifyViewportOrTransformChanged(PRUint32 aFlags);
 
   // nsISVGChildFrame methods:
   NS_IMETHOD PaintSVG(nsRenderingContext* aContext,
                       const nsIntRect *aDirtyRect);
 
   virtual SVGBBox GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
-                                      uint32_t aFlags);
+                                      PRUint32 aFlags);
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor);
+  virtual gfxMatrix GetCanvasTM(PRUint32 aFor);
 
   /* Methods to allow descendant nsSVGForeignObjectFrame frames to register and
    * unregister themselves with their nearest nsSVGOuterSVGFrame ancestor. This
@@ -241,7 +241,7 @@ public:
   }
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor) {
+  virtual gfxMatrix GetCanvasTM(PRUint32 aFor) {
     // GetCanvasTM returns the transform from an SVG frame to the frame's
     // nsSVGOuterSVGFrame's content box, so we do not include any x/y offset
     // set on us for any CSS border or padding on our nsSVGOuterSVGFrame.

@@ -133,7 +133,7 @@ public:
     bool OnDocumentParserError();
 
     // nsIDOMNode interface overrides
-    NS_IMETHOD CloneNode(bool deep, uint8_t aOptionalArgc, nsIDOMNode **_retval)
+    NS_IMETHOD CloneNode(bool deep, PRUint8 aOptionalArgc, nsIDOMNode **_retval)
         MOZ_OVERRIDE;
 
     // nsIDOMDocument
@@ -166,7 +166,7 @@ public:
 
     static bool
     MatchAttribute(nsIContent* aContent,
-                   int32_t aNameSpaceID,
+                   PRInt32 aNameSpaceID,
                    nsIAtom* aAttrName,
                    void* aData);
 
@@ -186,7 +186,7 @@ protected:
     void
     RemoveElementFromRefMap(mozilla::dom::Element* aElement);
 
-    nsresult GetViewportSize(int32_t* aWidth, int32_t* aHeight);
+    nsresult GetViewportSize(PRInt32* aWidth, PRInt32* aHeight);
 
     nsresult PrepareToLoad(nsISupports* aContainer,
                            const char* aCommand,
@@ -222,7 +222,7 @@ protected:
 
     nsresult
     BroadcastAttributeChangeFromOverlay(nsIContent* aNode,
-                                        int32_t aNameSpaceID,
+                                        PRInt32 aNameSpaceID,
                                         nsIAtom* aAttribute,
                                         nsIAtom* aPrefix,
                                         const nsAString& aValue);
@@ -232,7 +232,7 @@ protected:
     static NS_HIDDEN_(int) DirectionChanged(const char* aPrefName, void* aData);
 
     // pseudo constants
-    static int32_t gRefCnt;
+    static PRInt32 gRefCnt;
 
     static nsIAtom** kIdentityAttrs[];
 
@@ -249,7 +249,7 @@ protected:
     IsCapabilityEnabled(const char* aCapabilityLabel);
 
     nsresult
-    Persist(nsIContent* aElement, int32_t aNameSpaceID, nsIAtom* aAttribute);
+    Persist(nsIContent* aElement, PRInt32 aNameSpaceID, nsIAtom* aAttribute);
 
     // IMPORTANT: The ownership implicit in the following member
     // variables has been explicitly checked and set using nsCOMPtr
@@ -291,7 +291,7 @@ protected:
         BuilderTable;
     BuilderTable* mTemplateBuilderTable;
 
-    uint32_t mPendingSheets;
+    PRUint32 mPendingSheets;
 
     /**
      * document lightweight theme for use with :-moz-lwtheme, :-moz-lwtheme-brighttext
@@ -308,24 +308,24 @@ protected:
         struct Entry {
             nsXULPrototypeElement* mPrototype;
             nsIContent*            mElement;
-            int32_t                mIndex;
+            PRInt32                mIndex;
             Entry*                 mNext;
         };
 
         Entry* mTop;
-        int32_t mDepth;
+        PRInt32 mDepth;
 
     public:
         ContextStack();
         ~ContextStack();
 
-        int32_t Depth() { return mDepth; }
+        PRInt32 Depth() { return mDepth; }
 
         nsresult Push(nsXULPrototypeElement* aPrototype, nsIContent* aElement);
         nsresult Pop();
-        nsresult Peek(nsXULPrototypeElement** aPrototype, nsIContent** aElement, int32_t* aIndex);
+        nsresult Peek(nsXULPrototypeElement** aPrototype, nsIContent** aElement, PRInt32* aIndex);
 
-        nsresult SetTopIndex(int32_t aIndex);
+        nsresult SetTopIndex(PRInt32 aIndex);
     };
 
     friend class ContextStack;
@@ -565,7 +565,7 @@ protected:
      */
     nsresult
     CreateAndInsertPI(const nsXULPrototypePI* aProtoPI,
-                      nsINode* aParent, uint32_t aIndex);
+                      nsINode* aParent, PRUint32 aIndex);
 
     /**
      * Inserts the passed <?xml-stylesheet ?> PI at the specified
@@ -579,7 +579,7 @@ protected:
     nsresult
     InsertXMLStylesheetPI(const nsXULPrototypePI* aProtoPI,
                           nsINode* aParent,
-                          uint32_t aIndex,
+                          PRUint32 aIndex,
                           nsIContent* aPINode);
 
     /**
@@ -589,7 +589,7 @@ protected:
     nsresult
     InsertXULOverlayPI(const nsXULPrototypePI* aProtoPI,
                        nsINode* aParent,
-                       uint32_t aIndex,
+                       PRUint32 aIndex,
                        nsIContent* aPINode);
 
     /**

@@ -30,14 +30,14 @@ nsTimeRanges::~nsTimeRanges()
 }
 
 NS_IMETHODIMP
-nsTimeRanges::GetLength(uint32_t* aLength)
+nsTimeRanges::GetLength(PRUint32* aLength)
 {
   *aLength = mRanges.Length();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsTimeRanges::Start(uint32_t aIndex, double* aTime)
+nsTimeRanges::Start(PRUint32 aIndex, double* aTime)
 {
   if (aIndex >= mRanges.Length())
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
@@ -46,7 +46,7 @@ nsTimeRanges::Start(uint32_t aIndex, double* aTime)
 }
 
 NS_IMETHODIMP
-nsTimeRanges::End(uint32_t aIndex, double* aTime)
+nsTimeRanges::End(PRUint32 aIndex, double* aTime)
 {
   if (aIndex >= mRanges.Length())
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
@@ -74,7 +74,7 @@ nsTimeRanges::Normalize()
 
     // This merges the intervals.
     TimeRange current(mRanges[0]);
-    for (uint32_t i = 1; i < mRanges.Length(); i++) {
+    for (PRUint32 i = 1; i < mRanges.Length(); i++) {
       if (current.mStart <= mRanges[i].mStart &&
           current.mEnd >= mRanges[i].mEnd) {
         continue;

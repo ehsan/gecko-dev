@@ -10,16 +10,16 @@ nsSMILTime nsSMILTimeValue::kUnresolvedMillis = LL_MAXINT;
 //----------------------------------------------------------------------
 // nsSMILTimeValue methods:
 
-static inline int8_t
-Cmp(int64_t aA, int64_t aB)
+static inline PRInt8
+Cmp(PRInt64 aA, PRInt64 aB)
 {
   return aA == aB ? 0 : (aA > aB ? 1 : -1);
 }
 
-int8_t
+PRInt8
 nsSMILTimeValue::CompareTo(const nsSMILTimeValue& aOther) const
 {
-  int8_t result;
+  PRInt8 result;
 
   if (mState == STATE_DEFINITE) {
     result = (aOther.mState == STATE_DEFINITE)

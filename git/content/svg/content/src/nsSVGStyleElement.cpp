@@ -38,15 +38,15 @@ public:
                               bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true);
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
     return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
   }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            bool aNotify);
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
@@ -150,7 +150,7 @@ nsSVGStyleElement::UnbindFromTree(bool aDeep, bool aNullParent)
 }
 
 nsresult
-nsSVGStyleElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsSVGStyleElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            bool aNotify)
 {
@@ -168,7 +168,7 @@ nsSVGStyleElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsSVGStyleElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+nsSVGStyleElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                               bool aNotify)
 {
   nsresult rv = nsSVGStyleElementBase::UnsetAttr(aNameSpaceID, aAttribute,
@@ -199,7 +199,7 @@ void
 nsSVGStyleElement::ContentAppended(nsIDocument* aDocument,
                                    nsIContent* aContainer,
                                    nsIContent* aFirstNewContent,
-                                   int32_t aNewIndexInContainer)
+                                   PRInt32 aNewIndexInContainer)
 {
   ContentChanged(aContainer);
 }
@@ -208,7 +208,7 @@ void
 nsSVGStyleElement::ContentInserted(nsIDocument* aDocument,
                                    nsIContent* aContainer,
                                    nsIContent* aChild,
-                                   int32_t aIndexInContainer)
+                                   PRInt32 aIndexInContainer)
 {
   ContentChanged(aChild);
 }
@@ -217,7 +217,7 @@ void
 nsSVGStyleElement::ContentRemoved(nsIDocument* aDocument,
                                   nsIContent* aContainer,
                                   nsIContent* aChild,
-                                  int32_t aIndexInContainer,
+                                  PRInt32 aIndexInContainer,
                                   nsIContent* aPreviousSibling)
 {
   ContentChanged(aChild);

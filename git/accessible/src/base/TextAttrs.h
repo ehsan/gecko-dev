@@ -52,7 +52,7 @@ public:
   TextAttrsMgr(HyperTextAccessible* aHyperTextAcc,
                bool aIncludeDefAttrs,
                Accessible* aOffsetAcc,
-               int32_t aOffsetAccIdx) :
+               PRInt32 aOffsetAccIdx) :
     mOffsetAcc(aOffsetAcc), mHyperTextAcc(aHyperTextAcc),
     mOffsetAccIdx(aOffsetAccIdx), mIncludeDefAttrs(aIncludeDefAttrs) { }
 
@@ -68,8 +68,8 @@ public:
    * @param aEndHTOffset   [out, optional] end hyper text offset
    */
   void GetAttributes(nsIPersistentProperties* aAttributes,
-                     int32_t* aStartHTOffset = nullptr,
-                     int32_t* aEndHTOffset = nullptr);
+                     PRInt32* aStartHTOffset = nullptr,
+                     PRInt32* aEndHTOffset = nullptr);
 
 protected:
   /**
@@ -83,13 +83,13 @@ protected:
    * @param aEndHTOffset    [in, out] the end offset
    */
   class TextAttr;
-  void GetRange(TextAttr* aAttrArray[], uint32_t aAttrArrayLen,
-                int32_t* aStartHTOffset, int32_t* aEndHTOffset);
+  void GetRange(TextAttr* aAttrArray[], PRUint32 aAttrArrayLen,
+                PRInt32* aStartHTOffset, PRInt32* aEndHTOffset);
 
 private:
   Accessible* mOffsetAcc;
   HyperTextAccessible* mHyperTextAcc;
-  int32_t mOffsetAccIdx;
+  PRInt32 mOffsetAccIdx;
   bool mIncludeDefAttrs;
 
 protected:
@@ -315,7 +315,7 @@ protected:
   /**
    * Class is used for the work with "font-weight" text attribute.
    */
-  class FontWeightTextAttr : public TTextAttr<int32_t>
+  class FontWeightTextAttr : public TTextAttr<PRInt32>
   {
   public:
     FontWeightTextAttr(nsIFrame* aRootFrame, nsIFrame* aFrame);
@@ -324,12 +324,12 @@ protected:
   protected:
 
     // TTextAttr
-    virtual bool GetValueFor(Accessible* aAccessible, int32_t* aValue);
+    virtual bool GetValueFor(Accessible* aAccessible, PRInt32* aValue);
     virtual void ExposeValue(nsIPersistentProperties* aAttributes,
-                             const int32_t& aValue);
+                             const PRInt32& aValue);
 
   private:
-    int32_t GetFontWeight(nsIFrame* aFrame);
+    PRInt32 GetFontWeight(nsIFrame* aFrame);
   };
 
   /**
@@ -363,7 +363,7 @@ protected:
     TextDecorValue(nsIFrame* aFrame);
 
     nscolor Color() const { return mColor; }
-    uint8_t Style() const { return mStyle; }
+    PRUint8 Style() const { return mStyle; }
 
     bool IsDefined() const
       { return IsUnderline() || IsLineThrough(); }
@@ -382,8 +382,8 @@ protected:
 
   private:
     nscolor mColor;
-    uint8_t mLine;
-    uint8_t mStyle;
+    PRUint8 mLine;
+    PRUint8 mStyle;
   };
 
   class TextDecorTextAttr : public TTextAttr<TextDecorValue>

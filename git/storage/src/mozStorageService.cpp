@@ -71,7 +71,7 @@ public:
 
     nsDependentCString filename(zFilename);
 
-    int64_t newLimit;
+    PRInt64 newLimit;
     if (NS_SUCCEEDED(data->callback->QuotaExceeded(filename, *piLimit,
                                                    iSize, data->userData,
                                                    &newLimit))) {
@@ -103,7 +103,7 @@ namespace storage {
 ////////////////////////////////////////////////////////////////////////////////
 //// Memory Reporting
 
-static int64_t
+static PRInt64
 GetStorageSQLiteMemoryUsed()
 {
   return ::sqlite3_memory_used();
@@ -168,7 +168,7 @@ public:
       nsTArray<nsRefPtr<Connection> > connections;
       mService->getConnections(connections);
 
-      for (uint32_t i = 0; i < connections.Length(); i++) {
+      for (PRUint32 i = 0; i < connections.Length(); i++) {
         nsRefPtr<Connection> &conn = connections[i];
 
         // Someone may have closed the Connection, in which case we skip it.
@@ -201,7 +201,7 @@ public:
       }
     }
 
-    int64_t other = ::sqlite3_memory_used() - totalConnSize;
+    PRInt64 other = ::sqlite3_memory_used() - totalConnSize;
 
     rv = aCb->Callback(NS_LITERAL_CSTRING(""),
                        NS_LITERAL_CSTRING("explicit/storage/sqlite/other"),
@@ -214,7 +214,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD GetExplicitNonHeap(int64_t *aAmount)
+  NS_IMETHOD GetExplicitNonHeap(PRInt64 *aAmount)
   {
     // This reporter doesn't do any non-heap measurements.
     *aAmount = 0;
@@ -264,7 +264,7 @@ private:
 
     rv = aCb->Callback(NS_LITERAL_CSTRING(""), path,
                        nsIMemoryReporter::KIND_HEAP,
-                       nsIMemoryReporter::UNITS_BYTES, int64_t(curr),
+                       nsIMemoryReporter::UNITS_BYTES, PRInt64(curr),
                        aDesc, aClosure);
     NS_ENSURE_SUCCESS(rv, rv);
     *aTotal += curr;
@@ -287,7 +287,7 @@ public:
   ServiceMainThreadInitializer(Service *aService,
                                nsIObserver *aObserver,
                                nsIXPConnect **aXPConnectPtr,
-                               int32_t *aSynchronousPrefValPtr)
+                               PRInt32 *aSynchronousPrefValPtr)
   : mService(aService)
   , mObserver(aObserver)
   , mXPConnectPtr(aXPConnectPtr)
@@ -322,7 +322,7 @@ public:
     // We need to obtain the toolkit.storage.synchronous preferences on the main
     // thread because the preference service can only be accessed there.  This
     // is cached in the service for all future Open[Unshared]Database calls.
-    int32_t synchronous =
+    PRInt32 synchronous =
       Preferences::GetInt(PREF_TS_SYNCHRONOUS, PREF_TS_SYNCHRONOUS_DEFAULT);
     ::PR_ATOMIC_SET(mSynchronousPrefValPtr, synchronous);
 
@@ -340,7 +340,7 @@ private:
   Service *mService;
   nsIObserver *mObserver;
   nsIXPConnect **mXPConnectPtr;
-  int32_t *mSynchronousPrefValPtr;
+  PRInt32 *mSynchronousPrefValPtr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -409,10 +409,10 @@ Service::getXPConnect()
   return xpc.forget();
 }
 
-int32_t Service::sSynchronousPref;
+PRInt32 Service::sSynchronousPref;
 
 // static
-int32_t
+PRInt32
 Service::getSynchronousPref()
 {
   return sSynchronousPref;
@@ -620,7 +620,7 @@ Service::initialize()
 int
 Service::localeCompareStrings(const nsAString &aStr1,
                               const nsAString &aStr2,
-                              int32_t aComparisonStrength)
+                              PRInt32 aComparisonStrength)
 {
   // The implementation of nsICollation.CompareString() is platform-dependent.
   // On Linux it's not thread-safe.  It may not be on Windows and OS X either,
@@ -633,7 +633,7 @@ Service::localeCompareStrings(const nsAString &aStr1,
     return 0;
   }
 
-  int32_t res;
+  PRInt32 res;
   nsresult rv = coll->CompareString(aComparisonStrength, aStr1, aStr2, &res);
   if (NS_FAILED(rv)) {
     NS_ERROR("Collation compare string failed");
@@ -830,7 +830,7 @@ Service::Observe(nsISupports *, const char *aTopic, const PRUnichar *)
       nsTArray<nsRefPtr<Connection> > connections;
       getConnections(connections);
       anyOpen = false;
-      for (uint32_t i = 0; i < connections.Length(); i++) {
+      for (PRUint32 i = 0; i < connections.Length(); i++) {
         nsRefPtr<Connection> &conn = connections[i];
 
         // While it would be nice to close all connections, we only
@@ -849,7 +849,7 @@ Service::Observe(nsISupports *, const char *aTopic, const PRUnichar *)
 #ifdef DEBUG
     nsTArray<nsRefPtr<Connection> > connections;
     getConnections(connections);
-    for (uint32_t i = 0, n = connections.Length(); i < n; i++) {
+    for (PRUint32 i = 0, n = connections.Length(); i < n; i++) {
       MOZ_ASSERT(!connections[i]->ConnectionReady());
     }
 #endif
@@ -892,7 +892,7 @@ Service::OpenDatabaseWithVFS(nsIFile *aDatabaseFile,
 
 NS_IMETHODIMP
 Service::SetQuotaForFilenamePattern(const nsACString &aPattern,
-                                    int64_t aSizeLimit,
+                                    PRInt64 aSizeLimit,
                                     mozIStorageQuotaCallback *aCallback,
                                     nsISupports *aUserData)
 {

@@ -76,7 +76,7 @@ nsGridRowLayout::GetParentGridPart(nsIFrame* aBox, nsIFrame** aParentBox)
 
 
 nsGrid*
-nsGridRowLayout::GetGrid(nsIFrame* aBox, int32_t* aIndex, nsGridRowLayout* aRequestor)
+nsGridRowLayout::GetGrid(nsIFrame* aBox, PRInt32* aIndex, nsGridRowLayout* aRequestor)
 {
 
    if (aRequestor == nullptr)
@@ -88,9 +88,9 @@ nsGridRowLayout::GetGrid(nsIFrame* aBox, int32_t* aIndex, nsGridRowLayout* aRequ
       return nullptr;
    }
 
-   int32_t index = -1;
+   PRInt32 index = -1;
    nsIFrame* child = aBox->GetChildBox();
-   int32_t count = 0;
+   PRInt32 count = 0;
    while(child)
    {
      // if there is a scrollframe walk inside it to its child

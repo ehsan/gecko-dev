@@ -250,7 +250,7 @@ nsresult txPatternParser::createKeyPattern(txExprLexer& aLexer,
     if (!XMLUtils::isValidQName(PromiseFlatString(key), &colon))
         return NS_ERROR_XPATH_PARSE_FAILURE;
     nsCOMPtr<nsIAtom> prefix, localName;
-    int32_t namespaceID;
+    PRInt32 namespaceID;
     nsresult rv = resolveQName(key, getter_AddRefs(prefix), aContext,
                                getter_AddRefs(localName), namespaceID);
     if (NS_FAILED(rv))
@@ -290,7 +290,7 @@ nsresult txPatternParser::createStepPattern(txExprLexer& aLexer,
 
         // resolve QName
         nsCOMPtr<nsIAtom> prefix, lName;
-        int32_t nspace;
+        PRInt32 nspace;
         rv = resolveQName(tok->Value(), getter_AddRefs(prefix), aContext,
                           getter_AddRefs(lName), nspace, true);
         if (NS_FAILED(rv)) {
@@ -298,9 +298,9 @@ nsresult txPatternParser::createStepPattern(txExprLexer& aLexer,
             return rv;
         }
 
-        uint16_t nodeType = isAttr ?
-                            (uint16_t)txXPathNodeType::ATTRIBUTE_NODE :
-                            (uint16_t)txXPathNodeType::ELEMENT_NODE;
+        PRUint16 nodeType = isAttr ?
+                            (PRUint16)txXPathNodeType::ATTRIBUTE_NODE :
+                            (PRUint16)txXPathNodeType::ELEMENT_NODE;
         nodeTest = new txNameTest(prefix, lName, nspace, nodeType);
         if (!nodeTest) {
             return NS_ERROR_OUT_OF_MEMORY;

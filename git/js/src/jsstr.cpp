@@ -373,10 +373,9 @@ str_enumerate(JSContext *cx, HandleObject obj)
         if (!str1)
             return false;
         value.setString(str1);
-        if (!JSObject::defineElement(cx, obj, i, value,
-                                     JS_PropertyStub, JS_StrictPropertyStub,
-                                     STRING_ELEMENT_ATTRS))
-        {
+        if (!obj->defineElement(cx, i, value,
+                                JS_PropertyStub, JS_StrictPropertyStub,
+                                STRING_ELEMENT_ATTRS)) {
             return false;
         }
     }
@@ -399,9 +398,8 @@ str_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
         if (!str1)
             return JS_FALSE;
         RootedValue value(cx, StringValue(str1));
-        if (!JSObject::defineElement(cx, obj, uint32_t(slot), value, NULL, NULL,
-                                     STRING_ELEMENT_ATTRS))
-        {
+        if (!obj->defineElement(cx, uint32_t(slot), value, NULL, NULL,
+                                STRING_ELEMENT_ATTRS)) {
             return JS_FALSE;
         }
         objp.set(obj);
@@ -1724,9 +1722,9 @@ BuildFlatMatchArray(JSContext *cx, HandleString textstr, const FlatMatch &fm, Ca
     RootedValue matchVal(cx, Int32Value(fm.match()));
     RootedValue textVal(cx, StringValue(textstr));
 
-    if (!JSObject::defineElement(cx, obj, 0, patternVal) ||
-        !JSObject::defineProperty(cx, obj, cx->runtime->atomState.indexAtom, matchVal) ||
-        !JSObject::defineProperty(cx, obj, cx->runtime->atomState.inputAtom, textVal))
+    if (!obj->defineElement(cx, 0, patternVal) ||
+        !obj->defineProperty(cx, cx->runtime->atomState.indexAtom, matchVal) ||
+        !obj->defineProperty(cx, cx->runtime->atomState.inputAtom, textVal))
     {
         return false;
     }
@@ -1753,9 +1751,8 @@ MatchCallback(JSContext *cx, RegExpStatics *res, size_t count, void *p)
             return false;
     }
 
-    RootedObject obj(cx, arrayobj);
     RootedValue v(cx);
-    return res->createLastMatch(cx, v.address()) && JSObject::defineElement(cx, obj, count, v);
+    return res->createLastMatch(cx, v.address()) && arrayobj->defineElement(cx, count, v);
 }
 
 JSBool

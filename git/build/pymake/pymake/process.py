@@ -207,13 +207,10 @@ class PythonJob(Job):
         self.pycommandpath = pycommandpath or []
 
     def run(self):
-        # os.environ is a magic dictionary. Setting it to something else
-        # doesn't affect the environment of subprocesses, so use clear/update
-        oldenv = dict(os.environ)
+        oldenv = os.environ
         try:
             os.chdir(self.cwd)
-            os.environ.clear()
-            os.environ.update(self.env)
+            os.environ = self.env
             if self.module not in sys.modules:
                 load_module_recursive(self.module,
                                       sys.path + self.pycommandpath)
@@ -243,8 +240,7 @@ class PythonJob(Job):
                 print >>sys.stderr, traceback.print_exc()
                 return (e.code if isinstance(e.code, int) else 1)
         finally:
-            os.environ.clear()
-            os.environ.update(oldenv)
+            os.environ = oldenv
         return 0
 
 def job_runner(job):

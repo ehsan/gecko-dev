@@ -177,11 +177,11 @@ class ProtectedVariantArray
 {
 public:
   ProtectedVariantArray(const NPVariant* aArgs,
-                        uint32_t aCount,
+                        PRUint32 aCount,
                         PluginInstanceParent* aInstance)
     : mUsingShadowArray(false)
   {
-    for (uint32_t index = 0; index < aCount; index++) {
+    for (PRUint32 index = 0; index < aCount; index++) {
       Variant* remoteVariant = mArray.AppendElement();
       if (!(remoteVariant && 
             ConvertToRemoteVariant(aArgs[index], *remoteVariant, aInstance,
@@ -194,11 +194,11 @@ public:
   }
 
   ProtectedVariantArray(const NPVariant* aArgs,
-                        uint32_t aCount,
+                        PRUint32 aCount,
                         PluginInstanceChild* aInstance)
     : mUsingShadowArray(false)
   {
-    for (uint32_t index = 0; index < aCount; index++) {
+    for (PRUint32 index = 0; index < aCount; index++) {
       Variant* remoteVariant = mArray.AppendElement();
       if (!(remoteVariant && 
             ConvertToRemoteVariant(aArgs[index], *remoteVariant, aInstance,
@@ -213,8 +213,8 @@ public:
   ~ProtectedVariantArray()
   {
     InfallibleTArray<Variant>& vars = EnsureAndGetShadowArray();
-    uint32_t count = vars.Length();
-    for (uint32_t index = 0; index < count; index++) {
+    PRUint32 count = vars.Length();
+    for (PRUint32 index = 0; index < count; index++) {
       ReleaseRemoteVariant(vars[index]);
     }
   }

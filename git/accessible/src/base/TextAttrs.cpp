@@ -24,8 +24,8 @@ using namespace mozilla::a11y;
 
 void
 TextAttrsMgr::GetAttributes(nsIPersistentProperties* aAttributes,
-                            int32_t* aStartHTOffset,
-                            int32_t* aEndHTOffset)
+                            PRInt32* aStartHTOffset,
+                            PRInt32* aEndHTOffset)
 {
   // 1. Hyper text accessible must be specified always.
   // 2. Offset accessible and result hyper text offsets must be specified in
@@ -43,7 +43,7 @@ TextAttrsMgr::GetAttributes(nsIPersistentProperties* aAttributes,
 
   // Embedded objects are combined into own range with empty attributes set.
   if (mOffsetAcc && nsAccUtils::IsEmbeddedObject(mOffsetAcc)) {
-    for (int32_t childIdx = mOffsetAccIdx - 1; childIdx >= 0; childIdx--) {
+    for (PRInt32 childIdx = mOffsetAccIdx - 1; childIdx >= 0; childIdx--) {
       Accessible* currAcc = mHyperTextAcc->GetChildAt(childIdx);
       if (!nsAccUtils::IsEmbeddedObject(currAcc))
         break;
@@ -51,8 +51,8 @@ TextAttrsMgr::GetAttributes(nsIPersistentProperties* aAttributes,
       (*aStartHTOffset)--;
     }
 
-    uint32_t childCount = mHyperTextAcc->ChildCount();
-    for (uint32_t childIdx = mOffsetAccIdx + 1; childIdx < childCount;
+    PRUint32 childCount = mHyperTextAcc->ChildCount();
+    for (PRUint32 childIdx = mOffsetAccIdx + 1; childIdx < childCount;
          childIdx++) {
       Accessible* currAcc = mHyperTextAcc->GetChildAt(childIdx);
       if (!nsAccUtils::IsEmbeddedObject(currAcc))
@@ -126,7 +126,7 @@ TextAttrsMgr::GetAttributes(nsIPersistentProperties* aAttributes,
 
   // Expose text attributes if applicable.
   if (aAttributes) {
-    for (uint32_t idx = 0; idx < ArrayLength(attrArray); idx++)
+    for (PRUint32 idx = 0; idx < ArrayLength(attrArray); idx++)
       attrArray[idx]->Expose(aAttributes, mIncludeDefAttrs);
   }
 
@@ -136,11 +136,11 @@ TextAttrsMgr::GetAttributes(nsIPersistentProperties* aAttributes,
 }
 
 void
-TextAttrsMgr::GetRange(TextAttr* aAttrArray[], uint32_t aAttrArrayLen,
-                       int32_t* aStartHTOffset, int32_t* aEndHTOffset)
+TextAttrsMgr::GetRange(TextAttr* aAttrArray[], PRUint32 aAttrArrayLen,
+                       PRInt32* aStartHTOffset, PRInt32* aEndHTOffset)
 {
   // Navigate backward from anchor accessible to find start offset.
-  for (int32_t childIdx = mOffsetAccIdx - 1; childIdx >= 0; childIdx--) {
+  for (PRInt32 childIdx = mOffsetAccIdx - 1; childIdx >= 0; childIdx--) {
     Accessible* currAcc = mHyperTextAcc->GetChildAt(childIdx);
 
     // Stop on embedded accessible since embedded accessibles are combined into
@@ -149,7 +149,7 @@ TextAttrsMgr::GetRange(TextAttr* aAttrArray[], uint32_t aAttrArrayLen,
       break;
 
     bool offsetFound = false;
-    for (uint32_t attrIdx = 0; attrIdx < aAttrArrayLen; attrIdx++) {
+    for (PRUint32 attrIdx = 0; attrIdx < aAttrArrayLen; attrIdx++) {
       TextAttr* textAttr = aAttrArray[attrIdx];
       if (!textAttr->Equal(currAcc)) {
         offsetFound = true;
@@ -164,14 +164,14 @@ TextAttrsMgr::GetRange(TextAttr* aAttrArray[], uint32_t aAttrArrayLen,
   }
 
   // Navigate forward from anchor accessible to find end offset.
-  uint32_t childLen = mHyperTextAcc->ChildCount();
-  for (uint32_t childIdx = mOffsetAccIdx + 1; childIdx < childLen; childIdx++) {
+  PRUint32 childLen = mHyperTextAcc->ChildCount();
+  for (PRUint32 childIdx = mOffsetAccIdx + 1; childIdx < childLen; childIdx++) {
     Accessible* currAcc = mHyperTextAcc->GetChildAt(childIdx);
     if (nsAccUtils::IsEmbeddedObject(currAcc))
       break;
 
     bool offsetFound = false;
-    for (uint32_t attrIdx = 0; attrIdx < aAttrArrayLen; attrIdx++) {
+    for (PRUint32 attrIdx = 0; attrIdx < aAttrArrayLen; attrIdx++) {
       TextAttr* textAttr = aAttrArray[attrIdx];
 
       // Alter the end offset when text attribute changes its value and stop
@@ -478,7 +478,7 @@ TextAttrsMgr::FontStyleTextAttr::
 
 TextAttrsMgr::FontWeightTextAttr::
   FontWeightTextAttr(nsIFrame* aRootFrame, nsIFrame* aFrame) :
-  TTextAttr<int32_t>(!aFrame)
+  TTextAttr<PRInt32>(!aFrame)
 {
   mRootNativeValue = GetFontWeight(aRootFrame);
   mIsRootDefined = true;
@@ -491,7 +491,7 @@ TextAttrsMgr::FontWeightTextAttr::
 
 bool
 TextAttrsMgr::FontWeightTextAttr::
-  GetValueFor(Accessible* aAccessible, int32_t* aValue)
+  GetValueFor(Accessible* aAccessible, PRInt32* aValue)
 {
   nsIContent* elm = nsCoreUtils::GetDOMElementFor(aAccessible->GetContent());
   nsIFrame* frame = elm->GetPrimaryFrame();
@@ -505,7 +505,7 @@ TextAttrsMgr::FontWeightTextAttr::
 
 void
 TextAttrsMgr::FontWeightTextAttr::
-  ExposeValue(nsIPersistentProperties* aAttributes, const int32_t& aValue)
+  ExposeValue(nsIPersistentProperties* aAttributes, const PRInt32& aValue)
 {
   nsAutoString formattedValue;
   formattedValue.AppendInt(aValue);
@@ -513,7 +513,7 @@ TextAttrsMgr::FontWeightTextAttr::
   nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::fontWeight, formattedValue);
 }
 
-int32_t
+PRInt32
 TextAttrsMgr::FontWeightTextAttr::
   GetFontWeight(nsIFrame* aFrame)
 {

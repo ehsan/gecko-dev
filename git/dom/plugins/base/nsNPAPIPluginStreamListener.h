@@ -77,12 +77,12 @@ public:
   nsresult OnStartBinding(nsPluginStreamListenerPeer* streamPeer);
   nsresult OnDataAvailable(nsPluginStreamListenerPeer* streamPeer,
                            nsIInputStream* input,
-                           uint32_t length);
+                           PRUint32 length);
   nsresult OnFileAvailable(nsPluginStreamListenerPeer* streamPeer, 
                            const char* fileName);
   nsresult OnStopBinding(nsPluginStreamListenerPeer* streamPeer, 
                          nsresult status);
-  nsresult GetStreamType(int32_t *result);
+  nsresult GetStreamType(PRInt32 *result);
 
   bool IsStarted();
   nsresult CleanUpStream(NPReason reason);
@@ -108,9 +108,9 @@ protected:
   char* mNotifyURL;
   nsRefPtr<nsNPAPIPluginInstance> mInst;
   nsNPAPIStreamWrapper *mNPStreamWrapper;
-  uint32_t mStreamBufferSize;
-  int32_t mStreamBufferByteCount;
-  int32_t mStreamType;
+  PRUint32 mStreamBufferSize;
+  PRInt32 mStreamBufferByteCount;
+  PRInt32 mStreamType;
   bool mStreamStarted;
   bool mStreamCleanedUp;
   bool mCallNotify;

@@ -78,9 +78,9 @@ static char *LoadRCDATAVersion(HMODULE hMod, ULONG resid)
    return string;
 }
 
-static uint32_t CalculateVariantCount(char* mimeTypes)
+static PRUint32 CalculateVariantCount(char* mimeTypes)
 {
-  uint32_t variants = 1;
+  PRUint32 variants = 1;
 
   if(mimeTypes == nullptr)
     return 0;
@@ -96,7 +96,7 @@ static uint32_t CalculateVariantCount(char* mimeTypes)
   return variants;
 }
 
-static char** MakeStringArray(uint32_t variants, char* data)
+static char** MakeStringArray(PRUint32 variants, char* data)
 {
   if((variants <= 0) || (data == nullptr))
     return nullptr;
@@ -106,7 +106,7 @@ static char** MakeStringArray(uint32_t variants, char* data)
     return nullptr;
 
   char * start = data;
-  for(uint32_t i = 0; i < variants; i++)
+  for(PRUint32 i = 0; i < variants; i++)
   {
     char * p = PL_strchr(start, '|');
     if(p != nullptr)
@@ -118,12 +118,12 @@ static char** MakeStringArray(uint32_t variants, char* data)
   return array;
 }
 
-static void FreeStringArray(uint32_t variants, char ** array)
+static void FreeStringArray(PRUint32 variants, char ** array)
 {
   if((variants == 0) || (array == nullptr))
     return;
 
-  for(uint32_t i = 0; i < variants; i++)
+  for(PRUint32 i = 0; i < variants; i++)
   {
     if(array[i] != nullptr)
     {

@@ -166,6 +166,15 @@ CallObject::create(JSContext *cx, JSScript *script, HandleObject enclosing, Hand
 
     obj->initFixedSlot(CALLEE_SLOT, ObjectOrNullValue(callee));
 
+    /*
+     * If |bindings| is for a function that has extensible parents, that means
+     * its Call should have its own shape; see BaseShape::extensibleParents.
+     */
+    if (obj->lastProperty()->extensibleParents()) {
+        if (!obj->generateOwnShape(cx))
+            return NULL;
+    }
+
     return &obj->asCall();
 }
 
@@ -288,7 +297,7 @@ WithObject::create(JSContext *cx, HandleObject proto, HandleObject enclosing, ui
 
     obj->setReservedSlot(DEPTH_SLOT, PrivateUint32Value(depth));
 
-    JSObject *thisp = JSObject::thisObject(cx, proto);
+    JSObject *thisp = proto->thisObject(cx);
     if (!thisp)
         return NULL;
 
@@ -301,8 +310,7 @@ static JSBool
 with_LookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
                    MutableHandleObject objp, MutableHandleShape propp)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::lookupGeneric(cx, actual, id, objp, propp);
+    return obj->asWith().object().lookupGeneric(cx, id, objp, propp);
 }
 
 static JSBool
@@ -335,8 +343,7 @@ static JSBool
 with_GetGeneric(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
                 MutableHandleValue vp)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::getGeneric(cx, actual, actual, id, vp);
+    return obj->asWith().object().getGeneric(cx, id, vp);
 }
 
 static JSBool
@@ -370,7 +377,7 @@ with_SetGeneric(JSContext *cx, HandleObject obj, HandleId id,
                 MutableHandleValue vp, JSBool strict)
 {
     Rooted<JSObject*> actual(cx, &obj->asWith().object());
-    return JSObject::setGeneric(cx, actual, actual, id, vp, strict);
+    return actual->setGeneric(cx, actual, id, vp, strict);
 }
 
 static JSBool
@@ -378,7 +385,7 @@ with_SetProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
                  MutableHandleValue vp, JSBool strict)
 {
     Rooted<JSObject*> actual(cx, &obj->asWith().object());
-    return JSObject::setProperty(cx, actual, actual, name, vp, strict);
+    return actual->setProperty(cx, actual, name, vp, strict);
 }
 
 static JSBool
@@ -386,7 +393,7 @@ with_SetElement(JSContext *cx, HandleObject obj, uint32_t index,
                 MutableHandleValue vp, JSBool strict)
 {
     Rooted<JSObject*> actual(cx, &obj->asWith().object());
-    return JSObject::setElement(cx, actual, actual, index, vp, strict);
+    return actual->setElement(cx, actual, index, vp, strict);
 }
 
 static JSBool
@@ -394,95 +401,83 @@ with_SetSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
                 MutableHandleValue vp, JSBool strict)
 {
     Rooted<JSObject*> actual(cx, &obj->asWith().object());
-    return JSObject::setSpecial(cx, actual, actual, sid, vp, strict);
+    return actual->setSpecial(cx, actual, sid, vp, strict);
 }
 
 static JSBool
 with_GetGenericAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::getGenericAttributes(cx, actual, id, attrsp);
+    return obj->asWith().object().getGenericAttributes(cx, id, attrsp);
 }
 
 static JSBool
 with_GetPropertyAttributes(JSContext *cx, HandleObject obj, HandlePropertyName name, unsigned *attrsp)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::getPropertyAttributes(cx, actual, name, attrsp);
+    return obj->asWith().object().getPropertyAttributes(cx, name, attrsp);
 }
 
 static JSBool
 with_GetElementAttributes(JSContext *cx, HandleObject obj, uint32_t index, unsigned *attrsp)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::getElementAttributes(cx, actual, index, attrsp);
+    return obj->asWith().object().getElementAttributes(cx, index, attrsp);
 }
 
 static JSBool
 with_GetSpecialAttributes(JSContext *cx, HandleObject obj, HandleSpecialId sid, unsigned *attrsp)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::getSpecialAttributes(cx, actual, sid, attrsp);
+    return obj->asWith().object().getSpecialAttributes(cx, sid, attrsp);
 }
 
 static JSBool
 with_SetGenericAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::setGenericAttributes(cx, actual, id, attrsp);
+    return obj->asWith().object().setGenericAttributes(cx, id, attrsp);
 }
 
 static JSBool
 with_SetPropertyAttributes(JSContext *cx, HandleObject obj, HandlePropertyName name, unsigned *attrsp)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::setPropertyAttributes(cx, actual, name, attrsp);
+    return obj->asWith().object().setPropertyAttributes(cx, name, attrsp);
 }
 
 static JSBool
 with_SetElementAttributes(JSContext *cx, HandleObject obj, uint32_t index, unsigned *attrsp)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::setElementAttributes(cx, actual, index, attrsp);
+    return obj->asWith().object().setElementAttributes(cx, index, attrsp);
 }
 
 static JSBool
 with_SetSpecialAttributes(JSContext *cx, HandleObject obj, HandleSpecialId sid, unsigned *attrsp)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::setSpecialAttributes(cx, actual, sid, attrsp);
+    return obj->asWith().object().setSpecialAttributes(cx, sid, attrsp);
 }
 
 static JSBool
 with_DeleteProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
                     MutableHandleValue rval, JSBool strict)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::deleteProperty(cx, actual, name, rval, strict);
+    return obj->asWith().object().deleteProperty(cx, name, rval, strict);
 }
 
 static JSBool
 with_DeleteElement(JSContext *cx, HandleObject obj, uint32_t index,
                    MutableHandleValue rval, JSBool strict)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::deleteElement(cx, actual, index, rval, strict);
+    return obj->asWith().object().deleteElement(cx, index, rval, strict);
 }
 
 static JSBool
 with_DeleteSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
                    MutableHandleValue rval, JSBool strict)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::deleteSpecial(cx, actual, sid, rval, strict);
+    return obj->asWith().object().deleteSpecial(cx, sid, rval, strict);
 }
 
 static JSBool
 with_Enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
                Value *statep, jsid *idp)
 {
-    RootedObject actual(cx, &obj->asWith().object());
-    return JSObject::enumerate(cx, actual, enum_op, statep, idp);
+    return obj->asWith().object().enumerate(cx, enum_op, statep, idp);
 }
 
 static JSType
@@ -583,6 +578,9 @@ ClonedBlockObject::create(JSContext *cx, Handle<StaticBlockObject *> block, Stac
 
     obj->setReservedSlot(SCOPE_CHAIN_SLOT, ObjectValue(*fp->scopeChain()));
     obj->setReservedSlot(DEPTH_SLOT, PrivateUint32Value(block->stackDepth()));
+
+    if (obj->lastProperty()->extensibleParents() && !obj->generateOwnShape(cx))
+        return NULL;
 
     /*
      * Copy in the closed-over locals. Closed-over locals don't need
@@ -1305,7 +1303,7 @@ class DebugScopeProxy : public BaseProxyHandler
             return true;
 
         RootedValue value(cx);
-        if (!JSObject::getGeneric(cx, scope, scope, id, &value))
+        if (!scope->getGeneric(cx, scope, id, &value))
             return false;
 
         *vp = value;
@@ -1323,7 +1321,7 @@ class DebugScopeProxy : public BaseProxyHandler
             return true;
 
         RootedValue value(cx, *vp);
-        if (!JSObject::setGeneric(cx, scope, scope, id, &value, strict))
+        if (!scope->setGeneric(cx, scope, id, &value, strict))
             return false;
 
         *vp = value;

@@ -394,7 +394,7 @@ var AndroidTouchAdapter = {
       let evt = this.chromeWin.document.createEvent('CustomEvent');
       evt.initCustomEvent(
         'mozAccessFuGesture', true, true,
-       {type: 'explore', x: aEvent.screenX, y: aEvent.screenY, touches: [1]});
+        {type: 'explore', x: aEvent.screenX, y: aEvent.screenY});
       this.chromeWin.dispatchEvent(evt);
       this._lastExploreTime = aEvent.timeStamp;
     }

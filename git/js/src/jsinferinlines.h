@@ -709,7 +709,7 @@ SetInitializerObjectType(JSContext *cx, HandleScript script, jsbytecode *pc, Han
     JS_ASSERT(key != JSProto_Null);
 
     if (UseNewTypeForInitializer(cx, script, pc, key)) {
-        if (!JSObject::setSingletonType(cx, obj))
+        if (!obj->setSingletonType(cx))
             return false;
 
         /*

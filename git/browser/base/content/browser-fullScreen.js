@@ -519,37 +519,39 @@ var FullScreen = {
   {
     var els = document.getElementsByTagNameNS(this._XULNS, aTag);
 
-    for (let el of els) {
+    for (var i = 0; i < els.length; ++i) {
       // XXX don't interfere with previously collapsed toolbars
-      if (el.getAttribute("fullscreentoolbar") == "true") {
+      if (els[i].getAttribute("fullscreentoolbar") == "true") {
         if (!aShow) {
 
-          var toolbarMode = el.getAttribute("mode");
+          var toolbarMode = els[i].getAttribute("mode");
           if (toolbarMode != "text") {
-            el.setAttribute("saved-mode", toolbarMode);
-            el.setAttribute("saved-iconsize", el.getAttribute("iconsize"));
-            el.setAttribute("mode", "icons");
-            el.setAttribute("iconsize", "small");
+            els[i].setAttribute("saved-mode", toolbarMode);
+            els[i].setAttribute("saved-iconsize",
+                                els[i].getAttribute("iconsize"));
+            els[i].setAttribute("mode", "icons");
+            els[i].setAttribute("iconsize", "small");
           }
 
           // Give the main nav bar and the tab bar the fullscreen context menu,
           // otherwise remove context menu to prevent breakage
-          el.setAttribute("saved-context", el.getAttribute("context"));
-          if (el.id == "nav-bar" || el.id == "TabsToolbar")
-            el.setAttribute("context", "autohide-context");
+          els[i].setAttribute("saved-context",
+                              els[i].getAttribute("context"));
+          if (els[i].id == "nav-bar" || els[i].id == "TabsToolbar")
+            els[i].setAttribute("context", "autohide-context");
           else
-            el.removeAttribute("context");
+            els[i].removeAttribute("context");
 
           // Set the inFullscreen attribute to allow specific styling
           // in fullscreen mode
-          el.setAttribute("inFullscreen", true);
+          els[i].setAttribute("inFullscreen", true);
         }
         else {
           function restoreAttr(attrName) {
             var savedAttr = "saved-" + attrName;
-            if (el.hasAttribute(savedAttr)) {
-              el.setAttribute(attrName, el.getAttribute(savedAttr));
-              el.removeAttribute(savedAttr);
+            if (els[i].hasAttribute(savedAttr)) {
+              els[i].setAttribute(attrName, els[i].getAttribute(savedAttr));
+              els[i].removeAttribute(savedAttr);
             }
           }
 
@@ -557,15 +559,15 @@ var FullScreen = {
           restoreAttr("iconsize");
           restoreAttr("context");
 
-          el.removeAttribute("inFullscreen");
+          els[i].removeAttribute("inFullscreen");
         }
       } else {
         // use moz-collapsed so it doesn't persist hidden/collapsed,
         // so that new windows don't have missing toolbars
         if (aShow)
-          el.removeAttribute("moz-collapsed");
+          els[i].removeAttribute("moz-collapsed");
         else
-          el.setAttribute("moz-collapsed", "true");
+          els[i].setAttribute("moz-collapsed", "true");
       }
     }
 

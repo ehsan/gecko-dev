@@ -85,7 +85,7 @@ static bool
 UseUniscribe(gfxShapedWord *aShapedWord,
              const PRUnichar *aString)
 {
-    uint32_t flags = aShapedWord->Flags();
+    PRUint32 flags = aShapedWord->Flags();
     bool useGDI;
 
     bool isXP = (gfxWindowsPlatform::WindowsOSVersion() 
@@ -214,7 +214,7 @@ gfxGDIFont::GetMetrics()
     return *mMetrics;
 }
 
-uint32_t
+PRUint32
 gfxGDIFont::GetSpaceGlyph()
 {
     if (!mMetrics) {
@@ -241,7 +241,7 @@ gfxGDIFont::SetupCairoFont(gfxContext *aContext)
 
 gfxFont::RunMetrics
 gfxGDIFont::Measure(gfxTextRun *aTextRun,
-                    uint32_t aStart, uint32_t aEnd,
+                    PRUint32 aStart, PRUint32 aEnd,
                     BoundingBoxType aBoundingBoxType,
                     gfxContext *aRefContext,
                     Spacing *aSpacing)
@@ -504,7 +504,7 @@ gfxGDIFont::FillLogFont(LOGFONTW& aLogFont, gfxFloat aSize,
 {
     GDIFontEntry *fe = static_cast<GDIFontEntry*>(GetFontEntry());
 
-    uint16_t weight;
+    PRUint16 weight;
     if (fe->IsUserFont()) {
         if (fe->IsLocalUserFont()) {
             // for local user fonts, don't change the original weight
@@ -529,14 +529,14 @@ gfxGDIFont::FillLogFont(LOGFONTW& aLogFont, gfxFloat aSize,
     }
 }
 
-int32_t
-gfxGDIFont::GetGlyphWidth(gfxContext *aCtx, uint16_t aGID)
+PRInt32
+gfxGDIFont::GetGlyphWidth(gfxContext *aCtx, PRUint16 aGID)
 {
     if (!mGlyphWidths.IsInitialized()) {
         mGlyphWidths.Init(200);
     }
 
-    int32_t width;
+    PRInt32 width;
     if (mGlyphWidths.Get(aGID, &width)) {
         return width;
     }

@@ -22,7 +22,7 @@
  */
 
 nsTreeWalker::nsTreeWalker(nsINode *aRoot,
-                           uint32_t aWhatToShow,
+                           PRUint32 aWhatToShow,
                            nsIDOMNodeFilter *aFilter) :
     nsTraversal(aRoot, aWhatToShow, aFilter),
     mCurrentNode(aRoot)
@@ -71,7 +71,7 @@ NS_IMETHODIMP nsTreeWalker::GetRoot(nsIDOMNode * *aRoot)
 }
 
 /* readonly attribute unsigned long whatToShow; */
-NS_IMETHODIMP nsTreeWalker::GetWhatToShow(uint32_t *aWhatToShow)
+NS_IMETHODIMP nsTreeWalker::GetWhatToShow(PRUint32 *aWhatToShow)
 {
     *aWhatToShow = mWhatToShow;
     return NS_OK;
@@ -138,7 +138,7 @@ NS_IMETHODIMP nsTreeWalker::ParentNode(nsIDOMNode **_retval)
         node = node->GetNodeParent();
 
         if (node) {
-            int16_t filtered;
+            PRInt16 filtered;
             rv = TestNode(node, &filtered);
             NS_ENSURE_SUCCESS(rv, rv);
             if (filtered == nsIDOMNodeFilter::FILTER_ACCEPT) {
@@ -179,7 +179,7 @@ NS_IMETHODIMP nsTreeWalker::NextSibling(nsIDOMNode **_retval)
 NS_IMETHODIMP nsTreeWalker::PreviousNode(nsIDOMNode **_retval)
 {
     nsresult rv;
-    int16_t filtered;
+    PRInt16 filtered;
 
     *_retval = nullptr;
 
@@ -229,7 +229,7 @@ NS_IMETHODIMP nsTreeWalker::PreviousNode(nsIDOMNode **_retval)
 NS_IMETHODIMP nsTreeWalker::NextNode(nsIDOMNode **_retval)
 {
     nsresult rv;
-    int16_t filtered = nsIDOMNodeFilter::FILTER_ACCEPT; // pre-init for inner loop
+    PRInt16 filtered = nsIDOMNodeFilter::FILTER_ACCEPT; // pre-init for inner loop
 
     *_retval = nullptr;
 
@@ -298,7 +298,7 @@ NS_IMETHODIMP nsTreeWalker::NextNode(nsIDOMNode **_retval)
 nsresult nsTreeWalker::FirstChildInternal(bool aReversed, nsIDOMNode **_retval)
 {
     nsresult rv;
-    int16_t filtered;
+    PRInt16 filtered;
 
     *_retval = nullptr;
 
@@ -360,7 +360,7 @@ nsresult nsTreeWalker::FirstChildInternal(bool aReversed, nsIDOMNode **_retval)
 nsresult nsTreeWalker::NextSiblingInternal(bool aReversed, nsIDOMNode **_retval)
 {
     nsresult rv;
-    int16_t filtered;
+    PRInt16 filtered;
 
     *_retval = nullptr;
 

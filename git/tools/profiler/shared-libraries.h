@@ -140,7 +140,7 @@ public:
     mEntries.push_back(entry);
   }
 
-  const SharedLibrary& GetEntry(size_t i) const
+  SharedLibrary& GetEntry(size_t i)
   {
     return mEntries[i];
   }

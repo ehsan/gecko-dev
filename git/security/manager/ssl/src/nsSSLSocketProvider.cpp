@@ -19,12 +19,12 @@ nsSSLSocketProvider::~nsSSLSocketProvider()
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsSSLSocketProvider, nsISocketProvider)
 
 NS_IMETHODIMP
-nsSSLSocketProvider::NewSocket(int32_t family,
+nsSSLSocketProvider::NewSocket(PRInt32 family,
                                const char *host,
-                               int32_t port,
+                               PRInt32 port,
                                const char *proxyHost,
-                               int32_t proxyPort,
-                               uint32_t flags,
+                               PRInt32 proxyPort,
+                               PRUint32 flags,
                                PRFileDesc **_result,
                                nsISupports **securityInfo)
 {
@@ -42,12 +42,12 @@ nsSSLSocketProvider::NewSocket(int32_t family,
 
 // Add the SSL IO layer to an existing socket
 NS_IMETHODIMP
-nsSSLSocketProvider::AddToSocket(int32_t family,
+nsSSLSocketProvider::AddToSocket(PRInt32 family,
                                  const char *host,
-                                 int32_t port,
+                                 PRInt32 port,
                                  const char *proxyHost,
-                                 int32_t proxyPort,
-                                 uint32_t flags,
+                                 PRInt32 proxyPort,
+                                 PRUint32 flags,
                                  PRFileDesc *aSocket,
                                  nsISupports **securityInfo)
 {

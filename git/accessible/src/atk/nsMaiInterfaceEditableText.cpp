@@ -71,7 +71,7 @@ insertTextCB(AtkEditableText *aText,
 
     // interface changed in nsIAccessibleEditableText.idl ???
     //
-    // int32_t pos = *aPosition;
+    // PRInt32 pos = *aPosition;
     // nsresult rv = accText->InsertText(strContent, aLength, &pos);
     // *aPosition = pos;
 

@@ -58,7 +58,7 @@ protected:
     public:
         iterator_base(txExpandedNameMap_base& aMap)
             : mMap(aMap),
-              mCurrentPos(uint32_t(-1))
+              mCurrentPos(PRUint32(-1))
         {
         }
 
@@ -85,14 +85,14 @@ protected:
 
     private:
         txExpandedNameMap_base& mMap;
-        uint32_t mCurrentPos;
+        PRUint32 mCurrentPos;
     };
     
     friend class iterator_base;
 
     friend class txMapItemComparator;
     struct MapItem {
-        int32_t mNamespaceID;
+        PRInt32 mNamespaceID;
         nsCOMPtr<nsIAtom> mLocalName;
         void* mValue;
     };
@@ -177,7 +177,7 @@ public:
 
     void clear()
     {
-        uint32_t i, len = mItems.Length();
+        PRUint32 i, len = mItems.Length();
         for (i = 0; i < len; ++i) {
             delete (E*)mItems[i].mValue;
         }

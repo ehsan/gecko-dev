@@ -61,28 +61,20 @@ class nsObjectLoadingContent : public nsImageLoadingContent
       eType_Null           = TYPE_NULL
     };
     enum FallbackType {
-      // The content type is not supported (e.g. plugin not installed)
-      eFallbackUnsupported = nsIObjectLoadingContent::PLUGIN_UNSUPPORTED,
-      // Showing alternate content
-      eFallbackAlternate = nsIObjectLoadingContent::PLUGIN_ALTERNATE,
-      // The plugin exists, but is disabled
-      eFallbackDisabled = nsIObjectLoadingContent::PLUGIN_DISABLED,
-      // The plugin is blocklisted and disabled
-      eFallbackBlocklisted = nsIObjectLoadingContent::PLUGIN_BLOCKLISTED,
-      // The plugin is considered outdated, but not disabled
-      eFallbackOutdated = nsIObjectLoadingContent::PLUGIN_OUTDATED,
-      // The plugin has crashed
-      eFallbackCrashed = nsIObjectLoadingContent::PLUGIN_CRASHED,
-      // Suppressed by security policy
-      eFallbackSuppressed = nsIObjectLoadingContent::PLUGIN_SUPPRESSED,
-      // Blocked by content policy
-      eFallbackUserDisabled = nsIObjectLoadingContent::PLUGIN_USER_DISABLED,
-      // The plugin is disabled until the user clicks on it
-      eFallbackClickToPlay = nsIObjectLoadingContent::PLUGIN_CLICK_TO_PLAY,
-      // The plugin is vulnerable (update available)
-      eFallbackVulnerableUpdatable = nsIObjectLoadingContent::PLUGIN_VULNERABLE_UPDATABLE,
-      // The plugin is vulnerable (no update available)
-      eFallbackVulnerableNoUpdate = nsIObjectLoadingContent::PLUGIN_VULNERABLE_NO_UPDATE
+      eFallbackUnsupported,  // The content type is not supported (e.g. plugin 
+                             // not installed)
+      eFallbackAlternate,    // Showing alternate content
+      eFallbackDisabled,     // The plugin exists, but is disabled
+      eFallbackBlocklisted,  // The plugin is blocklisted and disabled
+      eFallbackOutdated,     // The plugin is considered outdated, but not
+                             // disabled
+      eFallbackCrashed,      // The plugin has crashed
+      eFallbackSuppressed,   // Suppressed by security policy
+      eFallbackUserDisabled, // Blocked by content policy
+      eFallbackClickToPlay,  // The plugin is disabled until the user clicks on
+                             // it
+      eFallbackVulnerableUpdatable, // The plugin is vulnerable (update avail)
+      eFallbackVulnerableNoUpdate  // The plugin is vulnerable (no update avail)
     };
 
     nsObjectLoadingContent();
@@ -196,7 +188,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * The default implementation supports all types but not
      * eSupportClassID or eAllowPluginSkipChannel
      */
-    virtual uint32_t GetCapabilities() const;
+    virtual PRUint32 GetCapabilities() const;
 
     /**
      * Destroys all loaded documents/plugins and releases references
@@ -297,7 +289,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      *
      * @return true if call succeeded and NS_CP_ACCEPTED(*aContentPolicy)
      */
-    bool CheckLoadPolicy(int16_t *aContentPolicy);
+    bool CheckLoadPolicy(PRInt16 *aContentPolicy);
 
     /**
      * Helper to check if the object passes process policy. Assumes we have a
@@ -307,7 +299,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      *
      * @return true if call succeeded and NS_CP_ACCEPTED(*aContentPolicy)
      */
-    bool CheckProcessPolicy(int16_t *aContentPolicy);
+    bool CheckProcessPolicy(PRInt16 *aContentPolicy);
 
     /**
      * Checks whether the given type is a supported document type

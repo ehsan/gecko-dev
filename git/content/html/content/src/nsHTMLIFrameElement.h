@@ -36,7 +36,7 @@ public:
   NS_DECL_NSIDOMGETSVGDOCUMENT
 
   // nsIContent
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -47,11 +47,11 @@ public:
   virtual nsXPCClassInfo* GetClassInfo();
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
-  virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                 const nsAttrValue* aValue,
                                 bool aNotify);
 
-  uint32_t GetSandboxFlags()
+  PRUint32 GetSandboxFlags()
   {
     nsAutoString sandboxAttr;
 

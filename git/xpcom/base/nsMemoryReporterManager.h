@@ -19,9 +19,9 @@ public:
 
   nsMemoryReporter(nsACString& process,
                    nsACString& path, 
-                   int32_t kind,
-                   int32_t units,
-                   int64_t amount,
+                   PRInt32 kind,
+                   PRInt32 units,
+                   PRInt64 amount,
                    nsACString& desc);
 
   ~nsMemoryReporter();
@@ -29,9 +29,9 @@ public:
 protected:
   nsCString mProcess;
   nsCString mPath;
-  int32_t   mKind;
-  int32_t   mUnits;
-  int64_t   mAmount;
+  PRInt32   mKind;
+  PRInt32   mUnits;
+  PRInt64   mAmount;
   nsCString mDesc;
 };
 

@@ -12,24 +12,24 @@
 #endif
 
 struct VersionPart {
-  int32_t     numA;
+  PRInt32     numA;
 
   const char *strB;    // NOT null-terminated, can be a null pointer
-  uint32_t    strBlen;
+  PRUint32    strBlen;
 
-  int32_t     numC;
+  PRInt32     numC;
 
   char       *extraD;  // null-terminated
 };
 
 #ifdef XP_WIN
 struct VersionPartW {
-  int32_t     numA;
+  PRInt32     numA;
 
   const PRUnichar *strB;    // NOT null-terminated, can be a null pointer
-  uint32_t    strBlen;
+  PRUint32    strBlen;
 
-  int32_t     numC;
+  PRInt32     numC;
 
   PRUnichar       *extraD;  // null-terminated
 
@@ -177,7 +177,7 @@ ParseVP(PRUnichar *part, VersionPartW &result)
 #endif
 
 // compare two null-terminated strings, which may be null pointers
-static int32_t
+static PRInt32
 ns_strcmp(const char *str1, const char *str2)
 {
   // any string is *before* no string
@@ -191,8 +191,8 @@ ns_strcmp(const char *str1, const char *str2)
 }
 
 // compare two length-specified string, which may be null pointers
-static int32_t
-ns_strnncmp(const char *str1, uint32_t len1, const char *str2, uint32_t len2)
+static PRInt32
+ns_strnncmp(const char *str1, PRUint32 len1, const char *str2, PRUint32 len2)
 {
   // any string is *before* no string
   if (!str1)
@@ -215,9 +215,9 @@ ns_strnncmp(const char *str1, uint32_t len1, const char *str2, uint32_t len2)
   return 1;
 }
 
-// compare two int32_t
-static int32_t
-ns_cmp(int32_t n1, int32_t n2)
+// compare two PRInt32
+static PRInt32
+ns_cmp(PRInt32 n1, PRInt32 n2)
 {
   if (n1 < n2)
     return -1;
@@ -228,10 +228,10 @@ ns_cmp(int32_t n1, int32_t n2)
 /**
  * Compares two VersionParts
  */
-static int32_t
+static PRInt32
 CompareVP(VersionPart &v1, VersionPart &v2)
 {
-  int32_t r = ns_cmp(v1.numA, v2.numA);
+  PRInt32 r = ns_cmp(v1.numA, v2.numA);
   if (r)
     return r;
 
@@ -250,10 +250,10 @@ CompareVP(VersionPart &v1, VersionPart &v2)
  * Compares two VersionParts
  */
 #ifdef XP_WIN
-static int32_t
+static PRInt32
 CompareVP(VersionPartW &v1, VersionPartW &v2)
 {
-  int32_t r = ns_cmp(v1.numA, v2.numA);
+  PRInt32 r = ns_cmp(v1.numA, v2.numA);
   if (r)
     return r;
 
@@ -278,7 +278,7 @@ CompareVP(VersionPartW &v1, VersionPartW &v2)
 namespace mozilla {
 
 #ifdef XP_WIN
-int32_t
+PRInt32
 CompareVersions(const PRUnichar *A, const PRUnichar *B)
 {
   PRUnichar *A2 = wcsdup(A);
@@ -291,7 +291,7 @@ CompareVersions(const PRUnichar *A, const PRUnichar *B)
     return 1;
   }
 
-  int32_t result;
+  PRInt32 result;
   PRUnichar *a = A2, *b = B2;
 
   do {
@@ -313,7 +313,7 @@ CompareVersions(const PRUnichar *A, const PRUnichar *B)
 }
 #endif
 
-int32_t
+PRInt32
 CompareVersions(const char *A, const char *B)
 {
   char *A2 = strdup(A);
@@ -326,7 +326,7 @@ CompareVersions(const char *A, const char *B)
     return 1;
   }
 
-  int32_t result;
+  PRInt32 result;
   char *a = A2, *b = B2;
 
   do {

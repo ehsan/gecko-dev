@@ -37,7 +37,7 @@ public:
   // nsIDOMHTMLBRElement
   NS_DECL_NSIDOMHTMLBRELEMENT    
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -89,7 +89,7 @@ static const nsAttrValue::EnumTable kClearTable[] = {
 };
 
 bool
-nsHTMLBRElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLBRElement::ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult)

@@ -31,9 +31,9 @@ public:
 #endif
 
   // nsIFrame overrides
-  NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
-                              int32_t aModType);
+                              PRInt32 aModType);
 
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS

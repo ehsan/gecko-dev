@@ -176,7 +176,7 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
         obj->setType(type);
     } else if (cx->typeInferenceEnabled()) {
         if (byteLength >= TypedArray::SINGLETON_TYPE_BYTE_LENGTH) {
-            if (!JSObject::setSingletonType(cx, obj))
+            if (!obj->setSingletonType(cx))
                 return NULL;
         } else {
             jsbytecode *pc;

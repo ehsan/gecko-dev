@@ -34,7 +34,7 @@ public:
     /**
      * utility method to attempt changing data size of associated entry
      */
-    nsresult  RequestDataSizeChange(int32_t deltaSize);
+    nsresult  RequestDataSizeChange(PRInt32 deltaSize);
     
     /**
      * methods callbacks for nsCacheService
@@ -73,13 +73,13 @@ private:
      private:
          nsCacheEntryDescriptor    * mDescriptor;
          nsCOMPtr<nsIInputStream>    mInput;
-         uint32_t                    mStartOffset;
+         PRUint32                    mStartOffset;
          bool                        mInitialized;
      public:
          NS_DECL_ISUPPORTS
          NS_DECL_NSIINPUTSTREAM
 
-         nsInputStreamWrapper(nsCacheEntryDescriptor * desc, uint32_t off)
+         nsInputStreamWrapper(nsCacheEntryDescriptor * desc, PRUint32 off)
              : mDescriptor(desc)
              , mStartOffset(off)
              , mInitialized(false)
@@ -101,7 +101,7 @@ private:
      class nsDecompressInputStreamWrapper : public nsInputStreamWrapper {
      private:
          unsigned char* mReadBuffer;
-         uint32_t mReadBufferLen;
+         PRUint32 mReadBufferLen;
          z_stream mZstream;
          bool mStreamInitialized;
          bool mStreamEnded;
@@ -109,7 +109,7 @@ private:
          NS_DECL_ISUPPORTS
 
          nsDecompressInputStreamWrapper(nsCacheEntryDescriptor * desc,
-                                      uint32_t off)
+                                      PRUint32 off)
           : nsInputStreamWrapper(desc, off)
           , mReadBuffer(0)
           , mReadBufferLen(0)
@@ -121,7 +121,7 @@ private:
          {
              Close();
          }
-         NS_IMETHOD Read(char* buf, uint32_t count, uint32_t * result);
+         NS_IMETHOD Read(char* buf, PRUint32 count, PRUint32 * result);
          NS_IMETHOD Close();
      private:
          nsresult InitZstream();
@@ -139,13 +139,13 @@ private:
      protected:
          nsCacheEntryDescriptor *    mDescriptor;
          nsCOMPtr<nsIOutputStream>   mOutput;
-         uint32_t                    mStartOffset;
+         PRUint32                    mStartOffset;
          bool                        mInitialized;
      public:
          NS_DECL_ISUPPORTS
          NS_DECL_NSIOUTPUTSTREAM
 
-         nsOutputStreamWrapper(nsCacheEntryDescriptor * desc, uint32_t off)
+         nsOutputStreamWrapper(nsCacheEntryDescriptor * desc, PRUint32 off)
              : mDescriptor(desc)
              , mStartOffset(off)
              , mInitialized(false)
@@ -166,22 +166,22 @@ private:
      private:
          nsresult LazyInit();
          nsresult EnsureInit() { return mInitialized ? NS_OK : LazyInit(); }
-         nsresult OnWrite(uint32_t count);
+         nsresult OnWrite(PRUint32 count);
      };
      friend class nsOutputStreamWrapper;
 
      class nsCompressOutputStreamWrapper : public nsOutputStreamWrapper {
      private:
          unsigned char* mWriteBuffer;
-         uint32_t mWriteBufferLen;
+         PRUint32 mWriteBufferLen;
          z_stream mZstream;
          bool mStreamInitialized;
-         uint32_t mUncompressedCount;
+         PRUint32 mUncompressedCount;
      public:
          NS_DECL_ISUPPORTS
 
          nsCompressOutputStreamWrapper(nsCacheEntryDescriptor * desc, 
-                                       uint32_t off)
+                                       PRUint32 off)
           : nsOutputStreamWrapper(desc, off)
           , mWriteBuffer(0)
           , mWriteBufferLen(0)
@@ -193,7 +193,7 @@ private:
          { 
              Close();
          }
-         NS_IMETHOD Write(const char* buf, uint32_t count, uint32_t * result);
+         NS_IMETHOD Write(const char* buf, PRUint32 count, PRUint32 * result);
          NS_IMETHOD Close();
      private:
          nsresult InitZstream();

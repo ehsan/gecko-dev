@@ -89,7 +89,7 @@ xptiInterfaceEntry::ResolveLocked()
     // Finish out resolution by finding parent and Resolving it so
     // we can set the info we get from it.
 
-    uint16_t parent_index = mDescriptor->parent_interface;
+    PRUint16 parent_index = mDescriptor->parent_interface;
 
     if(parent_index)
     {
@@ -261,7 +261,7 @@ xptiInterfaceEntry::GetConstant(uint16 index, const nsXPTConstant** constant)
 // this is a private helper
 
 nsresult 
-xptiInterfaceEntry::GetEntryForParam(uint16_t methodIndex, 
+xptiInterfaceEntry::GetEntryForParam(PRUint16 methodIndex, 
                                      const nsXPTParamInfo * param,
                                      xptiInterfaceEntry** entry)
 {
@@ -335,7 +335,7 @@ xptiInterfaceEntry::GetIIDForParam(uint16 methodIndex,
 }
 
 nsresult
-xptiInterfaceEntry::GetIIDForParamNoAlloc(uint16_t methodIndex, 
+xptiInterfaceEntry::GetIIDForParamNoAlloc(PRUint16 methodIndex, 
                                           const nsXPTParamInfo * param, 
                                           nsIID *iid)
 {

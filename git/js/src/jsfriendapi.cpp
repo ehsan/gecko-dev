@@ -105,8 +105,8 @@ JS_NewObjectWithUniqueType(JSContext *cx, JSClass *clasp, JSObject *protoArg, JS
 {
     RootedObject proto(cx, protoArg);
     RootedObject parent(cx, parentArg);
-    RootedObject obj(cx, JS_NewObject(cx, clasp, proto, parent));
-    if (!obj || !JSObject::setSingletonType(cx, obj))
+    JSObject *obj = JS_NewObject(cx, clasp, proto, parent);
+    if (!obj || !obj->setSingletonType(cx))
         return NULL;
     return obj;
 }
@@ -440,13 +440,13 @@ js::SetReservedSlotWithBarrier(RawObject obj, size_t slot, const js::Value &valu
 }
 
 JS_FRIEND_API(bool)
-js::GetGeneric(JSContext *cx, JSObject *objArg, JSObject *receiverArg, jsid idArg,
+js::GetGeneric(JSContext *cx, JSObject *obj, JSObject *receiver_, jsid id_,
                Value *vp)
 {
-    RootedObject obj(cx, objArg), receiver(cx, receiverArg);
-    RootedId id(cx, idArg);
+    RootedObject receiver(cx, receiver_);
+    RootedId id(cx, id_);
     RootedValue value(cx);
-    if (!JSObject::getGeneric(cx, obj, receiver, id, &value))
+    if (!obj->getGeneric(cx, receiver, id, &value))
         return false;
     *vp = value;
     return true;

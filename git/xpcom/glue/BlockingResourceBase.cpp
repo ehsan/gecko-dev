@@ -29,7 +29,7 @@ const char* const BlockingResourceBase::kResourceTypeName[] =
 #ifdef DEBUG
 
 PRCallOnceType BlockingResourceBase::sCallOnce;
-unsigned BlockingResourceBase::sResourceAcqnChainFrontTPI = (unsigned)-1;
+PRUintn BlockingResourceBase::sResourceAcqnChainFrontTPI = (PRUintn)-1;
 BlockingResourceBase::DDT* BlockingResourceBase::sDeadlockDetector;
 
 bool
@@ -300,7 +300,7 @@ ReentrantMonitor::Wait(PRIntervalTime interval)
     AssertCurrentThreadIn();
 
     // save monitor state and reset it to empty
-    int32_t savedEntryCount = mEntryCount;
+    PRInt32 savedEntryCount = mEntryCount;
     CallStack savedAcquisitionContext = GetAcquisitionContext();
     BlockingResourceBase* savedChainPrev = mChainPrev;
     mEntryCount = 0;

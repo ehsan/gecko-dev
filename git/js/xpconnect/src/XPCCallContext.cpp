@@ -325,7 +325,7 @@ XPCCallContext::~XPCCallContext()
     }
 
 #ifdef DEBUG
-    for (uint32_t i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i) {
+    for (PRUint32 i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i) {
         NS_ASSERTION(!mScratchStrings[i].mInUse, "Uh, string wrapper still in use!");
     }
 #endif
@@ -335,9 +335,9 @@ XPCCallContext::~XPCCallContext()
 }
 
 XPCReadableJSStringWrapper *
-XPCCallContext::NewStringWrapper(const PRUnichar *str, uint32_t len)
+XPCCallContext::NewStringWrapper(const PRUnichar *str, PRUint32 len)
 {
-    for (uint32_t i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i) {
+    for (PRUint32 i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i) {
         StringWrapperEntry& ent = mScratchStrings[i];
 
         if (!ent.mInUse) {
@@ -357,7 +357,7 @@ XPCCallContext::NewStringWrapper(const PRUnichar *str, uint32_t len)
 void
 XPCCallContext::DeleteString(nsAString *string)
 {
-    for (uint32_t i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i) {
+    for (PRUint32 i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i) {
         StringWrapperEntry& ent = mScratchStrings[i];
         if (string == ent.mString.addr()) {
             // One of our internal strings is no longer in use, mark
@@ -385,9 +385,9 @@ XPCCallContext::GetCallee(nsISupports * *aCallee)
     return NS_OK;
 }
 
-/* readonly attribute uint16_t CalleeMethodIndex; */
+/* readonly attribute PRUint16 CalleeMethodIndex; */
 NS_IMETHODIMP
-XPCCallContext::GetCalleeMethodIndex(uint16_t *aCalleeMethodIndex)
+XPCCallContext::GetCalleeMethodIndex(PRUint16 *aCalleeMethodIndex)
 {
     *aCalleeMethodIndex = mMethodIndex;
     return NS_OK;
@@ -432,11 +432,11 @@ XPCCallContext::GetJSContext(JSContext * *aJSContext)
     return NS_OK;
 }
 
-/* readonly attribute uint32_t Argc; */
+/* readonly attribute PRUint32 Argc; */
 NS_IMETHODIMP
-XPCCallContext::GetArgc(uint32_t *aArgc)
+XPCCallContext::GetArgc(PRUint32 *aArgc)
 {
-    *aArgc = (uint32_t) mArgc;
+    *aArgc = (PRUint32) mArgc;
     return NS_OK;
 }
 
@@ -457,7 +457,7 @@ XPCCallContext::GetPreviousCallContext(nsAXPCNativeCallContext **aResult)
 }
 
 NS_IMETHODIMP
-XPCCallContext::GetLanguage(uint16_t *aResult)
+XPCCallContext::GetLanguage(PRUint16 *aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
   *aResult = GetCallerLanguage();

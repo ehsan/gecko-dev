@@ -207,14 +207,14 @@ nsIMEStateManager::OnClickInEditor(nsPresContext* aPresContext,
     return; // ignore untrusted event.
   }
 
-  uint16_t button;
+  PRUint16 button;
   rv = aMouseEvent->GetButton(&button);
   NS_ENSURE_SUCCESS(rv, );
   if (button != 0) {
     return; // not a left click event.
   }
 
-  int32_t clickCount;
+  PRInt32 clickCount;
   rv = aMouseEvent->GetDetail(&clickCount);
   NS_ENSURE_SUCCESS(rv, );
   if (clickCount != 1) {
@@ -285,7 +285,7 @@ nsIMEStateManager::GetNewIMEState(nsPresContext* aPresContext,
 // Helper class, used for IME enabled state change notification
 class IMEEnabledStateChangedEvent : public nsRunnable {
 public:
-  IMEEnabledStateChangedEvent(uint32_t aState)
+  IMEEnabledStateChangedEvent(PRUint32 aState)
     : mState(aState)
   {
   }
@@ -301,7 +301,7 @@ public:
   }
 
 private:
-  uint32_t mState;
+  PRUint32 mState;
 };
 
 void
@@ -411,7 +411,7 @@ public:
   bool                           mDestroying;
 
 private:
-  void NotifyContentAdded(nsINode* aContainer, int32_t aStart, int32_t aEnd);
+  void NotifyContentAdded(nsINode* aContainer, PRInt32 aStart, PRInt32 aEnd);
 };
 
 nsTextStateManager::nsTextStateManager()
@@ -531,9 +531,9 @@ private:
 nsresult
 nsTextStateManager::NotifySelectionChanged(nsIDOMDocument* aDoc,
                                            nsISelection* aSel,
-                                           int16_t aReason)
+                                           PRInt16 aReason)
 {
-  int32_t count = 0;
+  PRInt32 count = 0;
   nsresult rv = aSel->GetRangeCount(&count);
   NS_ENSURE_SUCCESS(rv, rv);
   if (count > 0 && mWidget) {
@@ -546,7 +546,7 @@ nsTextStateManager::NotifySelectionChanged(nsIDOMDocument* aDoc,
 class TextChangeEvent : public nsRunnable {
 public:
   TextChangeEvent(nsIWidget *widget,
-                  uint32_t start, uint32_t oldEnd, uint32_t newEnd)
+                  PRUint32 start, PRUint32 oldEnd, PRUint32 newEnd)
     : mWidget(widget)
     , mStart(start)
     , mOldEnd(oldEnd)
@@ -564,7 +564,7 @@ public:
 
 private:
   nsCOMPtr<nsIWidget> mWidget;
-  uint32_t mStart, mOldEnd, mNewEnd;
+  PRUint32 mStart, mOldEnd, mNewEnd;
 };
 
 void
@@ -575,14 +575,14 @@ nsTextStateManager::CharacterDataChanged(nsIDocument* aDocument,
   NS_ASSERTION(aContent->IsNodeOfType(nsINode::eTEXT),
                "character data changed for non-text node");
 
-  uint32_t offset = 0;
+  PRUint32 offset = 0;
   // get offsets of change and fire notification
   if (NS_FAILED(nsContentEventHandler::GetFlatTextOffsetOfRange(
                     mRootContent, aContent, aInfo->mChangeStart, &offset)))
     return;
 
-  uint32_t oldEnd = offset + aInfo->mChangeEnd - aInfo->mChangeStart;
-  uint32_t newEnd = offset + aInfo->mReplaceLength;
+  PRUint32 oldEnd = offset + aInfo->mChangeEnd - aInfo->mChangeStart;
+  PRUint32 newEnd = offset + aInfo->mReplaceLength;
 
   nsContentUtils::AddScriptRunner(
       new TextChangeEvent(mWidget, offset, oldEnd, newEnd));
@@ -590,10 +590,10 @@ nsTextStateManager::CharacterDataChanged(nsIDocument* aDocument,
 
 void
 nsTextStateManager::NotifyContentAdded(nsINode* aContainer,
-                                       int32_t aStartIndex,
-                                       int32_t aEndIndex)
+                                       PRInt32 aStartIndex,
+                                       PRInt32 aEndIndex)
 {
-  uint32_t offset = 0, newOffset = 0;
+  PRUint32 offset = 0, newOffset = 0;
   if (NS_FAILED(nsContentEventHandler::GetFlatTextOffsetOfRange(
                     mRootContent, aContainer, aStartIndex, &offset)))
     return;
@@ -614,7 +614,7 @@ void
 nsTextStateManager::ContentAppended(nsIDocument* aDocument,
                                     nsIContent* aContainer,
                                     nsIContent* aFirstNewContent,
-                                    int32_t aNewIndexInContainer)
+                                    PRInt32 aNewIndexInContainer)
 {
   NotifyContentAdded(aContainer, aNewIndexInContainer,
                      aContainer->GetChildCount());
@@ -624,7 +624,7 @@ void
 nsTextStateManager::ContentInserted(nsIDocument* aDocument,
                                      nsIContent* aContainer,
                                      nsIContent* aChild,
-                                     int32_t aIndexInContainer)
+                                     PRInt32 aIndexInContainer)
 {
   NotifyContentAdded(NODE_FROM(aContainer, aDocument),
                      aIndexInContainer, aIndexInContainer + 1);
@@ -634,10 +634,10 @@ void
 nsTextStateManager::ContentRemoved(nsIDocument* aDocument,
                                    nsIContent* aContainer,
                                    nsIContent* aChild,
-                                   int32_t aIndexInContainer,
+                                   PRInt32 aIndexInContainer,
                                    nsIContent* aPreviousSibling)
 {
-  uint32_t offset = 0, childOffset = 1;
+  PRUint32 offset = 0, childOffset = 1;
   if (NS_FAILED(nsContentEventHandler::GetFlatTextOffsetOfRange(
                     mRootContent, NODE_FROM(aContainer, aDocument),
                     aIndexInContainer, &offset)))

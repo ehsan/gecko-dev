@@ -68,7 +68,7 @@ private:
   /**
    * Set the object in an error state with the error type being aError.
    */
-  void SetError(int32_t aError);
+  void SetError(PRInt32 aError);
 
   /**
    * Set the object in a success state with the result being the nsISupports

@@ -34,7 +34,7 @@ public:
    */
   void AppendCSSValue(nsIDOMCSSValue* aValue);
 
-  nsIDOMCSSValue* GetItemAt(uint32_t aIndex)
+  nsIDOMCSSValue* GetItemAt(PRUint32 aIndex)
   {
     return mCSSValues.SafeElementAt(aIndex, nullptr);
   }

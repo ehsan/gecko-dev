@@ -78,7 +78,7 @@ SVGFragmentIdentifier::SaveOldZoomAndPan(nsSVGSVGElement *root)
 void 
 SVGFragmentIdentifier::RestoreOldZoomAndPan(nsSVGSVGElement *root)
 {
-  uint16_t oldZoomAndPan = root->GetZoomAndPanProperty();
+  PRUint16 oldZoomAndPan = root->GetZoomAndPanProperty();
   if (oldZoomAndPan != nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_UNKNOWN) {
     root->mEnumAttributes[nsSVGSVGElement::ZOOMANDPAN].SetBaseValue(oldZoomAndPan, root);
   } else if (root->mEnumAttributes[nsSVGSVGElement::ZOOMANDPAN].IsExplicitlySet()) {
@@ -104,7 +104,7 @@ SVGFragmentIdentifier::ProcessSVGViewSpec(const nsAString &aViewSpec,
   const nsAString *zoomAndPanParams = nullptr;
 
   // Each token is a SVGViewAttribute
-  int32_t bracketPos = aViewSpec.FindChar('(');
+  PRInt32 bracketPos = aViewSpec.FindChar('(');
   CharTokenizer<';'>tokenizer(
     Substring(aViewSpec, bracketPos + 1, aViewSpec.Length() - bracketPos - 2));
 

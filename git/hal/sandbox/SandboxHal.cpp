@@ -275,7 +275,7 @@ DisableAlarm()
 }
 
 bool
-SetAlarm(int32_t aSeconds, int32_t aNanoseconds)
+SetAlarm(PRInt32 aSeconds, PRInt32 aNanoseconds)
 {
   NS_RUNTIMEABORT("Alarms can't be programmed from sandboxed contexts.  Yet.");
   return false;

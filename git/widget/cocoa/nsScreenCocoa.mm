@@ -26,7 +26,7 @@ nsScreenCocoa::~nsScreenCocoa ()
 }
 
 NS_IMETHODIMP
-nsScreenCocoa::GetRect(int32_t *outX, int32_t *outY, int32_t *outWidth, int32_t *outHeight)
+nsScreenCocoa::GetRect(PRInt32 *outX, PRInt32 *outY, PRInt32 *outWidth, PRInt32 *outHeight)
 {
   nsIntRect r = nsCocoaUtils::CocoaRectToGeckoRect([mScreen frame]);
 
@@ -39,7 +39,7 @@ nsScreenCocoa::GetRect(int32_t *outX, int32_t *outY, int32_t *outWidth, int32_t 
 }
 
 NS_IMETHODIMP
-nsScreenCocoa::GetAvailRect(int32_t *outX, int32_t *outY, int32_t *outWidth, int32_t *outHeight)
+nsScreenCocoa::GetAvailRect(PRInt32 *outX, PRInt32 *outY, PRInt32 *outWidth, PRInt32 *outHeight)
 {
   nsIntRect r = nsCocoaUtils::CocoaRectToGeckoRect([mScreen visibleFrame]);
 
@@ -52,7 +52,7 @@ nsScreenCocoa::GetAvailRect(int32_t *outX, int32_t *outY, int32_t *outWidth, int
 }
 
 NS_IMETHODIMP
-nsScreenCocoa::GetPixelDepth(int32_t *aPixelDepth)
+nsScreenCocoa::GetPixelDepth(PRInt32 *aPixelDepth)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -66,7 +66,7 @@ nsScreenCocoa::GetPixelDepth(int32_t *aPixelDepth)
 }
 
 NS_IMETHODIMP
-nsScreenCocoa::GetColorDepth(int32_t *aColorDepth)
+nsScreenCocoa::GetColorDepth(PRInt32 *aColorDepth)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 

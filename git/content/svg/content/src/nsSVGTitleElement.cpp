@@ -99,7 +99,7 @@ void
 nsSVGTitleElement::ContentAppended(nsIDocument *aDocument,
                                    nsIContent *aContainer,
                                    nsIContent *aFirstNewContent,
-                                   int32_t aNewIndexInContainer)
+                                   PRInt32 aNewIndexInContainer)
 {
   SendTitleChangeEvent(false);
 }
@@ -108,7 +108,7 @@ void
 nsSVGTitleElement::ContentInserted(nsIDocument *aDocument,
                                    nsIContent *aContainer,
                                    nsIContent *aChild,
-                                   int32_t aIndexInContainer)
+                                   PRInt32 aIndexInContainer)
 {
   SendTitleChangeEvent(false);
 }
@@ -117,7 +117,7 @@ void
 nsSVGTitleElement::ContentRemoved(nsIDocument *aDocument,
                                   nsIContent *aContainer,
                                   nsIContent *aChild,
-                                  int32_t aIndexInContainer,
+                                  PRInt32 aIndexInContainer,
                                   nsIContent *aPreviousSibling)
 {
   SendTitleChangeEvent(false);

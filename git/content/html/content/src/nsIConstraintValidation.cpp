@@ -12,7 +12,7 @@
 #include "nsIFormControl.h"
 #include "nsContentUtils.h"
 
-const uint16_t nsIConstraintValidation::sContentSpecifiedMaxLengthMessage = 256;
+const PRUint16 nsIConstraintValidation::sContentSpecifiedMaxLengthMessage = 256;
 
 nsIConstraintValidation::nsIConstraintValidation()
   : mValidityBitField(0)

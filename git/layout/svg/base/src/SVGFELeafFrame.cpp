@@ -35,7 +35,7 @@ public:
                   nsIFrame*   aPrevInFlow);
 #endif
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return SVGFELeafFrameBase::IsFrameOfType(aFlags & ~(nsIFrame::eSVG));
   }
@@ -56,9 +56,9 @@ public:
    */
   virtual nsIAtom* GetType() const;
 
-  NS_IMETHOD AttributeChanged(int32_t  aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32  aNameSpaceID,
                               nsIAtom* aAttribute,
-                              int32_t  aModType);
+                              PRInt32  aModType);
 
   virtual bool UpdateOverflow() {
     // We don't maintain a visual overflow rect
@@ -103,9 +103,9 @@ SVGFELeafFrame::GetType() const
 }
 
 NS_IMETHODIMP
-SVGFELeafFrame::AttributeChanged(int32_t  aNameSpaceID,
+SVGFELeafFrame::AttributeChanged(PRInt32  aNameSpaceID,
                                  nsIAtom* aAttribute,
-                                 int32_t  aModType)
+                                 PRInt32  aModType)
 {
   nsSVGFE *element = static_cast<nsSVGFE*>(mContent);
   if (element->AttributeAffectsRendering(aNameSpaceID, aAttribute)) {

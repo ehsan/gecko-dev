@@ -6,7 +6,7 @@
 #include <stdio.h>
 
 typedef unsigned nsresult;
-typedef unsigned uint32_t;
+typedef unsigned PRUint32;
 typedef unsigned nsXPCVariant;
 
 
@@ -80,24 +80,24 @@ void docall(foo* f, int i, int j){
 /***************************************************************************/
 #if defined(WIN32)
 
-static uint32_t __stdcall
-invoke_count_words(uint32_t paramCount, nsXPCVariant* s)
+static PRUint32 __stdcall
+invoke_count_words(PRUint32 paramCount, nsXPCVariant* s)
 {
     return paramCount;
 }    
 
 static void __stdcall
-invoke_copy_to_stack(uint32_t* d, uint32_t paramCount, nsXPCVariant* s)
+invoke_copy_to_stack(PRUint32* d, PRUint32 paramCount, nsXPCVariant* s)
 {
-    for(uint32_t i = 0; i < paramCount; i++, d++, s++)
+    for(PRUint32 i = 0; i < paramCount; i++, d++, s++)
     {
-        *((uint32_t*)d) = *((uint32_t*)s);
+        *((PRUint32*)d) = *((PRUint32*)s);
     }
 }
 
 static nsresult __stdcall
-DoInvoke(void* that, uint32_t index,
-         uint32_t paramCount, nsXPCVariant* params)
+DoInvoke(void* that, PRUint32 index,
+         PRUint32 paramCount, nsXPCVariant* params)
 {
     __asm {
         push    params
@@ -124,26 +124,26 @@ DoInvoke(void* that, uint32_t index,
 /***************************************************************************/
 // just Linux_x86 now. Add other later...
 
-static uint32_t 
-invoke_count_words(uint32_t paramCount, nsXPCVariant* s)
+static PRUint32 
+invoke_count_words(PRUint32 paramCount, nsXPCVariant* s)
 {
     return paramCount;
 }    
 
 static void 
-invoke_copy_to_stack(uint32_t* d, uint32_t paramCount, nsXPCVariant* s)
+invoke_copy_to_stack(PRUint32* d, PRUint32 paramCount, nsXPCVariant* s)
 {
-    for(uint32_t i = 0; i < paramCount; i++, d++, s++)
+    for(PRUint32 i = 0; i < paramCount; i++, d++, s++)
     {
-        *((uint32_t*)d) = *((uint32_t*)s);
+        *((PRUint32*)d) = *((PRUint32*)s);
     }
 }
 
 static nsresult
-DoInvoke(void* that, uint32_t index,
-         uint32_t paramCount, nsXPCVariant* params)
+DoInvoke(void* that, PRUint32 index,
+         PRUint32 paramCount, nsXPCVariant* params)
 {
-    uint32_t result;
+    PRUint32 result;
     void* fn_count = invoke_count_words;
     void* fn_copy = invoke_copy_to_stack;
 

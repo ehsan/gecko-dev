@@ -734,11 +734,11 @@ JSObject::putProperty(JSContext *cx, jsid id_,
     return shape;
 }
 
-/* static */ Shape *
-JSObject::changeProperty(JSContext *cx, HandleObject obj, Shape *shape, unsigned attrs, unsigned mask,
+Shape *
+JSObject::changeProperty(JSContext *cx, Shape *shape, unsigned attrs, unsigned mask,
                          PropertyOp getter, StrictPropertyOp setter)
 {
-    JS_ASSERT(obj->nativeContainsNoAllocation(*shape));
+    JS_ASSERT(nativeContainsNoAllocation(*shape));
 
     attrs |= shape->attrs & mask;
 
@@ -746,16 +746,16 @@ JSObject::changeProperty(JSContext *cx, HandleObject obj, Shape *shape, unsigned
     JS_ASSERT(!((attrs ^ shape->attrs) & JSPROP_SHARED) ||
               !(attrs & JSPROP_SHARED));
 
-    types::MarkTypePropertyConfigured(cx, obj, shape->propid());
+    types::MarkTypePropertyConfigured(cx, this, shape->propid());
     if (attrs & (JSPROP_GETTER | JSPROP_SETTER))
-        types::AddTypePropertyId(cx, obj, shape->propid(), types::Type::UnknownType());
+        types::AddTypePropertyId(cx, this, shape->propid(), types::Type::UnknownType());
 
     if (getter == JS_PropertyStub)
         getter = NULL;
     if (setter == JS_StrictPropertyStub)
         setter = NULL;
 
-    if (!CheckCanChangeAttrs(cx, obj, shape, &attrs))
+    if (!CheckCanChangeAttrs(cx, this, shape, &attrs))
         return NULL;
 
     if (shape->attrs == attrs && shape->getter() == getter && shape->setter() == setter)
@@ -767,10 +767,10 @@ JSObject::changeProperty(JSContext *cx, HandleObject obj, Shape *shape, unsigned
      * removeProperty because it will free an allocated shape->slot, and
      * putProperty won't re-allocate it.
      */
-    Shape *newShape = obj->putProperty(cx, shape->propid(), getter, setter, shape->maybeSlot(),
-                                       attrs, shape->flags, shape->maybeShortid());
+    Shape *newShape = putProperty(cx, shape->propid(), getter, setter, shape->maybeSlot(),
+                                  attrs, shape->flags, shape->maybeShortid());
 
-    obj->checkShapeConsistency();
+    checkShapeConsistency();
     return newShape;
 }
 
@@ -1159,6 +1159,28 @@ BaseShape::finalize(FreeOp *fop)
         fop->delete_(table_);
         table_ = NULL;
     }
+}
+
+/* static */ Shape *
+Shape::setExtensibleParents(JSContext *cx, Shape *shape)
+{
+    JS_ASSERT(!shape->inDictionary());
+
+    StackBaseShape base(shape);
+    base.flags |= BaseShape::EXTENSIBLE_PARENTS;
+
+    /* This is only used for Block and Call objects, which have a NULL proto. */
+    return replaceLastProperty(cx, base, NULL, shape);
+}
+
+bool
+Bindings::setExtensibleParents(JSContext *cx)
+{
+    Shape *newShape = Shape::setExtensibleParents(cx, callObjShape_);
+    if (!newShape)
+        return false;
+    callObjShape_ = newShape;
+    return true;
 }
 
 inline

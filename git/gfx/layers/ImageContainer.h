@@ -107,9 +107,9 @@ class BufferRecycleBin {
 public:
   BufferRecycleBin();
 
-  void RecycleBuffer(uint8_t* aBuffer, uint32_t aSize);
+  void RecycleBuffer(PRUint8* aBuffer, PRUint32 aSize);
   // Returns a recycled buffer of the right size, or allocates a new buffer.
-  uint8_t* GetBuffer(uint32_t aSize);
+  PRUint8* GetBuffer(PRUint32 aSize);
 
 private:
   typedef mozilla::Mutex Mutex;
@@ -120,19 +120,19 @@ private:
 
   // We should probably do something to prune this list on a timer so we don't
   // eat excess memory while video is paused...
-  nsTArray<nsAutoArrayPtr<uint8_t> > mRecycledBuffers;
+  nsTArray<nsAutoArrayPtr<PRUint8> > mRecycledBuffers;
   // This is only valid if mRecycledBuffers is non-empty
-  uint32_t mRecycledBufferSize;
+  PRUint32 mRecycledBufferSize;
 };
 
 /**
  * Returns true if aFormat is in the given format array.
  */
 static inline bool
-FormatInList(const ImageFormat* aFormats, uint32_t aNumFormats,
+FormatInList(const ImageFormat* aFormats, PRUint32 aNumFormats,
              ImageFormat aFormat)
 {
-  for (uint32_t i = 0; i < aNumFormats; ++i) {
+  for (PRUint32 i = 0; i < aNumFormats; ++i) {
     if (aFormats[i] == aFormat) {
       return true;
     }
@@ -173,7 +173,7 @@ protected:
   virtual ~ImageFactory() {}
 
   virtual already_AddRefed<Image> CreateImage(const ImageFormat* aFormats,
-                                              uint32_t aNumFormats,
+                                              PRUint32 aNumFormats,
                                               const gfxIntSize &aScaleHint,
                                               BufferRecycleBin *aRecycleBin);
 
@@ -275,7 +275,7 @@ public:
    * when accessing thread-shared state.
    */
   already_AddRefed<Image> CreateImage(const ImageFormat* aFormats,
-                                      uint32_t aNumFormats);
+                                      PRUint32 aNumFormats);
 
   /**
    * Set an Image as the current image to display. The Image must have
@@ -328,7 +328,7 @@ public:
    *
    * Can be called from ay thread.
    */
-  uint64_t GetAsyncContainerID() const;
+  PRUint64 GetAsyncContainerID() const;
 
   /**
    * Returns if the container currently has an image.
@@ -427,7 +427,7 @@ public:
    * Returns the number of images which have been contained in this container
    * and painted at least once.  Can be called from any thread.
    */
-  uint32_t GetPaintCount() {
+  PRUint32 GetPaintCount() {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     return mPaintCount;
   }
@@ -507,7 +507,7 @@ protected:
   // Number of contained images that have been painted at least once.  It's up
   // to the ImageContainer implementation to ensure accesses to this are
   // threadsafe.
-  uint32_t mPaintCount;
+  PRUint32 mPaintCount;
 
   // Time stamp at which the current image was first painted.  It's up to the
   // ImageContainer implementation to ensure accesses to this are threadsafe.
@@ -603,33 +603,22 @@ private:
  * The Image that is rendered is the picture region defined by
  * mPicX, mPicY and mPicSize. The size of the rendered image is
  * mPicSize, not mYSize or mCbCrSize.
- *
- * mYOffset, mYSkip, mCbOffset, mCbSkip, mCrOffset, mCrSkip are added
- * to support various output formats from hardware decoder. m*Offset
- * are the extra left stride and m*Skip are per-pixel skips in the
- * source image.
  */
 class THEBES_API PlanarYCbCrImage : public Image {
 public:
   struct Data {
     // Luminance buffer
-    uint8_t* mYChannel;
-    int32_t mYStride;
+    PRUint8* mYChannel;
+    PRInt32 mYStride;
     gfxIntSize mYSize;
-    int32_t mYOffset;
-    int32_t mYSkip;
     // Chroma buffers
-    uint8_t* mCbChannel;
-    uint8_t* mCrChannel;
-    int32_t mCbCrStride;
+    PRUint8* mCbChannel;
+    PRUint8* mCrChannel;
+    PRInt32 mCbCrStride;
     gfxIntSize mCbCrSize;
-    int32_t mCbOffset;
-    int32_t mCbSkip;
-    int32_t mCrOffset;
-    int32_t mCrSkip;
     // Picture region
-    uint32_t mPicX;
-    uint32_t mPicY;
+    PRUint32 mPicX;
+    PRUint32 mPicY;
     gfxIntSize mPicSize;
     StereoMode mStereoMode;
 
@@ -644,7 +633,7 @@ public:
     MAX_DIMENSION = 16384
   };
 
-  virtual ~PlanarYCbCrImage();
+  ~PlanarYCbCrImage();
 
   /**
    * This makes a copy of the data buffers, in order to support functioning
@@ -665,43 +654,50 @@ public:
   virtual const Data* GetData() { return &mData; }
 
   /**
-   * Return the number of bytes of heap memory used to store this image.
-   */
-  virtual uint32_t GetDataSize() { return mBufferSize; }
-
-  virtual bool IsValid() { return !!mBufferSize; }
-
-  virtual gfxIntSize GetSize() { return mSize; }
-
-  PlanarYCbCrImage(BufferRecycleBin *aRecycleBin);
-
-protected:
-  /**
    * Make a copy of the YCbCr data into local storage.
    *
    * @param aData           Input image data.
+   * @param aYOffset        Pixels to skip between lines in the Y plane.
+   * @param aYSkip          Pixels to skip between pixels in the Y plane.
+   * @param aCbOffset       Pixels to skip between lines in the Cb plane.
+   * @param aCbSkip         Pixels to skip between pixels in the Cb plane.
+   * @param aCrOffset       Pixels to skip between lines in the Cr plane.
+   * @param aCrSkip         Pixels to skip between pixels in the Cr plane.
    */
-  void CopyData(const Data& aData);
+  void CopyData(const Data& aData,
+                PRInt32 aYOffset = 0, PRInt32 aYSkip = 0,
+                PRInt32 aCbOffset = 0, PRInt32 aCbSkip = 0,
+                PRInt32 aCrOffset = 0, PRInt32 aCrSkip = 0);
 
   /**
    * Return a buffer to store image data in.
    * The default implementation returns memory that can
    * be freed wit delete[]
    */
-  virtual uint8_t* AllocateBuffer(uint32_t aSize);
+  virtual PRUint8* AllocateBuffer(PRUint32 aSize);
+
+  /**
+   * Return the number of bytes of heap memory used to store this image.
+   */
+  virtual PRUint32 GetDataSize() { return mBufferSize; }
 
   already_AddRefed<gfxASurface> GetAsSurface();
+
+  virtual gfxIntSize GetSize() { return mSize; }
 
   void SetOffscreenFormat(gfxASurface::gfxImageFormat aFormat) { mOffscreenFormat = aFormat; }
   gfxASurface::gfxImageFormat GetOffscreenFormat() { return mOffscreenFormat; }
 
-  nsAutoArrayPtr<uint8_t> mBuffer;
-  uint32_t mBufferSize;
+  // XXX - not easy to protect these sadly.
+  nsAutoArrayPtr<PRUint8> mBuffer;
+  PRUint32 mBufferSize;
   Data mData;
   gfxIntSize mSize;
   gfxASurface::gfxImageFormat mOffscreenFormat;
   nsCountedRef<nsMainThreadSurfaceRef> mSurface;
   nsRefPtr<BufferRecycleBin> mRecycleBin;
+
+  PlanarYCbCrImage(BufferRecycleBin *aRecycleBin);
 };
 
 /**

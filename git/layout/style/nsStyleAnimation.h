@@ -50,7 +50,7 @@ public:
    * @return true on success, false on failure.
    */
   static bool Add(nsCSSProperty aProperty, Value& aDest,
-                    const Value& aValueToAdd, uint32_t aCount) {
+                    const Value& aValueToAdd, PRUint32 aCount) {
     return AddWeighted(aProperty, 1.0, aDest, aCount, aValueToAdd, aDest);
   }
 
@@ -239,7 +239,7 @@ public:
   private:
     Unit mUnit;
     union {
-      int32_t mInt;
+      PRInt32 mInt;
       nscoord mCoord;
       float mFloat;
       nscolor mColor;
@@ -263,7 +263,7 @@ public:
       return mUnit == eUnit_Null;
     }
 
-    int32_t GetIntValue() const {
+    PRInt32 GetIntValue() const {
       NS_ASSERTION(IsIntUnit(mUnit), "unit mismatch");
       return mValue.mInt;
     }
@@ -315,7 +315,7 @@ public:
     void GetStringValue(nsAString& aBuffer) const {
       NS_ASSERTION(IsStringUnit(mUnit), "unit mismatch");
       aBuffer.Truncate();
-      uint32_t len = NS_strlen(GetBufferValue(mValue.mString));
+      PRUint32 len = NS_strlen(GetBufferValue(mValue.mString));
       mValue.mString->ToString(len, aBuffer);
     }
 
@@ -326,7 +326,7 @@ public:
     }
     Value(const Value& aOther) : mUnit(eUnit_Null) { *this = aOther; }
     enum IntegerConstructorType { IntegerConstructor };
-    Value(int32_t aInt, Unit aUnit, IntegerConstructorType);
+    Value(PRInt32 aInt, Unit aUnit, IntegerConstructorType);
     enum CoordConstructorType { CoordConstructor };
     Value(nscoord aLength, CoordConstructorType);
     enum PercentConstructorType { PercentConstructor };
@@ -341,7 +341,7 @@ public:
     void SetNormalValue();
     void SetAutoValue();
     void SetNoneValue();
-    void SetIntValue(int32_t aInt, Unit aUnit);
+    void SetIntValue(PRInt32 aInt, Unit aUnit);
     void SetCoordValue(nscoord aCoord);
     void SetPercentValue(float aPercent);
     void SetFloatValue(float aFloat);

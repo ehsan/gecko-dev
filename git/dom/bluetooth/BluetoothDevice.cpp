@@ -198,7 +198,7 @@ BluetoothDevice::GetName(nsAString& aName)
 }
 
 NS_IMETHODIMP
-BluetoothDevice::GetDeviceClass(uint32_t* aClass)
+BluetoothDevice::GetDeviceClass(PRUint32* aClass)
 {
   *aClass = mClass;
   return NS_OK;

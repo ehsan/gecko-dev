@@ -57,8 +57,8 @@ public:
    */
   void SetAtAndAfter(Time aTime, const T& aValue)
   {
-    for (int32_t i = mChanges.Length() - 1; i >= 0; --i) {
-      NS_ASSERTION(i == int32_t(mChanges.Length() - 1),
+    for (PRInt32 i = mChanges.Length() - 1; i >= 0; --i) {
+      NS_ASSERTION(i == PRInt32(mChanges.Length() - 1),
                    "Always considering last element of array");
       if (aTime > mChanges[i].mTime) {
         if (mChanges[i].mValue != aValue) {
@@ -104,11 +104,11 @@ public:
     if (mChanges.IsEmpty() || aTime <= mChanges[0].mTime) {
       return mCurrent;
     }
-    int32_t changesLength = mChanges.Length();
+    PRInt32 changesLength = mChanges.Length();
     if (mChanges[changesLength - 1].mTime < aTime) {
       return mChanges[changesLength - 1].mValue;
     }
-    for (uint32_t i = 1; ; ++i) {
+    for (PRUint32 i = 1; ; ++i) {
       if (aTime <= mChanges[i].mTime) {
         NS_ASSERTION(mChanges[i].mValue != mChanges[i - 1].mValue,
                      "Only changed values appear in array");
@@ -138,7 +138,7 @@ public:
       }
       return mCurrent;
     }
-    int32_t changesLength = mChanges.Length();
+    PRInt32 changesLength = mChanges.Length();
     if (mChanges[changesLength - 1].mTime <= aTime) {
       if (aEnd) {
         *aEnd = PR_INT64_MAX;
@@ -149,7 +149,7 @@ public:
       return mChanges[changesLength - 1].mValue;
     }
 
-    for (uint32_t i = 1; ; ++i) {
+    for (PRUint32 i = 1; ; ++i) {
       if (aTime < mChanges[i].mTime) {
         if (aEnd) {
           *aEnd = mChanges[i].mTime;
@@ -168,7 +168,7 @@ public:
    */
   void AdvanceCurrentTime(Time aTime)
   {
-    for (uint32_t i = 0; i < mChanges.Length(); ++i) {
+    for (PRUint32 i = 0; i < mChanges.Length(); ++i) {
       if (aTime < mChanges[i].mTime) {
         mChanges.RemoveElementsAt(0, i);
         return;
@@ -183,7 +183,7 @@ public:
    */
   void InsertTimeAtStart(Time aDelta)
   {
-    for (uint32_t i = 0; i < mChanges.Length(); ++i) {
+    for (PRUint32 i = 0; i < mChanges.Length(); ++i) {
       mChanges[i].mTime += aDelta;
     }
   }
@@ -200,7 +200,7 @@ public:
                  "Negative time not allowed here");
     NS_ASSERTION(&aOther != this, "Can't self-append");
     SetAtAndAfter(aTimeOffset, aOther.mCurrent);
-    for (uint32_t i = 0; i < aOther.mChanges.Length(); ++i) {
+    for (PRUint32 i = 0; i < aOther.mChanges.Length(); ++i) {
       const Entry& e = aOther.mChanges[i];
       SetAtAndAfter(aTimeOffset + e.mTime, e.mValue);
     }

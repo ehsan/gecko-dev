@@ -38,7 +38,7 @@ public:
                                   nsDOMClassInfoExternalConstructorFnc aConstructorFptr,
                                   const nsIID *aProtoChainInterface,
                                   const nsIID **aInterfaces,
-                                  uint32_t aScriptableFlags,
+                                  PRUint32 aScriptableFlags,
                                   bool aHasClassInterface,
                                   const nsCID *aConstructorCID) = 0;
 

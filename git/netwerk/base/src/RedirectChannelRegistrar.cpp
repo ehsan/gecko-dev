@@ -37,7 +37,7 @@ RedirectChannelRegistrar::RedirectChannelRegistrar()
 
 NS_IMETHODIMP
 RedirectChannelRegistrar::RegisterChannel(nsIChannel *channel,
-                                          uint32_t *_retval)
+                                          PRUint32 *_retval)
 {
   mRealChannels.Put(mId, channel);
   *_retval = mId;
@@ -52,7 +52,7 @@ RedirectChannelRegistrar::RegisterChannel(nsIChannel *channel,
 }
 
 NS_IMETHODIMP
-RedirectChannelRegistrar::GetRegisteredChannel(uint32_t id,
+RedirectChannelRegistrar::GetRegisteredChannel(PRUint32 id,
                                                nsIChannel **_retval)
 {
   if (!mRealChannels.Get(id, _retval))
@@ -62,7 +62,7 @@ RedirectChannelRegistrar::GetRegisteredChannel(uint32_t id,
 }
 
 NS_IMETHODIMP
-RedirectChannelRegistrar::LinkChannels(uint32_t id,
+RedirectChannelRegistrar::LinkChannels(PRUint32 id,
                                        nsIParentChannel *channel,
                                        nsIChannel** _retval)
 {
@@ -74,7 +74,7 @@ RedirectChannelRegistrar::LinkChannels(uint32_t id,
 }
 
 NS_IMETHODIMP
-RedirectChannelRegistrar::GetParentChannel(uint32_t id,
+RedirectChannelRegistrar::GetParentChannel(PRUint32 id,
                                            nsIParentChannel **_retval)
 {
   if (!mParentChannels.Get(id, _retval))
@@ -84,7 +84,7 @@ RedirectChannelRegistrar::GetParentChannel(uint32_t id,
 }
 
 NS_IMETHODIMP
-RedirectChannelRegistrar::DeregisterChannels(uint32_t id)
+RedirectChannelRegistrar::DeregisterChannels(PRUint32 id)
 {
   mRealChannels.Remove(id);
   mParentChannels.Remove(id);

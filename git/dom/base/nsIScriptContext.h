@@ -89,7 +89,7 @@ public:
                                   nsIPrincipal *aPrincipal,
                                   nsIPrincipal *aOriginPrincipal,
                                   const char *aURL,
-                                  uint32_t aLineNo,
+                                  PRUint32 aLineNo,
                                   JSVersion aVersion,
                                   nsAString *aRetValue,
                                   bool* aIsUndefined) = 0;
@@ -98,8 +98,8 @@ public:
                                            JSObject* aScopeObject,
                                            nsIPrincipal *aPrincipal,
                                            const char *aURL,
-                                           uint32_t aLineNo,
-                                           uint32_t aVersion,
+                                           PRUint32 aLineNo,
+                                           PRUint32 aVersion,
                                            JS::Value* aRetValue,
                                            bool* aIsUndefined) = 0;
 
@@ -120,11 +120,11 @@ public:
    *
    **/
   virtual nsresult CompileScript(const PRUnichar* aText,
-                                 int32_t aTextLength,
+                                 PRInt32 aTextLength,
                                  nsIPrincipal* aPrincipal,
                                  const char* aURL,
-                                 uint32_t aLineNo,
-                                 uint32_t aVersion,
+                                 PRUint32 aLineNo,
+                                 PRUint32 aVersion,
                                  nsScriptObjectHolder<JSScript>& aScriptObject,
                                  bool aSaveSource = false) = 0;
 
@@ -175,12 +175,12 @@ public:
    * @return NS_OK if the function body was valid and got compiled
    */
   virtual nsresult CompileEventHandler(nsIAtom* aName,
-                                       uint32_t aArgCount,
+                                       PRUint32 aArgCount,
                                        const char** aArgNames,
                                        const nsAString& aBody,
                                        const char* aURL,
-                                       uint32_t aLineNo,
-                                       uint32_t aVersion,
+                                       PRUint32 aLineNo,
+                                       PRUint32 aVersion,
                                        nsScriptObjectHolder<JSObject>& aHandler) = 0;
 
   /**
@@ -234,12 +234,12 @@ public:
    **/
   virtual nsresult CompileFunction(JSObject* aTarget,
                                    const nsACString& aName,
-                                   uint32_t aArgCount,
+                                   PRUint32 aArgCount,
                                    const char** aArgArray,
                                    const nsAString& aBody,
                                    const char* aURL,
-                                   uint32_t aLineNo,
-                                   uint32_t aVersion,
+                                   PRUint32 aLineNo,
+                                   PRUint32 aVersion,
                                    bool aShared,
                                    JSObject** aFunctionObject) = 0;
 

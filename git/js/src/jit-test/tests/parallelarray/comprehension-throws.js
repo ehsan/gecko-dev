@@ -1,13 +1,7 @@
-load(libdir + "asserts.js");
-
+// |jit-test| error: TypeError;
 function buildComprehension() {
   // Throws if elemental fun not callable
-  assertThrowsInstanceOf(function () {
-    var p = new ParallelArray([2,2], undefined);
-  }, TypeError);
-  assertThrowsInstanceOf(function () {
-    var p = new ParallelArray(/x/, /x/);
-  }, TypeError);
+  var p = new ParallelArray([2,2], undefined);
 }
 
 buildComprehension();

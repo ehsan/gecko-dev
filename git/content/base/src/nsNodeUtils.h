@@ -48,9 +48,9 @@ public:
    * @see nsIMutationObserver::AttributeWillChange
    */
   static void AttributeWillChange(mozilla::dom::Element* aElement,
-                                  int32_t aNameSpaceID,
+                                  PRInt32 aNameSpaceID,
                                   nsIAtom* aAttribute,
-                                  int32_t aModType);
+                                  PRInt32 aModType);
 
   /**
    * Send AttributeChanged notifications to nsIMutationObservers.
@@ -61,9 +61,9 @@ public:
    * @see nsIMutationObserver::AttributeChanged
    */
   static void AttributeChanged(mozilla::dom::Element* aElement,
-                               int32_t aNameSpaceID,
+                               PRInt32 aNameSpaceID,
                                nsIAtom* aAttribute,
-                               int32_t aModType);
+                               PRInt32 aModType);
   /**
    * Send AttributeSetToCurrentValue notifications to nsIMutationObservers.
    * @param aElement      Element whose data changed
@@ -72,7 +72,7 @@ public:
    * @see nsIMutationObserver::AttributeSetToCurrentValue
    */
   static void AttributeSetToCurrentValue(mozilla::dom::Element* aElement,
-                                         int32_t aNameSpaceID,
+                                         PRInt32 aNameSpaceID,
                                          nsIAtom* aAttribute);
 
   /**
@@ -84,7 +84,7 @@ public:
    */
   static void ContentAppended(nsIContent* aContainer,
                               nsIContent* aFirstNewContent,
-                              int32_t aNewIndexInContainer);
+                              PRInt32 aNewIndexInContainer);
 
   /**
    * Send ContentInserted notifications to nsIMutationObservers
@@ -95,7 +95,7 @@ public:
    */
   static void ContentInserted(nsINode* aContainer,
                               nsIContent* aChild,
-                              int32_t aIndexInContainer);
+                              PRInt32 aIndexInContainer);
   /**
    * Send ContentRemoved notifications to nsIMutationObservers
    * @param aContainer        Node from which child was removed
@@ -105,7 +105,7 @@ public:
    */
   static void ContentRemoved(nsINode* aContainer,
                              nsIContent* aChild,
-                             int32_t aIndexInContainer,
+                             PRInt32 aIndexInContainer,
                              nsIContent* aPreviousSibling);
   /**
    * Send ParentChainChanged notifications to nsIMutationObservers
@@ -205,7 +205,7 @@ public:
    */
   static nsresult CallUserDataHandlers(nsCOMArray<nsINode> &aNodesWithProperties,
                                        nsIDocument *aOwnerDocument,
-                                       uint16_t aOperation, bool aCloned);
+                                       PRUint16 aOperation, bool aCloned);
 
   /**
    * Helper for the cycle collector to traverse the DOM UserData and

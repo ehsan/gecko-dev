@@ -182,9 +182,8 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
     if (!mLibrary)
 #endif
     {
-        nsresult rv = pluginFile.LoadPlugin(&mLibrary);
-        if (NS_FAILED(rv))
-            return false;
+        DebugOnly<nsresult> rv = pluginFile.LoadPlugin(&mLibrary);
+        NS_ASSERTION(NS_OK == rv, "trouble with mPluginFile");
     }
     NS_ASSERTION(mLibrary, "couldn't open shared object");
 
@@ -672,7 +671,7 @@ PluginModuleChild::QuickExit()
 
 PCrashReporterChild*
 PluginModuleChild::AllocPCrashReporter(mozilla::dom::NativeThreadId* id,
-                                       uint32_t* processType)
+                                       PRUint32* processType)
 {
     return new CrashReporterChild();
 }
@@ -688,7 +687,7 @@ bool
 PluginModuleChild::AnswerPCrashReporterConstructor(
         PCrashReporterChild* actor,
         mozilla::dom::NativeThreadId* id,
-        uint32_t* processType)
+        PRUint32* processType)
 {
 #ifdef MOZ_CRASHREPORTER
     *id = CrashReporter::CurrentThreadId();
@@ -2310,7 +2309,7 @@ void
 PluginModuleChild::ExitedCall()
 {
     NS_ASSERTION(mIncallPumpingStack.Length(), "mismatched entered/exited");
-    uint32_t len = mIncallPumpingStack.Length();
+    PRUint32 len = mIncallPumpingStack.Length();
     const IncallFrame& f = mIncallPumpingStack[len - 1];
     if (f._spinning)
         MessageLoop::current()->SetNestableTasksAllowed(f._savedNestableTasksAllowed);
@@ -2347,7 +2346,7 @@ LRESULT CALLBACK
 PluginModuleChild::NestedInputEventHook(int nCode, WPARAM wParam, LPARAM lParam)
 {
     PluginModuleChild* self = current();
-    uint32_t len = self->mIncallPumpingStack.Length();
+    PRUint32 len = self->mIncallPumpingStack.Length();
     if (nCode >= 0 && len && !self->mIncallPumpingStack[len - 1]._spinning) {
         MessageLoop* loop = MessageLoop::current();
         self->SendProcessNativeEventsInRPCCall();

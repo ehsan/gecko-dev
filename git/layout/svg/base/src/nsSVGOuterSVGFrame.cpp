@@ -54,9 +54,9 @@ static nsSVGMutationObserver sSVGMutationObserver;
 void
 nsSVGMutationObserver::AttributeChanged(nsIDocument* aDocument,
                                         dom::Element* aElement,
-                                        int32_t aNameSpaceID,
+                                        PRInt32 aNameSpaceID,
                                         nsIAtom* aAttribute,
-                                        int32_t aModType)
+                                        PRInt32 aModType)
 {
   if (aNameSpaceID != kNameSpaceID_XML || aAttribute != nsGkAtoms::space) {
     return;
@@ -306,7 +306,7 @@ nsSVGOuterSVGFrame::GetIntrinsicRatio()
 nsSVGOuterSVGFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                                 nsSize aCBSize, nscoord aAvailableWidth,
                                 nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                                uint32_t aFlags)
+                                PRUint32 aFlags)
 {
   if (IsRootOfImage() || IsRootOfReplacedElementSubDoc()) {
     // The embedding element has sized itself using the CSS replaced element
@@ -414,7 +414,7 @@ nsSVGOuterSVGFrame::Reflow(nsPresContext*           aPresContext,
     nsPresContext::AppUnitsToFloatCSSPixels(aReflowState.ComputedWidth()),
     nsPresContext::AppUnitsToFloatCSSPixels(aReflowState.ComputedHeight()));
 
-  uint32_t changeBits = 0;
+  PRUint32 changeBits = 0;
   if (newViewportSize != svgElem->GetViewportSize()) {
     changeBits |= COORD_CONTEXT_CHANGED;
     svgElem->SetViewportSize(newViewportSize);
@@ -576,9 +576,9 @@ DependsOnIntrinsicSize(const nsIFrame* aEmbeddingFrame)
 }
 
 NS_IMETHODIMP
-nsSVGOuterSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
+nsSVGOuterSVGFrame::AttributeChanged(PRInt32  aNameSpaceID,
                                      nsIAtom* aAttribute,
-                                     int32_t  aModType)
+                                     PRInt32  aModType)
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       !(GetStateBits() & (NS_FRAME_FIRST_REFLOW | NS_STATE_SVG_NONDISPLAY_CHILD))) {
@@ -683,7 +683,7 @@ nsSVGOuterSVGFrame::GetType() const
 // nsISVGSVGFrame methods:
 
 void
-nsSVGOuterSVGFrame::NotifyViewportOrTransformChanged(uint32_t aFlags)
+nsSVGOuterSVGFrame::NotifyViewportOrTransformChanged(PRUint32 aFlags)
 {
   NS_ABORT_IF_FALSE(aFlags &&
                     !(aFlags & ~(COORD_CONTEXT_CHANGED | TRANSFORM_CHANGED |
@@ -751,7 +751,7 @@ nsSVGOuterSVGFrame::PaintSVG(nsRenderingContext* aContext,
 
 SVGBBox
 nsSVGOuterSVGFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
-                                        uint32_t aFlags)
+                                        PRUint32 aFlags)
 {
   NS_ASSERTION(GetFirstPrincipalChild()->GetType() ==
                  nsGkAtoms::svgOuterSVGAnonChildFrame &&
@@ -768,7 +768,7 @@ nsSVGOuterSVGFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 // nsSVGContainerFrame methods:
 
 gfxMatrix
-nsSVGOuterSVGFrame::GetCanvasTM(uint32_t aFor)
+nsSVGOuterSVGFrame::GetCanvasTM(PRUint32 aFor)
 {
   if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||

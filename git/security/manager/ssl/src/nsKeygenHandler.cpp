@@ -312,15 +312,15 @@ nsKeygenFormProcessor::Init()
 }
 
 nsresult
-nsKeygenFormProcessor::GetSlot(uint32_t aMechanism, PK11SlotInfo** aSlot)
+nsKeygenFormProcessor::GetSlot(PRUint32 aMechanism, PK11SlotInfo** aSlot)
 {
   return GetSlotWithMechanism(aMechanism,m_ctx,aSlot);
 }
 
 
-uint32_t MapGenMechToAlgoMech(uint32_t mechanism)
+PRUint32 MapGenMechToAlgoMech(PRUint32 mechanism)
 {
-    uint32_t searchMech;
+    PRUint32 searchMech;
 
     /* We are interested in slots based on the ability to perform
        a given algorithm, not on their ability to generate keys usable
@@ -355,7 +355,7 @@ uint32_t MapGenMechToAlgoMech(uint32_t mechanism)
 
 
 nsresult
-GetSlotWithMechanism(uint32_t aMechanism, 
+GetSlotWithMechanism(PRUint32 aMechanism, 
                      nsIInterfaceRequestor *m_ctx,
                      PK11SlotInfo** aSlot)
 {
@@ -365,7 +365,7 @@ GetSlotWithMechanism(uint32_t aMechanism,
     nsITokenDialogs * dialogs;
     PRUnichar *unicodeTokenChosen;
     PK11SlotListElement *slotElement, *tmpSlot;
-    uint32_t numSlots = 0, i = 0;
+    PRUint32 numSlots = 0, i = 0;
     bool canceled;
     nsresult rv = NS_OK;
 
@@ -475,8 +475,8 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
     nsresult rv = NS_ERROR_FAILURE;
     char *keystring = nullptr;
     char *keyparamsString = nullptr, *str = nullptr;
-    uint32_t keyGenMechanism;
-    int32_t primeBits;
+    PRUint32 keyGenMechanism;
+    PRInt32 primeBits;
     PK11SlotInfo *slot = nullptr;
     PK11RSAGenParams rsaParams;
     SECOidTag algTag;

@@ -62,11 +62,11 @@ ReadStrings(nsINIParser &parser, const ReadString *reads)
 struct ReadFlag {
   const char *section;
   const char *key;
-  uint32_t flag;
+  PRUint32 flag;
 };
 
 static void
-ReadFlags(nsINIParser &parser, const ReadFlag *reads, uint32_t *buffer)
+ReadFlags(nsINIParser &parser, const ReadFlag *reads, PRUint32 *buffer)
 {
   nsresult rv;
   char buf[6]; // large enough to hold "false"

@@ -50,7 +50,7 @@ public:
 
     nsCOMPtr<nsISupports> function;
     FunctionType type;
-    int32_t numArgs;
+    PRInt32 numArgs;
   };
 
   /**

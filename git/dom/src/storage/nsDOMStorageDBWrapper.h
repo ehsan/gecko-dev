@@ -90,9 +90,9 @@ public:
          const nsAString& aKey,
          const nsAString& aValue,
          bool aSecure,
-         int32_t aQuota,
+         PRInt32 aQuota,
          bool aExcludeOfflineFromUsage,
-         int32_t* aNewUsage);
+         PRInt32* aNewUsage);
 
   /**
    * Set the secure flag for a key in storage. Does nothing if the key was
@@ -110,7 +110,7 @@ public:
   RemoveKey(DOMStorageImpl* aStorage,
             const nsAString& aKey,
             bool aExcludeOfflineFromUsage,
-            int32_t aKeyUsage);
+            PRInt32 aKeyUsage);
 
   /**
     * Remove all keys belonging to this storage.
@@ -148,13 +148,13 @@ public:
     * Returns usage for a storage using its GetQuotaDomainDBKey() as a key.
     */
   nsresult
-  GetUsage(DOMStorageImpl* aStorage, bool aExcludeOfflineFromUsage, int32_t *aUsage);
+  GetUsage(DOMStorageImpl* aStorage, bool aExcludeOfflineFromUsage, PRInt32 *aUsage);
 
   /**
     * Returns usage of the domain and optionaly by any subdomain.
     */
   nsresult
-  GetUsage(const nsACString& aDomain, bool aIncludeSubDomains, int32_t *aUsage, bool aPrivate);
+  GetUsage(const nsACString& aDomain, bool aIncludeSubDomains, PRInt32 *aUsage, bool aPrivate);
 
   /**
    * Marks the storage as "cached" after the DOMStorageImpl object has loaded

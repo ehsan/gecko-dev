@@ -22,17 +22,17 @@ public:
 
   // Initialize the event manager with audio metadata.  Called before
   // audio begins to get queued or events are dispatched.
-  void Init(uint32_t aChannels, uint32_t aRate);
+  void Init(PRUint32 aChannels, PRUint32 aRate);
 
   // Dispatch pending MozAudioAvailable events in the queue.  Called
   // from the state machine thread.
-  void DispatchPendingEvents(uint64_t aCurrentTime);
+  void DispatchPendingEvents(PRUint64 aCurrentTime);
 
   // Queues audio sample data and re-packages it into equal sized
   // framebuffers.  Called from the audio thread.
   void QueueWrittenAudioData(AudioDataValue* aAudioData,
-                             uint32_t aAudioDataLength,
-                             uint64_t aEndTimeSampleOffset);
+                             PRUint32 aAudioDataLength,
+                             PRUint64 aEndTimeSampleOffset);
 
   // Clears the queue of any existing events.  Called from both the state
   // machine and audio threads.
@@ -41,11 +41,11 @@ public:
   // Fires one last event for any extra samples that didn't fit in a whole
   // framebuffer. This is meant to be called only once when the audio finishes.
   // Called from the state machine thread.
-  void Drain(uint64_t aTime);
+  void Drain(PRUint64 aTime);
 
   // Sets the size of the signal buffer.
   // Called from the main and the state machine thread.
-  void SetSignalBufferLength(uint32_t aLength);
+  void SetSignalBufferLength(PRUint32 aLength);
 
   // Called by the media element to notify the manager that there is a
   // listener on the "MozAudioAvailable" event, and that we need to dispatch
@@ -65,13 +65,13 @@ private:
   nsAutoArrayPtr<float> mSignalBuffer;
 
   // The current size of the signal buffer, may change due to DOM calls.
-  uint32_t mSignalBufferLength;
+  PRUint32 mSignalBufferLength;
 
   // The size of the new signal buffer, may change due to DOM calls.
-  uint32_t mNewSignalBufferLength;
+  PRUint32 mNewSignalBufferLength;
 
   // The position of the first available item in mSignalBuffer
-  uint32_t mSignalBufferPosition;
+  PRUint32 mSignalBufferPosition;
 
   // The MozAudioAvailable events to be dispatched.  This queue is shared
   // between the state machine and audio threads.

@@ -66,7 +66,6 @@ FENNEC_JAVA_FILES = \
   FlowLayout.java \
   FontSizePreference.java \
   FormAssistPopup.java \
-  GeckoAccessibility.java \
   GeckoApplication.java \
   GeckoApp.java \
   GeckoAppShell.java \

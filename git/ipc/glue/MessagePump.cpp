@@ -165,7 +165,7 @@ MessagePump::ScheduleDelayedWork(const base::Time& aDelayedTime)
   delayed_work_time_ = aDelayedTime;
 
   base::TimeDelta delay = aDelayedTime - base::Time::Now();
-  uint32_t delayMS = uint32_t(delay.InMilliseconds());
+  PRUint32 delayMS = PRUint32(delay.InMilliseconds());
   mDelayedWorkTimer->InitWithCallback(mDoWorkEvent, delayMS,
                                       nsITimer::TYPE_ONE_SHOT);
 }

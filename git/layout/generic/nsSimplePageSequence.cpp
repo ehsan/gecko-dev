@@ -172,7 +172,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     mPageData->mPrintSettings->GetMarginInTwips(marginTwips);
     mMargin = aPresContext->CSSTwipsToAppUnits(marginTwips + unwriteableTwips);
 
-    int16_t printType;
+    PRInt16 printType;
     mPageData->mPrintSettings->GetPrintRange(&printType);
     mPrintRangeType = printType;
 
@@ -180,7 +180,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     mPageData->mPrintSettings->GetEdgeInTwips(edgeTwips);
 
     // sanity check the values. three inches are sometimes needed
-    int32_t inchInTwips = NS_INCHES_TO_INT_TWIPS(3.0);
+    PRInt32 inchInTwips = NS_INCHES_TO_INT_TWIPS(3.0);
     edgeTwips.top    = clamped(edgeTwips.top,    0, inchInTwips);
     edgeTwips.bottom = clamped(edgeTwips.bottom, 0, inchInTwips);
     edgeTwips.left   = clamped(edgeTwips.left,   0, inchInTwips);
@@ -209,7 +209,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
   // Compute the size of each page and the x coordinate that each page will
   // be placed at
   nscoord extraThreshold = NS_MAX(pageSize.width, pageSize.height)/10;
-  int32_t gapInTwips = Preferences::GetInt("print.print_extra_margin");
+  PRInt32 gapInTwips = Preferences::GetInt("print.print_extra_margin");
   gapInTwips = NS_MAX(0, gapInTwips);
 
   nscoord extraGap = aPresContext->CSSTwipsToAppUnits(gapInTwips);
@@ -286,13 +286,13 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
 
   // Get Total Page Count
   nsIFrame* page;
-  int32_t pageTot = 0;
+  PRInt32 pageTot = 0;
   for (page = mFrames.FirstChild(); page; page = page->GetNextSibling()) {
     pageTot++;
   }
 
   // Set Page Number Info
-  int32_t pageNum = 1;
+  PRInt32 pageNum = 1;
   for (page = mFrames.FirstChild(); page; page = page->GetNextSibling()) {
     nsPageFrame * pf = static_cast<nsPageFrame*>(page);
     if (pf != nullptr) {
@@ -351,7 +351,7 @@ nsSimplePageSequenceFrame::GetFrameName(nsAString& aResult) const
 //== Asynch Printing
 //====================================================================
 NS_IMETHODIMP
-nsSimplePageSequenceFrame::GetCurrentPageNum(int32_t* aPageNum)
+nsSimplePageSequenceFrame::GetCurrentPageNum(PRInt32* aPageNum)
 {
   NS_ENSURE_ARG_POINTER(aPageNum);
 
@@ -360,7 +360,7 @@ nsSimplePageSequenceFrame::GetCurrentPageNum(int32_t* aPageNum)
 }
 
 NS_IMETHODIMP
-nsSimplePageSequenceFrame::GetNumPages(int32_t* aNumPages)
+nsSimplePageSequenceFrame::GetNumPages(PRInt32* aNumPages)
 {
   NS_ENSURE_ARG_POINTER(aNumPages);
 
@@ -378,7 +378,7 @@ nsSimplePageSequenceFrame::IsDoingPrintRange(bool* aDoing)
 }
 
 NS_IMETHODIMP
-nsSimplePageSequenceFrame::GetPrintRange(int32_t* aFromPage, int32_t* aToPage)
+nsSimplePageSequenceFrame::GetPrintRange(PRInt32* aFromPage, PRInt32* aToPage)
 {
   NS_ENSURE_ARG_POINTER(aFromPage);
   NS_ENSURE_ARG_POINTER(aToPage);
@@ -436,7 +436,7 @@ nsSimplePageSequenceFrame::StartPrint(nsPresContext*   aPresContext,
 
   // If printing a range of pages make sure at least the starting page
   // number is valid
-  int32_t totalPages = mFrames.GetLength();
+  PRInt32 totalPages = mFrames.GetLength();
 
   if (mDoingPageRange) {
     if (mFromPageNum > totalPages) {
@@ -456,7 +456,7 @@ nsSimplePageSequenceFrame::StartPrint(nsPresContext*   aPresContext,
     // we must make sure that the page is sized correctly before printing.
     nscoord height = aPresContext->GetPageSize().height;
 
-    int32_t pageNum = 1;
+    PRInt32 pageNum = 1;
     nscoord y = 0;//mMargin.top;
 
     for (nsIFrame* page = mFrames.FirstChild(); page;
@@ -527,13 +527,13 @@ nsSimplePageSequenceFrame::PrintNextPage()
       mCurrentPageFrame = nullptr;
       return NS_OK;
     } else {
-      int32_t length = mPageRanges.Length();
+      PRInt32 length = mPageRanges.Length();
     
       // Page ranges are pairs (start, end)
       if (length && (length % 2 == 0)) {
         mPrintThisPage = false;
       
-        int32_t i;
+        PRInt32 i;
         for (i = 0; i < length; i += 2) {          
           if (mPageRanges[i] <= mPageNum && mPageNum <= mPageRanges[i+1]) {
             mPrintThisPage = true;
@@ -584,7 +584,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
     pf->SetPageNumInfo(mPageNum, mTotalPages);
     pf->SetSharedPageData(mPageData);
 
-    int32_t printedPageNum = 1;
+    PRInt32 printedPageNum = 1;
     while (continuePrinting) {
       if (PresContext()->IsRootPaginatedDocument()) {
         PR_PL(("\n"));

@@ -425,7 +425,7 @@ private:
     };
     gfx::SharedDIBWin mSharedSurfaceDib;
     struct {
-      uint16_t        doublePass;
+      PRUint16        doublePass;
       HDC             hdc;
       HBITMAP         bmp;
     } mAlphaExtract;

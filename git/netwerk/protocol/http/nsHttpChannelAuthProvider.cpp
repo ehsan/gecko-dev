@@ -72,7 +72,7 @@ nsHttpChannelAuthProvider::Init(nsIHttpAuthenticableChannel *channel)
 }
 
 NS_IMETHODIMP
-nsHttpChannelAuthProvider::ProcessAuthentication(uint32_t httpStatus,
+nsHttpChannelAuthProvider::ProcessAuthentication(PRUint32 httpStatus,
                                                  bool     SSLConnectFailed)
 {
     LOG(("nsHttpChannelAuthProvider::ProcessAuthentication "
@@ -92,7 +92,7 @@ nsHttpChannelAuthProvider::ProcessAuthentication(uint32_t httpStatus,
         if (!mProxyInfo) return NS_ERROR_NO_INTERFACE;
     }
 
-    uint32_t loadFlags;
+    PRUint32 loadFlags;
     rv = mAuthChannel->GetLoadFlags(&loadFlags);
     if (NS_FAILED(rv)) return rv;
 
@@ -166,7 +166,7 @@ nsHttpChannelAuthProvider::AddAuthorizationHeaders()
         if (!mProxyInfo) return NS_ERROR_NO_INTERFACE;
     }
 
-    uint32_t loadFlags;
+    PRUint32 loadFlags;
     rv = mAuthChannel->GetLoadFlags(&loadFlags);
     if (NS_FAILED(rv)) return rv;
 
@@ -277,7 +277,7 @@ ParseUserDomain(PRUnichar *buf,
 // helper function for setting identity from raw user:pass
 static void
 SetIdent(nsHttpAuthIdentity &ident,
-         uint32_t authFlags,
+         PRUint32 authFlags,
          PRUnichar *userBuf,
          PRUnichar *passBuf)
 {
@@ -298,7 +298,7 @@ GetAuthPrompt(nsIInterfaceRequestor *ifreq, bool proxyAuth,
     if (!ifreq)
         return;
 
-    uint32_t promptReason;
+    PRUint32 promptReason;
     if (proxyAuth)
         promptReason = nsIAuthPromptProvider::PROMPT_PROXY;
     else
@@ -319,7 +319,7 @@ nsHttpChannelAuthProvider::GenCredsAndSetEntry(nsIHttpAuthenticator *auth,
                                                bool                  proxyAuth,
                                                const char           *scheme,
                                                const char           *host,
-                                               int32_t               port,
+                                               PRInt32               port,
                                                const char           *directory,
                                                const char           *realm,
                                                const char           *challenge,
@@ -328,7 +328,7 @@ nsHttpChannelAuthProvider::GenCredsAndSetEntry(nsIHttpAuthenticator *auth,
                                                char                    **result)
 {
     nsresult rv;
-    uint32_t authFlags;
+    PRUint32 authFlags;
 
     rv = auth->GetAuthFlags(&authFlags);
     if (NS_FAILED(rv)) return rv;
@@ -346,7 +346,7 @@ nsHttpChannelAuthProvider::GenCredsAndSetEntry(nsIHttpAuthenticator *auth,
         continuationState = &mAuthContinuationState;
     }
 
-    uint32_t generateFlags;
+    PRUint32 generateFlags;
     rv = auth->GenerateCredentials(mAuthChannel,
                                    challenge,
                                    proxyAuth,
@@ -422,7 +422,7 @@ nsHttpChannelAuthProvider::PrepareForAuthentication(bool proxyAuth)
     if (NS_FAILED(rv))
         return rv;
 
-    uint32_t precedingAuthFlags;
+    PRUint32 precedingAuthFlags;
     rv = precedingAuth->GetAuthFlags(&precedingAuthFlags);
     if (NS_FAILED(rv))
         return rv;
@@ -452,7 +452,7 @@ nsHttpChannelAuthProvider::AuthModuleRequiresCanonicalName(nsISupports *state)
     if (!module)
         return false;
 
-    uint32_t flags;
+    PRUint32 flags;
     if (NS_FAILED(module->GetModuleProperties(&flags)))
         return false;
 
@@ -596,7 +596,7 @@ nsresult
 nsHttpChannelAuthProvider::GetAuthorizationMembers(bool                 proxyAuth,
                                                    nsCSubstring&        scheme,
                                                    const char*&         host,
-                                                   int32_t&             port,
+                                                   PRInt32&             port,
                                                    nsCSubstring&        path,
                                                    nsHttpAuthIdentity*& ident,
                                                    nsISupports**&       continuationState)
@@ -644,7 +644,7 @@ nsHttpChannelAuthProvider::GetCredentialsForChallenge(const char *challenge,
     // this getter never fails
     nsHttpAuthCache *authCache = gHttpHandler->AuthCache();
 
-    uint32_t authFlags;
+    PRUint32 authFlags;
     nsresult rv = auth->GetAuthFlags(&authFlags);
     if (NS_FAILED(rv)) return rv;
 
@@ -666,7 +666,7 @@ nsHttpChannelAuthProvider::GetCredentialsForChallenge(const char *challenge,
     // we're authenticating against a proxy
     // or a webserver
     const char *host;
-    int32_t port;
+    PRInt32 port;
     nsHttpAuthIdentity *ident;
     nsCAutoString path, scheme;
     bool identFromURI = false;
@@ -752,7 +752,7 @@ nsHttpChannelAuthProvider::GetCredentialsForChallenge(const char *challenge,
         }
 
         if (!entry && ident->IsEmpty()) {
-            uint32_t level = nsIAuthPrompt2::LEVEL_NONE;
+            PRUint32 level = nsIAuthPrompt2::LEVEL_NONE;
             if (mUsingSSL)
                 level = nsIAuthPrompt2::LEVEL_SECURE;
             else if (authFlags & nsIHttpAuthenticator::IDENTITY_ENCRYPTED)
@@ -841,7 +841,7 @@ nsHttpChannelAuthProvider::GetAuthenticator(const char            *challenge,
 }
 
 void
-nsHttpChannelAuthProvider::GetIdentityFromURI(uint32_t            authFlags,
+nsHttpChannelAuthProvider::GetIdentityFromURI(PRUint32            authFlags,
                                               nsHttpAuthIdentity &ident)
 {
     LOG(("nsHttpChannelAuthProvider::GetIdentityFromURI [this=%p channel=%p]\n",
@@ -912,27 +912,27 @@ nsHttpChannelAuthProvider::ParseRealm(const char *challenge,
 
 class nsHTTPAuthInformation : public nsAuthInformationHolder {
 public:
-    nsHTTPAuthInformation(uint32_t aFlags, const nsString& aRealm,
+    nsHTTPAuthInformation(PRUint32 aFlags, const nsString& aRealm,
                           const nsCString& aAuthType)
         : nsAuthInformationHolder(aFlags, aRealm, aAuthType) {}
 
-    void SetToHttpAuthIdentity(uint32_t authFlags,
+    void SetToHttpAuthIdentity(PRUint32 authFlags,
                                nsHttpAuthIdentity& identity);
 };
 
 void
-nsHTTPAuthInformation::SetToHttpAuthIdentity(uint32_t authFlags,
+nsHTTPAuthInformation::SetToHttpAuthIdentity(PRUint32 authFlags,
                                              nsHttpAuthIdentity& identity)
 {
     identity.Set(Domain().get(), User().get(), Password().get());
 }
 
 nsresult
-nsHttpChannelAuthProvider::PromptForIdentity(uint32_t            level,
+nsHttpChannelAuthProvider::PromptForIdentity(PRUint32            level,
                                              bool                proxyAuth,
                                              const char         *realm,
                                              const char         *authType,
-                                             uint32_t            authFlags,
+                                             PRUint32            authFlags,
                                              nsHttpAuthIdentity &ident)
 {
     LOG(("nsHttpChannelAuthProvider::PromptForIdentity [this=%p channel=%p]\n",
@@ -962,7 +962,7 @@ nsHttpChannelAuthProvider::PromptForIdentity(uint32_t            level,
     NS_ConvertASCIItoUTF16 realmU(realm);
 
     // prompt the user...
-    uint32_t promptFlags = 0;
+    PRUint32 promptFlags = 0;
     if (proxyAuth)
     {
         promptFlags |= nsIAuthInformation::AUTH_PROXY;
@@ -1031,7 +1031,7 @@ NS_IMETHODIMP nsHttpChannelAuthProvider::OnAuthAvailable(nsISupports *aContext,
     nsresult rv;
 
     const char *host;
-    int32_t port;
+    PRInt32 port;
     nsHttpAuthIdentity *ident;
     nsCAutoString path, scheme;
     nsISupports **continuationState;
@@ -1164,7 +1164,7 @@ nsHttpChannelAuthProvider::ConfirmAuth(const nsString &bundleKey,
     //   2) we're not a toplevel channel
     //   3) the userpass length is less than the "phishy" threshold
 
-    uint32_t loadFlags;
+    PRUint32 loadFlags;
     nsresult rv = mAuthChannel->GetLoadFlags(&loadFlags);
     if (NS_FAILED(rv))
         return true;
@@ -1232,7 +1232,7 @@ nsHttpChannelAuthProvider::ConfirmAuth(const nsString &bundleKey,
 
     bool confirmed;
     if (doYesNoPrompt) {
-        int32_t choice;
+        PRInt32 choice;
         // The actual value is irrelevant but we shouldn't be handing out
         // malformed JSBools to XPConnect.
         bool checkState = false;
@@ -1260,7 +1260,7 @@ nsHttpChannelAuthProvider::SetAuthorizationHeader(nsHttpAuthCache    *authCache,
                                                   nsHttpAtom          header,
                                                   const char         *scheme,
                                                   const char         *host,
-                                                  int32_t             port,
+                                                  PRInt32             port,
                                                   const char         *path,
                                                   nsHttpAuthIdentity &ident)
 {

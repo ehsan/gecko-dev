@@ -31,7 +31,7 @@ public:
   NullHttpTransaction(nsHttpConnectionInfo *ci,
                       nsIInterfaceRequestor *callbacks,
                       nsIEventTarget *target,
-                      uint8_t caps);
+                      PRUint8 caps);
   ~NullHttpTransaction();
 
   nsHttpConnectionInfo *ConnectionInfo() { return mConnectionInfo; }
@@ -42,7 +42,7 @@ public:
 private:
 
   nsresult mStatus;
-  uint8_t  mCaps;
+  PRUint8  mCaps;
   nsRefPtr<nsAHttpConnection> mConnection;
   nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
   nsCOMPtr<nsIEventTarget> mEventTarget;

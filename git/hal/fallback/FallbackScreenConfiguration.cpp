@@ -31,7 +31,7 @@ GetCurrentScreenConfiguration(hal::ScreenConfiguration* aScreenConfiguration)
   }
 
   nsIntRect rect;
-  int32_t colorDepth, pixelDepth;
+  PRInt32 colorDepth, pixelDepth;
   dom::ScreenOrientation orientation;
   nsCOMPtr<nsIScreen> screen;
 

@@ -54,7 +54,7 @@ nsPopupBoxObject::HidePopup()
 NS_IMETHODIMP
 nsPopupBoxObject::ShowPopup(nsIDOMElement* aAnchorElement,
                             nsIDOMElement* aPopupElement,
-                            int32_t aXPos, int32_t aYPos,
+                            PRInt32 aXPos, PRInt32 aYPos,
                             const PRUnichar *aPopupType,
                             const PRUnichar *aAnchorAlignment,
                             const PRUnichar *aPopupAlignment)
@@ -78,7 +78,7 @@ nsPopupBoxObject::ShowPopup(nsIDOMElement* aAnchorElement,
 NS_IMETHODIMP
 nsPopupBoxObject::OpenPopup(nsIDOMElement* aAnchorElement,
                             const nsAString& aPosition,
-                            int32_t aXPos, int32_t aYPos,
+                            PRInt32 aXPos, PRInt32 aYPos,
                             bool aIsContextMenu,
                             bool aAttributesOverride,
                             nsIDOMEvent* aTriggerEvent)
@@ -94,7 +94,7 @@ nsPopupBoxObject::OpenPopup(nsIDOMElement* aAnchorElement,
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::OpenPopupAtScreen(int32_t aXPos, int32_t aYPos,
+nsPopupBoxObject::OpenPopupAtScreen(PRInt32 aXPos, PRInt32 aYPos,
                                     bool aIsContextMenu,
                                     nsIDOMEvent* aTriggerEvent)
 {
@@ -105,7 +105,7 @@ nsPopupBoxObject::OpenPopupAtScreen(int32_t aXPos, int32_t aYPos,
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::MoveTo(int32_t aLeft, int32_t aTop)
+nsPopupBoxObject::MoveTo(PRInt32 aLeft, PRInt32 aTop)
 {
   nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(false));
   if (menuPopupFrame) {
@@ -116,7 +116,7 @@ nsPopupBoxObject::MoveTo(int32_t aLeft, int32_t aTop)
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::SizeTo(int32_t aWidth, int32_t aHeight)
+nsPopupBoxObject::SizeTo(PRInt32 aWidth, PRInt32 aHeight)
 {
   if (!mContent)
     return NS_OK;
@@ -162,7 +162,7 @@ nsPopupBoxObject::EnableRollup(bool aShouldRollup)
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::SetConsumeRollupEvent(uint32_t aConsume)
+nsPopupBoxObject::SetConsumeRollupEvent(PRUint32 aConsume)
 {
   nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(false));
   if (menuPopupFrame) {
@@ -273,7 +273,7 @@ nsPopupBoxObject::GetOuterScreenRect(nsIDOMClientRect** aRect)
       nsIntRect screenRect;
       widget->GetScreenBounds(screenRect);
 
-      int32_t pp = menuPopupFrame->PresContext()->AppUnitsPerDevPixel();
+      PRInt32 pp = menuPopupFrame->PresContext()->AppUnitsPerDevPixel();
       rect->SetLayoutRect(screenRect.ToAppUnits(pp));
     }
   }

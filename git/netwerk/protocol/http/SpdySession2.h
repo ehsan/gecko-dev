@@ -37,10 +37,10 @@ public:
   NS_DECL_NSAHTTPSEGMENTREADER
   NS_DECL_NSAHTTPSEGMENTWRITER
 
-  SpdySession2(nsAHttpTransaction *, nsISocketTransport *, int32_t);
+  SpdySession2(nsAHttpTransaction *, nsISocketTransport *, PRInt32);
   ~SpdySession2();
 
-  bool AddStream(nsAHttpTransaction *, int32_t);
+  bool AddStream(nsAHttpTransaction *, PRInt32);
   bool CanReuse() { return !mShouldGoAway && !mClosed; }
   bool RoomForMoreStreams();
 
@@ -50,13 +50,13 @@ public:
   // Idle time represents time since "goodput".. e.g. a data or header frame
   PRIntervalTime IdleTime();
 
-  uint32_t RegisterStreamID(SpdyStream2 *);
+  PRUint32 RegisterStreamID(SpdyStream2 *);
 
-  const static uint8_t kFlag_Control   = 0x80;
+  const static PRUint8 kFlag_Control   = 0x80;
 
-  const static uint8_t kFlag_Data_FIN  = 0x01;
-  const static uint8_t kFlag_Data_UNI  = 0x02;
-  const static uint8_t kFlag_Data_ZLIB = 0x02;
+  const static PRUint8 kFlag_Data_FIN  = 0x01;
+  const static PRUint8 kFlag_Data_UNI  = 0x02;
+  const static PRUint8 kFlag_Data_ZLIB = 0x02;
   
   // The protocol document for v2 specifies that the
   // highest value (3) is the highest priority, but in
@@ -67,10 +67,10 @@ public:
   // GetLowestPriority() and GetHighestPriority() in spdy_framer.h of
   // chromium source.
 
-  const static uint8_t kPri00   = 0 << 6; // highest
-  const static uint8_t kPri01   = 1 << 6;
-  const static uint8_t kPri02   = 2 << 6;
-  const static uint8_t kPri03   = 3 << 6; // lowest
+  const static PRUint8 kPri00   = 0 << 6; // highest
+  const static PRUint8 kPri01   = 1 << 6;
+  const static PRUint8 kPri02   = 2 << 6;
+  const static PRUint8 kPri03   = 3 << 6; // lowest
 
   enum
   {
@@ -114,20 +114,20 @@ public:
   // but if it needs to grow for huge headers it can do so dynamically.
   // About 1% of requests to SPDY google services seem to be > 1000
   // with all less than 2000.
-  const static uint32_t kDefaultBufferSize = 2048;
+  const static PRUint32 kDefaultBufferSize = 2048;
 
   // kDefaultQueueSize must be >= other queue size constants
-  const static uint32_t kDefaultQueueSize =  16384;
-  const static uint32_t kQueueMinimumCleanup = 8192;
-  const static uint32_t kQueueTailRoom    =  4096;
-  const static uint32_t kQueueReserved    =  1024;
+  const static PRUint32 kDefaultQueueSize =  16384;
+  const static PRUint32 kQueueMinimumCleanup = 8192;
+  const static PRUint32 kQueueTailRoom    =  4096;
+  const static PRUint32 kQueueReserved    =  1024;
 
-  const static uint32_t kDefaultMaxConcurrent = 100;
-  const static uint32_t kMaxStreamID = 0x7800000;
+  const static PRUint32 kDefaultMaxConcurrent = 100;
+  const static PRUint32 kMaxStreamID = 0x7800000;
   
   // This is a sentinel for a deleted stream. It is not a valid
   // 31 bit stream ID.
-  const static uint32_t kDeadStreamID = 0xffffdead;
+  const static PRUint32 kDeadStreamID = 0xffffdead;
   
   static nsresult HandleSynStream(SpdySession2 *);
   static nsresult HandleSynReply(SpdySession2 *);
@@ -140,11 +140,11 @@ public:
   static nsresult HandleWindowUpdate(SpdySession2 *);
 
   static void EnsureBuffer(nsAutoArrayPtr<char> &,
-                           uint32_t, uint32_t, uint32_t &);
+                           PRUint32, PRUint32, PRUint32 &);
 
   // For writing the SPDY data stream to LOG4
   static void LogIO(SpdySession2 *, SpdyStream2 *, const char *,
-                    const char *, uint32_t);
+                    const char *, PRUint32);
 
   // an overload of nsAHttpConnection
   void TransactionHasDataToWrite(nsAHttpTransaction *);
@@ -153,7 +153,7 @@ public:
   void TransactionHasDataToWrite(SpdyStream2 *);
 
   // an overload of nsAHttpSegementReader
-  virtual nsresult CommitToSegmentSize(uint32_t size);
+  virtual nsresult CommitToSegmentSize(PRUint32 size);
   
   void     PrintDiagnostics (nsCString &log);
 
@@ -170,17 +170,17 @@ private:
 
   void        DeterminePingThreshold();
   nsresult    HandleSynReplyForValidStream();
-  uint32_t    GetWriteQueueSize();
+  PRUint32    GetWriteQueueSize();
   void        ChangeDownstreamState(enum stateType);
   void        ResetDownstreamState();
-  nsresult    DownstreamUncompress(char *, uint32_t);
+  nsresult    DownstreamUncompress(char *, PRUint32);
   void        zlibInit();
   nsresult    FindHeader(nsCString, nsDependentCSubstring &);
   nsresult    ConvertHeaders(nsDependentCSubstring &,
                              nsDependentCSubstring &);
-  void        GeneratePing(uint32_t);
+  void        GeneratePing(PRUint32);
   void        ClearPing(bool);
-  void        GenerateRstStream(uint32_t, uint32_t);
+  void        GenerateRstStream(PRUint32, PRUint32);
   void        GenerateGoAway();
   void        CleanupStream(SpdyStream2 *, nsresult, rstReason);
   void        CloseStream(SpdyStream2 *, nsresult);
@@ -191,13 +191,13 @@ private:
   bool        RoomForMoreConcurrent();
   void        ActivateStream(SpdyStream2 *);
   void        ProcessPending();
-  nsresult    SetInputFrameDataStream(uint32_t);
-  bool        VerifyStream(SpdyStream2 *, uint32_t);
+  nsresult    SetInputFrameDataStream(PRUint32);
+  bool        VerifyStream(SpdyStream2 *, PRUint32);
   void        SetNeedsCleanup();
 
   // a wrapper for all calls to the nshttpconnection level segment writer. Used
   // to track network I/O for timeout purposes
-  nsresult   NetworkRead(nsAHttpSegmentWriter *, char *, uint32_t, uint32_t *);
+  nsresult   NetworkRead(nsAHttpSegmentWriter *, char *, PRUint32, PRUint32 *);
   
   static PLDHashOperator ShutdownEnumerator(nsAHttpTransaction *,
                                             nsAutoPtr<SpdyStream2> &,
@@ -217,9 +217,9 @@ private:
   nsAHttpSegmentReader       *mSegmentReader;
   nsAHttpSegmentWriter       *mSegmentWriter;
 
-  uint32_t          mSendingChunkSize;        /* the transmission chunk size */
-  uint32_t          mNextStreamID;            /* 24 bits */
-  uint32_t          mConcurrentHighWater;     /* max parallelism on session */
+  PRUint32          mSendingChunkSize;        /* the transmission chunk size */
+  PRUint32          mNextStreamID;            /* 24 bits */
+  PRUint32          mConcurrentHighWater;     /* max parallelism on session */
 
   stateType         mDownstreamState; /* in frame, between frames, etc..  */
 
@@ -250,15 +250,15 @@ private:
 
   // mInputFrameBuffer is used to store received control packets and the 8 bytes
   // of header on data packets
-  uint32_t             mInputFrameBufferSize;
-  uint32_t             mInputFrameBufferUsed;
+  PRUint32             mInputFrameBufferSize;
+  PRUint32             mInputFrameBufferUsed;
   nsAutoArrayPtr<char> mInputFrameBuffer;
   
   // mInputFrameDataSize/Read are used for tracking the amount of data consumed
   // in a data frame. the data itself is not buffered in spdy
   // The frame size is mInputFrameDataSize + the constant 8 byte header
-  uint32_t             mInputFrameDataSize;
-  uint32_t             mInputFrameDataRead;
+  PRUint32             mInputFrameDataSize;
+  PRUint32             mInputFrameDataRead;
   bool                 mInputFrameDataLast; // This frame was marked FIN
 
   // When a frame has been received that is addressed to a particular stream
@@ -274,22 +274,22 @@ private:
   SpdyStream2          *mNeedsCleanup;
 
   // The CONTROL_TYPE value for a control frame
-  uint32_t             mFrameControlType;
+  PRUint32             mFrameControlType;
 
   // This reason code in the last processed RESET frame
-  uint32_t             mDownstreamRstReason;
+  PRUint32             mDownstreamRstReason;
 
   // These are used for decompressing downstream spdy response headers
   // This is done at the session level because sometimes the stream
   // has already been canceled but the decompression still must happen
   // to keep the zlib state correct for the next state of headers.
-  uint32_t             mDecompressBufferSize;
-  uint32_t             mDecompressBufferUsed;
+  PRUint32             mDecompressBufferSize;
+  PRUint32             mDecompressBufferUsed;
   nsAutoArrayPtr<char> mDecompressBuffer;
 
   // for the conversion of downstream http headers into spdy formatted headers
   nsCString            mFlatHTTPResponseHeaders;
-  uint32_t             mFlatHTTPResponseHeadersOut;
+  PRUint32             mFlatHTTPResponseHeadersOut;
 
   // when set, the session will go away when it reaches 0 streams. This flag
   // is set when: the stream IDs are running out (at either the client or the
@@ -306,36 +306,36 @@ private:
 
   // If a GoAway message was received this is the ID of the last valid
   // stream. 0 otherwise. (0 is never a valid stream id.)
-  uint32_t             mGoAwayID;
+  PRUint32             mGoAwayID;
 
   // The limit on number of concurrent streams for this session. Normally it
   // is basically unlimited, but the SETTINGS control message from the
   // server might bring it down.
-  uint32_t             mMaxConcurrent;
+  PRUint32             mMaxConcurrent;
 
   // The actual number of concurrent streams at this moment. Generally below
   // mMaxConcurrent, but the max can be lowered in real time to a value
   // below the current value
-  uint32_t             mConcurrent;
+  PRUint32             mConcurrent;
 
   // The number of server initiated SYN-STREAMS, tracked for telemetry
-  uint32_t             mServerPushedResources;
+  PRUint32             mServerPushedResources;
 
   // This is a output queue of bytes ready to be written to the SSL stream.
   // When that streams returns WOULD_BLOCK on direct write the bytes get
   // coalesced together here. This results in larger writes to the SSL layer.
   // The buffer is not dynamically grown to accomodate stream writes, but
   // does expand to accept infallible session wide frames like GoAway and RST.
-  uint32_t             mOutputQueueSize;
-  uint32_t             mOutputQueueUsed;
-  uint32_t             mOutputQueueSent;
+  PRUint32             mOutputQueueSize;
+  PRUint32             mOutputQueueUsed;
+  PRUint32             mOutputQueueSent;
   nsAutoArrayPtr<char> mOutputQueueBuffer;
 
   PRIntervalTime       mPingThreshold;
   PRIntervalTime       mLastReadEpoch;     // used for ping timeouts
   PRIntervalTime       mLastDataReadEpoch; // used for IdleTime()
   PRIntervalTime       mPingSentEpoch;
-  uint32_t             mNextPingID;
+  PRUint32             mNextPingID;
   bool                 mPingThresholdExperiment;
 };
 

@@ -80,7 +80,7 @@ WyciwygChannelParent::RecvInit(const IPC::URI& aURI)
 
 bool
 WyciwygChannelParent::RecvAsyncOpen(const IPC::URI& aOriginal,
-                                    const uint32_t& aLoadFlags,
+                                    const PRUint32& aLoadFlags,
                                     const IPC::SerializedLoadContext& loadContext)
 {
   nsCOMPtr<nsIURI> original(aOriginal);
@@ -129,7 +129,7 @@ WyciwygChannelParent::RecvCloseCacheEntry(const nsresult& reason)
 }
 
 bool
-WyciwygChannelParent::RecvSetCharsetAndSource(const int32_t& aCharsetSource,
+WyciwygChannelParent::RecvSetCharsetAndSource(const PRInt32& aCharsetSource,
                                               const nsCString& aCharset)
 {
   if (mChannel)
@@ -175,10 +175,10 @@ WyciwygChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext
   nsresult status;
   chan->GetStatus(&status);
 
-  int32_t contentLength = -1;
+  PRInt32 contentLength = -1;
   chan->GetContentLength(&contentLength);
 
-  int32_t charsetSource = kCharsetUninitialized;
+  PRInt32 charsetSource = kCharsetUninitialized;
   nsCAutoString charset;
   chan->GetCharsetAndSource(&charsetSource, charset);
 
@@ -226,8 +226,8 @@ NS_IMETHODIMP
 WyciwygChannelParent::OnDataAvailable(nsIRequest *aRequest,
                                       nsISupports *aContext,
                                       nsIInputStream *aInputStream,
-                                      uint32_t aOffset,
-                                      uint32_t aCount)
+                                      PRUint32 aOffset,
+                                      PRUint32 aCount)
 {
   LOG(("WyciwygChannelParent::OnDataAvailable [this=%x]\n", this));
 

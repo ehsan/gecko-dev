@@ -43,7 +43,7 @@ public:
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true);
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -57,11 +57,11 @@ public:
   };
   static bool ParseNamedSpaceValue(const nsString& aString,
                                    nsCSSValue&     aCSSValue,
-                                   uint32_t        aFlags);
+                                   PRUint32        aFlags);
 
   static bool ParseNumericValue(const nsString& aString,
                                   nsCSSValue&     aCSSValue,
-                                  uint32_t        aFlags);
+                                  PRUint32        aFlags);
 
   static void MapMathMLAttributesInto(const nsMappedAttributes* aAttributes, 
                                       nsRuleData* aRuleData);
@@ -70,7 +70,7 @@ public:
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
   nsresult Clone(nsINodeInfo*, nsINode**) const;
   virtual nsEventStates IntrinsicState() const;
-  virtual bool IsNodeOfType(uint32_t aFlags) const;
+  virtual bool IsNodeOfType(PRUint32 aFlags) const;
 
   // Set during reflow as necessary. Does a style change notification,
   // aNotify must be true.
@@ -81,21 +81,21 @@ public:
 
   NS_IMETHOD LinkAdded() { return NS_OK; }
   NS_IMETHOD LinkRemoved() { return NS_OK; }
-  virtual bool IsFocusable(int32_t *aTabIndex = nullptr,
+  virtual bool IsFocusable(PRInt32 *aTabIndex = nullptr,
                              bool aWithMouse = false);
   virtual bool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
   virtual nsLinkState GetLinkState() const;
   virtual already_AddRefed<nsIURI> GetHrefURI() const;
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
     return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
   }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            bool aNotify);
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
 
   virtual nsXPCClassInfo* GetClassInfo();

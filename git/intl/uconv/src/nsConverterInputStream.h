@@ -45,7 +45,7 @@ class nsConverterInputStream : public nsIConverterInputStream,
  private:
 
 
-    uint32_t Fill(nsresult *aErrorCode);
+    PRUint32 Fill(nsresult *aErrorCode);
     
     nsCOMPtr<nsIUnicodeDecoder> mConverter;
     nsCOMPtr<nsIByteBuffer> mByteData;
@@ -53,9 +53,9 @@ class nsConverterInputStream : public nsIConverterInputStream,
     nsCOMPtr<nsIInputStream> mInput;
 
     nsresult  mLastErrorCode;
-    uint32_t  mLeftOverBytes;
-    uint32_t  mUnicharDataOffset;
-    uint32_t  mUnicharDataLength;
+    PRUint32  mLeftOverBytes;
+    PRUint32  mUnicharDataOffset;
+    PRUint32  mUnicharDataLength;
     PRUnichar mReplacementChar;
 
     nsLineBuffer<PRUnichar>* mLineBuffer;    

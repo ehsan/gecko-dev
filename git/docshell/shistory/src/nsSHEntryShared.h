@@ -64,7 +64,7 @@ class nsSHEntryShared MOZ_FINAL : public nsIBFCacheEntry,
 
     // These members are copied by nsSHEntryShared::Duplicate().  If you add a
     // member here, be sure to update the Duplicate() implementation.
-    uint64_t                        mDocShellID;
+    PRUint64                        mDocShellID;
     nsCOMArray<nsIDocShellTreeItem> mChildShells;
     nsCOMPtr<nsISupports>           mOwner;
     nsCString                       mContentType;
@@ -73,11 +73,11 @@ class nsSHEntryShared MOZ_FINAL : public nsIBFCacheEntry,
     bool                            mSticky;
     bool                            mDynamicallyCreated;
     nsCOMPtr<nsISupports>           mCacheKey;
-    uint32_t                        mLastTouched;
+    PRUint32                        mLastTouched;
 
     // These members aren't copied by nsSHEntryShared::Duplicate() because
     // they're specific to a particular content viewer.
-    uint64_t                        mID;
+    PRUint64                        mID;
     nsCOMPtr<nsIContentViewer>      mContentViewer;
     nsCOMPtr<nsIDocument>           mDocument;
     nsCOMPtr<nsILayoutHistoryState> mLayoutHistoryState;

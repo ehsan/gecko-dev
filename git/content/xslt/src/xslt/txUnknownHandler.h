@@ -22,7 +22,7 @@ public:
 private:
     nsresult createHandlerAndFlush(bool aHTMLRoot,
                                    const nsSubstring& aName,
-                                   const int32_t aNsID);
+                                   const PRInt32 aNsID);
 
     /*
      * XXX we shouldn't hold to the txExecutionState, as we're supposed

@@ -102,14 +102,14 @@ public:
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Obtain the binary blob that contains our favicon data.
-    uint8_t *favicon;
-    uint32_t size = 0;
+    PRUint8 *favicon;
+    PRUint32 size = 0;
     rv = row->GetBlob(0, &size, &favicon);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    uint32_t totalWritten = 0;
+    PRUint32 totalWritten = 0;
     do {
-      uint32_t bytesWritten;
+      PRUint32 bytesWritten;
       rv = mOutputStream->Write(
         &(reinterpret_cast<const char *>(favicon)[totalWritten]),
         size - totalWritten,
@@ -135,7 +135,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD HandleCompletion(uint16_t aReason)
+  NS_IMETHOD HandleCompletion(PRUint16 aReason)
   {
     if (!mReturnDefaultIcon)
       return mOutputStream->Close();
@@ -212,7 +212,7 @@ nsAnnoProtocolHandler::GetScheme(nsACString& aScheme)
 //    There is no default port for annotation URLs
 
 NS_IMETHODIMP
-nsAnnoProtocolHandler::GetDefaultPort(int32_t *aDefaultPort)
+nsAnnoProtocolHandler::GetDefaultPort(PRInt32 *aDefaultPort)
 {
   *aDefaultPort = -1;
   return NS_OK;
@@ -222,7 +222,7 @@ nsAnnoProtocolHandler::GetDefaultPort(int32_t *aDefaultPort)
 // nsAnnoProtocolHandler::GetProtocolFlags
 
 NS_IMETHODIMP
-nsAnnoProtocolHandler::GetProtocolFlags(uint32_t *aProtocolFlags)
+nsAnnoProtocolHandler::GetProtocolFlags(PRUint32 *aProtocolFlags)
 {
   *aProtocolFlags = (URI_NORELATIVE | URI_NOAUTH | URI_DANGEROUS_TO_LOAD |
                      URI_IS_LOCAL_RESOURCE);
@@ -278,8 +278,8 @@ nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
     return NewFaviconChannel(aURI, annoURI, _retval);
 
   // normal handling for annotations
-  uint8_t* data;
-  uint32_t dataLen;
+  PRUint8* data;
+  PRUint32 dataLen;
   nsCAutoString mimeType;
 
   // get the data from the annotation service and hand it off to the stream
@@ -320,7 +320,7 @@ nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 //    Don't override any bans on bad ports.
 
 NS_IMETHODIMP
-nsAnnoProtocolHandler::AllowPort(int32_t port, const char *scheme,
+nsAnnoProtocolHandler::AllowPort(PRInt32 port, const char *scheme,
                                  bool *_retval)
 {
   *_retval = false;
@@ -341,7 +341,7 @@ nsAnnoProtocolHandler::ParseAnnoURI(nsIURI* aURI,
   rv = aURI->GetPath(path);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  int32_t firstColon = path.FindChar(':');
+  PRInt32 firstColon = path.FindChar(':');
   if (firstColon <= 0)
     return NS_ERROR_MALFORMED_URI;
 

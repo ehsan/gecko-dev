@@ -34,16 +34,16 @@ protected:
 
   nsresult JustCreateTopWindow(nsIXULWindow *aParent,
                                nsIURI *aUrl, 
-                               uint32_t aChromeMask,
-                               int32_t aInitialWidth, int32_t aInitialHeight,
+                               PRUint32 aChromeMask,
+                               PRInt32 aInitialWidth, PRInt32 aInitialHeight,
                                bool aIsHiddenWindow,
                                nsWebShellWindow **aResult);
-  uint32_t CalculateWindowZLevel(nsIXULWindow *aParent, uint32_t aChromeMask);
+  PRUint32 CalculateWindowZLevel(nsIXULWindow *aParent, PRUint32 aChromeMask);
 
   nsRefPtr<nsWebShellWindow>  mHiddenWindow;
   bool                        mXPCOMWillShutDown;
   bool                        mXPCOMShuttingDown;
-  uint16_t                    mModalWindowCount;
+  PRUint16                    mModalWindowCount;
   bool                        mApplicationProvidedHiddenWindow;
 };
 

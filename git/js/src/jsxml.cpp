@@ -6024,7 +6024,7 @@ NamespacesToJSArray(JSContext *cx, JSXMLArray<JSObject> *array, jsval *rval)
         if (!ns)
             continue;
         v.setObject(*ns);
-        if (!JSObject::setElement(cx, arrayobj, arrayobj, i, &v, false))
+        if (!arrayobj->setElement(cx, arrayobj, i, &v, false))
             return false;
     }
     return true;
@@ -7444,9 +7444,9 @@ js_InitXMLClass(JSContext *cx, JSObject *obj)
     if (!xmllist)
         return NULL;
     RootedValue value(cx, ObjectValue(*xmlProto));
-    if (!JSObject::defineProperty(cx, xmllist, cx->runtime->atomState.classPrototypeAtom,
-                                  value, JS_PropertyStub, JS_StrictPropertyStub,
-                                  JSPROP_PERMANENT | JSPROP_READONLY))
+    if (!xmllist->defineProperty(cx, cx->runtime->atomState.classPrototypeAtom,
+                                 value, JS_PropertyStub, JS_StrictPropertyStub,
+                                 JSPROP_PERMANENT | JSPROP_READONLY))
     {
         return NULL;
     }
@@ -7523,8 +7523,7 @@ GlobalObject::getFunctionNamespace(JSContext *cx, Value *vp)
 JSBool
 js_GetDefaultXMLNamespace(JSContext *cx, jsval *vp)
 {
-    JSObject *ns;
-    RootedObject obj(cx);
+    JSObject *ns, *obj;
     RootedValue v(cx);
 
     RootedObject tmp(cx);
@@ -7537,7 +7536,7 @@ js_GetDefaultXMLNamespace(JSContext *cx, jsval *vp)
     for (tmp = scopeChain; tmp; tmp = tmp->enclosingScope()) {
         if (tmp->isBlock() || tmp->isWith())
             continue;
-        if (!JSObject::getSpecial(cx, tmp, tmp, SpecialId::defaultXMLNamespace(), &v))
+        if (!tmp->getSpecial(cx, tmp, SpecialId::defaultXMLNamespace(), &v))
             return JS_FALSE;
         if (!JSVAL_IS_PRIMITIVE(v)) {
             *vp = v;
@@ -7550,8 +7549,8 @@ js_GetDefaultXMLNamespace(JSContext *cx, jsval *vp)
     if (!ns)
         return JS_FALSE;
     v = OBJECT_TO_JSVAL(ns);
-    if (!JSObject::defineSpecial(cx, obj, SpecialId::defaultXMLNamespace(), v,
-                                 JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT)) {
+    if (!obj->defineSpecial(cx, SpecialId::defaultXMLNamespace(), v,
+                            JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT)) {
         return JS_FALSE;
     }
     *vp = v;
@@ -7568,10 +7567,10 @@ js_SetDefaultXMLNamespace(JSContext *cx, const Value &v)
     if (!ns)
         return JS_FALSE;
 
-    RootedObject varobj(cx, &cx->fp()->varObj());
+    JSObject &varobj = cx->fp()->varObj();
     RootedValue value(cx, ObjectValue(*ns));
-    if (!JSObject::defineSpecial(cx, varobj, SpecialId::defaultXMLNamespace(), value,
-                                 JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT)) {
+    if (!varobj.defineSpecial(cx, SpecialId::defaultXMLNamespace(), value,
+                              JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT)) {
         return JS_FALSE;
     }
     return JS_TRUE;
@@ -7674,8 +7673,7 @@ js_FindXMLProperty(JSContext *cx, const Value &nameval, MutableHandleObject objp
     jsval v;
     JSObject *qn;
     RootedId funid(cx);
-    RootedObject target(cx);
-    JSObject *obj, *proto;
+    JSObject *obj, *target, *proto;
     JSXML *xml;
     JSBool found;
 
@@ -7725,7 +7723,7 @@ js_FindXMLProperty(JSContext *cx, const Value &nameval, MutableHandleObject objp
         } else if (!JSID_IS_VOID(funid)) {
             RootedObject pobj(cx);
             RootedShape prop(cx);
-            if (!JSObject::lookupGeneric(cx, target, funid, &pobj, &prop))
+            if (!target->lookupGeneric(cx, funid, &pobj, &prop))
                 return JS_FALSE;
             if (prop) {
                 *idp = funid;
@@ -7769,11 +7767,11 @@ GetXMLFunction(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue 
         return true;
 
     /* Search in String.prototype to implement 11.2.2.1 Step 3(f). */
-    RootedObject proto(cx, obj->global().getOrCreateStringPrototype(cx));
+    JSObject *proto = obj->global().getOrCreateStringPrototype(cx);
     if (!proto)
         return false;
 
-    return JSObject::getGeneric(cx, proto, proto, id, vp);
+    return proto->getGeneric(cx, id, vp);
 }
 
 static JSXML *

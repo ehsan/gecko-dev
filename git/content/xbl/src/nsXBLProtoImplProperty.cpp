@@ -99,7 +99,7 @@ nsXBLProtoImplProperty::AppendSetterText(const nsAString& aText)
 }
 
 void
-nsXBLProtoImplProperty::SetGetterLineNumber(uint32_t aLineNumber)
+nsXBLProtoImplProperty::SetGetterLineNumber(PRUint32 aLineNumber)
 {
   NS_PRECONDITION(!mIsCompiled,
                   "Must not be compiled when accessing getter text");
@@ -113,7 +113,7 @@ nsXBLProtoImplProperty::SetGetterLineNumber(uint32_t aLineNumber)
 }
 
 void
-nsXBLProtoImplProperty::SetSetterLineNumber(uint32_t aLineNumber)
+nsXBLProtoImplProperty::SetSetterLineNumber(PRUint32 aLineNumber)
 {
   NS_PRECONDITION(!mIsCompiled,
                   "Must not be compiled when accessing setter text");
@@ -199,7 +199,7 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
   nsCAutoString functionUri;
   if (mGetterText || mSetterText) {
     functionUri = aClassStr;
-    int32_t hash = functionUri.RFindChar('#');
+    PRInt32 hash = functionUri.RFindChar('#');
     if (hash != kNotFound) {
       functionUri.Truncate(hash);
     }

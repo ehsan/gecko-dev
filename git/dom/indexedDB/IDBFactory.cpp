@@ -56,7 +56,7 @@ struct ObjectStoreInfoMap
   ObjectStoreInfoMap()
   : id(LL_MININT), info(nullptr) { }
 
-  int64_t id;
+  PRInt64 id;
   ObjectStoreInfo* info;
 };
 
@@ -314,7 +314,7 @@ IgnoreWhitespace(PRUnichar c)
 nsresult
 IDBFactory::LoadDatabaseInformation(mozIStorageConnection* aConnection,
                                     nsIAtom* aDatabaseId,
-                                    uint64_t* aVersion,
+                                    PRUint64* aVersion,
                                     ObjectStoreInfoArray& aObjectStores)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
@@ -344,7 +344,7 @@ IDBFactory::LoadDatabaseInformation(mozIStorageConnection* aConnection,
 
     info->id = stmt->AsInt64(1);
 
-    int32_t columnType;
+    PRInt32 columnType;
     nsresult rv = stmt->GetTypeOfIndex(2, &columnType);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -381,10 +381,10 @@ IDBFactory::LoadDatabaseInformation(mozIStorageConnection* aConnection,
   NS_ENSURE_SUCCESS(rv, rv);
 
   while (NS_SUCCEEDED((rv = stmt->ExecuteStep(&hasResult))) && hasResult) {
-    int64_t objectStoreId = stmt->AsInt64(0);
+    PRInt64 objectStoreId = stmt->AsInt64(0);
 
     ObjectStoreInfo* objectStoreInfo = nullptr;
-    for (uint32_t index = 0; index < infoMap.Length(); index++) {
+    for (PRUint32 index = 0; index < infoMap.Length(); index++) {
       if (infoMap[index].id == objectStoreId) {
         objectStoreInfo = infoMap[index].info;
         break;
@@ -430,10 +430,10 @@ IDBFactory::LoadDatabaseInformation(mozIStorageConnection* aConnection,
     return NS_ERROR_UNEXPECTED;
   }
 
-  int64_t version = 0;
+  PRInt64 version = 0;
   rv = stmt->GetInt64(0, &version);
 
-  *aVersion = NS_MAX<int64_t>(version, 0);
+  *aVersion = NS_MAX<PRInt64>(version, 0);
 
   return rv;
 }
@@ -441,7 +441,7 @@ IDBFactory::LoadDatabaseInformation(mozIStorageConnection* aConnection,
 // static
 nsresult
 IDBFactory::SetDatabaseMetadata(DatabaseInfo* aDatabaseInfo,
-                                uint64_t aVersion,
+                                PRUint64 aVersion,
                                 ObjectStoreInfoArray& aObjectStores)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -460,7 +460,7 @@ IDBFactory::SetDatabaseMetadata(DatabaseInfo* aDatabaseInfo,
 
   aDatabaseInfo->version = aVersion;
 
-  for (uint32_t index = 0; index < objectStores.Length(); index++) {
+  for (PRUint32 index = 0; index < objectStores.Length(); index++) {
     nsRefPtr<ObjectStoreInfo>& info = objectStores[index];
 
     if (!aDatabaseInfo->PutObjectStore(info)) {
@@ -507,7 +507,7 @@ DOMCI_DATA(IDBFactory, IDBFactory)
 
 nsresult
 IDBFactory::OpenCommon(const nsAString& aName,
-                       int64_t aVersion,
+                       PRInt64 aVersion,
                        bool aDeleting,
                        JSContext* aCallingCx,
                        IDBOpenDBRequest** _retval)
@@ -581,9 +581,9 @@ IDBFactory::OpenCommon(const nsAString& aName,
 
 NS_IMETHODIMP
 IDBFactory::Open(const nsAString& aName,
-                 int64_t aVersion,
+                 PRInt64 aVersion,
                  JSContext* aCx,
-                 uint8_t aArgc,
+                 PRUint8 aArgc,
                  nsIIDBOpenDBRequest** _retval)
 {
   if (aVersion < 1 && aArgc) {
@@ -616,7 +616,7 @@ NS_IMETHODIMP
 IDBFactory::Cmp(const jsval& aFirst,
                 const jsval& aSecond,
                 JSContext* aCx,
-                int16_t* _retval)
+                PRInt16* _retval)
 {
   Key first, second;
   nsresult rv = first.SetFromJSVal(aCx, aFirst);

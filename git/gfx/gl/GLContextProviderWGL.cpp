@@ -334,10 +334,6 @@ public:
         return succeeded;
     }
 
-    virtual bool IsCurrent() {
-        return sWGLLib[mLibType].fGetCurrentContext() == mContext;
-    }
-
     void SetIsDoubleBuffered(bool aIsDB) {
         mIsDoubleBuffered = aIsDB;
     }

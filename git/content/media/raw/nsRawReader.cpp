@@ -41,7 +41,7 @@ nsresult nsRawReader::ReadMetadata(nsVideoInfo* aInfo,
   MediaResource* resource = mDecoder->GetResource();
   NS_ASSERTION(resource, "Decoder has no media resource");
 
-  if (!ReadFromResource(resource, reinterpret_cast<uint8_t*>(&mMetadata),
+  if (!ReadFromResource(resource, reinterpret_cast<PRUint8*>(&mMetadata),
                         sizeof(mMetadata)))
     return NS_ERROR_FAILURE;
 
@@ -52,8 +52,8 @@ nsresult nsRawReader::ReadMetadata(nsVideoInfo* aInfo,
         mMetadata.minorVersion == 1))
     return NS_ERROR_FAILURE;
 
-  CheckedUint32 dummy = CheckedUint32(static_cast<uint32_t>(mMetadata.frameWidth)) *
-                          static_cast<uint32_t>(mMetadata.frameHeight);
+  CheckedUint32 dummy = CheckedUint32(static_cast<PRUint32>(mMetadata.frameWidth)) *
+                          static_cast<PRUint32>(mMetadata.frameHeight);
   NS_ENSURE_TRUE(dummy.isValid(), NS_ERROR_FAILURE);
 
   if (mMetadata.aspectDenominator == 0 ||
@@ -94,7 +94,7 @@ nsresult nsRawReader::ReadMetadata(nsVideoInfo* aInfo,
     (mMetadata.lumaChannelBpp + mMetadata.chromaChannelBpp) / 8.0 +
     sizeof(nsRawPacketHeader);
 
-  int64_t length = resource->GetLength();
+  PRInt64 length = resource->GetLength();
   if (length != -1) {
     mozilla::ReentrantMonitorAutoEnter autoMonitor(mDecoder->GetReentrantMonitor());
     mDecoder->GetStateMachine()->SetDuration(USECS_PER_S *
@@ -118,11 +118,11 @@ nsresult nsRawReader::ReadMetadata(nsVideoInfo* aInfo,
 
 // Helper method that either reads until it gets aLength bytes 
 // or returns false
-bool nsRawReader::ReadFromResource(MediaResource *aResource, uint8_t* aBuf,
-                                   uint32_t aLength)
+bool nsRawReader::ReadFromResource(MediaResource *aResource, PRUint8* aBuf,
+                                   PRUint32 aLength)
 {
   while (aLength > 0) {
-    uint32_t bytesRead = 0;
+    PRUint32 bytesRead = 0;
     nsresult rv;
 
     rv = aResource->Read(reinterpret_cast<char*>(aBuf), aLength, &bytesRead);
@@ -140,23 +140,23 @@ bool nsRawReader::ReadFromResource(MediaResource *aResource, uint8_t* aBuf,
 }
 
 bool nsRawReader::DecodeVideoFrame(bool &aKeyframeSkip,
-                                     int64_t aTimeThreshold)
+                                     PRInt64 aTimeThreshold)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(),
                "Should be on decode thread.");
 
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
-  uint32_t parsed = 0, decoded = 0;
+  PRUint32 parsed = 0, decoded = 0;
   nsMediaDecoder::AutoNotifyDecoded autoNotify(mDecoder, parsed, decoded);
 
   if (!mFrameSize)
     return false; // Metadata read failed.  We should refuse to play.
 
-  int64_t currentFrameTime = USECS_PER_S * mCurrentFrame / mFrameRate;
-  uint32_t length = mFrameSize - sizeof(nsRawPacketHeader);
+  PRInt64 currentFrameTime = USECS_PER_S * mCurrentFrame / mFrameRate;
+  PRUint32 length = mFrameSize - sizeof(nsRawPacketHeader);
 
-  nsAutoArrayPtr<uint8_t> buffer(new uint8_t[length]);
+  nsAutoArrayPtr<PRUint8> buffer(new PRUint8[length]);
   MediaResource* resource = mDecoder->GetResource();
   NS_ASSERTION(resource, "Decoder has no media resource");
 
@@ -165,7 +165,7 @@ bool nsRawReader::DecodeVideoFrame(bool &aKeyframeSkip,
     nsRawPacketHeader header;
 
     // Read in a packet header and validate
-    if (!(ReadFromResource(resource, reinterpret_cast<uint8_t*>(&header),
+    if (!(ReadFromResource(resource, reinterpret_cast<PRUint8*>(&header),
                            sizeof(header))) ||
         !(header.packetID == 0xFF && header.codecID == RAW_ID /* "YUV" */)) {
       return false;
@@ -191,7 +191,7 @@ bool nsRawReader::DecodeVideoFrame(bool &aKeyframeSkip,
   b.mPlanes[0].mWidth = mMetadata.frameWidth;
   b.mPlanes[0].mOffset = b.mPlanes[0].mSkip = 0;
 
-  uint32_t cbcrStride = mMetadata.frameWidth * mMetadata.chromaChannelBpp / 8.0;
+  PRUint32 cbcrStride = mMetadata.frameWidth * mMetadata.chromaChannelBpp / 8.0;
 
   b.mPlanes[1].mData = buffer + mMetadata.frameHeight * b.mPlanes[0].mStride;
   b.mPlanes[1].mStride = cbcrStride;
@@ -225,7 +225,7 @@ bool nsRawReader::DecodeVideoFrame(bool &aKeyframeSkip,
   return true;
 }
 
-nsresult nsRawReader::Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime, int64_t aCurrentTime)
+nsresult nsRawReader::Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(),
                "Should be on decode thread.");
@@ -233,7 +233,7 @@ nsresult nsRawReader::Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime, 
   MediaResource *resource = mDecoder->GetResource();
   NS_ASSERTION(resource, "Decoder has no media resource");
 
-  uint32_t frame = mCurrentFrame;
+  PRUint32 frame = mCurrentFrame;
   if (aTime >= UINT_MAX)
     return NS_ERROR_FAILURE;
   mCurrentFrame = aTime * mFrameRate / USECS_PER_S;
@@ -275,7 +275,7 @@ nsresult nsRawReader::Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime, 
   return NS_OK;
 }
 
-nsresult nsRawReader::GetBuffered(nsTimeRanges* aBuffered, int64_t aStartTime)
+nsresult nsRawReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
 {
   return NS_OK;
 }

@@ -89,7 +89,7 @@ IDBFileHandle::CreateStream(nsIFile* aFile, bool aReadOnly)
 
 already_AddRefed<nsIDOMFile>
 IDBFileHandle::CreateFileObject(mozilla::dom::file::LockedFile* aLockedFile,
-                                uint32_t aFileSize)
+                                PRUint32 aFileSize)
 {
   nsCOMPtr<nsIDOMFile> file = new mozilla::dom::file::File(
     mName, mType, aFileSize, mFile, aLockedFile, mFileInfo);

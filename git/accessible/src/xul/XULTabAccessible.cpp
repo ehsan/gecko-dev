@@ -33,7 +33,7 @@ XULTabAccessible::
 ////////////////////////////////////////////////////////////////////////////////
 // XULTabAccessible: nsIAccessible
 
-uint8_t
+PRUint8
 XULTabAccessible::ActionCount()
 {
   return 1;
@@ -41,7 +41,7 @@ XULTabAccessible::ActionCount()
 
 /** Return the name of our only action  */
 NS_IMETHODIMP
-XULTabAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
+XULTabAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 {
   if (aIndex == eAction_Switch) {
     aName.AssignLiteral("switch"); 
@@ -52,7 +52,7 @@ XULTabAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 
 /** Tell the tab to do its action */
 NS_IMETHODIMP
-XULTabAccessible::DoAction(uint8_t index)
+XULTabAccessible::DoAction(PRUint8 index)
 {
   if (index == eAction_Switch) {
     nsCOMPtr<nsIDOMXULElement> tab(do_QueryInterface(mContent));
@@ -75,13 +75,13 @@ XULTabAccessible::NativeRole()
   return roles::PAGETAB;
 }
 
-uint64_t
+PRUint64
 XULTabAccessible::NativeState()
 {
   // Possible states: focused, focusable, unavailable(disabled), offscreen.
 
   // get focus and disable status from base class
-  uint64_t state = AccessibleWrap::NativeState();
+  PRUint64 state = AccessibleWrap::NativeState();
 
   // Check whether the tab is selected
   nsCOMPtr<nsIDOMXULSelectControlItemElement> tab(do_QueryInterface(mContent));
@@ -93,16 +93,16 @@ XULTabAccessible::NativeState()
   return state;
 }
 
-uint64_t
+PRUint64
 XULTabAccessible::NativeInteractiveState() const
 {
-  uint64_t state = Accessible::NativeInteractiveState();
+  PRUint64 state = Accessible::NativeInteractiveState();
   return (state & states::UNAVAILABLE) ? state : state | states::SELECTABLE;
 }
 
 // nsIAccessible
 Relation
-XULTabAccessible::RelationByType(uint32_t aType)
+XULTabAccessible::RelationByType(PRUint32 aType)
 {
   Relation rel = AccessibleWrap::RelationByType(aType);
   if (aType != nsIAccessibleRelation::RELATION_LABEL_FOR)
@@ -142,7 +142,7 @@ XULTabsAccessible::NativeRole()
   return roles::PAGETABLIST;
 }
 
-uint8_t
+PRUint8
 XULTabsAccessible::ActionCount()
 {
   return 0;
@@ -189,7 +189,7 @@ XULTabpanelAccessible::NativeRole()
 }
 
 Relation
-XULTabpanelAccessible::RelationByType(uint32_t aType)
+XULTabpanelAccessible::RelationByType(PRUint32 aType)
 {
   Relation rel = AccessibleWrap::RelationByType(aType);
   if (aType != nsIAccessibleRelation::RELATION_LABELLED_BY)

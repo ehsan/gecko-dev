@@ -265,7 +265,7 @@ ToTimingFunction(css::ComputedTimingFunction& aCTF)
                                               spline->X2(), spline->Y2()));
   }
 
-  uint32_t type = aCTF.GetType() == nsTimingFunction::StepStart ? 1 : 2;
+  PRUint32 type = aCTF.GetType() == nsTimingFunction::StepStart ? 1 : 2;
   return TimingFunction(StepFunction(aCTF.GetSteps(), type));
 }
 
@@ -290,14 +290,14 @@ AddAnimationsForProperty(nsIFrame* aFrame, nsCSSProperty aProperty,
                                               iterations, direction,
                                               aProperty, aData);
 
-  for (uint32_t propIdx = 0; propIdx < ea->mProperties.Length(); propIdx++) {
+  for (PRUint32 propIdx = 0; propIdx < ea->mProperties.Length(); propIdx++) {
     AnimationProperty* property = &ea->mProperties[propIdx];
 
     if (aProperty != property->mProperty) {
       continue;
     }
 
-    for (uint32_t segIdx = 0; segIdx < property->mSegments.Length(); segIdx++) {
+    for (PRUint32 segIdx = 0; segIdx < property->mSegments.Length(); segIdx++) {
       AnimationPropertySegment* segment = &property->mSegments[segIdx];
 
       AnimationSegment* animSegment = animation->segments().AppendElement();
@@ -386,9 +386,10 @@ AddAnimationsAndTransitionsToLayer(Layer* aLayer, nsDisplayListBuilder* aBuilder
   }
 
   if (et) {
-    for (uint32_t tranIdx = 0; tranIdx < et->mPropertyTransitions.Length(); tranIdx++) {
+    for (PRUint32 tranIdx = 0; tranIdx < et->mPropertyTransitions.Length(); tranIdx++) {
       ElementPropertyTransition* pt = &et->mPropertyTransitions[tranIdx];
-      if (pt->mProperty != aProperty || !pt->IsRunningAt(currentTime)) {
+      if (pt->mProperty != aProperty ||
+          !pt->CanPerformOnCompositor(et->mElement, currentTime)) {
         continue;
       }
 
@@ -415,10 +416,10 @@ AddAnimationsAndTransitionsToLayer(Layer* aLayer, nsDisplayListBuilder* aBuilder
   }
 
   if (ea) {
-    for (uint32_t animIdx = 0; animIdx < ea->mAnimations.Length(); animIdx++) {
+    for (PRUint32 animIdx = 0; animIdx < ea->mAnimations.Length(); animIdx++) {
       ElementAnimation* anim = &ea->mAnimations[animIdx];
       if (!(anim->HasAnimationOfProperty(aProperty) &&
-            anim->IsRunningAt(currentTime))) {
+            anim->CanPerformOnCompositor(ea->mElement, currentTime))) {
         continue;
       }
       AddAnimationsForProperty(frame, aProperty, anim,
@@ -559,7 +560,7 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
                                ViewID aScrollId,
                                const nsDisplayItem::ContainerParameters& aContainerParameters) {
   nsPresContext* presContext = aForFrame->PresContext();
-  int32_t auPerDevPixel = presContext->AppUnitsPerDevPixel();
+  PRInt32 auPerDevPixel = presContext->AppUnitsPerDevPixel();
 
   nsIntRect visible = aVisibleRect.ScaleToNearestPixels(
     aContainerParameters.mXScale, aContainerParameters.mYScale, auPerDevPixel);
@@ -624,9 +625,9 @@ nsDisplayListBuilder::~nsDisplayListBuilder() {
   MOZ_COUNT_DTOR(nsDisplayListBuilder);
 }
 
-uint32_t
+PRUint32
 nsDisplayListBuilder::GetBackgroundPaintFlags() {
-  uint32_t flags = 0;
+  PRUint32 flags = 0;
   if (mSyncDecodeImages) {
     flags |= nsCSSRendering::PAINTBG_SYNC_DECODE_IMAGES;
   }
@@ -636,13 +637,13 @@ nsDisplayListBuilder::GetBackgroundPaintFlags() {
   return flags;
 }
 
-static uint64_t RegionArea(const nsRegion& aRegion)
+static PRUint64 RegionArea(const nsRegion& aRegion)
 {
-  uint64_t area = 0;
+  PRUint64 area = 0;
   nsRegionRectIterator iter(aRegion);
   const nsRect* r;
   while ((r = iter.Next()) != nullptr) {
-    area += uint64_t(r->width)*r->height;
+    area += PRUint64(r->width)*r->height;
   }
   return area;
 }
@@ -729,8 +730,8 @@ nsDisplayListBuilder::LeavePresShell(nsIFrame* aReferenceFrame,
   }
 
   // Unmark and pop off the frames marked for display in this pres shell.
-  uint32_t firstFrameForShell = CurrentPresShellState()->mFirstFrameMarkedForDisplay;
-  for (uint32_t i = firstFrameForShell;
+  PRUint32 firstFrameForShell = CurrentPresShellState()->mFirstFrameMarkedForDisplay;
+  for (PRUint32 i = firstFrameForShell;
        i < mFramesMarkedForDisplay.Length(); ++i) {
     UnmarkFrameForDisplay(mFramesMarkedForDisplay[i]);
   }
@@ -880,7 +881,7 @@ nsDisplayList::ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
 
   bool forceTransparentSurface = false;
 
-  for (int32_t i = elements.Length() - 1; i >= 0; --i) {
+  for (PRInt32 i = elements.Length() - 1; i >= 0; --i) {
     nsDisplayItem* item = elements[i];
     nsDisplayItem* belowItem = i < 1 ? nullptr : elements[i - 1];
 
@@ -933,7 +934,7 @@ nsDisplayList::ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
 
 void nsDisplayList::PaintRoot(nsDisplayListBuilder* aBuilder,
                               nsRenderingContext* aCtx,
-                              uint32_t aFlags) const {
+                              PRUint32 aFlags) const {
   SAMPLE_LABEL("nsDisplayList", "PaintRoot");
   PaintForFrame(aBuilder, aCtx, aBuilder->ReferenceFrame(), aFlags);
 }
@@ -946,7 +947,7 @@ void nsDisplayList::PaintRoot(nsDisplayListBuilder* aBuilder,
 void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
                                   nsRenderingContext* aCtx,
                                   nsIFrame* aForFrame,
-                                  uint32_t aFlags) const {
+                                  PRUint32 aFlags) const {
   NS_ASSERTION(mDidComputeVisibility,
                "Must call ComputeVisibility before calling Paint");
 
@@ -1047,8 +1048,8 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   layerManager->RemoveUserData(&gLayerManagerLayerBuilder);
 }
 
-uint32_t nsDisplayList::Count() const {
-  uint32_t count = 0;
+PRUint32 nsDisplayList::Count() const {
+  PRUint32 count = 0;
   for (nsDisplayItem* i = GetBottom(); i; i = i->GetAbove()) {
     ++count;
   }
@@ -1123,8 +1124,8 @@ void FlushFramesArray(nsTArray<FramesWithDepth>& aSource, nsTArray<nsIFrame*>* a
     return;
   }
   aSource.Sort();
-  uint32_t length = aSource.Length();
-  for (uint32_t i = 0; i < length; i++) {
+  PRUint32 length = aSource.Length();
+  for (PRUint32 i = 0; i < length; i++) {
     aDest->MoveElementsFrom(aSource[i].mFrames);
   }
   aSource.Clear();
@@ -1133,13 +1134,13 @@ void FlushFramesArray(nsTArray<FramesWithDepth>& aSource, nsTArray<nsIFrame*>* a
 void nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                             nsDisplayItem::HitTestState* aState,
                             nsTArray<nsIFrame*> *aOutFrames) const {
-  int32_t itemBufferStart = aState->mItemBuffer.Length();
+  PRInt32 itemBufferStart = aState->mItemBuffer.Length();
   nsDisplayItem* item;
   for (item = GetBottom(); item; item = item->GetAbove()) {
     aState->mItemBuffer.AppendElement(item);
   }
   nsAutoTArray<FramesWithDepth, 16> temp;
-  for (int32_t i = aState->mItemBuffer.Length() - 1; i >= itemBufferStart; --i) {
+  for (PRInt32 i = aState->mItemBuffer.Length() - 1; i >= itemBufferStart; --i) {
     // Pop element off the end of the buffer. We want to shorten the buffer
     // so that recursive calls to HitTest have more buffer space.
     item = aState->mItemBuffer[i];
@@ -1171,7 +1172,7 @@ void nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
         FlushFramesArray(temp, aOutFrames);
       }
 
-      for (uint32_t j = 0; j < outFrames.Length(); j++) {
+      for (PRUint32 j = 0; j < outFrames.Length(); j++) {
         nsIFrame *f = outFrames.ElementAt(j);
         // Handle the XUL 'mousethrough' feature and 'pointer-events'.
         if (!GetMouseThrough(f) &&
@@ -1183,11 +1184,11 @@ void nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
   }
   // Clear any remaining preserve-3d transforms.
   FlushFramesArray(temp, aOutFrames);
-  NS_ASSERTION(aState->mItemBuffer.Length() == uint32_t(itemBufferStart),
+  NS_ASSERTION(aState->mItemBuffer.Length() == PRUint32(itemBufferStart),
                "How did we forget to pop some elements?");
 }
 
-static void Sort(nsDisplayList* aList, int32_t aCount, nsDisplayList::SortLEQ aCmp,
+static void Sort(nsDisplayList* aList, PRInt32 aCount, nsDisplayList::SortLEQ aCmp,
                  void* aClosure) {
   if (aCount < 2)
     return;
@@ -1195,7 +1196,7 @@ static void Sort(nsDisplayList* aList, int32_t aCount, nsDisplayList::SortLEQ aC
   nsDisplayList list1;
   nsDisplayList list2;
   int i;
-  int32_t half = aCount/2;
+  PRInt32 half = aCount/2;
   bool sorted = true;
   nsDisplayItem* prev = nullptr;
   for (i = 0; i < aCount; ++i) {
@@ -1241,8 +1242,8 @@ static bool IsZOrderLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
   // These GetUnderlyingFrame calls return non-null because we're only used
   // in sorting.  Note that we can't just take the difference of the two
   // z-indices here, because that might overflow a 32-bit int.
-  int32_t index1 = nsLayoutUtils::GetZIndex(aItem1->GetUnderlyingFrame());
-  int32_t index2 = nsLayoutUtils::GetZIndex(aItem2->GetUnderlyingFrame());
+  PRInt32 index1 = nsLayoutUtils::GetZIndex(aItem1->GetUnderlyingFrame());
+  PRInt32 index2 = nsLayoutUtils::GetZIndex(aItem2->GetUnderlyingFrame());
   return index1 <= index2;
 }
 
@@ -1512,7 +1513,7 @@ nsDisplayBackground::IsSingleFixedPositionImage(nsDisplayListBuilder* aBuilder, 
   if (bg->mLayers.Length() != 1)
     return false;
 
-  uint32_t flags = aBuilder->GetBackgroundPaintFlags();
+  PRUint32 flags = aBuilder->GetBackgroundPaintFlags();
   nsPoint offset = ToReferenceFrame();
   nsRect borderArea = nsRect(offset, mFrame->GetSize());
 
@@ -1535,7 +1536,7 @@ nsDisplayBackground::IsSingleFixedPositionImage(nsDisplayListBuilder* aBuilder, 
   if (!imageRenderer->IsRasterImage())
     return false;
 
-  int32_t appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
+  PRInt32 appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
   mDestRect = nsLayoutUtils::RectToGfxRect(state.mFillArea, appUnitsPerDevPixel);
 
   return true;
@@ -1571,7 +1572,7 @@ nsDisplayBackground::TryOptimizeToImageLayer(nsDisplayListBuilder* aBuilder)
   if (bg->mLayers.Length() != 1)
     return false;
 
-  uint32_t flags = aBuilder->GetBackgroundPaintFlags();
+  PRUint32 flags = aBuilder->GetBackgroundPaintFlags();
   nsPoint offset = ToReferenceFrame();
   nsRect borderArea = nsRect(offset, mFrame->GetSize());
 
@@ -1606,7 +1607,7 @@ nsDisplayBackground::TryOptimizeToImageLayer(nsDisplayListBuilder* aBuilder)
     return false;
   }
 
-  int32_t appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
+  PRInt32 appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
   mDestRect = nsLayoutUtils::RectToGfxRect(state.mDestArea, appUnitsPerDevPixel);
   mImageContainer = imageContainer;
 
@@ -1716,7 +1717,7 @@ nsDisplayBackground::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 
 nsRegion
 nsDisplayBackground::GetInsideClipRegion(nsPresContext* aPresContext,
-                                         uint8_t aClip, const nsRect& aRect,
+                                         PRUint8 aClip, const nsRect& aRect,
                                          bool* aSnap)
 {
   nsRegion result;
@@ -1908,7 +1909,7 @@ nsDisplayBackground::Paint(nsDisplayListBuilder* aBuilder,
                            nsRenderingContext* aCtx) {
 
   nsPoint offset = ToReferenceFrame();
-  uint32_t flags = aBuilder->GetBackgroundPaintFlags();
+  PRUint32 flags = aBuilder->GetBackgroundPaintFlags();
   nsDisplayItem* nextItem = GetAbove();
   if (nextItem && nextItem->GetUnderlyingFrame() == mFrame &&
       nextItem->GetType() == TYPE_BORDER) {
@@ -2085,7 +2086,7 @@ nsDisplayBoxShadowOuter::Paint(nsDisplayListBuilder* aBuilder,
   ComputeDisjointRectangles(mVisibleRegion, &rects);
 
   SAMPLE_LABEL("nsDisplayBoxShadowOuter", "Paint");
-  for (uint32_t i = 0; i < rects.Length(); ++i) {
+  for (PRUint32 i = 0; i < rects.Length(); ++i) {
     aCtx->PushState();
     aCtx->IntersectClip(rects[i]);
     nsCSSRendering::PaintBoxShadowOuter(presContext, *aCtx, mFrame,
@@ -2138,7 +2139,7 @@ nsDisplayBoxShadowInner::Paint(nsDisplayListBuilder* aBuilder,
   ComputeDisjointRectangles(mVisibleRegion, &rects);
 
   SAMPLE_LABEL("nsDisplayBoxShadowInner", "Paint");
-  for (uint32_t i = 0; i < rects.Length(); ++i) {
+  for (PRUint32 i = 0; i < rects.Length(); ++i) {
     aCtx->PushState();
     aCtx->IntersectClip(rects[i]);
     nsCSSRendering::PaintBoxShadowInner(presContext, *aCtx, mFrame,
@@ -2934,7 +2935,7 @@ bool nsDisplayClipRoundedRect::TryMerge(nsDisplayListBuilder* aBuilder, nsDispla
 
 nsDisplayZoom::nsDisplayZoom(nsDisplayListBuilder* aBuilder,
                              nsIFrame* aFrame, nsDisplayList* aList,
-                             int32_t aAPD, int32_t aParentAPD)
+                             PRInt32 aAPD, PRInt32 aParentAPD)
     : nsDisplayOwnLayer(aBuilder, aFrame, aList), mAPD(aAPD),
       mParentAPD(aParentAPD) {
   MOZ_COUNT_CTOR(nsDisplayZoom);
@@ -3105,7 +3106,7 @@ nsDisplayTransform::GetDeltaToMozTransformOrigin(const nsIFrame* aFrame,
   const nscoord* dimensions[2] =
     {&boundingRect.width, &boundingRect.height};
 
-  for (uint8_t index = 0; index < 2; ++index) {
+  for (PRUint8 index = 0; index < 2; ++index) {
     /* If the -moz-transform-origin specifies a percentage, take the percentage
      * of the size of the box.
      */
@@ -3177,7 +3178,7 @@ nsDisplayTransform::GetDeltaToMozPerspectiveOrigin(const nsIFrame* aFrame,
   const nscoord* dimensions[2] =
     {&boundingRect.width, &boundingRect.height};
 
-  for (uint8_t index = 0; index < 2; ++index) {
+  for (PRUint8 index = 0; index < 2; ++index) {
     /* If the -moz-transform-origin specifies a percentage, take the percentage
      * of the size of the box.
      */
@@ -3516,7 +3517,7 @@ void nsDisplayTransform::HitTest(nsDisplayListBuilder *aBuilder,
 #ifdef DEBUG_HIT
   printf("Frame: %p\n", dynamic_cast<void *>(mFrame));
   printf("  Untransformed point: (%f, %f)\n", resultingRect.X(), resultingRect.Y());
-  uint32_t originalFrameCount = aOutFrames.Length();
+  PRUint32 originalFrameCount = aOutFrames.Length();
 #endif
 
   mStoredList.HitTest(aBuilder, resultingRect, aState, aOutFrames);

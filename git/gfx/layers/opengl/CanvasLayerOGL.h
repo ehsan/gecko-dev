@@ -14,8 +14,6 @@
 #include "mozilla/X11Util.h"
 #endif
 
-#include "mozilla/Preferences.h"
-
 namespace mozilla {
 namespace layers {
 
@@ -35,7 +33,6 @@ public:
 #endif
   { 
       mImplData = static_cast<LayerOGL*>(this);
-      mForceReadback = Preferences::GetBool("webgl.force-layers-readback", false);
   }
   ~CanvasLayerOGL() { Destroy(); }
 
@@ -63,7 +60,6 @@ protected:
   bool mDelayedUpdates;
   bool mGLBufferIsPremultiplied;
   bool mNeedsYFlip;
-  bool mForceReadback;
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
   GLXPixmap mPixmap;
 #endif

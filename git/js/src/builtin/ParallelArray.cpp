@@ -77,7 +77,7 @@ MaybeGetParallelArrayObjectAndLength(JSContext *cx, HandleObject obj,
         if (!pa->isOneDimensional() && !iv->initialize(cx, pa, 1))
             return false;
         *length = pa->outermostDimension();
-    } else if (!GetLengthProperty(cx, obj, length)) {
+    } else if (!js_GetLengthProperty(cx, obj, length)) {
         return false;
     }
 
@@ -120,7 +120,7 @@ GetElementFromArrayLikeObject(JSContext *cx, HandleObject obj, HandleParallelArr
     }
 
     bool present;
-    if (!JSObject::getElementIfPresent(cx, obj, obj, i, vp, &present))
+    if (!obj->getElementIfPresent(cx, obj, i, vp, &present))
         return false;
     if (!present)
         vp.setUndefined();
@@ -663,7 +663,7 @@ ParallelArrayObject::DebugOptions::init(JSContext *cx, const Value &v)
     JSBool match = false;
 
     id = AtomToId(Atomize(cx, "mode", strlen("mode")));
-    if (!JSObject::getGeneric(cx, obj, obj, id, &propv))
+    if (!obj->getGeneric(cx, id, &propv))
         return false;
 
     propStr = ToString(cx, propv);
@@ -681,7 +681,7 @@ ParallelArrayObject::DebugOptions::init(JSContext *cx, const Value &v)
     }
 
     id = AtomToId(Atomize(cx, "expect", strlen("expect")));
-    if (!JSObject::getGeneric(cx, obj, obj, id, &propv))
+    if (!obj->getGeneric(cx, id, &propv))
         return false;
 
     propStr = ToString(cx, propv);
@@ -960,13 +960,9 @@ ParallelArrayObject::create(JSContext *cx, HandleObject buffer, uint32_t offset,
     // Propagate element types.
     if (cx->typeInferenceEnabled()) {
         AutoEnterTypeInference enter(cx);
-        TypeObject *bufferType = buffer->getType(cx);
-        TypeObject *resultType = result->getType(cx);
-        if (!bufferType->unknownProperties() && !resultType->unknownProperties()) {
-            TypeSet *bufferIndexTypes = bufferType->getProperty(cx, JSID_VOID, false);
-            TypeSet *resultIndexTypes = resultType->getProperty(cx, JSID_VOID, true);
-            bufferIndexTypes->addSubset(cx, resultIndexTypes);
-        }
+        TypeSet *bufferTypes = buffer->getType(cx)->getProperty(cx, JSID_VOID, false);
+        TypeSet *resultTypes = result->getType(cx)->getProperty(cx, JSID_VOID, true);
+        bufferTypes->addSubset(cx, resultTypes);
     }
 
     // Store the dimension vector into a dense array for better GC / layout.
@@ -1010,7 +1006,7 @@ ParallelArrayObject::construct(JSContext *cx, unsigned argc, Value *vp)
         // When using an array value we can only make one dimensional arrays.
         IndexVector dims(cx);
         uint32_t length;
-        if (!dims.resize(1) || !GetLengthProperty(cx, source, &length))
+        if (!dims.resize(1) || !js_GetLengthProperty(cx, source, &length))
             return false;
         dims[0] = length;
 
@@ -1029,7 +1025,7 @@ ParallelArrayObject::construct(JSContext *cx, unsigned argc, Value *vp)
 
             RootedValue elem(cx);
             for (uint32_t i = 0; i < length; i++) {
-                if (!JSObject::getElement(cx, source, source, i, &elem))
+                if (!source->getElement(cx, i, &elem))
                     return false;
                 buffer->setDenseArrayElementWithType(cx, i, elem);
             }
@@ -1054,12 +1050,6 @@ ParallelArrayObject::construct(JSContext *cx, unsigned argc, Value *vp)
         if (!iv.dimensions.resize(1) || !ToUint32(cx, args[0], &iv.dimensions[0]))
             return false;
     }
-
-    // If the first argument wasn't a array-like or had no length, assume
-    // empty parallel array, i.e. with shape being [0].
-    if (iv.dimensions.length() == 0 && !iv.dimensions.append(0))
-        return false;
-
     if (!iv.initialize(0))
         return false;
 
@@ -1235,7 +1225,7 @@ ParallelArrayObject::scatter(JSContext *cx, CallArgs args)
     // Get the scatter vector.
     RootedObject targets(cx, &args[0].toObject());
     uint32_t targetsLength;
-    if (!GetLengthProperty(cx, targets, &targetsLength))
+    if (!js_GetLengthProperty(cx, targets, &targetsLength))
         return false;
 
     // Don't iterate more than the length of the source array.
@@ -1419,7 +1409,7 @@ ParallelArrayObject::get(JSContext *cx, CallArgs args)
         uint32_t length;
         if (is(indicesObj))
             length = as(indicesObj)->outermostDimension();
-        else if (!GetLengthProperty(cx, indicesObj, &length))
+        else if (!js_GetLengthProperty(cx, indicesObj, &length))
             return false;
 
         // If we're one dimensional, the index vector must also be one
@@ -1436,7 +1426,7 @@ ParallelArrayObject::get(JSContext *cx, CallArgs args)
             if (!as(indicesObj)->getParallelArrayElement(cx, 0, &elem))
                 return false;
         } else {
-            if (!JSObject::getElement(cx, indicesObj, indicesObj, 0, &elem))
+            if (!indicesObj->getElement(cx, 0, &elem))
                 return false;
         }
 
@@ -1624,9 +1614,9 @@ ParallelArrayObject::lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
         return true;
     }
 
-    RootedObject proto(cx, obj->getProto());
-    if (proto)
-        return JSObject::lookupGeneric(cx, proto, id, objp, propp);
+    if (JSObject *proto = obj->getProto()) {
+        return proto->lookupGeneric(cx, id, objp, propp);
+    }
 
     objp.set(NULL);
     propp.set(NULL);
@@ -1651,9 +1641,8 @@ ParallelArrayObject::lookupElement(JSContext *cx, HandleObject obj, uint32_t ind
         return true;
     }
 
-    RootedObject proto(cx, obj->getProto());
-    if (proto)
-        return JSObject::lookupElement(cx, proto, index, objp, propp);
+    if (JSObject *proto = obj->getProto())
+        return proto->lookupElement(cx, index, objp, propp);
 
     objp.set(NULL);
     propp.set(NULL);
@@ -1733,9 +1722,8 @@ ParallelArrayObject::getProperty(JSContext *cx, HandleObject obj, HandleObject r
         return true;
     }
 
-    RootedObject proto(cx, obj->getProto());
-    if (proto)
-        return JSObject::getProperty(cx, proto, receiver, name, vp);
+    if (JSObject *proto = obj->getProto())
+        return proto->getProperty(cx, receiver, name, vp);
 
     vp.setUndefined();
     return true;
@@ -1752,9 +1740,8 @@ ParallelArrayObject::getElement(JSContext *cx, HandleObject obj, HandleObject re
         return source->getParallelArrayElement(cx, index, vp);
     }
 
-    RootedObject proto(cx, obj->getProto());
-    if (proto)
-        return JSObject::getElement(cx, proto, receiver, index, vp);
+    if (JSObject *proto = obj->getProto())
+        return proto->getElement(cx, receiver, index, vp);
 
     vp.setUndefined();
     return true;

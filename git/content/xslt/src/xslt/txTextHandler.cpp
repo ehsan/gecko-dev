@@ -13,7 +13,7 @@ txTextHandler::txTextHandler(bool aOnlyText) : mLevel(0),
 
 nsresult
 txTextHandler::attribute(nsIAtom* aPrefix, nsIAtom* aLocalName,
-                         nsIAtom* aLowercaseLocalName, int32_t aNsID,
+                         nsIAtom* aLowercaseLocalName, PRInt32 aNsID,
                          const nsString& aValue)
 {
     return NS_OK;
@@ -21,7 +21,7 @@ txTextHandler::attribute(nsIAtom* aPrefix, nsIAtom* aLocalName,
 
 nsresult
 txTextHandler::attribute(nsIAtom* aPrefix, const nsSubstring& aLocalName,
-                         const int32_t aNsID,
+                         const PRInt32 aNsID,
                          const nsString& aValue)
 {
     return NS_OK;
@@ -71,7 +71,7 @@ txTextHandler::startDocument()
 
 nsresult
 txTextHandler::startElement(nsIAtom* aPrefix, nsIAtom* aLocalName,
-                            nsIAtom* aLowercaseLocalName, const int32_t aNsID)
+                            nsIAtom* aLowercaseLocalName, const PRInt32 aNsID)
 {
     if (mOnlyText)
         ++mLevel;
@@ -81,7 +81,7 @@ txTextHandler::startElement(nsIAtom* aPrefix, nsIAtom* aLocalName,
 
 nsresult
 txTextHandler::startElement(nsIAtom* aPrefix, const nsSubstring& aLocalName,
-                            const int32_t aNsID)
+                            const PRInt32 aNsID)
 {
     if (mOnlyText)
         ++mLevel;
