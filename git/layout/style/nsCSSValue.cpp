@@ -1261,8 +1261,7 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult,
   } else if (eCSSUnit_TokenStream == unit) {
     nsCSSProperty shorthand = mValue.mTokenStream->mShorthandPropertyID;
     if (shorthand == eCSSProperty_UNKNOWN ||
-        nsCSSProps::PropHasFlags(shorthand, CSS_PROPERTY_IS_ALIAS) ||
-        aProperty == eCSSProperty__x_system_font) {
+        nsCSSProps::PropHasFlags(shorthand, CSS_PROPERTY_IS_ALIAS)) {
       // We treat serialization of aliases like '-moz-transform' as a special
       // case, since it really wants to be serialized as if it were a longhand
       // even though it is implemented as a shorthand.

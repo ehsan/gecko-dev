@@ -15,3 +15,6 @@ LIBS = \
 
 DEFINES += $(TK_CFLAGS)
 
+LOCAL_INCLUDES += \
+   -I$(srcdir)/../lib \
+   $(NULL)

@@ -13,8 +13,3 @@ LIBRARY_NAME = 'profdirserviceprovidersa_s'
 FORCE_STATIC_LIB = True
 
 DEFINES['XPCOM_GLUE'] = 1
-
-LOCAL_INCLUDES += [
-    '../src',
-]
-
