@@ -212,13 +212,10 @@ nsTableColGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     return;
      
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
-
+    
   if (tableFrame->IsBorderCollapse() &&
       tableFrame->BCRecalcNeeded(aOldStyleContext, GetStyleContext())) {
-    PRInt32 colCount = GetColCount();
-    if (!colCount)
-      return; // this is a degenerated colgroup 
-    nsRect damageArea(GetFirstColumn()->GetColIndex(), 0, colCount,
+    nsRect damageArea(GetFirstColumn()->GetColIndex(), 0, GetColCount(),
                       tableFrame->GetRowCount());
     tableFrame->SetBCDamageArea(damageArea);
   }
