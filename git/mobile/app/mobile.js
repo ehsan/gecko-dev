@@ -217,7 +217,6 @@ pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCAL
 
 /* preference for the locale picker */
 pref("extensions.getLocales.get.url", "");
-pref("extensions.compatability.locales.buildid", "0");
 
 /* blocklist preferences */
 pref("extensions.blocklist.enabled", true);
@@ -572,8 +571,6 @@ pref("ui.dragThresholdX", 25);
 pref("ui.dragThresholdY", 25);
 
 #if MOZ_PLATFORM_MAEMO == 6
-pref("layers.acceleration.disabled", false);
-#elifdef ANDROID
 pref("layers.acceleration.disabled", false);
 #else
 pref("layers.acceleration.disabled", true);

@@ -401,12 +401,6 @@ SpecialPowers.prototype = {
   closeLogFile: function() {
     this._mfl.close();
   },
-
-  addCategoryEntry: function(category, entry, value, persists, replace) {
-    Cc["@mozilla.org/categorymanager;1"].
-      getService(Components.interfaces.nsICategoryManager).
-      addCategoryEntry(category, entry, value, persists, replace);
-  },
 };
 
 // Expose everything but internal APIs (starting with underscores) to

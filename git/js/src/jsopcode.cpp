@@ -359,40 +359,14 @@ js_DumpScript(JSContext *cx, JSScript *script)
     return ok;
 }
 
-static char *
-QuoteString(Sprinter *sp, JSString *str, uint32 quote);
-
 static bool
 ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
 {
-    if (JSVAL_IS_STRING(v)) {
-        Sprinter sprinter;
-        void *mark = JS_ARENA_MARK(&cx->tempPool);
-        INIT_SPRINTER(cx, &sprinter, &cx->tempPool, 0);
-        char *nbytes = QuoteString(&sprinter, JSVAL_TO_STRING(v), '"');
-        if (!nbytes)
-            return false;
-        nbytes = JS_sprintf_append(NULL, "%s", nbytes);
-        JS_ARENA_RELEASE(&cx->tempPool, mark);
-        if (!nbytes)
-            return false;
-        bytes->initBytes(nbytes);
-        return true;
-    }
-
-    if (cx->runtime->gcRunning || JS_THREAD_DATA(cx)->noGCOrAllocationCheck) {
-        char *source = JS_sprintf_append(NULL, "<value>");
-        if (!source)
-            return false;
-        bytes->initBytes(source);
-        return true;
-    }
-
     if (!JSVAL_IS_PRIMITIVE(v)) {
         JSObject *obj = JSVAL_TO_OBJECT(v);
         Class *clasp = obj->getClass();
 
-        if (clasp == &BlockClass) {
+        if (clasp == &js_BlockClass) {
             char *source = JS_sprintf_append(NULL, "depth %d {", OBJ_BLOCK_DEPTH(cx, obj));
             if (!source)
                 return false;
@@ -419,7 +393,7 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
             return true;
         }
 
-        if (clasp == &FunctionClass) {
+        if (clasp == &js_FunctionClass) {
             JSFunction *fun = obj->getFunctionPrivate();
             JSString *str = JS_DecompileFunction(cx, fun, JS_DONT_PRETTY_PRINT);
             if (!str)
@@ -427,7 +401,7 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
             return bytes->encode(cx, str);
         }
 
-        if (clasp == &RegExpClass) {
+        if (clasp == &js_RegExpClass) {
             AutoValueRooter tvr(cx);
             if (!js_regexp_toString(cx, obj, tvr.addr()))
                 return false;

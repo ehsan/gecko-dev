@@ -1116,24 +1116,19 @@ namespace JSC {
         static void relinkCall(void* from, void* to)
         {
             js::JaegerSpew(js::JSpew_Insns,
-                           ISPFX "##relinkCall ((from=%p)) ((to=%p))\n",
+                           ISPFX "##linkCall ((from=%p)) ((to=%p))\n",
                            from, to);
 
-            void * where= (void *)((intptr_t)from - 20);
-            patchPointerInternal(where, (int)to);
-            ExecutableAllocator::cacheFlush(where, 8);
+            int disp = ((int)to - (int)from)/4;
+            *(uint32_t *)((int)from) &= 0x40000000;
+            *(uint32_t *)((int)from) |= disp & 0x3fffffff;
+            ExecutableAllocator::cacheFlush(from, 4);
         }
 
         static void linkCall(void* code, JmpSrc where, void* to)
         {
             void *from = (void *)((intptr_t)code + where.m_offset);
-            js::JaegerSpew(js::JSpew_Insns,
-                           ISPFX "##linkCall ((from=%p)) ((to=%p))\n",
-                           from, to);
-            int disp = ((int)to - (int)from)/4;
-            *(uint32_t *)((int)from) &= 0x40000000;
-            *(uint32_t *)((int)from) |= disp & 0x3fffffff;
-            ExecutableAllocator::cacheFlush(from, 4);
+            relinkCall(from, to);
         }
 
         static void linkPointer(void* code, JmpDst where, void* value)

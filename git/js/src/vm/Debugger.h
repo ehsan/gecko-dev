@@ -403,7 +403,7 @@ class Debugger {
 
 class BreakpointSite {
     friend class js::Breakpoint;
-    friend struct ::JSCompartment;
+    friend class ::JSCompartment;
     friend class js::Debugger;
 
   public:
@@ -460,7 +460,7 @@ class BreakpointSite {
  * JSCompartment::sweepBreakpoints.
  */
 class Breakpoint {
-    friend struct ::JSCompartment;
+    friend class ::JSCompartment;
     friend class js::Debugger;
 
   public:

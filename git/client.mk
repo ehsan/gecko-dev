@@ -268,7 +268,6 @@ else
 ####################################
 # Configure
 
-MAKEFILE      = $(wildcard $(OBJDIR)/Makefile)
 CONFIG_STATUS = $(wildcard $(OBJDIR)/config.status)
 CONFIG_CACHE  = $(wildcard $(OBJDIR)/config.cache)
 
@@ -317,13 +316,7 @@ endif
                \"$(MAKE) -f client.mk build\"" && exit 1 )
 	@touch $(OBJDIR)/Makefile
 
-ifneq (,$(MAKEFILE))
-$(OBJDIR)/Makefile: $(OBJDIR)/config.status
-
-$(OBJDIR)/config.status: $(CONFIG_STATUS_DEPS)
-else
-$(OBJDIR)/Makefile: $(CONFIG_STATUS_DEPS)
-endif
+$(OBJDIR)/Makefile $(OBJDIR)/config.status: $(CONFIG_STATUS_DEPS)
 	@$(MAKE) -f $(TOPSRCDIR)/client.mk configure
 
 ifneq (,$(CONFIG_STATUS))

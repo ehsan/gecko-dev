@@ -99,6 +99,7 @@ enum ConservativeGCTest
     CGCT_NOTARENA,  /* not within arena range in a chunk */
     CGCT_NOTCHUNK,  /* not within a valid chunk */
     CGCT_FREEARENA, /* within arena containing only free things */
+    CGCT_WRONGTAG,  /* tagged pointer but wrong type */
     CGCT_NOTLIVE,   /* gcthing is not allocated */
     CGCT_END
 };
@@ -161,7 +162,7 @@ struct GCTimer
         LASTDITCH,
         TOOMUCHMALLOC,
         ALLOCTRIGGER,
-        REFILL,
+        CHUNK,
         SHAPE,
         NOREASON
     };

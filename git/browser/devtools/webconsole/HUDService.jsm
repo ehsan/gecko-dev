@@ -1786,6 +1786,7 @@ HUD_SERVICE.prototype =
     panels = popupset.querySelectorAll("panel[hudToolId=" + aHUDId + "]");
     for (let i = 0; i < panels.length; i++) {
       panels[i].hidePopup();
+      popupset.removeChild(panels[i]);
     }
 
     let id = ConsoleUtils.supString(aHUDId);

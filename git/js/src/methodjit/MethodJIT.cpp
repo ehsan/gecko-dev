@@ -925,8 +925,7 @@ mjit::EnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, Value *stackLimi
     }
 
     /* See comment in mjit::Compiler::emitReturn. */
-    if (fp->isFunctionFrame())
-        fp->markFunctionEpilogueDone();
+    fp->markActivationObjectsAsPut();
 
     return ok ? Jaeger_Returned : Jaeger_Throwing;
 }
@@ -1138,23 +1137,21 @@ mjit::JITScript::~JITScript()
 }
 
 size_t
-JSScript::jitDataSize(size_t(*mus)(void *))
+JSScript::jitDataSize()
 {
     size_t n = 0;
     if (jitNormal)
-        n += jitNormal->scriptDataSize(mus); 
+        n += jitNormal->scriptDataSize(); 
     if (jitCtor)
-        n += jitCtor->scriptDataSize(mus); 
+        n += jitCtor->scriptDataSize(); 
     return n;
 }
 
 /* Please keep in sync with Compiler::finishThisUp! */
 size_t
-mjit::JITScript::scriptDataSize(size_t(*mus)(void *))
+mjit::JITScript::scriptDataSize()
 {
-    size_t usable = mus ? mus(this) : 0;
-    return usable ? usable :
-        sizeof(JITScript) +
+    return sizeof(JITScript) +
         sizeof(NativeMapEntry) * nNmapPairs +
         sizeof(InlineFrame) * nInlineFrames +
         sizeof(CallSite) * nCallSites +
