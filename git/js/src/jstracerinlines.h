@@ -41,7 +41,7 @@
 
 #define PRIMITIVE(x) interp_##x
 
-#include "jsinterpinlines.h"	
+#include "jsinterpinlines.h"
 
 #undef PRIMITIVE
 
@@ -55,20 +55,22 @@
 #define binary(op, a, b, v)                                                   \
                         set(v, L.ins2(op, get(a), get(b)))
 #define call1(n, a, v)                                                        \
-    do {                                                                      \
-    LInsp args[] = { get(a) };                                                \
-    set(v, L.insCall(F(n), args));                                            \
-    } while(0)                                                            
+    JS_BEGIN_MACRO                                                            \
+        LInsp args[] = { get(a) };                                            \
+        set(v, L.insCall(F(n), args));                                        \
+    JS_END_MACRO
+
 #define call2(n, a, b, v)                                                     \
-    do {                                                                      \
-    LInsp args[] = { get(a), get(b) };                                        \
-    set(v, L.insCall(F(n), args));                                            \
-    } while(0)                                                            
+    JS_BEGIN_MACRO                                                            \
+        LInsp args[] = { get(a), get(b) };                                    \
+        set(v, L.insCall(F(n), args));                                        \
+    JS_END_MACRO
+
 #define call3(n, a, b, c, v)                                                  \
-    do {                                                                      \
-    LInsp args[] = { get(a), get(b), get(c) };                                \
-    set(v, L.insCall(F(n), args));                                            \
-    } while(0)                                                            
+    JS_BEGIN_MACRO                                                            \
+        LInsp args[] = { get(a), get(b), get(c) };                            \
+        set(v, L.insCall(F(n), args));                                        \
+    JS_END_MACRO
 
 #define STACK_OFFSET(p) (((char*)(p)) - ((char*)JS_TRACE_MONITOR(cx).entryState.sp))
 
@@ -116,7 +118,7 @@ prim_fetch_stack(JSContext* cx, JSFrameRegs& regs, int n, jsval& v)
     interp_prim_fetch_stack(cx, regs, n, v);
     set(&v, get(&regs.sp[n]));
 }
-    
+
 static inline void
 prim_adjust_stack(JSContext* cx, JSFrameRegs& regs, int n)
 {
@@ -180,11 +182,11 @@ guard_jsdouble_is_int_and_int_fits_in_jsval(JSContext* cx, JSFrameRegs& regs, js
     bool ok = interp_guard_jsdouble_is_int_and_int_fits_in_jsval(cx, regs, d, i);
     /* We do not box in trace code, so ints always fit and we only check
        that it is actually an int. */
-    call1(DOUBLE_IS_INT, &d, &ok); 
+    call1(DOUBLE_IS_INT, &d, &ok);
     SideExit exit;
-    L.insGuard(G(ok), 
+    L.insGuard(G(ok),
             get(&ok),
-            snapshot(cx, regs, exit)); 
+            snapshot(cx, regs, exit));
     unary(LIR_callh, &ok, &i);
     return ok;
 }
@@ -208,6 +210,7 @@ static inline bool
 guard_int_fits_in_jsval(JSContext* cx, JSFrameRegs& regs, jsint& i)
 {
     bool ok = interp_guard_int_fits_in_jsval(cx, regs, i);
+    /* Trace-code boxes into 64-bit slots and ints always fit. */
     return ok;
 }
 
@@ -222,6 +225,7 @@ static inline bool
 guard_uint_fits_in_jsval(JSContext* cx, JSFrameRegs& regs, uint32& u)
 {
     bool ok = interp_guard_uint_fits_in_jsval(cx, regs, u);
+    /* Trace-code boxes into 64-bit slots and uints always fit. */
     return ok;
 }
 
@@ -567,7 +571,7 @@ guard_can_do_fast_inc_dec(JSContext* cx, JSFrameRegs& regs, jsval& v)
     /* to do a fast inc/dec the topmost two bits must be both 0 or 1 */
     SideExit exit;
     L.insGuard(G(ok),
-            L.ins2(LIR_eq, 
+            L.ins2(LIR_eq,
                     L.ins2(LIR_and,
                             L.ins2(LIR_xor,
                                     L.ins2(LIR_lsh, get(&v), L.insImm(1)),
