@@ -32,14 +32,6 @@
    fun:__tls_get_addr
    ...
 }
-{
-   See bug 793611
-   Memcheck:Leak
-   fun:memalign
-   fun:tls_get_addr_tail
-   fun:___tls_get_addr
-   ...
-}
 
 #################
 #  Other leaks  #
@@ -52,14 +44,15 @@
    fun:_ZN8JSObject25allocateSlowArrayElementsEP9JSContext
    ...
 }
-{
-   Bug 793533
-   Memcheck:Leak
-   fun:malloc
-   fun:moz_xmalloc
-   fun:_Z22xpc_CreateGlobalObjectP9JSContextP7JSClassP12nsIPrincipalP11nsISupportsbPP8JSObjectPP13JSCompartment
-   ...
-}
+# Suppressing the suppression(s) to get Valgrind stacks with line numbers
+#{
+#   Bug 793533
+#   Memcheck:Leak
+#   fun:malloc
+#   fun:moz_xmalloc
+#   fun:_Z22xpc_CreateGlobalObjectP9JSContextP7JSClassP12nsIPrincipalP11nsISupportsbPP8JSObjectPP13JSCompartment
+#   ...
+#}
 {
    Bug 793536 (all 64-bit systems)
    Memcheck:Leak
@@ -86,7 +79,6 @@
    fun:_ZN13CrashReporter14SetupExtraDataEP7nsIFileRK19nsACString_internal
    ...
 }
-# Suppressing the suppression(s) to get Valgrind stacks with line numbers
 #{
 #   Bug 793601
 #   Memcheck:Leak
@@ -146,17 +138,6 @@
    fun:_pt_root
    fun:start_thread
    fun:clone
-}
-{
-   Bug 793608 variant
-   Memcheck:Leak
-   fun:malloc
-   fun:__libc_res_nsend
-   fun:__libc_res_nquery
-   fun:__libc_res_nquerydomain
-   fun:__libc_res_nsearch
-   obj:*
-   ...
 }
 {
    Bug 793615
