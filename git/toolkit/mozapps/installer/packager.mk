@@ -225,7 +225,6 @@ NO_PKG_FILES += \
 	core \
 	bsdecho \
 	gtscc \
-	js-config \
 	jscpucfg \
 	nsinstall \
 	viewer \

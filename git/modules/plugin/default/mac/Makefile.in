@@ -48,7 +48,7 @@ MODULE      = plugin
 ifdef MOZ_DEBUG
 BUILDSTYLE	= Debug
 else
-BUILDSTYLE	= Release
+BUILDSTYLE	= Deployment
 endif
 
 PROJECT=DefaultPlugin.xcodeproj

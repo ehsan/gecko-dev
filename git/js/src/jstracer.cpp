@@ -51,7 +51,7 @@
 #include <alloca.h>
 #endif
 
-#include "nanojit/nanojit.h"
+#include "nanojit.h"
 #include "jsarray.h"            // higher-level library and API headers
 #include "jsbool.h"
 #include "jscntxt.h"
