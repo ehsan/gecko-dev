@@ -27,8 +27,7 @@ function test()
     hud.jsterm.execute("Cu = Components.utils;" +
                        "Cu.import('resource://gre/modules/Services.jsm');" +
                        "chromeWindow = Services.wm.getMostRecentWindow('navigator:browser');" +
-                       "foobarzTezt = chromeWindow.content.document;" +
-                       "delete chromeWindow", onAddVariable);
+                       "foobarzTezt = chromeWindow.content.document", onAddVariable);
   }
 
   function onAddVariable()

@@ -36,19 +36,18 @@ StructuredCloneData
 
 bool
 ReadStructuredClone(JSContext* aCx, uint64_t* aData, size_t aDataLength,
-                    const StructuredCloneClosure& aClosure,
-                    JS::MutableHandle<JS::Value> aClone);
+                    const StructuredCloneClosure& aClosure, JS::Value* aClone);
 
 inline bool
 ReadStructuredClone(JSContext* aCx, const StructuredCloneData& aData,
-                    JS::MutableHandle<JS::Value> aClone)
+                    JS::Value* aClone)
 {
   return ReadStructuredClone(aCx, aData.mData, aData.mDataLength,
                              aData.mClosure, aClone);
 }
 
 bool
-WriteStructuredClone(JSContext* aCx, JS::Handle<JS::Value> aSource,
+WriteStructuredClone(JSContext* aCx, const JS::Value& aSource,
                      JSAutoStructuredCloneBuffer& aBuffer,
                      StructuredCloneClosure& aClosure);
 

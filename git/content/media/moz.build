@@ -66,11 +66,12 @@ EXPORTS += [
     'AudioStream.h',
     'BufferDecoder.h',
     'BufferMediaResource.h',
-    'DecoderTraits.h',
     'DOMMediaStream.h',
+    'DecoderTraits.h',
     'EncodedBufferCache.h',
     'FileBlockCache.h',
     'Latency.h',
+    'MP3FrameParser.h',
     'MediaCache.h',
     'MediaDecoder.h',
     'MediaDecoderOwner.h',
@@ -81,7 +82,6 @@ EXPORTS += [
     'MediaResource.h',
     'MediaSegment.h',
     'MediaStreamGraph.h',
-    'MP3FrameParser.h',
     'RtspMediaResource.h',
     'SharedBuffer.h',
     'StreamBuffer.h',
@@ -106,7 +106,7 @@ EXPORTS.mozilla.dom += [
     'VideoStreamTrack.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'AudioAvailableEventManager.cpp',
     'AudioChannelFormat.cpp',
     'AudioNodeEngine.cpp',
@@ -116,11 +116,12 @@ SOURCES += [
     'AudioStream.cpp',
     'AudioStreamTrack.cpp',
     'BufferDecoder.cpp',
-    'DecoderTraits.cpp',
     'DOMMediaStream.cpp',
+    'DecoderTraits.cpp',
     'EncodedBufferCache.cpp',
     'FileBlockCache.cpp',
     'Latency.cpp',
+    'MP3FrameParser.cpp',
     'MediaCache.cpp',
     'MediaDecoder.cpp',
     'MediaDecoderReader.cpp',
@@ -129,7 +130,6 @@ SOURCES += [
     'MediaResource.cpp',
     'MediaStreamGraph.cpp',
     'MediaStreamTrack.cpp',
-    'MP3FrameParser.cpp',
     'RtspMediaResource.cpp',
     'StreamBuffer.cpp',
     'TextTrack.cpp',
@@ -149,7 +149,7 @@ SOURCES += [
 FAIL_ON_WARNINGS = True
 
 if CONFIG['CPU_ARCH'] == 'arm' and CONFIG['BUILD_ARM_NEON']:
-    SOURCES += [
+    CPP_SOURCES += [
         'AudioNodeEngineNEON.cpp',
     ]
 
@@ -158,6 +158,4 @@ LIBXUL_LIBRARY = True
 MSVC_ENABLE_PGO = True
 
 LIBRARY_NAME = 'gkconmedia_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

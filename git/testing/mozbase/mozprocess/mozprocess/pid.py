@@ -49,13 +49,7 @@ def running_processes(name, psarg=psarg, defunct=True):
     """
     retval = []
     for process in ps(psarg):
-        # Support for both BSD and UNIX syntax
-        # `ps aux` returns COMMAND, `ps -ef` returns CMD
-        try:
-            command = process['COMMAND']
-        except KeyError:
-            command = process['CMD']
-
+        command = process['COMMAND']
         command = shlex.split(command)
         if command[-1] == '<defunct>':
             command = command[:-1]

@@ -9,13 +9,13 @@ NO_DIST_INSTALL = True
 
 XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini', 'unit_ipc/xpcshell.ini']
 
-SOURCES += [
-    '../google-breakpad/src/common/logging.cc',
-    '../google-breakpad/src/common/pathname_stripper.cc',
+CPP_SOURCES += [
     '../google-breakpad/src/processor/basic_code_modules.cc',
-    '../google-breakpad/src/processor/minidump.cc',
     'dumputils.cpp',
+    '../google-breakpad/src/common/logging.cc',
+    '../google-breakpad/src/processor/minidump.cc',
     'nsTestCrasher.cpp',
+    '../google-breakpad/src/common/pathname_stripper.cc',
 ]
 
 LIBRARY_NAME = 'testcrasher'

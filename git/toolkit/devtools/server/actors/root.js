@@ -175,8 +175,7 @@ RootActor.prototype = {
       /* This is not in the spec, but it's used by tests. */
       testConnectionPrefix: this.conn.prefix,
       traits: {
-        sources: true,
-        editOuterHTML: true
+        sources: true
       }
     };
   },

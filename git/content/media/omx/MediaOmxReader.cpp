@@ -262,7 +262,7 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
                             mDecoder->GetImageContainer(),
                             pos,
                             frame.mTimeUs,
-                            1, // We don't know the duration.
+                            frame.mTimeUs+1, // We don't know the end time.
                             b,
                             frame.mKeyFrame,
                             -1,
@@ -272,7 +272,7 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
                             mDecoder->GetImageContainer(),
                             pos,
                             frame.mTimeUs,
-                            1, // We don't know the duration.
+                            frame.mTimeUs+1, // We don't know the end time.
                             frame.mGraphicBuffer,
                             frame.mKeyFrame,
                             -1,

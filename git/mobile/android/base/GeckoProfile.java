@@ -35,7 +35,6 @@ public final class GeckoProfile {
     private final String mName;
     private File mMozDir;
     private File mDir;
-    public static boolean sIsUsingCustomProfile = false;
 
     // Constants to cache whether or not a profile is "locked".
     private enum LockState {
@@ -61,13 +60,7 @@ public final class GeckoProfile {
     }
 
     public static GeckoProfile get(Context context) {
-        boolean isGeckoApp = false;
-        try {
-            isGeckoApp = context instanceof GeckoApp;
-        } catch (NoClassDefFoundError ex) {}
-        
-
-        if (isGeckoApp) {
+        if (context instanceof GeckoApp) {
             // Check for a cached profile on this context already
             // TODO: We should not be caching profile information on the Activity context
             if (((GeckoApp)context).mProfile != null) {
@@ -81,7 +74,7 @@ public final class GeckoProfile {
             return guest;
         }
 
-        if (isGeckoApp) {
+        if (context instanceof GeckoApp) {
             // Otherwise, get the default profile for the Activity
             return get(context, ((GeckoApp)context).getDefaultProfileName());
         }

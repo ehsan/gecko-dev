@@ -41,10 +41,10 @@ EXPORTS += [
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
-    EXPORTS += [ '%s/%s' % (osdir, f) for f in [
-        'nsExternalSharingAppService.h',
-        'nsExternalURLHandlerService.h',
-    ]]
+    EXPORTS += [
+        osdir + '/nsExternalSharingAppService.h',
+        osdir + '/nsExternalURLHandlerService.h',
+    ]
 
 if CONFIG['MOZ_ENABLE_MEEGOTOUCHSHARE']:
     EXPORTS += [
@@ -56,7 +56,7 @@ EXPORTS.mozilla.dom += [
     'ExternalHelperAppParent.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'ExternalHelperAppChild.cpp',
     'ExternalHelperAppParent.cpp',
     'nsExternalHelperAppService.cpp',
@@ -66,54 +66,54 @@ SOURCES += [
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    SOURCES += [
-        'mac/nsLocalHandlerAppMac.mm',
-        'mac/nsMIMEInfoMac.mm',
-        'mac/nsOSHelperAppService.mm',
+    CMMSRCS += [
+        'nsLocalHandlerAppMac.mm',
+        'nsMIMEInfoMac.mm',
+        'nsOSHelperAppService.mm',
     ]
 else:
-    SOURCES += [
+    CPP_SOURCES += [
         osdir + '/nsOSHelperAppService.cpp',
     ]
 
 if CONFIG['MOZ_ENABLE_GTK']:
-    SOURCES += [
+    CPP_SOURCES += [
         'unix/nsGNOMERegistry.cpp',
         'unix/nsMIMEInfoUnix.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
-    SOURCES += [
+    CPP_SOURCES += [
+        'android/nsMIMEInfoAndroid.cpp',
         'android/nsAndroidHandlerApp.cpp',
         'android/nsExternalSharingAppService.cpp',
         'android/nsExternalURLHandlerService.cpp',
-        'android/nsMIMEInfoAndroid.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
-    SOURCES += [
+    CPP_SOURCES += [
         'unix/nsGNOMERegistry.cpp',
         'unix/nsMIMEInfoUnix.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
-    SOURCES += [
+    CPP_SOURCES += [
         'win/nsMIMEInfoWin.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
-    SOURCES += [
+    CPP_SOURCES += [
         'os2/nsMIMEInfoOS2.cpp',
     ]
 
 if CONFIG['MOZ_ENABLE_DBUS']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsDBusHandlerApp.cpp',
     ]
 
 if CONFIG['MOZ_ENABLE_MEEGOTOUCHSHARE']:
-    SOURCES += [
+    CPP_SOURCES += [
         'unix/nsMeegoExternalSharingAppService.cpp',
     ]
 
 if CONFIG['MOZ_ENABLE_CONTENTACTION']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsContentHandlerApp.cpp',
     ]
 
@@ -133,6 +133,4 @@ FAIL_ON_WARNINGS = True
 LIBXUL_LIBRARY = True
 
 LIBRARY_NAME = 'exthandler_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

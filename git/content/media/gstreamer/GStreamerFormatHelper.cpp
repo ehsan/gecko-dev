@@ -143,7 +143,7 @@ bool GStreamerFormatHelper::CanHandleMediaType(const nsACString& aMIMEType,
   }
 
   const char *type;
-  NS_CStringGetData(aMIMEType, &type, nullptr);
+  NS_CStringGetData(aMIMEType, &type, NULL);
 
   GstCaps *caps;
   if (aCodecs && !aCodecs->IsEmpty()) {

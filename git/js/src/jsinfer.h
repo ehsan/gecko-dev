@@ -533,7 +533,7 @@ class TypeSet
     static TemporaryTypeSet *unionSets(TypeSet *a, TypeSet *b, LifoAlloc *alloc);
 
     /* Add a type to this set using the specified allocator. */
-    inline bool addType(Type type, LifoAlloc *alloc, bool *padded = nullptr);
+    inline bool addType(Type type, LifoAlloc *alloc, bool *padded = NULL);
 
     /*
      * Add a type to this set, calling any constraint handlers if this is a new
@@ -1221,7 +1221,7 @@ class RecompileInfo;
 // constraints for the compilation. Returns whether the type constraints
 // still hold.
 bool
-FinishCompilation(JSContext *cx, HandleScript script, ExecutionMode executionMode,
+FinishCompilation(JSContext *cx, JSScript *script, ExecutionMode executionMode,
                   CompilerConstraintList *constraints, RecompileInfo *precompileInfo);
 
 struct ArrayTableKey;
@@ -1277,7 +1277,7 @@ struct TypeObjectKey
     void watchStateChangeForInlinedCall(CompilerConstraintList *constraints);
     void watchStateChangeForNewScriptTemplate(CompilerConstraintList *constraints);
     void watchStateChangeForTypedArrayBuffer(CompilerConstraintList *constraints);
-    HeapTypeSetKey property(jsid id, JSContext *maybecx = nullptr);
+    HeapTypeSetKey property(jsid id, JSContext *maybecx = NULL);
 
     TypeObject *maybeType();
 };
@@ -1303,7 +1303,7 @@ class HeapTypeSetKey
 
   public:
     HeapTypeSetKey()
-      : object_(nullptr), id_(JSID_EMPTY), maybeTypes_(nullptr)
+      : object_(NULL), id_(JSID_EMPTY), maybeTypes_(NULL)
     {}
 
     TypeObjectKey *object() const { return object_; }

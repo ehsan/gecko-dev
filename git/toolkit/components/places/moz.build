@@ -35,27 +35,27 @@ if CONFIG['MOZ_PLACES']:
     ]
 
     EXPORTS.mozilla.places = [
-        'Database.h',
         'History.h',
+        'Database.h',
     ]
 
-    SOURCES += [
-        'AsyncFaviconHelpers.cpp',
-        'Database.cpp',
-        'Helpers.cpp',
-        'History.cpp',
+    CPP_SOURCES += [
         'nsAnnoProtocolHandler.cpp',
         'nsAnnotationService.cpp',
         'nsFaviconService.cpp',
-        'nsMaybeWeakPtr.cpp',
-        'nsNavBookmarks.cpp',
         'nsNavHistory.cpp',
         'nsNavHistoryQuery.cpp',
         'nsNavHistoryResult.cpp',
+        'nsNavBookmarks.cpp',
+        'nsMaybeWeakPtr.cpp',
         'nsPlacesModule.cpp',
-        'PlaceInfo.cpp',
         'SQLFunctions.cpp',
+        'Helpers.cpp',
+        'History.cpp',
+        'AsyncFaviconHelpers.cpp',
+        'PlaceInfo.cpp',
         'VisitInfo.cpp',
+        'Database.cpp',
     ]
 
     LOCAL_INCLUDES += [
@@ -78,10 +78,10 @@ if CONFIG['MOZ_PLACES']:
 
     EXTRA_COMPONENTS += [
         'ColorAnalyzer.js',
+        'PlacesCategoriesStarter.js',
         'nsLivemarkService.js',
         'nsPlacesExpiration.js',
         'nsTaggingService.js',
-        'PlacesCategoriesStarter.js',
         'toolkitplaces.manifest',
     ]
     if CONFIG['MOZ_XUL']:
@@ -89,5 +89,3 @@ if CONFIG['MOZ_PLACES']:
             'nsPlacesAutoComplete.js',
             'nsPlacesAutoComplete.manifest',
         ]
-include('/ipc/chromium/chromium-config.mozbuild')
-

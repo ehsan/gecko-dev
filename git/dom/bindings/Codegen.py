@@ -1641,9 +1641,7 @@ class AttrDefiner(PropertyDefiner):
                    (accessor, jitinfo)
 
         def setter(attr):
-            if (attr.readonly and
-                attr.getExtendedAttribute("PutForwards") is None and
-                attr.getExtendedAttribute("Replaceable") is None):
+            if attr.readonly and attr.getExtendedAttribute("PutForwards") is None:
                 return "JSOP_NULLWRAPPER"
             if self.static:
                 accessor = 'set_' + attr.identifier.name
@@ -3935,7 +3933,7 @@ class CGArgumentConverter(CGThing):
 sequenceWrapLevel = 0
 
 def getWrapTemplateForType(type, descriptorProvider, result, successCode,
-                           returnsNewObject, exceptionCode, typedArraysAreStructs):
+                           isCreator, exceptionCode, typedArraysAreStructs):
     """
     Reflect a C++ value stored in "result", of IDL type "type" into JS.  The
     "successCode" is the code to run once we have successfully done the
@@ -4022,7 +4020,7 @@ def getWrapTemplateForType(type, descriptorProvider, result, successCode,
             # Nullable sequences are Nullable< nsTArray<T> >
             (recTemplate, recInfall) = getWrapTemplateForType(type.inner, descriptorProvider,
                                                               "%s.Value()" % result, successCode,
-                                                              returnsNewObject, exceptionCode,
+                                                              isCreator, exceptionCode,
                                                               typedArraysAreStructs)
             return ("""
 if (%s.IsNull()) {
@@ -4044,7 +4042,7 @@ if (%s.IsNull()) {
                 'successCode': "break;",
                 'jsvalRef': "tmp",
                 'jsvalHandle': "&tmp",
-                'returnsNewObject': returnsNewObject,
+                'isCreator': isCreator,
                 'exceptionCode': exceptionCode,
                 'obj': "returnArray"
                 }
@@ -4091,8 +4089,8 @@ if (!returnArray) {
                 assert descriptor.nativeOwnership != 'owned'
                 wrapMethod = "WrapNewBindingObject"
             else:
-                if not returnsNewObject:
-                    raise MethodNotNewObjectError(descriptor.interface.identifier.name)
+                if not isCreator:
+                    raise MethodNotCreatorError(descriptor.interface.identifier.name)
                 if descriptor.nativeOwnership == 'owned':
                     wrapMethod = "WrapNewBindingNonWrapperCachedOwnedObject"
                 else:
@@ -4205,7 +4203,7 @@ if (!returnArray) {
     if type.nullable():
         (recTemplate, recInfal) = getWrapTemplateForType(type.inner, descriptorProvider,
                                                          "%s.Value()" % result, successCode,
-                                                         returnsNewObject, exceptionCode,
+                                                         isCreator, exceptionCode,
                                                          typedArraysAreStructs)
         return ("if (%s.IsNull()) {\n" % result +
                 CGIndenter(CGGeneric(setValue("JSVAL_NULL"))).define() + "\n" +
@@ -4278,9 +4276,8 @@ def wrapForType(type, descriptorProvider, templateValues):
                                   more of the conversion template will be
                                   executed (e.g. by doing a 'return' or 'break'
                                   as appropriate).
-      * 'returnsNewObject' (optional): If true, we're wrapping for the return
-                                       value of a [NewObject] method.  Assumed
-                                       false if not set.
+      * 'isCreator' (optional): If true, we're wrapping for the return value of
+                                a [Creator] method.  Assumed false if not set.
       * 'exceptionCode' (optional): Code to run when a JS exception is thrown.
                                     The default is "return false;".  The code
                                     passed here must return.
@@ -4288,7 +4285,7 @@ def wrapForType(type, descriptorProvider, templateValues):
     wrap = getWrapTemplateForType(type, descriptorProvider,
                                   templateValues.get('result', 'result'),
                                   templateValues.get('successCode', None),
-                                  templateValues.get('returnsNewObject', False),
+                                  templateValues.get('isCreator', False),
                                   templateValues.get('exceptionCode',
                                                      "return false;"),
                                   templateValues.get('typedArraysAreStructs',
@@ -4300,8 +4297,8 @@ def wrapForType(type, descriptorProvider, templateValues):
 def infallibleForMember(member, type, descriptorProvider):
     """
     Determine the fallibility of changing a C++ value of IDL type "type" into
-    JS for the given attribute. Apart from returnsNewObject, all the defaults
-    are used, since the fallbility does not change based on the boolean values,
+    JS for the given attribute. Apart from isCreator, all the defaults are used,
+    since the fallbility does not change based on the boolean values,
     and the template will be discarded.
 
     CURRENT ASSUMPTIONS:
@@ -4309,7 +4306,7 @@ def infallibleForMember(member, type, descriptorProvider):
         failure conditions.
     """
     return getWrapTemplateForType(type, descriptorProvider, 'result', None,\
-                                  memberReturnsNewObject(member), "return false;",
+                                  memberIsCreator(member), "return false;",
                                   False)[1]
 
 def leafTypeNeedsCx(type, retVal):
@@ -4587,7 +4584,7 @@ def getUnionMemberName(type):
         return str(type)
     return type.name
 
-class MethodNotNewObjectError(Exception):
+class MethodNotCreatorError(Exception):
     def __init__(self, typename):
         self.typename = typename
 
@@ -4861,11 +4858,11 @@ if (!${obj}) {
         return not 'infallible' in self.extendedAttributes
 
     def wrap_return_value(self):
-        returnsNewObject = memberReturnsNewObject(self.idlNode)
-        if returnsNewObject:
+        isCreator = memberIsCreator(self.idlNode)
+        if isCreator:
             # We better be returning addrefed things!
             assert(isResultAlreadyAddRefed(self.extendedAttributes) or
-                   # NewObject can return raw pointers to owned objects
+                   # Creators can return raw pointers to owned objects
                    (self.returnType.isGeckoInterface() and
                     self.descriptor.getDescriptor(self.returnType.unroll().inner.identifier.name).nativeOwnership == 'owned') or
                    # Workers use raw pointers for new-object return
@@ -4874,13 +4871,13 @@ if (!${obj}) {
 
         resultTemplateValues = { 'jsvalRef': 'args.rval()',
                                  'jsvalHandle': 'args.rval()',
-                                 'returnsNewObject': returnsNewObject}
+                                 'isCreator': isCreator}
         try:
             return wrapForType(self.returnType, self.descriptor,
                                resultTemplateValues)
-        except MethodNotNewObjectError, err:
-            assert not returnsNewObject
-            raise TypeError("%s being returned from non-NewObject method or property %s.%s" %
+        except MethodNotCreatorError, err:
+            assert not isCreator
+            raise TypeError("%s being returned from non-creator method or property %s.%s" %
                             (err.typename,
                              self.descriptor.interface.identifier.name,
                              self.idlNode.identifier.name))
@@ -5797,31 +5794,8 @@ if (!v.isObject()) {
 
 return JS_SetProperty(cx, &v.toObject(), "%s", args[0]);""" % (attrName, self.descriptor.interface.identifier.name, attrName, forwardToAttrName))).define()
 
-class CGSpecializedReplaceableSetter(CGSpecializedSetter):
-    """
-    A class for generating the code for a specialized attribute setter with
-    Replaceable that the JIT can call with lower overhead.
-    """
-    def __init__(self, descriptor, attr):
-        CGSpecializedSetter.__init__(self, descriptor, attr)
-
-    def definition_body(self):
-        attrName = self.attr.identifier.name
-        return CGIndenter(CGGeneric("""JS::Rooted<JSPropertyDescriptor> desc(cx);
-desc.object().set(obj);
-desc.setEnumerable();
-desc.value().set(args[0]);
-
-JS::Rooted<jsid> id(cx);
-if (!InternJSString(cx, id.get(), "%s")) {
-  return false;
-}
-
-bool b;
-return js_DefineOwnProperty(cx, obj, id, desc, &b);""" % attrName)).define()
-
-def memberReturnsNewObject(member):
-    return member.getExtendedAttribute("NewObject") is not None
+def memberIsCreator(member):
+    return member.getExtendedAttribute("Creator") is not None
 
 class CGMemberJITInfo(CGThing):
     """
@@ -5874,9 +5848,7 @@ class CGMemberJITInfo(CGThing):
             result = self.defineJitInfo(getterinfo, getter, "Getter",
                                         getterinfal, getterconst, getterpure,
                                         [self.member.type])
-            if (not self.member.readonly or
-                self.member.getExtendedAttribute("PutForwards") is not None or
-                self.member.getExtendedAttribute("Replaceable") is not None):
+            if not self.member.readonly or self.member.getExtendedAttribute("PutForwards") is not None:
                 setterinfo = ("%s_setterinfo" % self.member.identifier.name)
                 # Actually a JSJitSetterOp, but JSJitGetterOp is first in the
                 # union.
@@ -7998,9 +7970,6 @@ class CGDescriptor(CGThing):
                 elif m.getExtendedAttribute("PutForwards"):
                     cgThings.append(CGSpecializedForwardingSetter(descriptor, m))
                     hasSetter = True
-                elif m.getExtendedAttribute("Replaceable"):
-                    cgThings.append(CGSpecializedReplaceableSetter(descriptor, m))
-                    hasSetter = True
                 if (not m.isStatic() and
                     descriptor.interface.hasInterfacePrototypeObject()):
                     cgThings.append(CGMemberJITInfo(descriptor, m))
@@ -8569,7 +8538,7 @@ if (""",
                                  "break;" % propDef),
                 'jsvalRef': "temp",
                 'jsvalHandle': "&temp",
-                'returnsNewObject': False,
+                'isCreator': False,
                 'obj': "parentObject",
                 'typedArraysAreStructs': True
             })
@@ -9165,7 +9134,7 @@ class CGNativeMember(ClassMethod):
                     holder = "nsRefPtr"
                 else:
                     holder = "already_AddRefed"
-                if memberReturnsNewObject(self.member):
+                if memberIsCreator(self.member):
                     warning = ""
                 else:
                     warning = "// Mark this as resultNotAddRefed to return raw pointers\n"
@@ -10130,10 +10099,10 @@ class FakeMember():
     def isMethod(self):
         return False
     def getExtendedAttribute(self, name):
-        # Claim to be a [NewObject] so we can avoid the "mark this
+        # Claim to be a [Creator] so we can avoid the "mark this
         # resultNotAddRefed" comments CGNativeMember codegen would
         # otherwise stick in.
-        if name == "NewObject":
+        if name == "Creator":
             return True
         return None
 
@@ -10289,7 +10258,7 @@ class CallbackMember(CGNativeMember):
                 # really...  It's OK to use CallbackPreserveColor because
                 # CallSetup already handled the unmark-gray bits for us.
                 'obj' : 'CallbackPreserveColor()',
-                'returnsNewObject': False,
+                'isCreator': False,
                 'exceptionCode' : self.exceptionCode
                 })
         if arg.variadic:

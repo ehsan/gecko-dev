@@ -1,7 +1,6 @@
 #filter substitution
 package @ANDROID_PACKAGE_NAME@.tests;
 
-import com.jayway.android.robotium.solo.Condition;
 import @ANDROID_PACKAGE_NAME@.*;
 import android.app.Activity;
 import android.content.Intent;
@@ -72,26 +71,10 @@ public class testShareLink extends AboutHomeTest {
         // Test the share popup in the Bookmarks page
         openAboutHomeTab(AboutHomeTabs.BOOKMARKS);
 
-        final ListView bookmarksList = findListViewWithTag("bookmarks");
+        ListView bookmarksList = findListViewWithTag("bookmarks");
         mAsserter.is(waitForNonEmptyListToLoad(bookmarksList), true, "list is properly loaded");
 
-        int headerViewsCount = bookmarksList.getHeaderViewsCount();
-        View bookmarksItem = bookmarksList.getChildAt(headerViewsCount);
-        if (bookmarksItem == null) {
-            mAsserter.dumpLog("no child at index " + headerViewsCount + "; waiting for one...");
-            Condition listWaitCondition = new Condition() {
-                @Override
-                public boolean isSatisfied() {
-                    if (bookmarksList.getChildAt(bookmarksList.getHeaderViewsCount()) == null)
-                        return false;
-                    return true;
-                }
-            };
-            waitForCondition(listWaitCondition, MAX_WAIT_MS);
-            headerViewsCount = bookmarksList.getHeaderViewsCount();
-            bookmarksItem = bookmarksList.getChildAt(headerViewsCount);
-        }
-
+        View bookmarksItem = bookmarksList.getChildAt(bookmarksList.getHeaderViewsCount());
         mSolo.clickLongOnView(bookmarksItem);
         verifySharePopup(shareOptions,"bookmarks");
 

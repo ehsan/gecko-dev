@@ -6,8 +6,7 @@
 
 MODULE = 'widget'
 
-SOURCES += [
-    'APZController.cpp',
+CPP_SOURCES += [
     'FrameworkView.cpp',
     'MetroApp.cpp',
     'MetroAppShell.cpp',
@@ -15,11 +14,12 @@ SOURCES += [
     'MetroInput.cpp',
     'MetroUtils.cpp',
     'MetroWidget.cpp',
-    'nsMetroFilePicker.cpp',
-    'nsWinMetroUtils.cpp',
     'ToastNotificationHandler.cpp',
     'UIAAccessibilityBridge.cpp',
     'UIABridge.cpp',
+    'nsMetroFilePicker.cpp',
+    'nsWinMetroUtils.cpp',
+    'APZController.cpp',
 ]
 
 EXTRA_COMPONENTS += [
@@ -32,6 +32,4 @@ LIBXUL_LIBRARY = True
 LIBRARY_NAME = 'widget_winrt'
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

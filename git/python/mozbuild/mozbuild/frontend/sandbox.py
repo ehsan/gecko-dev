@@ -34,14 +34,6 @@ from mozbuild.util import (
 )
 
 
-def alphabetical_sorted(iterable, cmp=None, key=lambda x: x.lower(),
-                        reverse=False):
-    """sorted() replacement for the sandbox, ordering alphabetically by
-    default.
-    """
-    return sorted(iterable, cmp, key, reverse)
-
-
 class GlobalNamespace(dict):
     """Represents the globals namespace in a sandbox.
 
@@ -82,7 +74,6 @@ class GlobalNamespace(dict):
         'None': None,
         'False': False,
         'True': True,
-        'sorted': alphabetical_sorted,
     })
 
     def __init__(self, allowed_variables=None, builtins=None):

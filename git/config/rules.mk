@@ -299,7 +299,6 @@ endif
 
 # Don't build SIMPLE_PROGRAMS during the MOZ_PROFILE_GENERATE pass
 ifdef MOZ_PROFILE_GENERATE
-EXCLUDED_OBJS := $(SIMPLE_PROGRAMS:$(BIN_SUFFIX)=.$(OBJ_SUFFIX))
 SIMPLE_PROGRAMS :=
 endif
 
@@ -319,11 +318,11 @@ _OBJS = $(COBJS) $(SOBJS) $(CPPOBJS) $(CMOBJS) $(CMMOBJS) $(ASOBJS)
 OBJS = $(strip $(_OBJS))
 endif
 
-HOST_COBJS = $(addprefix host_,$(notdir $(HOST_CSRCS:.c=.$(OBJ_SUFFIX))))
+HOST_COBJS = $(addprefix host_,$(HOST_CSRCS:.c=.$(OBJ_SUFFIX)))
 # HOST_CPPOBJS can have different extensions (eg: .cpp, .cc)
-HOST_CPPOBJS = $(addprefix host_,$(notdir $(addsuffix .$(OBJ_SUFFIX),$(basename $(HOST_CPPSRCS)))))
-HOST_CMOBJS = $(addprefix host_,$(notdir $(HOST_CMSRCS:.m=.$(OBJ_SUFFIX))))
-HOST_CMMOBJS = $(addprefix host_,$(notdir $(HOST_CMMSRCS:.mm=.$(OBJ_SUFFIX))))
+HOST_CPPOBJS = $(addprefix host_,$(addsuffix .$(OBJ_SUFFIX),$(basename $(HOST_CPPSRCS))))
+HOST_CMOBJS = $(addprefix host_,$(HOST_CMSRCS:.m=.$(OBJ_SUFFIX)))
+HOST_CMMOBJS = $(addprefix host_,$(HOST_CMMSRCS:.mm=.$(OBJ_SUFFIX)))
 ifndef HOST_OBJS
 _HOST_OBJS = $(HOST_COBJS) $(HOST_CPPOBJS) $(HOST_CMOBJS) $(HOST_CMMOBJS)
 HOST_OBJS = $(strip $(_HOST_OBJS))
@@ -817,7 +816,7 @@ endif
 $(HOST_PROGRAM): $(HOST_PROGOBJS) $(HOST_LIBS_DEPS) $(HOST_EXTRA_DEPS) $(GLOBAL_DEPS)
 	$(REPORT_BUILD)
 ifeq (_WINNT,$(GNU_CC)_$(HOST_OS_ARCH))
-	$(EXPAND_LIBS_EXEC) -- $(HOST_LD) -NOLOGO -OUT:$@ -PDB:$(HOST_PDBFILE) $(HOST_OBJS) $(WIN32_EXE_LDFLAGS) $(HOST_LDFLAGS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
+	$(EXPAND_LIBS_EXEC) --uselist -- $(HOST_LD) -NOLOGO -OUT:$@ -PDB:$(HOST_PDBFILE) $(HOST_OBJS) $(WIN32_EXE_LDFLAGS) $(HOST_LDFLAGS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
 ifdef MSMANIFEST_TOOL
 	@if test -f $@.manifest; then \
 		if test -f "$(srcdir)/$@.manifest"; then \
@@ -834,9 +833,9 @@ ifdef MSMANIFEST_TOOL
 endif	# MSVC with manifest tool
 else
 ifeq ($(HOST_CPP_PROG_LINK),1)
-	$(EXPAND_LIBS_EXEC) -- $(HOST_CXX) -o $@ $(HOST_CXXFLAGS) $(HOST_LDFLAGS) $(HOST_PROGOBJS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
+	$(EXPAND_LIBS_EXEC) --uselist -- $(HOST_CXX) -o $@ $(HOST_CXXFLAGS) $(HOST_LDFLAGS) $(HOST_PROGOBJS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
 else
-	$(EXPAND_LIBS_EXEC) -- $(HOST_CC) -o $@ $(HOST_CFLAGS) $(HOST_LDFLAGS) $(HOST_PROGOBJS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
+	$(EXPAND_LIBS_EXEC) --uselist -- $(HOST_CC) -o $@ $(HOST_CFLAGS) $(HOST_LDFLAGS) $(HOST_PROGOBJS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
 endif # HOST_CPP_PROG_LINK
 endif
 
@@ -873,12 +872,12 @@ endif
 $(HOST_SIMPLE_PROGRAMS): host_%$(HOST_BIN_SUFFIX): host_%.$(OBJ_SUFFIX) $(HOST_LIBS_DEPS) $(HOST_EXTRA_DEPS) $(GLOBAL_DEPS)
 	$(REPORT_BUILD)
 ifeq (WINNT_,$(HOST_OS_ARCH)_$(GNU_CC))
-	$(EXPAND_LIBS_EXEC) -- $(HOST_LD) -NOLOGO -OUT:$@ -PDB:$(HOST_PDBFILE) $< $(WIN32_EXE_LDFLAGS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
+	$(EXPAND_LIBS_EXEC) --uselist -- $(HOST_LD) -NOLOGO -OUT:$@ -PDB:$(HOST_PDBFILE) $< $(WIN32_EXE_LDFLAGS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
 else
 ifneq (,$(HOST_CPPSRCS)$(USE_HOST_CXX))
-	$(EXPAND_LIBS_EXEC) -- $(HOST_CXX) $(HOST_OUTOPTION)$@ $(HOST_CXXFLAGS) $(INCLUDES) $< $(HOST_LIBS) $(HOST_EXTRA_LIBS)
+	$(EXPAND_LIBS_EXEC) --uselist -- $(HOST_CXX) $(HOST_OUTOPTION)$@ $(HOST_CXXFLAGS) $(INCLUDES) $< $(HOST_LIBS) $(HOST_EXTRA_LIBS)
 else
-	$(EXPAND_LIBS_EXEC) -- $(HOST_CC) $(HOST_OUTOPTION)$@ $(HOST_CFLAGS) $(INCLUDES) $< $(HOST_LIBS) $(HOST_EXTRA_LIBS)
+	$(EXPAND_LIBS_EXEC) --uselist -- $(HOST_CC) $(HOST_OUTOPTION)$@ $(HOST_CFLAGS) $(INCLUDES) $< $(HOST_LIBS) $(HOST_EXTRA_LIBS)
 endif
 endif
 
@@ -1014,10 +1013,10 @@ endif # Sun Studio on Solaris
 # rules that have commands for these targets must not list any other
 # prerequisites, or they will override the $< variable.
 define src_objdep
-$(basename $2$(notdir $1)).$(OBJ_SUFFIX): $1 $$(call mkdir_deps,$$(MDDEPDIR))
+$(basename $(notdir $1)).$(OBJ_SUFFIX): $1 $(call mkdir_deps,$(MDDEPDIR))
 endef
 $(foreach f,$(CSRCS) $(SSRCS) $(CPPSRCS) $(CMSRCS) $(CMMSRCS) $(ASFILES),$(eval $(call src_objdep,$(f))))
-$(foreach f,$(HOST_CSRCS) $(HOST_CPPSRCS) $(HOST_CMSRCS) $(HOST_CMMSRCS),$(eval $(call src_objdep,$(f),host_)))
+$(foreach f,$(HOST_CSRCS) $(HOST_CPPSRCS) $(HOST_CMSRCS) $(HOST_CMMSRCS),$(eval host_$(call src_objdep,$(f))))
 
 $(OBJS) $(HOST_OBJS) $(PROGOBJS) $(HOST_PROGOBJS): $(GLOBAL_DEPS)
 
@@ -1467,8 +1466,8 @@ endif
 #   dependency directory in the object directory, where we really need
 #   it.
 
-ifneq (,$(filter-out all chrome default export realchrome clean clobber clobber_all distclean realclean,$(MAKECMDGOALS)))
-MDDEPEND_FILES		:= $(strip $(wildcard $(addprefix $(MDDEPDIR)/,$(EXTRA_MDDEPEND_FILES) $(addsuffix .pp,$(notdir $(sort $(OBJS) $(PROGOBJS) $(HOST_OBJS) $(HOST_PROGOBJS))) $(TARGETS)))))
+ifneq (,$(filter-out all chrome default export realchrome tools clean clobber clobber_all distclean realclean,$(MAKECMDGOALS)))
+MDDEPEND_FILES		:= $(strip $(wildcard $(foreach file,$(sort $(OBJS) $(PROGOBJS) $(HOST_OBJS) $(HOST_PROGOBJS) $(TARGETS)),$(MDDEPDIR)/$(notdir $(file)).pp) $(addprefix $(MDDEPDIR)/,$(EXTRA_MDDEPEND_FILES))))
 
 ifneq (,$(MDDEPEND_FILES))
 $(call include_deps,$(MDDEPEND_FILES))

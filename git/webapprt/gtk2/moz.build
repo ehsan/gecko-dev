@@ -6,7 +6,7 @@
 
 PROGRAM = 'webapprt-stub'
 
-SOURCES += [
+CPP_SOURCES += [
     'webapprt.cpp',
 ]
 

@@ -30,8 +30,8 @@ sources = [
     'TestServ',
     'TestStandardURL',
     'TestStreamLoader',
-    'TestUpload',
     'TestURLParser',
+    'TestUpload',
     'urltest',
 ]
 
@@ -47,7 +47,7 @@ sources = [
 #    TestUDPSocketProvider',
 #]
 
-SOURCES += [
+CPP_SOURCES += [
     '%s.cpp' % s for s in sources
 ]
 

@@ -10,8 +10,8 @@ MODULE = 'accessibility'
 
 EXPORTS += [
     'AccEvent.h',
-    'nsAccessibilityService.h',
     'nsAccessNode.h',
+    'nsAccessibilityService.h',
 ]
 
 EXPORTS.mozilla.a11y += [
@@ -30,7 +30,7 @@ if CONFIG['MOZ_DEBUG']:
         'Logging.h',
     ]
 
-SOURCES += [
+CPP_SOURCES += [
     'AccCollector.cpp',
     'AccEvent.cpp',
     'AccGroupInfo.cpp',
@@ -58,7 +58,7 @@ SOURCES += [
 ]
 
 if a11y_log:
-    SOURCES += [
+    CPP_SOURCES += [
         'Logging.cpp',
     ]
 

@@ -575,10 +575,6 @@ gfxContext::DrawSurface(gfxASurface *surface, const gfxSize& size)
     RefPtr<SourceSurface> surf =
       gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mDT, surface);
 
-    if (!surf) {
-      return;
-    }
-
     Rect rect(0, 0, Float(size.width), Float(size.height));
     rect.Intersect(Rect(0, 0, Float(surf->GetSize().width), Float(surf->GetSize().height)));
 
@@ -655,6 +651,8 @@ gfxContext::SetMatrix(const gfxMatrix& matrix)
     const cairo_matrix_t& mat = reinterpret_cast<const cairo_matrix_t&>(matrix);
     cairo_set_matrix(mCairo, &mat);
   } else {
+    Matrix mat;
+    mat.Translate(-CurrentState().deviceOffset.x, -CurrentState().deviceOffset.y);
     ChangeTransform(ToMatrix(matrix));
   }
 }
@@ -1393,7 +1391,6 @@ gfxContext::SetSource(gfxASurface *surface, const gfxPoint& offset)
     CurrentState().sourceSurfCairo = surface;
     CurrentState().sourceSurface =
       gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mDT, surface);
-    CurrentState().color = Color(0, 0, 0, 0);
   }
 }
 
@@ -1496,10 +1493,6 @@ gfxContext::Mask(gfxASurface *surface, const gfxPoint& offset)
     // Lifetime needs to be limited here as we may simply wrap surface's data.
     RefPtr<SourceSurface> sourceSurf =
       gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mDT, surface);
-
-    if (!sourceSurf) {
-      return;
-    }
 
     gfxPoint pt = surface->GetDeviceOffset();
 

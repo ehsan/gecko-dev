@@ -108,6 +108,7 @@ endif
 endif
 
 include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/testing/gtest/mozilla \

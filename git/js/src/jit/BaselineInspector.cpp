@@ -388,7 +388,7 @@ JSObject *
 BaselineInspector::getTemplateObject(jsbytecode *pc)
 {
     if (!hasBaselineScript())
-        return nullptr;
+        return NULL;
 
     const ICEntry &entry = icEntryFromPC(pc);
     for (ICStub *stub = entry.firstStub(); stub; stub = stub->next()) {
@@ -406,14 +406,14 @@ BaselineInspector::getTemplateObject(jsbytecode *pc)
         }
     }
 
-    return nullptr;
+    return NULL;
 }
 
 JSObject *
 BaselineInspector::getTemplateObjectForNative(jsbytecode *pc, Native native)
 {
     if (!hasBaselineScript())
-        return nullptr;
+        return NULL;
 
     const ICEntry &entry = icEntryFromPC(pc);
     for (ICStub *stub = entry.firstStub(); stub; stub = stub->next()) {
@@ -421,23 +421,5 @@ BaselineInspector::getTemplateObjectForNative(jsbytecode *pc, Native native)
             return stub->toCall_Native()->templateObject();
     }
 
-    return nullptr;
-}
-
-DeclEnvObject *
-BaselineInspector::templateDeclEnvObject()
-{
-    JSObject *res = &templateCallObject()->as<ScopeObject>().enclosingScope();
-    JS_ASSERT(res);
-
-    return &res->as<DeclEnvObject>();
-}
-
-CallObject *
-BaselineInspector::templateCallObject()
-{
-    JSObject *res = baselineScript()->templateScope();
-    JS_ASSERT(res);
-
-    return &res->as<CallObject>();
+    return NULL;
 }

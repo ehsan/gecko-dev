@@ -18,7 +18,6 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIContent.h"
-#include "nsIDocument.h"
 #include "nsIServiceManager.h"
 #include "mozilla/Preferences.h"
 #include "BasicLayers.h"

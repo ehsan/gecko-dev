@@ -13,10 +13,10 @@ function test() {
     Services.prefs.setBoolPref(MANIFEST_EDITOR_ENABLED, true);
     let tab = yield openAppManager();
     yield selectProjectsPanel();
-    yield addSamplePackagedApp();
+    yield addSampleHostedApp();
     yield showSampleProjectDetails();
     yield changeManifestValue("name", "the best app");
-    yield removeSamplePackagedApp();
+    yield removeSampleHostedApp();
     yield removeTab(tab);
     Services.prefs.setBoolPref(MANIFEST_EDITOR_ENABLED, false);
     finish();

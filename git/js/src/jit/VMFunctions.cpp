@@ -491,8 +491,6 @@ NewCallObject(JSContext *cx, HandleScript script,
               HandleShape shape, HandleTypeObject type, HeapSlot *slots)
 {
     JSObject *obj = CallObject::create(cx, script, shape, type, slots);
-    if (!obj)
-        return nullptr;
 
 #ifdef JSGC_GENERATIONAL
     // The JIT creates call objects in the nursery, so elides barriers for
@@ -897,7 +895,7 @@ InitBaselineFrameForOsr(BaselineFrame *frame, StackFrame *interpFrame, uint32_t 
 JSObject *CreateDerivedTypedObj(JSContext *cx, HandleObject type,
                                 HandleObject owner, int32_t offset)
 {
-    return TypedObject::createDerived(cx, type, owner, offset);
+    return BinaryBlock::createDerived(cx, type, owner, offset);
 }
 
 

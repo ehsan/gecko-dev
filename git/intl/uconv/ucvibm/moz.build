@@ -10,12 +10,12 @@ EXPORTS += [
     'nsUCvIBMCID.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'UnifiedUCVIBM.cpp',
 ]
 
 if CONFIG['OS_ARCH'] == 'OS2':
-    SOURCES += [
+    CPP_SOURCES += [
         'UnifiedUCVIBMOS2.cpp',
     ]
 

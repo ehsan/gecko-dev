@@ -88,11 +88,6 @@ CONFIGS = {
         'non_global_defines': [],
         'substs': [],
     },
-    'generated_includes': {
-        'defines': [],
-        'non_global_defines': [],
-        'substs': [],
-    },
     'final_target': {
         'defines': [],
         'non_global_defines': [],

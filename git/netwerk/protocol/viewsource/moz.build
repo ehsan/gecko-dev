@@ -12,7 +12,7 @@ XPIDL_MODULE = 'necko_viewsource'
 
 MODULE = 'necko'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsViewSourceChannel.cpp',
     'nsViewSourceHandler.cpp',
 ]

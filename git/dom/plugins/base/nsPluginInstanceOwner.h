@@ -165,7 +165,7 @@ public:
   const char* GetPluginName()
   {
     if (mInstance && mPluginHost) {
-      const char* name = nullptr;
+      const char* name = NULL;
       if (NS_SUCCEEDED(mPluginHost->GetPluginName(mInstance, &name)) && name)
         return name;
     }

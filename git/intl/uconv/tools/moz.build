@@ -8,7 +8,7 @@ sources = [
     'umaptable',
 ]
 
-SOURCES += [
+CSRCS += [
     '%s.c' % s for s in sources
 ]
 

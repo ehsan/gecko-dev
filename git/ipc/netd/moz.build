@@ -10,7 +10,7 @@ EXPORTS.mozilla.ipc += [
     'Netd.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'Netd.cpp',
 ]
 
@@ -19,6 +19,4 @@ LIBXUL_LIBRARY = True
 LIBRARY_NAME = 'moznetd_s'
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

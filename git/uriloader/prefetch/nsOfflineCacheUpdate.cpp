@@ -1331,7 +1331,7 @@ nsOfflineCacheUpdate::Init(nsIURI *aManifestURI,
     }
 
     rv = nsOfflineCacheUpdateService::OfflineAppPinnedForURI(aDocumentURI,
-                                                             nullptr,
+                                                             NULL,
                                                              &mPinned);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1383,7 +1383,7 @@ nsOfflineCacheUpdate::InitForUpdateCheck(nsIURI *aManifestURI,
     mApplicationCache = mPreviousApplicationCache;
 
     rv = nsOfflineCacheUpdateService::OfflineAppPinnedForURI(aManifestURI,
-                                                             nullptr,
+                                                             NULL,
                                                              &mPinned);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1442,7 +1442,7 @@ nsOfflineCacheUpdate::InitPartial(nsIURI *aManifestURI,
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = nsOfflineCacheUpdateService::OfflineAppPinnedForURI(aDocumentURI,
-                                                             nullptr,
+                                                             NULL,
                                                              &mPinned);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2191,7 +2191,7 @@ EvictOneOfCacheGroups(nsIApplicationCacheService *cacheService,
 
         bool pinned;
         rv = nsOfflineCacheUpdateService::OfflineAppPinnedForURI(uri,
-                                                                 nullptr,
+                                                                 NULL,
                                                                  &pinned);
         NS_ENSURE_SUCCESS(rv, rv);
 

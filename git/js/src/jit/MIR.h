@@ -8266,7 +8266,7 @@ class MNewDeclEnvObject : public MNullaryInstruction
 {
     CompilerRootObject templateObj_;
 
-    MNewDeclEnvObject(JSObject *templateObj)
+    MNewDeclEnvObject(HandleObject templateObj)
       : MNullaryInstruction(),
         templateObj_(templateObj)
     {
@@ -8276,7 +8276,7 @@ class MNewDeclEnvObject : public MNullaryInstruction
   public:
     INSTRUCTION_HEADER(NewDeclEnvObject);
 
-    static MNewDeclEnvObject *New(JSObject *templateObj) {
+    static MNewDeclEnvObject *New(HandleObject templateObj) {
         return new MNewDeclEnvObject(templateObj);
     }
 
@@ -8293,7 +8293,7 @@ class MNewCallObject : public MUnaryInstruction
     CompilerRootObject templateObj_;
     bool needsSingletonType_;
 
-    MNewCallObject(JSObject *templateObj, bool needsSingletonType, MDefinition *slots)
+    MNewCallObject(HandleObject templateObj, bool needsSingletonType, MDefinition *slots)
       : MUnaryInstruction(slots),
         templateObj_(templateObj),
         needsSingletonType_(needsSingletonType)
@@ -8304,7 +8304,7 @@ class MNewCallObject : public MUnaryInstruction
   public:
     INSTRUCTION_HEADER(NewCallObject)
 
-    static MNewCallObject *New(JSObject *templateObj, bool needsSingletonType, MDefinition *slots) {
+    static MNewCallObject *New(HandleObject templateObj, bool needsSingletonType, MDefinition *slots) {
         return new MNewCallObject(templateObj, needsSingletonType, slots);
     }
 
@@ -8747,7 +8747,8 @@ class MAsmJSLoadHeap : public MUnaryInstruction, public MAsmJSHeapAccess
     MAsmJSLoadHeap(ArrayBufferView::ViewType vt, MDefinition *ptr)
       : MUnaryInstruction(ptr), MAsmJSHeapAccess(vt, false)
     {
-        setMovable();
+        // Disabled due to errors, see bug 919958
+        // setMovable();
         if (vt == ArrayBufferView::TYPE_FLOAT32 || vt == ArrayBufferView::TYPE_FLOAT64)
             setResultType(MIRType_Double);
         else

@@ -7,11 +7,11 @@
 MODULE = 'unixproxy'
 
 if CONFIG['MOZ_ENABLE_LIBPROXY']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsLibProxySettings.cpp',
     ]
 else:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsUnixSystemProxySettings.cpp',
     ]
 

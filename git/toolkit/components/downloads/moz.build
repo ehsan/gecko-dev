@@ -16,19 +16,19 @@ XPIDL_SOURCES += [
 
 MODULE = 'downloads'
 
-SOURCES += [
-    'nsDownloadManager.cpp',
+CPP_SOURCES += [
     'SQLFunctions.cpp',
+    'nsDownloadManager.cpp',
 ]
 
 if CONFIG['MOZ_URL_CLASSIFIER']:
-    SOURCES += [
+    CPP_SOURCES += [
         'ApplicationReputation.cpp',
         'csd.pb.cc'
     ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsDownloadScanner.cpp',
     ]
 

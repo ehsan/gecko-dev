@@ -421,7 +421,8 @@ CloneNonReflectors(JSContext *cx, MutableHandleValue val)
     }
 
     // Now recreate the clones in the target compartment.
-    if (!buffer.read(cx, val,
+    RootedValue rval(cx);
+    if (!buffer.read(cx, val.address(),
         &gForwarderStructuredCloneCallbacks,
         &rootedReflectors))
     {
@@ -1764,7 +1765,7 @@ xpc::SetSandboxMetadata(JSContext *cx, HandleObject sandbox, HandleValue metadat
     RootedValue metadata(cx);
 
     JSAutoCompartment ac(cx, sandbox);
-    if (!JS_StructuredClone(cx, metadataArg, &metadata, nullptr, nullptr))
+    if (!JS_StructuredClone(cx, metadataArg, metadata.address(), nullptr, nullptr))
         return NS_ERROR_UNEXPECTED;
 
     JS_SetReservedSlot(sandbox, XPCONNECT_SANDBOX_CLASS_METADATA_SLOT, metadata);

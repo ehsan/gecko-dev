@@ -8,7 +8,7 @@ MODULE = 'verifymar'
 
 LIBRARY_NAME = 'verifymar'
 
-SOURCES += [
+CSRCS += [
     'cryptox.c',
     'mar_verify.c',
 ]

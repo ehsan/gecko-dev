@@ -6,7 +6,7 @@
 
 MODULE = 'handler'
 
-SOURCES += [
+CPP_SOURCES += [
     'exception_handler.cc',
     'minidump_generator.cc',
     'solaris_lwp.cc',

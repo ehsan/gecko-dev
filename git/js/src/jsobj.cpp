@@ -1572,7 +1572,7 @@ CreateThisForFunctionWithType(JSContext *cx, HandleTypeObject type, JSObject *pa
         if (newKind == SingletonObject) {
             Rooted<TaggedProto> proto(cx, templateObject->getProto());
             if (!res->splicePrototype(cx, &JSObject::class_, proto))
-                return nullptr;
+                return NULL;
         } else {
             res->setType(type);
         }
@@ -3556,10 +3556,6 @@ DefinePropertyOrElement(typename ExecutionModeTraits<mode>::ExclusiveContextType
     return true;
 }
 
-static bool
-NativeLookupOwnProperty(ExclusiveContext *cx, HandleObject obj, HandleId id, unsigned flags,
-                        MutableHandle<Shape*> shapep);
-
 bool
 js::DefineNativeProperty(ExclusiveContext *cx, HandleObject obj, HandleId id, HandleValue value,
                          PropertyOp getter, StrictPropertyOp setter, unsigned attrs,
@@ -3583,11 +3579,13 @@ js::DefineNativeProperty(ExclusiveContext *cx, HandleObject obj, HandleId id, Ha
 
         /*
          * If we are defining a getter whose setter was already defined, or
-         * vice versa, finish the job via obj->changeProperty.
+         * vice versa, finish the job via obj->changeProperty, and refresh the
+         * property cache line for (obj, id) to map shape.
          */
-        if (!NativeLookupOwnProperty(cx, obj, id, flags, &shape))
+        RootedObject pobj(cx);
+        if (!baseops::LookupProperty<CanGC>(cx, obj, id, &pobj, &shape))
             return false;
-        if (shape) {
+        if (shape && pobj == obj) {
             if (IsImplicitDenseElement(shape)) {
                 if (!JSObject::sparsifyDenseElement(cx, obj, JSID_TO_INT(id)))
                     return false;
@@ -3607,6 +3605,8 @@ js::DefineNativeProperty(ExclusiveContext *cx, HandleObject obj, HandleId id, Ha
             } else {
                 shape = nullptr;
             }
+        } else {
+            shape = nullptr;
         }
     }
 
@@ -3797,20 +3797,6 @@ LookupOwnPropertyWithFlagsInline(ExclusiveContext *cx,
     }
 
     *donep = false;
-    return true;
-}
-
-static bool
-NativeLookupOwnProperty(ExclusiveContext *cx, HandleObject obj, HandleId id, unsigned flags,
-                        MutableHandle<Shape*> shapep)
-{
-    RootedObject pobj(cx);
-    bool done;
-
-    if (!LookupOwnPropertyWithFlagsInline<CanGC>(cx, obj, id, flags, &pobj, shapep, &done))
-        return false;
-    if (!done || pobj != obj)
-        shapep.set(nullptr);
     return true;
 }
 

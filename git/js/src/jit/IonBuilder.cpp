@@ -48,9 +48,9 @@ IonBuilder::IonBuilder(JSContext *cx, TempAllocator *temp, MIRGraph *graph,
     abortReason_(AbortReason_Disable),
     constraints_(constraints),
     analysis_(info->script()),
-    thisTypes(nullptr),
-    argTypes(nullptr),
-    typeArray(nullptr),
+    thisTypes(NULL),
+    argTypes(NULL),
+    typeArray(NULL),
     typeArrayHint(0),
     loopDepth_(loopDepth),
     callerResumePoint_(nullptr),
@@ -283,13 +283,6 @@ IonBuilder::canInlineTarget(JSFunction *target, bool constructing)
     if (target->isInterpretedLazy() && info().executionMode() == DefinitePropertiesAnalysis) {
         if (!target->getOrCreateScript(context()))
             return false;
-
-        RootedScript script(context(), target->nonLazyScript());
-        if (!script->hasBaselineScript()) {
-            MethodStatus status = BaselineCompile(context(), script);
-            if (status != Method_Compiled)
-                return false;
-        }
     }
 
     if (!target->hasScript()) {
@@ -4525,9 +4518,20 @@ IonBuilder::inlineCalls(CallInfo &callInfo, ObjectVector &targets,
 MInstruction *
 IonBuilder::createDeclEnvObject(MDefinition *callee, MDefinition *scope)
 {
-    // Get a template CallObject that we'll use to generate inline object
-    // creation.
-    DeclEnvObject *templateObj = inspector->templateDeclEnvObject();
+    // Create a template CallObject that we'll use to generate inline object
+    // creation. Even though this template will get discarded at the end of
+    // compilation, it is used by the background compilation thread and thus
+    // cannot use the Nursery.
+
+    RootedFunction fun(cx, info().fun());
+    RootedObject templateObj(cx, DeclEnvObject::createTemplateObject(cx, fun, gc::TenuredHeap));
+    if (!templateObj)
+        return nullptr;
+
+    // Add dummy values on the slot of the template object such as we do not try
+    // mark uninitialized values.
+    templateObj->setFixedSlot(DeclEnvObject::enclosingScopeSlot(), MagicValue(JS_GENERIC_MAGIC));
+    templateObj->setFixedSlot(DeclEnvObject::lambdaSlot(), MagicValue(JS_GENERIC_MAGIC));
 
     // One field is added to the function to handle its name.  This cannot be a
     // dynamic slot because there is still plenty of room on the DeclEnv object.
@@ -4552,9 +4556,15 @@ IonBuilder::createDeclEnvObject(MDefinition *callee, MDefinition *scope)
 MInstruction *
 IonBuilder::createCallObject(MDefinition *callee, MDefinition *scope)
 {
-    // Get a template CallObject that we'll use to generate inline object
-    // creation.
-    CallObject *templateObj = inspector->templateCallObject();
+    // Create a template CallObject that we'll use to generate inline object
+    // creation. Even though this template will get discarded at the end of
+    // compilation, it is used by the background compilation thread and thus
+    // cannot use the Nursery.
+
+    RootedScript scriptRoot(cx, script());
+    RootedObject templateObj(cx, CallObject::createTemplateObject(cx, scriptRoot, gc::TenuredHeap));
+    if (!templateObj)
+        return nullptr;
 
     // If the CallObject needs dynamic slots, allocate those now.
     MInstruction *slots;
@@ -4614,11 +4624,11 @@ IonBuilder::createThisScripted(MDefinition *callee)
     //       and thus invalidation.
     MInstruction *getProto;
     if (!invalidatedIdempotentCache()) {
-        MGetPropertyCache *getPropCache = MGetPropertyCache::New(callee, names().prototype);
+        MGetPropertyCache *getPropCache = MGetPropertyCache::New(callee, cx->names().prototype);
         getPropCache->setIdempotent();
         getProto = getPropCache;
     } else {
-        MCallGetProperty *callGetProp = MCallGetProperty::New(callee, names().prototype,
+        MCallGetProperty *callGetProp = MCallGetProperty::New(callee, cx->names().prototype,
                                                               /* callprop = */ false);
         callGetProp->setIdempotent();
         getProto = callGetProp;
@@ -4641,7 +4651,7 @@ IonBuilder::getSingletonPrototype(JSFunction *target)
     if (targetType->unknownProperties())
         return nullptr;
 
-    jsid protoid = NameToId(names().prototype);
+    jsid protoid = NameToId(cx->names().prototype);
     types::HeapTypeSetKey protoProperty = targetType->property(protoid);
 
     return protoProperty.singleton(constraints());
@@ -5713,9 +5723,12 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
 
     if (info().fun()) {
         // Initialize |this| parameter.
-        MParameter *thisv = MParameter::New(MParameter::THIS_SLOT, nullptr);
+        uint32_t slot = info().thisSlot();
+        ptrdiff_t offset = StackFrame::offsetOfThis(info().fun());
+
+        MOsrValue *thisv = MOsrValue::New(entry, offset);
         osrBlock->add(thisv);
-        osrBlock->initSlot(info().thisSlot(), thisv);
+        osrBlock->initSlot(slot, thisv);
 
         // Initialize arguments.
         for (uint32_t i = 0; i < info().nargs(); i++) {
@@ -5738,9 +5751,10 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
                 osrBlock->add(osrv);
                 osrBlock->initSlot(slot, osrv);
             } else {
-                MParameter *arg = MParameter::New(i, nullptr);
-                osrBlock->add(arg);
-                osrBlock->initSlot(slot, arg);
+                ptrdiff_t offset = StackFrame::offsetOfFormalArg(info().fun(), i);
+                MOsrValue *osrv = MOsrValue::New(entry, offset);
+                osrBlock->add(osrv);
+                osrBlock->initSlot(slot, osrv);
             }
         }
     }
@@ -5748,7 +5762,7 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
     // Initialize locals.
     for (uint32_t i = 0; i < info().nlocals(); i++) {
         uint32_t slot = info().localSlot(i);
-        ptrdiff_t offset = BaselineFrame::reverseOffsetOfLocal(i);
+        ptrdiff_t offset = StackFrame::offsetOfFixed(i);
 
         MOsrValue *osrv = MOsrValue::New(entry, offset);
         osrBlock->add(osrv);
@@ -5759,7 +5773,7 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
     uint32_t numStackSlots = preheader->stackDepth() - info().firstStackSlot();
     for (uint32_t i = 0; i < numStackSlots; i++) {
         uint32_t slot = info().stackSlot(i);
-        ptrdiff_t offset = BaselineFrame::reverseOffsetOfLocal(info().nlocals() + i);
+        ptrdiff_t offset = StackFrame::offsetOfFixed(info().nlocals() + i);
 
         MOsrValue *osrv = MOsrValue::New(entry, offset);
         osrBlock->add(osrv);
@@ -6195,12 +6209,12 @@ IonBuilder::getStaticName(JSObject *staticObject, PropertyName *name, bool *psuc
 
     if (staticObject->is<GlobalObject>()) {
         // Optimize undefined, NaN, and Infinity.
-        if (name == names().undefined)
+        if (name == cx->names().undefined)
             return pushConstant(UndefinedValue());
-        if (name == names().NaN)
-            return pushConstant(compartment->runtimeFromAnyThread()->NaNValue);
-        if (name == names().Infinity)
-            return pushConstant(compartment->runtimeFromAnyThread()->positiveInfinityValue);
+        if (name == cx->names().NaN)
+            return pushConstant(cx->runtime()->NaNValue);
+        if (name == cx->names().Infinity)
+            return pushConstant(cx->runtime()->positiveInfinityValue);
     }
 
     // For the fastest path, the property must be found, and it must be found
@@ -8045,32 +8059,21 @@ IonBuilder::jsop_getprop(PropertyName *name)
     bool barrier = PropertyReadNeedsTypeBarrier(cx, context(), constraints(),
                                                 current->peek(-1), name, types);
 
-    // Always use a call if we are doing the definite properties analysis and
-    // not actually emitting code, to simplify later analysis. Also skip deeper
-    // analysis if there are no known types for this operation, as it will
-    // always invalidate when executing.
-    if (info().executionMode() == DefinitePropertiesAnalysis || types->empty()) {
-        MDefinition *obj = current->peek(-1);
-        MCallGetProperty *call = MCallGetProperty::New(obj, name, *pc == JSOP_CALLPROP);
-        current->add(call);
-
-        // During the definite properties analysis we can still try to bake in
-        // constants read off the prototype chain, to allow inlining later on.
-        // In this case we still need the getprop call so that the later
-        // analysis knows when the |this| value has been read from.
-        if (info().executionMode() == DefinitePropertiesAnalysis) {
-            if (!getPropTryConstant(&emitted, name, types) || emitted)
-                return emitted;
-        }
-
-        current->pop();
-        current->push(call);
-        return resumeAfter(call) && pushTypeBarrier(call, types, true);
-    }
-
     // Try to hardcode known constants.
     if (!getPropTryConstant(&emitted, name, types) || emitted)
         return emitted;
+
+    // Except when loading constants above, always use a call if we are doing
+    // the definite properties analysis and not actually emitting code, to
+    // simplify later analysis. Also skip deeper analysis if there are no known
+    // types for this operation, as it will always invalidate when executing.
+    if (info().executionMode() == DefinitePropertiesAnalysis || types->empty()) {
+        MDefinition *obj = current->pop();
+        MCallGetProperty *call = MCallGetProperty::New(obj, name, *pc == JSOP_CALLPROP);
+        current->add(call);
+        current->push(call);
+        return resumeAfter(call) && pushTypeBarrier(call, types, true);
+    }
 
     // Try to emit loads from known binary data blocks
     if (!getPropTryTypedObject(&emitted, name, types) || emitted)
@@ -9438,7 +9441,7 @@ IonBuilder::jsop_instanceof()
             break;
 
         types::HeapTypeSetKey protoProperty =
-            rhsType->property(NameToId(names().prototype));
+            rhsType->property(NameToId(cx->names().prototype));
         JSObject *protoObject = protoProperty.singleton(constraints());
         if (!protoObject)
             break;
@@ -9540,7 +9543,7 @@ IonBuilder::lookupTypeRepresentationSet(MDefinition *typedObj,
 
     TypeRepresentationSetBuilder set;
     for (uint32_t i = 0; i < types->getObjectCount(); i++) {
-        types::TypeObject *type = types->getTypeObject(i);
+        types::TypeObject *type = types->getTypeObject(0);
         if (!type || type->unknownProperties())
             return true;
 
@@ -9566,7 +9569,7 @@ IonBuilder::loadTypedObjectType(MDefinition *typedObj)
         return typedObj->toNewDerivedTypedObject()->type();
 
     MInstruction *load = MLoadFixedSlot::New(typedObj,
-                                             JS_DATUM_SLOT_TYPE_OBJ);
+                                             JS_TYPEDOBJ_SLOT_TYPE_OBJ);
     current->add(load);
     return load;
 }

@@ -40,11 +40,11 @@ EXPORTS.mozilla += [
 
 if CONFIG['MOZ_X11']:
     EXPORTS.mozilla += ['X11Util.h']
-    SOURCES += [
+    CPP_SOURCES += [
         'X11Util.cpp',
     ]
 
-SOURCES += [
+CPP_SOURCES += [
     'gfxCrashReporterUtils.cpp',
     'nsColor.cpp',
     'nsDeviceContext.cpp',

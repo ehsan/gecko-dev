@@ -1573,14 +1573,11 @@ static int vcmRxStartICE_m(cc_mcapid_t mcap_id,
     std::vector<mozilla::AudioCodecConfig *> configs;
 
     // Instantiate an appropriate conduit
-    mozilla::RefPtr<mozilla::MediaSessionConduit> tx_conduit =
+    mozilla::RefPtr<mozilla::AudioSessionConduit> tx_conduit =
       pc.impl()->media()->GetConduit(level, false);
-    MOZ_ASSERT_IF(tx_conduit, tx_conduit->type() == MediaSessionConduit::AUDIO);
 
-    // The two sides of a send/receive pair of conduits each keep a raw pointer to the other,
-    // and are responsible for cleanly shutting down.
     mozilla::RefPtr<mozilla::AudioSessionConduit> conduit =
-      mozilla::AudioSessionConduit::Create(static_cast<AudioSessionConduit *>(tx_conduit.get()));
+                    mozilla::AudioSessionConduit::Create(tx_conduit);
     if(!conduit)
       return VCM_ERROR;
 
@@ -1628,18 +1625,10 @@ static int vcmRxStartICE_m(cc_mcapid_t mcap_id,
 
     std::vector<mozilla::VideoCodecConfig *> configs;
     // Instantiate an appropriate conduit
-    mozilla::RefPtr<mozilla::MediaSessionConduit> tx_conduit =
-      pc.impl()->media()->GetConduit(level, false);
-    MOZ_ASSERT_IF(tx_conduit, tx_conduit->type() == MediaSessionConduit::VIDEO);
-
-    // The two sides of a send/receive pair of conduits each keep a raw pointer to the other,
-    // and are responsible for cleanly shutting down.
     mozilla::RefPtr<mozilla::VideoSessionConduit> conduit =
-      mozilla::VideoSessionConduit::Create(static_cast<VideoSessionConduit *>(tx_conduit.get()));
+             mozilla::VideoSessionConduit::Create();
     if(!conduit)
       return VCM_ERROR;
-
-    pc.impl()->media()->AddConduit(level, true, conduit);
 
     mozilla::VideoCodecConfig *config_raw;
 
@@ -2243,14 +2232,11 @@ static int vcmTxStartICE_m(cc_mcapid_t mcap_id,
     mozilla::ScopedDeletePtr<mozilla::AudioCodecConfig> config(config_raw);
 
     // Instantiate an appropriate conduit
-    mozilla::RefPtr<mozilla::MediaSessionConduit> rx_conduit =
+    mozilla::RefPtr<mozilla::AudioSessionConduit> rx_conduit =
       pc.impl()->media()->GetConduit(level, true);
-    MOZ_ASSERT_IF(rx_conduit, rx_conduit->type() == MediaSessionConduit::AUDIO);
 
-    // The two sides of a send/receive pair of conduits each keep a raw pointer to the other,
-    // and are responsible for cleanly shutting down.
     mozilla::RefPtr<mozilla::AudioSessionConduit> conduit =
-      mozilla::AudioSessionConduit::Create(static_cast<AudioSessionConduit *>(rx_conduit.get()));
+      mozilla::AudioSessionConduit::Create(rx_conduit);
 
     if (!conduit || conduit->ConfigureSendMediaCodec(config))
       return VCM_ERROR;
@@ -2291,20 +2277,12 @@ static int vcmTxStartICE_m(cc_mcapid_t mcap_id,
     mozilla::ScopedDeletePtr<mozilla::VideoCodecConfig> config(config_raw);
 
     // Instantiate an appropriate conduit
-    mozilla::RefPtr<mozilla::MediaSessionConduit> rx_conduit =
-      pc.impl()->media()->GetConduit(level, true);
-    MOZ_ASSERT_IF(rx_conduit, rx_conduit->type() == MediaSessionConduit::VIDEO);
-
-    // The two sides of a send/receive pair of conduits each keep a raw pointer to the other,
-    // and are responsible for cleanly shutting down.
     mozilla::RefPtr<mozilla::VideoSessionConduit> conduit =
-      mozilla::VideoSessionConduit::Create(static_cast<VideoSessionConduit *>(rx_conduit.get()));
+      mozilla::VideoSessionConduit::Create();
 
     // Find the appropriate media conduit config
     if (!conduit || conduit->ConfigureSendMediaCodec(config))
       return VCM_ERROR;
-
-    pc.impl()->media()->AddConduit(level, false, conduit);
 
     // Now we have all the pieces, create the pipeline
     mozilla::RefPtr<mozilla::MediaPipeline> pipeline =

@@ -53,10 +53,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "BrowserNewTabPreloader",
 XPCOMUtils.defineLazyModuleGetter(this, "PdfJs",
                                   "resource://pdf.js/PdfJs.jsm");
 
-#ifdef NIGHTLY_BUILD
 XPCOMUtils.defineLazyModuleGetter(this, "ShumwayUtils",
                                   "resource://shumway/ShumwayUtils.jsm");
-#endif
 
 XPCOMUtils.defineLazyModuleGetter(this, "webrtcUI",
                                   "resource:///modules/webrtcUI.jsm");
@@ -471,9 +469,7 @@ BrowserGlue.prototype = {
     BrowserNewTabPreloader.init();
     SignInToWebsiteUX.init();
     PdfJs.init();
-#ifdef NIGHTLY_BUILD
     ShumwayUtils.init();
-#endif
     webrtcUI.init();
     AboutHome.init();
     SessionStore.init();
@@ -1424,6 +1420,9 @@ BrowserGlue.prototype = {
         }
         this._setPersist(toolbarResource, currentsetResource, currentset);
       }
+
+      Services.prefs.clearUserPref("browser.download.useToolkitUI");
+      Services.prefs.clearUserPref("browser.library.useNewDownloadsView");
     }
 
 #ifdef XP_WIN

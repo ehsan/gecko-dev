@@ -584,7 +584,7 @@ private:
       clonedObjects.SwapElements(event->mClonedObjects);
 
       JS::Rooted<JS::Value> data(aCx);
-      if (!buffer.read(aCx, &data,
+      if (!buffer.read(aCx, data.address(),
                        WorkerStructuredCloneCallbacks(event->mMainRuntime))) {
         return false;
       }

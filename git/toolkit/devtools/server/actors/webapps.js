@@ -389,6 +389,13 @@ WebappsActor.prototype = {
 
           let appType = self._getAppType(manifest.type);
 
+          // In production builds, don't allow installation of certified apps.
+          if (!DOMApplicationRegistry.allowSideloadingCertified &&
+              appType == Ci.nsIPrincipal.APP_STATUS_CERTIFIED) {
+            self._sendError(deferred, "Installing certified apps is not allowed.", aId);
+            return;
+          }
+
           // Privileged and certified packaged apps can setup a custom origin
           // via `origin` manifest property
           let id = aId;
@@ -822,15 +829,7 @@ WebappsActor.prototype = {
           // the actor.
           deferred.resolve(null);
         }
-        let actor = this._appActorsMap.get(mm);
-        if (actor) {
-          // The ContentAppActor within the child process doesn't necessary
-          // have to time to uninitialize itself when the app is closed/killed.
-          // So ensure telling the client that the related actor is detached.
-          this.conn.send({ from: actor.actor,
-                           type: "tabDetached" });
-          this._appActorsMap.delete(mm);
-        }
+        this._appActorsMap.delete(mm);
       }
     }).bind(this);
     Services.obs.addObserver(onMessageManagerDisconnect,

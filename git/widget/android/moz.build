@@ -14,25 +14,25 @@ MODULE = 'widget'
 
 EXPORTS += [
     'AndroidBridge.h',
-    'AndroidJavaWrappers.h',
     'AndroidJNIWrapper.h',
+    'AndroidJavaWrappers.h',
     'GeneratedJNIWrappers.h'
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'AndroidBridge.cpp',
     'AndroidDirectTexture.cpp',
     'AndroidGraphicBuffer.cpp',
-    'AndroidJavaWrappers.cpp',
     'AndroidJNI.cpp',
     'AndroidJNIWrapper.cpp',
+    'AndroidJavaWrappers.cpp',
     'GeneratedJNIWrappers.cpp',
     'GfxInfo.cpp',
     'nsAppShell.cpp',
     'nsClipboard.cpp',
     'nsDeviceContextAndroid.cpp',
-    'nsIdleServiceAndroid.cpp',
     'nsIMEPicker.cpp',
+    'nsIdleServiceAndroid.cpp',
     'nsLookAndFeel.cpp',
     'nsPrintOptionsAndroid.cpp',
     'nsScreenManagerAndroid.cpp',
@@ -47,6 +47,4 @@ LIBXUL_LIBRARY = True
 LIBRARY_NAME = 'widget_android'
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -216,8 +216,8 @@ MOZ_UNICHARUTIL_LIBS = $(LIBXUL_DIST)/lib/$(LIB_PREFIX)unicharutil_s.$(LIB_SUFFI
 MOZ_WIDGET_SUPPORT_LIBS    = $(DIST)/lib/$(LIB_PREFIX)widgetsupport_s.$(LIB_SUFFIX)
 
 ifdef _MSC_VER
-CC_WRAPPER ?= $(call py_action,cl)
-CXX_WRAPPER ?= $(call py_action,cl)
+CC_WRAPPER = $(call py_action,cl)
+CXX_WRAPPER = $(call py_action,cl)
 endif # _MSC_VER
 
 CC := $(CC_WRAPPER) $(CC)
@@ -826,8 +826,8 @@ CREATE_PRECOMPLETE_CMD = $(PYTHON) $(abspath $(topsrcdir)/config/createprecomple
 # MDDEPDIR is the subdirectory where dependency files are stored
 MDDEPDIR := .deps
 
-EXPAND_LIBS_EXEC = $(PYTHON) $(topsrcdir)/config/expandlibs_exec.py $(if $@,--depend $(MDDEPDIR)/$@.pp --target $@)
-EXPAND_LIBS_GEN = $(PYTHON) $(topsrcdir)/config/expandlibs_gen.py $(if $@,--depend $(MDDEPDIR)/$@.pp)
+EXPAND_LIBS_EXEC = $(PYTHON) $(topsrcdir)/config/expandlibs_exec.py $(if $@,--depend $(MDDEPDIR)/$(dir $@)/$(@F).pp --target $@)
+EXPAND_LIBS_GEN = $(PYTHON) $(topsrcdir)/config/expandlibs_gen.py $(if $@,--depend $(MDDEPDIR)/$(dir $@)/$(@F).pp)
 EXPAND_AR = $(EXPAND_LIBS_EXEC) --extract -- $(AR)
 EXPAND_CC = $(EXPAND_LIBS_EXEC) --uselist -- $(CC)
 EXPAND_CCC = $(EXPAND_LIBS_EXEC) --uselist -- $(CCC)

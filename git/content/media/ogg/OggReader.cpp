@@ -313,7 +313,7 @@ nsresult OggReader::ReadMetadata(MediaInfo* aInfo,
     mInfo.mAudio.mChannels = mVorbisState->mInfo.channels > 2 ? 2 : mVorbisState->mInfo.channels;
     // Copy Vorbis info data for time computations on other threads.
     memcpy(&mVorbisInfo, &mVorbisState->mInfo, sizeof(mVorbisInfo));
-    mVorbisInfo.codec_setup = nullptr;
+    mVorbisInfo.codec_setup = NULL;
     mVorbisSerial = mVorbisState->mSerial;
     *aTags = mVorbisState->GetTags();
   } else {
@@ -803,7 +803,7 @@ nsresult OggReader::DecodeTheora(ogg_packet* aPacket, int64_t aTimeThreshold)
   if (ret == TH_DUPFRAME) {
     VideoData* v = VideoData::CreateDuplicate(mDecoder->GetResource()->Tell(),
                                               time,
-                                              endTime - time,
+                                              endTime,
                                               aPacket->granulepos);
     mVideoQueue.Push(v);
   } else if (ret == 0) {
@@ -824,7 +824,7 @@ nsresult OggReader::DecodeTheora(ogg_packet* aPacket, int64_t aTimeThreshold)
                                      mDecoder->GetImageContainer(),
                                      mDecoder->GetResource()->Tell(),
                                      time,
-                                     endTime - time,
+                                     endTime,
                                      b,
                                      isKeyframe,
                                      aPacket->granulepos,

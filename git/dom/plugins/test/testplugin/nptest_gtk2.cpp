@@ -45,7 +45,6 @@
 #include <gtk/gtk.h>
 #include <unistd.h>
 
-#include "mozilla/NullPtr.h"
 #include "mozilla/IntentionalCrash.h"
 
  using namespace std;
@@ -86,10 +85,10 @@ pluginInstanceInit(InstanceData* instanceData)
   if (!instanceData->platformData)
     return NPERR_OUT_OF_MEMORY_ERROR;
 
-  instanceData->platformData->display = nullptr;
-  instanceData->platformData->visual = nullptr;
+  instanceData->platformData->display = NULL;
+  instanceData->platformData->visual = NULL;
   instanceData->platformData->colormap = None;  
-  instanceData->platformData->plug = nullptr;
+  instanceData->platformData->plug = NULL;
 
   return NPERR_NO_ERROR;
 #else
@@ -123,7 +122,7 @@ pluginInstanceShutdown(InstanceData* instanceData)
     } else {
       // Flash Player style: let the GtkPlug destroy itself on disconnect.
       g_signal_handlers_disconnect_matched(plug, G_SIGNAL_MATCH_DATA, 0, 0,
-                                           nullptr, nullptr, instanceData);
+                                           NULL, NULL, instanceData);
     }
   }
 
@@ -489,10 +488,10 @@ static void intersectWithShapeRects(Display* display, Window window,
   int count = -1, order;
   XRectangle* shapeRects =
     XShapeGetRectangles(display, window, kind, &count, &order);
-  // The documentation says that shapeRects will be nullptr when the
+  // The documentation says that shapeRects will be NULL when the
   // extension is not supported. Unfortunately XShapeGetRectangles
-  // also returns nullptr when the region is empty, so we can't treat
-  // nullptr as failure. I hope this way is OK.
+  // also returns NULL when the region is empty, so we can't treat
+  // NULL as failure. I hope this way is OK.
   if (count < 0)
     return;
 
@@ -694,7 +693,7 @@ CrasherThread(void* data)
   _exit(1);
 
   // not reached
-  return(nullptr);
+  return(NULL);
 }
 
 bool
@@ -705,7 +704,7 @@ pluginCrashInNestedLoop(InstanceData* instanceData)
 
   // Run the nested loop detector by processing all events that are waiting.
   bool found_event = false;
-  while (g_main_context_iteration(nullptr, FALSE)) {
+  while (g_main_context_iteration(NULL, FALSE)) {
     found_event = true;
   }
   if (!found_event) {
@@ -723,7 +722,7 @@ pluginCrashInNestedLoop(InstanceData* instanceData)
 
   // schedule the crasher thread ...
   pthread_t crasherThread;
-  if (0 != pthread_create(&crasherThread, nullptr, CrasherThread, nullptr)) {
+  if (0 != pthread_create(&crasherThread, NULL, CrasherThread, NULL)) {
     g_warning("Failed to create thread");
     return true; // trigger a test failure
   }
@@ -732,7 +731,7 @@ pluginCrashInNestedLoop(InstanceData* instanceData)
   // events" task (that should run in this loop) is being processed in the
   // parent.
   found_event = false;
-  while (g_main_context_iteration(nullptr, FALSE)) {
+  while (g_main_context_iteration(NULL, FALSE)) {
     found_event = true;
   }
   if (found_event) {

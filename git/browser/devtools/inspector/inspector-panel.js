@@ -86,8 +86,6 @@ InspectorPanel.prototype = {
   _deferredOpen: function(defaultSelection) {
     let deferred = promise.defer();
 
-    this.outerHTMLEditable = this._target.client.traits.editOuterHTML;
-
     this.onNewRoot = this.onNewRoot.bind(this);
     this.walker.on("new-root", this.onNewRoot);
 
@@ -595,8 +593,7 @@ InspectorPanel.prototype = {
     let unique = this.panelDoc.getElementById("node-menu-copyuniqueselector");
     let copyInnerHTML = this.panelDoc.getElementById("node-menu-copyinner");
     let copyOuterHTML = this.panelDoc.getElementById("node-menu-copyouter");
-    let selectionIsElement = this.selection.isElementNode();
-    if (selectionIsElement) {
+    if (this.selection.isElementNode()) {
       unique.removeAttribute("disabled");
       copyInnerHTML.removeAttribute("disabled");
       copyOuterHTML.removeAttribute("disabled");
@@ -604,13 +601,6 @@ InspectorPanel.prototype = {
       unique.setAttribute("disabled", "true");
       copyInnerHTML.setAttribute("disabled", "true");
       copyOuterHTML.setAttribute("disabled", "true");
-    }
-
-    let editHTML = this.panelDoc.getElementById("node-menu-edithtml");
-    if (this.outerHTMLEditable && selectionIsElement) {
-      editHTML.removeAttribute("disabled");
-    } else {
-      editHTML.setAttribute("disabled", "true");
     }
   },
 
@@ -712,19 +702,6 @@ InspectorPanel.prototype = {
     }
     else if (event.type == "mouseout") {
       this.highlighter.show();
-    }
-  },
-
-  /**
-   * Edit the outerHTML of the selected Node.
-   */
-  editHTML: function InspectorPanel_editHTML()
-  {
-    if (!this.selection.isNode()) {
-      return;
-    }
-    if (this.markup) {
-      this.markup.beginEditingOuterHTML(this.selection.nodeFront);
     }
   },
 

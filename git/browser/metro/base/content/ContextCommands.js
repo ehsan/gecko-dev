@@ -368,8 +368,7 @@ var ContextCommands = {
 
     // prefered save location
     Task.spawn(function() {
-      let preferredDir = yield Downloads.getPreferredDownloadsDirectory();
-      picker.displayDirectory = new FileUtils.File(preferredDir);
+      picker.displayDirectory = yield Downloads.getPreferredDownloadsDirectory();
 
       try {
         let lastDir = Services.prefs.getComplexValue("browser.download.lastDir", Ci.nsILocalFile);

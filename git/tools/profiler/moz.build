@@ -13,8 +13,8 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
     MODULE = 'profiler'
     LIBRARY_NAME = 'profiler'
     XPIDL_SOURCES += [
-        'nsIProfiler.idl',
         'nsIProfileSaveEvent.idl',
+        'nsIProfiler.idl',
     ]
     EXPORTS += [
         'GeckoProfilerFunc.h',
@@ -26,47 +26,47 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
     EXTRA_JS_MODULES = [
         'Profiler.jsm',
     ]
-    SOURCES += [
-        'BreakpadSampler.cpp',
-        'IOInterposer.cpp',
-        'JSCustomObjectBuilder.cpp',
-        'JSObjectBuilder.cpp',
-        'local_debug_info_symbolizer.cc',
-        'NSPRInterposer.cpp',
-        'nsProfiler.cpp',
-        'nsProfilerFactory.cpp',
+    CPP_SOURCES += [
         'platform.cpp',
+        'nsProfilerFactory.cpp',
+        'nsProfiler.cpp',
+        'TableTicker.cpp',
+        'SaveProfileTask.cpp',
+        'BreakpadSampler.cpp',
+        'UnwinderThread2.cpp',
         'ProfileEntry.cpp',
+        'local_debug_info_symbolizer.cc',
+        'JSObjectBuilder.cpp',
+        'JSCustomObjectBuilder.cpp',
+        'IOInterposer.cpp',
+        'NSPRInterposer.cpp',
         'ProfilerBacktrace.cpp',
         'ProfilerIOInterposeObserver.cpp',
         'ProfilerMarkers.cpp',
-        'SaveProfileTask.cpp',
         'SyncProfile.cpp',
-        'TableTicker.cpp',
-        'UnwinderThread2.cpp',
     ]
 
     if CONFIG['OS_TARGET'] in ('Android', 'Linux'):
-        SOURCES += [
-            'platform-linux.cc',
+        CPP_SOURCES += [
             'shared-libraries-linux.cc',
+            'platform-linux.cc',
         ]
         if CONFIG['CPU_ARCH'] == 'arm':
-            SOURCES += [
+            CPP_SOURCES += [
                 'EHABIStackWalk.cpp',
             ]
     elif CONFIG['OS_TARGET'] == 'Darwin':
-        SOURCES += [
-            'platform-macos.cc',
+        CPP_SOURCES += [
             'shared-libraries-macos.cc',
+            'platform-macos.cc',
         ]
-        SOURCES += [
+        CMMSRCS += [
             'shim_mac_dump_syms.mm',
         ]
     elif CONFIG['OS_TARGET'] == 'WINNT':
-        SOURCES += [
-            'platform-win32.cc',
+        CPP_SOURCES += [
             'shared-libraries-win32.cc',
+            'platform-win32.cc',
         ]
 
     LOCAL_INCLUDES += [
