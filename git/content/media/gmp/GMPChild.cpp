@@ -9,15 +9,10 @@
 #include "GMPVideoHost.h"
 #include "nsIFile.h"
 #include "nsXULAppAPI.h"
+#include <stdlib.h>
 #include "gmp-video-decode.h"
 #include "gmp-video-encode.h"
 #include "GMPPlatform.h"
-
-#ifdef XP_WIN
-#include <stdlib.h> // for _exit()
-#else
-#include <unistd.h> // for _exit()
-#endif
 
 namespace mozilla {
 namespace gmp {

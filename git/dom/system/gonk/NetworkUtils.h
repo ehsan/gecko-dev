@@ -14,13 +14,12 @@
 class NetworkParams;
 class CommandChain;
 
-typedef void (*CommandCallback)(CommandChain*, bool,
-                                mozilla::dom::NetworkResultOptions& aResult);
-typedef void (*CommandFunc)(CommandChain*, CommandCallback,
-                            mozilla::dom::NetworkResultOptions& aResult);
-typedef void (*MessageCallback)(mozilla::dom::NetworkResultOptions& aResult);
-typedef void (*ErrorCallback)(NetworkParams& aOptions,
-                              mozilla::dom::NetworkResultOptions& aResult);
+using namespace mozilla::dom;
+
+typedef void (*CommandCallback)(CommandChain*, bool, NetworkResultOptions& aResult);
+typedef void (*CommandFunc)(CommandChain*, CommandCallback, NetworkResultOptions& aResult);
+typedef void (*MessageCallback)(NetworkResultOptions& aResult);
+typedef void (*ErrorCallback)(NetworkParams& aOptions, NetworkResultOptions& aResult);
 
 class NetworkParams
 {
@@ -74,7 +73,7 @@ public:
     mThreshold = aOther.mThreshold;
   }
 
-  NetworkParams(const mozilla::dom::NetworkCommandOptions& aOther) {
+  NetworkParams(const NetworkCommandOptions& aOther) {
 
 #define COPY_SEQUENCE_FIELD(prop, type)                                                      \
     if (aOther.prop.WasPassed()) {                                                           \
@@ -305,8 +304,7 @@ private:
   /**
    * Individual netd command stored in command chain.
    */
-#define PARAMS CommandChain* aChain, CommandCallback aCallback, \
-               mozilla::dom::NetworkResultOptions& aResult
+#define PARAMS CommandChain* aChain, CommandCallback aCallback, NetworkResultOptions& aResult
   static void wifiFirmwareReload(PARAMS);
   static void startAccessPointDriver(PARAMS);
   static void stopAccessPointDriver(PARAMS);
@@ -348,8 +346,7 @@ private:
   /**
    * Error callback function executed when a command is fail.
    */
-#define PARAMS NetworkParams& aOptions, \
-               mozilla::dom::NetworkResultOptions& aResult
+#define PARAMS NetworkParams& aOptions, NetworkResultOptions& aResult
   static void wifiTetheringFail(PARAMS);
   static void wifiOperationModeFail(PARAMS);
   static void usbTetheringFail(PARAMS);
@@ -363,8 +360,7 @@ private:
   /**
    * Command chain processing functions.
    */
-  static void next(CommandChain* aChain, bool aError,
-                   mozilla::dom::NetworkResultOptions& aResult);
+  static void next(CommandChain* aChain, bool aError, NetworkResultOptions& aResult);
   static void nextNetdCommand();
   static void doCommand(const char* aCommand, CommandChain* aChain, CommandCallback aCallback);
 

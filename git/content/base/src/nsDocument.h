@@ -71,7 +71,6 @@
 #include "mozilla/Attributes.h"
 #include "nsIDOMXPathEvaluator.h"
 #include "jsfriendapi.h"
-#include "ImportManager.h"
 
 #define XML_DECLARATION_BITS_DECLARATION_EXISTS   (1 << 0)
 #define XML_DECLARATION_BITS_ENCODING_EXISTS      (1 << 1)
@@ -1247,41 +1246,6 @@ public:
                                                     mozilla::ErrorResult& rv) MOZ_OVERRIDE;
   virtual void UseRegistryFromDocument(nsIDocument* aDocument) MOZ_OVERRIDE;
 
-  virtual already_AddRefed<nsIDocument> MasterDocument()
-  {
-    return mMasterDocument ? (nsCOMPtr<nsIDocument>(mMasterDocument)).forget()
-                           : (nsCOMPtr<nsIDocument>(this)).forget();
-  }
-
-  virtual void SetMasterDocument(nsIDocument* master)
-  {
-    mMasterDocument = master;
-  }
-
-  virtual bool IsMasterDocument()
-  {
-    return !mMasterDocument;
-  }
-
-  virtual already_AddRefed<mozilla::dom::ImportManager> ImportManager()
-  {
-    if (mImportManager) {
-      MOZ_ASSERT(!mMasterDocument, "Only the master document has ImportManager set");
-      return nsRefPtr<mozilla::dom::ImportManager>(mImportManager).forget();
-    }
-
-    if (mMasterDocument) {
-      return mMasterDocument->ImportManager();
-    }
-
-    // ImportManager is created lazily.
-    // If the manager is not yet set it has to be the
-    // master document and this is the first import in it.
-    // Let's create a new manager.
-    mImportManager = new mozilla::dom::ImportManager();
-    return nsRefPtr<mozilla::dom::ImportManager>(mImportManager).forget();
-  }
-
   virtual void UnblockDOMContentLoaded() MOZ_OVERRIDE;
 
 protected:
@@ -1698,9 +1662,6 @@ private:
   bool mNeedsReleaseAfterStackRefCntRelease;
 
   CSPErrorQueue mCSPWebConsoleErrorQueue;
-
-  nsCOMPtr<nsIDocument> mMasterDocument;
-  nsRefPtr<mozilla::dom::ImportManager> mImportManager;
 
 #ifdef DEBUG
 protected:

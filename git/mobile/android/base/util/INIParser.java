@@ -169,7 +169,6 @@ public final class INIParser extends INISection {
         if (section == null)
             return;
 
-        section.setName(newName);
         mSections.remove(oldName);
         mSections.put(newName, section);
     }

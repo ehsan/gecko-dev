@@ -15,7 +15,6 @@ class CRMFObject;
 }
 #endif
 
-#include "mozilla/dom/SubtleCrypto.h"
 #include "nsPIDOMWindow.h"
 
 #include "nsWrapperCache.h"
@@ -44,9 +43,6 @@ public:
   JSObject *
   GetRandomValues(JSContext* aCx, const ArrayBufferView& aArray,
 		  ErrorResult& aRv);
-
-  SubtleCrypto*
-  Subtle();
 
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
   virtual bool EnableSmartCardEvents();
@@ -96,7 +92,6 @@ public:
 
 private:
   nsCOMPtr<nsPIDOMWindow> mWindow;
-  nsRefPtr<SubtleCrypto> mSubtle;
 };
 
 } // namespace dom
