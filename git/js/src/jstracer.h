@@ -261,12 +261,6 @@ struct FrameInfo {
     };
 };
 
-enum JSMonitorRecordingStatus {
-    JSMRS_CONTINUE,
-    JSMRS_STOP,
-    JSMRS_IMACRO
-};
-
 class TraceRecorder : public avmplus::GCObject {
     JSContext*              cx;
     JSTraceMonitor*         traceMonitor;
@@ -322,7 +316,6 @@ class TraceRecorder : public avmplus::GCObject {
     JS_REQUIRES_STACK nanojit::LIns* guard(bool expected, nanojit::LIns* cond,
                                            ExitType exitType);
     nanojit::LIns* guard(bool expected, nanojit::LIns* cond, nanojit::LIns* exit);
-
     nanojit::LIns* addName(nanojit::LIns* ins, const char* name);
 
     JS_REQUIRES_STACK nanojit::LIns* get(jsval* p) const;
@@ -364,9 +357,10 @@ class TraceRecorder : public avmplus::GCObject {
     JS_REQUIRES_STACK bool incElem(jsint incr, bool pre = true);
     JS_REQUIRES_STACK bool incName(jsint incr, bool pre = true);
 
-    JS_REQUIRES_STACK void strictEquality(bool equal, bool cmpCase);
-    JS_REQUIRES_STACK bool equality(bool negate, bool tryBranchAfterCond);
-    JS_REQUIRES_STACK bool relational(nanojit::LOpcode op, bool tryBranchAfterCond);
+    enum { CMP_NEGATE = 1, CMP_TRY_BRANCH_AFTER_COND = 2, CMP_CASE = 4 };
+    JS_REQUIRES_STACK void strictEquality(bool equal);
+    JS_REQUIRES_STACK bool equality(int flags);
+    JS_REQUIRES_STACK bool relational(nanojit::LOpcode op, int flags);
 
     JS_REQUIRES_STACK bool unary(nanojit::LOpcode op);
     JS_REQUIRES_STACK bool binary(nanojit::LOpcode op);
@@ -428,16 +422,30 @@ class TraceRecorder : public avmplus::GCObject {
     JS_REQUIRES_STACK void fuseIf(jsbytecode* pc, bool cond, nanojit::LIns* x);
 
     bool hasMethod(JSObject* obj, jsid id);
+    bool hasToStringMethod(JSObject* obj);
+    bool hasToStringMethod(jsval v) {
+        JS_ASSERT(JSVAL_IS_OBJECT(v));
+        return hasToStringMethod(JSVAL_TO_OBJECT(v));
+    }
+    bool hasValueOfMethod(JSObject* obj);
+    bool hasValueOfMethod(jsval v) {
+        JS_ASSERT(JSVAL_IS_OBJECT(v));
+        return hasValueOfMethod(JSVAL_TO_OBJECT(v));
+    }
     bool hasIteratorMethod(JSObject* obj);
+    bool hasIteratorMethod(jsval v) {
+        JS_ASSERT(JSVAL_IS_OBJECT(v));
+        return hasIteratorMethod(JSVAL_TO_OBJECT(v));
+    }
 
 public:
+    friend JS_REQUIRES_STACK bool js_MonitorRecording(TraceRecorder* tr);
+
     JS_REQUIRES_STACK
     TraceRecorder(JSContext* cx, VMSideExit*, nanojit::Fragment*, TreeInfo*,
                   unsigned ngslots, uint8* globalTypeMap, uint8* stackTypeMap, 
                   VMSideExit* expectedInnerExit, nanojit::Fragment* outerToBlacklist);
     ~TraceRecorder();
-
-    JS_REQUIRES_STACK JSMonitorRecordingStatus monitorRecording(JSOp op);
 
     JS_REQUIRES_STACK uint8 determineSlotType(jsval* vp) const;
     JS_REQUIRES_STACK nanojit::LIns* snapshot(ExitType exitType);
@@ -468,6 +476,7 @@ public:
     JS_REQUIRES_STACK bool record_DefLocalFunSetSlot(uint32 slot, JSObject* obj);
     JS_REQUIRES_STACK bool record_FastNativeCallComplete();
     JS_REQUIRES_STACK bool record_IteratorNextComplete();
+    JS_REQUIRES_STACK bool record_ApplyComplete(uintN argc);
 
     nanojit::Fragment* getOuterToBlacklist() { return outerToBlacklist; }
     void deepAbort() { deepAborted = true; }
@@ -486,16 +495,49 @@ public:
 #define SET_TRACE_RECORDER(cx,tr) (JS_TRACE_MONITOR(cx).recorder = (tr))
 
 #define JSOP_IS_BINARY(op) ((uintN)((op) - JSOP_BITOR) <= (uintN)(JSOP_MOD - JSOP_BITOR))
-#define JSOP_IS_UNARY(op) ((uintN)((op) - JSOP_NEG) <= (uintN)(JSOP_POS - JSOP_NEG))
 
-#define TRACE_ARGS_(x,args)                                                   \
+/*
+ * See jsinterp.cpp for the ENABLE_TRACER definition. Also note how comparing x
+ * to JSOP_* constants specializes trace-recording code at compile time either
+ * to include imacro support, or exclude it altogether for this particular x.
+ *
+ * We save macro-generated code size also via bool TraceRecorder::record_JSOP_*
+ * return type, instead of a three-state: OK, ABORTED, IMACRO_STARTED. But the
+ * price of this is the JSFRAME_IMACRO_START frame flag. We need one more bit
+ * to detect that TraceRecorder::call_imacro was invoked by the record_JSOP_*
+ * method invoked by TRACE_ARGS_.
+ */
+#define RECORD_ARGS(x,args)                                                   \
     JS_BEGIN_MACRO                                                            \
-        TraceRecorder* tr_ = TRACE_RECORDER(cx);                              \
-        if (tr_ && !tr_->record_##x args)                                     \
-            js_AbortRecording(cx, #x);                                        \
+        if (!js_MonitorRecording(TRACE_RECORDER(cx))) {                       \
+            ENABLE_TRACER(0);                                                 \
+        } else {                                                              \
+            TRACE_ARGS_(x, args,                                              \
+                if ((fp->flags & JSFRAME_IMACRO_START) &&                     \
+                    (x == JSOP_ITER || x == JSOP_NEXTITER ||                  \
+                    JSOP_IS_BINARY(x))) {                                     \
+                    fp->flags &= ~JSFRAME_IMACRO_START;                       \
+                    atoms = COMMON_ATOMS_START(&rt->atomState);               \
+                    op = JSOp(*regs.pc);                                      \
+                    DO_OP();                                                  \
+                }                                                             \
+            );                                                                \
+         }                                                                    \
     JS_END_MACRO
 
-#define TRACE_ARGS(x,args)      TRACE_ARGS_(x, args)
+#define TRACE_ARGS_(x,args,onfalse)                                           \
+    JS_BEGIN_MACRO                                                            \
+        TraceRecorder* tr_ = TRACE_RECORDER(cx);                              \
+        if (tr_ && !tr_->record_##x args) {                                   \
+            onfalse                                                           \
+            js_AbortRecording(cx, #x);                                        \
+            ENABLE_TRACER(0);                                                 \
+        }                                                                     \
+    JS_END_MACRO
+
+#define TRACE_ARGS(x,args)      TRACE_ARGS_(x, args, )
+
+#define RECORD(x)               RECORD_ARGS(x, ())
 #define TRACE_0(x)              TRACE_ARGS(x, ())
 #define TRACE_1(x,a)            TRACE_ARGS(x, (a))
 #define TRACE_2(x,a,b)          TRACE_ARGS(x, (a, b))
@@ -503,11 +545,8 @@ public:
 extern JS_REQUIRES_STACK bool
 js_MonitorLoopEdge(JSContext* cx, uintN& inlineCallCount);
 
-#ifdef DEBUG
-# define js_AbortRecording(cx, reason) js_AbortRecordingImpl(cx, reason)
-#else
-# define js_AbortRecording(cx, reason) js_AbortRecordingImpl(cx)
-#endif
+extern JS_REQUIRES_STACK bool
+js_MonitorRecording(TraceRecorder *tr);
 
 extern JS_REQUIRES_STACK void
 js_AbortRecording(JSContext* cx, const char* reason);
@@ -526,6 +565,7 @@ js_FlushJITOracle(JSContext* cx);
 
 #else  /* !JS_TRACER */
 
+#define RECORD(x)               ((void)0)
 #define TRACE_0(x)              ((void)0)
 #define TRACE_1(x,a)            ((void)0)
 #define TRACE_2(x,a,b)          ((void)0)
