@@ -87,8 +87,7 @@ nsresult
 NS_NewContentViewer(nsIContentViewer** aResult);
 
 // XXXbz if you change the MIME types here, be sure to update
-// nsIParser.h and DetermineParseMode in nsParser.cpp and
-// nsHTMLDocument::StartDocumentLoad accordingly.
+// nsIParser.h and DetermineParseMode in nsParser.cpp accordingly.
 static const char* const gHTMLTypes[] = {
   TEXT_HTML,
   TEXT_PLAIN,

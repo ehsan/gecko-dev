@@ -36,12 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 void
-nsHtml5Tokenizer::StartPlainText()
-{
-  stateSave = NS_HTML5TOKENIZER_PLAINTEXT;
-}
-
-void
 nsHtml5Tokenizer::EnableViewSource(nsHtml5Highlighter* aHighlighter)
 {
   mViewSource = aHighlighter;

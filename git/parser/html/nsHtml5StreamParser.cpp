@@ -866,12 +866,6 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   mTokenizer->start();
   mExecutor->Start();
   mExecutor->StartReadingFromStage();
-
-  if (mMode == PLAIN_TEXT) {
-    mTreeBuilder->StartPlainText();
-    mTokenizer->StartPlainText();
-  }
-
   /*
    * If you move the following line, be very careful not to cause 
    * WillBuildModel to be called before the document has had its 
@@ -897,7 +891,7 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   // The line below means that the encoding can end up being wrong if
   // a view-source URL is loaded without having the encoding hint from a
   // previous normal load in the history.
-  mReparseForbidden = !(mMode == NORMAL || mMode == PLAIN_TEXT);
+  mReparseForbidden = !(mMode == NORMAL);
 
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(mRequest, &rv));
   if (NS_SUCCEEDED(rv)) {

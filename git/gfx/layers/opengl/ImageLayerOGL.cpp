@@ -794,10 +794,12 @@ CairoImageOGL::SetData(const CairoImage::Data &aData)
   }
 #endif
 
+  InitTexture(gl, tex, LOCAL_GL_RGBA, mSize);
+
   mLayerProgram =
     gl->UploadSurfaceToTexture(aData.mSurface,
                                nsIntRect(0,0, mSize.width, mSize.height),
-                               tex, true);
+                               tex);
 }
 
 void CairoImageOGL::SetTiling(bool aTiling)

@@ -182,7 +182,7 @@ class nsHtml5Parser : public nsIParser,
      *
      * @param   aSourceBuffer the argument of document.write (empty for .close())
      * @param   aKey a key unique to the script element that caused this call
-     * @param   aContentType "text/html" for HTML mode, else text/plain mode
+     * @param   aContentType ignored (for interface compat only)
      * @param   aLastCall true if .close() false if .write()
      * @param   aMode ignored (for interface compat only)
      */

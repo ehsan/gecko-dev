@@ -239,7 +239,7 @@ nsHtml5Parser::Parse(nsIURI* aURL, // legacy parameter; ignored
 NS_IMETHODIMP
 nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
                      void* aKey,
-                     const nsACString& aContentType,
+                     const nsACString& aContentType, // ignored
                      bool aLastCall,
                      nsDTDMode aMode) // ignored
 {
@@ -270,10 +270,6 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
     mTreeBuilder->setScriptingEnabled(mExecutor->IsScriptEnabled());
     mTokenizer->start();
     mExecutor->Start();
-    if (!aContentType.EqualsLiteral("text/html")) {
-      mTreeBuilder->StartPlainText();
-      mTokenizer->StartPlainText();
-    }
     /*
      * If you move the following line, be very careful not to cause 
      * WillBuildModel to be called before the document has had its 
@@ -711,8 +707,6 @@ nsHtml5Parser::MarkAsNotScriptCreated(const char* aCommand)
     mode = VIEW_SOURCE_HTML;
   } else if (!nsCRT::strcmp(aCommand, "view-source-xml")) {
     mode = VIEW_SOURCE_XML;
-  } else if (!nsCRT::strcmp(aCommand, "plain-text")) {
-    mode = PLAIN_TEXT;
   }
 #ifdef DEBUG
   else {
