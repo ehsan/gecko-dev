@@ -637,9 +637,12 @@ GLReadTexImageHelper::ReadTexImage(GLuint aTextureId,
 
         /* Setup quad geometry */
         mGL->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
+        mGL->fEnableVertexAttribArray(0);
+        mGL->fEnableVertexAttribArray(1);
 
         float w = (aTextureTarget == LOCAL_GL_TEXTURE_RECTANGLE) ? (float) aSize.width : 1.0f;
         float h = (aTextureTarget == LOCAL_GL_TEXTURE_RECTANGLE) ? (float) aSize.height : 1.0f;
+
 
         const float
         vertexArray[4*2] = {
@@ -647,8 +650,8 @@ GLReadTexImageHelper::ReadTexImage(GLuint aTextureId,
             1.0f, -1.0f,
             -1.0f,  1.0f,
             1.0f,  1.0f
-        };
-        ScopedVertexAttribPointer autoAttrib0(mGL, 0, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, 0, vertexArray);
+         };
+        mGL->fVertexAttribPointer(0, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, vertexArray);
 
         const float u0 = 0.0f;
         const float u1 = w;
@@ -658,7 +661,7 @@ GLReadTexImageHelper::ReadTexImage(GLuint aTextureId,
                                          u1, v0,
                                          u0, v1,
                                          u1, v1 };
-        ScopedVertexAttribPointer autoAttrib1(mGL, 1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, 0, texCoordArray);
+        mGL->fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, texCoordArray);
 
         /* Bind the texture */
         if (aTextureId) {
@@ -674,12 +677,16 @@ GLReadTexImageHelper::ReadTexImage(GLuint aTextureId,
         mGL->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
         CLEANUP_IF_GLERROR_OCCURRED("when drawing texture");
 
+        mGL->fDisableVertexAttribArray(1);
+        mGL->fDisableVertexAttribArray(0);
+
         /* Read-back draw results */
         ReadPixelsIntoDataSurface(mGL, isurf);
         CLEANUP_IF_GLERROR_OCCURRED("when reading pixels into surface");
     } while (false);
 
     /* Restore GL state */
+//cleanup:
     mGL->fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, oldrb);
     mGL->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, oldfb);
     mGL->fUseProgram(oldprog);

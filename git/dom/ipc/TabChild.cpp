@@ -111,7 +111,8 @@ typedef nsDataHashtable<nsUint64HashKey, TabChild*> TabChildMap;
 static TabChildMap* sTabChildren;
 
 TabChildBase::TabChildBase()
-  : mContentDocumentIsDisplayed(false)
+  : mOldViewportWidth(0.0f)
+  , mContentDocumentIsDisplayed(false)
   , mTabChildGlobal(nullptr)
   , mInnerSize(0, 0)
 {
@@ -150,7 +151,7 @@ TabChildBase::InitializeRootMetrics()
 void
 TabChildBase::SetCSSViewport(const CSSSize& aSize)
 {
-  mOldViewportSize = aSize;
+  mOldViewportWidth = aSize.width;
 
   if (mContentDocumentIsDisplayed) {
     nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
@@ -220,10 +221,10 @@ TabChildBase::HandlePossibleViewportChange()
     return false;
   }
 
-  CSSSize oldBrowserSize = mOldViewportSize;
+  float oldBrowserWidth = mOldViewportWidth;
   mLastRootMetrics.mViewport.SizeTo(viewport);
-  if (oldBrowserSize == CSSSize()) {
-    oldBrowserSize = kDefaultViewportSize;
+  if (!oldBrowserWidth) {
+    oldBrowserWidth = kDefaultViewportSize.width;
   }
   SetCSSViewport(viewport);
 
@@ -240,11 +241,9 @@ TabChildBase::HandlePossibleViewportChange()
     return false;
   }
 
-  ScreenIntSize oldScreenSize = ViewAs<ScreenPixel>(
-      mLastRootMetrics.mCompositionBounds.Size(),
-      PixelCastJustification::ScreenToParentLayerForRoot);
-  if (oldScreenSize == ScreenIntSize()) {
-    oldScreenSize = mInnerSize;
+  float oldScreenWidth = mLastRootMetrics.mCompositionBounds.width;
+  if (!oldScreenWidth) {
+    oldScreenWidth = mInnerSize.width;
   }
 
   FrameMetrics metrics(mLastRootMetrics);
@@ -267,9 +266,7 @@ TabChildBase::HandlePossibleViewportChange()
   // In all of these cases, we maintain how much actual content is visible
   // within the screen width. Note that "actual content" may be different with
   // respect to CSS pixels because of the CSS viewport size changing.
-  float oldIntrinsicScale =
-      std::max(oldScreenSize.width / oldBrowserSize.width,
-               oldScreenSize.height / oldBrowserSize.height);
+  float oldIntrinsicScale = oldScreenWidth / oldBrowserWidth;
   metrics.ZoomBy(metrics.CalculateIntrinsicScale().scale / oldIntrinsicScale);
 
   // Changing the zoom when we're not doing a first paint will get ignored
@@ -2502,7 +2499,6 @@ TabChild::InitRenderingState()
       if (!sTabChildren) {
         sTabChildren = new TabChildMap;
       }
-      MOZ_ASSERT(!sTabChildren->Get(id));
       sTabChildren->Put(id, this);
       mLayersId = id;
     }
@@ -2712,14 +2708,14 @@ TabChild::GetFrom(uint64_t aLayersId)
 }
 
 void
-TabChild::DidComposite(uint64_t aTransactionId)
+TabChild::DidComposite()
 {
   MOZ_ASSERT(mWidget);
   MOZ_ASSERT(mWidget->GetLayerManager());
   MOZ_ASSERT(mWidget->GetLayerManager()->GetBackendType() == LayersBackend::LAYERS_CLIENT);
 
   ClientLayerManager *manager = static_cast<ClientLayerManager*>(mWidget->GetLayerManager());
-  manager->DidComposite(aTransactionId);
+  manager->DidComposite();
 }
 
 NS_IMETHODIMP

@@ -23,9 +23,6 @@
           ],
         }],
       ],
-      'include_dirs': [
-        '<(webrtc_root)',
-      ],
       'sources': [
         'interface/opus_interface.h',
         'opus_interface.c',

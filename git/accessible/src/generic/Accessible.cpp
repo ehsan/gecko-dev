@@ -1555,7 +1555,7 @@ Accessible::ApplyARIAState(uint64_t* aState) const
     if (mRoleMapEntry->role != roles::NOTHING)
       *aState &= ~states::READONLY;
 
-    if (mContent->HasID()) {
+    if (mContent->HasAttr(kNameSpaceID_None, mContent->GetIDAttributeName())) {
       // If has a role & ID and aria-activedescendant on the container, assume focusable
       nsIContent *ancestorContent = mContent;
       while ((ancestorContent = ancestorContent->GetParent()) != nullptr) {

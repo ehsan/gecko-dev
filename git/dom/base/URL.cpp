@@ -341,18 +341,7 @@ URL::UpdateURLSearchParams()
 void
 URL::GetHostname(nsString& aHostname) const
 {
-  aHostname.Truncate();
-  nsAutoCString tmp;
-  nsresult rv = mURI->GetHost(tmp);
-  if (NS_SUCCEEDED(rv)) {
-    if (tmp.FindChar(':') != -1) { // Escape IPv6 address
-      MOZ_ASSERT(!tmp.Length() ||
-        (tmp[0] !='[' && tmp[tmp.Length() - 1] != ']'));
-      tmp.Insert('[', 0);
-      tmp.Append(']');
-    }
-    CopyUTF8toUTF16(tmp, aHostname);
-  }
+  URL_GETTER(aHostname, GetHost);
 }
 
 void

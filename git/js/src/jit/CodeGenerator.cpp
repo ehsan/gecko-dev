@@ -859,9 +859,9 @@ static const VMFunctionsModal PrimitiveToStringInfo = VMFunctionsModal(
     FunctionInfo<PrimitiveToStringParFn>(PrimitiveToStringPar));
 
 bool
-CodeGenerator::visitValueToString(LValueToString *lir)
+CodeGenerator::visitPrimitiveToString(LPrimitiveToString *lir)
 {
-    ValueOperand input = ToValue(lir, LValueToString::Input);
+    ValueOperand input = ToValue(lir, LPrimitiveToString::Input);
     Register output = ToRegister(lir->output());
 
     OutOfLineCode *ool = oolCallVM(PrimitiveToStringInfo, lir, (ArgList(), input),
@@ -931,18 +931,9 @@ CodeGenerator::visitValueToString(LValueToString *lir)
         masm.bind(&notBoolean);
     }
 
-    // Object
-    if (lir->mir()->input()->mightBeType(MIRType_Object)) {
-        // Bail.
-        JS_ASSERT(lir->mir()->fallible());
-        Label bail;
-        masm.branchTestObject(Assembler::Equal, tag, &bail);
-        if (!bailoutFrom(&bail, lir->snapshot()))
-            return false;
-    }
-
 #ifdef DEBUG
-    masm.assumeUnreachable("Unexpected type for MValueToString.");
+    // Objects are not supported or we see a type that wasn't accounted for.
+    masm.assumeUnreachable("Unexpected type for MPrimitiveToString.");
 #endif
 
     masm.bind(&done);
@@ -5842,7 +5833,7 @@ CodeGenerator::emitArrayPopShift(LInstruction *lir, const MArrayPopShift *mir, R
     }
 
     // VM call if a write barrier is necessary.
-    masm.branchTestNeedsBarrier(Assembler::NonZero, ool->entry());
+    masm.branchTestNeedsBarrier(Assembler::NonZero, lengthTemp, ool->entry());
 
     // Load elements and length.
     masm.loadPtr(Address(obj, JSObject::offsetOfElements()), elementsTemp);
@@ -6105,7 +6096,7 @@ CodeGenerator::visitIteratorStart(LIteratorStart *lir)
         masm.branchPtr(Assembler::NotEqual, objAddr, obj, ool->entry());
 #else
         Label noBarrier;
-        masm.branchTestNeedsBarrier(Assembler::Zero, &noBarrier);
+        masm.branchTestNeedsBarrier(Assembler::Zero, temp1, &noBarrier);
 
         Address objAddr(niTemp, offsetof(NativeIterator, obj));
         masm.branchPtr(Assembler::NotEqual, objAddr, obj, ool->entry());
