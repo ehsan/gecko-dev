@@ -3115,6 +3115,7 @@ proxy_Slice(JSContext *cx, HandleObject proxy, uint32_t begin, uint32_t end,
     JS_ResolveStub,                                 \
     proxy_Convert,                                  \
     proxy_Finalize,          /* finalize    */      \
+    nullptr,                 /* checkAccess */      \
     callOp,                  /* call        */      \
     proxy_HasInstance,       /* hasInstance */      \
     constructOp,             /* construct   */      \
@@ -3166,6 +3167,7 @@ const Class js::OuterWindowProxyObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     proxy_Finalize,          /* finalize    */
+    nullptr,                 /* checkAccess */
     nullptr,                 /* call        */
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct   */

@@ -1215,8 +1215,7 @@ CompositorOGL::DrawQuadInternal(const Rect& aRect,
       AutoBindTexture bindSource(mGLContext, source->AsSourceOGL(), LOCAL_GL_TEXTURE0);
 
       GraphicsFilter filter = ThebesFilter(texturedEffect->mFilter);
-      gfx3DMatrix textureTransform;
-      gfx::To3DMatrix(source->AsSourceOGL()->GetTextureTransform(), textureTransform);
+      gfx3DMatrix textureTransform = source->AsSourceOGL()->GetTextureTransform();
 
 #ifdef MOZ_WIDGET_ANDROID
       gfxMatrix textureTransform2D;

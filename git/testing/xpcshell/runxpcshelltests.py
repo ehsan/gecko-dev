@@ -762,17 +762,13 @@ class XPCShellTests(object):
 
           if we are chunking tests, it will be done here as well
         """
-        if isinstance(self.manifest, manifestparser.TestManifest):
-            mp = self.manifest
+        mp = manifestparser.TestManifest(strict=False)
+        if self.manifest is None:
+            for testdir in self.testdirs:
+                if testdir:
+                    mp.read(os.path.join(testdir, 'xpcshell.ini'))
         else:
-            mp = manifestparser.TestManifest(strict=False)
-            if self.manifest is None:
-                for testdir in self.testdirs:
-                    if testdir:
-                        mp.read(os.path.join(testdir, 'xpcshell.ini'))
-            else:
-                mp.read(self.manifest)
-
+            mp.read(self.manifest)
         self.buildTestPath()
 
         self.alltests = mp.active_tests(**mozinfo.info)

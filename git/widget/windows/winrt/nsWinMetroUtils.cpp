@@ -210,13 +210,8 @@ nsWinMetroUtils::ShowNativeToast(const nsAString &aTitle,
 
   HSTRING title = HStringReference(aTitle.BeginReading()).Get();
   HSTRING msg = HStringReference(aMessage.BeginReading()).Get();
-
-  if (anImage.Length() > 0) {
-    HSTRING imagePath = HStringReference(anImage.BeginReading()).Get();
-    notification_handler->DisplayNotification(title, msg, imagePath, aCookie);
-  } else {
-    notification_handler->DisplayTextNotification(title, msg, aCookie);
-  }
+  HSTRING imagePath = HStringReference(anImage.BeginReading()).Get();
+  notification_handler->DisplayNotification(title, msg, imagePath, aCookie);
 
   return NS_OK;
 }

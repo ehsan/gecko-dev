@@ -3301,13 +3301,14 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 }
 
 JS_PUBLIC_API(JSObject *)
-JS_InitReflect(JSContext *cx, HandleObject obj)
+JS_InitReflect(JSContext *cx, JSObject *objArg)
 {
     static const JSFunctionSpec static_methods[] = {
         JS_FN("parse", reflect_parse, 1, 0),
         JS_FS_END
     };
 
+    RootedObject obj(cx, objArg);
     RootedObject proto(cx, obj->as<GlobalObject>().getOrCreateObjectPrototype(cx));
     if (!proto)
         return nullptr;

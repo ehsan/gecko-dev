@@ -167,7 +167,8 @@ static void DrawVelGraph(const nsIntRect& aClipRect,
 
   aManager->SetDebugOverlayWantsNextFrame(true);
 
-  const gfx::Matrix4x4& transform = aLayer->GetEffectiveTransform();
+  gfx::Matrix4x4 transform;
+  ToMatrix4x4(aLayer->GetEffectiveTransform(), transform);
   nsIntRect bounds = aLayer->GetEffectiveVisibleRegion().GetBounds();
   gfx::Rect graphBounds = gfx::Rect(bounds.x, bounds.y,
                                     bounds.width, bounds.height);
@@ -242,8 +243,7 @@ ContainerRender(ContainerT* aContainer,
       aContainer->mSupportsComponentAlphaChildren = true;
       mode = INIT_MODE_NONE;
     } else {
-      gfx3DMatrix transform3D;
-      gfx::To3DMatrix(aContainer->GetEffectiveTransform(), transform3D);
+      const gfx3DMatrix& transform3D = aContainer->GetEffectiveTransform();
       gfxMatrix transform;
       // If we have an opaque ancestor layer, then we can be sure that
       // all the pixels we draw into are either opaque already or will be
@@ -352,20 +352,26 @@ ContainerRender(ContainerT* aContainer,
 
     effectChain.mPrimaryEffect = new EffectRenderTarget(surface);
 
+    gfx::Matrix4x4 transform;
+    ToMatrix4x4(aContainer->GetEffectiveTransform(), transform);
+
     gfx::Rect rect(visibleRect.x, visibleRect.y, visibleRect.width, visibleRect.height);
     gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
     aManager->GetCompositor()->DrawQuad(rect, clipRect, effectChain, opacity,
-                                        aContainer->GetEffectiveTransform());
+                                        transform);
   }
 
   if (aContainer->GetFrameMetrics().IsScrollable()) {
+    gfx::Matrix4x4 transform;
+    ToMatrix4x4(aContainer->GetEffectiveTransform(), transform);
+
     const FrameMetrics& frame = aContainer->GetFrameMetrics();
     LayerRect layerBounds = ScreenRect(frame.mCompositionBounds) * ScreenToLayerScale(1.0);
     gfx::Rect rect(layerBounds.x, layerBounds.y, layerBounds.width, layerBounds.height);
     gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
     aManager->GetCompositor()->DrawDiagnostics(DIAGNOSTIC_CONTAINER,
                                                rect, clipRect,
-                                               aContainer->GetEffectiveTransform());
+                                               transform);
   }
 }
 

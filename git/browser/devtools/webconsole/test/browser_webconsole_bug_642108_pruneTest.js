@@ -74,7 +74,7 @@ function testCSSPruning(hudRef) {
          "repeated nodes pruned from repeatNodes");
 
       let msg = [...result.matched][0];
-      let repeats = msg.querySelector(".message-repeats");
+      let repeats = msg.querySelector(".repeats");
       is(repeats.getAttribute("value"), 1,
          "repeated nodes pruned from repeatNodes (confirmed)");
 

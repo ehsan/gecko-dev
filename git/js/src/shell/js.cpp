@@ -2358,7 +2358,9 @@ GetPDA(JSContext *cx, unsigned argc, jsval *vp)
         }
 
         /* Protect pdobj from GC by setting it as an element of aobj now */
-        ok = !!JS_SetElement(cx, aobj, i, pdobj);
+        RootedValue v(cx);
+        v.setObject(*pdobj);
+        ok = !!JS_SetElement(cx, aobj, i, &v);
         if (!ok)
             break;
 
@@ -2533,7 +2535,7 @@ EvalInContext(JSContext *cx, unsigned argc, jsval *vp)
         if (!JS_EvaluateUCScript(cx, sobj, src, srclen,
                                  script->filename(),
                                  lineno,
-                                 &rval)) {
+                                 rval.address())) {
             return false;
         }
     }
@@ -4498,8 +4500,7 @@ Help(JSContext *cx, unsigned argc, jsval *vp)
 
         for (size_t i = 0; i < ida.length(); i++) {
             RootedValue v(cx);
-            RootedId id(cx, ida[i]);
-            if (!JS_LookupPropertyById(cx, global, id, &v))
+            if (!JS_LookupPropertyById(cx, global, ida[i], &v))
                 return false;
             if (JSVAL_IS_PRIMITIVE(v)) {
                 JS_ReportError(cx, "primitive arg");
@@ -4934,6 +4935,7 @@ static const JSClass dom_class = {
     JS_ResolveStub,
     JS_ConvertStub,
     nullptr,               /* finalize */
+    nullptr,               /* checkAccess */
     nullptr,               /* call */
     nullptr,               /* hasInstance */
     nullptr,               /* construct */
@@ -5726,6 +5728,18 @@ MaybeOverrideOutFileFromEnv(const char* const envVar,
     }
 }
 
+static bool
+CheckObjectAccess(JSContext *cx, HandleObject obj, HandleId id, JSAccessMode mode,
+                  MutableHandleValue vp)
+{
+    return true;
+}
+
+static const JSSecurityCallbacks securityCallbacks = {
+    CheckObjectAccess,
+    nullptr
+};
+
 /* Pretend we can always preserve wrappers for dummy DOM objects. */
 static bool
 DummyPreserveWrapperCallback(JSContext *cx, JSObject *obj)
@@ -5952,6 +5966,7 @@ main(int argc, char **argv, char **envp)
     shellTrustedPrincipals.refcount = 1;
 
     JS_SetTrustedPrincipals(rt, &shellTrustedPrincipals);
+    JS_SetSecurityCallbacks(rt, &securityCallbacks);
     JS_SetOperationCallback(rt, ShellOperationCallback);
     JS::SetAsmJSCacheOps(rt, &asmJSCacheOps);
 

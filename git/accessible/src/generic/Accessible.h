@@ -389,7 +389,7 @@ public:
   /**
    * Return child accessible at the given index.
    */
-  virtual Accessible* GetChildAt(uint32_t aIndex) const;
+  virtual Accessible* GetChildAt(uint32_t aIndex);
 
   /**
    * Return child accessible count.
@@ -399,8 +399,7 @@ public:
   /**
    * Return index of the given child accessible.
    */
-  int32_t GetIndexOf(const Accessible* aChild) const
-    { return (aChild->mParent != this) ? -1 : aChild->IndexInParent(); }
+  virtual int32_t GetIndexOf(Accessible* aChild);
 
   /**
    * Return index in parent accessible.

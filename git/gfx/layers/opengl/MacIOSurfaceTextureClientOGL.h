@@ -22,12 +22,6 @@ public:
 
   void InitWith(MacIOSurface* aSurface);
 
-  virtual bool Lock(OpenMode aMode) MOZ_OVERRIDE;
-
-  virtual void Unlock() MOZ_OVERRIDE;
-
-  virtual bool IsLocked() const MOZ_OVERRIDE;
-
   virtual bool IsAllocated() const MOZ_OVERRIDE { return !!mSurface; }
 
   virtual bool ToSurfaceDescriptor(SurfaceDescriptor& aOutDescriptor) MOZ_OVERRIDE;
@@ -38,7 +32,6 @@ public:
 
 protected:
   RefPtr<MacIOSurface> mSurface;
-  bool mIsLocked;
 };
 
 }

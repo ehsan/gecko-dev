@@ -225,7 +225,6 @@ CompositableDataGonkOGL::DeleteTextureIfPresent()
     if (gl()->MakeCurrent()) {
       gl()->fDeleteTextures(1, &mTexture);
     }
-    mTexture = 0;
   }
 }
 
@@ -378,13 +377,13 @@ SharedTextureSourceOGL::gl() const
   return mCompositor ? mCompositor->gl() : nullptr;
 }
 
-gfx::Matrix4x4
+gfx3DMatrix
 SharedTextureSourceOGL::GetTextureTransform()
 {
   SharedHandleDetails handleDetails;
   if (!GetSharedHandleDetails(gl(), mShareType, mSharedHandle, handleDetails)) {
     NS_WARNING("Could not get shared handle details");
-    return gfx::Matrix4x4();
+    return gfx3DMatrix();
   }
 
   return handleDetails.mTextureTransform;
@@ -883,7 +882,7 @@ SharedDeprecatedTextureHostOGL::Unlock()
 }
 
 
-gfx::Matrix4x4
+gfx3DMatrix
 SharedDeprecatedTextureHostOGL::GetTextureTransform()
 {
   SharedHandleDetails handleDetails;

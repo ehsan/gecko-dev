@@ -18,6 +18,7 @@
 
 #include "jsapi.h"
 #include "jsatom.h"
+#include "jsautooplen.h"
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsgc.h"
@@ -36,7 +37,6 @@
 #include "vm/ArgumentsObject.h"
 #include "vm/Compression.h"
 #include "vm/Debugger.h"
-#include "vm/Opcodes.h"
 #include "vm/Shape.h"
 #include "vm/Xdr.h"
 
@@ -1205,20 +1205,6 @@ SourceDataCache::purge()
 
     js_delete(map_);
     map_ = nullptr;
-}
-
-size_t
-SourceDataCache::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
-{
-    size_t n = 0;
-    if (map_ && !map_->empty()) {
-        n += map_->sizeOfIncludingThis(mallocSizeOf);
-        for (Map::Range r = map_->all(); !r.empty(); r.popFront()) {
-            const jschar *v = r.front().value();
-            n += mallocSizeOf(v);
-        }
-    }
-    return n;
 }
 
 const jschar *

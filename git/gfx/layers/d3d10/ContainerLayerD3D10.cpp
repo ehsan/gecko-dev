@@ -106,8 +106,7 @@ ContainerLayerD3D10::RenderLayer()
     previousViewportSize = mD3DManager->GetViewport();
 
     if (mVisibleRegion.GetNumRects() != 1 || !(GetContentFlags() & CONTENT_OPAQUE)) {
-      gfx3DMatrix transform3D;
-      gfx::To3DMatrix(GetEffectiveTransform(), transform3D);
+      const gfx3DMatrix& transform3D = GetEffectiveTransform();
       gfxMatrix transform;
       // If we have an opaque ancestor layer, then we can be sure that
       // all the pixels we draw into are either opaque already or will be
@@ -248,8 +247,7 @@ ContainerLayerD3D10::Validate()
   mSupportsComponentAlphaChildren = false;
 
   if (UseIntermediateSurface()) {
-    gfx3DMatrix transform3D;
-    gfx::To3DMatrix(GetEffectiveTransform(), transform3D);
+    const gfx3DMatrix& transform3D = GetEffectiveTransform();
     gfxMatrix transform;
 
     if (mVisibleRegion.GetNumRects() == 1 && (GetContentFlags() & CONTENT_OPAQUE)) {

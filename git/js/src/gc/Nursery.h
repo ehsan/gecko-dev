@@ -104,12 +104,6 @@ class Nursery
     /* Add a slots to our tracking list if it is out-of-line. */
     void notifyInitialSlots(gc::Cell *cell, HeapSlot *slots);
 
-    /* Add elements to our tracking list if it is out-of-line. */
-    void notifyNewElements(gc::Cell *cell, ObjectElements *elements);
-
-    /* Remove elements to our tracking list if it is out-of-line. */
-    void notifyRemovedElements(gc::Cell *cell, ObjectElements *oldElements);
-
     typedef Vector<types::TypeObject *, 0, SystemAllocPolicy> TypeObjectList;
 
     /*
@@ -128,8 +122,6 @@ class Nursery
 
     /* Forward a slots/elements pointer stored in an Ion frame. */
     void forwardBufferPointer(HeapSlot **pSlotsElems);
-
-    size_t sizeOfHeap() { return start() ? NurserySize : 0; }
 
 #ifdef JS_GC_ZEAL
     /*
@@ -272,12 +264,10 @@ class Nursery
     void setElementsForwardingPointer(ObjectElements *oldHeader, ObjectElements *newHeader,
                                       uint32_t nelems);
 
-    /* Free malloced pointers owned by freed things in the nursery. */
-    void freeHugeSlots(JSRuntime *rt);
-
     /*
      * Frees all non-live nursery-allocated things at the end of a minor
-     * collection.
+     * collection. This operation takes time proportional to the number of
+     * dead things.
      */
     void sweep(JSRuntime *rt);
 

@@ -38,6 +38,7 @@ const js::Class HasCustomIterClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     nullptr,
+    nullptr, /* checkAccess */
     nullptr, /* call */
     nullptr, /* hasInstance */
     nullptr, /* construct */

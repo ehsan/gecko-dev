@@ -160,8 +160,7 @@ public:
   // transform.
   bool Setup2DTransform()
   {
-    gfx3DMatrix effectiveTransform;
-    To3DMatrix(mLayer->GetEffectiveTransform(), effectiveTransform);
+    const gfx3DMatrix& effectiveTransform = mLayer->GetEffectiveTransform();
     // Will return an identity matrix for 3d transforms.
     return effectiveTransform.CanDraw2D(&mTransform);
   }
@@ -404,9 +403,7 @@ MarkLayersHidden(Layer* aLayer, const nsIntRect& aClipRect,
       // global coordinate system.
       if (aLayer->GetParent()) {
         gfxMatrix tr;
-        gfx3DMatrix effectiveTransform;
-        gfx::To3DMatrix(aLayer->GetParent()->GetEffectiveTransform(), effectiveTransform);
-        if (effectiveTransform.CanDraw2D(&tr)) {
+        if (aLayer->GetParent()->GetEffectiveTransform().CanDraw2D(&tr)) {
           // Clip rect is applied after aLayer's transform, i.e., in the coordinate
           // system of aLayer's parent.
           TransformIntRect(cr, tr, ToInsideIntRect);
@@ -425,9 +422,7 @@ MarkLayersHidden(Layer* aLayer, const nsIntRect& aClipRect,
 
   if (!aLayer->AsContainerLayer()) {
     gfxMatrix transform;
-    gfx3DMatrix effectiveTransform;
-    gfx::To3DMatrix(aLayer->GetEffectiveTransform(), effectiveTransform);
-    if (!effectiveTransform.CanDraw2D(&transform)) {
+    if (!aLayer->GetEffectiveTransform().CanDraw2D(&transform)) {
       data->SetHidden(false);
       return;
     }
@@ -488,9 +483,7 @@ ApplyDoubleBuffering(Layer* aLayer, const nsIntRect& aVisibleRect)
       // global coordinate system.
       if (aLayer->GetParent()) {
         gfxMatrix tr;
-        gfx3DMatrix effectiveTransform;
-        gfx::To3DMatrix(aLayer->GetParent()->GetEffectiveTransform(), effectiveTransform);
-        if (effectiveTransform.CanDraw2D(&tr)) {
+        if (aLayer->GetParent()->GetEffectiveTransform().CanDraw2D(&tr)) {
           NS_ASSERTION(!tr.HasNonIntegerTranslation(),
                        "Parent can only have an integer translation");
           cr += nsIntPoint(int32_t(tr.x0), int32_t(tr.y0));
@@ -990,8 +983,7 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
       temp->Paint();
     }
 #endif
-    gfx3DMatrix effectiveTransform;
-    gfx::To3DMatrix(aLayer->GetEffectiveTransform(), effectiveTransform);
+    const gfx3DMatrix& effectiveTransform = aLayer->GetEffectiveTransform();
     nsRefPtr<gfxASurface> result =
       Transform3D(untransformedDT->Snapshot(), aTarget, bounds,
                   effectiveTransform, destRect);

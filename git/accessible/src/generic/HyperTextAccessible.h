@@ -160,8 +160,10 @@ public:
   /**
    * Return character count within the hypertext accessible.
    */
-  uint32_t CharacterCount() const
-    { return GetChildOffset(ChildCount()); }
+  uint32_t CharacterCount()
+  {
+    return GetChildOffset(ChildCount());
+  }
 
   /**
    * Get a character at the given offset (don't support magic offsets).
@@ -245,7 +247,7 @@ public:
    *                           cached offsets for next siblings of the child
    */
   int32_t GetChildOffset(Accessible* aChild,
-                         bool aInvalidateAfter = false) const
+                         bool aInvalidateAfter = false)
   {
     int32_t index = GetIndexOf(aChild);
     return index == -1 ? -1 : GetChildOffset(index, aInvalidateAfter);
@@ -255,21 +257,21 @@ public:
    * Return text offset for the child accessible index.
    */
   int32_t GetChildOffset(uint32_t aChildIndex,
-                         bool aInvalidateAfter = false) const;
+                         bool aInvalidateAfter = false);
 
   /**
    * Return child accessible at the given text offset.
    *
    * @param  aOffset  [in] the given text offset
    */
-  int32_t GetChildIndexAtOffset(uint32_t aOffset) const;
+  int32_t GetChildIndexAtOffset(uint32_t aOffset);
 
   /**
    * Return child accessible at the given text offset.
    *
    * @param  aOffset  [in] the given text offset
    */
-  Accessible* GetChildAtOffset(uint32_t aOffset) const
+  Accessible* GetChildAtOffset(uint32_t aOffset)
   {
     return GetChildAt(GetChildIndexAtOffset(aOffset));
   }
@@ -516,7 +518,7 @@ private:
   /**
    * End text offsets array.
    */
-  mutable nsTArray<uint32_t> mOffsets;
+  nsTArray<uint32_t> mOffsets;
 };
 
 

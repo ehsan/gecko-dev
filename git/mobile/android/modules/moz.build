@@ -8,7 +8,6 @@ EXTRA_JS_MODULES += [
     'ContactService.jsm',
     'HelperApps.jsm',
     'Home.jsm',
-    'HomeProvider.jsm',
     'JNI.jsm',
     'LightweightThemeConsumer.jsm',
     'Notifications.jsm',

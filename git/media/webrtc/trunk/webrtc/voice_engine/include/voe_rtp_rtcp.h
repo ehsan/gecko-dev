@@ -185,9 +185,7 @@ public:
     virtual int GetRemoteRTCPData(
         int channel, unsigned int& NTPHigh, unsigned int& NTPLow,
         unsigned int& timestamp, unsigned int& playoutTimestamp,
-        unsigned int& sendPacketCount, unsigned int& sendOctetCount,
-        unsigned int* jitter = NULL, unsigned short* fractionLost = NULL,
-        unsigned int* cumulativeLost = NULL) = 0;
+        unsigned int* jitter = NULL, unsigned short* fractionLost = NULL) = 0;
 
     // Gets RTP statistics for a specific |channel|.
     virtual int GetRTPStatistics(

@@ -272,7 +272,7 @@ SessionStore.prototype = {
           this.saveState();
         }
         break;
-      case "browser:purge-session-history": // catch sanitization
+      case "browser:purge-session-history": // catch sanitization 
         this._clearDisk();
 
         // If the browser is shutting down, simply return after clearing the
@@ -514,14 +514,9 @@ SessionStore.prototype = {
 
   saveState: function ss_saveState() {
     let data = this._getCurrentState();
-    // sanity check before we overwrite the session file
-    if (data.windows && data.windows.length && data.selectedWindow) {
-      this._writeFile(this._sessionFile, JSON.stringify(data));
+    this._writeFile(this._sessionFile, JSON.stringify(data));
 
-      this._lastSaveTime = Date.now();
-    } else {
-      dump("SessionStore: Not saving state with invalid data: " + JSON.stringify(data) + "\n");
-    }
+    this._lastSaveTime = Date.now();
   },
 
   _getCurrentState: function ss_getCurrentState() {
@@ -852,7 +847,7 @@ SessionStore.prototype = {
 
           tab.browser.__SS_extdata = tabData.extData;
         }
-
+    
         notifyObservers();
       }.bind(this));
     } catch (ex) {

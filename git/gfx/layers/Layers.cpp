@@ -22,7 +22,6 @@
 #include "mozilla/TelemetryHistogramEnums.h"
 #include "mozilla/gfx/2D.h"             // for DrawTarget
 #include "mozilla/gfx/BaseSize.h"       // for BaseSize
-#include "mozilla/gfx/Matrix.h"         // for Matrix4x4
 #include "mozilla/layers/AsyncPanZoomController.h"
 #include "mozilla/layers/Compositor.h"  // for Compositor
 #include "mozilla/layers/CompositorTypes.h"
@@ -553,9 +552,7 @@ bool
 Layer::MayResample()
 {
   gfxMatrix transform2d;
-  gfx3DMatrix effectiveTransform;
-  To3DMatrix(GetEffectiveTransform(), effectiveTransform);
-  return !effectiveTransform.Is2D(&transform2d) ||
+  return !GetEffectiveTransform().Is2D(&transform2d) ||
          transform2d.HasNonIntegerTranslation() ||
          AncestorLayerMayChangeTransform(this);
 }
@@ -589,9 +586,7 @@ Layer::CalculateScissorRect(const nsIntRect& aCurrentScissorRect,
   nsIntRect scissor = *clipRect;
   if (!container->UseIntermediateSurface()) {
     gfxMatrix matrix;
-    gfx3DMatrix effectiveTransform;
-    To3DMatrix(container->GetEffectiveTransform(), effectiveTransform);
-    DebugOnly<bool> is2D = effectiveTransform.Is2D(&matrix);
+    DebugOnly<bool> is2D = container->GetEffectiveTransform().Is2D(&matrix);
     // See DefaultComputeEffectiveTransforms below
     NS_ASSERTION(is2D && matrix.PreservesAxisAlignedRectangles(),
                  "Non preserves axis aligned transform with clipped child should have forced intermediate surface");
@@ -693,16 +688,14 @@ void
 Layer::ComputeEffectiveTransformForMaskLayer(const gfx3DMatrix& aTransformToSurface)
 {
   if (mMaskLayer) {
-    ToMatrix4x4(aTransformToSurface, mMaskLayer->mEffectiveTransform);
+    mMaskLayer->mEffectiveTransform = aTransformToSurface;
 
 #ifdef DEBUG
     gfxMatrix maskTranslation;
     bool maskIs2D = mMaskLayer->GetTransform().CanDraw2D(&maskTranslation);
     NS_ASSERTION(maskIs2D, "How did we end up with a 3D transform here?!");
 #endif
-    Matrix4x4 maskTransform;
-    ToMatrix4x4(mMaskLayer->GetTransform(), maskTransform);
-    mMaskLayer->mEffectiveTransform = maskTransform * mMaskLayer->mEffectiveTransform;
+    mMaskLayer->mEffectiveTransform.PreMultiply(mMaskLayer->GetTransform());
   }
 }
 
@@ -892,8 +885,7 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
   gfxMatrix residual;
   gfx3DMatrix idealTransform = GetLocalTransform()*aTransformToSurface;
   idealTransform.ProjectTo2D();
-  gfx3DMatrix snappedTransform = SnapTransformTranslation(idealTransform, &residual);
-  ToMatrix4x4(snappedTransform, mEffectiveTransform);
+  mEffectiveTransform = SnapTransformTranslation(idealTransform, &residual);
 
   bool useIntermediateSurface;
   if (GetMaskLayer()) {
@@ -909,9 +901,7 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
     } else {
       useIntermediateSurface = false;
       gfxMatrix contTransform;
-      gfx3DMatrix effectiveTransform;
-      To3DMatrix(mEffectiveTransform, effectiveTransform);
-      if (!effectiveTransform.Is2D(&contTransform) ||
+      if (!mEffectiveTransform.Is2D(&contTransform) ||
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
         !contTransform.PreservesAxisAlignedRectangles()) {
 #else

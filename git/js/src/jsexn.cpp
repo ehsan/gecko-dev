@@ -56,6 +56,7 @@ const Class ErrorObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     exn_finalize,
+    nullptr,                 /* checkAccess */
     nullptr,                 /* call        */
     nullptr,                 /* hasInstance */
     nullptr                  /* construct   */
@@ -206,18 +207,23 @@ struct SuppressErrorsGuard
 static JSString *
 ComputeStackString(JSContext *cx)
 {
+    JSCheckAccessOp checkAccess = cx->runtime()->securityCallbacks->checkObjectAccess;
+
     StringBuffer sb(cx);
 
     {
         RootedAtom atom(cx);
         SuppressErrorsGuard seg(cx);
-        // We should get rid of the CURRENT_CONTEXT and STOP_AT_SAVED here.
-        // See bug 960820.
-        for (NonBuiltinScriptFrameIter i(cx, ScriptFrameIter::CURRENT_CONTEXT,
-                                         ScriptFrameIter::STOP_AT_SAVED,
-                                         cx->compartment()->principals);
-            !i.done(); ++i)
-        {
+        for (NonBuiltinScriptFrameIter i(cx); !i.done(); ++i) {
+            // Cut off the stack if this callee crosses a trust boundary.
+            if (checkAccess && i.isNonEvalFunctionFrame()) {
+                RootedValue v(cx);
+                RootedId callerid(cx, NameToId(cx->names().caller));
+                RootedObject obj(cx, i.callee());
+                if (!checkAccess(cx, obj, callerid, JSACC_READ, &v))
+                    break;
+            }
+
             /* First append the function name, if any. */
             atom = nullptr;
             if (i.isNonEvalFunctionFrame() && i.callee()->displayAtom())

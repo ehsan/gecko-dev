@@ -108,6 +108,7 @@ const Class X4Type::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     nullptr,             /* finalize    */
+    nullptr,             /* checkAccess */
     call,                /* call        */
     nullptr,             /* hasInstance */
     nullptr,             /* construct   */
@@ -286,6 +287,7 @@ const Class SIMDObject::class_ = {
         JS_ResolveStub,
         JS_ConvertStub,
         nullptr,             /* finalize    */
+        nullptr,             /* checkAccess */
         nullptr,             /* call        */
         nullptr,             /* hasInstance */
         nullptr,             /* construct   */

@@ -29,7 +29,6 @@ function test() {
 
     whenBrowserLoaded(newWin.gBrowser.selectedBrowser, function() {
       // get the sessionstore state for the window
-      SyncHandlers.get(newWin.gBrowser.selectedBrowser).flush();
       let state = ss.getWindowState(newWin);
 
       // verify our cookie got set during pageload

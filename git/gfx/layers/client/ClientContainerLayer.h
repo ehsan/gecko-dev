@@ -55,8 +55,7 @@ public:
       if (GetEffectiveVisibleRegion().GetNumRects() != 1 ||
           !(GetContentFlags() & Layer::CONTENT_OPAQUE))
       {
-        gfx3DMatrix transform3D;
-        gfx::To3DMatrix(GetEffectiveTransform(), transform3D);
+        const gfx3DMatrix& transform3D = GetEffectiveTransform();
         gfxMatrix transform;
         if (HasOpaqueAncestorLayer(this) &&
             transform3D.Is2D(&transform) && 

@@ -534,17 +534,15 @@ public:
         IDX_TOTAL_COUNT // just a count of the above
     };
 
-    JS::HandleId GetStringID(unsigned index) const
+    jsid GetStringID(unsigned index) const
     {
         MOZ_ASSERT(index < IDX_TOTAL_COUNT, "index out of range");
-        // fromMarkedLocation() is safe because the string is interned.
-        return JS::HandleId::fromMarkedLocation(&mStrIDs[index]);
+        return mStrIDs[index];
     }
-    JS::HandleValue GetStringJSVal(unsigned index) const
+    jsval GetStringJSVal(unsigned index) const
     {
         MOZ_ASSERT(index < IDX_TOTAL_COUNT, "index out of range");
-        // fromMarkedLocation() is safe because the string is interned.
-        return JS::HandleValue::fromMarkedLocation(&mStrJSVals[index]);
+        return mStrJSVals[index];
     }
     const char* GetStringName(unsigned index) const
     {
@@ -1603,6 +1601,7 @@ public:
     bool WantNewResolve()               GET_IT(WANT_NEWRESOLVE)
     bool WantConvert()                  GET_IT(WANT_CONVERT)
     bool WantFinalize()                 GET_IT(WANT_FINALIZE)
+    bool WantCheckAccess()              GET_IT(WANT_CHECKACCESS)
     bool WantCall()                     GET_IT(WANT_CALL)
     bool WantConstruct()                GET_IT(WANT_CONSTRUCT)
     bool WantHasInstance()              GET_IT(WANT_HASINSTANCE)
@@ -3500,7 +3499,7 @@ ExportFunction(JSContext *cx, JS::HandleValue vscope, JS::HandleValue vfunction,
 // Inlined utilities.
 
 inline bool
-xpc_ForcePropertyResolve(JSContext* cx, JS::HandleObject obj, jsid id);
+xpc_ForcePropertyResolve(JSContext* cx, JSObject* obj, jsid id);
 
 inline jsid
 GetRTIdByIndex(JSContext *cx, unsigned index);

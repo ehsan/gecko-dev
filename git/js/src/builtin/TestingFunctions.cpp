@@ -1309,6 +1309,7 @@ const Class CloneBufferObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     Finalize,
+    nullptr,                  /* checkAccess */
     nullptr,                  /* call */
     nullptr,                  /* hasInstance */
     nullptr,                  /* construct */

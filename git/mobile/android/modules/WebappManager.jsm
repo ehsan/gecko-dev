@@ -28,37 +28,9 @@ function sendMessageToJava(aMessage) {
 this.WebappManager = {
   __proto__: DOMRequestIpcHelper.prototype,
 
-  get _testing() {
-    try {
-      return Services.prefs.getBoolPref("browser.webapps.testing");
-    } catch(ex) {
-      return false;
-    }
-  },
-
-  install: function(aMessage, aMessageManager) {
-    if (this._testing) {
-      // Go directly to DOM.  Do not download/install APK, do not collect $200.
-      DOMApplicationRegistry.doInstall(aMessage, aMessageManager);
-      return;
-    }
-
-    this._downloadApk(aMessage, aMessageManager);
-  },
-
-  installPackage: function(aMessage, aMessageManager) {
-    if (this._testing) {
-      // Go directly to DOM.  Do not download/install APK, do not collect $200.
-      DOMApplicationRegistry.doInstallPackage(aMessage, aMessageManager);
-      return;
-    }
-
-    this._downloadApk(aMessage, aMessageManager);
-  },
-
-  _downloadApk: function(aMsg, aMessageManager) {
+  downloadApk: function(aMsg) {
     let manifestUrl = aMsg.app.manifestURL;
-    dump("_downloadApk for " + manifestUrl);
+    dump("downloadApk for " + manifestUrl);
 
     // Get the endpoint URL and convert it to an nsIURI/nsIURL object.
     const GENERATOR_URL_PREF = "browser.webapps.apkFactoryUrl";
@@ -94,8 +66,7 @@ this.WebappManager = {
           data: JSON.stringify(aMsg),
         });
       } else { // type == "failure"
-        aMsg.error = message;
-        aMessageManager.sendAsyncMessage("Webapps:Install:Return:KO", aMsg);
+        // TODO: handle error better.
         dump("error downloading APK: " + message);
       }
     }
@@ -119,20 +90,18 @@ this.WebappManager = {
       delete aData.app.manifest.appcache_path;
     }
 
-    DOMApplicationRegistry.registryReady.then(() => {
-      DOMApplicationRegistry.confirmInstall(aData, file, (function(aManifest) {
-        let localeManifest = new ManifestHelper(aManifest, aData.app.origin);
+    DOMApplicationRegistry.confirmInstall(aData, file, (function(aManifest) {
+      let localeManifest = new ManifestHelper(aManifest, aData.app.origin);
 
-        // aData.app.origin may now point to the app: url that hosts this app.
-        sendMessageToJava({
-          type: "WebApps:PostInstall",
-          apkPackageName: aData.app.apkPackageName,
-          origin: aData.app.origin,
-        });
+      // aData.app.origin may now point to the app: url that hosts this app.
+      sendMessageToJava({
+        type: "WebApps:PostInstall",
+        apkPackageName: aData.app.apkPackageName,
+        origin: aData.app.origin,
+      });
 
-        this.writeDefaultPrefs(file, localeManifest);
-      }).bind(this));
-    });
+      this.writeDefaultPrefs(file, localeManifest);
+    }).bind(this));
   },
 
   launch: function({ manifestURL, origin }) {
@@ -147,11 +116,6 @@ this.WebappManager = {
 
   uninstall: function(aData) {
     dump("uninstall: " + aData.manifestURL);
-
-    if (this._testing) {
-      // We don't have to do anything, as the registry does all the work.
-      return;
-    }
 
     // TODO: uninstall the APK.
   },
@@ -189,18 +153,16 @@ this.WebappManager = {
     message.autoInstall = true;
     message.mm = mm;
 
-    DOMApplicationRegistry.registryReady.then(() => {
-      switch (aData.type) { // can be hosted or packaged.
-        case "hosted":
-          DOMApplicationRegistry.doInstall(message, mm);
-          break;
+    switch (aData.type) { // can be hosted or packaged.
+      case "hosted":
+        DOMApplicationRegistry.doInstall(message, mm);
+        break;
 
-        case "packaged":
-          message.isPackage = true;
-          DOMApplicationRegistry.doInstallPackage(message, mm);
-          break;
-      }
-    });
+      case "packaged":
+        message.isPackage = true;
+        DOMApplicationRegistry.doInstallPackage(message, mm);
+        break;
+    }
   },
 
   autoUninstall: function(aData) {
@@ -210,23 +172,20 @@ this.WebappManager = {
         dump("autoUninstall sendAsyncMessage " + aMessageName + ": " + JSON.stringify(aData));
       }
     };
+    let installed = {};
+    DOMApplicationRegistry.doGetAll(installed, mm);
 
-    DOMApplicationRegistry.registryReady.then(() => {
-      let installed = {};
-      DOMApplicationRegistry.doGetAll(installed, mm);
-
-      for (let app in installed.apps) {
-        if (aData.apkPackageNames.indexOf(installed.apps[app].apkPackageName) > -1) {
-          let appToRemove = installed.apps[app];
-          dump("should remove: " + appToRemove.name);
-          DOMApplicationRegistry.uninstall(appToRemove.manifestURL, function() {
-            dump(appToRemove.name + " uninstalled");
-          }, function() {
-            dump(appToRemove.name + " did not uninstall");
-          });
-        }
+    for (let app in installed.apps) {
+      if (aData.apkPackageNames.indexOf(installed.apps[app].apkPackageName) > -1) {
+        let appToRemove = installed.apps[app];
+        dump("should remove: " + appToRemove.name);
+        DOMApplicationRegistry.uninstall(appToRemove.manifestURL, function() {
+          dump(appToRemove.name + " uninstalled");
+        }, function() {
+          dump(appToRemove.name + " did not uninstall");
+        });
       }
-    });
+    }
   },
 
   writeDefaultPrefs: function(aProfile, aManifest) {

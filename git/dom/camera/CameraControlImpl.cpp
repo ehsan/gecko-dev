@@ -189,7 +189,8 @@ CameraControlImpl::Get(JSContext* aCx, uint32_t aKey, JS::Value* aValue)
       return NS_ERROR_FAILURE;
     }
 
-    if (!JS_SetElement(aCx, array, i, o)) {
+    v = OBJECT_TO_JSVAL(o);
+    if (!JS_SetElement(aCx, array, i, &v)) {
       return NS_ERROR_FAILURE;
     }
   }

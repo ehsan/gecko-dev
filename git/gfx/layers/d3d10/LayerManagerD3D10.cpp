@@ -860,9 +860,7 @@ LayerD3D10::LoadMaskTexture()
     }
 
     gfxMatrix maskTransform;
-    gfx3DMatrix effectiveTransform;
-    gfx::To3DMatrix(maskLayer->GetEffectiveTransform(), effectiveTransform);
-    bool maskIs2D = effectiveTransform.CanDraw2D(&maskTransform);
+    bool maskIs2D = maskLayer->GetEffectiveTransform().CanDraw2D(&maskTransform);
     NS_ASSERTION(maskIs2D, "How did we end up with a 3D transform here?!");
     gfxRect bounds = gfxRect(gfxPoint(), ThebesIntSize(size));
     bounds = maskTransform.TransformBounds(bounds);

@@ -122,10 +122,6 @@ void GrallocTextureSourceOGL::BindTexture(GLenum aTextureUnit)
 
   gl()->fActiveTexture(aTextureUnit);
   gl()->fBindTexture(textureTarget, tex);
-  if (!mEGLImage) {
-    mEGLImage = EGLImageCreateFromNativeBuffer(gl(), mGraphicBuffer->getNativeBuffer());
-  }
-  gl()->fEGLImageTargetTexture2D(textureTarget, mEGLImage);
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 }
 
@@ -177,13 +173,6 @@ GrallocTextureSourceOGL::SetCompositableBackendSpecificData(CompositableBackendS
   }
 
   if (!mNeedsReset) {
-    // Update binding to the EGLImage
-    gl()->MakeCurrent();
-    GLuint tex = GetGLTexture();
-    GLuint textureTarget = GetTextureTarget();
-    gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
-    gl()->fBindTexture(textureTarget, tex);
-    gl()->fEGLImageTargetTexture2D(textureTarget, mEGLImage);
     return;
   }
 

@@ -82,14 +82,12 @@ ClientTiledThebesLayer::BeginPaint()
 
   // Calculate the transform required to convert screen space into transformed
   // layout device space.
-  gfx::Matrix4x4 effectiveTransform = GetEffectiveTransform();
+  gfx3DMatrix layoutToScreen = GetEffectiveTransform();
   for (ContainerLayer* parent = GetParent(); parent; parent = parent->GetParent()) {
     if (parent->UseIntermediateSurface()) {
-      effectiveTransform = effectiveTransform * parent->GetEffectiveTransform();
+      layoutToScreen *= parent->GetEffectiveTransform();
     }
   }
-  gfx3DMatrix layoutToScreen;
-  gfx::To3DMatrix(effectiveTransform, layoutToScreen);
   layoutToScreen.ScalePost(metrics.mCumulativeResolution.scale,
                            metrics.mCumulativeResolution.scale,
                            1.f);

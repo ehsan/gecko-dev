@@ -261,21 +261,9 @@ nsBinaryOutputStream::WriteCompoundObject(nsISupports* aObject,
         return NS_ERROR_NOT_AVAILABLE;
 
     nsCID cid;
-    nsresult rv = classInfo->GetClassIDNoAlloc(&cid);
-    if (NS_SUCCEEDED(rv)) {
-        rv = WriteID(cid);
-    } else {
-        nsCID *cidptr = nullptr;
-        rv = classInfo->GetClassID(&cidptr);
-        if (NS_WARN_IF(NS_FAILED(rv))) {
-            return rv;
-        }
+    classInfo->GetClassIDNoAlloc(&cid);
 
-        rv = WriteID(*cidptr);
-
-        NS_Free(cidptr);
-    }
-
+    nsresult rv = WriteID(cid);
     if (NS_WARN_IF(NS_FAILED(rv)))
         return rv;
 

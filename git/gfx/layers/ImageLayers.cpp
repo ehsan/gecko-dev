@@ -47,10 +47,9 @@ void ImageLayer::ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurfa
   // This makes our snapping equivalent to what would happen if our content
   // was drawn into a ThebesLayer (gfxContext would snap using the local
   // transform, then we'd snap again when compositing the ThebesLayer).
-  gfx3DMatrix snappedTransform =
+  mEffectiveTransform =
       SnapTransform(local, sourceRect, nullptr) *
       SnapTransformTranslation(aTransformToSurface, nullptr);
-  gfx::ToMatrix4x4(snappedTransform, mEffectiveTransform);
   ComputeEffectiveTransformForMaskLayer(aTransformToSurface);
 }
 

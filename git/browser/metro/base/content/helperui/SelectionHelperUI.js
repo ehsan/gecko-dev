@@ -611,8 +611,6 @@ var SelectionHelperUI = {
     Elements.browsers.addEventListener("URLChanged", this, true);
     Elements.browsers.addEventListener("SizeChanged", this, true);
 
-    Elements.tabList.addEventListener("TabSelect", this, true);
-
     Elements.navbar.addEventListener("transitionend", this, true);
     Elements.navbar.addEventListener("MozAppbarDismissing", this, true);
 
@@ -638,8 +636,6 @@ var SelectionHelperUI = {
 
     Elements.browsers.removeEventListener("URLChanged", this, true);
     Elements.browsers.removeEventListener("SizeChanged", this, true);
-
-    Elements.tabList.removeEventListener("TabSelect", this, true);
 
     Elements.navbar.removeEventListener("transitionend", this, true);
     Elements.navbar.removeEventListener("MozAppbarDismissing", this, true);
@@ -1068,7 +1064,6 @@ var SelectionHelperUI = {
         break;
 
       case "URLChanged":
-      case "TabSelect":
         this._shutdown();
         break;
 

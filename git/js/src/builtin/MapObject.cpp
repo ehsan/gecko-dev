@@ -1014,6 +1014,7 @@ const Class MapObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     finalize,
+    nullptr,                 // checkAccess
     nullptr,                 // call
     nullptr,                 // hasInstance
     nullptr,                 // construct
@@ -1604,6 +1605,7 @@ const Class SetObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     finalize,
+    nullptr,                 // checkAccess
     nullptr,                 // call
     nullptr,                 // hasInstance
     nullptr,                 // construct

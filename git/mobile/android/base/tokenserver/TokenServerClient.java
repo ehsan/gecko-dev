@@ -13,7 +13,6 @@ import java.util.concurrent.Executor;
 
 import org.json.simple.JSONObject;
 import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.fxa.SkewHandler;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
 import org.mozilla.gecko.sync.NonArrayJSONException;
 import org.mozilla.gecko.sync.NonObjectJSONException;
@@ -204,13 +203,11 @@ public class TokenServerClient {
 
   public void getTokenFromBrowserIDAssertion(final String assertion, final boolean conditionsAccepted,
       final TokenServerClientDelegate delegate) {
-    final BaseResource r = new BaseResource(uri);
+    BaseResource r = new BaseResource(uri);
 
     r.delegate = new BaseResourceDelegate(r) {
       @Override
       public void handleHttpResponse(HttpResponse response) {
-        SkewHandler skewHandler = SkewHandler.getSkewHandlerForResource(r);
-        skewHandler.updateSkew(response, System.currentTimeMillis());
         try {
           TokenServerToken token = processResponse(response);
           invokeHandleSuccess(delegate, token);
