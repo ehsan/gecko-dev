@@ -5623,6 +5623,9 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_white_space:
     return ParseVariant(aValue, VARIANT_HMK,
                         nsCSSProps::kWhitespaceKTable);
+  case eCSSProperty__moz_window_shadow:
+    return ParseVariant(aValue, VARIANT_HOK,
+                        nsCSSProps::kWindowShadowKTable);
   case eCSSProperty_word_wrap:
     return ParseVariant(aValue, VARIANT_HMK,
                         nsCSSProps::kWordwrapKTable);
@@ -6879,7 +6882,7 @@ CSSParserImpl::ParseFunction(const nsString &aFunction,
   PRUint16 numElements = (foundValues.Length() <= MAX_ALLOWED_ELEMS ?
                           foundValues.Length() + 1 : MAX_ALLOWED_ELEMS);
   nsRefPtr<nsCSSValue::Array> convertedArray =
-	  nsCSSValue::Array::Create(numElements);
+    nsCSSValue::Array::Create(numElements);
   if (!convertedArray) {
     mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
     return PR_FALSE;
@@ -7039,7 +7042,7 @@ static PRBool GetFunctionParseInformation(nsCSSKeyword aToken,
 PRBool CSSParserImpl::ReadSingleTransform(nsCSSValueList **& aTail)
 {
   typedef nsTArray<nsCSSValue>::size_type arrlen_t;
-	
+
   if (!GetToken(PR_TRUE))
     return PR_FALSE;
   
@@ -7737,8 +7740,6 @@ CSSParserImpl::GetNamespaceIdForPrefix(const nsString& aPrefix,
   }
   // else no declared namespaces
 
-  NS_ASSERTION(nameSpaceID != kNameSpaceID_None, "Shouldn't happen!");
-
   if (kNameSpaceID_Unknown == nameSpaceID) {   // unknown prefix, dump it
     const PRUnichar *params[] = {
       aPrefix.get()
@@ -7756,12 +7757,10 @@ CSSParserImpl::GetNamespaceIdForPrefix(const nsString& aPrefix,
 void
 CSSParserImpl::SetDefaultNamespaceOnSelector(nsCSSSelector& aSelector)
 {
-  aSelector.SetNameSpace(kNameSpaceID_Unknown); // wildcard
-  if (mNameSpaceMap) { // look for default namespace
-    PRInt32 defaultID = mNameSpaceMap->FindNameSpaceID(nsnull);
-    if (defaultID != kNameSpaceID_None) {
-      aSelector.SetNameSpace(defaultID);
-    }
+  if (mNameSpaceMap) {
+    aSelector.SetNameSpace(mNameSpaceMap->FindNameSpaceID(nsnull));
+  } else {
+    aSelector.SetNameSpace(kNameSpaceID_Unknown); // wildcard
   }
 }
 

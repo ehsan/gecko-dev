@@ -377,12 +377,29 @@ nsStyleBorder::nsStyleBorder(nsPresContext* aPresContext)
   mTwipsPerPixel = aPresContext->DevPixelsToAppUnits(1);
 }
 
+nsBorderColors::~nsBorderColors()
+{
+  NS_CSS_DELETE_LIST_MEMBER(nsBorderColors, this, mNext);
+}
+
+nsBorderColors*
+nsBorderColors::Clone(PRBool aDeep) const
+{
+  nsBorderColors* result = new nsBorderColors(mColor);
+  if (NS_UNLIKELY(!result))
+    return result;
+  if (aDeep)
+    NS_CSS_CLONE_LIST_MEMBER(nsBorderColors, this, mNext, result, (PR_FALSE));
+  return result;
+}
+
 nsStyleBorder::nsStyleBorder(const nsStyleBorder& aSrc)
   : mBorderRadius(aSrc.mBorderRadius),
     mBorderImageSplit(aSrc.mBorderImageSplit),
     mFloatEdge(aSrc.mFloatEdge),
     mBorderImageHFill(aSrc.mBorderImageHFill),
     mBorderImageVFill(aSrc.mBorderImageVFill),
+    mBorderColors(nsnull),
     mBoxShadow(aSrc.mBoxShadow),
     mHaveBorderImageWidth(aSrc.mHaveBorderImageWidth),
     mBorderImageWidth(aSrc.mBorderImageWidth),
@@ -391,12 +408,11 @@ nsStyleBorder::nsStyleBorder(const nsStyleBorder& aSrc)
     mBorderImage(aSrc.mBorderImage),
     mTwipsPerPixel(aSrc.mTwipsPerPixel)
 {
-  mBorderColors = nsnull;
   if (aSrc.mBorderColors) {
     EnsureBorderColors();
     for (PRInt32 i = 0; i < 4; i++)
       if (aSrc.mBorderColors[i])
-        mBorderColors[i] = aSrc.mBorderColors[i]->CopyColors();
+        mBorderColors[i] = aSrc.mBorderColors[i]->Clone();
       else
         mBorderColors[i] = nsnull;
   }
@@ -1901,6 +1917,7 @@ nsStyleUIReset::nsStyleUIReset(void)
   mUserSelect = NS_STYLE_USER_SELECT_AUTO;
   mForceBrokenImageIcon = 0;
   mIMEMode = NS_STYLE_IME_MODE_AUTO;
+  mWindowShadow = NS_STYLE_WINDOW_SHADOW_DEFAULT;
 }
 
 nsStyleUIReset::nsStyleUIReset(const nsStyleUIReset& aSource) 
@@ -1908,6 +1925,7 @@ nsStyleUIReset::nsStyleUIReset(const nsStyleUIReset& aSource)
   mUserSelect = aSource.mUserSelect;
   mForceBrokenImageIcon = aSource.mForceBrokenImageIcon;
   mIMEMode = aSource.mIMEMode;
+  mWindowShadow = aSource.mWindowShadow;
 }
 
 nsStyleUIReset::~nsStyleUIReset(void) 
@@ -1917,13 +1935,17 @@ nsStyleUIReset::~nsStyleUIReset(void)
 nsChangeHint nsStyleUIReset::CalcDifference(const nsStyleUIReset& aOther) const
 {
   // ignore mIMEMode
-  if (mForceBrokenImageIcon == aOther.mForceBrokenImageIcon) {
-    if (mUserSelect == aOther.mUserSelect) {
-      return NS_STYLE_HINT_NONE;
-    }
-    return NS_STYLE_HINT_VISUAL;
+  if (mForceBrokenImageIcon != aOther.mForceBrokenImageIcon)
+    return NS_STYLE_HINT_FRAMECHANGE;
+  if (mWindowShadow != aOther.mWindowShadow) {
+    // We really need just an nsChangeHint_SyncFrameView, except
+    // on an ancestor of the frame, so we get that by doing a
+    // reflow.
+    return NS_STYLE_HINT_REFLOW;
   }
-  return NS_STYLE_HINT_FRAMECHANGE;
+  if (mUserSelect != aOther.mUserSelect)
+    return NS_STYLE_HINT_VISUAL;
+  return NS_STYLE_HINT_NONE;
 }
 
 #ifdef DEBUG

@@ -104,6 +104,7 @@ bin\components\dom_range.xpt
 bin\components\dom_sidebar.xpt
 bin\components\dom_storage.xpt
 bin\components\dom_stylesheets.xpt
+bin\components\dom_threads.xpt
 bin\components\dom_traversal.xpt
 bin\components\dom_views.xpt
 bin\components\dom_xbl.xpt
@@ -242,6 +243,7 @@ bin\components\brwsrcmp.dll
 bin\components\txEXSLTRegExFunctions.js
 bin\components\nsLivemarkService.js
 bin\components\nsTaggingService.js
+bin\components\nsPlacesDBFlush.js
 bin\components\nsDefaultCLH.js
 bin\components\nsContentPrefService.js
 bin\components\nsContentDispatchChooser.js

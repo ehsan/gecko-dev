@@ -166,6 +166,19 @@ LoginManagerPrompter.prototype = {
     },
 
 
+    // Whether we are in private browsing mode
+    get _inPrivateBrowsing() {
+      // The Private Browsing service might not be available.
+      try {
+        var pbs = Cc["@mozilla.org/privatebrowsing;1"].
+                  getService(Ci.nsIPrivateBrowsingService);
+        return pbs.privateBrowsingEnabled;
+      } catch (e) {
+        return false;
+      }
+    },
+
+
     /*
      * log
      *
@@ -227,7 +240,11 @@ LoginManagerPrompter.prototype = {
 
         // If hostname is null, we can't save this login.
         if (hostname) {
-            var canRememberLogin = (aSavePassword ==
+            var canRememberLogin;
+            if (this._inPrivateBrowsing)
+                canRememberLogin = false;
+            else
+                canRememberLogin = (aSavePassword ==
                                     Ci.nsIAuthPrompt.SAVE_PASSWORD_PERMANENTLY) &&
                                    this._pwmgr.getLoginSavingEnabled(hostname);
 
@@ -323,7 +340,7 @@ LoginManagerPrompter.prototype = {
         var [hostname, realm, username] = this._getRealmInfo(aPasswordRealm);
 
         // If hostname is null, we can't save this login.
-        if (hostname) {
+        if (hostname && !this._inPrivateBrowsing) {
           var canRememberLogin = (aSavePassword ==
                                   Ci.nsIAuthPrompt.SAVE_PASSWORD_PERMANENTLY) &&
                                  this._pwmgr.getLoginSavingEnabled(hostname);
@@ -429,7 +446,7 @@ LoginManagerPrompter.prototype = {
             // be prompted for authentication again, which brings us here.
             var notifyBox = this._getNotifyBox();
             if (notifyBox)
-                this._removeSaveLoginNotification(notifyBox);
+                this._removeLoginNotifications(notifyBox);
 
             var [hostname, httpRealm] = this._getAuthTarget(aChannel, aAuthInfo);
 
@@ -448,6 +465,8 @@ LoginManagerPrompter.prototype = {
             }
 
             var canRememberLogin = this._pwmgr.getLoginSavingEnabled(hostname);
+            if (this._inPrivateBrowsing)
+              canRememberLogin = false;
         
             // if checkboxLabel is null, the checkbox won't be shown at all.
             if (canRememberLogin && !notifyBox)
@@ -503,8 +522,11 @@ LoginManagerPrompter.prototype = {
 
                 this.log("Updating password for " + username +
                          " @ " + hostname + " (" + httpRealm + ")");
-                // update password
-                this._pwmgr.modifyLogin(selectedLogin, newLogin);
+                if (notifyBox)
+                    this._showChangeLoginNotification(notifyBox,
+                                                      selectedLogin, newLogin);
+                else
+                    this._pwmgr.modifyLogin(selectedLogin, newLogin);
 
             } else {
                 this.log("Login unchanged, no further action needed.");
@@ -664,15 +686,19 @@ LoginManagerPrompter.prototype = {
 
 
     /*
-     * _removeSaveLoginNotification
+     * _removeLoginNotifications
      *
      */
-    _removeSaveLoginNotification : function (aNotifyBox) {
-
+    _removeLoginNotifications : function (aNotifyBox) {
         var oldBar = aNotifyBox.getNotificationWithValue("password-save");
-
         if (oldBar) {
             this.log("Removing save-password notification bar.");
+            aNotifyBox.removeNotification(oldBar);
+        }
+
+        oldBar = aNotifyBox.getNotificationWithValue("password-change");
+        if (oldBar) {
+            this.log("Removing change-password notification bar.");
             aNotifyBox.removeNotification(oldBar);
         }
     },

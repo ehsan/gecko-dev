@@ -60,7 +60,9 @@ var gCanvas1, gCanvas2;
 var gURLs;
 var gTotalTests = 0;
 var gState;
+var gCurrentURL;
 var gFailureTimeout;
+var gFailureReason;
 var gServer;
 var gCount = 0;
 
@@ -318,9 +320,11 @@ function StartCurrentURI(aState)
 {
     gCurrentTestStartTime = Date.now();
     gFailureTimeout = setTimeout(LoadFailed, LOAD_FAILURE_TIMEOUT);
+    gFailureReason = "timed out waiting for onload to fire";
 
     gState = aState;
-    gBrowser.loadURI(gURLs[0]["url" + aState].spec);
+    gCurrentURL = gURLs[0]["url" + aState].spec;
+    gBrowser.loadURI(gCurrentURL);
 }
 
 function DoneTests()
@@ -333,16 +337,25 @@ function DoneTests()
     goQuitApplication();
 }
 
-function CanvasToURL(canvas)
-{
-    var ctx = whichCanvas.getContext("2d");
-    return canvas.toDataURL();
+function setupZoom(contentRootElement) {
+    if (!contentRootElement.hasAttribute('reftest-zoom'))
+        return;
+    gBrowser.markupDocumentViewer.fullZoom =
+        contentRootElement.getAttribute('reftest-zoom');
 }
 
+function resetZoom() {
+    gBrowser.markupDocumentViewer.fullZoom = 1.0;
+}
+    
 function OnDocumentLoad(event)
 {
     if (event.target != gBrowser.contentDocument)
         // Ignore load events for subframes.
+        return;
+        
+    if (gBrowser.contentDocument.location.href != gCurrentURL)
+        // Ignore load events for previous documents.
         return;
 
     var contentRootElement = gBrowser.contentDocument.documentElement;
@@ -383,10 +396,13 @@ function OnDocumentLoad(event)
        gBrowser.docShell.contentViewer.setPageMode(true, ps);
     }
 
+    setupZoom(contentRootElement);
+
     if (shouldWait()) {
         // The testcase will let us know when the test snapshot should be made.
         // Register a mutation listener to know when the 'reftest-wait' class
         // gets removed.
+        gFailureReason = "timed out waiting for reftest-wait to be removed (after onload fired)"
         contentRootElement.addEventListener(
             "DOMAttrModified",
             function(event) {
@@ -422,9 +438,10 @@ function DocumentLoaded()
     }
 
     clearTimeout(gFailureTimeout);
+    gFailureReason = null;
 
     if (gURLs[0].expected == EXPECTED_LOAD) {
-        dump("REFTEST TEST-PASS | " + gURLs[0].prettyPath + "| (LOAD ONLY)\n");
+        dump("REFTEST TEST-PASS | " + gURLs[0].prettyPath + " | (LOAD ONLY)\n");
         gURLs.shift();
         StartCurrentTest();
         return;
@@ -441,8 +458,18 @@ function DocumentLoaded()
      * black bars at the bottom of every test that are different size
      * for the first test and the rest (scrollbar-related??) */
     var win = gBrowser.contentWindow;
-    canvas.getContext("2d").drawWindow(win, win.scrollX, win.scrollY,
-                                       canvas.width, canvas.height, "rgb(255,255,255)");
+    var ctx = canvas.getContext("2d");
+    var scale = gBrowser.markupDocumentViewer.fullZoom;
+    ctx.save();
+    // drawWindow always draws one canvas pixel for each CSS pixel in the source
+    // window, so scale the drawing to show the zoom (making each canvas pixel be one
+    // device pixel instead)
+    ctx.scale(scale, scale);
+    ctx.drawWindow(win, win.scrollX, win.scrollY,
+                   canvas.width, canvas.height, "rgb(255,255,255)");
+    ctx.restore();
+
+    resetZoom();
 
     switch (gState) {
         case 1:
@@ -513,7 +540,7 @@ function DocumentLoaded()
 function LoadFailed()
 {
     dump("REFTEST TEST-UNEXPECTED-FAIL | " +
-         gURLs[0]["url" + gState].spec + "| Failed to load\n");
+         gURLs[0]["url" + gState].spec + " | " + gFailureReason + "\n");
     gURLs.shift();
     StartCurrentTest();
 }

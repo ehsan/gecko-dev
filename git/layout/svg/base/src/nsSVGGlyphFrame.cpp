@@ -225,17 +225,15 @@ nsSVGGlyphFrame::CharacterDataChanged(nsPresContext*  aPresContext,
 #define CLAMP_MAX_SIZE 200
 #define PRECISE_SIZE   200
 
-NS_IMETHODIMP
-nsSVGGlyphFrame::DidSetStyleContext()
+/* virtual */ void
+nsSVGGlyphFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
-  nsSVGGlyphFrameBase::DidSetStyleContext();
+  nsSVGGlyphFrameBase::DidSetStyleContext(aOldStyleContext);
 
   if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
     ClearTextRun();
     NotifyGlyphMetricsChange();
   }
-
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -300,7 +298,8 @@ nsSVGGlyphFrame::GetType() const
 // nsISVGChildFrame methods
 
 NS_IMETHODIMP
-nsSVGGlyphFrame::PaintSVG(nsSVGRenderState *aContext, nsIntRect *aDirtyRect)
+nsSVGGlyphFrame::PaintSVG(nsSVGRenderState *aContext,
+                          const nsIntRect *aDirtyRect)
 {
   if (!GetStyleVisibility()->IsVisible())
     return NS_OK;
