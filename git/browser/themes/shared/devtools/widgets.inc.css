@@ -808,6 +808,7 @@
   list-style-image: url("chrome://browser/skin/devtools/vview-edit.png");
   -moz-image-region: rect(0,16px,16px,0);
   cursor: pointer;
+  padding-left: 2px;
 }
 
 .variables-view-edit:hover {
