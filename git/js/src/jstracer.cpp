@@ -80,7 +80,7 @@
 #define MAX_MISMATCH 5
 
 /* Max number of loop edges to follow. */
-#define MAX_OUTERLINE 1
+#define MAX_OUTERLINE 0
 
 /* Max native stack size. */
 #define MAX_NATIVE_STACK_SLOTS 1024
@@ -3063,12 +3063,12 @@ TraceRecorder::box_jsval(jsval v, LIns*& v_ins)
     }
     switch (JSVAL_TAG(v)) {
       case JSVAL_BOOLEAN:
-        v_ins = lir->ins2i(LIR_or, lir->ins2i(LIR_pilsh, v_ins, JSVAL_TAGBITS), JSVAL_BOOLEAN);
+        v_ins = lir->ins2i(LIR_pior, lir->ins2i(LIR_pilsh, v_ins, JSVAL_TAGBITS), JSVAL_BOOLEAN);
         return true;
       case JSVAL_OBJECT:
         return true;
       case JSVAL_STRING:
-        v_ins = lir->ins2(LIR_or, v_ins, INS_CONST(JSVAL_STRING));
+        v_ins = lir->ins2(LIR_pior, v_ins, INS_CONST(JSVAL_STRING));
         return true;
     }
     return false;
@@ -3080,7 +3080,7 @@ TraceRecorder::unbox_jsval(jsval v, LIns*& v_ins)
     if (isNumber(v)) {
         // JSVAL_IS_NUMBER(v)
         guard(false,
-              lir->ins_eq0(lir->ins2(LIR_or,
+              lir->ins_eq0(lir->ins2(LIR_pior,
                                      lir->ins2(LIR_piand, v_ins, INS_CONSTPTR(JSVAL_INT)),
                                      lir->ins2i(LIR_eq,
                                                 lir->ins2(LIR_piand, v_ins,
@@ -3112,7 +3112,7 @@ TraceRecorder::unbox_jsval(jsval v, LIns*& v_ins)
                         lir->ins2(LIR_piand, v_ins, INS_CONSTPTR(JSVAL_TAGMASK)),
                         JSVAL_STRING),
               MISMATCH_EXIT);
-        v_ins = lir->ins2(LIR_piand, v_ins, INS_CONSTPTR(~JSVAL_TAGMASK));
+        v_ins = lir->ins2(LIR_piand, v_ins, INS_CONST(~JSVAL_TAGMASK));
         return true;
     }
     return false;
@@ -3140,7 +3140,7 @@ TraceRecorder::guardClass(JSObject* obj, LIns* obj_ins, JSClass* clasp)
         return false;
 
     LIns* class_ins = stobj_get_fslot(obj_ins, JSSLOT_CLASS);
-    class_ins = lir->ins2(LIR_piand, class_ins, lir->insImmPtr((void*)~3));
+    class_ins = lir->ins2(LIR_piand, class_ins, lir->insImm(~3));
 
     char namebuf[32];
     JS_snprintf(namebuf, sizeof namebuf, "guard(class is %s)", clasp->name);
@@ -3575,16 +3575,11 @@ js_Array(JSContext* cx, JSObject* obj, uintN argc, jsval* argv, jsval* rval);
 bool
 TraceRecorder::record_JSOP_NEW()
 {
-    /* Get immediate argc and find the constructor function. */
     jsbytecode *pc = cx->fp->regs->pc;
-    unsigned argc = GET_ARGC(pc);
+    /* Get immediate argc and find the constructor function. */
+    unsigned argc = GET_ARGC(cx->fp->regs->pc);
     jsval& fval = stackval(0 - (2 + argc));
     JS_ASSERT(&fval >= StackBase(cx->fp));
-
-    jsval& tval = stackval(0 - (argc + 1));
-    LIns* this_ins = get(&tval);
-    if (this_ins->isconstp() && !this_ins->constvalp() && !guardShapelessCallee(fval))
-        return false;
 
     /*
      * Require that the callee be a function object, to avoid guarding on its
@@ -4188,9 +4183,8 @@ TraceRecorder::record_JSOP_CALL()
     jsbytecode *pc = cx->fp->regs->pc;
     uintN argc = GET_ARGC(pc);
     jsval& fval = stackval(0 - (argc + 2));
-    JS_ASSERT(&fval >= StackBase(cx->fp));
-
     jsval& tval = stackval(0 - (argc + 1));
+
     LIns* this_ins = get(&tval);
     if (this_ins->isconstp() && !this_ins->constvalp() && !guardShapelessCallee(fval))
         return false;
