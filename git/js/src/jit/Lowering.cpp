@@ -2242,7 +2242,7 @@ LIRGenerator::visitLoadSlot(MLoadSlot *ins)
         MOZ_CRASH("typed load must have a payload");
 
       default:
-        define(new(alloc()) LLoadSlotT(useRegisterForTypedLoad(ins->slots(), ins->type())), ins);
+        define(new(alloc()) LLoadSlotT(useRegisterAtStart(ins->slots())), ins);
         break;
     }
 }
@@ -3088,16 +3088,13 @@ LIRGenerator::visitStoreTypedArrayElementHole(MStoreTypedArrayElementHole *ins)
 void
 LIRGenerator::visitLoadFixedSlot(MLoadFixedSlot *ins)
 {
-    MDefinition *obj = ins->object();
-    MOZ_ASSERT(obj->type() == MIRType_Object);
+    MOZ_ASSERT(ins->object()->type() == MIRType_Object);
 
-    MIRType type = ins->type();
-
-    if (type == MIRType_Value) {
-        LLoadFixedSlotV *lir = new(alloc()) LLoadFixedSlotV(useRegisterAtStart(obj));
+    if (ins->type() == MIRType_Value) {
+        LLoadFixedSlotV *lir = new(alloc()) LLoadFixedSlotV(useRegisterAtStart(ins->object()));
         defineBox(lir, ins);
     } else {
-        LLoadFixedSlotT *lir = new(alloc()) LLoadFixedSlotT(useRegisterForTypedLoad(obj, type));
+        LLoadFixedSlotT *lir = new(alloc()) LLoadFixedSlotT(useRegisterAtStart(ins->object()));
         define(lir, ins);
     }
 }

@@ -819,12 +819,7 @@ NotifyOffThreadScriptLoadCompletedRunnable::Run()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  // We want these to be dropped on the main thread, once we return from this
-  // function.
-  nsRefPtr<nsScriptLoadRequest> request = mRequest.forget();
-  nsRefPtr<nsScriptLoader> loader = mLoader.forget();
-
-  nsresult rv = loader->ProcessOffThreadRequest(request, &mToken);
+  nsresult rv = mLoader->ProcessOffThreadRequest(mRequest, &mToken);
 
   if (mToken) {
     // The result of the off thread parse was not actually needed to process

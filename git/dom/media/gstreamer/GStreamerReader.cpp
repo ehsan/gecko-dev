@@ -70,7 +70,6 @@ GStreamerReader::GStreamerReader(AbstractMediaDecoder* aDecoder)
   mMP3FrameParser(aDecoder->GetResource()->GetLength()),
   mDataOffset(0),
   mUseParserDuration(false),
-  mLastParserDuration(-1),
 #if GST_VERSION_MAJOR >= 1
   mAllocator(nullptr),
   mBufferPool(nullptr),
