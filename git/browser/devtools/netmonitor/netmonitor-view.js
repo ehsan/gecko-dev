@@ -1186,8 +1186,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
       }
       case "status": {
         let node = $(".requests-menu-status", target);
-        let codeNode = $(".requests-menu-status-code", target);
-        codeNode.setAttribute("value", aValue);
         node.setAttribute("code", aValue);
         break;
       }

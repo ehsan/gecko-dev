@@ -59,7 +59,6 @@ add_task(function() {
          "Widget should be in navbar in other window.");
     }
   }
-  CustomizableUI.destroyWidget(spec.id);
   yield promiseWindowClosed(otherWin);
 });
 

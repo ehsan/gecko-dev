@@ -579,9 +579,6 @@ LoadExtensionDirectories(nsINIParser &parser,
 void
 nsXREDirProvider::LoadExtensionBundleDirectories()
 {
-  if (!mozilla::Preferences::GetBool("extensions.defaultProviders.enabled", true))
-    return;
-
   if (mProfileDir && !gSafeMode) {
     nsCOMPtr<nsIFile> extensionsINI;
     mProfileDir->Clone(getter_AddRefs(extensionsINI));
