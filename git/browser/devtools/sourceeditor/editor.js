@@ -57,7 +57,7 @@ const CM_IFRAME   =
   "    <style>" +
   "      html, body { height: 100%; }" +
   "      body { margin: 0; overflow: hidden; }" +
-  "      .CodeMirror { width: 100%; height: 100% !important; line-height: normal!important}" +
+  "      .CodeMirror { width: 100%; height: 100% !important; }" +
   "    </style>" +
 [ "    <link rel='stylesheet' href='" + style + "'>" for (style of CM_STYLES) ].join("\n") +
   "  </head>" +
@@ -689,14 +689,9 @@ CM_MAPPING.forEach(function (name) {
  * Returns a string representation of a shortcut 'key' with
  * a OS specific modifier. Cmd- for Macs, Ctrl- for other
  * platforms. Useful with extraKeys configuration option.
- *
- * CodeMirror defines all keys with modifiers in the following
- * order: Shift - Ctrl/Cmd - Alt - Key
  */
-Editor.accel = function (key, modifiers={}) {
-  return (modifiers.shift ? "Shift-" : "") +
-         (Services.appinfo.OS == "Darwin" ? "Cmd-" : "Ctrl-") +
-         (modifiers.alt ? "Alt-" : "") + key;
+Editor.accel = function (key) {
+  return (Services.appinfo.OS == "Darwin" ? "Cmd-" : "Ctrl-") + key;
 };
 
 /**

@@ -513,8 +513,6 @@ CustomizeMode.prototype = {
     let toolbarItem = aWrapper.firstChild;
     if (!toolbarItem) {
       ERROR("no toolbarItem child for " + aWrapper.tagName + "#" + aWrapper.id);
-      aWrapper.remove();
-      return null;
     }
 
     if (aWrapper.hasAttribute("itemchecked")) {
@@ -778,14 +776,11 @@ CustomizeMode.prototype = {
     __dumpDragData(aEvent);
     let item = aEvent.target;
     while (item && item.localName != "toolbarpaletteitem") {
-      if (item.localName == "toolbar") {
+      if (item.localName == "toolbar" ||
+          item.classList.contains(kPlaceholderClass)) {
         return;
       }
       item = item.parentNode;
-    }
-
-    if (item.classList.contains(kPlaceholderClass)) {
-      return;
     }
 
     let dt = aEvent.dataTransfer;

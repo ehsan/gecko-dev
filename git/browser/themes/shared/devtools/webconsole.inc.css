@@ -93,12 +93,12 @@ a {
 }
 
 .jsterm-input-container {
-  border-top-width: 1px;
-  border-top-style: solid;
+  background: white;
 }
 
 #output-wrapper {
   direction: ltr;
+  border-bottom: 1px solid ThreeDShadow;
   overflow: auto;
 }
 
@@ -275,8 +275,7 @@ a {
 }
 
 .jsterm-input-node {
-  background-image: -moz-image-rect(url("chrome://browser/skin/devtools/commandline-icon.png"), 0, 32, 16, 16);
-  background-repeat: no-repeat;
+  background: -moz-image-rect(url("chrome://browser/skin/devtools/commandline-icon.png"), 0, 32, 16, 16) no-repeat;
   background-position: 0%;
 }
 
@@ -329,7 +328,7 @@ a {
 
 .navigation-marker {
   color: #aaa;
-  background: linear-gradient(#aaa, #aaa) no-repeat left 50%;
+  background: linear-gradient(#fff, #bbb, #fff) no-repeat left 50%;
   background-size: 100% 2px;
   margin-top: 6px;
   margin-bottom: 6px;
@@ -337,30 +336,7 @@ a {
 }
 
 .navigation-marker .url {
+  background: #fff;
   -moz-padding-end: 9px;
   text-decoration: none;
-}
-
-/* Replace these values with CSS variables as available */
-.theme-dark .jsterm-input-container,
-.theme-dark .jsterm-input-node {
-  background-color: #252c33; /* tabToolbarBackgroundColor */
-  color: #8fa1b2; /* textColor */
-  border-color: #131c26; /* mainBackgroundColor */
-}
-
-.theme-dark .navigation-marker .url {
-  background: #131c26; /* mainBackgroundColor */
-}
-
-/* Replace these values with CSS variables as available */
-.theme-light .jsterm-input-container,
-.theme-light .jsterm-input-node {
-  background-color: #fff; /* mainBackgroundColor */
-  color: black; /* textColor */
-  border-color: ThreeDShadow;
-}
-
-.theme-light .navigation-marker .url {
-  background: #fff; /* mainBackgroundColor */
 }

@@ -49,8 +49,6 @@ const kReferenceDpi = 240; // standard "pixel" size used in some preferences
 
 const kStateActive = 0x00000001; // :active pseudoclass for elements
 
-const kZoomToElementMargin = 16; // in px
-
 /*
  * getBoundingContentRect
  *
@@ -397,37 +395,36 @@ let Content = {
    * Zoom utilities
    */
   _zoomOut: function() {
-    let rect = new Rect(0,0,0,0);
-    this._zoomToRect(rect);
+    let rect = getBoundingContentRect(content.document.documentElement);
+
+    let utils = Util.getWindowUtils(content);
+    let viewId = utils.getViewId(content.document.documentElement);
+    let presShellId = {};
+    utils.getPresShellId(presShellId);
+    let zoomData = [rect.x,
+                    rect.y,
+                    rect.width,
+                    rect.height,
+                    presShellId.value,
+                    viewId].join(",");
+    Services.obs.notifyObservers(null, "Metro:ZoomToRect", zoomData);
     this._isZoomedIn = false;
   },
 
   _zoomToElement: function(aElement) {
     let rect = getBoundingContentRect(aElement);
-    this._inflateRect(rect, kZoomToElementMargin);
-    this._zoomToRect(rect);
-    this._isZoomedIn = true;
-  },
-
-  _inflateRect: function(aRect, aMargin) {
-    aRect.left -= aMargin;
-    aRect.top -= aMargin;
-    aRect.bottom += aMargin;
-    aRect.right += aMargin;
-  },
-
-  _zoomToRect: function (aRect) {
     let utils = Util.getWindowUtils(content);
     let viewId = utils.getViewId(content.document.documentElement);
     let presShellId = {};
     utils.getPresShellId(presShellId);
-    let zoomData = [aRect.x,
-                    aRect.y,
-                    aRect.width,
-                    aRect.height,
+    let zoomData = [rect.x,
+                    rect.y,
+                    rect.width,
+                    rect.height,
                     presShellId.value,
                     viewId].join(",");
     Services.obs.notifyObservers(null, "Metro:ZoomToRect", zoomData);
+    this._isZoomedIn = true;
   },
 
   _shouldZoomToElement: function(aElement) {
