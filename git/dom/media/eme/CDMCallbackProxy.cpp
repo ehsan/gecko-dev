@@ -329,8 +329,8 @@ void
 CDMCallbackProxy::Terminated()
 {
   MOZ_ASSERT(mProxy->IsOnGMPThread());
-  nsRefPtr<nsIRunnable> task = NS_NewRunnableMethod(mProxy, &CDMProxy::Terminated);
-  NS_DispatchToMainThread(task);
+
+  mProxy->gmp_Terminated();
 }
 
 } // namespace mozilla

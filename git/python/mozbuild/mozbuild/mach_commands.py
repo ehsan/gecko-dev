@@ -1001,12 +1001,10 @@ class RunProgram(MachCommandBase):
                 },
             }
 
-            arch = self.substs['OS_ARCH']
-
             if dmd_params:
-                env_vars[arch]["DMD"] = " ".join(dmd_params)
+                env_vars["DMD"] = " ".join(dmd_params)
 
-            extra_env.update(env_vars.get(arch, {}))
+            extra_env.update(env_vars.get(self.substs['OS_ARCH'], {}))
 
         return self.run_process(args=args, ensure_exit_code=False,
             pass_thru=True, append_env=extra_env)

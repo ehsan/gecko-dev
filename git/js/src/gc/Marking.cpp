@@ -1786,10 +1786,9 @@ GCMarker::processMarkStackTop(SliceBudget &budget)
 
   scan_typed_obj:
     {
-        TypeDescr *descr = &obj->as<InlineOpaqueTypedObject>().typeDescr();
-        if (!descr->hasTraceList())
+        const int32_t *list = obj->as<InlineOpaqueTypedObject>().typeDescr().traceList();
+        if (!list)
             return;
-        const int32_t *list = descr->traceList();
         uint8_t *memory = obj->as<InlineOpaqueTypedObject>().inlineTypedMem();
         while (*list != -1) {
             JSString *str = *reinterpret_cast<JSString **>(memory + *list);

@@ -162,7 +162,6 @@ private:
 
   void ContinueShutdown();
   MediaPromiseHolder<ShutdownPromise> mShutdownPromise;
-  bool mDecoderPerSegment;
 };
 
 } // namespace mozilla

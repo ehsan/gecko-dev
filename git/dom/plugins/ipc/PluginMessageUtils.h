@@ -75,7 +75,7 @@ struct IPCByteRange
   uint32_t length;
 };  
 
-typedef nsTArray<IPCByteRange> IPCByteRanges;
+typedef std::vector<IPCByteRange> IPCByteRanges;
 
 typedef nsCString Buffer;
 

@@ -5265,12 +5265,7 @@ TypeObject::setAddendum(AddendumKind kind, void *addendum)
     MOZ_ASSERT(kind <= (OBJECT_FLAG_ADDENDUM_MASK >> OBJECT_FLAG_ADDENDUM_SHIFT));
     MOZ_ASSERT(!(flags_ & OBJECT_FLAG_ADDENDUM_MASK));
 
-    // Manually trigger barriers if we are clearing a TypeNewScript. Other
-    // kinds of addendums are immutable.
-    if (addendum_) {
-        MOZ_ASSERT(kind == Addendum_NewScript);
-        TypeNewScript::writeBarrierPre(newScript());
-    }
+    writeBarrierPre(this);
 
     flags_ |= kind << OBJECT_FLAG_ADDENDUM_SHIFT;
     addendum_ = addendum;

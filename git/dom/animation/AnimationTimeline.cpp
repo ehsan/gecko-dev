@@ -55,12 +55,17 @@ AnimationTimeline::GetCurrentTimeStamp() const
     result = timing->GetNavigationStartTimeStamp();
   }
 
-  nsRefreshDriver* refreshDriver = GetRefreshDriver();
-  if (!refreshDriver) {
+  nsIPresShell* presShell = mDocument->GetShell();
+  if (MOZ_UNLIKELY(!presShell)) {
     return result;
   }
 
-  result = refreshDriver->MostRecentRefresh();
+  nsPresContext* presContext = presShell->GetPresContext();
+  if (MOZ_UNLIKELY(!presContext)) {
+    return result;
+  }
+
+  result = presContext->RefreshDriver()->MostRecentRefresh();
   // FIXME: We would like to assert that:
   //   mLastCurrentTime.IsNull() || result >= mLastCurrentTime
   // but due to bug 1043078 this will not be the case when the refresh driver
@@ -97,22 +102,6 @@ AnimationTimeline::ToTimeStamp(const TimeDuration& aTimeDuration) const
 
   result = timing->GetNavigationStartTimeStamp() + aTimeDuration;
   return result;
-}
-
-nsRefreshDriver*
-AnimationTimeline::GetRefreshDriver() const
-{
-  nsIPresShell* presShell = mDocument->GetShell();
-  if (MOZ_UNLIKELY(!presShell)) {
-    return nullptr;
-  }
-
-  nsPresContext* presContext = presShell->GetPresContext();
-  if (MOZ_UNLIKELY(!presContext)) {
-    return nullptr;
-  }
-
-  return presContext->RefreshDriver();
 }
 
 } // namespace dom

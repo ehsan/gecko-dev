@@ -37,9 +37,6 @@ public:
 
   virtual nsresult Init(MediaDecoderReader* aCloneDonor) MOZ_OVERRIDE;
 
-  virtual size_t SizeOfVideoQueueInFrames() MOZ_OVERRIDE;
-  virtual size_t SizeOfAudioQueueInFrames() MOZ_OVERRIDE;
-
   virtual nsRefPtr<VideoDataPromise>
   RequestVideoData(bool aSkipToNextKeyframe, int64_t aTimeThreshold) MOZ_OVERRIDE;
 
@@ -119,8 +116,6 @@ private:
   void RequestCodecResource();
   bool IsWaitingOnCodecResource();
   virtual bool IsWaitingOnCDMResource() MOZ_OVERRIDE;
-
-  size_t SizeOfQueue(TrackType aTrack);
 
   nsAutoPtr<mp4_demuxer::MP4Demuxer> mDemuxer;
   nsAutoPtr<PlatformDecoderModule> mPlatform;

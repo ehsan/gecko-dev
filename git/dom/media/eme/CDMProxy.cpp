@@ -569,13 +569,11 @@ CDMProxy::gmp_Decrypted(uint32_t aId,
 }
 
 void
-CDMProxy::Terminated()
+CDMProxy::gmp_Terminated()
 {
-  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(IsOnGMPThread());
   NS_WARNING("CDM terminated");
-  if (!mKeys.IsNull()) {
-    mKeys->Terminated();
-  }
+  gmp_Shutdown();
 }
 
 } // namespace mozilla

@@ -450,7 +450,6 @@ public:
   // If true, the layer should always be active because we always build a
   // scrollable layer. Used for asynchronous scrolling.
   bool mShouldBuildScrollableLayer:1;
-
   // If true, add clipping in ScrollFrameHelper::ComputeFrameMetrics.
   bool mAddClipRectToLayer:1;
 
