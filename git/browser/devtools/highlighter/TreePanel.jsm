@@ -458,9 +458,6 @@ TreePanel.prototype = {
     editorInput.value = aAttrVal;
     editorInput.select();
 
-    // remove tree key navigation events
-    this.treeIFrame.removeEventListener("keypress", this.IUI, false);
-
     // listen for editor specific events
     this.bindEditorEvent(editor, "click", function(aEvent) {
       aEvent.stopPropagation();
@@ -518,12 +515,8 @@ TreePanel.prototype = {
   {
     if (aEvent.which == this.window.KeyEvent.DOM_VK_RETURN) {
       this.saveEditor();
-      aEvent.preventDefault();
-      aEvent.stopPropagation();
     } else if (aEvent.keyCode == this.window.KeyEvent.DOM_VK_ESCAPE) {
       this.closeEditor();
-      aEvent.preventDefault();
-      aEvent.stopPropagation();
     }
   },
 
@@ -552,9 +545,6 @@ TreePanel.prototype = {
     editorInput.blur();
     this.editingContext = null;
     this.editingEvents = {};
-
-    // re-add navigation listener
-    this.treeIFrame.addEventListener("keypress", this.IUI, false);
 
     // event notification
     Services.obs.notifyObservers(null, this.IUI.INSPECTOR_NOTIFICATIONS.EDITOR_CLOSED,

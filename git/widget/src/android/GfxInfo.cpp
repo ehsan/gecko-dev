@@ -318,7 +318,5 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature,
   if (aOS)
     *aOS = os;
 
-  // XXX disabled for now as this calls GetAdapterVendorID and friends, which currently crash on Android, see bug 700124
-  // return GfxInfoBase::GetFeatureStatusImpl(aFeature, aStatus, aSuggestedDriverVersion, aDriverInfo, &os);
-  return NS_OK;
+  return GfxInfoBase::GetFeatureStatusImpl(aFeature, aStatus, aSuggestedDriverVersion, aDriverInfo, &os);
 }

@@ -112,7 +112,7 @@ StyleInspector.prototype = {
     let boundIframeOnLoad = function loadedInitializeIframe() {
       if (this.iframe &&
           this.iframe.getAttribute("src") ==
-          "chrome://browser/content/devtools/csshtmltree.xul") {
+          "chrome://browser/content/csshtmltree.xhtml") {
         let selectedNode = this.selectedNode || null;
         this.cssHtmlTree = new CssHtmlTree(this);
         this.cssLogic.highlight(selectedNode);
@@ -164,7 +164,7 @@ StyleInspector.prototype = {
     iframe.flex = 1;
     iframe.setAttribute("tooltip", "aHTMLTooltip");
     iframe.addEventListener("load", boundIframeOnLoad, true);
-    iframe.setAttribute("src", "chrome://browser/content/devtools/csshtmltree.xul");
+    iframe.setAttribute("src", "chrome://browser/content/csshtmltree.xhtml");
 
     panel.appendChild(iframe);
     popupSet.appendChild(panel);
@@ -266,7 +266,7 @@ StyleInspector.prototype = {
     this.selectNode(aSelection);
     if (this.openDocked) {
       if (!this.iframeReady) {
-        this.iframe.setAttribute("src", "chrome://browser/content/devtools/csshtmltree.xul");
+        this.iframe.setAttribute("src", "chrome://browser/content/csshtmltree.xhtml");
       }
     } else {
       this.panel.openPopup(this.window.gBrowser.selectedBrowser, "end_before", 0, 0,

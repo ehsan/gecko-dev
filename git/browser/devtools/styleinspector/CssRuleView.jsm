@@ -125,29 +125,19 @@ ElementStyle.prototype = {
   {
     this.rules = [];
 
-    let element = this.element;
-    do {
-      this._addElementRules(element);
-    } while ((element = element.parentNode) &&
-             element.nodeType === Ci.nsIDOMNode.ELEMENT_NODE);
-
-    // Mark overridden computed styles.
-    this.markOverridden();
-  },
-
-  _addElementRules: function ElementStyle_addElementRules(aElement)
-  {
-    let inherited = aElement !== this.element ? aElement : null;
-
     // Include the element's style first.
-    this._maybeAddRule({
-      style: aElement.style,
-      selectorText: CssLogic.l10n("rule.sourceElement"),
-      inherited: inherited
-    });
+    this.rules.push(new Rule(this, {
+      style: this.element.style,
+      selectorText: CssLogic.l10n("rule.sourceElement")
+    }));
 
     // Get the styles that apply to the element.
-    var domRules = this.domUtils.getCSSStyleRules(aElement);
+    try {
+      var domRules = this.domUtils.getCSSStyleRules(this.element);
+    } catch (ex) {
+      Services.console.logStringMessage("ElementStyle_populate error: " + ex);
+      return;
+    }
 
     // getCSStyleRules returns ordered from least-specific to
     // most-specific.
@@ -160,43 +150,14 @@ ElementStyle.prototype = {
         continue;
       }
 
-      if (domRule.type !== Ci.nsIDOMCSSRule.STYLE_RULE) {
-        continue;
+      // XXX: non-style rules.
+      if (domRule.type === Ci.nsIDOMCSSRule.STYLE_RULE) {
+        this.rules.push(new Rule(this, { domRule: domRule }));
       }
-
-      this._maybeAddRule({
-        domRule: domRule,
-        inherited: inherited
-      });
-    }
-  },
-
-  /**
-   * Add a rule if it's one we care about.  Filters out duplicates and
-   * inherited styles with no inherited properties.
-   *
-   * @param {object} aOptions
-   *        Options for creating the Rule, see the Rule constructor.
-   *
-   * @return true if we added the rule.
-   */
-  _maybeAddRule: function ElementStyle_maybeAddRule(aOptions)
-  {
-    // If we've already included this domRule (for example, when a
-    // common selector is inherited), ignore it.
-    if (aOptions.domRule &&
-        this.rules.some(function(rule) rule.domRule === aOptions.domRule)) {
-      return false;
     }
 
-    let rule = new Rule(this, aOptions);
-
-    // Ignore inherited rules with no properties.
-    if (aOptions.inherited && rule.textProps.length == 0) {
-      return false;
-    }
-
-    this.rules.push(rule);
+    // Mark overridden computed styles.
+    this.markOverridden();
   },
 
   /**
@@ -217,7 +178,7 @@ ElementStyle.prototype = {
     let computedProps = [];
     for each (let textProp in textProps) {
       computedProps = computedProps.concat(textProp.computed);
-    }
+    };
 
     // Walk over the computed properties.  As we see a property name
     // for the first time, mark that property's name as taken by this
@@ -312,8 +273,6 @@ ElementStyle.prototype = {
  *            the domRule's style will be used.
  *          selectorText: selector text to display.  If omitted, the domRule's
  *            selectorText will be used.
- *          inherited: An element this rule was inherited from.  If omitted,
- *            the rule applies directly to the current element.
  * @constructor
  */
 function Rule(aElementStyle, aOptions)
@@ -322,7 +281,7 @@ function Rule(aElementStyle, aOptions)
   this.domRule = aOptions.domRule || null;
   this.style = aOptions.style || this.domRule.style;
   this.selectorText = aOptions.selectorText || this.domRule.selectorText;
-  this.inherited = aOptions.inherited || null;
+
   this._getTextProperties();
 }
 
@@ -338,17 +297,6 @@ Rule.prototype = {
       let line = this.elementStyle.domUtils.getRuleLine(this.domRule);
       this._title += ":" + line;
     }
-
-    if (this.inherited) {
-      let eltText = this.inherited.tagName.toLowerCase();
-      if (this.inherited.id) {
-        eltText += "#" + this.inherited.id;
-      }
-      let args = [eltText, this._title];
-      this._title = CssLogic._strings.formatStringFromName("rule.inheritedSource",
-                                                           args, args.length);
-    }
-
     return this._title;
   },
 
@@ -468,13 +416,7 @@ Rule.prototype = {
       if(!matches || !matches[2])
         continue;
 
-      let name = matches[1];
-      if (this.inherited &&
-          !this.elementStyle.domUtils.isInheritedProperty(name)) {
-        continue;
-      }
-
-      let prop = new TextProperty(this, name, matches[2], matches[3] || "");
+      let prop = new TextProperty(this, matches[1], matches[2], matches[3] || "");
       this.textProps.push(prop);
     }
   },
