@@ -298,12 +298,8 @@ nsFormFillController::SetPopupOpen(bool aPopupOpen)
       docShell->GetPresShell(getter_AddRefs(presShell));
       NS_ENSURE_STATE(presShell);
       presShell->ScrollContentIntoView(content,
-                                       nsIPresShell::ScrollAxis(
-                                         nsIPresShell::SCROLL_MINIMUM,
-                                         nsIPresShell::SCROLL_IF_NOT_VISIBLE),
-                                       nsIPresShell::ScrollAxis(
-                                         nsIPresShell::SCROLL_MINIMUM,
-                                         nsIPresShell::SCROLL_IF_NOT_VISIBLE),
+                                       nsIPresShell::ScrollAxis(),
+                                       nsIPresShell::ScrollAxis(),
                                        nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
       // mFocusedPopup can be destroyed after ScrollContentIntoView, see bug 420089
       if (mFocusedPopup)

@@ -80,19 +80,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "gUUIDGenerator",
                                    "@mozilla.org/uuid-generator;1",
                                    "nsIUUIDGenerator");
 
-function MobileICCCardLockResult(options) {
-  this.lockType = options.lockType;
-  this.enabled = options.enabled;
-  this.retryCount = options.retryCount;
-  this.success = options.success;
-};
-MobileICCCardLockResult.prototype = {
-  __exposedProps__ : {lockType: 'r',
-                      enabled: 'r',
-                      retryCount: 'r',
-                      success: 'r'}
-};
-
 function MobileICCInfo() {}
 MobileICCInfo.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozMobileICCInfo]),
@@ -136,12 +123,6 @@ MobileConnectionInfo.prototype = {
 
 function MobileNetworkInfo() {}
 MobileNetworkInfo.prototype = {
-  __exposedProps__ : {shortName: 'r',
-                      longName: 'r',
-                      mcc: 'r',
-                      mnc: 'r',
-                      state: 'r'},
-
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozMobileNetworkInfo]),
   classID:        MOBILENETWORKINFO_CID,
   classInfo:      XPCOMUtils.generateCI({
@@ -682,8 +663,7 @@ RILContentHelper.prototype = {
         break;
       case "RIL:CardLockResult":
         if (msg.json.success) {
-          let result = new MobileICCCardLockResult(msg.json);
-          this.fireRequestSuccess(msg.json.requestId, result);
+          this.fireRequestSuccess(msg.json.requestId, msg.json);
         } else {
           this.fireRequestError(msg.json.requestId, msg.json);
         }

@@ -395,7 +395,11 @@ class IonBuilder : public MIRGenerator
                             types::StackTypeSet *types, types::StackTypeSet *barrier);
     bool makeInliningDecision(AutoObjectVector &targets);
 
-    MCall *makeCallHelper(HandleFunction target, uint32 argc, bool constructing);
+    bool jsop_call_fun_barrier(AutoObjectVector &targets, uint32_t numTargets,
+                               uint32 argc,
+                               bool constructing,
+                               types::StackTypeSet *types,
+                               types::StackTypeSet *barrier);
     bool makeCallBarrier(HandleFunction target, uint32 argc, bool constructing,
                          types::StackTypeSet *types, types::StackTypeSet *barrier);
 

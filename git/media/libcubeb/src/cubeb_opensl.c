@@ -28,7 +28,6 @@ struct cubeb_stream {
   long queuebuf_len;
   long bytespersec;
   long framesize;
-  int draining;
 
   cubeb_data_callback data_callback;
   cubeb_state_callback state_callback;
@@ -38,38 +37,24 @@ struct cubeb_stream {
 static void
 bufferqueue_callback(SLBufferQueueItf caller, struct cubeb_stream *stm)
 {
-  SLBufferQueueState state;
-  (*stm->bufq)->GetState(stm->bufq, &state);
+  void *buf = stm->queuebuf[stm->queuebuf_idx];
 
-  if (stm->draining) {
-    if (!state.count) {
-      stm->draining = 0;
-      stm->state_callback(stm, stm->user_ptr, CUBEB_STATE_DRAINED);
-    }
-    return;
-  }
-
-  if (state.count > 1)
+  long written = stm->data_callback(stm, stm->user_ptr,
+                                    buf, stm->queuebuf_len / stm->framesize);
+  if (written <= 0)
     return;
 
-  SLuint32 i;
-  for (i = state.count; i < NBUFS; i++) {
-    void *buf = stm->queuebuf[stm->queuebuf_idx];
-    long written = stm->data_callback(stm, stm->user_ptr,
-                                      buf, stm->queuebuf_len / stm->framesize);
-    if (written == CUBEB_ERROR) {
-      (*stm->play)->SetPlayState(stm->play, SL_PLAYSTATE_STOPPED);
-      return;
-    }
+  (*stm->bufq)->Enqueue(stm->bufq, buf, written * stm->framesize);
 
-    (*stm->bufq)->Enqueue(stm->bufq, buf, written * stm->framesize);
-    stm->queuebuf_idx = (stm->queuebuf_idx + 1) % NBUFS;
+  stm->queuebuf_idx = (stm->queuebuf_idx + 1) % NBUFS;
+  // XXX handle error
+}
 
-    if ((written * stm->framesize) < stm->queuebuf_len) {
-      stm->draining = 1;
-      return;
-    }
-  }
+static void
+play_callback(SLPlayItf caller, struct cubeb_stream *stm, SLuint32 event)
+{
+  if (event & SL_PLAYEVENT_HEADSTALLED)
+    stm->state_callback(stm, stm->user_ptr, CUBEB_STATE_DRAINED);
 }
 
 int
@@ -243,6 +228,18 @@ cubeb_stream_init(cubeb * ctx, cubeb_stream ** stream, char const * stream_name,
     return CUBEB_ERROR;
   }
 
+  res = (*stm->play)->RegisterCallback(stm->play, play_callback, stm);
+  if (res != SL_RESULT_SUCCESS) {
+    cubeb_stream_destroy(stm);
+    return CUBEB_ERROR;
+  }
+
+  res = (*stm->play)->SetCallbackEventsMask(stm->play, SL_PLAYEVENT_HEADSTALLED);
+  if (res != SL_RESULT_SUCCESS) {
+    cubeb_stream_destroy(stm);
+    return CUBEB_ERROR;
+  }
+
   *stream = stm;
 
   return CUBEB_OK;
@@ -286,7 +283,7 @@ cubeb_stream_get_position(cubeb_stream * stm, uint64_t * position)
   SLresult res = (*stm->play)->GetPosition(stm->play, &msec);
   if (res != SL_RESULT_SUCCESS)
     return CUBEB_ERROR;
-  *position = (stm->bytespersec / (1000 * stm->framesize)) * msec;
+  *position = (stm->bytespersec * msec) / (1000 * stm->framesize);
   return CUBEB_OK;
 }
 

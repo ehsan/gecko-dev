@@ -2,9 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* This file is used for both about:memory and about:compartments. A
- * version used for mobile is located at 
- * mobile/android/themes/core/aboutMemory.css. */
+/* This file is used for both about:memory and about:compartments. */
 
 body.verbose {
   /* override setting in about.css */

@@ -31,7 +31,6 @@ public class CanvasDelegate {
         mPaint = new Paint();
         mPaint.setAntiAlias(true);
         mPaint.setColor(0xFFFF0000);
-        mPaint.setStrokeWidth(0.0f);
     }
 
     public void draw(Canvas canvas, Path path, int width, int height) {

@@ -125,10 +125,6 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
         AwesomeBarCursorAdapter adapter = getCursorAdapter();
         adapter.filter(searchTerm);
 
-        filterSuggestions(searchTerm);
-    }
-
-    private void filterSuggestions(String searchTerm) {
         // cancel previous query
         if (mSuggestTask != null) {
             mSuggestTask.cancel(true);
@@ -481,7 +477,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
             Log.e(LOGTAG, "Error getting search engine JSON", e);
         }
 
-        filterSuggestions(mSearchTerm);
+        filter(mSearchTerm);
     }
 
     private Drawable getDrawableFromDataURI(String dataURI) {

@@ -59,7 +59,6 @@
 #include "nsMathMLAtoms.h"
 #include "nsMathMLOperators.h"
 #include "Navigator.h"
-#include "nsDOMStorageBaseDB.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -255,8 +254,6 @@ nsLayoutStatics::Initialize()
   InitProcessPriorityManager();
 
   nsPermissionManager::AppUninstallObserverInit();
-
-  nsDOMStorageBaseDB::Init();
 
   return NS_OK;
 }

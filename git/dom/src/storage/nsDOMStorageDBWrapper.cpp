@@ -48,6 +48,7 @@ void
 nsDOMStorageDBWrapper::Close()
 {
   mPersistentDB.Close();
+  mChromePersistentDB.Close();
 }
 
 nsresult
@@ -56,6 +57,9 @@ nsDOMStorageDBWrapper::Init()
   nsresult rv;
 
   rv = mPersistentDB.Init(NS_LITERAL_STRING("webappsstore.sqlite"));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = mChromePersistentDB.Init(NS_LITERAL_STRING("chromeappsstore.sqlite"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = mSessionOnlyDB.Init(&mPersistentDB);
@@ -71,10 +75,12 @@ nsresult
 nsDOMStorageDBWrapper::FlushAndDeleteTemporaryTables(bool force)
 {
   nsresult rv1, rv2;
+  rv1 = mChromePersistentDB.FlushTemporaryTables(force);
   rv2 = mPersistentDB.FlushTemporaryTables(force);
 
   // Everything flushed?  Then no need for a timer.
-  if (!mPersistentDB.mTempTableLoads.Count())
+  if (!mChromePersistentDB.mTempTableLoads.Count() && 
+      !mPersistentDB.mTempTableLoads.Count())
     StopTempTableFlushTimer();
 
   return NS_FAILED(rv1) ? rv1 : rv2;
@@ -82,6 +88,8 @@ nsDOMStorageDBWrapper::FlushAndDeleteTemporaryTables(bool force)
 
 #define IMPL_FORWARDER_GUTS(_return, _code)                                \
   PR_BEGIN_MACRO                                                      \
+  if (aStorage->CanUseChromePersist())                                \
+    _return mChromePersistentDB._code;                                \
   if (aStorage->IsPrivate())                                          \
     _return mPrivateBrowsingDB._code;                                 \
   if (aStorage->SessionOnly())                                        \
@@ -115,9 +123,13 @@ nsresult
 nsDOMStorageDBWrapper::SetKey(DOMStorageImpl* aStorage,
                               const nsAString& aKey,
                               const nsAString& aValue,
-                              bool aSecure)
+                              bool aSecure,
+                              int32_t aQuota,
+                              bool aExcludeOfflineFromUsage,
+                              int32_t *aNewUsage)
 {
-  IMPL_FORWARDER(SetKey(aStorage, aKey, aValue, aSecure));
+  IMPL_FORWARDER(SetKey(aStorage, aKey, aValue, aSecure,
+                        aQuota, aExcludeOfflineFromUsage, aNewUsage));
 }
 
 nsresult
@@ -130,9 +142,11 @@ nsDOMStorageDBWrapper::SetSecure(DOMStorageImpl* aStorage,
 
 nsresult
 nsDOMStorageDBWrapper::RemoveKey(DOMStorageImpl* aStorage,
-                                 const nsAString& aKey)
+                                 const nsAString& aKey,
+                                 bool aExcludeOfflineFromUsage,
+                                 int32_t aKeyUsage)
 {
-  IMPL_FORWARDER(RemoveKey(aStorage, aKey));
+  IMPL_FORWARDER(RemoveKey(aStorage, aKey, aExcludeOfflineFromUsage, aKeyUsage));
 }
 
 nsresult
@@ -156,7 +170,7 @@ nsDOMStorageDBWrapper::IsScopeDirty(DOMStorageImpl* aStorage)
 nsresult
 nsDOMStorageDBWrapper::DropSessionOnlyStoragesForHost(const nsACString& aHostName)
 {
-  return mSessionOnlyDB.RemoveOwner(aHostName);
+  return mSessionOnlyDB.RemoveOwner(aHostName, true);
 }
 
 nsresult
@@ -166,17 +180,18 @@ nsDOMStorageDBWrapper::DropPrivateBrowsingStorages()
 }
 
 nsresult
-nsDOMStorageDBWrapper::RemoveOwner(const nsACString& aOwner)
+nsDOMStorageDBWrapper::RemoveOwner(const nsACString& aOwner,
+                                   bool aIncludeSubDomains)
 {
   nsresult rv;
 
-  rv = mPrivateBrowsingDB.RemoveOwner(aOwner);
+  rv = mPrivateBrowsingDB.RemoveOwner(aOwner, aIncludeSubDomains);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mSessionOnlyDB.RemoveOwner(aOwner);
+  rv = mSessionOnlyDB.RemoveOwner(aOwner, aIncludeSubDomains);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mPersistentDB.RemoveOwner(aOwner);
+  rv = mPersistentDB.RemoveOwner(aOwner, aIncludeSubDomains);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return rv;
@@ -184,53 +199,55 @@ nsDOMStorageDBWrapper::RemoveOwner(const nsACString& aOwner)
 
 
 nsresult
-nsDOMStorageDBWrapper::RemoveAll()
+nsDOMStorageDBWrapper::RemoveOwners(const nsTArray<nsString> &aOwners,
+                                    bool aIncludeSubDomains, bool aMatch)
 {
   nsresult rv;
 
-  rv = mPrivateBrowsingDB.RemoveAll();
+  rv = mPrivateBrowsingDB.RemoveOwners(aOwners, aIncludeSubDomains, aMatch);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mSessionOnlyDB.RemoveAll();
+  rv = mSessionOnlyDB.RemoveOwners(aOwners, aIncludeSubDomains, aMatch);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mPersistentDB.RemoveAll();
+  rv = mPersistentDB.RemoveOwners(aOwners, aIncludeSubDomains, aMatch);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return rv;
 }
 
 nsresult
-nsDOMStorageDBWrapper::GetUsage(DOMStorageImpl* aStorage, int32_t *aUsage)
+nsDOMStorageDBWrapper::GetUsage(DOMStorageImpl* aStorage,
+                                bool aExcludeOfflineFromUsage, int32_t *aUsage)
 {
-  IMPL_FORWARDER(GetUsage(aStorage, aUsage));
+  IMPL_FORWARDER(GetUsage(aStorage, aExcludeOfflineFromUsage, aUsage));
 }
 
 nsresult
 nsDOMStorageDBWrapper::GetUsage(const nsACString& aDomain,
-                                int32_t *aUsage, bool aPrivate)
+                                bool aIncludeSubDomains, int32_t *aUsage, bool aPrivate)
 {
   if (aPrivate)
-    return mPrivateBrowsingDB.GetUsage(aDomain, aUsage);
+    return mPrivateBrowsingDB.GetUsage(aDomain, aIncludeSubDomains, aUsage);
 
 #if 0
   // XXX Check where from all this method gets called, not sure this should
   // include any potential session-only data
   nsresult rv;
-  rv = mSessionOnlyDB.GetUsage(aDomain, aUsage);
+  rv = mSessionOnlyDB.GetUsage(aDomain, aIncludeSubDomains, aUsage);
   if (NS_SUECEEDED(rv))
     return rv;
 #endif
 
-  return mPersistentDB.GetUsage(aDomain, aUsage);
+  return mPersistentDB.GetUsage(aDomain, aIncludeSubDomains, aUsage);
 }
 
 nsresult
-nsDOMStorageDBWrapper::CreateScopeDBKey(nsIURI* aUri, nsACString& aKey)
+nsDOMStorageDBWrapper::CreateOriginScopeDBKey(nsIURI* aUri, nsACString& aKey)
 {
   nsresult rv;
 
-  rv = CreateReversedDomain(aUri, aKey);
+  rv = CreateDomainScopeDBKey(aUri, aKey);
   if (NS_FAILED(rv))
     return rv;
 
@@ -251,7 +268,7 @@ nsDOMStorageDBWrapper::CreateScopeDBKey(nsIURI* aUri, nsACString& aKey)
 }
 
 nsresult
-nsDOMStorageDBWrapper::CreateReversedDomain(nsIURI* aUri, nsACString& aKey)
+nsDOMStorageDBWrapper::CreateDomainScopeDBKey(nsIURI* aUri, nsACString& aKey)
 {
   nsresult rv;
 
@@ -280,15 +297,15 @@ nsDOMStorageDBWrapper::CreateReversedDomain(nsIURI* aUri, nsACString& aKey)
     }
   }
 
-  rv = CreateReversedDomain(domainScope, aKey);
+  rv = CreateDomainScopeDBKey(domainScope, aKey);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }
 
 nsresult
-nsDOMStorageDBWrapper::CreateReversedDomain(const nsACString& aAsciiDomain,
-                                            nsACString& aKey)
+nsDOMStorageDBWrapper::CreateDomainScopeDBKey(const nsACString& aAsciiDomain,
+                                              nsACString& aKey)
 {
   if (aAsciiDomain.IsEmpty())
     return NS_ERROR_NOT_AVAILABLE;
@@ -300,30 +317,39 @@ nsDOMStorageDBWrapper::CreateReversedDomain(const nsACString& aAsciiDomain,
 }
 
 nsresult
-nsDOMStorageDBWrapper::CreateQuotaDBKey(const nsACString& aAsciiDomain,
-                                        nsACString& aKey)
+nsDOMStorageDBWrapper::CreateQuotaDomainDBKey(const nsACString& aAsciiDomain,
+                                              bool aIncludeSubDomains,
+                                              bool aEffectiveTLDplus1Only,
+                                              nsACString& aKey)
 {
   nsresult rv;
 
   nsAutoCString subdomainsDBKey;
-  nsCOMPtr<nsIEffectiveTLDService> eTLDService(do_GetService(
-    NS_EFFECTIVETLDSERVICE_CONTRACTID, &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (aEffectiveTLDplus1Only) {
+    nsCOMPtr<nsIEffectiveTLDService> eTLDService(do_GetService(
+      NS_EFFECTIVETLDSERVICE_CONTRACTID, &rv));
+    NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIURI> uri;
-  rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_CSTRING("http://") + aAsciiDomain);
-  NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIURI> uri;
+    rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_CSTRING("http://") + aAsciiDomain);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString eTLDplusOne;
-  rv = eTLDService->GetBaseDomain(uri, 0, eTLDplusOne);
-  if (NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS == rv) {
-    // XXX bug 357323 - what to do for localhost/file exactly?
-    eTLDplusOne = aAsciiDomain;
-    rv = NS_OK;
+    nsAutoCString eTLDplusOne;
+    rv = eTLDService->GetBaseDomain(uri, 0, eTLDplusOne);
+    if (NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS == rv) {
+      // XXX bug 357323 - what to do for localhost/file exactly?
+      eTLDplusOne = aAsciiDomain;
+      rv = NS_OK;
+    }
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    CreateDomainScopeDBKey(eTLDplusOne, subdomainsDBKey);
   }
-  NS_ENSURE_SUCCESS(rv, rv);
+  else
+    CreateDomainScopeDBKey(aAsciiDomain, subdomainsDBKey);
 
-  CreateReversedDomain(eTLDplusOne, subdomainsDBKey);
+  if (!aIncludeSubDomains)
+    subdomainsDBKey.AppendLiteral(":");
 
   aKey.Assign(subdomainsDBKey);
   return NS_OK;
@@ -331,7 +357,7 @@ nsDOMStorageDBWrapper::CreateQuotaDBKey(const nsACString& aAsciiDomain,
 
 nsresult
 nsDOMStorageDBWrapper::GetDomainFromScopeKey(const nsACString& aScope,
-                                             nsACString& aDomain)
+                                         nsACString& aDomain)
 {
   nsAutoCString reverseDomain, scope;
   scope = aScope;

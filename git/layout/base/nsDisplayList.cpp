@@ -485,37 +485,19 @@ static bool IsFixedFrame(nsIFrame* aFrame)
   return aFrame && aFrame->GetParent() && !aFrame->GetParent()->GetParent();
 }
 
-bool
-nsDisplayListBuilder::IsFixedItem(nsDisplayItem *aItem,
-                                  nsIFrame** aActiveScrolledRoot,
-                                  nsIFrame* aOverrideActiveScrolledRoot)
+static bool IsFixedItem(nsDisplayItem *aItem, nsDisplayListBuilder* aBuilder)
 {
-  nsIFrame* activeScrolledRoot = aOverrideActiveScrolledRoot;
-  if (!activeScrolledRoot) {
-    if (aItem->GetType() == nsDisplayItem::TYPE_SCROLL_LAYER) {
-      nsDisplayScrollLayer* scrollLayerItem =
-        static_cast<nsDisplayScrollLayer*>(aItem);
-      activeScrolledRoot =
-        nsLayoutUtils::GetActiveScrolledRootFor(scrollLayerItem->GetScrolledFrame(),
-                                                ReferenceFrame());
-    } else {
-      activeScrolledRoot = nsLayoutUtils::GetActiveScrolledRootFor(aItem, this);
-    }
-  }
-
-  if (aActiveScrolledRoot) {
-    *aActiveScrolledRoot = activeScrolledRoot;
-  }
-
+  nsIFrame* activeScrolledRoot =
+    nsLayoutUtils::GetActiveScrolledRootFor(aItem, aBuilder);
   return activeScrolledRoot &&
-    !nsLayoutUtils::IsScrolledByRootContentDocumentDisplayportScrolling(activeScrolledRoot, this);
+    !nsLayoutUtils::IsScrolledByRootContentDocumentDisplayportScrolling(activeScrolledRoot, aBuilder);
 }
 
 static bool ForceVisiblityForFixedItem(nsDisplayListBuilder* aBuilder,
                                        nsDisplayItem* aItem)
 {
   return aBuilder->GetDisplayPort() && aBuilder->GetHasFixedItems() &&
-         aBuilder->IsFixedItem(aItem);
+         IsFixedItem(aItem, aBuilder);
 }
 
 void nsDisplayListBuilder::SetDisplayPort(const nsRect& aDisplayPort)
@@ -1380,13 +1362,8 @@ RegisterThemeGeometry(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
 }
 
 nsDisplayBackground::nsDisplayBackground(nsDisplayListBuilder* aBuilder,
-                                         nsIFrame* aFrame,
-                                         uint32_t aLayer,
-                                         bool aSkipFixedItemBoundsCheck)
+                                         nsIFrame* aFrame)
   : nsDisplayItem(aBuilder, aFrame)
-  , mIsFixed(false)
-  , mIsBottommostLayer(true)
-  , mLayer(aLayer)
 {
   MOZ_COUNT_CTOR(nsDisplayBackground);
   const nsStyleDisplay* disp = mFrame->GetStyleDisplay();
@@ -1406,46 +1383,8 @@ nsDisplayBackground::nsDisplayBackground(nsDisplayListBuilder* aBuilder,
     nsPresContext* presContext = mFrame->PresContext();
     nsStyleContext* bgSC;
     bool hasBG = nsCSSRendering::FindBackground(presContext, mFrame, &bgSC);
-    if (hasBG) {
-      const nsStyleBackground* bg = bgSC->GetStyleBackground();
-      if (mLayer != bg->mImageCount - 1) {
-        mIsBottommostLayer = false;
-      }
-
-      // Check if this background layer is attachment-fixed
-      if (!bg->mLayers[mLayer].mImage.IsEmpty() &&
-          bg->mLayers[mLayer].mAttachment == NS_STYLE_BG_ATTACHMENT_FIXED) {
-        aBuilder->SetHasFixedItems();
-
-        // Check whether we should fix to viewport scrolling
-        if (bg->mLayers[mLayer].mClip == NS_STYLE_BG_CLIP_BORDER &&
-            !nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->mBorderRadius)) {
-          if (aSkipFixedItemBoundsCheck) {
-            mIsFixed = true;
-          } else {
-            nsIFrame* rootScrollFrame = presContext->PresShell()->GetRootScrollFrame();
-            if (rootScrollFrame) {
-              bool snap;
-              nsRect bounds = GetBounds(aBuilder, &snap);
-
-              // This bounds check prevents an item fixing to the viewport unless it
-              // it encompasses the scroll-port. If a fixed background doesn't
-              // encompass the scroll-port, it usually means that scrolling will
-              // expose a new area of the fixed background and cause a lot of
-              // invalidation. This performs badly, and looks especially bad when
-              // async scrolling is being used.
-              // XXX A better check would be to see if the underlying frame is fixed to
-              //     the viewport/is the viewport.
-              nsIScrollableFrame* scrollable = do_QueryFrame(rootScrollFrame);
-              nsRect scrollport(scrollable->GetScrollPortRect().TopLeft() +
-                                aBuilder->ToReferenceFrame(rootScrollFrame),
-                                scrollable->GetScrollPositionClampingScrollPortSize());
-
-              mIsFixed = bounds.Contains(scrollport);
-            }
-          }
-        }
-      }
+    if (hasBG && bgSC->GetStyleBackground()->HasFixedBackground()) {
+      aBuilder->SetHasFixedItems();
     }
   }
 }
@@ -1455,39 +1394,6 @@ nsDisplayBackground::~nsDisplayBackground()
 #ifdef NS_BUILD_REFCNT_LOGGING
   MOZ_COUNT_DTOR(nsDisplayBackground);
 #endif
-}
-
-/*static*/ nsresult
-nsDisplayBackground::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuilder,
-                                                nsIFrame* aFrame,
-                                                nsDisplayList* aList,
-                                                nsDisplayBackground** aBackground)
-{
-  nsStyleContext* bgSC;
-  const nsStyleBackground* bg = nullptr;
-  nsPresContext* presContext = aFrame->PresContext();
-  if (!aFrame->IsThemed() &&
-      nsCSSRendering::FindBackground(presContext, aFrame, &bgSC)) {
-    bg = bgSC->GetStyleBackground();
-  }
-
-  // Passing bg == nullptr in this macro will result in one iteration with
-  // i = 0.
-  bool backgroundSet = !aBackground;
-  NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, bg) {
-    nsDisplayBackground* bgItem =
-      new (aBuilder) nsDisplayBackground(aBuilder, aFrame, i);
-    nsresult rv = aList->AppendNewToTop(bgItem);
-    if (rv != NS_OK) {
-      return rv;
-    }
-    if (!backgroundSet) {
-      *aBackground = bgItem;
-      backgroundSet = true;
-    }
-  }
-
-  return NS_OK;
 }
 
 // Helper for RoundedRectIntersectsRect.
@@ -1668,11 +1574,16 @@ nsDisplayBackground::TryOptimizeToImageLayer(nsDisplayListBuilder* aBuilder)
 
   const nsStyleBackground *bg = bgSC->GetStyleBackground();
 
+  // We could pretty easily support multiple image layers, but for now we
+  // just punt here.
+  if (bg->mLayers.Length() != 1)
+    return false;
+
   uint32_t flags = aBuilder->GetBackgroundPaintFlags();
   nsPoint offset = ToReferenceFrame();
   nsRect borderArea = nsRect(offset, mFrame->GetSize());
 
-  const nsStyleBackground::Layer &layer = bg->mLayers[mLayer];
+  const nsStyleBackground::Layer &layer = bg->mLayers[0];
 
   nsBackgroundLayerState state =
     nsCSSRendering::PrepareBackgroundLayer(presContext,
@@ -1873,7 +1784,7 @@ nsDisplayBackground::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
   *aSnap = true;
 
   nsRect borderBox = nsRect(ToReferenceFrame(), mFrame->GetSize());
-  if (mIsBottommostLayer && NS_GET_A(bg->mBackgroundColor) == 255 &&
+  if (NS_GET_A(bg->mBackgroundColor) == 255 &&
       !nsCSSRendering::IsCanvasFrame(mFrame)) {
     result = GetInsideClipRegion(presContext, bottomLayer.mClip, borderBox, aSnap);
   }
@@ -1885,11 +1796,13 @@ nsDisplayBackground::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
   // Of course, if there's only one frame in the flow, it doesn't matter.
   if (bg->mBackgroundInlinePolicy == NS_STYLE_BG_INLINE_POLICY_EACH_BOX ||
       (!mFrame->GetPrevContinuation() && !mFrame->GetNextContinuation())) {
-    const nsStyleBackground::Layer& layer = bg->mLayers[mLayer];
-    if (layer.mImage.IsOpaque()) {
-      nsRect r = nsCSSRendering::GetBackgroundLayerRect(presContext, mFrame,
-          borderBox, *bg, layer);
-      result.Or(result, GetInsideClipRegion(presContext, layer.mClip, r, aSnap));
+    NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, bg) {
+      const nsStyleBackground::Layer& layer = bg->mLayers[i];
+      if (layer.mImage.IsOpaque()) {
+        nsRect r = nsCSSRendering::GetBackgroundLayerRect(presContext, mFrame,
+            borderBox, *bg, layer);
+        result.Or(result, GetInsideClipRegion(presContext, layer.mClip, r, aSnap));
+      }
     }
   }
 
@@ -1960,7 +1873,42 @@ nsDisplayBackground::IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuild
 bool
 nsDisplayBackground::ShouldFixToViewport(nsDisplayListBuilder* aBuilder)
 {
-  return mIsFixed;
+  if (mIsThemed)
+    return false;
+
+  nsPresContext* presContext = mFrame->PresContext();
+  nsStyleContext* bgSC;
+  bool hasBG =
+    nsCSSRendering::FindBackground(presContext, mFrame, &bgSC);
+  if (!hasBG)
+    return false;
+
+  const nsStyleBackground* bg = bgSC->GetStyleBackground();
+  if (!bg->HasFixedBackground())
+    return false;
+
+  NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, bg) {
+    const nsStyleBackground::Layer& layer = bg->mLayers[i];
+    if (layer.mAttachment != NS_STYLE_BG_ATTACHMENT_FIXED &&
+        !layer.mImage.IsEmpty()) {
+      return false;
+    }
+    if (layer.mClip != NS_STYLE_BG_CLIP_BORDER)
+      return false;
+  }
+
+  if (nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->mBorderRadius))
+    return false;
+
+  bool snap;
+  nsRect bounds = GetBounds(aBuilder, &snap);
+  nsIFrame* rootScrollFrame = presContext->PresShell()->GetRootScrollFrame();
+  if (!rootScrollFrame)
+    return false;
+  nsIScrollableFrame* scrollable = do_QueryFrame(rootScrollFrame);
+  nsRect scrollport = scrollable->GetScrollPortRect() +
+    aBuilder->ToReferenceFrame(rootScrollFrame);
+  return bounds.Contains(scrollport);
 }
 
 void
@@ -1977,7 +1925,7 @@ nsDisplayBackground::Paint(nsDisplayListBuilder* aBuilder,
   nsCSSRendering::PaintBackground(mFrame->PresContext(), *aCtx, mFrame,
                                   mVisibleRect,
                                   nsRect(offset, mFrame->GetSize()),
-                                  flags, nullptr, mLayer);
+                                  flags);
 }
 
 nsRect
@@ -1993,13 +1941,6 @@ nsDisplayBackground::GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) {
 
   *aSnap = true;
   return r + ToReferenceFrame();
-}
-
-uint32_t
-nsDisplayBackground::GetPerFrameKey()
-{
-  return (mLayer << nsDisplayItem::TYPE_BITS) |
-    nsDisplayItem::GetPerFrameKey();
 }
 
 nsRect

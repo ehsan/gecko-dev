@@ -46,7 +46,6 @@ PARALLEL_DIRS += \
   activities \
   bindings \
   battery \
-  bluetooth \
   browser-element \
   contacts \
   alarm \
@@ -78,6 +77,12 @@ PARALLEL_DIRS += \
   telephony \
   wifi \
   icc \
+  $(NULL)
+endif
+
+ifdef MOZ_B2G_BT
+PARALLEL_DIRS += \
+  bluetooth \
   $(NULL)
 endif
 

@@ -113,9 +113,6 @@ JSCompartment::init(JSContext *cx)
 
         if (!gcStoreBuffer.enable())
             return false;
-    } else {
-        gcNursery.disable();
-        gcStoreBuffer.disable();
     }
 #endif
 

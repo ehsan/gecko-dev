@@ -3662,18 +3662,16 @@ IonBuilder::jsop_funapply(uint32 argc)
 }
 
 bool
-IonBuilder::jsop_call(uint32 argc, bool constructing)
+IonBuilder::jsop_call_fun_barrier(AutoObjectVector &targets, uint32_t numTargets,
+                                  uint32 argc, 
+                                  bool constructing,
+                                  types::StackTypeSet *types,
+                                  types::StackTypeSet *barrier)
 {
-    // Acquire known call target if existent.
-    AutoObjectVector targets(cx);
-    uint32_t numTargets = getPolyCallTargets(argc, pc, targets, 4);
-    types::StackTypeSet *barrier;
-    types::StackTypeSet *types = oracle->returnTypeSet(script, pc, &barrier);
-
     // Attempt to inline native and scripted functions.
     if (inliningEnabled()) {
         // Inline a single native call if possible.
-        if (numTargets == 1 && targets[0]->toFunction()->isNative()) {
+        if(numTargets == 1 && targets[0]->toFunction()->isNative()) {
             RootedFunction target(cx, targets[0]->toFunction());
             switch (inlineNativeCall(target->native(), argc, constructing)) {
               case InliningStatus_Inlined:
@@ -3693,8 +3691,22 @@ IonBuilder::jsop_call(uint32 argc, bool constructing)
     return makeCallBarrier(target, argc, constructing, types, barrier);
 }
 
-MCall *
-IonBuilder::makeCallHelper(HandleFunction target, uint32 argc, bool constructing)
+bool
+IonBuilder::jsop_call(uint32 argc, bool constructing)
+{
+    // Acquire known call target if existent.
+    AutoObjectVector targets(cx);
+    uint32_t numTargets = getPolyCallTargets(argc, pc, targets, 4);
+    types::StackTypeSet *barrier;
+    types::StackTypeSet *types = oracle->returnTypeSet(script, pc, &barrier);
+    return jsop_call_fun_barrier(targets, numTargets, argc, constructing, types, barrier);
+}
+
+bool
+IonBuilder::makeCallBarrier(HandleFunction target, uint32 argc,
+                            bool constructing,
+                            types::StackTypeSet *types,
+                            types::StackTypeSet *barrier)
 {
     // This function may be called with mutated stack.
     // Querying TI for popped types is invalid.
@@ -3708,7 +3720,7 @@ IonBuilder::makeCallHelper(HandleFunction target, uint32 argc, bool constructing
 
     MCall *call = MCall::New(target, targetArgs + 1, argc, constructing);
     if (!call)
-        return NULL;
+        return false;
 
     // Explicitly pad any missing arguments with |undefined|.
     // This permits skipping the argumentsRectifier.
@@ -3739,10 +3751,8 @@ IonBuilder::makeCallHelper(HandleFunction target, uint32 argc, bool constructing
     if (constructing && target) {
         MDefinition *callee = current->peek(-1);
         MDefinition *create = createThis(target, callee);
-        if (!create) {
-            abort("Failure inlining constructor for call.");
-            return NULL;
-        }
+        if (!create)
+            return abort("Failure inlining constructor for call.");
 
         MPassArg *newThis = MPassArg::New(create);
 
@@ -3760,19 +3770,6 @@ IonBuilder::makeCallHelper(HandleFunction target, uint32 argc, bool constructing
     call->initFunction(fun);
 
     current->add(call);
-    return call;
-}
-
-bool
-IonBuilder::makeCallBarrier(HandleFunction target, uint32 argc,
-                            bool constructing,
-                            types::StackTypeSet *types,
-                            types::StackTypeSet *barrier)
-{
-    MCall *call = makeCallHelper(target, argc, constructing);
-    if (!call)
-        return false;
-
     current->push(call);
     if (!resumeAfter(call))
         return false;
@@ -5945,14 +5942,7 @@ IonBuilder::jsop_setprop(HandlePropertyName name)
         current->push(arg);
         current->add(arg);
 
-        // Call the setter. Note that we have to push the original value, not
-        // the setter's return value.
-        MCall *call = makeCallHelper(setter, 1, false);
-        if (!call)
-            return false;
-
-        current->push(value);
-        return resumeAfter(call);
+        return makeCallBarrier(setter, 1, false, NULL, NULL);
     }
 
     oracle->binaryOp(script, pc);

@@ -23,6 +23,7 @@ public class TabsButton extends ShapedButton {
     private Path mRightCurve;
 
     private boolean mCropped;
+    private int mFullWidth;
 
     public TabsButton(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -35,7 +36,6 @@ public class TabsButton extends ShapedButton {
         mPaint = new Paint();
         mPaint.setAntiAlias(true);
         mPaint.setColor(0xFF000000);
-        mPaint.setStrokeWidth(0.0f);
 
         // Path is masked.
         mPath = new Path();
@@ -43,6 +43,9 @@ public class TabsButton extends ShapedButton {
         mLeftCurve = new Path();
         mRightCurve = new Path();
         mCanvasDelegate = new CanvasDelegate(this, Mode.DST_IN);
+
+        // Path might extend beyond the screen for smaller tabs button.
+        mFullWidth = (int) context.getResources().getDimension(R.dimen.tabs_button_full_width);
     }
 
     @Override
@@ -61,11 +64,11 @@ public class TabsButton extends ShapedButton {
 
         if (mSide == CurveTowards.RIGHT) {
             left = 0;
-            right = width;
+            right = mFullWidth;
             top = 0;
             bottom = height;
         } else {
-            left = 0;
+            left = width - mFullWidth;
             right = width;
             top = height;
             bottom = 0;
@@ -75,8 +78,9 @@ public class TabsButton extends ShapedButton {
         mLeftCurve.moveTo(left, top);
 
         if (mCropped && mSide == CurveTowards.LEFT) {
-            mLeftCurve.lineTo(left, top/2);
-            mLeftCurve.quadTo(left * 0.95f, top * 0.05f, left + curve/2, bottom);
+            mLeftCurve.cubicTo(left + curve, top,
+                               left, bottom,
+                               left + curve, bottom);
         } else {
             mLeftCurve.cubicTo(left + (curve * 0.75f), top,
                                left + (curve * 0.25f), bottom,
@@ -87,8 +91,9 @@ public class TabsButton extends ShapedButton {
         mRightCurve.moveTo(right, bottom);
 
         if (mCropped && mSide == CurveTowards.RIGHT) {
-            mRightCurve.lineTo(right, bottom/2);
-            mRightCurve.quadTo(right * 0.95f, bottom * 0.05f, right - (curve/2), top);
+            mRightCurve.cubicTo(right - curve, bottom,
+                                right, top,
+                                right - curve, top);
         } else {
             mRightCurve.cubicTo(right - (curve * 0.75f), bottom,
                                 right - (curve * 0.25f), top,

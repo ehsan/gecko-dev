@@ -1160,9 +1160,7 @@ str_contains(JSContext *cx, unsigned argc, Value *vp)
             return false;
 
         // Step 6
-        uint32_t delta = uint32_t(Min(double(textlen), Max(0.0, posDouble)));
-        text += delta;
-        textlen -= delta;
+        text += uint32_t(Min(double(textlen), Max(0.0, posDouble)));
     }
 
     // Step 7

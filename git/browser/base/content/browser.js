@@ -90,9 +90,6 @@ __defineSetter__("PluralForm", function (val) {
 XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
                                   "resource://gre/modules/TelemetryStopwatch.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "AboutHomeUtils",
-                                  "resource:///modules/AboutHomeUtils.jsm");
-
 #ifdef MOZ_SERVICES_SYNC
 XPCOMUtils.defineLazyGetter(this, "Weave", function() {
   let tmp = {};
@@ -158,12 +155,6 @@ XPCOMUtils.defineLazyGetter(this, "gBrowserNewTabPreloader", function () {
   let tmp = {};
   Cu.import("resource:///modules/BrowserNewTabPreloader.jsm", tmp);
   return new tmp.BrowserNewTabPreloader();
-});
-
-XPCOMUtils.defineLazyGetter(this, "TabTitleAbridger", function() {
-  let tmp = {};
-  Cu.import("resource:///modules/TabTitleAbridger.jsm", tmp);
-  return new tmp.TabTitleAbridger(window);
 });
 
 let gInitialPages = [
@@ -1423,7 +1414,6 @@ var gBrowserInit = {
 
     gBrowserThumbnails.init();
     TabView.init();
-    TabTitleAbridger.init();
 
     setUrlAndSearchBarWidthForConditionalForwardButton();
     window.addEventListener("resize", function resizeHandler(event) {
@@ -1611,7 +1601,6 @@ var gBrowserInit = {
       TabView.uninit();
       gBrowserThumbnails.uninit();
       FullZoom.destroy();
-      TabTitleAbridger.destroy();
 
       Services.obs.removeObserver(gSessionHistoryObserver, "browser:purge-session-history");
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-disabled");
@@ -2506,19 +2495,10 @@ function BrowserOnAboutPageLoad(document) {
     // the hidden attribute set on the apps button in aboutHome.xhtml
     if (getBoolPref("browser.aboutHome.apps", false))
       document.getElementById("apps").removeAttribute("hidden");
-
     let ss = Components.classes["@mozilla.org/browser/sessionstore;1"].
              getService(Components.interfaces.nsISessionStore);
     if (!ss.canRestoreLastSession)
       document.getElementById("launcher").removeAttribute("session");
-
-    // Inject search engine and snippets URL.
-    let docElt = document.documentElement;
-    docElt.setAttribute("snippetsURL", AboutHomeUtils.snippetsURL);
-    docElt.setAttribute("searchEngineName",
-                        AboutHomeUtils.defaultSearchEngine.name);
-    docElt.setAttribute("searchEngineURL",
-                        AboutHomeUtils.defaultSearchEngine.searchURL);
   }
 }
 
@@ -5695,11 +5675,13 @@ var OfflineApps = {
   // OfflineApps Public Methods
   init: function ()
   {
+    Services.obs.addObserver(this, "dom-storage-warn-quota-exceeded", false);
     Services.obs.addObserver(this, "offline-cache-update-completed", false);
   },
 
   uninit: function ()
   {
+    Services.obs.removeObserver(this, "dom-storage-warn-quota-exceeded");
     Services.obs.removeObserver(this, "offline-cache-update-completed");
   },
 
@@ -5941,7 +5923,19 @@ var OfflineApps = {
   // nsIObserver
   observe: function (aSubject, aTopic, aState)
   {
-    if (aTopic == "offline-cache-update-completed") {
+    if (aTopic == "dom-storage-warn-quota-exceeded") {
+      if (aSubject) {
+        var uri = makeURI(aSubject.location.href);
+
+        if (OfflineApps._checkUsage(uri)) {
+          var browserWindow =
+            this._getBrowserWindowForContentWindow(aSubject);
+          var browser = this._getBrowserForContentWindow(browserWindow,
+                                                         aSubject);
+          OfflineApps._warnUsage(browser, uri);
+        }
+      }
+    } else if (aTopic == "offline-cache-update-completed") {
       var cacheUpdate = aSubject.QueryInterface(Ci.nsIOfflineCacheUpdate);
 
       var uri = cacheUpdate.manifestURI;

@@ -67,12 +67,9 @@ SessionStore.prototype = {
         this._lastSessionTime = this._sessionFile.lastModifiedTime;
         let delta = Date.now() - this._lastSessionTime;
         let timeout = Services.prefs.getIntPref("browser.sessionstore.resume_from_crash_timeout");
-
         // Disable crash recovery if we have exceeded the timeout
         this._shouldRestore = (delta <= (timeout * 60000));
-        if (!this._shouldRestore) {
-          this._sessionFile.clone().moveTo(null, this._sessionFileBackup.leafName);
-        }
+        this._sessionFile.clone().moveTo(null, this._sessionFileBackup.leafName);
       }
 
       if (!this._sessionCache.exists() || !this._sessionCache.isDirectory())
@@ -892,22 +889,7 @@ SessionStore.prototype = {
       Services.obs.notifyObservers(null, "sessionstore-windows-restored", aMessage || "");
     }
 
-    let sessionFile = this._sessionFile;
-
-    // aForceRestore will be true when we are recovering from Android OOM kills
     if (!aForceRestore) {
-      // If we are not recovering from an OOM kill (i.e., we actually crashed),
-      // move sessionstore.js -> sessionstore.bak. sessionstore.bak is used in
-      // about:home to read the "tabs from last time", so since we've started a
-      // new session after the crash, we need to make sure sessionstore.bak is
-      // current. We do not move sessionstore.js -> sessionstore.bak if we had
-      // an OOM kill since restoring from an OOM kill should look like the same
-      // session as before (so the "tabs from last time" should stay the same).
-      if (sessionFile.exists()) {
-        sessionFile.clone().moveTo(null, this._sessionFileBackup.leafName);
-        sessionFile = this._sessionFileBackup;
-      }
-
       let maxCrashes = Services.prefs.getIntPref("browser.sessionstore.max_resumed_crashes");
       let recentCrashes = Services.prefs.getIntPref("browser.sessionstore.recent_crashes") + 1;
       Services.prefs.setIntPref("browser.sessionstore.recent_crashes", recentCrashes);
@@ -919,13 +901,14 @@ SessionStore.prototype = {
       }
     }
 
-    if (!sessionFile.exists()) {
+    // The previous session data has already been renamed to the backup file
+    if (!this._sessionFileBackup.exists()) {
       notifyObservers("fail");
       return;
     }
 
     try {
-      let channel = NetUtil.newChannel(sessionFile);
+      let channel = NetUtil.newChannel(this._sessionFileBackup);
       channel.contentType = "application/json";
       NetUtil.asyncFetch(channel, function(aStream, aResult) {
         if (!Components.isSuccessCode(aResult)) {
@@ -948,8 +931,7 @@ SessionStore.prototype = {
           Cu.reportError("SessionStore: Could not parse JSON: " + ex);
         }
 
-        // To do a restore, we must have at least one window with one tab
-        if (!data || data.windows.length == 0 || !data.windows[0].tabs || data.windows[0].tabs.length == 0) {
+        if (!data || data.windows.length == 0) {
           notifyObservers("fail");
           return;
         }
