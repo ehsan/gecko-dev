@@ -87,7 +87,7 @@ class MarkStack
             if (!enlarge(1))
                 return false;
         }
-        MOZ_ASSERT(tos_ < end_);
+        JS_ASSERT(tos_ < end_);
         *tos_++ = item;
         return true;
     }
@@ -99,7 +99,7 @@ class MarkStack
                 return false;
             nextTos = tos_ + 3;
         }
-        MOZ_ASSERT(nextTos <= end_);
+        JS_ASSERT(nextTos <= end_);
         tos_[0] = item1;
         tos_[1] = item2;
         tos_[2] = item3;
@@ -112,7 +112,7 @@ class MarkStack
     }
 
     uintptr_t pop() {
-        MOZ_ASSERT(!isEmpty());
+        JS_ASSERT(!isEmpty());
         return *--tos_;
     }
 
@@ -163,14 +163,14 @@ class GCMarker : public JSTracer
      * objects that are still reachable.
      */
     void setMarkColorGray() {
-        MOZ_ASSERT(isDrained());
-        MOZ_ASSERT(color == gc::BLACK);
+        JS_ASSERT(isDrained());
+        JS_ASSERT(color == gc::BLACK);
         color = gc::GRAY;
     }
 
     void setMarkColorBlack() {
-        MOZ_ASSERT(isDrained());
-        MOZ_ASSERT(color == gc::GRAY);
+        JS_ASSERT(isDrained());
+        JS_ASSERT(color == gc::GRAY);
         color = gc::BLACK;
     }
 
@@ -245,7 +245,7 @@ class GCMarker : public JSTracer
     void pushTaggedPtr(StackTag tag, void *ptr) {
         checkZone(ptr);
         uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
-        MOZ_ASSERT(!(addr & StackTagMask));
+        JS_ASSERT(!(addr & StackTagMask));
         if (!stack.push(addr | uintptr_t(tag)))
             delayMarkingChildren(ptr);
     }
@@ -253,7 +253,7 @@ class GCMarker : public JSTracer
     void pushValueArray(JSObject *obj, void *start, void *end) {
         checkZone(obj);
 
-        MOZ_ASSERT(start <= end);
+        JS_ASSERT(start <= end);
         uintptr_t tagged = reinterpret_cast<uintptr_t>(obj) | GCMarker::ValueArrayTag;
         uintptr_t startAddr = reinterpret_cast<uintptr_t>(start);
         uintptr_t endAddr = reinterpret_cast<uintptr_t>(end);

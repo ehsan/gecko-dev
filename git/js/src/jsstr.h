@@ -39,7 +39,7 @@ template <typename CharT>
 static inline const CharT *
 SkipSpace(const CharT *s, const CharT *end)
 {
-    MOZ_ASSERT(s <= end);
+    JS_ASSERT(s <= end);
 
     while (s < end && unicode::IsSpace(*s))
         s++;
@@ -300,26 +300,6 @@ str_fromCharCode(JSContext *cx, unsigned argc, Value *vp);
 extern bool
 str_fromCharCode_one_arg(JSContext *cx, HandleValue code, MutableHandleValue rval);
 
-/* String methods exposed so they can be installed in the self-hosting global. */
-
-extern bool
-str_indexOf(JSContext *cx, unsigned argc, Value *vp);
-
-extern bool
-str_lastIndexOf(JSContext *cx, unsigned argc, Value *vp);
-
-extern bool
-str_startsWith(JSContext *cx, unsigned argc, Value *vp);
-
-extern bool
-str_substring(JSContext *cx, unsigned argc, Value *vp);
-
-extern bool
-str_toLowerCase(JSContext *cx, unsigned argc, Value *vp);
-
-extern bool
-str_toUpperCase(JSContext *cx, unsigned argc, Value *vp);
-
 } /* namespace js */
 
 extern bool
@@ -369,7 +349,7 @@ PutEscapedString(char *buffer, size_t size, JSLinearString *str, uint32_t quote)
     size_t n = PutEscapedStringImpl(buffer, size, nullptr, str, quote);
 
     /* PutEscapedStringImpl can only fail with a file. */
-    MOZ_ASSERT(n != size_t(-1));
+    JS_ASSERT(n != size_t(-1));
     return n;
 }
 
@@ -380,7 +360,7 @@ PutEscapedString(char *buffer, size_t bufferSize, const CharT *chars, size_t len
     size_t n = PutEscapedStringImpl(buffer, bufferSize, nullptr, chars, length, quote);
 
     /* PutEscapedStringImpl can only fail with a file. */
-    MOZ_ASSERT(n != size_t(-1));
+    JS_ASSERT(n != size_t(-1));
     return n;
 }
 

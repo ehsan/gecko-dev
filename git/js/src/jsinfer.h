@@ -47,11 +47,11 @@ class TaggedProto
         return uintptr_t(proto) > uintptr_t(TaggedProto::LazyProto);
     }
     JSObject *toObject() const {
-        MOZ_ASSERT(isObject());
+        JS_ASSERT(isObject());
         return proto;
     }
     JSObject *toObjectOrNull() const {
-        MOZ_ASSERT(!proto || isObject());
+        JS_ASSERT(!proto || isObject());
         return proto;
     }
     JSObject *raw() const { return proto; }
@@ -233,12 +233,12 @@ class Type
     }
 
     bool isPrimitive(JSValueType type) const {
-        MOZ_ASSERT(type < JSVAL_TYPE_OBJECT);
+        JS_ASSERT(type < JSVAL_TYPE_OBJECT);
         return (uintptr_t) type == data;
     }
 
     JSValueType primitive() const {
-        MOZ_ASSERT(isPrimitive());
+        JS_ASSERT(isPrimitive());
         return (JSValueType) data;
     }
 
@@ -261,7 +261,7 @@ class Type
     /* Accessors for types that are either JSObject or TypeObject. */
 
     bool isObject() const {
-        MOZ_ASSERT(!isAnyObject() && !isUnknown());
+        JS_ASSERT(!isAnyObject() && !isUnknown());
         return data > JSVAL_TYPE_UNKNOWN;
     }
 
@@ -304,7 +304,7 @@ class Type
     static inline Type UnknownType()   { return Type(JSVAL_TYPE_UNKNOWN); }
 
     static inline Type PrimitiveType(JSValueType type) {
-        MOZ_ASSERT(type < JSVAL_TYPE_UNKNOWN);
+        JS_ASSERT(type < JSVAL_TYPE_UNKNOWN);
         return Type(type);
     }
 
@@ -552,7 +552,7 @@ class TypeSet
     bool empty() const { return !baseFlags() && !baseObjectCount(); }
 
     bool hasAnyFlag(TypeFlags flags) const {
-        MOZ_ASSERT((flags & TYPE_FLAG_BASE_MASK) == flags);
+        JS_ASSERT((flags & TYPE_FLAG_BASE_MASK) == flags);
         return !!(baseFlags() & flags);
     }
 
@@ -567,7 +567,7 @@ class TypeSet
     }
     bool definiteProperty() const { return flags & TYPE_FLAG_DEFINITE_MASK; }
     unsigned definiteSlot() const {
-        MOZ_ASSERT(definiteProperty());
+        JS_ASSERT(definiteProperty());
         return (flags >> TYPE_FLAG_DEFINITE_SHIFT) - 1;
     }
 
@@ -603,9 +603,9 @@ class TypeSet
         return (slot + 1) <= (unsigned(TYPE_FLAG_DEFINITE_MASK) >> TYPE_FLAG_DEFINITE_SHIFT);
     }
     void setDefinite(unsigned slot) {
-        MOZ_ASSERT(canSetDefinite(slot));
+        JS_ASSERT(canSetDefinite(slot));
         flags |= ((slot + 1) << TYPE_FLAG_DEFINITE_SHIFT);
-        MOZ_ASSERT(definiteSlot() == slot);
+        JS_ASSERT(definiteSlot() == slot);
     }
 
     /* Whether any values in this set might have the specified type. */
@@ -945,13 +945,13 @@ class TypeNewScript
 
     bool analyzed() const {
         if (preliminaryObjects) {
-            MOZ_ASSERT(!templateObject());
-            MOZ_ASSERT(!initializerList);
-            MOZ_ASSERT(!initializedShape());
-            MOZ_ASSERT(!initializedType());
+            JS_ASSERT(!templateObject());
+            JS_ASSERT(!initializerList);
+            JS_ASSERT(!initializedShape());
+            JS_ASSERT(!initializedType());
             return false;
         }
-        MOZ_ASSERT(templateObject());
+        JS_ASSERT(templateObject());
         return true;
     }
 
@@ -1027,7 +1027,7 @@ struct TypeObject : public gc::TenuredCell
     }
 
     void setClasp(const Class *clasp) {
-        MOZ_ASSERT(singleton());
+        JS_ASSERT(singleton());
         clasp_ = clasp;
     }
 
@@ -1137,17 +1137,17 @@ struct TypeObject : public gc::TenuredCell
     inline TypeObject(const Class *clasp, TaggedProto proto, TypeObjectFlags initialFlags);
 
     bool hasAnyFlags(TypeObjectFlags flags) {
-        MOZ_ASSERT((flags & OBJECT_FLAG_DYNAMIC_MASK) == flags);
+        JS_ASSERT((flags & OBJECT_FLAG_DYNAMIC_MASK) == flags);
         return !!(this->flags() & flags);
     }
     bool hasAllFlags(TypeObjectFlags flags) {
-        MOZ_ASSERT((flags & OBJECT_FLAG_DYNAMIC_MASK) == flags);
+        JS_ASSERT((flags & OBJECT_FLAG_DYNAMIC_MASK) == flags);
         return (this->flags() & flags) == flags;
     }
 
     bool unknownProperties() {
-        MOZ_ASSERT_IF(flags() & OBJECT_FLAG_UNKNOWN_PROPERTIES,
-                      hasAllFlags(OBJECT_FLAG_DYNAMIC_MASK));
+        JS_ASSERT_IF(flags() & OBJECT_FLAG_UNKNOWN_PROPERTIES,
+                     hasAllFlags(OBJECT_FLAG_DYNAMIC_MASK));
         return !!(flags() & OBJECT_FLAG_UNKNOWN_PROPERTIES);
     }
 
@@ -1176,7 +1176,7 @@ struct TypeObject : public gc::TenuredCell
     }
 
     void setShouldPreTenure(ExclusiveContext *cx) {
-        MOZ_ASSERT(canPreTenure());
+        JS_ASSERT(canPreTenure());
         setFlags(cx, OBJECT_FLAG_PRE_TENURE);
     }
 
@@ -1234,10 +1234,6 @@ struct TypeObject : public gc::TenuredCell
 
     static inline uint32_t offsetOfProto() {
         return offsetof(TypeObject, proto_);
-    }
-
-    static inline uint32_t offsetOfNewScript() {
-        return offsetof(TypeObject, newScript_);
     }
 
   private:
@@ -1447,11 +1443,11 @@ struct TypeObjectKey
     static TypeObjectKey *getKey(TypeObjectKey *obj) { return obj; }
 
     static TypeObjectKey *get(JSObject *obj) {
-        MOZ_ASSERT(obj);
+        JS_ASSERT(obj);
         return (TypeObjectKey *) (uintptr_t(obj) | 1);
     }
     static TypeObjectKey *get(TypeObject *obj) {
-        MOZ_ASSERT(obj);
+        JS_ASSERT(obj);
         return (TypeObjectKey *) obj;
     }
 
@@ -1587,7 +1583,7 @@ class CompilerOutput
         sweepIndex_ = INVALID_SWEEP_INDEX;
     }
     uint32_t sweepIndex() {
-        MOZ_ASSERT(sweepIndex_ != INVALID_SWEEP_INDEX);
+        JS_ASSERT(sweepIndex_ != INVALID_SWEEP_INDEX);
         return sweepIndex_;
     }
 };

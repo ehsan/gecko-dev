@@ -610,7 +610,6 @@ public:
                            uint32_t        aOffset,
                            uint32_t        aLength,
                            int32_t         aScript,
-                           bool            aVertical,
                            gfxShapedText  *aShapedText) = 0;
 
     gfxFont *GetFont() const { return mFont; }
@@ -1528,8 +1527,7 @@ public:
      * -- all glyphs use this font
      */
     void Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
-              gfxPoint *aPt, const TextRunDrawParams& aRunParams,
-              uint16_t aOrientation);
+              gfxPoint *aPt, const TextRunDrawParams& aRunParams);
 
     /**
      * Measure a run of characters. See gfxTextRun::Metrics.
@@ -1632,8 +1630,7 @@ public:
                              const T *aString,
                              uint32_t aRunStart,
                              uint32_t aRunLength,
-                             int32_t aRunScript,
-                             bool aVertical);
+                             int32_t aRunScript);
 
     // Get a ShapedWord representing the given text (either 8- or 16-bit)
     // for use in setting up a gfxTextRun.
@@ -1643,7 +1640,6 @@ public:
                                  uint32_t aLength,
                                  uint32_t aHash,
                                  int32_t aRunScript,
-                                 bool aVertical,
                                  int32_t aAppUnitsPerDevUnit,
                                  uint32_t aFlags,
                                  gfxTextPerfMetrics *aTextPerf);
@@ -1820,7 +1816,6 @@ protected:
                    uint32_t       aOffset, // dest offset in gfxShapedText
                    uint32_t       aLength,
                    int32_t        aScript,
-                   bool           aVertical,
                    gfxShapedText *aShapedText); // where to store the result
 
     // Call the appropriate shaper to generate glyphs for aText and store
@@ -1830,7 +1825,6 @@ protected:
                            uint32_t         aOffset,
                            uint32_t         aLength,
                            int32_t          aScript,
-                           bool             aVertical,
                            gfxShapedText   *aShapedText);
 
     // Helper to adjust for synthetic bold and set character-type flags
@@ -1855,7 +1849,6 @@ protected:
                                    uint32_t    aOffset,
                                    uint32_t    aLength,
                                    int32_t     aScript,
-                                   bool        aVertical,
                                    gfxTextRun *aTextRun);
 
     // Shape a fragment of text (a run that is known to contain only
@@ -1869,7 +1862,6 @@ protected:
                                        uint32_t    aOffset,
                                        uint32_t    aLength,
                                        int32_t     aScript,
-                                       bool        aVertical,
                                        gfxTextRun *aTextRun);
 
     void CheckForFeaturesInvolvingSpace();
@@ -2061,7 +2053,6 @@ struct TextRunDrawParams {
     gfxFloat                 direction;
     double                   devPerApp;
     DrawMode                 drawMode;
-    bool                     isVerticalRun;
     bool                     isRTL;
     bool                     paintSVGGlyphs;
 };
@@ -2075,7 +2066,6 @@ struct FontDrawParams {
     double                    synBoldOnePixelOffset;
     int32_t                   extraStrikes;
     mozilla::gfx::DrawOptions drawOptions;
-    bool                      isVerticalFont;
     bool                      haveSVGGlyphs;
     bool                      haveColorGlyphs;
 };

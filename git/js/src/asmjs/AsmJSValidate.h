@@ -75,7 +75,7 @@ RoundUpToNextValidAsmJSHeapLength(uint32_t length)
     if (length <= 16 * 1024 * 1024)
         return mozilla::RoundUpPow2(length);
 
-    MOZ_ASSERT(length <= 0xff000000);
+    JS_ASSERT(length <= 0xff000000);
     return (length + 0x00ffffff) & ~0x00ffffff;
 }
 
@@ -86,8 +86,8 @@ IsValidAsmJSHeapLength(uint32_t length)
                  (IsPowerOfTwo(length) ||
                   (length & 0x00ffffff) == 0);
 
-    MOZ_ASSERT_IF(valid, length % AsmJSPageSize == 0);
-    MOZ_ASSERT_IF(valid, length == RoundUpToNextValidAsmJSHeapLength(length));
+    JS_ASSERT_IF(valid, length % AsmJSPageSize == 0);
+    JS_ASSERT_IF(valid, length == RoundUpToNextValidAsmJSHeapLength(length));
 
     return valid;
 }

@@ -207,8 +207,8 @@ class MOZ_STACK_CLASS RegExpMacroAssembler
     int num_saved_registers_;
 
     void checkRegister(int reg) {
-        MOZ_ASSERT(reg >= 0);
-        MOZ_ASSERT(reg <= kMaxRegister);
+        JS_ASSERT(reg >= 0);
+        JS_ASSERT(reg <= kMaxRegister);
         if (num_registers_ <= reg)
             num_registers_ = reg + 1;
     }

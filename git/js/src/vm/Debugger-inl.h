@@ -25,7 +25,7 @@ js::Debugger::onLeaveFrame(JSContext *cx, AbstractFramePtr frame, bool ok)
 /* static */ inline js::Debugger *
 js::Debugger::fromJSObject(JSObject *obj)
 {
-    MOZ_ASSERT(js::GetObjectClass(obj) == &jsclass);
+    JS_ASSERT(js::GetObjectClass(obj) == &jsclass);
     return (Debugger *) obj->getPrivate();
 }
 

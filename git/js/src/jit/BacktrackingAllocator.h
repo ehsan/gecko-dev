@@ -78,7 +78,7 @@ class BacktrackingVirtualRegister : public VirtualRegister
     }
 
     void setCanonicalSpill(LAllocation alloc) {
-        MOZ_ASSERT(!alloc.isUse());
+        JS_ASSERT(!alloc.isUse());
         canonicalSpill_ = alloc;
     }
     const LAllocation *canonicalSpill() const {
@@ -92,7 +92,7 @@ class BacktrackingVirtualRegister : public VirtualRegister
         return canonicalSpillExclude_.bits() != 0;
     }
     CodePosition canonicalSpillExclude() const {
-        MOZ_ASSERT(hasCanonicalSpillExclude());
+        JS_ASSERT(hasCanonicalSpillExclude());
         return canonicalSpillExclude_;
     }
 

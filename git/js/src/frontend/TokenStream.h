@@ -38,9 +38,9 @@ struct TokenPos {
 
     // Return a TokenPos that covers left, right, and anything in between.
     static TokenPos box(const TokenPos &left, const TokenPos &right) {
-        MOZ_ASSERT(left.begin <= left.end);
-        MOZ_ASSERT(left.end <= right.begin);
-        MOZ_ASSERT(right.begin <= right.end);
+        JS_ASSERT(left.begin <= left.end);
+        JS_ASSERT(left.end <= right.begin);
+        JS_ASSERT(right.begin <= right.end);
         return TokenPos(left.begin, right.end);
     }
 
@@ -113,27 +113,27 @@ struct Token
     // Mutators
 
     void setName(PropertyName *name) {
-        MOZ_ASSERT(type == TOK_NAME);
-        MOZ_ASSERT(!IsPoisonedPtr(name));
+        JS_ASSERT(type == TOK_NAME);
+        JS_ASSERT(!IsPoisonedPtr(name));
         u.name = name;
     }
 
     void setAtom(JSAtom *atom) {
-        MOZ_ASSERT(type == TOK_STRING ||
+        JS_ASSERT (type == TOK_STRING ||
                    type == TOK_TEMPLATE_HEAD ||
                    type == TOK_NO_SUBS_TEMPLATE);
-        MOZ_ASSERT(!IsPoisonedPtr(atom));
+        JS_ASSERT(!IsPoisonedPtr(atom));
         u.atom = atom;
     }
 
     void setRegExpFlags(js::RegExpFlag flags) {
-        MOZ_ASSERT(type == TOK_REGEXP);
-        MOZ_ASSERT((flags & AllFlags) == flags);
+        JS_ASSERT(type == TOK_REGEXP);
+        JS_ASSERT((flags & AllFlags) == flags);
         u.reflags = flags;
     }
 
     void setNumber(double n, DecimalPoint decimalPoint) {
-        MOZ_ASSERT(type == TOK_NUMBER);
+        JS_ASSERT(type == TOK_NUMBER);
         u.number.value = n;
         u.number.decimalPoint = decimalPoint;
     }
@@ -141,30 +141,30 @@ struct Token
     // Type-safe accessors
 
     PropertyName *name() const {
-        MOZ_ASSERT(type == TOK_NAME);
+        JS_ASSERT(type == TOK_NAME);
         return u.name->asPropertyName(); // poor-man's type verification
     }
 
     JSAtom *atom() const {
-        MOZ_ASSERT(type == TOK_STRING ||
+        JS_ASSERT (type == TOK_STRING ||
                    type == TOK_TEMPLATE_HEAD ||
                    type == TOK_NO_SUBS_TEMPLATE);
         return u.atom;
     }
 
     js::RegExpFlag regExpFlags() const {
-        MOZ_ASSERT(type == TOK_REGEXP);
-        MOZ_ASSERT((u.reflags & AllFlags) == u.reflags);
+        JS_ASSERT(type == TOK_REGEXP);
+        JS_ASSERT((u.reflags & AllFlags) == u.reflags);
         return u.reflags;
     }
 
     double number() const {
-        MOZ_ASSERT(type == TOK_NUMBER);
+        JS_ASSERT(type == TOK_NUMBER);
         return u.number.value;
     }
 
     DecimalPoint decimalPoint() const {
-        MOZ_ASSERT(type == TOK_NUMBER);
+        JS_ASSERT(type == TOK_NUMBER);
         return u.number.decimalPoint;
     }
 };
@@ -277,7 +277,7 @@ class MOZ_STACK_CLASS TokenStream
     PropertyName *currentName() const {
         if (isCurrentTokenType(TOK_YIELD))
             return cx->names().yield;
-        MOZ_ASSERT(isCurrentTokenType(TOK_NAME));
+        JS_ASSERT(isCurrentTokenType(TOK_NAME));
         return currentToken().name();
     }
 
@@ -310,8 +310,8 @@ class MOZ_STACK_CLASS TokenStream
     void reportAsmJSError(uint32_t offset, unsigned errorNumber, ...);
 
     JSAtom *getRawTemplateStringAtom() {
-        MOZ_ASSERT(currentToken().type == TOK_TEMPLATE_HEAD ||
-                   currentToken().type == TOK_NO_SUBS_TEMPLATE);
+        JS_ASSERT(currentToken().type == TOK_TEMPLATE_HEAD ||
+                  currentToken().type == TOK_NO_SUBS_TEMPLATE);
         const char16_t *cur = userbuf.base() + currentToken().pos.begin + 1;
         const char16_t *end;
         if (currentToken().type == TOK_TEMPLATE_HEAD) {
@@ -380,7 +380,7 @@ class MOZ_STACK_CLASS TokenStream
             lookahead--;
             cursor = (cursor + 1) & ntokensMask;
             TokenKind tt = currentToken().type;
-            MOZ_ASSERT(tt != TOK_EOL);
+            JS_ASSERT(tt != TOK_EOL);
             return tt;
         }
 
@@ -389,7 +389,7 @@ class MOZ_STACK_CLASS TokenStream
 
     // Push the last scanned token back into the stream.
     void ungetToken() {
-        MOZ_ASSERT(lookahead < maxLookahead);
+        JS_ASSERT(lookahead < maxLookahead);
         lookahead++;
         cursor = (cursor - 1) & ntokensMask;
     }
@@ -407,7 +407,7 @@ class MOZ_STACK_CLASS TokenStream
             return tokens[(cursor + 1) & ntokensMask].pos;
         getTokenInternal(modifier);
         ungetToken();
-        MOZ_ASSERT(lookahead != 0);
+        JS_ASSERT(lookahead != 0);
         return tokens[(cursor + 1) & ntokensMask].pos;
     }
 
@@ -589,7 +589,7 @@ class MOZ_STACK_CLASS TokenStream
 
         bool isOnThisLine(uint32_t offset, uint32_t lineNum) const {
             uint32_t lineIndex = lineNumToIndex(lineNum);
-            MOZ_ASSERT(lineIndex + 1 < lineStartOffsets_.length());  // +1 due to sentinel
+            JS_ASSERT(lineIndex + 1 < lineStartOffsets_.length());  // +1 due to sentinel
             return lineStartOffsets_[lineIndex] <= offset &&
                    offset < lineStartOffsets_[lineIndex + 1];
         }
@@ -658,7 +658,7 @@ class MOZ_STACK_CLASS TokenStream
         }
 
         bool matchRawCharBackwards(char16_t c) {
-            MOZ_ASSERT(ptr);     // make sure it hasn't been poisoned
+            JS_ASSERT(ptr);     // make sure it hasn't been poisoned
             if (*(ptr - 1) == c) {
                 ptr--;
                 return true;
@@ -667,18 +667,18 @@ class MOZ_STACK_CLASS TokenStream
         }
 
         void ungetRawChar() {
-            MOZ_ASSERT(ptr);     // make sure it hasn't been poisoned
+            JS_ASSERT(ptr);     // make sure it hasn't been poisoned
             ptr--;
         }
 
         const char16_t *addressOfNextRawChar(bool allowPoisoned = false) const {
-            MOZ_ASSERT_IF(!allowPoisoned, ptr);     // make sure it hasn't been poisoned
+            JS_ASSERT_IF(!allowPoisoned, ptr);     // make sure it hasn't been poisoned
             return ptr;
         }
 
         // Use this with caution!
         void setAddressOfNextRawChar(const char16_t *a, bool allowPoisoned = false) {
-            MOZ_ASSERT_IF(!allowPoisoned, a);
+            JS_ASSERT_IF(!allowPoisoned, a);
             ptr = a;
         }
 
@@ -734,7 +734,7 @@ class MOZ_STACK_CLASS TokenStream
 
     void consumeKnownChar(int32_t expect) {
         mozilla::DebugOnly<int32_t> c = getChar();
-        MOZ_ASSERT(c == expect);
+        JS_ASSERT(c == expect);
     }
 
     int32_t peekChar() {

@@ -35,7 +35,7 @@ struct AnyRegister {
         code_ = fpu.code() + Registers::Total;
     }
     static AnyRegister FromCode(uint32_t i) {
-        MOZ_ASSERT(i < Total);
+        JS_ASSERT(i < Total);
         AnyRegister r;
         r.code_ = i;
         return r;
@@ -44,11 +44,11 @@ struct AnyRegister {
         return code_ >= Registers::Total;
     }
     Register gpr() const {
-        MOZ_ASSERT(!isFloat());
+        JS_ASSERT(!isFloat());
         return Register::FromCode(code_);
     }
     FloatRegister fpu() const {
-        MOZ_ASSERT(isFloat());
+        JS_ASSERT(isFloat());
         return FloatRegister::FromCode(code_ - Registers::Total);
     }
     bool operator ==(AnyRegister other) const {
@@ -77,7 +77,7 @@ struct AnyRegister {
             gpr().aliased(aliasIdx, &gret);
             ret = AnyRegister(gret);
         }
-        MOZ_ASSERT_IF(aliasIdx == 0, ret == *this);
+        JS_ASSERT_IF(aliasIdx == 0, ret == *this);
         return ret;
     }
     uint32_t numAliased() const {
@@ -172,20 +172,20 @@ class TypedOrValueRegister
     } data;
 
     AnyRegister &dataTyped() {
-        MOZ_ASSERT(hasTyped());
+        JS_ASSERT(hasTyped());
         return *data.typed.addr();
     }
     ValueOperand &dataValue() {
-        MOZ_ASSERT(hasValue());
+        JS_ASSERT(hasValue());
         return *data.value.addr();
     }
 
     AnyRegister dataTyped() const {
-        MOZ_ASSERT(hasTyped());
+        JS_ASSERT(hasTyped());
         return *data.typed.addr();
     }
     const ValueOperand &dataValue() const {
-        MOZ_ASSERT(hasValue());
+        JS_ASSERT(hasValue());
         return *data.value.addr();
     }
 
@@ -247,11 +247,11 @@ class ConstantOrRegister
     } data;
 
     Value &dataValue() {
-        MOZ_ASSERT(constant());
+        JS_ASSERT(constant());
         return *data.constant.addr();
     }
     TypedOrValueRegister &dataReg() {
-        MOZ_ASSERT(!constant());
+        JS_ASSERT(!constant());
         return *data.reg.addr();
     }
 
@@ -301,15 +301,15 @@ struct Int32Key {
     { }
 
     inline void bumpConstant(int diff) {
-        MOZ_ASSERT(!isRegister_);
+        JS_ASSERT(!isRegister_);
         constant_ += diff;
     }
     inline Register reg() const {
-        MOZ_ASSERT(isRegister_);
+        JS_ASSERT(isRegister_);
         return reg_;
     }
     inline int32_t constant() const {
-        MOZ_ASSERT(!isRegister_);
+        JS_ASSERT(!isRegister_);
         return constant_;
     }
     inline bool isRegister() const {
@@ -389,7 +389,7 @@ class TypedRegisterSet
         for (uint32_t a = 0; a < reg.numAliased(); a++) {
             T tmp;
             reg.aliased(a, &tmp);
-            MOZ_ASSERT(!has(tmp));
+            JS_ASSERT(!has(tmp));
         }
 #endif
         addUnchecked(reg);
@@ -415,7 +415,7 @@ class TypedRegisterSet
         return !bits_;
     }
     void take(T reg) {
-        MOZ_ASSERT(has(reg));
+        JS_ASSERT(has(reg));
         takeUnchecked(reg);
     }
     void takeUnchecked(T reg) {
@@ -466,27 +466,27 @@ class TypedRegisterSet
         return getFirst();
     }
     T getAnyExcluding(T preclude) {
-        MOZ_ASSERT(!empty());
+        JS_ASSERT(!empty());
         if (!has(preclude))
             return getAny();
 
         take(preclude);
-        MOZ_ASSERT(!empty());
+        JS_ASSERT(!empty());
         T result = getAny();
         add(preclude);
         return result;
     }
     T getFirst() const {
-        MOZ_ASSERT(!empty());
+        JS_ASSERT(!empty());
         return T::FromCode(T::FirstBit(bits_));
     }
     T getLast() const {
-        MOZ_ASSERT(!empty());
+        JS_ASSERT(!empty());
         int ireg = T::LastBit(bits_);
         return T::FromCode(ireg);
     }
     T takeAny() {
-        MOZ_ASSERT(!empty());
+        JS_ASSERT(!empty());
         T reg = getAny();
         take(reg);
         return reg;
@@ -509,13 +509,13 @@ class TypedRegisterSet
 #endif
     }
     T takeFirst() {
-        MOZ_ASSERT(!empty());
+        JS_ASSERT(!empty());
         T reg = getFirst();
         take(reg);
         return reg;
     }
     T takeLast() {
-        MOZ_ASSERT(!empty());
+        JS_ASSERT(!empty());
         T reg = getLast();
         take(reg);
         return reg;
@@ -865,9 +865,9 @@ class ABIArg
     explicit ABIArg(uint32_t offset) : kind_(Stack) { u.offset_ = offset; }
 
     Kind kind() const { return kind_; }
-    Register gpr() const { MOZ_ASSERT(kind() == GPR); return Register::FromCode(u.gpr_); }
-    FloatRegister fpu() const { MOZ_ASSERT(kind() == FPU); return FloatRegister::FromCode(u.fpu_); }
-    uint32_t offsetFromArgBase() const { MOZ_ASSERT(kind() == Stack); return u.offset_; }
+    Register gpr() const { JS_ASSERT(kind() == GPR); return Register::FromCode(u.gpr_); }
+    FloatRegister fpu() const { JS_ASSERT(kind() == FPU); return FloatRegister::FromCode(u.fpu_); }
+    uint32_t offsetFromArgBase() const { JS_ASSERT(kind() == Stack); return u.offset_; }
 
     bool argInRegister() const { return kind() != Stack; }
     AnyRegister reg() const { return kind_ == GPR ? AnyRegister(gpr()) : AnyRegister(fpu()); }

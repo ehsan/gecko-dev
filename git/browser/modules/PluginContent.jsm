@@ -146,9 +146,6 @@ PluginContent.prototype = {
   makeNicePluginName : function (aName) {
     if (aName == "Shockwave Flash")
       return "Adobe Flash";
-    // Regex checks if aName begins with "Java" + non-letter char
-    if (/^Java\W/.exec(aName))
-      return "Java";
 
     // Clean up the plugin name by stripping off parenthetical clauses,
     // trailing version numbers or "plugin".

@@ -10,6 +10,8 @@
 #include "mozilla/ErrorResult.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
+#include "nsClassHashtable.h"
+#include "nsHashKeys.h"
 #include "nsISupports.h"
 #include "nsIUnicodeDecoder.h"
 
@@ -90,13 +92,15 @@ private:
 
   void NotifyObservers(URLSearchParamsObserver* aExceptObserver);
 
-  struct Param
-  {
-    nsString mKey;
-    nsString mValue;
-  };
+  static PLDHashOperator
+  CopyEnumerator(const nsAString& aName, nsTArray<nsString>* aArray,
+                 void *userData);
 
-  nsTArray<Param> mSearchParams;
+  static PLDHashOperator
+  SerializeEnumerator(const nsAString& aName, nsTArray<nsString>* aArray,
+                      void *userData);
+
+  nsClassHashtable<nsStringHashKey, nsTArray<nsString>> mSearchParams;
 
   nsTArray<nsRefPtr<URLSearchParamsObserver>> mObservers;
   nsCOMPtr<nsIUnicodeDecoder> mDecoder;

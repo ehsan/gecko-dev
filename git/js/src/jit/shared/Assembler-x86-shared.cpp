@@ -83,7 +83,7 @@ AssemblerX86Shared::trace(JSTracer *trc)
         if (rp.kind == Relocation::JITCODE) {
             JitCode *code = JitCode::FromExecutable((uint8_t *)rp.target);
             MarkJitCodeUnbarriered(trc, &code, "masmrel32");
-            MOZ_ASSERT(code == JitCode::FromExecutable((uint8_t *)rp.target));
+            JS_ASSERT(code == JitCode::FromExecutable((uint8_t *)rp.target));
         }
     }
     if (dataRelocations_.length()) {

@@ -170,7 +170,7 @@ namespace jit {
                 *poolp = NULL;
                 return 0;
             }
-            MOZ_ASSERT(*poolp);
+            JS_ASSERT(*poolp);
 
             js::jit::ExecutableAllocator::makeWritable(result, m_size);
 

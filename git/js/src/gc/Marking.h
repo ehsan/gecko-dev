@@ -391,12 +391,12 @@ ToMarkable(Cell *cell)
 inline JSGCTraceKind
 TraceKind(const Value &v)
 {
-    MOZ_ASSERT(v.isMarkable());
+    JS_ASSERT(v.isMarkable());
     if (v.isObject())
         return JSTRACE_OBJECT;
     if (v.isString())
         return JSTRACE_STRING;
-    MOZ_ASSERT(v.isSymbol());
+    JS_ASSERT(v.isSymbol());
     return JSTRACE_SYMBOL;
 }
 

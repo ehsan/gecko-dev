@@ -520,8 +520,7 @@ public:
       //   is this one, then the SetState(NOTHING) in UpdateAnimation will
       //   stomp on the SetState(SNAP_BACK) it does.
       mDeferredTasks.append(NewRunnableMethod(mOverscrollHandoffChain.get(),
-                                              &OverscrollHandoffChain::SnapBackOverscrolledApzc,
-                                              &mApzc));
+                                              &OverscrollHandoffChain::SnapBackOverscrolledApzc));
       return false;
     }
 
@@ -1743,8 +1742,9 @@ static void TransformVector(const Matrix4x4& aTransform,
 void AsyncPanZoomController::ToGlobalScreenCoordinates(ScreenPoint* aVector,
                                                        const ScreenPoint& aAnchor) const {
   if (APZCTreeManager* treeManagerLocal = GetApzcTreeManager()) {
-    Matrix4x4 apzcToScreen = treeManagerLocal->GetScreenToApzcTransform(this).Inverse();
-    TransformVector(apzcToScreen, aVector, aAnchor);
+    Matrix4x4 transform = treeManagerLocal->GetScreenToApzcTransform(this);
+    transform.Invert();
+    TransformVector(transform, aVector, aAnchor);
   }
 }
 
