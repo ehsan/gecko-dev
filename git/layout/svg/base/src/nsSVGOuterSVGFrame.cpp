@@ -284,7 +284,7 @@ nsSVGOuterSVGFrame::GetIntrinsicRatio()
   }
 
   if (content->mViewBox.IsValid()) {
-    const nsSVGViewBoxRect viewbox = content->mViewBox.GetAnimValue();
+    const nsSVGViewBoxRect viewbox = content->mViewBox.GetAnimValue(content);
     float viewBoxWidth = viewbox.width;
     float viewBoxHeight = viewbox.height;
 

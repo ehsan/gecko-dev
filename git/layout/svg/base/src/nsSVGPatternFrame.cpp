@@ -340,7 +340,7 @@ nsSVGPatternFrame::GetPatternUnits()
   // See if we need to get the value from another pattern
   nsSVGPatternElement *patternElement =
     GetPatternWithAttr(nsGkAtoms::patternUnits, mContent);
-  return patternElement->mEnumAttributes[nsSVGPatternElement::PATTERNUNITS].GetAnimValue();
+  return patternElement->mEnumAttributes[nsSVGPatternElement::PATTERNUNITS].GetAnimValue(patternElement);
 }
 
 PRUint16
@@ -348,7 +348,7 @@ nsSVGPatternFrame::GetPatternContentUnits()
 {
   nsSVGPatternElement *patternElement =
     GetPatternWithAttr(nsGkAtoms::patternContentUnits, mContent);
-  return patternElement->mEnumAttributes[nsSVGPatternElement::PATTERNCONTENTUNITS].GetAnimValue();
+  return patternElement->mEnumAttributes[nsSVGPatternElement::PATTERNCONTENTUNITS].GetAnimValue(patternElement);
 }
 
 gfxMatrix
@@ -542,7 +542,7 @@ nsSVGPatternFrame::ConstructCTM(const gfxRect &callerBBox,
   nsSVGPatternElement *patternElement =
     static_cast<nsSVGPatternElement*>(mContent);
   gfxMatrix tm;
-  const nsSVGViewBoxRect viewBox = GetViewBox().GetAnimValue();
+  const nsSVGViewBoxRect viewBox = GetViewBox().GetAnimValue(patternElement);
 
   if (viewBox.height > 0.0f && viewBox.width > 0.0f) {
     nsSVGSVGElement *ctx = aTargetContent->GetCtx();

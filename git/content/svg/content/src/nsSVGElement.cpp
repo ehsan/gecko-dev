@@ -1330,7 +1330,7 @@ nsSVGElement::GetAnimatedNumberValues(float *aFirst, ...)
   va_start(args, aFirst);
 
   while (f && i < info.mNumberCount) {
-    *f = info.mNumbers[i++].GetAnimValue();
+    *f = info.mNumbers[i++].GetAnimValue(this);
     f = va_arg(args, float*);
   }
   va_end(args);
@@ -1396,7 +1396,7 @@ nsSVGElement::GetAnimatedIntegerValues(PRInt32 *aFirst, ...)
   va_start(args, aFirst);
 
   while (n && i < info.mIntegerCount) {
-    *n = info.mIntegers[i++].GetAnimValue();
+    *n = info.mIntegers[i++].GetAnimValue(this);
     n = va_arg(args, PRInt32*);
   }
   va_end(args);
