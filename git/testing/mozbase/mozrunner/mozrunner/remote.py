@@ -188,15 +188,9 @@ class B2GRunner(RemoteRunner):
             self.last_test = match[-1]
 
     def on_timeout(self):
-        msg = "%s | application timed out after %s seconds"
-
-        if self.timeout:
-            timeout = self.timeout
-        else:
-            timeout = self.outputTimeout
-            msg = "%s with no output" % msg
-
-        self.log.testFail(msg % (self.last_test, timeout))
+        self.log.testFail("%s | application timed "
+                         "out after %s seconds with no output",
+                         self.last_test, self.timeout)
 
     def _reboot_device(self):
         serial, status = self._get_device_status()

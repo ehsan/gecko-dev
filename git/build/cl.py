@@ -52,9 +52,8 @@ def InvokeClWithDependencyGeneration(cmdline):
             target = arg[3:]
             break
 
-    if target is None:
-        print >>sys.stderr, "No target set"
-        return 1
+    if target == None:
+        print >>sys.stderr, "No target set" and sys.exit(1)
 
     # Assume the source file is the last argument
     source = cmdline[-1]
@@ -96,7 +95,7 @@ def InvokeClWithDependencyGeneration(cmdline):
     ret = p.wait()
 
     if ret != 0 or target == "":
-        return ret
+        sys.exit(ret)
 
     depsdir = os.path.normpath(os.path.join(os.curdir, ".deps"))
     depstarget = os.path.join(depsdir, depstarget)
@@ -111,10 +110,5 @@ def InvokeClWithDependencyGeneration(cmdline):
     with open(depstarget, "w") as f:
         mk.dump(f)
 
-    return 0
-
-def main(args):
-    return InvokeClWithDependencyGeneration(args)
-
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    InvokeClWithDependencyGeneration(sys.argv[1:])

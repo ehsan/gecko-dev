@@ -43,7 +43,6 @@ ClientLayerManager::ClientLayerManager(nsIWidget* aWidget)
   , mIsRepeatTransaction(false)
   , mTransactionIncomplete(false)
   , mCompositorMightResample(false)
-  , mNeedsComposite(false)
 {
   MOZ_COUNT_CTOR(ClientLayerManager);
 }
@@ -300,9 +299,8 @@ ClientLayerManager::ForwardTransaction()
   mPhase = PHASE_FORWARD;
 
   // forward this transaction's changeset to our LayerManagerComposite
-  bool sent;
   AutoInfallibleTArray<EditReply, 10> replies;
-  if (HasShadowManager() && ShadowLayerForwarder::EndTransaction(&replies, &sent)) {
+  if (HasShadowManager() && ShadowLayerForwarder::EndTransaction(&replies)) {
     for (nsTArray<EditReply>::size_type i = 0; i < replies.Length(); ++i) {
       const EditReply& reply = replies[i];
 
@@ -350,10 +348,6 @@ ClientLayerManager::ForwardTransaction()
       default:
         NS_RUNTIMEABORT("not reached");
       }
-    }
-
-    if (sent) {
-      mNeedsComposite = false;
     }
   } else if (HasShadowManager()) {
     NS_WARNING("failed to forward Layers transaction");

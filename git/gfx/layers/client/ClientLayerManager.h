@@ -142,12 +142,6 @@ public:
 #endif
   bool InTransaction() { return mPhase != PHASE_NONE; }
 
-  void SetNeedsComposite(bool aNeedsComposite)
-  {
-    mNeedsComposite = aNeedsComposite;
-  }
-  bool NeedsComposite() const { return mNeedsComposite; }
-
 protected:
   enum TransactionPhase {
     PHASE_NONE, PHASE_CONSTRUCTION, PHASE_DRAWING, PHASE_FORWARD
@@ -206,7 +200,6 @@ private:
   bool mIsRepeatTransaction;
   bool mTransactionIncomplete;
   bool mCompositorMightResample;
-  bool mNeedsComposite;
 };
 
 class ClientLayer : public ShadowableLayer

@@ -89,6 +89,10 @@
 #define JS_NO_FASTCALL
 #endif
 
+#ifndef JS_INLINE
+#define JS_INLINE MOZ_INLINE
+#endif
+
 #ifndef JS_ALWAYS_INLINE
 #define JS_ALWAYS_INLINE MOZ_ALWAYS_INLINE
 #endif

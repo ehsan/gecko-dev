@@ -961,7 +961,6 @@ class MConstant : public MNullaryInstruction
   public:
     INSTRUCTION_HEADER(Constant)
     static MConstant *New(const Value &v);
-    static MConstant *NewAsmJS(const Value &v, MIRType type);
 
     const js::Value &value() const {
         return value_;
@@ -2112,9 +2111,6 @@ class MCompare
         Compare_DoubleMaybeCoerceLHS,
         Compare_DoubleMaybeCoerceRHS,
 
-        // Float compared to Float
-        Compare_Float32,
-
         // String compared to String
         Compare_String,
 
@@ -2170,9 +2166,6 @@ class MCompare
                compareType() == Compare_DoubleMaybeCoerceLHS ||
                compareType() == Compare_DoubleMaybeCoerceRHS;
     }
-    bool isFloat32Comparison() const {
-        return compareType() == Compare_Float32;
-    }
     void setCompareType(CompareType type) {
         compareType_ = type;
     }
@@ -2201,15 +2194,6 @@ class MCompare
     }
 
     void printOpcode(FILE *fp) const;
-
-    void trySpecializeFloat32();
-    bool isFloat32Commutative() const { return true; }
-
-# ifdef DEBUG
-    bool isConsistentFloat32Use() const {
-        return compareType_ == Compare_Float32;
-    }
-# endif
 
   protected:
     bool congruentTo(MDefinition *ins) const {
@@ -2890,34 +2874,6 @@ class MAsmJSUnsignedToDouble
     }
 };
 
-// Converts a uint32 to a float32 (coming from asm.js).
-class MAsmJSUnsignedToFloat32
-  : public MUnaryInstruction
-{
-    MAsmJSUnsignedToFloat32(MDefinition *def)
-      : MUnaryInstruction(def)
-    {
-        setResultType(MIRType_Float32);
-        setMovable();
-    }
-
-  public:
-    INSTRUCTION_HEADER(AsmJSUnsignedToFloat32);
-    static MAsmJSUnsignedToFloat32 *NewAsmJS(MDefinition *def) {
-        return new MAsmJSUnsignedToFloat32(def);
-    }
-
-    MDefinition *foldsTo(bool useValueNumbers);
-    bool congruentTo(MDefinition *ins) const {
-        return congruentIfOperandsEqual(ins);
-    }
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-
-    bool canProduceFloat32() const { return true; }
-};
-
 // Converts a primitive (either typed or untyped) to an int32. If the input is
 // not primitive at runtime, a bailout occurs. If the input cannot be converted
 // to an int32 without loss (i.e. "5.5" or undefined) then a bailout occurs.
@@ -2997,11 +2953,6 @@ class MTruncateToInt32 : public MUnaryInstruction
 
     void computeRange();
     bool isOperandTruncated(size_t index) const;
-# ifdef DEBUG
-    bool isConsistentFloat32Use() const {
-        return true;
-    }
-#endif
 };
 
 // Converts any type to a string
@@ -3447,7 +3398,7 @@ class MAbs
       : MUnaryInstruction(num),
         implicitTruncate_(false)
     {
-        JS_ASSERT(IsNumberType(type));
+        JS_ASSERT(type == MIRType_Double || type == MIRType_Int32);
         setResultType(type);
         setMovable();
         specialization_ = type;
@@ -3479,31 +3430,28 @@ class MAbs
         return AliasSet::None();
     }
     void computeRange();
-    bool isFloat32Commutative() const { return true; }
-    void trySpecializeFloat32();
 };
 
 // Inline implementation of Math.sqrt().
 class MSqrt
   : public MUnaryInstruction,
-    public FloatingPointPolicy<0>
+    public DoublePolicy<0>
 {
-    MSqrt(MDefinition *num, MIRType type)
+    MSqrt(MDefinition *num)
       : MUnaryInstruction(num)
     {
-        setResultType(type);
-        setPolicyType(type);
+        setResultType(MIRType_Double);
         setMovable();
     }
 
   public:
     INSTRUCTION_HEADER(Sqrt)
     static MSqrt *New(MDefinition *num) {
-        return new MSqrt(num, MIRType_Double);
+        return new MSqrt(num);
     }
     static MSqrt *NewAsmJS(MDefinition *num, MIRType type) {
-        JS_ASSERT(IsFloatingPointType(type));
-        return new MSqrt(num, type);
+        JS_ASSERT(type == MIRType_Double);
+        return new MSqrt(num);
     }
     MDefinition *num() const {
         return getOperand(0);
@@ -3519,9 +3467,6 @@ class MSqrt
         return AliasSet::None();
     }
     void computeRange();
-
-    bool isFloat32Commutative() const { return true; }
-    void trySpecializeFloat32();
 };
 
 // Inline implementation of atan2 (arctangent of y/x).
@@ -4412,28 +4357,6 @@ class MOsrArgumentsObject : public MUnaryInstruction
     }
 };
 
-// MIR representation of the return value on the OSR StackFrame.
-// The Value is indexed off of OsrFrameReg.
-class MOsrReturnValue : public MUnaryInstruction
-{
-  private:
-    MOsrReturnValue(MOsrEntry *entry)
-      : MUnaryInstruction(entry)
-    {
-        setResultType(MIRType_Value);
-    }
-
-  public:
-    INSTRUCTION_HEADER(OsrReturnValue)
-    static MOsrReturnValue *New(MOsrEntry *entry) {
-        return new MOsrReturnValue(entry);
-    }
-
-    MOsrEntry *entry() {
-        return getOperand(0)->toOsrEntry();
-    }
-};
-
 // Check the current frame for over-recursion past the global stack limit.
 class MCheckOverRecursed : public MNullaryInstruction
 {
@@ -5182,14 +5105,6 @@ class MNot
     TypePolicy *typePolicy() {
         return this;
     }
-
-    void trySpecializeFloat32();
-    bool isFloat32Commutative() const { return true; }
-#ifdef DEBUG
-    bool isConsistentFloat32Use() const {
-        return true;
-    }
-#endif
 };
 
 // Bailout if index + minimum < 0 or index + maximum >= length. The length used

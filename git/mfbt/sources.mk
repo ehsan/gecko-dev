@@ -9,7 +9,6 @@ endif
 
 CPPSRCS += \
   Compression.cpp \
-  FloatingPoint.cpp \
   HashFunctions.cpp \
   Poison.cpp \
   SHA1.cpp \

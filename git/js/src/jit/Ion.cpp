@@ -671,7 +671,7 @@ IonCode::finalize(FreeOp *fop)
     // Buffer can be freed at any time hereafter. Catch use-after-free bugs.
     // Don't do this if the Ion code is protected, as the signal handler will
     // deadlock trying to reaqcuire the operation callback lock.
-    if (fop->runtime()->ionRuntime() && !fop->runtime()->ionRuntime()->ionCodeProtected())
+    if (!fop->runtime()->ionRuntime()->ionCodeProtected())
         JS_POISON(code_, JS_FREE_PATTERN, bufferSize_);
 #endif
 
@@ -1586,15 +1586,12 @@ IonCompile(JSContext *cx, JSScript *script,
         return AbortReason_Alloc;
 
     MIRGraph *graph = alloc->new_<MIRGraph>(temp);
-    if (!graph)
-        return AbortReason_Alloc;
-
     CompileInfo *info = alloc->new_<CompileInfo>(script, script->function(), osrPc, constructing,
                                                  executionMode);
     if (!info)
         return AbortReason_Alloc;
 
-    BaselineInspector inspector(script);
+    BaselineInspector inspector(cx, script);
 
     AutoFlushCache afc("IonCompile", cx->runtime()->ionRuntime());
 
@@ -1762,7 +1759,7 @@ Compile(JSContext *cx, HandleScript script, BaselineFrame *osrFrame, jsbytecode 
     JS_ASSERT(jit::IsBaselineEnabled(cx));
     JS_ASSERT_IF(osrPc != nullptr, (JSOp)*osrPc == JSOP_LOOPENTRY);
 
-    if (!script->hasBaselineScript())
+    if (executionMode == SequentialExecution && !script->hasBaselineScript())
         return Method_Skipped;
 
     if (cx->compartment()->debugMode()) {

@@ -452,9 +452,6 @@ MBasicBlock::linkOsrValues(MStart *start)
         if (i == info().scopeChainSlot()) {
             if (def->isOsrScopeChain())
                 def->toOsrScopeChain()->setResumePoint(res);
-        } else if (i == info().returnValueSlot()) {
-            if (def->isOsrReturnValue())
-                def->toOsrReturnValue()->setResumePoint(res);
         } else if (info().hasArguments() && i == info().argsObjSlot()) {
             JS_ASSERT(def->isConstant() || def->isOsrArgumentsObject());
             JS_ASSERT_IF(def->isConstant(), def->toConstant()->value() == UndefinedValue());

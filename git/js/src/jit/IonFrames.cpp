@@ -184,10 +184,9 @@ IonFrameIterator::baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) 
         *scriptRes = script;
     uint8_t *retAddr = returnAddressToFp();
     if (pcRes) {
-        // If the return address is into the prologue entry address, then assume start
-        // of script.
+        // If the return address is into the prologue entry addr, then assume PC 0.
         if (retAddr == script->baselineScript()->prologueEntryAddr()) {
-            *pcRes = script->code;
+            *pcRes = 0;
             return;
         }
 

@@ -97,14 +97,6 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::type, aValue, aRv);
   }
-  bool TypeMustMatch()
-  {
-    return GetBoolAttr(nsGkAtoms::typemustmatch);
-  }
-  void SetTypeMustMatch(bool aValue, ErrorResult& aRv)
-  {
-    SetHTMLBoolAttr(nsGkAtoms::typemustmatch, aValue, aRv);
-  }
   void GetName(DOMString& aValue)
   {
     GetHTMLAttr(nsGkAtoms::name, aValue);

@@ -172,8 +172,6 @@
 #include "mozilla/HangMonitor.h"
 #include "WinIMEHandler.h"
 
-#include "npapi.h"
-
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
@@ -1517,7 +1515,8 @@ nsWindow::BeginResizeDrag(WidgetGUIEvent* aEvent,
     return NS_ERROR_INVALID_ARG;
   }
 
-  if (aEvent->AsMouseEvent()->button != WidgetMouseEvent::eLeftButton) {
+  WidgetMouseEvent* mouseEvent = static_cast<WidgetMouseEvent*>(aEvent);
+  if (mouseEvent->button != WidgetMouseEvent::eLeftButton) {
     // you can only begin a resize drag with the left mouse button
     return NS_ERROR_INVALID_ARG;
   }

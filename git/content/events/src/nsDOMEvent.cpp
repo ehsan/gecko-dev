@@ -517,7 +517,7 @@ nsDOMEvent::DuplicatePrivateData()
     }
     case NS_GUI_EVENT:
     {
-      WidgetGUIEvent* oldGUIEvent = mEvent->AsGUIEvent();
+      WidgetGUIEvent* oldGUIEvent = static_cast<WidgetGUIEvent*>(mEvent);
       // Not copying widget, it is a weak reference.
       WidgetGUIEvent* guiEvent = new WidgetGUIEvent(false, msg, nullptr);
       guiEvent->AssignGUIEventData(*oldGUIEvent, true);
@@ -543,7 +543,7 @@ nsDOMEvent::DuplicatePrivateData()
     }
     case NS_MOUSE_EVENT:
     {
-      WidgetMouseEvent* oldMouseEvent = mEvent->AsMouseEvent();
+      WidgetMouseEvent* oldMouseEvent = static_cast<WidgetMouseEvent*>(mEvent);
       WidgetMouseEvent* mouseEvent =
         new WidgetMouseEvent(false, msg, nullptr, oldMouseEvent->reason);
       mouseEvent->AssignMouseEventData(*oldMouseEvent, true);
@@ -607,7 +607,7 @@ nsDOMEvent::DuplicatePrivateData()
     }
     case NS_WHEEL_EVENT:
     {
-      WidgetWheelEvent* oldWheelEvent = mEvent->AsWheelEvent();
+      WidgetWheelEvent* oldWheelEvent = static_cast<WidgetWheelEvent*>(mEvent);
       WidgetWheelEvent* wheelEvent = new WidgetWheelEvent(false, msg, nullptr);
       wheelEvent->AssignWheelEventData(*oldWheelEvent, true);
       newEvent = wheelEvent;
@@ -677,7 +677,7 @@ nsDOMEvent::DuplicatePrivateData()
     }
     case NS_SVGZOOM_EVENT:
     {
-      WidgetGUIEvent* oldGUIEvent = mEvent->AsGUIEvent();
+      WidgetGUIEvent* oldGUIEvent = static_cast<WidgetGUIEvent*>(mEvent);
       WidgetGUIEvent* guiEvent = new WidgetGUIEvent(false, msg, nullptr);
       guiEvent->eventStructType = NS_SVGZOOM_EVENT;
       guiEvent->AssignGUIEventData(*oldGUIEvent, true);
@@ -925,7 +925,8 @@ nsDOMEvent::GetEventPopupControlState(WidgetEvent* aEvent)
     break;
   case NS_MOUSE_EVENT :
     if (aEvent->mFlags.mIsTrusted &&
-        aEvent->AsMouseEvent()->button == WidgetMouseEvent::eLeftButton) {
+        static_cast<WidgetMouseEvent*>(aEvent)->button ==
+          WidgetMouseEvent::eLeftButton) {
       switch(aEvent->message) {
       case NS_MOUSE_BUTTON_UP :
         if (::PopupAllowedForEvent("mouseup"))
@@ -1026,7 +1027,7 @@ nsDOMEvent::GetScreenCoords(nsPresContext* aPresContext,
     return nsIntPoint(0, 0);
   }
 
-  WidgetGUIEvent* guiEvent = aEvent->AsGUIEvent();
+  WidgetGUIEvent* guiEvent = static_cast<WidgetGUIEvent*>(aEvent);
   if (!guiEvent->widget) {
     return LayoutDeviceIntPoint::ToUntyped(aPoint);
   }
@@ -1081,7 +1082,7 @@ nsDOMEvent::GetClientCoords(nsPresContext* aPresContext,
        aEvent->eventStructType != NS_DRAG_EVENT &&
        aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||
       !aPresContext ||
-      !aEvent->AsGUIEvent()->widget) {
+      !static_cast<WidgetGUIEvent*>(aEvent)->widget) {
     return aDefaultPoint;
   }
 

@@ -17,23 +17,14 @@ namespace jit {
 inline unsigned
 StartArgSlot(JSScript *script, JSFunction *fun)
 {
-    // Reserved slots:
-    // Slot 0: Scope chain.
-    // Slot 1: Return value.
-
-    // When needed:
-    // Slot 2: Argumentsobject.
-
-    return 2 + (script->argumentsHasVarBinding() ? 1 : 0);
+    // First slot is for scope chain.
+    // Second one may be for arguments object.
+    return 1 + (script->argumentsHasVarBinding() ? 1 : 0);
 }
 
 inline unsigned
 CountArgSlots(JSScript *script, JSFunction *fun)
 {
-    // Slot x + 0: This value.
-    // Slot x + 1: Argument 1.
-    // ...
-    // Slot x + n: Argument n.
     return StartArgSlot(script, fun) + (fun ? fun->nargs + 1 : 0);
 }
 
@@ -141,16 +132,9 @@ class CompileInfo
         return nslots_;
     }
 
-    // Number of slots needed for Scope chain, return value,
-    // maybe argumentsobject and this value.
-    unsigned nimplicit() const {
-        return nimplicit_;
-    }
-    // Number of arguments (without counting this value).
     unsigned nargs() const {
         return nargs_;
     }
-    // Number of slots needed for local variables.
     unsigned nlocals() const {
         return nlocals_;
     }
@@ -162,18 +146,13 @@ class CompileInfo
         JS_ASSERT(script());
         return 0;
     }
-    uint32_t returnValueSlot() const {
-        JS_ASSERT(script());
-        return 1;
-    }
     uint32_t argsObjSlot() const {
         JS_ASSERT(hasArguments());
-        return 2;
+        return 1;
     }
     uint32_t thisSlot() const {
         JS_ASSERT(fun());
-        JS_ASSERT(nimplicit_ > 0);
-        return nimplicit_ - 1;
+        return hasArguments() ? 2 : 1;
     }
     uint32_t firstArgSlot() const {
         return nimplicit_;
@@ -205,17 +184,16 @@ class CompileInfo
     }
 
     uint32_t startArgSlot() const {
-        JS_ASSERT(script());
+        JS_ASSERT(scopeChainSlot() == 0);
         return StartArgSlot(script(), fun());
     }
     uint32_t endArgSlot() const {
-        JS_ASSERT(script());
+        JS_ASSERT(scopeChainSlot() == 0);
         return CountArgSlots(script(), fun());
     }
 
     uint32_t totalSlots() const {
-        JS_ASSERT(script() && fun());
-        return nimplicit() + nargs() + nlocals();
+        return 2 + (hasArguments() ? 1 : 0) + nargs() + nlocals();
     }
 
     bool isSlotAliased(uint32_t index) const {

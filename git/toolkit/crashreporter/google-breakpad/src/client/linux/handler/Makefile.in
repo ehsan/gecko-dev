@@ -16,6 +16,8 @@ OS_CXXFLAGS += -fomit-frame-pointer
 MOZ_FRAMEPTR_FLAGS := -fomit-frame-pointer
 endif #}
 
+XPI_NAME 	= crashreporter
+
 VPATH += $(srcdir)/../log
 
 LOCAL_INCLUDES = \
