@@ -76,27 +76,33 @@ nsTableRowGroupFrame::IsContainingBlock() const
 
 PRInt32
 nsTableRowGroupFrame::GetRowCount()
-{
-#ifdef DEBUG
-  for (nsFrameList::Enumerator e(mFrames); !e.AtEnd(); e.Next()) {
-    NS_ASSERTION(e.get()->GetStyleDisplay()->mDisplay ==
-                   NS_STYLE_DISPLAY_TABLE_ROW,
-                 "Unexpected display");
-    NS_ASSERTION(e.get()->GetType() == nsGkAtoms::tableRowFrame,
-                 "Unexpected frame type");
+{  
+  PRInt32 count = 0; // init return
+
+  // loop through children, adding one to aCount for every legit row
+  nsIFrame* childFrame = GetFirstFrame();
+  while (PR_TRUE) {
+    if (!childFrame)
+      break;
+    if (NS_STYLE_DISPLAY_TABLE_ROW == childFrame->GetStyleDisplay()->mDisplay)
+      count++;
+    GetNextFrame(childFrame, &childFrame);
   }
-#endif
-  
-  return mFrames.GetLength();
+  return count;
 }
 
 PRInt32 nsTableRowGroupFrame::GetStartRowIndex()
 {
   PRInt32 result = -1;
-  if (mFrames.NotEmpty()) {
-    NS_ASSERTION(mFrames.FirstChild()->GetType() == nsGkAtoms::tableRowFrame,
-                 "Unexpected frame type");
-    result = static_cast<nsTableRowFrame*>(mFrames.FirstChild())->GetRowIndex();
+  nsIFrame* childFrame = GetFirstFrame();
+  while (PR_TRUE) {
+    if (!childFrame)
+      break;
+    if (NS_STYLE_DISPLAY_TABLE_ROW == childFrame->GetStyleDisplay()->mDisplay) {
+      result = ((nsTableRowFrame *)childFrame)->GetRowIndex();
+      break;
+    }
+    GetNextFrame(childFrame, &childFrame);
   }
   // if the row group doesn't have any children, get it the hard way
   if (-1 == result) {
@@ -371,7 +377,7 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
   PRBool needToCalcRowHeights = reflowAllKids;
 
   nsIFrame *prevKidFrame = nsnull;
-  for (nsIFrame* kidFrame = mFrames.FirstChild(); kidFrame;
+  for (nsIFrame* kidFrame = GetFirstFrame(); kidFrame;
        prevKidFrame = kidFrame, kidFrame = kidFrame->GetNextSibling()) {
     nsTableRowFrame *rowFrame = do_QueryFrame(kidFrame);
     if (!rowFrame) {
@@ -409,7 +415,7 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
       if (aReflowState.reflowState.mFlags.mHResize)
         kidReflowState.mFlags.mHResize = PR_TRUE;
      
-      NS_ASSERTION(kidFrame == mFrames.FirstChild() || prevKidFrame, 
+      NS_ASSERTION(kidFrame == GetFirstFrame() || prevKidFrame, 
                    "If we're not on the first frame, we should have a "
                    "previous sibling...");
       // If prev row has nonzero YMost, then we can't be at the top of the page
@@ -506,7 +512,7 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
 nsTableRowFrame*  
 nsTableRowGroupFrame::GetFirstRow() 
 {
-  for (nsIFrame* childFrame = mFrames.FirstChild(); childFrame;
+  for (nsIFrame* childFrame = GetFirstFrame(); childFrame;
        childFrame = childFrame->GetNextSibling()) {
     nsTableRowFrame *rowFrame = do_QueryFrame(childFrame);
     if (rowFrame) {
@@ -930,8 +936,11 @@ nsTableRowGroupFrame::CreateContinuingRowFrame(nsPresContext& aPresContext,
   }
 
   // Add the continuing row frame to the child list
-  mFrames.InsertFrame(nsnull, &aRowFrame, *aContRowFrame);
-
+  nsIFrame* nextRow;
+  GetNextFrame(&aRowFrame, &nextRow);
+  (*aContRowFrame)->SetNextSibling(nextRow);
+  aRowFrame.SetNextSibling(*aContRowFrame);
+          
   // Push the continuing row frame and the frames that follow
   PushChildren(&aPresContext, *aContRowFrame, &aRowFrame);
 }

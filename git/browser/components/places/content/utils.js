@@ -918,7 +918,8 @@ var PlacesUIUtils = {
 
     var loadInBackground = where == "tabshifted" ? true : false;
     var replaceCurrentTab = where == "tab" ? false : true;
-    browserWindow.gBrowser.loadTabs(urls, loadInBackground, replaceCurrentTab);
+    browserWindow.getBrowser().loadTabs(urls, loadInBackground,
+                                        replaceCurrentTab);
   },
 
   openContainerNodeInTabs: function PU_openContainerInTabs(aNode, aEvent) {

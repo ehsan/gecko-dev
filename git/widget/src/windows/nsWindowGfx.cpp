@@ -240,8 +240,7 @@ void nsWindowGfx::OnSettingsChangeGfx(WPARAM wParam)
         oldSize.height * oldSize.width)
       nsWindow::sSharedSurfaceData = nsnull;
 
-    if(glpDD)
-      glpDD->RestoreAllSurfaces();
+    glpDD->RestoreAllSurfaces();
   }
 #endif
 }

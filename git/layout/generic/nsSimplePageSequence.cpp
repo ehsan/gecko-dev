@@ -145,6 +145,17 @@ NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 //----------------------------------------------------------------------
 
+// Creates a continuing page frame
+nsresult
+nsSimplePageSequenceFrame::CreateContinuingPageFrame(nsPresContext* aPresContext,
+                                                     nsIFrame*       aPageFrame,
+                                                     nsIFrame**      aContinuingPage)
+{
+  // Create the continuing frame
+  return aPresContext->PresShell()->FrameConstructor()->
+    CreateContinuingFrame(aPresContext, aPageFrame, this, aContinuingPage);
+}
+
 NS_IMETHODIMP
 nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
                                   nsHTMLReflowMetrics&     aDesiredSize,
@@ -289,19 +300,19 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     nsIFrame* kidNextInFlow = kidFrame->GetNextInFlow();
 
     if (NS_FRAME_IS_FULLY_COMPLETE(status)) {
-      NS_ASSERTION(!kidNextInFlow, "bad child flow list");
-    } else if (!kidNextInFlow) {
+      NS_ASSERTION(nsnull == kidNextInFlow, "bad child flow list");
+    } else if (nsnull == kidNextInFlow) {
       // The page isn't complete and it doesn't have a next-in-flow, so
-      // create a continuing page.
+      // create a continuing page
       nsIFrame* continuingPage;
-      nsresult rv = aPresContext->PresShell()->FrameConstructor()->
-        CreateContinuingFrame(aPresContext, kidFrame, this, &continuingPage);
+      nsresult rv = CreateContinuingPageFrame(aPresContext, kidFrame,
+                                              &continuingPage);
       if (NS_FAILED(rv)) {
         break;
       }
 
       // Add it to our child list
-      mFrames.InsertFrame(nsnull, kidFrame, continuingPage);
+      kidFrame->SetNextSibling(continuingPage);
     }
 
     // Get the next page

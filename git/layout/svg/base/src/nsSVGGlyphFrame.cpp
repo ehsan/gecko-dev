@@ -1219,7 +1219,7 @@ nsSVGGlyphFrame::GetFirstGlyphFragment()
 NS_IMETHODIMP_(nsISVGGlyphFragmentLeaf *)
 nsSVGGlyphFrame::GetNextGlyphFragment()
 {
-  nsIFrame* sibling = GetNextSibling();
+  nsIFrame* sibling = mNextSibling;
   while (sibling) {
     nsISVGGlyphFragmentNode *node = do_QueryFrame(sibling);
     if (node)
@@ -1229,8 +1229,8 @@ nsSVGGlyphFrame::GetNextGlyphFragment()
 
   // no more siblings. go back up the tree.
   
-  NS_ASSERTION(GetParent(), "null parent");
-  nsISVGGlyphFragmentNode *node = do_QueryFrame(GetParent());
+  NS_ASSERTION(mParent, "null parent");
+  nsISVGGlyphFragmentNode *node = do_QueryFrame(mParent);
   return node ? node->GetNextGlyphFragment() : nsnull;
 }
 

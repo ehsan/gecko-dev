@@ -55,20 +55,9 @@ class WGLWrap
 public:
     WGLWrap() : fCreatePbuffer(0) { }
 
-    bool InitEarly();
     bool Init();
 
 public:
-    // early init
-    typedef HANDLE (WINAPI * PFNWGLCREATECONTEXTPROC) (HDC hDC);
-    PFNWGLCREATECONTEXTPROC fCreateContext;
-    typedef BOOL (WINAPI * PFNWGLMAKECURRENTPROC) (HDC hDC, HANDLE hglrc);
-    PFNWGLMAKECURRENTPROC fMakeCurrent;
-    typedef PROC (WINAPI * PFNWGLGETPROCADDRESSPROC) (LPCSTR proc);
-    PFNWGLGETPROCADDRESSPROC fGetProcAddress;
-    typedef BOOL (WINAPI * PFNWGLDELETECONTEXTPROC) (HANDLE hglrc);
-    PFNWGLDELETECONTEXTPROC fDeleteContext;
-
     typedef HANDLE (WINAPI * PFNWGLCREATEPBUFFERPROC) (HDC hDC, int iPixelFormat, int iWidth, int iHeight, const int* piAttribList);
     PFNWGLCREATEPBUFFERPROC fCreatePbuffer;
     typedef BOOL (WINAPI * PFNWGLDESTROYPBUFFERPROC) (HANDLE hPbuffer);
@@ -81,23 +70,6 @@ public:
     typedef BOOL (WINAPI * PFNWGLGETPIXELFORMATATTRIBIVPROC) (HDC hdc, int iPixelFormat, int iLayerPlane, UINT nAttributes, int* piAttributes, int *piValues);
     PFNWGLGETPIXELFORMATATTRIBIVPROC fGetPixelFormatAttribiv;
 };
-
-bool
-WGLWrap::InitEarly()
-{
-    if (fCreateContext)
-        return true;
-
-    SymLoadStruct symbols[] = {
-        { (PRFuncPtr*) &fCreateContext, { "wglCreateContext", NULL } },
-        { (PRFuncPtr*) &fMakeCurrent, { "wglMakeCurrent", NULL } },
-        { (PRFuncPtr*) &fGetProcAddress, { "wglGetProcAddress", NULL } },
-        { (PRFuncPtr*) &fDeleteContext, { "wglDeleteContext", NULL } },
-        { NULL, { NULL } }
-    };
-
-    return LoadSymbols(&symbols[0], false);
-}
 
 bool
 WGLWrap::Init()
@@ -136,10 +108,7 @@ nsGLPbufferWGL::Init(WebGLContext *priv)
     if (!gWGLWrap.OpenLibrary(opengl32))
         return PR_FALSE;
 
-    if (!gWGLWrap.InitEarly())
-        return PR_FALSE;
-
-    gWGLWrap.SetLookupFunc((LibrarySymbolLoader::PlatformLookupFunction) gWGLWrap.fGetProcAddress);
+    gWGLWrap.SetLookupFunc((LibrarySymbolLoader::PlatformLookupFunction) wglGetProcAddress);
 
     mPriv = priv;
     
@@ -187,13 +156,13 @@ nsGLPbufferWGL::Init(WebGLContext *priv)
     }
 
     // create rendering context
-    mGlewWglContext = gWGLWrap.fCreateContext(mGlewDC);
+    mGlewWglContext = wglCreateContext(mGlewDC);
     if (!mGlewWglContext) {
         LogMessage("Canvas 3D: wglCreateContext failed");
         return PR_FALSE;
     }
 
-    if (!gWGLWrap.fMakeCurrent(mGlewDC, (HGLRC) mGlewWglContext)) {
+    if (!wglMakeCurrent(mGlewDC, (HGLRC) mGlewWglContext)) {
         LogMessage("Canvas 3D: wglMakeCurrent failed");
         return PR_FALSE;
     }
@@ -209,7 +178,7 @@ nsGLPbufferWGL::Init(WebGLContext *priv)
         return PR_FALSE;
     }
 
-    mGLWrap.SetLookupFunc((LibrarySymbolLoader::PlatformLookupFunction) gWGLWrap.fGetProcAddress);
+    mGLWrap.SetLookupFunc((LibrarySymbolLoader::PlatformLookupFunction) wglGetProcAddress);
 
     if (!mGLWrap.Init(GLES20Wrap::TRY_NATIVE_GL)) {
         LogMessage("Canvas 3D: GLWrap init failed");
@@ -255,7 +224,7 @@ nsGLPbufferWGL::Resize(PRInt32 width, PRInt32 height)
             0,
             height * mThebesSurface->Stride());
 
-    if (!gWGLWrap.fMakeCurrent(mGlewDC, (HGLRC) mGlewWglContext)) {
+    if (!wglMakeCurrent(mGlewDC, (HGLRC) mGlewWglContext)) {
         fprintf (stderr, "Error: %d\n", GetLastError());
         LogMessage("Canvas 3D: wglMakeCurrent failed");
         return PR_FALSE;
@@ -381,7 +350,7 @@ TRY_FIND_AGAIN:
     }
 
     mPbufferDC = gWGLWrap.fGetPbufferDC(mPbuffer);
-    mPbufferContext = gWGLWrap.fCreateContext(mPbufferDC);
+    mPbufferContext = wglCreateContext(mPbufferDC);
 
     mWindowsSurface = new gfxWindowsSurface(gfxIntSize(width, height), gfxASurface::ImageFormatARGB32);
     if (mWindowsSurface && mWindowsSurface->CairoStatus() == 0)
@@ -401,7 +370,7 @@ nsGLPbufferWGL::Destroy()
     mThebesSurface = nsnull;
 
     if (mPbuffer) {
-        gWGLWrap.fDeleteContext((HGLRC) mPbufferContext);
+        wglDeleteContext((HGLRC) mPbufferContext);
         gWGLWrap.fDestroyPbuffer(mPbuffer);
         mPbuffer = nsnull;
     }
@@ -412,7 +381,7 @@ nsGLPbufferWGL::~nsGLPbufferWGL()
     Destroy();
 
     if (mGlewWglContext) {
-        gWGLWrap.fDeleteContext((HGLRC) mGlewWglContext);
+        wglDeleteContext((HGLRC) mGlewWglContext);
         mGlewWglContext = nsnull;
     }
 
@@ -432,7 +401,7 @@ nsGLPbufferWGL::MakeContextCurrent()
     if (sCurrentContextToken == mPbufferContext)
         return;
 
-    gWGLWrap.fMakeCurrent (mPbufferDC, (HGLRC) mPbufferContext);
+    wglMakeCurrent (mPbufferDC, (HGLRC) mPbufferContext);
     sCurrentContextToken = mPbufferContext;
 }
 

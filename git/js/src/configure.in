@@ -1851,21 +1851,9 @@ case "$target" in
     TARGET_MD_ARCH=win32
     _PLATFORM_DEFAULT_TOOLKIT='windows'
     BIN_SUFFIX='.exe'
+    USE_SHORT_LIBNAME=1
     MOZ_ENABLE_POSTSCRIPT=
     MOZ_USER_DIR="Mozilla"
-
-    dnl Default to Windows Mobile components enabled
-    WINCE_WINDOWS_MOBILE=1
-
-    MOZ_ARG_DISABLE_BOOL(windows-mobile-components,
-    [  --disable-windows-mobile-components
-         Disable Windows Mobile specific components from CE build],
-    WINCE_WINDOWS_MOBILE=,
-    WINCE_WINDOWS_MOBILE=1)
- 
-    if test "$WINCE_WINDOWS_MOBILE"; then
-        AC_DEFINE(WINCE_WINDOWS_MOBILE)
-    fi
 ;;
 
 *-symbian*)
@@ -1997,6 +1985,7 @@ case "$target" in
     TARGET_MD_ARCH=win32
     _PLATFORM_DEFAULT_TOOLKIT='cairo-windows'
     BIN_SUFFIX='.exe'
+    USE_SHORT_LIBNAME=1
     MOZ_ENABLE_POSTSCRIPT=
     MOZ_USER_DIR="Mozilla"
 
@@ -2156,6 +2145,7 @@ case "$target" in
     AC_DEFINE(XP_OS2)
     AC_DEFINE(OS2EMX_PLAIN_CHAR)
     AC_DEFINE(TCPV40HDRS)
+    USE_SHORT_LIBNAME=1
     DLL_PREFIX=
     LIB_PREFIX=
     LIB_SUFFIX=lib
@@ -2893,7 +2883,7 @@ esac
 
 dnl We don't want to link with libdl even if it's present on OS X, since
 dnl it's not used and not part of the default installation.
-dnl The same goes for BeOS. OS/2 has dlfcn in libc.
+dnl The same goes for BeOS.
 dnl We don't want to link against libm or libpthread on Darwin since
 dnl they both are just symlinks to libSystem and explicitly linking
 dnl against libSystem causes issues when debugging (see bug 299601).
@@ -2901,8 +2891,6 @@ case $target in
 *-darwin*)
     ;;
 *-beos*)
-    ;;
-*-os2*)
     ;;
 *)
     AC_CHECK_LIB(m, atan)
@@ -2929,14 +2917,7 @@ if test ! "$GNU_CXX"; then
 	;;
      esac
 fi
-
-dnl OS/2 has socket in libc.
-case $target in
-*-os2*)
-    ;;
-*)
-    AC_CHECK_LIB(socket, socket)
-esac
+AC_CHECK_LIB(socket, socket)
 
 dnl ========================================================
 dnl = pthread support
@@ -4828,6 +4809,7 @@ AC_SUBST(LD)
 AC_SUBST(RC)
 AC_SUBST(RCFLAGS)
 AC_SUBST(WINDRES)
+AC_SUBST(USE_SHORT_LIBNAME)
 AC_SUBST(IMPLIB)
 AC_SUBST(FILTER)
 AC_SUBST(BIN_FLAGS)
@@ -4877,7 +4859,6 @@ AC_SUBST(MOZ_POST_DSO_LIB_COMMAND)
 AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
 AC_SUBST(MOZ_TIMELINE)
 AC_SUBST(WINCE)
-AC_SUBST(WINCE_WINDOWS_MOBILE)
 
 AC_SUBST(MOZ_APP_NAME)
 AC_SUBST(MOZ_APP_DISPLAYNAME)

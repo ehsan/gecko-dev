@@ -401,12 +401,7 @@ PRInt32 nsToolkit::OSXVersion()
 
 PRBool nsToolkit::OnLeopardOrLater()
 {
-  return (OSXVersion() >= MAC_OS_X_VERSION_10_5_HEX);
-}
-
-PRBool nsToolkit::OnSnowLeopardOrLater()
-{
-  return (OSXVersion() >= MAC_OS_X_VERSION_10_6_HEX);
+    return (OSXVersion() >= MAC_OS_X_VERSION_10_5_HEX) ? PR_TRUE : PR_FALSE;
 }
 
 // An alternative to [NSObject poseAsClass:] that isn't deprecated on OS X

@@ -384,30 +384,6 @@ public:
   NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
-  /**
-   * Helper functions and class to dispatch events related to changes in the
-   * scroll frame's scrolled content area.
-   */
-
-  void PostScrolledAreaEvent(nsRect &aScrolledArea);
-  void FireScrolledAreaEvent(nsRect &aScrolledArea);
-
-  class ScrolledAreaEventDispatcher : public nsRunnable {
-  public:
-    NS_DECL_NSIRUNNABLE
-
-    ScrolledAreaEventDispatcher(nsHTMLScrollFrame *aScrollFrame)
-      : mScrollFrame(aScrollFrame),
-        mScrolledArea(0, 0, 0, 0)
-    {
-    }
-
-    void Revoke() { mScrollFrame = nsnull; }
-
-    nsHTMLScrollFrame *mScrollFrame;
-    nsRect mScrolledArea;
-  };
-
 protected:
   nsHTMLScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRBool aIsRoot);
   virtual PRIntn GetSkipSides() const;
@@ -440,8 +416,6 @@ protected:
 private:
   friend class nsGfxScrollFrameInner;
   nsGfxScrollFrameInner mInner;
-
-  nsRevocableEventPtr<ScrolledAreaEventDispatcher> mScrolledAreaEventDispatcher;
 };
 
 /**

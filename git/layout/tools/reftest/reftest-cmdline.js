@@ -80,14 +80,14 @@ RefTestCmdLineHandler.prototype =
 
   /* nsICommandLineHandler */
   handle : function handler_handle(cmdLine) {
-    var args = { };
-    args.wrappedJSObject = args;
+    var args = Components.classes["@mozilla.org/supports-string;1"]
+                         .createInstance(nsISupportsString);
     try {
       var uristr = cmdLine.handleFlagWithParam("reftest", false);
       if (uristr == null)
         return;
       try {
-        args.uri = cmdLine.resolveURI(uristr).spec;
+        args.data = cmdLine.resolveURI(uristr).spec;
       }
       catch (e) {
         return;
@@ -95,13 +95,6 @@ RefTestCmdLineHandler.prototype =
     }
     catch (e) {
       cmdLine.handleFlag("reftest", true);
-    }
-
-    try {
-      var nocache = cmdLine.handleFlag("reftestnocache", false);
-      args.nocache = nocache;
-    }
-    catch (e) {
     }
 
     /* Ignore the platform's online/offline status while running reftests. */

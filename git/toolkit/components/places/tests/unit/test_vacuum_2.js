@@ -55,11 +55,11 @@ const PLACES_VACUUM_STARTING_TOPIC = "places-vacuum-starting";
 
 function getDBVacuumRatio() {
   let freelistStmt = dbConn.createStatement("PRAGMA freelist_count");
-  freelistStmt.executeStep();
+  freelistStmt.step();
   let freelistCount = freelistStmt.row.freelist_count;
   freelistStmt.finalize();
   let pageCountStmt = dbConn.createStatement("PRAGMA page_count");
-  pageCountStmt.executeStep();
+  pageCountStmt.step();
   let pageCount = pageCountStmt.row.page_count;
   pageCountStmt.finalize();
 

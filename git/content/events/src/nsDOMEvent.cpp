@@ -91,8 +91,7 @@ static const char* const sEventNames[] = {
   "MozRotateGestureUpdate",
   "MozRotateGesture",
   "MozTapGesture",
-  "MozPressTapGesture",
-  "MozScrolledAreaChanged"
+  "MozPressTapGesture"
 };
 
 static char *sPopupAllowedEvents;
@@ -583,9 +582,6 @@ nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
       mEvent->message = NS_UI_FOCUSOUT;
     else if (atom == nsGkAtoms::oninput)
       mEvent->message = NS_FORM_INPUT;
-  } else if (mEvent->eventStructType == NS_SCROLLAREA_EVENT) {
-    if (atom == nsGkAtoms::onMozScrolledAreaChanged)
-      mEvent->message = NS_SCROLLEDAREACHANGED;
   } else if (mEvent->eventStructType == NS_INPUT_EVENT) {
     if (atom == nsGkAtoms::oncommand)
       mEvent->message = NS_XUL_COMMAND;
@@ -892,16 +888,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       static_cast<nsScrollPortEvent*>(newEvent)->orient =
         static_cast<nsScrollPortEvent*>(mEvent)->orient;
-      break;
-    }
-    case NS_SCROLLAREA_EVENT:
-    {
-      nsScrollAreaEvent *newScrollAreaEvent = 
-        new nsScrollAreaEvent(PR_FALSE, msg, nsnull);
-      NS_ENSURE_TRUE(newScrollAreaEvent, NS_ERROR_OUT_OF_MEMORY);
-      newScrollAreaEvent->mArea =
-        static_cast<nsScrollAreaEvent *>(mEvent)->mArea;
-      newEvent = newScrollAreaEvent;
       break;
     }
     case NS_MUTATION_EVENT:
@@ -1466,8 +1452,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_MozTapGesture];
   case NS_SIMPLE_GESTURE_PRESSTAP:
     return sEventNames[eDOMEvents_MozPressTapGesture];
-  case NS_SCROLLEDAREACHANGED:
-    return sEventNames[eDOMEvents_MozScrolledAreaChanged];
   default:
     break;
   }

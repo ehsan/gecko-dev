@@ -173,6 +173,7 @@ public:
   NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual nsIFrame* GetLastChild(nsIAtom* aListName) const;
   virtual nscoord GetBaseline() const;
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
   virtual void Destroy();
@@ -355,10 +356,6 @@ protected:
                                        gfxFloat aSize,
                                        const PRUint8 aDecoration);
 
-  virtual void AdjustForTextIndent(const nsLineBox* aLine,
-                                   nscoord& start,
-                                   nscoord& width);
-
   void TryAllLines(nsLineList::iterator* aIterator,
                    nsLineList::iterator* aStartIterator,
                    nsLineList::iterator* aEndIterator,
@@ -484,7 +481,7 @@ protected:
     */
   line_iterator RemoveFloat(nsIFrame* aFloat);
 
-  void CollectFloats(nsIFrame* aFrame, nsFrameList& aList,
+  void CollectFloats(nsIFrame* aFrame, nsFrameList& aList, nsIFrame** aTail,
                      PRBool aFromOverflow, PRBool aCollectFromSiblings);
   // Remove a float, abs, rel positioned frame from the appropriate block's list
   static void DoRemoveOutOfFlowFrame(nsIFrame* aFrame);
@@ -594,15 +591,6 @@ protected:
   //----------------------------------------
   // Methods for pushing/pulling lines/frames
 
-  /**
-   * Create a next-in-flow, if necessary, for aFrame. If a new frame is
-   * created, place it in aLine if aLine is not null.
-   * @param aState the block reflow state
-   * @param aLine where to put a new frame
-   * @param aFrame the frame
-   * @param aMadeNewFrame PR_TRUE if a new frame was created, PR_FALSE if not
-   * @return NS_OK if a next-in-flow already exists or is successfully created
-   */
   virtual nsresult CreateContinuationFor(nsBlockReflowState& aState,
                                          nsLineBox*          aLine,
                                          nsIFrame*           aFrame,
@@ -681,24 +669,24 @@ protected:
   struct nsAutoOOFFrameList {
     nsFrameList mList;
 
-    nsAutoOOFFrameList(nsBlockFrame* aBlock)
-      : mPropValue(aBlock->GetOverflowOutOfFlows())
-      , mBlock(aBlock) {
-      if (mPropValue) {
-        mList = *mPropValue;
+    nsAutoOOFFrameList(nsBlockFrame* aBlock) :
+      mList(aBlock->GetOverflowOutOfFlows().FirstChild()),
+      aOldHead(mList.FirstChild()), mBlock(aBlock) {}
+    ~nsAutoOOFFrameList() {
+      if (mList.FirstChild() != aOldHead) {
+        mBlock->SetOverflowOutOfFlows(mList);
       }
     }
-    ~nsAutoOOFFrameList() {
-      mBlock->SetOverflowOutOfFlows(mList, mPropValue);
-    }
   protected:
-    nsFrameList* const mPropValue;
-    nsBlockFrame* const mBlock;
+    nsIFrame* aOldHead;
+    nsBlockFrame* mBlock;
   };
   friend struct nsAutoOOFFrameList;
 
-  nsFrameList* GetOverflowOutOfFlows() const;
-  void SetOverflowOutOfFlows(const nsFrameList& aList, nsFrameList* aPropValue);
+  nsFrameList GetOverflowOutOfFlows() const;
+  void SetOverflowOutOfFlows(const nsFrameList& aList);
+
+  nsIFrame* LastChild();
 
 #ifdef NS_DEBUG
   void VerifyLines(PRBool aFinalCheckOK);

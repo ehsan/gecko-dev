@@ -399,9 +399,7 @@ argumentUnboxingTemplates = {
         "        return JS_FALSE;\n",
 
     '[domstring]':
-        "    xpc_qsDOMString ${name}(cx, ${argVal}, ${argPtr},\n"
-        "                            xpc_qsDOMString::e${nullBehavior},\n"
-        "                            xpc_qsDOMString::e${undefinedBehavior});\n"
+        "    xpc_qsDOMString ${name}(cx, ${argVal}, ${argPtr});\n"
         "    if (!${name}.IsValid())\n"
         "        return JS_FALSE;\n",
 
@@ -426,8 +424,7 @@ argumentUnboxingTemplates = {
 # Omitted optional arguments are treated as though the caller had passed JS
 # `null`; this behavior is from XPCWrappedNative::CallMethod.
 #
-def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
-                          nullBehavior, undefinedBehavior):
+def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared):
     # f - file to write to
     # i - int or None - Indicates the source jsval.  If i is an int, the source
     #     jsval is argv[i]; otherwise it is *vp.  But if Python i >= C++ argc,
@@ -453,9 +450,7 @@ def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
     params = {
         'name': name,
         'argVal': argVal,
-        'argPtr': argPtr,
-        'nullBehavior': nullBehavior or 'DefaultNullBehavior',
-        'undefinedBehavior': undefinedBehavior or 'DefaultUndefinedBehavior'
+        'argPtr': argPtr
         }
 
     typeName = getBuiltinOrNativeTypeName(type)
@@ -655,70 +650,17 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
     assert isAttr or isMethod
     isGetter = isAttr and not isSetter
 
-    signature = "static JSBool\n"
-    if isAttr:
-        # JSPropertyOp signature.
-        signature += "%s(JSContext *cx, JSObject *obj, jsval id,%s jsval *vp)\n"
-    else:
-        # JSFastNative.
-        signature += "%s(JSContext *cx, uintN argc,%s jsval *vp)\n"
-
     customMethodCall = customMethodCalls.get(stubName, None)
-    if customMethodCall is None:
-        customMethodCall = customMethodCalls.get(member.iface.name + '_', None)
-        if customMethodCall is not None:
-            templateName = member.iface.name
-            if isGetter:
-                templateName += '_Get'
-            elif isSetter:
-                templateName += '_Set'
-
-            # Generate the code for the stub, calling the template function
-            # that's shared between the stubs. The stubs can't have additional
-            # arguments, only the template function can.
-            callTemplate = signature % (stubName, '')
-            callTemplate += "{\n"
-
-            nativeName = (member.binaryname is not None and member.binaryname
-                          or header.firstCap(member.name))
-            argumentValues = (customMethodCall['additionalArgumentValues']
-                              % nativeName)
-            if isAttr:
-                callTemplate += ("    return %s(cx, obj, id, %s, vp);\n"
-                                 % (templateName, argumentValues))
-            else:
-                callTemplate += ("    return %s(cx, argc, %s, vp);\n"
-                                 % (templateName, argumentValues))
-            callTemplate += "}\n\n"
-
-            # Fall through and create the template function stub called from the
-            # real stubs, but only generate the stub once. Otherwise, just write
-            # out the call to the template function and return.
-            templateGenerated = templateName + '_generated'
-            if templateGenerated in customMethodCall:
-                f.write(callTemplate)
-                return
-            customMethodCall[templateGenerated] = True
-
-            if isMethod:
-                code = customMethodCall['code']
-            elif isGetter:
-                code = customMethodCall['getter_code']
-            else:
-                code = customMethodCall['setter_code']
-            stubName = templateName
-    else:
-        callTemplate = ""
-        code = customMethodCall['code']
 
     # Function prolog.
-
-    # Only template functions can have additional arguments.
-    if customMethodCall is None or not 'additionalArguments' in customMethodCall:
-        additionalArguments = ''
+    f.write("static JSBool\n")
+    if isAttr:
+        # JSPropertyOp signature.
+        f.write(stubName + "(JSContext *cx, JSObject *obj, jsval id, "
+                "jsval *vp)\n")
     else:
-        additionalArguments = " %s," % customMethodCall['additionalArguments']
-    f.write(signature % (stubName, additionalArguments))
+        # JSFastNative.
+        f.write(stubName + "(JSContext *cx, uintN argc, jsval *vp)\n")
     f.write("{\n")
     f.write("    XPC_QS_ASSERT_CONTEXT_OK(cx);\n")
 
@@ -796,15 +738,11 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
                 f, i, 'arg%d' % i, param.realtype,
                 haveCcx=haveCcx,
                 optional=param.optional,
-                rvdeclared=rvdeclared,
-                nullBehavior=param.null,
-                undefinedBehavior=param.undefined)
+                rvdeclared=rvdeclared)
     elif isSetter:
         rvdeclared = writeArgumentUnboxing(f, None, 'arg0', member.realtype,
                                            haveCcx=False, optional=False,
-                                           rvdeclared=rvdeclared,
-                                           nullBehavior=member.null,
-                                           undefinedBehavior=member.undefined)
+                                           rvdeclared=rvdeclared)
 
     canFail = customMethodCall is None or customMethodCall.get('canFail', False)
     if canFail and not rvdeclared:
@@ -812,9 +750,9 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
         rvdeclared = True
 
     if customMethodCall is not None:
-        f.write("%s\n" % code)
+        f.write("%s\n" % customMethodCall['code'])
 
-    if customMethodCall is None or (isGetter and callTemplate is ""):
+    if customMethodCall is None or isGetter:
         if customMethodCall is not None:
             f.write("#ifdef DEBUG\n")
             f.write("    nsresult debug_rv;\n")
@@ -885,10 +823,6 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
 
     # Epilog.
     f.write("}\n\n")
-
-    # Now write out the call to the template function.
-    if customMethodCall is not None:
-        f.write(callTemplate)
 
 traceTypeMap = {
     'void':

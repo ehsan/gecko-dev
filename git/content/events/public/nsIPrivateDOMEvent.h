@@ -40,6 +40,11 @@
 
 #include "nsISupports.h"
 
+class nsPresContext;
+
+/*
+ * Event listener manager interface.
+ */
 #define NS_IPRIVATEDOMEVENT_IID \
 { 0x1da4c501, 0xe87e, 0x49b4, \
   { 0xb0, 0x49, 0xdf, 0x9f, 0xc3, 0x6b, 0x56, 0xd4 } }
@@ -48,8 +53,7 @@ class nsIDOMEventTarget;
 class nsIDOMEvent;
 class nsEvent;
 class nsCommandEvent;
-class nsPresContext;
-class nsInvalidateRequestList;
+class nsRegion;
 
 class nsIPrivateDOMEvent : public nsISupports
 {
@@ -105,14 +109,12 @@ nsresult
 NS_NewDOMMessageEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, class nsEvent* aEvent);
 nsresult
 NS_NewDOMProgressEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, class nsEvent* aEvent);
-// This empties aInvalidateRequests.
 nsresult
 NS_NewDOMNotifyPaintEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext,
                           nsEvent* aEvent,
                           PRUint32 aEventType = 0,
-                          nsInvalidateRequestList* aInvalidateRequests = nsnull);
+                          const nsRegion* aSameOriginRegion = nsnull,
+                          const nsRegion* aCrossDocRegion = nsnull);
 nsresult
 NS_NewDOMSimpleGestureEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, class nsSimpleGestureEvent* aEvent);
-nsresult
-NS_NewDOMScrollAreaEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, class nsScrollAreaEvent* aEvent);
 #endif // nsIPrivateDOMEvent_h__

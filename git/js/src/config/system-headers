@@ -92,7 +92,6 @@ cairo-directfb.h
 cairo-qpainter.h
 #endif
 dfiff.h
-ffi.h
 fusion/reactor.h
 fusion/property.h
 fusion/conf.h

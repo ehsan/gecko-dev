@@ -359,6 +359,7 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
     return NS_ERROR_OUT_OF_MEMORY;
 
   // create the children frames; skip content which isn't <frameset> or <frame>
+  nsIFrame* lastChild = nsnull;
   mChildCount = 0; // number of <frame> or <frameset> children
   nsIFrame* frame;
 
@@ -419,8 +420,12 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
       if (NS_FAILED(result))
         return result;
 
-      mFrames.AppendFrame(nsnull, frame);
-
+      if (lastChild)
+        lastChild->SetNextSibling(frame);
+      else
+        mFrames.SetFrames(frame);
+      
+      lastChild = frame;
       mChildCount++;
     }
   }
@@ -447,8 +452,12 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
       return result;
     }
    
-    mFrames.AppendFrame(nsnull, blankFrame);
-
+    if (lastChild)
+      lastChild->SetNextSibling(blankFrame);
+    else
+      mFrames.SetFrames(blankFrame);
+    
+    lastChild = blankFrame;
     mChildTypes[mChildCount] = BLANK;
     mChildBorderColors[mChildCount].Set(NO_COLOR);
     mChildCount++;
@@ -1031,6 +1040,7 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
   nsPoint offset(0,0);
   nsSize size, lastSize;
   nsIFrame* child = mFrames.FirstChild();
+  nsIFrame* lastChild = mFrames.LastChild();
 
   for (PRInt32 childX = 0; childX < mNonBorderChildCount; childX++) {
     nsIntPoint cellIndex;
@@ -1053,7 +1063,8 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
         if (NS_LIKELY(borderFrame != nsnull)) {
           borderFrame->Init(mContent, this, nsnull);
           mChildCount++;
-          mFrames.AppendFrame(nsnull, borderFrame);
+          lastChild->SetNextSibling(borderFrame);
+          lastChild = borderFrame;
           mHorBorders[cellIndex.y-1] = borderFrame;
           // set the neighbors for determining drag boundaries
           borderFrame->mPrevNeighbor = lastRow;
@@ -1089,7 +1100,8 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
             if (NS_LIKELY(borderFrame != nsnull)) {
               borderFrame->Init(mContent, this, nsnull);
               mChildCount++;
-              mFrames.AppendFrame(nsnull, borderFrame);
+              lastChild->SetNextSibling(borderFrame);
+              lastChild = borderFrame;
               mVerBorders[cellIndex.x-1] = borderFrame;
               // set the neighbors for determining drag boundaries
               borderFrame->mPrevNeighbor = lastCol;

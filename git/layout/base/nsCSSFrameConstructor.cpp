@@ -614,7 +614,7 @@ inline void
 SetInitialSingleChild(nsIFrame* aParent, nsIFrame* aFrame)
 {
   NS_PRECONDITION(!aFrame->GetNextSibling(), "Should be using a frame list");
-  nsFrameList temp(aFrame, aFrame);
+  nsFrameList temp(aFrame);
   aParent->SetInitialChildList(nsnull, temp);
 }
 
@@ -686,31 +686,29 @@ CleanupFrameReferences(nsFrameManager*  aFrameManager,
 
 // -----------------------------------------------------------
 
-// Structure used when constructing formatting object trees.
-struct nsFrameItems : public nsFrameList
+nsFrameItems::nsFrameItems(nsIFrame* aFrame)
+  : nsFrameList(aFrame), lastChild(aFrame)
 {
-  // Appends the frame to the end of the list
-  void AddChild(nsIFrame* aChild);
-};
+}
 
 void 
 nsFrameItems::AddChild(nsIFrame* aChild)
 {
-  NS_PRECONDITION(aChild, "nsFrameItems::AddChild");
-
-  // It'd be really nice if we could just AppendFrames(nsnull, aChild) here,
-  // but some of our callers put frames that have different
+  // It'd be really nice if we could just InsertFrame(nsnull, lastChild,
+  // aChild) here, but some of our callers put frames that have different
   // parents (caption, I'm looking at you) on the same framelist, and
   // nsFrameList asserts if you try to do that.
   if (IsEmpty()) {
-    SetFrames(aChild);
+    nsFrameList::AppendFrames(nsnull, aChild);
   }
-  else {
-    NS_ASSERTION(aChild != mLastChild,
+  else
+  {
+    NS_ASSERTION(aChild != lastChild,
                  "Same frame being added to frame list twice?");
-    mLastChild->SetNextSibling(aChild);
-    mLastChild = nsLayoutUtils::GetLastSibling(aChild);
+    lastChild->SetNextSibling(aChild);
   }
+  // if aChild has siblings, lastChild needs to be the last one
+  lastChild = nsLayoutUtils::GetLastSibling(aChild);
 }
 
 // -----------------------------------------------------------
@@ -1241,14 +1239,15 @@ nsFrameConstructorState::ProcessFrameInsertions(nsAbsoluteItems& aFrameItems,
     // CompareTreePosition uses placeholder hierarchy for out of flow frames,
     // so this will make out-of-flows respect the ordering of placeholders,
     // which is great because it takes care of anonymous content.
+    nsIFrame* insertionPoint = nsnull;
     nsIFrame* firstNewFrame = aFrameItems.FirstChild();  
     if (!lastChild ||
         nsLayoutUtils::CompareTreePosition(lastChild, firstNewFrame, containingBlock) < 0) {
-      // no lastChild, or lastChild comes before the new children, so just append
-      rv = containingBlock->AppendFrames(aChildListName, aFrameItems);
+      // no lastChild, or lastChild comes before the new children, so
+      // just insert after lastChild.
+      insertionPoint = lastChild;
     } else {
       // try the other children
-      nsIFrame* insertionPoint = nsnull;
       for (nsIFrame* f = childList.FirstChild(); f != lastChild;
            f = f->GetNextSibling()) {
         PRInt32 compare =
@@ -1260,9 +1259,10 @@ nsFrameConstructorState::ProcessFrameInsertions(nsAbsoluteItems& aFrameItems,
         }
         insertionPoint = f;
       }
-      rv = containingBlock->InsertFrames(aChildListName, insertionPoint,
-                                         aFrameItems);
     }
+
+    rv = containingBlock->InsertFrames(aChildListName, insertionPoint,
+                                       aFrameItems);
   }
 
   NS_POSTCONDITION(aFrameItems.IsEmpty(), "How did that happen?");
@@ -1340,8 +1340,11 @@ AdjustFloatParentPtrs(nsIFrame*                aFrame,
       NS_ASSERTION(outOfFlowFrame->GetParent() == aOuterState.mFloatedItems.containingBlock,
                    "expected the float to be a child of the outer CB");
 
-      aOuterState.mFloatedItems.RemoveFrame(outOfFlowFrame);
-      aState.mFloatedItems.AddChild(outOfFlowFrame);
+      if (aOuterState.mFloatedItems.RemoveFrame(outOfFlowFrame, nsnull)) {
+        aState.mFloatedItems.AddChild(outOfFlowFrame);
+      } else {
+        NS_NOTREACHED("float wasn't in the outer state float list");
+      }
 
       outOfFlowFrame->SetParent(parent);
       if (outOfFlowFrame->GetStateBits() &
@@ -1500,14 +1503,15 @@ GetChildListNameFor(nsIFrame*       aChildFrame)
   // Verify that the frame is actually in that child list or in the
   // corresponding overflow list.
   nsIFrame* parent = aChildFrame->GetParent();
-  PRBool found = parent->GetChildList(listName).ContainsFrame(aChildFrame);
+  PRBool found = nsFrameList(parent->GetFirstChild(listName))
+                   .ContainsFrame(aChildFrame);
   if (!found) {
     if (!(aChildFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
-      found = parent->GetChildList(nsGkAtoms::overflowList)
+      found = nsFrameList(parent->GetFirstChild(nsGkAtoms::overflowList))
                 .ContainsFrame(aChildFrame);
     }
     else if (aChildFrame->GetStyleDisplay()->IsFloating()) {
-      found = parent->GetChildList(nsGkAtoms::overflowOutOfFlowList)
+      found = nsFrameList(parent->GetFirstChild(nsGkAtoms::overflowOutOfFlowList))
                 .ContainsFrame(aChildFrame);
     }
     // else it's positioned and should have been on the 'listName' child list.
@@ -2175,7 +2179,7 @@ nsCSSFrameConstructor::ConstructTableCol(nsFrameConstructorState& aState,
   nsStyleContext* const styleContext = aItem.mStyleContext;
 
   nsTableColFrame* colFrame = NS_NewTableColFrame(mPresShell, styleContext);
-  if (NS_UNLIKELY(!colFrame)) {
+  if (NS_UNLIKELY(!aNewFrame)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   InitAndRestoreFrame(aState, content, aParentFrame, nsnull, colFrame);
@@ -2183,11 +2187,9 @@ nsCSSFrameConstructor::ConstructTableCol(nsFrameConstructorState& aState,
   NS_ASSERTION(colFrame->GetStyleContext() == styleContext,
                "Unexpected style context");
 
-  aFrameItems.AddChild(colFrame);
-  *aNewFrame = colFrame;
-
   // construct additional col frames if the col frame has a span > 1
   PRInt32 span = colFrame->GetSpan();
+  nsIFrame* lastCol = colFrame;
   for (PRInt32 spanX = 1; spanX < span; spanX++) {
     nsTableColFrame* newCol = NS_NewTableColFrame(mPresShell, styleContext);
     if (NS_UNLIKELY(!newCol)) {
@@ -2195,12 +2197,16 @@ nsCSSFrameConstructor::ConstructTableCol(nsFrameConstructorState& aState,
     }
     InitAndRestoreFrame(aState, content, aParentFrame, nsnull, newCol,
                         PR_FALSE);
-    aFrameItems.LastChild()->SetNextContinuation(newCol);
-    newCol->SetPrevContinuation(aFrameItems.LastChild());
-    aFrameItems.AddChild(newCol);
+    lastCol->SetNextSibling(newCol);
+    lastCol->SetNextContinuation(newCol);
+    newCol->SetPrevContinuation(lastCol);
     newCol->SetColType(eColAnonymousCol);
+    lastCol = newCol;
   }
 
+  aFrameItems.AddChild(colFrame);
+  *aNewFrame = colFrame;
+  
   return NS_OK;
 }
 
@@ -2943,10 +2949,10 @@ nsCSSFrameConstructor::SetUpDocElementContainingBlock(nsIContent* aDocElement)
     mHasRootAbsPosContainingBlock = PR_TRUE;
   }
 
+  nsFrameList newFrameList(newFrame);
   if (viewportFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) {
-    SetInitialSingleChild(viewportFrame, newFrame);
+    viewportFrame->SetInitialChildList(nsnull, newFrameList);
   } else {
-    nsFrameList newFrameList(newFrame, newFrame);
     viewportFrame->AppendFrames(nsnull, newFrameList);
   }
 
@@ -4398,7 +4404,7 @@ void
 nsCSSFrameConstructor::FinishBuildingScrollFrame(nsIFrame* aScrollFrame,
                                                  nsIFrame* aScrolledFrame)
 {
-  nsFrameList scrolled(aScrolledFrame, aScrolledFrame);
+  nsFrameList scrolled(aScrolledFrame);
   aScrollFrame->AppendFrames(nsnull, scrolled);
 
   // force the scrolled frame to have a view. The view will be parented to
@@ -5691,8 +5697,9 @@ static nsIFrame*
 FindAppendPrevSibling(nsIFrame* aParentFrame, nsIFrame* aAfterFrame)
 {
   if (aAfterFrame) {
+    nsFrameList childList(aParentFrame->GetFirstChild(nsnull));
     NS_ASSERTION(aAfterFrame->GetParent() == aParentFrame, "Wrong parent");
-    return aParentFrame->GetChildList(nsnull).GetPrevSiblingFor(aAfterFrame);
+    return childList.GetPrevSiblingFor(aAfterFrame);
   }
 
   return aParentFrame->GetLastChild(nsnull);
@@ -5744,10 +5751,10 @@ nsCSSFrameConstructor::AppendFrames(nsFrameConstructorState&       aState,
   if (!nextSibling &&
       IsFrameSpecial(aParentFrame) &&
       !IsInlineFrame(aParentFrame) &&
-      IsInlineOutside(aFrameList.LastChild())) {
+      IsInlineOutside(aFrameList.lastChild)) {
     // We want to put some of the frames into the following inline frame.
     nsFrameList::FrameLinkEnumerator lastBlock = FindLastBlock(aFrameList);
-    nsFrameList inlineKids = aFrameList.ExtractTail(lastBlock);
+    nsFrameItems inlineKids = aFrameList.ExtractTail(lastBlock);
 
     NS_ASSERTION(inlineKids.NotEmpty(), "How did that happen?");
 
@@ -8463,8 +8470,6 @@ nsCSSFrameConstructor::CreateContinuingFrame(nsPresContext* aPresContext,
     nextContinuation->SetPrevContinuation(newFrame);
     newFrame->SetNextContinuation(nextContinuation);
   }
-
-  NS_POSTCONDITION(!newFrame->GetNextSibling(), "unexpected sibling");
   return NS_OK;
 }
 
@@ -9688,7 +9693,7 @@ nsCSSFrameConstructor::WrapFramesInFirstLineFrame(
     link.Next();
   }
 
-  nsFrameList firstLineChildren = aFrameItems.ExtractHead(link);
+  nsFrameItems firstLineChildren = aFrameItems.ExtractHead(link);
 
   if (firstLineChildren.IsEmpty()) {
     // Nothing is supposed to go into the first-line; nothing to do
@@ -9889,10 +9894,10 @@ nsCSSFrameConstructor::InsertFirstLineFrames(
           // Oy. We have work to do. Create a list of the new frames
           // that are going into the block by stripping them away from
           // the line-frame(s).
+          nsFrameList list(nextSibling);
           if (nextSibling) {
             nsLineFrame* lineFrame = (nsLineFrame*) prevSiblingParent;
-            nsFrameList tail = lineFrame->StealFramesAfter(aPrevSibling);
-            // XXX do something with 'tail'
+            lineFrame->StealFramesFrom(nextSibling);
           }
 
           nsLineFrame* nextLineFrame = (nsLineFrame*) lineFrame;
@@ -10344,7 +10349,7 @@ nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames(
   //     so just doing a linear search for the prevSibling is ok.
   // 3)  Trying to use FindPreviousSibling will fail if the first-letter is in
   //     anonymous content (eg generated content).
-  const nsFrameList& siblingList(parentFrame->GetChildList(nsnull));
+  nsFrameList siblingList(parentFrame->GetFirstChild(nsnull));
   NS_ASSERTION(siblingList.ContainsFrame(placeholderFrame),
                "Placeholder not in parent's principal child list?");
   nsIFrame* prevSibling = siblingList.GetPrevSiblingFor(placeholderFrame);
@@ -10365,7 +10370,7 @@ nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames(
   aFrameManager->RemoveFrame(parentFrame, nsnull, placeholderFrame);
 
   // Insert text frame in its place
-  nsFrameList textList(newTextFrame, newTextFrame);
+  nsFrameList textList(newTextFrame);
   aFrameManager->InsertFrames(parentFrame, nsnull, prevSibling, textList);
 
   return NS_OK;
@@ -10411,7 +10416,7 @@ nsCSSFrameConstructor::RemoveFirstLetterFrames(nsPresContext* aPresContext,
       aFrameManager->RemoveFrame(aFrame, nsnull, kid);
 
       // Insert text frame in its place
-      nsFrameList textList(textFrame, textFrame);
+      nsFrameList textList(textFrame);
       aFrameManager->InsertFrames(aFrame, nsnull, prevSibling, textList);
 
       *aStopLooking = PR_TRUE;
@@ -10725,7 +10730,7 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
   // of the inline children that follow the final block child.
 
   // Grab the first inline's kids
-  nsFrameList firstInlineKids = childItems.ExtractHead(firstBlockEnumerator);
+  nsFrameItems firstInlineKids = childItems.ExtractHead(firstBlockEnumerator);
   newFrame->SetInitialChildList(nsnull, firstInlineKids);
                                              
   // The kids between the first and last block belong to an anonymous block
@@ -10756,7 +10761,7 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
   // Find the last block child which defines the end of our block kids and the
   // start of our trailing inline's kids
   nsFrameList::FrameLinkEnumerator lastBlock = FindLastBlock(childItems);
-  nsFrameList blockKids = childItems.ExtractHead(lastBlock);
+  nsFrameItems blockKids = childItems.ExtractHead(lastBlock);
 
   if (blockFrame->HasView() || newFrame->HasView()) {
     // Move the block's child frames into the new view
@@ -10838,7 +10843,7 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
 void
 nsCSSFrameConstructor::MoveFramesToEndOfIBSplit(nsFrameConstructorState& aState,
                                                 nsIFrame* aExistingEndFrame,
-                                                nsFrameList& aFramesToMove,
+                                                nsFrameItems& aFramesToMove,
                                                 nsIFrame* aBlockPart,
                                                 nsFrameConstructorState* aTargetState)
 {
@@ -11022,7 +11027,8 @@ nsCSSFrameConstructor::WipeContainingBlock(nsFrameConstructorState& aState,
             // Try to find one after all
             nsIFrame* parentPrevCont = aFrame->GetPrevContinuation();
             while (parentPrevCont) {
-              prevSibling = parentPrevCont->GetLastChild(nsnull);
+              prevSibling =
+                nsFrameList(parentPrevCont->GetFirstChild(nsnull)).LastChild();
               if (prevSibling) {
                 break;
               }
@@ -11629,7 +11635,7 @@ nsCSSFrameConstructor::ProcessPendingRestyleTable(
                         currentRestyle->mChangeHint);
     }
 
-    count = aRestyles.Count();
+    count = mPendingRestyles.Count();
   }
 
   EndUpdate();

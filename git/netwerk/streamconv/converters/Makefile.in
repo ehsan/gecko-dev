@@ -75,7 +75,7 @@ CPPSRCS += \
         $(NULL)
 endif
 
-ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifeq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 CPPSRCS += \
 		nsBinHexDecoder.cpp \
 		$(NULL)

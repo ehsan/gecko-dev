@@ -44,17 +44,17 @@
 #include "nscore.h"
 #include "nsCOMPtr.h"
 #include "nsIPluginInstance.h"
-#include "npapi.h"
+#include "nsplugindefs.h"
 #include "nsIWidget.h"
 #include "nsTraceRefcnt.h"
 
 /**
  * base class for native plugin window implementations
  */
-class nsPluginNativeWindow : public NPWindow
+class nsPluginNativeWindow : public nsPluginWindow
 {
 public: 
-  nsPluginNativeWindow() : NPWindow() {
+  nsPluginNativeWindow() : nsPluginWindow() {
     MOZ_COUNT_CTOR(nsPluginNativeWindow);
   }
 

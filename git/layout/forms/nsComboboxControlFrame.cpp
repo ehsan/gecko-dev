@@ -1197,7 +1197,7 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
     return nsnull;
   }
 
-  nsFrameList textList(mTextFrame, mTextFrame);
+  nsFrameList textList(mTextFrame);
   mDisplayFrame->SetInitialChildList(nsnull, textList);
   return mDisplayFrame;
 }

@@ -156,8 +156,7 @@ ViewportFrame::RemoveFrame(nsIAtom*        aListName,
   nsresult rv = NS_OK;
 
   if (nsGkAtoms::fixedList == aListName) {
-    mFixedContainer.RemoveFrame(this, aListName, aOldFrame);
-    rv = NS_OK;
+    rv = mFixedContainer.RemoveFrame(this, aListName, aOldFrame);
   }
   else {
     NS_ASSERTION(!aListName, "unexpected child list");
@@ -353,7 +352,7 @@ ViewportFrame::InvalidateInternal(const nsRect& aDamageRect,
                                   PRUint32 aFlags)
 {
   nsRect r = aDamageRect + nsPoint(aX, aY);
-  PresContext()->NotifyInvalidation(r, aFlags);
+  PresContext()->NotifyInvalidation(r, (aFlags & INVALIDATE_CROSS_DOC) != 0);
 
   nsIFrame* parent = nsLayoutUtils::GetCrossDocParentFrame(this);
   if (parent) {

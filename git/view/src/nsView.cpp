@@ -648,7 +648,7 @@ nsresult nsIView::CreateWidget(const nsIID &aWindowIID,
       aWidgetInitData->mContentType = aContentType;
 
       if (aNative && aWidgetInitData->mWindowType != eWindowType_popup)
-        mWindow->Create(nsnull, aNative, trect, ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
+        mWindow->Create(aNative, trect, ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
       else
       {
         if (!initDataPassedIn && GetParent() && 
@@ -657,7 +657,7 @@ nsresult nsIView::CreateWidget(const nsIID &aWindowIID,
         if (aParentWidget) {
           NS_ASSERTION(aWidgetInitData->mWindowType == eWindowType_popup,
                        "popup widget type expected");
-          mWindow->Create(aParentWidget, nsnull, trect,
+          mWindow->Create(aParentWidget, trect,
                           ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
         }
         else {
@@ -668,10 +668,10 @@ nsresult nsIView::CreateWidget(const nsIID &aWindowIID,
             // when printing
             if (!parentWidget)
               return NS_ERROR_FAILURE;
-            mWindow->Create(nsnull, parentWidget->GetNativeData(NS_NATIVE_WIDGET), trect,
+            mWindow->Create(parentWidget->GetNativeData(NS_NATIVE_WIDGET), trect,
                             ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
           } else {
-            mWindow->Create(parentWidget, nsnull, trect,
+            mWindow->Create(parentWidget, trect,
                             ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
           }
         }

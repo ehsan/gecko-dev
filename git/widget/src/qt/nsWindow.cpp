@@ -236,6 +236,38 @@ nsWindow::ConfigureChildren(const nsTArray<nsIWidget::Configuration>& aConfigura
 }
 
 NS_IMETHODIMP
+nsWindow::Create(nsIWidget        *aParent,
+                 const nsIntRect     &aRect,
+                 EVENT_CALLBACK   aHandleEventFunction,
+                 nsIDeviceContext *aContext,
+                 nsIAppShell      *aAppShell,
+                 nsIToolkit       *aToolkit,
+                 nsWidgetInitData *aInitData)
+{
+    LOG(("%s [%p]\n", __PRETTY_FUNCTION__, (void *)this));
+
+    nsresult rv = NativeCreate(aParent, nsnull, aRect, aHandleEventFunction,
+                               aContext, aAppShell, aToolkit, aInitData);
+    return rv;
+}
+
+NS_IMETHODIMP
+nsWindow::Create(nsNativeWidget aParent,
+                 const nsIntRect     &aRect,
+                 EVENT_CALLBACK   aHandleEventFunction,
+                 nsIDeviceContext *aContext,
+                 nsIAppShell      *aAppShell,
+                 nsIToolkit       *aToolkit,
+                 nsWidgetInitData *aInitData)
+{
+    LOG(("%s [%p]\n", __PRETTY_FUNCTION__, (void *)this));
+
+    nsresult rv = NativeCreate(nsnull, aParent, aRect, aHandleEventFunction,
+                               aContext, aAppShell, aToolkit, aInitData);
+    return rv;
+}
+
+NS_IMETHODIMP
 nsWindow::Destroy(void)
 {
     if (mIsDestroyed || !mWidget)
@@ -1562,14 +1594,14 @@ GetBrandName(nsXPIDLString& brandName)
 
 
 nsresult
-nsWindow::Create(nsIWidget        *aParent,
-                 nsNativeWidget    aNativeParent,
-                 const nsIntRect  &aRect,
-                 EVENT_CALLBACK    aHandleEventFunction,
-                 nsIDeviceContext *aContext,
-                 nsIAppShell      *aAppShell,
-                 nsIToolkit       *aToolkit,
-                 nsWidgetInitData *aInitData)
+nsWindow::NativeCreate(nsIWidget        *aParent,
+                       nsNativeWidget    aNativeParent,
+                       const nsIntRect     &aRect,
+                       EVENT_CALLBACK    aHandleEventFunction,
+                       nsIDeviceContext *aContext,
+                       nsIAppShell      *aAppShell,
+                       nsIToolkit       *aToolkit,
+                       nsWidgetInitData *aInitData)
 {
     // only set the base parent if we're going to be a dialog or a
     // toplevel

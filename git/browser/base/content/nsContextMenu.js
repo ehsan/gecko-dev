@@ -253,8 +253,8 @@ nsContextMenu.prototype = {
     this.setItemAttr("context-viewvideo",  "disabled", !this.mediaURL);
 
     // View background image depends on whether there is one.
-    this.showItem("context-viewbgimage", shouldShow && !this._hasMultipleBGImages);
-    this.showItem("context-sep-viewbgimage", shouldShow && !this._hasMultipleBGImages);
+    this.showItem("context-viewbgimage", shouldShow);
+    this.showItem("context-sep-viewbgimage", shouldShow);
     document.getElementById("context-viewbgimage")
             .disabled = !this.hasBGImage;
   },
@@ -522,13 +522,7 @@ nsContextMenu.prototype = {
       else if (this.target instanceof HTMLHtmlElement) {
         var bodyElt = this.target.ownerDocument.body;
         if (bodyElt) {
-          let computedURL;
-          try {
-            computedURL = this.getComputedURL(bodyElt, "background-image");
-            this._hasMultipleBGImages = false;
-          } catch (e) {
-            this._hasMultipleBGImages = true;
-          }
+          var computedURL = this.getComputedURL(bodyElt, "background-image");
           if (computedURL) {
             this.hasBGImage = true;
             this.bgImageURL = makeURLAbsolute(bodyElt.baseURI,
@@ -582,15 +576,8 @@ nsContextMenu.prototype = {
         // Background image?  Don't bother if we've already found a
         // background image further down the hierarchy.  Otherwise,
         // we look for the computed background-image style.
-        if (!this.hasBGImage &&
-            !this._hasMultipleBGImages) {
-          let bgImgUrl;
-          try {
-            bgImgUrl = this.getComputedURL(elem, "background-image");
-            this._hasMultipleBGImages = false;
-          } catch (e) {
-            this._hasMultipleBGImages = true;
-          }
+        if (!this.hasBGImage) {
+          var bgImgUrl = this.getComputedURL( elem, "background-image" );
           if (bgImgUrl) {
             this.hasBGImage = true;
             this.bgImageURL = makeURLAbsolute(elem.baseURI,
@@ -664,11 +651,6 @@ nsContextMenu.prototype = {
     var url = aElem.ownerDocument
                    .defaultView.getComputedStyle(aElem, "")
                    .getPropertyCSSValue(aProp);
-    if (url instanceof CSSValueList) {
-      if (url.length != 1)
-        throw "found multiple URLs";
-      url = url[0];
-    }
     return url.primitiveType == CSSPrimitiveValue.CSS_URI ?
            url.getStringValue() : null;
   },

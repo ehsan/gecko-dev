@@ -102,6 +102,7 @@ public:
      *
      */
     virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                           nsISupports *aLoader,
                                            const PRUint8 *aFontData,
                                            PRUint32 aLength);
 
@@ -121,6 +122,14 @@ public:
     void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> >& aFontEntryList);
 #endif
 
+    static double DPI() {
+        if (sDPI < 0.0) {
+            InitDPI();
+        }
+        NS_ASSERTION(sDPI > 0.0, "Something is wrong");
+        return sDPI;
+    }
+
 #ifndef MOZ_PANGO
     FT_Library GetFTLibrary();
 #endif
@@ -130,8 +139,9 @@ public:
     GdkDrawable *GetGdkDrawable(gfxASurface *target);
 
 protected:
-    void InitDisplayCaps();
+    static void InitDPI();
 
+    static double sDPI;
     static gfxFontconfigUtils *sFontconfigUtils;
 
 private:

@@ -139,6 +139,10 @@ protected:
   nsSimplePageSequenceFrame(nsStyleContext* aContext);
   virtual ~nsSimplePageSequenceFrame();
 
+  nsresult CreateContinuingPageFrame(nsPresContext* aPresContext,
+                                     nsIFrame*       aPageFrame,
+                                     nsIFrame**      aContinuingFrame);
+
   void SetPageNumberFormat(const char* aPropName, const char* aDefPropVal, PRBool aPageNumOnly);
 
   // SharedPageData Helper methods

@@ -679,9 +679,7 @@ xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv,
     ThrowBadArg(cx, rv, ifaceName, memberName, 0);
 }
 
-xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval,
-                                 StringificationBehavior nullBehavior,
-                                 StringificationBehavior undefinedBehavior)
+xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval)
 {
     // From the T_DOMSTRING case in XPCConvert::JSData2Native.
     typedef implementation_type::char_traits traits;
@@ -695,20 +693,47 @@ xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval,
     }
     else
     {
-        StringificationBehavior behavior = eStringify;
         if(JSVAL_IS_NULL(v))
         {
-            behavior = nullBehavior;
-        }
-        else if(JSVAL_IS_VOID(v))
-        {
-            behavior = undefinedBehavior;
+            (new(mBuf) implementation_type(
+                traits::sEmptyBuffer, PRUint32(0)))->SetIsVoid(PR_TRUE);
+            mValid = JS_TRUE;
+            return;
         }
 
-        if (behavior != eStringify)
+        s = JS_ValueToString(cx, v);
+        if(!s)
+        {
+            mValid = JS_FALSE;
+            return;
+        }
+        *pval = STRING_TO_JSVAL(s);  // Root the new string.
+    }
+
+    len = JS_GetStringLength(s);
+    chars = (len == 0 ? traits::sEmptyBuffer : (const PRUnichar*)JS_GetStringChars(s));
+    new(mBuf) implementation_type(chars, len);
+    mValid = JS_TRUE;
+}
+
+xpc_qsAString::xpc_qsAString(JSContext *cx, jsval v, jsval *pval)
+{
+    // From the T_ASTRING case in XPCConvert::JSData2Native.
+    typedef implementation_type::char_traits traits;
+    JSString *s;
+    const PRUnichar *chars;
+    size_t len;
+
+    if(JSVAL_IS_STRING(v))
+    {
+        s = JSVAL_TO_STRING(v);
+    }
+    else
+    {
+        if(JSVAL_IS_NULL(v) || JSVAL_IS_VOID(v))
         {
             (new(mBuf) implementation_type(
-                traits::sEmptyBuffer, PRUint32(0)))->SetIsVoid(behavior == eNull);
+                traits::sEmptyBuffer, PRUint32(0)))->SetIsVoid(PR_TRUE);
             mValid = JS_TRUE;
             return;
         }

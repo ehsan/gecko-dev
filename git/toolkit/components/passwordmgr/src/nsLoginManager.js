@@ -349,9 +349,6 @@ LoginManager.prototype = {
 
 
         handleEvent : function (event) {
-            if (!event.isTrusted)
-                return;
-
             this._pwmgr.log("domEventListener: got event " + event.type);
 
             switch (event.type) {

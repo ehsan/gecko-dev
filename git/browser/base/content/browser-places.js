@@ -450,7 +450,7 @@ var PlacesCommandHook = {
    * Adds a bookmark to the page loaded in the current tab. 
    */
   bookmarkCurrentPage: function PCH_bookmarkCurrentPage(aShowEditUI, aParent) {
-    this.bookmarkPage(gBrowser.selectedBrowser, aParent, aShowEditUI);
+    this.bookmarkPage(getBrowser().selectedBrowser, aParent, aShowEditUI);
   },
 
   /**
@@ -484,18 +484,19 @@ var PlacesCommandHook = {
    */
   _getUniqueTabInfo: function BATC__getUniqueTabInfo() {
     var tabList = [];
-    var seenURIs = {};
+    var seenURIs = [];
 
-    var browsers = gBrowser.browsers;
+    var browsers = getBrowser().browsers;
     for (var i = 0; i < browsers.length; ++i) {
-      let uri = browsers[i].currentURI;
+      var webNav = browsers[i].webNavigation;
+      var uri = webNav.currentURI;
 
       // skip redundant entries
       if (uri.spec in seenURIs)
         continue;
 
       // add to the set of seen URIs
-      seenURIs[uri.spec] = null;
+      seenURIs[uri.spec] = true;
       tabList.push(uri);
     }
     return tabList;
@@ -1165,7 +1166,7 @@ var PlacesStarButton = {
     if (!starIcon)
       return;
 
-    var uri = gBrowser.currentURI;
+    var uri = getBrowser().currentURI;
     this._starred = uri && (PlacesUtils.getMostRecentBookmarkForURI(uri) != -1 ||
                             PlacesUtils.getMostRecentFolderForFeedURI(uri) != -1);
     if (this._starred) {

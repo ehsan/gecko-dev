@@ -369,8 +369,7 @@ nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventTy
       nsCOMPtr<nsIFocusController> fc;
       root->GetFocusController(getter_AddRefs(fc));
       if (fc) {
-        nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(root->GetWindow());
-        fc->GetControllers(piWindow, getter_AddRefs(controllers));
+        fc->GetControllers(getter_AddRefs(controllers));
       }
     }
 

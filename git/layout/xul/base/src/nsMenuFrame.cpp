@@ -331,7 +331,7 @@ nsFrameList
 nsMenuFrame::GetChildList(nsIAtom* aListName) const
 {
   if (nsGkAtoms::popupList == aListName) {
-    return nsFrameList(mPopupFrame, mPopupFrame);
+    return mPopupFrame;
   }
   return nsBoxFrame::GetChildList(aListName);
 }

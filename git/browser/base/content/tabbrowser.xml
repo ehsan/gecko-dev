@@ -692,7 +692,6 @@
         <body>
           <![CDATA[
             var browser = this.getBrowserForTab(aTab);
-            var docURIObject = browser.contentDocument.documentURIObject; 
             if (browser.contentDocument instanceof ImageDocument) {
               if (this.mPrefs.getBoolPref("browser.chrome.site_icons")) {
                 try {
@@ -712,8 +711,8 @@
             }
             // Use documentURIObject in the check for shouldLoadFavIcon so that we
             // do the right thing with about:-style error pages.  Bug 453442
-            else if (this.shouldLoadFavIcon(docURIObject)) {
-              var url = docURIObject.prePath + "/favicon.ico";
+            else if (this.shouldLoadFavIcon(browser.contentDocument.documentURIObject)) {
+              var url = browser.currentURI.prePath + "/favicon.ico";
               if (!this.isFailedIcon(url))
                 this.setIcon(aTab, url);
             }
@@ -871,6 +870,7 @@
             const nsIWebProgressListener = Components.interfaces.nsIWebProgressListener;
             if (this.mCurrentTab.hasAttribute("busy") && !this.mIsBusy) {
               this.mIsBusy = true;
+              webProgress = this.mCurrentBrowser.webProgress;
               for (i = 0; i < this.mProgressListeners.length; i++) {
                 p = this.mProgressListeners[i];
                 if (p)
@@ -887,6 +887,7 @@
             // we need to fire a stop to all progress listeners.
             if (!this.mCurrentTab.hasAttribute("busy") && this.mIsBusy) {
               this.mIsBusy = false;
+              webProgress = this.mCurrentBrowser.webProgress;
               for (i = 0; i < this.mProgressListeners.length; i++) {
                 p = this.mProgressListeners[i];
                 if (p)
@@ -1144,7 +1145,7 @@
             }
           }
           else
-            firstTabAdded = this.addTab(aURIs[0], {ownerTab: owner});
+            firstTabAdded = this.addTab(aURIs[0], null, null, null, owner, false);
 
           var tabNum = this.mTabContainer.selectedIndex;
           for (let i = 1; i < aURIs.length; ++i) {
@@ -2159,7 +2160,7 @@
               if (document.getBindingParent(aEvent.originalTarget).localName != "tab" || dropEffect == "copy") {
                 // We're adding a new tab.
                 newIndex = this.getNewIndex(aEvent);
-                newTab = this.loadOneTab(getShortcutOrURI(url), {inBackground: bgLoad});
+                newTab = this.loadOneTab(getShortcutOrURI(url), null, null, null, bgLoad, false);
                 this.moveTabTo(newTab, newIndex);
               }
               else {

@@ -1434,6 +1434,18 @@ nsNSElementTearoff::GetClientWidth(PRInt32* aLength)
   return NS_OK;
 }
 
+static nsIFrame*
+GetContainingBlockForClientRect(nsIFrame* aFrame)
+{
+  // get the nearest enclosing SVG foreign object frame or the root frame
+  while (aFrame->GetParent() &&
+         !aFrame->IsFrameOfType(nsIFrame::eSVGForeignObject)) {
+    aFrame = aFrame->GetParent();
+  }
+
+  return aFrame;
+}
+
 NS_IMETHODIMP
 nsNSElementTearoff::GetBoundingClientRect(nsIDOMClientRect** aResult)
 {
@@ -1450,11 +1462,33 @@ nsNSElementTearoff::GetBoundingClientRect(nsIDOMClientRect** aResult)
     return NS_OK;
   }
 
+  nsPresContext* presContext = frame->PresContext();
   nsRect r = nsLayoutUtils::GetAllInFlowRectsUnion(frame,
-          nsLayoutUtils::GetContainingBlockForClientRect(frame));
-  rect->SetLayoutRect(r);
+          GetContainingBlockForClientRect(frame));
+  rect->SetLayoutRect(r, presContext);
   return NS_OK;
 }
+
+struct RectListBuilder : public nsLayoutUtils::RectCallback {
+  nsPresContext*    mPresContext;
+  nsClientRectList* mRectList;
+  nsresult          mRV;
+
+  RectListBuilder(nsPresContext* aPresContext, nsClientRectList* aList) 
+    : mPresContext(aPresContext), mRectList(aList),
+      mRV(NS_OK) {}
+
+  virtual void AddRect(const nsRect& aRect) {
+    nsRefPtr<nsClientRect> rect = new nsClientRect();
+    if (!rect) {
+      mRV = NS_ERROR_OUT_OF_MEMORY;
+      return;
+    }
+    
+    rect->SetLayoutRect(aRect, mPresContext);
+    mRectList->Append(rect);
+  }
+};
 
 NS_IMETHODIMP
 nsNSElementTearoff::GetClientRects(nsIDOMClientRectList** aResult)
@@ -1472,9 +1506,9 @@ nsNSElementTearoff::GetClientRects(nsIDOMClientRectList** aResult)
     return NS_OK;
   }
 
-  nsLayoutUtils::RectListBuilder builder(rectList);
+  RectListBuilder builder(frame->PresContext(), rectList);
   nsLayoutUtils::GetAllInFlowRects(frame,
-          nsLayoutUtils::GetContainingBlockForClientRect(frame), &builder);
+          GetContainingBlockForClientRect(frame), &builder);
   if (NS_FAILED(builder.mRV))
     return builder.mRV;
   *aResult = rectList.forget().get();
@@ -2945,7 +2979,7 @@ nsICSSStyleRule*
 nsGenericElement::GetSMILOverrideStyleRule()
 {
   nsGenericElement::nsDOMSlots *slots = GetExistingDOMSlots();
-  return slots ? slots->mSMILOverrideStyleRule.get() : nsnull;
+  return slots ? slots->mSMILOverrideStyleRule : nsnull;
 }
 
 nsresult
@@ -5033,8 +5067,7 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
           nsIFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm) {
             nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
-            fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOUSE |
-                               nsIFocusManager::FLAG_NOSCROLL);
+            fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOUSE);
           }
 
           aVisitor.mPresContext->EventStateManager()->

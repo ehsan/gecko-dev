@@ -132,7 +132,6 @@ protected:
   static PLDHashOperator RemoveForDOMDocumentEnumerator(nsISupports* aKey,
                                                         PRInt32& aEntry,
                                                         void* aUserData);
-  PRBool IsEventTrusted(nsIDOMEvent *aEvent);
   // members //////////////////////////////////////////
 
   nsCOMPtr<nsIAutoCompleteController> mController;

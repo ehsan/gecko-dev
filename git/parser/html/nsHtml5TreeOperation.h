@@ -39,9 +39,8 @@
 #define nsHtml5TreeOperation_h__
 
 #include "nsIContent.h"
-#include "nsHtml5DocumentMode.h"
 
-class nsHtml5TreeOpExecutor;
+class nsHtml5TreeBuilder;
 
 enum eHtml5TreeOperation {
   // main HTML5 ops
@@ -51,7 +50,6 @@ enum eHtml5TreeOperation {
   eTreeOpFosterParent,
   eTreeOpAppendToDocument,
   eTreeOpAddAttributes,
-  eTreeOpDocumentMode,
   // Gecko-specific on-pop ops
   eTreeOpDoneAddingChildren,
   eTreeOpDoneCreatingElement,
@@ -96,12 +94,6 @@ class nsHtml5TreeOperation {
       mParent = aParent;
       mTable = aTable;
     }
-
-    inline void Init(nsHtml5DocumentMode aMode) {
-      mOpCode = eTreeOpDocumentMode;
-      mMode = aMode;
-    }
-
     inline void DoTraverse(nsCycleCollectionTraversalCallback &cb) {
       nsHtml5TreeOperation* tmp = this;
       NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNode);
@@ -109,14 +101,13 @@ class nsHtml5TreeOperation {
       NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTable);
     }
 
-    nsresult Perform(nsHtml5TreeOpExecutor* aBuilder);
+    nsresult Perform(nsHtml5TreeBuilder* aBuilder);
 
   private:
     eHtml5TreeOperation mOpCode;
     nsCOMPtr<nsIContent> mNode;
     nsCOMPtr<nsIContent> mParent;
     nsCOMPtr<nsIContent> mTable;
-    nsHtml5DocumentMode  mMode; // space-wasting temporary solution
 };
 
 #endif // nsHtml5TreeOperation_h__
