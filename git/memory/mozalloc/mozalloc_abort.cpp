@@ -41,10 +41,8 @@
 #include <stdio.h>
 #include <stdlib.h>             // for abort()
 
-#if defined(_MSC_VER)           // MSVC
+#if defined(XP_WIN)
 #  include <intrin.h>           // for __debugbreak()
-#elif defined(XP_WIN)           // mingw
-#  include <windows.h>          // for DebugBreak
 #elif defined(XP_UNIX)
 #  include <unistd.h>           // for _exit
 #endif
@@ -73,10 +71,8 @@ mozalloc_abort(const char* const msg)
 
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
     abort();
-#elif defined(_MSC_VER)
-    __debugbreak();
 #elif defined(XP_WIN)
-    DebugBreak();
+    __debugbreak();
 #endif
     // abort() doesn't trigger breakpad on Mac, "fall through" to the
     // fail-safe code

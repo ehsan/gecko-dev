@@ -148,6 +148,7 @@ public:
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE
 
     // nsIXULDocument interface
+    NS_IMETHOD AddElementForID(nsIContent* aElement);
     NS_IMETHOD GetElementsForID(const nsAString& aID,
                                 nsCOMArray<nsIContent>& aElements);
 
@@ -169,7 +170,8 @@ public:
     {
         return nsDocument::GetElementById(aId, aReturn);
     }
-    virtual mozilla::dom::Element* GetElementById(const nsAString & elementId);
+    virtual mozilla::dom::Element* GetElementById(const nsAString & elementId,
+                                                  nsresult *aResult);
 
     // nsIDOMXULDocument interface
     NS_DECL_NSIDOMXULDOCUMENT

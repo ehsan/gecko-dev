@@ -154,9 +154,6 @@ public:
 
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
 
-  virtual nsIAtom* DoGetID() const;
-  virtual nsIAtom *GetIDAttributeName() const;
-
 protected:
   nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 };
@@ -196,18 +193,6 @@ PRBool
 nsDocumentFragment::IsNodeOfType(PRUint32 aFlags) const
 {
   return !(aFlags & ~(eCONTENT | eDOCUMENT_FRAGMENT));
-}
-
-nsIAtom*
-nsDocumentFragment::DoGetID() const
-{
-  return nsnull;  
-}
-
-nsIAtom*
-nsDocumentFragment::GetIDAttributeName() const
-{
-  return nsnull;
 }
 
 DOMCI_DATA(DocumentFragment, nsDocumentFragment)

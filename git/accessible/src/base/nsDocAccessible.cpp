@@ -983,13 +983,10 @@ NS_IMETHODIMP nsDocAccessible::Observe(nsISupports *aSubject, const char *aTopic
 {
   if (!nsCRT::strcmp(aTopic,"obs_documentCreated")) {    
     // State editable will now be set, readonly is now clear
-    // Normally we only fire delayed events created from the node, not an
-    // accessible object. See the nsAccStateChangeEvent constructor for details
-    // about this exceptional case.
     nsRefPtr<nsAccEvent> event =
       new nsAccStateChangeEvent(this, nsIAccessibleStates::EXT_STATE_EDITABLE,
                                 PR_TRUE, PR_TRUE);
-    FireDelayedAccessibleEvent(event);
+    nsEventShell::FireEvent(event);
   }
 
   return NS_OK;
@@ -1492,14 +1489,11 @@ nsDocAccessible::FireTextChangeEventForText(nsIContent *aContent,
     if (NS_FAILED(rv))
       return;
 
-    // Normally we only fire delayed events created from the node, not an
-    // accessible object. See the nsAccTextChangeEvent constructor for details
-    // about this exceptional case.
     nsRefPtr<nsAccEvent> event =
       new nsAccTextChangeEvent(accessible, offset,
                                renderedEndOffset - renderedStartOffset,
                                aIsInserted, PR_FALSE);
-    FireDelayedAccessibleEvent(event);
+    nsEventShell::FireEvent(event);
 
     FireValueChangeForTextFields(accessible);
   }
@@ -1997,14 +1991,11 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
       // XXX Collate events when a range is deleted
       // XXX We need a way to ignore SplitNode and JoinNode() when they
       // do not affect the text within the hypertext
-      // Normally we only fire delayed events created from the node, not an
-      // accessible object. See the nsAccTextChangeEvent constructor for details
-      // about this exceptional case.
       nsRefPtr<nsAccEvent> textChangeEvent =
         CreateTextChangeEventForNode(containerAccessible, childNode, childAccessible,
                                      PR_FALSE, isAsynch);
       if (textChangeEvent) {
-        FireDelayedAccessibleEvent(textChangeEvent);
+        nsEventShell::FireEvent(textChangeEvent);
       }
     }
   }

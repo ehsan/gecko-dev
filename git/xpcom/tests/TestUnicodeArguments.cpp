@@ -4,7 +4,7 @@
  */
 
 static const int args_length = 4;
-#if defined(XP_WIN) && defined(_MSC_VER)
+#ifdef XP_WIN
 #define _UNICODE
 #include <tchar.h>
 #include <stdio.h>

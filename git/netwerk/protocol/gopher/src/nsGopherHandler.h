@@ -53,23 +53,17 @@
 { 0x44588c1f, 0x2ce8, 0x4ad8, \
    {0x9b, 0x16, 0xdf, 0xb9, 0xd9, 0xd5, 0x13, 0xa7} }
 
-class nsGopherHandler : public nsIProxiedProtocolHandler
-{
+class nsGopherHandler : public nsIProxiedProtocolHandler {
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIPROTOCOLHANDLER
     NS_DECL_NSIPROXIEDPROTOCOLHANDLER
 
     // nsGopherHandler methods:
-    nsGopherHandler();
-    virtual ~nsGopherHandler();
-
-    PRUint8 GetQoSBits();
+    nsGopherHandler() {}
 
 protected:
     nsCOMPtr<nsIProtocolProxyService> mProxySvc;
 };
-
-extern nsGopherHandler *gGopherHandler;
 
 #endif /* nsGopherHandler_h___ */

@@ -37,8 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageArgValueArray_h
-#define mozStorageArgValueArray_h
+#ifndef _mozStorageArgValueArray_h_
+#define _mozStorageArgValueArray_h_
 
 #include "mozIStorageValueArray.h"
 
@@ -63,4 +63,4 @@ private:
 } // namespace storage
 } // namespace mozilla
 
-#endif // mozStorageArgValueArray_h
+#endif // _mozStorageArgValueArray_h_
