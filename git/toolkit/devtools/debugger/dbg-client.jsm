@@ -22,9 +22,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "socketTransportService",
                                    "@mozilla.org/network/socket-transport-service;1",
                                    "nsISocketTransportService");
 
-XPCOMUtils.defineLazyModuleGetter(this, "WebConsoleClient",
-                                  "resource://gre/modules/devtools/WebConsoleClient.jsm");
-
 let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
 
 function dumpn(str)
@@ -167,16 +164,10 @@ const ThreadStateTypes = {
  * by the client.
  */
 const UnsolicitedNotifications = {
-  "consoleAPICall": "consoleAPICall",
   "eventNotification": "eventNotification",
-  "fileActivity": "fileActivity",
-  "locationChange": "locationChange",
-  "networkEvent": "networkEvent",
-  "networkEventUpdate": "networkEventUpdate",
   "newScript": "newScript",
   "tabDetached": "tabDetached",
-  "tabNavigated": "tabNavigated",
-  "pageError": "pageError"
+  "tabNavigated": "tabNavigated"
 };
 
 /**
@@ -203,7 +194,6 @@ function DebuggerClient(aTransport)
   this._transport.hooks = this;
   this._threadClients = {};
   this._tabClients = {};
-  this._consoleClients = {};
 
   this._pendingRequests = [];
   this._activeRequests = {};
@@ -259,32 +249,10 @@ DebuggerClient.prototype = {
       }
     }.bind(this);
 
-    let detachThread = function _detachThread() {
-      if (this.activeThread) {
-        this.activeThread.detach(detachTab);
-      } else {
-        detachTab();
-      }
-    }.bind(this);
-
-    let consolesClosed = 0;
-    let consolesToClose = 0;
-
-    let onConsoleClose = function _onConsoleClose() {
-      consolesClosed++;
-      if (consolesClosed >= consolesToClose) {
-        this._consoleClients = {};
-        detachThread();
-      }
-    }.bind(this);
-
-    for each (let client in this._consoleClients) {
-      consolesToClose++;
-      client.close(onConsoleClose);
-    }
-
-    if (!consolesToClose) {
-      detachThread();
+    if (this.activeThread) {
+      this.activeThread.detach(detachTab);
+    } else {
+      detachTab();
     }
   },
 
@@ -314,43 +282,12 @@ DebuggerClient.prototype = {
     let self = this;
     let packet = { to: aTabActor, type: "attach" };
     this.request(packet, function(aResponse) {
-      let tabClient;
       if (!aResponse.error) {
-        tabClient = new TabClient(self, aTabActor);
+        var tabClient = new TabClient(self, aTabActor);
         self._tabClients[aTabActor] = tabClient;
         self.activeTab = tabClient;
       }
       aOnResponse(aResponse, tabClient);
-    });
-  },
-
-  /**
-   * Attach to a Web Console actor.
-   *
-   * @param string aConsoleActor
-   *        The ID for the console actor to attach to.
-   * @param array aListeners
-   *        The console listeners you want to start.
-   * @param function aOnResponse
-   *        Called with the response packet and a WebConsoleClient
-   *        instance (which will be undefined on error).
-   */
-  attachConsole:
-  function DC_attachConsole(aConsoleActor, aListeners, aOnResponse) {
-    let self = this;
-    let packet = {
-      to: aConsoleActor,
-      type: "startListeners",
-      listeners: aListeners,
-    };
-
-    this.request(packet, function(aResponse) {
-      let consoleClient;
-      if (!aResponse.error) {
-        consoleClient = new WebConsoleClient(self, aConsoleActor);
-        self._consoleClients[aConsoleActor] = consoleClient;
-      }
-      aOnResponse(aResponse, consoleClient);
     });
   },
 
@@ -374,20 +311,6 @@ DebuggerClient.prototype = {
       }
       aOnResponse(aResponse, threadClient);
     });
-  },
-
-  /**
-   * Release an object actor.
-   *
-   * @param string aActor
-   *        The actor ID to send the request to.
-   */
-  release: function DC_release(aActor) {
-    let packet = {
-      to: aActor,
-      type: "release",
-    };
-    this.request(packet);
   },
 
   /**

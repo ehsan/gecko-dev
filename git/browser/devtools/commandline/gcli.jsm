@@ -3056,10 +3056,7 @@ exports.setContents = function(elem, contents) {
     return;
   }
 
-  if ('innerHTML' in elem) {
-    elem.innerHTML = contents;
-  }
-  else {
+  if (exports.isXmlDocument(elem.ownerDocument)) {
     try {
       var ns = elem.ownerDocument.documentElement.namespaceURI;
       if (!ns) {
@@ -3078,6 +3075,9 @@ exports.setContents = function(elem, contents) {
       console.trace();
       throw ex;
     }
+  }
+  else {
+    elem.innerHTML = contents;
   }
 };
 
@@ -5469,7 +5469,7 @@ function Requisition(environment, doc) {
   // The command that we are about to execute.
   // @see setCommandConversion()
   this.commandAssignment = new CommandAssignment();
-  this.setAssignment(this.commandAssignment, null);
+  this._setAssignment(this.commandAssignment, null, true);
 
   // The object that stores of Assignment objects that we are filling out.
   // The Assignment objects are stored under their param.name for named
@@ -5556,7 +5556,7 @@ Requisition.prototype._commandAssignmentChanged = function(ev) {
     for (var i = 0; i < command.params.length; i++) {
       var param = command.params[i];
       var assignment = new Assignment(param, i);
-      this.setAssignment(assignment, null);
+      this._setAssignment(assignment, null, true);
       assignment.onAssignmentChange.add(this._assignmentChanged, this);
       this._assignments[param.name] = assignment;
     }
@@ -5679,22 +5679,26 @@ Requisition.prototype.getAssignments = function(includeCommand) {
 };
 
 /**
+ * Alter the given assignment using the given arg.
+ * @param assignment The assignment to alter
+ * @param arg The new value for the assignment. An instance of Argument, or an
+ * instance of Conversion, or null to set the blank value.
+ */
+Requisition.prototype.setAssignment = function(assignment, arg) {
+  this._setAssignment(assignment, arg, false);
+};
+
+/**
  * Internal function to alter the given assignment using the given arg.
  * @param assignment The assignment to alter
  * @param arg The new value for the assignment. An instance of Argument, or an
  * instance of Conversion, or null to set the blank value.
- * @param options There are a number of ways to customize how the assignment
- * is made, including:
- * - argUpdate: (default:false) Adjusts the args in this requisition to keep
- *   things up to date. Args should only be skipped when setAssignment is being
- *   called as part of the update process.
- * - matchPadding: (default:false) If argUpdate=true, and matchPadding=true
- *   then further take the step of altering the whitespace on the prefix and
- *   suffix of the new argument to match that of the old argument.
+ * @param skipArgUpdate (default=false) Adjusts the args in this requisition to
+ * keep things up to date. Args should only be skipped when setAssignment is
+ * being called as part of the update process.
  */
-Requisition.prototype.setAssignment = function(assignment, arg, options) {
-  options = options || {};
-  if (options.argUpdate) {
+Requisition.prototype._setAssignment = function(assignment, arg, skipArgUpdate) {
+  if (!skipArgUpdate) {
     var originalArgs = assignment.arg.getArgs();
 
     // Update the args array
@@ -5720,16 +5724,6 @@ Requisition.prototype.setAssignment = function(assignment, arg, options) {
         this._args.splice(index, 1);
       }
       else {
-        if (options.matchPadding) {
-          if (replacementArgs[i].prefix.length === 0 &&
-              this._args[index].prefix.length !== 0) {
-            replacementArgs[i].prefix = this._args[index].prefix;
-          }
-          if (replacementArgs[i].suffix.length === 0 &&
-              this._args[index].suffix.length !== 0) {
-            replacementArgs[i].suffix = this._args[index].suffix;
-          }
-        }
         this._args[index] = replacementArgs[i];
       }
     }
@@ -5767,7 +5761,7 @@ Requisition.prototype.setAssignment = function(assignment, arg, options) {
  */
 Requisition.prototype.setBlankArguments = function() {
   this.getAssignments().forEach(function(assignment) {
-    this.setAssignment(assignment, null);
+    this._setAssignment(assignment, null, true);
   }, this);
 };
 
@@ -5807,13 +5801,13 @@ Requisition.prototype.complete = function(cursor, predictionChoice) {
     // logic, so we don't use addSpace
     if (assignment.isInName()) {
       var newArg = assignment.conversion.arg.beget({ prefixPostSpace: true });
-      this.setAssignment(assignment, newArg, { argUpdate: true });
+      this.setAssignment(assignment, newArg);
     }
   }
   else {
     // Mutate this argument to hold the completion
     var arg = assignment.arg.beget({ text: prediction.name });
-    this.setAssignment(assignment, arg, { argUpdate: true });
+    this.setAssignment(assignment, arg);
 
     if (!prediction.incomplete) {
       // The prediction is complete, add a space to let the user move-on
@@ -5838,7 +5832,7 @@ Requisition.prototype.complete = function(cursor, predictionChoice) {
 Requisition.prototype._addSpace = function(assignment) {
   var arg = assignment.conversion.arg.beget({ suffixSpace: true });
   if (arg !== assignment.conversion.arg) {
-    this.setAssignment(assignment, arg, { argUpdate: true });
+    this.setAssignment(assignment, arg);
   }
 };
 
@@ -5850,7 +5844,7 @@ Requisition.prototype.decrement = function(assignment) {
   if (replacement != null) {
     var str = assignment.param.type.stringify(replacement);
     var arg = assignment.conversion.arg.beget({ text: str });
-    this.setAssignment(assignment, arg, { argUpdate: true });
+    this.setAssignment(assignment, arg);
   }
 };
 
@@ -5862,7 +5856,7 @@ Requisition.prototype.increment = function(assignment) {
   if (replacement != null) {
     var str = assignment.param.type.stringify(replacement);
     var arg = assignment.conversion.arg.beget({ text: str });
-    this.setAssignment(assignment, arg, { argUpdate: true });
+    this.setAssignment(assignment, arg);
   }
 };
 
@@ -6520,7 +6514,7 @@ Requisition.prototype._split = function(args) {
     // Special case: if the user enters { console.log('foo'); } then we need to
     // use the hidden 'eval' command
     conversion = new Conversion(evalCommand, new ScriptArgument());
-    this.setAssignment(this.commandAssignment, conversion);
+    this._setAssignment(this.commandAssignment, conversion, true);
     return;
   }
 
@@ -6547,7 +6541,7 @@ Requisition.prototype._split = function(args) {
     argsUsed++;
   }
 
-  this.setAssignment(this.commandAssignment, conversion);
+  this._setAssignment(this.commandAssignment, conversion, true);
 
   for (var i = 0; i < argsUsed; i++) {
     args.shift();
@@ -6594,7 +6588,7 @@ Requisition.prototype._assign = function(args) {
     var assignment = this.getAssignment(0);
     if (assignment.param.type instanceof StringType) {
       var arg = (args.length === 1) ? args[0] : new MergedArgument(args);
-      this.setAssignment(assignment, arg);
+      this._setAssignment(assignment, arg, true);
       return;
     }
   }
@@ -6639,7 +6633,7 @@ Requisition.prototype._assign = function(args) {
           arrayArg.addArgument(arg);
         }
         else {
-          this.setAssignment(assignment, arg);
+          this._setAssignment(assignment, arg, true);
         }
       }
       else {
@@ -6656,7 +6650,7 @@ Requisition.prototype._assign = function(args) {
     // If not set positionally, and we can't set it non-positionally,
     // we have to default it to prevent previous values surviving
     if (!assignment.param.isPositionalAllowed) {
-      this.setAssignment(assignment, null);
+      this._setAssignment(assignment, null, true);
       return;
     }
 
@@ -6673,7 +6667,7 @@ Requisition.prototype._assign = function(args) {
     }
     else {
       if (args.length === 0) {
-        this.setAssignment(assignment, null);
+        this._setAssignment(assignment, null, true);
       }
       else {
         var arg = args.splice(0, 1)[0];
@@ -6687,7 +6681,7 @@ Requisition.prototype._assign = function(args) {
           this._unassigned.push(new UnassignedAssignment(this, arg));
         }
         else {
-          this.setAssignment(assignment, arg);
+          this._setAssignment(assignment, arg, true);
         }
       }
     }
@@ -6696,7 +6690,7 @@ Requisition.prototype._assign = function(args) {
   // Now we need to assign the array argument (if any)
   Object.keys(arrayArgs).forEach(function(name) {
     var assignment = this.getAssignment(name);
-    this.setAssignment(assignment, arrayArgs[name]);
+    this._setAssignment(assignment, arrayArgs[name], true);
   }, this);
 
   // What's left is can't be assigned, but we need to extract
@@ -8072,10 +8066,8 @@ JavascriptField.prototype.setConversion = function(conversion) {
 };
 
 JavascriptField.prototype.itemClicked = function(ev) {
-  var conversion = this.type.parse(ev.arg);
-
-  this.onFieldChange({ conversion: conversion });
-  this.setMessage(conversion.message);
+  this.onFieldChange(ev);
+  this.setMessage(ev.conversion.message);
 };
 
 JavascriptField.prototype.onInputChange = function(ev) {
@@ -8188,11 +8180,12 @@ Menu.prototype.destroy = function() {
  * @param ev The click event from the browser
  */
 Menu.prototype.onItemClickInternal = function(ev) {
-  var name = ev.currentTarget.querySelector('.gcli-menu-name').textContent;
+  var name = ev.currentTarget.querySelector('.gcli-menu-name').innerHTML;
   var arg = new Argument(name);
   arg.suffix = ' ';
 
-  this.onItemClick({ arg: arg });
+  var conversion = this.type.parse(arg);
+  this.onItemClick({ conversion: conversion });
 };
 
 /**
@@ -8208,7 +8201,7 @@ Menu.prototype.show = function(items, match) {
 
   if (match) {
     this.items = this.items.map(function(item) {
-      return getHighlightingProxy(item, match, this.template.ownerDocument);
+      return gethighlightingProxy(item, match, this.template.ownerDocument);
     }.bind(this));
   }
 
@@ -8234,7 +8227,7 @@ Menu.prototype.show = function(items, match) {
 /**
  * Create a proxy around an item that highlights matching text
  */
-function getHighlightingProxy(item, match, document) {
+function gethighlightingProxy(item, match, document) {
   if (typeof Proxy === 'undefined') {
     return item;
   }
@@ -8296,12 +8289,12 @@ Menu.prototype.selectChoice = function() {
     return false;
   }
 
-  var name = selected.textContent;
+  var name = selected.innerHTML;
   var arg = new Argument(name);
   arg.suffix = ' ';
-  arg.prefix = ' ';
 
-  this.onItemClick({ arg: arg });
+  var conversion = this.type.parse(arg);
+  this.onItemClick({ conversion: conversion });
   return true;
 };
 
@@ -8505,10 +8498,8 @@ SelectionTooltipField.prototype.setConversion = function(conversion) {
 };
 
 SelectionTooltipField.prototype.itemClicked = function(ev) {
-  var conversion = this.type.parse(ev.arg);
-
-  this.onFieldChange({ conversion: conversion });
-  this.setMessage(conversion.message);
+  this.onFieldChange(ev);
+  this.setMessage(ev.conversion.message);
 };
 
 SelectionTooltipField.prototype.onInputChange = function(ev) {
@@ -10349,8 +10340,7 @@ Tooltip.prototype.selectChoice = function(ev) {
  * Called by the onFieldChange event on the current Field
  */
 Tooltip.prototype.fieldChanged = function(ev) {
-  var options = { argUpdate: true, matchPadding: true };
-  this.requisition.setAssignment(this.assignment, ev.conversion.arg, options);
+  this.requisition.setAssignment(this.assignment, ev.conversion.arg);
 
   var isError = ev.conversion.message != null && ev.conversion.message !== '';
   this.focusManager.setError(isError);
