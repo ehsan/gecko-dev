@@ -16,41 +16,36 @@
 
 'use strict';
 
-var Cu = require('chrome').Cu;
-var Cc = require('chrome').Cc;
-var Ci = require('chrome').Ci;
+var fs = require('fs');
+var path = require('path');
 
-var OS = Cu.import('resource://gre/modules/osfile.jsm', {}).OS;
 var promise = require('./promise');
+var util = require('./util');
 
 /**
- * A set of functions that don't really belong in 'fs' (because they're not
- * really universal in scope) but also kind of do (because they're not specific
- * to GCLI
+ * A set of functions defining a filesystem API for fileparser.js
  */
 
-exports.join = OS.Path.join;
-exports.sep = OS.Path.sep;
-exports.dirname = OS.Path.dirname;
-
-var dirService = Cc['@mozilla.org/file/directory_service;1']
-                           .getService(Ci.nsIProperties);
-exports.home = dirService.get('Home', Ci.nsIFile).path;
-
-if ('winGetDrive' in OS.Path) {
-  exports.sep = '\\';
-}
-else {
-  exports.sep = '/';
-}
+exports.join = path.join.bind(path);
+exports.dirname = path.dirname.bind(path);
+exports.sep = path.sep;
+exports.home = process.env.HOME;
 
 /**
- * Split a path into its components.
+ * The NodeJS docs suggest using ``pathname.split(path.sep)`` to cut a path
+ * into a number of components. But this doesn't take into account things like
+ * path normalization and removing the initial (or trailing) blanks from
+ * absolute (or / terminated) paths.
+ * http://www.nodejs.org/api/path.html#path_path_sep
  * @param pathname (string) The part to cut up
  * @return An array of path components
  */
 exports.split = function(pathname) {
-  return OS.Path.split(pathname).components;
+  pathname = path.normalize(pathname);
+  var parts = pathname.split(exports.sep);
+  return parts.filter(function(part) {
+    return part !== '';
+  });
 };
 
 /**
@@ -64,28 +59,33 @@ exports.split = function(pathname) {
  * - filename: The final filename part of the pathname
  */
 exports.ls = function(pathname, matches) {
-  var iterator = new OS.File.DirectoryIterator(pathname);
-  var entries = [];
+  var deferred = promise.defer();
 
-  var iteratePromise = iterator.forEach(function(entry) {
-    entries.push({
-      exists: true,
-      isDir: entry.isDir,
-      isFile: !entry.isFile,
-      filename: entry.name,
-      pathname: entry.path
-    });
+  fs.readdir(pathname, function(err, files) {
+    if (err) {
+      deferred.reject(err);
+    }
+    else {
+      if (matches) {
+        files = files.filter(function(file) {
+          return matches.test(file);
+        });
+      }
+
+      var statsPromise = util.promiseEach(files, function(filename) {
+        var filepath = path.join(pathname, filename);
+        return exports.stat(filepath).then(function(stats) {
+          stats.filename = filename;
+          stats.pathname = filepath;
+          return stats;
+        });
+      });
+
+      statsPromise.then(deferred.resolve, deferred.reject);
+    }
   });
 
-  return iteratePromise.then(function onSuccess() {
-      iterator.close();
-      return entries;
-    },
-    function onFailure(reason) {
-      iterator.close();
-      throw reason;
-    }
-  );
+  return deferred.promise;
 };
 
 /**
@@ -95,26 +95,31 @@ exports.ls = function(pathname, matches) {
  * exists:true to stat blocks from existing paths
  */
 exports.stat = function(pathname) {
-  var onResolve = function(stats) {
-    return {
-      exists: true,
-      isDir: stats.isDir,
-      isFile: !stats.isFile
-    };
-  };
+  var deferred = promise.defer();
 
-  var onReject = function(err) {
-    if (err instanceof OS.File.Error && err.becauseNoSuchFile) {
-      return {
-        exists: false,
-        isDir: false,
-        isFile: false
-      };
+  fs.stat(pathname, function(err, stats) {
+    if (err) {
+      if (err.code === 'ENOENT') {
+        deferred.resolve({
+          exists: false,
+          isDir: false,
+          isFile: false
+        });
+      }
+      else {
+        deferred.reject(err);
+      }
     }
-    throw err;
-  };
+    else {
+      deferred.resolve({
+        exists: true,
+        isDir: stats.isDirectory(),
+        isFile: stats.isFile()
+      });
+    }
+  });
 
-  return OS.File.stat(pathname).then(onResolve, onReject);
+  return deferred.promise;
 };
 
 /**

@@ -1219,16 +1219,8 @@ let CustomizableUIInternal = {
       }
     } else if (aWidget.type == "view") {
       let ownerWindow = aNode.ownerDocument.defaultView;
-      let area = this.getPlacementOfWidget(aNode.id).area;
-      let anchor = aNode;
-      if (area != CustomizableUI.AREA_PANEL) {
-        let wrapper = this.wrapWidget(aWidget.id).forWindow(ownerWindow);
-        if (wrapper && wrapper.anchor) {
-          this.hidePanelForNode(aNode);
-          anchor = wrapper.anchor;
-        }
-      }
-      ownerWindow.PanelUI.showSubView(aWidget.viewId, anchor, area);
+      ownerWindow.PanelUI.showSubView(aWidget.viewId, aNode,
+                                      this.getPlacementOfWidget(aNode.id).area);
     }
   },
 
