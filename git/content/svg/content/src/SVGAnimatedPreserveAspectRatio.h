@@ -39,17 +39,10 @@
 #ifndef MOZILLA_SVGANIMATEDPRESERVEASPECTRATIO_H__
 #define MOZILLA_SVGANIMATEDPRESERVEASPECTRATIO_H__
 
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDOMError.h"
-#include "nsError.h"
-#include "nsIDOMSVGAnimPresAspRatio.h"
 #include "nsIDOMSVGPresAspectRatio.h"
-#include "nsISMILAttr.h"
+#include "nsIDOMSVGAnimPresAspRatio.h"
 #include "nsSVGElement.h"
-
-class nsISMILAnimationElement;
-class nsSMILValue;
+#include "nsDOMError.h"
 
 namespace mozilla {
 

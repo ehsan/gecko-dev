@@ -39,8 +39,6 @@
 
 #include "nsISMILType.h"
 
-class nsSMILValue;
-
 namespace mozilla {
 
 class SVGViewBoxSMILType : public nsISMILType

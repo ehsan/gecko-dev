@@ -57,7 +57,8 @@ SkPixelRef* SkImageRef_GlobalPool::Create(SkFlattenableReadBuffer& buffer) {
     return SkNEW_ARGS(SkImageRef_GlobalPool, (buffer));
 }
 
-SK_DEFINE_PIXEL_REF_REGISTRAR(SkImageRef_GlobalPool)
+static SkPixelRef::Registrar reg("SkImageRef_GlobalPool",
+                                 SkImageRef_GlobalPool::Create);
 
 ///////////////////////////////////////////////////////////////////////////////
 // global imagerefpool wrappers

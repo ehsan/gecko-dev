@@ -38,12 +38,15 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_ClearOnShutdown_h
-#define mozilla_ClearOnShutdown_h
 
-#include "mozilla/LinkedList.h"
+#include <nsAutoPtr.h>
+#include <nsCOMPtr.h>
+#include <nsIObserver.h>
+#include <nsIObserverService.h>
+#include <mozilla/Services.h>
 
 /*
- * This header exports one public method in the mozilla namespace:
+ * This header exports one method in the mozilla namespace:
  *
  *   template<class SmartPtr>
  *   void ClearOnShutdown(SmartPtr *aPtr)
@@ -61,59 +64,72 @@
 namespace mozilla {
 namespace ClearOnShutdown_Internal {
 
-class ShutdownObserver : public LinkedListElement<ShutdownObserver>
-{
-public:
-  virtual void Shutdown() = 0;
-};
-
 template<class SmartPtr>
-class PointerClearer : public ShutdownObserver
+class ShutdownObserver : public nsIObserver
 {
 public:
-  PointerClearer(SmartPtr *aPtr)
+  ShutdownObserver(SmartPtr *aPtr)
     : mPtr(aPtr)
   {}
 
-  virtual void Shutdown()
+  virtual ~ShutdownObserver()
+  {}
+
+  NS_DECL_ISUPPORTS
+
+  NS_IMETHOD Observe(nsISupports *aSubject, const char *aTopic,
+                     const PRUnichar *aData)
   {
+    MOZ_ASSERT(strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0);
+
     if (mPtr) {
       *mPtr = NULL;
     }
+
+    return NS_OK;
   }
 
 private:
   SmartPtr *mPtr;
 };
 
-extern bool sHasShutDown;
-extern LinkedList<ShutdownObserver> sShutdownObservers;
+// Give the full namespace in the NS_IMPL macros because NS_IMPL_ADDREF/RELEASE
+// stringify the class name (using the "#" operator) and use this in
+// trace-malloc.  If we didn't fully-qualify the class name and someone else
+// had a refcounted class named "ShutdownObserver<SmartPtr>" in any namespace,
+// trace-malloc would assert (bug 711602).
+//
+// (Note that because macros happen before templates, trace-malloc sees this
+// class name as "ShutdownObserver<SmartPtr>"; therefore, it would also assert
+// if ShutdownObserver<T> had a different size than ShutdownObserver<S>.)
+
+template<class SmartPtr>
+NS_IMPL_ADDREF(mozilla::ClearOnShutdown_Internal::
+                 ShutdownObserver<SmartPtr>)
+
+template<class SmartPtr>
+NS_IMPL_RELEASE(mozilla::ClearOnShutdown_Internal::
+                  ShutdownObserver<SmartPtr>)
+
+template<class SmartPtr>
+NS_IMPL_QUERY_INTERFACE1(mozilla::ClearOnShutdown_Internal::
+                           ShutdownObserver<SmartPtr>,
+                         nsIObserver)
 
 } // namespace ClearOnShutdown_Internal
 
 template<class SmartPtr>
-inline void ClearOnShutdown(SmartPtr *aPtr)
+void ClearOnShutdown(SmartPtr *aPtr)
 {
-  using namespace ClearOnShutdown_Internal;
+  nsRefPtr<ClearOnShutdown_Internal::ShutdownObserver<SmartPtr> > observer =
+    new ClearOnShutdown_Internal::ShutdownObserver<SmartPtr>(aPtr);
 
-  MOZ_ASSERT(!sHasShutDown);
-  ShutdownObserver *observer = new PointerClearer<SmartPtr>(aPtr);
-  sShutdownObservers.insertBack(observer);
-}
-
-// Called when XPCOM is shutting down, after all shutdown notifications have
-// been sent and after all threads' event loops have been purged.
-inline void KillClearOnShutdown()
-{
-  using namespace ClearOnShutdown_Internal;
-
-  ShutdownObserver *observer;
-  while ((observer = sShutdownObservers.popFirst())) {
-    observer->Shutdown();
-    delete observer;
+  nsCOMPtr<nsIObserverService> os = services::GetObserverService();
+  if (!os) {
+    NS_WARNING("Could not get observer service!");
+    return;
   }
-
-  sHasShutDown = true;
+  os->AddObserver(observer, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
 }
 
 } // namespace mozilla

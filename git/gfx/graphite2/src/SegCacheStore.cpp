@@ -25,10 +25,10 @@ License, as published by the Free Software Foundation, either version 2
 of the License or (at your option) any later version.
 */
 
-#ifndef GRAPHITE2_NSEGCACHE
+#ifndef DISABLE_SEGCACHE
 
-#include "inc/SegCacheStore.h"
-#include "inc/Face.h"
+#include "SegCacheStore.h"
+#include "Face.h"
 
 
 using namespace graphite2;

@@ -601,9 +601,9 @@ void add_line(const SkPoint p[2],
 
 }
 
-bool GrAAHairLinePathRenderer::createGeom(GrDrawState::StageMask stageMask) {
-    const GrDrawState& drawState = fTarget->getDrawState();
-    int rtHeight = drawState.getRenderTarget()->height();
+bool GrAAHairLinePathRenderer::createGeom(GrDrawTarget::StageBitfield stages) {
+
+    int rtHeight = fTarget->getRenderTarget()->height();
 
     GrIRect clip;
     if (fTarget->getClip().hasConservativeBounds()) {
@@ -616,8 +616,8 @@ bool GrAAHairLinePathRenderer::createGeom(GrDrawState::StageMask stageMask) {
     // If none of the inputs that affect generation of path geometry have
     // have changed since last previous path draw then we can reuse the
     // previous geoemtry.
-    if (stageMask == fPreviousStages &&
-        fPreviousViewMatrix == drawState.getViewMatrix() &&
+    if (stages == fPreviousStages &&
+        fPreviousViewMatrix == fTarget->getViewMatrix() &&
         fPreviousTranslate == fTranslate &&
         rtHeight == fPreviousRTHeight &&
         fClipRect == clip) {
@@ -626,12 +626,12 @@ bool GrAAHairLinePathRenderer::createGeom(GrDrawState::StageMask stageMask) {
 
     GrVertexLayout layout = GrDrawTarget::kEdge_VertexLayoutBit;
     for (int s = 0; s < GrDrawState::kNumStages; ++s) {
-        if ((1 << s) & stageMask) {
+        if ((1 << s) & stages) {
             layout |= GrDrawTarget::StagePosAsTexCoordVertexLayoutBit(s);
         }
     }
 
-    GrMatrix viewM = drawState.getViewMatrix();
+    GrMatrix viewM = fTarget->getViewMatrix();
 
     PREALLOC_PTARRAY(128) lines;
     PREALLOC_PTARRAY(128) quads;
@@ -671,30 +671,28 @@ bool GrAAHairLinePathRenderer::createGeom(GrDrawState::StageMask stageMask) {
         add_quads(&quads[3*i], qSubdivs[i], toDevice, toSrc, &verts);
     }
 
-    fPreviousStages = stageMask;
-    fPreviousViewMatrix = drawState.getViewMatrix();
+    fPreviousStages = stages;
+    fPreviousViewMatrix = fTarget->getViewMatrix();
     fPreviousRTHeight = rtHeight;
     fClipRect = clip;
     fPreviousTranslate = fTranslate;
     return true;
 }
 
-void GrAAHairLinePathRenderer::drawPath(GrDrawState::StageMask stageMask) {
+void GrAAHairLinePathRenderer::drawPath(GrDrawTarget::StageBitfield stages) {
 
-    if (!this->createGeom(stageMask)) {
+    if (!this->createGeom(stages)) {
         return;
     }
 
-    GrDrawState* drawState = fTarget->drawState();
-
     GrDrawTarget::AutoStateRestore asr;
-    if (!drawState->getViewMatrix().hasPerspective()) {
+    if (!fTarget->getViewMatrix().hasPerspective()) {
         asr.set(fTarget);
         GrMatrix ivm;
-        if (drawState->getViewInverse(&ivm)) {
-            drawState->preConcatSamplerMatrices(stageMask, ivm);
+        if (fTarget->getViewInverse(&ivm)) {
+            fTarget->preConcatSamplerMatrices(stages, ivm);
         }
-        drawState->setViewMatrix(GrMatrix::I());
+        fTarget->setViewMatrix(GrMatrix::I());
     }
 
     // TODO: See whether rendering lines as degenerate quads improves perf
@@ -704,7 +702,7 @@ void GrAAHairLinePathRenderer::drawPath(GrDrawState::StageMask stageMask) {
     int nBufLines = fLinesIndexBuffer->maxQuads();
     while (lines < fLineSegmentCnt) {
         int n = GrMin(fLineSegmentCnt-lines, nBufLines);
-        drawState->setVertexEdgeType(GrDrawState::kHairLine_EdgeType);
+        fTarget->setVertexEdgeType(GrDrawState::kHairLine_EdgeType);
         fTarget->drawIndexed(kTriangles_PrimitiveType,
                              kVertsPerLineSeg*lines,    // startV
                              0,                         // startI
@@ -717,7 +715,7 @@ void GrAAHairLinePathRenderer::drawPath(GrDrawState::StageMask stageMask) {
     int quads = 0;
     while (quads < fQuadCnt) {
         int n = GrMin(fQuadCnt-quads, kNumQuadsInIdxBuffer);
-        drawState->setVertexEdgeType(GrDrawState::kHairQuad_EdgeType);
+        fTarget->setVertexEdgeType(GrDrawState::kHairQuad_EdgeType);
         fTarget->drawIndexed(kTriangles_PrimitiveType,
                              4*fLineSegmentCnt + kVertsPerQuad*quads, // startV
                              0,                                       // startI

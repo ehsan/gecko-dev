@@ -39,25 +39,24 @@ public:
     ~GrBinHashKey() {
     }
 
-    void setKeyData(const uint32_t* SK_RESTRICT data) {
+    void setKeyData(const uint32_t *data) {
         GrAssert(GrIsALIGN4(KeySize));
         memcpy(&fData, data, KeySize);
 
-        uint32_t hash = 0;
+        fHash = 0;
         size_t len = KeySize;
         while (len >= 4) {
-            hash += *data++;
-            hash += (fHash << 10);
-            hash ^= (hash >> 6);
+            fHash += *data++;
+            fHash += (fHash << 10);
+            fHash ^= (fHash >> 6);
             len -= 4;
         }
-        hash += (fHash << 3);
-        hash ^= (fHash >> 11);
-        hash += (fHash << 15);
+        fHash += (fHash << 3);
+        fHash ^= (fHash >> 11);
+        fHash += (fHash << 15);
 #if GR_DEBUG
         fIsValid = true;
 #endif
-        fHash = hash;
     }
 
     int compare(const GrBinHashKey<Entry, KeySize>& key) const {

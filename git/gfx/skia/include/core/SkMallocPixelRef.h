@@ -37,7 +37,6 @@ public:
         return SkNEW_ARGS(SkMallocPixelRef, (buffer));
     }
 
-    SK_DECLARE_PIXEL_REF_REGISTRAR()
 protected:
     // overrides from SkPixelRef
     virtual void* onLockPixels(SkColorTable**);

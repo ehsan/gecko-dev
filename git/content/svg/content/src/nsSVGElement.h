@@ -44,31 +44,29 @@
   It implements all the common DOM interfaces and handles attributes.
 */
 
-#include "mozilla/css/StyleRule.h"
-#include "nsAutoPtr.h"
-#include "nsChangeHint.h"
+#include "nsString.h"
 #include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDOMMemoryReporter.h"
-#include "nsError.h"
+#include "nsIDOMSVGElement.h"
 #include "nsGenericElement.h"
-#include "nsISupportsImpl.h"
 #include "nsStyledElement.h"
+#include "mozilla/css/StyleRule.h"
 
-class nsIDOMSVGElement;
-class nsIDOMSVGSVGElement;
-class nsSVGAngle;
-class nsSVGBoolean;
-class nsSVGEnum;
-class nsSVGInteger;
-class nsSVGIntegerPair;
+#include "nsISMILAttr.h"
+#include "nsSMILAnimationController.h"
+
+class nsSVGSVGElement;
 class nsSVGLength2;
 class nsSVGNumber2;
 class nsSVGNumberPair;
-class nsSVGString;
-class nsSVGSVGElement;
+class nsSVGInteger;
+class nsSVGIntegerPair;
+class nsSVGAngle;
+class nsSVGBoolean;
+class nsSVGEnum;
+struct nsSVGEnumMapping;
 class nsSVGViewBox;
-
+class nsSVGString;
+struct gfxMatrix;
 namespace mozilla {
 class SVGAnimatedNumberList;
 class SVGNumberList;
@@ -81,9 +79,6 @@ class SVGAnimatedTransformList;
 class SVGStringList;
 class DOMSVGStringList;
 }
-
-struct gfxMatrix;
-struct nsSVGEnumMapping;
 
 typedef nsStyledElementNotElementCSSInlineStyle nsSVGElementBase;
 

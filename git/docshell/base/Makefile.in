@@ -69,7 +69,6 @@ XPIDLSRCS = \
   nsIMarkupDocumentViewer.idl \
   nsIScrollable.idl \
   nsITextScroll.idl \
-  nsIDocCharset.idl \
   nsIWebNavigation.idl \
   nsIWebNavigationInfo.idl \
   nsIContentViewer.idl \

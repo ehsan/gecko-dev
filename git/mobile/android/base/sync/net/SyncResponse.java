@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Richard Newman <rnewman@mozilla.com>
- *   Nick Alexander <nalexander@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,23 +40,18 @@ package org.mozilla.gecko.sync.net;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.util.Scanner;
 
 import org.json.simple.parser.ParseException;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
 import org.mozilla.gecko.sync.NonObjectJSONException;
-import org.mozilla.gecko.sync.Utils;
 
-import android.util.Log;
 import ch.boye.httpclientandroidlib.Header;
 import ch.boye.httpclientandroidlib.HttpEntity;
 import ch.boye.httpclientandroidlib.HttpResponse;
-import ch.boye.httpclientandroidlib.impl.cookie.DateParseException;
-import ch.boye.httpclientandroidlib.impl.cookie.DateUtils;
 
 public class SyncResponse {
-  private static final String HEADER_RETRY_AFTER = "retry-after";
-  private static final String LOG_TAG = "SyncResponse";
 
   protected HttpResponse response;
 
@@ -81,15 +75,10 @@ public class SyncResponse {
     return this.getStatusCode() == 200;
   }
 
-  private String body = null;
   public String body() throws IllegalStateException, IOException {
-    if (body != null) {
-      return body;
-    }
     InputStreamReader is = new InputStreamReader(this.response.getEntity().getContent());
     // Oh, Java, you are so evil.
-    body = new Scanner(is).useDelimiter("\\A").next();
-    return body;
+    return new Scanner(is).useDelimiter("\\A").next();
   }
 
   /**
@@ -103,10 +92,6 @@ public class SyncResponse {
    */
   public Object jsonBody() throws IllegalStateException, IOException,
                           ParseException {
-    if (body != null) {
-      // Do it from the cached String.
-      ExtendedJSONObject.parse(body);
-    }
     HttpEntity entity = this.response.getEntity();
     if (entity == null) {
       return null;
@@ -129,20 +114,10 @@ public class SyncResponse {
     return this.response.containsHeader(h);
   }
 
-  private static boolean missingHeader(String value) {
-    return value == null ||
-           value.trim().length() == 0;
-  }
-
-  private int getIntegerHeader(String h) throws NumberFormatException {
+  private int getIntegerHeader(String h) {
     if (this.hasHeader(h)) {
       Header header = this.response.getFirstHeader(h);
-      String value  = header.getValue();
-      if (missingHeader(value)) {
-        Log.w(LOG_TAG, h + " header present but empty.");
-        return -1;
-      }
-      return Integer.parseInt(value, 10);
+      return Integer.parseInt(header.getValue(), 10);
     }
     return -1;
   }
@@ -151,35 +126,20 @@ public class SyncResponse {
    * @return A number of seconds, or -1 if the header was not present.
    */
   public int retryAfter() throws NumberFormatException {
-    if (!this.hasHeader(HEADER_RETRY_AFTER)) {
-      return -1;
-    }
-
-    Header header = this.response.getFirstHeader(HEADER_RETRY_AFTER);
-    String retryAfter = header.getValue();
-    if (missingHeader(retryAfter)) {
-      Log.w(LOG_TAG, "Retry-After header present but empty.");
-      return -1;
-    }
-
-    try {
-      return Integer.parseInt(retryAfter, 10);
-    } catch (NumberFormatException e) {
-      // Fall through to try date format.
-    }
-
-    try {
-      final long then = DateUtils.parseDate(retryAfter).getTime();
-      final long now  = System.currentTimeMillis();
-      return (int)((then - now) / 1000);     // Convert milliseconds to seconds.
-    } catch (DateParseException e) {
-      Log.w(LOG_TAG, "Retry-After header neither integer nor date: " + retryAfter);
-      return -1;
-    }
+    return this.getIntegerHeader("retry-after");
   }
 
   public int weaveBackoff() throws NumberFormatException {
     return this.getIntegerHeader("x-weave-backoff");
+  }
+
+  // This lives until Bug 708956 lands, and we don't have to do it any more.
+  public static long decimalSecondsToMilliseconds(String decimal) {
+    try {
+      return new BigDecimal(decimal).movePointRight(3).longValue();
+    } catch (Exception e) {
+      return -1;
+    }
   }
 
   /**
@@ -197,7 +157,7 @@ public class SyncResponse {
       return -1;
     }
 
-    return Utils.decimalSecondsToMilliseconds(this.response.getFirstHeader(h).getValue());
+    return decimalSecondsToMilliseconds(this.response.getFirstHeader(h).getValue());
   }
 
   public int weaveRecords() throws NumberFormatException {
@@ -214,4 +174,5 @@ public class SyncResponse {
     }
     return null;
   }
+
 }

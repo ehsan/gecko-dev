@@ -43,7 +43,7 @@
 #include "TelephonyCommon.h"
 
 #include "nsIDOMTelephonyCall.h"
-#include "nsIRadioInterfaceLayer.h"
+#include "nsITelephone.h"
 
 class nsPIDOMWindow;
 
@@ -52,15 +52,15 @@ BEGIN_TELEPHONY_NAMESPACE
 class TelephonyCall : public nsDOMEventTargetWrapperCache,
                       public nsIDOMTelephonyCall
 {
-  NS_DECL_EVENT_HANDLER(statechange)
-  NS_DECL_EVENT_HANDLER(dialing)
-  NS_DECL_EVENT_HANDLER(ringing)
-  NS_DECL_EVENT_HANDLER(busy)
-  NS_DECL_EVENT_HANDLER(connecting)
-  NS_DECL_EVENT_HANDLER(connected)
-  NS_DECL_EVENT_HANDLER(disconnecting)
-  NS_DECL_EVENT_HANDLER(disconnected)
-  NS_DECL_EVENT_HANDLER(incoming)
+  NS_DECL_EVENT_HANDLER(statechange);
+  NS_DECL_EVENT_HANDLER(dialing);
+  NS_DECL_EVENT_HANDLER(ringing);
+  NS_DECL_EVENT_HANDLER(busy);
+  NS_DECL_EVENT_HANDLER(connecting);
+  NS_DECL_EVENT_HANDLER(connected);
+  NS_DECL_EVENT_HANDLER(disconnecting);
+  NS_DECL_EVENT_HANDLER(disconnected);
+  NS_DECL_EVENT_HANDLER(incoming);
 
   nsRefPtr<Telephony> mTelephony;
 
@@ -70,7 +70,6 @@ class TelephonyCall : public nsDOMEventTargetWrapperCache,
   PRUint32 mCallIndex;
   PRUint16 mCallState;
   bool mLive;
-  bool mOutgoing;
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -81,7 +80,7 @@ public:
 
   static already_AddRefed<TelephonyCall>
   Create(Telephony* aTelephony, const nsAString& aNumber, PRUint16 aCallState,
-         PRUint32 aCallIndex = kOutgoingPlaceholderCallIndex);
+         PRUint32 aCallIndex = PR_UINT32_MAX);
 
   nsIDOMEventTarget*
   ToIDOMEventTarget() const
@@ -108,30 +107,16 @@ public:
     return mCallIndex;
   }
 
-  void
-  UpdateCallIndex(PRUint32 aCallIndex)
-  {
-    NS_ASSERTION(mCallIndex == kOutgoingPlaceholderCallIndex,
-                 "Call index should not be set!");
-    mCallIndex = aCallIndex;
-  }
-
   PRUint16
   CallState() const
   {
     return mCallState;
   }
 
-  bool
-  IsOutgoing() const
-  {
-    return mOutgoing;
-  }
-
 private:
   TelephonyCall()
-  : mCallIndex(kOutgoingPlaceholderCallIndex),
-    mCallState(nsIRadioInterfaceLayer::CALL_STATE_UNKNOWN), mLive(false), mOutgoing(false)
+  : mCallIndex(PR_UINT32_MAX), mCallState(nsITelephone::CALL_STATE_UNKNOWN),
+    mLive(false)
   { }
 
   ~TelephonyCall()

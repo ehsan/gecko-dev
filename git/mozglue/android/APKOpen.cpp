@@ -53,22 +53,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <endian.h>
 #include <unistd.h>
 #include <zlib.h>
-#ifdef MOZ_OLD_LINKER
 #include <linux/ashmem.h>
-#include <endian.h>
-#endif
 #include "dlfcn.h"
 #include "APKOpen.h"
 #include <sys/time.h>
 #include <sys/resource.h>
 #include "Zip.h"
-#include "sqlite3.h"
-#include "SQLiteBridge.h"
-#ifndef MOZ_OLD_LINKER
-#include "ElfLoader.h"
-#endif
 
 /* Android headers don't define RUSAGE_THREAD */
 #ifndef RUSAGE_THREAD
@@ -96,7 +89,6 @@ getLibraryMapping()
   return lib_mapping;
 }
 
-#ifdef MOZ_OLD_LINKER
 static int
 createAshmem(size_t bytes, const char *name)
 {
@@ -115,7 +107,6 @@ createAshmem(size_t bytes, const char *name)
   close(fd);
   return -1;
 }
-#endif
 
 #define SHELL_WRAPPER0(name) \
 typedef void (*name ## _t)(JNIEnv *, jclass); \
@@ -189,96 +180,6 @@ Java_org_mozilla_gecko_GeckoAppShell_ ## name(JNIEnv *jenv, jclass jc, type1 one
   return f_ ## name(jenv, jc, one, two, three); \
 }
 
-#define SHELL_WRAPPER4(name,type1,type2,type3,type4) \
-typedef void (*name ## _t)(JNIEnv *, jclass, type1 one, type2 two, type3 three, type4 four); \
-static name ## _t f_ ## name; \
-extern "C" NS_EXPORT void JNICALL \
-Java_org_mozilla_gecko_GeckoAppShell_ ## name(JNIEnv *jenv, jclass jc, type1 one, type2 two, type3 three, type4 four) \
-{ \
-  f_ ## name(jenv, jc, one, two, three, four); \
-}
-
-#define SHELL_WRAPPER4_WITH_RETURN(name, return_type, type1, type2, type3, type4) \
-typedef return_type (*name ## _t)(JNIEnv *, jclass, type1 one, type2 two, type3 three, type4 four); \
-static name ## _t f_ ## name; \
-extern "C" NS_EXPORT return_type JNICALL \
-Java_org_mozilla_gecko_GeckoAppShell_ ## name(JNIEnv *jenv, jclass jc, type1 one, type2 two, type3 three, type4 four) \
-{ \
-  return f_ ## name(jenv, jc, one, two, three, four); \
-}
-
-#define SHELL_WRAPPER5(name,type1,type2,type3,type4,type5) \
-typedef void (*name ## _t)(JNIEnv *, jclass, type1 one, type2 two, type3 three, type4 four, type5 five); \
-static name ## _t f_ ## name; \
-extern "C" NS_EXPORT void JNICALL \
-Java_org_mozilla_gecko_GeckoAppShell_ ## name(JNIEnv *jenv, jclass jc, type1 one, type2 two, type3 three, type4 four, type5 five) \
-{ \
-  f_ ## name(jenv, jc, one, two, three, four, five); \
-}
-
-#define SHELL_WRAPPER5_WITH_RETURN(name, return_type, type1, type2, type3, type4, type5) \
-typedef return_type (*name ## _t)(JNIEnv *, jclass, type1 one, type2 two, type3 three, type4 four, type5 five); \
-static name ## _t f_ ## name; \
-extern "C" NS_EXPORT return_type JNICALL \
-Java_org_mozilla_gecko_GeckoAppShell_ ## name(JNIEnv *jenv, jclass jc, type1 one, type2 two, type3 three, type4 four, type5 five) \
-{ \
-  return f_ ## name(jenv, jc, one, two, three, four, five); \
-}
-
-#define SHELL_WRAPPER6(name,type1,type2,type3,type4,type5,type6) \
-typedef void (*name ## _t)(JNIEnv *, jclass, type1 one, type2 two, type3 three, type4 four, type5 five, type6 six); \
-static name ## _t f_ ## name; \
-extern "C" NS_EXPORT void JNICALL \
-Java_org_mozilla_gecko_GeckoAppShell_ ## name(JNIEnv *jenv, jclass jc, type1 one, type2 two, type3 three, type4 four, type5 five, type6 six) \
-{ \
-  f_ ## name(jenv, jc, one, two, three, four, five, six); \
-}
-
-#define SHELL_WRAPPER6_WITH_RETURN(name, return_type, type1, type2, type3, type4, type5, type6) \
-typedef return_type (*name ## _t)(JNIEnv *, jclass, type1 one, type2 two, type3 three, type4 four, type5 five, type6 six); \
-static name ## _t f_ ## name; \
-extern "C" NS_EXPORT return_type JNICALL \
-Java_org_mozilla_gecko_GeckoAppShell_ ## name(JNIEnv *jenv, jclass jc, type1 one, type2 two, type3 three, type4 four, type5 five, type6 six) \
-{ \
-  return f_ ## name(jenv, jc, one, two, three, four, five, six); \
-}
-
-#define SHELL_WRAPPER7(name,type1,type2,type3,type4,type5,type6,type7) \
-typedef void (*name ## _t)(JNIEnv *, jclass, type1 one, type2 two, type3 three, type4 four, type5 five, type6 six, type7 seven); \
-static name ## _t f_ ## name; \
-extern "C" NS_EXPORT void JNICALL \
-Java_org_mozilla_gecko_GeckoAppShell_ ## name(JNIEnv *jenv, jclass jc, type1 one, type2 two, type3 three, type4 four, type5 five, type6 six, type7 seven) \
-{ \
-  f_ ## name(jenv, jc, one, two, three, four, five, six, seven); \
-}
-
-#define SHELL_WRAPPER7_WITH_RETURN(name, return_type, type1, type2, type3, type4, type5, type6, type7) \
-typedef return_type (*name ## _t)(JNIEnv *, jclass, type1 one, type2 two, type3 three, type4 four, type5 five, type6 six, type7 seven); \
-static name ## _t f_ ## name; \
-extern "C" NS_EXPORT return_type JNICALL \
-Java_org_mozilla_gecko_GeckoAppShell_ ## name(JNIEnv *jenv, jclass jc, type1 one, type2 two, type3 three, type4 four, type5 five, type6 six, type7 seven) \
-{ \
-  return f_ ## name(jenv, jc, one, two, three, four, five, six, seven); \
-}
-
-#define SHELL_WRAPPER8(name,type1,type2,type3,type4,type5,type6,type7,type8) \
-typedef void (*name ## _t)(JNIEnv *, jclass, type1 one, type2 two, type3 three, type4 four, type5 five, type6 six, type7 seven, type8 eight); \
-static name ## _t f_ ## name; \
-extern "C" NS_EXPORT void JNICALL \
-Java_org_mozilla_gecko_GeckoAppShell_ ## name(JNIEnv *jenv, jclass jc, type1 one, type2 two, type3 three, type4 four, type5 five, type6 six, type7 seven, type8 eight) \
-{ \
-  f_ ## name(jenv, jc, one, two, three, four, five, six, seven, eight); \
-}
-
-#define SHELL_WRAPPER8_WITH_RETURN(name, return_type, type1, type2, type3, type4, type5, type6, type7, type8) \
-typedef return_type (*name ## _t)(JNIEnv *, jclass, type1 one, type2 two, type3 three, type4 four, type5 five, type6 six, type7 seven, type8 eight); \
-static name ## _t f_ ## name; \
-extern "C" NS_EXPORT return_type JNICALL \
-Java_org_mozilla_gecko_GeckoAppShell_ ## name(JNIEnv *jenv, jclass jc, type1 one, type2 two, type3 three, type4 four, type5 five, type6 six, type7 seven, type8 eight) \
-{ \
-  return f_ ## name(jenv, jc, one, two, three, four, five, six, seven, eight); \
-}
-
 SHELL_WRAPPER0(nativeInit)
 SHELL_WRAPPER1(nativeRun, jstring)
 SHELL_WRAPPER1(notifyGeckoOfEvent, jobject)
@@ -293,25 +194,12 @@ SHELL_WRAPPER1(onChangeNetworkLinkStatus, jstring)
 SHELL_WRAPPER1(reportJavaCrash, jstring)
 SHELL_WRAPPER0(executeNextRunnable)
 SHELL_WRAPPER1(cameraCallbackBridge, jbyteArray)
-SHELL_WRAPPER3(notifyBatteryChange, jdouble, jboolean, jdouble)
-SHELL_WRAPPER3(notifySmsReceived, jstring, jstring, jlong)
-SHELL_WRAPPER0(bindWidgetTexture)
-SHELL_WRAPPER3_WITH_RETURN(saveMessageInSentbox, jint, jstring, jstring, jlong)
-SHELL_WRAPPER6(notifySmsSent, jint, jstring, jstring, jlong, jint, jlong)
-SHELL_WRAPPER4(notifySmsDelivered, jint, jstring, jstring, jlong)
-SHELL_WRAPPER3(notifySmsSendFailed, jint, jint, jlong)
-SHELL_WRAPPER7(notifyGetSms, jint, jstring, jstring, jstring, jlong, jint, jlong)
-SHELL_WRAPPER3(notifyGetSmsFailed, jint, jint, jlong)
-SHELL_WRAPPER3(notifySmsDeleted, jboolean, jint, jlong)
-SHELL_WRAPPER3(notifySmsDeleteFailed, jint, jint, jlong)
-SHELL_WRAPPER2(notifyNoMessageInList, jint, jlong)
-SHELL_WRAPPER8(notifyListCreated, jint, jint, jstring, jstring, jstring, jlong, jint, jlong)
-SHELL_WRAPPER7(notifyGotNextMessage, jint, jstring, jstring, jstring, jlong, jint, jlong)
-SHELL_WRAPPER3(notifyReadingMessageListFailed, jint, jint, jlong)
+SHELL_WRAPPER3(notifyBatteryChange, jdouble, jboolean, jdouble);
+SHELL_WRAPPER3(notifySmsReceived, jstring, jstring, jlong);
+SHELL_WRAPPER0(bindWidgetTexture);
+SHELL_WRAPPER0_WITH_RETURN(testDirectTexture, bool);
 
 static void * xul_handle = NULL;
-static void * sqlite_handle = NULL;
-#ifdef MOZ_OLD_LINKER
 static time_t apk_mtime = 0;
 #ifdef DEBUG
 extern "C" int extractLibs = 1;
@@ -383,7 +271,6 @@ extractFile(const char * path, Zip::Stream &s)
 #endif
   munmap(buf, size);
 }
-#endif
 
 static void
 extractLib(Zip::Stream &s, void * dest)
@@ -424,7 +311,6 @@ getLibraryCache()
   return cache_mapping;
 }
 
-#ifdef MOZ_OLD_LINKER
 static void
 ensureLibCache()
 {
@@ -506,7 +392,7 @@ static void * mozload(const char * path, Zip *zip)
 
   if (extractLibs) {
     char fullpath[PATH_MAX];
-    snprintf(fullpath, PATH_MAX, "%s/%s", getenv("MOZ_LINKER_CACHE"), path);
+    snprintf(fullpath, PATH_MAX, "%s/%s", getenv("CACHE_PATH"), path);
     __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "resolved %s to %s", path, fullpath);
     extractFile(fullpath, s);
     handle = __wrap_dlopen(fullpath, RTLD_LAZY);
@@ -566,7 +452,7 @@ static void * mozload(const char * path, Zip *zip)
   }
 
 #ifdef DEBUG
-  __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Loading %s with len %d (0x%08x)", path, lib_size, lib_size);
+  __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Loading %s with len %d (0x%08x) and offset %d (0x%08x)", path, lib_size, lib_size, offset, offset);
 #endif
 
   handle = moz_mapped_dlopen(path, RTLD_LAZY, fd, buf,
@@ -585,9 +471,7 @@ static void * mozload(const char * path, Zip *zip)
 
   return handle;
 }
-#endif
 
-#ifdef MOZ_CRASHREPORTER
 static void *
 extractBuf(const char * path, Zip *zip)
 {
@@ -607,7 +491,6 @@ extractBuf(const char * path, Zip *zip)
 
   return buf;
 }
-#endif
 
 static int mapping_count = 0;
 static char *file_ids = NULL;
@@ -631,20 +514,18 @@ report_mapping(char *name, void *base, uint32_t len, uint32_t offset)
     info->file_id = strndup(entry + strlen(name) + 1, 32);
 }
 
-#ifdef MOZ_OLD_LINKER
 extern "C" void simple_linker_init(void);
-#endif
 
 static void
-loadGeckoLibs(const char *apkName)
+loadLibs(const char *apkName)
 {
   chdir(getenv("GRE_HOME"));
 
-#ifdef MOZ_OLD_LINKER
+  simple_linker_init();
+
   struct stat status;
   if (!stat(apkName, &status))
     apk_mtime = status.st_mtime;
-#endif
 
   struct timeval t0, t1;
   gettimeofday(&t0, 0);
@@ -653,23 +534,17 @@ loadGeckoLibs(const char *apkName)
   
   Zip *zip = new Zip(apkName);
 
+  lib_mapping = (struct mapping_info *)calloc(MAX_MAPPING_INFO, sizeof(*lib_mapping));
 #ifdef MOZ_CRASHREPORTER
   file_ids = (char *)extractBuf("lib.id", zip);
 #endif
 
-#ifndef MOZ_OLD_LINKER
-  char *file = new char[strlen(apkName) + sizeof("!/libxpcom.so")];
-  sprintf(file, "%s!/libxpcom.so", apkName);
-  __wrap_dlopen(file, RTLD_GLOBAL | RTLD_LAZY);
-  // libxul.so is pulled from libxpcom.so, so we don't need to give the full path
-  xul_handle = __wrap_dlopen("libxul.so", RTLD_GLOBAL | RTLD_LAZY);
-  delete[] file;
-#else
 #define MOZLOAD(name) mozload("lib" name ".so", zip)
   MOZLOAD("mozalloc");
   MOZLOAD("nspr4");
   MOZLOAD("plc4");
   MOZLOAD("plds4");
+  MOZLOAD("mozsqlite3");
   MOZLOAD("nssutil3");
   MOZLOAD("nss3");
   MOZLOAD("ssl3");
@@ -680,7 +555,6 @@ loadGeckoLibs(const char *apkName)
   MOZLOAD("freebl3");
   MOZLOAD("softokn3");
 #undef MOZLOAD
-#endif
 
   delete zip;
 
@@ -710,18 +584,7 @@ loadGeckoLibs(const char *apkName)
   GETFUNC(notifyBatteryChange);
   GETFUNC(notifySmsReceived);
   GETFUNC(bindWidgetTexture);
-  GETFUNC(saveMessageInSentbox);
-  GETFUNC(notifySmsSent);
-  GETFUNC(notifySmsDelivered);
-  GETFUNC(notifySmsSendFailed);
-  GETFUNC(notifyGetSms);
-  GETFUNC(notifyGetSmsFailed);
-  GETFUNC(notifySmsDeleted);
-  GETFUNC(notifySmsDeleteFailed);
-  GETFUNC(notifyNoMessageInList);
-  GETFUNC(notifyListCreated);
-  GETFUNC(notifyGotNextMessage);
-  GETFUNC(notifyReadingMessageListFailed);
+  GETFUNC(testDirectTexture);
 #undef GETFUNC
   sStartupTimeline = (uint64_t *)__wrap_dlsym(xul_handle, "_ZN7mozilla15StartupTimeline16sStartupTimelineE");
   gettimeofday(&t1, 0);
@@ -737,81 +600,20 @@ loadGeckoLibs(const char *apkName)
   StartupTimeline_Record(LIBRARIES_LOADED, &t1);
 }
 
-static void loadSQLiteLibs(const char *apkName)
-{
-  chdir(getenv("GRE_HOME"));
-
-#ifdef MOZ_OLD_LINKER
-  simple_linker_init();
-
-  struct stat status;
-  if (!stat(apkName, &status))
-    apk_mtime = status.st_mtime;
-#endif
-
-  Zip *zip = new Zip(apkName);
-  lib_mapping = (struct mapping_info *)calloc(MAX_MAPPING_INFO, sizeof(*lib_mapping));
-
-#ifdef MOZ_CRASHREPORTER
-  file_ids = (char *)extractBuf("lib.id", zip);
-#endif
-
-#ifndef MOZ_OLD_LINKER
-  char *file = new char[strlen(apkName) + sizeof("!/libmozsqlite3.so")];
-  sprintf(file, "%s!/libmozsqlite3.so", apkName);
-  sqlite_handle = __wrap_dlopen(file, RTLD_GLOBAL | RTLD_LAZY);
-  delete [] file;
-#else
-#define MOZLOAD(name) mozload("lib" name ".so", zip)
-  sqlite_handle = MOZLOAD("mozsqlite3");
-#undef MOZLOAD
-#endif
-
-  delete zip;
-
-#ifdef MOZ_CRASHREPORTER
-  free(file_ids);
-  file_ids = NULL;
-#endif
-
-  if (!sqlite_handle)
-    __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Couldn't get a handle to libmozsqlite3!");
-
-  setup_sqlite_functions(sqlite_handle);
-}
-
 extern "C" NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_loadGeckoLibsNative(JNIEnv *jenv, jclass jGeckoAppShellClass, jstring jApkName)
+Java_org_mozilla_gecko_GeckoAppShell_loadLibs(JNIEnv *jenv, jclass jGeckoAppShellClass, jstring jApkName, jboolean jShouldExtract)
 {
-  const char* str;
-  // XXX: java doesn't give us true UTF8, we should figure out something
-  // better to do here
-  str = jenv->GetStringUTFChars(jApkName, NULL);
-  if (str == NULL)
-    return;
-
-  loadGeckoLibs(str);
-  jenv->ReleaseStringUTFChars(jApkName, str);
-}
-
-extern "C" NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_loadSQLiteLibsNative(JNIEnv *jenv, jclass jGeckoAppShellClass, jstring jApkName, jboolean jShouldExtract) {
-  if (jShouldExtract) {
-#ifdef MOZ_OLD_LINKER
+  if (jShouldExtract)
     extractLibs = 1;
-#else
-    putenv("MOZ_LINKER_EXTRACT=1");
-#endif
-  }
 
   const char* str;
-  // XXX: java doesn't give us true UTF8, we should figure out something
+  // XXX: java doesn't give us true UTF8, we should figure out something 
   // better to do here
   str = jenv->GetStringUTFChars(jApkName, NULL);
   if (str == NULL)
     return;
 
-  loadSQLiteLibs(str);
+  loadLibs(str);
   jenv->ReleaseStringUTFChars(jApkName, str);
 }
 
@@ -830,11 +632,8 @@ ChildProcessInit(int argc, char* argv[])
     break;
   }
 
-#ifdef MOZ_OLD_LINKER
   fillLibCache(argv[argc - 1]);
-#endif
-  loadSQLiteLibs(argv[i]);
-  loadGeckoLibs(argv[i]);
+  loadLibs(argv[i]);
 
   // don't pass the last arg - it's only recognized by the lib cache
   argc--;

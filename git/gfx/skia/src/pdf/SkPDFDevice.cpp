@@ -179,7 +179,7 @@ public:
     }
 
     void updateClip(const SkClipStack& clipStack, const SkRegion& clipRegion,
-                    const SkPoint& translation);
+                    const SkIPoint& translation);
     void updateMatrix(const SkMatrix& matrix);
     void updateDrawingState(const GraphicStateEntry& state);
 
@@ -283,7 +283,7 @@ static void emit_clip(SkPath* clipPath, SkRect* clipRect,
 // on the page to optimize this.
 void GraphicStackState::updateClip(const SkClipStack& clipStack,
                                    const SkRegion& clipRegion,
-                                   const SkPoint& translation) {
+                                   const SkIPoint& translation) {
     if (clipStack == currentEntry()->fClipStack) {
         return;
     }
@@ -488,8 +488,7 @@ static inline SkBitmap makeContentBitmap(const SkISize& contentSize,
         // Compute the size of the drawing area.
         SkVector drawingSize;
         SkMatrix inverse;
-        drawingSize.set(SkIntToScalar(contentSize.fWidth),
-                        SkIntToScalar(contentSize.fHeight));
+        drawingSize.set(contentSize.fWidth, contentSize.fHeight);
         initialTransform->invert(&inverse);
         inverse.mapVectors(&drawingSize, 1);
         SkISize size = SkSize::Make(drawingSize.fX, drawingSize.fY).toRound();
@@ -503,7 +502,6 @@ static inline SkBitmap makeContentBitmap(const SkISize& contentSize,
     return bitmap;
 }
 
-// TODO(vandebo) change pageSize to SkSize.
 SkPDFDevice::SkPDFDevice(const SkISize& pageSize, const SkISize& contentSize,
                          const SkMatrix& initialTransform)
     : SkDevice(makeContentBitmap(contentSize, &initialTransform)),
@@ -514,8 +512,8 @@ SkPDFDevice::SkPDFDevice(const SkISize& pageSize, const SkISize& contentSize,
     // Skia generally uses the top left as the origin but PDF natively has the
     // origin at the bottom left. This matrix corrects for that.  But that only
     // needs to be done once, we don't do it when layering.
-    fInitialTransform.setTranslate(0, SkIntToScalar(pageSize.fHeight));
-    fInitialTransform.preScale(SK_Scalar1, -SK_Scalar1);
+    fInitialTransform.setTranslate(0, pageSize.fHeight);
+    fInitialTransform.preScale(1, -1);
     fInitialTransform.preConcat(initialTransform);
 
     SkIRect existingClip = SkIRect::MakeWH(this->width(), this->height());
@@ -524,7 +522,6 @@ SkPDFDevice::SkPDFDevice(const SkISize& pageSize, const SkISize& contentSize,
     this->init();
 }
 
-// TODO(vandebo) change layerSize to SkSize.
 SkPDFDevice::SkPDFDevice(const SkISize& layerSize,
                          const SkClipStack& existingClipStack,
                          const SkRegion& existingClipRegion)
@@ -563,10 +560,6 @@ void SkPDFDevice::cleanUp(bool clearFontUsage) {
     if (clearFontUsage) {
         fFontGlyphUsage->reset();
     }
-}
-
-uint32_t SkPDFDevice::getDeviceCapabilities() {
-    return kVector_Capability;
 }
 
 void SkPDFDevice::clear(SkColor color) {
@@ -895,7 +888,7 @@ void SkPDFDevice::drawTextOnPath(const SkDraw& d, const void* text, size_t len,
     if (d.fClip->isEmpty()) {
         return;
     }
-    d.drawTextOnPath((const char*)text, len, path, matrix, paint);
+    NOT_IMPLEMENTED("drawTextOnPath", false);
 }
 
 void SkPDFDevice::drawVertices(const SkDraw& d, SkCanvas::VertexMode,
@@ -1095,8 +1088,7 @@ void SkPDFDevice::copyContentEntriesToData(ContentEntry* entry,
     // right thing to pass here.
     GraphicStackState gsState(fExistingClipStack, fExistingClipRegion, data);
     while (entry != NULL) {
-        SkPoint translation;
-        translation.iset(this->getOrigin());
+        SkIPoint translation = this->getOrigin();
         translation.negate();
         gsState.updateClip(entry->fState.fClipStack, entry->fState.fClipRegion,
                            translation);
@@ -1505,8 +1497,8 @@ void SkPDFDevice::internalDrawBitmap(const SkMatrix& matrix,
                                      const SkPaint& paint) {
     SkMatrix scaled;
     // Adjust for origin flip.
-    scaled.setScale(SK_Scalar1, -SK_Scalar1);
-    scaled.postTranslate(0, SK_Scalar1);
+    scaled.setScale(1, -1);
+    scaled.postTranslate(0, 1);
     // Scale the image up from 1x1 to WxH.
     SkIRect subset = SkIRect::MakeWH(bitmap.width(), bitmap.height());
     scaled.postScale(SkIntToScalar(subset.width()),
@@ -1529,9 +1521,4 @@ void SkPDFDevice::internalDrawBitmap(const SkMatrix& matrix,
     fXObjectResources.push(image);  // Transfer reference.
     SkPDFUtils::DrawFormXObject(fXObjectResources.count() - 1,
                                 &content.entry()->fContent);
-}
-
-bool SkPDFDevice::onReadPixels(const SkBitmap& bitmap, int x, int y,
-                               SkCanvas::Config8888) {
-    return false;
 }

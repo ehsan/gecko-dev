@@ -323,7 +323,7 @@ gfxWindowsPlatform::VerifyD2DDevice(bool aAttemptForce)
         mD2DDevice = nsnull;
     }
 
-    mozilla::ScopedGfxFeatureReporter reporter("D2D", aAttemptForce);
+    mozilla::ScopedGfxFeatureReporter reporter("D2D");
 
     HMODULE d3d10module = LoadLibraryA("d3d10_1.dll");
     D3D10CreateDevice1Func createD3DDevice = (D3D10CreateDevice1Func)
@@ -342,12 +342,6 @@ gfxWindowsPlatform::VerifyD2DDevice(bool aAttemptForce)
             nsRefPtr<IDXGIFactory1> factory1;
             HRESULT hr = createDXGIFactory1(__uuidof(IDXGIFactory1),
                                             getter_AddRefs(factory1));
-
-            if (FAILED(hr) || !factory1) {
-              // This seems to happen with some people running the iZ3D driver.
-              // They won't get acceleration.
-              return;
-            }
     
             nsRefPtr<IDXGIAdapter1> adapter1; 
             hr = factory1->EnumAdapters1(0, getter_AddRefs(adapter1));
@@ -513,35 +507,21 @@ gfxWindowsPlatform::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
 {
 #ifdef XP_WIN
   if (aTarget->GetType() == BACKEND_DIRECT2D) {
-    void *surface = aTarget->GetUserData(&kThebesSurfaceKey);
-    if (surface) {
-      nsRefPtr<gfxASurface> surf = static_cast<gfxASurface*>(surface);
-      return surf.forget();
-    } else {
-      RefPtr<ID3D10Texture2D> texture =
-        static_cast<ID3D10Texture2D*>(aTarget->GetNativeSurface(NATIVE_SURFACE_D3D10_TEXTURE));
+    RefPtr<ID3D10Texture2D> texture =
+      static_cast<ID3D10Texture2D*>(aTarget->GetNativeSurface(NATIVE_SURFACE_D3D10_TEXTURE));
 
-      if (!texture) {
-        return gfxPlatform::GetThebesSurfaceForDrawTarget(aTarget);
-      }
-
-      aTarget->Flush();
-
-      nsRefPtr<gfxASurface> surf =
-        new gfxD2DSurface(texture, ContentForFormat(aTarget->GetFormat()));
-
-      // add a reference to be held by the drawTarget
-      surf->AddRef();
-      aTarget->AddUserData(&kThebesSurfaceKey, surf.get(), DestroyThebesSurface);
-      /* "It might be worth it to clear cairo surfaces associated with a drawtarget.
-	  The strong reference means for example for D2D that cairo's scratch surface
-	  will be kept alive (well after a user being done) and consume extra VRAM.
-	  We can deal with this in a follow-up though." */
-
-      // shouldn't this hold a reference?
-      surf->SetData(&kDrawTarget, aTarget, NULL);
-      return surf.forget();
+    if (!texture) {
+      return gfxPlatform::GetThebesSurfaceForDrawTarget(aTarget);
     }
+
+    aTarget->Flush();
+
+    nsRefPtr<gfxASurface> surf =
+      new gfxD2DSurface(texture, ContentForFormat(aTarget->GetFormat()));
+
+    surf->SetData(&kDrawTarget, aTarget, NULL);
+
+    return surf.forget();
   }
 #endif
 
@@ -558,11 +538,10 @@ gfxWindowsPlatform::SupportsAzure(BackendType& aBackend)
   }
 #endif
   
-  if (mPreferredDrawTargetBackend != BACKEND_NONE) {
-    aBackend = mPreferredDrawTargetBackend;
+  if (Preferences::GetBool("gfx.canvas.azure.prefer-skia", false)) {
+    aBackend = BACKEND_SKIA;
     return true;
   }
-
   return false;
 }
 

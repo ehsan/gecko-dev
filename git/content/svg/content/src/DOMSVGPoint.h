@@ -37,14 +37,13 @@
 #ifndef MOZILLA_DOMSVGPOINT_H__
 #define MOZILLA_DOMSVGPOINT_H__
 
-#include "DOMSVGPointList.h"
-#include "gfxPoint.h"
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDebug.h"
 #include "nsIDOMSVGPoint.h"
-#include "nsTArray.h"
+#include "DOMSVGPointList.h"
 #include "SVGPoint.h"
+#include "gfxPoint.h"
+#include "nsCycleCollectionParticipant.h"
+#include "nsAutoPtr.h"
+#include "nsMathUtils.h"
 
 class nsSVGElement;
 

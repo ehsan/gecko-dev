@@ -565,7 +565,7 @@ _cairo_xcb_surface_acquire_source_image (void *abstract_surface,
     if (unlikely (status))
 	return status;
 
-    cairo_surface_attach_snapshot (&surface->base, &image->base, NULL);
+    _cairo_surface_attach_snapshot (&surface->base, &image->base, NULL);
 
 DONE:
     *image_out = image;
@@ -718,7 +718,7 @@ _cairo_xcb_surface_flush (void *abstract_surface)
 	}
 
 	if (status == CAIRO_STATUS_SUCCESS) {
-	    cairo_surface_attach_snapshot (&surface->base,
+	    _cairo_surface_attach_snapshot (&surface->base,
 					    surface->fallback,
 					    cairo_surface_finish);
 	}

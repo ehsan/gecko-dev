@@ -82,10 +82,9 @@ def findIDL(includePath, interfaceFileName):
                         % (interfaceFileName, includePath))
 
 def loadIDL(parser, includePath, filename):
-    idlFile = findIDL(includePath, filename)
-    if not idlFile in make_dependencies:
-        make_dependencies.append(idlFile)
-    idl = p.parse(open(idlFile).read(), idlFile)
+    if not filename in make_dependencies:
+        make_dependencies.append(filename)
+    idl = p.parse(open(findIDL(includePath, filename)).read(), filename)
     idl.resolve(includePath, p)
     return idl
 
@@ -381,8 +380,8 @@ def write_cpp(iface, fd):
              "  if (!aCx || !aVal) {\n"
              "    return NS_OK;\n"
              "  }\n"
-             "  NS_ENSURE_STATE(aVal->isObject());\n\n"
-             "  JSObject* obj = &aVal->toObject();\n"
+             "  NS_ENSURE_STATE(JSVAL_IS_OBJECT(*aVal));\n\n"
+             "  JSObject* obj = JSVAL_TO_OBJECT(*aVal);\n"
              "  nsCxPusher pusher;\n"
              "  NS_ENSURE_STATE(pusher.Push(aCx, false));\n"
              "  JSAutoRequest ar(aCx);\n"

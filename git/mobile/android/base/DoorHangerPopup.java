@@ -39,6 +39,7 @@
 package org.mozilla.gecko;
 
 import java.util.HashMap;
+import java.util.Iterator;
 
 import android.content.Context;
 import android.graphics.drawable.BitmapDrawable;
@@ -47,6 +48,7 @@ import android.view.LayoutInflater;
 import android.view.ViewGroup;
 import android.widget.PopupWindow;
 import android.widget.LinearLayout;
+import android.widget.LinearLayout.LayoutParams;
 import android.widget.RelativeLayout;
 
 import org.json.JSONArray;

@@ -43,6 +43,7 @@
 
 #include "jsapi.h"
 #include "jsdbgapi.h"
+#include "jscntxt.h"
 
 #include "nsTraceRefcnt.h"
 #include "xpcpublic.h"
@@ -315,11 +316,6 @@ private:
     jsval adaptor;
     if (!scope->GetEventListenerOnEventTarget(aCx, name + 2, &adaptor)) {
       return false;
-    }
-
-    if (JSVAL_IS_VOID(adaptor)) {
-      *aVp = JSVAL_NULL;
-      return true;
     }
 
     JS_ASSERT(JSVAL_IS_OBJECT(adaptor));
@@ -935,13 +931,6 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   }
 
   return global;
-}
-
-bool
-ClassIsWorkerGlobalScope(JSClass* aClass)
-{
-  return WorkerGlobalScope::Class() == aClass ||
-         DedicatedWorkerGlobalScope::Class() == aClass;
 }
 
 END_WORKERS_NAMESPACE

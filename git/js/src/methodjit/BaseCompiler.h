@@ -140,9 +140,8 @@ class LinkerHelper : public JSC::LinkBuffer
 #endif
     }
 
-    bool verifyRange(JITChunk *chunk) {
-        return verifyRange(JSC::JITCode(chunk->code.m_code.executableAddress(),
-                                        chunk->code.m_size));
+    bool verifyRange(JITScript *jit) {
+        return verifyRange(JSC::JITCode(jit->code.m_code.executableAddress(), jit->code.m_size));
     }
 
     JSC::ExecutablePool *init(JSContext *cx) {
@@ -189,8 +188,8 @@ class NativeStubLinker : public LinkerHelper
     typedef JSC::MacroAssembler::Jump FinalJump;
 #endif
 
-    NativeStubLinker(Assembler &masm, JITChunk *chunk, jsbytecode *pc, FinalJump done)
-        : LinkerHelper(masm, JSC::METHOD_CODE), chunk(chunk), pc(pc), done(done)
+    NativeStubLinker(Assembler &masm, JITScript *jit, jsbytecode *pc, FinalJump done)
+        : LinkerHelper(masm, JSC::METHOD_CODE), jit(jit), pc(pc), done(done)
     {}
 
     bool init(JSContext *cx);
@@ -204,7 +203,7 @@ class NativeStubLinker : public LinkerHelper
     }
 
   private:
-    JITChunk *chunk;
+    JITScript *jit;
     jsbytecode *pc;
     FinalJump done;
 };

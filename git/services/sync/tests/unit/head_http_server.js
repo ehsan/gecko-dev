@@ -1,8 +1,5 @@
 const Cm = Components.manager;
 
-const TEST_CLUSTER_URL = "http://localhost:8080/";
-const TEST_SERVER_URL  = "http://localhost:8080/";
-
 // Shared logging for all HTTP server functions.
 Cu.import("resource://services-sync/log4moz.js");
 const SYNC_HTTP_LOGGER = "Sync.Test.Server";
@@ -26,9 +23,9 @@ function return_timestamp(request, response, timestamp) {
   return timestamp;
 }
 
-function httpd_setup (handlers, port) {
-  let port   = port || 8080;
+function httpd_setup (handlers) {
   let server = new nsHttpServer();
+  let port   = 8080;
   for (let path in handlers) {
     server.registerPathHandler(path, handlers[path]);
   }

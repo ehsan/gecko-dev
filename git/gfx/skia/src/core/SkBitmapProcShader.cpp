@@ -81,10 +81,6 @@ static bool only_scale_and_translate(const SkMatrix& matrix) {
     return (matrix.getType() & ~mask) == 0;
 }
 
-bool SkBitmapProcShader::isOpaque() const {
-    return fRawBitmap.isOpaque();
-}
-
 bool SkBitmapProcShader::setContext(const SkBitmap& device,
                                     const SkPaint& paint,
                                     const SkMatrix& matrix) {
@@ -289,7 +285,8 @@ SkShader* SkShader::CreateBitmapShader(const SkBitmap& src,
     return shader;
 }
 
-SK_DEFINE_FLATTENABLE_REGISTRAR(SkBitmapProcShader)
+static SkFlattenable::Registrar gBitmapProcShaderReg("SkBitmapProcShader",
+                                               SkBitmapProcShader::CreateProc);
 
 ///////////////////////////////////////////////////////////////////////////////
 

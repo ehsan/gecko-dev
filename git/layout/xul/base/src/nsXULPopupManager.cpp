@@ -1671,9 +1671,10 @@ nsXULPopupManager::UpdateMenuItems(nsIContent* aPopup)
   // command attribute. If so, then several attributes must potentially be updated.
  
   nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(aPopup->GetDocument()));
-  for (nsCOMPtr<nsIContent> grandChild = aPopup->GetFirstChild();
-       grandChild;
-       grandChild = grandChild->GetNextSibling()) {
+  PRUint32 count = aPopup->GetChildCount();
+  for (PRUint32 i = 0; i < count; i++) {
+    nsCOMPtr<nsIContent> grandChild = aPopup->GetChildAt(i);
+
     if (grandChild->NodeInfo()->Equals(nsGkAtoms::menuitem, kNameSpaceID_XUL)) {
       // See if we have a command attribute.
       nsAutoString command;

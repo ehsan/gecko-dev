@@ -60,6 +60,7 @@
 #include "nsISelectionPrivate.h"
 #include "nsISelectionController.h"
 #include "nsIDOMRange.h"
+#include "nsIRangeUtils.h"
 #include "nsIDOMCharacterData.h"
 #include "nsIEnumerator.h"
 #include "nsIDOMNamedNodeMap.h"
@@ -2436,20 +2437,21 @@ nsHTMLEditRules::WillDeleteSelection(nsISelection *aSelection,
       
           // now that we have the list, delete non table elements
           PRInt32 listCount = arrayOfNodes.Count();
-          for (PRInt32 j = 0; j < listCount; j++) {
+          PRInt32 j;
+
+          for (j = 0; j < listCount; j++)
+          {
             nsIDOMNode* somenode = arrayOfNodes[0];
             res = DeleteNonTableElements(somenode);
             arrayOfNodes.RemoveObjectAt(0);
             // If something visible is deleted, no need to join.
             // Visible means all nodes except non-visible textnodes and breaks.
             if (join && origCollapsed) {
-              nsCOMPtr<nsIContent> content = do_QueryInterface(somenode);
-              if (!content) {
-                join = false;
-              } else if (content->NodeType() == nsIDOMNode::TEXT_NODE) {
-                mHTMLEditor->IsVisTextNode(content, &join, true);
-              } else {
-                join = content->IsHTML(nsGkAtoms::br) &&
+              if (mHTMLEditor->IsTextNode(somenode)) {
+                mHTMLEditor->IsVisTextNode(somenode, &join, true);
+              }
+              else {
+                join = nsTextEditUtils::IsBreak(somenode) && 
                        !mHTMLEditor->IsVisBreak(somenode);
               }
             }
@@ -2940,10 +2942,10 @@ nsHTMLEditRules::DidDeleteSelection(nsISelection *aSelection,
   res = GetTopEnclosingMailCite(startNode, address_of(citeNode), 
                                 IsPlaintextEditor());
   NS_ENSURE_SUCCESS(res, res);
-  if (citeNode) {
-    nsCOMPtr<nsINode> cite = do_QueryInterface(citeNode);
+  if (citeNode)
+  {
     bool isEmpty = true, seenBR = false;
-    mHTMLEditor->IsEmptyNodeImpl(cite, &isEmpty, true, true, false, &seenBR);
+    mHTMLEditor->IsEmptyNodeImpl(citeNode, &isEmpty, true, true, false, &seenBR);
     if (isEmpty)
     {
       nsCOMPtr<nsIDOMNode> parent, brNode;
@@ -5256,7 +5258,7 @@ nsHTMLEditRules::ExpandSelectionForDeletion(nsISelection *aSelection)
     
     // check if block is entirely inside range
     nsCOMPtr<nsIContent> brContentBlock = do_QueryInterface(brBlock);
-    res = nsRange::CompareNodeToRange(brContentBlock, range, &nodeBefore, &nodeAfter);
+    res = mHTMLEditor->sRangeHelper->CompareNodeToRange(brContentBlock, range, &nodeBefore, &nodeAfter);
     
     // if block isn't contained, forgo grabbing the br in the expanded selection
     if (nodeBefore || nodeAfter)
@@ -5488,11 +5490,9 @@ nsHTMLEditRules::NormalizeSelection(nsISelection *inSelection)
   // then just leave things alone.
   
   PRInt16 comp;
-  comp = nsContentUtils::ComparePoints(startNode, startOffset,
-                                       newEndNode, newEndOffset);
+  comp = mHTMLEditor->sRangeHelper->ComparePoints(startNode, startOffset, newEndNode, newEndOffset);
   if (comp == 1) return NS_OK;  // new end before old start
-  comp = nsContentUtils::ComparePoints(newStartNode, newStartOffset,
-                                       endNode, endOffset);
+  comp = mHTMLEditor->sRangeHelper->ComparePoints(newStartNode, newStartOffset, endNode, endOffset);
   if (comp == 1) return NS_OK;  // new start after old end
   
   // otherwise set selection to new values.  
@@ -7638,7 +7638,7 @@ nsHTMLEditRules::PinSelectionToNewBlock(nsISelection *aSelection)
   nsCOMPtr<nsIContent> block (do_QueryInterface(mNewBlock));
   NS_ENSURE_TRUE(block, NS_ERROR_NO_INTERFACE);
   bool nodeBefore, nodeAfter;
-  res = nsRange::CompareNodeToRange(block, range, &nodeBefore, &nodeAfter);
+  res = mHTMLEditor->sRangeHelper->CompareNodeToRange(block, range, &nodeBefore, &nodeAfter);
   NS_ENSURE_SUCCESS(res, res);
   
   if (nodeBefore && nodeAfter)

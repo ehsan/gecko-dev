@@ -6,12 +6,7 @@
 
 // Tests that document.body autocompletes in the web console.
 
-let tempScope = {};
-Cu.import("resource:///modules/PropertyPanel.jsm", tempScope);
-let PropertyPanel = tempScope.PropertyPanel;
-let PropertyTreeView = tempScope.PropertyTreeView;
-let namesAndValuesOf = tempScope.namesAndValuesOf;
-let isNonNativeGetter = tempScope.isNonNativeGetter;
+Cu.import("resource:///modules/PropertyPanel.jsm");
 
 registerCleanupFunction(function() {
   Services.prefs.clearUserPref("devtools.gcli.enable");

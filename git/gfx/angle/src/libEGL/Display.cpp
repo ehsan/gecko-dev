@@ -16,7 +16,6 @@
 
 #include "common/debug.h"
 #include "libGLESv2/mathutil.h"
-#include "libGLESv2/utilities.h"
 
 #include "libEGL/main.h"
 
@@ -301,12 +300,6 @@ void Display::terminate()
     while (!mContextSet.empty())
     {
         destroyContext(*mContextSet.begin());
-    }
-
-    while (!mEventQueryPool.empty())
-    {
-        mEventQueryPool.back()->Release();
-        mEventQueryPool.pop_back();
     }
 
     if (mDevice)
@@ -730,12 +723,6 @@ bool Display::restoreLostDevice()
         (*surface)->release();
     }
 
-    while (!mEventQueryPool.empty())
-    {
-        mEventQueryPool.back()->Release();
-        mEventQueryPool.pop_back();
-    }
-
     if (!resetDevice())
     {
         return false;
@@ -881,76 +868,6 @@ bool Display::testDeviceResettable()
     }
 }
 
-void Display::sync(bool block)
-{
-    HRESULT result;
-
-    IDirect3DQuery9* query = allocateEventQuery();
-    if (!query)
-    {
-        return;
-    }
-
-    result = query->Issue(D3DISSUE_END);
-    ASSERT(SUCCEEDED(result));
-
-    do
-    {
-        result = query->GetData(NULL, 0, D3DGETDATA_FLUSH);
-
-        if(block && result == S_FALSE)
-        {
-            // Keep polling, but allow other threads to do something useful first
-            Sleep(0);
-            // explicitly check for device loss
-            // some drivers seem to return S_FALSE even if the device is lost
-            // instead of D3DERR_DEVICELOST like they should
-            if (testDeviceLost())
-            {
-                result = D3DERR_DEVICELOST;
-            }
-        }
-    }
-    while(block && result == S_FALSE);
-
-    freeEventQuery(query);
-
-    if (isDeviceLostError(result))
-    {
-        notifyDeviceLost();
-    }
-}
-
-IDirect3DQuery9* Display::allocateEventQuery()
-{
-    IDirect3DQuery9 *query = NULL;
-
-    if (mEventQueryPool.empty())
-    {
-        HRESULT result = mDevice->CreateQuery(D3DQUERYTYPE_EVENT, &query);
-        ASSERT(SUCCEEDED(result));
-    }
-    else
-    {
-        query = mEventQueryPool.back();
-        mEventQueryPool.pop_back();
-    }
-
-    return query;
-}
-
-void Display::freeEventQuery(IDirect3DQuery9* query)
-{
-    if (mEventQueryPool.size() > 1000)
-    {
-        query->Release();
-    }
-    else
-    {
-        mEventQueryPool.push_back(query);
-    }
-}
-
 void Display::getMultiSampleSupport(D3DFORMAT format, bool *multiSampleArray)
 {
     for (int multiSampleIndex = 0; multiSampleIndex <= D3DMULTISAMPLE_16_SAMPLES; multiSampleIndex++)
@@ -1001,7 +918,7 @@ bool Display::getFloat32TextureSupport(bool *filtering, bool *renderable)
                   SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_RENDERTARGET,
                                                      D3DRTYPE_CUBETEXTURE, D3DFMT_A32B32G32R32F));
 
-    if (!*filtering && !*renderable)
+    if (!filtering && !renderable)
     {
         return SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0, 
                                                   D3DRTYPE_TEXTURE, D3DFMT_A32B32G32R32F)) &&
@@ -1029,7 +946,7 @@ bool Display::getFloat16TextureSupport(bool *filtering, bool *renderable)
                  SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, D3DUSAGE_RENDERTARGET,
                                                     D3DRTYPE_CUBETEXTURE, D3DFMT_A16B16G16R16F));
 
-    if (!*filtering && !*renderable)
+    if (!filtering && !renderable)
     {
         return SUCCEEDED(mD3d9->CheckDeviceFormat(mAdapter, mDeviceType, currentDisplayMode.Format, 0, 
                                                   D3DRTYPE_TEXTURE, D3DFMT_A16B16G16R16F)) &&
@@ -1094,16 +1011,14 @@ D3DPOOL Display::getTexturePool(bool renderable) const
 
 bool Display::getEventQuerySupport()
 {
-    IDirect3DQuery9 *query = allocateEventQuery();
-    if (query)
+    IDirect3DQuery9 *query;
+    HRESULT result = mDevice->CreateQuery(D3DQUERYTYPE_EVENT, &query);
+    if (SUCCEEDED(result))
     {
-        freeEventQuery(query);
-        return true;
+        query->Release();
     }
-    else
-    {
-        return false;
-    }
+
+    return result != D3DERR_NOTAVAILABLE;
 }
 
 D3DPRESENT_PARAMETERS Display::getDefaultPresentParameters()
@@ -1192,27 +1107,6 @@ bool Display::getNonPower2TextureSupport() const
     return !(mDeviceCaps.TextureCaps & D3DPTEXTURECAPS_POW2) &&
            !(mDeviceCaps.TextureCaps & D3DPTEXTURECAPS_CUBEMAP_POW2) &&
            !(mDeviceCaps.TextureCaps & D3DPTEXTURECAPS_NONPOW2CONDITIONAL);
-}
-
-bool Display::getOcclusionQuerySupport() const
-{
-    if (!isInitialized())
-    {
-        return false;
-    }
-
-    IDirect3DQuery9 *query = NULL;
-    HRESULT result = mDevice->CreateQuery(D3DQUERYTYPE_OCCLUSION, &query);
-    
-    if (SUCCEEDED(result) && query)
-    {
-        query->Release();
-        return true;
-    }
-    else
-    {
-        return false;
-    }
 }
 
 }

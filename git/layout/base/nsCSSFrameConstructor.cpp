@@ -8033,34 +8033,6 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
         ApplyRenderingChangeToTree(presContext, frame, hint);
         didInvalidate = true;
       }
-      if ((hint & nsChangeHint_UpdateOverflow) && !didReflow) {
-        while (frame) {
-          nsOverflowAreas* pre = static_cast<nsOverflowAreas*>
-            (frame->Properties().Get(frame->PreTransformOverflowAreasProperty()));
-          if (pre) {
-            // FinishAndStoreOverflow will change the overflow areas passed in,
-            // so make a copy.
-            nsOverflowAreas overflowAreas = *pre;
-            frame->FinishAndStoreOverflow(overflowAreas, frame->GetSize());
-          } else {
-            frame->UpdateOverflow();
-          }
-
-          nsIFrame* next =
-            nsLayoutUtils::GetNextContinuationOrSpecialSibling(frame);
-          // Update the ancestors' overflow after we have updated the overflow
-          // for all the continuations with the same parent.
-          if (!next || frame->GetParent() != next->GetParent()) {
-            for (nsIFrame* ancestor = frame->GetParent(); ancestor;
-                 ancestor = ancestor->GetParent()) {
-              if (!ancestor->UpdateOverflow()) {
-                break;
-              }
-            }
-          }
-          frame = next;
-        }
-      }
       if (hint & nsChangeHint_UpdateCursor) {
         mPresShell->SynthesizeMouseMove(false);
       }
@@ -9053,16 +9025,6 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
     }
   }
 #endif
-
-  // Reconstruct if inflowFrame is parent's only child, and parent is, or has,
-  // a non-fluid continuation, i.e. it was split by bidi resolution
-  if (!inFlowFrame->GetPrevSibling() &&
-      !inFlowFrame->GetNextSibling() &&
-      (parent->GetPrevContinuation() && !parent->GetPrevInFlow() ||
-       parent->GetNextContinuation() && !parent->GetNextInFlow())) {
-    *aResult = RecreateFramesForContent(parent->GetContent(), true);
-    return true;
-  }
 
   // We might still need to reconstruct things if the parent of inFlowFrame is
   // special, since in that case the removal of aFrame might affect the

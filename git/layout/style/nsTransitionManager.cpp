@@ -724,7 +724,8 @@ nsTransitionManager::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 /* virtual */ size_t
 nsTransitionManager::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
-  return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
+  return aMallocSizeOf(this, sizeof(nsTransitionManager)) +
+         SizeOfExcludingThis(aMallocSizeOf);
 }
 
 struct TransitionEventInfo {

@@ -9,10 +9,7 @@ let stylePanel;
 
 const TEST_URI = "http://example.com/browser/browser/devtools/styleinspector/test/browser_bug683672.html";
 
-let tempScope = {};
-Cu.import("resource:///modules/devtools/CssHtmlTree.jsm", tempScope);
-let CssHtmlTree = tempScope.CssHtmlTree;
-let PropertyView = tempScope.PropertyView;
+Cu.import("resource:///modules/devtools/CssHtmlTree.jsm");
 
 function test()
 {
@@ -25,6 +22,7 @@ function tabLoaded()
 {
   browser.removeEventListener("load", tabLoaded, true);
   doc = content.document;
+  ok(window.StyleInspector, "StyleInspector exists");
   // ok(StyleInspector.isEnabled, "style inspector preference is enabled");
   stylePanel = new StyleInspector(window);
   Services.obs.addObserver(runTests, "StyleInspector-opened", false);

@@ -137,6 +137,8 @@ SkMaskFilter::BlurType SkBlurMaskFilterImpl::asABlur(BlurInfo* info) const {
     return gBlurStyle2BlurType[fBlurStyle];
 }
 
-SK_DEFINE_FLATTENABLE_REGISTRAR_GROUP_START(SkBlurMaskFilter)
-    SK_DEFINE_FLATTENABLE_REGISTRAR_ENTRY(SkBlurMaskFilterImpl)
-SK_DEFINE_FLATTENABLE_REGISTRAR_GROUP_END
+///////////////////////////////////////////////////////////////////////////////
+
+static SkFlattenable::Registrar gReg("SkBlurMaskFilter",
+                                     SkBlurMaskFilterImpl::CreateProc);
+

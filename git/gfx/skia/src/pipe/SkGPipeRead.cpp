@@ -49,7 +49,7 @@ static void set_paintflat(SkPaint* paint, SkFlattenable* obj, unsigned paintFlat
             paint->setXfermode((SkXfermode*)obj);
             break;
         default:
-            SkDEBUGFAIL("never gets here");
+            SkASSERT(!"never gets here");
     }
 }
 
@@ -403,7 +403,7 @@ static void paintOp_rp(SkCanvas*, SkReader32* reader, uint32_t op32,
             }
 
             case kTypeface_PaintOp: state->setTypeface(p, data); break;
-            default: SkDEBUGFAIL("bad paintop"); return;
+            default: SkASSERT(!"bad paintop"); return;
         }
         SkASSERT(reader->offset() <= stop);
     } while (reader->offset() < stop);

@@ -97,7 +97,7 @@ new TestCase(
 new TestCase(
   SECTION,
   "return function.arguments when function contains an arguments property",
-  "[object Arguments]",
+  "PASS",
   TestFunction_4( "F", "A", "I", "L" ) +"");
 
 test();
@@ -116,7 +116,7 @@ function TestFunction_3( a, b, c, d, e ) {
 }
 
 function TestFunction_4( a, b, c, d, e ) {
-  var arguments = "FAIL";
+  var arguments = "PASS";
   return TestFunction_4.arguments;
 }
 

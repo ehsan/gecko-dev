@@ -41,7 +41,6 @@
 #include "SVGAnimatedPathSegList.h"
 #include "nsCOMPtr.h"
 #include "nsSVGAttrTearoffTable.h"
-#include "SVGPathSegUtils.h"
 
 // See the comment in this file's header.
 

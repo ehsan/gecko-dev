@@ -384,10 +384,9 @@ protected:
                                 nsHTMLReflowMetrics&     aMetrics,
                                 nscoord*                 aBottomEdgeOfChildren);
 
-  void ComputeOverflowAreas(const nsRect&         aBounds,
-                            const nsStyleDisplay* aDisplay,
-                            nscoord               aBottomEdgeOfChildren,
-                            nsOverflowAreas&      aOverflowAreas);
+  void ComputeOverflowAreas(const nsHTMLReflowState& aReflowState,
+                            nsHTMLReflowMetrics&     aMetrics,
+                            nscoord                  aBottomEdgeOfChildren);
 
   /** add the frames in aFrameList to this block after aPrevSibling
     * this block thinks in terms of lines, but the frame construction code
@@ -436,8 +435,6 @@ public:
                       nsBlockFrame* aOldParent, bool aFromOverflow,
                       bool aReparentSiblings);
 
-  virtual bool UpdateOverflow();
-
   /** Load all of aFrame's floats into the float manager iff aFrame is not a
    *  block formatting context. Handles all necessary float manager translations;
    *  assumes float manager is in aFrame's parent's coord system.
@@ -452,7 +449,7 @@ protected:
     * part of this block's mLines list.
     * @return true if any lines were drained.
     */
-  bool DrainOverflowLines();
+  bool DrainOverflowLines(nsBlockReflowState& aState);
 
   /** grab pushed floats from this block's prevInFlow, and splice
     * them into this block's mFloats list.
@@ -533,8 +530,8 @@ protected:
                          const nsLineList* aLineList = nsnull);
 
   // XXX where to go
-  bool IsLastLine(nsBlockReflowState& aState,
-                  line_iterator aLine);
+  bool ShouldJustifyLine(nsBlockReflowState& aState,
+                           line_iterator aLine);
 
   void DeleteLine(nsBlockReflowState& aState,
                   nsLineList::iterator aLine,

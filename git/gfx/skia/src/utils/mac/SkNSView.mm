@@ -265,13 +265,9 @@ CGLContextObj createGLContext() {
         [fGLContext setView:self];
     }
 }
-- (bool)attachGL {
-    if (nil == fGLContext) {
+- (void)attachGL {
+    if (nil == fGLContext)
         fGLContext = [[NSOpenGLContext alloc] initWithCGLContextObj:createGLContext()];
-        if (NULL == fGLContext) {
-            return false;
-        }
-    }
     
     [fGLContext makeCurrentContext];
     
@@ -279,7 +275,6 @@ CGLContextObj createGLContext() {
     glClearColor(0, 0, 0, 0);
     glClearStencil(0);
     glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-    return true;
 }
 
 - (void)detachGL {

@@ -42,7 +42,6 @@
 
 #include <string.h>
 
-#include "jsfriendapi.h"
 #include "jspubtd.h"
 #include "jsutil.h"
 
@@ -50,6 +49,32 @@ struct JSCompartment;
 
 namespace js {
 namespace gcstats {
+
+enum Reason {
+    PUBLIC_API,
+    MAYBEGC,
+    LASTCONTEXT,
+    DESTROYCONTEXT,
+    LASTDITCH,
+    TOOMUCHMALLOC,
+    ALLOCTRIGGER,
+    CHUNK,
+    SHAPE,
+    REFILL
+};
+static const int NUM_REASONS = REFILL + 1;
+
+static inline const char *
+ExplainReason(Reason r)
+{
+    static const char *strs[] = {"  API", "Maybe", "LastC", "DestC", "LastD",
+                                 "Mallc", "Alloc", "Chunk", "Shape", "Refil"};
+
+    JS_ASSERT(strcmp(strs[SHAPE], "Shape") == 0 &&
+              sizeof(strs) / sizeof(strs[0]) == NUM_REASONS);
+
+    return strs[r];
+}
 
 enum Phase {
     PHASE_GC,
@@ -78,7 +103,7 @@ struct Statistics {
     Statistics(JSRuntime *rt);
     ~Statistics();
 
-    void beginGC(JSCompartment *comp, gcreason::Reason reason);
+    void beginGC(JSCompartment *comp, Reason reason);
     void endGC();
 
     void beginPhase(Phase phase);
@@ -97,7 +122,7 @@ struct Statistics {
     FILE *fp;
     bool fullFormat;
 
-    gcreason::Reason triggerReason;
+    Reason triggerReason;
     JSCompartment *compartment;
 
     uint64_t phaseStarts[PHASE_LIMIT];
@@ -115,8 +140,8 @@ struct Statistics {
 
     struct ColumnInfo {
         const char *title;
-        char str[32];
-        char totalStr[32];
+        char str[12];
+        char totalStr[12];
         int width;
 
         ColumnInfo() {}
@@ -130,8 +155,7 @@ struct Statistics {
 };
 
 struct AutoGC {
-    AutoGC(Statistics &stats, JSCompartment *comp, gcreason::Reason reason
-           JS_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoGC(Statistics &stats, JSCompartment *comp, Reason reason JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : stats(stats) { JS_GUARD_OBJECT_NOTIFIER_INIT; stats.beginGC(comp, reason); }
     ~AutoGC() { stats.endGC(); }
 

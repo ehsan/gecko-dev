@@ -30,19 +30,19 @@ of the License or (at your option) any later version.
 // Author: Tim Eves
 
 #include <cassert>
-#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include "graphite2/Segment.h"
-#include "inc/Code.h"
-#include "inc/Machine.h"
-#include "inc/Silf.h"
-#include "inc/Face.h"
-#include "inc/Rule.h"
+#include "Code.h"
+#include "Machine.h"
+#include "Silf.h"
+#include "Face.h"
+#include "Rule.h"
+#include "XmlTraceLog.h"
 
 #include <cstdio>
 
-#ifdef NDEBUG
+#ifdef DISABLE_TRACING
 #ifdef __GNUC__
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #endif
@@ -61,6 +61,8 @@ inline bool is_return(const instr i) {
                 ret_true = *opmap[RET_TRUE].impl;
     return i == pop_ret || i == ret_zero || i == ret_true;
 }
+
+void emit_trace_message(opcode, const byte *const, const opcode_t &);
 
 struct context
 {
@@ -204,8 +206,8 @@ Machine::Code::Code(bool is_constraint, const byte * bytecode_begin, const byte 
     // Now we know exactly how much code and data the program really needs
     // realloc the buffers to exactly the right size so we don't waste any 
     // memory.
-    assert((bytecode_end - bytecode_begin) >= std::ptrdiff_t(_instr_count));
-    assert((bytecode_end - bytecode_begin) >= std::ptrdiff_t(_data_size));
+    assert((bytecode_end - bytecode_begin) >= ptrdiff_t(_instr_count));
+    assert((bytecode_end - bytecode_begin) >= ptrdiff_t(_data_size));
     _code = static_cast<instr *>(realloc(_code, (_instr_count+1)*sizeof(instr)));
     _data = static_cast<byte *>(realloc(_data, _data_size*sizeof(byte)));
     
@@ -428,10 +430,10 @@ void Machine::Code::decoder::analyse_opcode(const opcode opc, const int8  * arg)
       else if (_analysis.slotref + arg[0] > _analysis.max_ref) _analysis.max_ref = _analysis.slotref + arg[0];
       break;
     }
-    case PUSH_ATT_TO_GATTR_OBS : // slotref on 2nd parameter
+    case PUSH_ATT_TO_GATTR_OBS :
         if (_code._constraint) return;
     case PUSH_GLYPH_ATTR_OBS :
-    case PUSH_SLOT_ATTR :
+    case PUSH_SLOT_ATTR :       // slotref on 2nd parameter
     case PUSH_GLYPH_METRIC :
     case PUSH_ATT_TO_GLYPH_METRIC :
     case PUSH_ISLOT_ATTR :
@@ -470,12 +472,13 @@ bool Machine::Code::decoder::emit_opcode(opcode opc, const byte * & bc)
     // Add this instruction
     *_instr++ = op.impl[_code._constraint]; 
     ++_code._instr_count;
+    emit_trace_message(opc, bc, op);
 
     // Grab the parameters
     if (param_sz) {
-        memcpy(_data, bc, param_sz * sizeof(byte));
-        bc               += param_sz;
-        _data            += param_sz;
+        memmove(_data, bc, param_sz * sizeof(byte));
+        bc         += param_sz;
+        _data         += param_sz;
         _code._data_size += param_sz;
     }
     
@@ -505,6 +508,32 @@ bool Machine::Code::decoder::emit_opcode(opcode opc, const byte * & bc)
     
     return bool(_code);
 }
+
+
+
+namespace {
+
+inline void emit_trace_message(opcode opc, const byte *const params, 
+                        const opcode_t &op)
+{
+#ifndef DISABLE_TRACING
+    if (XmlTraceLog::get().active())
+    {
+        XmlTraceLog::get().openElement(ElementAction);
+        XmlTraceLog::get().addAttribute(AttrActionCode, opc);
+        XmlTraceLog::get().addAttribute(AttrAction, op.name);
+        for (size_t p = 0; p < 8 && p < op.param_sz; ++p)
+        {
+            XmlTraceLog::get().addAttribute(
+                                XmlTraceLogAttribute(Attr0 + p),
+                                params[p]);
+        }
+        XmlTraceLog::get().closeElement(ElementAction);
+    }
+#endif
+}
+
+} // end of namespace
 
 
 void Machine::Code::decoder::apply_analysis(instr * const code, instr * code_end)
@@ -555,13 +584,11 @@ bool Machine::Code::decoder::valid_upto(const uint16 limit, const uint16 x) cons
     return t;
 }
 
-
 inline 
 void Machine::Code::failure(const status_t s) throw() {
     release_buffers();
     _status = s;
 }
-
 
 inline
 void Machine::Code::decoder::analysis::set_ref(const int index) throw() {
@@ -569,13 +596,11 @@ void Machine::Code::decoder::analysis::set_ref(const int index) throw() {
     if (index > max_ref) max_ref = index;
 }
 
-
 inline
 void Machine::Code::decoder::analysis::set_changed(const int index) throw() {
     contexts[index].flags.changed = true;
     if (index > max_ref) max_ref = index;
 }
-
 
 void Machine::Code::release_buffers() throw()
 {
@@ -585,7 +610,6 @@ void Machine::Code::release_buffers() throw()
     _data = 0;
     _own  = false;
 }
-
 
 int32 Machine::Code::run(Machine & m, slotref * & map) const
 {

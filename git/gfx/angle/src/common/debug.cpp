@@ -23,7 +23,7 @@ static void output(bool traceFileDebugOnly, PerfOutputFunction perfFunc, const c
 #if !defined(ANGLE_DISABLE_PERF)
     if (perfActive())
     {
-        char message[32768];
+        char message[4096];
         int len = vsprintf_s(message, format, vararg);
         if (len < 0)
         {
@@ -31,7 +31,7 @@ static void output(bool traceFileDebugOnly, PerfOutputFunction perfFunc, const c
         }
 
         // There are no ASCII variants of these D3DPERF functions.
-        wchar_t wideMessage[32768];
+        wchar_t wideMessage[4096];
         for (int i = 0; i < len; ++i)
         {
             wideMessage[i] = message[i];

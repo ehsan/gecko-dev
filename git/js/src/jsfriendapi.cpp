@@ -42,9 +42,6 @@
 #include "jsfriendapi.h"
 #include "jswrapper.h"
 #include "jsweakmap.h"
-#include "jswatchpoint.h"
-
-#include "mozilla/GuardObjects.h"
 
 #include "jsobjinlines.h"
 
@@ -61,7 +58,7 @@ JS_SetGrayGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data)
 JS_FRIEND_API(JSString *)
 JS_GetAnonymousString(JSRuntime *rt)
 {
-    JS_ASSERT(rt->hasContexts());
+    JS_ASSERT(rt->state == JSRTS_UP);
     return rt->atomState.anonymousAtom;
 }
 
@@ -129,15 +126,9 @@ JS_NewObjectWithUniqueType(JSContext *cx, JSClass *clasp, JSObject *proto, JSObj
 }
 
 JS_FRIEND_API(void)
-js::GCForReason(JSContext *cx, gcreason::Reason reason)
+JS_ShrinkingGC(JSContext *cx)
 {
-    js_GC(cx, NULL, GC_NORMAL, reason);
-}
-
-JS_FRIEND_API(void)
-js::ShrinkingGC(JSContext *cx, gcreason::Reason reason)
-{
-    js_GC(cx, NULL, GC_SHRINK, reason);
+    js_GC(cx, NULL, GC_SHRINK, gcstats::PUBLIC_API);
 }
 
 JS_FRIEND_API(void)
@@ -330,12 +321,6 @@ js::SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val)
     fun->toFunction()->setExtendedSlot(which, val);
 }
 
-JS_FRIEND_API(void)
-js::SetReservedSlotWithBarrier(JSObject *obj, size_t slot, const js::Value &value)
-{
-    obj->setSlot(slot, value);
-}
-
 void
 js::SetPreserveWrapperCallback(JSRuntime *rt, PreserveWrapperCallback callback)
 {
@@ -375,7 +360,6 @@ void
 js::TraceWeakMaps(WeakMapTracer *trc)
 {
     WeakMapBase::traceAllMappings(trc);
-    WatchpointMap::traceAll(trc);
 }
 
 JS_FRIEND_API(void)
@@ -455,7 +439,7 @@ void
 js::DumpHeapComplete(JSContext *cx, FILE *fp)
 {
     JSDumpHeapTracer dtrc(cx, fp);
-    JS_TracerInit(&dtrc, cx, DumpHeapPushIfNew);
+    JS_TRACER_INIT(&dtrc, cx, DumpHeapPushIfNew);
     if (!dtrc.visited.init(10000))
         return;
 
@@ -483,178 +467,12 @@ js::DumpHeapComplete(JSContext *cx, FILE *fp)
 
 namespace js {
 
-JS_FRIEND_API(bool)
-IsIncrementalBarrierNeeded(JSRuntime *rt)
-{
-    return !!rt->gcIncrementalTracer && !rt->gcRunning;
-}
-
-JS_FRIEND_API(bool)
-IsIncrementalBarrierNeeded(JSContext *cx)
-{
-    return IsIncrementalBarrierNeeded(cx->runtime);
-}
-
-extern JS_FRIEND_API(void)
-IncrementalReferenceBarrier(void *ptr)
-{
-    if (!ptr)
-        return;
-    JS_ASSERT(!static_cast<gc::Cell *>(ptr)->compartment()->rt->gcRunning);
-    uint32_t kind = gc::GetGCThingTraceKind(ptr);
-    if (kind == JSTRACE_OBJECT)
-        JSObject::writeBarrierPre((JSObject *) ptr);
-    else if (kind == JSTRACE_STRING)
-        JSString::writeBarrierPre((JSString *) ptr);
-    else
-        JS_NOT_REACHED("invalid trace kind");
-}
-
-extern JS_FRIEND_API(void)
-IncrementalValueBarrier(const Value &v)
-{
-    HeapValue::writeBarrierPre(v);
-}
-
-/* static */ void
-AutoLockGC::LockGC(JSRuntime *rt)
-{
-    JS_ASSERT(rt);
-    JS_LOCK_GC(rt);
-}
-
-/* static */ void
-AutoLockGC::UnlockGC(JSRuntime *rt)
-{
-    JS_ASSERT(rt);
-    JS_UNLOCK_GC(rt);
-}
-
-void
-AutoLockGC::lock(JSRuntime *rt)
-{
-    JS_ASSERT(rt);
-    JS_ASSERT(!runtime);
-    runtime = rt;
-    JS_LOCK_GC(rt);
-}
-
-JS_FRIEND_API(const JSStructuredCloneCallbacks *)
-GetContextStructuredCloneCallbacks(JSContext *cx)
-{
-    return cx->runtime->structuredCloneCallbacks;
-}
-
-JS_FRIEND_API(JSVersion)
-VersionSetXML(JSVersion version, bool enable)
-{
-    return enable ? JSVersion(uint32_t(version) | VersionFlags::HAS_XML)
-                  : JSVersion(uint32_t(version) & ~VersionFlags::HAS_XML);
-}
-
-JS_FRIEND_API(bool)
-CanCallContextDebugHandler(JSContext *cx)
-{
-    return cx->debugHooks && cx->debugHooks->debuggerHandler;
-}
-
-JS_FRIEND_API(JSTrapStatus)
-CallContextDebugHandler(JSContext *cx, JSScript *script, jsbytecode *bc, Value *rval)
-{
-    if (!CanCallContextDebugHandler(cx))
-        return JSTRAP_RETURN;
-
-    return cx->debugHooks->debuggerHandler(cx, script, bc, rval,
-                                           cx->debugHooks->debuggerHandlerData);
-}
-
 #ifdef JS_THREADSAFE
-void *
-GetOwnerThread(const JSContext *cx)
+JSThread *
+GetContextThread(const JSContext *cx)
 {
-    return cx->runtime->ownerThread();
-}
-
-JS_FRIEND_API(unsigned)
-GetContextOutstandingRequests(const JSContext *cx)
-{
-    return cx->outstandingRequests;
-}
-
-JS_FRIEND_API(PRLock *)
-GetRuntimeGCLock(const JSRuntime *rt)
-{
-    return rt->gcLock;
-}
-
-AutoSkipConservativeScan::AutoSkipConservativeScan(JSContext *cx
-                                                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
-  : context(cx)
-{
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-
-    JSRuntime *rt = context->runtime;
-    JS_ASSERT(rt->requestDepth >= 1);
-    JS_ASSERT(!rt->conservativeGC.requestThreshold);
-    if (rt->requestDepth == 1)
-        rt->conservativeGC.requestThreshold = 1;
-}
-
-AutoSkipConservativeScan::~AutoSkipConservativeScan()
-{
-    JSRuntime *rt = context->runtime;
-    if (rt->requestDepth == 1)
-        rt->conservativeGC.requestThreshold = 0;
+    return cx->thread();
 }
 #endif
-
-JS_FRIEND_API(JSCompartment *)
-GetContextCompartment(const JSContext *cx)
-{
-    return cx->compartment;
-}
-
-JS_FRIEND_API(bool)
-HasUnrootedGlobal(const JSContext *cx)
-{
-    return cx->hasRunOption(JSOPTION_UNROOTED_GLOBAL);
-}
-
-JS_FRIEND_API(void)
-SetActivityCallback(JSRuntime *rt, ActivityCallback cb, void *arg)
-{
-    rt->activityCallback = cb;
-    rt->activityCallbackArg = arg;
-}
-
-JS_FRIEND_API(bool)
-IsContextRunningJS(JSContext *cx)
-{
-    return !cx->stack.empty();
-}
-
-JS_FRIEND_API(void)
-TriggerOperationCallback(JSRuntime *rt)
-{
-    rt->triggerOperationCallback();
-}
-
-JS_FRIEND_API(const CompartmentVector&)
-GetRuntimeCompartments(JSRuntime *rt)
-{
-    return rt->compartments;
-}
-
-JS_FRIEND_API(uintptr_t)
-GetContextStackLimit(const JSContext *cx)
-{
-    return cx->stackLimit;
-}
-
-JS_FRIEND_API(size_t)
-SizeOfJSContext()
-{
-    return sizeof(JSContext);
-}
 
 } // namespace js

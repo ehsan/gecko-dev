@@ -60,7 +60,6 @@
 #include "nsThreadUtils.h"
 #include "nsNetUtil.h"
 #include "nsAsyncDOMEvent.h"
-#include "nsGenericHTMLElement.h"
 
 #include "nsIPresShell.h"
 #include "nsEventStates.h"
@@ -775,9 +774,9 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
 
   nsLoadFlags loadFlags = aLoadFlags;
   PRInt32 corsmode = GetCORSMode();
-  if (corsmode == nsGenericHTMLElement::CORS_ANONYMOUS) {
+  if (corsmode == nsImageLoadingContent::CORS_ANONYMOUS) {
     loadFlags |= imgILoader::LOAD_CORS_ANONYMOUS;
-  } else if (corsmode == nsGenericHTMLElement::CORS_USE_CREDENTIALS) {
+  } else if (corsmode == nsImageLoadingContent::CORS_USE_CREDENTIALS) {
     loadFlags |= imgILoader::LOAD_CORS_USE_CREDENTIALS;
   }
 
@@ -1187,8 +1186,8 @@ nsImageLoadingContent::CreateStaticImageClone(nsImageLoadingContent* aDest) cons
   aDest->mSuppressed = mSuppressed;
 }
 
-nsGenericHTMLElement::CORSMode
+nsImageLoadingContent::CORSMode
 nsImageLoadingContent::GetCORSMode()
 {
-  return nsGenericHTMLElement::CORS_NONE;
+  return CORS_NONE;
 }

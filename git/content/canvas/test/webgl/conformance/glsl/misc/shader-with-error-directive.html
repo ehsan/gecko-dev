@@ -33,12 +33,10 @@ GLSLConformanceTester.runTests([
   vShaderSuccess: true,
   fShaderId: 'fshaderWithErrorDirective',
   fShaderSuccess: false,
-  // We can't test for the actual error message as
-  // GLSL 1.0.17 11 says the messages are implementation dependant.
-  //fShaderTest: (function() {
-  //  return wtu.getLastError().indexOf("testing123 testing123") >= 0; }),
+  fShaderTest: (function() {
+    return wtu.getLastError().indexOf("testing123 testing123") >= 0; }),
   linkSuccess: false,
-  passMsg: "error directive causes error",
+  passMsg: "error directive returns error user's error message",
 },
 ]);
 

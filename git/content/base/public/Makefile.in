@@ -62,6 +62,7 @@ nsINameSpaceManager.h \
 nsINode.h \
 nsINodeInfo.h \
 nsINodeList.h \
+nsIRangeUtils.h \
 nsIScriptElement.h \
 nsIStyleSheetLinkingElement.h \
 nsIContentSerializer.h \

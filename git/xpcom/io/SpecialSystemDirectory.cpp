@@ -101,6 +101,8 @@ typedef HRESULT (WINAPI* nsGetKnownFolderPath)(GUID& rfid,
                                                PWSTR *ppszPath);
 
 static nsGetKnownFolderPath gGetKnownFolderPath = NULL;
+
+static HINSTANCE gShell32DLLInst = NULL;
 #endif
 
 void StartupSpecialSystemDirectory()
@@ -108,11 +110,23 @@ void StartupSpecialSystemDirectory()
 #if defined (XP_WIN)
     // SHGetKnownFolderPath is only available on Windows Vista
     // so that we need to use GetProcAddress to get the pointer.
-    HMODULE hShell32DLLInst = GetModuleHandleW(L"shell32.dll");
-    if(hShell32DLLInst)
+    gShell32DLLInst = LoadLibraryW(L"shell32.dll");
+    if(gShell32DLLInst)
     {
         gGetKnownFolderPath = (nsGetKnownFolderPath)
-            GetProcAddress(hShell32DLLInst, "SHGetKnownFolderPath");
+            GetProcAddress(gShell32DLLInst, "SHGetKnownFolderPath");
+    }
+#endif
+}
+
+void ShutdownSpecialSystemDirectory()
+{
+#if defined (XP_WIN)
+    if (gShell32DLLInst)
+    {
+        FreeLibrary(gShell32DLLInst);
+        gShell32DLLInst = NULL;
+        gGetKnownFolderPath = NULL;
     }
 #endif
 }

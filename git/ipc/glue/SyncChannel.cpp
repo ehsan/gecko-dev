@@ -61,8 +61,8 @@ SyncChannel::SyncChannel(SyncListener* aListener)
   , mPendingReply(0)
   , mProcessingSyncMessage(false)
   , mNextSeqno(0)
-  , mInTimeoutSecondHalf(false)
   , mTimeoutMs(kNoTimeout)
+  , mInTimeoutSecondHalf(false)
 #ifdef OS_WIN
   , mTopFrame(NULL)
 #endif

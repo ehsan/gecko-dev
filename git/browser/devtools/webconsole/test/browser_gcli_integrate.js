@@ -8,9 +8,7 @@
 // Tests that source URLs in the Web Console can be clicked to display the
 // standard View Source window.
 
-let tempScope = {};
-Components.utils.import("resource:///modules/gcli.jsm", tempScope);
-let gcli = tempScope.gcli;
+Components.utils.import("resource:///modules/gcli.jsm");
 let require = gcli._internal.require;
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console.html";

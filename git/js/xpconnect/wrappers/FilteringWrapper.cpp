@@ -46,7 +46,7 @@
 
 #include "XPCWrapper.h"
 
-#include "jsapi.h"
+#include "jscntxt.h" // js::AutoIdVector
 
 using namespace js;
 

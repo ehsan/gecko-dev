@@ -178,7 +178,7 @@ ReadStrings(const NS_tchar *path,
   size_t flen = size_t(len);
   AutoCharArray fileContents(flen + 1);
   if (!fileContents)
-    return READ_STRINGS_MEM_ERROR;
+    return MEM_ERROR;
 
   /* read the file in one swoop */
   if (fseek(fp, 0, SEEK_SET) != 0)

@@ -42,7 +42,3 @@
 .ruleview-computedlist:not(.styleinspector-open) {
   display: none;
 }
-
-.ruleview-code {
-  direction: ltr;
-}

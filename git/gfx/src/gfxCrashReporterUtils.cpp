@@ -103,9 +103,10 @@ ScopedGfxFeatureReporter::WriteAppNote(char statusChar)
   }
 
   nsCAutoString featureString;
-  featureString.AppendPrintf("%s%c ",
+  featureString.AppendPrintf("%s%c%c",
                              mFeature,
-                             statusChar);
+                             statusChar,
+                             statusChar == '?' ? ' ' : '\n');
 
   if (!gFeaturesAlreadyReported->Contains(featureString)) {
     gFeaturesAlreadyReported->AppendElement(featureString);

@@ -52,9 +52,6 @@ protected:
     // override from SkPixelRef
     virtual bool onReadPixels(SkBitmap* dst, const SkIRect* subset);
 
-    // override from SkPixelRef
-    virtual SkPixelRef* deepCopy(SkBitmap::Config dstConfig) SK_OVERRIDE;
-
 private:
     GrTexture*  fTexture;
     typedef SkROLockPixelsPixelRef INHERITED;
@@ -74,9 +71,6 @@ public:
 protected:
     // override from SkPixelRef
     virtual bool onReadPixels(SkBitmap* dst, const SkIRect* subset);
-
-    // override from SkPixelRef
-    virtual SkPixelRef* deepCopy(SkBitmap::Config dstConfig) SK_OVERRIDE;
 
 private:
     GrRenderTarget*  fRenderTarget;

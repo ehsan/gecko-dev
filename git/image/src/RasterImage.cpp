@@ -73,7 +73,7 @@
 #include "mozilla/TimeStamp.h"
 
 using namespace mozilla;
-using namespace mozilla::image;
+using namespace mozilla::imagelib;
 using namespace mozilla::layers;
 
 // a mask for flags that will affect the decoding
@@ -174,7 +174,7 @@ DiscardingEnabled()
 }
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 
 #ifndef DEBUG
 NS_IMPL_ISUPPORTS3(RasterImage, imgIContainer, nsIProperties,
@@ -951,7 +951,6 @@ RasterImage::GetImageContainer(LayerManager* aManager,
        (!mImageContainer->Manager() && 
         (mImageContainer->GetBackendType() == aManager->GetBackendType())))) {
     *_retval = mImageContainer;
-    NS_ADDREF(*_retval);
     return NS_OK;
   }
   
@@ -977,7 +976,6 @@ RasterImage::GetImageContainer(LayerManager* aManager,
   mImageContainer->SetCurrentImage(image);
 
   *_retval = mImageContainer;
-  NS_ADDREF(*_retval);
   return NS_OK;
 }
 
@@ -2956,5 +2954,5 @@ RasterImage::GetFramesNotified(PRUint32 *aFramesNotified)
 }
 #endif
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla

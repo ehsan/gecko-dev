@@ -40,7 +40,6 @@
 
 #include "nsAccUtils.h"
 #include "Relation.h"
-#include "Role.h"
 #include "States.h"
 
 // NOTE: alphabetically ordered
@@ -101,10 +100,10 @@ NS_IMETHODIMP nsXULTabAccessible::DoAction(PRUint8 index)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTabAccessible: nsAccessible
 
-role
+PRUint32
 nsXULTabAccessible::NativeRole()
 {
-  return roles::PAGETAB;
+  return nsIAccessibleRole::ROLE_PAGETAB;
 }
 
 PRUint64
@@ -179,14 +178,14 @@ nsXULTabAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
 
 nsXULTabsAccessible::
   nsXULTabsAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  XULSelectControlAccessible(aContent, aShell)
+  nsXULSelectableAccessible(aContent, aShell)
 {
 }
 
-role
+PRUint32
 nsXULTabsAccessible::NativeRole()
 {
-  return roles::PAGETABLIST;
+  return nsIAccessibleRole::ROLE_PAGETABLIST;
 }
 
 PRUint8
@@ -219,10 +218,10 @@ nsXULTabpanelsAccessible::
 {
 }
 
-role
+PRUint32
 nsXULTabpanelsAccessible::NativeRole()
 {
-  return roles::PANE;
+  return nsIAccessibleRole::ROLE_PANE;
 }
 
 
@@ -236,10 +235,10 @@ nsXULTabpanelAccessible::
 {
 }
 
-role
+PRUint32
 nsXULTabpanelAccessible::NativeRole()
 {
-  return roles::PROPERTYPAGE;
+  return nsIAccessibleRole::ROLE_PROPERTYPAGE;
 }
 
 Relation

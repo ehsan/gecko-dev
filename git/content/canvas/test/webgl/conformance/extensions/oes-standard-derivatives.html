@@ -57,15 +57,7 @@ void main() {
     gl_FragColor = vec4(dx, dy, w, 1.0);
 }
 </script>
-<!-- Shaders to link with test fragment shaders -->
-<script id="goodVertexShader" type="x-shader/x-vertex">
-attribute vec4 vPosition;
-varying vec2 texCoord;
-void main() {
-    texCoord = vPosition.xy;
-    gl_Position = vPosition;
-}
-</script>
+
 <!-- Shaders to test output -->
 <script id="outputVertexShader" type="x-shader/x-vertex">
 attribute vec4 vPosition;
@@ -191,20 +183,19 @@ function runHintTestEnabled() {
 }
 
 function runShaderTests(extensionEnabled) {
-    debug("");
     debug("Testing various shader compiles with extension " + (extensionEnabled ? "enabled" : "disabled"));
 
     // Expect the macro shader to succeed ONLY if enabled
-    var macroFragmentProgram = wtu.loadProgramFromScriptExpectError(gl, "goodVertexShader", "macroFragmentShader");
+    var macroFragmentShader = wtu.loadShaderFromScript(gl, "macroFragmentShader");
     if (extensionEnabled) {
-        if (macroFragmentProgram) {
+        if (macroFragmentShader) {
             // Expected result
             testPassed("GL_OES_standard_derivatives defined in shaders when extension is enabled");
         } else {
             testFailed("GL_OES_standard_derivatives not defined in shaders when extension is enabled");
         }
     } else {
-        if (macroFragmentProgram) {
+        if (macroFragmentShader) {
             testFailed("GL_OES_standard_derivatives defined in shaders when extension is disabled");
         } else {
             testPassed("GL_OES_standard_derivatives not defined in shaders when extension disabled");
@@ -212,23 +203,23 @@ function runShaderTests(extensionEnabled) {
     }
 
     // Always expect the shader missing the #pragma to fail (whether enabled or not)
-    var missingPragmaFragmentProgram = wtu.loadProgramFromScriptExpectError(gl, "goodVertexShader", "missingPragmaFragmentShader");
-    if (missingPragmaFragmentProgram) {
+    var missingPragmaFragmentShader = wtu.loadShaderFromScript(gl, "missingPragmaFragmentShader");
+    if (missingPragmaFragmentShader) {
         testFailed("Shader built-ins allowed without #extension pragma");
     } else {
         testPassed("Shader built-ins disallowed without #extension pragma");
     }
 
     // Try to compile a shader using the built-ins that should only succeed if enabled
-    var testFragmentProgram = wtu.loadProgramFromScriptExpectError(gl, "goodVertexShader", "testFragmentShader");
+    var testFragmentShader = wtu.loadShaderFromScript(gl, "testFragmentShader");
     if (extensionEnabled) {
-        if (testFragmentProgram) {
+        if (testFragmentShader) {
             testPassed("Shader built-ins compiled successfully when extension enabled");
         } else {
             testFailed("Shader built-ins failed to compile when extension enabled");
         }
     } else {
-        if (testFragmentProgram) {
+        if (testFragmentShader) {
             testFailed("Shader built-ins compiled successfully when extension disabled");
         } else {
             testPassed("Shader built-ins failed to compile when extension disabled");

@@ -870,8 +870,6 @@ nsFilePicker::ShowXPFilePicker(const nsString& aInitialDir)
   return true;
 }
 
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-
 bool
 nsFilePicker::ShowFilePicker(const nsString& aInitialDir)
 {
@@ -895,7 +893,7 @@ nsFilePicker::ShowFilePicker(const nsString& aInitialDir)
 
   FILEOPENDIALOGOPTIONS fos = 0;
   fos |= FOS_SHAREAWARE | FOS_OVERWRITEPROMPT |
-         FOS_FORCEFILESYSTEM;
+         FOS_NOREADONLYRETURN | FOS_FORCEFILESYSTEM;
 
   // Handle add to recent docs settings
   if (IsPrivacyModeEnabled() || !mAddToRecentDocs) {
@@ -917,7 +915,6 @@ nsFilePicker::ShowFilePicker(const nsString& aInitialDir)
       break;
 
     case modeSave:
-      fos |= FOS_NOREADONLYRETURN;
       // Don't follow shortcuts when saving a shortcut, this can be used
       // to trick users (bug 271732)
       if (IsDefaultPathLink())
@@ -1031,8 +1028,6 @@ nsFilePicker::ShowFilePicker(const nsString& aInitialDir)
   }
   return true;
 }
-
-#endif // MOZ_WINSDK_TARGETVER
 
 ///////////////////////////////////////////////////////////////////////////////
 // nsIFilePicker impl.
@@ -1347,8 +1342,6 @@ nsFilePicker::IsDefaultPathHtml()
   return false;
 }
 
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-
 void
 nsFilePicker::ComDlgFilterSpec::Append(const nsAString& aTitle, const nsAString& aFilter)
 {
@@ -1378,5 +1371,3 @@ nsFilePicker::ComDlgFilterSpec::Append(const nsAString& aTitle, const nsAString&
   }
   pSpecForward->pszSpec = pStr->get();
 }
-
-#endif // MOZ_WINSDK_TARGETVER

@@ -164,7 +164,7 @@ struct Parser : private AutoGCRooter
         ParseNode *node = allocParseNode(sizeof(ParseNode));
         if (!node)
             return NULL;
-        PodAssign(node, &other);
+        memcpy(node, &other, sizeof(*node));
         return node;
     }
 
@@ -234,7 +234,7 @@ struct Parser : private AutoGCRooter
     ParseNode *mulExpr1n();
     ParseNode *unaryExpr();
     ParseNode *memberExpr(JSBool allowCallSyntax);
-    ParseNode *primaryExpr(TokenKind tt, bool afterDoubleDot);
+    ParseNode *primaryExpr(TokenKind tt, JSBool afterDot);
     ParseNode *parenExpr(JSBool *genexp = NULL);
 
     /*
@@ -259,7 +259,7 @@ struct Parser : private AutoGCRooter
 
     bool checkForFunctionNode(PropertyName *name, ParseNode *node);
 
-    ParseNode *identifierName(bool afterDoubleDot);
+    ParseNode *identifierName(bool afterDot);
 
 #if JS_HAS_XML_SUPPORT
     ParseNode *endBracketedExpr();

@@ -23,8 +23,6 @@ public:
         return Create;
     }
     static SkPixelRef* Create(SkFlattenableReadBuffer&);
-    
-    SK_DECLARE_PIXEL_REF_REGISTRAR()
 
     // API to control the global pool
 

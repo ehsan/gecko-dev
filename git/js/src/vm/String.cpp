@@ -79,7 +79,7 @@ JSString::isExternal() const
 }
 
 size_t
-JSString::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf)
+JSString::charsHeapSize(JSMallocSizeOfFun mallocSizeOf)
 {
     /* JSRope: do nothing, we'll count all children chars when we hit the leaf strings. */
     if (isRope())
@@ -96,7 +96,7 @@ JSString::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf)
     /* JSExtensibleString: count the full capacity, not just the used space. */
     if (isExtensible()) {
         JSExtensibleString &extensible = asExtensible();
-        return mallocSizeOf(extensible.chars());
+        return mallocSizeOf(extensible.chars(), asExtensible().capacity() * sizeof(jschar));
     }
 
     JS_ASSERT(isFixed());
@@ -111,7 +111,7 @@ JSString::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf)
 
     /* JSAtom, JSFixedString: count the chars. +1 for the null char. */
     JSFixedString &fixed = asFixed();
-    return mallocSizeOf(fixed.chars());
+    return mallocSizeOf(fixed.chars(), (length() + 1) * sizeof(jschar));
 }
 
 static JS_ALWAYS_INLINE bool

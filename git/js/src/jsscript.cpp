@@ -42,9 +42,9 @@
 /*
  * JS script operations.
  */
-
 #include <string.h>
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jscrashreport.h"
 #include "jsprf.h"
@@ -267,6 +267,21 @@ Bindings::lastUpvar() const
     return lastBinding;
 }
 
+int
+Bindings::sharpSlotBase(JSContext *cx)
+{
+    JS_ASSERT(lastBinding);
+#if JS_HAS_SHARP_VARS
+    if (JSAtom *name = js_Atomize(cx, "#array", 6)) {
+        uintN index = uintN(-1);
+        DebugOnly<BindingKind> kind = lookup(cx, name, &index);
+        JS_ASSERT(kind == VARIABLE);
+        return int(index);
+    }
+#endif
+    return -1;
+}
+
 void
 Bindings::makeImmutable()
 {
@@ -302,6 +317,7 @@ CheckScript(JSScript *script, JSScript *prev)
 enum ScriptBits {
     NoScriptRval,
     SavedCallerFun,
+    HasSharps,
     StrictModeCode,
     UsesEval,
     UsesArguments
@@ -473,6 +489,8 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
             scriptBits |= (1 << NoScriptRval);
         if (script->savedCallerFun)
             scriptBits |= (1 << SavedCallerFun);
+        if (script->hasSharps)
+            scriptBits |= (1 << HasSharps);
         if (script->strictModeCode)
             scriptBits |= (1 << StrictModeCode);
         if (script->usesEval)
@@ -537,6 +555,8 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
             script->noScriptRval = true;
         if (scriptBits & (1 << SavedCallerFun))
             script->savedCallerFun = true;
+        if (scriptBits & (1 << HasSharps))
+            script->hasSharps = true;
         if (scriptBits & (1 << StrictModeCode))
             script->strictModeCode = true;
         if (scriptBits & (1 << UsesEval))
@@ -761,7 +781,7 @@ JSScript::initCounts(JSContext *cx)
 
     /* Enable interrupts in any interpreter frames running on this script. */
     InterpreterFrames *frames;
-    for (frames = cx->runtime->interpreterFrames; frames; frames = frames->older)
+    for (frames = JS_THREAD_DATA(cx)->interpreterFrames; frames; frames = frames->older)
         frames->enableInterruptsIfRunning(this);
 
     return true;
@@ -1121,9 +1141,11 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
 
     JS_ASSERT(script->mainOffset == 0);
     script->mainOffset = prologLength;
-    PodCopy<jsbytecode>(script->code, bce->prologBase(), prologLength);
-    PodCopy<jsbytecode>(script->main(), bce->base(), mainLength);
-    nfixed = bce->inFunction() ? bce->bindings.countVars() : 0;
+    memcpy(script->code, bce->prologBase(), prologLength * sizeof(jsbytecode));
+    memcpy(script->main(), bce->base(), mainLength * sizeof(jsbytecode));
+    nfixed = bce->inFunction()
+             ? bce->bindings.countVars()
+             : bce->sharpSlots();
     JS_ASSERT(nfixed < SLOTNO_LIMIT);
     script->nfixed = uint16_t(nfixed);
     js_InitAtomMap(cx, bce->atomIndices.getMap(), script->atoms);
@@ -1168,6 +1190,8 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
         bce->constList.finish(script->consts());
     if (bce->flags & TCF_NO_SCRIPT_RVAL)
         script->noScriptRval = true;
+    if (bce->hasSharps())
+        script->hasSharps = true;
     if (bce->flags & TCF_STRICT_MODE_CODE)
         script->strictModeCode = true;
     if (bce->flags & TCF_COMPILE_N_GO) {
@@ -1185,22 +1209,22 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
 
     if (bce->hasUpvarIndices()) {
         JS_ASSERT(bce->upvarIndices->count() <= bce->upvarMap.length());
-        PodCopy<UpvarCookie>(script->upvars()->vector, bce->upvarMap.begin(),
-                             bce->upvarIndices->count());
+        memcpy(script->upvars()->vector, bce->upvarMap.begin(),
+               bce->upvarIndices->count() * sizeof(bce->upvarMap[0]));
         bce->upvarIndices->clear();
         bce->upvarMap.clear();
     }
 
     if (bce->globalUses.length()) {
-        PodCopy<GlobalSlotArray::Entry>(script->globals()->vector, &bce->globalUses[0],
-                                        bce->globalUses.length());
+        memcpy(script->globals()->vector, &bce->globalUses[0],
+               bce->globalUses.length() * sizeof(GlobalSlotArray::Entry));
     }
 
     if (script->nClosedArgs)
-        PodCopy<uint32_t>(script->closedSlots, &bce->closedArgs[0], script->nClosedArgs);
+        memcpy(script->closedSlots, &bce->closedArgs[0], script->nClosedArgs * sizeof(uint32_t));
     if (script->nClosedVars) {
-        PodCopy<uint32_t>(&script->closedSlots[script->nClosedArgs], &bce->closedVars[0],
-                          script->nClosedVars);
+        memcpy(&script->closedSlots[script->nClosedArgs], &bce->closedVars[0],
+               script->nClosedVars * sizeof(uint32_t));
     }
 
     script->bindings.transfer(cx, &bce->bindings);
@@ -1267,7 +1291,7 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
 }
 
 size_t
-JSScript::computedSizeOfData()
+JSScript::dataSize()
 {
 #if JS_SCRIPT_INLINE_DATA_LIMIT
     if (data == inlineData)
@@ -1280,14 +1304,14 @@ JSScript::computedSizeOfData()
 }
 
 size_t
-JSScript::sizeOfData(JSMallocSizeOfFun mallocSizeOf)
+JSScript::dataSize(JSMallocSizeOfFun mallocSizeOf)
 {
 #if JS_SCRIPT_INLINE_DATA_LIMIT
     if (data == inlineData)
         return 0;
 #endif
 
-    return mallocSizeOf(data);
+    return mallocSizeOf(data, dataSize());
 }
 
 /*
@@ -1370,7 +1394,7 @@ JSScript::finalize(JSContext *cx, bool background)
     if (data != inlineData)
 #endif
     {
-        JS_POISON(data, 0xdb, computedSizeOfData());
+        JS_POISON(data, 0xdb, dataSize());
         cx->free_(data);
     }
 }
@@ -1691,7 +1715,7 @@ js_CloneScript(JSContext *cx, JSScript *script)
 void
 JSScript::copyClosedSlotsTo(JSScript *other)
 {
-    js_memcpy(other->closedSlots, closedSlots, nClosedArgs + nClosedVars);
+    memcpy(other->closedSlots, closedSlots, nClosedArgs + nClosedVars);
 }
 
 bool
@@ -1711,7 +1735,7 @@ JSScript::ensureHasDebug(JSContext *cx)
      * debug state is destroyed.
      */
     InterpreterFrames *frames;
-    for (frames = cx->runtime->interpreterFrames; frames; frames = frames->older)
+    for (frames = JS_THREAD_DATA(cx)->interpreterFrames; frames; frames = frames->older)
         frames->enableInterruptsIfRunning(this);
 
     return true;
@@ -1721,9 +1745,10 @@ bool
 JSScript::recompileForStepMode(JSContext *cx)
 {
 #ifdef JS_METHODJIT
-    if (jitNormal || jitCtor) {
-        mjit::Recompiler::clearStackReferences(cx, this);
-        mjit::ReleaseScriptCode(cx, this);
+    js::mjit::JITScript *jit = jitNormal ? jitNormal : jitCtor;
+    if (jit && stepModeEnabled() != jit->singleStepMode) {
+        js::mjit::Recompiler recompiler(cx, this);
+        recompiler.recompile();
     }
 #endif
     return true;

@@ -26,15 +26,14 @@ of the License or (at your option) any later version.
 */
 #include <cstdlib>
 #include "graphite2/Segment.h"
-#include "inc/debug.h"
-#include "inc/Endian.h"
-#include "inc/Silf.h"
-#include "inc/Segment.h"
-#include "inc/Rule.h"
+#include "Endian.h"
+#include "Silf.h"
+#include "XmlTraceLog.h"
+#include "Segment.h"
+#include "Rule.h"
 
 
 using namespace graphite2;
-
 
 Silf::Silf() throw()
 : m_passes(0), m_pseudos(0), m_classOffsets(0), m_classData(0), m_justs(0),
@@ -64,35 +63,60 @@ void Silf::releaseBuffers() throw()
 }
 
 
-bool Silf::readGraphite(const void* pSilf, size_t lSilf, const Face& face, uint32 version)
+bool Silf::readGraphite(void* pSilf, size_t lSilf, const Face& face, uint32 version)
 {
-    const byte * p = (byte *)pSilf,
-    		   * const eSilf = p + lSilf;
-
+    const byte *p = (byte *)pSilf;
+    const byte * const eSilf = p + lSilf;
+    uint32 *pPasses;
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().openElement(ElementSilfSub);
+#endif
     if (version >= 0x00030000)
     {
-        if (lSilf < 27)		{ releaseBuffers(); return false; }
+#ifndef DISABLE_TRACING
+        if (XmlTraceLog::get().active())
+        {
+            XmlTraceLog::get().addAttribute(AttrMajor, be::peek<uint16>(p));
+            XmlTraceLog::get().addAttribute(AttrMinor, be::peek<uint16>(p+sizeof(uint16)));
+        }
+#endif
+        if (lSilf < 27) { releaseBuffers(); return false; }
         p += 8;
     }
-    else if (lSilf < 19) 	{ releaseBuffers(); return false; }
+    else if (lSilf < 19) { releaseBuffers(); return false; }
     p += 2;     // maxGlyphID
     p += 4;     // extra ascent/descent
     m_numPasses = uint8(*p++);
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().addAttribute(AttrNumPasses, m_numPasses);
+#endif
     if (m_numPasses > 128)
         return false;
     m_passes = new Pass[m_numPasses];
     m_sPass = uint8(*p++);
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().addAttribute(AttrSubPass, m_sPass);
+#endif
     m_pPass = uint8(*p++);
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().addAttribute(AttrPosPass, m_pPass);
+#endif
     if (m_pPass < m_sPass) {
         releaseBuffers();
         return false;
     }
     m_jPass = uint8(*p++);
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().addAttribute(AttrJustPass, m_jPass);
+#endif
     if (m_jPass < m_pPass) {
         releaseBuffers();
         return false;
     }
     m_bPass = uint8(*p++);     // when do we reorder?
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().addAttribute(AttrBidiPass, m_bPass);
+#endif
     if (m_bPass != 0xFF && (m_bPass < m_jPass || m_bPass > m_numPasses)) {
         releaseBuffers();
         return false;
@@ -101,9 +125,16 @@ bool Silf::readGraphite(const void* pSilf, size_t lSilf, const Face& face, uint3
     p += 2;     // ignore line end contextuals for now
     m_aPseudo = uint8(*p++);
     m_aBreak = uint8(*p++);
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().addAttribute(AttrBreakWeight, m_aBreak);
+    XmlTraceLog::get().addAttribute(AttrDirectionality, *p);
+#endif
     m_aBidi = uint8(*p++);
     m_aMirror = uint8(*p++);
     p += 1;     // skip reserved stuff
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().addAttribute(AttrNumJustLevels, *p);
+#endif
     m_numJusts = uint8(*p++);
     m_justs = gralloc<Justinfo>(m_numJusts);
     for (uint8 i = 0; i < m_numJusts; i++)
@@ -114,13 +145,25 @@ bool Silf::readGraphite(const void* pSilf, size_t lSilf, const Face& face, uint3
 //    p += uint8(*p) * 8 + 1;     // ignore justification for now
     if (p + 9 >= eSilf) { releaseBuffers(); return false; }
     m_aLig = be::read<uint16>(p);
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().addAttribute(AttrLigComp, *p);
+#endif
     if (m_aLig > 127) {
         releaseBuffers();
         return false;
     }
     m_aUser = uint8(*p++);
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().addAttribute(AttrUserDefn, m_aUser);
+#endif
     m_iMaxComp = uint8(*p++);
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().addAttribute(AttrNumLigComp, m_iMaxComp);
+#endif
     p += 5;     // skip direction and reserved
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().addAttribute(AttrNumCritFeatures, *p);
+#endif
     p += uint8(*p) * 2 + 1;        // don't need critical features yet
     p++;        // reserved
     if (p >= eSilf) 
@@ -128,6 +171,9 @@ bool Silf::readGraphite(const void* pSilf, size_t lSilf, const Face& face, uint3
         releaseBuffers();
         return false;
     }
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().addAttribute(AttrNumScripts, *p);
+#endif
     p += uint8(*p) * 4 + 1;        // skip scripts
     p += 2;     // skip lbGID
     
@@ -136,9 +182,12 @@ bool Silf::readGraphite(const void* pSilf, size_t lSilf, const Face& face, uint3
         releaseBuffers(); 
         return false;
     }
-    const byte * pPasses = p;
+    pPasses = (uint32 *)p;
     p += 4 * (m_numPasses + 1);
     m_numPseudo = be::read<uint16>(p);
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().addAttribute(AttrNumPseudo, m_numPseudo);
+#endif
     p += 6;
     if (p + m_numPseudo * 6 >= eSilf) 
     {
@@ -150,6 +199,13 @@ bool Silf::readGraphite(const void* pSilf, size_t lSilf, const Face& face, uint3
     {
         m_pseudos[i].uid = be::read<uint32>(p);
         m_pseudos[i].gid = be::read<uint16>(p);
+#ifndef DISABLE_TRACING
+        XmlTraceLog::get().openElement(ElementPseudo);
+        XmlTraceLog::get().addAttribute(AttrIndex, i);
+        XmlTraceLog::get().addAttribute(AttrGlyphId, m_pseudos[i].uid);
+        XmlTraceLog::get().writeUnicode(m_pseudos[i].uid);
+        XmlTraceLog::get().closeElement(ElementPseudo);
+#endif
     }
     if (p >= eSilf) 
     {
@@ -157,7 +213,7 @@ bool Silf::readGraphite(const void* pSilf, size_t lSilf, const Face& face, uint3
         return false;
     }
 
-    int clen = readClassMap(p, be::peek<uint32>(pPasses) - (p - (byte *)pSilf), version);
+    int clen = readClassMap(p, be::swap<uint32>(*pPasses) - (p - (byte *)pSilf), version);
     if (clen < 0) {
         releaseBuffers();
         return false;
@@ -166,20 +222,38 @@ bool Silf::readGraphite(const void* pSilf, size_t lSilf, const Face& face, uint3
 
     for (size_t i = 0; i < m_numPasses; ++i)
     {
-        uint32 pOffset = be::read<uint32>(pPasses);
-        uint32 pEnd = be::peek<uint32>(pPasses);
+        uint32 pOffset = be::swap<uint32>(pPasses[i]);
+        uint32 pEnd = be::swap<uint32>(pPasses[i + 1]);
         if ((uint8 *)pSilf + pEnd > eSilf || pOffset > pEnd)
         {
             releaseBuffers();
             return false;
         }
         m_passes[i].init(this);
+#ifndef DISABLE_TRACING
+        if (XmlTraceLog::get().active())
+        {
+            XmlTraceLog::get().openElement(ElementPass);
+            XmlTraceLog::get().addAttribute(AttrPassId, i);
+        }
+#endif
         if (!m_passes[i].readPass((char *)pSilf + pOffset, pEnd - pOffset, pOffset, face))
         {
-        	releaseBuffers();
-        	return false;
+#ifndef DISABLE_TRACING
+            XmlTraceLog::get().closeElement(ElementPass);
+#endif
+            {
+        releaseBuffers();
+        return false;
+            }
         }
+#ifndef DISABLE_TRACING
+        XmlTraceLog::get().closeElement(ElementPass);
+#endif
     }
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().closeElement(ElementSilfSub);
+#endif
     return true;
 }
 
@@ -189,7 +263,7 @@ template<typename T> inline uint32 Silf::readClassOffsets(const byte *&p, size_t
 	const uint32 max_off = (be::peek<T>(p + sizeof(T)*m_nClass) - cls_off)/sizeof(uint16);
 	// Check that the last+1 offset is less than or equal to the class map length.
 	if (be::peek<T>(p) != cls_off || max_off > (data_len - cls_off)/sizeof(uint16))
-		return 0;
+		return -1;
 
 	// Read in all the offsets.
 	m_classOffsets = gralloc<uint32>(m_nClass+1);
@@ -298,7 +372,6 @@ uint16 Silf::getClassGlyph(uint16 cid, unsigned int index) const
     return 0;
 }
 
-
 bool Silf::runGraphite(Segment *seg, uint8 firstPass, uint8 lastPass) const
 {
     assert(seg != 0);
@@ -314,90 +387,44 @@ bool Silf::runGraphite(Segment *seg, uint8 firstPass, uint8 lastPass) const
         lastPass = m_numPasses;
     }
 
-#if !defined GRAPHITE2_NTRACING
-    if (dbgout)
-    {
-    	char version[64];
-    	sprintf(version, "%d.%d.%d",
-    			GR2_VERSION_MAJOR, GR2_VERSION_MINOR, GR2_VERSION_BUGFIX);
-    	*dbgout << json::object
-    				<< "version"	<< version
-    				<< "passes"		<< json::array;
-    }
-#endif
-
     for (size_t i = firstPass; i < lastPass; ++i)
     {
-    	// bidi and mirroring
-        if (i == m_bPass)
+#ifndef DISABLE_TRACING
+        if (XmlTraceLog::get().active())
         {
-#if !defined GRAPHITE2_NTRACING
-        	if (dbgout)
-        	{
-        		*dbgout << json::item << json::object
-        					<< "id"		<< -1
-        					<< "slots"	<< json::array;
-        		seg->positionSlots(0);
-        		for(Slot * s = seg->first(); s; s = s->next())
-        			*dbgout		<< dslot(seg, s);
-        		*dbgout			<< json::close
-        					<< "rules"	<< json::array << json::close
-        					<< json::close;
-        	}
+	        XmlTraceLog::get().openElement(ElementRunPass);
+	        XmlTraceLog::get().addAttribute(AttrNum, i);
+        }
 #endif
 
-        	if (!(seg->dir() & 2))
-            	seg->bidiPass(m_aBidi, seg->dir() & 1, m_aMirror);
-        	else if (m_aMirror)
+        // bidi and mirroring
+        if (i == m_bPass && !(seg->dir() & 2))
+            seg->bidiPass(m_aBidi, seg->dir() & 1, m_aMirror);
+        else if (i == m_bPass && m_aMirror)
+        {
+            Slot * s;
+            for (s = seg->first(); s; s = s->next())
             {
-                Slot * s;
-                for (s = seg->first(); s; s = s->next())
-                {
-                    unsigned short g = seg->glyphAttr(s->gid(), m_aMirror);
-                    if (g && (!(seg->dir() & 4) || !seg->glyphAttr(s->gid(), m_aMirror + 1)))
-                        s->setGlyph(seg, g);
-                }
+                unsigned short g = seg->glyphAttr(s->gid(), m_aMirror);
+                if (g && (!(seg->dir() & 4) || !seg->glyphAttr(s->gid(), m_aMirror + 1)))
+                    s->setGlyph(seg, g);
             }
         }
 
-#if !defined GRAPHITE2_NTRACING
-    	if (dbgout)
-    	{
-    		*dbgout << json::item << json::object
-    					<< "id"		<< i+1
-    					<< "slots"	<< json::array;
-    		seg->positionSlots(0);
-    		for(Slot * s = seg->first(); s; s = s->next())
-    			*dbgout		<< dslot(seg, s);
-    		*dbgout			<< json::close;
-    	}
-#endif
-
         // test whether to reorder, prepare for positioning
         m_passes[i].runGraphite(m, fsm);
+#ifndef DISABLE_TRACING
+            seg->logSegment();
+        if (XmlTraceLog::get().active())
+        {
+            XmlTraceLog::get().closeElement(ElementRunPass);
+        }
+#endif
         // only subsitution passes can change segment length, cached subsegments are short for their text
         if (m.status() != vm::Machine::finished
         	|| (i < m_pPass && (seg->slotCount() > initSize * MAX_SEG_GROWTH_FACTOR
-            || (seg->slotCount() && seg->slotCount() * MAX_SEG_GROWTH_FACTOR < initSize))))
+                               || (seg->slotCount() && seg->slotCount() * MAX_SEG_GROWTH_FACTOR < initSize))))
             return false;
     }
-#if !defined GRAPHITE2_NTRACING
-	if (dbgout)
-	{
-		*dbgout 			<< json::item
-							<< json::close // Close up the passes array
-				<< "output" << json::array;
-		for(Slot * s = seg->first(); s; s = s->next())
-			*dbgout		<< dslot(seg, s);
-		seg->finalise(0);					// Call this here to fix up charinfo back indexes.
-		*dbgout			<< json::close
-				<< "advance" << seg->advance()
-				<< "chars"	 << json::array;
-		for(size_t i = 0, n = seg->charInfoCount(); i != n; ++i)
-			*dbgout 	<< json::flat << *seg->charinfo(i);
-		*dbgout			<< json::close	// Close up the chars array
-					<< json::close;		// Clsoe up the segment object
-	}
-#endif
     return true;
 }

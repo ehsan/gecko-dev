@@ -37,14 +37,13 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "AccIterator.h"
+#include "States.h"
 #include "nsAccCache.h"
 #include "nsAccessibilityService.h"
 #include "nsAccTreeWalker.h"
 #include "nsAccUtils.h"
 #include "nsRootAccessible.h"
 #include "nsTextEquivUtils.h"
-#include "Role.h"
-#include "States.h"
 
 #include "nsIMutableArray.h"
 #include "nsICommandManager.h"
@@ -220,7 +219,7 @@ nsDocAccessible::GetName(nsAString& aName)
 }
 
 // nsAccessible public method
-role
+PRUint32
 nsDocAccessible::NativeRole()
 {
   nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
@@ -233,23 +232,23 @@ nsDocAccessible::NativeRole()
     if (sameTypeRoot == docShellTreeItem) {
       // Root of content or chrome tree
       if (itemType == nsIDocShellTreeItem::typeChrome)
-        return roles::CHROME_WINDOW;
+        return nsIAccessibleRole::ROLE_CHROME_WINDOW;
 
       if (itemType == nsIDocShellTreeItem::typeContent) {
 #ifdef MOZ_XUL
         nsCOMPtr<nsIXULDocument> xulDoc(do_QueryInterface(mDocument));
         if (xulDoc)
-          return roles::APPLICATION;
+          return nsIAccessibleRole::ROLE_APPLICATION;
 #endif
-        return roles::DOCUMENT;
+        return nsIAccessibleRole::ROLE_DOCUMENT;
       }
     }
     else if (itemType == nsIDocShellTreeItem::typeContent) {
-      return roles::DOCUMENT;
+      return nsIAccessibleRole::ROLE_DOCUMENT;
     }
   }
 
-  return roles::PANE; // Fall back;
+  return nsIAccessibleRole::ROLE_PANE; // Fall back;
 }
 
 // nsAccessible public method
@@ -1843,7 +1842,7 @@ nsDocAccessible::UpdateTree(nsAccessible* aContainer, nsIContent* aChildNode,
     // children of alert accessible to avoid this.
     nsAccessible* ancestor = aContainer;
     while (ancestor) {
-      if (ancestor->ARIARole() == roles::ALERT) {
+      if (ancestor->ARIARole() == nsIAccessibleRole::ROLE_ALERT) {
         FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_ALERT,
                                    ancestor->GetNode());
         break;
@@ -1888,7 +1887,7 @@ nsDocAccessible::UpdateTreeInternal(nsAccessible* aChild, bool aIsInsert)
     // the changes before our processing and we may miss some menupopup
     // events. Now we just want to be consistent in content insertion/removal
     // handling.
-    if (aChild->ARIARole() == roles::MENUPOPUP) {
+    if (aChild->ARIARole() == nsIAccessibleRole::ROLE_MENUPOPUP) {
       nsRefPtr<AccEvent> event =
         new AccEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_END, aChild);
 
@@ -1908,13 +1907,13 @@ nsDocAccessible::UpdateTreeInternal(nsAccessible* aChild, bool aIsInsert)
     FireDelayedAccessibleEvent(event);
 
   if (aIsInsert) {
-    roles::Role ariaRole = aChild->ARIARole();
-    if (ariaRole == roles::MENUPOPUP) {
+    PRUint32 ariaRole = aChild->ARIARole();
+    if (ariaRole == nsIAccessibleRole::ROLE_MENUPOPUP) {
       // Fire EVENT_MENUPOPUP_START if ARIA menu appears.
       FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_START,
                                  node, AccEvent::eRemoveDupes);
 
-    } else if (ariaRole == roles::ALERT) {
+    } else if (ariaRole == nsIAccessibleRole::ROLE_ALERT) {
       // Fire EVENT_ALERT if ARIA alert appears.
       updateFlags = eAlertAccessible;
       FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_ALERT, node,

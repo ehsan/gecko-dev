@@ -118,7 +118,7 @@ int SkEdgeBuilder::build(const SkPath& path, const SkIRect* iclip,
                     }
                     break;
                 default:
-                    SkDEBUGFAIL("unexpected verb");
+                    SkASSERT(!"unexpected verb");
                     break;
             }
         }
@@ -150,7 +150,7 @@ int SkEdgeBuilder::build(const SkPath& path, const SkIRect* iclip,
                     break;
                 }
                 default:
-                    SkDEBUGFAIL("unexpected verb");
+                    SkASSERT(!"unexpected verb");
                     break;
             }
         }

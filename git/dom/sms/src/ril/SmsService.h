@@ -40,7 +40,7 @@
 
 #include "nsISmsService.h"
 #include "nsCOMPtr.h"
-#include "nsIRadioInterfaceLayer.h"
+#include "nsITelephone.h"
 
 namespace mozilla {
 namespace dom {
@@ -54,7 +54,7 @@ public:
   SmsService();
 
 protected:
-  nsCOMPtr<nsIRadioInterfaceLayer> mRIL;
+  nsCOMPtr<nsITelephone> mRIL;
 };
 
 } // namespace sms

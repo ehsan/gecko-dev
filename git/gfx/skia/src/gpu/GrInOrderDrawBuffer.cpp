@@ -9,7 +9,6 @@
 
 
 #include "GrInOrderDrawBuffer.h"
-#include "GrRenderTarget.h"
 #include "GrTexture.h"
 #include "GrBufferAllocPool.h"
 #include "GrIndexBuffer.h"
@@ -45,8 +44,6 @@ GrInOrderDrawBuffer::GrInOrderDrawBuffer(const GrGpu* gpu,
 
 GrInOrderDrawBuffer::~GrInOrderDrawBuffer() {
     this->reset();
-    // This must be called by before the GrDrawTarget destructor
-    this->releaseGeometry();
     GrSafeUnref(fQuadIndexBuffer);
 }
 
@@ -71,7 +68,7 @@ void GrInOrderDrawBuffer::setQuadIndexBuffer(const GrIndexBuffer* indexBuffer) {
 
 void GrInOrderDrawBuffer::drawRect(const GrRect& rect,
                                    const GrMatrix* matrix,
-                                   StageMask stageMask,
+                                   StageBitfield stageEnableBitfield,
                                    const GrRect* srcRects[],
                                    const GrMatrix* srcMatrices[]) {
 
@@ -79,21 +76,20 @@ void GrInOrderDrawBuffer::drawRect(const GrRect& rect,
     GrAssert(!(fDraws.empty() && fCurrQuad));
     GrAssert(!(0 != fMaxQuads && NULL == fQuadIndexBuffer));
 
-    GrDrawState* drawState = this->drawState();
-
     // if we have a quad IB then either append to the previous run of
     // rects or start a new run
     if (fMaxQuads) {
 
         bool appendToPreviousDraw = false;
-        GrVertexLayout layout = GetRectVertexLayout(stageMask, srcRects);
+        GrVertexLayout layout = GetRectVertexLayout(stageEnableBitfield, srcRects);
         AutoReleaseGeometry geo(this, layout, 4, 0);
         if (!geo.succeeded()) {
             GrPrintf("Failed to get space for vertices!\n");
             return;
         }
-        GrMatrix combinedMatrix = drawState->getViewMatrix();
-        GrDrawState::AutoViewMatrixRestore avmr(drawState, GrMatrix::I());
+        AutoViewMatrixRestore avmr(this);
+        GrMatrix combinedMatrix = this->getViewMatrix();
+        this->setViewMatrix(GrMatrix::I());
         if (NULL != matrix) {
             combinedMatrix.preConcat(*matrix);
         }
@@ -104,14 +100,14 @@ void GrInOrderDrawBuffer::drawRect(const GrRect& rect,
         // simply because the clip has changed if the clip doesn't affect
         // the rect.
         bool disabledClip = false;
-        if (drawState->isClipState() && fClip.isRect()) {
+        if (this->isClipState() && fClip.isRect()) {
 
             GrRect clipRect = fClip.getRect(0);
             // If the clip rect touches the edge of the viewport, extended it
             // out (close) to infinity to avoid bogus intersections.
             // We might consider a more exact clip to viewport if this
             // conservative test fails.
-            const GrRenderTarget* target = drawState->getRenderTarget();
+            const GrRenderTarget* target = this->getRenderTarget();
             if (0 >= clipRect.fLeft) {
                 clipRect.fLeft = GR_ScalarMin;
             }
@@ -134,7 +130,7 @@ void GrInOrderDrawBuffer::drawRect(const GrRect& rect,
                 }
             }
             if (insideClip) {
-                drawState->disableState(GrDrawState::kClip_StateBit);
+                this->disableState(kClip_StateBit);
                 disabledClip = true;
             }
         }
@@ -178,10 +174,10 @@ void GrInOrderDrawBuffer::drawRect(const GrRect& rect,
             fLastRectVertexLayout = layout;
         }
         if (disabledClip) {
-            drawState->enableState(GrDrawState::kClip_StateBit);
+            this->enableState(kClip_StateBit);
         }
     } else {
-        INHERITED::drawRect(rect, matrix, stageMask, srcRects, srcMatrices);
+        INHERITED::drawRect(rect, matrix, stageEnableBitfield, srcRects, srcMatrices);
     }
 }
 
@@ -312,8 +308,8 @@ void GrInOrderDrawBuffer::clear(const GrIRect* rect, GrColor color) {
         // the current render target. If we get that smart we have to make sure
         // those draws aren't read before this clear (render-to-texture).
         r.setLTRB(0, 0, 
-                  this->getDrawState().getRenderTarget()->width(), 
-                  this->getDrawState().getRenderTarget()->height());
+                  this->getRenderTarget()->width(), 
+                  this->getRenderTarget()->height());
         rect = &r;
     }
     Clear& clr = fClears.push_back();
@@ -330,9 +326,9 @@ void GrInOrderDrawBuffer::reset() {
     for (uint32_t i = 0; i < numStates; ++i) {
         const GrDrawState& dstate = this->accessSavedDrawState(fStates[i]);
         for (int s = 0; s < GrDrawState::kNumStages; ++s) {
-            GrSafeUnref(dstate.getTexture(s));
+            GrSafeUnref(dstate.fTextures[s]);
         }
-        GrSafeUnref(dstate.getRenderTarget());
+        GrSafeUnref(dstate.fRenderTarget);
     }
     int numDraws = fDraws.count();
     for (int d = 0; d < numDraws; ++d) {
@@ -595,16 +591,15 @@ bool GrInOrderDrawBuffer::needsNewState() const {
 }
 
 void GrInOrderDrawBuffer::pushState() {
-    const GrDrawState& drawState = this->getDrawState();
     for (int s = 0; s < GrDrawState::kNumStages; ++s) {
-        GrSafeRef(drawState.getTexture(s));
+        GrSafeRef(fCurrDrawState.fTextures[s]);
     }
-    GrSafeRef(drawState.getRenderTarget());
+    GrSafeRef(fCurrDrawState.fRenderTarget);
     this->saveCurrentDrawState(&fStates.push_back());
  }
 
 bool GrInOrderDrawBuffer::needsNewClip() const {
-   if (this->getDrawState().isClipState()) {
+   if (fCurrDrawState.fFlagBits & kClip_StateBit) {
        if (fClips.empty() || (fClipSet && fClips.back() != fClip)) {
            return true;
        }

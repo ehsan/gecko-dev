@@ -47,9 +47,9 @@ class imgStatusNotifyRunnable;
 class imgRequestNotifyRunnable;
 struct nsIntRect;
 namespace mozilla {
-namespace image {
+namespace imagelib {
 class Image;
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla
 
 
@@ -84,14 +84,14 @@ public:
   // aImage is the image that this status tracker will pass to the
   // imgRequestProxys in SyncNotify() and EmulateRequestFinished(), and must be
   // alive as long as this instance is, because we hold a weak reference to it.
-  imgStatusTracker(mozilla::image::Image* aImage);
+  imgStatusTracker(mozilla::imagelib::Image* aImage);
   imgStatusTracker(const imgStatusTracker& aOther);
 
   // Image-setter, for imgStatusTrackers created by imgRequest::Init, which
   // are created before their Image is created.  This method should only
   // be called once, and only on an imgStatusTracker that was initialized
   // without an image.
-  void SetImage(mozilla::image::Image* aImage);
+  void SetImage(mozilla::imagelib::Image* aImage);
 
   // Schedule an asynchronous "replaying" of all the notifications that would
   // have to happen to put us in the current state.
@@ -182,7 +182,7 @@ private:
 
   // A weak pointer to the Image, because it owns us, and we
   // can't create a cycle.
-  mozilla::image::Image* mImage;
+  mozilla::imagelib::Image* mImage;
   PRUint32 mState;
   nsresult mImageStatus;
   bool mHadLastPart;

@@ -39,9 +39,8 @@
 
 #include "nsHTMLLinkAccessible.h"
 
-#include "nsCoreUtils.h"
-#include "Role.h"
 #include "States.h"
+#include "nsCoreUtils.h"
 
 #include "nsEventStates.h"
 #include "mozilla/dom/Element.h"
@@ -65,10 +64,10 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLLinkAccessible, nsHyperTextAccessibleWrap,
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
-role
+PRUint32
 nsHTMLLinkAccessible::NativeRole()
 {
-  return roles::LINK;
+  return nsIAccessibleRole::ROLE_LINK;
 }
 
 PRUint64

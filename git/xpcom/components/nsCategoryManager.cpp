@@ -556,7 +556,12 @@ nsCategoryManager::NotifyObservers( const char *aTopic,
     r = new CategoryNotificationRunnable(this, aTopic, aCategoryName);
   }
 
-  NS_DispatchToMainThread(r);
+  if (NS_IsMainThread()) {
+    r->Run();
+  }
+  else {
+    NS_DispatchToMainThread(r);
+  }
 }
 
 NS_IMETHODIMP

@@ -168,4 +168,6 @@ SkDashPathEffect::SkDashPathEffect(SkFlattenableReadBuffer& buffer) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-SK_DEFINE_FLATTENABLE_REGISTRAR(SkDashPathEffect)
+static SkFlattenable::Registrar gReg("SkDashPathEffect",
+                                     SkDashPathEffect::CreateProc);
+

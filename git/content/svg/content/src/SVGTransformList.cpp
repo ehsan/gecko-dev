@@ -38,8 +38,6 @@
 
 #include "SVGTransformList.h"
 #include "SVGTransformListParser.h"
-#include "nsString.h"
-#include "nsDOMError.h"
 
 namespace mozilla {
 

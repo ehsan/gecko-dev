@@ -39,7 +39,7 @@
 #include "Worker.h"
 
 #include "jsapi.h"
-#include "jsfriendapi.h"
+#include "jscntxt.h"
 
 #include "EventTarget.h"
 #include "RuntimeService.h"
@@ -498,11 +498,5 @@ InitClass(JSContext* aCx, JSObject* aGlobal, JSObject* aProto,
 }
 
 } // namespace chromeworker
-
-bool
-ClassIsWorker(JSClass* aClass)
-{
-  return Worker::Class() == aClass || ChromeWorker::Class() == aClass;
-}
 
 END_WORKERS_NAMESPACE

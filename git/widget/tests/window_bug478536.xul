@@ -78,11 +78,8 @@ var gIgnoreScrollEvent = true;
 
 var gPrefSvc = Components.classes["@mozilla.org/preferences-service;1"].
                getService(Components.interfaces.nsIPrefBranch2);
-const kPrefSmoothScroll = "general.smoothScroll";
 const kPrefNameTimeout = "mousewheel.transaction.timeout";
 const kDefaultTimeout = gPrefSvc.getIntPref(kPrefNameTimeout);
-
-gPrefSvc.setBoolPref(kPrefSmoothScroll, false);
 
 var gTimeout = kDefaultTimeout;
 
@@ -120,7 +117,6 @@ function onunload()
 {
   resetTimeoutPrefs();
   disableNonTestMouseEvents(false);
-  gPrefSvc.clearUserPref(kPrefSmoothScroll);
   window.opener.wrappedJSObject.SimpleTest.finish();
 }
 

@@ -4,9 +4,7 @@
 
 "use strict";
 
-let tempScope = {};
-Cu.import("resource:///modules/source-editor.jsm", tempScope);
-let SourceEditor = tempScope.SourceEditor;
+Cu.import("resource:///modules/source-editor.jsm");
 
 function test()
 {

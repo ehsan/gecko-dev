@@ -18,7 +18,7 @@ function test()
 
 function runTests()
 {
-  var scratchpad = gScratchpadWindow.Scratchpad;
+  scratchpad = gScratchpadWindow.Scratchpad;
 
   var message = "\"Hello World!\""
   var openComment = "/*\n";

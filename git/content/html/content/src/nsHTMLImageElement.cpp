@@ -126,7 +126,7 @@ public:
   NS_DECL_NSIDOMHTMLIMAGEELEMENT
 
   // override from nsImageLoadingContent
-  CORSMode GetCORSMode();
+  nsImageLoadingContent::CORSMode GetCORSMode();
 
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
@@ -244,6 +244,13 @@ NS_IMPL_STRING_ATTR(nsHTMLImageElement, Lowsrc, lowsrc)
 NS_IMPL_URI_ATTR(nsHTMLImageElement, Src, src)
 NS_IMPL_STRING_ATTR(nsHTMLImageElement, UseMap, usemap)
 NS_IMPL_INT_ATTR(nsHTMLImageElement, Vspace, vspace)
+
+static const nsAttrValue::EnumTable kCrossOriginTable[] = {
+  // Order matters here; see ParseAttribute
+  { "anonymous",       nsImageLoadingContent::CORS_ANONYMOUS },
+  { "use-credentials", nsImageLoadingContent::CORS_USE_CREDENTIALS },
+  { 0 }
+};
 
 // crossorigin is not "limited to only known values" per spec, so it's
 // just a string attr purposes of the DOM crossOrigin property.
@@ -363,10 +370,10 @@ nsHTMLImageElement::ParseAttribute(PRInt32 aNamespaceID,
       return ParseAlignValue(aValue, aResult);
     }
     if (aAttribute == nsGkAtoms::crossorigin) {
-      return aResult.ParseEnumValue(aValue, nsGenericHTMLElement::kCORSAttributeTable, false,
+      return aResult.ParseEnumValue(aValue, kCrossOriginTable, false,
                                     // default value is anonymous if aValue is
                                     // not a value we understand
-                                    &nsGenericHTMLElement::kCORSAttributeTable[0]);
+                                    &kCrossOriginTable[0]);
     }
     if (ParseImageAttribute(aAttribute, aValue, aResult)) {
       return true;
@@ -662,16 +669,16 @@ nsHTMLImageElement::CopyInnerTo(nsGenericElement* aDest) const
   return nsGenericHTMLElement::CopyInnerTo(aDest);
 }
 
-nsGenericHTMLElement::CORSMode
+nsImageLoadingContent::CORSMode
 nsHTMLImageElement::GetCORSMode()
 {
-  nsGenericHTMLElement::CORSMode ret = nsGenericHTMLElement::CORS_NONE;
+  nsImageLoadingContent::CORSMode ret = nsImageLoadingContent::CORS_NONE;
 
   const nsAttrValue* value = GetParsedAttr(nsGkAtoms::crossorigin);
   if (value) {
     NS_ASSERTION(value->Type() == nsAttrValue::eEnum,
                  "Why is this not an enum value?");
-    ret = nsGenericHTMLElement::CORSMode(value->GetEnumValue());
+    ret = nsImageLoadingContent::CORSMode(value->GetEnumValue());
   }
 
   return ret;

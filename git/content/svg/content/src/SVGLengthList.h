@@ -37,14 +37,10 @@
 #ifndef MOZILLA_SVGLENGTHLIST_H__
 #define MOZILLA_SVGLENGTHLIST_H__
 
-#include "nsCOMPtr.h"
-#include "nsDebug.h"
-#include "nsIContent.h"
-#include "nsINode.h"
-#include "nsIWeakReferenceUtils.h"
-#include "nsSVGElement.h"
-#include "nsTArray.h"
 #include "SVGLength.h"
+#include "nsTArray.h"
+#include "nsSVGElement.h"
+#include "nsIWeakReferenceUtils.h"
 
 namespace mozilla {
 

@@ -41,8 +41,7 @@
  * A class that handles loading and evaluation of <script> elements.
  */
 
-#include "jsapi.h"
-#include "jsfriendapi.h"
+#include "jscntxt.h"
 #include "nsScriptLoader.h"
 #include "nsParserUtils.h"
 #include "nsICharsetConverterManager.h"
@@ -499,7 +498,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
           // We re-use our knowledge of the implementation to reuse
           // JSVERSION_HAS_XML as a safe version flag.
           // If version has JSVERSION_UNKNOWN (-1), then this is still OK.
-          version = js::VersionSetXML(JSVersion(version), true);
+          version |= js::VersionFlags::HAS_XML;
       }
     }
   } else {
@@ -942,9 +941,8 @@ nsScriptLoader::ProcessPendingRequests()
       !mParserBlockingRequest->mLoading &&
       ReadyToExecuteScripts()) {
     request.swap(mParserBlockingRequest);
-    UnblockParser(request);
+    // nsContentSink::ScriptAvailable unblocks the parser
     ProcessRequest(request);
-    ContinueParserAsync(request);
   }
 
   while (ReadyToExecuteScripts() && 
@@ -1170,9 +1168,8 @@ nsScriptLoader::OnStreamComplete(nsIStreamLoader* aLoader,
       FireScriptAvailable(rv, request);
     } else if (mParserBlockingRequest == request) {
       mParserBlockingRequest = nsnull;
-      UnblockParser(request);
+      // nsContentSink::ScriptAvailable unblocks the parser
       FireScriptAvailable(rv, request);
-      ContinueParserAsync(request);
     } else {
       mPreloads.RemoveElement(request, PreloadRequestComparator());
     }
@@ -1182,18 +1179,6 @@ nsScriptLoader::OnStreamComplete(nsIStreamLoader* aLoader,
   ProcessPendingRequests();
 
   return NS_OK;
-}
-
-void
-nsScriptLoader::UnblockParser(nsScriptLoadRequest* aParserBlockingRequest)
-{
-  aParserBlockingRequest->mElement->UnblockParser();
-}
-
-void
-nsScriptLoader::ContinueParserAsync(nsScriptLoadRequest* aParserBlockingRequest)
-{
-  aParserBlockingRequest->mElement->ContinueParserAsync();
 }
 
 nsresult

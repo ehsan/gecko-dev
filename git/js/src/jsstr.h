@@ -46,7 +46,6 @@
 #include "jsprvtd.h"
 #include "jslock.h"
 #include "jscell.h"
-#include "jsutil.h"
 
 #include "js/HashTable.h"
 #include "vm/Unicode.h"
@@ -186,11 +185,7 @@ namespace js {
  * or str2 are not GC-allocated things.
  */
 extern bool
-EqualStrings(JSContext *cx, JSString *str1, JSString *str2, bool *result);
-
-/* Use the infallible method instead! */
-extern bool
-EqualStrings(JSContext *cx, JSLinearString *str1, JSLinearString *str2, bool *result) MOZ_DELETE;
+EqualStrings(JSContext *cx, JSString *str1, JSString *str2, JSBool *result);
 
 /* EqualStrings is infallible on linear strings. */
 extern bool
@@ -220,11 +215,7 @@ js_strchr(const jschar *s, jschar c);
 extern jschar *
 js_strchr_limit(const jschar *s, jschar c, const jschar *limit);
 
-static JS_ALWAYS_INLINE void
-js_strncpy(jschar *dst, const jschar *src, size_t nelem)
-{
-    return js::PodCopy(dst, src, nelem);
-}
+#define js_strncpy(t, s, n)     memcpy((t), (s), (n) * sizeof(jschar))
 
 namespace js {
 

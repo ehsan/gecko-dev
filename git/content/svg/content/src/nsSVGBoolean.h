@@ -37,16 +37,9 @@
 #ifndef __NS_SVGBOOLEAN_H__
 #define __NS_SVGBOOLEAN_H__
 
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsError.h"
 #include "nsIDOMSVGAnimatedBoolean.h"
-#include "nsISMILAttr.h"
-#include "nsISupportsImpl.h"
 #include "nsSVGElement.h"
-
-class nsISMILAnimationElement;
-class nsSMILValue;
+#include "nsDOMError.h"
 
 class nsSVGBoolean
 {

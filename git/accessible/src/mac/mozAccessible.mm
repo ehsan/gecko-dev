@@ -38,12 +38,11 @@
  
 #import "mozAccessible.h"
 
-#import "MacUtils.h"
+// to get the mozView formal protocol, that all gecko's ChildViews implement.
 #import "mozView.h"
 #import "nsRoleMap.h"
 
 #include "nsRect.h"
-#include "nsCocoaUtils.h"
 #include "nsCoord.h"
 #include "nsObjCExceptions.h"
 
@@ -52,14 +51,9 @@
 #include "nsIAccessibleText.h"
 #include "nsIAccessibleEditableText.h"
 #include "Relation.h"
-#include "Role.h"
 
-#include "nsAccessNode.h"
 #include "nsRootAccessible.h"
 
-#include "mozilla/Services.h"
-
-using namespace mozilla;
 using namespace mozilla::a11y;
 
 // converts a screen-global point in the cocoa coordinate system (with origo in the bottom-left corner
@@ -128,7 +122,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 }
 
 #pragma mark -
-
+ 
 @implementation mozAccessible
  
 - (id)initWithAccessible:(nsAccessibleWrap*)geckoAccessible
@@ -142,7 +136,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
     
     // Check for OS X "role skew"; the role constants in nsIAccessible.idl need to match the ones
     // in nsRoleMap.h.
-    NS_ASSERTION([AXRoles[roles::LAST_ENTRY] isEqualToString:@"ROLE_LAST_ENTRY"], "Role skew in the role map!");
+    NS_ASSERTION([AXRoles[nsIAccessibleRole::ROLE_LAST_ENTRY] isEqualToString:@"ROLE_LAST_ENTRY"], "Role skew in the role map!");
   }
    
   return self;
@@ -201,9 +195,6 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
                                                            NSAccessibilityTitleUIElementAttribute,
                                                            NSAccessibilityTopLevelUIElementAttribute,
                                                            NSAccessibilityDescriptionAttribute,
-#if DEBUG
-                                                           @"AXMozDescription",
-#endif
                                                            nil];
   }
 
@@ -218,11 +209,6 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 
   if (mIsExpired)
     return nil;
-
-#if DEBUG
-  if ([attribute isEqualToString:@"AXMozDescription"])
-    return [NSString stringWithFormat:@"role = %u native = %@", mRole, [self class]];
-#endif
   
   if ([attribute isEqualToString:NSAccessibilityChildrenAttribute])
     return [self children];
@@ -243,13 +229,8 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
     return [NSNumber numberWithBool:[self isEnabled]];
   if ([attribute isEqualToString:NSAccessibilityValueAttribute])
     return [self value];
-  if ([attribute isEqualToString:NSAccessibilityRoleDescriptionAttribute]) {
-    if (mRole == roles::DOCUMENT)
-      return utils::LocalizedString(NS_LITERAL_STRING("htmlContent"));
-
+  if ([attribute isEqualToString:NSAccessibilityRoleDescriptionAttribute])
     return NSAccessibilityRoleDescription([self role], nil);
-  }
-  
   if ([attribute isEqualToString:NSAccessibilityDescriptionAttribute])
     return [self customDescription];
   if ([attribute isEqualToString:NSAccessibilityFocusedAttribute])
@@ -338,9 +319,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 
 - (NSString*)accessibilityActionDescription:(NSString*)action 
 {
-  // by default we return whatever the MacOS API know about.
-  // if you have custom actions, override.
-  return NSAccessibilityActionDescription(action);
+  return nil;
 }
 
 - (void)accessibilityPerformAction:(NSString*)action 

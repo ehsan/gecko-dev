@@ -54,8 +54,10 @@
  *
  *  updatev2.manifest
  *  -----------------
- *  method   = "add" | "add-if" | "patch" | "patch-if" | "remove" |
+ *  method   = "add" | "add-cc" | "add-if" | "patch" | "patch-if" | "remove" |
  *             "rmdir" | "rmrfdir" | type
+ *
+ * 'add-cc' is an add action to perform on channel change.
  *
  *  'type' is the update type (e.g. complete or partial) and when present MUST
  *  be the first entry in the update manifest. The type is used to support
@@ -63,12 +65,13 @@
  *
  *  precomplete
  *  -----------
- *  method   = "remove" | "rmdir"
+ *  method   = "remove" | "rmdir" | "remove-cc"
+ *
+ * 'remove-cc' is a remove action to perform on channel change.
  */
 #include "bspatch.h"
 #include "progressui.h"
 #include "archivereader.h"
-#include "readstrings.h"
 #include "errors.h"
 #include "bzlib.h"
 
@@ -190,15 +193,6 @@ public:
 
 private:
   FILE* mFile;
-};
-
-struct MARChannelStringTable {
-  MARChannelStringTable() 
-  {
-    MARChannelID[0] = '\0';
-  }
-
-  char MARChannelID[MAX_TEXT_LEN];
 };
 
 //-----------------------------------------------------------------------------
@@ -959,7 +953,7 @@ AddFile::Execute()
   if (!WideCharToMultiByte(CP_UTF8, 0, mFile, -1, sourcefile, MAXPATHLEN,
                            NULL, NULL)) {
     LOG(("error converting wchar to utf8: %d\n", GetLastError()));
-    return STRING_CONVERSION_ERROR;
+    return MEM_ERROR;
   }
 
   rv = gArchiveReader.ExtractFile(sourcefile, mFile);
@@ -1039,14 +1033,13 @@ PatchFile::LoadSourceFile(FILE* ofile)
 
   buf = (unsigned char *) malloc(header.slen);
   if (!buf)
-    return UPDATER_MEM_ERROR;
+    return MEM_ERROR;
 
   size_t r = header.slen;
   unsigned char *rb = buf;
   while (r) {
-    const size_t count = mmin(SSIZE_MAX, r);
-    size_t c = fread(rb, 1, count, ofile);
-    if (c != count) {
+    size_t c = fread(rb, 1, r, ofile);
+    if (c < 0) {
       LOG(("LoadSourceFile: error reading destination file: " LOG_S "\n",
            mFile));
       return READ_ERROR;
@@ -1054,6 +1047,11 @@ PatchFile::LoadSourceFile(FILE* ofile)
 
     r -= c;
     rb += c;
+
+    if (c == 0 && r) {
+      LOG(("LoadSourceFile: expected %d more bytes in destination file\n", r));
+      return UNEXPECTED_ERROR;
+    }
   }
 
   // Verify that the contents of the source file correspond to what we expect.
@@ -1113,7 +1111,7 @@ PatchFile::Prepare()
   if (!WideCharToMultiByte(CP_UTF8, 0, mPatchFile, -1, sourcefile, MAXPATHLEN,
                            NULL, NULL)) {
     LOG(("error converting wchar to utf8: %d\n", GetLastError()));
-    return STRING_CONVERSION_ERROR;
+    return MEM_ERROR;
   }
 
   int rv = gArchiveReader.ExtractFileToStream(sourcefile, fp);
@@ -1462,7 +1460,6 @@ WriteStatusApplying()
   return true;
 }
 
-#ifdef MOZ_MAINTENANCE_SERVICE
 /* 
  * Read the update.status file and sets isPendingService to true if
  * the status is set to pending-service.
@@ -1497,9 +1494,7 @@ IsUpdateStatusPending(bool &isPendingService)
                              sizeof(kPendingService) - 1) == 0;
   return isPending;
 }
-#endif
 
-#ifdef XP_WIN
 /* 
  * Read the update.status file and sets isSuccess to true if
  * the status is set to succeeded.
@@ -1529,89 +1524,16 @@ IsUpdateStatusSucceeded(bool &isSucceeded)
   return true;
 }
 
-static void 
-WaitForServiceFinishThread(void *param)
-{
-  // We wait at most 10 minutes, we already waited 5 seconds previously
-  // before deciding to show this UI.
-  WaitForServiceStop(SVC_NAME, 595);
-  LOG(("calling QuitProgressUI\n"));
-  QuitProgressUI();
-}
-#endif
-
-/**
- * This function reads in the ACCEPTED_MAR_CHANNEL_IDS from update-settings.ini
- *
- * @param path    The path to the ini file that is to be read
- * @param results A pointer to the location to store the read strings
- * @return OK on success
- */
-static int
-ReadMARChannelIDs(const NS_tchar *path, MARChannelStringTable *results)
-{
-  const unsigned int kNumStrings = 1;
-  const char *kUpdaterKeys = "ACCEPTED_MAR_CHANNEL_IDS\0";
-  char updater_strings[kNumStrings][MAX_TEXT_LEN];
-
-  int result = ReadStrings(path, kUpdaterKeys, kNumStrings,
-                           updater_strings, "Settings");
-
-  strncpy(results->MARChannelID, updater_strings[0], MAX_TEXT_LEN - 1);
-  results->MARChannelID[MAX_TEXT_LEN - 1] = 0;
-
-  return result;
-}
-
-struct UpdateThreadData 
-{
-  UpdateThreadData(bool performMARChecks) :
-    mPerformMARChecks(performMARChecks)
-  {
-  }
-
-  bool mPerformMARChecks;
-};
-
 static void
 UpdateThreadFunc(void *param)
 {
-  UpdateThreadData *threadData = reinterpret_cast<UpdateThreadData*>(param);
-  bool performMARChecks = threadData && threadData->mPerformMARChecks;
-  delete threadData;
-  
   // open ZIP archive and process...
-  int rv;
+
   NS_tchar dataFile[MAXPATHLEN];
   NS_tsnprintf(dataFile, sizeof(dataFile)/sizeof(dataFile[0]),
                NS_T("%s/update.mar"), gSourcePath);
 
-  rv = gArchiveReader.Open(dataFile);
-
-  if (performMARChecks) {
-#ifdef MOZ_VERIFY_MAR_SIGNATURE
-    if (rv == OK) {
-      rv = gArchiveReader.VerifySignature();
-    }
-
-    if (rv == OK) {
-      NS_tchar updateSettingsPath[MAX_TEXT_LEN];
-      NS_tsnprintf(updateSettingsPath, 
-                   sizeof(updateSettingsPath) / sizeof(updateSettingsPath[0]),
-                   NS_T("%supdate-settings.ini"), gDestPath);
-      MARChannelStringTable MARStrings;
-      if (ReadMARChannelIDs(updateSettingsPath, &MARStrings) != OK) {
-        // If we can't read from update-settings.ini then we shouldn't impose
-        // a MAR restriction.  Some installations won't even include this file.
-        MARStrings.MARChannelID[0] = '\0';
-      }
-
-      rv = gArchiveReader.VerifyProductInformation(MARStrings.MARChannelID,
-                                                   MOZ_APP_VERSION);
-    }
-#endif
-  }
-
+  int rv = gArchiveReader.Open(dataFile);
   if (rv == OK) {
     rv = DoUpdate();
     gArchiveReader.Close();
@@ -1677,6 +1599,10 @@ int NS_main(int argc, NS_tchar **argv)
   gSourcePath = argv[1];
 
 #ifdef XP_WIN
+  // Disable every privilege we don't need. Processes started using
+  // CreateProcess will use the same token as this process.
+  UACHelper::DisablePrivileges(NULL);
+
   bool useService = false;
   bool testOnlyFallbackKeyExists = false;
   bool noServiceFallback = getenv("MOZ_NO_SERVICE_FALLBACK") != NULL;
@@ -1689,7 +1615,15 @@ int NS_main(int argc, NS_tchar **argv)
   // Our tests run with a different apply directory for each test.
   // We use this registry key on our test slaves to store the 
   // allowed name/issuers.
-  testOnlyFallbackKeyExists = DoesFallbackKeyExist();
+  HKEY testOnlyFallbackKey;
+  if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, 
+                    TEST_ONLY_FALLBACK_KEY_PATH, 0,
+                    KEY_READ | KEY_WOW64_64KEY, 
+                    &testOnlyFallbackKey) == ERROR_SUCCESS) {
+    testOnlyFallbackKeyExists = true;
+    RegCloseKey(testOnlyFallbackKey);
+  }
+
 #endif
 #endif
 
@@ -1788,23 +1722,6 @@ int NS_main(int argc, NS_tchar **argv)
                  sizeof(elevatedLockFilePath)/sizeof(elevatedLockFilePath[0]),
                  NS_T("%s/update_elevated.lock"), argv[1]);
 
-
-    // Even if a file has no sharing access, you can still get its attributes
-    bool startedFromUnelevatedUpdater =
-      GetFileAttributesW(elevatedLockFilePath) != INVALID_FILE_ATTRIBUTES;
-    
-    // If we're running from the service, then we were started with the same
-    // token as the service so the permissions are already dropped.  If we're
-    // running from an elevated updater that was started from an unelevated 
-    // updater, then we drop the permissions here. We do not drop the 
-    // permissions on the originally called updater because we use its token
-    // to start the callback application.
-    if(startedFromUnelevatedUpdater) {
-      // Disable every privilege we don't need. Processes started using
-      // CreateProcess will use the same token as this process.
-      UACHelper::DisablePrivileges(NULL);
-    }
-
     if (updateLockFileHandle == INVALID_HANDLE_VALUE || 
         (useService && testOnlyFallbackKeyExists && noServiceFallback)) {
       if (!_waccess(elevatedLockFilePath, F_OK) &&
@@ -1871,24 +1788,7 @@ int NS_main(int argc, NS_tchar **argv)
         useService = (ret == ERROR_SUCCESS);
         // If the command was launched then wait for the service to be done.
         if (useService) {
-          // We need to call this separately instead of allowing ShowProgressUI
-          // to initialize the strings because the service will move the
-          // ini file out of the way when running updater.
-          bool showProgressUI = !InitProgressUIStrings();
-
-          // Wait for the service to stop for 5 seconds.  If the service
-          // has still not stopped then show an indeterminate progress bar.
-          DWORD lastState = WaitForServiceStop(SVC_NAME, 5);
-          if (lastState != SERVICE_STOPPED) {
-            Thread t1;
-            if (t1.Run(WaitForServiceFinishThread, NULL) == 0 && 
-                showProgressUI) {
-              ShowProgressUI(true, false);
-            }
-            t1.Join();
-          }
-
-          lastState = WaitForServiceStop(SVC_NAME, 1);
+          DWORD lastState = WaitForServiceStop(SVC_NAME, 600);
           if (lastState != SERVICE_STOPPED) {
             // If the service doesn't stop after 10 minutes there is
             // something seriously wrong.
@@ -2072,10 +1972,9 @@ int NS_main(int argc, NS_tchar **argv)
     // Since the process may be signaled as exited by WaitForSingleObject before
     // the release of the executable image try to lock the main executable file
     // multiple times before giving up.
-    const int max_retries = 10;
-    int retries = 1;
+    int retries = 5;
     do {
-      // By opening a file handle without FILE_SHARE_READ to the callback
+      // By opening a file handle wihout FILE_SHARE_READ to the callback
       // executable, the OS will prevent launching the process while it is
       // being updated.
       callbackFile = CreateFileW(argv[callbackIndex],
@@ -2086,13 +1985,8 @@ int NS_main(int argc, NS_tchar **argv)
       if (callbackFile != INVALID_HANDLE_VALUE)
         break;
 
-      DWORD lastError = GetLastError();
-      LOG(("NS_main: callback app open attempt %d failed. " \
-           "File: " LOG_S ". Last error: %d\n", retries, 
-           argv[callbackIndex], lastError));
-
-      Sleep(100);
-    } while (++retries <= max_retries);
+      Sleep(50);
+    } while (--retries);
 
     // CreateFileW will fail if the callback executable is already in use. Since
     // it isn't possible to update write the status file and return.
@@ -2123,7 +2017,7 @@ int NS_main(int argc, NS_tchar **argv)
   // before QuitProgressUI has been called, so wait for UpdateThreadFunc to
   // terminate.
   Thread t;
-  if (t.Run(UpdateThreadFunc, new UpdateThreadData(usingService)) == 0) {
+  if (t.Run(UpdateThreadFunc, NULL) == 0) {
     ShowProgressUI();
   }
   t.Join();
@@ -2421,7 +2315,7 @@ int add_dir_entries(const NS_tchar *dirpath, ActionList *list)
                      NS_T("%s"), ftsdirEntry->fts_accpath);
         quotedpath = get_quoted_path(foundpath);
         if (!quotedpath) {
-          rv = UPDATER_QUOTED_PATH_MEM_ERROR;
+          rv = MEM_ERROR;
           break;
         }
         action = new RemoveFile();
@@ -2438,7 +2332,7 @@ int add_dir_entries(const NS_tchar *dirpath, ActionList *list)
                      NS_T("%s/"), ftsdirEntry->fts_accpath);
         quotedpath = get_quoted_path(foundpath);
         if (!quotedpath) {
-          rv = UPDATER_QUOTED_PATH_MEM_ERROR;
+          rv = MEM_ERROR;
           break;
         }
 
@@ -2511,15 +2405,17 @@ GetManifestContents(const NS_tchar *manifest)
   size_t r = ms.st_size;
   char *rb = mbuf;
   while (r) {
-    const size_t count = mmin(SSIZE_MAX, r);
-    size_t c = fread(rb, 1, count, mfile);
-    if (c != count) {
+    size_t c = fread(rb, 1, mmin(SSIZE_MAX, r), mfile);
+    if (c < 0) {
       LOG(("GetManifestContents: error reading manifest file: " LOG_S "\n", manifest));
       return NULL;
     }
 
     r -= c;
     rb += c;
+
+    if (c == 0 && r)
+      return NULL;
   }
   mbuf[ms.st_size] = '\0';
   rb = mbuf;
@@ -2544,12 +2440,13 @@ GetManifestContents(const NS_tchar *manifest)
 #endif
 }
 
-int AddPreCompleteActions(ActionList *list)
+int AddPreCompleteActions(ActionList *list, bool &isChannelChange)
 {
   NS_tchar *rb = GetManifestContents(NS_T("precomplete"));
   if (rb == NULL) {
     LOG(("AddPreCompleteActions: error getting contents of precomplete " \
          "manifest\n"));
+    isChannelChange = false;
     // Applications aren't required to have a precomplete manifest yet.
     return OK;
   }
@@ -2571,8 +2468,11 @@ int AddPreCompleteActions(ActionList *list)
     if (NS_tstrcmp(token, NS_T("remove")) == 0) { // rm file
       action = new RemoveFile();
     }
-    else if (NS_tstrcmp(token, NS_T("remove-cc")) == 0) { // no longer supported
-      continue;
+    else if (NS_tstrcmp(token, NS_T("remove-cc")) == 0) { // rm file
+      if (!isChannelChange)
+        continue;
+
+      action = new RemoveFile();
     }
     else if (NS_tstrcmp(token, NS_T("rmdir")) == 0) { // rmdir if  empty
       action = new RemoveDir();
@@ -2583,7 +2483,7 @@ int AddPreCompleteActions(ActionList *list)
     }
 
     if (!action)
-      return BAD_ACTION_ERROR;
+      return MEM_ERROR;
 
     rv = action->Parse(line);
     if (rv)
@@ -2597,6 +2497,15 @@ int AddPreCompleteActions(ActionList *list)
 
 int DoUpdate()
 {
+  bool isChannelChange = false;
+  NS_tchar ccfile[MAXPATHLEN];
+  NS_tsnprintf(ccfile, sizeof(ccfile)/sizeof(ccfile[0]),
+               NS_T("%s/channelchange"), gSourcePath);
+  if (!NS_taccess(ccfile, F_OK)) {
+    LOG(("DoUpdate: changing update channel\n"));
+    isChannelChange = true;
+  }
+
   NS_tchar manifest[MAXPATHLEN];
   NS_tsnprintf(manifest, sizeof(manifest)/sizeof(manifest[0]),
                NS_T("%s/update.manifest"), gSourcePath);
@@ -2604,6 +2513,8 @@ int DoUpdate()
   // extract the manifest
   int rv = gArchiveReader.ExtractFile("updatev2.manifest", manifest);
   if (rv) {
+    // Don't allow changing the channel without a version 2 update manifest.
+    isChannelChange = false;
     rv = gArchiveReader.ExtractFile("update.manifest", manifest);
     if (rv) {
       LOG(("DoUpdate: error extracting manifest file\n"));
@@ -2621,6 +2532,7 @@ int DoUpdate()
   ActionList list;
   NS_tchar *line;
   bool isFirstAction = true;
+  bool isComplete = false;
 
   while((line = mstrtok(kNL, &rb)) != 0) {
     // skip comments
@@ -2637,9 +2549,14 @@ int DoUpdate()
       const NS_tchar *type = mstrtok(kQuote, &line);
       LOG(("UPDATE TYPE " LOG_S "\n", type));
       if (NS_tstrcmp(type, NS_T("complete")) == 0) {
-        rv = AddPreCompleteActions(&list);
+        isComplete = true;
+        rv = AddPreCompleteActions(&list, isChannelChange);
         if (rv)
           return rv;
+      }
+      else if (isChannelChange) {
+        LOG(("DoUpdate: unable to change channel with a partial update\n"));
+        isChannelChange = false;
       }
       isFirstAction = false;
       continue;
@@ -2680,8 +2597,19 @@ int DoUpdate()
     else if (NS_tstrcmp(token, NS_T("patch-if")) == 0) { // Patch if exists
       action = new PatchIfFile();
     }
-    else if (NS_tstrcmp(token, NS_T("add-cc")) == 0) { // no longer supported
-      continue;
+    else if (NS_tstrcmp(token, NS_T("add-cc")) == 0) { // Add if channel change
+      // The channel should only be changed with a complete update and when the
+      // user requests a channel change to avoid overwriting the update channel
+      // when testing RC's.
+
+      // add-cc instructions should only be in complete update manifests.
+      if (!isComplete)
+        return PARSE_ERROR;
+      
+      if (!isChannelChange)
+        continue;
+
+      action = new AddFile();
     }
     else {
       LOG(("DoUpdate: unknown token: " LOG_S "\n", token));
@@ -2689,7 +2617,7 @@ int DoUpdate()
     }
 
     if (!action)
-      return BAD_ACTION_ERROR;
+      return MEM_ERROR;
 
     rv = action->Parse(line);
     if (rv)

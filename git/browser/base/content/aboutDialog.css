@@ -57,6 +57,7 @@
   list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
 
+.trademark-label,
 .text-link,
 .text-link:focus {
   margin: 0px;

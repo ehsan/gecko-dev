@@ -65,14 +65,12 @@ pid_t glxtest_pid = 0;
 nsresult
 GfxInfo::Init()
 {
-    mGLMajorVersion = 0;
     mMajorVersion = 0;
     mMinorVersion = 0;
     mRevisionVersion = 0;
     mIsMesa = false;
     mIsNVIDIA = false;
     mIsFGLRX = false;
-    mIsNouveau = false;
     mHasTextureFromPixmap = false;
     return GfxInfoBase::Init();
 }
@@ -95,8 +93,7 @@ GfxInfo::GetData()
     close(glxtest_pipe);
     glxtest_pipe = 0;
 
-    // bytesread < 0 would mean that the above read() call failed.
-    // This should never happen. If it did, the outcome would be to blacklist anyway.
+    // bytesread < 0 would mean that the above read() call failed. This should never happen.
     if (bytesread < 0)
         bytesread = 0;
 
@@ -109,20 +106,13 @@ GfxInfo::GetData()
     int glxtest_status = 0;
     bool wait_for_glxtest_process = true;
     bool waiting_for_glxtest_process_failed = false;
-    int waitpid_errno = 0;
     while(wait_for_glxtest_process) {
         wait_for_glxtest_process = false;
         if (waitpid(glxtest_pid, &glxtest_status, 0) == -1) {
-            waitpid_errno = errno;
-            if (waitpid_errno == EINTR) {
+            if (errno == EINTR)
                 wait_for_glxtest_process = true;
-            } else {
-                // Bug 718629
-                // ECHILD happens when the glxtest process got reaped by a PR_WaitProcess
-                // as per bug 227246. This shouldn't matter, as we still seem to get the data
-                // from the pipe, and if we didn't, the outcome would be to blacklist anyway.
-                waiting_for_glxtest_process_failed = (waitpid_errno != ECHILD);
-            }
+            else
+                waiting_for_glxtest_process_failed = true;
         }
     }
 
@@ -177,7 +167,7 @@ GfxInfo::GetData()
     {
         mAdapterDescription.AppendLiteral("GLXtest process failed");
         if (waiting_for_glxtest_process_failed)
-            mAdapterDescription.AppendPrintf(" (waitpid failed with errno=%d for pid %d)", waitpid_errno, glxtest_pid);
+            mAdapterDescription.AppendLiteral(" (waitpid failed)");
         if (exited_with_error_code)
             mAdapterDescription.AppendPrintf(" (exited with status %d)", WEXITSTATUS(glxtest_status));
         if (received_signal)
@@ -209,9 +199,6 @@ GfxInfo::GetData()
     CrashReporter::AppendAppNotesToCrashReport(note);
 #endif
 
-    // determine the major OpenGL version. That's the first integer in the version string.
-    mGLMajorVersion = strtol(mVersion.get(), 0, 10);
-
     // determine driver type (vendor) and where in the version string
     // the actual driver version numbers should be expected to be found (whereToReadVersionNumbers)
     const char *whereToReadVersionNumbers = nsnull;
@@ -221,8 +208,6 @@ GfxInfo::GetData()
         // with Mesa, the version string contains "Mesa major.minor" and that's all the version information we get:
         // there is no actual driver version info.
         whereToReadVersionNumbers = Mesa_in_version_string + strlen("Mesa");
-        if (strcasestr(mVendor.get(), "nouveau"))
-            mIsNouveau = true;
     } else if (strstr(mVendor.get(), "NVIDIA Corporation")) {
         mIsNVIDIA = true;
         // with the NVIDIA driver, the version string contains "NVIDIA major.minor"
@@ -238,7 +223,7 @@ GfxInfo::GetData()
         whereToReadVersionNumbers = mVersion.get();
     }
 
-    // read major.minor version numbers of the driver (not to be confused with the OpenGL version)
+    // read major.minor version numbers
     if (whereToReadVersionNumbers) {
         // copy into writable buffer, for tokenization
         strncpy(buf, whereToReadVersionNumbers, buf_size);
@@ -290,14 +275,6 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature,
   if (aOS)
     *aOS = os;
 
-  if (mGLMajorVersion == 1) {
-    // We're on OpenGL 1. In most cases that indicates really old hardware.
-    // We better block them, rather than rely on them to fail gracefully, because they don't!
-    // see bug 696636
-    *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
-    return NS_OK;
-  }
-
 #ifdef MOZ_PLATFORM_MAEMO
   *aStatus = nsIGfxInfo::FEATURE_NO_INFO;
   // on Maemo, the glxtest probe doesn't build, and we don't really need GfxInfo anyway
@@ -333,10 +310,7 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature,
       }
 
       if (mIsMesa) {
-        if (mIsNouveau) {
-          *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION;
-          aSuggestedDriverVersion.AssignLiteral("<Not the Nouveau driver>");
-        } else if (version(mMajorVersion, mMinorVersion, mRevisionVersion) < version(7,10,3)) {
+        if (version(mMajorVersion, mMinorVersion, mRevisionVersion) < version(7,10,3)) {
           *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION;
           aSuggestedDriverVersion.AssignLiteral("Mesa 7.10.3");
         }

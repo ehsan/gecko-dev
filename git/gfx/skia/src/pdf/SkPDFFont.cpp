@@ -474,38 +474,48 @@ void append_cmap_sections(const SkTDArray<SkUnichar>& glyphToUnicode,
     SkTDArray<BFRange> bfrangeEntries;
 
     BFRange currentRangeEntry;
-    bool rangeEmpty = true;
-    const int count = glyphToUnicode.count();
+    bool haveBase = false;
+    int continuousEntries = 0;
 
-    for (int i = 0; i < count + 1; ++i) {
-        bool inSubset = i < count && (subset == NULL || subset->has(i));
-        if (!rangeEmpty) {
+    for (int i = 0; i < glyphToUnicode.count(); ++i) {
+        if (glyphToUnicode[i] && (subset == NULL || subset->has(i))) {
             // PDF spec requires bfrange not changing the higher byte,
             // e.g. <1035> <10FF> <2222> is ok, but
             //      <1035> <1100> <2222> is no good
-            bool inRange =
-                i == currentRangeEntry.fEnd + 1 &&
-                i >> 8 == currentRangeEntry.fStart >> 8 &&
-                i < count &&
-                glyphToUnicode[i] == currentRangeEntry.fUnicode + i -
-                                         currentRangeEntry.fStart;
-            if (!inSubset || !inRange) {
-                if (currentRangeEntry.fEnd > currentRangeEntry.fStart) {
+            if (haveBase) {
+                ++continuousEntries;
+                if (i == currentRangeEntry.fStart + continuousEntries &&
+                            (i >> 8) == (currentRangeEntry.fStart >> 8) &&
+                            glyphToUnicode[i] == (currentRangeEntry.fUnicode +
+                                                  continuousEntries)) {
+                    currentRangeEntry.fEnd = i;
+                    if (i == glyphToUnicode.count() - 1) {
+                        // Last entry is in a range.
+                        bfrangeEntries.push(currentRangeEntry);
+                    }
+                    continue;
+                }
+
+                // Need to have at least 2 entries to form a bfrange.
+                if (continuousEntries >= 2) {
                     bfrangeEntries.push(currentRangeEntry);
                 } else {
                     BFChar* entry = bfcharEntries.append();
                     entry->fGlyphId = currentRangeEntry.fStart;
                     entry->fUnicode = currentRangeEntry.fUnicode;
                 }
-                rangeEmpty = true;
+                continuousEntries = 0;
             }
-        }
-        if (inSubset) {
-            currentRangeEntry.fEnd = i;
-            if (rangeEmpty) {
-              currentRangeEntry.fStart = i;
-              currentRangeEntry.fUnicode = glyphToUnicode[i];
-              rangeEmpty = false;
+
+            if (i != glyphToUnicode.count() - 1) {
+                currentRangeEntry.fStart = i;
+                currentRangeEntry.fEnd = i;
+                currentRangeEntry.fUnicode = glyphToUnicode[i];
+                haveBase = true;
+            } else {
+                BFChar* entry = bfcharEntries.append();
+                entry->fGlyphId = i;
+                entry->fUnicode = glyphToUnicode[i];
             }
         }
     }
@@ -693,8 +703,7 @@ SkPDFGlyphSet* SkPDFGlyphSetMap::getGlyphSetForFont(SkPDFFont* font) {
 SkPDFFont::~SkPDFFont() {
     SkAutoMutexAcquire lock(CanonicalFontsMutex());
     int index;
-    if (Find(SkTypeface::UniqueID(fTypeface.get()), fFirstGlyphID, &index) &&
-            CanonicalFonts()[index].fFont == this) {
+    if (Find(SkTypeface::UniqueID(fTypeface.get()), fFirstGlyphID, &index)) {
         CanonicalFonts().removeShuffle(index);
     }
     fResources.unrefAll();
@@ -764,7 +773,6 @@ SkPDFFont* SkPDFFont::GetFontResource(SkTypeface* typeface, uint16_t glyphID) {
         fontMetrics =
             SkFontHost::GetAdvancedTypefaceMetrics(fontID, info, NULL, 0);
 #if defined (SK_SFNTLY_SUBSETTER)
-        SkASSERT(fontMetrics);
         SkSafeUnref(fontMetrics.get());  // SkRefPtr and Get both took a ref.
         if (fontMetrics &&
             fontMetrics->fType != SkAdvancedTypefaceMetrics::kTrueType_Font) {

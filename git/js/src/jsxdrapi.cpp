@@ -45,6 +45,7 @@
 
 #include <string.h>
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jsdhash.h"
 #include "jsprf.h"
@@ -134,7 +135,7 @@ static JSBool
 mem_getbytes(JSXDRState *xdr, char *bytes, uint32_t len)
 {
     MEM_LEFT(xdr, len);
-    js_memcpy(bytes, MEM_DATA(xdr), len);
+    memcpy(bytes, MEM_DATA(xdr), len);
     MEM_INCR(xdr, len);
     return JS_TRUE;
 }
@@ -143,7 +144,7 @@ static JSBool
 mem_setbytes(JSXDRState *xdr, char *bytes, uint32_t len)
 {
     MEM_NEED(xdr, len);
-    js_memcpy(MEM_DATA(xdr), bytes, len);
+    memcpy(MEM_DATA(xdr), bytes, len);
     MEM_INCR(xdr, len);
     return JS_TRUE;
 }

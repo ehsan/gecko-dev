@@ -138,8 +138,9 @@ function test3(win) {
 }
 
 function openTabContextPopup(win, tab) {
+  win.document.popupNode = tab;
   win.document.getElementById("tabContextMenu").openPopup(
-    tab, "end_after", 0, 0, true, false, {target: tab});
+    tab, "end_after", 0, 0, true, false);
 }
 
 function closeTabContextPopup(win) {

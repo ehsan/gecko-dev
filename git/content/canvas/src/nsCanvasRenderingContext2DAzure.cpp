@@ -995,7 +995,7 @@ NS_NewCanvasRenderingContext2DAzure(nsIDOMCanvasRenderingContext2D** aResult)
       !Preferences::GetBool("gfx.canvas.azure.prefer-skia", false)) {
     return NS_ERROR_NOT_AVAILABLE;
   }
-#elif !defined(XP_MACOSX) && !defined(ANDROID) && !defined(LINUX)
+#elif !defined(XP_MACOSX) && !defined(ANDROID)
   return NS_ERROR_NOT_AVAILABLE;
 #endif
 
@@ -1165,10 +1165,8 @@ nsCanvasRenderingContext2DAzure::Redraw()
     return NS_OK;
   }
 
-  if (!mThebesSurface)
-    mThebesSurface =
-      gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mTarget);
-  mThebesSurface->MarkDirty();
+  if (mThebesSurface)
+      mThebesSurface->MarkDirty();
 
   nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
 
@@ -1197,10 +1195,8 @@ nsCanvasRenderingContext2DAzure::Redraw(const mgfx::Rect &r)
     return;
   }
 
-  if (!mThebesSurface)
-    mThebesSurface =
-      gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mTarget);
-  mThebesSurface->MarkDirty();
+  if (mThebesSurface)
+      mThebesSurface->MarkDirty();
 
   nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
 
@@ -1291,27 +1287,25 @@ nsCanvasRenderingContext2DAzure::InitializeWithTarget(DrawTarget *target, PRInt3
   mWidth = width;
   mHeight = height;
 
-  // This first time this is called on this object is via
-  // nsHTMLCanvasElement::GetContext. If target was non-null then mTarget is
-  // non-null, otherwise we'll return an error here and GetContext won't
-  // return this context object and we'll never enter this code again.
-  // All other times this method is called, if target is null then
-  // mTarget won't be changed, i.e. it will remain non-null, or else it
-  // will be set to non-null.
-  // In all cases, any usable canvas context will have non-null mTarget.
-
-  if (target) {
-    mValid = true;
-    mTarget = target;
-  } else {
-    mValid = false;
-    // Create a dummy target in the hopes that it will help us deal with users
-    // calling into us after having changed the size where the size resulted
-    // in an inability to create a correct DrawTarget.
-    mTarget = gfxPlatform::GetPlatform()->CreateOffscreenDrawTarget(IntSize(1, 1), FORMAT_B8G8R8A8);
-  }
+  mTarget = target;
 
   mResetLayer = true;
+
+  /* Create dummy surfaces here - target can be null when a canvas was created
+   * that is too large to support.
+   */
+  if (!target)
+  {
+    mTarget = gfxPlatform::GetPlatform()->CreateOffscreenDrawTarget(IntSize(1, 1), FORMAT_B8G8R8A8);
+    if (!mTarget) {
+      // SupportsAzure() is controlled by the "gfx.canvas.azure.prefer-skia"
+      // pref so that may be the reason rather than an OOM.
+      mValid = false;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+  } else {
+    mValid = true;
+  }
 
   // set up the initial canvas defaults
   mStyleStack.Clear();
@@ -1326,12 +1320,11 @@ nsCanvasRenderingContext2DAzure::InitializeWithTarget(DrawTarget *target, PRInt3
   state->colorStyles[STYLE_STROKE] = NS_RGB(0,0,0);
   state->shadowColor = NS_RGBA(0,0,0,0);
 
-  if (mTarget) {
-    mTarget->ClearRect(mgfx::Rect(Point(0, 0), Size(mWidth, mHeight)));
-    // always force a redraw, because if the surface dimensions were reset
-    // then the surface became cleared, and we need to redraw everything.
-    Redraw();
-  }
+  mTarget->ClearRect(mgfx::Rect(Point(0, 0), Size(mWidth, mHeight)));
+    
+  // always force a redraw, because if the surface dimensions were reset
+  // then the surface became cleared, and we need to redraw everything.
+  Redraw();
 
   return mValid ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
@@ -2754,7 +2747,7 @@ nsCanvasRenderingContext2DAzure::SetFont(const nsAString& font)
 
   NS_ASSERTION(fontStyle, "Could not obtain font style");
 
-  nsIAtom* language = sc->GetStyleFont()->mLanguage;
+  nsIAtom* language = sc->GetStyleVisibility()->mLanguage;
   if (!language) {
     language = presShell->GetPresContext()->GetLanguageFromCharset();
   }
@@ -2762,12 +2755,7 @@ nsCanvasRenderingContext2DAzure::SetFont(const nsAString& font)
   // use CSS pixels instead of dev pixels to avoid being affected by page zoom
   const PRUint32 aupcp = nsPresContext::AppUnitsPerCSSPixel();
   // un-zoom the font size to avoid being affected by text-only zoom
-  //
-  // Purposely ignore the font size that respects the user's minimum
-  // font preference (fontStyle->mFont.size) in favor of the computed
-  // size (fontStyle->mSize).  See
-  // https://bugzilla.mozilla.org/show_bug.cgi?id=698652.
-  const nscoord fontSize = nsStyleFont::UnZoomText(parentContext->PresContext(), fontStyle->mSize);
+  const nscoord fontSize = nsStyleFont::UnZoomText(parentContext->PresContext(), fontStyle->mFont.size);
 
   bool printerFont = (presShell->GetPresContext()->Type() == nsPresContext::eContext_PrintPreview ||
                         presShell->GetPresContext()->Type() == nsPresContext::eContext_Print);
@@ -3093,6 +3081,8 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
                       DrawOptions(mState->globalAlpha, mCtx->UsedOperation()));
       } else if (mOp == nsCanvasRenderingContext2DAzure::TEXT_DRAW_OPERATION_STROKE) {
         RefPtr<Path> path = scaledFont->GetPathForGlyphs(buffer, mCtx->mTarget);
+            
+        Matrix oldTransform = mCtx->mTarget->GetTransform();
 
         const ContextState& state = *mState;
         nsCanvasRenderingContext2DAzure::AdjustedTarget(mCtx)->

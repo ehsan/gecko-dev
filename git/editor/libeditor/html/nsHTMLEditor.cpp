@@ -72,6 +72,7 @@
 #include "nsIContent.h"
 #include "nsIContentIterator.h"
 #include "nsIDOMRange.h"
+#include "nsIRangeUtils.h"
 #include "nsISupportsArray.h"
 #include "nsContentUtils.h"
 #include "nsIDocumentEncoder.h"
@@ -107,6 +108,8 @@ using namespace mozilla::widget;
 static char hrefText[] = "href";
 static char anchorTxt[] = "anchor";
 static char namedanchorText[] = "namedanchor";
+
+nsIRangeUtils* nsHTMLEditor::sRangeHelper;
 
 #define IsLinkTag(s) (s.EqualsIgnoreCase(hrefText))
 #define IsNamedAnchorTag(s) (s.EqualsIgnoreCase(anchorTxt) || s.EqualsIgnoreCase(namedanchorText))
@@ -193,6 +196,13 @@ nsHTMLEditor::HideAnonymousEditingUIs()
     HideResizers();
 }
 
+/* static */
+void
+nsHTMLEditor::Shutdown()
+{
+  NS_IF_RELEASE(sRangeHelper);
+}
+
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLEditor)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLEditor, nsPlaintextEditor)
@@ -261,6 +271,13 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc,
   NS_ENSURE_TRUE(aDoc, NS_ERROR_NULL_POINTER);
 
   nsresult result = NS_OK, rulesRes = NS_OK;
+
+  // make a range util object for comparing dom points
+  if (!sRangeHelper) {
+    result = CallGetService("@mozilla.org/content/range-utils;1",
+                            &sRangeHelper);
+    NS_ENSURE_TRUE(sRangeHelper, result);
+  }
    
   if (1)
   {
@@ -3936,14 +3953,7 @@ nsHTMLEditor::TagCanContainTag(const nsAString& aParentTag, const nsAString& aCh
   return nsHTMLEditUtils::CanContain(parentTagEnum, childTagEnum);
 }
 
-bool
-nsHTMLEditor::IsContainer(nsINode* aNode)
-{
-  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aNode);
-  return IsContainer(node);
-}
-
-bool
+bool 
 nsHTMLEditor::IsContainer(nsIDOMNode *aNode)
 {
   if (!aNode) {
@@ -4763,10 +4773,13 @@ bool
 nsHTMLEditor::IsTextInDirtyFrameVisible(nsIContent *aNode)
 {
   bool isEmptyTextNode;
-  nsresult rv = IsVisTextNode(aNode, &isEmptyTextNode, false);
-  if (NS_FAILED(rv)) {
+  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aNode);
+  nsresult res = IsVisTextNode(node, &isEmptyTextNode, false);
+  if (NS_FAILED(res))
+  {
     // We are following the historical decision:
     //   if we don't know, we say it's visible...
+
     return true;
   }
 
@@ -4778,23 +4791,23 @@ nsHTMLEditor::IsTextInDirtyFrameVisible(nsIContent *aNode)
 // IsVisTextNode: figure out if textnode aTextNode has any visible content.
 //                  
 nsresult
-nsHTMLEditor::IsVisTextNode(nsIContent* aNode,
-                            bool* outIsEmptyNode,
-                            bool aSafeToAskFrames)
+nsHTMLEditor::IsVisTextNode( nsIDOMNode* aNode, 
+                             bool *outIsEmptyNode, 
+                             bool aSafeToAskFrames)
 {
   NS_ENSURE_TRUE(aNode && outIsEmptyNode, NS_ERROR_NULL_POINTER);
   *outIsEmptyNode = true;
+  nsresult res = NS_OK;
 
+  nsCOMPtr<nsIContent> textContent = do_QueryInterface(aNode);
   // callers job to only call us with text nodes
-  if (!aNode->IsNodeOfType(nsINode::eTEXT)) {
+  if (!textContent || !textContent->IsNodeOfType(nsINode::eTEXT)) 
     return NS_ERROR_NULL_POINTER;
-  }
-
-  PRUint32 length = aNode->TextLength();
+  PRUint32 length = textContent->TextLength();
   if (aSafeToAskFrames)
   {
     nsCOMPtr<nsISelectionController> selCon;
-    nsresult res = GetSelectionController(getter_AddRefs(selCon));
+    res = GetSelectionController(getter_AddRefs(selCon));
     NS_ENSURE_SUCCESS(res, res);
     NS_ENSURE_TRUE(selCon, NS_ERROR_FAILURE);
     bool isVisible = false;
@@ -4804,7 +4817,7 @@ nsHTMLEditor::IsVisTextNode(nsIContent* aNode,
     // So we put a call in the selection controller interface, since it's already
     // in bed with frames anyway.  (this is a fix for bug 22227, and a
     // partial fix for bug 46209)
-    res = selCon->CheckVisibilityContent(aNode, 0, length, &isVisible);
+    res = selCon->CheckVisibility(aNode, 0, length, &isVisible);
     NS_ENSURE_SUCCESS(res, res);
     if (isVisible) 
     {
@@ -4813,20 +4826,18 @@ nsHTMLEditor::IsVisTextNode(nsIContent* aNode,
   }
   else if (length)
   {
-    if (aNode->TextIsOnlyWhitespace())
+    if (textContent->TextIsOnlyWhitespace())
     {
-      nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aNode);
-      nsWSRunObject wsRunObj(this, node, 0);
+      nsWSRunObject wsRunObj(this, aNode, 0);
       nsCOMPtr<nsIDOMNode> visNode;
       PRInt32 outVisOffset=0;
       PRInt16 visType=0;
-      nsresult res = wsRunObj.NextVisibleNode(node, 0, address_of(visNode),
-                                              &outVisOffset, &visType);
+      res = wsRunObj.NextVisibleNode(aNode, 0, address_of(visNode), &outVisOffset, &visType);
       NS_ENSURE_SUCCESS(res, res);
       if ( (visType == nsWSRunObject::eNormalWS) ||
            (visType == nsWSRunObject::eText) )
       {
-        *outIsEmptyNode = (node != visNode);
+        *outIsEmptyNode = (aNode != visNode);
       }
     }
     else
@@ -4850,18 +4861,6 @@ nsHTMLEditor::IsEmptyNode( nsIDOMNode *aNode,
                            bool aListOrCellNotEmpty,
                            bool aSafeToAskFrames)
 {
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  return IsEmptyNode(node, outIsEmptyNode, aSingleBRDoesntCount,
-                     aListOrCellNotEmpty, aSafeToAskFrames);
-}
-
-nsresult
-nsHTMLEditor::IsEmptyNode(nsINode* aNode,
-                          bool* outIsEmptyNode,
-                          bool aSingleBRDoesntCount,
-                          bool aListOrCellNotEmpty,
-                          bool aSafeToAskFrames)
-{
   NS_ENSURE_TRUE(aNode && outIsEmptyNode, NS_ERROR_NULL_POINTER);
   *outIsEmptyNode = true;
   bool seenBR = false;
@@ -4873,17 +4872,20 @@ nsHTMLEditor::IsEmptyNode(nsINode* aNode,
 // IsEmptyNodeImpl: workhorse for IsEmptyNode.
 //                  
 nsresult
-nsHTMLEditor::IsEmptyNodeImpl(nsINode* aNode,
-                              bool *outIsEmptyNode,
-                              bool aSingleBRDoesntCount,
-                              bool aListOrCellNotEmpty,
-                              bool aSafeToAskFrames,
-                              bool *aSeenBR)
+nsHTMLEditor::IsEmptyNodeImpl( nsIDOMNode *aNode, 
+                               bool *outIsEmptyNode, 
+                               bool aSingleBRDoesntCount,
+                               bool aListOrCellNotEmpty,
+                               bool aSafeToAskFrames,
+                               bool *aSeenBR)
 {
   NS_ENSURE_TRUE(aNode && outIsEmptyNode && aSeenBR, NS_ERROR_NULL_POINTER);
+  nsresult res = NS_OK;
 
-  if (aNode->NodeType() == nsIDOMNode::TEXT_NODE) {
-    return IsVisTextNode(static_cast<nsIContent*>(aNode), outIsEmptyNode, aSafeToAskFrames);
+  if (nsEditor::IsTextNode(aNode))
+  {
+    res = IsVisTextNode(aNode, outIsEmptyNode, aSafeToAskFrames);
+    return res;
   }
 
   // if it's not a text node (handled above) and it's not a container,
@@ -4892,72 +4894,74 @@ nsHTMLEditor::IsEmptyNodeImpl(nsINode* aNode,
   // anchors are containers, named anchors are "empty" but we don't
   // want to treat them as such.  Also, don't call ListItems or table
   // cells empty if caller desires.  Form Widgets not empty.
-  if (!IsContainer(aNode)                                   ||
-      (aNode->IsElement() &&
-       (nsHTMLEditUtils::IsNamedAnchor(aNode->AsElement())  ||
-        nsHTMLEditUtils::IsFormWidget(aNode->AsElement())   ||
-        (aListOrCellNotEmpty &&
-         (nsHTMLEditUtils::IsListItem(aNode->AsElement())   ||
-          nsHTMLEditUtils::IsTableCell(aNode->AsElement()))))))  {
+  if (!IsContainer(aNode) || nsHTMLEditUtils::IsNamedAnchor(aNode) ||
+        nsHTMLEditUtils::IsFormWidget(aNode)                       ||
+       (aListOrCellNotEmpty && nsHTMLEditUtils::IsListItem(aNode)) ||
+       (aListOrCellNotEmpty && nsHTMLEditUtils::IsTableCell(aNode)) ) 
+  {
     *outIsEmptyNode = false;
     return NS_OK;
   }
     
   // need this for later
-  bool isListItemOrCell = aNode->IsElement() &&
-       (nsHTMLEditUtils::IsListItem(aNode->AsElement()) ||
-        nsHTMLEditUtils::IsTableCell(aNode->AsElement()));
+  bool isListItemOrCell = 
+       nsHTMLEditUtils::IsListItem(aNode) || nsHTMLEditUtils::IsTableCell(aNode);
        
   // loop over children of node. if no children, or all children are either 
   // empty text nodes or non-editable, then node qualifies as empty
-  for (nsCOMPtr<nsIContent> child = aNode->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    // Is the child editable and non-empty?  if so, return false
-    if (nsEditor::IsEditable(child)) {
-      if (child->NodeType() == nsIDOMNode::TEXT_NODE) {
-        nsresult rv = IsVisTextNode(child, outIsEmptyNode, aSafeToAskFrames);
-        NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDOMNode> child;
+  aNode->GetFirstChild(getter_AddRefs(child));
+   
+  while (child)
+  {
+    nsCOMPtr<nsIDOMNode> node = child;
+    // is the node editable and non-empty?  if so, return false
+    if (nsEditor::IsEditable(node))
+    {
+      if (nsEditor::IsTextNode(node))
+      {
+        res = IsVisTextNode(node, outIsEmptyNode, aSafeToAskFrames);
+        NS_ENSURE_SUCCESS(res, res);
         // break out if we find we aren't emtpy
         if (!*outIsEmptyNode) {
           return NS_OK;
         }
-      } else {
-        // An editable, non-text node. We need to check its content.
-        // Is it the node we are iterating over?
-        if (child == aNode) {
-          break;
-        }
-
-        if (aSingleBRDoesntCount && !*aSeenBR && child->IsHTML(nsGkAtoms::br)) {
+      }
+      else  // an editable, non-text node.  we need to check it's content.
+      {
+        // is it the node we are iterating over?
+        if (node == aNode) break;
+        else if (aSingleBRDoesntCount && !*aSeenBR && nsTextEditUtils::IsBreak(node))
+        {
           // the first br in a block doesn't count if the caller so indicated
           *aSeenBR = true;
-        } else {
+        }
+        else
+        {
           // is it an empty node of some sort?
           // note: list items or table cells are not considered empty
           // if they contain other lists or tables
-          if (child->IsElement()) {
-            if (isListItemOrCell) {
-              if (nsHTMLEditUtils::IsList(child->AsElement()) || child->IsHTML(nsGkAtoms::table)) {
-                // break out if we find we aren't empty
-                *outIsEmptyNode = false;
-                return NS_OK;
-              }
-            } else if (nsHTMLEditUtils::IsFormWidget(child->AsElement())) {
-              // is it a form widget?
-              // break out if we find we aren't empty
+          if (isListItemOrCell)
+          {
+            if (nsHTMLEditUtils::IsList(node) || nsHTMLEditUtils::IsTable(node))
+            { // break out if we find we aren't empty
               *outIsEmptyNode = false;
               return NS_OK;
             }
           }
-
+          // is it a form widget?
+          else if (nsHTMLEditUtils::IsFormWidget(node))
+          { // break out if we find we aren't empty
+            *outIsEmptyNode = false;
+            return NS_OK;
+          }
+          
           bool isEmptyNode = true;
-          nsresult rv = IsEmptyNodeImpl(child, &isEmptyNode,
-                                        aSingleBRDoesntCount,
-                                        aListOrCellNotEmpty, aSafeToAskFrames,
-                                        aSeenBR);
-          NS_ENSURE_SUCCESS(rv, rv);
-          if (!isEmptyNode) {
+          res = IsEmptyNodeImpl(node, &isEmptyNode, aSingleBRDoesntCount, 
+                                aListOrCellNotEmpty, aSafeToAskFrames, aSeenBR);
+          NS_ENSURE_SUCCESS(res, res);
+          if (!isEmptyNode) 
+          { 
             // otherwise it ain't empty
             *outIsEmptyNode = false;
             return NS_OK;
@@ -4965,6 +4969,7 @@ nsHTMLEditor::IsEmptyNodeImpl(nsINode* aNode,
         }
       }
     }
+    node->GetNextSibling(getter_AddRefs(child));
   }
   
   return NS_OK;

@@ -67,7 +67,7 @@
 // base::FileDescriptor acts as a static assert that we only get one
 // def or the other (or neither, in which case code using
 // FileDescriptor fails to build)
-namespace base { struct FileDescriptor { }; }
+namespace base { class FileDescriptor { }; }
 #endif
 
 using mozilla::layers::LayerManager;
@@ -484,8 +484,10 @@ struct ParamTraits<mozilla::GraphicsFilterType>
       WriteParam(msg, int32(param));
       return;
 
+    default:
+      NS_RUNTIMEABORT("not reached");
+      return;
     }
-    NS_RUNTIMEABORT("not reached");
   }
 
   static bool Read(const Message* msg, void** iter, paramType* result)

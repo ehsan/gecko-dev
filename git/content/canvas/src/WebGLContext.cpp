@@ -221,6 +221,7 @@ WebGLContext::WebGLContext()
     : mCanvasElement(nsnull),
       gl(nsnull)
 {
+    mWidth = mHeight = 0;
     mGeneration = 0;
     mInvalidated = false;
     mResetLayer = true;
@@ -489,6 +490,8 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 
     /*** end of early success return cases ***/
 
+    ScopedGfxFeatureReporter reporter("WebGL");
+
     // At this point we know that the old context is not going to survive, even though we still don't
     // know if creating the new context will succeed.
     DestroyResourcesAndContext();
@@ -498,9 +501,9 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 
     bool forceOSMesa =
         Preferences::GetBool("webgl.force_osmesa", false);
-#ifdef XP_WIN
     bool preferEGL =
         Preferences::GetBool("webgl.prefer-egl", false);
+#ifdef XP_WIN
     bool preferOpenGL =
         Preferences::GetBool("webgl.prefer-native-gl", false);
 #endif
@@ -510,8 +513,6 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
         Preferences::GetBool("webgl.disabled", false);
     bool verbose =
         Preferences::GetBool("webgl.verbose", false);
-
-    ScopedGfxFeatureReporter reporter("WebGL", forceEnabled);
 
     if (disabled)
         return NS_ERROR_FAILURE;
@@ -565,18 +566,13 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
         }
     }
 
-#ifdef XP_WIN
     if (PR_GetEnv("MOZ_WEBGL_PREFER_EGL")) {
         preferEGL = true;
     }
-#endif
 
     // Ask GfxInfo about what we should use
     bool useOpenGL = true;
-
-#ifdef XP_WIN
     bool useANGLE = true;
-#endif
 
     if (gfxInfo && !forceEnabled) {
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_OPENGL, &status))) {
@@ -584,23 +580,19 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
                 useOpenGL = false;
             }
         }
-#ifdef XP_WIN
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_ANGLE, &status))) {
             if (status != nsIGfxInfo::FEATURE_NO_INFO) {
                 useANGLE = false;
             }
         }
-#endif
     }
 
-#ifdef XP_WIN
     // allow forcing GL and not EGL/ANGLE
     if (PR_GetEnv("MOZ_WEBGL_FORCE_OPENGL")) {
         preferEGL = false;
         useANGLE = false;
         useOpenGL = true;
     }
-#endif
 
     // if we're forcing osmesa, do it first
     if (forceOSMesa) {
@@ -616,32 +608,41 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     // if we want EGL, try it now
     if (!gl && (preferEGL || useANGLE) && !preferOpenGL) {
         gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
+        if (gl) {
+            if (InitAndValidateGL()) {
+                if (useANGLE) {
+                    gl->SetFlushGuaranteesResolve(true);
+                }
+            } else {
+                gl = nsnull;
+            }
+        }
+    }
+
+    // if it failed, then try the default provider, whatever that is
+    if (!gl && useOpenGL) {
+        gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
         if (gl && !InitAndValidateGL()) {
-            LogMessage("Error during ANGLE OpenGL ES initialization");
-            return NS_ERROR_FAILURE;
+            gl = nsnull;
+        }
+    }
+#else
+    // other platforms just use whatever the default is
+    if (!gl && useOpenGL) {
+        gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
+        if (gl && !InitAndValidateGL()) {
+            gl = nsnull;
         }
     }
 #endif
 
-    // try the default provider, whatever that is
-    if (!gl && useOpenGL) {
-        gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
-        if (gl && !InitAndValidateGL()) {
-            LogMessage("Error during OpenGL initialization");
-            return NS_ERROR_FAILURE;
-        }
-    }
-
     // finally, try OSMesa
     if (!gl) {
         gl = gl::GLContextProviderOSMesa::CreateOffscreen(gfxIntSize(width, height), format);
-        if (gl) {
-            if (!InitAndValidateGL()) {
-                LogMessage("Error during OSMesa initialization");
-                return NS_ERROR_FAILURE;
-            } else {
-                LogMessage("Using software rendering via OSMesa (THIS WILL BE SLOW)");
-            }
+        if (!gl || !InitAndValidateGL()) {
+            gl = nsnull;
+        } else {
+            LogMessage("Using software rendering via OSMesa (THIS WILL BE SLOW)");
         }
     }
 
@@ -1017,12 +1018,10 @@ WebGLContext::ForceClearFramebufferWithDefaultValues(PRUint32 mask, const nsIntR
     bool initializeDepthBuffer = 0 != (mask & LOCAL_GL_DEPTH_BUFFER_BIT);
     bool initializeStencilBuffer = 0 != (mask & LOCAL_GL_STENCIL_BUFFER_BIT);
 
-    // fun GL fact: no need to worry about the viewport here, glViewport is just setting up a coordinates transformation,
-    // it doesn't affect glClear at all
-
     // prepare GL state for clearing
     gl->fDisable(LOCAL_GL_SCISSOR_TEST);
     gl->fDisable(LOCAL_GL_DITHER);
+    gl->PushViewportRect(viewportRect);
 
     if (initializeColorBuffer) {
         gl->fColorMask(1, 1, 1, 1);
@@ -1065,6 +1064,8 @@ WebGLContext::ForceClearFramebufferWithDefaultValues(PRUint32 mask, const nsIntR
         gl->fClearStencil(mStencilClearValue);
     }
 
+    gl->PopViewportRect();
+
     if (mDitherEnabled)
         gl->fEnable(LOCAL_GL_DITHER);
     else
@@ -1096,17 +1097,6 @@ WebGLContext::EnsureBackbufferClearedAsNeeded()
                                            nsIntRect(0, 0, mWidth, mHeight));
 
     Invalidate();
-}
-
-nsresult
-WebGLContext::DummyFramebufferOperation(const char *info)
-{
-    WebGLenum status;
-    CheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER, &status);
-    if (status == LOCAL_GL_FRAMEBUFFER_COMPLETE)
-        return NS_OK;
-    else
-        return ErrorInvalidFramebufferOperation("%s: incomplete framebuffer", info);
 }
 
 // We use this timer for many things. Here are the things that it is activated for:

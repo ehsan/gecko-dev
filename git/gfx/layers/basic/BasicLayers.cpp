@@ -50,7 +50,6 @@
 #include "BasicLayers.h"
 #include "ImageLayers.h"
 
-#include "prprf.h"
 #include "nsTArray.h"
 #include "nsGUIEvent.h"
 #include "gfxContext.h"
@@ -1309,8 +1308,6 @@ BasicLayerManager::BasicLayerManager() :
 #endif
   mWidget(nsnull)
   , mDoubleBuffering(BUFFER_NONE), mUsingDefaultTarget(false)
-  , mCachedSurfaceInUse(false)
-  , mTransactionIncomplete(false)
 {
   MOZ_COUNT_CTOR(BasicLayerManager);
 }
@@ -2267,13 +2264,10 @@ BasicShadowableThebesLayer::SetBackBufferAndAttrs(const OptionalThebesBuffer& aB
 {
   if (OptionalThebesBuffer::Tnull_t == aBuffer.type()) {
     mBackBuffer = SurfaceDescriptor();
-  } else if (!IsSurfaceDescriptorValid(mBackBuffer)) {
+  } else {
     mBackBuffer = aBuffer.get_ThebesBuffer().buffer();
     mBackBufferRect = aBuffer.get_ThebesBuffer().rect();
     mBackBufferRectRotation = aBuffer.get_ThebesBuffer().rotation();
-  } else {
-    SurfaceDescriptor obsoleteBuffer = aBuffer.get_ThebesBuffer().buffer();
-    BasicManager()->ShadowLayerForwarder::DestroySharedSurface(&obsoleteBuffer);
   }
   mFrontAndBackBufferDiffer = true;
   mROFrontBuffer = aReadOnlyFrontBuffer;
@@ -2376,8 +2370,6 @@ BasicShadowableThebesLayer::PaintBuffer(gfxContext* aContext,
                                       mBuffer.BufferRect(),
                                       mBuffer.BufferRotation(),
                                       mBackBuffer);
-  mROFrontBuffer = ThebesBuffer(mBackBuffer, mBuffer.BufferRect(), mBuffer.BufferRotation());
-  mBackBuffer = SurfaceDescriptor();
 }
 
 already_AddRefed<gfxASurface>
@@ -2402,12 +2394,7 @@ BasicShadowableThebesLayer::CreateBuffer(Buffer::ContentType aType,
   if (!BasicManager()->AllocBuffer(gfxIntSize(aSize.width, aSize.height),
                                    aType,
                                    &mBackBuffer)) {
-      enum { buflen = 256 };
-      char buf[buflen];
-      PR_snprintf(buf, buflen,
-                  "creating ThebesLayer 'back buffer' failed! width=%d, height=%d, type=%x",
-                  aSize.width, aSize.height, int(aType));
-      NS_RUNTIMEABORT(buf);
+      NS_RUNTIMEABORT("creating ThebesLayer 'back buffer' failed!");
   }
 
   NS_ABORT_IF_FALSE(!mIsNewBuffer,
@@ -2993,14 +2980,14 @@ BasicShadowImageLayer::Swap(const SharedImage& aNewFront,
 {
   nsRefPtr<gfxASurface> surface =
     BasicManager()->OpenDescriptor(aNewFront);
-  // Destroy mFrontBuffer if size different or image type is different
-  bool surfaceConfigChanged = surface->GetSize() != mSize;
+  // Destroy mFrontBuffer if size different
+  bool needDrop = false;
   if (IsSurfaceDescriptorValid(mFrontBuffer)) {
     nsRefPtr<gfxASurface> front = BasicManager()->OpenDescriptor(mFrontBuffer);
-    surfaceConfigChanged = surfaceConfigChanged ||
-                           surface->GetContentType() != front->GetContentType();
+    needDrop = surface->GetSize() != mSize ||
+               surface->GetContentType() != front->GetContentType();
   }
-  if (surfaceConfigChanged) {
+  if (needDrop) {
     DestroyFrontBuffer();
     mSize = surface->GetSize();
   }
@@ -3115,13 +3102,13 @@ BasicShadowCanvasLayer::Swap(const CanvasSurface& aNewFront, bool needYFlip,
     BasicManager()->OpenDescriptor(aNewFront);
   // Destroy mFrontBuffer if size different
   gfxIntSize sz = surface->GetSize();
-  bool surfaceConfigChanged = sz != gfxIntSize(mBounds.width, mBounds.height);
+  bool needDrop = false;
   if (IsSurfaceDescriptorValid(mFrontSurface)) {
     nsRefPtr<gfxASurface> front = BasicManager()->OpenDescriptor(mFrontSurface);
-    surfaceConfigChanged = surfaceConfigChanged ||
-                           surface->GetContentType() != front->GetContentType();
+    needDrop = sz != gfxIntSize(mBounds.width, mBounds.height) ||
+               surface->GetContentType() != front->GetContentType();
   }
-  if (surfaceConfigChanged) {
+  if (needDrop) {
     DestroyFrontBuffer();
     mBounds.SetRect(0, 0, sz.width, sz.height);
   }

@@ -116,7 +116,6 @@ public:
     bool           IsSpdyEnabled() { return mEnableSpdy; }
     bool           CoalesceSpdy() { return mCoalesceSpdy; }
     bool           UseAlternateProtocol() { return mUseAlternateProtocol; }
-    PRUint32       SpdySendingChunkSize() { return mSpdySendingChunkSize; }
 
     bool           PromptTempRedirect()      { return mPromptTempRedirect; }
 
@@ -321,7 +320,6 @@ private:
     nsXPIDLCString mAppName;
     nsXPIDLCString mAppVersion;
     nsCString      mCompatFirefox;
-    nsXPIDLCString mCompatDevice;
 
     nsCString      mUserAgent;
     nsXPIDLCString mUserAgentOverride;
@@ -344,7 +342,6 @@ private:
     bool           mEnableSpdy;
     bool           mCoalesceSpdy;
     bool           mUseAlternateProtocol;
-    PRUint32       mSpdySendingChunkSize;
 };
 
 //-----------------------------------------------------------------------------

@@ -44,7 +44,7 @@ Renderbuffer *Framebuffer::lookupRenderbuffer(GLenum type, GLuint handle) const
     {
         buffer = context->getRenderbuffer(handle);
     }
-    else if (IsInternalTextureTarget(type))
+    else if (IsTextureTarget(type))
     {
         buffer = context->getTexture(handle)->getRenderbuffer(type);
     }
@@ -76,19 +76,19 @@ void Framebuffer::setStencilbuffer(GLenum type, GLuint stencilbuffer)
 
 void Framebuffer::detachTexture(GLuint texture)
 {
-    if (mColorbufferPointer.id() == texture && IsInternalTextureTarget(mColorbufferType))
+    if (mColorbufferPointer.id() == texture && IsTextureTarget(mColorbufferType))
     {
         mColorbufferType = GL_NONE;
         mColorbufferPointer.set(NULL);
     }
 
-    if (mDepthbufferPointer.id() == texture && IsInternalTextureTarget(mDepthbufferType))
+    if (mDepthbufferPointer.id() == texture && IsTextureTarget(mDepthbufferType))
     {
         mDepthbufferType = GL_NONE;
         mDepthbufferPointer.set(NULL);
     }
 
-    if (mStencilbufferPointer.id() == texture && IsInternalTextureTarget(mStencilbufferType))
+    if (mStencilbufferPointer.id() == texture && IsTextureTarget(mStencilbufferType))
     {
         mStencilbufferType = GL_NONE;
         mStencilbufferPointer.set(NULL);
@@ -268,7 +268,7 @@ GLenum Framebuffer::completeness()
                 return GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
             }
         }
-        else if (IsInternalTextureTarget(mColorbufferType))
+        else if (IsTextureTarget(mColorbufferType))
         {
             if (IsCompressed(colorbuffer->getInternalFormat()))
             {

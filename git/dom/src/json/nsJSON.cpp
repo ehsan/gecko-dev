@@ -634,6 +634,8 @@ nsJSONListener::OnDataAvailable(nsIRequest *aRequest, nsISupports *aContext,
                                 nsIInputStream *aStream,
                                 PRUint32 aOffset, PRUint32 aLength)
 {
+  PRUint32 contentLength;
+  aStream->Available(&contentLength);
   nsresult rv = NS_OK;
 
   if (mNeedsConverter && mSniffBuffer.Length() < 4) {

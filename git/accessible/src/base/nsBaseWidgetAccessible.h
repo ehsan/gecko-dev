@@ -124,16 +124,16 @@ class nsEnumRoleAccessible : public nsAccessibleWrap
 {
 public:
   nsEnumRoleAccessible(nsIContent *aContent, nsIWeakReference *aShell,
-                       mozilla::a11y::role aRole);
+                       PRUint32 aRole);
   virtual ~nsEnumRoleAccessible() { }
 
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 
 protected:
-  mozilla::a11y::role mRole;
+  PRUint32 mRole;
 };
 
 #endif  

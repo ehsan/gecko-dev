@@ -87,7 +87,7 @@
 #define SVG_MIMETYPE "image/svg+xml"
 
 using namespace mozilla;
-using namespace mozilla::image;
+using namespace mozilla::imagelib;
 
 static bool gInitializedPrefCaches = false;
 static bool gDecodeOnDraw = false;

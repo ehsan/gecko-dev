@@ -45,6 +45,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 
 #ifdef WIN32
@@ -182,7 +183,7 @@ JS_BasicStatsAccum(JSBasicStats *bs, uint32_t val)
                     newbin = ValToBin(newscale, BinToVal(oldscale, bin));
                     newhist[newbin] += bs->hist[bin];
                 }
-                js_memcpy(bs->hist, newhist, sizeof bs->hist);
+                memcpy(bs->hist, newhist, sizeof bs->hist);
                 bs->logscale = newscale;
             }
         }

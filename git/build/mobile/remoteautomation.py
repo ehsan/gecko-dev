@@ -156,10 +156,7 @@ class RemoteAutomation(Automation):
             self.stdoutlen = 0
             self.proc = dm.launchProcess(cmd, stdout, cwd, env, True)
             if (self.proc is None):
-              if cmd[0] == 'am':
-                self.proc = stdout
-              else:
-                raise Exception("unable to launch process")
+              raise Exception("unable to launch process")
             exepath = cmd[0]
             name = exepath.split('/')[-1]
             self.procName = name

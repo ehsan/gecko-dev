@@ -34,10 +34,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-let tempScope = {};
-Components.utils.import("resource://gre/modules/Geometry.jsm", tempScope);
-let Point = tempScope.Point;
-let Rect = tempScope.Rect;
+Components.utils.import("resource://gre/modules/Geometry.jsm");
 
 function test() {
   ok(Rect, "Rect class exists");

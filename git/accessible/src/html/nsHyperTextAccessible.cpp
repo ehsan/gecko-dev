@@ -39,11 +39,10 @@
 
 #include "nsHyperTextAccessible.h"
 
+#include "States.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "nsTextAttrs.h"
-#include "Role.h"
-#include "States.h"
 
 #include "nsIClipboard.h"
 #include "nsFocusManager.h"
@@ -91,11 +90,11 @@ nsresult nsHyperTextAccessible::QueryInterface(REFNSIID aIID, void** aInstancePt
   }
 
   if (mRoleMapEntry &&
-      (mRoleMapEntry->role == roles::GRAPHIC ||
-       mRoleMapEntry->role == roles::IMAGE_MAP ||
-       mRoleMapEntry->role == roles::SLIDER ||
-       mRoleMapEntry->role == roles::PROGRESSBAR ||
-       mRoleMapEntry->role == roles::SEPARATOR)) {
+      (mRoleMapEntry->role == nsIAccessibleRole::ROLE_GRAPHIC ||
+       mRoleMapEntry->role == nsIAccessibleRole::ROLE_IMAGE_MAP ||
+       mRoleMapEntry->role == nsIAccessibleRole::ROLE_SLIDER ||
+       mRoleMapEntry->role == nsIAccessibleRole::ROLE_PROGRESSBAR ||
+       mRoleMapEntry->role == nsIAccessibleRole::ROLE_SEPARATOR)) {
     // ARIA roles that these interfaces are not appropriate for
     return nsAccessible::QueryInterface(aIID, aInstancePtr);
   }
@@ -121,42 +120,46 @@ nsresult nsHyperTextAccessible::QueryInterface(REFNSIID aIID, void** aInstancePt
   return nsAccessible::QueryInterface(aIID, aInstancePtr);
 }
 
-role
+PRUint32
 nsHyperTextAccessible::NativeRole()
 {
   nsIAtom *tag = mContent->Tag();
 
   if (tag == nsGkAtoms::form)
-    return roles::FORM;
+    return nsIAccessibleRole::ROLE_FORM;
 
-  if (tag == nsGkAtoms::blockquote || tag == nsGkAtoms::div ||
+  if (tag == nsGkAtoms::blockquote ||
+      tag == nsGkAtoms::div ||
       tag == nsGkAtoms::nav)
-    return roles::SECTION;
+    return nsIAccessibleRole::ROLE_SECTION;
 
-  if (tag == nsGkAtoms::h1 || tag == nsGkAtoms::h2 ||
-      tag == nsGkAtoms::h3 || tag == nsGkAtoms::h4 ||
-      tag == nsGkAtoms::h5 || tag == nsGkAtoms::h6)
-    return roles::HEADING;
+  if (tag == nsGkAtoms::h1 ||
+      tag == nsGkAtoms::h2 ||
+      tag == nsGkAtoms::h3 ||
+      tag == nsGkAtoms::h4 ||
+      tag == nsGkAtoms::h5 ||
+      tag == nsGkAtoms::h6)
+    return nsIAccessibleRole::ROLE_HEADING;
 
   if (tag == nsGkAtoms::article)
-    return roles::DOCUMENT;
+    return nsIAccessibleRole::ROLE_DOCUMENT;
         
   // Deal with html landmark elements
   if (tag == nsGkAtoms::header)
-    return roles::HEADER;
+    return nsIAccessibleRole::ROLE_HEADER;
 
   if (tag == nsGkAtoms::footer)
-    return roles::FOOTER;
+    return nsIAccessibleRole::ROLE_FOOTER;
 
   if (tag == nsGkAtoms::aside)
-    return roles::NOTE;
+    return nsIAccessibleRole::ROLE_NOTE;
 
   // Treat block frames as paragraphs
   nsIFrame *frame = GetFrame();
   if (frame && frame->GetType() == nsGkAtoms::blockFrame)
-    return roles::PARAGRAPH;
+    return nsIAccessibleRole::ROLE_PARAGRAPH;
 
-  return roles::TEXT_CONTAINER; // In ATK this works
+  return nsIAccessibleRole::ROLE_TEXT_CONTAINER; // In ATK this works
 }
 
 PRUint64
@@ -277,7 +280,7 @@ nsHyperTextAccessible::GetPosAndText(PRInt32& aStartOffset, PRInt32& aEndOffset,
   PRInt32 startOffset = aStartOffset;
   PRInt32 endOffset = aEndOffset;
   // XXX this prevents text interface usage on <input type="password">
-  bool isPassword = (Role() == roles::PASSWORD_TEXT);
+  bool isPassword = (Role() == nsIAccessibleRole::ROLE_PASSWORD_TEXT);
 
   // Clear out parameters and set up loop
   if (aText) {
@@ -835,7 +838,7 @@ nsHyperTextAccessible::GetRelativeOffset(nsIPresShell *aPresShell,
     nsAccessible *firstChild = mChildren.SafeElementAt(0, nsnull);
     // For line selection with needsStart, set start of line exactly to line break
     if (pos.mContentOffset == 0 && firstChild &&
-        firstChild->Role() == roles::STATICTEXT &&
+        firstChild->Role() == nsIAccessibleRole::ROLE_STATICTEXT &&
         static_cast<PRInt32>(nsAccUtils::TextLength(firstChild)) == hyperTextOffset) {
       // XXX Bullet hack -- we should remove this once list bullets use anonymous content
       hyperTextOffset = 0;
@@ -847,7 +850,7 @@ nsHyperTextAccessible::GetRelativeOffset(nsIPresShell *aPresShell,
   else if (aAmount == eSelectEndLine && finalAccessible) { 
     // If not at very end of hypertext, we may need change the end of line offset by 1, 
     // to make sure we are in the right place relative to the line ending
-    if (finalAccessible->Role() == roles::WHITESPACE) {  // Landed on <br> hard line break
+    if (finalAccessible->Role() == nsIAccessibleRole::ROLE_WHITESPACE) {  // Landed on <br> hard line break
       // if aNeedsStart, set end of line exactly 1 character past line break
       // XXX It would be cleaner if we did not have to have the hard line break check,
       // and just got the correct results from PeekOffset() for the <br> case -- the returned offset should
@@ -1005,7 +1008,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
     nsRefPtr<nsAccessible> endAcc;
     nsIFrame *endFrame = GetPosAndText(startOffset, endOffset, nsnull, nsnull,
                                        nsnull, getter_AddRefs(endAcc));
-    if (endAcc && endAcc->Role() == roles::STATICTEXT) {
+    if (endAcc && endAcc->Role() == nsIAccessibleRole::ROLE_STATICTEXT) {
       // Static text like list bullets will ruin our forward calculation,
       // since the caret cannot be in the static text. Start just after the static text.
       startOffset = endOffset = finalStartOffset +

@@ -48,7 +48,7 @@
 #include "GIF2.h"
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 class RasterImage;
 
 //////////////////////////////////////////////////////////////////////
@@ -102,7 +102,7 @@ private:
   gif_struct mGIFStruct;
 };
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla
 
 #endif

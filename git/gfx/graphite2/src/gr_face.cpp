@@ -25,8 +25,9 @@ License, as published by the Free Software Foundation, either version 2
 of the License or (at your option) any later version.
 */
 #include "graphite2/Font.h"
-#include "inc/Face.h"
-#include "inc/CachedFace.h"
+#include "Face.h"
+#include "CachedFace.h"
+#include "XmlTraceLog.h"
 
 
 using namespace graphite2;
@@ -50,6 +51,9 @@ gr_face* gr_make_face(const void* appFaceHandle/*non-NULL*/, gr_get_table_fn get
     else
     	faceOptions &= ~gr_face_dumbRendering;
 
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().openElement(ElementFace);
+#endif
     bool valid = true;
     valid &= res->readGlyphs(faceOptions);
     if (!valid) {
@@ -58,6 +62,9 @@ gr_face* gr_make_face(const void* appFaceHandle/*non-NULL*/, gr_get_table_fn get
     }
     valid &= res->readFeatures();
     valid &= res->readGraphite();
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().closeElement(ElementFace);
+#endif
     
     if (!(faceOptions & gr_face_dumbRendering) && !valid) {
         delete res;
@@ -66,23 +73,15 @@ gr_face* gr_make_face(const void* appFaceHandle/*non-NULL*/, gr_get_table_fn get
     return static_cast<gr_face *>(res);
 }
 
-#ifndef GRAPHITE2_NSEGCACHE
+#ifndef DISABLE_SEGCACHE
+
 gr_face* gr_make_face_with_seg_cache(const void* appFaceHandle/*non-NULL*/, gr_get_table_fn getTable, unsigned int cacheSize, unsigned int faceOptions)
                   //the appFaceHandle must stay alive all the time when the GrFace is alive. When finished with the GrFace, call destroy_face
 {
     CachedFace *res = new CachedFace(appFaceHandle, getTable);
-
-    if (res->getTable(Tag::Silf) == 0)
-    {
-		if (!(faceOptions & gr_face_dumbRendering))
-		{
-			delete res;
-			return 0;
-		}
-    }
-    else
-    	faceOptions &= ~gr_face_dumbRendering;
-
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().openElement(ElementFace);
+#endif
     bool valid = true;
     valid &= res->readGlyphs(faceOptions);
     if (!valid) {
@@ -93,12 +92,17 @@ gr_face* gr_make_face_with_seg_cache(const void* appFaceHandle/*non-NULL*/, gr_g
     valid &= res->readGraphite();
     valid &= res->setupCache(cacheSize);
 
+#ifndef DISABLE_TRACING
+    XmlTraceLog::get().closeElement(ElementFace);
+#endif
+
     if (!(faceOptions & gr_face_dumbRendering) && !valid) {
         delete res;
         return 0;
     }
     return static_cast<gr_face *>(static_cast<Face *>(res));
 }
+
 #endif
 
 gr_uint32 gr_str_to_tag(const char *str)
@@ -205,7 +209,7 @@ unsigned short gr_face_n_glyphs(const gr_face* pFace)
 }
 
 
-#ifndef GRAPHITE2_NFILEFACE
+#ifndef DISABLE_FILE_FACE
 gr_face* gr_make_file_face(const char *filename, unsigned int faceOptions)
 {
     FileFace* pFileFace = new FileFace(filename);
@@ -225,7 +229,7 @@ gr_face* gr_make_file_face(const char *filename, unsigned int faceOptions)
     return NULL;
 }
 
-#ifndef GRAPHITE2_NSEGCACHE
+#ifndef DISABLE_SEGCACHE
 gr_face* gr_make_file_face_with_seg_cache(const char* filename, unsigned int segCacheMaxSize, unsigned int faceOptions)   //returns NULL on failure. //TBD better error handling
                   //when finished with, call destroy_face
 {
@@ -246,7 +250,7 @@ gr_face* gr_make_file_face_with_seg_cache(const char* filename, unsigned int seg
     return NULL;
 }
 #endif
-#endif      //!GRAPHITE2_NFILEFACE
+#endif      //!DISABLE_FILE_FACE
 
 
 } // extern "C"

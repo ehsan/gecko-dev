@@ -87,7 +87,7 @@ public:
               PRInt64 aLastModifiedTime = 0,
               bool aCanUnload = true,
               bool aArgsAreUTF8 = false);
-  virtual ~nsPluginTag();
+  ~nsPluginTag();
   
   void SetHost(nsPluginHost * aHost);
   void TryUnloadPlugin();
@@ -119,11 +119,7 @@ public:
   PRInt64       mLastModifiedTime;
 private:
   PRUint32      mFlags;
-
-  void InitMime(const char* const* aMimeTypes,
-                const char* const* aMimeDescriptions,
-                const char* const* aExtensions,
-                PRUint32 aVariantCount);
+  
   nsresult EnsureMembersAreUTF8();
 };
 

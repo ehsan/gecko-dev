@@ -410,6 +410,9 @@ MAKEFILES_xpcom="
   xpcom/reflect/xptinfo/Makefile
   xpcom/reflect/xptinfo/public/Makefile
   xpcom/reflect/xptinfo/src/Makefile
+  xpcom/proxy/Makefile
+  xpcom/proxy/public/Makefile
+  xpcom/proxy/src/Makefile
   xpcom/threads/Makefile
   xpcom/stub/Makefile
   xpcom/system/Makefile
@@ -899,6 +902,7 @@ if [ "$ENABLE_TESTS" ]; then
     uriloader/exthandler/tests/Makefile
     uriloader/exthandler/tests/mochitest/Makefile
     widget/tests/Makefile
+    xpcom/proxy/tests/Makefile
     xpcom/sample/Makefile
     xpcom/sample/program/Makefile
     xpcom/tests/Makefile

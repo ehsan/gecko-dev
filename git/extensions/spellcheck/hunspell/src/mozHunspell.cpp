@@ -102,10 +102,12 @@ NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(HunspellMallocSizeOfForCounterInc, "hunspel
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN_UN(HunspellMallocSizeOfForCounterDec)
 
 void HunspellReportMemoryAllocation(void* ptr) {
-  gHunspellAllocatedSize += HunspellMallocSizeOfForCounterInc(ptr);
+  // |computedSize| is zero because we don't know what it is.
+  gHunspellAllocatedSize += HunspellMallocSizeOfForCounterInc(ptr, 0);
 }
 void HunspellReportMemoryDeallocation(void* ptr) {
-  gHunspellAllocatedSize -= HunspellMallocSizeOfForCounterDec(ptr);
+  // |computedSize| is zero because we don't know what it is.
+  gHunspellAllocatedSize -= HunspellMallocSizeOfForCounterDec(ptr, 0);
 }
 static PRInt64 HunspellGetCurrentAllocatedSize() {
   return gHunspellAllocatedSize;

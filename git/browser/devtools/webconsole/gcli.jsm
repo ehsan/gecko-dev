@@ -200,11 +200,6 @@ var console = {};
    *        The constructor name
    */
   function getCtorName(aObj) {
-    if (aObj.constructor && aObj.constructor.name) {
-      return aObj.constructor.name;
-    }
-    // If that fails, use Objects toString which sometimes gives something
-    // better than 'Object', and at least defaults to Object if nothing better
     return Object.prototype.toString.call(aObj).slice(8, -1);
   }
 
@@ -874,10 +869,6 @@ function Command(commandSpec) {
   // index is important. We don't want 'holes' in the order caused by
   // parameter groups.
   var usingGroups = false;
-
-  if (this.returnType == null) {
-    this.returnType = 'string';
-  }
 
   // In theory this could easily be made recursive, so param groups could
   // contain nested param groups. Current thinking is that the added
@@ -3029,15 +3020,6 @@ JavascriptType.prototype.parse = function(arg) {
   var typed = arg.text;
   var scope = globalObject;
 
-  // Just accept numbers
-  if (!isNaN(parseFloat(typed)) && isFinite(typed)) {
-    return new Conversion(typed, arg);
-  }
-  // Just accept constants like true/false/null/etc
-  if (typed.trim().match(/(null|undefined|NaN|Infinity|true|false)/)) {
-    return new Conversion(typed, arg);
-  }
-
   // Analyze the input text and find the beginning of the last part that
   // should be completed.
   var beginning = this._findCompletionBeginning(typed);
@@ -3621,8 +3603,15 @@ define('gcli/host', ['require', 'exports', 'module' ], function(require, exports
  * There is likely a better way to do this, but this will do for now.
  */
 exports.flashNode = function(node, color) {
-  // We avoid changing the DOM under firefox developer tools so this is a no-op
-  // In future we will use the multi-highlighter implemented in bug 653545.
+  if (!node.__gcliHighlighting) {
+    node.__gcliHighlighting = true;
+    var original = node.style.background;
+    node.style.background = color;
+    setTimeout(function() {
+      node.style.background = original;
+      delete node.__gcliHighlighting;
+    }, 1000);
+  }
 };
 
 
@@ -4002,12 +3991,34 @@ var evalCommandSpec = {
       description: ''
     }
   ],
-  returnType: 'object',
+  returnType: 'html',
   description: { key: 'cliEvalJavascript' },
   exec: function(args, context) {
-    return customEval(args.javascript);
-  },
-  evalRegexp: /^\s*{\s*/
+    // &#x2192; is right arrow. We use explicit entities to ensure XML validity
+    var resultPrefix = '<em>{ ' + args.javascript + ' }</em> &#x2192; ';
+    try {
+      var result = customEval(args.javascript);
+
+      if (result === null) {
+        return resultPrefix + 'null.';
+      }
+
+      if (result === undefined) {
+        return resultPrefix + 'undefined.';
+      }
+
+      if (typeof result === 'function') {
+        // &#160; is &nbsp;
+        return resultPrefix +
+            (result + '').replace(/\n/g, '<br>').replace(/ /g, '&#160;');
+      }
+
+      return resultPrefix + result;
+    }
+    catch (ex) {
+      return resultPrefix + 'Exception: ' + ex.message;
+    }
+  }
 };
 
 
@@ -4191,9 +4202,8 @@ Requisition.prototype._onAssignmentChange = function(ev) {
   // Refactor? See bug 660765
   // Do preceding arguments need to have dummy values applied so we don't
   // get a hole in the command line?
-  var i;
   if (ev.assignment.param.isPositionalAllowed()) {
-    for (i = 0; i < ev.assignment.paramIndex; i++) {
+    for (var i = 0; i < ev.assignment.paramIndex; i++) {
       var assignment = this.getAssignment(i);
       if (assignment.param.isPositionalAllowed()) {
         if (assignment.ensureVisibleArgument()) {
@@ -4205,7 +4215,7 @@ Requisition.prototype._onAssignmentChange = function(ev) {
 
   // Remember where we found the first match
   var index = MORE_THAN_THE_MOST_ARGS_POSSIBLE;
-  for (i = 0; i < this._args.length; i++) {
+  for (var i = 0; i < this._args.length; i++) {
     if (this._args[i].assignment === ev.assignment) {
       if (i < index) {
         index = i;
@@ -4221,7 +4231,7 @@ Requisition.prototype._onAssignmentChange = function(ev) {
   else {
     // Is there a way to do this that doesn't involve a loop?
     var newArgs = ev.conversion.arg.getArgs();
-    for (i = 0; i < newArgs.length; i++) {
+    for (var i = 0; i < newArgs.length; i++) {
       this._args.splice(index + i, 0, newArgs[i]);
     }
   }
@@ -4264,14 +4274,14 @@ Requisition.prototype.getAssignment = function(nameOrNumber) {
     nameOrNumber :
     Object.keys(this._assignments)[nameOrNumber];
   return this._assignments[name] || undefined;
-};
+},
 
 /**
  * Where parameter name == assignment names - they are the same
  */
 Requisition.prototype.getParameterNames = function() {
   return Object.keys(this._assignments);
-};
+},
 
 /**
  * A *shallow* clone of the assignments.
@@ -4404,15 +4414,14 @@ Requisition.prototype.createInputArgTrace = function() {
   }
 
   var args = [];
-  var i;
   this._args.forEach(function(arg) {
-    for (i = 0; i < arg.prefix.length; i++) {
+    for (var i = 0; i < arg.prefix.length; i++) {
       args.push({ arg: arg, char: arg.prefix[i], part: 'prefix' });
     }
-    for (i = 0; i < arg.text.length; i++) {
+    for (var i = 0; i < arg.text.length; i++) {
       args.push({ arg: arg, char: arg.text[i], part: 'text' });
     }
-    for (i = 0; i < arg.suffix.length; i++) {
+    for (var i = 0; i < arg.suffix.length; i++) {
       args.push({ arg: arg, char: arg.suffix[i], part: 'suffix' });
     }
   });
@@ -4573,18 +4582,10 @@ Requisition.prototype.exec = function(input) {
     return false;
   }
 
-  // Display JavaScript input without the initial { or closing }
-  var typed = this.toString();
-  if (evalCommandSpec.evalRegexp.test(typed)) {
-    typed = typed.replace(evalCommandSpec.evalRegexp, '');
-    // Bug 717763: What if the JavaScript naturally ends with a }?
-    typed = typed.replace(/\s*}\s*$/, '');
-  }
-
   var outputObject = {
     command: command,
     args: args,
-    typed: typed,
+    typed: this.toString(),
     canonical: this.toCanonicalString(),
     completed: false,
     start: new Date()
@@ -4592,7 +4593,7 @@ Requisition.prototype.exec = function(input) {
 
   this.commandOutputManager.sendCommandOutput(outputObject);
 
-  var onComplete = function(output, error) {
+  var onComplete = (function(output, error) {
     if (visible) {
       outputObject.end = new Date();
       outputObject.duration = outputObject.end.getTime() - outputObject.start.getTime();
@@ -4601,7 +4602,7 @@ Requisition.prototype.exec = function(input) {
       outputObject.completed = true;
       this.commandOutputManager.sendCommandOutput(outputObject);
     }
-  }.bind(this);
+  }).bind(this);
 
   try {
     var context = new ExecutionContext(this);
@@ -4620,7 +4621,6 @@ Requisition.prototype.exec = function(input) {
     }
   }
   catch (ex) {
-    console.error(ex);
     onComplete(ex, true);
   }
 
@@ -4775,7 +4775,6 @@ Requisition.prototype._tokenize = function(typed) {
 
   while (true) {
     var c = typed[i];
-    var str;
     switch (mode) {
       case In.WHITESPACE:
         if (c === '\'') {
@@ -4808,7 +4807,7 @@ Requisition.prototype._tokenize = function(typed) {
         // There is an edge case of xx'xx which we are assuming to
         // be a single parameter (and same with ")
         if (c === ' ') {
-          str = unescape2(typed.substring(start, i));
+          var str = unescape2(typed.substring(start, i));
           args.push(new Argument(str, prefix, ''));
           mode = In.WHITESPACE;
           start = i;
@@ -4818,7 +4817,7 @@ Requisition.prototype._tokenize = function(typed) {
 
       case In.SINGLE_Q:
         if (c === '\'') {
-          str = unescape2(typed.substring(start, i));
+          var str = unescape2(typed.substring(start, i));
           args.push(new Argument(str, prefix, c));
           mode = In.WHITESPACE;
           start = i + 1;
@@ -4828,7 +4827,7 @@ Requisition.prototype._tokenize = function(typed) {
 
       case In.DOUBLE_Q:
         if (c === '"') {
-          str = unescape2(typed.substring(start, i));
+          var str = unescape2(typed.substring(start, i));
           args.push(new Argument(str, prefix, c));
           mode = In.WHITESPACE;
           start = i + 1;
@@ -4843,7 +4842,7 @@ Requisition.prototype._tokenize = function(typed) {
         else if (c === '}') {
           blockDepth--;
           if (blockDepth === 0) {
-            str = unescape2(typed.substring(start, i));
+            var str = unescape2(typed.substring(start, i));
             args.push(new ScriptArgument(str, prefix, c));
             mode = In.WHITESPACE;
             start = i + 1;
@@ -4872,11 +4871,11 @@ Requisition.prototype._tokenize = function(typed) {
         }
       }
       else if (mode === In.SCRIPT) {
-        str = unescape2(typed.substring(start, i + 1));
+        var str = unescape2(typed.substring(start, i + 1));
         args.push(new ScriptArgument(str, prefix, ''));
       }
       else {
-        str = unescape2(typed.substring(start, i + 1));
+        var str = unescape2(typed.substring(start, i + 1));
         args.push(new Argument(str, prefix, ''));
       }
       break;
@@ -4909,16 +4908,16 @@ Requisition.prototype._split = function(args) {
   // Handle the special case of the user typing { javascript(); }
   // We use the hidden 'eval' command directly rather than shift()ing one of
   // the parameters, and parse()ing it.
-  var conversion;
   if (args[0] instanceof ScriptArgument) {
     // Special case: if the user enters { console.log('foo'); } then we need to
     // use the hidden 'eval' command
-    conversion = new Conversion(evalCommand, new Argument());
+    var conversion = new Conversion(evalCommand, new Argument());
     this.commandAssignment.setConversion(conversion);
     return;
   }
 
   var argsUsed = 1;
+  var conversion;
 
   while (argsUsed <= args.length) {
     var arg = (argsUsed === 1) ?
@@ -5325,8 +5324,7 @@ define('gcli/ui/domtemplate', ['require', 'exports', 'module' ], function(requir
   exports.template = obj.template;
 
 });
-define("text!gcli/commands/help.css", [], "");
-
+define("text!gcli/commands/help.css", [], void 0);
 define("text!gcli/commands/help_intro.html", [], "\n" +
   "<h2>${l10n.introHeader}</h2>\n" +
   "\n" +
@@ -5417,8 +5415,7 @@ function Console(options) {
     completeElement: options.completeElement,
     completionPrompt: '',
     backgroundElement: options.backgroundElement,
-    focusManager: this.focusManager,
-    scratchpad: options.scratchpad
+    focusManager: this.focusManager
   });
 
   this.menu = new CommandMenu({
@@ -5569,13 +5566,12 @@ exports.Console = Console;
  * http://opensource.org/licenses/BSD-3-Clause
  */
 
-define('gcli/ui/inputter', ['require', 'exports', 'module' , 'gcli/util', 'gcli/l10n', 'gcli/types', 'gcli/history', 'text!gcli/ui/inputter.css'], function(require, exports, module) {
+define('gcli/ui/inputter', ['require', 'exports', 'module' , 'gcli/util', 'gcli/types', 'gcli/history', 'text!gcli/ui/inputter.css'], function(require, exports, module) {
 var cliView = exports;
 
 
 var KeyEvent = require('gcli/util').event.KeyEvent;
 var dom = require('gcli/util').dom;
-var l10n = require('gcli/l10n');
 
 var Status = require('gcli/types').Status;
 var History = require('gcli/history').History;
@@ -5588,7 +5584,6 @@ var inputterCss = require('text!gcli/ui/inputter.css');
  */
 function Inputter(options) {
   this.requisition = options.requisition;
-  this.scratchpad = options.scratchpad;
 
   // Suss out where the input element is
   this.element = options.inputElement || 'gcli-input';
@@ -5870,14 +5865,6 @@ Inputter.prototype.onKeyDown = function(ev) {
  * The main keyboard processing loop
  */
 Inputter.prototype.onKeyUp = function(ev) {
-  // Give the scratchpad (if enabled) a chance to activate
-  if (this.scratchpad && this.scratchpad.shouldActivate(ev)) {
-    if (this.scratchpad.activate(this.element.value)) {
-      this._setInputInternal('', true);
-    }
-    return;
-  }
-
   // RETURN does a special exec/highlight thing
   if (ev.keyCode === KeyEvent.DOM_VK_RETURN) {
     var worst = this.requisition.getStatus();
@@ -5976,11 +5963,6 @@ Inputter.prototype.getInputState = function() {
     console.log('fixing input.typed=""', input);
   }
 
-  // Workaround for a Bug 717268 (which is really a jsdom bug)
-  if (input.cursor.start == null) {
-    input.cursor.start = 0;
-  }
-
   return input;
 };
 
@@ -6004,7 +5986,6 @@ function Completer(options) {
   this.document = options.document || document;
   this.requisition = options.requisition;
   this.elementCreated = false;
-  this.scratchpad = options.scratchpad;
 
   this.element = options.completeElement || 'gcli-row-complete';
   if (typeof this.element === 'string') {
@@ -6098,11 +6079,6 @@ Completer.prototype.decorate = function(inputter) {
  * Ensure that the completion element is the same size and the inputter element
  */
 Completer.prototype.resizer = function() {
-  // Remove this when jsdom does getBoundingClientRect(). See Bug 717269
-  if (!this.inputter.element.getBoundingClientRect) {
-    return;
-  }
-
   var rect = this.inputter.element.getBoundingClientRect();
   // -4 to line up with 1px of padding and border, top and bottom
   var height = rect.bottom - rect.top - 4;
@@ -6147,7 +6123,6 @@ Completer.prototype.update = function(input) {
   // ${prefix}
   // <span class="gcli-in-ontab">${contents}</span>
   // <span class="gcli-in-closebrace" if="${unclosedJs}">}<span>
-  // <div class="gcli-in-scratchlink">${scratchLink}</div>
 
   var document = this.element.ownerDocument;
   var prompt = dom.createElement(document, 'span');
@@ -6191,23 +6166,13 @@ Completer.prototype.update = function(input) {
   // Add a grey '}' to the end of the command line when we've opened
   // with a { but haven't closed it
   var command = this.requisition.commandAssignment.getValue();
-  var isJsCommand = (command && command.name === '{');
-  var isUnclosedJs = isJsCommand &&
+  var unclosedJs = command && command.name === '{' &&
           this.requisition.getAssignment(0).getArg().suffix.indexOf('}') === -1;
-  if (isUnclosedJs) {
+  if (unclosedJs) {
     var close = dom.createElement(document, 'span');
     close.classList.add('gcli-in-closebrace');
     close.appendChild(document.createTextNode(' }'));
     this.element.appendChild(close);
-  }
-
-  // Create a scratchpad link if it's a JS command and we have a function to
-  // actually perform the request
-  if (isJsCommand && this.scratchpad) {
-    var hint = dom.createElement(document, 'div');
-    hint.classList.add('gcli-in-scratchlink');
-    hint.appendChild(document.createTextNode(this.scratchpad.linkText));
-    this.element.appendChild(hint);
   }
 };
 
@@ -6321,8 +6286,7 @@ History.prototype.backward = function() {
 
 exports.History = History;
 
-});define("text!gcli/ui/inputter.css", [], "");
-
+});define("text!gcli/ui/inputter.css", [], void 0);
 /*
  * Copyright 2009-2011 Mozilla Foundation and contributors
  * Licensed under the New BSD license. See LICENSE.txt or:
@@ -6545,7 +6509,6 @@ define('gcli/ui/field', ['require', 'exports', 'module' , 'gcli/util', 'gcli/l10
 
 var dom = require('gcli/util').dom;
 var createEvent = require('gcli/util').createEvent;
-var KeyEvent = require('gcli/util').event.KeyEvent;
 var l10n = require('gcli/l10n');
 
 var Argument = require('gcli/argument').Argument;
@@ -6574,21 +6537,16 @@ var Menu = require('gcli/ui/menu').Menu;
  * This class is designed to be inherited from. It's important that all
  * subclasses have a similar constructor signature because they are created
  * via getField(...)
+ * @param document The document we use in calling createElement
  * @param type The type to use in conversions
- * @param options A set of properties to help fields configure themselves:
- * - document: The document we use in calling createElement
- * - named: Is this parameter named? That is to say, are positional
- *         arguments disallowed, if true, then we need to provide updates to
- *         the command line that explicitly name the parameter in use
- *         (e.g. --verbose, or --name Fred rather than just true or Fred)
- * - name: If this parameter is named, what name should we use
- * - requisition: The requisition that we're attached to
- * - required: Boolean to indicate if this is a mandatory field
+ * @param named Is this parameter named? That is to say, are positional
+ * arguments disallowed, if true, then we need to provide updates to the
+ * command line that explicitly name the parameter in use (e.g. --verbose, or
+ * --name Fred rather than just true or Fred)
+ * @param name If this parameter is named, what name should we use
+ * @param requ The requisition that we're attached to
  */
-function Field(type, options) {
-  this.type = type;
-  this.document = options.document;
-  this.requisition = options.requisition;
+function Field(document, type, named, name, requ) {
 }
 
 /**
@@ -6645,14 +6603,10 @@ Field.prototype.setMessage = function(message) {
  * Method to be called by subclasses when their input changes, which allows us
  * to properly pass on the fieldChanged event.
  */
-Field.prototype.onInputChange = function(ev) {
+Field.prototype.onInputChange = function() {
   var conversion = this.getConversion();
   this.fieldChanged({ conversion: conversion });
   this.setMessage(conversion.message);
-
-  if (ev.keyCode === KeyEvent.DOM_VK_RETURN) {
-    this.requisition.exec();
-  }
 };
 
 /**
@@ -6726,7 +6680,8 @@ exports.getField = getField;
  * A field that allows editing of strings
  */
 function StringField(type, options) {
-  Field.call(this, type, options);
+  this.document = options.document;
+  this.type = type;
   this.arg = new Argument();
 
   this.element = dom.createElement(this.document, 'input');
@@ -6773,7 +6728,8 @@ addField(StringField);
  * A field that allows editing of numbers using an [input type=number] field
  */
 function NumberField(type, options) {
-  Field.call(this, type, options);
+  this.document = options.document;
+  this.type = type;
   this.arg = new Argument();
 
   this.element = dom.createElement(this.document, 'input');
@@ -6827,8 +6783,8 @@ addField(NumberField);
  * A field that uses a checkbox to toggle a boolean field
  */
 function BooleanField(type, options) {
-  Field.call(this, type, options);
-
+  this.document = options.document;
+  this.type = type;
   this.name = options.name;
   this.named = options.named;
 
@@ -6885,8 +6841,8 @@ addField(BooleanField);
  * </ul>
  */
 function SelectionField(type, options) {
-  Field.call(this, type, options);
-
+  this.document = options.document;
+  this.type = type;
   this.items = [];
 
   this.element = dom.createElement(this.document, 'select');
@@ -6953,7 +6909,9 @@ addField(SelectionField);
  * A field that allows editing of javascript
  */
 function JavascriptField(type, options) {
-  Field.call(this, type, options);
+  this.document = options.document;
+  this.type = type;
+  this.requ = options.requisition;
 
   this.onInputChange = this.onInputChange.bind(this);
   this.arg = new Argument('', '{ ', ' }');
@@ -7057,8 +7015,10 @@ addField(JavascriptField);
  * last possible time
  */
 function DeferredField(type, options) {
-  Field.call(this, type, options);
+  this.document = options.document;
+  this.type = type;
   this.options = options;
+  this.requisition = options.requisition;
   this.requisition.assignmentChange.add(this.update, this);
 
   this.element = dom.createElement(this.document, 'div');
@@ -7116,8 +7076,8 @@ addField(DeferredField);
  * BlankFields are not for general use.
  */
 function BlankField(type, options) {
-  Field.call(this, type, options);
-
+  this.document = options.document;
+  this.type = type;
   this.element = dom.createElement(this.document, 'div');
 
   this.fieldChanged = createEvent('BlankField.fieldChanged');
@@ -7144,8 +7104,10 @@ addField(BlankField);
  * given for a parameter.
  */
 function ArrayField(type, options) {
-  Field.call(this, type, options);
+  this.document = options.document;
+  this.type = type;
   this.options = options;
+  this.requ = options.requisition;
 
   this._onAdd = this._onAdd.bind(this);
   this.members = [];
@@ -7457,8 +7419,7 @@ exports.CommandMenu = CommandMenu;
 
 
 });
-define("text!gcli/ui/menu.css", [], "");
-
+define("text!gcli/ui/menu.css", [], void 0);
 define("text!gcli/ui/menu.html", [], "\n" +
   "<table class=\"gcli-menu-template\" aria-live=\"polite\">\n" +
   "  <tr class=\"gcli-menu-option\" foreach=\"item in ${items}\"\n" +
@@ -7472,8 +7433,7 @@ define("text!gcli/ui/menu.html", [], "\n" +
   "</table>\n" +
   "");
 
-define("text!gcli/ui/arg_fetch.css", [], "");
-
+define("text!gcli/ui/arg_fetch.css", [], void 0);
 define("text!gcli/ui/arg_fetch.html", [], "\n" +
   "<!--\n" +
   "Template for an Assignment.\n" +

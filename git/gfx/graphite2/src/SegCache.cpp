@@ -25,18 +25,18 @@ License, as published by the Free Software Foundation, either version 2
 of the License or (at your option) any later version.
 */
 
-#include "inc/Main.h"
-#include "inc/TtfTypes.h"
-#include "inc/TtfUtil.h"
-#include "inc/SegCache.h"
-#include "inc/SegCacheEntry.h"
-#include "inc/SegCacheStore.h"
-#include "inc/CmapCache.h"
+#include "Main.h"
+#include "TtfTypes.h"
+#include "TtfUtil.h"
+#include "SegCache.h"
+#include "SegCacheEntry.h"
+#include "SegCacheStore.h"
+#include "CmapCache.h"
 
 
 using namespace graphite2;
 
-#ifndef GRAPHITE2_NSEGCACHE
+#ifndef DISABLE_SEGCACHE
 
 SegCache::SegCache(const SegCacheStore * store, const Features & feats)
     :
@@ -72,7 +72,22 @@ void SegCache::freeLevel(SegCacheStore * store, SegCachePrefixArray prefixes, si
 
 void SegCache::clear(SegCacheStore * store)
 {
+    #ifndef DISABLE_TRACING
+    if (XmlTraceLog::get().active())
+    {
+        XmlTraceLog::get().openElement(ElementSegCache);
+        XmlTraceLog::get().addAttribute(AttrNum, m_segmentCount);
+        XmlTraceLog::get().addAttribute(AttrAccessCount, m_totalAccessCount);
+        XmlTraceLog::get().addAttribute(AttrMisses, m_totalMisses);
+    }
+#endif
     freeLevel(store, m_prefixes, 0);
+#ifndef DISABLE_TRACING
+    if (XmlTraceLog::get().active())
+    {
+        XmlTraceLog::get().closeElement(ElementSegCache);
+    }
+#endif
     m_prefixes.raw = NULL;
 }
 

@@ -110,6 +110,19 @@ class nsIDOMMediaQueryList;
 class nsRenderingContext;
 #endif
 
+enum nsWidgetType {
+  eWidgetType_Button  	= 1,
+  eWidgetType_Checkbox	= 2,
+  eWidgetType_Radio			= 3,
+  eWidgetType_Text			= 4
+};
+
+enum nsLanguageSpecificTransformType {
+  eLanguageSpecificTransformType_Unknown = -1,
+  eLanguageSpecificTransformType_None = 0,
+  eLanguageSpecificTransformType_Japanese
+};
+
 // supported values for cached bool types
 enum nsPresContext_CachedBoolPrefType {
   kPresContext_UseDocumentColors = 1,
@@ -971,7 +984,8 @@ public:
   }
   virtual NS_MUST_OVERRIDE size_t
         SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
+    return aMallocSizeOf(this, sizeof(nsPresContext)) +
+           SizeOfExcludingThis(aMallocSizeOf);
   }
 
   bool IsRootContentDocument();
@@ -995,12 +1009,8 @@ protected:
   NS_HIDDEN_(void) GetUserPreferences();
   NS_HIDDEN_(void) GetFontPreferences();
 
-  NS_HIDDEN_(void) UpdateCharSet(const nsCString& aCharSet);
+  NS_HIDDEN_(void) UpdateCharSet(const nsAFlatCString& aCharSet);
 
-public:
-  void DoChangeCharSet(const nsCString& aCharSet);
-
-protected:
   void InvalidateThebesLayers();
   void AppUnitsPerDevPixelChanged();
 
@@ -1045,22 +1055,6 @@ protected:
   // a specific language, however (e.g, if it is inferred from the
   // charset rather than explicitly specified as a lang attribute).
   nsIAtom*              mLanguage;      // [STRONG]
-
-public:
-  // The following are public member variables so that we can use them
-  // with mozilla::AutoToggle or mozilla::AutoRestore.
-
-  // The frame that is the container for font size inflation for the
-  // reflow or intrinsic width computation currently happening.  If this
-  // frame is null, then font inflation should not be performed.
-  nsIFrame*             mCurrentInflationContainer; // [WEAK]
-
-  // The content-rect width of mCurrentInflationContainer.  If
-  // mCurrentInflationContainer is currently in reflow, this is its new
-  // width, which is not yet set on its rect.
-  nscoord               mCurrentInflationContainerWidth;
-
-protected:
 
   nsRefPtrHashtable<nsVoidPtrHashKey, nsImageLoader>
                         mImageLoaders[IMAGE_LOAD_TYPE_COUNT];
@@ -1332,7 +1326,8 @@ public:
   }
   virtual NS_MUST_OVERRIDE size_t
         SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE {
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
+    return aMallocSizeOf(this, sizeof(nsRootPresContext)) +
+           SizeOfExcludingThis(aMallocSizeOf);
   }
 
 protected:

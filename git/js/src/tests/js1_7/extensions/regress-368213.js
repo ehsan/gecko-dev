@@ -44,6 +44,6 @@ var expect = 'No Crash';
 printBugNumber(BUGNUMBER);
 printStatus (summary);
  
-(function() { [] = [] });
+(function() { [] = #1=[] });
 
 reportCompare(expect, actual, summary);

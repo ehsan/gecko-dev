@@ -12,7 +12,6 @@
 #include "GrDrawState.h"
 #include "GrPathUtils.h"
 #include "GrPoint.h"
-#include "GrRenderTarget.h"
 #include "GrTDArray.h"
 
 #include "SkTemplates.h"
@@ -347,13 +346,12 @@ static size_t computeEdgesAndIntersect(const GrMatrix& matrix,
     return edges->count();
 }
 
-void GrTesselatedPathRenderer::drawPath(GrDrawState::StageMask stageMask) {
+void GrTesselatedPathRenderer::drawPath(GrDrawTarget::StageBitfield stages) {
     GrDrawTarget::AutoStateRestore asr(fTarget);
-    GrDrawState* drawState = fTarget->drawState();
     // face culling doesn't make sense here
-    GrAssert(GrDrawState::kBoth_DrawFace == drawState->getDrawFace());
+    GrAssert(GrDrawState::kBoth_DrawFace == fTarget->getDrawFace());
 
-    GrMatrix viewM = drawState->getViewMatrix();
+    GrMatrix viewM = fTarget->getViewMatrix();
 
     GrScalar tol = GR_Scalar1;
     tol = GrPathUtils::scaleToleranceToSrc(tol, viewM, fPath->getBounds());
@@ -364,7 +362,7 @@ void GrTesselatedPathRenderer::drawPath(GrDrawState::StageMask stageMask) {
 
     GrVertexLayout layout = 0;
     for (int s = 0; s < GrDrawState::kNumStages; ++s) {
-        if ((1 << s) & stageMask) {
+        if ((1 << s) & stages) {
             layout |= GrDrawTarget::StagePosAsTexCoordVertexLayoutBit(s);
         }
     }
@@ -435,12 +433,12 @@ FINISHED:
 
     if (inverted) {
         GrRect bounds;
-        GrAssert(NULL != drawState->getRenderTarget());
+        GrAssert(NULL != fTarget->getRenderTarget());
         bounds.setLTRB(0, 0,
-                       GrIntToScalar(drawState->getRenderTarget()->width()),
-                       GrIntToScalar(drawState->getRenderTarget()->height()));
+                       GrIntToScalar(fTarget->getRenderTarget()->width()),
+                       GrIntToScalar(fTarget->getRenderTarget()->height()));
         GrMatrix vmi;
-        if (drawState->getViewInverse(&vmi)) {
+        if (fTarget->getViewInverse(&vmi)) {
             vmi.mapRect(&bounds);
         }
         *vert++ = GrPoint::Make(bounds.fLeft, bounds.fTop);
@@ -462,8 +460,8 @@ FINISHED:
     if (subpathCnt == 1 && !inverted && fPath->isConvex()) {
         if (fAntiAlias) {
             GrEdgeArray edges;
-            GrMatrix inverse, matrix = drawState->getViewMatrix();
-            drawState->getViewInverse(&inverse);
+            GrMatrix inverse, matrix = fTarget->getViewMatrix();
+            fTarget->getViewInverse(&inverse);
 
             count = computeEdgesAndIntersect(matrix, inverse, base, count, &edges, 0.0f);
             size_t maxEdges = fTarget->getMaxEdges();
@@ -473,7 +471,7 @@ FINISHED:
             if (count <= maxEdges) {
                 // All edges fit; upload all edges and draw all verts as a fan
                 fTarget->setVertexSourceToArray(layout, base, count);
-                drawState->setEdgeAAData(&edges[0], count);
+                fTarget->setEdgeAAData(&edges[0], count);
                 fTarget->drawNonIndexed(kTriangleFan_PrimitiveType, 0, count);
             } else {
                 // Upload "maxEdges" edges and verts at a time, and draw as
@@ -483,11 +481,11 @@ FINISHED:
                     base[i] = base[0];
                     int size = GR_CT_MIN(count - i, maxEdges);
                     fTarget->setVertexSourceToArray(layout, &base[i], size);
-                    drawState->setEdgeAAData(&edges[i], size);
+                    fTarget->setEdgeAAData(&edges[i], size);
                     fTarget->drawNonIndexed(kTriangleFan_PrimitiveType, 0, size);
                 }
             }
-            drawState->setEdgeAAData(NULL, 0);
+            fTarget->setEdgeAAData(NULL, 0);
         } else {
             fTarget->setVertexSourceToArray(layout, base, count);
             fTarget->drawNonIndexed(kTriangleFan_PrimitiveType, 0, count);
@@ -500,8 +498,8 @@ FINISHED:
         GrBoundaryTess btess(count, fill_type_to_glu_winding_rule(fFill));
         btess.addVertices(base, subpathVertCount, subpathCnt);
 
-        GrMatrix inverse, matrix = drawState->getViewMatrix();
-        if (!drawState->getViewInverse(&inverse)) {
+        GrMatrix inverse, matrix = fTarget->getViewMatrix();
+        if (!fTarget->getViewInverse(&inverse)) {
             return;
         }
 
@@ -536,7 +534,7 @@ FINISHED:
         }
 
         // Draw the resulting polys and upload their edge data.
-        drawState->enableState(GrDrawState::kEdgeAAConcave_StateBit);
+        fTarget->enableState(GrDrawTarget::kEdgeAAConcave_StateBit);
         const GrPointArray& vertices = ptess.vertices();
         const GrIndexArray& indices = ptess.indices();
         const GrDrawState::Edge* edges = ptess.edges();
@@ -569,12 +567,12 @@ FINISHED:
                 tri_edges[t++] = edge4;
                 tri_edges[t++] = edge5;
             }
-            drawState->setEdgeAAData(&tri_edges[0], t);
+            fTarget->setEdgeAAData(&tri_edges[0], t);
             fTarget->setVertexSourceToArray(layout, &tri_verts[0], 3);
             fTarget->drawNonIndexed(kTriangles_PrimitiveType, 0, 3);
         }
-        drawState->setEdgeAAData(NULL, 0);
-        drawState->disableState(GrDrawState::kEdgeAAConcave_StateBit);
+        fTarget->setEdgeAAData(NULL, 0);
+        fTarget->disableState(GrDrawTarget::kEdgeAAConcave_StateBit);
         return;
     }
 

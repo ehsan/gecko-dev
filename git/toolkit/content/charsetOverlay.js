@@ -3,7 +3,7 @@ function MultiplexHandler(aEvent)
     MultiplexHandlerEx(
         aEvent,
         function Browser_SelectDetector(event) {
-            BrowserCharsetReload();
+            BrowserSetForcedDetector(true/*Reload from history*/);
             /* window.content.location.reload() will re-download everything */
             SelectDetector(event, null);
         },

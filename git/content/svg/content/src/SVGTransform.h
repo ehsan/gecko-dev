@@ -40,7 +40,6 @@
 #define MOZILLA_SVGTRANSFORM_H__
 
 #include "gfxMatrix.h"
-#include "nsDebug.h"
 #include "nsIDOMSVGTransform.h"
 
 namespace mozilla {

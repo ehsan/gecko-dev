@@ -1142,8 +1142,7 @@ TextPropertyEditor.prototype = {
  *    {function} done:
  *       Called when input is committed or blurred.  Called with
  *       current value and a boolean telling the caller whether to
- *       commit the change.  This function is called after the editor
- *       has been torn down.
+ *       commit the change.
  *    {string} advanceChars:
  *       If any characters in advanceChars are typed, focus will advance
  *       to the next element.
@@ -1271,7 +1270,7 @@ InplaceEditor.prototype = {
     // Replace spaces with non-breaking spaces.  Otherwise setting
     // the span's textContent will collapse spaces and the measurement
     // will be wrong.
-    this._measurement.textContent = this.input.value.replace(/ /g, '\u00a0');
+    this._measurement.textContent = this.input.value.replace(' ', '\u00a0', 'g');
 
     // We add a bit of padding to the end.  Should be enough to fit
     // any letter that could be typed, otherwise we'll scroll before
@@ -1287,11 +1286,11 @@ InplaceEditor.prototype = {
    */
   _onBlur: function InplaceEditor_onBlur(aEvent)
   {
-    let val = this.input.value.trim();
-    this._clear();
     if (this.done) {
-      this.done(this.cancelled ? this.initial : val, !this.cancelled);
+      this.done(this.cancelled ? this.initial : this.input.value.trim(),
+                !this.cancelled);
     }
+    this._clear();
   },
 
   _onKeyPress: function InplaceEditor_onKeyPress(aEvent)
@@ -1310,7 +1309,6 @@ InplaceEditor.prototype = {
       prevent = true;
       this.cancelled = true;
       this.input.blur();
-      aEvent.stopPropagation();
     } else if (aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_SPACE) {
       // No need for leading spaces here.  This is particularly
       // noticable when adding a property: it's very natural to type

@@ -48,7 +48,7 @@
 #include "imgIDecoderObserver.h"
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 class RasterImage;
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -94,7 +94,7 @@ enum {
   iconStateFinished   = 3
 };
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla
 
 #endif // nsIconDecoder_h__

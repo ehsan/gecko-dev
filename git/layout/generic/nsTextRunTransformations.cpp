@@ -103,7 +103,10 @@ nsTransformedTextRun::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
   total += mStyles.SizeOfExcludingThis(aMallocSizeOf);
   total += mCapitalize.SizeOfExcludingThis(aMallocSizeOf);
   if (mOwnsFactory) {
-    total += aMallocSizeOf(mFactory);
+    // It's not worth the effort to get all the sub-class cases right for a
+    // small size in the fallback case.  So we use a |computedSize| of 0, which
+    // disables any usable vs. computedSize checking done by aMallocSizeOf.
+    total += aMallocSizeOf(mFactory, 0);
   }
   return total;
 }
@@ -111,7 +114,9 @@ nsTransformedTextRun::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
 size_t
 nsTransformedTextRun::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
-  return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
+  return aMallocSizeOf(this, sizeof(nsTransformedTextRun) +
+                             GetLength() * sizeof(CompressedGlyph)) +
+         SizeOfExcludingThis(aMallocSizeOf);
 }
 
 nsTransformedTextRun*

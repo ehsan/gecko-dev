@@ -1055,7 +1055,7 @@ SetFontFamily(nsStyleContext*      aStyleContext,
     aFont.name = family;
     nsRefPtr<nsFontMetrics> fm;
     aRenderingContext.DeviceContext()->GetMetricsFor(aFont,
-      aStyleContext->GetStyleFont()->mLanguage,
+      aStyleContext->GetStyleVisibility()->mLanguage,
       aStyleContext->PresContext()->GetUserFontSet(),
       *getter_AddRefs(fm));
     aRenderingContext.SetFont(fm);
@@ -1467,7 +1467,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
 
   nsRefPtr<nsFontMetrics> fm;
   aRenderingContext.DeviceContext()->GetMetricsFor(font,
-    mStyleContext->GetStyleFont()->mLanguage,
+    mStyleContext->GetStyleVisibility()->mLanguage,
     aPresContext->GetUserFontSet(), *getter_AddRefs(fm));
   aRenderingContext.SetFont(fm);
   aDesiredStretchSize =
@@ -2075,7 +2075,7 @@ nsMathMLChar::PaintForeground(nsPresContext* aPresContext,
   }
   nsRefPtr<nsFontMetrics> fm;
   aRenderingContext.DeviceContext()->GetMetricsFor(theFont,
-    styleContext->GetStyleFont()->mLanguage,
+    styleContext->GetStyleVisibility()->mLanguage,
     aPresContext->GetUserFontSet(),
     *getter_AddRefs(fm));
   aRenderingContext.SetFont(fm);

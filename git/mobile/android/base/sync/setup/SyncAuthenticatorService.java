@@ -19,8 +19,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Chenxia Liu <liuche@mozilla.com>
- *   Richard Newman <rnewman@mozilla.com>
+ *  Chenxia Liu <liuche@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -99,7 +98,6 @@ public class SyncAuthenticatorService extends Service {
       intent.putExtra(AccountManager.KEY_ACCOUNT_AUTHENTICATOR_RESPONSE,
           response);
       intent.putExtra("accountType", Constants.ACCOUNTTYPE_SYNC);
-      intent.putExtra(Constants.INTENT_EXTRA_IS_SETUP, true);
 
       final Bundle result = new Bundle();
       result.putParcelable(AccountManager.KEY_INTENT, intent);
@@ -135,7 +133,6 @@ public class SyncAuthenticatorService extends Service {
 
       // Extract the username and password from the Account Manager, and ask
       // the server for an appropriate AuthToken.
-      Log.d(LOG_TAG, "AccountManager.get(" + mContext + ")");
       final AccountManager am = AccountManager.get(mContext);
       final String password = am.getPassword(account);
       if (password != null) {
@@ -171,7 +168,6 @@ public class SyncAuthenticatorService extends Service {
         result.putString(AccountManager.KEY_AUTHTOKEN, password);
         return result;
       }
-      Log.w(LOG_TAG, "Returning null bundle for getAuthToken.");
       return null;
     }
 

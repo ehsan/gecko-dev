@@ -29,7 +29,6 @@ public:
     }
     static SkPixelRef* Create(SkFlattenableReadBuffer&);
 
-    SK_DECLARE_PIXEL_REF_REGISTRAR()
 protected:
     virtual bool onDecode(SkImageDecoder* codec, SkStream* stream,
                           SkBitmap* bitmap, SkBitmap::Config config,

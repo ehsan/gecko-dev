@@ -102,6 +102,8 @@ public:
    * nsCacheDevice methods
    */
 
+  virtual ~nsOfflineCacheDevice();
+
   static nsOfflineCacheDevice *GetInstance();
 
   virtual nsresult        Init();

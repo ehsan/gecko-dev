@@ -595,7 +595,8 @@ let Content = {
       }
 
       case "Browser:SetCharset": {
-        docShell.charset = json.charset;
+        let docCharset = docShell.QueryInterface(Ci.nsIDocCharset);
+        docCharset.charset = json.charset;
 
         let webNav = docShell.QueryInterface(Ci.nsIWebNavigation);
         webNav.reload(Ci.nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE);

@@ -39,7 +39,7 @@
 #include "SourceSurfaceCairo.h"
 #include "PathCairo.h"
 #include "HelpersCairo.h"
-#include "ScaledFontBase.h"
+#include "ScaledFontCairo.h"
 
 #include "cairo.h"
 
@@ -118,7 +118,7 @@ GetCairoSurfaceSize(cairo_surface_t* surface, IntSize& size)
       // contexts; they'll just return 0 in that case.
       size.width = CGBitmapContextGetWidth(cgc);
       size.height = CGBitmapContextGetWidth(cgc);
-      return true;
+      return size.width != 0;
     }
 #endif
 
@@ -591,7 +591,10 @@ DrawTargetCairo::FillGlyphs(ScaledFont *aFont,
 {
   AutoPrepareForDrawing prep(this, mContext);
 
-  ScaledFontBase* scaledFont = static_cast<ScaledFontBase*>(aFont);
+  if (aFont->GetType() != FONT_CAIRO)
+    return;
+
+  ScaledFontCairo* scaledFont = static_cast<ScaledFontCairo*>(aFont);
   cairo_set_scaled_font(mContext, scaledFont->GetCairoScaledFont());
 
   cairo_pattern_t* pat = GfxPatternToCairoPattern(aPattern, aOptions.mAlpha);

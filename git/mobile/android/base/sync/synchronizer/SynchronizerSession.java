@@ -38,12 +38,10 @@
 package org.mozilla.gecko.sync.synchronizer;
 
 
-import java.util.concurrent.ExecutorService;
-
+import org.mozilla.gecko.sync.ThreadPool;
 import org.mozilla.gecko.sync.repositories.RepositorySession;
 import org.mozilla.gecko.sync.repositories.RepositorySessionBundle;
 import org.mozilla.gecko.sync.repositories.delegates.DeferrableRepositorySessionCreationDelegate;
-import org.mozilla.gecko.sync.repositories.delegates.DeferredRepositorySessionFinishDelegate;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFinishDelegate;
 
 import android.content.Context;
@@ -118,23 +116,14 @@ implements RecordsChannelDelegate,
    * Please don't call this until you've been notified with onInitialized.
    */
   public void synchronize() {
-    // First thing: decide whether we should.
-    if (!sessionA.dataAvailable() &&
-        !sessionB.dataAvailable()) {
-      info("Neither session reports data available. Short-circuiting sync.");
-      sessionA.abort();
-      sessionB.abort();
-      this.delegate.onSynchronizeSkipped(this);
-      return;
-    }
-
+    // TODO: pull timestamps from somewhere...
     final SynchronizerSession session = this;
 
     // TODO: failed record handling.
     final RecordsChannel channelBToA = new RecordsChannel(this.sessionB, this.sessionA, this);
     RecordsChannelDelegate channelDelegate = new RecordsChannelDelegate() {
       public void onFlowCompleted(RecordsChannel recordsChannel, long end) {
-        info("First RecordsChannel flow completed. End is " + end + ". Starting next.");
+        info("First RecordsChannel flow completed. Starting next.");
         pendingATimestamp = end;
         flowAToBCompleted = true;
         channelBToA.flow();
@@ -166,7 +155,7 @@ implements RecordsChannelDelegate,
 
   @Override
   public void onFlowCompleted(RecordsChannel channel, long end) {
-    info("Second RecordsChannel flow completed. End is " + end + ". Finishing.");
+    info("Second RecordsChannel (" + channel + ") flow completed. Notifying onSynchronized.");
     pendingBTimestamp = end;
     flowBToACompleted = true;
 
@@ -182,6 +171,7 @@ implements RecordsChannelDelegate,
   @Override
   public void onFlowStoreFailed(RecordsChannel recordsChannel, Exception ex) {
     // TODO Auto-generated method stub
+
     warn("Second RecordsChannel flow failed.");
   }
 
@@ -266,8 +256,7 @@ implements RecordsChannelDelegate,
       warn("Got exception cleaning up first after second session creation failed.", ex);
       return;
     }
-    String session = (this.sessionA == null) ? "B" : "A";
-    this.delegate.onSynchronizeFailed(this, ex, "Finish of session " + session + " failed.");
+    // TODO
   }
 
   @Override
@@ -283,7 +272,6 @@ implements RecordsChannelDelegate,
         this.synchronizer.bundleA = bundle;
       }
       if (this.sessionB != null) {
-        info("Finishing session B.");
         // On to the next.
         this.sessionB.finish(this);
       }
@@ -292,7 +280,6 @@ implements RecordsChannelDelegate,
         info("onFinishSucceeded: bumping session B's timestamp to " + pendingBTimestamp);
         bundle.bumpTimestamp(pendingBTimestamp);
         this.synchronizer.bundleB = bundle;
-        info("Notifying delegate.onSynchronized.");
         this.delegate.onSynchronized(this);
       }
     } else {
@@ -305,7 +292,34 @@ implements RecordsChannelDelegate,
   }
 
   @Override
-  public RepositorySessionFinishDelegate deferredFinishDelegate(final ExecutorService executor) {
-    return new DeferredRepositorySessionFinishDelegate(this, executor);
+  public RepositorySessionFinishDelegate deferredFinishDelegate() {
+    final SynchronizerSession self = this;
+    return new RepositorySessionFinishDelegate() {
+      @Override
+      public void onFinishSucceeded(final RepositorySession session,
+                                    final RepositorySessionBundle bundle) {
+        ThreadPool.run(new Runnable() {
+          @Override
+          public void run() {
+            self.onFinishSucceeded(session, bundle);
+          }
+        });
+      }
+
+      @Override
+      public void onFinishFailed(final Exception ex) {
+        ThreadPool.run(new Runnable() {
+          @Override
+          public void run() {
+            self.onFinishFailed(ex);
+          }
+        });
+      }
+
+      @Override
+      public RepositorySessionFinishDelegate deferredFinishDelegate() {
+        return this;
+      }
+    };
   }
 }

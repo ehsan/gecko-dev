@@ -40,16 +40,18 @@
 #ifndef MOZILLA_DOMSVGANIMATEDTRANSFORMLIST_H__
 #define MOZILLA_DOMSVGANIMATEDTRANSFORMLIST_H__
 
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
 #include "nsIDOMSVGAnimTransformList.h"
-#include "nsSVGElement.h"
+#include "nsCycleCollectionParticipant.h"
+#include "nsAutoPtr.h"
+#include "nsTArray.h"
+
+class nsSVGElement;
 
 namespace mozilla {
 
-class DOMSVGTransformList;
 class SVGAnimatedTransformList;
+class SVGTransformList;
+class DOMSVGTransformList;
 
 /**
  * Class DOMSVGAnimatedTransformList

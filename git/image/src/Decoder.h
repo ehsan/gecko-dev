@@ -44,7 +44,7 @@
 #include "imgIDecoderObserver.h"
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 
 class Decoder
 {
@@ -221,7 +221,7 @@ private:
   bool mIsAnimated;
 };
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla
 
 #endif // MOZILLA_IMAGELIB_DECODER_H_

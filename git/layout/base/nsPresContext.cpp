@@ -119,31 +119,6 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
-namespace {
-
-class CharSetChangingRunnable : public nsRunnable
-{
-public:
-  CharSetChangingRunnable(nsPresContext* aPresContext,
-                          const nsCString& aCharSet)
-    : mPresContext(aPresContext),
-      mCharSet(aCharSet)
-  {
-  }
-
-  NS_IMETHOD Run()
-  {
-    mPresContext->DoChangeCharSet(mCharSet);
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<nsPresContext> mPresContext;
-  nsCString mCharSet;
-};
-
-} // anonymous namespace
-
 static nscolor
 MakeColorPref(const nsString& aColor)
 {
@@ -1097,15 +1072,7 @@ nsPresContext::DestroyImageLoaders()
 }
 
 void
-nsPresContext::DoChangeCharSet(const nsCString& aCharSet)
-{
-  UpdateCharSet(aCharSet);
-  mDeviceContext->FlushFontCache();
-  RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
-}
-
-void
-nsPresContext::UpdateCharSet(const nsCString& aCharSet)
+nsPresContext::UpdateCharSet(const nsAFlatCString& aCharSet)
 {
   if (mLangService) {
     NS_IF_RELEASE(mLanguage);
@@ -1145,9 +1112,10 @@ nsPresContext::Observe(nsISupports* aSubject,
                         const PRUnichar* aData)
 {
   if (!nsCRT::strcmp(aTopic, "charset")) {
-    nsRefPtr<CharSetChangingRunnable> runnable =
-      new CharSetChangingRunnable(this, NS_LossyConvertUTF16toASCII(aData));
-    return NS_DispatchToCurrentThread(runnable);
+    UpdateCharSet(NS_LossyConvertUTF16toASCII(aData));
+    mDeviceContext->FlushFontCache();
+    RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
+    return NS_OK;
   }
 
   NS_WARNING("unrecognized topic in nsPresContext::Observe");

@@ -76,20 +76,21 @@ function runSelectionTests()
 {
   Services.obs.removeObserver(runSelectionTests,
     InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED, false);
-
+  Services.obs.addObserver(performTestComparisons,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, false);
   executeSoon(function() {
-    InspectorUI.highlighter.addListener("nodeselected", performTestComparisons);
     InspectorUI.inspectNode(h1);
   });
 }
 
 function performTestComparisons(evt)
 {
-  InspectorUI.highlighter.removeListener("nodeselected", performTestComparisons);
+  Services.obs.removeObserver(performTestComparisons,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, false);
 
   is(h1, InspectorUI.selection, "selection matches node");
-  ok(isHighlighting(), "highlighter is highlighting");
-  is(getHighlitNode(), h1, "highlighter highlighting correct node");
+  ok(InspectorUI.highlighter.isHighlighting, "highlighter is highlighting");
+  is(InspectorUI.highlighter.highlitNode, h1, "highlighter highlighting correct node");
 
   finishUp();
 }

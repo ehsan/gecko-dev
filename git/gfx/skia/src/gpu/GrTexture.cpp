@@ -14,31 +14,14 @@
 #include "GrRenderTarget.h"
 
 bool GrTexture::readPixels(int left, int top, int width, int height,
-                           GrPixelConfig config, void* buffer,
-                           size_t rowBytes) {
+                           GrPixelConfig config, void* buffer) {
     // go through context so that all necessary flushing occurs
-    GrContext* context = this->getContext();
-    if (NULL == context) {
-        return false;
-    }
+    GrContext* context = this->getGpu()->getContext();
+    GrAssert(NULL != context);
     return context->readTexturePixels(this,
-                                      left, top,
-                                      width, height,
-                                      config, buffer, rowBytes);
-}
-
-void GrTexture::writePixels(int left, int top, int width, int height,
-                            GrPixelConfig config, const void* buffer,
-                            size_t rowBytes) {
-    // go through context so that all necessary flushing occurs
-    GrContext* context = this->getContext();
-    if (NULL == context) {
-        return;
-    }
-    context->writeTexturePixels(this,
-                                left, top,
-                                width, height,
-                                config, buffer, rowBytes);
+                                        left, top, 
+                                        width, height,
+                                        config, buffer);
 }
 
 void GrTexture::releaseRenderTarget() {

@@ -191,7 +191,7 @@ let Util = {
         return this._isTablet = true;
     }
     // On Ice Cream Sandwich devices, switch modes based on screen size.
-    return this._isTablet = sysInfo.get("tablet");
+    return this._isTablet = sysInfo.get("isTablet");
 #endif
 
     let dpi = this.displayDPI;

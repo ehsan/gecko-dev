@@ -21,7 +21,7 @@ public:
     typedef T (*Factory)(P);
 
     SkTRegistry(Factory fact) {
-#ifdef SK_BUILD_FOR_ANDROID
+#ifdef ANDROID
         // work-around for double-initialization bug
         {
             SkTRegistry* reg = gHead;

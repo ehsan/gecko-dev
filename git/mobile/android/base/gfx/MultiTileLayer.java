@@ -43,7 +43,6 @@ import org.mozilla.gecko.gfx.SingleTileLayer;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.graphics.Region;
 import android.util.Log;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -60,7 +59,7 @@ public class MultiTileLayer extends Layer {
     private final CairoImage mImage;
     private IntSize mTileSize;
     private IntSize mBufferSize;
-    private final ArrayList<SubTile> mTiles;
+    private final ArrayList<SingleTileLayer> mTiles;
 
     public MultiTileLayer(CairoImage image, IntSize tileSize) {
         super();
@@ -68,29 +67,34 @@ public class MultiTileLayer extends Layer {
         mImage = image;
         mTileSize = tileSize;
         mBufferSize = new IntSize(0, 0);
-        mTiles = new ArrayList<SubTile>();
+        mTiles = new ArrayList<SingleTileLayer>();
     }
 
     public void invalidate(Rect dirtyRect) {
-        if (!inTransaction()) {
+        if (!inTransaction())
             throw new RuntimeException("invalidate() is only valid inside a transaction");
-        }
 
-        for (SubTile layer : mTiles) {
-            IntSize tileSize = layer.getSize();
-            Rect tileRect = new Rect(layer.x, layer.y, layer.x + tileSize.width, layer.y + tileSize.height);
+        int x = 0, y = 0;
+        IntSize size = getSize();
+        for (SingleTileLayer layer : mTiles) {
+            Rect tileRect = new Rect(x, y, x + mTileSize.width, y + mTileSize.height);
 
             if (tileRect.intersect(dirtyRect)) {
-                tileRect.offset(-layer.x, -layer.y);
+                tileRect.offset(-x, -y);
                 layer.invalidate(tileRect);
+            }
+
+            x += mTileSize.width;
+            if (x >= size.width) {
+                x = 0;
+                y += mTileSize.height;
             }
         }
     }
 
     public void invalidate() {
-        for (SubTile layer : mTiles) {
+        for (SingleTileLayer layer : mTiles)
             layer.invalidate();
-        }
     }
 
     @Override
@@ -101,9 +105,8 @@ public class MultiTileLayer extends Layer {
     private void validateTiles() {
         IntSize size = getSize();
 
-        if (size.equals(mBufferSize)) {
+        if (size.equals(mBufferSize))
             return;
-        }
 
         // Regenerate tiles
         mTiles.clear();
@@ -145,7 +148,7 @@ public class MultiTileLayer extends Layer {
                     }
                 };
 
-                mTiles.add(new SubTile(subImage, x, y));
+                mTiles.add(new SingleTileLayer(subImage));
                 offset += layerSize.getArea() * bpp;
             }
         }
@@ -165,8 +168,8 @@ public class MultiTileLayer extends Layer {
         // Iterate over the tiles and decide which ones we'll be drawing
         int dirtyTiles = 0;
         boolean screenUpdateDone = false;
-        SubTile firstDirtyTile = null;
-        for (SubTile layer : mTiles) {
+        SingleTileLayer firstDirtyTile = null;
+        for (SingleTileLayer layer : mTiles) {
             // First do a non-texture update to make sure coordinates are
             // up-to-date.
             boolean invalid = layer.getSkipTextureUpdate();
@@ -213,21 +216,24 @@ public class MultiTileLayer extends Layer {
     }
 
     private void refreshTileMetrics(Point origin, float resolution, boolean inTransaction) {
+        int x = 0, y = 0;
         IntSize size = getSize();
-        for (SubTile layer : mTiles) {
-            if (!inTransaction) {
+        for (SingleTileLayer layer : mTiles) {
+            if (!inTransaction)
                 layer.beginTransaction(null);
-            }
 
-            if (origin != null) {
-                layer.setOrigin(new Point(origin.x + layer.x, origin.y + layer.y));
-            }
-            if (resolution >= 0.0f) {
+            if (origin != null)
+                layer.setOrigin(new Point(origin.x + x, origin.y + y));
+            if (resolution >= 0.0f)
                 layer.setResolution(resolution);
-            }
 
-            if (!inTransaction) {
+            if (!inTransaction)
                 layer.endTransaction();
+
+            x += mTileSize.width;
+            if (x >= size.width) {
+                x = 0;
+                y += mTileSize.height;
             }
         }
     }
@@ -248,23 +254,21 @@ public class MultiTileLayer extends Layer {
     public void beginTransaction(LayerView aView) {
         super.beginTransaction(aView);
 
-        for (SubTile layer : mTiles) {
+        for (SingleTileLayer layer : mTiles)
             layer.beginTransaction(aView);
-        }
     }
 
     @Override
     public void endTransaction() {
-        for (SubTile layer : mTiles) {
+        for (SingleTileLayer layer : mTiles)
             layer.endTransaction();
-        }
 
         super.endTransaction();
     }
 
     @Override
     public void draw(RenderContext context) {
-        for (SubTile layer : mTiles) {
+        for (SingleTileLayer layer : mTiles) {
             // We use the SkipTextureUpdate flag as a validity flag. If it's false,
             // the contents of this tile are invalid and we shouldn't draw it.
             if (layer.getSkipTextureUpdate())
@@ -274,29 +278,6 @@ public class MultiTileLayer extends Layer {
             RectF layerBounds = layer.getBounds(context, new FloatSize(layer.getSize()));
             if (RectF.intersects(layerBounds, context.viewport))
                 layer.draw(context);
-        }
-    }
-
-    @Override
-    public Region getValidRegion(RenderContext context) {
-        Region validRegion = new Region();
-        for (SubTile tile : mTiles) {
-            if (tile.getSkipTextureUpdate())
-                continue;
-            validRegion.op(tile.getValidRegion(context), Region.Op.UNION);
-        }
-
-        return validRegion;
-    }
-
-    class SubTile extends SingleTileLayer {
-        public int x;
-        public int y;
-
-        public SubTile(CairoImage mImage, int mX, int mY) {
-            super(mImage);
-            x = mX;
-            y = mY;
         }
     }
 }

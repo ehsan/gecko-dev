@@ -173,9 +173,6 @@ nsHistory::GetPrevious(nsAString& aPrevious)
 NS_IMETHODIMP
 nsHistory::GetNext(nsAString& aNext)
 {
-  if (!nsContentUtils::IsCallerTrustedForRead())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   PRInt32 curIndex;
   nsCAutoString nextURL;
   nsCOMPtr<nsISHistory>  sHistory;

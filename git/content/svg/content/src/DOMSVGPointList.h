@@ -37,16 +37,13 @@
 #ifndef MOZILLA_DOMSVGPOINTLIST_H__
 #define MOZILLA_DOMSVGPOINTLIST_H__
 
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDebug.h"
 #include "nsIDOMSVGPointList.h"
-#include "nsSVGElement.h"
-#include "nsTArray.h"
-#include "SVGPointList.h" // IWYU pragma: keep
+#include "SVGPointList.h"
+#include "SVGPoint.h"
+#include "nsCOMArray.h"
+#include "nsAutoPtr.h"
 
-class nsIDOMSVGPoint;
+class nsSVGElement;
 
 namespace mozilla {
 

@@ -51,15 +51,11 @@ class nsCCUncollectableMarker : public nsIObserver
   /**
    * Checks if we're collecting during a given generation
    */
-  static bool InGeneration(PRUint32 aGeneration)
-  {
-    return aGeneration && aGeneration == sGeneration;
-  }
-
   static bool InGeneration(nsCycleCollectionTraversalCallback &cb,
-                           PRUint32 aGeneration)
-  {
-    return InGeneration(aGeneration) && !cb.WantAllTraces();
+                             PRUint32 aGeneration) {
+    return !cb.WantAllTraces() &&
+           aGeneration &&
+           aGeneration == sGeneration;
   }
 
   static PRUint32 sGeneration;

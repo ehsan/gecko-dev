@@ -43,6 +43,7 @@
 #include "nsIAtom.h"
 #include "nsITextServicesFilter.h"
 #include "nsRange.h"
+#include "nsIRangeUtils.h"
 #include "nsCycleCollectionParticipant.h"
 
 /**

@@ -172,10 +172,6 @@ GrResourceEntry* GrResourceCache::findAndLock(const GrResourceKey& key,
     return entry;
 }
 
-bool GrResourceCache::hasKey(const GrResourceKey& key) const {
-    return NULL != fCache.find(key);
-}
-
 GrResourceEntry* GrResourceCache::createAndLock(const GrResourceKey& key,
                                               GrResource* resource) {
     // we don't expect to create new resources during a purge. In theory

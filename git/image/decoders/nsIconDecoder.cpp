@@ -48,7 +48,7 @@
 #include "ImageErrors.h"
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 
 nsIconDecoder::nsIconDecoder(RasterImage &aImage, imgIDecoderObserver* aObserver)
  : Decoder(aImage, aObserver),
@@ -165,5 +165,5 @@ nsIconDecoder::WriteInternal(const char *aBuffer, PRUint32 aCount)
   }
 }
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla

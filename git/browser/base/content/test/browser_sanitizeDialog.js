@@ -50,10 +50,9 @@
  * browser/base/content/test/browser_sanitize-timespans.js.
  */
 
-let tempScope = {};
-Cc["@mozilla.org/moz/jssubscript-loader;1"].getService(Ci.mozIJSSubScriptLoader)
-                                           .loadSubScript("chrome://browser/content/sanitize.js", tempScope);
-let Sanitizer = tempScope.Sanitizer;
+Cc["@mozilla.org/moz/jssubscript-loader;1"].
+  getService(Ci.mozIJSSubScriptLoader).
+  loadSubScript("chrome://browser/content/sanitize.js");
 
 const dm = Cc["@mozilla.org/download-manager;1"].
            getService(Ci.nsIDownloadManager);

@@ -39,10 +39,11 @@ of the License or (at your option) any later version.
 
 #include <cassert>
 #include <cstring>
-#include "inc/Machine.h"
-#include "inc/Segment.h"
-#include "inc/Slot.h"
-#include "inc/Rule.h"
+#include "Machine.h"
+#include "Segment.h"
+#include "XmlTraceLog.h"
+#include "Slot.h"
+#include "Rule.h"
 
 #define STARTOP(name)           name: {
 #define ENDOP                   }; goto *((sp - sb)/Machine::STACK_MAX ? &&end : *++ip);
@@ -65,7 +66,7 @@ const void * direct_run(const bool          get_table_mode,
 {
     // We need to define and return to opcode table from within this function 
     // other inorder to take the addresses of the instruction bodies.
-    #include "inc/opcode_table.h"
+    #include "opcode_table.h"
     if (get_table_mode)
         return opcode_table;
 
@@ -85,7 +86,7 @@ const void * direct_run(const bool          get_table_mode,
     goto **ip;
 
     // Pull in the opcode definitions
-    #include "inc/opcodes.h"
+    #include "opcodes.h"
     
     end:
     __map  = map;

@@ -103,33 +103,37 @@ function runSelectionTests(subject)
      "InspectorUI accessible in the observer");
 
   executeSoon(function() {
-    InspectorUI.highlighter.addListener("nodeselected", performTestComparisons);
+    Services.obs.addObserver(performTestComparisons,
+      InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, false);
     EventUtils.synthesizeMouse(h1, 2, 2, {type: "mousemove"}, content);
   });
 }
 
 function performTestComparisons(evt)
 {
-  InspectorUI.highlighter.removeListener("nodeselected", performTestComparisons);
+  Services.obs.removeObserver(performTestComparisons,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING);
 
   InspectorUI.stopInspecting();
-  ok(isHighlighting(), "highlighter is highlighting");
-  is(getHighlitNode(), h1, "highlighter matches selection")
+  ok(InspectorUI.highlighter.isHighlighting, "highlighter is highlighting");
+  is(InspectorUI.highlighter.highlitNode, h1, "highlighter matches selection")
   is(InspectorUI.selection, h1, "selection matches node");
-  is(InspectorUI.selection, getHighlitNode(), "selection matches highlighter");
+  is(InspectorUI.selection, InspectorUI.highlighter.highlitNode, "selection matches highlighter");
 
 
   div = doc.querySelector("div#checkOutThisWickedSpread");
 
   executeSoon(function() {
-    InspectorUI.highlighter.addListener("nodeselected", finishTestComparisons);
+    Services.obs.addObserver(finishTestComparisons,
+        InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, false);
     InspectorUI.inspectNode(div);
   });
 }
 
 function finishTestComparisons()
 {
-  InspectorUI.highlighter.removeListener("nodeselected", finishTestComparisons);
+  Services.obs.removeObserver(finishTestComparisons,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING);
 
   // get dimensions of div element
   let divDims = div.getBoundingClientRect();

@@ -38,9 +38,7 @@
 #ifndef __NS_SVGDATAPARSER_H__
 #define __NS_SVGDATAPARSER_H__
 
-#include "nsError.h"
-
-class nsAString;
+#include "nsCOMPtr.h"
 
 //----------------------------------------------------------------------
 // helper macros

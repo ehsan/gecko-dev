@@ -40,8 +40,6 @@ package org.mozilla.gecko.sync;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.HashMap;
-import java.util.Map.Entry;
-import java.util.Set;
 
 import org.json.simple.parser.ParseException;
 import org.mozilla.gecko.sync.delegates.InfoCollectionsDelegate;
@@ -61,20 +59,20 @@ public class InfoCollections implements SyncStorageRequestDelegate {
   private ExtendedJSONObject    record;
 
   // Fields.
-  // Rather than storing decimal/double timestamps, as provided by the
-  // server, we convert immediately to milliseconds since epoch.
-  private HashMap<String, Long> timestamps;
+  private HashMap<String, Double> timestamps;
 
-  public HashMap<String, Long> getTimestamps() {
+  public HashMap<String, Double> getTimestamps() {
     if (!this.wasSuccessful()) {
       throw new IllegalStateException("No record fetched.");
     }
     return this.timestamps;
   }
 
-  public Long getTimestamp(String collection) {
-    return this.getTimestamps().get(collection);
-  }
+  // TODO
+//  public Iterable<String> changedCollections(HashMap<String, Long> formerTimestamps) {
+    // for (Entry<String, Long> oldEntry : formerTimestamps.entrySet()) {
+    //}
+//  }
 
   public boolean wasSuccessful() {
     return this.response.wasSuccessful() &&
@@ -100,15 +98,9 @@ public class InfoCollections implements SyncStorageRequestDelegate {
 
   private void doFetch() {
     try {
-      final SyncStorageRecordRequest r = new SyncStorageRecordRequest(this.infoURL);
+      SyncStorageRecordRequest r = new SyncStorageRecordRequest(this.infoURL);
       r.delegate = this;
-      // TODO: it might be nice to make Resource include its
-      // own thread pool, and automatically run asynchronously.
-      ThreadPool.run(new Runnable() {
-        @Override
-        public void run() {
-          r.get();
-        }});
+      r.get();
     } catch (URISyntaxException e) {
       callback.handleError(e);
     }
@@ -134,28 +126,8 @@ public class InfoCollections implements SyncStorageRequestDelegate {
     this.response = response;
     this.setRecord(response.jsonObjectBody());
     Log.i(LOG_TAG, "info/collections is " + this.record.toJSONString());
-    HashMap<String, Long> map = new HashMap<String, Long>();
-
-    Set<Entry<String, Object>> entrySet = this.record.object.entrySet();
-    for (Entry<String, Object> entry : entrySet) {
-      // These objects are most likely going to be Doubles. Regardless, we
-      // want to get them in a more sane time format.
-      String key = entry.getKey();
-      Object value = entry.getValue();
-      if (value instanceof Double) {
-        map.put(key, Utils.decimalSecondsToMilliseconds((Double) value));
-        continue;
-      }
-      if (value instanceof Long) {
-        map.put(key, Utils.decimalSecondsToMilliseconds((Long) value));
-        continue;
-      }
-      if (value instanceof Integer) {
-        map.put(key, Utils.decimalSecondsToMilliseconds((Integer) value));
-        continue;
-      }
-      Log.w(LOG_TAG, "Skipping info/collections entry for " + key);
-    }
+    HashMap<String, Double> map = new HashMap<String, Double>();
+    map.putAll((HashMap<String, Double>) this.record.object);
     this.timestamps = map;
   }
 

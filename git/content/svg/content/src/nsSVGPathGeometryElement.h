@@ -37,10 +37,11 @@
 #ifndef __NS_SVGPATHGEOMETRYELEMENT_H__
 #define __NS_SVGPATHGEOMETRYELEMENT_H__
 
-#include "DOMSVGTests.h"
-#include "gfxMatrix.h"
 #include "nsSVGGraphicElement.h"
+#include "DOMSVGTests.h"
 #include "nsTArray.h"
+#include "gfxPath.h"
+#include "gfxMatrix.h"
 
 struct nsSVGMark {
   float x, y, angle;

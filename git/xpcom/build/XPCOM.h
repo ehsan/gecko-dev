@@ -89,6 +89,7 @@
 #include "nsIProgrammingLanguage.h"
 #include "nsIProperties.h"
 #include "nsIPropertyBag2.h"
+#include "nsIRecyclingAllocator.h"
 #include "nsIRunnable.h"
 #include "nsISeekableStream.h"
 #include "nsISerializable.h"

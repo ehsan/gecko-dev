@@ -68,7 +68,7 @@ var tests = [
   },
 ]
 
-let gCurrentTest, gCurrentTestIndex = -1, gTestDesc;
+let gCurrentTest, gCurrentTestIndex = -1;
 // Go through the tests in both directions, to add additional coverage for
 // transitions between different states.
 let gForward = true;

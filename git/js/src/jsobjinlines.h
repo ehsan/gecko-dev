@@ -607,7 +607,7 @@ inline void
 JSObject::moveDenseArrayElements(uintN dstStart, uintN srcStart, uintN count)
 {
     JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
-    JS_ASSERT(srcStart + count <= getDenseArrayInitializedLength());
+    JS_ASSERT(srcStart + count <= getDenseArrayCapacity());
 
     /*
      * Use a custom write barrier here since it's performance sensitive. We
@@ -623,13 +623,6 @@ JSObject::moveDenseArrayElements(uintN dstStart, uintN srcStart, uintN count)
     }
     prepareElementRangeForOverwrite(markStart, markEnd);
 
-    memmove(elements + dstStart, elements + srcStart, count * sizeof(js::Value));
-}
-
-inline void
-JSObject::moveDenseArrayElementsUnbarriered(uintN dstStart, uintN srcStart, uintN count)
-{
-    JS_ASSERT(!compartment()->needsBarrier());
     memmove(elements + dstStart, elements + srcStart, count * sizeof(js::Value));
 }
 
@@ -1161,6 +1154,14 @@ JSObject::isNative() const
     return lastProperty()->isNative();
 }
 
+inline const js::Shape *
+JSObject::nativeLookup(JSContext *cx, jsid id)
+{
+    JS_ASSERT(isNative());
+    js::Shape **spp;
+    return js::Shape::search(cx, lastProperty(), id, &spp);
+}
+
 inline bool
 JSObject::nativeContains(JSContext *cx, jsid id)
 {
@@ -1198,38 +1199,32 @@ JSObject::hasPropertyTable() const
 }
 
 inline size_t
-JSObject::sizeOfThis() const
+JSObject::structSize() const
 {
     return arenaHeader()->getThingSize();
 }
 
 inline size_t
-JSObject::computedSizeOfIncludingThis() const
+JSObject::slotsAndStructSize() const
 {
-    size_t slotsSize, elementsSize;
-    sizeOfExcludingThis(NULL, &slotsSize, &elementsSize);
-    return sizeOfThis() + slotsSize + elementsSize;
+    return structSize() + dynamicSlotSize(NULL);
 }
 
-inline void
-JSObject::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf,
-                              size_t *slotsSize, size_t *elementsSize) const
+inline size_t
+JSObject::dynamicSlotSize(JSMallocSizeOfFun mallocSizeOf) const
 {
+    size_t size = 0;
     if (hasDynamicSlots()) {
-        size_t computedSize = numDynamicSlots() * sizeof(js::Value);
-        *slotsSize = mallocSizeOf ? mallocSizeOf(slots) : computedSize;
-    } else {
-        *slotsSize = 0;
+        size_t bytes = numDynamicSlots() * sizeof(js::Value);
+        size += mallocSizeOf ? mallocSizeOf(slots, bytes) : bytes;
     }
     if (hasDynamicElements()) {
-        size_t computedSize =
+        size_t bytes =
             (js::ObjectElements::VALUES_PER_HEADER +
              getElementsHeader()->capacity) * sizeof(js::Value);
-        *elementsSize =
-            mallocSizeOf ? mallocSizeOf(getElementsHeader()) : computedSize;
-    } else {
-        *elementsSize = 0;
+        size += mallocSizeOf ? mallocSizeOf(getElementsHeader(), bytes) : bytes;
     }
+    return size;
 }
 
 inline JSBool
@@ -1569,8 +1564,8 @@ NewObjectCache::fill(EntryIndex entry_, Class *clasp, gc::Cell *key, gc::AllocKi
     entry->key = key;
     entry->kind = kind;
 
-    entry->nbytes = obj->sizeOfThis();
-    js_memcpy(&entry->templateObject, obj, entry->nbytes);
+    entry->nbytes = obj->structSize();
+    memcpy(&entry->templateObject, obj, entry->nbytes);
 }
 
 inline void
@@ -1603,7 +1598,7 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_)
 
     JSObject *obj = js_TryNewGCObject(cx, entry->kind);
     if (obj) {
-        js_memcpy(obj, &entry->templateObject, entry->nbytes);
+        memcpy(obj, &entry->templateObject, entry->nbytes);
         Probes::createObject(cx, obj);
         return obj;
     }
@@ -1612,7 +1607,7 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_)
     size_t nbytes = entry->nbytes;
     char stackObject[sizeof(JSObject_Slots16)];
     JS_ASSERT(nbytes <= sizeof(stackObject));
-    js_memcpy(&stackObject, &entry->templateObject, nbytes);
+    memcpy(&stackObject, &entry->templateObject, nbytes);
 
     JSObject *baseobj = (JSObject *) stackObject;
     RootShape shapeRoot(cx, (Shape **) baseobj->addressOfShape());
@@ -1620,7 +1615,7 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_)
 
     obj = js_NewGCObject(cx, entry->kind);
     if (obj) {
-        js_memcpy(obj, baseobj, nbytes);
+        memcpy(obj, baseobj, nbytes);
         Probes::createObject(cx, obj);
         return obj;
     }

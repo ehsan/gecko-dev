@@ -42,7 +42,6 @@
 #include "nsContentUtils.h" // NS_ENSURE_FINITE
 #include "nsSMILValue.h"
 #include "nsSMILFloatType.h"
-#include "nsIDOMSVGNumber.h"
 
 class DOMSVGNumber : public nsIDOMSVGNumber
 {

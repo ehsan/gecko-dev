@@ -41,8 +41,9 @@
 #include <fcntl.h>
 #include <string.h>
 #include <stdlib.h>
-#include "mar_private.h"
+#include <stdio.h>
 #include "mar.h"
+#include "mar_private.h"
 
 #ifdef XP_WIN
 #include <io.h>

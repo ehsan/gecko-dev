@@ -43,7 +43,6 @@
 #include "nsLineBox.h"
 #include "nsStyleStruct.h"
 #include "nsTHashtable.h"
-class nsIScrollableFrame;
 
 namespace mozilla {
 namespace css {
@@ -80,9 +79,6 @@ class TextOverflow {
 
  protected:
   TextOverflow() {}
-  void Init(nsDisplayListBuilder*   aBuilder,
-            const nsDisplayListSet& aLists,
-            nsIFrame*               aBlockFrame);
 
   struct AlignmentEdges {
     AlignmentEdges() : mAssigned(false) {}
@@ -215,11 +211,9 @@ class TextOverflow {
   nsRect                 mContentArea;
   nsDisplayListBuilder*  mBuilder;
   nsIFrame*              mBlock;
-  nsIScrollableFrame*    mScrollableFrame;
   nsDisplayList*         mMarkerList;
   bool                   mBlockIsRTL;
   bool                   mCanHaveHorizontalScrollbar;
-  bool                   mAdjustForPixelSnapping;
 
   class Marker {
   public:

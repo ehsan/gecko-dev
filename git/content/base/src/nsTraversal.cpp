@@ -49,10 +49,12 @@
 
 nsTraversal::nsTraversal(nsINode *aRoot,
                          PRUint32 aWhatToShow,
-                         nsIDOMNodeFilter *aFilter) :
+                         nsIDOMNodeFilter *aFilter,
+                         bool aExpandEntityReferences) :
     mRoot(aRoot),
     mWhatToShow(aWhatToShow),
     mFilter(aFilter),
+    mExpandEntityReferences(aExpandEntityReferences),
     mInAcceptNode(false)
 {
     NS_ASSERTION(aRoot, "invalid root in call to nsTraversal constructor");

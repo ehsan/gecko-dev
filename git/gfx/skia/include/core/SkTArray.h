@@ -299,8 +299,8 @@ protected:
 
     void init(const T* array, int count,
                void* preAllocStorage, int preAllocOrReserveCount) {
-        SkASSERT(count >= 0);
-        SkASSERT(preAllocOrReserveCount >= 0);
+        GrAssert(count >= 0);
+        GrAssert(preAllocOrReserveCount >= 0);
         fCount              = count;
         fReserveCount       = (preAllocOrReserveCount > 0) ?
                                     preAllocOrReserveCount :
@@ -311,8 +311,8 @@ protected:
             fAllocCount = fReserveCount;
             fMemArray = preAllocStorage;
         } else {
-            fAllocCount = SkMax32(fCount, fReserveCount);
-            fMemArray = sk_malloc_throw(fAllocCount * sizeof(T));
+            fAllocCount = GrMax(fCount, fReserveCount);
+            fMemArray = GrMalloc(fAllocCount * sizeof(T));
         }
 
         SkTArrayExt::copy(this, array);

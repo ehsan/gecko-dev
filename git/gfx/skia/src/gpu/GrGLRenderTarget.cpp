@@ -36,6 +36,8 @@ GrGLRenderTarget::GrGLRenderTarget(GrGpuGL* gpu,
                 texture,
                 viewport.fWidth,
                 viewport.fHeight,
+                texture->allocatedWidth(),
+                texture->allocatedHeight(),
                 desc.fConfig,
                 desc.fSampleCnt) {
     GrAssert(NULL != texID);
@@ -43,11 +45,6 @@ GrGLRenderTarget::GrGLRenderTarget(GrGpuGL* gpu,
     // FBO 0 can't also be a texture, right?
     GrAssert(0 != desc.fRTFBOID);
     GrAssert(0 != desc.fTexFBOID);
-
-    // we assume this is true, TODO: get rid of viewport as a param.
-    GrAssert(viewport.fWidth == texture->width());
-    GrAssert(viewport.fHeight == texture->height());
-
     this->init(desc, viewport, texID);
 }
 
@@ -58,6 +55,8 @@ GrGLRenderTarget::GrGLRenderTarget(GrGpuGL* gpu,
                 NULL,
                 viewport.fWidth,
                 viewport.fHeight,
+                viewport.fWidth,   // don't really need separate alloc w/h for
+                viewport.fHeight,  // non-texture RTs, repeat viewport values
                 desc.fConfig,
                 desc.fSampleCnt) {
     this->init(desc, viewport, NULL);

@@ -165,8 +165,7 @@ gssInit()
         const char *const verLibNames[] = {
             "libgssapi_krb5.so.2", /* MIT - FC, Suse10, Debian */
             "libgssapi.so.4",      /* Heimdal - Suse10, MDK */
-            "libgssapi.so.1",      /* Heimdal - Suse9, CITI - FC, MDK, Suse10*/
-            "libgssapi.so"         /* OpenBSD */
+            "libgssapi.so.1"       /* Heimdal - Suse9, CITI - FC, MDK, Suse10*/
         };
 
         for (size_t i = 0; i < ArrayLength(verLibNames) && !lib; ++i) {

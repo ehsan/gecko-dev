@@ -308,10 +308,7 @@ nsMIMEHeaderParamImpl::DoParameterInternal(const char *aHeaderValue,
         else if (*valueEnd == '"')
           break;
       }
-      str = valueEnd;
-      // *valueEnd != null means that *valueEnd is quote character.
-      if (*valueEnd)
-        str++;
+      str = valueEnd + 1;
     }
 
     // See if this is the simplest case (case A above),

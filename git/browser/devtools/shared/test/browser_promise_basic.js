@@ -3,9 +3,7 @@
 
 // Tests that our Promise implementation works properly
 
-let tempScope = {};
-Cu.import("resource:///modules/devtools/Promise.jsm", tempScope);
-let Promise = tempScope.Promise;
+Cu.import("resource:///modules/devtools/Promise.jsm");
 
 function test() {
   addTab("about:blank", function() {

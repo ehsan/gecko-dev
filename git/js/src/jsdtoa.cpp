@@ -41,6 +41,7 @@
  * Portable double to alphanumeric string and back converters.
  */
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsdtoa.h"
 #include "jsprf.h"
 #include "jsapi.h"
@@ -141,7 +142,7 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
         return NULL;
     }
 
-    js_memcpy(buffer + 2, numBegin, nDigits);
+    memcpy(buffer + 2, numBegin, nDigits);
     freedtoa(PASS_STATE numBegin);
     numBegin = buffer + 2; /* +2 leaves space for sign and/or decimal point */
     numEnd = numBegin + nDigits;

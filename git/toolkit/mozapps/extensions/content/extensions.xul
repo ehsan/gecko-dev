@@ -528,9 +528,7 @@
                 </hbox>
               </vbox>
               <hbox align="start">
-                <vbox id="detail-icon-container" align="end">
-                  <image id="detail-icon" class="icon"/>
-                </vbox>
+                <image id="detail-icon" class="icon"/>
                 <vbox flex="1">
                   <vbox id="detail-summary">
                     <hbox id="detail-name-container" class="name-container"

@@ -333,7 +333,7 @@ bool Program::setUniform1fv(GLint location, GLsizei count, const GLfloat* v)
             return false; // attempting to write an array to a non-array uniform is an INVALID_OPERATION
 
         count = std::min(arraySize - (int)mUniformIndex[location].element, count);
-        GLboolean *boolParams = (GLboolean*)targetUniform->data + mUniformIndex[location].element;
+        GLboolean *boolParams = new GLboolean[count];
 
         for (int i = 0; i < count; ++i)
         {
@@ -346,6 +346,11 @@ bool Program::setUniform1fv(GLint location, GLsizei count, const GLfloat* v)
                 boolParams[i] = GL_TRUE;
             }
         }
+
+        memcpy(targetUniform->data + mUniformIndex[location].element * sizeof(GLboolean),
+               boolParams, sizeof(GLboolean) * count);
+
+        delete [] boolParams;
     }
     else
     {
@@ -395,7 +400,7 @@ bool Program::setUniform2fv(GLint location, GLsizei count, const GLfloat *v)
 
         count = std::min(arraySize - (int)mUniformIndex[location].element, count);
 
-        GLboolean *boolParams = (GLboolean*)targetUniform->data + mUniformIndex[location].element * 2;
+        GLboolean *boolParams = new GLboolean[count * 2];
 
         for (int i = 0; i < count * 2; ++i)
         {
@@ -408,6 +413,11 @@ bool Program::setUniform2fv(GLint location, GLsizei count, const GLfloat *v)
                 boolParams[i] = GL_TRUE;
             }
         }
+
+        memcpy(targetUniform->data + mUniformIndex[location].element * sizeof(GLboolean) * 2,
+               boolParams, 2 * sizeof(GLboolean) * count);
+
+        delete [] boolParams;
     }
     else 
     {
@@ -456,7 +466,7 @@ bool Program::setUniform3fv(GLint location, GLsizei count, const GLfloat *v)
             return false; // attempting to write an array to a non-array uniform is an INVALID_OPERATION
 
         count = std::min(arraySize - (int)mUniformIndex[location].element, count);
-        GLboolean *boolParams = (GLboolean*)targetUniform->data + mUniformIndex[location].element * 3;
+        GLboolean *boolParams = new GLboolean[count * 3];
 
         for (int i = 0; i < count * 3; ++i)
         {
@@ -469,6 +479,11 @@ bool Program::setUniform3fv(GLint location, GLsizei count, const GLfloat *v)
                 boolParams[i] = GL_TRUE;
             }
         }
+
+        memcpy(targetUniform->data + mUniformIndex[location].element * sizeof(GLboolean) * 3,
+               boolParams, 3 * sizeof(GLboolean) * count);
+
+        delete [] boolParams;
     }
     else 
     {
@@ -508,7 +523,7 @@ bool Program::setUniform4fv(GLint location, GLsizei count, const GLfloat *v)
             return false; // attempting to write an array to a non-array uniform is an INVALID_OPERATION
 
         count = std::min(arraySize - (int)mUniformIndex[location].element, count);
-        GLboolean *boolParams = (GLboolean*)targetUniform->data + mUniformIndex[location].element * 4;
+        GLboolean *boolParams = new GLboolean[count * 4];
 
         for (int i = 0; i < count * 4; ++i)
         {
@@ -521,6 +536,11 @@ bool Program::setUniform4fv(GLint location, GLsizei count, const GLfloat *v)
                 boolParams[i] = GL_TRUE;
             }
         }
+
+        memcpy(targetUniform->data + mUniformIndex[location].element * sizeof(GLboolean) * 4,
+               boolParams, 4 * sizeof(GLboolean) * count);
+
+        delete [] boolParams;
     }
     else 
     {
@@ -693,7 +713,7 @@ bool Program::setUniform1iv(GLint location, GLsizei count, const GLint *v)
             return false; // attempting to write an array to a non-array uniform is an INVALID_OPERATION
 
         count = std::min(arraySize - (int)mUniformIndex[location].element, count);
-        GLboolean *boolParams = (GLboolean*)targetUniform->data + mUniformIndex[location].element;
+        GLboolean *boolParams = new GLboolean[count];
 
         for (int i = 0; i < count; ++i)
         {
@@ -706,6 +726,11 @@ bool Program::setUniform1iv(GLint location, GLsizei count, const GLint *v)
                 boolParams[i] = GL_TRUE;
             }
         }
+
+        memcpy(targetUniform->data + mUniformIndex[location].element * sizeof(GLboolean),
+               boolParams, sizeof(GLboolean) * count);
+
+        delete [] boolParams;
     }
     else
     {
@@ -745,7 +770,7 @@ bool Program::setUniform2iv(GLint location, GLsizei count, const GLint *v)
             return false; // attempting to write an array to a non-array uniform is an INVALID_OPERATION
 
         count = std::min(arraySize - (int)mUniformIndex[location].element, count);
-        GLboolean *boolParams = (GLboolean*)targetUniform->data + mUniformIndex[location].element * 2;
+        GLboolean *boolParams = new GLboolean[count * 2];
 
         for (int i = 0; i < count * 2; ++i)
         {
@@ -758,6 +783,11 @@ bool Program::setUniform2iv(GLint location, GLsizei count, const GLint *v)
                 boolParams[i] = GL_TRUE;
             }
         }
+
+        memcpy(targetUniform->data + mUniformIndex[location].element * sizeof(GLboolean) * 2,
+               boolParams, 2 * sizeof(GLboolean) * count);
+
+        delete [] boolParams;
     }
     else
     {
@@ -797,7 +827,7 @@ bool Program::setUniform3iv(GLint location, GLsizei count, const GLint *v)
             return false; // attempting to write an array to a non-array uniform is an INVALID_OPERATION
 
         count = std::min(arraySize - (int)mUniformIndex[location].element, count);
-        GLboolean *boolParams = (GLboolean*)targetUniform->data + mUniformIndex[location].element * 3;
+        GLboolean *boolParams = new GLboolean[count * 3];
 
         for (int i = 0; i < count * 3; ++i)
         {
@@ -810,6 +840,11 @@ bool Program::setUniform3iv(GLint location, GLsizei count, const GLint *v)
                 boolParams[i] = GL_TRUE;
             }
         }
+
+        memcpy(targetUniform->data + mUniformIndex[location].element * sizeof(GLboolean) * 3,
+               boolParams, 3 * sizeof(GLboolean) * count);
+
+        delete [] boolParams;
     }
     else
     {
@@ -849,7 +884,7 @@ bool Program::setUniform4iv(GLint location, GLsizei count, const GLint *v)
             return false; // attempting to write an array to a non-array uniform is an INVALID_OPERATION
 
         count = std::min(arraySize - (int)mUniformIndex[location].element, count);
-        GLboolean *boolParams = (GLboolean*)targetUniform->data + mUniformIndex[location].element * 4;
+        GLboolean *boolParams = new GLboolean[count * 4];
 
         for (int i = 0; i < count * 4; ++i)
         {
@@ -862,6 +897,11 @@ bool Program::setUniform4iv(GLint location, GLsizei count, const GLint *v)
                 boolParams[i] = GL_TRUE;
             }
         }
+
+        memcpy(targetUniform->data + mUniformIndex[location].element * sizeof(GLboolean) * 4,
+               boolParams, 4 * sizeof(GLboolean) * count);
+
+        delete [] boolParams;
     }
     else
     {
@@ -2045,13 +2085,14 @@ std::string Program::undecorateUniform(const std::string &_name)
 
 void Program::applyUniformnbv(Uniform *targetUniform, GLsizei count, int width, const GLboolean *v)
 {
-    float vector[D3D9_MAX_FLOAT_CONSTANTS * 4];
-    BOOL boolVector[D3D9_MAX_BOOL_CONSTANTS];
+    float *vector = NULL;
+    BOOL *boolVector = NULL;
 
     if (targetUniform->ps.registerCount && targetUniform->ps.registerSet == D3DXRS_FLOAT4 ||
         targetUniform->vs.registerCount && targetUniform->vs.registerSet == D3DXRS_FLOAT4)
     {
-        ASSERT(count <= D3D9_MAX_FLOAT_CONSTANTS);
+        vector = new float[4 * count];
+
         for (int i = 0; i < count; i++)
         {
             for (int j = 0; j < 4; j++)
@@ -2071,11 +2112,8 @@ void Program::applyUniformnbv(Uniform *targetUniform, GLsizei count, int width, 
     if (targetUniform->ps.registerCount && targetUniform->ps.registerSet == D3DXRS_BOOL ||
         targetUniform->vs.registerCount && targetUniform->vs.registerSet == D3DXRS_BOOL)
     {
-        int psCount = targetUniform->ps.registerSet == D3DXRS_BOOL ? targetUniform->ps.registerCount : 0;
-        int vsCount = targetUniform->vs.registerSet == D3DXRS_BOOL ? targetUniform->vs.registerCount : 0;
-        int copyCount = std::min(count * width, std::max(psCount, vsCount));
-        ASSERT(copyCount <= D3D9_MAX_BOOL_CONSTANTS);
-        for (int i = 0; i < copyCount; i++)
+        boolVector = new BOOL[count * width];
+        for (int i = 0; i < count * width; i++)
         {
             boolVector[i] = v[i] != GL_FALSE;
         }
@@ -2106,6 +2144,9 @@ void Program::applyUniformnbv(Uniform *targetUniform, GLsizei count, int width, 
         }
         else UNREACHABLE();
     }
+
+    delete [] vector;
+    delete [] boolVector;
 }
 
 bool Program::applyUniformnfv(Uniform *targetUniform, const GLfloat *v)
@@ -2125,8 +2166,7 @@ bool Program::applyUniformnfv(Uniform *targetUniform, const GLfloat *v)
 
 bool Program::applyUniform1iv(Uniform *targetUniform, GLsizei count, const GLint *v)
 {
-    ASSERT(count <= D3D9_MAX_FLOAT_CONSTANTS);
-    D3DXVECTOR4 vector[D3D9_MAX_FLOAT_CONSTANTS];
+    D3DXVECTOR4 *vector = new D3DXVECTOR4[count];
 
     for (int i = 0; i < count; i++)
     {
@@ -2181,13 +2221,14 @@ bool Program::applyUniform1iv(Uniform *targetUniform, GLsizei count, const GLint
         }
     }
 
+    delete [] vector;
+
     return true;
 }
 
 bool Program::applyUniform2iv(Uniform *targetUniform, GLsizei count, const GLint *v)
 {
-    ASSERT(count <= D3D9_MAX_FLOAT_CONSTANTS);
-    D3DXVECTOR4 vector[D3D9_MAX_FLOAT_CONSTANTS];
+    D3DXVECTOR4 *vector = new D3DXVECTOR4[count];
 
     for (int i = 0; i < count; i++)
     {
@@ -2198,13 +2239,14 @@ bool Program::applyUniform2iv(Uniform *targetUniform, GLsizei count, const GLint
 
     applyUniformniv(targetUniform, count, vector);
 
+    delete[] vector;
+
     return true;
 }
 
 bool Program::applyUniform3iv(Uniform *targetUniform, GLsizei count, const GLint *v)
 {
-    ASSERT(count <= D3D9_MAX_FLOAT_CONSTANTS);
-    D3DXVECTOR4 vector[D3D9_MAX_FLOAT_CONSTANTS];
+    D3DXVECTOR4 *vector = new D3DXVECTOR4[count];
 
     for (int i = 0; i < count; i++)
     {
@@ -2215,13 +2257,14 @@ bool Program::applyUniform3iv(Uniform *targetUniform, GLsizei count, const GLint
 
     applyUniformniv(targetUniform, count, vector);
 
+    delete[] vector;
+
     return true;
 }
 
 bool Program::applyUniform4iv(Uniform *targetUniform, GLsizei count, const GLint *v)
 {
-    ASSERT(count <= D3D9_MAX_FLOAT_CONSTANTS);
-    D3DXVECTOR4 vector[D3D9_MAX_FLOAT_CONSTANTS];
+    D3DXVECTOR4 *vector = new D3DXVECTOR4[count];
 
     for (int i = 0; i < count; i++)
     {
@@ -2231,6 +2274,8 @@ bool Program::applyUniform4iv(Uniform *targetUniform, GLsizei count, const GLint
     }
 
     applyUniformniv(targetUniform, count, vector);
+
+    delete [] vector;
 
     return true;
 }

@@ -43,7 +43,7 @@
 
 #include "jsapi.h"
 #include "jsatom.h"
-#include "jsfriendapi.h"
+#include "jscntxt.h"
 #include "jstypedarray.h"
 #include "nsJSUtils.h"
 

@@ -41,6 +41,18 @@
 #include "nsIOService.h"
 
 /**
+ * returns preferred allocator for given segment size.  NULL implies
+ * system allocator.  this result can be used when allocating a pipe.
+ */
+
+static inline nsIMemory *
+net_GetSegmentAlloc(PRUint32 segsize)
+{
+    return (segsize == nsIOService::gDefaultSegmentSize)
+                     ? nsIOService::gBufferCache : nsnull;
+}
+
+/**
  * applies defaults to segment params in a consistent way.
  */
 static inline void

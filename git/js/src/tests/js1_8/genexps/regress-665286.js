@@ -46,7 +46,7 @@ function reported() {
     function f() {
         x
     }
-    f(yield [])
+    f(yield #2=[])
 }
 
 function simplified1() {

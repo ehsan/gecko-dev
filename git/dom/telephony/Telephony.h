@@ -44,7 +44,7 @@
 
 #include "nsIDOMTelephony.h"
 #include "nsIDOMTelephonyCall.h"
-#include "nsIRadioInterfaceLayer.h"
+#include "nsITelephone.h"
 
 class nsIScriptContext;
 class nsPIDOMWindow;
@@ -54,10 +54,10 @@ BEGIN_TELEPHONY_NAMESPACE
 class Telephony : public nsDOMEventTargetWrapperCache,
                   public nsIDOMTelephony
 {
-  nsCOMPtr<nsIRadioInterfaceLayer> mRIL;
-  nsCOMPtr<nsIRILTelephonyCallback> mRILTelephonyCallback;
+  nsCOMPtr<nsITelephone> mTelephone;
+  nsCOMPtr<nsITelephoneCallback> mTelephoneCallback;
 
-  NS_DECL_EVENT_HANDLER(incoming)
+  NS_DECL_EVENT_HANDLER(incoming);
 
   TelephonyCall* mActiveCall;
   nsTArray<nsRefPtr<TelephonyCall> > mCalls;
@@ -71,14 +71,14 @@ class Telephony : public nsDOMEventTargetWrapperCache,
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMTELEPHONY
-  NS_DECL_NSIRILTELEPHONYCALLBACK
+  NS_DECL_NSITELEPHONECALLBACK
   NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetWrapperCache::)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(
                                                    Telephony,
                                                    nsDOMEventTargetWrapperCache)
 
   static already_AddRefed<Telephony>
-  Create(nsPIDOMWindow* aOwner, nsIRadioInterfaceLayer* aRIL);
+  Create(nsPIDOMWindow* aOwner, nsITelephone* aTelephone);
 
   nsIDOMEventTarget*
   ToIDOMEventTarget() const
@@ -109,10 +109,10 @@ public:
     mCallsArray = nsnull;
   }
 
-  nsIRadioInterfaceLayer*
-  RIL() const
+  nsITelephone*
+  Telephone() const
   {
-    return mRIL;
+    return mTelephone;
   }
 
   nsPIDOMWindow*
@@ -137,15 +137,15 @@ private:
   void
   SwitchActiveCall(TelephonyCall* aCall);
 
-  class RILTelephonyCallback : public nsIRILTelephonyCallback
+  class TelephoneCallback : public nsITelephoneCallback
   {
     Telephony* mTelephony;
 
   public:
     NS_DECL_ISUPPORTS
-    NS_FORWARD_NSIRILTELEPHONYCALLBACK(mTelephony->)
+    NS_FORWARD_NSITELEPHONECALLBACK(mTelephony->)
 
-    RILTelephonyCallback(Telephony* aTelephony)
+    TelephoneCallback(Telephony* aTelephony)
     : mTelephony(aTelephony)
     {
       NS_ASSERTION(mTelephony, "Null pointer!");

@@ -391,7 +391,7 @@
     <panel id="customizeToolbarSheetPopup"
            noautohide="true">
       <iframe id="customizeToolbarSheetIFrame"
-              style="&dialog.dimensions;"
+              style="&dialog.style;"
               hidden="true"/>
     </panel>
 
@@ -502,7 +502,7 @@
         <textbox id="urlbar" flex="1"
                  placeholder="&urlbar.placeholder;"
                  type="autocomplete"
-                 autocompletesearch="urlinline history"
+                 autocompletesearch="history"
                  autocompletesearchparam="enable-actions"
                  autocompletepopup="PopupAutoCompleteRichResult"
                  completeselectedindex="true"
@@ -534,12 +534,12 @@
                onkeypress="gIdentityHandler.handleIdentityButtonEvent(event);"
                ondragstart="gIdentityHandler.onDragStart(event);">
             <hbox id="identity-box-inner" align="center">
-              <hbox id="page-proxy-stack"
-                    onclick="PageProxyClickHandler(event);">
+              <stack id="page-proxy-stack"
+                     onclick="PageProxyClickHandler(event);">
                 <image id="page-proxy-favicon" validate="never"
                        pageproxystate="invalid"
                        onerror="this.removeAttribute('src');"/>
-              </hbox>
+              </stack>
               <hbox id="identity-icon-labels">
                 <label id="identity-icon-label" class="plain" flex="1"/>
                 <label id="identity-icon-country-label" class="plain"/>
@@ -993,6 +993,7 @@
              hidden="true">
       <vbox flex="1">
         <resizer id="inspector-top-resizer" flex="1" 
+                 class="inspector-resizer"
                  dir="top" disabled="true"
                  element="inspector-tree-box"/>
         <hbox>
@@ -1013,8 +1014,8 @@
             <toolbarbutton id="inspector-3D-button"
                            class="devtools-toolbarbutton"
                            hidden="true"
-                           label="&inspect3DViewButton.label;"
-                           accesskey="&inspect3DViewButton.accesskey;"
+                           label="&inspect3DButton.label;"
+                           accesskey="&inspect3DButton.accesskey;"
                            command="Inspector:Tilt"/>
             <toolbarbutton id="inspector-style-button"
                            class="devtools-toolbarbutton"
@@ -1028,6 +1029,10 @@
                          oncommand="InspectorUI.closeInspectorUI(false);"
                          tooltiptext="&inspectCloseButton.tooltiptext;"/>
 #endif
+          <resizer id="inspector-end-resizer"
+                   class="inspector-resizer"
+                   dir="top" disabled="true"
+                   element="inspector-tree-box"/>
         </hbox>
       </vbox>
     </toolbar>

@@ -25,7 +25,6 @@ force_prompt(true)
 
 var hasBeenCleared = false;
 var successWasCalledAfterClear = false;
-var firstCallback = true;
 
 function failureCallback(error)
 {
@@ -38,10 +37,7 @@ function successCallback(position) {
   if (hasBeenCleared == true) {
     successWasCalledAfterClear = true;
   }
-  if (firstCallback) {
-    SimpleTest.executeSoon(clearWatch);
-    firstCallback = false;
-  }
+  SimpleTest.executeSoon(clearWatch);
 }
 
 function clearWatch() {

@@ -38,9 +38,8 @@
 
 #include "nsHTMLImageAccessible.h"
 
-#include "nsAccUtils.h"
-#include "Role.h"
 #include "States.h"
+#include "nsAccUtils.h"
 
 #include "imgIContainer.h"
 #include "imgIRequest.h"
@@ -122,10 +121,10 @@ nsHTMLImageAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-role
+PRUint32
 nsHTMLImageAccessible::NativeRole()
 {
-  return roles::GRAPHIC;
+  return nsIAccessibleRole::ROLE_GRAPHIC;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

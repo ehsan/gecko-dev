@@ -9,7 +9,6 @@ const PREF_GETADDONS_BYIDS            = "extensions.getAddons.get.url";
 const PREF_MIN_PLATFORM_COMPAT        = "extensions.minCompatiblePlatformVersion";
 
 var gTestAddon = null;
-var gWin;
 
 function waitForView(aView, aCallback) {
   var view = gWin.document.getElementById(aView);

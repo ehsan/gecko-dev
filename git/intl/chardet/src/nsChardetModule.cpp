@@ -42,6 +42,7 @@
 
 #include "nsCharDetConstructors.h"
 
+NS_DEFINE_NAMED_CID(NS_DOCUMENTCHARSETINFO_CID);
 NS_DEFINE_NAMED_CID(NS_RU_PROBDETECTOR_CID);
 NS_DEFINE_NAMED_CID(NS_UK_PROBDETECTOR_CID);
 NS_DEFINE_NAMED_CID(NS_RU_STRING_PROBDETECTOR_CID);
@@ -53,6 +54,7 @@ NS_DEFINE_NAMED_CID(NS_LASTBLKDBG_DETECTOR_CID);
 #endif /* INCLUDE_DBGDETECTOR */
 
 static const mozilla::Module::CIDEntry kChardetCIDs[] = {
+  { &kNS_DOCUMENTCHARSETINFO_CID, false, NULL, nsDocumentCharsetInfoConstructor },
   { &kNS_RU_PROBDETECTOR_CID, false, NULL, nsRUProbDetectorConstructor },
   { &kNS_UK_PROBDETECTOR_CID, false, NULL, nsUKProbDetectorConstructor },
   { &kNS_RU_STRING_PROBDETECTOR_CID, false, NULL, nsRUStringProbDetectorConstructor },
@@ -66,6 +68,7 @@ static const mozilla::Module::CIDEntry kChardetCIDs[] = {
 };
 
 static const mozilla::Module::ContractIDEntry kChardetContracts[] = {
+  { NS_DOCUMENTCHARSETINFO_CONTRACTID, &kNS_DOCUMENTCHARSETINFO_CID },
   { NS_CHARSET_DETECTOR_CONTRACTID_BASE "ruprob", &kNS_RU_PROBDETECTOR_CID },
   { NS_CHARSET_DETECTOR_CONTRACTID_BASE "ukprob", &kNS_UK_PROBDETECTOR_CID },
   { NS_STRCDETECTOR_CONTRACTID_BASE "ruprob", &kNS_RU_STRING_PROBDETECTOR_CID },

@@ -54,7 +54,6 @@
 #include "prprf.h" 
 #include "prsystem.h"
 #include "lgglue.h"
-#include "secerr.h"
 #include "secmodt.h"
 #if defined (_WIN32)
 #include <io.h>
@@ -563,7 +562,6 @@ sftkdb_DeleteSecmodDB(SDBType dbType, const char *appName,
     PRBool found = PR_FALSE;
 
     if (dbname == NULL) {
-	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	return SECFailure;
     }
 
@@ -572,7 +570,6 @@ sftkdb_DeleteSecmodDB(SDBType dbType, const char *appName,
     }
 
     if (!rw) {
-	PORT_SetError(SEC_ERROR_READ_ONLY);
 	return SECFailure;
     }
 
@@ -692,7 +689,6 @@ sftkdb_AddSecmodDB(SDBType dbType, const char *appName,
     PRBool libFound = PR_FALSE;
 
     if (dbname == NULL) {
-	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	return SECFailure;
     }
 
@@ -702,7 +698,6 @@ sftkdb_AddSecmodDB(SDBType dbType, const char *appName,
 
     /* can't write to a read only module */
     if (!rw) {
-	PORT_SetError(SEC_ERROR_READ_ONLY);
 	return SECFailure;
     }
 

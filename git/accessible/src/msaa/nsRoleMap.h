@@ -65,55 +65,55 @@ struct WindowsRoleMapItem
 
 // Map array from cross platform roles to MSAA/IA2 roles
 static const WindowsRoleMapItem gWindowsRoleMap[] = {
-  // roles::NOTHING
+  // nsIAccessibleRole::ROLE_NOTHING
   { USE_ROLE_STRING, IA2_ROLE_UNKNOWN },
 
-  // roles::TITLEBAR
+  // nsIAccessibleRole::ROLE_TITLEBAR
   { ROLE_SYSTEM_TITLEBAR, ROLE_SYSTEM_TITLEBAR },
 
-  // roles::MENUBAR
+  // nsIAccessibleRole::ROLE_MENUBAR
   { ROLE_SYSTEM_MENUBAR, ROLE_SYSTEM_MENUBAR },
 
-  // roles::SCROLLBAR
+  // nsIAccessibleRole::ROLE_SCROLLBAR
   { ROLE_SYSTEM_SCROLLBAR, ROLE_SYSTEM_SCROLLBAR },
 
-  // roles::GRIP
+  // nsIAccessibleRole::ROLE_GRIP
   { ROLE_SYSTEM_GRIP, ROLE_SYSTEM_GRIP },
 
-  // roles::SOUND
+  // nsIAccessibleRole::ROLE_SOUND
   { ROLE_SYSTEM_SOUND, ROLE_SYSTEM_SOUND },
 
-  // roles::CURSOR
+  // nsIAccessibleRole::ROLE_CURSOR
   { ROLE_SYSTEM_CURSOR, ROLE_SYSTEM_CURSOR },
 
-  // roles::CARET
+  // nsIAccessibleRole::ROLE_CARET
   { ROLE_SYSTEM_CARET, ROLE_SYSTEM_CARET },
 
-  // roles::ALERT
+  // nsIAccessibleRole::ROLE_ALERT
   { ROLE_SYSTEM_ALERT, ROLE_SYSTEM_ALERT },
 
-  // roles::WINDOW
+  // nsIAccessibleRole::ROLE_WINDOW
   { ROLE_SYSTEM_WINDOW, ROLE_SYSTEM_WINDOW },
 
-  // roles::INTERNAL_FRAME
+  // nsIAccessibleRole::ROLE_INTERNAL_FRAME
   { USE_ROLE_STRING, IA2_ROLE_INTERNAL_FRAME},
 
-  // roles::MENUPOPUP
+  // nsIAccessibleRole::ROLE_MENUPOPUP
   { ROLE_SYSTEM_MENUPOPUP, ROLE_SYSTEM_MENUPOPUP },
 
-  // roles::MENUITEM
+  // nsIAccessibleRole::ROLE_MENUITEM
   { ROLE_SYSTEM_MENUITEM, ROLE_SYSTEM_MENUITEM },
 
-  // roles::TOOLTIP
+  // nsIAccessibleRole::ROLE_TOOLTIP
   { ROLE_SYSTEM_TOOLTIP, ROLE_SYSTEM_TOOLTIP },
 
-  // roles::APPLICATION
+  // nsIAccessibleRole::ROLE_APPLICATION
   { ROLE_SYSTEM_APPLICATION, ROLE_SYSTEM_APPLICATION },
 
-  // roles::DOCUMENT
+  // nsIAccessibleRole::ROLE_DOCUMENT
   { ROLE_SYSTEM_DOCUMENT, ROLE_SYSTEM_DOCUMENT },
 
-  // roles::PANE
+  // nsIAccessibleRole::ROLE_PANE
   // We used to map to ROLE_SYSTEM_PANE, but JAWS would
   // not read the accessible name for the contaning pane.
   // However, JAWS will read the accessible name for a groupbox.
@@ -122,334 +122,334 @@ static const WindowsRoleMapItem gWindowsRoleMap[] = {
   // when an inner control gets focused.
   { ROLE_SYSTEM_GROUPING , ROLE_SYSTEM_GROUPING }, 
 
-  // roles::CHART
+  // nsIAccessibleRole::ROLE_CHART
   { ROLE_SYSTEM_CHART, ROLE_SYSTEM_CHART },
 
-  // roles::DIALOG
+  // nsIAccessibleRole::ROLE_DIALOG
   { ROLE_SYSTEM_DIALOG, ROLE_SYSTEM_DIALOG },
 
-  // roles::BORDER
+  // nsIAccessibleRole::ROLE_BORDER
   { ROLE_SYSTEM_BORDER, ROLE_SYSTEM_BORDER },
 
-  // roles::GROUPING
+  // nsIAccessibleRole::ROLE_GROUPING
   { ROLE_SYSTEM_GROUPING, ROLE_SYSTEM_GROUPING },
 
-  // roles::SEPARATOR
+  // nsIAccessibleRole::ROLE_SEPARATOR
   { ROLE_SYSTEM_SEPARATOR, ROLE_SYSTEM_SEPARATOR },
 
-  // roles::TOOLBAR
+  // nsIAccessibleRole::ROLE_TOOLBAR
   { ROLE_SYSTEM_TOOLBAR, ROLE_SYSTEM_TOOLBAR },
 
-  // roles::STATUSBAR
+  // nsIAccessibleRole::ROLE_STATUSBAR
   { ROLE_SYSTEM_STATUSBAR, ROLE_SYSTEM_STATUSBAR },
 
-  // roles::TABLE
+  // nsIAccessibleRole::ROLE_TABLE
   { ROLE_SYSTEM_TABLE, ROLE_SYSTEM_TABLE },
 
-  // roles::COLUMNHEADER,
+  // nsIAccessibleRole::ROLE_COLUMNHEADER,
   { ROLE_SYSTEM_COLUMNHEADER, ROLE_SYSTEM_COLUMNHEADER },
 
-  // roles::ROWHEADER
+  // nsIAccessibleRole::ROLE_ROWHEADER
   { ROLE_SYSTEM_ROWHEADER, ROLE_SYSTEM_ROWHEADER },
 
-  // roles::COLUMN
+  // nsIAccessibleRole::ROLE_COLUMN
   { ROLE_SYSTEM_COLUMN, ROLE_SYSTEM_COLUMN },
 
-  // roles::ROW
+  // nsIAccessibleRole::ROLE_ROW
   { ROLE_SYSTEM_ROW, ROLE_SYSTEM_ROW },
 
-  // roles::CELL
+  // nsIAccessibleRole::ROLE_CELL
   { ROLE_SYSTEM_CELL, ROLE_SYSTEM_CELL },
 
-  // roles::LINK
+  // nsIAccessibleRole::ROLE_LINK
   { ROLE_SYSTEM_LINK, ROLE_SYSTEM_LINK },
 
-  // roles::HELPBALLOON
+  // nsIAccessibleRole::ROLE_HELPBALLOON
   { ROLE_SYSTEM_HELPBALLOON, ROLE_SYSTEM_HELPBALLOON },
 
-  // roles::CHARACTER
+  // nsIAccessibleRole::ROLE_CHARACTER
   { ROLE_SYSTEM_CHARACTER, ROLE_SYSTEM_CHARACTER },
 
-  // roles::LIST
+  // nsIAccessibleRole::ROLE_LIST
   { ROLE_SYSTEM_LIST, ROLE_SYSTEM_LIST },
 
-  // roles::LISTITEM
+  // nsIAccessibleRole::ROLE_LISTITEM
   { ROLE_SYSTEM_LISTITEM, ROLE_SYSTEM_LISTITEM },
 
-  // roles::OUTLINE
+  // nsIAccessibleRole::ROLE_OUTLINE
   { ROLE_SYSTEM_OUTLINE, ROLE_SYSTEM_OUTLINE },
 
-  // roles::OUTLINEITEM
+  // nsIAccessibleRole::ROLE_OUTLINEITEM
   { ROLE_SYSTEM_OUTLINEITEM, ROLE_SYSTEM_OUTLINEITEM },
 
-  // roles::PAGETAB
+  // nsIAccessibleRole::ROLE_PAGETAB
   { ROLE_SYSTEM_PAGETAB, ROLE_SYSTEM_PAGETAB },
 
-  // roles::PROPERTYPAGE
+  // nsIAccessibleRole::ROLE_PROPERTYPAGE
   { ROLE_SYSTEM_PROPERTYPAGE, ROLE_SYSTEM_PROPERTYPAGE },
 
-  // roles::INDICATOR
+  // nsIAccessibleRole::ROLE_INDICATOR
   { ROLE_SYSTEM_INDICATOR, ROLE_SYSTEM_INDICATOR },
 
-  // roles::GRAPHIC
+  // nsIAccessibleRole::ROLE_GRAPHIC
   { ROLE_SYSTEM_GRAPHIC, ROLE_SYSTEM_GRAPHIC },
 
-  // roles::STATICTEXT
+  // nsIAccessibleRole::ROLE_STATICTEXT
   { ROLE_SYSTEM_STATICTEXT, ROLE_SYSTEM_STATICTEXT },
 
-  // roles::TEXT_LEAF
+  // nsIAccessibleRole::ROLE_TEXT_LEAF
   { ROLE_SYSTEM_TEXT, ROLE_SYSTEM_TEXT },
 
-  // roles::PUSHBUTTON
+  // nsIAccessibleRole::ROLE_PUSHBUTTON
   { ROLE_SYSTEM_PUSHBUTTON, ROLE_SYSTEM_PUSHBUTTON },
 
-  // roles::CHECKBUTTON
+  // nsIAccessibleRole::ROLE_CHECKBUTTON
   { ROLE_SYSTEM_CHECKBUTTON, ROLE_SYSTEM_CHECKBUTTON },
 
-  // roles::RADIOBUTTON
+  // nsIAccessibleRole::ROLE_RADIOBUTTON
   { ROLE_SYSTEM_RADIOBUTTON, ROLE_SYSTEM_RADIOBUTTON },
 
-  // roles::COMBOBOX
+  // nsIAccessibleRole::ROLE_COMBOBOX
   { ROLE_SYSTEM_COMBOBOX, ROLE_SYSTEM_COMBOBOX },
 
-  // roles::DROPLIST
+  // nsIAccessibleRole::ROLE_DROPLIST
   { ROLE_SYSTEM_DROPLIST, ROLE_SYSTEM_DROPLIST },
 
-  // roles::PROGRESSBAR
+  // nsIAccessibleRole::ROLE_PROGRESSBAR
   { ROLE_SYSTEM_PROGRESSBAR, ROLE_SYSTEM_PROGRESSBAR },
 
-  // roles::DIAL
+  // nsIAccessibleRole::ROLE_DIAL
   { ROLE_SYSTEM_DIAL, ROLE_SYSTEM_DIAL },
 
-  // roles::HOTKEYFIELD
+  // nsIAccessibleRole::ROLE_HOTKEYFIELD
   { ROLE_SYSTEM_HOTKEYFIELD, ROLE_SYSTEM_HOTKEYFIELD },
 
-  // roles::SLIDER
+  // nsIAccessibleRole::ROLE_SLIDER
   { ROLE_SYSTEM_SLIDER, ROLE_SYSTEM_SLIDER },
 
-  // roles::SPINBUTTON
+  // nsIAccessibleRole::ROLE_SPINBUTTON
   { ROLE_SYSTEM_SPINBUTTON, ROLE_SYSTEM_SPINBUTTON },
 
-  // roles::DIAGRAM
+  // nsIAccessibleRole::ROLE_DIAGRAM
   { ROLE_SYSTEM_DIAGRAM, ROLE_SYSTEM_DIAGRAM },
 
-  // roles::ANIMATION
+  // nsIAccessibleRole::ROLE_ANIMATION
   { ROLE_SYSTEM_ANIMATION, ROLE_SYSTEM_ANIMATION },
 
-  // roles::EQUATION
+  // nsIAccessibleRole::ROLE_EQUATION
   { ROLE_SYSTEM_EQUATION, ROLE_SYSTEM_EQUATION },
 
-  // roles::BUTTONDROPDOWN
+  // nsIAccessibleRole::ROLE_BUTTONDROPDOWN
   { ROLE_SYSTEM_BUTTONDROPDOWN, ROLE_SYSTEM_BUTTONDROPDOWN },
 
-  // roles::BUTTONMENU
+  // nsIAccessibleRole::ROLE_BUTTONMENU
   { ROLE_SYSTEM_BUTTONMENU, ROLE_SYSTEM_BUTTONMENU },
 
-  // roles::BUTTONDROPDOWNGRID
+  // nsIAccessibleRole::ROLE_BUTTONDROPDOWNGRID
   { ROLE_SYSTEM_BUTTONDROPDOWNGRID, ROLE_SYSTEM_BUTTONDROPDOWNGRID },
 
-  // roles::WHITESPACE
+  // nsIAccessibleRole::ROLE_WHITESPACE
   { ROLE_SYSTEM_WHITESPACE, ROLE_SYSTEM_WHITESPACE },
 
-  // roles::PAGETABLIST
+  // nsIAccessibleRole::ROLE_PAGETABLIST
   { ROLE_SYSTEM_PAGETABLIST, ROLE_SYSTEM_PAGETABLIST },
 
-  // roles::CLOCK
+  // nsIAccessibleRole::ROLE_CLOCK
   { ROLE_SYSTEM_CLOCK, ROLE_SYSTEM_CLOCK },
 
-  // roles::SPLITBUTTON
+  // nsIAccessibleRole::ROLE_SPLITBUTTON
   { ROLE_SYSTEM_SPLITBUTTON, ROLE_SYSTEM_SPLITBUTTON },
 
-  // roles::IPADDRESS
+  // nsIAccessibleRole::ROLE_IPADDRESS
   { ROLE_SYSTEM_IPADDRESS, ROLE_SYSTEM_IPADDRESS },
 
   // Make up for Gecko roles that we don't have in MSAA or IA2. When in doubt
   // map them to USE_ROLE_STRING (IA2_ROLE_UNKNOWN).
 
-  // roles::ACCEL_LABEL
+  // nsIAccessibleRole::ROLE_ACCEL_LABEL
   { ROLE_SYSTEM_STATICTEXT, ROLE_SYSTEM_STATICTEXT },
 
-  // roles::ARROW
+  // nsIAccessibleRole::ROLE_ARROW
   { ROLE_SYSTEM_INDICATOR, ROLE_SYSTEM_INDICATOR },
 
-  // roles::CANVAS
+  // nsIAccessibleRole::ROLE_CANVAS
   { USE_ROLE_STRING, IA2_ROLE_CANVAS },
 
-  // roles::CHECK_MENU_ITEM
+  // nsIAccessibleRole::ROLE_CHECK_MENU_ITEM
   { ROLE_SYSTEM_MENUITEM, IA2_ROLE_CHECK_MENU_ITEM },
 
-  // roles::COLOR_CHOOSER
+  // nsIAccessibleRole::ROLE_COLOR_CHOOSER
   { ROLE_SYSTEM_DIALOG, IA2_ROLE_COLOR_CHOOSER },
 
-  // roles::DATE_EDITOR
+  // nsIAccessibleRole::ROLE_DATE_EDITOR
   { USE_ROLE_STRING, IA2_ROLE_DATE_EDITOR },
 
-  // roles::DESKTOP_ICON
+  // nsIAccessibleRole::ROLE_DESKTOP_ICON
   { USE_ROLE_STRING, IA2_ROLE_DESKTOP_ICON },
 
-  // roles::DESKTOP_FRAME
+  // nsIAccessibleRole::ROLE_DESKTOP_FRAME
   { USE_ROLE_STRING, IA2_ROLE_DESKTOP_PANE },
 
-  // roles::DIRECTORY_PANE
+  // nsIAccessibleRole::ROLE_DIRECTORY_PANE
   { USE_ROLE_STRING, IA2_ROLE_DIRECTORY_PANE },
 
-  // roles::FILE_CHOOSER
+  // nsIAccessibleRole::ROLE_FILE_CHOOSER
   { USE_ROLE_STRING, IA2_ROLE_FILE_CHOOSER },
 
-  // roles::FONT_CHOOSER
+  // nsIAccessibleRole::ROLE_FONT_CHOOSER
   { USE_ROLE_STRING, IA2_ROLE_FONT_CHOOSER },
 
-  // roles::CHROME_WINDOW
+  // nsIAccessibleRole::ROLE_CHROME_WINDOW
   { ROLE_SYSTEM_APPLICATION, IA2_ROLE_FRAME },
 
-  // roles::GLASS_PANE
+  // nsIAccessibleRole::ROLE_GLASS_PANE
   { USE_ROLE_STRING, IA2_ROLE_GLASS_PANE },
 
-  // roles::HTML_CONTAINER
+  // nsIAccessibleRole::ROLE_HTML_CONTAINER
   { USE_ROLE_STRING, IA2_ROLE_UNKNOWN },
 
-  // roles::ICON
+  // nsIAccessibleRole::ROLE_ICON
   { ROLE_SYSTEM_PUSHBUTTON, IA2_ROLE_ICON },
 
-  // roles::LABEL
+  // nsIAccessibleRole::ROLE_LABEL
   { ROLE_SYSTEM_STATICTEXT, IA2_ROLE_LABEL },
 
-  // roles::LAYERED_PANE
+  // nsIAccessibleRole::ROLE_LAYERED_PANE
   { USE_ROLE_STRING, IA2_ROLE_LAYERED_PANE },
 
-  // roles::OPTION_PANE
+  // nsIAccessibleRole::ROLE_OPTION_PANE
   { USE_ROLE_STRING, IA2_ROLE_OPTION_PANE },
 
-  // roles::PASSWORD_TEXT
+  // nsIAccessibleRole::ROLE_PASSWORD_TEXT
   { ROLE_SYSTEM_TEXT, ROLE_SYSTEM_TEXT },
 
-  // roles::POPUP_MENU
+  // nsIAccessibleRole::ROLE_POPUP_MENU
   { ROLE_SYSTEM_MENUPOPUP, ROLE_SYSTEM_MENUPOPUP },
 
-  // roles::RADIO_MENU_ITEM
+  // nsIAccessibleRole::ROLE_RADIO_MENU_ITEM
   { ROLE_SYSTEM_MENUITEM, IA2_ROLE_RADIO_MENU_ITEM },
 
-  // roles::ROOT_PANE
+  // nsIAccessibleRole::ROLE_ROOT_PANE
   { USE_ROLE_STRING, IA2_ROLE_ROOT_PANE },
 
-  // roles::SCROLL_PANE
+  // nsIAccessibleRole::ROLE_SCROLL_PANE
   { USE_ROLE_STRING, IA2_ROLE_SCROLL_PANE },
 
-  // roles::SPLIT_PANE
+  // nsIAccessibleRole::ROLE_SPLIT_PANE
   { USE_ROLE_STRING, IA2_ROLE_SPLIT_PANE },
 
-  // roles::TABLE_COLUMN_HEADER
+  // nsIAccessibleRole::ROLE_TABLE_COLUMN_HEADER
   { ROLE_SYSTEM_COLUMNHEADER, ROLE_SYSTEM_COLUMNHEADER },
 
-  // roles::TABLE_ROW_HEADER
+  // nsIAccessibleRole::ROLE_TABLE_ROW_HEADER
   { ROLE_SYSTEM_ROWHEADER, ROLE_SYSTEM_ROWHEADER },
 
-  // roles::TEAR_OFF_MENU_ITEM
+  // nsIAccessibleRole::ROLE_TEAR_OFF_MENU_ITEM
   { ROLE_SYSTEM_MENUITEM, IA2_ROLE_TEAR_OFF_MENU },
 
-  // roles::TERMINAL
+  // nsIAccessibleRole::ROLE_TERMINAL
   { USE_ROLE_STRING, IA2_ROLE_TERMINAL },
 
-  // roles::TEXT_CONTAINER
+  // nsIAccessibleRole::ROLE_TEXT_CONTAINER
   { USE_ROLE_STRING, IA2_ROLE_TEXT_FRAME },
 
-  // roles::TOGGLE_BUTTON
+  // nsIAccessibleRole::ROLE_TOGGLE_BUTTON
   { ROLE_SYSTEM_PUSHBUTTON, IA2_ROLE_TOGGLE_BUTTON },
 
-  // roles::TREE_TABLE
+  // nsIAccessibleRole::ROLE_TREE_TABLE
   { ROLE_SYSTEM_OUTLINE, ROLE_SYSTEM_OUTLINE },
 
-  // roles::VIEWPORT
+  // nsIAccessibleRole::ROLE_VIEWPORT
   { ROLE_SYSTEM_PANE, IA2_ROLE_VIEW_PORT },
 
-  // roles::HEADER
+  // nsIAccessibleRole::ROLE_HEADER
   { USE_ROLE_STRING, IA2_ROLE_HEADER },
 
-  // roles::FOOTER
+  // nsIAccessibleRole::ROLE_FOOTER
   { USE_ROLE_STRING, IA2_ROLE_FOOTER },
 
-  // roles::PARAGRAPH
+  // nsIAccessibleRole::ROLE_PARAGRAPH
   { USE_ROLE_STRING, IA2_ROLE_PARAGRAPH },
 
-  // roles::RULER
+  // nsIAccessibleRole::ROLE_RULER
   { USE_ROLE_STRING, IA2_ROLE_RULER },
 
-  // roles::AUTOCOMPLETE
+  // nsIAccessibleRole::ROLE_AUTOCOMPLETE
   { ROLE_SYSTEM_COMBOBOX, ROLE_SYSTEM_COMBOBOX },
 
-  // roles::EDITBAR
+  // nsIAccessibleRole::ROLE_EDITBAR
   { ROLE_SYSTEM_TEXT, IA2_ROLE_EDITBAR },
 
-  // roles::ENTRY
+  // nsIAccessibleRole::ROLE_ENTRY
   { ROLE_SYSTEM_TEXT, ROLE_SYSTEM_TEXT },
 
-  // roles::CAPTION
+  // nsIAccessibleRole::ROLE_CAPTION
   { USE_ROLE_STRING, IA2_ROLE_CAPTION },
 
-  // roles::DOCUMENT_FRAME
+  // nsIAccessibleRole::ROLE_DOCUMENT_FRAME
   { USE_ROLE_STRING, IA2_ROLE_UNKNOWN },
 
-  // roles::HEADING
+  // nsIAccessibleRole::ROLE_HEADING
   { USE_ROLE_STRING, IA2_ROLE_HEADING },
 
-  // roles::PAGE
+  // nsIAccessibleRole::ROLE_PAGE
   { USE_ROLE_STRING, IA2_ROLE_PAGE },
 
-  // roles::SECTION
+  // nsIAccessibleRole::ROLE_SECTION
   { USE_ROLE_STRING, IA2_ROLE_SECTION },
 
-  // roles::REDUNDANT_OBJECT
+  // nsIAccessibleRole::ROLE_REDUNDANT_OBJECT
   { USE_ROLE_STRING, IA2_ROLE_REDUNDANT_OBJECT },
 
-  // roles::FORM
+  // nsIAccessibleRole::ROLE_FORM
   { USE_ROLE_STRING, IA2_ROLE_FORM },
 
-  // roles::IME
+  // nsIAccessibleRole::ROLE_IME
   { USE_ROLE_STRING, IA2_ROLE_INPUT_METHOD_WINDOW },
 
-  // roles::APP_ROOT
+  // nsIAccessibleRole::ROLE_APP_ROOT
   { ROLE_SYSTEM_APPLICATION, ROLE_SYSTEM_APPLICATION },
 
-  // roles::PARENT_MENUITEM
+  // nsIAccessibleRole::ROLE_PARENT_MENUITEM
   { ROLE_SYSTEM_MENUITEM, ROLE_SYSTEM_MENUITEM },
 
-  // roles::CALENDAR
+  // nsIAccessibleRole::ROLE_CALENDAR
   { ROLE_SYSTEM_CLIENT, ROLE_SYSTEM_CLIENT },
 
-  // roles::COMBOBOX_LIST
+  // nsIAccessibleRole::ROLE_COMBOBOX_LIST
   { ROLE_SYSTEM_LIST, ROLE_SYSTEM_LIST },
 
-  // roles::COMBOBOX_OPTION
+  // nsIAccessibleRole::ROLE_COMBOBOX_OPTION
   { ROLE_SYSTEM_LISTITEM, ROLE_SYSTEM_LISTITEM },
 
-  // roles::IMAGE_MAP
+  // nsIAccessibleRole::ROLE_IMAGE_MAP
   { ROLE_SYSTEM_GRAPHIC, ROLE_SYSTEM_GRAPHIC },
 
-  // roles::OPTION 
+  // nsIAccessibleRole::ROLE_OPTION 
   { ROLE_SYSTEM_LISTITEM, ROLE_SYSTEM_LISTITEM },
   
-  // roles::RICH_OPTION
+  // nsIAccessibleRole::ROLE_RICH_OPTION
   { ROLE_SYSTEM_LISTITEM, ROLE_SYSTEM_LISTITEM },
   
-  // roles::LISTBOX
+  // nsIAccessibleRole::ROLE_LISTBOX
   { ROLE_SYSTEM_LIST, ROLE_SYSTEM_LIST },
   
-  // roles::FLAT_EQUATION
+  // nsIAccessibleRole::ROLE_FLAT_EQUATION
   { ROLE_SYSTEM_EQUATION, ROLE_SYSTEM_EQUATION },
   
-  // roles::GRID_CELL
+  // nsIAccessibleRole::ROLE_GRID_CELL
   { ROLE_SYSTEM_CELL, ROLE_SYSTEM_CELL },
 
-  // roles::EMBEDDED_OBJECT
+  // nsIAccessibleRole::ROLE_EMBEDDED_OBJECT
   { USE_ROLE_STRING, IA2_ROLE_EMBEDDED_OBJECT },
 
-  // roles::NOTE
+  // nsIAccessibleRole::ROLE_NOTE
   { USE_ROLE_STRING, IA2_ROLE_NOTE },
 
-  // roles::FIGURE
+  // nsIAccessibleRole::ROLE_FIGURE
   { ROLE_SYSTEM_GROUPING, ROLE_SYSTEM_GROUPING },
 
-  // roles::LAST_ENTRY
+  // nsIAccessibleRole::ROLE_LAST_ENTRY
   { ROLE_WINDOWS_LAST_ENTRY, ROLE_WINDOWS_LAST_ENTRY }
 };
 

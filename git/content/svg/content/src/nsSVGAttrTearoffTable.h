@@ -35,8 +35,6 @@
 #define NS_SVGATTRTEAROFFTABLE_H_
 
 #include "nsDataHashtable.h"
-#include "nsDebug.h"
-#include "nsHashKeys.h"
 
 /**
  * Global hashmap to associate internal SVG data types (e.g. nsSVGLength2) with

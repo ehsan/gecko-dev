@@ -669,12 +669,9 @@ struct JSObject : js::gc::Cell
 
     inline bool hasPropertyTable() const;
 
-    inline size_t sizeOfThis() const;
-    inline size_t computedSizeOfIncludingThis() const;
-
-    /* mallocSizeOf can be NULL, in which case we compute the sizes analytically */
-    inline void sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf,
-                                    size_t *slotsSize, size_t *elementsSize) const;
+    inline size_t structSize() const;
+    inline size_t slotsAndStructSize() const;
+    inline size_t dynamicSlotSize(JSMallocSizeOfFun mallocSizeOf) const;
 
     inline size_t numFixedSlots() const;
 
@@ -1066,7 +1063,6 @@ struct JSObject : js::gc::Cell
     inline void copyDenseArrayElements(uintN dstStart, const js::Value *src, uintN count);
     inline void initDenseArrayElements(uintN dstStart, const js::Value *src, uintN count);
     inline void moveDenseArrayElements(uintN dstStart, uintN srcStart, uintN count);
-    inline void moveDenseArrayElementsUnbarriered(uintN dstStart, uintN srcStart, uintN count);
     inline bool denseArrayHasInlineSlots() const;
 
     /* Packed information for this array. */
@@ -1098,7 +1094,7 @@ struct JSObject : js::gc::Cell
     bool arrayGetOwnDataElement(JSContext *cx, size_t i, js::Value *vp);
 
   public:
-    bool allocateArrayBufferSlots(JSContext *cx, uint32_t size, uint8_t *contents = NULL);
+    bool allocateArrayBufferSlots(JSContext *cx, uint32_t size);
     inline uint32_t arrayBufferByteLength();
     inline uint8_t * arrayBufferDataOffset();
 
@@ -1523,6 +1519,21 @@ struct JSObject_Slots16 : JSObject { js::Value fslots[16]; };
 
 #define JSSLOT_FREE(clasp)  JSCLASS_RESERVED_SLOTS(clasp)
 
+#ifdef JS_THREADSAFE
+
+/*
+ * The GC runs only when all threads except the one on which the GC is active
+ * are suspended at GC-safe points, so calling obj->getSlot() from the GC's
+ * thread is safe when rt->gcRunning is set. See jsgc.cpp for details.
+ */
+#define THREAD_IS_RUNNING_GC(rt, thread)                                      \
+    ((rt)->gcRunning && (rt)->gcThread == (thread))
+
+#define CX_THREAD_IS_RUNNING_GC(cx)                                           \
+    THREAD_IS_RUNNING_GC((cx)->runtime, (cx)->thread)
+
+#endif /* JS_THREADSAFE */
+
 class JSValueArray {
   public:
     jsval *array;
@@ -1550,7 +1561,8 @@ class ValueArray {
 #define CLEAR_BUSY(he)  ((he)->value = (void *) (uintptr_t((he)->value)&~BUSY_BIT))
 
 extern JSHashEntry *
-js_EnterSharpObject(JSContext *cx, JSObject *obj, JSIdArray **idap, bool *alreadySeen);
+js_EnterSharpObject(JSContext *cx, JSObject *obj, JSIdArray **idap,
+                    jschar **sp);
 
 extern void
 js_LeaveSharpObject(JSContext *cx, JSIdArray **idap);
@@ -1817,7 +1829,7 @@ static const uintN RESOLVE_INFER = 0xffff;
  * If cacheResult is false, return JS_NO_PROP_CACHE_FILL on success.
  */
 extern bool
-FindPropertyHelper(JSContext *cx, PropertyName *name, bool cacheResult, JSObject *scopeChain,
+FindPropertyHelper(JSContext *cx, PropertyName *name, bool cacheResult, bool global,
                    JSObject **objp, JSObject **pobjp, JSProperty **propp);
 
 /*
@@ -1825,7 +1837,7 @@ FindPropertyHelper(JSContext *cx, PropertyName *name, bool cacheResult, JSObject
  * global object, per the global parameter.
  */
 extern bool
-FindProperty(JSContext *cx, PropertyName *name, JSObject *scopeChain,
+FindProperty(JSContext *cx, PropertyName *name, bool global,
              JSObject **objp, JSObject **pobjp, JSProperty **propp);
 
 extern JSObject *

@@ -46,7 +46,6 @@ public abstract class DeferrableRepositorySessionCreationDelegate implements Rep
     final RepositorySessionCreationDelegate self = this;
     return new RepositorySessionCreationDelegate() {
 
-      // TODO: rewrite to use ExecutorService.
       @Override
       public void onSessionCreated(final RepositorySession session) {
         ThreadPool.run(new Runnable() {

@@ -38,8 +38,6 @@
 
 #include "mozilla/Util.h"
 
-#include "mozilla/layers/CompositorChild.h"
-#include "mozilla/layers/CompositorParent.h"
 #include "nsBaseWidget.h"
 #include "nsDeviceContext.h"
 #include "nsCOMPtr.h"
@@ -57,7 +55,6 @@
 #include "nsIXULRuntime.h"
 #include "nsIGfxInfo.h"
 #include "npapi.h"
-#include "base/thread.h"
 
 #ifdef DEBUG
 #include "nsIObserver.h"
@@ -73,8 +70,6 @@ static PRInt32 gNumWidgets;
 
 using namespace mozilla::layers;
 using namespace mozilla;
-using base::Thread;
-using mozilla::ipc::AsyncChannel;
 
 nsIContent* nsBaseWidget::mLastRollup = nsnull;
 
@@ -109,13 +104,11 @@ nsBaseWidget::nsBaseWidget()
 , mEventCallback(nsnull)
 , mViewCallback(nsnull)
 , mContext(nsnull)
-, mCompositorThread(nsnull)
 , mCursor(eCursor_standard)
 , mWindowType(eWindowType_child)
 , mBorderStyle(eBorderStyle_none)
 , mOnDestroyCalled(false)
 , mUseAcceleratedRendering(false)
-, mForceLayersAcceleration(false)
 , mTemporarilyUseBasicLayerManager(false)
 , mBounds(0,0,0,0)
 , mOriginalBounds(nsnull)
@@ -149,12 +142,6 @@ nsBaseWidget::~nsBaseWidget()
 
   if (mLayerManager) {
     mLayerManager->Destroy();
-    mLayerManager = nsnull;
-  }
-
-  if (mCompositorChild) {
-    mCompositorChild->Destroy();
-    delete mCompositorThread;
   }
 
 #ifdef NOISY_WIDGET_LEAKS
@@ -779,7 +766,7 @@ nsBaseWidget::GetShouldAccelerate()
   // we should use AddBoolPrefVarCache
   bool disableAcceleration =
     Preferences::GetBool("layers.acceleration.disabled", false);
-  mForceLayersAcceleration =
+  bool forceAcceleration =
     Preferences::GetBool("layers.acceleration.force-enabled", false);
 
   const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
@@ -812,7 +799,7 @@ nsBaseWidget::GetShouldAccelerate()
   if (disableAcceleration || safeMode)
     return false;
 
-  if (mForceLayersAcceleration)
+  if (forceAcceleration)
     return true;
   
   if (!whitelisted) {
@@ -827,38 +814,6 @@ nsBaseWidget::GetShouldAccelerate()
   return mUseAcceleratedRendering;
 }
 
-void nsBaseWidget::CreateCompositor()
-{
-  mCompositorParent = new CompositorParent(this);
-  mCompositorThread = new Thread("CompositorThread");
-  if (mCompositorThread->Start()) {
-    LayerManager* lm = CreateBasicLayerManager();
-    MessageLoop *childMessageLoop = mCompositorThread->message_loop();
-    mCompositorChild = new CompositorChild(lm);
-    AsyncChannel *parentChannel = mCompositorParent->GetIPCChannel();
-    AsyncChannel::Side childSide = mozilla::ipc::AsyncChannel::Child;
-    mCompositorChild->Open(parentChannel, childMessageLoop, childSide);
-    PLayersChild* shadowManager =
-      mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_OPENGL);
-
-    if (shadowManager) {
-      ShadowLayerForwarder* lf = lm->AsShadowForwarder();
-      if (!lf) {
-        delete lm;
-        mCompositorChild = nsnull;
-      }
-      lf->SetShadowManager(shadowManager);
-      lf->SetParentBackendType(LayerManager::LAYERS_OPENGL);
-
-      mLayerManager = lm;
-    } else {
-      NS_WARNING("fail to construct LayersChild");
-      delete lm;
-      mCompositorChild = nsnull;
-    }
-  }
-}
-
 LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,
                                             LayersBackend aBackendHint,
                                             LayerManagerPersistence aPersistence,
@@ -869,30 +824,16 @@ LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,
     mUseAcceleratedRendering = GetShouldAccelerate();
 
     if (mUseAcceleratedRendering) {
-
-      // Try to use an async compositor first, if possible
-      bool useCompositor =
-        Preferences::GetBool("layers.offmainthreadcomposition.enabled", false);
-      if (useCompositor) {
-        // e10s uses the parameter to pass in the shadow manager from the TabChild
-        // so we don't expect to see it there since this doesn't support e10s.
-        NS_ASSERTION(aShadowManager == nsnull, "Async Compositor not supported with e10s");
-        CreateCompositor();
-      }
-
-      if (!mLayerManager) {
-        nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(this);
-        /**
-         * XXX - On several OSes initialization is expected to fail for now.
-         * If we'd get a non-basic layer manager they'd crash. This is ok though
-         * since on those platforms it will fail. Anyone implementing new
-         * platforms on LayerManagerOGL should ensure their widget is able to
-         * deal with it though!
-         */
-
-        if (layerManager->Initialize(mForceLayersAcceleration)) {
-          mLayerManager = layerManager;
-        }
+      nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(this);
+      /**
+       * XXX - On several OSes initialization is expected to fail for now.
+       * If we'd get a none-basic layer manager they'd crash. This is ok though
+       * since on those platforms it will fail. Anyone implementing new
+       * platforms on LayerManagerOGL should ensure their widget is able to
+       * deal with it though!
+       */
+      if (layerManager->Initialize()) {
+        mLayerManager = layerManager;
       }
     }
     if (!mLayerManager) {
@@ -1259,18 +1200,6 @@ NS_IMETHODIMP
 nsBaseWidget::BeginMoveDrag(nsMouseEvent* aEvent)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-PRUint32
-nsBaseWidget::GetGLFrameBufferFormat()
-{
-  if (mLayerManager &&
-      mLayerManager->GetBackendType() == LayerManager::LAYERS_OPENGL) {
-    // Assume that the default framebuffer has RGBA format.  Specific
-    // backends that know differently will override this method.
-    return LOCAL_GL_RGBA;
-  }
-  return LOCAL_GL_NONE;
 }
 
 #ifdef DEBUG

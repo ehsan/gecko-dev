@@ -40,9 +40,8 @@
 
 #include "ListenerManager.h"
 
-#include "jsalloc.h"
 #include "jsapi.h"
-#include "jsfriendapi.h"
+#include "jscntxt.h"
 #include "js/Vector.h"
 
 #include "Events.h"
@@ -317,25 +316,6 @@ ListenerManager::GetEventListener(JSContext* aCx, JSString* aType,
   return true;
 }
 
-class ExternallyUsableContextAllocPolicy
-{
-    JSContext *const cx;
-
-  public:
-    ExternallyUsableContextAllocPolicy(JSContext *cx) : cx(cx) {}
-    JSContext *context() const { return cx; }
-    void *malloc_(size_t bytes) {
-        JSAutoRequest ar(cx);
-        return JS_malloc(cx, bytes);
-    }
-    void *realloc_(void *p, size_t oldBytes, size_t bytes) {
-        JSAutoRequest ar(cx);
-        return JS_realloc(cx, p, bytes);
-    }
-    void free_(void *p) { JS_free(cx, p); }
-    void reportAllocOverflow() const { JS_ReportAllocationOverflow(cx); }
-};
-
 bool
 ListenerManager::DispatchEvent(JSContext* aCx, JSObject* aTarget,
                                JSObject* aEvent, bool* aPreventDefaultCalled)
@@ -387,8 +367,8 @@ ListenerManager::DispatchEvent(JSContext* aCx, JSObject* aTarget,
     return true;
   }
 
-  ExternallyUsableContextAllocPolicy ap(aCx);
-  js::Vector<jsval, 10, ExternallyUsableContextAllocPolicy> listeners(ap);
+  js::ContextAllocPolicy ap(aCx);
+  js::Vector<jsval, 10, js::ContextAllocPolicy> listeners(ap);
 
   for (PRCList* elem = PR_NEXT_LINK(&collection->mListenerHead);
        elem != &collection->mListenerHead;
