@@ -86,8 +86,10 @@
 #include "xpcprivate.h"
 #include "nsIResProtocolHandler.h"
 
+#ifdef MOZ_ENABLE_LIBXUL
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
+#endif
 #include "mozilla/Omnijar.h"
 
 #include "jsdbgapi.h"
@@ -340,6 +342,7 @@ ReportOnCaller(JSCLContextHelper &helper,
     return OutputError(cx, format, ap);
 }
 
+#ifdef MOZ_ENABLE_LIBXUL
 static nsresult
 ReadScriptFromStream(JSContext *cx, nsIObjectInputStream *stream,
                      JSObject **scriptObj)
@@ -441,6 +444,7 @@ WriteScriptToStream(JSContext *cx, JSObject *scriptObj,
     JS_XDRDestroy(xdr);
     return rv;
 }
+#endif // MOZ_ENABLE_LIBXUL
 
 mozJSComponentLoader::mozJSComponentLoader()
     : mRuntime(nsnull),
@@ -928,6 +932,7 @@ PathifyURI(nsIURI *in, nsACString &out)
 }
 
 /* static */
+#ifdef MOZ_ENABLE_LIBXUL
 nsresult
 mozJSComponentLoader::ReadScript(StartupCache* cache, nsIURI *uri,
                                  JSContext *cx, JSObject **scriptObj)
@@ -985,6 +990,7 @@ mozJSComponentLoader::WriteScript(StartupCache* cache, JSObject *scriptObj,
     rv = cache->PutBuffer(spec.get(), buf, len);
     return rv;
 }
+#endif //MOZ_ENABLE_LIBXUL
 
 nsresult
 mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
@@ -1085,6 +1091,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
 
     JSObject *scriptObj = nsnull;
 
+#ifdef MOZ_ENABLE_LIBXUL  
     // Before compiling the script, first check to see if we have it in
     // the startupcache.  Note: as a rule, startupcache errors are not fatal
     // to loading the script, since we can always slow-load.
@@ -1103,6 +1110,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
             writeToCache = PR_TRUE;
         }
     }
+#endif
 
     if (!scriptObj) {
         // The script wasn't in the cache , so compile it now.
@@ -1245,6 +1253,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
             nativePath.get());
 #endif
 
+#ifdef MOZ_ENABLE_LIBXUL
     if (writeToCache) {
         // We successfully compiled the script, so cache it. 
         rv = WriteScript(cache, scriptObj, aComponentFile, aURI, cx);
@@ -1257,6 +1266,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
             LOG(("Failed to write to cache\n"));
         }
     }
+#endif
 
     // Assign aGlobal here so that it's available to recursive imports.
     // See bug 384168.

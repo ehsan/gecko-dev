@@ -221,7 +221,7 @@ nsDOMMultipartBlob::MozSlice(PRInt64 aStart, PRInt64 aEnd,
   return NS_OK;
 }
 
-class nsDOMBlobBuilder : public nsIDOMMozBlobBuilder
+class nsDOMBlobBuilder : public nsIDOMBlobBuilder
 {
 public:
   nsDOMBlobBuilder()
@@ -229,7 +229,7 @@ public:
   {}
 
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIDOMMOZBLOBBUILDER
+  NS_DECL_NSIDOMBLOBBUILDER
 protected:
   nsresult AppendVoidPtr(void* aData, PRUint32 aLength);
   nsresult AppendString(JSString* aString, JSContext* aCx);
@@ -287,7 +287,7 @@ DOMCI_DATA(MozBlobBuilder, nsDOMBlobBuilder)
 NS_IMPL_ADDREF(nsDOMBlobBuilder)
 NS_IMPL_RELEASE(nsDOMBlobBuilder)
 NS_INTERFACE_MAP_BEGIN(nsDOMBlobBuilder)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMMozBlobBuilder)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMBlobBuilder)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MozBlobBuilder)
 NS_INTERFACE_MAP_END

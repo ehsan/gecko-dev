@@ -231,10 +231,10 @@ void PrintActiveVariables(ShHandle compiler, ShShaderInfo varType)
     for (int i = 0; i < activeVars; ++i) {
         switch (varType) {
             case SH_ACTIVE_ATTRIBUTES:
-                ShGetActiveAttrib(compiler, i, NULL, &size, &type, name, NULL);
+                ShGetActiveAttrib(compiler, i, NULL, &size, &type, name);
                 break;
             case SH_ACTIVE_UNIFORMS:
-                ShGetActiveUniform(compiler, i, NULL, &size, &type, name, NULL);
+                ShGetActiveUniform(compiler, i, NULL, &size, &type, name);
                 break;
             default: assert(0);
         }

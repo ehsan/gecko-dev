@@ -925,8 +925,6 @@ public:
   NS_IMETHOD SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, jsid id, jsval *vp, PRBool *_retval);
 
-  bool JSIDToProp(const jsid& aId, nsAString& aResult);
-
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsDOMStringMapSH(aData);

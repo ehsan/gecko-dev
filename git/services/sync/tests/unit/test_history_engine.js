@@ -5,7 +5,11 @@ Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/util.js");
 
-var syncTesting = new SyncTestingInfrastructure();
+function makeSteamEngine() {
+  return new SteamEngine();
+}
+
+var syncTesting = new SyncTestingInfrastructure(makeSteamEngine);
 
 function test_processIncoming_mobile_history_batched() {
   _("SyncEngine._processIncoming works on history engine.");
@@ -15,7 +19,7 @@ function test_processIncoming_mobile_history_batched() {
   Svc.Prefs.set("clusterURL", "http://localhost:8080/");
   Svc.Prefs.set("username", "foo");
   Svc.Prefs.set("client.type", "mobile");
-  PlacesUtils.history.removeAllPages();
+  Svc.History.removeAllPages();
   Engines.register(HistoryEngine);
 
   // A collection that logs each GET
@@ -124,7 +128,7 @@ function test_processIncoming_mobile_history_batched() {
     }
 
   } finally {
-    PlacesUtils.history.removeAllPages();
+    Svc.History.removeAllPages();
     server.stop(do_test_finished);
     Svc.Prefs.resetBranch("");
     Records.clearCache();

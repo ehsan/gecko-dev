@@ -8300,10 +8300,8 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             GetCurScrollPos(ScrollOrientation_X, &cx);
             GetCurScrollPos(ScrollOrientation_Y, &cy);
 
-            // We scroll whenever we're not doing a history load.  Note that
-            // sometimes we might scroll even if we don't fire a hashchange
-            // event!  See bug 653741.
-            if (!aSHEntry) {
+            // We scroll the window precisely when we fire a hashchange event.
+            if (doHashchange) {
                 // Take the '#' off the hashes before passing them to
                 // ScrollToAnchor.
                 nsDependentCSubstring curHashName(curHash, 1);

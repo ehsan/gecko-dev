@@ -178,7 +178,6 @@ private:
     
     virtual bool RecvShowFilePicker(const PRInt16& mode,
                                     const PRInt16& selectedType,
-                                    const PRBool& addToRecentDocs,
                                     const nsString& title,
                                     const nsString& defaultFile,
                                     const nsString& defaultExtension,

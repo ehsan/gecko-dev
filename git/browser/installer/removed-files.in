@@ -1277,13 +1277,21 @@ xpicleanup@BIN_SUFFIX@
     mozcrt19.dll
   #endif
 #endif
-@DLL_PREFIX@xpcom_core@DLL_SUFFIX@
-components/@DLL_PREFIX@jar50@DLL_SUFFIX@
-#ifdef XP_WIN
-  components/xpinstal.dll
+#ifdef MOZ_ENABLE_LIBXUL
+  @DLL_PREFIX@xpcom_core@DLL_SUFFIX@
+  components/@DLL_PREFIX@jar50@DLL_SUFFIX@
+  #ifdef XP_WIN
+    components/xpinstal.dll
+  #else
+    components/@DLL_PREFIX@jsd@DLL_SUFFIX@
+    components/@DLL_PREFIX@xpinstall@DLL_SUFFIX@
+  #endif
 #else
-  components/@DLL_PREFIX@jsd@DLL_SUFFIX@
-  components/@DLL_PREFIX@xpinstall@DLL_SUFFIX@
+  #ifdef XP_MACOSX
+    XUL
+  #else
+    @DLL_PREFIX@xul@DLL_SUFFIX@
+  #endif
 #endif
 #ifndef MOZ_UPDATER
   components/nsUpdateService.js

@@ -111,7 +111,6 @@ members = [
     'nsIDOMDocument.adoptNode',
     'nsIDOMDocument.defaultView',
     'nsIDOMDocument.createNodeIterator',
-    'nsIDOMDocument.createEvent',
     'nsIDOMElement.removeAttributeNS',
     'nsIDOMElement.removeAttribute',
     'nsIDOMElement.getAttribute',
@@ -183,6 +182,7 @@ members = [
     'nsIDOMEventTarget.dispatchEvent',
     'nsIDOMEventTarget.removeEventListener',
     'nsIDOMNSEventTarget.addEventListener',
+    'nsIDOMDocumentEvent.*',
 
     'nsIDOMEvent.*',
     'nsIDOMMouseEvent.*',

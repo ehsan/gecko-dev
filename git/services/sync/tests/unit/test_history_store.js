@@ -7,9 +7,9 @@ const TIMESTAMP2 = (Date.now() - 6592903) * 1000;
 const TIMESTAMP3 = (Date.now() - 123894) * 1000;
 
 function queryPlaces(uri, options) {
-  let query = PlacesUtils.history.getNewQuery();
+  let query = Svc.History.getNewQuery();
   query.uri = uri;
-  let res = PlacesUtils.history.executeQuery(query, options);
+  let res = Svc.History.executeQuery(query, options);
   res.root.containerOpen = true;
 
   let results = [];
@@ -20,7 +20,7 @@ function queryPlaces(uri, options) {
 }
 
 function queryHistoryVisits(uri) {
-  let options = PlacesUtils.history.getNewQueryOptions();
+  let options = Svc.History.getNewQueryOptions();
   options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY;
   options.resultType = Ci.nsINavHistoryQueryOptions.RESULTS_AS_VISIT;
   options.sortingMode = Ci.nsINavHistoryQueryOptions.SORT_BY_DATE_ASCENDING;
@@ -28,12 +28,12 @@ function queryHistoryVisits(uri) {
 }
 
 function onNextTitleChanged(callback) {
-  PlacesUtils.history.addObserver({
+  Svc.History.addObserver({
     onBeginUpdateBatch: function onBeginUpdateBatch() {},
     onEndUpdateBatch: function onEndUpdateBatch() {},
     onPageChanged: function onPageChanged() {},
     onTitleChanged: function onTitleChanged() {
-      PlacesUtils.history.removeObserver(this);
+      Svc.History.removeObserver(this);
       Utils.delay(callback, 0, this);
     },
     onVisit: function onVisit() {},
@@ -57,7 +57,7 @@ function ensureThrows(func) {
     try {
       func.apply(this, arguments);
     } catch (ex) {
-      PlacesUtils.history.removeAllPages();
+      Svc.History.removeAllPages();
       do_throw(ex);
     }
   };
@@ -81,7 +81,7 @@ add_test(function test_store() {
 
   _("Let's create an entry in the database.");
   fxuri = Utils.makeURI("http://getfirefox.com/");
-   PlacesUtils.history.addPageWithDetails(fxuri, "Get Firefox!", TIMESTAMP1);
+   Svc.History.addPageWithDetails(fxuri, "Get Firefox!", TIMESTAMP1);
 
   _("Verify that the entry exists.");
   let ids = [id for (id in store.getAllIDs())];
@@ -165,7 +165,7 @@ add_test(function test_invalid_records() {
   let query = "INSERT INTO moz_places "
     + "(url, title, rev_host, visit_count, last_visit_date) "
     + "VALUES ('invalid-uri', 'Invalid URI', '.', 1, " + TIMESTAMP3 + ")";
-  let stmt = PlacesUtils.history.DBConnection.createAsyncStatement(query);
+  let stmt = Svc.History.DBConnection.createAsyncStatement(query);
   let result = Utils.queryAsync(stmt);    
   do_check_eq([id for (id in store.getAllIDs())].length, 4);
 
@@ -264,6 +264,6 @@ add_test(function test_remove() {
 
 add_test(function cleanup() {
   _("Clean up.");
-  PlacesUtils.history.removeAllPages();
+  Svc.History.removeAllPages();
   run_next_test();
 });

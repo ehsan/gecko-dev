@@ -1685,6 +1685,7 @@ NS_INTERFACE_TABLE_HEAD(nsDocument)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_DOCUMENT_INTERFACE_TABLE_BEGIN(nsDocument)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDocument)
+    NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOM3DocumentEvent)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMDocumentStyle)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMNSDocumentStyle)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMDocumentXBL)
@@ -4129,13 +4130,14 @@ nsDocument::DispatchContentLoadedEvents()
   if (target_frame) {
     nsCOMPtr<nsIDocument> parent = mParentDocument;
     do {
-      nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(parent);
+      nsCOMPtr<nsIDOMDocumentEvent> document_event =
+        do_QueryInterface(parent);
 
       nsCOMPtr<nsIDOMEvent> event;
       nsCOMPtr<nsIPrivateDOMEvent> privateEvent;
-      if (domDoc) {
-        domDoc->CreateEvent(NS_LITERAL_STRING("Events"),
-                            getter_AddRefs(event));
+      if (document_event) {
+        document_event->CreateEvent(NS_LITERAL_STRING("Events"),
+                                    getter_AddRefs(event));
 
         privateEvent = do_QueryInterface(event);
       }
@@ -6356,6 +6358,19 @@ nsDocument::CreateEvent(const nsAString& aEventType, nsIDOMEvent** aReturn)
   // Create event even without presContext.
   return nsEventDispatcher::CreateEvent(presContext, nsnull,
                                         aEventType, aReturn);
+}
+
+NS_IMETHODIMP
+nsDocument::CreateEventGroup(nsIDOMEventGroup **aInstancePtrResult)
+{
+  nsresult rv;
+  nsCOMPtr<nsIDOMEventGroup> group(do_CreateInstance(kDOMEventGroupCID, &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *aInstancePtrResult = group;
+  NS_ADDREF(*aInstancePtrResult);
+
+  return NS_OK;
 }
 
 void

@@ -1533,20 +1533,15 @@ nsAccessible::State()
     return states::DEFUNCT;
 
   PRUint64 state = NativeState();
-  // Apply ARIA states to be sure accessible states will be overridden.
+  // Apply ARIA states to be sure accessible states will be overriden.
   ApplyARIAState(&state);
 
-  if (mRoleMapEntry && mRoleMapEntry->role == nsIAccessibleRole::ROLE_PAGETAB &&
-      !(state & states::SELECTED) &&
-      !mContent->AttrValueIs(kNameSpaceID_None,
-                             nsAccessibilityAtoms::aria_selected,
-                             nsAccessibilityAtoms::_false, eCaseMatters)) {
-    // Special case: for tabs, focused implies selected, unless explicitly
-    // false, i.e. aria-selected="false".
+  if (mRoleMapEntry && mRoleMapEntry->role == nsIAccessibleRole::ROLE_PAGETAB) {
     if (state & states::FOCUSED) {
       state |= states::SELECTED;
     } else {
-      // If focus is in a child of the tab panel surely the tab is selected!
+      // Expose 'selected' state on ARIA tab if the focus is on internal element
+      // of related tabpanel.
       nsCOMPtr<nsIAccessible> tabPanel = nsRelUtils::
         GetRelatedAccessible(this, nsIAccessibleRelation::RELATION_LABEL_FOR);
 

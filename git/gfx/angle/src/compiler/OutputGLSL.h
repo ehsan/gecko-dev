@@ -9,7 +9,6 @@
 
 #include <set>
 
-#include "compiler/ForLoopUnroll.h"
 #include "compiler/intermediate.h"
 #include "compiler/ParseHelper.h"
 
@@ -45,8 +44,6 @@ private:
     // declared only once.
     typedef std::set<TString> DeclaredStructs;
     DeclaredStructs mDeclaredStructs;
-
-    ForLoopUnroll mLoopUnroll;
 };
 
 #endif  // CROSSCOMPILERGLSL_OUTPUTGLSL_H_

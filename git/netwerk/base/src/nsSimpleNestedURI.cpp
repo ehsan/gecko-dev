@@ -176,7 +176,9 @@ nsSimpleNestedURI::StartClone(nsSimpleURI::RefHandlingEnum refHandlingMode)
     }
 
     nsSimpleNestedURI* url = new nsSimpleNestedURI(innerClone);
-    url->SetMutable(PR_FALSE);
+    if (url) {
+        url->SetMutable(PR_FALSE);
+    }
 
     return url;
 }

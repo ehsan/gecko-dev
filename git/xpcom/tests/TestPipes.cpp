@@ -471,7 +471,7 @@ RunTests(PRUint32 segSize, PRUint32 segCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0
+#if !defined(MOZ_ENABLE_LIBXUL) && defined(DEBUG)
 extern NS_COM void
 TestSegmentedBuffer();
 #endif
@@ -487,6 +487,11 @@ main(int argc, char* argv[])
 
     if (argc > 1 && nsCRT::strcmp(argv[1], "-trace") == 0)
         gTrace = PR_TRUE;
+
+#if !defined(MOZ_ENABLE_LIBXUL) && defined(DEBUG)
+    printf("Testing segmented buffer...\n");
+    TestSegmentedBuffer();
+#endif
 
     rv = TestChainedPipes();
     NS_ASSERTION(NS_SUCCEEDED(rv), "TestChainedPipes failed");
