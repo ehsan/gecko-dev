@@ -1,5 +1,0 @@
-{
-   global:
-		NSModule;
-   local: *;
-};
