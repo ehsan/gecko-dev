@@ -106,7 +106,7 @@ ValueNumberer::computeValueNumbers()
         for (size_t i = 0; i < graph_.numBlocks(); i++) {
             MBasicBlock *block = graph_.getBlock(i);
 
-            for (MDefinitionIterator iter(block); iter; iter++)
+            for (MDefinitionIterator iter(block); iter.more(); iter.next())
                 iter->setValueNumber(iter->id());
         }
     }
@@ -118,7 +118,9 @@ ValueNumberer::computeValueNumbers()
         for (size_t i = 0; i < graph_.numBlocks(); i++) {
             MBasicBlock *block = graph_.getBlock(i);
 
-            for (MDefinitionIterator iter(block); iter; iter++) {
+            MDefinitionIterator iter(block);
+
+            while (iter.more()) {
                 MDefinition *ins = *iter;
 
                 uint32 value = lookupValue(values, ins);
@@ -130,6 +132,8 @@ ValueNumberer::computeValueNumbers()
                     ins->setValueNumber(value);
                     changed = true;
                 }
+
+                iter.next();
             }
         }
         values.clear();
