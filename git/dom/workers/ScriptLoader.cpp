@@ -754,7 +754,9 @@ ScriptExecutorRunnable::PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
 NS_IMETHODIMP
 ScriptExecutorRunnable::Cancel()
 {
-  ShutdownScriptLoader(mWorkerPrivate->GetJSContext(), mWorkerPrivate, false);
+  if (mLastIndex == mScriptLoader.mLoadInfos.Length() - 1) {
+    ShutdownScriptLoader(mWorkerPrivate->GetJSContext(), mWorkerPrivate, false);
+  }
   return MainThreadWorkerSyncRunnable::Cancel();
 }
 
