@@ -60,14 +60,7 @@ else
       cxx = cl
       so = dll
     else
-      ifeq ($(sys), MINGW32_NT-5.1)
-        os = WINNT
-        compiler = msvc
-        cxx = cl
-        so = dll
-      else
-        $(error Sorry, your os is unknown/unsupported: $(sys))
-      endif
+      $(error Sorry, your os is unknown/unsupported: $(sys))
     endif
   endif
 endif
