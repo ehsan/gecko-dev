@@ -5,6 +5,7 @@
 
 #include "AnimationTimeline.h"
 #include "mozilla/dom/AnimationTimelineBinding.h"
+#include "mozilla/TimeStamp.h"
 #include "nsContentUtils.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
@@ -35,18 +36,7 @@ TimeStamp
 AnimationTimeline::GetCurrentTimeStamp() const
 {
   // Always return the same object to benefit from return-value optimization.
-  TimeStamp result = mLastCurrentTime;
-
-  // If we've never been sampled, initialize the current time to the timeline's
-  // zero time since that is the time we'll use if we don't have a refresh
-  // driver.
-  if (result.IsNull()) {
-    nsRefPtr<nsDOMNavigationTiming> timing = mDocument->GetNavigationTiming();
-    if (!timing) {
-      return result;
-    }
-    result = timing->GetNavigationStartTimeStamp();
-  }
+  TimeStamp result; // Initializes to null timestamp
 
   nsIPresShell* presShell = mDocument->GetShell();
   if (MOZ_UNLIKELY(!presShell)) {
@@ -59,11 +49,6 @@ AnimationTimeline::GetCurrentTimeStamp() const
   }
 
   result = presContext->RefreshDriver()->MostRecentRefresh();
-  // FIXME: We would like to assert that:
-  //   mLastCurrentTime.IsNull() || result >= mLastCurrentTime
-  // but due to bug 1043078 this will not be the case when the refresh driver
-  // is restored from test control.
-  mLastCurrentTime = result;
   return result;
 }
 

@@ -929,14 +929,11 @@ nsLayoutUtils::SetDisplayPortMargins(nsIContent* aContent,
                             aMargins, aAlignmentX, aAlignmentY, aPriority),
                         nsINode::DeleteProperty<DisplayPortMarginsPropertyData>);
 
-  if (gfxPrefs::AsyncPanZoomEnabled()) {
-    nsIFrame* rootScrollFrame = aPresShell->GetRootScrollFrame();
-    if (rootScrollFrame && aContent == rootScrollFrame->GetContent()) {
-      // We are setting a root displayport for a document.
-      // If we have APZ, then set a special flag on the pres shell so
-      // that we don't get scrollbars drawn.
-      aPresShell->SetIgnoreViewportScrolling(true);
-    }
+  nsIFrame* rootScrollFrame = aPresShell->GetRootScrollFrame();
+  if (rootScrollFrame && aContent == rootScrollFrame->GetContent()) {
+    // We are setting a root displayport for a document.
+    // The pres shell needs a special flag set.
+    aPresShell->SetIgnoreViewportScrolling(true);
   }
 
   if (aRepaintMode == RepaintMode::Repaint) {
@@ -6820,13 +6817,15 @@ nsLayoutUtils::WantSubAPZC()
 }
 
 /* static */ void
-nsLayoutUtils::DoLogTestDataForPaint(LayerManager* aManager,
+nsLayoutUtils::DoLogTestDataForPaint(nsIPresShell* aPresShell,
                                      ViewID aScrollId,
                                      const std::string& aKey,
                                      const std::string& aValue)
 {
-  if (aManager->GetBackendType() == LayersBackend::LAYERS_CLIENT) {
-    static_cast<ClientLayerManager*>(aManager)->LogTestDataForCurrentPaint(aScrollId, aKey, aValue);
+  nsRefPtr<LayerManager> lm = aPresShell->GetPresContext()->GetRootPresContext()
+      ->GetPresShell()->GetLayerManager();
+  if (lm && lm->GetBackendType() == LayersBackend::LAYERS_CLIENT) {
+    static_cast<ClientLayerManager*>(lm.get())->LogTestDataForCurrentPaint(aScrollId, aKey, aValue);
   }
 }
 

@@ -14,7 +14,6 @@
 namespace mozilla {
 namespace dom {
 
-class DOMFileImpl;
 class Promise;
 
 class RemoveTask MOZ_FINAL
@@ -23,7 +22,7 @@ class RemoveTask MOZ_FINAL
 public:
   RemoveTask(FileSystemBase* aFileSystem,
              const nsAString& aDirPath,
-             DOMFileImpl* aTargetFile,
+             nsIDOMFile* aTargetFile,
              const nsAString& aTargetPath,
              bool aRecursive,
              ErrorResult& aRv);
@@ -59,9 +58,7 @@ protected:
 private:
   nsRefPtr<Promise> mPromise;
   nsString mDirRealPath;
-  // This cannot be a DOMFile because this object will be used on a different
-  // thread and DOMFile is not thread-safe. Let's use the DOMFileImpl instead.
-  nsRefPtr<DOMFileImpl> mTargetFileImpl;
+  nsCOMPtr<nsIDOMFile> mTargetFile;
   nsString mTargetRealPath;
   bool mRecursive;
   bool mReturnValue;

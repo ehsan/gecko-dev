@@ -63,7 +63,6 @@
 
 #include "Layers.h"
 #include "mozilla/layers/ShadowLayers.h"
-#include "gfxPrefs.h"
 
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/TabChild.h"
@@ -359,13 +358,11 @@ nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
                        new DisplayPortPropertyData(displayport, aPriority),
                        nsINode::DeleteProperty<DisplayPortPropertyData>);
 
-  if (gfxPrefs::AsyncPanZoomEnabled()) {
-    nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
-    if (rootScrollFrame && content == rootScrollFrame->GetContent()) {
-      // We are setting a root displayport for a document.
-      // The pres shell needs a special flag set.
-      presShell->SetIgnoreViewportScrolling(true);
-    }
+  nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
+  if (rootScrollFrame && content == rootScrollFrame->GetContent()) {
+    // We are setting a root displayport for a document.
+    // The pres shell needs a special flag set.
+    presShell->SetIgnoreViewportScrolling(true);
   }
 
   nsIFrame* rootFrame = presShell->FrameManager()->GetRootFrame();

@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -159,7 +159,7 @@
 #define RETURN_INSTR 0xd65f03c0 /* ret */
 
 #elif defined __ia64
-struct ia64_instr { uint32_t mI[4]; };
+struct ia64_instr { uint32_t i[4]; };
 static const ia64_instr _return_instr =
   {{ 0x00000011, 0x00000001, 0x80000200, 0x00840008 }}; /* br.ret.sptk.many b0 */
 
@@ -179,20 +179,18 @@ static const ia64_instr _return_instr =
 #ifdef _WIN32
 // Uses of this function deliberately leak the string.
 static LPSTR
-StrW32Error(DWORD aErrcode)
+StrW32Error(DWORD errcode)
 {
   LPSTR errmsg;
   FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
                  FORMAT_MESSAGE_FROM_SYSTEM |
                  FORMAT_MESSAGE_IGNORE_INSERTS,
-                 nullptr, aErrcode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                 nullptr, errcode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                  (LPSTR)&errmsg, 0, nullptr);
 
   // FormatMessage puts an unwanted newline at the end of the string
   size_t n = strlen(errmsg)-1;
-  while (errmsg[n] == '\r' || errmsg[n] == '\n') {
-    n--;
-  }
+  while (errmsg[n] == '\r' || errmsg[n] == '\n') n--;
   errmsg[n+1] = '\0';
   return errmsg;
 }
@@ -208,29 +206,33 @@ PageSize()
   return sInfo_.dwAllocationGranularity;
 }
 
-static void*
-ReserveRegion(uintptr_t aRequest, bool aAccessible)
+static void *
+ReserveRegion(uintptr_t request, bool accessible)
 {
-  return VirtualAlloc((void*)aRequest, PageSize(),
-                      aAccessible ? MEM_RESERVE|MEM_COMMIT : MEM_RESERVE,
-                      aAccessible ? PAGE_EXECUTE_READWRITE : PAGE_NOACCESS);
+  return VirtualAlloc((void *)request, PageSize(),
+                      accessible ? MEM_RESERVE|MEM_COMMIT : MEM_RESERVE,
+                      accessible ? PAGE_EXECUTE_READWRITE : PAGE_NOACCESS);
 }
 
 static void
-ReleaseRegion(void* aPage)
+ReleaseRegion(void *page)
 {
-  VirtualFree(aPage, PageSize(), MEM_RELEASE);
+  VirtualFree(page, PageSize(), MEM_RELEASE);
 }
 
 static bool
-ProbeRegion(uintptr_t aPage)
+ProbeRegion(uintptr_t page)
 {
-  return aPage >= (uintptr_t)sInfo_.lpMaximumApplicationAddress &&
-         aPage + PageSize() >= (uintptr_t)sInfo_.lpMaximumApplicationAddress;
+  if (page >= (uintptr_t)sInfo_.lpMaximumApplicationAddress &&
+      page + PageSize() >= (uintptr_t)sInfo_.lpMaximumApplicationAddress) {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 static bool
-MakeRegionExecutable(void*)
+MakeRegionExecutable(void *)
 {
   return false;
 }
@@ -242,38 +244,42 @@ MakeRegionExecutable(void*)
 
 #define LastErrMsg() (strerror(errno))
 
-static unsigned long gUnixPageSize;
+static unsigned long unixPageSize;
 
 static inline unsigned long
 PageSize()
 {
-  return gUnixPageSize;
+  return unixPageSize;
 }
 
-static void*
-ReserveRegion(uintptr_t aRequest, bool aAccessible)
+static void *
+ReserveRegion(uintptr_t request, bool accessible)
 {
-  return mmap(reinterpret_cast<void*>(aRequest), PageSize(),
-              aAccessible ? PROT_READ|PROT_WRITE : PROT_NONE,
+  return mmap(reinterpret_cast<void*>(request), PageSize(),
+              accessible ? PROT_READ|PROT_WRITE : PROT_NONE,
               MAP_PRIVATE|MAP_ANON, -1, 0);
 }
 
 static void
-ReleaseRegion(void* aPage)
+ReleaseRegion(void *page)
 {
-  munmap(aPage, PageSize());
+  munmap(page, PageSize());
 }
 
 static bool
-ProbeRegion(uintptr_t aPage)
+ProbeRegion(uintptr_t page)
 {
-  return !!madvise(reinterpret_cast<void*>(aPage), PageSize(), MADV_NORMAL);
+  if (madvise(reinterpret_cast<void*>(page), PageSize(), MADV_NORMAL)) {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 static int
-MakeRegionExecutable(void* aPage)
+MakeRegionExecutable(void *page)
 {
-  return mprotect((caddr_t)aPage, PageSize(), PROT_READ|PROT_WRITE|PROT_EXEC);
+  return mprotect((caddr_t)page, PageSize(), PROT_READ|PROT_WRITE|PROT_EXEC);
 }
 
 #endif
@@ -290,51 +296,48 @@ ReservePoisonArea()
                         ~uintptr_t(PageSize()-1));
     printf("INFO | poison area assumed at 0x%.*" PRIxPTR "\n", SIZxPTR, result);
     return result;
-  }
-
-  // First see if we can allocate the preferred poison address from the OS.
-  uintptr_t candidate = (0xF0DEAFFF & ~(PageSize() - 1));
-  void* result = ReserveRegion(candidate, false);
-  if (result == reinterpret_cast<void*>(candidate)) {
-    // success - inaccessible page allocated
-    printf("INFO | poison area allocated at 0x%.*" PRIxPTR
-           " (preferred addr)\n", SIZxPTR, reinterpret_cast<uintptr_t>(result));
-    return candidate;
-  }
-
-  // That didn't work, so see if the preferred address is within a range
-  // of permanently inacessible memory.
-  if (ProbeRegion(candidate)) {
-    // success - selected page cannot be usable memory
-    if (result != MAP_FAILED) {
-      ReleaseRegion(result);
+  } else {
+    // First see if we can allocate the preferred poison address from the OS.
+    uintptr_t candidate = (0xF0DEAFFF & ~(PageSize()-1));
+    void *result = ReserveRegion(candidate, false);
+    if (result == (void *)candidate) {
+      // success - inaccessible page allocated
+      printf("INFO | poison area allocated at 0x%.*" PRIxPTR
+             " (preferred addr)\n", SIZxPTR, (uintptr_t)result);
+      return candidate;
     }
-    printf("INFO | poison area assumed at 0x%.*" PRIxPTR
-           " (preferred addr)\n", SIZxPTR, candidate);
-    return candidate;
-  }
 
-  // The preferred address is already in use.  Did the OS give us a
-  // consolation prize?
-  if (result != MAP_FAILED) {
-    uintptr_t ures = reinterpret_cast<uintptr_t>(result);
-    printf("INFO | poison area allocated at 0x%.*" PRIxPTR
-           " (consolation prize)\n", SIZxPTR, ures);
-    return ures;
-  }
+    // That didn't work, so see if the preferred address is within a range
+    // of permanently inacessible memory.
+    if (ProbeRegion(candidate)) {
+      // success - selected page cannot be usable memory
+      if (result != MAP_FAILED)
+        ReleaseRegion(result);
+      printf("INFO | poison area assumed at 0x%.*" PRIxPTR
+             " (preferred addr)\n", SIZxPTR, candidate);
+      return candidate;
+    }
 
-  // It didn't, so try to allocate again, without any constraint on
-  // the address.
-  result = ReserveRegion(0, false);
-  if (result != MAP_FAILED) {
-    uintptr_t ures = reinterpret_cast<uintptr_t>(result);
-    printf("INFO | poison area allocated at 0x%.*" PRIxPTR
-           " (fallback)\n", SIZxPTR, ures);
-    return ures;
-  }
+    // The preferred address is already in use.  Did the OS give us a
+    // consolation prize?
+    if (result != MAP_FAILED) {
+      printf("INFO | poison area allocated at 0x%.*" PRIxPTR
+             " (consolation prize)\n", SIZxPTR, (uintptr_t)result);
+      return (uintptr_t)result;
+    }
 
-  printf("ERROR | no usable poison area found\n");
-  return 0;
+    // It didn't, so try to allocate again, without any constraint on
+    // the address.
+    result = ReserveRegion(0, false);
+    if (result != MAP_FAILED) {
+      printf("INFO | poison area allocated at 0x%.*" PRIxPTR
+             " (fallback)\n", SIZxPTR, (uintptr_t)result);
+      return (uintptr_t)result;
+    }
+
+    printf("ERROR | no usable poison area found\n");
+    return 0;
+  }
 }
 
 /* The "positive control" area confirms that we can allocate a page with the
@@ -344,7 +347,7 @@ static uintptr_t
 ReservePositiveControl()
 {
 
-  void* result = ReserveRegion(0, false);
+  void *result = ReserveRegion(0, false);
   if (result == MAP_FAILED) {
     printf("ERROR | allocating positive control | %s\n", LastErrMsg());
     return 0;
@@ -360,20 +363,17 @@ ReservePositiveControl()
 static uintptr_t
 ReserveNegativeControl()
 {
-  void* result = ReserveRegion(0, true);
+  void *result = ReserveRegion(0, true);
   if (result == MAP_FAILED) {
     printf("ERROR | allocating negative control | %s\n", LastErrMsg());
     return 0;
   }
 
   // Fill the page with return instructions.
-  RETURN_INSTR_TYPE* p = reinterpret_cast<RETURN_INSTR_TYPE*>(result);
-  RETURN_INSTR_TYPE* limit =
-    reinterpret_cast<RETURN_INSTR_TYPE*>(
-      reinterpret_cast<char*>(result) + PageSize());
-  while (p < limit) {
+  RETURN_INSTR_TYPE *p = (RETURN_INSTR_TYPE *)result;
+  RETURN_INSTR_TYPE *limit = (RETURN_INSTR_TYPE *)(((char *)result) + PageSize());
+  while (p < limit)
     *p++ = RETURN_INSTR;
-  }
 
   // Now mark it executable as well as readable and writable.
   // (mmap(PROT_EXEC) may fail when applied to anonymous memory.)
@@ -389,36 +389,35 @@ ReserveNegativeControl()
 }
 
 static void
-JumpTo(uintptr_t aOpaddr)
+JumpTo(uintptr_t opaddr)
 {
 #ifdef __ia64
-  struct func_call
-  {
-    uintptr_t mFunc;
-    uintptr_t mGp;
-  } call = { aOpaddr, };
+  struct func_call {
+    uintptr_t func;
+    uintptr_t gp;
+  } call = { opaddr, };
   ((void (*)())&call)();
 #else
-  ((void (*)())aOpaddr)();
+  ((void (*)())opaddr)();
 #endif
 }
 
 #ifdef _WIN32
 static BOOL
-IsBadExecPtr(uintptr_t aPtr)
+IsBadExecPtr(uintptr_t ptr)
 {
   BOOL ret = false;
 
 #if defined(_MSC_VER) && !defined(__clang__)
   __try {
-    JumpTo(aPtr);
+    JumpTo(ptr);
   } __except (EXCEPTION_EXECUTE_HANDLER) {
     ret = true;
   }
 #else
   printf("INFO | exec test not supported on MinGW or clang-cl builds\n");
   // We do our best
-  ret = IsBadReadPtr((const void*)aPtr, 1);
+  ret = IsBadReadPtr((const void*)ptr, 1);
 #endif
   return ret;
 }
@@ -426,9 +425,9 @@ IsBadExecPtr(uintptr_t aPtr)
 
 /* Test each page.  */
 static bool
-TestPage(const char* aPageLabel, uintptr_t aPageAddr, int aShouldSucceed)
+TestPage(const char *pagelabel, uintptr_t pageaddr, int should_succeed)
 {
-  const char* oplabel;
+  const char *oplabel;
   uintptr_t opaddr;
 
   bool failed = false;
@@ -436,9 +435,9 @@ TestPage(const char* aPageLabel, uintptr_t aPageAddr, int aShouldSucceed)
     switch (test) {
       // The execute test must be done before the write test, because the
       // write test will clobber memory at the target address.
-    case 0: oplabel = "reading"; opaddr = aPageAddr + PageSize()/2 - 1; break;
-    case 1: oplabel = "executing"; opaddr = aPageAddr + PageSize()/2; break;
-    case 2: oplabel = "writing"; opaddr = aPageAddr + PageSize()/2 - 1; break;
+    case 0: oplabel = "reading"; opaddr = pageaddr + PageSize()/2 - 1; break;
+    case 1: oplabel = "executing"; opaddr = pageaddr + PageSize()/2; break;
+    case 2: oplabel = "writing"; opaddr = pageaddr + PageSize()/2 - 1; break;
     default: abort();
     }
 
@@ -453,33 +452,33 @@ TestPage(const char* aPageLabel, uintptr_t aPageAddr, int aShouldSucceed)
     }
 
     if (badptr) {
-      if (aShouldSucceed) {
-        printf("TEST-UNEXPECTED-FAIL | %s %s\n", oplabel, aPageLabel);
+      if (should_succeed) {
+        printf("TEST-UNEXPECTED-FAIL | %s %s\n", oplabel, pagelabel);
         failed = true;
       } else {
-        printf("TEST-PASS | %s %s\n", oplabel, aPageLabel);
+        printf("TEST-PASS | %s %s\n", oplabel, pagelabel);
       }
     } else {
       // if control reaches this point the probe succeeded
-      if (aShouldSucceed) {
-        printf("TEST-PASS | %s %s\n", oplabel, aPageLabel);
+      if (should_succeed) {
+        printf("TEST-PASS | %s %s\n", oplabel, pagelabel);
       } else {
-        printf("TEST-UNEXPECTED-FAIL | %s %s\n", oplabel, aPageLabel);
+        printf("TEST-UNEXPECTED-FAIL | %s %s\n", oplabel, pagelabel);
         failed = true;
       }
     }
 #else
     pid_t pid = fork();
     if (pid == -1) {
-      printf("ERROR | %s %s | fork=%s\n", oplabel, aPageLabel,
+      printf("ERROR | %s %s | fork=%s\n", oplabel, pagelabel,
              LastErrMsg());
       exit(2);
     } else if (pid == 0) {
       volatile unsigned char scratch;
       switch (test) {
-      case 0: scratch = *(volatile unsigned char*)opaddr; break;
+      case 0: scratch = *(volatile unsigned char *)opaddr; break;
       case 1: JumpTo(opaddr); break;
-      case 2: *(volatile unsigned char*)opaddr = 0; break;
+      case 2: *(volatile unsigned char *)opaddr = 0; break;
       default: abort();
       }
       (void)scratch;
@@ -487,35 +486,35 @@ TestPage(const char* aPageLabel, uintptr_t aPageAddr, int aShouldSucceed)
     } else {
       int status;
       if (waitpid(pid, &status, 0) != pid) {
-        printf("ERROR | %s %s | wait=%s\n", oplabel, aPageLabel,
+        printf("ERROR | %s %s | wait=%s\n", oplabel, pagelabel,
                LastErrMsg());
         exit(2);
       }
 
       if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-        if (aShouldSucceed) {
-          printf("TEST-PASS | %s %s\n", oplabel, aPageLabel);
+        if (should_succeed) {
+          printf("TEST-PASS | %s %s\n", oplabel, pagelabel);
         } else {
           printf("TEST-UNEXPECTED-FAIL | %s %s | unexpected successful exit\n",
-                 oplabel, aPageLabel);
+                 oplabel, pagelabel);
           failed = true;
         }
       } else if (WIFEXITED(status)) {
         printf("ERROR | %s %s | unexpected exit code %d\n",
-               oplabel, aPageLabel, WEXITSTATUS(status));
+               oplabel, pagelabel, WEXITSTATUS(status));
         exit(2);
       } else if (WIFSIGNALED(status)) {
-        if (aShouldSucceed) {
+        if (should_succeed) {
           printf("TEST-UNEXPECTED-FAIL | %s %s | unexpected signal %d\n",
-                 oplabel, aPageLabel, WTERMSIG(status));
+                 oplabel, pagelabel, WTERMSIG(status));
           failed = true;
         } else {
           printf("TEST-PASS | %s %s | signal %d (as expected)\n",
-                 oplabel, aPageLabel, WTERMSIG(status));
+                 oplabel, pagelabel, WTERMSIG(status));
         }
       } else {
         printf("ERROR | %s %s | unexpected exit status %d\n",
-               oplabel, aPageLabel, status);
+               oplabel, pagelabel, status);
         exit(2);
       }
     }
@@ -530,16 +529,15 @@ main()
 #ifdef _WIN32
   GetSystemInfo(&sInfo_);
 #else
-  gUnixPageSize = sysconf(_SC_PAGESIZE);
+  unixPageSize = sysconf(_SC_PAGESIZE);
 #endif
 
   uintptr_t ncontrol = ReserveNegativeControl();
   uintptr_t pcontrol = ReservePositiveControl();
   uintptr_t poison = ReservePoisonArea();
 
-  if (!ncontrol || !pcontrol || !poison) {
+  if (!ncontrol || !pcontrol || !poison)
     return 2;
-  }
 
   bool failed = false;
   failed |= TestPage("negative control", ncontrol, 1);

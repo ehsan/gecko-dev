@@ -244,8 +244,9 @@ struct Zone : public JS::shadow::Zone,
     // types.
     mozilla::Atomic<uint32_t, mozilla::ReleaseAcquire> gcMallocGCTriggered;
 
-    // Track heap usage under this Zone.
-    js::gc::HeapUsage usage;
+    // Counts the number of bytes allocated in the GC heap for this zone. It is
+    // updated by both the main and GC helper threads.
+    mozilla::Atomic<size_t, mozilla::ReleaseAcquire> gcBytes;
 
     // GC trigger threshold for allocations on the GC heap.
     size_t gcTriggerBytes;

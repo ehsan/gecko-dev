@@ -1176,7 +1176,7 @@ static void
 InitStyleScopes(TreeMatchContext& aTreeContext, Element* aElement)
 {
   if (aElement->IsElementInStyleScope()) {
-    aTreeContext.InitStyleScopes(aElement->GetParentElementCrossingShadowRoot());
+    aTreeContext.InitStyleScopes(aElement->GetParentElement());
   }
 }
 
