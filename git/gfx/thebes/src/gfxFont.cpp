@@ -246,6 +246,21 @@ gfxFontCache::DestroyFont(gfxFont *aFont)
     delete aFont;
 }
 
+void
+gfxFont::RunMetrics::CombineWith(const RunMetrics& aOther, PRBool aOtherIsOnLeft)
+{
+    mAscent = PR_MAX(mAscent, aOther.mAscent);
+    mDescent = PR_MAX(mDescent, aOther.mDescent);
+    if (aOtherIsOnLeft) {
+        mBoundingBox =
+            (mBoundingBox + gfxPoint(aOther.mAdvanceWidth, 0)).Union(aOther.mBoundingBox);
+    } else {
+        mBoundingBox =
+            mBoundingBox.Union(aOther.mBoundingBox + gfxPoint(mAdvanceWidth, 0));
+    }
+    mAdvanceWidth += aOther.mAdvanceWidth;
+}
+
 gfxFont::gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle) :
     mIsValid(PR_TRUE), mStyle(*aFontStyle), mFontEntry(aFontEntry), mSyntheticBoldOffset(0)
 {
@@ -445,14 +460,10 @@ GetAdvanceForGlyphs(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd)
 }
 
 static void
-UnionWithXPoint(gfxRect *aRect, double aX)
+UnionRange(gfxFloat aX, gfxFloat* aDestMin, gfxFloat* aDestMax)
 {
-    if (aX < aRect->pos.x) {
-        aRect->size.width += aRect->pos.x - aX;
-        aRect->pos.x = aX;
-    } else if (aX > aRect->XMost()) {
-        aRect->size.width = aX - aRect->pos.x;
-    }
+    *aDestMin = PR_MIN(*aDestMin, aX);
+    *aDestMax = PR_MAX(*aDestMax, aX);
 }
 
 static PRBool
@@ -474,14 +485,13 @@ gfxFont::Measure(gfxTextRun *aTextRun,
     RunMetrics metrics;
     metrics.mAscent = fontMetrics.maxAscent*appUnitsPerDevUnit;
     metrics.mDescent = fontMetrics.maxDescent*appUnitsPerDevUnit;
-    if (!aTightBoundingBox) {
-        metrics.mBoundingBox = gfxRect(0, -metrics.mAscent, 0, metrics.mAscent + metrics.mDescent);
-    }
     if (aStart == aEnd) {
-      // exit now before we look at aSpacing[0], which is undefined
-      return metrics;
+        // exit now before we look at aSpacing[0], which is undefined
+        metrics.mBoundingBox = gfxRect(0, -metrics.mAscent, 0, metrics.mAscent + metrics.mDescent);
+        return metrics;
     }
 
+    gfxFloat advanceMin = 0, advanceMax = 0;
     const gfxTextRun::CompressedGlyph *charGlyphs = aTextRun->GetCharacterGlyphs();
     PRBool isRTL = aTextRun->IsRightToLeft();
     double direction = aTextRun->GetDirection();
@@ -503,7 +513,8 @@ gfxFont::Measure(gfxTextRun *aTextRun,
                 PRUint32 glyphIndex = glyphData->GetSimpleGlyph();
                 PRUint16 extentsWidth = extents->GetContainedGlyphWidthAppUnits(glyphIndex);
                 if (extentsWidth != gfxGlyphExtents::INVALID_WIDTH && !aTightBoundingBox) {
-                    UnionWithXPoint(&metrics.mBoundingBox, x + direction*extentsWidth);
+                    UnionRange(x, &advanceMin, &advanceMax);
+                    UnionRange(x + direction*extentsWidth, &advanceMin, &advanceMax);
                 } else {
                     gfxRect glyphRect;
                     if (!extents->GetTightGlyphExtentsAppUnits(this,
@@ -533,8 +544,8 @@ gfxFont::Measure(gfxTextRun *aTextRun,
                             aRefContext, glyphIndex, &glyphRect)) {
                     // We might have failed to get glyph extents due to
                     // OOM or something
-                    glyphRect = gfxRect(0, metrics.mBoundingBox.Y(),
-                        advance, metrics.mBoundingBox.Height());
+                    glyphRect = gfxRect(0, -metrics.mAscent,
+                        advance, metrics.mAscent + metrics.mDescent);
                 }
                 if (isRTL) {
                     glyphRect.pos.x -= advance;
@@ -555,8 +566,10 @@ gfxFont::Measure(gfxTextRun *aTextRun,
     }
 
     if (!aTightBoundingBox) {
-        // Make sure the non-tight bounding box includes the entire advance
-        UnionWithXPoint(&metrics.mBoundingBox, x);
+        UnionRange(x, &advanceMin, &advanceMax);
+        gfxRect fontBox(advanceMin, -metrics.mAscent,
+                        advanceMax - advanceMin, metrics.mAscent + metrics.mDescent);
+        metrics.mBoundingBox = metrics.mBoundingBox.Union(fontBox);
     }
     if (isRTL) {
         metrics.mBoundingBox.pos.x -= x;
@@ -1755,7 +1768,6 @@ gfxTextRun::DrawToPath(gfxContext *aContext, gfxPoint aPt,
     }
 }
 
-
 void
 gfxTextRun::AccumulateMetricsForRun(gfxFont *aFont,
                                     PRUint32 aStart, PRUint32 aEnd,
@@ -1769,13 +1781,7 @@ gfxTextRun::AccumulateMetricsForRun(gfxFont *aFont,
         aSpacingStart, aSpacingEnd, &spacingBuffer);
     Metrics metrics = aFont->Measure(this, aStart, aEnd, aTight, aRefContext,
                                      haveSpacing ? spacingBuffer.Elements() : nsnull);
- 
-    if (IsRightToLeft()) {
-        metrics.CombineWith(*aMetrics);
-        *aMetrics = metrics;
-    } else {
-        aMetrics->CombineWith(metrics);
-    }
+    aMetrics->CombineWith(metrics, IsRightToLeft());
 }
 
 void
@@ -1811,12 +1817,7 @@ gfxTextRun::AccumulatePartialLigatureMetrics(gfxFont *aFont,
             : data.mPartAdvance;    
     metrics.mAdvanceWidth = data.mPartWidth;
 
-    if (IsRightToLeft()) {
-        metrics.CombineWith(*aMetrics);
-        *aMetrics = metrics;
-    } else {
-        aMetrics->CombineWith(metrics);
-    }
+    aMetrics->CombineWith(metrics, IsRightToLeft());
 }
 
 gfxTextRun::Metrics

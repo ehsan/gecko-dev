@@ -203,6 +203,7 @@ public:
 
   static PRBool GetIMEOpenState();
 
+  static void InitTSMDocument(NSView<mozView>* aViewForCaret);
   static void StartComposing(NSView<mozView>* aComposingView);
   static void UpdateComposing(NSString* aComposingString);
   static void EndComposing();
@@ -304,6 +305,7 @@ public:
   NS_IMETHOD              ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect);
   NS_IMETHOD              BeginResizingChildren(void);
   NS_IMETHOD              EndResizingChildren(void);
+  virtual PRBool          ShowsResizeIndicator(nsIntRect* aResizerRect);
 
   static  PRBool          ConvertStatus(nsEventStatus aStatus)
                           { return aStatus == nsEventStatus_eConsumeNoDefault; }
@@ -349,8 +351,8 @@ public:
   NS_IMETHOD        EndDrawPlugin();
   NS_IMETHOD        SetPluginInstanceOwner(nsIPluginInstanceOwner* aInstanceOwner);
   
-  NS_IMETHOD        GetHasTransparentBackground(PRBool& aTransparent);
-  NS_IMETHOD        SetHasTransparentBackground(PRBool aTransparent);
+  virtual nsTransparencyMode GetTransparencyMode();
+  virtual void                SetTransparencyMode(nsTransparencyMode aMode);
   
   // Mac specific methods
   virtual PRBool    PointInWidget(Point aThePoint);
