@@ -48,39 +48,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGLength)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLength)
 NS_INTERFACE_MAP_END
 
-//----------------------------------------------------------------------
-// Helper class: AutoChangeLengthNotifier
-// Stack-based helper class to pair calls to WillChangeLengthList and
-// DidChangeLengthList.
-class MOZ_STACK_CLASS AutoChangeLengthNotifier
-{
-public:
-  AutoChangeLengthNotifier(DOMSVGLength* aLength MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-    : mLength(aLength)
-  {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    MOZ_ASSERT(mLength, "Expecting non-null length");
-    MOZ_ASSERT(mLength->HasOwner(),
-               "Expecting list to have an owner for notification");
-    mEmptyOrOldValue =
-      mLength->Element()->WillChangeLengthList(mLength->mAttrEnum);
-  }
-
-  ~AutoChangeLengthNotifier()
-  {
-    mLength->Element()->DidChangeLengthList(mLength->mAttrEnum,
-                                            mEmptyOrOldValue);
-    if (mLength->mList->IsAnimating()) {
-      mLength->Element()->AnimationNeedsResample();
-    }
-  }
-
-private:
-  DOMSVGLength* const mLength;
-  nsAttrValue   mEmptyOrOldValue;
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
 DOMSVGLength::DOMSVGLength(DOMSVGLengthList *aList,
                            uint8_t aAttrEnum,
                            uint32_t aListIndex,
@@ -162,14 +129,14 @@ DOMSVGLength::SetValue(float aUserUnitValue)
         aUserUnitValue) {
       return NS_OK;
     }
-    float uuPerUnit = InternalItem().GetUserUnitsPerUnit(Element(), Axis());
-    if (uuPerUnit > 0) {
-      float newValue = aUserUnitValue / uuPerUnit;
-      if (NS_finite(newValue)) {
-        AutoChangeLengthNotifier notifier(this);
-        InternalItem().SetValueAndUnit(newValue, InternalItem().GetUnit());
-        return NS_OK;
+    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
+    if (InternalItem().SetFromUserUnitValue(aUserUnitValue, Element(), Axis()))
+    {
+      Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
+      if (mList->mAList->IsAnimating()) {
+        Element()->AnimationNeedsResample();
       }
+      return NS_OK;
     }
   } else if (mUnit == nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER ||
              mUnit == nsIDOMSVGLength::SVG_LENGTHTYPE_PX) {
@@ -206,8 +173,12 @@ DOMSVGLength::SetValueInSpecifiedUnits(float aValue)
     if (InternalItem().GetValueInCurrentUnits() == aValue) {
       return NS_OK;
     }
-    AutoChangeLengthNotifier notifier(this);
+    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
     InternalItem().SetValueInCurrentUnits(aValue);
+    Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
+    if (mList->mAList->IsAnimating()) {
+      Element()->AnimationNeedsResample();
+    }
     return NS_OK;
   }
   mValue = aValue;
@@ -229,8 +200,12 @@ DOMSVGLength::SetValueAsString(const nsAString& aValue)
     if (InternalItem() == value) {
       return NS_OK;
     }
-    AutoChangeLengthNotifier notifier(this);
+    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
     InternalItem() = value;
+    Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
+    if (mList->mAList->IsAnimating()) {
+      Element()->AnimationNeedsResample();
+    }
     return NS_OK;
   }
   mValue = value.GetValueInCurrentUnits();
@@ -271,8 +246,12 @@ DOMSVGLength::NewValueSpecifiedUnits(uint16_t aUnit, float aValue)
         InternalItem().GetValueInCurrentUnits() == aValue) {
       return NS_OK;
     }
-    AutoChangeLengthNotifier notifier(this);
+    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
     InternalItem().SetValueAndUnit(aValue, uint8_t(aUnit));
+    Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
+    if (mList->mAList->IsAnimating()) {
+      Element()->AnimationNeedsResample();
+    }
     return NS_OK;
   }
   mUnit = uint8_t(aUnit);
@@ -294,18 +273,15 @@ DOMSVGLength::ConvertToSpecifiedUnits(uint16_t aUnit)
     if (InternalItem().GetUnit() == aUnit) {
       return NS_OK;
     }
-    float val = InternalItem().GetValueInSpecifiedUnit(
-                                 aUnit, Element(), Axis());
-    if (NS_finite(val)) {
-      AutoChangeLengthNotifier notifier(this);
-      InternalItem().SetValueAndUnit(val, aUnit);
+    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
+    if (InternalItem().ConvertToUnit(uint8_t(aUnit), Element(), Axis())) {
+      Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
       return NS_OK;
     }
   } else {
     SVGLength len(mValue, mUnit);
-    float val = len.GetValueInSpecifiedUnit(aUnit, nullptr, 0);
-    if (NS_finite(val)) {
-      mValue = val;
+    if (len.ConvertToUnit(uint8_t(aUnit), nullptr, 0)) {
+      mValue = len.GetValueInCurrentUnits();
       mUnit = aUnit;
       return NS_OK;
     }

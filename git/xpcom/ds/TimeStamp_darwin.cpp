@@ -20,7 +20,6 @@
 #include <sys/time.h>
 #include <sys/sysctl.h>
 #include <time.h>
-#include <unistd.h>
 
 #include "mozilla/TimeStamp.h"
 #include "nsDebug.h"

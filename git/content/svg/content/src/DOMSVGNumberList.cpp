@@ -75,37 +75,6 @@ DOMSVGNumberList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
   return mozilla::dom::SVGNumberListBinding::Wrap(cx, scope, this);
 }
 
-//----------------------------------------------------------------------
-// Helper class: AutoChangeNumberListNotifier
-// Stack-based helper class to pair calls to WillChangeNumberList and
-// DidChangeNumberList.
-class MOZ_STACK_CLASS AutoChangeNumberListNotifier
-{
-public:
-  AutoChangeNumberListNotifier(DOMSVGNumberList* aNumberList MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-    : mNumberList(aNumberList)
-  {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    MOZ_ASSERT(mNumberList, "Expecting non-null numberList");
-    mEmptyOrOldValue =
-      mNumberList->Element()->WillChangeNumberList(mNumberList->AttrEnum());
-  }
-
-  ~AutoChangeNumberListNotifier()
-  {
-    mNumberList->Element()->DidChangeNumberList(mNumberList->AttrEnum(),
-                                                mEmptyOrOldValue);
-    if (mNumberList->IsAnimating()) {
-      mNumberList->Element()->AnimationNeedsResample();
-    }
-  }
-
-private:
-  DOMSVGNumberList* const mNumberList;
-  nsAttrValue       mEmptyOrOldValue;
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
 void
 DOMSVGNumberList::InternalListLengthWillChange(uint32_t aNewLength)
 {
@@ -160,7 +129,7 @@ DOMSVGNumberList::Clear(ErrorResult& error)
   }
 
   if (LengthNoFlush() > 0) {
-    AutoChangeNumberListNotifier notifier(this);
+    nsAttrValue emptyOrOldValue = Element()->WillChangeNumberList(AttrEnum());
     // Notify any existing DOM items of removal *before* truncating the lists
     // so that they can find their SVGNumber internal counterparts and copy
     // their values. This also notifies the animVal list:
@@ -168,6 +137,10 @@ DOMSVGNumberList::Clear(ErrorResult& error)
 
     mItems.Clear();
     InternalList().Clear();
+    Element()->DidChangeNumberList(AttrEnum(), emptyOrOldValue);
+    if (mAList->IsAnimating()) {
+      Element()->AnimationNeedsResample();
+    }
   }
 }
 
@@ -258,7 +231,7 @@ DOMSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
     return nullptr;
   }
 
-  AutoChangeNumberListNotifier notifier(this);
+  nsAttrValue emptyOrOldValue = Element()->WillChangeNumberList(AttrEnum());
   // Now that we know we're inserting, keep animVal list in sync as necessary.
   MaybeInsertNullInAnimValListAt(index);
 
@@ -272,6 +245,10 @@ DOMSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
 
   UpdateListIndicesFromIndex(mItems, index + 1);
 
+  Element()->DidChangeNumberList(AttrEnum(), emptyOrOldValue);
+  if (mAList->IsAnimating()) {
+    Element()->AnimationNeedsResample();
+  }
   return domItem.forget();
 }
 
@@ -298,7 +275,7 @@ DOMSVGNumberList::ReplaceItem(nsIDOMSVGNumber *newItem,
     domItem = domItem->Clone(); // must do this before changing anything!
   }
 
-  AutoChangeNumberListNotifier notifier(this);
+  nsAttrValue emptyOrOldValue = Element()->WillChangeNumberList(AttrEnum());
   if (mItems[index]) {
     // Notify any existing DOM item of removal *before* modifying the lists so
     // that the DOM item can copy the *old* value at its index:
@@ -312,6 +289,10 @@ DOMSVGNumberList::ReplaceItem(nsIDOMSVGNumber *newItem,
   // would end up reading bad data from InternalList()!
   domItem->InsertingIntoList(this, AttrEnum(), index, IsAnimValList());
 
+  Element()->DidChangeNumberList(AttrEnum(), emptyOrOldValue);
+  if (mAList->IsAnimating()) {
+    Element()->AnimationNeedsResample();
+  }
   return domItem.forget();
 }
 
@@ -337,7 +318,7 @@ DOMSVGNumberList::RemoveItem(uint32_t index,
   // We have to return the removed item, so get it, creating it if necessary:
   nsRefPtr<nsIDOMSVGNumber> result = GetItemAt(index);
 
-  AutoChangeNumberListNotifier notifier(this);
+  nsAttrValue emptyOrOldValue = Element()->WillChangeNumberList(AttrEnum());
   // Notify the DOM item of removal *before* modifying the lists so that the
   // DOM item can copy its *old* value:
   mItems[index]->RemovingFromList();
@@ -347,6 +328,10 @@ DOMSVGNumberList::RemoveItem(uint32_t index,
 
   UpdateListIndicesFromIndex(mItems, index);
 
+  Element()->DidChangeNumberList(AttrEnum(), emptyOrOldValue);
+  if (mAList->IsAnimating()) {
+    Element()->AnimationNeedsResample();
+  }
   return result.forget();
 }
 

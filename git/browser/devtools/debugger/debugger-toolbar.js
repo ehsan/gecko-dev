@@ -196,7 +196,6 @@ ToolbarView.prototype = {
 function OptionsView() {
   dumpn("OptionsView was instantiated");
 
-  this._toggleAutoPrettyPrint = this._toggleAutoPrettyPrint.bind(this);
   this._togglePauseOnExceptions = this._togglePauseOnExceptions.bind(this);
   this._toggleIgnoreCaughtExceptions = this._toggleIgnoreCaughtExceptions.bind(this);
   this._toggleShowPanesOnStartup = this._toggleShowPanesOnStartup.bind(this);
@@ -213,7 +212,6 @@ OptionsView.prototype = {
     dumpn("Initializing the OptionsView");
 
     this._button = document.getElementById("debugger-options");
-    this._autoPrettyPrint = document.getElementById("auto-pretty-print");
     this._pauseOnExceptionsItem = document.getElementById("pause-on-exceptions");
     this._ignoreCaughtExceptionsItem = document.getElementById("ignore-caught-exceptions");
     this._showPanesOnStartupItem = document.getElementById("show-panes-on-startup");
@@ -221,7 +219,6 @@ OptionsView.prototype = {
     this._showVariablesFilterBoxItem = document.getElementById("show-vars-filter-box");
     this._showOriginalSourceItem = document.getElementById("show-original-source");
 
-    this._autoPrettyPrint.setAttribute("checked", Prefs.autoPrettyPrint);
     this._pauseOnExceptionsItem.setAttribute("checked", Prefs.pauseOnExceptions);
     this._ignoreCaughtExceptionsItem.setAttribute("checked", Prefs.ignoreCaughtExceptions);
     this._showPanesOnStartupItem.setAttribute("checked", Prefs.panesVisibleOnStartup);
@@ -258,14 +255,6 @@ OptionsView.prototype = {
    */
   _onPopupHidden: function() {
     window.emit(EVENTS.OPTIONS_POPUP_HIDDEN);
-  },
-
-  /**
-   * Listener handling the 'auto pretty print' menuitem command.
-   */
-  _toggleAutoPrettyPrint: function(){
-    Prefs.autoPrettyPrint =
-      this._autoPrettyPrint.getAttribute("checked") == "true";
   },
 
   /**

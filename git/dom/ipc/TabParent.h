@@ -221,7 +221,7 @@ public:
     bool SendHandleDoubleTap(const CSSIntPoint& aPoint);
 
     virtual PDocumentRendererParent*
-    AllocPDocumentRendererParent(const nsRect& documentRect, const gfx::Matrix& transform,
+    AllocPDocumentRendererParent(const nsRect& documentRect, const gfxMatrix& transform,
                                  const nsString& bgcolor,
                                  const uint32_t& renderFlags, const bool& flushLayout,
                                  const nsIntSize& renderSize);

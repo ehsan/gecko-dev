@@ -32,8 +32,6 @@ class SVGMatrix;
  */
 class SVGTransform MOZ_FINAL : public nsWrapperCache
 {
-  friend class AutoChangeTransformNotifier;
-
 public:
   NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(SVGTransform)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(SVGTransform)
@@ -165,6 +163,8 @@ private:
   nsSVGTransform& Transform() {
     return HasOwner() ? InternalItem() : *mTransform;
   }
+  inline nsAttrValue NotifyElementWillChange();
+  void NotifyElementDidChange(const nsAttrValue& aEmptyOrOldValue);
 
   nsRefPtr<DOMSVGTransformList> mList;
 
@@ -182,6 +182,16 @@ private:
   // that case we allocate an nsSVGTransform object on the heap to store the data.
   nsAutoPtr<nsSVGTransform> mTransform;
 };
+
+nsAttrValue
+SVGTransform::NotifyElementWillChange()
+{
+  nsAttrValue result;
+  if (HasOwner()) {
+    result = Element()->WillChangeTransformList();
+  }
+  return result;
+}
 
 } // namespace dom
 } // namespace mozilla
