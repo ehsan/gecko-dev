@@ -112,7 +112,10 @@
     }
 
     function reloadProvider() {
-      Social.provider.reload();
+      Social.enabled = false;
+      Services.tm.mainThread.dispatch(function() {
+        Social.enabled = true;
+      }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
     }
 
     parseQueryString();

@@ -8,8 +8,6 @@
  * Base class for all our document implementations.
  */
 
-#include "nsDocument.h"
-
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
@@ -27,6 +25,7 @@
 #include "mozilla/Telemetry.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsDocument.h"
 #include "nsUnicharUtils.h"
 #include "nsContentList.h"
 #include "nsIObserver.h"
@@ -209,7 +208,6 @@
 #include "nsIEditor.h"
 #include "nsIDOMCSSStyleRule.h"
 #include "mozilla/css/Rule.h"
-#include "nsIDOMLocation.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsISecurityConsoleMessage.h"
 

@@ -20,8 +20,6 @@ interface TelephonyCall : EventTarget {
 
   readonly attribute DOMError? error;
 
-  readonly attribute TelephonyCallGroup? group;
-
   [Throws]
   void answer();
   [Throws]
@@ -53,8 +51,4 @@ interface TelephonyCall : EventTarget {
   attribute EventHandler onresuming;
   [SetterThrows]
   attribute EventHandler onerror;
-
-  // Fired whenever the group attribute changes.
-  [SetterThrows]
-  attribute EventHandler ongroupchange;
 };

@@ -30,5 +30,3 @@ CPP_SOURCES += [
     'ia2AccessibleValue.cpp',
 ]
 
-LIBXUL_LIBRARY = True
-

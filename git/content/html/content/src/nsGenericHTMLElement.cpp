@@ -820,7 +820,7 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName,
 #define FORWARDED_EVENT(name_, id_, type_, struct_) \
        || nsGkAtoms::on##name_ == aAttrName
 #define WINDOW_EVENT FORWARDED_EVENT
-#include "nsEventNameList.h" // IWYU pragma: keep
+#include "nsEventNameList.h"
 #undef WINDOW_EVENT
 #undef FORWARDED_EVENT
 #undef EVENT
@@ -928,7 +928,7 @@ nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler,              \
                                                                               \
   return nsINode::SetOn##name_(handler, error);                               \
 }
-#include "nsEventNameList.h" // IWYU pragma: keep
+#include "nsEventNameList.h"
 #undef ERROR_EVENT
 #undef FORWARDED_EVENT
 #undef EVENT
@@ -1756,6 +1756,15 @@ nsGenericHTMLElement::GetUnsignedIntAttr(nsIAtom* aAttr,
   }
 
   return attrVal->GetIntegerValue();
+}
+
+nsresult
+nsGenericHTMLElement::SetDoubleAttr(nsIAtom* aAttr, double aValue)
+{
+  nsAutoString value;
+  value.AppendFloat(aValue);
+
+  return SetAttr(kNameSpaceID_None, aAttr, value, true);
 }
 
 void

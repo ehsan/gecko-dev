@@ -25,5 +25,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'rdfbase_s'
 
-LIBXUL_LIBRARY = True
-

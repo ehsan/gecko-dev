@@ -2182,6 +2182,8 @@ private:
   static void* AllocClassMatchingInfo(nsINode* aRootNode,
                                       const nsString* aClasses);
 
+  static nsIDOMScriptObjectFactory *sDOMScriptObjectFactory;
+
   static nsIXPConnect *sXPConnect;
 
   static nsIScriptSecurityManager *sSecurityManager;

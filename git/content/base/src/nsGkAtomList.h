@@ -2,6 +2,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 // IWYU pragma: private, include "nsGkAtoms.h"
 
 /*
@@ -710,7 +711,6 @@ GK_ATOM(onerror, "onerror")
 GK_ATOM(onfailed, "onfailed")
 GK_ATOM(onfocus, "onfocus")
 GK_ATOM(onget, "onget")
-GK_ATOM(ongroupchange, "ongroupchange")
 GK_ATOM(onhashchange, "onhashchange")
 GK_ATOM(onheadphoneschange, "onheadphoneschange")
 GK_ATOM(onheld, "onheld")

@@ -11,7 +11,6 @@
 
 #include "CallEvent.h"
 #include "Telephony.h"
-#include "TelephonyCallGroup.h"
 
 USING_TELEPHONY_NAMESPACE
 using namespace mozilla::dom;
@@ -19,8 +18,7 @@ using namespace mozilla::dom;
 // static
 already_AddRefed<TelephonyCall>
 TelephonyCall::Create(Telephony* aTelephony, const nsAString& aNumber,
-                      uint16_t aCallState, uint32_t aCallIndex,
-                      bool aEmergency, bool aIsConference)
+                      uint16_t aCallState, uint32_t aCallIndex, bool aEmergency)
 {
   NS_ASSERTION(aTelephony, "Null pointer!");
   NS_ASSERTION(!aNumber.IsEmpty(), "Empty number!");
@@ -35,7 +33,6 @@ TelephonyCall::Create(Telephony* aTelephony, const nsAString& aNumber,
   call->mCallIndex = aCallIndex;
   call->mError = nullptr;
   call->mEmergency = aEmergency;
-  call->mGroup = aIsConference ? aTelephony->ConferenceGroup() : nullptr;
 
   call->ChangeStateInternal(aCallState, false);
 
@@ -111,18 +108,10 @@ TelephonyCall::ChangeStateInternal(uint16_t aCallState, bool aFireEvents)
 
   if (aCallState == nsITelephonyProvider::CALL_STATE_DISCONNECTED) {
     NS_ASSERTION(mLive, "Should be live!");
-    if (mGroup) {
-      mGroup->RemoveCall(this);
-    } else {
-      mTelephony->RemoveCall(this);
-    }
+    mTelephony->RemoveCall(this);
     mLive = false;
   } else if (!mLive) {
-    if (mGroup) {
-      mGroup->AddCall(this);
-    } else {
-      mTelephony->AddCall(this);
-    }
+    mTelephony->AddCall(this);
     mLive = true;
   }
 
@@ -171,22 +160,10 @@ TelephonyCall::NotifyError(const nsAString& aError)
   }
 }
 
-void
-TelephonyCall::ChangeGroup(TelephonyCallGroup* aGroup)
-{
-  mGroup = aGroup;
-
-  nsresult rv = DispatchCallEvent(NS_LITERAL_STRING("groupchange"), this);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to dispatch error event!");
-  }
-}
-
-NS_IMPL_CYCLE_COLLECTION_INHERITED_3(TelephonyCall,
+NS_IMPL_CYCLE_COLLECTION_INHERITED_2(TelephonyCall,
                                      nsDOMEventTargetHelper,
                                      mTelephony,
-                                     mError,
-                                     mGroup);
+                                     mError);
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(TelephonyCall)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
@@ -201,13 +178,6 @@ TelephonyCall::GetError() const
 {
   nsRefPtr<DOMError> error = mError;
   return error.forget();
-}
-
-already_AddRefed<TelephonyCallGroup>
-TelephonyCall::GetGroup() const
-{
-  nsRefPtr<TelephonyCallGroup> group = mGroup;
-  return group.forget();
 }
 
 void
@@ -255,11 +225,6 @@ TelephonyCall::Hold(ErrorResult& aRv)
     return;
   }
 
-  if (mGroup) {
-    NS_WARNING("Hold a call in conference ignored!");
-    return;
-  }
-
   nsresult rv = mTelephony->Provider()->HoldCall(mCallIndex);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
@@ -274,11 +239,6 @@ TelephonyCall::Resume(ErrorResult& aRv)
 {
   if (mCallState != nsITelephonyProvider::CALL_STATE_HELD) {
     NS_WARNING("Resume non-held call ignored!");
-    return;
-  }
-
-  if (mGroup) {
-    NS_WARNING("Resume a call in conference ignored!");
     return;
   }
 

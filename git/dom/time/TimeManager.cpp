@@ -4,7 +4,6 @@
 
 #include "TimeManager.h"
 
-#include "mozilla/dom/Date.h"
 #include "mozilla/dom/MozTimeManagerBinding.h"
 #include "nsITimeService.h"
 #include "nsServiceManagerUtils.h"

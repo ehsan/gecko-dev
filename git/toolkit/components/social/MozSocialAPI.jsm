@@ -49,7 +49,7 @@ function injectController(doc, topic, data) {
       return;
     }
 
-    let containingBrowser = window.QueryInterface(Ci.nsIInterfaceRequestor)
+    var containingBrowser = window.QueryInterface(Ci.nsIInterfaceRequestor)
                                   .getInterface(Ci.nsIWebNavigation)
                                   .QueryInterface(Ci.nsIDocShell)
                                   .chromeEventHandler;
@@ -67,7 +67,7 @@ function injectController(doc, topic, data) {
     }
 
     SocialService.getProvider(doc.nodePrincipal.origin, function(provider) {
-      if (provider && provider.enabled) {
+      if (provider && provider.workerURL && provider.enabled) {
         attachToWindow(provider, window);
       }
     });
@@ -88,7 +88,7 @@ function attachToWindow(provider, targetWindow) {
     return;
   }
 
-  let port = provider.workerURL ? provider.getWorkerPort(targetWindow) : null;
+  var port = provider.getWorkerPort(targetWindow);
 
   let mozSocialObj = {
     // Use a method for backwards compat with existing providers, but we
@@ -206,14 +206,12 @@ function attachToWindow(provider, targetWindow) {
     return targetWindow.navigator.wrappedJSObject.mozSocial = contentObj;
   });
 
-  if (port) {
-    targetWindow.addEventListener("unload", function () {
-      // We want to close the port, but also want the target window to be
-      // able to use the port during an unload event they setup - so we
-      // set a timer which will fire after the unload events have all fired.
-      schedule(function () { port.close(); });
-    });
-  }
+  targetWindow.addEventListener("unload", function () {
+    // We want to close the port, but also want the target window to be
+    // able to use the port during an unload event they setup - so we
+    // set a timer which will fire after the unload events have all fired.
+    schedule(function () { port.close(); });
+  });
 
   // We allow window.close() to close the panel, so add an event handler for
   // this, then cancel the event (so the window itself doesn't die) and

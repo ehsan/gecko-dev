@@ -36,42 +36,42 @@ public:
   double Value() const;
   void SetValue(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::value, aValue, aRv);
+    aRv = SetDoubleAttr(nsGkAtoms::value, aValue);
   }
 
   /* @return the minimum value */
   double Min() const;
   void SetMin(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::min, aValue, aRv);
+    aRv = SetDoubleAttr(nsGkAtoms::min, aValue);
   }
 
   /* @return the maximum value */
   double Max() const;
   void SetMax(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::max, aValue, aRv);
+    aRv = SetDoubleAttr(nsGkAtoms::max, aValue);
   }
 
   /* @return the low value */
   double Low() const;
   void SetLow(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::low, aValue, aRv);
+    aRv = SetDoubleAttr(nsGkAtoms::low, aValue);
   }
 
   /* @return the high value */
   double High() const;
   void SetHigh(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::high, aValue, aRv);
+    aRv = SetDoubleAttr(nsGkAtoms::high, aValue);
   }
 
   /* @return the optimum value */
   double Optimum() const;
   void SetOptimum(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::optimum, aValue, aRv);
+    aRv = SetDoubleAttr(nsGkAtoms::optimum, aValue);
   }
 
 protected:

@@ -13,7 +13,6 @@ import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import android.content.Context;
 import android.database.Cursor;
 import android.util.AttributeSet;
-import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -57,17 +56,6 @@ public class BookmarksListView extends HomeListView
         super.onAttachedToWindow();
 
         setOnItemClickListener(this);
-
-        setOnKeyListener(new View.OnKeyListener() {
-            @Override
-            public boolean onKey(View v, int keyCode, KeyEvent event) {
-                // If the user hit the BACK key, try to move to the parent folder.
-                if (keyCode == KeyEvent.KEYCODE_BACK) {
-                    return getBookmarksListAdapter().moveToParentFolder();
-                }
-                return false;
-            }
-        });
     }
 
     @Override
@@ -113,7 +101,14 @@ public class BookmarksListView extends HomeListView
         // Absolute position for the adapter.
         position -= headerCount;
 
-        final BookmarksListAdapter adapter = getBookmarksListAdapter();
+        BookmarksListAdapter adapter;
+        ListAdapter listAdapter = getAdapter();
+        if (listAdapter instanceof HeaderViewListAdapter) {
+            adapter = (BookmarksListAdapter) ((HeaderViewListAdapter) listAdapter).getWrappedAdapter();
+        } else {
+            adapter = (BookmarksListAdapter) listAdapter;
+        }
+
         if (adapter.isShowingChildFolder()) {
             if (position == 0) {
                 // If we tap on an opened folder, move back to parent folder.
@@ -145,16 +140,5 @@ public class BookmarksListView extends HomeListView
             // This item is a TwoLinePageRow, so we allow switch-to-tab.
             getOnUrlOpenListener().onUrlOpen(url, EnumSet.of(OnUrlOpenListener.Flags.ALLOW_SWITCH_TO_TAB));
         }
-    }
-
-    private BookmarksListAdapter getBookmarksListAdapter() {
-        BookmarksListAdapter adapter;
-        ListAdapter listAdapter = getAdapter();
-        if (listAdapter instanceof HeaderViewListAdapter) {
-            adapter = (BookmarksListAdapter) ((HeaderViewListAdapter) listAdapter).getWrappedAdapter();
-        } else {
-            adapter = (BookmarksListAdapter) listAdapter;
-        }
-        return adapter;
     }
 }

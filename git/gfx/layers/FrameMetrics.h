@@ -206,9 +206,9 @@ public:
   ViewID mScrollId;
 
   // The scrollable bounds of a frame. This is determined by reflow.
-  // Ordinarily the x and y will be 0 and the width and height will be the
-  // size of the element being scrolled. However for RTL pages or elements
-  // the x value may be negative.
+  // For the top-level |window|,
+  // { x = window.scrollX, y = window.scrollY, // could be 0, 0
+  //   width = window.innerWidth, height = window.innerHeight }
   //
   // This is relative to the document. It is in the same coordinate space as
   // |mScrollOffset|, but a different coordinate space than |mViewport| and

@@ -49,5 +49,3 @@ if CONFIG['OS_TARGET'] == 'Android':
 
 LIBRARY_NAME = 'cubeb'
 
-MSVC_ENABLE_PGO = True
-

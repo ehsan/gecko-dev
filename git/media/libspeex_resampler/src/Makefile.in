@@ -9,6 +9,7 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MSVC_ENABLE_PGO := 1
 FORCE_STATIC_LIB = 1
 
 # We don't compile the full speex codec, only the resampler.
@@ -24,6 +25,10 @@ DEFINES += -DFIXED_POINT
 else
 DEFINES += -DFLOATING_POINT
 endif
+
+CSRCS = \
+    resample.c \
+    $(NULL)
 
 include $(topsrcdir)/config/rules.mk
 
