@@ -1793,12 +1793,15 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount)
 
     JS_ASSERT(lr->exit->exitType != NESTED_EXIT);
     
+    /* write back interned globals */
     FlushNativeGlobalFrame(cx, e->numGlobalSlots, ti->globalSlots.data(), e->typeMap, global);
-    FlushNativeStackFrame(cx, e->calldepth, e->typeMap + e->numGlobalSlots, stack);
     JS_ASSERT(ti->globalSlots.length() >= e->numGlobalSlots);
     JS_ASSERT(globalFrameSize == STOBJ_NSLOTS(globalObj));
     JS_ASSERT(*(uint64*)&global[globalFrameSize] == 0xdeadbeefdeadbeefLL);
-
+    
+    /* write back native stack frame */
+    FlushNativeStackFrame(cx, e->calldepth, e->typeMap + e->numGlobalSlots, stack);
+    
     AUDIT(sideExitIntoInterpreter);
 
     if (!lr) /* did the tree actually execute? */
@@ -2694,7 +2697,7 @@ TraceRecorder::record_LeaveFrame()
 {
 #ifdef DEBUG
     if (cx->fp->fun)
-        printf("LeaveFrame (back to %s), callDepth=%d\n", 
+        printf("LeaveFrame (back to %s), callDept=%d\n", 
                js_AtomToPrintableString(cx, cx->fp->fun->atom),
                callDepth);
 #endif    
@@ -2704,7 +2707,7 @@ TraceRecorder::record_LeaveFrame()
     // LeaveFrame gets called after the interpreter popped the frame and
     // stored rval, so cx->fp not cx->fp->down, and -1 not 0.
     atoms = cx->fp->script->atomMap.vector;
-    set(&stackval(-1), rval_ins, true);
+    stack(-1, rval_ins);
     return true;
 }
 
@@ -3504,7 +3507,7 @@ TraceRecorder::record_JSOP_CALL()
         { js_obj_hasOwnProperty,       F_Object_p_hasOwnProperty,
                                                                "TC",  "s",    FAIL_VOID,   NULL },
         { js_obj_propertyIsEnumerable, F_Object_p_propertyIsEnumerable,
-                                                               "TC",  "s",    FAIL_VOID,   NULL },
+                                                               "TC",  "s",    FAIL_NEG,    NULL },
     };
 
     for (uintN i = 0; i < JS_ARRAY_LENGTH(knownNatives); i++) {
