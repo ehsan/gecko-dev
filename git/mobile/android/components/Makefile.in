@@ -9,7 +9,7 @@ VPATH      = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DISABLED_EXTRA_PP_COMPONENTS = \
+EXTRA_PP_COMPONENTS = \
         MobileComponents.manifest \
         AboutRedirector.js \
         BrowserCLH.js \

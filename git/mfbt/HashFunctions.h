@@ -39,7 +39,7 @@
  *  };
  *
  * If you want to hash an nsAString or nsACString, use the HashString functions
- * in nsHashKeys.h.
+ * in nsHashKey.h.
  */
 
 #ifndef mozilla_HashFunctions_h_

@@ -35,6 +35,7 @@
 
 #include "jsfuninlines.h"
 #include "jsinferinlines.h"
+#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
 #include "vm/Interpreter-inl.h"
@@ -349,11 +350,9 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
             return false;
         }
         firstword = !!fun->atom();
-        script = fun->getOrCreateScript(cx);
-        if (!script)
-            return false;
-        atom = fun->atom();
         flagsword = (fun->nargs << 16) | fun->flags;
+        atom = fun->atom();
+        script = fun->nonLazyScript();
     } else {
         fun = NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED, NullPtr(), NullPtr(),
                           JSFunction::FinalizeKind, TenuredObject);
@@ -1058,10 +1057,9 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext *cx, HandleFuncti
         if (cx->zone()->needsBarrier())
             LazyScript::writeBarrierPre(lazy);
 
-        fun->flags &= ~INTERPRETED_LAZY;
-        fun->flags |= INTERPRETED;
-
         if (JSScript *script = lazy->maybeScript()) {
+            fun->flags &= ~INTERPRETED_LAZY;
+            fun->flags |= INTERPRETED;
             fun->initScript(script);
 
             /*
@@ -1074,9 +1072,10 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext *cx, HandleFuncti
             return true;
         }
 
-        fun->initScript(NULL);
-
-        JS_ASSERT(lazy->source()->hasSourceData());
+        /* Lazily parsed script. */
+        const jschar *chars = lazy->source()->chars(cx);
+        if (!chars)
+            return false;
 
         /*
          * GC must be suppressed for the remainder of the lazy parse, as any
@@ -1084,10 +1083,9 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext *cx, HandleFuncti
          */
         AutoSuppressGC suppressGC(cx);
 
-        /* Lazily parsed script. */
-        const jschar *chars = lazy->source()->chars(cx);
-        if (!chars)
-            return false;
+        fun->flags &= ~INTERPRETED_LAZY;
+        fun->flags |= INTERPRETED;
+        fun->initScript(NULL);
 
         const jschar *lazyStart = chars + lazy->begin();
         size_t lazyLength = lazy->end() - lazy->begin();

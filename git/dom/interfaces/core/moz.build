@@ -25,6 +25,7 @@ XPIDL_SOURCES += [
     'nsIDOMText.idl',
     'nsIDOMUserDataHandler.idl',
     'nsIDOMXMLDocument.idl',
+    'nsIDocumentRegister.idl',
     'nsIInlineEventHandlers.idl',
 ]
 

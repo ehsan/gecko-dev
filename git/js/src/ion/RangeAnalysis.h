@@ -78,8 +78,7 @@ class RangeAnalysis
     MIRGraph &graph_;
 
   public:
-    MOZ_CONSTEXPR RangeAnalysis(MIRGraph &graph) :
-        graph_(graph) {}
+    RangeAnalysis(MIRGraph &graph);
     bool addBetaNobes();
     bool analyze();
     bool removeBetaNobes();

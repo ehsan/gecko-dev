@@ -42,6 +42,7 @@
 #include "vm/StringBuffer.h"
 
 #include "jsatominlines.h"
+#include "jsobjinlines.h"
 #include "jsstrinlines.h"
 #include "vm/NumberObject-inl.h"
 #include "vm/String-inl.h"

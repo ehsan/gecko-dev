@@ -15,6 +15,7 @@
 #include "gc/Marking.h"
 
 #include "jsgcinlines.h"
+#include "jsobjinlines.h"
 
 namespace js {
 

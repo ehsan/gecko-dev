@@ -11,6 +11,7 @@
 
 #include "RegExpObject.h"
 
+#include "jsobjinlines.h"
 #include "jsstrinlines.h"
 
 #include "String-inl.h"

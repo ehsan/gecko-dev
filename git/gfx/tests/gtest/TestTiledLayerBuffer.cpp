@@ -68,6 +68,7 @@ TEST(TiledLayerBuffer, TileStart) {
 TEST(TiledLayerBuffer, EmptyUpdate) {
   TestTiledLayerBuffer buffer;
 
+  nsRegion::InitStatic();
   nsIntRegion validRegion(nsIntRect(0, 0, 10, 10));
   buffer.TestUpdate(validRegion, validRegion);
 

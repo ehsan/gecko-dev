@@ -7,9 +7,9 @@
 #ifndef BooleanObject_inl_h___
 #define BooleanObject_inl_h___
 
-#include "vm/BooleanObject.h"
-
 #include "jsobjinlines.h"
+
+#include "vm/BooleanObject.h"
 
 inline js::BooleanObject &
 JSObject::asBoolean()

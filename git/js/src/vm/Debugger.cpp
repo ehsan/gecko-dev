@@ -21,8 +21,8 @@
 #include "js/Vector.h"
 
 #include "jsgcinlines.h"
+#include "jsobjinlines.h"
 #include "jsopcodeinlines.h"
-
 #include "gc/FindSCCs-inl.h"
 #include "vm/Interpreter-inl.h"
 #include "vm/Stack-inl.h"
@@ -229,6 +229,7 @@ class Debugger::FrameRange
     }
 };
 
+
 /*** Breakpoints *********************************************************************************/
 
 BreakpointSite::BreakpointSite(JSScript *script, jsbytecode *pc)
@@ -685,6 +686,7 @@ Debugger::wrapDebuggeeValue(JSContext *cx, MutableHandleValue vp)
     assertSameCompartment(cx, object.get());
 
     if (vp.isObject()) {
+        // Do we need this RootedObject?
         RootedObject obj(cx, &vp.toObject());
 
         ObjectWeakMap::AddPtr p = objects.lookupForAdd(obj);
@@ -2885,6 +2887,16 @@ DebuggerScript_getSourceMapUrl(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
+static bool
+EnsureFunctionHasScript(JSContext *cx, JSFunction *fun)
+{
+    if (fun->isInterpretedLazy()) {
+        AutoCompartment ac(cx, fun);
+        return fun->getOrCreateScript(cx);
+    }
+    return true;
+}
+
 static JSBool
 DebuggerScript_getChildScripts(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -2909,6 +2921,10 @@ DebuggerScript_getChildScripts(JSContext *cx, unsigned argc, Value *vp)
             obj = objects->vector[i];
             if (obj->isFunction()) {
                 fun = static_cast<JSFunction *>(obj.get());
+
+                if (!EnsureFunctionHasScript(cx, fun))
+                    return false;
+
                 funScript = fun->nonLazyScript();
                 s = dbg->wrapScript(cx, funScript);
                 if (!s || !js_NewbornArrayPush(cx, result, ObjectValue(*s)))
@@ -4381,11 +4397,7 @@ static JSBool
 DebuggerObject_getClass(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_DEBUGOBJECT_REFERENT(cx, argc, vp, "get class", args, refobj);
-    const char *className;
-    {
-        AutoCompartment ac(cx, refobj);
-        className = JSObject::className(cx, refobj);
-    }
+    const char *className = JSObject::className(cx, refobj);
     JSAtom *str = Atomize(cx, className, strlen(className));
     if (!str)
         return false;
@@ -4461,6 +4473,9 @@ DebuggerObject_getParameterNames(JSContext *cx, unsigned argc, Value *vp)
     result->ensureDenseInitializedLength(cx, 0, fun->nargs);
 
     if (fun->isInterpreted()) {
+        if (!EnsureFunctionHasScript(cx, fun))
+            return false;
+
         JS_ASSERT(fun->nargs == fun->nonLazyScript()->bindings.numArgs());
 
         if (fun->nargs > 0) {
@@ -4501,6 +4516,9 @@ DebuggerObject_getScript(JSContext *cx, unsigned argc, Value *vp)
         args.rval().setUndefined();
         return true;
     }
+
+    if (!EnsureFunctionHasScript(cx, fun))
+        return false;
 
     RootedScript script(cx, fun->nonLazyScript());
     RootedObject scriptObject(cx, dbg->wrapScript(cx, script));

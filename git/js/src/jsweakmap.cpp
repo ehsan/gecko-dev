@@ -17,8 +17,6 @@
 
 #include "jsobjinlines.h"
 
-#include "gc/Barrier-inl.h"
-
 using namespace js;
 
 WeakMapBase::WeakMapBase(JSObject *memOf, JSCompartment *c)

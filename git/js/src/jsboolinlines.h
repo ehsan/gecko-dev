@@ -12,6 +12,8 @@
 
 #include "js/RootingAPI.h"
 
+#include "jsobjinlines.h"
+
 #include "vm/BooleanObject-inl.h"
 
 namespace js {

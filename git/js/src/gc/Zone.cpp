@@ -19,6 +19,7 @@
 #include "ion/Ion.h"
 #endif
 
+#include "jsobjinlines.h"
 #include "jsgcinlines.h"
 
 using namespace js;

@@ -4259,7 +4259,7 @@ LocationSetterGuts(JSContext *cx, JSObject *obj, jsval *vp)
 {
   // This function duplicates some of the logic in XPC_WN_HelperSetProperty
   obj = js::CheckedUnwrap(obj, /* stopAtOuter = */ false);
-  if (!IS_WN_REFLECTOR(obj))
+  if (!IS_WN_WRAPPER(obj))
       return NS_ERROR_XPC_BAD_CONVERT_JS;
   XPCWrappedNative *wrapper = XPCWrappedNative::Get(obj);
 
@@ -5099,7 +5099,8 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *aGlobalObj,
   nsresult rv = WrapNativeParent(cx, globalObj, native_parent, parentObj);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return node->ChromeOnlyAccess() ? NS_SUCCESS_CHROME_ACCESS_ONLY : NS_OK;
+  return node->ChromeOnlyAccess() ?
+    NS_SUCCESS_CHROME_ACCESS_ONLY : NS_SUCCESS_ALLOW_SLIM_WRAPPERS;
 }
 
 NS_IMETHODIMP
@@ -5260,7 +5261,8 @@ nsElementSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 
   if (element->HasFlag(NODE_MAY_BE_IN_BINDING_MNGR) &&
       doc->BindingManager()->GetBinding(element)) {
-    return rv;
+    // Don't allow slim wrappers.
+    return rv == NS_SUCCESS_ALLOW_SLIM_WRAPPERS ? NS_OK : rv;
   }
 
   mozilla::css::URLValue *bindingURL;
@@ -5274,7 +5276,7 @@ nsElementSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 
   element->SetFlags(NODE_ATTACH_BINDING_ON_POSTCREATE);
 
-  return rv;
+  return rv == NS_SUCCESS_ALLOW_SLIM_WRAPPERS ? NS_OK : rv;
 }
 
 NS_IMETHODIMP

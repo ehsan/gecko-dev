@@ -9,7 +9,6 @@
 #include "mozilla/RangedPtr.h"
 
 #include "jsarray.h"
-#include "jscompartment.h"
 #include "jsnum.h"
 
 #include "vm/StringBuffer.h"

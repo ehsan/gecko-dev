@@ -20,7 +20,6 @@ EXPORTS.mozilla.gfx += [
     'Point.h',
     'Rect.h',
     'Scale.h',
-    'ScaleFactor.h',
     'Tools.h',
     'Types.h',
     'UserData.h',

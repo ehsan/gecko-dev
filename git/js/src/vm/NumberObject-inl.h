@@ -9,8 +9,6 @@
 
 #include "NumberObject.h"
 
-#include "jsobjinlines.h"
-
 namespace js {
 
 inline NumberObject *

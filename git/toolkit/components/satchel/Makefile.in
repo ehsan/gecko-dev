@@ -26,7 +26,7 @@ DISABLED_EXTRA_COMPONENTS = \
   satchel.manifest \
   $(NULL)
 
-DISABLED_EXTRA_PP_COMPONENTS = \
+EXTRA_PP_COMPONENTS = \
 	nsFormHistory.js \
 	$(NULL)
 

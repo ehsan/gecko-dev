@@ -7,12 +7,9 @@
 #ifndef RegExpStatics_inl_h__
 #define RegExpStatics_inl_h__
 
-#include "vm/RegExpStatics.h"
+#include "RegExpStatics.h"
 
 #include "gc/Marking.h"
-
-#include "jsinferinlines.h"
-
 #include "vm/String-inl.h"
 
 namespace js {

@@ -13,9 +13,6 @@
 const Cu = Components.utils;
 const Ci = Components.interfaces;
 
-const WARN_FLAG = Ci.nsIScriptError.warningFlag;
-const ERROR_FLAG = Ci.nsIScriptError.ERROR_FLAG;
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
@@ -845,7 +842,7 @@ CSPRep.prototype = {
     // However, our original CSP implementation required a default src
     // or an allow directive.
     if (!defaultSrcDir && !this._specCompliant) {
-      this.log(WARN_FLAG, CSPLocalizer.getStr("allowOrDefaultSrcRequired"));
+      this.warn(CSPLocalizer.getStr("allowOrDefaultSrcRequired"));
       return false;
     }
 
@@ -891,9 +888,7 @@ CSPRep.prototype = {
   },
 
   /**
-   * Sends a message to the error console and web developer console.
-   * @param aFlag
-   *        The nsIScriptError flag constant indicating severity
+   * Sends a warning message to the error console and web developer console.
    * @param aMsg
    *        The message to send
    * @param aSource (optional)
@@ -903,25 +898,50 @@ CSPRep.prototype = {
    * @param aLineNum (optional)
    *        The number of the line where the error occurred
    */
-  log:
-  function cspd_log(aFlag, aMsg, aSource, aScriptLine, aLineNum) {
-    var textMessage = "Content Security Policy: " + aMsg;
+  warn:
+  function cspd_warn(aMsg, aSource, aScriptLine, aLineNum) {
+    var textMessage = 'CSP WARN:  ' + aMsg + "\n";
+
     var consoleMsg = Components.classes["@mozilla.org/scripterror;1"]
                                .createInstance(Ci.nsIScriptError);
     if (this._innerWindowID) {
       consoleMsg.initWithWindowID(textMessage, aSource, aScriptLine, aLineNum,
-                                  0, aFlag,
-                                  "CSP",
+                                  0, Ci.nsIScriptError.warningFlag,
+                                  "Content Security Policy",
                                   this._innerWindowID);
     } else {
       consoleMsg.init(textMessage, aSource, aScriptLine, aLineNum, 0,
-                      aFlag,
-                      "CSP");
+                      Ci.nsIScriptError.warningFlag,
+                      "Content Security Policy");
     }
     Components.classes["@mozilla.org/consoleservice;1"]
               .getService(Ci.nsIConsoleService).logMessage(consoleMsg);
   },
 
+  /**
+   * Sends an error message to the error console and web developer console.
+   * @param aMsg
+   *        The message to send
+   */
+  error:
+  function cspsd_error(aMsg) {
+    var textMessage = 'CSP ERROR:  ' + aMsg + "\n";
+
+    var consoleMsg = Components.classes["@mozilla.org/scripterror;1"]
+                               .createInstance(Ci.nsIScriptError);
+    if (this._innerWindowID) {
+      consoleMsg.initWithWindowID(textMessage, null, null, 0, 0,
+                                  Ci.nsIScriptError.errorFlag,
+                                  "Content Security Policy",
+                                  this._innerWindowID);
+    }
+    else {
+      consoleMsg.init(textMessage, null, null, 0, 0,
+                      Ci.nsIScriptError.errorFlag, "Content Security Policy");
+    }
+    Components.classes["@mozilla.org/consoleservice;1"]
+              .getService(Ci.nsIConsoleService).logMessage(consoleMsg);
+  },
 };
 
 //////////////////////////////////////////////////////////////////////
@@ -1947,17 +1967,17 @@ function innerWindowFromRequest(docRequest) {
 
 function cspError(aCSPRep, aMessage) {
   if (aCSPRep) {
-    aCSPRep.log(ERROR_FLAG, aMessage);
+    aCSPRep.error(aMessage);
   } else {
-    (new CSPRep()).log(ERROR_FLAG, aMessage);
+    (new CSPRep()).error(aMessage);
   }
 }
 
 function cspWarn(aCSPRep, aMessage) {
   if (aCSPRep) {
-    aCSPRep.log(WARN_FLAG, aMessage);
+    aCSPRep.warn(aMessage);
   } else {
-    (new CSPRep()).log(WARN_FLAG, aMessage);
+    (new CSPRep()).warn(aMessage);
   }
 }
 

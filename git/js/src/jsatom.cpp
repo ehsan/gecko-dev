@@ -26,7 +26,6 @@
 #include "vm/Xdr.h"
 
 #include "jsatominlines.h"
-#include "jscompartmentinlines.h"
 
 #include "vm/String-inl.h"
 

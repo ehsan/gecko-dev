@@ -856,18 +856,14 @@ GetPossibleCallees(JSContext *cx,
         if (!rootedFun->isInterpreted())
             continue;
 
-        rootedScript = rootedFun->getOrCreateScript(cx);
-        if (!rootedScript)
-            return false;
-
-        if (rootedScript->shouldCloneAtCallsite) {
+        if (rootedFun->nonLazyScript()->shouldCloneAtCallsite) {
             rootedFun = CloneFunctionAtCallsite(cx, rootedFun, script, pc);
             if (!rootedFun)
                 return false;
-            rootedScript = rootedFun->nonLazyScript();
         }
 
         // check if this call target is already known
+        rootedScript = rootedFun->nonLazyScript();
         if (!AddCallTarget(rootedScript, targets))
             return false;
     }

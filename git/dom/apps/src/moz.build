@@ -10,10 +10,6 @@ EXTRA_COMPONENTS += [
     'Webapps.manifest',
 ]
 
-EXTRA_PP_COMPONENTS += [
-    'Webapps.js',
-]
-
 EXTRA_JS_MODULES += [
     'AppDownloadManager.jsm',
     'AppsServiceChild.jsm',

@@ -111,7 +111,6 @@ public:
     , mQueueClearMarker(false)
     , mRuntime(nullptr)
     , mStartJSSampling(false)
-    , mPrivacyMode(false)
   { }
 
   void addMarker(const char *aMarker)
@@ -250,7 +249,6 @@ public:
   JSRuntime *mRuntime;
   // Start JS Profiling when possible
   bool mStartJSSampling;
-  bool mPrivacyMode;
 };
 
 #endif

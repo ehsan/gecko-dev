@@ -19,7 +19,6 @@
 #include "frontend/BytecodeCompiler.h"
 #include "gc/GCInternals.h"
 #include "gc/Marking.h"
-#include "ion/IonCode.h"
 #ifdef JS_ION
 # include "ion/IonMacroAssembler.h"
 # include "ion/IonFrameIterator.h"
@@ -29,6 +28,7 @@
 
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
+#include "ion/IonCode.h"
 
 #ifdef MOZ_VALGRIND
 # include <valgrind/memcheck.h>

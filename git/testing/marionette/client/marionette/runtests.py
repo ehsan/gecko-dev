@@ -71,8 +71,7 @@ class MarionetteTestResult(unittest._TextTestResult):
                 self.stream.writeln('END LOG:')
 
     def printErrorList(self, flavour, errors):
-        for error in errors:
-            test, err = error[:2]
+        for test, err in errors:
             self.stream.writeln(self.separator1)
             self.stream.writeln("%s: %s" % (flavour, self.getDescription(test)))
             self.stream.writeln(self.separator2)
@@ -169,8 +168,6 @@ class MarionetteTextTestRunner(unittest.TextTestRunner):
 
 
 class MarionetteTestRunner(object):
-
-    textrunnerclass = MarionetteTextTestRunner
 
     def __init__(self, address=None, emulator=None, emulatorBinary=None,
                  emulatorImg=None, emulator_res='480x800', homedir=None,
@@ -443,8 +440,8 @@ class MarionetteTestRunner(object):
                 break
 
         if suite.countTestCases():
-            runner = self.textrunnerclass(verbosity=3,
-                                          marionette=self.marionette)
+            runner = MarionetteTextTestRunner(verbosity=3,
+                                              marionette=self.marionette)
             results = runner.run(suite)
             self.results.append(results)
 

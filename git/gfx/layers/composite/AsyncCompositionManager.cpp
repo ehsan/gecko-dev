@@ -342,7 +342,7 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFram
     LayerComposite* layerComposite = aLayer->AsLayerComposite();
 
     ViewTransform treeTransform;
-    ScreenPoint scrollOffset;
+    gfx::Point scrollOffset;
     *aWantNextFrame |=
       controller->SampleContentTransformForFrame(aCurrentFrame,
                                                  container,
@@ -355,7 +355,7 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFram
                         metrics.mDisplayPort : metrics.mCriticalDisplayPort);
     gfx::Margin fixedLayerMargins(0, 0, 0, 0);
     ScreenPoint offset(0, 0);
-    SyncFrameMetrics(scrollOffset, treeTransform.mScale.scale, metrics.mScrollableRect,
+    SyncFrameMetrics(scrollOffset, treeTransform.mScale.width, metrics.mScrollableRect,
                      mLayersUpdated, displayPort, 1 / rootTransform.GetXScale(),
                      mIsFirstPaint, fixedLayerMargins, offset);
 
@@ -381,8 +381,8 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFram
 
     TransformFixedLayers(
       aLayer,
-      gfxPoint(-treeTransform.mTranslation.x, -treeTransform.mTranslation.y),
-      gfxSize(treeTransform.mScale.scale, treeTransform.mScale.scale),
+      -treeTransform.mTranslation / treeTransform.mScale,
+      treeTransform.mScale,
       fixedLayerMargins);
 
     appliedTransform = true;
@@ -404,15 +404,16 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
 
   gfx3DMatrix treeTransform;
 
-  CSSToLayerScale geckoZoom = LayerToCSSScale(aRootTransform.GetXScale(),
-                                              aRootTransform.GetYScale()).Inverse();
+  float layerPixelRatioX = 1 / aRootTransform.GetXScale(),
+        layerPixelRatioY = 1 / aRootTransform.GetYScale();
 
-  LayerIntPoint scrollOffsetLayerPixels = RoundedToInt(metrics.mScrollOffset * geckoZoom);
+  LayerIntPoint scrollOffsetLayerPixels = LayerIntPoint::FromCSSPointRounded(
+    metrics.mScrollOffset, layerPixelRatioX, layerPixelRatioY);
 
   if (mIsFirstPaint) {
     mContentRect = metrics.mScrollableRect;
     SetFirstPaintViewport(scrollOffsetLayerPixels,
-                          geckoZoom.scale,
+                          layerPixelRatioX,
                           mContentRect);
     mIsFirstPaint = false;
   } else if (!metrics.mScrollableRect.IsEqualEdges(mContentRect)) {
@@ -423,19 +424,20 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
   // We synchronise the viewport information with Java after sending the above
   // notifications, so that Java can take these into account in its response.
   // Calculate the absolute display port to send to Java
-  LayerIntRect displayPort = RoundedToInt(
-    (metrics.mCriticalDisplayPort.IsEmpty()
-      ? metrics.mDisplayPort
-      : metrics.mCriticalDisplayPort
-    ) * geckoZoom);
+  LayerIntRect displayPort =
+    LayerIntRect::FromCSSRectRounded(metrics.mCriticalDisplayPort.IsEmpty()
+                                       ? metrics.mDisplayPort
+                                       : metrics.mCriticalDisplayPort,
+                                     layerPixelRatioX, layerPixelRatioY);
   displayPort += scrollOffsetLayerPixels;
 
   gfx::Margin fixedLayerMargins(0, 0, 0, 0);
   ScreenPoint offset(0, 0);
-  ScreenPoint userScroll(0, 0);
-  CSSToScreenScale userZoom;
-  SyncViewportInfo(displayPort, geckoZoom.scale, mLayersUpdated,
-                   userScroll, userZoom.scale, userZoom.scale, fixedLayerMargins,
+  ScreenPoint scrollOffset(0, 0);
+  float scaleX = 1.0,
+        scaleY = 1.0;
+  SyncViewportInfo(displayPort, layerPixelRatioX, mLayersUpdated,
+                   scrollOffset, scaleX, scaleY, fixedLayerMargins,
                    offset);
   mLayersUpdated = false;
 
@@ -445,44 +447,50 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
   // Handle transformations for asynchronous panning and zooming. We determine the
   // zoom used by Gecko from the transformation set on the root layer, and we
   // determine the scroll offset used by Gecko from the frame metrics of the
-  // primary scrollable layer. We compare this to the user zoom and scroll
+  // primary scrollable layer. We compare this to the desired zoom and scroll
   // offset in the view transform we obtained from Java in order to compute the
   // transformation we need to apply.
-  LayerToScreenScale zoomAdjust = userZoom / geckoZoom;
+  float tempScaleDiffX = aRootTransform.GetXScale() * scaleX;
+  float tempScaleDiffY = aRootTransform.GetYScale() * scaleY;
 
-  LayerIntPoint geckoScroll(0, 0);
+  LayerIntPoint metricsScrollOffset(0, 0);
   if (metrics.IsScrollable()) {
-    geckoScroll = scrollOffsetLayerPixels;
+    metricsScrollOffset = scrollOffsetLayerPixels;
   }
 
-  LayerPoint translation = (userScroll / zoomAdjust) - geckoScroll;
-  treeTransform = gfx3DMatrix(ViewTransform(-translation, userZoom));
+  nsIntPoint scrollCompensation(
+    (scrollOffset.x / tempScaleDiffX - metricsScrollOffset.x) * scaleX,
+    (scrollOffset.y / tempScaleDiffY - metricsScrollOffset.y) * scaleY);
+  treeTransform = gfx3DMatrix(ViewTransform(-scrollCompensation,
+                                            gfxSize(scaleX, scaleY)));
 
   // Translate fixed position layers so that they stay in the correct position
-  // when userScroll and geckoScroll differ.
+  // when scrollOffset and metricsScrollOffset differ.
   gfxPoint fixedOffset;
   gfxSize scaleDiff;
 
-  LayerRect content = mContentRect * geckoZoom;
+  LayerRect content = LayerRect::FromCSSRect(mContentRect,
+                                             1 / aRootTransform.GetXScale(),
+                                             1 / aRootTransform.GetYScale());
   // If the contents can fit entirely within the widget area on a particular
   // dimension, we need to translate and scale so that the fixed layers remain
   // within the page boundaries.
-  if (mContentRect.width * userZoom.scale < metrics.mCompositionBounds.width) {
-    fixedOffset.x = -geckoScroll.x;
+  if (mContentRect.width * scaleX < metrics.mCompositionBounds.width) {
+    fixedOffset.x = -metricsScrollOffset.x;
     scaleDiff.width = std::min(1.0f, metrics.mCompositionBounds.width / content.width);
   } else {
-    fixedOffset.x = clamped(userScroll.x / zoomAdjust.scale, content.x,
-        content.XMost() - metrics.mCompositionBounds.width / zoomAdjust.scale) - geckoScroll.x;
-    scaleDiff.width = zoomAdjust.scale;
+    fixedOffset.x = clamped(scrollOffset.x / tempScaleDiffX, content.x,
+        content.XMost() - metrics.mCompositionBounds.width / tempScaleDiffX) - metricsScrollOffset.x;
+    scaleDiff.width = tempScaleDiffX;
   }
 
-  if (mContentRect.height * userZoom.scale < metrics.mCompositionBounds.height) {
-    fixedOffset.y = -geckoScroll.y;
+  if (mContentRect.height * scaleY < metrics.mCompositionBounds.height) {
+    fixedOffset.y = -metricsScrollOffset.y;
     scaleDiff.height = std::min(1.0f, metrics.mCompositionBounds.height / content.height);
   } else {
-    fixedOffset.y = clamped(userScroll.y / zoomAdjust.scale, content.y,
-        content.YMost() - metrics.mCompositionBounds.height / zoomAdjust.scale) - geckoScroll.y;
-    scaleDiff.height = zoomAdjust.scale;
+    fixedOffset.y = clamped(scrollOffset.y / tempScaleDiffY, content.y,
+        content.YMost() - metrics.mCompositionBounds.height / tempScaleDiffY) - metricsScrollOffset.y;
+    scaleDiff.height = tempScaleDiffY;
   }
 
   // The transform already takes the resolution scale into account.  Since we
@@ -580,7 +588,7 @@ AsyncCompositionManager::SyncViewportInfo(const LayerIntRect& aDisplayPort,
 }
 
 void
-AsyncCompositionManager::SyncFrameMetrics(const ScreenPoint& aScrollOffset,
+AsyncCompositionManager::SyncFrameMetrics(const gfx::Point& aScrollOffset,
                                           float aZoom,
                                           const CSSRect& aCssPageRect,
                                           bool aLayersUpdated,

@@ -15,7 +15,3 @@ EXTRA_COMPONENTS += [
     'FeedConverter.js',
     'WebContentConverter.js',
 ]
-
-EXTRA_PP_COMPONENTS += [
-    'FeedWriter.js',
-]

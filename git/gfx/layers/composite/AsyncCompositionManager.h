@@ -27,8 +27,8 @@ class AutoResolveRefLayers;
 
 // Represents (affine) transforms that are calculated from a content view.
 struct ViewTransform {
-  ViewTransform(LayerPoint aTranslation = LayerPoint(),
-                CSSToScreenScale aScale = CSSToScreenScale())
+  ViewTransform(gfxPoint aTranslation = gfxPoint(),
+                gfxSize aScale = gfxSize(1, 1))
     : mTranslation(aTranslation)
     , mScale(aScale)
   {}
@@ -36,12 +36,12 @@ struct ViewTransform {
   operator gfx3DMatrix() const
   {
     return
-      gfx3DMatrix::Translation(mTranslation.x, mTranslation.y, 0) *
-      gfx3DMatrix::ScalingMatrix(mScale.scale, mScale.scale, 1);
+      gfx3DMatrix::ScalingMatrix(mScale.width, mScale.height, 1) *
+      gfx3DMatrix::Translation(mTranslation.x, mTranslation.y, 0);
   }
 
-  LayerPoint mTranslation;
-  CSSToScreenScale mScale;
+  gfxPoint mTranslation;
+  gfxSize mScale;
 };
 
 /**
@@ -125,7 +125,7 @@ private:
                         float& aScaleX, float& aScaleY,
                         gfx::Margin& aFixedLayerMargins,
                         ScreenPoint& aOffset);
-  void SyncFrameMetrics(const ScreenPoint& aScrollOffset,
+  void SyncFrameMetrics(const gfx::Point& aScrollOffset,
                         float aZoom,
                         const CSSRect& aCssPageRect,
                         bool aLayersUpdated,

@@ -33,6 +33,7 @@
 
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
+#include "jsobjinlines.h"
 #include "jsstrinlines.h"
 
 #include "vm/ArgumentsObject-inl.h"

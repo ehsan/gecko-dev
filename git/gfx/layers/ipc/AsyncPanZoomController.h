@@ -111,7 +111,7 @@ public:
    * { x = 0, y = 0, width = surface.width, height = surface.height }, however
    * there is no hard requirement for this.
    */
-  void UpdateCompositionBounds(const ScreenIntRect& aCompositionBounds);
+  void UpdateCompositionBounds(const LayerIntRect& aCompositionBounds);
 
   /**
    * We are scrolling a subframe, so disable our machinery until we hit
@@ -178,7 +178,7 @@ public:
   bool SampleContentTransformForFrame(const TimeStamp& aSampleTime,
                                       ContainerLayer* aLayer,
                                       ViewTransform* aNewTransform,
-                                      ScreenPoint& aScrollOffset);
+                                      gfx::Point& aScrollOffset);
 
   /**
    * A shadow layer update has arrived. |aViewportFrame| is the new FrameMetrics
@@ -235,7 +235,7 @@ public:
    * factor, etc.  (The mResolution member of aFrameMetrics is
    * ignored.)
    */
-  static CSSToScreenScale CalculateResolution(const FrameMetrics& aMetrics);
+  static gfxSize CalculateResolution(const FrameMetrics& aMetrics);
 
   static CSSRect CalculateCompositedRectInCssPixels(const FrameMetrics& aMetrics);
 
