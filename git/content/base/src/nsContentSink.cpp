@@ -95,6 +95,7 @@
 #include "nsNodeUtils.h"
 #include "nsIDOMNode.h"
 #include "nsThreadUtils.h"
+#include "nsPresShellIterator.h"
 #include "nsPIDOMWindow.h"
 #include "mozAutoDocUpdate.h"
 #include "nsIWebNavigation.h"
@@ -1228,8 +1229,9 @@ nsContentSink::ScrollToRef()
   // http://www.w3.org/TR/html4/appendix/notes.html#h-B.2.1
   NS_ConvertUTF8toUTF16 ref(unescapedRef);
 
-  nsCOMPtr<nsIPresShell> shell = mDocument->GetPrimaryShell();
-  if (shell) {
+  nsPresShellIterator iter(mDocument);
+  nsCOMPtr<nsIPresShell> shell;
+  while ((shell = iter.GetNextShell())) {
     // Check an empty string which might be caused by the UTF-8 conversion
     if (!ref.IsEmpty()) {
       // Note that GoToAnchor will handle flushing layout as needed.
@@ -1307,13 +1309,24 @@ nsContentSink::StartLayout(PRBool aIgnorePendingSheets)
   mLastNotificationTime = PR_Now();
 
   mDocument->SetMayStartLayout(PR_TRUE);
-  nsCOMPtr<nsIPresShell> shell = mDocument->GetPrimaryShell();
-  // Make sure we don't call InitialReflow() for a shell that has
-  // already called it. This can happen when the layout frame for
-  // an iframe is constructed *between* the Embed() call for the
-  // docshell in the iframe, and the content sink's call to OpenBody().
-  // (Bug 153815)
-  if (shell && !shell->DidInitialReflow()) {
+  nsPresShellIterator iter(mDocument);
+  nsCOMPtr<nsIPresShell> shell;
+  while ((shell = iter.GetNextShell())) {
+    // Make sure we don't call InitialReflow() for a shell that has
+    // already called it. This can happen when the layout frame for
+    // an iframe is constructed *between* the Embed() call for the
+    // docshell in the iframe, and the content sink's call to OpenBody().
+    // (Bug 153815)
+
+    if (shell->DidInitialReflow()) {
+      // XXX: The assumption here is that if something already
+      // called InitialReflow() on this shell, it also did some of
+      // the setup below, so we do nothing and just move on to the
+      // next shell in the list.
+
+      continue;
+    }
+
     nsRect r = shell->GetPresContext()->GetVisibleArea();
     nsCOMPtr<nsIPresShell> shellGrip = shell;
     nsresult rv = shell->InitialReflow(r.width, r.height);

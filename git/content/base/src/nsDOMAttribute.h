@@ -126,8 +126,6 @@ protected:
   static PRBool sInitialized;
 
 private:
-  already_AddRefed<nsIAtom> GetNameAtom(nsIContent* aContent);
-
   nsresult EnsureChildState(PRBool aSetText, PRBool &aHasChild) const;
 
   PRUint32 GetChildCount(PRBool aSetText) const

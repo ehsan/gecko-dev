@@ -81,9 +81,57 @@ nsAccUtils::SetAccAttr(nsIPersistentProperties *aAttributes,
 }
 
 void
+nsAccUtils::GetAccGroupAttrs(nsIPersistentProperties *aAttributes,
+                             PRInt32 *aLevel, PRInt32 *aPosInSet,
+                             PRInt32 *aSetSize)
+{
+  *aLevel = 0;
+  *aPosInSet = 0;
+  *aSetSize = 0;
+
+  nsAutoString value;
+  PRInt32 error = NS_OK;
+
+  GetAccAttr(aAttributes, nsAccessibilityAtoms::level, value);
+  if (!value.IsEmpty()) {
+    PRInt32 level = value.ToInteger(&error);
+    if (NS_SUCCEEDED(error))
+      *aLevel = level;
+  }
+
+  GetAccAttr(aAttributes, nsAccessibilityAtoms::posinset, value);
+  if (!value.IsEmpty()) {
+    PRInt32 posInSet = value.ToInteger(&error);
+    if (NS_SUCCEEDED(error))
+      *aPosInSet = posInSet;
+  }
+
+  GetAccAttr(aAttributes, nsAccessibilityAtoms::setsize, value);
+  if (!value.IsEmpty()) {
+    PRInt32 sizeSet = value.ToInteger(&error);
+    if (NS_SUCCEEDED(error))
+      *aSetSize = sizeSet;
+  }
+}
+
+PRBool
+nsAccUtils::HasAccGroupAttrs(nsIPersistentProperties *aAttributes)
+{
+  nsAutoString value;
+
+  GetAccAttr(aAttributes, nsAccessibilityAtoms::setsize, value);
+  if (!value.IsEmpty()) {
+    GetAccAttr(aAttributes, nsAccessibilityAtoms::posinset, value);
+    return !value.IsEmpty();
+  }
+
+  return PR_FALSE;
+}
+
+void
 nsAccUtils::SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
-                             PRInt32 aLevel, PRInt32 aSetSize,
-                             PRInt32 aPosInSet)
+                             PRInt32 aLevel, PRInt32 aPosInSet,
+                             PRInt32 aSetSize)
 {
   nsAutoString value;
 
@@ -104,9 +152,8 @@ nsAccUtils::SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
 }
 
 void
-nsAccUtils::GetPositionAndSizeForXULSelectControlItem(nsIDOMNode *aNode,
-                                                      PRInt32 *aPosInSet,
-                                                      PRInt32 *aSetSize)
+nsAccUtils::SetAccAttrsForXULSelectControlItem(nsIDOMNode *aNode,
+                                               nsIPersistentProperties *aAttributes)
 {
   nsCOMPtr<nsIDOMXULSelectControlItemElement> item(do_QueryInterface(aNode));
   if (!item)
@@ -123,9 +170,7 @@ nsAccUtils::GetPositionAndSizeForXULSelectControlItem(nsIDOMNode *aNode,
   PRInt32 indexOf = 0;
   control->GetIndexOfItem(item, &indexOf);
 
-  *aSetSize = itemsCount;
-  *aPosInSet = indexOf;
-
+  PRUint32 setSize = itemsCount, posInSet = indexOf;
   for (PRUint32 index = 0; index < itemsCount; index++) {
     nsCOMPtr<nsIDOMXULSelectControlItemElement> currItem;
     control->GetItemAtIndex(index, getter_AddRefs(currItem));
@@ -136,19 +181,18 @@ nsAccUtils::GetPositionAndSizeForXULSelectControlItem(nsIDOMNode *aNode,
                                                     getter_AddRefs(itemAcc));
     if (!itemAcc ||
         State(itemAcc) & nsIAccessibleStates::STATE_INVISIBLE) {
-      (*aSetSize)--;
+      setSize--;
       if (index < static_cast<PRUint32>(indexOf))
-        (*aPosInSet)--;
+        posInSet--;
     }
   }
 
-  (*aPosInSet)++; // group position is 1-index based.
+  SetAccGroupAttrs(aAttributes, 0, posInSet + 1, setSize);
 }
 
 void
-nsAccUtils::GetPositionAndSizeForXULContainerItem(nsIDOMNode *aNode,
-                                                  PRInt32 *aPosInSet,
-                                                  PRInt32 *aSetSize)
+nsAccUtils::SetAccAttrsForXULContainerItem(nsIDOMNode *aNode,
+                                           nsIPersistentProperties *aAttributes)
 {
   nsCOMPtr<nsIDOMXULContainerItemElement> item(do_QueryInterface(aNode));
   if (!item)
@@ -168,7 +212,7 @@ nsAccUtils::GetPositionAndSizeForXULContainerItem(nsIDOMNode *aNode,
   container->GetIndexOfItem(item, &indexOf);
 
   // Calculate set size and position in the set.
-  *aSetSize = 0, *aPosInSet = 0;
+  PRUint32 setSize = 0, posInSet = 0;
   for (PRInt32 index = indexOf; index >= 0; index--) {
     nsCOMPtr<nsIDOMXULElement> item;
     container->GetItemAtIndex(index, getter_AddRefs(item));
@@ -184,8 +228,8 @@ nsAccUtils::GetPositionAndSizeForXULContainerItem(nsIDOMNode *aNode,
 
       PRUint32 itemState = State(itemAcc);
       if (!(itemState & nsIAccessibleStates::STATE_INVISIBLE)) {
-        (*aSetSize)++;
-        (*aPosInSet)++;
+        setSize++;
+        posInSet++;
       }
     }
   }
@@ -206,22 +250,9 @@ nsAccUtils::GetPositionAndSizeForXULContainerItem(nsIDOMNode *aNode,
 
       PRUint32 itemState = State(itemAcc);
       if (!(itemState & nsIAccessibleStates::STATE_INVISIBLE))
-        (*aSetSize)++;
+        setSize++;
     }
   }
-}
-
-PRInt32
-nsAccUtils::GetLevelForXULContainerItem(nsIDOMNode *aNode)
-{
-  nsCOMPtr<nsIDOMXULContainerItemElement> item(do_QueryInterface(aNode));
-  if (!item)
-    return 0;
-
-  nsCOMPtr<nsIDOMXULContainerElement> container;
-  item->GetParentContainer(getter_AddRefs(container));
-  if (!container)
-    return 0;
 
   // Get level of the item.
   PRInt32 level = -1;
@@ -232,8 +263,8 @@ nsAccUtils::GetLevelForXULContainerItem(nsIDOMNode *aNode)
     container->GetParentContainer(getter_AddRefs(parentContainer));
     parentContainer.swap(container);
   }
-
-  return level;
+  
+  SetAccGroupAttrs(aAttributes, level, posInSet, setSize);
 }
 
 void
@@ -337,7 +368,7 @@ nsAccUtils::HasAccessibleChildren(nsIDOMNode *aNode)
   if (!presShell)
     return PR_FALSE;
 
-  nsIFrame *frame = content->GetPrimaryFrame();
+  nsIFrame *frame = presShell->GetPrimaryFrameFor(content);
   if (!frame)
     return PR_FALSE;
   

@@ -3408,11 +3408,6 @@ nsTextFrame::Init(nsIContent*      aContent,
   NS_ASSERTION(!aPrevInFlow, "Can't be a continuation!");
   NS_PRECONDITION(aContent->IsNodeOfType(nsINode::eTEXT),
                   "Bogus content!");
-
-  // Remove any NewlineOffsetProperty since it might be invalid
-  // if the content was modified while there was no frame
-  aContent->DeleteProperty(nsGkAtoms::newline);
-
   // Since our content has a frame now, this flag is no longer needed.
   aContent->UnsetFlags(NS_CREATE_FRAME_IF_NON_WHITESPACE);
   // We're not a continuing frame.
@@ -3786,8 +3781,6 @@ nsTextFrame::ClearTextRun()
 NS_IMETHODIMP
 nsTextFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
 {
-  mContent->DeleteProperty(nsGkAtoms::newline);
-
   // Find the first frame whose text has changed. Frames that are entirely
   // before the text change are completely unaffected.
   nsTextFrame* next;
@@ -6039,18 +6032,6 @@ nsTextFrame::IsFloatingFirstLetterChild()
   return frame->GetStyleDisplay()->IsFloating();
 }
 
-struct NewlineProperty {
-  PRInt32 mStartOffset;
-  // The offset of the first \n after mStartOffset, or -1 if there is none
-  PRInt32 mNewlineOffset;
-
-  static void Destroy(void* aObject, nsIAtom* aPropertyName,
-                      void* aPropertyValue, void* aData)
-  {
-    delete static_cast<NewlineProperty*>(aPropertyValue);
-  }
-};
-
 NS_IMETHODIMP
 nsTextFrame::Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aMetrics,
@@ -6125,18 +6106,8 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
 
   // Restrict preformatted text to the nearest newline
   PRInt32 newLineOffset = -1; // this will be -1 or a content offset
-  // Pointer to the nsGkAtoms::newline set on this frame's element
-  NewlineProperty* cachedNewlineOffset;
   if (textStyle->NewlineIsSignificant()) {
-    cachedNewlineOffset =
-      static_cast<NewlineProperty*>(mContent->GetProperty(nsGkAtoms::newline));
-    if (cachedNewlineOffset && cachedNewlineOffset->mStartOffset <= offset &&
-        (cachedNewlineOffset->mNewlineOffset == -1 ||
-         cachedNewlineOffset->mNewlineOffset >= offset)) {
-      newLineOffset = cachedNewlineOffset->mNewlineOffset;
-    } else {
-      newLineOffset = FindChar(frag, offset, length, '\n');
-    }
+    newLineOffset = FindChar(frag, offset, length, '\n');
     if (newLineOffset >= 0) {
       length = newLineOffset + 1 - offset;
     }
@@ -6478,28 +6449,6 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
   if (completedFirstLetter) {
     lineLayout.SetFirstLetterStyleOK(PR_FALSE);
     aStatus |= NS_INLINE_BREAK_FIRST_LETTER_COMPLETE;
-  }
-
-  // Updated the cached NewlineProperty, or delete it.
-  if (contentLength < maxContentLength &&
-      textStyle->NewlineIsSignificant() &&
-      (newLineOffset < 0 || mContentOffset + contentLength <= newLineOffset)) {
-    if (!cachedNewlineOffset) {
-      cachedNewlineOffset = new NewlineProperty;
-      if (cachedNewlineOffset) {
-        if (NS_FAILED(mContent->SetProperty(nsGkAtoms::newline, cachedNewlineOffset,
-                                            NewlineProperty::Destroy))) {
-          delete cachedNewlineOffset;
-          cachedNewlineOffset = nsnull;
-        }
-      }
-    }
-    if (cachedNewlineOffset) {
-      cachedNewlineOffset->mStartOffset = offset;
-      cachedNewlineOffset->mNewlineOffset = newLineOffset;
-    }
-  } else if (cachedNewlineOffset) {
-    mContent->DeleteProperty(nsGkAtoms::newline);
   }
 
   // Compute space and letter counts for justification, if required

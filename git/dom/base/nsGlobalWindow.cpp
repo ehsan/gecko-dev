@@ -100,6 +100,7 @@
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMCrypto.h"
+#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMDocumentView.h"
@@ -411,9 +412,9 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIPLUGININSTANCEOWNER
 
-  NS_IMETHOD GetURL(const char *aURL, const char *aTarget,
-                    nsIInputStream *aPostStream,
-                    void *aHeadersData, PRUint32 aHeadersDataLen);
+  NS_IMETHOD GetURL(const char *aURL, const char *aTarget, void *aPostData,
+                    PRUint32 aPostDataLen, void *aHeadersData,
+                    PRUint32 aHeadersDataLen, PRBool aIsFile = PR_FALSE);
   NS_IMETHOD ShowStatus(const PRUnichar *aStatusMsg);
   NPError ShowNativeContextMenu(NPMenu* menu, void* event);
   NPBool ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
@@ -493,8 +494,9 @@ nsDummyJavaPluginOwner::CreateWidget(void)
 
 NS_IMETHODIMP
 nsDummyJavaPluginOwner::GetURL(const char *aURL, const char *aTarget,
-                               nsIInputStream *aPostStream,
-                               void *aHeadersData, PRUint32 aHeadersDataLen)
+                               void *aPostData, PRUint32 aPostDataLen,
+                               void *aHeadersData, PRUint32 aHeadersDataLen,
+                               PRBool isFile)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -1416,6 +1418,16 @@ nsGlobalWindow::WouldReuseInnerWindow(nsIDocument *aNewDocument)
 
   // No treeItem: don't reuse the current inner window.
   return PR_FALSE;
+}
+
+already_AddRefed<nsComputedDOMStyle>
+nsGlobalWindow::LookupComputedStyleFor(nsIContent* aElem)
+{
+  nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(aElem));
+  nsRefPtr<nsComputedDOMStyle> computedDOMStyle;
+  GetComputedStyle(domElement, EmptyString(),
+                   getter_AddRefs(computedDOMStyle));
+  return computedDOMStyle.forget();
 }
 
 void
@@ -7007,7 +7019,7 @@ nsGlobalWindow::UpdateCanvasFocus(PRBool aFocusChanged, nsIContent* aNewContent)
   if (rootContent) {
       if ((mHasFocus || aFocusChanged) &&
           (mFocusedNode == rootContent || aNewContent == rootContent)) {
-          nsIFrame* frame = rootContent->GetPrimaryFrame();
+          nsIFrame* frame = presShell->GetPrimaryFrameFor(rootContent);
           if (frame) {
               frame = frame->GetParent();
               nsCanvasFrame* canvasFrame = do_QueryFrame(frame);
@@ -7032,14 +7044,12 @@ nsGlobalWindow::UpdateCanvasFocus(PRBool aFocusChanged, nsIContent* aNewContent)
 // nsGlobalWindow::nsIDOMViewCSS
 //*****************************************************************************
 
-NS_IMETHODIMP
+// Helper method for below
+nsresult
 nsGlobalWindow::GetComputedStyle(nsIDOMElement* aElt,
                                  const nsAString& aPseudoElt,
-                                 nsIDOMCSSStyleDeclaration** aReturn)
+                                 nsComputedDOMStyle** aReturn)
 {
-  FORWARD_TO_OUTER(GetComputedStyle, (aElt, aPseudoElt, aReturn),
-                   NS_ERROR_NOT_INITIALIZED);
-
   NS_ENSURE_ARG_POINTER(aReturn);
   *aReturn = nsnull;
 
@@ -7058,9 +7068,18 @@ nsGlobalWindow::GetComputedStyle(nsIDOMElement* aElt,
     return NS_OK;
   }
 
+  return NS_NewComputedDOMStyle(aElt, aPseudoElt, presShell,
+                                aReturn);
+}
+NS_IMETHODIMP
+nsGlobalWindow::GetComputedStyle(nsIDOMElement* aElt,
+                                 const nsAString& aPseudoElt,
+                                 nsIDOMCSSStyleDeclaration** aReturn)
+{
+  FORWARD_TO_OUTER(GetComputedStyle, (aElt, aPseudoElt, aReturn),
+                   NS_ERROR_NOT_INITIALIZED);
   nsRefPtr<nsComputedDOMStyle> compStyle;
-  nsresult rv = NS_NewComputedDOMStyle(aElt, aPseudoElt, presShell,
-                                       getter_AddRefs(compStyle));
+  nsresult rv = GetComputedStyle(aElt, aPseudoElt, getter_AddRefs(compStyle));
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aReturn = compStyle.forget().get();
@@ -8461,7 +8480,6 @@ nsGlobalWindow::TimerCallback(nsITimer *aTimer, void *aClosure)
 //*****************************************************************************
 // nsGlobalWindow: Helper Functions
 //*****************************************************************************
-
 nsresult
 nsGlobalWindow::GetTreeOwner(nsIDocShellTreeOwner **aTreeOwner)
 {
@@ -9129,7 +9147,11 @@ nsGlobalChromeWindow::NotifyDefaultButtonLoaded(nsIDOMElement* aDefaultButton)
   // Get the button rect in screen coordinates.
   nsCOMPtr<nsIContent> content(do_QueryInterface(aDefaultButton));
   NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
-  nsIFrame *frame = content->GetPrimaryFrame();
+  nsIDocument *doc = content->GetCurrentDoc();
+  NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
+  nsIPresShell *shell = doc->GetPrimaryShell();
+  NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
+  nsIFrame *frame = shell->GetPrimaryFrameFor(content);
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
   nsIntRect buttonRect = frame->GetScreenRect();
 

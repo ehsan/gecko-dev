@@ -982,14 +982,10 @@ static const ToIntegerTest kToIntegerTests[] = {
 
 PRBool test_string_tointeger()
 {
-  PRInt32 i;
-  nsresult rv;
+  PRInt32 rv;
   for (const ToIntegerTest* t = kToIntegerTests; t->str; ++t) {
     PRInt32 result = nsCAutoString(t->str).ToInteger(&rv, t->radix);
     if (rv != t->rv || result != t->result)
-      return PR_FALSE;
-    result = nsCAutoString(t->str).ToInteger(&i, t->radix);
-    if ((nsresult)i != t->rv || result != t->result)
       return PR_FALSE;
   }
   return PR_TRUE;

@@ -93,14 +93,14 @@ bool MozQWidget::event(QEvent *e)
     }
     break;
 */
-    case QEvent::WindowActivate:
+    case QEvent::FocusIn:
     {
         QFocusEvent *fev = (QFocusEvent*)(e);
         mReceiver->OnFocusInEvent(fev);
         return TRUE;
     }
     break;
-    case QEvent::WindowDeactivate:
+    case QEvent::FocusOut:
     {
         QFocusEvent *fev = (QFocusEvent*)(e);
         mReceiver->OnFocusOutEvent(fev);

@@ -47,7 +47,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsIDocShell.h"
 #include "nsIURI.h"
-#include "nsITextToSubURI.h"
 #include "nsContentErrors.h"
 
 // Print Options
@@ -1206,18 +1205,7 @@ nsPrintEngine::GetDocumentTitleAndURL(nsIDocument* aDoc,
 
   nsCAutoString urlCStr;
   exposableURI->GetSpec(urlCStr);
-
-  nsresult rv;
-  nsCOMPtr<nsITextToSubURI> textToSubURI = 
-    do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv);
-  if (NS_FAILED(rv)) return;
-
-  nsAutoString unescapedURI;
-  rv = textToSubURI->UnEscapeURIForUI(NS_LITERAL_CSTRING("UTF-8"),
-                                      urlCStr, unescapedURI);
-  if (NS_FAILED(rv)) return;
-
-  *aURLStr = ToNewUnicode(unescapedURI);
+  *aURLStr = UTF8ToNewUnicode(urlCStr);
 }
 
 //---------------------------------------------------------------------
@@ -1829,7 +1817,8 @@ nsPrintEngine::ReflowDocList(nsPrintObject* aPO, PRBool aSetPixelScale)
 
   // Check to see if the subdocument's element has been hidden by the parent document
   if (aPO->mParent && aPO->mParent->mPresShell) {
-    nsIFrame * frame = aPO->mContent->GetPrimaryFrame();
+    nsIFrame * frame =
+      aPO->mParent->mPresShell->GetPrimaryFrameFor(aPO->mContent);
     if (frame) {
       if (!frame->GetStyleVisibility()->IsVisible()) {
         aPO->mDontPrint = PR_TRUE;
@@ -1883,7 +1872,10 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
     return NS_OK;
 
   if (aPO->mParent && aPO->mParent->IsPrintable()) {
-    frame = aPO->mContent->GetPrimaryFrame();
+    if (aPO->mParent->mPresShell) {
+      frame = aPO->mParent->mPresShell->FrameManager()->
+        GetPrimaryFrameFor(aPO->mContent, -1);
+    }
     // Without a frame, this document can't be displayed; therefore, there is no
     // point to reflowing it
     if (!frame) {

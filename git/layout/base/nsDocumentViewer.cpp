@@ -188,6 +188,7 @@ static const char sPrintOptionsContractID[]         = "@mozilla.org/gfx/printset
 #include "nsIWebNavigation.h"
 #include "nsWeakPtr.h"
 #include "nsEventDispatcher.h"
+#include "nsPresShellIterator.h"
 
 //paint forcing
 #include "prenv.h"
@@ -1066,9 +1067,10 @@ DocumentViewerImpl::LoadComplete(nsresult aStatus)
     window = mDocument->GetWindow();
     if (window) {
       nsIDocShell *docShell = window->GetDocShell();
-      PRBool isInUnload;
-      if (docShell && NS_SUCCEEDED(docShell->GetIsInUnload(&isInUnload)) &&
-          !isInUnload) {
+      PRBool beingDestroyed;
+      if (docShell &&
+          NS_SUCCEEDED(docShell->IsBeingDestroyed(&beingDestroyed)) &&
+          !beingDestroyed) {
         mDocument->OnPageShow(restoring, nsnull);
       }
     }

@@ -987,7 +987,8 @@ nsCSSRendering::FindBackgroundStyleFrame(nsIFrame* aForFrame)
         // and thus |InitialReflow| on the pres shell.  See bug 119351
         // for the ugly details.
         if (bodyContent) {
-          nsIFrame *bodyFrame = bodyContent->GetPrimaryFrame();
+          nsIFrame *bodyFrame = aForFrame->PresContext()->GetPresShell()->
+            GetPrimaryFrameFor(bodyContent);
           if (bodyFrame) {
             return nsLayoutUtils::GetStyleFrame(bodyFrame);
           }
@@ -2367,15 +2368,11 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
     }
   }
 
-  // For background-attachment:fixed backgrounds, we'll limit the area
-  // where the background can be drawn to the viewport.
-  nsRect bgClipRect = aBGClipRect;
-
   // Compute the anchor point.
   //
   // relative to aBorderArea.TopLeft() (which is where the top-left
   // of aForFrame's border-box will be rendered)
-  nsPoint imageTopLeft, anchor;
+  nsPoint imageTopLeft, anchor, offset;
   if (NS_STYLE_BG_ATTACHMENT_FIXED == aLayer.mAttachment) {
     // If it's a fixed background attachment, then the image is placed
     // relative to the viewport, which is the area of the root frame
@@ -2393,9 +2390,8 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
       // else this is an embedded shell and its root frame is what we want
     }
 
-    // Set the background positioning area to the viewport's area
-    // (relative to aForFrame)
-    bgPositioningArea = nsRect(-aForFrame->GetOffsetTo(topFrame), topFrame->GetSize());
+    // Set the background positioning area to the viewport's area.
+    bgPositioningArea.SetRect(nsPoint(0, 0), topFrame->GetSize());
 
     if (!pageContentFrame) {
       // Subtract the size of scrollbars.
@@ -2407,16 +2403,9 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
       }
     }
 
-    if (aRenderingContext.ThebesContext()->GetFlags() &
-        gfxContext::FLAG_DESTINED_FOR_SCREEN) {
-      // Clip background-attachment:fixed backgrounds to the viewport, if we're
-      // painting to the screen. This avoids triggering tiling in common cases,
-      // without affecting output since drawing is always clipped to the viewport
-      // when we draw to the screen. (But it's not a pure optimization since it
-      // can affect the values of pixels at the edge of the viewport ---
-      // whether they're sampled from a putative "next tile" or not.)
-      bgClipRect.IntersectRect(bgClipRect, bgPositioningArea + aBorderArea.TopLeft());
-    }
+    offset = bgPositioningArea.TopLeft() - aForFrame->GetOffsetTo(topFrame);
+  } else {
+    offset = bgPositioningArea.TopLeft();
   }
 
   nsSize imageSize = imageRenderer.ComputeSize(bgPositioningArea.Size());
@@ -2470,8 +2459,8 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
   // determined.
   ComputeBackgroundAnchorPoint(aLayer, bgPositioningArea.Size(), imageSize,
                                &imageTopLeft, &anchor);
-  imageTopLeft += bgPositioningArea.TopLeft();
-  anchor += bgPositioningArea.TopLeft();
+  imageTopLeft += offset;
+  anchor += offset;
 
   nsRect destArea(imageTopLeft + aBorderArea.TopLeft(), imageSize);
   nsRect fillArea = destArea;
@@ -2479,14 +2468,14 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
   PR_STATIC_ASSERT(NS_STYLE_BG_REPEAT_XY ==
                    (NS_STYLE_BG_REPEAT_X | NS_STYLE_BG_REPEAT_Y));
   if (repeat & NS_STYLE_BG_REPEAT_X) {
-    fillArea.x = bgClipRect.x;
-    fillArea.width = bgClipRect.width;
+    fillArea.x = aBGClipRect.x;
+    fillArea.width = aBGClipRect.width;
   }
   if (repeat & NS_STYLE_BG_REPEAT_Y) {
-    fillArea.y = bgClipRect.y;
-    fillArea.height = bgClipRect.height;
+    fillArea.y = aBGClipRect.y;
+    fillArea.height = aBGClipRect.height;
   }
-  fillArea.IntersectRect(fillArea, bgClipRect);
+  fillArea.IntersectRect(fillArea, aBGClipRect);
 
   imageRenderer.Draw(aPresContext, aRenderingContext, destArea, fillArea,
                      anchor + aBorderArea.TopLeft(), aDirtyRect);
@@ -3662,15 +3651,10 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aBlurRadius,
                        gfxContext* aDestinationCtx,
                        const nsRect& aDirtyRect)
 {
-  if (aRect.IsEmpty()) {
-    mContext = nsnull;
-    return nsnull;
-  }
-
   PRInt32 blurRadius = static_cast<PRInt32>(aBlurRadius / aAppUnitsPerDevPixel);
   mDestinationCtx = aDestinationCtx;
 
-  // If not blurring, draw directly onto the destination device
+  // if not blurring, draw directly onto the destination device
   if (blurRadius <= 0) {
     mContext = aDestinationCtx;
     return mContext;
@@ -3679,6 +3663,11 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aBlurRadius,
   // Convert from app units to device pixels
   gfxRect rect = RectToGfxRect(aRect, aAppUnitsPerDevPixel);
   rect.RoundOut();
+
+  if (rect.IsEmpty()) {
+    mContext = aDestinationCtx;
+    return mContext;
+  }
 
   gfxRect dirtyRect = RectToGfxRect(aDirtyRect, aAppUnitsPerDevPixel);
   dirtyRect.RoundOut();

@@ -92,7 +92,7 @@ protected:
 class gfxMacPlatformFontList : public gfxPlatformFontList {
 public:
     static gfxMacPlatformFontList* PlatformFontList() {
-        return static_cast<gfxMacPlatformFontList*>(sPlatformFontList);
+        return (gfxMacPlatformFontList*)sPlatformFontList;
     }
 
     static PRInt32 AppleWeightToCSSWeight(PRInt32 aAppleWeight);
@@ -104,7 +104,7 @@ public:
     virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
                                           const nsAString& aFontName);
     
-    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+    virtual gfxFontEntry* MakePlatformFont(const gfxFontEntry *aProxyEntry,
                                            const PRUint8 *aFontData, PRUint32 aLength);
 
     void ClearPrefFonts() { mPrefFonts.Clear(); }

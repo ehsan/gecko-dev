@@ -43,7 +43,6 @@
 
 #include <time.h>
 #include <windows.h>
-#include <pstore.h>
 #include "nsIBrowserProfileMigrator.h"
 #include "nsIObserverService.h"
 #include "nsTArray.h"
@@ -60,6 +59,9 @@ struct SignonData {
   PRUnichar* pass;
   char*      realm;
 };
+
+#import PSTOREC_DLL raw_interfaces_only
+using namespace PSTORECLib;
 
 class nsIEProfileMigrator : public nsIBrowserProfileMigrator,
                             public nsINavHistoryBatchCallback {

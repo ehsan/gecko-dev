@@ -467,8 +467,7 @@ public:
   {
     if (mSelection && mPresContext)
     {
-      nsWeakFrame frame =
-        mContent ? mPresContext->GetPrimaryFrameFor(mContent) : nsnull;
+      nsWeakFrame frame = mPresContext->PresShell()->GetPrimaryFrameFor(mContent);
       mContent = nsnull;
 
       mFrameSelection->HandleDrag(frame, mPoint);
@@ -969,7 +968,7 @@ nsFrameSelection::ConstrainFrameAndPointToAnchorSubtree(nsIFrame  *aFrame,
   // frame.
   //
 
-  *aRetFrame = anchorRoot->GetPrimaryFrame();
+  *aRetFrame = mShell->GetPrimaryFrameFor(anchorRoot);
 
   if (!*aRetFrame)
     return NS_ERROR_FAILURE;
@@ -2091,7 +2090,7 @@ nsFrameSelection::GetFrameForNodeOffset(nsIContent *aNode,
     }
   }
   
-  nsIFrame* returnFrame = theNode->GetPrimaryFrame();
+  nsIFrame* returnFrame = mShell->GetPrimaryFrameFor(theNode);
   if (!returnFrame)
     return nsnull;
 
@@ -2304,8 +2303,12 @@ nsITableCellLayout*
 nsFrameSelection::GetCellLayout(nsIContent *aCellContent) const
 {
   NS_ENSURE_TRUE(mShell, nsnull);
-  nsITableCellLayout *cellLayoutObject =
-    do_QueryFrame(aCellContent->GetPrimaryFrame());
+  // Get frame for cell
+  nsIFrame *cellFrame = mShell->GetPrimaryFrameFor(aCellContent);
+  if (!cellFrame)
+    return nsnull;
+
+  nsITableCellLayout *cellLayoutObject = do_QueryFrame(cellFrame);
   return cellLayoutObject;
 }
 
@@ -2313,8 +2316,12 @@ nsITableLayout*
 nsFrameSelection::GetTableLayout(nsIContent *aTableContent) const
 {
   NS_ENSURE_TRUE(mShell, nsnull);
-  nsITableLayout *tableLayoutObject =
-    do_QueryFrame(aTableContent->GetPrimaryFrame());
+  // Get frame for table
+  nsIFrame *tableFrame = mShell->GetPrimaryFrameFor(aTableContent);
+  if (!tableFrame)
+    return nsnull;
+
+  nsITableLayout *tableLayoutObject = do_QueryFrame(tableFrame);
   return tableLayoutObject;
 }
 
@@ -2482,7 +2489,8 @@ printf("HandleTableSelection: Mouse down event\n");
           // We have at least 1 other selected cell
 
           // Check if new cell is already selected
-          nsIFrame  *cellFrame = childContent->GetPrimaryFrame();
+          NS_ENSURE_STATE(mShell);
+          nsIFrame  *cellFrame = mShell->GetPrimaryFrameFor(childContent);
           if (!cellFrame) return NS_ERROR_NULL_POINTER;
           result = cellFrame->GetSelected(&isSelected);
           if (NS_FAILED(result)) return result;
@@ -4192,7 +4200,7 @@ nsTypedSelection::GetPrimaryFrameForRangeEndpoint(nsIDOMNode *aNode, PRInt32 aOf
       content = child; // releases the focusnode
     }
   }
-  *aReturnFrame = content->GetPrimaryFrame();
+  *aReturnFrame = mFrameSelection->GetShell()->GetPrimaryFrameFor(content);
   return NS_OK;
 }
 #endif
@@ -4278,7 +4286,7 @@ nsTypedSelection::SelectAllFramesForContent(nsIContentIterator *aInnerIter,
   if (NS_SUCCEEDED(result))
   {
     // First select frame of content passed in
-    frame = aContent->GetPrimaryFrame();
+    frame = shell->GetPrimaryFrameFor(aContent);
     if (frame)
     {
       frame->SetSelected(aSelected, mType);
@@ -4297,7 +4305,7 @@ nsTypedSelection::SelectAllFramesForContent(nsIContentIterator *aInnerIter,
       nsCOMPtr<nsIContent> innercontent =
         do_QueryInterface(aInnerIter->GetCurrentNode());
 
-      frame = innercontent->GetPrimaryFrame();
+      frame = shell->GetPrimaryFrameFor(innercontent);
       if (frame)
       {
         frame->SetSelected(aSelected, mType);
@@ -4356,9 +4364,10 @@ nsTypedSelection::selectFrames(nsPresContext* aPresContext, nsIRange *aRange, PR
     if (!content)
       return NS_ERROR_UNEXPECTED;
 
+    nsIFrame *frame;
     if (content->IsNodeOfType(nsINode::eTEXT))
     {
-      nsIFrame* frame = content->GetPrimaryFrame();
+      frame = presShell->GetPrimaryFrameFor(content);
       // The frame could be an SVG text frame, in which case we'll ignore
       // it.
       if (frame && frame->GetType() == nsGkAtoms::textFrame)
@@ -4395,7 +4404,7 @@ nsTypedSelection::selectFrames(nsPresContext* aPresContext, nsIRange *aRange, PR
 
       if (content->IsNodeOfType(nsINode::eTEXT))
       {
-        nsIFrame* frame = content->GetPrimaryFrame();
+        frame = presShell->GetPrimaryFrameFor(content);
         // The frame could be an SVG text frame, in which case we'll
         // ignore it.
         if (frame && frame->GetType() == nsGkAtoms::textFrame)

@@ -399,8 +399,12 @@ already_AddRefed<nsRootAccessible> nsAccessNode::GetRootAccessible()
 nsIFrame*
 nsAccessNode::GetFrame()
 {
+  nsCOMPtr<nsIPresShell> shell(do_QueryReferent(mWeakShell));
+  if (!shell) 
+    return nsnull;  
+
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  return content ? content->GetPrimaryFrame() : nsnull;
+  return content ? shell->GetPrimaryFrameFor(content) : nsnull;
 }
 
 NS_IMETHODIMP

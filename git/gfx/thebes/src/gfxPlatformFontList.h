@@ -109,13 +109,12 @@ public:
 
     // create a new platform font from downloaded data (@font-face)
     // this method is responsible to ensure aFontData is NS_Free()'d
-    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+    virtual gfxFontEntry* MakePlatformFont(const gfxFontEntry *aProxyEntry,
                                            const PRUint8 *aFontData,
                                            PRUint32 aLength) = 0;
 
     // get the standard family name on the platform for a given font name
-    // (platforms may override, eg Mac)
-    virtual PRBool GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
+    virtual PRBool GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName) = 0;
 
 protected:
     gfxPlatformFontList();

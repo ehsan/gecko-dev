@@ -148,19 +148,13 @@ nsAccessibleDOMStringList::Contains(const nsAString& aString, PRBool *aResult)
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsAccessible)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsAccessible, nsAccessNode)
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mParent");
-  cb.NoteXPCOMChild(static_cast<nsIAccessible*>(tmp->mParent.get()));
-
-  PRUint32 i, length = tmp->mChildren.Length();
-  for (i = 0; i < length; ++i) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mChildren[i]");
-    cb.NoteXPCOMChild(static_cast<nsIAccessible*>(tmp->mChildren[i].get()));
-  }
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mParent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mChildren)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsAccessible, nsAccessNode)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mParent)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mChildren)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mChildren)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(nsAccessible, nsAccessNode)
@@ -215,9 +209,8 @@ nsresult nsAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   }                       
 
   if (aIID.Equals(NS_GET_IID(nsIAccessibleHyperLink))) {
-    nsCOMPtr<nsIAccessibleHyperText> hyperTextParent =
-      nsAccUtils::QueryObject<nsIAccessibleHyperText>(GetParent());
-
+    nsCOMPtr<nsIAccessible> parent(GetParent());
+    nsCOMPtr<nsIAccessibleHyperText> hyperTextParent(do_QueryInterface(parent));
     if (hyperTextParent) {
       *aInstancePtr = static_cast<nsIAccessibleHyperLink*>(this);
       NS_ADDREF_THIS();
@@ -490,7 +483,8 @@ nsAccessible::Shutdown()
   // sure none of its children point to this parent
   InvalidateChildren();
   if (mParent) {
-    mParent->InvalidateChildren();
+    nsRefPtr<nsAccessible> parent(nsAccUtils::QueryAccessible(mParent));
+    parent->InvalidateChildren();
     mParent = nsnull;
   }
 
@@ -575,7 +569,7 @@ nsAccessible::GetChildAt(PRInt32 aChildIndex, nsIAccessible **aChild)
   if (aChildIndex < 0)
     aChildIndex = childCount - 1;
 
-  nsAccessible* child = GetChildAt(aChildIndex);
+  nsIAccessible* child = GetChildAt(aChildIndex);
   if (!child)
     return NS_ERROR_INVALID_ARG;
 
@@ -1254,7 +1248,7 @@ nsAccessible::TakeFocus()
       if (ancestorContent) {
         nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
         if (presShell) {
-          nsIFrame *frame = ancestorContent->GetPrimaryFrame();
+          nsIFrame *frame = presShell->GetPrimaryFrameFor(ancestorContent);
           if (frame && frame->IsFocusable()) {
 
             content = ancestorContent;            
@@ -1512,10 +1506,13 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
     nsAccUtils::SetAccAttr(attributes, nsAccessibilityAtoms::checkable, NS_LITERAL_STRING("true"));
 
   // Group attributes (level/setsize/posinset)
-  PRInt32 level = 0, posInSet = 0, setSize = 0;
-  rv = GroupPosition(&level, &setSize, &posInSet);
-  if (NS_SUCCEEDED(rv))
-    nsAccUtils::SetAccGroupAttrs(attributes, level, setSize, posInSet);
+  if (!nsAccUtils::HasAccGroupAttrs(attributes)) {
+    // Calculate group attributes based on accessible hierarhy if they weren't
+    // provided by ARIA or by accessible class implementation.
+    PRUint32 role = nsAccUtils::Role(this);
+    rv = ComputeGroupAttributes(role, attributes);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   // Expose object attributes from ARIA attributes.
   PRUint32 numAttrs = content->GetAttrCount();
@@ -1658,71 +1655,37 @@ nsAccessible::GroupPosition(PRInt32 *aGroupLevel,
                             PRInt32 *aSimilarItemsInGroup,
                             PRInt32 *aPositionInGroup)
 {
+  // Every element exposes level/posinset/sizeset for IAccessdible::attributes
+  // if they make sense for it. These attributes are mapped into groupPosition.
+  // If 'level' attribute doesn't make sense element then it isn't represented
+  // via IAccessible::attributes and groupLevel of groupPosition method is 0.
+  // Elements that expose 'level' attribute only (like html headings elements)
+  // don't support this method and all arguments  are equalled 0.
+
   NS_ENSURE_ARG_POINTER(aGroupLevel);
-  *aGroupLevel = 0;
-
   NS_ENSURE_ARG_POINTER(aSimilarItemsInGroup);
-  *aSimilarItemsInGroup = 0;
-
   NS_ENSURE_ARG_POINTER(aPositionInGroup);
+
+  *aGroupLevel = 0;
+  *aSimilarItemsInGroup = 0;
   *aPositionInGroup = 0;
 
-  if (IsDefunct())
+  nsCOMPtr<nsIPersistentProperties> attributes;
+  nsresult rv = GetAttributes(getter_AddRefs(attributes));
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!attributes) {
     return NS_ERROR_FAILURE;
+  }
+  PRInt32 level, posInSet, setSize;
+  nsAccUtils::GetAccGroupAttrs(attributes, &level, &posInSet, &setSize);
 
-  // Get group position from ARIA attributes.
-  nsCOMPtr<nsIContent> content = nsCoreUtils::GetRoleContent(mDOMNode);
-  if (!content)
+  if (!posInSet && !setSize)
     return NS_OK;
 
-  nsAutoString value;
-  PRInt32 error = NS_OK;
+  *aGroupLevel = level;
 
-  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_level, value);
-  if (!value.IsEmpty()) {
-    PRInt32 level = value.ToInteger(&error);
-    if (NS_SUCCEEDED(error))
-      *aGroupLevel = level;
-  }
-
-  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_posinset, value);
-  if (!value.IsEmpty()) {
-    PRInt32 posInSet = value.ToInteger(&error);
-    if (NS_SUCCEEDED(error))
-      *aPositionInGroup = posInSet;
-  }
-
-  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_setsize, value);
-  if (!value.IsEmpty()) {
-    PRInt32 sizeSet = value.ToInteger(&error);
-    if (NS_SUCCEEDED(error))
-      *aSimilarItemsInGroup = sizeSet;
-  }
-
-  // If ARIA is missed and the accessible is visible then calculate group
-  // position from hierarchy.
-  if (nsAccUtils::State(this) & nsIAccessibleStates::STATE_INVISIBLE)
-    return NS_OK;
-
-  // Calculate group level if ARIA is missed.
-  if (*aGroupLevel == 0) {
-    PRInt32 level = GetLevelInternal();
-    if (level != 0)
-      *aGroupLevel = level;
-  }
-
-  // Calculate position in group and group size if ARIA is missed.
-  if (*aSimilarItemsInGroup == 0 || *aPositionInGroup == 0) {
-    PRInt32 posInSet = 0, setSize = 0;
-    GetPositionAndSizeInternal(&posInSet, &setSize);
-    if (posInSet != 0 && setSize != 0) {
-      if (*aPositionInGroup == 0)
-        *aPositionInGroup = posInSet;
-
-      if (*aSimilarItemsInGroup == 0)
-        *aSimilarItemsInGroup = setSize;
-    }
-  }
+  *aPositionInGroup = posInSet;
+  *aSimilarItemsInGroup = setSize;
 
   return NS_OK;
 }
@@ -2349,7 +2312,9 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
         if (view) {
           nsIScrollableFrame *scrollFrame = do_QueryFrame(frame);
           if (scrollFrame || view->GetWidget() || !frame->GetParent()) {
-            return nsRelUtils::AddTarget(aRelationType, aRelation, GetParent());
+            nsCOMPtr<nsIAccessible> accTarget;
+            GetParent(getter_AddRefs(accTarget));
+            return nsRelUtils::AddTarget(aRelationType, aRelation, accTarget);
           }
         }
       }
@@ -2696,7 +2661,9 @@ NS_IMETHODIMP nsAccessible::AddChildToSelection(PRInt32 aIndex)
 
   NS_ENSURE_TRUE(aIndex >= 0, NS_ERROR_FAILURE);
 
-  nsAccessible* child = GetChildAt(aIndex);
+  nsCOMPtr<nsIAccessible> child;
+  GetChildAt(aIndex, getter_AddRefs(child));
+
   PRUint32 state = nsAccUtils::State(child);
   if (!(state & nsIAccessibleStates::STATE_SELECTABLE)) {
     return NS_OK;
@@ -2713,7 +2680,9 @@ NS_IMETHODIMP nsAccessible::RemoveChildFromSelection(PRInt32 aIndex)
 
   NS_ENSURE_TRUE(aIndex >= 0, NS_ERROR_FAILURE);
 
-  nsAccessible* child = GetChildAt(aIndex);
+  nsCOMPtr<nsIAccessible> child;
+  GetChildAt(aIndex, getter_AddRefs(child));
+
   PRUint32 state = nsAccUtils::State(child);
   if (!(state & nsIAccessibleStates::STATE_SELECTED)) {
     return NS_OK;
@@ -2731,7 +2700,9 @@ NS_IMETHODIMP nsAccessible::IsChildSelected(PRInt32 aIndex, PRBool *aIsSelected)
   *aIsSelected = PR_FALSE;
   NS_ENSURE_TRUE(aIndex >= 0, NS_ERROR_FAILURE);
 
-  nsAccessible* child = GetChildAt(aIndex);
+  nsCOMPtr<nsIAccessible> child;
+  GetChildAt(aIndex, getter_AddRefs(child));
+
   PRUint32 state = nsAccUtils::State(child);
   if (state & nsIAccessibleStates::STATE_SELECTED) {
     *aIsSelected = PR_TRUE;
@@ -2858,7 +2829,7 @@ nsAccessible::GetSelected(PRBool *aSelected)
 nsresult nsAccessible::GetLinkOffset(PRInt32* aStartOffset, PRInt32* aEndOffset)
 {
   *aStartOffset = *aEndOffset = 0;
-  nsAccessible* parent = GetParent();
+  nsCOMPtr<nsIAccessible> parent(GetParent());
   if (!parent) {
     return NS_ERROR_FAILURE;
   }
@@ -2938,7 +2909,7 @@ nsAccessible::GetNameInternal(nsAString& aName)
 }
 
 void
-nsAccessible::SetParent(nsAccessible *aParent)
+nsAccessible::SetParent(nsIAccessible *aParent)
 {
   NS_PRECONDITION(aParent, "This method isn't used to set null parent!");
 
@@ -2948,8 +2919,9 @@ nsAccessible::SetParent(nsAccessible *aParent)
     // The old parent's children now need to be invalidated, since 
     // it no longer owns the child, the new parent does
     NS_ASSERTION(PR_FALSE, "Adopting child!");
-    if (mParent)
-      mParent->InvalidateChildren();
+    nsRefPtr<nsAccessible> oldParent = nsAccUtils::QueryAccessible(mParent);
+    if (oldParent)
+      oldParent->InvalidateChildren();
   }
 
   mParent = aParent;
@@ -2958,9 +2930,10 @@ nsAccessible::SetParent(nsAccessible *aParent)
 void
 nsAccessible::InvalidateChildren()
 {
-  PRInt32 childCount = mChildren.Length();
+  PRInt32 childCount = mChildren.Count();
   for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible* child = mChildren.ElementAt(childIdx);
+    nsRefPtr<nsAccessible> child =
+      nsAccUtils::QueryObject<nsAccessible>(mChildren.ObjectAt(childIdx));
     child->mParent = nsnull;
   }
 
@@ -2968,7 +2941,7 @@ nsAccessible::InvalidateChildren()
   mAreChildrenInitialized = PR_FALSE;
 }
 
-nsAccessible*
+nsIAccessible*
 nsAccessible::GetParent()
 {
   if (IsDefunct())
@@ -2987,9 +2960,8 @@ nsAccessible::GetParent()
   docAccessible->GetAccessibleInParentChain(mDOMNode, PR_TRUE,
                                             getter_AddRefs(parent));
 
-  nsRefPtr<nsAccessible> parentAcc = nsAccUtils::QueryAccessible(parent);
-
 #ifdef DEBUG
+  nsRefPtr<nsAccessible> parentAcc = nsAccUtils::QueryAccessible(parent);
   NS_ASSERTION(!parentAcc->IsDefunct(), "Defunct parent!");
 
   parentAcc->EnsureChildren();
@@ -2997,21 +2969,22 @@ nsAccessible::GetParent()
     NS_WARNING("Bad accessible tree!");
 #endif
 
-  return parentAcc;
+  return parent;
 }
 
-nsAccessible*
+nsIAccessible*
 nsAccessible::GetChildAt(PRUint32 aIndex)
 {
   if (EnsureChildren())
     return nsnull;
 
-  nsAccessible *child = mChildren.SafeElementAt(aIndex, nsnull);
+  nsIAccessible *child = mChildren.SafeObjectAt(aIndex);
   if (!child)
     return nsnull;
 
 #ifdef DEBUG
-  nsAccessible* realParent = child->mParent;
+  nsRefPtr<nsAccessible> childAcc = nsAccUtils::QueryAccessible(child);
+  nsCOMPtr<nsIAccessible> realParent = childAcc->mParent;
   NS_ASSERTION(!realParent || realParent == this,
                "Two accessibles have the same first child accessible!");
 #endif
@@ -3022,7 +2995,7 @@ nsAccessible::GetChildAt(PRUint32 aIndex)
 PRInt32
 nsAccessible::GetChildCount()
 {
-  return EnsureChildren() ? -1 : mChildren.Length();
+  return EnsureChildren() ? -1 : mChildren.Count();
 }
 
 PRInt32
@@ -3034,26 +3007,33 @@ nsAccessible::GetIndexOf(nsIAccessible *aChild)
 PRInt32
 nsAccessible::GetIndexInParent()
 {
-  nsAccessible *parent = GetParent();
-  return parent ? parent->GetIndexOf(this) : -1;
+  nsIAccessible *parent = GetParent();
+  if (!parent)
+    return -1;
+
+  nsRefPtr<nsAccessible> parentAcc =
+    nsAccUtils::QueryObject<nsAccessible>(parent);
+  return parentAcc->GetIndexOf(this);
 }
 
-nsAccessible*
+already_AddRefed<nsIAccessible>
 nsAccessible::GetCachedParent()
 {
   if (IsDefunct())
     return nsnull;
 
-  return mParent;
+  nsCOMPtr<nsIAccessible> cachedParent = mParent;
+  return cachedParent.forget();
 }
 
-nsAccessible*
+already_AddRefed<nsIAccessible>
 nsAccessible::GetCachedFirstChild()
 {
   if (IsDefunct())
     return nsnull;
 
-  return mChildren.SafeElementAt(0, nsnull);
+  nsCOMPtr<nsIAccessible> cachedFirstChild = GetChildAt(0);
+  return cachedFirstChild.forget();
 }
 
 
@@ -3069,16 +3049,14 @@ nsAccessible::CacheChildren()
   // Seed the frame hint early while we're still on a container node.
   // This is better than doing the GetPrimaryFrameFor() later on
   // a text node, because text nodes aren't in the frame map.
-  // XXXbz is this code still needed?
   walker.mState.frame = GetFrame();
 
   walker.GetFirstChild();
   while (walker.mState.accessible) {
+    mChildren.AppendObject(walker.mState.accessible);
+
     nsRefPtr<nsAccessible> acc =
       nsAccUtils::QueryObject<nsAccessible>(walker.mState.accessible);
-
-    mChildren.AppendElement(acc);
-
     acc->SetParent(this);
 
     walker.GetNextSibling();
@@ -3086,14 +3064,14 @@ nsAccessible::CacheChildren()
 }
 
 void
-nsAccessible::TestChildCache(nsAccessible *aCachedChild)
+nsAccessible::TestChildCache(nsIAccessible *aCachedChild)
 {
 #ifdef DEBUG_A11Y
   // All cached accessible nodes should be in the parent
   // It will assert if not all the children were created
   // when they were first cached, and no invalidation
   // ever corrected parent accessible's child cache.
-  PRUint32 childCount = mChildren.Length();
+  PRUint32 childCount = mChildren.Count();
   if (childCount == 0) {
     NS_ASSERTION(mAreChildrenInitialized,
                  "Children are stored but not initailzied!");
@@ -3101,7 +3079,7 @@ nsAccessible::TestChildCache(nsAccessible *aCachedChild)
   }
 
   for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible *child = GetChildAt(childIdx);
+    nsIAccessible *child = GetChildAt(childIdx);
     if (child == aCachedChild)
       break;
   }
@@ -3138,7 +3116,7 @@ nsAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
     return nsnull;
   }
 
-  nsAccessible *parent = GetParent();
+  nsIAccessible *parent = GetParent();
   if (!parent) {
     if (aError)
       *aError = NS_ERROR_UNEXPECTED;
@@ -3146,7 +3124,10 @@ nsAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
     return nsnull;
   }
 
-  PRInt32 indexInParent = parent->GetIndexOf(this);
+  nsRefPtr<nsAccessible> parentAcc =
+    nsAccUtils::QueryObject<nsAccessible>(parent);
+
+  PRInt32 indexInParent = parentAcc->GetIndexOf(this);
   if (indexInParent == -1) {
     if (aError)
       *aError = NS_ERROR_UNEXPECTED;
@@ -3155,14 +3136,14 @@ nsAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
   }
 
   if (aError) {
-    PRInt32 childCount = parent->GetChildCount();
+    PRInt32 childCount = parentAcc->GetChildCount();
     if (indexInParent + aOffset >= childCount) {
       *aError = NS_OK; // fail peacefully
       return nsnull;
     }
   }
 
-  nsAccessible *child = parent->GetChildAt(indexInParent + aOffset);
+  nsIAccessible *child = parentAcc->GetChildAt(indexInParent + aOffset);
   if (aError && !child)
     *aError = NS_ERROR_UNEXPECTED;
 
@@ -3223,7 +3204,7 @@ PRBool nsAccessible::CheckVisibilityInParentChain(nsIDocument* aDocument, nsIVie
         if (!shell) {
           return PR_FALSE;
         }
-        nsIFrame* frame = content->GetPrimaryFrame();
+        nsIFrame* frame = shell->GetPrimaryFrameFor(content);
         while (frame != nsnull && !frame->HasView()) {
           frame = frame->GetParent();
         }
@@ -3309,40 +3290,55 @@ nsAccessible::GetActionRule(PRUint32 aStates)
   return eNoAction;
 }
 
-void
-nsAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet, PRInt32 *aSetSize)
+nsresult
+nsAccessible::ComputeGroupAttributes(PRUint32 aRole,
+                                     nsIPersistentProperties *aAttributes)
 {
-  PRUint32 role = nsAccUtils::Role(this);
-  if (role != nsIAccessibleRole::ROLE_LISTITEM &&
-      role != nsIAccessibleRole::ROLE_MENUITEM &&
-      role != nsIAccessibleRole::ROLE_CHECK_MENU_ITEM &&
-      role != nsIAccessibleRole::ROLE_RADIO_MENU_ITEM &&
-      role != nsIAccessibleRole::ROLE_RADIOBUTTON &&
-      role != nsIAccessibleRole::ROLE_PAGETAB &&
-      role != nsIAccessibleRole::ROLE_OPTION &&
-      role != nsIAccessibleRole::ROLE_OUTLINEITEM &&
-      role != nsIAccessibleRole::ROLE_ROW &&
-      role != nsIAccessibleRole::ROLE_GRID_CELL)
-    return;
+  // The role of an accessible can be specified by ARIA attribute but ARIA
+  // posinset, level, setsize may be skipped. As well this method is used
+  // for non ARIA accessibles to avoid GetAccessibleInternal() method
+  // implementation in subclasses. For example, it's being used to calculate
+  // group attributes for HTML li elements.
 
+  // If accessible is invisible we don't want to calculate group attributes for
+  // it.
+  if (nsAccUtils::State(this) & nsIAccessibleStates::STATE_INVISIBLE)
+    return NS_OK;
+
+  if (aRole != nsIAccessibleRole::ROLE_LISTITEM &&
+      aRole != nsIAccessibleRole::ROLE_MENUITEM &&
+      aRole != nsIAccessibleRole::ROLE_CHECK_MENU_ITEM &&
+      aRole != nsIAccessibleRole::ROLE_RADIO_MENU_ITEM &&
+      aRole != nsIAccessibleRole::ROLE_RADIOBUTTON &&
+      aRole != nsIAccessibleRole::ROLE_PAGETAB &&
+      aRole != nsIAccessibleRole::ROLE_OPTION &&
+      aRole != nsIAccessibleRole::ROLE_OUTLINEITEM &&
+      aRole != nsIAccessibleRole::ROLE_ROW &&
+      aRole != nsIAccessibleRole::ROLE_GRID_CELL)
+    return NS_OK;
+
+  PRUint32 baseRole = aRole;
+  if (aRole == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
+      aRole == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
+    baseRole = nsIAccessibleRole::ROLE_MENUITEM;
+
+  nsCOMPtr<nsIAccessible> parent = GetParent();
+  NS_ENSURE_TRUE(parent, NS_ERROR_FAILURE);
+
+  // Compute 'posinset' and 'setsize' attributes.
   PRInt32 positionInGroup = 0;
   PRInt32 setSize = 0;
 
-  PRUint32 baseRole = role;
-  if (role == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
-      role == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
-    baseRole = nsIAccessibleRole::ROLE_MENUITEM;
-
-  nsAccessible* parent = GetParent();
-  NS_ENSURE_TRUE(parent,);
+  nsCOMPtr<nsIAccessible> sibling, nextSibling;
+  parent->GetFirstChild(getter_AddRefs(sibling));
+  NS_ENSURE_STATE(sibling);
 
   PRBool foundCurrent = PR_FALSE;
-  PRInt32 siblingCount = parent->GetChildCount();
-  for (PRInt32 siblingIdx = 0; siblingIdx < siblingCount; siblingIdx++) {
-    nsAccessible* sibling = parent->GetChildAt(siblingIdx);
+  PRUint32 siblingRole, siblingBaseRole;
+  while (sibling) {
+    siblingRole = nsAccUtils::Role(sibling);
 
-    PRUint32 siblingRole = siblingRole = nsAccUtils::Role(sibling);
-    PRUint32 siblingBaseRole = siblingRole;
+    siblingBaseRole = siblingRole;
     if (siblingRole == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
         siblingRole == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
       siblingBaseRole = nsIAccessibleRole::ROLE_MENUITEM;
@@ -3367,85 +3363,79 @@ nsAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet, PRInt32 *aSetSize)
       positionInGroup = 0;
       setSize = 0;
     }
+
+    sibling->GetNextSibling(getter_AddRefs(nextSibling));
+    sibling = nextSibling;
   }
 
-  *aPosInSet = positionInGroup;
-  *aSetSize = setSize;
-}
-
-PRInt32
-nsAccessible::GetLevelInternal()
-{
-  PRUint32 role = nsAccUtils::Role(this);
-  nsAccessible* parent = GetParent();
-
-  if (role == nsIAccessibleRole::ROLE_OUTLINEITEM) {
+  // Compute 'level' attribute.
+  PRInt32 groupLevel = 0;
+  if (aRole == nsIAccessibleRole::ROLE_OUTLINEITEM) {
     // Always expose 'level' attribute for 'outlineitem' accessible. The number
     // of nested 'grouping' accessibles containing 'outlineitem' accessible is
     // its level.
-    PRInt32 level = 1;
+    groupLevel = 1;
+    nsCOMPtr<nsIAccessible> nextParent;
     while (parent) {
       PRUint32 parentRole = nsAccUtils::Role(parent);
 
       if (parentRole == nsIAccessibleRole::ROLE_OUTLINE)
         break;
       if (parentRole == nsIAccessibleRole::ROLE_GROUPING)
-        ++ level;
+        ++ groupLevel;
 
-      parent = parent->GetParent();
+      parent->GetParent(getter_AddRefs(nextParent));
+      parent.swap(nextParent);
     }
-
-    return level;
-  }
-
-  if (role == nsIAccessibleRole::ROLE_LISTITEM) {
+  } else if (aRole == nsIAccessibleRole::ROLE_LISTITEM) {
     // Expose 'level' attribute on nested lists. We assume nested list is a last
     // child of listitem of parent list. We don't handle the case when nested
     // lists have more complex structure, for example when there are accessibles
     // between parent listitem and nested list.
 
     // Calculate 'level' attribute based on number of parent listitems.
-    PRInt32 level = 0;
-
+    nsCOMPtr<nsIAccessible> nextParent;
     while (parent) {
       PRUint32 parentRole = nsAccUtils::Role(parent);
 
       if (parentRole == nsIAccessibleRole::ROLE_LISTITEM)
-        ++ level;
+        ++ groupLevel;
       else if (parentRole != nsIAccessibleRole::ROLE_LIST)
         break;
 
-      parent = parent->GetParent();
+      parent->GetParent(getter_AddRefs(nextParent));
+      parent.swap(nextParent);
     }
 
-    if (level == 0) {
+    if (groupLevel == 0) {
       // If this listitem is on top of nested lists then expose 'level'
       // attribute.
-      nsAccessible* parent(GetParent());
-      PRInt32 siblingCount = parent->GetChildCount();
-      for (PRInt32 siblingIdx = 0; siblingIdx < siblingCount; siblingIdx++) {
-        nsAccessible* sibling = parent->GetChildAt(siblingIdx);
+      nsCOMPtr<nsIAccessible> parent = GetParent();
+      parent->GetFirstChild(getter_AddRefs(sibling));
 
+      while (sibling) {
         nsCOMPtr<nsIAccessible> siblingChild;
         sibling->GetLastChild(getter_AddRefs(siblingChild));
         if (nsAccUtils::Role(siblingChild) == nsIAccessibleRole::ROLE_LIST) {
-          level = 1;
+          groupLevel = 1;
           break;
         }
+
+        sibling->GetNextSibling(getter_AddRefs(nextSibling));
+        sibling.swap(nextSibling);
       }
-    } else {
-      ++ level; // level is 1-index based
-    }
+    } else
+      groupLevel++; // level is 1-index based
 
-    return level;
-  }
-
-  if (role == nsIAccessibleRole::ROLE_ROW &&
-      nsAccUtils::Role(parent) == nsIAccessibleRole::ROLE_TREE_TABLE) {
+  } else if (aRole == nsIAccessibleRole::ROLE_ROW &&
+             nsAccUtils::Role(GetParent()) == nsIAccessibleRole::ROLE_TREE_TABLE) {
     // It is a row inside flatten treegrid. Group level is always 1 until it is
     // overriden by aria-level attribute.
-    return 1;
+    groupLevel = 1;
   }
 
-  return 0;
+  nsAccUtils::SetAccGroupAttrs(aAttributes, groupLevel, positionInGroup,
+                               setSize);
+
+  return NS_OK;
 }

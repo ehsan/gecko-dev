@@ -232,10 +232,10 @@ nsHyperTextAccessible::CacheChildren()
 
   walker.GetFirstChild();
   while (walker.mState.accessible) {
+    mChildren.AppendObject(walker.mState.accessible);
+
     nsRefPtr<nsAccessible> acc =
       nsAccUtils::QueryObject<nsAccessible>(walker.mState.accessible);
-
-    mChildren.AppendElement(acc);
     acc->SetParent(this);
 
     walker.GetNextSibling();
@@ -592,7 +592,9 @@ nsresult nsHyperTextAccessible::DOMPointToHypertextOffset(nsIDOMNode* aNode, PRI
     // We want the "skipped" offset into the text (rendered text without the extra whitespace)
     nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
     NS_ASSERTION(content, "No nsIContent for dom node");
-    nsIFrame *frame = content->GetPrimaryFrame();
+    nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+    NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
+    nsIFrame *frame = presShell->GetPrimaryFrameFor(content);
     NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
     nsresult rv = ContentToRenderedOffset(frame, aNodeOffset, &addTextOffset);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -859,7 +861,7 @@ nsHyperTextAccessible::GetRelativeOffset(nsIPresShell *aPresShell,
     hyperTextOffset = 0;
   }  
   else if (aAmount == eSelectBeginLine) {
-    nsAccessible *firstChild = mChildren.SafeElementAt(0, nsnull);
+    nsIAccessible *firstChild = mChildren.SafeObjectAt(0);
     // For line selection with needsStart, set start of line exactly to line break
     if (pos.mContentOffset == 0 && firstChild &&
         nsAccUtils::Role(firstChild) == nsIAccessibleRole::ROLE_STATICTEXT &&
@@ -1194,35 +1196,41 @@ nsHyperTextAccessible::GetDefaultTextAttributes(nsIPersistentProperties **aAttri
   return textAttrsMgr.GetAttributes(*aAttributes);
 }
 
-PRInt32
-nsHyperTextAccessible::GetLevelInternal()
-{
-  nsCOMPtr<nsIContent> content = nsCoreUtils::GetRoleContent(mDOMNode);
-  NS_ENSURE_TRUE(content, 0);
-
-  nsIAtom *tag = content->Tag();
-  if (tag == nsAccessibilityAtoms::h1)
-    return 1;
-  if (tag == nsAccessibilityAtoms::h2)
-    return 2;
-  if (tag == nsAccessibilityAtoms::h3)
-    return 3;
-  if (tag == nsAccessibilityAtoms::h4)
-    return 4;
-  if (tag == nsAccessibilityAtoms::h5)
-    return 5;
-  if (tag == nsAccessibilityAtoms::h6)
-    return 6;
-
-  return nsAccessibleWrap::GetLevelInternal();
-}
-
 nsresult
 nsHyperTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
 {
+  if (!mDOMNode) {
+    return NS_ERROR_FAILURE;  // Node already shut down
+  }
+
   nsresult rv = nsAccessibleWrap::GetAttributesInternal(aAttributes);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsIContent> content = nsCoreUtils::GetRoleContent(mDOMNode);
+  NS_ENSURE_TRUE(content, NS_ERROR_UNEXPECTED);
+  nsIAtom *tag = content->Tag();
+
+  PRInt32 headLevel = 0;
+  if (tag == nsAccessibilityAtoms::h1)
+    headLevel = 1;
+  else if (tag == nsAccessibilityAtoms::h2)
+    headLevel = 2;
+  else if (tag == nsAccessibilityAtoms::h3)
+    headLevel = 3;
+  else if (tag == nsAccessibilityAtoms::h4)
+    headLevel = 4;
+  else if (tag == nsAccessibilityAtoms::h5)
+    headLevel = 5;
+  else if (tag == nsAccessibilityAtoms::h6)
+    headLevel = 6;
+
+  if (headLevel) {
+    nsAutoString strHeadLevel;
+    strHeadLevel.AppendInt(headLevel);
+    nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::level,
+                           strHeadLevel);
+  }
+  
   // Indicate when the current object uses block-level formatting
   // via formatting: block
   // XXX: 'formatting' attribute is deprecated and will be removed in Mozilla2,
@@ -2133,7 +2141,10 @@ nsHyperTextAccessible::GetDOMPointByFrameOffset(nsIFrame *aFrame,
     nsCOMPtr<nsIContent> content(aFrame->GetContent());
     NS_ENSURE_STATE(content);
 
-    nsIFrame *primaryFrame = content->GetPrimaryFrame();
+    nsCOMPtr<nsIPresShell> shell(GetPresShell());
+    NS_ENSURE_STATE(shell);
+
+    nsIFrame *primaryFrame = shell->GetPrimaryFrameFor(content);
     nsresult rv = RenderedToContentOffset(primaryFrame, aOffset, aNodeOffset);
     NS_ENSURE_SUCCESS(rv, rv);
 

@@ -564,9 +564,6 @@ nsFastLoadFileReader::Read(char* aBuffer, PRUint32 aCount, PRUint32 *aBytesRead)
             entry->mBytesLeft -= 8;
         }
     }
-    if (!mFileData)
-        return NS_BASE_STREAM_CLOSED;
-
     PRUint32 count = PR_MIN(mFileLen - mFilePos, aCount);
     memcpy(aBuffer, mFileData+mFilePos, count);
     *aBytesRead = count;
@@ -592,9 +589,6 @@ nsFastLoadFileReader::ReadSegments(nsWriteSegmentFun aWriter, void* aClosure,
 
     NS_ASSERTION(!entry || (!entry->mNeedToSeek && entry->mBytesLeft != 0),
                  "ReadSegments called from above nsFastLoadFileReader layer?!");
-
-    if (!mFileData)
-        return NS_BASE_STREAM_CLOSED;
 
     PRUint32 count = PR_MIN(mFileLen - mFilePos, aCount);
 
@@ -866,36 +860,25 @@ nsFastLoadFileReader::Open()
     nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(mFile, &rv);
     if (NS_FAILED(rv))
         return rv;
-    PRFileDesc *fd;    // OS file-descriptor
-    rv = localFile->OpenNSPRFileDesc(PR_RDONLY, 0, &fd);
+    rv = localFile->OpenNSPRFileDesc(PR_RDONLY, 0, &mFd);
     if (NS_FAILED(rv))
         return rv;
 
-    PRInt64 size = PR_Available64(fd);
-    if (size >= PR_INT32_MAX) {
-        PR_Close(fd);
+    PRInt64 size = PR_Available64(mFd);
+    if (size >= PR_INT32_MAX)
         return NS_ERROR_FILE_TOO_BIG;
-    }
 
     mFileLen = (PRUint32) size;
-    if (mFileLen < sizeof(nsFastLoadHeader)) {
-        PR_Close(fd);
-        return NS_ERROR_FAILURE;
-    }
 
-    mFileMap = PR_CreateFileMap(fd, mFileLen, PR_PROT_READONLY);
-    if (!mFileMap) {
-        PR_Close(fd);
+    mFileMap = PR_CreateFileMap(mFd, mFileLen, PR_PROT_READONLY);
+    if (!mFileMap)
         return NS_ERROR_FAILURE;
-    }
 
     mFileData = (PRUint8*) PR_MemMap(mFileMap, 0, mFileLen);
-    // At this point the non-mmap file descriptor is no longer needed
-    PR_Close(fd);
 
-    if (!mFileData)
+    if (mFileLen < sizeof(nsFastLoadHeader))
         return NS_ERROR_FAILURE;
-
+    
 #if defined(XP_UNIX)
     madvise((char *)mFileData, mFileLen, MADV_WILLNEED);
 #endif
@@ -939,18 +922,16 @@ nsFastLoadFileReader::Close()
     // a session not so much for reading objects as for its footer information,
     // which primes the updater's tables so that after the update completes, the
     // FastLoad file has a superset footer.
-    if (mFileData) {
-        PR_MemUnmap(mFileData, mFileLen);
+    if (mFd) {
+        if (mFileData)
+            PR_MemUnmap(mFileData, mFileLen);
         mFileData = nsnull;
-    }
-
-    if (mFileMap) {
-        PR_CloseFileMap(mFileMap);
+        if (mFileMap)
+            PR_CloseFileMap(mFileMap);
         mFileMap = nsnull;
+        PR_Close(mFd);
+        mFd = nsnull;
     }
-
-    mFileLen = 0;
-    mFilePos = 0;
     
     if (!mFooter.mObjectMap)
         return NS_OK;

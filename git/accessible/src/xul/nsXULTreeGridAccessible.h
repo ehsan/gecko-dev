@@ -78,7 +78,7 @@ class nsXULTreeGridRowAccessible : public nsXULTreeItemAccessibleBase
 {
 public:
   nsXULTreeGridRowAccessible(nsIDOMNode *aDOMNode, nsIWeakReference *aShell,
-                             nsAccessible *aParent, nsITreeBoxObject *aTree,
+                             nsIAccessible *aParent, nsITreeBoxObject *aTree,
                              nsITreeView *aTreeView, PRInt32 aRow);
 
   // nsISupports and cycle collection
@@ -95,7 +95,7 @@ public:
                                    PRBool aDeepestChild,
                                    nsIAccessible **aChild);
 
-  virtual nsAccessible* GetChildAt(PRUint32 aIndex);
+  virtual nsIAccessible* GetChildAt(PRUint32 aIndex);
   virtual PRInt32 GetChildCount();
   virtual PRInt32 GetIndexOf(nsIAccessible *aChild);
 
@@ -164,7 +164,7 @@ public:
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
-  virtual nsAccessible* GetParent();
+  virtual nsIAccessible* GetParent();
 
   // nsXULTreeGridCellAccessible
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_XULTREEGRIDCELLACCESSIBLE_IMPL_CID)

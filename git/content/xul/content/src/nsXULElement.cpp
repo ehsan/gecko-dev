@@ -151,6 +151,7 @@
 #include "nsNodeInfoManager.h"
 #include "nsXBLBinding.h"
 #include "nsEventDispatcher.h"
+#include "nsPresShellIterator.h"
 #include "mozAutoDocUpdate.h"
 #include "nsIDOMXULCommandEvent.h"
 #include "nsIDOMNSEvent.h"
@@ -631,7 +632,15 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
             return;
     }
 
-    nsIFrame* frame = content->GetPrimaryFrame();
+    nsIDocument* doc = GetCurrentDoc();
+    if (!doc)
+        return;
+
+    nsIPresShell *shell = doc->GetPrimaryShell();
+    if (!shell)
+        return;
+
+    nsIFrame* frame = shell->GetPrimaryFrameFor(content);
     if (!frame)
         return;
 
@@ -2118,8 +2127,9 @@ nsXULElement::Click()
 
     nsCOMPtr<nsIDocument> doc = GetCurrentDoc(); // Strong just in case
     if (doc) {
-        nsCOMPtr<nsIPresShell> shell = doc->GetPrimaryShell();
-        if (shell) {
+        nsPresShellIterator iter(doc);
+        nsCOMPtr<nsIPresShell> shell;
+        while ((shell = iter.GetNextShell())) {
             // strong ref to PresContext so events don't destroy it
             nsCOMPtr<nsPresContext> context = shell->GetPresContext();
 
@@ -2375,7 +2385,8 @@ nsXULElement::HideWindowChrome(PRBool aShouldHide)
     nsIPresShell *shell = doc->GetPrimaryShell();
 
     if (shell) {
-        nsIFrame* frame = GetPrimaryFrame();
+        nsIContent* content = static_cast<nsIContent*>(this);
+        nsIFrame* frame = shell->GetPrimaryFrameFor(content);
 
         nsPresContext *presContext = shell->GetPresContext();
 

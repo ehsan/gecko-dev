@@ -3904,8 +3904,6 @@ nsHtml5Tokenizer::loadState(nsHtml5Tokenizer* other)
   nsHtml5ArrayCopy::arraycopy(other->longStrBuf, longStrBuf, longStrBufLen);
   stateSave = other->stateSave;
   returnStateSave = other->returnStateSave;
-  contentModelElement = other->contentModelElement;
-  contentModelElementNameAsArray = other->contentModelElementNameAsArray;
   lastCR = other->lastCR;
   index = other->index;
   forceQuirks = other->forceQuirks;

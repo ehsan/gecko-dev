@@ -474,7 +474,7 @@ nsDOMWindowUtils::GetWidgetForElement(nsIDOMElement* aElement)
   nsIPresShell* presShell = doc ? doc->GetPrimaryShell() : nsnull;
 
   if (presShell) {
-    nsIFrame* frame = content->GetPrimaryFrame();
+    nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
     if (!frame) {
       frame = presShell->GetRootFrame();
     }
@@ -944,47 +944,6 @@ nsDOMWindowUtils::DispatchDOMEventViaPresShell(nsIDOMNode* aTarget,
                                &status);
   *aRetVal = (status != nsEventStatus_eConsumeNoDefault);
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::SendContentCommandEvent(const nsAString& aType,
-                                          nsITransferable * aTransferable)
-{
-  PRBool hasCap = PR_FALSE;
-  if (NS_FAILED(nsContentUtils::GetSecurityManager()->IsCapabilityEnabled("UniversalXPConnect", &hasCap))
-      || !hasCap)
-    return NS_ERROR_DOM_SECURITY_ERR;
-
-  // get the widget to send the event to
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
-    return NS_ERROR_FAILURE;
-
-  PRInt32 msg;
-  if (aType.EqualsLiteral("cut"))
-    msg = NS_CONTENT_COMMAND_CUT;
-  else if (aType.EqualsLiteral("copy"))
-    msg = NS_CONTENT_COMMAND_COPY;
-  else if (aType.EqualsLiteral("paste"))
-    msg = NS_CONTENT_COMMAND_PASTE;
-  else if (aType.EqualsLiteral("delete"))
-    msg = NS_CONTENT_COMMAND_DELETE;
-  else if (aType.EqualsLiteral("undo"))
-    msg = NS_CONTENT_COMMAND_UNDO;
-  else if (aType.EqualsLiteral("redo"))
-    msg = NS_CONTENT_COMMAND_REDO;
-  else if (aType.EqualsLiteral("pasteTransferable"))
-    msg = NS_CONTENT_COMMAND_PASTE_TRANSFERABLE;
-  else
-    return NS_ERROR_FAILURE;
- 
-  nsContentCommandEvent event(PR_TRUE, msg, widget);
-  if (msg == NS_CONTENT_COMMAND_PASTE_TRANSFERABLE) {
-    event.mTransferable = aTransferable;
-  }
-
-  nsEventStatus status;
-  return widget->DispatchEvent(&event, status);
 }
 
 NS_IMETHODIMP

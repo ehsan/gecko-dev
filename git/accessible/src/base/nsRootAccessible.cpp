@@ -508,7 +508,7 @@ nsRootAccessible::FireAccessibleFocusEvent(nsIAccessible *aAccessible,
     if (!shell)
       return PR_FALSE;
 
-    focusFrame = focusContent->GetPrimaryFrame();
+    focusFrame = shell->GetRealPrimaryFrameFor(focusContent);
   }
 
   NS_IF_RELEASE(gLastFocusedNode);
@@ -1062,7 +1062,7 @@ nsRootAccessible::GetRelationByType(PRUint32 aRelationType,
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible
 
-nsAccessible*
+nsIAccessible*
 nsRootAccessible::GetParent()
 {
   // Parent has been setted in nsApplicationAccesible::AddRootAccessible()

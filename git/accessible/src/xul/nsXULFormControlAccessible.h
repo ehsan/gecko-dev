@@ -148,9 +148,6 @@ public:
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
-/**
- * Used for XUL radio button (xul:radio).
- */
 class nsXULRadioButtonAccessible : public nsRadioButtonAccessible
 {
 
@@ -158,9 +155,8 @@ public:
   nsXULRadioButtonAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   // nsAccessible
+  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
-                                          PRInt32 *aSetSize);
 };
 
 class nsXULRadioGroupAccessible : public nsXULSelectableAccessible
@@ -186,13 +182,8 @@ class nsXULToolbarButtonAccessible : public nsXULButtonAccessible
 {
 public:
   nsXULToolbarButtonAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
-
-  // nsAccessible
-  virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
-                                          PRInt32 *aSetSize);
-
-  // nsXULToolbarButtonAccessible
-  static PRBool IsSeparator(nsAccessible *aAccessible);
+  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
+  static PRBool IsSeparator(nsIAccessible *aAccessible);
 };
 
 class nsXULToolbarAccessible : public nsAccessibleWrap

@@ -148,8 +148,7 @@ class nsWindow : public nsBaseWidget
 
    virtual nsIntPoint WidgetToScreenOffset();
    NS_IMETHOD DispatchEvent( struct nsGUIEvent *event, nsEventStatus &aStatus);
-   NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup,
-                                  PRBool aDoCapture, PRBool aConsumeRollupEvent);
+   NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent);
 
    virtual PRBool          HasPendingInputEvent();
 

@@ -89,7 +89,7 @@ public:
                                    PRBool aDeepestChild,
                                    nsIAccessible **aChild);
 
-  virtual nsAccessible* GetChildAt(PRUint32 aIndex);
+  virtual nsIAccessible* GetChildAt(PRUint32 aIndex);
   virtual PRInt32 GetChildCount();
   virtual PRInt32 GetIndexOf(nsIAccessible *aChild);
 
@@ -166,7 +166,7 @@ class nsXULTreeItemAccessibleBase : public nsAccessibleWrap
 {
 public:
   nsXULTreeItemAccessibleBase(nsIDOMNode *aDOMNode, nsIWeakReference *aShell,
-                              nsAccessible *aParent, nsITreeBoxObject *aTree,
+                              nsIAccessible *aParent, nsITreeBoxObject *aTree,
                               nsITreeView *aTreeView, PRInt32 aRow);
 
   // nsISupports
@@ -187,10 +187,6 @@ public:
   NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
                                nsIAccessibleRelation **aRelation);
 
-  NS_IMETHOD GroupPosition(PRInt32 *aGroupLevel,
-                           PRInt32 *aSimilarItemsInGroup,
-                           PRInt32 *aPositionInGroup);
-
   NS_IMETHOD GetNumActions(PRUint8 *aCount);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
@@ -200,8 +196,9 @@ public:
   virtual nsresult Shutdown();
 
   // nsAccessible
+  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual nsAccessible* GetParent();
+  virtual nsIAccessible* GetParent();
 
   // nsXULTreeItemAccessibleBase
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_XULTREEITEMBASEACCESSIBLE_IMPL_CID)
@@ -255,7 +252,7 @@ class nsXULTreeItemAccessible : public nsXULTreeItemAccessibleBase
 {
 public:
   nsXULTreeItemAccessible(nsIDOMNode *aDOMNode, nsIWeakReference *aShell,
-                          nsAccessible *aParent, nsITreeBoxObject *aTree,
+                          nsIAccessible *aParent, nsITreeBoxObject *aTree,
                           nsITreeView *aTreeView, PRInt32 aRow);
 
   NS_IMETHOD GetName(nsAString& aName);

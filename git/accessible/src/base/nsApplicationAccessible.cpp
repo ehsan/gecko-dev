@@ -160,7 +160,7 @@ nsApplicationAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-nsAccessible*
+nsIAccessible*
 nsApplicationAccessible::GetParent()
 {
   return nsnull;
@@ -207,12 +207,10 @@ nsApplicationAccessible::AddRootAccessible(nsIAccessible *aRootAccessible)
 {
   NS_ENSURE_ARG_POINTER(aRootAccessible);
 
-  nsRefPtr<nsAccessible> rootAcc =
-    nsAccUtils::QueryObject<nsAccessible>(aRootAccessible);
-
-  if (!mChildren.AppendElement(rootAcc))
+  if (!mChildren.AppendObject(aRootAccessible))
     return NS_ERROR_FAILURE;
 
+  nsRefPtr<nsAccessible> rootAcc = nsAccUtils::QueryAccessible(aRootAccessible);
   rootAcc->SetParent(this);
 
   return NS_OK;
@@ -226,5 +224,5 @@ nsApplicationAccessible::RemoveRootAccessible(nsIAccessible *aRootAccessible)
   // It's not needed to void root accessible parent because this method is
   // called on root accessible shutdown and its parent will be cleared
   // properly.
-  return mChildren.RemoveElement(aRootAccessible) ? NS_OK : NS_ERROR_FAILURE;
+  return mChildren.RemoveObject(aRootAccessible) ? NS_OK : NS_ERROR_FAILURE;
 }

@@ -103,11 +103,11 @@ private:
 
 
 #define NS_ACCESSIBLE_IMPL_CID                          \
-{  /* c734df37-7e12-49ec-8983-eea88a186bb8 */           \
-  0xc734df37,                                           \
-  0x7e12,                                               \
-  0x49ec,                                               \
-  { 0x89, 0x83, 0xee, 0xa8, 0x8a, 0x18, 0x6b, 0xb8 }    \
+{  /* 07c5a6d6-4e87-4b57-8613-4c39e1b5150a */           \
+  0x07c5a6d6,                                           \
+  0x4e87,                                               \
+  0x4b57,                                               \
+  { 0x86, 0x13, 0x4c, 0x39, 0xe1, 0xb5, 0x15, 0x0a }    \
 }
 
 class nsAccessible : public nsAccessNodeWrap, 
@@ -198,21 +198,6 @@ public:
                                    PRBool aDeepestChild,
                                    nsIAccessible **aChild);
 
-  /**
-   * Return calculated group level based on accessible hierarchy.
-   */
-  virtual PRInt32 GetLevelInternal();
-
-  /**
-   * Calculate position in group and group size ('posinset' and 'setsize') based
-   * on accessible hierarchy.
-   *
-   * @param  aPosInSet  [out] accessible position in the group
-   * @param  aSetSize   [out] the group size
-   */
-  virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
-                                          PRInt32 *aSetSize);
-
   //////////////////////////////////////////////////////////////////////////////
   // Initializing methods
 
@@ -228,7 +213,7 @@ public:
   /**
    * Set accessible parent.
    */
-  void SetParent(nsAccessible *aParent);
+  void SetParent(nsIAccessible *aParent);
 
   /**
    * Set the child count to -1 (unknown) and null out cached child pointers.
@@ -243,12 +228,12 @@ public:
   /**
    * Return parent accessible.
    */
-  virtual nsAccessible* GetParent();
+  virtual nsIAccessible* GetParent();
 
   /**
    * Return child accessible at the given index.
    */
-  virtual nsAccessible* GetChildAt(PRUint32 aIndex);
+  virtual nsIAccessible* GetChildAt(PRUint32 aIndex);
 
   /**
    * Return child accessible count.
@@ -268,12 +253,12 @@ public:
   /**
    * Return parent accessible only if cached.
    */
-  nsAccessible* GetCachedParent();
+  already_AddRefed<nsIAccessible> GetCachedParent();
 
   /**
    * Return first child accessible only if cached.
    */
-  nsAccessible* GetCachedFirstChild();
+  already_AddRefed<nsIAccessible> GetCachedFirstChild();
 
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous methods
@@ -312,7 +297,7 @@ protected:
   /**
    * Assert if child not in parent's cache.
    */
-  void TestChildCache(nsAccessible *aCachedChild);
+  void TestChildCache(nsIAccessible *aCachedChild);
 
   /**
    * Cache children if necessary. Return true if the accessible is defunct.
@@ -444,6 +429,17 @@ protected:
   PRUint32 GetActionRule(PRUint32 aStates);
 
   /**
+   * Compute group attributes ('posinset', 'setsize' and 'level') based
+   * on accessible hierarchy. Used by GetAttributes() method if group attributes
+   * weren't provided by ARIA or by internal accessible implementation.
+   *
+   * @param  aRole        [in] role of this accessible
+   * @param  aAttributes  [in, out] object attributes
+   */
+  nsresult ComputeGroupAttributes(PRUint32 aRole,
+                                  nsIPersistentProperties *aAttributes);
+
+  /**
    * Fires platform accessible event. It's notification method only. It does
    * change nothing on Gecko side. Mostly you should use
    * nsIAccessible::FireAccessibleEvent excepting special cases like we have
@@ -454,8 +450,8 @@ protected:
   virtual nsresult FirePlatformEvent(nsIAccessibleEvent *aEvent) = 0;
 
   // Data Members
-  nsRefPtr<nsAccessible> mParent;
-  nsTArray<nsRefPtr<nsAccessible> > mChildren;
+  nsCOMPtr<nsIAccessible> mParent;
+  nsCOMArray<nsIAccessible> mChildren;
   PRBool mAreChildrenInitialized;
 
   nsRoleMapEntry *mRoleMapEntry; // Non-null indicates author-supplied role; possibly state & value as well

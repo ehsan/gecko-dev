@@ -127,10 +127,11 @@ void nsMenuChainItem::Detach(nsMenuChainItem** aRoot)
   }
 }
 
-NS_IMPL_ISUPPORTS4(nsXULPopupManager,
+NS_IMPL_ISUPPORTS5(nsXULPopupManager,
                    nsIDOMKeyListener,
                    nsIDOMEventListener,
                    nsIMenuRollup,
+                   nsIRollupListener,
                    nsITimerCallback)
 
 nsXULPopupManager::nsXULPopupManager() :
@@ -286,7 +287,7 @@ nsXULPopupManager::GetFrameOfTypeForContent(nsIContent* aContent,
       if (aShouldFlush)
         presShell->FlushPendingNotifications(Flush_Frames);
 
-      nsIFrame* frame = aContent->GetPrimaryFrame();
+      nsIFrame* frame = presShell->GetPrimaryFrameFor(aContent);
       if (frame && frame->GetType() == aFrameType)
         return frame;
     }
@@ -1063,7 +1064,7 @@ nsXULPopupManager::FirePopupShowingEvent(nsIContent* aPopup,
     document->FlushPendingNotifications(Flush_Layout);
 
   // get the frame again in case it went away
-  nsIFrame* frame = aPopup->GetPrimaryFrame();
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(aPopup);
   if (frame && frame->GetType() == nsGkAtoms::menuPopupFrame) {
     nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame *>(frame);
 
@@ -1112,7 +1113,7 @@ nsXULPopupManager::FirePopupHidingEvent(nsIContent* aPopup,
   }
 
   // get frame again in case it went away
-  nsIFrame* frame = aPopup->GetPrimaryFrame();
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(aPopup);
   if (frame && frame->GetType() == nsGkAtoms::menuPopupFrame) {
     nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame *>(frame);
 
@@ -1390,7 +1391,7 @@ nsXULPopupManager::SetCaptureState(nsIContent* aOldPopup)
     return;
 
   if (mWidget) {
-    mWidget->CaptureRollupEvents(this, this, PR_FALSE, PR_FALSE);
+    mWidget->CaptureRollupEvents(this, PR_FALSE, PR_FALSE);
     mWidget = nsnull;
   }
 
@@ -1399,8 +1400,7 @@ nsXULPopupManager::SetCaptureState(nsIContent* aOldPopup)
     nsCOMPtr<nsIWidget> widget;
     popup->GetWidget(getter_AddRefs(widget));
     if (widget) {
-      widget->CaptureRollupEvents(this, this, PR_TRUE,
-                                  popup->ConsumeOutsideClicks());
+      widget->CaptureRollupEvents(this, PR_TRUE, popup->ConsumeOutsideClicks());
       mWidget = widget;
       popup->AttachedDismissalListener();
     }

@@ -64,10 +64,6 @@ class nsCSSStyleSheet;
 
 class nsCSSStyleSheetInner {
 public:
-  friend class nsCSSStyleSheet;
-  friend class nsCSSRuleProcessor;
-  friend nsresult NS_NewCSSStyleSheet(nsICSSStyleSheet** aInstancePtrResult);
-private:
   nsCSSStyleSheetInner(nsICSSStyleSheet* aPrimarySheet);
   nsCSSStyleSheetInner(nsCSSStyleSheetInner& aCopy,
                        nsCSSStyleSheet* aPrimarySheet);
@@ -175,21 +171,8 @@ public:
   // nsICSSLoaderObserver interface
   NS_IMETHOD StyleSheetLoaded(nsICSSStyleSheet* aSheet, PRBool aWasAlternate,
                               nsresult aStatus);
-
-  enum EnsureUniqueInnerResult {
-    // No work was needed to ensure a unique inner.
-    eUniqueInner_AlreadyUnique,
-    // A clone was done to ensure a unique inner (which means the style
-    // rules in this sheet have changed).
-    eUniqueInner_ClonedInner,
-    // A clone was attempted, but it failed.
-    eUniqueInner_CloneFailed
-  };
-  EnsureUniqueInnerResult EnsureUniqueInner();
-
-  // Append all of this sheet's child sheets to aArray.  Return PR_TRUE
-  // on success and PR_FALSE on allocation failure.
-  PRBool AppendAllChildSheets(nsTArray<nsCSSStyleSheet*>& aArray);
+  
+  nsresult EnsureUniqueInner();
 
   PRBool UseForPresentation(nsPresContext* aPresContext,
                             nsMediaQueryResultCacheKey& aKey) const;

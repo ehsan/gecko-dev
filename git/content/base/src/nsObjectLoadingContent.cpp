@@ -77,6 +77,7 @@
 #include "nsGkAtoms.h"
 #include "nsThreadUtils.h"
 #include "nsNetUtil.h"
+#include "nsPresShellIterator.h"
 #include "nsMimeTypes.h"
 #include "nsStyleUtil.h"
 
@@ -760,8 +761,9 @@ nsObjectLoadingContent::EnsureInstantiation(nsIPluginInstance** aInstance)
       return NS_OK;
     }
 
-    nsCOMPtr<nsIPresShell> shell = doc->GetPrimaryShell();
-    if (shell) {
+    nsPresShellIterator iter(doc);
+    nsCOMPtr<nsIPresShell> shell;
+    while ((shell = iter.GetNextShell())) {
       shell->RecreateFramesFor(thisContent);
     }
 
@@ -1541,8 +1543,10 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
   } else if (aOldType != mType) {
     // If our state changed, then we already recreated frames
     // Otherwise, need to do that here
-    nsCOMPtr<nsIPresShell> shell = doc->GetPrimaryShell();
-    if (shell) {
+
+    nsPresShellIterator iter(doc);
+    nsCOMPtr<nsIPresShell> shell;
+    while ((shell = iter.GetNextShell())) {
       shell->RecreateFramesFor(thisContent);
     }
   }
@@ -1661,7 +1665,17 @@ nsObjectLoadingContent::GetExistingFrame(FlushType aFlushType)
 
   nsIFrame* frame;
   do {
-    frame = thisContent->GetPrimaryFrame();
+    nsIDocument* doc = thisContent->GetCurrentDoc();
+    if (!doc) {
+      return nsnull; // No current doc -> no frame
+    }
+
+    nsIPresShell* shell = doc->GetPrimaryShell();
+    if (!shell) {
+      return nsnull; // No presentation -> no frame
+    }
+
+    frame = shell->GetPrimaryFrameFor(thisContent);
     if (!frame) {
       return nsnull;
     }
@@ -1672,8 +1686,6 @@ nsObjectLoadingContent::GetExistingFrame(FlushType aFlushType)
     
     // OK, let's flush out and try again.  Note that we want to reget
     // the document, etc, since flushing might run script.
-    nsIDocument* doc = thisContent->GetCurrentDoc();
-    NS_ASSERTION(doc, "Frame but no document?");
     mozFlushType flushType =
       aFlushType == eFlushLayout ? Flush_Layout : Flush_ContentAndNotify;
     doc->FlushPendingNotifications(flushType);

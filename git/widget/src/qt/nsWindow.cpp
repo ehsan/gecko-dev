@@ -114,8 +114,7 @@ static NS_DEFINE_IID(kCDragServiceCID,  NS_DRAGSERVICE_CID);
 static const int WHEEL_DELTA = 120;
 static PRBool gGlobalsInitialized = PR_FALSE;
 
-static nsIRollupListener*          gRollupListener;
-static nsIMenuRollup*              gMenuRollup;
+static nsCOMPtr<nsIRollupListener> gRollupListener;
 static nsWeakPtr                   gRollupWindow;
 static PRBool                      gConsumeRollupEvent;
 
@@ -141,10 +140,10 @@ isContextMenuKeyEvent(const QKeyEvent *qe)
 static void
 InitKeyEvent(nsKeyEvent &aEvent, QKeyEvent *aQEvent)
 {
-    aEvent.isShift   = (aQEvent->modifiers() & Qt::ShiftModifier) ? PR_TRUE : PR_FALSE;
-    aEvent.isControl = (aQEvent->modifiers() & Qt::ControlModifier) ? PR_TRUE : PR_FALSE;
-    aEvent.isAlt     = (aQEvent->modifiers() & Qt::AltModifier) ? PR_TRUE : PR_FALSE;
-    aEvent.isMeta    = (aQEvent->modifiers() & Qt::MetaModifier) ? PR_TRUE : PR_FALSE;
+    aEvent.isShift   = aQEvent->modifiers() & Qt::ShiftModifier;
+    aEvent.isControl = aQEvent->modifiers() & Qt::ControlModifier;
+    aEvent.isAlt     = aQEvent->modifiers() & Qt::AltModifier;
+    aEvent.isMeta    = aQEvent->modifiers() & Qt::MetaModifier;
     aEvent.time      = 0;
 
     // The transformations above and in gdk for the keyval are not invertible
@@ -251,7 +250,6 @@ nsWindow::Destroy(void)
             gRollupListener->Rollup(nsnull, nsnull);
         gRollupWindow = nsnull;
         gRollupListener = nsnull;
-        NS_IF_RELEASE(gMenuRollup);
     }
 
     Show(PR_FALSE);
@@ -804,7 +802,6 @@ nsWindow::CaptureMouse(PRBool aCapture)
 
 NS_IMETHODIMP
 nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
-                              nsIMenuRollup     *aMenuRollup,
                               PRBool             aDoCapture,
                               PRBool             aConsumeRollupEvent)
 {
@@ -816,14 +813,10 @@ nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
     if (aDoCapture) {
         gConsumeRollupEvent = aConsumeRollupEvent;
         gRollupListener = aListener;
-        NS_IF_RELEASE(gMenuRollup);
-        gMenuRollup = aMenuRollup;
-        NS_IF_ADDREF(aMenuRollup);
         gRollupWindow = do_GetWeakReference(static_cast<nsIWidget*>(this));
     }
     else {
         gRollupListener = nsnull;
-        NS_IF_RELEASE(gMenuRollup);
         gRollupWindow = nsnull;
     }
 
@@ -851,9 +844,11 @@ check_for_rollup(double aMouseX, double aMouseY,
             // we don't want to rollup if the clickis in a parent menu of
             // the current submenu
             PRUint32 popupsToRollup = PR_UINT32_MAX;
-            if (gMenuRollup) {
+            nsCOMPtr<nsIMenuRollup> menuRollup;
+            menuRollup = (do_QueryInterface(gRollupListener));
+            if (menuRollup) {
                 nsAutoTArray<nsIWidget*, 5> widgetChain;
-                PRUint32 sameTypeCount = gMenuRollup->GetSubmenuWidgetChain(&widgetChain);
+                PRUint32 sameTypeCount = menuRollup->GetSubmenuWidgetChain(&widgetChain);
                 for (PRUint32 i=0; i<widgetChain.Length(); ++i) {
                     nsIWidget* widget =  widgetChain[i];
                     QWidget* currWindow =
@@ -879,7 +874,6 @@ check_for_rollup(double aMouseX, double aMouseY,
     } else {
         gRollupWindow = nsnull;
         gRollupListener = nsnull;
-        gMenuRollup = nsnull;
     }
 
     return retVal;

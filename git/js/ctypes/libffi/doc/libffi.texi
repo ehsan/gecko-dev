@@ -31,7 +31,7 @@ section entitled ``GNU General Public License''.
 @end quotation
 @end copying
 
-@dircategory Development
+@dircategory
 @direntry
 * libffi: (libffi).             Portable foreign-function interface library.
 @end direntry

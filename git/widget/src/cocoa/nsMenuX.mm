@@ -472,13 +472,6 @@ GeckoNSMenu* nsMenuX::CreateMenuWithGeckoString(nsString& menuTitle)
   // overrides our decisions and things get incorrectly enabled/disabled.
   [myMenu setAutoenablesItems:NO];
 
-  // On SnowLeopard and later we must tell the OS which is our Help menu.
-  // Otherwise it will only add Spotlight for Help (the Search item) to our
-  // Help menu if its label/title is "Help" -- i.e. if the menu is in English.
-  // This resolves bug 489196.
-  if (nsToolkit::OnSnowLeopardOrLater() && nsMenuX::IsXULHelpMenu(mContent))
-    [NSApp setHelpMenu:myMenu];
-
   // we used to install Carbon event handlers here, but since NSMenu* doesn't
   // create its underlying MenuRef until just before display, we delay until
   // that happens. Now we install the event handlers when Cocoa notifies
@@ -692,18 +685,6 @@ NSMenuItem* nsMenuX::NativeMenuItem()
   return mNativeMenuItem;
 }
 
-PRBool nsMenuX::IsXULHelpMenu(nsIContent* aMenuContent)
-{
-  PRBool retval = PR_FALSE;
-  if (aMenuContent) {
-    nsAutoString id;
-    aMenuContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::id, id);
-    if (id.Equals(NS_LITERAL_STRING("helpMenu")))
-      retval = PR_TRUE;
-  }
-  return retval;
-}
-
 //
 // nsChangeObserver
 //
@@ -885,11 +866,13 @@ static pascal OSStatus MyMenuEventHandler(EventHandlerCallRef myHandler, EventRe
     
     // don't request a menu item that doesn't exist or we crash
     // this might happen just due to some random quirks in the event system
-    nsMenuObjectX* target = targetMenu->GetVisibleItemAt((PRUint32)aPos);
-    if (!target)
+    PRUint32 itemCount;
+    targetMenu->GetVisibleItemCount(itemCount);
+    if (aPos >= itemCount)
       return eventNotHandledErr;
 
     // Send DOM event if we're over a menu item
+    nsMenuObjectX* target = targetMenu->GetVisibleItemAt((PRUint32)aPos);
     if (target->MenuObjectType() == eMenuItemObjectType) {
       nsMenuItemX* targetMenuItem = static_cast<nsMenuItemX*>(target);
       PRBool handlerCalledPreventDefault; // but we don't actually care

@@ -205,6 +205,7 @@
 #include "gfxPlatform.h"
 
 #include "nsContentCID.h"
+static NS_DEFINE_CID(kCSSStyleSheetCID, NS_CSS_STYLESHEET_CID);
 static NS_DEFINE_IID(kRangeCID,     NS_RANGE_CID);
 
 PRBool nsIPresShell::gIsAccessibilityActive = PR_FALSE;
@@ -686,6 +687,7 @@ public:
   NS_IMETHOD ResizeReflow(nscoord aWidth, nscoord aHeight);
   NS_IMETHOD StyleChangeReflow();
   NS_IMETHOD GetPageSequenceFrame(nsIPageSequenceFrame** aResult) const;
+  virtual NS_HIDDEN_(nsIFrame*) GetPrimaryFrameFor(nsIContent* aContent) const;
   virtual NS_HIDDEN_(nsIFrame*) GetRealPrimaryFrameFor(nsIContent* aContent) const;
 
   NS_IMETHOD GetPlaceholderFrameFor(nsIFrame*  aFrame,
@@ -1552,7 +1554,7 @@ PresShell::~PresShell()
 #endif
 
   delete mStyleSet;
-  NS_IF_RELEASE(mFrameConstructor);
+  delete mFrameConstructor;
 
   mCurrentEventContent = nsnull;
 
@@ -1599,7 +1601,6 @@ PresShell::Init(nsIDocument* aDocument,
   // Create our frame constructor.
   mFrameConstructor = new nsCSSFrameConstructor(mDocument, this);
   NS_ENSURE_TRUE(mFrameConstructor, NS_ERROR_OUT_OF_MEMORY);
-  NS_ADDREF(mFrameConstructor);
 
   // The document viewer owns both view manager and pres shell.
   mViewManager->SetViewObserver(this);
@@ -1813,8 +1814,7 @@ PresShell::Destroy()
   // hierarchy is torn down to avoid finding deleted frames through
   // this presshell while the frames are being torn down
   if (mDocument) {
-    NS_ASSERTION(mDocument->GetPrimaryShell() == this, "Wrong shell?");
-    mDocument->DeleteShell();
+    mDocument->DeleteShell(this);
   }
 
   // Revoke any pending reflow event.  We need to do this and cancel
@@ -2040,7 +2040,8 @@ nsresult PresShell::ClearPreferenceStyleRules(void)
 nsresult PresShell::CreatePreferenceStyleSheet(void)
 {
   NS_ASSERTION(!mPrefStyleSheet, "prefStyleSheet already exists");
-  nsresult result = NS_NewCSSStyleSheet(getter_AddRefs(mPrefStyleSheet));
+  nsresult result;
+  mPrefStyleSheet = do_CreateInstance(kCSSStyleSheetCID, &result);
   if (NS_SUCCEEDED(result)) {
     NS_ASSERTION(mPrefStyleSheet, "null but no error");
     nsCOMPtr<nsIURI> uri;
@@ -2649,10 +2650,6 @@ PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
   {
     nsIViewManager::UpdateViewBatch batch(mViewManager);
 
-    // Have to make sure that the content notifications are flushed before we
-    // start messing with the frame model; otherwise we can get content doubling.
-    mDocument->FlushPendingNotifications(Flush_ContentAndNotify);
-
     // Make sure style is up to date
     {
       nsAutoScriptBlocker scriptBlocker;
@@ -3081,7 +3078,7 @@ PresShell::CheckVisibility(nsIDOMNode *node, PRInt16 startOffset, PRInt16 EndOff
   nsCOMPtr<nsIContent> content(do_QueryInterface(node));
   if (!content)
     return NS_ERROR_FAILURE;
-  nsIFrame *frame = content->GetPrimaryFrame();
+  nsIFrame *frame = GetPrimaryFrameFor(content);
   if (!frame) //no frame to look at so it must not be visible
     return NS_OK;  
   //start process now to go through all frames to find startOffset. then check chars after that to see 
@@ -3449,7 +3446,7 @@ PresShell::GetViewToScroll(nsLayoutUtils::Direction aDirection)
     }
   }
   if (focusedContent) {
-    nsIFrame* startFrame = focusedContent->GetPrimaryFrame();
+    nsIFrame* startFrame = GetPrimaryFrameFor(focusedContent);
     if (startFrame) {
       nsIScrollableViewProvider* svp = do_QueryFrame(startFrame);
       // If this very frame provides a scroll view, start there instead of frame's
@@ -4130,7 +4127,7 @@ PresShell::DoScrollContentIntoView(nsIContent* aContent,
                                    PRIntn      aVPercent,
                                    PRIntn      aHPercent)
 {
-  nsIFrame* frame = aContent->GetPrimaryFrame();
+  nsIFrame* frame = GetPrimaryFrameFor(aContent);
   if (!frame) {
     mContentToScrollTo = nsnull;
     return;
@@ -4284,7 +4281,7 @@ PresShell::GetSelectionForCopy(nsISelection** outSelection)
     nsCOMPtr<nsIDOMNSHTMLTextAreaElement> htmlTextAreaElement(do_QueryInterface(content));
     if (htmlInputElement || htmlTextAreaElement)
     {
-      nsIFrame *htmlInputFrame = content->GetPrimaryFrame();
+      nsIFrame *htmlInputFrame = GetPrimaryFrameFor(content);
       if (!htmlInputFrame) return NS_ERROR_FAILURE;
 
       nsCOMPtr<nsISelectionController> selCon;
@@ -4378,8 +4375,21 @@ PresShell::ClearMouseCapture(nsIView* aView)
   if (gCaptureInfo.mContent) {
     if (aView) {
       // if a view was specified, ensure that the captured content is within
-      // this view.
-      nsIFrame* frame = gCaptureInfo.mContent->GetPrimaryFrame();
+      // this view. Get the frame for the captured content from the right
+      // presshell first.
+      nsIFrame* frame = nsnull;
+      nsIDocument* doc = gCaptureInfo.mContent->GetCurrentDoc();
+      if (doc) {
+        nsIPresShell *shell = doc->GetPrimaryShell();
+        if (shell) {
+          // not much can happen if frames are being destroyed so just return.
+          if (shell->FrameManager()->IsDestroyingFrames())
+            return;
+
+          frame = shell->GetPrimaryFrameFor(gCaptureInfo.mContent);
+        }
+      }
+
       if (frame) {
         nsIView* view = frame->GetClosestView();
         // if there is no view, capturing won't be handled any more, so
@@ -5022,12 +5032,6 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
 nsresult
 PresShell::ReconstructFrames(void)
 {
-  nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
-
-  // Have to make sure that the content notifications are flushed before we
-  // start messing with the frame model; otherwise we can get content doubling.
-  mDocument->FlushPendingNotifications(Flush_ContentAndNotify);
-
   nsAutoCauseReflowNotifier crNotifier(this);
   mFrameConstructor->BeginUpdate();
   nsresult rv = mFrameConstructor->ReconstructDocElementHierarchy();
@@ -5140,12 +5144,15 @@ PresShell::StyleRuleRemoved(nsIDocument *aDocument,
 }
 
 nsIFrame*
+PresShell::GetPrimaryFrameFor(nsIContent* aContent) const
+{
+  return FrameManager()->GetPrimaryFrameFor(aContent, -1);
+}
+
+nsIFrame*
 PresShell::GetRealPrimaryFrameFor(nsIContent* aContent) const
 {
-  if (aContent->GetDocument() != GetDocument()) {
-    return nsnull;
-  }
-  nsIFrame *primaryFrame = aContent->GetPrimaryFrame();
+  nsIFrame *primaryFrame = FrameManager()->GetPrimaryFrameFor(aContent, -1);
   if (!primaryFrame)
     return nsnull;
   return nsPlaceholderFrame::GetRealFrameFor(primaryFrame);
@@ -5451,7 +5458,7 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
       return nsnull;
 
     nsIContent* ancestorContent = static_cast<nsIContent*>(ancestor);
-    ancestorFrame = ancestorContent->GetPrimaryFrame();
+    ancestorFrame = GetPrimaryFrameFor(ancestorContent);
 
     // use the nearest ancestor frame that includes all continuations as the
     // root for building the display list
@@ -5826,7 +5833,7 @@ PresShell::GetCurrentEventFrame()
     // frame shouldn't get an event, nor should we even assume its
     // safe to try and find the frame.
     if (mCurrentEventContent->GetDocument()) {
-      mCurrentEventFrame = mCurrentEventContent->GetPrimaryFrame();
+      mCurrentEventFrame = GetPrimaryFrameFor(mCurrentEventContent);
     }
   }
 
@@ -5958,7 +5965,8 @@ PresShell::GetFocusedDOMWindowInOurWindow()
   nsCOMPtr<nsPIDOMWindow> rootWindow = window->GetPrivateRoot();
   NS_ENSURE_TRUE(rootWindow, nsnull);
   nsPIDOMWindow* focusedWindow;
-  nsFocusManager::GetFocusedDescendant(rootWindow, PR_TRUE, &focusedWindow);
+  nsIContent* content =
+    nsFocusManager::GetFocusedDescendant(rootWindow, PR_TRUE, &focusedWindow);
   return focusedWindow;
 }
 
@@ -6144,11 +6152,7 @@ PresShell::HandleEvent(nsIView         *aView,
     if (capturingContent) {
       captureRetarget = gCaptureInfo.mRetargetToElement;
       if (!captureRetarget) {
-        // A check was already done above to ensure that capturingContent is
-        // in this presshell, so GetPrimaryFrame can just be called directly.
-        NS_ASSERTION(capturingContent->GetCurrentDoc() == GetDocument(),
-                     "Unexpected document");
-        nsIFrame* captureFrame = capturingContent->GetPrimaryFrame();
+        nsIFrame* captureFrame = GetPrimaryFrameFor(capturingContent);
         if (captureFrame) {
           if (capturingContent->Tag() == nsGkAtoms::select &&
               capturingContent->IsHTML()) {
@@ -6198,10 +6202,8 @@ PresShell::HandleEvent(nsIView         *aView,
          !nsContentUtils::ContentIsCrossDocDescendantOf(targetFrame->GetContent(),
                                                         capturingContent))) {
       // A check was already done above to ensure that capturingContent is
-      // in this presshell, so GetPrimaryFrame can just be called directly.
-      NS_ASSERTION(capturingContent->GetCurrentDoc() == GetDocument(),
-                   "Unexpected document");
-      nsIFrame* capturingFrame = capturingContent->GetPrimaryFrame();
+      // in this presshell, so GetPrimaryFrameFor can just be called directly.
+      nsIFrame* capturingFrame = GetPrimaryFrameFor(capturingContent);
       if (capturingFrame) {
         targetFrame = capturingFrame;
         aView = targetFrame->GetClosestView();
@@ -6731,7 +6733,7 @@ PresShell::PrepareToUseCaretPosition(nsIWidget* aEventWidget, nsIntPoint& aTarge
     rv = ScrollContentIntoView(content, NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
                                         NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE);
     NS_ENSURE_SUCCESS(rv, PR_FALSE);
-    frame = content->GetPrimaryFrame();
+    frame = GetPrimaryFrameFor(content);
     NS_WARN_IF_FALSE(frame, "No frame for focused content?");
   }
 
@@ -6775,10 +6777,6 @@ PresShell::PrepareToUseCaretPosition(nsIWidget* aEventWidget, nsIntPoint& aTarge
   nsPresContext* presContext = GetPresContext();
   aTargetPt.x = presContext->AppUnitsToDevPixels(viewDelta.x + caretCoords.x + caretCoords.width);
   aTargetPt.y = presContext->AppUnitsToDevPixels(viewDelta.y + caretCoords.y + caretCoords.height);
-
-  // make sure rounding doesn't return a pixel which is outside the caret
-  // (e.g. one line lower)
-  aTargetPt.y -= 1;
 
   return PR_TRUE;
 }
@@ -6838,7 +6836,7 @@ PresShell::GetCurrentItemAndPositionForElement(nsIDOMElement *aCurrentEl,
               col->GetElement(getter_AddRefs(colElement));
               nsCOMPtr<nsIContent> colContent(do_QueryInterface(colElement));
               if (colContent) {
-                nsIFrame* frame = colContent->GetPrimaryFrame();
+                nsIFrame* frame = GetPrimaryFrameFor(colContent);
                 if (frame) {
                   extraTreeY = frame->GetSize().height;
                 }
@@ -6868,7 +6866,7 @@ PresShell::GetCurrentItemAndPositionForElement(nsIDOMElement *aCurrentEl,
     focusedContent = do_QueryInterface(item);
 #endif
 
-  nsIFrame *frame = focusedContent->GetPrimaryFrame();
+  nsIFrame *frame = GetPrimaryFrameFor(focusedContent);
   if (frame) {
     nsPoint frameOrigin(0, 0);
 
@@ -6980,9 +6978,10 @@ PresShell::RemoveOverrideStyleSheet(nsIStyleSheet *aSheet)
 }
 
 static void
-FreezeElement(nsIContent *aContent, void * /* unused */)
+FreezeElement(nsIContent *aContent, void *aShell)
 {
-  nsIFrame *frame = aContent->GetPrimaryFrame();
+  nsIPresShell* shell = static_cast<nsIPresShell*>(aShell);
+  nsIFrame *frame = shell->FrameManager()->GetPrimaryFrameFor(aContent, -1);
   nsIObjectFrame *objectFrame = do_QueryFrame(frame);
   if (objectFrame) {
     objectFrame->StopPlugin();
@@ -7004,7 +7003,7 @@ PresShell::Freeze()
 {
   MaybeReleaseCapturingContent();
 
-  mDocument->EnumerateFreezableElements(FreezeElement, nsnull);
+  mDocument->EnumerateFreezableElements(FreezeElement, this);
 
   if (mCaret)
     mCaret->SetCaretVisible(PR_FALSE);
@@ -7556,29 +7555,23 @@ PresShell::Observe(nsISupports* aSubject,
       NS_ASSERTION(mViewManager, "View manager must exist");
       nsIViewManager::UpdateViewBatch batch(mViewManager);
 
-      nsWeakFrame weakRoot(rootFrame);
-      // Have to make sure that the content notifications are flushed before we
-      // start messing with the frame model; otherwise we can get content doubling.
-      mDocument->FlushPendingNotifications(Flush_ContentAndNotify);
+      WalkFramesThroughPlaceholders(mPresContext, rootFrame,
+                                    &ReResolveMenusAndTrees, nsnull);
 
-      if (weakRoot.IsAlive()) {
-        WalkFramesThroughPlaceholders(mPresContext, rootFrame,
-                                      &ReResolveMenusAndTrees, nsnull);
-
-        // Because "chrome:" URL equality is messy, reframe image box
-        // frames (hack!).
-        nsStyleChangeList changeList;
-        WalkFramesThroughPlaceholders(mPresContext, rootFrame,
-                                      ReframeImageBoxes, &changeList);
-        // Mark ourselves as not safe to flush while we're doing frame
-        // construction.
-        {
-          nsAutoScriptBlocker scriptBlocker;
-          ++mChangeNestCount;
-          mFrameConstructor->ProcessRestyledFrames(changeList);
-          --mChangeNestCount;
-        }
+      // Because "chrome:" URL equality is messy, reframe image box
+      // frames (hack!).
+      nsStyleChangeList changeList;
+      WalkFramesThroughPlaceholders(mPresContext, rootFrame,
+                                    ReframeImageBoxes, &changeList);
+      // Mark ourselves as not safe to flush while we're doing frame
+      // construction.
+      {
+        nsAutoScriptBlocker scriptBlocker;
+        ++mChangeNestCount;
+        mFrameConstructor->ProcessRestyledFrames(changeList);
+        --mChangeNestCount;
       }
+
       batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
 #ifdef ACCESSIBILITY
       InvalidateAccessibleSubtree(nsnull);

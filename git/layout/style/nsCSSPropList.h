@@ -3071,6 +3071,28 @@ CSS_PROP_TABLE(
     X,
     0,
     Table,
+    mFrame,
+    eCSSType_Value,
+    nsnull,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+CSS_PROP_TABLE(
+    X,
+    X,
+    X,
+    0,
+    Table,
+    mRules,
+    eCSSType_Value,
+    nsnull,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+CSS_PROP_TABLE(
+    X,
+    X,
+    X,
+    0,
+    Table,
     mCols,
     eCSSType_Value,
     nsnull,

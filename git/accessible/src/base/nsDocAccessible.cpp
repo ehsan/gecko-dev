@@ -346,8 +346,9 @@ nsDocAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
   nsresult rv = nsAccessible::GetARIAState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (mParent)  // Allow iframe/frame etc. to have final state override via ARIA
-    return mParent->GetARIAState(aState, aExtraState);
+  nsRefPtr<nsAccessible> parent = nsAccUtils::QueryAccessible(mParent);
+  if (parent)  // Allow iframe/frame etc. to have final state override via ARIA
+    return parent->GetARIAState(aState, aExtraState);
 
   return rv;
 }
@@ -553,13 +554,13 @@ NS_IMETHODIMP nsDocAccessible::GetCachedAccessNode(void *aUniqueID, nsIAccessNod
   // It will assert if not all the children were created
   // when they were first cached, and no invalidation
   // ever corrected parent accessible's child cache.
-  nsRefPtr<nsAccessible> acc =
-    nsAccUtils::QueryObject<nsAccessible>(*aAccessNode);
-
+  nsCOMPtr<nsIAccessible> accessible = do_QueryInterface(*aAccessNode);
+  nsRefPtr<nsAccessible> acc = nsAccUtils::QueryAccessible(accessible);
   if (acc) {
-    nsAccessible* parent(acc->GetCachedParent());
-    if (parent)
-      parent->TestChildCache(acc);
+    nsCOMPtr<nsIAccessible> parent = acc->GetCachedParent();
+    nsRefPtr<nsAccessible> parentAcc(nsAccUtils::QueryAccessible(parent));
+    if (parentAcc)
+      parentAcc->TestChildCache(accessible);
   }
 #endif
   return NS_OK;
@@ -879,7 +880,7 @@ nsDocAccessible::FireDocLoadEvents(PRUint32 aEventType)
   if (isFinished) {
     // Need to wait until scrollable view is available
     AddScrollListener();
-    nsRefPtr<nsAccessible> acc(GetParent());
+    nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(GetParent()));
     if (acc) {
       // Make the parent forget about the old document as a child
       acc->InvalidateChildren();
@@ -1420,7 +1421,7 @@ nsDocAccessible::ParentChainChanged(nsIContent *aContent)
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible
 
-nsAccessible*
+nsIAccessible*
 nsDocAccessible::GetParent()
 {
   if (IsDefunct())
@@ -1443,9 +1444,7 @@ nsDocAccessible::GetParent()
       // hierarchy. GetAccessibleFor() is bad because it doesn't support our
       // concept of multiple presshells per doc.
       // It should be changed to use GetAccessibleInWeakShell()
-      nsCOMPtr<nsIAccessible> parent;
-      accService->GetAccessibleFor(ownerNode, getter_AddRefs(parent));
-      mParent = nsAccUtils::QueryObject<nsAccessible>(parent);
+      accService->GetAccessibleFor(ownerNode, getter_AddRefs(mParent));
     }
   }
 
@@ -1506,8 +1505,12 @@ nsDocAccessible::FireTextChangeEventForText(nsIContent *aContent,
     aInfo->mChangeEnd - start; // text has been removed
 
   if (length > 0) {
+    nsCOMPtr<nsIPresShell> shell(do_QueryReferent(mWeakShell));
+    if (!shell)
+      return;
+
     PRUint32 renderedStartOffset, renderedEndOffset;
-    nsIFrame* frame = aContent->GetPrimaryFrame();
+    nsIFrame* frame = shell->GetPrimaryFrameFor(aContent);
     if (!frame)
       return;
 
@@ -1719,7 +1722,7 @@ nsDocAccessible::FlushPendingEvents()
       // such as a:focus { overflow: scroll; }
       nsCOMPtr<nsIContent> focusContent(do_QueryInterface(domNode));
       if (focusContent) {
-        nsIFrame *focusFrame = focusContent->GetPrimaryFrame();
+        nsIFrame *focusFrame = presShell->GetRealPrimaryFrameFor(focusContent);
         nsIAtom *newFrameType =
           (focusFrame && focusFrame->GetStyleVisibility()->IsVisible()) ?
           focusFrame->GetType() : nsnull;
@@ -1932,7 +1935,8 @@ void nsDocAccessible::RefreshNodes(nsIDOMNode *aStartNode)
 
     // We only need to shutdown the accessibles here if one of them has been
     // created.
-    if (acc->GetCachedFirstChild()) {
+    nsCOMPtr<nsIAccessible> childAccessible = acc->GetCachedFirstChild();
+    if (childAccessible) {
       nsCOMPtr<nsIArray> children;
       // use GetChildren() to fetch children at one time, instead of using
       // GetNextSibling(), because after we shutdown the first child,
@@ -2098,7 +2102,7 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
     if (isHiding) {
       nsCOMPtr<nsIContent> content(do_QueryInterface(childNode));
       if (content) {
-        nsIFrame *frame = content->GetPrimaryFrame();
+        nsIFrame *frame = presShell->GetPrimaryFrameFor(content);
         if (frame) {
           nsIFrame *frameParent = frame->GetParent();
           if (!frameParent || !frameParent->GetStyleVisibility()->IsVisible()) {

@@ -45,10 +45,18 @@ int main(void)
   ffi_type* my_ffi_struct_fields[4];
   ffi_type my_ffi_struct_type;
   ffi_cif cif;
-  void *code;
-  ffi_closure *pcl = ffi_closure_alloc(sizeof(ffi_closure), &code);
+#ifndef USING_MMAP
+  static ffi_closure cl;
+#endif
+  ffi_closure *pcl;
   void* args[4];
   ffi_type* arg_types[3];
+
+#ifdef USING_MMAP
+  pcl = allocate_mmap (sizeof(ffi_closure));
+#else
+  pcl = &cl;
+#endif
 
   struct my_ffi_struct g = { 1.0, 2.0, 3.0 };
   struct my_ffi_struct f = { 1.0, 2.0, 3.0 };
@@ -79,9 +87,9 @@ int main(void)
   printf("res: %g %g %g\n", res.a, res.b, res.c);
   /* { dg-output "\nres: 2 4 6" } */
 
-  CHECK(ffi_prep_closure_loc(pcl, &cif, stub, NULL, code) == FFI_OK);
+  CHECK(ffi_prep_closure(pcl, &cif, stub, NULL) == FFI_OK);
 
-  res = ((my_ffi_struct(*)(struct my_ffi_struct, struct my_ffi_struct))(code))(g, f);
+  res = ((my_ffi_struct(*)(struct my_ffi_struct, struct my_ffi_struct))(pcl))(g, f);
   /* { dg-output "\n1 2 3 1 2 3: 2 4 6" } */
   printf("res: %g %g %g\n", res.a, res.b, res.c);
   /* { dg-output "\nres: 2 4 6" } */

@@ -952,11 +952,15 @@ void nsHTMLMediaElement::SetPlayedOrSeeked(PRBool aValue)
   mHasPlayedOrSeeked = aValue;
 
   // Force a reflow so that the poster frame hides or shows immediately.
-  nsIFrame* frame = GetPrimaryFrame();
+  nsIDocument *doc = GetDocument();
+  if (!doc) return;
+  nsIPresShell *presShell = doc->GetPrimaryShell();
+  if (!presShell) return;
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(this);
   if (!frame) return;
-  frame->PresContext()->PresShell()->FrameNeedsReflow(frame,
-                                                      nsIPresShell::eTreeChange,
-                                                      NS_FRAME_IS_DIRTY);
+  presShell->FrameNeedsReflow(frame,
+                              nsIPresShell::eTreeChange,
+                              NS_FRAME_IS_DIRTY);
 }
 
 NS_IMETHODIMP nsHTMLMediaElement::Play()
@@ -1860,7 +1864,7 @@ void nsHTMLMediaElement::NotifyOwnerDocumentActivityChanged()
         mDecoder->Suspend();
       } else {
         mDecoder->Resume();
-        if (!mPaused && !mDecoder->IsEnded()) {
+        if (IsPotentiallyPlaying()) {
           mDecoder->Play();
         }
       }
@@ -2023,7 +2027,9 @@ nsHTMLMediaElement::CopyInnerTo(nsGenericElement* aDest) const
       dest->mPrintSurface = mPrintSurface;
       dest->mMediaSize = mMediaSize;
     } else {
-      nsIFrame* frame = GetPrimaryFrame();
+      nsIFrame* frame =
+        GetPrimaryFrameFor(const_cast<nsHTMLMediaElement*>(this),
+                           GetOwnerDoc());
       nsCOMPtr<nsIDOMElement> elem;
       if (frame && frame->GetType() == nsGkAtoms::HTMLVideoFrame &&
           static_cast<nsVideoFrame*>(frame)->ShouldDisplayPoster()) {

@@ -276,10 +276,15 @@ nsresult
 nsMediaDocument::StartLayout()
 {
   mMayStartLayout = PR_TRUE;
-  nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
-  // Don't mess with the presshell if someone has already handled
-  // its initial reflow.
-  if (shell && !shell->DidInitialReflow()) {
+  nsPresShellIterator iter(this);
+  nsCOMPtr<nsIPresShell> shell;
+  while ((shell = iter.GetNextShell())) {
+    if (shell->DidInitialReflow()) {
+      // Don't mess with this presshell: someone has already handled
+      // its initial reflow.
+      continue;
+    }
+    
     nsRect visibleArea = shell->GetPresContext()->GetVisibleArea();
     nsresult rv = shell->InitialReflow(visibleArea.width, visibleArea.height);
     NS_ENSURE_SUCCESS(rv, rv);

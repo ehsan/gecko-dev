@@ -1009,12 +1009,19 @@ nsXULListitemAccessible::GetAllowsAnonChildAccessibles()
   return PR_TRUE;
 }
 
-void
-nsXULListitemAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
-                                                    PRInt32 *aSetSize)
+nsresult
+nsXULListitemAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
 {
-  nsAccUtils::GetPositionAndSizeForXULSelectControlItem(mDOMNode, aPosInSet,
-                                                        aSetSize);
+  NS_ENSURE_ARG_POINTER(aAttributes);
+
+  // Call base class instead of nsXULMenuAccessible because menu accessible
+  // has own implementation of group attributes setting which interferes with
+  // this one.
+  nsresult rv = nsAccessible::GetAttributesInternal(aAttributes);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAccUtils::SetAccAttrsForXULSelectControlItem(mDOMNode, aAttributes);
+  return NS_OK;
 }
 
 

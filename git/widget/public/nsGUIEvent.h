@@ -439,7 +439,6 @@ class nsHashKey;
 #define NS_CONTENT_COMMAND_DELETE       (NS_CONTENT_COMMAND_EVENT_START+3)
 #define NS_CONTENT_COMMAND_UNDO         (NS_CONTENT_COMMAND_EVENT_START+4)
 #define NS_CONTENT_COMMAND_REDO         (NS_CONTENT_COMMAND_EVENT_START+5)
-#define NS_CONTENT_COMMAND_PASTE_TRANSFERABLE (NS_CONTENT_COMMAND_EVENT_START+6)
 
 // Event to gesture notification
 #define NS_GESTURENOTIFY_EVENT_START 3900
@@ -1235,7 +1234,6 @@ public:
   {
   }
 
-  nsCOMPtr<nsITransferable> mTransferable;                 // [in]
   PRPackedBool mOnlyEnabledCheck;                          // [in]
 
   PRPackedBool mSucceeded;                                 // [out]
@@ -1656,7 +1654,7 @@ inline PRBool NS_IsEventUsingCoordinates(nsEvent* aEvent)
  */
 inline PRBool NS_IsEventTargetedAtFocusedWindow(nsEvent* aEvent)
 {
-  return NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_RELATED_EVENT(aEvent) ||
+  return NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent) ||
          NS_IS_CONTEXT_MENU_KEY(aEvent) || NS_IS_CONTENT_COMMAND_EVENT(aEvent);
 }
 

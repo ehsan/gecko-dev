@@ -56,13 +56,10 @@ CPPSRCS	+= gfxFT2Fonts.cpp \
 	   gfxFT2FontBase.cpp \
 	   gfxFT2Utils.cpp \
 	   gfxDDrawSurface.cpp \
-	   gfxFT2FontList.cpp \
 	   $(NULL)
 EXTRA_DSO_LDOPTS += ddraw.lib
 else
-CPPSRCS	+= gfxWindowsFonts.cpp \
-	   gfxGDIFontList.cpp \
-	   $(NULL)
+CPPSRCS	+= gfxWindowsFonts.cpp 
 endif
 
 CPPSRCS +=	gfxPDFSurface.cpp

@@ -125,14 +125,11 @@ function uri(spec) {
 function remove_all_bookmarks() {
   var bs = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
            getService(Ci.nsINavBookmarksService);
-  // Clear all bookmarks.
+  // Clear all bookmarks
   bs.removeFolderChildren(bs.bookmarksMenuFolder);
   bs.removeFolderChildren(bs.toolbarFolder);
   bs.removeFolderChildren(bs.unfiledBookmarksFolder);
-
-  // Check for correct cleanup.
-  dump_table("moz_bookmarks");
-  dump_table("moz_places");
+  // Check for correct cleanup
   check_no_bookmarks()
 }
 
@@ -151,13 +148,7 @@ function check_no_bookmarks() {
   var result = hs.executeQuery(query, options);
   var root = result.root;
   root.containerOpen = true;
-  var cc = root.childCount;
-  // Dump contents if found.
-  for (var i = 0; i < cc ; i++) {
-    var node = root.getChild(i);
-    print("Found unexpected child at " + i + ": " + node.title);
-  }
-  do_check_eq(cc, 0);
+  do_check_eq(root.childCount, 0);
   root.containerOpen = false;
 }
 
@@ -342,7 +333,6 @@ function flush_main_thread_events()
 // These tests are known to randomly fail due to bug 507790 when database
 // flushes are active, so we turn off syncing for them.
 let randomFailingSyncTests = [
-  "test_browserGlue_smartBookmarks.js",
 ];
 let currentTestFilename = do_get_file(_TEST_FILE[0], true).leafName;
 if (randomFailingSyncTests.indexOf(currentTestFilename) != -1) {

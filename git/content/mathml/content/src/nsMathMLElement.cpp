@@ -47,6 +47,7 @@
 #include "nsStyleConsts.h"
 #include "nsIDocument.h"
 #include "nsIEventStateManager.h"
+#include "nsPresShellIterator.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsDOMClassInfoID.h"
@@ -86,11 +87,15 @@ nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     aDocument->SetMathMLEnabled();
     aDocument->EnsureCatalogStyleSheet(kMathMLStyleSheetURI);
 
-    // Rebuild style data for the presshell, because style system
+    // Rebuild style data for all the presshells, because style system
     // optimizations may have taken place assuming MathML was disabled.
     // (See nsRuleNode::CheckSpecifiedProperties.)
-    nsCOMPtr<nsIPresShell> shell = aDocument->GetPrimaryShell();
-    if (shell) {
+    // nsPresShellIterator skips hidden presshells, but that's OK because
+    // if we're changing the document for one of those presshells the whole
+    // presshell will be torn down.
+    nsPresShellIterator iter(aDocument);
+    nsCOMPtr<nsIPresShell> shell;
+    while ((shell = iter.GetNextShell()) != nsnull) {
       shell->GetPresContext()->PostRebuildAllStyleDataEvent(nsChangeHint(0));
     }
   }

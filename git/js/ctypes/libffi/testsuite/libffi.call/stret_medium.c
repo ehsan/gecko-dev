@@ -6,7 +6,7 @@
    PR:			none.
    Originator:	Blake Chaffin	6/21/2007	*/
 
-/* { dg-do run { xfail strongarm*-*-* xscale*-*-*  } } */
+/* { dg-do run { xfail mips*-*-* arm*-*-* strongarm*-*-* xscale*-*-* } } */
 #include "ffitest.h"
 
 typedef struct struct_72byte {
@@ -46,7 +46,7 @@ struct_72byte cls_struct_72byte_fn(
 }
 
 static void
-cls_struct_72byte_gn(ffi_cif* cif __UNUSED__, void* resp, void** args, void* userdata __UNUSED__)
+cls_struct_72byte_gn(ffi_cif* cif, void* resp, void** args, void* userdata)
 {
 	struct_72byte	b0, b1, b2, b3;
 
@@ -61,12 +61,20 @@ cls_struct_72byte_gn(ffi_cif* cif __UNUSED__, void* resp, void** args, void* use
 int main (void)
 {
 	ffi_cif cif;
-        void *code;
-	ffi_closure *pcl = ffi_closure_alloc(sizeof(ffi_closure), &code);
+#ifndef USING_MMAP
+	static ffi_closure cl;
+#endif
+	ffi_closure *pcl;
 	void* args_dbl[5];
 	ffi_type* cls_struct_fields[10];
 	ffi_type cls_struct_type;
 	ffi_type* dbl_arg_types[5];
+
+#ifdef USING_MMAP
+	pcl = allocate_mmap (sizeof(ffi_closure));
+#else
+	pcl = &cl;
+#endif
 
 	cls_struct_type.size = 0;
 	cls_struct_type.alignment = 0;
@@ -111,10 +119,10 @@ int main (void)
 		res_dbl.d, res_dbl.e, res_dbl.f, res_dbl.g, res_dbl.h, res_dbl.i);
 	/* { dg-output "\nres: 22 15 17 25 6 13 19 18 16" } */
 
-	CHECK(ffi_prep_closure_loc(pcl, &cif, cls_struct_72byte_gn, NULL, code) == FFI_OK);
+	CHECK(ffi_prep_closure(pcl, &cif, cls_struct_72byte_gn, NULL) == FFI_OK);
 
 	res_dbl = ((struct_72byte(*)(struct_72byte, struct_72byte,
-		struct_72byte, struct_72byte))(code))(e_dbl, f_dbl, g_dbl, h_dbl);
+		struct_72byte, struct_72byte))(pcl))(e_dbl, f_dbl, g_dbl, h_dbl);
 	/* { dg-output "\n22 15 17 25 6 13 19 18 16" } */
 	printf("res: %g %g %g %g %g %g %g %g %g\n", res_dbl.a, res_dbl.b, res_dbl.c,
 		res_dbl.d, res_dbl.e, res_dbl.f, res_dbl.g, res_dbl.h, res_dbl.i);

@@ -256,7 +256,6 @@ UINT            nsWindow::sHookTimerId            = 0;
 
 // Rollup Listener
 nsIRollupListener* nsWindow::sRollupListener      = nsnull;
-nsIMenuRollup*  nsWindow::sMenuRollup             = nsnull;
 nsIWidget*      nsWindow::sRollupWidget           = nsnull;
 PRBool          nsWindow::sRollupConsumeEvent     = PR_FALSE;
 
@@ -1246,13 +1245,11 @@ void nsWindow::SetThemeRegion()
     HRGN hRgn = nsnull;
     RECT rect = {0,0,mBounds.width,mBounds.height};
     
-    HDC dc = ::GetDC(mWnd);
-    nsUXThemeData::getThemeBackgroundRegion(nsUXThemeData::GetTheme(eUXTooltip), dc, TTP_STANDARD, TS_NORMAL, &rect, &hRgn);
+    nsUXThemeData::getThemeBackgroundRegion(nsUXThemeData::GetTheme(eUXTooltip), GetDC(mWnd), TTP_STANDARD, TS_NORMAL, &rect, &hRgn);
     if (hRgn) {
       if (!SetWindowRgn(mWnd, hRgn, false)) // do not delete or alter hRgn if accepted.
         DeleteObject(hRgn);
     }
-    ::ReleaseDC(mWnd, dc);
   }
 #endif
 }
@@ -2655,7 +2652,6 @@ NS_METHOD nsWindow::CaptureMouse(PRBool aCapture)
  **************************************************************/
 
 NS_IMETHODIMP nsWindow::CaptureRollupEvents(nsIRollupListener * aListener,
-                                            nsIMenuRollup * aMenuRollup,
                                             PRBool aDoCapture,
                                             PRBool aConsumeRollupEvent)
 {
@@ -2665,11 +2661,10 @@ NS_IMETHODIMP nsWindow::CaptureRollupEvents(nsIRollupListener * aListener,
        assure that remains true. */
     NS_ASSERTION(!sRollupWidget, "rollup widget reassigned before release");
     sRollupConsumeEvent = aConsumeRollupEvent;
+    NS_IF_RELEASE(sRollupListener);
     NS_IF_RELEASE(sRollupWidget);
-    NS_IF_RELEASE(sMenuRollup);
     sRollupListener = aListener;
-    sMenuRollup = aMenuRollup;
-    NS_IF_ADDREF(aMenuRollup);
+    NS_ADDREF(aListener);
     sRollupWidget = this;
     NS_ADDREF(this);
 
@@ -2681,8 +2676,7 @@ NS_IMETHODIMP nsWindow::CaptureRollupEvents(nsIRollupListener * aListener,
 #endif
     
   } else {
-    sRollupListener = nsnull;
-    NS_IF_RELEASE(sMenuRollup);
+    NS_IF_RELEASE(sRollupListener);
     NS_IF_RELEASE(sRollupWidget);
     
 #ifndef WINCE
@@ -4206,7 +4200,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 
 #if defined(WINCE_HAVE_SOFTKB)
         if (mIsTopWidgetWindow && sSoftKeyboardState)
-          nsWindowCE::ToggleSoftKB(mWnd, fActive);
+          nsWindowCE::ToggleSoftKB(fActive);
         if (nsWindowCE::sShowSIPButton != TRI_TRUE && WA_INACTIVE != fActive) {
           HWND hWndSIPB = FindWindowW(L"MS_SIPBUTTON", NULL ); 
           if (hWndSIPB)
@@ -4348,7 +4342,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         case SPI_SIPMOVE:
         case SPI_SETSIPINFO:
         case SPI_SETCURRENTIM:
-          nsWindowCE::NotifySoftKbObservers(mWnd);
+          nsWindowCE::NotifySoftKbObservers();
           break;
         case SETTINGCHANGE_RESET:
           if (mWindowType == eWindowType_invisible) {
@@ -5910,7 +5904,7 @@ void nsWindow::OnDestroy()
   if ( this == sRollupWidget ) {
     if ( sRollupListener )
       sRollupListener->Rollup(nsnull, nsnull);
-    CaptureRollupEvents(nsnull, nsnull, PR_FALSE, PR_TRUE);
+    CaptureRollupEvents(nsnull, PR_FALSE, PR_TRUE);
   }
 
   // If IME is disabled, restore it.
@@ -6268,7 +6262,7 @@ NS_IMETHODIMP nsWindow::SetIMEEnabled(PRUint32 aState)
 
 #if defined(WINCE_HAVE_SOFTKB)
   sSoftKeyboardState = (aState != nsIWidget::IME_STATUS_DISABLED);
-  nsWindowCE::ToggleSoftKB(mWnd, sSoftKeyboardState);
+  nsWindowCE::ToggleSoftKB(sSoftKeyboardState);
 #endif
 
   if (!enable != !mOldIMC)
@@ -6798,9 +6792,10 @@ nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLPara
       // want to rollup if the click is in a parent menu of the current submenu.
       PRUint32 popupsToRollup = PR_UINT32_MAX;
       if (rollup) {
-        if ( sMenuRollup ) {
+        nsCOMPtr<nsIMenuRollup> menuRollup ( do_QueryInterface(sRollupListener) );
+        if ( menuRollup ) {
           nsAutoTArray<nsIWidget*, 5> widgetChain;
-          PRUint32 sameTypeCount = sMenuRollup->GetSubmenuWidgetChain(&widgetChain);
+          PRUint32 sameTypeCount = menuRollup->GetSubmenuWidgetChain(&widgetChain);
           for ( PRUint32 i = 0; i < widgetChain.Length(); ++i ) {
             nsIWidget* widget = widgetChain[i];
             if ( nsWindow::EventIsInsideWindow(inMsg, (nsWindow*)widget) ) {

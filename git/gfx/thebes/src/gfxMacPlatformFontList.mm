@@ -106,12 +106,7 @@ static NSString* GetNSStringForString(const nsAString& aSrc)
                      length:aSrc.Length()];
 }
 
-#ifdef PR_LOGGING
 static PRLogModuleInfo *gFontInfoLog = PR_NewLogModule("fontInfoLog");
-#endif /* PR_LOGGING */
-
-#define LOG(args) PR_LOG(gFontInfoLog, PR_LOG_DEBUG, args)
-#define LOG_ENABLED() PR_LOG_TEST(gFontInfoLog, PR_LOG_DEBUG)
 
 /* MacOSFontEntry */
 #pragma mark-
@@ -399,6 +394,9 @@ gfxMacFontFamily::FindStyleVariations()
 
         PRInt32 cssWeight = gfxMacPlatformFontList::AppleWeightToCSSWeight(appKitWeight) * 100;
 
+        PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit) family: %s, psname: %s, face: %s, apple-weight: %d, css-weight: %d, macTraits: %8.8x\n",
+            [family UTF8String], [psname UTF8String], [facename UTF8String], appKitWeight, cssWeight, macTraits));
+
         // make a nsString
         nsAutoString postscriptFontName;
         GetStringForNSString(psname, postscriptFontName);
@@ -430,19 +428,6 @@ gfxMacFontFamily::FindStyleVariations()
         if (macTraits & NSFixedPitchFontMask) {
             fontEntry->mFixedPitch = PR_TRUE;
         }
-
-#ifdef PR_LOGGING
-        if (LOG_ENABLED()) {
-            LOG(("(fontinit) added (%s) to family (%s)"
-                 " with style: %s weight: %d stretch: %d"
-                 " (apple-weight: %d macTraits: %8.8x)",
-                 NS_ConvertUTF16toUTF8(fontEntry->Name()).get(), 
-                 NS_ConvertUTF16toUTF8(Name()).get(), 
-                 fontEntry->IsItalic() ? "italic" : "normal",
-                 cssWeight, fontEntry->Stretch(),
-                 appKitWeight, macTraits));
-        }
-#endif
 
         // insert into font entry array of family
         AddFontEntry(fontEntry);
@@ -593,12 +578,8 @@ gfxMacPlatformFontList::InitFontList()
     mOtherFamilyNames.Clear();
     mOtherFamilyNamesInitialized = PR_FALSE;
     mPrefFonts.Clear();
-    CancelLoader();
-
-    // initialize ranges of characters for which system-wide font search should be skipped
     mCodepointsWithNoFonts.reset();
-    mCodepointsWithNoFonts.SetRange(0,0x1f);     // C0 controls
-    mCodepointsWithNoFonts.SetRange(0x7f,0x9f);  // C1 controls
+    CancelLoader();
 
     // iterate over available families
     NSEnumerator *families = [[sFontManager availableFontFamilies]
@@ -641,10 +622,15 @@ gfxMacPlatformFontList::InitFontList()
         SetFixedPitch(NS_LITERAL_STRING("Monaco"));
     }
 
+    // initialize ranges of characters for which system-wide font search should be skipped
+    mCodepointsWithNoFonts.SetRange(0,0x1f);     // C0 controls
+    mCodepointsWithNoFonts.SetRange(0x7f,0x9f);  // C1 controls
+
     InitBadUnderlineList();
 
     // start the delayed cmap loader
     StartLoader(kDelayBeforeLoadingCmaps, kIntervalBetweenLoadingCmaps);
+
 }
 
 void
@@ -768,7 +754,7 @@ gfxMacPlatformFontList::AppleWeightToCSSWeight(PRInt32 aAppleWeight)
 
 gfxFontEntry*
 gfxMacPlatformFontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                        const nsAString& aFontName)
+                                    const nsAString& aFontName)
 {
     NSString *faceName = GetNSStringForString(aFontName);
 
@@ -831,24 +817,13 @@ public:
 };
 
 gfxFontEntry*
-gfxMacPlatformFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+gfxMacPlatformFontList::MakePlatformFont(const gfxFontEntry *aProxyEntry,
                                          const PRUint8 *aFontData,
                                          PRUint32 aLength)
 {
     OSStatus err;
 
     NS_ASSERTION(aFontData, "MakePlatformFont called with null data");
-
-    // MakePlatformFont is responsible for deleting the font data with NS_Free
-    // so we set up a stack object to ensure it is freed even if we take an
-    // early exit
-    struct FontDataDeleter {
-        FontDataDeleter(const PRUint8 *aFontData)
-            : mFontData(aFontData) { }
-        ~FontDataDeleter() { NS_Free((void*)mFontData); }
-        const PRUint8 *mFontData;
-    };
-    FontDataDeleter autoDelete(aFontData);
 
     ATSFontRef fontRef;
     ATSFontContainerRef containerRef;
@@ -869,9 +844,11 @@ gfxMacPlatformFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
         if (err != noErr) {
 #if DEBUG
             char warnBuf[1024];
+            const gfxProxyFontEntry *proxyEntry =
+                static_cast<const gfxProxyFontEntry*> (aProxyEntry);
             sprintf(warnBuf, "downloaded font error, ATSFontActivateFromMemory err: %d for (%s)",
                     PRInt32(err),
-                    NS_ConvertUTF16toUTF8(aProxyEntry->mFamily->Name()).get());
+                    NS_ConvertUTF16toUTF8(proxyEntry->mFamily->Name()).get());
             NS_WARNING(warnBuf);
 #endif
             return nsnull;
@@ -883,9 +860,11 @@ gfxMacPlatformFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
         if (err != noErr) {
 #if DEBUG
             char warnBuf[1024];
+            const gfxProxyFontEntry *proxyEntry =
+                static_cast<const gfxProxyFontEntry*> (aProxyEntry);
             sprintf(warnBuf, "downloaded font error, ATSFontFindFromContainer err: %d for (%s)",
                     PRInt32(err),
-                    NS_ConvertUTF16toUTF8(aProxyEntry->mFamily->Name()).get());
+                    NS_ConvertUTF16toUTF8(proxyEntry->mFamily->Name()).get());
             NS_WARNING(warnBuf);
 #endif
             ::ATSFontDeactivate(containerRef, NULL, kATSOptionFlagsDefault);
@@ -901,8 +880,10 @@ gfxMacPlatformFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
         } else {
 #ifdef DEBUG
             char warnBuf[1024];
+            const gfxProxyFontEntry *proxyEntry =
+                static_cast<const gfxProxyFontEntry*> (aProxyEntry);
             sprintf(warnBuf, "ATSFontGetPostScriptName err = %d for (%s), retries = %d", (PRInt32)err,
-                    NS_ConvertUTF16toUTF8(aProxyEntry->mFamily->Name()).get(), retryCount);
+                    NS_ConvertUTF16toUTF8(proxyEntry->mFamily->Name()).get(), retryCount);
             NS_WARNING(warnBuf);
 #endif
             ::ATSFontDeactivate(containerRef, NULL, kATSOptionFlagsDefault);
@@ -951,8 +932,10 @@ gfxMacPlatformFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
         // if something is funky about this font, delete immediately
 #if DEBUG
         char warnBuf[1024];
+        const gfxProxyFontEntry *proxyEntry =
+            static_cast<const gfxProxyFontEntry*> (aProxyEntry);
         sprintf(warnBuf, "downloaded font not loaded properly, removed face for (%s)",
-                NS_ConvertUTF16toUTF8(aProxyEntry->mFamily->Name()).get());
+                NS_ConvertUTF16toUTF8(proxyEntry->mFamily->Name()).get());
         NS_WARNING(warnBuf);
 #endif
         delete newFontEntry;

@@ -57,7 +57,6 @@
         windowtype="Browser:About"
         onload="init(event);" onunload="uninit(event);"
 #ifdef XP_MACOSX
-        inwindowmenu="false"
         buttons="extra2"
         align="end"
 #else

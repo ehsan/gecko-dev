@@ -100,8 +100,11 @@ void
 nsHTMLWin32ObjectOwnerAccessible::CacheChildren()
 {
   if (mNativeAccessible) {
-    mChildren.AppendElement(mNativeAccessible);
-    mNativeAccessible->SetParent(this);
+    mChildren.AppendObject(mNativeAccessible);
+
+    nsRefPtr<nsAccessible> nativeAcc =
+      nsAccUtils::QueryObject<nsAccessible>(mNativeAccessible);
+    nativeAcc->SetParent(this);
   }
 }
 

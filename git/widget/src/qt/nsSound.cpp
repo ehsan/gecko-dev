@@ -124,7 +124,7 @@ nsSound::Init()
     EsdOpenSoundType EsdOpenSound;
 
     elib = PR_LoadLibrary("libesd.so.0");
-    if (!elib) return NS_ERROR_NOT_AVAILABLE;
+    if (!elib) return NS_ERROR_FAILURE;
 
     EsdOpenSound = (EsdOpenSoundType) PR_FindFunctionSymbol(elib, "esd_open_sound");
 
@@ -368,7 +368,7 @@ NS_METHOD nsSound::Play(nsIURL *aURL)
         Init();
 
     if (!elib) 
-        return NS_ERROR_NOT_AVAILABLE;
+        return NS_ERROR_FAILURE;
 
     nsCOMPtr<nsIStreamLoader> loader;
     rv = NS_NewStreamLoader(getter_AddRefs(loader), aURL, this);

@@ -4,8 +4,7 @@
    PR:			none.
    Originator:	Blake Chaffin 6/6/2007	 */
 
-/* { dg-do run { xfail strongarm*-*-* xscale*-*-* } } */
-/* { dg-output "" { xfail avr32*-*-* } } */
+/* { dg-do run { xfail mips*-*-* arm*-*-* strongarm*-*-* xscale*-*-* } } */
 #include "ffitest.h"
 
 static void
@@ -21,10 +20,18 @@ cls_double_va_fn(ffi_cif* cif __UNUSED__, void* resp,
 int main (void)
 {
 	ffi_cif cif;
-        void *code;
-	ffi_closure *pcl = ffi_closure_alloc(sizeof(ffi_closure), &code);
+#ifndef USING_MMAP
+	static ffi_closure cl;
+#endif
+	ffi_closure *pcl;
 	void* args[3];
 	ffi_type* arg_types[3];
+
+#ifdef USING_MMAP
+	pcl = allocate_mmap(sizeof(ffi_closure));
+#else
+	pcl = &cl;
+#endif
 
 	char*	format		= "%.1f\n";
 	double	doubleArg	= 7;
@@ -46,9 +53,9 @@ int main (void)
 	printf("res: %d\n", (int) res);
 	// { dg-output "\nres: 4" }
 
-	CHECK(ffi_prep_closure_loc(pcl, &cif, cls_double_va_fn, NULL, code) == FFI_OK);
+	CHECK(ffi_prep_closure(pcl, &cif, cls_double_va_fn, NULL) == FFI_OK);
 
-	res	= ((int(*)(char*, double))(code))(format, doubleArg);
+	res	= ((int(*)(char*, double))(pcl))(format, doubleArg);
 	// { dg-output "\n7.0" }
 	printf("res: %d\n", (int) res);
 	// { dg-output "\nres: 4" }

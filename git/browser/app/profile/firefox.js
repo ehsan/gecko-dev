@@ -301,7 +301,7 @@ pref("browser.search.update", true);
 pref("browser.search.update.log", false);
 
 // Check whether we need to perform engine updates every 6 hours
-pref("browser.search.update.interval", 21600);
+pref("browser.search.updateinterval", 6);
 
 // Whether or not microsummary and generator updates are enabled
 pref("browser.microsummary.enabled", true);
@@ -765,7 +765,7 @@ pref("browser.sessionstore.resume_from_crash", true);
 pref("browser.sessionstore.resume_session_once", false);
 
 // minimal interval between two save operations in milliseconds
-pref("browser.sessionstore.interval", 15000);
+pref("browser.sessionstore.interval", 10000);
 // maximum amount of POSTDATA to be saved in bytes per history entry (-1 = all of it)
 // (NB: POSTDATA will be saved either entirely or not at all)
 pref("browser.sessionstore.postdata", 0);
@@ -910,6 +910,7 @@ pref("toolbar.customization.usesheet", false);
 #endif
 
 pref("dom.ipc.plugins.enabled", false);
+pref("dom.ipc.tabs.enabled", false);
 
 #ifdef XP_WIN
 #ifndef WINCE

@@ -45,42 +45,7 @@ static PRLock* gTimeStampLock;
 static PRUint32 gRolloverCount;
 static PRIntervalTime gLastNow;
 
-double
-TimeDuration::ToSeconds() const
-{
- return double(mValue)/PR_TicksPerSecond();
-}
-
-double
-TimeDuration::ToSecondsSigDigits() const
-{
-  return ToSeconds();
-}
-
-TimeDuration
-TimeDuration::FromSeconds(PRInt32 aSeconds)
-{
-  // No overflow is possible here
-  return TimeDuration::FromTicks(PRInt64(aSeconds)*PR_TicksPerSecond());
-}
-
-TimeDuration
-TimeDuration::FromMilliseconds(PRInt32 aMilliseconds)
-{
-  // No overflow is possible here
-  return TimeDuration::FromTicks(PRInt64(aMilliseconds)*PR_TicksPerSecond()/1000);
-}
-
-TimeDuration
-TimeDuration::Resolution()
-{
-  // This is grossly nonrepresentative of actual system capabilities
-  // on some platforms
-  return TimeDuration::FromTicks(1);
-}
-
-nsresult
-TimeStamp::Startup()
+nsresult TimeStamp::Startup()
 {
   gTimeStampLock = PR_NewLock();
   gRolloverCount = 1;
@@ -88,8 +53,7 @@ TimeStamp::Startup()
   return gTimeStampLock ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
-void
-TimeStamp::Shutdown()
+void TimeStamp::Shutdown()
 {
   if (gTimeStampLock) {
     PR_DestroyLock(gTimeStampLock);
@@ -97,8 +61,7 @@ TimeStamp::Shutdown()
   }
 }
 
-TimeStamp
-TimeStamp::Now()
+TimeStamp TimeStamp::Now()
 {
   // XXX this could be considerably simpler and faster if we had
   // 64-bit atomic operations

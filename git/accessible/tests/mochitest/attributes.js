@@ -28,8 +28,7 @@ function testAbsentAttrs(aAccOrElmOrID, aAbsentAttrs)
 }
 
 /**
- * Test group object attributes (posinset, setsize and level) and
- * nsIAccessible::groupPosition() method.
+ * Test group object attributes (posinset, setsize and level)
  *
  * @param aAccOrElmOrID  [in] the ID, DOM node or accessible
  * @param aPosInSet      [in] the value of 'posinset' attribute
@@ -38,30 +37,15 @@ function testAbsentAttrs(aAccOrElmOrID, aAbsentAttrs)
  */
 function testGroupAttrs(aAccOrElmOrID, aPosInSet, aSetSize, aLevel)
 {
-  var acc = getAccessible(aAccOrElmOrID);
-  var levelObj = {}, posInSetObj = {}, setSizeObj = {};
-  acc.groupPosition(levelObj, setSizeObj, posInSetObj);
+  var attrs = {
+    "posinset": String(aPosInSet),
+    "setsize": String(aSetSize)
+  };
 
-  if (aPosInSet && aSetSize) {
-    is(posInSetObj.value, aPosInSet,
-       "Wrong group position (posinset) for " + prettyName(aAccOrElmOrID));
-    is(setSizeObj.value, aSetSize,
-       "Wrong size of the group (setsize) for " + prettyName(aAccOrElmOrID));
+  if (aLevel)
+    attrs["level"] = String(aLevel);
 
-    var attrs = {
-      "posinset": String(aPosInSet),
-      "setsize": String(aSetSize)
-    };
-    testAttrs(aAccOrElmOrID, attrs, true);
-  }
-
-  if (aLevel) {
-    is(levelObj.value, aLevel,
-       "Wrong group level for " + prettyName(aAccOrElmOrID));
-
-    var attrs = { "level" : String(aLevel) };
-    testAttrs(aAccOrElmOrID, attrs, true);
-  }
+  testAttrs(aAccOrElmOrID, attrs, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

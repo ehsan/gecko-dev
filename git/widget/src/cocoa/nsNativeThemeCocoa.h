@@ -132,7 +132,7 @@ protected:
                        ThemeButtonAdornment inAdornment, PRInt32 inState,
                        nsIFrame* aFrame);
   void DrawUnifiedToolbar(CGContextRef cgContext, const HIRect& inBoxRect,
-                          NSWindow* aWindow);
+                          nsIFrame *aFrame);
   void DrawStatusBar(CGContextRef cgContext, const HIRect& inBoxRect,
                      nsIFrame *aFrame);
   void DrawResizer(CGContextRef cgContext, const HIRect& aRect, nsIFrame *aFrame);

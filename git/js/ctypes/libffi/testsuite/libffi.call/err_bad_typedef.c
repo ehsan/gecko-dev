@@ -4,13 +4,23 @@
    PR:			none.
    Originator:	Blake Chaffin 6/6/2007	 */
 
-/* { dg-do run { xfail *-*-* } } */
+/* { dg-do run { xfail mips*-*-* arm*-*-* strongarm*-*-* xscale*-*-* } } */
 #include "ffitest.h"
 
 int main (void)
 {
 	ffi_cif cif;
+#ifndef USING_MMAP
+	static ffi_closure cl;
+#endif
+	ffi_closure *pcl;
 	ffi_type* arg_types[1];
+
+#ifdef USING_MMAP
+	pcl = allocate_mmap (sizeof(ffi_closure));
+#else
+	pcl = &cl;
+#endif
 
 	arg_types[0] = NULL;
 

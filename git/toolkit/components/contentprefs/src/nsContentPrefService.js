@@ -253,10 +253,6 @@ ContentPrefService.prototype = {
     try {
       this._dbConnection.executeSimpleSQL("DELETE FROM prefs WHERE groupID IS NOT NULL");
       this._dbConnection.executeSimpleSQL("DELETE FROM groups");
-      this._dbConnection.executeSimpleSQL(
-        "DELETE FROM settings " +
-        "WHERE id NOT IN (SELECT DISTINCT settingID FROM prefs)"
-      );
       this._dbConnection.commitTransaction();
     }
     catch(ex) {
@@ -275,20 +271,18 @@ ContentPrefService.prototype = {
       return;
     
     var selectGroupsStmt = this._dbCreateStatement(
-      "SELECT groups.id AS groupID, groups.name AS groupName " +
+      "SELECT groups.name AS groupName " +
       "FROM prefs " +
       "JOIN groups ON prefs.groupID = groups.id " +
       "WHERE prefs.settingID = :setting "
     );
     
-    var groupNames = [];
-    var groupIDs = [];
     try {
       selectGroupsStmt.params.setting = settingID;
     
+      var groups = [];
       while (selectGroupsStmt.executeStep()) {
-        groupIDs.push(selectGroupsStmt.row["groupID"]);
-        groupNames.push(selectGroupsStmt.row["groupName"]);
+        groups.push(selectGroupsStmt.row["groupName"]);
       }
     }
     finally {
@@ -296,16 +290,16 @@ ContentPrefService.prototype = {
     }
     
     if (this.hasPref(null, aName)) {
-      groupNames.push(null);
+      groups.push(null);
     }
 
     this._dbConnection.executeSimpleSQL("DELETE FROM prefs WHERE settingID = " + settingID);
     this._dbConnection.executeSimpleSQL("DELETE FROM settings WHERE id = " + settingID);
 
-    for (var i = 0; i < groupNames.length; i++) {
-      this._notifyPrefRemoved(groupNames[i], aName);
-      if (groupNames[i]) // ie. not null, which will be last (and i == groupIDs.length)
-        this._deleteGroupIfUnused(groupIDs[i]);
+    for (var i = 0; i < groups.length; i++) {
+      this._notifyPrefRemoved(groups[i], aName);
+      if (groups[i])
+        this._deleteGroupIfUnused(groups[i]);
     }
   },
 

@@ -7,14 +7,6 @@
 /* { dg-do run } */
 #include "ffitestcxx.h"
 
-#if defined HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
-#if defined HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
-
 void
 closure_test_fn(ffi_cif* cif __UNUSED__, void* resp __UNUSED__,
 		void** args __UNUSED__, void* userdata __UNUSED__)
@@ -35,7 +27,7 @@ void closure_test_fn1(ffi_cif* cif __UNUSED__, void* resp,
       (int)(*(double*)args[8]) + (int)*(int *)args[9] +
       (int)(*(int *)args[10]) + (int)(*(float *)args[11]) +
       (int)*(int *)args[12] + (int)(*(int *)args[13]) +
-      (int)(*(int *)args[14]) + *(int *)args[15] + (int)(intptr_t)userdata;
+      (int)(*(int *)args[14]) + *(int *)args[15] + (int)(long)userdata;
 
     printf("%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d: %d\n",
 	   (int)*(float *)args[0], (int)(*(float *)args[1]),
@@ -46,7 +38,7 @@ void closure_test_fn1(ffi_cif* cif __UNUSED__, void* resp,
 	   (int)(*(int *)args[10]), (int)(*(float *)args[11]),
 	   (int)*(int *)args[12], (int)(*(int *)args[13]),
 	   (int)(*(int *)args[14]), *(int *)args[15],
-	   (int)(intptr_t)userdata, (int)*(ffi_arg*)resp);
+	   (int)(long)userdata, (int)*(ffi_arg*)resp);
 
     throw (int)*(ffi_arg*)resp;
 }
@@ -58,20 +50,27 @@ typedef int (*closure_test_type1)(float, float, float, float, signed short,
 int main (void)
 {
   ffi_cif cif;
-  void *code;
-  ffi_closure *pcl = (ffi_closure *)ffi_closure_alloc(sizeof(ffi_closure), &code);
+#ifndef USING_MMAP
+  static ffi_closure cl;
+#endif
+  ffi_closure *pcl;
   ffi_type * cl_arg_types[17];
+#ifdef USING_MMAP
+  pcl = (ffi_closure *) allocate_mmap (sizeof(ffi_closure));
+#else
+  pcl = &cl;
+#endif
 
   {
     cl_arg_types[1] = NULL;
 
     CHECK(ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 0,
 		       &ffi_type_void, cl_arg_types) == FFI_OK);
-    CHECK(ffi_prep_closure_loc(pcl, &cif, closure_test_fn, NULL, code) == FFI_OK);
+    CHECK(ffi_prep_closure(pcl, &cif, closure_test_fn, NULL) == FFI_OK);
 
     try
       {
-	(*((closure_test_type)(code)))();
+	(*((closure_test_type)(pcl)))();
       } catch (int exception_code)
       {
 	CHECK(exception_code == 9);
@@ -105,11 +104,11 @@ int main (void)
       CHECK(ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 16,
 			 &ffi_type_sint, cl_arg_types) == FFI_OK);
 
-      CHECK(ffi_prep_closure_loc(pcl, &cif, closure_test_fn1,
-                                 (void *) 3 /* userdata */, code)  == FFI_OK);
+      CHECK(ffi_prep_closure(pcl, &cif, closure_test_fn1,
+			     (void *) 3 /* userdata */)  == FFI_OK);
       try
 	{
-	  (*((closure_test_type1)code))
+	  (*((closure_test_type1)pcl))
 	    (1.1, 2.2, 3.3, 4.4, 127, 5.5, 6.6, 8, 9, 10, 11, 12.0, 13,
 	     19, 21, 1);
 	  /* { dg-output "\n1 2 3 4 127 5 6 8 9 10 11 12 13 19 21 1 3: 255" } */

@@ -414,7 +414,6 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
         mChildFrameborder[mChildCount] = GetFrameBorder(child);
         mChildBorderColors[mChildCount].Set(GetBorderColor(child));
       }
-      child->SetPrimaryFrame(frame);
       
       if (NS_FAILED(result))
         return result;

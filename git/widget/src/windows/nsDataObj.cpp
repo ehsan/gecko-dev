@@ -492,8 +492,7 @@ STDMETHODIMP nsDataObj::GetData(LPFORMATETC aFormat, LPSTGMEDIUM pSTM)
   // drag operations.
   LPDATAENTRY pde;
   if (LookupArbitraryFormat(aFormat, &pde, FALSE)) {
-    return CopyMediumData(pSTM, &pde->stgm, aFormat, FALSE)
-           ? S_OK : E_UNEXPECTED;
+    return CopyMediumData(pSTM, &pde->stgm, aFormat, FALSE);
   }
 
   // Firefox internal formats

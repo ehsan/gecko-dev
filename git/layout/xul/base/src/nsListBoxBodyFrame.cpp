@@ -1224,7 +1224,8 @@ nsListBoxBodyFrame::GetNextItemBox(nsIBox* aBox, PRInt32 aOffset,
         return GetNextItemBox(aBox, ++aOffset, aCreated);
 
       nsPresContext* presContext = PresContext();
-      nsIFrame* existingFrame = nextContent->GetPrimaryFrame();
+      nsIFrame* existingFrame =
+        presContext->GetPresShell()->GetPrimaryFrameFor(nextContent);
 
       if (existingFrame && existingFrame->GetParent() != this)
         return GetNextItemBox(aBox, ++aOffset, aCreated);
@@ -1347,12 +1348,13 @@ nsListBoxBodyFrame::OnContentInserted(nsPresContext* aPresContext, nsIContent* a
   if (mRowCount >= 0)
     ++mRowCount;
 
+  nsIPresShell *shell = aPresContext->PresShell();
   // The RDF content builder will build content nodes such that they are all 
   // ready when OnContentInserted is first called, meaning the first call
   // to CreateRows will create all the frames, but OnContentInserted will
   // still be called again for each content node - so we need to make sure
   // that the frame for each content node hasn't already been created.
-  nsIFrame* childFrame = aChildContent->GetPrimaryFrame();
+  nsIFrame* childFrame = shell->GetPrimaryFrameFor(aChildContent);
   if (childFrame)
     return;
 
@@ -1367,7 +1369,7 @@ nsListBoxBodyFrame::OnContentInserted(nsPresContext* aPresContext, nsIContent* a
     mRowsToPrepend = 1;
   } else if (nextSiblingContent) {
     // we may be inserting before a frame that is on screen
-    nsIFrame* nextSiblingFrame = nextSiblingContent->GetPrimaryFrame();
+    nsIFrame* nextSiblingFrame = shell->GetPrimaryFrameFor(nextSiblingContent);
     mLinkupFrame = nextSiblingFrame;
   }
   
@@ -1425,7 +1427,8 @@ nsListBoxBodyFrame::OnContentRemoved(nsPresContext* aPresContext,
       if (last.position() > 0) {
         iter.seek(last.position() - 1);
         nsIContent *lastChild = *iter;
-        nsIFrame* lastChildFrame = lastChild->GetPrimaryFrame();
+        nsIFrame* lastChildFrame = 
+          aPresContext->PresShell()->GetPrimaryFrameFor(lastChild);
       
         if (lastChildFrame) {
           mTopFrame = nsnull;

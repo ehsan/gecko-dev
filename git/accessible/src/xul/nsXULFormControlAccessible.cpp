@@ -229,17 +229,17 @@ nsXULButtonAccessible::CacheChildren()
   if (!menupopupAccessible)
     return;
 
+  mChildren.AppendObject(menupopupAccessible);
+
   nsRefPtr<nsAccessible> menupopupAcc =
     nsAccUtils::QueryObject<nsAccessible>(menupopupAccessible);
-
-  mChildren.AppendElement(menupopupAcc);
   menupopupAcc->SetParent(this);
 
   if (buttonAccessible) {
+    mChildren.AppendObject(buttonAccessible);
+
     nsRefPtr<nsAccessible> buttonAcc =
       nsAccUtils::QueryObject<nsAccessible>(buttonAccessible);
-
-    mChildren.AppendElement(buttonAcc);
     buttonAcc->SetParent(this);
   }
 }
@@ -659,9 +659,9 @@ nsXULProgressMeterAccessible::SetCurrentValue(double aValue)
 }
 
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULRadioButtonAccessible
-////////////////////////////////////////////////////////////////////////////////
+/**
+  * XUL Radio Button
+  */
 
 /** Constructor */
 nsXULRadioButtonAccessible::nsXULRadioButtonAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
@@ -692,18 +692,19 @@ nsXULRadioButtonAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-void
-nsXULRadioButtonAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
-                                                       PRInt32 *aSetSize)
+nsresult
+nsXULRadioButtonAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
 {
-  nsAccUtils::GetPositionAndSizeForXULSelectControlItem(mDOMNode, aPosInSet,
-                                                        aSetSize);
+  NS_ENSURE_ARG_POINTER(aAttributes);
+  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_FAILURE);
+
+  nsresult rv = nsFormControlAccessible::GetAttributesInternal(aAttributes);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAccUtils::SetAccAttrsForXULSelectControlItem(mDOMNode, aAttributes);
+
+  return NS_OK;
 }
-
-
-////////////////////////////////////////////////////////////////////////////////
-// nsXULRadioGroupAccessible
-////////////////////////////////////////////////////////////////////////////////
 
 /**
   * XUL Radio Group
@@ -772,42 +773,49 @@ nsXULButtonAccessible(aNode, aShell)
 {
 }
 
-void
-nsXULToolbarButtonAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
-                                                         PRInt32 *aSetSize)
+nsresult
+nsXULToolbarButtonAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
 {
+  NS_ENSURE_ARG_POINTER(aAttributes);
+  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_FAILURE);
+
+  nsresult rv = nsXULButtonAccessible::GetAttributesInternal(aAttributes);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIAccessible> parent(GetParent());
   PRInt32 setSize = 0;
   PRInt32 posInSet = 0;
 
-  nsAccessible* parent(GetParent());
-  NS_ENSURE_TRUE(parent,);
-
-  PRInt32 childCount = parent->GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible* child = parent->GetChildAt(childIdx);
-    if (IsSeparator(child)) { // end of a group of buttons
-      if (posInSet)
-        break; // we've found our group, so we're done
-
-      setSize = 0; // not our group, so start a new group
-
-    } else {
-      setSize++; // another button in the group
-
-      if (child == this)
-        posInSet = setSize; // we've found our button
+  if (parent) {
+    nsCOMPtr<nsIAccessible> sibling;
+    nsCOMPtr<nsIAccessible> tempSibling;
+    parent->GetFirstChild(getter_AddRefs(sibling));
+    while (sibling) {
+      if (IsSeparator(sibling)) { // end of a group of buttons
+        if (posInSet)
+          break; // we've found our group, so we're done
+        setSize = 0; // not our group, so start a new group
+      } else {
+        setSize++; // another button in the group
+        if (sibling == this)
+          posInSet = setSize; // we've found our button
+      }
+      sibling->GetNextSibling(getter_AddRefs(tempSibling));
+      sibling.swap(tempSibling);
     }
   }
+  
+  nsAccUtils::SetAccGroupAttrs(aAttributes, 0, posInSet, setSize);
 
-  *aPosInSet = posInSet;
-  *aSetSize = setSize;
+  return NS_OK;
 }
 
 PRBool
-nsXULToolbarButtonAccessible::IsSeparator(nsAccessible *aAccessible)
+nsXULToolbarButtonAccessible::IsSeparator(nsIAccessible *aAccessible)
 {
   nsCOMPtr<nsIDOMNode> domNode;
-  aAccessible->GetDOMNode(getter_AddRefs(domNode));
+  nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(aAccessible));
+  accessNode->GetDOMNode(getter_AddRefs(domNode));
   nsCOMPtr<nsIContent> contentDomNode(do_QueryInterface(domNode));
 
   if (!contentDomNode)

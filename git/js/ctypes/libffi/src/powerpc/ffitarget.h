@@ -30,11 +30,7 @@
 
 /* ---- System specific configurations ----------------------------------- */
 
-#if defined (POWERPC) && defined (__powerpc64__)	/* linux64 */
-#define POWERPC64
-#elif defined (POWERPC_DARWIN) && defined (__ppc64__)	/* Darwin */
-#define POWERPC64
-#elif defined (POWERPC_AIX) && defined (__64BIT__)	/* AIX64 */
+#if defined (POWERPC) && defined (__powerpc64__)
 #define POWERPC64
 #endif
 

@@ -265,7 +265,7 @@ nsXBLResourceLoader::NotifyBoundElements()
         // will happen.
         nsIPresShell *shell = doc->GetPrimaryShell();
         if (shell) {
-          nsIFrame* childFrame = content->GetPrimaryFrame();
+          nsIFrame* childFrame = shell->GetPrimaryFrameFor(content);
           if (!childFrame) {
             // Check to see if it's in the undisplayed content map.
             nsStyleContext* sc =

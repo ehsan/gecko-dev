@@ -105,13 +105,6 @@ extern "C" {
   CG_EXTERN void CGContextResetCTM(CGContextRef);
   CG_EXTERN void CGContextSetCTM(CGContextRef, CGAffineTransform);
   CG_EXTERN void CGContextResetClip(CGContextRef);
-
-  // CGSPrivate.h
-  typedef NSInteger CGSConnection;
-  typedef NSInteger CGSWindow;
-  extern CGSConnection _CGSDefaultConnection();
-  extern CGError CGSGetScreenRectForWindow(const CGSConnection cid, CGSWindow wid, CGRect *outRect);
-  extern CGError CGSGetWindowLevel(const CGSConnection cid, CGSWindow wid, CGWindowLevel *level);
 }
 
 #ifndef NS_LEOPARD_AND_LATER
@@ -153,7 +146,6 @@ static void blinkRgn(RgnHandle rgn);
 #endif
 
 nsIRollupListener * gRollupListener = nsnull;
-nsIMenuRollup     * gMenuRollup = nsnull;
 nsIWidget         * gRollupWidget   = nsnull;
 
 PRUint32 gLastModifierState = 0;
@@ -1892,7 +1884,6 @@ nsIntPoint nsChildView::WidgetToScreenOffset()
 }
 
 NS_IMETHODIMP nsChildView::CaptureRollupEvents(nsIRollupListener * aListener, 
-                                               nsIMenuRollup * aMenuRollup,
                                                PRBool aDoCapture, 
                                                PRBool aConsumeRollupEvent)
 {
@@ -2200,8 +2191,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
     // that we can handle.
 
     NSArray *sendTypes = [[NSArray alloc] initWithObjects:NSStringPboardType,NSHTMLPboardType,nil];
-    NSArray *returnTypes = [[NSArray alloc] initWithObjects:NSStringPboardType,NSHTMLPboardType,nil];
-    
+    NSArray *returnTypes = [[NSArray alloc] init];
+
     [NSApp registerServicesMenuSendTypes:sendTypes returnTypes:returnTypes];
 
     [sendTypes release];
@@ -2751,10 +2742,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
       // we don't want to rollup if the click is in a parent menu of
       // the current submenu
       PRUint32 popupsToRollup = PR_UINT32_MAX;
-      if (gMenuRollup) {
+      nsCOMPtr<nsIMenuRollup> menuRollup;
+      menuRollup = (do_QueryInterface(gRollupListener));
+      if (menuRollup) {
         nsAutoTArray<nsIWidget*, 5> widgetChain;
-        gMenuRollup->GetSubmenuWidgetChain(&widgetChain);
-        PRUint32 sameTypeCount = gMenuRollup->GetSubmenuWidgetChain(&widgetChain);
+        menuRollup->GetSubmenuWidgetChain(&widgetChain);
+        PRUint32 sameTypeCount = menuRollup->GetSubmenuWidgetChain(&widgetChain);
         for (PRUint32 i = 0; i < widgetChain.Length(); i++) {
           nsIWidget* widget = widgetChain[i];
           NSWindow* currWindow = (NSWindow*)widget->GetNativeData(NS_NATIVE_WINDOW);
@@ -4792,7 +4785,6 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
     }
 
     PRBool keyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
-    // Note: mGeckoChild might have become null here. Don't count on it from here on.
     // Only record the results of dispatching geckoEvent if we're currently
     // processing a keyDown event.
     if (mCurKeyEvent) {
@@ -4804,13 +4796,11 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
     if (!mGeckoChild->IME_IsComposing()) {
       [self sendCompositionEvent:NS_COMPOSITION_START];
       // Note: mGeckoChild might have become null here. Don't count on it from here on.
-      if (mGeckoChild) {
-        mGeckoChild->IME_OnStartComposition(self);
-        // Note: mGeckoChild might have become null here. Don't count on it from here on.
-      }
+      mGeckoChild->IME_OnStartComposition(self);
+      // Note: mGeckoChild might have become null here. Don't count on it from here on.
     }
 
-    if (mGeckoChild && mGeckoChild->IME_IgnoreCommit()) {
+    if (mGeckoChild->IME_IgnoreCommit()) {
       tmpStr = [tmpStr init];
       len = 0;
       bufPtr[0] = PRUnichar('\0');
@@ -4825,10 +4815,7 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
 
     [self sendCompositionEvent:NS_COMPOSITION_END];
     // Note: mGeckoChild might have become null here. Don't count on it from here on.
-    if (mGeckoChild) {
-      mGeckoChild->IME_OnEndComposition();
-      // Note: mGeckoChild might have become null here. Don't count on it from here on.
-    }
+    mGeckoChild->IME_OnEndComposition();
     mMarkedRange = NSMakeRange(NSNotFound, 0);
   }
 
@@ -4867,9 +4854,6 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
   NSLog(@" aString = '%@'", aString);
 #endif
 
-  if (!mGeckoChild)
-    return;
-
 #ifdef NS_LEOPARD_AND_LATER
   if (mGeckoChild->TextInputHandler()->IgnoreIMEComposition())
     return;
@@ -4905,10 +4889,8 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
     mMarkedRange.location = selection.mSucceeded ? selection.mReply.mOffset : 0;
     [self sendCompositionEvent:NS_COMPOSITION_START];
     // Note: mGeckoChild might have become null here. Don't count on it from here on.
-    if (mGeckoChild) {
-      mGeckoChild->IME_OnStartComposition(self);
-      // Note: mGeckoChild might have become null here. Don't count on it from here on.
-    }
+    mGeckoChild->IME_OnStartComposition(self);
+    // Note: mGeckoChild might have become null here. Don't count on it from here on.
   }
 
   if (mGeckoChild->IME_IsComposing()) {
@@ -4923,11 +4905,7 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
 
     if (commit) {
       [self sendCompositionEvent:NS_COMPOSITION_END];
-      // Note: mGeckoChild might have become null here. Don't count on it from here on.
-      if (mGeckoChild) {
-        mGeckoChild->IME_OnEndComposition();
-        // Note: mGeckoChild might have become null here. Don't count on it from here on.
-      }
+      mGeckoChild->IME_OnEndComposition();
     }
   }
 
@@ -4943,8 +4921,7 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
   NSLog(@"****in unmarkText");
   NSLog(@" markedRange   = %d, %d", mMarkedRange.location, mMarkedRange.length);
 #endif
-  if (mGeckoChild)
-    mGeckoChild->IME_CommitComposition();
+  mGeckoChild->IME_CommitComposition();
 }
 
 - (BOOL) hasMarkedText
@@ -6102,47 +6079,26 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   // returnType is nil if the service will not return any data.
   //
   // The following condition thus triggers when the service expects a string
-  // or HTML from us or no data at all AND when the service will either not
-  // send back any data to us or will send a string or HTML back to us.
+  // or HTML from us or no data at all AND when the service will not send back
+  // any data to us.
 
-#define IsSupportedType(typeStr) ([typeStr isEqual:NSStringPboardType] || [typeStr isEqual:NSHTMLPboardType])
-
-  id result = nil;
-
-  if ((!sendType || IsSupportedType(sendType)) &&
-      (!returnType || IsSupportedType(returnType))) {
+  if ((!sendType || [sendType isEqual:NSStringPboardType] ||
+       [sendType isEqual:NSHTMLPboardType]) && !returnType) {
+    // Query the Gecko window to determine if there is a current selection.
     if (mGeckoChild) {
-      // Assume that this object will be able to handle this request.
-      result = self;
-
-      // Keep the ChildView alive during this operation.
       nsAutoRetainCocoaObject kungFuDeathGrip(self);
-      
-      // Determine if there is a selection (if sending to the service).
-      if (sendType) {
-        nsQueryContentEvent event(PR_TRUE, NS_QUERY_CONTENT_STATE, mGeckoChild);
-        mGeckoChild->DispatchWindowEvent(event);
-        if (!event.mSucceeded || !event.mReply.mHasSelection)
-          result = nil;
-      }
 
-      // Determine if we can paste (if receiving data from the service).
-      if (returnType) {
-        nsContentCommandEvent command(PR_TRUE, NS_CONTENT_COMMAND_PASTE_TRANSFERABLE, mGeckoChild, PR_TRUE);
-        mGeckoChild->DispatchWindowEvent(command);
-        if (!command.mSucceeded || !command.mIsEnabled)
-          result = nil;
-      }
+      nsQueryContentEvent event(PR_TRUE, NS_QUERY_CONTENT_STATE, mGeckoChild);
+      mGeckoChild->DispatchWindowEvent(event);
+
+      // Return this object if it can handle the request.
+      if ((!sendType || (event.mSucceeded && event.mReply.mHasSelection)) &&
+          !returnType)
+        return self;
     }
   }
 
-#undef IsSupportedType
-
-  // Give the superclass a chance if this object will not handle this request.
-  if (!result)
-    result = [super validRequestorForSendType:sendType returnType:returnType];
-
-  return result;
+  return [super validRequestorForSendType:sendType returnType:returnType];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
@@ -6206,31 +6162,11 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
-// Called if the service wants us to replace the current selection.
+// Called if the service wants us to replace the current selection. We do
+// not currently support replacing the current selection so just return NO.
 - (BOOL)readSelectionFromPasteboard:(NSPasteboard *)pboard
 {
-  nsresult rv;
-  nsCOMPtr<nsITransferable> trans = do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
-  if (NS_FAILED(rv))
-    return NO;
-
-  trans->AddDataFlavor(kUnicodeMime);
-  trans->AddDataFlavor(kHTMLMime);
-
-  rv = nsClipboard::TransferableFromPasteboard(trans, pboard);
-  if (NS_FAILED(rv))
-    return NO;
-
-  if (!mGeckoChild)
-    return NO;
-
-  nsContentCommandEvent command(PR_TRUE,
-                                NS_CONTENT_COMMAND_PASTE_TRANSFERABLE,
-                                mGeckoChild);
-  command.mTransferable = trans;
-  mGeckoChild->DispatchWindowEvent(command);
-  
-  return command.mSucceeded && command.mIsEnabled;
+  return NO;
 }
 
 #pragma mark -
@@ -6625,100 +6561,33 @@ ChildViewMouseTracker::ViewForEvent(NSEvent* aEvent)
   return [view isKindOfClass:[ChildView class]] ? (ChildView*)view : nil;
 }
 
-static CGWindowLevel kDockWindowLevel = 0;
-static CGWindowLevel kPopupWindowLevel = 0;
-static CGWindowLevel kFloatingWindowLevel = 0;
-
-static BOOL WindowNumberIsUnderPoint(NSInteger aWindowNumber, NSPoint aPoint) {
-  NSWindow* window = [NSApp windowWithWindowNumber:aWindowNumber];
-  if (window) {
-    // This is one of our own windows.
-    return NSMouseInRect(aPoint, [window frame], NO);
-  }
-
-  CGSConnection cid = _CGSDefaultConnection();
-
-  if (!kDockWindowLevel) {
-    // These constants are in fact function calls, so cache them.
-    kDockWindowLevel = kCGDockWindowLevel;
-    kPopupWindowLevel = kCGPopUpMenuWindowLevel;
-    kFloatingWindowLevel = kCGFloatingWindowLevel;
-  }
-
-  // Some things put transparent windows on top of everything. Ignore them.
-  CGWindowLevel level;
-  if ((kCGErrorSuccess == CGSGetWindowLevel(cid, aWindowNumber, &level)) &&
-      (level == kDockWindowLevel ||     // Transparent layer, spanning the whole screen
-       level == kFloatingWindowLevel || // invisible Jing window
-       level > kPopupWindowLevel))      // Snapz Pro X while recording a screencast
-    return false;
-
-  CGRect rect;
-  if (kCGErrorSuccess != CGSGetScreenRectForWindow(cid, aWindowNumber, &rect))
-    return false;
-
-  CGPoint point = { aPoint.x, nsCocoaUtils::FlippedScreenY(aPoint.y) };
-  return CGRectContainsPoint(rect, point);
-}
-
-@interface NSWindow(SnowLeopardWindowUnderPointAPI)
-+ (NSInteger)windowNumberAtPoint:(NSPoint)point belowWindowWithWindowNumber:(NSInteger)windowNumber;
-@end
-
-// Find the window number of the window under the given point, regardless of
-// which app the window belongs to. Returns 0 if no window was found.
-static NSInteger WindowNumberAtPoint(NSPoint aPoint) {
-  // Use the awesome new API on 10.6+.
-  if ([NSWindow respondsToSelector:@selector(windowNumberAtPoint:belowWindowWithWindowNumber:)])
-    return [NSWindow windowNumberAtPoint:aPoint belowWindowWithWindowNumber:0];
-
-  // windowNumberAtPoint is not supported, so we'll have to find the right
-  // window manually by iterating over all windows on the screen and testing
-  // whether the mouse is inside the window's rect. We do this using private CGS
-  // functions.
-  // Another way of doing it would be to use tracking rects, but those are
-  // view-controlled, so they need to be reset whenever an NSView changes its
-  // size or position, which is expensive. See bug 300904 comment 20.
-  // A problem with using the CGS functions is that we only look at the windows'
-  // rects, not at the transparency of the actual pixel the mouse is over. This
-  // means that we won't treat transparent pixels as transparent to mouse
-  // events, which is a disadvantage over using tracking rects and leads to the
-  // crummy window level workarounds in WindowNumberIsUnderPoint.
-  // But speed is more important.
-
-  // Get the window list.
-  NSInteger windowCount;
-  NSCountWindows(&windowCount);
-  NSInteger* windowList = (NSInteger*)malloc(sizeof(NSInteger) * windowCount);
-  if (!windowList)
-    return nil;
-
-  // The list we get back here is in order from front to back.
-  NSWindowList(windowCount, windowList);
-  for (NSInteger i = 0; i < windowCount; i++) {
-    NSInteger windowNumber = windowList[i];
-    if (WindowNumberIsUnderPoint(windowNumber, aPoint)) {
-      free(windowList);
-      return windowNumber;
-    }
-  }
-
-  free(windowList);
-  return 0;
-}
-
-// Find Gecko window under the mouse. Returns nil if the mouse isn't over
-// any of our windows.
+// Find the active window under the mouse. Returns nil if the mouse isn't over
+// any active window.
 NSWindow*
 ChildViewMouseTracker::WindowForEvent(NSEvent* anEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  NSPoint screenPoint = nsCocoaUtils::ScreenLocationForEvent(anEvent);
-  NSInteger windowNumber = WindowNumberAtPoint(screenPoint);
+  NSInteger windowCount;
+  NSCountWindows(&windowCount);
+  NSInteger* windowList = (NSInteger*)malloc(sizeof(NSInteger) * windowCount);
+  if (!windowList)
+    return nil;
+  // The list we get back here is in order from front to back.
+  NSWindowList(windowCount, windowList);
 
-  // This will return nil if windowNumber belongs to a window that we don't own.
-  return [NSApp windowWithWindowNumber:windowNumber];
+  NSPoint screenPoint = nsCocoaUtils::ScreenLocationForEvent(anEvent);
+
+  for (NSInteger i = 0; i < windowCount; i++) {
+    NSWindow* currentWindow = [NSApp windowWithWindowNumber:windowList[i]];
+    if (currentWindow && NSMouseInRect(screenPoint, [currentWindow frame], NO)) {
+      free(windowList);
+      return currentWindow;
+    }
+  }
+
+  free(windowList);
+  return nil;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }

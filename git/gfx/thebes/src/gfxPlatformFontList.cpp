@@ -247,28 +247,9 @@ gfxPlatformFontList::HashEnumFuncForFamilies(nsStringHashKey::KeyType aKey,
 {
     FontListData *data = static_cast<FontListData*>(aUserArg);
 
-    // use the first variation for now.  This data should be the same
-    // for all the variations and should probably be moved up to
-    // the Family
-    gfxFontStyle style;
-    style.langGroup = data->mLangGroup;
-    PRBool needsBold;
-    nsRefPtr<gfxFontEntry> aFontEntry = aFamilyEntry->FindFontForStyle(style, needsBold);
-    NS_ASSERTION(aFontEntry, "couldn't find any font entry in family");
-    if (!aFontEntry)
-        return PL_DHASH_NEXT;
-
-    /* skip symbol fonts */
-    if (aFontEntry->IsSymbolFont())
-        return PL_DHASH_NEXT;
-
-    if (aFontEntry->SupportsLangGroup(data->mLangGroup) &&
-        aFontEntry->MatchesGenericFamily(data->mGenericFamily)) {
-        nsAutoString localizedFamilyName;
-        aFamilyEntry->LocalizedName(localizedFamilyName);
-        data->mListOfFonts.AppendElement(localizedFamilyName);
-    }
-
+    nsAutoString localizedFamilyName;
+    aFamilyEntry->LocalizedName(localizedFamilyName);
+    data->mListOfFonts.AppendElement(localizedFamilyName);
     return PL_DHASH_NEXT;
 }
 
@@ -436,14 +417,6 @@ gfxPlatformFontList::AddOtherFamilyName(gfxFontFamily *aFamilyEntry, nsAString& 
     }
 }
 
-PRBool
-gfxPlatformFontList::GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName)
-{
-    aFamilyName.Truncate();
-    ResolveFontName(aFontName, aFamilyName);
-    return !aFamilyName.IsEmpty();
-}
-
 void 
 gfxPlatformFontList::InitLoader()
 {
@@ -487,3 +460,4 @@ gfxPlatformFontList::FinishLoader()
     mFontFamiliesToLoad.Clear();
     mNumFamilies = 0;
 }
+

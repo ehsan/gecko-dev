@@ -461,7 +461,7 @@ nsXULTreeAccessible::SelectAllSelection(PRBool *aIsMultiSelectable)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeAccessible: nsAccessible implementation
 
-nsAccessible*
+nsIAccessible*
 nsXULTreeAccessible::GetChildAt(PRUint32 aIndex)
 {
   PRInt32 childCount = nsAccessible::GetChildCount();
@@ -473,10 +473,7 @@ nsXULTreeAccessible::GetChildAt(PRUint32 aIndex)
 
   nsCOMPtr<nsIAccessible> child;
   GetTreeItemAccessible(aIndex - childCount, getter_AddRefs(child));
-
-  nsRefPtr<nsAccessible> childAcc =
-    nsAccUtils::QueryObject<nsAccessible>(child);
-  return childAcc;
+  return child;
 }
 
 PRInt32
@@ -720,7 +717,7 @@ nsXULTreeAccessible::CreateTreeItemAccessible(PRInt32 aRow,
 
 nsXULTreeItemAccessibleBase::
   nsXULTreeItemAccessibleBase(nsIDOMNode *aDOMNode, nsIWeakReference *aShell,
-                              nsAccessible *aParent, nsITreeBoxObject *aTree,
+                              nsIAccessible *aParent, nsITreeBoxObject *aTree,
                               nsITreeView *aTreeView, PRInt32 aRow) :
   mTree(aTree), mTreeView(aTreeView), mRow(aRow),
   nsAccessibleWrap(aDOMNode, aShell)
@@ -965,20 +962,10 @@ nsXULTreeItemAccessibleBase::Shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessibleBase: nsAccessible public methods
 
-// nsIAccessible::groupPosition
 nsresult
-nsXULTreeItemAccessibleBase::GroupPosition(PRInt32 *aGroupLevel,
-                                           PRInt32 *aSimilarItemsInGroup,
-                                           PRInt32 *aPositionInGroup)
+nsXULTreeItemAccessibleBase::GetAttributesInternal(nsIPersistentProperties *aAttributes)
 {
-  NS_ENSURE_ARG_POINTER(aGroupLevel);
-  *aGroupLevel = 0;
-
-  NS_ENSURE_ARG_POINTER(aSimilarItemsInGroup);
-  *aSimilarItemsInGroup = 0;
-
-  NS_ENSURE_ARG_POINTER(aPositionInGroup);
-  *aPositionInGroup = 0;
+  NS_ENSURE_ARG_POINTER(aAttributes);
 
   if (IsDefunct())
     return NS_ERROR_FAILURE;
@@ -1018,10 +1005,8 @@ nsXULTreeItemAccessibleBase::GroupPosition(PRInt32 *aGroupLevel,
   PRInt32 setSize = topCount + bottomCount;
   PRInt32 posInSet = topCount;
 
-  *aGroupLevel = level + 1;
-  *aSimilarItemsInGroup = setSize;
-  *aPositionInGroup = posInSet;
-
+  // set the group attributes
+  nsAccUtils::SetAccGroupAttrs(aAttributes, level + 1, posInSet, setSize);
   return NS_OK;
 }
 
@@ -1085,7 +1070,7 @@ nsXULTreeItemAccessibleBase::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-nsAccessible*
+nsIAccessible*
 nsXULTreeItemAccessibleBase::GetParent()
 {
   return IsDefunct() ? nsnull : mParent.get();
@@ -1187,9 +1172,9 @@ nsXULTreeItemAccessibleBase::IsExpandable()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTreeItemAccessible::
-  nsXULTreeItemAccessible(nsIDOMNode *aDOMNode, nsIWeakReference *aShell,
-                          nsAccessible *aParent, nsITreeBoxObject *aTree,
-                          nsITreeView *aTreeView, PRInt32 aRow) :
+nsXULTreeItemAccessible(nsIDOMNode *aDOMNode, nsIWeakReference *aShell,
+                        nsIAccessible *aParent, nsITreeBoxObject *aTree,
+                        nsITreeView *aTreeView, PRInt32 aRow) :
   nsXULTreeItemAccessibleBase(aDOMNode, aShell, aParent, aTree, aTreeView, aRow)
 {
   mColumn = nsCoreUtils::GetFirstSensibleColumn(mTree);

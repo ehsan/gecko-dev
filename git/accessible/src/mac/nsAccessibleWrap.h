@@ -105,13 +105,15 @@ class nsAccessibleWrap : public nsAccessible
       //
       // to maintain a scripting environment where the XPCOM accessible hierarchy look the same 
       // on all platforms, we still let the C++ objects be created though.
-
-      nsAccessible* parent(GetParent());
-      while (parent) {
-        if (nsAccUtils::MustPrune(parent))
+      
+      nsCOMPtr<nsIAccessible> curParent = GetParent();
+      while (curParent) {
+        if (nsAccUtils::MustPrune(curParent))
           return PR_TRUE;
 
-        parent = parent->GetParent();
+        nsCOMPtr<nsIAccessible> newParent;
+        curParent->GetParent(getter_AddRefs(newParent));
+        curParent.swap(newParent);
       }
       // no parent was flat
       return PR_FALSE;

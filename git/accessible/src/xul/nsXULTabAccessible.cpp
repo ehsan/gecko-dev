@@ -109,8 +109,9 @@ nsXULTabAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   // Check style for -moz-user-focus: normal to see if it's focusable
   *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  if (content) {
-    nsIFrame *frame = content->GetPrimaryFrame();
+  nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
+  if (presShell && content) {
+    nsIFrame *frame = presShell->GetPrimaryFrameFor(content);
     if (frame) {
       const nsStyleUserInterface* ui = frame->GetStyleUserInterface();
       if (ui->mUserFocus == NS_STYLE_USER_FOCUS_NORMAL)
@@ -159,52 +160,61 @@ nsXULTabAccessible::GetRelationByType(PRUint32 aRelationType,
   // assume tab and tabpanels are related 1 to 1. We follow algorithm from
   // the setter 'selectedIndex' of tabbox.xml#tabs binding.
 
-  nsAccessible* tabsAcc = GetParent();
+  nsCOMPtr<nsIAccessible> tabsAcc = GetParent();
   NS_ENSURE_TRUE(nsAccUtils::Role(tabsAcc) == nsIAccessibleRole::ROLE_PAGETABLIST,
                  NS_ERROR_FAILURE);
 
   PRInt32 tabIndex = -1;
 
-  PRInt32 childCount = tabsAcc->GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible* childAcc = tabsAcc->GetChildAt(childIdx);
+  nsCOMPtr<nsIAccessible> childAcc;
+  tabsAcc->GetFirstChild(getter_AddRefs(childAcc));
+  while (childAcc) {
     if (nsAccUtils::Role(childAcc) == nsIAccessibleRole::ROLE_PAGETAB)
       tabIndex++;
 
     if (childAcc == this)
       break;
+
+    nsCOMPtr<nsIAccessible> acc;
+    childAcc->GetNextSibling(getter_AddRefs(acc));
+    childAcc.swap(acc);
   }
 
-  nsAccessible* tabBoxAcc = tabsAcc->GetParent();
+  nsCOMPtr<nsIAccessible> tabBoxAcc;
+  tabsAcc->GetParent(getter_AddRefs(tabBoxAcc));
   NS_ENSURE_TRUE(nsAccUtils::Role(tabBoxAcc) == nsIAccessibleRole::ROLE_PANE,
                  NS_ERROR_FAILURE);
 
-  childCount = tabBoxAcc->GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible* childAcc = tabBoxAcc->GetChildAt(childIdx);
+  tabBoxAcc->GetFirstChild(getter_AddRefs(childAcc));
+  while (childAcc) {
     if (nsAccUtils::Role(childAcc) == nsIAccessibleRole::ROLE_PROPERTYPAGE) {
       if (tabIndex == 0)
         return nsRelUtils::AddTarget(aRelationType, aRelation, childAcc);
 
       tabIndex--;
     }
+
+    nsCOMPtr<nsIAccessible> acc;
+    childAcc->GetNextSibling(getter_AddRefs(acc));
+    childAcc.swap(acc);
   }
 
   return NS_OK;
 }
 
-void
-nsXULTabAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
-                                               PRInt32 *aSetSize)
+nsresult
+nsXULTabAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
 {
-  nsAccUtils::GetPositionAndSizeForXULSelectControlItem(mDOMNode, aPosInSet,
-                                                        aSetSize);
+  NS_ENSURE_ARG_POINTER(aAttributes);
+  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_FAILURE);
+
+  nsresult rv = nsLeafAccessible::GetAttributesInternal(aAttributes);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAccUtils::SetAccAttrsForXULSelectControlItem(mDOMNode, aAttributes);
+
+  return NS_OK;
 }
-
-
-////////////////////////////////////////////////////////////////////////////////
-// nsXULTabBoxAccessible
-////////////////////////////////////////////////////////////////////////////////
 
 /**
   * XUL TabBox

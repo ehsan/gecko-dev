@@ -464,6 +464,7 @@ public:
   nsIPluginInstance *GetPluginInstance() { return mInstance; }
 
 private:
+  nsresult SetUpCache(nsIURI* aURL); // todo: see about removing this...
   nsresult SetUpStreamListener(nsIRequest* request, nsIURI* aURL);
   nsresult SetupPluginCacheFile(nsIChannel* channel);
 
@@ -1508,6 +1509,14 @@ NS_IMETHODIMP nsPluginStreamListenerPeer::OnStopRequest(nsIRequest *request,
   return NS_OK;
 }
 
+// private methods for nsPluginStreamListenerPeer
+nsresult nsPluginStreamListenerPeer::SetUpCache(nsIURI* aURL)
+{
+  nsPluginCacheListener* cacheListener = new nsPluginCacheListener(this);
+  // XXX: Null LoadGroup?
+  return NS_OpenURI(cacheListener, nsnull, aURL, nsnull);
+}
+
 nsresult nsPluginStreamListenerPeer::SetUpStreamListener(nsIRequest *request,
                                                          nsIURI* aURL)
 {
@@ -2007,13 +2016,13 @@ nsresult nsPluginHost::GetURLWithHeaders(nsISupports* pluginInst,
       else if (0 == PL_strcmp(target, "_current"))
         target = "_self";
 
-      rv = owner->GetURL(url, target, nsnull, nsnull, 0);
+      rv = owner->GetURL(url, target, nsnull, 0, (void *) getHeaders, getHeadersLength);
     }
   }
 
   if (streamListener)
     rv = NewPluginURLStream(string, instance, streamListener, nsnull,
-                            getHeaders, getHeadersLength);
+                            PR_FALSE, nsnull, getHeaders, getHeadersLength);
 
   return rv;
 }
@@ -2050,44 +2059,22 @@ NS_IMETHODIMP nsPluginHost::PostURL(nsISupports* pluginInst,
   if (NS_FAILED(rv))
     return rv;
 
-  nsCOMPtr<nsIInputStream> postStream;
+  char *dataToPost;
   if (isFile) {
-    nsCOMPtr<nsIFile> file;
-    rv = CreateTempFileToPost(postData, getter_AddRefs(file));
-    if (NS_FAILED(rv))
-      return rv;
-
-    nsCOMPtr<nsIInputStream> fileStream;
-    rv = NS_NewLocalFileInputStream(getter_AddRefs(fileStream),
-                                    file,
-                                    PR_RDONLY,
-                                    0600,
-                                    nsIFileInputStream::DELETE_ON_CLOSE |
-                                    nsIFileInputStream::CLOSE_ON_EOF);
-    if (NS_FAILED(rv))
-      return rv;
-
-    rv = NS_NewBufferedInputStream(getter_AddRefs(postStream), fileStream, 8192);
-    if (NS_FAILED(rv))
+    rv = CreateTmpFileToPost(postData, &dataToPost);
+    if (NS_FAILED(rv) || !dataToPost)
       return rv;
   } else {
-    char *dataToPost;
     PRUint32 newDataToPostLen;
     ParsePostBufferToFixHeaders(postData, postDataLen, &dataToPost, &newDataToPostLen);
     if (!dataToPost)
       return NS_ERROR_UNEXPECTED;
 
-    nsCOMPtr<nsIStringInputStream> sis = do_CreateInstance("@mozilla.org/io/string-input-stream;1", &rv);
-    if (!sis) {
-      NS_Free(dataToPost);
-      return rv;
-    }
-
-    // data allocated by ParsePostBufferToFixHeaders() is managed and
-    // freed by the string stream.
+    // we use nsIStringInputStream::adoptDataa()
+    // in NS_NewPluginPostDataStream to set the stream
+    // all new data alloced in  ParsePostBufferToFixHeaders()
+    // well be nsMemory::Free()d on destroy the stream
     postDataLen = newDataToPostLen;
-    sis->AdoptData(dataToPost, postDataLen);
-    postStream = sis;
   }
 
   if (target) {
@@ -2104,8 +2091,8 @@ NS_IMETHODIMP nsPluginHost::PostURL(nsISupports* pluginInst,
           target = "_self";
         }
       }
-      rv = owner->GetURL(url, target, postStream,
-                         (void*)postHeaders, postHeadersLength);
+      rv = owner->GetURL(url, target, (void*)dataToPost, postDataLen,
+                         (void*)postHeaders, postHeadersLength, isFile);
     }
   }
 
@@ -2113,7 +2100,10 @@ NS_IMETHODIMP nsPluginHost::PostURL(nsISupports* pluginInst,
   // NS_OpenURI()!
   if (streamListener)
     rv = NewPluginURLStream(string, instance, streamListener,
-                            postStream, postHeaders, postHeadersLength);
+                            (const char*)dataToPost, isFile, postDataLen,
+                            postHeaders, postHeadersLength);
+  if (isFile)
+    NS_Free(dataToPost);
 
   return rv;
 }
@@ -4310,7 +4300,9 @@ nsPluginHost::EnsurePrivateDirServiceProvider()
 nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
                                           nsIPluginInstance *aInstance,
                                           nsIPluginStreamListener* aListener,
-                                          nsIInputStream *aPostStream,
+                                          const char *aPostData,
+                                          PRBool aIsFile,
+                                          PRUint32 aPostDataLen,
                                           const char *aHeadersData,
                                           PRUint32 aHeadersDataLen)
 {
@@ -4361,13 +4353,16 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
     return NS_ERROR_CONTENT_BLOCKED;
   }
 
-  nsRefPtr<nsPluginStreamListenerPeer> listenerPeer = new nsPluginStreamListenerPeer();
+  nsPluginStreamListenerPeer *listenerPeer = new nsPluginStreamListenerPeer;
   if (listenerPeer == NULL)
     return NS_ERROR_OUT_OF_MEMORY;
 
+  NS_ADDREF(listenerPeer);
   rv = listenerPeer->Initialize(url, aInstance, aListener);
-  if (NS_FAILED(rv))
+  if (NS_FAILED(rv)) {
+    NS_RELEASE(listenerPeer);
     return rv;
+  }
 
   nsCOMPtr<nsIInterfaceRequestor> callbacks;
   if (doc) {
@@ -4407,25 +4402,36 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
   // deal with headers and post data
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(channel));
   if (httpChannel) {
-    if (aPostStream) {
+    if (aPostData) {
+      nsCOMPtr<nsIInputStream> postDataStream;
+      rv = NS_NewPluginPostDataStream(getter_AddRefs(postDataStream), (const char*)aPostData,
+                                      aPostDataLen, aIsFile);
+
+      if (!postDataStream) {
+        NS_RELEASE(aInstance);
+        return NS_ERROR_UNEXPECTED;
+      }
+
       // XXX it's a bit of a hack to rewind the postdata stream
       // here but it has to be done in case the post data is
       // being reused multiple times.
       nsCOMPtr<nsISeekableStream>
-      postDataSeekable(do_QueryInterface(aPostStream));
+      postDataSeekable(do_QueryInterface(postDataStream));
       if (postDataSeekable)
         postDataSeekable->Seek(nsISeekableStream::NS_SEEK_SET, 0);
 
       nsCOMPtr<nsIUploadChannel> uploadChannel(do_QueryInterface(httpChannel));
       NS_ASSERTION(uploadChannel, "http must support nsIUploadChannel");
 
-      uploadChannel->SetUploadStream(aPostStream, EmptyCString(), -1);
+      uploadChannel->SetUploadStream(postDataStream, EmptyCString(), -1);
     }
 
     if (aHeadersData)
       rv = AddHeadersToChannel(aHeadersData, aHeadersDataLen, httpChannel);
   }
   rv = channel->AsyncOpen(listenerPeer, nsnull);
+
+  NS_RELEASE(listenerPeer);
   return rv;
 }
 
@@ -4913,19 +4919,20 @@ nsPluginHost::ParsePostBufferToFixHeaders(const char *inPostData, PRUint32 inPos
 }
 
 NS_IMETHODIMP
-nsPluginHost::CreateTempFileToPost(const char *aPostDataURL, nsIFile **aTmpFile)
+nsPluginHost::CreateTmpFileToPost(const char *postDataURL, char **pTmpFileName)
 {
+  *pTmpFileName = 0;
   nsresult rv;
   PRInt64 fileSize;
   nsCAutoString filename;
 
   // stat file == get size & convert file:///c:/ to c: if needed
   nsCOMPtr<nsIFile> inFile;
-  rv = NS_GetFileFromURLSpec(nsDependentCString(aPostDataURL),
+  rv = NS_GetFileFromURLSpec(nsDependentCString(postDataURL),
                              getter_AddRefs(inFile));
   if (NS_FAILED(rv)) {
     nsCOMPtr<nsILocalFile> localFile;
-    rv = NS_NewNativeLocalFile(nsDependentCString(aPostDataURL), PR_FALSE,
+    rv = NS_NewNativeLocalFile(nsDependentCString(postDataURL), PR_FALSE,
                                getter_AddRefs(localFile));
     if (NS_FAILED(rv)) return rv;
     inFile = localFile;
@@ -5007,8 +5014,11 @@ nsPluginHost::CreateTempFileToPost(const char *aPostDataURL, nsIFile **aTmpFile)
 
     inStream->Close();
     outStream->Close();
-    if (NS_SUCCEEDED(rv))
-      *aTmpFile = tempFile.forget().get();
+    if (NS_SUCCEEDED(rv)) {
+      nsCAutoString path;
+      if (NS_SUCCEEDED(tempFile->GetNativePath(path)))
+        *pTmpFileName = ToNewCString(path);
+    }
   }
   return rv;
 }
@@ -5226,7 +5236,7 @@ nsresult nsPluginStreamListenerPeer::ServeStreamAsFile(nsIRequest *request,
   mPStreamListener->OnStartBinding(mPluginStreamInfo);
   mPluginStreamInfo->SetStreamOffset(0);
 
-  // force the plugin to use stream as file
+  // force the plugin use stream as file
   mStreamType = NP_ASFILE;
 
   // then check it out if browser cache is not available

@@ -102,7 +102,7 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
         nsIContent* contentToResize =
           GetContentToResize(presShell, getter_AddRefs(window));
         if (contentToResize) {
-          nsIFrame* frameToResize = contentToResize->GetPrimaryFrame();
+          nsIFrame* frameToResize = presShell->GetPrimaryFrameFor(contentToResize);
           if (!frameToResize)
             break;
 
@@ -165,7 +165,7 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
       // check if the returned content really is a menupopup
       nsMenuPopupFrame* menuPopupFrame = nsnull;
       if (contentToResize) {
-        nsIFrame* frameToResize = contentToResize->GetPrimaryFrame();
+        nsIFrame* frameToResize = presShell->GetPrimaryFrameFor(contentToResize);
         if (frameToResize && frameToResize->GetType() == nsGkAtoms::menuPopupFrame) {
           menuPopupFrame = static_cast<nsMenuPopupFrame *>(frameToResize);
         }

@@ -86,32 +86,45 @@ public:
                          const nsAString& aAttrValue);
 
   /**
+   * Return values of group attributes ('level', 'setsize', 'posinset')
+   */
+  static void GetAccGroupAttrs(nsIPersistentProperties *aAttributes,
+                               PRInt32 *aLevel,
+                               PRInt32 *aPosInSet,
+                               PRInt32 *aSetSize);
+
+  /**
+   * Returns true if there are level, posinset and sizeset attributes.
+   */
+  static PRBool HasAccGroupAttrs(nsIPersistentProperties *aAttributes);
+
+  /**
    * Set group attributes ('level', 'setsize', 'posinset').
    */
   static void SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
-                               PRInt32 aLevel, PRInt32 aSetSize,
-                               PRInt32 aPosInSet);
+                               PRInt32 aLevel,
+                               PRInt32 aPosInSet,
+                               PRInt32 aSetSize);
 
   /**
-   * Compute position in group (posinset) and group size (setsize) for
-   * nsIDOMXULSelectControlItemElement node.
+   * Set group attributes - 'level', 'setsize', 'posinset'.
+   *
+   * @param aNode - XUL element that implements
+   *                nsIDOMXULSelectControlItemElement interface
+   * @param aAttributes - attributes container
    */
-  static void GetPositionAndSizeForXULSelectControlItem(nsIDOMNode *aNode,
-                                                        PRInt32 *aPosInSet,
-                                                        PRInt32 *aSetSize);
+  static void SetAccAttrsForXULSelectControlItem(nsIDOMNode *aNode,
+                                                 nsIPersistentProperties *aAttributes);
 
   /**
-   * Compute group position and group size (posinset and setsize) for
-   * nsIDOMXULContainerItemElement node.
+   * Set group attributes - 'level', 'setsize', 'posinset'.
+   *
+   * @param  aNode        XUL element that implements
+   *                      nsIDOMXULContainerItemElement interface
+   * @param  aAttributes  attributes container
    */
-  static void GetPositionAndSizeForXULContainerItem(nsIDOMNode *aNode,
-                                                    PRInt32 *aPosInSet,
-                                                    PRInt32 *aSetSize);
-
-  /**
-   * Compute group level for nsIDOMXULContainerItemElement node.
-   */
-  static PRInt32 GetLevelForXULContainerItem(nsIDOMNode *aNode);
+  static void SetAccAttrsForXULContainerItem(nsIDOMNode *aNode,
+                                             nsIPersistentProperties *aAttributes);
 
   /**
    * Set container-foo live region attributes for the given node.
@@ -333,15 +346,6 @@ public:
     if (aObject)
       CallQueryInterface(aObject, &object);
 
-    return object;
-  }
-  template<class DestinationType, class SourceType> static inline
-  already_AddRefed<DestinationType> QueryObject(nsRefPtr<SourceType>& aObject)
-  {
-    DestinationType* object = nsnull;
-    if (aObject)
-      CallQueryInterface(aObject.get(), &object);
-    
     return object;
   }
 

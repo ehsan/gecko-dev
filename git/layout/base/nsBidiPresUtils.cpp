@@ -513,17 +513,14 @@ nsBidiPresUtils::Resolve(nsBlockFrame*   aBlockFrame,
           }
           lineIter.GetLine()->MarkDirty();
           nsIFrame* nextBidi;
-          PRInt32 runEnd = contentOffset + runLength;
           EnsureBidiContinuation(frame, &nextBidi, frameIndex,
                                  contentOffset,
-                                 runEnd);
+                                 contentOffset + runLength);
           if (NS_FAILED(mSuccess)) {
             break;
           }
-          nextBidi->AdjustOffsetsForBidi(runEnd,
-                                         contentOffset + fragmentLength);
           frame = nextBidi;
-          contentOffset = runEnd;
+          contentOffset += runLength;
         } // if (runLength < fragmentLength)
         else {
           if (contentOffset + fragmentLength == contentTextLength) {

@@ -145,8 +145,7 @@ pluginDrawSolid(InstanceData* instanceData, GdkDrawable* gdkWindow,
 }
 
 static void
-pluginDrawWindow(InstanceData* instanceData, GdkDrawable* gdkWindow,
-                 const GdkRectangle& invalidRect)
+pluginDrawWindow(InstanceData* instanceData, GdkDrawable* gdkWindow)
 {
   NPWindow& window = instanceData->window;
   // When we have a widget, window.x/y are meaningless since our
@@ -156,12 +155,11 @@ pluginDrawWindow(InstanceData* instanceData, GdkDrawable* gdkWindow,
   int width = window.width;
   int height = window.height;
 
+  ++instanceData->paintCount;
+
   if (instanceData->scriptableObject->drawMode == DM_SOLID_COLOR) {
     // drawing a solid color for reftests
-    pluginDrawSolid(instanceData, gdkWindow,
-                    invalidRect.x, invalidRect.y,
-                    invalidRect.width, invalidRect.height);
-    notifyDidPaint(instanceData);
+    pluginDrawSolid(instanceData, gdkWindow, x, y, width, height);
     return;
   }
 
@@ -207,8 +205,6 @@ pluginDrawWindow(InstanceData* instanceData, GdkDrawable* gdkWindow,
   g_object_unref(pangoTextLayout);
 
   g_object_unref(gdkContext);
-
-  notifyDidPaint(instanceData);
 }
 
 static gboolean
@@ -216,7 +212,7 @@ ExposeWidget(GtkWidget* widget, GdkEventExpose* event,
              gpointer user_data)
 {
   InstanceData* instanceData = static_cast<InstanceData*>(user_data);
-  pluginDrawWindow(instanceData, event->window, event->area);
+  pluginDrawWindow(instanceData, event->window);
   return TRUE;
 }
 
@@ -312,13 +308,13 @@ pluginHandleEvent(InstanceData* instanceData, void* event)
 
   switch (nsEvent->type) {
   case GraphicsExpose: {
-    const XGraphicsExposeEvent& expose = nsEvent->xgraphicsexpose;
-    NPWindow& window = instanceData->window;
-    window.window = (void*)(expose.drawable);
+    XGraphicsExposeEvent* expose = &nsEvent->xgraphicsexpose;
+    instanceData->window.window = (void*)(expose->drawable);
 
-    GdkNativeWindow nativeWinId = reinterpret_cast<XID>(window.window);
+    GdkNativeWindow nativeWinId =
+      reinterpret_cast<XID>(instanceData->window.window);
 
-    GdkDisplay* gdkDisplay = gdk_x11_lookup_xdisplay(expose.display);
+    GdkDisplay* gdkDisplay = gdk_x11_lookup_xdisplay(expose->display);
     if (!gdkDisplay) {
       g_warning("Display not opened by GDK");
       return 0;
@@ -362,23 +358,7 @@ pluginHandleEvent(InstanceData* instanceData, void* event)
       g_object_unref(G_OBJECT(gdkColormap));
     }
 
-    const NPRect& clip = window.clipRect;
-    if (expose.x < clip.left || expose.y < clip.top ||
-        expose.x + expose.width > clip.right ||
-        expose.y + expose.height > clip.bottom) {
-      g_warning("expose rectangle not in clip rectangle");
-      return 0;
-    }
-    if (expose.x < window.x || expose.y < window.y ||
-        expose.x + expose.width > window.x + int32_t(window.width) ||
-        expose.y + expose.height > window.y + int32_t(window.height)) {
-      g_warning("expose rectangle not in plugin rectangle");
-      return 0;
-    }      
-
-    GdkRectangle invalidRect =
-      { expose.x, expose.y, expose.width, expose.height };
-    pluginDrawWindow(instanceData, gdkDrawable, invalidRect);
+    pluginDrawWindow(instanceData, gdkDrawable);
     g_object_unref(gdkDrawable);
     break;
   }

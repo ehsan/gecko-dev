@@ -48,7 +48,7 @@ name = 'DOM'
 # doesn't crash--it may in fact return a plausible wrong answer.
 
 members = [ 
-    # dom/interfaces/base
+    # dom/public/idl/base
     #
     # Note that many implementations of interfaces in this directory
     # use GetCurrentNativeCallContext, notably:
@@ -85,7 +85,7 @@ members = [
     #'nsIDOMLocation.hostname',
     #'nsIDOMLocation.href',
 
-    # dom/interfaces/canvas
+    # dom/public/idl/canvas
     #
     # nsIDOMCanvasRenderingContext2D
     # NOTE: attributes strokeStyle and fillStyle are nsIVariant
@@ -130,7 +130,7 @@ members = [
     'nsIDOMCanvasRenderingContext2D.isPointInPath',
     'nsIDOMTextMetrics.width',
 
-    # dom/interfaces/core
+    # dom/public/idl/core
     'nsIDOMCharacterData.data',
     'nsIDOMCharacterData.length',
     'nsIDOMDocument.documentElement',
@@ -202,7 +202,6 @@ members = [
     'nsIDOMDOMStringList.item',
     'nsIDOMDOMStringList.length',
     'nsIDOMDOMStringList.contains',
-    'nsIDOMDOMTokenList.*',
     'nsIDOMNameList.getName',
     'nsIDOMNameList.contains',
     'nsIDOMNameList.containsNS',
@@ -230,7 +229,7 @@ members = [
     'nsIDOMNSElement.clientTop',
     'nsIDOMNSElement.mozMatchesSelector',
 
-    # dom/interfaces/css
+    # dom/public/idl/css
     'nsIDOMElementCSSInlineStyle.style',
     'nsIDOMCSS2Properties.*',
     'nsIDOMNSCSS2Properties.*',
@@ -240,7 +239,7 @@ members = [
     'nsIDOMRect.bottom',
     'nsIDOMViewCSS.getComputedStyle',
 
-    # dom/interfaces/events
+    # dom/public/idl/events
     'nsIDOMEventTarget.dispatchEvent',
     'nsIDOMEventTarget.removeEventListener',
     # Conflicts with nsIDOMNSEventTarget.addEventListener;
@@ -271,9 +270,9 @@ members = [
     'nsIDOMNSUIEvent.pageY',
     'nsIDOMNSUIEvent.isChar',
 
-    # dom/interfaces/geolocation - None.
+    # dom/public/idl/geolocation - None.
 
-    # dom/interfaces/html
+    # dom/public/idl/html
     'nsIDOMHTMLAnchorElement.href',
     'nsIDOMHTMLAnchorElement.rel',
     'nsIDOMHTMLAnchorElement.target',
@@ -421,21 +420,17 @@ members = [
     'nsIDOMNSHTMLTextAreaElement.selectionEnd',
     'nsIDOMNSHTMLTextAreaElement.textLength',
 
-    # dom/interfaces/json - None.
+    # dom/public/idl/json - None.
     # All 4 methods of nsIJSON call GetCurrentNativeCallContext.
 
-    # dom/interfaces/load-save - None.
+    # dom/public/idl/offline - None.
 
-    # dom/interfaces/offline - None.
-
-    # dom/interfaces/range
+    # dom/public/idl/range
     'nsIDOMRange.collapsed',
 
-    # dom/interfaces/sidebar - None.
+    # dom/public/idl/sidebar - None.
 
-    # dom/interfaces/smil - None.
-
-    # dom/interfaces/storage
+    # dom/public/idl/storage
     'nsIDOMToString.toString',
     'nsIDOMStorage.setItem',
     'nsIDOMStorage.length',
@@ -444,24 +439,21 @@ members = [
     'nsIDOMStorage.removeItem',
     'nsIDOMStorage.clear',
     'nsIDOMStorageItem.value',
-    'nsIDOMStorageWindow.*',
+    'nsIDOMStorageWindow.sessionStorage',
+    'nsIDOMStorageWindow.globalStorage',
 
-    # dom/interfaces/stylesheets - None.
+    # dom/public/idl/stylesheets - None.
 
-    # dom/interfaces/svg - None.
-
-    # dom/interfaces/threads - None.
-
-    # dom/interfaces/traversal
+    # dom/public/idl/traversal
     'nsIDOMDocumentTraversal.createNodeIterator',
     'nsIDOMNodeIterator.nextNode',
 
-    # dom/interfaces/views
+    # dom/public/idl/views
     'nsIDOMDocumentView.defaultView',
     
-    # dom/interfaces/xbl - None.
+    # dom/public/idl/xbl - None.
 
-    # dom/interfaces/xpath
+    # dom/public/idl/xpath
     'nsIDOMXPathEvaluator.evaluate',
     'nsIDOMXPathEvaluator.createExpression',
     'nsIDOMXPathEvaluator.createNSResolver',
@@ -477,7 +469,7 @@ members = [
     'nsIDOMXPathResult.singleNodeValue',
     'nsIDOMNSXPathExpression.evaluateWithContext',
 
-    # dom/interfaces/xul - None.
+    # dom/public/idl/xul - None.
     ]
 
 # Most interfaces can be found by searching the includePath; to find

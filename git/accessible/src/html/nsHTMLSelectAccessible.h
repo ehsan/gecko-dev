@@ -162,10 +162,7 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-
-  virtual PRInt32 GetLevelInternal();
-  virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
-                                          PRInt32 *aSetSize);
+  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
   nsIFrame*  GetBoundsFrame();
   static nsresult GetFocusedOptionNode(nsIDOMNode *aListNode, nsIDOMNode **aFocusedOptionNode);
@@ -271,7 +268,7 @@ public:
   // nsAccessible
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual void GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame);
-  virtual nsAccessible* GetParent();
+  virtual nsIAccessible* GetParent();
 };
 
 #endif

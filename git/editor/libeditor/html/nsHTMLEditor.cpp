@@ -5521,7 +5521,7 @@ nsHTMLEditor::GetElementOrigin(nsIDOMElement * aElement, PRInt32 & aX, PRInt32 &
   if (!ps) return NS_ERROR_NOT_INITIALIZED;
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-  nsIFrame *frame = content->GetPrimaryFrame();
+  nsIFrame *frame = ps->GetPrimaryFrameFor(content);
 
   nsIFrame *container = ps->GetAbsoluteContainingBlock(frame);
   if (!frame) return NS_OK;

@@ -71,6 +71,7 @@
 #include "nsIFrame.h"
 #include "nsIFrameFrame.h"
 #include "nsDOMError.h"
+#include "nsPresShellIterator.h"
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsISHistory.h"
@@ -721,6 +722,12 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   NS_ASSERTION(ourDoc == ourParentDocument, "Unexpected parent document");
   NS_ASSERTION(otherDoc == otherParentDocument, "Unexpected parent document");
 
+  nsPresShellIterator iter1(ourDoc);
+  nsPresShellIterator iter2(otherDoc);
+  if (iter1.HasMoreThanOneShell() || iter2.HasMoreThanOneShell()) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
   nsIPresShell* ourShell = ourDoc->GetPrimaryShell();
   nsIPresShell* otherShell = otherDoc->GetPrimaryShell();
   if (!ourShell || !otherShell) {
@@ -740,8 +747,8 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   FirePageHideEvent(ourTreeItem, ourChromeEventHandler);
   FirePageHideEvent(otherTreeItem, otherChromeEventHandler);
   
-  nsIFrame* ourFrame = ourContent->GetPrimaryFrame();
-  nsIFrame* otherFrame = otherContent->GetPrimaryFrame();
+  nsIFrame* ourFrame = ourShell->GetPrimaryFrameFor(ourContent);
+  nsIFrame* otherFrame = otherShell->GetPrimaryFrameFor(otherContent);
   if (!ourFrame || !otherFrame) {
     mInSwap = aOther->mInSwap = PR_FALSE;
     FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_TRUE);
@@ -819,8 +826,8 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   }
 
   // We shouldn't have changed frames, but be really careful about it
-  if (ourFrame == ourContent->GetPrimaryFrame() &&
-      otherFrame == otherContent->GetPrimaryFrame()) {
+  if (ourFrame == ourShell->GetPrimaryFrameFor(ourContent) &&
+      otherFrame == otherShell->GetPrimaryFrameFor(otherContent)) {
     ourFrameFrame->EndSwapDocShells(otherFrame);
   }
 

@@ -90,7 +90,7 @@ class nsIContentSink;
 class nsIScriptEventManager;
 class nsICSSLoader;
 class nsHTMLStyleSheet;
-class nsHTMLCSSStyleSheet;
+class nsIHTMLCSSStyleSheet;
 class nsILayoutHistoryState;
 class nsIVariant;
 class nsIDOMUserDataHandler;
@@ -105,8 +105,8 @@ class nsIBoxObject;
 
 // IID for the nsIDocument interface
 #define NS_IDOCUMENT_IID      \
-{ 0x1539ada4, 0x753f, 0x48a9, \
-  { 0x83, 0x11, 0x71, 0xb9, 0xbd, 0xa6, 0x41, 0xc6 } }
+{ 0xd16d73c1, 0xe0f7, 0x415c, \
+ { 0xbd, 0x68, 0x9c, 0x1f, 0x93, 0xb8, 0x73, 0x7a } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -409,15 +409,10 @@ public:
                                nsIViewManager* aViewManager,
                                nsStyleSet* aStyleSet,
                                nsIPresShell** aInstancePtrResult) = 0;
-  void DeleteShell() { mPresShell = nsnull; }
-
-  nsIPresShell* GetPrimaryShell() const
-  {
-    return mShellIsHidden ? nsnull : mPresShell;
-  }
-
-  void SetShellHidden(PRBool aHide) { mShellIsHidden = aHide; }
-  PRBool ShellIsHidden() const { return mShellIsHidden; }
+  virtual PRBool DeleteShell(nsIPresShell* aShell) = 0;
+  virtual nsIPresShell *GetPrimaryShell() const = 0;
+  void SetShellsHidden(PRBool aHide) { mShellsAreHidden = aHide; }
+  PRBool ShellsAreHidden() const { return mShellsAreHidden; }
 
   /**
    * Return the parent document of this document. Will return null
@@ -564,8 +559,8 @@ public:
    * Get this document's inline style sheet.  May return null if there
    * isn't one
    */
-  virtual nsHTMLCSSStyleSheet* GetInlineStyleSheet() const = 0;
-
+  virtual nsIHTMLCSSStyleSheet* GetInlineStyleSheet() const = 0;
+  
   /**
    * Get/set the object from which a document can get a script context
    * and scope. This is the context within which all scripts (during
@@ -1252,6 +1247,7 @@ protected:
   virtual void WillDispatchMutationEvent(nsINode* aTarget) = 0;
   virtual void MutationEventDispatched(nsINode* aTarget) = 0;
   friend class mozAutoSubtreeModified;
+  friend class nsPresShellIterator;
 
   nsCOMPtr<nsIURI> mDocumentURI;
   nsCOMPtr<nsIURI> mDocumentBaseURI;
@@ -1300,7 +1296,7 @@ protected:
   // document in it.
   PRPackedBool mIsInitialDocumentInWindow;
 
-  PRPackedBool mShellIsHidden;
+  PRPackedBool mShellsAreHidden;
 
   PRPackedBool mIsRegularHTML;
 
@@ -1359,7 +1355,7 @@ protected:
   // won't be collected
   PRUint32 mMarkedCCGeneration;
 
-  nsIPresShell* mPresShell;
+  nsTObserverArray<nsIPresShell*> mPresShells;
 
   nsCOMArray<nsINode> mSubtreeModifiedTargets;
   PRUint32            mSubtreeModifiedDepth;
