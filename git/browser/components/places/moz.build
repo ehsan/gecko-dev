@@ -5,8 +5,3 @@
 
 DIRS += ['src']
 TEST_DIRS += ['tests']
-
-XPIDL_FLAGS += [
-    '-I$(topsrcdir)/browser/components/',
-]
-

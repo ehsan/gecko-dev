@@ -32,8 +32,7 @@ FrozenImage::DecrementAnimationConsumers()
 NS_IMETHODIMP
 FrozenImage::GetAnimated(bool* aAnimated)
 {
-  bool dummy;
-  nsresult rv = InnerImage()->GetAnimated(&dummy);
+  nsresult rv = InnerImage()->GetAnimated(aAnimated);
   if (NS_SUCCEEDED(rv)) {
     *aAnimated = false;
   }

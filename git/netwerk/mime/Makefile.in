@@ -21,6 +21,12 @@ EXPORTS = \
   nsMimeTypes.h \
   $(NULL)
 
+XPIDLSRCS = \
+  nsIMIMEHeaderParam.idl \
+  nsIMIMEInfo.idl \
+  nsIMIMEService.idl \
+  $(NULL)
+
 CPPSRCS = \
   nsMIMEHeaderParamImpl.cpp \
   $(NULL)
@@ -29,3 +35,4 @@ include $(topsrcdir)/config/rules.mk
 
 DEFINES += -DIMPL_NS_NET
 
+XPIDL_FLAGS += -I$(topsrcdir)/netwerk/base/public

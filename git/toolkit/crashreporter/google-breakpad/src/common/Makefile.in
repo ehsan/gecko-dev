@@ -12,9 +12,7 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= breakpad_common
 LIBRARY_NAME	= breakpad_common_s
 ifneq (WINNT,$(OS_TARGET))
-ifdef MOZ_CRASHREPORTER
 HOST_LIBRARY_NAME = host_breakpad_common_s
-endif
 endif
 
 LOCAL_INCLUDES 	= -I$(srcdir)/..
@@ -36,7 +34,6 @@ CPPSRCS += \
   dwarf/dwarf2diehandler.cc \
   dwarf_line_to_module.cc \
   $(NULL)
-ifdef MOZ_CRASHREPORTER
 HOST_CPPSRCS = \
   string_conversion.cc \
   module.cc \
@@ -49,7 +46,6 @@ HOST_CPPSRCS = \
   stabs_reader.cc \
   dwarf_line_to_module.cc \
   $(NULL)
-endif
 endif
 
 ifeq ($(OS_ARCH),Linux)
@@ -103,9 +99,7 @@ OS_CXXFLAGS += -DHAVE_MACH_O_NLIST_H
 endif
 
 ifneq (WINNT,$(OS_TARGET))
-ifdef MOZ_CRASHREPORTER
 HOST_CSRCS = $(CSRCS)
-endif
 endif
 
 # need static lib

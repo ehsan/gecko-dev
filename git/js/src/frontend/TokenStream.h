@@ -767,7 +767,7 @@ class TokenStream
     bool matchUnicodeEscapeIdStart(int32_t *c);
     bool matchUnicodeEscapeIdent(int32_t *c);
     bool peekChars(int n, jschar *cp);
-    bool getAtSourceMappingURL(bool isMultiline);
+    bool getAtSourceMappingURL();
 
     bool matchChar(int32_t expect) {
         int32_t c = getChar();

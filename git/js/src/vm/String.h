@@ -11,6 +11,8 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/GuardObjects.h"
 
+#include "js/CharacterEncoding.h"
+
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jsfriendapi.h"
@@ -18,8 +20,7 @@
 
 #include "gc/Barrier.h"
 #include "gc/Heap.h"
-#include "js/CharacterEncoding.h"
-#include "js/RootingAPI.h"
+#include "gc/Root.h"
 
 ForwardDeclareJS(String);
 class JSDependentString;

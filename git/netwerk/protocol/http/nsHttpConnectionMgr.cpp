@@ -542,7 +542,7 @@ nsHttpConnectionMgr::ReportSpdyConnection(nsHttpConnection *conn,
         conn->DontReuse();
     }
 
-    PostEvent(&nsHttpConnectionMgr::OnMsgProcessAllSpdyPendingQ);
+    ProcessAllSpdyPendingQ();
 }
 
 void
@@ -1953,10 +1953,8 @@ nsHttpConnectionMgr::ProcessSpdyPendingQCB(const nsACString &key,
 }
 
 void
-nsHttpConnectionMgr::OnMsgProcessAllSpdyPendingQ(int32_t, void *)
+nsHttpConnectionMgr::ProcessAllSpdyPendingQ()
 {
-    NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
-    LOG(("nsHttpConnectionMgr::OnMsgProcessAllSpdyPendingQ\n"));
     mCT.Enumerate(ProcessSpdyPendingQCB, this);
 }
 

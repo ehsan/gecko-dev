@@ -45,7 +45,7 @@ class nsCParserNode :  public nsIParserNode {
       ++mRefCnt;
     }
 
-    void Release(nsDummyAllocator& aPool)
+    void Release(nsFixedSizeAllocator& aPool)
     {
       if (--mRefCnt == 0)
         Destroy(this, aPool);
@@ -74,7 +74,7 @@ class nsCParserNode :  public nsIParserNode {
 #ifdef HEAP_ALLOCATED_NODES
       return new
 #else
-      nsDummyAllocator& pool = aNodeAllocator->GetArenaPool();
+      nsFixedSizeAllocator& pool = aNodeAllocator->GetArenaPool();
       void* place = pool.Alloc(sizeof(nsCParserNode));
       NS_ENSURE_TRUE(place, nullptr);
       return ::new (place)
@@ -82,13 +82,13 @@ class nsCParserNode :  public nsIParserNode {
         nsCParserNode(aToken, aTokenAllocator, aNodeAllocator);
     }
 
-    static void Destroy(nsCParserNode* aNode, nsDummyAllocator& aPool)
+    static void Destroy(nsCParserNode* aNode, nsFixedSizeAllocator& aPool)
     {
 #ifdef HEAP_ALLOCATED_NODES
       delete aNode;
 #else
       aNode->~nsCParserNode();
-      aPool.Free(aNode);
+      aPool.Free(aNode, sizeof(*aNode));
 #endif
     }
 
@@ -251,7 +251,7 @@ public:
 #ifdef HEAP_ALLOCATED_NODES
       return new
 #else
-      nsDummyAllocator& pool = aNodeAllocator->GetArenaPool();
+      nsFixedSizeAllocator& pool = aNodeAllocator->GetArenaPool();
       void* place = pool.Alloc(sizeof(nsCParserStartNode));
       NS_ENSURE_TRUE(place, nullptr);
       return ::new (place)

@@ -13,9 +13,8 @@
 #include "nsIRunnable.h"
 
 #include "nsDOMEvent.h"
-#include "mozilla/dom/Nullable.h"
+
 #include "mozilla/dom/indexedDB/IDBObjectStore.h"
-#include "mozilla/dom/IDBVersionChangeEventBinding.h"
 
 #define SUCCESS_EVT_STR "success"
 #define ERROR_EVT_STR "error"
@@ -50,23 +49,6 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_TO_NSDOMEVENT
   NS_DECL_NSIIDBVERSIONCHANGEEVENT
-
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
-  {
-    return mozilla::dom::IDBVersionChangeEventBinding::Wrap(aCx, aScope, this);
-  }
-
-  uint64_t OldVersion()
-  {
-    return mOldVersion;
-  }
-
-  mozilla::dom::Nullable<uint64_t> GetNewVersion()
-  {
-    return mNewVersion
-      ? mozilla::dom::Nullable<uint64_t>(mNewVersion)
-      : mozilla::dom::Nullable<uint64_t>();
-  }
 
   inline static already_AddRefed<nsDOMEvent>
   Create(mozilla::dom::EventTarget* aOwner,
@@ -119,10 +101,7 @@ public:
 
 protected:
   IDBVersionChangeEvent(mozilla::dom::EventTarget* aOwner)
-  : nsDOMEvent(aOwner, nullptr, nullptr)
-  {
-    SetIsDOMBinding();
-  }
+  : nsDOMEvent(aOwner, nullptr, nullptr) { }
   virtual ~IDBVersionChangeEvent() { }
 
   static already_AddRefed<nsDOMEvent>

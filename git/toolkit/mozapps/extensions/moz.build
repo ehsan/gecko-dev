@@ -4,10 +4,3 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 TEST_DIRS += ['test']
-
-XPIDL_SOURCES += [
-    'amIInstallTrigger.idl',
-    'amIWebInstallListener.idl',
-    'amIWebInstaller.idl',
-]
-

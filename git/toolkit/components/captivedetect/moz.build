@@ -5,7 +5,3 @@
 
 TEST_DIRS += ['test']
 
-XPIDL_SOURCES += [
-    'nsICaptivePortalDetector.idl',
-]
-
