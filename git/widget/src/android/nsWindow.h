@@ -176,13 +176,12 @@ public:
     static bool sAccessibilityEnabled;
 #endif
 
-    bool DrawToFile(const nsAString &path);
-
 protected:
     void BringToFront();
     nsWindow *FindTopLevel();
     bool DrawTo(gfxASurface *targetSurface);
     bool DrawTo(gfxASurface *targetSurface, const nsIntRect &aRect);
+    bool DrawToFile(const nsAString &path);
     bool IsTopLevel();
     void OnIMEAddRange(mozilla::AndroidGeckoEvent *ae);
 

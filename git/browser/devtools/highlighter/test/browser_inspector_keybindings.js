@@ -44,7 +44,7 @@ function test()
     Services.obs.removeObserver(lockNode,
       InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING);
 
-    EventUtils.synthesizeKey("VK_RETURN", { });
+    EventUtils.synthesizeKey("VK_ESCAPE", { });
 
     executeSoon(isTheNodeLocked);
   }
@@ -57,7 +57,7 @@ function test()
   }
 
   function unlockNode() {
-    EventUtils.synthesizeKey("VK_RETURN", { });
+    EventUtils.synthesizeKey("VK_ESCAPE", { });
 
     executeSoon(isTheNodeUnlocked);
   }
@@ -66,12 +66,9 @@ function test()
   {
     ok(InspectorUI.inspecting, "the node is unlocked");
 
-    // Let's close the inspector
     Services.obs.addObserver(finishUp,
       InspectorUI.INSPECTOR_NOTIFICATIONS.CLOSED, false);
-
-    EventUtils.synthesizeKey("VK_ESCAPE", {});
-    ok(true, "Inspector is closing successfuly");
+    InspectorUI.closeInspectorUI();
   }
 
   function finishUp() {
