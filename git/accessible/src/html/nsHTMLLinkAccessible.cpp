@@ -60,17 +60,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLLinkAccessible, nsHyperTextAccessibleWrap,
 nsresult
 nsHTMLLinkAccessible::GetNameInternal(nsAString& aName)
 {
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  nsresult rv = AppendFlatStringFromSubtree(content, &aName);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aName.IsEmpty()) {
-    // Probably an image without alt or title inside, try to get the name on
-    // the link by usual way.
-    return GetHTMLName(aName, PR_FALSE);
-  }
-
-  return NS_OK;
+  return GetHTMLName(aName, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -87,9 +77,7 @@ nsHTMLLinkAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
                                                             aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode)
-    return NS_OK;
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   *aState  &= ~nsIAccessibleStates::STATE_READONLY;
 
