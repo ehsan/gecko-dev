@@ -65,7 +65,7 @@ PropDesc::checkSetter(JSContext *cx)
 }
 
 static bool
-CheckArgCompartment(JSContext *cx, JSObject *obj, HandleValue v,
+CheckArgCompartment(JSContext *cx, JSObject *obj, const Value &v,
                     const char *methodname, const char *propname)
 {
     if (v.isObject() && v.toObject().compartment() != obj->compartment()) {
@@ -89,33 +89,27 @@ PropDesc::unwrapDebuggerObjectsInto(JSContext *cx, Debugger *dbg, JSObject *obj,
     *unwrapped = *this;
 
     if (unwrapped->hasValue()) {
-        RootedValue value(cx, unwrapped->value_);
-        if (!dbg->unwrapDebuggeeValue(cx, &value) ||
-            !CheckArgCompartment(cx, obj, value, "defineProperty", "value"))
+        if (!dbg->unwrapDebuggeeValue(cx, &unwrapped->value_) ||
+            !CheckArgCompartment(cx, obj, unwrapped->value_, "defineProperty", "value"))
         {
             return false;
         }
-        unwrapped->value_ = value;
     }
 
     if (unwrapped->hasGet()) {
-        RootedValue get(cx, unwrapped->get_);
-        if (!dbg->unwrapDebuggeeValue(cx, &get) ||
-            !CheckArgCompartment(cx, obj, get, "defineProperty", "get"))
+        if (!dbg->unwrapDebuggeeValue(cx, &unwrapped->get_) ||
+            !CheckArgCompartment(cx, obj, unwrapped->get_, "defineProperty", "get"))
         {
             return false;
         }
-        unwrapped->get_ = get;
     }
 
     if (unwrapped->hasSet()) {
-        RootedValue set(cx, unwrapped->set_);
-        if (!dbg->unwrapDebuggeeValue(cx, &set) ||
-            !CheckArgCompartment(cx, obj, set, "defineProperty", "set"))
+        if (!dbg->unwrapDebuggeeValue(cx, &unwrapped->set_) ||
+            !CheckArgCompartment(cx, obj, unwrapped->set_, "defineProperty", "set"))
         {
             return false;
         }
-        unwrapped->set_ = set;
     }
 
     return true;

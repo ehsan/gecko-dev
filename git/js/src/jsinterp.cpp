@@ -1629,7 +1629,7 @@ END_CASE(JSOP_AND)
 #define FETCH_ELEMENT_ID(obj, n, id)                                          \
     JS_BEGIN_MACRO                                                            \
         const Value &idval_ = regs.sp[n];                                     \
-        if (!ValueToId(cx, obj, idval_, &id))                                 \
+        if (!ValueToId(cx, obj, idval_, id.address()))                        \
             goto error;                                                       \
     JS_END_MACRO
 
@@ -3926,7 +3926,7 @@ js::SetObjectElement(JSContext *cx, HandleObject obj, HandleValue index, HandleV
 {
     RootedId id(cx);
     RootedValue indexval(cx, index);
-    if (!FetchElementId(cx, obj, indexval, &id, &indexval))
+    if (!FetchElementId(cx, obj, indexval, id.address(), &indexval))
         return false;
     return SetObjectElementOperation(cx, obj, id, value, strict);
 }

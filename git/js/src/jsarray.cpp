@@ -263,7 +263,7 @@ JSObject::arrayGetOwnDataElement(JSContext *cx, size_t i, Value *vp)
         return true;
     }
 
-    RootedId id(cx);
+    jsid id;
     if (!IndexToId(cx, i, &id))
         return false;
 
@@ -276,7 +276,7 @@ JSObject::arrayGetOwnDataElement(JSContext *cx, size_t i, Value *vp)
 }
 
 bool
-DoubleIndexToId(JSContext *cx, double index, MutableHandleId id)
+DoubleIndexToId(JSContext *cx, double index, jsid *id)
 {
     if (index == uint32_t(index))
         return IndexToId(cx, uint32_t(index), id);
@@ -295,7 +295,7 @@ DoGetElement(JSContext *cx, HandleObject obj, double index, JSBool *hole, Mutabl
 {
     RootedId id(cx);
 
-    if (!DoubleIndexToId(cx, index, &id))
+    if (!DoubleIndexToId(cx, index, id.address()))
         return false;
 
     RootedObject obj2(cx);
@@ -432,7 +432,7 @@ SetArrayElement(JSContext *cx, HandleObject obj, double index, HandleValue v)
     }
 
     RootedId id(cx);
-    if (!DoubleIndexToId(cx, index, &id))
+    if (!DoubleIndexToId(cx, index, id.address()))
         return false;
 
     RootedValue tmp(cx, v);
@@ -791,7 +791,7 @@ array_getGeneric(JSContext *cx, HandleObject obj, HandleObject receiver, HandleI
         return array_getElement(cx, obj, receiver, index, vp);
 
     Rooted<SpecialId> sid(cx);
-    if (ValueIsSpecial(obj, &idval, &sid, cx))
+    if (ValueIsSpecial(obj, &idval, sid.address(), cx))
         return array_getSpecial(cx, obj, receiver, sid, vp);
 
     JSAtom *atom = ToAtom(cx, idval);
@@ -868,7 +868,7 @@ array_setElement(JSContext *cx, HandleObject obj, uint32_t index,
                  MutableHandleValue vp, JSBool strict)
 {
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
 
     if (!obj->isDenseArray())
@@ -1342,7 +1342,7 @@ JSObject::makeDenseArraySlow(JSContext *cx, HandleObject obj)
     uint32_t next = 0;
     for (uint32_t i = 0; i < arrayInitialized; i++) {
         /* Dense array indexes can always fit in a jsid. */
-        RootedId id(cx);
+        jsid id;
         JS_ALWAYS_TRUE(ValueToId(cx, Int32Value(i), &id));
 
         if (elems[i].isMagic(JS_ARRAY_HOLE))
@@ -1719,7 +1719,7 @@ InitArrayElements(JSContext *cx, HandleObject obj, uint32_t start, uint32_t coun
     Value idval = DoubleValue(MAX_ARRAY_INDEX + 1);
     do {
         value = *vector++;
-        if (!ValueToId(cx, idval, &id) ||
+        if (!ValueToId(cx, idval, id.address()) ||
             !JSObject::setGeneric(cx, obj, obj, id, &value, true)) {
             return false;
         }
@@ -2258,7 +2258,7 @@ NewbornArrayPushImpl(JSContext *cx, HandleObject obj, const Value &v)
         /* This can happen in one evil case. See bug 630377. */
         RootedId id(cx);
         RootedValue nv(cx, v);
-        return IndexToId(cx, length, &id) &&
+        return IndexToId(cx, length, id.address()) &&
                baseops::DefineGeneric(cx, obj, id, nv, NULL, NULL, JSPROP_ENUMERATE);
     }
 

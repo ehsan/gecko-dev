@@ -227,9 +227,9 @@ nsIContent::GetEditingHost()
   }
 
   nsIContent* content = this;
-  for (dom::Element* parent = GetParentElement();
+  for (dom::Element* parent = GetElementParent();
        parent && parent->HasFlag(NODE_IS_EDITABLE);
-       parent = content->GetParentElement()) {
+       parent = content->GetElementParent()) {
     content = parent;
   }
   return content->AsElement();
