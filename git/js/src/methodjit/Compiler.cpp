@@ -1045,7 +1045,15 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_SETNAME)
           BEGIN_CASE(JSOP_SETMETHOD)
-            jsop_setprop(script->getAtom(fullAtomIndex(PC)));
+          {
+            JSAtom *atom = script->getAtom(fullAtomIndex(PC));
+            prepareStubCall();
+            masm.move(ImmPtr(atom), Registers::ArgReg1);
+            stubCall(stubs::SetName, Uses(2), Defs(1));
+            JS_STATIC_ASSERT(JSOP_SETNAME_LENGTH == JSOP_SETPROP_LENGTH);
+            frame.popn(2);
+            frame.pushSynced();
+          }
           END_CASE(JSOP_SETNAME)
 
           BEGIN_CASE(JSOP_THROW)
