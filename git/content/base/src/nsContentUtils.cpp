@@ -200,12 +200,9 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #endif
 #include "nsDOMTouchEvent.h"
 #include "nsIScriptElement.h"
-#include "nsIContentViewer.h"
-
 #include "prdtoa.h"
 
 #include "mozilla/Preferences.h"
-
 #include "nsWrapperCacheInlines.h"
 
 using namespace mozilla::dom;

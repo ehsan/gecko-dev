@@ -152,6 +152,9 @@ nsHTMLSelectElement::nsHTMLSelectElement(already_AddRefed<nsINodeInfo> aNodeInfo
     mOptGroupCount(0),
     mSelectedIndex(-1)
 {
+  // FIXME: Bug 328908, set mOptions in an Init function and get rid of null
+  // checks.
+
   // DoneAddingChildren() will be called later if it's from the parser,
   // otherwise it is
 
@@ -163,7 +166,9 @@ nsHTMLSelectElement::nsHTMLSelectElement(already_AddRefed<nsINodeInfo> aNodeInfo
 
 nsHTMLSelectElement::~nsHTMLSelectElement()
 {
-  mOptions->DropReference();
+  if (mOptions) {
+    mOptions->DropReference();
+  }
 }
 
 // ISupports
