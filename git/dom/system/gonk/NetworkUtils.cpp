@@ -20,11 +20,6 @@
 #include <limits>
 #include "mozilla/dom/network/NetUtils.h"
 
-#include <sys/types.h>  // struct addrinfo
-#include <sys/socket.h> // getaddrinfo(), freeaddrinfo()
-#include <netdb.h>
-#include <arpa/inet.h>  // inet_ntop()
-
 #define _DEBUG 0
 
 #define WARN(args...)   __android_log_print(ANDROID_LOG_WARN,  "NetworkUtils", ## args)
@@ -228,24 +223,6 @@ static uint32_t makeMask(const uint32_t prefixLength)
 }
 
 /**
- * Helper function to get the network part of an ip from prefix.
- * param ip must be in network byte order.
- */
-static char* getNetworkAddr(const uint32_t ip, const uint32_t prefix)
-{
-  uint32_t mask = 0, subnet = 0;
-
-  mask = ~mask << (32 - prefix);
-  mask = htonl(mask);
-  subnet = ip & mask;
-
-  struct in_addr addr;
-  addr.s_addr = subnet;
-
-  return inet_ntoa(addr);
-}
-
-/**
  * Helper function to split string by seperator, store split result as an nsTArray.
  */
 static void split(char* str, const char* sep, nsTArray<nsCString>& result)
@@ -306,23 +283,6 @@ static void getIFProperties(const char* ifname, IFProperties& prop)
   property_get(key, prop.dns1, "");
   snprintf(key, PROPERTY_KEY_MAX - 1, "net.%s.dns2", ifname);
   property_get(key, prop.dns2, "");
-}
-
-static int getIpType(const char *aIp) {
-  struct addrinfo hint, *ip_info = NULL;
-
-  memset(&hint, 0, sizeof(hint));
-  hint.ai_family = AF_UNSPEC;
-  hint.ai_flags = AI_NUMERICHOST;
-
-  if (getaddrinfo(aIp, NULL, &hint, &ip_info)) {
-    return AF_UNSPEC;
-  }
-
-  int type = ip_info->ai_family;
-  freeaddrinfo(ip_info);
-
-  return type;
 }
 
 static void postMessage(NetworkResultOptions& aResult)
@@ -781,20 +741,7 @@ void NetworkUtils::enableNat(CommandChain* aChain,
                              NetworkResultOptions& aResult)
 {
   char command[MAX_COMMAND_SIZE];
-
-  if (!GET_FIELD(mIp).IsEmpty() && !GET_FIELD(mPrefix).IsEmpty()) {
-    uint32_t prefix = atoi(GET_CHAR(mPrefix));
-    uint32_t ip = inet_addr(GET_CHAR(mIp));
-    char* networkAddr = getNetworkAddr(ip, prefix);
-
-    // address/prefix will only take effect when secondary routing table exists.
-    snprintf(command, MAX_COMMAND_SIZE - 1, "nat enable %s %s 1 %s/%s",
-      GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname), networkAddr,
-      GET_CHAR(mPrefix));
-  } else {
-    snprintf(command, MAX_COMMAND_SIZE - 1, "nat enable %s %s 0",
-      GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname));
-  }
+  snprintf(command, MAX_COMMAND_SIZE - 1, "nat enable %s %s 0", GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname));
 
   doCommand(command, aChain, aCallback);
 }
@@ -804,19 +751,7 @@ void NetworkUtils::disableNat(CommandChain* aChain,
                               NetworkResultOptions& aResult)
 {
   char command[MAX_COMMAND_SIZE];
-
-  if (!GET_FIELD(mIp).IsEmpty() && !GET_FIELD(mPrefix).IsEmpty()) {
-    uint32_t prefix = atoi(GET_CHAR(mPrefix));
-    uint32_t ip = inet_addr(GET_CHAR(mIp));
-    char* networkAddr = getNetworkAddr(ip, prefix);
-
-    snprintf(command, MAX_COMMAND_SIZE - 1, "nat disable %s %s 1 %s/%s",
-      GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname), networkAddr,
-      GET_CHAR(mPrefix));
-  } else {
-    snprintf(command, MAX_COMMAND_SIZE - 1, "nat disable %s %s 0",
-      GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname));
-  }
+  snprintf(command, MAX_COMMAND_SIZE - 1, "nat disable %s %s 0", GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname));
 
   doCommand(command, aChain, aCallback);
 }
@@ -1175,40 +1110,18 @@ bool NetworkUtils::setDNS(NetworkParams& aOptions)
  */
 bool NetworkUtils::setDefaultRouteAndDNS(NetworkParams& aOptions)
 {
-  NS_ConvertUTF16toUTF8 autoIfname(aOptions.mIfname);
-  char gateway[128];
-
-  if (aOptions.mGateway_str.IsEmpty()) {
-    char key[PROPERTY_KEY_MAX];
-    snprintf(key, sizeof key - 1, "net.%s.gw", autoIfname.get());
-    property_get(key, gateway, "");
-  } else {
-    MOZ_ASSERT(strlen(GET_CHAR(mGateway_str)) < sizeof gateway);
-    strncpy(gateway, GET_CHAR(mGateway_str), sizeof(gateway) - 1);
-  }
-
-  int type = getIpType(gateway);
-  if (type != AF_INET && type != AF_INET6) {
-    return false;
-  }
-
-  if (type == AF_INET6) {
-    if (!aOptions.mOldIfname.IsEmpty()) {
-      mNetUtils->do_ifc_remove_route(GET_CHAR(mOldIfname), "::", 0, NULL);
-    }
-
-    mNetUtils->do_ifc_add_route(autoIfname.get(), "::", 0, gateway);
-
-    setDNS(aOptions);
-    return true;
-  }
-
-  /* type == AF_INET */
   if (!aOptions.mOldIfname.IsEmpty()) {
     mNetUtils->do_ifc_remove_default_route(GET_CHAR(mOldIfname));
   }
 
-  mNetUtils->do_ifc_set_default_route(autoIfname.get(), inet_addr(gateway));
+  IFProperties ifprops;
+  getIFProperties(GET_CHAR(mIfname), ifprops);
+
+  if (aOptions.mGateway_str.IsEmpty()) {
+    mNetUtils->do_ifc_set_default_route(GET_CHAR(mIfname), inet_addr(ifprops.gateway));
+  } else {
+    mNetUtils->do_ifc_set_default_route(GET_CHAR(mIfname), inet_addr(GET_CHAR(mGateway_str)));
+  }
 
   setDNS(aOptions);
   return true;
@@ -1219,17 +1132,7 @@ bool NetworkUtils::setDefaultRouteAndDNS(NetworkParams& aOptions)
  */
 bool NetworkUtils::removeDefaultRoute(NetworkParams& aOptions)
 {
-  NS_ConvertUTF16toUTF8 autoGateway(aOptions.mGateway);
-
-  int type = getIpType(autoGateway.get());
-  if (type != AF_INET && type != AF_INET6) {
-    return false;
-  }
-
-  mNetUtils->do_ifc_remove_route(GET_CHAR(mIfname),
-                                 type == AF_INET ? "0.0.0.0" : "::",
-                                 0, autoGateway.get());
-
+  mNetUtils->do_ifc_remove_default_route(GET_CHAR(mIfname));
   return true;
 }
 
@@ -1238,22 +1141,9 @@ bool NetworkUtils::removeDefaultRoute(NetworkParams& aOptions)
  */
 bool NetworkUtils::addHostRoute(NetworkParams& aOptions)
 {
-  NS_ConvertUTF16toUTF8 autoIfname(aOptions.mIfname);
-  NS_ConvertUTF16toUTF8 autoGateway(aOptions.mGateway);
-  int type, prefix;
-
   uint32_t length = aOptions.mHostnames.Length();
   for (uint32_t i = 0; i < length; i++) {
-    NS_ConvertUTF16toUTF8 autoHostname(aOptions.mHostnames[i]);
-
-    type = getIpType(autoHostname.get());
-    if (type != AF_INET && type != AF_INET6) {
-      continue;
-    }
-
-    prefix = type == AF_INET ? 32 : 128;
-    mNetUtils->do_ifc_add_route(autoIfname.get(), autoHostname.get(), prefix,
-                                autoGateway.get());
+    mNetUtils->do_ifc_add_route(GET_CHAR(mIfname), GET_CHAR(mHostnames[i]), 32, GET_CHAR(mGateway));
   }
   return true;
 }
@@ -1263,22 +1153,9 @@ bool NetworkUtils::addHostRoute(NetworkParams& aOptions)
  */
 bool NetworkUtils::removeHostRoute(NetworkParams& aOptions)
 {
-  NS_ConvertUTF16toUTF8 autoIfname(aOptions.mIfname);
-  NS_ConvertUTF16toUTF8 autoGateway(aOptions.mGateway);
-  int type, prefix;
-
   uint32_t length = aOptions.mHostnames.Length();
   for (uint32_t i = 0; i < length; i++) {
-    NS_ConvertUTF16toUTF8 autoHostname(aOptions.mHostnames[i]);
-
-    type = getIpType(autoHostname.get());
-    if (type != AF_INET && type != AF_INET6) {
-      continue;
-    }
-
-    prefix = type == AF_INET ? 32 : 128;
-    mNetUtils->do_ifc_remove_route(autoIfname.get(), autoHostname.get(), prefix,
-                                   autoGateway.get());
+    mNetUtils->do_ifc_remove_route(GET_CHAR(mIfname), GET_CHAR(mHostnames[i]), 32, GET_CHAR(mGateway));
   }
   return true;
 }
@@ -1294,48 +1171,8 @@ bool NetworkUtils::removeHostRoutes(NetworkParams& aOptions)
 
 bool NetworkUtils::removeNetworkRoute(NetworkParams& aOptions)
 {
-  NS_ConvertUTF16toUTF8 autoIfname(aOptions.mIfname);
-  NS_ConvertUTF16toUTF8 autoIp(aOptions.mIp);
-
-  int type = getIpType(autoIp.get());
-  if (type != AF_INET && type != AF_INET6) {
-    return false;
-  }
-
+  uint32_t ip = inet_addr(GET_CHAR(mIp));
   uint32_t prefixLength = GET_FIELD(mPrefixLength);
-
-  if (type == AF_INET6) {
-    // Calculate subnet.
-    struct in6_addr in6;
-    if (inet_pton(AF_INET6, autoIp.get(), &in6) != 1) {
-      return false;
-    }
-
-    uint32_t p, i, p1, mask;
-    p = prefixLength;
-    i = 0;
-    while (i < 4) {
-      p1 = p > 32 ? 32 : p;
-      p -= p1;
-      mask = p1 ? ~0x0 << (32 - p1) : 0;
-      in6.s6_addr32[i++] &= htonl(mask);
-    }
-
-    char subnetStr[INET6_ADDRSTRLEN];
-    if (!inet_ntop(AF_INET6, &in6, subnetStr, sizeof subnetStr)) {
-      return false;
-    }
-
-    // Remove default route.
-    mNetUtils->do_ifc_remove_route(autoIfname.get(), "::", 0, NULL);
-
-    // Remove subnet route.
-    mNetUtils->do_ifc_remove_route(autoIfname.get(), subnetStr, prefixLength, NULL);
-    return true;
-  }
-
-  /* type == AF_INET */
-  uint32_t ip = inet_addr(autoIp.get());
   uint32_t netmask = makeMask(prefixLength);
   uint32_t subnet = ip & netmask;
   const char* gateway = "0.0.0.0";
@@ -1343,8 +1180,8 @@ bool NetworkUtils::removeNetworkRoute(NetworkParams& aOptions)
   addr.s_addr = subnet;
   const char* dst = inet_ntoa(addr);
 
-  mNetUtils->do_ifc_remove_default_route(autoIfname.get());
-  mNetUtils->do_ifc_remove_route(autoIfname.get(), dst, prefixLength, gateway);
+  mNetUtils->do_ifc_remove_default_route(GET_CHAR(mIfname));
+  mNetUtils->do_ifc_remove_route(GET_CHAR(mIfname), dst, prefixLength, gateway);
   return true;
 }
 

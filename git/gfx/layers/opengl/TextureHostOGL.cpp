@@ -201,7 +201,7 @@ CompositableDataGonkOGL::DeleteTextureIfPresent()
   }
 }
 
-#if MOZ_WIDGET_GONK && ANDROID_VERSION >= 17
+#if MOZ_WIDGET_GONK && ANDROID_VERSION >= 18
 bool
 TextureHostOGL::SetReleaseFence(const android::sp<android::Fence>& aReleaseFence)
 {

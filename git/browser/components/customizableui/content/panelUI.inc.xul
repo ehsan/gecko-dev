@@ -7,7 +7,6 @@
        type="arrow"
        hidden="true"
        flip="slide"
-       position="bottomcenter topright"
        noautofocus="true">
   <panelmultiview id="PanelUI-multiView" mainViewId="PanelUI-mainView">
     <panelview id="PanelUI-mainView" context="customizationPanelContextMenu">
@@ -153,11 +152,6 @@
       <vbox id="PanelUI-developerItems" class="panel-subview-body"/>
     </panelview>
 
-    <panelview id="PanelUI-sidebar" flex="1">
-      <label value="&appMenuSidebars.label;" class="panel-subview-header"/>
-      <vbox id="PanelUI-sidebarItems"/>
-    </panelview>
-
     <panelview id="PanelUI-characterEncodingView" flex="1">
       <label value="&charsetMenu.label;" class="panel-subview-header"/>
       <vbox class="panel-subview-body">
@@ -229,7 +223,6 @@
        type="arrow"
        noautofocus="true"
        context="toolbar-context-menu"
-       position="bottomcenter topright"
        hidden="true">
   <vbox id="widget-overflow-scroller">
     <vbox id="widget-overflow-list" class="widget-overflow-list"

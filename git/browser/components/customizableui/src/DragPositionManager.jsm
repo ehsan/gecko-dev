@@ -21,7 +21,6 @@ function AreaPositionManager(aContainer) {
   this._containerInfo = {
     left: containerRect.left,
     right: containerRect.right,
-    top: containerRect.top,
     width: containerRect.width
   };
   this._inPanel = aContainer.id == CustomizableUI.AREA_PANEL;
@@ -77,14 +76,10 @@ AreaPositionManager.prototype = {
   find: function(aContainer, aX, aY, aDraggedItemId) {
     let closest = null;
     let minCartesian = Number.MAX_VALUE;
-    let containerX = this._containerInfo.left;
-    let containerY = this._containerInfo.top;
     for (let node of aContainer.children) {
       let coordinates = this._lazyStoreGet(node);
-      let offsetX = coordinates.x - containerX;
-      let offsetY = coordinates.y - containerY;
-      let hDiff = offsetX - aX;
-      let vDiff = offsetY - aY;
+      let hDiff = coordinates.x - aX;
+      let vDiff = coordinates.y - aY;
       // For wide widgets, we're always going to be further from the center
       // horizontally. Compensate:
       if (this.isWide(node)) {

@@ -4,6 +4,7 @@
 
 from b2ginstance import B2GInstance
 import datetime
+from errors import *
 from mozdevice import devicemanagerADB, DMError
 from mozprocess import ProcessHandlerMixin
 import os
@@ -20,15 +21,6 @@ import traceback
 from emulator_battery import EmulatorBattery
 from emulator_geo import EmulatorGeo
 from emulator_screen import EmulatorScreen
-from decorators import uses_marionette
-
-from errors import (
-    InstallGeckoError,
-    InvalidResponseException,
-    MarionetteException,
-    ScriptTimeoutException,
-    TimeoutException
-)
 
 
 class LogOutputProc(ProcessHandlerMixin):
@@ -59,9 +51,6 @@ class Emulator(object):
     prefs = {'app.update.enabled': False,
              'app.update.staging.enabled': False,
              'app.update.service.enabled': False}
-    env = {'MOZ_CRASHREPORTER': '1',
-           'MOZ_CRASHREPORTER_NO_REPORT': '1',
-           'MOZ_CRASHREPORTER_SHUTDOWN': '1'}
 
     def __init__(self, homedir=None, noWindow=False, logcat_dir=None,
                  arch="x86", emulatorBinary=None, res=None, sdcard=None,
@@ -267,8 +256,9 @@ class Emulator(object):
         else:
             self._adb_started = False
 
-    @uses_marionette
     def wait_for_system_message(self, marionette):
+        marionette.start_session()
+        marionette.set_context(marionette.CONTEXT_CHROME)
         marionette.set_script_timeout(45000)
         # Telephony API's won't be available immediately upon emulator
         # boot; we have to wait for the syste-message-listener-ready
@@ -292,7 +282,9 @@ waitFor(
         except InvalidResponseException:
             self.check_for_minidumps()
             raise
-        print '...done'
+        print 'done'
+        marionette.set_context(marionette.CONTEXT_CONTENT)
+        marionette.delete_session()
 
     def connect(self):
         self.adb = B2GInstance.check_adb(self.homedir, emulator=True)
@@ -363,9 +355,13 @@ waitFor(
         # setup DNS fix for networking
         self._run_adb(['shell', 'setprop', 'net.dns1', '10.0.2.3'])
 
-    @uses_marionette
     def wait_for_homescreen(self, marionette):
         print 'waiting for homescreen...'
+
+        created_session = False
+        if not marionette.session:
+            marionette.start_session()
+            created_session = True
 
         marionette.set_context(marionette.CONTEXT_CONTENT)
         marionette.execute_async_script("""
@@ -378,9 +374,10 @@ window.addEventListener('mozbrowserloadend', function loaded(aEvent) {
   }
 });""", script_timeout=120000)
         print '...done'
+        if created_session:
+            marionette.delete_session()
 
     def setup(self, marionette, gecko_path=None, busybox=None):
-        self.set_environment(marionette)
         if busybox:
             self.install_busybox(busybox)
 
@@ -390,17 +387,9 @@ window.addEventListener('mozbrowserloadend', function loaded(aEvent) {
         self.wait_for_system_message(marionette)
         self.set_prefs(marionette)
 
-    @uses_marionette
-    def set_environment(self, marionette):
-        for k, v in self.env.iteritems():
-            marionette.execute_script("""
-            let env = Cc["@mozilla.org/process/environment;1"].
-                      getService(Ci.nsIEnvironment);
-            env.set("%s", "%s");
-            """ % (k, v))
-
-    @uses_marionette
     def set_prefs(self, marionette):
+        marionette.start_session()
+        marionette.set_context(marionette.CONTEXT_CHROME)
         for pref in self.prefs:
             marionette.execute_script("""
             Components.utils.import("resource://gre/modules/Services.jsm");
@@ -416,6 +405,7 @@ window.addEventListener('mozbrowserloadend', function loaded(aEvent) {
                     Services.prefs.setCharPref(arguments[0], arguments[1]);
             }
             """, [pref, self.prefs[pref]])
+        marionette.delete_session()
 
     def restart_b2g(self):
         print 'restarting B2G'

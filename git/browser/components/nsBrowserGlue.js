@@ -1692,7 +1692,7 @@ BrowserGlue.prototype = {
           },
         };
 
-        if (Services.metro && Services.metro.supported) {
+        if (Services.sysinfo.getProperty("hasWindowsTouchInterface")) {
           smartBookmarks.Windows8Touch = {
             title: bundle.GetStringFromName("windows8TouchTitle"),
             uri: NetUtil.newURI("place:folder=" +

@@ -305,12 +305,11 @@ NetworkService.prototype = {
     this.setNetworkProxy(network);
   },
 
-  removeDefaultRoute: function(network) {
-    if(DEBUG) debug("Remove default route for " + network.name);
+  removeDefaultRoute: function(ifname) {
+    if(DEBUG) debug("Remove default route for " + ifname);
     let options = {
       cmd: "removeDefaultRoute",
-      ifname: network.name,
-      gateway: network.gateway
+      ifname: ifname
     };
     this.controlMessage(options, function() {});
   },
