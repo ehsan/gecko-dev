@@ -2269,8 +2269,14 @@ nsGenericHTMLFormElement::nsGenericHTMLFormElement(nsINodeInfo *aNodeInfo)
 
 nsGenericHTMLFormElement::~nsGenericHTMLFormElement()
 {
-  // Check that this element doesn't know anything about its form at this point.
-  NS_ASSERTION(!mForm, "How did we get here?");
+  // Check that this element is not still the default content
+  // of its parent form.
+  NS_ASSERTION(!mForm || mForm->GetDefaultSubmitElement() != this,
+               "Content being destroyed is the default content");
+
+  // Clean up.  Set the form to nsnull so it knows we went away.
+  // Do not notify as the content is being destroyed.
+  ClearForm(PR_TRUE, PR_FALSE);
 }
 
 NS_IMPL_QUERY_INTERFACE_INHERITED1(nsGenericHTMLFormElement,

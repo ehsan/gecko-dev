@@ -83,7 +83,6 @@ typedef struct InstanceData {
   uint32_t instanceCountWatchGeneration;
   bool lastReportedPrivateModeState;
   bool hasWidget;
-  bool npnNewStream;
   uint32_t timerID1;
   uint32_t timerID2;
   int32_t lastMouseX;

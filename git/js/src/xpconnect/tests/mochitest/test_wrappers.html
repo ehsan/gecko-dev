@@ -7,18 +7,9 @@
 </head>
 <body>
     <script class="testbody" type="text/javascript;version=1.7">
-    location.foopy = 3;
-
-    var xow_answer = [];
+    var answer = [];
     for (let i in location)
-        xow_answer.push(i);
-
-    var xpcnw_answer = [];
-    var xpcnw = new XPCNativeWrapper(location);
-    xpcnw.barpy = 4;
-    for (let i in xpcnw)
-        xpcnw_answer.push(i);
-
+        answer.push(i);
     var expected = [
         "hash",
         "host",
@@ -30,34 +21,26 @@
         "search",
         "reload",
         "replace",
-        "assign",
-        "foopy"
+        "assign"
     ];
 
-    var xpcnw_expected = expected.slice(0, expected.length - 1);
-    xpcnw_expected.push("barpy");
-
-    is(xow_answer.sort().toString(),
+    is(answer.sort().toString(),
        expected.sort().toString(),
        'enumeration over XOWs walks the prototype chain');
 
-    is(xpcnw_answer.sort().toString(),
-       xpcnw_expected.sort().toString(),
-       'enumeration over XPCNWs walks the prototype chain');
-
-    let sjow_answer = [];
+    answer = [];
     let (obj = { a: 3 }) {
         for (let i in XPCSafeJSObjectWrapper({ __proto__: obj}))
-            sjow_answer.push(i);
-        is(sjow_answer.toString(), 'a',
+            answer.push(i);
+        is(answer.toString(), 'a',
            'enumeration over SJOWs walks the prototype chain');
     }
 
-    sjow_answer = [];
+    answer = [];
     for (let i in XPCSafeJSObjectWrapper(location))
-        sjow_answer.push(i);
+        answer.push(i);
 
-    is(sjow_answer.sort().toString(),
+    is(answer.sort().toString(),
        expected.sort().toString(),
        'enumeration over SJOWs walks the prototype chain and works over XOWs');
 
