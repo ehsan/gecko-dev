@@ -153,6 +153,8 @@
 #include "mozilla/TimeStamp.h"
 
 #if defined(XP_WIN)
+#include "nsIWindowMediator.h"
+#include "nsIBaseWindow.h"
 #include "windows.h"
 #include "winbase.h"
 #endif
@@ -186,8 +188,9 @@ using mozilla::TimeStamp;
 // 0.09 the file encoding is changed to UTF-8, bug 420285
 // 0.10 added plugin versions on appropriate platforms, bug 427743
 // 0.11 file name and full path fields now store expected values on all platforms, bug 488181
+// 0.12 force refresh due to quicktime pdf claim fix, bug 611197
 // The current plugin registry version (and the maximum version we know how to read)
-static const char *kPluginRegistryVersion = "0.11";
+static const char *kPluginRegistryVersion = "0.12";
 // The minimum registry version we know how to read
 static const char *kMinimumRegistryVersion = "0.9";
 
@@ -313,7 +316,6 @@ static PRBool UnloadPluginsASAP()
     }
   }
 
-  NS_WARNING("Unable to retrieve pref: plugins.unloadASAP");
   return PR_FALSE;
 }
 
@@ -3674,6 +3676,57 @@ NS_IMETHODIMP nsPluginHost::Notify(nsITimer* timer)
 }
 
 #ifdef MOZ_IPC
+#ifdef XP_WIN
+// Re-enable any top level browser windows that were disabled by modal dialogs
+// displayed by the crashed plugin.
+static void
+CheckForDisabledWindows()
+{
+  nsCOMPtr<nsIWindowMediator> wm(do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
+  if (!wm)
+    return;
+
+  nsCOMPtr<nsISimpleEnumerator> windowList;
+  wm->GetXULWindowEnumerator(nsnull, getter_AddRefs(windowList));
+  if (!windowList)
+    return;
+
+  PRBool haveWindows;
+  do {
+    windowList->HasMoreElements(&haveWindows);
+    if (!haveWindows)
+      return;
+
+    nsCOMPtr<nsISupports> supportsWindow;
+    windowList->GetNext(getter_AddRefs(supportsWindow));
+    nsCOMPtr<nsIBaseWindow> baseWin(do_QueryInterface(supportsWindow));
+    if (baseWin) {
+      PRBool aFlag;
+      nsCOMPtr<nsIWidget> widget;
+      baseWin->GetMainWidget(getter_AddRefs(widget));
+      if (widget && !widget->GetParent() &&
+          NS_SUCCEEDED(widget->IsVisible(aFlag)) && aFlag == PR_TRUE &&
+          NS_SUCCEEDED(widget->IsEnabled(&aFlag)) && aFlag == PR_FALSE) {
+        nsIWidget * child = widget->GetFirstChild();
+        PRBool enable = PR_TRUE;
+        while (child)  {
+          nsWindowType aType;
+          if (NS_SUCCEEDED(child->GetWindowType(aType)) &&
+              aType == eWindowType_dialog) {
+            enable = PR_FALSE;
+            break;
+          }
+          child = child->GetNextSibling();
+        }
+        if (enable) {
+          widget->Enable(PR_TRUE);
+        }
+      }
+    }
+  } while (haveWindows);
+}
+#endif
+
 void
 nsPluginHost::PluginCrashed(nsNPAPIPlugin* aPlugin,
                             const nsAString& pluginDumpID,
@@ -3727,6 +3780,10 @@ nsPluginHost::PluginCrashed(nsNPAPIPlugin* aPlugin,
   // instance of this plugin we reload it (launch a new plugin process).
 
   crashedPluginTag->mEntryPoint = nsnull;
+
+#ifdef XP_WIN
+  CheckForDisabledWindows();
+#endif
 }
 #endif
 

@@ -2439,10 +2439,37 @@ NSEvent* gLastDragMouseDownEvent = nil;
   mIsPluginView = aIsPlugin;
 }
 
-
 -(BOOL)isPluginView
 {
   return mIsPluginView;
+}
+
+// Are we processing an NSLeftMouseDown event that will fail to click through?
+// If so, we shouldn't focus or unfocus a plugin.
+- (BOOL)isInFailingLeftClickThrough
+{
+  if (!mGeckoChild)
+    return NO;
+
+  if (!mClickThroughMouseDownEvent ||
+      [mClickThroughMouseDownEvent type] != NSLeftMouseDown)
+    return NO;
+
+  BOOL retval =
+    !ChildViewMouseTracker::WindowAcceptsEvent([self window],
+                                               mClickThroughMouseDownEvent,
+                                               self, PR_TRUE);
+
+  // If we return YES here, this will result in us not being focused,
+  // which will stop us receiving mClickThroughMouseDownEvent in
+  // [ChildView mouseDown:].  So we need to release and null-out
+  // mClickThroughMouseDownEvent here.
+  if (retval) {
+    [mClickThroughMouseDownEvent release];
+    mClickThroughMouseDownEvent = nil;
+  }
+
+  return retval;
 }
 
 - (void)setPluginEventModel:(NPEventModel)eventModel
@@ -2700,9 +2727,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
       mGLContext = (NSOpenGLContext *)manager->gl()->GetNativeData(mozilla::gl::GLContext::NativeGLContext);
       [mGLContext retain];
     }
-    [mGLContext makeCurrentContext];
     mGeckoChild->DispatchWindowEvent(paintEvent);
-    [mGLContext flushBuffer];
     return;
   }
 
@@ -3685,6 +3710,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
     // No sense in firing off a Gecko event.
      return;
 
+  BOOL isMomentumScroll = [theEvent respondsToSelector:@selector(_scrollPhase)] &&
+                          [theEvent _scrollPhase] != 0;
+
   if (scrollDelta != 0) {
     // Send the line scroll event.
     nsMouseScrollEvent geckoEvent(PR_TRUE, NS_MOUSE_SCROLL, nsnull);
@@ -3693,6 +3721,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
     if (hasPixels)
       geckoEvent.scrollFlags |= nsMouseScrollEvent::kHasPixels;
+
+    if (isMomentumScroll)
+      geckoEvent.scrollFlags |= nsMouseScrollEvent::kIsMomentum;
 
     // Gecko only understands how to scroll by an integer value. Using floor
     // and ceil is better than truncating the fraction, especially when
@@ -3779,6 +3810,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
     nsMouseScrollEvent geckoEvent(PR_TRUE, NS_MOUSE_PIXEL_SCROLL, nsnull);
     [self convertCocoaMouseEvent:theEvent toGeckoEvent:&geckoEvent];
     geckoEvent.scrollFlags |= inAxis;
+    if (isMomentumScroll)
+      geckoEvent.scrollFlags |= nsMouseScrollEvent::kIsMomentum;
     geckoEvent.delta = NSToIntRound(scrollDeltaPixels);
     nsAutoRetainCocoaObject kungFuDeathGrip(self);
     mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -5582,10 +5615,28 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   return !mGeckoChild->DispatchWindowEvent(geckoEvent);
 }
 
-- (void)updateCocoaPluginFocusStatus:(BOOL)hasFocus
+// Don't focus a plugin if we're in a left click-through that will fail (see
+// [ChildView isInFailingLeftClickThrough] above).
+- (BOOL)shouldFocusPlugin
 {
   if (!mGeckoChild)
-    return;
+    return NO;
+
+  nsCocoaWindow* windowWidget = mGeckoChild->GetXULWindowWidget();
+  if (windowWidget && !windowWidget->ShouldFocusPlugin())
+    return NO;
+
+  return YES;
+}
+
+// Returns NO if the plugin shouldn't be focused/unfocused.
+- (BOOL)updateCocoaPluginFocusStatus:(BOOL)hasFocus
+{
+  if (!mGeckoChild)
+    return NO;
+
+  if (![self shouldFocusPlugin])
+    return NO;
 
   nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
   NPCocoaEvent cocoaEvent;
@@ -5594,6 +5645,11 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   cocoaEvent.data.focus.hasFocus = hasFocus;
   pluginEvent.pluginEvent = &cocoaEvent;
   mGeckoChild->DispatchWindowEvent(pluginEvent);
+
+  if (hasFocus)
+    [self sendFocusEvent:NS_PLUGIN_FOCUS];
+
+  return YES;
 }
 
 // We must always call through to our superclass, even when mGeckoChild is
@@ -5603,7 +5659,8 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    [self updateCocoaPluginFocusStatus:YES];
+    if (![self updateCocoaPluginFocusStatus:YES])
+      return NO;
   }
 
   return [super becomeFirstResponder];
@@ -5618,7 +5675,8 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    [self updateCocoaPluginFocusStatus:NO];
+    if (![self updateCocoaPluginFocusStatus:NO])
+      return NO;
   }
 
   return [super resignFirstResponder];

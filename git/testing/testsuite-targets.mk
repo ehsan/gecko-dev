@@ -89,24 +89,26 @@ mochitest-a11y:
 	$(CHECK_TEST_ERROR)
 
 mochitest-ipcplugins:
-#ifdef XP_MACOSX
-#if defined(__i386__)
+ifeq (Darwin,$(OS_ARCH))
+ifeq (i386,$(TARGET_CPU))
 	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.i386.test.plugin=true --test-path=modules/plugin/test
-#elif defined(__x86_64__)
+endif
+ifeq (x86_64,$(TARGET_CPU))
 	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.x86_64.test.plugin=true --test-path=modules/plugin/test
-#elif defined(__ppc__)
+endif
+ifeq (powerpc,$(TARGET_CPU))
 	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.ppc.test.plugin=true --test-path=modules/plugin/test
-#endif
-#else
+endif
+else
 	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled=true --test-path=modules/plugin/test
-#endif
+endif
 	$(CHECK_TEST_ERROR)
 
 # Usage: |make [EXTRA_TEST_ARGS=...] *test|.
 RUN_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/runreftest.py \
   $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) $(1) | tee ./$@.log
 
-reftest: TEST_PATH=layout/reftests/reftest.list
+reftest: TEST_PATH?=layout/reftests/reftest.list
 reftest:
 	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH))
 	$(CHECK_TEST_ERROR)

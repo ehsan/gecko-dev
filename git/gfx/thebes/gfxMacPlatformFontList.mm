@@ -443,7 +443,12 @@ gfxMacFontFamily::FindStyleVariations()
         } else if (macTraits & NSExpandedFontMask) {
             fontEntry->mStretch = NS_FONT_STRETCH_EXPANDED;
         }
-        if (macTraits & NSItalicFontMask) {
+        // Cocoa fails to set the Italic traits bit for HelveticaLightItalic,
+        // at least (see bug 611855), so check for style name endings as well
+        if ((macTraits & NSItalicFontMask) ||
+            [facename hasSuffix:@"Italic"] ||
+            [facename hasSuffix:@"Oblique"])
+        {
             fontEntry->mItalic = PR_TRUE;
         }
         if (macTraits & NSFixedPitchFontMask) {
@@ -608,7 +613,7 @@ gfxMacPlatformFontList::gfxMacPlatformFontList() :
     sFontManager = [NSFontManager sharedFontManager];
 }
 
-void
+nsresult
 gfxMacPlatformFontList::InitFontList()
 {
     nsAutoreleasePool localPool;
@@ -617,7 +622,7 @@ gfxMacPlatformFontList::InitFontList()
 
     // need to ignore notifications after adding each font
     if (mATSGeneration == currentGeneration)
-        return;
+        return NS_OK;
 
     mATSGeneration = currentGeneration;
     PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit) updating to generation: %d", mATSGeneration));
@@ -672,6 +677,8 @@ gfxMacPlatformFontList::InitFontList()
 
     // start the delayed cmap loader
     StartLoader(kDelayBeforeLoadingCmaps, kIntervalBetweenLoadingCmaps);
+
+	return NS_OK;
 }
 
 void

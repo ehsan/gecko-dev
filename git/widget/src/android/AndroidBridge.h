@@ -140,7 +140,7 @@ public:
                            const nsAString& aAction = EmptyString(),
                            const nsAString& aTitle = EmptyString());
 
-    void GetMimeTypeFromExtension(const nsACString& aFileExt, nsCString& aMimeType);
+    void GetMimeTypeFromExtensions(const nsACString& aFileExt, nsCString& aMimeType);
 
     void MoveTaskToBack();
 
@@ -168,7 +168,13 @@ public:
 
     int GetDPI();
 
-    void ShowFilePicker(nsAString& aFilePath);
+    void ShowFilePicker(nsAString& aFilePath, nsAString& aFilters);
+
+    void SetFullScreen(PRBool aFullScreen);
+
+    void ShowInputMethodPicker();
+
+    void HideProgressDialogOnce();
 
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
@@ -226,7 +232,7 @@ protected:
     jmethodID jGetHandlersForMimeType;
     jmethodID jGetHandlersForProtocol;
     jmethodID jOpenUriExternal;
-    jmethodID jGetMimeTypeFromExtension;
+    jmethodID jGetMimeTypeFromExtensions;
     jmethodID jMoveTaskToBack;
     jmethodID jGetClipboardText;
     jmethodID jSetClipboardText;
@@ -235,6 +241,9 @@ protected:
     jmethodID jAlertsProgressListener_OnProgress;
     jmethodID jAlertsProgressListener_OnCancel;
     jmethodID jGetDpi;
+    jmethodID jSetFullScreen;
+    jmethodID jShowInputMethodPicker;
+    jmethodID jHideProgressDialog;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;

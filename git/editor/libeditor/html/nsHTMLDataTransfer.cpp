@@ -90,6 +90,7 @@
 // netwerk
 #include "nsIURI.h"
 #include "nsNetUtil.h"
+#include "nsIMIMEService.h"
 
 // Drag & Drop, Clipboard
 #include "nsIClipboard.h"
@@ -1321,6 +1322,31 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromTransferable(nsITransferable *transferable
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
+    // Check to see if we can insert an image file
+    PRBool insertAsImage = PR_FALSE;
+    nsCOMPtr<nsIURI> fileURI;
+    if (0 == nsCRT::strcmp(bestFlavor, kFileMime))
+    {
+      nsCOMPtr<nsIFile> fileObj(do_QueryInterface(genericDataObj));
+      if (fileObj && len > 0)
+      {
+        rv = NS_NewFileURI(getter_AddRefs(fileURI), fileObj);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsCOMPtr<nsIMIMEService> mime = do_GetService("@mozilla.org/mime;1");
+        NS_ENSURE_TRUE(mime, NS_ERROR_FAILURE);
+        nsCAutoString contentType;
+        rv = mime->GetTypeFromFile(fileObj, contentType);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        // Accept any image type fed to us
+        if (StringBeginsWith(contentType, NS_LITERAL_CSTRING("image/"))) {
+          insertAsImage = PR_TRUE;
+          bestFlavor = contentType;
+        }
+      }
+    }
+
     if (0 == nsCRT::strcmp(bestFlavor, kNativeHTMLMime))
     {
       // note cf_html uses utf8, hence use length = len, not len/2 as in flavors below
@@ -1378,73 +1404,26 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromTransferable(nsITransferable *transferable
         rv = InsertTextAt(stuffToPaste, aDestinationNode, aDestOffset, aDoDeleteSelection);
       }
     }
-    else if (0 == nsCRT::strcmp(bestFlavor, kFileMime))
-    {
-      nsCOMPtr<nsIFile> fileObj(do_QueryInterface(genericDataObj));
-      if (fileObj && len > 0)
-      {
-        
-        nsCOMPtr<nsIURI> uri;
-        rv = NS_NewFileURI(getter_AddRefs(uri), fileObj);
-        NS_ENSURE_SUCCESS(rv, rv);
-        
-        nsCOMPtr<nsIURL> fileURL(do_QueryInterface(uri));
-        if (fileURL)
-        {
-          PRBool insertAsImage = PR_FALSE;
-          nsCAutoString fileextension;
-          rv = fileURL->GetFileExtension(fileextension);
-          if (NS_SUCCEEDED(rv) && !fileextension.IsEmpty())
-          {
-            if ( (nsCRT::strcasecmp(fileextension.get(), "jpg") == 0 )
-              || (nsCRT::strcasecmp(fileextension.get(), "jpeg") == 0 )
-              || (nsCRT::strcasecmp(fileextension.get(), "gif") == 0 )
-              || (nsCRT::strcasecmp(fileextension.get(), "png") == 0 ) )
-            {
-              insertAsImage = PR_TRUE;
-            }
-          }
-          
-          nsCAutoString urltext;
-          rv = fileURL->GetSpec(urltext);
-          if (NS_SUCCEEDED(rv) && !urltext.IsEmpty())
-          {
-            if (insertAsImage)
-            {
-              stuffToPaste.AssignLiteral("<IMG src=\"");
-              AppendUTF8toUTF16(urltext, stuffToPaste);
-              stuffToPaste.AppendLiteral("\" alt=\"\" >");
-            }
-            else /* insert as link */
-            {
-              stuffToPaste.AssignLiteral("<A href=\"");
-              AppendUTF8toUTF16(urltext, stuffToPaste);
-              stuffToPaste.AppendLiteral("\">");
-              AppendUTF8toUTF16(urltext, stuffToPaste);
-              stuffToPaste.AppendLiteral("</A>");
-            }
-            nsAutoEditBatch beginBatching(this);
-
-            const nsAFlatString& empty = EmptyString();
-            rv = DoInsertHTMLWithContext(stuffToPaste,
-                                         empty, empty, flavor, 
-                                         aSourceDoc,
-                                         aDestinationNode, aDestOffset,
-                                         aDoDeleteSelection,
-                                         isSafe);
-          }
-        }
-      }
-    }
     else if (0 == nsCRT::strcmp(bestFlavor, kJPEGImageMime) ||
              0 == nsCRT::strcmp(bestFlavor, kPNGImageMime) ||
-             0 == nsCRT::strcmp(bestFlavor, kGIFImageMime))
+             0 == nsCRT::strcmp(bestFlavor, kGIFImageMime) ||
+             insertAsImage)
     {
-      nsCOMPtr<nsIInputStream> imageStream(do_QueryInterface(genericDataObj));
-      NS_ENSURE_TRUE(imageStream, NS_ERROR_FAILURE);
+      nsCOMPtr<nsIInputStream> imageStream;
+      if (insertAsImage) {
+        NS_ASSERTION(fileURI, "The file URI should be retrieved earlier");
+        rv = NS_OpenURI(getter_AddRefs(imageStream), fileURI);
+        NS_ENSURE_SUCCESS(rv, rv);
+      } else {
+        imageStream = do_QueryInterface(genericDataObj);
+        NS_ENSURE_TRUE(imageStream, NS_ERROR_FAILURE);
+      }
 
       nsCString imageData;
       rv = NS_ConsumeStream(imageStream, PR_UINT32_MAX, imageData);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      rv = imageStream->Close();
       NS_ENSURE_SUCCESS(rv, rv);
 
       char * base64 = PL_Base64Encode(imageData.get(), imageData.Length(), nsnull);

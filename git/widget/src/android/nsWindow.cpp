@@ -20,6 +20,8 @@
  *
  * Contributor(s):
  *   Vladimir Vukicevic <vladimir@pobox.com>
+ *   Matt Brubeck <mbrubeck@mozilla.com>
+ *   Vivien Nicolas <vnicolas@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -435,6 +437,9 @@ nsWindow::SetSizeMode(PRInt32 aMode)
         case nsSizeMode_Minimized:
             AndroidBridge::Bridge()->MoveTaskToBack();
             break;
+        case nsSizeMode_Fullscreen:
+            MakeFullScreen(PR_TRUE);
+            break;
     }
     return NS_OK;
 }
@@ -584,6 +589,13 @@ nsWindow::DispatchEvent(nsGUIEvent *aEvent)
         return status;
     }
     return nsEventStatus_eIgnore;
+}
+
+NS_IMETHODIMP
+nsWindow::MakeFullScreen(PRBool aFullScreen)
+{
+    AndroidBridge::Bridge()->SetFullScreen(aFullScreen);
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -853,13 +865,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
 void
 nsWindow::OnDraw(AndroidGeckoEvent *ae)
 {
-    AndroidBridge::AutoLocalJNIFrame jniFrame;
-
     ALOG(">> OnDraw");
-
-    AndroidGeckoSurfaceView& sview(AndroidBridge::Bridge()->SurfaceView());
-
-    NS_ASSERTION(!sview.isNull(), "SurfaceView is null!");
 
     if (!IsTopLevel()) {
         ALOG("##### redraw for window %p, which is not a toplevel window -- sending to toplevel!", (void*) this);
@@ -873,6 +879,14 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
         return;
     }
 
+    AndroidBridge::AutoLocalJNIFrame jniFrame;
+
+    AndroidGeckoSurfaceView& sview(AndroidBridge::Bridge()->SurfaceView());
+
+    NS_ASSERTION(!sview.isNull(), "SurfaceView is null!");
+
+    AndroidBridge::Bridge()->HideProgressDialogOnce();
+
     if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_BASIC) {
         jobject bytebuf = sview.GetSoftwareDrawBuffer();
         if (!bytebuf) {
@@ -882,8 +896,8 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
 
         void *buf = AndroidBridge::JNI()->GetDirectBufferAddress(bytebuf);
         int cap = AndroidBridge::JNI()->GetDirectBufferCapacity(bytebuf);
-        if (!buf || cap < (mBounds.width * mBounds.height * 2)) {
-            ALOG("### Software drawing, but too small a buffer %d expected %d (or no buffer %p)!", cap, mBounds.width * mBounds.height * 2, buf);
+        if (!buf || cap != (mBounds.width * mBounds.height * 2)) {
+            ALOG("### Software drawing, but unexpected buffer size %d expected %d (or no buffer %p)!", cap, mBounds.width * mBounds.height * 2, buf);
             return;
         }
 
@@ -894,7 +908,7 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
                                 gfxASurface::ImageFormatRGB16_565);
 
         DrawTo(targetSurface);
-        sview.Draw2D(bytebuf);
+        sview.Draw2D(bytebuf, mBounds.width * 2);
     } else {
         int drawType = sview.BeginDrawing();
 
@@ -1310,11 +1324,18 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
 {
     nsCOMPtr<nsIAtom> command;
     PRBool isDown = ae->Action() == AndroidKeyEvent::ACTION_DOWN;
+    PRBool isLongPress = !!(ae->Flags() & AndroidKeyEvent::FLAG_LONG_PRESS);
     PRBool doCommand = PR_FALSE;
     PRUint32 keyCode = ae->KeyCode();
 
     if (isDown) {
         switch (keyCode) {
+            case AndroidKeyEvent::KEYCODE_BACK:
+                if (isLongPress) {
+                    command = nsWidgetAtoms::Clear;
+                    doCommand = PR_TRUE;
+                }
+                break;
             case AndroidKeyEvent::KEYCODE_VOLUME_UP:
                 command = nsWidgetAtoms::VolumeUp;
                 doCommand = PR_TRUE;
@@ -1325,7 +1346,7 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
                 break;
             case AndroidKeyEvent::KEYCODE_MENU:
                 gMenu = PR_TRUE;
-                gMenuConsumed = PR_FALSE;
+                gMenuConsumed = isLongPress;
                 break;
         }
     } else {

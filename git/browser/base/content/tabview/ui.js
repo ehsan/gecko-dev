@@ -106,6 +106,9 @@ let UI = {
     try {
       let self = this;
 
+      // initialize the direction of the page
+      this._initPageDirection();
+
       // ___ storage
       Storage.init();
       let data = Storage.readUIData(gWindow);
@@ -244,22 +247,35 @@ let UI = {
     this._reorderTabsOnHide = null;
     this._frameInitialized = false;
   },
-  
+
+  // Property: rtl
+  // Returns true if we are in RTL mode, false otherwise
+  rtl: false,
+
   // Function: reset
   // Resets the Panorama view to have just one group with all tabs
   // and, if firstTime == true, add the welcome video/tab
   reset: function UI_reset(firstTime) {
-    let padding = 10;
-    let infoWidth = 350;
-    let infoHeight = 232;
+    let padding = Trenches.defaultRadius;
+    let welcomeWidth = 300;
     let pageBounds = Items.getPageBounds();
     pageBounds.inset(padding, padding);
 
+    let $actions = iQ("#actions");
+    if ($actions) {
+      pageBounds.width -= $actions.width();
+      if (UI.rtl)
+        pageBounds.left += $actions.width() - padding;
+    }
+
     // ___ make a fresh groupItem
     let box = new Rect(pageBounds);
-    box.width = 
-      Math.min(box.width * 0.667, pageBounds.width - (infoWidth + padding));
+    box.width = Math.min(box.width * 0.667,
+                         pageBounds.width - (welcomeWidth + padding));
     box.height = box.height * 0.667;
+    if (UI.rtl) {
+      box.left = pageBounds.left + welcomeWidth + 2 * padding;
+    }
 
     GroupItems.groupItems.forEach(function(group) {
       group.close();
@@ -280,17 +296,18 @@ let UI = {
     if (firstTime) {
       gPrefBranch.setBoolPref("experienced_first_run", true);
 
-      // ___ make info item
-      let video = 
-        "http://videos-cdn.mozilla.net/firefox4beta/tabcandy_howto.webm";
-      let html =
-        "<div class='intro'>"
-          + "<video src='" + video + "' width='100%' preload controls>"
-        + "</div>";
-      let infoBox = new Rect(box.right + padding, box.top,
-                         infoWidth, infoHeight);
-      let infoItem = new InfoItem(infoBox);
-      infoItem.html(html);
+      let url = gPrefBranch.getCharPref("welcome_url");
+      let newTab = gBrowser.loadOneTab(url, {inBackground: true});
+      let newTabItem = newTab.tabItem;
+      let parent = newTabItem.parent;
+      Utils.assert(parent, "should have a parent");
+
+      newTabItem.parent.remove(newTabItem);
+      let aspect = TabItems.tabHeight / TabItems.tabWidth;
+      let welcomeBounds = new Rect(UI.rtl ? pageBounds.left : box.right, box.top,
+                                   welcomeWidth, welcomeWidth * aspect);
+      newTabItem.setBounds(welcomeBounds, true);
+      GroupItems.setActiveGroupItem(groupItem);
     }
   },
 
@@ -347,6 +364,17 @@ let UI = {
     return gTabViewDeck.selectedIndex == 1;
   },
 
+  // ---------
+  // Function: _initPageDirection
+  // Initializes the page base direction
+  _initPageDirection: function UI__initPageDirection() {
+    let chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].
+                    getService(Ci.nsIXULChromeRegistry);
+    let dir = chromeReg.isLocaleRTL("global");
+    document.documentElement.setAttribute("dir", dir ? "rtl" : "ltr");
+    this.rtl = dir;
+  },
+
   // ----------
   // Function: showTabView
   // Shows TabView and hides the main browser UI.
@@ -355,6 +383,9 @@ let UI = {
   showTabView: function UI_showTabView(zoomOut) {
     if (this._isTabViewVisible())
       return;
+
+    // initialize the direction of the page
+    this._initPageDirection();
 
     var self = this;
     var currentTab = this._currentTab;
@@ -615,31 +646,27 @@ let UI = {
       self.onTabSelect(tab);
     };
 
+    // TabPinned
+    this._eventListeners.pinned = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow)
+        return;
+
+      TabItems.handleTabPin(tab);
+      GroupItems.addAppTab(tab);
+    };
+
+    // TabUnpinned
+    this._eventListeners.unpinned = function(tab) {
+      if (tab.ownerDocument.defaultView != gWindow)
+        return;
+
+      TabItems.handleTabUnpin(tab);
+      GroupItems.removeAppTab(tab);
+    };
+
     // Actually register the above handlers
     for (let name in this._eventListeners)
       AllTabs.register(name, this._eventListeners[name]);
-
-    // Start watching for tab pin events, and set up our uninit for same.
-    function handleTabPin(event) {
-      TabItems.handleTabPin(event.originalTarget);
-      GroupItems.addAppTab(event.originalTarget);
-    }
-
-    gBrowser.tabContainer.addEventListener("TabPinned", handleTabPin, false);
-    this._cleanupFunctions.push(function() {
-      gBrowser.tabContainer.removeEventListener("TabPinned", handleTabPin, false);
-    });
-
-    // Start watching for tab unpin events, and set up our uninit for same.
-    function handleTabUnpin(event) {
-      TabItems.handleTabUnpin(event.originalTarget);
-      GroupItems.removeAppTab(event.originalTarget);
-    }
-
-    gBrowser.tabContainer.addEventListener("TabUnpinned", handleTabUnpin, false);
-    this._cleanupFunctions.push(function() {
-      gBrowser.tabContainer.removeEventListener("TabUnpinned", handleTabUnpin, false);
-    });
   },
 
   // ----------
@@ -1072,7 +1099,7 @@ let UI = {
         return;
 
       var bounds = item.getBounds();
-      bounds.left += newPageBounds.left - self._pageBounds.left;
+      bounds.left += (UI.rtl ? -1 : 1) * (newPageBounds.left - self._pageBounds.left);
       bounds.left *= scale;
       bounds.width *= scale;
 
