@@ -40,7 +40,6 @@ MediaSourceReader::MediaSourceReader(MediaSourceDecoder* aDecoder)
   , mTimeThreshold(-1)
   , mDropAudioBeforeThreshold(false)
   , mDropVideoBeforeThreshold(false)
-  , mEnded(false)
 {
 }
 
@@ -134,16 +133,11 @@ MediaSourceReader::OnVideoEOS()
   if (SwitchReaders(SWITCH_FORCED)) {
     // Success! Resume decoding with next video decoder.
     RequestVideoData(false, mTimeThreshold);
-  } else if (IsEnded()) {
+  } else {
     // End of stream.
     MSE_DEBUG("MediaSourceReader(%p)::OnVideoEOS reader=%p EOS (readers=%u)",
               this, mVideoReader.get(), mDecoders.Length());
     GetCallback()->OnVideoEOS();
-  } else {
-    // If a new decoder isn't ready to respond with frames yet, we're going to
-    // keep hitting this path at 1/frame_duration Hz. Bug 1058422 is raised to
-    // address this issue.
-    RequestVideoData(false, mTimeThreshold);
   }
 }
 
@@ -215,13 +209,9 @@ MediaSourceReader::SwitchVideoReader(MediaDecoderReader* aTargetReader)
 bool
 MediaSourceReader::SwitchReaders(SwitchType aType)
 {
-  InitializePendingDecoders();
-
-  // This monitor must be held after the call to InitializePendingDecoders
-  // as that method also obtains the lock, and then attempts to exit it
-  // to call ReadMetadata on the readers. If we hold it before the call then
-  // it remains held during the ReadMetadata call causing a deadlock.
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
+
+  InitializePendingDecoders();
 
   bool didSwitch = false;
   double decodeTarget = double(mTimeThreshold) / USECS_PER_S;
@@ -422,14 +412,14 @@ MediaSourceReader::Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime,
   // This is a workaround for our lack of async functionality in the
   // MediaDecoderStateMachine. Bug 979104 implements what we need and
   // we'll remove this for an async approach based on that in bug XXXXXXX.
-  while (!DecodersContainTime(target) && !IsShutdown() && !IsEnded()) {
+  while (!DecodersContainTime(target) && !IsShutdown()) {
     MSE_DEBUG("MediaSourceReader(%p)::Seek waiting for target=%f", this, target);
     static_cast<MediaSourceDecoder*>(mDecoder)->WaitForData();
     SwitchReaders(SWITCH_FORCED);
   }
 
   if (IsShutdown()) {
-    return NS_ERROR_FAILURE;
+    return NS_OK;
   }
 
   ResetDecode();
@@ -502,20 +492,6 @@ MediaSourceReader::ReadMetadata(MediaInfo* aInfo, MetadataTags** aTags)
   *aTags = nullptr; // TODO: Handle metadata.
 
   return NS_OK;
-}
-
-void
-MediaSourceReader::Ended()
-{
-  mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
-  mEnded = true;
-}
-
-bool
-MediaSourceReader::IsEnded()
-{
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  return mEnded;
 }
 
 } // namespace mozilla

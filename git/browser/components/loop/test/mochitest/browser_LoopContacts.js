@@ -230,9 +230,10 @@ add_task(function* () {
 
   // Get a non-existent contact.
   deferred = Promise.defer();
-  LoopContacts.get(1000, (err, contact) => {
-    Assert.ok(!err, "There shouldn't be an error");
-    Assert.ok(!contact, "There shouldn't be a contact");
+  LoopContacts.get(1000, err => {
+    Assert.ok(err, "There should be an error");
+    Assert.equal(err.message, "Contact with _guid '1000' could not be found",
+                 "Error message should be correct");
     deferred.resolve();
   });
   yield deferred.promise;
@@ -249,9 +250,10 @@ add_task(function* () {
   LoopContacts.remove(toRemove, err => {
     Assert.ok(!err, "There shouldn't be an error");
 
-    LoopContacts.get(toRemove, (err, contact) => {
-      Assert.ok(!err, "There shouldn't be an error");
-      Assert.ok(!contact, "There shouldn't be a contact");
+    LoopContacts.get(toRemove, err => {
+      Assert.ok(err, "There should be an error");
+      Assert.equal(err.message, "Contact with _guid '" + toRemove + "' could not be found",
+                   "Error message should be correct");
       deferred.resolve();
     });
   });
@@ -259,9 +261,10 @@ add_task(function* () {
 
   // Remove a non-existing contact.
   deferred = Promise.defer();
-  LoopContacts.remove(1000, (err, contact) => {
-    Assert.ok(!err, "There shouldn't be an error");
-    Assert.ok(!contact, "There shouldn't be a contact");
+  LoopContacts.remove(1000, err => {
+    Assert.ok(err, "There should be an error");
+    Assert.equal(err.message, "Contact with _guid '1000' could not be found",
+                 "Error message should be correct");
     deferred.resolve();
   });
   yield deferred.promise;
@@ -320,7 +323,7 @@ add_task(function* () {
     _guid: 1000,
     bday: newBday
   };
-  LoopContacts.update(toUpdate, (err, contact) => {
+  LoopContacts.update(toUpdate, err => {
     Assert.ok(err, "There should be an error");
     Assert.equal(err.message, "Contact with _guid '1000' could not be found",
                  "Error message should be correct");

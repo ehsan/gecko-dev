@@ -1183,8 +1183,8 @@ fun_toStringHelper(JSContext *cx, HandleObject obj, unsigned indent)
     return FunctionToString(cx, fun, false, indent != JS_DONT_PRETTY_PRINT);
 }
 
-bool
-js::fun_toString(JSContext *cx, unsigned argc, Value *vp)
+static bool
+fun_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     JS_ASSERT(IsFunctionObject(args.calleev()));

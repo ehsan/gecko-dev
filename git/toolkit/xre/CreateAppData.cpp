@@ -114,6 +114,7 @@ XRE_ParseAppData(nsIFile* aINIFile, nsXREAppData *aAppData)
 
   ReadFlag flags[] = {
     { "XRE", "EnableProfileMigrator", NS_XRE_ENABLE_PROFILE_MIGRATOR },
+    { "XRE", "EnableExtensionManager", NS_XRE_ENABLE_EXTENSION_MANAGER },
     { nullptr }
   };
   ReadFlags(parser, flags, &aAppData->flags);

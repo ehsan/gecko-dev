@@ -384,14 +384,6 @@ public:
   nsresult
   AddTrack(mozilla::dom::MediaStreamTrack& aTrack, DOMMediaStream& aStream);
 
-  NS_IMETHODIMP_TO_ERRORRESULT(ReplaceTrack, ErrorResult &rv,
-                               mozilla::dom::MediaStreamTrack& aThisTrack,
-                               mozilla::dom::MediaStreamTrack& aWithTrack,
-                               DOMMediaStream& aStream)
-  {
-    rv = ReplaceTrack(aThisTrack, aWithTrack, aStream);
-  }
-
   nsresult GetPeerIdentity(nsAString& peerIdentity)
   {
 #ifdef MOZILLA_INTERNAL_API

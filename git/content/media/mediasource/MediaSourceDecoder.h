@@ -47,8 +47,6 @@ public:
 
   already_AddRefed<SourceBufferDecoder> CreateSubDecoder(const nsACString& aType);
 
-  void Ended();
-
   void SetMediaSourceDuration(double aDuration);
 
   // Provide a mechanism for MediaSourceReader to block waiting on data from a SourceBuffer.

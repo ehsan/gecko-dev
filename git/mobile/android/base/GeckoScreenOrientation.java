@@ -5,6 +5,7 @@
 
 package org.mozilla.gecko;
 
+import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.util.Log;

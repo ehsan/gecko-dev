@@ -368,7 +368,7 @@
       <menuitem id="context-viewsource"
                 label="&viewPageSourceCmd.label;"
                 accesskey="&viewPageSourceCmd.accesskey;"
-                oncommand="BrowserViewSourceOfDocument(gContextMenu.browser.contentDocumentAsCPOW);"
+                oncommand="BrowserViewSourceOfDocument(gContextMenu.browser.contentDocument);"
                 observes="isImage"/>
       <menuitem id="context-viewinfo"
                 label="&viewPageInfoCmd.label;"

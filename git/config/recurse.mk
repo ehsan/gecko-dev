@@ -150,10 +150,6 @@ endef
 
 $(foreach subtier,export libs tools,$(eval $(call CREATE_SUBTIER_TRAVERSAL_RULE,$(subtier))))
 
-ifndef TOPLEVEL_BUILD
-libs:: target host
-endif
-
 endif # ifdef TIERS
 
 endif # ifeq ($(NO_RECURSE_MAKELEVEL),$(MAKELEVEL))

@@ -74,7 +74,7 @@ private:
 
 NS_IMPL_ISUPPORTS(ReadbackResultWriterD3D11, nsIRunnable)
 
-DWORD WINAPI ReadbackManagerD3D11::StartTaskThread(void *aManager)
+static DWORD WINAPI StartTaskThread(void *aManager)
 {
   static_cast<ReadbackManagerD3D11*>(aManager)->ProcessTasks();
 

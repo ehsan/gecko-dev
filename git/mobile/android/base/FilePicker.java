@@ -5,11 +5,13 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.GeckoEventListener;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -24,7 +26,9 @@ import android.util.Log;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 
 public class FilePicker implements GeckoEventListener {

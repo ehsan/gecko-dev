@@ -3209,7 +3209,6 @@ VariablesView.isPrimitive = function(aDescriptor) {
       type == "-Infinity" ||
       type == "NaN" ||
       type == "-0" ||
-      type == "symbol" ||
       type == "longString") {
     return true;
   }
@@ -3426,11 +3425,6 @@ VariablesView.stringifiers.byType = {
       return stringifier(aGrip, aOptions);
     }
     return null;
-  },
-
-  symbol: function(aGrip, aOptions) {
-    const name = aGrip.name || "";
-    return "Symbol(" + name + ")";
   },
 }; // VariablesView.stringifiers.byType
 

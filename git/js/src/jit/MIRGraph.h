@@ -651,6 +651,7 @@ class MIRGraph
     uint32_t blockIdGen_;
     uint32_t idGen_;
     MBasicBlock *osrBlock_;
+    MStart *osrStart_;
 
     size_t numBlocks_;
     bool hasTryBlock_;
@@ -662,6 +663,7 @@ class MIRGraph
         blockIdGen_(0),
         idGen_(0),
         osrBlock_(nullptr),
+        osrStart_(nullptr),
         numBlocks_(0),
         hasTryBlock_(false)
     { }
@@ -762,6 +764,12 @@ class MIRGraph
     }
     MBasicBlock *osrBlock() {
         return osrBlock_;
+    }
+    void setOsrStart(MStart *osrStart) {
+        osrStart_ = osrStart;
+    }
+    MStart *osrStart() {
+        return osrStart_;
     }
 
     bool hasTryBlock() const {

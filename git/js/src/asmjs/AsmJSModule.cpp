@@ -1803,19 +1803,19 @@ GetCPUID(uint32_t *cpuId)
     };
 
 #if defined(JS_CODEGEN_X86)
-    MOZ_ASSERT(uint32_t(CPUInfo::GetSSEVersion()) <= (UINT32_MAX >> ARCH_BITS));
-    *cpuId = X86 | (uint32_t(CPUInfo::GetSSEVersion()) << ARCH_BITS);
+    JS_ASSERT(uint32_t(JSC::MacroAssemblerX86Common::getSSEState()) <= (UINT32_MAX >> ARCH_BITS));
+    *cpuId = X86 | (JSC::MacroAssemblerX86Common::getSSEState() << ARCH_BITS);
     return true;
 #elif defined(JS_CODEGEN_X64)
-    MOZ_ASSERT(uint32_t(CPUInfo::GetSSEVersion()) <= (UINT32_MAX >> ARCH_BITS));
-    *cpuId = X64 | (uint32_t(CPUInfo::GetSSEVersion()) << ARCH_BITS);
+    JS_ASSERT(uint32_t(JSC::MacroAssemblerX86Common::getSSEState()) <= (UINT32_MAX >> ARCH_BITS));
+    *cpuId = X64 | (JSC::MacroAssemblerX86Common::getSSEState() << ARCH_BITS);
     return true;
 #elif defined(JS_CODEGEN_ARM)
-    MOZ_ASSERT(GetARMFlags() <= (UINT32_MAX >> ARCH_BITS));
+    JS_ASSERT(GetARMFlags() <= (UINT32_MAX >> ARCH_BITS));
     *cpuId = ARM | (GetARMFlags() << ARCH_BITS);
     return true;
 #elif defined(JS_CODEGEN_MIPS)
-    MOZ_ASSERT(GetMIPSFlags() <= (UINT32_MAX >> ARCH_BITS));
+    JS_ASSERT(GetMIPSFlags() <= (UINT32_MAX >> ARCH_BITS));
     *cpuId = MIPS | (GetMIPSFlags() << ARCH_BITS);
     return true;
 #else

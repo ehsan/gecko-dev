@@ -4,10 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/net/ChildDNSService.h"
 #include "mozilla/net/DNSRequestChild.h"
 #include "mozilla/net/NeckoChild.h"
-#include "mozilla/unused.h"
 #include "nsIDNSRecord.h"
 #include "nsHostResolver.h"
 #include "nsTArray.h"
@@ -149,32 +147,6 @@ ChildDNSRecord::ReportUnusable(uint16_t aPort)
 }
 
 //-----------------------------------------------------------------------------
-// CancelDNSRequestEvent
-//-----------------------------------------------------------------------------
-
-class CancelDNSRequestEvent : public nsRunnable
-{
-public:
-  CancelDNSRequestEvent(DNSRequestChild* aDnsReq, nsresult aReason)
-    : mDnsRequest(aDnsReq)
-    , mReasonForCancel(aReason)
-  {}
-
-  NS_IMETHOD Run()
-  {
-    if (mDnsRequest->mIPCOpen) {
-      // Send request to Parent process.
-      mDnsRequest->SendCancelDNSRequest(mDnsRequest->mHost, mDnsRequest->mFlags,
-                                      mReasonForCancel);
-    }
-    return NS_OK;
-  }
-private:
-  nsRefPtr<DNSRequestChild> mDnsRequest;
-  nsresult mReasonForCancel;
-};
-
-//-----------------------------------------------------------------------------
 // DNSRequestChild
 //-----------------------------------------------------------------------------
 
@@ -187,7 +159,6 @@ DNSRequestChild::DNSRequestChild(const nsCString& aHost,
   , mResultStatus(NS_OK)
   , mHost(aHost)
   , mFlags(aFlags)
-  , mIPCOpen(false)
 {
 }
 
@@ -203,7 +174,6 @@ DNSRequestChild::StartRequest()
 
   // Send request to Parent process.
   gNeckoChild->SendPDNSRequestConstructor(this, mHost, mFlags);
-  mIPCOpen = true;
 
   // IPDL holds a reference until IPDL channel gets destroyed
   AddIPDLReference();
@@ -213,13 +183,13 @@ void
 DNSRequestChild::CallOnLookupComplete()
 {
   MOZ_ASSERT(mListener);
+
   mListener->OnLookupComplete(this, mResultRecord, mResultStatus);
 }
 
 bool
-DNSRequestChild::RecvLookupCompleted(const DNSRequestResponse& reply)
+DNSRequestChild::Recv__delete__(const DNSRequestResponse& reply)
 {
-  mIPCOpen = false;
   MOZ_ASSERT(mListener);
 
   switch (reply.type()) {
@@ -253,26 +223,7 @@ DNSRequestChild::RecvLookupCompleted(const DNSRequestResponse& reply)
     mTarget->Dispatch(event, NS_DISPATCH_NORMAL);
   }
 
-  unused << Send__delete__(this);
-
   return true;
-}
-
-void
-DNSRequestChild::ReleaseIPDLReference()
-{
-  // Request is done or destroyed. Remove it from the hash table.
-  nsRefPtr<ChildDNSService> dnsServiceChild =
-    dont_AddRef(ChildDNSService::GetSingleton());
-  dnsServiceChild->NotifyRequestDone(this);
-
-  Release();
-}
-
-void
-DNSRequestChild::ActorDestroy(ActorDestroyReason why)
-{
-  mIPCOpen = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -289,11 +240,7 @@ NS_IMPL_ISUPPORTS(DNSRequestChild,
 NS_IMETHODIMP
 DNSRequestChild::Cancel(nsresult reason)
 {
-  if(mIPCOpen) {
-    // We can only do IPDL on the main thread
-    NS_DispatchToMainThread(
-      new CancelDNSRequestEvent(this, reason));
-  }
+  // for now Cancel is a no-op
   return NS_OK;
 }
 

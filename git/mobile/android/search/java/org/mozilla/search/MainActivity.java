@@ -178,10 +178,9 @@ public class MainActivity extends FragmentActivity implements AcceptsSearchQuery
         // Reset the activity in the presearch state if it was launched from a new intent.
         setSearchState(SearchState.PRESEARCH);
 
-        // Enter editing mode and reset the query. We must reset the query after entering
-        // edit mode in order for the suggestions to update.
-        setEditState(EditState.EDITING);
+        // Also clear any existing search term and enter editing mode.
         editText.setText("");
+        setEditState(EditState.EDITING);
     }
 
     @Override
