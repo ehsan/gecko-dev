@@ -36,7 +36,7 @@ function test_longstring_grip()
         actor: "123fakeActor123",
         initial: ""
       };
-      let longStringClient = gThreadClient.pauseLongString(fakeLongStringGrip);
+      let longStringClient = gThreadClient.longString(fakeLongStringGrip);
       longStringClient.substring(22, 28, function (aResponse) {
         try {
           do_check_true(!!aResponse.error,
