@@ -145,3 +145,7 @@
   padding: 0;
   -moz-padding-end: 6px;
 }
+
+.searchbar-engine-menuitem[selected="true"] > .menu-iconic-text {
+  font-weight: bold;
+}
