@@ -53,7 +53,6 @@ DOMWifiManager.prototype = {
     const messages = ["WifiManager:setEnabled:Return:OK", "WifiManager:setEnabled:Return:NO",
                       "WifiManager:getNetworks:Return:OK", "WifiManager:getNetworks:Return:NO",
                       "WifiManager:associate:Return:OK", "WifiManager:associate:Return:NO",
-                      "WifiManager:forget:Return:OK", "WifiManager:forget:Return:NO",
                       "WifiManager:onconnecting", "WifiManager:onassociate",
                       "WifiManager:onconnect", "WifiManager:ondisconnect",
                       "WifiManager:connectionInfoUpdate"];
@@ -123,16 +122,6 @@ DOMWifiManager.prototype = {
       case "WifiManager:associate:Return:NO":
         request = this.takeRequest(msg.rid);
         Services.DOMRequest.fireError(request, "Unable to add the network");
-        break;
-
-      case "WifiManager:forget:Return:OK":
-        request = this._takeRequest(msg.rid);
-        Services.DOMRequest.fireSuccess(request, true);
-        break;
-
-      case "WifiManager:forget:Return:NO":
-        request = this._takeRequest(msg.rid);
-        Services.DOMRequest.fireError(request, msg.data);
         break;
 
       case "WifiManager:onconnecting":
@@ -215,14 +204,6 @@ DOMWifiManager.prototype = {
       throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
     var request = this.createRequest();
     this._sendMessageForRequest("WifiManager:associate", network, request);
-    return request;
-  },
-
-  forget: function nsIDOMWifiManager_forget(network) {
-    if (!this._hasPrivileges)
-      throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
-    var request = Services.DOMRequest.createRequest(this._window);
-    this._sendMessageForRequest("WifiManager:forget", network, request);
     return request;
   },
 
