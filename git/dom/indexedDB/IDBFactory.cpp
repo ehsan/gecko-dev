@@ -41,7 +41,6 @@
 
 #include "nsIIDBDatabaseException.h"
 #include "nsILocalFile.h"
-#include "nsIScriptContext.h"
 
 #include "mozilla/storage.h"
 #include "nsAppDirectoryServiceDefs.h"
@@ -50,7 +49,6 @@
 #include "nsDirectoryServiceUtils.h"
 #include "nsDOMClassInfo.h"
 #include "nsHashKeys.h"
-#include "nsPIDOMWindow.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOMCID.h"
@@ -61,7 +59,7 @@
 #include "IDBKeyRange.h"
 #include "LazyIdleThread.h"
 
-#define DB_SCHEMA_VERSION 3
+#define DB_SCHEMA_VERSION 2
 
 USING_INDEXEDDB_NAMESPACE
 
@@ -165,9 +163,10 @@ CreateTables(mozIStorageConnection* aDBConn)
   // Table `ai_object_data`
   rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "CREATE TABLE ai_object_data ("
-      "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+      "id INTEGER, "
       "object_store_id INTEGER NOT NULL, "
       "data TEXT NOT NULL, "
+      "PRIMARY KEY (id), "
       "FOREIGN KEY (object_store_id) REFERENCES object_store(id) ON DELETE "
         "CASCADE"
     ");"
@@ -519,7 +518,6 @@ DOMCI_DATA(IDBFactory, IDBFactory)
 NS_IMETHODIMP
 IDBFactory::Open(const nsAString& aName,
                  const nsAString& aDescription,
-                 JSContext* aCx,
                  nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -542,21 +540,7 @@ IDBFactory::Open(const nsAString& aName,
     NS_ENSURE_SUCCESS(rv, nsnull);
   }
 
-  nsIScriptContext* context = GetScriptContextFromJSContext(aCx);
-  NS_ENSURE_STATE(context);
-
-  nsCOMPtr<nsPIDOMWindow> innerWindow;
-
-  nsCOMPtr<nsPIDOMWindow> window =
-    do_QueryInterface(context->GetGlobalObject());
-  if (window) {
-    innerWindow = window->GetCurrentInnerWindow();
-  }
-  NS_ENSURE_STATE(innerWindow);
-
-  nsRefPtr<IDBRequest> request = GenerateRequest(context, innerWindow);
-  NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
-
+  nsRefPtr<IDBRequest> request = GenerateRequest();
   nsRefPtr<LazyIdleThread> thread(new LazyIdleThread(kDefaultThreadTimeoutMS,
                                                      nsnull));
 
