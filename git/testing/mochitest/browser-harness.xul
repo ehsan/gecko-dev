@@ -119,8 +119,7 @@
     var gErrorCount = 0;
 
     function browserTest(aTestFile) {
-      this.path = aTestFile['url'];
-      this.expected = aTestFile['expected'];
+      this.path = aTestFile;
       this.dumper = gDumper;
       this.results = [];
       this.scope = null;

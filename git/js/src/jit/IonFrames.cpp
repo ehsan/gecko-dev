@@ -869,16 +869,12 @@ ReadAllocation(const JitFrameIterator &frame, const LAllocation *a)
 #endif
 
 static void
-MarkFrameAndActualArguments(JSTracer *trc, const JitFrameIterator &frame)
+MarkActualArguments(JSTracer *trc, const JitFrameIterator &frame)
 {
-    // The trampoline produced by |generateEnterJit| is pushing |this| on the
-    // stack, as requested by |setEnterJitData|.  Thus, this function is also
-    // used for marking the |this| value of the top-level frame.
-
     IonJSFrameLayout *layout = frame.jsFrame();
+    MOZ_ASSERT(CalleeTokenIsFunction(layout->calleeToken()));
 
     size_t nargs = frame.numActualArgs();
-    MOZ_ASSERT_IF(!CalleeTokenIsFunction(layout->calleeToken()), nargs == 0);
 
     // Trace function arguments. Note + 1 for thisv.
     Value *argv = layout->argv();
@@ -923,7 +919,8 @@ MarkIonJSFrame(JSTracer *trc, const JitFrameIterator &frame)
         ionScript = frame.ionScriptFromCalleeToken();
     }
 
-    MarkFrameAndActualArguments(trc, frame);
+    if (CalleeTokenIsFunction(layout->calleeToken()))
+        MarkActualArguments(trc, frame);
 
     const SafepointIndex *si = ionScript->getSafepointIndex(frame.returnAddressToFp());
 

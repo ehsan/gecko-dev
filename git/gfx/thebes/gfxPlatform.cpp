@@ -1601,31 +1601,53 @@ gfxPlatform::GetRenderingIntent()
 }
 
 void
-gfxPlatform::TransformPixel(const Color& in, Color& out, qcms_transform *transform)
+gfxPlatform::TransformPixel(const gfxRGBA& in, gfxRGBA& out, qcms_transform *transform)
 {
 
     if (transform) {
         /* we want the bytes in RGB order */
 #ifdef IS_LITTLE_ENDIAN
         /* ABGR puts the bytes in |RGBA| order on little endian */
-        uint32_t packed = in.ToABGR();
+        uint32_t packed = in.Packed(gfxRGBA::PACKED_ABGR);
         qcms_transform_data(transform,
                        (uint8_t *)&packed, (uint8_t *)&packed,
                        1);
-        out = Color::FromABGR(packed);
+        out.~gfxRGBA();
+        new (&out) gfxRGBA(packed, gfxRGBA::PACKED_ABGR);
 #else
         /* ARGB puts the bytes in |ARGB| order on big endian */
-        uint32_t packed = in.ToARGB();
+        uint32_t packed = in.Packed(gfxRGBA::PACKED_ARGB);
         /* add one to move past the alpha byte */
         qcms_transform_data(transform,
                        (uint8_t *)&packed + 1, (uint8_t *)&packed + 1,
                        1);
-        out = Color::FromARGB(packed);
+        out.~gfxRGBA();
+        new (&out) gfxRGBA(packed, gfxRGBA::PACKED_ARGB);
 #endif
     }
 
     else if (&out != &in)
         out = in;
+}
+
+Color
+gfxPlatform::MaybeTransformColor(const gfxRGBA& aColor)
+{
+    // We only return this object to get some return value optimization goodness:
+    Color color;
+    if (GetCMSMode() == eCMSMode_All) {
+        gfxRGBA cms;
+        qcms_transform *transform = GetCMSRGBTransform();
+        if (transform) {
+            TransformPixel(aColor, cms, transform);
+            // Use the original alpha to avoid unnecessary float->byte->float
+            // conversion errors
+            color = ToColor(cms);
+            return color;
+        }
+    }
+    color = ToColor(aColor);
+    return color;
 }
 
 void

@@ -32,7 +32,7 @@ OfflineAudioCompletionEvent::~OfflineAudioCompletionEvent()
 }
 
 JSObject*
-OfflineAudioCompletionEvent::WrapObjectInternal(JSContext* aCx)
+OfflineAudioCompletionEvent::WrapObject(JSContext* aCx)
 {
   return OfflineAudioCompletionEventBinding::Wrap(aCx, this);
 }

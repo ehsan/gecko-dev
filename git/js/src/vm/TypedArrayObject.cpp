@@ -118,7 +118,7 @@ TypedArrayObject::ensureHasBuffer(JSContext *cx, Handle<TypedArrayObject *> tarr
         return false;
 
     memcpy(buffer->dataPointer(), tarray->viewData(), tarray->byteLength());
-    tarray->setPrivate(buffer->dataPointer());
+    InitArrayBufferViewDataPointer(tarray, buffer, 0);
 
     tarray->setSlot(TypedArrayLayout::BUFFER_SLOT, ObjectValue(*buffer));
     return true;
@@ -353,7 +353,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
         obj->setSlot(TypedArrayLayout::BUFFER_SLOT, ObjectOrNullValue(buffer));
 
         if (buffer) {
-            obj->initPrivate(buffer->dataPointer() + byteOffset);
+            InitArrayBufferViewDataPointer(obj, buffer, byteOffset);
         } else {
             void *data = obj->fixedData(FIXED_DATA_START);
             obj->initPrivate(data);
@@ -955,7 +955,7 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
     dvobj.setFixedSlot(TypedArrayLayout::BYTEOFFSET_SLOT, Int32Value(byteOffset));
     dvobj.setFixedSlot(TypedArrayLayout::LENGTH_SLOT, Int32Value(byteLength));
     dvobj.setFixedSlot(TypedArrayLayout::BUFFER_SLOT, ObjectValue(*arrayBuffer));
-    dvobj.initPrivate(arrayBuffer->dataPointer() + byteOffset);
+    InitArrayBufferViewDataPointer(&dvobj, arrayBuffer, byteOffset);
     MOZ_ASSERT(byteOffset + byteLength <= arrayBuffer->byteLength());
 
     // Verify that the private slot is at the expected place

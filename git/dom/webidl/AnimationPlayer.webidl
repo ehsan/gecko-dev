@@ -10,8 +10,6 @@
  * liability, trademark and document use rules apply.
  */
 
-enum AnimationPlayState { "idle", "pending", "running", "paused", "finished" };
-
 [Pref="dom.animations-api.core.enabled"]
 interface AnimationPlayer {
   // Bug 1049975
@@ -21,24 +19,17 @@ interface AnimationPlayer {
   readonly attribute AnimationTimeline timeline;
   [Pure]
   readonly attribute double? startTime;
-  [BinaryName="currentTimeAsDouble"]
   readonly attribute double? currentTime;
 
   /* Not yet implemented
-           attribute double             playbackRate; */
-  [BinaryName="playStateFromJS"]
+           attribute double             playbackRate;
   readonly attribute AnimationPlayState playState;
-  /*
   readonly attribute Promise            ready;
   readonly attribute Promise            finished;
   void cancel ();
   void finish ();
-  */
-  [BinaryName="playFromJS"]
   void play ();
-  [BinaryName="pauseFromJS"]
   void pause ();
-  /*
   void reverse ();
   */
 };

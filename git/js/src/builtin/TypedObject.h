@@ -683,59 +683,41 @@ typedef Handle<TypedObject*> HandleTypedObject;
 
 class OutlineTypedObject : public TypedObject
 {
-    // The object which owns the data this object points to. Because this
-    // pointer is managed in tandem with |data|, this is not a HeapPtr and
-    // barriers are managed directly.
-    JSObject *owner_;
-
-    // Data pointer to some offset in the owner's contents.
-    uint8_t *data_;
-
-    // The length for unsized array objects. For other outline objects the
-    // space for this field is not allocated and cannot be accessed.
-    uint32_t unsizedLength_;
-
-    void setOwnerAndData(JSObject *owner, uint8_t *data);
-
-    void setUnsizedLength(uint32_t length) {
-        MOZ_ASSERT(typeDescr().is<UnsizedArrayTypeDescr>());
-        unsizedLength_ = length;
-    }
-
   public:
-    static gc::AllocKind allocKindForTypeDescriptor(TypeDescr *descr) {
-        // Use a larger allocation kind for unsized arrays, to accommodate the
-        // unsized length.
-        if (descr->is<UnsizedArrayTypeDescr>())
-            return gc::FINALIZE_OBJECT2;
-        return gc::FINALIZE_OBJECT0;
-    }
+    // The array buffer or inline array owning the memory for this object.
+    static const size_t OWNER_SLOT = 0;
 
-    // JIT accessors.
-    static size_t offsetOfData() { return offsetof(OutlineTypedObject, data_); }
-    static size_t offsetOfOwner() { return offsetof(OutlineTypedObject, owner_); }
-    static size_t offsetOfUnsizedLength() { return offsetof(OutlineTypedObject, unsizedLength_); }
+    // For unsized arrays, the length of the array.
+    static const size_t LENGTH_SLOT = 1;
+
+    // Slot holding the data pointer.
+    static const size_t DATA_SLOT = 3;
+
+    static size_t offsetOfOwnerSlot();
+
+    // Each typed object contains a void* pointer pointing at the
+    // binary data that it represents. (That data may be owned by this
+    // object or this object may alias data owned by someone else.)
+    // This function returns the offset in bytes within the object
+    // where the `void*` pointer can be found. It is intended for use
+    // by the JIT.
+    static size_t offsetOfDataSlot();
 
     JSObject &owner() const {
-        MOZ_ASSERT(owner_);
-        return *owner_;
+        return fakeNativeGetReservedSlot(OWNER_SLOT).toObject();
     }
 
     JSObject *maybeOwner() const {
-        return owner_;
+        return fakeNativeGetReservedSlot(OWNER_SLOT).toObjectOrNull();
     }
 
     uint8_t *outOfLineTypedMem() const {
-        return data_;
+        return static_cast<uint8_t *>(fakeNativeGetPrivate(DATA_SLOT));
     }
 
     int32_t unsizedLength() const {
         MOZ_ASSERT(typeDescr().is<UnsizedArrayTypeDescr>());
-        return unsizedLength_;
-    }
-
-    void setData(uint8_t *data) {
-        data_ = data;
+        return fakeNativeGetReservedSlot(LENGTH_SLOT).toInt32();
     }
 
     // Helper for createUnattached()
@@ -793,9 +775,6 @@ class OutlineOpaqueTypedObject : public OutlineTypedObject
 // Class for an opaque typed object whose data is allocated inline.
 class InlineOpaqueTypedObject : public TypedObject
 {
-    // Start of the inline data, which immediately follows the shape and type.
-    uint8_t data_[1];
-
   public:
     static const Class class_;
 
@@ -810,11 +789,7 @@ class InlineOpaqueTypedObject : public TypedObject
         return gc::GetGCObjectKind(dataSlots);
     }
 
-    uint8_t *inlineTypedMem() const {
-        static_assert(offsetof(InlineOpaqueTypedObject, data_) == sizeof(JSObject),
-                      "The data for an inline typed object must follow the shape and type.");
-        return (uint8_t *) &data_;
-    }
+    uint8_t *inlineTypedMem() const;
 
     static void obj_trace(JSTracer *trace, JSObject *object);
 

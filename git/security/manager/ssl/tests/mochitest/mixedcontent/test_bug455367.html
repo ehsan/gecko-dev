@@ -14,13 +14,13 @@
 
   function runTest()
   {
-    isSecurityState("broken", "broken");
+    isSecurityState("secure", "secure");
     finish();
   }
 
   function afterNavigationTest()
   {
-    isSecurityState("broken", "broken after navigation");
+    isSecurityState("secure", "secure after navigation");
     finish();
   }
 

@@ -1278,10 +1278,12 @@ nsSVGUtils::MakeFillPatternFor(nsIFrame* aFrame,
   // On failure, use the fallback colour in case we have an
   // objectBoundingBox where the width or height of the object is zero.
   // See http://www.w3.org/TR/SVG11/coords.html#ObjectBoundingBox
-  Color color(Color::FromABGR(GetFallbackOrPaintColor(aFrame->StyleContext(),
-                                                      &nsStyleSVG::mFill)));
-  color.a *= opacity;
-  aOutPattern->InitColorPattern(ToDeviceColor(color));
+  nscolor color = GetFallbackOrPaintColor(aFrame->StyleContext(),
+                                          &nsStyleSVG::mFill);
+  aOutPattern->InitColorPattern(Color(NS_GET_R(color)/255.0,
+                                      NS_GET_G(color)/255.0,
+                                      NS_GET_B(color)/255.0,
+                                      NS_GET_A(color)/255.0 * opacity));
 }
 
 /* static */ void
@@ -1339,10 +1341,12 @@ nsSVGUtils::MakeStrokePatternFor(nsIFrame* aFrame,
   // On failure, use the fallback colour in case we have an
   // objectBoundingBox where the width or height of the object is zero.
   // See http://www.w3.org/TR/SVG11/coords.html#ObjectBoundingBox
-  Color color(Color::FromABGR(GetFallbackOrPaintColor(aFrame->StyleContext(),
-                                                      &nsStyleSVG::mStroke)));
-  color.a *= opacity;
-  aOutPattern->InitColorPattern(ToDeviceColor(color));
+  nscolor color = GetFallbackOrPaintColor(aFrame->StyleContext(),
+                                          &nsStyleSVG::mStroke);
+  aOutPattern->InitColorPattern(Color(NS_GET_R(color)/255.0,
+                                      NS_GET_G(color)/255.0,
+                                      NS_GET_B(color)/255.0,
+                                      NS_GET_A(color)/255.0 * opacity));
 }
 
 /* static */ float

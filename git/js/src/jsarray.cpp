@@ -3203,10 +3203,8 @@ NewArray(ExclusiveContext *cxArg, uint32_t length,
     allocKind = GetBackgroundAllocKind(allocKind);
 
     NewObjectCache::EntryIndex entry = -1;
-    uint64_t gcNumber = 0;
     if (JSContext *cx = cxArg->maybeJSContext()) {
-        JSRuntime *rt = cx->runtime();
-        NewObjectCache &cache = rt->newObjectCache;
+        NewObjectCache &cache = cx->runtime()->newObjectCache;
         if (newKind == GenericObject &&
             !cx->compartment()->hasObjectMetadataCallback() &&
             cache.lookupGlobal(&ArrayObject::class_, cx->global(), allocKind, &entry))
@@ -3230,8 +3228,6 @@ NewArray(ExclusiveContext *cxArg, uint32_t length,
                 MOZ_ASSERT(!obj);
                 protoArg = proto;
             }
-        } else {
-            gcNumber = rt->gc.gcNumber();
         }
     }
 
@@ -3276,9 +3272,7 @@ NewArray(ExclusiveContext *cxArg, uint32_t length,
     if (newKind == SingletonObject && !JSObject::setSingletonType(cxArg, arr))
         return nullptr;
 
-    if (entry != -1 &&
-        cxArg->asJSContext()->runtime()->gc.gcNumber() == gcNumber)
-    {
+    if (entry != -1) {
         cxArg->asJSContext()->runtime()->newObjectCache.fillGlobal(entry, &ArrayObject::class_,
                                                                    cxArg->global(), allocKind, arr);
     }

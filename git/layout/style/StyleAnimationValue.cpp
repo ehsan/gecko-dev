@@ -3851,13 +3851,11 @@ StyleAnimationValue::operator==(const StyleAnimationValue& aOther) const
     case eUnit_Filter:
     case eUnit_Shadow:
     case eUnit_BackgroundPosition:
-      return nsCSSValueList::Equal(mValue.mCSSValueList,
-                                   aOther.mValue.mCSSValueList);
+      return *mValue.mCSSValueList == *aOther.mValue.mCSSValueList;
     case eUnit_Transform:
       return *mValue.mCSSValueSharedList == *aOther.mValue.mCSSValueSharedList;
     case eUnit_CSSValuePairList:
-      return nsCSSValuePairList::Equal(mValue.mCSSValuePairList,
-                                       aOther.mValue.mCSSValuePairList);
+      return *mValue.mCSSValuePairList == *aOther.mValue.mCSSValuePairList;
     case eUnit_UnparsedString:
       return (NS_strcmp(GetStringBufferValue(),
                         aOther.GetStringBufferValue()) == 0);

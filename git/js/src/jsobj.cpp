@@ -1473,7 +1473,7 @@ NewObject(ExclusiveContext *cx, types::TypeObject *type_, JSObject *parent, gc::
 
 void
 NewObjectCache::fillProto(EntryIndex entry, const Class *clasp, js::TaggedProto proto,
-                          gc::AllocKind kind, NativeObject *obj)
+                          gc::AllocKind kind, JSObject *obj)
 {
     MOZ_ASSERT_IF(proto.isObject(), !proto.toObject()->is<GlobalObject>());
     MOZ_ASSERT(obj->getTaggedProto() == proto);
@@ -1495,7 +1495,6 @@ js::NewObjectWithGivenProto(ExclusiveContext *cxArg, const js::Class *clasp,
         NewObjectCache &cache = rt->newObjectCache;
         if (protoArg.isObject() &&
             newKind == GenericObject &&
-            clasp->isNative() &&
             !cx->compartment()->hasObjectMetadataCallback() &&
             (!parentArg || parentArg == protoArg.toObject()->getParent()) &&
             !protoArg.toObject()->is<GlobalObject>())
@@ -1536,12 +1535,11 @@ js::NewObjectWithGivenProto(ExclusiveContext *cxArg, const js::Class *clasp,
     if (!obj)
         return nullptr;
 
-    if (entry != -1 && !obj->as<NativeObject>().hasDynamicSlots() &&
+    if (entry != -1 && !obj->fakeNativeHasDynamicSlots() &&
         cxArg->asJSContext()->runtime()->gc.gcNumber() == gcNumber)
     {
         cxArg->asJSContext()->runtime()->newObjectCache.fillProto(entry, clasp,
-                                                                  proto, allocKind,
-                                                                  &obj->as<NativeObject>());
+                                                                  proto, allocKind, obj);
     }
 
     return obj;
@@ -1584,14 +1582,11 @@ js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg,
     JSProtoKey protoKey = ClassProtoKeyOrAnonymousOrNull(clasp);
 
     NewObjectCache::EntryIndex entry = -1;
-    uint64_t gcNumber = 0;
     if (JSContext *cx = cxArg->maybeJSContext()) {
-        JSRuntime *rt = cx->runtime();
-        NewObjectCache &cache = rt->newObjectCache;
+        NewObjectCache &cache = cx->runtime()->newObjectCache;
         if (parentArg->is<GlobalObject>() &&
             protoKey != JSProto_Null &&
             newKind == GenericObject &&
-            clasp->isNative() &&
             !cx->compartment()->hasObjectMetadataCallback())
         {
             if (cache.lookupGlobal(clasp, &parentArg->as<GlobalObject>(), allocKind, &entry)) {
@@ -1606,8 +1601,6 @@ js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg,
                     protoArg = proto;
                     parentArg = parent;
                 }
-            } else {
-                gcNumber = rt->gc.gcNumber();
             }
         }
     }
@@ -1627,12 +1620,10 @@ js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg,
     if (!obj)
         return nullptr;
 
-    if (entry != -1 && !obj->as<NativeObject>().hasDynamicSlots() &&
-        cxArg->asJSContext()->runtime()->gc.gcNumber() == gcNumber)
-    {
+    if (entry != -1 && !obj->fakeNativeHasDynamicSlots()) {
         cxArg->asJSContext()->runtime()->newObjectCache.fillGlobal(entry, clasp,
                                                                    &parent->as<GlobalObject>(),
-                                                                   allocKind, &obj->as<NativeObject>());
+                                                                   allocKind, obj);
     }
 
     return obj;
@@ -1657,7 +1648,6 @@ js::NewObjectWithType(JSContext *cx, HandleTypeObject type, JSObject *parent, gc
     NewObjectCache::EntryIndex entry = -1;
     if (parent == type->proto().toObject()->getParent() &&
         newKind == GenericObject &&
-        type->clasp()->isNative() &&
         !cx->compartment()->hasObjectMetadataCallback())
     {
         if (cache.lookupType(type, allocKind, &entry)) {
@@ -1675,8 +1665,8 @@ js::NewObjectWithType(JSContext *cx, HandleTypeObject type, JSObject *parent, gc
     if (!obj)
         return nullptr;
 
-    if (entry != -1 && !obj->as<NativeObject>().hasDynamicSlots())
-        cache.fillType(entry, type, allocKind, &obj->as<NativeObject>());
+    if (entry != -1 && !obj->fakeNativeHasDynamicSlots())
+        cache.fillType(entry, type, allocKind, obj);
 
     return obj;
 }
@@ -1907,30 +1897,28 @@ JS_CopyPropertiesFrom(JSContext *cx, HandleObject target, HandleObject obj)
 }
 
 static bool
-CopyProxyObject(JSContext *cx, Handle<ProxyObject *> from, Handle<ProxyObject *> to)
+CopySlots(JSContext *cx, HandleObject from, HandleObject to)
 {
+    MOZ_ASSERT(!from->isNative() && !to->isNative());
     MOZ_ASSERT(from->getClass() == to->getClass());
 
+    size_t n = 0;
     if (from->is<WrapperObject>() &&
         (Wrapper::wrapperHandler(from)->flags() &
-         Wrapper::CROSS_COMPARTMENT))
-    {
-        to->setCrossCompartmentPrivate(GetProxyPrivate(from));
-    } else {
-        RootedValue v(cx, GetProxyPrivate(from));
-        if (!cx->compartment()->wrap(cx, &v))
-            return false;
-        to->setSameCompartmentPrivate(v);
+         Wrapper::CROSS_COMPARTMENT)) {
+        to->fakeNativeSetSlot(0, from->fakeNativeGetSlot(0));
+        to->fakeNativeSetSlot(1, from->fakeNativeGetSlot(1));
+        n = 2;
     }
 
+    size_t span = JSCLASS_RESERVED_SLOTS(from->getClass());
     RootedValue v(cx);
-    for (size_t n = 0; n < PROXY_EXTRA_SLOTS; n++) {
-        v = GetProxyExtra(from, n);
+    for (; n < span; ++n) {
+        v = from->fakeNativeGetSlot(n);
         if (!cx->compartment()->wrap(cx, &v))
             return false;
-        SetProxyExtra(to, n, v);
+        to->fakeNativeSetSlot(n, v);
     }
-
     return true;
 }
 
@@ -1943,29 +1931,21 @@ js::CloneObject(JSContext *cx, HandleObject obj, Handle<js::TaggedProto> proto, 
         return nullptr;
     }
 
-    RootedObject clone(cx);
+    RootedObject clone(cx, NewObjectWithGivenProto(cx, obj->getClass(), proto, parent));
+    if (!clone)
+        return nullptr;
     if (obj->isNative()) {
-        clone = NewObjectWithGivenProto(cx, obj->getClass(), proto, parent);
-        if (!clone)
-            return nullptr;
-
         if (clone->is<JSFunction>() && (obj->compartment() != clone->compartment())) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
                                  JSMSG_CANT_CLONE_OBJECT);
             return nullptr;
         }
 
-        if (obj->as<NativeObject>().hasPrivate())
-            clone->as<NativeObject>().setPrivate(obj->as<NativeObject>().getPrivate());
+        if (obj->fakeNativeHasPrivate())
+            clone->fakeNativeSetPrivate(obj->fakeNativeGetPrivate());
     } else {
-        ProxyOptions options;
-        options.setClass(obj->getClass());
-
-        clone = ProxyObject::New(cx, GetProxyHandler(obj), JS::NullHandleValue, proto, parent, options);
-        if (!clone)
-            return nullptr;
-
-        if (!CopyProxyObject(cx, obj.as<ProxyObject>(), clone.as<ProxyObject>()))
+        MOZ_ASSERT(obj->is<ProxyObject>());
+        if (!CopySlots(cx, obj, clone))
             return nullptr;
     }
 
@@ -2346,40 +2326,284 @@ js::CloneObjectLiteral(JSContext *cx, HandleObject parent, HandleObject srcObj)
     return res;
 }
 
-void
-NativeObject::fillInAfterSwap(JSContext *cx, const Vector<Value> &values, void *priv)
+struct JSObject::TradeGutsReserved {
+    Vector<Value> avals;
+    Vector<Value> bvals;
+    int newafixed;
+    int newbfixed;
+    RootedShape newashape;
+    RootedShape newbshape;
+    HeapSlot *newaslots;
+    HeapSlot *newbslots;
+
+    explicit TradeGutsReserved(JSContext *cx)
+        : avals(cx), bvals(cx),
+          newafixed(0), newbfixed(0),
+          newashape(cx), newbshape(cx),
+          newaslots(nullptr), newbslots(nullptr)
+    {}
+
+    ~TradeGutsReserved()
+    {
+        js_free(newaslots);
+        js_free(newbslots);
+    }
+};
+
+bool
+JSObject::ReserveForTradeGuts(JSContext *cx, JSObject *aArg, JSObject *bArg,
+                              TradeGutsReserved &reserved)
 {
-    // This object has just been swapped with some other object, and its shape
-    // no longer reflects its allocated size. Correct this information and
-    // fill the slots in with the specified values.
-    MOZ_ASSERT(slotSpan() == values.length());
+    /*
+     * Avoid GC in here to avoid confusing the tracing code with our
+     * intermediate state.
+     */
+    AutoSuppressGC suppress(cx);
 
-    // Make sure the shape's numFixedSlots() is correct.
-    size_t nfixed = gc::GetGCKindSlots(asTenured().getAllocKind(), getClass());
-    if (nfixed != shape_->numFixedSlots()) {
-        if (!generateOwnShape(cx))
-            CrashAtUnhandlableOOM("fillInAfterSwap");
-        shape_->setNumFixedSlots(nfixed);
+    RootedObject a(cx, aArg);
+    RootedObject b(cx, bArg);
+    MOZ_ASSERT(a->compartment() == b->compartment());
+    AutoCompartment ac(cx, a);
+
+    /*
+     * When performing multiple swaps between objects which may have different
+     * numbers of fixed slots, we reserve all space ahead of time so that the
+     * swaps can be performed infallibly.
+     */
+
+    /*
+     * Swap prototypes and classes on the two objects, so that TradeGuts can
+     * preserve the types of the two objects.
+     */
+    const Class *aClass = a->getClass();
+    const Class *bClass = b->getClass();
+    Rooted<TaggedProto> aProto(cx, a->getTaggedProto());
+    Rooted<TaggedProto> bProto(cx, b->getTaggedProto());
+    if (!SetClassAndProto(cx, a, bClass, bProto, true))
+        MOZ_CRASH();
+    if (!SetClassAndProto(cx, b, aClass, aProto, true))
+        MOZ_CRASH();
+
+    if (a->tenuredSizeOfThis() == b->tenuredSizeOfThis())
+        return true;
+
+    /*
+     * If either object is native, it needs a new shape to preserve the
+     * invariant that objects with the same shape have the same number of
+     * inline slots. The fixed slots will be updated in place during TradeGuts.
+     * Non-native objects need to be reshaped according to the new count.
+     */
+    if (a->isNative()) {
+        if (!a->as<NativeObject>().generateOwnShape(cx))
+            MOZ_CRASH();
+    } else {
+        reserved.newbshape = EmptyShape::getInitialShape(cx, aClass, aProto, a->getParent(), a->getMetadata(),
+                                                         b->asTenured().getAllocKind());
+        if (!reserved.newbshape)
+            MOZ_CRASH();
+    }
+    if (b->isNative()) {
+        if (!b->as<NativeObject>().generateOwnShape(cx))
+            MOZ_CRASH();
+    } else {
+        reserved.newashape = EmptyShape::getInitialShape(cx, bClass, bProto, b->getParent(), b->getMetadata(),
+                                                         a->asTenured().getAllocKind());
+        if (!reserved.newashape)
+            MOZ_CRASH();
     }
 
-    if (hasPrivate())
-        setPrivate(priv);
-    else
-        MOZ_ASSERT(!priv);
+    /* The avals/bvals vectors hold all original values from the objects. */
 
-    if (slots_) {
-        js_free(slots_);
-        slots_ = nullptr;
+    if (!reserved.avals.reserve(a->fakeNativeSlotSpan()))
+        MOZ_CRASH();
+    if (!reserved.bvals.reserve(b->fakeNativeSlotSpan()))
+        MOZ_CRASH();
+
+    /*
+     * The newafixed/newbfixed hold the number of fixed slots in the objects
+     * after the swap. Adjust these counts according to whether the objects
+     * use their last fixed slot for storing private data.
+     */
+
+    reserved.newafixed = a->fakeNativeNumFixedSlots();
+    reserved.newbfixed = b->fakeNativeNumFixedSlots();
+
+    if (aClass->hasPrivate()) {
+        reserved.newafixed++;
+        reserved.newbfixed--;
+    }
+    if (bClass->hasPrivate()) {
+        reserved.newbfixed++;
+        reserved.newafixed--;
     }
 
-    if (size_t ndynamic = dynamicSlotsCount(nfixed, values.length(), getClass())) {
-        slots_ = cx->zone()->pod_malloc<HeapSlot>(ndynamic);
-        if (!slots_)
-            CrashAtUnhandlableOOM("fillInAfterSwap");
-        Debug_SetSlotRangeToCrashOnTouch(slots_, ndynamic);
+    MOZ_ASSERT(reserved.newafixed >= 0);
+    MOZ_ASSERT(reserved.newbfixed >= 0);
+
+    /*
+     * The newaslots/newbslots arrays hold any dynamic slots for the objects
+     * if they do not have enough fixed slots to accomodate the slots in the
+     * other object.
+     */
+
+    unsigned adynamic = NativeObject::dynamicSlotsCount(reserved.newafixed,
+                                                        b->fakeNativeSlotSpan(),
+                                                        b->getClass());
+    unsigned bdynamic = NativeObject::dynamicSlotsCount(reserved.newbfixed,
+                                                        a->fakeNativeSlotSpan(),
+                                                        a->getClass());
+
+    if (adynamic) {
+        reserved.newaslots = a->zone()->pod_malloc<HeapSlot>(adynamic);
+        if (!reserved.newaslots)
+            MOZ_CRASH();
+        Debug_SetSlotRangeToCrashOnTouch(reserved.newaslots, adynamic);
+    }
+    if (bdynamic) {
+        reserved.newbslots = b->zone()->pod_malloc<HeapSlot>(bdynamic);
+        if (!reserved.newbslots)
+            MOZ_CRASH();
+        Debug_SetSlotRangeToCrashOnTouch(reserved.newbslots, bdynamic);
     }
 
-    initSlotRange(0, values.begin(), values.length());
+    return true;
+}
+
+void
+JSObject::TradeGuts(JSContext *cx, JSObject *a, JSObject *b, TradeGutsReserved &reserved)
+{
+    MOZ_ASSERT(a->compartment() == b->compartment());
+    MOZ_ASSERT(a->is<JSFunction>() == b->is<JSFunction>());
+
+    /*
+     * Neither object may be in the nursery, but ensure we update any embedded
+     * nursery pointers in either object.
+     */
+#ifdef JSGC_GENERATIONAL
+    MOZ_ASSERT(!IsInsideNursery(a) && !IsInsideNursery(b));
+    cx->runtime()->gc.storeBuffer.putWholeCellFromMainThread(a);
+    cx->runtime()->gc.storeBuffer.putWholeCellFromMainThread(b);
+#endif
+    JS::AutoCheckCannotGC nogc;
+
+    /*
+     * Swap the object's types, to restore their initial type information.
+     * The prototypes and classes of the objects were swapped in ReserveForTradeGuts.
+     */
+    TypeObject *tmp = a->type_;
+    a->type_ = b->type_;
+    b->type_ = tmp;
+
+    /* Don't try to swap a JSFunction for a plain function JSObject. */
+    MOZ_ASSERT_IF(a->is<JSFunction>(), a->tenuredSizeOfThis() == b->tenuredSizeOfThis());
+
+    /*
+     * Regexp guts are more complicated -- we would need to migrate the
+     * refcounted JIT code blob for them across compartments instead of just
+     * swapping guts.
+     */
+    MOZ_ASSERT(!a->is<RegExpObject>() && !b->is<RegExpObject>());
+
+    /* Arrays can use their fixed storage for elements. */
+    MOZ_ASSERT(!a->is<ArrayObject>() && !b->is<ArrayObject>());
+
+    /*
+     * Callers should not try to swap ArrayBuffer objects,
+     * these use a different slot representation from other objects.
+     */
+    MOZ_ASSERT(!a->is<ArrayBufferObject>() && !b->is<ArrayBufferObject>());
+
+    /* Trade the guts of the objects. */
+    const size_t size = a->tenuredSizeOfThis();
+    if (size == b->tenuredSizeOfThis()) {
+        /*
+         * If the objects are the same size, then we make no assumptions about
+         * whether they have dynamically allocated slots and instead just copy
+         * them over wholesale.
+         */
+        char tmp[mozilla::tl::Max<sizeof(JSFunction), sizeof(JSObject_Slots16)>::value];
+        MOZ_ASSERT(size <= sizeof(tmp));
+
+        js_memcpy(tmp, a, size);
+        js_memcpy(a, b, size);
+        js_memcpy(b, tmp, size);
+    } else {
+        /*
+         * If the objects are of differing sizes, use the space we reserved
+         * earlier to save the slots from each object and then copy them into
+         * the new layout for the other object.
+         */
+
+        uint32_t acap = a->fakeNativeSlotSpan();
+        uint32_t bcap = b->fakeNativeSlotSpan();
+
+        for (size_t i = 0; i < acap; i++)
+            reserved.avals.infallibleAppend(a->fakeNativeGetSlot(i));
+
+        for (size_t i = 0; i < bcap; i++)
+            reserved.bvals.infallibleAppend(b->fakeNativeGetSlot(i));
+
+        /* Done with the dynamic slots. */
+        if (a->fakeNativeHasDynamicSlots())
+            js_free(a->fakeNativeSlots());
+        if (b->fakeNativeHasDynamicSlots())
+            js_free(b->fakeNativeSlots());
+
+        void *apriv = a->fakeNativeHasPrivate() ? a->fakeNativeGetPrivate() : nullptr;
+        void *bpriv = b->fakeNativeHasPrivate() ? b->fakeNativeGetPrivate() : nullptr;
+
+        char tmp[sizeof(JSObject)];
+        js_memcpy(&tmp, a, sizeof tmp);
+        js_memcpy(a, b, sizeof tmp);
+        js_memcpy(b, &tmp, sizeof tmp);
+
+        if (a->isNative())
+            a->shape_->setNumFixedSlots(reserved.newafixed);
+        else
+            a->shape_ = reserved.newashape;
+
+        a->fakeNativeSlots() = reserved.newaslots;
+        a->fakeNativeInitSlotRange(0, reserved.bvals.begin(), bcap);
+        if (a->fakeNativeHasPrivate())
+            a->fakeNativeInitPrivate(bpriv);
+
+        if (b->isNative())
+            b->shape_->setNumFixedSlots(reserved.newbfixed);
+        else
+            b->shape_ = reserved.newbshape;
+
+        b->fakeNativeSlots() = reserved.newbslots;
+        b->fakeNativeInitSlotRange(0, reserved.avals.begin(), acap);
+        if (b->fakeNativeHasPrivate())
+            b->fakeNativeInitPrivate(apriv);
+
+        /* Make sure the destructor for reserved doesn't free the slots. */
+        reserved.newaslots = nullptr;
+        reserved.newbslots = nullptr;
+    }
+
+    if (a->isNative() && a->as<NativeObject>().inDictionaryMode())
+        a->lastProperty()->listp = &a->shape_;
+    if (b->isNative() && b->as<NativeObject>().inDictionaryMode())
+        b->lastProperty()->listp = &b->shape_;
+
+#ifdef JSGC_INCREMENTAL
+    /*
+     * We need a write barrier here. If |a| was marked and |b| was not, then
+     * after the swap, |b|'s guts would never be marked. The write barrier
+     * solves this.
+     *
+     * Normally write barriers happen before the write. However, that's not
+     * necessary here because nothing is being destroyed. We're just swapping.
+     * We don't do the barrier before TradeGuts because ReserveForTradeGuts
+     * makes changes to the objects that might confuse the tracing code.
+     */
+    JS::Zone *zone = a->zone();
+    if (zone->needsIncrementalBarrier()) {
+        MarkChildren(zone->barrierTracer(), a);
+        MarkChildren(zone->barrierTracer(), b);
+    }
+#endif
 }
 
 /* Use this method with extreme caution. It trades the guts of two objects. */
@@ -2391,121 +2615,14 @@ JSObject::swap(JSContext *cx, HandleObject a, HandleObject b)
                IsBackgroundFinalized(b->asTenured().getAllocKind()));
     MOZ_ASSERT(a->compartment() == b->compartment());
 
-    AutoCompartment ac(cx, a);
-
-    if (!a->getType(cx))
-        CrashAtUnhandlableOOM("JSObject::swap");
-    if (!b->getType(cx))
-        CrashAtUnhandlableOOM("JSObject::swap");
-
-    /*
-     * Neither object may be in the nursery, but ensure we update any embedded
-     * nursery pointers in either object.
-     */
-#ifdef JSGC_GENERATIONAL
-    MOZ_ASSERT(!IsInsideNursery(a) && !IsInsideNursery(b));
-    cx->runtime()->gc.storeBuffer.putWholeCellFromMainThread(a);
-    cx->runtime()->gc.storeBuffer.putWholeCellFromMainThread(b);
-#endif
-
     unsigned r = NotifyGCPreSwap(a, b);
 
-    // Do the fundamental swapping of the contents of two objects.
-    MOZ_ASSERT(a->compartment() == b->compartment());
-    MOZ_ASSERT(a->is<JSFunction>() == b->is<JSFunction>());
-
-    // Don't try to swap functions with different sizes.
-    MOZ_ASSERT_IF(a->is<JSFunction>(), a->tenuredSizeOfThis() == b->tenuredSizeOfThis());
-
-    // Watch for oddball objects that have special organizational issues and
-    // can't be swapped.
-    MOZ_ASSERT(!a->is<RegExpObject>() && !b->is<RegExpObject>());
-    MOZ_ASSERT(!a->is<ArrayObject>() && !b->is<ArrayObject>());
-    MOZ_ASSERT(!a->is<ArrayBufferObject>() && !b->is<ArrayBufferObject>());
-    MOZ_ASSERT(!a->is<TypedArrayObject>() && !b->is<TypedArrayObject>());
-    MOZ_ASSERT(!a->is<TypedObject>() && !b->is<TypedObject>());
-
-    if (a->tenuredSizeOfThis() == b->tenuredSizeOfThis()) {
-        // When both objects are the same size, just do a plain swap of their
-        // contents.
-        size_t size = a->tenuredSizeOfThis();
-
-        char tmp[mozilla::tl::Max<sizeof(JSFunction), sizeof(JSObject_Slots16)>::value];
-        MOZ_ASSERT(size <= sizeof(tmp));
-
-        js_memcpy(tmp, a, size);
-        js_memcpy(a, b, size);
-        js_memcpy(b, tmp, size);
-    } else {
-        // Avoid GC in here to avoid confusing the tracing code with our
-        // intermediate state.
-        AutoSuppressGC suppress(cx);
-
-        // When the objects have different sizes, they will have different
-        // numbers of fixed slots before and after the swap, so the slots for
-        // native objects will need to be rearranged.
-        NativeObject *na = a->isNative() ? &a->as<NativeObject>() : nullptr;
-        NativeObject *nb = b->isNative() ? &b->as<NativeObject>() : nullptr;
-
-        // Remember the original values from the objects.
-        Vector<Value> avals(cx);
-        void *apriv = nullptr;
-        if (na) {
-            apriv = na->hasPrivate() ? na->getPrivate() : nullptr;
-            for (size_t i = 0; i < na->slotSpan(); i++) {
-                if (!avals.append(na->getSlot(i)))
-                    CrashAtUnhandlableOOM("JSObject::swap");
-            }
-        }
-        Vector<Value> bvals(cx);
-        void *bpriv = nullptr;
-        if (nb) {
-            bpriv = nb->hasPrivate() ? nb->getPrivate() : nullptr;
-            for (size_t i = 0; i < nb->slotSpan(); i++) {
-                if (!bvals.append(nb->getSlot(i)))
-                    CrashAtUnhandlableOOM("JSObject::swap");
-            }
-        }
-
-        // Swap the main fields of the objects, whether they are native objects or proxies.
-        char tmp[sizeof(JSObject_Slots0)];
-        js_memcpy(&tmp, a, sizeof tmp);
-        js_memcpy(a, b, sizeof tmp);
-        js_memcpy(b, &tmp, sizeof tmp);
-
-        if (na)
-            b->as<NativeObject>().fillInAfterSwap(cx, avals, apriv);
-        if (nb)
-            a->as<NativeObject>().fillInAfterSwap(cx, bvals, bpriv);
+    TradeGutsReserved reserved(cx);
+    if (!ReserveForTradeGuts(cx, a, b, reserved)) {
+        NotifyGCPostSwap(b, a, r);
+        return false;
     }
-
-    // Dictionary shapes can point back to their containing objects, so fix
-    // those pointers up.
-    if (a->isNative() && a->as<NativeObject>().inDictionaryMode())
-        a->lastProperty()->listp = &a->shape_;
-    if (b->isNative() && b->as<NativeObject>().inDictionaryMode())
-        b->lastProperty()->listp = &b->shape_;
-
-    // Swapping the contents of two objects invalidates type sets which contain
-    // either of the objects, so mark all such sets as unknown.
-    MarkTypeObjectUnknownProperties(cx, a->type(), !a->hasSingletonType());
-    MarkTypeObjectUnknownProperties(cx, b->type(), !b->hasSingletonType());
-
-#ifdef JSGC_INCREMENTAL
-    /*
-     * We need a write barrier here. If |a| was marked and |b| was not, then
-     * after the swap, |b|'s guts would never be marked. The write barrier
-     * solves this.
-     *
-     * Normally write barriers happen before the write. However, that's not
-     * necessary here because nothing is being destroyed. We're just swapping.
-     */
-    JS::Zone *zone = a->zone();
-    if (zone->needsIncrementalBarrier()) {
-        MarkChildren(zone->barrierTracer(), a);
-        MarkChildren(zone->barrierTracer(), b);
-    }
-#endif
+    TradeGuts(cx, a, b, reserved);
 
     NotifyGCPostSwap(a, b, r);
     return true;
@@ -2745,20 +2862,21 @@ JSObject::fixupAfterMovingGC()
      * elements' pointer back to the owner object, and the elements pointer
      * itself if it points to inline elements in another object.
      */
-    if (is<NativeObject>() && as<NativeObject>().hasDynamicElements()) {
-        ObjectElements *header = as<NativeObject>().getElementsHeader();
+    if (fakeNativeHasDynamicElements()) {
+        ObjectElements *header = fakeNativeGetElementsHeader();
         if (header->isCopyOnWrite()) {
             HeapPtrNativeObject &owner = header->ownerObject();
             if (IsForwarded(owner.get()))
                 owner = Forwarded(owner.get());
-            as<NativeObject>().elements_ = owner->getElementsHeader()->elements();
+            fakeNativeElements() = owner->getElementsHeader()->elements();
         }
     }
 }
 
 bool
 js::SetClassAndProto(JSContext *cx, HandleObject obj,
-                     const Class *clasp, Handle<js::TaggedProto> proto)
+                     const Class *clasp, Handle<js::TaggedProto> proto,
+                     bool crashOnFailure)
 {
     /*
      * Regenerate shapes for all of the scopes along the old prototype chain,
@@ -2782,11 +2900,17 @@ js::SetClassAndProto(JSContext *cx, HandleObject obj,
     RootedObject oldproto(cx, obj);
     while (oldproto && oldproto->isNative()) {
         if (oldproto->hasSingletonType()) {
-            if (!oldproto->as<NativeObject>().generateOwnShape(cx))
+            if (!oldproto->as<NativeObject>().generateOwnShape(cx)) {
+                if (crashOnFailure)
+                    MOZ_CRASH();
                 return false;
+            }
         } else {
-            if (!oldproto->setUncacheableProto(cx))
+            if (!oldproto->setUncacheableProto(cx)) {
+                if (crashOnFailure)
+                    MOZ_CRASH();
                 return false;
+            }
         }
         oldproto = oldproto->getProto();
     }
@@ -2796,21 +2920,30 @@ js::SetClassAndProto(JSContext *cx, HandleObject obj,
          * Just splice the prototype, but mark the properties as unknown for
          * consistent behavior.
          */
-        if (!obj->splicePrototype(cx, clasp, proto))
+        if (!obj->splicePrototype(cx, clasp, proto)) {
+            if (crashOnFailure)
+                MOZ_CRASH();
             return false;
+        }
         MarkTypeObjectUnknownProperties(cx, obj->type());
         return true;
     }
 
     if (proto.isObject()) {
         RootedObject protoObj(cx, proto.toObject());
-        if (!JSObject::setNewTypeUnknown(cx, clasp, protoObj))
+        if (!JSObject::setNewTypeUnknown(cx, clasp, protoObj)) {
+            if (crashOnFailure)
+                MOZ_CRASH();
             return false;
+        }
     }
 
     TypeObject *type = cx->getNewType(clasp, proto);
-    if (!type)
+    if (!type) {
+        if (crashOnFailure)
+            MOZ_CRASH();
         return false;
+    }
 
     /*
      * Setting __proto__ on an object that has escaped and may be referenced by
@@ -4010,13 +4143,13 @@ JSObject::dump()
     fputc('\n', stderr);
 
     if (clasp->flags & JSCLASS_HAS_PRIVATE)
-        fprintf(stderr, "private %p\n", obj->as<NativeObject>().getPrivate());
+        fprintf(stderr, "private %p\n", obj->fakeNativeGetPrivate());
 
     if (!obj->isNative())
         fprintf(stderr, "not native\n");
 
     uint32_t reservedEnd = JSCLASS_RESERVED_SLOTS(clasp);
-    uint32_t slots = obj->isNative() ? obj->as<NativeObject>().slotSpan() : 0;
+    uint32_t slots = obj->fakeNativeSlotSpan();
     uint32_t stop = obj->isNative() ? reservedEnd : slots;
     if (stop > 0)
         fprintf(stderr, obj->isNative() ? "reserved slots:\n" : "slots:\n");
@@ -4025,7 +4158,7 @@ JSObject::dump()
         if (i < reservedEnd)
             fprintf(stderr, "(reserved) ");
         fprintf(stderr, "= ");
-        dumpValue(obj->as<NativeObject>().getSlot(i));
+        dumpValue(obj->fakeNativeGetSlot(i));
         fputc('\n', stderr);
     }
 
@@ -4149,11 +4282,11 @@ js_DumpBacktrace(JSContext *cx)
 void
 JSObject::addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ClassInfo *info)
 {
-    if (is<NativeObject>() && as<NativeObject>().hasDynamicSlots())
-        info->objectsMallocHeapSlots += mallocSizeOf(as<NativeObject>().slots_);
+    if (fakeNativeHasDynamicSlots())
+        info->objectsMallocHeapSlots += mallocSizeOf(fakeNativeSlots());
 
-    if (is<NativeObject>() && as<NativeObject>().hasDynamicElements()) {
-        js::ObjectElements *elements = as<NativeObject>().getElementsHeader();
+    if (fakeNativeHasDynamicElements()) {
+        js::ObjectElements *elements = fakeNativeGetElementsHeader();
         if (!elements->isCopyOnWrite() || elements->ownerObject() == this)
             info->objectsMallocHeapElementsNonAsmJS += mallocSizeOf(elements);
     }

@@ -511,8 +511,11 @@ nsSVGFELightingElement::AddLightingAttributes(FilterPrimitiveDescription aDescri
   }
 
   nsStyleContext* style = frame->StyleContext();
-  Color color(Color::FromABGR(style->StyleSVGReset()->mLightingColor));
-  color.a = 1.f;
+  nscolor lightColor = style->StyleSVGReset()->mLightingColor;
+  Color color(NS_GET_R(lightColor) / 255.0f,
+                   NS_GET_G(lightColor) / 255.0f,
+                   NS_GET_B(lightColor) / 255.0f,
+                   1.0f);
   float surfaceScale = mNumberAttributes[SURFACE_SCALE].GetAnimValue();
   Size kernelUnitLength =
     GetKernelUnitLength(aInstance, &mNumberPairAttributes[KERNEL_UNIT_LENGTH]);

@@ -10,6 +10,7 @@
 #include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/dom/Headers.h"
 #include "mozilla/dom/RequestBinding.h"
+#include "mozilla/dom/UnionTypes.h"
 
 namespace mozilla {
 namespace dom {
@@ -17,7 +18,6 @@ namespace dom {
 class Console;
 class Function;
 class Promise;
-class RequestOrScalarValueString;
 
 } // namespace dom
 } // namespace mozilla

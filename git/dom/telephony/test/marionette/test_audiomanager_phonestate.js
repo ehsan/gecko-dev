@@ -83,10 +83,6 @@ startTest(function() {
     .then(() => check(PHONE_STATE_IN_CALL, PHONE_STATE_IN_CALL))
     .then(() => gRemoteAnswer(outCall))
     .then(() => check(PHONE_STATE_IN_CALL, PHONE_STATE_IN_CALL))
-    .then(() => gHold(outCall))
-    .then(() => check(PHONE_STATE_IN_CALL, PHONE_STATE_IN_CALL))
-    .then(() => gResume(outCall))
-    .then(() => check(PHONE_STATE_IN_CALL, PHONE_STATE_IN_CALL))
     // Dial out and dial in
     .then(() => gRemoteDial(inNumber))
     .then(call => { inCall = call; })

@@ -8,6 +8,7 @@
 #include "mozilla/dom/MessagePort.h"
 #include "mozilla/dom/MessagePortBinding.h"
 #include "mozilla/dom/MessagePortList.h"
+#include "mozilla/dom/UnionTypes.h"
 
 #include "mozilla/HoldDropJSObjects.h"
 #include "jsapi.h"
@@ -56,7 +57,7 @@ MessageEvent::~MessageEvent()
 }
 
 JSObject*
-MessageEvent::WrapObjectInternal(JSContext* aCx)
+MessageEvent::WrapObject(JSContext* aCx)
 {
   return mozilla::dom::MessageEventBinding::Wrap(aCx, this);
 }

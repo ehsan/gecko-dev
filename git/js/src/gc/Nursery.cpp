@@ -171,7 +171,7 @@ js::Nursery::allocateObject(JSContext *cx, size_t size, size_t numDynamic)
         size_t totalSize = size + sizeof(HeapSlot) * numDynamic;
         JSObject *obj = static_cast<JSObject *>(allocate(totalSize));
         if (obj) {
-            obj->setInitialSlotsMaybeNonNative(reinterpret_cast<HeapSlot *>(size_t(obj) + size));
+            obj->fakeNativeSetInitialSlots(reinterpret_cast<HeapSlot *>(size_t(obj) + size));
             TraceNurseryAlloc(obj, size);
             return obj;
         }
@@ -188,7 +188,7 @@ js::Nursery::allocateObject(JSContext *cx, size_t size, size_t numDynamic)
     JSObject *obj = static_cast<JSObject *>(allocate(size));
 
     if (obj)
-        obj->setInitialSlotsMaybeNonNative(slots);
+        obj->fakeNativeSetInitialSlots(slots);
     else
         freeSlots(slots);
 
@@ -390,9 +390,6 @@ GetObjectAllocKindForCopy(const Nursery &nursery, JSObject *obj)
         return GetBackgroundAllocKind(TypedArrayObject::AllocKindForLazyBuffer(nbytes));
     }
 
-    // Proxies have finalizers and are not nursery allocated.
-    MOZ_ASSERT(!IsProxy(obj));
-
     // Inlined opaque typed objects are followed by their data, so make sure we
     // copy it all over to the new object.
     if (obj->is<InlineOpaqueTypedObject>()) {
@@ -403,16 +400,7 @@ GetObjectAllocKindForCopy(const Nursery &nursery, JSObject *obj)
         return InlineOpaqueTypedObject::allocKindForTypeDescriptor(descr);
     }
 
-    // Outline typed objects have special requirements for their allocation kind.
-    if (obj->is<OutlineTypedObject>()) {
-        TypeDescr *descr = &obj->as<OutlineTypedObject>().typeDescr();
-        return OutlineTypedObject::allocKindForTypeDescriptor(descr);
-    }
-
-    // The only non-native objects in existence are proxies and typed objects.
-    MOZ_ASSERT(obj->isNative());
-
-    AllocKind kind = GetGCObjectFixedSlotsKind(obj->as<NativeObject>().numFixedSlots());
+    AllocKind kind = GetGCObjectFixedSlotsKind(obj->fakeNativeNumFixedSlots());
     MOZ_ASSERT(!IsBackgroundFinalized(kind));
     MOZ_ASSERT(CanBeFinalizedInBackground(kind, obj->getClass()));
     return GetBackgroundAllocKind(kind);
@@ -615,11 +603,8 @@ js::Nursery::moveObjectToTenured(JSObject *dst, JSObject *src, AllocKind dstKind
         tenuredSize = srcSize = sizeof(NativeObject);
 
     js_memcpy(dst, src, srcSize);
-    if (src->isNative()) {
-        NativeObject *ndst = &dst->as<NativeObject>(), *nsrc = &src->as<NativeObject>();
-        tenuredSize += moveSlotsToTenured(ndst, nsrc, dstKind);
-        tenuredSize += moveElementsToTenured(ndst, nsrc, dstKind);
-    }
+    tenuredSize += moveSlotsToTenured(dst, src, dstKind);
+    tenuredSize += moveElementsToTenured(dst, src, dstKind);
 
     if (src->is<TypedArrayObject>())
         forwardTypedArrayPointers(&dst->as<TypedArrayObject>(), &src->as<TypedArrayObject>());
@@ -661,40 +646,40 @@ js::Nursery::forwardTypedArrayPointers(TypedArrayObject *dst, TypedArrayObject *
 }
 
 MOZ_ALWAYS_INLINE size_t
-js::Nursery::moveSlotsToTenured(NativeObject *dst, NativeObject *src, AllocKind dstKind)
+js::Nursery::moveSlotsToTenured(JSObject *dst, JSObject *src, AllocKind dstKind)
 {
     /* Fixed slots have already been copied over. */
-    if (!src->hasDynamicSlots())
+    if (!src->fakeNativeHasDynamicSlots())
         return 0;
 
-    if (!isInside(src->slots_)) {
-        hugeSlots.remove(src->slots_);
+    if (!isInside(src->fakeNativeSlots())) {
+        hugeSlots.remove(src->fakeNativeSlots());
         return 0;
     }
 
     Zone *zone = src->zone();
-    size_t count = src->numDynamicSlots();
-    dst->slots_ = zone->pod_malloc<HeapSlot>(count);
-    if (!dst->slots_)
+    size_t count = src->fakeNativeNumDynamicSlots();
+    dst->fakeNativeSlots() = zone->pod_malloc<HeapSlot>(count);
+    if (!dst->fakeNativeSlots())
         CrashAtUnhandlableOOM("Failed to allocate slots while tenuring.");
-    PodCopy(dst->slots_, src->slots_, count);
-    setSlotsForwardingPointer(src->slots_, dst->slots_, count);
+    PodCopy(dst->fakeNativeSlots(), src->fakeNativeSlots(), count);
+    setSlotsForwardingPointer(src->fakeNativeSlots(), dst->fakeNativeSlots(), count);
     return count * sizeof(HeapSlot);
 }
 
 MOZ_ALWAYS_INLINE size_t
-js::Nursery::moveElementsToTenured(NativeObject *dst, NativeObject *src, AllocKind dstKind)
+js::Nursery::moveElementsToTenured(JSObject *dst, JSObject *src, AllocKind dstKind)
 {
-    if (src->hasEmptyElements() || src->denseElementsAreCopyOnWrite())
+    if (src->fakeNativeHasEmptyElements() || src->fakeNativeDenseElementsAreCopyOnWrite())
         return 0;
 
     Zone *zone = src->zone();
-    ObjectElements *srcHeader = src->getElementsHeader();
+    ObjectElements *srcHeader = src->fakeNativeGetElementsHeader();
     ObjectElements *dstHeader;
 
     /* TODO Bug 874151: Prefer to put element data inline if we have space. */
     if (!isInside(srcHeader)) {
-        MOZ_ASSERT(src->elements_ == dst->elements_);
+        MOZ_ASSERT(src->fakeNativeElements() == dst->fakeNativeElements());
         hugeSlots.remove(reinterpret_cast<HeapSlot*>(srcHeader));
         return 0;
     }
@@ -716,7 +701,7 @@ js::Nursery::moveElementsToTenured(NativeObject *dst, NativeObject *src, AllocKi
         CrashAtUnhandlableOOM("Failed to allocate elements while tenuring.");
     js_memcpy(dstHeader, srcHeader, nslots * sizeof(HeapSlot));
     setElementsForwardingPointer(srcHeader, dstHeader, nslots);
-    dst->elements_ = dstHeader->elements();
+    dst->fakeNativeElements() = dstHeader->elements();
     return nslots * sizeof(HeapSlot);
 }
 

@@ -93,7 +93,8 @@ public:
   void RemoveInsertionPoint(HTMLContentElement* aInsertionPoint);
 
   void SetYoungerShadow(ShadowRoot* aYoungerShadow);
-  ShadowRoot* GetYoungerShadowRoot() { return mYoungerShadow; }
+  ShadowRoot* GetOlderShadow() { return mOlderShadow; }
+  ShadowRoot* GetYoungerShadow() { return mYoungerShadow; }
   void SetInsertionPointChanged() { mInsertionPointChanged = true; }
 
   void SetAssociatedBinding(nsXBLBinding* aBinding) { mAssociatedBinding = aBinding; }
@@ -124,8 +125,6 @@ public:
     GetElementsByClassName(const nsAString& aClasses);
   void GetInnerHTML(nsAString& aInnerHTML);
   void SetInnerHTML(const nsAString& aInnerHTML, ErrorResult& aError);
-  Element* Host();
-  ShadowRoot* GetOlderShadowRoot() { return mOlderShadow; }
   void StyleSheetChanged();
 protected:
   virtual ~ShadowRoot();

@@ -31,8 +31,7 @@ NewObjectCache::lookupGlobal(const Class *clasp, js::GlobalObject *global, gc::A
 }
 
 inline void
-NewObjectCache::fillGlobal(EntryIndex entry, const Class *clasp, js::GlobalObject *global,
-                           gc::AllocKind kind, NativeObject *obj)
+NewObjectCache::fillGlobal(EntryIndex entry, const Class *clasp, js::GlobalObject *global, gc::AllocKind kind, JSObject *obj)
 {
     //MOZ_ASSERT(global == obj->getGlobal());
     return fill(entry, clasp, global, kind, obj);

@@ -210,8 +210,6 @@ SharedSurface::SharedSurface(SharedSurfaceType type,
     , mSize(size)
     , mHasAlpha(hasAlpha)
     , mIsLocked(false)
-    , mIsProducerAcquired(false)
-    , mIsConsumerAcquired(false)
 #ifdef DEBUG
     , mOwningThread(NS_GetCurrentThread())
 #endif
@@ -469,11 +467,10 @@ public:
     bool Lock(uint8_t** data, gfx::IntSize* size, int32_t* stride,
               gfx::SurfaceFormat* format)
     {
-        if (!mDT->LockBits(data, size, stride, format))
-            return false;
-
-        mLockedBits = *data;
-        return true;
+        bool success = mDT->LockBits(data, size, stride, format);
+        if (success)
+            mLockedBits = *data;
+        return success;
     }
 
     ~AutoLockBits() {
@@ -491,7 +488,7 @@ ReadbackSharedSurface(SharedSurface* src, gfx::DrawTarget* dst)
     gfx::IntSize dstSize;
     int32_t dstStride;
     gfx::SurfaceFormat dstFormat;
-    if (!lock.Lock(&dstBytes, &dstSize, &dstStride, &dstFormat))
+    if (!dst->LockBits(&dstBytes, &dstSize, &dstStride, &dstFormat))
         return false;
 
     const bool isDstRGBA = (dstFormat == gfx::SurfaceFormat::R8G8B8A8 ||

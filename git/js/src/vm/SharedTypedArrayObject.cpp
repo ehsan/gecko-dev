@@ -71,6 +71,7 @@ InitSharedArrayBufferViewDataPointer(SharedTypedArrayObject *obj, SharedArrayBuf
      */
     MOZ_ASSERT(buffer->dataPointer() != nullptr);
     obj->initPrivate(buffer->dataPointer() + byteOffset);
+    PostBarrierTypedArrayObject(obj);
 }
 
 // See note in TypedArrayObject.cpp about how we can probably merge
