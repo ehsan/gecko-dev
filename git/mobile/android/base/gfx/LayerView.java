@@ -532,16 +532,17 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         }
     }
 
-    //This method is called on the Gecko main thread.
     @WrapElementForJNI(allowMultithread = true, stubName = "updateZoomedView")
     public static void updateZoomedView(ByteBuffer data) {
+        data.position(0);
         LayerView layerView = GeckoAppShell.getLayerView();
         if (layerView != null) {
             LayerRenderer layerRenderer = layerView.getRenderer();
-            if (layerRenderer != null) {
+            if (layerRenderer != null){
                 layerRenderer.updateZoomedView(data);
             }
         }
+        return;
     }
 
     public interface Listener {
@@ -686,17 +687,17 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
 
     // Public hooks for zoomed view
 
-    public interface ZoomedViewListener {
+    public interface OnZoomedViewListener {
         public void requestZoomedViewRender();
         public void updateView(ByteBuffer data);
     }
 
-    public void addZoomedViewListener(ZoomedViewListener listener) {
-        mRenderer.addZoomedViewListener(listener);
+    public void addOnZoomedViewListener(OnZoomedViewListener listener) {
+        mRenderer.addOnZoomedViewListener(listener);
     }
 
-    public void removeZoomedViewListener(ZoomedViewListener listener) {
-        mRenderer.removeZoomedViewListener(listener);
+    public void removeOnZoomedViewListener(OnZoomedViewListener listener) {
+        mRenderer.removeOnZoomedViewListener(listener);
     }
 
 }

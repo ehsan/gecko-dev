@@ -139,7 +139,7 @@ add_task(function test_replaceFaviconData_replaceExisting() {
           iconsvc.replaceFaviconData(
             firstFavicon.uri, secondFavicon.data, secondFavicon.data.length,
             secondFavicon.mimetype);
-          PlacesTestUtils.promiseAsyncUpdates().then(() => {
+          promiseAsyncUpdates().then(function() {
             checkFaviconDataForPage(
               pageURI, secondFavicon.mimetype, secondFavicon.data,
               function test_replaceFaviconData_overrideDefaultFavicon_secondCallback() {
