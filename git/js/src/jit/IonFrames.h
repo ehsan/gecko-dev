@@ -7,6 +7,8 @@
 #ifndef jit_IonFrames_h
 #define jit_IonFrames_h
 
+#ifdef JS_ION
+
 #include <stdint.h>
 
 #include "jscntxt.h"
@@ -867,5 +869,7 @@ MarkCalleeToken(JSTracer *trc, CalleeToken token);
 
 } /* namespace jit */
 } /* namespace js */
+
+#endif // JS_ION
 
 #endif /* jit_IonFrames_h */

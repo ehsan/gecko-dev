@@ -24,7 +24,7 @@ public:
 private:
   friend class nsSupportsWeakReference;
 
-  explicit nsWeakReference(nsSupportsWeakReference* aReferent)
+  nsWeakReference(nsSupportsWeakReference* aReferent)
     : mReferent(aReferent)
     // ...I can only be constructed by an |nsSupportsWeakReference|
   {

@@ -311,7 +311,7 @@ public:
     typedef nsAutoTObserverArray<T, N> array_type;
     typedef Iterator                   base_type;
 
-    explicit ForwardIterator(const array_type& aArray)
+    ForwardIterator(const array_type& aArray)
       : Iterator(0, aArray)
     {
     }
@@ -354,7 +354,7 @@ public:
     typedef nsAutoTObserverArray<T, N> array_type;
     typedef Iterator                   base_type;
 
-    explicit EndLimitedIterator(const array_type& aArray)
+    EndLimitedIterator(const array_type& aArray)
       : ForwardIterator(aArray)
       , mEnd(aArray, aArray.Length())
     {
@@ -391,7 +391,7 @@ public:
     typedef nsAutoTObserverArray<T, N> array_type;
     typedef Iterator                   base_type;
 
-    explicit BackwardIterator(const array_type& aArray)
+    BackwardIterator(const array_type& aArray)
       : Iterator(aArray.Length(), aArray)
     {
     }

@@ -7,6 +7,7 @@
 #ifndef jit_x64_BaselineHelpers_x64_h
 #define jit_x64_BaselineHelpers_x64_h
 
+#ifdef JS_ION
 #include "jit/BaselineFrame.h"
 #include "jit/BaselineIC.h"
 #include "jit/BaselineRegisters.h"
@@ -283,7 +284,10 @@ EmitStubGuardFailure(MacroAssembler &masm)
     masm.jmp(Operand(BaselineStubReg, ICStub::offsetOfStubCode()));
 }
 
+
 } // namespace jit
 } // namespace js
+
+#endif // JS_ION
 
 #endif /* jit_x64_BaselineHelpers_x64_h */

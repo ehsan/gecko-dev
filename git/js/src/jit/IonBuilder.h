@@ -7,6 +7,8 @@
 #ifndef jit_IonBuilder_h
 #define jit_IonBuilder_h
 
+#ifdef JS_ION
+
 // This file declares the data structures for building a MIRGraph from a
 // JSScript.
 
@@ -1065,5 +1067,7 @@ bool NeedsPostBarrier(CompileInfo &info, MDefinition *value);
 
 } // namespace jit
 } // namespace js
+
+#endif // JS_ION
 
 #endif /* jit_IonBuilder_h */

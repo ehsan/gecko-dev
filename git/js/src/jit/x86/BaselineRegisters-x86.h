@@ -7,6 +7,8 @@
 #ifndef jit_x86_BaselineRegisters_x86_h
 #define jit_x86_BaselineRegisters_x86_h
 
+#ifdef JS_ION
+
 #include "jit/IonMacroAssembler.h"
 
 namespace js {
@@ -34,5 +36,7 @@ static MOZ_CONSTEXPR_VAR FloatRegister FloatReg1      = xmm1;
 
 } // namespace jit
 } // namespace js
+
+#endif // JS_ION
 
 #endif /* jit_x86_BaselineRegisters_x86_h */

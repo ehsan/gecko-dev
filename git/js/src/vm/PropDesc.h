@@ -317,9 +317,12 @@ template <>
 struct GCMethods<PropDesc> {
     static PropDesc initial() { return PropDesc(); }
     static bool poisoned(const PropDesc &desc) {
-        return JS::IsPoisonedValue(desc.value_) ||
-               JS::IsPoisonedValue(desc.get_) ||
-               JS::IsPoisonedValue(desc.set_);
+        return (desc.value_.isGCThing() &&
+                JS::IsPoisonedPtr(desc.value_.toGCThing())) ||
+               (desc.get_.isGCThing() &&
+                JS::IsPoisonedPtr(desc.get_.toGCThing())) ||
+               (desc.set_.isGCThing() &&
+                JS::IsPoisonedPtr(desc.set_.toGCThing()));
     }
 };
 

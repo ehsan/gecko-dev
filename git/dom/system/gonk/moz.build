@@ -96,13 +96,8 @@ if CONFIG['MOZ_B2G_RIL']:
     ]
 
 if CONFIG['MOZ_NFC']:
-    SOURCES += [
-        'NfcMessageHandler.cpp',
-        'NfcService.cpp',
-    ]
     XPIDL_SOURCES += [
         'nsINfcContentHelper.idl',
-        'nsINfcService.idl',
     ]
     EXTRA_COMPONENTS += [
         'Nfc.js',
@@ -110,7 +105,8 @@ if CONFIG['MOZ_NFC']:
         'NfcContentHelper.js',
     ]
     EXTRA_JS_MODULES += [
-       'nfc_consts.js',
+    'nfc_consts.js',
+    'nfc_worker.js',
     ]
 
 FAIL_ON_WARNINGS = True

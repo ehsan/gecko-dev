@@ -40,7 +40,6 @@ namespace mozilla {
 namespace widget {
 namespace winrt {
 
-class APZPendingResponseFlusher;
 class FrameworkView;
 
 } } }
@@ -60,7 +59,6 @@ class MetroWidget : public nsWindowBase,
   typedef ABI::Windows::UI::Core::ICharacterReceivedEventArgs ICharacterReceivedEventArgs;
   typedef mozilla::widget::winrt::FrameworkView FrameworkView;
   typedef mozilla::widget::winrt::APZController APZController;
-  typedef mozilla::widget::winrt::APZPendingResponseFlusher APZPendingResponseFlusher;
   typedef mozilla::layers::ScrollableLayerGuid ScrollableLayerGuid;
 
   static LRESULT CALLBACK
@@ -223,8 +221,6 @@ public:
   // Input handling
   nsEventStatus ApzReceiveInputEvent(mozilla::WidgetInputEvent* aEvent,
                                      ScrollableLayerGuid* aOutTargetGuid);
-  // Callback for the APZController
-  void SetApzPendingResponseFlusher(APZPendingResponseFlusher* aFlusher);
 
 protected:
   friend class FrameworkView;

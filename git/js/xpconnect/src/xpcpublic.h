@@ -508,9 +508,6 @@ ShouldDiscardSystemSource();
 bool
 SetAddonInterposition(const nsACString &addonId, nsIAddonInterposition *interposition);
 
-bool
-ExtraWarningsForSystemJS();
-
 } // namespace xpc
 
 namespace mozilla {

@@ -7,6 +7,8 @@
 #ifndef jit_BaselineCompiler_h
 #define jit_BaselineCompiler_h
 
+#ifdef JS_ION
+
 #include "jit/FixedList.h"
 #if defined(JS_CODEGEN_X86)
 # include "jit/x86/BaselineCompiler-x86.h"
@@ -274,5 +276,7 @@ class BaselineCompiler : public BaselineCompilerSpecific
 
 } // namespace jit
 } // namespace js
+
+#endif // JS_ION
 
 #endif /* jit_BaselineCompiler_h */

@@ -24,6 +24,7 @@ const WIFIWORKER_CID        = Components.ID("{a14e8977-d259-433a-a88d-58dd44657e
 
 const WIFIWORKER_WORKER     = "resource://gre/modules/wifi_worker.js";
 
+const kNetworkInterfaceStateChangedTopic = "network-interface-state-changed";
 const kMozSettingsChangedObserverTopic   = "mozsettings-changed";
 
 const MAX_RETRIES_ON_AUTHENTICATION_FAILURE = 2;
@@ -978,8 +979,9 @@ var WifiManager = (function() {
       WifiNetworkInterface.prefixLengths = [];
       WifiNetworkInterface.gateways = [];
       WifiNetworkInterface.dnses = [];
-      gNetworkManager.updateNetworkInterface(WifiNetworkInterface);
-
+      Services.obs.notifyObservers(WifiNetworkInterface,
+                                   kNetworkInterfaceStateChangedTopic,
+                                   null);
       prepareForStartup(function() {
         loadDriver(function (status) {
           if (status < 0) {
@@ -2183,7 +2185,9 @@ function WifiWorker() {
         WifiNetworkInterface.prefixLengths = [];
         WifiNetworkInterface.gateways = [];
         WifiNetworkInterface.dnses = [];
-        gNetworkManager.updateNetworkInterface(WifiNetworkInterface);
+        Services.obs.notifyObservers(WifiNetworkInterface,
+                                     kNetworkInterfaceStateChangedTopic,
+                                     null);
 
         break;
       case "WPS_TIMEOUT":
@@ -2231,7 +2235,9 @@ function WifiWorker() {
         this.info.dns2_str.length) {
       WifiNetworkInterface.dnses.push(this.info.dns2_str);
     }
-    gNetworkManager.updateNetworkInterface(WifiNetworkInterface);
+    Services.obs.notifyObservers(WifiNetworkInterface,
+                                 kNetworkInterfaceStateChangedTopic,
+                                 null);
 
     self.ipAddress = this.info.ipaddr_str;
 

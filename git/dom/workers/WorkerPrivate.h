@@ -393,8 +393,10 @@ public:
   GetInnerWindowId();
 
   void
-  UpdateRuntimeOptions(JSContext* aCx,
-                       const JS::RuntimeOptions& aRuntimeOptions);
+  UpdateRuntimeAndContextOptions(JSContext* aCx,
+                                 const JS::RuntimeOptions& aRuntimeOptions,
+                                 const JS::ContextOptions& aContentCxOptions,
+                                 const JS::ContextOptions& aChromeCxOptions);
 
   void
   UpdatePreference(JSContext* aCx, WorkerPreference aPref, bool aValue);
@@ -927,7 +929,11 @@ public:
   }
 
   void
-  UpdateRuntimeOptionsInternal(JSContext* aCx, const JS::RuntimeOptions& aRuntimeOptions);
+  UpdateRuntimeAndContextOptionsInternal(
+                                    JSContext* aCx,
+                                    const JS::RuntimeOptions& aRuntimeOptions,
+                                    const JS::ContextOptions& aContentCxOptions,
+                                    const JS::ContextOptions& aChromeCxOptions);
 
   void
   UpdatePreferenceInternal(JSContext* aCx, WorkerPreference aPref, bool aValue);

@@ -12,6 +12,7 @@
 #include "AudioNodeStream.h"
 #include "AudioDestinationNode.h"
 #include "AudioParamTimeline.h"
+#include "speex/speex_resampler.h"
 #include <limits>
 
 namespace mozilla {

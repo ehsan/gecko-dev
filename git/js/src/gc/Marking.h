@@ -354,6 +354,9 @@ IsAboutToBeFinalized(BarrieredBase<JSScript*> *scriptp)
     return IsScriptAboutToBeFinalized(scriptp);
 }
 
+#ifdef JS_ION
+/* Nonsense to get WeakCache to work with new Marking semantics. */
+
 inline bool
 IsAboutToBeFinalized(const js::jit::VMFunction **vmfunc)
 {
@@ -369,6 +372,7 @@ IsAboutToBeFinalized(ReadBarrieredJitCode code)
 {
     return IsJitCodeAboutToBeFinalized(code.unsafeGet());
 }
+#endif
 
 inline Cell *
 ToMarkable(const Value &v)

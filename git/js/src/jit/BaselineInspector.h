@@ -7,6 +7,8 @@
 #ifndef jit_BaselineInspector_h
 #define jit_BaselineInspector_h
 
+#ifdef JS_ION
+
 #include "jit/BaselineIC.h"
 #include "jit/BaselineJIT.h"
 #include "jit/MIR.h"
@@ -121,5 +123,7 @@ class BaselineInspector
 
 } // namespace jit
 } // namespace js
+
+#endif // JS_ION
 
 #endif /* jit_BaselineInspector_h */

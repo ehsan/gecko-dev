@@ -7,6 +7,8 @@
 #ifndef jit_JitCompartment_h
 #define jit_JitCompartment_h
 
+#ifdef JS_ION
+
 #include "mozilla/MemoryReporting.h"
 
 #include "jsweakcache.h"
@@ -505,5 +507,7 @@ const unsigned WINDOWS_BIG_FRAME_TOUCH_INCREMENT = 4096 - 1;
 
 } // namespace jit
 } // namespace js
+
+#endif // JS_ION
 
 #endif /* jit_JitCompartment_h */

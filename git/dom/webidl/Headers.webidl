@@ -20,7 +20,7 @@ enum HeadersGuardEnum {
 
 [Constructor(optional HeadersInit init),
  // FIXME: Exposed=Window,Worker,
- Func="mozilla::dom::Headers::PrefEnabled"]
+ Pref="dom.fetch.enabled"]
 interface Headers {
   [Throws] void append(ByteString name, ByteString value);
   [Throws] void delete(ByteString name);

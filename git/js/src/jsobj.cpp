@@ -4588,6 +4588,7 @@ NativeGetInline(JSContext *cx,
     {
         jsbytecode *pc;
         JSScript *script = cx->currentScript(&pc);
+#ifdef JS_ION
         if (script && script->hasBaselineScript()) {
             switch (JSOp(*pc)) {
               case JSOP_GETPROP:
@@ -4599,6 +4600,7 @@ NativeGetInline(JSContext *cx,
                 break;
             }
         }
+#endif
     }
 
     if (!allowGC)
@@ -4742,7 +4744,7 @@ GetPropertyHelperInline(JSContext *cx,
             }
 
             /* Don't warn if extra warnings not enabled or for random getprop operations. */
-            if (!cx->compartment()->options().extraWarnings(cx) || (op != JSOP_GETPROP && op != JSOP_GETELEM))
+            if (!cx->options().extraWarnings() || (op != JSOP_GETPROP && op != JSOP_GETELEM))
                 return true;
 
             /* Don't warn repeatedly for the same script. */
@@ -5010,7 +5012,7 @@ MaybeReportUndeclaredVarAssignment(JSContext *cx, JSString *propname)
 
         // If the code is not strict and extra warnings aren't enabled, then no
         // check is needed.
-        if (!script->strict() && !cx->compartment()->options().extraWarnings(cx))
+        if (!script->strict() && !cx->options().extraWarnings())
             return true;
     }
 
@@ -5129,7 +5131,7 @@ baseops::SetPropertyHelper(typename ExecutionModeTraits<mode>::ContextType cxArg
                 if (pd.isReadonly()) {
                     if (strict)
                         return JSObject::reportReadOnly(cx, id, JSREPORT_ERROR);
-                    if (cx->compartment()->options().extraWarnings(cx))
+                    if (cx->options().extraWarnings())
                         return JSObject::reportReadOnly(cx, id, JSREPORT_STRICT | JSREPORT_WARNING);
                     return true;
                 }
@@ -5189,7 +5191,7 @@ baseops::SetPropertyHelper(typename ExecutionModeTraits<mode>::ContextType cxArg
                 JSContext *cx = cxArg->asJSContext();
                 if (strict)
                     return JSObject::reportReadOnly(cx, id, JSREPORT_ERROR);
-                if (cx->compartment()->options().extraWarnings(cx))
+                if (cx->options().extraWarnings())
                     return JSObject::reportReadOnly(cx, id, JSREPORT_STRICT | JSREPORT_WARNING);
                 return true;
             }
@@ -5299,11 +5301,8 @@ baseops::SetPropertyHelper(typename ExecutionModeTraits<mode>::ContextType cxArg
             /* Error in strict mode code, warn with extra warnings option, otherwise do nothing. */
             if (strict)
                 return obj->reportNotExtensible(cxArg);
-            if (mode == SequentialExecution &&
-                cxArg->asJSContext()->compartment()->options().extraWarnings(cxArg->asJSContext()))
-            {
+            if (mode == SequentialExecution && cxArg->asJSContext()->options().extraWarnings())
                 return obj->reportNotExtensible(cxArg, JSREPORT_STRICT | JSREPORT_WARNING);
-            }
             return true;
         }
 
@@ -6166,9 +6165,11 @@ JSObject::addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::Objects
         sizes->mallocHeapPropertyIteratorData += as<PropertyIteratorObject>().sizeOfMisc(mallocSizeOf);
     } else if (is<ArrayBufferObject>() || is<SharedArrayBufferObject>()) {
         ArrayBufferObject::addSizeOfExcludingThis(this, mallocSizeOf, sizes);
+#ifdef JS_ION
     } else if (is<AsmJSModuleObject>()) {
         as<AsmJSModuleObject>().addSizeOfMisc(mallocSizeOf, &sizes->nonHeapCodeAsmJS,
                                               &sizes->mallocHeapAsmJSModuleData);
+#endif
 #ifdef JS_HAS_CTYPES
     } else {
         // This must be the last case.

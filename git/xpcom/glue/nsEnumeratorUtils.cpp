@@ -105,7 +105,7 @@ public:
   NS_IMETHOD HasMoreElements(bool* aResult);
   NS_IMETHOD GetNext(nsISupports** aResult);
 
-  explicit nsSingletonEnumerator(nsISupports* aValue);
+  nsSingletonEnumerator(nsISupports* aValue);
 
 private:
   ~nsSingletonEnumerator();

@@ -18,7 +18,9 @@
 #include "jswrapper.h"
 
 #include "gc/Marking.h"
+#ifdef JS_ION
 #include "jit/JitCompartment.h"
+#endif
 #include "js/RootingAPI.h"
 #include "vm/StopIterationObject.h"
 #include "vm/WrapperObject.h"
@@ -64,8 +66,10 @@ JSCompartment::JSCompartment(Zone *zone, const JS::CompartmentOptions &options =
     debugScriptMap(nullptr),
     debugScopes(nullptr),
     enumerators(nullptr),
-    compartmentStats(nullptr),
-    jitCompartment_(nullptr)
+    compartmentStats(nullptr)
+#ifdef JS_ION
+    , jitCompartment_(nullptr)
+#endif
 {
     runtime_->numCompartments++;
     JS_ASSERT_IF(options.mergeable(), options.invisibleToDebugger());
@@ -73,7 +77,10 @@ JSCompartment::JSCompartment(Zone *zone, const JS::CompartmentOptions &options =
 
 JSCompartment::~JSCompartment()
 {
+#ifdef JS_ION
     js_delete(jitCompartment_);
+#endif
+
     js_delete(watchpointMap);
     js_delete(scriptCountsMap);
     js_delete(debugScriptMap);
@@ -113,6 +120,7 @@ JSCompartment::init(JSContext *cx)
     return debuggees.init(0);
 }
 
+#ifdef JS_ION
 jit::JitRuntime *
 JSRuntime::createJitRuntime(JSContext *cx)
 {
@@ -172,6 +180,7 @@ JSCompartment::ensureJitCompartmentExists(JSContext *cx)
 
     return true;
 }
+#endif
 
 #ifdef JSGC_GENERATIONAL
 
@@ -555,8 +564,10 @@ JSCompartment::markRoots(JSTracer *trc)
 {
     JS_ASSERT(!trc->runtime()->isHeapMinorCollecting());
 
+#ifdef JS_ION
     if (jitCompartment_)
         jitCompartment_->mark(trc, this);
+#endif
 
     /*
      * If a compartment is on-stack, we mark its global so that
@@ -597,8 +608,10 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
             selfHostingScriptSource.set(nullptr);
         }
 
+#ifdef JS_ION
         if (jitCompartment_)
             jitCompartment_->sweep(fop, this);
+#endif
 
         /*
          * JIT code increments activeUseCount for any RegExpShared used by jit
@@ -670,7 +683,9 @@ JSCompartment::clearTables()
     // compartment and zone.
     JS_ASSERT(crossCompartmentWrappers.empty());
     JS_ASSERT_IF(callsiteClones.initialized(), callsiteClones.empty());
+#ifdef JS_ION
     JS_ASSERT(!jitCompartment_);
+#endif
     JS_ASSERT(!debugScopes);
     JS_ASSERT(!gcWeakMapList);
     JS_ASSERT(enumerators->next() == enumerators);
@@ -820,11 +835,15 @@ JSCompartment::setDebugModeFromC(JSContext *cx, bool b, AutoDebugModeInvalidatio
 bool
 JSCompartment::updateJITForDebugMode(JSContext *maybecx, AutoDebugModeInvalidation &invalidate)
 {
+#ifdef JS_ION
     // The AutoDebugModeInvalidation argument makes sure we can't forget to
     // invalidate, but it is also important not to run any scripts in this
     // compartment until the invalidate is destroyed.  That is the caller's
     // responsibility.
-    return jit::UpdateForDebugMode(maybecx, this, invalidate);
+    if (!jit::UpdateForDebugMode(maybecx, this, invalidate))
+        return false;
+#endif
+    return true;
 }
 
 bool

@@ -446,9 +446,11 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         cStats->scriptsGCHeap += thingSize;
         cStats->scriptsMallocHeapData += script->sizeOfData(rtStats->mallocSizeOf_);
         cStats->typeInferenceTypeScripts += script->sizeOfTypeScript(rtStats->mallocSizeOf_);
+#ifdef JS_ION
         jit::AddSizeOfBaselineData(script, rtStats->mallocSizeOf_, &cStats->baselineData,
                                    &cStats->baselineStubsFallback);
         cStats->ionData += jit::SizeOfIonData(script, rtStats->mallocSizeOf_);
+#endif
 
         ScriptSource *ss = script->scriptSource();
         SourceSet::AddPtr entry = closure->seenSources.lookupForAdd(ss);
@@ -488,8 +490,10 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
       }
 
       case JSTRACE_JITCODE: {
+#ifdef JS_ION
         zStats->jitCodesGCHeap += thingSize;
         // The code for a script is counted in ExecutableAllocator::sizeOfCode().
+#endif
         break;
       }
 

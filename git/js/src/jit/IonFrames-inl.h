@@ -7,6 +7,8 @@
 #ifndef jit_IonFrames_inl_h
 #define jit_IonFrames_inl_h
 
+#ifdef JS_ION
+
 #include "jit/IonFrames.h"
 
 #include "jit/JitFrameIterator.h"
@@ -94,5 +96,7 @@ GetTopIonJSScript(ForkJoinContext *cx, void **returnAddrOut = nullptr)
 
 } // namespace jit
 } // namespace js
+
+#endif // JS_ION
 
 #endif /* jit_IonFrames_inl_h */

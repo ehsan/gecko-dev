@@ -80,7 +80,6 @@
 #include "TiledLayerBuffer.h" // For TILEDLAYERBUFFER_TILE_SIZE
 #include "ClientLayerManager.h"
 #include "nsRefreshDriver.h"
-#include "nsIContentViewer.h"
 
 #include "mozilla/Preferences.h"
 
@@ -6616,27 +6615,6 @@ nsLayoutUtils::UpdateImageVisibilityForFrame(nsIFrame* aImageFrame)
   }
 }
 
-/* static */ bool
-nsLayoutUtils::GetContentViewerBounds(nsPresContext* aPresContext,
-                                      LayoutDeviceIntRect& aOutRect)
-{
-  nsCOMPtr<nsIDocShell> docShell = aPresContext->GetDocShell();
-  if (!docShell) {
-    return false;
-  }
-
-  nsCOMPtr<nsIContentViewer> cv;
-  docShell->GetContentViewer(getter_AddRefs(cv));
-  if (!cv) {
-    return false;
-  }
-
-  nsIntRect bounds;
-  cv->GetBounds(bounds);
-  aOutRect = LayoutDeviceIntRect::FromUntyped(bounds);
-  return true;
-}
-
 /* static */ nsSize
 nsLayoutUtils::CalculateCompositionSizeForFrame(nsIFrame* aFrame)
 {
@@ -6652,28 +6630,27 @@ nsLayoutUtils::CalculateCompositionSizeForFrame(nsIFrame* aFrame)
                                       && aFrame == presShell->GetRootScrollFrame();
   if (isRootContentDocRootScrollFrame) {
     if (nsIFrame* rootFrame = presShell->GetRootFrame()) {
+      if (nsView* view = rootFrame->GetView()) {
+        nsSize viewSize = view->GetBounds().Size();
+        nsIWidget* widget =
 #ifdef MOZ_WIDGET_ANDROID
-      nsIWidget* widget = rootFrame->GetNearestWidget();
+            rootFrame->GetNearestWidget();
 #else
-      nsView* view = rootFrame->GetView();
-      nsIWidget* widget = view ? view->GetWidget() : nullptr;
+            view->GetWidget();
 #endif
-      int32_t auPerDevPixel = presContext->AppUnitsPerDevPixel();
-      if (widget) {
-        nsIntRect widgetBounds;
-        widget->GetBounds(widgetBounds);
-        size = nsSize(widgetBounds.width * auPerDevPixel,
-                      widgetBounds.height * auPerDevPixel);
+        if (widget) {
+          nsIntRect widgetBounds;
+          widget->GetBounds(widgetBounds);
+          int32_t auPerDevPixel = presContext->AppUnitsPerDevPixel();
+          size = nsSize(widgetBounds.width * auPerDevPixel,
+                        widgetBounds.height * auPerDevPixel);
 #ifdef MOZ_WIDGET_ANDROID
-        nsSize frameSize = aFrame->GetSize();
-        if (frameSize.height < size.height) {
-          size.height = frameSize.height;
-        }
+          if (viewSize.height < size.height) {
+            size.height = viewSize.height;
+          }
 #endif
-      } else {
-        LayoutDeviceIntRect contentBounds;
-        if (nsLayoutUtils::GetContentViewerBounds(presContext, contentBounds)) {
-          size = LayoutDevicePixel::ToAppUnits(contentBounds.Size(), auPerDevPixel);
+        } else {
+          size = viewSize;
         }
       }
     }
@@ -6689,7 +6666,6 @@ nsLayoutUtils::CalculateCompositionSizeForFrame(nsIFrame* aFrame)
 
   return size;
 }
-
 /* static */ CSSSize
 nsLayoutUtils::CalculateRootCompositionSize(nsIFrame* aFrame,
                                             bool aIsRootContentDocRootScrollFrame,
@@ -6715,38 +6691,32 @@ nsLayoutUtils::CalculateRootCompositionSize(nsIFrame* aFrame,
     // TODO: Reuse that code here.
     nsIPresShell* rootPresShell = rootPresContext->PresShell();
     if (nsIFrame* rootFrame = rootPresShell->GetRootFrame()) {
-      LayoutDeviceToParentLayerScale parentResolution(
-        rootPresShell->GetCumulativeResolution().width
-        / rootPresShell->GetResolution().width);
-      int32_t rootAUPerDevPixel = rootPresContext->AppUnitsPerDevPixel();
-      LayerSize frameSize = ViewAs<LayerPixel>(
-        (LayoutDeviceRect::FromAppUnits(rootFrame->GetRect(), rootAUPerDevPixel)
-         * parentResolution).Size(), PixelCastJustification::ParentLayerToLayerForRootComposition);
-      rootCompositionSize = frameSize;
+      if (nsView* view = rootFrame->GetView()) {
+        LayoutDeviceToParentLayerScale parentResolution(
+          rootPresShell->GetCumulativeResolution().width
+          / rootPresShell->GetResolution().width);
+        int32_t rootAUPerDevPixel = rootPresContext->AppUnitsPerDevPixel();
+        nsRect viewBounds = view->GetBounds();
+        LayerSize viewSize = ViewAs<LayerPixel>(
+          (LayoutDeviceRect::FromAppUnits(viewBounds, rootAUPerDevPixel)
+           * parentResolution).Size(), PixelCastJustification::ParentLayerToLayerForRootComposition);
+        nsIWidget* widget =
 #ifdef MOZ_WIDGET_ANDROID
-      nsIWidget* widget = rootFrame->GetNearestWidget();
+            rootFrame->GetNearestWidget();
 #else
-      nsView* view = rootFrame->GetView();
-      nsIWidget* widget = view ? view->GetWidget() : nullptr;
+            view->GetWidget();
 #endif
-      if (widget) {
-        nsIntRect widgetBounds;
-        widget->GetBounds(widgetBounds);
-        rootCompositionSize = LayerSize(ViewAs<LayerPixel>(widgetBounds.Size()));
+        if (widget) {
+          nsIntRect widgetBounds;
+          widget->GetBounds(widgetBounds);
+          rootCompositionSize = LayerSize(ViewAs<LayerPixel>(widgetBounds.Size()));
 #ifdef MOZ_WIDGET_ANDROID
-        if (frameSize.height < rootCompositionSize.height) {
-          rootCompositionSize.height = frameSize.height;
-        }
-#endif
-      } else {
-        LayoutDeviceIntRect contentBounds;
-        if (nsLayoutUtils::GetContentViewerBounds(rootPresContext, contentBounds)) {
-          LayoutDeviceToLayerScale scale(1.0f);
-          if (rootPresContext->GetParentPresContext()) {
-            gfxSize res = rootPresContext->GetParentPresContext()->PresShell()->GetCumulativeResolution();
-            scale = LayoutDeviceToLayerScale(res.width, res.height);
+          if (viewSize.height < rootCompositionSize.height) {
+            rootCompositionSize.height = viewSize.height;
           }
-          rootCompositionSize = contentBounds.Size() * scale;
+#endif
+        } else {
+          rootCompositionSize = viewSize;
         }
       }
     }

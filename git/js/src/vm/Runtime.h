@@ -720,12 +720,14 @@ struct JSRuntime : public JS::shadow::Runtime,
      */
     mozilla::Atomic<bool, mozilla::Relaxed> interrupt;
 
+#ifdef JS_ION
     /*
      * If non-zero, ForkJoin should service an interrupt. This is a separate
      * flag from |interrupt| because we cannot use the mprotect trick with PJS
      * code and ignore the TriggerCallbackAnyThreadDontStopIon trigger.
      */
     mozilla::Atomic<bool, mozilla::Relaxed> interruptPar;
+#endif
 
     /* Set when handling a signal for a thread associated with this runtime. */
     bool handlingSignal;
@@ -1041,7 +1043,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* Client opaque pointers */
     void                *data;
 
-#ifdef XP_MACOSX
+#if defined(XP_MACOSX) && defined(JS_ION)
     js::AsmJSMachExceptionHandler asmJSMachExceptionHandler;
 #endif
 

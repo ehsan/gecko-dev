@@ -7,6 +7,8 @@
 #ifndef jit_BaselineFrame_inl_h
 #define jit_BaselineFrame_inl_h
 
+#ifdef JS_ION
+
 #include "jit/BaselineFrame.h"
 
 #include "jscntxt.h"
@@ -76,5 +78,7 @@ BaselineFrame::callObj() const
 
 } // namespace jit
 } // namespace js
+
+#endif // JS_ION
 
 #endif /* jit_BaselineFrame_inl_h */

@@ -7,6 +7,8 @@
 #ifndef jit_CompilerRoot_h
 #define jit_CompilerRoot_h
 
+#ifdef JS_ION
+
 #include "jscntxt.h"
 
 #include "jit/Ion.h"
@@ -62,5 +64,7 @@ typedef CompilerRoot<Value> CompilerRootValue;
 
 } // namespace jit
 } // namespace js
+
+#endif // JS_ION
 
 #endif /* jit_CompilerRoot_h */
