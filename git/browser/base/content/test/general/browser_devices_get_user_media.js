@@ -771,7 +771,7 @@ function test() {
   }, true);
   let rootDir = getRootDirectory(gTestPath)
   rootDir = rootDir.replace("chrome://mochitests/content/",
-                            "https://example.com/");
+                            "http://127.0.0.1:8888/");
   content.location = rootDir + "get_user_media.html";
 }
 

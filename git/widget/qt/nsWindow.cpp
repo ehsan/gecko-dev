@@ -60,6 +60,8 @@
 #include "nsAutoPtr.h"
 
 #include "gfxQtPlatform.h"
+#include "gfxContext.h"
+#include "gfxImageSurface.h"
 
 #include "nsIDOMWheelEvent.h"
 
@@ -69,6 +71,7 @@
 #include "keysym2ucs.h"
 #endif
 
+#include "gfxUtils.h"
 #include "Layers.h"
 #include "GLContextProvider.h"
 

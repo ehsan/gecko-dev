@@ -7,7 +7,6 @@
 #ifndef nsDragService_h__
 #define nsDragService_h__
 
-#include "nsAutoPtr.h"
 #include "nsBaseDragService.h"
 #include "nsIObserver.h"
 #include "nsAutoRef.h"

@@ -179,9 +179,15 @@ nsClipboard::SetNativeClipboardData( nsITransferable *aTransferable,
                 if (!image)  // Not getting an image for an image mime type!?
                    continue;
 
-                RefPtr<SourceSurface> surface =
+                nsRefPtr<gfxASurface> thebesSurface =
                   image->GetFrame(imgIContainer::FRAME_CURRENT,
                                   imgIContainer::FLAG_SYNC_DECODE);
+                if (!thebesSurface)
+                  continue;
+
+                RefPtr<SourceSurface> surface =
+                  gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(nullptr,
+                                                                         thebesSurface);
                 if (!surface)
                   continue;
 

@@ -7,6 +7,7 @@
 #define GFXQTNATIVERENDER_H_
 
 #include "gfxColor.h"
+#include "gfxASurface.h"
 #include "gfxContext.h"
 #include "gfxXlibSurface.h"
 

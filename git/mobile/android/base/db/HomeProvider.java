@@ -5,6 +5,7 @@
 package org.mozilla.gecko.db;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -12,7 +13,6 @@ import org.json.JSONObject;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.db.BrowserContract.HomeItems;
 import org.mozilla.gecko.sqlite.SQLiteBridge;
-import org.mozilla.gecko.util.RawResource;
 
 import android.content.ContentValues;
 import android.content.UriMatcher;
@@ -83,8 +83,7 @@ public class HomeProvider extends SQLiteBridgeContentProvider {
     private Cursor queryFakeItems(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
         JSONArray items = null;
         try {
-            final String jsonString = RawResource.get(getContext(), R.raw.fake_home_items);
-            items = new JSONArray(jsonString);
+            items = new JSONArray(getRawFakeItems());
         } catch (IOException e) {
             Log.e(LOGTAG, "Error getting fake home items", e);
             return null;
@@ -121,6 +120,18 @@ public class HomeProvider extends SQLiteBridgeContentProvider {
             }
         }
         return c;
+    }
+
+    private String getRawFakeItems() throws IOException {
+        final InputStream inputStream = getContext().getResources().openRawResource(R.raw.fake_home_items);
+        final byte[] buffer = new byte[1024];
+        StringBuilder s = new StringBuilder();
+        int count;
+
+        while ((count = inputStream.read(buffer)) != -1) {
+            s.append(new String(buffer, 0, count));
+        }
+        return s.toString();
     }
 
     /**

@@ -10,6 +10,7 @@
 #include <map>
 #include <android/log.h>
 #include "nsSurfaceTexture.h"
+#include "gfxImageSurface.h"
 #include "AndroidBridge.h"
 #include "nsThreadUtils.h"
 #include "mozilla/gfx/Matrix.h"

@@ -11,8 +11,6 @@
 
 #include "OrientedImage.h"
 
-using namespace mozilla::gfx;
-
 using std::swap;
 using mozilla::layers::LayerManager;
 using mozilla::layers::ImageContainer;
@@ -77,7 +75,7 @@ OrientedImage::GetIntrinsicRatio(nsSize* aRatio)
   return rv;
 }
 
-NS_IMETHODIMP_(TemporaryRef<SourceSurface>)
+NS_IMETHODIMP_(already_AddRefed<gfxASurface>)
 OrientedImage::GetFrame(uint32_t aWhichFrame,
                         uint32_t aFlags)
 {
@@ -89,12 +87,12 @@ OrientedImage::GetFrame(uint32_t aWhichFrame,
 
   // Get the underlying dimensions.
   int32_t width, height;
-  rv = InnerImage()->GetWidth(&width);
-  NS_ENSURE_SUCCESS(rv, nullptr);
-  rv = InnerImage()->GetHeight(&height);
-  NS_ENSURE_SUCCESS(rv, nullptr);
   if (mOrientation.SwapsWidthAndHeight()) {
-    swap(width, height);
+    rv = InnerImage()->GetWidth(&height);
+    rv = NS_FAILED(rv) ? rv : InnerImage()->GetHeight(&width);
+  } else {
+    rv = InnerImage()->GetWidth(&width);
+    rv = NS_FAILED(rv) ? rv : InnerImage()->GetHeight(&height);
   }
   NS_ENSURE_SUCCESS(rv, nullptr);
 
@@ -110,12 +108,12 @@ OrientedImage::GetFrame(uint32_t aWhichFrame,
   }
 
   // Create a surface to draw into.
-  mozilla::RefPtr<DrawTarget> target =
-    gfxPlatform::GetPlatform()->
-      CreateOffscreenContentDrawTarget(IntSize(width, height), surfaceFormat);
+  mozilla::RefPtr<mozilla::gfx::DrawTarget> target;
+  target = gfxPlatform::GetPlatform()->
+    CreateOffscreenContentDrawTarget(gfx::IntSize(width, height), surfaceFormat);
 
   // Create our drawable.
-  RefPtr<SourceSurface> innerSurface =
+  nsRefPtr<gfxASurface> innerSurface =
     InnerImage()->GetFrame(aWhichFrame, aFlags);
   NS_ENSURE_TRUE(innerSurface, nullptr);
   nsRefPtr<gfxDrawable> drawable =
@@ -128,7 +126,10 @@ OrientedImage::GetFrame(uint32_t aWhichFrame,
                              imageRect, imageRect, imageRect, imageRect,
                              imageFormat, GraphicsFilter::FILTER_FAST);
   
-  return target->Snapshot();
+  nsRefPtr<gfxASurface> surface = gfxPlatform::GetPlatform()->
+    GetThebesSurfaceForDrawTarget(target);
+
+  return surface.forget();
 }
 
 NS_IMETHODIMP

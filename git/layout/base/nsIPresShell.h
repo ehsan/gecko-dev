@@ -67,6 +67,7 @@ class nsISelection;
 template<class E> class nsCOMArray;
 class nsWeakFrame;
 class nsIScrollableFrame;
+class gfxASurface;
 class gfxContext;
 class nsIDOMEvent;
 class nsDisplayList;

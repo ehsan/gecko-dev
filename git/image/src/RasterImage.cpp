@@ -3,17 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Must #include ImageLogging.h before any IPDL-generated files or other files that #include prlog.h
-#include "ImageLogging.h"
-
-#include "RasterImage.h"
-
 #include "base/histogram.h"
-#include "gfxPlatform.h"
+#include "ImageLogging.h"
 #include "nsComponentManagerUtils.h"
 #include "imgDecoderObserver.h"
 #include "nsError.h"
 #include "Decoder.h"
+#include "RasterImage.h"
 #include "nsAutoPtr.h"
 #include "prenv.h"
 #include "prsystem.h"
@@ -34,8 +30,6 @@
 
 #include "gfxContext.h"
 
-#include "mozilla/gfx/2D.h"
-#include "mozilla/RefPtr.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"
@@ -54,7 +48,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 using namespace mozilla::image;
 using namespace mozilla::layers;
 
@@ -887,9 +880,9 @@ RasterImage::CopyFrame(uint32_t aWhichFrame,
 }
 
 //******************************************************************************
-/* [noscript] SourceSurface getFrame(in uint32_t aWhichFrame,
- *                                   in uint32_t aFlags); */
-NS_IMETHODIMP_(TemporaryRef<SourceSurface>)
+/* [noscript] gfxASurface getFrame(in uint32_t aWhichFrame,
+ *                                 in uint32_t aFlags); */
+NS_IMETHODIMP_(already_AddRefed<gfxASurface>)
 RasterImage::GetFrame(uint32_t aWhichFrame,
                       uint32_t aFlags)
 {
@@ -958,22 +951,7 @@ RasterImage::GetFrame(uint32_t aWhichFrame,
     framesurf = imgsurf;
   }
 
-  RefPtr<SourceSurface> result;
-
-  // As far as Moz2D is concerned, SourceSurface contains premultiplied alpha.
-  // If we're abusing it to contain non-premultiplied alpha then we want to
-  // avoid having Moz2D do any conversions on it (like copy to another
-  // surface). Hence why we try to wrap framesurf's data here for
-  // FLAG_DECODE_NO_PREMULTIPLY_ALPHA.
-  if ((aFlags & FLAG_WANT_DATA_SURFACE) != 0 ||
-      (aFlags & FLAG_DECODE_NO_PREMULTIPLY_ALPHA) != 0) {
-    result = gfxPlatform::GetPlatform()->GetWrappedDataSourceSurface(framesurf);
-  }
-  if (!result) {
-    result = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(nullptr,
-                                                                    framesurf);
-  }
-  return result.forget();
+  return framesurf.forget();
 }
 
 already_AddRefed<layers::Image>
@@ -986,8 +964,8 @@ RasterImage::GetCurrentImage()
     return nullptr;
   }
 
-  RefPtr<SourceSurface> surface = GetFrame(FRAME_CURRENT, FLAG_NONE);
-  if (!surface) {
+  nsRefPtr<gfxASurface> imageSurface = GetFrame(FRAME_CURRENT, FLAG_NONE);
+  if (!imageSurface) {
     // The OS threw out some or all of our buffer. Start decoding again.
     // GetFrame will only return null in the case that the image was
     // discarded. We already checked that the image is decoded, so other
@@ -1004,7 +982,7 @@ RasterImage::GetCurrentImage()
   CairoImage::Data cairoData;
   GetWidth(&cairoData.mSize.width);
   GetHeight(&cairoData.mSize.height);
-  cairoData.mSourceSurface = surface;
+  cairoData.mSourceSurface = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(nullptr, imageSurface);
 
   nsRefPtr<layers::Image> image = mImageContainer->CreateImage(ImageFormat::CAIRO_SURFACE);
   NS_ASSERTION(image, "Failed to create Image");

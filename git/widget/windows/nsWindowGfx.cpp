@@ -53,6 +53,7 @@ using mozilla::plugins::PluginInstanceParent;
 
 #include "nsUXThemeData.h"
 #include "nsUXThemeConstants.h"
+#include "mozilla/gfx/2D.h"
 
 extern "C" {
 #define PIXMAN_DONT_DEFINE_STDINT
@@ -615,26 +616,31 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
              (aScaledSize.width == 0 && aScaledSize.height == 0));
 
   // Get the image data
-  RefPtr<SourceSurface> surface =
+  nsRefPtr<gfxASurface> thebesSurface =
     aContainer->GetFrame(imgIContainer::FRAME_CURRENT,
                          imgIContainer::FLAG_SYNC_DECODE);
-  NS_ENSURE_TRUE(surface, NS_ERROR_NOT_AVAILABLE);
+  NS_ENSURE_TRUE(thebesSurface, NS_ERROR_NOT_AVAILABLE);
 
-  IntSize frameSize = surface->GetSize();
-  if (frameSize.IsEmpty()) {
+  RefPtr<SourceSurface> surface =
+    gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(nullptr,
+                                                           thebesSurface);
+  NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);
+
+  IntSize surfaceSize(surface->GetSize().width, surface->GetSize().height);
+  if (surfaceSize.IsEmpty()) {
     return NS_ERROR_FAILURE;
   }
 
   IntSize iconSize(aScaledSize.width, aScaledSize.height);
   if (iconSize == IntSize(0, 0)) { // use frame's intrinsic size
-    iconSize = frameSize;
+    iconSize = surfaceSize;
   }
 
   RefPtr<DataSourceSurface> dataSurface;
   bool mappedOK;
   DataSourceSurface::MappedSurface map;
 
-  if (iconSize != frameSize) {
+  if (iconSize != surfaceSize) {
     // Scale the surface
     dataSurface = Factory::CreateDataSourceSurface(iconSize,
                                                    SurfaceFormat::B8G8R8A8);
@@ -650,7 +656,7 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
                                        SurfaceFormat::B8G8R8A8);
     dt->DrawSurface(surface,
                     Rect(0, 0, iconSize.width, iconSize.height),
-                    Rect(0, 0, frameSize.width, frameSize.height),
+                    Rect(0, 0, surfaceSize.width, surfaceSize.height),
                     DrawSurfaceOptions(),
                     DrawOptions(1.0f, CompositionOp::OP_SOURCE));
   } else if (surface->GetFormat() != SurfaceFormat::B8G8R8A8) {

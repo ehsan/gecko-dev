@@ -36,7 +36,7 @@ public:
         return static_cast<GLContextGLX*>(gl);
     }
 
-    bool Init() MOZ_OVERRIDE;
+    bool Init();
 
     virtual bool MakeCurrentImpl(bool aForce) MOZ_OVERRIDE;
 
@@ -72,7 +72,6 @@ private:
     GLXLibrary* mGLX;
 
     nsRefPtr<gfxXlibSurface> mPixmap;
-    bool mOwnsContext;
 };
 
 }

@@ -6,7 +6,6 @@
 #include "gfxDrawable.h"
 #include "gfxASurface.h"
 #include "gfxContext.h"
-#include "gfxImageSurface.h"
 #include "gfxPlatform.h"
 #include "gfxColor.h"
 #ifdef MOZ_X11
@@ -196,18 +195,14 @@ gfxCallbackDrawable::gfxCallbackDrawable(gfxDrawingCallback* aCallback,
 already_AddRefed<gfxSurfaceDrawable>
 gfxCallbackDrawable::MakeSurfaceDrawable(const GraphicsFilter aFilter)
 {
-    SurfaceFormat format =
-        gfxPlatform::GetPlatform()->Optimal2DFormatForContent(gfxContentType::COLOR_ALPHA);
-    RefPtr<DrawTarget> dt =
-        gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(mSize.ToIntSize(),
-                                                                     format);
-    if (!dt)
+    nsRefPtr<gfxASurface> surface =
+        gfxPlatform::GetPlatform()->CreateOffscreenSurface(mSize.ToIntSize(),
+                                                           gfxContentType::COLOR_ALPHA);
+    if (!surface || surface->CairoStatus() != 0)
         return nullptr;
 
-    nsRefPtr<gfxContext> ctx = new gfxContext(dt);
+    nsRefPtr<gfxContext> ctx = new gfxContext(surface);
     Draw(ctx, gfxRect(0, 0, mSize.width, mSize.height), false, aFilter);
-
-    RefPtr<SourceSurface> surface = dt->Snapshot();
     nsRefPtr<gfxSurfaceDrawable> drawable = new gfxSurfaceDrawable(surface, mSize);
     return drawable.forget();
 }

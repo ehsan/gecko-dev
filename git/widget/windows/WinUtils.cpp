@@ -731,8 +731,12 @@ AsyncFaviconDataReady::OnComplete(nsIURI *aFaviconURI,
                                 getter_AddRefs(container));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  RefPtr<SourceSurface> surface =
+  nsRefPtr<gfxASurface> imgFrame =
     container->GetFrame(imgIContainer::FRAME_FIRST, 0);
+  NS_ENSURE_TRUE(imgFrame, NS_ERROR_FAILURE);
+
+  RefPtr<SourceSurface> surface =
+    gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(nullptr, imgFrame);
   NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);
 
   RefPtr<DataSourceSurface> dataSurface;

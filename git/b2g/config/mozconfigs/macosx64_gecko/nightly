@@ -1,4 +1,3 @@
-. "$topsrcdir/b2g/config/mozconfigs/common"
 . $topsrcdir/build/macosx/mozconfig.common
 
 ac_add_options --enable-update-channel=${MOZ_UPDATE_CHANNEL}
