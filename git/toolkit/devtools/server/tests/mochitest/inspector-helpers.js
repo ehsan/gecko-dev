@@ -110,8 +110,7 @@ function serverOwnershipTree(walker) {
 
   return {
     root: serverOwnershipSubtree(serverWalker, serverWalker.rootDoc ),
-    orphaned: [serverOwnershipSubtree(serverWalker, o.rawNode) for (o of serverWalker._orphaned)],
-    retained: [serverOwnershipSubtree(serverWalker, o.rawNode) for (o of serverWalker._retainedOrphans)]
+    orphaned: [serverOwnershipSubtree(serverWalker, o.rawNode) for (o of serverWalker._orphaned)]
   };
 }
 
@@ -125,8 +124,7 @@ function clientOwnershipSubtree(node) {
 function clientOwnershipTree(walker) {
   return {
     root: clientOwnershipSubtree(walker.rootNode),
-    orphaned: [clientOwnershipSubtree(o) for (o of walker._orphaned)],
-    retained: [clientOwnershipSubtree(o) for (o of walker._retainedOrphans)]
+    orphaned: [clientOwnershipSubtree(o) for (o of walker._orphaned)]
   }
 }
 
@@ -163,23 +161,6 @@ function checkMissing(client, actorID) {
   return deferred.promise;
 }
 
-// Verify that an actorID is accessible both from the client library and the server.
-function checkAvailable(client, actorID) {
-  let deferred = Promise.defer();
-  let front = client.getActor(actorID);
-  ok(front, "Front should be accessible from the client for actorID: " + actorID);
-
-  let deferred = Promise.defer();
-  client.request({
-    to: actorID,
-    type: "garbageAvailableTest",
-  }, response => {
-    is(response.error, "unrecognizedPacketType", "node list actor should be contactable.");
-    deferred.resolve(undefined);
-  });
-  return deferred.promise;
-}
-
 function promiseDone(promise) {
   promise.then(null, err => {
     ok(false, "Promise failed: " + err);
@@ -189,77 +170,6 @@ function promiseDone(promise) {
     SimpleTest.finish();
   });
 }
-
-// Mutation list testing
-
-function isSrcChange(change) {
-  return (change.type === "attributes" && change.attributeName === "src");
-}
-
-function assertAndStrip(mutations, message, test) {
-  let size = mutations.length;
-  mutations = mutations.filter(test);
-  ok((mutations.size != size), message);
-  return mutations;
-}
-
-function isSrcChange(change) {
-  return change.type === "attributes" && change.attributeName === "src";
-}
-
-function isUnload(change) {
-  return change.type === "documentUnload";
-}
-
-function isFrameLoad(change) {
-  return change.type === "frameLoad";
-}
-
-function isUnretained(change) {
-  return change.type === "unretained";
-}
-
-function isChildList(change) {
-  return change.type === "childList";
-}
-
-// Make sure an iframe's src attribute changed and then
-// strip that mutation out of the list.
-function assertSrcChange(mutations) {
-  return assertAndStrip(mutations, "Should have had an iframe source change.", isSrcChange);
-}
-
-// Make sure there's an unload in the mutation list and strip
-// that mutation out of the list
-function assertUnload(mutations) {
-  return assertAndStrip(mutations, "Should have had a document unload change.", isUnload);
-}
-
-// Make sure there's a frame load in the mutation list and strip
-// that mutation out of the list
-function assertFrameLoad(mutations) {
-  return assertAndStrip(mutations, "Should have had a frame load change.", isFrameLoad);
-}
-
-// Load mutations aren't predictable, so keep accumulating mutations until
-// the one we're looking for shows up.
-function waitForMutation(walker, test, mutations=[]) {
-  let deferred = Promise.defer();
-  for (let change of mutations) {
-    if (test(change)) {
-      deferred.resolve(mutations);
-    }
-  }
-
-  walker.once("mutations", newMutations => {
-    waitForMutation(walker, test, mutations.concat(newMutations)).then(finalMutations => {
-      deferred.resolve(finalMutations);
-    })
-  });
-
-  return deferred.promise;
-}
-
 
 var _tests = [];
 function addTest(test) {

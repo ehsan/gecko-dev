@@ -28,10 +28,6 @@ XPCOMUtils.defineLazyGetter(this, "SL", function () {
   return SL;
 });
 
-XPCOMUtils.defineLazyServiceGetter(this, "gSystemMessenger",
-                                   "@mozilla.org/system-message-internal;1",
-                                   "nsISystemMessagesInternal");
-
 /**
  * Helpers for WAP PDU processing.
  */
@@ -84,28 +80,23 @@ this.WapPushManager = {
     * @see http://technical.openmobilealliance.org/tech/omna/omna-wsp-content-type.aspx
     */
     let contentType = options.headers["content-type"].media;
-    let msg;
+    let msg = { contentType: contentType };
 
     if (contentType === "text/vnd.wap.si" ||
         contentType === "application/vnd.wap.sic") {
-      msg = SI.PduHelper.parse(data, contentType);
+      SI.PduHelper.parse(data, contentType, msg);
     } else if (contentType === "text/vnd.wap.sl" ||
                contentType === "application/vnd.wap.slc") {
-      msg = SL.PduHelper.parse(data, contentType);
-    } else {
+      SL.PduHelper.parse(data, contentType, msg);
+    } else if (contentType === "text/vnd.wap.connectivity-xml" ||
+               contentType === "application/vnd.wap.connectivity-wbxml") {
       // TODO: Bug 869291 - Support Receiving WAP-Push-CP
-
+    } else {
       // Unsupported type, provide raw data.
-      msg = {
-        contentType: contentType,
-        content: data.array
-      };
+      msg.content = data.array;
     }
 
-    gSystemMessenger.broadcastMessage("wappush-received", {
-      contentType:    msg.contentType,
-      content:        msg.content
-    });
+    // TODO: Bug 853782 - Notify receiving of WAP Push messages
   },
 
   /**
