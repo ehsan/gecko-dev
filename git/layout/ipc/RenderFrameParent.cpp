@@ -228,7 +228,9 @@ BuildListForLayer(Layer* aLayer,
     gfx3DMatrix applyTransform = ComputeShadowTreeTransform(
       aSubdocFrame, aRootFrameLoader, metrics, view->GetViewConfig(),
       1 / GetXScale(aTransform), 1 / GetYScale(aTransform));
-    transform = applyTransform * To3DMatrix(aLayer->GetTransform()) * aTransform;
+    gfx3DMatrix layerTransform;
+    To3DMatrix(aLayer->GetTransform(), layerTransform);
+    transform = applyTransform * layerTransform * aTransform;
 
     // As mentioned above, bounds calculation also depends on the scale
     // of this layer.
@@ -247,7 +249,9 @@ BuildListForLayer(Layer* aLayer,
       new (aBuilder) nsDisplayRemoteShadow(aBuilder, aSubdocFrame, bounds, scrollId));
 
   } else {
-    transform = To3DMatrix(aLayer->GetTransform()) * aTransform;
+    gfx3DMatrix layerTransform;
+    To3DMatrix(aLayer->GetTransform(), layerTransform);
+    transform = layerTransform * aTransform;
   }
 
   for (Layer* child = aLayer->GetFirstChild(); child;
@@ -272,7 +276,8 @@ TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
 
   const FrameMetrics* metrics = GetFrameMetrics(aLayer);
 
-  gfx3DMatrix shadowTransform = To3DMatrix(aLayer->GetTransform());
+  gfx3DMatrix shadowTransform;
+  To3DMatrix(aLayer->GetTransform(), shadowTransform);
   ViewTransform layerTransform = aTransform;
 
   if (metrics && metrics->IsScrollable()) {
@@ -280,7 +285,8 @@ TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
     const nsContentView* view =
       aFrameLoader->GetCurrentRemoteFrame()->GetContentView(scrollId);
     NS_ABORT_IF_FALSE(view, "Array of views should be consistent with layer tree");
-    gfx3DMatrix currentTransform = To3DMatrix(aLayer->GetTransform());
+    gfx3DMatrix currentTransform;
+    To3DMatrix(aLayer->GetTransform(), currentTransform);
 
     const ViewConfig& config = view->GetViewConfig();
     // With temporary scale we should compensate translation
@@ -332,7 +338,9 @@ TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
                             1.0f/aLayer->GetPostYScale(),
                             1);
 
-  shadow->SetShadowTransform(gfx::ToMatrix4x4(shadowTransform));
+  gfx::Matrix4x4 realShadowTransform;
+  ToMatrix4x4(shadowTransform, realShadowTransform);
+  shadow->SetShadowTransform(realShadowTransform);
   for (Layer* child = aLayer->GetFirstChild();
        child; child = child->GetNextSibling()) {
     TransformShadowTree(aBuilder, aFrameLoader, aFrame, child, layerTransform,
@@ -376,7 +384,8 @@ BuildViewMap(ViewMap& oldContentViews, ViewMap& newContentViews,
     return;
   const FrameMetrics metrics = container->GetFrameMetrics();
   const ViewID scrollId = metrics.GetScrollId();
-  gfx3DMatrix transform = To3DMatrix(aLayer->GetTransform());
+  gfx3DMatrix transform;
+  To3DMatrix(aLayer->GetTransform(), transform);
   aXScale *= GetXScale(transform);
   aYScale *= GetYScale(transform);
 

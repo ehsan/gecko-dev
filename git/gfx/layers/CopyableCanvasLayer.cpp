@@ -10,6 +10,7 @@
 #include "SharedSurface.h"              // for SharedSurface
 #include "SharedSurfaceGL.h"              // for SharedSurface
 #include "SurfaceStream.h"              // for SurfaceStream
+#include "gfxMatrix.h"                  // for gfxMatrix
 #include "gfxPattern.h"                 // for gfxPattern, etc
 #include "gfxPlatform.h"                // for gfxPlatform, gfxImageFormat
 #include "gfxRect.h"                    // for gfxRect

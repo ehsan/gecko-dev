@@ -194,7 +194,9 @@ already_AddRefed<Layer> CreateLayerTree(
         layer->SetVisibleRegion(aVisibleRegions[layerNumber]);
       }
       if (aTransforms) {
-        layer->SetBaseTransform(ToMatrix4x4(aTransforms[layerNumber]));
+        Matrix4x4 transform;
+        ToMatrix4x4(aTransforms[layerNumber], transform);
+        layer->SetBaseTransform(transform);
       }
       aLayersOut.AppendElement(layer);
       layerNumber++;

@@ -268,6 +268,7 @@ void nsFont::AddFontFeaturesToStyle(gfxFontStyle *aStyle) const
     aStyle->featureSettings.AppendElement(setting);
   }
 
+
   // -- copy font-specific alternate info into style
   //    (this will be resolved after font-matching occurs)
   aStyle->alternateValues.AppendElements(alternateValues);
@@ -331,12 +332,22 @@ void nsFont::AddFontFeaturesToStyle(gfxFontStyle *aStyle) const
   }
 
   // -- position
-  aStyle->variantSubSuper = variantPosition;
+  setting.mTag = 0;
+  setting.mValue = 1;
+  switch (variantPosition) {
+    case NS_FONT_VARIANT_POSITION_SUPER:
+      setting.mTag = TRUETYPE_TAG('s','u','p','s');
+      aStyle->featureSettings.AppendElement(setting);
+      break;
 
-  // indicate common-path case when neither variantCaps or variantSubSuper are set
-  aStyle->noFallbackVariantFeatures =
-    (aStyle->variantCaps == NS_FONT_VARIANT_CAPS_NORMAL) &&
-    (variantPosition == NS_FONT_VARIANT_POSITION_NORMAL);
+    case NS_FONT_VARIANT_POSITION_SUB:
+      setting.mTag = TRUETYPE_TAG('s','u','b','s');
+      aStyle->featureSettings.AppendElement(setting);
+      break;
+
+    default:
+      break;
+  }
 
   // add in features from font-feature-settings
   aStyle->featureSettings.AppendElements(fontFeatureSettings);

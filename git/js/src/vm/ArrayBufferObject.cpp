@@ -548,7 +548,7 @@ ArrayBufferObject::canNeuterAsmJSArrayBuffer(JSContext *cx, ArrayBufferObject &b
 {
     JS_ASSERT(!buffer.isSharedArrayBuffer());
 #ifdef JS_ION
-    AsmJSActivation *act = cx->mainThread().asmJSActivationStack();
+    AsmJSActivation *act = cx->mainThread().asmJSActivationStackFromOwnerThread();
     for (; act; act = act->prevAsmJS()) {
         if (act->module().maybeHeapBufferObject() == &buffer)
             break;

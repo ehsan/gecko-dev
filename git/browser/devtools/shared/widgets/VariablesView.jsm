@@ -3643,14 +3643,9 @@ VariablesView.stringifiers.byObjectKind = {
 
     switch (preview.nodeType) {
       case Ci.nsIDOMNode.DOCUMENT_NODE: {
-        let result = aGrip.class;
-        if (preview.location) {
-          let location = WebConsoleUtils.abbreviateSourceURL(preview.location,
-                                                            { onlyCropQuery: !concise });
-          result += " \u2192 " + location;
-        }
-
-        return result;
+        let location = WebConsoleUtils.abbreviateSourceURL(preview.location,
+                                                           { onlyCropQuery: !concise });
+        return aGrip.class + " \u2192 " + location;
       }
 
       case Ci.nsIDOMNode.ATTRIBUTE_NODE: {

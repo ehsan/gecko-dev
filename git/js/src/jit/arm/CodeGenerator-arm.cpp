@@ -49,13 +49,36 @@ CodeGeneratorARM::generatePrologue()
 }
 
 bool
+CodeGeneratorARM::generateAsmJSPrologue(Label *stackOverflowLabel)
+{
+    JS_ASSERT(gen->compilingAsmJS());
+
+    // See comment in Assembler-shared.h about AsmJSFrameSize.
+    masm.push(lr);
+
+    // The asm.js over-recursed handler wants to be able to assume that SP
+    // points to the return address, so perform the check after pushing lr but
+    // before pushing frameDepth.
+    if (!omitOverRecursedCheck()) {
+        masm.branchPtr(Assembler::AboveOrEqual,
+                       AsmJSAbsoluteAddress(AsmJSImm_StackLimit),
+                       StackPointer,
+                       stackOverflowLabel);
+    }
+
+    // Note that this automatically sets MacroAssembler::framePushed().
+    masm.reserveStack(frameDepth_);
+    masm.checkStackAlignment();
+    return true;
+}
+
+bool
 CodeGeneratorARM::generateEpilogue()
 {
-    JS_ASSERT(!gen->compilingAsmJS());
     masm.bind(&returnLabel_);
 
 #ifdef JS_TRACE_LOGGING
-    if (gen->info().executionMode() == SequentialExecution) {
+    if (!gen->compilingAsmJS() && gen->info().executionMode() == SequentialExecution) {
         if (!emitTracelogStopEvent(TraceLogger::IonMonkey))
             return false;
         if (!emitTracelogScriptStop())
@@ -63,7 +86,10 @@ CodeGeneratorARM::generateEpilogue()
     }
 #endif
 
-    masm.freeStack(frameSize());
+    if (gen->compilingAsmJS())
+        masm.freeStack(frameDepth_);
+    else
+        masm.freeStack(frameSize());
     JS_ASSERT(masm.framePushed() == 0);
     masm.pop(pc);
     masm.flushBuffer();

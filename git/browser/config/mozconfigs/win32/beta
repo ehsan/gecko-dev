@@ -1,4 +1,3 @@
-. "$topsrcdir/build/mozconfig.win-common"
 . "$topsrcdir/browser/config/mozconfigs/win32/common-opt"
 
 mk_add_options MOZ_PGO=1

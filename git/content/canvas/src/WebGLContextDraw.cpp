@@ -333,9 +333,7 @@ WebGLContext::DrawElementsInstanced(GLenum mode, GLsizei count, GLenum type,
     if (!ValidateDrawModeEnum(mode, "drawElementsInstanced: mode"))
         return;
 
-    GLuint upperBound = 0;
-    if (!DrawElements_check(count, type, byteOffset, primcount, "drawElementsInstanced",
-                            &upperBound))
+    if (!DrawElements_check(count, type, byteOffset, primcount, "drawElementsInstanced"))
         return;
 
     RunContextLossTimer();

@@ -150,6 +150,16 @@ using mozilla::DebugOnly;
 // thread/stack as the victim (Unix and Windows), we can use TLS to find any
 // currently executing asm.js code.
 #if !defined(XP_MACOSX)
+static AsmJSActivation *
+InnermostAsmJSActivation()
+{
+    PerThreadData *threadData = TlsPerThreadData.get();
+    if (!threadData)
+        return nullptr;
+
+    return threadData->asmJSActivationStackFromOwnerThread();
+}
+
 static JSRuntime *
 RuntimeForCurrentThread()
 {
@@ -343,8 +353,8 @@ HandleSimulatorInterrupt(JSRuntime *rt, AsmJSActivation *activation, void *fault
 
 #if defined(JS_ARM_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
     const AsmJSModule &module = activation->module();
-    if (module.containsFunctionPC((void *)rt->mainThread.simulator()->get_pc()) &&
-        module.containsFunctionPC(faultingAddress))
+    if (module.containsPC((void *)rt->mainThread.simulator()->get_pc()) &&
+        module.containsPC(faultingAddress))
     {
         activation->setResumePC(nullptr);
         int32_t nextpc = int32_t(module.interruptExit());
@@ -441,12 +451,12 @@ HandleException(PEXCEPTION_POINTERS exception)
     if (rt->jitRuntime() && rt->jitRuntime()->handleAccessViolation(rt, faultingAddress))
         return true;
 
-    AsmJSActivation *activation = PerThreadData::innermostAsmJSActivation();
+    AsmJSActivation *activation = InnermostAsmJSActivation();
     if (!activation)
         return false;
 
     const AsmJSModule &module = activation->module();
-    if (!module.containsFunctionPC(pc))
+    if (!module.containsPC(pc))
         return false;
 
     // If we faulted trying to execute code in 'module', this must be an
@@ -454,7 +464,7 @@ HandleException(PEXCEPTION_POINTERS exception)
     // execution to a trampoline which will call js::HandleExecutionInterrupt.
     // The trampoline will jump to activation->resumePC if execution isn't
     // interrupted.
-    if (module.containsFunctionPC(faultingAddress)) {
+    if (module.containsPC(faultingAddress)) {
         activation->setResumePC(pc);
         *ppc = module.interruptExit();
 
@@ -638,7 +648,7 @@ HandleMachException(JSRuntime *rt, const ExceptionRequest &request)
     if (rt->jitRuntime() && rt->jitRuntime()->handleAccessViolation(rt, faultingAddress))
         return true;
 
-    AsmJSActivation *activation = rt->mainThread.asmJSActivationStack();
+    AsmJSActivation *activation = rt->mainThread.asmJSActivationStackFromAnyThread();
     if (!activation)
         return false;
 
@@ -649,7 +659,7 @@ HandleMachException(JSRuntime *rt, const ExceptionRequest &request)
         return true;
     }
 
-    if (!module.containsFunctionPC(pc))
+    if (!module.containsPC(pc))
         return false;
 
     // If we faulted trying to execute code in 'module', this must be an
@@ -657,7 +667,7 @@ HandleMachException(JSRuntime *rt, const ExceptionRequest &request)
     // execution to a trampoline which will call js::HandleExecutionInterrupt.
     // The trampoline will jump to activation->resumePC if execution isn't
     // interrupted.
-    if (module.containsFunctionPC(faultingAddress)) {
+    if (module.containsPC(faultingAddress)) {
         activation->setResumePC(pc);
         *ppc = module.interruptExit();
 
@@ -888,7 +898,7 @@ HandleSignal(int signum, siginfo_t *info, void *ctx)
     if (rt->jitRuntime() && rt->jitRuntime()->handleAccessViolation(rt, faultingAddress))
         return true;
 
-    AsmJSActivation *activation = PerThreadData::innermostAsmJSActivation();
+    AsmJSActivation *activation = InnermostAsmJSActivation();
     if (!activation)
         return false;
 
@@ -899,7 +909,7 @@ HandleSignal(int signum, siginfo_t *info, void *ctx)
         return true;
     }
 
-    if (!module.containsFunctionPC(pc))
+    if (!module.containsPC(pc))
         return false;
 
     // If we faulted trying to execute code in 'module', this must be an
@@ -907,7 +917,7 @@ HandleSignal(int signum, siginfo_t *info, void *ctx)
     // execution to a trampoline which will call js::HandleExecutionInterrupt.
     // The trampoline will jump to activation->resumePC if execution isn't
     // interrupted.
-    if (module.containsFunctionPC(faultingAddress)) {
+    if (module.containsPC(faultingAddress)) {
         activation->setResumePC(pc);
         *ppc = module.interruptExit();
 
@@ -1038,7 +1048,7 @@ js::RequestInterruptForAsmJSCode(JSRuntime *rt, int interruptModeRaw)
         return;
     }
 
-    AsmJSActivation *activation = rt->mainThread.asmJSActivationStack();
+    AsmJSActivation *activation = rt->mainThread.asmJSActivationStackFromAnyThread();
     if (!activation)
         return;
 

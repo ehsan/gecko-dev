@@ -209,12 +209,11 @@ ImageClientSingle::UpdateImageInternal(ImageContainer* aContainer,
 
     bool bufferCreated = false;
     if (!mFrontBuffer) {
+      mFrontBuffer = CreateBufferTextureClient(gfx::SurfaceFormat::YUV, TextureFlags::DEFAULT);
       gfx::IntSize ySize(data->mYSize.width, data->mYSize.height);
       gfx::IntSize cbCrSize(data->mCbCrSize.width, data->mCbCrSize.height);
-      mFrontBuffer = TextureClient::CreateForYCbCr(GetForwarder(),
-                                                   ySize, cbCrSize, data->mStereoMode,
-                                                   TextureFlags::DEFAULT|mTextureFlags);
-      if (!mFrontBuffer) {
+      if (!mFrontBuffer->AsTextureClientYCbCr()->AllocateForYCbCr(ySize, cbCrSize, data->mStereoMode)) {
+        mFrontBuffer = nullptr;
         return false;
       }
       bufferCreated = true;

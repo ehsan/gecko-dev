@@ -41,29 +41,13 @@ function is_hidden(element) {
   return false;
 }
 
-function is_visible(element) {
-  var style = element.ownerDocument.defaultView.getComputedStyle(element, "");
-  if (style.display == "none")
-    return false;
-  if (style.visibility != "visible")
-    return false;
-  if (style.display == "-moz-popup" && element.state != "open")
-    return false;
-
-  // Hiding a parent element will hide all its children
-  if (element.parentNode != element.ownerDocument)
-    return is_visible(element.parentNode);
-
-  return true;
-}
-
 function is_element_visible(element, msg) {
   isnot(element, null, "Element should not be null, when checking visibility");
-  ok(is_visible(element), msg);
+  ok(!is_hidden(element), msg);
 }
 
 function waitForElementToBeVisible(element, nextTest, msg) {
-  waitForCondition(() => is_visible(element),
+  waitForCondition(() => !is_hidden(element),
                    () => {
                      ok(true, msg);
                      nextTest();
@@ -81,7 +65,7 @@ function waitForElementToBeHidden(element, nextTest, msg) {
 }
 
 function waitForPopupAtAnchor(popup, anchorNode, nextTest, msg) {
-  waitForCondition(() => is_visible(popup) && popup.popupBoxObject.anchorNode == anchorNode,
+  waitForCondition(() => popup.popupBoxObject.anchorNode == anchorNode,
                    () => {
                      ok(true, msg);
                      is_element_visible(popup, "Popup should be visible");

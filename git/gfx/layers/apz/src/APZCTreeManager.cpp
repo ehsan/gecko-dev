@@ -244,7 +244,8 @@ APZCTreeManager::UpdatePanZoomControllerTree(CompositorParent* aCompositor,
                                       * metrics.mDevPixelsPerCSSPixel
                                       * metrics.GetParentResolution());
         }
-        gfx3DMatrix transform = gfx::To3DMatrix(aLayer->GetTransform());
+        gfx3DMatrix transform;
+        gfx::To3DMatrix(aLayer->GetTransform(), transform);
 
         apzc->SetLayerHitTestData(visible, aTransform, transform);
         APZCTM_LOG("Setting rect(%f %f %f %f) as visible region for APZC %p\n", visible.x, visible.y,
@@ -311,7 +312,9 @@ APZCTreeManager::UpdatePanZoomControllerTree(CompositorParent* aCompositor,
     aTransform = gfx3DMatrix();
   } else {
     // Multiply child layer transforms on the left so they get applied first
-    aTransform = gfx::To3DMatrix(aLayer->GetTransform()) * aTransform;
+    gfx3DMatrix matrix;
+    gfx::To3DMatrix(aLayer->GetTransform(), matrix);
+    aTransform = matrix * aTransform;
   }
 
   uint64_t childLayersId = (aLayer->AsRefLayer() ? aLayer->AsRefLayer()->GetReferentId() : aLayersId);

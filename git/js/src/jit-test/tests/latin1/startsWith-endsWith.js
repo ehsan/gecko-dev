@@ -1,7 +1,3 @@
-function toLatin1(s) {
-    assertEq(isLatin1(s), true);
-    return s;
-}
 function testStartsWith() {
     var s1 = toLatin1("abc\u0099def");
     var s2 = toLatin1("abc\u0099d");

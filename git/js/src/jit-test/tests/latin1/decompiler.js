@@ -1,3 +1,5 @@
+var s = toLatin1("someName");
+
 // Latin1
 function f(someName) {
     someName();

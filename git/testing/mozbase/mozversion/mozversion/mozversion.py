@@ -140,9 +140,6 @@ class B2GVersion(Version):
                 self._info['gaia_changeset'] = re.match(
                     '^\w{40}$', changeset) and changeset or None
                 self._info['gaia_date'] = date
-        except KeyError:
-                self.warn('Unable to find resources/gaia_commit.txt in '
-                          'application.zip')
         finally:
             mozfile.remove(tempdir)
 

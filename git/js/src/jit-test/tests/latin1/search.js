@@ -1,7 +1,3 @@
-function toLatin1(s) {
-    assertEq(isLatin1(s), true);
-    return s;
-}
 function testSearchFlat() {
     var s1 = toLatin1("fooBar12345");
     var s2 = toLatin1("Bar1");

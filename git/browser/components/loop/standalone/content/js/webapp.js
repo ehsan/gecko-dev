@@ -1,14 +1,11 @@
-/** @jsx React.DOM */
-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* global loop:true, React */
-/* jshint newcap:false */
+/* global loop:true */
 
 var loop = loop || {};
-loop.webapp = (function($, _, OT, webL10n) {
+loop.webapp = (function($, _, OT) {
   "use strict";
 
   loop.config = loop.config || {};
@@ -16,8 +13,7 @@ loop.webapp = (function($, _, OT, webL10n) {
 
   var sharedModels = loop.shared.models,
       sharedViews = loop.shared.views,
-      baseServerUrl = loop.config.serverUrl,
-      __ = webL10n.get;
+      baseServerUrl = loop.config.serverUrl;
 
   /**
    * App router.
@@ -30,20 +26,6 @@ loop.webapp = (function($, _, OT, webL10n) {
    */
   var HomeView = sharedViews.BaseView.extend({
     template: _.template('<p data-l10n-id="welcome"></p>')
-  });
-
-  /**
-   * Expired call URL view.
-   */
-  var CallUrlExpiredView = React.createClass({displayName: 'CallUrlExpiredView',
-    render: function() {
-      /* jshint ignore:start */
-      return (
-        // XXX proper UX/design should be implemented here (see bug 1000131)
-        React.DOM.div(null, __("call_url_unavailable_notification"))
-      );
-      /* jshint ignore:end */
-    }
   });
 
   /**
@@ -111,7 +93,7 @@ loop.webapp = (function($, _, OT, webL10n) {
       event.preventDefault();
       this.model.initiate({
         client: new loop.StandaloneClient({
-          baseServerUrl: baseServerUrl
+          baseServerUrl: baseServerUrl,
         }),
         outgoing: true,
         // For now, we assume both audio and video as there is no
@@ -130,7 +112,6 @@ loop.webapp = (function($, _, OT, webL10n) {
       "":                    "home",
       "unsupportedDevice":   "unsupportedDevice",
       "unsupportedBrowser":  "unsupportedBrowser",
-      "call/expired":        "expired",
       "call/ongoing/:token": "loadConversation",
       "call/:token":         "initiate"
     },
@@ -140,12 +121,6 @@ loop.webapp = (function($, _, OT, webL10n) {
       this.loadView(new HomeView());
 
       this.listenTo(this._conversation, "timeout", this._onTimeout);
-      this.listenTo(this._conversation, "session:expired",
-                    this._onSessionExpired);
-    },
-
-    _onSessionExpired: function() {
-      this.navigate("/call/expired", {trigger: true});
     },
 
     /**
@@ -190,10 +165,6 @@ loop.webapp = (function($, _, OT, webL10n) {
 
     unsupportedBrowser: function() {
       this.loadView(new sharedViews.UnsupportedBrowserView());
-    },
-
-    expired: function() {
-      this.loadReactComponent(CallUrlExpiredView());
     },
 
     /**
@@ -264,11 +235,10 @@ loop.webapp = (function($, _, OT, webL10n) {
 
   return {
     baseServerUrl: baseServerUrl,
-    CallUrlExpiredView: CallUrlExpiredView,
     ConversationFormView: ConversationFormView,
     HomeView: HomeView,
     WebappHelper: WebappHelper,
     init: init,
     WebappRouter: WebappRouter
   };
-})(jQuery, _, window.OT, document.webL10n);
+})(jQuery, _, window.OT);

@@ -4102,18 +4102,12 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
   }
 
   nscoord minWidth;
-  if (stylePos->mMinWidth.GetUnit() != eStyleUnit_Auto &&
-      !(isFlexItem && isHorizontalFlexItem)) {
+  if (!(isFlexItem && isHorizontalFlexItem)) {
     minWidth =
       nsLayoutUtils::ComputeWidthValue(aRenderingContext, this,
         aCBSize.width, boxSizingAdjust.width, boxSizingToMarginEdgeWidth,
         stylePos->mMinWidth);
   } else {
-    // Treat "min-width: auto" as 0.
-    // NOTE: Technically, "auto" is supposed to behave like "min-content" on
-    // flex items. However, we don't need to worry about that here, because
-    // flex items' min-sizes are intentionally ignored until the flex
-    // container explicitly considers them during space distribution.
     minWidth = 0;
   }
   result.width = std::max(minWidth, result.width);
@@ -4981,7 +4975,9 @@ nsIFrame::TryUpdateTransformOnly(Layer** aLayerResult)
       !gfx::FuzzyEqual(transform._12, previousTransform._12, kError)) {
     return false;
   }
-  layer->SetBaseTransformForNextTransaction(gfx::ToMatrix4x4(transform3d));
+  gfx::Matrix4x4 matrix;
+  gfx::ToMatrix4x4(transform3d, matrix);
+  layer->SetBaseTransformForNextTransaction(matrix);
   *aLayerResult = layer;
   return true;
 }
@@ -7212,6 +7208,7 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
   if (Preserves3D() || HasPerspective() || IsTransformed()) {
     if (!aOverflowAreas.VisualOverflow().IsEqualEdges(bounds) ||
         !aOverflowAreas.ScrollableOverflow().IsEqualEdges(bounds)) {
+
       nsOverflowAreas* initial =
         static_cast<nsOverflowAreas*>(Properties().Get(nsIFrame::InitialOverflowProperty()));
       if (!initial) {
@@ -7220,15 +7217,13 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
       } else if (initial != &aOverflowAreas) {
         *initial = aOverflowAreas;
       }
-    } else {
-      Properties().Delete(nsIFrame::InitialOverflowProperty());
     }
 #ifdef DEBUG
     Properties().Set(nsIFrame::DebugInitialOverflowPropertyApplied(), nullptr);
 #endif
   } else {
 #ifdef DEBUG
-    Properties().Delete(nsIFrame::DebugInitialOverflowPropertyApplied());
+  Properties().Delete(nsIFrame::DebugInitialOverflowPropertyApplied());
 #endif
   }
 
