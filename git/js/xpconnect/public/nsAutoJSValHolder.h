@@ -64,7 +64,7 @@ public:
   bool Hold(JSRuntime* aRt) {
     // Do we really care about different runtimes?
     if (mRt && aRt != mRt) {
-      JS_RemoveValueRootRT(mRt, &mVal);
+      js_RemoveRoot(mRt, &mVal);
       mRt = nullptr;
     }
 

@@ -19,7 +19,6 @@
 #ifdef MOZ_RTSP
 #include "mozilla/net/RtspControllerChild.h"
 #endif
-#include "SerializedLoadContext.h"
 
 using mozilla::dom::TCPSocketChild;
 using mozilla::dom::TCPServerSocketChild;

@@ -43,20 +43,20 @@
       var select = getAccessible(comboboxList, [nsIAccessibleSelectable]);
       testSelectableSelection(select, [ "cb1_item1" ]);
 
-      select.addItemToSelection(1);
-      testSelectableSelection(select, [ "cb1_item2" ], "addItemToSelection(1): ");
+      select.addChildToSelection(1);
+      testSelectableSelection(select, [ "cb1_item2" ], "addChildToSelect(1): ");
 
-      select.removeItemFromSelection(1);
+      select.removeChildFromSelection(1);
       testSelectableSelection(select, [ ],
-                              "removeItemFromSelection(1): ");
+                              "removeChildFromSelection(1): ");
 
-      is(select.selectAll(), false,
+      is(select.selectAllSelection(), false,
          "No way to select all items in combobox '" + id + "'");
-      testSelectableSelection(select, [ ], "selectAll: ");
+      testSelectableSelection(select, [ ], "selectAllSelection: ");
 
-      select.addItemToSelection(1);
-      select.unselectAll();
-      testSelectableSelection(select, [ ], "unselectAll: ");
+      select.addChildToSelection(1);
+      select.clearSelection();
+      testSelectableSelection(select, [ ], "clearSelection: ");
 
       SimpleTest.finish();
     }

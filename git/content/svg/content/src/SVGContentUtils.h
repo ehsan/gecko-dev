@@ -16,9 +16,7 @@
 class nsIContent;
 class nsIDocument;
 class nsIFrame;
-class nsPresContext;
 class nsStyleContext;
-class nsStyleCoord;
 class nsSVGElement;
 
 namespace mozilla {
@@ -171,15 +169,6 @@ public:
    */
   static bool
   ParseInteger(const nsAString& aString, int32_t& aValue);
-
-  /**
-   * Converts an nsStyleCoord into a userspace value.  Handles units
-   * Factor (straight userspace), Coord (dimensioned), and Percent (of
-   * aContent's SVG viewport)
-   */
-  static float CoordToFloat(nsPresContext *aPresContext,
-                            nsSVGElement *aContent,
-                            const nsStyleCoord &aCoord);
 };
 
 #endif

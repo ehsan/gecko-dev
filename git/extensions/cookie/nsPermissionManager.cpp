@@ -32,7 +32,6 @@
 #include "nsIEffectiveTLDService.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDocument.h"
-#include "mozilla/net/NeckoMessageUtils.h"
 
 static nsPermissionManager *gPermissionManager = nullptr;
 

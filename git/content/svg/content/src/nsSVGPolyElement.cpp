@@ -6,11 +6,9 @@
 #include "nsSVGPolyElement.h"
 #include "DOMSVGPointList.h"
 #include "gfxContext.h"
-#include "mozilla/gfx/2D.h"
 #include "SVGContentUtils.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 //----------------------------------------------------------------------
 // nsISupports methods
@@ -122,19 +120,3 @@ nsSVGPolyElement::ConstructPath(gfxContext *aCtx)
   }
 }
 
-TemporaryRef<Path>
-nsSVGPolyElement::BuildPath()
-{
-  RefPtr<PathBuilder> pathBuilder = CreatePathBuilder();
-
-  const SVGPointList &points = mPoints.GetAnimValue();
-
-  if (!points.IsEmpty()) {
-    pathBuilder->MoveTo(points[0]);
-    for (uint32_t i = 1; i < points.Length(); ++i) {
-      pathBuilder->LineTo(points[i]);
-    }
-  }
-
-  return pathBuilder->Finish();
-}

@@ -270,11 +270,8 @@ HashTableWriteBarrierPost(JSRuntime *rt, Map *map, const Key &key)
 #endif
 }
 
-/*
- * Base class for barriered pointer types.
- */
 template<class T, typename Unioned = uintptr_t>
-class BarrieredPtr
+class EncapsulatedPtr
 {
   protected:
     union {
@@ -282,13 +279,36 @@ class BarrieredPtr
         Unioned other;
     };
 
-    BarrieredPtr(T *v) : value(v) {}
-    ~BarrieredPtr() { pre(); }
-
   public:
+    EncapsulatedPtr() : value(nullptr) {}
+    EncapsulatedPtr(T *v) : value(v) {}
+    explicit EncapsulatedPtr(const EncapsulatedPtr<T> &v) : value(v.value) {}
+
+    ~EncapsulatedPtr() { pre(); }
+
     void init(T *v) {
         JS_ASSERT(!IsPoisonedPtr<T>(v));
         this->value = v;
+    }
+
+    /* Use to set the pointer to nullptr. */
+    void clear() {
+        pre();
+        value = nullptr;
+    }
+
+    EncapsulatedPtr<T, Unioned> &operator=(T *v) {
+        pre();
+        JS_ASSERT(!IsPoisonedPtr<T>(v));
+        value = v;
+        return *this;
+    }
+
+    EncapsulatedPtr<T, Unioned> &operator=(const EncapsulatedPtr<T> &v) {
+        pre();
+        JS_ASSERT(!IsPoisonedPtr<T>(v.value));
+        value = v.value;
+        return *this;
     }
 
     /* Use this if the automatic coercion to T* isn't working. */
@@ -312,48 +332,19 @@ class BarrieredPtr
     void pre() { T::writeBarrierPre(value); }
 };
 
-template<class T, typename Unioned = uintptr_t>
-class EncapsulatedPtr : public BarrieredPtr<T, Unioned>
-{
-  public:
-    EncapsulatedPtr() : BarrieredPtr<T, Unioned>(nullptr) {}
-    EncapsulatedPtr(T *v) : BarrieredPtr<T, Unioned>(v) {}
-    explicit EncapsulatedPtr(const EncapsulatedPtr<T, Unioned> &v)
-      : BarrieredPtr<T, Unioned>(v.value) {}
-
-    /* Use to set the pointer to nullptr. */
-    void clear() {
-        this->pre();
-        this->value = nullptr;
-    }
-
-    EncapsulatedPtr<T, Unioned> &operator=(T *v) {
-        this->pre();
-        JS_ASSERT(!IsPoisonedPtr<T>(v));
-        this->value = v;
-        return *this;
-    }
-
-    EncapsulatedPtr<T, Unioned> &operator=(const EncapsulatedPtr<T> &v) {
-        this->pre();
-        JS_ASSERT(!IsPoisonedPtr<T>(v.value));
-        this->value = v.value;
-        return *this;
-    }
-};
-
 /*
  * A pre- and post-barriered heap pointer, for use inside the JS engine.
  *
  * Not to be confused with JS::Heap<T>.
  */
 template <class T, class Unioned = uintptr_t>
-class HeapPtr : public BarrieredPtr<T, Unioned>
+class HeapPtr : public EncapsulatedPtr<T, Unioned>
 {
   public:
-    HeapPtr() : BarrieredPtr<T, Unioned>(nullptr) {}
-    explicit HeapPtr(T *v) : BarrieredPtr<T, Unioned>(v) { post(); }
-    explicit HeapPtr(const HeapPtr<T> &v) : BarrieredPtr<T, Unioned>(v) { post(); }
+    HeapPtr() : EncapsulatedPtr<T>(nullptr) {}
+    explicit HeapPtr(T *v) : EncapsulatedPtr<T>(v) { post(); }
+    explicit HeapPtr(const HeapPtr<T> &v)
+      : EncapsulatedPtr<T>(v) { post(); }
 
     void init(T *v) {
         JS_ASSERT(!IsPoisonedPtr<T>(v));
@@ -419,15 +410,15 @@ class FixedHeapPtr
 };
 
 template <class T>
-class RelocatablePtr : public BarrieredPtr<T>
+class RelocatablePtr : public EncapsulatedPtr<T>
 {
   public:
-    RelocatablePtr() : BarrieredPtr<T>(nullptr) {}
-    explicit RelocatablePtr(T *v) : BarrieredPtr<T>(v) {
+    RelocatablePtr() : EncapsulatedPtr<T>(nullptr) {}
+    explicit RelocatablePtr(T *v) : EncapsulatedPtr<T>(v) {
         if (v)
             post();
     }
-    RelocatablePtr(const RelocatablePtr<T> &v) : BarrieredPtr<T>(v) {
+    RelocatablePtr(const RelocatablePtr<T> &v) : EncapsulatedPtr<T>(v) {
         if (this->value)
             post();
     }
@@ -504,9 +495,6 @@ class Shape;
 class BaseShape;
 namespace types { struct TypeObject; }
 
-typedef BarrieredPtr<JSObject> BarrieredPtrObject;
-typedef BarrieredPtr<JSScript> BarrieredPtrScript;
-
 typedef EncapsulatedPtr<JSObject> EncapsulatedPtrObject;
 typedef EncapsulatedPtr<JSScript> EncapsulatedPtrScript;
 
@@ -552,10 +540,7 @@ struct EncapsulatedPtrHasher
 template <class T>
 struct DefaultHasher< EncapsulatedPtr<T> > : EncapsulatedPtrHasher<T> { };
 
-/*
- * Base class for barriered value types.
- */
-class BarrieredValue : public ValueOperations<BarrieredValue>
+class EncapsulatedValue : public ValueOperations<EncapsulatedValue>
 {
   protected:
     Value value;
@@ -564,17 +549,20 @@ class BarrieredValue : public ValueOperations<BarrieredValue>
      * Ensure that EncapsulatedValue is not constructable, except by our
      * implementations.
      */
-    BarrieredValue() MOZ_DELETE;
+    EncapsulatedValue() MOZ_DELETE;
 
-    BarrieredValue(const Value &v) : value(v) {
+  public:
+    EncapsulatedValue(const Value &v) : value(v) {
+        JS_ASSERT(!IsPoisonedValue(v));
+    }
+    EncapsulatedValue(const EncapsulatedValue &v) : value(v) {
         JS_ASSERT(!IsPoisonedValue(v));
     }
 
-    ~BarrieredValue() {
+    ~EncapsulatedValue() {
         pre();
     }
 
-  public:
     void init(const Value &v) {
         JS_ASSERT(!IsPoisonedValue(v));
         value = v;
@@ -584,8 +572,22 @@ class BarrieredValue : public ValueOperations<BarrieredValue>
         value = v;
     }
 
-    bool operator==(const BarrieredValue &v) const { return value == v.value; }
-    bool operator!=(const BarrieredValue &v) const { return value != v.value; }
+    EncapsulatedValue &operator=(const Value &v) {
+        pre();
+        JS_ASSERT(!IsPoisonedValue(v));
+        value = v;
+        return *this;
+    }
+
+    EncapsulatedValue &operator=(const EncapsulatedValue &v) {
+        pre();
+        JS_ASSERT(!IsPoisonedValue(v));
+        value = v.get();
+        return *this;
+    }
+
+    bool operator==(const EncapsulatedValue &v) const { return value == v.value; }
+    bool operator!=(const EncapsulatedValue &v) const { return value != v.value; }
 
     const Value &get() const { return value; }
     Value *unsafeGet() { return &value; }
@@ -634,29 +636,8 @@ class BarrieredValue : public ValueOperations<BarrieredValue>
     }
 
   private:
-    friend class ValueOperations<BarrieredValue>;
+    friend class ValueOperations<EncapsulatedValue>;
     const Value * extract() const { return &value; }
-};
-
-class EncapsulatedValue : public BarrieredValue
-{
-  public:
-    EncapsulatedValue(const Value &v) : BarrieredValue(v) {}
-    EncapsulatedValue(const EncapsulatedValue &v) : BarrieredValue(v) {}
-
-    EncapsulatedValue &operator=(const Value &v) {
-        pre();
-        JS_ASSERT(!IsPoisonedValue(v));
-        value = v;
-        return *this;
-    }
-
-    EncapsulatedValue &operator=(const EncapsulatedValue &v) {
-        pre();
-        JS_ASSERT(!IsPoisonedValue(v));
-        value = v.get();
-        return *this;
-    }
 };
 
 /*
@@ -664,24 +645,24 @@ class EncapsulatedValue : public BarrieredValue
  *
  * Not to be confused with JS::Heap<JS::Value>.
  */
-class HeapValue : public BarrieredValue
+class HeapValue : public EncapsulatedValue
 {
   public:
     explicit HeapValue()
-      : BarrieredValue(UndefinedValue())
+      : EncapsulatedValue(UndefinedValue())
     {
         post();
     }
 
     explicit HeapValue(const Value &v)
-      : BarrieredValue(v)
+      : EncapsulatedValue(v)
     {
         JS_ASSERT(!IsPoisonedValue(v));
         post();
     }
 
     explicit HeapValue(const HeapValue &v)
-      : BarrieredValue(v.value)
+      : EncapsulatedValue(v.value)
     {
         JS_ASSERT(!IsPoisonedValue(v.value));
         post();
@@ -764,20 +745,23 @@ class HeapValue : public BarrieredValue
     }
 };
 
-class RelocatableValue : public BarrieredValue
+class RelocatableValue : public EncapsulatedValue
 {
   public:
-    explicit RelocatableValue() : BarrieredValue(UndefinedValue()) {}
+    explicit RelocatableValue()
+      : EncapsulatedValue(UndefinedValue())
+    {}
 
     explicit RelocatableValue(const Value &v)
-      : BarrieredValue(v)
+      : EncapsulatedValue(v)
     {
+        JS_ASSERT(!IsPoisonedValue(v));
         if (v.isMarkable())
             post();
     }
 
     RelocatableValue(const RelocatableValue &v)
-      : BarrieredValue(v.value)
+      : EncapsulatedValue(v.value)
     {
         JS_ASSERT(!IsPoisonedValue(v.value));
         if (v.value.isMarkable())
@@ -838,8 +822,16 @@ class RelocatableValue : public BarrieredValue
     }
 };
 
-class HeapSlot : public BarrieredValue
+class HeapSlot : public EncapsulatedValue
 {
+    /*
+     * Operator= is not valid for HeapSlot because is must take the object and
+     * slot offset to provide to the post/generational barrier.
+     */
+    inline HeapSlot &operator=(const Value &v) MOZ_DELETE;
+    inline HeapSlot &operator=(const HeapValue &v) MOZ_DELETE;
+    inline HeapSlot &operator=(const HeapSlot &v) MOZ_DELETE;
+
   public:
     enum Kind {
         Slot,
@@ -849,14 +841,14 @@ class HeapSlot : public BarrieredValue
     explicit HeapSlot() MOZ_DELETE;
 
     explicit HeapSlot(JSObject *obj, Kind kind, uint32_t slot, const Value &v)
-      : BarrieredValue(v)
+      : EncapsulatedValue(v)
     {
         JS_ASSERT(!IsPoisonedValue(v));
         post(obj, kind, slot, v);
     }
 
     explicit HeapSlot(JSObject *obj, Kind kind, uint32_t slot, const HeapSlot &s)
-      : BarrieredValue(s.value)
+      : EncapsulatedValue(s.value)
     {
         JS_ASSERT(!IsPoisonedValue(s.value));
         post(obj, kind, slot, s);
@@ -933,7 +925,7 @@ class HeapSlot : public BarrieredValue
 };
 
 static inline const Value *
-Valueify(const BarrieredValue *array)
+Valueify(const EncapsulatedValue *array)
 {
     JS_STATIC_ASSERT(sizeof(HeapValue) == sizeof(Value));
     JS_STATIC_ASSERT(sizeof(HeapSlot) == sizeof(Value));
@@ -962,22 +954,27 @@ class HeapSlotArray
     HeapSlotArray operator +(uint32_t offset) const { return HeapSlotArray(array + offset); }
 };
 
-/*
- * Base class for barriered jsid types.
- */
-class BarrieredId
+class EncapsulatedId
 {
   protected:
     jsid value;
 
   private:
-    BarrieredId(const BarrieredId &v) MOZ_DELETE;
-
-  protected:
-    explicit BarrieredId(jsid id) : value(id) {}
-    ~BarrieredId() { pre(); }
+    EncapsulatedId(const EncapsulatedId &v) MOZ_DELETE;
 
   public:
+    explicit EncapsulatedId() : value(JSID_VOID) {}
+    explicit EncapsulatedId(jsid id) : value(id) {}
+    ~EncapsulatedId() { pre(); }
+
+    EncapsulatedId &operator=(const EncapsulatedId &v) {
+        if (v.value != value)
+            pre();
+        JS_ASSERT(!IsPoisonedId(v.value));
+        value = v.value;
+        return *this;
+    }
+
     bool operator==(jsid id) const { return value == id; }
     bool operator!=(jsid id) const { return value != id; }
 
@@ -1008,35 +1005,12 @@ class BarrieredId
     }
 };
 
-class EncapsulatedId : public BarrieredId
+class RelocatableId : public EncapsulatedId
 {
   public:
-    explicit EncapsulatedId(jsid id) : BarrieredId(id) {}
-    explicit EncapsulatedId() : BarrieredId(JSID_VOID) {}
-
-    EncapsulatedId &operator=(const EncapsulatedId &v) {
-        if (v.value != value)
-            pre();
-        JS_ASSERT(!IsPoisonedId(v.value));
-        value = v.value;
-        return *this;
-    }
-};
-
-class RelocatableId : public BarrieredId
-{
-  public:
-    explicit RelocatableId() : BarrieredId(JSID_VOID) {}
-    explicit inline RelocatableId(jsid id) : BarrieredId(id) {}
+    explicit RelocatableId() : EncapsulatedId() {}
+    explicit inline RelocatableId(jsid id) : EncapsulatedId(id) {}
     ~RelocatableId() { pre(); }
-
-    bool operator==(jsid id) const { return value == id; }
-    bool operator!=(jsid id) const { return value != id; }
-
-    jsid get() const { return value; }
-    operator jsid() const { return value; }
-
-    jsid *unsafeGet() { return &value; }
 
     RelocatableId &operator=(jsid id) {
         if (id != value)
@@ -1060,13 +1034,13 @@ class RelocatableId : public BarrieredId
  *
  * Not to be confused with JS::Heap<jsid>.
  */
-class HeapId : public BarrieredId
+class HeapId : public EncapsulatedId
 {
   public:
-    explicit HeapId() : BarrieredId(JSID_VOID) {}
+    explicit HeapId() : EncapsulatedId() {}
 
     explicit HeapId(jsid id)
-      : BarrieredId(id)
+      : EncapsulatedId(id)
     {
         JS_ASSERT(!IsPoisonedId(id));
         post();

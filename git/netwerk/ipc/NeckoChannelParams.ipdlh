@@ -7,10 +7,11 @@
 
 include URIParams;
 include InputStreamParams;
+include "mozilla/net/PHttpChannelParams.h";
 
-using struct mozilla::void_t from "ipc/IPCMessageUtils.h";
-using RequestHeaderTuples from "mozilla/net/PHttpChannelParams.h";
-using struct nsHttpAtom from "nsHttp.h";
+using mozilla::void_t;
+using RequestHeaderTuples;
+using nsHttpAtom;
 
 namespace mozilla {
 namespace net {

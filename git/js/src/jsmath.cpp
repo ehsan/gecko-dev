@@ -40,7 +40,6 @@
 using namespace js;
 
 using mozilla::Abs;
-using mozilla::DoubleEqualsInt32;
 using mozilla::DoubleIsInt32;
 using mozilla::ExponentComponent;
 using mozilla::IsFinite;
@@ -612,9 +611,8 @@ js::ecmaPow(double x, double y)
      * Use powi if the exponent is an integer-valued double. We don't have to
      * check for NaN since a comparison with NaN is always false.
      */
-    int32_t yi;
-    if (DoubleEqualsInt32(y, &yi))
-        return powi(x, yi);
+    if (int32_t(y) == y)
+        return powi(x, int32_t(y));
 
     /*
      * Because C99 and ECMA specify different behavior for pow(),

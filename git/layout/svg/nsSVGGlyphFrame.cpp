@@ -35,9 +35,8 @@ struct CharacterPosition {
   bool draw;
 };
 
-static already_AddRefed<gfxContext> MakeTmpCtx() {
-  nsRefPtr<gfxContext> ctx = new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceDrawTarget());
-  return ctx.forget();
+static gfxContext* MakeTmpCtx() {
+  return new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 }
 
 /**

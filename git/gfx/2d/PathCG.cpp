@@ -241,9 +241,6 @@ PathCG::GetBounds(const Matrix &aTransform) const
 {
   //XXX: are these bounds tight enough
   Rect bounds = CGRectToRect(CGPathGetBoundingBox(mPath));
-  if (!bounds.IsFinite()) {
-    return Rect();
-  }
   //XXX: curretnly this returns the bounds of the transformed bounds
   // this is strictly looser than the bounds of the transformed path
   return aTransform.TransformBounds(bounds);
@@ -268,10 +265,6 @@ PathCG::GetStrokedBounds(const StrokeOptions &aStrokeOptions,
   Rect bounds = CGRectToRect(CGContextGetPathBoundingBox(cg));
 
   CGContextRestoreGState(cg);
-
-  if (!bounds.IsFinite()) {
-    return Rect();
-  }
 
   return aTransform.TransformBounds(bounds);
 }

@@ -616,10 +616,6 @@ AbstractFramePtr::isDebuggerFrame() const
     MOZ_ASSUME_UNREACHABLE("Invalid frame");
 #endif
 }
-inline bool
-AbstractFramePtr::hasArgs() const {
-    return isNonEvalFunctionFrame();
-}
 inline JSScript *
 AbstractFramePtr::script() const
 {

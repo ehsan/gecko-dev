@@ -1006,7 +1006,7 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
         jsbytecode *pc = code;
         if (noScriptRval && JSOp(*pc) == JSOP_FALSE)
             ++pc;
-        return JSOp(*pc) == JSOP_RETRVAL;
+        return JSOp(*pc) == JSOP_STOP;
     }
 
     bool varIsAliased(unsigned varSlot);
