@@ -74,7 +74,6 @@ Utils.lazy(Weave, 'Service', WeaveSvc);
  */
 
 function WeaveSvc() {
-  this._startupFinished = false;
   this._initLogs();
   this._log.info("Weave Sync Service Initializing");
 
@@ -166,18 +165,6 @@ WeaveSvc.prototype = {
     if (!this.enabled)
       return 0; // manual/off
     return Utils.prefs.getIntPref("schedule");
-  },
-
-  onWindowOpened: function Weave__onWindowOpened() {
-    if (!this._startupFinished) {
-      if (Utils.prefs.getBoolPref("autoconnect") &&
-          this.username && this.username != 'nobody@mozilla.com') {
-        // Login, then sync.
-        let self = this;
-        this.login(function() { self.sync(); });
-      }
-      this._startupFinished = true;
-    }
   },
 
   _setSchedule: function Weave__setSchedule(schedule) {
@@ -323,7 +310,7 @@ WeaveSvc.prototype = {
 
   _keyCheck: function WeaveSvc__keyCheck() {
     let self = yield;
-
+    
     if ("none" != Utils.prefs.getCharPref("encryption")) {
       DAV.GET("private/privkey", self.cb);
       let keyResp = yield;
