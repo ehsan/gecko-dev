@@ -308,7 +308,7 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
     // do async drag
     if (SUCCEEDED(aDataObj->QueryInterface(IID_IAsyncOperation,
                                           (void**)&pAsyncOp)))
-      pAsyncOp->SetAsyncMode(VARIANT_TRUE);
+      pAsyncOp->SetAsyncMode(TRUE);
   }
 
   // Call the native D&D method
