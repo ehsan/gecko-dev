@@ -393,7 +393,7 @@ def main():
         if (options.deviceIP):
             dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort)
         else:
-            dm = dm_none
+            dm = dm_auto
     else:
          dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort)
     automation.setDeviceManager(dm)

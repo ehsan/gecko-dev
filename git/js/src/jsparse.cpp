@@ -5242,8 +5242,6 @@ Parser::forStatement()
             tc->topStmt = save->down;
 #endif
         pn3 = expr();
-        if (!pn3)
-            return NULL;
 #if JS_HAS_BLOCK_SCOPE
         if (let)
             tc->topStmt = save;

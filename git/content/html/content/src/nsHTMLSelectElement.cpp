@@ -643,7 +643,7 @@ nsHTMLSelectElement::GetSelectFrame()
   return select_frame;
 }
 
-nsresult
+NS_IMETHODIMP
 nsHTMLSelectElement::Add(nsIDOMHTMLElement* aElement,
                          nsIDOMHTMLElement* aBefore)
 {
@@ -677,44 +677,6 @@ nsHTMLSelectElement::Add(nsIDOMHTMLElement* aElement,
   // If the before parameter is not null, we are equivalent to the
   // insertBefore method on the parent of before.
   return parent->InsertBefore(aElement, aBefore, getter_AddRefs(added));
-}
-
-NS_IMETHODIMP
-nsHTMLSelectElement::Add(nsIDOMHTMLElement* aElement,
-                         nsIVariant* aBefore)
-{
-  PRUint16 dataType;
-  nsresult rv = aBefore->GetDataType(&dataType);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // aBefore is omitted or null
-  if (dataType == nsIDataType::VTYPE_EMPTY) {
-    return Add(aElement);
-  }
-
-  nsCOMPtr<nsISupports> supports;
-  nsCOMPtr<nsIDOMHTMLElement> beforeElement;
-
-  // whether aBefore is nsIDOMHTMLElement...
-  if (NS_SUCCEEDED(aBefore->GetAsISupports(getter_AddRefs(supports)))) {
-    beforeElement = do_QueryInterface(supports);
-
-    NS_ENSURE_TRUE(beforeElement, NS_ERROR_DOM_SYNTAX_ERR);
-    return Add(aElement, beforeElement);
-  }
-
-  // otherwise, whether aBefore is long
-  PRInt32 index;
-  NS_ENSURE_SUCCESS(aBefore->GetAsInt32(&index), NS_ERROR_DOM_SYNTAX_ERR);
-
-  // If item index is out of range, insert to last.
-  // (since beforeElement becomes null, it is inserted to last)
-  nsCOMPtr<nsIDOMNode> beforeNode;
-  if (NS_SUCCEEDED(Item(index, getter_AddRefs(beforeNode)))) {
-    beforeElement = do_QueryInterface(beforeNode);
-  }
-
-  return Add(aElement, beforeElement);
 }
 
 NS_IMETHODIMP
@@ -2232,17 +2194,35 @@ nsHTMLOptionCollection::GetSelect(nsIDOMHTMLSelectElement **aReturn)
 
 NS_IMETHODIMP
 nsHTMLOptionCollection::Add(nsIDOMHTMLOptionElement *aOption,
-                            nsIVariant *aBefore)
+                            PRInt32 aIndex, PRUint8 optional_argc)
 {
   if (!aOption) {
     return NS_ERROR_INVALID_ARG;
+  }
+
+  if (aIndex < -1) {
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
   if (!mSelect) {
     return NS_ERROR_NOT_INITIALIZED;
   }
 
-  return mSelect->Add(aOption, aBefore);
+  PRUint32 length;
+  GetLength(&length);
+
+  if (optional_argc == 0 || aIndex == -1 || aIndex > (PRInt32)length) {
+    // IE appends in these cases
+    aIndex = length;
+  }
+
+  nsCOMPtr<nsIDOMNode> beforeNode;
+  Item(aIndex, getter_AddRefs(beforeNode));
+
+  nsCOMPtr<nsIDOMHTMLOptionElement> beforeElement =
+    do_QueryInterface(beforeNode);
+
+  return mSelect->Add(aOption, beforeElement);
 }
 
 NS_IMETHODIMP

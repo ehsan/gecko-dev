@@ -62,7 +62,6 @@
 #include "nsExternalHelperAppService.h"
 #include "nsCExternalHandlerService.h"
 #include "nsFrameMessageManager.h"
-#include "nsIPresShell.h"
 #include "nsIAlertsService.h"
 #include "nsToolkitCompsCID.h"
 #include "nsIDOMGeoGeolocation.h"
@@ -180,9 +179,6 @@ ContentParent::Init()
         obs->AddObserver(this, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC, PR_FALSE);
         obs->AddObserver(this, "child-memory-reporter-request", PR_FALSE);
         obs->AddObserver(this, "memory-pressure", PR_FALSE);
-#ifdef ACCESSIBILITY
-        obs->AddObserver(this, "a11y-init-or-shutdown", PR_FALSE);
-#endif
     }
     nsCOMPtr<nsIPrefBranch2> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
     if (prefs) {
@@ -197,14 +193,6 @@ ContentParent::Init()
     if (obs) {
         obs->NotifyObservers(nsnull, "ipc:content-created", nsnull);
     }
-
-#ifdef ACCESSIBILITY
-    // If accessibility is running in chrome process then start it in content
-    // process.
-    if (nsIPresShell::IsAccessibilityActive()) {
-        SendActivateA11y();
-    }
-#endif
 }
 
 void
@@ -269,9 +257,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         obs->RemoveObserver(static_cast<nsIObserver*>(this), "memory-pressure");
         obs->RemoveObserver(static_cast<nsIObserver*>(this), "child-memory-reporter-request");
         obs->RemoveObserver(static_cast<nsIObserver*>(this), NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC);
-#ifdef ACCESSIBILITY
-        obs->RemoveObserver(static_cast<nsIObserver*>(this), "a11y-init-or-shutdown");
-#endif
     }
 
     // clear the child memory reporters
@@ -671,14 +656,6 @@ ContentParent::Observe(nsISupports* aSubject,
     else if (!strcmp(aTopic, "child-memory-reporter-request")) {
         SendPMemoryReportRequestConstructor();
     }
-#ifdef ACCESSIBILITY
-    // Make sure accessibility is running in content process when accessibility
-    // gets initiated in chrome process.
-    else if (aData && (*aData == '1') &&
-             !strcmp(aTopic, "a11y-init-or-shutdown")) {
-        SendActivateA11y();
-    }
-#endif
 
     return NS_OK;
 }

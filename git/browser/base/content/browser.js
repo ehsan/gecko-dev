@@ -6797,9 +6797,9 @@ var gPluginHandler = {
   submitReport : function(pluginDumpID, browserDumpID) {
     // The crash reporter wants a DOM element it can append an IFRAME to,
     // which it uses to submit a form. Let's just give it gBrowser.
-    this.CrashSubmit.submit(pluginDumpID);
+    this.CrashSubmit.submit(pluginDumpID, gBrowser, null, null);
     if (browserDumpID)
-      this.CrashSubmit.submit(browserDumpID);
+      this.CrashSubmit.submit(browserDumpID, gBrowser, null, null);
   },
 
   // Callback for user clicking a "reload page" link

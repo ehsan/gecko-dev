@@ -40,7 +40,6 @@
 #include "nsTreeStyleCache.h"
 #include "nsISupportsArray.h"
 #include "nsStyleSet.h"
-#include "mozilla/dom/Element.h"
 
 // The style context cache impl
 nsStyleContext*
