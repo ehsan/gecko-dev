@@ -292,12 +292,6 @@ NfcContentHelper.prototype = {
                            records: encodedRecords});
   },
 
-  callDefaultLostHandler: function callDefaultLostHandler(sessionToken, isP2P) {
-    cpmm.sendAsyncMessage("NFC:CallDefaultLostHandler",
-                          {sessionToken: sessionToken,
-                           isP2P: isP2P});
-  },
-
   // nsIObserver
   observe: function observe(subject, topic, data) {
     if (topic == "xpcom-shutdown") {
@@ -369,12 +363,9 @@ NfcContentHelper.prototype = {
           case NFC.TAG_EVENT_LOST:
             this.eventListener.notifyTagLost(result.sessionToken);
             break;
-          case NFC.RF_EVENT_STATE_CHANGED:
+          case NFC.RF_EVENT_STATE_CHANGE:
             this._rfState = result.rfState;
-            this.eventListener.notifyRFStateChanged(this._rfState);
-            break;
-          case NFC.FOCUS_CHANGED:
-            this.eventListener.notifyFocusChanged(result.focus);
+            this.eventListener.notifyRFStateChange(this._rfState);
             break;
         }
         break;
