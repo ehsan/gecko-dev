@@ -337,10 +337,8 @@ js_GetIndexFromBytecode(JSContext *cx, JSScript *script, jsbytecode *pc,
         JS_GET_SCRIPT_REGEXP((script), index_, obj);                          \
     JS_END_MACRO
 
-#ifdef __cplusplus
 uintN
 js_OpLength(jsbytecode *pc, const JSCodeSpec *cs = NULL);
-#endif
 
 #ifdef DEBUG
 /*
