@@ -7820,7 +7820,7 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
                                              aChild);
       parentFrame =
         ::AdjustAppendParentForAfterContent(mPresShell->GetPresContext(),
-                                            container, parentFrame,
+                                            aContainer, parentFrame,
                                             &appendAfterFrame);
     }
   }
@@ -7910,7 +7910,7 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
     nsIFrame* firstChild = parentFrame->GetFirstChild(nsnull);
 
     if (firstChild &&
-        nsLayoutUtils::IsGeneratedContentFor(container, firstChild,
+        nsLayoutUtils::IsGeneratedContentFor(aContainer, firstChild,
                                              nsCSSPseudoElements::before)) {
       // Insert the new frames after the last continuation of the :before
       prevSibling = firstChild->GetTailContinuation();
@@ -7989,7 +7989,7 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
     isAppend = PR_TRUE;
     parentFrame =
       ::AdjustAppendParentForAfterContent(mPresShell->GetPresContext(),
-                                          container,
+                                          aContainer,
                                           frameItems.childList->GetParent(),
                                           &appendAfterFrame);
   }
@@ -8004,10 +8004,7 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
     }
     else {
       // Use more complicated insert logic when inserting
-      // XXXbz this method is a no-op, so it's easy for the args being passed
-      // here to make no sense without anyone noticing...  If it ever stops
-      // being a no-op, vet them carefully!
-      InsertFirstLineFrames(state, container, containingBlock, &parentFrame,
+      InsertFirstLineFrames(state, aContainer, containingBlock, &parentFrame,
                             prevSibling, frameItems);
     }
   }
@@ -8017,7 +8014,7 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
     NS_ASSERTION(!captionItems.childList, "leaking caption frames");
     // Notify the parent frame
     if (isAppend) {
-      AppendFrames(state, container, parentFrame, frameItems,
+      AppendFrames(state, aContainer, parentFrame, frameItems,
                    appendAfterFrame);
     } else {
       state.mFrameManager->InsertFrames(parentFrame,
@@ -8659,7 +8656,7 @@ ApplyRenderingChangeToTree(nsPresContext* aPresContext,
     NS_ASSERTION(aFrame, "root frame must paint");
   }
 
-  nsIViewManager* viewManager = shell->GetViewManager();
+  nsIViewManager* viewManager = aPresContext->GetViewManager();
 
   // Trigger rendering updates by damaging this frame and any
   // continuations of this frame.
@@ -8735,7 +8732,7 @@ InvalidateCanvasIfNeeded(nsIFrame* aFrame)
     // Wrap this in a DEFERRED view update batch so we don't try to
     // flush out layout here
 
-    nsIViewManager::UpdateViewBatch batch(presContext->GetPresShell()->GetViewManager());
+    nsIViewManager::UpdateViewBatch batch(presContext->GetViewManager());  
     ApplyRenderingChangeToTree(presContext, ancestor,
                                nsChangeHint_RepaintFrame);
     batch.EndUpdateViewBatch(NS_VMREFRESH_DEFERRED);

@@ -508,11 +508,9 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt)
   var dnldMgr = Components.classes["@mozilla.org/download-manager;1"]
                           .getService(Components.interfaces.nsIDownloadManager);
   try {                          
-    var lastDir;
+    var lastDir = prefs.getComplexValue("lastDir", nsILocalFile);
     if (inPrivateBrowsing && gDownloadLastDir.path)
       lastDir = gDownloadLastDir.path;
-    else
-      lastDir = prefs.getComplexValue("lastDir", nsILocalFile);
     if ((!aSkipPrompt || !useDownloadDir) && lastDir.exists())
       dir = lastDir;
     else

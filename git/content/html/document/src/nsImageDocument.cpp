@@ -479,8 +479,12 @@ nsImageDocument::ScrollImageTo(PRInt32 aX, PRInt32 aY, PRBool restoreImage)
   nsIPresShell *shell = GetPrimaryShell();
   if (!shell)
     return NS_OK;
-  
-  nsIViewManager* vm = shell->GetViewManager();
+
+  nsPresContext* context = shell->GetPresContext();
+  if (!context)
+    return NS_OK;
+
+  nsIViewManager* vm = context->GetViewManager();
   if (!vm)
     return NS_OK;
 

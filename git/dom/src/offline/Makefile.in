@@ -72,7 +72,7 @@ CPPSRCS =                              \
 FORCE_STATIC_LIB = 1
 
 LOCAL_INCLUDES = \
-		-I$(topsrcdir)/dom/base \
+		-I$(srcdir)/../base \
 		-I$(topsrcdir)/content/base/src \
 		-I$(topsrcdir)/content/events/src
 
