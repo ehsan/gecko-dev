@@ -2833,7 +2833,7 @@ ElementRestyler::SendAccessibilityNotifications()
 #endif
 }
 
-static inline nsIFrame*
+inline nsIFrame*
 GetNextBlockInInlineSibling(FramePropertyTable* aPropTable, nsIFrame* aFrame)
 {
   NS_ASSERTION(!aFrame->GetPrevContinuation(),

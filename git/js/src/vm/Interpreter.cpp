@@ -2772,19 +2772,7 @@ CASE(JSOP_STRING)
 END_CASE(JSOP_STRING)
 
 CASE(JSOP_OBJECT)
-{
-    RootedObject &ref = rootObject0;
-    ref = script->getObject(REGS.pc);
-    if (JS::CompartmentOptionsRef(cx).cloneSingletons(cx)) {
-        JSObject *obj = js::DeepCloneObjectLiteral(cx, ref, js::MaybeSingletonObject);
-        if (!obj)
-            goto error;
-        PUSH_OBJECT(*obj);
-    } else {
-        JS::CompartmentOptionsRef(cx).setSingletonsAsValues();
-        PUSH_OBJECT(*ref);
-    }
-}
+    PUSH_OBJECT(*script->getObject(REGS.pc));
 END_CASE(JSOP_OBJECT)
 
 CASE(JSOP_REGEXP)

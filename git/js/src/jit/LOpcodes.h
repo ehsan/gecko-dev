@@ -17,7 +17,6 @@
     _(Double)                       \
     _(Float32)                      \
     _(Value)                        \
-    _(CloneLiteral)                 \
     _(Parameter)                    \
     _(Callee)                       \
     _(TableSwitch)                  \

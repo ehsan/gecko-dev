@@ -173,7 +173,7 @@ function runTests()
 
     reset("");
     synthesizeKey("VK_BACK_SPACE", { altKey: true });
-    check(aDescription + "Alt+Backspace", true, true, aIsReadonly || kIsMac);
+    check(aDescription + "Alt+Backspace", true, true, aIsReadonly);
 
     reset("");
     synthesizeKey("VK_BACK_SPACE", { metaKey: true });
@@ -189,11 +189,11 @@ function runTests()
     //   Otherwise, editor doesn't consume the event.
     reset("");
     synthesizeKey("VK_DELETE", { });
-    check(aDescription + "Delete", true, true, !aIsReadonly || kIsMac);
+    check(aDescription + "Delete", true, true, !aIsReadonly);
 
     reset("");
     synthesizeKey("VK_DELETE", { shiftKey: true });
-    check(aDescription + "Shift+Delete", true, true, kIsMac);
+    check(aDescription + "Shift+Delete", true, true, false);
 
     reset("");
     synthesizeKey("VK_DELETE", { ctrlKey: true });
@@ -201,7 +201,7 @@ function runTests()
 
     reset("");
     synthesizeKey("VK_DELETE", { altKey: true });
-    check(aDescription + "Alt+Delete", true, true, kIsMac);
+    check(aDescription + "Alt+Delete", true, true, false);
 
     reset("");
     synthesizeKey("VK_DELETE", { metaKey: true });

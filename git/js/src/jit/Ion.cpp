@@ -1706,11 +1706,10 @@ IonCompile(JSContext *cx, JSScript *script,
         return AbortReason_Alloc;
 
     const OptimizationInfo *optimizationInfo = js_IonOptimizations.get(optimizationLevel);
-    const JitCompileOptions options(cx);
 
     IonBuilder *builder = alloc->new_<IonBuilder>((JSContext *) nullptr,
                                                   CompileCompartment::get(cx->compartment()),
-                                                  options, temp, graph, constraints,
+                                                  temp, graph, constraints,
                                                   inspector, info, optimizationInfo,
                                                   baselineFrameInspector);
     if (!builder)

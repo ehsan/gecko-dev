@@ -212,8 +212,7 @@ class IonBuilder : public MIRGenerator
     static int CmpSuccessors(const void *a, const void *b);
 
   public:
-    IonBuilder(JSContext *analysisContext, CompileCompartment *comp,
-               const JitCompileOptions &options, TempAllocator *temp,
+    IonBuilder(JSContext *analysisContext, CompileCompartment *comp, TempAllocator *temp,
                MIRGraph *graph, types::CompilerConstraintList *constraints,
                BaselineInspector *inspector, CompileInfo *info,
                const OptimizationInfo *optimizationInfo, BaselineFrameInspector *baselineFrame,

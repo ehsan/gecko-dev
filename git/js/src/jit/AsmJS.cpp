@@ -22,7 +22,6 @@
 #include "jit/AsmJSModule.h"
 #include "jit/AsmJSSignalHandlers.h"
 #include "jit/CodeGenerator.h"
-#include "jit/CompileWrappers.h"
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
 #ifdef JS_ION_PERF
@@ -2044,9 +2043,7 @@ class FunctionCompiler
         graph_  = lifo_.new_<MIRGraph>(alloc_);
         info_   = lifo_.new_<CompileInfo>(locals_.count(), SequentialExecution);
         const OptimizationInfo *optimizationInfo = js_IonOptimizations.get(Optimization_AsmJS);
-        const JitCompileOptions options;
-        mirGen_ = lifo_.new_<MIRGenerator>(CompileCompartment::get(cx()->compartment()),
-                                           options, alloc_,
+        mirGen_ = lifo_.new_<MIRGenerator>(CompileCompartment::get(cx()->compartment()), alloc_,
                                            graph_, info_, optimizationInfo);
 
         if (!newBlock(/* pred = */ nullptr, &curBlock_, fn_))

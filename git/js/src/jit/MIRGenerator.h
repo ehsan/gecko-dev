@@ -34,8 +34,7 @@ class OptimizationInfo;
 class MIRGenerator
 {
   public:
-    MIRGenerator(CompileCompartment *compartment, const JitCompileOptions &options,
-                 TempAllocator *alloc, MIRGraph *graph,
+    MIRGenerator(CompileCompartment *compartment, TempAllocator *alloc, MIRGraph *graph,
                  CompileInfo *info, const OptimizationInfo *optimizationInfo);
 
     TempAllocator &alloc() {
@@ -164,9 +163,6 @@ class MIRGenerator
   public:
     AsmJSPerfSpewer &perfSpewer() { return asmJSPerfSpewer_; }
 #endif
-
-  public:
-    const JitCompileOptions options;
 };
 
 } // namespace jit

@@ -306,7 +306,7 @@ ShapeTable::grow(ThreadSafeContext *cx)
 }
 
 /* static */ Shape *
-Shape::replaceLastProperty(ExclusiveContext *cx, StackBaseShape &base,
+Shape::replaceLastProperty(ExclusiveContext *cx, const StackBaseShape &base,
                            TaggedProto proto, HandleShape shape)
 {
     JS_ASSERT(!shape->inDictionary());
@@ -363,15 +363,15 @@ JSObject::getChildPropertyOnDictionary(ThreadSafeContext *cx, JS::HandleObject o
 
     if (obj->inDictionaryMode()) {
         JS_ASSERT(parent == obj->lastProperty());
-        RootedGeneric<StackShape*> childRoot(cx, &child);
+        StackShape::AutoRooter childRoot(cx, &child);
         shape = js_NewGCShape(cx);
         if (!shape)
             return nullptr;
-        if (childRoot->hasSlot() && childRoot->slot() >= obj->lastProperty()->base()->slotSpan()) {
-            if (!JSObject::setSlotSpan(cx, obj, childRoot->slot() + 1))
+        if (child.hasSlot() && child.slot() >= obj->lastProperty()->base()->slotSpan()) {
+            if (!JSObject::setSlotSpan(cx, obj, child.slot() + 1))
                 return nullptr;
         }
-        shape->initDictionaryShape(*childRoot, obj->numFixedSlots(), &obj->shape_);
+        shape->initDictionaryShape(child, obj->numFixedSlots(), &obj->shape_);
     }
 
     return shape;
@@ -379,13 +379,13 @@ JSObject::getChildPropertyOnDictionary(ThreadSafeContext *cx, JS::HandleObject o
 
 /* static */ Shape *
 JSObject::getChildProperty(ExclusiveContext *cx,
-                           HandleObject obj, HandleShape parent, StackShape &unrootedChild)
+                           HandleObject obj, HandleShape parent, StackShape &child)
 {
-    RootedGeneric<StackShape*> child(cx, &unrootedChild);
-    RootedShape shape(cx, getChildPropertyOnDictionary(cx, obj, parent, *child));
+    StackShape::AutoRooter childRoot(cx, &child);
+    RootedShape shape(cx, getChildPropertyOnDictionary(cx, obj, parent, child));
 
     if (!obj->inDictionaryMode()) {
-        shape = cx->compartment()->propertyTree.getChild(cx, parent, *child);
+        shape = cx->compartment()->propertyTree.getChild(cx, parent, child);
         if (!shape)
             return nullptr;
         //JS_ASSERT(shape->parent == parent);
@@ -399,15 +399,15 @@ JSObject::getChildProperty(ExclusiveContext *cx,
 
 /* static */ Shape *
 JSObject::lookupChildProperty(ThreadSafeContext *cx,
-                              HandleObject obj, HandleShape parent, StackShape &unrootedChild)
+                              HandleObject obj, HandleShape parent, StackShape &child)
 {
-    RootedGeneric<StackShape*> child(cx, &unrootedChild);
+    StackShape::AutoRooter childRoot(cx, &child);
     JS_ASSERT(cx->isThreadLocal(obj));
 
-    RootedShape shape(cx, getChildPropertyOnDictionary(cx, obj, parent, *child));
+    RootedShape shape(cx, getChildPropertyOnDictionary(cx, obj, parent, child));
 
     if (!obj->inDictionaryMode()) {
-        shape = cx->compartment_->propertyTree.lookupChild(cx, parent, *child);
+        shape = cx->compartment_->propertyTree.lookupChild(cx, parent, child);
         if (!shape)
             return nullptr;
         if (!JSObject::setLastProperty(cx, obj, shape))
@@ -546,7 +546,7 @@ ShouldConvertToDictionary(JSObject *obj)
 template <ExecutionMode mode>
 static inline UnownedBaseShape *
 GetOrLookupUnownedBaseShape(typename ExecutionModeTraits<mode>::ExclusiveContextType cx,
-                            StackBaseShape &base)
+                            const StackBaseShape &base)
 {
     if (mode == ParallelExecution)
         return BaseShape::lookupUnowned(cx, base);
@@ -1439,28 +1439,28 @@ StackBaseShape::match(UnownedBaseShape *key, const StackBaseShape *lookup)
 }
 
 void
-StackBaseShape::trace(JSTracer *trc)
+StackBaseShape::AutoRooter::trace(JSTracer *trc)
 {
-    if (parent) {
-        gc::MarkObjectRoot(trc, (JSObject**)&parent,
-                           "StackBaseShape parent");
+    if (base->parent) {
+        gc::MarkObjectRoot(trc, (JSObject**)&base->parent,
+                           "StackBaseShape::AutoRooter parent");
     }
-    if (metadata) {
-        gc::MarkObjectRoot(trc, (JSObject**)&metadata,
-                           "StackBaseShape metadata");
+    if (base->metadata) {
+        gc::MarkObjectRoot(trc, (JSObject**)&base->metadata,
+                           "StackBaseShape::AutoRooter metadata");
     }
-    if ((flags & BaseShape::HAS_GETTER_OBJECT) && rawGetter) {
-        gc::MarkObjectRoot(trc, (JSObject**)&rawGetter,
-                           "StackBaseShape getter");
+    if ((base->flags & BaseShape::HAS_GETTER_OBJECT) && base->rawGetter) {
+        gc::MarkObjectRoot(trc, (JSObject**)&base->rawGetter,
+                           "StackBaseShape::AutoRooter getter");
     }
-    if ((flags & BaseShape::HAS_SETTER_OBJECT) && rawSetter) {
-        gc::MarkObjectRoot(trc, (JSObject**)&rawSetter,
-                           "StackBaseShape setter");
+    if ((base->flags & BaseShape::HAS_SETTER_OBJECT) && base->rawSetter) {
+        gc::MarkObjectRoot(trc, (JSObject**)&base->rawSetter,
+                           "StackBaseShape::AutoRooter setter");
     }
 }
 
 /* static */ UnownedBaseShape*
-BaseShape::getUnowned(ExclusiveContext *cx, StackBaseShape &base)
+BaseShape::getUnowned(ExclusiveContext *cx, const StackBaseShape &base)
 {
     BaseShapeSet &table = cx->compartment()->baseShapes;
 
@@ -1471,17 +1471,17 @@ BaseShape::getUnowned(ExclusiveContext *cx, StackBaseShape &base)
     if (p)
         return *p;
 
-    RootedGeneric<StackBaseShape*> root(cx, &base);
+    StackBaseShape::AutoRooter root(cx, &base);
 
     BaseShape *nbase_ = js_NewGCBaseShape<CanGC>(cx);
     if (!nbase_)
         return nullptr;
 
-    new (nbase_) BaseShape(*root);
+    new (nbase_) BaseShape(base);
 
     UnownedBaseShape *nbase = static_cast<UnownedBaseShape *>(nbase_);
 
-    if (!p.add(cx, table, root, nbase))
+    if (!p.add(cx, table, &base, nbase))
         return nullptr;
 
     return nbase;

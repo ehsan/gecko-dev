@@ -12,7 +12,6 @@ namespace jit {
 
 #define MIR_OPCODE_LIST(_)                                                  \
     _(Constant)                                                             \
-    _(CloneLiteral)                                                         \
     _(Parameter)                                                            \
     _(Callee)                                                               \
     _(TableSwitch)                                                          \

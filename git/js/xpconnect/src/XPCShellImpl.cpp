@@ -538,27 +538,25 @@ Parent(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static bool
-Atob(JSContext *cx, unsigned argc, Value *vp)
+Atob(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.length())
+    if (!argc)
         return true;
 
-    return xpc::Base64Decode(cx, args[0], args.rval());
+    return xpc::Base64Decode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
 }
 
 static bool
-Btoa(JSContext *cx, unsigned argc, Value *vp)
+Btoa(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.length())
-        return true;
+  if (!argc)
+      return true;
 
-  return xpc::Base64Encode(cx, args[0], args.rval());
+  return xpc::Base64Encode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
 }
 
 static bool
-Blob(JSContext *cx, unsigned argc, Value *vp)
+Blob(JSContext *cx, unsigned argc, jsval *vp)
 {
   JS::CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -584,7 +582,7 @@ Blob(JSContext *cx, unsigned argc, Value *vp)
     return false;
   }
 
-  JSObject *global = JS::CurrentGlobalOrNull(cx);
+  JSObject* global = JS::CurrentGlobalOrNull(cx);
   rv = xpc->WrapNativeToJSVal(cx, global, native, nullptr,
                               &NS_GET_IID(nsISupports), true,
                               args.rval());
@@ -597,7 +595,7 @@ Blob(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static bool
-File(JSContext *cx, unsigned argc, Value *vp)
+File(JSContext *cx, unsigned argc, jsval *vp)
 {
   JS::CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -623,7 +621,7 @@ File(JSContext *cx, unsigned argc, Value *vp)
     return false;
   }
 
-  JSObject *global = JS::CurrentGlobalOrNull(cx);
+  JSObject* global = JS::CurrentGlobalOrNull(cx);
   rv = xpc->WrapNativeToJSVal(cx, global, native, nullptr,
                               &NS_GET_IID(nsISupports), true,
                               args.rval());
