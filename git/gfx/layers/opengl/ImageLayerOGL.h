@@ -233,9 +233,6 @@ public:
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
   nsRefPtr<gfxASurface> mSurface;
 #endif
-  void SetTiling(bool aTiling);
-private:
-  bool mTiling;
 };
 
 class ShadowImageLayerOGL : public ShadowImageLayer,
