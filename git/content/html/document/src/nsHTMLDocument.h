@@ -12,6 +12,7 @@
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIScriptElement.h"
+#include "jsapi.h"
 #include "nsTArray.h"
 
 #include "pldhash.h"

@@ -82,13 +82,6 @@
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/Telemetry.h"
 
-#ifdef XP_WIN
-// Thanks so much, Microsoft! :(
-#ifdef CreateEvent
-#undef CreateEvent
-#endif
-#endif // XP_WIN
-
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 using namespace mozilla;

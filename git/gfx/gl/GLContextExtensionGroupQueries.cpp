@@ -18,7 +18,7 @@ static const unsigned int kGLCoreVersionForES2Compat = 410;
 // ARB_ES3_compatibility is natively supported in OpenGL 4.3.
 static const unsigned int kGLCoreVersionForES3Compat = 430;
 
-struct FeatureInfo
+struct ExtensionGroupInfo
 {
     const char* mName;
     unsigned int mOpenGLVersion;
@@ -26,9 +26,9 @@ struct FeatureInfo
     GLContext::GLExtensions mExtensions[kMAX_EXTENSION_GROUP_SIZE];
 };
 
-static const FeatureInfo sFeatureInfoArr[] = {
+static const ExtensionGroupInfo sExtensionGroupInfoArr[] = {
     {
-        "bind_buffer_offset",
+        "XXX_bind_buffer_offset",
         0,   // OpenGL version
         0,   // OpenGL ES version
         {
@@ -38,7 +38,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "depth_texture",
+        "XXX_depth_texture",
         200, // OpenGL version
         300, // OpenGL ES version
         {
@@ -48,7 +48,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "draw_buffers",
+        "XXX_draw_buffers",
         200, // OpenGL version
         300, // OpenGL ES version
         {
@@ -58,7 +58,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "draw_instanced",
+        "XXX_draw_instanced",
         310, // OpenGL version
         300, // OpenGL ES version
         {
@@ -70,7 +70,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "element_index_uint",
+        "XXX_element_index_uint",
         200, // OpenGL version
         300, // OpenGL ES version
         {
@@ -79,7 +79,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "ES2_compatibility",
+        "XXX_ES2_compatibility",
         kGLCoreVersionForES2Compat,
         200, // OpenGL ES version
         {
@@ -88,7 +88,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "ES3_compatibility",
+        "XXX_ES3_compatibility",
         kGLCoreVersionForES3Compat,
         300, // OpenGL ES version
         {
@@ -97,7 +97,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "framebuffer_blit",
+        "XXX_framebuffer_blit",
         300, // OpenGL version
         300, // OpenGL ES version
         {
@@ -107,7 +107,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "framebuffer_multisample",
+        "XXX_framebuffer_multisample",
         300, // OpenGL version
         300, // OpenGL ES version
         {
@@ -117,7 +117,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "framebuffer_object",
+        "XXX_framebuffer_object",
         300, // OpenGL version
         200, // OpenGL ES version
         {
@@ -127,7 +127,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "get_query_object_iv",
+        "XXX_get_query_object_iv",
         200, // OpenGL version
         0,   // OpenGL ES version
         {
@@ -139,7 +139,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
          */
     },
     {
-        "instanced_arrays",
+        "XXX_instanced_arrays",
         330, // OpenGL version
         300, // OpenGL ES version
         {
@@ -150,7 +150,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "occlusion_query",
+        "XXX_occlusion_query",
         200, // OpenGL version
         0,   // OpenGL ES version
         {
@@ -159,7 +159,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         // XXX_occlusion_query depend on ARB_occlusion_query (added in OpenGL 2.0)
     },
     {
-        "occlusion_query_boolean",
+        "XXX_occlusion_query_boolean",
         kGLCoreVersionForES3Compat,
         300, // OpenGL ES version
         {
@@ -175,7 +175,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
          */
     },
     {
-        "occlusion_query2",
+        "XXX_occlusion_query2",
         330, // = min(330, kGLCoreVersionForES3Compat),
         300, // OpenGL ES version
         {
@@ -191,7 +191,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
          */
     },
     {
-        "packed_depth_stencil",
+        "XXX_packed_depth_stencil",
         300, // OpenGL version
         300, // OpenGL ES version
         {
@@ -201,7 +201,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "query_objects",
+        "XXX_query_objects",
         200, // OpenGL version
         300, // OpenGL ES version
         {
@@ -215,7 +215,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
          */
     },
     {
-        "robustness",
+        "XXX_robustness",
         0,   // OpenGL version
         0,   // OpenGL ES version
         {
@@ -225,7 +225,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "standard_derivatives",
+        "XXX_standard_derivatives",
         200, // OpenGL version
         300, // OpenGL ES version
         {
@@ -234,7 +234,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "texture_float",
+        "XXX_texture_float",
         310, // OpenGL version
         300, // OpenGL ES version
         {
@@ -244,7 +244,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "texture_float_linear",
+        "XXX_texture_float_linear",
         310, // OpenGL version
         300, // OpenGL ES version
         {
@@ -254,7 +254,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "texture_non_power_of_two",
+        "XXX_texture_non_power_of_two",
         200, // OpenGL version
         300, // OpenGL ES version
         {
@@ -264,7 +264,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "transform_feedback",
+        "XXX_transform_feedback",
         300, // OpenGL version
         300, // OpenGL ES version
         {
@@ -274,7 +274,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
         }
     },
     {
-        "vertex_array_object",
+        "XXX_vertex_array_object",
         300, // OpenGL version
         300, // OpenGL ES version
         {
@@ -286,70 +286,66 @@ static const FeatureInfo sFeatureInfoArr[] = {
     }
 };
 
-static inline const FeatureInfo&
-GetFeatureInfo(GLFeature::Enum feature)
+static inline const ExtensionGroupInfo&
+GetExtensionGroupInfo(GLContext::GLExtensionGroup extensionGroup)
 {
-    static_assert(MOZ_ARRAY_LENGTH(sFeatureInfoArr) == size_t(GLFeature::EnumMax),
-                  "Mismatched lengths for sFeatureInfoInfos and GLFeature enums");
+    static_assert(MOZ_ARRAY_LENGTH(sExtensionGroupInfoArr) == size_t(GLContext::ExtensionGroup_Max),
+                  "Mismatched lengths for sExtensionGroupInfos and ExtensionGroup enums");
 
-    MOZ_ASSERT(feature < GLFeature::EnumMax,
-               "GLContext::GetFeatureInfoInfo : unknown <feature>");
+    MOZ_ASSERT(extensionGroup < GLContext::ExtensionGroup_Max,
+               "GLContext::GetExtensionGroupInfo : unknown <extensionGroup>");
 
-    return sFeatureInfoArr[feature];
+    return sExtensionGroupInfoArr[extensionGroup];
 }
 
 static inline uint32_t
-ProfileVersionForFeature(GLFeature::Enum feature, ContextProfile profile)
+ProfileVersionForExtensionGroup(GLContext::GLExtensionGroup extensionGroup, ContextProfile profile)
 {
     MOZ_ASSERT(profile != ContextProfile::Unknown,
-               "GLContext::ProfileVersionForFeature : unknown <profile>");
+               "GLContext::ProfileVersionForExtensionGroup : unknown <profile>");
 
-    const FeatureInfo& featureInfo = GetFeatureInfo(feature);
+    const ExtensionGroupInfo& groupInfo = GetExtensionGroupInfo(extensionGroup);
 
     if (profile == ContextProfile::OpenGLES) {
-        return featureInfo.mOpenGLESVersion;
+        return groupInfo.mOpenGLESVersion;
     }
 
-    return featureInfo.mOpenGLVersion;
+    return groupInfo.mOpenGLVersion;
 }
 
 static inline bool
-IsFeatureIsPartOfProfileVersion(GLFeature::Enum feature,
-                                ContextProfile profile, unsigned int version)
+IsExtensionGroupIsPartOfProfileVersion(GLContext::GLExtensionGroup extensionGroup,
+                                       ContextProfile profile, unsigned int version)
 {
-    unsigned int profileVersion = ProfileVersionForFeature(feature, profile);
+    unsigned int profileVersion = ProfileVersionForExtensionGroup(extensionGroup, profile);
 
-    /**
-     * if `profileVersion` is zero, it means that no version of the profile
-     * added support for the feature.
-     */
     return profileVersion && version >= profileVersion;
 }
 
 const char*
-GLContext::GetFeatureName(GLFeature::Enum feature)
+GLContext::GetExtensionGroupName(GLExtensionGroup extensionGroup)
 {
-    return GetFeatureInfo(feature).mName;
+    return GetExtensionGroupInfo(extensionGroup).mName;
 }
 
 bool
-GLContext::IsSupported(GLFeature::Enum feature) const
+GLContext::IsExtensionSupported(GLExtensionGroup extensionGroup) const
 {
-    if (IsFeatureIsPartOfProfileVersion(feature, mProfile, mVersion)) {
+    if (IsExtensionGroupIsPartOfProfileVersion(extensionGroup, mProfile, mVersion)) {
         return true;
     }
 
-    const FeatureInfo& featureInfo = GetFeatureInfo(feature);
+    const ExtensionGroupInfo& groupInfo = GetExtensionGroupInfo(extensionGroup);
 
     for (size_t i = 0; true; i++)
     {
         MOZ_ASSERT(i < kMAX_EXTENSION_GROUP_SIZE, "kMAX_EXTENSION_GROUP_SIZE too small");
 
-        if (featureInfo.mExtensions[i] == GLContext::Extensions_End) {
+        if (groupInfo.mExtensions[i] == GLContext::Extensions_End) {
             break;
         }
 
-        if (IsExtensionSupported(featureInfo.mExtensions[i])) {
+        if (IsExtensionSupported(groupInfo.mExtensions[i])) {
             return true;
         }
     }
@@ -358,34 +354,34 @@ GLContext::IsSupported(GLFeature::Enum feature) const
 }
 
 bool
-GLContext::MarkUnsupported(GLFeature::Enum feature)
+GLContext::MarkExtensionGroupUnsupported(GLExtensionGroup extensionGroup)
 {
-    MOZ_ASSERT(IsSupported(feature), "extension group is already unsupported!");
+    MOZ_ASSERT(IsExtensionSupported(extensionGroup), "extension group is already unsupported!");
 
-    if (IsFeatureIsPartOfProfileVersion(feature, mProfile, mVersion)) {
+    if (IsExtensionGroupIsPartOfProfileVersion(extensionGroup, mProfile, mVersion)) {
         NS_WARNING(nsPrintfCString("%s marked as unsupported, but it's supposed to be supported by %s %s",
-                                   GetFeatureName(feature),
+                                   GetExtensionGroupName(extensionGroup),
                                    ProfileString(),
                                    VersionString()).get());
         return false;
     }
 
-    const FeatureInfo& featureInfo = GetFeatureInfo(feature);
+    const ExtensionGroupInfo& groupInfo = GetExtensionGroupInfo(extensionGroup);
 
     for (size_t i = 0; true; i++)
     {
         MOZ_ASSERT(i < kMAX_EXTENSION_GROUP_SIZE, "kMAX_EXTENSION_GROUP_SIZE too small");
 
-        if (featureInfo.mExtensions[i] == GLContext::Extensions_End) {
+        if (groupInfo.mExtensions[i] == GLContext::Extensions_End) {
             break;
         }
 
-        MarkExtensionUnsupported(featureInfo.mExtensions[i]);
+        MarkExtensionUnsupported(groupInfo.mExtensions[i]);
     }
 
-    MOZ_ASSERT(!IsSupported(feature), "GLContext::MarkExtensionGroupUnsupported has failed!");
+    MOZ_ASSERT(!IsExtensionSupported(extensionGroup), "GLContext::MarkExtensionGroupUnsupported has failed!");
 
-    NS_WARNING(nsPrintfCString("%s marked as unsupported", GetFeatureName(feature)).get());
+    NS_WARNING(nsPrintfCString("%s marked as unsupported", GetExtensionGroupName(extensionGroup)).get());
 
     return true;
 }

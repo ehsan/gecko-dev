@@ -51,6 +51,7 @@ EXPORTS += [
     'nsCRT.h',
     'nsCharSeparatedTokenizer.h',
     'nsCheapSets.h',
+    'nsCppSharedAllocator.h',
     'nsExpirationTracker.h',
     'nsHashPropertyBag.h',
     'nsHashtable.h',

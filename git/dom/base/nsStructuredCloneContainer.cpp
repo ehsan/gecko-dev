@@ -13,7 +13,6 @@
 #include "nsIXPConnect.h"
 #include "nsServiceManagerUtils.h"
 #include "nsContentUtils.h"
-#include "jsapi.h"
 
 #include "mozilla/Base64.h"
 

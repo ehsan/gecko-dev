@@ -859,7 +859,7 @@ CloneObject(JSContext *cx, HandleObject srcObj, CloneMemory &clonedObjects)
     if (srcObj->is<JSFunction>()) {
         if (srcObj->as<JSFunction>().isWrappable()) {
             clone = srcObj;
-            if (!cx->compartment()->wrap(cx, &clone))
+            if (!cx->compartment()->wrap(cx, clone.address()))
                 return NULL;
         } else {
             RootedFunction fun(cx, &srcObj->as<JSFunction>());

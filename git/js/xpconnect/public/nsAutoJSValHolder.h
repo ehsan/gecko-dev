@@ -6,6 +6,8 @@
 #ifndef __NSAUTOJSVALHOLDER_H__
 #define __NSAUTOJSVALHOLDER_H__
 
+#include "jsapi.h"
+
 #include "nsDebug.h"
 
 /**

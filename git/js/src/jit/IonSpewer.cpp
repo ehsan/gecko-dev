@@ -8,8 +8,6 @@
 
 #include "jit/IonSpewer.h"
 
-#include "jsworkers.h"
-
 #include "jit/Ion.h"
 
 #ifndef ION_SPEW_DIR
@@ -81,7 +79,7 @@ ion::EnableIonDebugLogging()
 void
 ion::IonSpewNewFunction(MIRGraph *graph, HandleScript func)
 {
-    if (!OffThreadIonCompilationEnabled(GetIonContext()->runtime)) {
+    if (!js_IonOptions.parallelCompilation) {
         ionspewer.beginFunction(graph, func);
     } else {
         if (func) {
@@ -98,21 +96,21 @@ ion::IonSpewNewFunction(MIRGraph *graph, HandleScript func)
 void
 ion::IonSpewPass(const char *pass)
 {
-    if (!OffThreadIonCompilationEnabled(GetIonContext()->runtime))
+    if (!js_IonOptions.parallelCompilation)
         ionspewer.spewPass(pass);
 }
 
 void
 ion::IonSpewPass(const char *pass, LinearScanAllocator *ra)
 {
-    if (!OffThreadIonCompilationEnabled(GetIonContext()->runtime))
+    if (!js_IonOptions.parallelCompilation)
         ionspewer.spewPass(pass, ra);
 }
 
 void
 ion::IonSpewEndFunction()
 {
-    if (!OffThreadIonCompilationEnabled(GetIonContext()->runtime))
+    if (!js_IonOptions.parallelCompilation)
         ionspewer.endFunction();
 }
 

@@ -5,6 +5,8 @@
 #ifndef StructuredCloneTags_h__
 #define StructuredCloneTags_h__
 
+#include "jsapi.h"
+
 namespace mozilla {
 namespace dom {
 

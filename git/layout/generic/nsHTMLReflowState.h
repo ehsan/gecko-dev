@@ -20,6 +20,14 @@ class nsRenderingContext;
 class nsFloatManager;
 class nsLineLayout;
 class nsIPercentHeightObserver;
+
+struct nsStyleDisplay;
+struct nsStyleVisibility;
+struct nsStylePosition;
+struct nsStyleBorder;
+struct nsStyleMargin;
+struct nsStylePadding;
+struct nsStyleText;
 struct nsHypotheticalBox;
 
 

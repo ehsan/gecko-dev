@@ -14,8 +14,7 @@
 #define mozilla_dom_BindingDeclarations_h__
 
 #include "nsStringGlue.h"
-#include "js/Value.h"
-#include "js/RootingAPI.h"
+#include "jsapi.h"
 #include "mozilla/Util.h"
 #include "nsCOMPtr.h"
 #include "nsDOMString.h"
@@ -23,8 +22,6 @@
 #include "nsTArray.h"
 #include "nsAutoPtr.h" // for nsRefPtr member variables
 
-struct JSContext;
-class JSObject;
 class nsWrapperCache;
 
 // nsGlobalWindow implements nsWrapperCache, but doesn't always use it. Don't
@@ -75,7 +72,7 @@ public:
   }
 
 private:
-  JS::Rooted<JSObject*> mGlobalJSObject;
+  JS::RootedObject mGlobalJSObject;
   nsISupports* mGlobalObject;
   nsCOMPtr<nsISupports> mGlobalObjectRef;
 };

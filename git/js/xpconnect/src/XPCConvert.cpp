@@ -23,7 +23,6 @@
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
-#include "jsprf.h"
 #include "JavaScriptParent.h"
 
 #include "mozilla/dom/BindingUtils.h"

@@ -7,7 +7,6 @@
 /* An implementaion of nsIException. */
 
 #include "xpcprivate.h"
-#include "jsprf.h"
 #include "nsError.h"
 #include "nsIUnicodeDecoder.h"
 

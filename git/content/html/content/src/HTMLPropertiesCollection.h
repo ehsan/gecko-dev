@@ -19,6 +19,7 @@
 #include "nsIHTMLCollection.h"
 #include "nsHashKeys.h"
 #include "nsRefPtrHashtable.h"
+#include "jsapi.h"
 
 class nsGenericHTMLElement;
 class nsIDocument;

@@ -9,7 +9,6 @@
 #include "xpcprivate.h"
 #include "xpcpublic.h"
 #include "XPCWrapper.h"
-#include "jsprf.h"
 
 bool XPCThrower::sVerbose = true;
 

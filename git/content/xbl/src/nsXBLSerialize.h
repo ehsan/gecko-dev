@@ -6,14 +6,11 @@
 #ifndef nsXBLSerialize_h__
 #define nsXBLSerialize_h__
 
+#include "jsapi.h"
+
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsINameSpaceManager.h"
-
-namespace JS {
-template <typename T> class Handle;
-template <typename T> class MutableHandle;
-}
 
 typedef uint8_t XBLBindingSerializeDetails;
 

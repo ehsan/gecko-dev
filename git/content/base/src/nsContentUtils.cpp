@@ -927,8 +927,7 @@ nsContentUtils::ParseSandboxAttributeToFlags(const nsAString& aSandboxAttrValue)
                  SANDBOXED_FORMS |
                  SANDBOXED_SCRIPTS |
                  SANDBOXED_AUTOMATIC_FEATURES |
-                 SANDBOXED_POINTER_LOCK |
-                 SANDBOXED_DOMAIN;
+                 SANDBOXED_POINTER_LOCK;
 
   if (!aSandboxAttrValue.IsEmpty()) {
     // The separator optional flag is used because the HTML5 spec says any

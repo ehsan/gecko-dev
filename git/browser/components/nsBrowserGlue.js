@@ -1767,20 +1767,16 @@ ContentPermissionPrompt.prototype = {
 
     var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
 
-    var browser;
-    try {
-      // "element" is only defined in e10s mode, otherwise it throws.
-      browser = aRequest.element;
-    } catch (e) {}
+    var requestingWindow = aRequest.window.top;
+    var chromeWin = this._getChromeWindow(requestingWindow).wrappedJSObject;
+    var browser = chromeWin.gBrowser.getBrowserForDocument(requestingWindow.document);
     if (!browser) {
-      var requestingWindow = aRequest.window.top;
       // find the requesting browser or iframe
       browser = requestingWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                                   .getInterface(Ci.nsIWebNavigation)
                                   .QueryInterface(Ci.nsIDocShell)
                                   .chromeEventHandler;
     }
-    var chromeWin = browser.ownerDocument.defaultView;
     var requestPrincipal = aRequest.principal;
 
     // Transform the prompt actions into PopupNotification actions.

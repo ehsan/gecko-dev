@@ -23,88 +23,26 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=766694
 // This is a list of all interfaces that are exposed to every webpage.  Please only
 // add things to this list with great care.
 
-// IMPORTANT: Do not change this list without review from a JavaScript Engine peer!
-var ecmaGlobals =
-  [
-    "Array",
-    "ArrayBuffer",
-    "Boolean",
-    "DataView",
-    "Date",
-    "Error",
-    "EvalError",
-    "Float32Array",
-    "Float64Array",
-    "Function",
-    "Infinity",
-    "Int16Array",
-    "Int32Array",
-    "Int8Array",
-    "InternalError",
-    "Iterator",
-    "JSON",
-    "Map",
-    "Math",
-    "NaN",
-    "Number",
-    "Object",
-    {name: "ParallelArray", nightly: true},
-    "Proxy",
-    "RangeError",
-    "ReferenceError",
-    "RegExp",
-    "Set",
-    "StopIteration",
-    "String",
-    "SyntaxError",
-    "TypeError",
-    "Uint16Array",
-    "Uint32Array",
-    "Uint8Array",
-    "Uint8ClampedArray",
-    "URIError",
-    "WeakMap",
-  ];
-// IMPORTANT: Do not change this list without review from a JavaScript Engine peer!
-
 // IMPORTANT: Do not change this list without review from a DOM peer!
 var interfaceNamesInGlobalScope =
   [
-    "AnalyserNode",
     "AnimationEvent",
-    "ArchiveRequest",
+    "Array",
     "AsyncScrollEventDetail",
     "Attr",
-    "Audio",
-    "AudioBuffer",
-    "AudioContext",
-    "AudioBufferSourceNode",
-    "AudioDestinationNode",
-    "AudioListener",
-    "AudioNode",
-    "AudioParam",
-    "AudioProcessingEvent",
-    "AudioStreamTrack",
     "BarProp",
     "BatteryManager",
     "BeforeUnloadEvent",
-    "BiquadFilterNode",
     "Blob",
     "BlobEvent",
-    {name: "BoxObject", xbl: true},
-    {name: "BrowserFeedWriter", android: false},
     "CameraCapabilities",
     "CameraControl",
     "CameraManager",
     "CanvasGradient",
     "CanvasPattern",
     "CanvasRenderingContext2D",
-    "CaretPosition",
     "CDATASection",
-    "ChannelMergerNode",
-    "ChannelSplitterNode",
     "CharacterData",
-    {name: "ChromeWindow", xbl: true},
     "ClientRect",
     "ClientRectList",
     "ClipboardEvent",
@@ -113,21 +51,17 @@ var interfaceNamesInGlobalScope =
     "Comment",
     "CompositionEvent",
     "Controllers",
-    "ConvolverNode",
-    {name: "CRMFObject", android: false},
+    "CRMFObject",
     "Crypto",
-    "CSS",
     "CSS2Properties",
     "CSSCharsetRule",
     "CSSConditionRule",
     "CSSFontFaceRule",
-    {name: "CSSFontFeatureValuesRule", release: false},
+    "CSSFontFeatureValuesRule",
     "CSSGroupingRule",
-    "CSSGroupRuleRuleList",
     "CSSImportRule",
     "CSSMediaRule",
     "CSSMozDocumentRule",
-    "CSSNameSpaceRule",
     "CSSPageRule",
     "CSSPrimitiveValue",
     "CSSRule",
@@ -142,7 +76,6 @@ var interfaceNamesInGlobalScope =
     "DataChannel",
     "DataContainerEvent",
     "DataTransfer",
-    "DelayNode",
     "DesktopNotification",
     "DesktopNotificationCenter",
     "DeviceAcceleration",
@@ -153,16 +86,14 @@ var interfaceNamesInGlobalScope =
     "DeviceRotationRate",
     "DeviceStorage",
     "DeviceStorageChangeEvent",
+    "DeviceStorageCursor",
     "Document",
     "DocumentFragment",
     "DocumentType",
-    {name: "DOMConstructor", xbl: true},
     "DOMCursor",
     "DOMError",
     "DOMException",
     "DOMImplementation",
-    "DOMMMIError",
-    "DOMParser",
     "DOMRequest",
     "DOMSettableTokenList",
     "DOMStringList",
@@ -170,9 +101,9 @@ var interfaceNamesInGlobalScope =
     "DOMTokenList",
     "DOMTransactionEvent",
     "DragEvent",
-    "DynamicsCompressorNode",
     "Element",
     "ElementReplaceEvent",
+    "ElementTimeControl",
     "Event",
     "EventListenerInfo",
     "EventSource",
@@ -184,11 +115,10 @@ var interfaceNamesInGlobalScope =
     "FileRequest",
     "FocusEvent",
     "FormData",
-    "GainNode",
-    {name: "Gamepad", android: false},
-    {name: "GamepadAxisMoveEvent", android: false},
-    {name: "GamepadButtonEvent", android: false},
-    {name: "GamepadEvent", android: false},
+    "Gamepad",
+    "GamepadAxisMoveEvent",
+    "GamepadButtonEvent",
+    "GamepadEvent",
     "HashChangeEvent",
     "History",
     "HTMLAnchorElement",
@@ -201,7 +131,7 @@ var interfaceNamesInGlobalScope =
     "HTMLButtonElement",
     "HTMLCanvasElement",
     "HTMLCollection",
-    "HTMLDataElement",
+    "HTMLCommandElement",
     "HTMLDataListElement",
     "HTMLDirectoryElement",
     "HTMLDivElement",
@@ -247,7 +177,6 @@ var interfaceNamesInGlobalScope =
     "HTMLScriptElement",
     "HTMLSelectElement",
     "HTMLSourceElement",
-    "HTMLSpanElement",
     "HTMLStyleElement",
     "HTMLTableCaptionElement",
     "HTMLTableCellElement",
@@ -255,9 +184,7 @@ var interfaceNamesInGlobalScope =
     "HTMLTableElement",
     "HTMLTableRowElement",
     "HTMLTableSectionElement",
-    "HTMLTemplateElement",
     "HTMLTextAreaElement",
-    "HTMLTimeElement",
     "HTMLTitleElement",
     "HTMLUListElement",
     "HTMLUnknownElement",
@@ -266,7 +193,6 @@ var interfaceNamesInGlobalScope =
     "IDBCursorWithValue",
     "IDBDatabase",
     "IDBFactory",
-    "IDBFileHandle",
     "IDBIndex",
     "IDBKeyRange",
     "IDBObjectStore",
@@ -274,25 +200,18 @@ var interfaceNamesInGlobalScope =
     "IDBRequest",
     "IDBTransaction",
     "IDBVersionChangeEvent",
-    "Image",
     "ImageData",
-    {name: "InstallTrigger", xbl: false},
+    "JSON",
     "KeyEvent",
-    "KeyboardEvent",
     "LoadStatus",
     "LocalMediaStream",
     "Location",
     "LockedFile",
-    "MediaElementAudioSourceNode",
+    "LSProgressEvent",
     "MediaError",
     "MediaList",
     "MediaQueryList",
-    "MediaRecorder",
     "MediaStream",
-    "MediaStreamAudioDestinationNode",
-    "MediaStreamAudioSourceNode",
-    "MediaStreamEvent",
-    "MediaStreamTrack",
     "MessageEvent",
     "MimeType",
     "MimeTypeArray",
@@ -300,26 +219,31 @@ var interfaceNamesInGlobalScope =
     "MouseEvent",
     "MouseScrollEvent",
     "MozApplicationEvent",
+    "MozBlobBuilder",
     "MozCanvasPrintState",
     "MozConnection",
-    "mozContact",
     "MozContactChangeEvent",
     "MozCSSKeyframeRule",
     "MozCSSKeyframesRule",
     "MozMmsEvent",
     "MozMmsMessage",
+    "MozMobileCellInfo",
+    "MozMobileConnectionInfo",
     "MozMobileMessageManager",
     "MozMobileMessageThread",
+    "MozMobileNetworkInfo",
     "MozNamedAttrMap",
+    "MozNetworkStats",
+    "MozNetworkStatsData",
+    "MozNetworkStatsManager",
     "MozPowerManager",
-    "mozRTCIceCandidate",
-    "mozRTCPeerConnection",
-    "mozRTCSessionDescription",
     "MozSettingsEvent",
     "MozSmsEvent",
     "MozSmsFilter",
     "MozSmsMessage",
     "MozSmsSegmentInfo",
+    "MozTimeManager",
+    "MozTouchEvent",
     "MozWakeLock",
     "MutationEvent",
     "MutationObserver",
@@ -329,54 +253,47 @@ var interfaceNamesInGlobalScope =
     "NodeFilter",
     "NodeIterator",
     "NodeList",
+    "NodeSelector",
     "NotifyAudioAvailableEvent",
-    "Notification",
     "NotifyPaintEvent",
-    "OfflineAudioCompletionEvent",
-    "OfflineAudioContext",
+    "NSRGBAColor",
     "OfflineResourceList",
     "OpenWindowEventDetail",
-    "Option",
-    "OscillatorNode",
     "PageTransitionEvent",
     "PaintRequest",
     "PaintRequestList",
-    "PannerNode",
+    "PaymentRequestInfo",
     "Performance",
     "PerformanceNavigation",
     "PerformanceTiming",
-    "PeriodicWave",
-    "PhoneNumberService",
     "Plugin",
     "PluginArray",
     "PopStateEvent",
     "PopupBlockedEvent",
     "ProcessingInstruction",
     "ProgressEvent",
-    {name: "Promise", release: false},
-    {name: "PromiseResolver", release: false},
     "PropertyNodeList",
     "Range",
     "RecordErrorEvent",
     "Rect",
     "RGBColor",
-    "RTCDataChannelEvent",
-    "RTCPeerConnectionIceEvent",
+    "RTCIceCandidate",
+    "RTCPeerConnection",
+    "RTCSessionDescription",
     "Screen",
-    "ScriptProcessorNode",
     "ScrollAreaEvent",
     "Selection",
     "SettingsLock",
     "SettingsManager",
     "SimpleGestureEvent",
-    {name: "SimpleTest", xbl: false},
     "SmartCardEvent",
     "SpeechRecognitionError",
     "SpeechRecognitionEvent",
     "SpeechSynthesisEvent",
-    {name: "SpecialPowers", xbl: false},
     "Storage",
     "StorageEvent",
+    "StorageItem",
+    "StorageObsolete",
     "StyleRuleChangeEvent",
     "StyleSheet",
     "StyleSheetApplicableStateChangeEvent",
@@ -393,6 +310,8 @@ var interfaceNamesInGlobalScope =
     "SVGAnimatedLengthList",
     "SVGAnimatedNumber",
     "SVGAnimatedNumberList",
+    "SVGAnimatedPathData",
+    "SVGAnimatedPoints",
     "SVGAnimatedPreserveAspectRatio",
     "SVGAnimatedRect",
     "SVGAnimatedString",
@@ -409,6 +328,7 @@ var interfaceNamesInGlobalScope =
     "SVGDocument",
     "SVGElement",
     "SVGEllipseElement",
+    "SVGEvent",
     "SVGFEBlendElement",
     "SVGFEColorMatrixElement",
     "SVGFEComponentTransferElement",
@@ -434,20 +354,22 @@ var interfaceNamesInGlobalScope =
     "SVGFETileElement",
     "SVGFETurbulenceElement",
     "SVGFilterElement",
+    "SVGFilterPrimitiveStandardAttributes",
+    "SVGFitToViewBox",
     "SVGForeignObjectElement",
     "SVGGElement",
     "SVGGradientElement",
-    "SVGGraphicsElement",
     "SVGImageElement",
     "SVGLength",
     "SVGLengthList",
     "SVGLinearGradientElement",
     "SVGLineElement",
+    "SVGLocatable",
     "SVGMarkerElement",
     "SVGMaskElement",
     "SVGMatrix",
     "SVGMetadataElement",
-    "SVGMPathElement",
+    "SVGMpathElement",
     "SVGNumber",
     "SVGNumberList",
     "SVGPathElement",
@@ -485,26 +407,31 @@ var interfaceNamesInGlobalScope =
     "SVGSetElement",
     "SVGStopElement",
     "SVGStringList",
+    "SVGStylable",
     "SVGStyleElement",
     "SVGSVGElement",
     "SVGSwitchElement",
     "SVGSymbolElement",
+    "SVGTests",
     "SVGTextContentElement",
     "SVGTextElement",
     "SVGTextPathElement",
     "SVGTextPositioningElement",
     "SVGTitleElement",
     "SVGTransform",
+    "SVGTransformable",
     "SVGTransformList",
     "SVGTSpanElement",
     "SVGUnitTypes",
+    "SVGURIReference",
     "SVGUseElement",
     "SVGViewElement",
+    "SVGViewSpec",
     "SVGZoomAndPan",
     "SVGZoomEvent",
+    "TCPSocket",
+    "TCPServerSocket",
     "Text",
-    "TextDecoder",
-    "TextEncoder",
     "TextMetrics",
     "TimeEvent",
     "TimeRanges",
@@ -512,131 +439,79 @@ var interfaceNamesInGlobalScope =
     "TouchEvent",
     "TouchList",
     "TransitionEvent",
-    {name: "TreeColumn", xbl: true},
-    {name: "TreeColumns", xbl: true},
-    {name: "TreeContentView", xbl: true},
-    {name: "TreeSelection", xbl: true},
     "TreeWalker",
     "UIEvent",
     "UndoManager",
     "URL",
     "UserDataHandler",
     "UserProximityEvent",
+    "USSDReceivedEvent",
     "ValidityState",
-    "VideoStreamTrack",
-    "WaveShaperNode",
-    "WebGLActiveInfo",
-    "WebGLBuffer",
-    "WebGLFramebuffer",
-    "WebGLProgram",
-    "WebGLRenderbuffer",
     "WebGLRenderingContext",
-    "WebGLShader",
-    "WebGLShaderPrecisionFormat",
-    "WebGLTexture",
-    "WebGLUniformLocation",
-    "WebGLVertexArray",
     "WebSocket",
     "WheelEvent",
     "Window",
     "WindowUtils",
     "XMLDocument",
     "XMLHttpRequest",
+    "XMLHttpRequestEventTarget",
     "XMLHttpRequestUpload",
-    "XMLSerializer",
-    "XMLStylesheetProcessingInstruction",
     "XPathEvaluator",
     "XPathExpression",
     "XPathNamespace",
     "XPathNSResolver",
     "XPathResult",
     "XSLTProcessor",
-    {name: "XULButtonElement", xbl: true},
-    {name: "XULCheckboxElement", xbl: true},
-    {name: "XULCommandDispatcher", xbl: true},
-    {name: "XULCommandEvent", xbl: true},
-    {name: "XULControlElement", xbl: true},
-    {name: "XULControllers", xbl: true},
-    {name: "XULDocument", xbl: true},
-    {name: "XULElement", win: true, xbl: true},
-    {name: "XULLabeledControlElement", xbl: true},
-    {name: "XULPopupElement", xbl: true},
-    {name: "XULTemplateBuilder", xbl: true},
-    {name: "XULTreeBuilder", xbl: true},
+    "XULElement",
   ]
 // IMPORTANT: Do not change this list without review from a DOM peer!
 
-  var excludedNames = [
-    "TraceMallocDisable", // debug builds only
-    "TraceMallocEnable", // debug builds only
-    "TraceMallocOpenLogFile", // debug builds only
-    "TraceMallocChangeLogFD", // debug builds only
-    "TraceMallocCloseLogFD", // debug builds only
-    "TraceMallocLogTimestamp", // debug builds only
-    "TraceMallocDumpAllocations", // debug builds only
+// If your interface is named nsIDOMSomeInterface and you don't mean to expose
+// it to every webpage, simply change its name to nsISomeInterface to fix this problem.
+
+  var interfaceNamesInXBLScope = [
+    "BoxObject",
+    "ChromeWindow",
+    "DOMConstructor",
+    "TreeColumn",
+    "TreeColumns",
+    "TreeContentView",
+    "TreeSelection",
+    "XULButtonElement",
+    "XULCheckboxElement",
+    "XULCommandDispatcher",
+    "XULCommandEvent",
+    "XULControlElement",
+    "XULControllers",
+    "XULDocument",
+    "XULLabeledControlElement",
+    "XULPopupElement",
+    "XULTemplateBuilder",
+    "XULTreeBuilder",
   ];
 
-function createInterfaceMap(isXBLScope) {
-  var version = SpecialPowers.Cc["@mozilla.org/xre/app-info;1"].getService(SpecialPowers.Ci.nsIXULAppInfo).version;
-  var isNightly = version.endsWith("a1");
-  var isRelease = !version.contains("a");
-  var isAndroid = navigator.userAgent.indexOf("Android") >= 0;
-  var isWin = navigator.userAgent.indexOf("Windows") >= 0;
-  var interfaceMap = {};
-  for (var entry of ecmaGlobals) {
-    if (typeof(entry) === "string") {
-      // Standard ECMAScript global objects are not defined on the XBL scope.
-      interfaceMap[entry] = !isXBLScope;
-    } else if (entry.nightly === isNightly) {
-      interfaceMap[entry.name] = !isXBLScope;
-    } else {
-      interfaceMap[entry.name] = false;
+function runTest(win, isXBLScope) {
+  for (var i in SpecialPowers.Components.interfaces) {
+    var s = i.toString();
+    var name = null;
+    if (s.indexOf("nsIDOM") == 0) {
+      name = s.substring("nsIDOM".length);
+    } else if (s.indexOf("nsI") == 0) {
+      name = s.substring("nsI".length);
+    }
+    if (name && (name in win)) {
+      ok(interfaceNamesInGlobalScope.indexOf(name) >= 0 ||
+         (isXBLScope && interfaceNamesInXBLScope.indexOf(name) >= 0),
+         "If this is failing: DANGER, are you sure you want to expose the new interface " + name + " to all webpages as a property on the window?");
     }
   }
-  for (var entry of interfaceNamesInGlobalScope) {
-    if (typeof(entry) === "string") {
-      interfaceMap[entry] = true;
-    } else if (entry.xbl === isXBLScope ||
-               entry.win === isWin ||
-               entry.android === isAndroid ||
-               entry.release === isRelease) {
-      interfaceMap[entry.name] = true;
-    } else {
-      interfaceMap[entry.name] = false;
-    }
-  }
-  return interfaceMap;
-}
-
-function runTest(isXBLScope) {
-  var interfaceMap = createInterfaceMap(isXBLScope);
-  for (var name of Object.getOwnPropertyNames(window)) {
-    // An interfae name should start with an upper case character.
-    if (!/^(moz)?[A-Z]/.test(name) ||
-        excludedNames.indexOf(name) >= 0) {
-      continue;
-    }
-    ok(interfaceMap[name],
-       "If this is failing: DANGER, are you sure you want to expose the new interface " + name + " to all webpages as a property on the window?");
-    delete interfaceMap[name];
-  }
-  for (var name of Object.keys(interfaceMap)) {
-    ok(name in window === interfaceMap[name],
-       name + " should " + (interfaceMap[name] ? "" : " NOT") + " be defined on the " + (isXBLScope ? "XBL" : "global") +" scope");
-    if (!interfaceMap[name]) {
-      delete interfaceMap[name];
-    }
-  }
-  if (isXBLScope) {
-    todo_is(Object.keys(interfaceMap).length, 0,
-            "The following interface(s) are not enumerated: " + Object.keys(interfaceMap).join(", "));
-  } else {
-    is(Object.keys(interfaceMap).length, 0,
-       "The following interface(s) are not enumerated: " + Object.keys(interfaceMap).join(", "));
+  for (var name of interfaceNamesInXBLScope) {
+    is(name in win, isXBLScope,
+       name + " should" + (isXBLScope ? "" : " NOT") + " be present in the global scope");
   }
 }
 
-runTest(false);
+runTest(window, false);
 SimpleTest.waitForExplicitFinish();
 
 </script>

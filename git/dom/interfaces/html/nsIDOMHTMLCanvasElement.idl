@@ -5,6 +5,11 @@
 
 #include "nsIDOMHTMLElement.idl"
 
+%{C++
+// for jsval
+#include "jsapi.h"
+%}
+
 /**
  * The nsIDOMHTMLCanvasElement interface is the interface to a HTML
  * <canvas> element.

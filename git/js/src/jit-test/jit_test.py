@@ -201,7 +201,7 @@ def main(argv):
             sys.exit(1)
 
         tc = job_list[0]
-        cmd = ['gdb', '--args'] + tc.command(prefix, jittests.LIB_DIR)
+        cmd = ['gdb', '--args'] + tc.command(prefix)
         subprocess.call(cmd)
         sys.exit()
 

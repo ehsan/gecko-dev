@@ -5196,14 +5196,12 @@ JS_ScheduleGC(JSContext *cx, uint32_t count);
 #endif
 
 extern JS_PUBLIC_API(void)
-JS_SetParallelParsingEnabled(JSContext *cx, bool enabled);
-
-extern JS_PUBLIC_API(void)
-JS_SetParallelIonCompilationEnabled(JSContext *cx, bool enabled);
+JS_SetParallelCompilationEnabled(JSContext *cx, bool enabled);
 
 typedef enum JSCompilerOption {
     JSCOMPILER_BASELINE_USECOUNT_TRIGGER,
-    JSCOMPILER_ION_USECOUNT_TRIGGER
+    JSCOMPILER_ION_USECOUNT_TRIGGER,
+    JSCOMPILER_PJS_ENABLE
 } JSCompilerOption;
 
 extern JS_PUBLIC_API(void)

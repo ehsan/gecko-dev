@@ -9,6 +9,7 @@
 #include "nsIDOMMessageEvent.h"
 #include "nsDOMEvent.h"
 #include "nsCycleCollectionParticipant.h"
+#include "jsapi.h"
 #include "mozilla/dom/MessageEventBinding.h"
 
 /**

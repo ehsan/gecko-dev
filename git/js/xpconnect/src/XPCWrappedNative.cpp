@@ -14,7 +14,6 @@
 #include "XPCLog.h"
 #include "nsINode.h"
 #include "XPCQuickStubs.h"
-#include "jsprf.h"
 #include "jsproxy.h"
 #include "AccessCheck.h"
 #include "WrapperFactory.h"

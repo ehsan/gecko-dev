@@ -16,7 +16,6 @@
 #include "nsIDocument.h"
 #include "nsIStreamListener.h"
 #include "nsWeakReference.h"
-#include "jsapi.h"
 #include "nsIChannelEventSink.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIInterfaceRequestor.h"

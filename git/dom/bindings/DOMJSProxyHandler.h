@@ -9,6 +9,9 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/Likely.h"
 
+#include "jsapi.h"
+#include "jsfriendapi.h"
+#include "jsproxy.h"
 #include "xpcpublic.h"
 #include "nsStringGlue.h"
 

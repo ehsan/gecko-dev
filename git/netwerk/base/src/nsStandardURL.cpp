@@ -284,9 +284,7 @@ nsStandardURL::~nsStandardURL()
 {
     LOG(("Destroying nsStandardURL @%p\n", this));
 
-    if (mHostA) {
-        free(mHostA);
-    }
+    CRTFREEIF(mHostA);
 #ifdef DEBUG_DUMP_URLS_AT_SHUTDOWN
     PR_REMOVE_LINK(&mDebugCList);
 #endif
@@ -377,10 +375,7 @@ nsStandardURL::InvalidateCache(bool invalidateCachedFile)
 {
     if (invalidateCachedFile)
         mFile = 0;
-    if (mHostA) {
-        free(mHostA);
-        mHostA = nullptr;
-    }
+    CRTFREEIF(mHostA);
     mSpecEncoding = eEncoding_Unknown;
 }
 
@@ -1748,7 +1743,7 @@ nsStandardURL::CloneInternal(nsStandardURL::RefHandlingEnum refHandlingMode,
     clone->mURLType = mURLType;
     clone->mParser = mParser;
     clone->mFile = mFile;
-    clone->mHostA = mHostA ? strdup(mHostA) : nullptr;
+    clone->mHostA = mHostA ? nsCRT::strdup(mHostA) : nullptr;
     clone->mMutable = true;
     clone->mSupportsFileURL = mSupportsFileURL;
     clone->mHostEncoding = mHostEncoding;

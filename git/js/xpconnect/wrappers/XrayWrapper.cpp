@@ -18,7 +18,6 @@
 #include "xpcprivate.h"
 
 #include "jsapi.h"
-#include "jsprf.h"
 #include "nsJSUtils.h"
 
 #include "mozilla/dom/BindingUtils.h"
