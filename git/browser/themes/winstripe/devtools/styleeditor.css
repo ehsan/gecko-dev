@@ -36,10 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#style-editor-chrome {
-  background-color: hsl(211,21%,26%);
-}
-
 .stylesheet-title,
 .stylesheet-name {
   text-decoration: none;

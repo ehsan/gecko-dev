@@ -37,8 +37,7 @@ const TEST_PAGE = "/browser/browser/base/content/test/dummy_page.html";
 var gTestTab, gBgTab, gTestZoom;
 
 function afterZoomAndLoad(aCallback, aTab) {
-  let didLoad = false;
-  let didZoom = false;
+  let didLoad = didZoom = false;
   aTab.linkedBrowser.addEventListener("load", function() {
     aTab.linkedBrowser.removeEventListener("load", arguments.callee, true);
     didLoad = true;

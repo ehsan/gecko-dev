@@ -1041,7 +1041,6 @@ pref("devtools.scratchpad.enabled", true);
 
 // Enable the Style Editor.
 pref("devtools.styleeditor.enabled", true);
-pref("devtools.styleeditor.transitions", true);
 
 // Enable tools for Chrome development.
 pref("devtools.chrome.enabled", false);
