@@ -9,6 +9,7 @@
 #include "jsobjinlines.h"
 
 #include "vm/String-inl.h"
+#include "vm/StringBuffer-inl.h"
 
 using namespace js;
 
@@ -46,8 +47,7 @@ StringBuffer::finishString()
         return cx->runtime->atomState.emptyAtom;
 
     size_t length = cb.length();
-    if (!JSString::validateLength(cx, length))
-        return NULL;
+    JS_ASSERT(checkLength(length));
 
     JS_STATIC_ASSERT(JSShortString::MAX_SHORT_LENGTH < CharBuffer::InlineLength);
     if (JSShortString::lengthFits(length))

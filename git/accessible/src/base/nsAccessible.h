@@ -62,7 +62,6 @@ class KeyBinding;
 class nsAccessible;
 class nsHyperTextAccessible;
 class nsHTMLImageAccessible;
-class nsHTMLImageMapAccessible;
 class nsHTMLLIAccessible;
 struct nsRoleMapEntry;
 class Relation;
@@ -455,12 +454,9 @@ public:
 
   inline bool IsHTMLListItem() const { return mFlags & eHTMLListItemAccessible; }
   nsHTMLLIAccessible* AsHTMLListItem();
-
+  
   inline bool IsImageAccessible() const { return mFlags & eImageAccessible; }
   nsHTMLImageAccessible* AsImage();
-
-  bool IsImageMapAccessible() const { return mFlags & eImageMapAccessible; }
-  nsHTMLImageMapAccessible* AsImageMap();
 
   inline bool IsListControl() const { return mFlags & eListControlAccessible; }
 
@@ -693,12 +689,11 @@ protected:
     eHTMLFileInputAccessible = 1 << 8,
     eHTMLListItemAccessible = 1 << 9,
     eImageAccessible = 1 << 10,
-    eImageMapAccessible = 1 << 11,
-    eListControlAccessible = 1 << 12,
-    eMenuButtonAccessible = 1 << 13,
-    eMenuPopupAccessible = 1 << 14,
-    eRootAccessible = 1 << 15,
-    eTextLeafAccessible = 1 << 16
+    eListControlAccessible = 1 << 11,
+    eMenuButtonAccessible = 1 << 12,
+    eMenuPopupAccessible = 1 << 13,
+    eRootAccessible = 1 << 14,
+    eTextLeafAccessible = 1 << 15
   };
 
   //////////////////////////////////////////////////////////////////////////////

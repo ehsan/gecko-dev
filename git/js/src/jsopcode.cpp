@@ -73,7 +73,6 @@
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/TokenStream.h"
 #include "vm/Debugger.h"
-#include "vm/StringBuffer.h"
 
 #include "jscntxtinlines.h"
 #include "jsobjinlines.h"
@@ -82,6 +81,7 @@
 #include "jsautooplen.h"
 
 #include "vm/RegExpObject-inl.h"
+#include "vm/StringBuffer-inl.h"
 
 using namespace mozilla;
 using namespace js;

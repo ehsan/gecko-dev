@@ -6,9 +6,9 @@
 
 #include "jsatom.h"
 
-#include "vm/StringBuffer.h"
-
 #include "jsobjinlines.h"
+
+#include "vm/StringBuffer-inl.h"
 
 BEGIN_TEST(testStringBuffer_finishString)
 {

@@ -45,6 +45,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMXPathNamespace.h"
 #include "nsXPathResult.h"
+#include "nsDOMError.h"
 #include "txURIUtils.h"
 #include "txXPathTreeWalker.h"
 

@@ -76,7 +76,6 @@
 #include "builtin/RegExp.h"
 #include "vm/GlobalObject.h"
 #include "vm/RegExpObject.h"
-#include "vm/StringBuffer.h"
 
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
@@ -88,6 +87,7 @@
 #include "vm/RegExpStatics-inl.h"
 #include "vm/StringObject-inl.h"
 #include "vm/String-inl.h"
+#include "vm/StringBuffer-inl.h"
 
 using namespace js;
 using namespace js::gc;

@@ -75,6 +75,7 @@
 #include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsIContentPolicy.h"
+#include "nsContentPolicyUtils.h"
 #include "nsEventDispatcher.h"
 #include "nsSVGEffects.h"
 

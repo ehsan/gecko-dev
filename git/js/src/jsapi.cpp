@@ -93,7 +93,6 @@
 #include "mozilla/Util.h"
 #include "yarr/BumpPointerAllocator.h"
 #include "vm/MethodGuard.h"
-#include "vm/StringBuffer.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
@@ -105,6 +104,7 @@
 #include "vm/RegExpStatics-inl.h"
 #include "vm/Stack-inl.h"
 #include "vm/String-inl.h"
+#include "vm/StringBuffer-inl.h"
 
 #if ENABLE_YARR_JIT
 #include "assembler/jit/ExecutableAllocator.h"

@@ -48,8 +48,6 @@
 
 #include "nsIObserver.h"
 
-class nsImageFrame;
-
 namespace mozilla {
 namespace a11y {
 
@@ -111,8 +109,6 @@ public:
     CreateHTMLHRAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   virtual already_AddRefed<nsAccessible>
     CreateHTMLImageAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
-    CreateHTMLImageMapAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   virtual already_AddRefed<nsAccessible>
     CreateHTMLLabelAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   virtual already_AddRefed<nsAccessible>
@@ -158,11 +154,6 @@ public:
   virtual void UpdateListBullet(nsIPresShell* aPresShell,
                                 nsIContent* aHTMLListItemContent,
                                 bool aHasBullet);
-
-  /**
-   * Update the image map.
-   */
-  void UpdateImageMap(nsImageFrame* aImageFrame);
 
   virtual void NotifyOfAnchorJumpTo(nsIContent *aTarget);
 

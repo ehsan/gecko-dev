@@ -76,6 +76,7 @@
 #include "nsIDOMScriptObjectFactory.h"
 #include "nsDOMCID.h"
 #include "nsUnicharUtils.h"
+#include "nsReadableUtils.h"
 #include "nsCRT.h"
 #include "nsXBLEventHandler.h"
 #include "nsXBLSerialize.h"

@@ -54,6 +54,7 @@
 #include "nsIDocument.h"
 #include "nsContentUtils.h"
 #include "nsIDOMElement.h"
+#include "nsGenericHTMLElement.h"
 #include "nsIHTMLCollection.h"
 #include "nsHTMLStyleSheet.h"
 #include "dombindings.h"
