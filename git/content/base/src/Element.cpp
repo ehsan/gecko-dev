@@ -1173,9 +1173,7 @@ Element::UnbindFromTree(bool aDeep, bool aNullParent)
       nsIDocument::UnlockPointer();
     }
     if (GetParent()) {
-      nsINode* p = mParent;
-      mParent = nullptr;
-      NS_RELEASE(p);
+      NS_RELEASE(mParent);
     } else {
       mParent = nullptr;
     }

@@ -6,8 +6,6 @@
 #ifndef OpusTrackEncoder_h_
 #define OpusTrackEncoder_h_
 
-#include <stdint.h>
-#include <speex/speex_resampler.h>
 #include "TrackEncoder.h"
 #include "nsCOMPtr.h"
 
@@ -38,12 +36,6 @@ private:
   } mEncoderState;
 
   /**
-   * Get the samplerate of the data to be fed to the Opus encoder. This might be
-   * different from the intput samplerate if resampling occurs.
-   */
-  int GetOutputSampleRate();
-
-  /**
    * The Opus encoder from libopus.
    */
   OpusEncoder* mEncoder;
@@ -62,12 +54,6 @@ private:
    * in order to align the time of input and output.
    */
   int mLookahead;
-
-  /**
-   * If the input sample rate does not divide 48kHz evenly, the input data are
-   * resampled.
-   */
-  SpeexResamplerState* mResampler;
 };
 
 }

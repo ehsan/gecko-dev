@@ -6,20 +6,16 @@ function results(results) {
     function next() {
         return results[i++];
     }
-    var iter = { next: next };
-    var ret = {};
-    ret[std_iterator] = function () { return iter; }
-    return ret;
+    return { next: next }
 }
 
 function* yield_results(expected, n) {
     return yield* n ? yield_results(expected, n - 1) : results(expected);
 }
 
-function collect_results(iterable) {
+function collect_results(iter) {
     var ret = [];
     var result;
-    var iter = iterable[std_iterator]();
     do {
         result = iter.next();
         ret.push(result);

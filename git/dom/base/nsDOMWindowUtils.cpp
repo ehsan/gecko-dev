@@ -2385,9 +2385,8 @@ nsDOMWindowUtils::GetIsTestControllingRefreshes(bool *aResult)
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  nsPresContext* pc = GetPresContext();
   *aResult =
-    pc ? pc->RefreshDriver()->IsTestControllingRefreshesEnabled() : false;
+    GetPresContext()->RefreshDriver()->IsTestControllingRefreshesEnabled();
 
   return NS_OK;
 }

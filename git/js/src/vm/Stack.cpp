@@ -281,8 +281,7 @@ StackFrame::prologue(JSContext *cx)
 
     if (isConstructing()) {
         RootedObject callee(cx, &this->callee());
-        JSObject *obj = CreateThisForFunction(cx, callee,
-                                              useNewType() ? SingletonObject : GenericObject);
+        JSObject *obj = CreateThisForFunction(cx, callee, useNewType());
         if (!obj)
             return false;
         functionThis() = ObjectValue(*obj);
@@ -428,9 +427,6 @@ StackFrame::markValues(JSTracer *trc, Value *sp)
         // Mark callee, |this| and arguments.
         unsigned argc = Max(numActualArgs(), numFormalArgs());
         gc::MarkValueRootRange(trc, argc + 2, argv_ - 2, "fp argv");
-    } else {
-        // Mark callee and |this|
-        gc::MarkValueRootRange(trc, 2, ((Value *)this) - 2, "stack callee and this");
     }
 }
 

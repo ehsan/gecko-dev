@@ -1066,13 +1066,11 @@ ReadTextHelper::GetSuccessResult(JSContext* aCx,
                                                 tmpString);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  JS::Rooted<JS::Value> rval(aCx);
-  if (!xpc::StringToJsval(aCx, tmpString, &rval)) {
+  if (!xpc::StringToJsval(aCx, tmpString, aVal)) {
     NS_WARNING("Failed to convert string!");
     return NS_ERROR_FAILURE;
   }
 
-  *aVal = rval;
   return NS_OK;
 }
 

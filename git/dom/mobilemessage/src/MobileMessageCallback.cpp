@@ -71,7 +71,8 @@ MobileMessageCallback::NotifySuccess(nsISupports *aMessage, bool aAsync)
   JSAutoCompartment ac(cx, global);
 
   JS::Rooted<JS::Value> wrappedMessage(cx);
-  rv = nsContentUtils::WrapNative(cx, global, aMessage, &wrappedMessage);
+  rv = nsContentUtils::WrapNative(cx, global, aMessage,
+                                  wrappedMessage.address());
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NotifySuccess(wrappedMessage, aAsync);

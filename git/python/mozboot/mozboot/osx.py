@@ -375,12 +375,7 @@ class OSXBootstrapper(BaseBootstrapper):
         self._ensure_package_manager_updated()
 
         if self.package_manager == 'homebrew':
-            try:
-                subprocess.check_output([self.brew, '-v', 'upgrade', package],
-                    stderr=subprocess.STDOUT)
-            except subprocess.CalledProcessError as e:
-                if 'already installed' not in e.output:
-                    raise
+            subprocess.check_call([self.brew, '-v', 'upgrade', package])
         else:
             assert self.package_manager == 'macports'
 

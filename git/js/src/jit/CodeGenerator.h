@@ -181,7 +181,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitPowD(LPowD *lir);
     bool visitRandom(LRandom *lir);
     bool visitMathFunctionD(LMathFunctionD *ins);
-    bool visitMathFunctionF(LMathFunctionF *ins);
     bool visitModD(LModD *ins);
     bool visitMinMaxI(LMinMaxI *lir);
     bool visitBinaryV(LBinaryV *lir);
@@ -344,7 +343,7 @@ class CodeGenerator : public CodeGeneratorSpecific
                              bool needsTypeBarrier);
     bool addSetElementCache(LInstruction *ins, Register obj, Register unboxIndex, Register temp,
                             FloatRegister tempFloat, ValueOperand index, ConstantOrRegister value,
-                            bool strict, bool guardHoles);
+                            bool strict);
     bool checkForAbortPar(LInstruction *lir);
 
     bool generateBranchV(const ValueOperand &value, Label *ifTrue, Label *ifFalse, FloatRegister fr);

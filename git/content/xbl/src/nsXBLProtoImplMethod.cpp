@@ -309,7 +309,7 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
   JS::Rooted<JS::Value> v(cx);
   nsresult rv =
-    nsContentUtils::WrapNative(cx, globalObject, aBoundElement, &v,
+    nsContentUtils::WrapNative(cx, globalObject, aBoundElement, v.address(),
                                getter_AddRefs(wrapper));
   NS_ENSURE_SUCCESS(rv, rv);
 
