@@ -169,8 +169,8 @@ private:
   void RegisterInputEvents();
   void UnregisterInputEvents();
 
-  // Hit testing for apz content
-  bool mNonApzTargetForTouch;
+  // Hit testing for chrome content
+  bool mChromeHitTestCacheForTouch;
   bool HitTestChrome(const LayoutDeviceIntPoint& pt);
 
   // Event processing helpers.  See function definitions for more info.
