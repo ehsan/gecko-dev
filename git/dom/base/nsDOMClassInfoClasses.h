@@ -433,7 +433,6 @@ DOMCI_CLASS(HTMLVideoElement)
 DOMCI_CLASS(HTMLSourceElement)
 DOMCI_CLASS(HTMLMediaError)
 DOMCI_CLASS(HTMLAudioElement)
-DOMCI_CLASS(HTMLTimeRanges)
 #endif
 
 DOMCI_CLASS(ProgressEvent)
@@ -448,8 +447,6 @@ DOMCI_CLASS(DataTransfer)
 DOMCI_CLASS(NotifyPaintEvent)
 
 DOMCI_CLASS(SimpleGestureEvent)
-
-DOMCI_CLASS(MozTouchEvent)
 
 #ifdef MOZ_MATHML
 DOMCI_CLASS(MathMLElement)

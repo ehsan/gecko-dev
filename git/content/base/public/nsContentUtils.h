@@ -69,7 +69,6 @@
 #include "nsIPrefBranch2.h"
 #include "mozilla/AutoRestore.h"
 #include "nsINode.h"
-#include "nsHashtable.h"
 
 #include "jsapi.h"
 
@@ -111,7 +110,6 @@ class nsIScriptContext;
 class nsIRunnable;
 class nsIInterfaceRequestor;
 template<class E> class nsCOMArray;
-template<class K, class V> class nsRefPtrHashtable;
 struct JSRuntime;
 class nsIUGenCategory;
 class nsIWidget;
@@ -121,7 +119,6 @@ class nsPIDOMEventTarget;
 class nsIPresShell;
 class nsIXPConnectJSObjectHolder;
 class nsPrefOldCallback;
-class nsPrefObserverHashKey;
 #ifdef MOZ_XTF
 class nsIXTFService;
 #endif
@@ -1497,14 +1494,12 @@ public:
   /**
    * Convert ASCII A-Z to a-z.
    */
-  static void ASCIIToLower(nsAString& aStr);
   static void ASCIIToLower(const nsAString& aSource, nsAString& aDest);
 
   /**
    * Convert ASCII a-z to A-Z.
    */
   static void ASCIIToUpper(nsAString& aStr);
-  static void ASCIIToUpper(const nsAString& aSource, nsAString& aDest);
 
   static nsIInterfaceRequestor* GetSameOriginChecker();
 
@@ -1716,8 +1711,7 @@ private:
 
   static nsIPrefBranch2 *sPrefBranch;
   // For old compatibility of RegisterPrefCallback
-  static nsRefPtrHashtable<nsPrefObserverHashKey, nsPrefOldCallback>
-    *sPrefCallbackTable;
+  static nsCOMArray<nsPrefOldCallback> *sPrefCallbackList;
 
   static bool sImgLoaderInitialized;
   static void InitImgLoader();

@@ -135,10 +135,8 @@ function test() {
 
   // test names array - NOTE: "bookmarkProperties/description" is an annotation too
   var names = testBookmark.annotations.names;
-  ok(names.some(function (f) f == "bookmarkProperties/description"), "Checking for description annotation");
-  ok(names.some(function (f) f == "testing/bookmark/string"), "Checking for string test annotation");
-  ok(names.some(function (f) f == "testing/bookmark/int"), "Checking for int test annotation");
-  ok(names.some(function (f) f == "testing/bookmark/double"), "Checking for double test annotation");
+  is(names[1], "testing/bookmark/string", "Checking contents of annotation names array");
+  is(names.length, 4, "Checking the annotation names array after adding 3 annotations");
 
   // test adding a separator
   var testSeparator = testFolder.addSeparator();

@@ -269,7 +269,8 @@ nsHTMLCanvasFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   layer->SetTransform(gfx3DMatrix::From2D(transform));
   layer->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
 
-  return layer.forget();
+  nsRefPtr<Layer> result = layer.forget();
+  return result.forget();
 }
 
 NS_IMETHODIMP

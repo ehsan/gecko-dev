@@ -86,44 +86,27 @@ HistoryEngine.prototype = {
 
 function HistoryStore(name) {
   Store.call(this, name);
-
-  // Explicitly nullify our references to our cached services so we don't leak
-  Observers.add("places-shutdown", function() {
-    for each([query, stmt] in Iterator(this._stmts))
-      stmt.finalize();
-    this.__hsvc = null;
-    this._stmts = [];
-  }, this);
 }
 HistoryStore.prototype = {
   __proto__: Store.prototype,
 
-  __hsvc: null,
   get _hsvc() {
-    if (!this.__hsvc)
-      this.__hsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
-                    getService(Ci.nsINavHistoryService).
-                    QueryInterface(Ci.nsIGlobalHistory2).
-                    QueryInterface(Ci.nsIBrowserHistory).
-                    QueryInterface(Ci.nsPIPlacesDatabase);
-    return this.__hsvc;
+    let hsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
+      getService(Ci.nsINavHistoryService);
+    hsvc.QueryInterface(Ci.nsIGlobalHistory2);
+    hsvc.QueryInterface(Ci.nsIBrowserHistory);
+    hsvc.QueryInterface(Ci.nsPIPlacesDatabase);
+    this.__defineGetter__("_hsvc", function() hsvc);
+    return hsvc;
   },
 
   get _db() {
     return this._hsvc.DBConnection;
   },
 
-  _stmts: [],
-  _getStmt: function(query) {
-    if (query in this._stmts)
-      return this._stmts[query];
-
-    this._log.trace("Creating SQL statement: " + query);
-    return this._stmts[query] = this._db.createStatement(query);
-  },
-
   get _visitStm() {
-    return this._getStmt(
+    this._log.trace("Creating SQL statement: _visitStm");
+    let stm = this._db.createStatement(
       "SELECT visit_type type, visit_date date " +
       "FROM moz_historyvisits_view " +
       "WHERE place_id = (" +
@@ -131,10 +114,13 @@ HistoryStore.prototype = {
         "FROM moz_places_view " +
         "WHERE url = :url) " +
       "ORDER BY date DESC LIMIT 10");
+    this.__defineGetter__("_visitStm", function() stm);
+    return stm;
   },
 
   get _urlStm() {
-    return this._getStmt(
+    this._log.trace("Creating SQL statement: _urlStm");
+    let stm = this._db.createStatement(
       "SELECT url, title, frecency " +
       "FROM moz_places_view " +
       "WHERE id = (" +
@@ -144,15 +130,20 @@ HistoryStore.prototype = {
           "SELECT id " +
           "FROM moz_anno_attributes " +
           "WHERE name = '" + GUID_ANNO + "'))");
+    this.__defineGetter__("_urlStm", function() stm);
+    return stm;
   },
 
   get _allUrlStm() {
-    return this._getStmt(
+    this._log.trace("Creating SQL statement: _allUrlStm");
+    let stm = this._db.createStatement(
       "SELECT url " +
       "FROM moz_places_view " +
       "WHERE last_visit_date > :cutoff_date " +
       "ORDER BY frecency DESC " +
       "LIMIT :max_results");
+    this.__defineGetter__("_allUrlStm", function() stm);
+    return stm;
   },
 
   // See bug 320831 for why we use SQL here

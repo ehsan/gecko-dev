@@ -335,6 +335,9 @@ function BuildConditionSandbox(aURL) {
       sandbox.xulRuntime.XPCOMABI = "";
     }
 
+    // Backwards compatibility from when we preprocessed autoconf.mk.
+    sandbox.MOZ_WIDGET_TOOLKIT = xr.widgetToolkit;
+
     // Shortcuts for widget toolkits.
     sandbox.cocoaWidget = xr.widgetToolkit == "cocoa";
     sandbox.gtk2Widget = xr.widgetToolkit == "gtk2";
@@ -851,17 +854,8 @@ function OnDocumentLoad(event)
             .getInterface(CI.nsIDOMWindowUtils);
 
         function FlushRendering() {
-            function flushWindow(win) {
-                try {
-                    win.document.documentElement.getBoundingClientRect();
-                } catch (e) {}
-                for (var i = 0; i < win.frames.length; ++i) {
-                    flushWindow(win.frames[i]);
-                }
-            }
-                
             // Flush pending restyles and reflows
-            flushWindow(contentRootElement.ownerDocument.defaultView);
+            contentRootElement.getBoundingClientRect();
             // Flush out invalidation
             utils.processUpdates();
         }

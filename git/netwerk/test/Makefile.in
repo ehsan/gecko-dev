@@ -47,7 +47,6 @@ MODULE		= test_necko
 
 DIRS            = \
                   httpserver \
-                  browser \
                   $(NULL)
 
 

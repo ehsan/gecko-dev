@@ -49,18 +49,8 @@ ContainerLayerOGL::ContainerLayerOGL(LayerManagerOGL *aManager)
 
 ContainerLayerOGL::~ContainerLayerOGL()
 {
-  Destroy();
-}
-
-void
-ContainerLayerOGL::Destroy()
-{
-  if (!mDestroyed) {
-    while (mFirstChild) {
-      GetFirstChildOGL()->Destroy();
-      RemoveChild(mFirstChild);
-    }
-    mDestroyed = PR_TRUE;
+  while (mFirstChild) {
+    RemoveChild(mFirstChild);
   }
 }
 

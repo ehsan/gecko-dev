@@ -566,7 +566,7 @@ public:
     virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
     virtual PRInt32 IntrinsicState() const;
 
-    nsresult EnsureLocalStyle();
+    nsresult GetStyle(nsIDOMCSSStyleDeclaration** aStyle);
 
     nsresult GetFrameLoader(nsIFrameLoader** aFrameLoader);
     already_AddRefed<nsFrameLoader> GetFrameLoader();

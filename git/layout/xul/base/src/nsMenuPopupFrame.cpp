@@ -1157,7 +1157,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame, PRBool aIsMove)
     hFlip = vFlip = PR_FALSE;
   }
 
-  nsRect screenRect = GetConstraintRect(anchorRect, rootScreenRect);
+  nsRect screenRect = GetConstraintRect(anchorRect.TopLeft(), rootScreenRect);
 
   // ensure that anchorRect is on screen
   if (!anchorRect.IntersectRect(anchorRect, screenRect)) {
@@ -1235,8 +1235,7 @@ nsMenuPopupFrame::GetCurrentMenuItem()
 }
 
 nsRect
-nsMenuPopupFrame::GetConstraintRect(const nsRect& aAnchorRect,
-                                    const nsRect& aRootScreenRect)
+nsMenuPopupFrame::GetConstraintRect(nsPoint aAnchorPoint, nsRect& aRootScreenRect)
 {
   nsIntRect screenRectPixels;
   nsPresContext* presContext = PresContext();
@@ -1251,12 +1250,10 @@ nsMenuPopupFrame::GetConstraintRect(const nsRect& aAnchorRect,
     // This is because we need to constrain the content to this content area,
     // so we should use the same screen. Otherwise, use the screen where the
     // anchor is located.
-    nsRect rect = mInContentShell ? aRootScreenRect : aAnchorRect;
-    PRInt32 width = rect.width > 0 ? presContext->AppUnitsToDevPixels(rect.width) : 1;
-    PRInt32 height = rect.height > 0 ? presContext->AppUnitsToDevPixels(rect.height) : 1;
-    sm->ScreenForRect(presContext->AppUnitsToDevPixels(rect.x),
-                      presContext->AppUnitsToDevPixels(rect.y),
-                      width, height, getter_AddRefs(screen));
+    nsPoint pnt = mInContentShell ? aRootScreenRect.TopLeft() : aAnchorPoint;
+    sm->ScreenForRect(presContext->AppUnitsToDevPixels(pnt.x),
+                      presContext->AppUnitsToDevPixels(pnt.y),
+                      1, 1, getter_AddRefs(screen));
     if (screen) {
       // get the total screen area if the popup is allowed to overlap it.
       if (mMenuCanOverlapOSBar && !mInContentShell)

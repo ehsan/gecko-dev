@@ -107,7 +107,6 @@ nsHttpChannel::nsHttpChannel()
     , mFallingBack(PR_FALSE)
     , mWaitingForRedirectCallback(PR_FALSE)
     , mRemoteChannel(PR_FALSE)
-    , mRequestTimeInitialized(PR_FALSE)
 {
     LOG(("Creating nsHttpChannel [this=%p]\n", this));
 }
@@ -521,7 +520,6 @@ nsHttpChannel::SetupTransaction()
 
     // set the request time for cache expiration calculations
     mRequestTime = NowInSeconds();
-    mRequestTimeInitialized = PR_TRUE;
 
     // if doing a reload, force end-to-end
     if (mLoadFlags & LOAD_BYPASS_CACHE) {
@@ -3044,7 +3042,6 @@ nsHttpChannel::ContinueProcessRedirectionAfterFallback(nsresult rv)
 nsresult
 nsHttpChannel::ContinueProcessRedirection(nsresult rv)
 {
-    LOG(("ContinueProcessRedirection [rv=%x]\n", rv));
     if (NS_FAILED(rv))
         return rv;
 
@@ -3711,10 +3708,8 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
     mStatus = status;
 
     // perform any final cache operations before we close the cache entry.
-    if (mCacheEntry && (mCacheAccess & nsICache::ACCESS_WRITE) &&
-        mRequestTimeInitialized){
+    if (mCacheEntry && (mCacheAccess & nsICache::ACCESS_WRITE))
         FinalizeCacheEntry();
-    }
     
     if (mListener) {
         LOG(("  calling OnStopRequest\n"));
@@ -4367,9 +4362,6 @@ nsHttpChannel::WaitForRedirectCallback()
 NS_IMETHODIMP
 nsHttpChannel::OnRedirectVerifyCallback(nsresult result)
 {
-    LOG(("nsHttpChannel::OnRedirectVerifyCallback [this=%p] "
-         "result=%x stack=%d mWaitingForRedirectCallback=%u\n",
-         this, result, mRedirectFuncStack.Length(), mWaitingForRedirectCallback));
     NS_ASSERTION(mWaitingForRedirectCallback,
                  "Someone forgot to call WaitForRedirectCallback() ?!");
     mWaitingForRedirectCallback = PR_FALSE;

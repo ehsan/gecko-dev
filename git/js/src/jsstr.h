@@ -1011,8 +1011,22 @@ js_short_strncpy(jschar *dest, const jschar *src, size_t num)
      * is currently only called on buffers for short strings.
      */
     JS_ASSERT(JSShortString::fitsIntoShortString(num));
-    for (size_t i = 0; i < num; i++)
-        dest[i] = src[i];
+    switch (num) {
+      case 1:
+        *dest = *src;
+        break;
+      case 2:
+        JS_ASSERT(sizeof(uint32) == 2 * sizeof(jschar));
+        *(uint32 *)dest = *(uint32 *)src;
+        break;
+      case 4:
+        JS_ASSERT(sizeof(uint64) == 4 * sizeof(jschar));
+        *(uint64 *)dest = *(uint64 *)src;
+        break;
+      default:
+        for (size_t i = 0; i < num; i++)
+            dest[i] = src[i];
+    }
 }
 
 /*

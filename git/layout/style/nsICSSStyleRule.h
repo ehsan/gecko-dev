@@ -292,10 +292,11 @@ private:
   nsCSSSelectorList& operator=(const nsCSSSelectorList& aCopy); 
 };
 
-// 0512253d-ff15-45e7-abe8-f086ddb56762
+// 86354e96-99a5-4e73-89ad-e17f7771c47b
 #define NS_ICSS_STYLE_RULE_IID \
-{ 0x0512253d, 0xff15, 0x45e7,  \
-  { 0xab, 0xe8, 0xf0, 0x86, 0xdd, 0xb5, 0x67, 0x62 } }
+{ 0x86354e96, 0x99a5, 0x4e73, \
+ { 0x89, 0xad, 0xe1, 0x7f, 0x77, 0x71, 0xc4, 0x7b } }
+
 
 class nsICSSStyleRule : public nsICSSRule {
 public:
@@ -310,17 +311,16 @@ public:
   virtual mozilla::css::Declaration* GetDeclaration(void) const = 0;
 
   /**
-   * Return a new |nsIStyleRule| instance that replaces the current
-   * one, with |aDecl| replacing the previous declaration. Due to the
-   * |nsIStyleRule| contract of immutability, this must be called if
-   * the declaration is modified.
+   * Return a new |nsIStyleRule| instance that replaces the current one,
+   * due to a change in the declaration.  Due to the |nsIStyleRule|
+   * contract of immutability, this must be called if the declaration
+   * is modified.
    *
    * |DeclarationChanged| handles replacing the object in the container
    * sheet or group rule if |aHandleContainer| is true.
    */
   virtual already_AddRefed<nsICSSStyleRule>
-  DeclarationChanged(mozilla::css::Declaration* aDecl,
-                     PRBool aHandleContainer) = 0;
+    DeclarationChanged(PRBool aHandleContainer) = 0;
 
   /**
    * The rule processor must call this method before calling
@@ -339,8 +339,9 @@ public:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsICSSStyleRule, NS_ICSS_STYLE_RULE_IID)
 
-already_AddRefed<nsICSSStyleRule>
-NS_NewCSSStyleRule(nsCSSSelectorList* aSelector,
+nsresult
+NS_NewCSSStyleRule(nsICSSStyleRule** aInstancePtrResult,
+                   nsCSSSelectorList* aSelector,
                    mozilla::css::Declaration* aDeclaration);
 
 #endif /* nsICSSStyleRule_h___ */
