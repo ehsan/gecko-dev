@@ -127,9 +127,7 @@ CustomizeMode.prototype = {
     // We don't need to switch to kAboutURI, or open a new tab at
     // kAboutURI if we're already on it.
     if (this.browser.selectedBrowser.currentURI.spec != kAboutURI) {
-      this.window.switchToTabHavingURI(kAboutURI, true, {
-        skipTabAnimation: true,
-      });
+      this.window.switchToTabHavingURI(kAboutURI, true);
       return;
     }
 
@@ -1370,10 +1368,6 @@ CustomizeMode.prototype = {
         // The items in the palette are wrapped, so we need the target node's parent here:
         this.visiblePalette.insertBefore(draggedItem, aTargetNode.parentNode);
       }
-      if (aOriginArea.id !== kPaletteId) {
-        // The dragend event already fires when the item moves within the palette.
-        this._onDragEnd(aEvent);
-      }
       return;
     }
 
@@ -1411,7 +1405,6 @@ CustomizeMode.prototype = {
       // an area.
       let custEventType = aOriginArea.id == kPaletteId ? "add" : "move";
       BrowserUITelemetry.countCustomizationEvent(custEventType);
-      this._onDragEnd(aEvent);
       return;
     }
 
@@ -1448,8 +1441,6 @@ CustomizeMode.prototype = {
       CustomizableUI.addWidgetToArea(aDraggedItemId, aTargetArea.id, position);
     }
 
-    this._onDragEnd(aEvent);
-
     // For BrowserUITelemetry, an "add" is only when we move an item from the palette
     // into an area. Otherwise, it's a move.
     let custEventType = aOriginArea.id == kPaletteId ? "add" : "move";
@@ -1481,17 +1472,14 @@ CustomizeMode.prototype = {
     }
   },
 
-  /**
-   * To workaround bug 460801 we manually forward the drop event here when dragend wouldn't be fired.
-   */
   _onDragEnd: function(aEvent) {
     if (this._isUnwantedDragDrop(aEvent)) {
       return;
     }
     this._initializeDragAfterMove = null;
     this.window.clearTimeout(this._dragInitializeTimeout);
-    __dumpDragData(aEvent, "_onDragEnd");
 
+    __dumpDragData(aEvent);
     let document = aEvent.target.ownerDocument;
     document.documentElement.removeAttribute("customizing-movingItem");
 
@@ -1863,7 +1851,7 @@ function __dumpDragData(aEvent, caller) {
   if (!gDebug) {
     return;
   }
-  let str = "Dumping drag data (" + (caller ? caller + " in " : "") + "CustomizeMode.jsm) {\n";
+  let str = "Dumping drag data (CustomizeMode.jsm) {\n";
   str += "  type: " + aEvent["type"] + "\n";
   for (let el of ["target", "currentTarget", "relatedTarget"]) {
     if (aEvent[el]) {

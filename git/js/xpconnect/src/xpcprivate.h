@@ -3620,9 +3620,9 @@ DefineStaticJSVals(JSContext *cx);
 } // namespace dom
 } // namespace mozilla
 
-bool
+NS_EXPORT_(bool)
 xpc_LocalizeRuntime(JSRuntime *rt);
-void
+NS_EXPORT_(void)
 xpc_DelocalizeRuntime(JSRuntime *rt);
 
 /***************************************************************************/
