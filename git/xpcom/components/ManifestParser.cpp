@@ -90,8 +90,6 @@ struct ManifestDirective
 static const ManifestDirective kParsingTable[] = {
   { "binary-component", 1, true, false, false,
     &nsComponentManagerImpl::ManifestBinaryComponent, NULL },
-  { "xpt",              1, true, false, false,
-    &nsComponentManagerImpl::ManifestXPT, NULL },
   { "component",        2, true, false, false,
     &nsComponentManagerImpl::ManifestComponent, NULL },
   { "contract",         2, true, false, false,
