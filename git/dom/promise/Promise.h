@@ -83,10 +83,12 @@ public:
          JS::Handle<JS::Value> aValue, ErrorResult& aRv);
 
   already_AddRefed<Promise>
-  Then(AnyCallback* aResolveCallback, AnyCallback* aRejectCallback);
+  Then(const Optional<nsRefPtr<AnyCallback>>& aResolveCallback,
+       const Optional<nsRefPtr<AnyCallback>>& aRejectCallback);
+
 
   already_AddRefed<Promise>
-  Catch(AnyCallback* aRejectCallback);
+  Catch(const Optional<nsRefPtr<AnyCallback>>& aRejectCallback);
 
   // FIXME(nsm): Bug 956197
   static already_AddRefed<Promise>

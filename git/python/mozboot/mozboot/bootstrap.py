@@ -33,9 +33,7 @@ Or, if you prefer Git:
 class Bootstrapper(object):
     """Main class that performs system bootstrap."""
 
-    def __init__(self, finished=FINISHED):
-        self.instance = None
-        self.finished = finished
+    def bootstrap(self):
         cls = None
         args = {}
 
@@ -87,12 +85,9 @@ class Bootstrapper(object):
             raise NotImplementedError('Bootstrap support is not yet available '
                                       'for your OS.')
 
-        self.instance = cls(**args)
+        instance = cls(**args)
+        instance.install_system_packages()
+        instance.ensure_mercurial_modern()
+        instance.ensure_python_modern()
 
-
-    def bootstrap(self):
-        self.instance.install_system_packages()
-        self.instance.ensure_mercurial_modern()
-        self.instance.ensure_python_modern()
-
-        print(self.finished)
+        print(FINISHED)

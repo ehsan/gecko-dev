@@ -245,7 +245,7 @@ gTests.push({
   run: function () {
     let mozTab = yield addTab("about:mozilla");
 
-    yield hideNavBar();
+    // addTab will dismiss navbar, but lets check anyway.
     ok(!ContextUI.navbarVisible, "navbar dismissed");
 
     BrowserUI.doCommand("cmd_newTab");

@@ -11,8 +11,6 @@
 // have different types for "platform-provided function" and "user-provided
 // function"; for now, we just use "object".
 callback PromiseInit = void (object resolve, object reject);
-
-[TreatNonCallableAsNull]
 callback AnyCallback = any (any value);
 
 [Func="mozilla::dom::Promise::EnabledForScope", Constructor(PromiseInit init)]
@@ -29,14 +27,12 @@ interface Promise {
   [NewObject, Throws, Func="mozilla::dom::Promise::EnabledForScope"]
   static Promise reject(optional any value);
 
-  // The [TreatNonCallableAsNull] annotation is required since then() should do
-  // nothing instead of throwing errors when non-callable arguments are passed.
   [NewObject]
-  Promise then([TreatNonCallableAsNull] optional AnyCallback? fulfillCallback = null,
-               [TreatNonCallableAsNull] optional AnyCallback? rejectCallback = null);
+  Promise then(optional AnyCallback? fulfillCallback,
+               optional AnyCallback? rejectCallback);
 
   [NewObject]
-  Promise catch([TreatNonCallableAsNull] optional AnyCallback? rejectCallback = null);
+  Promise catch(optional AnyCallback? rejectCallback);
 
   [NewObject, Throws, Func="mozilla::dom::Promise::EnabledForScope"]
   static Promise all(sequence<any> iterable);
