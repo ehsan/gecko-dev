@@ -39,7 +39,6 @@ function test() {
     OnHistoryGoForward: function () true,
     OnHistoryGotoIndex: function () true,
     OnHistoryPurge: function () true,
-    OnHistoryReplaceEntry: function () true,
 
     QueryInterface: XPCOMUtils.generateQI([Ci.nsISHistoryListener,
                                            Ci.nsISupportsWeakReference])

@@ -72,7 +72,9 @@ nsresult nsMathMLmencloseFrame::AllocateMathMLChar(nsMencloseNotation mask)
 
   nsPresContext *presContext = PresContext();
   mMathMLChar[i].SetData(presContext, Char);
-  ResolveMathMLCharStyle(presContext, mContent, mStyleContext, &mMathMLChar[i]);
+  ResolveMathMLCharStyle(presContext, mContent, mStyleContext,
+                         &mMathMLChar[i],
+                         true);
 
   return NS_OK;
 }

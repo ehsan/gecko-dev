@@ -104,6 +104,7 @@ class nsWindowSizes;
 
 namespace mozilla {
 class DOMEventTargetHelper;
+class Selection;
 namespace dom {
 class BarProp;
 class Console;
@@ -113,7 +114,6 @@ class Gamepad;
 class MediaQueryList;
 class Navigator;
 class OwningExternalOrWindowProxy;
-class Selection;
 class SpeechSynthesis;
 class WakeLock;
 namespace indexedDB {
@@ -882,7 +882,7 @@ public:
             mozilla::ErrorResult& aError);
   nsIDOMStorage* GetSessionStorage(mozilla::ErrorResult& aError);
   nsIDOMStorage* GetLocalStorage(mozilla::ErrorResult& aError);
-  mozilla::dom::Selection* GetSelection(mozilla::ErrorResult& aError);
+  mozilla::Selection* GetSelection(mozilla::ErrorResult& aError);
   mozilla::dom::indexedDB::IDBFactory* GetIndexedDB(mozilla::ErrorResult& aError);
   already_AddRefed<nsICSSDeclaration>
     GetComputedStyle(mozilla::dom::Element& aElt, const nsAString& aPseudoElt,

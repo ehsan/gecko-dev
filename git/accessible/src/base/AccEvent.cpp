@@ -12,7 +12,7 @@
 #include "States.h"
 
 #include "mozilla/EventStateManager.h"
-#include "mozilla/dom/Selection.h"
+#include "mozilla/Selection.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -127,7 +127,7 @@ AccShowEvent::
 ////////////////////////////////////////////////////////////////////////////////
 
 AccTextSelChangeEvent::AccTextSelChangeEvent(HyperTextAccessible* aTarget,
-                                             dom::Selection* aSelection,
+                                             Selection* aSelection,
                                              int32_t aReason) :
   AccEvent(nsIAccessibleEvent::EVENT_TEXT_SELECTION_CHANGED, aTarget,
            eAutoDetect, eCoalesceTextSelChange),

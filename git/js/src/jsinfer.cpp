@@ -4025,8 +4025,7 @@ ConstraintTypeSet::sweep(Zone *zone, bool *oom)
                     *oom = true;
                     flags |= TYPE_FLAG_ANYOBJECT;
                     clearObjects();
-                    objectCount = 0;
-                    break;
+                    return;
                 }
             }
         }

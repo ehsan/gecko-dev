@@ -321,6 +321,7 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     UNSAFE_OP(AsmJSPassStackArg)
     UNSAFE_OP(AsmJSParameter)
     UNSAFE_OP(AsmJSCall)
+    UNSAFE_OP(AsmJSCheckOverRecursed)
     DROP_OP(RecompileCheck)
 
     // It looks like this could easily be made safe:

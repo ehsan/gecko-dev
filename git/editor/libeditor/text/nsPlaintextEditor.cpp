@@ -6,7 +6,7 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/Selection.h"
+#include "mozilla/Selection.h"
 #include "mozilla/TextComposition.h"
 #include "mozilla/TextEvents.h"
 #include "mozilla/dom/Element.h"
@@ -64,7 +64,6 @@ class nsISupports;
 class nsISupportsArray;
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 nsPlaintextEditor::nsPlaintextEditor()
 : nsEditor()

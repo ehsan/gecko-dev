@@ -59,7 +59,7 @@ nsMathMLmrootFrame::Init(nsIContent*      aContent,
   // up-to-date if dynamic changes arise.
   nsAutoString sqrChar; sqrChar.Assign(kSqrChar);
   mSqrChar.SetData(presContext, sqrChar);
-  ResolveMathMLCharStyle(presContext, mContent, mStyleContext, &mSqrChar);
+  ResolveMathMLCharStyle(presContext, mContent, mStyleContext, &mSqrChar, true);
 }
 
 NS_IMETHODIMP

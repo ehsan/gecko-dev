@@ -369,7 +369,6 @@ HistoryListener.prototype = {
   OnHistoryGoForward: function(forwardURI) { return true; },
   OnHistoryGotoIndex: function(index, gotoURI) { return true; },
   OnHistoryPurge: function(numEntries) { return true; },
-  OnHistoryReplaceEntry: function(index) {},
 
   OnHistoryReload: function(reloadURI, reloadFlags) {
     this.callback();

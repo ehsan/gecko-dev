@@ -92,6 +92,11 @@ public:
                    float*                aLeadingSpace,
                    float*                aTrailingSpace);
 
+  // IsMutableOperator:
+  // Return true if the operator exists and is stretchy or largeop
+  static bool
+  IsMutableOperator(const nsString& aOperator);
+
   // Helper functions used by the nsMathMLChar class.
   static bool
   IsMirrorableOperator(const nsString& aOperator);

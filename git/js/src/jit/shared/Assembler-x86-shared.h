@@ -114,7 +114,7 @@ class Operand
     }
 };
 
-class AssemblerX86Shared : public AssemblerShared
+class AssemblerX86Shared
 {
   protected:
     struct RelativePatch {
@@ -131,6 +131,7 @@ class AssemblerX86Shared : public AssemblerShared
 
     Vector<CodeLabel, 0, SystemAllocPolicy> codeLabels_;
     Vector<RelativePatch, 8, SystemAllocPolicy> jumps_;
+    AsmJSAbsoluteLinkVector asmJSAbsoluteLinks_;
     CompactBufferWriter jumpRelocations_;
     CompactBufferWriter dataRelocations_;
     CompactBufferWriter preBarriers_;
@@ -290,6 +291,13 @@ class AssemblerX86Shared : public AssemblerShared
     }
     CodeLabel codeLabel(size_t i) {
         return codeLabels_[i];
+    }
+
+    size_t numAsmJSAbsoluteLinks() const {
+        return asmJSAbsoluteLinks_.length();
+    }
+    const AsmJSAbsoluteLink &asmJSAbsoluteLink(size_t i) const {
+        return asmJSAbsoluteLinks_[i];
     }
 
     // Size of the instruction stream, in bytes.

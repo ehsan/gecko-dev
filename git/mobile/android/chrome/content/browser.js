@@ -4250,11 +4250,6 @@ Tab.prototype = {
     return true;
   },
 
-  OnHistoryReplaceEntry: function(aIndex) {
-    // we don't do anything with this, so don't propogate it
-    // for now anyway.
-  },
-
   get metadata() {
     return ViewportHandler.getMetadataForDocument(this.browser.contentDocument);
   },

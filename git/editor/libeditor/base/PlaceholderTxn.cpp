@@ -7,10 +7,9 @@
 #include "nsEditor.h"
 #include "IMETextTxn.h"
 #include "nsGkAtoms.h"
-#include "mozilla/dom/Selection.h"
+#include "mozilla/Selection.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 PlaceholderTxn::PlaceholderTxn() :  EditAggregateTxn(), 
                                     mAbsorb(true), 

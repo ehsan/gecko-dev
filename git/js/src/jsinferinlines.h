@@ -114,7 +114,7 @@ inline Type
 GetMaybeOptimizedOutValueType(const Value &val)
 {
     if (val.isMagic() && val.whyMagic() == JS_OPTIMIZED_OUT)
-        return Type::UnknownType();
+        return Type::UndefinedType();
     return GetValueType(val);
 }
 

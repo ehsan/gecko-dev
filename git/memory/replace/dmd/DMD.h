@@ -78,10 +78,6 @@ struct Sizes
 MOZ_EXPORT void
 SizeOf(Sizes* aSizes);
 
-// Indicates whether or not DMD is enabled.
-MOZ_EXPORT bool
-IsEnabled();
-
 } // namespace mozilla
 } // namespace dmd
 

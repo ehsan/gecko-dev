@@ -260,7 +260,8 @@ class Assembler : public AssemblerX86Shared
     }
     void mov(AsmJSImmPtr imm, Register dest) {
         masm.movl_i32r(-1, dest.code());
-        enoughMemory_ &= append(AsmJSAbsoluteLink(masm.currentOffset(), imm.kind()));
+        AsmJSAbsoluteLink link(masm.currentOffset(), imm.kind());
+        enoughMemory_ &= asmJSAbsoluteLinks_.append(link);
     }
     void mov(const Operand &src, const Register &dest) {
         movl(src, dest);
@@ -341,7 +342,8 @@ class Assembler : public AssemblerX86Shared
     }
     void cmpl(const AsmJSAbsoluteAddress &lhs, const Register &rhs) {
         masm.cmpl_rm_force32(rhs.code(), (void*)-1);
-        enoughMemory_ &= append(AsmJSAbsoluteLink(masm.currentOffset(), lhs.kind()));
+        AsmJSAbsoluteLink link(masm.currentOffset(), lhs.kind());
+        enoughMemory_ &= asmJSAbsoluteLinks_.append(link);
     }
     CodeOffsetLabel cmplWithPatch(const Register &lhs, Imm32 rhs) {
         masm.cmpl_ir_force32(rhs.value, lhs.code());

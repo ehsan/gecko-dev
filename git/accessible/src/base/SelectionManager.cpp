@@ -14,12 +14,11 @@
 #include "nsIAccessibleTypes.h"
 #include "nsIDOMDocument.h"
 #include "nsIPresShell.h"
-#include "mozilla/dom/Selection.h"
+#include "mozilla/Selection.h"
 #include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
-using mozilla::dom::Selection;
 
 struct mozilla::a11y::SelData MOZ_FINAL
 {

@@ -29,6 +29,8 @@ MIRGenerator::MIRGenerator(CompileCompartment *compartment, const JitCompileOpti
     maxAsmJSStackArgBytes_(0),
     performsCall_(false),
     performsAsmJSCall_(false),
+    asmJSHeapAccesses_(*alloc),
+    asmJSGlobalAccesses_(*alloc),
     minAsmJSHeapLength_(AsmJSAllocationGranularity),
     modifiesFrameArguments_(false),
     options(options)
